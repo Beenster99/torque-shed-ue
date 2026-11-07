@@ -160,6 +160,8 @@ class Props:
                 if (name == prefix[:-1]) if prefix.endswith(".") else name.startswith(prefix):
                     mat = m
             info[name] = {"material": mat, "triangles": nt}
+            if name.startswith("SM_Scree"):
+                info[name]["shadow"] = False   # small stones: their shadows aren't worth the shadow-map pages
         js = {"about": "Instances of the meshes in Props/ (Tools/buttertubs_detail.py). Each is Unreal "
                        "[x, y, z] cm, [pitch, yaw, roll] degrees, [sx, sy, sz] along the mesh's Unreal axes.",
               "meshes": info, "instances": {k: v for k, v in sorted(self.inst.items())}}

@@ -1268,6 +1268,25 @@ def import_props():
     return meshes, spec
 
 
+def noise_texture():
+    """Data/Textures/Noise/color.png: three tiling noises (R fine, G broad, B finer), made once in
+    numpy. A texture sample is far cheaper per pixel than the material Noise node."""
+    path = TEX_DEST + "/Noise/T_Noise"
+    f = os.path.join(os.path.dirname(data_dir()), "Textures", "Noise", "color.png")
+    if not os.path.exists(f):
+        return None
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", TEX_DEST + "/Noise"), ("destination_name", "T_Noise"),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    asset_tools.import_asset_tasks([t])
+    tex = unreal.load_asset(path)
+    if tex:
+        tex.set_editor_property("srgb", False)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
 def instanced_usage(m):
     """Instanced Nanite meshes need these usage flags set on the material for a packaged build."""
     try_set(m, "used_with_instanced_static_meshes", True)
@@ -1302,8 +1321,18 @@ def stone_material(tex, roles):
     st = g.mix(stone, bare, vc, alpha_out="G")
     bright = g.op(unreal.MaterialExpressionMultiply, vc, a_out="R", const_b=2.0)
     st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], bright)
-    # Lichen: pale crusts in patches, on the stones the blue channel picks.
-    lichen = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.02, -1.2, 1.6), vc, b_out="B")
+    # Lichen: pale crusts in patches, on the stones the blue channel picks. The patches come from a
+    # noise texture on each stone's own UVs (the Noise node costs too much on 10 km of wall).
+    nt = noise_texture()
+    if nt:
+        ns = g.sample(nt, uv(1.3), "rough")
+        patch = g.op(unreal.MaterialExpressionSubtract, ns, a_out="R", const_b=0.45)
+        patch = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, patch, const_b=4.0))
+        broad = g.op(unreal.MaterialExpressionSubtract, ns, a_out="G", const_b=0.75)   # -0.75..0.25, as the Noise node's range
+    else:
+        patch = g.mask_noise(0.02, -1.2, 1.6)
+        broad = noise(g.m, 0.03, -0.8, 0.0, -1200, g.y)
+    lichen = g.op(unreal.MaterialExpressionMultiply, patch, vc, b_out="B")
     lichen = g.op(unreal.MaterialExpressionMultiply, lichen, const_b=0.55)
     st[0] = g.lerp(st[0], g.const(lin((178, 180, 170))), lichen)
     # Moss: vertex alpha, broken up by noise, more on upward faces.
@@ -1314,7 +1343,7 @@ def stone_material(tex, roles):
     up = g.op(unreal.MaterialExpressionAdd, up, const_b=0.7)
     up = g.op(unreal.MaterialExpressionSaturate, up)
     m = g.op(unreal.MaterialExpressionMultiply, vc, a_out="A", const_b=1.6)
-    m = g.op(unreal.MaterialExpressionAdd, m, noise(g.m, 0.03, -0.8, 0.0, -1200, g.y))
+    m = g.op(unreal.MaterialExpressionAdd, m, broad)
     m = g.op(unreal.MaterialExpressionSaturate, m)
     m = g.op(unreal.MaterialExpressionMultiply, m, up)
     moss = layer("moss", (70, 84, 38))
@@ -1342,7 +1371,7 @@ def flat_material(name, rough, metallic=0.0, fine=0.0):
     return g.m
 
 
-def instanced(label, mesh, rows, material, frame):
+def instanced(label, mesh, rows, material, frame, shadow=True):
     """One actor holding an instanced static mesh component with all of a mesh's instances (Nanite
     draws them cheaply). Falls back to one actor per instance if components can't be added here."""
     yaw, mirror, scale = frame
@@ -1377,6 +1406,8 @@ def instanced(label, mesh, rows, material, frame):
             comp.set_material(0, material)
         comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         comp.set_editor_property("can_ever_affect_navigation", False)
+        if not shadow:
+            comp.set_editor_property("cast_shadow", False)
         comp.add_instances(xf, False, True)
         return len(xf)
     except Exception as e:
@@ -1420,7 +1451,7 @@ def place_props(meshes, spec, materials, frame):
         if mesh is None:
             unreal.log_warning("[Torque] no mesh for " + name)
             continue
-        n += instanced(name, mesh, rows, mat, frame)
+        n += instanced(name, mesh, rows, mat, frame, shadow=spec["meshes"].get(name, {}).get("shadow", True))
     log("placed %d prop instances" % n)
 
 
