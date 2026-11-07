@@ -9,9 +9,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Sim/BikeSim.h"   // the full type: the code Unreal generates for this class deletes it
 #include "TorqueBikePawn.generated.h"
 
-namespace TorqueSim { class BikeSim; }
 class UStaticMeshComponent;
 class UCameraComponent;
 
