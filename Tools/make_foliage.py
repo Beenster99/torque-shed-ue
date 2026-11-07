@@ -253,7 +253,7 @@ def carpet(seed, radius, per_m2, h, w, cols, weights, tips, tip_w, segs=3, flowe
     height[tl] = rng.uniform(0.25, 0.42, tl.sum())
     cb = mixcol(rng, n, cols, weights)
     ct = mixcol(rng, n, tips, tip_w)
-    ct = cb * 0.35 + ct * 0.65
+    ct = cb * 0.5 + ct * 0.5          # tips only a little paler than the blade, so the mat matches the land
     ribbons(M, base, rng.uniform(0, 2 * math.pi, n), height, rng.uniform(*w, n), rng.uniform(0.05, 0.55, n),
             rng.uniform(0.2, 1.1, n), cb * 0.7, ct, np.full(n, 0.3), segs, rng=rng, twist=rng.normal(0, 0.4, n))
     if flowers:
@@ -525,7 +525,7 @@ SPECIES = {
     # many times the cull distance instead of stopping at one line)
     # The carpet: mats laid edge to edge so the ground is grass, not soil between tufts.
     "carpet_green": (lambda: carpet(101, 0.95, 1700, (0.05, 0.15), (0.004, 0.0075), [GREEN, GREEN_DK, YELLOW, DEAD],
-                                    [5, 3, 2, 1], [GREEN, YELLOW, PALE], [4, 2, 1], segs=2, flowers=10), 36, False, 1.4),
+                                    [5, 4, 1, 1], [GREEN, YELLOW, PALE], [5, 1, 1], segs=2, flowers=10), 36, False, 1.4),
     "carpet_moor": (lambda: carpet(102, 0.95, 1600, (0.06, 0.18), (0.0035, 0.0065), [GREEN_DK, (78, 84, 44), DEAD, STRAW],
                                    [4, 3, 2, 1], [PALE, STRAW, YELLOW, GREEN], [3, 2, 2, 2], segs=2, tall=0.07), 36, False, 1.4),
     "carpet_far_green": (lambda: carpet(111, 2.0, 120, (0.08, 0.2), (0.01, 0.02), [GREEN, GREEN_DK, YELLOW],
@@ -563,7 +563,7 @@ ALIGN = {"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "
 # minimum draw distance works chunk by chunk. Everything else: 256 m chunks, drawn from 0.
 MIN_DRAW = {"carpet_far_green": (30.0, 32.0), "carpet_far_moor": (30.0, 32.0)}
 # How much of the ground's colour each species takes (1 = the full blend; heather keeps its own).
-GROUND_BLEND = {"heather": 0.15, "carpet": 0.45}
+GROUND_BLEND = {"heather": 0.15, "carpet": 0.7}
 
 
 # --- The land --------------------------------------------------------------------------------------
