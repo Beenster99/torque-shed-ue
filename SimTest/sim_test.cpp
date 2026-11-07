@@ -189,6 +189,11 @@ static void ButtertubsTest(const std::string& Dir)
 	// Heading: 0 faces -Z, positive turns left (towards -X).
 	const double Heading = std::atan2(-D0.x, -D0.z);
 	S.Place(V3(Line[0].x, F.At(Line[0].x, Line[0].z), Line[0].z), Heading);
+	// Left alone at the start, the bike should sit still, not roll off down the pass.
+	for (int i = 0; i < 120 * 18; ++i) S.Step(Dt);
+	Check(std::fabs(S.Speed) < 3.0, "sits at the start with no input (m/s after 18 s)", S.Speed);
+	std::printf("  at rest: gear %d, %.0f rpm, lean %.3f\n", S.Gear, S.Rpm, S.LeanAngle);
+	S.Place(V3(Line[0].x, F.At(Line[0].x, Line[0].z), Line[0].z), Heading);
 	for (int i = 0; i < 120; ++i) S.Step(Dt);
 
 	// A simple rider: follow the line a little ahead, at a speed that suits the bend coming up.

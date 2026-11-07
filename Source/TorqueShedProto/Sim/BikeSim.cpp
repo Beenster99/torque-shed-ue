@@ -173,14 +173,17 @@ void BikeSim::Step(double Delta)
 
 	UpdateSteering(Delta);
 	UpdateEngine(Delta);
-	double RearGrip = RearBrake;
+	// Stopped with the throttle shut, the rider puts a foot down and holds the brakes (Torque Shed's
+	// feet down, reduced to this), so the bike neither rolls back down a hill nor topples.
+	const bool Parked = std::fabs(Speed) < 1.0 && Throttle < 0.05;
+	double RearGrip = Parked ? std::max(RearBrake, 1.0) : RearBrake;
 	if (!Wheels[0].Contact && Wheels[1].Contact && PitchAngle > DegToRad(4.0))
 	{
 		const double Over = PitchAngle - WheelieTarget();
 		const double Rising = AngularVelocity.Dot(Basis.X);
 		if (Over > 0.0) RearGrip = std::max(RearGrip, Clamp(Over * 3.0 + Rising * 0.6, 0.0, 1.0) * Steadiness());
 	}
-	double FrontGrip = FrontBrake;
+	double FrontGrip = Parked ? std::max(FrontBrake, 0.8) : FrontBrake;
 	if (!Wheels[1].Contact && Wheels[0].Contact && PitchAngle < -DegToRad(3.0))
 	{
 		const double Over = -PitchAngle - (BodyShift >= 0.25 ? STOPPIE_PITCH : STOPPIE_SKIM);
@@ -194,6 +197,7 @@ void BikeSim::Step(double Delta)
 	ApplyWheelGyro();
 	ApplyAero();
 	ApplyRiderBalance(Delta);
+	ApplyFeet();
 	CheckCrash();
 	Integrate(Delta);
 }
@@ -835,6 +839,22 @@ void BikeSim::ApplyAero()
 {
 	const V3 V = LinearVelocity;
 	ApplyCentralForce(V * (-0.5 * AIR_DENSITY * Build.CdA * V.Length()));
+}
+
+void BikeSim::ApplyFeet()
+{
+	// Below walking pace the rider's feet hold the bike up: a stiff, damped roll spring that fades
+	// out by 2.5 m/s, where steering balances it again.
+	if (!(Wheels[0].Contact || Wheels[1].Contact)) return;
+	const double Fade = Clamp(1.0 - std::fabs(Speed) / 2.5, 0.0, 1.0);
+	if (Fade <= 0.0) return;
+	const V3 Fwd = -Basis.Z;
+	V3 FwdFlat(Fwd.x, 0.0, Fwd.z);
+	if (FwdFlat.Length() < 0.01) return;
+	FwdFlat = FwdFlat.Normalized();
+	const double K = Build.TotalMass * G * Build.ComHeight * 3.0;
+	const double C = 2.0 * std::sqrt(K * 60.0);
+	ApplyTorque(FwdFlat * (-(K * LeanAngle + C * LeanRate) * Fade));
 }
 
 void BikeSim::ApplyRiderBalance(double Delta)

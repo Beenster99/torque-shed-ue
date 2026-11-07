@@ -125,6 +125,7 @@ private:
 	double BrakeCare(bool IsFront) const;
 	void ApplyAero();
 	void ApplyRiderBalance(double Delta);
+	void ApplyFeet();
 	void CheckCrash();
 	double Steadiness() const { return Lerp(0.45, 1.0, Assist); }
 
