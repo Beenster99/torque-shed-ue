@@ -1,0 +1,112 @@
+{
+ "about": "Moorland ground cover made by Tools/make_foliage.py; see its docstring.",
+ "species": [
+  {
+   "name": "sward_a",
+   "cull_m": 40,
+   "shadow": false,
+   "triangles": 7158,
+   "count": 122691
+  },
+  {
+   "name": "sward_b",
+   "cull_m": 40,
+   "shadow": false,
+   "triangles": 7662,
+   "count": 40744
+  },
+  {
+   "name": "tuft_a",
+   "cull_m": 60,
+   "shadow": true,
+   "triangles": 2300,
+   "count": 137483
+  },
+  {
+   "name": "tuft_b",
+   "cull_m": 60,
+   "shadow": true,
+   "triangles": 2000,
+   "count": 138231
+  },
+  {
+   "name": "tussock_a",
+   "cull_m": 70,
+   "shadow": true,
+   "triangles": 2600,
+   "count": 83126
+  },
+  {
+   "name": "tussock_b",
+   "cull_m": 70,
+   "shadow": true,
+   "triangles": 2200,
+   "count": 82365
+  },
+  {
+   "name": "matgrass",
+   "cull_m": 60,
+   "shadow": true,
+   "triangles": 2000,
+   "count": 64326
+  },
+  {
+   "name": "far_a",
+   "cull_m": 180,
+   "shadow": true,
+   "triangles": 240,
+   "count": 143103
+  },
+  {
+   "name": "far_b",
+   "cull_m": 180,
+   "shadow": true,
+   "triangles": 216,
+   "count": 143028
+  },
+  {
+   "name": "rush_a",
+   "cull_m": 160,
+   "shadow": true,
+   "triangles": 7772,
+   "count": 30034
+  },
+  {
+   "name": "rush_b",
+   "cull_m": 160,
+   "shadow": true,
+   "triangles": 8876,
+   "count": 30257
+  },
+  {
+   "name": "heather_a",
+   "cull_m": 120,
+   "shadow": true,
+   "triangles": 19820,
+   "count": 138195
+  },
+  {
+   "name": "heather_b",
+   "cull_m": 120,
+   "shadow": true,
+   "triangles": 18584,
+   "count": 59044
+  },
+  {
+   "name": "moss",
+   "cull_m": 40,
+   "shadow": false,
+   "triangles": 1432,
+   "count": 3133
+  },
+  {
+   "name": "bracken",
+   "cull_m": 150,
+   "shadow": true,
+   "triangles": 2136,
+   "count": 8142
+  }
+ ],
+ "total": 1223902,
+ "density": 1.0
+}

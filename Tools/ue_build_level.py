@@ -10,8 +10,10 @@ What it does:
   2. works out how the glTF importer turned the files' frame (metres, x east, y up, z south) into
      Unreal's, by comparing the road's imported bounds with its known ones, so the level lines up
      with the riding sim whatever the importer version does;
-  3. makes simple materials (land coloured by its cover, tarmac, the walls, rocks, grass and sheep
+  3. makes simple materials (land coloured by its cover, tarmac, the walls, rocks and sheep
      from Tools/buttertubs_detail.py, which get no collision);
+  3b. imports the moorland plants (Tools/make_foliage.py) as Nanite meshes and adds the TorqueFoliage
+     actor that plants them when the level starts;
   4. makes the level: the meshes, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
      post process volume, and a player start at the top of the ride.
 """
@@ -658,6 +660,130 @@ def import_bike(frame):
     log("bike: %d parts imported" % len(assets["parts"]))
 
 
+# --- Ground cover (Tools/make_foliage.py) ------------------------------------------------------------
+
+FOLIAGE_DEST = "/Game/Buttertubs/Foliage"
+
+
+def foliage_material():
+    """The plants: vertex colour (a little varied per plant), two-sided foliage shading so the sun
+    glows through the blades, ambient occlusion from the vertex alpha, and wind: UV y is how far each
+    vertex may move (its height in metres, less for stiff plants), swayed by two waves and slow gusts
+    that roll across the moor from the south west."""
+    g = Graph(new_material("M_Foliage"))
+    m = g.m
+    m.set_editor_property("two_sided", True)
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
+    try_set(m, "used_with_instanced_static_meshes", True)
+    try_set(m, "used_with_nanite", True)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
+    tint = g.lerp(g.const((0.86, 0.9, 0.8)), g.const((1.12, 1.06, 0.92)), pir)
+    base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
+    sss = g.op(unreal.MaterialExpressionMultiply, base, g.const((0.75, 0.9, 0.35)))
+    # Wind.
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    h = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
+    g.link(uv, h)
+    amp = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, h, h), const_b=20.0)   # cm: 5 at 0.5 m, 20 at 1 m
+    wp = g.node(unreal.MaterialExpressionWorldPosition)
+    along = g.op(unreal.MaterialExpressionDotProduct, wp, g.const((0.0035, 0.0028, 0.0)))   # wave fronts
+    t = g.node(unreal.MaterialExpressionTime)
+    ph1 = g.op(unreal.MaterialExpressionSubtract, g.op(unreal.MaterialExpressionMultiply, t, const_b=0.9), along)
+    ph2 = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract,
+               g.op(unreal.MaterialExpressionMultiply, t, const_b=2.3), g.op(unreal.MaterialExpressionMultiply, along, const_b=2.1)), pir)
+    s1 = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(ph1, s1)
+    s2 = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(ph2, s2)
+    sway = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, s1, const_b=0.6),
+                g.op(unreal.MaterialExpressionMultiply, s2, const_b=0.25))
+    sway = g.op(unreal.MaterialExpressionAdd, sway, const_b=0.55)              # leans downwind on average
+    gph = g.op(unreal.MaterialExpressionSubtract, g.op(unreal.MaterialExpressionMultiply, t, const_b=0.12),
+               g.op(unreal.MaterialExpressionMultiply, along, const_b=0.08))
+    gs = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(gph, gs)
+    gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, gs, const_b=0.4), const_b=0.75)
+    mag = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, amp, sway), gust)
+    wpo = g.op(unreal.MaterialExpressionMultiply, g.const((0.78, -0.62, -0.08)), mag)   # towards the north east, dipping a little
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
+    mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    mel.connect_material_property(g.const(0.62), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
+def foliage_nanite(mesh):
+    """Nanite on (the plants are real geometry), keeping the blades' coverage as they simplify with
+    distance, and no collision."""
+    try:
+        ns = mesh.get_editor_property("nanite_settings")
+        ns.set_editor_property("enabled", True)
+        if not (hasattr(unreal, "NaniteShapePreservation")
+                and try_set(ns, "shape_preservation", unreal.NaniteShapePreservation.PRESERVE_AREA)):
+            try_set(ns, "preserve_area", True)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).set_nanite_settings(mesh, ns, True)
+        except Exception:
+            mesh.set_editor_property("nanite_settings", ns)
+    except Exception as e:
+        unreal.log_warning("[Torque] couldn't set Nanite on %s: %s" % (mesh.get_name(), e))
+    try:
+        unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+    except Exception:
+        pass
+    unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+
+
+def place_foliage(frame):
+    """The ground cover: import the plants, and a TorqueFoliage actor that plants them at BeginPlay
+    from Data/Buttertubs/Foliage/instances.bin. A species can use another mesh (a Megascans plant, say)
+    by naming it in Data/Buttertubs/Foliage/overrides.json:
+        {"tussock_a": {"mesh": "/Game/Fab/.../SM_Grass", "scale": 1.0}}
+    """
+    folder = os.path.join(data_dir(), "Foliage")
+    spec_path = os.path.join(folder, "foliage.json")
+    if not os.path.exists(spec_path):
+        unreal.log_warning("[Torque] no foliage (python Tools/make_foliage.py)")
+        return
+    if not hasattr(unreal, "TorqueFoliage"):
+        unreal.log_warning("[Torque] the TorqueFoliage class isn't built yet: rebuild the editor, then run this again")
+        return
+    spec = json.load(open(spec_path))
+    over_path = os.path.join(folder, "overrides.json")
+    overrides = json.load(open(over_path)) if os.path.exists(over_path) else {}
+    meshes = import_glbs(folder, FOLIAGE_DEST)
+    mat = foliage_material()
+    species = []
+    for s in spec["species"]:
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", s["name"])
+        o = overrides.get(s["name"])
+        mesh = unreal.load_asset(o["mesh"]) if o else None
+        if o and not mesh:
+            unreal.log_warning("[Torque] override mesh %s for %s not found; using ours" % (o["mesh"], s["name"]))
+        if mesh:
+            e.set_editor_property("mesh", mesh)
+            e.set_editor_property("native_mesh", True)
+            e.set_editor_property("scale_multiplier", float(o.get("scale", 1.0)))
+        elif s["name"] in meshes:
+            foliage_nanite(meshes[s["name"]])
+            e.set_editor_property("mesh", meshes[s["name"]])
+            e.set_editor_property("material", mat)
+        e.set_editor_property("cull_distance", float(s["cull_m"]) * 100.0)
+        e.set_editor_property("cast_shadow", bool(s["shadow"]))
+        species.append(e)
+    a = spawn(unreal.TorqueFoliage)
+    a.set_actor_label("Foliage")
+    a.set_folder_path("Detail")
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    log("foliage: %d species, %d plants (placed at Play)" % (len(species), spec.get("total", 0)))
+
+
 # --- The level -------------------------------------------------------------------------------------
 
 def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
@@ -665,7 +791,7 @@ def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
 
 
 def is_detail(name):
-    return name.startswith("detail_") or name.startswith("grass_")
+    return name.startswith("detail_")
 
 
 def build():
@@ -719,9 +845,6 @@ def build():
             comp.set_collision_profile_name("NoCollision")
             comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
             comp.set_editor_property("can_ever_affect_navigation", False)
-            if name.startswith("grass_"):   # tufts are lost in the distance: draw them only within 250 m
-                comp.set_editor_property("ld_max_draw_distance", 25000.0)
-                comp.set_editor_property("cast_shadow", False)
             a.set_folder_path("Detail")
             continue
         comp.set_material(0, road if name == "road" else land)
@@ -793,6 +916,8 @@ def build():
         if v is not None and try_set(pp, k, v):
             try_set(pp, "override_" + k, True)
     ppv.set_editor_property("settings", pp)
+
+    place_foliage((yaw, mirror, scale))
 
     sp = route["spawn"]["ue"]
     heading_deg = math.degrees(route["spawn"]["heading"])

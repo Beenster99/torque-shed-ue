@@ -1,9 +1,8 @@
 """The countryside's detail for the Buttertubs ride, written by export_buttertubs.py beside the land:
 drystone walls and fences where the map has them, limestone scars along its cliffs, field barns,
-the cattle grids, snow poles beside the road, boulders and scree, tufts of rush and moor grass by
-the road, and sheep. All of it baked into a few vertex-coloured meshes (detail_NN.glb, and grass_NN.glb
-for the grass, which is drawn only near the camera; under 65k
-vertices each) that the level script places with no collision: the wheels only see the land and
+the cattle grids, snow poles beside the road, boulders and scree, and sheep. All of it baked into a
+few vertex-coloured meshes (detail_NN.glb, under 65k vertices each; the grass and other plants are
+Tools/make_foliage.py's) that the level script places with no collision: the wheels only see the land and
 the road.
 """
 import json, math, os
@@ -393,48 +392,7 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
         nb += 1
     counts["boulders"] = nb
 
-    # Rush and moor grass tufts by the road: a few thin blades each, straw to green.
-    tufts = 0
-    nt = 26000
-    # Mostly close to the road, thinning out to 70 m.
-    k = np.sort(rng.integers(0, len(line), nt))   # in order along the road, so each mesh is one stretch
-    f = np.gradient(line[:, [0, 2]], axis=0); f /= np.linalg.norm(f, axis=1, keepdims=True)
-    sdv = np.stack([-f[:, 1], f[:, 0]], 1)
-    off = (road_half + 0.6 + rng.exponential(14.0, nt)) * rng.choice([-1, 1], nt)
-    tx = line[k, 0] + sdv[k, 0] * off + f[k, 0] * rng.uniform(-1, 1, nt)
-    tz = line[k, 2] + sdv[k, 1] * off + f[k, 1] * rng.uniform(-1, 1, nt)
-    ok = near(tx, tz, pad=0.5) & (road_dist(tx, tz) > road_half + 0.5) & (np.abs(off) < 70) & (slope_at(tx, tz) < 0.9)
-    tx, tz = tx[ok], tz[ok]
-    ty = ground(tx, tz)
-    blades = 5
-    n = len(tx)
-    ang = rng.uniform(0, 2 * math.pi, (n, blades))
-    lean = rng.uniform(0.08, 0.25, (n, blades))
-    hgt = rng.uniform(0.22, 0.55, (n, 1)) * rng.uniform(0.7, 1.0, (n, blades))
-    w = 0.025
-    base = np.stack([tx, ty - 0.02, tz], 1)[:, None, :]
-    dirv = np.stack([np.cos(ang), np.zeros_like(ang), np.sin(ang)], -1)
-    perp = np.stack([-np.sin(ang), np.zeros_like(ang), np.cos(ang)], -1)
-    p0 = base + perp * w; p1 = base - perp * w
-    p2 = base + dirv * (lean * hgt)[..., None] + np.array([0, 1, 0]) * hgt[..., None]
-    pos = np.stack([p0, p1, p2], 2).reshape(n, blades * 3, 3)
-    green = np.array([78, 92, 44]); straw = np.array([150, 136, 84])
-    mix = rng.uniform(0, 1, (n, 1))
-    tcol = green * (1 - mix) + straw * mix
-    tcol = np.repeat(tcol[:, None, :], blades * 3, 1)
-    tcol[:, 2::3] *= 1.15            # lighter tips
-    tcol[:, 0::3] *= 0.7; tcol[:, 1::3] *= 0.7   # darker at the base
-    tcol = srgb(np.clip(tcol, 0, 255))
-    per = blades * 3
-    tri_one = np.arange(per).reshape(blades, 3)
-    G = Batch()                       # grass in its own meshes (grass_NN), drawn only near the camera
-    for start in range(0, n, 3000):
-        sl_ = slice(start, min(start + 3000, n))
-        m_ = sl_.stop - sl_.start
-        tris = (tri_one[None] + (np.arange(m_) * per)[:, None, None]).reshape(-1, 3)
-        G.add(pos[sl_].reshape(-1, 3), tris, tcol[sl_].reshape(-1, 3))
-    tufts = n
-    counts["tufts"] = tufts
+    # Grass, rushes, heather and the rest of the ground cover: Tools/make_foliage.py (Nanite plants).
 
     # Sheep: Swaledales, white fleece, black faces, grazing on the gentler slopes.
     sheep = 0
@@ -473,6 +431,9 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
         sheep += 1
     counts["sheep"] = sheep
 
-    names = B.write(out, write_glb) + G.write(out, write_glb, "grass")
+    names = B.write(out, write_glb)
+    for f in os.listdir(out):   # the old stick tufts, now replaced by the foliage
+        if f.startswith("grass_") and f.endswith(".glb"):
+            os.remove(os.path.join(out, f))
     counts["meshes"] = len(names)
     return counts
