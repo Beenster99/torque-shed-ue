@@ -25,8 +25,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
 START_NEAR = (-10400.0, 2229.0)   # Simonstone end of the pass (region frame, metres)
-END_NEAR = (-6481.5, -4095.8)     # Muker: over Buttertubs, down into Thwaite, then the B6270 east along Swaledale
-CUT = (4000.0, 9840.0)            # metres along the route: summit plateau, the drop into Thwaite, on to Muker
+VIA = [(-8317.0, -4366.0)]        # through Thwaite village itself
+END_NEAR = (-8223.2, -7330.4)     # Keld: over Buttertubs, west through Thwaite, then the B6270 up the Swale to Keld
+# (Muker, east along the valley, is (-6481.5, -4095.8); the road there skirts Thwaite, so the ride goes to Keld.)
+CUT = (4000.0, 11600.0)           # metres along the route: summit plateau, the drop into Thwaite, on up to Keld
 MARGIN = 300.0                    # detailed land either side of the ride
 STEP = 2.0                        # detailed grid spacing
 TILE = 256.0                      # detailed tile size
@@ -117,7 +119,7 @@ class Region:
 
 
 def pass_line(region):
-    """The road centre line from Simonstone over Buttertubs to Thwaite and on to Muker, by shortest path over the road graph."""
+    """The road centre line from Simonstone over Buttertubs, through Thwaite and on to Keld, by shortest path over the road graph."""
     r = json.load(open(os.path.join(region.root, "roads.json")))
     N, E = r["nodes"], r["edges"]
 
@@ -135,26 +137,30 @@ def pass_line(region):
     def near(x, z):
         return min(range(len(N)), key=lambda i: (N[i][0] - x) ** 2 + (N[i][1] - z) ** 2)
 
-    a, b = near(*START_NEAR), near(*END_NEAR)
-    dist, prev, q = {a: 0.0}, {}, [(0.0, a)]
-    while q:
-        c, u = heapq.heappop(q)
-        if u == b:
-            break
-        if c > dist[u]:
-            continue
-        for v, l, i in adj.get(u, []):
-            if c + l < dist.get(v, 1e18):
-                dist[v] = c + l; prev[v] = (u, i); heapq.heappush(q, (c + l, v))
-    path, u = [], b
-    while u != a:
-        pu, i = prev[u]; path.append((pu, i)); u = pu
+    def leg(a, b):
+        dist, prev, q = {a: 0.0}, {}, [(0.0, a)]
+        while q:
+            c, u = heapq.heappop(q)
+            if u == b:
+                break
+            if c > dist[u]:
+                continue
+            for v, l, i in adj.get(u, []):
+                if c + l < dist.get(v, 1e18):
+                    dist[v] = c + l; prev[v] = (u, i); heapq.heappush(q, (c + l, v))
+        path, u = [], b
+        while u != a:
+            pu, i = prev[u]; path.append((pu, i)); u = pu
+        return list(reversed(path))
+
+    stops = [near(*p) for p in [START_NEAR] + list(VIA) + [END_NEAR]]
     pts = []
-    for pu, i in reversed(path):
-        p = poly(E[i])
-        if E[i]["a"] != pu:
-            p = p[::-1]
-        pts += p if not pts else p[1:]
+    for a, b in zip(stops, stops[1:]):
+        for pu, i in leg(a, b):
+            p = poly(E[i])
+            if E[i]["a"] != pu:
+                p = p[::-1]
+            pts += p if not pts else p[1:]
     return np.array(pts, np.float64)
 
 
@@ -496,7 +502,7 @@ def main():
     lat = lat0 - O[2] / 111320.0
     lon = lon0 + O[0] / (111320.0 * math.cos(math.radians(lat0)))
     info = {
-        "name": "Buttertubs Pass, summit down through Thwaite to Muker",
+        "name": "Buttertubs Pass, summit down through Thwaite and up Swaledale to Keld",
         "length_m": CUT[1] - CUT[0],
         "origin_region_m": O.tolist(), "origin_geo": [round(float(lat), 6), round(float(lon), 6)],
         "frames": "sim/glb: metres, x east, y up, z south. Unreal: cm, x east, y south, z up = (100x, 100z, 100y)",

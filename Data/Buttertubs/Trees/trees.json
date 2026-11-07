@@ -1,4 +1,295 @@
 {
+ "about": "Trees made by Tools/make_trees.py; see its docstring. instances.bin's species index is into 'species'.",
+ "species": [
+  {
+   "name": "SM_TreeFar_alder_0",
+   "mesh": "SM_TreeFar_alder_0",
+   "count": 1613,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_alder_1",
+   "mesh": "SM_TreeFar_alder_1",
+   "count": 1543,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_alder_2",
+   "mesh": "SM_TreeFar_alder_2",
+   "count": 1540,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_0",
+   "mesh": "SM_TreeFar_ash_0",
+   "count": 6008,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_1",
+   "mesh": "SM_TreeFar_ash_1",
+   "count": 6007,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_2",
+   "mesh": "SM_TreeFar_ash_2",
+   "count": 5784,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_3",
+   "mesh": "SM_TreeFar_ash_3",
+   "count": 5920,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_birch_0",
+   "mesh": "SM_TreeFar_birch_0",
+   "count": 248,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_birch_1",
+   "mesh": "SM_TreeFar_birch_1",
+   "count": 211,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_hawthorn_0",
+   "mesh": "SM_TreeFar_hawthorn_0",
+   "count": 2312,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_hawthorn_1",
+   "mesh": "SM_TreeFar_hawthorn_1",
+   "count": 2282,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_hawthorn_2",
+   "mesh": "SM_TreeFar_hawthorn_2",
+   "count": 2283,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_spruce_0",
+   "mesh": "SM_TreeFar_spruce_0",
+   "count": 5455,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_spruce_1",
+   "mesh": "SM_TreeFar_spruce_1",
+   "count": 5463,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_0",
+   "mesh": "SM_TreeFar_sycamore_0",
+   "count": 4967,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_1",
+   "mesh": "SM_TreeFar_sycamore_1",
+   "count": 4865,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_2",
+   "mesh": "SM_TreeFar_sycamore_2",
+   "count": 4914,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_3",
+   "mesh": "SM_TreeFar_sycamore_3",
+   "count": 4941,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_alder_0",
+   "mesh": "SM_Tree_alder_0",
+   "count": 489,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_alder_1",
+   "mesh": "SM_Tree_alder_1",
+   "count": 553,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_alder_2",
+   "mesh": "SM_Tree_alder_2",
+   "count": 527,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_0",
+   "mesh": "SM_Tree_ash_0",
+   "count": 1219,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_1",
+   "mesh": "SM_Tree_ash_1",
+   "count": 1233,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_2",
+   "mesh": "SM_Tree_ash_2",
+   "count": 1246,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_3",
+   "mesh": "SM_Tree_ash_3",
+   "count": 1160,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_birch_0",
+   "mesh": "SM_Tree_birch_0",
+   "count": 62,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_birch_1",
+   "mesh": "SM_Tree_birch_1",
+   "count": 50,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_hawthorn_0",
+   "mesh": "SM_Tree_hawthorn_0",
+   "count": 466,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_hawthorn_1",
+   "mesh": "SM_Tree_hawthorn_1",
+   "count": 509,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_hawthorn_2",
+   "mesh": "SM_Tree_hawthorn_2",
+   "count": 494,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_spruce_0",
+   "mesh": "SM_Tree_spruce_0",
+   "count": 161,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_spruce_1",
+   "mesh": "SM_Tree_spruce_1",
+   "count": 137,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_0",
+   "mesh": "SM_Tree_sycamore_0",
+   "count": 998,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_1",
+   "mesh": "SM_Tree_sycamore_1",
+   "count": 987,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_2",
+   "mesh": "SM_Tree_sycamore_2",
+   "count": 1031,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_3",
+   "mesh": "SM_Tree_sycamore_3",
+   "count": 979,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  }
+ ],
  "models": {
   "SM_Tree_ash_0": {
    "species": "ash",
@@ -216,5 +507,20 @@
    "triangles": 494,
    "radius": 2.88
   }
- }
+ },
+ "counts": {
+  "sycamore": 23682,
+  "ash": 28577,
+  "alder": 6265,
+  "spruce": 11216,
+  "hawthorn": 8346,
+  "birch": 571,
+  "total": 78657,
+  "far": 66356,
+  "near": 12301
+ },
+ "far_split_m": 1500.0,
+ "credits": [
+  "Trees: canopy heights from Meta and World Resources Institute, High Resolution Canopy Height Maps (2024), CC BY 4.0, https://registry.opendata.aws/dataforgood-fb-forests/"
+ ]
 }
