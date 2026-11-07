@@ -71,6 +71,8 @@ public:
 	// The rider, made of simple shapes and posed every frame: hands on the grips, feet on the pegs
 	// (or down when stopped), weight and lean as you ride.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> RiderParts;
+	// A dial and needles drawn over the clock: speed, and revs on a small dial below.
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ClockParts;
 	UPROPERTY() UStaticMesh* ShapeCube = nullptr;
 	UPROPERTY() UStaticMesh* ShapeCylinder = nullptr;
 	UPROPERTY() UStaticMesh* ShapeSphere = nullptr;
@@ -126,6 +128,7 @@ private:
 
 	void BuildRider(UMaterialInterface* const* Mats);
 	void UpdateRider();
+	void UpdateClock();
 	void ShowHead(bool bShow);
 	void StartSound();
 	void UpdateSound(float Dt);

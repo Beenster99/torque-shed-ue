@@ -49,7 +49,10 @@ enum ERiderPart
 	RP_UpperArmL, RP_UpperArmR, RP_ForearmL, RP_ForearmR, RP_ElbowL, RP_ElbowR, RP_HandL, RP_HandR,
 	RP_ThighL, RP_ThighR, RP_ShinL, RP_ShinR, RP_KneeL, RP_KneeR, RP_BootL, RP_BootR, RP_Count
 };
-enum ERiderMat { RM_Jacket, RM_Jeans, RM_Boots, RM_Gloves, RM_Helmet, RM_Visor, RM_Skin, RM_Count };
+enum ERiderMat { RM_Jacket, RM_Jeans, RM_Boots, RM_Gloves, RM_Helmet, RM_Visor, RM_Skin, RM_Dial, RM_Needle, RM_RevNeedle, RM_Count };
+// The clock's parts: the dial, the speed needle, the rev needle, then the tick marks.
+enum EClockPart { CP_Dial, CP_Speed, CP_Revs, CP_Ticks };
+constexpr int32 ClockTicks = 15;
 
 bool LoadJson(const FString& Rel, TSharedPtr<FJsonObject>& Out);
 
@@ -156,7 +159,7 @@ void ATorqueBikePawn::BeginPlay()
 		if (LoadJson(TEXT("Data/Bike/SpeedTwin/ue_assets.json"), Assets) && Assets->TryGetObjectField(TEXT("rider"), Kit))
 		{
 			static const TCHAR* Names[RM_Count] = {TEXT("jacket"), TEXT("jeans"), TEXT("boots"), TEXT("gloves"),
-				TEXT("helmet"), TEXT("visor"), TEXT("skin")};
+				TEXT("helmet"), TEXT("visor"), TEXT("skin"), TEXT("dial"), TEXT("needle"), TEXT("revneedle")};
 			for (int32 I = 0; I < RM_Count; ++I)
 			{
 				FString Path;
@@ -501,6 +504,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 
 	UpdateVisuals(Accum / SimDt);
 	UpdateRider();
+	UpdateClock();
 	UpdateProgress();
 	UpdateCamera(DeltaSeconds);
 	UpdateSound(DeltaSeconds);
@@ -603,6 +607,64 @@ void ATorqueBikePawn::BuildRider(UMaterialInterface* const* Mats)
 		RiderParts.Add(C);
 	}
 	UpdateRider();
+
+	if (!bHaveModel) return;
+	for (int32 I = 0; I < CP_Ticks + ClockTicks; ++I)
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *FString::Printf(TEXT("ClockPart%d"), I));
+		C->SetStaticMesh(I == CP_Dial ? ShapeCylinder : ShapeCube);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->CastShadow = false;
+		C->SetupAttachment(SteerGroup);
+		const int32 Mat = I == CP_Dial ? RM_Dial : I == CP_Revs ? RM_RevNeedle : RM_Needle;
+		if (Mats && Mats[Mat]) C->SetMaterial(0, Mats[Mat]);
+		C->RegisterComponent();
+		ClockParts.Add(C);
+	}
+	UpdateClock();
+}
+
+namespace
+{
+// The Speed Twin's clock (Tools/make_speedtwin.py): face centre and normal, pawn local cm, bars straight.
+const FVector ClockCentre(43.26, 0.0, 73.59);
+const FVector ClockNormal = FVector(-0.503, 0.0, 0.864).GetSafeNormal();
+const FVector ClockTop = FVector::CrossProduct(FVector(0.0, 1.0, 0.0), ClockNormal).GetSafeNormal();   // forward and up
+// A point on the dial: Angle clockwise from the top as the rider sees it, R from the centre (cm).
+FVector OnDial(double Angle, double R, const FVector& Centre)
+{
+	return Centre + (ClockTop * FMath::Cos(Angle) + FVector(0.0, 1.0, 0.0) * FMath::Sin(Angle)) * R;
+}
+void PlaceNeedle(UStaticMeshComponent* C, const FVector& Hub, double Angle, double Len, double Width, double Lift)
+{
+	const FVector D = ClockTop * FMath::Cos(Angle) + FVector(0.0, 1.0, 0.0) * FMath::Sin(Angle);
+	C->SetRelativeLocationAndRotation(Hub + ClockNormal * Lift + D * (Len * 0.5 - 0.4),
+		FRotationMatrix::MakeFromXZ(D, ClockNormal).Rotator());
+	C->SetRelativeScale3D(FVector(Len, Width, 0.12) / 100.0);
+}
+} // namespace
+
+void ATorqueBikePawn::UpdateClock()
+{
+	if (ClockParts.Num() < CP_Ticks + ClockTicks) return;
+	// Speed: 0 to 140 mph round 270 degrees from bottom left; ticks every 10 mph.
+	const double Sweep = FMath::DegreesToRadians(270.0), From = -Sweep * 0.5;
+	ClockParts[CP_Dial]->SetRelativeLocationAndRotation(ClockCentre + ClockNormal * 0.15,
+		FRotationMatrix::MakeFromZX(ClockNormal, ClockTop).Rotator());
+	ClockParts[CP_Dial]->SetRelativeScale3D(FVector(9.3, 9.3, 0.2) / 100.0);
+	for (int32 T = 0; T < ClockTicks; ++T)
+	{
+		const double A = From + Sweep * T / (ClockTicks - 1);
+		const bool Big = T % 2 == 0;
+		PlaceNeedle(ClockParts[CP_Ticks + T], OnDial(A, Big ? 3.5 : 3.8, ClockCentre), A, Big ? 1.3 : 0.8, 0.22, 0.3);
+	}
+	const double Mph = FMath::Clamp(FMath::Abs(Sim->Speed) * 2.23694, 0.0, 140.0);
+	PlaceNeedle(ClockParts[CP_Speed], ClockCentre, From + Sweep * Mph / 140.0, 3.9, 0.3, 0.45);
+	// Revs on a small dial in the lower half: 0 to 9000 over 180 degrees.
+	const FVector RevHub = ClockCentre - ClockTop * 2.0;
+	const double Rpm = FMath::Clamp(Sim->Rpm, 0.0, 9000.0);
+	PlaceNeedle(ClockParts[CP_Revs], RevHub, FMath::DegreesToRadians(-90.0 + 180.0 * Rpm / 9000.0), 1.6, 0.3, 0.55);
 }
 
 void ATorqueBikePawn::ShowHead(bool bShow)
@@ -638,10 +700,14 @@ void ATorqueBikePawn::UpdateRider()
 		const FVector Shoulder = Chest + FVector(0.0, 19.0 * Y, 0.0);
 		const FVector Grip = Pivot + Turn.RotateVector(FVector(41.3, 31.5 * Y, 65.5) - Pivot);
 		const FVector Elbow = MidJoint(Shoulder, Grip, 34.0, 32.0, FVector(-0.3, 0.75 * Y, -0.6));
+		// The sleeve stops at the wrist; the glove wraps the grip, knuckles up and a little forward.
+		const FVector Wrist = Grip + (Elbow - Grip).GetSafeNormal() * 7.0 + FVector(0.0, 0.0, 2.0);
 		PlaceLimb(RiderParts[RP_UpperArmL + S], Shoulder, Elbow, 12.0);
-		PlaceLimb(RiderParts[RP_ForearmL + S], Elbow, Grip, 10.0);
+		PlaceLimb(RiderParts[RP_ForearmL + S], Elbow, Wrist, 9.5);
 		PlaceBlob(RiderParts[RP_ElbowL + S], Elbow, FVector(12.0));
-		PlaceBlob(RiderParts[RP_HandL + S], Grip + FVector(0.0, 0.0, 1.5), FVector(11.0, 10.0, 9.0));
+		const FVector Bar = Turn.RotateVector(FVector(0.0, 1.0, 0.0));
+		PlaceBlob(RiderParts[RP_HandL + S], Grip + FVector(1.0, 0.0, 2.0), FVector(12.0, 10.5, 8.5),
+			FRotationMatrix::MakeFromYZ(Bar, FVector::UpVector).Rotator());
 
 		const FVector HipS = Hip + FVector(0.0, 11.0 * Y, -2.0);
 		const FVector Ankle = FMath::Lerp(FVector(-46.0, 23.0 * Y, 24.0), FVector(-30.0, 36.0 * Y, -22.0), Down);

@@ -283,10 +283,14 @@ RIDER_FINISHES = {
     "rider_jacket": {"color": [0.030, 0.027, 0.025], "metallic": 0.0, "roughness": 0.55},
     "rider_jeans": {"color": [0.035, 0.050, 0.090], "metallic": 0.0, "roughness": 0.85},
     "rider_boots": {"color": [0.018, 0.016, 0.015], "metallic": 0.0, "roughness": 0.45},
-    "rider_gloves": {"color": [0.025, 0.022, 0.020], "metallic": 0.0, "roughness": 0.6},
+    "rider_gloves": {"color": [0.30, 0.14, 0.06], "metallic": 0.0, "roughness": 0.55},
     "rider_helmet": {"color": [0.10, 0.10, 0.11], "metallic": 0.0, "roughness": 0.25},
     "rider_visor": {"color": [0.01, 0.01, 0.012], "metallic": 0.0, "roughness": 0.05},
     "rider_skin": {"color": [0.45, 0.30, 0.24], "metallic": 0.0, "roughness": 0.6},
+    # The clock's dial and needles (the pawn draws them over the model's plain face).
+    "rider_dial": {"color": [0.012, 0.012, 0.014], "metallic": 0.0, "roughness": 0.3},
+    "rider_needle": {"color": [0.95, 0.95, 0.92], "metallic": 0.0, "roughness": 0.4},
+    "rider_revneedle": {"color": [0.95, 0.35, 0.05], "metallic": 0.0, "roughness": 0.4},
 }
 
 
