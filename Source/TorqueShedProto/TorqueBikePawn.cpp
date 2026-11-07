@@ -415,11 +415,12 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	if (CameraMode == 1)
 	{
 		// Onboard: just behind the rider's eyes, leaning with the bike but less, as your head does.
-		// Like the chest camera in beenster's footage: low over the tank, bars and clocks in view.
-		const FVector Eye = BikePos + BikeRot.RotateVector(FVector(-30.0, 0.0, 118.0));
+		// Like the chin camera on beenster's helmet: just below the eyes, out over the back of the
+		// tank, bars and clocks low in view. The head leans less than the bike.
+		const FVector Eye = BikePos + BikeRot.RotateVector(FVector(-15.0, 0.0, 108.0));
 		const double LeanDeg = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.55;
 		FRotator Rot = Flat.Rotation();
-		Rot.Pitch = -14.0 + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
+		Rot.Pitch = -12.0 + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
 		Rot.Roll = LeanDeg;
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
 		Camera->SetFieldOfView(100.0f);
