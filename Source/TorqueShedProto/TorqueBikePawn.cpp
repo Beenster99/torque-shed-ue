@@ -305,8 +305,29 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// An Xbox pad through Unreal, and a PlayStation pad read directly: whichever is pushed further.
 	const FSonyPadState Sony = Pad ? Pad->Get() : FSonyPadState();
 	auto Either = [](double A, double B) { return FMath::Abs(A) >= FMath::Abs(B) ? A : B; };
-	const double PadThrottle = FMath::Max(Axis(EKeys::Gamepad_RightTriggerAxis), (double)Sony.R2);
-	const double PadBrake = FMath::Max(Axis(EKeys::Gamepad_LeftTriggerAxis), (double)Sony.L2);
+	// Triggers count only once they've moved from where they sat when the game started: a pad or a
+	// driver that reports a resting trigger as half pressed (or a stray virtual pad) mustn't ride off
+	// on its own.
+	const double RawTrig[4] = {Axis(EKeys::Gamepad_RightTriggerAxis), Axis(EKeys::Gamepad_LeftTriggerAxis),
+		(double)Sony.R2, (double)Sony.L2};
+	double Trig[4];
+	for (int32 I = 0; I < 4; ++I)
+	{
+		if (!bTrigSeen[I]) { TrigRest[I] = RawTrig[I]; bTrigSeen[I] = true; }
+		if (!bTrigLive[I] && FMath::Abs(RawTrig[I] - TrigRest[I]) > 0.2) bTrigLive[I] = true;
+		Trig[I] = bTrigLive[I] ? FMath::Clamp(RawTrig[I], 0.0, 1.0) : 0.0;
+	}
+	InputLogTimer += Dt;
+	if (InputLogTimer > 1.0 && InputLogCount < 15)
+	{
+		InputLogTimer = 0.0;
+		++InputLogCount;
+		UE_LOG(LogTemp, Log, TEXT("Torque: input xR2 %.2f xL2 %.2f psR2 %.2f psL2 %.2f live %d%d%d%d  throttle %.2f speed %.1f"),
+			RawTrig[0], RawTrig[1], RawTrig[2], RawTrig[3], bTrigLive[0], bTrigLive[1], bTrigLive[2], bTrigLive[3],
+			Throttle, Sim->Speed);
+	}
+	const double PadThrottle = FMath::Max(Trig[0], Trig[2]);
+	const double PadBrake = FMath::Max(Trig[1], Trig[3]);
 	const double PadLean = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), 0.08, 1.3);
 	// Weight is the left stick up and down, with a wide dead zone so leaning doesn't move it.
 	const double PadShift = Stick(Either(Axis(EKeys::Gamepad_LeftY), Sony.LY), 0.4, 1.0);

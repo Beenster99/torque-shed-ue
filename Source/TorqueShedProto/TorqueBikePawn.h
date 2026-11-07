@@ -67,6 +67,10 @@ private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	uint32 PrevPadButtons = 0;
+	bool bTrigSeen[4] = {false, false, false, false}, bTrigLive[4] = {false, false, false, false};
+	double TrigRest[4] = {0, 0, 0, 0};
+	double InputLogTimer = 0.0;
+	int32 InputLogCount = 0;
 	TArray<FHudLine> HudLines;
 	bool bShowHelp = true;
 	double Accum = 0.0;
