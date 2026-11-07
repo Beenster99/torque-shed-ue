@@ -75,6 +75,9 @@ public:
 	// The rider (Tools/make_rider.py): a skinned body in riding kit and a helmet, posed every frame:
 	// hands on the grips, feet on the pegs (or down when stopped), weight and lean as you ride.
 	UPROPERTY(Transient) UPoseableMeshComponent* RiderBody = nullptr;
+	// The skinned rider and helmet hang off this: on the bike it sits on Root, and in a crash it's
+	// let go so the rider is thrown clear and slides along the road on his back.
+	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* RiderRoot = nullptr;
 	UPROPERTY(Transient) UStaticMeshComponent* RiderHelmet = nullptr;
 	// Until the level script has imported it, a rider made of simple shapes.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> RiderParts;
@@ -149,6 +152,14 @@ private:
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever
+
+	// Thrown off in a crash (world cm): the pelvis's path, falling and sliding, and the turn from the
+	// riding pose at the moment of the crash to lying on his back.
+	bool bThrown = false;
+	double ThrownFor = 0.0;
+	FVector ThrowPelvis = FVector::ZeroVector, ThrowVel = FVector::ZeroVector;
+	FQuat ThrowRot0 = FQuat::Identity, ThrowLie = FQuat::Identity;
+	void ThrowRider(float Dt);
 
 	void BuildRider(UMaterialInterface* const* Mats);
 	bool BuildRiderRig();
