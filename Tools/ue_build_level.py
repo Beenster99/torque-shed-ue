@@ -992,11 +992,11 @@ def ground_blend(g, base, h, rvt, strength):
     return g.lerp(base, gc, w, b_out="BaseColor")
 
 
-def foliage_material(rvt=None, blend=1.0):
+def foliage_material(rvt=None, blend=1.0, name="M_Foliage"):
     """Our plants: vertex colour (a little varied per plant), two-sided foliage shading so the sun
     glows through the blades, ambient occlusion from the vertex alpha, and wind: UV y is how far each
     vertex may move (its height in metres, less for stiff plants)."""
-    g = Graph(new_material("M_Foliage"))
+    g = Graph(new_material(name))
     m = g.m
     foliage_flags(m)
     vc = g.node(unreal.MaterialExpressionVertexColor)
@@ -1183,6 +1183,7 @@ def place_foliage(frame):
     meshes = import_glbs(folder, FOLIAGE_DEST)
     rvt = ground_rvt() if blend > 0 else None
     mat = foliage_material(rvt, blend)
+    mats = {1.0: mat}   # by ground blend: heather keeps its own dark colour (foliage.json "ground_blend")
     # Scanned plants: load them and their maps first, so the master gets defaults of the right kinds.
     scans = {}
     for name, o in overrides.items():
@@ -1246,8 +1247,11 @@ def place_foliage(frame):
                 2 * footprint(ours) * abs(frame[2]) if ours else 0, 100 * float(keep if keep is not None else 1.0)))
         elif ours is not None:
             foliage_nanite(ours)
+            gb = float(s.get("ground_blend", 1.0))
+            if gb not in mats:
+                mats[gb] = foliage_material(rvt, blend * gb, "M_Foliage_Blend%02d" % round(gb * 100))
             e.set_editor_property("mesh", ours)
-            e.set_editor_property("material", mat)
+            e.set_editor_property("material", mats[gb])
         e.set_editor_property("cull_distance", float(s["cull_m"]) * 100.0)
         e.set_editor_property("cull_spread", float(s.get("cull_spread", 1.0)))
         e.set_editor_property("cast_shadow", bool(s["shadow"]))
