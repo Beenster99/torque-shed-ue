@@ -91,6 +91,8 @@ private:
 	int LastClunk = -1;
 	std::vector<float> Amb;
 	double AmbPos = 0.0;
+	// Birds come and go: a few seconds of song, then a long quiet.
+	double BirdGain = 0.0, BirdTarget = 0.0, BirdTimer = 6.0;
 
 	// Wind and tyres.
 	Biquad WindLp, WindBp, Squeal, Scrub;

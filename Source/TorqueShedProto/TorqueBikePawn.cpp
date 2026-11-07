@@ -756,15 +756,18 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		// camera on beenster's helmet: just below the eyes at the front of the chin bar, wide.
 		// Either way the head leans with the bike, but less, as yours does.
 		const bool bChin = CameraMode == 2;
-		const FVector Eye = BikePos + BikeRot.RotateVector(HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0) : FVector(6.0, 0.0, 1.0)));
+		const FVector Eye = BikePos + BikeRot.RotateVector(HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0) : FVector(4.0, 0.0, 0.0)));
 		FRotator Rot = Flat.Rotation();
 		// Looking down a little more in first person, so the clocks and your hands are in view.
-		Rot.Pitch = (bChin ? -12.0 : -17.0) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
+		// (The clocks are about 50 degrees below the rider's eyes and the grips a little more, so the
+		// first-person view looks down 21 degrees through a wide lens: road ahead in the top half,
+		// clocks, bars, gloves and forearms along the bottom.)
+		Rot.Pitch = (bChin ? -12.0 : -21.0) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
 		Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * (bChin ? 0.55 : 0.6);
 		Rot.Yaw += LookYaw;
 		Rot.Pitch += LookPitch;
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
-		Camera->SetFieldOfView(bChin ? 100.0f : 95.0f);
+		Camera->SetFieldOfView(bChin ? 100.0f : 108.0f);
 		return;
 	}
 

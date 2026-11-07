@@ -45,7 +45,7 @@ const double BALANCE_CATCH = 3.0;
 const double HANG_OFF = 0.12;
 const double CRASH_LEAN = DegToRad(78.0);
 const double CRASH_PITCH = DegToRad(72.0);
-const double WHEELIE_PITCH = DegToRad(28.0);
+const double WHEELIE_PITCH = DegToRad(22.0);
 const double STOPPIE_PITCH = DegToRad(14.0);
 const double STOPPIE_SKIM = DegToRad(4.0);
 const double RIDER_SPIN_FEEL = 1.5;
@@ -177,7 +177,7 @@ void BikeSim::Step(double Delta)
 	// feet down, reduced to this), so the bike neither rolls back down a hill nor topples.
 	const bool Parked = std::fabs(Speed) < 1.0 && Throttle < 0.05;
 	double RearGrip = Parked ? std::max(RearBrake, 1.0) : RearBrake;
-	if (!Wheels[0].Contact && Wheels[1].Contact && PitchAngle > DegToRad(4.0))
+	if (!Wheels[0].Contact && Wheels[1].Contact && PitchAngle > DegToRad(1.5))
 	{
 		const double Over = PitchAngle - WheelieTarget();
 		const double Rising = AngularVelocity.Dot(Basis.X);
@@ -502,7 +502,7 @@ void BikeSim::UpdateEngine(double Delta)
 	}
 	if (Tc > 0.05 && SpinRatio > TcFrom && Rear.Contact)
 		TcTarget = Clamp(1.0 - (SpinRatio - TcFrom) * TcGain * Tc, 0.15, 1.0);
-	if (!Wheels[0].Contact && Rear.Contact && PitchAngle > DegToRad(4.0))
+	if (!Wheels[0].Contact && Rear.Contact && PitchAngle > DegToRad(1.5))
 	{
 		const double Over = PitchAngle - WheelieTarget();
 		const double Rising = AngularVelocity.Dot(Basis.X);
@@ -562,8 +562,11 @@ int BikeSim::GearForSpeed() const
 
 double BikeSim::WheelieTarget() const
 {
-	double T = DegToRad(6.0);
-	if (BodyShift <= -0.25) T = WHEELIE_PITCH + DegToRad(10.0) * Clamp((-BodyShift - 0.25) / 0.75, 0.0, 1.0);
+	// Without asking for one (weight right back), the rider keeps the front down: a big twin lifts it
+	// at full throttle in first, and a rider who isn't after a wheelie rolls off. Asked for, the
+	// wheel comes up to a balance point a little higher the further back the weight is.
+	double T = 0.0;
+	if (BodyShift <= -0.6) T = WHEELIE_PITCH + DegToRad(8.0) * Clamp((-BodyShift - 0.6) / 0.4, 0.0, 1.0);
 	return T;
 }
 

@@ -129,7 +129,7 @@ void RideSound::SetAmbience(std::vector<float> Samples, int SampleRate)
 	Amb = MakeLoop(Resample(Samples, SampleRate), Rate);
 	const double R = Rms(Amb);
 	if (R > 1e-6)
-		for (float& V : Amb) V = (float)(V * 0.03 / R);
+		for (float& V : Amb) V = (float)(V * 0.018 / R);
 }
 
 void RideSound::GearChange(bool Up)
@@ -166,6 +166,7 @@ void RideSound::Render(float* Out, int N)
 	const double PulseFall = std::exp(-1.0 / (Rate * 0.0022));
 	const double NoiseFall = std::exp(-1.0 / (Rate * 0.006));
 	const double PopFall = std::exp(-1.0 / (Rate * 0.012));
+	const double BirdFade = 1.0 - std::exp(-1.0 / (Rate * 2.0));
 	for (int S = 0; S < N; ++S)
 	{
 		Now.Rpm += (Target.Rpm - Now.Rpm) * Kr;
@@ -262,7 +263,20 @@ void RideSound::Render(float* Out, int N)
 		double Bg = 0.0;
 		if (!Amb.empty())
 		{
-			Bg = Amb[(size_t)AmbPos];
+			BirdTimer -= 1.0 / Rate;
+			if (BirdTimer <= 0.0)
+			{
+				const bool Start = BirdTarget < 0.5;
+				BirdTarget = Start ? 0.6 + 0.4 * Uniform() : 0.0;
+				BirdTimer = Start ? 5.0 + 9.0 * Uniform() : 25.0 + 35.0 * Uniform();
+				if (Start && BirdGain < 0.05) AmbPos = Uniform() * (Amb.size() - 1);   // a different stretch each time
+			}
+			BirdGain += (BirdTarget - BirdGain) * BirdFade;
+			if (BirdGain > 1e-4)
+			{
+				// Fainter at speed, where the wind covers it anyway.
+				Bg = Amb[(size_t)AmbPos] * BirdGain * (1.0 - 0.6 * Clamp01(Now.Speed / 20.0));
+			}
 			AmbPos += 1.0;
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
