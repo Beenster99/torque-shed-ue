@@ -288,10 +288,24 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// Pad: right trigger throttle, left trigger front brake, left bumper rear brake, left stick lean,
 	// left stick up and down to move your weight. Keys: W throttle, S front brake, Space rear brake,
 	// A and D lean, Q and E weight back and forward.
+	// Sticks get a dead zone (rescaled so the rest of the travel is all used) and a gentle curve, so
+	// small corrections near the centre are fine and a full push is still full lean.
+	auto Stick = [](double V, double Dead, double Curve) {
+		const double A = FMath::Abs(V);
+		if (A < Dead) return 0.0;
+		return FMath::Sign(V) * FMath::Pow((A - Dead) / (1.0 - Dead), Curve);
+	};
 	const double PadThrottle = Axis(EKeys::Gamepad_RightTriggerAxis);
 	const double PadBrake = Axis(EKeys::Gamepad_LeftTriggerAxis);
-	const double PadLean = Axis(EKeys::Gamepad_LeftX);
-	const double PadShift = Axis(EKeys::Gamepad_LeftY);
+	const double PadLean = Stick(Axis(EKeys::Gamepad_LeftX), 0.08, 1.3);
+	// Weight is the left stick up and down, with a wide dead zone so leaning doesn't move it.
+	const double PadShift = Stick(Axis(EKeys::Gamepad_LeftY), 0.4, 1.0);
+	// Right stick looks around (eased back to the front when let go).
+	const double LookX = Stick(Axis(EKeys::Gamepad_RightX), 0.12, 1.0);
+	const double LookY = Stick(Axis(EKeys::Gamepad_RightY), 0.12, 1.0);
+	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
+	LookYaw = FMath::Lerp(LookYaw, LookX * 130.0, LookK);
+	LookPitch = FMath::Lerp(LookPitch, LookY * 25.0, LookK);
 
 	const double KeyThrottle = FMath::Max(Down(EKeys::W), Down(EKeys::Up));
 	const double KeyBrake = FMath::Max(Down(EKeys::S), Down(EKeys::Down));
@@ -301,18 +315,27 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// Keys are all or nothing, so ease them in (as Torque Shed does); the pad is used as it is.
 	Throttle = PadThrottle > 0.02 ? PadThrottle : Approach(Throttle, KeyThrottle, 2.5, 6.0, Dt);
 	FrontBrake = PadBrake > 0.02 ? PadBrake : Approach(FrontBrake, KeyBrake, 3.0, 8.0, Dt);
-	RearBrake = FMath::Max(Down(EKeys::SpaceBar), Down(EKeys::Gamepad_LeftShoulder));
+	RearBrake = FMath::Max(Down(EKeys::SpaceBar), FMath::Max(Down(EKeys::Gamepad_LeftShoulder),
+		Down(EKeys::Gamepad_FaceButton_Left)));
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
 	if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
 		Respawn(FMath::Max(Near - 2, 0));
-	if (PC->WasInputKeyJustPressed(EKeys::Home)) { RideTime = 0.0; bFinished = false; Respawn(0); }
-	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder))
+	if (PC->WasInputKeyJustPressed(EKeys::Home) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right))
+	{
+		RideTime = 0.0;
+		bFinished = false;
+		Respawn(0);
+	}
+	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
+		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left))
 	{
 		CameraMode = (CameraMode + 1) % 2;
 		bCamInit = false;
 	}
+	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
+	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 }
@@ -422,6 +445,8 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		FRotator Rot = Flat.Rotation();
 		Rot.Pitch = -12.0 + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
 		Rot.Roll = LeanDeg;
+		Rot.Yaw += LookYaw;
+		Rot.Pitch += LookPitch;
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
 		Camera->SetFieldOfView(100.0f);
 		return;
@@ -429,7 +454,8 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 
 	// Chase: behind and above, following the road's direction, the horizon mostly level.
 	const FVector Target = BikePos + FVector(0, 0, 110.0);
-	const FVector Want = Target - Flat * 480.0 + FVector(0, 0, 70.0);
+	const FVector Behind = FRotator(0.0, LookYaw, 0.0).RotateVector(-Flat);
+	const FVector Want = Target + Behind * 480.0 + FVector(0, 0, 70.0 - LookPitch * 6.0);
 	if (!bCamInit)
 	{
 		CamPos = Want;
@@ -438,7 +464,7 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	}
 	const double K = 1.0 - FMath::Exp(-6.0 * Dt);
 	CamPos = FMath::Lerp(CamPos, Want, K);
-	CamLookAt = FMath::Lerp(CamLookAt, Target + Flat * 200.0, 1.0 - FMath::Exp(-12.0 * Dt));
+	CamLookAt = FMath::Lerp(CamLookAt, Target - Behind * 200.0, 1.0 - FMath::Exp(-12.0 * Dt));
 
 	// Keep the camera out of the hillside.
 	FVector Pos = CamPos;
@@ -473,5 +499,6 @@ void ATorqueBikePawn::DrawHud()
 		GEngine->AddOnScreenDebugMessage(1003, 0.0f, FColor::Orange, TEXT("Off! Back on the road in a moment..."));
 	else
 		GEngine->AddOnScreenDebugMessage(1003, 0.0f, FColor(160, 160, 160),
-			TEXT("W/S throttle/brake  A/D lean  Space rear brake  Q/E weight  C camera  R reset  [ ] assist"));
+			TEXT("Pad: RT throttle  LT brake  LB/X rear brake  left stick lean  right stick look  RB camera  Y reset  Start restart  D-pad assist\n")
+			TEXT("Keys: W/S throttle/brake  A/D lean  Space rear brake  Q/E weight  C camera  R reset  Home restart  [ ] assist"));
 }

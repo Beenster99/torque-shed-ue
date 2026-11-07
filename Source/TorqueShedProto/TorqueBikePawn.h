@@ -73,6 +73,7 @@ private:
 	FVector CamPos = FVector::ZeroVector;
 	FVector CamLookAt = FVector::ZeroVector;
 	bool bCamInit = false;
+	double LookYaw = 0.0, LookPitch = 0.0;   // right stick, degrees
 
 	// Model geometry (Unreal local cm), read from speedtwin.json.
 	bool bHaveModel = false;

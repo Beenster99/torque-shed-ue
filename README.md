@@ -44,17 +44,21 @@ seat, engine, headers and silencers, in simple finishes. The rider is still a pl
 
 ### Controls
 
+Any Xbox-style controller works (wired or Bluetooth). A PlayStation pad works through Steam or
+DS4Windows, which make it look like an Xbox one.
+
 | | Keyboard | Pad |
 | --- | --- | --- |
 | Throttle | W or Up | Right trigger |
 | Front brake | S or Down | Left trigger |
-| Rear brake | Space | Left bumper |
+| Rear brake | Space | Left bumper or X |
 | Lean | A and D, or Left and Right | Left stick |
-| Weight back and forward | Q and E | Left stick up and down |
-| Camera (chase, onboard) | C | Right bumper |
+| Weight back and forward | Q and E | Left stick, pushed well up or down |
+| Look around | | Right stick |
+| Camera (chase, onboard) | C | Right bumper or View |
 | Back on the road | R | Y |
-| Start again | Home | |
-| Riding realism | [ and ] (0 full sim, 1 easy) | |
+| Start again | Home | Menu (Start) |
+| Riding realism | [ and ] (0 full sim, 1 easy) | D-pad up and down |
 
 ### DLSS on the 4090
 
