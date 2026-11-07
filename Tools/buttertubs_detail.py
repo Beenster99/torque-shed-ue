@@ -117,6 +117,7 @@ class Props:
     def __init__(self):
         self.meshes = {}
         self.inst = {}
+        self.lod1 = {}   # mesh: a light stand-in for the distance, if the level uses LODs rather than Nanite
 
     def mesh(self, name, make):
         if name not in self.meshes:
@@ -132,6 +133,8 @@ class Props:
 
     def wall(self, k):
         v = WALL_VARIANTS[k % len(WALL_VARIANTS)]
+        self.mesh("SM_WallFar", lambda: ST.wall_far(np.random.default_rng(99)))
+        self.lod1["SM_Wall_" + v] = "SM_WallFar"
         return self.mesh("SM_Wall_" + v, lambda: ST.wall_module(np.random.default_rng(100 + ord(v))))
 
     def wall_end(self, k):
@@ -160,6 +163,8 @@ class Props:
                 if (name == prefix[:-1]) if prefix.endswith(".") else name.startswith(prefix):
                     mat = m
             info[name] = {"material": mat, "triangles": nt}
+            if name in self.lod1:
+                info[name]["lod1"] = self.lod1[name]
             if name.startswith("SM_Scree"):
                 info[name]["shadow"] = False   # small stones: their shadows aren't worth the shadow-map pages
         js = {"about": "Instances of the meshes in Props/ (Tools/buttertubs_detail.py). Each is Unreal "

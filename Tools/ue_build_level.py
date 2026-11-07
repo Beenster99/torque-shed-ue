@@ -1255,15 +1255,36 @@ def import_props():
         log("no props (run Tools/export_buttertubs.py)")
         return {}, {}
     spec = json.load(open(spec_path))
+    if os.environ.get("TORQUE_PROPS", "on").lower() == "off":
+        log("props left out (TORQUE_PROPS=off)")
+        return {}, {}
     meshes = import_glbs(folder, PROP_DEST)
     sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    # TORQUE_WALLS=lod: the wall lengths drop Nanite and switch to a light shell (SM_WallFar) in the
+    # distance, since Nanite can't simplify thousands of separate stones far off. Default: Nanite.
+    lod_walls = os.environ.get("TORQUE_WALLS", "nanite").lower() == "lod"
     for name, mesh in meshes.items():
         try:
             sme.remove_collisions(mesh)
         except Exception:
             pass
-        nanite_on(mesh)
+        far = spec["meshes"].get(name, {}).get("lod1")
+        if lod_walls and far and far in meshes:
+            nanite_off(mesh)
+            try:
+                sme.set_lod_from_static_mesh(mesh, 1, meshes[far], 0, True)
+                try:
+                    mesh.set_editor_property("auto_compute_lod_screen_size", False)
+                    sme.set_lod_screen_sizes(mesh, [1.0, 0.012])   # the shell from about 90 m (90 degree view)
+                except Exception as e:
+                    unreal.log_warning("[Torque] %s: LOD screen sizes left automatic (%s)" % (name, e))
+            except Exception as e:
+                unreal.log_warning("[Torque] %s: couldn't add the far LOD (%s); back to Nanite" % (name, e))
+                nanite_on(mesh)
+        else:
+            nanite_on(mesh)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    log("walls: %s" % ("LODs (stones near, a shell far)" if lod_walls else "Nanite"))
     log("props: %d meshes, %d instances" % (len(meshes), sum(len(v) for v in spec["instances"].values())))
     return meshes, spec
 

@@ -3,6 +3,8 @@ Data/Buttertubs/Props and placed in the level as Nanite instances (ue_build_leve
 
     SM_Wall_A..H      2 m of Dales drystone wall: footings, battered faces laid in courses, through
                       stones, hearting in the gaps, and a row of coping stones on edge along the top
+    SM_WallFar        the same 2 m as one light shell (about 300 triangles) with a toothed cope line,
+                      for walls in the distance when ue_build_level.py uses LODs instead of Nanite
     SM_WallEnd_A..B   a wall head: a 1 m length finished at +x with headers tied across
     SM_WallPier       1 m finished at both ends, set on the sharp bends of a wall
     SM_GateStoop      a gate post: a tall limestone upright
@@ -329,6 +331,47 @@ def wall_length(M, rng, x0, x1, end_lo=False, end_hi=False, copes=True):
         col[:, 3] = np.clip(0.15 + 0.6 * top * rng.uniform(0.2, 1.0) ** 2 + rng.normal(0, 0.03, len(P)), 0, 1)
         M.add(P, Tt, col, uv)
         x += t + rng.uniform(0.0, 0.015)
+
+
+def wall_far(rng):
+    """2 m of wall as one shell: battered faces, footings, and a band of copes with a ragged top
+    (on edge, so the skyline of a wall reads right from far off). Same masks and UVs as the stones."""
+    M = Mesh()
+    xs = np.linspace(-WALL_L / 2, WALL_L / 2, 9)
+    # Faces: (side, up) profile swept along x.
+    prof = [(-FOOT_HW - 0.03, -0.3), (-FOOT_HW - 0.02, 0.12), (-TOP_HW, WALL_H), (TOP_HW, WALL_H),
+            (FOOT_HW + 0.02, 0.12), (FOOT_HW + 0.03, -0.3)]
+    n, m = len(xs), len(prof)
+    P = np.zeros((n, m, 3))
+    for j, (sd, up) in enumerate(prof):
+        P[:, j, 0] = xs; P[:, j, 1] = up + (rng.normal(0, 0.02, n) if 0 < up < WALL_H else 0)
+        P[:, j, 2] = sd + (rng.normal(0, 0.012, n) if 0 < up < WALL_H else 0)
+    idx = np.arange(n * m).reshape(n, m)
+    T = []
+    for j in range(m - 1):
+        a, b, c, d = idx[:-1, j], idx[:-1, j + 1], idx[1:, j], idx[1:, j + 1]
+        T += [np.stack([a, b, c], 1), np.stack([b, d, c], 1)]
+    T = np.concatenate(T)
+    P = P.reshape(-1, 3)
+    fc = P[T].mean(1); fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
+    out = fc.copy(); out[:, 0] = 0; out[:, 1] -= 0.4
+    flip = (fn * out).sum(1) < 0
+    T[flip] = T[flip][:, [0, 2, 1]]
+    col = np.zeros((len(P), 4)); col[:, 0] = 0.3; col[:, 1] = 1.0; col[:, 2] = 0.15   # darker: no gaps to shade it
+    col[:, 3] = np.clip((0.25 - P[:, 1]) / 0.4, 0, 1) * 0.8
+    M.add(P, T, col, np.stack([P[:, 0] * 1.7, P[:, 1] * 1.7 + np.abs(P[:, 2])], 1))
+    # Copes: a box per run of a few stones, tops at their own heights.
+    x = -WALL_L / 2
+    while x < WALL_L / 2 - 0.02:
+        t = min(rng.uniform(0.18, 0.4), WALL_L / 2 - x)
+        h = rng.uniform(0.2, 0.34)
+        w = TOP_HW + rng.uniform(0.02, 0.06)
+        Pb, Tb, uvb = box((x, WALL_H - 0.04, -w), (x + t - 0.01, WALL_H + h, w))
+        cb = np.zeros((8, 4)); cb[:, 0] = 0.36 + rng.normal(0, 0.05); cb[:, 1] = rng.uniform(0.3, 1); cb[:, 2] = 0.3
+        cb[:, 3] = np.where(Pb[:, 1] > WALL_H + 0.1, 0.35, 0.15)
+        M.add(Pb, Tb, cb, uvb + rng.uniform(0, 5, 2))
+        x += t
+    return M
 
 
 def wall_module(rng):
