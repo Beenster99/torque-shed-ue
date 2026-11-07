@@ -430,6 +430,54 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (!PC) return;
 	// Hands-off test runs (-TorqueNoInput) ignore the pad and keyboard, so nobody playing can change them.
 	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
+	// -TorqueAutoRide (with -TorqueNoInput): a simple robot rides the route at -TorqueAutoMph (default
+	// 36), the same pure-pursuit rider as SimTest, for checking pop-in and frame time in motion.
+	static const bool bAuto = FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide"));
+	if (bAuto && Line.Num() > 2 && !Sim->IsCrashed)
+	{
+		static float AutoMph = 36.f;
+		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
+		(void)bMph;
+		const double Want = AutoMph / 2.23694;
+		const V3 P = Sim->Position;
+		int32 Ahead = Near;
+		double Acc = 0.0;
+		const double Look = 6.0 + 0.6 * FMath::Abs(Sim->Speed);
+		while (Ahead + 1 < Line.Num() && Acc < Look)
+		{
+			Acc += FMath::Sqrt(FMath::Square(Line[Ahead + 1].X - Line[Ahead].X) + FMath::Square(Line[Ahead + 1].Z - Line[Ahead].Z));
+			++Ahead;
+		}
+		const double Tx = Line[Ahead].X - P.x, Tz = Line[Ahead].Z - P.z;
+		const V3 Fwd = Sim->Basis.Z * -1.0;
+		double Err = FMath::Atan2(-Tx, -Tz) - FMath::Atan2(-Fwd.x, -Fwd.z);
+		while (Err > PI) Err -= 2.0 * PI;
+		while (Err < -PI) Err += 2.0 * PI;
+		const double Dist = FMath::Max(FMath::Sqrt(Tx * Tx + Tz * Tz), 1.0);
+		const double Curv = 2.0 * FMath::Sin(Err) / Dist;
+		const double LeanWant = FMath::Atan(Sim->Speed * Sim->Speed * Curv / 9.81);
+		Lean = FMath::Clamp(-LeanWant / 0.55, -1.0, 1.0);
+		double Sharp = 0.0;
+		Acc = 0.0;
+		for (int32 K = Near + 1; K + 1 < Line.Num() && Acc < 60.0; ++K)
+		{
+			const double Ax = Line[K].X - Line[K - 1].X, Az = Line[K].Z - Line[K - 1].Z;
+			const double Bx = Line[K + 1].X - Line[K].X, Bz = Line[K + 1].Z - Line[K].Z;
+			const double La = FMath::Sqrt(Ax * Ax + Az * Az), Lb = FMath::Sqrt(Bx * Bx + Bz * Bz);
+			Acc += La;
+			if (La < 0.5 || Lb < 0.5) continue;
+			const double Turn = FMath::Acos(FMath::Clamp((Ax * Bx + Az * Bz) / (La * Lb), -1.0, 1.0));
+			Sharp = FMath::Max(Sharp, Turn / (0.5 * (La + Lb)));
+		}
+		const double Corner = Sharp > 1e-3 ? FMath::Sqrt(9.81 * FMath::Tan(0.5) / Sharp) : 99.0;
+		const double Gap = FMath::Min(Want, Corner) - Sim->Speed;
+		Throttle = FMath::Clamp(Gap * 0.4, 0.0, 1.0);
+		FrontBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.8);
+		RearBrake = FrontBrake * 0.5;
+		Shift = 0.0;
+		bManual = false;
+		return;
+	}
 	if (bNoInput) return;
 	auto Down = [PC](const FKey& K) { return PC->IsInputKeyDown(K) ? 1.0 : 0.0; };
 	auto Axis = [PC](const FKey& K) { return (double)PC->GetInputAnalogKeyState(K); };
@@ -1111,7 +1159,7 @@ void ATorqueBikePawn::UpdatePerf(float Dt)
 			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera\n"), *PerfFile);
 			UE_LOG(LogTemp, Log, TEXT("Torque: logging performance to %s"), *PerfFile);
 		}
-		const double Km = Line.Num() > 1 ? 3.0 * Near / (Line.Num() - 1) : 0.0;
+		const double Km = Line.Num() > 1 ? RouteLengthM / 1000.0 * Near / (Line.Num() - 1) : 0.0;
 		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d\n"),
 			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode),
 			*PerfFile, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
