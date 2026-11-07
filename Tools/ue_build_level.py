@@ -314,7 +314,7 @@ def build():
     fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
     fc.set_editor_property("fog_density", 0.008)
     fc.set_editor_property("fog_height_falloff", 0.05)
-    fc.set_editor_property("volumetric_fog", True)
+    fc.set_editor_property("enable_volumetric_fog", True)
     try:
         spawn(unreal.VolumetricCloud)
     except Exception as e:
