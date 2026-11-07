@@ -197,13 +197,29 @@ def land_material():
 
 
 def road_material():
+    """Tarmac with white edge lines. The ribbon's vertex colour red is 0 on the centre line and 1 at
+    the edges, so the outer few centimetres (red above about 0.96) are painted."""
     m = new_material("M_Road")
-    base = const3(m, (0.045, 0.045, 0.043), -700, 0)
-    n = noise(m, 0.05, 0.75, 1.25, -700, 200)
-    mul = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -400, 100)
+    base = const3(m, (0.03, 0.03, 0.029), -900, 0)
+    n = noise(m, 0.05, 0.75, 1.25, -900, 200)
+    mul = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -650, 100)
     mel.connect_material_expressions(base, "", mul, "A")
     mel.connect_material_expressions(n, "", mul, "B")
-    mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -1100, 400)
+    sub = mel.create_material_expression(m, unreal.MaterialExpressionSubtract, -900, 400)
+    sub.set_editor_property("const_b", 0.955)
+    mel.connect_material_expressions(vc, "R", sub, "A")
+    gain = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -750, 400)
+    gain.set_editor_property("const_b", 60.0)
+    mel.connect_material_expressions(sub, "", gain, "A")
+    sat = mel.create_material_expression(m, unreal.MaterialExpressionSaturate, -600, 400)
+    mel.connect_material_expressions(gain, "", sat, "")
+    paint = const3(m, (0.7, 0.7, 0.68), -650, 250)
+    mix = mel.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -400, 150)
+    mel.connect_material_expressions(mul, "", mix, "A")
+    mel.connect_material_expressions(paint, "", mix, "B")
+    mel.connect_material_expressions(sat, "", mix, "Alpha")
+    mel.connect_material_property(mix, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(const1(m, 0.72, -400, 300), "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -286,6 +302,10 @@ def build():
     land, road = land_material(), road_material()
     import_bike((yaw, mirror, scale))
 
+    # Start the level afresh (a second run replaces the first).
+    if unreal.EditorAssetLibrary.does_asset_exist(MAP):
+        levels.new_level("/Game/Maps/Scratch")
+        unreal.EditorAssetLibrary.delete_asset(MAP)
     levels.new_level(MAP)
     rot = unreal.Rotator(0.0, 0.0, float(yaw))   # (roll, pitch, yaw) in the Python constructor
     for name, mesh in sorted(meshes.items()):

@@ -16,6 +16,13 @@
 class UStaticMeshComponent;
 class UCameraComponent;
 
+struct FHudLine
+{
+	FString Text;
+	FColor Colour = FColor::White;
+	float Size = 1.0f;   // times the large font at 1080p
+};
+
 UCLASS()
 class ATorqueBikePawn : public APawn
 {
@@ -28,6 +35,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void Tick(float DeltaSeconds) override;
+
+	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
 
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
 	UPROPERTY(EditAnywhere, Category = "Ride", meta = (ClampMin = "0", ClampMax = "1"))
@@ -58,6 +67,8 @@ private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	uint32 PrevPadButtons = 0;
+	TArray<FHudLine> HudLines;
+	bool bShowHelp = true;
 	double Accum = 0.0;
 	FVector PrevPos, CurPos;          // Unreal cm, the sim body origin before and after the last step
 	FQuat PrevRot, CurRot;

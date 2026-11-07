@@ -37,8 +37,8 @@ BLEND = 14.0                      # where the cut or fill has blended back into 
 CROWN = 0.05                      # road centre above its edges
 SMOOTH = 12.0                     # sigma (m) of the smoothing of the road's height along its length
 
-COVER_RGB = {  # Godot cover names to a base colour (linear-ish 0..255) for the vertex colour
-    "grass": (92, 112, 52), "forest": (46, 66, 32), "crop": (110, 120, 60), "shrub": (98, 88, 56),
+COVER_RGB = {  # Godot cover names to a base colour (sRGB 0..255; written linear, as glTF wants)
+    "grass": (92, 112, 52), "forest": (46, 66, 32), "crop": (110, 120, 60), "shrub": (86, 90, 48),
     "barren": (120, 112, 92), "urban": (110, 105, 100), "sand": (170, 150, 110), "wetland": (88, 92, 58),
     "water": (50, 64, 76), "rock": (128, 126, 120),
 }
@@ -174,6 +174,21 @@ def smooth_corners(xz, passes=3):
 
 # --- Meshes ---------------------------------------------------------------------------------------
 
+ROCK_RGB = (118, 114, 104)
+
+
+def land_colour(cov, names, slope):
+    """Per-vertex colour: the cover's, turning to scree and rock on slopes steeper than about 35
+    degrees, as linear values in 0..255 (glTF COLOR_0 is linear; Unreal's VertexColor gives it back)."""
+    rgb = np.zeros(cov.shape + (3,), np.float64)
+    rgb[...] = COVER_RGB["grass"]
+    for ci, name in enumerate(names):
+        rgb[cov == ci] = COVER_RGB.get(name, COVER_RGB["grass"])
+    rock = np.clip((slope - 0.6) / 0.4, 0, 1)[..., None]   # tan 31 deg .. tan 45 deg
+    rgb = rgb * (1 - rock) + np.array(ROCK_RGB) * rock
+    return (np.power(rgb / 255.0, 2.2) * 255.0).round().astype(np.uint8)
+
+
 def write_glb(path, pos, idx, nrm=None, col=None, name="mesh", uv=None):
     """A minimal glTF 2.0 binary: one mesh, one primitive, float positions/normals, uint8 RGBA colour."""
     pos = np.ascontiguousarray(pos, np.float32)
@@ -304,15 +319,14 @@ def main():
     near = best < BLEND
     u = np.clip((best - BED_HALF) / (BLEND - BED_HALF), 0, 1)
     u = u * u * (3 - 2 * u)
-    H = np.where(near, bed - 0.02 + (H - bed + 0.02) * u, H)
+    # 6 cm under the ribbon, so the land never shows through the tarmac between grid points.
+    H = np.where(near, bed - 0.06 + (H - bed + 0.06) * u, H)
     on_road = best <= ROAD_HALF
 
     # Vertex colour: the cover's colour, alpha 255 on open land fading to 0 on the verge and road bed
     # (the material blends to verge grass and gravel by it).
-    rgb = np.zeros(H.shape + (3,), np.uint8)
-    for ci, name in enumerate(region.cover_names):
-        rgb[cov == ci] = COVER_RGB.get(name, (92, 112, 52))
-    rgb[cov == 255] = COVER_RGB["grass"]
+    slope = np.hypot(*np.gradient(H, STEP))
+    rgb = land_colour(cov, region.cover_names, slope)
     alpha = (np.clip((best - ROAD_HALF) / 4.0, 0, 1) * 255).astype(np.uint8)
     col = np.concatenate([rgb, alpha[..., None]], -1)
 
@@ -355,10 +369,9 @@ def main():
             edge |= (BX >= x0 - bs) & (BX <= x1 + bs) & (BZ >= z0 - bs) & (BZ <= z1 + bs)
         # Sunk well under the near tiles, and a little at their edges so the seam hides in the grass.
         B = np.where(inside, B - 6.0, np.where(edge, B - 0.6, B))
-        bcol = np.zeros(B.shape + (4,), np.uint8); bcol[..., :3] = COVER_RGB["grass"]; bcol[..., 3] = 255
+        bcol = np.zeros(B.shape + (4,), np.uint8); bcol[..., 3] = 255
         bcov = region.cover(bx + O[0], bz + O[2])
-        for ci, name in enumerate(region.cover_names):
-            bcol[bcov == ci, :3] = COVER_RGB.get(name, (92, 112, 52))
+        bcol[..., :3] = land_colour(bcov, region.cover_names, np.hypot(*np.gradient(B, bs)))
         pos, tris, nrm, cc, uv = grid_mesh(B, bx[0], bz[0], bs, bcol)
         write_glb(os.path.join(args.out, "backdrop.glb"), pos, tris, nrm, cc, "backdrop", uv)
 

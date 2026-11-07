@@ -226,7 +226,7 @@ void ATorqueBikePawn::BuildModel()
 	if (Made > 0)
 	{
 		bHaveModel = true;
-		for (UStaticMeshComponent* Shape : {Body, Tank, FrontWheel, RearWheel}) Shape->SetVisibility(false);
+		for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
 		UE_LOG(LogTemp, Log, TEXT("Torque: Speed Twin model, %d parts"), Made);
 	}
 }
@@ -355,6 +355,14 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (SonyHit(ESonyButton::DUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+	if (PC->WasInputKeyJustPressed(EKeys::H)) bShowHelp = !bShowHelp;
+	const bool bPadQuit = (SonyDown & ESonyButton::Create) && (SonyDown & ESonyButton::Options);
+	const bool bXboxQuit = Down(EKeys::Gamepad_Special_Left) > 0.5 && Down(EKeys::Gamepad_Special_Right) > 0.5;
+	if (PC->WasInputKeyJustPressed(EKeys::Escape) || bPadQuit || bXboxQuit)
+	{
+		PC->ConsoleCommand(TEXT("quit"));
+		return;
+	}
 	if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 }
@@ -503,24 +511,29 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 
 void ATorqueBikePawn::DrawHud()
 {
-	if (!GEngine) return;
 	const double Mph = Sim->Speed * 2.23694;
 	const double Done = Line.Num() > 1 ? 3.0 * Near / (Line.Num() - 1) : 0.0;
 	const int32 Mins = (int32)(RideTime / 60.0);
 	const double Secs = RideTime - Mins * 60.0;
-	GEngine->AddOnScreenDebugMessage(1001, 0.0f, FColor::White,
-		FString::Printf(TEXT("%3.0f mph   gear %d   %5.0f rpm   lean %3.0f deg"),
-			Mph, Sim->Gear, Sim->Rpm, FMath::RadiansToDegrees(Sim->LeanAngle)));
-	GEngine->AddOnScreenDebugMessage(1002, 0.0f, FColor(200, 220, 255),
-		FString::Printf(TEXT("Buttertubs  %.2f of 3.00 km   %d:%05.2f%s   assist %.1f"),
-			Done, Mins, Secs, bFinished ? TEXT("  FINISHED (Home to ride again)") : TEXT(""), Assist));
+	HudLines.Reset();
+	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
+	Add(FString::Printf(TEXT("%.0f mph   gear %d"), FMath::Abs(Mph), Sim->Gear), FColor::White, 2.0f);
+	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
+		FColor(220, 220, 220), 1.1f);
+	Add(FString::Printf(TEXT("Buttertubs  %.2f of 3.00 km   %d:%05.2f%s"), Done, Mins, Secs,
+		bFinished ? TEXT("   FINISHED - Options/Home to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
+	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	const bool bSony = Pad && Pad->Get().bConnected;
-	GEngine->AddOnScreenDebugMessage(1004, 0.0f, bSony ? FColor(140, 220, 140) : FColor(160, 160, 160),
-		bSony ? TEXT("PlayStation pad connected") : TEXT("No PlayStation pad found (Xbox pads work as they are)"));
-	if (Sim->IsCrashed)
-		GEngine->AddOnScreenDebugMessage(1003, 0.0f, FColor::Orange, TEXT("Off! Back on the road in a moment..."));
-	else
-		GEngine->AddOnScreenDebugMessage(1003, 0.0f, FColor(160, 160, 160),
-			TEXT("Pad: RT throttle  LT brake  LB/X rear brake  left stick lean  right stick look  RB camera  Y reset  Start restart  D-pad assist\n")
-			TEXT("Keys: W/S throttle/brake  A/D lean  Space rear brake  Q/E weight  C camera  R reset  Home restart  [ ] assist"));
+	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s"), Assist,
+		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad")), FColor(170, 200, 170), 0.9f);
+	if (bShowHelp)
+	{
+		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1/Square rear brake   left stick lean (push up/down: weight)"),
+			FColor(200, 200, 200), 0.85f);
+		Add(TEXT("      right stick look   R1 camera   Triangle back on road   Options restart   D-pad realism   Create+Options quit"),
+			FColor(200, 200, 200), 0.85f);
+		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   C camera   R back on road"),
+			FColor(200, 200, 200), 0.85f);
+		Add(TEXT("      Home restart   [ ] realism   H hide this help   Esc quit"), FColor(200, 200, 200), 0.85f);
+	}
 }
