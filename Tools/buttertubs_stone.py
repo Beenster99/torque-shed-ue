@@ -8,6 +8,8 @@ Data/Buttertubs/Props and placed in the level as Nanite instances (ue_build_leve
     SM_GateStoop      a gate post: a tall limestone upright
     SM_Gate           a galvanised five-bar field gate, 3.4 m, hinged at local x = 0
     SM_Rock_00..11    limestone boulders, about 1 m across, scaled when placed
+    SM_Scree_A..B     a spill of small stones about 1.6 m across (A is swapped for the Megascans
+                      Small Limestone Rocks Pack in prop_swaps.json where the PC has it)
     SM_Scar_A..D      4 m of limestone scar: beds of blocks split by joints, stepped back up the face
     SM_Barn_N         one field barn per map building: rubble walls with quoins and through stones,
     SM_BarnWood_N       a stone slate roof, a cart door and forking holes (the wood is its own mesh)
@@ -369,6 +371,24 @@ def gate(rng):
         bar([0.03, y, 0], [W, y, 0], 0.018 if k else 0.022)
     bar([0.05, y0, 0], [W * 0.62, y1, 0], 0.016)
     bar([W * 0.5, y0, 0], [W * 0.5, y1, 0], 0.014)
+    return M
+
+
+# --- Scree -----------------------------------------------------------------------------------------
+
+def scree(rng):
+    """Small limestone stones, 5 to 30 cm, spilled over a patch about 1.6 m across, half sunk."""
+    M = Mesh()
+    for _ in range(int(rng.integers(14, 22))):
+        r = 0.8 * math.sqrt(rng.uniform()); a = rng.uniform(0, 2 * math.pi)
+        size = rng.choice([0.05, 0.09, 0.14, 0.2], p=[0.35, 0.35, 0.2, 0.1]) * rng.uniform(0.8, 1.3)
+        sx, sy, sz = size * rng.uniform(0.8, 1.3), size * rng.uniform(0.4, 0.7), size * rng.uniform(0.7, 1.1)
+        P, T, uv = stone(rng, (sx, sy, sz), (r * math.cos(a), sy * 0.3, r * math.sin(a)),
+                         rot_xyz(rng.normal(0, 0.3), rng.uniform(0, 6.3), rng.normal(0, 0.3)),
+                         res=(7, 12), round_=(0.2, 0.4), chops=5, bump=0.004)
+        col = stone_col(rng, len(P), bright=0.45 + rng.normal(0, 0.06), bare=rng.uniform(0.3, 1.0), lichen=rng.uniform(0, 0.4))
+        col[:, 3] = rng.uniform(0, 0.3)
+        M.add(P, T, col, uv)
     return M
 
 

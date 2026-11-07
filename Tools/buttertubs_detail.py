@@ -298,8 +298,17 @@ def place_scars(props, cliffs, ground, near, road_dist, road_half, rng, counts):
             sy = hgt / 3.0
             props.add(name, fx, top - 3.0 * sy, fz, a, 0.0, rng.normal(0, 0.03), (rng.uniform(0.9, 1.15), sy, 1.0))
             pieces += 1
-            # Scree: stones fallen from the face, thinning out down the slope.
-            for _ in range(int(rng.integers(3, 9))):
+            # Scree: spills of small stones below the face, and a few bigger ones further down.
+            for _ in range(int(rng.integers(1, 3))):
+                o = rng.exponential(1.5) + 0.8
+                l = rng.uniform(-1.8, 1.8)
+                px = fx + down[0] * o + dx * l; pz = fz + down[1] * o + dz * l
+                if road_dist(px, pz) > road_half + 2:
+                    k = int(rng.integers(2))
+                    name = props.mesh("SM_Scree_" + "AB"[k], lambda k=k: ST.scree(np.random.default_rng(800 + k)))
+                    sc = rng.uniform(0.8, 1.3)
+                    props.add(name, px, float(ground(px, pz)) - 0.03, pz, rng.uniform(0, 2 * math.pi), 0.0, 0.0, (sc, sc, sc))
+            for _ in range(int(rng.integers(1, 5))):
                 o = rng.exponential(3.0) + 0.6
                 l = rng.uniform(-2.0, 2.0)
                 px = fx + down[0] * o + dx * l; pz = fz + down[1] * o + dz * l
