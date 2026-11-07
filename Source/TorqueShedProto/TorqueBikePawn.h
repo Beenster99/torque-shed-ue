@@ -10,11 +10,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "Sim/BikeSim.h"   // the full type: the code Unreal generates for this class deletes it
+#include "RiderRig.h"
 #include "SonyPad.h"
 #include "TorqueAudio/RideSound.h"   // the full type, as for the sim
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
+class UPoseableMeshComponent;
 class UCameraComponent;
 class UStaticMesh;
 class UMaterialInterface;
@@ -68,8 +70,11 @@ public:
 	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
 
-	// The rider, made of simple shapes and posed every frame: hands on the grips, feet on the pegs
-	// (or down when stopped), weight and lean as you ride.
+	// The rider (Tools/make_rider.py): a skinned body in riding kit and a helmet, posed every frame:
+	// hands on the grips, feet on the pegs (or down when stopped), weight and lean as you ride.
+	UPROPERTY(Transient) UPoseableMeshComponent* RiderBody = nullptr;
+	UPROPERTY(Transient) UStaticMeshComponent* RiderHelmet = nullptr;
+	// Until the level script has imported it, a rider made of simple shapes.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> RiderParts;
 	// A dial and needles drawn over the clock: speed, and revs on a small dial below.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ClockParts;
@@ -84,6 +89,7 @@ public:
 private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
+	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	uint32 PrevPadButtons = 0;
 	bool bTrigSeen[4] = {false, false, false, false}, bTrigLive[4] = {false, false, false, false};
 	double TrigRest[4] = {0, 0, 0, 0};
@@ -138,6 +144,7 @@ private:
 	FVector RearRest = FVector::ZeroVector;
 
 	void BuildRider(UMaterialInterface* const* Mats);
+	bool BuildRiderRig();
 	void UpdateRider();
 	void UpdateClock();
 	void ShowHead(bool bShow);

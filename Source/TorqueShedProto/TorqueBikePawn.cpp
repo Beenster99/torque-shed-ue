@@ -3,6 +3,7 @@
 #include "BikeSim.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
@@ -612,42 +613,78 @@ void PlaceBlob(UStaticMeshComponent* C, const FVector& Centre, const FVector& Si
 }
 } // namespace
 
+bool ATorqueBikePawn::BuildRiderRig()
+{
+	// The level script imports Data/Rider and writes where the meshes and kit materials went.
+	TSharedPtr<FJsonObject> Assets;
+	const TSharedPtr<FJsonObject>* Rig = nullptr;
+	if (!LoadJson(TEXT("Data/Bike/SpeedTwin/ue_assets.json"), Assets) || !Assets->TryGetObjectField(TEXT("rider_rig"), Rig))
+		return false;
+	double Yaw = 0.0, Mirror = 1.0, Scale = 1.0;
+	const TSharedPtr<FJsonObject>* Frame = nullptr;
+	if (Assets->TryGetObjectField(TEXT("frame"), Frame))
+	{
+		Yaw = (*Frame)->GetNumberField(TEXT("yaw"));
+		Mirror = (*Frame)->GetNumberField(TEXT("mirror"));
+		Scale = (*Frame)->GetNumberField(TEXT("scale"));
+	}
+	const FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+	TMap<FString, UMaterialInterface*> Mats;
+	const TSharedPtr<FJsonObject>* MatObj = nullptr;
+	if ((*Rig)->TryGetObjectField(TEXT("materials"), MatObj))
+		for (const auto& KV : (*MatObj)->Values)
+			Mats.Add(KV.Key, LoadObject<UMaterialInterface>(nullptr, *KV.Value->AsString()));
+	if (!RiderRig.Build(this, Root, (*Rig)->GetStringField(TEXT("mesh")), (*Rig)->GetStringField(TEXT("helmet")), Mats, Fix))
+		return false;
+	RiderBody = RiderRig.Body;
+	RiderHelmet = RiderRig.Helmet;
+	UE_LOG(LogTemp, Log, TEXT("Torque: rider in kit (skinned)"));
+	return true;
+}
+
 void ATorqueBikePawn::BuildRider(UMaterialInterface* const* Mats)
 {
 	Rider->SetVisibility(false);   // the old placeholder
-	struct FKind { UStaticMesh* Mesh; int32 Mat; };
-	const FKind Cyl[2] = {{ShapeCylinder, RM_Jacket}, {ShapeCylinder, RM_Jeans}};
-	FKind Kinds[RP_Count];
-	Kinds[RP_Torso] = {ShapeCylinder, RM_Jacket};
-	Kinds[RP_Pelvis] = {ShapeSphere, RM_Jeans};
-	Kinds[RP_Shoulders] = {ShapeCylinder, RM_Jacket};
-	Kinds[RP_Neck] = {ShapeCylinder, RM_Jacket};
-	Kinds[RP_Helmet] = {ShapeSphere, RM_Helmet};
-	Kinds[RP_Visor] = {ShapeSphere, RM_Visor};
-	for (int32 S = 0; S < 2; ++S)
+	if (BuildRiderRig())
 	{
-		Kinds[RP_UpperArmL + S] = Cyl[0];
-		Kinds[RP_ForearmL + S] = Cyl[0];
-		Kinds[RP_ElbowL + S] = {ShapeSphere, RM_Jacket};
-		Kinds[RP_HandL + S] = {ShapeSphere, RM_Gloves};
-		Kinds[RP_ThighL + S] = Cyl[1];
-		Kinds[RP_ShinL + S] = Cyl[1];
-		Kinds[RP_KneeL + S] = {ShapeSphere, RM_Jeans};
-		Kinds[RP_BootL + S] = {ShapeCube, RM_Boots};
+		UpdateRider();
 	}
-	for (int32 I = 0; I < RP_Count; ++I)
+	else
 	{
-		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *FString::Printf(TEXT("RiderPart%d"), I));
-		C->SetStaticMesh(Kinds[I].Mesh);
-		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		C->SetGenerateOverlapEvents(false);
-		C->bCastHiddenShadow = true;   // the head still throws its shadow when the camera's inside it
-		C->SetupAttachment(Root);
-		if (Mats && Mats[Kinds[I].Mat]) C->SetMaterial(0, Mats[Kinds[I].Mat]);
-		C->RegisterComponent();
-		RiderParts.Add(C);
+		struct FKind { UStaticMesh* Mesh; int32 Mat; };
+		const FKind Cyl[2] = {{ShapeCylinder, RM_Jacket}, {ShapeCylinder, RM_Jeans}};
+		FKind Kinds[RP_Count];
+		Kinds[RP_Torso] = {ShapeCylinder, RM_Jacket};
+		Kinds[RP_Pelvis] = {ShapeSphere, RM_Jeans};
+		Kinds[RP_Shoulders] = {ShapeCylinder, RM_Jacket};
+		Kinds[RP_Neck] = {ShapeCylinder, RM_Jacket};
+		Kinds[RP_Helmet] = {ShapeSphere, RM_Helmet};
+		Kinds[RP_Visor] = {ShapeSphere, RM_Visor};
+		for (int32 S = 0; S < 2; ++S)
+		{
+			Kinds[RP_UpperArmL + S] = Cyl[0];
+			Kinds[RP_ForearmL + S] = Cyl[0];
+			Kinds[RP_ElbowL + S] = {ShapeSphere, RM_Jacket};
+			Kinds[RP_HandL + S] = {ShapeSphere, RM_Gloves};
+			Kinds[RP_ThighL + S] = Cyl[1];
+			Kinds[RP_ShinL + S] = Cyl[1];
+			Kinds[RP_KneeL + S] = {ShapeSphere, RM_Jeans};
+			Kinds[RP_BootL + S] = {ShapeCube, RM_Boots};
+		}
+		for (int32 I = 0; I < RP_Count; ++I)
+		{
+			UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *FString::Printf(TEXT("RiderPart%d"), I));
+			C->SetStaticMesh(Kinds[I].Mesh);
+			C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			C->SetGenerateOverlapEvents(false);
+			C->bCastHiddenShadow = true;   // the head still throws its shadow when the camera's inside it
+			C->SetupAttachment(Root);
+			if (Mats && Mats[Kinds[I].Mat]) C->SetMaterial(0, Mats[Kinds[I].Mat]);
+			C->RegisterComponent();
+			RiderParts.Add(C);
+		}
+		UpdateRider();
 	}
-	UpdateRider();
 
 	if (!bHaveModel) return;
 	for (int32 I = 0; I < CP_Ticks + ClockTicks; ++I)
@@ -710,7 +747,14 @@ void ATorqueBikePawn::UpdateClock()
 
 void ATorqueBikePawn::ShowHead(bool bShow)
 {
-	if (bShow == bHeadShown || RiderParts.Num() < RP_Count) return;
+	if (bShow == bHeadShown) return;
+	if (RiderRig.IsValid())
+	{
+		bHeadShown = bShow;
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow);
+		return;
+	}
+	if (RiderParts.Num() < RP_Count) return;
 	bHeadShown = bShow;
 	for (int32 I : {RP_Helmet, RP_Visor, RP_Neck}) RiderParts[I]->SetVisibility(bShow);
 }
@@ -731,6 +775,27 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 
 void ATorqueBikePawn::UpdateRider()
 {
+	if (RiderRig.IsValid())
+	{
+		// Pawn local cm: x forward, y right, z up, from the body origin (axle height, mid wheelbase).
+		FRiderPoseInput In;
+		const double Fwd = Shift;   // weight forward (+) or back (-)
+		const double Hang = Lean;   // into the turn
+		In.ChestShift = FVector(7.0 * Fwd, Hang * 6.0, -4.0 * FMath::Max(Fwd, 0.0));
+		In.HipShift = Hang * 2.0;
+		In.BarPivot = bHaveModel ? SteerPoint : FVector(68.0, 0.0, -1.0);
+		const FVector Axis = bHaveModel ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
+			FMath::Cos(FMath::DegreesToRadians(Sim->Build.RakeDeg)));
+		In.BarTurn = FQuat(Axis, Sim->Steer);
+		// Feet go down as the bike stops: ankles a little forward of the pegs and out, on the road.
+		In.FeetDown = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 1.8, 0.0, 1.0);
+		In.FootDownL = FVector(-32.0, -36.0, -22.0);
+		In.FootDownR = FVector(-32.0, 36.0, -22.0);
+		In.Look = FRotator(LookPitch * -0.4, LookYaw * 0.5, 0.0);
+		RiderRig.Pose(In);
+		HeadLocal = RiderRig.HelmetCentre;
+		return;
+	}
 	if (RiderParts.Num() < RP_Count) return;
 	// Pawn local cm: x forward, y right, z up, from the body origin (axle height, mid wheelbase).
 	// The Speed Twin's seat is at about z 54, its grips at x 41, its rider's pegs at x -22, z 4.

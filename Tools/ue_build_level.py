@@ -663,6 +663,120 @@ RIDER_FINISHES = {
 }
 
 
+RIDER_DEST = "/Game/Rider"
+RIDER_MAT_DIR = "/Game/Rider/Materials"
+
+
+def rider_materials(finishes):
+    """The kit: a master lit by the rider's baked occlusion (vertex colour), and a clear-coated one
+    for the helmet's paint and visor. One instance per finish in rider.json."""
+    paths = {}
+    masters = {}
+    for kind in ("kit", "gloss"):
+        m = new_material("M_Rider_" + kind, RIDER_MAT_DIR)
+        m.set_editor_property("used_with_skeletal_mesh", True)
+        if kind == "gloss":
+            try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_CLEAR_COAT)
+        col = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -700, 0)
+        col.set_editor_property("parameter_name", "Color")
+        vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -700, 200)
+        ao_amt = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -700, 350)
+        ao_amt.set_editor_property("parameter_name", "Occlusion")
+        ao_amt.set_editor_property("default_value", 1.0)
+        one = const1(m, 1.0, -700, 480)
+        ao = mel.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -450, 300)
+        mel.connect_material_expressions(one, "", ao, "A")
+        mel.connect_material_expressions(vc, "R", ao, "B")
+        mel.connect_material_expressions(ao_amt, "", ao, "Alpha")
+        base = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -250, 100)
+        mel.connect_material_expressions(col, "", base, "A")
+        mel.connect_material_expressions(ao, "", base, "B")
+        mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        mel.connect_material_property(ao, "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+        rough = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -450, 600)
+        rough.set_editor_property("parameter_name", "Roughness")
+        rough.set_editor_property("default_value", 0.6)
+        # Rougher in the creases, where kit wears dull and dust sits.
+        rmul = mel.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -250, 600)
+        rmax = const1(m, 1.0, -450, 720)
+        mel.connect_material_expressions(rmax, "", rmul, "A")
+        mel.connect_material_expressions(rough, "", rmul, "B")
+        mel.connect_material_expressions(vc, "R", rmul, "Alpha")
+        mel.connect_material_property(rmul, "", unreal.MaterialProperty.MP_ROUGHNESS)
+        spec = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -450, 850)
+        spec.set_editor_property("parameter_name", "Specular")
+        spec.set_editor_property("default_value", 0.5)
+        mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
+        if kind == "gloss":
+            try:
+                cc = const1(m, 1.0, -450, 1000)
+                ccr = const1(m, 0.04, -450, 1100)
+                mel.connect_material_property(cc, "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
+                mel.connect_material_property(ccr, "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
+            except AttributeError:
+                pass   # UE 5.8's Python has no MP_CUSTOM_DATA0/1; unconnected, the coat is 1.0 at roughness 0.1
+        mel.recompile_material(m)
+        unreal.EditorAssetLibrary.save_loaded_asset(m)
+        masters[kind] = m
+    # Leather and textiles are dielectrics with low specular; denim is very matt.
+    spec = {"jeans": 0.3, "jacket": 0.45, "sole": 0.3, "liner": 0.2, "trim": 0.35}
+    for name, f in finishes.items():
+        kind = "gloss" if name in ("helmet", "visor") else "kit"
+        mi_name = "MI_Rider_" + name
+        path = RIDER_MAT_DIR + "/" + mi_name
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        mi = asset_tools.create_asset(mi_name, RIDER_MAT_DIR, unreal.MaterialInstanceConstant,
+                                      unreal.MaterialInstanceConstantFactoryNew())
+        mel.set_material_instance_parent(mi, masters[kind])
+        c = f["color"]
+        mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
+        mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(f["roughness"]))
+        mel.set_material_instance_scalar_parameter_value(mi, "Specular", float(spec.get(name, 0.5)))
+        unreal.EditorAssetLibrary.save_loaded_asset(mi)
+        paths[name] = mi.get_path_name()
+    return paths
+
+
+def import_rider():
+    """The rider (Tools/make_rider.py): rider.glb as a skeletal mesh, helmet.glb as a static mesh, and
+    the kit's materials. Returns what the pawn needs, or None."""
+    folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Rider")
+    info_path = os.path.join(folder, "rider.json")
+    if not os.path.exists(info_path):
+        unreal.log_warning("[Torque] no rider in %s (python Tools/make_rider.py); the rider stays as shapes" % folder)
+        return None
+    info = json.load(open(info_path))
+    tasks = []
+    for f in ("rider.glb", "helmet.glb"):
+        t = unreal.AssetImportTask()
+        t.set_editor_property("filename", os.path.join(folder, f))
+        t.set_editor_property("destination_path", RIDER_DEST)
+        t.set_editor_property("destination_name", os.path.splitext(f)[0])
+        t.set_editor_property("automated", True)
+        t.set_editor_property("replace_existing", True)
+        t.set_editor_property("save", True)
+        tasks.append(t)
+    log("importing the rider...")
+    asset_tools.import_asset_tasks(tasks)
+    body = helmet = None
+    for p in unreal.EditorAssetLibrary.list_assets(RIDER_DEST, recursive=True):
+        a = unreal.load_asset(p)
+        if isinstance(a, unreal.SkeletalMesh) and "rider" in a.get_name().lower():
+            body = a
+        elif isinstance(a, unreal.StaticMesh) and "helmet" in a.get_name().lower():
+            helmet = a
+    if not body:
+        unreal.log_warning("[Torque] rider.glb didn't import as a skeletal mesh; the rider stays as shapes")
+        return None
+    if helmet:
+        nanite_off(helmet)
+        unreal.EditorAssetLibrary.save_loaded_asset(helmet)
+    mats = rider_materials(info["finishes"])
+    log("rider: %s, helmet %s" % (body.get_path_name(), helmet.get_path_name() if helmet else "missing"))
+    return {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
+
+
 def import_bike(frame):
     """The Speed Twin's parts (Tools/make_speedtwin.py) and a list of where they landed, for the pawn."""
     folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Bike", "SpeedTwin")
@@ -682,6 +796,9 @@ def import_bike(frame):
     mats = bike_materials(finishes)
     assets = {"frame": {"yaw": frame[0], "mirror": frame[1], "scale": frame[2]}, "parts": {},
               "rider": {k[len("rider_"):]: mats[k] for k in RIDER_FINISHES}}
+    rig = import_rider()
+    if rig:
+        assets["rider_rig"] = rig
     for part in info["parts"]:
         mesh = meshes.get(part["name"])
         if mesh:
