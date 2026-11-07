@@ -6,6 +6,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
@@ -88,6 +89,13 @@ ATorqueBikePawn::ATorqueBikePawn()
 	RearWheel = MakeMesh(TEXT("RearWheel"), CylinderMesh.Object, RearPivot, FVector::ZeroVector,
 		FVector(0.624, 0.624, 0.16), FRotator(0, 0, 90));
 
+	SteerGroup = CreateDefaultSubobject<USceneComponent>(TEXT("SteerGroup"));
+	SteerGroup->SetupAttachment(Root);
+	FrontHub = CreateDefaultSubobject<USceneComponent>(TEXT("FrontHub"));
+	FrontHub->SetupAttachment(Root);
+	SwingGroup = CreateDefaultSubobject<USceneComponent>(TEXT("SwingGroup"));
+	SwingGroup->SetupAttachment(Root);
+
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(Root);
 	Camera->SetUsingAbsoluteLocation(true);
@@ -120,7 +128,100 @@ void ATorqueBikePawn::BeginPlay()
 		return Out;
 	};
 	LoadRoute();
+	BuildModel();
 	Respawn(0);
+}
+
+namespace
+{
+bool LoadJson(const FString& Rel, TSharedPtr<FJsonObject>& Out)
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), Rel))) return false;
+	return FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Out) && Out.IsValid();
+}
+
+FVector JsonVec(const TSharedPtr<FJsonObject>& O, const FString& Field)
+{
+	const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+	if (!O->TryGetArrayField(Field, A) || A->Num() < 3) return FVector::ZeroVector;
+	return FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber());
+}
+
+// The model's frame (metres, x forward, y up, z right) to Unreal local cm (x forward, y right, z up).
+FVector ModelToLocal(const FVector& P) { return FVector(P.X * 100.0, P.Z * 100.0, P.Y * 100.0); }
+FVector ModelDirToLocal(const FVector& D) { return FVector(D.X, D.Z, D.Y).GetSafeNormal(); }
+} // namespace
+
+void ATorqueBikePawn::BuildModel()
+{
+	// The level script imports the parts and writes where they are, with the importer's frame.
+	TSharedPtr<FJsonObject> Assets, Spec;
+	if (!LoadJson(TEXT("Data/Bike/SpeedTwin/ue_assets.json"), Assets) ||
+		!LoadJson(TEXT("Data/Bike/SpeedTwin/speedtwin.json"), Spec))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: no Speed Twin model yet (run Tools/ue_build_level.py); using shapes"));
+		return;
+	}
+	const TSharedPtr<FJsonObject>* Frame = nullptr;
+	double Yaw = 0.0, Mirror = 1.0, Scale = 1.0;
+	if (Assets->TryGetObjectField(TEXT("frame"), Frame))
+	{
+		Yaw = (*Frame)->GetNumberField(TEXT("yaw"));
+		Mirror = (*Frame)->GetNumberField(TEXT("mirror"));
+		Scale = (*Frame)->GetNumberField(TEXT("scale"));
+	}
+	// What the level's meshes get too: the importer's turn of the glTF frame undone.
+	const FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+
+	const TSharedPtr<FJsonObject>* Axis = nullptr;
+	if (Spec->TryGetObjectField(TEXT("steer_axis"), Axis))
+	{
+		SteerPoint = ModelToLocal(JsonVec(*Axis, TEXT("point")));
+		SteerDir = ModelDirToLocal(JsonVec(*Axis, TEXT("dir")));
+	}
+	SwingPivot = ModelToLocal(JsonVec(Spec, TEXT("swing_pivot")));
+	const TSharedPtr<FJsonObject>* Origins = nullptr;
+	if (Spec->TryGetObjectField(TEXT("group_origins"), Origins))
+		RearRest = ModelToLocal(JsonVec(*Origins, TEXT("rear_wheel")));
+
+	const TSharedPtr<FJsonObject>* PartsObj = nullptr;
+	const TArray<TSharedPtr<FJsonValue>>* List = nullptr;
+	if (!Assets->TryGetObjectField(TEXT("parts"), PartsObj) || !Spec->TryGetArrayField(TEXT("parts"), List)) return;
+	int32 Made = 0;
+	for (const TSharedPtr<FJsonValue>& V : *List)
+	{
+		const TSharedPtr<FJsonObject> P = V->AsObject();
+		const FString Name = P->GetStringField(TEXT("name"));
+		const FString Group = P->GetStringField(TEXT("group"));
+		const TSharedPtr<FJsonObject>* Where = nullptr;
+		if (!(*PartsObj)->TryGetObjectField(Name, Where)) continue;
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *(*Where)->GetStringField(TEXT("mesh")));
+		if (!Mesh) continue;
+		USceneComponent* Parent = Root;
+		if (Group == TEXT("steer")) Parent = SteerGroup;
+		else if (Group == TEXT("front_lower")) Parent = FrontHub;
+		else if (Group == TEXT("front_wheel")) Parent = FrontPivot;
+		else if (Group == TEXT("swingarm")) Parent = SwingGroup;
+		else if (Group == TEXT("rear_wheel")) Parent = RearPivot;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *(TEXT("Part_") + Name));
+		C->SetStaticMesh(Mesh);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetupAttachment(Parent);
+		C->SetRelativeTransform(Fix);
+		if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *(*Where)->GetStringField(TEXT("material"))))
+			C->SetMaterial(0, M);
+		C->RegisterComponent();
+		ModelParts.Add(C);
+		++Made;
+	}
+	if (Made > 0)
+	{
+		bHaveModel = true;
+		for (UStaticMeshComponent* Shape : {Body, Tank, FrontWheel, RearWheel}) Shape->SetVisibility(false);
+		UE_LOG(LogTemp, Log, TEXT("Torque: Speed Twin model, %d parts"), Made);
+	}
 }
 
 void ATorqueBikePawn::LoadRoute()
@@ -270,11 +371,22 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	// Wheels roll about their axle (local y); forward rolling turns the top forward, a negative pitch.
 	const double Rake = FMath::DegreesToRadians(Sim->Build.RakeDeg);
 	const FVector SteerAxis(-FMath::Sin(Rake), 0.0, FMath::Cos(Rake));   // tilted back by the rake
-	const FQuat SteerQ(SteerAxis, Sim->Steer);
+	const FQuat SteerQ(bHaveModel ? SteerDir : SteerAxis, Sim->Steer);
+	// A turn about +y by a positive angle carries the top of the wheel forwards: rolling ahead.
 	FrontPivot->SetRelativeLocation(BodyToLocal(F.Centre));
-	FrontPivot->SetRelativeRotation(SteerQ * FQuat(FVector::RightVector, -F.Spin));
+	FrontPivot->SetRelativeRotation(SteerQ * FQuat(FVector::RightVector, F.Spin));
 	RearPivot->SetRelativeLocation(BodyToLocal(R.Centre));
-	RearPivot->SetRelativeRotation(FQuat(FVector::RightVector, -R.Spin));
+	RearPivot->SetRelativeRotation(FQuat(FVector::RightVector, R.Spin));
+	if (!bHaveModel) return;
+
+	// Bars, yokes and lamp turn about the steering axis; the fork lowers follow the axle.
+	const FQuat Turn(SteerDir, Sim->Steer);
+	SteerGroup->SetRelativeLocationAndRotation(SteerPoint - Turn.RotateVector(SteerPoint), Turn);
+	FrontHub->SetRelativeLocationAndRotation(BodyToLocal(F.Centre), SteerQ);
+	// The swingarm swings about its pivot to point at the rear axle.
+	const FVector Rest = RearRest - SwingPivot, Now = BodyToLocal(R.Centre) - SwingPivot;
+	const double Swing = FMath::Atan2(Now.Z, Now.X) - FMath::Atan2(Rest.Z, Rest.X);
+	SwingGroup->SetRelativeLocationAndRotation(SwingPivot, FQuat(FVector::RightVector, -Swing));
 }
 
 void ATorqueBikePawn::UpdateProgress()
@@ -303,13 +415,14 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	if (CameraMode == 1)
 	{
 		// Onboard: just behind the rider's eyes, leaning with the bike but less, as your head does.
-		const FVector Eye = BikePos + BikeRot.RotateVector(FVector(-28.0, 0.0, 128.0));
+		// Like the chest camera in beenster's footage: low over the tank, bars and clocks in view.
+		const FVector Eye = BikePos + BikeRot.RotateVector(FVector(-30.0, 0.0, 118.0));
 		const double LeanDeg = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.55;
 		FRotator Rot = Flat.Rotation();
-		Rot.Pitch = -6.0 + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
+		Rot.Pitch = -14.0 + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
 		Rot.Roll = LeanDeg;
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
-		Camera->SetFieldOfView(82.0f);
+		Camera->SetFieldOfView(100.0f);
 		return;
 	}
 

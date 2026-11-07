@@ -23,6 +23,8 @@ import unreal
 MAP = "/Game/Maps/Buttertubs"
 DEST = "/Game/Buttertubs"
 MAT_DIR = "/Game/Buttertubs/Materials"
+BIKE_DEST = "/Game/Bike/SpeedTwin"
+BIKE_MAT_DIR = "/Game/Bike/Materials"
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
@@ -49,13 +51,13 @@ def glb_bounds(path):
     return acc["min"], acc["max"]
 
 
-def import_glbs(folder):
+def import_glbs(folder, dest=DEST):
     files = sorted(f for f in os.listdir(folder) if f.endswith(".glb"))
     tasks = []
     for f in files:
         t = unreal.AssetImportTask()
         t.set_editor_property("filename", os.path.join(folder, f))
-        t.set_editor_property("destination_path", DEST)
+        t.set_editor_property("destination_path", dest)
         t.set_editor_property("destination_name", os.path.splitext(f)[0])
         t.set_editor_property("automated", True)
         t.set_editor_property("replace_existing", True)
@@ -73,7 +75,7 @@ def import_glbs(folder):
                 break
         if name not in meshes:
             # Some importer versions put the mesh in a subfolder or prefix its name; search for it.
-            for p in unreal.EditorAssetLibrary.list_assets(DEST, recursive=True):
+            for p in unreal.EditorAssetLibrary.list_assets(dest, recursive=True):
                 a = unreal.load_asset(p)
                 if isinstance(a, unreal.StaticMesh) and name in a.get_name():
                     meshes[name] = a
@@ -141,11 +143,11 @@ def find_frame(mesh, glb_path):
 
 # --- Materials -------------------------------------------------------------------------------------
 
-def new_material(name):
-    path = MAT_DIR + "/" + name
+def new_material(name, folder=MAT_DIR):
+    path = folder + "/" + name
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
-    return asset_tools.create_asset(name, MAT_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    return asset_tools.create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
 
 
 def const3(mat, rgb, x, y):
@@ -208,6 +210,64 @@ def road_material():
     return m
 
 
+def bike_materials(finishes):
+    """A two sided master (colour, metallic, roughness as parameters) and an instance per finish."""
+    m = new_material("M_BikeMaster", BIKE_MAT_DIR)
+    m.set_editor_property("two_sided", True)
+    col = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -500, 0)
+    col.set_editor_property("parameter_name", "Color")
+    met = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -500, 250)
+    met.set_editor_property("parameter_name", "Metallic")
+    rough = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -500, 400)
+    rough.set_editor_property("parameter_name", "Roughness")
+    rough.set_editor_property("default_value", 0.5)
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(met, "", unreal.MaterialProperty.MP_METALLIC)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    paths = {}
+    for name, f in finishes.items():
+        mi_name = "MI_" + name
+        path = BIKE_MAT_DIR + "/" + mi_name
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        mi = asset_tools.create_asset(mi_name, BIKE_MAT_DIR, unreal.MaterialInstanceConstant,
+                                      unreal.MaterialInstanceConstantFactoryNew())
+        mel.set_material_instance_parent(mi, m)
+        c = f["color"]
+        mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
+        mel.set_material_instance_scalar_parameter_value(mi, "Metallic", float(f["metallic"]))
+        mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(f["roughness"]))
+        unreal.EditorAssetLibrary.save_loaded_asset(mi)
+        paths[name] = mi.get_path_name()
+    return paths
+
+
+def import_bike(frame):
+    """The Speed Twin's parts (Tools/make_speedtwin.py) and a list of where they landed, for the pawn."""
+    folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Bike", "SpeedTwin")
+    if not os.path.isdir(folder):
+        unreal.log_warning("[Torque] no bike parts in %s; the bike stays as placeholder shapes" % folder)
+        return
+    info = json.load(open(os.path.join(folder, "speedtwin.json")))
+    meshes = import_glbs(folder, BIKE_DEST)
+    for mesh in meshes.values():
+        body = mesh.get_editor_property("body_setup")
+        if body:
+            body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    mats = bike_materials(info["finishes"])
+    assets = {"frame": {"yaw": frame[0], "mirror": frame[1], "scale": frame[2]}, "parts": {}}
+    for part in info["parts"]:
+        mesh = meshes.get(part["name"])
+        if mesh:
+            assets["parts"][part["name"]] = {"mesh": mesh.get_path_name(), "material": mats.get(part["finish"], "")}
+    with open(os.path.join(folder, "ue_assets.json"), "w") as f:
+        json.dump(assets, f, indent=1)
+    log("bike: %d parts imported" % len(assets["parts"]))
+
+
 # --- The level -------------------------------------------------------------------------------------
 
 def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
@@ -224,6 +284,7 @@ def build():
         setup_mesh(mesh, full_precision_uvs=(name == "road"))
     yaw, mirror, scale = find_frame(meshes["road"], os.path.join(folder, "road.glb"))
     land, road = land_material(), road_material()
+    import_bike((yaw, mirror, scale))
 
     levels.new_level(MAP)
     rot = unreal.Rotator(0.0, 0.0, float(yaw))   # (roll, pitch, yaw) in the Python constructor

@@ -44,6 +44,13 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Bike") UStaticMeshComponent* FrontWheel;
 	UPROPERTY(VisibleAnywhere, Category = "Bike") UStaticMeshComponent* RearWheel;
 	UPROPERTY(VisibleAnywhere, Category = "Bike") UCameraComponent* Camera;
+	// The Speed Twin model's moving groups (see Tools/make_speedtwin.py).
+	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* SteerGroup;
+	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* FrontHub;
+	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* SwingGroup;
+
+	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
 
 private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
@@ -67,7 +74,13 @@ private:
 	FVector CamLookAt = FVector::ZeroVector;
 	bool bCamInit = false;
 
+	// Model geometry (Unreal local cm), read from speedtwin.json.
+	bool bHaveModel = false;
+	FVector SteerPoint = FVector::ZeroVector, SteerDir = FVector::UpVector, SwingPivot = FVector::ZeroVector;
+	FVector RearRest = FVector::ZeroVector;
+
 	void LoadRoute();
+	void BuildModel();
 	void Respawn(int32 LineIndex);
 	void ReadInput(float Dt);
 	void StepSim();

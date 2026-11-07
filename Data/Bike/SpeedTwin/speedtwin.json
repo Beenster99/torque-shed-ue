@@ -1,0 +1,504 @@
+{
+ "bike": "2025 Triumph Speed Twin 1200",
+ "frame": "metres, x forward, y up, z right; body origin at axle height (suspension extended), mid wheelbase",
+ "group_origins": {
+  "body": [
+   0,
+   0,
+   0
+  ],
+  "steer": [
+   0,
+   0,
+   0
+  ],
+  "front_lower": [
+   0.7065,
+   0.0,
+   0.0
+  ],
+  "front_wheel": [
+   0.7065,
+   0.0,
+   0.0
+  ],
+  "swingarm": [
+   -0.335,
+   0.075,
+   0.0
+  ],
+  "rear_wheel": [
+   -0.7065,
+   0.0,
+   0.0
+  ]
+ },
+ "steer_axis": {
+  "point": [
+   0.678844105452345,
+   -0.01162546759356309,
+   0.0
+  ],
+  "dir": [
+   -0.387515586452103,
+   0.9218631515885005,
+   0.0
+  ]
+ },
+ "swing_pivot": [
+  -0.335,
+  0.075,
+  0.0
+ ],
+ "finishes": {
+  "paint_silver": {
+   "color": [
+    0.62,
+    0.63,
+    0.64
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "black_gloss": {
+   "color": [
+    0.012,
+    0.012,
+    0.013
+   ],
+   "metallic": 0.0,
+   "roughness": 0.12
+  },
+  "black_satin": {
+   "color": [
+    0.02,
+    0.02,
+    0.021
+   ],
+   "metallic": 0.0,
+   "roughness": 0.45
+  },
+  "black_engine": {
+   "color": [
+    0.025,
+    0.025,
+    0.027
+   ],
+   "metallic": 0.3,
+   "roughness": 0.38
+  },
+  "chrome": {
+   "color": [
+    0.92,
+    0.92,
+    0.92
+   ],
+   "metallic": 1.0,
+   "roughness": 0.06
+  },
+  "steel_brushed": {
+   "color": [
+    0.75,
+    0.74,
+    0.72
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28
+  },
+  "copper_heat": {
+   "color": [
+    0.78,
+    0.46,
+    0.3
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "alu_cast": {
+   "color": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "metallic": 1.0,
+   "roughness": 0.35
+  },
+  "rubber": {
+   "color": [
+    0.018,
+    0.018,
+    0.018
+   ],
+   "metallic": 0.0,
+   "roughness": 0.88
+  },
+  "leather": {
+   "color": [
+    0.022,
+    0.021,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.55
+  },
+  "disc_steel": {
+   "color": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic": 1.0,
+   "roughness": 0.32
+  },
+  "lens_clear": {
+   "color": [
+    0.85,
+    0.87,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.04
+  },
+  "lens_red": {
+   "color": [
+    0.6,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.1
+  },
+  "lens_amber": {
+   "color": [
+    0.9,
+    0.35,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.15
+  },
+  "chain": {
+   "color": [
+    0.18,
+    0.17,
+    0.16
+   ],
+   "metallic": 1.0,
+   "roughness": 0.5
+  }
+ },
+ "parts": [
+  {
+   "name": "battery_box",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 360
+  },
+  {
+   "name": "cam_cover",
+   "group": "body",
+   "finish": "black_engine",
+   "tris": 360
+  },
+  {
+   "name": "chain",
+   "group": "swingarm",
+   "finish": "chain",
+   "tris": 320
+  },
+  {
+   "name": "clock_body",
+   "group": "steer",
+   "finish": "black_engine",
+   "tris": 400
+  },
+  {
+   "name": "clock_face",
+   "group": "steer",
+   "finish": "lens_clear",
+   "tris": 80
+  },
+  {
+   "name": "cover_badges",
+   "group": "body",
+   "finish": "alu_cast",
+   "tris": 192
+  },
+  {
+   "name": "crankcase",
+   "group": "body",
+   "finish": "black_engine",
+   "tris": 360
+  },
+  {
+   "name": "cylinders",
+   "group": "body",
+   "finish": "alu_cast",
+   "tris": 2952
+  },
+  {
+   "name": "engine_covers",
+   "group": "body",
+   "finish": "black_gloss",
+   "tris": 480
+  },
+  {
+   "name": "footrests",
+   "group": "body",
+   "finish": "alu_cast",
+   "tris": 1072
+  },
+  {
+   "name": "fork_lowers",
+   "group": "front_lower",
+   "finish": "black_satin",
+   "tris": 432
+  },
+  {
+   "name": "fork_stanchions",
+   "group": "steer",
+   "finish": "black_satin",
+   "tris": 384
+  },
+  {
+   "name": "frame",
+   "group": "body",
+   "finish": "black_gloss",
+   "tris": 5248
+  },
+  {
+   "name": "front_calipers",
+   "group": "front_lower",
+   "finish": "black_engine",
+   "tris": 720
+  },
+  {
+   "name": "front_carriers",
+   "group": "front_wheel",
+   "finish": "alu_cast",
+   "tris": 640
+  },
+  {
+   "name": "front_discs",
+   "group": "front_wheel",
+   "finish": "disc_steel",
+   "tris": 1024
+  },
+  {
+   "name": "front_indicators",
+   "group": "steer",
+   "finish": "lens_amber",
+   "tris": 352
+  },
+  {
+   "name": "front_mudguard",
+   "group": "front_lower",
+   "finish": "black_gloss",
+   "tris": 800
+  },
+  {
+   "name": "front_rim",
+   "group": "front_wheel",
+   "finish": "black_gloss",
+   "tris": 4080
+  },
+  {
+   "name": "front_tyre",
+   "group": "front_wheel",
+   "finish": "rubber",
+   "tris": 3888
+  },
+  {
+   "name": "gearbox",
+   "group": "body",
+   "finish": "black_engine",
+   "tris": 360
+  },
+  {
+   "name": "grips_switches",
+   "group": "steer",
+   "finish": "black_engine",
+   "tris": 944
+  },
+  {
+   "name": "handlebar",
+   "group": "steer",
+   "finish": "black_satin",
+   "tris": 888
+  },
+  {
+   "name": "headers",
+   "group": "body",
+   "finish": "copper_heat",
+   "tris": 3648
+  },
+  {
+   "name": "headlight_lens",
+   "group": "steer",
+   "finish": "lens_clear",
+   "tris": 192
+  },
+  {
+   "name": "headlight_shell",
+   "group": "steer",
+   "finish": "chrome",
+   "tris": 480
+  },
+  {
+   "name": "levers",
+   "group": "steer",
+   "finish": "alu_cast",
+   "tris": 520
+  },
+  {
+   "name": "mirror_stalks",
+   "group": "steer",
+   "finish": "black_satin",
+   "tris": 520
+  },
+  {
+   "name": "mirrors",
+   "group": "steer",
+   "finish": "black_gloss",
+   "tris": 512
+  },
+  {
+   "name": "plate",
+   "group": "body",
+   "finish": "lens_amber",
+   "tris": 64
+  },
+  {
+   "name": "plate_hanger",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 416
+  },
+  {
+   "name": "rear_disc",
+   "group": "rear_wheel",
+   "finish": "disc_steel",
+   "tris": 512
+  },
+  {
+   "name": "rear_light",
+   "group": "body",
+   "finish": "lens_red",
+   "tris": 144
+  },
+  {
+   "name": "rear_rim",
+   "group": "rear_wheel",
+   "finish": "black_gloss",
+   "tris": 4080
+  },
+  {
+   "name": "rear_sprocket",
+   "group": "rear_wheel",
+   "finish": "alu_cast",
+   "tris": 328
+  },
+  {
+   "name": "rear_tyre",
+   "group": "rear_wheel",
+   "finish": "rubber",
+   "tris": 3888
+  },
+  {
+   "name": "seat",
+   "group": "body",
+   "finish": "leather",
+   "tris": 896
+  },
+  {
+   "name": "seat_pan",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 640
+  },
+  {
+   "name": "shock_bodies",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 496
+  },
+  {
+   "name": "shock_springs",
+   "group": "body",
+   "finish": "black_gloss",
+   "tris": 5120
+  },
+  {
+   "name": "shock_tops",
+   "group": "body",
+   "finish": "alu_cast",
+   "tris": 80
+  },
+  {
+   "name": "side_panel_l",
+   "group": "body",
+   "finish": "black_gloss",
+   "tris": 400
+  },
+  {
+   "name": "side_panel_r",
+   "group": "body",
+   "finish": "black_gloss",
+   "tris": 400
+  },
+  {
+   "name": "silencer_caps",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 384
+  },
+  {
+   "name": "silencers",
+   "group": "body",
+   "finish": "steel_brushed",
+   "tris": 1408
+  },
+  {
+   "name": "sump",
+   "group": "body",
+   "finish": "black_engine",
+   "tris": 360
+  },
+  {
+   "name": "swingarm",
+   "group": "swingarm",
+   "finish": "black_satin",
+   "tris": 1208
+  },
+  {
+   "name": "tail",
+   "group": "body",
+   "finish": "black_gloss",
+   "tris": 360
+  },
+  {
+   "name": "tank",
+   "group": "body",
+   "finish": "paint_silver",
+   "tris": 1296
+  },
+  {
+   "name": "tank_cap",
+   "group": "body",
+   "finish": "alu_cast",
+   "tris": 168
+  },
+  {
+   "name": "throttle_bodies",
+   "group": "body",
+   "finish": "alu_cast",
+   "tris": 160
+  },
+  {
+   "name": "yokes",
+   "group": "steer",
+   "finish": "alu_cast",
+   "tris": 720
+  }
+ ]
+}

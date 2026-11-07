@@ -13,11 +13,12 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Source/TorqueShedProto/TorqueBikePawn.*` | The bike in Unreal: steps the sim at 120 Hz, sees the ground by line traces, chase and onboard cameras, keys and pad, HUD, respawn after a crash |
 | `Data/Buttertubs/` | The 3 km: 54 terrain tiles (2 m grid, road bed cut in, land cover as vertex colour), the far hills (32 m, out to 6 km), the road ribbon, and `route.json` |
 | `Tools/export_buttertubs.py` | Makes `Data/Buttertubs` from the Godot game's Dales region data (needs Python 3 and numpy) |
+| `Tools/make_speedtwin.py` | Builds the Speed Twin model (52 parts as glb in `Data/Bike/SpeedTwin`) from measurements of your photos; `--check photo.jpg` renders it over a side-on photo |
 | `Tools/ue_build_level.py` | Run inside the Unreal editor: imports the meshes, makes the materials, sun, sky and fog, and saves the level |
 | `SimTest/` | A standalone test of the physics: flat-ground checks and a robot rider down the exported 3 km |
 
-The bike is placeholder shapes for now. The next step is a proper Speed Twin model from your photos
-and footage.
+The bike is a first Speed Twin model built from your two side-on drone photos: wheels, forks, tank,
+seat, engine, headers and silencers, in simple finishes. The rider is still a placeholder shape.
 
 ## Setting it up on your PC
 
@@ -33,7 +34,7 @@ and footage.
    - If the rebuild fails, right-click the `.uproject`, choose *Generate Visual Studio project files*,
      open `TorqueShedProto.sln`, and build *Development Editor*. Paste any errors to Claude.
 5. **Build the level**: in the editor choose *Tools > Execute Python Script...* and pick
-   `Tools/ue_build_level.py`. It imports the land and road, makes the materials and lights, and saves
+   `Tools/ue_build_level.py`. It imports the land, road and bike, makes the materials and lights, and saves
    `/Game/Maps/Buttertubs`, which is also the startup map. The Output Log shows `[Torque]` lines as
    it goes. If the editor says the Python plugin needs a restart, restart it and run the script again.
 6. **Ride**: press *Play*. For the full frame rate, use *Play > Standalone Game* or
