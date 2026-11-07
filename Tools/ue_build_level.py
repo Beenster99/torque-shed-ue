@@ -293,6 +293,15 @@ def import_textures():
     spec = json.load(open(spec_path))
     out = {}
     for role, r in spec["roles"].items():
+        if "ue" in r:
+            # Textures already in the project (a Megascans surface from Fab, say):
+            # "ue": {"color": "/Game/...", "normal": "/Game/...", "rough": "/Game/...", "ao": "/Game/..."}
+            maps = {k: unreal.load_asset(v) for k, v in r["ue"].items()}
+            maps = {k: v for k, v in maps.items() if isinstance(v, unreal.Texture)}
+            if "color" in maps:
+                out[role] = maps
+                continue
+            unreal.log_warning("[Torque] %s: the project textures in 'ue' didn't load; trying %s" % (role, r.get("id")))
         folder = os.path.join(root, r["id"])
         if not os.path.exists(os.path.join(folder, "color.jpg")):
             unreal.log_warning("[Torque] texture %s for %s not downloaded (python Tools/fetch_textures.py)" % (r["id"], role))
