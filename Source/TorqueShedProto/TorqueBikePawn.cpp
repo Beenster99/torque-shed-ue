@@ -14,6 +14,11 @@
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
+#include "Engine/GameViewportClient.h"
+#include "RenderCore.h"
+#include "RHI.h"
+#include "UnrealClient.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -174,6 +179,7 @@ void ATorqueBikePawn::BeginPlay()
 	// -TorqueCamera=1 starts in first person (2: chin camera), for checking the views.
 	int32 StartCamera = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueCamera="), StartCamera)) CameraMode = FMath::Clamp(StartCamera, 0, 2);
+	if (FParse::Param(FCommandLine::Get(), TEXT("TorqueProfile"))) { bPerfShow = true; bPerfLog = true; }
 }
 
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
@@ -448,6 +454,13 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::H)) bShowHelp = !bShowHelp;
+	if (PC->WasInputKeyJustPressed(EKeys::P) || SonyHit(ESonyButton::L3) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftThumbstick))
+		bPerfShow = !bPerfShow;
+	if (PC->WasInputKeyJustPressed(EKeys::O))
+	{
+		bPerfLog = !bPerfLog;
+		if (!bPerfLog) PerfFile.Reset();
+	}
 	const bool bPadQuit = (SonyDown & ESonyButton::Create) && (SonyDown & ESonyButton::Options);
 	const bool bXboxQuit = Down(EKeys::Gamepad_Special_Left) > 0.5 && Down(EKeys::Gamepad_Special_Right) > 0.5;
 	if (PC->WasInputKeyJustPressed(EKeys::Escape) || bPadQuit || bXboxQuit)
@@ -508,6 +521,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	UpdateProgress();
 	UpdateCamera(DeltaSeconds);
 	UpdateSound(DeltaSeconds);
+	UpdatePerf(DeltaSeconds);
 	DrawHud();
 }
 
@@ -797,6 +811,43 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	SoundWave->QueueAudio(reinterpret_cast<const uint8*>(SoundPcm.GetData()), Need * 2);
 }
 
+void ATorqueBikePawn::UpdatePerf(float Dt)
+{
+	PerfClock += Dt;
+	PerfRun += Dt;
+	PerfSum += Dt;
+	PerfWorst = FMath::Max(PerfWorst, (double)Dt);
+	++PerfFrames;
+	if (PerfClock < 1.0) return;
+	const double AvgMs = PerfSum / FMath::Max(PerfFrames, 1) * 1000.0;
+	const double Fps = PerfFrames / PerfClock;
+	const double GameMs = FPlatformTime::ToMilliseconds(GGameThreadTime);
+	const double RenderMs = FPlatformTime::ToMilliseconds(GRenderThreadTime);
+	const double GpuMs = FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+	FIntPoint Res(0, 0);
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport) Res = GEngine->GameViewport->Viewport->GetSizeXY();
+	PerfText = FString::Printf(TEXT("%.0f fps   frame %.1f ms (worst %.1f)   game %.1f   render %.1f   GPU %.1f ms   %dx%d"),
+		Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y);
+	if (bPerfLog)
+	{
+		if (PerfFile.IsEmpty())
+		{
+			PerfFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Profiling"),
+				FString::Printf(TEXT("torque_perf_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"))));
+			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,speed_mph,km,camera\n"), *PerfFile);
+			UE_LOG(LogTemp, Log, TEXT("Torque: logging performance to %s"), *PerfFile);
+		}
+		const double Km = Line.Num() > 1 ? 3.0 * Near / (Line.Num() - 1) : 0.0;
+		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.2f,%d\n"),
+			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, FMath::Abs(Sim->Speed) * 2.23694, Km, CameraMode),
+			*PerfFile, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
+	}
+	PerfClock = 0.0;
+	PerfSum = 0.0;
+	PerfWorst = 0.0;
+	PerfFrames = 0;
+}
+
 void ATorqueBikePawn::UpdateProgress()
 {
 	if (Line.Num() < 2) return;
@@ -888,6 +939,8 @@ void ATorqueBikePawn::DrawHud()
 	Add(FString::Printf(TEXT("Buttertubs  %.2f of 3.00 km   %d:%05.2f%s"), Done, Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Options/Home to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
+	if (bPerfShow && !PerfText.IsEmpty())
+		Add(PerfText + (bPerfLog ? TEXT("   [logging to CSV]") : TEXT("")), FColor(140, 255, 160), 1.0f);
 	const bool bSony = Pad && Pad->Get().bConnected;
 	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s"), Assist,
 		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad")), FColor(170, 200, 170), 0.9f);
@@ -895,9 +948,9 @@ void ATorqueBikePawn::DrawHud()
 	{
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
-		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look"), Help, 0.85f);
+		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
 		Add(TEXT("      R1 camera   Triangle back on road   Options restart   D-pad realism   Create+Options quit"), Help, 0.85f);
 		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
-		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   H hide this help   Esc quit"), Help, 0.85f);
+		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   P performance   O log it   H help   Esc quit"), Help, 0.85f);
 	}
 }

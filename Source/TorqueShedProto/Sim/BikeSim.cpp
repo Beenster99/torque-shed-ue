@@ -181,7 +181,8 @@ void BikeSim::Step(double Delta)
 	{
 		const double Over = PitchAngle - WheelieTarget();
 		const double Rising = AngularVelocity.Dot(Basis.X);
-		if (Over > 0.0) RearGrip = std::max(RearGrip, Clamp(Over * 3.0 + Rising * 0.6, 0.0, 1.0) * Steadiness());
+		const double Ahead = Over + std::max(Rising, 0.0) * 0.45;   // where it'll be in a moment
+		if (Ahead > 0.0) RearGrip = std::max(RearGrip, Clamp(Ahead * 4.0, 0.0, 1.0) * Steadiness());
 	}
 	double FrontGrip = Parked ? std::max(FrontBrake, 0.8) : FrontBrake;
 	if (!Wheels[1].Contact && Wheels[0].Contact && PitchAngle < -DegToRad(3.0))
@@ -506,7 +507,8 @@ void BikeSim::UpdateEngine(double Delta)
 	{
 		const double Over = PitchAngle - WheelieTarget();
 		const double Rising = AngularVelocity.Dot(Basis.X);
-		TcTarget = std::min(TcTarget, Clamp(1.0 - (Over * 8.0 + Rising * 1.2) * Steadiness(), 0.0, 1.0));
+		const double Ahead = Over + std::max(Rising, 0.0) * 0.45;
+		if (Ahead > 0.0) TcTarget = std::min(TcTarget, Clamp(1.0 - Ahead * 8.0 * Steadiness(), 0.0, 1.0));
 	}
 	Traction = Lerp(Traction, TcTarget, 1.0 - std::exp(-25.0 * Delta));
 	double EngineNm = Build.EngineTorque(Rpm) * ThrottleEff * Traction;
@@ -565,8 +567,11 @@ double BikeSim::WheelieTarget() const
 	// Without asking for one (weight right back), the rider keeps the front down: a big twin lifts it
 	// at full throttle in first, and a rider who isn't after a wheelie rolls off. Asked for, the
 	// wheel comes up to a balance point a little higher the further back the weight is.
+	// Asked for, nothing holds it up: the rider keeps it there with the throttle and their weight.
+	// Only near the loop-over point does the rider's instinct (and more so with more assist) roll
+	// off and cover the rear brake.
 	double T = 0.0;
-	if (BodyShift <= -0.6) T = WHEELIE_PITCH + DegToRad(8.0) * Clamp((-BodyShift - 0.6) / 0.4, 0.0, 1.0);
+	if (BodyShift <= -0.6) T = Lerp(DegToRad(78.0), DegToRad(46.0), Clamp(Assist, 0.0, 1.0));
 	return T;
 }
 
@@ -892,7 +897,7 @@ void BikeSim::ApplyRiderBalance(double Delta)
 		PitchTau += (Revs - RearBrake * 0.6) * AIR_REV_PITCH * Build.Inertia.x;
 	}
 	else if (Wheels[0].Contact != Wheels[1].Contact)
-		PitchTau -= PitchRate * Build.Inertia.x * Lerp(1.2, 3.0, Assist);
+		PitchTau -= PitchRate * Build.Inertia.x * Lerp(0.2, 0.8, Assist);   // a little steadying; the rest is the rider's
 	ApplyTorque(Right * PitchTau);
 	if (!AnyContact) ApplyTorque(-B.Y * AngularVelocity.Dot(B.Y) * Mass * 0.6);
 }

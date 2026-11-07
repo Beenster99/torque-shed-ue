@@ -8,7 +8,7 @@ public class TorqueShedProto : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		// The riding sim (Sim/) is plain C++ shared with the standalone test; keep its files apart.
 		bUseUnity = false;
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json", "RenderCore", "RHI" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
 		// SonyPad reads PlayStation pads through Windows HID.
 		if (Target.Platform == UnrealTargetPlatform.Win64)

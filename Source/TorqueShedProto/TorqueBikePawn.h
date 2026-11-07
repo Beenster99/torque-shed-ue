@@ -96,6 +96,13 @@ private:
 	bool bManual = false;            // gears changed by hand (the first press of a shift button)
 	bool bAbs = true;                // the Speed Twin's ABS; off lets the rear lock
 	double GearNoteFor = 0.0;
+	// Performance: P shows frame, game, render and GPU times; O (or -TorqueProfile) logs them each
+	// second to Saved/Profiling/torque_perf_<time>.csv.
+	bool bPerfShow = false, bPerfLog = false;
+	double PerfClock = 0.0, PerfSum = 0.0, PerfWorst = 0.0, PerfRun = 0.0;
+	int32 PerfFrames = 0;
+	FString PerfText, PerfFile;
+	void UpdatePerf(float Dt);
 	TArray<FHudLine> HudLines;
 	bool bShowHelp = true;
 	double Accum = 0.0;

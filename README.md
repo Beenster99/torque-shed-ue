@@ -66,6 +66,8 @@ L1 and R1, View is Create and Menu is Options.
 | Start again | Home | Menu (Start) |
 | Riding realism | [ and ] (0 full sim, 1 easy) | D-pad up and down |
 | Quit | Esc | View and Menu together |
+| Performance readout (fps, frame, game, render and GPU ms) | P | Left stick click |
+| Log performance to Saved/Profiling/torque_perf_*.csv | O (or launch with -TorqueProfile) | |
 
 Sound is made as you ride (Source/TorqueShedProto/TorqueAudio): a 270-degree twin synthesised from
 the revs and throttle, with recorded idle, gear lever clunks and moorland birds from Torque Shed
