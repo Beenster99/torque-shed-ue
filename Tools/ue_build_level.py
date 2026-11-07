@@ -1432,9 +1432,10 @@ def beck_material():
     return g.m
 
 
-def place_becks(frame, stone_mat):
+def place_becks(frame, stone_mat, wall_mat=None):
     """The becks: their stony beds (M_Stone) and water (M_Beck) as plain meshes at the origin like
-    the land, and their cobbles and boulders planted by a TorqueFoliage actor, "BeckStones"."""
+    the land, the culverts' headwalls (M_Masonry, wall_) and coping stones (M_Stone, cope_), and their
+    cobbles and boulders planted by a TorqueFoliage actor, "BeckStones"."""
     folder = os.path.join(data_dir(), "Becks")
     spec_path = os.path.join(folder, "becks.json")
     if not os.path.exists(spec_path):
@@ -1463,7 +1464,8 @@ def place_becks(frame, stone_mat):
         a.set_folder_path("Becks")
         comp = a.get_component_by_class(unreal.StaticMeshComponent)
         comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
-        comp.set_material(0, water if name.startswith("water_") else stone_mat)
+        comp.set_material(0, water if name.startswith("water_") else
+                          (wall_mat or stone_mat) if name.startswith("wall_") else stone_mat)
         comp.set_collision_profile_name("NoCollision")
         comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         comp.set_editor_property("can_ever_affect_navigation", False)
@@ -1553,22 +1555,27 @@ def tree_material():
         k = g.lerp(g.const(0.86), g.const(1.12), n, alpha_out="G")
         base = g.op(unreal.MaterialExpressionMultiply, base, k)
     # With distance a wood goes darker and greyer (its shade, and the air, outweigh its sunlit leaves),
-    # from about 250 m to 3 km, so far woods sit in the fells' haze instead of glowing green.
+    # from about 250 m to 2 km, so far woods sit in the fells' haze instead of glowing green.
     depth = g.node(unreal.MaterialExpressionPixelDepth)
     far = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
-               g.op(unreal.MaterialExpressionSubtract, depth, const_b=25000.0), const_b=275000.0))
+               g.op(unreal.MaterialExpressionSubtract, depth, const_b=25000.0), const_b=175000.0))
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)
     g.link(base, grey)
-    g.link(g.const(0.45), grey, "Fraction")
-    dull = g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.7)
+    g.link(g.const(0.55), grey, "Fraction")
+    dull = g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.58)
     base = g.lerp(base, dull, far)
+    # Far off, no glow: the light through the leaves and their sheen are a near tree's, and on the far
+    # models' smooth lumps they made bright blobs on the fellsides. Both fade out with the same distance.
+    near = g.op(unreal.MaterialExpressionOneMinus, far)
     sss = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, base, g.const((0.7, 0.85, 0.3))), leaf)
-    rough = g.lerp(g.const(0.88), g.const(0.58), leaf)
+    sss = g.op(unreal.MaterialExpressionMultiply, sss, near)
+    rough = g.lerp(g.lerp(g.const(0.88), g.const(0.58), leaf), g.const(0.95), far)
+    spec = g.lerp(g.const(0.32), g.const(0.12), far)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.connect_material_property(g.const(0.32), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(tree_wind(g, w, leaf), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1991,7 +1998,7 @@ def build():
         place_props(prop_meshes, prop_spec, prop_mats, (yaw, mirror, scale))
     stone = prop_mats.get("stone") or stone_material(tex, roles)
     place_far_rock((yaw, mirror, scale), land, stone)
-    place_becks((yaw, mirror, scale), stone)
+    place_becks((yaw, mirror, scale), stone, prop_mats.get("masonry"))
 
     # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
     # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting
