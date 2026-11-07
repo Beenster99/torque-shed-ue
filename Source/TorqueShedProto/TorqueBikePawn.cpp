@@ -360,6 +360,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
+	// Hands-off test runs (-TorqueNoInput) ignore the pad and keyboard, so nobody playing can change them.
+	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
+	if (bNoInput) return;
 	auto Down = [PC](const FKey& K) { return PC->IsInputKeyDown(K) ? 1.0 : 0.0; };
 	auto Axis = [PC](const FKey& K) { return (double)PC->GetInputAnalogKeyState(K); };
 
