@@ -7,7 +7,7 @@
    "cull_spread": 1.4,
    "shadow": false,
    "triangles": 16156,
-   "ground_blend": 0.45,
+   "ground_blend": 0.7,
    "min_draw_m": 0.0,
    "count": 79496
   },
@@ -17,7 +17,7 @@
    "cull_spread": 1.4,
    "shadow": false,
    "triangles": 15000,
-   "ground_blend": 0.45,
+   "ground_blend": 0.7,
    "min_draw_m": 0.0,
    "count": 122180
   },
@@ -27,7 +27,7 @@
    "cull_spread": 1.0,
    "shadow": false,
    "triangles": 4968,
-   "ground_blend": 0.45,
+   "ground_blend": 0.7,
    "min_draw_m": 30.0,
    "count": 43179
   },
@@ -37,7 +37,7 @@
    "cull_spread": 1.0,
    "shadow": false,
    "triangles": 4892,
-   "ground_blend": 0.45,
+   "ground_blend": 0.7,
    "min_draw_m": 30.0,
    "count": 93216
   },
