@@ -51,28 +51,36 @@ height = np.zeros((H, W), np.float32)    # millimetres
 
 wob = fbm(4, 160, 11) - 0.5               # wobbles patch edges
 
-# Repair patches: rough rectangles, often one lane, sometimes the full width; old (lighter) or new (dark).
-for _ in range(16):
-    cy = rng.uniform(0, LEN_M); ln = rng.uniform(1.2, 9.0)
-    if rng.random() < 0.35:
-        x0, x1 = rng.uniform(0.0, 0.3), rng.uniform(4.7, 5.0)
+# Repair patches: the newer (darker, smoother) or older (paler) tarmac is the main signal; a thin,
+# faint seal at the seam; slightly skewed with rounded corners; no overlaps; about 8 in 205 m.
+taken = []
+placed = 0
+while placed < 8:
+    cy = rng.uniform(0, LEN_M); ln = rng.uniform(1.5, 7.0)
+    if any(abs((cy - c + LEN_M / 2) % LEN_M - LEN_M / 2) < (ln + l) / 2 + 6.0 for c, l in taken):
+        continue
+    taken.append((cy, ln)); placed += 1
+    if rng.random() < 0.3:
+        x0, x1 = rng.uniform(0.05, 0.3), rng.uniform(4.7, 4.95)
     else:
         lane = rng.integers(2)
-        x0 = lane * 2.5 + rng.uniform(0.1, 0.9); x1 = min(5.0, x0 + rng.uniform(0.6, 2.2))
+        x0 = lane * 2.5 + rng.uniform(0.2, 0.8); x1 = min(4.9, x0 + rng.uniform(0.7, 1.8))
+    skew = rng.uniform(-0.04, 0.04)
     dy = wrap_dy(cy)
-    e = 0.06 * wob
-    inside = (np.abs(dy) < ln / 2 + e) & (X > x0 + e) & (X < x1 + e)
-    fresh = rng.random() < 0.5
-    tone = rng.uniform(0.15, 0.32) if fresh else rng.uniform(0.62, 0.8)
-    patch = np.where(inside, tone + 0.06 * (fbm(6, 300, 30 + _) - 0.5), patch)
+    cx = (x0 + x1) / 2; hx = (x1 - x0) / 2; hy = ln / 2
+    u = (X - cx + skew * dy) / hx; v = (dy - skew * (X - cx)) / hy
+    rr = (np.abs(u) ** 8 + np.abs(v) ** 8) ** (1 / 8) + 0.02 * wob / min(hx, hy)   # rounded rectangle
+    inside = rr < 1.0
+    fresh = rng.random() < 0.6
+    tone = rng.uniform(0.08, 0.18) if fresh else rng.uniform(0.75, 0.88)
+    patch = np.where(inside, tone + 0.05 * (fbm(6, 300, 30 + placed) - 0.5), patch)
     height += inside * (1.5 if fresh else -1.0)
-    # sealed seam around the patch
-    edge = np.minimum(np.minimum(np.abs(np.abs(dy) - ln / 2 - e), np.abs(X - x0 - e)), np.abs(X - x1 - e))
-    ring = (edge < 0.05) & (np.abs(dy) < ln / 2 + 0.06) & (X > x0 - 0.06) & (X < x1 + 0.06)
-    seal = np.maximum(seal, ring * rng.uniform(0.6, 1.0))
+    seam = np.abs(rr - 1.0) * min(hx, hy) < 0.018
+    if rng.random() < 0.6:
+        seal = np.maximum(seal, seam * rng.uniform(0.25, 0.5))
 
 # Crack sealing: meandering longitudinal and transverse bitumen lines.
-for _ in range(40):
+for _ in range(22):
     if rng.random() < 0.6:   # longitudinal, often near the centre joint or wheel paths
         cx = rng.choice([2.5, 1.0, 4.0, rng.uniform(0.3, 4.7)]); cy = rng.uniform(0, LEN_M); ln = rng.uniform(2, 14)
         dy = wrap_dy(cy)
@@ -89,7 +97,7 @@ for _ in range(40):
     height += m * 0.8
 
 # Potholes: a few, mostly near the edges and in the wheel paths, ragged rims.
-for _ in range(9):
+for _ in range(5):
     cx = rng.choice([rng.uniform(0.2, 0.7), rng.uniform(4.3, 4.8), rng.uniform(0.8, 4.2)])
     cy = rng.uniform(0, LEN_M); rx = rng.uniform(0.08, 0.3); ry = rx * rng.uniform(0.8, 1.6)
     d = np.sqrt(((X - cx) / rx) ** 2 + (wrap_dy(cy) / ry) ** 2) + 0.35 * wob
@@ -101,9 +109,11 @@ for _ in range(9):
 # Wheel-track polish (two paths per lane) and oil drips down the lane centres.
 for c in (0.7, 1.8, 3.2, 4.3):
     track = np.maximum(track, np.exp(-((X - c) / 0.28) ** 2) * (0.35 + 0.3 * fbm(3, 120, 70)))
-for c in (1.25, 3.75):
-    drip = np.exp(-((X - c) / 0.35) ** 2) * np.clip((fbm(8, 900, 90) - 0.55) * 4, 0, 1)
-    track = np.maximum(track, drip)
+for k, c in enumerate((1.25, 3.75)):
+    # Oil: irregular smudges down the lane centre, from two noise scales so they aren't evenly spaced.
+    blot = fbm(5, 410 + 37 * k, 90 + k) * 0.6 + fbm(3, 97 + 11 * k, 120 + k) * 0.4
+    drip = np.exp(-((X - c - 0.15 * (fbm(2, 50, 140 + k) - 0.5)) / 0.3) ** 2) * np.clip((blot - 0.6) * 5, 0, 1)
+    track = np.maximum(track, drip * 0.8)
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Data", "Textures", "RoadBlemish")
 os.makedirs(out, exist_ok=True)

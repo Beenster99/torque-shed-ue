@@ -484,9 +484,9 @@ def land_material_scanned(tex, roles):
     land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.85)], far)
     # Fellside breakup that survives the distance: brightness patches tens of metres across, and
     # drifts of dead bracken / bleached moor grass (a straw-brown tint), so far slopes aren't even green.
-    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0015, 0.78, 1.15, -1200, g.y + 400))
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0005, 0.8, 1.12, -1200, g.y + 400))
     straw = g.op(unreal.MaterialExpressionMultiply, land[0], g.const((1.35, 1.0, 0.62)))
-    drift = g.mask_noise(0.0009, -1.8, 1.4)
+    drift = g.mask_noise(0.00035, -1.8, 1.4)   # big drifts; finer read as polka dots far off
     drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=0.5)
     land[0] = g.lerp(land[0], straw, drift)
     return g.finish(land)
@@ -555,6 +555,8 @@ def road_material_scanned(tex, roles):
         tint = g.op(unreal.MaterialExpressionMultiply, ch("R"), const_b=1.6)
         tint = g.op(unreal.MaterialExpressionAdd, tint, const_b=0.2)
         road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], tint)
+        rt = g.op(unreal.MaterialExpressionMultiply, ch("R"), const_b=0.4)   # fresh tarmac smoother, old rougher
+        rough = g.op(unreal.MaterialExpressionMultiply, rough, g.op(unreal.MaterialExpressionAdd, rt, const_b=0.8))
         # Wheel tracks and oil: darker and a little smoother.
         trk = g.op(unreal.MaterialExpressionMultiply, ch("A"), const_b=-0.25)
         trk = g.op(unreal.MaterialExpressionAdd, trk, const_b=1.0)
