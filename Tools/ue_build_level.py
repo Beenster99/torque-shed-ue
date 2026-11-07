@@ -891,7 +891,68 @@ def foliage_flags(m, masked=False):
         try_set(m, "opacity_mask_clip_value", 0.4)
 
 
-def foliage_material():
+def ground_rvt():
+    """A runtime virtual texture of the ground's colour, so the plants can take on the colour of the
+    ground they grow from: RVT_Ground (base colour only), M_Land writing to it, a volume over the near
+    land tiles (not the far hills), and the tiles drawing into it. None if this engine can't."""
+    try:
+        path = FOLIAGE_DEST + "/RVT_Ground"
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        rvt = asset_tools.create_asset("RVT_Ground", FOLIAGE_DEST, unreal.RuntimeVirtualTexture,
+                                       unreal.RuntimeVirtualTextureFactory())
+        try_set(rvt, "material_type", unreal.RuntimeVirtualTextureMaterialType.BASE_COLOR)
+        unreal.EditorAssetLibrary.save_loaded_asset(rvt)
+        # M_Land: send whatever feeds its base colour to the virtual texture too.
+        land = unreal.load_asset(MAT_DIR + "/M_Land")
+        src = mel.get_material_property_input_node(land, unreal.MaterialProperty.MP_BASE_COLOR)
+        try:
+            src_out = mel.get_material_property_input_node_output_name(land, unreal.MaterialProperty.MP_BASE_COLOR)
+        except Exception:
+            src_out = ""
+        out = mel.create_material_expression(land, unreal.MaterialExpressionRuntimeVirtualTextureOutput, 400, 600)
+        if not mel.connect_material_expressions(src, src_out or "", out, "BaseColor"):
+            raise RuntimeError("couldn't wire M_Land's base colour to the virtual texture output")
+        mel.recompile_material(land)
+        unreal.EditorAssetLibrary.save_loaded_asset(land)
+        # The volume: over the near tiles, in Unreal's frame (100x, 100z, 100y).
+        route = json.load(open(os.path.join(data_dir(), "route.json")))
+        t = route["tiles"]
+        x0 = min(r["min"][0] for r in t) * 100; x1 = max(r["max"][0] for r in t) * 100
+        y0 = min(r["min"][2] for r in t) * 100; y1 = max(r["max"][2] for r in t) * 100
+        z0 = min(r["min"][1] for r in t) * 100 - 5000; z1 = max(r["max"][1] for r in t) * 100 + 5000
+        vol = spawn(unreal.RuntimeVirtualTextureVolume, (x0, y0, z0))
+        vol.set_actor_scale3d(unreal.Vector(x1 - x0, y1 - y0, z1 - z0))
+        vol.set_actor_label("GroundColourRVT")
+        vol.set_folder_path("Detail")
+        vol.get_component_by_class(unreal.RuntimeVirtualTextureComponent).set_editor_property("virtual_texture", rvt)
+        n = 0
+        for a in actors.get_all_level_actors():
+            if a.get_actor_label().startswith("terrain_"):
+                c = a.get_component_by_class(unreal.StaticMeshComponent)
+                c.set_editor_property("runtime_virtual_textures", [rvt])
+                n += 1
+        b = vol.get_actor_bounds(False)
+        log("ground colour virtual texture over %d tiles, volume centre %s extent %s" % (n, b[0], b[1]))
+        return rvt
+    except Exception as e:
+        unreal.log_warning("[Torque] no ground colour for the plants (%s); they keep their own colour" % e)
+        return None
+
+
+def ground_blend(g, base, h, rvt, strength):
+    """Pull a plant's colour towards the ground's under it (from the virtual texture): most at the
+    root, a little at the tips, so the grass grows out of the ground rather than sitting on it."""
+    if rvt is None or strength <= 0:
+        return base
+    gc = g.node(unreal.MaterialExpressionRuntimeVirtualTextureSample, -900, virtual_texture=rvt,
+                material_type=unreal.RuntimeVirtualTextureMaterialType.BASE_COLOR)
+    f = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide, h, const_b=0.35))
+    w = g.lerp(g.const(0.75 * strength), g.const(0.22 * strength), f)
+    return g.lerp(base, gc, w, b_out="BaseColor")
+
+
+def foliage_material(rvt=None, blend=1.0):
     """Our plants: vertex colour (a little varied per plant), two-sided foliage shading so the sun
     glows through the blades, ambient occlusion from the vertex alpha, and wind: UV y is how far each
     vertex may move (its height in metres, less for stiff plants)."""
@@ -902,10 +963,11 @@ def foliage_material():
     pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
     tint = g.lerp(g.const((0.86, 0.9, 0.8)), g.const((1.12, 1.06, 0.92)), pir)
     base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
-    sss = g.op(unreal.MaterialExpressionMultiply, base, g.const((0.75, 0.9, 0.35)))
     uv = g.node(unreal.MaterialExpressionTextureCoordinate)
     h = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
     g.link(uv, h)
+    base = ground_blend(g, base, h, rvt, blend)
+    sss = g.op(unreal.MaterialExpressionMultiply, base, g.const((0.75, 0.9, 0.35)))
     wpo = foliage_wind(g, h, pir)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
@@ -956,7 +1018,7 @@ def scan_textures(mesh):
     return found
 
 
-def scan_foliage_master(defaults):
+def scan_foliage_master(defaults, rvt=None, blend=1.0):
     """Masked two-sided foliage for scanned plants, its maps as parameters (one instance per plant set),
     the same wind as ours with the sway weighted by height above the plant's base."""
     g = Graph(new_material("M_FoliageScan"))
@@ -977,6 +1039,12 @@ def scan_foliage_master(defaults):
     gtint = g.node(unreal.MaterialExpressionVectorParameter, parameter_name="Tint",
                    default_value=unreal.LinearColor(1, 1, 1, 1))
     base = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, col, tint), gtint, b_out="")
+    # Height above the plant's base, in metres, from its own (local) vertex position.
+    lp = g.node(unreal.MaterialExpressionLocalPosition)
+    z = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
+    g.link(lp, z)
+    h = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMax, z, const_b=0.0), const_b=0.01)
+    base = ground_blend(g, base, h, rvt, blend)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     op = tex("Opacity")
     if op:
@@ -993,11 +1061,6 @@ def scan_foliage_master(defaults):
     sss = g.op(unreal.MaterialExpressionMultiply, tr if tr else base, g.const((0.8, 0.9, 0.5)))
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
-    # Height above the plant's base, in metres, from its own (local) vertex position.
-    lp = g.node(unreal.MaterialExpressionLocalPosition)
-    z = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
-    g.link(lp, z)
-    h = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMax, z, const_b=0.0), const_b=0.01)
     mel.connect_material_property(foliage_wind(g, h, pir), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1073,9 +1136,13 @@ def place_foliage(frame):
     spec = json.load(open(spec_path))
     over_path = os.path.join(folder, "overrides.json")
     overrides = json.load(open(over_path)) if os.path.exists(over_path) else {}
+    # "_ground_blend": how strongly the plants take the ground's colour (0 turns it off).
+    blend = overrides.get("_ground_blend", 1.0)
+    blend = float(blend) if isinstance(blend, (int, float)) else 1.0
     overrides = {k: v for k, v in overrides.items() if not k.startswith("_")}
     meshes = import_glbs(folder, FOLIAGE_DEST)
-    mat = foliage_material()
+    rvt = ground_rvt() if blend > 0 else None
+    mat = foliage_material(rvt, blend)
     # Scanned plants: load them and their maps first, so the master gets defaults of the right kinds.
     scans = {}
     for name, o in overrides.items():
@@ -1104,7 +1171,7 @@ def place_foliage(frame):
             for k, v in maps.items():
                 defaults.setdefault(k, v)
         if "BaseColor" in defaults:
-            master = scan_foliage_master(defaults)
+            master = scan_foliage_master(defaults, rvt, blend)
         else:
             unreal.log_warning("[Torque] the scanned plants have no BaseColor maps beside them; using ours")
             scans = {}
@@ -1142,6 +1209,7 @@ def place_foliage(frame):
             e.set_editor_property("mesh", ours)
             e.set_editor_property("material", mat)
         e.set_editor_property("cull_distance", float(s["cull_m"]) * 100.0)
+        e.set_editor_property("cull_spread", float(s.get("cull_spread", 1.0)))
         e.set_editor_property("cast_shadow", bool(s["shadow"]))
         species.append(e)
     a = spawn(unreal.TorqueFoliage)

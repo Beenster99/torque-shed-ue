@@ -1,11 +1,17 @@
 {
- "_about": "Scanned plants (Megascans, free on Fab) used in place of Tools/make_foliage.py's own for a species; see place_foliage in Tools/ue_build_level.py. A species whose meshes aren't in the project keeps ours. Rush, moss and bracken stay ours until Toad Rush, Icelandic Moss and Bracken import; heather has no Megascans plant.",
+ "_about": "Scanned plants (Megascans, free on Fab) used in place of Tools/make_foliage.py's own for a species; see place_foliage in Tools/ue_build_level.py. A species whose meshes aren't in the project keeps ours. Rush, moss and bracken stay ours until Toad Rush, Icelandic Moss and Bracken import; heather has no Megascans plant. '_ground_blend' (0..1) is how strongly every plant takes the colour of the ground under it (0 = off); 'tint' multiplies a scan's colour.",
+ "_ground_blend": 1.0,
  "tuft_a": {
   "meshes": [
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarA_LOD0",
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarB_LOD0",
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarC_LOD0",
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarD_LOD0"
+  ],
+  "tint": [
+   0.82,
+   0.84,
+   0.66
   ]
  },
  "tuft_b": {
@@ -14,6 +20,11 @@
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarF_LOD0",
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarG_LOD0",
    "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarH_LOD0"
+  ],
+  "tint": [
+   0.82,
+   0.84,
+   0.66
   ]
  },
  "tussock_a": {
@@ -38,6 +49,11 @@
    "/Game/Fab/Megascans/Plants/Grass_Clumps_rbdoo/Grass_Clumps_rbdoo_High_rbdoo_VarA_LOD0",
    "/Game/Fab/Megascans/Plants/Grass_Clumps_rbdoo/Grass_Clumps_rbdoo_High_rbdoo_VarB_LOD0",
    "/Game/Fab/Megascans/Plants/Grass_Clumps_rbdoo/Grass_Clumps_rbdoo_High_rbdoo_VarC_LOD0"
+  ],
+  "tint": [
+   0.9,
+   0.88,
+   0.72
   ]
  }
 }

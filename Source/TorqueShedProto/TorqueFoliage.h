@@ -43,6 +43,10 @@ struct FTorqueFoliageSpecies
 	// Share of this species' plants kept (a bigger mesh needs fewer to cover the same ground).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage", meta = (ClampMin = "0", ClampMax = "1"))
 	float Keep = 1.0f;
+	// Above 1, the plants thin out with distance instead of stopping at one line: half are culled at
+	// CullDistance, three tenths at the midpoint to CullDistance x CullSpread, a fifth at the far end.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage", meta = (ClampMin = "1"))
+	float CullSpread = 1.0f;
 };
 
 UCLASS()
