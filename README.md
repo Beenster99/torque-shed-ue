@@ -13,6 +13,7 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Source/TorqueShedProto/TorqueBikePawn.*` | The bike in Unreal: steps the sim at 120 Hz, sees the ground by line traces, chase and onboard cameras, keys and pad, HUD, respawn after a crash |
 | `Data/Buttertubs/` | The 3 km: 54 terrain tiles (2 m grid, road bed cut in, land cover as vertex colour), the far hills (32 m, out to 6 km), the road ribbon, and `route.json` |
 | `Tools/export_buttertubs.py` | Makes `Data/Buttertubs` from the Godot game's Dales region data (needs Python 3 and numpy) |
+| `Tools/make_foliage.py` | The moorland ground cover: grass tufts and tussocks, short turf, soft rush, heather, moss and bracken, modelled as Nanite geometry, and where each grows (by slope, wetness, cover, distance from the road, away from walls). Writes `Data/Buttertubs/Foliage`; `Source/TorqueShedProto/TorqueFoliage.*` plants them at Play. `--density 0.6` for fewer |
 | `Tools/make_speedtwin.py` | Builds the Speed Twin model (52 parts as glb in `Data/Bike/SpeedTwin`) from measurements of your photos; `--check photo.jpg` renders it over a side-on photo |
 | `Tools/ue_build_level.py` | Run inside the Unreal editor: imports the meshes, makes the materials, sun, sky and fog, and saves the level |
 | `SimTest/` | A standalone test of the physics: flat-ground checks and a robot rider down the exported 3 km |
@@ -88,6 +89,7 @@ You only need this if the route or the physics change.
 
 ```
 python Tools/export_buttertubs.py --torque-shed ..\torque-shed
+python Tools/make_foliage.py
 cmake -S SimTest -B build/simtest
 cmake --build build/simtest --config Release
 build/simtest/Release/sim_test Data/Buttertubs
