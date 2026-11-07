@@ -1,0 +1,15 @@
+# Unreal
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+.vs/
+*.sln
+*.VC.db
+*.opensdf
+*.sdf
+*.suo
+# Local builds and regenerable test data
+build/
+Data/Buttertubs/sim_*
+__pycache__/
