@@ -31,13 +31,7 @@
   },
   "gravel": {
    "id": "Gravel040",
-   "tile_m": 2.0,
-   "ue": {
-    "color": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_BaseColor",
-    "normal": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_Normal",
-    "rough": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_Roughness",
-    "ao": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_AO"
-   }
+   "tile_m": 2.0
   },
   "asphalt": {
    "id": "Asphalt015",

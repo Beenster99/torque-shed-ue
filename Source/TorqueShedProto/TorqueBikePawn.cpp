@@ -656,7 +656,7 @@ bool ATorqueBikePawn::BuildRiderRig()
 	const TSharedPtr<FJsonObject>* MatObj = nullptr;
 	if ((*Rig)->TryGetObjectField(TEXT("materials"), MatObj))
 		for (const auto& KV : (*MatObj)->Values)
-			Mats.Add(KV.Key, LoadObject<UMaterialInterface>(nullptr, *KV.Value->AsString()));
+			Mats.Add(FString(KV.Key), LoadObject<UMaterialInterface>(nullptr, *KV.Value->AsString()));
 	if (!RiderRig.Build(this, Root, (*Rig)->GetStringField(TEXT("mesh")), (*Rig)->GetStringField(TEXT("helmet")), Mats, Fix))
 		return false;
 	RiderBody = RiderRig.Body;

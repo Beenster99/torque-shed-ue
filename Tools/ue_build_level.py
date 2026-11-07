@@ -462,6 +462,7 @@ def land_material_scanned(tex, roles):
         land = g.mix(land, g.layer(tex["rock"], roles["rock"]["tile_m"]), steep)
     if "gravel" in tex:
         verge = g.op(unreal.MaterialExpressionOneMinus, vc, a_out="A")
+        verge = g.op(unreal.MaterialExpressionMultiply, verge, verge)   # a narrower verge: grit only near the edge
         land = g.mix(land, g.layer(tex["gravel"], roles["gravel"]["tile_m"]), verge)
     # Livelier greens: push the colour away from its own grey (lerp past 1 extrapolates).
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
