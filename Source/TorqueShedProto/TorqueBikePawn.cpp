@@ -322,9 +322,11 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	{
 		InputLogTimer = 0.0;
 		++InputLogCount;
-		UE_LOG(LogTemp, Log, TEXT("Torque: input xR2 %.2f xL2 %.2f psR2 %.2f psL2 %.2f live %d%d%d%d  throttle %.2f speed %.1f"),
+		FString RawHex;
+		for (int32 B = 0; B < 12; ++B) RawHex += FString::Printf(TEXT("%02X "), Sony.Raw[B]);
+		UE_LOG(LogTemp, Log, TEXT("Torque: input xR2 %.2f xL2 %.2f psR2 %.2f psL2 %.2f live %d%d%d%d  throttle %.2f speed %.1f  raw(%d) %s"),
 			RawTrig[0], RawTrig[1], RawTrig[2], RawTrig[3], bTrigLive[0], bTrigLive[1], bTrigLive[2], bTrigLive[3],
-			Throttle, Sim->Speed);
+			Throttle, Sim->Speed, Sony.RawLen, *RawHex);
 	}
 	const double PadThrottle = FMath::Max(Trig[0], Trig[2]);
 	const double PadBrake = FMath::Max(Trig[1], Trig[3]);

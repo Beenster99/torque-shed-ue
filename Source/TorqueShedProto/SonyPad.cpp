@@ -207,6 +207,8 @@ private:
 			if (Parse(Buf.GetData(), (int32)Got, bDualSense, ReportLen != 64, S))
 			{
 				S.bConnected = true;
+				S.RawLen = (int32)Got;
+				FMemory::Memcpy(S.Raw, Buf.GetData(), FMath::Min<int32>((int32)Got, 12));
 				FScopeLock L(&Lock);
 				State = S;
 			}

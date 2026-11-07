@@ -11,6 +11,8 @@ struct FSonyPadState
 	float LX = 0, LY = 0, RX = 0, RY = 0;   // -1 .. 1, +y is up
 	float L2 = 0, R2 = 0;                   // 0 .. 1
 	uint32 Buttons = 0;                     // ESonyButton bits
+	uint8 Raw[12] = {0};                    // the first bytes of the last report, for the log
+	int32 RawLen = 0;
 };
 
 namespace ESonyButton
