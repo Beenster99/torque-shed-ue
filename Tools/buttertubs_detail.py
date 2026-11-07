@@ -512,13 +512,15 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
         # The pit: near-black, just over the tarmac so it shows between the bars.
         c0 = surface(a[0] - f[0] * 1.15, a[2] - f[1] * 1.15, f, sdv, a[1], 0.004, half_w)
         c1 = surface(a[0] + f[0] * 1.15, a[2] + f[1] * 1.15, f, sdv, a[1], 0.004, half_w)
-        strip(c0, c1, 0.002, srgb([14, 14, 13]))
-        # Bars: 14 rails, 7 cm wide, 13 cm apart, 2.5 cm proud of the road.
+        strip(c0, c1, 0.002, srgb([6, 6, 6]))
+        # Bars: 14 rails, 5 cm wide with 11 cm gaps, 2.5 cm proud of the road, weathered galvanised
+        # steel (darker than new, so the band reads as stripes over a dark pit rather than a pale slab).
         for i in range(-7, 7):
             m = (i + 0.5) * 0.16
-            c0 = surface(a[0] + f[0] * (m - 0.035), a[2] + f[1] * (m - 0.035), f, sdv, a[1], 0.025, half_w)
-            c1 = surface(a[0] + f[0] * (m + 0.035), a[2] + f[1] * (m + 0.035), f, sdv, a[1], 0.025, half_w)
-            strip(c0, c1, 0.03, srgb([128, 130, 128]))
+            c0 = surface(a[0] + f[0] * (m - 0.025), a[2] + f[1] * (m - 0.025), f, sdv, a[1], 0.025, half_w)
+            c1 = surface(a[0] + f[0] * (m + 0.025), a[2] + f[1] * (m + 0.025), f, sdv, a[1], 0.025, half_w)
+            shade = 78 + 10 * ((i * 7) % 3)
+            strip(c0, c1, 0.03, srgb([shade, shade + 2, shade - 2]))
         # Concrete kerbs either side of the pit, beyond the road edge.
         for side in (-1, 1):
             kx = a[0] + sdv[0] * side * (half_w + 0.2); kz = a[2] + sdv[1] * side * (half_w + 0.2)
