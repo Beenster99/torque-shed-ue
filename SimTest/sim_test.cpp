@@ -100,15 +100,15 @@ static void FlatTests()
 	Check(Dist > 28.0 && Dist < 55.0, "stopping distance from 60 mph (m)", Dist);
 
 	// The rear brake alone: ABS keeps the wheel turning; with ABS off it locks, at town and road speeds.
-	for (double From : {15.0, 25.0})
+	for (double BrakeFrom : {15.0, 25.0})
 	for (bool Abs : {true, false})
 	{
-		if (Abs) std::printf("  rear brake alone from %.0f m/s\n", From);
+		if (Abs) std::printf("  rear brake alone from %.0f m/s\n", BrakeFrom);
 		S.Build.AbsRear = Abs;
 		S.FrontBrake = 0.0;
 		S.RearBrake = 0.0;
 		S.Throttle = 1.0;
-		for (int i = 0; i < 120 * 20 && S.Speed < From; ++i) S.Step(Dt);
+		for (int i = 0; i < 120 * 20 && S.Speed < BrakeFrom; ++i) S.Step(Dt);
 		S.Throttle = 0.0;
 		S.RearBrake = 1.0;
 		double Worst = 0.0;
