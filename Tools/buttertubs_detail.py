@@ -139,7 +139,7 @@ class Props:
         return self.mesh("SM_Wall_" + v, lambda: ST.wall_module(np.random.default_rng(100 + ord(v))))
 
     def wall_end(self, k):
-        v = "AB"[k % 2]
+        v = "ABCD"[k % 4]
         return self.mesh("SM_WallEnd_" + v, lambda: ST.wall_end(np.random.default_rng(200 + ord(v))))
 
     def rock(self, x, y, z, size, rng, tilt=0.15):
@@ -280,7 +280,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                 a = math.atan2(d[1], d[0])
                 for kk in (k0, k1):
                     props.add(props.mesh("SM_GateStoop_%s" % "AB"[kk == k1], lambda kk=kk: ST.gate_stoop(np.random.default_rng(400 + (kk == k1)))),
-                              r[kk, 0], float(ground(*r[kk])) - 0.25, r[kk, 1], rng.uniform(0, 2 * math.pi))
+                              r[kk, 0], float(ground(*r[kk])) - 0.25, r[kk, 1], a + rng.normal(0, 0.06))   # squared to the wall
                 hinge = r[k0] + d * 0.12
                 swing = 0.0 if rng.uniform() < 0.7 or kind == "roadside" else -rng.uniform(0.4, 1.6)   # shut by the road
                 props.add(props.mesh("SM_Gate", lambda: ST.gate(np.random.default_rng(410))),
@@ -294,12 +294,12 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                 q = r[run]
                 s, at = _arc(q)
                 total = s[-1]
-                if total < 2.5:
-                    continue   # a stub that short reads as a dropped pillar, not a wall
                 # Heads (a 1 m piece finished at its outer end) where the wall stops, not where it
                 # runs off the near land: the far layer carries it on from there.
                 head_lo = total >= 3.0 and (run[0] == 0 or on_tile[run[0] - 1])
                 head_hi = total >= 3.0 and (run[-1] == len(r) - 1 or on_tile[run[-1] + 1])
+                if total < 2.5 or (head_lo and head_hi and total < 5.0):
+                    continue   # a stub that short, headed at both ends, reads as a dropped pillar, not a wall
                 lo, hi = (0.95 if head_lo else 0.0), (total - 0.95 if head_hi else total)
                 n = max(1, int(round((hi - lo) / ST.WALL_L)))
                 ts = np.linspace(lo, hi, n + 1)

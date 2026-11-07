@@ -1741,7 +1741,7 @@ def instanced_usage(m):
     try_set(m, "used_with_nanite", True)
 
 
-def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare"):
+def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare", broad_moss=True):
     """Stone from two scans (lichened limestone and bare, bedded limestone), chosen per stone by the
     vertex colour's green; red sets its brightness; blue whitens it with lichen in patches; alpha is
     moss, thickest where the surface faces up. UV0 is metres of surface."""
@@ -1798,12 +1798,53 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     up = g.op(unreal.MaterialExpressionAdd, up, const_b=0.7)
     up = g.op(unreal.MaterialExpressionSaturate, up)
     m = g.op(unreal.MaterialExpressionMultiply, vc, a_out="A", const_b=1.6)
-    m = g.op(unreal.MaterialExpressionAdd, m, broad)
+    if broad_moss:   # walls in the open: moss in broad patches anywhere; house walls only where the vertex alpha says
+        m = g.op(unreal.MaterialExpressionAdd, m, broad)
+    else:
+        m = g.op(unreal.MaterialExpressionAdd, m, broad)
+        m = g.op(unreal.MaterialExpressionSubtract, m, const_b=0.35)
     m = g.op(unreal.MaterialExpressionSaturate, m)
     m = g.op(unreal.MaterialExpressionMultiply, m, up)
     moss = layer("moss", (70, 84, 38))
     st = g.mix(st, moss, m)
     return g.finish(st)
+
+
+def render_material(tex, roles, name="M_LimeRender"):
+    """Lime render and limewash on the village houses: the vertex colour (a warm off-white), given
+    the grain of a stone scan seen through the wash, a fine speckle, rain streaks running down from
+    the eaves (noise stretched along the wall's height, the UVs being metres of wall), and dirt and
+    green-brown splash at the foot from the vertex alpha."""
+    g = Graph(new_material(name))
+    instanced_usage(g.m)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    col = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
+    role = "stone_bare" if "stone_bare" in tex else ("masonry" if "masonry" in tex else None)
+    nrm = g.const((0.0, 0.0, 1.0))
+    if role:
+        uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.5, v_tiling=0.5)
+        grain = g.sample(tex[role]["color"], uv, "color")
+        gr = g.op(unreal.MaterialExpressionMultiply, grain, a_out="R", const_b=0.5)
+        gr = g.op(unreal.MaterialExpressionAdd, gr, const_b=0.82)          # about 0.82..1.1
+        col = g.op(unreal.MaterialExpressionMultiply, col, gr)
+        if "normal" in tex[role]:
+            n = g.sample(tex[role]["normal"], uv, "normal")
+            nrm = g.lerp(n, g.const((0.0, 0.0, 1.0)), g.const(0.65))       # the wash softens the stone under it
+    nt = noise_texture()
+    if nt:
+        fine = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.7, v_tiling=1.7), "rough")
+        sp = g.op(unreal.MaterialExpressionMultiply, fine, a_out="B", const_b=0.18)
+        sp = g.op(unreal.MaterialExpressionAdd, sp, const_b=0.9)
+        col = g.op(unreal.MaterialExpressionMultiply, col, sp)
+        streak = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.6, v_tiling=0.09), "rough")
+        st = g.op(unreal.MaterialExpressionSubtract, streak, a_out="G", const_b=0.45)
+        st = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, st, const_b=2.2))
+        st = g.op(unreal.MaterialExpressionMultiply, st, const_b=0.22)
+        col = g.lerp(col, g.op(unreal.MaterialExpressionMultiply, col, g.const((0.62, 0.6, 0.55))), st)
+    dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
+    col = g.lerp(col, dirt, vc, alpha_out="A")
+    rough = g.lerp(g.const(0.88), g.const(0.95), vc, alpha_out="A")
+    return g.finish([col, nrm, rough], specular=0.35)
 
 
 def flat_material(name, rough, metallic=0.0, fine=0.0):
@@ -1958,9 +1999,9 @@ def build():
         prop_mats = {"stone": stone_material(tex, roles), "fleece": flat_material("M_Fleece", 0.95, fine=0.4),
                      "metal": flat_material("M_GalvanisedSteel", 0.42, metallic=1.0),
                      "wood": flat_material("M_BarnWood", 0.8, fine=0.15),
-                     "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry"),
+                     "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False),
                      "glass": flat_material("M_WindowGlass", 0.06),
-                     "render": flat_material("M_LimeRender", 0.9, fine=0.3)}
+                     "render": render_material(tex, roles)}
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).

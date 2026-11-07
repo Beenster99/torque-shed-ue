@@ -299,12 +299,30 @@ def wall_length(M, rng, x0, x1, end_lo=False, end_hi=False, copes=True):
         for at_end, xe, sgn in ((end_hi, x1, -1), (end_lo, x0, 1)):
             if not at_end:
                 continue
+            # The head is battered like the faces (it leans back as it rises) and laid as a cheek
+            # end: a header right across the wall, then a pair of long stretchers, in turn.
+            inset = 0.07 * yb / WALL_H
             if (ci % 2 == 0) == (sgn < 0):
-                ln = 0.27; h = ch * 0.92
-                cy = yb + h / 2 + 0.005
+                ln = rng.uniform(0.3, 0.4); h = ch * 0.94
+                cy = yb + h / 2 + 0.004
                 w = hw_at(cy)
-                R = rot_xyz(rng.normal(0, 0.02), rng.normal(0, 0.03), rng.normal(0, 0.03))
-                place(xe + sgn * ln / 2, cy, 0.0, ln / 2, h / 2, w + 0.01, R, 0.1, res=(6, 12), bare=rng.uniform(0, 0.4))
+                R = rot_xyz(rng.normal(0, 0.015), rng.normal(0, 0.02), rng.normal(0, 0.02))
+                P, Tt, uv = stone(rng, (ln / 2, h / 2, w + 0.015), (xe + sgn * (inset + ln / 2), cy, 0.0), R, res=(6, 12),
+                                  round_=(0.12, 0.2), chops=3, chop_depth=(0.85, 0.97))
+                col = stone_col(rng, len(P), bare=rng.uniform(0.2, 0.7))
+                col[:, 3] = 0.06
+                M.add(P, Tt, col, uv)
+            else:
+                for side in (-1, 1):
+                    ln = rng.uniform(0.5, 0.65); h = ch * 0.92
+                    cy = yb + h / 2 + 0.004
+                    w = hw_at(cy) / 2
+                    R = rot_xyz(-side * batter, rng.normal(0, 0.02), rng.normal(0, 0.02))
+                    P, Tt, uv = stone(rng, (ln / 2, h / 2, w - 0.005), (xe + sgn * (inset + ln / 2), cy, side * w), R, res=(6, 12),
+                                      round_=(0.12, 0.2), chops=3, chop_depth=(0.85, 0.97))
+                    col = stone_col(rng, len(P), bare=rng.uniform(0.2, 0.7))
+                    col[:, 3] = 0.06
+                    M.add(P, Tt, col, uv)
         # Through stones half way up, about every 0.9 m, sticking out a hand's width.
         if ci == 2:
             for xt in np.arange(x0 + rng.uniform(0.2, 0.6), x1 - 0.15, 0.9 + rng.uniform(-0.1, 0.1)):
@@ -318,8 +336,23 @@ def wall_length(M, rng, x0, x1, end_lo=False, end_hi=False, copes=True):
         return
     # Copes: flat stones on edge across the top, leaning a little this way and that.
     s = SHIFT[-1] * (L / WALL_L)
-    x = x0 + (0 if end_lo else s)
-    hi = x1 + (0 if end_hi else s)
+    x = x0 + (0.5 if end_lo else s)
+    hi = x1 + (-0.5 if end_hi else s)
+    # A cover: one big flat stone across the top of a head, a little proud of both faces, and a
+    # through stone below it, so the end reads finished, not stacked.
+    for at_end, xe, sgn in ((end_hi, x1, -1), (end_lo, x0, 1)):
+        if not at_end:
+            continue
+        P, Tt, uv = stone(rng, (0.27, 0.075, TOP_HW + 0.07), (xe + sgn * 0.3, WALL_H + 0.07, 0.0),
+                          rot_xyz(rng.normal(0, 0.02), rng.normal(0, 0.04), rng.normal(0, 0.03)), res=(6, 12),
+                          round_=(0.15, 0.25), chops=4, chop_depth=(0.8, 0.95))
+        col = stone_col(rng, len(P), lichen=rng.uniform(0.3, 0.8))
+        col[:, 3] = np.clip(0.1 + 0.5 * np.clip((P[:, 1] - WALL_H - 0.1) / 0.05, 0, 1), 0, 1)
+        M.add(P, Tt, col, uv)
+        P, Tt, uv = stone(rng, (0.13, 0.065, hw_at(0.55) + 0.1), (xe + sgn * 0.42, 0.56, 0.0),
+                          rot_xyz(0, rng.normal(0, 0.05), 0), res=(6, 12))
+        col = stone_col(rng, len(P)); col[:, 3] = 0.15
+        M.add(P, Tt, col, uv)
     lean = rng.normal(0, 0.12)
     while x < hi - 0.03:
         t = rng.uniform(0.06, 0.15)
@@ -393,8 +426,8 @@ def wall_end(rng, length=1.0, both=False):
 
 def gate_stoop(rng):
     M = Mesh()
-    P, T, uv = stone(rng, (0.17, 0.95, 0.15), (0, 0.55, 0), rot_xyz(0, rng.uniform(0, 3), 0), res=(10, 10),
-                     round_=(0.25, 0.35), chops=5, chop_depth=(0.75, 0.95))
+    P, T, uv = stone(rng, (0.19, 0.95, 0.16), (0, 0.55, 0), rot_xyz(rng.normal(0, 0.02), rng.normal(0, 0.05), rng.normal(0, 0.02)),
+                     res=(10, 12), round_=(0.1, 0.16), chops=3, chop_depth=(0.85, 0.97))   # a squared limestone post
     col = stone_col(rng, len(P), lichen=0.6)
     col[:, 3] = np.clip(0.5 - P[:, 1], 0, 1) * 0.8
     M.add(P, T, col, uv)
@@ -730,11 +763,13 @@ def quad(M, a, b, c, d, col, uv):
     M.add(np.array([a, b, c, d], float), [[0, 1, 2], [0, 2, 3]], col, uv)
 
 
-def _cells(L, y0, y1, holes, x0=0.0):
-    """Rectangles covering [x0, L] x [y0, y1] minus the holes (s0, s1, b0, b1)."""
+def _cells(L, y0, y1, holes, x0=0.0, cuts=()):
+    """Rectangles covering [x0, L] x [y0, y1] minus the holes (s0, s1, b0, b1), also split at the
+    heights in cuts (so vertex colour can change there)."""
     holes = [h for h in holes if h[1] > x0 and h[0] < L]
     xs = sorted({x0, L} | {min(max(h[0], x0), L) for h in holes} | {min(max(h[1], x0), L) for h in holes})
-    ys = sorted({y0, y1} | {h[2] for h in holes if y0 < h[2] < y1} | {h[3] for h in holes if y0 < h[3] < y1})
+    ys = sorted({y0, y1} | {h[2] for h in holes if y0 < h[2] < y1} | {h[3] for h in holes if y0 < h[3] < y1}
+                | {c for c in cuts if y0 < c < y1})
     out = []
     for i in range(len(xs) - 1):
         for j in range(len(ys) - 1):
@@ -748,7 +783,7 @@ def _cells(L, y0, y1, holes, x0=0.0):
 
 
 # Lime render and limewash on some village houses (linear RGB), and the paint on doors and frames.
-RENDERS = [(0.74, 0.73, 0.68), (0.70, 0.65, 0.52), (0.58, 0.58, 0.55), (0.78, 0.77, 0.72), (0.66, 0.6, 0.5)]
+RENDERS = [(0.72, 0.68, 0.58), (0.68, 0.62, 0.48), (0.6, 0.57, 0.5), (0.74, 0.7, 0.6), (0.64, 0.58, 0.47)]   # warm off-whites and creams
 DOOR_PAINT = [(0.02, 0.06, 0.03), (0.03, 0.04, 0.09), (0.01, 0.01, 0.012), (0.12, 0.02, 0.02), (0.3, 0.3, 0.28),
               (0.2, 0.12, 0.05), (0.05, 0.1, 0.12), (0.25, 0.22, 0.12)]
 
@@ -849,12 +884,12 @@ def building(rng, kind, w, d, h, plinth, opt=None):
 
     def mcol(n, y):
         c = np.zeros((n, 4)); c[:, 0] = bright + rng.normal(0, 0.02); c[:, 2] = 0.05
-        c[:, 3] = np.clip((0.5 - np.asarray(y)) / 0.8, 0, 1) * 0.7
+        c[:, 3] = np.clip((0.5 - np.asarray(y)) / 0.8, 0, 1) * 0.4
         return c
 
     def rendcol(n, y):
         c = np.zeros((n, 4)); c[:, :3] = rcol
-        c[:, 3] = np.clip((0.7 - np.asarray(y)) / 1.0, 0, 1) * 0.6 + 0.08
+        c[:, 3] = np.clip((0.7 - np.asarray(y)) / 0.9, 0, 1) * 0.55 + 0.04
         return c
 
     def wall_quad(p, ys, uv):
@@ -870,7 +905,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
         else:
             Wl.add(P, T, mcol(len(P), P[:, 1]), U)
 
-    def scol(n, b=0.55, bare=0.8, moss=0.15):
+    def scol(n, b=0.55, bare=0.8, moss=0.06):
         c = np.zeros((n, 4)); c[:, 0] = b + rng.normal(0, 0.03); c[:, 1] = bare; c[:, 2] = 0.3; c[:, 3] = moss
         return c
 
@@ -966,7 +1001,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
         # The wall: rectangles round the openings, and reveals in them.
         hl = [(s0, s1, b0, b1) for (s0, s1, b0, b1, _) in holes]
         if y_from is not None:
-            for (s0, s1, y0, y1) in _cells(L, y_from, h, hl):
+            for (s0, s1, y0, y1) in _cells(L, y_from, h, hl, cuts=(0.0, 0.7)):   # the foot's dirt and moss stay at the foot
                 p = [o + a * s0 + up * y0, o + a * s1 + up * y0, o + a * s1 + up * y1, o + a * s0 + up * y1]
                 wall_quad(p, [y0, y0, y1, y1], [[s0, y0], [s1, y0], [s1, y1], [s0, y1]])
         # Gable: masonry triangle above the eaves on the ends, cut round a gable window if any.
@@ -1026,7 +1061,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
                     P, T, U = obox(c, (0.09, 0.13, 0.26), Rv, rng.uniform(0, 5, 2))
                     St.add(P, T, scol(len(P), 0.62), U)
                 P, T, U = obox(mid + up * (b0 - 0.06) - n * 0.22, ((s1 - s0) / 2 + 0.1, 0.06, 0.3), R, rng.uniform(0, 5, 2))
-                St.add(P, T, scol(len(P), 0.62, moss=0.3), U)
+                St.add(P, T, scol(len(P), 0.62, moss=0.12), U)
                 # fill the arch head over the opening (masonry tympanum stands in for glass up there)
                 q0 = o + a * s0 + up * b1; q1 = o + a * s1 + up * b1
                 Wl.add(np.array([q0 - n * dep, q1 - n * dep, mid + up * (b1 + r * 0.5) - n * dep]), [[0, 1, 2]],
@@ -1047,7 +1082,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
                     St.add(P, T, scol(len(P), 0.6), U)
                     if k in ("window", "mull"):
                         P, T, U = obox(mid + up * (b0 - 0.05) - n * 0.24, ((s1 - s0) / 2 + 0.1, 0.05, 0.3), R, rng.uniform(0, 5, 2))
-                        St.add(P, T, scol(len(P), 0.62, moss=0.3), U)
+                        St.add(P, T, scol(len(P), 0.62, moss=0.12), U)
                     if k != "hole" or b1 - b0 > 0.5:
                         for sj in (s0 - 0.09, s1 + 0.09):
                             yy = max(b0, -0.2)
