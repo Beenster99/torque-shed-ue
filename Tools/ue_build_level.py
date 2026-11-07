@@ -813,26 +813,9 @@ def import_bike(frame):
 FOLIAGE_DEST = "/Game/Buttertubs/Foliage"
 
 
-def foliage_material():
-    """The plants: vertex colour (a little varied per plant), two-sided foliage shading so the sun
-    glows through the blades, ambient occlusion from the vertex alpha, and wind: UV y is how far each
-    vertex may move (its height in metres, less for stiff plants), swayed by two waves and slow gusts
-    that roll across the moor from the south west."""
-    g = Graph(new_material("M_Foliage"))
-    m = g.m
-    m.set_editor_property("two_sided", True)
-    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
-    try_set(m, "used_with_instanced_static_meshes", True)
-    try_set(m, "used_with_nanite", True)
-    vc = g.node(unreal.MaterialExpressionVertexColor)
-    pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
-    tint = g.lerp(g.const((0.86, 0.9, 0.8)), g.const((1.12, 1.06, 0.92)), pir)
-    base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
-    sss = g.op(unreal.MaterialExpressionMultiply, base, g.const((0.75, 0.9, 0.35)))
-    # Wind.
-    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
-    h = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
-    g.link(uv, h)
+def foliage_wind(g, h, pir):
+    """World position offset for a plant: `h` is how far up the plant a vertex is, in metres (or how
+    free it is to move). Two waves and slow gusts rolling across the moor from the south west."""
     amp = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, h, h), const_b=20.0)   # cm: 5 at 0.5 m, 20 at 1 m
     wp = g.node(unreal.MaterialExpressionWorldPosition)
     along = g.op(unreal.MaterialExpressionDotProduct, wp, g.const((0.0035, 0.0028, 0.0)))   # wave fronts
@@ -850,7 +833,35 @@ def foliage_material():
     gs = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(gph, gs)
     gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, gs, const_b=0.4), const_b=0.75)
     mag = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, amp, sway), gust)
-    wpo = g.op(unreal.MaterialExpressionMultiply, g.const((0.78, -0.62, -0.08)), mag)   # towards the north east, dipping a little
+    return g.op(unreal.MaterialExpressionMultiply, g.const((0.78, -0.62, -0.08)), mag)   # towards the north east, dipping a little
+
+
+def foliage_flags(m, masked=False):
+    m.set_editor_property("two_sided", True)
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
+    try_set(m, "used_with_instanced_static_meshes", True)
+    try_set(m, "used_with_nanite", True)
+    if masked:
+        try_set(m, "blend_mode", unreal.BlendMode.BLEND_MASKED)
+        try_set(m, "opacity_mask_clip_value", 0.4)
+
+
+def foliage_material():
+    """Our plants: vertex colour (a little varied per plant), two-sided foliage shading so the sun
+    glows through the blades, ambient occlusion from the vertex alpha, and wind: UV y is how far each
+    vertex may move (its height in metres, less for stiff plants)."""
+    g = Graph(new_material("M_Foliage"))
+    m = g.m
+    foliage_flags(m)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
+    tint = g.lerp(g.const((0.86, 0.9, 0.8)), g.const((1.12, 1.06, 0.92)), pir)
+    base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
+    sss = g.op(unreal.MaterialExpressionMultiply, base, g.const((0.75, 0.9, 0.35)))
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    h = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
+    g.link(uv, h)
+    wpo = foliage_wind(g, h, pir)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
@@ -860,6 +871,116 @@ def foliage_material():
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
     return m
+
+
+# Scanned plants (Megascans): their texture maps, by the suffix of the texture's name.
+SCAN_MAPS = {   # map: (name suffixes, sampler, sRGB)
+    "BaseColor": (("_BaseColor", "_Albedo"), "color", True),
+    "Normal": (("_Normal",), "normal", False),
+    "Roughness": (("_Roughness",), "linear", False),
+    "Opacity": (("_Opacity",), "linear", False),
+    "Translucency": (("_Translucency",), "color", True),
+    "AO": (("_AO",), "linear", False),
+}
+SAMPLERS = {"color": "SAMPLERTYPE_COLOR", "normal": "SAMPLERTYPE_NORMAL", "linear": "SAMPLERTYPE_LINEAR_COLOR"}
+
+
+def scan_textures(mesh):
+    """The maps sitting beside a scanned plant's mesh (Fab puts them in the same folder), set up to
+    match the master's samplers: colour maps sRGB, data maps linear, the normal map as a normal map."""
+    folder = mesh.get_path_name().rsplit("/", 1)[0]
+    found = {}
+    for path in unreal.EditorAssetLibrary.list_assets(folder, recursive=True, include_folder=False):
+        name = path.rsplit("/", 1)[-1].split(".")[0]
+        for key, (sfx, kind, srgb) in SCAN_MAPS.items():
+            if key in found or not any(name.endswith(x) for x in sfx):
+                continue
+            tex = unreal.load_asset(path)
+            if not isinstance(tex, unreal.Texture2D):
+                continue
+            changed = False
+            if tex.get_editor_property("srgb") != srgb:
+                tex.set_editor_property("srgb", srgb); changed = True
+            want = (unreal.TextureCompressionSettings.TC_NORMALMAP if kind == "normal"
+                    else unreal.TextureCompressionSettings.TC_DEFAULT)
+            if tex.get_editor_property("compression_settings") != want:
+                tex.set_editor_property("compression_settings", want); changed = True
+            if changed:
+                unreal.EditorAssetLibrary.save_loaded_asset(tex)
+            found[key] = tex
+    return found
+
+
+def scan_foliage_master(defaults):
+    """Masked two-sided foliage for scanned plants, its maps as parameters (one instance per plant set),
+    the same wind as ours with the sway weighted by height above the plant's base."""
+    g = Graph(new_material("M_FoliageScan"))
+    m = g.m
+    foliage_flags(m, masked=True)
+    pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
+
+    def tex(key):
+        if key not in defaults:
+            return None
+        kind = SCAN_MAPS[key][1]
+        e = g.node(unreal.MaterialExpressionTextureSampleParameter2D, -900, parameter_name=key,
+                   texture=defaults[key], sampler_type=getattr(unreal.MaterialSamplerType, SAMPLERS[kind]),
+                   sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
+        return e
+    col = tex("BaseColor")
+    tint = g.lerp(g.const((0.88, 0.9, 0.84)), g.const((1.1, 1.05, 0.95)), pir)
+    gtint = g.node(unreal.MaterialExpressionVectorParameter, parameter_name="Tint",
+                   default_value=unreal.LinearColor(1, 1, 1, 1))
+    base = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, col, tint), gtint, b_out="")
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    op = tex("Opacity")
+    if op:
+        mel.connect_material_property(op, "R", unreal.MaterialProperty.MP_OPACITY_MASK)
+    nrm = tex("Normal")
+    if nrm:
+        mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    rough = tex("Roughness")
+    mel.connect_material_property(rough if rough else g.const(0.6), "R" if rough else "", unreal.MaterialProperty.MP_ROUGHNESS)
+    ao = tex("AO")
+    if ao:
+        mel.connect_material_property(ao, "R", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    tr = tex("Translucency")
+    sss = g.op(unreal.MaterialExpressionMultiply, tr if tr else base, g.const((0.8, 0.9, 0.5)))
+    mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
+    mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
+    # Height above the plant's base, in metres, from its own (local) vertex position.
+    lp = g.node(unreal.MaterialExpressionLocalPosition)
+    z = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
+    g.link(lp, z)
+    h = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMax, z, const_b=0.0), const_b=0.01)
+    mel.connect_material_property(foliage_wind(g, h, pir), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
+def scan_instance(master, mesh, maps, tint=None):
+    """A material instance of M_FoliageScan with one plant set's maps, kept beside our materials."""
+    folder = mesh.get_path_name().rsplit("/", 1)[0]
+    name = "MI_" + folder.rsplit("/", 1)[-1]
+    path = FOLIAGE_DEST + "/" + name
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        unreal.EditorAssetLibrary.delete_asset(path)
+    mi = asset_tools.create_asset(name, FOLIAGE_DEST, unreal.MaterialInstanceConstant,
+                                  unreal.MaterialInstanceConstantFactoryNew())
+    mel.set_material_instance_parent(mi, master)
+    for key, t in maps.items():
+        mel.set_material_instance_texture_parameter_value(mi, key, t)
+    if tint:
+        mel.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(tint[0], tint[1], tint[2], 1.0))
+    unreal.EditorAssetLibrary.save_loaded_asset(mi)
+    return mi
+
+
+def footprint(mesh):
+    """Half the mean of a mesh's width and depth (cm)."""
+    b = mesh.get_bounding_box()
+    return max(0.25 * ((b.max.x - b.min.x) + (b.max.y - b.min.y)), 1.0)
 
 
 def foliage_nanite(mesh):
@@ -886,10 +1007,16 @@ def foliage_nanite(mesh):
 
 def place_foliage(frame):
     """The ground cover: import the plants, and a TorqueFoliage actor that plants them at BeginPlay
-    from Data/Buttertubs/Foliage/instances.bin. A species can use another mesh (a Megascans plant, say)
-    by naming it in Data/Buttertubs/Foliage/overrides.json:
-        {"tussock_a": {"mesh": "/Game/Fab/.../SM_Grass", "scale": 1.0}}
-    """
+    from Data/Buttertubs/Foliage/instances.bin. A species can use scanned plants instead (Megascans from
+    Fab, say) through Data/Buttertubs/Foliage/overrides.json:
+
+        {"tuft_a": {"meshes": ["/Game/Fab/.../Wild_Grass_..._VarA_LOD0", ...],
+                    "scale": 1.0, "keep": null, "tint": [1, 1, 1]}}
+
+    Each plant of the species takes one of the meshes. The meshes get Nanite and a masked foliage
+    material made from the textures beside them (M_FoliageScan + one instance per set). "keep" is the
+    share of the species' plants kept; left out, it is worked out from how much bigger the scanned
+    plant is than ours, so the ground is covered about as densely."""
     folder = os.path.join(data_dir(), "Foliage")
     spec_path = os.path.join(folder, "foliage.json")
     if not os.path.exists(spec_path):
@@ -901,23 +1028,73 @@ def place_foliage(frame):
     spec = json.load(open(spec_path))
     over_path = os.path.join(folder, "overrides.json")
     overrides = json.load(open(over_path)) if os.path.exists(over_path) else {}
+    overrides = {k: v for k, v in overrides.items() if not k.startswith("_")}
     meshes = import_glbs(folder, FOLIAGE_DEST)
     mat = foliage_material()
+    # Scanned plants: load them and their maps first, so the master gets defaults of the right kinds.
+    scans = {}
+    for name, o in overrides.items():
+        paths = o.get("meshes") or ([o["mesh"]] if "mesh" in o else [])
+        got = []
+        for p in paths:
+            m_ = unreal.load_asset(p)
+            if isinstance(m_, unreal.StaticMesh):
+                got.append(m_)
+            else:
+                unreal.log_warning("[Torque] %s: no static mesh at %s" % (name, p))
+        if got:
+            scans[name] = got
+        else:
+            unreal.log_warning("[Torque] %s: none of its scanned meshes loaded; using ours" % name)
+    sets = {}   # folder: (maps, material instance)
+    master = None
+    for name, ms in scans.items():
+        for m_ in ms:
+            f = m_.get_path_name().rsplit("/", 1)[0]
+            if f not in sets:
+                sets[f] = [scan_textures(m_), None]
+    if sets:
+        defaults = {}
+        for maps, _ in sets.values():
+            for k, v in maps.items():
+                defaults.setdefault(k, v)
+        if "BaseColor" in defaults:
+            master = scan_foliage_master(defaults)
+        else:
+            unreal.log_warning("[Torque] the scanned plants have no BaseColor maps beside them; using ours")
+            scans = {}
     species = []
     for s in spec["species"]:
         e = unreal.TorqueFoliageSpecies()
         e.set_editor_property("name", s["name"])
-        o = overrides.get(s["name"])
-        mesh = unreal.load_asset(o["mesh"]) if o else None
-        if o and not mesh:
-            unreal.log_warning("[Torque] override mesh %s for %s not found; using ours" % (o["mesh"], s["name"]))
-        if mesh:
-            e.set_editor_property("mesh", mesh)
+        ours = meshes.get(s["name"])
+        if s["name"] in scans and master:
+            o = overrides[s["name"]]
+            variants, vmats = [], []
+            for m_ in scans[s["name"]]:
+                foliage_nanite(m_)
+                st = sets[m_.get_path_name().rsplit("/", 1)[0]]
+                if st[1] is None:
+                    st[1] = scan_instance(master, m_, st[0], o.get("tint"))
+                variants.append(m_); vmats.append(st[1])
+            e.set_editor_property("variants", variants)
+            e.set_editor_property("variant_materials", vmats)
             e.set_editor_property("native_mesh", True)
-            e.set_editor_property("scale_multiplier", float(o.get("scale", 1.0)))
-        elif s["name"] in meshes:
-            foliage_nanite(meshes[s["name"]])
-            e.set_editor_property("mesh", meshes[s["name"]])
+            k = float(o.get("scale", 1.0))
+            e.set_editor_property("scale_multiplier", k)
+            keep = o.get("keep")
+            if keep is None and ours is not None:
+                theirs = sum(footprint(m_) for m_ in variants) / len(variants) * k
+                mine = footprint(ours) * abs(frame[2])
+                keep = min(1.0, max(0.12, (mine / theirs) ** 2 * 1.3))
+            e.set_editor_property("keep", float(keep if keep is not None else 1.0))
+            log("%s: %d scanned plants (%s), about %.0f cm across against our %.0f cm, keeping %.0f%%" % (
+                s["name"], len(variants), variants[0].get_name(),
+                2 * sum(footprint(m_) for m_ in variants) / len(variants) * k,
+                2 * footprint(ours) * abs(frame[2]) if ours else 0, 100 * float(keep if keep is not None else 1.0)))
+        elif ours is not None:
+            foliage_nanite(ours)
+            e.set_editor_property("mesh", ours)
             e.set_editor_property("material", mat)
         e.set_editor_property("cull_distance", float(s["cull_m"]) * 100.0)
         e.set_editor_property("cast_shadow", bool(s["shadow"]))
@@ -929,7 +1106,7 @@ def place_foliage(frame):
     a.set_editor_property("frame_yaw", float(frame[0]))
     a.set_editor_property("frame_mirror", float(frame[1]))
     a.set_editor_property("frame_scale", float(frame[2]))
-    log("foliage: %d species, %d plants (placed at Play)" % (len(species), spec.get("total", 0)))
+    log("foliage: %d species (%d scanned), %d plants (placed at Play)" % (len(species), len(scans), spec.get("total", 0)))
 
 
 # --- Stone props: walls, scars, boulders, barns, gates, sheep (Tools/buttertubs_detail.py) -----------

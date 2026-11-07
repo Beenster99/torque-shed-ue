@@ -35,6 +35,13 @@ struct FTorqueFoliageSpecies
 	// True for a mesh that is already z up in Unreal's frame (a Megascans plant, say), so the glTF
 	// importer's frame isn't applied to it.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage") bool bNativeMesh = false;
+	// Several meshes for the species (scanned variants, say): each plant takes one of them, and Mesh
+	// is ignored. VariantMaterials[i], if set, goes on Variants[i].
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage") TArray<TObjectPtr<UStaticMesh>> Variants;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage") TArray<TObjectPtr<UMaterialInterface>> VariantMaterials;
+	// Share of this species' plants kept (a bigger mesh needs fewer to cover the same ground).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage", meta = (ClampMin = "0", ClampMax = "1"))
+	float Keep = 1.0f;
 };
 
 UCLASS()
