@@ -66,6 +66,22 @@ double Approach(double From, double To, double RateUp, double RateDown, double D
 	const double Rate = (std::fabs(To) > std::fabs(From)) ? RateUp : RateDown;
 	return MoveToward(From, To, Rate * Dt);
 }
+
+// The ground under the wheels: the first hit on the land or the road (tagged Land and Road by
+// Tools/ue_build_level.py), never walls, grass, sheep or anything else in the way.
+bool GroundTrace(UWorld* World, const FVector& From, const FVector& To, const FCollisionQueryParams& Params, FHitResult& Out)
+{
+	FCollisionQueryParams P = Params;
+	for (int32 Try = 0; Try < 8; ++Try)   // step past anything else that blocks, a few at most
+	{
+		if (!World->LineTraceSingleByChannel(Out, From, To, ECC_Visibility, P)) return false;
+		const AActor* A = Out.GetActor();
+		if (A && (A->ActorHasTag(TEXT("Land")) || A->ActorHasTag(TEXT("Road")))) return true;
+		if (!A) return false;
+		P.AddIgnoredActor(A);
+	}
+	return false;
+}
 } // namespace
 
 ATorqueBikePawn::ATorqueBikePawn()
@@ -144,7 +160,7 @@ void ATorqueBikePawn::BeginPlay()
 		if (!World) return Out;
 		FHitResult Hit;
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWheel), true, this);
-		if (World->LineTraceSingleByChannel(Hit, ToUE(From), ToUE(To), ECC_Visibility, Params))
+		if (GroundTrace(World, ToUE(From), ToUE(To), Params, Hit))
 		{
 			Out.Hit = true;
 			Out.Position = ToSim(Hit.ImpactPoint);
@@ -322,7 +338,11 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 		FHitResult Hit;
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueSpawn), true, this);
 		const FVector Top = ToUE(Pos + V3(0, 50, 0)), Bottom = ToUE(Pos - V3(0, 50, 0));
-		if (World->LineTraceSingleByChannel(Hit, Top, Bottom, ECC_Visibility, Params)) Pos = ToSim(Hit.ImpactPoint);
+		FHitResult First;   // what a plain trace hits first, in the log for checking the level
+		if (World->LineTraceSingleByChannel(First, Top, Bottom, ECC_Visibility, Params))
+			UE_LOG(LogTemp, Log, TEXT("Torque: respawn trace first hits %s at z %.0f cm (start penetrating %d)"),
+				First.GetActor() ? *First.GetActor()->GetName() : TEXT("nothing"), First.ImpactPoint.Z, First.bStartPenetrating ? 1 : 0);
+		if (GroundTrace(World, Top, Bottom, Params, Hit)) Pos = ToSim(Hit.ImpactPoint);
 	}
 	Sim->Place(Pos, Heading);
 	Sim->Assist = Assist;

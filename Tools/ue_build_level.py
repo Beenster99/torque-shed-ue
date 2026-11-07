@@ -363,6 +363,10 @@ def build():
     for name, mesh in meshes.items():
         if is_detail(name):
             nanite_off(mesh)   # no collision: the wheels only see the land and the road
+            try:
+                unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(mesh)
+            except Exception as e:
+                unreal.log_warning("[Torque] couldn't remove collision from %s: %s" % (name, e))
             body = mesh.get_editor_property("body_setup")
             if body:
                 body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
@@ -395,6 +399,7 @@ def build():
         comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
         if is_detail(name):
             comp.set_material(0, detail)
+            comp.set_collision_profile_name("NoCollision")
             comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
             comp.set_editor_property("can_ever_affect_navigation", False)
             if name.startswith("grass_"):   # tufts are lost in the distance: draw them only within 250 m
@@ -403,8 +408,8 @@ def build():
             a.set_folder_path("Detail")
             continue
         comp.set_material(0, road if name == "road" else land)
-        if name == "road":
-            a.set_editor_property("tags", [unreal.Name("Road")])
+        # The bike's wheels and its respawn only see actors tagged Land or Road.
+        a.set_editor_property("tags", [unreal.Name("Road" if name == "road" else "Land")])
         a.set_folder_path("Terrain" if name != "road" else "Road")
 
     # Sun, sky and air. A late-morning Dales sun from the south east, a little haze.
