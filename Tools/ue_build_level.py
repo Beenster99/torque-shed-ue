@@ -1511,8 +1511,14 @@ def build():
                  ("cast_cloud_shadows", True), ("cast_shadows_on_clouds", True), ("cast_shadows_on_atmosphere", True),
                  ("light_color", unreal.Color(255, 247, 235, 255))):
         try_set(sc, k, v)
-    atm = spawn(unreal.SkyAtmosphere)
+    # The planet's surface goes under the lowest land (the valley floors are 300 m below the start):
+    # by default it sits at the level's origin, and land below it got a broken, banded aerial
+    # perspective that read as a flat blue sea.
+    atm = spawn(unreal.SkyAtmosphere, (0, 0, -80000))
     ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
+    mode = getattr(unreal, "SkyAtmosphereTransformMode", None)
+    if mode is not None:
+        try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
     # British air: more haze than the default, so far fells go blue-grey.
     for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
@@ -1522,9 +1528,9 @@ def build():
     skc.set_editor_property("real_time_capture", True)
     skc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
     try_set(skc, "intensity", 1.0)
-    fog = spawn(unreal.ExponentialHeightFog, (0, 0, -20000))
+    fog = spawn(unreal.ExponentialHeightFog, (0, 0, -40000))   # a thin haze, not a layer lying in the valley
     fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
-    for k, v in (("fog_density", 0.01), ("fog_height_falloff", 0.06), ("enable_volumetric_fog", True),
+    for k, v in (("fog_density", 0.003), ("fog_height_falloff", 0.15), ("enable_volumetric_fog", True),
                  ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
                  ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
                  ("fog_inscattering_luminance", unreal.LinearColor(0.42, 0.46, 0.52, 1.0))):
