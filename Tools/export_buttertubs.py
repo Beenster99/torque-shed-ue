@@ -435,6 +435,13 @@ def main():
         ruv = np.stack([np.tile((across + 1) / 2, len(line)), np.repeat(s / 20.0, 5)], -1)
         write_glb(os.path.join(args.out, "road.glb"), pos, tris, nrm, rc, "road", ruv)
 
+        # Walls, fences, barns, rocks, grass and sheep along the ride.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import buttertubs_detail
+        counts = buttertubs_detail.build(region.root, region.meta, O, H, xs, zs, best, line, tiles, ROAD_HALF,
+                                         args.out, write_glb)
+        print("detail", counts)
+
     # The ride's description for Unreal and the sim.
     def ue(p):  # sim metres (x east, y up, z south) to Unreal cm (x east, y south, z up)
         return [round(p[0] * 100, 1), round(p[2] * 100, 1), round(p[1] * 100, 1)]

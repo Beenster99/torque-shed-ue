@@ -10,7 +10,8 @@ What it does:
   2. works out how the glTF importer turned the files' frame (metres, x east, y up, z south) into
      Unreal's, by comparing the road's imported bounds with its known ones, so the level lines up
      with the riding sim whatever the importer version does;
-  3. makes two simple materials (land coloured by its cover, tarmac);
+  3. makes simple materials (land coloured by its cover, tarmac, the walls, rocks, grass and sheep
+     from Tools/buttertubs_detail.py, which get no collision);
   4. makes the level: the meshes, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
      post process volume, and a player start at the top of the ride.
 """
@@ -206,8 +207,29 @@ def land_material():
     mul2 = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -250, 250)
     mel.connect_material_expressions(mul1, "", mul2, "A")
     mel.connect_material_expressions(n2, "", mul2, "B")
-    mel.connect_material_property(mul2, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    n3 = noise(m, 0.15, 0.88, 1.08, -900, 850)   # fine mottling close up
+    mul3 = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -120, 300)
+    mel.connect_material_expressions(mul2, "", mul3, "A")
+    mel.connect_material_expressions(n3, "", mul3, "B")
+    mel.connect_material_property(mul3, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(const1(m, 0.92, -250, 450), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
+def detail_material():
+    """Walls, rocks, grass, sheep (Tools/buttertubs_detail.py): their vertex colour, two-sided for the
+    grass blades and fence wires, with a little noise so stone isn't flat paint."""
+    m = new_material("M_Detail")
+    m.set_editor_property("two_sided", True)
+    vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -700, 0)
+    n1 = noise(m, 0.4, 0.75, 1.15, -700, 250)
+    mul = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -400, 100)
+    mel.connect_material_expressions(vc, "", mul, "A")
+    mel.connect_material_expressions(n1, "", mul, "B")
+    mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(const1(m, 0.9, -400, 300), "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
     return m
@@ -328,6 +350,10 @@ def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
     return actors.spawn_actor_from_class(cls, unreal.Vector(*loc), unreal.Rotator(*rot))
 
 
+def is_detail(name):
+    return name.startswith("detail_") or name.startswith("grass_")
+
+
 def build():
     folder = data_dir()
     route = json.load(open(os.path.join(folder, "route.json")))
@@ -335,7 +361,14 @@ def build():
     if "road" not in meshes:
         raise RuntimeError("the road mesh didn't import; see the Output Log")
     for name, mesh in meshes.items():
-        setup_mesh(mesh, full_precision_uvs=(name == "road"))
+        if is_detail(name):
+            nanite_off(mesh)   # no collision: the wheels only see the land and the road
+            body = mesh.get_editor_property("body_setup")
+            if body:
+                body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        else:
+            setup_mesh(mesh, full_precision_uvs=(name == "road"))
     try:
         sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
         for n in ("road", "backdrop", "terrain_0_0"):
@@ -345,7 +378,7 @@ def build():
     except Exception as e:
         unreal.log_warning("[Torque] couldn't count vertices: %s" % e)
     yaw, mirror, scale = find_frame(meshes["road"], os.path.join(folder, "road.glb"))
-    land, road = land_material(), road_material()
+    land, road, detail = land_material(), road_material(), detail_material()
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).
@@ -359,8 +392,17 @@ def build():
         a.set_actor_scale3d(unreal.Vector(scale, scale * mirror, scale))
         a.set_actor_label(name)
         comp = a.get_component_by_class(unreal.StaticMeshComponent)
-        comp.set_material(0, road if name == "road" else land)
         comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+        if is_detail(name):
+            comp.set_material(0, detail)
+            comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+            comp.set_editor_property("can_ever_affect_navigation", False)
+            if name.startswith("grass_"):   # tufts are lost in the distance: draw them only within 250 m
+                comp.set_editor_property("ld_max_draw_distance", 25000.0)
+                comp.set_editor_property("cast_shadow", False)
+            a.set_folder_path("Detail")
+            continue
+        comp.set_material(0, road if name == "road" else land)
         if name == "road":
             a.set_editor_property("tags", [unreal.Name("Road")])
         a.set_folder_path("Terrain" if name != "road" else "Road")
