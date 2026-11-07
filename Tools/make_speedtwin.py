@@ -337,21 +337,35 @@ def rot_x(a):
 
 # --- The bike, part by part --------------------------------------------------------------------------
 
+def tyre_profile(r_out, w, rim_r, rim_w, n_crown=40, n_side=14):
+    """A motorcycle tyre's section as (radius, z) from bead to bead: a round crown (radius a little
+    over half the width) that wraps well down the shoulders, then a sidewall that carries on to the
+    widest point and tucks in to the bead on the rim flange."""
+    rc = 0.56 * w                                   # crown radius
+    th = math.asin(min(0.97, 0.47 * w / rc))         # how far round the crown goes
+    cr = r_out - rc                                  # the crown's centre
+    crown = [(cr + rc * math.cos(t), rc * math.sin(t)) for t in np.linspace(-th, th, n_crown)]
+    # Sidewall: a cubic from the crown's edge (leaving along its tangent) out to the widest point
+    # and down to the bead, which sits just inside the rim's flanges.
+    e_r, e_z = crown[-1]
+    tan = np.array([-math.sin(th), math.cos(th)])    # d(r, z) along the crown at its edge
+    bead = np.array([rim_r + 0.006, rim_w / 2 - 0.002])
+    p0 = np.array([e_r, e_z]); p1 = p0 + tan * 0.35 * (e_r - bead[0])
+    p2 = np.array([bead[0] + 0.45 * (e_r - bead[0]), w / 2 + 0.002]); p3 = bead
+    side = []
+    for t in np.linspace(0, 1, n_side + 1)[1:]:
+        q = (1 - t) ** 3 * p0 + 3 * (1 - t) ** 2 * t * p1 + 3 * (1 - t) * t * t * p2 + t ** 3 * p3
+        side.append((q[0], q[1]))
+    right = crown + side
+    return [(r, -z) for r, z in reversed(side)] + right
+
+
 def wheel(radius_tyre, tyre_w, rim_r=0.2159, rim_w=None, spokes=10, front=True):
     """Tyre, rim and split-spoke cast wheel, centred on the axle, axis z."""
     parts = {}
     sec_h = radius_tyre - rim_r
-    a = np.linspace(-math.pi * 0.5, math.pi * 1.5, 25)
-    # Tyre: a fat rounded section from bead to bead.
-    prof = []
-    for t in np.linspace(0, 1, 26):
-        ang = math.pi * (t - 0.5) * 1.6
-        r = rim_r + 0.012 + (sec_h - 0.012) * (0.5 + 0.5 * math.cos(ang * 0.75)) ** 0.5
-        z = tyre_w / 2 * math.sin(ang)
-        prof.append((r, z))
-    prof = [(rim_r + 0.005, -tyre_w * 0.42)] + prof + [(rim_r + 0.005, tyre_w * 0.42)]
-    parts["tyre"] = (lathe(prof, seg=144, uv_norm=24), "tyre")
     rw = rim_w or tyre_w * 0.8
+    parts["tyre"] = (lathe(tyre_profile(radius_tyre, tyre_w, rim_r, rw), seg=144, uv_norm=24), "tyre")
     rim = lathe([(rim_r + 0.012, -rw / 2), (rim_r, -rw / 2 + 0.006), (rim_r - 0.012, -rw / 2 + 0.01),
                  (rim_r - 0.016, 0.0), (rim_r - 0.012, rw / 2 - 0.01), (rim_r, rw / 2 - 0.006),
                  (rim_r + 0.012, rw / 2), (rim_r - 0.02, rw / 2 - 0.004), (rim_r - 0.02, -rw / 2 + 0.004),

@@ -732,7 +732,7 @@
    "name": "front_tyre",
    "group": "front_wheel",
    "finish": "tyre",
-   "tris": 7776
+   "tris": 19296
   },
   {
    "name": "gearbox",
@@ -876,7 +876,7 @@
    "name": "rear_tyre",
    "group": "rear_wheel",
    "finish": "tyre",
-   "tris": 7776
+   "tris": 19296
   },
   {
    "name": "seat",
