@@ -186,7 +186,7 @@ private:
 		Buf.SetNumZeroed(FMath::Max(ReportLen, 128));
 		OVERLAPPED Ov;
 		FMemory::Memzero(Ov);
-		Ov.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+		Ov.hEvent = CreateEventW(nullptr, true, false, nullptr);
 		while (!bStop)
 		{
 			ResetEvent(Ov.hEvent);
@@ -198,10 +198,10 @@ private:
 				if (W == WAIT_TIMEOUT)
 				{
 					CancelIo(Device);
-					GetOverlappedResult(Device, &Ov, &Got, TRUE);
+					GetOverlappedResult(Device, &Ov, &Got, true);
 					continue;
 				}
-				if (!GetOverlappedResult(Device, &Ov, &Got, FALSE)) break;
+				if (!GetOverlappedResult(Device, &Ov, &Got, false)) break;
 			}
 			FSonyPadState S;
 			if (Parse(Buf.GetData(), (int32)Got, bDualSense, ReportLen != 64, S))
