@@ -1,0 +1,53 @@
+{
+ "about": "Becks made by Tools/make_becks.py; instances.bin's species index is into 'species'.",
+ "species": [
+  {
+   "name": "SM_BeckStone_0",
+   "mesh": "SM_BeckStone_0",
+   "count": 2864,
+   "cull_m": 600,
+   "shadow": true
+  },
+  {
+   "name": "SM_BeckStone_1",
+   "mesh": "SM_BeckStone_1",
+   "count": 2834,
+   "cull_m": 600,
+   "shadow": true
+  },
+  {
+   "name": "SM_BeckStone_2",
+   "mesh": "SM_BeckStone_2",
+   "count": 2882,
+   "cull_m": 600,
+   "shadow": true
+  },
+  {
+   "name": "SM_BeckStone_3",
+   "mesh": "SM_BeckStone_3",
+   "count": 2859,
+   "cull_m": 600,
+   "shadow": true
+  },
+  {
+   "name": "SM_BeckStone_4",
+   "mesh": "SM_BeckStone_4",
+   "count": 2766,
+   "cull_m": 600,
+   "shadow": true
+  },
+  {
+   "name": "SM_BeckStone_5",
+   "mesh": "SM_BeckStone_5",
+   "count": 2844,
+   "cull_m": 600,
+   "shadow": true
+  }
+ ],
+ "km": 11.16,
+ "meshes": [
+  "bed_00",
+  "bed_01",
+  "water_00"
+ ]
+}

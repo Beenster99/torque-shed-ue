@@ -638,16 +638,19 @@ class Noise:
 
 
 def blocked_mask(land):
-    """1 m cells where the countryside detail stands above the ground: walls, barns, rocks, sheep."""
+    """1 m cells where the countryside detail stands above the ground (walls, barns, rocks, sheep) or
+    the becks run (Data/Buttertubs/Becks)."""
     step = 1.0
     nx = int((land.H.shape[1] - 1) * land.step / step) + 1; nz = int((land.H.shape[0] - 1) * land.step / step) + 1
     m = np.zeros((nz, nx), bool)
-    for f in sorted(os.listdir(DATA)):
-        if not (f.startswith("detail_") and f.endswith(".glb")):
-            continue
-        g = read_glb(os.path.join(DATA, f))
+    becks = os.path.join(DATA, "Becks")   # the becks' beds (Tools/make_becks.py): nothing grows on them
+    files = [os.path.join(DATA, f) for f in sorted(os.listdir(DATA)) if f.startswith("detail_") and f.endswith(".glb")]
+    if os.path.isdir(becks):
+        files += [os.path.join(becks, f) for f in sorted(os.listdir(becks)) if f.startswith("bed_") and f.endswith(".glb")]
+    for path in files:
+        g = read_glb(path)
         P = g["POSITION"].astype(np.float64); T = g["indices"].astype(np.int64)
-        up = P[:, 1] - land.height(P[:, 0], P[:, 2]) > 0.12
+        up = P[:, 1] - land.height(P[:, 0], P[:, 2]) > (0.12 if "Becks" not in path else -1.0)
         tri = T[up[T].any(1)]
         # Points over each raised triangle, so long faces leave no gaps.
         w = np.random.default_rng(1).dirichlet((1, 1, 1), 12)

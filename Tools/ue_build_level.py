@@ -15,7 +15,8 @@ What it does:
      boulders, barns, gates, sheep, from Tools/buttertubs_detail.py) as Nanite meshes with no collision;
   3b. imports the moorland plants (Tools/make_foliage.py) as Nanite meshes and adds the TorqueFoliage
      actor that plants them when the level starts;
-  3c. the limestone scars on the far fells (Tools/make_far_rock.py), and the same as 3b for the trees (Tools/make_trees.py): ash, sycamore, alder, birch, hawthorn and spruce
+  3c. the becks (Tools/make_becks.py), the limestone scars on the far fells (Tools/make_far_rock.py),
+     and the same as 3b for the trees (Tools/make_trees.py): ash, sycamore, alder, birch, hawthorn and spruce
      from a canopy height map, planted by a second TorqueFoliage actor, "Trees";
   4. makes the level: the meshes, the props as instances from props.json, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
      post process volume, and a player start at the top of the ride.
@@ -1380,6 +1381,104 @@ def place_far_rock(frame, land_mat, stone_mat):
     log("far scars: %d meshes" % len(meshes))
 
 
+# --- Becks (Tools/make_becks.py) ---------------------------------------------------------------------
+
+BECK_DEST = "/Game/Buttertubs/Becks"
+
+
+def beck_material():
+    """Running water: dark peaty brown, glossy, ripples running downstream (UV y), white where it runs
+    fast (vertex colour R). Opaque: a beck this shallow shows its colour, not its bed."""
+    g = Graph(new_material("M_Beck"))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    nt = noise_texture()
+    if nt is not None:
+        uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.5, v_tiling=0.6)
+        p1 = g.node(unreal.MaterialExpressionPanner, speed_x=0.0, speed_y=-0.55); g.link(uv, p1, "Coordinate")
+        uv2 = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=2.7, v_tiling=1.3)
+        p2 = g.node(unreal.MaterialExpressionPanner, speed_x=0.05, speed_y=-0.9); g.link(uv2, p2, "Coordinate")
+        n1 = g.sample(nt, p1, "linear"); n2 = g.sample(nt, p2, "linear")
+        n = g.op(unreal.MaterialExpressionAdd, n1, n2)
+        n = g.op(unreal.MaterialExpressionSubtract, n, const_b=1.0)                 # about -0.5..0.5 each way
+        n = g.op(unreal.MaterialExpressionMultiply, n, g.const((0.9, 0.9, 0.0)))
+        normal = g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0)))
+        foam = g.op(unreal.MaterialExpressionMultiply, n1, vc, a_out="R", b_out="R")
+    else:
+        normal = g.const((0.0, 0.0, 1.0))
+        foam = g.op(unreal.MaterialExpressionMultiply, vc, a_out="R", const_b=0.5)
+    foam = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, foam, const_b=1.6))
+    base = g.lerp(g.const((0.02, 0.016, 0.01)), g.const((0.5, 0.52, 0.5)), foam)
+    rough = g.lerp(g.const(0.04), g.const(0.45), foam)
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+def place_becks(frame, stone_mat):
+    """The becks: their stony beds (M_Stone) and water (M_Beck) as plain meshes at the origin like
+    the land, and their cobbles and boulders planted by a TorqueFoliage actor, "BeckStones"."""
+    folder = os.path.join(data_dir(), "Becks")
+    spec_path = os.path.join(folder, "becks.json")
+    if not os.path.exists(spec_path):
+        log("no becks (python Tools/make_becks.py)")
+        return
+    spec = json.load(open(spec_path))
+    meshes = import_glbs(folder, BECK_DEST)
+    water = beck_material()
+    yaw, mirror, scale = frame
+    rot = unreal.Rotator(0.0, 0.0, float(yaw))
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for name in spec.get("meshes", []):
+        mesh = meshes.get(name)
+        if mesh is None:
+            unreal.log_warning("[Torque] no beck mesh " + name)
+            continue
+        nanite_off(mesh)
+        try:
+            sme.remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        a = actors.spawn_actor_from_object(mesh, unreal.Vector(0, 0, 0), rot)
+        a.set_actor_scale3d(unreal.Vector(scale, scale * mirror, scale))
+        a.set_actor_label(name)
+        a.set_folder_path("Becks")
+        comp = a.get_component_by_class(unreal.StaticMeshComponent)
+        comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+        comp.set_material(0, water if name.startswith("water_") else stone_mat)
+        comp.set_collision_profile_name("NoCollision")
+        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        comp.set_editor_property("can_ever_affect_navigation", False)
+    if hasattr(unreal, "TorqueFoliage"):
+        species = []
+        for s in spec["species"]:
+            e = unreal.TorqueFoliageSpecies()
+            e.set_editor_property("name", s["name"])
+            m = meshes.get(s["mesh"])
+            if m is not None:
+                foliage_nanite(m)
+                e.set_editor_property("mesh", m)
+                e.set_editor_property("material", stone_mat)
+            e.set_editor_property("cull_distance", float(s.get("cull_m", 600)) * 100.0)
+            e.set_editor_property("cull_spread", 1.6)
+            e.set_editor_property("cast_shadow", bool(s.get("shadow", True)))
+            species.append(e)
+        a = spawn(unreal.TorqueFoliage)
+        a.set_actor_label("BeckStones")
+        a.set_folder_path("Becks")
+        a.set_editor_property("instances_file", "Data/Buttertubs/Becks/instances.bin")
+        a.set_editor_property("species", species)
+        a.set_editor_property("frame_yaw", float(yaw))
+        a.set_editor_property("frame_mirror", float(mirror))
+        a.set_editor_property("frame_scale", float(scale))
+    log("becks: %s km, %d meshes, %d stones" % (spec.get("km"), len(spec.get("meshes", [])),
+                                              sum(s.get("count", 0) for s in spec["species"])))
+
+
 # --- Trees (Tools/make_trees.py) --------------------------------------------------------------------
 
 TREE_DEST = "/Game/Buttertubs/Trees"
@@ -1847,7 +1946,9 @@ def build():
 
     if prop_meshes:
         place_props(prop_meshes, prop_spec, prop_mats, (yaw, mirror, scale))
-    place_far_rock((yaw, mirror, scale), land, prop_mats.get("stone") or stone_material(tex, roles))
+    stone = prop_mats.get("stone") or stone_material(tex, roles)
+    place_far_rock((yaw, mirror, scale), land, stone)
+    place_becks((yaw, mirror, scale), stone)
 
     # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
     # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting

@@ -8,7 +8,7 @@
    "shadow": false,
    "triangles": 3768,
    "ground_blend": 1.0,
-   "count": 207233
+   "count": 206502
   },
   {
    "name": "sward_b",
@@ -17,7 +17,7 @@
    "shadow": false,
    "triangles": 4386,
    "ground_blend": 1.0,
-   "count": 69287
+   "count": 69028
   },
   {
    "name": "tuft_a",
@@ -26,7 +26,7 @@
    "shadow": false,
    "triangles": 900,
    "ground_blend": 1.0,
-   "count": 191576
+   "count": 190947
   },
   {
    "name": "tuft_b",
@@ -35,7 +35,7 @@
    "shadow": false,
    "triangles": 780,
    "ground_blend": 1.0,
-   "count": 191150
+   "count": 190738
   },
   {
    "name": "tussock_a",
@@ -44,7 +44,7 @@
    "shadow": true,
    "triangles": 1360,
    "ground_blend": 1.0,
-   "count": 122230
+   "count": 121302
   },
   {
    "name": "tussock_b",
@@ -53,7 +53,7 @@
    "shadow": true,
    "triangles": 1200,
    "ground_blend": 1.0,
-   "count": 122157
+   "count": 120992
   },
   {
    "name": "matgrass",
@@ -62,7 +62,7 @@
    "shadow": false,
    "triangles": 780,
    "ground_blend": 1.0,
-   "count": 89776
+   "count": 89068
   },
   {
    "name": "far_a",
@@ -71,7 +71,7 @@
    "shadow": false,
    "triangles": 240,
    "ground_blend": 1.0,
-   "count": 112768
+   "count": 111748
   },
   {
    "name": "far_b",
@@ -80,7 +80,7 @@
    "shadow": false,
    "triangles": 216,
    "ground_blend": 1.0,
-   "count": 112365
+   "count": 111272
   },
   {
    "name": "rush_a",
@@ -89,7 +89,7 @@
    "shadow": true,
    "triangles": 3466,
    "ground_blend": 1.0,
-   "count": 18862
+   "count": 17364
   },
   {
    "name": "rush_b",
@@ -98,7 +98,7 @@
    "shadow": true,
    "triangles": 3604,
    "ground_blend": 1.0,
-   "count": 18766
+   "count": 17549
   },
   {
    "name": "heather_twig_a",
@@ -107,7 +107,7 @@
    "shadow": true,
    "triangles": 7036,
    "ground_blend": 0.15,
-   "count": 22628
+   "count": 22703
   },
   {
    "name": "heather_twig_b",
@@ -116,7 +116,7 @@
    "shadow": true,
    "triangles": 11700,
    "ground_blend": 0.15,
-   "count": 15301
+   "count": 15167
   },
   {
    "name": "heather_a",
@@ -125,7 +125,7 @@
    "shadow": false,
    "triangles": 3238,
    "ground_blend": 0.15,
-   "count": 60408
+   "count": 60141
   },
   {
    "name": "heather_b",
@@ -134,7 +134,7 @@
    "shadow": false,
    "triangles": 3238,
    "ground_blend": 0.15,
-   "count": 39937
+   "count": 39932
   },
   {
    "name": "moss",
@@ -143,7 +143,7 @@
    "shadow": false,
    "triangles": 1432,
    "ground_blend": 1.0,
-   "count": 2606
+   "count": 2363
   },
   {
    "name": "bracken",
@@ -152,9 +152,9 @@
    "shadow": true,
    "triangles": 2136,
    "ground_blend": 1.0,
-   "count": 7726
+   "count": 7595
   }
  ],
- "total": 1404776,
+ "total": 1394411,
  "density": 1.0
 }
