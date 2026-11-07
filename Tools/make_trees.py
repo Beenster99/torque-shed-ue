@@ -58,7 +58,7 @@ CREDIT = ("Trees: canopy heights from Meta and World Resources Institute, High R
           "(2024), CC BY 4.0, https://registry.opendata.aws/dataforgood-fb-forests/")
 
 # The models: species and how many variants of each.
-VARIANTS = {"ash": 3, "sycamore": 3, "alder": 2, "birch": 2, "hawthorn": 3, "spruce": 2}
+VARIANTS = {"ash": 4, "sycamore": 4, "alder": 3, "birch": 2, "hawthorn": 3, "spruce": 2}
 
 
 # --- Canopy map ------------------------------------------------------------------------------------
@@ -279,6 +279,9 @@ def find_trees(C, x0, z0, rng):
     grid = {}
     out = []
     jit = rng.uniform(-1, 1, (len(cand), 2))
+    # How close each tree may stand to its neighbours varies, so stands have tight groups and gaps,
+    # not a lattice; strung-out rows along becks and walls break up the same way.
+    gap = rng.uniform(0.55, 1.0, len(cand)) ** 0.8
     for k, (jj, ii, h) in enumerate(cand):
         x = x0 + ii * STEP + jit[k, 0]; z = z0 + jj * STEP + jit[k, 1]
         r = float(crown_r(h))
@@ -287,7 +290,7 @@ def find_trees(C, x0, z0, rng):
         for a in range(gx - 2, gx + 3):
             for b in range(gz - 2, gz + 3):
                 for (ox, oz, orr) in grid.get((a, b), ()):
-                    if (ox - x) ** 2 + (oz - z) ** 2 < ((r + orr) * 0.75) ** 2:
+                    if (ox - x) ** 2 + (oz - z) ** 2 < ((r + orr) * gap[k]) ** 2:
                         ok = False
                         break
                 if not ok:
@@ -415,19 +418,19 @@ def species_for(T, C, lab, size, spread, mean_h, frac, x0, z0, leaf_at, beck_d, 
             out[k] = "spruce"; continue
         v = u[k]
         if small[k] and (lone[k] or high[k]) and not by_beck[k]:
-            out[k] = "hawthorn" if v < 0.8 else "birch"
+            out[k] = "hawthorn" if v < 0.9 else "birch"
         elif by_beck[k]:
             # Gill woodland: ash and alder by the water, birch higher up, the odd sycamore and hawthorn.
             if high[k]:
-                out[k] = "birch" if v < 0.35 else "ash" if v < 0.6 else "alder" if v < 0.8 else "hawthorn"
+                out[k] = "birch" if v < 0.18 else "ash" if v < 0.55 else "alder" if v < 0.8 else "hawthorn"
             else:
-                out[k] = "alder" if v < 0.32 else "ash" if v < 0.72 else "sycamore" if v < 0.88 else "birch"
+                out[k] = "alder" if v < 0.35 else "ash" if v < 0.78 else "sycamore"
         else:
             # Field, farm and village trees: sycamore and ash.
             if small[k] and v < 0.3:
                 out[k] = "hawthorn"
             else:
-                out[k] = "sycamore" if v < 0.5 else "ash" if v < 0.9 else "birch"
+                out[k] = "sycamore" if v < 0.52 else "ash"
     return out
 
 
@@ -604,6 +607,7 @@ def main():
     groups = {}
     yaw_all = rng.uniform(0, 2 * math.pi, len(T))
     var_u = rng.uniform(0, 1, len(T))
+    hjit = rng.uniform(0.85, 1.1, len(T))   # the map's 2 m squares round the heights; un-round them
     counts = {}
     for k in range(len(T)):
         s = sp[k]
@@ -611,7 +615,7 @@ def main():
         vi = min(int(var_u[k] * n), n - 1)
         name = "%s_%s_%d" % ("SM_TreeFar" if far[k] else "SM_Tree", s, vi)
         mh = info[name.replace("SM_TreeFar", "SM_Tree")]["height"]
-        sc = min(max(T[k, 2] / mh, 0.25), 1.98)
+        sc = min(max(T[k, 2] * hjit[k] / mh, 0.25), 1.98)
         counts[s] = counts.get(s, 0) + 1
         yaw = yaw_all[k]
         if s == "hawthorn":   # leaning away from the prevailing south westerly
