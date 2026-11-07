@@ -192,19 +192,31 @@
    "name": "battery_box",
    "group": "body",
    "finish": "black_satin",
-   "tris": 360
+   "tris": 728
+  },
+  {
+   "name": "cables",
+   "group": "steer",
+   "finish": "rubber",
+   "tris": 5280
   },
   {
    "name": "cam_cover",
    "group": "body",
    "finish": "black_engine",
-   "tris": 360
+   "tris": 728
   },
   {
    "name": "chain",
    "group": "swingarm",
    "finish": "chain",
    "tris": 320
+  },
+  {
+   "name": "chain_guard",
+   "group": "swingarm",
+   "finish": "black_gloss",
+   "tris": 256
   },
   {
    "name": "clock_body",
@@ -219,6 +231,12 @@
    "tris": 80
   },
   {
+   "name": "coolant_hoses",
+   "group": "body",
+   "finish": "rubber",
+   "tris": 1560
+  },
+  {
    "name": "cover_badges",
    "group": "body",
    "finish": "alu_cast",
@@ -228,13 +246,13 @@
    "name": "crankcase",
    "group": "body",
    "finish": "black_engine",
-   "tris": 360
+   "tris": 728
   },
   {
    "name": "cylinders",
    "group": "body",
    "finish": "alu_cast",
-   "tris": 2952
+   "tris": 6136
   },
   {
    "name": "engine_covers",
@@ -246,31 +264,31 @@
    "name": "footrests",
    "group": "body",
    "finish": "alu_cast",
-   "tris": 1072
+   "tris": 2096
   },
   {
    "name": "fork_lowers",
    "group": "front_lower",
    "finish": "black_satin",
-   "tris": 432
+   "tris": 960
   },
   {
    "name": "fork_stanchions",
    "group": "steer",
    "finish": "black_satin",
-   "tris": 384
+   "tris": 672
   },
   {
    "name": "frame",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 5248
+   "tris": 8480
   },
   {
    "name": "front_calipers",
    "group": "front_lower",
    "finish": "black_engine",
-   "tris": 720
+   "tris": 1456
   },
   {
    "name": "front_carriers",
@@ -288,7 +306,7 @@
    "name": "front_indicators",
    "group": "steer",
    "finish": "lens_amber",
-   "tris": 352
+   "tris": 512
   },
   {
    "name": "front_mudguard",
@@ -306,31 +324,31 @@
    "name": "front_tyre",
    "group": "front_wheel",
    "finish": "rubber",
-   "tris": 3888
+   "tris": 6480
   },
   {
    "name": "gearbox",
    "group": "body",
    "finish": "black_engine",
-   "tris": 360
+   "tris": 728
   },
   {
    "name": "grips_switches",
    "group": "steer",
    "finish": "black_engine",
-   "tris": 944
+   "tris": 1776
   },
   {
    "name": "handlebar",
    "group": "steer",
    "finish": "black_satin",
-   "tris": 888
+   "tris": 1480
   },
   {
    "name": "headers",
    "group": "body",
    "finish": "copper_heat",
-   "tris": 3648
+   "tris": 4560
   },
   {
    "name": "headlight_lens",
@@ -345,6 +363,18 @@
    "tris": 480
   },
   {
+   "name": "horn",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 144
+  },
+  {
+   "name": "hugger",
+   "group": "swingarm",
+   "finish": "black_gloss",
+   "tris": 640
+  },
+  {
    "name": "levers",
    "group": "steer",
    "finish": "alu_cast",
@@ -354,7 +384,7 @@
    "name": "mirror_stalks",
    "group": "steer",
    "finish": "black_satin",
-   "tris": 520
+   "tris": 1040
   },
   {
    "name": "mirrors",
@@ -375,9 +405,33 @@
    "tris": 416
   },
   {
+   "name": "radiator",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 5720
+  },
+  {
+   "name": "rear_brake_line",
+   "group": "body",
+   "finish": "rubber",
+   "tris": 1000
+  },
+  {
+   "name": "rear_caliper",
+   "group": "body",
+   "finish": "black_engine",
+   "tris": 848
+  },
+  {
    "name": "rear_disc",
    "group": "rear_wheel",
    "finish": "disc_steel",
+   "tris": 512
+  },
+  {
+   "name": "rear_indicators",
+   "group": "body",
+   "finish": "lens_amber",
    "tris": 512
   },
   {
@@ -402,31 +456,31 @@
    "name": "rear_tyre",
    "group": "rear_wheel",
    "finish": "rubber",
-   "tris": 3888
+   "tris": 6480
   },
   {
    "name": "seat",
    "group": "body",
    "finish": "leather",
-   "tris": 896
+   "tris": 3840
   },
   {
    "name": "seat_pan",
    "group": "body",
    "finish": "black_satin",
-   "tris": 640
+   "tris": 1600
   },
   {
    "name": "shock_bodies",
    "group": "body",
    "finish": "black_satin",
-   "tris": 496
+   "tris": 720
   },
   {
    "name": "shock_springs",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 5120
+   "tris": 12800
   },
   {
    "name": "shock_tops",
@@ -447,6 +501,12 @@
    "tris": 400
   },
   {
+   "name": "side_stand",
+   "group": "body",
+   "finish": "black_satin",
+   "tris": 1248
+  },
+  {
    "name": "silencer_caps",
    "group": "body",
    "finish": "black_satin",
@@ -462,25 +522,31 @@
    "name": "sump",
    "group": "body",
    "finish": "black_engine",
-   "tris": 360
+   "tris": 728
   },
   {
    "name": "swingarm",
    "group": "swingarm",
    "finish": "black_satin",
-   "tris": 1208
+   "tris": 1608
   },
   {
    "name": "tail",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 360
+   "tris": 728
   },
   {
    "name": "tank",
    "group": "body",
    "finish": "paint_silver",
-   "tris": 1296
+   "tris": 6336
+  },
+  {
+   "name": "tank_badges",
+   "group": "body",
+   "finish": "chrome",
+   "tris": 384
   },
   {
    "name": "tank_cap",
@@ -498,7 +564,7 @@
    "name": "yokes",
    "group": "steer",
    "finish": "alu_cast",
-   "tris": 720
+   "tris": 1456
   }
  ]
 }

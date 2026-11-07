@@ -115,7 +115,7 @@ def frames(path, up_hint=(0, 1, 0)):
     return tan, N, B
 
 
-def sweep(path, half_w, half_h, power=2.0, seg=24, caps=True, up_hint=(0, 1, 0), offset_up=None):
+def sweep(path, half_w, half_h, power=2.0, seg=32, caps=True, up_hint=(0, 1, 0), offset_up=None):
     """A superellipse section (half width along the binormal, half height along the normal) swept
     along a path. half_w, half_h (and offset_up, shifting the section along its normal) can be
     arrays, one per path point. power 2 is an ellipse, 4 to 8 a rounded box."""
@@ -146,7 +146,7 @@ def sweep(path, half_w, half_h, power=2.0, seg=24, caps=True, up_hint=(0, 1, 0),
 
 
 def tube(path, r, seg=14, caps=True):
-    return sweep(path, r, r, 2.0, seg, caps)
+    return sweep(path, r, r, 2.0, max(seg, 20), caps)
 
 
 def lathe(profile, seg=48, axis=(0, 0, 1), centre=(0, 0, 0), closed=False):
@@ -164,10 +164,10 @@ def lathe(profile, seg=48, axis=(0, 0, 1), centre=(0, 0, 0), closed=False):
     return Mesh().add(pts.reshape(-1, 3), tris)
 
 
-def box(centre, size, power=6.0, seg=20):
+def box(centre, size, power=6.0, seg=28):
     """A rounded box along x."""
     cx, cy, cz = centre; sx, sy, sz = size
-    k = 9
+    k = 13
     xs = cx + np.linspace(-sx / 2, sx / 2, k)
     t = np.linspace(-1, 1, k)
     taper = (1 - np.abs(t) ** power) ** (1 / power)  # round the ends too
@@ -233,7 +233,7 @@ def wheel(radius_tyre, tyre_w, rim_r=0.2159, rim_w=None, spokes=10, front=True):
         z = tyre_w / 2 * math.sin(ang)
         prof.append((r, z))
     prof = [(rim_r + 0.005, -tyre_w * 0.42)] + prof + [(rim_r + 0.005, tyre_w * 0.42)]
-    parts["tyre"] = (lathe(prof, seg=72), "rubber")
+    parts["tyre"] = (lathe(prof, seg=120), "rubber")
     rw = rim_w or tyre_w * 0.8
     rim = lathe([(rim_r + 0.012, -rw / 2), (rim_r, -rw / 2 + 0.006), (rim_r - 0.012, -rw / 2 + 0.01),
                  (rim_r - 0.016, 0.0), (rim_r - 0.012, rw / 2 - 0.01), (rim_r, rw / 2 - 0.006),
@@ -287,7 +287,9 @@ def build():
     for z in (-0.095, 0.095):
         a = np.array([0.0, 0.0, z]) - FORK_DIR * 0.03
         b = a + FORK_DIR * 0.32
-        lower.extend(tube(np.linspace(a, b, 6), 0.028, 18))
+        lower.extend(tube(np.linspace(a, b, 6), 0.0215, 24))   # the upside-down fork's slim inner tubes
+        lower.extend(lathe([(0.0, -0.035), (0.028, -0.035), (0.03, 0.0), (0.024, 0.03), (0.0, 0.03)], seg=24,
+                           axis=(0, 0, 1), centre=(0.0, 0.0, z)))           # axle clamp
     put("fork_lowers", lower, "black_satin", "front_lower")
     calipers = Mesh()
     for z in (-0.085, 0.085):
@@ -304,7 +306,7 @@ def build():
     for z in (-0.095, 0.095):
         a = FRONT_AXLE + np.array([0, 0, z]) + FORK_DIR * 0.25
         b = FRONT_AXLE + np.array([0, 0, z]) + FORK_DIR * 0.69
-        steer.extend(tube(np.linspace(a, b, 6), 0.0215, 16))
+        steer.extend(tube(np.linspace(a, b, 6), 0.029, 28))      # thick outer tubes, clamped in the yokes
     put("fork_stanchions", steer, "black_satin", "steer")
     yokes = Mesh()
     for along in (0.47, 0.64):
@@ -313,6 +315,7 @@ def build():
     put("yokes", yokes, "alu_cast", "steer")
     top = FRONT_AXLE + FORK_DIR * 0.66
     bar_clamp = top + np.array([-0.035, 0.04, 0.0])
+    bar_clamp_pt = bar_clamp
     bars = polyline([bar_clamp + [0.0, 0, -0.38], bar_clamp + [-0.03, 0.03, -0.30], bar_clamp + [0.0, 0.025, -0.12],
                      bar_clamp, bar_clamp + [0.0, 0.025, 0.12], bar_clamp + [-0.03, 0.03, 0.30],
                      bar_clamp + [0.0, 0, 0.38]], 6)
@@ -359,24 +362,32 @@ def build():
     put("front_indicators", ind, "lens_amber", "steer")
 
     # Tank: a lofted superellipse, highest just behind its front, tucked in at the knees.
-    xs = np.linspace(-0.135, 0.37, 18)
+    xs = np.linspace(-0.135, 0.37, 44)
     t = (xs - xs[0]) / (xs[-1] - xs[0])
     top = 0.505 + 0.115 * np.sin(np.clip(t * 1.25, 0, 1) * math.pi * 0.62) - 0.06 * np.clip(t - 0.8, 0, 1) / 0.2
     bot = 0.43 - 0.02 * t
     hw = 0.06 + 0.115 * np.sin(np.clip(t, 0, 1) * math.pi) ** 0.6
     hw = np.where(t < 0.05, 0.07, hw)
     path = np.stack([xs, (top + bot) / 2, np.zeros_like(xs)], 1)
-    put("tank", sweep(path, hw, (top - bot) / 2, 2.6, 36, caps=True), "paint_silver")
+    put("tank", sweep(path, hw, (top - bot) / 2, 2.6, 72, caps=True), "paint_silver")
+    # A chrome Triumph badge high on each side of the tank, towards the front.
+    badges = Mesh()
+    for s_ in (-1, 1):
+        bt = (0.25 - xs[0]) / (xs[-1] - xs[0])
+        bw = 0.06 + 0.115 * math.sin(min(max(bt, 0), 1) * math.pi) ** 0.6
+        badges.extend(lathe([(0.0, 0.0), (0.03, 0.0), (0.032, 0.003), (0.0, 0.005)], seg=32, axis=(0, 0.3, s_),
+                            centre=(0.25, 0.56, s_ * (bw * 0.93))))
+    put("tank_badges", badges, "chrome")
     put("tank_cap", lathe([(0.0, 0.0), (0.04, 0.0), (0.042, 0.012), (0.0, 0.016)], seg=28, axis=(0.15, 1, 0),
                           centre=(0.12, 0.618, 0.0)), "alu_cast")
 
     # Seat: flat bench from the tank back to the tail.
-    xs = np.linspace(-0.95, -0.11, 16)
+    xs = np.linspace(-0.95, -0.11, 40)
     t = (xs - xs[0]) / (xs[-1] - xs[0])
     top = 0.515 + 0.012 * np.sin(t * math.pi) - 0.02 * np.clip((t - 0.85) / 0.15, 0, 1)
     bot = 0.425 + 0.02 * t
     hw = 0.10 + 0.045 * np.sin(np.clip(t * 1.3, 0, 1) * math.pi * 0.5)
-    put("seat", sweep(np.stack([xs, (top + bot) / 2, 0 * xs], 1), hw, (top - bot) / 2, 4.0, 28), "leather")
+    put("seat", sweep(np.stack([xs, (top + bot) / 2, 0 * xs], 1), hw, (top - bot) / 2, 4.0, 48), "leather")
     put("seat_pan", sweep(np.stack([xs, bot + 0.004, 0 * xs], 1), hw * 0.95, 0.008, 4.0, 20), "black_satin")
 
     # Tail, rear light and number plate hanger.
@@ -403,10 +414,12 @@ def build():
     put("gearbox", box((-0.27, 0.13, 0.0), (0.2, 0.2, 0.3), 5.0), "black_engine")
     fins = Mesh()
     cyl_c = np.array([0.035, 0.205, 0.0])
-    for k in range(9):
-        y = cyl_c[1] - 0.07 + k * 0.018
-        fins.extend(box((cyl_c[0], y, 0.0), (0.135 - 0.003 * abs(k - 4), 0.006, 0.39), 6.0, 16))
-    fins.extend(box(tuple(cyl_c), (0.11, 0.16, 0.34), 4.0))
+    # Thirteen fine fins on the barrels, a few deeper ones round the head.
+    for k in range(13):
+        y = cyl_c[1] - 0.08 + k * 0.0125
+        depth = 0.16 - 0.002 * abs(k - 6) + (0.012 if k >= 10 else 0.0)
+        fins.extend(box((cyl_c[0], y, 0.0), (depth, 0.0035, 0.40), 8.0, 16))
+    fins.extend(box(tuple(cyl_c), (0.11, 0.17, 0.34), 4.0))
     put("cylinders", fins.transformed(rot_z(math.radians(-6))), "alu_cast")
     put("cam_cover", box((0.03, 0.375, 0.0), (0.13, 0.05, 0.32), 5.0).transformed(rot_z(math.radians(-6))),
         "black_engine")
@@ -489,6 +502,59 @@ def build():
     for dy in (0.104, -0.104):
         chain.extend(sweep(np.linspace(front_sp + [0, dy * 0.45, 0], rear_sp + [0, dy, 0], 8), 0.008, 0.006, 6.0, 10))
     put("chain", chain, "chain", "swingarm")
+    guard = Mesh()
+    guard.extend(sweep(np.linspace(front_sp + [0.02, 0.135, 0.0], rear_sp + [0.12, 0.125, 0.0], 8), 0.012, 0.004, 6.0, 16))
+    put("chain_guard", guard, "black_gloss", "swingarm")
+    # Hugger over the rear tyre, off the swingarm.
+    a = np.linspace(math.radians(30), math.radians(110), 16)
+    hug = np.stack([rel[0] + 0.335 * np.cos(a), rel[1] + 0.335 * np.sin(a), np.zeros_like(a)], 1)
+    put("hugger", sweep(hug, 0.085, 0.004, 4.0, 20, up_hint=(1, 0, 0)), "black_gloss", "swingarm")
+
+    # Radiator between the down tubes, low and ahead of the barrels.
+    rad = Mesh()
+    rc = np.array([0.24, 0.13, 0.0])
+    rad.extend(box(tuple(rc), (0.04, 0.2, 0.26), 8.0))
+    for k in range(16):                       # the core's slats, seen through the frame
+        rad.extend(box((rc[0] + 0.021, rc[1] - 0.09 + k * 0.012, 0.0), (0.004, 0.0025, 0.24), 8.0, 12))
+    put("radiator", rad.transformed(rot_z(math.radians(-12))), "black_satin")
+    hoses = Mesh()
+    for s_ in (-1, 1):
+        hoses.extend(tube(polyline([(0.22, 0.22, s_ * 0.08), (0.17, 0.27, s_ * 0.08), (0.10, 0.30, s_ * 0.06)], 6), 0.011, 14))
+    hoses.extend(tube(polyline([(0.25, 0.04, 0.12), (0.18, -0.02, 0.15), (0.10, 0.0, 0.17)], 6), 0.011, 14))
+    put("coolant_hoses", hoses, "rubber")
+
+    # Cables and brake lines: they make a bike read as real.
+    lines = Mesh()
+    lever_l = bar_clamp_pt + np.array([0.02, 0.0, -0.22]); lever_r = bar_clamp_pt + np.array([0.02, 0.0, 0.22])
+    for z in (-0.085, 0.085):                 # front brake hoses, master cylinder to each caliper
+        cal = FRONT_AXLE + np.array([-0.06, 0.07, z])
+        lines.extend(tube(polyline([lever_r, lever_r + [0.06, -0.12, -0.12 - (0.0 if z > 0 else 0.06)],
+                                    FRONT_AXLE + FORK_DIR * 0.45 + FORK_BACK * -0.04 + [0, 0, z * 1.25],
+                                    FRONT_AXLE + FORK_DIR * 0.2 + FORK_BACK * -0.04 + [0, 0, z * 1.3], cal], 8), 0.004, 10))
+    lines.extend(tube(polyline([lever_l, lever_l + [0.05, -0.1, 0.05], (0.33, 0.33, -0.09), (0.2, 0.28, -0.17),
+                                (0.0, 0.15, -0.19)], 8), 0.0035, 10))     # clutch cable
+    lines.extend(tube(polyline([lever_r + [0.0, 0.0, 0.08], lever_r + [0.05, -0.1, 0.0], (0.30, 0.35, 0.06),
+                                (0.0, 0.36, 0.08), (-0.07, 0.34, 0.1)], 8), 0.003, 10))   # throttle
+    put("cables", lines, "rubber", "steer")
+    rear_line = tube(polyline([(-0.40, 0.12, 0.17), (-0.48, 0.10, 0.15), (-0.62, 0.05, 0.13), (-0.70, 0.02, 0.12)], 8), 0.004, 10)
+    put("rear_brake_line", rear_line, "rubber")
+    calr = lathe([(0.0, -0.02), (0.03, -0.02), (0.03, 0.02), (0.0, 0.02)], seg=20, axis=(0, 0, 1),
+                 centre=(REAR_AXLE[0] + 0.03, REAR_AXLE[1] + 0.09, -0.07))
+    put("rear_caliper", box((REAR_AXLE[0] + 0.02, REAR_AXLE[1] + 0.085, -0.075), (0.07, 0.045, 0.03), 4.0).extend(calr),
+        "black_engine")
+
+    # Rear indicators on stalks beside the plate, a side stand tucked up, the horn.
+    rind = Mesh()
+    for s_ in (-1, 1):
+        base = np.array([-0.93, 0.40, s_ * 0.06])
+        rind.extend(tube(np.linspace(base, base + [0.0, 0.0, s_ * 0.06], 4), 0.006, 10))
+        rind.extend(lathe([(0.0, 0.0), (0.016, 0.01), (0.012, 0.045), (0.0, 0.05)], seg=16, axis=(-1, 0, 0),
+                          centre=base + [0.0, 0.0, s_ * 0.07]))
+    put("rear_indicators", rind, "lens_amber")
+    put("side_stand", tube(polyline([(-0.20, -0.08, -0.13), (-0.38, -0.12, -0.15), (-0.52, -0.13, -0.15)], 6), 0.012, 12)
+        .extend(box((-0.53, -0.135, -0.15), (0.05, 0.01, 0.035), 4.0)), "black_satin")
+    put("horn", lathe([(0.0, 0.0), (0.035, 0.0), (0.035, 0.02), (0.0, 0.025)], seg=24, axis=(1, 0, 0),
+                      centre=(0.30, 0.38, 0.0)), "black_satin")
     return P
 
 
