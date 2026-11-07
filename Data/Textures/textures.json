@@ -1,9 +1,15 @@
 {
- "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them.",
+ "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing.",
  "roles": {
   "grass": {
    "id": "Grass004",
-   "tile_m": 3.0
+   "tile_m": 2.5,
+   "ue": {
+    "color": "/Game/Fab/Megascans/Surfaces/Wet_Grass_Ground_sjzkdjba/Wet_Grass_Ground_sjzkdjba_2K_BaseColor",
+    "normal": "/Game/Fab/Megascans/Surfaces/Wet_Grass_Ground_sjzkdjba/Wet_Grass_Ground_sjzkdjba_2K_Normal",
+    "rough": "/Game/Fab/Megascans/Surfaces/Wet_Grass_Ground_sjzkdjba/Wet_Grass_Ground_sjzkdjba_2K_Roughness",
+    "ao": "/Game/Fab/Megascans/Surfaces/Wet_Grass_Ground_sjzkdjba/Wet_Grass_Ground_sjzkdjba_2K_AO"
+   }
   },
   "moor": {
    "id": "Grass003",
@@ -15,15 +21,33 @@
   },
   "rock": {
    "id": "Rock051",
-   "tile_m": 6.0
+   "tile_m": 6.0,
+   "ue": {
+    "color": "/Game/Fab/Megascans/Surfaces/Layered_Rock_vl0fdhdo/Layered_Rock_vl0fdhdo_2K_BaseColor",
+    "normal": "/Game/Fab/Megascans/Surfaces/Layered_Rock_vl0fdhdo/Layered_Rock_vl0fdhdo_2K_Normal",
+    "rough": "/Game/Fab/Megascans/Surfaces/Layered_Rock_vl0fdhdo/Layered_Rock_vl0fdhdo_2K_Roughness",
+    "ao": "/Game/Fab/Megascans/Surfaces/Layered_Rock_vl0fdhdo/Layered_Rock_vl0fdhdo_2K_AO"
+   }
   },
   "gravel": {
    "id": "Gravel040",
-   "tile_m": 2.0
+   "tile_m": 2.0,
+   "ue": {
+    "color": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_BaseColor",
+    "normal": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_Normal",
+    "rough": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_Roughness",
+    "ao": "/Game/Fab/Megascans/Surfaces/Gravel_on_Soil_okosdmp0/Gravel_on_Soil_okosdmp0_2K_AO"
+   }
   },
   "asphalt": {
    "id": "Asphalt015",
-   "tile_m": 2.0
+   "tile_m": 2.5,
+   "ue": {
+    "color": "/Game/Fab/Megascans/Surfaces/Asphalt_Road_tigkfb3o/Asphalt_Road_tigkfb3o_2K_BaseColor",
+    "normal": "/Game/Fab/Megascans/Surfaces/Asphalt_Road_tigkfb3o/Asphalt_Road_tigkfb3o_2K_Normal",
+    "rough": "/Game/Fab/Megascans/Surfaces/Asphalt_Road_tigkfb3o/Asphalt_Road_tigkfb3o_2K_Roughness",
+    "ao": "/Game/Fab/Megascans/Surfaces/Asphalt_Road_tigkfb3o/Asphalt_Road_tigkfb3o_2K_AO"
+   }
   },
   "stone": {
    "id": "Rock046S",
