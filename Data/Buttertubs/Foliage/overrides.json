@@ -1,0 +1,43 @@
+{
+ "_about": "Scanned plants (Megascans, free on Fab) used in place of Tools/make_foliage.py's own for a species; see place_foliage in Tools/ue_build_level.py. A species whose meshes aren't in the project keeps ours. Rush, moss and bracken stay ours until Toad Rush, Icelandic Moss and Bracken import; heather has no Megascans plant.",
+ "tuft_a": {
+  "meshes": [
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarA_LOD0",
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarB_LOD0",
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarC_LOD0",
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarD_LOD0"
+  ]
+ },
+ "tuft_b": {
+  "meshes": [
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarE_LOD0",
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarF_LOD0",
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarG_LOD0",
+   "/Game/Fab/Megascans/Plants/wild_grass_vlkhcbxia/Wild_Grass_vlkhcbxia_High_vlkhcbxia_VarH_LOD0"
+  ]
+ },
+ "tussock_a": {
+  "meshes": [
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarA_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarB_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarC_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarD_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarE_LOD0"
+  ]
+ },
+ "tussock_b": {
+  "meshes": [
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarF_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarG_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarH_LOD0",
+   "/Game/Fab/Megascans/Plants/Tundra_Grass_wk2oaeyqx/Tundra_Grass_wk2oaeyqx_High_wk2oaeyqx_VarI_LOD0"
+  ]
+ },
+ "matgrass": {
+  "meshes": [
+   "/Game/Fab/Megascans/Plants/Grass_Clumps_rbdoo/Grass_Clumps_rbdoo_High_rbdoo_VarA_LOD0",
+   "/Game/Fab/Megascans/Plants/Grass_Clumps_rbdoo/Grass_Clumps_rbdoo_High_rbdoo_VarB_LOD0",
+   "/Game/Fab/Megascans/Plants/Grass_Clumps_rbdoo/Grass_Clumps_rbdoo_High_rbdoo_VarC_LOD0"
+  ]
+ }
+}
