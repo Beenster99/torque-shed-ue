@@ -571,20 +571,32 @@ def main():
     sp = species_for(T, C, lab, size, spread, mean_h, frac, xs[0], zs[0], leaf_at, beck_d, elev, rng)
 
     # Keep trunks off the tarmac and out of buildings.
-    line = np.array(route["line_sim"])
+    line = np.array(route.get("road_line_sim") or route["line_sim"])   # the whole ribbon, run-outs and all
     half = route["road_half_width_m"]
     road_d = line_dist(T[:, 0], T[:, 1], [line[:, [0, 2]]])
     keep = road_d > half + 1.2
+    farm = []
     for row in json.load(open(os.path.join(root, "buildings.json"))):
         bx, bz = row[0] - O[0], row[1] - O[2]
-        w, d, rot = row[2], row[3], row[4]
+        # As big as the walls work builds them (buttertubs_detail.place_buildings), and a metre round.
+        w, d, rot = max(row[2], 5.0), max(row[3], 4.5), row[4]
         if abs(bx - c[0]) > HALF + 50 or abs(bz - c[1]) > HALF + 50:
             continue
+        farm.append((bx, bz))
         dx, dz = T[:, 0] - bx, T[:, 1] - bz
         cs, sn = math.cos(rot), math.sin(rot)
         u = dx * cs + dz * sn; v = -dx * sn + dz * cs
         keep &= ~((np.abs(u) < w / 2 + 1.0) & (np.abs(v) < d / 2 + 1.0))
     T, sp, ground, beck_d = T[keep], sp[keep], ground[keep], beck_d[keep]
+    # Farms and houses have their sycamores (planted as shelter round Dales farmsteads).
+    if farm:
+        F = np.array(farm)
+        near_farm = np.zeros(len(T), bool)
+        for k in range(0, len(F), 200):
+            dd = np.hypot(T[:, None, 0] - F[None, k:k + 200, 0], T[:, None, 1] - F[None, k:k + 200, 1]).min(1)
+            near_farm |= dd < 45
+        broad = (sp != "spruce") & near_farm & (beck_d > 10) & (rng.uniform(0, 1, len(T)) < 0.7)
+        sp[broad] = "sycamore"
     far = line_dist(T[:, 0], T[:, 1], [line[:, [0, 2]]], cell=400.0) > FAR_SPLIT
 
     # Place them: a variant each, scaled to the map's height, the foot sunk below the lowest ground

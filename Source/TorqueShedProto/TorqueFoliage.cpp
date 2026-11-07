@@ -100,7 +100,10 @@ void ATorqueFoliage::Rebuild()
 
 	At = 0;
 	uint32 Magic2 = 0, NumChunks = 0;
-	if (!Read(Raw, At, Magic2) || !Read(Raw, At, NumChunks) || Magic2 != 0x31465354u) return;   // "TSF1"
+	if (!Read(Raw, At, Magic2) || !Read(Raw, At, NumChunks) || (Magic2 != 0x31465354u && Magic2 != 0x32465354u)) return;   // "TSF1", "TSF2"
+	// TSF2 adds the ground normal's x and y (int8 each) to every record, for plants tilted to the slope.
+	const bool bNormals = Magic2 == 0x32465354u;
+	const int64 RecSize = bNormals ? 10 : 8;
 
 	TArray<int32> PerSpecies;
 	PerSpecies.SetNumZeroed(Species.Num());
@@ -111,13 +114,13 @@ void ATorqueFoliage::Rebuild()
 		float Ox = 0, Oy = 0, Oz = 0;
 		uint32 Count = 0;
 		if (!Read(Raw, At, Si) || !Read(Raw, At, Pad) || !Read(Raw, At, Ox) || !Read(Raw, At, Oy) ||
-			!Read(Raw, At, Oz) || !Read(Raw, At, Count) || At + int64(Count) * 8 > Raw.Num())
+			!Read(Raw, At, Oz) || !Read(Raw, At, Count) || At + int64(Count) * RecSize > Raw.Num())
 		{
 			UE_LOG(LogTemp, Warning, TEXT("[Torque] foliage file cut short"));
 			break;
 		}
 		const uint8* P = Raw.GetData() + At;
-		At += int64(Count) * 8;
+		At += int64(Count) * RecSize;
 		const bool bHasMesh = Si < Species.Num() && (Species[Si].Mesh || Species[Si].Variants.Num() > 0);
 		if (!bHasMesh)
 		{
@@ -134,7 +137,7 @@ void ATorqueFoliage::Rebuild()
 		TArray<TArray<FTransform>> Xf;
 		Xf.SetNum(NumMeshes * NumBands);
 		const float KeepHere = Keep * FMath::Clamp(S.Keep, 0.0f, 1.0f);
-		for (uint32 I = 0; I < Count; ++I, P += 8, ++Counter)
+		for (uint32 I = 0; I < Count; ++I, P += RecSize, ++Counter)
 		{
 			if (KeepHere < 1.0f && Hash01(Counter) >= KeepHere) continue;
 			uint16 Dx, Dy, Dz;
@@ -145,11 +148,17 @@ void ATorqueFoliage::Rebuild()
 			const int32 Mi = NumMeshes > 1 ? FMath::Min(int32(Hash01(Counter * 7919u + 13u) * NumMeshes), NumMeshes - 1) : 0;
 			const float Hb = bSpread ? Hash01(Counter * 104729u + 7u) : 0.0f;
 			const int32 V = Mi * NumBands + (Hb < 0.5f ? 0 : Hb < 0.8f ? 1 : 2) % NumBands;
+			FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(S.bNativeMesh ? Yaw : FrameYaw + Yaw));
+			if (bNormals && (P[8] | P[9]))
+			{
+				const float Nx = int8(P[8]) / 127.0f, Ny = int8(P[9]) / 127.0f;
+				const FVector N(Nx, Ny, FMath::Sqrt(FMath::Max(0.0f, 1.0f - Nx * Nx - Ny * Ny)));
+				Rot = FQuat::FindBetweenNormals(FVector::UpVector, N.GetSafeNormal()) * Rot;
+			}
 			if (S.bNativeMesh)
-				Xf[V].Add(FTransform(FRotator(0, Yaw, 0), Loc, FVector(Sc)));
+				Xf[V].Add(FTransform(Rot, Loc, FVector(Sc)));
 			else
-				Xf[V].Add(FTransform(FRotator(0, FrameYaw + Yaw, 0), Loc,
-					FVector(Sc * FrameScale, Sc * FrameScale * FrameMirror, Sc * FrameScale)));
+				Xf[V].Add(FTransform(Rot, Loc, FVector(Sc * FrameScale, Sc * FrameScale * FrameMirror, Sc * FrameScale)));
 		}
 		for (int32 V = 0; V < NumMeshes * NumBands; ++V)
 		{
@@ -181,6 +190,8 @@ void ATorqueFoliage::Rebuild()
 			const float Cull = S.CullDistance * CullScale * BandCull[Band];
 			Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 			Ism->LDMaxDrawDistance = Cull * 1.05f;
+			// The coarse far grass stays out of the near ground, where the fine grass covers it.
+			Ism->MinDrawDistance = S.MinDrawDistance * CullScale;
 			Ism->RegisterComponent();
 			Ism->AddInstances(Xf[V], false, true);
 			AddInstanceComponent(Ism);

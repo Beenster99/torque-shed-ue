@@ -234,6 +234,44 @@ def sward(seed, flowers=0):
     return M
 
 
+def carpet(seed, radius, per_m2, h, w, cols, weights, tips, tip_w, segs=3, flowers=0, tall=0.0):
+    """A round mat of grass to lay edge to edge: hundreds of blades per square metre, so the ground
+    reads as a continuous sward instead of tufts on bare soil. Thinner and shorter at its rim, so
+    overlapping mats merge without a seam. Laid tilted to the slope (see `ALIGN`)."""
+    rng = np.random.default_rng(seed)
+    M = Mesh()
+    n = int(math.pi * radius ** 2 * per_m2)
+    base, a, rr = disk(rng, n, radius)
+    rim = np.clip((radius - rr) / (0.3 * radius), 0, 1)          # 0 at the edge, 1 inside
+    keep = rng.uniform(0, 1, n) < 0.35 + 0.65 * rim
+    base, rr, rim = base[keep], rr[keep], rim[keep]; n = len(base)
+    # Little clusters: blade height varies over a few centimetres, as real turf does.
+    clump = np.sin(base[:, 0] * 23 + seed) * np.sin(base[:, 2] * 19 - seed) * 0.5 + 0.5
+    height = rng.uniform(*h, n) * (0.55 + 0.45 * clump) * (0.6 + 0.4 * rim)
+    # On the moor, the odd taller, finer stem of wavy hair grass above the mat.
+    tl = rng.uniform(0, 1, n) < tall
+    height[tl] = rng.uniform(0.25, 0.42, tl.sum())
+    cb = mixcol(rng, n, cols, weights)
+    ct = mixcol(rng, n, tips, tip_w)
+    ct = cb * 0.5 + ct * 0.5          # tips only a little paler than the blade, so the mat matches the land
+    ribbons(M, base, rng.uniform(0, 2 * math.pi, n), height, rng.uniform(*w, n), rng.uniform(0.05, 0.55, n),
+            rng.uniform(0.2, 1.1, n), cb * 0.7, ct, np.full(n, 0.3), segs, rng=rng, twist=rng.normal(0, 0.4, n))
+    if flowers:
+        fb, _, _ = disk(rng, flowers, radius * 0.9)
+        hgt = rng.uniform(0.08, 0.2, flowers)
+        stalk = np.stack([fb, fb + np.array([0, 1.0, 0]) * hgt[:, None] * 0.5, fb + np.array([0, 1.0, 0]) * hgt[:, None]], 1)
+        stalk[:, 1:, 0] += rng.normal(0, 0.01, (flowers, 2))
+        tubes(M, stalk, np.full((flowers, 3), 0.0012), np.broadcast_to(lin(GREEN), (flowers, 3, 3)) * 1.0,
+              np.full((flowers, 3), 0.6), sides=3, rng=rng)
+        petal = np.where(rng.uniform(0, 1, flowers)[:, None] < 0.6, lin((235, 200, 40)), lin((235, 235, 225)))
+        for k in range(4):
+            ang = k * math.pi / 2 + rng.uniform(0, 1, flowers)
+            dirv = np.stack([np.cos(ang), np.full(flowers, 0.15), np.sin(ang)], -1)
+            leaves(M, stalk[:, -1] + normalize(dirv) * 0.004, dirv, np.full(flowers, 0.009), np.full(flowers, 0.006),
+                   petal, np.full(flowers, 1.0), hgt, rng)
+    return M
+
+
 def rush(seed):
     """Soft rush: a dense tussock of smooth round stems, the seed heads bursting from one side near the
     top, last year's stems tan and falling outwards."""
@@ -485,8 +523,15 @@ def bracken(seed, autumn=0.25):
 SPECIES = {
     # name: (builder, Unreal cull distance in metres, casts shadows, cull spread: thinning out to that
     # many times the cull distance instead of stopping at one line)
-    "sward_a": (lambda: sward(11), 28, False, 1.5),
-    "sward_b": (lambda: sward(12, flowers=24), 28, False, 1.5),
+    # The carpet: mats laid edge to edge so the ground is grass, not soil between tufts.
+    "carpet_green": (lambda: carpet(101, 0.95, 1700, (0.05, 0.15), (0.004, 0.0075), [GREEN, GREEN_DK, YELLOW, DEAD],
+                                    [5, 4, 1, 1], [GREEN, YELLOW, PALE], [5, 1, 1], segs=2, flowers=10), 36, False, 1.4),
+    "carpet_moor": (lambda: carpet(102, 0.95, 1600, (0.06, 0.18), (0.0035, 0.0065), [GREEN_DK, (78, 84, 44), DEAD, STRAW],
+                                   [4, 3, 2, 1], [PALE, STRAW, YELLOW, GREEN], [3, 2, 2, 2], segs=2, tall=0.07), 36, False, 1.4),
+    "carpet_far_green": (lambda: carpet(111, 2.0, 120, (0.08, 0.2), (0.01, 0.02), [GREEN, GREEN_DK, YELLOW],
+                                        [5, 3, 2], [GREEN, YELLOW, PALE], [4, 2, 1], segs=2), 130, False, 1.0),
+    "carpet_far_moor": (lambda: carpet(112, 2.0, 120, (0.09, 0.22), (0.01, 0.02), [GREEN, YELLOW, DEAD],
+                                       [4, 3, 2], [STRAW, PALE, YELLOW], [3, 2, 2], segs=2), 130, False, 1.0),
     "tuft_a": (lambda: grass_clump(21, 150, 0.08, (0.16, 0.38), (0.003, 0.005), 0.7, (0.3, 1.0),
                                    [GREEN, GREEN_DK, YELLOW], [5, 3, 2], [GREEN, YELLOW, PALE], [3, 2, 1], segs=3), 40, False, 1.6),
     "tuft_b": (lambda: grass_clump(22, 130, 0.07, (0.14, 0.32), (0.003, 0.005), 0.8, (0.4, 1.2),
@@ -510,6 +555,15 @@ SPECIES = {
     "moss": (lambda: moss(81), 25, False, 1.4),
     "bracken": (lambda: bracken(91), 90, True, 1.3),
 }
+
+
+# Laid tilted to the ground (mats); everything else grows straight up.
+ALIGN = {"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "moss"}
+# Drawn only beyond this many metres (the fine carpet covers nearer), in chunks this size so the
+# minimum draw distance works chunk by chunk. Everything else: 256 m chunks, drawn from 0.
+MIN_DRAW = {"carpet_far_green": (30.0, 32.0), "carpet_far_moor": (30.0, 32.0)}
+# How much of the ground's colour each species takes (1 = the full blend; heather keeps its own).
+GROUND_BLEND = {"heather": 0.15, "carpet": 0.7}
 
 
 # --- The land --------------------------------------------------------------------------------------
@@ -552,6 +606,7 @@ class Land:
         Hf = np.where(self.have, self.H, np.nanmean(self.H))
         self.Hf = Hf
         gz, gx = np.gradient(Hf, self.step)
+        self.gx, self.gz = gx, gz
         self.slope = np.hypot(gx, gz)
         # Cover: nearest of the export's cover colours; rockiness: how far it was blended to scree.
         names = list(COVER_RGB)
@@ -667,7 +722,7 @@ def blocked_mask(land):
 
 # --- Where things grow -----------------------------------------------------------------------------
 
-def scatter(rng, land, spacing, near_road, line, road_half):
+def scatter(rng, land, spacing, near_road, line, road_half, jitter=1.0, min_d=0.0):
     """Jittered grid points over the land within `near_road` metres of the road's edge."""
     x0, z0 = land.x0, land.z0
     x1 = x0 + (land.H.shape[1] - 1) * land.step; z1 = z0 + (land.H.shape[0] - 1) * land.step
@@ -683,7 +738,9 @@ def scatter(rng, land, spacing, near_road, line, road_half):
                 continue
             gx = np.arange(bx, min(bx + B, x1), spacing); gz = np.arange(bz, min(bz + B, z1), spacing)
             X, Z = np.meshgrid(gx, gz)
-            X = X.ravel() + rng.uniform(0, spacing, X.size); Z = Z.ravel() + rng.uniform(0, spacing, Z.size)
+            if jitter < 1.0:   # a staggered (hex-like) grid with a little jitter: mats meet without gaps
+                X = X + (np.arange(len(gz))[:, None] % 2) * spacing * 0.5
+            X = X.ravel() + rng.uniform(0, spacing, X.size) * jitter; Z = Z.ravel() + rng.uniform(0, spacing, Z.size) * jitter
             keep = land.has(X, Z)
             X, Z = X[keep], Z[keep]
             if not len(X):
@@ -731,23 +788,42 @@ def plan(land, line, road_half, density, rng):
         # Sink a little more on slopes, so the downhill side of the base doesn't float.
         y = y - sink - np.clip(land.slope[land.cell(x, z)], 0, 1) * 0.08 * scale
         yaw = rng.uniform(0, 2 * math.pi, len(x))
+        if name in ALIGN:
+            j, i = land.cell(x, z)
+            nrm = normalize(np.stack([-land.gx[j, i], np.ones(len(x)), -land.gz[j, i]], 1))
+            y = land.height(x, z) - sink              # tilted, the mat needs no extra sinking
+        else:
+            nrm = np.tile([0.0, 1.0, 0.0], (len(x), 1))
         prev = out.get(name)
-        cur = (np.stack([x, y, z], 1), yaw, scale)
+        cur = (np.stack([x, y, z], 1), yaw, scale, nrm)
         if prev is not None:
-            cur = (np.concatenate([prev[0], cur[0]]), np.concatenate([prev[1], cur[1]]), np.concatenate([prev[2], cur[2]]))
+            cur = tuple(np.concatenate([a_, b_]) for a_, b_ in zip(prev, cur))
         out[name] = cur
 
     def keep(p):
         return rng.uniform(0, 1, len(p)) < np.clip(p * density, 0, 1)
 
-    # Sward patches carpet the ground near the road (one per square metre or so).
-    x, z, d = scatter(rng, land, 0.85, 34.0, line, road_half)
+    # The carpet: grass mats laid edge to edge on a staggered grid, so the ground near the road is a
+    # continuous sward. Fine mats (36 m, thinning to 50 m) within 48 m of the road; coarse mats with
+    # wider blades everywhere to 140 m, drawn only beyond about 30 m (their own small chunks, so
+    # Unreal's minimum draw distance can drop the near ones). Greener on the verge and the grazed
+    # ground, tighter and darker (mat grass, wavy hair grass) on the open moor.
+    for spacing, reach, names, mind in ((1.45, 48.0, ("carpet_green", "carpet_moor"), 1.1),
+                                        (3.0, 140.0, ("carpet_far_green", "carpet_far_moor"), 2.1)):
+        x, z, d = scatter(rng, land, spacing, reach, line, road_half, jitter=0.25)
+        f = fields(x, z)
+        k = (ok(f) | (f["rock"] < 0.8)) & ~f["blocked"] & (d > mind)
+        x, z, d = x[k], z[k], d[k]
+        f = {kk: v[k] for kk, v in f.items()}
+        moor = (smoothstep(0.4, 0.6, f["molinia"] + 0.3 * f["dry"] - 0.15) * (d > 4) + (f["cover"] == "shrub") * 0.3) \
+            > rng.uniform(0, 1, len(x))
+        sc = rng.uniform(0.9, 1.15, len(x))
+        put(names[1], x[moor], z[moor], sc[moor], 0.02); put(names[0], x[~moor], z[~moor], sc[~moor], 0.02)
+    # ...and a closer row along the verge, so the grass runs right up to the tarmac's edge.
+    x, z, d = scatter(rng, land, 0.85, 1.5, line, road_half, jitter=0.2)
     f = fields(x, z)
-    p = (ok(f) & (f["wetn"] < 0.8) & (d > 0.75)) * (1.0 - 0.45 * smoothstep(10, 34, d)) * (0.75 + 0.25 * f["fine"])
-    k = keep(p)
-    s = rng.uniform(0.85, 1.2, k.sum())
-    flw = rng.uniform(0, 1, k.sum()) < 0.25
-    put("sward_b", x[k][flw], z[k][flw], s[flw], 0.01); put("sward_a", x[k][~flw], z[k][~flw], s[~flw], 0.01)
+    k = ~f["blocked"] & (d > 0.75)
+    put("carpet_green", x[k], z[k], rng.uniform(0.75, 0.9, k.sum()), 0.02)
 
     # Grass clumps: the main cover, within 50 m of the road.
     x, z, d = scatter(rng, land, 0.6, 58.0, line, road_half)
@@ -823,29 +899,32 @@ def plan(land, line, road_half, density, rng):
 
 # --- Writing ---------------------------------------------------------------------------------------
 
-MAGIC = b"TSF1"
+MAGIC = b"TSF2"
 
 
 def write_instances(path, out, species_order):
     """instances.bin: zlib of a little-endian stream.
 
-        "TSF1", uint32 chunk count, then per chunk:
+        "TSF2", uint32 chunk count, then per chunk:
             uint16 species index (into foliage.json's species list), uint16 0,
             float32 origin x, y, z (Unreal cm), uint32 count,
             count x (uint16 dx, uint16 dy, uint16 dz in cm from the origin; uint8 yaw (x 360/256 deg);
-                     uint8 scale (x 1/128))
-    Chunks are one species in one 256 m tile, so each Unreal component's bounds stay small.
+                     uint8 scale (x 1/128); int8 nx, ny: the ground normal's Unreal x and y (x 1/127),
+                     0, 0 for an upright plant)
+    Chunks are one species in one 256 m tile (smaller for species with a minimum draw distance), so
+    each Unreal component's bounds stay small.
     """
     chunks = []
     total = 0
     for si, name in enumerate(species_order):
         if name not in out:
             continue
-        pos, yaw, scale = out[name]
+        pos, yaw, scale, nrm = out[name]
         if not len(pos):
             continue
         ue = np.stack([pos[:, 0] * 100, pos[:, 2] * 100, pos[:, 1] * 100], 1)
-        tx = np.floor(pos[:, 0] / 256.0).astype(int); tz = np.floor(pos[:, 2] / 256.0).astype(int)
+        cs = MIN_DRAW.get(name, (0.0, 256.0))[1]
+        tx = np.floor(pos[:, 0] / cs).astype(int); tz = np.floor(pos[:, 2] / cs).astype(int)
         for key in sorted(set(zip(tx.tolist(), tz.tolist()))):
             m = (tx == key[0]) & (tz == key[1])
             p = ue[m]
@@ -854,8 +933,12 @@ def write_instances(path, out, species_order):
             assert q.max() < 65536, "tile too tall for 16 bits"
             yw = (np.round(yaw[m] / (2 * math.pi) * 256).astype(int) % 256).astype(np.uint8)
             sc = np.clip(np.round(scale[m] * 128), 1, 255).astype(np.uint8)
-            rec = np.zeros(len(p), dtype=[("x", "<u2"), ("y", "<u2"), ("z", "<u2"), ("yaw", "u1"), ("s", "u1")])
+            rec = np.zeros(len(p), dtype=[("x", "<u2"), ("y", "<u2"), ("z", "<u2"), ("yaw", "u1"), ("s", "u1"),
+                                          ("nx", "i1"), ("ny", "i1")])
+            # The ground's normal in Unreal's frame (x east, y south), x and y; z follows.
+            nq = np.clip(np.round(nrm[m] * 127), -127, 127).astype(np.int8)
             rec["x"], rec["y"], rec["z"], rec["yaw"], rec["s"] = q[:, 0], q[:, 1], q[:, 2], yw, sc
+            rec["nx"], rec["ny"] = nq[:, 0], nq[:, 2]
             chunks.append(struct.pack("<HHfffI", si, 0, *o.tolist(), len(p)) + rec.tobytes())
             total += len(p)
     raw = MAGIC + struct.pack("<I", len(chunks)) + b"".join(chunks)
@@ -878,11 +961,12 @@ def main():
         build, cull, shadow, spread = SPECIES[name]
         tris = build().write(os.path.join(OUT, name + ".glb"), name)
         info["species"].append({"name": name, "cull_m": cull, "cull_spread": spread, "shadow": shadow, "triangles": tris,
-                                 "ground_blend": 0.15 if name.startswith("heather") else 1.0})
+                                 "ground_blend": next((v for k, v in GROUND_BLEND.items() if name.startswith(k)), 1.0),
+                                 "min_draw_m": MIN_DRAW.get(name, (0.0, 256.0))[0]})
         print("%-10s %6d triangles" % (name, tris))
     if args.meshes_only:
         return
-    line = np.array(route["line_sim"], np.float64)
+    line = np.array(route.get("road_line_sim", route["line_sim"]), np.float64)   # the whole ribbon, run-outs too
     land = Land(route)
     out = plan(land, line, route["road_half_width_m"], args.density, np.random.default_rng(3))
     total, size = write_instances(os.path.join(OUT, "instances.bin"), out, names)

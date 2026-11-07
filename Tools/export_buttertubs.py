@@ -25,8 +25,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
 START_NEAR = (-10400.0, 2229.0)   # Simonstone end of the pass (region frame, metres)
-END_NEAR = (-8317.0, -4366.0)     # Thwaite end
-CUT = (4000.0, 8250.0)            # metres along the pass: the summit plateau and the drop into Thwaite
+END_NEAR = (-6481.5, -4095.8)     # Muker: over Buttertubs, down into Thwaite, then the B6270 east along Swaledale
+CUT = (4000.0, 9840.0)            # metres along the route: summit plateau, the drop into Thwaite, on to Muker
 MARGIN = 300.0                    # detailed land either side of the ride
 STEP = 2.0                        # detailed grid spacing
 TILE = 256.0                      # detailed tile size
@@ -117,7 +117,7 @@ class Region:
 
 
 def pass_line(region):
-    """The road centre line from Simonstone to Thwaite, by shortest path over the road graph."""
+    """The road centre line from Simonstone over Buttertubs to Thwaite and on to Muker, by shortest path over the road graph."""
     r = json.load(open(os.path.join(region.root, "roads.json")))
     N, E = r["nodes"], r["edges"]
 
@@ -482,7 +482,7 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import buttertubs_detail
         counts = buttertubs_detail.build(region.root, region.meta, O, H, xs, zs, best, line, tiles, ROAD_HALF,
-                                         args.out, write_glb)
+                                         args.out, write_glb, far=(B, bx, bz))
         grid_points = counts.pop("grid_points", [])
         print("detail", counts)
 
@@ -496,7 +496,7 @@ def main():
     lat = lat0 - O[2] / 111320.0
     lon = lon0 + O[0] / (111320.0 * math.cos(math.radians(lat0)))
     info = {
-        "name": "Buttertubs Pass, summit to the drop towards Thwaite",
+        "name": "Buttertubs Pass, summit down through Thwaite to Muker",
         "length_m": CUT[1] - CUT[0],
         "origin_region_m": O.tolist(), "origin_geo": [round(float(lat), 6), round(float(lon), 6)],
         "frames": "sim/glb: metres, x east, y up, z south. Unreal: cm, x east, y south, z up = (100x, 100z, 100y)",
@@ -504,6 +504,8 @@ def main():
                   "ue": ue(first + np.array([0, 0.35, 0]))},
         "road_half_width_m": ROAD_HALF,
         "line_sim": [[round(v, 2) for v in p] for p in line[ride][::5]],
+        # The whole road ribbon, including the run-out beyond each end (for keeping plants off it).
+        "road_line_sim": [[round(v, 2) for v in p] for p in line[::5]],
         "tiles": tiles, "tile_size_m": TILE, "step_m": STEP,
         # Cattle grids on the ride: sim position (x, y, z) and the index of the nearest line point.
         "cattle_grids": [{"sim": g[:3], "line_index": g[3]} for g in grid_points] if not args.no_glb else [],

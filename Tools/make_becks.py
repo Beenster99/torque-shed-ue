@@ -123,7 +123,7 @@ def main():
         d = np.gradient(Q, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
         side = np.stack([-d[:, 1], d[:, 0]], 1)
         # Onto the gill's floor: the lowest ground within 5 m across, smoothed along the beck.
-        offs = np.arange(-5.0, 5.01, 0.5)
+        offs = np.arange(-5.0, 5.01, 0.5) * (2.0 if row[0] == 0 else 1.0)
         G = np.stack([ground(Q[:, 0] + side[:, 0] * o, Q[:, 1] + side[:, 1] * o) for o in offs], 1)
         shift = smooth(offs[np.argmin(G + 0.02 * np.abs(offs)[None], axis=1)], 5.0)
         Q = Q + side * shift[:, None]
@@ -136,7 +136,8 @@ def main():
         idx = np.flatnonzero(ok)
         if len(idx) < 6:
             continue
-        w0 = float(np.clip(0.7 + length / 1800.0, 0.7, 3.2))   # water width: longer becks are bigger
+        # Water width: longer becks are bigger; the map's rivers (the Swale) far bigger.
+        w0 = 9.0 if row[0] == 0 else float(np.clip(0.7 + length / 1800.0, 0.7, 3.2))
         for run in np.split(idx, np.flatnonzero(np.diff(idx) > 1) + 1):
             if len(run) < 6:
                 continue

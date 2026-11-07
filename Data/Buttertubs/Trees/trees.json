@@ -4,7 +4,7 @@
   {
    "name": "SM_TreeFar_alder_0",
    "mesh": "SM_TreeFar_alder_0",
-   "count": 4061,
+   "count": 4114,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -12,7 +12,7 @@
   {
    "name": "SM_TreeFar_alder_1",
    "mesh": "SM_TreeFar_alder_1",
-   "count": 3857,
+   "count": 4066,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -20,7 +20,7 @@
   {
    "name": "SM_TreeFar_ash_0",
    "mesh": "SM_TreeFar_ash_0",
-   "count": 11473,
+   "count": 11568,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -28,7 +28,7 @@
   {
    "name": "SM_TreeFar_ash_1",
    "mesh": "SM_TreeFar_ash_1",
-   "count": 11367,
+   "count": 11633,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -36,7 +36,7 @@
   {
    "name": "SM_TreeFar_ash_2",
    "mesh": "SM_TreeFar_ash_2",
-   "count": 11429,
+   "count": 11694,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -44,7 +44,7 @@
   {
    "name": "SM_TreeFar_birch_0",
    "mesh": "SM_TreeFar_birch_0",
-   "count": 5281,
+   "count": 5236,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -52,7 +52,7 @@
   {
    "name": "SM_TreeFar_birch_1",
    "mesh": "SM_TreeFar_birch_1",
-   "count": 5356,
+   "count": 5175,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -60,7 +60,7 @@
   {
    "name": "SM_TreeFar_hawthorn_0",
    "mesh": "SM_TreeFar_hawthorn_0",
-   "count": 3500,
+   "count": 3017,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -68,7 +68,7 @@
   {
    "name": "SM_TreeFar_hawthorn_1",
    "mesh": "SM_TreeFar_hawthorn_1",
-   "count": 3465,
+   "count": 2917,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -76,7 +76,7 @@
   {
    "name": "SM_TreeFar_hawthorn_2",
    "mesh": "SM_TreeFar_hawthorn_2",
-   "count": 3376,
+   "count": 3051,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -84,7 +84,7 @@
   {
    "name": "SM_TreeFar_spruce_0",
    "mesh": "SM_TreeFar_spruce_0",
-   "count": 9010,
+   "count": 5886,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -92,7 +92,7 @@
   {
    "name": "SM_TreeFar_spruce_1",
    "mesh": "SM_TreeFar_spruce_1",
-   "count": 9006,
+   "count": 5790,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -100,7 +100,7 @@
   {
    "name": "SM_TreeFar_sycamore_0",
    "mesh": "SM_TreeFar_sycamore_0",
-   "count": 9489,
+   "count": 11320,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -108,7 +108,7 @@
   {
    "name": "SM_TreeFar_sycamore_1",
    "mesh": "SM_TreeFar_sycamore_1",
-   "count": 9403,
+   "count": 11211,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -116,7 +116,7 @@
   {
    "name": "SM_TreeFar_sycamore_2",
    "mesh": "SM_TreeFar_sycamore_2",
-   "count": 9613,
+   "count": 11405,
    "far": true,
    "cull_m": 30000,
    "shadow": true
@@ -124,7 +124,7 @@
   {
    "name": "SM_Tree_alder_0",
    "mesh": "SM_Tree_alder_0",
-   "count": 420,
+   "count": 716,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -132,7 +132,7 @@
   {
    "name": "SM_Tree_alder_1",
    "mesh": "SM_Tree_alder_1",
-   "count": 413,
+   "count": 714,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -140,7 +140,7 @@
   {
    "name": "SM_Tree_ash_0",
    "mesh": "SM_Tree_ash_0",
-   "count": 488,
+   "count": 933,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -148,7 +148,7 @@
   {
    "name": "SM_Tree_ash_1",
    "mesh": "SM_Tree_ash_1",
-   "count": 506,
+   "count": 959,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -156,7 +156,7 @@
   {
    "name": "SM_Tree_ash_2",
    "mesh": "SM_Tree_ash_2",
-   "count": 507,
+   "count": 949,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -164,7 +164,7 @@
   {
    "name": "SM_Tree_birch_0",
    "mesh": "SM_Tree_birch_0",
-   "count": 293,
+   "count": 437,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -172,7 +172,7 @@
   {
    "name": "SM_Tree_birch_1",
    "mesh": "SM_Tree_birch_1",
-   "count": 253,
+   "count": 467,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -180,7 +180,7 @@
   {
    "name": "SM_Tree_hawthorn_0",
    "mesh": "SM_Tree_hawthorn_0",
-   "count": 180,
+   "count": 240,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -188,7 +188,7 @@
   {
    "name": "SM_Tree_hawthorn_1",
    "mesh": "SM_Tree_hawthorn_1",
-   "count": 161,
+   "count": 211,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -196,7 +196,7 @@
   {
    "name": "SM_Tree_hawthorn_2",
    "mesh": "SM_Tree_hawthorn_2",
-   "count": 185,
+   "count": 236,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -204,7 +204,7 @@
   {
    "name": "SM_Tree_spruce_0",
    "mesh": "SM_Tree_spruce_0",
-   "count": 66,
+   "count": 363,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -212,7 +212,7 @@
   {
    "name": "SM_Tree_spruce_1",
    "mesh": "SM_Tree_spruce_1",
-   "count": 71,
+   "count": 380,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -220,7 +220,7 @@
   {
    "name": "SM_Tree_sycamore_0",
    "mesh": "SM_Tree_sycamore_0",
-   "count": 289,
+   "count": 866,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -228,7 +228,7 @@
   {
    "name": "SM_Tree_sycamore_1",
    "mesh": "SM_Tree_sycamore_1",
-   "count": 317,
+   "count": 805,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -236,7 +236,7 @@
   {
    "name": "SM_Tree_sycamore_2",
    "mesh": "SM_Tree_sycamore_2",
-   "count": 315,
+   "count": 835,
    "far": false,
    "cull_m": 30000,
    "shadow": true
@@ -425,15 +425,15 @@
   }
  },
  "counts": {
-  "sycamore": 29426,
-  "ash": 35770,
-  "birch": 11183,
-  "spruce": 18153,
-  "alder": 8751,
-  "hawthorn": 10867,
-  "total": 114150,
-  "far": 109686,
-  "near": 4464
+  "sycamore": 36442,
+  "ash": 37736,
+  "birch": 11315,
+  "alder": 9610,
+  "spruce": 12419,
+  "hawthorn": 9672,
+  "total": 117194,
+  "far": 108083,
+  "near": 9111
  },
  "far_split_m": 1500.0,
  "credits": [

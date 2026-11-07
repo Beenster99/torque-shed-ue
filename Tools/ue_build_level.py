@@ -499,6 +499,16 @@ def land_material_scanned(tex, roles):
     drift = g.mask_noise(0.00035, -1.8, 1.4)   # big drifts; finer read as polka dots far off
     drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=0.5)
     land[0] = g.lerp(land[0], straw, drift)
+    # No purple: flowers in the scans, tiled small and saturated far off, read as pink polka dots.
+    # Moorland blue never exceeds about 0.85 of its green.
+    def chan(src, c):
+        e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=False)
+        g.link(src, e)
+        return e
+    rg = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False)
+    g.link(land[0], rg)
+    blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.85))
+    land[0] = g.op(unreal.MaterialExpressionAppendVector, rg, blue)
     return g.finish(land, min_rough=0.82, specular=0.3)
 
 
@@ -1090,8 +1100,9 @@ def foliage_material(rvt=None, blend=1.0, name="M_Foliage"):
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
-    mel.connect_material_property(g.const(0.62), "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
+    # Dry moor grass is matte: high roughness, low specular (no sheen into the sun).
+    mel.connect_material_property(g.const(0.88), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.18), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1171,14 +1182,16 @@ def scan_foliage_master(defaults, rvt=None, blend=1.0):
     if nrm:
         mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
     rough = tex("Roughness")
-    mel.connect_material_property(rough if rough else g.const(0.6), "R" if rough else "", unreal.MaterialProperty.MP_ROUGHNESS)
+    # A floor on the scan's roughness and low specular: dry moor grass is matte.
+    rough = g.op(unreal.MaterialExpressionMax, rough, g.const(0.82), a_out="R") if rough else g.const(0.88)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     ao = tex("AO")
     if ao:
         mel.connect_material_property(ao, "R", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     tr = tex("Translucency")
     sss = g.op(unreal.MaterialExpressionMultiply, tr if tr else base, g.const((0.8, 0.9, 0.5)))
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
-    mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(g.const(0.18), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(foliage_wind(g, h, pir), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1332,6 +1345,7 @@ def place_foliage(frame):
             e.set_editor_property("material", mats[gb])
         e.set_editor_property("cull_distance", float(s["cull_m"]) * 100.0)
         e.set_editor_property("cull_spread", float(s.get("cull_spread", 1.0)))
+        e.set_editor_property("min_draw_distance", float(s.get("min_draw_m", 0.0)) * 100.0)
         e.set_editor_property("cast_shadow", bool(s["shadow"]))
         species.append(e)
     a = spawn(unreal.TorqueFoliage)
@@ -1708,11 +1722,15 @@ def instanced_usage(m):
     try_set(m, "used_with_nanite", True)
 
 
-def stone_material(tex, roles):
+def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare"):
     """Stone from two scans (lichened limestone and bare, bedded limestone), chosen per stone by the
     vertex colour's green; red sets its brightness; blue whitens it with lichen in patches; alpha is
     moss, thickest where the surface faces up. UV0 is metres of surface."""
-    g = Graph(new_material("M_Stone"))
+    g = Graph(new_material(name))
+    if a_role not in tex:   # not fetched: fall back to another scan rather than flat grey
+        a_role = b_role if b_role in tex else ("stone_bare" if "stone_bare" in tex else a_role)
+    if b_role not in tex:
+        b_role = a_role
     instanced_usage(g.m)
     vc = g.node(unreal.MaterialExpressionVertexColor)
 
@@ -1731,9 +1749,12 @@ def stone_material(tex, roles):
         return [g.op(unreal.MaterialExpressionMultiply, g.const(lin(fallback)), noise(g.m, 0.5, 0.7, 1.2, -1200, g.y)),
                 g.const((0.0, 0.0, 1.0)), g.const(0.88)]
 
-    stone = layer("stone", (150, 148, 140))
-    bare = layer("stone_bare", (160, 158, 152))
-    st = g.mix(stone, bare, vc, alpha_out="G")
+    stone = layer(a_role, (150, 148, 140))
+    if b_role != a_role:
+        bare = layer(b_role, (160, 158, 152))
+        st = g.mix(stone, bare, vc, alpha_out="G")
+    else:
+        st = stone
     bright = g.op(unreal.MaterialExpressionMultiply, vc, a_out="R", const_b=2.0)
     st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], bright)
     # Lichen: pale crusts in patches, on the stones the blue channel picks. The patches come from a
@@ -1877,7 +1898,7 @@ def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
 
 
 def is_detail(name):
-    return name.startswith("detail_")
+    return name.startswith("detail_") or name.startswith("far_")   # far_: walls and buildings beyond the near land
 
 
 def build():
@@ -1917,7 +1938,9 @@ def build():
     if prop_meshes:
         prop_mats = {"stone": stone_material(tex, roles), "fleece": flat_material("M_Fleece", 0.95, fine=0.4),
                      "metal": flat_material("M_GalvanisedSteel", 0.42, metallic=1.0),
-                     "wood": flat_material("M_BarnWood", 0.8, fine=0.15)}
+                     "wood": flat_material("M_BarnWood", 0.8, fine=0.15),
+                     "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry"),
+                     "glass": flat_material("M_WindowGlass", 0.06)}
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).
