@@ -712,7 +712,7 @@ void ATorqueBikePawn::UpdateRider()
 {
 	if (RiderParts.Num() < RP_Count) return;
 	// Pawn local cm: x forward, y right, z up, from the body origin (axle height, mid wheelbase).
-	// The Speed Twin's seat is at about z 52, its grips at x 41, its rider's pegs at x -44.
+	// The Speed Twin's seat is at about z 54, its grips at x 41, its rider's pegs at x -22, z 4.
 	const double Fwd = Shift;                   // weight forward (+) or back (-)
 	const double Hang = Lean;                   // into the turn
 	const FVector Hip(-36.0, Hang * 2.0, 62.0);
@@ -744,7 +744,7 @@ void ATorqueBikePawn::UpdateRider()
 			FRotationMatrix::MakeFromYZ(Bar, FVector::UpVector).Rotator());
 
 		const FVector HipS = Hip + FVector(0.0, 11.0 * Y, -2.0);
-		const FVector Ankle = FMath::Lerp(FVector(-46.0, 23.0 * Y, 24.0), FVector(-30.0, 36.0 * Y, -22.0), Down);
+		const FVector Ankle = FMath::Lerp(FVector(-25.0, 23.0 * Y, 12.0), FVector(-30.0, 36.0 * Y, -22.0), Down);
 		const FVector Knee = MidJoint(HipS, Ankle, 44.0, 44.0, FVector(1.0, 0.35 * Y, 0.5));
 		PlaceLimb(RiderParts[RP_ThighL + S], HipS, Knee, 16.0);
 		PlaceLimb(RiderParts[RP_ShinL + S], Knee, Ankle, 12.0);

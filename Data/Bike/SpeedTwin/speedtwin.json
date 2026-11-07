@@ -547,7 +547,7 @@
    "name": "bolts",
    "group": "body",
    "finish": "bolt",
-   "tris": 3528
+   "tris": 3696
   },
   {
    "name": "cables",
@@ -607,13 +607,13 @@
    "name": "cylinders",
    "group": "body",
    "finish": "black_engine",
-   "tris": 8840
+   "tris": 9568
   },
   {
    "name": "engine_covers",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 480
+   "tris": 576
   },
   {
    "name": "footrests",
@@ -637,7 +637,7 @@
    "name": "frame",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 8480
+   "tris": 9120
   },
   {
    "name": "front_calipers",
@@ -709,7 +709,7 @@
    "name": "headers",
    "group": "body",
    "finish": "header",
-   "tris": 5472
+   "tris": 6240
   },
   {
    "name": "headlight_lens",
@@ -823,13 +823,13 @@
    "name": "seat",
    "group": "body",
    "finish": "leather",
-   "tris": 10720
+   "tris": 12896
   },
   {
    "name": "seat_pan",
    "group": "body",
    "finish": "black_satin",
-   "tris": 1600
+   "tris": 1920
   },
   {
    "name": "shock_bodies",
@@ -853,13 +853,13 @@
    "name": "side_panel_l",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 400
+   "tris": 480
   },
   {
    "name": "side_panel_r",
    "group": "body",
    "finish": "black_gloss",
-   "tris": 400
+   "tris": 480
   },
   {
    "name": "side_stand",
@@ -877,7 +877,7 @@
    "name": "silencers",
    "group": "body",
    "finish": "steel_brushed",
-   "tris": 1408
+   "tris": 1920
   },
   {
    "name": "sump",
@@ -918,8 +918,8 @@
   {
    "name": "throttle_bodies",
    "group": "body",
-   "finish": "alu_cast",
-   "tris": 160
+   "finish": "alu_brushed",
+   "tris": 640
   },
   {
    "name": "yokes",

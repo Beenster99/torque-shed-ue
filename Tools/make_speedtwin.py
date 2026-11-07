@@ -1,5 +1,7 @@
 """Build the prototype's 2025 Triumph Speed Twin 1200 as glb parts, from measurements of beenster's
 own bike (side-on photos scaled to the 1413 mm wheelbase, details from a walkaround video).
+The right-side drone profile (dji_fly_..._0061) fits at 457 px/m across and 465 px/m up on the
+1400 px thumb, axles at y 584 and x 482 and 1128: it was taken a little off square.
 
     python Tools/make_speedtwin.py            writes Data/Bike/SpeedTwin/*.glb and speedtwin.json
     python Tools/make_speedtwin.py --check P  also renders the right side over photo P (a check)
@@ -152,7 +154,7 @@ def frames(path, up_hint=(0, 1, 0)):
     path = np.asarray(path, np.float64)
     tan = np.gradient(path, axis=0)
     tan /= np.linalg.norm(tan, axis=1, keepdims=True)
-    up = np.asarray(up_hint, np.float64)
+    up = np.asarray(up_hint, np.float64); up = up / np.linalg.norm(up)
     if abs(np.dot(up, tan[0])) > 0.95:
         up = np.array([0, 0, 1.0]) if abs(tan[0][2]) < 0.9 else np.array([1.0, 0, 0])
     n = up - tan[0] * np.dot(up, tan[0]); n /= np.linalg.norm(n)
@@ -512,11 +514,12 @@ def build():
     put("tank_cap", lathe([(0.0, 0.0), (0.04, 0.0), (0.042, 0.012), (0.0, 0.016)], seg=28, axis=(0.15, 1, 0),
                           centre=(0.12, 0.618, 0.0)), "alu_cast")
 
-    # Seat: flat bench from the tank back to the tail.
-    xs = np.linspace(-0.95, -0.11, 40)
+    # Seat: from under the tank's back edge, rising to a flat pillion pad, ending well short of the
+    # tail light (measured off the drone profile).
+    xs = np.linspace(-0.77, -0.11, 48)
     t = (xs - xs[0]) / (xs[-1] - xs[0])
-    top = 0.515 + 0.012 * np.sin(t * math.pi) - 0.02 * np.clip((t - 0.85) / 0.15, 0, 1)
-    bot = 0.425 + 0.02 * t
+    top = np.interp(xs, [-0.77, -0.76, -0.60, -0.45, -0.30, -0.15, -0.11], [0.55, 0.570, 0.568, 0.548, 0.515, 0.48, 0.472])
+    bot = np.interp(xs, [-0.77, -0.60, -0.45, -0.30, -0.11], [0.515, 0.505, 0.49, 0.47, 0.445])
     hw = 0.10 + 0.045 * np.sin(np.clip(t * 1.3, 0, 1) * math.pi * 0.5)
     seat = sweep(np.stack([xs, (top + bot) / 2, 0 * xs], 1), hw, (top - bot) / 2, 4.0, 96)
     for s_ in (-1, 1):     # the welt seam round the top panel
@@ -526,29 +529,35 @@ def build():
     put("seat_pan", sweep(np.stack([xs, bot + 0.004, 0 * xs], 1), hw * 0.95, 0.008, 4.0, 20), "black_satin")
 
     # Tail, rear light and number plate hanger.
-    put("tail", box((-0.90, 0.44, 0.0), (0.12, 0.05, 0.16), 5.0), "black_gloss")
-    put("rear_light", lathe([(0.0, 0.0), (0.024, 0.0), (0.024, 0.02), (0.0, 0.03)], seg=24, axis=(-1, 0, 0),
-                            centre=(-0.945, 0.485, 0.0)), "lens_red")
-    hanger = polyline([(-0.88, 0.42, 0.0), (-0.96, 0.4, 0.0), (-1.02, 0.31, 0.0)], 6)
+    put("tail", box((-0.775, 0.49, 0.0), (0.10, 0.04, 0.14), 5.0), "black_gloss")
+    put("rear_light", lathe([(0.0, 0.0), (0.022, 0.0), (0.022, 0.018), (0.0, 0.026)], seg=24, axis=(-1, 0, 0),
+                            centre=(-0.822, 0.494, 0.0)), "lens_red")
+    hanger = polyline([(-0.78, 0.468, 0.0), (-0.86, 0.445, 0.0), (-0.95, 0.335, 0.0)], 6)
     put("plate_hanger", sweep(hanger, 0.09, 0.006, 6.0, 16, up_hint=(1, 1, 0)), "black_satin")
-    put("plate", sweep(np.array([(-1.0, 0.35, 0.0), (-1.06, 0.23, 0.0)]), 0.1, 0.002, 8.0, 16, up_hint=(1, 0.5, 0)),
+    put("plate", sweep(np.array([(-0.90, 0.42, 0.0), (-0.98, 0.30, 0.0)]), 0.1, 0.002, 8.0, 16, up_hint=(1, 0.5, 0)),
         "lens_amber")
 
     # Side panels and the battery box behind them.
     for s, nm in ((1, "side_panel_r"), (-1, "side_panel_l")):
-        xs = np.linspace(-0.50, -0.22, 10)
+        xs = np.linspace(-0.41, -0.20, 12)
         t = (xs - xs[0]) / (xs[-1] - xs[0])
-        topy = 0.44 - 0.01 * t; boty = 0.26 + 0.03 * t
+        topy = 0.418 + 0.012 * t; boty = 0.31 - 0.02 * t
         put(nm, sweep(np.stack([xs, (topy + boty) / 2, np.full_like(xs, s * 0.13)], 1), 0.018, (topy - boty) / 2,
                       6.0, 20), "black_gloss")
-    put("battery_box", box((-0.36, 0.34, 0.0), (0.26, 0.17, 0.22), 6.0), "black_satin")
+    put("battery_box", box((-0.30, 0.35, 0.0), (0.22, 0.14, 0.2), 6.0), "black_satin")
 
     # Engine: 270 degree parallel twin, upright finned cylinders, wide black cases.
-    put("crankcase", box((-0.05, 0.075, 0.0), (0.56, 0.3, 0.36), 5.0), "black_engine")
-    put("sump", box((0.03, -0.085, 0.0), (0.36, 0.07, 0.30), 5.0), "black_engine")
-    put("gearbox", box((-0.27, 0.13, 0.0), (0.2, 0.2, 0.3), 5.0), "black_engine")
+    # Placed off the drone profile: the barrels sit well forward, ahead of the tank's front half.
+    put("crankcase", box((0.0, 0.06, 0.0), (0.62, 0.32, 0.36), 5.0), "black_engine")
+    put("sump", box((0.05, -0.105, 0.0), (0.40, 0.07, 0.30), 5.0), "black_engine")
+    put("gearbox", box((-0.22, 0.12, 0.0), (0.2, 0.22, 0.3), 5.0), "black_engine")
+    tilt = rot_z(math.radians(-6))
     fins = Mesh()
-    cyl_c = np.array([0.035, 0.205, 0.0])
+    cyl_c = np.array([0.175, 0.275, 0.0])
+
+    def tilted(m):
+        """Leaned forward 6 degrees about the barrels' centre."""
+        return m.transformed(tilt, cyl_c - tilt @ cyl_c)
     # Thirteen fine fins on the barrels, a few deeper ones round the head.
     for k in range(13):
         y = cyl_c[1] - 0.08 + k * 0.0125
@@ -558,42 +567,46 @@ def build():
         fins.extend(fin.mask_by(lambda p, d=depth: np.maximum(np.abs(p[:, 0] - cyl_c[0]) - (d / 2 - 0.012),
                                                               np.abs(p[:, 2]) - 0.188) / 0.006))
     fins.extend(box(tuple(cyl_c), (0.11, 0.17, 0.34), 4.0))
-    put("cylinders", fins.transformed(rot_z(math.radians(-6))), "black_engine")
-    put("cam_cover", box((0.03, 0.375, 0.0), (0.13, 0.05, 0.32), 5.0).transformed(rot_z(math.radians(-6))),
-        "black_engine")
+    fins.extend(box((cyl_c[0], cyl_c[1] + 0.085, 0.0), (0.15, 0.05, 0.36), 5.0))      # the head
+    put("cylinders", tilted(fins), "black_engine")
+    put("cam_cover", tilted(box((cyl_c[0], cyl_c[1] + 0.13, 0.0), (0.13, 0.04, 0.32), 5.0)), "black_engine")
     covers = Mesh()
-    covers.extend(lathe([(0.0, 0.18), (0.085, 0.18), (0.09, 0.2), (0.0, 0.205)], seg=40, axis=(0, 0, 1),
-                        centre=(0.13, -0.035, 0.0)))
-    covers.extend(lathe([(0.0, -0.18), (0.075, -0.18), (0.08, -0.2), (0.0, -0.205)], seg=40, axis=(0, 0, -1),
-                        centre=(0.10, -0.02, 0.0)))
+    CLUTCH = (0.17, 0.05); ALT = (0.14, 0.04)
+    covers.extend(lathe([(0.0, 0.18), (0.098, 0.18), (0.103, 0.2), (0.0, 0.205)], seg=48, axis=(0, 0, 1),
+                        centre=(CLUTCH[0], CLUTCH[1], 0.0)))
+    covers.extend(lathe([(0.0, -0.18), (0.085, -0.18), (0.09, -0.2), (0.0, -0.205)], seg=48, axis=(0, 0, -1),
+                        centre=(ALT[0], ALT[1], 0.0)))
     put("engine_covers", covers, "black_gloss")
-    put("cover_badges", Mesh().extend(lathe([(0.0, 0.206), (0.03, 0.206)], seg=24, centre=(0.135, 0.0, 0.0)))
+    put("cover_badges", Mesh().extend(lathe([(0.0, 0.206), (0.03, 0.206)], seg=24, centre=(CLUTCH[0] + 0.03, CLUTCH[1] - 0.01, 0.0)))
         .extend(lathe([(0.0, 0.0), (0.02, 0.0), (0.022, 0.01), (0.0, 0.012)], seg=24, axis=(0, 0, 1),
-                      centre=(-0.02, 0.36, 0.17))), "alu_brushed")
+                      centre=(0.0, 0.32, 0.17))), "alu_brushed")
     # Bolts round the clutch and alternator covers and along the cam cover.
     bolts = Mesh()
-    for (cx, cy, cz, sgn, r, n) in ((0.13, -0.035, 0.192, 1, 0.077, 9), (0.10, -0.02, -0.192, -1, 0.068, 8)):
+    for (cx, cy, cz, sgn, r, n) in ((CLUTCH[0], CLUTCH[1], 0.192, 1, 0.088, 10), (ALT[0], ALT[1], -0.192, -1, 0.076, 8)):
         for k in range(n):
             a = 2 * math.pi * (k + 0.25) / n
             bolts.extend(hex_bolt((cx + r * math.cos(a), cy + r * math.sin(a), cz), (0, 0, sgn)))
     for z in (-0.12, -0.04, 0.04, 0.12):
-        bolts.extend(hex_bolt((0.03, 0.40, z), (0.1, 1, 0), 0.006).transformed(rot_z(math.radians(-6))))
+        bolts.extend(tilted(hex_bolt((cyl_c[0], cyl_c[1] + 0.15, z), (0, 1, 0), 0.006)))
     put("bolts", bolts, "bolt")
-    put("throttle_bodies", both_sides(Mesh().extend(lathe([(0.025, 0.0), (0.03, 0.07), (0.028, 0.1)], seg=20,
-                                                            axis=(-1, 0.2, 0.3), centre=(-0.07, 0.33, 0.11)))),
-        "alu_cast")
+    # The throttle bodies hide under brushed covers made to look like carburettors.
+    put("throttle_bodies", both_sides(lathe([(0.0, 0.0), (0.036, 0.0), (0.042, 0.012), (0.043, 0.09), (0.038, 0.11),
+                                             (0.0, 0.112)], seg=32, axis=(-1, 0.12, 0.25), centre=(0.06, 0.335, 0.08))),
+        "alu_brushed")
 
     # Exhaust: a copper-heat header from each cylinder sweeping down past the cases, into a
     # megaphone silencer on each side.
-    header = polyline([(0.13, 0.30, 0.10), (0.21, 0.30, 0.125), (0.33, 0.25, 0.15), (0.375, 0.12, 0.16),
-                       (0.345, -0.04, 0.155), (0.22, -0.07, 0.15), (-0.05, -0.065, 0.15), (-0.22, -0.05, 0.155)], 8)
+    header = polyline([(0.25, 0.315, 0.09), (0.33, 0.31, 0.12), (0.42, 0.26, 0.15), (0.45, 0.15, 0.16),
+                       (0.43, 0.03, 0.16), (0.36, -0.055, 0.155), (0.20, -0.08, 0.15), (-0.08, -0.085, 0.15),
+                       (-0.25, -0.065, 0.155)], 8)
     # Heat tint: gold and bronze for the first hand-span from each port, fading into bare steel.
     put("headers", both_sides(tube(header, 0.022, 24).mask_by_uv(lambda uv: 1.0 - (uv[:, 1] - 0.12) / 0.3)), "header")
-    s_path = np.linspace([-0.22, -0.05, 0.16], [-0.76, 0.16, 0.175], 12)
-    radii = np.linspace(0.035, 0.064, 12)
+    # Long, slim silencers: a taper off the header into a near-parallel body.
+    s_path = np.linspace([-0.25, -0.065, 0.158], [-0.84, 0.155, 0.175], 16)
+    radii = np.interp(np.linspace(0, 1, 16), [0.0, 0.12, 0.45, 1.0], [0.024, 0.03, 0.046, 0.05])
     sil = sweep(s_path, radii, radii, 2.0, 32, caps=False)
     put("silencers", both_sides(sil), "steel_brushed")
-    end_cap = lathe([(0.064, 0.0), (0.066, 0.04), (0.05, 0.05), (0.0, 0.052)], seg=32,
+    end_cap = lathe([(0.050, 0.0), (0.052, 0.03), (0.04, 0.04), (0.0, 0.042)], seg=32,
                     axis=s_path[-1] - s_path[-2], centre=s_path[-1])
     put("silencer_caps", both_sides(end_cap), "black_satin")
 
@@ -605,23 +618,24 @@ def build():
     back = polyline([head_top + [-0.02, -0.01, 0], (0.15, 0.46, 0.0), (-0.12, 0.42, 0.0), (-0.32, 0.40, 0.0)], 8)
     frame.extend(tube(back, 0.024, 14))
     for s in (-1, 1):
-        down = polyline([head_bot + [0.0, 0.0, s * 0.02], (0.30, 0.25, s * 0.07), (0.27, -0.03, s * 0.10),
-                         (0.10, -0.11, s * 0.11), (-0.20, -0.10, s * 0.11), (-0.33, 0.02, s * 0.11),
+        down = polyline([head_bot + [0.0, 0.0, s * 0.02], (0.40, 0.30, s * 0.07), (0.37, 0.10, s * 0.09),
+                         (0.35, -0.04, s * 0.10), (0.27, -0.135, s * 0.11), (-0.20, -0.135, s * 0.11), (-0.33, 0.0, s * 0.11),
                          (-0.34, 0.20, s * 0.11), (-0.32, 0.40, s * 0.10)], 8)
         frame.extend(tube(down, 0.017, 12))
-        rear = polyline([(-0.32, 0.40, s * 0.10), (-0.62, 0.43, s * 0.09), (-0.88, 0.43, s * 0.07)], 8)
+        rear = polyline([(-0.32, 0.40, s * 0.10), (-0.55, 0.44, s * 0.09), (-0.79, 0.475, s * 0.07)], 8)
         frame.extend(tube(rear, 0.014, 12))
-        stay = polyline([(-0.34, 0.20, s * 0.11), (-0.52, 0.33, s * 0.10), (-0.62, 0.43, s * 0.09)], 8)
+        stay = polyline([(-0.34, 0.20, s * 0.11), (-0.47, 0.33, s * 0.10), (-0.55, 0.44, s * 0.09)], 8)
         frame.extend(tube(stay, 0.012, 12))
     put("frame", frame, "black_gloss")
     pegs = Mesh()
     for s in (-1, 1):
-        pegs.extend(box((-0.43, 0.15, s * 0.165), (0.16, 0.12, 0.01), 4.0).transformed(rot_x(0)))
-        pegs.extend(tube(np.linspace([-0.44, 0.165, s * 0.17], [-0.44, 0.165, s * 0.255], 4), 0.012, 12))
-        pegs.extend(tube(np.linspace([-0.65, 0.20, s * 0.13], [-0.65, 0.20, s * 0.20], 4), 0.01, 10))
+        # Cast hanger plates behind the rider's pegs, which sit just ahead of the swingarm pivot.
+        pegs.extend(box((-0.26, 0.12, s * 0.165), (0.15, 0.11, 0.01), 4.0))
+        pegs.extend(tube(np.linspace([-0.22, 0.04, s * 0.17], [-0.22, 0.04, s * 0.255], 4), 0.012, 12))
+        pegs.extend(tube(np.linspace([-0.60, 0.21, s * 0.13], [-0.60, 0.21, s * 0.20], 4), 0.01, 10))
     put("footrests", pegs, "alu_cast")
     shocks = Mesh(); springs = Mesh()
-    top_m = np.array([-0.38, 0.425, 0.0]); bot_m = np.array([-0.635, 0.17, 0.0])
+    top_m = np.array([-0.47, 0.44, 0.0]); bot_m = np.array([-0.66, 0.10, 0.0])
     for s in (-1, 1):
         a = top_m + [0, 0, s * 0.125]; b = bot_m + [0, 0, s * 0.125]
         shocks.extend(tube(np.linspace(a, a + (b - a) * 0.35, 4), 0.026, 16))
@@ -674,15 +688,16 @@ def build():
 
     # Radiator between the down tubes, low and ahead of the barrels.
     rad = Mesh()
-    rc = np.array([0.24, 0.13, 0.0])
-    rad.extend(box(tuple(rc), (0.04, 0.2, 0.26), 8.0))
+    rc = np.array([0.405, 0.16, 0.0])
+    rad.extend(box(tuple(rc), (0.035, 0.2, 0.2), 8.0))
     for k in range(16):                       # the core's slats, seen through the frame
-        rad.extend(box((rc[0] + 0.021, rc[1] - 0.09 + k * 0.012, 0.0), (0.004, 0.0025, 0.24), 8.0, 12))
-    put("radiator", rad.transformed(rot_z(math.radians(-12))), "black_satin")
+        rad.extend(box((rc[0] + 0.019, rc[1] - 0.09 + k * 0.012, 0.0), (0.004, 0.0025, 0.18), 8.0, 12))
+    R12 = rot_z(math.radians(-12))
+    put("radiator", rad.transformed(R12, rc - R12 @ rc), "black_satin")
     hoses = Mesh()
     for s_ in (-1, 1):
-        hoses.extend(tube(polyline([(0.22, 0.22, s_ * 0.08), (0.17, 0.27, s_ * 0.08), (0.10, 0.30, s_ * 0.06)], 6), 0.011, 14))
-    hoses.extend(tube(polyline([(0.25, 0.04, 0.12), (0.18, -0.02, 0.15), (0.10, 0.0, 0.17)], 6), 0.011, 14))
+        hoses.extend(tube(polyline([(0.40, 0.255, s_ * 0.06), (0.34, 0.33, s_ * 0.06), (0.26, 0.37, s_ * 0.05)], 6), 0.011, 14))
+    hoses.extend(tube(polyline([(0.40, 0.07, 0.08), (0.35, 0.0, 0.14), (0.27, 0.02, 0.17)], 6), 0.011, 14))
     put("coolant_hoses", hoses, "rubber")
 
     # Cables and brake lines: they make a bike read as real.
@@ -708,7 +723,7 @@ def build():
     # Rear indicators on stalks beside the plate, a side stand tucked up, the horn.
     rind = Mesh()
     for s_ in (-1, 1):
-        base = np.array([-0.93, 0.40, s_ * 0.06])
+        base = np.array([-0.86, 0.44, s_ * 0.06])
         rind.extend(tube(np.linspace(base, base + [0.0, 0.0, s_ * 0.06], 4), 0.006, 10))
         rind.extend(lathe([(0.0, 0.0), (0.016, 0.01), (0.012, 0.045), (0.0, 0.05)], seg=16, axis=(-1, 0, 0),
                           centre=base + [0.0, 0.0, s_ * 0.07]))
@@ -716,7 +731,7 @@ def build():
     put("side_stand", tube(polyline([(-0.20, -0.08, -0.13), (-0.38, -0.12, -0.15), (-0.52, -0.13, -0.15)], 6), 0.012, 12)
         .extend(box((-0.53, -0.135, -0.15), (0.05, 0.01, 0.035), 4.0)), "black_satin")
     put("horn", lathe([(0.0, 0.0), (0.035, 0.0), (0.035, 0.02), (0.0, 0.025)], seg=24, axis=(1, 0, 0),
-                      centre=(0.30, 0.38, 0.0)), "black_satin")
+                      centre=(0.45, 0.33, 0.0)), "black_satin")
     return P
 
 
