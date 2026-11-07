@@ -762,8 +762,8 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 			// The tyre wraps round the edge (taking about half the step in its carcass) and rolls up
 			// onto the first bar over the length it takes to climb it.
 			const double Climb = std::sqrt(2.0 * Radius * Gr.Proud);
-			const double Up = SmoothStep(0.0, Climb, Gr.HalfLength - std::fabs(U));
-			RawComp += (Gr.Proud * 0.5 * Up - Dip) / Slide;
+			const double Rise = SmoothStep(0.0, Climb, Gr.HalfLength - std::fabs(U));
+			RawComp += (Gr.Proud * 0.5 * Rise - Dip) / Slide;
 			HitSurf = SURF_GRID;
 			break;
 		}

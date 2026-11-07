@@ -192,7 +192,10 @@ void ATorqueBikePawn::BeginPlay()
 		}
 		BuildRider(Mats);
 	}
-	Respawn(0);
+	// -TorqueStartKm=1.2 starts that far down the 3 km (for checking a spot with a hands-off run).
+	float StartKm = 0.f;
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueStartKm="), StartKm);
+	Respawn(Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / 3.0f, 0.f, 1.f) * (Line.Num() - 1)) : 0);
 	Pad = MakeUnique<FSonyPad>();
 	StartSound();
 	// -TorqueCamera=1 starts in first person (2: chin camera, 3: showroom orbit of the bike with the
