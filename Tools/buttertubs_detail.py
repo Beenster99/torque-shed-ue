@@ -182,13 +182,73 @@ def _arc(q):
     return s, lambda t: np.stack([np.interp(t, s, q[:, 0]), np.interp(t, s, q[:, 1])], -1)
 
 
+def roadside_walls(region_root, O, line, lines, village, road_half, near, ground_abs, rng):
+    """Walls along the valley road where the map has none of its own: down in the dale the B6270
+    runs between walls (the map's field walls all stop at its edge), out on the moor the road is open
+    (and has its cattle grids). Kept back from the houses and their gardens, broken where another road
+    or lane joins, and with a field gate (shut) now and then. Returns (lines, gate spots)."""
+    r = json.load(open(os.path.join(region_root, "roads.json")))
+    N, E = r["nodes"], r["edges"]
+    xz = line[:, [0, 2]]
+    # Lanes and tracks that join the ride (any road that comes near it but isn't it).
+    joins = []
+    for e in E:
+        pp = e["p"]
+        pts = np.array([N[e["a"]]] + [(pp[i], pp[i + 1]) for i in range(0, len(pp), 2)] + [N[e["b"]]], float) - [O[0], O[2]]
+        if not near(pts[:, 0], pts[:, 1]).any():
+            continue
+        q = resample_line(pts, 2.0)
+        d = np.min(np.hypot(q[:, None, 0] - xz[None, ::4, 0], q[:, None, 1] - xz[None, ::4, 1]), 1)
+        off = q[(d > road_half + 3) & (d < 40)]
+        if len(off) and (d > 6).mean() > 0.3:
+            joins.append(off)
+    joins = np.concatenate(joins) if joins else np.zeros((0, 2))
+    walls = np.concatenate([resample_line(p, 2.0) for p in lines.get("wall", []) + lines.get("retaining_wall", [])]) \
+        if lines.get("wall") else np.zeros((0, 2))
+    houses = np.array(village["buildings"], float).reshape(-1, 2)
+    gardens = village["gardens"]
+
+    def far_from(pts, P, dmin):
+        if not len(P):
+            return np.ones(len(pts), bool)
+        out = np.ones(len(pts), bool)
+        for i in range(0, len(pts), 512):
+            c = pts[i:i + 512]
+            out[i:i + 512] = np.min(np.hypot(c[:, None, 0] - P[None, :, 0], c[:, None, 1] - P[None, :, 1]), 1) > dmin
+        return out
+
+    d = np.gradient(xz, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
+    nrm = np.stack([-d[:, 1], d[:, 0]], 1)
+    low = ground_abs(xz[:, 0], xz[:, 1]) < 330.0
+    out, spots = [], []
+    for side in (-1, 1):
+        P = xz + nrm * side * (road_half + 2.4)
+        keep = low & near(P[:, 0], P[:, 1])
+        keep &= far_from(P, joins, 7.0) & far_from(P, walls, 3.0) & far_from(P, houses, 13.0)
+        for gx, gz, gw, gf, gr in gardens:
+            c, s_ = math.cos(gr), math.sin(gr)
+            u = (P[:, 0] - gx) * c + (P[:, 1] - gz) * s_; v = -(P[:, 0] - gx) * s_ + (P[:, 1] - gz) * c
+            keep &= ~((np.abs(u) < gw / 2 + 3) & (np.abs(v) < gf / 2 + 3))
+        idx = np.flatnonzero(keep)
+        for run in np.split(idx, np.flatnonzero(np.diff(idx) > 1) + 1):
+            if len(run) < 4:
+                continue
+            q = P[run]
+            out.append(q)
+            L = len(run) * 2.0
+            for t in np.arange(rng.uniform(40, 120), L - 20, rng.uniform(130, 260)):
+                spots.append(tuple(q[int(t / 2.0)]))
+    return out, spots
+
+
 def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, counts):
     """Drystone walls along the map's wall lines in 2 m lengths, each tilted to the ground under it,
     stopped short of the tarmac with a wall head, a pier on each sharp bend, and a gate between two
     stoops wherever the map has a gate on the wall."""
     gates = np.array(gates, np.float64).reshape(-1, 2)
     wall_m = 0.0; n_gates = 0; n_ends = 0
-    for kind in ("wall", "retaining_wall"):
+    road_gates = np.array(lines.get("roadside_gates", []), np.float64).reshape(-1, 2)
+    for kind in ("wall", "retaining_wall", "roadside"):
         for pts in lines.get(kind, []):
             r = resample_line(pts, 0.25)
             if len(r) < 4:
@@ -197,10 +257,10 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
             s_all, _ = _arc(r)
             # Gates: the map's, and (the map has few here) one now and then where a wall comes near
             # the road, as a field's way in, and the odd one out in the fields.
-            spots = list(gates)
+            spots = list(gates) if kind != "roadside" else list(road_gates)
             rd = road_dist(r[:, 0], r[:, 1])
             last = -1e9
-            for k in rng.permutation(len(r))[: len(r) // 20]:
+            for k in (rng.permutation(len(r))[: len(r) // 20] if kind != "roadside" else []):
                 if not keep[k] or abs(s_all[k] - last) < 150:
                     continue
                 if (rd[k] < 25 and rng.uniform() < 0.3) or rng.uniform() < 0.012:
@@ -214,7 +274,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                 k0 = int(np.searchsorted(s_all, s_all[k] - 1.75)); k1 = int(np.searchsorted(s_all, s_all[k] + 1.75))
                 k1 = min(k1, len(r) - 1)
                 # Never a gate in or swinging over the road (a wall line that meets the tarmac).
-                if float(np.min(rd[k0:k1 + 1])) < road_half + 4.0:
+                if float(np.min(rd[k0:k1 + 1])) < road_half + 4.0 and kind != "roadside":
                     continue
                 d = r[k1] - r[k0]; d /= max(np.linalg.norm(d), 1e-9)
                 a = math.atan2(d[1], d[0])
@@ -222,7 +282,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                     props.add(props.mesh("SM_GateStoop_%s" % "AB"[kk == k1], lambda kk=kk: ST.gate_stoop(np.random.default_rng(400 + (kk == k1)))),
                               r[kk, 0], float(ground(*r[kk])) - 0.25, r[kk, 1], rng.uniform(0, 2 * math.pi))
                 hinge = r[k0] + d * 0.12
-                swing = 0.0 if rng.uniform() < 0.7 else -rng.uniform(0.4, 1.6)
+                swing = 0.0 if rng.uniform() < 0.7 or kind == "roadside" else -rng.uniform(0.4, 1.6)   # shut by the road
                 props.add(props.mesh("SM_Gate", lambda: ST.gate(np.random.default_rng(410))),
                           hinge[0], float(ground(*hinge)) - 0.03, hinge[1], a + swing)
                 n_gates += 1
@@ -346,28 +406,215 @@ def building_shape(row):
         return "barn", max(w, 5.0), max(dpt, 4.5), min(max(h * 0.62, 3.2), 5.0)
     if w * dpt > 110 or max(w, dpt) > 15:
         return "farm", w, dpt, min(max(h * 0.9, 4.8), 6.0)
-    return "house", w, dpt, (min(max(h * 0.9, 4.6), 6.0) if w * dpt >= 40 else 3.2)
+    return "house", w, dpt, (5.1 if w * dpt >= 24 else 3.9)   # two storeys, as the near houses
 
 
-def place_buildings(props, region_root, O, ground, near, road_dist, road_half, rng, counts):
-    """The map's buildings on the near land: Swaledale houses, farms (house and barn under one roof),
-    field barns and sheds, as light shells (ST.building), sized to their footprints. Buildings of about
-    the same shape share a mesh."""
-    n = 0
-    shapes = {}
+def place_buildings(props, region_root, O, ground, near, road_dist, road_half, rng, counts, line, to_ride=None):
+    """The map's buildings on the near land, as Swaledale buildings (ST.building): in the villages,
+    two-storey houses facing the street, in terraces where their footprints meet (a long footprint
+    split into houses of its own), some rendered or limewashed, with porches, front garden walls and
+    blue or stone slate roofs; the church, the chapel or institute, the school and the pub from the
+    map's tags and points of interest; farms (house and barn under one roof) and, standing alone in
+    the meadows, field barns. Houses each have their own mesh; barns and sheds of about the same
+    shape share one. Returns the village circles and front gardens (for village.json)."""
+    rows = []
     for row in json.load(open(os.path.join(region_root, "buildings.json"))):
         x, z = row[0] - O[0], row[1] - O[2]
         if not near(x, z) or road_dist(x, z) < road_half + 2:
             continue
-        kind, w, dpt, h = building_shape(row)
-        rot = row[4]
+        w, dpt, rot = max(row[2], 3.5), max(row[3], 3.0), row[4]
+        if dpt > w:
+            w, dpt, rot = dpt, w, rot + math.pi / 2
+        mk = BUILDING_KINDS[int(row[6])] if int(row[6]) < len(BUILDING_KINDS) else "house"
+        rows.append({"x": x, "z": z, "w": w, "d": dpt, "rot": rot, "mk": mk, "mh": row[5]})
+    if not rows:
+        counts["buildings"] = 0
+        return {"villages": [], "gardens": []}
+    XY = np.array([[b["x"], b["z"]] for b in rows])
+    D = np.hypot(XY[:, None, 0] - XY[None, :, 0], XY[:, None, 1] - XY[None, :, 1])
+
+    # Points of interest: the pub, the church.
+    pubs, churches = [], []
+    if True:
+        for f, kinds, out in (("pois.json", ("pub",), pubs), ("landmarks.json", ("worship",), churches)):
+            try:
+                for p in json.load(open(os.path.join(region_root, f))):
+                    if p.get("kind") in kinds:
+                        out.append((p["x"] - O[0], p["z"] - O[2]))
+            except (OSError, ValueError):
+                pass
+
+    def nearest(pts, x, z):
+        return min((math.hypot(px - x, pz - z) for px, pz in pts), default=1e9)
+
+    # What each one is.
+    for i, b in enumerate(rows):
+        area = b["w"] * b["d"]
+        b["village"] = int((D[i] < 70).sum()) - 1 >= 5
+        alone = (np.delete(D[i], i) > 35).all()
+        mk = b["mk"]
+        if mk == "worship" or nearest(churches, b["x"], b["z"]) < 12 and area > 60:
+            k = "church" if area > 90 else "chapel"
+        elif mk == "civic":
+            k = "chapel" if area < 70 else "school"
+        elif nearest(pubs, b["x"], b["z"]) < 14 and area > 40:
+            k = "pub"
+        elif mk == "shed" or area < 14:
+            k = "shed"
+        elif mk == "barn" or (alone and not b["village"] and area < 110):
+            k = "barn"               # the field barns of the meadows
+        elif b["village"]:
+            k = "farm" if area > 110 and b["d"] > 10 else "house"
+        else:
+            k = "farm" if area > 110 or b["w"] > 15 else "house"
+        b["kind"] = k
+
+    # Long village footprints are rows of houses: split them.
+    units = []
+    for b in rows:
+        if b["kind"] == "house" and b["village"] and b["w"] > 9.5:
+            n = max(2, int(round(b["w"] / rng.uniform(5.0, 6.8))))
+            wts = rng.uniform(0.8, 1.2, n); wts *= b["w"] / wts.sum()
+            c, s = math.cos(b["rot"]), math.sin(b["rot"])
+            u0 = -b["w"] / 2
+            grp = []
+            for wu in wts:
+                um = u0 + wu / 2
+                nb = dict(b); nb.update(x=b["x"] + um * c, z=b["z"] + um * s, w=float(wu))
+                grp.append(nb); u0 += wu
+            units += grp
+        else:
+            units.append(b)
+    rows = units
+
+    def to_road(x, z):
+        dd = np.hypot(line[:, 0] - x, line[:, 2] - z)
+        k = int(np.argmin(dd))
+        return np.array([line[k, 0] - x, line[k, 2] - z]), float(dd[k])
+
+    # Heights, and the house's style.
+    for b in rows:
+        k = b["kind"]
+        if k == "house":
+            b["h"] = 3.9 if b["w"] * b["d"] < 24 else 5.0 + rng.uniform(-0.25, 0.5)
+        elif k == "pub":
+            b["h"] = 5.9 + rng.uniform(0, 0.3)
+        elif k == "farm":
+            b["h"] = 5.1 + rng.uniform(-0.2, 0.4)
+        elif k == "barn":
+            b["h"] = float(np.clip(b["mh"] * 0.62, 3.6, 4.8)) if b["mk"] == "barn" else rng.uniform(3.8, 4.6)
+        elif k == "shed":
+            b["h"] = 2.6
+        elif k == "church":
+            b["h"] = 5.2
+        elif k == "chapel":
+            b["h"] = 6.2 if b["mh"] > 7 else 5.4
+        else:
+            b["h"] = 4.6
+        b["h"] = round(b["h"], 1)
+
+    # Terraces: houses whose footprints meet end to end, parallel. Their fronts face the street
+    # together, and they share party walls.
+    homes = [i for i, b in enumerate(rows) if b["kind"] in ("house", "pub", "farm")]
+    parent = list(range(len(rows)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]; i = parent[i]
+        return i
+    pairs = []
+    for a_ in homes:
+        for b_ in homes:
+            if b_ <= a_:
+                continue
+            A, B = rows[a_], rows[b_]
+            dp = np.array([B["x"] - A["x"], B["z"] - A["z"]])
+            if np.hypot(*dp) > 30 or abs(math.sin(B["rot"] - A["rot"])) > 0.22:
+                continue
+            c, s = math.cos(A["rot"]), math.sin(A["rot"])
+            u = dp @ [c, s]; v = dp @ [-s, c]
+            if abs(v) < 0.35 * min(A["d"], B["d"]) + 0.6 and abs(abs(u) - (A["w"] + B["w"]) / 2) < 1.2:
+                pairs.append((a_, b_))
+                parent[find(a_)] = find(b_)
+    groups = {}
+    for i in range(len(rows)):
+        groups.setdefault(find(i), []).append(i)
+    for g in groups.values():
+        cx = np.mean([rows[i]["x"] for i in g]); cz = np.mean([rows[i]["z"] for i in g])
+        tr, _dd = to_road(cx, cz)
+        for i in g:
+            b = rows[i]
+            if b["kind"] == "chapel":       # its gable end (+x) to the street
+                f = np.array([math.cos(b["rot"]), math.sin(b["rot"])])
+            else:
+                f = np.array([-math.sin(b["rot"]), math.cos(b["rot"])])
+            if f @ tr < 0:
+                b["rot"] += math.pi
+            if len(g) > 1:                  # line the row up on the first house's angle
+                r0 = rows[g[0]]["rot"]
+                b["rot"] = r0 + round((b["rot"] - r0) / math.pi) * math.pi
+    for a_, b_ in pairs:   # some rows run level, some step up and down the street
+        if rng.uniform() < 0.55:
+            rows[b_]["h"] = rows[a_]["h"]
+    for b in rows:
+        b["party"] = [None, None]
+    for a_, b_ in pairs:
+        A, B = rows[a_], rows[b_]
+        for P_, Q_ in ((A, B), (B, A)):
+            c, s = math.cos(P_["rot"]), math.sin(P_["rot"])
+            u = (Q_["x"] - P_["x"]) * c + (Q_["z"] - P_["z"]) * s
+            P_["party"][1 if u > 0 else 0] = Q_["h"]
+        # close the gap (or overlap) between them: each takes half
+        c, s = math.cos(A["rot"]), math.sin(A["rot"])
+        u = (B["x"] - A["x"]) * c + (B["z"] - A["z"]) * s
+        gap = abs(u) - (A["w"] + B["w"]) / 2
+        sg = 1 if u > 0 else -1
+        for P_, dirn in ((A, sg), (B, -sg)):
+            P_["w"] += gap / 2
+            P_["x"] += dirn * c * gap / 4; P_["z"] += dirn * s * gap / 4
+
+    # Make them.
+    shapes = {}
+    gardens = []
+    n_house = n = 0
+    for i, b in enumerate(rows):
+        x, z, w, dpt, rot, kind, h = b["x"], b["z"], b["w"], b["d"], b["rot"], b["kind"], b["h"]
         c, s = math.cos(rot), math.sin(rot)
         g = float(ground(x, z))
         lo = min(float(ground(x + u * c - v * s, z + u * s + v * c)) for u in (-w / 2, w / 2) for v in (-dpt / 2, dpt / 2))
-        key = (kind, round(w * 2) / 2, round(dpt * 2) / 2, round(h, 1), math.ceil((g - lo + 0.4) * 2) / 2)
+        plinth = math.ceil((g - lo + 0.4) * 2) / 2
+        if kind in ("barn", "shed"):
+            key = (kind, round(w * 2) / 2, round(dpt * 2) / 2, round(h, 1), plinth)
+            seed = 900 + len(shapes)
+            opt = {"roof": "welsh" if kind == "shed" and rng.uniform() < 0.3 else "stone"}
+        else:
+            key = ("one", i)
+            seed = 5000 + i
+            party = tuple(b["party"])
+            vil = b["village"]
+            opt = {"party": party,
+                   "roof": "welsh" if rng.uniform() < (0.35 if kind in ("house", "pub", "chapel", "school") else 0.1) else "stone",
+                   "porch": kind == "pub" or (kind in ("house", "farm") and rng.uniform() < 0.35),
+                   "sign": kind == "pub"}
+            if kind in ("house", "pub", "chapel") and rng.uniform() < (0.24 if vil else 0.1):
+                opt["render"] = ST.RENDERS[int(rng.integers(len(ST.RENDERS)))]
+            if kind == "pub":
+                opt["layout"] = "double"
+            # A front garden behind a low wall, where there's room between the house and the road.
+            if kind in ("house", "pub"):
+                fdir = np.array([-s, c])
+                fx, fz = x + fdir[0] * dpt / 2, z + fdir[1] * dpt / 2
+                tr, dd = to_road(fx, fz)
+                room = float(road_dist(fx, fz)) - road_half
+                if tr @ fdir > 0.6 * dd and 2.6 < room < 22:
+                    f = min(room - 1.1, rng.uniform(3.0, 7.5))
+                    gx, gz = fx + fdir[0] * f, fz + fdir[1] * f
+                    opt["garden"] = (round(f, 2), round(g - float(ground(gx, gz)), 2))
+                    gardens.append([round(x + fdir[0] * (dpt + f) / 2, 2), round(z + fdir[1] * (dpt + f) / 2, 2),
+                                    round(w, 2), round(f, 2), round(rot, 4)])
         if key not in shapes:
             k = len(shapes)
-            parts = ST.building(np.random.default_rng(900 + k), kind, key[1], key[2], key[3], key[4])
+            parts = ST.building(np.random.default_rng(seed), kind, w, dpt, h, plinth, opt)
             names = []
             for mat, M in parts.items():
                 if M.n:
@@ -379,16 +626,51 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
         for nm in shapes[key]:
             props.add(nm, x, g, z, rot)
         n += 1
+        n_house += kind in ("house", "pub")
+    # The villages: where the houses stand close.
+    vil = [b for b in rows if b["village"]]
+    villages = []
+    for b in vil:
+        for v in villages:
+            if math.hypot(b["x"] - v[0], b["z"] - v[1]) < v[2] + 60:
+                pts = v[3] + [(b["x"], b["z"])]
+                cx, cz = np.mean(pts, 0)
+                r = max(math.hypot(px - cx, pz - cz) for px, pz in pts) + 25
+                v[:] = [float(cx), float(cz), float(r), pts]
+                break
+        else:
+            villages.append([b["x"], b["z"], 30.0, [(b["x"], b["z"])]])
+    merged = True
+    while merged:                     # join villages that grew into each other
+        merged = False
+        for a_ in range(len(villages)):
+            for b_ in range(a_ + 1, len(villages)):
+                A, B = villages[a_], villages[b_]
+                if math.hypot(A[0] - B[0], A[1] - B[1]) < A[2] + B[2]:
+                    pts = A[3] + B[3]
+                    cx, cz = np.mean(pts, 0)
+                    villages[a_] = [float(cx), float(cz), max(math.hypot(px - cx, pz - cz) for px, pz in pts) + 25, pts]
+                    del villages[b_]
+                    merged = True
+                    break
+            if merged:
+                break
     counts["buildings"] = n
+    counts["houses"] = n_house
     counts["building_shapes"] = len(shapes)
+    counts["kinds"] = {k: sum(1 for b in rows if b["kind"] == k) for k in sorted({b["kind"] for b in rows})}
+    counts["terrace_party_walls"] = len(pairs)
+    counts["front_gardens"] = len(gardens)
+    return {"villages": [[round(v[0], 1), round(v[1], 1), round(v[2], 1)] for v in villages],
+            "gardens": gardens, "buildings": [[round(b["x"], 1), round(b["z"], 1)] for b in rows]}
 
 
 def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_glb, counts, reach=3000.0):
     """Beyond the near land, out to `reach` from the road: the map's walls (folds and field walls
     alike) and buildings as light, vertex-coloured shapes on the far hills (the backdrop's own 32 m
     surface, so they sit exactly on it), merged into 1 km cells (far_X_Z.glb). One mesh each, no LODs,
-    no cull distance: nothing pops. Stone grey a little darker than the near walls, as they read at
-    distance; the haze does the rest."""
+    no cull distance: nothing pops. Coloured about the fell's own value, so they read as texture on
+    the land, not as lines drawn on it; the haze does the rest."""
     Bh, bx, bz = far
     bs = bx[1] - bx[0]
 
@@ -427,7 +709,9 @@ def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_g
         c = cell(cx, cz)
         c[0].append(P); c[1].append(T + c[3]); c[2].append(C); c[3] += len(P)
 
-    side_c = np.array([0.15, 0.148, 0.135]); top_c = np.array([0.12, 0.13, 0.1])
+    # About the fell's own value (darker and a little greener than the near stone), with little contrast,
+    # so the haze doesn't turn them into pale chalk lines; the sides a touch darker than the top.
+    side_c = np.array([0.05, 0.054, 0.046]); top_c = np.array([0.058, 0.064, 0.05])
     kinds = feats["kinds"]
     wall_m = 0.0
     for row in feats["lines"]:
@@ -473,7 +757,11 @@ def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_g
             ctr = np.repeat(np.stack([q[:, 0], g + 0.2, q[:, 1]], 1), 4, 0)[T[:, 0]]
             flip = (fn * (fc - ctr)).sum(1) < 0
             T[flip] = T[flip][:, [0, 2, 1]]
-            C = np.repeat(np.stack([side_c, top_c, top_c, side_c])[None], len(q), 0).reshape(-1, 3)
+            C = np.repeat(np.stack([side_c, top_c, top_c, side_c])[None], len(q), 0)
+            # The side away from the sun (south west, as the level's light) a touch darker again.
+            lit = sd @ np.array([-0.7071, 0.7071])
+            C[:, 0] *= np.where(lit > 0, 0.82, 1.0)[:, None]; C[:, 3] *= np.where(lit < 0, 0.82, 1.0)[:, None]
+            C = C.reshape(-1, 3)
             C = C * np.random.default_rng(len(q)).uniform(0.85, 1.15, (len(q), 1)).repeat(4, 0)
             m = q.mean(0)
             add(m[0], m[1], P, T, C)
@@ -600,7 +888,11 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
 
     props = Props()
     prng = np.random.default_rng(seed + 1000)   # the stone props have their own stream
+    village = place_buildings(props, region_root, O, ground, near, road_dist, road_half, prng, counts, line, to_ride)
+    lines["roadside"], lines["roadside_gates"] = roadside_walls(region_root, O, line, lines, village, road_half, near,
+                                                                lambda x, z: ground(x, z) + O[1], prng)
     place_walls(props, lines, points.get("gate", []), ground, near, road_dist, road_half, prng, counts)
+    counts["roadside_wall_runs"] = len(lines["roadside"])
 
     # Fences: weathered posts every 3 m and three strands of wire.
     fence_m = 0.0
@@ -632,7 +924,13 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     counts["fence_m"] = round(fence_m)
 
     place_scars(props, lines.get("cliff", []), ground, near, road_dist, road_half, prng, counts)
-    place_buildings(props, region_root, O, ground, near, road_dist, road_half, prng, counts)
+    with open(os.path.join(out, "village.json"), "w") as f:
+        json.dump({"about": "Sim frame metres (x east, z south). villages: [x, z, radius] where the houses stand close "
+                            "(street verges, not moor; no snow poles). gardens: front gardens behind their low walls "
+                            "[centre x, centre z, width along the house, depth, yaw (radians, width along (cos, sin))]. "
+                            "buildings: centres of the near buildings.",
+                   "villages": village["villages"], "gardens": village["gardens"], "buildings": village["buildings"]},
+                  f, separators=(",", ":"))
     if far is not None:
         place_far(far, region_root, O, near, line, to_ride, feats, out, write_glb, counts)
 
@@ -713,6 +1011,10 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
         f = line[k + 1, [0, 2]] - line[k - 1, [0, 2]]; f /= np.linalg.norm(f)
         sdv = np.array([-f[1], f[0]]) * (1 if k_s % 2 == 0 else -1)
         x, z = line[k, 0] + sdv[0] * (road_half + 1.3), line[k, 2] + sdv[1] * (road_half + 1.3)
+        # Only out on the moor road: none in the villages, by houses, or down on the valley floor.
+        if line[k, 1] + O[1] < 330.0 or any(math.hypot(x - vx, z - vz) < vr + 40 for vx, vz, vr in village["villages"]) \
+                or any(math.hypot(x - bx_, z - bz_) < 60 for bx_, bz_ in village["buildings"]):
+            continue
         y = float(ground(x, z))
         seg_n = 6
         ring = np.array([[math.cos(a) * 0.045, math.sin(a) * 0.045] for a in np.linspace(0, 2 * math.pi, seg_n, endpoint=False)])

@@ -1940,7 +1940,8 @@ def build():
                      "metal": flat_material("M_GalvanisedSteel", 0.42, metallic=1.0),
                      "wood": flat_material("M_BarnWood", 0.8, fine=0.15),
                      "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry"),
-                     "glass": flat_material("M_WindowGlass", 0.06)}
+                     "glass": flat_material("M_WindowGlass", 0.06),
+                     "render": flat_material("M_LimeRender", 0.9, fine=0.3)}
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).

@@ -13,10 +13,13 @@ Data/Buttertubs/Props and placed in the level as Nanite instances (ue_build_leve
     SM_Scree_A..B     a spill of small stones about 1.6 m across (A is swapped for the Megascans
                       Small Limestone Rocks Pack in prop_swaps.json where the PC has it)
     SM_Scar_A..D      4 m of limestone scar: beds of blocks split by joints, stepped back up the face
-    SM_Bld_N_*        the map's buildings (houses, farms, barns, sheds) as light shells: rubble walls
-                      (masonry texture) with dressed quoins and surrounds, stone slate roofs,
-                      chimneys, sash windows, painted doors; one mesh per material (_Wall, _Stone,
-                      _Wood, _Glass). barn() is the older stone-by-stone field barn.
+    SM_Bld_N_*        the map's buildings as light shells: two-storey Swaledale houses (in terraces
+                      where their footprints meet, some rendered or limewashed, porches, front garden
+                      walls), farms, field barns, sheds, the church, chapel, school and pub; rubble
+                      walls (masonry texture) with dressed quoins and surrounds, stone or blue slate
+                      roofs, gable chimney stacks, sash or mullioned windows, painted doors; one mesh
+                      per material (_Masonry, _Render, _Stone, _Wood, _Glass). barn() is the older
+                      stone-by-stone field barn.
     SM_Sheep_A..C     a Swaledale ewe grazing, looking up, and lying down
 
 The local frame is the glb's: metres, x along, y up, z across (z is the face for scars). Ground is
@@ -25,7 +28,7 @@ y = 0 and everything goes some way below it, so it sits into uneven ground.
 Vertex colour is a set of masks for the materials, not a colour:
     stone:  R brightness (0.5 = the texture as it is), G which of the two stone scans (0 lichened
             limestone, 1 bare), B lichen, A moss
-    fleece, metal, wood: RGB the colour (linear), A dirt
+    fleece, metal, wood, glass, render: RGB the colour (linear), A dirt
 UV0 is in metres of surface, each stone with its own offset, so no two stones show the same patch.
 """
 import math
@@ -727,13 +730,16 @@ def quad(M, a, b, c, d, col, uv):
     M.add(np.array([a, b, c, d], float), [[0, 1, 2], [0, 2, 3]], col, uv)
 
 
-def _cells(L, y0, y1, holes):
-    """Rectangles covering [0, L] x [y0, y1] minus the holes (s0, s1, b0, b1)."""
-    xs = sorted({0.0, L} | {h[0] for h in holes} | {h[1] for h in holes})
+def _cells(L, y0, y1, holes, x0=0.0):
+    """Rectangles covering [x0, L] x [y0, y1] minus the holes (s0, s1, b0, b1)."""
+    holes = [h for h in holes if h[1] > x0 and h[0] < L]
+    xs = sorted({x0, L} | {min(max(h[0], x0), L) for h in holes} | {min(max(h[1], x0), L) for h in holes})
     ys = sorted({y0, y1} | {h[2] for h in holes if y0 < h[2] < y1} | {h[3] for h in holes if y0 < h[3] < y1})
     out = []
     for i in range(len(xs) - 1):
         for j in range(len(ys) - 1):
+            if xs[i + 1] - xs[i] < 1e-4 or ys[j + 1] - ys[j] < 1e-4:
+                continue
             cx, cy = (xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2
             if any(h[0] < cx < h[1] and h[2] < cy < h[3] for h in holes):
                 continue
@@ -741,57 +747,150 @@ def _cells(L, y0, y1, holes):
     return out
 
 
-def building(rng, kind, w, d, h, plinth):
+# Lime render and limewash on some village houses (linear RGB), and the paint on doors and frames.
+RENDERS = [(0.74, 0.73, 0.68), (0.70, 0.65, 0.52), (0.58, 0.58, 0.55), (0.78, 0.77, 0.72), (0.66, 0.6, 0.5)]
+DOOR_PAINT = [(0.02, 0.06, 0.03), (0.03, 0.04, 0.09), (0.01, 0.01, 0.012), (0.12, 0.02, 0.02), (0.3, 0.3, 0.28),
+              (0.2, 0.12, 0.05), (0.05, 0.1, 0.12), (0.25, 0.22, 0.12)]
+
+
+def house_front(rng, kind, w, h, layout=None):
+    """Openings (s0, s1, b0, b1, kind) on a house front w long with eaves h: the door and windows in
+    bays, the upper row over the lower one on two storeys. layout: 'double' (door in the middle,
+    windows either side), 'cottage' (door at one end) or 'single' (a door and a window)."""
+    two = h >= 4.4
+    if layout is None:
+        layout = "single" if w < 4.6 else ("cottage" if w < 7.0 or rng.uniform() < 0.3 else "double")
+    mull = kind != "pub" and rng.uniform() < 0.22          # older houses: two-light mullioned windows
+    ww = rng.uniform(1.4, 1.8) if mull else rng.uniform(0.85, 1.12)
+    sill = rng.uniform(0.75, 1.0)
+    head = sill + (rng.uniform(1.0, 1.15) if mull else rng.uniform(1.25, 1.45))
+    up_head = h - rng.uniform(0.28, 0.45)
+    up_h = rng.uniform(0.95, 1.1) if mull else rng.uniform(1.0, 1.25)
+    if not two:
+        up_head = None
+    wk = "mull" if mull else "window"
+    if layout == "single":
+        door_left = rng.uniform() < 0.5
+        bays = [("door", 0.3 + 0.5) if door_left else ("door", w - 0.8)]
+        wx = w * 0.62 if door_left else w * 0.38
+        bays.append(("win", wx))
+    else:
+        if layout == "double":
+            nb = 5 if w > 11.5 else 3
+        else:
+            nb = 3 if w > 6.4 else 2
+        edge = rng.uniform(0.9, 1.3)
+        xs = np.linspace(edge, w - edge, nb) if nb > 1 else np.array([w / 2])
+        if layout == "double":
+            door = nb // 2
+        else:
+            door = 0 if rng.uniform() < 0.5 else nb - 1
+        bays = [("door" if i == door else "win", x) for i, x in enumerate(xs)]
+    out = []
+    dw = rng.uniform(0.95, 1.05)
+    for k, x in bays:
+        if k == "door":
+            out.append((x - dw / 2, x + dw / 2, 0.0, 2.05, "door"))
+            if up_head and (layout == "double" or rng.uniform() < 0.6):
+                sw = min(ww, 0.9) if not mull else 0.7      # over the door: a smaller window (the landing)
+                out.append((x - sw / 2, x + sw / 2, up_head - up_h * 0.85, up_head, "window"))
+        else:
+            out.append((x - ww / 2, x + ww / 2, sill, head, wk))
+            if up_head:
+                out.append((x - ww / 2, x + ww / 2, up_head - up_h, up_head, wk))
+    return out, layout
+
+
+def building(rng, kind, w, d, h, plinth, opt=None):
     """A Swaledale building as light shells: rubble walls (masonry texture) with openings cut in them,
-    dressed quoins, lintels, sills and jambs, a stone slate roof in stepped courses, gable copes and
-    kneelers, chimneys on houses; sash windows and painted doors; a cart door under an arch on barns.
-    kind: 'house', 'farm' (a house with its barn under one roof), 'barn' or 'shed'. w along x (the
-    ridge), d across, eaves h above ground at the centre, walls carried plinth below it.
-    Returns {material: Mesh} for 'masonry', 'stone', 'wood' and 'glass'."""
+    dressed quoins, lintels, sills and jambs, a stone (or blue) slate roof, gable copes and kneelers,
+    chimney stacks on the gables, sash or mullioned windows and painted doors; a cart door under an
+    arch on barns.
+    kind: 'house', 'pub', 'farm' (a house with its barn under one roof), 'barn', 'shed', 'church',
+    'chapel' (gable to the street, at +x) or 'school'. w along x (the ridge), d across, the front
+    is +z; eaves h above ground at the centre, walls carried plinth below it.
+    opt (all optional):
+        party   (h_left, h_right): eaves of the house next door at -x / +x (a terrace), else None
+        render  an RGB colour: the walls are rendered or limewashed, not bare stone
+        roof    'stone' (stone slates in diminishing courses) or 'welsh' (blue slate)
+        porch   a gabled stone porch over the front door
+        layout  'double', 'cottage' or 'single' (see house_front)
+        garden  (f, drop): a low front wall f metres out from the front, its ground drop metres
+                below this one's, with a gap and a flagged path to the door
+        sign    a hanging sign by the door (the pub)
+    Returns {material: Mesh} for 'masonry', 'render', 'stone', 'wood' and 'glass'."""
+    opt = dict(opt or {})
     if d > w:
-        out = building(rng, kind, d, w, h, plinth)
+        out = building(rng, kind, d, w, h, plinth, opt)
         for m in out.values():
             m.P = [p[:, [2, 1, 0]] * [1, 1, -1] for p in m.P]
         return out
-    Wl, St, Wd, Gl = Mesh(), Mesh(), Mesh(), Mesh()
-    house = kind in ("house", "farm")
-    pitch = math.radians(rng.uniform(30, 35) if house else rng.uniform(26, 31))
+    Wl, Rd, St, Wd, Gl = Mesh(), Mesh(), Mesh(), Mesh(), Mesh()
+    house = kind in ("house", "farm", "pub")
+    party = opt.get("party") or (None, None)
+    render = opt.get("render")
+    roof = opt.get("roof", "stone")
+    big = kind in ("church", "chapel", "school")
+    pitch = math.radians(rng.uniform(30, 35) if house else rng.uniform(36, 40) if big else rng.uniform(26, 31))
     ridge = h + (d / 2) * math.tan(pitch)
-    bright = 0.5 + rng.normal(0, 0.05)
-    paint = [np.array(c) for c in ((0.02, 0.06, 0.03), (0.03, 0.04, 0.09), (0.01, 0.01, 0.012), (0.12, 0.02, 0.02), (0.3, 0.3, 0.28))]
-    door_col = paint[int(rng.integers(len(paint)))]
+    bright = 0.5 + rng.normal(0, 0.06)
+    door_col = np.array(DOOR_PAINT[int(rng.integers(len(DOOR_PAINT)))])
+    frame_col = np.array([0.62, 0.62, 0.6]) if rng.uniform() < 0.75 else door_col
+    rcol = np.array(render) * rng.uniform(0.95, 1.04) if render is not None else None
+
+    def own(side):
+        """Whether this house draws the gable/party end at side (0 = -x, 1 = +x): its own gable, or a
+        party wall it is taller at (or the left one of an even pair, so nothing is drawn twice)."""
+        hn = party[side]
+        return hn is None or h > hn + 0.05 or (abs(h - hn) <= 0.05 and side == 0)
 
     def mcol(n, y):
         c = np.zeros((n, 4)); c[:, 0] = bright + rng.normal(0, 0.02); c[:, 2] = 0.05
         c[:, 3] = np.clip((0.5 - np.asarray(y)) / 0.8, 0, 1) * 0.7
         return c
 
+    def rendcol(n, y):
+        c = np.zeros((n, 4)); c[:, :3] = rcol
+        c[:, 3] = np.clip((0.7 - np.asarray(y)) / 1.0, 0, 1) * 0.6 + 0.08
+        return c
+
+    def wall_quad(p, ys, uv):
+        if rcol is not None:
+            quad(Rd, *p, rendcol(4, ys), uv)
+        else:
+            quad(Wl, *p, mcol(4, ys), uv)
+
+    def wall_box(c, hs, R, ylo):
+        P, T, U = obox(c, hs, R, rng.uniform(0, 5, 2))
+        if rcol is not None:
+            Rd.add(P, T, rendcol(len(P), P[:, 1]), U)
+        else:
+            Wl.add(P, T, mcol(len(P), P[:, 1]), U)
+
     def scol(n, b=0.55, bare=0.8, moss=0.15):
         c = np.zeros((n, 4)); c[:, 0] = b + rng.normal(0, 0.03); c[:, 1] = bare; c[:, 2] = 0.3; c[:, 3] = moss
         return c
 
-    # Bays and openings on the front (+z); a few on the back.
-    house_len = w if kind == "house" else (min(9.0, w * 0.45) if kind == "farm" else 0.0)
-    front, back = [], []
-    two = house and h >= 4.4
+    # Openings on the front (+z), the back, and the gable ends.
+    house_len = w if kind in ("house", "pub") else (min(9.0, w * 0.45) if kind == "farm" else 0.0)
+    front, back, left, right = [], [], [], []
+    layout = None
     if house_len > 0:
-        nb = max(2, int(house_len / 2.6))
-        bw = house_len / nb
-        door_bay = nb // 2
-        for i in range(nb):
-            cx = i * bw + bw / 2
-            if i == door_bay:
-                front.append((cx - 0.5, cx + 0.5, 0.0, 2.1, "door"))
-            else:
-                front.append((cx - 0.55, cx + 0.55, 0.85, 2.2, "window"))
-            if two:
-                front.append((cx - 0.5, cx + 0.5, h - 1.75, h - 0.6, "window"))
-        back.append((house_len / 2 - 0.4, house_len / 2 + 0.4, 1.0, 2.0, "window"))
+        front, layout = house_front(rng, kind, house_len, h, opt.get("layout"))
+        nbk = max(1, int(house_len / 3.5))
+        for i in range(nbk):
+            cx = (i + 0.5) * house_len / nbk + rng.uniform(-0.4, 0.4)
+            if h >= 4.4:
+                back.append((cx - 0.4, cx + 0.4, h - 1.5, h - 0.5, "window"))
+            back.append((cx - 0.45, cx + 0.45, 1.0, 2.1, "window") if i or nbk == 1 and rng.uniform() < 0.5
+                        else (cx - 0.45, cx + 0.45, 0.0, 2.0, "door"))
+        if party[0] is None and rng.uniform() < 0.35 and h >= 4.4:
+            left.append((d / 2 - 0.3, d / 2 + 0.3, h + 0.2, h + 0.95, "window"))
     if kind in ("farm", "barn"):
         b0 = house_len + 0.6
         b1 = w - 0.6
         if b1 - b0 > 3.2:
-            cx = (b0 + b1) / 2
+            cx = (b0 + b1) / 2 + rng.uniform(-0.3, 0.3) * (b1 - b0 - 3.2)
             front.append((cx - 1.3, cx + 1.3, 0.0, min(3.0, h - 0.5), "cart"))
             if b1 - b0 > 7:
                 for fx in (b0 + 0.8, b1 - 1.4):
@@ -799,35 +898,114 @@ def building(rng, kind, w, d, h, plinth):
             back.append((cx - 0.3, cx + 0.3, h - 1.3, h - 0.8, "hole"))
             if b1 - b0 > 6:
                 front.append((b0 + 0.3, b0 + 1.2, 0.0, 1.9, "door"))
+            # Small square muck holes and slit vents low down, as on Swaledale cow houses.
+            for sx in np.arange(b0 + 0.6, b1 - 0.4, 2.4):
+                if not any(s0 - 0.5 < sx < s1 + 0.5 for (s0, s1, *_r) in front):
+                    front.append((sx - 0.2, sx + 0.2, 1.2, 1.6, "hole"))
         elif b1 - b0 > 1.2:
             cx = (b0 + b1) / 2
             front.append((cx - 0.5, cx + 0.5, 0.0, 2.0, "door"))
+        if kind == "barn" and rng.uniform() < 0.6:
+            left.append((d / 2 - 0.35, d / 2 + 0.35, h - 0.3, h + 0.5, "hole"))   # the forking hole in the gable
     if kind == "shed":
         front.append((w / 2 - 0.5, w / 2 + 0.5, 0.0, min(2.0, h - 0.3), "door"))
+    if kind == "church":
+        n = max(3, int(w / 4.5))
+        for i in range(n):
+            cx = (i + 0.5) * w / n + 0.4
+            if i == 0:
+                front.append((cx - 0.55, cx + 0.55, 0.0, 2.4, "door"))
+                opt["porch_x"] = cx
+            else:
+                front.append((cx - 0.35, cx + 0.35, 1.3, 3.7, "tall"))
+            back.append((w - cx - 0.35, w - cx + 0.35, 1.3, 3.7, "tall"))
+        right.append((d / 2 - 0.9, d / 2 + 0.9, 1.6, h + 1.2, "tall"))    # the east window
+        left.append((d / 2 - 0.3, d / 2 + 0.3, h - 1.0, h + 0.4, "tall"))
+    if kind == "chapel":
+        # The gable at +x is the front: a door between two tall windows, a small one above.
+        right += [(d / 2 - 0.6, d / 2 + 0.6, 0.0, 2.5, "door"),
+                  (d * 0.18 - 0.45, d * 0.18 + 0.45, 1.2, 3.6, "tall"), (d * 0.82 - 0.45, d * 0.82 + 0.45, 1.2, 3.6, "tall"),
+                  (d / 2 - 0.4, d / 2 + 0.4, h - 0.2, h + 0.8, "window")]
+        n = max(2, int(w / 3.6))
+        for i in range(n):
+            cx = (i + 0.5) * w / n
+            front.append((cx - 0.5, cx + 0.5, 1.2, 3.8, "tall"))
+            back.append((cx - 0.5, cx + 0.5, 1.2, 3.8, "tall"))
+    if kind == "school":
+        n = max(3, int(w / 3.2))
+        for i in range(n):
+            cx = (i + 0.5) * w / n
+            if i == n - 1:
+                front.append((cx - 0.5, cx + 0.5, 0.0, 2.2, "door"))
+                opt["porch_x"] = cx
+            else:
+                front.append((cx - 0.6, cx + 0.6, 1.0, 3.0, "tall"))
+            back.append((cx - 0.6, cx + 0.6, 1.0, 3.0, "tall"))
 
     faces = {  # origin (s = 0 corner at ground), along, outward, length, openings
         "front": (np.array([-w / 2, 0, d / 2]), np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), w, front),
         "back": (np.array([w / 2, 0, -d / 2]), np.array([-1.0, 0, 0]), np.array([0, 0, -1.0]), w,
                  [(w - b, w - a, y0, y1, k) for (a, b, y0, y1, k) in back]),
-        "left": (np.array([-w / 2, 0, -d / 2]), np.array([0, 0, 1.0]), np.array([-1.0, 0, 0]), d, []),
-        "right": (np.array([w / 2, 0, d / 2]), np.array([0, 0, -1.0]), np.array([1.0, 0, 0]), d, []),
+        "left": (np.array([-w / 2, 0, -d / 2]), np.array([0, 0, 1.0]), np.array([-1.0, 0, 0]), d, left),
+        "right": (np.array([w / 2, 0, d / 2]), np.array([0, 0, -1.0]), np.array([1.0, 0, 0]), d,
+                  [(d - b, d - a, y0, y1, k) for (a, b, y0, y1, k) in right]),
     }
     up = np.array([0, 1.0, 0])
+    door_spots = []
     for name, (o, a, n, L, holes) in faces.items():
-        # The wall: rectangles round the openings, and reveals 0.2 m deep in them.
+        side = 0 if name == "left" else 1 if name == "right" else None
+        y_from = -plinth
+        if side is not None and party[side] is not None:
+            if not own(side):
+                continue                   # the house next door carries the party wall
+            holes = []                     # a party wall, the whole of it (footprints rarely match exactly)
+        R = np.stack([a, up, n], 1)
+        # The wall: rectangles round the openings, and reveals in them.
         hl = [(s0, s1, b0, b1) for (s0, s1, b0, b1, _) in holes]
-        for (s0, s1, y0, y1) in _cells(L, -plinth, h, hl):
-            p = [o + a * s0 + up * y0, o + a * s1 + up * y0, o + a * s1 + up * y1, o + a * s0 + up * y1]
-            quad(Wl, *p, mcol(4, [y0, y0, y1, y1]), [[s0, y0], [s1, y0], [s1, y1], [s0, y1]])
+        if y_from is not None:
+            for (s0, s1, y0, y1) in _cells(L, y_from, h, hl):
+                p = [o + a * s0 + up * y0, o + a * s1 + up * y0, o + a * s1 + up * y1, o + a * s0 + up * y1]
+                wall_quad(p, [y0, y0, y1, y1], [[s0, y0], [s1, y0], [s1, y1], [s0, y1]])
+        # Gable: masonry triangle above the eaves on the ends, cut round a gable window if any.
+        if side is not None:
+            A = o + up * h; B = o + a * L + up * h; C = o + a * (L / 2) + up * ridge
+            gh = [hh for hh in holes if hh[3] > h]
+            if not gh:
+                p3 = np.array([A, B, C])
+                if rcol is not None:
+                    Rd.add(p3, [[0, 1, 2]], rendcol(3, [h, h, ridge]), [[0, h], [L, h], [L / 2, ridge]])
+                else:
+                    Wl.add(p3, [[0, 1, 2]], mcol(3, [h, h, ridge]), [[0, h], [L, h], [L / 2, ridge]])
+            else:
+                # Split the triangle into a band round the window and the triangle above it.
+                s0, s1, b0, b1, _k = gh[0]
+                top = b1 + 0.05
+                half = (ridge - top) / math.tan(pitch)
+                sa, sb = L / 2 - half, L / 2 + half
+                for (x0, x1, y0, y1) in _cells(L, h, top, [(s0, s1, b0, b1)]):
+                    # clip to the gable slope: trapezoid cells (corners pulled in under the verges)
+                    def lim(s, y):
+                        m = (y - h) / math.tan(pitch)
+                        return min(max(s, m), L - m)
+                    p = [o + a * lim(x0, y0) + up * y0, o + a * lim(x1, y0) + up * y0,
+                         o + a * lim(x1, y1) + up * y1, o + a * lim(x0, y1) + up * y1]
+                    wall_quad(p, [y0, y0, y1, y1], [[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+                p3 = np.array([o + a * sa + up * top, o + a * sb + up * top, C])
+                if rcol is not None:
+                    Rd.add(p3, [[0, 1, 2]], rendcol(3, [top, top, ridge]), [[sa, top], [sb, top], [L / 2, ridge]])
+                else:
+                    Wl.add(p3, [[0, 1, 2]], mcol(3, [top, top, ridge]), [[sa, top], [sb, top], [L / 2, ridge]])
         for (s0, s1, b0, b1, k) in holes:
             dep = 0.22 if k != "cart" else 0.35
             for (pa, pb) in (((s0, b0), (s0, b1)), ((s1, b1), (s1, b0)), ((s1, b1), (s0, b1)), ((s0, b0), (s1, b0))):
                 A = o + a * pa[0] + up * pa[1]; B = o + a * pb[0] + up * pb[1]
-                quad(Wl, A, B, B - n * dep, A - n * dep, mcol(4, [pa[1], pb[1], pb[1], pa[1]]),
-                     [[0, pa[1]], [0, pb[1]], [dep, pb[1]], [dep, pa[1]]])
-            # Dressed surrounds: lintel, sill, jambs (cart doors get an arch of voussoirs instead).
-            R = np.stack([a, up, n], 1)
+                wall_quad([A, B, B - n * dep, A - n * dep], [pa[1], pb[1], pb[1], pa[1]],
+                          [[0, pa[1]], [0, pb[1]], [dep, pb[1]], [dep, pa[1]]])
             mid = o + a * ((s0 + s1) / 2)
+            if k == "door" and name == "front":
+                door_spots.append((s0 + s1) / 2 - w / 2)
+            # Dressed surrounds: lintel, sill, jambs (cart doors get an arch of voussoirs; tall windows
+            # a pointed or round head of voussoirs).
             if k == "cart":
                 r = (s1 - s0) / 2 + 0.15
                 for i in range(11):
@@ -836,37 +1014,78 @@ def building(rng, kind, w, d, h, plinth):
                     Rv = R @ rot_xyz(0, 0, th - math.pi / 2)
                     P, T, U = obox(c, (0.11, 0.2, 0.3), Rv, rng.uniform(0, 5, 2))
                     St.add(P, T, scol(len(P), 0.6), U)
+            elif k == "tall":
+                r = (s1 - s0) / 2 + 0.12
+                for i in range(7):
+                    th = math.pi * (0.05 + 0.9 * i / 6)
+                    c = mid + a * (-math.cos(th) * r) + up * (b1 + math.sin(th) * r * 0.55) - n * 0.24
+                    Rv = R @ rot_xyz(0, 0, th - math.pi / 2)
+                    P, T, U = obox(c, (0.09, 0.13, 0.26), Rv, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.62), U)
+                P, T, U = obox(mid + up * (b0 - 0.06) - n * 0.22, ((s1 - s0) / 2 + 0.1, 0.06, 0.3), R, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.62, moss=0.3), U)
+                # fill the arch head over the opening (masonry tympanum stands in for glass up there)
+                q0 = o + a * s0 + up * b1; q1 = o + a * s1 + up * b1
+                Wl.add(np.array([q0 - n * dep, q1 - n * dep, mid + up * (b1 + r * 0.5) - n * dep]), [[0, 1, 2]],
+                       mcol(3, [b1, b1, b1]), [[0, 0], [1, 0], [0.5, 0.5]])
             else:
-                P, T, U = obox(mid + up * (b1 + 0.11) - n * 0.28, ((s1 - s0) / 2 + 0.18, 0.11, 0.3), R, rng.uniform(0, 5, 2))
-                St.add(P, T, scol(len(P), 0.6), U)
-                if k == "window":
-                    P, T, U = obox(mid + up * (b0 - 0.05) - n * 0.24, ((s1 - s0) / 2 + 0.1, 0.05, 0.3), R, rng.uniform(0, 5, 2))
-                    St.add(P, T, scol(len(P), 0.62, moss=0.3), U)
-                for sj in (s0 - 0.09, s1 + 0.09):
-                    yy = max(b0, -0.2)
-                    while yy < b1 - 0.05:
-                        hh = min(0.3, b1 - yy)
-                        ext = 0.12 if int(yy / 0.3) % 2 else 0.06
-                        P, T, U = obox(o + a * sj + up * (yy + hh / 2) - n * 0.235, (0.09 + ext * 0.3, hh / 2 - 0.005, 0.25), R, rng.uniform(0, 5, 2))
-                        St.add(P, T, scol(len(P), 0.6), U)
-                        yy += hh
+                if k in ("window", "mull") and rcol is not None and rng.uniform() < 0.5:
+                    # painted surrounds on a rendered house
+                    pc = np.array([0.03, 0.03, 0.03]) if rng.uniform() < 0.6 else np.array([0.55, 0.55, 0.52])
+                    for (cc, hs) in (((mid + up * (b1 + 0.08)), ((s1 - s0) / 2 + 0.1, 0.08)),
+                                     ((mid + up * (b0 - 0.05)), ((s1 - s0) / 2 + 0.1, 0.05)),
+                                     ((o + a * (s0 - 0.06) + up * (b0 + b1) / 2), (0.06, (b1 - b0) / 2)),
+                                     ((o + a * (s1 + 0.06) + up * (b0 + b1) / 2), (0.06, (b1 - b0) / 2))):
+                        P, T, U = obox(cc + n * 0.012, (hs[0], hs[1], 0.012), R)
+                        c = np.zeros((len(P), 4)); c[:, :3] = pc; c[:, 3] = 0.2
+                        Wd.add(P, T, c, U)
+                else:
+                    P, T, U = obox(mid + up * (b1 + 0.11) - n * 0.28, ((s1 - s0) / 2 + 0.18, 0.11, 0.3), R, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.6), U)
+                    if k in ("window", "mull"):
+                        P, T, U = obox(mid + up * (b0 - 0.05) - n * 0.24, ((s1 - s0) / 2 + 0.1, 0.05, 0.3), R, rng.uniform(0, 5, 2))
+                        St.add(P, T, scol(len(P), 0.62, moss=0.3), U)
+                    if k != "hole" or b1 - b0 > 0.5:
+                        for sj in (s0 - 0.09, s1 + 0.09):
+                            yy = max(b0, -0.2)
+                            while yy < b1 - 0.05:
+                                hh = min(0.3, b1 - yy)
+                                ext = 0.12 if int(yy / 0.3) % 2 else 0.06
+                                P, T, U = obox(o + a * sj + up * (yy + hh / 2) - n * 0.235, (0.09 + ext * 0.3, hh / 2 - 0.005, 0.25), R, rng.uniform(0, 5, 2))
+                                St.add(P, T, scol(len(P), 0.6), U)
+                                yy += hh
             # What fills the opening, set back in it.
             back_p = lambda s, y, k_=0.0: o + a * s + up * y - n * (dep - 0.02 - k_)
-            if k == "window":
+            if k in ("window", "mull", "tall"):
                 g = [back_p(s0, b0), back_p(s1, b0), back_p(s1, b1), back_p(s0, b1)]
                 gc = np.zeros((4, 4)); gc[:, :3] = 0.02
                 quad(Gl, *g, gc, [[0, 0], [1, 0], [1, 1], [0, 1]])
-                white = np.array([0.62, 0.62, 0.6]) if rng.uniform() < 0.8 else door_col
-                bars = [(s0 + 0.03, b0, s0 + 0.07, b1), (s1 - 0.07, b0, s1 - 0.03, b1), (s0, b1 - 0.07, s1, b1 - 0.03),
-                        (s0, b0 + 0.03, s1, b0 + 0.08), ((s0 + s1) / 2 - 0.02, b0, (s0 + s1) / 2 + 0.02, b1),
-                        (s0, (b0 + b1) / 2 - 0.03, s1, (b0 + b1) / 2 + 0.03)]
+                cm = (s0 + s1) / 2
+                if k == "window":      # a pair of sashes, each of two (or six) panes
+                    bars = [(s0 + 0.03, b0, s0 + 0.07, b1), (s1 - 0.07, b0, s1 - 0.03, b1), (s0, b1 - 0.07, s1, b1 - 0.03),
+                            (s0, b0 + 0.03, s1, b0 + 0.08), (cm - 0.02, b0, cm + 0.02, b1),
+                            (s0, (b0 + b1) / 2 - 0.03, s1, (b0 + b1) / 2 + 0.03)]
+                    if (s1 - s0) > 0.95 and rng.uniform() < 0.4:
+                        for t in (1 / 3, 2 / 3):
+                            sx = s0 + (s1 - s0) * t
+                            bars.append((sx - 0.012, b0, sx + 0.012, b1))
+                    fcol = frame_col
+                elif k == "mull":      # casements either side of a stone mullion
+                    P, T, U = obox(o + a * cm + up * ((b0 + b1) / 2) - n * 0.2, (0.08, (b1 - b0) / 2, 0.2), R, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.6), U)
+                    bars = [(s0 + 0.02, b0, s0 + 0.06, b1), (s1 - 0.06, b0, s1 - 0.02, b1), (s0, b1 - 0.06, s1, b1 - 0.02),
+                            (s0, b0 + 0.02, s1, b0 + 0.06), (s0, (b0 + b1) / 2 - 0.02, s1, (b0 + b1) / 2 + 0.02)]
+                    fcol = door_col if rng.uniform() < 0.5 else frame_col
+                else:                  # tall: a light frame and glazing bars
+                    bars = [(cm - 0.02, b0, cm + 0.02, b1)] + [(s0, y - 0.02, s1, y + 0.02) for y in np.linspace(b0, b1, 5)[1:-1]]
+                    fcol = np.array([0.5, 0.5, 0.48])
                 for (x0, y0, x1, y1) in bars:
                     P, T, U = obox(o + a * ((x0 + x1) / 2) + up * ((y0 + y1) / 2) - n * (dep - 0.06),
                                    ((x1 - x0) / 2, (y1 - y0) / 2, 0.03), R)
-                    c = np.zeros((len(P), 4)); c[:, :3] = white; c[:, 3] = 0.15
+                    c = np.zeros((len(P), 4)); c[:, :3] = fcol; c[:, 3] = 0.15
                     Wd.add(P, T, c, U)
             elif k in ("door", "cart", "hole"):
-                col = door_col if (k == "door" and house) else np.array([0.13, 0.09, 0.06]) * rng.uniform(0.7, 1.1)
+                col = door_col if (k == "door" and (house or big)) else np.array([0.13, 0.09, 0.06]) * rng.uniform(0.7, 1.1)
                 planks = max(2, int((s1 - s0) / 0.16))
                 pw = (s1 - s0) / planks
                 for i in range(planks):
@@ -874,73 +1093,203 @@ def building(rng, kind, w, d, h, plinth):
                                    (pw / 2 - 0.004, (b1 - max(b0, 0)) / 2, 0.025), R, (rng.uniform(0, 3), 0))
                     c = np.zeros((len(P), 4)); c[:, :3] = col * rng.uniform(0.85, 1.12); c[:, 3] = rng.uniform(0.2, 0.6)
                     Wd.add(P, T, c, U)
+                if k == "door" and house and rng.uniform() < 0.5:   # a fanlight over the door
+                    P, T, U = obox(o + a * ((s0 + s1) / 2) + up * (b1 - 0.2) - n * (dep - 0.07), ((s1 - s0) / 2, 0.18, 0.02), R)
+                    c = np.zeros((len(P), 4)); c[:, :3] = 0.02
+                    Gl.add(P, T, c, U)
 
-        # Quoins up the corners, long and short in turn, both faces.
-        R = np.stack([a, up, n], 1)
-        yy = -plinth
-        k = 0
-        while yy < h - 0.05:
-            hh = min(0.3, h - yy)
-            for end in (0, 1):   # both corners of the face, long and short opposite to the next face's
-                ln = 0.5 if (k + end) % 2 == 0 else 0.3
-                sc = ln / 2 if end == 0 else L - ln / 2
-                P, T, U = obox(o + a * sc + up * (yy + hh / 2) - n * 0.185, (ln / 2, hh / 2 - 0.006, 0.2), R, rng.uniform(0, 5, 2))
-                St.add(P, T, scol(len(P), 0.6, moss=0.25 if yy < 0.4 else 0.05), U)
-            yy += hh; k += 1
-        # Gable: masonry triangle above the eaves on the ends.
-        if name in ("left", "right"):
-            A = o + up * h; B = o + a * L + up * h; C = o + a * (L / 2) + up * ridge
-            Wl.add(np.array([A, B, C]), [[0, 1, 2]], mcol(3, [h, h, ridge]), [[0, h], [L, h], [L / 2, ridge]])
+        # Quoins up the corners, long and short in turn, both faces; none on a rendered house, and
+        # none where the house next door carries on.
+        if rcol is None and not (side is not None and party[side] is not None):
+            yy = -plinth
+            kq = 0
+            while yy < h - 0.05:
+                hh = min(0.3, h - yy)
+                for end in (0, 1):
+                    if name == "front" and party[end] is not None or name == "back" and party[1 - end] is not None:
+                        continue
+                    ln = 0.5 if (kq + end) % 2 == 0 else 0.3
+                    sc = ln / 2 if end == 0 else L - ln / 2
+                    P, T, U = obox(o + a * sc + up * (yy + hh / 2) - n * 0.185, (ln / 2, hh / 2 - 0.006, 0.2), R, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.6, moss=0.25 if yy < 0.4 else 0.05), U)
+                yy += hh; kq += 1
         # Through stones in a row on the long walls of barns.
-        if not house and name in ("front", "back"):
+        if kind in ("barn",) and name in ("front", "back"):
             for st in np.arange(0.9, L - 0.6, 1.2):
                 if not any(s0 - 0.2 < st < s1 + 0.2 and b0 - 0.2 < h * 0.55 < b1 + 0.2 for (s0, s1, b0, b1, _) in holes):
                     P, T, U = obox(o + a * st + up * (h * 0.55) + n * 0.02, (0.13, 0.06, 0.1), R, rng.uniform(0, 5, 2))
                     St.add(P, T, scol(len(P), 0.55, moss=0.4), U)
+        # A plain eaves band (gutter shadow) on rendered houses.
+        if rcol is not None and name in ("front", "back"):
+            P, T, U = obox(o + a * (L / 2) + up * (h - 0.06) + n * 0.06, (L / 2, 0.06, 0.06), R)
+            c = np.zeros((len(P), 4)); c[:, :3] = 0.02; c[:, 3] = 0.3
+            Wd.add(P, T, c, U)
 
-    # Roof: stepped courses of stone slates, wide at the eaves, narrower to the ridge.
+    # Roof: courses of stone slates, wide at the eaves and narrower to the ridge; or blue slate.
+    ext = [0.25 if party[0] is None else 0.0, 0.25 if party[1] is None else 0.0]
+    xa, xb = -w / 2 - ext[0], w / 2 + ext[1]
     run = (d / 2 + 0.3) / math.cos(pitch)
-    for side in (-1, 1):
+    welsh = roof == "welsh"
+    rb = (0.2 if welsh else 0.3) + rng.normal(0, 0.03)
+    for sd in (-1, 1):
         u = 0.0
         while u < run - 0.02:
-            ch = max(0.16, 0.42 - 0.24 * u / run) * rng.uniform(0.9, 1.1)
+            if welsh:
+                ch = 0.24
+            else:
+                ch = max(0.16, 0.42 - 0.24 * u / run) * rng.uniform(0.9, 1.1)
             seg = min(ch * 1.6, run - u + 0.05)
             um = u + seg / 2
-            zz = side * (d / 2 + 0.3 - um * math.cos(pitch))
+            zz = sd * (d / 2 + 0.3 - um * math.cos(pitch))
             yy = h - 0.3 * math.sin(pitch) + um * math.sin(pitch) + 0.06
-            R = rot_xyz(side * (pitch + 0.03), 0, 0)
-            P, T, U = obox((0, yy, zz), (w / 2 + 0.25, 0.022, seg / 2), R, (rng.uniform(0, 5), u))
-            c = scol(len(P), 0.3 + rng.normal(0, 0.03), 1.0, np.clip(0.2 + 0.4 * (1 - u / run), 0, 1))
+            R = rot_xyz(sd * (pitch + (0.015 if welsh else 0.03)), 0, 0)
+            P, T, U = obox(((xa + xb) / 2, yy, zz), ((xb - xa) / 2, 0.012 if welsh else 0.022, seg / 2), R, (rng.uniform(0, 5), u))
+            moss = 0.04 if welsh else np.clip(0.2 + 0.4 * (1 - u / run), 0, 1)
+            c = scol(len(P), rb + rng.normal(0, 0.015 if welsh else 0.03), 1.0, moss)
+            if welsh:
+                c[:, 2] = 0.02
             St.add(P, T, c, U)
             u += ch
-    for s in np.arange(-w / 2 - 0.2, w / 2 + 0.2, 0.55):
-        P, T, U = obox((s + 0.27, ridge + 0.1, 0), (0.27, 0.11, 0.11), rot_xyz(math.pi / 4, 0, 0), rng.uniform(0, 5, 2))
-        St.add(P, T, scol(len(P), 0.4, 1.0, 0.3), U)
-    # Gable copes up the verges, kneelers at the eaves.
-    for xg in (-w / 2, w / 2):
-        for side in (-1, 1):
-            z0, z1 = side * (d / 2 + 0.12), 0.0
-            y0, y1 = h, ridge
-            ln = math.hypot(z1 - z0, y1 - y0)
-            R = rot_xyz(-side * math.atan2(y1 - y0, abs(z1 - z0)) * (-1), 0, 0)
-            R = rot_xyz(side * pitch, 0, 0)
-            P, T, U = obox((xg, (y0 + y1) / 2 + 0.16, (z0 + z1) / 2), (0.36, 0.09, ln / 2), R, rng.uniform(0, 5, 2))
+    for s in np.arange(xa + 0.05, xb - 0.05, 0.55):
+        sl = min(0.275, (xb - s) / 2)
+        P, T, U = obox((s + sl, ridge + 0.1, 0), (sl, 0.11, 0.11), rot_xyz(math.pi / 4, 0, 0), rng.uniform(0, 5, 2))
+        St.add(P, T, scol(len(P), 0.4 if not welsh else 0.25, 1.0, 0.3 if not welsh else 0.05), U)
+    # Gable copes up the verges, kneelers at the eaves (only where this house owns the gable).
+    for side, xg in ((0, -w / 2), (1, w / 2)):
+        if party[side] is not None and not own(side):
+            continue
+        if party[side] is not None and abs(h - party[side]) <= 0.05:
+            continue    # an even party wall: the roof runs straight on
+        if rcol is not None and party[side] is None and rng.uniform() < 0.5:
+            continue    # plain verges on some rendered houses
+        for sd in (-1, 1):
+            z0, z1 = sd * (d / 2 + 0.12), 0.0
+            ln = math.hypot(z1 - z0, ridge - h)
+            R = rot_xyz(sd * pitch, 0, 0)
+            P, T, U = obox((xg, (h + ridge) / 2 + 0.16, (z0 + z1) / 2), (0.36, 0.09, ln / 2), R, rng.uniform(0, 5, 2))
             St.add(P, T, scol(len(P), 0.5, 0.8, 0.35), U)
-            P, T, U = obox((xg, h - 0.05, side * (d / 2 - 0.05)), (0.36, 0.2, 0.26), None, rng.uniform(0, 5, 2))
-            St.add(P, T, scol(len(P), 0.55), U)
-    # Chimneys on the house's gable, and at the house end of a farm.
+            if party[side] is None:
+                P, T, U = obox((xg, h - 0.05, sd * (d / 2 - 0.05)), (0.36, 0.2, 0.26), None, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.55), U)
+    # Chimney stacks on the gables (straddling a party wall), and at the house end of a farm.
     if house:
-        spots = [-w / 2 + 0.35] + ([w / 2 - 0.35] if kind == "house" else [-w / 2 + house_len])
-        for sx in spots:
-            P, T, U = obox((sx, ridge + 0.35, 0), (0.3, 0.9, 0.45), None, rng.uniform(0, 5, 2))
-            St.add(P, T, scol(len(P), 0.5, 0.4, 0.1), U)
-            P, T, U = obox((sx, ridge + 1.3, 0), (0.36, 0.06, 0.52), None, rng.uniform(0, 5, 2))
+        spots = []
+        for side, xg in ((0, -w / 2), (1, w / 2)):
+            if kind == "farm" and side == 1:
+                spots.append((-w / 2 + house_len, False))
+            elif party[side] is None:
+                if side == 0 or rng.uniform() < 0.8:
+                    spots.append((xg + (0.35 if side == 0 else -0.35), False))
+            elif own(side):
+                spots.append((xg, True))
+        sh = rng.uniform(0.8, 1.25)
+        sw = rng.uniform(0.28, 0.36)
+        for sx, wide in spots:
+            hz = 0.45 if not wide else 0.6
+            P, T, U = obox((sx, ridge + sh / 2 - 0.2, 0), (sw if not wide else 0.4, sh / 2 + 0.2, hz), None, rng.uniform(0, 5, 2))
+            if rcol is not None and rng.uniform() < 0.5:
+                Rd.add(P, T, rendcol(len(P), P[:, 1]), U)
+            else:
+                St.add(P, T, scol(len(P), 0.5, 0.4, 0.1), U)
+            P, T, U = obox((sx, ridge + sh + 0.06, 0), ((sw if not wide else 0.4) + 0.06, 0.06, hz + 0.07), None, rng.uniform(0, 5, 2))
             St.add(P, T, scol(len(P), 0.55, 0.8, 0.2), U)
-            for zp in (-0.2, 0.2):
-                Pp, Tp = tube([[sx, ridge + 1.34, zp], [sx, ridge + 1.6, zp]], 0.09, 8)
-                c = np.zeros((len(Pp), 4)); c[:, 0] = 0.32; c[:, 1] = 1.0
+            npots = int(rng.integers(0, 3)) + (1 if wide else 0)
+            for zp in np.linspace(-hz + 0.2, hz - 0.2, npots) if npots > 1 else ([0.0] if npots else []):
+                Pp, Tp = tube([[sx, ridge + sh + 0.1, zp], [sx, ridge + sh + 0.1 + rng.uniform(0.25, 0.45), zp]], rng.uniform(0.08, 0.11), 8)
+                c = np.zeros((len(Pp), 4)); c[:, 0] = 0.32 + rng.uniform(0, 0.1); c[:, 1] = 1.0
                 St.add(Pp, Tp, c, Pp[:, [0, 1]])
-    return {"masonry": Wl, "stone": St, "wood": Wd, "glass": Gl}
+    # Bellcote on the west gable of a church or school.
+    if kind in ("church", "school"):
+        P, T, U = obox((-w / 2, ridge + 0.6, 0), (0.25, 0.75, 0.5), None, rng.uniform(0, 5, 2))
+        Wl.add(P, T, mcol(len(P), P[:, 1]), U)
+        P, T, U = obox((-w / 2, ridge + 1.4, 0), (0.3, 0.08, 0.58), None, rng.uniform(0, 5, 2))
+        St.add(P, T, scol(len(P), 0.55), U)
+    # A gabled stone porch over the front door.
+    px = opt.get("porch_x")
+    if px is None and opt.get("porch") and door_spots:
+        px = door_spots[0]
+    elif px is not None:
+        px = px - w / 2
+    porch_depth = 0.0
+    if px is not None:
+        pw, pd, pe = 2.0, rng.uniform(1.1, 1.5), 2.45
+        porch_depth = pd
+        z0 = d / 2
+        pp = math.radians(40)
+        pr = pe + (pw / 2) * math.tan(pp)
+        Rz = np.eye(3)
+        for sx in (px - pw / 2 + 0.11, px + pw / 2 - 0.11):
+            wall_box((sx, (pe - plinth) / 2, z0 + pd / 2), (0.11, (pe + plinth) / 2, pd / 2), Rz, -plinth)
+        for sx in (px - pw / 2 + 0.25, px + pw / 2 - 0.25):   # piers either side of the doorway
+            wall_box((sx, (2.15 - plinth) / 2, z0 + pd - 0.11), (0.25, (2.15 + plinth) / 2, 0.11), Rz, -plinth)
+        wall_box((px, (2.15 + pe) / 2, z0 + pd - 0.11), (pw / 2, (pe - 2.15) / 2, 0.11), Rz, 2.15)
+        tri = np.array([[px - pw / 2, pe, z0 + pd], [px + pw / 2, pe, z0 + pd], [px, pr, z0 + pd]])
+        if rcol is not None:
+            Rd.add(tri, [[0, 1, 2]], rendcol(3, [pe, pe, pr]), [[0, pe], [pw, pe], [pw / 2, pr]])
+        else:
+            Wl.add(tri, [[0, 1, 2]], mcol(3, [pe, pe, pr]), [[0, pe], [pw, pe], [pw / 2, pr]])
+        # roof slabs along z, sloping either way across x
+        sl = (pw / 2 + 0.2) / math.cos(pp)
+        for sd in (-1, 1):
+            c = (px + sd * (pw / 4 + 0.05), pe + (pw / 4) * math.tan(pp) + 0.05, z0 + pd / 2 + 0.05)
+            P, T, U = obox(c, (sl / 2, 0.03, pd / 2 + 0.15), rot_xyz(0, 0, -sd * pp), rng.uniform(0, 5, 2))
+            cc = scol(len(P), rb, 1.0, 0.04 if welsh else 0.35)
+            St.add(P, T, cc, U)
+        P, T, U = obox((px, pr + 0.08, z0 + pd / 2 + 0.05), (0.1, 0.08, pd / 2 + 0.15), rot_xyz(0, 0, 0), rng.uniform(0, 5, 2))
+        St.add(P, T, scol(len(P), 0.45, 1.0, 0.2), U)
+        # its door, set in the porch front
+        nplank = 6
+        for i in range(nplank):
+            P, T, U = obox((px - 0.45 + (i + 0.5) * 0.15, 1.05, z0 + pd - 0.14), (0.074, 1.05, 0.025), None, (rng.uniform(0, 3), 0))
+            c = np.zeros((len(P), 4)); c[:, :3] = door_col * rng.uniform(0.9, 1.1); c[:, 3] = 0.3
+            Wd.add(P, T, c, U)
+    # The pub's sign on a bracket by the door.
+    if opt.get("sign") and door_spots:
+        sx = door_spots[0] + 1.3
+        P, T, U = obox((sx, 3.1, d / 2 + 0.45), (0.03, 0.03, 0.45), None)
+        c = np.zeros((len(P), 4)); c[:, :3] = 0.02; Wd.add(P, T, c, U)
+        P, T, U = obox((sx, 2.6, d / 2 + 0.5), (0.025, 0.4, 0.33), None)
+        c = np.zeros((len(P), 4)); c[:, :3] = (0.12, 0.03, 0.02); c[:, 3] = 0.2; Wd.add(P, T, c, U)
+    # A low front wall with flat copes, a gap and gate piers at the path, and a flagged path.
+    gd = opt.get("garden")
+    if gd is not None and gd[0] > porch_depth + 1.0:
+        f, drop = gd
+        zf = d / 2 + f
+        gy = -drop
+        gx = door_spots[0] if door_spots else (px if px is not None else 0.0)
+        gap = (gx - 0.55, gx + 0.55)
+        x0 = -w / 2 if party[0] is not None else -w / 2 - 0.15
+        x1 = w / 2 if party[1] is not None else w / 2 + 0.15
+        wh = rng.uniform(0.7, 0.95)
+        runs = [(x0, gap[0]), (gap[1], x1)] if x0 < gap[0] < gap[1] < x1 else [(x0, x1)]
+        for (ra, rb_) in runs:
+            if rb_ - ra < 0.2:
+                continue
+            P, T, U = obox(((ra + rb_) / 2, gy + (wh - 0.6) / 2, zf), ((rb_ - ra) / 2, (wh + 0.6) / 2, 0.22), None, rng.uniform(0, 5, 2))
+            Wl.add(P, T, mcol(len(P), P[:, 1] - gy), U)
+            for s in np.arange(ra, rb_ - 0.05, 0.6):
+                e = min(s + 0.6, rb_)
+                P, T, U = obox(((s + e) / 2, gy + wh + 0.06, zf), ((e - s) / 2 - 0.01, 0.07, 0.27), None, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.58, 0.8, 0.4), U)
+        if len(runs) == 2:
+            for sx in gap:
+                P, T, U = obox((sx, gy + (wh + 0.35 - 0.6) / 2, zf), (0.2, (wh + 0.35 + 0.6) / 2, 0.24), None, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.6, 0.8, 0.3), U)
+            # flags from the door (or porch) out to the gate
+            za, zb = d / 2 + porch_depth + 0.02, zf - 0.22
+            nz = max(1, int((zb - za) / 0.7))
+            for i in range(nz):
+                q0 = za + (zb - za) * i / nz; q1 = za + (zb - za) * (i + 1) / nz
+                yf = 0.03 - drop * ((q0 + q1) / 2 - d / 2) / f
+                P, T, U = obox((gx, yf, (q0 + q1) / 2), (0.45, 0.05, (q1 - q0) / 2 - 0.015), None, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.58, 0.9, 0.2), U)
+        # side walls back to the house where it ends (not between terraced neighbours)
+        for side, xs_ in ((0, x0), (1, x1)):
+            if party[side] is not None:
+                continue
+            P, T, U = obox((xs_, gy + (wh - 0.6) / 2, (d / 2 + zf) / 2), (0.2, (wh + 0.6) / 2 + max(0.0, drop) / 2, (zf - d / 2) / 2), None, rng.uniform(0, 5, 2))
+            Wl.add(P, T, mcol(len(P), P[:, 1] - gy), U)
+    return {"masonry": Wl, "render": Rd, "stone": St, "wood": Wd, "glass": Gl}
 
 
 def far_building(w, d, h, rot, x, y_lo, y, z, kind):
@@ -956,20 +1305,20 @@ def far_building(w, d, h, rot, x, y_lo, y, z, kind):
         return [x + u * c - v * s, yy, z + u * s + v * c]
     P = [at(u, yy, v) for yy in (y_lo, y + h) for (u, v) in ((-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2))]
     T = [[0, 4, 1], [1, 4, 5], [1, 5, 2], [2, 5, 6], [2, 6, 3], [3, 6, 7], [3, 7, 0], [0, 7, 4]]
-    col = [[0.21, 0.2, 0.17]] * 8
+    col = [[0.075, 0.075, 0.066]] * 4 + [[0.06, 0.062, 0.055]] * 4
     e = 0.3
     R = [at(-w / 2 - e, y + h - 0.1, -d / 2 - e), at(w / 2 + e, y + h - 0.1, -d / 2 - e), at(w / 2 + e, y + h - 0.1, d / 2 + e),
          at(-w / 2 - e, y + h - 0.1, d / 2 + e), at(-w / 2 - e, y + ridge, 0), at(w / 2 + e, y + ridge, 0)]
     n = len(P)
     P += R
     T += [[n + 0, n + 1, n + 5], [n + 0, n + 5, n + 4], [n + 2, n + 3, n + 4], [n + 2, n + 4, n + 5]]
-    col += [[0.05, 0.05, 0.05]] * 6
+    col += [[0.03, 0.032, 0.034]] * 6
     # gable triangles
     n = len(P)
     P += [at(-w / 2, y + h, -d / 2), at(-w / 2, y + h, d / 2), at(-w / 2, y + ridge, 0),
           at(w / 2, y + h, -d / 2), at(w / 2, y + h, d / 2), at(w / 2, y + ridge, 0)]
     T += [[n, n + 2, n + 1], [n + 3, n + 4, n + 5]]
-    col += [[0.21, 0.2, 0.17]] * 6
+    col += [[0.07, 0.07, 0.062]] * 6
     return np.array(P), np.array(T), np.array(col)
 
 
