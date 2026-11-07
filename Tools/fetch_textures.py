@@ -66,8 +66,15 @@ def main():
     want = [r["id"] for r in spec["roles"].values()]
     if args.candidates:
         want += [c for cs in spec["candidates"].values() for c in cs]
+    failed = []
     for a in dict.fromkeys(want):
-        fetch(a, args.res)
+        try:
+            fetch(a, args.res)
+        except Exception as e:   # one missing scan shouldn't stop the rest
+            print("  FAILED:", e)
+            failed.append(a)
+    if failed:
+        print("not fetched:", ", ".join(failed))
 
 
 if __name__ == "__main__":
