@@ -37,6 +37,8 @@ seat, engine, headers and silencers, in simple finishes. The rider is still a pl
    `Tools/ue_build_level.py`. It imports the land, road and bike, makes the materials and lights, and saves
    `/Game/Maps/Buttertubs`, which is also the startup map. The Output Log shows `[Torque]` lines as
    it goes. If the editor says the Python plugin needs a restart, restart it and run the script again.
+   Without opening the editor: `UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript=Tools/ue_build_level.py -unattended`
+   (not `-run=pythonscript`: the script needs the full editor's subsystems).
 6. **Ride**: press *Play*. For the full frame rate, use *Play > Standalone Game* or
    *Selected Viewport* with the editor's other panels closed.
 
