@@ -2238,6 +2238,24 @@
  ],
  "tile_size_m": 256.0,
  "step_m": 2.0,
+ "cattle_grids": [
+  {
+   "sim": [
+    39.38,
+    11.19,
+    -178.61
+   ],
+   "line_index": 122
+  },
+  {
+   "sim": [
+    1065.38,
+    -14.73,
+    -1447.36
+   ],
+   "line_index": 968
+  }
+ ],
  "credits": [
   "Elevation: Mapterhorn (mapterhorn.com), built from national and global terrain models; sources and licences are listed at https://download.mapterhorn.com/attribution.json.",
   "Roads, buildings, land cover and places: (c) OpenStreetMap contributors and others, Overture Maps Foundation (ODbL)."

@@ -479,6 +479,7 @@ def main():
         import buttertubs_detail
         counts = buttertubs_detail.build(region.root, region.meta, O, H, xs, zs, best, line, tiles, ROAD_HALF,
                                          args.out, write_glb)
+        grid_points = counts.pop("grid_points", [])
         print("detail", counts)
 
     # The ride's description for Unreal and the sim.
@@ -500,6 +501,8 @@ def main():
         "road_half_width_m": ROAD_HALF,
         "line_sim": [[round(v, 2) for v in p] for p in line[ride][::5]],
         "tiles": tiles, "tile_size_m": TILE, "step_m": STEP,
+        # Cattle grids on the ride: sim position (x, y, z) and the index of the nearest line point.
+        "cattle_grids": [{"sim": g[:3], "line_index": g[3]} for g in grid_points] if not args.no_glb else [],
         "credits": region.meta.get("credits", []),
     }
     json.dump(info, open(os.path.join(args.out, "route.json"), "w"), indent=1)

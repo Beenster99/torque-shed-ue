@@ -465,8 +465,34 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     place_scars(props, lines.get("cliff", []), ground, near, road_dist, road_half, prng, counts)
     place_barns(props, region_root, O, ground, near, road_dist, road_half, prng, counts)
 
-    # Cattle grids where the map has them on the road: steel bars across the tarmac.
+    # Cattle grids where the map has them on the road: a dark pit across the tarmac with galvanised
+    # bars over it, following the road's crown and standing a little proud of it as real ones do,
+    # and a low concrete kerb at each end. Their places go in route.json for the rumble.
     grids = 0
+    grid_points = []
+    crown = 0.05   # export_buttertubs.CROWN
+    across = np.linspace(-1.0, 1.0, 11)
+
+    def surface(cx, cz, f, sdv, base_y, lift, half_w):
+        """Points across the road at (cx, cz), on the crowned surface plus lift."""
+        w = across * half_w
+        y = base_y + crown * (1 - np.clip(w / road_half, -1, 1) ** 2) + lift
+        return np.stack([cx + sdv[0] * w, y, cz + sdv[1] * w], 1)
+
+    def strip(c0, c1, thick, col):
+        """A slab between two rows of points (front and back edges), thick metres deep below them."""
+        n = len(c0)
+        top = np.vstack([c0, c1]); bot = top - [0, thick, 0]
+        pos = np.vstack([top, bot])
+        tris = []
+        for k in range(n - 1):
+            a0, a1, b0, b1 = k, k + 1, n + k, n + k + 1   # top: front row a, back row b
+            tris += [[a0, b0, a1], [a1, b0, b1]]
+            o = 2 * n
+            tris += [[a0, a1, o + a0], [a1, o + a1, o + a0]]                 # front face
+            tris += [[b0, o + b0, b1], [b1, o + b0, o + b1]]                 # back face
+        B.add(pos, tris, col)
+
     for gx, gz in points.get("cattle_grid", []):
         dd = np.hypot(line[:, 0] - gx, line[:, 2] - gz)
         k = int(np.argmin(dd))
@@ -475,19 +501,32 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
         a, b = line[k], line[min(k + 1, len(line) - 1)]
         f = np.array([b[0] - a[0], b[2] - a[2]]); f /= np.linalg.norm(f)
         sdv = np.array([-f[1], f[0]])
-        for i in range(-6, 7):
-            cx, cz = a[0] + f[0] * i * 0.16, a[2] + f[1] * i * 0.16
-            y = a[1] + 0.012
-            p0 = np.array([cx, y, cz]); pts = []
-            for side in (-1, 1):
-                e = np.array([sdv[0], 0, sdv[1]]) * side * (road_half + 0.1)
-                fw = np.array([f[0], 0, f[1]]) * 0.03
-                pts += [p0 + e - fw, p0 + e + fw]
-            pts = np.array(pts); top = pts + [0, 0.035, 0]
-            pos = np.vstack([pts, top])   # 0,1 left; 2,3 right
-            tris = [[0, 4, 2], [2, 4, 6], [1, 3, 5], [3, 7, 5], [4, 5, 6], [5, 7, 6], [0, 1, 4], [1, 5, 4], [2, 6, 3], [3, 6, 7]]
-            B.add(pos, tris, srgb([60, 62, 64]))
+        half_w = road_half + 0.15
+        # The pit: near-black, just over the tarmac so it shows between the bars.
+        c0 = surface(a[0] - f[0] * 1.15, a[2] - f[1] * 1.15, f, sdv, a[1], 0.004, half_w)
+        c1 = surface(a[0] + f[0] * 1.15, a[2] + f[1] * 1.15, f, sdv, a[1], 0.004, half_w)
+        strip(c0, c1, 0.002, srgb([14, 14, 13]))
+        # Bars: 14 rails, 7 cm wide, 13 cm apart, 2.5 cm proud of the road.
+        for i in range(-7, 7):
+            m = (i + 0.5) * 0.16
+            c0 = surface(a[0] + f[0] * (m - 0.035), a[2] + f[1] * (m - 0.035), f, sdv, a[1], 0.025, half_w)
+            c1 = surface(a[0] + f[0] * (m + 0.035), a[2] + f[1] * (m + 0.035), f, sdv, a[1], 0.025, half_w)
+            strip(c0, c1, 0.03, srgb([128, 130, 128]))
+        # Concrete kerbs either side of the pit, beyond the road edge.
+        for side in (-1, 1):
+            kx = a[0] + sdv[0] * side * (half_w + 0.2); kz = a[2] + sdv[1] * side * (half_w + 0.2)
+            ky = ground(np.array([kx]), np.array([kz]))[0]
+            pts = []
+            for u in (-1.25, 1.25):
+                for v in (-0.2, 0.2):
+                    pts.append([kx + f[0] * u + sdv[0] * v, ky - 0.1, kz + f[1] * u + sdv[1] * v])
+            pts = np.array(pts); top = pts + [0, 0.35, 0]
+            pos = np.vstack([pts, top])
+            tris = [[0, 4, 1], [1, 4, 5], [1, 5, 3], [3, 5, 7], [3, 7, 2], [2, 7, 6], [2, 6, 0], [0, 6, 4], [4, 6, 5], [5, 6, 7]]
+            B.add(pos, tris, srgb([150, 148, 140]))
+        grid_points.append([round(float(a[0]), 2), round(float(a[1]), 2), round(float(a[2]), 2), int(k)])
         grids += 1
+    counts["grid_points"] = grid_points
     counts["cattle_grids"] = grids
 
     # Snow poles: black and white posts beside the road every 50 m or so, alternating sides,
