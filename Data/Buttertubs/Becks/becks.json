@@ -4,50 +4,51 @@
   {
    "name": "SM_BeckStone_0",
    "mesh": "SM_BeckStone_0",
-   "count": 4250,
+   "count": 4842,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_1",
    "mesh": "SM_BeckStone_1",
-   "count": 4370,
+   "count": 4972,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_2",
    "mesh": "SM_BeckStone_2",
-   "count": 4279,
+   "count": 4766,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_3",
    "mesh": "SM_BeckStone_3",
-   "count": 4352,
+   "count": 4728,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_4",
    "mesh": "SM_BeckStone_4",
-   "count": 4262,
+   "count": 4839,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_5",
    "mesh": "SM_BeckStone_5",
-   "count": 4338,
+   "count": 4890,
    "cull_m": 600,
    "shadow": true
   }
  ],
- "km": 16.64,
+ "km": 19.42,
  "meshes": [
   "bed_00",
   "bed_01",
+  "bed_02",
   "water_00"
  ]
 }

@@ -235,7 +235,7 @@ static void ButtertubsTest(const std::string& Dir)
 	double MaxOff = 0.0, OffSum = 0.0, MaxLean = 0.0, Time = 0.0;
 	int Samples = 0, Crashes = 0;
 	const double Want = 16.0;   // m/s, about 36 mph: brisk on a single-track pass
-	while (Near + 2 < Line.size() && Time < 600.0)
+	while (Near + 2 < Line.size() && Time < 1500.0)
 	{
 		const V3 P = S.Position;
 		double Best = 1e18;
@@ -298,7 +298,7 @@ static void ButtertubsTest(const std::string& Dir)
 		++Samples;
 		MaxLean = std::max(MaxLean, std::fabs(S.LeanAngle));
 	}
-	Check(Near + 3 >= Line.size(), "reaches the end of the 3 km", (double)Near);
+	Check(Near + 3 >= Line.size(), "reaches the end of the ride", (double)Near);
 	Check(Crashes == 0, "no crashes on the way", (double)Crashes);
 	Check(MaxOff < 3.0, "stays within 3 m of the centre line (m)", MaxOff);
 	std::printf("  %.0f s, mean off line %.2f m, most lean %.0f deg\n", Time, OffSum / std::max(Samples, 1),
