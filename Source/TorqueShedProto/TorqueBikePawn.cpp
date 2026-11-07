@@ -751,7 +751,7 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	if (RiderRig.IsValid())
 	{
 		bHeadShown = bShow;
-		if (RiderHelmet) RiderHelmet->SetVisibility(bShow);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown);
 		return;
 	}
 	if (RiderParts.Num() < RP_Count) return;
@@ -761,7 +761,15 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 
 void ATorqueBikePawn::ShowRider(bool bShow)
 {
-	if (bShow == bRiderShown || RiderParts.Num() < RP_Count) return;
+	if (bShow == bRiderShown) return;
+	if (RiderRig.IsValid())
+	{
+		bRiderShown = bShow;
+		if (RiderBody) RiderBody->SetVisibility(bShow);
+		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown);
+		return;
+	}
+	if (RiderParts.Num() < RP_Count) return;
 	bRiderShown = bShow;
 	for (UStaticMeshComponent* C : RiderParts) C->SetVisibility(bShow);
 	if (bShow)
