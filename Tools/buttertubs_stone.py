@@ -13,8 +13,10 @@ Data/Buttertubs/Props and placed in the level as Nanite instances (ue_build_leve
     SM_Scree_A..B     a spill of small stones about 1.6 m across (A is swapped for the Megascans
                       Small Limestone Rocks Pack in prop_swaps.json where the PC has it)
     SM_Scar_A..D      4 m of limestone scar: beds of blocks split by joints, stepped back up the face
-    SM_Barn_N         one field barn per map building: rubble walls with quoins and through stones,
-    SM_BarnWood_N       a stone slate roof, a cart door and forking holes (the wood is its own mesh)
+    SM_Bld_N_*        the map's buildings (houses, farms, barns, sheds) as light shells: rubble walls
+                      (masonry texture) with dressed quoins and surrounds, stone slate roofs,
+                      chimneys, sash windows, painted doors; one mesh per material (_Wall, _Stone,
+                      _Wood, _Glass). barn() is the older stone-by-stone field barn.
     SM_Sheep_A..C     a Swaledale ewe grazing, looking up, and lying down
 
 The local frame is the glb's: metres, x along, y up, z across (z is the face for scars). Ground is
@@ -688,6 +690,287 @@ def barn(rng, w, d, h, depth_below):
         S.add(P, T, col, uv)
         s += ln
     return S, Wd
+
+
+# --- Houses, farms and barns as light shells -----------------------------------------------------------
+
+def obox(c, h, R=None, uv_off=(0.0, 0.0)):
+    """A box with flat faces (24 vertices): centre c, half sizes h, rotation R. UVs in metres."""
+    hx, hy, hz = h
+    faces = [((1, 0, 0), (0, 0, -1), (0, 1, 0)), ((-1, 0, 0), (0, 0, 1), (0, 1, 0)),
+             ((0, 1, 0), (1, 0, 0), (0, 0, -1)), ((0, -1, 0), (1, 0, 0), (0, 0, 1)),
+             ((0, 0, 1), (1, 0, 0), (0, 1, 0)), ((0, 0, -1), (-1, 0, 0), (0, 1, 0))]
+    P, T, U = [], [], []
+    hv = np.array([hx, hy, hz])
+    for n, u, v in faces:
+        n, u, v = np.array(n, float), np.array(u, float), np.array(v, float)
+        base = len(P)
+        for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            p = n * hv + u * hv * a + v * hv * b
+            P.append(p)
+            U.append([(p * u).sum() + uv_off[0], (p * v).sum() + uv_off[1]])
+        T += [[base, base + 1, base + 2], [base, base + 2, base + 3]]
+    P = np.array(P)
+    T = np.array(T)
+    # outward winding check per face
+    fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
+    fc = P[T].mean(1)
+    bad = (fn * fc).sum(1) < 0
+    T[bad] = T[bad][:, [0, 2, 1]]
+    if R is not None:
+        P = P @ np.asarray(R).T
+    return P + np.asarray(c, float), T, np.array(U)
+
+
+def quad(M, a, b, c, d, col, uv):
+    """A quad a-b-c-d (counter-clockwise seen from its front)."""
+    M.add(np.array([a, b, c, d], float), [[0, 1, 2], [0, 2, 3]], col, uv)
+
+
+def _cells(L, y0, y1, holes):
+    """Rectangles covering [0, L] x [y0, y1] minus the holes (s0, s1, b0, b1)."""
+    xs = sorted({0.0, L} | {h[0] for h in holes} | {h[1] for h in holes})
+    ys = sorted({y0, y1} | {h[2] for h in holes if y0 < h[2] < y1} | {h[3] for h in holes if y0 < h[3] < y1})
+    out = []
+    for i in range(len(xs) - 1):
+        for j in range(len(ys) - 1):
+            cx, cy = (xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2
+            if any(h[0] < cx < h[1] and h[2] < cy < h[3] for h in holes):
+                continue
+            out.append((xs[i], xs[i + 1], ys[j], ys[j + 1]))
+    return out
+
+
+def building(rng, kind, w, d, h, plinth):
+    """A Swaledale building as light shells: rubble walls (masonry texture) with openings cut in them,
+    dressed quoins, lintels, sills and jambs, a stone slate roof in stepped courses, gable copes and
+    kneelers, chimneys on houses; sash windows and painted doors; a cart door under an arch on barns.
+    kind: 'house', 'farm' (a house with its barn under one roof), 'barn' or 'shed'. w along x (the
+    ridge), d across, eaves h above ground at the centre, walls carried plinth below it.
+    Returns {material: Mesh} for 'masonry', 'stone', 'wood' and 'glass'."""
+    if d > w:
+        out = building(rng, kind, d, w, h, plinth)
+        for m in out.values():
+            m.P = [p[:, [2, 1, 0]] * [1, 1, -1] for p in m.P]
+        return out
+    Wl, St, Wd, Gl = Mesh(), Mesh(), Mesh(), Mesh()
+    house = kind in ("house", "farm")
+    pitch = math.radians(rng.uniform(30, 35) if house else rng.uniform(26, 31))
+    ridge = h + (d / 2) * math.tan(pitch)
+    bright = 0.5 + rng.normal(0, 0.05)
+    paint = [np.array(c) for c in ((0.02, 0.06, 0.03), (0.03, 0.04, 0.09), (0.01, 0.01, 0.012), (0.12, 0.02, 0.02), (0.3, 0.3, 0.28))]
+    door_col = paint[int(rng.integers(len(paint)))]
+
+    def mcol(n, y):
+        c = np.zeros((n, 4)); c[:, 0] = bright + rng.normal(0, 0.02); c[:, 2] = 0.05
+        c[:, 3] = np.clip((0.5 - np.asarray(y)) / 0.8, 0, 1) * 0.7
+        return c
+
+    def scol(n, b=0.55, bare=0.8, moss=0.15):
+        c = np.zeros((n, 4)); c[:, 0] = b + rng.normal(0, 0.03); c[:, 1] = bare; c[:, 2] = 0.3; c[:, 3] = moss
+        return c
+
+    # Bays and openings on the front (+z); a few on the back.
+    house_len = w if kind == "house" else (min(9.0, w * 0.45) if kind == "farm" else 0.0)
+    front, back = [], []
+    two = house and h >= 4.4
+    if house_len > 0:
+        nb = max(2, int(house_len / 2.6))
+        bw = house_len / nb
+        door_bay = nb // 2
+        for i in range(nb):
+            cx = i * bw + bw / 2
+            if i == door_bay:
+                front.append((cx - 0.5, cx + 0.5, 0.0, 2.1, "door"))
+            else:
+                front.append((cx - 0.55, cx + 0.55, 0.85, 2.2, "window"))
+            if two:
+                front.append((cx - 0.5, cx + 0.5, h - 1.75, h - 0.6, "window"))
+        back.append((house_len / 2 - 0.4, house_len / 2 + 0.4, 1.0, 2.0, "window"))
+    if kind in ("farm", "barn"):
+        b0 = house_len + 0.6
+        b1 = w - 0.6
+        if b1 - b0 > 3.2:
+            cx = (b0 + b1) / 2
+            front.append((cx - 1.3, cx + 1.3, 0.0, min(3.0, h - 0.5), "cart"))
+            if b1 - b0 > 7:
+                for fx in (b0 + 0.8, b1 - 1.4):
+                    front.append((fx, fx + 0.6, h - 1.3, h - 0.7, "hole"))
+            back.append((cx - 0.3, cx + 0.3, h - 1.3, h - 0.8, "hole"))
+            if b1 - b0 > 6:
+                front.append((b0 + 0.3, b0 + 1.2, 0.0, 1.9, "door"))
+        elif b1 - b0 > 1.2:
+            cx = (b0 + b1) / 2
+            front.append((cx - 0.5, cx + 0.5, 0.0, 2.0, "door"))
+    if kind == "shed":
+        front.append((w / 2 - 0.5, w / 2 + 0.5, 0.0, min(2.0, h - 0.3), "door"))
+
+    faces = {  # origin (s = 0 corner at ground), along, outward, length, openings
+        "front": (np.array([-w / 2, 0, d / 2]), np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), w, front),
+        "back": (np.array([w / 2, 0, -d / 2]), np.array([-1.0, 0, 0]), np.array([0, 0, -1.0]), w,
+                 [(w - b, w - a, y0, y1, k) for (a, b, y0, y1, k) in back]),
+        "left": (np.array([-w / 2, 0, -d / 2]), np.array([0, 0, 1.0]), np.array([-1.0, 0, 0]), d, []),
+        "right": (np.array([w / 2, 0, d / 2]), np.array([0, 0, -1.0]), np.array([1.0, 0, 0]), d, []),
+    }
+    up = np.array([0, 1.0, 0])
+    for name, (o, a, n, L, holes) in faces.items():
+        # The wall: rectangles round the openings, and reveals 0.2 m deep in them.
+        hl = [(s0, s1, b0, b1) for (s0, s1, b0, b1, _) in holes]
+        for (s0, s1, y0, y1) in _cells(L, -plinth, h, hl):
+            p = [o + a * s0 + up * y0, o + a * s1 + up * y0, o + a * s1 + up * y1, o + a * s0 + up * y1]
+            quad(Wl, *p, mcol(4, [y0, y0, y1, y1]), [[s0, y0], [s1, y0], [s1, y1], [s0, y1]])
+        for (s0, s1, b0, b1, k) in holes:
+            dep = 0.22 if k != "cart" else 0.35
+            for (pa, pb) in (((s0, b0), (s0, b1)), ((s1, b1), (s1, b0)), ((s1, b1), (s0, b1)), ((s0, b0), (s1, b0))):
+                A = o + a * pa[0] + up * pa[1]; B = o + a * pb[0] + up * pb[1]
+                quad(Wl, A, B, B - n * dep, A - n * dep, mcol(4, [pa[1], pb[1], pb[1], pa[1]]),
+                     [[0, pa[1]], [0, pb[1]], [dep, pb[1]], [dep, pa[1]]])
+            # Dressed surrounds: lintel, sill, jambs (cart doors get an arch of voussoirs instead).
+            R = np.stack([a, up, n], 1)
+            mid = o + a * ((s0 + s1) / 2)
+            if k == "cart":
+                r = (s1 - s0) / 2 + 0.15
+                for i in range(11):
+                    th = math.pi * (0.06 + 0.88 * i / 10)
+                    c = mid + a * (-math.cos(th) * r) + up * (b1 - 0.25 + math.sin(th) * r * 0.42 + 0.25) - n * 0.27
+                    Rv = R @ rot_xyz(0, 0, th - math.pi / 2)
+                    P, T, U = obox(c, (0.11, 0.2, 0.3), Rv, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.6), U)
+            else:
+                P, T, U = obox(mid + up * (b1 + 0.11) - n * 0.28, ((s1 - s0) / 2 + 0.18, 0.11, 0.3), R, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.6), U)
+                if k == "window":
+                    P, T, U = obox(mid + up * (b0 - 0.05) - n * 0.24, ((s1 - s0) / 2 + 0.1, 0.05, 0.3), R, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.62, moss=0.3), U)
+                for sj in (s0 - 0.09, s1 + 0.09):
+                    yy = max(b0, -0.2)
+                    while yy < b1 - 0.05:
+                        hh = min(0.3, b1 - yy)
+                        ext = 0.12 if int(yy / 0.3) % 2 else 0.06
+                        P, T, U = obox(o + a * sj + up * (yy + hh / 2) - n * 0.235, (0.09 + ext * 0.3, hh / 2 - 0.005, 0.25), R, rng.uniform(0, 5, 2))
+                        St.add(P, T, scol(len(P), 0.6), U)
+                        yy += hh
+            # What fills the opening, set back in it.
+            back_p = lambda s, y, k_=0.0: o + a * s + up * y - n * (dep - 0.02 - k_)
+            if k == "window":
+                g = [back_p(s0, b0), back_p(s1, b0), back_p(s1, b1), back_p(s0, b1)]
+                gc = np.zeros((4, 4)); gc[:, :3] = 0.02
+                quad(Gl, *g, gc, [[0, 0], [1, 0], [1, 1], [0, 1]])
+                white = np.array([0.62, 0.62, 0.6]) if rng.uniform() < 0.8 else door_col
+                bars = [(s0 + 0.03, b0, s0 + 0.07, b1), (s1 - 0.07, b0, s1 - 0.03, b1), (s0, b1 - 0.07, s1, b1 - 0.03),
+                        (s0, b0 + 0.03, s1, b0 + 0.08), ((s0 + s1) / 2 - 0.02, b0, (s0 + s1) / 2 + 0.02, b1),
+                        (s0, (b0 + b1) / 2 - 0.03, s1, (b0 + b1) / 2 + 0.03)]
+                for (x0, y0, x1, y1) in bars:
+                    P, T, U = obox(o + a * ((x0 + x1) / 2) + up * ((y0 + y1) / 2) - n * (dep - 0.06),
+                                   ((x1 - x0) / 2, (y1 - y0) / 2, 0.03), R)
+                    c = np.zeros((len(P), 4)); c[:, :3] = white; c[:, 3] = 0.15
+                    Wd.add(P, T, c, U)
+            elif k in ("door", "cart", "hole"):
+                col = door_col if (k == "door" and house) else np.array([0.13, 0.09, 0.06]) * rng.uniform(0.7, 1.1)
+                planks = max(2, int((s1 - s0) / 0.16))
+                pw = (s1 - s0) / planks
+                for i in range(planks):
+                    P, T, U = obox(o + a * (s0 + (i + 0.5) * pw) + up * ((max(b0, 0) + b1) / 2) - n * (dep - 0.04),
+                                   (pw / 2 - 0.004, (b1 - max(b0, 0)) / 2, 0.025), R, (rng.uniform(0, 3), 0))
+                    c = np.zeros((len(P), 4)); c[:, :3] = col * rng.uniform(0.85, 1.12); c[:, 3] = rng.uniform(0.2, 0.6)
+                    Wd.add(P, T, c, U)
+
+        # Quoins up the corners, long and short in turn, both faces.
+        R = np.stack([a, up, n], 1)
+        yy = -plinth
+        k = 0
+        while yy < h - 0.05:
+            hh = min(0.3, h - yy)
+            for end in (0, 1):   # both corners of the face, long and short opposite to the next face's
+                ln = 0.5 if (k + end) % 2 == 0 else 0.3
+                sc = ln / 2 if end == 0 else L - ln / 2
+                P, T, U = obox(o + a * sc + up * (yy + hh / 2) - n * 0.185, (ln / 2, hh / 2 - 0.006, 0.2), R, rng.uniform(0, 5, 2))
+                St.add(P, T, scol(len(P), 0.6, moss=0.25 if yy < 0.4 else 0.05), U)
+            yy += hh; k += 1
+        # Gable: masonry triangle above the eaves on the ends.
+        if name in ("left", "right"):
+            A = o + up * h; B = o + a * L + up * h; C = o + a * (L / 2) + up * ridge
+            Wl.add(np.array([A, B, C]), [[0, 1, 2]], mcol(3, [h, h, ridge]), [[0, h], [L, h], [L / 2, ridge]])
+        # Through stones in a row on the long walls of barns.
+        if not house and name in ("front", "back"):
+            for st in np.arange(0.9, L - 0.6, 1.2):
+                if not any(s0 - 0.2 < st < s1 + 0.2 and b0 - 0.2 < h * 0.55 < b1 + 0.2 for (s0, s1, b0, b1, _) in holes):
+                    P, T, U = obox(o + a * st + up * (h * 0.55) + n * 0.02, (0.13, 0.06, 0.1), R, rng.uniform(0, 5, 2))
+                    St.add(P, T, scol(len(P), 0.55, moss=0.4), U)
+
+    # Roof: stepped courses of stone slates, wide at the eaves, narrower to the ridge.
+    run = (d / 2 + 0.3) / math.cos(pitch)
+    for side in (-1, 1):
+        u = 0.0
+        while u < run - 0.02:
+            ch = max(0.16, 0.42 - 0.24 * u / run) * rng.uniform(0.9, 1.1)
+            seg = min(ch * 1.6, run - u + 0.05)
+            um = u + seg / 2
+            zz = side * (d / 2 + 0.3 - um * math.cos(pitch))
+            yy = h - 0.3 * math.sin(pitch) + um * math.sin(pitch) + 0.06
+            R = rot_xyz(side * (pitch + 0.03), 0, 0)
+            P, T, U = obox((0, yy, zz), (w / 2 + 0.25, 0.022, seg / 2), R, (rng.uniform(0, 5), u))
+            c = scol(len(P), 0.3 + rng.normal(0, 0.03), 1.0, np.clip(0.2 + 0.4 * (1 - u / run), 0, 1))
+            St.add(P, T, c, U)
+            u += ch
+    for s in np.arange(-w / 2 - 0.2, w / 2 + 0.2, 0.55):
+        P, T, U = obox((s + 0.27, ridge + 0.1, 0), (0.27, 0.11, 0.11), rot_xyz(math.pi / 4, 0, 0), rng.uniform(0, 5, 2))
+        St.add(P, T, scol(len(P), 0.4, 1.0, 0.3), U)
+    # Gable copes up the verges, kneelers at the eaves.
+    for xg in (-w / 2, w / 2):
+        for side in (-1, 1):
+            z0, z1 = side * (d / 2 + 0.12), 0.0
+            y0, y1 = h, ridge
+            ln = math.hypot(z1 - z0, y1 - y0)
+            R = rot_xyz(-side * math.atan2(y1 - y0, abs(z1 - z0)) * (-1), 0, 0)
+            R = rot_xyz(side * pitch, 0, 0)
+            P, T, U = obox((xg, (y0 + y1) / 2 + 0.16, (z0 + z1) / 2), (0.36, 0.09, ln / 2), R, rng.uniform(0, 5, 2))
+            St.add(P, T, scol(len(P), 0.5, 0.8, 0.35), U)
+            P, T, U = obox((xg, h - 0.05, side * (d / 2 - 0.05)), (0.36, 0.2, 0.26), None, rng.uniform(0, 5, 2))
+            St.add(P, T, scol(len(P), 0.55), U)
+    # Chimneys on the house's gable, and at the house end of a farm.
+    if house:
+        spots = [-w / 2 + 0.35] + ([w / 2 - 0.35] if kind == "house" else [-w / 2 + house_len])
+        for sx in spots:
+            P, T, U = obox((sx, ridge + 0.35, 0), (0.3, 0.9, 0.45), None, rng.uniform(0, 5, 2))
+            St.add(P, T, scol(len(P), 0.5, 0.4, 0.1), U)
+            P, T, U = obox((sx, ridge + 1.3, 0), (0.36, 0.06, 0.52), None, rng.uniform(0, 5, 2))
+            St.add(P, T, scol(len(P), 0.55, 0.8, 0.2), U)
+            for zp in (-0.2, 0.2):
+                Pp, Tp = tube([[sx, ridge + 1.34, zp], [sx, ridge + 1.6, zp]], 0.09, 8)
+                c = np.zeros((len(Pp), 4)); c[:, 0] = 0.32; c[:, 1] = 1.0
+                St.add(Pp, Tp, c, Pp[:, [0, 1]])
+    return {"masonry": Wl, "stone": St, "wood": Wd, "glass": Gl}
+
+
+def far_building(w, d, h, rot, x, y_lo, y, z, kind):
+    """Far off, a building is a box and a roof (positions in the ride frame), stone grey and slate
+    dark: (positions, triangles, colours 0..1)."""
+    pitch = math.radians(32 if kind in ("house", "farm") else 28)
+    if d > w:
+        w, d = d, w
+        rot += math.pi / 2
+    ridge = h + (d / 2) * math.tan(pitch)
+    c, s = math.cos(rot), math.sin(rot)
+    def at(u, yy, v):
+        return [x + u * c - v * s, yy, z + u * s + v * c]
+    P = [at(u, yy, v) for yy in (y_lo, y + h) for (u, v) in ((-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2))]
+    T = [[0, 4, 1], [1, 4, 5], [1, 5, 2], [2, 5, 6], [2, 6, 3], [3, 6, 7], [3, 7, 0], [0, 7, 4]]
+    col = [[0.21, 0.2, 0.17]] * 8
+    e = 0.3
+    R = [at(-w / 2 - e, y + h - 0.1, -d / 2 - e), at(w / 2 + e, y + h - 0.1, -d / 2 - e), at(w / 2 + e, y + h - 0.1, d / 2 + e),
+         at(-w / 2 - e, y + h - 0.1, d / 2 + e), at(-w / 2 - e, y + ridge, 0), at(w / 2 + e, y + ridge, 0)]
+    n = len(P)
+    P += R
+    T += [[n + 0, n + 1, n + 5], [n + 0, n + 5, n + 4], [n + 2, n + 3, n + 4], [n + 2, n + 4, n + 5]]
+    col += [[0.05, 0.05, 0.05]] * 6
+    # gable triangles
+    n = len(P)
+    P += [at(-w / 2, y + h, -d / 2), at(-w / 2, y + h, d / 2), at(-w / 2, y + ridge, 0),
+          at(w / 2, y + h, -d / 2), at(w / 2, y + h, d / 2), at(w / 2, y + ridge, 0)]
+    T += [[n, n + 2, n + 1], [n + 3, n + 4, n + 5]]
+    col += [[0.21, 0.2, 0.17]] * 6
+    return np.array(P), np.array(T), np.array(col)
 
 
 # --- Sheep -------------------------------------------------------------------------------------------

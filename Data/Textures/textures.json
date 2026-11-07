@@ -1,5 +1,5 @@
 {
- "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing.",
+ "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing. 'masonry' is the rubble walling of the houses and barns.",
  "roles": {
   "grass": {
    "id": "Grass004",
@@ -60,6 +60,10 @@
   "moss": {
    "id": "Moss002",
    "tile_m": 0.5
+  },
+  "masonry": {
+   "id": "Bricks096",
+   "tile_m": 1.8
   }
  },
  "candidates": {
@@ -118,6 +122,12 @@
    "Moss003",
    "Moss001",
    "Rock064"
+  ],
+  "masonry": [
+   "Bricks096",
+   "Bricks098",
+   "Bricks089",
+   "Rocks025"
   ]
  }
 }

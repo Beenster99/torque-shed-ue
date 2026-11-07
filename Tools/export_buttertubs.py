@@ -478,7 +478,7 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import buttertubs_detail
         counts = buttertubs_detail.build(region.root, region.meta, O, H, xs, zs, best, line, tiles, ROAD_HALF,
-                                         args.out, write_glb)
+                                         args.out, write_glb, far=(B, bx, bz))
         grid_points = counts.pop("grid_points", [])
         print("detail", counts)
 

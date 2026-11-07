@@ -117,7 +117,8 @@ class Props:
     def __init__(self):
         self.meshes = {}
         self.inst = {}
-        self.lod1 = {}   # mesh: a light stand-in for the distance, if the level uses LODs rather than Nanite
+        self.lod1 = {}
+        self.mats = {}   # mesh: its material, where the name doesn't say   # mesh: a light stand-in for the distance, if the level uses LODs rather than Nanite
 
     def mesh(self, name, make):
         if name not in self.meshes:
@@ -158,7 +159,7 @@ class Props:
         for name, M in sorted(self.meshes.items()):
             nv, nt = M.write(os.path.join(folder, name + ".glb"), write_glb, name)
             verts += nv
-            mat = "stone"
+            mat = self.mats.get(name, "stone")
             for prefix, m in self.MATERIAL.items():
                 if (name == prefix[:-1]) if prefix.endswith(".") else name.startswith(prefix):
                     mat = m
@@ -225,15 +226,18 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
             idx = np.flatnonzero(keep)
             if len(idx) < 4:
                 continue
+            on_tile = near(r[:, 0], r[:, 1])
             for run in np.split(idx, np.flatnonzero(np.diff(idx) > 1) + 1):
                 q = r[run]
                 s, at = _arc(q)
                 total = s[-1]
                 if total < 1.2:
                     continue
-                # Heads at both ends (a 1 m piece finished at its outer end), lengths between.
-                ends = total >= 3.0
-                lo, hi = (0.95, total - 0.95) if ends else (0.0, total)
+                # Heads (a 1 m piece finished at its outer end) where the wall stops, not where it
+                # runs off the near land: the far layer carries it on from there.
+                head_lo = total >= 3.0 and (run[0] == 0 or on_tile[run[0] - 1])
+                head_hi = total >= 3.0 and (run[-1] == len(r) - 1 or on_tile[run[-1] + 1])
+                lo, hi = (0.95 if head_lo else 0.0), (total - 0.95 if head_hi else total)
                 n = max(1, int(round((hi - lo) / ST.WALL_L)))
                 ts = np.linspace(lo, hi, n + 1)
                 P = at(ts)
@@ -259,8 +263,9 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                             props.add(props.mesh("SM_WallPier", lambda: ST.wall_end(np.random.default_rng(250), 1.0, True)),
                                       A[0], float(ground(*A)) - 0.03, A[1], mid, 0.0, 0.0, (0.9, 1.02, 1.05))
                     prev = a
-                if ends:
-                    for t0, t1 in ((0.95, 0.0), (total - 0.95, total)):
+                for want, t0, t1 in ((head_lo, 0.95, 0.0), (head_hi, total - 0.95, total)):
+                        if not want:
+                            continue
                         A, B = at(np.array([t0, t1]))
                         d = B - A; c = max(np.linalg.norm(d), 1e-6); d /= c
                         a = math.atan2(d[1], d[0]); m = (A + B) / 2
@@ -325,38 +330,180 @@ def place_scars(props, cliffs, ground, near, road_dist, road_half, rng, counts):
     counts["scar_m"] = round(scar_m); counts["scar_pieces"] = pieces
 
 
-def place_barns(props, region_root, O, ground, near, road_dist, road_half, rng, counts):
-    """A field barn for each of the map's buildings here, stone by stone, sized to its footprint."""
-    barns = 0
+BUILDING_KINDS = ["house", "shed", "barn", "shop", "block", "industrial", "worship", "civic"]
+
+
+def building_shape(row):
+    """Kind, footprint and eaves height for a map building (buildings.json [x, z, w, d, yaw, h, kind, knot])."""
+    w, dpt, h = max(row[2], 3.5), max(row[3], 3.0), row[5]
+    k = BUILDING_KINDS[int(row[6])] if int(row[6]) < len(BUILDING_KINDS) else "house"
+    if k == "shed" or w * dpt < 14:
+        return "shed", w, dpt, 2.6
+    if k == "barn":
+        return "barn", max(w, 5.0), max(dpt, 4.5), min(max(h * 0.62, 3.2), 5.0)
+    if w * dpt > 110 or max(w, dpt) > 15:
+        return "farm", w, dpt, min(max(h * 0.9, 4.8), 6.0)
+    return "house", w, dpt, (min(max(h * 0.9, 4.6), 6.0) if w * dpt >= 40 else 3.2)
+
+
+def place_buildings(props, region_root, O, ground, near, road_dist, road_half, rng, counts):
+    """The map's buildings on the near land: Swaledale houses, farms (house and barn under one roof),
+    field barns and sheds, as light shells (ST.building), sized to their footprints. Buildings of about
+    the same shape share a mesh."""
+    n = 0
     shapes = {}
     for row in json.load(open(os.path.join(region_root, "buildings.json"))):
         x, z = row[0] - O[0], row[1] - O[2]
         if not near(x, z) or road_dist(x, z) < road_half + 2:
             continue
-        w, dpt, rot, h = row[2], row[3], row[4], row[5]
-        w = max(w, 5.0); dpt = max(dpt, 4.5); h = min(max(h * 0.62, 3.2), 5.0)
+        kind, w, dpt, h = building_shape(row)
+        rot = row[4]
         c, s = math.cos(rot), math.sin(rot)
         g = float(ground(x, z))
         lo = min(float(ground(x + u * c - v * s, z + u * s + v * c)) for u in (-w / 2, w / 2) for v in (-dpt / 2, dpt / 2))
-        # Stone by stone suits a field barn, not a village: big footprints (Thwaite's houses and farms)
-        # and steep plots made 30+ MB meshes each. Those wait for a cheaper house builder.
-        if w * dpt > 110.0 or g - lo > 2.5:
-            continue
-        # Barns of about the same size share one mesh (sizes to 3 m, eaves and plinth to 1 m), so
-        # a dale full of them stays a handful of meshes in the repo.
-        key = (round(w / 3.0), round(dpt / 3.0), round(h), math.ceil(g - lo + 0.4))
+        key = (kind, round(w * 2) / 2, round(dpt * 2) / 2, round(h, 1), math.ceil((g - lo + 0.4) * 2) / 2)
         if key not in shapes:
             k = len(shapes)
-            S, Wd = ST.barn(np.random.default_rng(600 + k), max(key[0] * 3.0, 5.0), max(key[1] * 3.0, 4.5), float(key[2]), float(key[3]))
-            props.meshes["SM_Barn_%02d" % k] = S
-            props.meshes["SM_BarnWood_%02d" % k] = Wd
-            shapes[key] = k
-        k = shapes[key]
-        props.add("SM_Barn_%02d" % k, x, g, z, rot)
-        props.add("SM_BarnWood_%02d" % k, x, g, z, rot)
-        barns += 1
-    counts["barns"] = barns
-    counts["barn_meshes"] = len(shapes)
+            parts = ST.building(np.random.default_rng(900 + k), kind, key[1], key[2], key[3], key[4])
+            names = []
+            for mat, M in parts.items():
+                if M.n:
+                    nm = "SM_Bld_%03d_%s" % (k, mat.capitalize())
+                    props.meshes[nm] = M
+                    props.mats[nm] = mat
+                    names.append(nm)
+            shapes[key] = names
+        for nm in shapes[key]:
+            props.add(nm, x, g, z, rot)
+        n += 1
+    counts["buildings"] = n
+    counts["building_shapes"] = len(shapes)
+
+
+def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_glb, counts, reach=3000.0):
+    """Beyond the near land, out to `reach` from the road: the map's walls (folds and field walls
+    alike) and buildings as light, vertex-coloured shapes on the far hills (the backdrop's own 32 m
+    surface, so they sit exactly on it), merged into 1 km cells (far_X_Z.glb). One mesh each, no LODs,
+    no cull distance: nothing pops. Stone grey a little darker than the near walls, as they read at
+    distance; the haze does the rest."""
+    Bh, bx, bz = far
+    bs = bx[1] - bx[0]
+
+    def fground(x, z):
+        """The backdrop's height, on its own triangles (each cell split from (0, 0) to (1, 1))."""
+        x = np.asarray(x, float); z = np.asarray(z, float)
+        fx = np.clip((x - bx[0]) / bs, 0, len(bx) - 1.001); fz = np.clip((z - bz[0]) / bs, 0, len(bz) - 1.001)
+        i = fx.astype(int); j = fz.astype(int); u = fx - i; v = fz - j
+        h00 = Bh[j, i]; h10 = Bh[j, i + 1]; h01 = Bh[j + 1, i]; h11 = Bh[j + 1, i + 1]
+        return np.where(u >= v, h00 + u * (h10 - h00) + v * (h11 - h10), h00 + v * (h01 - h00) + u * (h11 - h01))
+
+    lo = road_line[:, [0, 2]].min(0) - reach; hi = road_line[:, [0, 2]].max(0) + reach
+    lo = np.maximum(lo, [bx[0] + bs, bz[0] + bs]); hi = np.minimum(hi, [bx[-1] - bs, bz[-1] - bs])
+    # Distance from the road on a coarse grid, to keep to `reach`.
+    gx = np.arange(lo[0], hi[0] + 64, 64.0); gz = np.arange(lo[1], hi[1] + 64, 64.0)
+    GX, GZ = np.meshgrid(gx, gz)
+    dist = np.full(GX.shape, np.inf)
+    for p in road_line[::10]:
+        dist = np.minimum(dist, np.hypot(GX - p[0], GZ - p[2]))
+
+    def within(x, z):
+        i = np.clip(np.round((np.asarray(x) - gx[0]) / 64).astype(int), 0, len(gx) - 1)
+        j = np.clip(np.round((np.asarray(z) - gz[0]) / 64).astype(int), 0, len(gz) - 1)
+        inside = (np.asarray(x) >= lo[0]) & (np.asarray(x) <= hi[0]) & (np.asarray(z) >= lo[1]) & (np.asarray(z) <= hi[1])
+        return inside & (dist[j, i] < reach)
+
+    cells = {}
+
+    def cell(x, z):
+        key = (int(math.floor(x / 1000.0)), int(math.floor(z / 1000.0)))
+        if key not in cells:
+            cells[key] = [[], [], [], 0]
+        return cells[key]
+
+    def add(cx, cz, P, T, C):
+        c = cell(cx, cz)
+        c[0].append(P); c[1].append(T + c[3]); c[2].append(C); c[3] += len(P)
+
+    side_c = np.array([0.15, 0.148, 0.135]); top_c = np.array([0.12, 0.13, 0.1])
+    kinds = feats["kinds"]
+    wall_m = 0.0
+    for row in feats["lines"]:
+        if kinds[row[0]] not in ("wall", "retaining_wall"):
+            continue
+        lat, lon = row[6], row[7]
+        pts = [to_ride(lat, lon)]
+        for i in range(8, len(row) - 1, 2):
+            lat += row[i]; lon += row[i + 1]
+            pts.append(to_ride(lat, lon))
+        pts = np.array(pts)
+        if not within(pts[:, 0], pts[:, 1]).any():
+            continue
+        r = resample_line(pts, 6.0)
+        if len(r) < 2:
+            continue
+        keep = within(r[:, 0], r[:, 1]) & ~near(r[:, 0], r[:, 1])
+        idx = np.flatnonzero(keep)
+        if len(idx) < 2:
+            continue
+        for run in np.split(idx, np.flatnonzero(np.diff(idx) > 1) + 1):
+            # Reach back one sample onto the near land so the far wall meets the near one.
+            run = np.arange(max(run[0] - 1, 0), min(run[-1] + 2, len(r)))
+            q = r[run]
+            if len(q) < 2:
+                continue
+            g = fground(q[:, 0], q[:, 1])
+            d = np.gradient(q, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
+            sd = np.stack([-d[:, 1], d[:, 0]], 1)
+            prof = [(-0.45, -0.7), (-0.3, 1.4), (0.3, 1.4), (0.45, -0.7)]
+            P = np.zeros((len(q), 4, 3))
+            for j, (o, y) in enumerate(prof):
+                P[:, j, 0] = q[:, 0] + sd[:, 0] * o; P[:, j, 2] = q[:, 1] + sd[:, 1] * o; P[:, j, 1] = g + y
+            ii = np.arange(len(q) * 4).reshape(len(q), 4)
+            T = []
+            for j in range(3):
+                a_, b_, c_, d_ = ii[:-1, j], ii[:-1, j + 1], ii[1:, j], ii[1:, j + 1]
+                T += [np.stack([a_, c_, b_], 1), np.stack([b_, c_, d_], 1)]
+            T = np.concatenate(T)
+            P = P.reshape(-1, 3)
+            # Outwards: away from the wall's own centre line.
+            fc = P[T].mean(1); fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
+            ctr = np.repeat(np.stack([q[:, 0], g + 0.2, q[:, 1]], 1), 4, 0)[T[:, 0]]
+            flip = (fn * (fc - ctr)).sum(1) < 0
+            T[flip] = T[flip][:, [0, 2, 1]]
+            C = np.repeat(np.stack([side_c, top_c, top_c, side_c])[None], len(q), 0).reshape(-1, 3)
+            C = C * np.random.default_rng(len(q)).uniform(0.85, 1.15, (len(q), 1)).repeat(4, 0)
+            m = q.mean(0)
+            add(m[0], m[1], P, T, C)
+            wall_m += float(np.linalg.norm(np.diff(q, axis=0), axis=1).sum())
+    nb = 0
+    for row in json.load(open(os.path.join(region_root, "buildings.json"))):
+        x, z = row[0] - O[0], row[1] - O[2]
+        if near(x, z) or not within(x, z):
+            continue
+        kind, w, dpt, h = building_shape(row)
+        rot = row[4]; c, s = math.cos(rot), math.sin(rot)
+        y = float(fground(x, z))
+        ylo = min(float(fground(x + u * c - v * s, z + u * s + v * c)) for u in (-w / 2, w / 2) for v in (-dpt / 2, dpt / 2)) - 0.5
+        P, T, C = ST.far_building(w, dpt, h, rot, x, ylo, y, z, kind)
+        add(x, z, P, T, C)
+        nb += 1
+    for f in os.listdir(out):
+        if f.startswith("far_") and f.endswith(".glb"):
+            os.remove(os.path.join(out, f))
+    tris = 0
+    for (kx, kz), (P, T, C, n) in sorted(cells.items()):
+        P = np.concatenate(P); T = np.concatenate(T); C = np.concatenate(C)
+        fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
+        nrm = np.zeros_like(P)
+        for i in range(3):
+            np.add.at(nrm, T[:, i], fn)
+        nrm /= np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+        rgba = np.concatenate([np.clip(C, 0, 1), np.ones((len(P), 1))], 1)
+        name = "far_%d_%d" % (kx, kz)
+        write_glb(os.path.join(out, name + ".glb"), P, T, nrm, (rgba * 255).round().astype(np.uint8), name)
+        tris += len(T)
+    counts["far_wall_m"] = round(wall_m); counts["far_buildings"] = nb; counts["far_cells"] = len(cells)
+    counts["far_triangles"] = tris
 
 
 def place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, rng, counts):
@@ -386,7 +533,7 @@ def place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, rng
     counts["sheep"] = n
 
 
-def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, write_glb, seed=7):
+def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, write_glb, seed=7, far=None):
     rng = np.random.default_rng(seed)
     step = xs[1] - xs[0]
 
@@ -482,7 +629,9 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     counts["fence_m"] = round(fence_m)
 
     place_scars(props, lines.get("cliff", []), ground, near, road_dist, road_half, prng, counts)
-    place_barns(props, region_root, O, ground, near, road_dist, road_half, prng, counts)
+    place_buildings(props, region_root, O, ground, near, road_dist, road_half, prng, counts)
+    if far is not None:
+        place_far(far, region_root, O, near, line, to_ride, feats, out, write_glb, counts)
 
     # Cattle grids where the map has them on the road: a dark pit across the tarmac with galvanised
     # bars over it, following the road's crown and standing a little proud of it as real ones do,

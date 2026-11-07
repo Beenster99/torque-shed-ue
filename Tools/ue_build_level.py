@@ -1439,11 +1439,15 @@ def instanced_usage(m):
     try_set(m, "used_with_nanite", True)
 
 
-def stone_material(tex, roles):
+def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare"):
     """Stone from two scans (lichened limestone and bare, bedded limestone), chosen per stone by the
     vertex colour's green; red sets its brightness; blue whitens it with lichen in patches; alpha is
     moss, thickest where the surface faces up. UV0 is metres of surface."""
-    g = Graph(new_material("M_Stone"))
+    g = Graph(new_material(name))
+    if a_role not in tex:   # not fetched: fall back to another scan rather than flat grey
+        a_role = b_role if b_role in tex else ("stone_bare" if "stone_bare" in tex else a_role)
+    if b_role not in tex:
+        b_role = a_role
     instanced_usage(g.m)
     vc = g.node(unreal.MaterialExpressionVertexColor)
 
@@ -1462,9 +1466,12 @@ def stone_material(tex, roles):
         return [g.op(unreal.MaterialExpressionMultiply, g.const(lin(fallback)), noise(g.m, 0.5, 0.7, 1.2, -1200, g.y)),
                 g.const((0.0, 0.0, 1.0)), g.const(0.88)]
 
-    stone = layer("stone", (150, 148, 140))
-    bare = layer("stone_bare", (160, 158, 152))
-    st = g.mix(stone, bare, vc, alpha_out="G")
+    stone = layer(a_role, (150, 148, 140))
+    if b_role != a_role:
+        bare = layer(b_role, (160, 158, 152))
+        st = g.mix(stone, bare, vc, alpha_out="G")
+    else:
+        st = stone
     bright = g.op(unreal.MaterialExpressionMultiply, vc, a_out="R", const_b=2.0)
     st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], bright)
     # Lichen: pale crusts in patches, on the stones the blue channel picks. The patches come from a
@@ -1608,7 +1615,7 @@ def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
 
 
 def is_detail(name):
-    return name.startswith("detail_")
+    return name.startswith("detail_") or name.startswith("far_")   # far_: walls and buildings beyond the near land
 
 
 def build():
@@ -1648,7 +1655,9 @@ def build():
     if prop_meshes:
         prop_mats = {"stone": stone_material(tex, roles), "fleece": flat_material("M_Fleece", 0.95, fine=0.4),
                      "metal": flat_material("M_GalvanisedSteel", 0.42, metallic=1.0),
-                     "wood": flat_material("M_BarnWood", 0.8, fine=0.15)}
+                     "wood": flat_material("M_BarnWood", 0.8, fine=0.15),
+                     "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry"),
+                     "glass": flat_material("M_WindowGlass", 0.06)}
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).
