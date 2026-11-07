@@ -16,6 +16,7 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Tools/buttertubs_stone.py` | The countryside stone by stone: Dales drystone walls (footings, battered coursed faces, through stones, copes), wall heads, gates and stoops, limestone scars, boulders, field barns and Swaledale sheep. `export_buttertubs.py` writes them to `Data/Buttertubs/Props` and places them along the map's walls, cliffs and buildings in `props.json`; the level script draws them as Nanite instances. `Data/Buttertubs/prop_swaps.json` can swap any of them for a Megascans mesh |
 | `Tools/make_foliage.py` | The moorland ground cover: grass tufts and tussocks, short turf, soft rush, heather, moss and bracken, modelled as Nanite geometry, and where each grows (by slope, wetness, cover, distance from the road, away from walls). Writes `Data/Buttertubs/Foliage`; `Source/TorqueShedProto/TorqueFoliage.*` plants them at Play. `--density 0.6` for fewer |
 | `Tools/make_trees.py` | The trees, every one where a canopy height map (Meta and WRI, 1 m) says a tree stands, at its real height: ash and alder along the gills, sycamore and ash round Thwaite's fields, hawthorns on the fellside, spruce plantations, about 114,000 out to 6 km. Species from the map's leaf types, becks and stands. The models are grown by `Tools/tree_models.py` as Nanite geometry (opaque leaves, no cut-outs), with cheap far versions for trees more than 1.5 km from the ride. Writes `Data/Buttertubs/Trees`; a second TorqueFoliage actor plants them at Play |
+| `Tools/make_far_rock.py`, `Tools/buttertubs_far.py` | The far fells' limestone scars and screes, from the map's cliff lines and scree areas: tinted into the 32 m far hills' colours (by `export_buttertubs.py`), and the scars more than 40 m outside the 2 m tiles built as a bedded face under a turf shelf set into the hillside (`Data/Buttertubs/Far`) |
 | `Tools/make_speedtwin.py` | Builds the Speed Twin model (65 parts as glb, with UVs and finish masks, in `Data/Bike/SpeedTwin`) from measurements of your photos; `--check photo.jpg` renders it over a side-on photo |
 | `Tools/make_bike_textures.py` | Makes the bike's tileable detail textures (tyre tread, leather grain, brushed and cast alloy, paint flake, knurled grips) in `Data/Bike/Textures`; procedural, nothing to download |
 | `Tools/make_rider.py` | Builds the rider in riding kit (jacket, jeans, boots, brown gloves, full-face helmet) as a skinned glb in `Data/Rider`, sat on the Speed Twin; the pawn poses it every frame (`Source/TorqueShedProto/RiderRig.*`) |
@@ -94,6 +95,7 @@ You only need this if the route or the physics change.
 ```
 python Tools/export_buttertubs.py --torque-shed ..\torque-shed
 python Tools/make_foliage.py
+python Tools/make_far_rock.py --torque-shed ..\torque-shed
 python Tools/make_trees.py --torque-shed ..\torque-shed
 cmake -S SimTest -B build/simtest
 cmake --build build/simtest --config Release

@@ -15,7 +15,7 @@ What it does:
      boulders, barns, gates, sheep, from Tools/buttertubs_detail.py) as Nanite meshes with no collision;
   3b. imports the moorland plants (Tools/make_foliage.py) as Nanite meshes and adds the TorqueFoliage
      actor that plants them when the level starts;
-  3c. the same for the trees (Tools/make_trees.py): ash, sycamore, alder, birch, hawthorn and spruce
+  3c. the limestone scars on the far fells (Tools/make_far_rock.py), and the same as 3b for the trees (Tools/make_trees.py): ash, sycamore, alder, birch, hawthorn and spruce
      from a canopy height map, planted by a second TorqueFoliage actor, "Trees";
   4. makes the level: the meshes, the props as instances from props.json, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
      post process volume, and a player start at the top of the ride.
@@ -1343,6 +1343,43 @@ def place_foliage(frame):
     log("foliage: %d species (%d scanned), %d plants (placed at Play)" % (len(species), len(scans), spec.get("total", 0)))
 
 
+# --- Far scars (Tools/make_far_rock.py) --------------------------------------------------------------
+
+FAR_DEST = "/Game/Buttertubs/Far"
+
+
+def place_far_rock(frame, land_mat, stone_mat):
+    """The limestone scars on the far fells: the faces (scars_NN) in M_Stone and the turf shelves
+    above them (shelf_NN) in M_Land, coloured as the far hills under them so they are the same
+    hillside. Plain static meshes at the level's origin, like the land, with no collision."""
+    folder = os.path.join(data_dir(), "Far")
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        log("no far scars (python Tools/make_far_rock.py)")
+        return
+    meshes = import_glbs(folder, FAR_DEST)
+    yaw, mirror, scale = frame
+    rot = unreal.Rotator(0.0, 0.0, float(yaw))
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for name, mesh in sorted(meshes.items()):
+        nanite_off(mesh)
+        try:
+            sme.remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        a = actors.spawn_actor_from_object(mesh, unreal.Vector(0, 0, 0), rot)
+        a.set_actor_scale3d(unreal.Vector(scale, scale * mirror, scale))
+        a.set_actor_label(name)
+        a.set_folder_path("Far")
+        comp = a.get_component_by_class(unreal.StaticMeshComponent)
+        comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+        comp.set_material(0, land_mat if name.startswith("shelf_") else stone_mat)
+        comp.set_collision_profile_name("NoCollision")
+        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        comp.set_editor_property("can_ever_affect_navigation", False)
+    log("far scars: %d meshes" % len(meshes))
+
+
 # --- Trees (Tools/make_trees.py) --------------------------------------------------------------------
 
 TREE_DEST = "/Game/Buttertubs/Trees"
@@ -1810,6 +1847,7 @@ def build():
 
     if prop_meshes:
         place_props(prop_meshes, prop_spec, prop_mats, (yaw, mirror, scale))
+    place_far_rock((yaw, mirror, scale), land, prop_mats.get("stone") or stone_material(tex, roles))
 
     # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
     # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting

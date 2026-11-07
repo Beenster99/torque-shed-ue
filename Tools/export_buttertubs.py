@@ -424,6 +424,10 @@ def main():
         bcol = np.zeros(B.shape + (4,), np.uint8); bcol[..., 3] = 255
         bcov = region.cover(bx + O[0], bz + O[2])
         bcol[..., :3] = land_colour(bcov, region.cover_names, np.hypot(*np.gradient(B, bs)))
+        # The map's limestone scars and screes on the far fells (Tools/buttertubs_far.py).
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import buttertubs_far
+        bcol[..., :3] = buttertubs_far.tint(region.root, region.meta, O, BX, BZ, bcol[..., :3], bs)
         pos, tris, nrm, cc, uv = grid_mesh(B, bx[0], bz[0], bs, bcol)
         write_glb(os.path.join(args.out, "backdrop.glb"), pos, tris, nrm, cc, "backdrop", uv)
 
