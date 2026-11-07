@@ -409,10 +409,107 @@ static void WheelieTests()
 	}
 }
 
+// --- Crashes ------------------------------------------------------------------------------------
+// beenster: the bike sank into the ground in a crash. Off, it should fall, slide and tumble to rest
+// on top of the ground, on the flat and on a bumpy hillside.
+
+// A road running down a hillside (falling away to +x), with dips along it and a lumpy verge.
+static double Hill(double X, double Z) { return -0.15 * X + 0.4 * std::sin(Z * 0.12) + 0.08 * std::sin(X * 1.7 + Z * 0.5) * Clamp(std::fabs(X) - 2.0, 0.0, 1.0); }
+
+static RayHit HillRay(const V3& From, const V3& To)
+{
+	RayHit H;
+	const int Steps = 48;
+	V3 Prev = From;
+	double PrevD = From.y - Hill(From.x, From.z);
+	for (int i = 1; i <= Steps; ++i)
+	{
+		const V3 P = From + (To - From) * (double(i) / Steps);
+		const double D = P.y - Hill(P.x, P.z);
+		if (D <= 0.0)
+		{
+			const double T = PrevD / (PrevD - D);
+			H.Hit = true;
+			H.Position = Prev + (P - Prev) * T;
+			H.Position.y = Hill(H.Position.x, H.Position.z);
+			const double E = 0.05;
+			const double Hx = Hill(H.Position.x + E, H.Position.z) - Hill(H.Position.x - E, H.Position.z);
+			const double Hz = Hill(H.Position.x, H.Position.z + E) - Hill(H.Position.x, H.Position.z - E);
+			H.Normal = V3(-Hx / (2 * E), 1.0, -Hz / (2 * E)).Normalized();
+			H.Surface = SURF_TARMAC;
+			return H;
+		}
+		Prev = P;
+		PrevD = D;
+	}
+	return H;
+}
+
+static void CrashTests()
+{
+	const double Dt = 1.0 / 120.0;
+	struct Case { const char* Name; bool OnHill; int How; };
+	for (const Case& K : {Case{"flat, looped wheelie", false, 0}, Case{"flat, lowside at 20 m/s", false, 1},
+			 Case{"hillside, lowside at 20 m/s", true, 1}, Case{"hillside, highside at 25 m/s", true, 2}})
+	{
+		std::printf("Crash: %s\n", K.Name);
+		const double Ground0 = K.OnHill ? Hill(0, 0) : 0.0;
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = K.OnHill ? RayFn(HillRay) : RayFn(FlatRay);
+		S.Place(V3(0, Ground0, 0), 0.0);
+		S.Assist = K.How == 0 ? 0.0 : 0.6;
+		for (int i = 0; i < 240; ++i) S.Step(Dt);
+		Check(!S.IsCrashed, "upright before the crash", 0.0);
+		if (K.How == 0)
+		{
+			S.AutoShift = false;
+			S.Throttle = 1.0;
+			S.BodyShift = -1.0;
+			for (int i = 0; i < 120 * 6 && !S.IsCrashed; ++i) S.Step(Dt);
+		}
+		else
+		{
+			const double V = K.How == 1 ? 20.0 : 25.0;
+			S.Throttle = 1.0;
+			for (int i = 0; i < 120 * 20 && S.Speed < V; ++i) S.Step(Dt);
+			// Thrown down: the bike off at speed and rolling onto its side (or flicked over the top).
+			S.IsCrashed = true;
+			const V3 Fwd = -S.Basis.Z;
+			S.AngularVelocity = Fwd * (K.How == 1 ? 2.5 : -5.0) + S.Basis.X * (K.How == 2 ? -1.5 : 0.0);
+			if (K.How == 2) S.LinearVelocity += UP * 2.5;
+		}
+		Check(S.IsCrashed, "came off (m/s)", S.LinearVelocity.Length());
+		const V3 From = S.Position;
+		double Lowest = 1e9;
+		bool Finite = true;
+		int Resting = 0;
+		double Rest = -1.0;
+		for (int i = 0; i < 120 * 8; ++i)
+		{
+			S.Step(Dt);
+			const double Gap = S.GroundGap();
+			if (!std::isfinite(Gap) || !std::isfinite(S.Position.y)) { Finite = false; break; }
+			Lowest = std::min(Lowest, Gap);
+			Resting = S.LinearVelocity.Length() < 0.1 && S.AngularVelocity.Length() < 0.1 ? Resting + 1 : 0;
+			if (Rest < 0.0 && Resting > 60) Rest = i * Dt;
+		}
+		const double Gap = S.GroundGap();
+		const double Slid = V3(S.Position.x - From.x, 0.0, S.Position.z - From.z).Length();
+		Check(Finite, "no NaNs", 0.0);
+		Check(Lowest > -0.06, "never sinks into the ground (deepest part, m)", Lowest);
+		Check(Rest > 0.0, "comes to rest (s)", Rest);
+		Check(Gap > -0.04 && Gap < 0.03, "lies on the ground at the end (lowest part, m)", Gap);
+		std::printf("  ends %s\n", S.Basis.Y.y > 0.3 ? "wheels down" : S.Basis.Y.y < -0.3 ? "upside down" : "on its side");
+		std::printf("  slid %.1f m\n", Slid);
+	}
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
 	WheelieTests();
+	CrashTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

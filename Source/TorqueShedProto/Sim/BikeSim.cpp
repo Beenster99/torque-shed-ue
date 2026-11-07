@@ -2,6 +2,8 @@
 // ones (_update_steering is UpdateSteering, and so on); the comments carry over the reasons.
 #include "BikeSim.h"
 
+#include <vector>
+
 namespace TorqueSim
 {
 namespace
@@ -53,6 +55,43 @@ const double CARELESS_SLIP = 0.9;
 const double BRAKE_KEEP = 0.55;
 const double AIR_DENSITY = 1.2;
 const double AIR_REV_PITCH = 7.0;
+} // namespace
+
+namespace
+{
+// Where the fallen bike touches the ground, body space (x right, y up, z back; the origin is at axle
+// height midway between the wheels): the tyres' edges, bar ends, mirrors, pegs, engine covers,
+// silencers, headlight, tank and tail.
+// The first CRASH_TYRE_POINTS are the tyres' treads.
+const size_t CRASH_TYRE_POINTS = 32;
+std::vector<V3> CrashPoints(const BikeSpec& B)
+{
+	std::vector<V3> P;
+	const double Half = B.Wheelbase * 0.5;
+	for (int Front = 0; Front < 2; ++Front)
+	{
+		const double Z = Front ? -Half : Half, R = Front ? B.FrontRadius : B.RearRadius;
+		for (int A = 0; A < 8; ++A)
+		{
+			const double T = A * TAU / 8.0;
+			for (double X : {-0.07, 0.07}) P.push_back(V3(X, R * std::sin(T), Z + R * std::cos(T)));
+		}
+	}
+	for (double S : {-1.0, 1.0})
+	{
+		P.push_back(V3(0.40 * S, 0.62, -0.42));    // bar ends
+		P.push_back(V3(0.33 * S, 0.85, -0.38));    // mirrors
+		P.push_back(V3(0.20 * S, 0.02, 0.10));     // footpegs
+		P.push_back(V3(0.22 * S, 0.12, -0.18));    // engine covers
+		P.push_back(V3(0.20 * S, 0.10, 0.55));     // silencers
+		P.push_back(V3(0.16 * S, 0.50, -0.10));    // tank sides
+		P.push_back(V3(0.14 * S, 0.45, 0.45));     // seat and tail sides
+	}
+	P.push_back(V3(0.0, 0.48, -0.78));             // headlight
+	P.push_back(V3(0.0, 0.62, -0.15));             // tank top
+	P.push_back(V3(0.0, 0.55, 0.50));              // seat
+	return P;
+}
 } // namespace
 
 void BikeSim::Setup(const BikeSpec& Spec)
@@ -158,11 +197,17 @@ void BikeSim::Step(double Delta)
 	{
 		Throttle = 0.0;
 		CrashTimer += Delta;
-		// Lying on the road: friction and gravity are left to the game's own physics when it's
-		// shown; here the body just settles.
-		LinearVelocity = LinearVelocity * std::exp(-3.0 * Delta);
-		AngularVelocity = AngularVelocity * std::exp(-3.0 * Delta);
-		Position += LinearVelocity * Delta;
+		// The ground under each point is looked up once a tick (a ray each); the steps between use
+		// it as a plane.
+		if (CrashPts.empty()) CrashPts = CrashPoints(Build);
+		CrashGround.resize(CrashPts.size());
+		for (size_t I = 0; I < CrashPts.size(); ++I)
+		{
+			const V3 P = Position + Basis * CrashPts[I];
+			CrashGround[I] = Ray ? Ray(P + UP * 2.0, P - UP * 1.5) : RayHit();
+		}
+		const int Sub = std::max(1, (int)std::ceil(Delta * 480.0));
+		for (int I = 0; I < Sub; ++I) StepCrashed(Delta / Sub);
 		return;
 	}
 
@@ -201,6 +246,83 @@ void BikeSim::Step(double Delta)
 	ApplyFeet();
 	CheckCrash();
 	Integrate(Delta);
+}
+
+// --- off: the bike as a tumbling body on the ground ----------------------------------------------
+
+
+double BikeSim::GroundGap()
+{
+	if (CrashPts.empty()) CrashPts = CrashPoints(Build);
+	double Gap = 1e9;
+	for (const V3& Local : CrashPts)
+	{
+		const V3 P = Position + Basis * Local;
+		const RayHit Hit = Ray ? Ray(P + UP * 2.0, P - UP * 3.0) : RayHit();
+		if (Hit.Hit) Gap = std::min(Gap, (P - Hit.Position).Dot(Hit.Normal));
+	}
+	return Gap;
+}
+
+void BikeSim::StepCrashed(double Delta)
+{
+	// Gravity, and each touching point pushed out of the ground with a spring and damper and dragged
+	// back by sliding friction: the bike falls, scrapes along on its side, tumbles and comes to rest.
+	static const double MU_SLIDE = 0.5;
+	static const double SKIN = 0.02;   // how far a point may sink before the body is lifted out
+	const double M = Build.TotalMass;
+	const double K = M * G / 0.03;     // three points carry the weight at 1 cm deep
+	const double C = 2.0 * std::sqrt(K * M / 3.0);
+	const V3 Com = Position + Basis * CenterOfMass;
+	double Lift = 0.0;
+	V3 LiftDir = UP;
+	bool Touching = false;
+	for (size_t I = 0; I < CrashPts.size() && I < CrashGround.size(); ++I)
+	{
+		const V3& Local = CrashPts[I];
+		const V3 P = Position + Basis * Local;
+		const RayHit& Hit = CrashGround[I];
+		if (!Hit.Hit) continue;
+		const V3 N = Hit.Normal;
+		const double Depth = (Hit.Position - P).Dot(N);
+		if (Depth <= 0.0) continue;
+		Touching = true;
+		const V3 R = P - Com;
+		const V3 V = LinearVelocity + AngularVelocity.Cross(R);
+		const double Vn = V.Dot(N);
+		const double Fn = std::max(K * std::min(Depth, 0.1) - C * Vn, 0.0);
+		V3 Vt = V - N * Vn;
+		// A tyre still on its tread rolls: little drag along the bike, the full scrape across it.
+		const bool Tread = I < CRASH_TYRE_POINTS && std::fabs(N.Dot(Basis.X)) < 0.5;
+		double Mu = MU_SLIDE;
+		if (Tread)
+		{
+			const V3 Along = (Basis.Z - N * Basis.Z.Dot(N)).Normalized();
+			const double Roll = Vt.Dot(Along);
+			Vt -= Along * (Roll * 0.95);
+		}
+		const double Slide = Vt.Length();
+		const V3 Ft = Vt * (-Mu * Fn / std::max(Slide, 0.2));
+		ApplyForce(N * Fn + Ft, P - Position);
+		if (Depth - SKIN > Lift) { Lift = Depth - SKIN; LiftDir = N; }
+	}
+	Integrate(Delta);
+	if (Lift > 0.0)
+	{
+		// Never left inside the ground: lift the body out and stop it moving further in.
+		Position += LiftDir * Lift;
+		const double In = LinearVelocity.Dot(LiftDir);
+		if (In < 0.0) LinearVelocity -= LiftDir * In;
+	}
+	if (Touching)
+	{
+		AngularVelocity = AngularVelocity * std::exp(-1.5 * Delta);
+		if (LinearVelocity.Length() < 0.08 && AngularVelocity.Length() < 0.08)
+		{
+			LinearVelocity = LinearVelocity * 0.5;
+			AngularVelocity = AngularVelocity * 0.5;
+		}
+	}
 }
 
 void BikeSim::MeasureAttitude()
