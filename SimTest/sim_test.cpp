@@ -99,14 +99,16 @@ static void FlatTests()
 	std::printf("  braking from %.1f m/s\n", V0);
 	Check(Dist > 28.0 && Dist < 55.0, "stopping distance from 60 mph (m)", Dist);
 
-	// The rear brake alone: ABS keeps the wheel turning; with ABS off it locks.
+	// The rear brake alone: ABS keeps the wheel turning; with ABS off it locks, at town and road speeds.
+	for (double From : {15.0, 25.0})
 	for (bool Abs : {true, false})
 	{
+		if (Abs) std::printf("  rear brake alone from %.0f m/s\n", From);
 		S.Build.AbsRear = Abs;
 		S.FrontBrake = 0.0;
 		S.RearBrake = 0.0;
 		S.Throttle = 1.0;
-		for (int i = 0; i < 120 * 20 && S.Speed < 15.0; ++i) S.Step(Dt);
+		for (int i = 0; i < 120 * 20 && S.Speed < From; ++i) S.Step(Dt);
 		S.Throttle = 0.0;
 		S.RearBrake = 1.0;
 		double Worst = 0.0;
@@ -303,9 +305,114 @@ static void ButtertubsTest(const std::string& Dir)
 		MaxLean * 180.0 / Pi);
 }
 
+// --- Wheelies -----------------------------------------------------------------------------------
+// beenster's ask: a wheelie needs the weight back to come up and the throttle held to stay up.
+
+static void RollInFirst(BikeSim& S, double Assist)
+{
+	const double Dt = 1.0 / 120.0;
+	S.Setup(BikeSpec::SpeedTwin1200());
+	S.Ray = FlatRay;
+	S.Place(V3(0, 0, 0), 0.0);
+	S.Assist = Assist;
+	S.AutoShift = false;
+	S.BodyShift = S.FrontBrake = S.RearBrake = S.LeanInput = 0.0;
+	for (int i = 0; i < 240; ++i) S.Step(Dt);
+	S.Throttle = 0.3;
+	for (int i = 0; i < 120 * 10 && S.Speed < 7.0; ++i) S.Step(Dt);
+}
+
+// Weight back and full throttle until the front is up at the given pitch.
+static bool LiftTo(BikeSim& S, double Deg)
+{
+	const double Dt = 1.0 / 120.0;
+	S.BodyShift = -1.0;
+	S.Throttle = 1.0;
+	for (int i = 0; i < 120 * 3; ++i)
+	{
+		S.Step(Dt);
+		if (S.IsCrashed) return false;
+		if (S.PitchAngle > DegToRad(Deg)) return true;
+	}
+	return false;
+}
+
+// A rider holding the wheelie on the throttle at about 28 degrees; returns seconds with the front up.
+static double HoldOnThrottle(BikeSim& S, double Seconds)
+{
+	const double Dt = 1.0 / 120.0;
+	double Up = 0.0, I = 0.0;
+	for (int i = 0; i < (int)(Seconds * 120); ++i)
+	{
+		const double Err = DegToRad(28.0) - S.PitchAngle;
+		const double Rate = S.AngularVelocity.Dot(S.Basis.X);
+		I += Err * Dt;
+		S.Throttle = Clamp(0.45 + 2.5 * Err - 0.6 * Rate + 0.5 * I, 0.0, 1.0);
+		S.Step(Dt);
+		if (S.IsCrashed) break;
+		if (S.Wheels[0].Contact) break;
+		Up += Dt;
+	}
+	return Up;
+}
+
+static double SecondsToFrontDown(BikeSim& S, double Most)
+{
+	const double Dt = 1.0 / 120.0;
+	for (int i = 0; i < (int)(Most * 120); ++i)
+	{
+		S.Step(Dt);
+		if (S.IsCrashed) return -1.0;
+		if (S.Wheels[0].Contact) return i * Dt;
+	}
+	return Most;
+}
+
+static void WheelieTests()
+{
+	const double Dt = 1.0 / 120.0;
+	for (double Assist : {0.0, 0.6})
+	{
+		std::printf("Wheelies at realism %.1f\n", Assist);
+		BikeSim S;
+
+		RollInFirst(S, Assist);
+		S.Throttle = 1.0;
+		double Most = 0.0;
+		for (int i = 0; i < 120 * 2; ++i)
+		{
+			S.Step(Dt);
+			Most = std::max(Most, S.PitchAngle);
+		}
+		Check(!S.IsCrashed && Most < DegToRad(6.0), "full throttle, weight centred: front stays low (deg)", Most * 180.0 / Pi);
+
+		RollInFirst(S, Assist);
+		const bool Lifted = LiftTo(S, 20.0);
+		Check(Lifted, "weight back, full throttle: front up to 20 deg (deg)", S.PitchAngle * 180.0 / Pi);
+
+		RollInFirst(S, Assist);
+		LiftTo(S, 25.0);
+		S.Throttle = 0.0;
+		const double Shut = SecondsToFrontDown(S, 3.0);
+		Check(Shut >= 0.0 && Shut < 1.5, "throttle shut at 25 deg: front down (s)", Shut);
+
+		RollInFirst(S, Assist);
+		LiftTo(S, 25.0);
+		const double Held = HoldOnThrottle(S, 3.0);
+		Check(!S.IsCrashed && Held >= 2.9, "weight back, throttle worked: held up (s)", Held);
+
+		RollInFirst(S, Assist);
+		LiftTo(S, 25.0);
+		S.BodyShift = 0.0;
+		const double Centred = HoldOnThrottle(S, 3.0);
+		Check(!S.IsCrashed && Centred < 1.5, "weight centred, throttle worked: comes down (s)", Centred);
+	}
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
+	WheelieTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;
