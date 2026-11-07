@@ -191,7 +191,7 @@ def roadside_walls(region_root, O, line, lines, village, road_half, near, ground
     N, E = r["nodes"], r["edges"]
     xz = line[:, [0, 2]]
     # Lanes and tracks that join the ride (any road that comes near it but isn't it).
-    joins = []
+    joins, junctions = [], []
     for e in E:
         pp = e["p"]
         pts = np.array([N[e["a"]]] + [(pp[i], pp[i + 1]) for i in range(0, len(pp), 2)] + [N[e["b"]]], float) - [O[0], O[2]]
@@ -202,6 +202,11 @@ def roadside_walls(region_root, O, line, lines, village, road_half, near, ground
         off = q[(d > road_half + 3) & (d < 40)]
         if len(off) and (d > 6).mean() > 0.3:
             joins.append(off)
+            k = int(np.argmin(d))
+            if e.get("c", 8) < 8 and d[k] < road_half + 12 and near(q[k:k + 1, 0], q[k:k + 1, 1]).all() \
+                    and all(np.hypot(*(q[k] - j[0])) > 50 for j in junctions):   # roads and lanes, not tracks
+                far_k = min(len(q) - 1, k + 6) if (k == 0 or d[min(len(q) - 1, k + 6)] > d[max(0, k - 6)]) else max(0, k - 6)
+                junctions.append((q[k], q[far_k] - q[k], e.get("c", 8)))
     joins = np.concatenate(joins) if joins else np.zeros((0, 2))
     walls = np.concatenate([resample_line(p, 2.0) for p in lines.get("wall", []) + lines.get("retaining_wall", [])]) \
         if lines.get("wall") else np.zeros((0, 2))
@@ -238,7 +243,116 @@ def roadside_walls(region_root, O, line, lines, village, road_half, near, ground
             L = len(run) * 2.0
             for t in np.arange(rng.uniform(40, 120), L - 20, rng.uniform(130, 260)):
                 spots.append(tuple(q[int(t / 2.0)]))
-    return out, spots
+    return out, spots, junctions
+
+
+def place_street(props, line, village, junctions, ground, road_half, rng, counts):
+    """A start on the villages' street furniture: in each village the ride passes through, a K6
+    telephone box, a pillar box and a bench or two on the verge, and its name sign on the left at
+    each way in; a finger post and a side-road sign at each lane that joins the ride; by farms near
+    the road, a milk churn stand and a couple of wheelie bins. All on the verge, clear of the
+    buildings."""
+    xz = line[:, [0, 2]]
+    seg = np.linalg.norm(np.diff(xz, axis=0), axis=1); s_al = np.concatenate([[0], np.cumsum(seg)])
+    fwd = np.gradient(xz, axis=0); fwd /= np.maximum(np.linalg.norm(fwd, axis=1, keepdims=True), 1e-9)
+    left = np.stack([fwd[:, 1], -fwd[:, 0]], 1)        # x east, z south: the left of the way you ride
+    bld = village.get("bld", [])
+    B = np.array([[b[0], b[1]] for b in bld]).reshape(-1, 2)
+    R = np.array([max(b[2], b[3]) / 2 + 2.0 for b in bld])
+    made = {}
+    n = {"phone_boxes": 0, "post_boxes": 0, "benches": 0, "village_signs": 0, "finger_posts": 0,
+         "junction_signs": 0, "churn_stands": 0, "bins": 0}
+
+    def parts(name, make):
+        if name not in made:
+            names = []
+            for mat, M in make().items():
+                if M.n:
+                    nm = "SM_%s_%s" % (name, mat.capitalize())
+                    props.meshes[nm] = M; props.mats[nm] = mat
+                    names.append(nm)
+            made[name] = names
+        return made[name]
+
+    def free(x, z, r=1.2):
+        if not len(B):
+            return True
+        return bool((np.hypot(B[:, 0] - x, B[:, 1] - z) > R + r).all())
+
+    def put(name, make, x, z, face, yaw_extra=0.0):
+        """face: the direction (x, z) the thing's front (+z) looks."""
+        a = math.atan2(-face[0], face[1]) + yaw_extra
+        for nm in parts(name, make):
+            props.add(nm, x, float(ground(x, z)) - 0.02, z, a)
+
+    def verge(k, side, off):
+        sd = left[k] * side
+        return xz[k] + sd * (road_half + off), -sd   # position, facing the road
+
+    def at_s(sv):
+        return int(np.clip(np.searchsorted(s_al, sv), 1, len(xz) - 2))
+
+    for vx, vz, vr in village["villages"]:
+        inside = np.flatnonzero(np.hypot(xz[:, 0] - vx, xz[:, 1] - vz) < vr)
+        if len(inside) < 10:
+            continue
+        s0, s1 = s_al[inside[0]], s_al[inside[-1]]
+        # name signs on the left at each way in
+        for k, side_dir in ((at_s(s0 - 15), 1), (at_s(s1 + 15), -1)):
+            p, f = verge(k, 1 if side_dir > 0 else -1, 1.3)
+            if free(*p, 0.5):
+                put("SignVillage", lambda: ST.road_sign(np.random.default_rng(700), "village"), p[0], p[1], fwd[k] * -side_dir)
+                n["village_signs"] += 1
+        plan = [(0.32, "PhoneBox", lambda: ST.phone_box(np.random.default_rng(710)), 1.7, "phone_boxes"),
+                (0.55, "PostBox", lambda: ST.post_box(np.random.default_rng(711)), 1.3, "post_boxes"),
+                (0.2, "Bench", lambda: ST.bench(np.random.default_rng(712)), 1.8, "benches"),
+                (0.74, "Bench", lambda: ST.bench(np.random.default_rng(712)), 1.8, "benches")]
+        for t, name, make, off, key in plan:
+            for tries in range(8):
+                k = at_s(s0 + (s1 - s0) * (t + tries * 0.03 * (-1) ** tries))
+                side = 1 if (tries + int(t * 10)) % 2 == 0 else -1
+                p, f = verge(k, side, off)
+                if free(*p, 0.8):
+                    put(name, make, p[0], p[1], f)
+                    n[key] += 1
+                    break
+    # Lanes joining the ride: a finger post on the corner, a side-road sign before it.
+    for jp, jdir, jc in junctions:
+        d = np.hypot(xz[:, 0] - jp[0], xz[:, 1] - jp[1]); k = int(np.argmin(d))
+        side = 1 if (jp - xz[k]) @ left[k] > 0 else -1
+        p = xz[k] + left[k] * side * (road_half + 1.6) + fwd[k] * 4.5
+        lane = jdir / max(np.linalg.norm(jdir), 1e-9)
+        arms = [math.atan2(fwd[k][1], fwd[k][0]), math.atan2(-fwd[k][1], -fwd[k][0]), math.atan2(lane[1], lane[0])]
+        if free(*p, 0.5):
+            for nm in parts("FingerPost_%d" % n["finger_posts"], lambda: ST.finger_post(np.random.default_rng(720), arms)):
+                props.add(nm, p[0], float(ground(*p)) - 0.1, p[1], 0.0)
+            n["finger_posts"] += 1
+        for dirn in ((1, -1) if jc <= 5 else ()):   # the triangle warns riders from either way, on their left; not for lanes
+            kk = at_s(s_al[k] - dirn * 70)
+            p, f = verge(kk, dirn, 1.3)
+            if free(*p, 0.5):
+                put("SignJunction", lambda: ST.road_sign(np.random.default_rng(701), "junction"), p[0], p[1], -fwd[kk] * dirn)
+                n["junction_signs"] += 1
+    # Farms near the road: a churn stand at the road end, bins beside it.
+    bins = [(0.02, 0.07, 0.03), (0.03, 0.03, 0.03), (0.02, 0.03, 0.08)]
+    for b in bld:
+        if b[5] != "farm" or n["churn_stands"] >= 8:
+            continue
+        d = np.hypot(xz[:, 0] - b[0], xz[:, 1] - b[1]); k = int(np.argmin(d))
+        if d[k] > 45:
+            continue
+        side = 1 if (np.array(b[:2]) - xz[k]) @ left[k] > 0 else -1
+        p, f = verge(k, side, 1.6)
+        if not free(*p, 0.8):
+            continue
+        put("ChurnStand", lambda: ST.churn_stand(np.random.default_rng(730)), p[0], p[1], f)
+        n["churn_stands"] += 1
+        for j in range(2):
+            q = p + fwd[k] * (1.3 + 0.7 * j)
+            ci = int(rng.integers(len(bins)))
+            put("Bin_%d" % ci, lambda ci=ci: ST.wheelie_bin(np.random.default_rng(740 + ci), bins[ci]), q[0], q[1], f, rng.normal(0, 0.1))
+            n["bins"] += 1
+    counts.update(n)
 
 
 def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, counts):
@@ -582,16 +696,36 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
     # Nothing on the road: every footprint's outline (corners and every 1.5 m along its edges) must
     # stand road_half + 1.5 m off the centre line, or the building is left out (and a terraced
     # neighbour finishes its own end instead).
-    def clear(b):
+    A_ = line[:-1][:, [0, 2]]; AB = line[1:][:, [0, 2]] - A_; AB2 = np.maximum((AB ** 2).sum(1), 1e-9)
+
+    def line_dist(pts):
+        """Exact distance from each point to the road's centre line (the 2 m grid lookup is up to a
+        metre and a half out, enough to let a corner onto the tarmac)."""
+        out = np.empty(len(pts))
+        for i in range(0, len(pts), 256):
+            q = pts[i:i + 256]
+            t = np.clip((((q[:, None, :] - A_[None]) * AB[None]).sum(2)) / AB2[None], 0, 1)
+            cp = A_[None] + t[..., None] * AB[None]
+            out[i:i + 256] = np.sqrt(((q[:, None, :] - cp) ** 2).sum(2)).min(1)
+        return out
+
+    def outline(b, front=0.0, pad=0.4):
+        """Points round what is built: the footprint grown by the eaves and verges (pad), and on the
+        front side by `front` more (a porch, a garden wall)."""
         c, s_ = math.cos(b["rot"]), math.sin(b["rot"])
+        u_ = b["w"] / 2 + pad; v0_, v1_ = -(b["d"] / 2 + pad), b["d"] / 2 + pad + front
         pts = []
-        for (u0, v0), (u1, v1) in ((((-1, -1), (1, -1))), (((1, -1), (1, 1))), (((1, 1), (-1, 1))), (((-1, 1), (-1, -1)))):
-            L = math.hypot((u1 - u0) * b["w"], (v1 - v0) * b["d"]) / 2
-            for t in np.linspace(0, 1, max(2, int(L / 1.5) + 2)):
-                u = (u0 + (u1 - u0) * t) * b["w"] / 2; v = (v0 + (v1 - v0) * t) * b["d"] / 2
+        for (ua, va), (ub, vb) in (((-u_, v0_), (u_, v0_)), ((u_, v0_), (u_, v1_)), ((u_, v1_), (-u_, v1_)), ((-u_, v1_), (-u_, v0_))):
+            for t in np.linspace(0, 1, max(2, int(math.hypot(ub - ua, vb - va) / 1.0) + 2)):
+                u = ua + (ub - ua) * t; v = va + (vb - va) * t
                 pts.append((b["x"] + u * c - v * s_, b["z"] + u * s_ + v * c))
-        pts = np.array(pts)
-        return bool((road_dist(pts[:, 0], pts[:, 1]) > road_half + 1.5).all())
+        return np.array(pts)
+
+    def clear(b, front=0.0):
+        if b["kind"] == "chapel":        # its front is the +x gable: grow that end instead
+            bb = dict(b); bb["rot"] = b["rot"] - math.pi / 2; bb["w"], bb["d"] = b["d"], b["w"]
+            b = bb
+        return bool((line_dist(outline(b, front)) > road_half + 1.0).all())
     dropped = set()
     for g in groups.values():
         if all(clear(rows[i]) for i in g):
@@ -643,7 +777,8 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
             vil = b["village"]
             opt = {"party": party,
                    "roof": "welsh" if rng.uniform() < (0.35 if kind in ("house", "pub", "chapel", "school") else 0.1) else "stone",
-                   "porch": kind in ("pub", "lodge") or (kind in ("house", "farm") and rng.uniform() < 0.35),
+                   "porch": (kind in ("pub", "lodge") or (kind in ("house", "farm") and rng.uniform() < 0.35)) and clear(b, 1.8),
+                   "porch_ok": clear(b, 1.8),
                    "sign": kind == "pub"}
             if kind in ("house", "pub", "chapel", "lodge") and rng.uniform() < (0.24 if vil else 0.1):
                 opt["render"] = ST.RENDERS[int(rng.integers(len(ST.RENDERS)))]
@@ -657,6 +792,9 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
                 room = float(road_dist(fx, fz)) - road_half
                 if tr @ fdir > 0.6 * dd and 2.6 < room < 22:
                     f = min(room - 1.1, rng.uniform(3.0, 7.5))
+                    while f > 1.8 and not clear(b, f + 0.35):   # the garden wall's whole length off the road
+                        f -= 0.5
+                if tr @ fdir > 0.6 * dd and 2.6 < room < 22 and f > 1.8:
                     gx, gz = fx + fdir[0] * f, fz + fdir[1] * f
                     opt["garden"] = (round(f, 2), round(g - float(ground(gx, gz)), 2))
                     gardens.append([round(x + fdir[0] * (dpt + f) / 2, 2), round(z + fdir[1] * (dpt + f) / 2, 2),
@@ -712,7 +850,8 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
     counts["terrace_party_walls"] = len(pairs)
     counts["front_gardens"] = len(gardens)
     return {"villages": [[round(v[0], 1), round(v[1], 1), round(v[2], 1)] for v in villages],
-            "gardens": gardens, "buildings": [[round(b["x"], 1), round(b["z"], 1)] for b in rows]}
+            "gardens": gardens, "buildings": [[round(b["x"], 1), round(b["z"], 1)] for b in rows],
+            "bld": [(b["x"], b["z"], b["w"], b["d"], b["rot"], b["kind"]) for b in rows]}
 
 
 def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_glb, counts, reach=3000.0):
@@ -939,10 +1078,11 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     props = Props()
     prng = np.random.default_rng(seed + 1000)   # the stone props have their own stream
     village = place_buildings(props, region_root, O, ground, near, road_dist, road_half, prng, counts, line, to_ride)
-    lines["roadside"], lines["roadside_gates"] = roadside_walls(region_root, O, line, lines, village, road_half, near,
+    lines["roadside"], lines["roadside_gates"], junctions = roadside_walls(region_root, O, line, lines, village, road_half, near,
                                                                 lambda x, z: ground(x, z) + O[1], prng)
     place_walls(props, lines, points.get("gate", []), ground, near, road_dist, road_half, prng, counts)
     counts["roadside_wall_runs"] = len(lines["roadside"])
+    place_street(props, line, village, junctions, ground, road_half, prng, counts)
 
     # Fences: weathered posts every 3 m and three strands of wire.
     fence_m = 0.0

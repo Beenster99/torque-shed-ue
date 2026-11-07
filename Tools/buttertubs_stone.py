@@ -51,6 +51,18 @@ class Mesh:
         self.C.append(col); self.U.append(np.asarray(uv, np.float64).reshape(-1, 2))
         self.n += len(pos)
 
+    def two_sided(self):
+        """Every triangle also wound the other way (with its own vertices, so its own normals): for
+        the thin wall shells of the houses, which are seen from inside through windows and gaps."""
+        off = 0
+        for k in range(len(self.P)):
+            P, T, C, U = self.P[k], self.T[k], self.C[k], self.U[k]
+            base = off; off += len(P)
+            self.P.append(P.copy()); self.C.append(C.copy()); self.U.append(U.copy())
+            self.T.append((T - base)[:, [0, 2, 1]] + self.n)
+            self.n += len(P)
+        return self
+
     def arrays(self):
         pos = np.concatenate(self.P); tris = np.concatenate(self.T)
         col = np.clip(np.concatenate(self.C), 0, 1); uv = np.concatenate(self.U)
@@ -1001,7 +1013,8 @@ def building(rng, kind, w, d, h, plinth, opt=None):
         # The wall: rectangles round the openings, and reveals in them.
         hl = [(s0, s1, b0, b1) for (s0, s1, b0, b1, _) in holes]
         if y_from is not None:
-            for (s0, s1, y0, y1) in _cells(L, y_from, h, hl, cuts=(0.0, 0.7)):   # the foot's dirt and moss stay at the foot
+            top = h + 0.07 if side is None else h      # long walls run up under the slates: no slit at the eaves
+            for (s0, s1, y0, y1) in _cells(L, y_from, top, hl, cuts=(0.0, 0.7)):   # the foot's dirt and moss stay at the foot
                 p = [o + a * s0 + up * y0, o + a * s1 + up * y0, o + a * s1 + up * y1, o + a * s0 + up * y1]
                 wall_quad(p, [y0, y0, y1, y1], [[s0, y0], [s1, y0], [s1, y1], [s0, y1]])
         # Gable: masonry triangle above the eaves on the ends, cut round a gable window if any.
@@ -1243,7 +1256,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
         P, T, U = obox((-w / 2, ridge + 1.4, 0), (0.3, 0.08, 0.58), None, rng.uniform(0, 5, 2))
         St.add(P, T, scol(len(P), 0.55), U)
     # A gabled stone porch over the front door.
-    px = opt.get("porch_x")
+    px = opt.get("porch_x") if opt.get("porch_ok", True) else None
     if px is None and opt.get("porch") and door_spots:
         px = door_spots[0]
     elif px is not None:
@@ -1327,7 +1340,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
                 continue
             P, T, U = obox((xs_, gy + (wh - 0.6) / 2, (d / 2 + zf) / 2), (0.2, (wh + 0.6) / 2 + max(0.0, drop) / 2, (zf - d / 2) / 2), None, rng.uniform(0, 5, 2))
             Wl.add(P, T, mcol(len(P), P[:, 1] - gy), U)
-    return {"masonry": Wl, "render": Rd, "stone": St, "wood": Wd, "glass": Gl}
+    return {"masonry": Wl.two_sided(), "render": Rd.two_sided(), "stone": St, "wood": Wd, "glass": Gl.two_sided()}
 
 
 def far_building(w, d, h, rot, x, y_lo, y, z, kind):
@@ -1434,3 +1447,137 @@ def sheep(rng, pose):
     ct = np.zeros((len(Pt), 4)); ct[:, :3] = fleece * 0.85
     M.add(Pt, Tt, ct, Pt[:, [0, 1]])
     return M
+
+
+# --- Street furniture ------------------------------------------------------------------------------
+# Each returns {material: Mesh}: 'wood' and 'metal' are vertex-coloured paint and steel (RGB colour,
+# A dirt), 'glass' panes, 'stone' as everywhere. Local frame: ground y = 0, the front is +z.
+
+def _paint(M, P, T, U, rgb, dirt=0.15):
+    c = np.zeros((len(P), 4)); c[:, :3] = rgb; c[:, 3] = dirt
+    M.add(P, T, c, U)
+
+
+def _pole(M, x0, y0, y1, r, rgb, z0=0.0, dirt=0.2):
+    P, T = tube([[x0, y0, z0], [x0, y1, z0]], r, 8)
+    _paint(M, P, T, P[:, [0, 1]] + P[:, [2, 2]], rgb, dirt)
+
+
+RED = (0.42, 0.008, 0.006)        # telephone and post box red, linear
+
+
+def phone_box(rng):
+    """A K6 telephone kiosk: 0.9 m square, 2.5 m tall, red cast iron, glazed in rows of small panes on
+    three sides and the door, a domed roof and a white crown panel each side."""
+    Wd, Gl = Mesh(), Mesh()
+    hw, H = 0.45, 2.36
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            P, T, U = obox((sx * (hw - 0.05), H / 2, sz * (hw - 0.05)), (0.06, H / 2, 0.06))
+            _paint(Wd, P, T, U, RED)
+    P, T, U = obox((0, 0.06, 0), (hw + 0.03, 0.08, hw + 0.03)); _paint(Wd, P, T, U, RED, 0.5)
+    P, T, U = obox((0, H - 0.12, 0), (hw + 0.02, 0.14, hw + 0.02)); _paint(Wd, P, T, U, RED)
+    for k in range(4):        # the dome, in steps
+        r = hw + 0.03 - k * 0.1
+        P, T, U = obox((0, H + 0.04 + k * 0.05, 0), (r, 0.03, r)); _paint(Wd, P, T, U, RED)
+    for ang in range(4):      # each face: crown panel, glazing bars, glass
+        R = rot_xyz(0, ang * math.pi / 2, 0)
+        P, T, U = obox(np.array([0, H - 0.12, hw + 0.025]) @ R.T, (0.28, 0.07, 0.005), R); _paint(Wd, P, T, U, (0.75, 0.75, 0.72), 0.05)
+        if ang == 2:
+            P, T, U = obox(np.array([0, 1.2, hw - 0.02]) @ R.T, (hw - 0.1, 1.05, 0.02), R); _paint(Wd, P, T, U, RED)   # the back: solid
+            continue
+        g = np.array([[-hw + 0.1, 0.25, hw - 0.03], [hw - 0.1, 0.25, hw - 0.03], [hw - 0.1, H - 0.28, hw - 0.03], [-hw + 0.1, H - 0.28, hw - 0.03]]) @ R.T
+        quad(Gl, *g, np.tile([0.03, 0.03, 0.03, 0.0], (4, 1)), [[0, 0], [1, 0], [1, 1], [0, 1]])
+        for x in np.linspace(-hw + 0.1, hw - 0.1, 4):
+            P, T, U = obox(np.array([x, (H - 0.03) / 2, hw - 0.025]) @ R.T, (0.018, (H - 0.53) / 2, 0.02), R); _paint(Wd, P, T, U, RED)
+        for y in np.linspace(0.25, H - 0.28, 9):
+            P, T, U = obox(np.array([0, y, hw - 0.025]) @ R.T, (hw - 0.1, 0.016, 0.02), R); _paint(Wd, P, T, U, RED)
+    return {"wood": Wd.two_sided(), "glass": Gl.two_sided()}
+
+
+def post_box(rng):
+    """A pillar box: a red cylinder 1.6 m tall on a black base, a cap with a rim, the slot."""
+    Wd = Mesh()
+    _pole(Wd, 0, -0.2, 0.12, 0.25, (0.01, 0.01, 0.01), dirt=0.6)
+    _pole(Wd, 0, 0.1, 1.42, 0.23, RED)
+    _pole(Wd, 0, 1.42, 1.48, 0.26, RED)
+    P, T = tube([[0, 1.48, 0], [0, 1.56, 0], [0, 1.6, 0]], [0.23, 0.18, 0.06], 12)
+    _paint(Wd, P, T, P[:, [0, 1]], RED)
+    P, T, U = obox((0, 1.2, 0.225), (0.13, 0.02, 0.02)); _paint(Wd, P, T, U, (0.01, 0.01, 0.01))
+    P, T, U = obox((0, 0.85, 0.226), (0.07, 0.09, 0.01)); _paint(Wd, P, T, U, (0.7, 0.7, 0.68), 0.05)   # the times plate
+    return {"wood": Wd}
+
+
+def bench(rng):
+    """A park bench: five wooden slats on two black cast ends, 1.8 m long, facing +z."""
+    Wd, Mt = Mesh(), Mesh()
+    wood = np.array([0.16, 0.09, 0.045]) * rng.uniform(0.8, 1.2)
+    for i, (y, z, ang) in enumerate(((0.45, 0.12, 0.0), (0.45, 0.0, 0.0), (0.45, -0.12, 0.0), (0.62, -0.22, 1.35), (0.8, -0.25, 1.35))):
+        P, T, U = obox((0, y, z), (0.9, 0.02, 0.05), rot_xyz(ang, 0, 0), (rng.uniform(0, 3), 0))
+        _paint(Wd, P, T, U, wood * rng.uniform(0.9, 1.1), rng.uniform(0.2, 0.5))
+    for x in (-0.78, 0.78):
+        for (a, b) in (((x, 0.0, 0.15), (x, 0.43, 0.12)), ((x, 0.0, -0.2), (x, 0.43, -0.15)), ((x, 0.43, 0.15), (x, 0.43, -0.2)),
+                       ((x, 0.43, -0.2), (x, 0.85, -0.27)), ((x, 0.62, 0.15), (x, 0.6, -0.1))):
+            P, T = tube([a, b], 0.022, 6); _paint(Mt, P, T, P[:, [0, 1]], (0.015, 0.015, 0.015), 0.3)
+    return {"wood": Wd, "metal": Mt}
+
+
+def road_sign(rng, kind):
+    """A sign on a grey post: 'village' (a white plate with a black border, 1 m by 0.45, the name
+    blurred to grey bands) or 'junction' (a red-bordered triangle, side road ahead)."""
+    Wd, Mt = Mesh(), Mesh()
+    _pole(Mt, -0.35 if kind == "village" else 0.0, -0.3, 2.1, 0.035, (0.25, 0.25, 0.25), dirt=0.3)
+    if kind == "village":
+        _pole(Mt, 0.35, -0.3, 2.1, 0.035, (0.25, 0.25, 0.25), dirt=0.3)
+        P, T, U = obox((0, 1.75, 0.04), (0.52, 0.25, 0.012)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.1)
+        P, T, U = obox((0, 1.75, 0.054), (0.48, 0.21, 0.004)); _paint(Wd, P, T, U, (0.78, 0.78, 0.76), 0.05)
+        for y, w in ((1.8, 0.36), (1.68, 0.25)):
+            P, T, U = obox((0, y, 0.06), (w, 0.035, 0.003)); _paint(Wd, P, T, U, (0.03, 0.03, 0.03), 0.05)
+    else:
+        tri = lambda r, zz: np.array([[0, 1.6 + r * 1.15, zz], [-r, 1.6 - r * 0.58, zz], [r, 1.6 - r * 0.58, zz]])
+        for r, zz, col in ((0.42, 0.045, RED), (0.31, 0.05, (0.8, 0.8, 0.78))):
+            A = tri(r, zz)
+            Wd.add(A, [[0, 1, 2]], np.tile(list(col) + [0.05], (3, 1)), A[:, [0, 1]])
+        P, T, U = obox((0, 1.55, 0.052), (0.025, 0.18, 0.002)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.0)
+        P, T, U = obox((0.08, 1.58, 0.052), (0.09, 0.022, 0.002)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.0)
+        Wd.two_sided()
+    return {"wood": Wd, "metal": Mt}
+
+
+def finger_post(rng, arms):
+    """A Dales finger post: a white post 2.4 m with a finial, and an arm for each direction in arms
+    (radians about the vertical, 0 = +x), white with dark lettering bands."""
+    Wd = Mesh()
+    P, T, U = obox((0, 1.05, 0), (0.055, 1.35, 0.055)); _paint(Wd, P, T, U, (0.72, 0.72, 0.7), 0.35)
+    P, T, U = obox((0, 2.44, 0), (0.08, 0.04, 0.08)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.2)
+    P, T = tube([[0, 2.48, 0], [0, 2.6, 0]], [0.05, 0.01], 8); _paint(Wd, P, T, P[:, [0, 1]], (0.02, 0.02, 0.02))
+    for i, a in enumerate(arms):
+        R = rot_xyz(0, -a, 0)
+        y = 2.15 - i * 0.2
+        P, T, U = obox(np.array([0.48, y, 0]) @ R.T, (0.42, 0.075, 0.022), R); _paint(Wd, P, T, U, (0.74, 0.74, 0.72), 0.3)
+        P, T, U = obox(np.array([0.46, y, 0]) @ R.T, (0.3, 0.02, 0.026), R); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.1)
+    return {"wood": Wd}
+
+
+def churn_stand(rng):
+    """A milk churn stand: a stone slab on two stone legs at lorry height, with two old churns."""
+    St, Mt = Mesh(), Mesh()
+    for x in (-0.5, 0.5):
+        P, T, uv = stone(rng, (0.16, 0.6, 0.25), (x, 0.4, 0), None, res=(6, 10), round_=(0.12, 0.2), chops=2)
+        c = stone_col(rng, len(P)); c[:, 3] = 0.3; St.add(P, T, c, uv)
+    P, T, uv = stone(rng, (0.75, 0.07, 0.38), (0, 1.06, 0), None, res=(6, 10), round_=(0.12, 0.2), chops=3)
+    c = stone_col(rng, len(P)); c[:, 3] = 0.4; St.add(P, T, c, uv)
+    for x in (-0.3, 0.25):
+        P, T = tube([[x, 1.13, 0], [x, 1.55, 0], [x, 1.68, 0], [x, 1.76, 0]], [0.17, 0.17, 0.09, 0.1], 12)
+        _paint(Mt, P, T, P[:, [0, 1]], (0.35, 0.36, 0.35), 0.6)
+    return {"stone": St, "metal": Mt}
+
+
+def wheelie_bin(rng, rgb):
+    """A wheelie bin, 0.58 by 0.74 by 1.07 m, lid hinged at the back (-z)."""
+    Wd = Mesh()
+    P, T, U = obox((0, 0.52, 0), (0.28, 0.5, 0.35)); _paint(Wd, P, T, U, rgb, 0.3)
+    P, T, U = obox((0, 1.04, 0.02), (0.3, 0.025, 0.38)); _paint(Wd, P, T, U, np.array(rgb) * 0.8, 0.2)
+    for x in (-0.24, 0.24):
+        P, T = tube([[x, 0.1, -0.36], [x, 0.1, -0.3]], 0.1, 8); _paint(Wd, P, T, P[:, [0, 1]], (0.01, 0.01, 0.01), 0.5)
+    return {"wood": Wd}
