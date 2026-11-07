@@ -59,70 +59,71 @@ class Mesh:
 # the mesh's +x) as a share of the height.
 SPECIES = {
     "ash": dict(height=15.0, crown=(0.2, 0.55, 0.42, 1.3), trunk_r=0.022, attract=9000, step=0.3, infl=1.7, kill=0.45,
-                up=0.10, droop=0.06, leaf=("pinnate", 0.12, 3, (104, 128, 58), 0.09), bark=((128, 126, 116), 0.06),
+                up=0.10, droop=0.06, leaf=("pinnate", 0.09, 4, (104, 128, 58), 0.09), bark=((88, 86, 78), 0.07),
                 lean=0.02, sparse=0.55, far_blobs=12, leaf_depth=2),
     "sycamore": dict(height=15.0, crown=(0.22, 0.55, 0.42, 1.4), trunk_r=0.026, attract=8000, step=0.3, infl=1.6,
-                     kill=0.45, up=0.05, droop=0.02, leaf=("palmate", 0.13, 7, (66, 92, 38), 0.08),
-                     bark=((112, 104, 92), 0.08), lean=0.02, sparse=0.8, far_blobs=12),
+                     kill=0.45, up=0.05, droop=0.02, leaf=("palmate", 0.095, 10, (66, 92, 38), 0.08),
+                     bark=((80, 72, 62), 0.08), lean=0.02, sparse=0.8, far_blobs=12),
     "alder": dict(height=11.0, crown=(0.2, 0.45, 0.3, 0.85), trunk_r=0.02, attract=6500, step=0.26, infl=1.4, kill=0.38,
-                  up=0.16, droop=0.02, leaf=("round", 0.085, 9, (54, 76, 34), 0.07), bark=((78, 72, 64), 0.08),
+                  up=0.16, droop=0.02, leaf=("round", 0.065, 12, (54, 76, 34), 0.07), bark=((56, 50, 44), 0.08),
                   lean=0.0, sparse=0.4, far_blobs=10),
     "birch": dict(height=12.0, crown=(0.28, 0.5, 0.25, 0.9), trunk_r=0.016, attract=6000, step=0.26, infl=1.4, kill=0.36,
-                  up=0.14, droop=0.12, leaf=("diamond", 0.06, 12, (108, 132, 54), 0.08), bark=((206, 202, 192), 0.05),
+                  up=0.14, droop=0.12, leaf=("diamond", 0.045, 15, (108, 132, 54), 0.08), bark=((168, 162, 152), 0.06),
                   lean=0.0, sparse=0.3, far_blobs=10),
     "hawthorn": dict(height=5.0, crown=(0.14, 0.5, 0.5, 1.6), trunk_r=0.024, attract=5000, step=0.13, infl=0.7, kill=0.2,
-                     up=0.02, droop=0.0, leaf=("diamond", 0.055, 12, (60, 82, 36), 0.08), bark=((84, 76, 68), 0.08),
+                     up=0.02, droop=0.0, leaf=("diamond", 0.042, 15, (60, 82, 36), 0.08), bark=((62, 54, 46), 0.08),
                      lean=0.16, sparse=0.5, far_blobs=8),
-    "spruce": dict(height=18.0, trunk_r=0.017, leaf=(None, 0.0, 0, (36, 56, 40), 0.06), bark=((92, 74, 62), 0.08),
+    "spruce": dict(height=18.0, trunk_r=0.017, leaf=(None, 0.0, 0, (36, 56, 40), 0.06), bark=((70, 56, 46), 0.08),
                    far_blobs=0),
 }
 
 
 def envelope(sp, rng, n):
-    """n attraction points in the crown's shape (base at crown[0], widest at crown[1], radius crown[2],
-    all times the height), a little lopsided per tree."""
+    """n attraction points in the crown: a union of several clumps (one per big limb), of different
+    sizes, around the crown's centre and some hanging low on one side, so the outline is ragged and
+    lopsided as a real field tree's is, not a ball on a stick. Mostly near each clump's surface,
+    where the leaves are."""
     h = sp["height"]
     c0, cw, cr, flat = sp["crown"]
     y0, ym = c0 * h, cw * h
     R = cr * h
+    hv = max(h - y0, 1e-6) / 2           # the crown's half height
+    k = sp.get("lobes", 7)
+    cen = np.array([0.0, y0 + 0.42 * (h - y0), 0.0])
+    clumps = []
+    for i in range(k):
+        a = rng.uniform(0, 2 * np.pi)
+        up = rng.uniform(-0.95, 0.9)
+        d = np.array([math.cos(a) * math.sqrt(1 - up * up), up, math.sin(a) * math.sqrt(1 - up * up)])
+        off = d * np.array([R, hv, R]) * rng.uniform(0.35, 0.7)
+        rad = rng.uniform(0.35, 0.62) * np.array([R, hv / flat, R]) * rng.uniform(0.85, 1.15, 3)
+        clumps.append((cen + off, rad))
+    clumps.append((cen + np.array([0, hv * 0.35, 0]), np.array([R, hv, R]) * 0.45))   # the top
+    clumps.append((cen, np.array([R, hv, R]) * 0.5))                                 # the middle
+    # The downwind lean: the crown sits a little to +x, more so higher up.
     pts = []
-    skew = rng.normal(0, 0.12, 2)
-    while sum(len(p) for p in pts) < n:
-        q = rng.uniform(-1, 1, (n * 3, 3))
-        q = q[np.linalg.norm(q, axis=1) <= 1]
-        # q in the unit ball, y: -1 at the crown's base, +1 at its top.
-        y = np.where(q[:, 1] < 0, ym + q[:, 1] * (ym - y0), ym + q[:, 1] * (h - ym))
-        u = (y - ym) / np.where(q[:, 1] < 0, ym - y0, h - ym)   # -1..1
-        # The radius at that height: an ellipse, flattened (flat > 1) or pointed (< 1) at the top.
-        rad = np.where(u > 0, np.clip(1 - u ** 2, 0, 1) ** (1.0 / (2.0 * flat)), np.sqrt(np.clip(1 - u ** 2, 0, 1)))
-        # Points mostly in the outer shell: leaves are on the outside of a crown.
-        shell = np.linalg.norm(q[:, [0, 2]], axis=1)
-        keep = rng.uniform(0, 1, len(q)) < (0.25 + 0.75 * shell ** 1.5)
-        x = q[:, 0] * R * rad + skew[0] * R * (y - y0) / h
-        z = q[:, 2] * R * rad + skew[1] * R * (y - y0) / h
-        x = x + sp["lean"] * h * ((y - y0) / max(h - y0, 1e-6))   # downwind lean grows with height
-        pts.append(np.stack([x, y, z], 1)[keep])
-    P = np.concatenate(pts)[:n * 2]
-    # Lobes: the crown bulges out where its big limbs go, and falls back between them.
-    cen = np.array([0.0, ym, 0.0])
-    dirs = rng.normal(0, 1, (sp.get("lobes", 7), 3)); dirs[:, 1] = np.abs(dirs[:, 1]) * 0.6
-    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
-    v = P - cen; v /= np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-9)
-    lobe = np.max(v @ dirs.T, axis=1)
-    radial = np.linalg.norm((P - cen) / np.array([R, max(h - y0, 1e-6) / 2, R]), axis=1)
-    keep = radial < 0.55 + 0.45 * np.clip(lobe, 0, 1) ** 0.7 + rng.uniform(0, 0.15, len(P))
-    P = P[keep][:n]
-    # Gaps: knock out a few big holes, so the crown is clumpy, not an even ball.
-    for _ in range(int(sp["sparse"] * 6)):
+    vols = np.array([np.prod(r) for _, r in clumps])
+    counts = np.maximum((n * 1.2 * vols / vols.sum()).astype(int), 20)
+    for (c, r), m in zip(clumps, counts):
+        q = rng.normal(0, 1, (m, 3)); q /= np.linalg.norm(q, axis=1, keepdims=True)
+        q *= rng.uniform(0, 1, (m, 1)) ** 0.25           # mostly near the surface
+        P = c + q * r
+        pts.append(P)
+    P = np.concatenate(pts)
+    P = P[P[:, 1] > y0 * 0.7]
+    P[:, 0] += sp["lean"] * h * np.clip((P[:, 1] - y0) / max(h - y0, 1e-6), 0, 1)
+    P = P[rng.permutation(len(P))[:n]]
+    # Gaps: a few holes right through, so the sky shows through the crown in places.
+    for _ in range(int(sp["sparse"] * 5)):
         c = P[rng.integers(len(P))]
-        P = P[np.linalg.norm(P - c, axis=1) > rng.uniform(0.25, 0.45) * R]
+        P = P[np.linalg.norm(P - c, axis=1) > rng.uniform(0.2, 0.38) * R]
     return P
 
 
 def colonise(sp, rng):
     """Space colonisation from the top of a trunk: nodes (n, 3) and their parents (-1 for the root)."""
     h = sp["height"]
-    A = envelope(sp, rng, sp["attract"])
+    A = envelope(sp, rng, int(sp["attract"] * 1.3))
     step, infl, kill = sp["step"] * h / sp["height"], sp["infl"], sp["kill"]
     # The trunk: straight-ish up to the crown's base, then the colonisation takes over.
     c0 = sp["crown"][0] * h
@@ -249,6 +250,9 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
         alg = np.clip(low * (0.35 + 0.4 * np.clip(sw, 0, 1)), 0, 0.7)
         C = C * (1 - alg[:, None]) + lin((70, 92, 44))[None] * alg[:, None]
         C = C * np.clip(1 - 0.5 * np.clip(-P[:, 1], 0, 1), 0.4, 1)[:, None]   # soil-dark below ground
+        if base_col[0] > 140:   # birch: black marks on the white bark, black at the foot
+            C = C * np.where(rng.uniform(0, 1, (len(P), 1)) < 0.22, 0.3, 1.0)
+            C = C * np.clip(0.35 + P[:, 1:2] / 1.5, 0.35, 1)
         ao = ao_fn(P)
         w = np.repeat([wind[p], wind[i]], sides)
         mesh.add(P, T, np.concatenate([C, ao[:, None]], 1), np.stack([np.zeros(len(P)), w], 1))
@@ -309,7 +313,7 @@ def leaf_cluster(mesh, at, out, sp, rng, wind_w, ao_fn, scale=1.0):
             ld = d - nrm * (d @ nrm); ld /= max(np.linalg.norm(ld), 1e-9)
             ls = np.cross(nrm, ld)
             ln = size * rng.uniform(0.75, 1.25)
-            st = at + rng.normal(0, size * 0.9, 3) + d * size * 0.6
+            st = at + rng.normal(0, size * 2.2, 3) + d * size * 0.8
             P = st[None] + outline[:, :1] * ld[None] * ln + outline[:, 1:] * ls[None] * ln
             mid = (outline[:, 1] == 0)
             P[~mid] -= nrm * ln * 0.07   # cupped a little
@@ -338,8 +342,16 @@ def crown_ao(leaf_pts, h):
 
 def broadleaf(name, seed):
     """One broadleaf tree: (near mesh, far mesh, info)."""
-    sp = SPECIES[name]
     rng = np.random.default_rng(seed)
+    # Each variant its own shape: crown lower or higher, wider or narrower, flatter or rounder,
+    # leaning one way, more or fewer big limbs (lobes), so a row of them isn't one tree repeated.
+    sp = dict(SPECIES[name])
+    c0, cw, cr, flat = sp["crown"]
+    k0 = rng.uniform(0.4, 1.1)
+    sp["crown"] = (c0 * k0, min(cw * rng.uniform(0.85, 1.1), 0.75), cr * rng.uniform(0.8, 1.25), flat * rng.uniform(0.75, 1.3))
+    sp["lean"] = sp["lean"] + rng.uniform(0.0, 0.07)
+    sp["lobes"] = int(rng.integers(4, 10))
+    sp["sparse"] = sp["sparse"] * rng.uniform(0.8, 1.6)
     h = sp["height"]
     N, parent = colonise(sp, rng)
     r, kids = radii(N, parent, 0.004, sp["trunk_r"] * h)
@@ -430,8 +442,10 @@ def far_tree(sp, rng, N, parent, r, kids, leaves, ao_fn, wind):
             continue
         ext = np.percentile(np.linalg.norm(m - C[j], axis=1), 80)
         P, T = lumpy_sphere(C[j], ext * 0.95, rng, 1)
-        ao = ao_fn(P) * 0.92
+        ao = ao_fn(P) * 0.8
+        # Darker and greyer than a single leaf: a crown seen from afar is mostly its own shade.
         col = base * np.exp(rng.normal(0, 0.05, 3))
+        col = (col * 0.7 + col.mean() * 0.3) * 0.62
         far.add(P, T, np.concatenate([np.repeat(col[None], len(P), 0), ao[:, None]], 1),
                 np.stack([np.ones(len(P)), np.full(len(P), 0.5)], 1))
     tubes(far, N, parent, r, kids, sp["bark"], rng, wind * 0, ao_fn, min_r=0.06, flare=False)
@@ -561,7 +575,7 @@ def spruce(seed):
                          np.sin(a) * R0 * rng.uniform(0.85, 1.1, segs)], 1)
         Pt = np.vstack([ring, [[0, min(y1, h), 0]], [[0, y0 + 0.1, 0]]])
         Tt = [[s, segs, (s + 1) % segs] for s in range(segs)] + [[s, (s + 1) % segs, segs + 1] for s in range(segs)]
-        c = needle * np.exp(rng.normal(0, 0.04, 3))
+        c = needle * np.exp(rng.normal(0, 0.04, 3)) * 0.8
         far.add(Pt, Tt, np.concatenate([np.repeat(c[None], len(Pt), 0), ao_fn(Pt)[:, None] * 0.9], 1),
                 np.stack([np.ones(len(Pt)), np.full(len(Pt), 0.3)], 1))
     return near, far, {"shoots": len(shoots), "height": h}

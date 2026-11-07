@@ -1552,6 +1552,16 @@ def tree_material():
         n = g.sample(nt, g.world_uv(700.0), "linear")
         k = g.lerp(g.const(0.86), g.const(1.12), n, alpha_out="G")
         base = g.op(unreal.MaterialExpressionMultiply, base, k)
+    # With distance a wood goes darker and greyer (its shade, and the air, outweigh its sunlit leaves),
+    # from about 250 m to 3 km, so far woods sit in the fells' haze instead of glowing green.
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    far = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
+               g.op(unreal.MaterialExpressionSubtract, depth, const_b=25000.0), const_b=275000.0))
+    grey = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(base, grey)
+    g.link(g.const(0.45), grey, "Fraction")
+    dull = g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.7)
+    base = g.lerp(base, dull, far)
     sss = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, base, g.const((0.7, 0.85, 0.3))), leaf)
     rough = g.lerp(g.const(0.88), g.const(0.58), leaf)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
@@ -1569,7 +1579,8 @@ def place_trees(frame):
     """The trees (Tools/make_trees.py): import the models as Nanite meshes and add a second
     TorqueFoliage actor, "Trees", that plants them from Data/Buttertubs/Trees/instances.bin at
     BeginPlay. No cull distance: the far ones are their own cheap models, so nothing pops in.
-    TORQUE_TREES=off leaves them out. Data/Buttertubs/Trees/overrides.json can swap a species' near
+    TORQUE_TREES=off leaves them out; TORQUE_TREE_AREA=off builds the near models without Nanite's
+    preserve-area (an A/B for the shape of their shadows). Data/Buttertubs/Trees/overrides.json can swap a species' near
     models for scanned ones (Megascans), which keep their own materials:
 
         {"ash": {"meshes": ["/Game/Fab/Megascans/3D/.../SM_European_Ash_01", ...]}}
@@ -1598,6 +1609,14 @@ def place_trees(frame):
         ours = meshes.get(s["mesh"])
         if ours is None:
             unreal.log_warning("[Torque] no tree mesh " + s["mesh"])
+        elif os.environ.get("TORQUE_TREE_AREA", "on").lower() == "off" and not s.get("far"):
+            # A/B for the shadows: plain Nanite simplification (leaves drop out with distance rather
+            # than growing to keep the crown's area, which can show as blocky shadow shapes).
+            nanite_on(ours)
+            try:
+                unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).remove_collisions(ours)
+            except Exception:
+                pass
         else:
             foliage_nanite(ours)
         kind = s["name"].split("_")[2] if s["name"].count("_") >= 3 else ""
