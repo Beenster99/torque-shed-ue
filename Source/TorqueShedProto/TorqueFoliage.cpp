@@ -97,7 +97,6 @@ void ATorqueFoliage::Rebuild()
 
 	TArray<int32> PerSpecies;
 	PerSpecies.SetNumZeroed(Species.Num());
-	TArray<FTransform> Xf;
 	uint32 Counter = 0;
 	for (uint32 C = 0; C < NumChunks; ++C)
 	{
@@ -112,57 +111,68 @@ void ATorqueFoliage::Rebuild()
 		}
 		const uint8* P = Raw.GetData() + At;
 		At += int64(Count) * 8;
-		if (Si >= Species.Num() || !Species[Si].Mesh)
+		const bool bHasMesh = Si < Species.Num() && (Species[Si].Mesh || Species[Si].Variants.Num() > 0);
+		if (!bHasMesh)
 		{
 			Counter += Count;
 			continue;
 		}
 		const FTorqueFoliageSpecies& S = Species[Si];
-		Xf.Reset(Count);
+		// One list of transforms per mesh: the species' mesh, or each of its variants.
+		const int32 NumMeshes = FMath::Max(1, S.Variants.Num());
+		TArray<TArray<FTransform>> Xf;
+		Xf.SetNum(NumMeshes);
+		const float KeepHere = Keep * FMath::Clamp(S.Keep, 0.0f, 1.0f);
 		for (uint32 I = 0; I < Count; ++I, P += 8, ++Counter)
 		{
-			if (Keep < 1.0f && Hash01(Counter) >= Keep) continue;
+			if (KeepHere < 1.0f && Hash01(Counter) >= KeepHere) continue;
 			uint16 Dx, Dy, Dz;
 			FMemory::Memcpy(&Dx, P, 2); FMemory::Memcpy(&Dy, P + 2, 2); FMemory::Memcpy(&Dz, P + 4, 2);
 			const float Yaw = P[6] * (360.0f / 256.0f);
 			const float Sc = P[7] / 128.0f * S.ScaleMultiplier;
 			const FVector Loc(Ox + Dx, Oy + Dy, Oz + Dz);
+			const int32 V = NumMeshes > 1 ? FMath::Min(int32(Hash01(Counter * 7919u + 13u) * NumMeshes), NumMeshes - 1) : 0;
 			if (S.bNativeMesh)
-				Xf.Add(FTransform(FRotator(0, Yaw, 0), Loc, FVector(Sc)));
+				Xf[V].Add(FTransform(FRotator(0, Yaw, 0), Loc, FVector(Sc)));
 			else
-				Xf.Add(FTransform(FRotator(0, FrameYaw + Yaw, 0), Loc,
+				Xf[V].Add(FTransform(FRotator(0, FrameYaw + Yaw, 0), Loc,
 					FVector(Sc * FrameScale, Sc * FrameScale * FrameMirror, Sc * FrameScale)));
 		}
-		if (Xf.Num() == 0) continue;
-
-		// Transient: made afresh at every start, never saved into the level.
-		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
-		Ism->SetMobility(EComponentMobility::Static);
-		Ism->SetupAttachment(Root);
-		Ism->SetStaticMesh(S.Mesh);
-		if (S.Material) Ism->SetMaterial(0, S.Material);
-		Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Ism->SetCollisionProfileName(TEXT("NoCollision"));
-		Ism->SetCanEverAffectNavigation(false);
-		Ism->SetGenerateOverlapEvents(false);
-		Ism->SetCastShadow(S.bCastShadow);
-		Ism->bCastContactShadow = S.bCastShadow;
-		// Swaying grass would otherwise redraw its virtual shadow pages every frame.
-		Ism->ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Rigid;
-		Ism->bReceivesDecals = false;
-		// Keep a million plants out of Lumen's scene and the ray tracer's.
-		Ism->bAffectDistanceFieldLighting = false;
-		Ism->bAffectDynamicIndirectLighting = false;
-		Ism->bVisibleInRayTracing = false;
-		Ism->WorldPositionOffsetDisableDistance = WpoDisableDistance;
-		Ism->SetCullDistances(int32(S.CullDistance * 0.85f), int32(S.CullDistance));
-		Ism->LDMaxDrawDistance = S.CullDistance * 1.05f;
-		Ism->RegisterComponent();
-		Ism->AddInstances(Xf, false, true);
-		AddInstanceComponent(Ism);
-		Parts.Add(Ism);
-		PerSpecies[Si] += Xf.Num();
-		NumPlants += Xf.Num();
+		for (int32 V = 0; V < NumMeshes; ++V)
+		{
+			UStaticMesh* Mesh = S.Variants.Num() ? S.Variants[V].Get() : S.Mesh.Get();
+			UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(V) ? S.VariantMaterials[V].Get() : nullptr)
+			                                           : S.Material.Get();
+			if (!Mesh || Xf[V].Num() == 0) continue;
+			// Transient: made afresh at every start, never saved into the level.
+			UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
+			Ism->SetMobility(EComponentMobility::Static);
+			Ism->SetupAttachment(Root);
+			Ism->SetStaticMesh(Mesh);
+			if (Mat) Ism->SetMaterial(0, Mat);
+			Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Ism->SetCollisionProfileName(TEXT("NoCollision"));
+			Ism->SetCanEverAffectNavigation(false);
+			Ism->SetGenerateOverlapEvents(false);
+			Ism->SetCastShadow(S.bCastShadow);
+			Ism->bCastContactShadow = S.bCastShadow;
+			// Swaying grass would otherwise redraw its virtual shadow pages every frame.
+			Ism->ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Rigid;
+			Ism->bReceivesDecals = false;
+			// Keep a million plants out of Lumen's scene and the ray tracer's.
+			Ism->bAffectDistanceFieldLighting = false;
+			Ism->bAffectDynamicIndirectLighting = false;
+			Ism->bVisibleInRayTracing = false;
+			Ism->WorldPositionOffsetDisableDistance = WpoDisableDistance;
+			Ism->SetCullDistances(int32(S.CullDistance * 0.85f), int32(S.CullDistance));
+			Ism->LDMaxDrawDistance = S.CullDistance * 1.05f;
+			Ism->RegisterComponent();
+			Ism->AddInstances(Xf[V], false, true);
+			AddInstanceComponent(Ism);
+			Parts.Add(Ism);
+			PerSpecies[Si] += Xf[V].Num();
+			NumPlants += Xf[V].Num();
+		}
 	}
 	FString Summary;
 	for (int32 I = 0; I < Species.Num(); ++I)
