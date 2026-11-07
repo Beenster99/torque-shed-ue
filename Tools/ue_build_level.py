@@ -416,11 +416,18 @@ class Graph:
         self.y += 140
         return self.op(unreal.MaterialExpressionSaturate, n)
 
-    def finish(self, layer, extra_rough=None):
+    def finish(self, layer, extra_rough=None, min_rough=None, specular=None):
         mel.connect_material_property(layer[0], "", unreal.MaterialProperty.MP_BASE_COLOR)
         mel.connect_material_property(layer[1], "", unreal.MaterialProperty.MP_NORMAL)
         r_out = "R" if layer[2].get_class().get_name() == "MaterialExpressionTextureSample" else ""
-        mel.connect_material_property(layer[2], r_out, unreal.MaterialProperty.MP_ROUGHNESS)
+        rough = layer[2]
+        if min_rough is not None:
+            # Scans like "Wet Grass" carry wet-day roughness; a floor stops a white sheen into the sun.
+            rough = self.op(unreal.MaterialExpressionMax, layer[2], self.const(min_rough), a_out=r_out)
+            r_out = ""
+        mel.connect_material_property(rough, r_out, unreal.MaterialProperty.MP_ROUGHNESS)
+        if specular is not None:
+            mel.connect_material_property(self.const(specular), "", unreal.MaterialProperty.MP_SPECULAR)
         mel.recompile_material(self.m)
         unreal.EditorAssetLibrary.save_loaded_asset(self.m)
         return self.m
@@ -489,7 +496,7 @@ def land_material_scanned(tex, roles):
     drift = g.mask_noise(0.00035, -1.8, 1.4)   # big drifts; finer read as polka dots far off
     drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=0.5)
     land[0] = g.lerp(land[0], straw, drift)
-    return g.finish(land)
+    return g.finish(land, min_rough=0.82, specular=0.3)
 
 
 def road_blemish_textures():
@@ -573,7 +580,7 @@ def road_material_scanned(tex, roles):
         slope = g.op(unreal.MaterialExpressionMultiply, bn, g.const((1.0, 1.0, 0.0)))
         road[1] = g.op(unreal.MaterialExpressionAdd, road[1], slope)
     road = g.mix(road, paint, line)
-    return g.finish(road)
+    return g.finish(road, min_rough=0.6, specular=0.4)
 
 
 BIKE_TEX_DEST = "/Game/Bike/Textures"
