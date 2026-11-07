@@ -788,6 +788,39 @@ def to_model(p):
     return np.stack([p[..., 0], p[..., 2], p[..., 1]], -1) / 100.0
 
 
+def surface_frame(pos, nrm, idx):
+    """UVs and tangents for a mesh that has no unwrap (glTF model frame, metres). Without them
+    Unreal's importer runs MikkTSpace on all-zero UVs and the kit shades in blotches. The UVs blend
+    the three axis projections by the normal (a smooth, metre-scaled box map, ready for detail
+    textures); the tangents follow u along each triangle, are averaged at the vertices and squared
+    up to the normal, and fall back to a fixed axis where they vanish."""
+    w = np.abs(nrm) ** 4
+    w /= w.sum(1, keepdims=True)
+    x, y, z = pos[:, 0], pos[:, 1], pos[:, 2]
+    uv = (w[:, :1] * np.stack([z, y], 1) + w[:, 1:2] * np.stack([x, z], 1) + w[:, 2:] * np.stack([x, y], 1))
+    p0, p1, p2 = pos[idx[:, 0]], pos[idx[:, 1]], pos[idx[:, 2]]
+    t0, t1, t2 = uv[idx[:, 0]], uv[idx[:, 1]], uv[idx[:, 2]]
+    e1, e2 = p1 - p0, p2 - p0
+    d1, d2 = t1 - t0, t2 - t0
+    r = d1[:, 0] * d2[:, 1] - d2[:, 0] * d1[:, 1]
+    r = np.where(np.abs(r) < 1e-12, 0.0, 1.0 / np.where(np.abs(r) < 1e-12, 1.0, r))[:, None]
+    tu = (e1 * d2[:, 1:] - e2 * d1[:, 1:]) * r
+    tv = (e2 * d1[:, :1] - e1 * d2[:, :1]) * r
+    T = np.zeros_like(pos); Bt = np.zeros_like(pos)
+    for k in range(3):
+        np.add.at(T, idx[:, k], tu); np.add.at(Bt, idx[:, k], tv)
+    T -= nrm * (T * nrm).sum(1, keepdims=True)
+    ln = np.linalg.norm(T, axis=1)
+    bad = ln < 1e-8
+    if bad.any():
+        a = np.where(np.abs(nrm[bad, 0:1]) < 0.9, [[1.0, 0, 0]], [[0, 0, 1.0]])
+        T[bad] = a - nrm[bad] * (a * nrm[bad]).sum(1, keepdims=True)
+        ln = np.linalg.norm(T, axis=1)
+    T /= ln[:, None]
+    hand = np.where((np.cross(nrm, T) * Bt).sum(1) < 0.0, -1.0, 1.0)
+    return uv.astype(np.float32), np.concatenate([T, hand[:, None]], 1).astype(np.float32)
+
+
 def write_glb(path, prims, skin_info=None, name="mesh"):
     """prims: list of dicts with pos, nrm, idx, col (RGBA float 0..1), material name, and for a
     skinned mesh joints (uint16 x4) and weights (float x4). Positions are pawn-local cm; written in
@@ -822,8 +855,9 @@ def write_glb(path, prims, skin_info=None, name="mesh"):
         if pr.get("col") is not None:
             col = (np.clip(pr["col"], 0, 1) * 65535).astype(np.uint16)
             attrs["COLOR_0"] = add(col, 34962, 5123, "VEC4", len(pos), norm=True)
-        if pr.get("uv") is not None:
-            attrs["TEXCOORD_0"] = add(np.asarray(pr["uv"], np.float32), 34962, 5126, "VEC2", len(pos))
+        uv, tan = surface_frame(pos.astype(np.float64), nrm.astype(np.float64), idx)
+        attrs["TANGENT"] = add(tan, 34962, 5126, "VEC4", len(pos))
+        attrs["TEXCOORD_0"] = add(uv, 34962, 5126, "VEC2", len(pos))
         if pr.get("joints") is not None:
             attrs["JOINTS_0"] = add(np.asarray(pr["joints"], np.uint16), 34962, 5123, "VEC4", len(pos))
             attrs["WEIGHTS_0"] = add(np.asarray(pr["weights"], np.float32), 34962, 5126, "VEC4", len(pos))

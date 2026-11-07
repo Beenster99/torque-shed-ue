@@ -754,6 +754,27 @@ def rider_materials(finishes):
     return paths
 
 
+def rider_build_settings(body):
+    """The kit is big, smooth and dark, where 8-bit normals and tangents band into blotches: keep the
+    normals make_rider.py wrote, build the tangent frame from its UVs (MikkTSpace), and store it at
+    high precision. Logged either way, to check from the PC's log."""
+    try:
+        sub = unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem)
+        bs = sub.get_lod_build_settings(body, 0)
+        try_set(bs, "recompute_normals", False)
+        try_set(bs, "recompute_tangents", True)
+        try_set(bs, "use_mikk_t_space", True)
+        try_set(bs, "use_high_precision_tangent_basis", True)
+        sub.set_lod_build_settings(body, 0, bs)
+        unreal.EditorAssetLibrary.save_loaded_asset(body)
+        bs = sub.get_lod_build_settings(body, 0)
+        log("rider build: recompute normals %s, tangents %s, mikk %s, high precision basis %s" % tuple(
+            bs.get_editor_property(k) for k in ("recompute_normals", "recompute_tangents", "use_mikk_t_space",
+                                                "use_high_precision_tangent_basis")))
+    except Exception as e:
+        unreal.log_warning("[Torque] rider build settings not set: %s" % e)
+
+
 def import_rider():
     """The rider (Tools/make_rider.py): rider.glb as a skeletal mesh, helmet.glb as a static mesh, and
     the kit's materials. Returns what the pawn needs, or None."""
@@ -785,6 +806,7 @@ def import_rider():
     if not body:
         unreal.log_warning("[Torque] rider.glb didn't import as a skeletal mesh; the rider stays as shapes")
         return None
+    rider_build_settings(body)
     if helmet:
         nanite_off(helmet)
         unreal.EditorAssetLibrary.save_loaded_asset(helmet)
