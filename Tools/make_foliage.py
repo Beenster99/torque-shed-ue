@@ -239,7 +239,7 @@ def rush(seed):
     top, last year's stems tan and falling outwards."""
     rng = np.random.default_rng(seed)
     M = Mesh()
-    n = int(rng.uniform(100, 150))
+    n = int(rng.uniform(70, 100))
     r = rng.uniform(0.08, 0.14)
     base, a, rr = disk(rng, n, r)
     dead = rng.uniform(0, 1, n) < 0.18
@@ -280,67 +280,56 @@ def rush(seed):
 
 
 def heather(seed, flowering=0.06):
-    """Ling: a low woody bush. Wandering stems from the root, side twigs, and the tiny scale leaves as
-    crowded shoots along the outer half of each twig; a few purple flower spikes."""
+    """Ling, cheaply: a lumpy, solid dome of foliage (opaque, so no overdraw, and Nanite simplifies it
+    well), its colour speckled dark olive, brown and the odd purple; a few hundred shoots standing out
+    of its surface to break the outline; and a few woody stems at the foot. About 3k triangles."""
     rng = np.random.default_rng(seed)
     M = Mesh()
-    R = rng.uniform(0.2, 0.34); H = rng.uniform(0.2, 0.38)
-    stems = []
-    nmain = int(rng.integers(9, 15))
-    for s in range(nmain):
-        a = rng.uniform(0, 2 * math.pi)
-        p = np.array([math.cos(a) * 0.03, 0.0, math.sin(a) * 0.03])
-        d = np.array([math.cos(a) * rng.uniform(0.5, 1.1), 1.0, math.sin(a) * rng.uniform(0.5, 1.1)])
-        pts = [p]
-        for k in range(6):
-            d = normalize(d + rng.normal(0, 0.35, 3) * np.array([1, 0.3, 1]))
-            p = p + d * (math.hypot(R, H) / 6)
-            p[1] = min(p[1], H * rng.uniform(0.85, 1.05))
-            pts.append(p.copy())
-        trunk = np.array(pts)
-        stems.append(trunk)
-        # Side twigs from the upper two thirds.
-        for k in range(2, 6):
-            for _ in range(int(rng.integers(1, 4))):
-                b0 = trunk[k]
-                d2 = normalize(d + rng.normal(0, 0.8, 3) * np.array([1, 0.2, 1]) + np.array([0, 0.5, 0]))
-                tw = [b0]
-                for j in range(3):
-                    d2 = normalize(d2 + rng.normal(0, 0.3, 3))
-                    tw.append(tw[-1] + d2 * rng.uniform(0.03, 0.06))
-                stems.append(np.array(tw))
-    # Tubes need equal lengths: resample every stem to 5 points.
-    rs = []
-    for s in stems:
-        L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(s, axis=0), axis=1))])
-        tt = np.linspace(0, L[-1], 5)
-        rs.append(np.stack([np.interp(tt, L, s[:, j]) for j in range(3)], 1))
-    S = np.array(rs)
-    ns = len(S)
-    radius = np.outer(np.where(np.arange(ns) < nmain, 0.004, 0.0018), np.linspace(1, 0.4, 5))
-    wood = lin((88, 68, 50))
-    col = np.broadcast_to(wood, (ns, 5, 3)) * rng.uniform(0.8, 1.15, (ns, 1, 1))
-    ao = 0.2 + 0.6 * (S[..., 1] / H).clip(0, 1)
-    flex = 0.35
-    tubes(M, S, radius, col, ao, sides=3, flex=np.full(ns, flex), rng=rng)
-    # Shoots along the outer half of every stem and twig.
-    cen, dirs, cols, aos = [], [], [], []
-    leaf_cols = [(62, 80, 40), (76, 90, 44), (100, 94, 52), (116, 92, 60)]
-    for s in S:
-        L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(s, axis=0), axis=1))])
-        m = int(L[-1] / 0.009) + 4
-        u = np.sort(rng.uniform(0.35, 1.0, m)) * L[-1]
-        p = np.stack([np.interp(u, L, s[:, j]) for j in range(3)], 1)
-        dd = np.gradient(p, axis=0) if m > 1 else np.array([[0, 1.0, 0]])
-        dd = normalize(normalize(dd) + rng.normal(0, 0.6, (m, 3)) + np.array([0, 0.6, 0]))
-        cen.append(p + rng.normal(0, 0.006, (m, 3))); dirs.append(dd)
-        c = mixcol(rng, m, leaf_cols, [4, 4, 2, 1], 0.1)
-        flower = (rng.uniform(0, 1, m) < flowering) & (u / L[-1] > 0.7)
-        c[flower] = lin((150, 98, 140)) * rng.uniform(0.85, 1.1, (flower.sum(), 1))
-        cols.append(c); aos.append(0.3 + 0.7 * np.clip(p[:, 1] / H, 0, 1))
-    cen = np.concatenate(cen); dirs = np.concatenate(dirs); cols = np.concatenate(cols); aos = np.concatenate(aos)
-    m = len(cen)
-    leaves(M, cen, dirs, rng.uniform(0.03, 0.05, m), rng.uniform(0.011, 0.018, m), cols, aos, cen[:, 1] * flex, rng)
+    R = rng.uniform(0.22, 0.34); H = rng.uniform(0.18, 0.32)
+    nr, na = 7, 26
+    rr = np.linspace(0, 1, nr)[:, None] * np.ones(na)[None]
+    aa = np.linspace(0, 2 * math.pi, na, endpoint=False)[None] * np.ones(nr)[:, None]
+    lobes = 1 + 0.16 * np.sin(aa * 3 + rng.uniform(0, 6)) + 0.1 * np.sin(aa * 5 + rng.uniform(0, 6))
+    bump = rng.normal(0, 0.12, rr.shape)
+    x = np.cos(aa) * rr * R * lobes; z = np.sin(aa) * rr * R * lobes
+    y = H * (np.clip(1 - rr ** 2.2, 0, 1) ** 0.6) * (1 + bump * (rr > 0)) - 0.02 * rr
+    y[-1] = -0.02                                         # the rim tucks into the ground
+    pos = np.stack([x, y, z], -1).reshape(-1, 3)
+    i = np.arange(nr * na).reshape(nr, na)
+    tris = []
+    for k in range(na):
+        k2 = (k + 1) % na
+        tris += [np.stack([i[:-1, k], i[:-1, k2], i[1:, k]], 1), np.stack([i[:-1, k2], i[1:, k2], i[1:, k]], 1)]
+    tris = np.concatenate(tris)
+    fn = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
+    nrm = np.zeros_like(pos)
+    for k in range(3):
+        np.add.at(nrm, tris[:, k], fn)
+    nrm = normalize(np.where(nrm[:, 1:2] < 0, -nrm, nrm)) + np.array([0, 0.4, 0])
+    leaf_cols = [(62, 80, 40), (76, 90, 44), (100, 94, 52), (116, 92, 60), (70, 58, 42)]
+    c = mixcol(rng, len(pos), [(58, 70, 38), (64, 66, 40), (70, 62, 44)], [3, 2, 1], 0.06)
+    ao = 0.35 + 0.6 * np.clip(pos[:, 1] / H, 0, 1)
+    M.add(pos, nrm, np.stack([rng.uniform(0, 1, len(pos)), pos[:, 1] * 0.3], 1), np.concatenate([c, ao[:, None]], 1), tris)
+    # Shoots out of the surface.
+    m = 700
+    u = np.sqrt(rng.uniform(0, 0.95, m)); a = rng.uniform(0, 2 * math.pi, m)
+    lob = 1 + 0.16 * np.sin(a * 3)
+    cen = np.stack([np.cos(a) * u * R * lob, H * (np.clip(1 - u ** 2.2, 0, 1) ** 0.6), np.sin(a) * u * R * lob], 1)
+    out = normalize(np.stack([np.cos(a) * u, np.full(m, 0.8), np.sin(a) * u], 1) + rng.normal(0, 0.35, (m, 3)))
+    cen = cen + out * 0.015
+    cc = mixcol(rng, m, leaf_cols, [4, 4, 2, 1, 1], 0.1)
+    fl = rng.uniform(0, 1, m) < flowering
+    cc[fl] = lin((150, 98, 140)) * rng.uniform(0.85, 1.1, (fl.sum(), 1))
+    leaves(M, cen, out, rng.uniform(0.028, 0.045, m), rng.uniform(0.01, 0.016, m), cc,
+           0.5 + 0.5 * np.clip(cen[:, 1] / H, 0, 1), cen[:, 1] * 0.35, rng)
+    # A few woody stems at the foot.
+    ns = 7
+    a = rng.uniform(0, 2 * math.pi, ns)
+    t = np.linspace(0, 1, 4)
+    st = np.stack([np.cos(a)[:, None] * (0.03 + R * 0.75 * t), H * 0.45 * np.sin(t * 1.4)[None] * np.ones((ns, 1)),
+                   np.sin(a)[:, None] * (0.03 + R * 0.75 * t)], -1)
+    tubes(M, st, np.full((ns, 4), 0.004), np.broadcast_to(lin((88, 68, 50)), (ns, 4, 3)), np.full((ns, 4), 0.35),
+          sides=3, flex=np.full(ns, 0.1), rng=rng)
     return M
 
 
@@ -441,10 +430,10 @@ SPECIES = {
                                   [GREEN, YELLOW, DEAD], [5, 3, 1], [YELLOW, STRAW, PALE], [3, 2, 1], segs=3, ao=0.3), 150, False, 1.0),
     "far_b": (lambda: grass_clump(52, 36, 0.14, (0.3, 0.55), (0.012, 0.02), 1.0, (0.5, 1.2),
                                   [GREEN, GREEN_DK, YELLOW], [4, 3, 2], [STRAW, YELLOW, GREEN], [3, 2, 2], segs=3, ao=0.3), 150, False, 1.0),
-    "rush_a": (lambda: rush(61), 100, True, 1.3),
-    "rush_b": (lambda: rush(62), 100, True, 1.3),
-    "heather_a": (lambda: heather(71), 70, True, 1.4),
-    "heather_b": (lambda: heather(72, flowering=0.15), 70, True, 1.4),
+    "rush_a": (lambda: rush(61), 80, True, 1.3),
+    "rush_b": (lambda: rush(62), 80, True, 1.3),
+    "heather_a": (lambda: heather(71), 60, False, 1.4),
+    "heather_b": (lambda: heather(72, flowering=0.15), 60, False, 1.4),
     "moss": (lambda: moss(81), 25, False, 1.4),
     "bracken": (lambda: bracken(91), 90, True, 1.3),
 }
@@ -716,7 +705,7 @@ def plan(land, line, road_half, density, rng):
     put("far_a", x[k][ab], z[k][ab], sc[ab]); put("far_b", x[k][~ab], z[k][~ab], sc[~ab])
 
     # Soft rush in the wet ground, and a few scattered clumps anywhere (as in every Dales pasture).
-    x, z, d = scatter(rng, land, 1.3, 110.0, line, road_half)
+    x, z, d = scatter(rng, land, 1.4, 95.0, line, road_half)
     f = fields(x, z)
     p = ok(f) * (d > 1.2) * (smoothstep(0.5, 0.8, f["wetn"]) * 0.9 + 0.02)
     k = keep(p)
@@ -725,7 +714,7 @@ def plan(land, line, road_half, density, rng):
     put("rush_a", x[k][ab], z[k][ab], sc[ab], 0.05); put("rush_b", x[k][~ab], z[k][~ab], sc[~ab], 0.05)
 
     # Heather in patches on the heath cover (most of the summit is mapped as shrub), drier ground.
-    x, z, d = scatter(rng, land, 0.8, 85.0, line, road_half)
+    x, z, d = scatter(rng, land, 0.85, 75.0, line, road_half)
     f = fields(x, z)
     heath = ((f["cover"] == "shrub") * 1.0 + (f["cover"] == "grass") * 0.25) * smoothstep(0.6, 0.72, f["heath"])
     p = ok(f) * (d > 1.5) * heath * (1 - smoothstep(0.5, 0.75, f["wetn"])) * 0.95

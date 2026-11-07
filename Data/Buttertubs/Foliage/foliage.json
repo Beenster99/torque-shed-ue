@@ -75,35 +75,35 @@
   },
   {
    "name": "rush_a",
-   "cull_m": 100,
+   "cull_m": 80,
    "cull_spread": 1.3,
    "shadow": true,
-   "triangles": 5120,
-   "count": 17285
+   "triangles": 3466,
+   "count": 12673
   },
   {
    "name": "rush_b",
-   "cull_m": 100,
+   "cull_m": 80,
    "cull_spread": 1.3,
    "shadow": true,
-   "triangles": 5556,
-   "count": 17485
+   "triangles": 3604,
+   "count": 12291
   },
   {
    "name": "heather_a",
-   "cull_m": 70,
+   "cull_m": 60,
    "cull_spread": 1.4,
-   "shadow": true,
-   "triangles": 11480,
-   "count": 75514
+   "shadow": false,
+   "triangles": 3238,
+   "count": 60504
   },
   {
    "name": "heather_b",
-   "cull_m": 70,
+   "cull_m": 60,
    "cull_spread": 1.4,
-   "shadow": true,
-   "triangles": 10812,
-   "count": 32385
+   "shadow": false,
+   "triangles": 3238,
+   "count": 26026
   },
   {
    "name": "moss",
@@ -111,7 +111,7 @@
    "cull_spread": 1.4,
    "shadow": false,
    "triangles": 1432,
-   "count": 1985
+   "count": 1969
   },
   {
    "name": "bracken",
@@ -119,9 +119,9 @@
    "cull_spread": 1.3,
    "shadow": true,
    "triangles": 2136,
-   "count": 4534
+   "count": 4691
   }
  ],
- "total": 1010752,
+ "total": 979718,
  "density": 1.0
 }
