@@ -328,6 +328,7 @@ def place_scars(props, cliffs, ground, near, road_dist, road_half, rng, counts):
 def place_barns(props, region_root, O, ground, near, road_dist, road_half, rng, counts):
     """A field barn for each of the map's buildings here, stone by stone, sized to its footprint."""
     barns = 0
+    shapes = {}
     for row in json.load(open(os.path.join(region_root, "buildings.json"))):
         x, z = row[0] - O[0], row[1] - O[2]
         if not near(x, z) or road_dist(x, z) < road_half + 2:
@@ -337,14 +338,25 @@ def place_barns(props, region_root, O, ground, near, road_dist, road_half, rng, 
         c, s = math.cos(rot), math.sin(rot)
         g = float(ground(x, z))
         lo = min(float(ground(x + u * c - v * s, z + u * s + v * c)) for u in (-w / 2, w / 2) for v in (-dpt / 2, dpt / 2))
-        k = barns
-        S, Wd = ST.barn(np.random.default_rng(600 + k), w, dpt, h, g - lo + 0.4)
-        props.meshes["SM_Barn_%02d" % k] = S
-        props.meshes["SM_BarnWood_%02d" % k] = Wd
+        # Stone by stone suits a field barn, not a village: big footprints (Thwaite's houses and farms)
+        # and steep plots made 30+ MB meshes each. Those wait for a cheaper house builder.
+        if w * dpt > 110.0 or g - lo > 2.5:
+            continue
+        # Barns of about the same size share one mesh (sizes to 3 m, eaves and plinth to 1 m), so
+        # a dale full of them stays a handful of meshes in the repo.
+        key = (round(w / 3.0), round(dpt / 3.0), round(h), math.ceil(g - lo + 0.4))
+        if key not in shapes:
+            k = len(shapes)
+            S, Wd = ST.barn(np.random.default_rng(600 + k), max(key[0] * 3.0, 5.0), max(key[1] * 3.0, 4.5), float(key[2]), float(key[3]))
+            props.meshes["SM_Barn_%02d" % k] = S
+            props.meshes["SM_BarnWood_%02d" % k] = Wd
+            shapes[key] = k
+        k = shapes[key]
         props.add("SM_Barn_%02d" % k, x, g, z, rot)
         props.add("SM_BarnWood_%02d" % k, x, g, z, rot)
         barns += 1
     counts["barns"] = barns
+    counts["barn_meshes"] = len(shapes)
 
 
 def place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, rng, counts):

@@ -550,6 +550,9 @@ def road_material_scanned(tex, roles):
         pick = g.mask_noise(0.004, -6.0, 7.0)
         m = g.lerp(g.sample(blem["mask"], uv1, "mask"), g.sample(blem["mask"], uv2, "mask"), pick,
                    a_out="RGBA", b_out="RGBA")   # keep alpha: the default link is RGB
+        # Overall strength (beenster: "a bit over the top"): 0.7 of the baked marks.
+        neutral = g.node(unreal.MaterialExpressionConstant4Vector, constant=unreal.LinearColor(0.5, 0.0, 0.0, 0.0))
+        m = g.lerp(neutral, m, g.const(0.7))
         bn = g.lerp(g.sample(blem["normal"], uv1, "normal"), g.sample(blem["normal"], uv2, "normal"), pick)
         def ch(c):
             e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=c == "A")
