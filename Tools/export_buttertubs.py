@@ -31,6 +31,7 @@ MARGIN = 300.0                    # detailed land either side of the ride
 STEP = 2.0                        # detailed grid spacing
 TILE = 256.0                      # detailed tile size
 BACKDROP = 6000.0                 # half size of the far hills
+HORIZON = 25000.0                 # half size of the horizon ring beyond them (128 m)
 ROAD_HALF = 2.5                   # half width of the tarmac
 BED_HALF = 3.2                    # flat bed under the road (a little wider than it)
 BLEND = 14.0                      # where the cut or fill has blended back into the hillside
@@ -187,6 +188,29 @@ def land_colour(cov, names, slope):
     rock = np.clip((slope - 0.6) / 0.4, 0, 1)[..., None]   # tan 31 deg .. tan 45 deg
     rgb = rgb * (1 - rock) + np.array(ROCK_RGB) * rock
     return (np.power(rgb / 255.0, 2.2) * 255.0).round().astype(np.uint8)
+
+
+def far_heights(region, xs, zs):
+    """Heights on a grid that may reach past the region's data: beyond it, the edge's heights carried
+    outwards, roughened with long, low hills and falling slowly away, so the far horizon is fells."""
+    H = region.heights(xs, zs)
+    b = region.meta.get("bounds")
+    if b is None or not np.isnan(H).any():
+        return np.where(np.isnan(H), np.nanmin(H), H)
+    x0, z0, x1, z1 = b[0] + 64, b[1] + 64, b[2] - 64, b[3] - 64
+    cx = np.clip(xs, x0, x1); cz = np.clip(zs, z0, z1)
+    E = region.heights(cx, cz)
+    E = np.where(np.isnan(E), np.nanmean(H), E)
+    X, Z = np.meshgrid(xs, zs)
+    d = np.maximum(np.maximum(x0 - X, X - x1), np.maximum(z0 - Z, Z - z1)).clip(0)
+    rng = np.random.default_rng(11)
+    hills = np.zeros_like(X)
+    for wl, amp in ((9000, 70), (5200, 50), (3100, 35), (1700, 18), (900, 8)):
+        for _ in range(2):
+            a = rng.uniform(0, np.pi); ph = rng.uniform(0, 2 * np.pi)
+            hills += amp * 0.5 * np.sin((X * np.cos(a) + Z * np.sin(a)) * 2 * np.pi / wl + ph)
+    ext = E + hills * np.clip(d / 2500.0, 0, 1) - 0.012 * d
+    return np.where(np.isnan(H), ext, H)
 
 
 def write_glb(path, pos, idx, nrm=None, col=None, name="mesh", uv=None, uv1=None):
@@ -361,8 +385,7 @@ def main():
         c = (lo + hi) / 2
         bs = 32.0
         bx = np.arange(c[0] - BACKDROP, c[0] + BACKDROP + 1, bs); bz = np.arange(c[1] - BACKDROP, c[1] + BACKDROP + 1, bs)
-        B = region.heights(bx + O[0], bz + O[2]) - O[1]
-        B = np.where(np.isnan(B), np.nanmin(B), B)
+        B = far_heights(region, bx + O[0], bz + O[2]) - O[1]
         BX, BZ = np.meshgrid(bx, bz)
         # Which backdrop cells the near tiles cover: a vertex all of whose cells are covered is
         # inside the near land (tiles side by side count together, not one at a time).
@@ -403,6 +426,20 @@ def main():
         bcol[..., :3] = land_colour(bcov, region.cover_names, np.hypot(*np.gradient(B, bs)))
         pos, tris, nrm, cc, uv = grid_mesh(B, bx[0], bz[0], bs, bcol)
         write_glb(os.path.join(args.out, "backdrop.glb"), pos, tris, nrm, cc, "backdrop", uv)
+
+        # The horizon: 128 m out to 25 km, so the land doesn't stop at the region's edge (it read as
+        # sea). Sunk well under the far hills where they cover it, and a little at their edge.
+        hs = 128.0
+        hx = np.arange(c[0] - HORIZON, c[0] + HORIZON + 1, hs); hz = np.arange(c[1] - HORIZON, c[1] + HORIZON + 1, hs)
+        R = far_heights(region, hx + O[0], hz + O[2]) - O[1]
+        HX, HZ = np.meshgrid(hx, hz)
+        inner = np.maximum(np.abs(HX - c[0]), np.abs(HZ - c[1]))
+        R = np.where(inner < BACKDROP - hs, R - 150.0, np.where(inner < BACKDROP + hs, R - 6.0, R))
+        hcol = np.zeros(R.shape + (4,), np.uint8); hcol[..., 3] = 255
+        hcov = region.cover(hx + O[0], hz + O[2])
+        hcol[..., :3] = land_colour(hcov, region.cover_names, np.hypot(*np.gradient(R, hs)))
+        pos, tris, nrm, cc, uv = grid_mesh(R, hx[0], hz[0], hs, hcol)
+        write_glb(os.path.join(args.out, "horizon.glb"), pos, tris, nrm, cc, "horizon", uv)
 
         # The tarmac: five vertices across (edge, mid, centre, mid, edge), crowned, every 2 m.
         d = np.gradient(line[:, [0, 2]], axis=0)

@@ -470,7 +470,15 @@ def land_material_scanned(tex, roles):
     g.link(g.const(1.0), grey, "Fraction")
     land[0] = g.lerp(grey, land[0], g.const(1.3))
     # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
-    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.8, 1.15, -1200, g.y + 200))
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.9, 1.07, -1200, g.y + 200))
+    # Far away, the scanned textures shrink into a busy mottle (contour-like bands of moor and peat);
+    # from about 80 m out fade to the map's own cover colour, flat-shaded, as a hillside reads at a distance.
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    far = g.op(unreal.MaterialExpressionSubtract, depth, const_b=8000.0)
+    far = g.op(unreal.MaterialExpressionDivide, far, const_b=30000.0)
+    far = g.op(unreal.MaterialExpressionSaturate, far)
+    cover = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.1)
+    land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.9)], far)
     return g.finish(land)
 
 
@@ -1438,7 +1446,7 @@ def build():
     atm = spawn(unreal.SkyAtmosphere)
     ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 2.0),   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
@@ -1451,7 +1459,7 @@ def build():
     for k, v in (("fog_density", 0.01), ("fog_height_falloff", 0.06), ("enable_volumetric_fog", True),
                  ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
                  ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
-                 ("fog_inscattering_luminance", unreal.LinearColor(0.35, 0.42, 0.55, 1.0))):
+                 ("fog_inscattering_luminance", unreal.LinearColor(0.42, 0.46, 0.52, 1.0))):
         try_set(fc, k, v)
     try:
         cloud = spawn(unreal.VolumetricCloud)
@@ -1480,7 +1488,7 @@ def build():
                  ("auto_exposure_bias", 0.5), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
                  ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.85),
                  ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
-                 ("motion_blur_amount", 0.35), ("motion_blur_max", 3.0),
+                 ("motion_blur_amount", 0.12), ("motion_blur_max", 1.0),
                  ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.05, 1.05, 1.05, 1.0)),
                  ("color_contrast", unreal.Vector4(1.12, 1.12, 1.12, 1.0)),
                  ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
