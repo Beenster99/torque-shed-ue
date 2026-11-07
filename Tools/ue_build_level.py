@@ -37,6 +37,16 @@ def log(msg):
     unreal.log("[Torque] " + msg)
 
 
+def try_set(obj, prop, value):
+    """Set an editor property if this engine version has it; log (don't fail) when it doesn't."""
+    try:
+        obj.set_editor_property(prop, value)
+        return True
+    except Exception as e:
+        unreal.log_warning("[Torque] couldn't set %s: %s" % (prop, e))
+        return False
+
+
 def data_dir():
     return os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Buttertubs")
 
@@ -265,6 +275,196 @@ def road_material():
     return m
 
 
+# --- Scanned textures (Tools/fetch_textures.py) -----------------------------------------------------
+
+TEX_DEST = "/Game/Textures"
+
+
+def import_textures():
+    """The roles in Data/Textures/textures.json whose images are here: {role: {map: Texture2D}, ...}.
+    Colour maps are sRGB; normal, roughness and occlusion maps are linear data."""
+    root = os.path.join(os.path.dirname(data_dir()), "Textures")
+    spec_path = os.path.join(root, "textures.json")
+    if not os.path.exists(spec_path):
+        return {}, {}
+    spec = json.load(open(spec_path))
+    out = {}
+    for role, r in spec["roles"].items():
+        folder = os.path.join(root, r["id"])
+        if not os.path.exists(os.path.join(folder, "color.jpg")):
+            unreal.log_warning("[Torque] texture %s for %s not downloaded (python Tools/fetch_textures.py)" % (r["id"], role))
+            continue
+        maps = {}
+        for name in ("color", "normal", "rough", "ao"):
+            f = os.path.join(folder, name + ".jpg")
+            if not os.path.exists(f):
+                continue
+            t = unreal.AssetImportTask()
+            t.set_editor_property("filename", f)
+            t.set_editor_property("destination_path", TEX_DEST + "/" + r["id"])
+            t.set_editor_property("destination_name", "T_%s_%s" % (r["id"], name))
+            t.set_editor_property("automated", True)
+            t.set_editor_property("replace_existing", True)
+            t.set_editor_property("save", False)
+            asset_tools.import_asset_tasks([t])
+            tex = unreal.load_asset(TEX_DEST + "/" + r["id"] + "/T_%s_%s" % (r["id"], name))
+            if not tex:
+                unreal.log_warning("[Torque] couldn't import " + f)
+                continue
+            if name != "color":
+                tex.set_editor_property("srgb", False)
+            if name == "normal":
+                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+            unreal.EditorAssetLibrary.save_loaded_asset(tex)
+            maps[name] = tex
+        if "color" in maps:
+            out[role] = maps
+    log("textures: " + ", ".join("%s=%s" % (k, spec["roles"][k]["id"]) for k in out))
+    return out, spec["roles"]
+
+
+class Graph:
+    """A little helper for building material graphs from Python, laying nodes out in a column."""
+
+    def __init__(self, mat):
+        self.m = mat
+        self.y = -2000
+
+    def node(self, cls, x=-1200, **props):
+        e = mel.create_material_expression(self.m, cls, x, self.y)
+        self.y += 140
+        for k, v in props.items():
+            e.set_editor_property(k, v)
+        return e
+
+    def link(self, a, b, pin="", out=""):
+        if mel.connect_material_expressions(a, out, b, pin):
+            return
+        if out == "" and mel.connect_material_expressions(a, "RGB", b, pin):   # a texture's colour output
+            return
+        unreal.log_warning("[Torque] couldn't link %s.%s to %s.%s" % (a.get_name(), out, b.get_name(), pin))
+
+    def op(self, cls, a, b=None, a_out="", b_out="", **props):
+        e = self.node(cls, -600, **props)
+        self.link(a, e, "A" if b is not None or cls not in (unreal.MaterialExpressionSaturate, unreal.MaterialExpressionOneMinus) else "", a_out)
+        if b is not None:
+            self.link(b, e, "B", b_out)
+        return e
+
+    def const(self, v):
+        if isinstance(v, (tuple, list)):
+            return self.node(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(v[0], v[1], v[2], 1.0))
+        return self.node(unreal.MaterialExpressionConstant, r=float(v))
+
+    def lerp(self, a, b, alpha, a_out="", b_out="", alpha_out=""):
+        e = self.node(unreal.MaterialExpressionLinearInterpolate, -400)
+        self.link(a, e, "A", a_out)
+        self.link(b, e, "B", b_out)
+        self.link(alpha, e, "Alpha", alpha_out)
+        return e
+
+    def world_uv(self, metres):
+        """World position (x, y) in repeats of `metres`."""
+        if not hasattr(self, "_wp"):
+            wp = self.node(unreal.MaterialExpressionWorldPosition)
+            self._wp = self.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False)
+            self.link(wp, self._wp)
+        return self.op(unreal.MaterialExpressionDivide, self._wp, const_b=metres * 100.0)
+
+    def sample(self, tex, uv, kind):
+        st = {"color": unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
+              "normal": unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL}.get(kind, unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+        e = self.node(unreal.MaterialExpressionTextureSample, -900, texture=tex, sampler_type=st)
+        self.link(uv, e, "UVs")
+        return e
+
+    def layer(self, maps, metres):
+        """(colour, normal, roughness) of a scanned surface, the colour blended with a second, larger
+        sample of itself so the repeat doesn't show from a distance."""
+        uv = self.world_uv(metres)
+        col = self.sample(maps["color"], uv, "color")
+        far = self.sample(maps["color"], self.world_uv(metres * 4.7), "color")
+        col = self.lerp(col, far, self.const(0.4))
+        nrm = self.sample(maps["normal"], uv, "normal") if "normal" in maps else self.const((0.0, 0.0, 1.0))
+        rough = self.sample(maps["rough"], uv, "rough") if "rough" in maps else self.const(0.85)
+        if "ao" in maps:
+            col = self.op(unreal.MaterialExpressionMultiply, col, self.sample(maps["ao"], uv, "ao"), b_out="R")
+        return [col, nrm, rough]
+
+    def mix(self, a, b, alpha, alpha_out=""):
+        return [self.lerp(a[i], b[i], alpha, b_out="R" if (i == 2 and b[i].get_class().get_name() == "MaterialExpressionTextureSample") else "",
+                          a_out="R" if (i == 2 and a[i].get_class().get_name() == "MaterialExpressionTextureSample") else "",
+                          alpha_out=alpha_out) for i in range(3)]
+
+    def mask_noise(self, scale, lo, hi):
+        """Soft patches: noise stretched beyond 0..1 and clamped."""
+        n = noise(self.m, scale, lo, hi, -1200, self.y)
+        self.y += 140
+        return self.op(unreal.MaterialExpressionSaturate, n)
+
+    def finish(self, layer, extra_rough=None):
+        mel.connect_material_property(layer[0], "", unreal.MaterialProperty.MP_BASE_COLOR)
+        mel.connect_material_property(layer[1], "", unreal.MaterialProperty.MP_NORMAL)
+        r_out = "R" if layer[2].get_class().get_name() == "MaterialExpressionTextureSample" else ""
+        mel.connect_material_property(layer[2], r_out, unreal.MaterialProperty.MP_ROUGHNESS)
+        mel.recompile_material(self.m)
+        unreal.EditorAssetLibrary.save_loaded_asset(self.m)
+        return self.m
+
+
+def lin(rgb255):
+    return tuple((c / 255.0) ** 2.2 for c in rgb255)
+
+
+def land_material_scanned(tex, roles):
+    """Moorland from scanned surfaces: grass and moor grass in big patches, peat in hollows, rock on
+    slopes steeper than about 35 degrees, gravel on the verge, all tinted by the map's cover colour so
+    fields, moor and scree still fall where the map says."""
+    g = Graph(new_material("M_Land"))
+    grass = g.layer(tex["grass"], roles["grass"]["tile_m"])
+    land = grass
+    if "moor" in tex:
+        land = g.mix(land, g.layer(tex["moor"], roles["moor"]["tile_m"]), g.mask_noise(0.0008, -1.5, 2.5))
+    if "peat" in tex:
+        land = g.mix(land, g.layer(tex["peat"], roles["peat"]["tile_m"]), g.mask_noise(0.003, -3.0, 1.4))
+    # The map's cover: vertex colour relative to plain grass's, softened.
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    tint = g.op(unreal.MaterialExpressionDivide, vc, g.const(lin((92, 112, 52))))
+    tint = g.lerp(g.const((1.0, 1.0, 1.0)), tint, g.const(0.55))
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], tint)
+    if "rock" in tex:
+        nz = g.node(unreal.MaterialExpressionVertexNormalWS)
+        up = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
+        g.link(nz, up)
+        steep = g.op(unreal.MaterialExpressionSubtract, up, const_b=0.80)
+        steep = g.op(unreal.MaterialExpressionMultiply, steep, const_b=-7.0)
+        steep = g.op(unreal.MaterialExpressionSaturate, steep)
+        land = g.mix(land, g.layer(tex["rock"], roles["rock"]["tile_m"]), steep)
+    if "gravel" in tex:
+        verge = g.op(unreal.MaterialExpressionOneMinus, vc, a_out="A")
+        land = g.mix(land, g.layer(tex["gravel"], roles["gravel"]["tile_m"]), verge)
+    # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.8, 1.15, -1200, g.y + 200))
+    return g.finish(land)
+
+
+def road_material_scanned(tex, roles):
+    """Scanned tarmac, darkened a little towards the middle where the wheels polish it, with the white
+    edge lines (vertex colour red above about 0.955) painted on top."""
+    g = Graph(new_material("M_Road"))
+    road = g.layer(tex["asphalt"], roles["asphalt"]["tile_m"])
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    line = g.op(unreal.MaterialExpressionSubtract, vc, a_out="R", const_b=0.955)
+    line = g.op(unreal.MaterialExpressionMultiply, line, const_b=60.0)
+    line = g.op(unreal.MaterialExpressionSaturate, line)
+    # Worn paint: broken up by a fine noise.
+    wear = g.mask_noise(0.6, -0.4, 2.2)
+    line = g.op(unreal.MaterialExpressionMultiply, line, wear)
+    paint = [g.const((0.62, 0.62, 0.6)), g.const((0.0, 0.0, 1.0)), g.const(0.55)]
+    road = g.mix(road, paint, line)
+    return g.finish(road)
+
+
 def bike_materials(finishes):
     """A two sided master (colour, metallic, roughness as parameters) and an instance per finish."""
     m = new_material("M_BikeMaster", BIKE_MAT_DIR)
@@ -382,7 +582,10 @@ def build():
     except Exception as e:
         unreal.log_warning("[Torque] couldn't count vertices: %s" % e)
     yaw, mirror, scale = find_frame(meshes["road"], os.path.join(folder, "road.glb"))
-    land, road, detail = land_material(), road_material(), detail_material()
+    tex, roles = import_textures()
+    land = land_material_scanned(tex, roles) if "grass" in tex else land_material()
+    road = road_material_scanned(tex, roles) if "asphalt" in tex else road_material()
+    detail = detail_material()
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).
@@ -412,28 +615,69 @@ def build():
         a.set_editor_property("tags", [unreal.Name("Road" if name == "road" else "Land")])
         a.set_folder_path("Terrain" if name != "road" else "Road")
 
-    # Sun, sky and air. A late-morning Dales sun from the south east, a little haze.
-    sun = spawn(unreal.DirectionalLight, (0, 0, 50000), (0, -38, 125))
+    # Sun, sky and air, in real units: a mid-afternoon Dales sun (about 75,000 lux) from the south
+    # west, Lumen bouncing it off the hills, clouds that cast shadows, and the valley's haze.
+    sun = spawn(unreal.DirectionalLight, (0, 0, 50000), (0, -32, -45))   # shining towards the north west
     sc = sun.get_component_by_class(unreal.DirectionalLightComponent)
-    sc.set_editor_property("atmosphere_sun_light", True)
-    sc.set_editor_property("intensity", 9.0)
     sc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
-    spawn(unreal.SkyAtmosphere)
+    for k, v in (("atmosphere_sun_light", True), ("intensity", 75000.0), ("light_source_angle", 0.53),
+                 ("cast_cloud_shadows", True), ("cast_shadows_on_clouds", True), ("cast_shadows_on_atmosphere", True),
+                 ("light_color", unreal.Color(255, 247, 235, 255))):
+        try_set(sc, k, v)
+    atm = spawn(unreal.SkyAtmosphere)
+    ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
+    # British air: more haze than the default, so far fells go blue-grey.
+    for k, v in (("mie_scattering_scale", 0.008), ("aerial_perspective_view_distance_scale", 2.0),
+                 ("height_fog_contribution", 1.0)):
+        try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
     skc = sky.get_component_by_class(unreal.SkyLightComponent)
     skc.set_editor_property("real_time_capture", True)
     skc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    try_set(skc, "intensity", 1.0)
     fog = spawn(unreal.ExponentialHeightFog, (0, 0, -20000))
     fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
-    fc.set_editor_property("fog_density", 0.008)
-    fc.set_editor_property("fog_height_falloff", 0.05)
-    fc.set_editor_property("enable_volumetric_fog", True)
+    for k, v in (("fog_density", 0.01), ("fog_height_falloff", 0.06), ("enable_volumetric_fog", True),
+                 ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
+                 ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
+                 ("fog_inscattering_luminance", unreal.LinearColor(0.35, 0.42, 0.55, 1.0))):
+        try_set(fc, k, v)
     try:
-        spawn(unreal.VolumetricCloud)
+        cloud = spawn(unreal.VolumetricCloud)
+        cc = cloud.get_component_by_class(unreal.VolumetricCloudComponent)
+        for k, v in (("layer_bottom_altitude", 1.4), ("layer_height", 5.0), ("tracing_max_distance", 60.0),
+                     ("shadow_tracing_distance", 12.0)):
+            try_set(cc, k, v)
     except Exception as e:
         unreal.log_warning("[Torque] no volumetric cloud: %s" % e)
     ppv = spawn(unreal.PostProcessVolume)
     ppv.set_editor_property("unbound", True)
+    pp = ppv.get_editor_property("settings")
+    # A camera exposed for a bright overcast-to-sunny day (EV100 about 13 to 15), a filmic grade
+    # nudged towards the cool, slightly muted greens of the Dales, and gentle lens touches.
+    def enum(path):
+        try:
+            v = unreal
+            for part in path.split("."):
+                v = getattr(v, part)
+            return v
+        except AttributeError:
+            unreal.log_warning("[Torque] no " + path)
+            return None
+    for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
+                 ("auto_exposure_min_brightness", 12.5), ("auto_exposure_max_brightness", 15.5),
+                 ("auto_exposure_bias", 0.3), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
+                 ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.85),
+                 ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
+                 ("motion_blur_amount", 0.35), ("motion_blur_max", 3.0),
+                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(0.92, 0.92, 0.92, 1.0)),
+                 ("color_contrast", unreal.Vector4(1.06, 1.06, 1.06, 1.0)),
+                 ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
+                 ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
+                 ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
+        if v is not None and try_set(pp, k, v):
+            try_set(pp, "override_" + k, True)
+    ppv.set_editor_property("settings", pp)
 
     sp = route["spawn"]["ue"]
     heading_deg = math.degrees(route["spawn"]["heading"])

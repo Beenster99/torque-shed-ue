@@ -13,3 +13,4 @@ DerivedDataCache/
 build/
 Data/Buttertubs/sim_*
 __pycache__/
+Data/Textures/*/

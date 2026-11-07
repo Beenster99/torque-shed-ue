@@ -1,0 +1,19 @@
+{
+ "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers.",
+ "roles": {
+  "grass":   {"id": "Grass004",   "tile_m": 3.0},
+  "moor":    {"id": "Grass002",   "tile_m": 4.0},
+  "peat":    {"id": "Ground037",  "tile_m": 3.0},
+  "rock":    {"id": "Rock030",    "tile_m": 6.0},
+  "gravel":  {"id": "Gravel022",  "tile_m": 2.0},
+  "asphalt": {"id": "Asphalt012", "tile_m": 3.0}
+ },
+ "candidates": {
+  "grass":   ["Grass001", "Grass002", "Grass003", "Grass004", "Grass005", "Grass008"],
+  "moor":    ["Grass002", "Grass003", "Ground048", "Ground054", "Moss002"],
+  "peat":    ["Ground037", "Ground054", "Ground068", "Ground080"],
+  "rock":    ["Rock030", "Rock035", "Rock051", "Rock022"],
+  "gravel":  ["Gravel022", "Gravel040", "Ground062"],
+  "asphalt": ["Asphalt012", "Asphalt025", "Asphalt026", "Asphalt031"]
+ }
+}
