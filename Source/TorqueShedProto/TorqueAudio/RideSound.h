@@ -1,7 +1,7 @@
 // The ride's sound, made sample by sample in plain C++ (no Unreal types, so SimTest can render it):
 // the engine as a 270-degree parallel twin (each firing rings the pipe's resonances, the uneven
 // 270/450 gaps give the twin its lope), the recorded idle under it at tickover, pops on the
-// overrun, a gear lever clunk on every change, wind with speed, tyre squeal and scrub when a tyre
+// overrun (deep, occasional, only from a hot exhaust), a gear lever clunk on every change, wind with speed, tyre squeal and scrub when a tyre
 // slides, and moorland birds behind it all. Mono, 48 kHz.
 #pragma once
 
@@ -35,6 +35,9 @@ public:
 
 	double IdleRpm = 950.0;
 	double Volume = 0.8;
+	// The exhaust's heat, 0 cold .. 1 hot: builds over tens of seconds of riding under load and
+	// cools slowly. A cold exhaust doesn't pop.
+	double Heat = 0.0;
 
 	void SetIdle(std::vector<float> Samples, int SampleRate, double RecordedRpm);
 	void AddClunk(std::vector<float> Samples, int SampleRate);
@@ -75,8 +78,11 @@ private:
 	double Pulse = 0.0, PulseNoise = 0.0, PulseDecay = 0.0, PulseAmp = 0.0;
 	double Cut = 0.0;                 // seconds left of the ignition cut
 	double Overrun = 0.0;             // seconds since the throttle shut with the revs up
-	double PopEnv = 0.0;
-	Biquad Pipe[4], Intake, Crackle, Tone;
+	double DownshiftPop = 0.0;        // seconds left in which a downshift on the overrun can pop
+	double SincePop = 1.0;
+	// A pop: a low thump (a sine falling in pitch), a dull burst of noise, a short crack on top.
+	double PopEnv = 0.0, PopNoiseEnv = 0.0, CrackEnv = 0.0, PopPhase = 0.0, PopFreq = 0.0;
+	Biquad Pipe[4], Intake, Crackle, Tone, PopBody;
 	double Hp = 0.0, HpIn = 0.0;      // DC block
 	double MechPhase = 0.0;
 
