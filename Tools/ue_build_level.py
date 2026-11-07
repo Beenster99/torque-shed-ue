@@ -566,11 +566,13 @@ def bike_master(name, tex, paint):
     nrm = g.lerp(g.const((0.0, 0.0, 1.0)), ntex, scalar("NormalStrength", 1.0), b_out="RGB")
     # The finish mask is UV channel 1's u (written by make_speedtwin.py; the importer drops vertex
     # colour, which then reads white, so it isn't used).
-    vc = g.node(unreal.MaterialExpressionTextureCoordinate, -1500, coordinate_index=1)
-    col = g.lerp(vector("Color", (0.5, 0.5, 0.5)), vector("Color2", (0.5, 0.5, 0.5)), vc, alpha_out="R")
+    uv1 = g.node(unreal.MaterialExpressionTextureCoordinate, -1500, coordinate_index=1)
+    vc = g.node(unreal.MaterialExpressionComponentMask, -1300, r=True, g=False, b=False, a=False)   # TexCoord has no R pin
+    g.link(uv1, vc)
+    col = g.lerp(vector("Color", (0.5, 0.5, 0.5)), vector("Color2", (0.5, 0.5, 0.5)), vc)
     shaded = g.op(unreal.MaterialExpressionMultiply, col, dtex, b_out="G")
-    met = g.lerp(scalar("Metallic", 0.0), scalar("Metallic2", 0.0), vc, alpha_out="R")
-    rough = g.lerp(scalar("Roughness", 0.5), scalar("Roughness2", 0.5), vc, alpha_out="R")
+    met = g.lerp(scalar("Metallic", 0.0), scalar("Metallic2", 0.0), vc)
+    rough = g.lerp(scalar("Roughness", 0.5), scalar("Roughness2", 0.5), vc)
     roff = g.op(unreal.MaterialExpressionSubtract, dtex, a_out="R", const_b=0.5)
     roff = g.op(unreal.MaterialExpressionMultiply, roff, scalar("RoughVar", 0.0))
     rough = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd, rough, roff))
