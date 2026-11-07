@@ -30,6 +30,9 @@ struct FRiderPoseInput
 	// index 0 is the left hand on the clutch, 1 the right on the front brake.
 	double LeverFingers[2] = {0.0, 0.0};
 	double LeverPull[2] = {0.0, 0.0};
+	// Off the bike (0..1): the hands let go of the grips and go to HandsOff (wrists, left and right).
+	double Limp = 0.0;
+	FVector HandsOff[2] = {FVector::ZeroVector, FVector::ZeroVector};
 };
 
 class FRiderRig
@@ -41,6 +44,7 @@ public:
 		const TMap<FString, UMaterialInterface*>& Mats, const FTransform& HelmetFix);
 	void Pose(const FRiderPoseInput& In);
 	bool IsValid() const { return Body != nullptr; }
+	FVector PelvisRest() const { return Pelvis != INDEX_NONE ? Bones[Pelvis].Rest : FVector(-34.0, 0.0, 61.5); }
 
 	UPoseableMeshComponent* Body = nullptr;
 	UStaticMeshComponent* Helmet = nullptr;

@@ -101,6 +101,8 @@ ATorqueBikePawn::ATorqueBikePawn()
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
+	RiderRoot = CreateDefaultSubobject<USceneComponent>(TEXT("RiderRoot"));
+	RiderRoot->SetupAttachment(Root);
 
 	auto MakeMesh = [&](const TCHAR* Name, UStaticMesh* Mesh, USceneComponent* Parent, const FVector& Loc,
 		const FVector& Scale, const FRotator& Rot = FRotator::ZeroRotator) {
@@ -369,6 +371,14 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 	Sim->Assist = Assist;
 	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
 	CrashedFor = 0.0;
+	if (bThrown)
+	{
+		// Back on the bike.
+		bThrown = false;
+		RiderRoot->SetUsingAbsoluteLocation(false);
+		RiderRoot->SetUsingAbsoluteRotation(false);
+		RiderRoot->SetRelativeLocationAndRotation(FVector::ZeroVector, FQuat::Identity);
+	}
 	CurPos = PrevPos = ToUE(Sim->Position);
 	CurRot = PrevRot = BasisToUE(Sim->Basis);
 	Accum = 0.0;
@@ -567,6 +577,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	GearNoteFor = FMath::Max(GearNoteFor - DeltaSeconds, 0.0);
 
 	UpdateVisuals(Accum / SimDt);
+	ThrowRider(DeltaSeconds);
 	UpdateRider();
 	UpdateClock();
 	UpdateProgress();
@@ -657,7 +668,7 @@ bool ATorqueBikePawn::BuildRiderRig()
 	if ((*Rig)->TryGetObjectField(TEXT("materials"), MatObj))
 		for (const auto& KV : (*MatObj)->Values)
 			Mats.Add(FString(KV.Key), LoadObject<UMaterialInterface>(nullptr, *KV.Value->AsString()));
-	if (!RiderRig.Build(this, Root, (*Rig)->GetStringField(TEXT("mesh")), (*Rig)->GetStringField(TEXT("helmet")), Mats, Fix))
+	if (!RiderRig.Build(this, RiderRoot, (*Rig)->GetStringField(TEXT("mesh")), (*Rig)->GetStringField(TEXT("helmet")), Mats, Fix))
 		return false;
 	RiderBody = RiderRig.Body;
 	RiderHelmet = RiderRig.Helmet;
@@ -804,6 +815,58 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 	}
 }
 
+void ATorqueBikePawn::ThrowRider(float Dt)
+{
+	if (!RiderRig.IsValid()) return;
+	const FVector Pelvis0 = RiderRig.PelvisRest();
+	if (Sim->IsCrashed && !bThrown)
+	{
+		// Let go of the bike where it is now, moving as it was, with a little hop up off the seat.
+		bThrown = true;
+		ThrownFor = 0.0;
+		const FTransform At = RiderRoot->GetComponentTransform();
+		ThrowRot0 = At.GetRotation();
+		ThrowPelvis = At.TransformPosition(Pelvis0);
+		ThrowVel = DirToUE(Sim->LinearVelocity) * 100.0 + FVector(0.0, 0.0, 150.0);
+		// He comes to rest on his back, feet the way he was going (or the way the bike faced, slow).
+		FVector Dir(ThrowVel.X, ThrowVel.Y, 0.0);
+		if (Dir.SizeSquared() < 200.0 * 200.0) Dir = ThrowRot0.GetForwardVector() * FVector(1.0, 1.0, 0.0);
+		const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+		// Tipped back past upright so his back lies along the road (the chest is also pushed back).
+		ThrowLie = FRotator(95.0, Yaw, 0.0).Quaternion();
+		RiderRoot->SetUsingAbsoluteLocation(true);
+		RiderRoot->SetUsingAbsoluteRotation(true);
+	}
+	if (!bThrown) return;
+
+	ThrownFor += Dt;
+	const double Step = FMath::Min((double)Dt, 0.05);
+	ThrowVel.Z -= 981.0 * Step;
+	ThrowPelvis += ThrowVel * Step;
+	// The road or land under him: the pelvis rides 14 cm up (the seat of the jeans on the ground),
+	// and once down he slides to a stop.
+	if (UWorld* World = GetWorld())
+	{
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueThrow), true, this);
+		if (GroundTrace(World, ThrowPelvis + FVector(0, 0, 150.0), ThrowPelvis - FVector(0, 0, 300.0), Params, Hit))
+		{
+			const double Rest = Hit.ImpactPoint.Z + 14.0;
+			if (ThrowPelvis.Z <= Rest)
+			{
+				ThrowPelvis.Z = Rest;
+				ThrowVel.Z = FMath::Max(ThrowVel.Z, 0.0);
+				FVector Flat(ThrowVel.X, ThrowVel.Y, 0.0);
+				const double Sp = Flat.Size(), Slow = 600.0 * Step;   // leather and denim on tarmac
+				ThrowVel = Sp > Slow ? Flat * ((Sp - Slow) / Sp) : FVector::ZeroVector;
+			}
+		}
+	}
+	const double A = FMath::SmoothStep(0.0, 0.7, ThrownFor);
+	const FQuat Q = FQuat::Slerp(ThrowRot0, ThrowLie, A);
+	RiderRoot->SetWorldLocationAndRotation(ThrowPelvis - Q.RotateVector(Pelvis0), Q);
+}
+
 void ATorqueBikePawn::UpdateRider()
 {
 	if (RiderRig.IsValid())
@@ -825,6 +888,21 @@ void ATorqueBikePawn::UpdateRider()
 		In.Look = FRotator(LookPitch * -0.4, LookYaw * 0.5, 0.0);
 		// Right hand: the throttle, and the front brake lever under two fingers.
 		In.Throttle = Throttle;
+		if (bThrown)
+		{
+			// Off the bike: lying back, legs out along the road, arms out at his sides.
+			const double Off = FMath::SmoothStep(0.0, 0.5, ThrownFor);
+			In.ChestShift = FMath::Lerp(In.ChestShift, FVector(-20.0, 0.0, -5.0), Off);
+			In.HipShift = 0.0;
+			In.FeetDown = Off;
+			In.FootDownL = FVector(-47.0, -25.0, -17.5);
+			In.FootDownR = FVector(-47.0, 25.0, -17.5);
+			In.Limp = Off;
+			In.HandsOff[0] = FVector(-43.0, -50.0, 77.0);
+			In.HandsOff[1] = FVector(-43.0, 50.0, 77.0);
+			In.Look = FRotator::ZeroRotator;
+			In.Throttle = 0.0;
+		}
 		In.LeverFingers[1] = BrakeFingers;
 		In.LeverPull[1] = FMath::Clamp(FrontBrake, 0.0, 1.0) * BrakeFingers;
 		// Left hand: the clutch, pulled for each gear change (fingers over, pull, let out), and held
@@ -1028,8 +1106,8 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	FVector Flat(Fwd.X, Fwd.Y, 0.0);
 	Flat = Flat.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 
-	ShowHead(CameraMode == 0);
-	ShowRider(CameraMode != 3);
+	ShowHead(CameraMode == 0 || CameraMode == 3);
+	ShowRider(true);
 	if (CameraMode == 3)
 	{
 		// Showroom: round the bike at a walking-round distance, eye height a little above the tank,
@@ -1051,7 +1129,11 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		// camera on beenster's helmet: just below the eyes at the front of the chin bar, wide.
 		// Either way the head leans with the bike, but less, as yours does.
 		const bool bChin = CameraMode == 2;
-		const FVector Eye = BikePos + BikeRot.RotateVector(HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0) : FVector(4.0, 0.0, 0.0)));
+		// (First person sits a little behind the helmet's centre, so more of the bars and arms show.)
+		const FVector EyeLocal = HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0) : FVector(-7.0, 0.0, 3.5));
+		// The head is the rider's: thrown off in a crash, the view goes with him.
+		const FVector Eye = bThrown ? RiderRoot->GetComponentTransform().TransformPosition(EyeLocal)
+			: BikePos + BikeRot.RotateVector(EyeLocal);
 		FRotator Rot = Flat.Rotation();
 		// Looking down a little more in first person, so the clocks and your hands are in view.
 		// (The clocks are about 50 degrees below the rider's eyes and the grips a little more, so the
