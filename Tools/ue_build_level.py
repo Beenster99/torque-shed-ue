@@ -472,13 +472,16 @@ def land_material_scanned(tex, roles):
     # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.9, 1.07, -1200, g.y + 200))
     # Far away, the scanned textures shrink into a busy mottle (contour-like bands of moor and peat);
-    # from about 80 m out fade to the map's own cover colour, flat-shaded, as a hillside reads at a distance.
+    # from about 150 m out lean part of the way towards the map's own cover colour and a softer normal.
+    # Only part of the way (at most 55%): a full fade to flat colour read as mush with Lumen on.
     depth = g.node(unreal.MaterialExpressionPixelDepth)
-    far = g.op(unreal.MaterialExpressionSubtract, depth, const_b=8000.0)
-    far = g.op(unreal.MaterialExpressionDivide, far, const_b=30000.0)
+    far = g.op(unreal.MaterialExpressionSubtract, depth, const_b=15000.0)
+    far = g.op(unreal.MaterialExpressionDivide, far, const_b=60000.0)
     far = g.op(unreal.MaterialExpressionSaturate, far)
+    far = g.op(unreal.MaterialExpressionMultiply, far, const_b=0.55)
     cover = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.1)
-    land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.9)], far)
+    cover = g.lerp(land[0], cover, g.const(0.7))
+    land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.85)], far)
     return g.finish(land)
 
 
