@@ -36,50 +36,102 @@ FORK_BACK = np.array([-math.cos(RAKE), -math.sin(RAKE), 0.0])      # square to t
 STEER_POINT = FRONT_AXLE + FORK_BACK * OFFSET                      # a point on the steering axis
 SWING_PIVOT = np.array([-0.335, 0.075, 0.0])
 
-# Finishes: base colour (linear), metallic, roughness. The level script makes a material of each.
+# Finishes: the level script makes a material instance of each. "paint" finishes use the clear coat
+# master (a metallic or solid base under a glossy lacquer), the rest the plain one. Each can have a
+# second finish its parts blend to by their vertex mask, and a detail set from Tools/make_bike_textures.py
+# (a normal map and a roughness/shade map) repeated uv_scale times per metre of UV.
+def finish(color, metallic, roughness, shader="base", color2=None, metallic2=None, roughness2=None,
+           detail="flat", uv_scale=1.0, normal_strength=1.0, rough_var=0.0, clearcoat_roughness=0.03, emissive=0.0):
+    return {"shader": shader, "color": list(color), "metallic": metallic, "roughness": roughness,
+            "color2": list(color2 if color2 is not None else color),
+            "metallic2": metallic if metallic2 is None else metallic2,
+            "roughness2": roughness if roughness2 is None else roughness2,
+            "detail": detail, "uv_scale": uv_scale, "normal_strength": normal_strength, "rough_var": rough_var,
+            "clearcoat_roughness": clearcoat_roughness, "emissive": emissive}
+
+
+GLOSS_BLACK = (0.010, 0.010, 0.011)
+MACHINED = (0.78, 0.78, 0.77)
 FINISHES = {
-    "paint_silver": ((0.62, 0.63, 0.64), 1.0, 0.22),
-    "black_gloss": ((0.012, 0.012, 0.013), 0.0, 0.12),
-    "black_satin": ((0.02, 0.02, 0.021), 0.0, 0.45),
-    "black_engine": ((0.025, 0.025, 0.027), 0.3, 0.38),
-    "chrome": ((0.92, 0.92, 0.92), 1.0, 0.06),
-    "steel_brushed": ((0.75, 0.74, 0.72), 1.0, 0.28),
-    "copper_heat": ((0.78, 0.46, 0.30), 1.0, 0.30),
-    "alu_cast": ((0.80, 0.80, 0.80), 1.0, 0.35),
-    "rubber": ((0.018, 0.018, 0.018), 0.0, 0.88),
-    "leather": ((0.022, 0.021, 0.02), 0.0, 0.55),
-    "disc_steel": ((0.55, 0.55, 0.56), 1.0, 0.32),
-    "lens_clear": ((0.85, 0.87, 0.9), 1.0, 0.04),
-    "lens_red": ((0.6, 0.02, 0.02), 0.0, 0.1),
-    "lens_amber": ((0.9, 0.35, 0.02), 0.0, 0.15),
-    "chain": ((0.18, 0.17, 0.16), 1.0, 0.5),
+    # Silver tank: metallic base with flake under lacquer; the mask is the black pinstripe.
+    "paint_silver": finish((0.60, 0.61, 0.62), 1.0, 0.32, "paint", color2=GLOSS_BLACK, metallic2=0.0, roughness2=0.2,
+                           detail="flake", uv_scale=25.0, normal_strength=0.0, rough_var=0.25),
+    "black_gloss": finish(GLOSS_BLACK, 0.0, 0.2, "paint", detail="flake", uv_scale=25.0, normal_strength=0.0),
+    "black_satin": finish((0.018, 0.018, 0.019), 0.0, 0.48, detail="powder", uv_scale=6.0, normal_strength=0.35, rough_var=0.2),
+    # Black cases and barrels; the mask is machined metal (the fin edges, the cover rims).
+    "black_engine": finish((0.022, 0.022, 0.024), 0.25, 0.4, color2=MACHINED, metallic2=1.0, roughness2=0.22,
+                           detail="cast", uv_scale=8.0, normal_strength=0.5, rough_var=0.25),
+    "chrome": finish((0.93, 0.93, 0.93), 1.0, 0.04),
+    "steel_brushed": finish((0.74, 0.73, 0.71), 1.0, 0.26, detail="brushed", uv_scale=5.0, normal_strength=0.6, rough_var=0.35),
+    # Brushed stainless headers, golden and blue heat tint near the ports (the mask).
+    "header": finish((0.74, 0.73, 0.71), 1.0, 0.26, color2=(0.62, 0.40, 0.22), metallic2=1.0, roughness2=0.3,
+                     detail="brushed", uv_scale=5.0, normal_strength=0.6, rough_var=0.35),
+    "alu_cast": finish((0.80, 0.80, 0.80), 1.0, 0.35, detail="cast", uv_scale=8.0, normal_strength=0.6, rough_var=0.3),
+    "alu_brushed": finish((0.86, 0.86, 0.85), 1.0, 0.2, detail="brushed", uv_scale=10.0, normal_strength=0.5, rough_var=0.3),
+    "rubber": finish((0.018, 0.018, 0.018), 0.0, 0.85, detail="rubber", uv_scale=12.0, normal_strength=0.6, rough_var=0.2),
+    "grip": finish((0.016, 0.016, 0.016), 0.0, 0.8, detail="knurl", uv_scale=30.0, normal_strength=1.0, rough_var=0.2),
+    # Tyres: the tread map is wrapped 24 times round and once across, from bead to bead.
+    "tyre": finish((0.022, 0.022, 0.022), 0.0, 0.78, detail="tyre", uv_scale=1.0, normal_strength=1.0, rough_var=0.4),
+    "leather": finish((0.020, 0.019, 0.018), 0.0, 0.55, detail="leather", uv_scale=7.0, normal_strength=0.8, rough_var=0.3),
+    "disc_steel": finish((0.55, 0.55, 0.56), 1.0, 0.3, detail="machined", uv_scale=8.0, normal_strength=0.5, rough_var=0.4),
+    "fork_inner": finish((0.62, 0.62, 0.63), 1.0, 0.12, color2=(0.018, 0.018, 0.019), metallic2=0.0, roughness2=0.45),
+    # Headlight: black bowl, the mask is its brushed aluminium bezel.
+    "headlight": finish(GLOSS_BLACK, 0.0, 0.18, color2=(0.86, 0.86, 0.85), metallic2=1.0, roughness2=0.18,
+                        detail="brushed", uv_scale=10.0, normal_strength=0.3),
+    "bolt": finish((0.62, 0.62, 0.62), 1.0, 0.3, detail="cast", uv_scale=20.0, normal_strength=0.3),
+    "lens_clear": finish((0.85, 0.87, 0.9), 1.0, 0.04),
+    "lens_red": finish((0.6, 0.02, 0.02), 0.0, 0.1),
+    "lens_amber": finish((0.9, 0.35, 0.02), 0.0, 0.15),
+    "chain": finish((0.16, 0.15, 0.14), 1.0, 0.45, detail="cast", uv_scale=30.0, normal_strength=0.5, rough_var=0.3),
 }
 
 
 # --- Geometry --------------------------------------------------------------------------------------
 
 class Mesh:
-    """Pieces of triangles, each with its own vertices and local indices."""
+    """Pieces of triangles, each with its own vertices, local indices, UVs and a finish mask. UVs are
+    in metres (u round a section, v along it) unless a part asks otherwise; the mask (0..1, written as
+    vertex colour red) blends a part's finish towards its second finish (a pinstripe, fin edges, heat
+    tint)."""
     def __init__(self):
-        self.p, self.t = [], []
+        self.p, self.t, self.uv, self.m = [], [], [], []
 
-    def add(self, pos, tris):
-        self.p.append(np.asarray(pos, np.float64))
+    def add(self, pos, tris, uv=None, mask=None):
+        pos = np.asarray(pos, np.float64)
+        self.p.append(pos)
         self.t.append(np.asarray(tris, np.int64))
+        self.uv.append(np.zeros((len(pos), 2)) if uv is None else np.asarray(uv, np.float64))
+        self.m.append(np.zeros(len(pos)) if mask is None else np.broadcast_to(np.asarray(mask, np.float64), (len(pos),)).copy())
         return self
 
     def extend(self, other):
-        self.p += other.p; self.t += other.t
+        self.p += other.p; self.t += other.t; self.uv += other.uv; self.m += other.m
+        return self
+
+    def masked(self, value):
+        """The whole mesh on its second finish (value 1) or its first (0)."""
+        self.m = [np.full(len(p), float(value)) for p in self.p]
+        return self
+
+    def mask_by(self, fn):
+        """Mask from a function of each vertex position (an (n, 3) array in, n values in 0..1 out)."""
+        self.m = [np.clip(fn(p), 0, 1) for p in self.p]
+        return self
+
+    def mask_by_uv(self, fn):
+        """Mask from a function of each vertex's UVs (an (n, 2) array in, n values out)."""
+        self.m = [np.clip(fn(uv), 0, 1) for uv in self.uv]
         return self
 
     def arrays(self):
         offs = np.cumsum([0] + [len(p) for p in self.p[:-1]])
-        return np.concatenate(self.p), np.concatenate([t + o for t, o in zip(self.t, offs)])
+        return (np.concatenate(self.p), np.concatenate([t + o for t, o in zip(self.t, offs)]),
+                np.concatenate(self.uv), np.concatenate(self.m))
 
     def transformed(self, R=None, T=(0, 0, 0)):
         m = Mesh()
-        for p, t in zip(self.p, self.t):
-            m.p.append(p @ (np.eye(3) if R is None else R).T + np.asarray(T)); m.t.append(t)
+        for p, t, uv, k in zip(self.p, self.t, self.uv, self.m):
+            m.add(p @ (np.eye(3) if R is None else R).T + np.asarray(T), t, uv, k)
         return m
 
 
@@ -118,50 +170,67 @@ def frames(path, up_hint=(0, 1, 0)):
 def sweep(path, half_w, half_h, power=2.0, seg=32, caps=True, up_hint=(0, 1, 0), offset_up=None):
     """A superellipse section (half width along the binormal, half height along the normal) swept
     along a path. half_w, half_h (and offset_up, shifting the section along its normal) can be
-    arrays, one per path point. power 2 is an ellipse, 4 to 8 a rounded box."""
+    arrays, one per path point. power 2 is an ellipse, 4 to 8 a rounded box. UVs in metres: u round
+    the section, v along the path; the seam column is doubled so textures wrap cleanly."""
     path = np.asarray(path, np.float64)
     n = len(path)
     hw = np.broadcast_to(np.asarray(half_w, np.float64), (n,))
     hh = np.broadcast_to(np.asarray(half_h, np.float64), (n,))
     off = np.zeros(n) if offset_up is None else np.broadcast_to(np.asarray(offset_up, np.float64), (n,))
     tan, N, B = frames(path, up_hint)
-    a = np.linspace(0, 2 * math.pi, seg, endpoint=False)
+    a = np.linspace(0, 2 * math.pi, seg + 1)
     c, s = np.cos(a), np.sin(a)
     e = 2.0 / power
     cx = np.sign(c) * np.abs(c) ** e
     sy = np.sign(s) * np.abs(s) ** e
     pts = (path[:, None, :] + N[:, None, :] * (off[:, None, None] + hh[:, None, None] * sy[None, :, None])
            + B[:, None, :] * (hw[:, None, None] * cx[None, :, None]))
+    pts[:, -1] = pts[:, 0]
+    perim = 2 * math.pi * np.sqrt((hw ** 2 + hh ** 2) / 2)
+    along = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))])
+    uv = np.stack([(a / (2 * math.pi))[None, :] * perim[:, None], np.broadcast_to(along[:, None], (n, seg + 1))], -1)
     pos = pts.reshape(-1, 3)
-    tris = grid_tris(n, seg)
+    uv = uv.reshape(-1, 2)
+    tris = grid_tris(n, seg + 1, wrap_cols=False)
     if caps:
         # Caps in the same piece, wound to match the sides, so the piece is closed.
         for i, flip in ((0, True), (n - 1, False)):
-            ring = np.arange(seg) + i * seg
+            ring = np.arange(seg) + i * (seg + 1)
             ci = len(pos)
             pos = np.vstack([pos, (path[i] + N[i] * off[i])[None]])
+            uv = np.vstack([uv, [[perim[i] / 2, along[i]]]])
             ct = np.array([(ci, ring[k], ring[(k + 1) % seg]) for k in range(seg)])
             tris = np.vstack([tris, ct[:, [0, 2, 1]] if flip else ct])
-    return Mesh().add(pos, tris)
+    return Mesh().add(pos, tris, uv)
 
 
 def tube(path, r, seg=14, caps=True):
     return sweep(path, r, r, 2.0, max(seg, 20), caps)
 
 
-def lathe(profile, seg=48, axis=(0, 0, 1), centre=(0, 0, 0), closed=False):
-    """Revolve a profile of (radius, along-axis) points about an axis through centre."""
+def lathe(profile, seg=48, axis=(0, 0, 1), centre=(0, 0, 0), closed=False, uv_norm=None):
+    """Revolve a profile of (radius, along-axis) points about an axis through centre. UVs in metres
+    (u round the largest radius, v along the profile), or with uv_norm=k, u = k repeats round and
+    v = 0..1 along the profile (the tyres' tread map)."""
     prof = np.asarray(profile, np.float64)
     ax = np.asarray(axis, np.float64); ax /= np.linalg.norm(ax)
     u = np.cross(ax, [0, 1, 0] if abs(ax[1]) < 0.9 else [1, 0, 0]); u /= np.linalg.norm(u)
     v = np.cross(ax, u)
-    a = np.linspace(0, 2 * math.pi, seg, endpoint=False)
+    a = np.linspace(0, 2 * math.pi, seg + 1)
+    ca, sa = np.cos(a), np.sin(a)
+    ca[-1], sa[-1] = ca[0], sa[0]
     pts = (np.asarray(centre)[None, None, :]
            + prof[:, None, 1:2] * ax[None, None, :]
-           + prof[:, None, 0:1] * (np.cos(a)[None, :, None] * u + np.sin(a)[None, :, None] * v))
+           + prof[:, None, 0:1] * (ca[None, :, None] * u + sa[None, :, None] * v))
     rows = len(prof)
-    tris = grid_tris(rows, seg)
-    return Mesh().add(pts.reshape(-1, 3), tris)
+    arc = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(prof, axis=0), axis=1))])
+    if uv_norm:
+        uu = a / (2 * math.pi) * uv_norm; vv = arc / max(arc[-1], 1e-9)
+    else:
+        uu = a * max(np.abs(prof[:, 0]).max(), 1e-3); vv = arc
+    uv = np.stack(np.broadcast_arrays(uu[None, :], vv[:, None]), -1).reshape(-1, 2)
+    tris = grid_tris(rows, seg + 1, wrap_cols=False)
+    return Mesh().add(pts.reshape(-1, 3), tris, uv)
 
 
 def box(centre, size, power=6.0, seg=28):
@@ -195,12 +264,47 @@ def polyline(pts, n_per=8):
     return np.array(out)
 
 
+def extrude(outline, z0, z1):
+    """A flat plate from a 2D outline (x, y points, star shaped about the origin) between z0 and z1."""
+    o = np.asarray(outline, np.float64)
+    n = len(o)
+    o = np.vstack([o, o[:1]])
+    side = np.concatenate([np.c_[o, np.full(n + 1, z0)], np.c_[o, np.full(n + 1, z1)]])
+    perim = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(o, axis=0), axis=1))])
+    uv = np.c_[np.r_[perim, perim], np.r_[np.zeros(n + 1), np.full(n + 1, z1 - z0)]]
+    m = Mesh().add(side, grid_tris(2, n + 1, wrap_cols=False), uv)
+    for z, flip in ((z0, True), (z1, False)):
+        pts = np.vstack([[0, 0, z], np.c_[o[:-1], np.full(n, z)]])
+        t = np.array([(0, 1 + k, 1 + (k + 1) % n) for k in range(n)])
+        m.add(pts, t[:, [0, 2, 1]] if flip else t, pts[:, :2])
+    return m
+
+
+def sprocket_outline(teeth, r_tip, r_root):
+    """A toothed outline: round-bottomed gaps between flat-topped teeth."""
+    pts = []
+    for k in range(teeth):
+        a0 = 2 * math.pi * k / teeth
+        da = 2 * math.pi / teeth
+        for f, r in ((0.0, r_root), (0.12, r_root + (r_tip - r_root) * 0.35), (0.3, r_tip), (0.7, r_tip),
+                     (0.88, r_root + (r_tip - r_root) * 0.35)):
+            pts.append((r * math.cos(a0 + f * da), r * math.sin(a0 + f * da)))
+    return pts
+
+
+def hex_bolt(centre, axis, size=0.0065):
+    """A hex bolt head with a washer, standing out along axis from centre."""
+    return (lathe([(0.0, 0.0), (size * 1.35, 0.0), (size * 1.35, 0.0012), (0.0, 0.0012)], seg=20, axis=axis, centre=centre)
+            .extend(lathe([(0.0, 0.0012), (size, 0.0012), (size, size * 0.75), (size * 0.75, size * 0.95), (0.0, size * 0.95)],
+                          seg=6, axis=axis, centre=centre)))
+
+
 def mirror_z(m):
     """The same part on the other side (mirror in z), with the winding fixed."""
     out = Mesh()
-    for p, t in zip(m.p, m.t):
+    for p, t, uv, k in zip(m.p, m.t, m.uv, m.m):
         q = p.copy(); q[:, 2] *= -1
-        out.p.append(q); out.t.append(t[:, [0, 2, 1]])
+        out.add(q, t[:, [0, 2, 1]], uv, k)
     return out
 
 
@@ -233,7 +337,7 @@ def wheel(radius_tyre, tyre_w, rim_r=0.2159, rim_w=None, spokes=10, front=True):
         z = tyre_w / 2 * math.sin(ang)
         prof.append((r, z))
     prof = [(rim_r + 0.005, -tyre_w * 0.42)] + prof + [(rim_r + 0.005, tyre_w * 0.42)]
-    parts["tyre"] = (lathe(prof, seg=120), "rubber")
+    parts["tyre"] = (lathe(prof, seg=144, uv_norm=24), "tyre")
     rw = rim_w or tyre_w * 0.8
     rim = lathe([(rim_r + 0.012, -rw / 2), (rim_r, -rw / 2 + 0.006), (rim_r - 0.012, -rw / 2 + 0.01),
                  (rim_r - 0.016, 0.0), (rim_r - 0.012, rw / 2 - 0.01), (rim_r, rw / 2 - 0.006),
@@ -258,6 +362,11 @@ def disc(centre_z, r_out, r_in, holes=True):
                (r_in, centre_z + 0.0025), (r_in, centre_z - 0.0025)], seg=64)
     carrier = lathe([(0.04, centre_z - 0.003), (r_in + 0.005, centre_z - 0.003), (r_in + 0.005, centre_z + 0.003),
                      (0.04, centre_z + 0.003), (0.04, centre_z - 0.003)], seg=40)
+    # Floating disc: ten bobbins joining the carrier to the rotor.
+    for k in range(10):
+        a = 2 * math.pi * (k + 0.5) / 10
+        c = (r_in * math.cos(a), r_in * math.sin(a), centre_z - 0.004)
+        carrier.extend(lathe([(0.0, 0.0), (0.0075, 0.0), (0.0075, 0.008), (0.0, 0.008)], seg=16, centre=c))
     return d, carrier
 
 
@@ -279,7 +388,10 @@ def build():
     rd, rc = disc(-0.07, 0.11, 0.07)
     put("rear_disc", rd, "disc_steel", "rear_wheel")
     # Sprocket on the right (as on beenster's bike), 41 teeth, about 104 mm.
-    sprocket = lathe([(0.06, 0.068), (0.104, 0.068), (0.104, 0.074), (0.06, 0.074), (0.06, 0.068)], seg=41)
+    sprocket = extrude(sprocket_outline(41, 0.106, 0.098), 0.068, 0.074)
+    for k in range(5):     # the five bolts holding it to the cush drive
+        a = 2 * math.pi * k / 5
+        sprocket.extend(hex_bolt((0.055 * math.cos(a), 0.055 * math.sin(a), 0.074), (0, 0, 1), 0.006))
     put("rear_sprocket", sprocket, "alu_cast", "rear_wheel")
 
     # Front end, fork lowers (origin: front axle; legs run up FORK_DIR).
@@ -287,10 +399,13 @@ def build():
     for z in (-0.095, 0.095):
         a = np.array([0.0, 0.0, z]) - FORK_DIR * 0.03
         b = a + FORK_DIR * 0.32
-        lower.extend(tube(np.linspace(a, b, 6), 0.0215, 24))   # the upside-down fork's slim inner tubes
-        lower.extend(lathe([(0.0, -0.035), (0.028, -0.035), (0.03, 0.0), (0.024, 0.03), (0.0, 0.03)], seg=24,
-                           axis=(0, 0, 1), centre=(0.0, 0.0, z)))           # axle clamp
-    put("fork_lowers", lower, "black_satin", "front_lower")
+        lower.extend(tube(np.linspace(a, b, 6), 0.0215, 28))   # the upside-down fork's slim inner tubes
+        foot = Mesh()
+        foot.extend(lathe([(0.0, -0.035), (0.028, -0.035), (0.03, 0.0), (0.024, 0.03), (0.0, 0.03)], seg=28,
+                          axis=(0, 0, 1), centre=(0.0, 0.0, z)))           # axle clamp
+        foot.extend(tube(np.linspace(a, a + FORK_DIR * 0.07, 4), 0.026, 28))   # the foot the tube sits in
+        lower.extend(foot.masked(1.0))
+    put("fork_lowers", lower, "fork_inner", "front_lower")
     calipers = Mesh()
     for z in (-0.085, 0.085):
         c = np.array([-0.12, 0.08, z])
@@ -320,13 +435,14 @@ def build():
                      bar_clamp, bar_clamp + [0.0, 0.025, 0.12], bar_clamp + [-0.03, 0.03, 0.30],
                      bar_clamp + [0.0, 0, 0.38]], 6)
     put("handlebar", tube(bars, 0.011, 12), "black_satin", "steer")
-    grips = Mesh()
+    grips = Mesh(); switches = Mesh()
     for s in (-1, 1):
         g0 = bar_clamp + [-0.005, 0.012, s * 0.255]; g1 = bar_clamp + [0.0, 0.002, s * 0.375]
-        grips.extend(tube(np.linspace(g0, g1, 4), 0.017, 14))
+        grips.extend(tube(np.linspace(g0, g1, 4), 0.017, 20))
         sw = bar_clamp + [0.0, 0.015, s * 0.225]
-        grips.extend(box(sw, (0.05, 0.045, 0.045), 4.0))
-    put("grips_switches", grips, "black_engine", "steer")
+        switches.extend(box(sw, (0.05, 0.045, 0.045), 4.0))
+    put("grips", grips, "grip", "steer")
+    put("grips_switches", switches, "black_engine", "steer")
     levers = Mesh()
     for s in (-1, 1):
         lp = polyline([bar_clamp + [0.02, 0.01, s * 0.23], bar_clamp + [0.07, 0.0, s * 0.27],
@@ -339,8 +455,9 @@ def build():
                              (0.0, 0.025)], seg=40, axis=clock_axis, centre=clock_c), "black_engine", "steer")
     put("clock_face", lathe([(0.0, 0.026), (0.047, 0.026)], seg=40, axis=clock_axis, centre=clock_c), "lens_clear", "steer")
     hl_c = FRONT_AXLE + FORK_DIR * 0.53 + np.array([0.075, 0.0, 0.0])
-    put("headlight_shell", lathe([(0.0, -0.06), (0.05, -0.058), (0.08, -0.03), (0.088, 0.0), (0.09, 0.03),
-                                  (0.0, 0.03)], seg=48, axis=(1, 0, 0), centre=hl_c), "chrome", "steer")
+    shell = lathe([(0.0, -0.06), (0.05, -0.058), (0.08, -0.03), (0.088, 0.0), (0.0895, 0.012), (0.091, 0.02),
+                   (0.091, 0.03), (0.084, 0.034), (0.0, 0.03)], seg=64, axis=(1, 0, 0), centre=hl_c)
+    put("headlight_shell", shell.mask_by(lambda p: (p[:, 0] - hl_c[0] - 0.006) / 0.006), "headlight", "steer")
     put("headlight_lens", lathe([(0.0, 0.05), (0.06, 0.045), (0.084, 0.032)], seg=48, axis=(1, 0, 0), centre=hl_c),
         "lens_clear", "steer")
     mirrors = Mesh(); stalks = Mesh()
@@ -362,14 +479,28 @@ def build():
     put("front_indicators", ind, "lens_amber", "steer")
 
     # Tank: a lofted superellipse, highest just behind its front, tucked in at the knees.
-    xs = np.linspace(-0.135, 0.37, 44)
+    xs = np.linspace(-0.135, 0.37, 110)
     t = (xs - xs[0]) / (xs[-1] - xs[0])
     top = 0.505 + 0.115 * np.sin(np.clip(t * 1.25, 0, 1) * math.pi * 0.62) - 0.06 * np.clip(t - 0.8, 0, 1) / 0.2
     bot = 0.43 - 0.02 * t
     hw = 0.06 + 0.115 * np.sin(np.clip(t, 0, 1) * math.pi) ** 0.6
     hw = np.where(t < 0.05, 0.07, hw)
     path = np.stack([xs, (top + bot) / 2, np.zeros_like(xs)], 1)
-    put("tank", sweep(path, hw, (top - bot) / 2, 2.6, 72, caps=True), "paint_silver")
+    tank = sweep(path, hw, (top - bot) / 2, 2.6, 384, caps=True)
+
+    def pinstripe(p):
+        # Two fine black lines along each side, straight in side view, as on beenster's bike
+        # (measured off the drone profile): the upper one under the "1200", rising to the badge, and
+        # a lower one that dips a little towards the front.
+        x, y = p[:, 0], p[:, 1]
+
+        def line(y0, slope, x0, x1, half=0.0018):
+            d = np.abs(y - (y0 + slope * x)) - half
+            ends = np.clip((x - x0) / 0.02, 0, 1) * np.clip((x1 - x) / 0.02, 0, 1)
+            return np.clip(1 - d / 0.0015, 0, 1) * ends
+        side = np.abs(p[:, 2]) > 0.05
+        return np.maximum(line(0.484, 0.0465, -0.12, 0.335), line(0.450, -0.027, -0.10, 0.30)) * side
+    put("tank", tank.mask_by(pinstripe), "paint_silver")
     # A chrome Triumph badge high on each side of the tank, towards the front.
     badges = Mesh()
     for s_ in (-1, 1):
@@ -387,7 +518,11 @@ def build():
     top = 0.515 + 0.012 * np.sin(t * math.pi) - 0.02 * np.clip((t - 0.85) / 0.15, 0, 1)
     bot = 0.425 + 0.02 * t
     hw = 0.10 + 0.045 * np.sin(np.clip(t * 1.3, 0, 1) * math.pi * 0.5)
-    put("seat", sweep(np.stack([xs, (top + bot) / 2, 0 * xs], 1), hw, (top - bot) / 2, 4.0, 48), "leather")
+    seat = sweep(np.stack([xs, (top + bot) / 2, 0 * xs], 1), hw, (top - bot) / 2, 4.0, 96)
+    for s_ in (-1, 1):     # the welt seam round the top panel
+        k = slice(1, -1)
+        seat.extend(tube(np.stack([xs[k], top[k] - 0.012, s_ * hw[k] * 0.97], 1), 0.0028, 10))
+    put("seat", seat, "leather")
     put("seat_pan", sweep(np.stack([xs, bot + 0.004, 0 * xs], 1), hw * 0.95, 0.008, 4.0, 20), "black_satin")
 
     # Tail, rear light and number plate hanger.
@@ -418,9 +553,12 @@ def build():
     for k in range(13):
         y = cyl_c[1] - 0.08 + k * 0.0125
         depth = 0.16 - 0.002 * abs(k - 6) + (0.012 if k >= 10 else 0.0)
-        fins.extend(box((cyl_c[0], y, 0.0), (depth, 0.0035, 0.40), 8.0, 16))
+        fin = box((cyl_c[0], y, 0.0), (depth, 0.0035, 0.40), 8.0, 24)
+        # Black barrels with their fin edges machined bright.
+        fins.extend(fin.mask_by(lambda p, d=depth: np.maximum(np.abs(p[:, 0] - cyl_c[0]) - (d / 2 - 0.012),
+                                                              np.abs(p[:, 2]) - 0.188) / 0.006))
     fins.extend(box(tuple(cyl_c), (0.11, 0.17, 0.34), 4.0))
-    put("cylinders", fins.transformed(rot_z(math.radians(-6))), "alu_cast")
+    put("cylinders", fins.transformed(rot_z(math.radians(-6))), "black_engine")
     put("cam_cover", box((0.03, 0.375, 0.0), (0.13, 0.05, 0.32), 5.0).transformed(rot_z(math.radians(-6))),
         "black_engine")
     covers = Mesh()
@@ -431,7 +569,16 @@ def build():
     put("engine_covers", covers, "black_gloss")
     put("cover_badges", Mesh().extend(lathe([(0.0, 0.206), (0.03, 0.206)], seg=24, centre=(0.135, 0.0, 0.0)))
         .extend(lathe([(0.0, 0.0), (0.02, 0.0), (0.022, 0.01), (0.0, 0.012)], seg=24, axis=(0, 0, 1),
-                      centre=(-0.02, 0.36, 0.17))), "alu_cast")
+                      centre=(-0.02, 0.36, 0.17))), "alu_brushed")
+    # Bolts round the clutch and alternator covers and along the cam cover.
+    bolts = Mesh()
+    for (cx, cy, cz, sgn, r, n) in ((0.13, -0.035, 0.192, 1, 0.077, 9), (0.10, -0.02, -0.192, -1, 0.068, 8)):
+        for k in range(n):
+            a = 2 * math.pi * (k + 0.25) / n
+            bolts.extend(hex_bolt((cx + r * math.cos(a), cy + r * math.sin(a), cz), (0, 0, sgn)))
+    for z in (-0.12, -0.04, 0.04, 0.12):
+        bolts.extend(hex_bolt((0.03, 0.40, z), (0.1, 1, 0), 0.006).transformed(rot_z(math.radians(-6))))
+    put("bolts", bolts, "bolt")
     put("throttle_bodies", both_sides(Mesh().extend(lathe([(0.025, 0.0), (0.03, 0.07), (0.028, 0.1)], seg=20,
                                                             axis=(-1, 0.2, 0.3), centre=(-0.07, 0.33, 0.11)))),
         "alu_cast")
@@ -440,7 +587,8 @@ def build():
     # megaphone silencer on each side.
     header = polyline([(0.13, 0.30, 0.10), (0.21, 0.30, 0.125), (0.33, 0.25, 0.15), (0.375, 0.12, 0.16),
                        (0.345, -0.04, 0.155), (0.22, -0.07, 0.15), (-0.05, -0.065, 0.15), (-0.22, -0.05, 0.155)], 8)
-    put("headers", both_sides(tube(header, 0.022, 16)), "copper_heat")
+    # Heat tint: gold and bronze for the first hand-span from each port, fading into bare steel.
+    put("headers", both_sides(tube(header, 0.022, 24).mask_by_uv(lambda uv: 1.0 - (uv[:, 1] - 0.12) / 0.3)), "header")
     s_path = np.linspace([-0.22, -0.05, 0.16], [-0.76, 0.16, 0.175], 12)
     radii = np.linspace(0.035, 0.064, 12)
     sil = sweep(s_path, radii, radii, 2.0, 32, caps=False)
@@ -497,10 +645,24 @@ def build():
     arm.extend(tube(np.linspace([0, 0, -0.12], [0, 0, 0.12], 4), 0.025, 16))
     arm.extend(box((-0.06, 0.0, 0.0), (0.05, 0.05, 0.2), 5.0))
     put("swingarm", arm, "black_satin", "swingarm")
-    chain = Mesh()
     front_sp = np.array([0.03, 0.03, 0.075]); rear_sp = np.array([rel[0], rel[1], 0.075])
-    for dy in (0.104, -0.104):
-        chain.extend(sweep(np.linspace(front_sp + [0, dy * 0.45, 0], rear_sp + [0, dy, 0], 8), 0.008, 0.006, 6.0, 10))
+    # The chain, link by link (525 pitch): top run, round the back of the sprocket, bottom run.
+    arc = np.linspace(math.pi / 2, 3 * math.pi / 2, 24)
+    run = np.vstack([np.linspace(front_sp + [0, 0.047, 0], rear_sp + [0, 0.104, 0], 30),
+                     np.stack([rear_sp[0] + 0.104 * np.cos(arc), rear_sp[1] + 0.104 * np.sin(arc), np.full_like(arc, 0.075)], 1),
+                     np.linspace(rear_sp + [0, -0.104, 0], front_sp + [0, -0.047, 0], 30)])
+    seglen = np.linalg.norm(np.diff(run, axis=0), axis=1)
+    dist = np.concatenate([[0.0], np.cumsum(seglen)])
+    chain = Mesh()
+    pitch = 0.015875
+    for k, d0 in enumerate(np.arange(0.0, dist[-1] - pitch, pitch)):
+        p0 = np.array([np.interp(d0, dist, run[:, i]) for i in range(3)])
+        p1 = np.array([np.interp(d0 + pitch, dist, run[:, i]) for i in range(3)])
+        inner = 0.0045 if k % 2 else 0.0075        # inner and outer plates alternate
+        for side in (-1, 1):
+            off = np.array([0, 0, side * inner])
+            chain.extend(sweep(np.linspace(p0 + off, p1 + off, 3), 0.0011, 0.0075, 6.0, 8, up_hint=(0, 0, 1)))
+        chain.extend(lathe([(0.0, -0.0045), (0.005, -0.0045), (0.005, 0.0045), (0.0, 0.0045)], seg=10, centre=p0))
     put("chain", chain, "chain", "swingarm")
     guard = Mesh()
     guard.extend(sweep(np.linspace(front_sp + [0.02, 0.135, 0.0], rear_sp + [0.12, 0.125, 0.0], 8), 0.012, 0.004, 6.0, 16))
@@ -561,10 +723,16 @@ def build():
 # --- Output -------------------------------------------------------------------------------------------
 
 def smooth_normals(pos, tris):
+    """Vertex normals averaged over the faces round each position (the doubled seam vertices that
+    let textures wrap share theirs)."""
+    key = np.round(pos * 1e6).astype(np.int64)
+    _, inv = np.unique(key, axis=0, return_inverse=True)
+    inv = inv.ravel()
     fn = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
-    n = np.zeros_like(pos)
+    n = np.zeros((inv.max() + 1, 3))
     for k in range(3):
-        np.add.at(n, tris[:, k], fn)
+        np.add.at(n, inv[tris[:, k]], fn)
+    n = n[inv]
     ln = np.linalg.norm(n, axis=1, keepdims=True)
     return n / np.maximum(ln, 1e-12)
 
@@ -573,12 +741,17 @@ def outward(mesh):
     """Each piece turned so its faces point outwards (positive signed volume about its own centre).
     Flat pieces have no inside; the bike's materials are two sided for them."""
     out = Mesh()
-    for p, t in zip(mesh.p, mesh.t):
+    for p, t, uv, k in zip(mesh.p, mesh.t, mesh.uv, mesh.m):
         c = p.mean(0)
         a, b, d = p[t[:, 0]] - c, p[t[:, 1]] - c, p[t[:, 2]] - c
         vol = np.einsum("ij,ij->i", a, np.cross(b, d)).sum()
-        out.p.append(p); out.t.append(t[:, [0, 2, 1]] if vol < 0 else t)
+        out.add(p, t[:, [0, 2, 1]] if vol < 0 else t, uv, k)
     return out
+
+
+def normals(mesh):
+    """Smooth normals piece by piece (pieces that touch keep their own)."""
+    return np.concatenate([smooth_normals(p, t) for p, t in zip(mesh.p, mesh.t)])
 
 
 def write_parts(P, out):
@@ -587,19 +760,27 @@ def write_parts(P, out):
         "body": [0, 0, 0], "steer": [0, 0, 0], "front_lower": FRONT_AXLE.tolist(),
         "front_wheel": FRONT_AXLE.tolist(), "swingarm": SWING_PIVOT.tolist(), "rear_wheel": REAR_AXLE.tolist(),
     }
+    for f in os.listdir(out) if os.path.isdir(out) else []:
+        if f.endswith(".glb") and f[:-4] not in P:
+            os.remove(os.path.join(out, f))   # a part that's gone or renamed
     listing = []
-    for name, (mesh, finish, group) in sorted(P.items()):
-        pos, tris = outward(mesh).arrays()
-        nrm = smooth_normals(pos, tris)
-        write_glb(os.path.join(out, name + ".glb"), pos, tris, nrm, None, name)
-        listing.append({"name": name, "group": group, "finish": finish, "tris": int(len(tris))})
+    for name, (mesh, fin, group) in sorted(P.items()):
+        mesh = outward(mesh)
+        pos, tris, uv, mask = mesh.arrays()
+        col = np.zeros((len(pos), 4), np.uint8)
+        col[:, 0] = np.round(np.clip(mask, 0, 1) * 255)
+        col[:, 3] = 255
+        write_glb(os.path.join(out, name + ".glb"), pos, tris, normals(mesh), col, name, uv=uv)
+        listing.append({"name": name, "group": group, "finish": fin, "tris": int(len(tris))})
     info = {
         "bike": "2025 Triumph Speed Twin 1200",
         "frame": "metres, x forward, y up, z right; body origin at axle height (suspension extended), mid wheelbase",
         "group_origins": origins,
         "steer_axis": {"point": STEER_POINT.tolist(), "dir": FORK_DIR.tolist()},
         "swing_pivot": SWING_PIVOT.tolist(),
-        "finishes": {k: {"color": list(v[0]), "metallic": v[1], "roughness": v[2]} for k, v in FINISHES.items()},
+        "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); "
+              "COLOR_0 red is the mask towards each finish's second finish",
+        "finishes": FINISHES,
         "parts": listing,
     }
     json.dump(info, open(os.path.join(out, "speedtwin.json"), "w"), indent=1)
@@ -610,9 +791,9 @@ def place(P):
     """Every part in body space, for the check render."""
     off = {"front_lower": FRONT_AXLE, "front_wheel": FRONT_AXLE, "swingarm": SWING_PIVOT, "rear_wheel": REAR_AXLE}
     out = []
-    for name, (mesh, finish, group) in P.items():
-        pos, tris = outward(mesh).arrays()
-        out.append((name, pos + off.get(group, 0), tris, finish))
+    for name, (mesh, fin, group) in P.items():
+        pos, tris, uv, mask = outward(mesh).arrays()
+        out.append((name, pos + off.get(group, 0), tris, fin, mask))
     return out
 
 
@@ -624,8 +805,8 @@ def check_render(P, photo, path, px_per_m=500.0, origin_px=(818, 597), view="rig
     d = ImageDraw.Draw(over)
     polys = []
     light = np.array([0.3, 0.8, 0.5]); light /= np.linalg.norm(light)
-    for name, pos, tris, finish in place(P):
-        col = np.array(FINISHES[finish][0]) ** (1 / 2.2)
+    for name, pos, tris, fin, mask in place(P):
+        c1 = np.array(FINISHES[fin]["color"]) ** (1 / 2.2); c2 = np.array(FINISHES[fin]["color2"]) ** (1 / 2.2)
         fn = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
         ln = np.linalg.norm(fn, axis=1); ok = ln > 1e-12
         fn[ok] /= ln[ok, None]
@@ -634,6 +815,7 @@ def check_render(P, photo, path, px_per_m=500.0, origin_px=(818, 597), view="rig
             tri = pos[tris[k]]
             depth = tri[:, 2].mean() * sgn
             shade = 0.35 + 0.65 * abs(np.dot(fn[k], light))
+            col = c1 + (c2 - c1) * mask[tris[k]].mean()
             c = tuple(int(255 * min(1, v * shade + 0.05)) for v in col)
             xy = [(origin_px[0] + sgn * p[0] * px_per_m, origin_px[1] - p[1] * px_per_m) for p in tri]
             polys.append((depth, xy, c))

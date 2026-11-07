@@ -50,141 +50,490 @@
   0.075,
   0.0
  ],
+ "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); COLOR_0 red is the mask towards each finish's second finish",
  "finishes": {
   "paint_silver": {
+   "shader": "paint",
    "color": [
-    0.62,
-    0.63,
-    0.64
+    0.6,
+    0.61,
+    0.62
    ],
    "metallic": 1.0,
-   "roughness": 0.22
+   "roughness": 0.32,
+   "color2": [
+    0.01,
+    0.01,
+    0.011
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.2,
+   "detail": "flake",
+   "uv_scale": 25.0,
+   "normal_strength": 0.0,
+   "rough_var": 0.25,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "black_gloss": {
+   "shader": "paint",
    "color": [
-    0.012,
-    0.012,
-    0.013
+    0.01,
+    0.01,
+    0.011
    ],
    "metallic": 0.0,
-   "roughness": 0.12
+   "roughness": 0.2,
+   "color2": [
+    0.01,
+    0.01,
+    0.011
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.2,
+   "detail": "flake",
+   "uv_scale": 25.0,
+   "normal_strength": 0.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "black_satin": {
+   "shader": "base",
    "color": [
-    0.02,
-    0.02,
-    0.021
+    0.018,
+    0.018,
+    0.019
    ],
    "metallic": 0.0,
-   "roughness": 0.45
+   "roughness": 0.48,
+   "color2": [
+    0.018,
+    0.018,
+    0.019
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.48,
+   "detail": "powder",
+   "uv_scale": 6.0,
+   "normal_strength": 0.35,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "black_engine": {
+   "shader": "base",
    "color": [
-    0.025,
-    0.025,
-    0.027
+    0.022,
+    0.022,
+    0.024
    ],
-   "metallic": 0.3,
-   "roughness": 0.38
+   "metallic": 0.25,
+   "roughness": 0.4,
+   "color2": [
+    0.78,
+    0.78,
+    0.77
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.22,
+   "detail": "cast",
+   "uv_scale": 8.0,
+   "normal_strength": 0.5,
+   "rough_var": 0.25,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "chrome": {
+   "shader": "base",
    "color": [
-    0.92,
-    0.92,
-    0.92
+    0.93,
+    0.93,
+    0.93
    ],
    "metallic": 1.0,
-   "roughness": 0.06
+   "roughness": 0.04,
+   "color2": [
+    0.93,
+    0.93,
+    0.93
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.04,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "steel_brushed": {
+   "shader": "base",
    "color": [
-    0.75,
     0.74,
-    0.72
+    0.73,
+    0.71
    ],
    "metallic": 1.0,
-   "roughness": 0.28
+   "roughness": 0.26,
+   "color2": [
+    0.74,
+    0.73,
+    0.71
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.26,
+   "detail": "brushed",
+   "uv_scale": 5.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.35,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
-  "copper_heat": {
+  "header": {
+   "shader": "base",
    "color": [
-    0.78,
-    0.46,
-    0.3
+    0.74,
+    0.73,
+    0.71
    ],
    "metallic": 1.0,
-   "roughness": 0.3
+   "roughness": 0.26,
+   "color2": [
+    0.62,
+    0.4,
+    0.22
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.3,
+   "detail": "brushed",
+   "uv_scale": 5.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.35,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "alu_cast": {
+   "shader": "base",
    "color": [
     0.8,
     0.8,
     0.8
    ],
    "metallic": 1.0,
-   "roughness": 0.35
+   "roughness": 0.35,
+   "color2": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.35,
+   "detail": "cast",
+   "uv_scale": 8.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
+  "alu_brushed": {
+   "shader": "base",
+   "color": [
+    0.86,
+    0.86,
+    0.85
+   ],
+   "metallic": 1.0,
+   "roughness": 0.2,
+   "color2": [
+    0.86,
+    0.86,
+    0.85
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.2,
+   "detail": "brushed",
+   "uv_scale": 10.0,
+   "normal_strength": 0.5,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "rubber": {
+   "shader": "base",
    "color": [
     0.018,
     0.018,
     0.018
    ],
    "metallic": 0.0,
-   "roughness": 0.88
+   "roughness": 0.85,
+   "color2": [
+    0.018,
+    0.018,
+    0.018
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.85,
+   "detail": "rubber",
+   "uv_scale": 12.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
-  "leather": {
+  "grip": {
+   "shader": "base",
    "color": [
-    0.022,
-    0.021,
-    0.02
+    0.016,
+    0.016,
+    0.016
    ],
    "metallic": 0.0,
-   "roughness": 0.55
+   "roughness": 0.8,
+   "color2": [
+    0.016,
+    0.016,
+    0.016
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.8,
+   "detail": "knurl",
+   "uv_scale": 30.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
+  "tyre": {
+   "shader": "base",
+   "color": [
+    0.022,
+    0.022,
+    0.022
+   ],
+   "metallic": 0.0,
+   "roughness": 0.78,
+   "color2": [
+    0.022,
+    0.022,
+    0.022
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.78,
+   "detail": "tyre",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.4,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
+  "leather": {
+   "shader": "base",
+   "color": [
+    0.02,
+    0.019,
+    0.018
+   ],
+   "metallic": 0.0,
+   "roughness": 0.55,
+   "color2": [
+    0.02,
+    0.019,
+    0.018
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.55,
+   "detail": "leather",
+   "uv_scale": 7.0,
+   "normal_strength": 0.8,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "disc_steel": {
+   "shader": "base",
    "color": [
     0.55,
     0.55,
     0.56
    ],
    "metallic": 1.0,
-   "roughness": 0.32
+   "roughness": 0.3,
+   "color2": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.3,
+   "detail": "machined",
+   "uv_scale": 8.0,
+   "normal_strength": 0.5,
+   "rough_var": 0.4,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
+  "fork_inner": {
+   "shader": "base",
+   "color": [
+    0.62,
+    0.62,
+    0.63
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12,
+   "color2": [
+    0.018,
+    0.018,
+    0.019
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.45,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
+  "headlight": {
+   "shader": "base",
+   "color": [
+    0.01,
+    0.01,
+    0.011
+   ],
+   "metallic": 0.0,
+   "roughness": 0.18,
+   "color2": [
+    0.86,
+    0.86,
+    0.85
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.18,
+   "detail": "brushed",
+   "uv_scale": 10.0,
+   "normal_strength": 0.3,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
+  "bolt": {
+   "shader": "base",
+   "color": [
+    0.62,
+    0.62,
+    0.62
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "color2": [
+    0.62,
+    0.62,
+    0.62
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.3,
+   "detail": "cast",
+   "uv_scale": 20.0,
+   "normal_strength": 0.3,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "lens_clear": {
+   "shader": "base",
    "color": [
     0.85,
     0.87,
     0.9
    ],
    "metallic": 1.0,
-   "roughness": 0.04
+   "roughness": 0.04,
+   "color2": [
+    0.85,
+    0.87,
+    0.9
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.04,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "lens_red": {
+   "shader": "base",
    "color": [
     0.6,
     0.02,
     0.02
    ],
    "metallic": 0.0,
-   "roughness": 0.1
+   "roughness": 0.1,
+   "color2": [
+    0.6,
+    0.02,
+    0.02
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.1,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "lens_amber": {
+   "shader": "base",
    "color": [
     0.9,
     0.35,
     0.02
    ],
    "metallic": 0.0,
-   "roughness": 0.15
+   "roughness": 0.15,
+   "color2": [
+    0.9,
+    0.35,
+    0.02
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.15,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   },
   "chain": {
+   "shader": "base",
    "color": [
-    0.18,
-    0.17,
-    0.16
+    0.16,
+    0.15,
+    0.14
    ],
    "metallic": 1.0,
-   "roughness": 0.5
+   "roughness": 0.45,
+   "color2": [
+    0.16,
+    0.15,
+    0.14
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.45,
+   "detail": "cast",
+   "uv_scale": 30.0,
+   "normal_strength": 0.5,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
   }
  },
  "parts": [
@@ -193,6 +542,12 @@
    "group": "body",
    "finish": "black_satin",
    "tris": 728
+  },
+  {
+   "name": "bolts",
+   "group": "body",
+   "finish": "bolt",
+   "tris": 3528
   },
   {
    "name": "cables",
@@ -210,7 +565,7 @@
    "name": "chain",
    "group": "swingarm",
    "finish": "chain",
-   "tris": 320
+   "tris": 11388
   },
   {
    "name": "chain_guard",
@@ -239,7 +594,7 @@
   {
    "name": "cover_badges",
    "group": "body",
-   "finish": "alu_cast",
+   "finish": "alu_brushed",
    "tris": 192
   },
   {
@@ -251,8 +606,8 @@
   {
    "name": "cylinders",
    "group": "body",
-   "finish": "alu_cast",
-   "tris": 6136
+   "finish": "black_engine",
+   "tris": 8840
   },
   {
    "name": "engine_covers",
@@ -269,8 +624,8 @@
   {
    "name": "fork_lowers",
    "group": "front_lower",
-   "finish": "black_satin",
-   "tris": 960
+   "finish": "fork_inner",
+   "tris": 1568
   },
   {
    "name": "fork_stanchions",
@@ -294,7 +649,7 @@
    "name": "front_carriers",
    "group": "front_wheel",
    "finish": "alu_cast",
-   "tris": 640
+   "tris": 2560
   },
   {
    "name": "front_discs",
@@ -323,8 +678,8 @@
   {
    "name": "front_tyre",
    "group": "front_wheel",
-   "finish": "rubber",
-   "tris": 6480
+   "finish": "tyre",
+   "tris": 7776
   },
   {
    "name": "gearbox",
@@ -333,10 +688,16 @@
    "tris": 728
   },
   {
+   "name": "grips",
+   "group": "steer",
+   "finish": "grip",
+   "tris": 320
+  },
+  {
    "name": "grips_switches",
    "group": "steer",
    "finish": "black_engine",
-   "tris": 1776
+   "tris": 1456
   },
   {
    "name": "handlebar",
@@ -347,8 +708,8 @@
   {
    "name": "headers",
    "group": "body",
-   "finish": "copper_heat",
-   "tris": 4560
+   "finish": "header",
+   "tris": 5472
   },
   {
    "name": "headlight_lens",
@@ -359,8 +720,8 @@
   {
    "name": "headlight_shell",
    "group": "steer",
-   "finish": "chrome",
-   "tris": 480
+   "finish": "headlight",
+   "tris": 1024
   },
   {
    "name": "horn",
@@ -450,19 +811,19 @@
    "name": "rear_sprocket",
    "group": "rear_wheel",
    "finish": "alu_cast",
-   "tris": 328
+   "tris": 1660
   },
   {
    "name": "rear_tyre",
    "group": "rear_wheel",
-   "finish": "rubber",
-   "tris": 6480
+   "finish": "tyre",
+   "tris": 7776
   },
   {
    "name": "seat",
    "group": "body",
    "finish": "leather",
-   "tris": 3840
+   "tris": 10720
   },
   {
    "name": "seat_pan",
@@ -540,7 +901,7 @@
    "name": "tank",
    "group": "body",
    "finish": "paint_silver",
-   "tris": 6336
+   "tris": 84480
   },
   {
    "name": "tank_badges",

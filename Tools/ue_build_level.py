@@ -480,22 +480,105 @@ def road_material_scanned(tex, roles):
     return g.finish(road)
 
 
-def bike_materials(finishes):
-    """A two sided master (colour, metallic, roughness as parameters) and an instance per finish."""
-    m = new_material("M_BikeMaster", BIKE_MAT_DIR)
+BIKE_TEX_DEST = "/Game/Bike/Textures"
+
+
+def bike_textures():
+    """The detail sets from Tools/make_bike_textures.py: {name: {"n": normal map, "d": detail map}}."""
+    folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Bike", "Textures")
+    out = {}
+    if not os.path.isdir(folder):
+        unreal.log_warning("[Torque] no bike textures in %s (python Tools/make_bike_textures.py)" % folder)
+        return out
+    for f in sorted(os.listdir(folder)):
+        stem, ext = os.path.splitext(f)
+        if ext.lower() != ".png" or stem[-2:] not in ("_n", "_d"):
+            continue
+        t = unreal.AssetImportTask()
+        t.set_editor_property("filename", os.path.join(folder, f))
+        t.set_editor_property("destination_path", BIKE_TEX_DEST)
+        t.set_editor_property("destination_name", "T_Bike_" + stem)
+        t.set_editor_property("automated", True)
+        t.set_editor_property("replace_existing", True)
+        t.set_editor_property("save", False)
+        asset_tools.import_asset_tasks([t])
+        tex = unreal.load_asset(BIKE_TEX_DEST + "/T_Bike_" + stem)
+        if not tex:
+            unreal.log_warning("[Torque] couldn't import " + f)
+            continue
+        tex.set_editor_property("srgb", False)
+        if stem.endswith("_n"):
+            tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+        else:
+            try_set(tex, "compression_settings", unreal.TextureCompressionSettings.TC_MASKS)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+        out.setdefault(stem[:-2], {})[stem[-1]] = tex
+    log("bike textures: " + ", ".join(sorted(out)))
+    return out
+
+
+def bike_master(name, tex, paint):
+    """The bike's master material. Two finishes (Color/Metallic/Roughness and the same with 2) blended
+    by the mesh's vertex colour red (pinstripes, fin edges, heat tint); a detail set (NormalMap,
+    DetailMap: red a roughness offset about 0.5, green a shade) repeated UVScale times per UV unit;
+    paint masters are clear coat (a lacquer over the metallic or solid base)."""
+    m = new_material(name, BIKE_MAT_DIR)
     m.set_editor_property("two_sided", True)
-    col = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -500, 0)
-    col.set_editor_property("parameter_name", "Color")
-    met = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -500, 250)
-    met.set_editor_property("parameter_name", "Metallic")
-    rough = mel.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -500, 400)
-    rough.set_editor_property("parameter_name", "Roughness")
-    rough.set_editor_property("default_value", 0.5)
-    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    if paint:
+        m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_CLEAR_COAT)
+    g = Graph(m)
+    flat = tex.get("flat", {})
+
+    def scalar(pname, v):
+        return g.node(unreal.MaterialExpressionScalarParameter, -1500, parameter_name=pname, default_value=float(v))
+
+    def vector(pname, v):
+        return g.node(unreal.MaterialExpressionVectorParameter, -1500, parameter_name=pname,
+                      default_value=unreal.LinearColor(v[0], v[1], v[2], 1.0))
+
+    def texparam(pname, t, kind):
+        props = {"parameter_name": pname, "sampler_source": unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS,
+                 "sampler_type": unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL if kind == "n"
+                 else unreal.MaterialSamplerType.SAMPLERTYPE_MASKS}
+        if t:
+            props["texture"] = t
+        e = g.node(unreal.MaterialExpressionTextureSampleParameter2D, -900, **props)
+        g.link(uv, e, "UVs")
+        return e
+
+    tc = g.node(unreal.MaterialExpressionTextureCoordinate, -1500)
+    uv = g.op(unreal.MaterialExpressionMultiply, tc, scalar("UVScale", 1.0))
+    ntex = texparam("NormalMap", flat.get("n"), "n")
+    dtex = texparam("DetailMap", flat.get("d"), "d")
+    nrm = g.lerp(g.const((0.0, 0.0, 1.0)), ntex, scalar("NormalStrength", 1.0), b_out="RGB")
+    vc = g.node(unreal.MaterialExpressionVertexColor, -1500)
+    col = g.lerp(vector("Color", (0.5, 0.5, 0.5)), vector("Color2", (0.5, 0.5, 0.5)), vc, alpha_out="R")
+    shaded = g.op(unreal.MaterialExpressionMultiply, col, dtex, b_out="G")
+    met = g.lerp(scalar("Metallic", 0.0), scalar("Metallic2", 0.0), vc, alpha_out="R")
+    rough = g.lerp(scalar("Roughness", 0.5), scalar("Roughness2", 0.5), vc, alpha_out="R")
+    roff = g.op(unreal.MaterialExpressionSubtract, dtex, a_out="R", const_b=0.5)
+    roff = g.op(unreal.MaterialExpressionMultiply, roff, scalar("RoughVar", 0.0))
+    rough = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd, rough, roff))
+    emis = g.op(unreal.MaterialExpressionMultiply, col, scalar("Emissive", 0.0))
+    mel.connect_material_property(shaded, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(met, "", unreal.MaterialProperty.MP_METALLIC)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
+    mel.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    if paint:
+        mel.connect_material_property(g.const(1.0), "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
+        mel.connect_material_property(scalar("ClearCoatRoughness", 0.03), "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
+def bike_materials(finishes):
+    """A master for plain finishes and a clear coat one for paint, and an instance per finish (see
+    Tools/make_speedtwin.py for what a finish holds; the rider's kit gives just colour and the two
+    numbers, and the rest take defaults)."""
+    tex = bike_textures()
+    masters = {"base": bike_master("M_BikeMaster", tex, False), "paint": bike_master("M_BikePaint", tex, True)}
     paths = {}
     for name, f in finishes.items():
         mi_name = "MI_" + name
@@ -504,11 +587,27 @@ def bike_materials(finishes):
             unreal.EditorAssetLibrary.delete_asset(path)
         mi = asset_tools.create_asset(mi_name, BIKE_MAT_DIR, unreal.MaterialInstanceConstant,
                                       unreal.MaterialInstanceConstantFactoryNew())
-        mel.set_material_instance_parent(mi, m)
-        c = f["color"]
-        mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
-        mel.set_material_instance_scalar_parameter_value(mi, "Metallic", float(f["metallic"]))
-        mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(f["roughness"]))
+        shader = f.get("shader", "base")
+        mel.set_material_instance_parent(mi, masters.get(shader, masters["base"]))
+        for key, pname in (("color", "Color"), ("color2", "Color2")):
+            c = f.get(key, f["color"])
+            mel.set_material_instance_vector_parameter_value(mi, pname, unreal.LinearColor(c[0], c[1], c[2], 1.0))
+        for key, pname, default in (("metallic", "Metallic", 0.0), ("roughness", "Roughness", 0.5),
+                                    ("uv_scale", "UVScale", 1.0), ("normal_strength", "NormalStrength", 1.0),
+                                    ("rough_var", "RoughVar", 0.0), ("emissive", "Emissive", 0.0)):
+            mel.set_material_instance_scalar_parameter_value(mi, pname, float(f.get(key, default)))
+        mel.set_material_instance_scalar_parameter_value(mi, "Metallic2", float(f.get("metallic2", f["metallic"])))
+        mel.set_material_instance_scalar_parameter_value(mi, "Roughness2", float(f.get("roughness2", f["roughness"])))
+        if shader == "paint":
+            mel.set_material_instance_scalar_parameter_value(mi, "ClearCoatRoughness", float(f.get("clearcoat_roughness", 0.03)))
+        detail = tex.get(f.get("detail", "flat"))
+        if detail:
+            if "n" in detail:
+                mel.set_material_instance_texture_parameter_value(mi, "NormalMap", detail["n"])
+            if "d" in detail:
+                mel.set_material_instance_texture_parameter_value(mi, "DetailMap", detail["d"])
+        elif f.get("detail", "flat") != "flat":
+            unreal.log_warning("[Torque] detail set %s for %s not found" % (f.get("detail"), name))
         unreal.EditorAssetLibrary.save_loaded_asset(mi)
         paths[name] = mi.get_path_name()
     return paths
