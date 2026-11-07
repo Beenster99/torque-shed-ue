@@ -92,6 +92,42 @@
    ]
   },
   {
+   "name": "index_01_l",
+   "parent": "hand_l",
+   "rest": [
+    42.56,
+    -28.604,
+    69.976
+   ]
+  },
+  {
+   "name": "index_02_l",
+   "parent": "index_01_l",
+   "rest": [
+    44.131,
+    -28.136,
+    65.914
+   ]
+  },
+  {
+   "name": "middle_01_l",
+   "parent": "hand_l",
+   "rest": [
+    42.649,
+    -30.745,
+    69.797
+   ]
+  },
+  {
+   "name": "middle_02_l",
+   "parent": "middle_01_l",
+   "rest": [
+    44.222,
+    -30.304,
+    65.552
+   ]
+  },
+  {
    "name": "thigh_l",
    "parent": "pelvis",
    "rest": [
@@ -164,6 +200,42 @@
    ]
   },
   {
+   "name": "index_01_r",
+   "parent": "hand_r",
+   "rest": [
+    42.56,
+    28.604,
+    69.976
+   ]
+  },
+  {
+   "name": "index_02_r",
+   "parent": "index_01_r",
+   "rest": [
+    44.131,
+    28.136,
+    65.914
+   ]
+  },
+  {
+   "name": "middle_01_r",
+   "parent": "hand_r",
+   "rest": [
+    42.649,
+    30.745,
+    69.797
+   ]
+  },
+  {
+   "name": "middle_02_r",
+   "parent": "middle_01_r",
+   "rest": [
+    44.222,
+    30.304,
+    65.552
+   ]
+  },
+  {
    "name": "thigh_r",
    "parent": "pelvis",
    "rest": [
@@ -212,6 +284,108 @@
   "thigh": 44.0,
   "shin": 43.0
  },
+ "hands": [
+  {
+   "side": "l",
+   "lever": "clutch",
+   "grip": [
+    41.32,
+    -31.5,
+    65.54
+   ],
+   "finger_axis": [
+    0.0415,
+    -0.99569,
+    -0.083
+   ],
+   "twist_axis": [
+    0.0415,
+    -0.99569,
+    -0.083
+   ],
+   "twist_deg": 0.0,
+   "fingers": [
+    {
+     "bones": [
+      "index_01_l",
+      "index_02_l"
+     ],
+     "reach": [
+      60.0,
+      40.0
+     ],
+     "pull": [
+      40.0,
+      26.0
+     ]
+    },
+    {
+     "bones": [
+      "middle_01_l",
+      "middle_02_l"
+     ],
+     "reach": [
+      60.0,
+      44.0
+     ],
+     "pull": [
+      40.0,
+      22.0
+     ]
+    }
+   ]
+  },
+  {
+   "side": "r",
+   "lever": "brake",
+   "grip": [
+    41.32,
+    31.5,
+    65.54
+   ],
+   "finger_axis": [
+    -0.0415,
+    -0.99569,
+    0.083
+   ],
+   "twist_axis": [
+    -0.0415,
+    -0.99569,
+    0.083
+   ],
+   "twist_deg": 32.0,
+   "fingers": [
+    {
+     "bones": [
+      "index_01_r",
+      "index_02_r"
+     ],
+     "reach": [
+      60.0,
+      40.0
+     ],
+     "pull": [
+      48.0,
+      40.0
+     ]
+    },
+    {
+     "bones": [
+      "middle_01_r",
+      "middle_02_r"
+     ],
+     "reach": [
+      60.0,
+      44.0
+     ],
+     "pull": [
+      44.0,
+      38.0
+     ]
+    }
+   ]
+  }
+ ],
  "materials": {
   "rider": [
    "jacket",

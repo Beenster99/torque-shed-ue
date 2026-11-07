@@ -37,6 +37,15 @@ FORK_DIR = np.array([-math.sin(RAKE), math.cos(RAKE), 0.0])        # up the fork
 FORK_BACK = np.array([-math.cos(RAKE), -math.sin(RAKE), 0.0])      # square to the legs, rearwards
 STEER_POINT = FRONT_AXLE + FORK_BACK * OFFSET                      # a point on the steering axis
 SWING_PIVOT = np.array([-0.335, 0.075, 0.0])
+BAR_CLAMP = FRONT_AXLE + FORK_DIR * 0.66 + np.array([-0.035, 0.04, 0.0])   # the handlebar's centre
+# The clutch (left) and front brake (right) levers pivot about an upright axis at their perches; a
+# pull swings the blade back towards the grip. The pawn moves them (and the rider's fingers).
+LEVER_PULL_DEG = {"clutch": 24.0, "brake": 14.0}
+
+
+def lever_points(s):
+    """Pivot and blade path of the lever on side s (-1 left, the clutch; +1 right, the brake)."""
+    return [BAR_CLAMP + [0.02, 0.01, s * 0.23], BAR_CLAMP + [0.07, 0.0, s * 0.27], BAR_CLAMP + [0.07, -0.01, s * 0.36]]
 
 # Finishes: the level script makes a material instance of each. "paint" finishes use the clear coat
 # master (a metallic or solid base under a glossy lacquer), the rest the plain one. Each can have a
@@ -447,12 +456,9 @@ def build():
         switches.extend(box(sw, (0.05, 0.045, 0.045), 4.0))
     put("grips", grips, "grip", "steer")
     put("grips_switches", switches, "black_engine", "steer")
-    levers = Mesh()
-    for s in (-1, 1):
-        lp = polyline([bar_clamp + [0.02, 0.01, s * 0.23], bar_clamp + [0.07, 0.0, s * 0.27],
-                       bar_clamp + [0.07, -0.01, s * 0.36]], 6)
-        levers.extend(sweep(lp, 0.006, 0.01, 3.0, 10))
-    put("levers", levers, "alu_cast", "steer")
+    for s, lever in ((-1, "lever_clutch"), (1, "lever_brake")):
+        lp = polyline(lever_points(s), 6)
+        put(lever, Mesh().extend(sweep(lp, 0.006, 0.01, 3.0, 10)), "alu_cast", "steer")
     clock_c = bar_clamp + np.array([0.03, 0.065, 0.0])
     clock_axis = np.array([-0.5, 0.86, 0.0])
     put("clock_body", lathe([(0.0, -0.035), (0.05, -0.035), (0.055, -0.01), (0.056, 0.02), (0.05, 0.025),
@@ -795,6 +801,9 @@ def write_parts(P, out):
         "group_origins": origins,
         "steer_axis": {"point": STEER_POINT.tolist(), "dir": FORK_DIR.tolist()},
         "swing_pivot": SWING_PIVOT.tolist(),
+        # Each lever turns about its axis (through the pivot) by up to pull_deg as it's pulled.
+        "levers": {k: {"part": "lever_" + k, "pivot": lever_points(s)[0].tolist(), "axis": [0.0, -1.0 if s < 0 else 1.0, 0.0],
+                       "pull_deg": LEVER_PULL_DEG[k]} for k, s in (("clutch", -1), ("brake", 1))},
         "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); "
               "COLOR_0 red is the mask towards each finish's second finish",
         "finishes": FINISHES,

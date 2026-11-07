@@ -177,6 +177,31 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 		ElbowPole[S] = PoleOf(Bones[UpperArm[S]].Rest, Bones[LowerArm[S]].Rest, Bones[Hand[S]].Rest);
 		KneePole[S] = PoleOf(Bones[Thigh[S]].Rest, Bones[Calf[S]].Rest, Bones[Foot[S]].Rest);
 	}
+	const TArray<TSharedPtr<FJsonValue>>* HandList = nullptr;
+	if (Info->TryGetArrayField(TEXT("hands"), HandList))
+	{
+		for (const TSharedPtr<FJsonValue>& HV : *HandList)
+		{
+			const TSharedPtr<FJsonObject> H = HV->AsObject();
+			FHand& Hd = Hands[H->GetStringField(TEXT("side")) == TEXT("r") ? 1 : 0];
+			Hd.Grip = Vec(H->GetArrayField(TEXT("grip")));
+			Hd.FingerAxis = Vec(H->GetArrayField(TEXT("finger_axis"))).GetSafeNormal();
+			Hd.TwistAxis = Vec(H->GetArrayField(TEXT("twist_axis"))).GetSafeNormal();
+			Hd.TwistDeg = H->GetNumberField(TEXT("twist_deg"));
+			for (const TSharedPtr<FJsonValue>& FV : H->GetArrayField(TEXT("fingers")))
+			{
+				const TSharedPtr<FJsonObject> F = FV->AsObject();
+				const TArray<TSharedPtr<FJsonValue>>& Bn = F->GetArrayField(TEXT("bones"));
+				const TArray<TSharedPtr<FJsonValue>>& R = F->GetArrayField(TEXT("reach"));
+				const TArray<TSharedPtr<FJsonValue>>& Pl = F->GetArrayField(TEXT("pull"));
+				FFinger Fg;
+				if (Bn.Num() >= 2) { Fg.Bone01 = Find(*Bn[0]->AsString()); Fg.Bone02 = Find(*Bn[1]->AsString()); }
+				if (R.Num() >= 2) Fg.Reach = FVector2D(R[0]->AsNumber(), R[1]->AsNumber());
+				if (Pl.Num() >= 2) Fg.Pull = FVector2D(Pl[0]->AsNumber(), Pl[1]->AsNumber());
+				if (Fg.Bone01 != INDEX_NONE && Fg.Bone02 != INDEX_NONE) Hd.Fingers.Add(Fg);
+			}
+		}
+	}
 	if (Pelvis == INDEX_NONE || Head == INDEX_NONE || Neck == INDEX_NONE || Spine[2] == INDEX_NONE) return false;
 	HelmetCentreRest = HelmetCentre = Vec(Info->GetArrayField(TEXT("helmet_centre")));
 
@@ -258,15 +283,27 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 		{
 			if (I == UpperArm[S])
 			{
-				// The hands stay on the grips, which turn with the bars; the elbows bend to suit.
+				// The hands stay on the grips, which turn with the bars; the elbows bend to suit. The
+				// right hand also rolls about its grip with the throttle.
+				const FHand& Hd = Hands[S];
+				const FQuat Twist(Hd.TwistAxis, FMath::DegreesToRadians(Hd.TwistDeg * FMath::Clamp(In.Throttle, 0.0, 1.0)));
 				const FVector W0 = Bones[Hand[S]].Rest, E0 = Bones[LowerArm[S]].Rest, S0 = Bones[I].Rest;
-				const FVector W = In.BarPivot + In.BarTurn.RotateVector(W0 - In.BarPivot);
+				const FVector Wt = Hd.Grip + Twist.RotateVector(W0 - Hd.Grip);
+				const FVector W = In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector E = RigMidJoint(P[I], W, Lu, Lf, ElbowPole[S]);
 				const FVector Hinge0 = FVector::CrossProduct(E0 - S0, W0 - E0), Hinge = FVector::CrossProduct(E - P[I], W - E);
 				D[I] = AlignFrames(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = AlignFrames(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
-				D[Hand[S]] = In.BarTurn; Set[Hand[S]] = true;
+				D[Hand[S]] = In.BarTurn * Twist; Set[Hand[S]] = true;
+				// Index and middle fingers: off the grip and over the lever, then pulling it in.
+				const double On = FMath::Clamp(In.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(In.LeverPull[S], 0.0, 1.0);
+				for (const FFinger& F : Hd.Fingers)
+				{
+					const FVector2D Ang = FMath::Lerp(F.Reach, F.Pull, Pull) * On;
+					D[F.Bone01] = D[Hand[S]] * FQuat(Hd.FingerAxis, FMath::DegreesToRadians(Ang.X)); Set[F.Bone01] = true;
+					D[F.Bone02] = D[Hand[S]] * FQuat(Hd.FingerAxis, FMath::DegreesToRadians(Ang.X + Ang.Y)); Set[F.Bone02] = true;
+				}
 			}
 			else if (I == Thigh[S])
 			{

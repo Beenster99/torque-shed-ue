@@ -292,7 +292,23 @@ void ATorqueBikePawn::BuildModel()
 			C->SetMaterial(0, M);
 		C->RegisterComponent();
 		ModelParts.Add(C);
+		if (Name == TEXT("lever_clutch")) LeverParts[0] = C;
+		else if (Name == TEXT("lever_brake")) LeverParts[1] = C;
 		++Made;
+	}
+	// The clutch and front brake levers swing on their perches as they're pulled.
+	PartFix = Fix;
+	const TSharedPtr<FJsonObject>* Levers = nullptr;
+	if (Spec->TryGetObjectField(TEXT("levers"), Levers))
+	{
+		for (int32 S = 0; S < 2; ++S)
+		{
+			const TSharedPtr<FJsonObject>* L = nullptr;
+			if (!(*Levers)->TryGetObjectField(S == 0 ? TEXT("clutch") : TEXT("brake"), L)) continue;
+			LeverPivot[S] = ModelToLocal(JsonVec(*L, TEXT("pivot")));
+			LeverAxis[S] = ModelDirToLocal(JsonVec(*L, TEXT("axis")));
+			LeverPullRad[S] = FMath::DegreesToRadians((*L)->GetNumberField(TEXT("pull_deg")));
+		}
 	}
 	if (Made > 0)
 	{
@@ -539,6 +555,13 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		RideTime += DeltaSeconds;
 	}
 
+	if (Sim->Gear != LastGear) SinceShift = 0.0;   // the rider's left hand pulls the clutch
+	SinceShift += DeltaSeconds;
+	{
+		// Front brake: two fingers go over the lever as soon as you brake, and come off after.
+		const double Want = FrontBrake > 0.03 ? 1.0 : 0.0;
+		BrakeFingers = MoveToward(BrakeFingers, Want, (Want > BrakeFingers ? 10.0 : 4.0) * DeltaSeconds);
+	}
 	if (Sound && Sim->Gear != LastGear) Sound->GearChange(Sim->Gear > LastGear);
 	LastGear = Sim->Gear;
 	GearNoteFor = FMath::Max(GearNoteFor - DeltaSeconds, 0.0);
@@ -800,6 +823,26 @@ void ATorqueBikePawn::UpdateRider()
 		In.FootDownL = FVector(-32.0, -36.0, -22.0);
 		In.FootDownR = FVector(-32.0, 36.0, -22.0);
 		In.Look = FRotator(LookPitch * -0.4, LookYaw * 0.5, 0.0);
+		// Right hand: the throttle, and the front brake lever under two fingers.
+		In.Throttle = Throttle;
+		In.LeverFingers[1] = BrakeFingers;
+		In.LeverPull[1] = FMath::Clamp(FrontBrake, 0.0, 1.0) * BrakeFingers;
+		// Left hand: the clutch, pulled for each gear change (fingers over, pull, let out), and held
+		// in while stopped, let out as you pull away.
+		{
+			const double T = SinceShift;
+			const double FingersShift = T < 0.06 ? T / 0.06 : T < 0.30 ? 1.0 : T < 0.42 ? 1.0 - (T - 0.30) / 0.12 : 0.0;
+			const double PullShift = T < 0.03 ? 0.0 : T < 0.10 ? (T - 0.03) / 0.07 : T < 0.22 ? 1.0 : T < 0.34 ? 1.0 - (T - 0.22) / 0.12 : 0.0;
+			const double Held = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 2.5, 0.0, 1.0);
+			In.LeverFingers[0] = FMath::Max(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0));
+			In.LeverPull[0] = FMath::Max(PullShift, Held);
+		}
+		for (int32 S = 0; S < 2; ++S)
+		{
+			if (!LeverParts[S]) continue;
+			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
+			LeverParts[S]->SetRelativeTransform(PartFix * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]));
+		}
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		return;

@@ -21,12 +21,13 @@ pawn uses to find how the importer turned the skeleton.
 The skeleton has Unreal mannequin bone names (pelvis, spine_01..03, neck_01, head, clavicle_l,
 upperarm_l, lowerarm_l, hand_l, thigh_l, calf_l, foot_l, ball_l and the _r side).
 """
-import argparse, json, math, os, struct
+import argparse, json, math, os, struct, sys
 import numpy as np
 from skimage.measure import marching_cubes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
 OUT = os.path.join(REPO, "Data", "Rider")
 COARSE = 1.0   # set by --coarse: voxel sizes are multiplied by this
 
@@ -79,6 +80,21 @@ def on_grip(s, theta_deg, r, along):
     return c + a * along + fw * (r * math.cos(t)) + up * (r * math.sin(t))
 
 
+FINGERS = ((-3.2, 1.0, 0.96), (-1.05, 1.05, 0.99), (1.1, 1.0, 0.95), (3.2, 0.86, 0.87))   # along, length, width
+FINGER_NAMES = ("index", "middle")    # the two that work the levers have bones of their own
+
+
+def finger_points(s, i):
+    """Knuckle, middle joints and tip of finger i (0 index .. 3 little) wrapped round the grip, and
+    their radii."""
+    along, ln, wd = FINGERS[i]
+    pts = [on_grip(s, 72.0, 4.4, along),
+           on_grip(s, 72.0 - 70.0 * ln, 2.95, along * 1.02),
+           on_grip(s, 72.0 - 70.0 * ln - 72.0 * ln, 2.8, along * 1.04),
+           on_grip(s, 72.0 - 70.0 * ln - 72.0 * ln - 48.0 * ln, 2.7, along * 1.04)]
+    return pts, (1.08 * wd, 1.0 * wd, 0.93 * wd, 0.86 * wd)
+
+
 # --- The skeleton, in the riding pose ----------------------------------------------------------------
 
 UPPER_ARM, FOREARM = 32.0, 28.0
@@ -103,6 +119,11 @@ def skeleton():
         W = on_grip(s, 152.0, 7.2, -0.6)
         E = mid_joint(S, W, UPPER_ARM, FOREARM, unit([ELBOW_POLE[0], ELBOW_POLE[1] * s, ELBOW_POLE[2]]))
         J["upperarm_" + x], J["lowerarm_" + x], J["hand_" + x] = S, E, W
+        for i, fn in enumerate(FINGER_NAMES):
+            pts, _ = finger_points(s, i)
+            J["%s_01_%s" % (fn, x)], J["%s_02_%s" % (fn, x)] = pts[0], pts[1]
+            parents["%s_01_%s" % (fn, x)] = "hand_" + x
+            parents["%s_02_%s" % (fn, x)] = "%s_01_%s" % (fn, x)
         H = np.array([-34.0, 10.5 * s, 61.0])
         A = np.array([-33.5, 22.5 * s, 15.5])
         K = mid_joint(H, A, THIGH, SHIN, unit([KNEE_POLE[0], KNEE_POLE[1] * s, KNEE_POLE[2]]))
@@ -355,9 +376,6 @@ def soles(p):
     return out, groups
 
 
-FINGERS = ((-3.15, 1.0, 1.06), (-1.05, 1.05, 1.1), (1.05, 1.0, 1.05), (3.1, 0.86, 0.95))   # along, length, width
-
-
 def gloves(p):
     out = np.full(len(p), 1e9); groups = {}
     for s, x in ((-1, "l"), (1, "r")):
@@ -373,20 +391,18 @@ def gloves(p):
         # Knuckles.
         k0 = on_grip(s, 72.0, 4.5, FINGERS[0][0] * 1.0); k1 = on_grip(s, 72.0, 4.4, FINGERS[3][0] * 1.0)
         hand = smin(hand, rcone(p, k0, k1, 1.45, 1.25), 1.0)
-        # Fingers wrapped round the grip.
-        for along, ln, wd in FINGERS:
-            pts = [on_grip(s, 72.0, 4.4, along * inner * -1.0),
-                   on_grip(s, 72.0 - 70.0 * ln, 2.95, along * inner * -1.0 * 1.02),
-                   on_grip(s, 72.0 - 70.0 * ln - 72.0 * ln, 2.8, along * inner * -1.0 * 1.04),
-                   on_grip(s, 72.0 - 70.0 * ln - 72.0 * ln - 48.0 * ln, 2.7, along * inner * -1.0 * 1.04)]
-            r = (1.08 * wd, 1.0 * wd, 0.93 * wd, 0.86 * wd)
+        # Fingers wrapped round the grip. The index and middle fingers move (they work the levers),
+        # so they're kept apart for skinning; ring and little fingers stay on the grip.
+        for i in range(4):
+            pts, r = finger_points(s, i)
             f = rcone(p, pts[0], pts[1], r[0], r[1])
             f = smin(f, rcone(p, pts[1], pts[2], r[1], r[2]), 0.3)
             f = smin(f, rcone(p, pts[2], pts[3], r[2], r[3]), 0.3)
             # Leather creases across the knuckle joints.
             for j in (1, 2):
                 f = groove(f, np.linalg.norm(p - pts[j], axis=1) - r[j] * 0.9, 0.25, 0.08)
-            hand = smin(hand, f, 0.45)
+            if i >= 2:
+                hand = smin(hand, f, 0.45)
         # Thumb: from the inner side of the palm, under the grip.
         t0 = on_grip(s, 175.0, 4.6, -3.9); t1 = on_grip(s, -150.0, 3.2, -4.6); t2 = on_grip(s, -112.0, 2.9, -3.6)
         th = smin(rcone(p, t0, t1, 1.55, 1.25), rcone(p, t1, t2, 1.25, 1.05), 0.3)
@@ -405,8 +421,28 @@ def gloves(p):
     return out, groups
 
 
-LAYERS = {"jacket": jacket, "jeans": jeans, "boots": boots, "sole": soles, "gloves": gloves}
-VOXEL = {"jacket": 0.7, "jeans": 0.7, "boots": 0.5, "sole": 0.45, "gloves": 0.28}
+def lever_fingers(p):
+    """The index and middle fingers of each glove, which work the levers: a layer of their own,
+    closed, sunk into the hand at the knuckle and not cut where they touch it, so they can lift off
+    the grip cleanly."""
+    out = np.full(len(p), 1e9); groups = {}
+    for s, x in ((-1, "l"), (1, "r")):
+        for i in range(2):
+            pts, r = finger_points(s, i)
+            k0 = pts[0] - unit(pts[1] - pts[0]) * 1.2      # into the hand a little
+            f = rcone(p, k0, pts[1], r[0], r[1])
+            f = smin(f, rcone(p, pts[1], pts[2], r[1], r[2]), 0.3)
+            f = smin(f, rcone(p, pts[2], pts[3], r[2], r[3]), 0.3)
+            for j in (1, 2):
+                f = groove(f, np.linalg.norm(p - pts[j], axis=1) - r[j] * 0.9, 0.25, 0.08)
+            groups["finger_%s_%d" % (x, i)] = f
+            out = np.minimum(out, f)
+    return out, groups
+
+
+LAYERS = {"jacket": jacket, "jeans": jeans, "boots": boots, "sole": soles, "gloves": gloves, "fingers": lever_fingers}
+VOXEL = {"jacket": 0.7, "jeans": 0.7, "boots": 0.5, "sole": 0.45, "gloves": 0.28, "fingers": 0.22}
+NO_CLIP = {("gloves", "fingers"), ("fingers", "gloves")}   # overlapping, each kept whole
 
 
 def helmet_parts(p):
@@ -552,7 +588,7 @@ def layer_meshes(fields, voxels, bounds):
         lo, hi = bounds[name]
         h = voxels[name] * COARSE
         v, f = mesh_field(fn, lo, hi, h)
-        others = [o for o in fields if o != name]
+        others = [o for o in fields if o != name and (name, o) not in NO_CLIP]
         if len(v) and others:
             keep = np.min([fields[o](v) for o in others], axis=0)
             v, f = clip_tris(v, f, keep)
@@ -571,6 +607,92 @@ def layer_meshes(fields, voxels, bounds):
 def bounds_of(points, pad):
     P = np.asarray(points)
     return P.min(0) - pad, P.max(0) + pad
+
+
+# --- Fingers on the levers ---------------------------------------------------------------------------
+
+def axis_rot(axis, deg):
+    """Rotation matrix about axis by deg (the component formula Unreal's FQuat uses too)."""
+    k = unit(axis); t = math.radians(deg)
+    K = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
+    return np.eye(3) + math.sin(t) * K + (1 - math.cos(t)) * K @ K
+
+
+def lever_blade(s, pull):
+    """Points along the lever on side s (pawn local cm) with it pulled by the fraction pull."""
+    import make_speedtwin as st
+    P = [np.array([q[0], q[2], q[1]]) * 100.0 for q in st.lever_points(s)]
+    pts = []
+    for a, b in zip(P[:-1], P[1:]):
+        for t in np.linspace(0, 1, 40):
+            pts.append(a + (b - a) * t)
+    pts = np.array(pts)
+    deg = st.LEVER_PULL_DEG["clutch" if s < 0 else "brake"] * pull
+    R = axis_rot([0, 0, 1.0 if s > 0 else -1.0], deg)
+    return (pts - P[0]) @ R.T + P[0]
+
+
+def seg_point_dist(a, b, q):
+    ab = b - a
+    t = np.clip(np.dot(q - a, ab) / np.dot(ab, ab), 0, 1)
+    return np.linalg.norm(a + ab * t - q)
+
+
+def finger_hold(s, i, pull):
+    """How far (degrees) finger i turns at its knuckle and at its middle joint to hook over the lever
+    on side s, pulled by the fraction pull: the blade in the crook of the middle bone, the tip in
+    front of it, nothing through it."""
+    pts, r = finger_points(s, i)
+    c, a, fw, up = grip_frame(s)
+    blade = lever_blade(s, pull)
+    # The blade where it crosses this finger.
+    B = blade[np.argmin(np.abs((blade - c) @ a - (pts[1] - c) @ a))]
+    k = unit(np.cross(fw, up))     # positive turns go from forward towards up, on either side
+    best = None
+    for al in np.arange(-10, 121, 2.0):
+        R1 = axis_rot(k, al)
+        p0 = pts[0]
+        p1 = p0 + R1 @ (pts[1] - p0)
+        for be in np.arange(-40, 91, 2.0):
+            R2 = axis_rot(k, al + be)
+            p2 = p1 + R2 @ (pts[2] - pts[1]); p3 = p1 + R2 @ (pts[3] - pts[1])
+            want = r[1] + 0.8
+            d_mid = min(seg_point_dist(p1, p2, B), seg_point_dist(p2, p3, B))
+            cost = (d_mid - want) ** 2
+            for q0, q1, rr in ((p0, p1, r[0]), (p1, p2, r[1]), (p2, p3, r[2])):
+                d = seg_point_dist(q0, q1, B)
+                if d < rr + 0.7:
+                    cost += 10.0 * (rr + 0.7 - d) ** 2
+            # The tip comes down in front of the blade, the middle joint stays above it.
+            if np.dot(p3 - B, fw) < 0.3:
+                cost += 4.0 * (0.3 - np.dot(p3 - B, fw)) ** 2
+            if np.dot(p1 - B, up) < 0.5:
+                cost += 4.0 * (0.5 - np.dot(p1 - B, up)) ** 2
+            cost += 1e-4 * (al * al + be * be)
+            if best is None or cost < best[0]:
+                best = (cost, al, be)
+    return best[1], best[2], best[0]
+
+
+THROTTLE_TWIST_DEG = 32.0   # how far the right hand rolls back at full throttle
+
+
+def hands_info():
+    out = []
+    for s, x in ((-1, "l"), (1, "r")):
+        c, a, fw, up = grip_frame(s)
+        fingers = []
+        for i, fn in enumerate(FINGER_NAMES):
+            reach = finger_hold(s, i, 0.0)
+            pull = finger_hold(s, i, 1.0)
+            print("  %s %s: reach %.0f, %.0f (fit %.2f); pulled %.0f, %.0f (fit %.2f)" % (x, fn, reach[0], reach[1], reach[2], pull[0], pull[1], pull[2]))
+            fingers.append({"bones": ["%s_01_%s" % (fn, x), "%s_02_%s" % (fn, x)],
+                            "reach": [round(reach[0], 1), round(reach[1], 1)], "pull": [round(pull[0], 1), round(pull[1], 1)]})
+        out.append({"side": x, "lever": "clutch" if s < 0 else "brake", "grip": [round(float(v), 3) for v in c],
+                    "finger_axis": [round(float(v), 5) for v in unit(np.cross(fw, up))],
+                    "twist_axis": [round(float(v), 5) for v in unit(np.cross(fw, up))],
+                    "twist_deg": THROTTLE_TWIST_DEG if s > 0 else 0.0, "fingers": fingers})
+    return out
 
 
 # --- Skinning -----------------------------------------------------------------------------------------
@@ -613,7 +735,7 @@ def skin(layer, v, groups_fn):
     _, groups = groups_fn(v)
     names = list(groups)
     G = np.stack([groups[n] for n in names])
-    soft = np.exp(-(G - G.min(0)) / 1.2)
+    soft = np.exp(-(G - G.min(0)) / (0.3 if layer in ("gloves", "fingers") else 1.2))
     soft /= soft.sum(0)
     W = np.zeros((len(v), len(BONES)))
     for gi, g in enumerate(names):
@@ -630,6 +752,11 @@ def skin(layer, v, groups_fn):
             cw = chain_weights(v, ["calf_" + x, "foot_" + x, "ball_" + x, toe], ["calf_" + x, "foot_" + x, "ball_" + x], blend=3.0)
         elif g.startswith("glove_"):
             cw = {"hand_" + x: np.ones(len(v))}
+        elif g.startswith("finger_"):
+            x, i = g.split("_")[1], int(g.split("_")[2])
+            pts, _ = finger_points(-1 if x == "l" else 1, i)
+            fn = FINGER_NAMES[i]
+            cw = chain_weights(v, pts, ["%s_01_%s" % (fn, x), "%s_02_%s" % (fn, x), "%s_02_%s" % (fn, x)], blend=0.9)
         else:
             raise ValueError(g)
         for b, w in cw.items():
@@ -776,6 +903,7 @@ def build(out):
         "boots": bounds_of(feet[:2] + [J["ball_l"] + [12, -8, 0], J["ball_r"] + [12, 8, 0], J["foot_l"] + [-12, -8, -10], J["foot_r"] + [-12, 8, -10]] + [J["foot_l"] + unit(J["calf_l"] - J["foot_l"]) * 17, J["foot_r"] + unit(J["calf_r"] - J["foot_r"]) * 17], 3.0),
         "sole": bounds_of([J["ball_l"] + [13, -7, -5], J["ball_r"] + [13, 7, -5], J["foot_l"] + [-12, -7, -9], J["foot_r"] + [-12, 7, 0]], 1.0),
         "gloves": bounds_of(hands, 1.5),
+        "fingers": bounds_of(hands, 1.5),
     }
     fields = {k: (lambda f: (lambda p: f(p)[0]))(fn) for k, fn in LAYERS.items()}
     print("rider body:")
@@ -787,8 +915,16 @@ def build(out):
         joints, weights = skin(name, v, LAYERS[name])
         ao = bake_ao(v, n, whole)
         col = np.stack([ao, ao, ao, np.ones(len(v))], 1)
-        prims.append({"pos": v, "nrm": n, "idx": f, "col": col, "joints": joints, "weights": weights,
-                      "material": name, "color": FINISHES[name][0], "roughness": FINISHES[name][1]})
+        mat = "gloves" if name == "fingers" else name     # the lever fingers are glove too
+        same = [q for q in prims if q["material"] == mat]
+        if same:
+            q = same[0]; base = len(q["pos"])
+            for key, arr in (("pos", v), ("nrm", n), ("col", col), ("joints", joints), ("weights", weights)):
+                q[key] = np.concatenate([q[key], arr])
+            q["idx"] = np.concatenate([q["idx"], f + base])
+        else:
+            prims.append({"pos": v, "nrm": n, "idx": f, "col": col, "joints": joints, "weights": weights,
+                          "material": mat, "color": FINISHES[mat][0], "roughness": FINISHES[mat][1]})
         tris += len(f)
     write_glb(os.path.join(out, "rider.glb"), prims, (BONES, PARENTS, J), "rider")
 
@@ -814,6 +950,7 @@ def build(out):
         "helmet_centre": [round(float(c), 3) for c in HELMET_C],
         "helmet_bone": "head",
         "lengths": {"upper_arm": UPPER_ARM, "forearm": FOREARM, "thigh": THIGH, "shin": SHIN},
+        "hands": hands_info(),
         "materials": {"rider": [p["material"] for p in prims], "helmet": [p["material"] for p in hprims]},
         "finishes": {k: {"color": list(v[0]), "roughness": v[1]} for k, v in FINISHES.items()},
     }

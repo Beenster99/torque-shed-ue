@@ -25,6 +25,11 @@ struct FRiderPoseInput
 	FVector FootDownR = FVector::ZeroVector;
 	double FeetDown = 0.0;                     // 0 on the pegs, 1 down on the road
 	FRotator Look = FRotator::ZeroRotator;     // the head's turn, where you look
+	double Throttle = 0.0;                     // 0..1: the right hand rolls the grip back
+	// Fingers on a lever (0 on the grip, 1 hooked over the lever) and how far it's pulled (0..1):
+	// index 0 is the left hand on the clutch, 1 the right on the front brake.
+	double LeverFingers[2] = {0.0, 0.0};
+	double LeverPull[2] = {0.0, 0.0};
 };
 
 class FRiderRig
@@ -60,6 +65,12 @@ private:
 	// Bones by job (indices into Bones; INDEX_NONE if the mesh lacks one).
 	int32 Pelvis = INDEX_NONE, Spine[3] = {INDEX_NONE, INDEX_NONE, INDEX_NONE}, Neck = INDEX_NONE, Head = INDEX_NONE;
 	int32 UpperArm[2], LowerArm[2], Hand[2], Thigh[2], Calf[2], Foot[2];
+	// The hands (rider.json "hands"): the grip's centre, the axis fingers and the throttle turn
+	// about, and for the index and middle fingers their bones and their turns (knuckle, middle joint,
+	// degrees) hooked over the lever at rest and pulled.
+	struct FFinger { int32 Bone01 = INDEX_NONE, Bone02 = INDEX_NONE; FVector2D Reach = FVector2D::ZeroVector, Pull = FVector2D::ZeroVector; };
+	struct FHand { FVector Grip = FVector::ZeroVector, FingerAxis = FVector::RightVector, TwistAxis = FVector::RightVector; double TwistDeg = 0.0; TArray<FFinger> Fingers; };
+	FHand Hands[2];
 	FVector ElbowPole[2], KneePole[2];
 
 	int32 Find(const TCHAR* Name) const;

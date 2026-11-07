@@ -69,6 +69,8 @@ public:
 
 	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
+	// The clutch (0) and front brake (1) levers, which the rider's fingers pull.
+	UPROPERTY(Transient) UStaticMeshComponent* LeverParts[2];
 
 	// The rider (Tools/make_rider.py): a skinned body in riding kit and a helmet, posed every frame:
 	// hands on the grips, feet on the pegs (or down when stopped), weight and lean as you ride.
@@ -142,6 +144,11 @@ private:
 	bool bHaveModel = false;
 	FVector SteerPoint = FVector::ZeroVector, SteerDir = FVector::UpVector, SwingPivot = FVector::ZeroVector;
 	FVector RearRest = FVector::ZeroVector;
+	FTransform PartFix;                // the importer's turn of the model's frame
+	FVector LeverPivot[2] = {FVector::ZeroVector, FVector::ZeroVector}, LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
+	double LeverPullRad[2] = {0.0, 0.0};
+	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
+	double BrakeFingers = 0.0;         // two fingers over the front brake lever
 
 	void BuildRider(UMaterialInterface* const* Mats);
 	bool BuildRiderRig();

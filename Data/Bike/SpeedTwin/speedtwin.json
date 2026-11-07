@@ -50,6 +50,36 @@
   0.075,
   0.0
  ],
+ "levers": {
+  "clutch": {
+   "part": "lever_clutch",
+   "pivot": [
+    0.43573971294161207,
+    0.6584296800484104,
+    -0.23
+   ],
+   "axis": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "pull_deg": 24.0
+  },
+  "brake": {
+   "part": "lever_brake",
+   "pivot": [
+    0.43573971294161207,
+    0.6584296800484104,
+    0.23
+   ],
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "pull_deg": 14.0
+  }
+ },
  "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); COLOR_0 red is the mask towards each finish's second finish",
  "finishes": {
   "paint_silver": {
@@ -759,10 +789,16 @@
    "tris": 640
   },
   {
-   "name": "levers",
+   "name": "lever_brake",
    "group": "steer",
    "finish": "alu_cast",
-   "tris": 520
+   "tris": 260
+  },
+  {
+   "name": "lever_clutch",
+   "group": "steer",
+   "finish": "alu_cast",
+   "tris": 260
   },
   {
    "name": "mirror_stalks",
