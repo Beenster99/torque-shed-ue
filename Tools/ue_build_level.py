@@ -492,6 +492,31 @@ def land_material_scanned(tex, roles):
     return g.finish(land)
 
 
+def road_blemish_textures():
+    """Data/Textures/RoadBlemish (Tools/make_road_blemish.py): mask.png (R patch tint, G bitumen seal,
+    B pothole, A wheel-track polish) and normal.png, laid along the road by its UV. None if not made."""
+    out = {}
+    for name, normal in (("mask", False), ("normal", True)):
+        f = os.path.join(os.path.dirname(data_dir()), "Textures", "RoadBlemish", name + ".png")
+        if not os.path.exists(f):
+            return None
+        t = unreal.AssetImportTask()
+        for k, v in (("filename", f), ("destination_path", TEX_DEST + "/RoadBlemish"),
+                     ("destination_name", "T_RoadBlemish_" + name), ("automated", True),
+                     ("replace_existing", True), ("save", False)):
+            t.set_editor_property(k, v)
+        asset_tools.import_asset_tasks([t])
+        tx = unreal.load_asset(TEX_DEST + "/RoadBlemish/T_RoadBlemish_" + name)
+        if not tx:
+            return None
+        tx.set_editor_property("srgb", False)
+        if normal:
+            tx.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+        unreal.EditorAssetLibrary.save_loaded_asset(tx)
+        out[name] = tx
+    return out
+
+
 def road_material_scanned(tex, roles):
     """Scanned tarmac, darkened a little towards the middle where the wheels polish it, with the white
     edge lines (vertex colour red above about 0.955) painted on top."""
@@ -507,6 +532,44 @@ def road_material_scanned(tex, roles):
     paint = [g.const((0.62, 0.62, 0.6)), g.const((0.0, 0.0, 1.0)), g.const(0.55)]
     # Patches, repairs and darker wheel tracks: slow variation in the tarmac's brightness.
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], noise(g.m, 0.002, 0.45, 0.8, -1200, g.y + 200))   # darker, as Dales tarmac is
+    blem = road_blemish_textures()
+    if blem:
+        # The road's UV: u across the carriageway, v = metres / 20. The blemish map is 204.8 m long;
+        # a second, mirrored sample at another period takes over in patches so the repeat doesn't show.
+        tc = g.node(unreal.MaterialExpressionTextureCoordinate)
+        uv1 = g.op(unreal.MaterialExpressionMultiply, tc, g.node(unreal.MaterialExpressionConstant2Vector, r=1.0, g=20.0 / 204.8))
+        uv2 = g.op(unreal.MaterialExpressionMultiply, tc, g.node(unreal.MaterialExpressionConstant2Vector, r=-1.0, g=20.0 / 133.7))
+        uv2 = g.op(unreal.MaterialExpressionAdd, uv2, g.node(unreal.MaterialExpressionConstant2Vector, r=1.0, g=0.37))
+        pick = g.mask_noise(0.004, -6.0, 7.0)
+        m = g.lerp(g.sample(blem["mask"], uv1, "mask"), g.sample(blem["mask"], uv2, "mask"), pick,
+                   a_out="RGBA", b_out="RGBA")   # keep alpha: the default link is RGB
+        bn = g.lerp(g.sample(blem["normal"], uv1, "normal"), g.sample(blem["normal"], uv2, "normal"), pick)
+        def ch(c):
+            e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=c == "A")
+            g.link(m, e)
+            return e
+        rough_in = road[2]
+        r_out = "R" if rough_in.get_class().get_name() == "MaterialExpressionTextureSample" else ""
+        rough = g.op(unreal.MaterialExpressionMultiply, rough_in, g.const(1.0), a_out=r_out)
+        # Patches: R 0.5 none; lower a fresh dark patch, higher pale old tarmac.
+        tint = g.op(unreal.MaterialExpressionMultiply, ch("R"), const_b=1.6)
+        tint = g.op(unreal.MaterialExpressionAdd, tint, const_b=0.2)
+        road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], tint)
+        # Wheel tracks and oil: darker and a little smoother.
+        trk = g.op(unreal.MaterialExpressionMultiply, ch("A"), const_b=-0.25)
+        trk = g.op(unreal.MaterialExpressionAdd, trk, const_b=1.0)
+        road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], trk)
+        rough = g.op(unreal.MaterialExpressionMultiply, rough, g.lerp(g.const(1.0), g.const(0.75), ch("A")))
+        # Potholes: dark, broken and rough.
+        road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.45), ch("B"))
+        rough = g.lerp(rough, g.const(1.0), ch("B"))
+        # Bitumen seal over cracks and patch seams: near black and shiny.
+        road[0] = g.lerp(road[0], g.const((0.012, 0.012, 0.012)), ch("G"))
+        rough = g.lerp(rough, g.const(0.3), ch("G"))
+        road[2] = rough
+        # Lips, dips and ridges: add the blemish normal's slope to the tarmac's.
+        slope = g.op(unreal.MaterialExpressionMultiply, bn, g.const((1.0, 1.0, 0.0)))
+        road[1] = g.op(unreal.MaterialExpressionAdd, road[1], slope)
     road = g.mix(road, paint, line)
     return g.finish(road)
 
