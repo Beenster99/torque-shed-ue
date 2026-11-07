@@ -680,10 +680,13 @@ def rider_materials(finishes):
         spec.set_editor_property("default_value", 0.5)
         mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
         if kind == "gloss":
-            cc = const1(m, 1.0, -450, 1000)
-            ccr = const1(m, 0.04, -450, 1100)
-            mel.connect_material_property(cc, "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
-            mel.connect_material_property(ccr, "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
+            try:
+                cc = const1(m, 1.0, -450, 1000)
+                ccr = const1(m, 0.04, -450, 1100)
+                mel.connect_material_property(cc, "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
+                mel.connect_material_property(ccr, "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
+            except AttributeError:
+                pass   # UE 5.8's Python has no MP_CUSTOM_DATA0/1; unconnected, the coat is 1.0 at roughness 0.1
         mel.recompile_material(m)
         unreal.EditorAssetLibrary.save_loaded_asset(m)
         masters[kind] = m

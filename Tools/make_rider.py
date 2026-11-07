@@ -52,7 +52,14 @@ def mid_joint(root, tip, a, b, pole):
 
 GRIP = 41.32, 31.5, 65.54           # grip centre (x, |y|, z): the grips are 34 mm across
 GRIP_R = 1.7
-PEG = -44.0, 21.0, 16.5             # footrest tube (x, inner |y|, z), 12 mm radius
+PEG = -22.0, 17.0, 4.0              # footrest tube (x, inner |y|, z), 12 mm radius
+# The seat's top along its length (x, z), from Tools/make_speedtwin.py.
+SEAT_TOP = ((-77.0, 55.0), (-76.0, 57.0), (-60.0, 56.8), (-45.0, 54.8), (-30.0, 51.5), (-15.0, 48.0), (-11.0, 47.2))
+
+
+def seat_top(x):
+    S = np.asarray(SEAT_TOP)
+    return np.interp(x, S[:, 0], S[:, 1])
 
 
 def grip_frame(s):
@@ -75,32 +82,32 @@ def on_grip(s, theta_deg, r, along):
 # --- The skeleton, in the riding pose ----------------------------------------------------------------
 
 UPPER_ARM, FOREARM = 32.0, 28.0
-THIGH, SHIN = 41.0, 41.0
-KNEE_POLE = (0.93, 0.32, -0.19)    # knees forward and a little out, round the engine
+THIGH, SHIN = 44.0, 43.0
+KNEE_POLE = (1.0, 0.12, 0.3)       # knees forward and a little out, by the tank
 ELBOW_POLE = (-0.25, 0.8, -0.55)
 
 
 def skeleton():
     J = {}
-    J["pelvis"] = np.array([-44.0, 0.0, 60.5])
-    J["spine_01"] = np.array([-40.0, 0.0, 69.5])
-    J["spine_02"] = np.array([-33.0, 0.0, 81.0])
-    J["spine_03"] = np.array([-23.0, 0.0, 93.0])
-    J["neck_01"] = np.array([-11.0, 0.0, 106.0])
-    J["head"] = np.array([-7.0, 0.0, 112.5])
+    J["pelvis"] = np.array([-34.0, 0.0, 61.5])
+    J["spine_01"] = np.array([-31.0, 0.0, 70.5])
+    J["spine_02"] = np.array([-25.0, 0.0, 82.0])
+    J["spine_03"] = np.array([-17.0, 0.0, 94.5])
+    J["neck_01"] = np.array([-8.0, 0.0, 109.0])
+    J["head"] = np.array([-4.0, 0.0, 116.0])
     parents = {"pelvis": None, "spine_01": "pelvis", "spine_02": "spine_01", "spine_03": "spine_02",
                "neck_01": "spine_03", "head": "neck_01"}
     for s, x in ((-1, "l"), (1, "r")):
-        J["clavicle_" + x] = np.array([-14.0, 3.0 * s, 100.0])
-        S = np.array([-9.0, 18.0 * s, 97.0])
+        J["clavicle_" + x] = np.array([-10.0, 3.0 * s, 103.0])
+        S = np.array([-5.0, 18.0 * s, 100.0])
         W = on_grip(s, 152.0, 7.2, -0.6)
         E = mid_joint(S, W, UPPER_ARM, FOREARM, unit([ELBOW_POLE[0], ELBOW_POLE[1] * s, ELBOW_POLE[2]]))
         J["upperarm_" + x], J["lowerarm_" + x], J["hand_" + x] = S, E, W
-        H = np.array([-44.0, 10.5 * s, 60.0])
-        A = np.array([-56.0, 23.5 * s, 24.5])
+        H = np.array([-34.0, 10.5 * s, 61.0])
+        A = np.array([-33.5, 22.5 * s, 15.5])
         K = mid_joint(H, A, THIGH, SHIN, unit([KNEE_POLE[0], KNEE_POLE[1] * s, KNEE_POLE[2]]))
         J["thigh_" + x], J["calf_" + x], J["foot_" + x] = H, K, A
-        J["ball_" + x] = np.array([-43.0, 24.5 * s, 20.5])
+        J["ball_" + x] = np.array([-21.0, 23.5 * s, 8.5])
         parents.update({"clavicle_" + x: "spine_03", "upperarm_" + x: "clavicle_" + x,
                         "lowerarm_" + x: "upperarm_" + x, "hand_" + x: "lowerarm_" + x,
                         "thigh_" + x: "pelvis", "calf_" + x: "thigh_" + x, "foot_" + x: "calf_" + x,
@@ -270,14 +277,14 @@ def jacket(p):
 def jeans(p):
     seat = loft(p, HIPS, 2.3, 3.0)
     # Flattened where it sits on the seat.
-    seat = smax(seat, -plane(p, (0, 0, 52.8), (0, 0, 1.0)), 2.0)
+    seat = smax(seat, seat_top(p[:, 0]) + 0.3 - p[:, 2], 2.0)
     groups = {"hips": seat}
     out = seat
     for s, x in ((-1, "l"), (1, "r")):
         H, K, A = J["thigh_" + x], J["calf_" + x], J["foot_" + x]
         thigh = rcone(p, H, K, 8.9, 6.2)
         # Sat on, so flatter underneath where it meets the seat.
-        thigh = smax(thigh, np.where((p[:, 0] < -30.0) & (np.abs(p[:, 1]) < 13.0), 52.9 - p[:, 2], -1e3), 2.5)
+        thigh = smax(thigh, np.where((p[:, 0] < -20.0) & (np.abs(p[:, 1]) < 13.0), seat_top(p[:, 0]) + 0.4 - p[:, 2], -1e3), 2.5)
         shin_end = A + unit(K - A) * 5.0
         shin = rcone(p, K, shin_end, 6.0, 5.3)
         leg = smin(thigh, shin, 3.0)
@@ -764,8 +771,8 @@ def build(out):
     upper = [J[k] for k in J if not k.startswith(("thigh_", "calf_", "foot_", "ball_"))]
     lower = [J[k] for k in J if k.startswith(("pelvis", "spine_01", "thigh_", "calf_", "foot_"))]
     bounds = {
-        "jacket": bounds_of(upper, 11.0),
-        "jeans": bounds_of(lower, 12.0),
+        "jacket": bounds_of(upper, 14.0),
+        "jeans": bounds_of(lower, 16.0),
         "boots": bounds_of(feet[:2] + [J["ball_l"] + [12, -8, 0], J["ball_r"] + [12, 8, 0], J["foot_l"] + [-12, -8, -10], J["foot_r"] + [-12, 8, -10]] + [J["foot_l"] + unit(J["calf_l"] - J["foot_l"]) * 17, J["foot_r"] + unit(J["calf_r"] - J["foot_r"]) * 17], 3.0),
         "sole": bounds_of([J["ball_l"] + [13, -7, -5], J["ball_r"] + [13, 7, -5], J["foot_l"] + [-12, -7, -9], J["foot_r"] + [-12, 7, 0]], 1.0),
         "gloves": bounds_of(hands, 1.5),

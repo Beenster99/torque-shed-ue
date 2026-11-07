@@ -5,81 +5,81 @@
    "name": "pelvis",
    "parent": null,
    "rest": [
-    -44.0,
+    -34.0,
     0.0,
-    60.5
+    61.5
    ]
   },
   {
    "name": "spine_01",
    "parent": "pelvis",
    "rest": [
-    -40.0,
+    -31.0,
     0.0,
-    69.5
+    70.5
    ]
   },
   {
    "name": "spine_02",
    "parent": "spine_01",
    "rest": [
-    -33.0,
+    -25.0,
     0.0,
-    81.0
+    82.0
    ]
   },
   {
    "name": "spine_03",
    "parent": "spine_02",
    "rest": [
-    -23.0,
+    -17.0,
     0.0,
-    93.0
+    94.5
    ]
   },
   {
    "name": "neck_01",
    "parent": "spine_03",
    "rest": [
-    -11.0,
+    -8.0,
     0.0,
-    106.0
+    109.0
    ]
   },
   {
    "name": "head",
    "parent": "neck_01",
    "rest": [
-    -7.0,
+    -4.0,
     0.0,
-    112.5
+    116.0
    ]
   },
   {
    "name": "clavicle_l",
    "parent": "spine_03",
    "rest": [
-    -14.0,
+    -10.0,
     -3.0,
-    100.0
+    103.0
    ]
   },
   {
    "name": "upperarm_l",
    "parent": "clavicle_l",
    "rest": [
-    -9.0,
+    -5.0,
     -18.0,
-    97.0
+    100.0
    ]
   },
   {
    "name": "lowerarm_l",
    "parent": "upperarm_l",
    "rest": [
-    8.206,
-    -35.291,
-    76.288
+    8.82,
+    -36.355,
+    77.727
    ]
   },
   {
@@ -95,63 +95,63 @@
    "name": "thigh_l",
    "parent": "pelvis",
    "rest": [
-    -44.0,
+    -34.0,
     -10.5,
-    60.0
+    61.0
    ]
   },
   {
    "name": "calf_l",
    "parent": "thigh_l",
    "rest": [
-    -16.753,
-    -28.539,
-    35.237
+    2.18,
+    -23.308,
+    39.484
    ]
   },
   {
    "name": "foot_l",
    "parent": "calf_l",
    "rest": [
-    -56.0,
-    -23.5,
-    24.5
+    -33.5,
+    -22.5,
+    15.5
    ]
   },
   {
    "name": "ball_l",
    "parent": "foot_l",
    "rest": [
-    -43.0,
-    -24.5,
-    20.5
+    -21.0,
+    -23.5,
+    8.5
    ]
   },
   {
    "name": "clavicle_r",
    "parent": "spine_03",
    "rest": [
-    -14.0,
+    -10.0,
     3.0,
-    100.0
+    103.0
    ]
   },
   {
    "name": "upperarm_r",
    "parent": "clavicle_r",
    "rest": [
-    -9.0,
+    -5.0,
     18.0,
-    97.0
+    100.0
    ]
   },
   {
    "name": "lowerarm_r",
    "parent": "upperarm_r",
    "rest": [
-    8.206,
-    35.291,
-    76.288
+    8.82,
+    36.355,
+    77.727
    ]
   },
   {
@@ -167,50 +167,50 @@
    "name": "thigh_r",
    "parent": "pelvis",
    "rest": [
-    -44.0,
+    -34.0,
     10.5,
-    60.0
+    61.0
    ]
   },
   {
    "name": "calf_r",
    "parent": "thigh_r",
    "rest": [
-    -16.753,
-    28.539,
-    35.237
+    2.18,
+    23.308,
+    39.484
    ]
   },
   {
    "name": "foot_r",
    "parent": "calf_r",
    "rest": [
-    -56.0,
-    23.5,
-    24.5
+    -33.5,
+    22.5,
+    15.5
    ]
   },
   {
    "name": "ball_r",
    "parent": "foot_r",
    "rest": [
-    -43.0,
-    24.5,
-    20.5
+    -21.0,
+    23.5,
+    8.5
    ]
   }
  ],
  "helmet_centre": [
-  -5.0,
+  -2.0,
   0.0,
-  121.5
+  125.0
  ],
  "helmet_bone": "head",
  "lengths": {
   "upper_arm": 32.0,
   "forearm": 28.0,
-  "thigh": 41.0,
-  "shin": 41.0
+  "thigh": 44.0,
+  "shin": 43.0
  },
  "materials": {
   "rider": [
