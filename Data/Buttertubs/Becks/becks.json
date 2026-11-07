@@ -1,54 +1,64 @@
 {
- "about": "Becks made by Tools/make_becks.py; instances.bin's species index is into 'species'.",
+ "about": "Becks made by Tools/make_becks.py; instances.bin's species index is into 'species'. wall_ meshes are the culverts' headwalls (M_Masonry), cope_ their coping stones (M_Stone).",
  "species": [
   {
    "name": "SM_BeckStone_0",
    "mesh": "SM_BeckStone_0",
-   "count": 4842,
+   "count": 4812,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_1",
    "mesh": "SM_BeckStone_1",
-   "count": 4972,
+   "count": 4947,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_2",
    "mesh": "SM_BeckStone_2",
-   "count": 4766,
+   "count": 4746,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_3",
    "mesh": "SM_BeckStone_3",
-   "count": 4728,
+   "count": 4840,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_4",
    "mesh": "SM_BeckStone_4",
-   "count": 4839,
+   "count": 4843,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_5",
    "mesh": "SM_BeckStone_5",
-   "count": 4890,
+   "count": 5028,
    "cull_m": 600,
    "shadow": true
   }
  ],
- "km": 19.42,
+ "km": 19.56,
  "meshes": [
   "bed_00",
   "bed_01",
   "bed_02",
-  "water_00"
+  "water_00",
+  "wall_00",
+  "cope_00"
+ ],
+ "crossings_km": [
+  4.24,
+  4.99,
+  5.27,
+  5.45,
+  5.71,
+  6.61
  ]
 }

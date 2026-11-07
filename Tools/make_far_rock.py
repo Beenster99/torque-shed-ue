@@ -76,13 +76,14 @@ def build(land, cliffs, rng, land_rgb):
             down = np.where((gp - gm).mean() < 0, 1.0, -1.0)
             nrm = nrm * down
             slope = np.clip((np.maximum(gm, gp) - np.minimum(gm, gp)) / 24.0, 0.05, 2.0)
-            # The face's height: 4 to 11 m, varying along it, tapering to nothing at the ends.
+            # The face's height: 2.5 to 5.5 m, varying along it, tapering to nothing at the ends. (The
+            # 32 m hills already hold some of the step; 4-11 m on top of it stood up as a knife-edge.)
             hn = smooth_noise(n, rng, 6)
-            Hs = np.clip(7.0 + 2.2 * hn, 3.5, 11.0)
+            Hs = np.clip(4.0 + 1.0 * hn, 2.5, 5.5)
             end = np.minimum(np.arange(n), np.arange(n)[::-1]) * STEP
-            Hs *= np.clip(end / 14.0, 0.15, 1.0)
+            Hs *= np.clip(end / 25.0, 0.0, 1.0) ** 0.7
             # The shelf: as deep as it takes the slope to fall by the face's height, within reason.
-            shelf = np.clip(Hs / slope * 0.85, 1.5, 14.0)
+            shelf = np.clip(Hs / slope * 0.6, 1.0, 5.0)
             lip_y = g0 + 0.25
             # Cross-section, from behind (uphill) to in front, as (offset along nrm, height):
             #   back (buried), cliff line, shelf edge (the lip), three beds down the face, foot (buried).
@@ -91,8 +92,8 @@ def build(land, cliffs, rng, land_rgb):
             offs.append(np.full(n, back)); ys.append(land(Q[:, 0] + nrm[:, 0] * back, Q[:, 1] + nrm[:, 1] * back) - 0.7)
             moss.append(np.ones(n)); bright.append(np.full(n, 0.45))
             offs.append(np.zeros(n)); ys.append(lip_y); moss.append(np.ones(n)); bright.append(np.full(n, 0.45))
-            offs.append(shelf - 0.6); ys.append(lip_y - 0.12 * shelf * slope); moss.append(np.full(n, 0.9)); bright.append(np.full(n, 0.48))
-            top = lip_y - 0.12 * shelf * slope - 0.35
+            offs.append(shelf - 0.6); ys.append(lip_y - 0.45 * shelf * slope); moss.append(np.full(n, 0.9)); bright.append(np.full(n, 0.48))
+            top = lip_y - 0.45 * shelf * slope - 0.25 * np.minimum(Hs, 1.4)
             offs.append(shelf); ys.append(top); moss.append(np.full(n, 0.35)); bright.append(np.full(n, 0.55))
             bed = [0.0, 0.36, 0.68, 1.0]
             for k in range(1, 4):

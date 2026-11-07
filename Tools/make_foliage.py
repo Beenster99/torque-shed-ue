@@ -698,10 +698,10 @@ def blocked_mask(land):
     step = 1.0
     nx = int((land.H.shape[1] - 1) * land.step / step) + 1; nz = int((land.H.shape[0] - 1) * land.step / step) + 1
     m = np.zeros((nz, nx), bool)
-    becks = os.path.join(DATA, "Becks")   # the becks' beds (Tools/make_becks.py): nothing grows on them
+    becks = os.path.join(DATA, "Becks")   # the becks' beds and culvert walls (Tools/make_becks.py): nothing grows on them
     files = [os.path.join(DATA, f) for f in sorted(os.listdir(DATA)) if f.startswith("detail_") and f.endswith(".glb")]
     if os.path.isdir(becks):
-        files += [os.path.join(becks, f) for f in sorted(os.listdir(becks)) if f.startswith("bed_") and f.endswith(".glb")]
+        files += [os.path.join(becks, f) for f in sorted(os.listdir(becks)) if f.startswith(("bed_", "wall_")) and f.endswith(".glb")]
     for path in files:
         g = read_glb(path)
         P = g["POSITION"].astype(np.float64); T = g["indices"].astype(np.int64)
