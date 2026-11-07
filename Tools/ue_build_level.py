@@ -1084,8 +1084,9 @@ def foliage_material(rvt=None, blend=1.0, name="M_Foliage"):
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
-    mel.connect_material_property(g.const(0.62), "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
+    # Dry moor grass is matte: high roughness, low specular (no sheen into the sun).
+    mel.connect_material_property(g.const(0.88), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.18), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1165,14 +1166,16 @@ def scan_foliage_master(defaults, rvt=None, blend=1.0):
     if nrm:
         mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
     rough = tex("Roughness")
-    mel.connect_material_property(rough if rough else g.const(0.6), "R" if rough else "", unreal.MaterialProperty.MP_ROUGHNESS)
+    # A floor on the scan's roughness and low specular: dry moor grass is matte.
+    rough = g.op(unreal.MaterialExpressionMax, rough, g.const(0.82), a_out="R") if rough else g.const(0.88)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     ao = tex("AO")
     if ao:
         mel.connect_material_property(ao, "R", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     tr = tex("Translucency")
     sss = g.op(unreal.MaterialExpressionMultiply, tr if tr else base, g.const((0.8, 0.9, 0.5)))
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
-    mel.connect_material_property(g.const(0.3), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(g.const(0.18), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(foliage_wind(g, h, pir), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1326,6 +1329,7 @@ def place_foliage(frame):
             e.set_editor_property("material", mats[gb])
         e.set_editor_property("cull_distance", float(s["cull_m"]) * 100.0)
         e.set_editor_property("cull_spread", float(s.get("cull_spread", 1.0)))
+        e.set_editor_property("min_draw_distance", float(s.get("min_draw_m", 0.0)) * 100.0)
         e.set_editor_property("cast_shadow", bool(s["shadow"]))
         species.append(e)
     a = spawn(unreal.TorqueFoliage)

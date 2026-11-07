@@ -2,22 +2,44 @@
  "about": "Moorland ground cover made by Tools/make_foliage.py; see its docstring.",
  "species": [
   {
-   "name": "sward_a",
-   "cull_m": 28,
-   "cull_spread": 1.5,
+   "name": "carpet_green",
+   "cull_m": 36,
+   "cull_spread": 1.4,
    "shadow": false,
-   "triangles": 3768,
-   "ground_blend": 1.0,
-   "count": 145763
+   "triangles": 16156,
+   "ground_blend": 0.45,
+   "min_draw_m": 0.0,
+   "count": 57565
   },
   {
-   "name": "sward_b",
-   "cull_m": 28,
-   "cull_spread": 1.5,
+   "name": "carpet_moor",
+   "cull_m": 36,
+   "cull_spread": 1.4,
    "shadow": false,
-   "triangles": 4386,
-   "ground_blend": 1.0,
-   "count": 48204
+   "triangles": 15000,
+   "ground_blend": 0.45,
+   "min_draw_m": 0.0,
+   "count": 85112
+  },
+  {
+   "name": "carpet_far_green",
+   "cull_m": 130,
+   "cull_spread": 1.0,
+   "shadow": false,
+   "triangles": 4968,
+   "ground_blend": 0.45,
+   "min_draw_m": 30.0,
+   "count": 32385
+  },
+  {
+   "name": "carpet_far_moor",
+   "cull_m": 130,
+   "cull_spread": 1.0,
+   "shadow": false,
+   "triangles": 4892,
+   "ground_blend": 0.45,
+   "min_draw_m": 30.0,
+   "count": 65425
   },
   {
    "name": "tuft_a",
@@ -26,7 +48,8 @@
    "shadow": false,
    "triangles": 900,
    "ground_blend": 1.0,
-   "count": 138058
+   "min_draw_m": 0.0,
+   "count": 138191
   },
   {
    "name": "tuft_b",
@@ -35,7 +58,8 @@
    "shadow": false,
    "triangles": 780,
    "ground_blend": 1.0,
-   "count": 138163
+   "min_draw_m": 0.0,
+   "count": 138443
   },
   {
    "name": "tussock_a",
@@ -44,7 +68,8 @@
    "shadow": true,
    "triangles": 1360,
    "ground_blend": 1.0,
-   "count": 82426
+   "min_draw_m": 0.0,
+   "count": 82405
   },
   {
    "name": "tussock_b",
@@ -53,7 +78,8 @@
    "shadow": true,
    "triangles": 1200,
    "ground_blend": 1.0,
-   "count": 83294
+   "min_draw_m": 0.0,
+   "count": 82881
   },
   {
    "name": "matgrass",
@@ -62,7 +88,8 @@
    "shadow": false,
    "triangles": 780,
    "ground_blend": 1.0,
-   "count": 62408
+   "min_draw_m": 0.0,
+   "count": 62273
   },
   {
    "name": "far_a",
@@ -71,7 +98,8 @@
    "shadow": false,
    "triangles": 240,
    "ground_blend": 1.0,
-   "count": 81507
+   "min_draw_m": 0.0,
+   "count": 81438
   },
   {
    "name": "far_b",
@@ -80,7 +108,8 @@
    "shadow": false,
    "triangles": 216,
    "ground_blend": 1.0,
-   "count": 81254
+   "min_draw_m": 0.0,
+   "count": 81158
   },
   {
    "name": "rush_a",
@@ -89,7 +118,8 @@
    "shadow": true,
    "triangles": 3466,
    "ground_blend": 1.0,
-   "count": 12576
+   "min_draw_m": 0.0,
+   "count": 12523
   },
   {
    "name": "rush_b",
@@ -98,7 +128,8 @@
    "shadow": true,
    "triangles": 3604,
    "ground_blend": 1.0,
-   "count": 12218
+   "min_draw_m": 0.0,
+   "count": 12437
   },
   {
    "name": "heather_twig_a",
@@ -107,7 +138,8 @@
    "shadow": true,
    "triangles": 7036,
    "ground_blend": 0.15,
-   "count": 16261
+   "min_draw_m": 0.0,
+   "count": 16355
   },
   {
    "name": "heather_twig_b",
@@ -116,7 +148,8 @@
    "shadow": true,
    "triangles": 11700,
    "ground_blend": 0.15,
-   "count": 10905
+   "min_draw_m": 0.0,
+   "count": 10690
   },
   {
    "name": "heather_a",
@@ -125,7 +158,8 @@
    "shadow": false,
    "triangles": 3238,
    "ground_blend": 0.15,
-   "count": 44330
+   "min_draw_m": 0.0,
+   "count": 44081
   },
   {
    "name": "heather_b",
@@ -134,7 +168,8 @@
    "shadow": false,
    "triangles": 3238,
    "ground_blend": 0.15,
-   "count": 29346
+   "min_draw_m": 0.0,
+   "count": 29509
   },
   {
    "name": "moss",
@@ -143,7 +178,8 @@
    "shadow": false,
    "triangles": 1432,
    "ground_blend": 1.0,
-   "count": 1925
+   "min_draw_m": 0.0,
+   "count": 1998
   },
   {
    "name": "bracken",
@@ -152,9 +188,10 @@
    "shadow": true,
    "triangles": 2136,
    "ground_blend": 1.0,
-   "count": 4691
+   "min_draw_m": 0.0,
+   "count": 4696
   }
  ],
- "total": 993329,
+ "total": 1039565,
  "density": 1.0
 }

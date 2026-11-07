@@ -47,6 +47,9 @@ struct FTorqueFoliageSpecies
 	// CullDistance, three tenths at the midpoint to CullDistance x CullSpread, a fifth at the far end.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage", meta = (ClampMin = "1"))
 	float CullSpread = 1.0f;
+	// Unreal cm: nearer than this the species isn't drawn (the coarse far grass, under the fine).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage", meta = (ClampMin = "0"))
+	float MinDrawDistance = 0.0f;
 };
 
 UCLASS()
