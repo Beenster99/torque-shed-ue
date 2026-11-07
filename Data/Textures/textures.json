@@ -1,5 +1,5 @@
 {
- "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers.",
+ "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them.",
  "roles": {
   "grass": {
    "id": "Grass004",
@@ -24,6 +24,18 @@
   "asphalt": {
    "id": "Asphalt015",
    "tile_m": 2.0
+  },
+  "stone": {
+   "id": "Rock046S",
+   "tile_m": 0.9
+  },
+  "stone_bare": {
+   "id": "Rock023",
+   "tile_m": 1.6
+  },
+  "moss": {
+   "id": "Moss002",
+   "tile_m": 0.5
   }
  },
  "candidates": {
@@ -64,6 +76,24 @@
    "Asphalt012",
    "Asphalt015",
    "Asphalt031"
+  ],
+  "stone": [
+   "Rock046S",
+   "Rock026",
+   "Rock018",
+   "Rock032"
+  ],
+  "stone_bare": [
+   "Rock023",
+   "Rock022",
+   "Rock026",
+   "Rock063"
+  ],
+  "moss": [
+   "Moss002",
+   "Moss003",
+   "Moss001",
+   "Rock064"
   ]
  }
 }

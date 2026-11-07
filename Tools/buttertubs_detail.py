@@ -1,12 +1,20 @@
-"""The countryside's detail for the Buttertubs ride, written by export_buttertubs.py beside the land:
-drystone walls and fences where the map has them, limestone scars along its cliffs, field barns,
-the cattle grids, snow poles beside the road, boulders and scree, and sheep. All of it baked into a
-few vertex-coloured meshes (detail_NN.glb, under 65k vertices each; the grass and other plants are
-Tools/make_foliage.py's) that the level script places with no collision: the wheels only see the land and
-the road.
+"""The countryside's detail for the Buttertubs ride, written by export_buttertubs.py beside the land.
+
+Stone-by-stone things are Nanite meshes placed as instances (Tools/buttertubs_stone.py makes them):
+drystone walls along the map's wall lines, with wall heads where they stop, piers on sharp bends, and
+field gates between stone stoops; limestone scars along its cliffs with scree below; boulders; a field
+barn for each of the map's buildings; and flocks of Swaledale sheep. The meshes go in Props/*.glb and
+the instances in props.json (Unreal cm and degrees), which ue_build_level.py turns into instanced
+static meshes.
+
+The rest is baked into a few vertex-coloured meshes (detail_NN.glb, under 65k vertices each): wire
+fences, the cattle grids and snow poles. The grass and other plants are Tools/make_foliage.py's.
+Nothing here has collision: the wheels only see the land and the road.
 """
 import json, math, os
 import numpy as np
+
+import buttertubs_stone as ST
 
 
 def srgb(c):
@@ -90,6 +98,266 @@ def resample_line(pts, step):
     return np.stack([np.interp(t, s, pts[:, 0]), np.interp(t, s, pts[:, 1])], 1)
 
 
+# --- Stone props: meshes made once, placed as instances ---------------------------------------------
+
+WALL_VARIANTS = "ABCDEFGH"
+ROCKS = 12
+SCARS = "ABCD"
+
+
+class Props:
+    """The prop meshes (built on first use, each from its own seed so it's the same every run) and
+    their instances. An instance is Unreal location (cm), rotation (pitch, yaw, roll in degrees) and
+    scale along the mesh's own Unreal axes. The glb frame (x, y up, z) is Unreal (x, z, y) as for the
+    land, so a mesh turned by angle a about the vertical (its +x along (cos a, sin a) in x east, z south)
+    has Unreal yaw a."""
+
+    MATERIAL = {"SM_Gate.": "metal", "SM_Sheep": "fleece", "SM_BarnWood": "wood"}   # a trailing . means the whole name
+
+    def __init__(self):
+        self.meshes = {}
+        self.inst = {}
+
+    def mesh(self, name, make):
+        if name not in self.meshes:
+            self.meshes[name] = make()
+        return name
+
+    def add(self, name, x, y, z, yaw=0.0, pitch=0.0, roll=0.0, scale=(1.0, 1.0, 1.0)):
+        sx, sy, sz = scale
+        self.inst.setdefault(name, []).append([round(x * 100, 1), round(z * 100, 1), round(y * 100, 1),
+                                               round(math.degrees(pitch), 2), round(math.degrees(yaw), 2),
+                                               round(math.degrees(roll), 2),
+                                               round(sx, 3), round(sz, 3), round(sy, 3)])
+
+    def wall(self, k):
+        v = WALL_VARIANTS[k % len(WALL_VARIANTS)]
+        return self.mesh("SM_Wall_" + v, lambda: ST.wall_module(np.random.default_rng(100 + ord(v))))
+
+    def wall_end(self, k):
+        v = "AB"[k % 2]
+        return self.mesh("SM_WallEnd_" + v, lambda: ST.wall_end(np.random.default_rng(200 + ord(v))))
+
+    def rock(self, x, y, z, size, rng, tilt=0.15):
+        k = int(rng.integers(ROCKS))
+        name = self.mesh("SM_Rock_%02d" % k, lambda: ST.boulder(np.random.default_rng(300 + k)))
+        s = size * rng.uniform(0.85, 1.15, 3)
+        self.add(name, x, y - 0.12 * s[1], z, rng.uniform(0, 2 * math.pi), rng.normal(0, tilt), rng.normal(0, tilt), s)
+
+    def write(self, out, write_glb):
+        folder = os.path.join(out, "Props")
+        os.makedirs(folder, exist_ok=True)
+        for f in os.listdir(folder):
+            if f.endswith(".glb"):
+                os.remove(os.path.join(folder, f))
+        info = {}
+        verts = 0
+        for name, M in sorted(self.meshes.items()):
+            nv, nt = M.write(os.path.join(folder, name + ".glb"), write_glb, name)
+            verts += nv
+            mat = "stone"
+            for prefix, m in self.MATERIAL.items():
+                if (name == prefix[:-1]) if prefix.endswith(".") else name.startswith(prefix):
+                    mat = m
+            info[name] = {"material": mat, "triangles": nt}
+        js = {"about": "Instances of the meshes in Props/ (Tools/buttertubs_detail.py). Each is Unreal "
+                       "[x, y, z] cm, [pitch, yaw, roll] degrees, [sx, sy, sz] along the mesh's Unreal axes.",
+              "meshes": info, "instances": {k: v for k, v in sorted(self.inst.items())}}
+        with open(os.path.join(out, "props.json"), "w") as f:
+            json.dump(js, f, separators=(",", ":"))
+        return {"prop_meshes": len(self.meshes), "prop_instances": sum(len(v) for v in self.inst.values()),
+                "prop_vertices": verts}
+
+
+def _arc(q):
+    s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(q, axis=0), axis=1))])
+    return s, lambda t: np.stack([np.interp(t, s, q[:, 0]), np.interp(t, s, q[:, 1])], -1)
+
+
+def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, counts):
+    """Drystone walls along the map's wall lines in 2 m lengths, each tilted to the ground under it,
+    stopped short of the tarmac with a wall head, a pier on each sharp bend, and a gate between two
+    stoops wherever the map has a gate on the wall."""
+    gates = np.array(gates, np.float64).reshape(-1, 2)
+    wall_m = 0.0; n_gates = 0; n_ends = 0
+    for kind in ("wall", "retaining_wall"):
+        for pts in lines.get(kind, []):
+            r = resample_line(pts, 0.25)
+            if len(r) < 4:
+                continue
+            keep = near(r[:, 0], r[:, 1]) & (road_dist(r[:, 0], r[:, 1]) > road_half + 0.9)
+            s_all, _ = _arc(r)
+            # Gates: the map's, and (the map has few here) one now and then where a wall comes near
+            # the road, as a field's way in, and the odd one out in the fields.
+            spots = list(gates)
+            rd = road_dist(r[:, 0], r[:, 1])
+            last = -1e9
+            for k in rng.permutation(len(r))[: len(r) // 20]:
+                if not keep[k] or abs(s_all[k] - last) < 150:
+                    continue
+                if (rd[k] < 25 and rng.uniform() < 0.3) or rng.uniform() < 0.012:
+                    spots.append(tuple(r[k])); last = s_all[k]
+            for gx, gz in spots:
+                dd = np.hypot(r[:, 0] - gx, r[:, 1] - gz)
+                k = int(np.argmin(dd))
+                if dd[k] > 2.5 or not keep[k] or s_all[k] < 2.0 or s_all[-1] - s_all[k] < 2.0:
+                    continue
+                keep &= np.abs(s_all - s_all[k]) > 1.85
+                k0 = int(np.searchsorted(s_all, s_all[k] - 1.75)); k1 = int(np.searchsorted(s_all, s_all[k] + 1.75))
+                k1 = min(k1, len(r) - 1)
+                d = r[k1] - r[k0]; d /= max(np.linalg.norm(d), 1e-9)
+                a = math.atan2(d[1], d[0])
+                for kk in (k0, k1):
+                    props.add(props.mesh("SM_GateStoop_%s" % "AB"[kk == k1], lambda kk=kk: ST.gate_stoop(np.random.default_rng(400 + (kk == k1)))),
+                              r[kk, 0], float(ground(*r[kk])) - 0.25, r[kk, 1], rng.uniform(0, 2 * math.pi))
+                hinge = r[k0] + d * 0.12
+                swing = 0.0 if rng.uniform() < 0.7 else -rng.uniform(0.4, 1.6)
+                props.add(props.mesh("SM_Gate", lambda: ST.gate(np.random.default_rng(410))),
+                          hinge[0], float(ground(*hinge)) - 0.03, hinge[1], a + swing)
+                n_gates += 1
+            idx = np.flatnonzero(keep)
+            if len(idx) < 4:
+                continue
+            for run in np.split(idx, np.flatnonzero(np.diff(idx) > 1) + 1):
+                q = r[run]
+                s, at = _arc(q)
+                total = s[-1]
+                if total < 1.2:
+                    continue
+                # Heads at both ends (a 1 m piece finished at its outer end), lengths between.
+                ends = total >= 3.0
+                lo, hi = (0.95, total - 0.95) if ends else (0.0, total)
+                n = max(1, int(round((hi - lo) / ST.WALL_L)))
+                ts = np.linspace(lo, hi, n + 1)
+                P = at(ts)
+                prev = None
+                for i in range(n):
+                    A, B = P[i], P[i + 1]
+                    d = B - A; c = np.linalg.norm(d)
+                    if c < 0.3:
+                        continue
+                    d /= c
+                    a = math.atan2(d[1], d[0])
+                    yA, yB = float(ground(*A)), float(ground(*B))
+                    pitch = max(-0.45, min(0.45, math.atan2(yB - yA, c)))
+                    m = (A + B) / 2
+                    flip = rng.uniform() < 0.5        # walls look alike from both sides: turn half of them round
+                    props.add(props.wall(int(rng.integers(len(WALL_VARIANTS)))), m[0], (yA + yB) / 2 - 0.03, m[1],
+                              a + (math.pi if flip else 0.0), -pitch if flip else pitch, 0.0,
+                              (c / ST.WALL_L * 1.02, rng.uniform(0.92, 1.06), 1.0))
+                    if prev is not None:
+                        turn = abs((a - prev + math.pi) % (2 * math.pi) - math.pi)
+                        if turn > math.radians(28):
+                            mid = math.atan2(math.sin(a) + math.sin(prev), math.cos(a) + math.cos(prev))
+                            props.add(props.mesh("SM_WallPier", lambda: ST.wall_end(np.random.default_rng(250), 1.0, True)),
+                                      A[0], float(ground(*A)) - 0.03, A[1], mid, 0.0, 0.0, (0.9, 1.02, 1.05))
+                    prev = a
+                if ends:
+                    for t0, t1 in ((0.95, 0.0), (total - 0.95, total)):
+                        A, B = at(np.array([t0, t1]))
+                        d = B - A; c = max(np.linalg.norm(d), 1e-6); d /= c
+                        a = math.atan2(d[1], d[0]); m = (A + B) / 2
+                        yA, yB = float(ground(*A)), float(ground(*B))
+                        pitch = max(-0.45, min(0.45, math.atan2(yB - yA, c)))
+                        props.add(props.wall_end(n_ends), m[0], (yA + yB) / 2 - 0.03, m[1], a, pitch, 0.0,
+                                  (c / 1.0 * 1.02, 1.0, 1.0))
+                        n_ends += 1
+                wall_m += total
+    counts["wall_m"] = round(wall_m); counts["gates"] = n_gates; counts["wall_heads"] = n_ends
+
+
+def place_scars(props, cliffs, ground, near, road_dist, road_half, rng, counts):
+    """Limestone scars along the map's cliffs: 4 m pieces of bedded face every 3.4 m, set into the
+    slope on its downhill side so the face shows from the cliff's top edge to the ground in front of
+    it, and scree spilling below."""
+    scar_m = 0.0; pieces = 0
+    for pts in cliffs:
+        r = resample_line(pts, 3.4)
+        r = r[near(r[:, 0], r[:, 1]) & (road_dist(r[:, 0], r[:, 1]) > road_half + 4)]
+        if len(r) < 1:
+            continue
+        d = np.gradient(r, axis=0) if len(r) > 1 else np.array([[1.0, 0.0]])
+        d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
+        for (x, z), (dx, dz) in zip(r, d):
+            side = np.array([-dz, dx])
+            g0 = float(ground(x + side[0] * 3, z + side[1] * 3)); g1 = float(ground(x - side[0] * 3, z - side[1] * 3))
+            down = side if g0 < g1 else -side              # downhill, square to the cliff
+            # Out from the cliff line until there's a face of 1.6 m or so to show (the 4 m map has
+            # smoothed the cliff into a slope), at most 4 m.
+            top = float(ground(x, z)) + 0.35
+            for fwd in (2.2, 2.8, 3.4, 4.0):
+                fx, fz = x + down[0] * fwd, z + down[1] * fwd
+                foot = float(ground(fx, fz))
+                if top - foot > 1.6:
+                    break
+            hgt = max(1.2, top - foot + 0.7) * rng.uniform(0.9, 1.25)
+            # The piece's face looks along its +z: +x along the cliff with +z downhill.
+            a = math.atan2(-down[0], down[1])
+            k = int(rng.integers(len(SCARS)))
+            name = props.mesh("SM_Scar_" + SCARS[k], lambda k=k: ST.scar_module(np.random.default_rng(500 + k)))
+            sy = hgt / 3.0
+            props.add(name, fx, top - 3.0 * sy, fz, a, 0.0, rng.normal(0, 0.03), (rng.uniform(0.9, 1.15), sy, 1.0))
+            pieces += 1
+            # Scree: stones fallen from the face, thinning out down the slope.
+            for _ in range(int(rng.integers(3, 9))):
+                o = rng.exponential(3.0) + 0.6
+                l = rng.uniform(-2.0, 2.0)
+                px = fx + down[0] * o + dx * l; pz = fz + down[1] * o + dz * l
+                if road_dist(px, pz) > road_half + 2:
+                    props.rock(px, float(ground(px, pz)), pz, rng.choice([0.15, 0.25, 0.4, 0.6], p=[0.4, 0.3, 0.2, 0.1]), rng, 0.5)
+            scar_m += 3.4
+    counts["scar_m"] = round(scar_m); counts["scar_pieces"] = pieces
+
+
+def place_barns(props, region_root, O, ground, near, road_dist, road_half, rng, counts):
+    """A field barn for each of the map's buildings here, stone by stone, sized to its footprint."""
+    barns = 0
+    for row in json.load(open(os.path.join(region_root, "buildings.json"))):
+        x, z = row[0] - O[0], row[1] - O[2]
+        if not near(x, z) or road_dist(x, z) < road_half + 2:
+            continue
+        w, dpt, rot, h = row[2], row[3], row[4], row[5]
+        w = max(w, 5.0); dpt = max(dpt, 4.5); h = min(max(h * 0.62, 3.2), 5.0)
+        c, s = math.cos(rot), math.sin(rot)
+        g = float(ground(x, z))
+        lo = min(float(ground(x + u * c - v * s, z + u * s + v * c)) for u in (-w / 2, w / 2) for v in (-dpt / 2, dpt / 2))
+        k = barns
+        S, Wd = ST.barn(np.random.default_rng(600 + k), w, dpt, h, g - lo + 0.4)
+        props.meshes["SM_Barn_%02d" % k] = S
+        props.meshes["SM_BarnWood_%02d" % k] = Wd
+        props.add("SM_Barn_%02d" % k, x, g, z, rot)
+        props.add("SM_BarnWood_%02d" % k, x, g, z, rot)
+        barns += 1
+    counts["barns"] = barns
+
+
+def place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, rng, counts):
+    """Flocks of Swaledales on the gentler ground: most grazing, some looking up, a few lying down."""
+    poses = [("SM_Sheep_A", "graze"), ("SM_Sheep_B", "graze"), ("SM_Sheep_C", "look"), ("SM_Sheep_D", "lie")]
+    n = 0
+    tries = 0
+    while n < 70 and tries < 4000:
+        tries += 1
+        cx, cz = rng.uniform(xs[0], xs[-1]), rng.uniform(zs[0], zs[-1])
+        if not (near(cx, cz, 4) and road_dist(cx, cz) > road_half + 10 and slope_at(cx, cz) < 0.3):
+            continue
+        heading = rng.uniform(0, 2 * math.pi)
+        for _ in range(int(rng.integers(3, 10))):
+            x = cx + rng.normal(0, 7); z = cz + rng.normal(0, 7)
+            if not (near(x, z, 2) and road_dist(x, z) > road_half + 6 and slope_at(x, z) < 0.4):
+                continue
+            k = int(rng.choice(4, p=[0.3, 0.3, 0.25, 0.15]))
+            name, pose = poses[k]
+            name = props.mesh(name, lambda k=k, pose=pose: ST.sheep(np.random.default_rng(700 + k), pose))
+            a = heading + rng.normal(0, 0.8)
+            fx, fz = math.cos(a), math.sin(a)
+            pitch = math.atan2(float(ground(x + fx * 0.5, z + fz * 0.5)) - float(ground(x - fx * 0.5, z - fz * 0.5)), 1.0)
+            sc = rng.uniform(0.92, 1.08)
+            props.add(name, x, float(ground(x, z)) - 0.02, z, a, pitch, 0.0, (sc, sc, sc))
+            n += 1
+    counts["sheep"] = n
+
+
 def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, write_glb, seed=7):
     rng = np.random.default_rng(seed)
     step = xs[1] - xs[0]
@@ -152,59 +420,9 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     B = Batch()
     counts = {}
 
-    # Drystone walls: about 1.3 m of limestone, battered in from a 0.75 m foot, rough along the
-    # top, pale grey with moss low down. They stop short of the tarmac.
-    wall_m = 0.0
-    for kind in ("wall", "retaining_wall"):
-        for pts in lines.get(kind, []):
-            r = resample_line(pts, 0.8)
-            keep = near(r[:, 0], r[:, 1]) & (road_dist(r[:, 0], r[:, 1]) > road_half + 0.9)
-            # Runs of kept samples.
-            idx = np.flatnonzero(keep)
-            if len(idx) < 2:
-                continue
-            breaks = np.flatnonzero(np.diff(idx) > 1)
-            for run in np.split(idx, breaks + 1):
-                if len(run) < 2:
-                    continue
-                q = r[run]
-                g = ground(q[:, 0], q[:, 1])
-                n = len(q)
-                hgt = 1.25 + rng.normal(0, 0.05, n) + 0.08 * np.sin(np.arange(n) * 0.7)
-                top_j = rng.uniform(-0.04, 0.04, n)
-                P3 = np.stack([q[:, 0], g, q[:, 1]], 1)
-                prof_n = 8
-                pos = np.zeros((n, prof_n, 3)); P3d = P3
-                d = np.gradient(q, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
-                sd = np.stack([-d[:, 1], d[:, 0]], 1)
-                # (side, up) per sample: foot, batter, coping stones, batter, foot.
-                prof = np.stack([
-                    np.stack([np.full(n, -0.38), np.full(n, -0.2)], 1),
-                    np.stack([np.full(n, -0.36), np.full(n, 0.35)], 1),
-                    np.stack([np.full(n, -0.24), hgt - 0.12], 1),
-                    np.stack([np.full(n, -0.16) + top_j, hgt + 0.05], 1),
-                    np.stack([np.full(n, 0.16) + top_j, hgt + 0.05], 1),
-                    np.stack([np.full(n, 0.24), hgt - 0.12], 1),
-                    np.stack([np.full(n, 0.36), np.full(n, 0.35)], 1),
-                    np.stack([np.full(n, 0.38), np.full(n, -0.2)], 1)], 1)
-                pos[:, :, 0] = P3d[:, None, 0] + sd[:, None, 0] * prof[:, :, 0]
-                pos[:, :, 2] = P3d[:, None, 2] + sd[:, None, 1] * prof[:, :, 0]
-                pos[:, :, 1] = P3d[:, None, 1] + prof[:, :, 1]
-                ii = np.arange(n * prof_n).reshape(n, prof_n)
-                tris = []
-                for c in range(prof_n - 1):
-                    a = ii[:-1, c]; b = ii[:-1, c + 1]; e = ii[1:, c]; f = ii[1:, c + 1]
-                    tris.append(np.stack([a, e, b], 1)); tris.append(np.stack([b, e, f], 1))
-                tris = np.concatenate(tris)
-                # Colour: stone by stone (each sample its own), mossy at the foot.
-                stone = srgb(np.clip(np.array([158, 155, 146])[None] + rng.normal(0, 14, (n, 1)) + rng.normal(0, 4, (n, 3)), 60, 220))
-                moss = srgb([96, 102, 70])
-                col = np.repeat(stone[:, None, :], prof_n, 1)
-                low = np.array([1, 0.55, 0, 0, 0, 0, 0.55, 1])[None, :, None]
-                col = col * (1 - low * 0.7) + moss[None, None, :] * low * 0.7
-                B.add(pos.reshape(-1, 3), tris, col.reshape(-1, 3))
-                wall_m += float(np.linalg.norm(np.diff(q, axis=0), axis=1).sum())
-    counts["wall_m"] = round(wall_m)
+    props = Props()
+    prng = np.random.default_rng(seed + 1000)   # the stone props have their own stream
+    place_walls(props, lines, points.get("gate", []), ground, near, road_dist, road_half, prng, counts)
 
     # Fences: weathered posts every 3 m and three strands of wire.
     fence_m = 0.0
@@ -235,68 +453,8 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
             fence_m += float(np.linalg.norm(np.diff(q, axis=0), axis=1).sum())
     counts["fence_m"] = round(fence_m)
 
-    # Limestone scars along the map's cliffs: a broken pale face dropping from the cliff top.
-    scar_m = 0.0
-    for pts in lines.get("cliff", []):
-        r = resample_line(pts, 1.0)
-        r = r[near(r[:, 0], r[:, 1]) & (road_dist(r[:, 0], r[:, 1]) > road_half + 3)]
-        if len(r) < 2:
-            continue
-        n = len(r)
-        d = np.gradient(r, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
-        sd = np.stack([-d[:, 1], d[:, 0]], 1)
-        # The face drops on the downhill side.
-        down = np.sign(ground(r[:, 0] + sd[:, 0] * 3, r[:, 1] + sd[:, 1] * 3) - ground(r[:, 0] - sd[:, 0] * 3, r[:, 1] - sd[:, 1] * 3))
-        sd *= -np.where(down == 0, 1, down)[:, None]
-        hgt = 2.0 + 2.5 * np.abs(np.sin(np.arange(n) * 0.13)) + rng.uniform(0, 0.8, n)
-        rows = []
-        for k, (off, up) in enumerate([(-0.3, 0.3), (0.4, -0.25), (0.9, -0.55), (1.6, -0.85), (2.4, -1.05)]):
-            x = r[:, 0] + sd[:, 0] * (off + rng.uniform(-0.15, 0.15, n))
-            z = r[:, 1] + sd[:, 1] * (off + rng.uniform(-0.15, 0.15, n))
-            y = ground(r[:, 0], r[:, 1]) + up * hgt
-            if k == 4:
-                y = np.minimum(y, ground(x, z) - 0.2)
-            rows.append(np.stack([x, y, z], 1))
-        pos = np.stack(rows, 1)   # n x 5
-        ii = np.arange(n * 5).reshape(n, 5)
-        tris = []
-        for c in range(4):
-            a = ii[:-1, c]; b = ii[:-1, c + 1]; e = ii[1:, c]; f = ii[1:, c + 1]
-            tris.append(np.stack([a, e, b], 1)); tris.append(np.stack([b, e, f], 1))
-        col = srgb(np.clip(np.array([182, 178, 168])[None, None] + rng.normal(0, 12, (n, 5, 1)), 80, 230))
-        col[:, 0] = srgb([104, 108, 78])   # turf on the lip
-        B.add(pos.reshape(-1, 3), np.concatenate(tris), col.reshape(-1, 3))
-        scar_m += n
-    counts["scar_m"] = scar_m
-
-    # Field barns (the map's buildings here): rubble stone walls, a stone slate roof.
-    barns = 0
-    for row in json.load(open(os.path.join(region_root, "buildings.json"))):
-        x, z = row[0] - O[0], row[1] - O[2]
-        if not near(x, z) or road_dist(x, z) < road_half + 2:
-            continue
-        w, dpt, rot, h = row[2], row[3], row[4], row[5]
-        w = max(w, 4.0); dpt = max(dpt, 4.0); h = min(max(h * 0.75, 3.0), 6.0)
-        c, s = math.cos(rot), math.sin(rot)
-        def at(u, v, y):
-            return [x + u * c - v * s, y, z + u * s + v * c]
-        g = float(ground(x, z))
-        lo = min(float(ground(*at(u, v, 0)[0::2])) for u in (-w / 2, w / 2) for v in (-dpt / 2, dpt / 2)) - 0.3
-        corners = [(-w / 2, -dpt / 2), (w / 2, -dpt / 2), (w / 2, dpt / 2), (-w / 2, dpt / 2)]
-        pos = [at(u, v, lo) for u, v in corners] + [at(u, v, g + h) for u, v in corners]
-        tris = [[0, 4, 1], [1, 4, 5], [1, 5, 2], [2, 5, 6], [2, 6, 3], [3, 6, 7], [3, 7, 0], [0, 7, 4]]
-        B.add(pos, tris, srgb([150, 144, 132]))
-        ridge = g + h + w * 0.32
-        e = 0.35
-        rp = [at(-w / 2 - e, -dpt / 2 - e, g + h - 0.1), at(w / 2 + e, -dpt / 2 - e, g + h - 0.1),
-              at(w / 2 + e, dpt / 2 + e, g + h - 0.1), at(-w / 2 - e, dpt / 2 + e, g + h - 0.1),
-              at(0, -dpt / 2 - e, ridge), at(0, dpt / 2 + e, ridge)]
-        B.add(rp, [[0, 4, 3], [3, 4, 5], [1, 2, 4], [2, 5, 4]], srgb([62, 60, 58]))
-        gable = [at(-w / 2, -dpt / 2, g + h), at(w / 2, -dpt / 2, g + h), at(0, -dpt / 2, ridge - 0.05),
-                 at(-w / 2, dpt / 2, g + h), at(w / 2, dpt / 2, g + h), at(0, dpt / 2, ridge - 0.05)]
-        B.add(gable, [[0, 2, 1], [3, 4, 5]], srgb([150, 144, 132]))
-        barns += 1
-    counts["barns"] = barns
+    place_scars(props, lines.get("cliff", []), ground, near, road_dist, road_half, prng, counts)
+    place_barns(props, region_root, O, ground, near, road_dist, road_half, prng, counts)
 
     # Cattle grids where the map has them on the road: steel bars across the tarmac.
     grids = 0
@@ -352,35 +510,7 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
         poles += 1
     counts["snow_poles"] = poles
 
-    # Boulders: more on steep ground (scree) and under the scars, a few out on the moor.
-    def rock(cx, cz, r):
-        u = np.linspace(0, math.pi, 6)[1:-1]; v = np.linspace(0, 2 * math.pi, 8, endpoint=False)
-        U, V = np.meshgrid(u, v, indexing="ij")
-        d = np.stack([np.sin(U) * np.cos(V), np.cos(U), np.sin(U) * np.sin(V)], -1).reshape(-1, 3)
-        d = np.vstack([[0, 1, 0], d, [0, -1, 0]])
-        rad = r * (1 + rng.uniform(-0.25, 0.25, len(d)))
-        sc = np.array([1.0, rng.uniform(0.45, 0.8), rng.uniform(0.7, 1.2)])
-        pts = d * rad[:, None] * sc
-        a = rng.uniform(0, math.pi * 2); c, s = math.cos(a), math.sin(a)
-        pts = pts @ np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]]).T
-        y = float(ground(cx, cz)) - r * sc[1] * 0.35
-        pos = pts + [cx, y, cz]
-        nu, nv = 4, 8
-        tris = []
-        for vv in range(nv):
-            tris.append([0, 1 + (vv + 1) % nv, 1 + vv])
-        for uu in range(nu - 1):
-            for vv in range(nv):
-                a_ = 1 + uu * nv + vv; b_ = 1 + uu * nv + (vv + 1) % nv
-                c_ = 1 + (uu + 1) * nv + vv; d_ = 1 + (uu + 1) * nv + (vv + 1) % nv
-                tris += [[a_, b_, c_], [b_, d_, c_]]
-        last = len(pos) - 1
-        for vv in range(nv):
-            tris.append([last, 1 + (nu - 1) * nv + vv, 1 + (nu - 1) * nv + (vv + 1) % nv])
-        grey = rng.uniform(120, 175)
-        col = srgb(np.clip(np.array([grey, grey * 0.98, grey * 0.93])[None] + rng.normal(0, 8, (len(pos), 1)), 50, 230))
-        B.add(pos, tris, col)
-
+    # Boulders: more on steep ground, a few out on the moor.
     cand_x = rng.uniform(xs[0], xs[-1], 60000); cand_z = rng.uniform(zs[0], zs[-1], 60000)
     ok = near(cand_x, cand_z, pad=1.0) & (road_dist(cand_x, cand_z) > road_half + 2.5)
     sl = slope_at(cand_x, cand_z)
@@ -388,52 +518,17 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     pick = ok & (rng.uniform(0, 1, len(cand_x)) < keep_p)
     nb = 0
     for x, z in zip(cand_x[pick][:2600], cand_z[pick][:2600]):
-        rock(x, z, rng.choice([0.25, 0.4, 0.6, 0.9, 1.4], p=[0.35, 0.3, 0.2, 0.1, 0.05]))
+        size = rng.choice([0.25, 0.4, 0.6, 0.9, 1.4], p=[0.35, 0.3, 0.2, 0.1, 0.05]) * rng.uniform(0.8, 1.25)
+        props.rock(x, float(ground(x, z)), z, size, prng)
         nb += 1
     counts["boulders"] = nb
 
-    # Grass, rushes, heather and the rest of the ground cover: Tools/make_foliage.py (Nanite plants).
-
-    # Sheep: Swaledales, white fleece, black faces, grazing on the gentler slopes.
-    sheep = 0
-    cand_x = rng.uniform(xs[0], xs[-1], 20000); cand_z = rng.uniform(zs[0], zs[-1], 20000)
-    rd = road_dist(cand_x, cand_z)
-    ok = near(cand_x, cand_z, pad=2) & (rd > road_half + 6) & (slope_at(cand_x, cand_z) < 0.35)
-    for x, z in list(zip(cand_x[ok], cand_z[ok]))[:70]:
-        yaw = rng.uniform(0, 2 * math.pi); c, s = math.cos(yaw), math.sin(yaw)
-        y0 = float(ground(x, z))
-
-        def blob(cx, cy, cz, sx, sy, sz, col, segs=8):
-            u = np.linspace(0, math.pi, 6)[1:-1]; v = np.linspace(0, 2 * math.pi, segs, endpoint=False)
-            U, V = np.meshgrid(u, v, indexing="ij")
-            d = np.stack([np.sin(U) * np.cos(V) * sx, np.cos(U) * sy, np.sin(U) * np.sin(V) * sz], -1).reshape(-1, 3)
-            d = np.vstack([[0, sy, 0], d, [0, -sy, 0]])
-            lx, lz = d[:, 0] + cx, d[:, 2] + cz
-            pos = np.stack([x + lx * c - lz * s, y0 + cy + d[:, 1], z + lx * s + lz * c], 1)
-            nu, nv = 4, segs
-            tris = [[0, 1 + (vv + 1) % nv, 1 + vv] for vv in range(nv)]
-            for uu in range(nu - 1):
-                for vv in range(nv):
-                    a_ = 1 + uu * nv + vv; b_ = 1 + uu * nv + (vv + 1) % nv
-                    c_ = 1 + (uu + 1) * nv + vv; d_ = 1 + (uu + 1) * nv + (vv + 1) % nv
-                    tris += [[a_, b_, c_], [b_, d_, c_]]
-            last = len(pos) - 1
-            tris += [[last, 1 + (nu - 1) * nv + vv, 1 + (nu - 1) * nv + (vv + 1) % nv] for vv in range(nv)]
-            B.add(pos, tris, srgb(col))
-
-        fleece = np.clip(np.array([214, 208, 192]) + rng.normal(0, 8), 150, 240)
-        blob(0, 0.62, 0, 0.5, 0.28, 0.27, fleece)
-        grazing = rng.uniform() < 0.6
-        blob(0.52, 0.45 if grazing else 0.75, 0, 0.14, 0.11, 0.09, [28, 26, 24], 6)
-        for lx in (-0.28, 0.3):
-            for lz in (-0.13, 0.13):
-                blob(lx, 0.2, lz, 0.035, 0.22, 0.035, [30, 28, 26], 5)
-        sheep += 1
-    counts["sheep"] = sheep
+    place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, prng, counts)
 
     names = B.write(out, write_glb)
     for f in os.listdir(out):   # the old stick tufts, now replaced by the foliage
         if f.startswith("grass_") and f.endswith(".glb"):
             os.remove(os.path.join(out, f))
     counts["meshes"] = len(names)
+    counts.update(props.write(out, write_glb))
     return counts

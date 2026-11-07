@@ -10,11 +10,12 @@ What it does:
   2. works out how the glTF importer turned the files' frame (metres, x east, y up, z south) into
      Unreal's, by comparing the road's imported bounds with its known ones, so the level lines up
      with the riding sim whatever the importer version does;
-  3. makes simple materials (land coloured by its cover, tarmac, the walls, rocks and sheep
-     from Tools/buttertubs_detail.py, which get no collision);
+  3. makes the materials (scanned land and tarmac, stone with moss and lichen, fleece, galvanised
+     steel, barn wood) and imports the stone-by-stone props (Data/Buttertubs/Props: walls, scars,
+     boulders, barns, gates, sheep, from Tools/buttertubs_detail.py) as Nanite meshes with no collision;
   3b. imports the moorland plants (Tools/make_foliage.py) as Nanite meshes and adds the TorqueFoliage
      actor that plants them when the level starts;
-  4. makes the level: the meshes, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
+  4. makes the level: the meshes, the props as instances from props.json, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
      post process volume, and a player start at the top of the ride.
 """
 import json
@@ -787,6 +788,200 @@ def place_foliage(frame):
     log("foliage: %d species, %d plants (placed at Play)" % (len(species), spec.get("total", 0)))
 
 
+# --- Stone props: walls, scars, boulders, barns, gates, sheep (Tools/buttertubs_detail.py) -----------
+
+PROP_DEST = "/Game/Buttertubs/Props"
+
+
+def nanite_on(mesh):
+    try:
+        ns = mesh.get_editor_property("nanite_settings")
+        ns.set_editor_property("enabled", True)
+        try:
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).set_nanite_settings(mesh, ns, True)
+        except Exception:
+            mesh.set_editor_property("nanite_settings", ns)
+    except Exception as e:
+        unreal.log_warning("[Torque] couldn't turn Nanite on for %s: %s" % (mesh.get_name(), e))
+
+
+def import_props():
+    """The prop meshes, Nanite and without collision, and props.json's instances."""
+    folder = os.path.join(data_dir(), "Props")
+    spec_path = os.path.join(data_dir(), "props.json")
+    if not (os.path.isdir(folder) and os.path.exists(spec_path)):
+        log("no props (run Tools/export_buttertubs.py)")
+        return {}, {}
+    spec = json.load(open(spec_path))
+    meshes = import_glbs(folder, PROP_DEST)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for name, mesh in meshes.items():
+        try:
+            sme.remove_collisions(mesh)
+        except Exception:
+            pass
+        nanite_on(mesh)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    log("props: %d meshes, %d instances" % (len(meshes), sum(len(v) for v in spec["instances"].values())))
+    return meshes, spec
+
+
+def instanced_usage(m):
+    """Instanced Nanite meshes need these usage flags set on the material for a packaged build."""
+    try_set(m, "used_with_instanced_static_meshes", True)
+    try_set(m, "used_with_nanite", True)
+
+
+def stone_material(tex, roles):
+    """Stone from two scans (lichened limestone and bare, bedded limestone), chosen per stone by the
+    vertex colour's green; red sets its brightness; blue whitens it with lichen in patches; alpha is
+    moss, thickest where the surface faces up. UV0 is metres of surface."""
+    g = Graph(new_material("M_Stone"))
+    instanced_usage(g.m)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+
+    def uv(metres):
+        return g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=1.0 / metres, v_tiling=1.0 / metres)
+
+    def layer(role, fallback):
+        if role in tex:
+            m = tex[role]; u = uv(roles[role]["tile_m"])
+            col = g.sample(m["color"], u, "color")
+            if "ao" in m:
+                col = g.op(unreal.MaterialExpressionMultiply, col, g.sample(m["ao"], u, "ao"), b_out="R")
+            nrm = g.sample(m["normal"], u, "normal") if "normal" in m else g.const((0.0, 0.0, 1.0))
+            rough = g.sample(m["rough"], u, "rough") if "rough" in m else g.const(0.85)
+            return [col, nrm, rough]
+        return [g.op(unreal.MaterialExpressionMultiply, g.const(lin(fallback)), noise(g.m, 0.5, 0.7, 1.2, -1200, g.y)),
+                g.const((0.0, 0.0, 1.0)), g.const(0.88)]
+
+    stone = layer("stone", (150, 148, 140))
+    bare = layer("stone_bare", (160, 158, 152))
+    st = g.mix(stone, bare, vc, alpha_out="G")
+    bright = g.op(unreal.MaterialExpressionMultiply, vc, a_out="R", const_b=2.0)
+    st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], bright)
+    # Lichen: pale crusts in patches, on the stones the blue channel picks.
+    lichen = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.02, -1.2, 1.6), vc, b_out="B")
+    lichen = g.op(unreal.MaterialExpressionMultiply, lichen, const_b=0.55)
+    st[0] = g.lerp(st[0], g.const(lin((178, 180, 170))), lichen)
+    # Moss: vertex alpha, broken up by noise, more on upward faces.
+    nz = g.node(unreal.MaterialExpressionVertexNormalWS)
+    up = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
+    g.link(nz, up)
+    up = g.op(unreal.MaterialExpressionMultiply, up, const_b=0.6)
+    up = g.op(unreal.MaterialExpressionAdd, up, const_b=0.7)
+    up = g.op(unreal.MaterialExpressionSaturate, up)
+    m = g.op(unreal.MaterialExpressionMultiply, vc, a_out="A", const_b=1.6)
+    m = g.op(unreal.MaterialExpressionAdd, m, noise(g.m, 0.03, -0.8, 0.0, -1200, g.y))
+    m = g.op(unreal.MaterialExpressionSaturate, m)
+    m = g.op(unreal.MaterialExpressionMultiply, m, up)
+    moss = layer("moss", (70, 84, 38))
+    st = g.mix(st, moss, m)
+    return g.finish(st)
+
+
+def flat_material(name, rough, metallic=0.0, fine=0.0):
+    """Vertex colour as the colour, darkened and roughened by its alpha (dirt), with a little noise."""
+    g = Graph(new_material(name))
+    instanced_usage(g.m)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    dirt = g.op(unreal.MaterialExpressionOneMinus, vc, a_out="A")
+    dirt = g.lerp(g.const(0.55), g.const(1.0), dirt)
+    col = g.op(unreal.MaterialExpressionMultiply, vc, dirt)
+    if fine:
+        col = g.op(unreal.MaterialExpressionMultiply, col, noise(g.m, fine, 0.75, 1.15, -1200, g.y))
+    r = g.lerp(g.const(rough), g.const(min(1.0, rough + 0.35)), vc, alpha_out="A")
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(r, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    if metallic:
+        mel.connect_material_property(g.const(metallic), "", unreal.MaterialProperty.MP_METALLIC)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
+def instanced(label, mesh, rows, material, frame):
+    """One actor holding an instanced static mesh component with all of a mesh's instances (Nanite
+    draws them cheaply). Falls back to one actor per instance if components can't be added here."""
+    yaw, mirror, scale = frame
+    fix = None
+    if abs(yaw) > 0.5 or mirror < 0 or abs(scale - 1.0) > 1e-3:
+        fix = unreal.Transform(unreal.Vector(0, 0, 0), unreal.Rotator(0.0, 0.0, float(yaw)), unreal.Vector(scale, scale * mirror, scale))
+    xf = []
+    for r in rows:
+        t = unreal.Transform(unreal.Vector(r[0], r[1], r[2]), unreal.Rotator(roll=r[5], pitch=r[3], yaw=r[4]),
+                             unreal.Vector(r[6], r[7], r[8]))
+        if fix is not None:
+            t = fix.multiply(t)   # the importer's frame first, then the instance's
+        xf.append(t)
+    holder = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, 0))
+    holder.set_actor_label(label)
+    holder.set_folder_path("Props")
+    root = holder.get_component_by_class(unreal.StaticMeshComponent)
+    root.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+    try:
+        sds = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
+        handles = sds.k2_gather_subobject_data_for_instance(holder)
+        parent = handles[1] if len(handles) > 1 else handles[0]
+        params = unreal.AddNewSubobjectParams(parent_handle=parent, new_class=unreal.InstancedStaticMeshComponent,
+                                              blueprint_context=None)
+        handle, fail = sds.add_new_subobject(params)
+        if not fail.is_empty():
+            raise RuntimeError(str(fail))
+        comp = unreal.SubobjectDataBlueprintFunctionLibrary.get_object(unreal.SubobjectDataBlueprintFunctionLibrary.get_data(handle))
+        comp.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+        comp.set_static_mesh(mesh)
+        if material:
+            comp.set_material(0, material)
+        comp.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        comp.set_editor_property("can_ever_affect_navigation", False)
+        comp.add_instances(xf, False, True)
+        return len(xf)
+    except Exception as e:
+        unreal.log_warning("[Torque] instancing %s failed (%s); placing %d separate actors" % (label, e, len(xf)))
+    actors.destroy_actor(holder)
+    for i, t in enumerate(xf):
+        a = actors.spawn_actor_from_object(mesh, t.translation, t.rotation.rotator())
+        a.set_actor_scale3d(t.scale3d)
+        a.set_actor_label("%s_%d" % (label, i))
+        a.set_folder_path("Props/" + label)
+        c = a.get_component_by_class(unreal.StaticMeshComponent)
+        if material:
+            c.set_material(0, material)
+        c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    return len(xf)
+
+
+def place_props(meshes, spec, materials, frame):
+    """Instances from props.json. Data/Buttertubs/prop_swaps.json, if it's there, swaps a generated mesh
+    for another asset already in the project, keeping its own materials: {"SM_Rock_03":
+    "/Game/Megascans/...", "SM_Rock_04": {"mesh": "/Game/...", "scale": 0.8}}."""
+    swaps = {}
+    sp = os.path.join(data_dir(), "prop_swaps.json")
+    if os.path.exists(sp):
+        swaps = json.load(open(sp))
+    n = 0
+    for name, rows in sorted(spec["instances"].items()):
+        mesh = meshes.get(name)
+        mat = materials.get(spec["meshes"].get(name, {}).get("material", "stone"))
+        sw = swaps.get(name)
+        if sw:
+            path = sw if isinstance(sw, str) else sw["mesh"]
+            k = 1.0 if isinstance(sw, str) else float(sw.get("scale", 1.0))
+            other = unreal.load_asset(path)
+            if isinstance(other, unreal.StaticMesh):
+                mesh, mat = other, None
+                rows = [r[:6] + [r[6] * k, r[7] * k, r[8] * k] for r in rows]
+                log("%s swapped for %s" % (name, path))
+            else:
+                unreal.log_warning("[Torque] swap for %s: no static mesh at %s" % (name, path))
+        if mesh is None:
+            unreal.log_warning("[Torque] no mesh for " + name)
+            continue
+        n += instanced(name, mesh, rows, mat, frame)
+    log("placed %d prop instances" % n)
+
+
 # --- The level -------------------------------------------------------------------------------------
 
 def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
@@ -829,6 +1024,12 @@ def build():
     land = land_material_scanned(tex, roles) if "grass" in tex else land_material()
     road = road_material_scanned(tex, roles) if "asphalt" in tex else road_material()
     detail = detail_material()
+    prop_meshes, prop_spec = import_props()
+    prop_mats = {}
+    if prop_meshes:
+        prop_mats = {"stone": stone_material(tex, roles), "fleece": flat_material("M_Fleece", 0.95, fine=0.4),
+                     "metal": flat_material("M_GalvanisedSteel", 0.42, metallic=1.0),
+                     "wood": flat_material("M_BarnWood", 0.8, fine=0.15)}
     import_bike((yaw, mirror, scale))
 
     # Start the level afresh (a second run replaces the first).
@@ -854,6 +1055,9 @@ def build():
         # The bike's wheels and its respawn only see actors tagged Land or Road.
         a.set_editor_property("tags", [unreal.Name("Road" if name == "road" else "Land")])
         a.set_folder_path("Terrain" if name != "road" else "Road")
+
+    if prop_meshes:
+        place_props(prop_meshes, prop_spec, prop_mats, (yaw, mirror, scale))
 
     # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
     # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting
