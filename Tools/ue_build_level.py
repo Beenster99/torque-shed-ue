@@ -374,7 +374,9 @@ class Graph:
     def sample(self, tex, uv, kind):
         st = {"color": unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
               "normal": unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL}.get(kind, unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
-        e = self.node(unreal.MaterialExpressionTextureSample, -900, texture=tex, sampler_type=st)
+        # Shared wrap sampler: SM5 allows only 16 sampler slots, and the land blends more maps than that.
+        e = self.node(unreal.MaterialExpressionTextureSample, -900, texture=tex, sampler_type=st,
+                      sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
         self.link(uv, e, "UVs")
         return e
 
@@ -426,7 +428,12 @@ def land_material_scanned(tex, roles):
     if "moor" in tex:
         land = g.mix(land, g.layer(tex["moor"], roles["moor"]["tile_m"]), g.mask_noise(0.0008, -1.5, 2.5))
     if "peat" in tex:
-        land = g.mix(land, g.layer(tex["peat"], roles["peat"]["tile_m"]), g.mask_noise(0.003, -3.0, 1.4))
+        # Peat only in the odd hollow, darkened and desaturated: the scan is a red-brown litter.
+        peat = g.layer(tex["peat"], roles["peat"]["tile_m"])
+        dull = g.node(unreal.MaterialExpressionDesaturation, -600, fraction=0.7)
+        g.link(peat[0], dull)
+        peat[0] = g.op(unreal.MaterialExpressionMultiply, dull, g.const((0.55, 0.5, 0.45)))
+        land = g.mix(land, peat, g.mask_noise(0.003, -5.0, 1.0))
     # The map's cover: vertex colour relative to plain grass's, softened.
     vc = g.node(unreal.MaterialExpressionVertexColor)
     tint = g.op(unreal.MaterialExpressionDivide, vc, g.const(lin((92, 112, 52))))
@@ -443,6 +450,10 @@ def land_material_scanned(tex, roles):
     if "gravel" in tex:
         verge = g.op(unreal.MaterialExpressionOneMinus, vc, a_out="A")
         land = g.mix(land, g.layer(tex["gravel"], roles["gravel"]["tile_m"]), verge)
+    # Livelier greens: push the colour away from its own grey (lerp past 1 extrapolates).
+    grey = g.node(unreal.MaterialExpressionDesaturation, -600, fraction=1.0)
+    g.link(land[0], grey)
+    land[0] = g.lerp(grey, land[0], g.const(1.3))
     # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.8, 1.15, -1200, g.y + 200))
     return g.finish(land)
@@ -458,9 +469,11 @@ def road_material_scanned(tex, roles):
     line = g.op(unreal.MaterialExpressionMultiply, line, const_b=60.0)
     line = g.op(unreal.MaterialExpressionSaturate, line)
     # Worn paint: broken up by a fine noise.
-    wear = g.mask_noise(0.6, -0.4, 2.2)
+    wear = g.mask_noise(0.05, -1.0, 1.6)
     line = g.op(unreal.MaterialExpressionMultiply, line, wear)
     paint = [g.const((0.62, 0.62, 0.6)), g.const((0.0, 0.0, 1.0)), g.const(0.55)]
+    # Patches, repairs and darker wheel tracks: slow variation in the tarmac's brightness.
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], noise(g.m, 0.002, 0.62, 1.05, -1200, g.y + 200))
     road = g.mix(road, paint, line)
     return g.finish(road)
 
@@ -627,7 +640,7 @@ def build():
     atm = spawn(unreal.SkyAtmosphere)
     ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.008), ("aerial_perspective_view_distance_scale", 2.0),
+    for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 2.0)   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
@@ -666,12 +679,12 @@ def build():
             return None
     for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
                  ("auto_exposure_min_brightness", 12.5), ("auto_exposure_max_brightness", 15.5),
-                 ("auto_exposure_bias", 0.3), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
+                 ("auto_exposure_bias", 0.5), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
                  ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.85),
                  ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
                  ("motion_blur_amount", 0.35), ("motion_blur_max", 3.0),
-                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(0.92, 0.92, 0.92, 1.0)),
-                 ("color_contrast", unreal.Vector4(1.06, 1.06, 1.06, 1.0)),
+                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.05, 1.05, 1.05, 1.0)),
+                 ("color_contrast", unreal.Vector4(1.12, 1.12, 1.12, 1.0)),
                  ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
                  ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
                  ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
