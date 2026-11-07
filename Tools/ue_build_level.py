@@ -482,6 +482,13 @@ def land_material_scanned(tex, roles):
     cover = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.1)
     cover = g.lerp(land[0], cover, g.const(0.7))
     land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.85)], far)
+    # Fellside breakup that survives the distance: brightness patches tens of metres across, and
+    # drifts of dead bracken / bleached moor grass (a straw-brown tint), so far slopes aren't even green.
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0015, 0.78, 1.15, -1200, g.y + 400))
+    straw = g.op(unreal.MaterialExpressionMultiply, land[0], g.const((1.35, 1.0, 0.62)))
+    drift = g.mask_noise(0.0009, -1.8, 1.4)
+    drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=0.5)
+    land[0] = g.lerp(land[0], straw, drift)
     return g.finish(land)
 
 
