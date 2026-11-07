@@ -430,10 +430,11 @@ def land_material_scanned(tex, roles):
     if "peat" in tex:
         # Peat only in the odd hollow, darkened and desaturated: the scan is a red-brown litter.
         peat = g.layer(tex["peat"], roles["peat"]["tile_m"])
-        dull = g.node(unreal.MaterialExpressionDesaturation, -600, fraction=0.7)
+        dull = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
         g.link(peat[0], dull)
+        g.link(g.const(0.7), dull, "Fraction")
         peat[0] = g.op(unreal.MaterialExpressionMultiply, dull, g.const((0.55, 0.5, 0.45)))
-        land = g.mix(land, peat, g.mask_noise(0.003, -5.0, 1.0))
+        land = g.mix(land, peat, g.mask_noise(0.003, -7.0, 0.8))
     # The map's cover: vertex colour relative to plain grass's, softened.
     vc = g.node(unreal.MaterialExpressionVertexColor)
     tint = g.op(unreal.MaterialExpressionDivide, vc, g.const(lin((92, 112, 52))))
@@ -451,8 +452,9 @@ def land_material_scanned(tex, roles):
         verge = g.op(unreal.MaterialExpressionOneMinus, vc, a_out="A")
         land = g.mix(land, g.layer(tex["gravel"], roles["gravel"]["tile_m"]), verge)
     # Livelier greens: push the colour away from its own grey (lerp past 1 extrapolates).
-    grey = g.node(unreal.MaterialExpressionDesaturation, -600, fraction=1.0)
+    grey = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
     g.link(land[0], grey)
+    g.link(g.const(1.0), grey, "Fraction")
     land[0] = g.lerp(grey, land[0], g.const(1.3))
     # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.8, 1.15, -1200, g.y + 200))
@@ -473,7 +475,7 @@ def road_material_scanned(tex, roles):
     line = g.op(unreal.MaterialExpressionMultiply, line, wear)
     paint = [g.const((0.62, 0.62, 0.6)), g.const((0.0, 0.0, 1.0)), g.const(0.55)]
     # Patches, repairs and darker wheel tracks: slow variation in the tarmac's brightness.
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], noise(g.m, 0.002, 0.62, 1.05, -1200, g.y + 200))
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], noise(g.m, 0.002, 0.45, 0.8, -1200, g.y + 200))   # darker, as Dales tarmac is
     road = g.mix(road, paint, line)
     return g.finish(road)
 
@@ -628,19 +630,20 @@ def build():
         a.set_editor_property("tags", [unreal.Name("Road" if name == "road" else "Land")])
         a.set_folder_path("Terrain" if name != "road" else "Road")
 
-    # Sun, sky and air, in real units: a mid-afternoon Dales sun (about 75,000 lux) from the south
-    # west, Lumen bouncing it off the hills, clouds that cast shadows, and the valley's haze.
+    # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
+    # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting
+    # clips above EV100 12; Lumen bouncing it off the hills, clouds that cast shadows, and the valley's haze.
     sun = spawn(unreal.DirectionalLight, (0, 0, 50000), (0, -32, -45))   # shining towards the north west
     sc = sun.get_component_by_class(unreal.DirectionalLightComponent)
     sc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
-    for k, v in (("atmosphere_sun_light", True), ("intensity", 75000.0), ("light_source_angle", 0.53),
+    for k, v in (("atmosphere_sun_light", True), ("intensity", 4700.0), ("light_source_angle", 0.53),
                  ("cast_cloud_shadows", True), ("cast_shadows_on_clouds", True), ("cast_shadows_on_atmosphere", True),
                  ("light_color", unreal.Color(255, 247, 235, 255))):
         try_set(sc, k, v)
     atm = spawn(unreal.SkyAtmosphere)
     ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 2.0)   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 2.0),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
@@ -666,7 +669,7 @@ def build():
     ppv = spawn(unreal.PostProcessVolume)
     ppv.set_editor_property("unbound", True)
     pp = ppv.get_editor_property("settings")
-    # A camera exposed for a bright overcast-to-sunny day (EV100 about 13 to 15), a filmic grade
+    # A camera exposed for a bright day (EV100 13 to 15 in real terms, four stops lower here), a filmic grade
     # nudged towards the cool, slightly muted greens of the Dales, and gentle lens touches.
     def enum(path):
         try:
@@ -678,7 +681,7 @@ def build():
             unreal.log_warning("[Torque] no " + path)
             return None
     for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
-                 ("auto_exposure_min_brightness", 12.5), ("auto_exposure_max_brightness", 15.5),
+                 ("auto_exposure_min_brightness", 8.5), ("auto_exposure_max_brightness", 11.5),
                  ("auto_exposure_bias", 0.5), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
                  ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.85),
                  ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
