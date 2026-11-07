@@ -122,6 +122,7 @@ private:
 
 	// The route, sim metres.
 	TArray<FVector> Line;             // (x, y, z) sim
+	double RouteLengthM = 3000.0;     // route.json length_m
 	int32 Near = 0;
 	double RideTime = 0.0;
 	bool bFinished = false;

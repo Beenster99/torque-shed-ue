@@ -195,7 +195,7 @@ void ATorqueBikePawn::BeginPlay()
 	// -TorqueStartKm=1.2 starts that far down the 3 km (for checking a spot with a hands-off run).
 	float StartKm = 0.f;
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueStartKm="), StartKm);
-	Respawn(Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / 3.0f, 0.f, 1.f) * (Line.Num() - 1)) : 0);
+	Respawn(Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / (float)(RouteLengthM / 1000.0), 0.f, 1.f) * (Line.Num() - 1)) : 0);
 	Pad = MakeUnique<FSonyPad>();
 	StartSound();
 	// -TorqueCamera=1 starts in first person (2: chin camera, 3: showroom orbit of the bike with the
@@ -349,6 +349,7 @@ void ATorqueBikePawn::LoadRoute()
 	// and the sound drums over them. Each lies across the road where the line passes it.
 	double RoadHalf = 2.5;
 	Json->TryGetNumberField(TEXT("road_half_width_m"), RoadHalf);
+	Json->TryGetNumberField(TEXT("length_m"), RouteLengthM);
 	const TArray<TSharedPtr<FJsonValue>>* Grids = nullptr;
 	Sim->Grids.clear();
 	if (Json->TryGetArrayField(TEXT("cattle_grids"), Grids) && Line.Num() >= 2)
@@ -1219,7 +1220,7 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 void ATorqueBikePawn::DrawHud()
 {
 	const double Mph = Sim->Speed * 2.23694;
-	const double Done = Line.Num() > 1 ? 3.0 * Near / (Line.Num() - 1) : 0.0;
+	const double Done = Line.Num() > 1 ? RouteLengthM / 1000.0 * Near / (Line.Num() - 1) : 0.0;
 	const int32 Mins = (int32)(RideTime / 60.0);
 	const double Secs = RideTime - Mins * 60.0;
 	HudLines.Reset();
@@ -1229,7 +1230,7 @@ void ATorqueBikePawn::DrawHud()
 		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
 	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
 		FColor(220, 220, 220), 1.1f);
-	Add(FString::Printf(TEXT("Buttertubs  %.2f of 3.00 km   %d:%05.2f%s"), Done, Mins, Secs,
+	Add(FString::Printf(TEXT("Buttertubs  %.2f of %.2f km   %d:%05.2f%s"), Done, RouteLengthM / 1000.0, Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Options/Home to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	if (bPerfShow && !PerfText.IsEmpty())

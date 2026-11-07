@@ -26,7 +26,7 @@ REPO = os.path.dirname(HERE)
 
 START_NEAR = (-10400.0, 2229.0)   # Simonstone end of the pass (region frame, metres)
 END_NEAR = (-8317.0, -4366.0)     # Thwaite end
-CUT = (4000.0, 7000.0)            # metres along the pass: the summit plateau and the drop towards Thwaite
+CUT = (4000.0, 8250.0)            # metres along the pass: the summit plateau and the drop into Thwaite
 MARGIN = 300.0                    # detailed land either side of the ride
 STEP = 2.0                        # detailed grid spacing
 TILE = 256.0                      # detailed tile size

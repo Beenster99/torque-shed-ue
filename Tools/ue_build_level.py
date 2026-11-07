@@ -496,6 +496,16 @@ def land_material_scanned(tex, roles):
     drift = g.mask_noise(0.00035, -1.8, 1.4)   # big drifts; finer read as polka dots far off
     drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=0.5)
     land[0] = g.lerp(land[0], straw, drift)
+    # No purple: flowers in the scans, tiled small and saturated far off, read as pink polka dots.
+    # Moorland blue never exceeds about 0.85 of its green.
+    def chan(src, c):
+        e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=False)
+        g.link(src, e)
+        return e
+    rg = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False)
+    g.link(land[0], rg)
+    blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.85))
+    land[0] = g.op(unreal.MaterialExpressionAppendVector, rg, blue)
     return g.finish(land, min_rough=0.82, specular=0.3)
 
 
@@ -550,6 +560,9 @@ def road_material_scanned(tex, roles):
         pick = g.mask_noise(0.004, -6.0, 7.0)
         m = g.lerp(g.sample(blem["mask"], uv1, "mask"), g.sample(blem["mask"], uv2, "mask"), pick,
                    a_out="RGBA", b_out="RGBA")   # keep alpha: the default link is RGB
+        # Overall strength (beenster: "a bit over the top"): 0.7 of the baked marks.
+        neutral = g.node(unreal.MaterialExpressionConstant4Vector, constant=unreal.LinearColor(0.5, 0.0, 0.0, 0.0))
+        m = g.lerp(neutral, m, g.const(0.7))
         bn = g.lerp(g.sample(blem["normal"], uv1, "normal"), g.sample(blem["normal"], uv2, "normal"), pick)
         def ch(c):
             e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=c == "B", a=c == "A")
