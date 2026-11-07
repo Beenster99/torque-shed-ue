@@ -98,6 +98,38 @@ static void FlatTests()
 	Check(!S.IsCrashed, "emergency stop: no crash", 0.0);
 	std::printf("  braking from %.1f m/s\n", V0);
 	Check(Dist > 28.0 && Dist < 55.0, "stopping distance from 60 mph (m)", Dist);
+
+	// The rear brake alone: ABS keeps the wheel turning; with ABS off it locks.
+	for (bool Abs : {true, false})
+	{
+		S.Build.AbsRear = Abs;
+		S.FrontBrake = 0.0;
+		S.RearBrake = 0.0;
+		S.Throttle = 1.0;
+		for (int i = 0; i < 120 * 20 && S.Speed < 15.0; ++i) S.Step(Dt);
+		S.Throttle = 0.0;
+		S.RearBrake = 1.0;
+		double Worst = 0.0;
+		for (int i = 0; i < 120 && S.Speed > 3.0; ++i)
+		{
+			S.Step(Dt);
+			Worst = std::min(Worst, S.Wheels[1].Kappa);
+		}
+		S.RearBrake = 0.0;
+		if (Abs) Check(Worst > -0.3, "rear brake with ABS: wheel keeps turning (slip)", Worst);
+		else Check(Worst < -0.6, "rear brake without ABS: wheel locks (slip)", Worst);
+		Check(!S.IsCrashed, "rear brake: no crash", 0.0);
+	}
+	S.Build.AbsRear = true;
+
+	// Gears by hand.
+	S.AutoShift = false;
+	const int G0 = S.Gear;
+	S.ShiftUp();
+	Check(S.Gear == std::min(G0 + 1, S.Build.GearCount()), "shifts up by hand", S.Gear);
+	S.ShiftDown();
+	Check(S.Gear == G0, "shifts down by hand", S.Gear);
+	S.AutoShift = true;
 }
 
 // --- Buttertubs ---------------------------------------------------------------------------------

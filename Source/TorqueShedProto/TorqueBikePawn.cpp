@@ -2,6 +2,7 @@
 
 #include "BikeSim.h"
 #include "Camera/CameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
@@ -14,6 +15,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Sound/SoundWaveProcedural.h"
 #include "UObject/ConstructorHelpers.h"
 
 using namespace TorqueSim;
@@ -38,6 +40,17 @@ FQuat BasisToUE(const M3& B)
 	return FRotationMatrix::MakeFromXZ(Fwd, Up).ToQuat();
 }
 
+// The rider's shapes and kit.
+enum ERiderPart
+{
+	RP_Torso, RP_Pelvis, RP_Shoulders, RP_Neck, RP_Helmet, RP_Visor,
+	RP_UpperArmL, RP_UpperArmR, RP_ForearmL, RP_ForearmR, RP_ElbowL, RP_ElbowR, RP_HandL, RP_HandR,
+	RP_ThighL, RP_ThighR, RP_ShinL, RP_ShinR, RP_KneeL, RP_KneeR, RP_BootL, RP_BootR, RP_Count
+};
+enum ERiderMat { RM_Jacket, RM_Jeans, RM_Boots, RM_Gloves, RM_Helmet, RM_Visor, RM_Skin, RM_Count };
+
+bool LoadJson(const FString& Rel, TSharedPtr<FJsonObject>& Out);
+
 double Approach(double From, double To, double RateUp, double RateDown, double Dt)
 {
 	const double Rate = (std::fabs(To) > std::fabs(From)) ? RateUp : RateDown;
@@ -54,6 +67,10 @@ ATorqueBikePawn::ATorqueBikePawn()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+
+	ShapeCube = CubeMesh.Object;
+	ShapeCylinder = CylinderMesh.Object;
+	ShapeSphere = SphereMesh.Object;
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
@@ -129,13 +146,32 @@ void ATorqueBikePawn::BeginPlay()
 	};
 	LoadRoute();
 	BuildModel();
+	{
+		// The rider's kit, made by the level script beside the bike's finishes.
+		UMaterialInterface* Mats[RM_Count] = {};
+		TSharedPtr<FJsonObject> Assets;
+		const TSharedPtr<FJsonObject>* Kit = nullptr;
+		if (LoadJson(TEXT("Data/Bike/SpeedTwin/ue_assets.json"), Assets) && Assets->TryGetObjectField(TEXT("rider"), Kit))
+		{
+			static const TCHAR* Names[RM_Count] = {TEXT("jacket"), TEXT("jeans"), TEXT("boots"), TEXT("gloves"),
+				TEXT("helmet"), TEXT("visor"), TEXT("skin")};
+			for (int32 I = 0; I < RM_Count; ++I)
+			{
+				FString Path;
+				if ((*Kit)->TryGetStringField(Names[I], Path)) Mats[I] = LoadObject<UMaterialInterface>(nullptr, *Path);
+			}
+		}
+		BuildRider(Mats);
+	}
 	Respawn(0);
 	Pad = MakeUnique<FSonyPad>();
+	StartSound();
 }
 
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
 {
 	Pad.Reset();   // stops its reading thread
+	if (SoundAudio) SoundAudio->Stop();
 	Super::EndPlay(Reason);
 }
 
@@ -282,6 +318,7 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 	CurRot = PrevRot = BasisToUE(Sim->Basis);
 	Accum = 0.0;
 	bCamInit = false;
+	LastGear = Sim->Gear;   // no clunk for being put back in first
 	SetActorLocationAndRotation(CurPos, CurRot);
 }
 
@@ -352,9 +389,33 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// Keys are all or nothing, so ease them in (as Torque Shed does); the pad is used as it is.
 	Throttle = PadThrottle > 0.02 ? PadThrottle : Approach(Throttle, KeyThrottle, 2.5, 6.0, Dt);
 	FrontBrake = PadBrake > 0.02 ? PadBrake : Approach(FrontBrake, KeyBrake, 3.0, 8.0, Dt);
-	RearBrake = FMath::Max(Down(EKeys::SpaceBar), FMath::Max(Down(EKeys::Gamepad_LeftShoulder),
-		Down(EKeys::Gamepad_FaceButton_Left)));
-	if (SonyDown & (ESonyButton::L1 | ESonyButton::Square)) RearBrake = 1.0;
+	RearBrake = FMath::Max(Down(EKeys::SpaceBar), Down(EKeys::Gamepad_LeftShoulder));
+	if (SonyDown & ESonyButton::L1) RearBrake = 1.0;
+
+	// Gears: Cross/A up, Square/X down (X and Z, or Left Shift and Left Ctrl, on keys). The first
+	// change by hand turns the automatic box off; R3 or G turns it back on.
+	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
+	const bool bUp = SonyHit(ESonyButton::Cross) || Just(EKeys::Gamepad_FaceButton_Bottom) || Just(EKeys::X) || Just(EKeys::LeftShift);
+	const bool bDown = SonyHit(ESonyButton::Square) || Just(EKeys::Gamepad_FaceButton_Left) || Just(EKeys::Z) || Just(EKeys::LeftControl);
+	if (bUp || bDown)
+	{
+		bManual = true;
+		Sim->AutoShift = false;
+		if (bUp) Sim->ShiftUp();
+		else Sim->ShiftDown();
+	}
+	if (SonyHit(ESonyButton::R3) || Just(EKeys::Gamepad_RightThumbstick) || Just(EKeys::G))
+	{
+		bManual = !bManual;
+		GearNoteFor = 2.0;
+	}
+	// ABS: Circle/B or the B key. Off, the rear brake will lock the wheel.
+	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || Just(EKeys::B))
+	{
+		bAbs = !bAbs;
+		Sim->Build.AbsFront = Sim->Build.AbsRear = bAbs;
+		GearNoteFor = 2.0;
+	}
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
@@ -371,7 +432,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
 		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::R1 | ESonyButton::Create))
 	{
-		CameraMode = (CameraMode + 1) % 2;
+		CameraMode = (CameraMode + 1) % 3;
 		bCamInit = false;
 	}
 	if (SonyHit(ESonyButton::DDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
@@ -398,6 +459,7 @@ void ATorqueBikePawn::StepSim()
 	Sim->LeanInput = Lean;
 	Sim->BodyShift = Shift;
 	Sim->Assist = Assist;
+	Sim->AutoShift = !bManual;
 	PrevPos = CurPos;
 	PrevRot = CurRot;
 	Sim->Step(SimDt);
@@ -428,9 +490,15 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		RideTime += DeltaSeconds;
 	}
 
+	if (Sound && Sim->Gear != LastGear) Sound->GearChange(Sim->Gear > LastGear);
+	LastGear = Sim->Gear;
+	GearNoteFor = FMath::Max(GearNoteFor - DeltaSeconds, 0.0);
+
 	UpdateVisuals(Accum / SimDt);
+	UpdateRider();
 	UpdateProgress();
 	UpdateCamera(DeltaSeconds);
+	UpdateSound(DeltaSeconds);
 	DrawHud();
 }
 
@@ -462,6 +530,202 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	SwingGroup->SetRelativeLocationAndRotation(SwingPivot, FQuat(FVector::RightVector, -Swing));
 }
 
+namespace
+{
+// The middle joint of a two-bone limb from Root to Tip (lengths A then B), bending towards Pole.
+FVector MidJoint(const FVector& Root, const FVector& Tip, double A, double B, const FVector& Pole)
+{
+	FVector D = Tip - Root;
+	const double Len = FMath::Clamp(D.Size(), FMath::Abs(A - B) + 0.1, (A + B) * 0.999);
+	D = D.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+	const double Along = (A * A - B * B + Len * Len) / (2.0 * Len);
+	const double Out = FMath::Sqrt(FMath::Max(A * A - Along * Along, 0.0));
+	FVector Side = Pole - D * FVector::DotProduct(Pole, D);
+	Side = Side.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	return Root + D * Along + Side * Out;
+}
+
+// A basic-shapes cylinder (100 cm tall, 100 across, centred) from P to Q, Width x Depth cm across.
+void PlaceLimb(UStaticMeshComponent* C, const FVector& P, const FVector& Q, double Width, double Depth = -1.0)
+{
+	FVector D = Q - P;
+	const double L = FMath::Max(D.Size(), 0.1);
+	const FRotator Rot = FRotationMatrix::MakeFromZX(D.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector), FVector::ForwardVector).Rotator();
+	C->SetRelativeLocationAndRotation((P + Q) * 0.5, Rot);
+	C->SetRelativeScale3D(FVector((Depth > 0 ? Depth : Width) / 100.0, Width / 100.0, L / 100.0));
+}
+
+void PlaceBlob(UStaticMeshComponent* C, const FVector& Centre, const FVector& SizeCm, const FRotator& Rot = FRotator::ZeroRotator)
+{
+	C->SetRelativeLocationAndRotation(Centre, Rot);
+	C->SetRelativeScale3D(SizeCm / 100.0);
+}
+} // namespace
+
+void ATorqueBikePawn::BuildRider(UMaterialInterface* const* Mats)
+{
+	Rider->SetVisibility(false);   // the old placeholder
+	struct FKind { UStaticMesh* Mesh; int32 Mat; };
+	const FKind Cyl[2] = {{ShapeCylinder, RM_Jacket}, {ShapeCylinder, RM_Jeans}};
+	FKind Kinds[RP_Count];
+	Kinds[RP_Torso] = {ShapeCylinder, RM_Jacket};
+	Kinds[RP_Pelvis] = {ShapeSphere, RM_Jeans};
+	Kinds[RP_Shoulders] = {ShapeCylinder, RM_Jacket};
+	Kinds[RP_Neck] = {ShapeCylinder, RM_Jacket};
+	Kinds[RP_Helmet] = {ShapeSphere, RM_Helmet};
+	Kinds[RP_Visor] = {ShapeSphere, RM_Visor};
+	for (int32 S = 0; S < 2; ++S)
+	{
+		Kinds[RP_UpperArmL + S] = Cyl[0];
+		Kinds[RP_ForearmL + S] = Cyl[0];
+		Kinds[RP_ElbowL + S] = {ShapeSphere, RM_Jacket};
+		Kinds[RP_HandL + S] = {ShapeSphere, RM_Gloves};
+		Kinds[RP_ThighL + S] = Cyl[1];
+		Kinds[RP_ShinL + S] = Cyl[1];
+		Kinds[RP_KneeL + S] = {ShapeSphere, RM_Jeans};
+		Kinds[RP_BootL + S] = {ShapeCube, RM_Boots};
+	}
+	for (int32 I = 0; I < RP_Count; ++I)
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *FString::Printf(TEXT("RiderPart%d"), I));
+		C->SetStaticMesh(Kinds[I].Mesh);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->bCastHiddenShadow = true;   // the head still throws its shadow when the camera's inside it
+		C->SetupAttachment(Root);
+		if (Mats && Mats[Kinds[I].Mat]) C->SetMaterial(0, Mats[Kinds[I].Mat]);
+		C->RegisterComponent();
+		RiderParts.Add(C);
+	}
+	UpdateRider();
+}
+
+void ATorqueBikePawn::ShowHead(bool bShow)
+{
+	if (bShow == bHeadShown || RiderParts.Num() < RP_Count) return;
+	bHeadShown = bShow;
+	for (int32 I : {RP_Helmet, RP_Visor, RP_Neck}) RiderParts[I]->SetVisibility(bShow);
+}
+
+void ATorqueBikePawn::UpdateRider()
+{
+	if (RiderParts.Num() < RP_Count) return;
+	// Pawn local cm: x forward, y right, z up, from the body origin (axle height, mid wheelbase).
+	// The Speed Twin's seat is at about z 52, its grips at x 41, its rider's pegs at x -44.
+	const double Fwd = Shift;                   // weight forward (+) or back (-)
+	const double Hang = Lean;                   // into the turn
+	const FVector Hip(-36.0, Hang * 2.0, 62.0);
+	const FVector Chest(-10.0 + 7.0 * Fwd, Hang * 6.0, 104.0 - 4.0 * FMath::Max(Fwd, 0.0));
+	const FVector Head = Chest + FVector(1.0, Hang * 1.5, 24.0);
+	HeadLocal = Head;
+
+	// Grips turn with the bars about the steering axis.
+	const FVector Axis = bHaveModel ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
+		FMath::Cos(FMath::DegreesToRadians(Sim->Build.RakeDeg)));
+	const FVector Pivot = bHaveModel ? SteerPoint : FVector(68.0, 0.0, -1.0);
+	const FQuat Turn(Axis, Sim->Steer);
+	// Feet go down as the bike stops.
+	const double Down = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 1.8, 0.0, 1.0);
+
+	for (int32 S = 0; S < 2; ++S)
+	{
+		const double Y = S == 0 ? -1.0 : 1.0;   // left, right
+		const FVector Shoulder = Chest + FVector(0.0, 19.0 * Y, 0.0);
+		const FVector Grip = Pivot + Turn.RotateVector(FVector(41.3, 31.5 * Y, 65.5) - Pivot);
+		const FVector Elbow = MidJoint(Shoulder, Grip, 34.0, 32.0, FVector(-0.3, 0.75 * Y, -0.6));
+		PlaceLimb(RiderParts[RP_UpperArmL + S], Shoulder, Elbow, 12.0);
+		PlaceLimb(RiderParts[RP_ForearmL + S], Elbow, Grip, 10.0);
+		PlaceBlob(RiderParts[RP_ElbowL + S], Elbow, FVector(12.0));
+		PlaceBlob(RiderParts[RP_HandL + S], Grip + FVector(0.0, 0.0, 1.5), FVector(11.0, 10.0, 9.0));
+
+		const FVector HipS = Hip + FVector(0.0, 11.0 * Y, -2.0);
+		const FVector Ankle = FMath::Lerp(FVector(-46.0, 23.0 * Y, 24.0), FVector(-30.0, 36.0 * Y, -22.0), Down);
+		const FVector Knee = MidJoint(HipS, Ankle, 44.0, 44.0, FVector(1.0, 0.35 * Y, 0.5));
+		PlaceLimb(RiderParts[RP_ThighL + S], HipS, Knee, 16.0);
+		PlaceLimb(RiderParts[RP_ShinL + S], Knee, Ankle, 12.0);
+		PlaceBlob(RiderParts[RP_KneeL + S], Knee, FVector(15.0));
+		PlaceBlob(RiderParts[RP_BootL + S], Ankle + FVector(8.0, 0.0, -6.0), FVector(28.0, 11.0, 13.0));
+	}
+	PlaceLimb(RiderParts[RP_Torso], Hip + FVector(0.0, 0.0, -2.0), Chest + FVector(0.0, 0.0, 6.0), 38.0, 26.0);
+	PlaceBlob(RiderParts[RP_Pelvis], Hip + FVector(2.0, 0.0, -2.0), FVector(34.0, 36.0, 22.0));
+	PlaceLimb(RiderParts[RP_Shoulders], Chest + FVector(0.0, -21.0, 0.0), Chest + FVector(0.0, 21.0, 0.0), 14.0);
+	PlaceLimb(RiderParts[RP_Neck], Chest + FVector(0.0, 0.0, 4.0), Head + FVector(-1.0, 0.0, -8.0), 11.0);
+	// The head turns a little where you look.
+	const FRotator Look(LookPitch * -0.4, LookYaw * 0.5, 0.0);
+	PlaceBlob(RiderParts[RP_Helmet], Head, FVector(29.0, 25.0, 28.0), Look);
+	PlaceBlob(RiderParts[RP_Visor], Head + Look.RotateVector(FVector(9.5, 0.0, -0.5)), FVector(11.0, 21.0, 11.0), Look);
+}
+
+void ATorqueBikePawn::StartSound()
+{
+	Sound = MakeUnique<TorqueSound::RideSound>();
+	Sound->IdleRpm = Sim->Build.IdleRpm;
+	auto Wav = [](const TCHAR* Name, int& Rate) {
+		TArray<uint8> Bytes;
+		std::vector<float> Out;
+		if (FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Audio"), Name)))
+			Out = TorqueSound::ReadWav(std::vector<uint8_t>(Bytes.GetData(), Bytes.GetData() + Bytes.Num()), Rate);
+		return Out;
+	};
+	int Rate = 0, Got = 0;
+	std::vector<float> Idle = Wav(TEXT("idle_parallel270.wav"), Rate);
+	if (!Idle.empty()) { Sound->SetIdle(std::move(Idle), Rate, 1319.0); ++Got; }
+	for (int32 I = 1; I <= 8; ++I)
+	{
+		std::vector<float> C = Wav(*FString::Printf(TEXT("gearclunk%d.wav"), I), Rate);
+		if (!C.empty()) { Sound->AddClunk(std::move(C), Rate); ++Got; }
+	}
+	std::vector<float> Amb = Wav(TEXT("birds_moor.wav"), Rate);
+	if (!Amb.empty()) { Sound->SetAmbience(std::move(Amb), Rate); ++Got; }
+	UE_LOG(LogTemp, Log, TEXT("Torque: sound with %d recordings"), Got);
+
+	SoundWave = NewObject<USoundWaveProcedural>(this);
+	SoundWave->SetSampleRate(TorqueSound::RideSound::Rate);
+	SoundWave->NumChannels = 1;
+	SoundWave->Duration = INDEFINITELY_LOOPING_DURATION;
+	SoundWave->SoundGroup = SOUNDGROUP_Default;
+	SoundWave->bLooping = false;
+	SoundAudio = NewObject<UAudioComponent>(this, TEXT("RideSound"));
+	SoundAudio->bAutoActivate = false;
+	SoundAudio->bAllowSpatialization = false;
+	SoundAudio->SetupAttachment(Root);
+	SoundAudio->RegisterComponent();
+	SoundAudio->SetSound(SoundWave);
+	UpdateSound(0.0f);   // a little queued before it starts
+	SoundAudio->Play();
+}
+
+void ATorqueBikePawn::UpdateSound(float Dt)
+{
+	if (!Sound || !SoundWave) return;
+	TorqueSound::RideInputs In;
+	In.Rpm = Sim->Rpm;
+	In.Throttle = Throttle;
+	In.Speed = FMath::Abs(Sim->Speed);
+	const Wheel& F = Sim->Wheels[0];
+	const Wheel& R = Sim->Wheels[1];
+	auto Lock = [](const Wheel& W) { return W.Contact ? FMath::Clamp((FMath::Abs(W.Kappa) - 0.12) / 0.3, 0.0, 1.0) : 0.0; };
+	auto Side = [](const Wheel& W) { return W.Contact ? FMath::Clamp(W.Slip * 2.0, 0.0, 1.0) : 0.0; };
+	In.RearSlide = Lock(R);
+	In.FrontSlide = Lock(F);
+	In.SideSlide = FMath::Max(Side(F), Side(R));
+	In.OnTarmac = (R.Contact ? R.Surf : F.Surf) == SURF_TARMAC;
+	In.Airborne = !F.Contact && !R.Contact;
+	In.Inside = CameraMode == 0 ? 0.0 : 1.0;
+	Sound->Set(In);
+
+	// Keep about 80 ms queued: enough for a slow frame, little enough that it answers the throttle.
+	const int32 Rate = TorqueSound::RideSound::Rate;
+	const int32 Have = SoundWave->GetAvailableAudioByteCount() / 2;
+	const int32 Need = FMath::Clamp(Rate * 8 / 100 - Have, 0, Rate / 4);
+	if (Need <= 0) return;
+	SoundFloat.SetNumUninitialized(Need);
+	Sound->Render(SoundFloat.GetData(), Need);
+	SoundPcm.SetNumUninitialized(Need);
+	for (int32 I = 0; I < Need; ++I) SoundPcm[I] = (int16)FMath::Clamp(FMath::RoundToInt(SoundFloat[I] * 32767.0f), -32767, 32767);
+	SoundWave->QueueAudio(reinterpret_cast<const uint8*>(SoundPcm.GetData()), Need * 2);
+}
+
 void ATorqueBikePawn::UpdateProgress()
 {
 	if (Line.Num() < 2) return;
@@ -485,20 +749,22 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	FVector Flat(Fwd.X, Fwd.Y, 0.0);
 	Flat = Flat.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 
-	if (CameraMode == 1)
+	ShowHead(CameraMode == 0);
+	if (CameraMode == 1 || CameraMode == 2)
 	{
-		// Onboard: just behind the rider's eyes, leaning with the bike but less, as your head does.
-		// Like the chin camera on beenster's helmet: just below the eyes, out over the back of the
-		// tank, bars and clocks low in view. The head leans less than the bike.
-		const FVector Eye = BikePos + BikeRot.RotateVector(FVector(-15.0, 0.0, 108.0));
-		const double LeanDeg = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.55;
+		// 1, first person: the rider's eyes, inside the helmet, arms and bars below. 2, the chin
+		// camera on beenster's helmet: just below the eyes at the front of the chin bar, wide.
+		// Either way the head leans with the bike, but less, as yours does.
+		const bool bChin = CameraMode == 2;
+		const FVector Eye = BikePos + BikeRot.RotateVector(HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0) : FVector(6.0, 0.0, 1.0)));
 		FRotator Rot = Flat.Rotation();
-		Rot.Pitch = -12.0 + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
-		Rot.Roll = LeanDeg;
+		// Looking down a little more in first person, so the clocks and your hands are in view.
+		Rot.Pitch = (bChin ? -12.0 : -17.0) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
+		Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * (bChin ? 0.55 : 0.6);
 		Rot.Yaw += LookYaw;
 		Rot.Pitch += LookPitch;
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
-		Camera->SetFieldOfView(100.0f);
+		Camera->SetFieldOfView(bChin ? 100.0f : 95.0f);
 		return;
 	}
 
@@ -541,6 +807,8 @@ void ATorqueBikePawn::DrawHud()
 	HudLines.Reset();
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
 	Add(FString::Printf(TEXT("%.0f mph   gear %d"), FMath::Abs(Mph), Sim->Gear), FColor::White, 2.0f);
+	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"), bAbs ? TEXT("on") : TEXT("off")),
+		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
 	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
 		FColor(220, 220, 220), 1.1f);
 	Add(FString::Printf(TEXT("Buttertubs  %.2f of 3.00 km   %d:%05.2f%s"), Done, Mins, Secs,
@@ -551,12 +819,11 @@ void ATorqueBikePawn::DrawHud()
 		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad")), FColor(170, 200, 170), 0.9f);
 	if (bShowHelp)
 	{
-		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1/Square rear brake   left stick lean (push up/down: weight)"),
-			FColor(200, 200, 200), 0.85f);
-		Add(TEXT("      right stick look   R1 camera   Triangle back on road   Options restart   D-pad realism   Create+Options quit"),
-			FColor(200, 200, 200), 0.85f);
-		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   C camera   R back on road"),
-			FColor(200, 200, 200), 0.85f);
-		Add(TEXT("      Home restart   [ ] realism   H hide this help   Esc quit"), FColor(200, 200, 200), 0.85f);
+		const FColor Help(200, 200, 200);
+		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
+		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look"), Help, 0.85f);
+		Add(TEXT("      R1 camera   Triangle back on road   Options restart   D-pad realism   Create+Options quit"), Help, 0.85f);
+		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
+		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   H hide this help   Esc quit"), Help, 0.85f);
 	}
 }

@@ -81,6 +81,9 @@ public:
 	// Upright on the ground at `Pos` (world), heading `Heading` radians (0 = -Z, + turning left as Godot's yaw).
 	void Place(const V3& Pos, double Heading);
 	void Step(double Delta);
+	// The rider's foot on the lever (with AutoShift off): one gear up or down. False at the end of the box.
+	bool ShiftUp() { if (Gear >= Build.GearCount()) return false; Select(Gear + 1); return true; }
+	bool ShiftDown() { if (Gear <= 1) return false; Select(Gear - 1); return true; }
 
 	V3 BodyToWorld(const V3& P) const { return Position + Basis * P; }
 	V3 WorldToBody(const V3& P) const { return Basis.Transposed() * (P - Position); }

@@ -47,21 +47,29 @@ seat, engine, headers and silencers, in simple finishes. The rider is still a pl
 Any Xbox-style controller works, and so does a PlayStation pad (DualSense, DualSense Edge or
 DualShock 4, over USB or Bluetooth) with no extra tools: the game reads it directly. If DSX,
 DS4Windows or Steam Input is running too, that works as well. The HUD says when a PlayStation pad is
-connected. On a PlayStation pad, X is Square, Y is Triangle, the bumpers are L1 and R1, View is
-Create and Menu is Options.
+connected. On a PlayStation pad, A is Cross, B is Circle, X is Square, Y is Triangle, the bumpers are
+L1 and R1, View is Create and Menu is Options.
 
 | | Keyboard | Pad |
 | --- | --- | --- |
 | Throttle | W or Up | Right trigger |
 | Front brake | S or Down | Left trigger |
-| Rear brake | Space | Left bumper or X |
+| Rear brake | Space | Left bumper |
+| Gear up, gear down (the first press switches to manual) | X and Z, or Left Shift and Left Ctrl | A and X |
+| Automatic or manual gears | G | Right stick click |
+| ABS on or off (off lets the rear wheel lock) | B | B |
 | Lean | A and D, or Left and Right | Left stick |
 | Weight back and forward | Q and E | Left stick, pushed well up or down |
 | Look around | | Right stick |
-| Camera (chase, onboard) | C | Right bumper or View |
+| Camera (chase, first person, chin camera) | C | Right bumper or View |
 | Back on the road | R | Y |
 | Start again | Home | Menu (Start) |
 | Riding realism | [ and ] (0 full sim, 1 easy) | D-pad up and down |
+| Quit | Esc | View and Menu together |
+
+Sound is made as you ride (Source/TorqueShedProto/TorqueAudio): a 270-degree twin synthesised from
+the revs and throttle, with recorded idle, gear lever clunks and moorland birds from Torque Shed
+(Tools/make_sounds.py puts them in Data/Audio).
 
 ### DLSS on the 4090
 

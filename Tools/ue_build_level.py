@@ -277,6 +277,19 @@ def bike_materials(finishes):
     return paths
 
 
+# The rider's kit (the pawn builds a simple rider from shapes): leather jacket, jeans, boots, gloves,
+# a dark helmet and visor.
+RIDER_FINISHES = {
+    "rider_jacket": {"color": [0.030, 0.027, 0.025], "metallic": 0.0, "roughness": 0.55},
+    "rider_jeans": {"color": [0.035, 0.050, 0.090], "metallic": 0.0, "roughness": 0.85},
+    "rider_boots": {"color": [0.018, 0.016, 0.015], "metallic": 0.0, "roughness": 0.45},
+    "rider_gloves": {"color": [0.025, 0.022, 0.020], "metallic": 0.0, "roughness": 0.6},
+    "rider_helmet": {"color": [0.10, 0.10, 0.11], "metallic": 0.0, "roughness": 0.25},
+    "rider_visor": {"color": [0.01, 0.01, 0.012], "metallic": 0.0, "roughness": 0.05},
+    "rider_skin": {"color": [0.45, 0.30, 0.24], "metallic": 0.0, "roughness": 0.6},
+}
+
+
 def import_bike(frame):
     """The Speed Twin's parts (Tools/make_speedtwin.py) and a list of where they landed, for the pawn."""
     folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Bike", "SpeedTwin")
@@ -291,8 +304,11 @@ def import_bike(frame):
         if body:
             body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
-    mats = bike_materials(info["finishes"])
-    assets = {"frame": {"yaw": frame[0], "mirror": frame[1], "scale": frame[2]}, "parts": {}}
+    finishes = dict(info["finishes"])
+    finishes.update(RIDER_FINISHES)
+    mats = bike_materials(finishes)
+    assets = {"frame": {"yaw": frame[0], "mirror": frame[1], "scale": frame[2]}, "parts": {},
+              "rider": {k[len("rider_"):]: mats[k] for k in RIDER_FINISHES}}
     for part in info["parts"]:
         mesh = meshes.get(part["name"])
         if mesh:

@@ -11,10 +11,15 @@
 #include "GameFramework/Pawn.h"
 #include "Sim/BikeSim.h"   // the full type: the code Unreal generates for this class deletes it
 #include "SonyPad.h"
+#include "TorqueAudio/RideSound.h"   // the full type, as for the sim
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
 class UCameraComponent;
+class UStaticMesh;
+class UMaterialInterface;
+class USoundWaveProcedural;
+class UAudioComponent;
 
 struct FHudLine
 {
@@ -63,6 +68,17 @@ public:
 	// The model's parts, made at BeginPlay from Data/Bike/SpeedTwin/ue_assets.json.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ModelParts;
 
+	// The rider, made of simple shapes and posed every frame: hands on the grips, feet on the pegs
+	// (or down when stopped), weight and lean as you ride.
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> RiderParts;
+	UPROPERTY() UStaticMesh* ShapeCube = nullptr;
+	UPROPERTY() UStaticMesh* ShapeCylinder = nullptr;
+	UPROPERTY() UStaticMesh* ShapeSphere = nullptr;
+
+	// Sound: made by TorqueSound::RideSound and fed to Unreal as it plays.
+	UPROPERTY(Transient) USoundWaveProcedural* SoundWave = nullptr;
+	UPROPERTY(Transient) UAudioComponent* SoundAudio = nullptr;
+
 private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
@@ -71,6 +87,13 @@ private:
 	double TrigRest[4] = {0, 0, 0, 0};
 	double InputLogTimer = 0.0;
 	int32 InputLogCount = 0;
+	TUniquePtr<TorqueSound::RideSound> Sound;
+	TArray<float> SoundFloat;
+	TArray<int16> SoundPcm;
+	int32 LastGear = 1;
+	bool bManual = false;            // gears changed by hand (the first press of a shift button)
+	bool bAbs = true;                // the Speed Twin's ABS; off lets the rear lock
+	double GearNoteFor = 0.0;
 	TArray<FHudLine> HudLines;
 	bool bShowHelp = true;
 	double Accum = 0.0;
@@ -88,10 +111,12 @@ private:
 	double CrashedFor = 0.0;
 
 	// Camera.
-	int32 CameraMode = 0;             // 0 chase, 1 onboard
+	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera
 	FVector CamPos = FVector::ZeroVector;
 	FVector CamLookAt = FVector::ZeroVector;
 	bool bCamInit = false;
+	FVector HeadLocal = FVector(-9.0, 0.0, 128.0);   // the helmet's centre, pawn local cm (UpdateRider)
+	bool bHeadShown = true;
 	double LookYaw = 0.0, LookPitch = 0.0;   // right stick, degrees
 
 	// Model geometry (Unreal local cm), read from speedtwin.json.
@@ -99,6 +124,11 @@ private:
 	FVector SteerPoint = FVector::ZeroVector, SteerDir = FVector::UpVector, SwingPivot = FVector::ZeroVector;
 	FVector RearRest = FVector::ZeroVector;
 
+	void BuildRider(UMaterialInterface* const* Mats);
+	void UpdateRider();
+	void ShowHead(bool bShow);
+	void StartSound();
+	void UpdateSound(float Dt);
 	void LoadRoute();
 	void BuildModel();
 	void Respawn(int32 LineIndex);
