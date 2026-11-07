@@ -1,0 +1,304 @@
+{
+ "about": "Made by Tools/make_rider.py. Bones' rest positions in the pawn's local frame (cm, x forward, y right, z up); the glbs are in the model frame (metres, x forward, y up, z right) like the bike's parts.",
+ "bones": [
+  {
+   "name": "pelvis",
+   "parent": null,
+   "rest": [
+    -44.0,
+    0.0,
+    60.5
+   ]
+  },
+  {
+   "name": "spine_01",
+   "parent": "pelvis",
+   "rest": [
+    -40.0,
+    0.0,
+    69.5
+   ]
+  },
+  {
+   "name": "spine_02",
+   "parent": "spine_01",
+   "rest": [
+    -33.0,
+    0.0,
+    81.0
+   ]
+  },
+  {
+   "name": "spine_03",
+   "parent": "spine_02",
+   "rest": [
+    -23.0,
+    0.0,
+    93.0
+   ]
+  },
+  {
+   "name": "neck_01",
+   "parent": "spine_03",
+   "rest": [
+    -11.0,
+    0.0,
+    106.0
+   ]
+  },
+  {
+   "name": "head",
+   "parent": "neck_01",
+   "rest": [
+    -7.0,
+    0.0,
+    112.5
+   ]
+  },
+  {
+   "name": "clavicle_l",
+   "parent": "spine_03",
+   "rest": [
+    -14.0,
+    -3.0,
+    100.0
+   ]
+  },
+  {
+   "name": "upperarm_l",
+   "parent": "clavicle_l",
+   "rest": [
+    -9.0,
+    -18.0,
+    97.0
+   ]
+  },
+  {
+   "name": "lowerarm_l",
+   "parent": "upperarm_l",
+   "rest": [
+    8.206,
+    -35.291,
+    76.288
+   ]
+  },
+  {
+   "name": "hand_l",
+   "parent": "lowerarm_l",
+   "rest": [
+    34.955,
+    -31.448,
+    68.958
+   ]
+  },
+  {
+   "name": "thigh_l",
+   "parent": "pelvis",
+   "rest": [
+    -44.0,
+    -10.5,
+    60.0
+   ]
+  },
+  {
+   "name": "calf_l",
+   "parent": "thigh_l",
+   "rest": [
+    -16.753,
+    -28.539,
+    35.237
+   ]
+  },
+  {
+   "name": "foot_l",
+   "parent": "calf_l",
+   "rest": [
+    -56.0,
+    -23.5,
+    24.5
+   ]
+  },
+  {
+   "name": "ball_l",
+   "parent": "foot_l",
+   "rest": [
+    -43.0,
+    -24.5,
+    20.5
+   ]
+  },
+  {
+   "name": "clavicle_r",
+   "parent": "spine_03",
+   "rest": [
+    -14.0,
+    3.0,
+    100.0
+   ]
+  },
+  {
+   "name": "upperarm_r",
+   "parent": "clavicle_r",
+   "rest": [
+    -9.0,
+    18.0,
+    97.0
+   ]
+  },
+  {
+   "name": "lowerarm_r",
+   "parent": "upperarm_r",
+   "rest": [
+    8.206,
+    35.291,
+    76.288
+   ]
+  },
+  {
+   "name": "hand_r",
+   "parent": "lowerarm_r",
+   "rest": [
+    34.955,
+    31.448,
+    68.958
+   ]
+  },
+  {
+   "name": "thigh_r",
+   "parent": "pelvis",
+   "rest": [
+    -44.0,
+    10.5,
+    60.0
+   ]
+  },
+  {
+   "name": "calf_r",
+   "parent": "thigh_r",
+   "rest": [
+    -16.753,
+    28.539,
+    35.237
+   ]
+  },
+  {
+   "name": "foot_r",
+   "parent": "calf_r",
+   "rest": [
+    -56.0,
+    23.5,
+    24.5
+   ]
+  },
+  {
+   "name": "ball_r",
+   "parent": "foot_r",
+   "rest": [
+    -43.0,
+    24.5,
+    20.5
+   ]
+  }
+ ],
+ "helmet_centre": [
+  -5.0,
+  0.0,
+  121.5
+ ],
+ "helmet_bone": "head",
+ "lengths": {
+  "upper_arm": 32.0,
+  "forearm": 28.0,
+  "thigh": 41.0,
+  "shin": 41.0
+ },
+ "materials": {
+  "rider": [
+   "jacket",
+   "jeans",
+   "boots",
+   "sole",
+   "gloves"
+  ],
+  "helmet": [
+   "helmet",
+   "visor",
+   "liner",
+   "trim"
+  ]
+ },
+ "finishes": {
+  "jacket": {
+   "color": [
+    0.022,
+    0.021,
+    0.02
+   ],
+   "roughness": 0.55
+  },
+  "jeans": {
+   "color": [
+    0.03,
+    0.045,
+    0.085
+   ],
+   "roughness": 0.85
+  },
+  "boots": {
+   "color": [
+    0.016,
+    0.014,
+    0.013
+   ],
+   "roughness": 0.42
+  },
+  "sole": {
+   "color": [
+    0.012,
+    0.012,
+    0.012
+   ],
+   "roughness": 0.9
+  },
+  "gloves": {
+   "color": [
+    0.26,
+    0.12,
+    0.05
+   ],
+   "roughness": 0.5
+  },
+  "helmet": {
+   "color": [
+    0.012,
+    0.012,
+    0.013
+   ],
+   "roughness": 0.18
+  },
+  "visor": {
+   "color": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "roughness": 0.03
+  },
+  "liner": {
+   "color": [
+    0.008,
+    0.008,
+    0.008
+   ],
+   "roughness": 0.95
+  },
+  "trim": {
+   "color": [
+    0.01,
+    0.01,
+    0.01
+   ],
+   "roughness": 0.7
+  }
+ }
+}
