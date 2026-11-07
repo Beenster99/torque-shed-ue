@@ -362,13 +362,40 @@ def main():
         B = region.heights(bx + O[0], bz + O[2]) - O[1]
         B = np.where(np.isnan(B), np.nanmin(B), B)
         BX, BZ = np.meshgrid(bx, bz)
-        inside = np.zeros(B.shape, bool); edge = np.zeros(B.shape, bool)
-        for t in tiles:
-            (x0, _, z0), (x1, _, z1) = t["min"], t["max"]
-            inside |= (BX > x0 + bs) & (BX < x1 - bs) & (BZ > z0 + bs) & (BZ < z1 - bs)
-            edge |= (BX >= x0 - bs) & (BX <= x1 + bs) & (BZ >= z0 - bs) & (BZ <= z1 + bs)
-        # Sunk well under the near tiles, and a little at their edges so the seam hides in the grass.
-        B = np.where(inside, B - 6.0, np.where(edge, B - 0.6, B))
+        # Which backdrop cells the near tiles cover: a vertex all of whose cells are covered is
+        # inside the near land (tiles side by side count together, not one at a time).
+        cov_cell = np.zeros((len(bz) + 1, len(bx) + 1), bool)   # cell (j, i) spans vertices j-1..j, i-1..i
+        cx = np.concatenate([[bx[0] - bs / 2], (bx[:-1] + bx[1:]) / 2, [bx[-1] + bs / 2]])
+        cz = np.concatenate([[bz[0] - bs / 2], (bz[:-1] + bz[1:]) / 2, [bz[-1] + bs / 2]])
+        CX, CZ = np.meshgrid(cx, cz)
+        def in_tiles(X, Z):
+            m = np.zeros(X.shape, bool)
+            for t in tiles:
+                (x0, _, z0), (x1, _, z1) = t["min"], t["max"]
+                m |= (X >= x0 - 0.01) & (X <= x1 + 0.01) & (Z >= z0 - 0.01) & (Z <= z1 + 0.01)
+            return m
+        cov_cell[:] = True
+        any_cell = np.zeros(cov_cell.shape, bool)   # some of the cell is near land
+        for ox in (-0.5, -0.25, 0.0, 0.25, 0.5):   # a cell is covered when all of it is
+            for oz in (-0.5, -0.25, 0.0, 0.25, 0.5):
+                m = in_tiles(CX + ox * bs, CZ + oz * bs)
+                cov_cell &= m; any_cell |= m
+        c4 = [cov_cell[:-1, :-1], cov_cell[:-1, 1:], cov_cell[1:, :-1], cov_cell[1:, 1:]]
+        inside = c4[0] & c4[1] & c4[2] & c4[3]
+        a4 = [any_cell[:-1, :-1], any_cell[:-1, 1:], any_cell[1:, :-1], any_cell[1:, 1:]]
+        edge = (a4[0] | a4[1] | a4[2] | a4[3]) & ~inside
+        # The lowest near land in each covered cell: a backdrop vertex at or under the lowest of its
+        # cells can't come up through the near land anywhere in them (the deep road cuts included).
+        cell_min = np.full(cov_cell.shape, np.inf)
+        for j, i in zip(*np.nonzero(any_cell)):
+            ix0 = max(int(np.floor((cx[i] - bs / 2 - xs[0]) / STEP)), 0); ix1 = int(np.ceil((cx[i] + bs / 2 - xs[0]) / STEP)) + 1
+            iz0 = max(int(np.floor((cz[j] - bs / 2 - zs[0]) / STEP)), 0); iz1 = int(np.ceil((cz[j] + bs / 2 - zs[0]) / STEP)) + 1
+            sub = H[iz0:iz1, ix0:ix1]
+            if sub.size:
+                cell_min[j, i] = sub.min()
+        m4 = np.minimum(np.minimum(cell_min[:-1, :-1], cell_min[:-1, 1:]), np.minimum(cell_min[1:, :-1], cell_min[1:, 1:]))
+        # Under the near land inside, and a little at its edges so the seam hides in the grass.
+        B = np.where(inside, np.minimum(B - 3.0, m4 - 1.0), np.where(edge, np.minimum(B - 0.6, m4 - 0.3), B))
         bcol = np.zeros(B.shape + (4,), np.uint8); bcol[..., 3] = 255
         bcov = region.cover(bx + O[0], bz + O[2])
         bcol[..., :3] = land_colour(bcov, region.cover_names, np.hypot(*np.gradient(B, bs)))

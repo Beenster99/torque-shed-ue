@@ -85,7 +85,24 @@ def import_glbs(folder, dest=DEST):
     return meshes
 
 
+def nanite_off(mesh):
+    """The importer turns Nanite on, and Nanite's fallback (what collision and traces use) keeps only
+    a few hundred triangles of a tile: the wheels then land on a rough copy of the hill and the road
+    and land, simplified separately, cut through each other. A 33k-triangle tile doesn't need it."""
+    try:
+        ns = mesh.get_editor_property("nanite_settings")
+        ns.set_editor_property("enabled", False)
+        try:
+            sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+            sme.set_nanite_settings(mesh, ns, True)
+        except Exception:
+            mesh.set_editor_property("nanite_settings", ns)
+    except Exception as e:
+        unreal.log_warning("[Torque] couldn't turn Nanite off on %s: %s" % (mesh.get_name(), e))
+
+
 def setup_mesh(mesh, full_precision_uvs=False):
+    nanite_off(mesh)
     body = mesh.get_editor_property("body_setup")
     if body:
         body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
@@ -269,6 +286,7 @@ def import_bike(frame):
     info = json.load(open(os.path.join(folder, "speedtwin.json")))
     meshes = import_glbs(folder, BIKE_DEST)
     for mesh in meshes.values():
+        nanite_off(mesh)
         body = mesh.get_editor_property("body_setup")
         if body:
             body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
@@ -298,6 +316,14 @@ def build():
         raise RuntimeError("the road mesh didn't import; see the Output Log")
     for name, mesh in meshes.items():
         setup_mesh(mesh, full_precision_uvs=(name == "road"))
+    try:
+        sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        for n in ("road", "backdrop", "terrain_0_0"):
+            if n in meshes:
+                log("%s: %d vertices at LOD0 (Nanite %s)" % (n, sme.get_number_verts(meshes[n], 0),
+                    meshes[n].get_editor_property("nanite_settings").get_editor_property("enabled")))
+    except Exception as e:
+        unreal.log_warning("[Torque] couldn't count vertices: %s" % e)
     yaw, mirror, scale = find_frame(meshes["road"], os.path.join(folder, "road.glb"))
     land, road = land_material(), road_material()
     import_bike((yaw, mirror, scale))
