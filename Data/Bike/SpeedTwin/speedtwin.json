@@ -80,7 +80,7 @@
    "pull_deg": 14.0
   }
  },
- "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); COLOR_0 red is the mask towards each finish's second finish",
+ "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); TEXCOORD_1 u (and COLOR_0 red) is the mask towards each finish's second finish",
  "finishes": {
   "paint_silver": {
    "shader": "paint",

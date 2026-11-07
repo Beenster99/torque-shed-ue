@@ -793,7 +793,10 @@ def write_parts(P, out):
         col = np.zeros((len(pos), 4), np.uint8)
         col[:, 0] = np.round(np.clip(mask, 0, 1) * 255)
         col[:, 3] = 255
-        write_glb(os.path.join(out, name + ".glb"), pos, tris, normals(mesh), col, name, uv=uv)
+        # The mask goes in a second UV channel's u as well as vertex colour: Unreal's glTF import
+        # keeps UVs reliably, and a mesh without it reads 0 (the first finish), not white.
+        uv1 = np.c_[np.clip(mask, 0, 1), np.zeros(len(mask))]
+        write_glb(os.path.join(out, name + ".glb"), pos, tris, normals(mesh), col, name, uv=uv, uv1=uv1)
         listing.append({"name": name, "group": group, "finish": fin, "tris": int(len(tris))})
     info = {
         "bike": "2025 Triumph Speed Twin 1200",
@@ -805,7 +808,7 @@ def write_parts(P, out):
         "levers": {k: {"part": "lever_" + k, "pivot": lever_points(s)[0].tolist(), "axis": [0.0, -1.0 if s < 0 else 1.0, 0.0],
                        "pull_deg": LEVER_PULL_DEG[k]} for k, s in (("clutch", -1), ("brake", 1))},
         "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); "
-              "COLOR_0 red is the mask towards each finish's second finish",
+              "TEXCOORD_1 u (and COLOR_0 red) is the mask towards each finish's second finish",
         "finishes": FINISHES,
         "parts": listing,
     }

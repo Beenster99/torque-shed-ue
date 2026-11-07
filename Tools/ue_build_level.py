@@ -564,7 +564,9 @@ def bike_master(name, tex, paint):
     ntex = texparam("NormalMap", flat.get("n"), "n")
     dtex = texparam("DetailMap", flat.get("d"), "d")
     nrm = g.lerp(g.const((0.0, 0.0, 1.0)), ntex, scalar("NormalStrength", 1.0), b_out="RGB")
-    vc = g.node(unreal.MaterialExpressionVertexColor, -1500)
+    # The finish mask is UV channel 1's u (written by make_speedtwin.py; the importer drops vertex
+    # colour, which then reads white, so it isn't used).
+    vc = g.node(unreal.MaterialExpressionTextureCoordinate, -1500, coordinate_index=1)
     col = g.lerp(vector("Color", (0.5, 0.5, 0.5)), vector("Color2", (0.5, 0.5, 0.5)), vc, alpha_out="R")
     shaded = g.op(unreal.MaterialExpressionMultiply, col, dtex, b_out="G")
     met = g.lerp(scalar("Metallic", 0.0), scalar("Metallic2", 0.0), vc, alpha_out="R")
@@ -778,6 +780,34 @@ def import_rider():
     return {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
 
 
+def check_bike(meshes, mats):
+    """Log what the bike's look depends on, so a build on the PC can be checked from the log: the UV
+    channels the tank came in with (2 means the finish mask arrived) and what its paint instance holds."""
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for name in ("tank", "cylinders", "silencers"):
+        mesh = meshes.get(name)
+        if not mesh:
+            continue
+        try:
+            log("bike check: %s has %d UV channels, %d vertices" % (name, sme.get_num_uv_channels(mesh, 0),
+                                                                    sme.get_number_verts(mesh, 0)))
+        except Exception as e:
+            unreal.log_warning("[Torque] bike check: couldn't read %s: %s" % (name, e))
+    for fin in ("paint_silver", "steel_brushed"):
+        mi = unreal.load_asset(mats.get(fin, "")) if mats.get(fin) else None
+        if not mi:
+            continue
+        try:
+            c = mel.get_material_instance_vector_parameter_value(mi, "Color")
+            c2 = mel.get_material_instance_vector_parameter_value(mi, "Color2")
+            d = mel.get_material_instance_texture_parameter_value(mi, "DetailMap")
+            log("bike check: %s parent %s, Color (%.2f %.2f %.2f), Color2 (%.2f %.2f %.2f), Metallic %.2f, DetailMap %s"
+                % (fin, mi.get_editor_property("parent").get_name(), c.r, c.g, c.b, c2.r, c2.g, c2.b,
+                   mel.get_material_instance_scalar_parameter_value(mi, "Metallic"), d.get_name() if d else "none"))
+        except Exception as e:
+            unreal.log_warning("[Torque] bike check: couldn't read %s: %s" % (fin, e))
+
+
 def import_bike(frame):
     """The Speed Twin's parts (Tools/make_speedtwin.py) and a list of where they landed, for the pawn."""
     folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Bike", "SpeedTwin")
@@ -786,8 +816,19 @@ def import_bike(frame):
         return
     info = json.load(open(os.path.join(folder, "speedtwin.json")))
     meshes = import_glbs(folder, BIKE_DEST)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     for mesh in meshes.values():
         nanite_off(mesh)
+        try:
+            # Keep the file's normals and both UV channels: a generated lightmap UV would land on
+            # channel 1, where the finish mask is (Lumen needs no lightmaps).
+            s = sme.get_lod_build_settings(mesh, 0)
+            s.set_editor_property("recompute_normals", False)
+            s.set_editor_property("recompute_tangents", True)
+            s.set_editor_property("generate_lightmap_u_vs", False)
+            sme.set_lod_build_settings(mesh, 0, s)
+        except Exception as e:
+            unreal.log_warning("[Torque] build settings not changed for %s: %s" % (mesh.get_name(), e))
         body = mesh.get_editor_property("body_setup")
         if body:
             body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
@@ -795,6 +836,7 @@ def import_bike(frame):
     finishes = dict(info["finishes"])
     finishes.update(RIDER_FINISHES)
     mats = bike_materials(finishes)
+    check_bike(meshes, mats)
     assets = {"frame": {"yaw": frame[0], "mirror": frame[1], "scale": frame[2]}, "parts": {},
               "rider": {k[len("rider_"):]: mats[k] for k in RIDER_FINISHES}}
     rig = import_rider()
