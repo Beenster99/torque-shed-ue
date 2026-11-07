@@ -142,6 +142,9 @@ void RideSound::GearChange(bool Up)
 	Playing = &Clunks[I];
 	ClunkPos = 0.0;
 	ClunkGain = Up ? 0.35 : 0.45;
+	// Knocking it down a gear with the throttle shut: the revs come up against a shut throttle and
+	// unburnt mixture reaches a hot pipe, the moment a stock Speed Twin pops.
+	if (!Up && Target.Throttle < 0.15) DownshiftPop = 1.2;
 }
 
 void RideSound::Retune()
@@ -151,7 +154,8 @@ void RideSound::Retune()
 	for (int I = 0; I < 4; ++I) Pipe[I].BandPass(F[I], Q[I]);
 	Tone.LowPass(140.0, 0.7);
 	Intake.BandPass(520.0 + Now.Rpm * 0.05, 1.1);
-	Crackle.BandPass(1900.0, 0.9);
+	Crackle.BandPass(1700.0, 1.2);
+	PopBody.LowPass(320.0, 0.8);
 	WindLp.LowPass(180.0 + Now.Speed * 22.0, 0.6);
 	WindBp.BandPass(500.0 + Now.Speed * 15.0, 0.7);
 	Squeal.BandPass(1150.0, 6.0);
@@ -165,7 +169,10 @@ void RideSound::Render(float* Out, int N)
 	const double Ks = 1.0 - std::exp(-1.0 / (Rate * 0.05));
 	const double PulseFall = std::exp(-1.0 / (Rate * 0.0022));
 	const double NoiseFall = std::exp(-1.0 / (Rate * 0.006));
-	const double PopFall = std::exp(-1.0 / (Rate * 0.012));
+	const double PopFall = std::exp(-1.0 / (Rate * 0.075));
+	const double PopNoiseFall = std::exp(-1.0 / (Rate * 0.03));
+	const double CrackFall = std::exp(-1.0 / (Rate * 0.005));
+	const double PopDrop = std::exp(-1.0 / (Rate * 0.04));
 	const double BirdFade = 1.0 - std::exp(-1.0 / (Rate * 2.0));
 	for (int S = 0; S < N; ++S)
 	{
@@ -183,8 +190,13 @@ void RideSound::Render(float* Out, int N)
 		const double Rpm = std::max(Now.Rpm, 300.0);
 		const double Load = Clamp01(Now.Throttle);
 		if (Cut > 0.0) Cut -= 1.0 / Rate;
-		if (Load < 0.05 && Rpm > 2600.0) Overrun += 1.0 / Rate;
+		if (Load < 0.05 && Rpm > 3000.0) Overrun += 1.0 / Rate;
 		else Overrun = 0.0;
+		if (DownshiftPop > 0.0) DownshiftPop -= 1.0 / Rate;
+		SincePop += 1.0 / Rate;
+		// The pipe warms with load and revs over about 20 s and cools over a minute and a half.
+		const double HeatTo = Clamp01(0.15 + 1.2 * Load * Smooth(1500.0, 5500.0, Rpm) + 0.4 * Smooth(2500.0, 6500.0, Rpm));
+		Heat += (HeatTo - Heat) / (Rate * (HeatTo > Heat ? 20.0 : 90.0));
 
 		// The crank turns; a 270-degree twin fires at 0 and 270 of every 720.
 		const double Before = Crank;
@@ -197,8 +209,25 @@ void RideSound::Render(float* Out, int N)
 			if (Overrun > 0.0)
 			{
 				Amp = 0.22 * (1.0 + 0.15 * Noise());
-				const double Chance = 0.08 * Smooth(2600.0, 5500.0, Rpm) * (Overrun < 2.0 ? 1.0 : 0.25);
-				if (Uniform() < Chance) { PopEnv = 0.6 + 0.4 * Uniform(); ++Pops; }
+				// Pops a second, then shared out over the firings: mostly just after a downshift, a
+				// few as the throttle first shuts, now and then on a long run down a hill at high revs.
+				const double High = Smooth(3500.0, 6500.0, Rpm);
+				double PerSec = 0.2 * High;
+				if (Overrun < 1.2) PerSec += 0.6 * High;
+				if (DownshiftPop > 0.0) PerSec += 1.8 * Smooth(3000.0, 5500.0, Rpm);
+				PerSec *= Smooth(0.4, 0.85, Heat);
+				const double Chance = PerSec / std::max(Rpm / 60.0, 1.0);
+				if (SincePop > 0.25 && Uniform() < Chance)
+				{
+					const double Size = 0.7 + 0.3 * Uniform();
+					PopEnv = Size;
+					PopNoiseEnv = Size;
+					CrackEnv = Size * (0.2 + 0.25 * Uniform());
+					PopFreq = 95.0 + 35.0 * Uniform();
+					PopPhase = 0.0;
+					SincePop = 0.0;
+					++Pops;
+				}
 			}
 			Pulse = Amp;
 			PulseNoise = Amp;
@@ -213,8 +242,19 @@ void RideSound::Render(float* Out, int N)
 		double Ex = Pipe[0].Run(X) * 1.0 + Pipe[1].Run(X) * 0.75 + Pipe[2].Run(X) * 0.45 + Pipe[3].Run(X) * (0.1 + 0.3 * Load);
 		Ex = Ex * 2.4 + Tone.Run(X) * 1.6;
 		const double In = Intake.Run(Noise()) * PulseNoise * (0.2 + 0.8 * Load);
-		const double Pop = (Crackle.Run(Noise()) * 1.6 + Noise() * 0.2) * PopEnv;
-		PopEnv *= PopFall;
+		double Pop = 0.0;
+		if (PopEnv > 1e-4)
+		{
+			// The thump drops from about 110 Hz toward 50 as the bang leaves the silencers.
+			PopFreq = 50.0 + (PopFreq - 50.0) * PopDrop;
+			PopPhase += 2.0 * Pi * PopFreq / Rate;
+			if (PopPhase > 2.0 * Pi) PopPhase -= 2.0 * Pi;
+			Pop = std::sin(PopPhase) * PopEnv * 1.3 + PopBody.Run(Noise()) * PopNoiseEnv * 2.2
+				+ Crackle.Run(Noise()) * CrackEnv * 1.2;
+			PopEnv *= PopFall;
+			PopNoiseEnv *= PopNoiseFall;
+			CrackEnv *= CrackFall;
+		}
 
 		// At tickover the recording has it, handing over to the made sound as the revs rise.
 		double IdleOut = 0.0, Share = 0.0;
