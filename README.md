@@ -21,7 +21,7 @@ and footage.
 
 ## Setting it up on your PC
 
-1. **Install Unreal Engine** 5.7 or newer from the Epic Games Launcher (free).
+1. **Install Unreal Engine** 5.8 (the project is set to 5.8; newer should work too) from the Epic Games Launcher (free).
 2. **Install Visual Studio 2022 Community** (free) with the *Game development with C++* workload. In
    that workload's options, tick the Unreal Engine installer and a Windows 11 SDK.
 3. **Get the project**: clone this repository, for example with GitHub Desktop, to a short path such
