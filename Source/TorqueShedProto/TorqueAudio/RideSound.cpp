@@ -135,6 +135,9 @@ void RideSound::SetAmbience(std::vector<float> Samples, int SampleRate)
 void RideSound::GearChange(bool Up)
 {
 	Cut = 0.09;
+	// Knocking it down a gear with the throttle shut: the revs come up against a shut throttle and
+	// unburnt mixture reaches a hot pipe, the moment a stock Speed Twin pops.
+	if (!Up && Target.Throttle < 0.15) DownshiftPop = 1.2;
 	if (Clunks.empty()) return;
 	int I = (int)(Uniform() * Clunks.size()) % (int)Clunks.size();
 	if (I == LastClunk) I = (I + 1) % (int)Clunks.size();
@@ -142,9 +145,6 @@ void RideSound::GearChange(bool Up)
 	Playing = &Clunks[I];
 	ClunkPos = 0.0;
 	ClunkGain = Up ? 0.35 : 0.45;
-	// Knocking it down a gear with the throttle shut: the revs come up against a shut throttle and
-	// unburnt mixture reaches a hot pipe, the moment a stock Speed Twin pops.
-	if (!Up && Target.Throttle < 0.15) DownshiftPop = 1.2;
 }
 
 void RideSound::Retune()
@@ -217,13 +217,13 @@ void RideSound::Render(float* Out, int N)
 				if (DownshiftPop > 0.0) PerSec += 1.8 * Smooth(3000.0, 5500.0, Rpm);
 				PerSec *= Smooth(0.4, 0.85, Heat);
 				const double Chance = PerSec / std::max(Rpm / 60.0, 1.0);
-				if (SincePop > 0.25 && Uniform() < Chance)
+				if (SincePop > 0.25 && PopDice() < Chance)
 				{
-					const double Size = 0.7 + 0.3 * Uniform();
+					const double Size = 0.7 + 0.3 * PopDice();
 					PopEnv = Size;
 					PopNoiseEnv = Size;
-					CrackEnv = Size * (0.2 + 0.25 * Uniform());
-					PopFreq = 95.0 + 35.0 * Uniform();
+					CrackEnv = Size * (0.2 + 0.25 * PopDice());
+					PopFreq = 95.0 + 35.0 * PopDice();
 					PopPhase = 0.0;
 					SincePop = 0.0;
 					++Pops;

@@ -71,6 +71,9 @@ private:
 	std::mt19937 Rng{12345};
 	double Noise() { return std::uniform_real_distribution<double>(-1.0, 1.0)(Rng); }
 	double Uniform() { return std::uniform_real_distribution<double>(0.0, 1.0)(Rng); }
+	// The pops draw from their own generator, so they don't shift with which recordings loaded.
+	std::mt19937 PopRng{2701};
+	double PopDice() { return std::uniform_real_distribution<double>(0.0, 1.0)(PopRng); }
 
 	// Engine.
 	double Crank = 0.0;               // degrees, 0..720
