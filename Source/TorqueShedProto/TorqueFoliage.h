@@ -5,8 +5,9 @@
 //
 // Performance knobs: Density (or -TorqueFoliage=0.5 on the command line, or the console variable
 // torque.FoliageDensity before the level loads) keeps that share of the plants; each species has its
-// own cull distance; wind stops beyond WpoDisableDistance; the plants cast shadows that don't
-// re-render as they sway, and stay out of Lumen's and the ray tracer's scene.
+// own cull distance, all scaled by -TorqueFoliageCull=0.7 (or torque.FoliageCull); wind stops beyond
+// WpoDisableDistance; only the taller plants cast shadows, which don't re-render as they sway; and
+// the plants stay out of Lumen's and the ray tracer's scene.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -71,7 +72,7 @@ public:
 
 	// Beyond this (cm) the wind stops moving the plants: saves the vertex work on distant ones.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Foliage")
-	int32 WpoDisableDistance = 5000;
+	int32 WpoDisableDistance = 2500;
 
 	// Make the plants now (in the editor, to look at them; Play does it by itself).
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Foliage")

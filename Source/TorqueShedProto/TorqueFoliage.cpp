@@ -14,6 +14,10 @@ static TAutoConsoleVariable<float> CVarFoliageDensity(
 	TEXT("torque.FoliageDensity"), 1.0f,
 	TEXT("Share of the moorland plants kept when the level starts (0..1); times the actor's Density."));
 
+static TAutoConsoleVariable<float> CVarFoliageCull(
+	TEXT("torque.FoliageCull"), 1.0f,
+	TEXT("Multiplies every species' cull distance when the level starts (0.7 draws the plants 30% less far)."));
+
 namespace
 {
 template <typename T>
@@ -64,6 +68,9 @@ void ATorqueFoliage::Rebuild()
 	float Cmd = 1.0f;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliage="), Cmd)) Keep *= Cmd;
 	Keep = FMath::Clamp(Keep, 0.0f, 1.0f);
+	float CullScale = CVarFoliageCull.GetValueOnGameThread();
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueFoliageCull="), Cmd)) CullScale *= Cmd;
+	CullScale = FMath::Clamp(CullScale, 0.05f, 4.0f);
 	if (Keep <= 0.0f) return;
 
 	TArray<uint8> File;
@@ -164,8 +171,9 @@ void ATorqueFoliage::Rebuild()
 			Ism->bAffectDynamicIndirectLighting = false;
 			Ism->bVisibleInRayTracing = false;
 			Ism->WorldPositionOffsetDisableDistance = WpoDisableDistance;
-			Ism->SetCullDistances(int32(S.CullDistance * 0.85f), int32(S.CullDistance));
-			Ism->LDMaxDrawDistance = S.CullDistance * 1.05f;
+			const float Cull = S.CullDistance * CullScale;
+			Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
+			Ism->LDMaxDrawDistance = Cull * 1.05f;
 			Ism->RegisterComponent();
 			Ism->AddInstances(Xf[V], false, true);
 			AddInstanceComponent(Ism);
@@ -177,6 +185,6 @@ void ATorqueFoliage::Rebuild()
 	FString Summary;
 	for (int32 I = 0; I < Species.Num(); ++I)
 		if (PerSpecies[I]) Summary += FString::Printf(TEXT(" %s %d"), *Species[I].Name.ToString(), PerSpecies[I]);
-	UE_LOG(LogTemp, Log, TEXT("[Torque] foliage: %d plants in %d parts, %.0f ms (density %.2f):%s"),
-		NumPlants, Parts.Num(), (FPlatformTime::Seconds() - Start) * 1000.0, Keep, *Summary);
+	UE_LOG(LogTemp, Log, TEXT("[Torque] foliage: %d plants in %d parts, %.0f ms (density %.2f, cull x%.2f):%s"),
+		NumPlants, Parts.Num(), (FPlatformTime::Seconds() - Start) * 1000.0, Keep, CullScale, *Summary);
 }
