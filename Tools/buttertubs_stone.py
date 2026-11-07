@@ -760,7 +760,7 @@ def house_front(rng, kind, w, h, layout=None):
     two = h >= 4.4
     if layout is None:
         layout = "single" if w < 4.6 else ("cottage" if w < 7.0 or rng.uniform() < 0.3 else "double")
-    mull = kind != "pub" and rng.uniform() < 0.22          # older houses: two-light mullioned windows
+    mull = kind not in ("pub", "lodge") and rng.uniform() < 0.22          # older houses: two-light mullioned windows
     ww = rng.uniform(1.4, 1.8) if mull else rng.uniform(0.85, 1.12)
     sill = rng.uniform(0.75, 1.0)
     head = sill + (rng.uniform(1.0, 1.15) if mull else rng.uniform(1.25, 1.45))
@@ -776,7 +776,7 @@ def house_front(rng, kind, w, h, layout=None):
         bays.append(("win", wx))
     else:
         if layout == "double":
-            nb = 5 if w > 11.5 else 3
+            nb = 7 if w > 17 else 5 if w > 11.5 else 3
         else:
             nb = 3 if w > 6.4 else 2
         edge = rng.uniform(0.9, 1.3)
@@ -798,6 +798,9 @@ def house_front(rng, kind, w, h, layout=None):
             out.append((x - ww / 2, x + ww / 2, sill, head, wk))
             if up_head:
                 out.append((x - ww / 2, x + ww / 2, up_head - up_h, up_head, wk))
+            if h >= 7.0:     # three storeys: a middle row
+                mid_top = (head + up_head - up_h) / 2 + up_h / 2 + 0.1
+                out.append((x - ww / 2, x + ww / 2, mid_top - up_h - 0.1, mid_top, wk))
     return out, layout
 
 
@@ -806,7 +809,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
     dressed quoins, lintels, sills and jambs, a stone (or blue) slate roof, gable copes and kneelers,
     chimney stacks on the gables, sash or mullioned windows and painted doors; a cart door under an
     arch on barns.
-    kind: 'house', 'pub', 'farm' (a house with its barn under one roof), 'barn', 'shed', 'church',
+    kind: 'house', 'pub', 'lodge' (three storeys), 'farm' (a house with its barn under one roof), 'barn', 'shed', 'church',
     'chapel' (gable to the street, at +x) or 'school'. w along x (the ridge), d across, the front
     is +z; eaves h above ground at the centre, walls carried plinth below it.
     opt (all optional):
@@ -826,7 +829,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
             m.P = [p[:, [2, 1, 0]] * [1, 1, -1] for p in m.P]
         return out
     Wl, Rd, St, Wd, Gl = Mesh(), Mesh(), Mesh(), Mesh(), Mesh()
-    house = kind in ("house", "farm", "pub")
+    house = kind in ("house", "farm", "pub", "lodge")
     party = opt.get("party") or (None, None)
     render = opt.get("render")
     roof = opt.get("roof", "stone")
@@ -872,7 +875,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
         return c
 
     # Openings on the front (+z), the back, and the gable ends.
-    house_len = w if kind in ("house", "pub") else (min(9.0, w * 0.45) if kind == "farm" else 0.0)
+    house_len = w if kind in ("house", "pub", "lodge") else (min(9.0, w * 0.45) if kind == "farm" else 0.0)
     front, back, left, right = [], [], [], []
     layout = None
     if house_len > 0:

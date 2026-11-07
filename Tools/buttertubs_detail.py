@@ -219,7 +219,7 @@ def roadside_walls(region_root, O, line, lines, village, road_half, near, ground
 
     d = np.gradient(xz, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-9)
     nrm = np.stack([-d[:, 1], d[:, 0]], 1)
-    low = ground_abs(xz[:, 0], xz[:, 1]) < 330.0
+    low = ground_abs(xz[:, 0], xz[:, 1]) < 385.0   # the enclosed dale (to Angram and Keld), not the open moor
     out, spots = [], []
     for side in (-1, 1):
         P = xz + nrm * side * (road_half + 2.4)
@@ -434,15 +434,17 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
     D = np.hypot(XY[:, None, 0] - XY[None, :, 0], XY[:, None, 1] - XY[None, :, 1])
 
     # Points of interest: the pub, the church.
-    pubs, churches = [], []
-    if True:
-        for f, kinds, out in (("pois.json", ("pub",), pubs), ("landmarks.json", ("worship",), churches)):
-            try:
-                for p in json.load(open(os.path.join(region_root, f))):
-                    if p.get("kind") in kinds:
-                        out.append((p["x"] - O[0], p["z"] - O[2]))
-            except (OSError, ValueError):
-                pass
+    pubs, churches, lodges = [], [], []
+    for f, test, out in (("pois.json", lambda p: p.get("kind") == "pub", pubs),
+                         ("landmarks.json", lambda p: p.get("kind") == "worship", churches),
+                         ("pois.json", lambda p: p.get("kind") in ("inn", "hostel") and
+                          any(w in p.get("name", "") for w in ("Lodge", "Hostel", "Hotel")), lodges)):
+        try:
+            for p in json.load(open(os.path.join(region_root, f))):
+                if test(p):
+                    out.append((p["x"] - O[0], p["z"] - O[2]))
+        except (OSError, ValueError):
+            pass
 
     def nearest(pts, x, z):
         return min((math.hypot(px - x, pz - z) for px, pz in pts), default=1e9)
@@ -454,7 +456,9 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
         alone = (np.delete(D[i], i) > 35).all()
         mk = b["mk"]
         if mk == "worship" or nearest(churches, b["x"], b["z"]) < 12 and area > 60:
-            k = "church" if area > 90 else "chapel"
+            k = "church" if area > 160 or b["w"] > 2.2 * b["d"] else "chapel"
+        elif nearest(lodges, b["x"], b["z"]) < 22 and area > 80:
+            k = "lodge"              # a big three-storey house: an inn or the old youth hostel
         elif mk == "civic":
             k = "chapel" if area < 70 else "school"
         elif nearest(pubs, b["x"], b["z"]) < 14 and area > 40:
@@ -499,6 +503,8 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
             b["h"] = 3.9 if b["w"] * b["d"] < 24 else 5.0 + rng.uniform(-0.25, 0.5)
         elif k == "pub":
             b["h"] = 5.9 + rng.uniform(0, 0.3)
+        elif k == "lodge":
+            b["h"] = 7.8 + rng.uniform(0, 0.4)
         elif k == "farm":
             b["h"] = 5.1 + rng.uniform(-0.2, 0.4)
         elif k == "barn":
@@ -515,7 +521,7 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
 
     # Terraces: houses whose footprints meet end to end, parallel. Their fronts face the street
     # together, and they share party walls.
-    homes = [i for i, b in enumerate(rows) if b["kind"] in ("house", "pub", "farm")]
+    homes = [i for i, b in enumerate(rows) if b["kind"] in ("house", "pub", "farm", "lodge")]
     parent = list(range(len(rows)))
 
     def find(i):
@@ -594,14 +600,14 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
             vil = b["village"]
             opt = {"party": party,
                    "roof": "welsh" if rng.uniform() < (0.35 if kind in ("house", "pub", "chapel", "school") else 0.1) else "stone",
-                   "porch": kind == "pub" or (kind in ("house", "farm") and rng.uniform() < 0.35),
+                   "porch": kind in ("pub", "lodge") or (kind in ("house", "farm") and rng.uniform() < 0.35),
                    "sign": kind == "pub"}
-            if kind in ("house", "pub", "chapel") and rng.uniform() < (0.24 if vil else 0.1):
+            if kind in ("house", "pub", "chapel", "lodge") and rng.uniform() < (0.24 if vil else 0.1):
                 opt["render"] = ST.RENDERS[int(rng.integers(len(ST.RENDERS)))]
-            if kind == "pub":
+            if kind in ("pub", "lodge"):
                 opt["layout"] = "double"
             # A front garden behind a low wall, where there's room between the house and the road.
-            if kind in ("house", "pub"):
+            if kind in ("house", "pub", "lodge"):
                 fdir = np.array([-s, c])
                 fx, fz = x + fdir[0] * dpt / 2, z + fdir[1] * dpt / 2
                 tr, dd = to_road(fx, fz)
@@ -626,7 +632,7 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
         for nm in shapes[key]:
             props.add(nm, x, g, z, rot)
         n += 1
-        n_house += kind in ("house", "pub")
+        n_house += kind in ("house", "pub", "lodge")
     # The villages: where the houses stand close.
     vil = [b for b in rows if b["village"]]
     villages = []
