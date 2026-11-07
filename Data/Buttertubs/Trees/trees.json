@@ -1,0 +1,442 @@
+{
+ "about": "Trees made by Tools/make_trees.py; see its docstring. instances.bin's species index is into 'species'.",
+ "species": [
+  {
+   "name": "SM_TreeFar_alder_0",
+   "mesh": "SM_TreeFar_alder_0",
+   "count": 4061,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_alder_1",
+   "mesh": "SM_TreeFar_alder_1",
+   "count": 3857,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_0",
+   "mesh": "SM_TreeFar_ash_0",
+   "count": 11473,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_1",
+   "mesh": "SM_TreeFar_ash_1",
+   "count": 11367,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_ash_2",
+   "mesh": "SM_TreeFar_ash_2",
+   "count": 11429,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_birch_0",
+   "mesh": "SM_TreeFar_birch_0",
+   "count": 5281,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_birch_1",
+   "mesh": "SM_TreeFar_birch_1",
+   "count": 5356,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_hawthorn_0",
+   "mesh": "SM_TreeFar_hawthorn_0",
+   "count": 3500,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_hawthorn_1",
+   "mesh": "SM_TreeFar_hawthorn_1",
+   "count": 3465,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_hawthorn_2",
+   "mesh": "SM_TreeFar_hawthorn_2",
+   "count": 3376,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_spruce_0",
+   "mesh": "SM_TreeFar_spruce_0",
+   "count": 9010,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_spruce_1",
+   "mesh": "SM_TreeFar_spruce_1",
+   "count": 9006,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_0",
+   "mesh": "SM_TreeFar_sycamore_0",
+   "count": 9489,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_1",
+   "mesh": "SM_TreeFar_sycamore_1",
+   "count": 9403,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_TreeFar_sycamore_2",
+   "mesh": "SM_TreeFar_sycamore_2",
+   "count": 9613,
+   "far": true,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_alder_0",
+   "mesh": "SM_Tree_alder_0",
+   "count": 420,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_alder_1",
+   "mesh": "SM_Tree_alder_1",
+   "count": 413,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_0",
+   "mesh": "SM_Tree_ash_0",
+   "count": 488,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_1",
+   "mesh": "SM_Tree_ash_1",
+   "count": 506,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_ash_2",
+   "mesh": "SM_Tree_ash_2",
+   "count": 507,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_birch_0",
+   "mesh": "SM_Tree_birch_0",
+   "count": 293,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_birch_1",
+   "mesh": "SM_Tree_birch_1",
+   "count": 253,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_hawthorn_0",
+   "mesh": "SM_Tree_hawthorn_0",
+   "count": 180,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_hawthorn_1",
+   "mesh": "SM_Tree_hawthorn_1",
+   "count": 161,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_hawthorn_2",
+   "mesh": "SM_Tree_hawthorn_2",
+   "count": 185,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_spruce_0",
+   "mesh": "SM_Tree_spruce_0",
+   "count": 66,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_spruce_1",
+   "mesh": "SM_Tree_spruce_1",
+   "count": 71,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_0",
+   "mesh": "SM_Tree_sycamore_0",
+   "count": 289,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_1",
+   "mesh": "SM_Tree_sycamore_1",
+   "count": 317,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  },
+  {
+   "name": "SM_Tree_sycamore_2",
+   "mesh": "SM_Tree_sycamore_2",
+   "count": 315,
+   "far": false,
+   "cull_m": 30000,
+   "shadow": true
+  }
+ ],
+ "models": {
+  "SM_Tree_ash_0": {
+   "species": "ash",
+   "height": 14.98,
+   "triangles": 89528,
+   "radius": 6.24
+  },
+  "SM_TreeFar_ash_0": {
+   "species": "ash",
+   "height": 14.93,
+   "triangles": 4128,
+   "radius": 5.9
+  },
+  "SM_Tree_ash_1": {
+   "species": "ash",
+   "height": 14.96,
+   "triangles": 91772,
+   "radius": 6.29
+  },
+  "SM_TreeFar_ash_1": {
+   "species": "ash",
+   "height": 14.93,
+   "triangles": 4832,
+   "radius": 5.93
+  },
+  "SM_Tree_ash_2": {
+   "species": "ash",
+   "height": 14.55,
+   "triangles": 93096,
+   "radius": 6.3
+  },
+  "SM_TreeFar_ash_2": {
+   "species": "ash",
+   "height": 14.85,
+   "triangles": 4250,
+   "radius": 5.86
+  },
+  "SM_Tree_sycamore_0": {
+   "species": "sycamore",
+   "height": 14.67,
+   "triangles": 110618,
+   "radius": 6.13
+  },
+  "SM_TreeFar_sycamore_0": {
+   "species": "sycamore",
+   "height": 14.93,
+   "triangles": 4878,
+   "radius": 5.81
+  },
+  "SM_Tree_sycamore_1": {
+   "species": "sycamore",
+   "height": 13.73,
+   "triangles": 102582,
+   "radius": 6.24
+  },
+  "SM_TreeFar_sycamore_1": {
+   "species": "sycamore",
+   "height": 13.81,
+   "triangles": 5554,
+   "radius": 5.65
+  },
+  "SM_Tree_sycamore_2": {
+   "species": "sycamore",
+   "height": 14.22,
+   "triangles": 98290,
+   "radius": 6.19
+  },
+  "SM_TreeFar_sycamore_2": {
+   "species": "sycamore",
+   "height": 14.66,
+   "triangles": 4892,
+   "radius": 5.73
+  },
+  "SM_Tree_alder_0": {
+   "species": "alder",
+   "height": 9.42,
+   "triangles": 42328,
+   "radius": 3.19
+  },
+  "SM_TreeFar_alder_0": {
+   "species": "alder",
+   "height": 9.75,
+   "triangles": 1748,
+   "radius": 3.54
+  },
+  "SM_Tree_alder_1": {
+   "species": "alder",
+   "height": 9.49,
+   "triangles": 38094,
+   "radius": 3.25
+  },
+  "SM_TreeFar_alder_1": {
+   "species": "alder",
+   "height": 9.53,
+   "triangles": 1760,
+   "radius": 3.52
+  },
+  "SM_Tree_birch_0": {
+   "species": "birch",
+   "height": 10.54,
+   "triangles": 29762,
+   "radius": 2.89
+  },
+  "SM_TreeFar_birch_0": {
+   "species": "birch",
+   "height": 10.86,
+   "triangles": 1640,
+   "radius": 3.23
+  },
+  "SM_Tree_birch_1": {
+   "species": "birch",
+   "height": 10.16,
+   "triangles": 28188,
+   "radius": 3.01
+  },
+  "SM_TreeFar_birch_1": {
+   "species": "birch",
+   "height": 10.4,
+   "triangles": 1574,
+   "radius": 3.38
+  },
+  "SM_Tree_hawthorn_0": {
+   "species": "hawthorn",
+   "height": 4.77,
+   "triangles": 45226,
+   "radius": 2.41
+  },
+  "SM_TreeFar_hawthorn_0": {
+   "species": "hawthorn",
+   "height": 4.97,
+   "triangles": 1004,
+   "radius": 2.78
+  },
+  "SM_Tree_hawthorn_1": {
+   "species": "hawthorn",
+   "height": 4.66,
+   "triangles": 46340,
+   "radius": 2.54
+  },
+  "SM_TreeFar_hawthorn_1": {
+   "species": "hawthorn",
+   "height": 4.99,
+   "triangles": 990,
+   "radius": 2.76
+  },
+  "SM_Tree_hawthorn_2": {
+   "species": "hawthorn",
+   "height": 4.67,
+   "triangles": 43918,
+   "radius": 2.57
+  },
+  "SM_TreeFar_hawthorn_2": {
+   "species": "hawthorn",
+   "height": 5.31,
+   "triangles": 976,
+   "radius": 2.9
+  },
+  "SM_Tree_spruce_0": {
+   "species": "spruce",
+   "height": 18.04,
+   "triangles": 85034,
+   "radius": 2.86
+  },
+  "SM_TreeFar_spruce_0": {
+   "species": "spruce",
+   "height": 18.0,
+   "triangles": 494,
+   "radius": 3.04
+  },
+  "SM_Tree_spruce_1": {
+   "species": "spruce",
+   "height": 18.07,
+   "triangles": 84926,
+   "radius": 2.85
+  },
+  "SM_TreeFar_spruce_1": {
+   "species": "spruce",
+   "height": 18.0,
+   "triangles": 494,
+   "radius": 2.88
+  }
+ },
+ "counts": {
+  "sycamore": 29426,
+  "ash": 35770,
+  "birch": 11183,
+  "spruce": 18153,
+  "alder": 8751,
+  "hawthorn": 10867,
+  "total": 114150,
+  "far": 109686,
+  "near": 4464
+ },
+ "far_split_m": 1500.0,
+ "credits": [
+  "Trees: canopy heights from Meta and World Resources Institute, High Resolution Canopy Height Maps (2024), CC BY 4.0, https://registry.opendata.aws/dataforgood-fb-forests/"
+ ]
+}

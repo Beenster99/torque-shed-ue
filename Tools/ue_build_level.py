@@ -15,6 +15,8 @@ What it does:
      boulders, barns, gates, sheep, from Tools/buttertubs_detail.py) as Nanite meshes with no collision;
   3b. imports the moorland plants (Tools/make_foliage.py) as Nanite meshes and adds the TorqueFoliage
      actor that plants them when the level starts;
+  3c. the same for the trees (Tools/make_trees.py): ash, sycamore, alder, birch, hawthorn and spruce
+     from a canopy height map, planted by a second TorqueFoliage actor, "Trees";
   4. makes the level: the meshes, the props as instances from props.json, a sun, sky atmosphere, sky light, height fog, clouds, an unbound
      post process volume, and a player start at the top of the ride.
 """
@@ -1341,6 +1343,151 @@ def place_foliage(frame):
     log("foliage: %d species (%d scanned), %d plants (placed at Play)" % (len(species), len(scans), spec.get("total", 0)))
 
 
+# --- Trees (Tools/make_trees.py) --------------------------------------------------------------------
+
+TREE_DEST = "/Game/Buttertubs/Trees"
+
+
+def tree_wind(g, w, leaf):
+    """World position offset for a tree: `w` (UV y) is how free the spot is to move, 0 at the trunk
+    and 1 at the outer twigs; `leaf` (UV x) is 1 on leaves. Slow sway of the limbs downwind (to the
+    north east) in gusts, and a quick flutter of the leaves."""
+    wp = g.node(unreal.MaterialExpressionWorldPosition)
+    along = g.op(unreal.MaterialExpressionDotProduct, wp, g.const((0.0011, 0.0009, 0.0)))   # gusts roll across
+    t = g.node(unreal.MaterialExpressionTime)
+    ph = g.op(unreal.MaterialExpressionSubtract, g.op(unreal.MaterialExpressionMultiply, t, const_b=0.45), along)
+    s1 = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(ph, s1)
+    gph = g.op(unreal.MaterialExpressionSubtract, g.op(unreal.MaterialExpressionMultiply, t, const_b=0.09),
+               g.op(unreal.MaterialExpressionMultiply, along, const_b=0.3))
+    gs = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(gph, gs)
+    gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, gs, const_b=0.35), const_b=0.65)
+    sway = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, s1, const_b=0.5), const_b=0.6)
+    amp = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, w, w), const_b=22.0)   # cm at the tips
+    mag = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, amp, sway), gust)
+    limb = g.op(unreal.MaterialExpressionMultiply, g.const((0.78, -0.62, -0.05)), mag)
+    # Flutter: fast, small, out of step from leaf to leaf (by world position), leaves only.
+    fph = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, t, const_b=3.1),
+               g.op(unreal.MaterialExpressionDotProduct, wp, g.const((0.031, 0.027, 0.043))))
+    fs = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(fph, fs)
+    fl = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, fs, leaf),
+              g.op(unreal.MaterialExpressionMultiply, gust, const_b=1.6))
+    nrm = g.node(unreal.MaterialExpressionVertexNormalWS)
+    flutter = g.op(unreal.MaterialExpressionMultiply, nrm, fl)
+    return g.op(unreal.MaterialExpressionAdd, limb, flutter)
+
+
+def tree_material():
+    """The trees: vertex colour (each tree's leaves a little different, whole stands drifting in tone),
+    two-sided foliage shading so the sun glows through the leaves and not the bark, ambient occlusion
+    from the vertex alpha (dark inside the crown), and wind (tree_wind). Opaque: no alpha cut-outs."""
+    g = Graph(new_material("M_Tree"))
+    m = g.m
+    foliage_flags(m)
+    try_set(m, "max_world_position_offset_displacement", 40.0)
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    leaf = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
+    g.link(uv, leaf)
+    w = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
+    g.link(uv, w)
+    pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
+    # Per tree: a little lighter or darker, yellower or bluer (leaves only; bark a touch).
+    tint = g.lerp(g.const((0.84, 0.9, 0.86)), g.const((1.14, 1.08, 0.86)), pir)
+    tint = g.lerp(g.const((0.95, 0.95, 0.95)), tint, g.op(unreal.MaterialExpressionAdd,
+                  g.op(unreal.MaterialExpressionMultiply, leaf, const_b=0.8), const_b=0.2))
+    base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
+    nt = noise_texture()
+    if nt is not None:
+        # Stands a few hundred metres across drift a little in tone, as real woods do.
+        n = g.sample(nt, g.world_uv(700.0), "linear")
+        k = g.lerp(g.const(0.86), g.const(1.12), n, alpha_out="G")
+        base = g.op(unreal.MaterialExpressionMultiply, base, k)
+    sss = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, base, g.const((0.7, 0.85, 0.3))), leaf)
+    rough = g.lerp(g.const(0.88), g.const(0.58), leaf)
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
+    mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.32), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(tree_wind(g, w, leaf), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
+def place_trees(frame):
+    """The trees (Tools/make_trees.py): import the models as Nanite meshes and add a second
+    TorqueFoliage actor, "Trees", that plants them from Data/Buttertubs/Trees/instances.bin at
+    BeginPlay. No cull distance: the far ones are their own cheap models, so nothing pops in.
+    TORQUE_TREES=off leaves them out. Data/Buttertubs/Trees/overrides.json can swap a species' near
+    models for scanned ones (Megascans), which keep their own materials:
+
+        {"ash": {"meshes": ["/Game/Fab/Megascans/3D/.../SM_European_Ash_01", ...]}}
+    """
+    folder = os.path.join(data_dir(), "Trees")
+    spec_path = os.path.join(folder, "trees.json")
+    if os.environ.get("TORQUE_TREES", "on").lower() == "off":
+        log("trees left out (TORQUE_TREES=off)")
+        return
+    if not os.path.exists(spec_path):
+        unreal.log_warning("[Torque] no trees (python Tools/make_trees.py)")
+        return
+    if not hasattr(unreal, "TorqueFoliage"):
+        unreal.log_warning("[Torque] the TorqueFoliage class isn't built yet: rebuild the editor, then run this again")
+        return
+    spec = json.load(open(spec_path))
+    over_path = os.path.join(folder, "overrides.json")
+    overrides = json.load(open(over_path)) if os.path.exists(over_path) else {}
+    meshes = import_glbs(folder, TREE_DEST)
+    mat = tree_material()
+    species = []
+    total = 0
+    for s in spec["species"]:
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", s["name"])
+        ours = meshes.get(s["mesh"])
+        if ours is None:
+            unreal.log_warning("[Torque] no tree mesh " + s["mesh"])
+        else:
+            foliage_nanite(ours)
+        kind = s["name"].split("_")[2] if s["name"].count("_") >= 3 else ""
+        o = overrides.get(kind) if not s.get("far") else None
+        scans = []
+        for p in (o or {}).get("meshes", []):
+            a = unreal.load_asset(p)
+            if isinstance(a, unreal.StaticMesh):
+                scans.append(a)
+            else:
+                unreal.log_warning("[Torque] trees: no static mesh at %s" % p)
+        if scans and ours is not None:
+            for a in scans:
+                foliage_nanite(a)
+            # Scale theirs to our model's height, so the map's heights still hold.
+            ob = ours.get_bounding_box(); oh = (ob.max.z - ob.min.z) * abs(frame[2])
+            th = sum(a.get_bounding_box().max.z - a.get_bounding_box().min.z for a in scans) / len(scans)
+            e.set_editor_property("variants", scans)
+            e.set_editor_property("native_mesh", True)
+            e.set_editor_property("scale_multiplier", float(o.get("scale", oh / max(th, 1.0))))
+            log("%s: %d scanned trees (%s)" % (s["name"], len(scans), scans[0].get_name()))
+        elif ours is not None:
+            e.set_editor_property("mesh", ours)
+            e.set_editor_property("material", mat)
+        e.set_editor_property("cull_distance", float(s.get("cull_m", 30000)) * 100.0)
+        e.set_editor_property("cast_shadow", bool(s.get("shadow", True)))
+        species.append(e)
+        total += int(s.get("count", 0))
+    a = spawn(unreal.TorqueFoliage)
+    a.set_actor_label("Trees")
+    a.set_folder_path("Detail")
+    a.set_editor_property("instances_file", "Data/Buttertubs/Trees/instances.bin")
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    try_set(a, "wpo_disable_distance", 8000)
+    log("trees: %d models, %d trees (planted at Play): %s" % (len(species), total, spec.get("counts", {})))
+
+
 # --- Stone props: walls, scars, boulders, barns, gates, sheep (Tools/buttertubs_detail.py) -----------
 
 PROP_DEST = "/Game/Buttertubs/Props"
@@ -1736,6 +1883,7 @@ def build():
     ppv.set_editor_property("settings", pp)
 
     place_foliage((yaw, mirror, scale))
+    place_trees((yaw, mirror, scale))
 
     sp = route["spawn"]["ue"]
     heading_deg = math.degrees(route["spawn"]["heading"])
