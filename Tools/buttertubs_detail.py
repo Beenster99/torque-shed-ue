@@ -579,11 +579,54 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
             P_["w"] += gap / 2
             P_["x"] += dirn * c * gap / 4; P_["z"] += dirn * s * gap / 4
 
+    # Nothing on the road: every footprint's outline (corners and every 1.5 m along its edges) must
+    # stand road_half + 1.5 m off the centre line, or the building is left out (and a terraced
+    # neighbour finishes its own end instead).
+    def clear(b):
+        c, s_ = math.cos(b["rot"]), math.sin(b["rot"])
+        pts = []
+        for (u0, v0), (u1, v1) in ((((-1, -1), (1, -1))), (((1, -1), (1, 1))), (((1, 1), (-1, 1))), (((-1, 1), (-1, -1)))):
+            L = math.hypot((u1 - u0) * b["w"], (v1 - v0) * b["d"]) / 2
+            for t in np.linspace(0, 1, max(2, int(L / 1.5) + 2)):
+                u = (u0 + (u1 - u0) * t) * b["w"] / 2; v = (v0 + (v1 - v0) * t) * b["d"] / 2
+                pts.append((b["x"] + u * c - v * s_, b["z"] + u * s_ + v * c))
+        pts = np.array(pts)
+        return bool((road_dist(pts[:, 0], pts[:, 1]) > road_half + 1.5).all())
+    dropped = set()
+    for g in groups.values():
+        if all(clear(rows[i]) for i in g):
+            continue
+        # Set the house (or the whole row) back from the road a little: the map's outlines are a
+        # metre or two out at times. What still won't clear is left out.
+        cx = np.mean([rows[i]["x"] for i in g]); cz = np.mean([rows[i]["z"] for i in g])
+        tr, _dd = to_road(cx, cz)
+        away = -tr / max(np.linalg.norm(tr), 1e-9)
+        start = [(rows[i]["x"], rows[i]["z"]) for i in g]
+        for k_ in np.arange(0.5, 3.01, 0.5):
+            for i, (x0, z0) in zip(g, start):
+                rows[i]["x"], rows[i]["z"] = x0 + away[0] * k_, z0 + away[1] * k_
+            if all(clear(rows[i]) for i in g):
+                break
+        else:
+            for i, (x0, z0) in zip(g, start):
+                rows[i]["x"], rows[i]["z"] = x0, z0
+            dropped |= {i for i in g if not clear(rows[i])}
+    for a_, b_ in pairs:
+        for P_, Q_, q in ((rows[a_], rows[b_], b_), (rows[b_], rows[a_], a_)):
+            if q in dropped:
+                c, s_ = math.cos(P_["rot"]), math.sin(P_["rot"])
+                u = (Q_["x"] - P_["x"]) * c + (Q_["z"] - P_["z"]) * s_
+                P_["party"][1 if u > 0 else 0] = None
+    pairs = [(a_, b_) for a_, b_ in pairs if a_ not in dropped and b_ not in dropped]
+    counts["buildings_off_road"] = len(dropped)
+
     # Make them.
     shapes = {}
     gardens = []
     n_house = n = 0
     for i, b in enumerate(rows):
+        if i in dropped:
+            continue
         x, z, w, dpt, rot, kind, h = b["x"], b["z"], b["w"], b["d"], b["rot"], b["kind"], b["h"]
         c, s = math.cos(rot), math.sin(rot)
         g = float(ground(x, z))
@@ -634,6 +677,7 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
         n += 1
         n_house += kind in ("house", "pub", "lodge")
     # The villages: where the houses stand close.
+    rows = [b for i, b in enumerate(rows) if i not in dropped]
     vil = [b for b in rows if b["village"]]
     villages = []
     for b in vil:
