@@ -567,9 +567,12 @@ def bike_master(name, tex, paint):
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-    if paint:
+    if paint and hasattr(unreal.MaterialProperty, "MP_CUSTOM_DATA0"):
         mel.connect_material_property(g.const(1.0), "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
         mel.connect_material_property(scalar("ClearCoatRoughness", 0.03), "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
+    elif paint:
+        # UE 5.8's Python enum has no MP_CUSTOM_DATA0/1; unconnected, clear coat is 1.0 at roughness 0.1.
+        unreal.log_warning("[Torque] clear coat inputs not exposed to Python; using defaults (coat 1.0, roughness 0.1)")
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
     return m
