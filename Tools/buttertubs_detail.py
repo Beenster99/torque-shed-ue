@@ -193,7 +193,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
             r = resample_line(pts, 0.25)
             if len(r) < 4:
                 continue
-            keep = near(r[:, 0], r[:, 1]) & (road_dist(r[:, 0], r[:, 1]) > road_half + 0.9)
+            keep = near(r[:, 0], r[:, 1]) & (road_dist(r[:, 0], r[:, 1]) > road_half + 1.5)   # heads a good metre off the tarmac
             s_all, _ = _arc(r)
             # Gates: the map's, and (the map has few here) one now and then where a wall comes near
             # the road, as a field's way in, and the odd one out in the fields.
@@ -231,8 +231,8 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                 q = r[run]
                 s, at = _arc(q)
                 total = s[-1]
-                if total < 1.2:
-                    continue
+                if total < 2.5:
+                    continue   # a stub that short reads as a dropped pillar, not a wall
                 # Heads (a 1 m piece finished at its outer end) where the wall stops, not where it
                 # runs off the near land: the far layer carries it on from there.
                 head_lo = total >= 3.0 and (run[0] == 0 or on_tile[run[0] - 1])
