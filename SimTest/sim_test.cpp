@@ -218,8 +218,8 @@ static void ButtertubsTest(const std::string& Dir)
 		const double HeadNow = std::atan2(-Fwd.x, -Fwd.z);
 		double HeadTo = std::atan2(-Tg.x, -Tg.z);
 		double Err = HeadTo - HeadNow;
-		while (Err > PI) Err -= TAU;
-		while (Err < -PI) Err += TAU;
+		while (Err > Pi) Err -= TAU;
+		while (Err < -Pi) Err += TAU;
 		// Pure pursuit: the curvature to the look-ahead point, as the lean that turn needs.
 		const double Dist = std::max(std::hypot(Tg.x, Tg.z), 1.0);
 		const double Curv = 2.0 * std::sin(Err) / Dist;        // + turning left
@@ -263,7 +263,7 @@ static void ButtertubsTest(const std::string& Dir)
 	Check(Crashes == 0, "no crashes on the way", (double)Crashes);
 	Check(MaxOff < 3.0, "stays within 3 m of the centre line (m)", MaxOff);
 	std::printf("  %.0f s, mean off line %.2f m, most lean %.0f deg\n", Time, OffSum / std::max(Samples, 1),
-		MaxLean * 180.0 / PI);
+		MaxLean * 180.0 / Pi);
 }
 
 int main(int Argc, char** Argv)

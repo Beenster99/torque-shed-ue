@@ -33,8 +33,8 @@ TyreParams Make(const std::string& Style, const std::string& Construction, doubl
 void ShapeInto(TyreParams& P)
 {
 	const double Slide = Clamp(P.Slide, 0.4, 0.98);
-	P.C = 2.0 - 2.0 * std::asin(Slide) / PI;
-	P.B = std::tan(PI / (2.0 * P.C));
+	P.C = 2.0 - 2.0 * std::asin(Slide) / Pi;
+	P.B = std::tan(Pi / (2.0 * P.C));
 }
 
 double Shape(double S, const TyreParams& P) { return std::sin(P.C * std::atan(P.B * S)); }

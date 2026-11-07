@@ -27,7 +27,7 @@ struct TyreParams
 
 namespace TyreModel
 {
-constexpr double MAX_SLIP_ANGLE = 80.0 * PI / 180.0;
+constexpr double MAX_SLIP_ANGLE = 80.0 * Pi / 180.0;
 
 // Fills the derived numbers from the catalogue's: construction, profile, stiffness, slide and width (mm).
 TyreParams Make(const std::string& Style, const std::string& Construction, double Profile, double Stiffness,

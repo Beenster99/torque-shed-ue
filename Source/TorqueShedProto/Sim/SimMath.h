@@ -11,13 +11,13 @@
 
 namespace TorqueSim
 {
-constexpr double PI = 3.14159265358979323846;
-constexpr double TAU = 2.0 * PI;
+constexpr double Pi = 3.14159265358979323846;
+constexpr double TAU = 2.0 * Pi;
 
 inline double Clamp(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
 inline double Lerp(double a, double b, double t) { return a + (b - a) * t; }
 inline double Sign(double v) { return v > 0.0 ? 1.0 : (v < 0.0 ? -1.0 : 0.0); }
-inline double DegToRad(double d) { return d * PI / 180.0; }
+inline double DegToRad(double d) { return d * Pi / 180.0; }
 inline double MoveToward(double from, double to, double delta)
 {
 	return std::fabs(to - from) <= delta ? to : from + Sign(to - from) * delta;
