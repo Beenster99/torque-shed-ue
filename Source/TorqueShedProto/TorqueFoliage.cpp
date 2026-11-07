@@ -127,8 +127,12 @@ void ATorqueFoliage::Rebuild()
 		const FTorqueFoliageSpecies& S = Species[Si];
 		// One list of transforms per mesh: the species' mesh, or each of its variants.
 		const int32 NumMeshes = FMath::Max(1, S.Variants.Num());
+		// ...and per distance band: the plants thin out towards the edge of the grass.
+		const bool bSpread = S.CullSpread > 1.01f;
+		const int32 NumBands = bSpread ? 3 : 1;
+		const float BandCull[3] = {1.0f, 0.5f * (1.0f + S.CullSpread), S.CullSpread};
 		TArray<TArray<FTransform>> Xf;
-		Xf.SetNum(NumMeshes);
+		Xf.SetNum(NumMeshes * NumBands);
 		const float KeepHere = Keep * FMath::Clamp(S.Keep, 0.0f, 1.0f);
 		for (uint32 I = 0; I < Count; ++I, P += 8, ++Counter)
 		{
@@ -138,17 +142,20 @@ void ATorqueFoliage::Rebuild()
 			const float Yaw = P[6] * (360.0f / 256.0f);
 			const float Sc = P[7] / 128.0f * S.ScaleMultiplier;
 			const FVector Loc(Ox + Dx, Oy + Dy, Oz + Dz);
-			const int32 V = NumMeshes > 1 ? FMath::Min(int32(Hash01(Counter * 7919u + 13u) * NumMeshes), NumMeshes - 1) : 0;
+			const int32 Mi = NumMeshes > 1 ? FMath::Min(int32(Hash01(Counter * 7919u + 13u) * NumMeshes), NumMeshes - 1) : 0;
+			const float Hb = bSpread ? Hash01(Counter * 104729u + 7u) : 0.0f;
+			const int32 V = Mi * NumBands + (Hb < 0.5f ? 0 : Hb < 0.8f ? 1 : 2) % NumBands;
 			if (S.bNativeMesh)
 				Xf[V].Add(FTransform(FRotator(0, Yaw, 0), Loc, FVector(Sc)));
 			else
 				Xf[V].Add(FTransform(FRotator(0, FrameYaw + Yaw, 0), Loc,
 					FVector(Sc * FrameScale, Sc * FrameScale * FrameMirror, Sc * FrameScale)));
 		}
-		for (int32 V = 0; V < NumMeshes; ++V)
+		for (int32 V = 0; V < NumMeshes * NumBands; ++V)
 		{
-			UStaticMesh* Mesh = S.Variants.Num() ? S.Variants[V].Get() : S.Mesh.Get();
-			UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(V) ? S.VariantMaterials[V].Get() : nullptr)
+			const int32 Mi = V / NumBands, Band = V % NumBands;
+			UStaticMesh* Mesh = S.Variants.Num() ? S.Variants[Mi].Get() : S.Mesh.Get();
+			UMaterialInterface* Mat = S.Variants.Num() ? (S.VariantMaterials.IsValidIndex(Mi) ? S.VariantMaterials[Mi].Get() : nullptr)
 			                                           : S.Material.Get();
 			if (!Mesh || Xf[V].Num() == 0) continue;
 			// Transient: made afresh at every start, never saved into the level.
@@ -171,7 +178,7 @@ void ATorqueFoliage::Rebuild()
 			Ism->bAffectDynamicIndirectLighting = false;
 			Ism->bVisibleInRayTracing = false;
 			Ism->WorldPositionOffsetDisableDistance = WpoDisableDistance;
-			const float Cull = S.CullDistance * CullScale;
+			const float Cull = S.CullDistance * CullScale * BandCull[Band];
 			Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
 			Ism->LDMaxDrawDistance = Cull * 1.05f;
 			Ism->RegisterComponent();

@@ -21,7 +21,7 @@ What grows where (the summit of Buttertubs is acid grassland and blanket bog at 
     tuft        fine bent and fescue tufts, the green of the verges and the grazed ground
     tussock     purple moor grass: tall, straw-tipped tussocks, in big patches on the open moor
     matgrass    mat grass: stiff, pale, upright, on the drier ground
-    far         big, coarse clumps of the same grasses with fewer, wider blades: drawn out to 120 m,
+    far         big, coarse clumps of the same grasses with fewer, wider blades: drawn out to 150 m,
                 so the hillside keeps its texture after the fine grass has been culled
     rush        soft rush: dark green tussocks of round stems in wet flushes and hollows
     heather     ling: woody little bushes, mostly on the shrub (heath) cover and drier slopes
@@ -423,29 +423,30 @@ def bracken(seed, autumn=0.25):
 
 
 SPECIES = {
-    # name: (builder, Unreal cull distance in metres, casts shadows)
-    "sward_a": (lambda: sward(11), 28, False),
-    "sward_b": (lambda: sward(12, flowers=24), 28, False),
+    # name: (builder, Unreal cull distance in metres, casts shadows, cull spread: thinning out to that
+    # many times the cull distance instead of stopping at one line)
+    "sward_a": (lambda: sward(11), 28, False, 1.5),
+    "sward_b": (lambda: sward(12, flowers=24), 28, False, 1.5),
     "tuft_a": (lambda: grass_clump(21, 150, 0.08, (0.16, 0.38), (0.003, 0.005), 0.7, (0.3, 1.0),
-                                   [GREEN, GREEN_DK, YELLOW], [5, 3, 2], [GREEN, YELLOW, PALE], [3, 2, 1], segs=3), 40, False),
+                                   [GREEN, GREEN_DK, YELLOW], [5, 3, 2], [GREEN, YELLOW, PALE], [3, 2, 1], segs=3), 40, False, 1.6),
     "tuft_b": (lambda: grass_clump(22, 130, 0.07, (0.14, 0.32), (0.003, 0.005), 0.8, (0.4, 1.2),
-                                   [GREEN, YELLOW, DEAD], [5, 2, 1], [GREEN, PALE, STRAW], [3, 2, 1], segs=3), 40, False),
+                                   [GREEN, YELLOW, DEAD], [5, 2, 1], [GREEN, PALE, STRAW], [3, 2, 1], segs=3), 40, False, 1.6),
     "tussock_a": (lambda: grass_clump(31, 170, 0.1, (0.35, 0.7), (0.004, 0.007), 0.8, (0.4, 1.3),
-                                      [GREEN, YELLOW, DEAD, STRAW], [4, 3, 2, 2], [STRAW, PALE, YELLOW], [4, 2, 1], segs=4, ao=0.18), 55, True),
+                                      [GREEN, YELLOW, DEAD, STRAW], [4, 3, 2, 2], [STRAW, PALE, YELLOW], [4, 2, 1], segs=4, ao=0.18), 55, True, 1.6),
     "tussock_b": (lambda: grass_clump(32, 150, 0.09, (0.3, 0.6), (0.004, 0.007), 0.9, (0.6, 1.5),
-                                      [GREEN, GREEN_DK, DEAD], [4, 3, 3], [STRAW, YELLOW, DEAD], [3, 2, 2], segs=4, ao=0.18), 55, True),
+                                      [GREEN, GREEN_DK, DEAD], [4, 3, 3], [STRAW, YELLOW, DEAD], [3, 2, 2], segs=4, ao=0.18), 55, True, 1.6),
     "matgrass": (lambda: grass_clump(41, 130, 0.05, (0.15, 0.32), (0.002, 0.0035), 0.35, (0.05, 0.4),
-                                     [PALE, YELLOW, GREEN], [3, 2, 2], [PALE, STRAW], [3, 2], segs=3), 40, False),
+                                     [PALE, YELLOW, GREEN], [3, 2, 2], [PALE, STRAW], [3, 2], segs=3), 40, False, 1.6),
     "far_a": (lambda: grass_clump(51, 40, 0.16, (0.35, 0.6), (0.012, 0.02), 0.9, (0.4, 1.1),
-                                  [GREEN, YELLOW, DEAD], [5, 3, 1], [YELLOW, STRAW, PALE], [3, 2, 1], segs=3, ao=0.3), 120, False),
+                                  [GREEN, YELLOW, DEAD], [5, 3, 1], [YELLOW, STRAW, PALE], [3, 2, 1], segs=3, ao=0.3), 150, False, 1.0),
     "far_b": (lambda: grass_clump(52, 36, 0.14, (0.3, 0.55), (0.012, 0.02), 1.0, (0.5, 1.2),
-                                  [GREEN, GREEN_DK, YELLOW], [4, 3, 2], [STRAW, YELLOW, GREEN], [3, 2, 2], segs=3, ao=0.3), 120, False),
-    "rush_a": (lambda: rush(61), 100, True),
-    "rush_b": (lambda: rush(62), 100, True),
-    "heather_a": (lambda: heather(71), 70, True),
-    "heather_b": (lambda: heather(72, flowering=0.15), 70, True),
-    "moss": (lambda: moss(81), 25, False),
-    "bracken": (lambda: bracken(91), 90, True),
+                                  [GREEN, GREEN_DK, YELLOW], [4, 3, 2], [STRAW, YELLOW, GREEN], [3, 2, 2], segs=3, ao=0.3), 150, False, 1.0),
+    "rush_a": (lambda: rush(61), 100, True, 1.3),
+    "rush_b": (lambda: rush(62), 100, True, 1.3),
+    "heather_a": (lambda: heather(71), 70, True, 1.4),
+    "heather_b": (lambda: heather(72, flowering=0.15), 70, True, 1.4),
+    "moss": (lambda: moss(81), 25, False, 1.4),
+    "bracken": (lambda: bracken(91), 90, True, 1.3),
 }
 
 
@@ -675,18 +676,18 @@ def plan(land, line, road_half, density, rng):
         return rng.uniform(0, 1, len(p)) < np.clip(p * density, 0, 1)
 
     # Sward patches carpet the ground near the road (one per square metre or so).
-    x, z, d = scatter(rng, land, 0.85, 22.0, line, road_half)
+    x, z, d = scatter(rng, land, 0.85, 34.0, line, road_half)
     f = fields(x, z)
-    p = (ok(f) & (f["wetn"] < 0.8) & (d > 0.75)) * (1.0 - 0.45 * smoothstep(10, 22, d)) * (0.75 + 0.25 * f["fine"])
+    p = (ok(f) & (f["wetn"] < 0.8) & (d > 0.75)) * (1.0 - 0.45 * smoothstep(10, 34, d)) * (0.75 + 0.25 * f["fine"])
     k = keep(p)
     s = rng.uniform(0.85, 1.2, k.sum())
     flw = rng.uniform(0, 1, k.sum()) < 0.25
     put("sward_b", x[k][flw], z[k][flw], s[flw], 0.01); put("sward_a", x[k][~flw], z[k][~flw], s[~flw], 0.01)
 
     # Grass clumps: the main cover, within 50 m of the road.
-    x, z, d = scatter(rng, land, 0.6, 38.0, line, road_half)
+    x, z, d = scatter(rng, land, 0.6, 58.0, line, road_half)
     f = fields(x, z)
-    base = ok(f) * (1.0 - 0.6 * smoothstep(12, 38, d)) * (0.6 + 0.4 * f["fine"])
+    base = ok(f) * (1.0 - 0.6 * smoothstep(12, 58, d)) * (0.6 + 0.4 * f["fine"])
     base = base * (1 - 0.7 * smoothstep(0.55, 0.85, f["wetn"]))           # rushes take the wet ground
     heath = (f["cover"] == "shrub") * smoothstep(0.6, 0.72, f["heath"]) * (f["wetn"] < 0.6)
     base = base * (1 - 0.75 * heath)
@@ -706,7 +707,7 @@ def plan(land, line, road_half, density, rng):
         put(name, x[m], z[m], scale[m])
 
     # Coarse clumps for the middle distance, everywhere to 160 m (including near: they fill under the fine grass).
-    x, z, d = scatter(rng, land, 2.6, 110.0, line, road_half)
+    x, z, d = scatter(rng, land, 2.1, 140.0, line, road_half)
     f = fields(x, z)
     p = ok(f) * (d > 0.8) * (1 - 0.8 * smoothstep(0.6, 0.85, f["wetn"])) * 0.85
     k = keep(p)
@@ -715,7 +716,7 @@ def plan(land, line, road_half, density, rng):
     put("far_a", x[k][ab], z[k][ab], sc[ab]); put("far_b", x[k][~ab], z[k][~ab], sc[~ab])
 
     # Soft rush in the wet ground, and a few scattered clumps anywhere (as in every Dales pasture).
-    x, z, d = scatter(rng, land, 1.3, 90.0, line, road_half)
+    x, z, d = scatter(rng, land, 1.3, 110.0, line, road_half)
     f = fields(x, z)
     p = ok(f) * (d > 1.2) * (smoothstep(0.5, 0.8, f["wetn"]) * 0.9 + 0.02)
     k = keep(p)
@@ -724,7 +725,7 @@ def plan(land, line, road_half, density, rng):
     put("rush_a", x[k][ab], z[k][ab], sc[ab], 0.05); put("rush_b", x[k][~ab], z[k][~ab], sc[~ab], 0.05)
 
     # Heather in patches on the heath cover (most of the summit is mapped as shrub), drier ground.
-    x, z, d = scatter(rng, land, 0.8, 65.0, line, road_half)
+    x, z, d = scatter(rng, land, 0.8, 85.0, line, road_half)
     f = fields(x, z)
     heath = ((f["cover"] == "shrub") * 1.0 + (f["cover"] == "grass") * 0.25) * smoothstep(0.6, 0.72, f["heath"])
     p = ok(f) * (d > 1.5) * heath * (1 - smoothstep(0.5, 0.75, f["wetn"])) * 0.95
@@ -734,14 +735,14 @@ def plan(land, line, road_half, density, rng):
     put("heather_a", x[k][ab], z[k][ab], sc[ab], 0.04); put("heather_b", x[k][~ab], z[k][~ab], sc[~ab], 0.04)
 
     # Moss cushions in the wettest spots near the road.
-    x, z, d = scatter(rng, land, 1.5, 22.0, line, road_half)
+    x, z, d = scatter(rng, land, 1.5, 30.0, line, road_half)
     f = fields(x, z)
     p = ok(f) * (d > 1.0) * smoothstep(0.65, 0.9, f["wetn"]) * 0.8
     k = keep(p)
     put("moss", x[k], z[k], rng.uniform(0.7, 1.4, k.sum()), 0.02)
 
     # Bracken on the steeper, drier slopes below the summit (the drop towards Thwaite).
-    x, z, d = scatter(rng, land, 1.1, 85.0, line, road_half)
+    x, z, d = scatter(rng, land, 1.1, 105.0, line, road_half)
     f = fields(x, z)
     low = smoothstep(-40, -90, f["y"])
     p = ok(f) * (d > 2) * low * smoothstep(0.25, 0.45, f["slope"]) * (1 - smoothstep(0.4, 0.6, f["wetn"])) \
@@ -805,9 +806,9 @@ def main():
     info = {"about": "Moorland ground cover made by Tools/make_foliage.py; see its docstring.", "species": []}
     names = list(SPECIES)
     for name in names:
-        build, cull, shadow = SPECIES[name]
+        build, cull, shadow, spread = SPECIES[name]
         tris = build().write(os.path.join(OUT, name + ".glb"), name)
-        info["species"].append({"name": name, "cull_m": cull, "shadow": shadow, "triangles": tris})
+        info["species"].append({"name": name, "cull_m": cull, "cull_spread": spread, "shadow": shadow, "triangles": tris})
         print("%-10s %6d triangles" % (name, tris))
     if args.meshes_only:
         return

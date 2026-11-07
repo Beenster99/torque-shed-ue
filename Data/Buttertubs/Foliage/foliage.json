@@ -4,109 +4,124 @@
   {
    "name": "sward_a",
    "cull_m": 28,
+   "cull_spread": 1.5,
    "shadow": false,
    "triangles": 3768,
-   "count": 95380
+   "count": 145784
   },
   {
    "name": "sward_b",
    "cull_m": 28,
+   "cull_spread": 1.5,
    "shadow": false,
    "triangles": 4386,
-   "count": 31908
+   "count": 48209
   },
   {
    "name": "tuft_a",
    "cull_m": 40,
+   "cull_spread": 1.6,
    "shadow": false,
    "triangles": 900,
-   "count": 94799
+   "count": 137958
   },
   {
    "name": "tuft_b",
    "cull_m": 40,
+   "cull_spread": 1.6,
    "shadow": false,
    "triangles": 780,
-   "count": 94184
+   "count": 138702
   },
   {
    "name": "tussock_a",
    "cull_m": 55,
+   "cull_spread": 1.6,
    "shadow": true,
    "triangles": 1360,
-   "count": 53744
+   "count": 82636
   },
   {
    "name": "tussock_b",
    "cull_m": 55,
+   "cull_spread": 1.6,
    "shadow": true,
    "triangles": 1200,
-   "count": 53828
+   "count": 82742
   },
   {
    "name": "matgrass",
    "cull_m": 40,
+   "cull_spread": 1.6,
    "shadow": false,
    "triangles": 780,
-   "count": 42860
+   "count": 62578
   },
   {
    "name": "far_a",
-   "cull_m": 120,
+   "cull_m": 150,
+   "cull_spread": 1.0,
    "shadow": false,
    "triangles": 240,
-   "count": 42175
+   "count": 81636
   },
   {
    "name": "far_b",
-   "cull_m": 120,
+   "cull_m": 150,
+   "cull_spread": 1.0,
    "shadow": false,
    "triangles": 216,
-   "count": 42309
+   "count": 81319
   },
   {
    "name": "rush_a",
    "cull_m": 100,
+   "cull_spread": 1.3,
    "shadow": true,
    "triangles": 5120,
-   "count": 13443
+   "count": 17285
   },
   {
    "name": "rush_b",
    "cull_m": 100,
+   "cull_spread": 1.3,
    "shadow": true,
    "triangles": 5556,
-   "count": 13520
+   "count": 17485
   },
   {
    "name": "heather_a",
    "cull_m": 70,
+   "cull_spread": 1.4,
    "shadow": true,
    "triangles": 11480,
-   "count": 58565
+   "count": 75514
   },
   {
    "name": "heather_b",
    "cull_m": 70,
+   "cull_spread": 1.4,
    "shadow": true,
    "triangles": 10812,
-   "count": 25050
+   "count": 32385
   },
   {
    "name": "moss",
    "cull_m": 25,
+   "cull_spread": 1.4,
    "shadow": false,
    "triangles": 1432,
-   "count": 1269
+   "count": 1985
   },
   {
    "name": "bracken",
    "cull_m": 90,
+   "cull_spread": 1.3,
    "shadow": true,
    "triangles": 2136,
-   "count": 3335
+   "count": 4534
   }
  ],
- "total": 666369,
+ "total": 1010752,
  "density": 1.0
 }
