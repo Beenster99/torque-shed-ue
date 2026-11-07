@@ -26,6 +26,18 @@ struct RayHit
 // Casts a ray in the simulation's world frame: from, to. Set by the game (Unreal line traces) or a test.
 using RayFn = std::function<RayHit(const V3& From, const V3& To)>;
 
+// A cattle grid across the road: steel bars standing a little proud of the tarmac. The wheels ride
+// up onto it (a jolt) and over the bars (a fine ripple), on less grip than tarmac.
+struct CattleGrid
+{
+	V3 Centre;                  // on the road's centre line, sim frame
+	V3 Along{0, 0, -1};         // the road's direction there, level
+	double HalfLength = 1.15;   // along the road
+	double HalfWidth = 2.65;    // across it
+	double Pitch = 0.16;        // bar spacing
+	double Proud = 0.025;       // how far the bar tops stand above the road
+};
+
 struct Wheel
 {
 	bool IsFront = false;
@@ -53,6 +65,7 @@ public:
 
 	BikeSpec Build;
 	RayFn Ray;
+	std::vector<CattleGrid> Grids;
 
 	// Rider inputs.
 	double Throttle = 0.0;

@@ -505,11 +505,58 @@ static void CrashTests()
 	}
 }
 
+// --- Cattle grids -------------------------------------------------------------------------------
+// beenster: ride over a cattle grid and feel it. A jolt up onto the bars, nothing that throws the bike.
+
+static void GridTests()
+{
+	const double Dt = 1.0 / 120.0;
+	std::printf("Cattle grid\n");
+	for (double V : {5.0, 15.0, 25.0})
+	{
+		double Peak[2] = {0, 0}, MaxLean = 0.0;
+		int OnGrid = 0;
+		bool Crashed = false;
+		for (int WithGrid = 0; WithGrid < 2; ++WithGrid)
+		{
+			BikeSim S;
+			S.Setup(BikeSpec::SpeedTwin1200());
+			S.Ray = FlatRay;
+			S.Place(V3(0, 0, 0), 0.0);
+			for (int i = 0; i < 240; ++i) S.Step(Dt);
+			S.Throttle = 1.0;
+			for (int i = 0; i < 120 * 20 && S.Speed < V; ++i) S.Step(Dt);
+			CattleGrid G;
+			G.Centre = S.Position - S.Basis.Z * 12.0;
+			G.Centre.y = 0.0;
+			G.Along = V3(-S.Basis.Z.x, 0.0, -S.Basis.Z.z).Normalized();
+			if (WithGrid) S.Grids.push_back(G);
+			for (int i = 0; i < 120 * 4; ++i)
+			{
+				S.Throttle = 0.3;
+				S.Step(Dt);
+				if (S.IsCrashed) { Crashed = true; break; }
+				for (const Wheel& W : S.Wheels)
+				{
+					Peak[WithGrid] = std::max(Peak[WithGrid], W.Load);
+					if (W.Contact && W.Surf == SURF_GRID) ++OnGrid;
+				}
+				if (WithGrid) MaxLean = std::max(MaxLean, std::fabs(S.LeanAngle));
+			}
+		}
+		std::printf("  at %.0f m/s: %d wheel-ticks on the bars\n", V, OnGrid);
+		Check(!Crashed && MaxLean < 0.1, "crosses the grid upright (lean, rad)", MaxLean);
+		Check(OnGrid > 0, "the wheels find the bars (wheel-ticks)", OnGrid);
+		Check(Peak[1] > Peak[0] * 1.15 && Peak[1] < Peak[0] * 2.5, "a jolt, not a wall (peak load vs no grid)", Peak[1] / Peak[0]);
+	}
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
 	WheelieTests();
 	CrashTests();
+	GridTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

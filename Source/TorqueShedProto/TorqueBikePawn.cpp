@@ -341,6 +341,39 @@ void ATorqueBikePawn::LoadRoute()
 		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: route with %d points"), Line.Num());
+
+	// Cattle grids (Tools/buttertubs_detail.py): the wheels ride over their bars (a jolt, less grip)
+	// and the sound drums over them. Each lies across the road where the line passes it.
+	double RoadHalf = 2.5;
+	Json->TryGetNumberField(TEXT("road_half_width_m"), RoadHalf);
+	const TArray<TSharedPtr<FJsonValue>>* Grids = nullptr;
+	Sim->Grids.clear();
+	if (Json->TryGetArrayField(TEXT("cattle_grids"), Grids) && Line.Num() >= 2)
+	{
+		for (const TSharedPtr<FJsonValue>& V : *Grids)
+		{
+			const TSharedPtr<FJsonObject>* G = nullptr;
+			const TArray<TSharedPtr<FJsonValue>>* P = nullptr;
+			if (!V->TryGetObject(G) || !(*G)->TryGetArrayField(TEXT("sim"), P) || P->Num() < 3) continue;
+			const FVector C((*P)[0]->AsNumber(), (*P)[1]->AsNumber(), (*P)[2]->AsNumber());
+			int32 K = 0;
+			double Best = TNumericLimits<double>::Max();
+			for (int32 I = 0; I < Line.Num(); ++I)
+			{
+				const double D = FVector::DistSquared2D(FVector(Line[I].X, Line[I].Z, 0.0), FVector(C.X, C.Z, 0.0));
+				if (D < Best) { Best = D; K = I; }
+			}
+			const FVector A = Line[FMath::Max(K - 1, 0)], B = Line[FMath::Min(K + 1, Line.Num() - 1)];
+			V3 Along(B.X - A.X, 0.0, B.Z - A.Z);
+			if (Along.Length() < 1e-3) continue;
+			CattleGrid Grid;
+			Grid.Centre = V3(C.X, C.Y, C.Z);
+			Grid.Along = Along.Normalized();
+			Grid.HalfWidth = RoadHalf + 0.15;
+			Sim->Grids.push_back(Grid);
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque: %d cattle grids"), (int32)Sim->Grids.size());
 }
 
 void ATorqueBikePawn::Respawn(int32 LineIndex)
@@ -1029,7 +1062,9 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.RearSlide = Lock(R);
 	In.FrontSlide = Lock(F);
 	In.SideSlide = FMath::Max(Side(F), Side(R));
-	In.OnTarmac = (R.Contact ? R.Surf : F.Surf) == SURF_TARMAC;
+	const int32 Under = R.Contact ? R.Surf : F.Surf;
+	In.OnTarmac = Under == SURF_TARMAC || Under == SURF_GRID;
+	In.Grid = (F.Contact && F.Surf == SURF_GRID ? 1.0 : 0.0) + (R.Contact && R.Surf == SURF_GRID ? 1.0 : 0.0);
 	In.Airborne = !F.Contact && !R.Contact;
 	In.Inside = (CameraMode == 0 || CameraMode == 3) ? 0.0 : 1.0;
 	Sound->Set(In);

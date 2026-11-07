@@ -61,6 +61,7 @@ double BikeSpec::TyreGrip(bool Front, int Surf) const
 	{
 	case SURF_GRAVEL: return T.GripGravel;
 	case SURF_GRASS: return T.GripGrass;
+	case SURF_GRID: return T.GripTarmac * 0.75;   // smooth steel bars
 	default: return T.GripTarmac;
 	}
 }

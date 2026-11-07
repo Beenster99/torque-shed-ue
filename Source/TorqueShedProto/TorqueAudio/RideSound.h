@@ -2,7 +2,7 @@
 // the engine as a 270-degree parallel twin (each firing rings the pipe's resonances, the uneven
 // 270/450 gaps give the twin its lope), the recorded idle under it at tickover, pops on the
 // overrun (deep, occasional, only from a hot exhaust), a gear lever clunk on every change, wind with speed, tyre squeal and scrub when a tyre
-// slides, and moorland birds behind it all. Mono, 48 kHz.
+// slides, the drum of the tyres over a cattle grid's bars, and moorland birds behind it all. Mono, 48 kHz.
 #pragma once
 
 #include <cstdint>
@@ -23,6 +23,7 @@ struct RideInputs
 	double RearSlide = 0.0;     // 0 gripping .. 1 locked or spinning hard (tarmac only)
 	double FrontSlide = 0.0;
 	double SideSlide = 0.0;     // sliding sideways, 0..1
+	double Grid = 0.0;          // wheels on a cattle grid's bars, 0..2
 	bool OnTarmac = true;
 	bool Airborne = false;
 	double Inside = 0.0;        // 0 heard from behind the bike .. 1 in the rider's helmet
@@ -105,6 +106,10 @@ private:
 
 	// Wind and tyres.
 	Biquad WindLp, WindBp, Squeal, Scrub;
+	// A cattle grid: each bar a knock (the tyre's thud and the steel's ring), as many a second as
+	// the speed passes bars.
+	Biquad GridThud, GridRing, GridRing2;
+	double BarPhase = 0.0, BarEnv = 0.0, BarRingEnv = 0.0;
 	double SquealPhase = 0.0;
 
 	void Retune();

@@ -750,6 +750,23 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 		const double HMount = (Mount - Hit.Position).Dot(N);
 		const double Extended = (HMount - Crown - (Radius - Crown) * CosCam) / Slide;
 		RawComp = Travel - Extended;
+		for (const CattleGrid& Gr : Grids)
+		{
+			const V3 D = Hit.Position - Gr.Centre;
+			const double U = D.x * Gr.Along.x + D.z * Gr.Along.z;
+			const double Across = std::fabs(D.x * Gr.Along.z - D.z * Gr.Along.x);
+			if (std::fabs(U) > Gr.HalfLength || Across > Gr.HalfWidth || std::fabs(D.y) > 1.0) continue;
+			// Up on the bar tops, dipping a little between them: the dip fades out with speed, where
+			// the sim's tick couldn't follow it (the sound carries the buzz then).
+			const double Dip = 0.003 * (0.5 - 0.5 * std::cos(TAU * U / Gr.Pitch)) * Clamp(1.0 - std::fabs(Speed) / 6.0, 0.0, 1.0);
+			// The tyre wraps round the edge (taking about half the step in its carcass) and rolls up
+			// onto the first bar over the length it takes to climb it.
+			const double Climb = std::sqrt(2.0 * Radius * Gr.Proud);
+			const double Up = SmoothStep(0.0, Climb, Gr.HalfLength - std::fabs(U));
+			RawComp += (Gr.Proud * 0.5 * Up - Dip) / Slide;
+			HitSurf = SURF_GRID;
+			break;
+		}
 	}
 
 	if (RawComp < 0.0)

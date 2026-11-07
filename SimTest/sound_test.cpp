@@ -100,7 +100,35 @@ int main(int Argc, char** Argv)
 	if (S.Pops - Before > 5) { std::printf("    too many pops downhill\n"); ++Fails; }
 	S.GearChange(false);
 	Run("rear locked at 15 m/s", 1.5, [](double T) { RideInputs I; I.Rpm = 2500; I.Speed = 15 - 8 * T; I.RearSlide = 1; return I; });
+	for (double V : {6.0, 20.0})
+	{
+		Run(V < 10 ? "over a cattle grid, 6 m/s" : "over a cattle grid, 20 m/s", 3.0, [V](double T) {
+			RideInputs I; I.Rpm = 2400 + V * 80; I.Throttle = 0.25; I.Speed = V;
+			// The grid is 2.3 m long; the front wheel then both, then the rear, in the middle second.
+			const double D = (T - 0.33) * 3.0 * V, Wb = 1.41;
+			I.Grid = (D > 0 && D < 2.3 ? 1.0 : 0.0) + (D - Wb > 0 && D - Wb < 2.3 ? 1.0 : 0.0);
+			return I; });
+	}
 	Run("helmet, 4000 rpm, 25 m/s", 2.0, [](double) { RideInputs I; I.Rpm = 4000; I.Throttle = 0.5; I.Speed = 25; I.Inside = 1; return I; });
+
+	// A cattle grid is heard over the engine, and louder the faster it's crossed.
+	{
+		auto Level = [](double V, double Grid) {
+			RideSound T;
+			RideInputs I; I.Rpm = 2400 + V * 80; I.Throttle = 0.25; I.Speed = V; I.Grid = Grid; T.Set(I);
+			std::vector<float> Buf(RideSound::Rate);
+			T.Render(Buf.data(), (int)Buf.size());
+			double Sum = 0.0;
+			for (size_t K = Buf.size() / 2; K < Buf.size(); ++K) Sum += Buf[K] * Buf[K];
+			return std::sqrt(Sum / (Buf.size() / 2));
+		};
+		for (double V : {6.0, 20.0})
+		{
+			const double Off = Level(V, 0.0), On = Level(V, 2.0);
+			std::printf("  cattle grid at %.0f m/s: rms %.3f, without %.3f\n", V, On, Off);
+			if (On < Off * 1.25) { std::printf("    the grid can't be heard\n"); ++Fails; }
+		}
+	}
 
 	// The pipe warms up with riding.
 	{

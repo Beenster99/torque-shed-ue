@@ -160,6 +160,9 @@ void RideSound::Retune()
 	WindBp.BandPass(500.0 + Now.Speed * 15.0, 0.7);
 	Squeal.BandPass(1150.0, 6.0);
 	Scrub.LowPass(450.0, 0.7);
+	GridThud.LowPass(260.0, 0.9);
+	GridRing.BandPass(740.0, 9.0);
+	GridRing2.BandPass(1310.0, 11.0);
 }
 
 void RideSound::Render(float* Out, int N)
@@ -174,6 +177,8 @@ void RideSound::Render(float* Out, int N)
 	const double CrackFall = std::exp(-1.0 / (Rate * 0.005));
 	const double PopDrop = std::exp(-1.0 / (Rate * 0.04));
 	const double BirdFade = 1.0 - std::exp(-1.0 / (Rate * 2.0));
+	const double BarFall = std::exp(-1.0 / (Rate * 0.004));
+	const double BarRingFall = std::exp(-1.0 / (Rate * 0.03));
 	for (int S = 0; S < N; ++S)
 	{
 		Now.Rpm += (Target.Rpm - Now.Rpm) * Kr;
@@ -183,6 +188,7 @@ void RideSound::Render(float* Out, int N)
 		Now.FrontSlide += (Target.FrontSlide - Now.FrontSlide) * Ks;
 		Now.SideSlide += (Target.SideSlide - Now.SideSlide) * Ks;
 		Now.Inside += (Target.Inside - Now.Inside) * Ks;
+		Now.Grid += (Target.Grid - Now.Grid) * Kt;
 		Now.OnTarmac = Target.OnTarmac;
 		Now.Airborne = Target.Airborne;
 		if (--RetuneIn <= 0) { Retune(); RetuneIn = 256; }
@@ -293,6 +299,28 @@ void RideSound::Render(float* Out, int N)
 			}
 		}
 
+		// A cattle grid: a knock per bar the tyres cross (bars 0.16 m apart), a thud from the tyre
+		// and a ring from the steel, drumming into a buzz at speed.
+		double Grid = 0.0;
+		if (Now.Grid > 0.02 && !Now.Airborne && V > 0.3)
+		{
+			BarPhase += V / 0.16 / Rate;
+			if (BarPhase >= 1.0)
+			{
+				BarPhase -= std::floor(BarPhase);
+				const double Hit = 0.75 + 0.5 * Uniform();
+				BarEnv = std::max(BarEnv, Hit);
+				BarRingEnv = std::max(BarRingEnv, Hit * (0.6 + 0.4 * Uniform()));
+			}
+		}
+		if (BarEnv > 1e-4 || BarRingEnv > 1e-4)
+		{
+			const double Loud = std::min(Now.Grid, 1.5) * Lerp(0.5, 1.0, Clamp01(V / 15.0));
+			Grid = (GridThud.Run(Noise()) * BarEnv * 2.2 + (GridRing.Run(Noise()) * 3.0 + GridRing2.Run(Noise()) * 1.6) * BarRingEnv) * Loud * 1.1;
+			BarEnv *= BarFall;
+			BarRingEnv *= BarRingFall;
+		}
+
 		double Lever = 0.0;
 		if (Playing)
 		{
@@ -321,7 +349,7 @@ void RideSound::Render(float* Out, int N)
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
 
-		double Mix = (Engine + Wind + Tyre + Lever + Bg) * Volume;
+		double Mix = (Engine + Wind + Tyre + Grid + Lever + Bg) * Volume;
 		// DC block, then a soft limit.
 		const double Hpo = Mix - HpIn + 0.995 * Hp;
 		HpIn = Mix;
