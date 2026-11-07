@@ -130,6 +130,13 @@ void ATorqueBikePawn::BeginPlay()
 	LoadRoute();
 	BuildModel();
 	Respawn(0);
+	Pad = MakeUnique<FSonyPad>();
+}
+
+void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
+{
+	Pad.Reset();   // stops its reading thread
+	Super::EndPlay(Reason);
 }
 
 namespace
@@ -295,14 +302,21 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (A < Dead) return 0.0;
 		return FMath::Sign(V) * FMath::Pow((A - Dead) / (1.0 - Dead), Curve);
 	};
-	const double PadThrottle = Axis(EKeys::Gamepad_RightTriggerAxis);
-	const double PadBrake = Axis(EKeys::Gamepad_LeftTriggerAxis);
-	const double PadLean = Stick(Axis(EKeys::Gamepad_LeftX), 0.08, 1.3);
+	// An Xbox pad through Unreal, and a PlayStation pad read directly: whichever is pushed further.
+	const FSonyPadState Sony = Pad ? Pad->Get() : FSonyPadState();
+	auto Either = [](double A, double B) { return FMath::Abs(A) >= FMath::Abs(B) ? A : B; };
+	const double PadThrottle = FMath::Max(Axis(EKeys::Gamepad_RightTriggerAxis), (double)Sony.R2);
+	const double PadBrake = FMath::Max(Axis(EKeys::Gamepad_LeftTriggerAxis), (double)Sony.L2);
+	const double PadLean = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), 0.08, 1.3);
 	// Weight is the left stick up and down, with a wide dead zone so leaning doesn't move it.
-	const double PadShift = Stick(Axis(EKeys::Gamepad_LeftY), 0.4, 1.0);
+	const double PadShift = Stick(Either(Axis(EKeys::Gamepad_LeftY), Sony.LY), 0.4, 1.0);
 	// Right stick looks around (eased back to the front when let go).
-	const double LookX = Stick(Axis(EKeys::Gamepad_RightX), 0.12, 1.0);
-	const double LookY = Stick(Axis(EKeys::Gamepad_RightY), 0.12, 1.0);
+	const double LookX = Stick(Either(Axis(EKeys::Gamepad_RightX), Sony.RX), 0.12, 1.0);
+	const double LookY = Stick(Either(Axis(EKeys::Gamepad_RightY), Sony.RY), 0.12, 1.0);
+	const uint32 SonyDown = Sony.Buttons;
+	const uint32 SonyPressed = SonyDown & ~PrevPadButtons;
+	PrevPadButtons = SonyDown;
+	auto SonyHit = [SonyPressed](uint32 B) { return (SonyPressed & B) != 0; };
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
 	LookYaw = FMath::Lerp(LookYaw, LookX * 130.0, LookK);
 	LookPitch = FMath::Lerp(LookPitch, LookY * 25.0, LookK);
@@ -317,23 +331,28 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	FrontBrake = PadBrake > 0.02 ? PadBrake : Approach(FrontBrake, KeyBrake, 3.0, 8.0, Dt);
 	RearBrake = FMath::Max(Down(EKeys::SpaceBar), FMath::Max(Down(EKeys::Gamepad_LeftShoulder),
 		Down(EKeys::Gamepad_FaceButton_Left)));
+	if (SonyDown & (ESonyButton::L1 | ESonyButton::Square)) RearBrake = 1.0;
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
-	if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
+	if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
+		SonyHit(ESonyButton::Triangle))
 		Respawn(FMath::Max(Near - 2, 0));
-	if (PC->WasInputKeyJustPressed(EKeys::Home) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right))
+	if (PC->WasInputKeyJustPressed(EKeys::Home) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right) ||
+		SonyHit(ESonyButton::Options))
 	{
 		RideTime = 0.0;
 		bFinished = false;
 		Respawn(0);
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
-		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left))
+		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::R1 | ESonyButton::Create))
 	{
 		CameraMode = (CameraMode + 1) % 2;
 		bCamInit = false;
 	}
+	if (SonyHit(ESonyButton::DDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
+	if (SonyHit(ESonyButton::DUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
@@ -495,6 +514,9 @@ void ATorqueBikePawn::DrawHud()
 	GEngine->AddOnScreenDebugMessage(1002, 0.0f, FColor(200, 220, 255),
 		FString::Printf(TEXT("Buttertubs  %.2f of 3.00 km   %d:%05.2f%s   assist %.1f"),
 			Done, Mins, Secs, bFinished ? TEXT("  FINISHED (Home to ride again)") : TEXT(""), Assist));
+	const bool bSony = Pad && Pad->Get().bConnected;
+	GEngine->AddOnScreenDebugMessage(1004, 0.0f, bSony ? FColor(140, 220, 140) : FColor(160, 160, 160),
+		bSony ? TEXT("PlayStation pad connected") : TEXT("No PlayStation pad found (Xbox pads work as they are)"));
 	if (Sim->IsCrashed)
 		GEngine->AddOnScreenDebugMessage(1003, 0.0f, FColor::Orange, TEXT("Off! Back on the road in a moment..."));
 	else

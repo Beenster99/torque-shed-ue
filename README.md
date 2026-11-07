@@ -44,8 +44,11 @@ seat, engine, headers and silencers, in simple finishes. The rider is still a pl
 
 ### Controls
 
-Any Xbox-style controller works (wired or Bluetooth). A PlayStation pad works through Steam or
-DS4Windows, which make it look like an Xbox one.
+Any Xbox-style controller works, and so does a PlayStation pad (DualSense, DualSense Edge or
+DualShock 4, over USB or Bluetooth) with no extra tools: the game reads it directly. If DSX,
+DS4Windows or Steam Input is running too, that works as well. The HUD says when a PlayStation pad is
+connected. On a PlayStation pad, X is Square, Y is Triangle, the bumpers are L1 and R1, View is
+Create and Menu is Options.
 
 | | Keyboard | Pad |
 | --- | --- | --- |

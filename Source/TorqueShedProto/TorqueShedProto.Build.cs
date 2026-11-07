@@ -10,5 +10,8 @@ public class TorqueShedProto : ModuleRules
 		bUseUnity = false;
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
+		// SonyPad reads PlayStation pads through Windows HID.
+		if (Target.Platform == UnrealTargetPlatform.Win64)
+			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });
 	}
 }

@@ -10,6 +10,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "Sim/BikeSim.h"   // the full type: the code Unreal generates for this class deletes it
+#include "SonyPad.h"
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
@@ -25,6 +26,7 @@ public:
 	virtual ~ATorqueBikePawn() override;
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
@@ -54,6 +56,8 @@ public:
 
 private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
+	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
+	uint32 PrevPadButtons = 0;
 	double Accum = 0.0;
 	FVector PrevPos, CurPos;          // Unreal cm, the sim body origin before and after the last step
 	FQuat PrevRot, CurRot;
