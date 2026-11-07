@@ -11,6 +11,7 @@
 
 #include "BikeSpec.h"
 #include <functional>
+#include <vector>
 
 namespace TorqueSim
 {
@@ -74,6 +75,9 @@ public:
 	double Speed = 0.0, LeanAngle = 0.0, LeanRate = 0.0, PitchAngle = 0.0, RoadPitch = 0.0;
 	double TrailNow = 0.1, TrailSeen = 0.1, RakeNow = 0.4, Dive = 0.0, TrailSprings = 0.1, Wobble = 0.0;
 	bool IsCrashed = false;
+	// How far the bike's lowest part (tyres, bars, pegs, covers...) is above the ground, m; negative
+	// is into it. For tests and checks.
+	double GroundGap();
 	double CrashTimer = 0.0;
 	Wheel Wheels[2];
 
@@ -130,6 +134,9 @@ private:
 	void ApplyRiderBalance(double Delta);
 	void ApplyFeet();
 	void CheckCrash();
+	void StepCrashed(double Delta);   // off: falls, slides and tumbles on the ground
+	std::vector<V3> CrashPts;
+	std::vector<RayHit> CrashGround;
 	double Steadiness() const { return Lerp(0.45, 1.0, Assist); }
 
 	V3 BaseCom;
