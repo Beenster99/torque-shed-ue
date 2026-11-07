@@ -963,7 +963,7 @@ def main():
         print("%-10s %6d triangles" % (name, tris))
     if args.meshes_only:
         return
-    line = np.array(route["line_sim"], np.float64)
+    line = np.array(route.get("road_line_sim", route["line_sim"]), np.float64)   # the whole ribbon, run-outs too
     land = Land(route)
     out = plan(land, line, route["road_half_width_m"], args.density, np.random.default_rng(3))
     total, size = write_instances(os.path.join(OUT, "instances.bin"), out, names)

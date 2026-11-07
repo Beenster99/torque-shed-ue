@@ -213,6 +213,9 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                 keep &= np.abs(s_all - s_all[k]) > 1.85
                 k0 = int(np.searchsorted(s_all, s_all[k] - 1.75)); k1 = int(np.searchsorted(s_all, s_all[k] + 1.75))
                 k1 = min(k1, len(r) - 1)
+                # Never a gate in or swinging over the road (a wall line that meets the tarmac).
+                if float(np.min(rd[k0:k1 + 1])) < road_half + 4.0:
+                    continue
                 d = r[k1] - r[k0]; d /= max(np.linalg.norm(d), 1e-9)
                 a = math.atan2(d[1], d[0])
                 for kk in (k0, k1):
