@@ -279,6 +279,77 @@ def rush(seed):
     return M
 
 
+# Heather in late summer: dark olive, brown, and a purple-brown cast from the old flower spikes.
+HEATHER_COLS = [(50, 58, 32), (60, 62, 36), (72, 60, 42), (82, 62, 60), (58, 46, 36)]
+HEATHER_W = [4, 3, 2, 2, 1]
+
+
+def heather_twigs(seed, flowering=0.05):
+    """Ling up close (by the road): a low, airy woody bush. Wandering dark stems from the root, side
+    twigs, and the tiny scale leaves as shoots along the outer half of each twig, dark brown-green
+    with a purple-brown cast; a few flower spikes. About 7k triangles."""
+    rng = np.random.default_rng(seed)
+    M = Mesh()
+    R = rng.uniform(0.2, 0.34); H = rng.uniform(0.2, 0.38)
+    stems = []
+    nmain = int(rng.integers(9, 15))
+    for s in range(nmain):
+        a = rng.uniform(0, 2 * math.pi)
+        p = np.array([math.cos(a) * 0.03, 0.0, math.sin(a) * 0.03])
+        d = np.array([math.cos(a) * rng.uniform(0.5, 1.1), 1.0, math.sin(a) * rng.uniform(0.5, 1.1)])
+        pts = [p]
+        for k in range(6):
+            d = normalize(d + rng.normal(0, 0.35, 3) * np.array([1, 0.3, 1]))
+            p = p + d * (math.hypot(R, H) / 6)
+            p[1] = min(p[1], H * rng.uniform(0.85, 1.05))
+            pts.append(p.copy())
+        trunk = np.array(pts)
+        stems.append(trunk)
+        # Side twigs from the upper two thirds.
+        for k in range(2, 6):
+            for _ in range(int(rng.integers(1, 4))):
+                b0 = trunk[k]
+                d2 = normalize(d + rng.normal(0, 0.8, 3) * np.array([1, 0.2, 1]) + np.array([0, 0.5, 0]))
+                tw = [b0]
+                for j in range(3):
+                    d2 = normalize(d2 + rng.normal(0, 0.3, 3))
+                    tw.append(tw[-1] + d2 * rng.uniform(0.03, 0.06))
+                stems.append(np.array(tw))
+    # Tubes need equal lengths: resample every stem to 5 points.
+    rs = []
+    for s in stems:
+        L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(s, axis=0), axis=1))])
+        tt = np.linspace(0, L[-1], 5)
+        rs.append(np.stack([np.interp(tt, L, s[:, j]) for j in range(3)], 1))
+    S = np.array(rs)
+    ns = len(S)
+    radius = np.outer(np.where(np.arange(ns) < nmain, 0.004, 0.0018), np.linspace(1, 0.4, 5))
+    wood = lin((62, 48, 38))
+    col = np.broadcast_to(wood, (ns, 5, 3)) * rng.uniform(0.8, 1.15, (ns, 1, 1))
+    ao = 0.2 + 0.6 * (S[..., 1] / H).clip(0, 1)
+    flex = 0.35
+    tubes(M, S, radius, col, ao, sides=3, flex=np.full(ns, flex), rng=rng)
+    # Shoots along the outer half of every stem and twig.
+    cen, dirs, cols, aos = [], [], [], []
+    leaf_cols = HEATHER_COLS
+    for s in S:
+        L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(s, axis=0), axis=1))])
+        m = int(L[-1] / 0.011) + 3
+        u = np.sort(rng.uniform(0.35, 1.0, m)) * L[-1]
+        p = np.stack([np.interp(u, L, s[:, j]) for j in range(3)], 1)
+        dd = np.gradient(p, axis=0) if m > 1 else np.array([[0, 1.0, 0]])
+        dd = normalize(normalize(dd) + rng.normal(0, 0.6, (m, 3)) + np.array([0, 0.6, 0]))
+        cen.append(p + rng.normal(0, 0.006, (m, 3))); dirs.append(dd)
+        c = mixcol(rng, m, leaf_cols, HEATHER_W, 0.1)
+        flower = (rng.uniform(0, 1, m) < flowering) & (u / L[-1] > 0.7)
+        c[flower] = lin((128, 82, 116)) * rng.uniform(0.85, 1.1, (flower.sum(), 1))
+        cols.append(c); aos.append(0.3 + 0.7 * np.clip(p[:, 1] / H, 0, 1))
+    cen = np.concatenate(cen); dirs = np.concatenate(dirs); cols = np.concatenate(cols); aos = np.concatenate(aos)
+    m = len(cen)
+    leaves(M, cen, dirs, rng.uniform(0.03, 0.05, m), rng.uniform(0.011, 0.018, m), cols, aos, cen[:, 1] * flex, rng)
+    return M
+
+
 def heather(seed, flowering=0.06):
     """Ling, cheaply: a lumpy, solid dome of foliage (opaque, so no overdraw, and Nanite simplifies it
     well), its colour speckled dark olive, brown and the odd purple; a few hundred shoots standing out
@@ -306,8 +377,8 @@ def heather(seed, flowering=0.06):
     for k in range(3):
         np.add.at(nrm, tris[:, k], fn)
     nrm = normalize(np.where(nrm[:, 1:2] < 0, -nrm, nrm)) + np.array([0, 0.4, 0])
-    leaf_cols = [(62, 80, 40), (76, 90, 44), (100, 94, 52), (116, 92, 60), (70, 58, 42)]
-    c = mixcol(rng, len(pos), [(58, 70, 38), (64, 66, 40), (70, 62, 44)], [3, 2, 1], 0.06)
+    leaf_cols = HEATHER_COLS
+    c = mixcol(rng, len(pos), [(46, 52, 30), (54, 50, 34), (60, 48, 44)], [3, 2, 1], 0.05)
     ao = 0.35 + 0.6 * np.clip(pos[:, 1] / H, 0, 1)
     M.add(pos, nrm, np.stack([rng.uniform(0, 1, len(pos)), pos[:, 1] * 0.3], 1), np.concatenate([c, ao[:, None]], 1), tris)
     # Shoots out of the surface.
@@ -317,10 +388,10 @@ def heather(seed, flowering=0.06):
     cen = np.stack([np.cos(a) * u * R * lob, H * (np.clip(1 - u ** 2.2, 0, 1) ** 0.6), np.sin(a) * u * R * lob], 1)
     out = normalize(np.stack([np.cos(a) * u, np.full(m, 0.8), np.sin(a) * u], 1) + rng.normal(0, 0.35, (m, 3)))
     cen = cen + out * 0.015
-    cc = mixcol(rng, m, leaf_cols, [4, 4, 2, 1, 1], 0.1)
+    cc = mixcol(rng, m, leaf_cols, HEATHER_W, 0.1)
     fl = rng.uniform(0, 1, m) < flowering
-    cc[fl] = lin((150, 98, 140)) * rng.uniform(0.85, 1.1, (fl.sum(), 1))
-    leaves(M, cen, out, rng.uniform(0.028, 0.045, m), rng.uniform(0.01, 0.016, m), cc,
+    cc[fl] = lin((128, 82, 116)) * rng.uniform(0.85, 1.1, (fl.sum(), 1))
+    leaves(M, cen, out, rng.uniform(0.02, 0.032, m), rng.uniform(0.006, 0.01, m), cc,
            0.5 + 0.5 * np.clip(cen[:, 1] / H, 0, 1), cen[:, 1] * 0.35, rng)
     # A few woody stems at the foot.
     ns = 7
@@ -432,8 +503,10 @@ SPECIES = {
                                   [GREEN, GREEN_DK, YELLOW], [4, 3, 2], [STRAW, YELLOW, GREEN], [3, 2, 2], segs=3, ao=0.3), 150, False, 1.0),
     "rush_a": (lambda: rush(61), 80, True, 1.3),
     "rush_b": (lambda: rush(62), 80, True, 1.3),
-    "heather_a": (lambda: heather(71), 60, False, 1.4),
-    "heather_b": (lambda: heather(72, flowering=0.15), 60, False, 1.4),
+    "heather_twig_a": (lambda: heather_twigs(73), 34, True, 1.3),
+    "heather_twig_b": (lambda: heather_twigs(74, flowering=0.06), 34, True, 1.3),
+    "heather_a": (lambda: heather(71), 70, False, 1.4),
+    "heather_b": (lambda: heather(72, flowering=0.1), 70, False, 1.4),
     "moss": (lambda: moss(81), 25, False, 1.4),
     "bracken": (lambda: bracken(91), 90, True, 1.3),
 }
@@ -716,12 +789,16 @@ def plan(land, line, road_half, density, rng):
     # Heather in patches on the heath cover (most of the summit is mapped as shrub), drier ground.
     x, z, d = scatter(rng, land, 0.85, 75.0, line, road_half)
     f = fields(x, z)
-    heath = ((f["cover"] == "shrub") * 1.0 + (f["cover"] == "grass") * 0.25) * smoothstep(0.6, 0.72, f["heath"])
-    p = ok(f) * (d > 1.5) * heath * (1 - smoothstep(0.5, 0.75, f["wetn"])) * 0.95
+    heath = ((f["cover"] == "shrub") * 1.0 + (f["cover"] == "grass") * 0.25) * smoothstep(0.6, 0.7, f["heath"])
+    p = ok(f) * (d > 1.5) * heath * (1 - smoothstep(0.5, 0.75, f["wetn"]))
     k = keep(p)
-    ab = rng.uniform(0, 1, k.sum()) < 0.7
-    sc = rng.uniform(0.7, 1.3, k.sum())
-    put("heather_a", x[k][ab], z[k][ab], sc[ab], 0.04); put("heather_b", x[k][~ab], z[k][~ab], sc[~ab], 0.04)
+    ab = rng.uniform(0, 1, k.sum()) < 0.6
+    sc = rng.uniform(0.75, 1.3, k.sum())
+    # Real twiggy bushes where the rider sees them (within 22 m of the road), the cheap mounds beyond.
+    near = d[k] < 22
+    for name, m in (("heather_twig_a", near & ab), ("heather_twig_b", near & ~ab),
+                    ("heather_a", ~near & ab), ("heather_b", ~near & ~ab)):
+        put(name, x[k][m], z[k][m], sc[m], 0.04)
 
     # Moss cushions in the wettest spots near the road.
     x, z, d = scatter(rng, land, 1.5, 30.0, line, road_half)
@@ -797,7 +874,8 @@ def main():
     for name in names:
         build, cull, shadow, spread = SPECIES[name]
         tris = build().write(os.path.join(OUT, name + ".glb"), name)
-        info["species"].append({"name": name, "cull_m": cull, "cull_spread": spread, "shadow": shadow, "triangles": tris})
+        info["species"].append({"name": name, "cull_m": cull, "cull_spread": spread, "shadow": shadow, "triangles": tris,
+                                 "ground_blend": 0.15 if name.startswith("heather") else 1.0})
         print("%-10s %6d triangles" % (name, tris))
     if args.meshes_only:
         return
