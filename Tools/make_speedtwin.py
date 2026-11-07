@@ -84,6 +84,8 @@ FINISHES = {
     "lens_clear": finish((0.85, 0.87, 0.9), 1.0, 0.04),
     "lens_red": finish((0.6, 0.02, 0.02), 0.0, 0.1),
     "lens_amber": finish((0.9, 0.35, 0.02), 0.0, 0.15),
+    # UK rear plate: a pale, slightly warm yellow behind a satin reflective film, not a lens.
+    "plate": finish((0.56, 0.47, 0.10), 0.0, 0.35, detail="powder", uv_scale=10.0, normal_strength=0.2, rough_var=0.1),
     "chain": finish((0.16, 0.15, 0.14), 1.0, 0.45, detail="cast", uv_scale=30.0, normal_strength=0.5, rough_var=0.3),
 }
 
@@ -535,7 +537,7 @@ def build():
     hanger = polyline([(-0.78, 0.468, 0.0), (-0.86, 0.445, 0.0), (-0.95, 0.335, 0.0)], 6)
     put("plate_hanger", sweep(hanger, 0.09, 0.006, 6.0, 16, up_hint=(1, 1, 0)), "black_satin")
     put("plate", sweep(np.array([(-0.90, 0.42, 0.0), (-0.98, 0.30, 0.0)]), 0.1, 0.002, 8.0, 16, up_hint=(1, 0.5, 0)),
-        "lens_amber")
+        "plate")
 
     # Side panels and the battery box behind them.
     for s, nm in ((1, "side_panel_r"), (-1, "side_panel_l")):

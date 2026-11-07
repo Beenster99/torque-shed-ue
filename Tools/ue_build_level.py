@@ -562,17 +562,35 @@ def bike_master(name, tex, paint):
     roff = g.op(unreal.MaterialExpressionMultiply, roff, scalar("RoughVar", 0.0))
     rough = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd, rough, roff))
     emis = g.op(unreal.MaterialExpressionMultiply, col, scalar("Emissive", 0.0))
-    mel.connect_material_property(shaded, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    mel.connect_material_property(met, "", unreal.MaterialProperty.MP_METALLIC)
-    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
-    mel.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-    if paint and hasattr(unreal.MaterialProperty, "MP_CUSTOM_DATA0"):
-        mel.connect_material_property(g.const(1.0), "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
-        mel.connect_material_property(scalar("ClearCoatRoughness", 0.03), "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
-    elif paint:
-        # UE 5.8's Python enum has no MP_CUSTOM_DATA0/1; unconnected, clear coat is 1.0 at roughness 0.1.
-        unreal.log_warning("[Torque] clear coat inputs not exposed to Python; using defaults (coat 1.0, roughness 0.1)")
+    outs = [(shaded, "BaseColor", "MP_BASE_COLOR"), (met, "Metallic", "MP_METALLIC"), (rough, "Roughness", "MP_ROUGHNESS"),
+            (nrm, "Normal", "MP_NORMAL"), (emis, "EmissiveColor", "MP_EMISSIVE_COLOR")]
+    coat = [(g.const(1.0), "ClearCoat", "MP_CUSTOM_DATA0"),
+            (scalar("ClearCoatRoughness", 0.03), "ClearCoatRoughness", "MP_CUSTOM_DATA1")] if paint else []
+    done = False
+    if coat and not hasattr(unreal.MaterialProperty, "MP_CUSTOM_DATA0") and hasattr(unreal.MaterialProperty, "MP_MATERIAL_ATTRIBUTES"):
+        # UE 5.8's Python has no clear coat material properties, but Make Material Attributes has the
+        # pins: route everything through it.
+        try:
+            m.set_editor_property("use_material_attributes", True)
+            mma = g.node(unreal.MaterialExpressionMakeMaterialAttributes, -200)
+            ok = all(mel.connect_material_expressions(e, "", mma, pin) for e, pin, _ in outs + coat)
+            ok = ok and mel.connect_material_property(mma, "", unreal.MaterialProperty.MP_MATERIAL_ATTRIBUTES)
+            if ok:
+                done = True
+                log("%s: clear coat through material attributes" % name)
+            else:
+                unreal.log_warning("[Torque] %s: material attributes didn't link; plain inputs, default clear coat" % name)
+                m.set_editor_property("use_material_attributes", False)
+        except Exception as e:
+            unreal.log_warning("[Torque] %s: material attributes failed (%s); plain inputs, default clear coat" % (name, e))
+            try_set(m, "use_material_attributes", False)
+    if not done:
+        for e, _, prop in outs + coat:
+            if hasattr(unreal.MaterialProperty, prop):
+                mel.connect_material_property(e, "", getattr(unreal.MaterialProperty, prop))
+            elif coat:
+                # Unconnected, clear coat is 1.0 at roughness 0.1.
+                unreal.log_warning("[Torque] %s not exposed to Python; clear coat left at its default" % prop)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
     return m

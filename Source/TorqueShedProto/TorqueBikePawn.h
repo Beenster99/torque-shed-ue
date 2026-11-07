@@ -120,7 +120,11 @@ private:
 	double CrashedFor = 0.0;
 
 	// Camera.
-	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera
+	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit
+	static constexpr int32 CameraModes = 4;
+	double OrbitYaw = 40.0;           // showroom: degrees round from straight ahead, to the right
+	bool bOrbitHeld = false;          // -TorqueOrbitYaw: hold the angle instead of turning
+	bool bRiderShown = true;
 	FVector CamPos = FVector::ZeroVector;
 	FVector CamLookAt = FVector::ZeroVector;
 	bool bCamInit = false;
@@ -146,6 +150,7 @@ private:
 	void StepSim();
 	void UpdateVisuals(double Alpha);
 	void UpdateCamera(float Dt);
+	void ShowRider(bool bShow);
 	void UpdateProgress();
 	void DrawHud();
 };

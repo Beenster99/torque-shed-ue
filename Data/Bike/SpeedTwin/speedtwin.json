@@ -512,6 +512,29 @@
    "clearcoat_roughness": 0.03,
    "emissive": 0.0
   },
+  "plate": {
+   "shader": "base",
+   "color": [
+    0.56,
+    0.47,
+    0.1
+   ],
+   "metallic": 0.0,
+   "roughness": 0.35,
+   "color2": [
+    0.56,
+    0.47,
+    0.1
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.35,
+   "detail": "powder",
+   "uv_scale": 10.0,
+   "normal_strength": 0.2,
+   "rough_var": 0.1,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0
+  },
   "chain": {
    "shader": "base",
    "color": [
@@ -756,7 +779,7 @@
   {
    "name": "plate",
    "group": "body",
-   "finish": "lens_amber",
+   "finish": "plate",
    "tris": 64
   },
   {

@@ -192,9 +192,13 @@ void ATorqueBikePawn::BeginPlay()
 	Respawn(0);
 	Pad = MakeUnique<FSonyPad>();
 	StartSound();
-	// -TorqueCamera=1 starts in first person (2: chin camera), for checking the views.
+	// -TorqueCamera=1 starts in first person (2: chin camera, 3: showroom orbit of the bike with the
+	// rider hidden), for checking the views. -TorqueOrbitYaw=N holds the orbit at N degrees from
+	// straight ahead (positive to the bike's right) instead of turning, for repeatable screenshots.
 	int32 StartCamera = 0;
-	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueCamera="), StartCamera)) CameraMode = FMath::Clamp(StartCamera, 0, 2);
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueCamera="), StartCamera)) CameraMode = FMath::Clamp(StartCamera, 0, CameraModes - 1);
+	float FixedYaw = 0.0f;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueOrbitYaw="), FixedYaw)) { OrbitYaw = FixedYaw; bOrbitHeld = true; }
 	if (FParse::Param(FCommandLine::Get(), TEXT("TorqueProfile"))) { bPerfShow = true; bPerfLog = true; }
 }
 
@@ -469,7 +473,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
 		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::R1 | ESonyButton::Create))
 	{
-		CameraMode = (CameraMode + 1) % 3;
+		CameraMode = (CameraMode + 1) % CameraModes;
 		bCamInit = false;
 	}
 	if (SonyHit(ESonyButton::DDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
@@ -711,6 +715,20 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	for (int32 I : {RP_Helmet, RP_Visor, RP_Neck}) RiderParts[I]->SetVisibility(bShow);
 }
 
+void ATorqueBikePawn::ShowRider(bool bShow)
+{
+	if (bShow == bRiderShown || RiderParts.Num() < RP_Count) return;
+	bRiderShown = bShow;
+	for (UStaticMeshComponent* C : RiderParts) C->SetVisibility(bShow);
+	if (bShow)
+	{
+		// Every part is showing again, the head too: put the head back as the view wants it.
+		const bool bWantHead = bHeadShown;
+		bHeadShown = true;
+		ShowHead(bWantHead);
+	}
+}
+
 void ATorqueBikePawn::UpdateRider()
 {
 	if (RiderParts.Num() < RP_Count) return;
@@ -819,7 +837,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.SideSlide = FMath::Max(Side(F), Side(R));
 	In.OnTarmac = (R.Contact ? R.Surf : F.Surf) == SURF_TARMAC;
 	In.Airborne = !F.Contact && !R.Contact;
-	In.Inside = CameraMode == 0 ? 0.0 : 1.0;
+	In.Inside = (CameraMode == 0 || CameraMode == 3) ? 0.0 : 1.0;
 	Sound->Set(In);
 
 	// Keep about 80 ms queued: enough for a slow frame, little enough that it answers the throttle.
@@ -895,6 +913,22 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	Flat = Flat.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 
 	ShowHead(CameraMode == 0);
+	ShowRider(CameraMode != 3);
+	if (CameraMode == 3)
+	{
+		// Showroom: round the bike at a walking-round distance, eye height a little above the tank,
+		// starting from the front three-quarter on the right (the side the photos are from). The
+		// right stick nudges the angle and height.
+		if (!bOrbitHeld) OrbitYaw = FMath::Fmod(OrbitYaw + 12.0 * Dt, 360.0);
+		const double Yaw = FMath::DegreesToRadians(OrbitYaw + LookYaw);
+		const FVector Right = FVector::CrossProduct(FVector::UpVector, Flat);
+		const FVector Centre = BikePos + Flat * 5.0 + FVector(0, 0, 55.0);
+		const FVector Pos = Centre + (Flat * FMath::Cos(Yaw) + Right * FMath::Sin(Yaw)) * 270.0
+			+ FVector(0, 0, 55.0 - LookPitch * 4.0);
+		Camera->SetWorldLocationAndRotation(Pos, (Centre - Pos).Rotation());
+		Camera->SetFieldOfView(40.0f);
+		return;
+	}
 	if (CameraMode == 1 || CameraMode == 2)
 	{
 		// 1, first person: the rider's eyes, inside the helmet, arms and bars below. 2, the chin
