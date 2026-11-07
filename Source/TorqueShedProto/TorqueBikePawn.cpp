@@ -11,7 +11,9 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
+#include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -166,6 +168,9 @@ void ATorqueBikePawn::BeginPlay()
 	Respawn(0);
 	Pad = MakeUnique<FSonyPad>();
 	StartSound();
+	// -TorqueCamera=1 starts in first person (2: chin camera), for checking the views.
+	int32 StartCamera = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueCamera="), StartCamera)) CameraMode = FMath::Clamp(StartCamera, 0, 2);
 }
 
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
