@@ -10,4 +10,5 @@ class ATorqueGameMode : public AGameModeBase
 	GENERATED_BODY()
 public:
 	ATorqueGameMode();
+	virtual void BeginPlay() override;
 };
