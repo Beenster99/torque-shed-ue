@@ -195,9 +195,12 @@ stalks, joints, stems and glasses; the clocks' faces, ticks, needles, screens, s
 stalk; the front brake hose and banjo; the headlight's eyes, brows, hot spots, rings, grilles,
 visors, brackets and fly-screen; the indicators' stalks; a satnav's arm, ball, crossbar, stays,
 visor and screen. The swingarm, mirrors, clocks, front master, headlight, indicators and satnav
-are checked whole against Godot, and a phone satnav lands where Godot puts it. Still to port:
-Godot's other code shells (perimeter beams, castings, the rest of each slot's code pieces), and
-its hiding of what a full fairing covers.
+are checked whole against Godot, and a phone satnav lands where Godot puts it. Under a full fairing's
+panel set, what of the engine bay sits wholly behind it side on is hidden surface by surface
+(FittedPart.HiddenTags), and the oil filter (under a touring set, the air filter) gets a
+quick-release service cap on the panel, as Godot's _hide_covered and _service_caps; the Godot
+reference records which meshes it hides, and `layout_test` matches them tag by tag. Still to
+port: Godot's other code shells (perimeter beams, castings, the rest of each slot's code pieces).
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

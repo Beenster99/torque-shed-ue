@@ -23,8 +23,17 @@ OUT = os.path.join(REPO, "SimTest", "data", "godot_reference.json")
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--godot", default=os.path.join(os.path.dirname(REPO), "torque-shed"))
-    ap.add_argument("--bin", required=True, help="the official Godot 4.6.2 binary")
+    ap.add_argument("--bin", help="the official Godot 4.6.2 binary")
+    ap.add_argument("--keep-raw", help="also keep Godot's untrimmed dump here")
+    ap.add_argument("--from-raw", help="trim a kept dump again instead of running Godot")
     a = ap.parse_args()
+    if a.from_raw:
+        data = json.load(open(a.from_raw))
+        commit = subprocess.run(["git", "-C", a.godot, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        write(data, commit)
+        return
+    if not a.bin:
+        ap.error("--bin is needed to run Godot")
     tmp = tempfile.mkdtemp(prefix="ts_ref_")
     try:
         proj = os.path.join(tmp, "ts")
@@ -35,9 +44,15 @@ def main():
         subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_ref.tscn", "--", "--out=" + raw],
                        check=True, capture_output=True, timeout=1800)
         data = json.load(open(raw))
+        if a.keep_raw:
+            shutil.copyfile(raw, a.keep_raw)
         commit = subprocess.run(["git", "-C", a.godot, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    write(data, commit)
+
+
+def write(data, commit):
     r6 = lambda v: [round(float(x), 6) for x in v]
     out = {"about": "The original Torque Shed's reference bikes as Godot draws them (Rig built look), Godot frame "
                     "(y up, -z forward, x right). Written by Tools/make_godot_reference.py; do not edit.",
@@ -54,6 +69,20 @@ def main():
             b["meshes"] += 1
         return {t: {"min": r6(b["min"]), "max": r6(b["max"]), "meshes": b["meshes"]} for t, b in sorted(out.items())}
 
+    def hidden_boxes(slots):
+        # Each slot's meshes a full fairing hides (BikeModel._hide_covered, _service_caps), as one
+        # box, and any service cap put on the panel for one.
+        out = {}
+        for k, v in slots.items():
+            # (Its Blender surfaces, tag by tag, as glb_tags; the code-drawn ones go with them.)
+            hid = glb_tags([m for m in v["meshes"] if m.get("hidden")])
+            caps = [m for m in v["meshes"] if m["name"].startswith("ServiceCap")]
+            if hid:
+                out.setdefault(k, {})["hidden"] = hid
+            if caps:
+                out.setdefault(k, {})["cap"] = {"min": r6(caps[0]["min"]), "max": r6(caps[0]["max"])}
+        return out
+
     sweep = data.pop("sweep", {})
     for style, s in data.items():
         rig = {k: v for k, v in s["rig"].items() if isinstance(v, list) and len(v) == 3 and all(isinstance(x, (int, float)) for x in v)}
@@ -64,7 +93,7 @@ def main():
                      "glb": glb_tags(v["meshes"])}
                  for k, v in s["slots"].items()}
         out["styles"][style] = {"parts": s["parts"], "stats": s["stats"], "rig": {k: (r6(v) if isinstance(v, list) else v) for k, v in rig.items()},
-                                "slots": slots}
+                                "slots": slots, "covered": hidden_boxes(s["slots"])}
     # The sweep: each build as its base style's parts plus what changed, and only the swept slots'
     # Blender surfaces (what the sweep is there to check).
     keep = ("wheel", "tyre", "disc", "caliper", "pads", "fork", "shock", "swingarm", "final_drive", "chain",
@@ -76,6 +105,9 @@ def main():
                              "fit_tier": s["rig"]["fit"]["tier"],
                              "glb": {k: glb_tags(v["meshes"]) for k, v in s["slots"].items() if k.endswith(keep) and glb_tags(v["meshes"])}}
         # The swept slot whole (Blender and code-drawn meshes) and its named meshes, for the code-drawn shapes.
+        cov = hidden_boxes(s["slots"])
+        if cov:
+            out["sweep"][key]["covered"] = cov
         slot = key.split("/")[0]
         if slot in s["slots"]:
             v = s["slots"][slot]

@@ -58,7 +58,7 @@ func dump_build(parts: Dictionary) -> Dictionary:
 			# (A Blender part's surface keeps its glb material, named by its tag: "chrome", "paint__engine".)
 			var gm: Material = mesh.surface_get_material(0) if mesh.get_surface_count() > 0 else null
 			var tag := gm.resource_name.get_slice(".", 0) if gm != null else ""
-			meshes.append({"name": str((mi as Node).name), "tag": tag, "min": v3(mlo), "max": v3(mhi)})
+			meshes.append({"name": str((mi as Node).name), "tag": tag, "min": v3(mlo), "max": v3(mhi), "hidden": (mi as Node).has_meta("under_fairing")})
 		if n > 0:
 			slots[slot] = {"min": v3(lo), "max": v3(hi), "verts": n, "meshes": meshes}
 	var out := {"parts": parts, "stats": {"wheelbase": build.wheelbase, "rake_deg": build.rake_deg, "fork_length": build.fork_length,

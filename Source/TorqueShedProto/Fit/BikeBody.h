@@ -31,8 +31,10 @@ struct FittedPart
 	std::map<std::string, double> Weights;
 	PartMesh::Warp Warp;
 	std::vector<PartMesh::Warp> Copies;
-	// Placed but not drawn, as Godot hides it (the plain headlight inside a full fairing).
+	// Placed but not drawn, as Godot hides it (the plain headlight inside a full fairing), or only
+	// its surfaces of these tags (what of the engine bay a full fairing's panels cover).
 	bool Hidden = false;
+	std::vector<std::string> HiddenTags;
 	// A mesh made here rather than a glb deformed (a bar fairing's shell, the code's loft given the
 	// thickness and edges of the Glb section): BikeParts::Draw hands it back as it is.
 	std::shared_ptr<const PartMesh> Made;
