@@ -266,6 +266,18 @@ void BikeParts::Wheels(const PartsMap& Parts, const Layout& L, std::vector<Fitte
 					return Axle + V3(X, std::cos(A) * R, std::sin(A) * R);
 				}));
 			Out.push_back(P);
+			// A whitewall (or a coloured wall stripe) round both sidewalls, a hair proud of the
+			// rubber at the wall's widest point.
+			const Json* TLook = T ? T->Get("look") : nullptr;
+			const Json* Wall = TLook ? TLook->Get("wall") : nullptr;
+			if (Wall && Wall->A.size() >= 3)
+			{
+				CodeShapes::GodotNames Named;
+				const double Mid = TorqueSim::Lerp(RimR, Radius, 0.42);
+				for (double Sd : {-1.0, 1.0})
+					CodeShapes::Emit(Out, Side + "_tyre", TyrePath, Side + "_wheel", Named("WallBand"), CodeShapes::Torus(Mid, (Radius - RimR) * PartNum(TLook, "wall_w", 0.18)),
+						AtWith(GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5) * GAffine::Scale(V3(1.0, 0.12, 1.0)), Axle + V3(Sd * (Width * 0.5 + 0.0012), 0.0, 0.0)), "paint_2");
+			}
 		}
 		Brake(Parts, L, Front, RimR, RimW, Out);
 	}
@@ -673,6 +685,12 @@ void BikeParts::Shocks(const PartsMap& Parts, const Layout& L, std::vector<Fitte
 			V3 Top = Pivot + V3(0.12 * Side, 0.3, ArmLen - 0.2);
 			Top.y = std::min(Top.y, SeatY - 0.07);
 			Strut(Top, V3(0.12 * Side, 0.02, ArmLen - 0.08));
+			if (Id == "twin_shock_gas")
+			{
+				// Its gas reservoir, on the swingarm.
+				const V3 A(0.155 * Side, 0.22, ArmLen - 0.17), B(0.155 * Side, 0.32, ArmLen - 0.21);
+				CodeShapes::Emit(Out, "shock", Path, "swingarm", "", CodeShapes::Tube(A, B, 0.016), Arm * CodeShapes::TubeAt(A, B), "chrome");
+			}
 		}
 		return;
 	}
@@ -2899,6 +2917,7 @@ void BikeParts::Guards(const PartsMap& Parts, const Layout& L, const Bars& Bar, 
 			const V3 Back = Hb + V3(0.14, -0.025, 0.25), Front = Hb + V3(0.14, -0.02, 0.1);
 			Put(Out, "steering_damper", "damper/linear.glb", AtWith(BasisUp(Front - Back) * GAffine::Scale(V3(1.0, (Front - Back).Length() / 0.15, 1.0)), Back), "");
 			Line("steering_damper", {Front - H, Hb + V3(0.11, -0.02, -0.03) - H}, 0.006, true);
+			CodeShapes::Emit(Out, "steering_damper", "damper/linear.glb", "steer", "", CodeShapes::Sphere(0.011), GAffine::At(Hb + V3(0.11, -0.02, -0.03)), "black_metal");   // (the rod's eye)
 		}
 		else if (Style == "rotary")
 		{

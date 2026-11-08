@@ -206,7 +206,7 @@ link rod, cable or rod, the gear linkage rod, the HT leads, the radiator's grill
 thermostat and coolant hoses, an oil cooler's lines, the ECU loom, the tank's filler cap, badges,
 knee pads, stripes, console, knee panels, chest pad and shrouds, the seat's stitching, seam,
 piping, grab rail, pillion pegs, touring back, springs and sissy bar, the front mudguard's rib,
-stripes, brackets and stays, and the tail's struts, brackets, cowl trim and number plate (moved
+stripes, brackets and stays, a tyre's whitewall bands, a gas shock's reservoirs, the steering damper rod's eye, and the tail's struts, brackets, cowl trim and number plate (moved
 off the rear mudguard the shortest way, as Godot's _clear_plates does). `layout_test` checks every
 slot whole against Godot except those in its NotWhole list, whose code pieces are still to port:
 the frame (perimeter beams, castings, engine plates), luggage, the toolbox, the aux tank, the
