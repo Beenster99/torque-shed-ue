@@ -149,6 +149,8 @@ FString SlotList(const TArray<FName>& Slots, int32 Most = 4)
 	if (Slots.Num() > Most) S += FString::Printf(TEXT(" and %d more"), Slots.Num() - Most);
 	return S;
 }
+// Hold F this long on a bike to wheel it instead of riding it (walker.gd HOLD_TO_PUSH).
+constexpr double HoldToPush = 0.35;
 } // namespace TorqueWalkerImpl
 
 namespace TWI = TorqueWalkerImpl;
@@ -301,7 +303,8 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
 	if (!bNoInput) ReadInput(DeltaSeconds);
 	else bWorkHeld = bAltHeld = false;
-	if (!bComputer)
+	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
+	else if (!bComputer)
 	{
 		FindTarget();
 		MakePlan();
@@ -375,6 +378,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	if (FMath::Abs(PadSide) > FMath::Abs(Side)) Side = PadSide;
 	const bool bRun = Down(EKeys::LeftShift) || Down(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3);
 	GetCharacterMovement()->MaxWalkSpeed = bRun ? RunSpeed : WalkSpeed;
+	if (Wheeling() != INDEX_NONE) GetCharacterMovement()->MaxWalkSpeed = FMath::Min(GetCharacterMovement()->MaxWalkSpeed, 240.0f);   // a bike is heavy to wheel about
 	const FRotator Yaw(0.0, PC->GetControlRotation().Yaw, 0.0);
 	AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::X), Fwd);
 	AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y), Side);
@@ -416,7 +420,45 @@ void ATorqueWalker::ReadInput(float Dt)
 		SprayFinish = (SprayFinish + 1) % UTorqueBuildSubsystem::Finishes().Num();
 	bWorkPressed = bWorkJust;
 	bWorkHeld = Down(EKeys::LeftMouseButton) || Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
-	if (bF) Interact();
+	// F: tap to use or ride, hold on a bike to wheel it (walker.gd HOLD_TO_PUSH); wheeling, F lets go.
+	const bool bFDown = Down(EKeys::F) || Down(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle);
+	const UTorqueBuildSubsystem* FShed = Shed();
+	const int32 Pushing = Wheeling();
+	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
+		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
+	if (Pushing != INDEX_NONE)
+	{
+		if (bF) LetGo(Pushing);
+	}
+	else if (bF && bAtBike)
+	{
+		bFArmed = true;
+		FHeldFor = 0.0;
+		FBay = TargetBay;
+	}
+	else if (bF) Interact();
+	if (bFArmed && Pushing == INDEX_NONE)
+	{
+		FHeldFor += Dt;
+		if (!bFDown)
+		{
+			bFArmed = false;
+			Interact();
+		}
+		else if (FHeldFor >= TWI::HoldToPush)
+		{
+			bFArmed = false;
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::GrabBike;
+			R.Bay = FBay;
+			FString WhyNot;
+			if (UTorqueBuildSubsystem* GB = Shed())
+			{
+				if (!GB->Request(R, WhyNot)) Say(WhyNot, false);
+				else Doing(FString::Printf(TEXT("wheeling bay %d's bike"), FBay + 1), 30.0);
+			}
+		}
+	}
 	if (Just(EKeys::H)) bShowHelp = !bShowHelp;
 	if (Just(EKeys::P)) bPerfShow = !bPerfShow;
 	if (Just(EKeys::O))
@@ -1287,6 +1329,75 @@ void ATorqueWalker::UpdateCues()
 	}
 }
 
+// --- Wheeling a bike (walker.gd _push_bike) ---------------------------------------------------------
+
+int32 ATorqueWalker::Wheeling() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	return B ? B->PushedBy(B->Me()) : INDEX_NONE;
+}
+
+FTransform ATorqueWalker::PushTransform() const
+{
+	// Alongside you holding the bars (walker.gd: 0.75 m to the right, a little behind), facing your way.
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	const double Yaw = PC ? PC->GetControlRotation().Yaw : GetActorRotation().Yaw;
+	const FRotator Heading(0.0, Yaw, 0.0);
+	const FVector Ahead = Heading.Vector(), Right = FRotationMatrix(Heading).GetUnitAxis(EAxis::Y);
+	const FVector At = GetActorLocation() + Right * 85.0 - Ahead * 25.0;
+	return FTransform(Heading, FVector(At.X, At.Y, 0.0));
+}
+
+ATorqueShedBike* ATorqueWalker::BikeActor(int32 Bay) const
+{
+	if (UWorld* World = GetWorld())
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			if (It->Bay == Bay) return *It;
+	return nullptr;
+}
+
+void ATorqueWalker::PushBike(float Dt)
+{
+	const int32 Bay = Wheeling();
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B || Bay == INDEX_NONE) return;
+	Target = ETorqueLook::None;
+	TargetBay = INDEX_NONE;
+	TargetItem = 0;
+	TargetPlace = nullptr;
+	Plan = FPlan();
+	AltPlan = FPlan();
+	Progress = 0.0;
+	const FTransform Xf = PushTransform();
+	if (ATorqueShedBike* Bike = BikeActor(Bay)) Bike->Preview(Xf);
+	// The shed hears where it is ten times a second (and so does everyone else).
+	PushClock += Dt;
+	if (PushClock >= 0.1)
+	{
+		PushClock = 0.0;
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::MoveBike;
+		R.Bay = Bay;
+		R.Place = Xf;
+		FString WhyNot;
+		B->Request(R, WhyNot);
+	}
+}
+
+void ATorqueWalker::LetGo(int32 Bay)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return;
+	FTorqueShedRequest R;
+	R.Kind = ETorqueShedAct::ReleaseBike;
+	R.Bay = Bay;
+	R.Place = PushTransform();
+	FString WhyNot;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+	else Doing(FString(), 0.0);
+	if (ATorqueShedBike* Bike = BikeActor(Bay)) Bike->EndPreview();
+}
+
 // --- F -------------------------------------------------------------------------------------------
 
 void ATorqueWalker::Interact()
@@ -1440,6 +1551,14 @@ void ATorqueWalker::UpdateHud()
 	const UTorqueBuildSubsystem* B = Shed();
 	if (!B) return;
 	const FColor Title(190, 210, 255), Prompt(255, 214, 120), Blocked(255, 140, 120), Help(200, 200, 200), Info(220, 220, 220);
+	if (const int32 Pushed = Wheeling(); Pushed != INDEX_NONE)
+	{
+		HudLines.Add({FString::Printf(TEXT("Wheeling %s"), *B->Bike(Pushed).Name), FColor::White, 0.8f});
+		HudLines.Add({TEXT("Walk to push it, back up to pull it. Bikes don't have reverse."), Info, 0.6f});
+		HudLines.Add({TEXT("F / Triangle: let go (into its bay, onto the dyno rig, or on its stand)"), Prompt, 0.65f});
+		if (NoteFor > 0.0) HudLines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
+		return;
+	}
 	if (bComputer)
 	{
 		HudLines.Add({TEXT("PARTS: order anything"), FColor::White, 0.9f});

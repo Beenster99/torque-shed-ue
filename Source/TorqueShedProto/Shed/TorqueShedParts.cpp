@@ -203,6 +203,7 @@ struct FPartInfo
 	FString Name, Description, Material;
 	FLinearColor Colour = FLinearColor(0.5f, 0.5f, 0.5f);
 	TArray<FName> MountsOn;
+	TMap<FName, double> Numbers;   // every number field ("mass", "torque_mult"); an array's length as "<field>_count"
 };
 
 struct FCatalogue
@@ -246,6 +247,14 @@ FCatalogue& Catalogue()
 			const TArray<TSharedPtr<FJsonValue>>* On = nullptr;
 			if ((*P)->TryGetArrayField(TEXT("mounts_on"), On))
 				for (const TSharedPtr<FJsonValue>& V : *On) Info.MountsOn.Add(FName(*V->AsString()));
+			for (const auto& FieldKV : (*P)->Values)
+			{
+				if (!FieldKV.Value.IsValid()) continue;
+				double Num = 0.0;
+				const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;
+				if (FieldKV.Value->Type == EJson::Number && FieldKV.Value->TryGetNumber(Num)) Info.Numbers.Add(FName(*FieldKV.Key), Num);
+				else if (FieldKV.Value->TryGetArray(Arr)) Info.Numbers.Add(FName(*(FieldKV.Key + TEXT("_count"))), (double)Arr->Num());
+			}
 			if (Info.Name.IsEmpty()) Info.Name = PartKV.Key;
 			const FName Id(*PartKV.Key);
 			C.Parts.Add(Id, Info);
@@ -356,6 +365,25 @@ bool IsTyreSlot(FName Slot) { return Slot == FName(TEXT("front_tyre")) || Slot =
 FName StockPart(FName Slot) { return FName(*(FString(StockPrefix) + Slot.ToString())); }
 bool IsStock(FName Part) { return Part.ToString().StartsWith(StockPrefix); }
 FName StockSlot(FName Part) { return IsStock(Part) ? FName(*Part.ToString().Mid(FCString::Strlen(StockPrefix))) : NAME_None; }
+
+double PartNumber(FName Part, FName Field, double Default)
+{
+	const FPartInfo* Info = Catalogue().Parts.Find(Part);
+	const double* N = Info ? Info->Numbers.Find(Field) : nullptr;
+	return N ? *N : Default;
+}
+
+double KindAverage(FName Kind, FName Field, double Default)
+{
+	const TArray<FName>* Ids = Catalogue().ByKind.Find(Kind);
+	double Sum = 0.0;
+	int32 N = 0;
+	if (Ids)
+		for (const FName& Id : *Ids)
+			if (const FPartInfo* Info = Catalogue().Parts.Find(Id))
+				if (const double* V = Info->Numbers.Find(Field)) { Sum += *V; ++N; }
+	return N > 0 ? Sum / N : Default;
+}
 
 bool IsPart(FName Part) { return IsStock(Part) ? Slots().Contains(StockSlot(Part)) : Catalogue().Parts.Contains(Part); }
 

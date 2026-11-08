@@ -222,6 +222,16 @@ private:
 	FDelegateHandle TellHandle;
 	void Told(int32 Peer, const FString& Text, bool bOk);
 	bool bPeerSet = false;
+	// Wheeling a bike (walker.gd _push_bike): hold F on one to take hold, F again to let go.
+	double FHeldFor = 0.0;
+	bool bFArmed = false;
+	int32 FBay = INDEX_NONE;
+	double PushClock = 0.0;
+	int32 Wheeling() const;
+	FTransform PushTransform() const;
+	void PushBike(float Dt);
+	void LetGo(int32 Bay);
+	class ATorqueShedBike* BikeActor(int32 Bay) const;
 
 	// Performance, as on the bike: P shows it, O (or -TorqueProfile) logs it each second to
 	// Saved/Profiling/torque_shed_perf_<time>.csv.

@@ -2,6 +2,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorquePlayerState.h"
 #include "CanvasItem.h"
@@ -530,54 +531,94 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	Pen.Text(24, 50, Left(D.Name.ToUpper(), 26), 40, Ink());
 	Pen.Text(560, 56, D.Status, 24, Ink(), W - 584.0f, 1);
 
-	// Left: the build. How far along it is, then the counts, condition, fabrication and paint.
-	float Y = 106.0f;
-	Pen.Text(24, Y, TEXT("BUILD"), 16, Dim());
-	Pen.Text(24, Y, FString::Printf(TEXT("%.0f%%"), D.Progress * 100.0f), 16, D.StatusColour, 496.0f, 1);
-	Pen.Bar(24, Y + 8, 496, 16, D.Progress, D.StatusColour);
-	Y += 60.0f;
-	auto Row = [&Pen](float RowY, const FString& Label, const FString& Value, const FLinearColor& Colour, float Fraction, const FLinearColor& BarColour)
+	// Left: Torque Shed's numbers (power, torque, weight, power to weight), then the build: how far
+	// along it is, the counts, condition, fabrication and paint.
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	const FTorqueEngineNumbers E = Shed ? TorqueShedPower::Numbers(*Shed, Bay) : FTorqueEngineNumbers();
+	const float Hp = TorqueShedPower::PeakHp(E);
+	// Two pages, turning every 10 s: Torque Shed's numbers, then the build.
+	const bool bSpecs = int32((GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0) / 10.0) % 2 == 0;
+	Pen.Rect(W * 0.5f - 30.0f, H - 16, 12, 8, bSpecs ? Amber() : Dim());
+	Pen.Rect(W * 0.5f - 10.0f, H - 16, 12, 8, bSpecs ? Dim() : Amber());
+	float Y = 104.0f;
+	if (bSpecs)
+	{
+	auto Spec = [&Pen](float RowY, const FString& Label, const FString& Value, const FString& Extra)
 	{
 		Pen.Text(24, RowY, Label, 22, Dim());
-		Pen.Text(200, RowY, Value, 24, Colour, 120.0f, 1);
-		if (Fraction >= 0.0f) Pen.Bar(340, RowY - 16, 180, 14, Fraction, BarColour);
+		Pen.Text(200, RowY, Value, 26, FLinearColor::White, 150.0f, 1);
+		Pen.Text(362, RowY, Extra, 16, Dim());
+	};
+	Spec(Y, TEXT("Power"), E.bValid ? FString::Printf(TEXT("%.0f hp"), Hp) : FString(TEXT("-")), E.bValid ? FString::Printf(TEXT("%.0f rpm limit"), E.Redline) : FString(TEXT("no engine")));
+	Y += 34.0f;
+	Spec(Y, TEXT("Torque"), E.bValid ? FString::Printf(TEXT("%.0f Nm"), E.PeakTorque) : FString(TEXT("-")), E.bValid ? FString::Printf(TEXT("at %.0f rpm"), E.PeakTorqueRpm) : FString());
+	Y += 34.0f;
+	Spec(Y, TEXT("Weight"), FString::Printf(TEXT("%.0f kg"), E.Mass), FString());
+	Y += 34.0f;
+	Spec(Y, TEXT("hp per 100 kg"), E.bValid ? FString::Printf(TEXT("%.1f"), Hp / FMath::Max(E.Mass, 1.0f) * 100.0f) : FString(TEXT("-")), FString());
+	Y += 34.0f;
+	if (Shed && Shed->HasDynoRun(Bay))
+	{
+		const FTorqueDynoRun& Last = Shed->DynoRunOf(Bay);
+		Spec(Y, TEXT("Dyno"), FString::Printf(TEXT("%.0f hp"), Last.PeakHp), FString::Printf(TEXT("%.0f Nm at the wheel"), Last.PeakNm));
+		Y += 34.0f;
+	}
+	// What's holding the engine back (Torque Shed's notes).
+	Y += 10.0f;
+	for (int32 I = 0; I < E.Notes.Num() && I < 6; ++I)
+	{
+		Pen.Text(24, Y, Left(E.Notes[I], 46), 17, Srgb(1.0f, 0.75f, 0.3f));
+		Y += 26.0f;
+	}
+	if (E.Notes.Num() == 0 && E.bValid) Pen.Text(24, Y, TEXT("Running sweet."), 17, Good());
+	}
+	else
+	{
+	Pen.Text(24, Y, TEXT("BUILD"), 16, Dim());
+	Pen.Text(24, Y, FString::Printf(TEXT("%.0f%%"), D.Progress * 100.0f), 16, D.StatusColour, 496.0f, 1);
+	Pen.Bar(24, Y + 8, 496, 14, D.Progress, D.StatusColour);
+	Y += 50.0f;
+	auto Row = [&Pen](float RowY, const FString& Label, const FString& Value, const FLinearColor& Colour, float Fraction, const FLinearColor& BarColour)
+	{
+		Pen.Text(24, RowY, Label, 20, Dim());
+		Pen.Text(200, RowY, Value, 22, Colour, 120.0f, 1);
+		if (Fraction >= 0.0f) Pen.Bar(340, RowY - 15, 180, 12, Fraction, BarColour);
 	};
 	const float Fit = D.Needed > 0 ? float(D.Fitted) / D.Needed : 0.0f;
 	const float Bolt = D.Fitted > 0 ? float(D.Bolted) / D.Fitted : 0.0f;
 	Row(Y, TEXT("Parts on"), FString::Printf(TEXT("%d / %d"), D.Fitted, D.Needed), D.Fitted == D.Needed ? Good() : FLinearColor::White, Fit, D.Fitted == D.Needed ? Good() : Bad());
-	Y += 36.0f;
+	Y += 30.0f;
 	Row(Y, TEXT("Bolted up"), FString::Printf(TEXT("%d / %d"), D.Bolted, D.Fitted), D.Bolted == D.Fitted ? Good() : FLinearColor::White, Bolt, D.Bolted == D.Fitted ? Good() : Amber());
-	Y += 36.0f;
+	Y += 30.0f;
 	const FLinearColor HealthColour = D.Health >= 0.95f ? Good() : FMath::Lerp(Bad(), Good(), D.Health);
 	Row(Y, TEXT("Condition"), FString::Printf(TEXT("%.0f %%"), D.Health * 100.0f), FLinearColor::White, D.Health, HealthColour);
-	Y += 36.0f;
-	Row(Y, TEXT("Rust"), FString::Printf(TEXT("%.0f %%"), D.Rust * 100.0f), D.Rust > 0.3f ? Bad() : FLinearColor::White, D.Rust, Srgb(0.75f, 0.4f, 0.2f));
-	Y += 36.0f;
-	Row(Y, TEXT("Dirt"), FString::Printf(TEXT("%.0f %%"), D.Dirt * 100.0f), D.Dirt > 0.3f ? Amber() : FLinearColor::White, D.Dirt, Srgb(0.55f, 0.45f, 0.3f));
-	Y += 36.0f;
+	Y += 30.0f;
+	Row(Y, TEXT("Rust / dirt"), FString::Printf(TEXT("%.0f / %.0f %%"), D.Rust * 100.0f, D.Dirt * 100.0f), D.Rust > 0.3f ? Bad() : (D.Dirt > 0.3f ? Amber() : FLinearColor::White),
+		FMath::Max(D.Rust, D.Dirt), D.Rust >= D.Dirt ? Srgb(0.75f, 0.4f, 0.2f) : Srgb(0.55f, 0.45f, 0.3f));
+	Y += 30.0f;
 	if (D.Owed.Num() + D.Made.Num() > 0)
 	{
 		Row(Y, TEXT("Fabrication"), FString::Printf(TEXT("%d / %d"), D.Made.Num(), D.Owed.Num() + D.Made.Num()),
 			D.Owed.Num() == 0 ? Good() : Amber(), float(D.Made.Num()) / (D.Owed.Num() + D.Made.Num()), D.Owed.Num() == 0 ? Good() : Amber());
-		Y += 36.0f;
+		Y += 30.0f;
 	}
 	// Its paint: the tank's and the frame's colours.
 	if (D.bHasTankPaint || D.bHasFramePaint)
 	{
-		Pen.Text(24, Y, TEXT("Paint"), 22, Dim());
+		Pen.Text(24, Y, TEXT("Paint"), 20, Dim());
 		float PX = 200.0f;
 		if (D.bHasTankPaint)
 		{
-			Pen.Rect(PX, Y - 20, 26, 22, FLinearColor(D.TankPaint.R, D.TankPaint.G, D.TankPaint.B, 1.0f));
-			Pen.Text(PX + 34, Y, TEXT("tank"), 16, Dim());
+			Pen.Rect(PX, Y - 18, 24, 20, FLinearColor(D.TankPaint.R, D.TankPaint.G, D.TankPaint.B, 1.0f));
+			Pen.Text(PX + 32, Y, TEXT("tank"), 16, Dim());
 			PX += 110.0f;
 		}
 		if (D.bHasFramePaint)
 		{
-			Pen.Rect(PX, Y - 20, 26, 22, FLinearColor(D.FramePaint.R, D.FramePaint.G, D.FramePaint.B, 1.0f));
-			Pen.Text(PX + 34, Y, TEXT("frame"), 16, Dim());
+			Pen.Rect(PX, Y - 18, 24, 20, FLinearColor(D.FramePaint.R, D.FramePaint.G, D.FramePaint.B, 1.0f));
+			Pen.Text(PX + 32, Y, TEXT("frame"), 16, Dim());
 		}
-		Y += 36.0f;
+		Y += 30.0f;
 	}
 	// What to do next, and with which tool.
 	Y += 8.0f;
@@ -607,6 +648,8 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 		Pen.Rect(24, CY - 14, 12, 12, On[I].Colour);
 		Pen.Text(44, CY, Left(On[I].Name + TEXT(": ") + On[I].Doing, 46), 17, On[I].Colour);
 		CY += 26.0f;
+	}
+
 	}
 
 	// Right: every part, in two columns, with its condition (dashboard.gd's part list).

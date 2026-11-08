@@ -60,6 +60,12 @@ public:
 	ATorqueShedBike();
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+	virtual void Tick(float DeltaSeconds) override;
+
+	// Where it is drawn while someone here wheels it (the walker's own, ahead of the host's word),
+	// or false to follow the shed.
+	void Preview(const FTransform& Xf) { PreviewXf = Xf; bPreview = true; }
+	void EndPreview() { bPreview = false; }
 
 	// Which bay this is (0 .. UTorqueBuildSubsystem::Bays - 1): the bike in it is that bay's build.
 	UPROPERTY(EditAnywhere, Category = "Bike") int32 Bay = 0;
@@ -85,4 +91,10 @@ private:
 	void BuildGreyBox();
 	void BuildStand();
 	FDelegateHandle Watch, WatchLooks;
+	// Wheeled out of its bay (UTorqueBuildSubsystem::BikeTransform): off the paddock stand, level on
+	// its wheels, gliding to where the shed says it is.
+	bool bPreview = false;
+	FTransform PreviewXf;
+	bool bShownAway = false;
+	void Follow(float Dt);
 };

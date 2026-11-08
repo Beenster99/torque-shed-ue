@@ -32,6 +32,28 @@ struct FTorqueShedSaveItem
 	UPROPERTY() int32 Tyre = 0;
 };
 
+// A dyno run (FTorqueDynoRun), the bike's last two kept.
+USTRUCT()
+struct FTorqueShedSaveDynoRun
+{
+	GENERATED_BODY()
+	UPROPERTY() int32 N = 0;
+	UPROPERTY() TArray<float> Rpm;
+	UPROPERTY() TArray<float> Nm;
+	UPROPERTY() TArray<float> Hp;
+	UPROPERTY() float PeakHp = 0.0f;
+	UPROPERTY() float PeakHpRpm = 0.0f;
+	UPROPERTY() float PeakNm = 0.0f;
+	UPROPERTY() float PeakNmRpm = 0.0f;
+	UPROPERTY() float Redline = 8000.0f;
+	UPROPERTY() float IdleRpm = 1000.0f;
+	UPROPERTY() int32 Gears = 6;
+	UPROPERTY() float Heat = 0.0f;
+	UPROPERTY() float TempC = 90.0f;
+	UPROPERTY() bool bFan = false;
+	UPROPERTY() float Mass = 0.0f;
+};
+
 USTRUCT()
 struct FTorqueShedSaveBike
 {
@@ -46,6 +68,11 @@ struct FTorqueShedSaveBike
 	UPROPERTY() bool bRode = false;
 	UPROPERTY() TArray<FString> FabOwed;
 	UPROPERTY() TArray<FString> FabDone;
+	// Wheeled out of its bay (onto the dyno, or left on its stand): where it stands.
+	UPROPERTY() bool bAway = false;
+	UPROPERTY() FTransform Xf;
+	UPROPERTY() TArray<FTorqueShedSaveDynoRun> DynoRuns;
+	UPROPERTY() int32 DynoN = 0;
 };
 
 UCLASS()
@@ -62,4 +89,9 @@ public:
 	UPROPERTY() TArray<FTorqueShedSaveItem> Items;
 	UPROPERTY() int32 NextId = 1;
 	UPROPERTY() int32 MyBike = 0;
+	// The dyno room's kit (fields added to version 3: older saves read them as their defaults).
+	UPROPERTY() TArray<bool> DynoStraps;
+	UPROPERTY() bool bDynoFan = false;
+	UPROPERTY() bool bDynoLights = true;
+	UPROPERTY() float DynoHeat = 0.0f;
 };

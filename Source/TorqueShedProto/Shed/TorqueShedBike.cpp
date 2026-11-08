@@ -224,7 +224,7 @@ int32 MakePartsWhere(AActor* Owner, USceneComponent* Parent, const FTorqueBuild&
 
 ATorqueShedBike::ATorqueShedBike()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = Root;
 	BikeRoot = CreateDefaultSubobject<USceneComponent>(TEXT("BikeRoot"));
@@ -261,6 +261,43 @@ void ATorqueShedBike::BeginPlay()
 		WatchLooks = B->OnLooks.AddUObject(this, &ATorqueShedBike::LooksChanged);
 		// Back from a ride: the bike comes in dirtier (the host's to do; clients hear it from the host).
 		B->Arrived(Bay);
+	}
+}
+
+void ATorqueShedBike::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	Follow(DeltaSeconds);
+}
+
+void ATorqueShedBike::Follow(float Dt)
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B) return;
+	const bool bAway = B->IsAway(Bay);
+	if (bAway != bShownAway)
+	{
+		// Off the paddock stand (hidden while it is away): level on its wheels, axle height 30.5 cm.
+		bShownAway = bAway;
+		for (UStaticMeshComponent* C : Stand)
+			if (C) C->SetVisibility(!bAway);
+		BikeRoot->SetRelativeLocationAndRotation(bAway ? FVector(0.0, 0.0, 30.5) : FVector(0.0, 0.0, 32.5), FRotator(bAway ? 0.0 : -2.0, 0.0, 0.0));
+	}
+	// Being wheeled: it mustn't shove the one wheeling it about.
+	const bool bPushed = B->Exists(Bay) && B->Bike(Bay).Pusher != 0;
+	if (bPushed != (Blocker->GetCollisionEnabled() == ECollisionEnabled::NoCollision))
+		Blocker->SetCollisionEnabled(bPushed ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
+	if (!bPushed) bPreview = false;
+	const FTransform Want = bPreview ? PreviewXf : B->BikeTransform(Bay);
+	const FVector At = GetActorLocation();
+	const double Gap = FVector::Dist(At, Want.GetLocation());
+	if (Gap < 0.05 && GetActorRotation().Equals(Want.Rotator(), 0.05)) return;
+	// The walker's own preview is followed at once; the shed's word (10 a second over the net) glides.
+	if (bPreview || Gap > 400.0) SetActorLocationAndRotation(Want.GetLocation(), Want.GetRotation());
+	else
+	{
+		const float K = FMath::Clamp(Dt * 12.0f, 0.0f, 1.0f);
+		SetActorLocationAndRotation(FMath::Lerp(At, Want.GetLocation(), (double)K), FQuat::Slerp(GetActorQuat(), Want.GetRotation(), K));
 	}
 }
 
