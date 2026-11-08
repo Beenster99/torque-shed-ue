@@ -168,13 +168,15 @@ the swingarm's Blender pieces and the shocks), and the handlebars (the bar swept
 tube section in any of the catalogue's bends, risers or clamp, grips, switch gear, throttle, bar ends,
 clutch perch and lever, and the clutch and throttle cables with their adjusters), both master
 cylinders, the clocks (raised clear of the bars from the rider's eye, as Godot raises them, which
-needs the glbs' meshes) and the headlight's body. Each placed part also says what it moves with as the
+needs the glbs' meshes), the headlight's body, the mirrors' clamps and heads (turned to the rider's
+eye), the indicators (or a road bike's stock pair) and the front mudguard bent from its Blender
+section. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
-plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks and master cylinders), each on its style's reference bike. `layout_test` requires all of
+plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors and indicators), each on its style's reference bike. `layout_test` requires all of
 them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes,
-mirrors, indicators, lights' trim, guards, fairings, luggage and panels.
+mirrors on a frame-mounted fairing (they wait for its fit), lights' trim, guards, fairings, luggage and panels.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

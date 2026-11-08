@@ -109,6 +109,22 @@ private:
 	Bars Handlebars(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// The headlight's Blender-made body on the steering (H: the head, Godot frame).
 	void Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, const V3& H) const;
+	// The mirrors' Blender pieces: bar clamps and heads (BikeModel._draw_mirrors), not yet those on
+	// a frame-mounted fairing's mounts.
+	void Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
+	// The indicators' Blender heads, or a road bike's stock ones (BikeModel._draw_indicators).
+	void Indicators(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The front mudguard bent from its Blender section (BikeModel._draw_front_mudguard).
+	void FrontMudguard(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// BlenderParts.section_along: a section's 0..1 along +Z laid along Pts (Godot frame), its
+	// face out along Ups, Width across (narrowing to a point for a Tip). False with no glb.
+	bool SectionAlong(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Path, const std::vector<V3>& Pts,
+		const std::vector<V3>& Ups, double Width, bool Tip, const std::string& Node) const;
+	// BikeModel._guard_tip and _guard in the Blender section ("steel", "plastic", "valanced").
+	void GuardTip(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Section, const std::vector<V3>& Path,
+		const std::vector<V3>& Ups, double Width, const std::string& Node) const;
+	void GuardArc(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Section, const V3& C, double Radius,
+		double Width, double A0, double A1, int Segs, const std::string& Node) const;
 	// The rear brake's master cylinder (BikeModel._draw_rear_master).
 	void RearMaster(const Layout& L, std::vector<FittedPart>& Out) const;
 	// The clocks (BikeModel._draw_dashboard), raised clear of the bars as _lift_clear_of_bars
