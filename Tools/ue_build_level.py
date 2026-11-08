@@ -2388,7 +2388,8 @@ def build():
                      "wood": flat_material("M_BarnWood", 0.8, fine=0.15),
                      "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False),
                      "glass": flat_material("M_WindowGlass", 0.06),
-                     "render": render_material(tex, roles)}
+                     "render": render_material(tex, roles),
+                     "paint": flat_material("M_Paint", 0.32, fine=0.05)}
     import_bike((yaw, mirror, scale), tex, roles)
 
     # Start the level afresh (a second run replaces the first).

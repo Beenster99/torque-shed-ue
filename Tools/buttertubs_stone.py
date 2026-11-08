@@ -5,8 +5,7 @@ Data/Buttertubs/Props and placed in the level as Nanite instances (ue_build_leve
                       stones, hearting in the gaps, and a row of coping stones on edge along the top
     SM_WallFar        the same 2 m as one light shell (about 300 triangles) with a toothed cope line,
                       for walls in the distance when ue_build_level.py uses LODs instead of Nanite
-    SM_WallEnd_A..B   a wall head: a 1 m length finished at +x with headers tied across
-    SM_WallPier       1 m finished at both ends, set on the sharp bends of a wall
+    SM_WallEnd_A..D   a wall head: a 1 m length finished at +x with headers tied across, tapering down
     SM_GateStoop      a gate post: a tall limestone upright
     SM_Gate           a galvanised five-bar field gate, 3.4 m, hinged at local x = 0
     SM_Rock_00..11    limestone boulders, about 1 m across, scaled when placed
@@ -348,19 +347,12 @@ def wall_length(M, rng, x0, x1, end_lo=False, end_hi=False, copes=True):
         return
     # Copes: flat stones on edge across the top, leaning a little this way and that.
     s = SHIFT[-1] * (L / WALL_L)
-    x = x0 + (0.5 if end_lo else s)
-    hi = x1 + (-0.5 if end_hi else s)
-    # A cover: one big flat stone across the top of a head, a little proud of both faces, and a
-    # through stone below it, so the end reads finished, not stacked.
+    x = x0 + (0.03 if end_lo else s)
+    hi = x1 + (-0.03 if end_hi else s)
+    # A through stone near the head, tying it, sticking out a hand's width each side.
     for at_end, xe, sgn in ((end_hi, x1, -1), (end_lo, x0, 1)):
         if not at_end:
             continue
-        P, Tt, uv = stone(rng, (0.27, 0.075, TOP_HW + 0.07), (xe + sgn * 0.3, WALL_H + 0.07, 0.0),
-                          rot_xyz(rng.normal(0, 0.02), rng.normal(0, 0.04), rng.normal(0, 0.03)), res=(6, 12),
-                          round_=(0.15, 0.25), chops=4, chop_depth=(0.8, 0.95))
-        col = stone_col(rng, len(P), lichen=rng.uniform(0.3, 0.8))
-        col[:, 3] = np.clip(0.1 + 0.5 * np.clip((P[:, 1] - WALL_H - 0.1) / 0.05, 0, 1), 0, 1)
-        M.add(P, Tt, col, uv)
         P, Tt, uv = stone(rng, (0.13, 0.065, hw_at(0.55) + 0.1), (xe + sgn * 0.42, 0.56, 0.0),
                           rot_xyz(0, rng.normal(0, 0.05), 0), res=(6, 12))
         col = stone_col(rng, len(P)); col[:, 3] = 0.15
@@ -431,8 +423,17 @@ def wall_module(rng):
 
 
 def wall_end(rng, length=1.0, both=False):
+    """A wall head: the last metre finished at +x, and tapered: the wall comes down about a third
+    towards its end (its copes following), as Dales wall ends are, rather than standing square."""
     M = Mesh()
     wall_length(M, rng, -length / 2, length / 2, end_lo=both, end_hi=True)
+    for P in M.P:
+        t = np.clip((P[:, 0] + length / 2) / length, 0, 1) ** 1.3
+        f = 1.0 - 0.33 * t
+        up = P[:, 1] > 0.15
+        P[up, 1] = 0.15 + (P[up, 1] - 0.15) * f[up]
+        # and narrower to the end, the faces leaning in a little more
+        P[:, 2] *= 1.0 - 0.12 * t
     return M
 
 
@@ -1522,18 +1523,20 @@ def bench(rng):
     return {"wood": Wd, "metal": Mt}
 
 
-def road_sign(rng, kind):
-    """A sign on a grey post: 'village' (a white plate with a black border, 1 m by 0.45, the name
-    blurred to grey bands) or 'junction' (a red-bordered triangle, side road ahead)."""
+def road_sign(rng, kind, text=""):
+    """A sign on grey posts: 'village' (the place name in black capitals on a white plate with a
+    black border) or 'junction' (a red-bordered triangle, side road ahead)."""
     Wd, Mt = Mesh(), Mesh()
-    _pole(Mt, -0.35 if kind == "village" else 0.0, -0.3, 2.1, 0.035, (0.25, 0.25, 0.25), dirt=0.3)
     if kind == "village":
-        _pole(Mt, 0.35, -0.3, 2.1, 0.035, (0.25, 0.25, 0.25), dirt=0.3)
-        P, T, U = obox((0, 1.75, 0.04), (0.52, 0.25, 0.012)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.1)
-        P, T, U = obox((0, 1.75, 0.054), (0.48, 0.21, 0.004)); _paint(Wd, P, T, U, (0.78, 0.78, 0.76), 0.05)
-        for y, w in ((1.8, 0.36), (1.68, 0.25)):
-            P, T, U = obox((0, y, 0.06), (w, 0.035, 0.003)); _paint(Wd, P, T, U, (0.03, 0.03, 0.03), 0.05)
+        th = 0.12
+        hw = max(0.42, text_width(text, th) / 2 + 0.1)
+        for px_ in (-hw + 0.12, hw - 0.12):
+            _pole(Mt, px_, -0.3, 2.0, 0.035, (0.25, 0.25, 0.25), dirt=0.3)
+        P, T, U = obox((0, 1.72, 0.04), (hw + 0.035, 0.17, 0.012)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.1)
+        P, T, U = obox((0, 1.72, 0.054), (hw, 0.135, 0.004)); _paint(Wd, P, T, U, (0.78, 0.78, 0.76), 0.05)
+        lettering(Wd, text, (0, 1.72, 0.058), (1, 0, 0), (0, 1, 0), (0, 0, 1), th, (0.015, 0.015, 0.015))
     else:
+        _pole(Mt, 0.0, -0.3, 2.1, 0.035, (0.25, 0.25, 0.25), dirt=0.3)
         tri = lambda r, zz: np.array([[0, 1.6 + r * 1.15, zz], [-r, 1.6 - r * 0.58, zz], [r, 1.6 - r * 0.58, zz]])
         for r, zz, col in ((0.42, 0.045, RED), (0.31, 0.05, (0.8, 0.8, 0.78))):
             A = tri(r, zz)
@@ -1545,17 +1548,25 @@ def road_sign(rng, kind):
 
 
 def finger_post(rng, arms):
-    """A Dales finger post: a white post 2.4 m with a finial, and an arm for each direction in arms
-    (radians about the vertical, 0 = +x), white with dark lettering bands."""
+    """A Dales finger post: a white post 2.4 m with a finial, and an arm for each (angle, text) in arms
+    (angle in radians about the vertical, 0 = +x), white with the place and miles in black on both
+    faces."""
     Wd = Mesh()
     P, T, U = obox((0, 1.05, 0), (0.055, 1.35, 0.055)); _paint(Wd, P, T, U, (0.72, 0.72, 0.7), 0.35)
     P, T, U = obox((0, 2.44, 0), (0.08, 0.04, 0.08)); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.2)
     P, T = tube([[0, 2.48, 0], [0, 2.6, 0]], [0.05, 0.01], 8); _paint(Wd, P, T, P[:, [0, 1]], (0.02, 0.02, 0.02))
-    for i, a in enumerate(arms):
+    for i, (a, text) in enumerate(arms):
         R = rot_xyz(0, -a, 0)
-        y = 2.15 - i * 0.2
-        P, T, U = obox(np.array([0.48, y, 0]) @ R.T, (0.42, 0.075, 0.022), R); _paint(Wd, P, T, U, (0.74, 0.74, 0.72), 0.3)
-        P, T, U = obox(np.array([0.46, y, 0]) @ R.T, (0.3, 0.02, 0.026), R); _paint(Wd, P, T, U, (0.02, 0.02, 0.02), 0.1)
+        y = 2.15 - i * 0.19
+        th = 0.055
+        L = max(0.5, text_width(text, th) + 0.16)
+        dirv = np.array([1.0, 0, 0]) @ R.T; nrm = np.array([0, 0, 1.0]) @ R.T
+        c = np.array([0.06 + L / 2, y, 0]) @ R.T
+        P, T, U = obox(c, (L / 2, 0.06, 0.022), R); _paint(Wd, P, T, U, (0.74, 0.74, 0.72), 0.3)
+        P, T, U = obox(np.array([0.06 + L + 0.03, y, 0]) @ R.T, (0.04, 0.035, 0.018), R)   # the pointed tip
+        _paint(Wd, P, T, U, (0.74, 0.74, 0.72), 0.3)
+        for sgn in (1, -1):
+            lettering(Wd, text, c + nrm * sgn * 0.022, dirv * sgn, (0, 1, 0), nrm * sgn, th, (0.015, 0.015, 0.015))
     return {"wood": Wd}
 
 
@@ -1581,3 +1592,184 @@ def wheelie_bin(rng, rgb):
     for x in (-0.24, 0.24):
         P, T = tube([[x, 0.1, -0.36], [x, 0.1, -0.3]], 0.1, 8); _paint(Wd, P, T, P[:, [0, 1]], (0.01, 0.01, 0.01), 0.5)
     return {"wood": Wd}
+
+
+# --- Lettering -------------------------------------------------------------------------------------
+# A 5 x 7 capital alphabet, built as small quads on a sign's face (no textures to manage).
+
+FONT = {
+    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+    "C": ["01110", "10001", "10000", "10000", "10000", "10001", "01110"],
+    "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+    "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+    "G": ["01110", "10001", "10000", "10111", "10001", "10001", "01111"],
+    "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "I": ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+    "J": ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+    "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+    "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+    "N": ["10001", "10001", "11001", "10101", "10011", "10001", "10001"],
+    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+    "Q": ["01110", "10001", "10001", "10001", "10101", "10010", "01101"],
+    "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+    "W": ["10001", "10001", "10001", "10101", "10101", "10101", "01010"],
+    "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+    "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+    "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+    "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    "3": ["11111", "00010", "00100", "00010", "00001", "10001", "01110"],
+    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+    "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+    "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    "9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+    "-": ["00000", "00000", "00000", "11111", "00000", "00000", "00000"],
+    " ": ["00000"] * 7,
+}
+
+
+def text_width(text, height):
+    px = height / 7.0
+    return len(text) * 6 * px - px
+
+
+def lettering(M, text, centre, right, up, normal, height, rgb):
+    """Capitals `height` tall centred on `centre`, on the plane (right, up), set 2 mm out along normal."""
+    right, up, normal = (np.asarray(v, float) for v in (right, up, normal))
+    px = height / 7.0
+    x = -text_width(text, height) / 2
+    c0 = np.asarray(centre, float) + normal * 0.002
+    col = np.tile(list(rgb) + [0.05], (4, 1))
+    for ch in text.upper():
+        rows = FONT.get(ch, FONT[" "])
+        for j, row in enumerate(rows):
+            i = 0
+            while i < 5:                    # runs of lit pixels as one quad
+                if row[i] == "1":
+                    k = i
+                    while k < 5 and row[k] == "1":
+                        k += 1
+                    x0, x1 = x + i * px, x + k * px
+                    y1 = height / 2 - j * px; y0 = y1 - px
+                    q = [c0 + right * x0 + up * y0, c0 + right * x1 + up * y0, c0 + right * x1 + up * y1, c0 + right * x0 + up * y1]
+                    if np.cross(right, up) @ normal < 0:
+                        q = q[::-1]
+                    quad(M, *q, col, [[0, 0], [1, 0], [1, 1], [0, 1]])
+                    i = k
+                else:
+                    i += 1
+        x += 6 * px
+
+
+# --- Vehicles and farm things ------------------------------------------------------------------------
+# 'paint' is vertex-coloured gloss (car paint, bale wrap): RGB the colour, A dirt. Local +x is forward.
+
+def _wheel(M, x, z, r, w, rgb=(0.012, 0.012, 0.012), hub=(0.2, 0.2, 0.2), Mh=None):
+    side = 1 if z > 0 else -1
+    P, T = tube([[x, r, z - side * w / 2], [x, r, z + side * w / 2]], r, 14)
+    _paint(M, P, T, P[:, [0, 1]], rgb, 0.5)
+    P, T = tube([[x, r, z + side * (w / 2 - 0.01)], [x, r, z + side * (w / 2 + 0.005)]], r * 0.55, 10)
+    _paint(Mh if Mh is not None else M, P, T, P[:, [0, 1]], hub, 0.3)
+
+
+def car(rng, rgb):
+    """A small family hatchback, 4.0 by 1.75 by 1.45 m, in one paint colour: body, a glazed cabin
+    stepped in from the sides, bumpers, lights and four wheels."""
+    Pt, Bk, Gl = Mesh(), Mesh(), Mesh()
+    L, W = 4.0, 1.75
+    P, T, U = obox((0, 0.62, 0), (L / 2, 0.3, W / 2)); _paint(Pt, P, T, U, rgb, 0.15)
+    P, T, U = obox((0.95, 0.88, 0), (0.75, 0.04, W / 2 - 0.04), rot_xyz(0, 0, -0.12)); _paint(Pt, P, T, U, rgb, 0.1)   # bonnet
+    # cabin: pillars and roof in paint, glass between
+    cx0, cx1, y0, y1 = -1.75, 0.55, 0.92, 1.42
+    P, T, U = obox(((cx0 + cx1) / 2 - 0.05, y1, 0), ((cx1 - cx0) / 2 - 0.1, 0.03, W / 2 - 0.12)); _paint(Pt, P, T, U, rgb, 0.1)
+    for x in (cx0 + 0.06, -0.55, cx1 - 0.06):
+        for z in (-1, 1):
+            P, T, U = obox((x, (y0 + y1) / 2, z * (W / 2 - 0.12)), (0.05, (y1 - y0) / 2, 0.03)); _paint(Pt, P, T, U, rgb, 0.1)
+    g = lambda a, b, c, d: quad(Gl, a, b, c, d, np.tile([0.02, 0.025, 0.03, 0.0], (4, 1)), [[0, 0], [1, 0], [1, 1], [0, 1]])
+    for z in (-1, 1):
+        zz = z * (W / 2 - 0.11)
+        g([cx0, y0, zz], [cx1, y0, zz], [cx1 - 0.15, y1 - 0.02, zz], [cx0 + 0.08, y1 - 0.02, zz])
+    g([cx1, y0, -W / 2 + 0.13], [cx1, y0, W / 2 - 0.13], [cx1 - 0.15, y1 - 0.02, W / 2 - 0.13], [cx1 - 0.15, y1 - 0.02, -W / 2 + 0.13])
+    g([cx0, y0, W / 2 - 0.13], [cx0, y0, -W / 2 + 0.13], [cx0 + 0.08, y1 - 0.02, -W / 2 + 0.13], [cx0 + 0.08, y1 - 0.02, W / 2 - 0.13])
+    Gl.two_sided()
+    for x in (L / 2, -L / 2):     # bumpers and lights
+        P, T, U = obox((x, 0.42, 0), (0.06, 0.1, W / 2 - 0.02)); _paint(Bk, P, T, U, (0.02, 0.02, 0.02), 0.3)
+        for z in (-1, 1):
+            P, T, U = obox((x + np.sign(x) * 0.005, 0.72, z * 0.62), (0.02, 0.06, 0.13))
+            _paint(Bk, P, T, U, (0.8, 0.8, 0.75) if x > 0 else (0.35, 0.01, 0.01), 0.05)
+    for x in (1.28, -1.3):
+        for z in (-0.72, 0.72):
+            _wheel(Bk, x, z, 0.31, 0.2)
+    return {"paint": Pt, "wood": Bk, "glass": Gl}
+
+
+def utility_4x4(rng, rgb):
+    """A boxy farm 4x4 (a working pick-up-sized estate), 4.0 by 1.8 by 2.0 m: flat panels, a flat
+    bonnet, upright screen, a spare wheel on the back door, high ground clearance, mud on it."""
+    Pt, Bk, Gl = Mesh(), Mesh(), Mesh()
+    L, W = 4.0, 1.8
+    P, T, U = obox((0, 0.85, 0), (L / 2, 0.38, W / 2)); _paint(Pt, P, T, U, rgb, 0.45)
+    P, T, U = obox((-0.45, 1.65, 0), (1.5, 0.42, W / 2 - 0.02)); _paint(Pt, P, T, U, rgb, 0.3)
+    P, T, U = obox((-0.45, 2.08, 0), (1.52, 0.02, W / 2)); _paint(Pt, P, T, U, (0.75, 0.75, 0.72), 0.3)   # white roof
+    g = lambda a, b, c, d: quad(Gl, a, b, c, d, np.tile([0.02, 0.025, 0.03, 0.0], (4, 1)), [[0, 0], [1, 0], [1, 1], [0, 1]])
+    for z in (-1, 1):
+        zz = z * (W / 2 - 0.015)
+        for x0, x1 in ((0.25, 0.95), (-0.6, 0.15), (-1.85, -0.7)):
+            g([x0, 1.4, zz], [x1, 1.4, zz], [x1, 1.92, zz], [x0, 1.92, zz])
+    g([1.06, 1.38, -0.8], [1.06, 1.38, 0.8], [1.06, 1.95, 0.8], [1.06, 1.95, -0.8])
+    Gl.two_sided()
+    P, T, U = obox((L / 2 + 0.03, 0.62, 0), (0.06, 0.1, W / 2)); _paint(Bk, P, T, U, (0.03, 0.03, 0.03), 0.6)
+    P, T, U = obox((L / 2, 0.98, 0), (0.02, 0.18, 0.6)); _paint(Bk, P, T, U, (0.04, 0.04, 0.04), 0.4)   # grille
+    for z in (-0.62, 0.62):
+        P, T, U = obox((L / 2 + 0.01, 0.98, z), (0.02, 0.08, 0.08)); _paint(Bk, P, T, U, (0.8, 0.8, 0.75), 0.1)
+    P, T, U = obox((-L / 2 - 0.03, 0.55, 0), (0.06, 0.08, W / 2)); _paint(Bk, P, T, U, (0.03, 0.03, 0.03), 0.6)
+    P, T = tube([[-L / 2 - 0.02, 1.25, 0], [-L / 2 - 0.26, 1.25, 0]], 0.37, 14); _paint(Bk, P, T, P[:, [1, 2]], (0.012, 0.012, 0.012), 0.5)
+    for x in (1.25, -1.25):
+        for z in (-0.78, 0.78):
+            _wheel(Bk, x, z, 0.38, 0.25, hub=(0.3, 0.3, 0.3))
+    return {"paint": Pt, "wood": Bk, "glass": Gl}
+
+
+def quad_bike(rng):
+    """A farm quad: red body and mudguards, black seat, racks front and back, four fat tyres."""
+    Pt, Bk = Mesh(), Mesh()
+    red = (0.35, 0.02, 0.01)
+    P, T, U = obox((0, 0.62, 0), (0.8, 0.12, 0.42)); _paint(Pt, P, T, U, red, 0.5)
+    for x in (0.6, -0.6):
+        P, T, U = obox((x, 0.78, 0), (0.3, 0.04, 0.52)); _paint(Pt, P, T, U, red, 0.6)
+    P, T, U = obox((-0.15, 0.86, 0), (0.38, 0.07, 0.18)); _paint(Bk, P, T, U, (0.015, 0.015, 0.015), 0.4)
+    P, T = tube([[0.45, 1.05, -0.38], [0.48, 1.08, 0.38]], 0.018, 6); _paint(Bk, P, T, P[:, [0, 1]], (0.02, 0.02, 0.02), 0.3)
+    P, T = tube([[0.35, 0.7, 0], [0.45, 1.06, 0]], 0.03, 6); _paint(Bk, P, T, P[:, [0, 1]], (0.02, 0.02, 0.02), 0.3)
+    for x in (0.65, -0.68):
+        for z in (-0.3, -0.1, 0.1, 0.3):
+            P, T = tube([[x - 0.25, 0.86, z], [x + 0.25, 0.86, z]], 0.012, 6); _paint(Bk, P, T, P[:, [0, 1]], (0.03, 0.03, 0.03), 0.4)
+    for x in (0.6, -0.6):
+        for z in (-0.48, 0.48):
+            _wheel(Bk, x, z, 0.27, 0.24)
+    return {"paint": Pt, "wood": Bk}
+
+
+def round_bales(rng, n):
+    """n round bales (1.2 m wide, 1.3 m across) in black or green wrap, in a row along +x, a few
+    stood on end."""
+    Pt = Mesh()
+    wrap = (0.01, 0.012, 0.01) if rng.uniform() < 0.7 else (0.02, 0.06, 0.02)
+    for i in range(n):
+        x = i * 1.32
+        if rng.uniform() < 0.25:
+            P, T = tube([[x, 0.0, 0], [x, 1.2, 0]], 0.64, 16)
+        else:
+            P, T = tube([[x, 0.64, -0.6], [x, 0.64, 0.6]], 0.64, 16)
+        _paint(Pt, P, T, P[:, [0, 1]] + P[:, [2, 2]], np.array(wrap) * rng.uniform(0.9, 1.15), rng.uniform(0.15, 0.45))
+    return {"paint": Pt}

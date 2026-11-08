@@ -246,12 +246,42 @@ def roadside_walls(region_root, O, line, lines, village, road_half, near, ground
     return out, spots, junctions
 
 
-def place_street(props, line, village, junctions, ground, road_half, rng, counts):
+def place_street(props, region_root, O, line, village, junctions, ground, road_half, rng, counts):
     """A start on the villages' street furniture: in each village the ride passes through, a K6
     telephone box, a pillar box and a bench or two on the verge, and its name sign on the left at
     each way in; a finger post and a side-road sign at each lane that joins the ride; by farms near
     the road, a milk churn stand and a couple of wheelie bins. All on the verge, clear of the
     buildings."""
+    # Places (ride frame) for the names on the signs. Kirkby Stephen is off the map's region: it is
+    # where the road over from Keld goes, 17 km north west.
+    places = []
+    try:
+        for p in json.load(open(os.path.join(region_root, "places.json"))):
+            places.append((p["name"], p["x"] - O[0], p["z"] - O[2]))
+    except (OSError, ValueError):
+        pass
+    places.append(("Kirkby Stephen", -19893.0 - O[0], -14790.0 - O[2]))
+    PRIORITY = ["Hawes", "Muker", "Keld", "Kirkby Stephen", "Reeth", "Gunnerside", "Thwaite", "Angram"]
+
+    def name_at(x, z, within):
+        best = min(places, key=lambda p: math.hypot(p[1] - x, p[2] - z), default=None)
+        return best[0] if best and math.hypot(best[1] - x, best[2] - z) < within else ""
+
+    def destination(x, z, ang):
+        """The place a road leaving (x, z) at angle ang (0 = +x) is signed to, and its miles."""
+        cands = []
+        for nm, px_, pz_ in places:
+            d = math.hypot(px_ - x, pz_ - z)
+            if d < 700:
+                continue
+            off = abs((math.atan2(pz_ - z, px_ - x) - ang + math.pi) % (2 * math.pi) - math.pi)
+            if off < math.radians(55):
+                cands.append((PRIORITY.index(nm) if nm in PRIORITY else 99, d, nm))
+        if not cands:
+            return None
+        pr, d, nm = min(cands)
+        return "%s %d" % (nm.upper(), max(1, round(d * 1.25 / 1609.0)))
+
     xz = line[:, [0, 2]]
     seg = np.linalg.norm(np.diff(xz, axis=0), axis=1); s_al = np.concatenate([[0], np.cumsum(seg)])
     fwd = np.gradient(xz, axis=0); fwd /= np.maximum(np.linalg.norm(fwd, axis=1, keepdims=True), 1e-9)
@@ -260,6 +290,7 @@ def place_street(props, line, village, junctions, ground, road_half, rng, counts
     B = np.array([[b[0], b[1]] for b in bld]).reshape(-1, 2)
     R = np.array([max(b[2], b[3]) / 2 + 2.0 for b in bld])
     made = {}
+    placed = []
     n = {"phone_boxes": 0, "post_boxes": 0, "benches": 0, "village_signs": 0, "finger_posts": 0,
          "junction_signs": 0, "churn_stands": 0, "bins": 0}
 
@@ -282,6 +313,7 @@ def place_street(props, line, village, junctions, ground, road_half, rng, counts
     def put(name, make, x, z, face, yaw_extra=0.0):
         """face: the direction (x, z) the thing's front (+z) looks."""
         a = math.atan2(-face[0], face[1]) + yaw_extra
+        placed.append((x, z))
         for nm in parts(name, make):
             props.add(nm, x, float(ground(x, z)) - 0.02, z, a)
 
@@ -298,10 +330,12 @@ def place_street(props, line, village, junctions, ground, road_half, rng, counts
             continue
         s0, s1 = s_al[inside[0]], s_al[inside[-1]]
         # name signs on the left at each way in
+        vname = name_at(vx, vz, vr + 250).upper()
         for k, side_dir in ((at_s(s0 - 15), 1), (at_s(s1 + 15), -1)):
             p, f = verge(k, 1 if side_dir > 0 else -1, 1.3)
-            if free(*p, 0.5):
-                put("SignVillage", lambda: ST.road_sign(np.random.default_rng(700), "village"), p[0], p[1], fwd[k] * -side_dir)
+            if vname and free(*p, 0.5):
+                put("SignVillage_" + vname.replace(" ", ""), lambda: ST.road_sign(np.random.default_rng(700), "village", vname),
+                    p[0], p[1], fwd[k] * -side_dir)
                 n["village_signs"] += 1
         plan = [(0.32, "PhoneBox", lambda: ST.phone_box(np.random.default_rng(710)), 1.7, "phone_boxes"),
                 (0.55, "PostBox", lambda: ST.post_box(np.random.default_rng(711)), 1.3, "post_boxes"),
@@ -322,8 +356,17 @@ def place_street(props, line, village, junctions, ground, road_half, rng, counts
         side = 1 if (jp - xz[k]) @ left[k] > 0 else -1
         p = xz[k] + left[k] * side * (road_half + 1.6) + fwd[k] * 4.5
         lane = jdir / max(np.linalg.norm(jdir), 1e-9)
-        arms = [math.atan2(fwd[k][1], fwd[k][0]), math.atan2(-fwd[k][1], -fwd[k][0]), math.atan2(lane[1], lane[0])]
-        if free(*p, 0.5):
+        # The arms: either way along the ride (signed by where the road is heading a kilometre on)
+        # and up the lane. Angles here are in the ground plane, 0 = +x (east), z south.
+        arms = []
+        for dirn in (1, -1):
+            ka = at_s(s_al[k] + dirn * 1200)
+            v = xz[ka] - xz[k]
+            arms.append(math.atan2(v[1], v[0]))
+        arms.append(math.atan2(lane[1], lane[0]))
+        arms = [(a_, destination(p[0], p[1], a_)) for a_ in arms]
+        arms = [(a_, t_) for a_, t_ in arms if t_]
+        if arms and free(*p, 0.5):
             for nm in parts("FingerPost_%d" % n["finger_posts"], lambda: ST.finger_post(np.random.default_rng(720), arms)):
                 props.add(nm, p[0], float(ground(*p)) - 0.1, p[1], 0.0)
             n["finger_posts"] += 1
@@ -352,6 +395,90 @@ def place_street(props, line, village, junctions, ground, road_half, rng, counts
             ci = int(rng.integers(len(bins)))
             put("Bin_%d" % ci, lambda ci=ci: ST.wheelie_bin(np.random.default_rng(740 + ci), bins[ci]), q[0], q[1], f, rng.normal(0, 0.1))
             n["bins"] += 1
+    # Life: cars parked on the verge in front of village houses, a 4x4 in each farmyard near the
+    # ride, a quad bike at some, and wrapped bales stacked by the barns, all by the map's buildings.
+    gardens = village.get("gardens", [])
+
+    def off_gardens(x, z, pad=1.2):
+        for gx, gz, gw, gf, gr in gardens:
+            c, s_ = math.cos(gr), math.sin(gr)
+            u = (x - gx) * c + (z - gz) * s_; v = -(x - gx) * s_ + (z - gz) * c
+            if abs(u) < gw / 2 + pad and abs(v) < gf / 2 + pad:
+                return False
+        return True
+
+    def yard_free(x, z, r):
+        """Clear of every building's footprint (as a rectangle, grown by r)."""
+        for bx_, bz_, bw, bd, br, _k in bld:
+            c, s_ = math.cos(br), math.sin(br)
+            u = (x - bx_) * c + (z - bz_) * s_; v = -(x - bx_) * s_ + (z - bz_) * c
+            if abs(u) < bw / 2 + r and abs(v) < bd / 2 + r:
+                return False
+        return off_gardens(x, z, r)
+
+    def sit(name, make, x, z, a, length):
+        """On the ground, nose up or down with the slope along it."""
+        c, s_ = math.cos(a), math.sin(a)
+        yf = float(ground(x + c * length / 2, z + s_ * length / 2)); yb = float(ground(x - c * length / 2, z - s_ * length / 2))
+        pitch = max(-0.25, min(0.25, math.atan2(yf - yb, length)))
+        for nm in parts(name, make):
+            props.add(nm, x, (yf + yb) / 2 - 0.02, z, a, pitch)
+
+    colours = [(0.25, 0.25, 0.26), (0.02, 0.03, 0.08), (0.3, 0.02, 0.015), (0.55, 0.55, 0.55), (0.02, 0.02, 0.02),
+               (0.05, 0.12, 0.05), (0.4, 0.38, 0.32)]
+    n.update(cars=0, farm_4x4s=0, quad_bikes=0, bale_stacks=0)
+    jpts = np.array([j[0] for j in junctions]).reshape(-1, 2)
+    for vx, vz, vr in village["villages"]:
+        inside = np.flatnonzero(np.hypot(xz[:, 0] - vx, xz[:, 1] - vz) < vr)
+        if len(inside) < 10:
+            continue
+        parked = 0
+        for k in inside[rng.permutation(len(inside))]:
+            if parked >= 3:
+                break
+            if not len(B) or np.hypot(B[:, 0] - xz[k, 0], B[:, 1] - xz[k, 1]).min() > 16:
+                continue                      # park where there are houses
+            side = 1 if rng.uniform() < 0.5 else -1
+            p, f = verge(k, side, 1.25)
+            if len(jpts) and np.hypot(jpts[:, 0] - p[0], jpts[:, 1] - p[1]).min() < 12:
+                continue
+            ok = all(yard_free(*(p + fwd[k] * t), 1.0) for t in (-2.2, 0, 2.2)) and \
+                all(math.hypot(p[0] - q[0], p[1] - q[1]) > 3.5 for q in placed)
+            if ok and all(math.hypot(p[0] - q[0], p[1] - q[1]) > 8 for q in n.setdefault("_cars", [])):
+                ci = int(rng.integers(len(colours)))
+                a = math.atan2(fwd[k][1], fwd[k][0]) + (0 if side < 0 else math.pi)   # facing the way of the traffic on its side
+                sit("Car_%d" % ci, lambda ci=ci: ST.car(np.random.default_rng(750 + ci), colours[ci]), p[0], p[1], a, 2.6)
+                n["_cars"].append(p); parked += 1; n["cars"] += 1
+    n.pop("_cars", None)
+    for i, b in enumerate(bld):
+        x, z, w, d_, rot, kind = b
+        dmin = float(np.hypot(xz[:, 0] - x, xz[:, 1] - z).min())
+        c, s_ = math.cos(rot), math.sin(rot)
+        if kind == "farm" and dmin < 160 and n["farm_4x4s"] < 10:
+            # in the yard in front of it, alongside
+            p = np.array([x, z]) + np.array([-s_, c]) * (d_ / 2 + 3.2) + np.array([c, s_]) * rng.uniform(-w / 4, w / 4)
+            if yard_free(*p, 1.4) and float(np.hypot(xz[:, 0] - p[0], xz[:, 1] - p[1]).min()) > road_half + 3.5:
+                ci = int(rng.integers(3))
+                cols = [(0.03, 0.07, 0.04), (0.08, 0.08, 0.08), (0.02, 0.04, 0.09)]
+                sit("Farm4x4_%d" % ci, lambda ci=ci: ST.utility_4x4(np.random.default_rng(760 + ci), cols[ci]),
+                    p[0], p[1], rot + (math.pi if rng.uniform() < 0.5 else 0.0) + rng.normal(0, 0.12), 2.5)
+                n["farm_4x4s"] += 1
+                if rng.uniform() < 0.5:
+                    q = p + np.array([c, s_]) * 3.4
+                    if yard_free(*q, 0.9):
+                        sit("QuadBike", lambda: ST.quad_bike(np.random.default_rng(770)), q[0], q[1], rot + rng.normal(0, 0.5), 1.2)
+                        n["quad_bikes"] += 1
+        if kind in ("barn", "farm") and dmin < 350 and i % 3 == 0:
+            # bales along the barn's gable end
+            nb_ = 5                       # the mesh holds five
+            end = 1 if rng.uniform() < 0.5 else -1
+            p = np.array([x, z]) + np.array([c, s_]) * end * (w / 2 + 1.4) + np.array([-s_, c]) * (-(nb_ - 1) * 0.66)
+            ends = [p + np.array([-s_, c]) * t for t in (0.0, (nb_ - 1) * 1.32)]
+            if all(yard_free(*e_, 0.8) for e_ in ends) and float(np.hypot(xz[:, 0] - p[0], xz[:, 1] - p[1]).min()) > road_half + 3:
+                k_ = int(rng.integers(3))
+                for nm in parts("Bales_%d" % k_, lambda k_=k_: ST.round_bales(np.random.default_rng(780 + k_), 5)):
+                    props.add(nm, p[0], float(ground(*p)) - 0.05, p[1], rot + math.pi / 2)
+                n["bale_stacks"] += 1
     counts.update(n)
 
 
@@ -360,7 +487,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
     stopped short of the tarmac with a wall head, a pier on each sharp bend, and a gate between two
     stoops wherever the map has a gate on the wall."""
     gates = np.array(gates, np.float64).reshape(-1, 2)
-    wall_m = 0.0; n_gates = 0; n_ends = 0
+    wall_m = 0.0; n_gates = 0; n_ends = 0; n_stoops = 0
     road_gates = np.array(lines.get("roadside_gates", []), np.float64).reshape(-1, 2)
     for kind in ("wall", "retaining_wall", "roadside"):
         for pts in lines.get(kind, []):
@@ -372,6 +499,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
             # Gates: the map's, and (the map has few here) one now and then where a wall comes near
             # the road, as a field's way in, and the odd one out in the fields.
             spots = list(gates) if kind != "roadside" else list(road_gates)
+            gate_zone = np.zeros(len(r), bool)
             rd = road_dist(r[:, 0], r[:, 1])
             last = -1e9
             for k in (rng.permutation(len(r))[: len(r) // 20] if kind != "roadside" else []):
@@ -385,6 +513,7 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                 if dd[k] > 2.5 or not keep[k] or s_all[k] < 2.0 or s_all[-1] - s_all[k] < 2.0:
                     continue
                 keep &= np.abs(s_all - s_all[k]) > 1.85
+                gate_zone |= np.abs(s_all - s_all[k]) <= 1.9
                 k0 = int(np.searchsorted(s_all, s_all[k] - 1.75)); k1 = int(np.searchsorted(s_all, s_all[k] + 1.75))
                 k1 = min(k1, len(r) - 1)
                 # Never a gate in or swinging over the road (a wall line that meets the tarmac).
@@ -436,9 +565,10 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                     if prev is not None:
                         turn = abs((a - prev + math.pi) % (2 * math.pi) - math.pi)
                         if turn > math.radians(28):
+                            # fill the wedge on the outside of the bend with a short length of plain wall
                             mid = math.atan2(math.sin(a) + math.sin(prev), math.cos(a) + math.cos(prev))
-                            props.add(props.mesh("SM_WallPier", lambda: ST.wall_end(np.random.default_rng(250), 1.0, True)),
-                                      A[0], float(ground(*A)) - 0.03, A[1], mid, 0.0, 0.0, (0.9, 1.02, 1.05))
+                            props.add(props.wall(int(rng.integers(len(WALL_VARIANTS)))), A[0], float(ground(*A)) - 0.03, A[1],
+                                      mid, 0.0, 0.0, (0.45, 1.0, 1.0))
                     prev = a
                 for want, t0, t1 in ((head_lo, 0.95, 0.0), (head_hi, total - 0.95, total)):
                         if not want:
@@ -451,8 +581,16 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                         props.add(props.wall_end(n_ends), m[0], (yA + yB) / 2 - 0.03, m[1], a, pitch, 0.0,
                                   (c / 1.0 * 1.02, 1.0, 1.0))
                         n_ends += 1
+                        # A gap in the wall (not the wall's own end, nor a gate, which has its stoops):
+                        # a stoop stands at the head, as at a gateway.
+                        nb = run[0] - 1 if t1 == 0.0 else run[-1] + 1
+                        if 0 <= nb < len(r) and not gate_zone[max(0, nb - 8):nb + 9].any():
+                            sp = B + d * 0.22
+                            props.add(props.mesh("SM_GateStoop_%s" % "AB"[n_ends % 2], lambda kk=n_ends % 2: ST.gate_stoop(np.random.default_rng(400 + kk))),
+                                      sp[0], float(ground(*sp)) - 0.25, sp[1], a + rng.normal(0, 0.06))
+                            n_stoops += 1
                 wall_m += total
-    counts["wall_m"] = round(wall_m); counts["gates"] = n_gates; counts["wall_heads"] = n_ends
+    counts["wall_m"] = round(wall_m); counts["gates"] = n_gates; counts["wall_heads"] = n_ends; counts["gap_stoops"] = n_stoops
 
 
 def place_scars(props, cliffs, ground, near, road_dist, road_half, rng, counts):
@@ -1082,7 +1220,7 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
                                                                 lambda x, z: ground(x, z) + O[1], prng)
     place_walls(props, lines, points.get("gate", []), ground, near, road_dist, road_half, prng, counts)
     counts["roadside_wall_runs"] = len(lines["roadside"])
-    place_street(props, line, village, junctions, ground, road_half, prng, counts)
+    place_street(props, region_root, O, line, village, junctions, ground, road_half, prng, counts)
 
     # Fences: weathered posts every 3 m and three strands of wire.
     fence_m = 0.0
