@@ -1935,6 +1935,7 @@
     "clock_body",
     "clock_face"
    ],
+   "slot": "dashboard",
    "mount": {
     "to": "yokes.lugs",
     "type": "bracket"
@@ -1998,6 +1999,18 @@
      ]
     }
    ]
+  },
+  {
+   "id": "fog_lights",
+   "group": "steer",
+   "meshes": [],
+   "slot": "fog_lights",
+   "mount": {
+    "to": "yokes.lugs",
+    "type": "bracket"
+   },
+   "sockets": {},
+   "proxies": []
   },
   {
    "id": "headlight",
@@ -4231,6 +4244,19 @@
      "r": 0.058
     }
    ]
+  },
+  {
+   "id": "tyre_wall_front",
+   "group": "front_wheel",
+   "meshes": [],
+   "slot": "tyres",
+   "mount": {
+    "to": "fork_lowers.front_axle",
+    "type": "axle",
+    "axle_mm": 25.0
+   },
+   "sockets": {},
+   "proxies": []
   },
   {
    "id": "engine",
@@ -6984,6 +7010,32 @@
    "proxies": []
   },
   {
+   "id": "panniers",
+   "group": "body",
+   "meshes": [],
+   "slot": "panniers",
+   "mount": {
+    "to": "frame.seat_rails",
+    "type": "seat_rails",
+    "rail_mm": 180.0,
+    "from_end": 0.0
+   },
+   "sockets": {},
+   "proxies": []
+  },
+  {
+   "id": "toolbox",
+   "group": "body",
+   "meshes": [],
+   "slot": "toolbox",
+   "mount": {
+    "to": "frame.lugs",
+    "type": "bracket"
+   },
+   "sockets": {},
+   "proxies": []
+  },
+  {
    "id": "indicators_rear",
    "group": "body",
    "meshes": [
@@ -8012,6 +8064,19 @@
      "r": 0.075
     }
    ]
+  },
+  {
+   "id": "tyre_wall_rear",
+   "group": "rear_wheel",
+   "meshes": [],
+   "slot": "tyres",
+   "mount": {
+    "to": "swingarm.rear_axle",
+    "type": "axle",
+    "axle_mm": 25.0
+   },
+   "sockets": {},
+   "proxies": []
   },
   {
    "id": "rear_caliper",
@@ -15633,6 +15698,642 @@
       "file": "Options/opt_fguard_alloy_stays.glb"
      }
     }
+   },
+   {
+    "id": "alloy_cafe_blade",
+    "name": "Polished alloy cafe guard",
+    "catalogue": [
+     "front_mudguard",
+     "alloy_cafe_blade"
+    ],
+    "units": [
+     {
+      "id": "front_mudguard",
+      "group": "front_lower",
+      "meshes": [
+       "opt_fguard_blade",
+       "opt_fguard_blade_stays"
+      ],
+      "slot": "front_mudguard",
+      "mount": {
+       "to": "fork_lowers.guard_mounts",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "box",
+        "c": [
+         0.699636,
+         0.321228,
+         0.0
+        ],
+        "x": [
+         0.999772,
+         0.021364,
+         0.0
+        ],
+        "y": [
+         -0.021364,
+         0.999772,
+         0.0
+        ],
+        "z": [
+         0.0,
+         -0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.741912,
+         0.319344,
+         0.0
+        ],
+        "x": [
+         0.993908,
+         -0.110213,
+         0.0
+        ],
+        "y": [
+         0.110213,
+         0.993908,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.783573,
+         0.31192,
+         0.0
+        ],
+        "x": [
+         0.970803,
+         -0.239877,
+         0.0
+        ],
+        "y": [
+         0.239877,
+         0.970803,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.823897,
+         0.299086,
+         0.0
+        ],
+        "x": [
+         0.930858,
+         -0.365381,
+         0.0
+        ],
+        "y": [
+         0.365381,
+         0.930858,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.862185,
+         0.281063,
+         0.0
+        ],
+        "x": [
+         0.874766,
+         -0.484546,
+         0.0
+        ],
+        "y": [
+         0.484546,
+         0.874766,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.897773,
+         0.258165,
+         0.0
+        ],
+        "x": [
+         0.803499,
+         -0.595306,
+         0.0
+        ],
+        "y": [
+         0.595306,
+         0.803499,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.930042,
+         0.230789,
+         0.0
+        ],
+        "x": [
+         0.718294,
+         -0.69574,
+         0.0
+        ],
+        "y": [
+         0.69574,
+         0.718294,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.958434,
+         0.199409,
+         0.0
+        ],
+        "x": [
+         0.620629,
+         -0.784104,
+         0.0
+        ],
+        "y": [
+         0.784104,
+         0.620629,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.982455,
+         0.16457,
+         0.0
+        ],
+        "x": [
+         0.512198,
+         -0.858867,
+         0.0
+        ],
+        "y": [
+         0.858867,
+         0.512198,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.021205,
+         0.01,
+         0.05
+        ]
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_fguard_blade": {
+      "finish": "alu_polished",
+      "group": "front_lower",
+      "file": "Options/opt_fguard_blade.glb"
+     },
+     "opt_fguard_blade_stays": {
+      "finish": "steel_brushed",
+      "group": "front_lower",
+      "file": "Options/opt_fguard_blade_stays.glb"
+     }
+    }
+   },
+   {
+    "id": "scrambler_alloy_low",
+    "name": "Low brushed alloy guard",
+    "catalogue": [
+     "front_mudguard",
+     "scrambler_alloy_low"
+    ],
+    "units": [
+     {
+      "id": "front_mudguard",
+      "group": "front_lower",
+      "meshes": [
+       "opt_fguard_low",
+       "opt_fguard_low_stays"
+      ],
+      "slot": "front_mudguard",
+      "mount": {
+       "to": "fork_lowers.guard_mounts",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "box",
+        "c": [
+         0.685922,
+         0.328377,
+         0.0
+        ],
+        "x": [
+         0.998042,
+         0.062542,
+         0.0
+        ],
+        "y": [
+         -0.062542,
+         0.998042,
+         0.0
+        ],
+        "z": [
+         0.0,
+         -0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.736565,
+         0.327645,
+         0.0
+        ],
+        "x": [
+         0.995816,
+         -0.091377,
+         0.0
+        ],
+        "y": [
+         0.091377,
+         0.995816,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.786495,
+         0.319148,
+         0.0
+        ],
+        "x": [
+         0.969993,
+         -0.243131,
+         0.0
+        ],
+        "y": [
+         0.243131,
+         0.969993,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.83453,
+         0.303089,
+         0.0
+        ],
+        "x": [
+         0.921185,
+         -0.389124,
+         0.0
+        ],
+        "y": [
+         0.389124,
+         0.921185,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.879531,
+         0.279849,
+         0.0
+        ],
+        "x": [
+         0.850549,
+         -0.525896,
+         0.0
+        ],
+        "y": [
+         0.525896,
+         0.850549,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.920432,
+         0.249976,
+         0.0
+        ],
+        "x": [
+         0.759758,
+         -0.650206,
+         0.0
+        ],
+        "y": [
+         0.650206,
+         0.759758,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.956263,
+         0.214181,
+         0.0
+        ],
+        "x": [
+         0.650964,
+         -0.759109,
+         0.0
+        ],
+        "y": [
+         0.759109,
+         0.650964,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         0.986176,
+         0.17331,
+         0.0
+        ],
+        "x": [
+         0.526744,
+         -0.850024,
+         0.0
+        ],
+        "y": [
+         0.850024,
+         0.526744,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         1.009462,
+         0.128332,
+         0.0
+        ],
+        "x": [
+         0.390042,
+         -0.920797,
+         0.0
+        ],
+        "y": [
+         0.920797,
+         0.390042,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         1.025568,
+         0.080314,
+         0.0
+        ],
+        "x": [
+         0.244099,
+         -0.96975,
+         0.0
+        ],
+        "y": [
+         0.96975,
+         0.244099,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         1.034114,
+         0.030392,
+         0.0
+        ],
+        "x": [
+         0.092371,
+         -0.995725,
+         0.0
+        ],
+        "y": [
+         0.995725,
+         0.092371,
+         -0.0
+        ],
+        "z": [
+         0.0,
+         0.0,
+         1.0
+        ],
+        "h": [
+         0.025399,
+         0.019,
+         0.068
+        ]
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_fguard_low": {
+      "finish": "alu_brushed",
+      "group": "front_lower",
+      "file": "Options/opt_fguard_low.glb"
+     },
+     "opt_fguard_low_stays": {
+      "finish": "black_satin",
+      "group": "front_lower",
+      "file": "Options/opt_fguard_low_stays.glb"
+     }
+    }
    }
   ],
   "tail": [
@@ -22490,6 +23191,928 @@
      }
     }
    }
+  ],
+  "dashboard": [
+   {
+    "id": "stock",
+    "name": "Speed Twin clock (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "analog_speedo",
+    "name": "Analogue speedo",
+    "catalogue": [
+     "dashboard",
+     "analog_speedo"
+    ],
+    "units": [
+     {
+      "id": "clock",
+      "group": "steer",
+      "meshes": [
+       "opt_dash_speedo_cup",
+       "opt_dash_speedo_bezel",
+       "opt_dash_speedo_dial",
+       "opt_dash_speedo_marks"
+      ],
+      "slot": "dashboard",
+      "mount": {
+       "to": "yokes.lugs",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.45338,
+         0.705289,
+         0.0
+        ],
+        "b": [
+         0.443729,
+         0.721888,
+         0.0
+        ],
+        "r": 0.05916
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_dash_speedo_cup": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_dash_speedo_cup.glb"
+     },
+     "opt_dash_speedo_bezel": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_dash_speedo_bezel.glb"
+     },
+     "opt_dash_speedo_dial": {
+      "finish": "dial_cream",
+      "group": "steer",
+      "file": "Options/opt_dash_speedo_dial.glb"
+     },
+     "opt_dash_speedo_marks": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_dash_speedo_marks.glb"
+     }
+    }
+   },
+   {
+    "id": "twin_clocks",
+    "name": "Twin clocks",
+    "catalogue": [
+     "dashboard",
+     "twin_clocks"
+    ],
+    "units": [
+     {
+      "id": "clock",
+      "group": "steer",
+      "meshes": [
+       "opt_dash_twin_cup",
+       "opt_dash_twin_bezel",
+       "opt_dash_twin_dial",
+       "opt_dash_twin_marks"
+      ],
+      "slot": "dashboard",
+      "mount": {
+       "to": "yokes.lugs",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.455088,
+         0.71535,
+         -0.062
+        ],
+        "b": [
+         0.443729,
+         0.734888,
+         -0.062
+        ],
+        "r": 0.04488
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.455088,
+         0.71535,
+         0.062
+        ],
+        "b": [
+         0.443729,
+         0.734888,
+         0.062
+        ],
+        "r": 0.04488
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_dash_twin_cup": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_dash_twin_cup.glb"
+     },
+     "opt_dash_twin_bezel": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_dash_twin_bezel.glb"
+     },
+     "opt_dash_twin_dial": {
+      "finish": "dial_cream",
+      "group": "steer",
+      "file": "Options/opt_dash_twin_dial.glb"
+     },
+     "opt_dash_twin_marks": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_dash_twin_marks.glb"
+     }
+    }
+   }
+  ],
+  "fog_lights": [
+   {
+    "id": "stock",
+    "name": "No spotlights (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "halogen_spots",
+    "name": "Round halogen spotlights",
+    "catalogue": [
+     "fog_lights",
+     "halogen_spots"
+    ],
+    "units": [
+     {
+      "id": "fog_lights",
+      "group": "steer",
+      "meshes": [
+       "opt_spots_body",
+       "opt_spots_clamps",
+       "opt_spots_refl",
+       "opt_spots_lens"
+      ],
+      "slot": "fog_lights",
+      "mount": {
+       "to": "yokes.lugs",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.594093,
+         0.373245,
+         -0.175
+        ],
+        "b": [
+         0.636093,
+         0.373245,
+         -0.175
+        ],
+        "r": 0.045
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.564093,
+         0.394245,
+         -0.117
+        ],
+        "b": [
+         0.571593,
+         0.378682,
+         -0.143375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.571593,
+         0.378682,
+         -0.143375
+        ],
+        "b": [
+         0.579093,
+         0.367245,
+         -0.165
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.579093,
+         0.367245,
+         -0.165
+        ],
+        "b": [
+         0.586593,
+         0.368182,
+         -0.172375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.586593,
+         0.368182,
+         -0.172375
+        ],
+        "b": [
+         0.594093,
+         0.373245,
+         -0.175
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.594093,
+         0.373245,
+         0.175
+        ],
+        "b": [
+         0.636093,
+         0.373245,
+         0.175
+        ],
+        "r": 0.045
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.564093,
+         0.394245,
+         0.117
+        ],
+        "b": [
+         0.571593,
+         0.378682,
+         0.143375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.571593,
+         0.378682,
+         0.143375
+        ],
+        "b": [
+         0.579093,
+         0.367245,
+         0.165
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.579093,
+         0.367245,
+         0.165
+        ],
+        "b": [
+         0.586593,
+         0.368182,
+         0.172375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.586593,
+         0.368182,
+         0.172375
+        ],
+        "b": [
+         0.594093,
+         0.373245,
+         0.175
+        ],
+        "r": 0.006
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_spots_body": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_spots_body.glb"
+     },
+     "opt_spots_clamps": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_spots_clamps.glb"
+     },
+     "opt_spots_refl": {
+      "finish": "headlight_inner",
+      "group": "steer",
+      "file": "Options/opt_spots_refl.glb"
+     },
+     "opt_spots_lens": {
+      "finish": "lens_clear",
+      "group": "steer",
+      "file": "Options/opt_spots_lens.glb"
+     }
+    }
+   },
+   {
+    "id": "amber_fogs",
+    "name": "Amber fog lights",
+    "catalogue": [
+     "fog_lights",
+     "amber_fogs"
+    ],
+    "units": [
+     {
+      "id": "fog_lights",
+      "group": "steer",
+      "meshes": [
+       "opt_fogs_body",
+       "opt_fogs_clamps",
+       "opt_fogs_refl",
+       "opt_fogs_lens"
+      ],
+      "slot": "fog_lights",
+      "mount": {
+       "to": "yokes.lugs",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.594093,
+         0.373245,
+         -0.175
+        ],
+        "b": [
+         0.636093,
+         0.373245,
+         -0.175
+        ],
+        "r": 0.04
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.564093,
+         0.394245,
+         -0.117
+        ],
+        "b": [
+         0.571593,
+         0.378682,
+         -0.143375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.571593,
+         0.378682,
+         -0.143375
+        ],
+        "b": [
+         0.579093,
+         0.367245,
+         -0.165
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.579093,
+         0.367245,
+         -0.165
+        ],
+        "b": [
+         0.586593,
+         0.368182,
+         -0.172375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.586593,
+         0.368182,
+         -0.172375
+        ],
+        "b": [
+         0.594093,
+         0.373245,
+         -0.175
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.594093,
+         0.373245,
+         0.175
+        ],
+        "b": [
+         0.636093,
+         0.373245,
+         0.175
+        ],
+        "r": 0.04
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.564093,
+         0.394245,
+         0.117
+        ],
+        "b": [
+         0.571593,
+         0.378682,
+         0.143375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.571593,
+         0.378682,
+         0.143375
+        ],
+        "b": [
+         0.579093,
+         0.367245,
+         0.165
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.579093,
+         0.367245,
+         0.165
+        ],
+        "b": [
+         0.586593,
+         0.368182,
+         0.172375
+        ],
+        "r": 0.006
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.586593,
+         0.368182,
+         0.172375
+        ],
+        "b": [
+         0.594093,
+         0.373245,
+         0.175
+        ],
+        "r": 0.006
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_fogs_body": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_fogs_body.glb"
+     },
+     "opt_fogs_clamps": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_fogs_clamps.glb"
+     },
+     "opt_fogs_refl": {
+      "finish": "headlight_inner",
+      "group": "steer",
+      "file": "Options/opt_fogs_refl.glb"
+     },
+     "opt_fogs_lens": {
+      "finish": "lens_amber",
+      "group": "steer",
+      "file": "Options/opt_fogs_lens.glb"
+     }
+    }
+   }
+  ],
+  "panniers": [
+   {
+    "id": "stock",
+    "name": "No panniers (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "canvas_throwover",
+    "name": "Canvas throw-over panniers",
+    "catalogue": [
+     "panniers",
+     "canvas_throwover"
+    ],
+    "units": [
+     {
+      "id": "panniers",
+      "group": "body",
+      "meshes": [
+       "opt_pann_canvas",
+       "opt_pann_canvas_flap",
+       "opt_pann_canvas_straps"
+      ],
+      "slot": "panniers",
+      "mount": {
+       "to": "frame.seat_rails",
+       "type": "seat_rails",
+       "rail_mm": 180.0,
+       "from_end": 0.0
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "box",
+        "c": [
+         -0.66,
+         0.363748,
+         -0.216232
+        ],
+        "x": [
+         1.0,
+         0.0,
+         0.0
+        ],
+        "y": [
+         0.0,
+         -0.999949,
+         0.010072
+        ],
+        "z": [
+         -0.0,
+         -0.010072,
+         -0.999949
+        ],
+        "h": [
+         0.155,
+         0.113754,
+         0.041998
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         -0.66,
+         0.363749,
+         0.216094
+        ],
+        "x": [
+         1.0,
+         0.0,
+         0.0
+        ],
+        "y": [
+         0.0,
+         -0.999929,
+         -0.011882
+        ],
+        "z": [
+         -0.0,
+         0.011882,
+         -0.999929
+        ],
+        "h": [
+         0.155,
+         0.113754,
+         0.041997
+        ]
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_pann_canvas": {
+      "finish": "canvas_olive",
+      "group": "body",
+      "file": "Options/opt_pann_canvas.glb"
+     },
+     "opt_pann_canvas_flap": {
+      "finish": "canvas_olive",
+      "group": "body",
+      "file": "Options/opt_pann_canvas_flap.glb"
+     },
+     "opt_pann_canvas_straps": {
+      "finish": "leather_brown",
+      "group": "body",
+      "file": "Options/opt_pann_canvas_straps.glb"
+     }
+    }
+   },
+   {
+    "id": "cruiser_leather_saddlebags",
+    "name": "Leather saddlebags, studded",
+    "catalogue": [
+     "panniers",
+     "cruiser_leather_saddlebags"
+    ],
+    "units": [
+     {
+      "id": "panniers",
+      "group": "body",
+      "meshes": [
+       "opt_pann_leather",
+       "opt_pann_leather_flap",
+       "opt_pann_leather_metal"
+      ],
+      "slot": "panniers",
+      "mount": {
+       "to": "frame.seat_rails",
+       "type": "seat_rails",
+       "rail_mm": 180.0,
+       "from_end": 0.0
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "box",
+        "c": [
+         -0.655,
+         0.362496,
+         -0.226459
+        ],
+        "x": [
+         1.0,
+         0.0,
+         0.0
+        ],
+        "y": [
+         0.0,
+         -0.999963,
+         0.008659
+        ],
+        "z": [
+         -0.0,
+         -0.008659,
+         -0.999963
+        ],
+        "h": [
+         0.155,
+         0.112504,
+         0.048998
+        ]
+       },
+       {
+        "shape": "box",
+        "c": [
+         -0.655,
+         0.362496,
+         0.226392
+        ],
+        "x": [
+         1.0,
+         0.0,
+         0.0
+        ],
+        "y": [
+         0.0,
+         -0.999953,
+         -0.009727
+        ],
+        "z": [
+         -0.0,
+         0.009727,
+         -0.999953
+        ],
+        "h": [
+         0.155,
+         0.112504,
+         0.048998
+        ]
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_pann_leather": {
+      "finish": "leather_tan",
+      "group": "body",
+      "file": "Options/opt_pann_leather.glb"
+     },
+     "opt_pann_leather_flap": {
+      "finish": "leather_tan",
+      "group": "body",
+      "file": "Options/opt_pann_leather_flap.glb"
+     },
+     "opt_pann_leather_metal": {
+      "finish": "chrome",
+      "group": "body",
+      "file": "Options/opt_pann_leather_metal.glb"
+     }
+    }
+   }
+  ],
+  "toolbox": [
+   {
+    "id": "stock",
+    "name": "No tool roll (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "tool_roll_pouch",
+    "name": "Leather tool roll",
+    "catalogue": [
+     "toolbox",
+     "tool_roll_pouch"
+    ],
+    "units": [
+     {
+      "id": "toolbox",
+      "group": "body",
+      "meshes": [
+       "opt_toolroll",
+       "opt_toolroll_straps"
+      ],
+      "slot": "toolbox",
+      "mount": {
+       "to": "frame.lugs",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         -0.845,
+         0.556,
+         -0.1
+        ],
+        "b": [
+         -0.845,
+         0.556,
+         0.1
+        ],
+        "r": 0.034
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_toolroll": {
+      "finish": "leather_brown",
+      "group": "body",
+      "file": "Options/opt_toolroll.glb"
+     },
+     "opt_toolroll_straps": {
+      "finish": "leather_tan",
+      "group": "body",
+      "file": "Options/opt_toolroll_straps.glb"
+     }
+    }
+   }
+  ],
+  "tyres": [
+   {
+    "id": "stock",
+    "name": "Speed Twin tyres (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "classic_whitewall_110",
+    "name": "Classic whitewall tyre 110/90",
+    "catalogue": [
+     "tyre",
+     "classic_whitewall_110"
+    ],
+    "units": [
+     {
+      "id": "tyre_wall_front",
+      "group": "front_wheel",
+      "meshes": [
+       "opt_tyre_ww_front"
+      ],
+      "slot": "tyres",
+      "mount": {
+       "to": "fork_lowers.front_axle",
+       "type": "axle",
+       "axle_mm": 25.0
+      },
+      "sockets": {},
+      "proxies": []
+     },
+     {
+      "id": "tyre_wall_rear",
+      "group": "rear_wheel",
+      "meshes": [
+       "opt_tyre_ww_rear"
+      ],
+      "slot": "tyres",
+      "mount": {
+       "to": "swingarm.rear_axle",
+       "type": "axle",
+       "axle_mm": 25.0
+      },
+      "sockets": {},
+      "proxies": []
+     }
+    ],
+    "meshes": {
+     "opt_tyre_ww_front": {
+      "finish": "tyre_white",
+      "group": "front_wheel",
+      "file": "Options/opt_tyre_ww_front.glb"
+     },
+     "opt_tyre_ww_rear": {
+      "finish": "tyre_white",
+      "group": "rear_wheel",
+      "file": "Options/opt_tyre_ww_rear.glb"
+     }
+    }
+   },
+   {
+    "id": "cafe_redwall_100",
+    "name": "Ribbed tyre 100/90, red stripe",
+    "catalogue": [
+     "tyre",
+     "cafe_redwall_100"
+    ],
+    "units": [
+     {
+      "id": "tyre_wall_front",
+      "group": "front_wheel",
+      "meshes": [
+       "opt_tyre_rw_front"
+      ],
+      "slot": "tyres",
+      "mount": {
+       "to": "fork_lowers.front_axle",
+       "type": "axle",
+       "axle_mm": 25.0
+      },
+      "sockets": {},
+      "proxies": []
+     },
+     {
+      "id": "tyre_wall_rear",
+      "group": "rear_wheel",
+      "meshes": [
+       "opt_tyre_rw_rear"
+      ],
+      "slot": "tyres",
+      "mount": {
+       "to": "swingarm.rear_axle",
+       "type": "axle",
+       "axle_mm": 25.0
+      },
+      "sockets": {},
+      "proxies": []
+     }
+    ],
+    "meshes": {
+     "opt_tyre_rw_front": {
+      "finish": "tyre_red",
+      "group": "front_wheel",
+      "file": "Options/opt_tyre_rw_front.glb"
+     },
+     "opt_tyre_rw_rear": {
+      "finish": "tyre_red",
+      "group": "rear_wheel",
+      "file": "Options/opt_tyre_rw_rear.glb"
+     }
+    }
+   }
   ]
  },
  "finishes": {
@@ -22777,6 +24400,102 @@
    "uv_scale": 7.0,
    "normal_strength": 0.5,
    "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "dial_cream": {
+   "shader": "base",
+   "color": [
+    0.8,
+    0.77,
+    0.68
+   ],
+   "metallic": 0.0,
+   "roughness": 0.35,
+   "color2": [
+    0.8,
+    0.77,
+    0.68
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.35,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "canvas_olive": {
+   "shader": "base",
+   "color": [
+    0.2,
+    0.19,
+    0.11
+   ],
+   "metallic": 0.0,
+   "roughness": 0.85,
+   "color2": [
+    0.2,
+    0.19,
+    0.11
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.85,
+   "detail": "cast",
+   "uv_scale": 12.0,
+   "normal_strength": 0.5,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "tyre_white": {
+   "shader": "base",
+   "color": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "metallic": 0.0,
+   "roughness": 0.7,
+   "color2": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.7,
+   "detail": "tyre",
+   "uv_scale": 1.0,
+   "normal_strength": 0.3,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "tyre_red": {
+   "shader": "base",
+   "color": [
+    0.5,
+    0.05,
+    0.035
+   ],
+   "metallic": 0.0,
+   "roughness": 0.7,
+   "color2": [
+    0.5,
+    0.05,
+    0.035
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.7,
+   "detail": "tyre",
+   "uv_scale": 1.0,
+   "normal_strength": 0.3,
+   "rough_var": 0.3,
    "clearcoat_roughness": 0.03,
    "emissive": 0.0,
    "grime": 0.6

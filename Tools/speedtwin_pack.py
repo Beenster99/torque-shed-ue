@@ -32,6 +32,10 @@ FINISHES = {
     "wood_crate": F((0.33, 0.21, 0.10), 0.0, 0.75, detail="cast", uv_scale=3.0, normal_strength=0.4, rough_var=0.4),
     "black_header": F((0.03, 0.03, 0.032), 0.6, 0.45, detail="cast", uv_scale=6.0, normal_strength=0.3, rough_var=0.2),
     "piping_cream": F((0.76, 0.70, 0.56), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
+    "dial_cream": F((0.80, 0.77, 0.68), 0.0, 0.35),
+    "canvas_olive": F((0.20, 0.19, 0.11), 0.0, 0.85, detail="cast", uv_scale=12.0, normal_strength=0.5, rough_var=0.2),
+    "tyre_white": F((0.80, 0.80, 0.78), 0.0, 0.7, detail="tyre", uv_scale=1.0, normal_strength=0.3, rough_var=0.3),
+    "tyre_red": F((0.50, 0.05, 0.035), 0.0, 0.7, detail="tyre", uv_scale=1.0, normal_strength=0.3, rough_var=0.3),
 }
 
 
@@ -803,7 +807,222 @@ def tanks(fit, cat):
     return out
 
 
+# --- Clocks (the dashboard slot; on the bar clamp's bracket, steer group) ----------------------------
+
+CLOCK_C = st.BAR_CLAMP + np.array([0.03, 0.065, 0.0])
+CLOCK_AX = np.array([-0.5, 0.86, 0.0]) / np.linalg.norm([-0.5, 0.86, 0.0])
+
+
+def clock(c, r, depth, ticks=12):
+    """A chrome-cupped round clock facing up and back along CLOCK_AX: (cup, bezel, dial, marks)."""
+    ax = CLOCK_AX
+    cup = st.lathe([(0.0, -depth), (r * 0.8, -depth), (r * 0.98, -depth * 0.55), (r, 0.0), (r * 0.98, 0.004)], seg=48,
+                   axis=ax, centre=c)
+    bezel = st.lathe([(r * 0.86, 0.004), (r * 1.02, 0.002), (r * 1.05, 0.008), (r * 0.99, 0.014), (r * 0.88, 0.012)], seg=48,
+                     axis=ax, centre=c)
+    dial = st.lathe([(0.0, 0.003), (r * 0.9, 0.003)], seg=48, axis=ax, centre=c)
+    u = np.array([0.0, 0.0, 1.0]); w = np.cross(ax, u)
+    marks = st.Mesh()
+    for k in range(ticks):
+        a = math.radians(-135 + 270 * k / (ticks - 1))
+        marks.extend(st.box(c + ax * 0.0035 + (u * math.sin(a) + w * math.cos(a)) * r * 0.74, (0.004, 0.004, 0.004), 4.0))
+    a = math.radians(-60)
+    tip = c + ax * 0.005 + (u * math.sin(a) + w * math.cos(a)) * r * 0.65
+    marks.extend(st.tube(np.array([c + ax * 0.005, tip]), 0.0015, 6))
+    marks.extend(st.box(c + ax * 0.0035 - w * r * 0.4, (0.018, 0.004, 0.012), 6.0))     # the LCD window
+    stalk = st.tube(np.array([c - ax * depth, st.BAR_CLAMP + [0.012, 0.022, (c - st.BAR_CLAMP)[2] * 0.4]]), 0.006, 10)
+    return cup.extend(stalk), bezel, dial, marks
+
+
+def dashboards(fit, cat):
+    out = []
+    for oid, centres, r, depth, tag in (("analog_speedo", [CLOCK_C + [0.0, 0.005, 0.0]], 0.058, 0.05, "speedo"),
+                                        ("twin_clocks", [CLOCK_C + [0.0, 0.018, s * 0.062] for s in (-1, 1)], 0.044, 0.045, "twin")):
+        cup, bez, dial, marks = st.Mesh(), st.Mesh(), st.Mesh(), st.Mesh()
+        prox = []
+        for c in centres:
+            a, b, d, m = clock(c, r, depth)
+            cup.extend(a); bez.extend(b); dial.extend(d); marks.extend(m)
+            prox.append(fit.capsule(c - CLOCK_AX * (depth - r * 0.6), c + CLOCK_AX * 0.004, r * 1.02))
+        names = ["opt_dash_%s_%s" % (tag, k) for k in ("cup", "bezel", "dial", "marks")]
+        out.append(("dashboard", oid, cat["dashboard"][oid]["name"], ["dashboard", oid],
+                    [{"id": "clock", "group": "steer", "meshes": names, "slot": "dashboard",
+                      "mount": {"to": "yokes.lugs", "type": "bracket"}, "sockets": {}, "proxies": prox}],
+                    dict(zip(names, [(cup, "chrome", "steer"), (bez, "chrome", "steer"), (dial, "dial_cream", "steer"),
+                                     (marks, "black_gloss", "steer")]))))
+    return out
+
+
+# --- Spotlights (clamped to the fork tubes under the lower yoke, steer group) -------------------------
+
+def fog_lights(fit, cat):
+    out = []
+    for oid, r, body_f, lens_f, tag in (("halogen_spots", 0.045, "chrome", "lens_clear", "spots"),
+                                         ("amber_fogs", 0.04, "black_gloss", "lens_amber", "fogs")):
+        body, clamp, lens, inner = st.Mesh(), st.Mesh(), st.Mesh(), st.Mesh()
+        prox = []
+        for sg in (-1, 1):
+            t = FA + st.FORK_DIR * 0.432 + [0.0, 0.0, sg * 0.095]
+            clamp.extend(st.lathe([(0.03, -0.008), (0.035, -0.007), (0.035, 0.007), (0.03, 0.008)], seg=24, axis=st.FORK_DIR,
+                                  centre=t))
+            L = t + np.array([0.085, -0.025, sg * 0.08])
+            arm = np.array([t + [0.025, -0.004, sg * 0.022], L + [-0.045, -0.006, -sg * 0.01], L + [-0.03, 0.0, 0.0]])
+            clamp.extend(st.tube(st.polyline(arm, 4), 0.006, 10))
+            body.extend(st.lathe([(0.0, -0.045), (r * 0.6, -0.042), (r * 0.95, -0.015), (r, 0.01), (r * 1.03, 0.016),
+                                  (r * 0.95, 0.02)], seg=40, axis=(1, 0, 0), centre=L))
+            rl, ln = lamp_insides(L + [-0.03, 0.0, 0.0], r)
+            inner.extend(rl); lens.extend(ln)
+            prox.append(fit.capsule(L + [-0.03, 0, 0], L + [0.012, 0, 0], r))
+            prox += fit.chain(st.polyline(arm, 2), 0.006)
+        names = ["opt_%s_body" % tag, "opt_%s_clamps" % tag, "opt_%s_refl" % tag, "opt_%s_lens" % tag]
+        out.append(("fog_lights", oid, cat["fog_lights"][oid]["name"], ["fog_lights", oid],
+                    [{"id": "fog_lights", "group": "steer", "meshes": names, "slot": "fog_lights",
+                      "mount": {"to": "yokes.lugs", "type": "bracket"}, "sockets": {}, "proxies": prox}],
+                    dict(zip(names, [(body, body_f, "steer"), (clamp, "chrome", "steer"), (inner, "headlight_inner", "steer"),
+                                     (lens, lens_f, "steer")]))))
+    return out
+
+
+# --- Panniers (hung from the seat rails, outside the shocks) ------------------------------------------
+
+def panniers(fit, cat):
+    out = []
+    # Canvas throw-overs: soft bags, a flap with two leather straps, hung from the rails by straps.
+    bag, flap, straps = st.Mesh(), st.Mesh(), st.Mesh()
+    prox = []
+    for sg in (-1, 1):
+        z = sg * 0.215
+        side = st.box((-0.66, 0.36, z), (0.30, 0.22, 0.075), 3.0)
+        bag.extend(side)
+        f = st.box((-0.66, 0.44, z + sg * 0.002), (0.31, 0.075, 0.084), 4.0)
+        flap.extend(f)
+        for x in (-0.74, -0.58):
+            straps.extend(st.box((x, 0.405, z + sg * 0.043), (0.025, 0.12, 0.004), 6.0))
+            ry = np.interp(x, [-0.79, -0.55], [0.475, 0.44]); rz = np.interp(x, [-0.79, -0.55], [0.07, 0.09])
+            straps.extend(st.tube(np.array([[x, 0.465, z - sg * 0.035], [x, ry + 0.02, sg * (rz + 0.015)], [x, ry + 0.016, sg * rz]]),
+                                  0.005, 8))
+        prox.append(fit.obb(np.vstack(side.p + f.p)))
+    out.append(("panniers", "canvas_throwover", cat["panniers"]["canvas_throwover"]["name"], ["panniers", "canvas_throwover"],
+                [{"id": "panniers", "group": "body", "meshes": ["opt_pann_canvas", "opt_pann_canvas_flap", "opt_pann_canvas_straps"],
+                  "slot": "panniers", "mount": {"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0},
+                  "sockets": {}, "proxies": prox}],
+                {"opt_pann_canvas": (bag, "canvas_olive", "body"), "opt_pann_canvas_flap": (flap, "canvas_olive", "body"),
+                 "opt_pann_canvas_straps": (straps, "leather_brown", "body")}))
+    # Leather saddlebags: stiff, square-cornered, a deep flap, two chrome buckles and a row of studs.
+    bag, flap, metal = st.Mesh(), st.Mesh(), st.Mesh()
+    prox = []
+    for sg in (-1, 1):
+        z = sg * 0.225
+        side = st.box((-0.655, 0.355, z), (0.30, 0.21, 0.09), 7.0)
+        bag.extend(side)
+        f = st.box((-0.655, 0.425, z + sg * 0.002), (0.31, 0.10, 0.098), 7.0)
+        flap.extend(f)
+        for x in (-0.73, -0.58):
+            flap.extend(st.box((x, 0.38, z + sg * 0.05), (0.02, 0.07, 0.004), 6.0))
+            metal.extend(st.box((x, 0.36, z + sg * 0.053), (0.026, 0.02, 0.004), 8.0))
+        for x in np.linspace(-0.79, -0.52, 10):
+            metal.extend(st.lathe([(0.0, 0.0), (0.005, 0.0), (0.004, 0.003), (0.0, 0.004)], seg=12, axis=(0, 0, sg),
+                                  centre=(x, 0.39, z + sg * 0.051)))
+        for x in (-0.74, -0.57):
+            ry = np.interp(x, [-0.79, -0.55], [0.475, 0.44]); rz = np.interp(x, [-0.79, -0.55], [0.07, 0.09])
+            flap.extend(st.tube(np.array([[x, 0.47, z - sg * 0.04], [x, ry + 0.02, sg * (rz + 0.015)], [x, ry + 0.016, sg * rz]]),
+                                0.005, 8))
+        prox.append(fit.obb(np.vstack(side.p + f.p)))
+    oid = "cruiser_leather_saddlebags"
+    out.append(("panniers", oid, cat["panniers"][oid]["name"], ["panniers", oid],
+                [{"id": "panniers", "group": "body", "meshes": ["opt_pann_leather", "opt_pann_leather_flap", "opt_pann_leather_metal"],
+                  "slot": "panniers", "mount": {"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0},
+                  "sockets": {}, "proxies": prox}],
+                {"opt_pann_leather": (bag, "leather_tan", "body"), "opt_pann_leather_flap": (flap, "leather_tan", "body"),
+                 "opt_pann_leather_metal": (metal, "chrome", "body")}))
+    return out
+
+
+# --- Tool roll (strapped across the tail, behind the seat) -------------------------------------------------
+
+TOOL_C = np.array([-0.845, 0.556, 0.0])
+
+
+def toolboxes(fit, cat):
+    roll = st.lathe([(0.0, -0.1), (0.028, -0.1), (0.032, -0.09), (0.033, 0.0), (0.032, 0.09), (0.028, 0.1), (0.0, 0.1)], seg=28,
+                    axis=(0, 0, 1), centre=TOOL_C)
+    straps = st.Mesh()
+    for zz in (-0.055, 0.055):
+        straps.extend(st.lathe([(0.0335, -0.007), (0.0345, -0.006), (0.0345, 0.006), (0.0335, 0.007)], seg=28, axis=(0, 0, 1),
+                               centre=TOOL_C + [0, 0, zz]))
+        sg = 1.0 if zz > 0 else -1.0
+        straps.extend(st.tube(np.array([TOOL_C + [0.02, -0.028, zz], [-0.80, 0.505, sg * 0.068], [-0.79, 0.49, sg * 0.07]]), 0.005, 8))
+    return [("toolbox", "tool_roll_pouch", cat["toolbox"]["tool_roll_pouch"]["name"], ["toolbox", "tool_roll_pouch"],
+             [{"id": "toolbox", "group": "body", "meshes": ["opt_toolroll", "opt_toolroll_straps"], "slot": "toolbox",
+               "mount": {"to": "frame.lugs", "type": "bracket"}, "sockets": {},
+               "proxies": [fit.capsule(TOOL_C + [0, 0, -0.1], TOOL_C + [0, 0, 0.1], 0.034)]}],
+             {"opt_toolroll": (roll, "leather_brown", "body"), "opt_toolroll_straps": (straps, "leather_tan", "body")})]
+
+
+# --- More front guards ----------------------------------------------------------------------------
+
+def more_front_guards(fit, cat):
+    out = []
+    o = np.zeros(3)
+    # Alloy cafe blade: slim, shallow and short, polished, on wire stays.
+    r, w, d = 0.322, 0.05, 0.012
+    path = arc(o, r, 95, 22, 30)
+    guard = section_sweep(path, u_profile(w, d, 0.002, crown=3.0), up_hint=(math.cos(math.radians(95)), math.sin(math.radians(95)), 0))
+    st_pairs = [(arc(o, r - 0.006, a, a, 1, s * (w - 0.003))[0], (0.0, 0.0, s * 0.11)) for s in (-1, 1) for a in (35, 85)]
+    out.append(("front_mudguard", "alloy_cafe_blade", cat["front_mudguard"]["alloy_cafe_blade"]["name"],
+                ["front_mudguard", "alloy_cafe_blade"],
+                [front_guard_unit(fit, ["opt_fguard_blade", "opt_fguard_blade_stays"], path, w, d)],
+                {"opt_fguard_blade": (guard, "alu_polished", "front_lower"),
+                 "opt_fguard_blade_stays": (stays(st_pairs, 0.0035), "steel_brushed", "front_lower")}))
+    # Low brushed alloy: a full-length guard, a little valance, close over the tyre.
+    r, w, d = 0.33, 0.068, 0.03
+    path = arc(o, r, 98, -5, 36)
+    guard = section_sweep(path, u_profile(w, d, 0.002, crown=5.0), up_hint=(math.cos(math.radians(98)), math.sin(math.radians(98)), 0))
+    st_pairs = [(arc(o, r - d * 0.8, a, a, 1, s * (w - 0.003))[0], (0.0, 0.0, s * 0.11)) for s in (-1, 1) for a in (5, 80)]
+    out.append(("front_mudguard", "scrambler_alloy_low", cat["front_mudguard"]["scrambler_alloy_low"]["name"],
+                ["front_mudguard", "scrambler_alloy_low"],
+                [front_guard_unit(fit, ["opt_fguard_low", "opt_fguard_low_stays"], path, w, d)],
+                {"opt_fguard_low": (guard, "alu_brushed", "front_lower"),
+                 "opt_fguard_low_stays": (stays(st_pairs), "black_satin", "front_lower")}))
+    return out
+
+
+# --- Tyre walls (a band on the stock tyres' sidewalls, riding with the wheels) -------------------------
+
+def wall_band(r_tyre, w, rim_w, lo, hi):
+    """A thin band on both sidewalls of the stock tyre between radii rim+lo and rim+hi, standing 0.4 to
+    1.2 mm proud of the rubber."""
+    rim_r = 0.2159
+    prof = st.tyre_profile(r_tyre, w, rim_r, rim_w, n_side=80)
+    side = [(r, z) for r, z in prof if z > 0 and rim_r + lo <= r <= rim_r + hi]
+    side.sort(key=lambda q: -q[0])
+    m = st.Mesh()
+    for sg in (-1, 1):
+        outer = [(r, sg * (z + 0.0012)) for r, z in side]
+        inner = [(r, sg * (z + 0.0004)) for r, z in side[::-1]]
+        loop = outer + inner + [outer[0]]
+        if sg < 0:
+            loop = loop[::-1]
+        m.extend(st.lathe(loop, seg=144, axis=(0, 0, 1), centre=(0, 0, 0)))
+    return m
+
+
+def tyres(fit, cat):
+    out = []
+    for oid, lo, hi, f, tag in (("classic_whitewall_110", 0.022, 0.052, "tyre_white", "ww"),
+                                ("cafe_redwall_100", 0.040, 0.047, "tyre_red", "rw")):
+        units = [{"id": "tyre_wall_front", "group": "front_wheel", "meshes": ["opt_tyre_%s_front" % tag], "slot": "tyres",
+                  "mount": {"to": "fork_lowers.front_axle", "type": "axle", "axle_mm": 25.0}, "sockets": {}, "proxies": []},
+                 {"id": "tyre_wall_rear", "group": "rear_wheel", "meshes": ["opt_tyre_%s_rear" % tag], "slot": "tyres",
+                  "mount": {"to": "swingarm.rear_axle", "type": "axle", "axle_mm": 25.0}, "sockets": {}, "proxies": []}]
+        out.append(("tyres", oid, cat["tyre"][oid]["name"], ["tyre", oid], units,
+                    {"opt_tyre_%s_front" % tag: (wall_band(0.300, 0.12, 0.096, lo, hi), f, "front_wheel"),
+                     "opt_tyre_%s_rear" % tag: (wall_band(0.312, 0.16, 0.115, lo, hi), f, "rear_wheel")}))
+    return out
+
+
 def pack_options(fit, cat):
     return (seats(fit, cat) + front_guards(fit, cat) + rear_guards(fit, cat) + indicators(fit, cat) + mirrors(fit, cat)
             + levers(fit) + grips(fit) + screens(fit, cat) + racks(fit, cat) + headlights(fit, cat) + exhausts(fit, cat)
-            + guards(fit, cat) + side_panels(fit, cat) + tanks(fit, cat))
+            + guards(fit, cat) + side_panels(fit, cat) + tanks(fit, cat) + dashboards(fit, cat) + fog_lights(fit, cat)
+            + panniers(fit, cat) + toolboxes(fit, cat) + more_front_guards(fit, cat) + tyres(fit, cat))
