@@ -44,6 +44,9 @@ struct GAffine
 	PartMesh::Warp Warp() const;
 };
 
+// A triangle for the sight-line and fit checks (Godot frame).
+struct SegTri { V3 A, B, C; };
+
 class BikeParts
 {
 public:
@@ -171,10 +174,20 @@ private:
 	// The clocks (BikeModel._draw_dashboard), raised clear of the bars as _lift_clear_of_bars
 	// raises them (that needs the mesh source).
 	// Returns how far they were raised (_dash_raised), for a satnav over them.
-	double Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
-	// A satnav over the clocks on its arm (KitModel._satnav), DashLift as the clocks were raised.
-	// Not yet a phone in its bar clip (KitModel._phone fits it round the bars).
-	void Satnav(const PartsMap& Parts, const Layout& L, double DashLift, std::vector<FittedPart>& Out) const;
+	// FaceOut: the points over the clocks' faces, raised (BikeModel._dash_face, steering space).
+	double Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out, std::vector<V3>* FaceOut = nullptr) const;
+	// The bars and what's on them as triangles in the steering's space (BikeModel._bars_mesh; H the
+	// head), empty without a mesh source; whether a segment crosses any of some triangles
+	// (TriangleMesh.intersect_segment); the rider's eye (BikeModel._eye_point, Godot frame).
+	std::vector<SegTri> BarTriangles(const std::vector<FittedPart>& Out, const Bars& Bar, const V3& H) const;
+	static bool SegmentHits(const std::vector<SegTri>& Tris, const V3& From, const V3& To);
+	V3 EyeAt(const Layout& L) const;
+	// A satnav over the clocks on its arm (KitModel._satnav), DashLift as the clocks were raised;
+	// a phone in its cradle on a clamp round the bar, put where it best keeps clear of the bars and
+	// what's round them, hides least of the clocks (DashFace) and is seen whole (KitModel._phone).
+	void Satnav(const PartsMap& Parts, const Layout& L, double DashLift, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const;
+	// KitModel._phone and _phone_place.
+	void Phone(const Json& P, const Layout& L, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const;
 	// BlenderParts.sweep_section: copies of a Blender section (drawn at radius 1 along +Z, Godot
 	// frame) laid end to end along ShapeKit.smooth's curve through Route, scaled by Radii (one, or
 	// one per route point). False when there's no glb.

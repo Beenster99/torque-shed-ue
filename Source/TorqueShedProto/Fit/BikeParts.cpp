@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
+#include <set>
 
 namespace TorqueFit
 {
@@ -1230,7 +1233,93 @@ BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, st
 	return Bar;
 }
 
-double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
+std::vector<SegTri> BikeParts::BarTriangles(const std::vector<FittedPart>& Out, const Bars& Bar, const V3& H) const
+{
+	// (BikeModel._bars_mesh: the bars and everything on them, as triangles in steering space.)
+	std::vector<SegTri> BarTris;
+	if (!Meshes) return BarTris;
+	for (const FittedPart& F : Out)
+	{
+		if (F.Slot != "handlebars") continue;
+		PartMesh Glb;
+		if (!Meshes(F.Glb, Glb)) continue;
+		const PartMesh M = Draw(Glb, F);
+		// (BikeModel._bars_mesh walks each mesh's parents up to the steering: what hangs off the
+		// bike itself, the cables' frame runs, is taken in the bike's space as it is.)
+		const V3 Off = F.Node == "steer" ? H : V3();
+		for (const PartSurface& S : M.Surfaces)
+			for (size_t I = 0; I + 2 < S.Idx.size(); I += 3)
+				BarTris.push_back({ToGodot(S.Pos[S.Idx[I]]) - Off, ToGodot(S.Pos[S.Idx[I + 1]]) - Off, ToGodot(S.Pos[S.Idx[I + 2]]) - Off});
+	}
+	// A braced bar's pad, code-drawn: a CapsuleMesh (radius 0.025, 0.2 end to end, 64 round and
+	// 8 rings) turned across the bar, as Godot tessellates it.
+	if (Bar.HasPad)
+	{
+		constexpr double PadR = 0.025, PadHalf = 0.1 - 0.025;
+		constexpr int Segs = 64, Rings = 8;
+		std::vector<std::vector<V3>> Rows;
+		auto Row = [&](double W, double Y) {
+			std::vector<V3> R;
+			for (int I = 0; I <= Segs; ++I)
+			{
+				const double U = 2.0 * TorqueSim::Pi * I / Segs;
+				// (Local Y along the capsule, then turned a quarter about Z: local (x, y, z) -> (-y, x, z).)
+				const V3 Local(-std::sin(U) * PadR * W, Y, -std::cos(U) * PadR * W);
+				R.push_back(Bar.Pad + V3(0.0, 0.005, 0.0) + V3(-Local.y, Local.x, Local.z));
+			}
+			Rows.push_back(R);
+		};
+		for (int J = 0; J <= Rings + 1; ++J)
+		{
+			const double V = static_cast<double>(J) / (Rings + 1);
+			Row(std::sin(0.5 * TorqueSim::Pi * V), PadR * std::cos(0.5 * TorqueSim::Pi * V) + PadHalf);
+		}
+		for (int J = 0; J <= Rings + 1; ++J) Row(1.0, PadHalf - 2.0 * PadHalf * J / (Rings + 1));
+		for (int J = 0; J <= Rings + 1; ++J)
+		{
+			const double V = static_cast<double>(J) / (Rings + 1);
+			Row(std::cos(0.5 * TorqueSim::Pi * V), -PadHalf - PadR * std::sin(0.5 * TorqueSim::Pi * V));
+		}
+		for (size_t J = 1; J < Rows.size(); ++J)
+			for (int I = 1; I <= Segs; ++I)
+			{
+				BarTris.push_back({Rows[J - 1][I - 1], Rows[J - 1][I], Rows[J][I - 1]});
+				BarTris.push_back({Rows[J - 1][I], Rows[J][I], Rows[J][I - 1]});
+			}
+	}
+	return BarTris;
+}
+
+bool BikeParts::SegmentHits(const std::vector<SegTri>& Tris, const V3& From, const V3& To)
+{
+	// (TriangleMesh.intersect_segment: Geometry3D.segment_intersects_triangle, both faces, its
+	// epsilons too: a triangle small beside the segment counts as edge on and is missed, as in Godot.)
+	const V3 D = To - From;
+	for (const SegTri& T : Tris)
+	{
+		const V3 E1 = T.B - T.A, E2 = T.C - T.A, Pv = D.Cross(E2);
+		const double Det = E1.Dot(Pv);
+		if (std::fabs(Det) < 0.00001) continue;
+		const double Inv = 1.0 / Det;
+		const V3 Tv = From - T.A;
+		const double U = Tv.Dot(Pv) * Inv;
+		if (U < 0.0 || U > 1.0) continue;
+		const V3 Q = Tv.Cross(E1);
+		const double V = D.Dot(Q) * Inv;
+		if (V < 0.0 || U + V > 1.0) continue;
+		const double Tt = E2.Dot(Q) * Inv;
+		if (Tt > 0.00001 && Tt <= 1.0) return true;
+	}
+	return false;
+}
+
+V3 BikeParts::EyeAt(const Layout& L) const
+{
+	// (BikeModel._eye_point: the rider's eye over the hips, bike's space.)
+	return V3(0.0, L.Stats.SeatHeight - L.Stats.RearRadius + 0.88, ToGodot(L.Hip).z - 0.02);
+}
+
+double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out, std::vector<V3>* FaceOut) const
 {
 	// (BikeModel._draw_dashboard, in the steering's space: the clocks lean back 0.9 rad to the rider.)
 	const Json* P = Lay.Part(PartIn(Parts, "dashboard"));
@@ -1286,79 +1375,9 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 	double Lift = 0.0;
 	if (Meshes)
 	{
-		struct Tri { V3 A, B, C; };
-		std::vector<Tri> BarTris;
-		for (const FittedPart& F : Out)
-		{
-			if (F.Slot != "handlebars") continue;
-			PartMesh Glb;
-			if (!Meshes(F.Glb, Glb)) continue;
-			const PartMesh M = Draw(Glb, F);
-			// (BikeModel._bars_mesh walks each mesh's parents up to the steering: what hangs off the
-			// bike itself, the cables' frame runs, is taken in the bike's space as it is.)
-			const V3 Off = F.Node == "steer" ? H : V3();
-			for (const PartSurface& S : M.Surfaces)
-				for (size_t I = 0; I + 2 < S.Idx.size(); I += 3)
-					BarTris.push_back({ToGodot(S.Pos[S.Idx[I]]) - Off, ToGodot(S.Pos[S.Idx[I + 1]]) - Off, ToGodot(S.Pos[S.Idx[I + 2]]) - Off});
-		}
-		// A braced bar's pad, code-drawn: a CapsuleMesh (radius 0.025, 0.2 end to end, 64 round and
-		// 8 rings) turned across the bar, as Godot tessellates it.
-		if (Bar.HasPad)
-		{
-			constexpr double PadR = 0.025, PadHalf = 0.1 - 0.025;
-			constexpr int Segs = 64, Rings = 8;
-			std::vector<std::vector<V3>> Rows;
-			auto Row = [&](double W, double Y) {
-				std::vector<V3> R;
-				for (int I = 0; I <= Segs; ++I)
-				{
-					const double U = 2.0 * TorqueSim::Pi * I / Segs;
-					// (Local Y along the capsule, then turned a quarter about Z: local (x, y, z) -> (-y, x, z).)
-					const V3 Local(-std::sin(U) * PadR * W, Y, -std::cos(U) * PadR * W);
-					R.push_back(Bar.Pad + V3(0.0, 0.005, 0.0) + V3(-Local.y, Local.x, Local.z));
-				}
-				Rows.push_back(R);
-			};
-			for (int J = 0; J <= Rings + 1; ++J)
-			{
-				const double V = static_cast<double>(J) / (Rings + 1);
-				Row(std::sin(0.5 * TorqueSim::Pi * V), PadR * std::cos(0.5 * TorqueSim::Pi * V) + PadHalf);
-			}
-			for (int J = 0; J <= Rings + 1; ++J) Row(1.0, PadHalf - 2.0 * PadHalf * J / (Rings + 1));
-			for (int J = 0; J <= Rings + 1; ++J)
-			{
-				const double V = static_cast<double>(J) / (Rings + 1);
-				Row(std::cos(0.5 * TorqueSim::Pi * V), -PadHalf - PadR * std::sin(0.5 * TorqueSim::Pi * V));
-			}
-			for (size_t J = 1; J < Rows.size(); ++J)
-				for (int I = 1; I <= Segs; ++I)
-				{
-					BarTris.push_back({Rows[J - 1][I - 1], Rows[J - 1][I], Rows[J][I - 1]});
-					BarTris.push_back({Rows[J - 1][I], Rows[J][I], Rows[J][I - 1]});
-				}
-		}
-		auto Blocked = [&](const V3& From, const V3& To) {
-			const V3 D = To - From;
-			for (const Tri& T : BarTris)
-			{
-				// (Geometry3D.segment_intersects_triangle, both faces, its epsilons too: a triangle
-				// small beside the segment counts as edge on and is missed, as in Godot.)
-				const V3 E1 = T.B - T.A, E2 = T.C - T.A, Pv = D.Cross(E2);
-				const double Det = E1.Dot(Pv);
-				if (std::fabs(Det) < 0.00001) continue;
-				const double Inv = 1.0 / Det;
-				const V3 Tv = From - T.A;
-				const double U = Tv.Dot(Pv) * Inv;
-				if (U < 0.0 || U > 1.0) continue;
-				const V3 Q = Tv.Cross(E1);
-				const double V = D.Dot(Q) * Inv;
-				if (V < 0.0 || U + V > 1.0) continue;
-				const double Tt = E2.Dot(Q) * Inv;
-				if (Tt > 0.00001 && Tt <= 1.0) return true;
-			}
-			return false;
-		};
-		const V3 Eye = V3(0.0, L.Stats.SeatHeight - L.Stats.RearRadius + 0.88, ToGodot(L.Hip).z - 0.02) - H;
+		const std::vector<SegTri> BarTris = BarTriangles(Out, Bar, H);
+		auto Blocked = [&](const V3& From, const V3& To) { return SegmentHits(BarTris, From, To); };
+		const V3 Eye = EyeAt(L) - H;
 		auto Hidden = [&](const V3& From0, double Up) {
 			for (const V3& Q : Face)
 			{
@@ -1373,6 +1392,8 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 			while (Lift < 0.25 && (Hidden(Eye, Lift) || Hidden(Low, Lift))) Lift += 0.005;
 	}
 	for (const auto& [Glb, C] : Housings) Put(Out, "dashboard", Glb, AtWith(Tilt, C + V3(0.0, Lift, 0.0) + H), "steer");
+	if (FaceOut)
+		for (const V3& Q : Face) FaceOut->push_back(Q + V3(0.0, Lift, 0.0));
 	return Lift;
 }
 
@@ -2613,12 +2634,16 @@ void BikeParts::TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& 
 	Out.push_back(F);
 }
 
-void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, std::vector<FittedPart>& Out) const
+void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const
 {
 	const Json* P = Lay.Part(PartIn(Parts, "satnav"));
 	if (!P) return;
 	const std::string Style = P->Str("style", "road");
-	if (Style == "phone") return;
+	if (Style == "phone")
+	{
+		Phone(*P, L, Bar, DashFace, Out);
+		return;
+	}
 	const Json* Size = P->Get("screen");
 	const double Sw = Size && Size->A.size() == 2 ? Size->A[0].N : 0.1, Sh = Size && Size->A.size() == 2 ? Size->A[1].N : 0.065;
 	V3 At(0.0, 0.22 + DashLift, -0.03);
@@ -2627,6 +2652,235 @@ void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, 
 	else if (Style == "tablet") At = V3(0.0, 0.25 + DashLift, -0.08);
 	// (Its arm, crossbar and stays are code-drawn; the unit is the Blender piece, on the steering.)
 	Put(Out, "satnav", "kit/satnav.glb", AtWith(GAffine::Rotation(GodotRight, 0.85) * GAffine::Scale(V3((Sw + 0.022) / 0.122, 1.0, (Sh + 0.022) / 0.087)), At + ToGodot(L.Head)), "steer");
+}
+
+void BikeParts::Phone(const Json& P, const Layout& L, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const
+{
+	const Json* Size = P.Get("screen");
+	const double Sw = Size && Size->A.size() == 2 ? Size->A[0].N : 0.12, Sh = Size && Size->A.size() == 2 ? Size->A[1].N : 0.075;
+	const V3 Half(Sw * 0.5 + 0.008, Sh * 0.5 + 0.006, 0.0045);   // the phone, half of each way
+	const V3 Keep = Half + V3(0.012, 0.006, 0.012);              // with its cradle round it
+	const V3 H = ToGodot(L.Head);
+	const V3 Eye = EyeAt(L) - H;
+	// (bar_point, bar_length and _back_of on the bar's line, the right half, steering space.)
+	const std::vector<V3>& Line = Bar.Line;
+	auto BarPoint = [&](double Back, V3& Dir) {
+		if (Line.size() < 2)
+		{
+			Dir = GodotRight;
+			return ToGodot(L.GripR) - H + V3(-0.15, 0.0, 0.0);
+		}
+		double Left = std::max(Back, 0.0);
+		for (size_t I = Line.size() - 1; I > 0; --I)
+		{
+			const V3 A = Line[I - 1], B = Line[I];
+			const double D = (B - A).Length();
+			if (Left <= D || I == 1)
+			{
+				Dir = (B - A).Normalized();
+				return MixV(B, A, TorqueSim::Clamp(Left / std::max(D, 0.0001), 0.0, 1.0));
+			}
+			Left -= D;
+		}
+		Dir = (Line[1] - Line[0]).Normalized();
+		return Line[0];
+	};
+	double BarLen = 0.0;
+	for (size_t I = 1; I < Line.size(); ++I) BarLen += (Line[I] - Line[I - 1]).Length();
+	auto BackOf = [&](const V3& Pt) {
+		double Back = 0.0, Best = 1e18, At = 0.0;
+		for (size_t I = Line.size() - 1; I > 0 && Line.size() >= 2; --I)
+		{
+			const V3 A = Line[I], B = Line[I - 1], Ab = B - A;
+			const double T = TorqueSim::Clamp((Pt - A).Dot(Ab) / std::max(Ab.Dot(Ab), 1e-12), 0.0, 1.0);
+			const V3 C = A + Ab * T;
+			if ((C - Pt).Length() < Best)
+			{
+				Best = (C - Pt).Length();
+				At = Back + (C - A).Length();
+			}
+			Back += Ab.Length();
+		}
+		return At;
+	};
+	// (_facing: X along the phone to the rider's right, Y up its face, Z out of the glass at the eye.)
+	auto Facing = [&](const V3& At) {
+		const V3 N = (Eye - At).Normalized();
+		const V3 R = (GodotRight - N * N.x).Normalized();
+		return BasisCols(R, N.Cross(R), N);
+	};
+	// (_near_bars: the parts round the bars it has to keep clear of, steering space, each mesh
+	// whose box reaches into the room round the bars.)
+	std::vector<SegTri> Others;
+	const std::vector<SegTri> BarTris = BarTriangles(Out, Bar, H);
+	if (Meshes)
+	{
+		static const std::set<std::string> Clear = {"mirrors", "front_master", "dashboard", "fairing", "headlight", "fog_lights",
+			"indicators", "steering_damper", "tank_bag"};
+		for (const FittedPart& F : Out)
+		{
+			if (!Clear.count(F.Slot)) continue;
+			PartMesh Glb;
+			if (!Meshes(F.Glb, Glb)) continue;
+			for (const PartSurface& S : Draw(Glb, F).Surfaces)
+			{
+				V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+				for (const V3& V : S.Pos)
+				{
+					const V3 G = ToGodot(V) - H;
+					Lo = V3(std::min(Lo.x, G.x), std::min(Lo.y, G.y), std::min(Lo.z, G.z));
+					Hi = V3(std::max(Hi.x, G.x), std::max(Hi.y, G.y), std::max(Hi.z, G.z));
+				}
+				if (!(Lo.x < 0.6 && Hi.x > -0.6 && Lo.y < 0.6 && Hi.y > -0.3 && Lo.z < 0.4 && Hi.z > -0.5)) continue;
+				for (size_t I = 0; I + 2 < S.Idx.size(); I += 3)
+					Others.push_back({ToGodot(S.Pos[S.Idx[I]]) - H, ToGodot(S.Pos[S.Idx[I + 1]]) - H, ToGodot(S.Pos[S.Idx[I + 2]]) - H});
+			}
+		}
+	}
+	auto Cut = [&](const V3& A, const V3& B) { return SegmentHits(BarTris, A, B) || SegmentHits(Others, A, B); };
+	// (_seg_box: whether A to B passes through the box at O turned Bs, Hf half its size each way.)
+	auto SegBox = [](const V3& A, const V3& B, const V3& O, const GAffine& Bs, const V3& Hf) {
+		const V3 La((A - O).Dot(Bs.X), (A - O).Dot(Bs.Y), (A - O).Dot(Bs.Z));
+		const V3 D((B - A).Dot(Bs.X), (B - A).Dot(Bs.Y), (B - A).Dot(Bs.Z));
+		double T0 = 0.0, T1 = 1.0;
+		const double Las[3] = {La.x, La.y, La.z}, Ds[3] = {D.x, D.y, D.z}, Hs[3] = {Hf.x, Hf.y, Hf.z};
+		for (int K = 0; K < 3; ++K)
+		{
+			if (std::fabs(Ds[K]) < 0.000001)
+			{
+				if (std::fabs(Las[K]) > Hs[K]) return false;
+				continue;
+			}
+			const double U = (-Hs[K] - Las[K]) / Ds[K], V = (Hs[K] - Las[K]) / Ds[K];
+			T0 = std::max(T0, std::min(U, V));
+			T1 = std::min(T1, std::max(U, V));
+			if (T0 > T1) return false;
+		}
+		return true;
+	};
+	auto Lerp = [](double A, double B, double F) { return A + (B - A) * F; };
+	// (_phone_fit: 0 a clean fit; clocks hidden count 3, things run into 2, sight lines cut 1.)
+	auto Score = [&](const V3& O, const GAffine& Bs, const V3& Clamp) {
+		int Hidden = 0, Hits = 0, Blocked = 0;
+		for (const V3& Q : DashFace)
+			if (SegBox(Q, Eye, O, Bs, Keep + V3(0.004, 0.004, 0.004))) ++Hidden;
+		std::vector<std::pair<V3, V3>> Segs;
+		for (double Z : {-Keep.z, Keep.z})
+		{
+			for (int K = 0; K < 6; ++K)
+			{
+				const double Y = Lerp(-Keep.y, Keep.y, K / 5.0);
+				Segs.push_back({V3(-Keep.x, Y, Z), V3(Keep.x, Y, Z)});
+			}
+			for (int K = 0; K < 10; ++K)
+			{
+				const double X = Lerp(-Keep.x, Keep.x, K / 9.0);
+				Segs.push_back({V3(X, -Keep.y, Z), V3(X, Keep.y, Z)});
+			}
+		}
+		for (int I = 0; I < 4; ++I)
+			for (int J = 0; J < 3; ++J)
+				Segs.push_back({V3(Lerp(-Keep.x, Keep.x, I / 3.0), Lerp(-Keep.y, Keep.y, J / 2.0), -Keep.z),
+					V3(Lerp(-Keep.x, Keep.x, I / 3.0), Lerp(-Keep.y, Keep.y, J / 2.0), Keep.z)});
+		for (const auto& [Sa, Sb] : Segs)
+			if (Cut(O + Bs.Apply(Sa), O + Bs.Apply(Sb))) ++Hits;
+		const V3 Ball = O + Bs.Apply(V3(0.0, 0.0, -Keep.z - 0.006));
+		const V3 Off = Clamp + (Ball - Clamp).Normalized() * 0.03;
+		if (SegmentHits(Others, Off, Ball)) ++Hits;
+		for (const V3& C : {V3(), V3(-1, -1, 0), V3(1, -1, 0), V3(-1, 1, 0), V3(1, 1, 0)})
+		{
+			const V3 Corner = Keep - V3(0.02, 0.012, 0.0);
+			const V3 Pt = O + Bs.Apply(V3(C.x * Corner.x, C.y * Corner.y, Keep.z + 0.002));
+			const V3 From = Pt + (Eye - Pt).Normalized() * 0.004;
+			if (Cut(From, Eye)) ++Blocked;
+		}
+		return Hidden * 3 + Hits * 2 + Blocked;
+	};
+	// (_phone_place: the places tried, a clamp on the bar and the phone's middle, best first found.)
+	std::vector<std::pair<V3, V3>> Spots;
+	for (double Back : {0.19, 0.22, 0.16, 0.25, 0.28})
+	{
+		V3 Dir;
+		const V3 C = BarPoint(Back, Dir);
+		if (C.x < 0.05) continue;
+		for (double Fwd : {-0.035, -0.07})
+			for (double Up : {0.07, 0.09, 0.05, 0.11})
+				for (double Dx : {0.0, -0.03, 0.03}) Spots.push_back({C, C + V3(Dx, Up, Fwd)});
+	}
+	{
+		V3 Dir;
+		const V3 Mid = BarPoint(std::max(BarLen - 0.05, 0.0), Dir);
+		for (double Up : {0.12, 0.15, 0.18, 0.21})
+			for (double Fwd : {-0.08, -0.12, -0.04}) Spots.push_back({Mid, V3(0.0, Mid.y + Up, Mid.z + Fwd)});
+	}
+	int Best = -1;
+	V3 At, Clamp;
+	for (const auto& [C, O] : Spots)
+	{
+		const int Sc = Score(O, Facing(O), C);
+		if (Best < 0 || Sc < Best)
+		{
+			Best = Sc;
+			At = O;
+			Clamp = C;
+		}
+		if (Sc == 0) break;
+	}
+	if (Best < 0) return;
+	const GAffine Bs = Facing(At);
+	const GAffine Cradle = AtWith(Bs, At + H);   // in the bike's space
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		auto Made = std::make_shared<PartMesh>();
+		Made->Surfaces.push_back(CodeShapes::ToOurs(M, Xf, Tag));
+		FittedPart F;
+		F.Slot = "satnav";
+		F.Glb = "kit/phone.glb";
+		F.Node = "steer";
+		F.Made = Made;
+		F.Code = true;
+		F.Name = Name;
+		Out.push_back(F);
+	};
+	auto InCradle = [&](const std::string& Name, const V3& C, const V3& S, const std::string& Tag) { Code(Name, CodeShapes::Box(S), Cradle * GAffine::At(C), Tag); };
+	Put(Out, "satnav", "kit/phone.glb", Cradle * GAffine::Scale(V3(Half.x / 0.068, Half.y / 0.0435, 1.0)), "steer");
+	// The buttons along the top edge; the back plate, the jaws gripping each end with a lip over the
+	// glass, and the hooks under it.
+	InCradle("", V3(Half.x * 0.3, Half.y + 0.0008, 0.0), V3(0.018, 0.0016, 0.003), "black_metal");
+	InCradle("CradlePlate", V3(0.0, 0.0, -Half.z - 0.004), V3(Half.x * 1.2, Half.y * 1.4, 0.006), "paint");
+	for (double Side : {-1.0, 1.0})
+	{
+		InCradle("CradleJaw", V3(Side * (Half.x + 0.004), 0.0, -0.002), V3(0.008, Half.y * 1.2, Half.z * 2.0 + 0.01), "paint");
+		InCradle("", V3(Side * (Half.x - 0.0015), 0.0, Half.z + 0.0012), V3(0.005, Half.y * 0.9, 0.0024), "rubber");
+		InCradle("CradleHook", V3(Side * Half.x * 0.45, -Half.y - 0.004, -0.002), V3(0.016, 0.008, Half.z * 2.0 + 0.008), "paint");
+		InCradle("", V3(Side * Half.x * 0.45, -Half.y - 0.002, Half.z + 0.0012), V3(0.016, 0.004, 0.0024), "rubber");
+	}
+	// The ball joint on the back of the plate, and its collar.
+	const V3 BallLocal(0.0, 0.0, -Half.z - 0.016);
+	Code("", CodeShapes::Sphere(0.011), Cradle * GAffine::At(BallLocal), "polished_alloy");
+	Code("", CodeShapes::Cylinder(0.009, 0.008), Cradle * GAffine::At(V3(0.0, 0.0, -Half.z - 0.009)) * GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5), "paint");
+	// The arm down to the clamp round the bar, with a thumb wheel to lock it (steering space, + H).
+	const V3 Ball = At + Bs.Apply(BallLocal);
+	V3 BarDir;
+	BarPoint(BackOf(Clamp), BarDir);
+	V3 OutDir = Ball - Clamp;
+	OutDir = (OutDir - BarDir * OutDir.Dot(BarDir)).Normalized();
+	const V3 ClampTop = Clamp + OutDir * 0.02;
+	auto UpTo = [](const V3& Dir) {
+		// (_tube's turn from up to Dir: straight down is half a turn about X.)
+		if (GodotUp.Cross(Dir).Length() <= 0.0001 && Dir.y < 0.0) return GAffine::Rotation(GodotRight, TorqueSim::Pi);
+		return BasisUp(Dir);
+	};
+	const V3 ArmDir = (Ball - ClampTop).Normalized();
+	Code("PhoneArm", CodeShapes::Cylinder(0.006, std::max((Ball - ClampTop).Length(), 0.001), -1.0, 12), AtWith(UpTo(ArmDir), (ClampTop + Ball) * 0.5 + H), "polished_alloy");
+	Code("", CodeShapes::Cylinder(0.013, 0.007), AtWith(BasisUp(ArmDir), MixV(ClampTop, Ball, 0.45) + H), "paint");
+	Code("PhoneClamp", CodeShapes::Cylinder(0.019, 0.03), AtWith(BasisUp(BarDir), Clamp + H), "paint");
+	Code("", CodeShapes::Cylinder(0.006, 0.014), AtWith(BasisUp(OutDir * -1.0), Clamp - OutDir * 0.02 + H), "polished_alloy");
+	// The screen: a quad on the glass, looking out of it at the rider (its map is drawn live).
+	CodeShapes::GMesh Quad;
+	for (double Y : {-1.0, 1.0})
+		for (double X : {-1.0, 1.0}) Quad.Add(V3(X * Sw * 0.5, Y * Sh * 0.5, 0.0), V3(0.0, 0.0, 1.0), X * 0.5 + 0.5, 0.5 - Y * 0.5);
+	Quad.Quad(0, 1, 2, 3);
+	Code("SatnavScreen", Quad, Cradle * GAffine::At(V3(0.0, 0.0, Half.z + 0.0005)), "glass");
 }
 
 bool BikeParts::DrawnBox(const std::vector<FittedPart>& Out, const std::vector<std::string>& Slots, V3& Lo, V3& Hi) const
@@ -2742,7 +2996,8 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Swingarm(Parts, L, Out);
 	Fork(Parts, L, Out);
 	const Bars Bar = Handlebars(Parts, L, Out);
-	const double DashLift = Dashboard(Parts, L, Bar, Out);
+	std::vector<V3> DashFace;
+	const double DashLift = Dashboard(Parts, L, Bar, Out, &DashFace);
 	Headlight(Parts, Out, ToGodot(L.Head));
 	// (BikeModel: the fairing after the tail, the mirrors after it, on its mounts.)
 	V3 FrameLo, FrameHi;
@@ -2761,7 +3016,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Guards(Parts, L, Bar, Out);
 	Luggage(Parts, L, Out);
 	TankBag(Parts, L, Body, Out);
-	Satnav(Parts, L, DashLift, Out);
+	Satnav(Parts, L, DashLift, Bar, DashFace, Out);
 	RearMaster(L, Out);
 	FinalDrive(Parts, L, Out);
 	Shocks(Parts, L, Out);
