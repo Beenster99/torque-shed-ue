@@ -65,6 +65,9 @@ bool LoadPart(const std::string& Glb, TorqueFit::PartMesh& Out)
 {
 	static TMap<FString, TSharedPtr<TorqueFit::PartMesh>> Cache;
 	const FString Key = Ue(Glb);
+	// An empty choice ("none", a slot's option left off) has no glb: nothing to draw, nothing to warn of.
+	const FString Base = FPaths::GetBaseFilename(Key).ToLower();
+	if (Key.IsEmpty() || Base.IsEmpty() || Base == TEXT("none")) return false;
 	if (const TSharedPtr<TorqueFit::PartMesh>* Found = Cache.Find(Key))
 	{
 		if (!Found->IsValid()) return false;
