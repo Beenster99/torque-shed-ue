@@ -20,6 +20,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "StaticMeshAttributes.h"
+#include "UObject/Package.h"
 
 #include <algorithm>
 
@@ -228,7 +229,7 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 		OutTris.Add(Third);
 	}
 	if (OutTris.Num() == 0) return nullptr;
-	UStaticMesh* Mesh = NewObject<UStaticMesh>(Owner);
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(Owner ? static_cast<UObject*>(Owner) : GetTransientPackage());
 #if WITH_EDITORONLY_DATA
 	Mesh->GetStaticMaterials().Add(FStaticMaterial(Material, SlotName, SlotName));
 #else
@@ -245,6 +246,67 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 	Descriptions.Add(&MD);
 	if (!Mesh->BuildFromMeshDescriptions(Descriptions, Params)) return nullptr;
 	return Mesh;
+}
+
+// A drawn surface on Parent: tagged with its slot and glb (the walker and ApplyLooks find it by
+// them), and paint in the catalogue part's colour as Torque Shed's solid gloss (plastic duller),
+// not the Speed Twin's metallic silver.
+UStaticMeshComponent* AddSurface(AActor* Owner, USceneComponent* Parent, UStaticMesh* Mesh, UMaterialInterface* Mat,
+	const FString& Slot, const FString& Glb, bool bPaint, const FString& PartId)
+{
+	UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
+	C->SetStaticMesh(Mesh);
+	C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	C->SetGenerateOverlapEvents(false);
+	C->SetupAttachment(Parent);
+	C->SetRelativeTransform(FTransform::Identity);
+	if (Mat) C->SetMaterial(0, Mat);
+	C->ComponentTags.Add(FName(*(TEXT("Slot:") + Slot)));
+	C->ComponentTags.Add(FName(*(TEXT("Part:") + Glb)));
+	if (!bPaint) C->ComponentTags.Add(FName(TorqueShedCatalogue::NoPaintTag));
+	C->RegisterComponent();
+	if (bPaint)
+	{
+		if (UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0))
+		{
+			const FLinearColor Colour = TorqueShedParts::DefaultColour(FName(*PartId));
+			M->SetVectorParameterValue(TEXT("Color"), Colour);
+			M->SetVectorParameterValue(TEXT("Color2"), Colour);
+			const bool bPlastic = TorqueShedParts::BinFor(FName(*PartId)) == FName(TEXT("plastic"));
+			for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, 0.0f);
+			for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, bPlastic ? 0.45f : 0.3f);
+			M->SetScalarParameterValue(TEXT("RoughVar"), 0.05f);
+		}
+	}
+	return C;
+}
+
+// A surface's material, with -TorqueCatalogueDebug's plain materials in place of it.
+UMaterialInterface* SurfaceMaterial(const FString& Tag, bool& bPaint, FString& OutFinish, bool& bOutFallback)
+{
+	UMaterialInterface* Mat = MaterialFor(Tag, bPaint, OutFinish, bOutFallback);
+	const FString& Debug = DebugMode();
+	if (Debug == TEXT("unlit") || Debug == TEXT("default"))
+	{
+		UMaterialInterface* Plain = Debug == TEXT("unlit") && GEngine ? GEngine->LevelColorationUnlitMaterial.Get() : nullptr;
+		Mat = Plain ? Plain : UMaterial::GetDefaultMaterial(MD_Surface);
+		bPaint = false;
+	}
+	return Mat;
+}
+
+// A "tag__slot" surface belongs to that slot (a head glb's barrels are the engine's).
+void SplitTag(const std::string& Material, const std::string& PartSlot, FString& Tag, FString& Slot)
+{
+	const FString M = Ue(Material);
+	Tag = M;
+	Slot = Ue(PartSlot);
+	const int32 At = M.Find(TEXT("__"));
+	if (At != INDEX_NONE)
+	{
+		Tag = M.Left(At);
+		Slot = M.Mid(At + 2);
+	}
 }
 } // namespace TorqueShedCatalogueImpl
 
@@ -299,25 +361,11 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		{
 			// Surfaces behind a full fairing's side panels, as Godot hides them (_hide_covered).
 			if (std::find(P.HiddenTags.begin(), P.HiddenTags.end(), S.Material) != P.HiddenTags.end()) continue;
-			// A "tag__slot" surface belongs to that slot (a head glb's barrels are the engine's).
-			const FString Material = TSCI::Ue(S.Material);
-			FString Tag = Material, Slot = TSCI::Ue(P.Slot);
-			const int32 At = Material.Find(TEXT("__"));
-			if (At != INDEX_NONE)
-			{
-				Tag = Material.Left(At);
-				Slot = Material.Mid(At + 2);
-			}
+			FString Tag, Slot;
+			TSCI::SplitTag(S.Material, P.Slot, Tag, Slot);
 			bool bPaint = false, bFallback = false;
 			FString Finish;
-			UMaterialInterface* Mat = TSCI::MaterialFor(Tag, bPaint, Finish, bFallback);
-			const FString& Debug = TSCI::DebugMode();
-			if (Debug == TEXT("unlit") || Debug == TEXT("default"))
-			{
-				UMaterialInterface* Plain = Debug == TEXT("unlit") && GEngine ? GEngine->LevelColorationUnlitMaterial.Get() : nullptr;
-				Mat = Plain ? Plain : UMaterial::GetDefaultMaterial(MD_Surface);
-				bPaint = false;
-			}
+			UMaterialInterface* Mat = TSCI::SurfaceMaterial(Tag, bPaint, Finish, bFallback);
 			FString Line = Tag + TEXT(" -> ") + (Mat ? Mat->GetName() : FString(TEXT("no material"))) + (bFallback ? TEXT(" (fallback for ") + Finish + TEXT(")") : FString());
 			if (S.Nrm.size() < S.Pos.size()) Line += TEXT(", no normals");
 			if (bPaint)
@@ -333,28 +381,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
-			UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
-			C->SetStaticMesh(Mesh);
-			C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			C->SetGenerateOverlapEvents(false);
-			C->SetupAttachment(Parent);
-			C->SetRelativeTransform(FTransform::Identity);
-			if (Mat) C->SetMaterial(0, Mat);
-			C->ComponentTags.Add(FName(*(TEXT("Slot:") + Slot)));
-			C->ComponentTags.Add(FName(*(TEXT("Part:") + TSCI::Ue(P.Glb))));
-			if (!bPaint) C->ComponentTags.Add(FName(NoPaintTag));
-			C->RegisterComponent();
-			// Paint takes the catalogue part's colour until it's sprayed (ApplyLooks).
-			if (bPaint)
-			{
-				const FString PartId = Parts.FindRef(Slot);
-				if (UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0))
-				{
-					const FLinearColor Colour = TorqueShedParts::DefaultColour(FName(*PartId));
-					M->SetVectorParameterValue(TEXT("Color"), Colour);
-					M->SetVectorParameterValue(TEXT("Color2"), Colour);
-				}
-			}
+			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			Out.Add(C);
 			++Made;
 		}
@@ -368,4 +395,75 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	}
 	return Made;
 }
+
+int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, const TMap<FString, FString>& Parts,
+	TArray<UStaticMeshComponent*>& Out)
+{
+	const TorqueFit::BikeLayout* Lay = Layout();
+	const TorqueFit::Json* Idx = TSCI::Index();
+	const FString MainId = Parts.FindRef(MainSlot);
+	if (!Lay || !Idx || !Owner || !Parent || MainId.IsEmpty()) return 0;
+	// Built once for each part (with what's on it) and kept: the loose parts are all drawn again
+	// whenever one of them moves.
+	struct FSurfaceMade
+	{
+		UStaticMesh* Mesh = nullptr;
+		UMaterialInterface* Mat = nullptr;
+		FString Slot, Glb;
+		bool bPaint = false;
+	};
+	static TMap<FString, TArray<FSurfaceMade>> Cache;
+	TArray<FString> Keys;
+	Parts.GetKeys(Keys);
+	Keys.Sort();
+	FString Key;
+	for (const FString& K : Keys) Key += K + TEXT("=") + Parts.FindRef(K) + TEXT(";");
+	TArray<FSurfaceMade>* Made = Cache.Find(Key);
+	if (!Made)
+	{
+		Made = &Cache.Add(Key);
+		// As it sits on a bike of its own style (its style's reference bike with it, and what's on it, fitted).
+		const std::vector<std::string> Styles = Lay->StylesOf(TSCI::Std(MainId));
+		const std::string Style = !Styles.empty() ? Styles[0] : (!Lay->Styles().empty() ? Lay->Styles()[0] : std::string());
+		TorqueFit::PartsMap Map = Lay->ReferenceBuild(Style);
+		for (const TPair<FString, FString>& KV : Parts) Map[TSCI::Std(KV.Key)] = TSCI::Std(KV.Value);
+		const TorqueFit::Layout L = Lay->Solve(Map);
+		TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
+		Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
+		for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
+		{
+			if (P.Hidden) continue;
+			TorqueFit::PartMesh Glb;
+			if (!TSCI::LoadPart(P.Glb, Glb)) continue;
+			const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
+			for (const TorqueFit::PartSurface& S : Drawn.Surfaces)
+			{
+				FString Tag, Slot;
+				TSCI::SplitTag(S.Material, P.Slot, Tag, Slot);
+				if (!Parts.Contains(Slot)) continue;   // the rest of the bike it was laid out on
+				FSurfaceMade M;
+				FString Finish;
+				bool bFallback = false;
+				M.Mat = TSCI::SurfaceMaterial(Tag, M.bPaint, Finish, bFallback);
+				TArray<FVector> Pos;
+				TArray<int32> Tris;
+				bool bFlipped = false;
+				M.Mesh = TSCI::BuildMesh(nullptr, S, M.Mat, Pos, Tris, bFlipped);
+				if (!M.Mesh) continue;
+				M.Mesh->AddToRoot();   // kept in the cache across map travel
+				TorqueShedPick::AddShape(M.Mesh, Pos, Tris);
+				M.Slot = Slot;
+				M.Glb = TSCI::Ue(P.Glb);
+				Made->Add(M);
+			}
+		}
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque: loose %s drawn from the catalogue with %d surfaces"), *MainId, Made->Num());
+		}
+	}
+	for (const FSurfaceMade& M : *Made)
+		Out.Add(TSCI::AddSurface(Owner, Parent, M.Mesh, M.Mat, M.Slot, M.Glb, M.bPaint, Parts.FindRef(M.Slot)));
+	return Made->Num();
+}
+
 }

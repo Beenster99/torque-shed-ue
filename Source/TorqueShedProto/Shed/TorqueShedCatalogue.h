@@ -29,6 +29,13 @@ const TorqueFit::BikeLayout* Layout();
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight);
 
+// A loose catalogue part, with what's on it (an engine's own parts, a wheel's tyre): Parts maps each
+// slot to its catalogue id, MainSlot the part's own. Drawn as it sits on a bike of its style (that
+// bike's frame), with the same tags as a bike's; built once for each such set and kept. Returns
+// the meshes made.
+int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, const TMap<FString, FString>& Parts,
+	TArray<UStaticMeshComponent*>& Out);
+
 // Tagged on a surface that isn't paint (chrome, rubber...): ApplyLooks leaves its colour alone.
 extern const TCHAR* const NoPaintTag;
 }
