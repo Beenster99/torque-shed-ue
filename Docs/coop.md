@@ -27,7 +27,8 @@ for eight.
 - Everyone rides the same Speed Twin as built on their own machine; each rider's shed build
   (`UTorqueBuildSubsystem`) doesn't travel to the others yet.
 - Joining a ride already on the road puts you at the start grid, not next to the others.
-- Over the internet the host must forward port 7777 (UDP) on their router, until EOS (below).
+- Over the internet without EOS the host must forward port 7777 (UDP) on their router. With EOS
+  switched on (below), friend codes need no port forwarding.
 
 ## Testing on one PC (the hub's checklist)
 
@@ -51,7 +52,10 @@ than the network.
    ride test switch skips the menu and the shed.) Each writes `Saved/Logs/TorqueShedProto*.log`
    with a `Torque net:` line per second: for this machine's bike `tx 30.0/s, ping N ms, riders 2`, and
    for the other bike `rx`, the arrival spacing (mean and spread), the smoothing delay, how often it
-   had to bridge a gap (`extrapolated`) or wait (`held`), and respawn jumps. Good is: both copies at
+   had to bridge a gap (`extrapolated`) or wait (`held`), `step err max` (the largest frame-to-frame
+   wobble of the drawn bike against where its own velocity said it would be, in cm: under 2 cm is
+   smooth; it can't be measured against the true path in-game, which `SimTest/net_test` does), and
+   respawn jumps. Good is: both copies at
    30 fps or more, tx and rx about 30/s, extrapolated under 1%, held 0% after the first second, delay
    100 to 150 ms (it rises with jitter, at most 250 ms).
    Riding at different speeds, the Guest pulls away from the Host, so both see the other ahead or
@@ -76,12 +80,19 @@ The game starts in the shed (`GameDefaultMap`), with the menu over it; Ride solo
 your feet there. Launched with a ride test switch (`-TorqueAutoRide`, `-TorqueStartKm=`,
 `-TorqueCamera=`, `-TorqueRide`), it goes straight on to Buttertubs as before.
 
-## Epic Online Services: friends join without port forwarding (plan, not built yet)
+## Epic Online Services: friends join with a code, no port forwarding
 
-EOS is free (no fees for any of what's below). It gives two things this needs: a relay/NAT punch-through
-so the host doesn't forward ports (EOS P2P), and a list of rides to join (EOS sessions or lobbies)
-instead of typing an IP. The game already talks to sessions through Unreal's online subsystem, so the
-switch is mostly configuration; the menu's LAN list becomes "rides from friends".
+Built (`Coop/TorqueSessionEos.cpp`), switched off until the product's IDs exist. When it's on:
+
+- Hosting signs in to Epic (the first time Epic's sign-in page opens; after that it's remembered),
+  makes an EOS session and shows a six-letter **friend code** at the top right (letters and digits
+  that can't be confused: no 0/O or 1/I).
+- The menu gains **Join by friend code**: type the six characters (Ctrl+V pastes), Enter. It signs in,
+  finds the session with that code and joins through EOS's relay (P2P, an `EOS:` address), so
+  neither side forwards ports.
+- The LAN list and join by address stay for local play.
+
+EOS is free. It needs a one-off setup in the Epic Developer Portal, below.
 
 ### What beenster does in the Epic Developer Portal (one-off, about 20 minutes)
 
@@ -96,19 +107,17 @@ switch is mostly configuration; the menu's LAN list becomes "rides from friends"
    *Permissions* tick Basic profile, Online presence and Friends. (Brand review is only needed for a
    public release.)
 5. Send Claude the five values (Product, Sandbox, Deployment, Client ID, Client secret). They aren't
-   passwords for your account, but keep them out of public places; they'll go in a config file that
+   passwords for your account, but keep them out of public places; they go in a config file that
    stays out of the repository.
 
-### What Claude then changes
+### Switching it on (Claude does this once the IDs arrive)
 
 - `TorqueShedProto.uproject`: enable `OnlineSubsystemEOS` (it brings `EOSShared` and the EOS socket
-  subsystem); keep Null for LAN and as the fallback.
+  subsystem). Null stays the default subsystem, for the LAN list.
+- `Config/DefaultGame.ini`: `[TorqueCoop] bUseEOS=True` (False now: the menu then has no friend code).
 - `Config/DefaultEngine.ini`:
 
   ```ini
-  [OnlineSubsystem]
-  DefaultPlatformService=EOS
-
   [OnlineSubsystemEOS]
   bEnabled=true
 
@@ -119,7 +128,7 @@ switch is mostly configuration; the menu's LAN list becomes "rides from friends"
   bUseEOSSessions=True
   bShouldEnforceBeingLaunchedByEGS=False
   ; +Artifacts=(ArtifactName="TorqueShed",ClientId=...,ClientSecret=...,ProductId=...,SandboxId=...,DeploymentId=...,EncryptionKey=<64 hex>)
-  ; in a Config/Custom/ or user config kept out of Git
+  ; in Config/Custom/ or a user config kept out of Git
 
   [/Script/Engine.GameEngine]
   !NetDriverDefinitions=ClearArray
@@ -129,13 +138,9 @@ switch is mostly configuration; the menu's LAN list becomes "rides from friends"
   bIsUsingP2PSockets=true
   ```
 
-  (UE 5.6 removed `NetDriverEOSBase` in favour of `NetDriverEOS`; the exact class path gets checked
-  against 5.8's plugin when it's built.)
-- `UTorqueSession`: log in at start (Epic account through the account portal the first time, then
-  remembered with `persistentauth`), create the session with `bIsLANMatch=false`,
-  `bUsesPresence=true`, `bUseLobbiesIfAvailable=true`; the menu lists friends' rides
-  (`FindFriendSession` / a lobby search) and joins with `JoinSession` + `GetResolvedConnectString`, which
-  gives an `EOS:` P2P address instead of an IP. Join by IP and LAN stay for local play.
+  (UE 5.6 replaced `NetDriverEOSBase` with `NetDriverEOS`; the class path gets checked against 5.8's
+  plugin on the first EOS build. To check then: that join by address and LAN still connect while
+  the EOS net driver is the game's driver, since it falls back to IP only for non-`EOS:` addresses.)
 - Each friend needs a free Epic account (most have one from the Epic Games Store). Until the
   product passes brand review, Epic may only let accounts in the organisation sign in: if so, add the
   friends to the organisation (free) or switch login to EOS Connect's device ID, which needs no Epic

@@ -320,9 +320,11 @@ void UTorqueNetBikeComponent::AfterTick(float DeltaSeconds)
 	{
 		const double Mean = St.Intervals ? St.IntervalSum / St.Intervals : 0.0;
 		const double Sd = St.Intervals ? FMath::Sqrt(FMath::Max(0.0, St.IntervalSq / St.Intervals - Mean * Mean)) : 0.0;
-		Summary = FString::Printf(TEXT("%s: rx %.1f/s (interval %.1f +- %.1f ms), delay %.0f ms, extrapolated %.1f%%, held %.1f%%, late or repeated %lld, jumps %lld, behind newest %.0f ms"),
-			*RiderName(B), RxHz, Mean * 1000.0, Sd * 1000.0, Smooth.WantDelay() * 1000.0, ExtrapPct, HeldPct,
+		// step err: this second's worst frame-to-frame kink in the drawn path, cm (a few mm is smooth).
+		Summary = FString::Printf(TEXT("%s: rx %.1f/s (interval %.1f +- %.1f ms), delay %.0f ms, extrapolated %.1f%%, held %.1f%%, step err max %.2f cm, late or repeated %lld, jumps %lld, behind newest %.0f ms"),
+			*RiderName(B), RxHz, Mean * 1000.0, Sd * 1000.0, Smooth.WantDelay() * 1000.0, ExtrapPct, HeldPct, St.StepErrMax,
 			(long long)St.Dropped, (long long)St.Snaps, -Smooth.Behind(FPlatformTime::Seconds()) * 1000.0);
+		Smooth.Stats.StepErrMax = 0.0;
 	}
 	else
 	{
