@@ -88,6 +88,28 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
+	// The Godot game's own tank shapes, for the comparisons against it. A redrawn tank
+	// (Data/Parts/Redrawn, Tools/import_blender_parts.py --redrawn) carries loft keys measured off its
+	// new mesh in "keys" and the Godot shape's in "godot_keys".
+	BikeLayout GLay;
+	{
+		Json LayJson;
+		std::string GodotText = LayoutText;
+		if (Json::Parse(LayoutText, LayJson, &Error))
+			if (Json* Shapes = LayJson.GetMutable("tank_shapes"))
+			{
+				for (auto& Member : Shapes->O)
+					if (const Json* Gk = Member.second.Get("godot_keys"))
+						*Member.second.GetMutable("keys") = Json(*Gk);
+				GodotText = LayJson.Dump(0);
+			}
+		if (!GLay.Load(GodotText, Db, Error))
+		{
+			std::printf("FAIL %s\n", Error.c_str());
+			return 1;
+		}
+	}
+
 	std::printf("Reference bikes (one per style):\n");
 	Expect(Lay.Styles().size() == 14, "14 styles");
 	for (const std::string& St : Lay.Styles())
@@ -217,11 +239,13 @@ int main(int argc, char** argv)
 			const Bodywork W = Body.Fit(B, L);
 			std::map<std::string, std::vector<V3>> Pts;   // Godot frame, as the Godot test measures
 			bool Loaded = true;
+			const Json* TankEnt = nullptr;
 			for (const FittedPart& P : W.Parts)
 			{
 				PartMesh M;
 				std::string Bytes, MorphBytes;
 				const Json* Ent = Index.Get("parts") ? Index.Get("parts")->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
+				if (P.Slot == "tank") TankEnt = Ent;
 				Loaded = Loaded && Ent && ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) && M.LoadGlb(Bytes, Error);
 				if (Loaded && Ent->Get("morph"))
 					Loaded = ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) && M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error);
@@ -255,6 +279,14 @@ int main(int argc, char** argv)
 			double Roof = 0.0;
 			for (const auto& Q : Low)
 				if (Q.first > R0 + 0.02 && Q.first < R1 - 0.02) Roof = std::max(Roof, std::fabs(Q.second));
+			// A redrawn tank's tunnel is drawn arched over the frame, not flat along it like Godot's: it has
+			// to rest on the floor line at its lowest point there (neither sunk into the frame nor floating).
+			if (TankEnt && TankEnt->Flag("redrawn"))
+			{
+				double Rest = 1e9;
+				for (const auto& Q : Low) Rest = std::min(Rest, Q.second);
+				Roof = Low.empty() ? 1e9 : std::fabs(Rest);
+			}
 			const V3 Hip = ToGodot(L.Hip);
 			double SeatTop = -1e9, S0 = 1e9, S1 = -1e9;
 			for (const V3& V : Pts["saddle"])
@@ -332,7 +364,11 @@ int main(int argc, char** argv)
 			&& ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) && Json::Parse(IndexText, Index, &Error);
 		Expect(Have && Ref.Get("styles"), "the Godot reference and the parts index load");
 		const Json* Known = Have ? Index.Get("parts") : nullptr;
-		BikeParts Placer(Lay, Known ? *Known : Index);
+		BikeParts Placer(GLay, Known ? *Known : Index);
+		// Parts redrawn for this game (the index's "redrawn": Data/Parts/Redrawn): Godot has no mesh of
+		// theirs to match, so their slots sit these comparisons out. (The bodywork rules above still hold a
+		// redrawn tank to its frame.)
+		std::set<std::string> RedrawnSlots;
 		Placer.SetMeshSource([&](const std::string& Glb, PartMesh& M) {
 			std::string Bytes, MorphBytes, Err;
 			const Json* Ent = Known ? Known->Get(Glb.substr(0, Glb.size() - 4)) : nullptr;
@@ -344,11 +380,13 @@ int main(int argc, char** argv)
 			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
 		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
 		auto Collect = [&](const PartsMap& B, const Layout& L, std::map<std::string, Box>& Ours, std::map<std::string, std::map<std::string, Box>>& Tags) {
+			RedrawnSlots.clear();
 			for (const FittedPart& P : Placer.Fit(B, L))
 			{
 				PartMesh M;
 				std::string Bytes, MorphBytes;
 				const Json* Ent = Known ? Known->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
+				if (Ent && Ent->Flag("redrawn")) { RedrawnSlots.insert(P.Slot); continue; }
 				if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !M.LoadGlb(Bytes, Error)) continue;
 				if (Ent->Get("morph") && (!ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) || !M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error))) continue;
 				if (P.Code)
@@ -405,6 +443,7 @@ int main(int argc, char** argv)
 			std::string Wrong;
 			for (const auto& [Slot, ByTag] : Tags)
 			{
+				if (RedrawnSlots.count(Slot)) continue;
 				const bool Part = Partial.count(Slot) > 0;
 				const Json* Gs = GSlots->Get(Slot);
 				const Json* Gt = Gs && Nested ? Gs->Get("glb") : Gs;
@@ -506,16 +545,16 @@ int main(int argc, char** argv)
 			}
 			return Wrong;
 		};
-		for (const std::string& St : Lay.Styles())
+		for (const std::string& St : GLay.Styles())
 		{
 			const Json* G = Have && Ref.Get("styles") ? Ref.Get("styles")->Get(St) : nullptr;
 			if (!G) { Expect(false, St + ": in the Godot reference"); continue; }
 			// The same parts as Godot's reference bike.
-			PartsMap B = Lay.ReferenceBuild(St);
+			PartsMap B = GLay.ReferenceBuild(St);
 			bool SameParts = true;
 			for (const auto& [Slot, Id] : B)
 				if (const Json* Gp = G->Get("parts")->Get(Slot)) SameParts = SameParts && Gp->S == Id;
-			const Layout L = Lay.Solve(B);
+			const Layout L = GLay.Solve(B);
 			// The rig's datums, to a tenth of a millimetre.
 			const Json* Rig = G->Get("rig");
 			const std::pair<const char*, V3> Keys[] = {{"crank", L.Crank}, {"output", L.Output}, {"hip", L.Hip}, {"seat_surface", L.Hip},
@@ -545,7 +584,7 @@ int main(int argc, char** argv)
 			int Compared = 0;
 			for (const auto& [Slot, Gb] : Meshes)
 			{
-				if (!Gb) continue;
+				if (!Gb || RedrawnSlots.count(Slot)) continue;
 				if (!Ours.count(Slot)) { MeshOff = 1e9; MeshWorst = Slot + " missing"; continue; }
 				++Compared;
 				const double D = std::max(Off(Ours[Slot].Lo, Vec(Gb->Get("min"))), Off(Ours[Slot].Hi, Vec(Gb->Get("max"))));
@@ -554,7 +593,7 @@ int main(int argc, char** argv)
 			char Buf[220];
 			std::snprintf(Buf, sizeof(Buf), ": same parts, datums within %.2f mm (%s), tier %s, %d meshes within %.2f mm (%s)",
 				RigOff * 1000.0, Worst.c_str(), L.Fit.Tier.c_str(), Compared, MeshOff * 1000.0, MeshWorst.c_str());
-			Expect(SameParts && RigOff < 1e-4 && TierOk && Compared >= 4 && MeshOff < 5e-4, St + Buf);
+			Expect(SameParts && RigOff < 1e-4 && TierOk && Compared >= (RedrawnSlots.count("tank") ? 3 : 4) && MeshOff < 5e-4, St + Buf);
 			// Every Blender part placed so far, surface tag by surface tag, against Godot's meshes of that
 			// tag in the slot.
 			int Slots = 0;
@@ -578,9 +617,9 @@ int main(int argc, char** argv)
 		std::string Bad;
 		for (const auto& [Key, Sw] : Sweep ? Sweep->O : decltype(Ref.O)())
 		{
-			PartsMap B = Lay.ReferenceBuild(Sw.Str("base"));
+			PartsMap B = GLay.ReferenceBuild(Sw.Str("base"));
 			for (const auto& [Slot, Id] : Sw.Get("parts")->O) B[Slot] = Id.S;
-			const Layout L = Lay.Solve(B);
+			const Layout L = GLay.Solve(B);
 			std::map<std::string, Box> Ours;
 			std::map<std::string, std::map<std::string, Box>> Tags, Running;
 			Collect(B, L, Ours, Tags);
@@ -589,7 +628,7 @@ int main(int argc, char** argv)
 			int Slots = 0;
 			std::string Wrong = Compare(Running, Sw.Get("glb"), false, Slots);
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
-				if (!Tags.count(Slot) && !Partial.count(Slot)) Wrong += " " + Slot + " missing";
+				if (!Tags.count(Slot) && !Partial.count(Slot) && !RedrawnSlots.count(Slot)) Wrong += " " + Slot + " missing";
 			if (const Json* Gs = Sw.Get("slot"))
 			{
 				const std::string Swept = Key.substr(0, Key.find('/'));
