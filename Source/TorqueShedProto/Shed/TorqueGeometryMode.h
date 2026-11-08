@@ -58,6 +58,9 @@ FString CheckSave(const UTorqueBuildSubsystem& Shed, const FTorqueShedRequest& R
 FString ApplySave(FTorqueShedBike& Bike, const FString& Text);
 // A fit's text made safe (a save from disk or the host): parsed, sanitized, written back; "" if bad.
 FString Clean(const FString& Text);
+// Each slot's offset in Geo (Fit/BikeGeometry text) as a transform in the bike's own cm, about that
+// slot's middle in Pivots (the box round its parts at rest): a part at rest T is drawn at T * Out[slot].
+void SlotMoves(const FString& Geo, const TMap<FName, FVector>& Pivots, TMap<FName, FTransform>& Out);
 // The longest a fit's text may be (a slot each, every number exact, is well under it).
 constexpr int32 MaxText = 16384;
 }
