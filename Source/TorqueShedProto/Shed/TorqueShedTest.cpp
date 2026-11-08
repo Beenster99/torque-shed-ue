@@ -77,6 +77,22 @@ const TCHAR* const GeoSteps =
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
 	TEXT("georeload,wait:8,log,geo:check,look:bike,shot");
 
+// The paint shop's spray bay on bay 1's bike: take the exhaust off, grind its rust off on the
+// repair bench (too rusty to paint otherwise), hang it on the first hook and spray it with the gun
+// in the booth: grey primer, gloss red, then clear lacquer, a shot after each; then the gun tried on
+// the tank on the bike (refused: it runs off the booth's air line) and the rattle can on it (works
+// anywhere), and the exhaust back on.
+const TCHAR* const BoothSteps =
+	TEXT("bay:1,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
+	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
+	TEXT("place:hook_0,act,look:booth,shot,")
+	TEXT("tool:gun,spray:0:primer,item:exhaust,act,log,look:hook_0,shot,")
+	TEXT("spray:0:gloss,item:exhaust,act,look:hook_0,shot,")
+	TEXT("spray:0:clear,item:exhaust,act,log,look:hook_0,shot,look:booth,shot,")
+	TEXT("spray:3:gloss,part:tank,act,")
+	TEXT("tool:spray,spray:1:gloss,part:tank,act,look:bike,shot,")
+	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,log");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -90,7 +106,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	FString Spec;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueShedAction="), Spec, false)) return;
-	// "loop", "fab" and "dyno" stand for their steps anywhere in the list; alone, they quit at the end.
+	// "loop", "fab", "dyno" and "booth" stand for their steps anywhere in the list; alone, they quit at the end.
 	TArray<FString> Given;
 	Spec.ParseIntoArray(Given, TEXT(","), true);
 	for (const FString& G : Given)
@@ -101,6 +117,8 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
+
+		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -161,6 +179,8 @@ void UTorqueShedTest::LogBuild(const TCHAR* Where) const
 		const FString At = It.At == ETorqueAt::Held ? FString(TEXT("held")) : (It.At == ETorqueAt::Spot ? It.Spot.ToString() : FString(TEXT("floor")));
 		Loose += FString::Printf(TEXT(" %d:%s@%s%s(rust %.0f%% dirt %.0f%%%s)"), It.Id, *It.Part.ToString(), *At, It.bBoxed ? TEXT(",boxed") : TEXT(""),
 			100.0f * It.Rust, 100.0f * It.Dirt, It.Finish.IsNone() ? TEXT("") : *FString::Printf(TEXT(" %s"), *It.Finish.ToString()));
+		const FString Job = B->PaintJobText(It);   // the paint job, primer and coat, once it's been sprayed
+		if (!Job.IsEmpty()) Loose += TEXT(" [") + Job + TEXT("]");
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque test:   loose:%s"), Loose.IsEmpty() ? TEXT(" none") : *Loose);
 }
@@ -256,11 +276,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 
 	if (Verb == TEXT("tool") && P.Num() >= 2)
 	{
-		static const TCHAR* const Names[] = {TEXT("hands"), TEXT("wrench"), TEXT("brush"), TEXT("repair"), TEXT("spray"), TEXT("lance")};
+		static const TCHAR* const Names[] = {TEXT("hands"), TEXT("wrench"), TEXT("brush"), TEXT("repair"), TEXT("spray"), TEXT("lance"), TEXT("gun")};
 		int32 Index = INDEX_NONE;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Names); ++I)
 			if (P[1].Equals(Names[I], ESearchCase::IgnoreCase)) Index = I;
-		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, spray, lance)")); return true; }
+		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, spray, lance, gun)")); return true; }
 		W->TestTool((ETorqueTool)Index);
 		Said(TEXT("in hand"));
 		return true;
@@ -279,7 +299,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			if (P[1].Equals(UTorqueBuildSubsystem::PaintName(I), ESearchCase::IgnoreCase)) Colour = I;
 		const FName Finish = P.Num() > 2 ? FName(*P[2].ToLower()) : FName(TEXT("gloss"));
 		W->TestSpray(Colour, Finish);
-		Said(FString::Printf(TEXT("%s %s"), *UTorqueBuildSubsystem::FinishName(Finish), *UTorqueBuildSubsystem::PaintName(Colour)));
+		Said(FString::Printf(TEXT("loaded: %s, colour %s"), *W->SprayFinishText(), *UTorqueBuildSubsystem::PaintName(Colour)));
 		return true;
 	}
 	if (Verb == TEXT("part") && P.Num() >= 2)
@@ -504,11 +524,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else if (What == TEXT("board")) { At = FVector(-643.0, 60.0, 255.0); Away = FVector(1.0, 0.0, 0.0); Distance = 300.0; }
 		else if (What == TEXT("monitor")) { At = FVector(613.5, 190.0, 110.0); Away = FVector(-1.0, 0.0, 0.0); Distance = 110.0; }
+		else if (What == TEXT("booth")) { At = FVector(1160.0, 0.0, 110.0); Away = FVector(-1.0, 0.25, 0.0).GetSafeNormal(); Distance = 560.0; }
 		else if (What == TEXT("dyno")) { At = FVector(0.0, -1290.0, 225.0); Away = FVector(0.35, 1.0, 0.0).GetSafeNormal(); Distance = 250.0; }
 		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, deliveries, washbay, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);

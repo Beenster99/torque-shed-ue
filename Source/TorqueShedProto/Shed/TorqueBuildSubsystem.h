@@ -54,6 +54,14 @@ struct FTorqueItem
 	TMap<FName, int32> Slots;
 	TMap<FName, bool> Bolted;
 	int32 Tyre = 0;              // a wheel off a bike: the tyre on it
+	// Its paint job (shed_state's paint_quality, primer, primer_top, coat, coat_q): how well the
+	// colour went on (-1: as the factory left it), grey primer (how good, and whether it's the top
+	// coat, the colour kept under it), and a protective coat over it (clear lacquer, an engine enamel).
+	float PaintQ = -1.0f;
+	float Primer = 0.0f;
+	bool bPrimerTop = false;
+	FName Coat;
+	float CoatQ = 0.0f;
 };
 
 // One bay's bike.
@@ -120,6 +128,8 @@ enum class ETorqueShedAct : uint8
 	DynoLights,                          // its lights on or off
 	DynoRun,                             // a run on the dyno for the bike on the rig (Bay)
 	GeoSave,                             // geometry mode's fit (Text) kept with bay Bay's bike
+	Prime,                               // Item: grey primer (bGun: the spray gun, on a booth hook)
+	Coat,                                // Item: a protective coat, Finish its id (Coats()): a lacquer or an engine enamel
 	Count
 };
 
@@ -136,6 +146,7 @@ struct FTorqueShedRequest
 	FTransform Place;
 	bool bCrouched = false;
 	FString Text;                 // GeoSave: the fit (Fit/BikeGeometry text)
+	bool bGun = false;            // Paint, Prime, Coat: with the spray gun (it runs off the booth's air line)
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FTorqueBikeEvent, int32 /*Bay*/);
@@ -242,6 +253,26 @@ public:
 	static FString PaintName(int32 Index);
 	static const TArray<FName>& Finishes();
 	static FString FinishName(FName Finish);
+	// The spray gun's protective coats (shed_state COATS, COAT_ORDER): clear and satin clear
+	// lacquer, black and silver engine enamel. The lacquers go on with a rattle can too.
+	static const TArray<FName>& Coats();
+	static FString CoatName(FName Coat);
+	static bool IsLacquer(FName Coat);
+	// Grey primer, as it shows (shed_state PRIMER_COLOR).
+	static FLinearColor PrimerColour() { return FLinearColor(0.42f, 0.43f, 0.44f); }
+	// The colour a part shows: grey while primer is its top coat, else its paint.
+	static FLinearColor ShownColour(const FTorqueItem& It) { return It.bPrimerTop ? PrimerColour() : It.Colour; }
+	// Painted or primed by someone (not as it came): the model takes its colour.
+	static bool Repainted(const FTorqueItem& It) { return !It.Finish.IsNone() || It.bPrimerTop; }
+	// "Paint job: a good coat (91%), over primer, lacquered", or "" for a factory finish.
+	FString PaintJobText(const FTorqueItem& It) const;
+	// shed_state PRIMER_BONUS, LACQUER_BONUS; the booth_shop's finish (no dust in the wet paint).
+	static constexpr float PrimerBonus = 0.08f;
+	static constexpr float LacquerBonus = 0.06f;
+	static constexpr float BoothFinish = 0.12f;
+	// How well a coat goes on by hand until the spray job's coverage game is ported (SprayJob): a
+	// steady hold lays a decent coat, the booth makes it a good one.
+	static constexpr float HandCoat = 0.82f;
 
 	// --- Requests ----------------------------------------------------------------------------
 	// This machine's player (a PlayerState's player id; 1 until the walker says).
