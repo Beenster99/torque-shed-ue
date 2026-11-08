@@ -1,5 +1,6 @@
 #include "TorquePlayerController.h"
 
+#include "Shed/TorqueGeometryMode.h"
 #include "TorqueMenuPawn.h"
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
@@ -180,7 +181,8 @@ void ATorquePlayerController::CloseMenu()
 
 bool ATorquePlayerController::WantsPause()
 {
-	// On the bike or on foot; the start menu has its own Esc.
+	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
+	if (ATorqueGeometryMode::For(this)) return false;
 	const APawn* P = GetPawn();
 	return P && (P->IsA<ATorqueBikePawn>() || P->IsA<ATorqueWalker>());
 }

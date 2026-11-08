@@ -45,6 +45,7 @@ struct FTorqueShedRequestNet
 	UPROPERTY() int32 Colour = 0;
 	UPROPERTY() FTransform Place;
 	UPROPERTY() bool bCrouched = false;
+	UPROPERTY() FString Text;    // GeoSave's fit (the host refuses one that's too long)
 };
 
 namespace TorqueShedNet

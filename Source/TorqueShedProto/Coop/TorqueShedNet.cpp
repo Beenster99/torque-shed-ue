@@ -20,6 +20,7 @@ FTorqueShedRequestNet ToNet(const FTorqueShedRequest& R)
 	N.Colour = R.Colour;
 	N.Place = R.Place;
 	N.bCrouched = R.bCrouched;
+	N.Text = R.Text;
 	return N;
 }
 
@@ -40,6 +41,7 @@ FTorqueShedRequest FromNet(const FTorqueShedRequestNet& N)
 	R.Colour = N.Colour;
 	R.Place = N.Place;
 	R.bCrouched = N.bCrouched;
+	R.Text = N.Text;
 	return R;
 }
 } // namespace TorqueShedNet

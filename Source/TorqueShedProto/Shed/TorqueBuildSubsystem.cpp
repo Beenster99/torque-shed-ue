@@ -1,6 +1,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 
 #include "Fit/BikeLayout.h"
+#include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
@@ -229,6 +230,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.Xf = B.Xf;
 		To.DynoN = B.DynoN;
 		for (const FTorqueDynoRun& Run : B.DynoRuns) To.DynoRuns.Add(TBI::ToSaveRun(Run));
+		To.Geo = B.Geo;
 		S.Bikes.Add(To);
 	}
 	S.DynoStraps.Reset();
@@ -284,6 +286,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		To.Pusher = 0;   // nobody's wheeling it when the shed opens
 		To.DynoN = From.DynoN;
 		for (const FTorqueShedSaveDynoRun& Run : From.DynoRuns) To.DynoRuns.Add(TBI::FromSaveRun(Run));
+		To.Geo = TorqueGeometryMode::Clean(From.Geo);
 	}
 	Dyno = FTorqueDynoRoom();
 	for (int32 I = 0; I < 4 && I < S.DynoStraps.Num(); ++I) Dyno.Straps[I] = S.DynoStraps[I];
@@ -357,7 +360,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 3;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno)
+constexpr int32 BytesLayout = 4;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit)
 
 struct FNameTable
 {
@@ -450,6 +453,8 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 			FTorqueDynoRun Run = B.DynoRuns[I];
 			TBI::SerializeRun(Ar, Run);
 		}
+		FString Geo = B.Geo;
+		Ar << Geo;
 	}
 	{
 		// The dyno room's kit.
@@ -546,6 +551,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			if (!TBI::SerializeRun(Ar, Run)) return false;
 			B.DynoRuns.Add(Run);
 		}
+		Ar << B.Geo;
+		if (Ar.IsError() || B.Geo.Len() > TorqueGeometryMode::MaxText) return false;
 		if (NewBikes.IsValidIndex(I)) NewBikes[I] = B;
 	}
 	FTorqueDynoRoom NewDyno;
@@ -621,6 +628,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 FString UTorqueBuildSubsystem::BaySignature(int32 Bay, bool bLooks) const
 {
 	FString Sig = Exists(Bay) ? Bikes[Bay].Name : FString(TEXT("-"));
+	if (!bLooks && Exists(Bay) && !Bikes[Bay].Geo.IsEmpty()) Sig += TEXT("|geo:") + Bikes[Bay].Geo;
 	for (const FName& S : TorqueShedParts::Slots())
 	{
 		const FTorqueItem* It = Items.Find(ItemOn(Bay, S));
@@ -1490,6 +1498,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (Loose.Num() > 0) return FString::Printf(TEXT("Bolt it up first: %s."), *TBI::SlotList(Loose));
 		return FString();
 	}
+	case ETorqueShedAct::GeoSave:
+		return TorqueGeometryMode::CheckSave(*this, R);
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -1849,6 +1859,10 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		if (!Dyno.bFan && Dyno.Heat > 0.5f) Text += TEXT(" It's running hot: switch the fan on.");
 		break;
 	}
+	case ETorqueShedAct::GeoSave:
+		Text = TorqueGeometryMode::ApplySave(Bikes[R.Bay], R.Text);
+		PartsOf.Add(R.Bay);
+		break;
 	default:
 		break;
 	}
