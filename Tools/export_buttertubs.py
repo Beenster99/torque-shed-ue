@@ -354,6 +354,29 @@ def grid_mesh(H, x0, z0, step, col=None):
     return pos, tris, n.reshape(-1, 3), (None if col is None else col.reshape(-1, 4)), uv
 
 
+def add_skirt(mesh, nx, nz, depth):
+    """Hangs a curtain of the given depth (m) under every edge of a grid mesh, so where two land meshes
+    meet at different heights (near tiles over the coarse far hills) there is grass, not a gap to the
+    sky. Faces both ways; the curtain takes its edge's normal, colour and UV."""
+    pos, tris, nrm, col, uv = mesh
+    i = np.arange(nz * nx).reshape(nz, nx)
+    rims = [i[0, :], i[-1, :], i[:, 0], i[:, -1]]
+    P, T, N, C, U = [pos], [tris], [nrm], [col], [uv]
+    base = len(pos)
+    for rim in rims:
+        drop = pos[rim].copy(); drop[:, 1] -= depth
+        k = base + np.arange(len(rim))
+        a, b, c, d = rim[:-1], rim[1:], k[:-1], k[1:]
+        T.append(np.concatenate([np.stack([a, b, d], -1), np.stack([a, d, c], -1),
+                                 np.stack([a, d, b], -1), np.stack([a, c, d], -1)]))
+        P.append(drop); N.append(nrm[rim]); U.append(uv[rim])
+        if col is not None:
+            C.append(col[rim])
+        base += len(rim)
+    return (np.concatenate(P), np.concatenate(T), np.concatenate(N),
+            None if col is None else np.concatenate(C), np.concatenate(U))
+
+
 # --- Main -----------------------------------------------------------------------------------------
 
 def main():
@@ -450,11 +473,12 @@ def main():
                 sl = (slice(tz, tz + per + 1), slice(tx, tx + per + 1))
                 if dist_road[sl].min() > MARGIN:
                     continue   # the backdrop covers it
-                pos, tris, nrm, c, uv = grid_mesh(H[sl], xs[tx], zs[tz], STEP, col[sl])
+                pos, tris, nrm, c, uv = add_skirt(grid_mesh(H[sl], xs[tx], zs[tz], STEP, col[sl]),
+                                                  H[sl].shape[1], H[sl].shape[0], 8.0)
                 name = "terrain_%d_%d" % (int(xs[tx] // TILE), int(zs[tz] // TILE))
                 write_glb(os.path.join(args.out, name + ".glb"), pos, tris, nrm, c, name, uv)
-                tiles.append({"name": name, "min": [xs[tx], float(pos[:, 1].min()), zs[tz]],
-                              "max": [xs[min(tx + per, len(xs) - 1)], float(pos[:, 1].max()),
+                tiles.append({"name": name, "min": [xs[tx], float(H[sl].min()), zs[tz]],
+                              "max": [xs[min(tx + per, len(xs) - 1)], float(H[sl].max()),
                                       zs[min(tz + per, len(zs) - 1)]]})
 
         # The far hills, 32 m, centred on the ride, sunk under the near tiles so they never show through.
@@ -505,7 +529,7 @@ def main():
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import buttertubs_far
         bcol[..., :3] = buttertubs_far.tint(region.root, region.meta, O, BX, BZ, bcol[..., :3], bs)
-        pos, tris, nrm, cc, uv = grid_mesh(B, bx[0], bz[0], bs, bcol)
+        pos, tris, nrm, cc, uv = add_skirt(grid_mesh(B, bx[0], bz[0], bs, bcol), B.shape[1], B.shape[0], 20.0)
         write_glb(os.path.join(args.out, "backdrop.glb"), pos, tris, nrm, cc, "backdrop", uv)
 
         # The horizon: 128 m out to 25 km, so the land doesn't stop at the region's edge (it read as

@@ -486,8 +486,16 @@ def land_material_scanned(tex, roles):
     g = Graph(new_material("M_Land"))
     grass = g.layer(tex["grass"], roles["grass"]["tile_m"])
     land = grass
+    # beenster (8 Nov): the far ground read as "mottled polka dot". The moor and peat patches were
+    # 12 m and 3 m blobs at full contrast, which shrink to dots across the dale; make them broad and
+    # soft, and from about 80 m out let them settle to an even mix instead of dots.
+    depth0 = g.node(unreal.MaterialExpressionPixelDepth)
+    calm = g.op(unreal.MaterialExpressionSubtract, depth0, const_b=8000.0)
+    calm = g.op(unreal.MaterialExpressionDivide, calm, const_b=30000.0)
+    calm = g.op(unreal.MaterialExpressionSaturate, calm)
     if "moor" in tex:
-        land = g.mix(land, g.layer(tex["moor"], roles["moor"]["tile_m"]), g.mask_noise(0.0008, -1.5, 2.5))
+        moor_mask = g.lerp(g.mask_noise(0.00028, -0.6, 1.6), g.const(0.35), calm)
+        land = g.mix(land, g.layer(tex["moor"], roles["moor"]["tile_m"]), moor_mask)
     if "peat" in tex:
         # Peat only in the odd hollow, darkened and desaturated: the scan is a red-brown litter.
         peat = g.layer(tex["peat"], roles["peat"]["tile_m"])
@@ -495,7 +503,9 @@ def land_material_scanned(tex, roles):
         g.link(peat[0], dull)
         g.link(g.const(0.7), dull, "Fraction")
         peat[0] = g.op(unreal.MaterialExpressionMultiply, dull, g.const((0.55, 0.5, 0.45)))
-        land = g.mix(land, peat, g.mask_noise(0.003, -7.0, 0.8))
+        peat_mask = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0011, -6.0, 0.9),
+                         g.op(unreal.MaterialExpressionOneMinus, calm))
+        land = g.mix(land, peat, peat_mask)
     # The map's cover: vertex colour relative to plain grass's, softened.
     vc = g.node(unreal.MaterialExpressionVertexColor)
     tint = g.op(unreal.MaterialExpressionDivide, vc, g.const(lin((92, 112, 52))))
@@ -525,10 +535,10 @@ def land_material_scanned(tex, roles):
     # from about 150 m out lean part of the way towards the map's own cover colour and a softer normal.
     # Only part of the way (at most 55%): a full fade to flat colour read as mush with Lumen on.
     depth = g.node(unreal.MaterialExpressionPixelDepth)
-    far = g.op(unreal.MaterialExpressionSubtract, depth, const_b=15000.0)
+    far = g.op(unreal.MaterialExpressionSubtract, depth, const_b=12000.0)
     far = g.op(unreal.MaterialExpressionDivide, far, const_b=60000.0)
     far = g.op(unreal.MaterialExpressionSaturate, far)
-    far = g.op(unreal.MaterialExpressionMultiply, far, const_b=0.4)
+    far = g.op(unreal.MaterialExpressionMultiply, far, const_b=0.55)
     cover = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.1)
     cover = g.lerp(land[0], cover, g.const(0.7))
     land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.85)], far)
@@ -554,8 +564,10 @@ def land_material_scanned(tex, roles):
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], g.lerp(g.const(1.0), g.const(0.8), wet))
     r_src = land[2]
     r_out = "R" if r_src.get_class().get_name() == "MaterialExpressionTextureSample" else ""
-    land[2] = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.82), g.const(0.55), wet), a_out=r_out)
-    return g.finish(land, specular=0.3)
+    # beenster (8 Nov): still a sheen on the ground looking into the sun. Moorland is matte: a high
+    # roughness floor and low specular when dry (rain still brings some shine back).
+    land[2] = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.92), g.const(0.55), wet), a_out=r_out)
+    return g.finish(land, specular=0.12)
 
 
 def road_blemish_textures():
@@ -1373,8 +1385,8 @@ def foliage_material(rvt=None, blend=1.0, name="M_Foliage"):
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     # Dry moor grass is matte: high roughness, low specular (no sheen into the sun).
-    mel.connect_material_property(g.const(0.88), "", unreal.MaterialProperty.MP_ROUGHNESS)
-    mel.connect_material_property(g.const(0.18), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(g.const(0.92), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.1), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(wpo, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
@@ -1456,7 +1468,7 @@ def scan_foliage_master(defaults, rvt=None, blend=1.0):
         mel.connect_material_property(nrm, "RGB", unreal.MaterialProperty.MP_NORMAL)
     rough = tex("Roughness")
     # A floor on the scan's roughness and low specular: dry moor grass is matte.
-    rough = g.op(unreal.MaterialExpressionMax, rough, g.const(0.82), a_out="R") if rough else g.const(0.88)
+    rough = g.op(unreal.MaterialExpressionMax, rough, g.const(0.9), a_out="R") if rough else g.const(0.92)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     ao = tex("AO")
     if ao:
@@ -1464,7 +1476,7 @@ def scan_foliage_master(defaults, rvt=None, blend=1.0):
     tr = tex("Translucency")
     sss = g.op(unreal.MaterialExpressionMultiply, tr if tr else base, g.const((0.8, 0.9, 0.5)))
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
-    mel.connect_material_property(g.const(0.18), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(g.const(0.1), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(foliage_wind(g, h, pir), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(m)
     unreal.EditorAssetLibrary.save_loaded_asset(m)
