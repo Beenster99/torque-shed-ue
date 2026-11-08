@@ -4,6 +4,7 @@
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorquePartsBench.h"
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorquePaintRack.h"
 #include "Shed/TorqueWalker.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -192,6 +193,72 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		LogBuild(TEXT("riding out"));
 		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(true));
 		Wait = 3.0;
+		return true;
+	}
+	// The bike's dirt and paint, as the shed draws them.
+	auto Looks = [World, Bike](const FString& Only) -> FString
+	{
+		const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
+		if (!B || !Bike) return TEXT("no bike");
+		double Sum = 0.0;
+		int32 N = 0;
+		FString Painted, One;
+		for (const UStaticMeshComponent* C : Bike->Parts)
+		{
+			const FName Part = TorqueShedModel::PartTag(C);
+			if (Part.IsNone()) continue;
+			Sum += B->DirtOf(Part);
+			++N;
+			FLinearColor Col;
+			if (B->PaintOf(Part, Col)) Painted += FString::Printf(TEXT(" %s=%s"), *Part.ToString(), *Col.ToFColor(true).ToHex());
+			if (Part.ToString() == Only) One = FString::Printf(TEXT(", %s %.0f%%"), *Only, 100.0f * B->DirtOf(Part));
+		}
+		return FString::Printf(TEXT("dirt %.0f%% on average over %d parts%s; painted:%s"), N ? 100.0 * Sum / N : 0.0, N, *One,
+			Painted.IsEmpty() ? TEXT(" none") : *Painted);
+	};
+	// A bike part by its model name.
+	auto PartNamed = [Bike](const FString& Name) -> UStaticMeshComponent*
+	{
+		if (!Bike) return nullptr;
+		for (UStaticMeshComponent* C : Bike->Parts)
+			if (TorqueShedModel::PartTag(C).ToString() == Name) return C;
+		return nullptr;
+	};
+	if (Verb == TEXT("dirt"))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, *Looks(P.Num() > 1 ? P[1] : FString()));
+		return true;
+	}
+	if (Verb == TEXT("wash") && P.Num() >= 2)
+	{
+		UStaticMeshComponent* C = PartNamed(P[1]);
+		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no part %s on the shed bike"), *S, *P[1]); return true; }
+		const double Secs = P.Num() > 2 ? FCString::Atod(*P[2]) : 3.0;
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s; before: %s"), *S, *AimBike(C), *Looks(P[1]));
+		W->TestHoldWash(Secs);
+		Wait = Secs + 0.5;   // the next step (dirt:<part>) shows what came off
+		return true;
+	}
+	if (Verb == TEXT("paint") && P.Num() >= 3)
+	{
+		ATorquePaintRack* Rack = nullptr;
+		for (TActorIterator<ATorquePaintRack> It(World); It; ++It) { Rack = *It; break; }
+		int32 Index = INDEX_NONE;
+		for (int32 I = 0; I < ATorquePaintRack::Paints().Num(); ++I)
+			if (P[1].Replace(TEXT("_"), TEXT(" ")).Equals(ATorquePaintRack::Paints()[I].Name, ESearchCase::IgnoreCase) || P[1] == FString::FromInt(I)) Index = I;
+		UStaticMeshComponent* Part = PartNamed(P[2]);
+		if (!Rack || !Rack->Cards.IsValidIndex(Index) || !Part)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no paint rack, no such paint (0-%d or a name), or no part %s"), *S, ATorquePaintRack::Paints().Num() - 1, *P[2]);
+			return true;
+		}
+		UStaticMeshComponent* Card = Rack->Cards[Index];
+		Card->UpdateBounds();
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: at the rack seeing %s"), *S, *W->TestLookAt(Card->Bounds.Origin, Rack->GetActorForwardVector(), 110.0));
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: at the bike seeing %s"), *S, *AimBike(Part));
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, *Looks(P[2]));
 		return true;
 	}
 	if (Verb == TEXT("look") && P.Num() >= 2)

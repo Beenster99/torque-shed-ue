@@ -203,6 +203,8 @@ def materials():
         "door": flat("M_ShedDoor", (0.12, 0.22, 0.16), 0.55),          # a green-painted side door
         # The battens' opal diffusers: bright enough to read as lit, not a white block (round 1's 40 was).
         "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
+        "bucket": flat("M_ShedBucket", (0.03, 0.12, 0.35), 0.45),
+        "sponge": flat("M_ShedSponge", (0.75, 0.55, 0.05), 0.95),
         "hill": flat("M_ShedFell", (0.20, 0.24, 0.12), 0.95, grain=0.25),
         "drystone": world_aligned("M_ShedDrystone", rock, 120.0, (0.9, 0.9, 0.88), ((0.38, 0.37, 0.34), 0.9)),
     }
@@ -342,6 +344,18 @@ def furniture(m):
         shape(CYLINDER, "Tyre_%d" % i, (-HALF_X + 50, 100.0, 9 + i * 18), (62, 62, 17), m["black"], folder="Kit")
     shape(CYLINDER, "Bin", (DOOR_X0 - 70, HALF_Y - 40, 45), (55, 55, 90), m["black"], folder="Kit")
     box("DripTray", BIKE_AT[0] - 30, BIKE_AT[0] + 30, BIKE_AT[1] - 20, BIKE_AT[1] + 20, 0, 1.5, m["black"], folder="Kit", collide=False)
+    # A wash bucket and sponge behind the bike (hold G / Square on the bike to wash it).
+    shape(CYLINDER, "Bucket", (BIKE_AT[0] + 80, BIKE_AT[1] - 130, 14), (30, 30, 28), m["bucket"], folder="Kit")
+    box("Sponge", BIKE_AT[0] + 72, BIKE_AT[0] + 88, BIKE_AT[1] - 136, BIKE_AT[1] - 124, 28, 34, m["sponge"], folder="Kit", collide=False)
+    # The paint rack on the east wall between the window and the side door (ATorquePaintRack: its
+    # colour cards; E picks one, E on bodywork paints it), facing into the room.
+    rack_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePaintRack")
+    if rack_cls:
+        r = actors.spawn_actor_from_class(rack_cls, unreal.Vector(HALF_X - 2.0, 10.0, 150.0), unreal.Rotator(0.0, 0.0, 180.0))
+        r.set_actor_label("PaintRack")
+        r.set_folder_path("Kit")
+    else:
+        unreal.log_warning("[Torque] no TorquePaintRack class: build the C++ first")
     # The side door, shut, in the east wall.
     box("SideDoor", HALF_X + 20, HALF_X + 26, 100, 190, 0, 205, m["door"], folder="Walls")
 

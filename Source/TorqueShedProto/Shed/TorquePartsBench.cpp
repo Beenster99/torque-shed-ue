@@ -75,5 +75,6 @@ void ATorquePartsBench::Rebuild()
 		const FVector Centre = Box.GetCenter();
 		Holder->SetWorldLocation(Holder->GetComponentLocation() + FVector(Want.X - Centre.X, Want.Y - Centre.Y, Want.Z + 1.0 - Box.Min.Z));
 	}
+	TorqueShedModel::ApplyLooks(this, Items);   // a part off the bike keeps its dirt
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d spare parts on the bench"), Spares.Num());
 }

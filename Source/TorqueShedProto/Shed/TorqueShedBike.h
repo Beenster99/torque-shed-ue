@@ -21,6 +21,13 @@ bool LoadFrame(FTransform& Fix, TMap<FName, FVector>& GroupOrigins);
 // Parts tagged with the slot they belong to read back with this ("" when none).
 FName SlotTag(const UActorComponent* C);
 FName OptionTag(const UActorComponent* C);
+FName PartTag(const UActorComponent* C);
+// Bodywork that takes paint (tank, side panels, mudguard, tail, hugger).
+bool IsBodywork(FName Part);
+// A part's name for people: "side_panel_l" -> "side panel l".
+FString PartLabel(FName Part);
+// Dirt and paint from the build onto the parts' finishes (the bike's materials take Grime and Color).
+void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts);
 // A slot's name for people: "exhaust" -> "Exhaust".
 FString SlotLabel(FName Slot);
 // Makes the parts of a build under Parent; only the parts in OnlySlot when it's set.
@@ -53,7 +60,8 @@ public:
 
 private:
 	void Rebuild();
+	void Relook();
 	void BuildGreyBox();
 	void BuildStand();
-	FDelegateHandle Watch;
+	FDelegateHandle Watch, WatchLooks;
 };

@@ -7,6 +7,9 @@
 //   bench:<slot>:<part>   stand at the bench, look at that spare and press E
 //   rideout               stand in the roller door and press F (loads Buttertubs with the build)
 //   back                  on the road: back to the shed (as Backspace)
+//   wash:<part>[:<s>]     look at that part (tank, front_rim, silencers...) and hold wash for <s> (3) seconds
+//   dirt[:<part>]         log the bike's dirt (average, and that part's) and its paint
+//   paint:<paint>:<part>  pick a paint off the rack (a name, spaces as underscores: Carnival_Red, or 0-7), then E on the part
 //   look:bike|bench|door  stand and look there (for a screenshot)
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   wait:<seconds>        wait longer

@@ -45,3 +45,41 @@ const FTorqueBuild& UTorqueBuildSubsystem::BuildFor(const UObject* WorldContext)
 	const UTorqueBuildSubsystem* S = Of(WorldContext);
 	return S ? S->Build : Default;
 }
+
+float UTorqueBuildSubsystem::DirtOf(FName Part) const
+{
+	if (const float* D = Dirt.Find(Part)) return *D;
+	// Parts that came with the bike start dirty; fitted options (opt_...) come out of the box clean.
+	return Part.ToString().StartsWith(TEXT("opt_")) ? 0.0f : StartDirt;
+}
+
+void UTorqueBuildSubsystem::Clean(FName Part, float Amount, bool bTell)
+{
+	const float Now = DirtOf(Part);
+	const float After = FMath::Clamp(Now - Amount, 0.0f, 1.0f);
+	if (After == Now) return;
+	Dirt.Add(Part, After);
+	if (bTell) OnLooks.Broadcast();
+}
+
+bool UTorqueBuildSubsystem::PaintOf(FName Part, FLinearColor& Out) const
+{
+	if (const FLinearColor* C = Paint.Find(Part)) { Out = *C; return true; }
+	return false;
+}
+
+void UTorqueBuildSubsystem::SetPaint(FName Part, const FLinearColor& Colour)
+{
+	Paint.Add(Part, Colour);
+	UE_LOG(LogTemp, Log, TEXT("Torque: painted %s %s"), *Part.ToString(), *Colour.ToString());
+	OnLooks.Broadcast();
+}
+
+void UTorqueBuildSubsystem::Arrived(const TArray<FName>& PartsOnBike)
+{
+	if (!bRode) return;
+	bRode = false;
+	for (const FName& P : PartsOnBike) Dirt.Add(P, FMath::Min(DirtOf(P) + RideDirt, 1.0f));
+	UE_LOG(LogTemp, Log, TEXT("Torque: back from a ride, %d parts dirtier"), PartsOnBike.Num());
+	OnLooks.Broadcast();
+}
