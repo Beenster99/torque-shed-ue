@@ -16,6 +16,7 @@
 #include "FitJson.h"
 
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -84,7 +85,15 @@ private:
 
 	// The frame's Blender parts: its tubes swept from the tube section, welds, bearing cups, a
 	// cast spar beam, battery box, footpegs and gussets (BikeModel._draw_frame; Fit/BikeFrame.cpp).
-	void Frame(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// CodeHalfW: how far out its code-drawn pieces (a perimeter frame's pivot plates) stand, or 0.
+	void Frame(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out, double* CodeHalfW = nullptr) const;
+	// A frame-mounted fairing's Blender panel set on its stay from the head stock, widened round
+	// the engine (BikeModel._rig_fairing, RigBodywork.fairing_fit), and the set's mounts (Godot
+	// frame: mirror_r, mirror_l, lamp) for what goes on it. FrameHalfW: the frame's half width.
+	std::map<std::string, V3> Fairing(const PartsMap& Parts, const Layout& L, double FrameHalfW, std::vector<FittedPart>& Out) const;
+	// The bounds (Godot frame) of the drawn meshes of these slots so far, as BikeModel.slot_bounds
+	// (a "tag__slot" surface counts for that slot). False without a mesh source or any mesh.
+	bool DrawnBox(const std::vector<FittedPart>& Out, const std::vector<std::string>& Slots, V3& Lo, V3& Hi) const;
 	void Engine(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Wheels(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Brake(const PartsMap& Parts, const Layout& L, bool Front, double RimR, double RimW, std::vector<FittedPart>& Out) const;
@@ -112,9 +121,9 @@ private:
 	Bars Handlebars(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// The headlight's Blender-made body on the steering (H: the head, Godot frame).
 	void Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, const V3& H) const;
-	// The mirrors' Blender pieces: bar clamps and heads (BikeModel._draw_mirrors), not yet those on
-	// a frame-mounted fairing's mounts.
-	void Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
+	// The mirrors' Blender pieces: bar clamps and heads (BikeModel._draw_mirrors), on a
+	// frame-mounted fairing's set's mounts (FairingMounts) when it has them.
+	void Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, const std::map<std::string, V3>& FairingMounts, std::vector<FittedPart>& Out) const;
 	// The indicators' Blender heads, or a road bike's stock ones (BikeModel._draw_indicators).
 	void Indicators(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// The front mudguard bent from its Blender section (BikeModel._draw_front_mudguard).

@@ -371,6 +371,8 @@ int main(int argc, char** argv)
 				++Slots;
 				for (const auto& [Tag, Bx] : ByTag)
 				{
+					// (A fairing set's lamps Godot redraws as two code meshes, one a side: no tag.)
+					if (Slot == "fairing" && Tag == "lens_white") continue;
 					const Json* Gb = Gt ? Gt->Get(Tag) : nullptr;
 					const double D = Gb ? std::max(Off(Bx.Lo, Vec(Gb->Get("min"))), Off(Bx.Hi, Vec(Gb->Get("max")))) : 1e9;
 					if (Gb && std::getenv("LAYOUT_COUNTS") && static_cast<int>(Gb->Num("meshes", 0.0)) != Bx.Meshes)
@@ -467,18 +469,19 @@ int main(int argc, char** argv)
 				if (Sw.Get("glb")->Get(Slot)) Running[Slot] = ByTag;
 			int Slots = 0;
 			std::string Wrong = Compare(Running, Sw.Get("glb"), false, Slots);
-			// (Mirrors on a frame-mounted fairing go on its Blender set's mounts, which aren't ported yet.)
+			// (A fairing on the bars is Godot's code-drawn shell given Blender edges and fasteners
+			// (BlenderParts.shell): not ported yet.)
 			const Json* Fairing = Lay.Part(B.count("fairing") ? B.at("fairing") : "none");
-			const bool OnFairing = Fairing && Fairing->Flag("frame_mount");
+			const bool CodeFairing = Fairing && !Fairing->Flag("frame_mount");
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
-				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "mirrors" && OnFairing)) Wrong += " " + Slot + " missing";
+				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "fairing" && CodeFairing)) Wrong += " " + Slot + " missing";
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
 			if (Wrong.empty()) ++Right;
 			else if (Bad.size() < 4000) Bad += "\n      " + Key + ":" + Wrong;
 		}
 		Expect(Builds > 300 && Right == Builds, std::to_string(Right) + " of " + std::to_string(Builds)
-			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts, bars, controls, master cylinders, clocks, lights, mirrors, indicators and front mudguards) placed as Godot does" + Bad);
+			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts, bars, controls, master cylinders, clocks, lights, mirrors, indicators, front mudguards, frames and fairings) placed as Godot does" + Bad);
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);
