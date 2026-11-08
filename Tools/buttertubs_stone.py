@@ -1376,10 +1376,11 @@ def far_building(w, d, h, rot, x, y_lo, y, z, kind):
 
 # --- Sheep -------------------------------------------------------------------------------------------
 
-def sheep(rng, pose):
-    """A Swaledale ewe, about 1.3 m nose to tail, facing +x. pose: 'graze', 'look' or 'lie'."""
+def sheep(rng, pose, fleece=(0.38, 0.355, 0.3)):
+    """A Swaledale ewe, about 1.3 m nose to tail, facing +x. pose: 'graze', 'look' or 'lie'. A lamb
+    is the same at about 0.55 scale with a cleaner, whiter fleece."""
     M = Mesh()
-    fleece = np.array([0.38, 0.355, 0.3])
+    fleece = np.array(fleece)
     lie = pose == "lie"
     body_y = 0.38 if lie else 0.66
     # Body: a lumpy ellipsoid of coarse fleece.
@@ -1773,3 +1774,102 @@ def round_bales(rng, n):
             P, T = tube([[x, 0.64, -0.6], [x, 0.64, 0.6]], 0.64, 16)
         _paint(Pt, P, T, P[:, [0, 1]] + P[:, [2, 2]], np.array(wrap) * rng.uniform(0.9, 1.15), rng.uniform(0.15, 0.45))
     return {"paint": Pt}
+
+
+# --- Birds, gardens and the road's edge --------------------------------------------------------------
+
+def corvid(rng, pose):
+    """A jackdaw or crow at rest, about 0.35 m long, facing +x, its feet at y = 0: 'perch' (upright)
+    or 'peck' (head down). All black, with the jackdaw's grey nape now and then."""
+    Wd = Mesh()
+    blk = np.array([0.012, 0.012, 0.014])
+    up = pose == "perch"
+    P = _unit(8, 12, 0.9, 0.9) * [0.13, 0.07, 0.065]
+    R = rot_xyz(0, 0, 0.35 if up else -0.15)
+    P = P @ R.T + [0, 0.12, 0]
+    _paint(Wd, P, _topology(8, 12), P[:, [0, 1]], blk, 0.05)
+    hc = np.array([0.12, 0.2, 0]) if up else np.array([0.15, 0.06, 0])
+    P = _unit(6, 8, 1, 1) * 0.04 + hc
+    _paint(Wd, P, _topology(6, 8), P[:, [0, 1]], blk * (1.0 if rng.uniform() < 0.5 else 4.0), 0.05)
+    P, T = tube([hc + [0.03, 0, 0], hc + [0.08, -0.01 if up else -0.03, 0]], [0.012, 0.002], 5)
+    _paint(Wd, P, T, P[:, [0, 1]], blk, 0.0)
+    P, T, U = obox((-0.16, 0.12 if up else 0.15, 0), (0.07, 0.008, 0.03), rot_xyz(0, 0, 0.5 if up else 0.1))
+    _paint(Wd, P, T, U, blk, 0.0)
+    for z in (-0.02, 0.02):
+        P, T = tube([[0.01, 0.07, z], [0.02, 0.0, z]], 0.005, 4); _paint(Wd, P, T, P[:, [0, 1]], blk, 0.0)
+    return {"wood": Wd}
+
+
+def washing_line(rng, length=4.5):
+    """Two posts and a line with washing pegged out along it (sheets, shirts and towels as thin
+    panels hanging a little askew), the line along +x."""
+    Wd = Mesh()
+    for x in (0, length):
+        P, T, U = obox((x, 0.9, 0), (0.04, 1.0, 0.04)); _paint(Wd, P, T, U, (0.13, 0.1, 0.07), 0.4)
+    P, T = tube([[0, 1.82, 0], [length / 2, 1.72, 0], [length, 1.82, 0]], 0.004, 4)
+    _paint(Wd, P, T, P[:, [0, 1]], (0.5, 0.5, 0.5), 0.1)
+    cols = [(0.75, 0.75, 0.72), (0.08, 0.15, 0.4), (0.5, 0.08, 0.06), (0.62, 0.55, 0.25), (0.3, 0.45, 0.6), (0.7, 0.7, 0.68)]
+    x = 0.3
+    while x < length - 0.5:
+        wdt = rng.uniform(0.35, 1.1); hgt = rng.uniform(0.35, 0.9)
+        if x + wdt > length - 0.2:
+            break
+        ytop = 1.82 - 0.1 * (1 - ((x + wdt / 2) - length / 2) ** 2 / (length / 2) ** 2)
+        P, T, U = obox((x + wdt / 2, ytop - hgt / 2, 0), (wdt / 2, hgt / 2, 0.006), rot_xyz(rng.normal(0, 0.08), 0, rng.normal(0, 0.03)))
+        _paint(Wd, P, T, U, cols[int(rng.integers(len(cols)))], 0.05)
+        x += wdt + rng.uniform(0.08, 0.3)
+    return {"wood": Wd}
+
+
+def log_pile(rng, length=2.0, height=1.0):
+    """Split logs stacked against a wall: rows of log ends facing +z, about 0.4 m deep, along +x."""
+    Wd = Mesh()
+    y = 0.0
+    while y < height:
+        x = 0.06
+        while x < length - 0.06:
+            r = rng.uniform(0.05, 0.09)
+            P, T = tube([[x + r, y + r, -0.2], [x + r, y + r, 0.2 + rng.uniform(-0.03, 0.03)]], r, 6)
+            c = np.zeros((len(P), 4)); c[:, :3] = np.array([0.2, 0.13, 0.07]) * rng.uniform(0.7, 1.2); c[:, 3] = 0.3
+            c[P[:, 2] > 0.15, :3] = np.array([0.35, 0.27, 0.16]) * rng.uniform(0.8, 1.1)   # the pale cut ends
+            Wd.add(P, T, c, P[:, [0, 1]])
+            x += 2 * r + 0.01
+        y += 0.13
+    return {"wood": Wd}
+
+
+def picnic_table(rng):
+    """A pub's wooden picnic table with its benches, 1.8 m long."""
+    Wd = Mesh()
+    wood = np.array([0.2, 0.13, 0.07])
+    P, T, U = obox((0, 0.74, 0), (0.9, 0.025, 0.36)); _paint(Wd, P, T, U, wood, 0.3)
+    for z in (-0.62, 0.62):
+        P, T, U = obox((0, 0.45, z), (0.9, 0.022, 0.13)); _paint(Wd, P, T, U, wood, 0.35)
+    for x in (-0.7, 0.7):
+        for sz in (-1, 1):
+            P, T = tube([[x, 0.0, sz * 0.7], [x, 0.74, sz * 0.1]], 0.035, 5); _paint(Wd, P, T, P[:, [0, 1]], wood * 0.8, 0.4)
+        P, T, U = obox((x, 0.42, 0), (0.035, 0.03, 0.78)); _paint(Wd, P, T, U, wood * 0.8, 0.4)
+    return {"wood": Wd}
+
+
+def gravel_wash(rng):
+    """Grit and small stones washed onto the road's edge after rain: a low fan about 1.6 m along
+    and 0.6 m out, thickest at the verge (-z) and thinning onto the tarmac."""
+    St = Mesh()
+    for i in range(int(rng.integers(110, 160))):
+        u = rng.uniform(-0.8, 0.8); v = abs(rng.normal(0, 0.22)) * (1 - abs(u) / 1.0)
+        sz = rng.uniform(0.012, 0.035) * (1.2 - v)
+        P, T, uv = stone(rng, (sz * 1.3, sz * 0.6, sz), (u, sz * 0.3, -0.3 + v), rot_xyz(0, rng.uniform(0, 3), 0), res=(4, 6),
+                         round_=(0.3, 0.4), chops=1)
+        c = stone_col(rng, len(P), bright=rng.uniform(0.4, 0.6)); c[:, 3] = 0.0
+        St.add(P, T, c, uv)
+    return {"stone": St}
+
+
+def droppings(rng):
+    """Sheep droppings on the fell road: a few dark pellets in a loose scatter."""
+    Wd = Mesh()
+    for _ in range(int(rng.integers(8, 18))):
+        P = _unit(4, 6, 1, 1) * rng.uniform(0.006, 0.01) + [rng.normal(0, 0.06), 0.006, rng.normal(0, 0.06)]
+        _paint(Wd, P, _topology(4, 6), P[:, [0, 2]], (0.02, 0.016, 0.01), 0.2)
+    return {"wood": Wd}
