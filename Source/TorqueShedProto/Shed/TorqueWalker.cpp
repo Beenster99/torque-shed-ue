@@ -16,6 +16,7 @@
 #include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "UObject/ConstructorHelpers.h"
 
 ATorqueWalker::ATorqueWalker()
 {
@@ -31,6 +32,34 @@ ATorqueWalker::ATorqueWalker()
 	Camera->bUsePawnControlRotation = true;
 	Camera->SetFieldOfView(80.0f);
 	BaseEyeHeight = 72.0f;
+
+	// A grey-box body so other players in a co-op session can see you: legs, a torso in a work
+	// jacket, arms, a head and a cap peak that shows which way you face. You don't see your own.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Ball(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Block(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	struct FBit { const TCHAR* Name; int32 Shape; FVector At, Size; };   // capsule-centre cm; 0 cylinder, 1 sphere, 2 cube
+	const FBit Bits[] = {
+		{TEXT("Body_LegL"), 0, FVector(0, -10, -45), FVector(15, 15, 88)},
+		{TEXT("Body_LegR"), 0, FVector(0, 10, -45), FVector(15, 15, 88)},
+		{TEXT("Body_Torso"), 0, FVector(0, 0, 25), FVector(26, 40, 62)},
+		{TEXT("Body_ArmL"), 0, FVector(0, -25, 22), FVector(10, 10, 60)},
+		{TEXT("Body_ArmR"), 0, FVector(0, 25, 22), FVector(10, 10, 60)},
+		{TEXT("Body_Head"), 1, FVector(0, 0, 70), FVector(21, 19, 24)},
+		{TEXT("Body_CapPeak"), 2, FVector(12, 0, 77), FVector(10, 18, 2)},
+	};
+	for (const FBit& B : Bits)
+	{
+		UStaticMeshComponent* C = CreateDefaultSubobject<UStaticMeshComponent>(B.Name);
+		C->SetupAttachment(GetCapsuleComponent());
+		C->SetStaticMesh(B.Shape == 0 ? Cyl.Object : B.Shape == 1 ? Ball.Object : Block.Object);
+		C->SetRelativeLocation(B.At);
+		C->SetRelativeScale3D(B.Size / 100.0);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetOwnerNoSee(true);
+		C->SetCanEverAffectNavigation(false);
+	}
 
 	bUseControllerRotationYaw = true;
 	bUseControllerRotationPitch = false;
