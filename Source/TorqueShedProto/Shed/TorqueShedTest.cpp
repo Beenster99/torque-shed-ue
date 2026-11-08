@@ -45,7 +45,7 @@ const TCHAR* const FabSteps =
 	TEXT("place:bay_2,act,look:bike,shot,")
 	TEXT("order:four_1000,item:four_1000,f,item:four_1000,act,")
 	TEXT("part:frame,act,log,")
-	TEXT("tool:repair,part:frame,act,act,act,log,quit");
+	TEXT("tool:repair,part:frame,act,act,act,log,look:bike,shot,quit");
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 

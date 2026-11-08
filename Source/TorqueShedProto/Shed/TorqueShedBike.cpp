@@ -1,5 +1,7 @@
 #include "Shed/TorqueShedBike.h"
 
+#include "Shed/TorqueShedCatalogue.h"
+
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedParts.h"
 #include "Components/BoxComponent.h"
@@ -113,7 +115,7 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Bike, Which) : 0.0f);
 		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
-		if (B && B->PaintOf(Bike, Which, Paint))
+		if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))
 		{
 			M->SetVectorParameterValue(TEXT("Color"), Paint);
 			M->SetVectorParameterValue(TEXT("Color2"), Paint);
@@ -293,6 +295,22 @@ void ATorqueShedBike::Rebuild()
 		UE_LOG(LogTemp, Log, TEXT("Torque: bay %d is empty"), Bay + 1);   // just the stand
 		return;
 	}
+	// A bike of catalogue parts (any style): laid out and drawn from the Blender parts, its origin at
+	// its own rear axle's height (the stand lifts it a little more).
+	TMap<FString, FString> CatalogueParts;
+	if (B && B->LayoutParts(Bay, CatalogueParts))
+	{
+		double AxleHeight = 31.0;
+		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight);
+		if (Drawn > 0)
+		{
+			BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, AxleHeight + 1.5), FRotator(-2.0, 0.0, 0.0));
+			Relook();
+			UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %s drawn from the catalogue with %d surfaces"), Bay + 1, *B->Bike(Bay).Name, Drawn);
+			return;
+		}
+	}
+	BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 32.5), FRotator(-2.0, 0.0, 0.0));
 	const FTorqueBuild& Build = B ? B->Get(Bay) : UTorqueBuildSubsystem::BuildFor(this);
 	const int32 InBay = Bay;
 	const int32 Made = TorqueShedModel::MakePartsWhere(this, BikeRoot, Build,
