@@ -65,6 +65,9 @@ struct FTorqueShedBike
 	TMap<FName, int32> Slots;    // bike slots -> item id (0: empty)
 	TMap<FName, bool> Bolted;
 	bool bRode = false;          // ridden out: comes back dirtier
+	// Fabrication (shed_state fab_owed / fab_done): jobs a part fitted here needs made before the
+	// bike rides ("engine mounts made for a V-twin"), and those made already.
+	TArray<FString> FabOwed, FabDone;
 };
 
 // What a player asks of the shed (shed_state's actions).
@@ -85,6 +88,7 @@ enum class ETorqueShedAct : uint8
 	StartBuild,                          // the frame in your hands onto bay Bay's stand
 	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer")
 	RodeOut,                             // bay Bay's bike was ridden out
+	Fabricate,                           // the grinder and welder make bay Bay's next owed job
 	Count
 };
 
@@ -140,6 +144,11 @@ public:
 	TArray<FName> MissingSlots(int32 Bay) const;
 	TArray<FName> LooseSlots(int32 Bay) const;
 	bool IsComplete(int32 Bay) const;
+	// The fabrication the bike still owes, the next job first (only jobs its parts still need), and
+	// how long the grinder and welder take over one (shed_state fab_time: 4 s + its hours).
+	TArray<FString> FabOwed(int32 Bay) const;
+	static float FabTime(const FString& What);
+	FString FabOwedText(int32 Bay) const;
 	// The bay a fitted item is on (through its engine), or INDEX_NONE.
 	int32 BayOf(int32 ItemId) const;
 
@@ -262,6 +271,12 @@ private:
 	FHost HostOf(int32 Bay, FName Slot, int32 Engine) const { return const_cast<UTorqueBuildSubsystem*>(this)->HostOf(Bay, Slot, Engine); }
 	FString PartsOnIt(const FHost& Host, FName Slot) const;
 	FName InstallSlot(const FTorqueShedRequest& R, const FTorqueItem& It, FString& Error) const;
+	// What fitting's BikeLayout says of part Part in Slot on bay Bay's bike (BikeRig.part_tier, for the
+	// frame, engine, tank and fork): false when it can't judge (a Speed Twin part on it: those
+	// aren't in the catalogue), else the tier ("bolts on", "fabricate", "won't fit"), why, and the jobs.
+	bool FitTier(int32 Bay, FName Slot, FName Part, FString& OutTier, FString& OutReason, TArray<FString>& OutWork) const;
+	// The bike's parts as the layout reads them; false if any isn't a catalogue part.
+	bool LayoutParts(int32 Bay, TMap<FString, FString>& Out) const;
 	int32 NewItem(FName Part, float Rust, float Dirt, float Wear);
 	int32 AgedItem(FName Part, float Age);
 	void Move(int32 Id, ETorqueAt At, int32 Ref, FName Spot = NAME_None);

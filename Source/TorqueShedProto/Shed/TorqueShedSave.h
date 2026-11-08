@@ -44,6 +44,8 @@ struct FTorqueShedSaveBike
 	UPROPERTY() TMap<FName, int32> Slots;
 	UPROPERTY() TMap<FName, bool> Bolted;
 	UPROPERTY() bool bRode = false;
+	UPROPERTY() TArray<FString> FabOwed;
+	UPROPERTY() TArray<FString> FabDone;
 };
 
 UCLASS()

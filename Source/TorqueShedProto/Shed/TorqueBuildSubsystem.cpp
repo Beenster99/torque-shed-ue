@@ -1,5 +1,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 
+#include "Fit/BikeLayout.h"
+#include "Fit/PartsDb.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedSave.h"
@@ -9,6 +11,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Misc/Parse.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -69,6 +73,44 @@ FString EngineAccess(const TMap<int32, FTorqueItem>& Items, const FTorqueShedReq
 	const FTorqueItem* Block = Items.Find(R.Engine);
 	if (!Block || !(Block->At == ETorqueAt::Spot && SpotIs(Block->Spot, ETorquePlace::Stand))) return TEXT("Put the engine on the engine stand first.");
 	return FString();
+}
+std::string Std(const FString& S)
+{
+	FTCHARToUTF8 Conv(*S);
+	return std::string(Conv.Get(), Conv.Length());
+}
+
+FString Ue(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
+
+// Fitting's layout solver (Fit/BikeLayout: BikeRig in the Godot game), loaded once on the
+// catalogue and Data/Fitment/layout.json; null if it won't load.
+const TorqueFit::BikeLayout* FitLayout()
+{
+	static TorqueFit::PartsDb Db;
+	static TorqueFit::BikeLayout Lay;
+	static bool bTried = false, bOk = false;
+	if (!bTried)
+	{
+		bTried = true;
+		FString PartsText, LayoutText;
+		const FString Root = FPaths::ProjectDir();
+		std::string Error;
+		bOk = FFileHelper::LoadFileToString(PartsText, *FPaths::Combine(Root, TEXT("Data/Parts/parts.json"))) &&
+			FFileHelper::LoadFileToString(LayoutText, *FPaths::Combine(Root, TEXT("Data/Fitment/layout.json"))) &&
+			Db.LoadFromText(Std(PartsText), Error) && Lay.Load(Std(LayoutText), Db, Error);
+		if (!bOk)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: the bike layout didn't load (%s): every part bolts on"), *Ue(Error));
+		}
+	}
+	return bOk ? &Lay : nullptr;
+}
+
+// The slots Torque Shed asks the layout about when a part goes on (shed_state install).
+bool IsFitSlot(FName Slot)
+{
+	const FString S = Slot.ToString();
+	return S == TEXT("frame") || S == TEXT("engine") || S == TEXT("tank") || S == TEXT("fork");
 }
 } // namespace TorqueBuildImpl
 
@@ -156,6 +198,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.Slots = B.Slots;
 		To.Bolted = B.Bolted;
 		To.bRode = B.bRode;
+		To.FabOwed = B.FabOwed;
+		To.FabDone = B.FabDone;
 		S.Bikes.Add(To);
 	}
 	S.Items.Reset();
@@ -199,6 +243,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		To.Slots = From.Slots;
 		To.Bolted = From.Bolted;
 		To.bRode = From.bRode;
+		To.FabOwed = From.FabOwed;
+		To.FabDone = From.FabDone;
 	}
 	Items.Reset();
 	for (const FTorqueShedSaveItem& From : S.Items)
@@ -267,7 +313,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 1;   // bumped when the layout below changes
+constexpr int32 BytesLayout = 2;   // bumped when the layout below changes (2: fabrication)
 
 struct FNameTable
 {
@@ -346,6 +392,8 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		uint16 Model = Table.Of(B.Model);
 		Ar << Id << Name << Model << bRode;
 		TBI::WriteSlots(Ar, B.Slots, B.Bolted);
+		TArray<FString> Owed = B.FabOwed, Done = B.FabDone;
+		Ar << Owed << Done;
 	}
 	int32 ItemCount = Items.Num();
 	Ar << ItemCount;
@@ -419,6 +467,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		B.Model = NameAt(Model);
 		B.bRode = bRode != 0;
 		if (!TBI::ReadSlots(Ar, B.Slots, B.Bolted, true)) return false;
+		Ar << B.FabOwed << B.FabDone;
+		if (Ar.IsError() || B.FabOwed.Num() > 64 || B.FabDone.Num() > 64) return false;
 		if (NewBikes.IsValidIndex(I)) NewBikes[I] = B;
 	}
 	int32 ItemCount = 0;
@@ -743,7 +793,72 @@ TArray<FName> UTorqueBuildSubsystem::LooseSlots(int32 Bay) const
 
 bool UTorqueBuildSubsystem::IsComplete(int32 Bay) const
 {
-	return Exists(Bay) && MissingSlots(Bay).Num() == 0 && LooseSlots(Bay).Num() == 0;
+	return Exists(Bay) && MissingSlots(Bay).Num() == 0 && LooseSlots(Bay).Num() == 0 && FabOwed(Bay).Num() == 0;
+}
+
+// --- Fabrication (shed_state fab_owed, BikeRig.part_fit) ---------------------------------------------
+
+bool UTorqueBuildSubsystem::LayoutParts(int32 Bay, TMap<FString, FString>& Out) const
+{
+	Out.Reset();
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay || !Exists(Bay)) return false;
+	for (const std::string& SlotText : Lay->Slots())
+	{
+		const FString Slot = TBI::Ue(SlotText);
+		const FTorqueItem* It = Items.Find(ItemOn(Bay, FName(*Slot)));
+		if (It && (TorqueShedParts::IsStock(It->Part) || !TorqueShedParts::IsPart(It->Part))) return false;
+		Out.Add(Slot, It ? It->Part.ToString() : FString(TEXT("none")));
+	}
+	return true;
+}
+
+bool UTorqueBuildSubsystem::FitTier(int32 Bay, FName Slot, FName Part, FString& OutTier, FString& OutReason, TArray<FString>& OutWork) const
+{
+	OutWork.Reset();
+	TMap<FString, FString> Parts;
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay || !LayoutParts(Bay, Parts) || TorqueShedParts::IsStock(Part)) return false;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	std::vector<std::string> Done;
+	for (const FString& D : Bikes[Bay].FabDone) Done.push_back(TBI::Std(D));
+	const TorqueFit::PartTier T = Lay->PartFit(Map, TBI::Std(Slot.ToString()), TBI::Std(Part.ToString()), Done);
+	OutTier = TBI::Ue(T.Tier);
+	OutReason = TBI::Ue(T.Reason);
+	for (const TorqueFit::FabJob& J : T.Work) OutWork.Add(TBI::Ue(J.What));
+	return true;
+}
+
+TArray<FString> UTorqueBuildSubsystem::FabOwed(int32 Bay) const
+{
+	TArray<FString> Out;
+	if (!Exists(Bay) || Bikes[Bay].FabOwed.Num() == 0) return Out;
+	// A job whose part has come off again isn't owed any more: only what the bike's parts need now.
+	TMap<FString, FString> Parts;
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay || !LayoutParts(Bay, Parts)) return Bikes[Bay].FabOwed;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	const TorqueFit::Layout L = Lay->Solve(Map);
+	for (const FString& What : Bikes[Bay].FabOwed)
+		for (const std::string& Need : L.Fit.Work)
+			if (TBI::Ue(Need) == What)
+			{
+				Out.Add(What);
+				break;
+			}
+	return Out;
+}
+
+float UTorqueBuildSubsystem::FabTime(const FString& What)
+{
+	return 4.0f + (float)TorqueFit::BikeLayout::FabJobFor(TBI::Std(What)).Hours;
+}
+
+FString UTorqueBuildSubsystem::FabOwedText(int32 Bay) const
+{
+	return FString::Join(FabOwed(Bay), TEXT(", "));
 }
 
 int32 UTorqueBuildSubsystem::BayOf(int32 ItemId) const
@@ -983,6 +1098,14 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		const FName Where = InstallSlot(R, *HeldIt, Error);
 		if (Where.IsNone()) return Error;
 		if (R.Engine == 0 && TorqueShedParts::IsLowSlot(Where) && !R.bCrouched) return TEXT("Crouch down to reach it (C).");
+		if (R.Engine == 0 && TBI::IsFitSlot(Where))
+		{
+			// The frame, engine, tank and fork: what fitting's layout makes of it (won't fit stops it).
+			FString Tier, Reason;
+			TArray<FString> Work;
+			if (FitTier(R.Bay, Where, HeldIt->Part, Tier, Reason, Work) && Tier == TEXT("won't fit"))
+				return Reason.IsEmpty() ? FString(TEXT("That won't fit this bike.")) : Reason;
+		}
 		return TBI::EngineAccess(Items, R, Where);
 	}
 	case ETorqueShedAct::Take:
@@ -1114,6 +1237,11 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	}
 	case ETorqueShedAct::RodeOut:
 		return Exists(R.Bay) ? FString() : FString(TEXT("That bike has gone."));
+	case ETorqueShedAct::Fabricate:
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		if (Held != 0) return TEXT("Put the part down first.");
+		if (FabOwed(R.Bay).Num() == 0) return TEXT("It doesn't need any fabrication.");
+		return FString();
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -1211,6 +1339,18 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		FString Error;
 		const FName S = InstallSlot(R, Items[Held], Error);
+		// A part that needs fabrication goes on, and the bike owes the jobs (see FabOwed).
+		FString Fab;
+		if (R.Engine == 0 && TBI::IsFitSlot(S))
+		{
+			FString Tier, Reason;
+			TArray<FString> Work;
+			if (FitTier(R.Bay, S, Items[Held].Part, Tier, Reason, Work) && Tier == TEXT("fabricate") && Work.Num() > 0)
+			{
+				for (const FString& W : Work) Bikes[R.Bay].FabOwed.AddUnique(W);
+				Fab = FString::Printf(TEXT(" It needs fabrication before it'll ride: %s. Take the grinder and welder to it."), *FString::Join(Work, TEXT(", ")));
+			}
+		}
 		const FHost H = HostOf(R.Bay, S, R.Engine);
 		H.Slots->Add(S, Held);
 		H.Bolted->Add(S, false);
@@ -1226,7 +1366,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			Move(Tyre, ETorqueAt::Bike, H.Bay);
 			Items[Held].Tyre = 0;
 		}
-		Text = FString::Printf(TEXT("Fitted the %s as the %s. Bolt it up with the wrench."), *ItemTitle(Held), *TorqueShedParts::SlotName(S).ToLower());
+		Text = FString::Printf(TEXT("Fitted the %s as the %s. Bolt it up with the wrench."), *ItemTitle(Held), *TorqueShedParts::SlotName(S).ToLower()) + Fab;
 		if (H.Bay != INDEX_NONE) PartsOf.Add(H.Bay);
 		bItems = true;
 		break;
@@ -1378,6 +1518,17 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	case ETorqueShedAct::RodeOut:
 		Bikes[R.Bay].bRode = true;
 		break;
+	case ETorqueShedAct::Fabricate:
+	{
+		const FString What = FabOwed(R.Bay)[0];
+		FTorqueShedBike& B = Bikes[R.Bay];
+		B.FabOwed.Remove(What);
+		B.FabDone.AddUnique(What);
+		const FString Left = FabOwedText(R.Bay);
+		Text = FString::Printf(TEXT("Made the %s. %s"), *What,
+			Left.IsEmpty() ? (IsComplete(R.Bay) ? TEXT("That's the fabrication done: the bike is ready to ride!") : TEXT("That's the fabrication done.")) : *FString::Printf(TEXT("Still to make: %s."), *Left));
+		break;
+	}
 	default:
 		break;
 	}

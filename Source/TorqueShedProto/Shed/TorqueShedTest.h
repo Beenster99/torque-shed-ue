@@ -8,6 +8,8 @@
 // map has loaded), through the walker's own targeting, plan and request, as a player's would, and
 // logs "Torque test: ..." lines:
 //   loop                  the steps above
+//   fab                   (alone) a scratch build that needs fabrication: a softail frame set up in bay 3,
+//                         a four fitted to it (jobs owed), the grinder and welder making them
 //   bay:<n>               the steps after work on bay n's bike (1-4; 1 to start with)
 //   tool:<tool>           hands, wrench, brush, repair, spray or lance
 //   crouch:<0|1>          crouch (C) or stand

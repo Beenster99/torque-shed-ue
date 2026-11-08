@@ -796,6 +796,14 @@ void ATorqueWalker::MakePlan()
 	}
 	case ETorqueTool::Repair:
 	{
+		// A bike that owes fabrication (a part fitted that needed it): make the next job.
+		const TArray<FString> Owed = Target == ETorqueLook::BikePart ? B->FabOwed(TargetBay) : TArray<FString>();
+		if (Owed.Num() > 0)
+		{
+			Plan = MakeOne(ETorqueShedAct::Fabricate, UTorqueBuildSubsystem::FabTime(Owed[0]), TEXT("make the ") + Owed[0]);
+			Plan.Request.Bay = TargetBay;
+			break;
+		}
 		// On the repair bench it does the lot; anywhere else the shed says to put it there.
 		TArray<int32> Batch;
 		const bool bAtRepair = TargetPlace && TargetPlace->Kind == ETorquePlace::Repair;
@@ -957,6 +965,12 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 		Say(Why, false, 4.0);
 		return;
 	}
+	const FString Fab = B->FabOwedText(Bay);
+	if (!Fab.IsEmpty())
+	{
+		Say(FString::Printf(TEXT("It needs fabrication first: %s. Take the grinder and welder to it."), *Fab), false, 4.0);
+		return;
+	}
 	if (B->HeldBy(B->Me()) != 0)
 	{
 		Say(TEXT("Put down what you're holding first."), false, 2.5);
@@ -1095,6 +1109,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({FString::Printf(TEXT("%s: %s   %s"), *TorqueShedParts::SlotName(TargetSlot), *B->ItemTitle(TargetItem),
 			B->IsBolted(TargetBay, TargetSlot) ? TEXT("bolted") : TEXT("loose")), FColor::White, 0.8f});
 		if (Thing) HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
+		const FString Fab = B->FabOwedText(TargetBay);
+		if (!Fab.IsEmpty()) HudLines.Add({TEXT("Needs fabrication: ") + Fab + TEXT(" (grinder and welder)"), Info, 0.55f});
 		break;
 	}
 	case ETorqueLook::Item:

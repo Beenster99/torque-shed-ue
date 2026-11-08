@@ -37,6 +37,16 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log,quit");
 
+// A scratch build that needs fabrication (layout_test: a four in the bobber's softail frame): order
+// the frame, set it up in the empty bay 3, order the engine and fit it (jobs owed), make the jobs
+// with the grinder and welder.
+const TCHAR* const FabSteps =
+	TEXT("bay:3,order:softail_hardtail,item:softail_hardtail,f,item:softail_hardtail,act,")
+	TEXT("place:bay_2,act,look:bike,shot,")
+	TEXT("order:four_1000,item:four_1000,f,item:four_1000,act,")
+	TEXT("part:frame,act,log,")
+	TEXT("tool:repair,part:frame,act,act,act,log,quit");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -51,6 +61,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 	FString Spec;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueShedAction="), Spec, false)) return;
 	if (Spec.TrimStartAndEnd() == TEXT("loop")) Spec = TSTI::LoopSteps;
+	else if (Spec.TrimStartAndEnd() == TEXT("fab")) Spec = TSTI::FabSteps;
 	Spec.ParseIntoArray(Steps, TEXT(","), true);
 	UE_LOG(LogTemp, Log, TEXT("Torque test: %d shed steps: %s"), Steps.Num(), *Spec);
 	Ticker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UTorqueShedTest::Step), 0.0f);
