@@ -325,6 +325,15 @@ def jeans(p):
         crease = np.clip(1.0 - dH / 13.0, 0, 1)
         leg = leg + crease * 0.4 * np.sin(((p - H) @ unit(K - H)) * 1.1 + fold_noise(p, 10.0, 13 + s))
         leg = leg + 0.1 * fold_noise(p, 4.0, 17 + s)
+        # Riding jeans: a knee armour pocket, a low flattish pad on the front of the knee pushing the
+        # denim out, its stitched outline showing.
+        kf = np.asarray(KNEE_POLE, np.float64) * np.array([1.0, s, 1.0])
+        t_ = unit(unit(K - H) + unit(A - K))
+        kf = unit(kf - t_ * (kf @ t_))
+        kc = K + kf * 5.4 + unit(A - K) * 2.0
+        kp = ellipsoid(p, kc, (7.5, 5.2, 1.6), np.stack([t_, unit(np.cross(kf, t_)), kf]))
+        leg = smin(leg, kp, 1.2)
+        leg = groove(leg, kp + 0.6, 0.3, 0.09)
         # Outer seam down the leg.
         side = unit(np.cross(unit(K - H), np.array([0, 0, 1.0]))) * -s
         leg = groove(leg, np.abs((p - H) @ side - 7.5), 0.3, 0.1)
@@ -359,6 +368,20 @@ def boots(p):
         if s < 0:
             bt = smin(bt, ellipsoid(p, B + fw * 3.0 + up * 3.0, (4.0, 3.5, 0.8), np.stack([fw, side, unit(up + fw * 0.3)])), 0.6)
         bt = groove(bt, np.abs((p - A) @ side * s + 4.2), 0.25, 0.1)
+        # Ankle armour: a domed disc over each ankle bone, its edge stitched.
+        for sd in (1.0, -1.0):
+            ac = A + side * (4.7 * sd * s) + up * 0.6 - fw * 0.6
+            dome = ellipsoid(p, ac, (3.0, 1.1, 3.0), np.stack([fw, side, up]))
+            bt = smin(bt, dome, 0.8)
+            bt = groove(bt, np.abs(np.linalg.norm((p - ac) - np.outer((p - ac) @ side, side), axis=1) - 3.2), 0.22, 0.08)
+        # The toe cap's and heel counter's seams, and the welt stitching just above the sole.
+        bt = groove(bt, np.abs((p - B) @ fw - 1.5), 0.22, 0.09)
+        bt = groove(bt, np.abs((p - A) @ fw + 2.8) * (((p - A) @ up) < 1.0) + 9.0 * (((p - A) @ up) >= 1.0), 0.22, 0.09)
+        bt = groove(bt, np.abs(p[:, 2] - (sole_top + 0.55)), 0.15, 0.07)
+        # A strap across the instep, proud of the leather, fastened on the outside.
+        ic = A + fw * 2.5 + up * 0.2
+        strap = smax(np.abs((p - ic) @ unit(fw + up * 0.9)) - 1.3, bt - 0.35, 0.2)
+        bt = smin(bt, strap, 0.2)
         groups["boot_" + x] = bt
         out = np.minimum(out, bt)
     return out, groups
@@ -378,7 +401,10 @@ def soles(p):
                                np.stack([fw, side, up]), 0.5), 0.3)
         # Tread grooves underneath.
         under = np.clip(1.0 - (p[:, 2] - bottom) / 0.6, 0, 1)
-        sole = sole + under * 0.15 * (np.sin((p - A) @ fw * 2.2) > 0.4)
+        # Chevron lugs.
+        along = (p - A) @ fw; across = np.abs((p - A) @ side)
+        lug = np.clip((np.sin((along + 0.5 * across) * 2.0) - 0.2) * 2.5, 0, 1)
+        sole = sole + under * 0.3 * lug
         groups["sole_" + x] = sole
         out = np.minimum(out, sole)
     return out, groups
