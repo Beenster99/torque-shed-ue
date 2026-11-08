@@ -534,11 +534,26 @@ def build():
         foot.extend(tube(np.linspace(a, a + FORK_DIR * 0.07, 4), 0.026, 28))   # the foot the tube sits in
         lower.extend(foot.masked(1.0))
     put("fork_lowers", lower, "fork_inner", "front_lower")
+    # Radial monobloc calipers behind the fork legs: a body curved round the rotor's rim, straddling
+    # it, with the piston bores standing out on the outer face and radial mounting lugs towards the
+    # leg. Black cast, machined lug faces (the mask).
     calipers = Mesh()
-    for z in (-0.085, 0.085):
-        c = np.array([-0.12, 0.08, z])
-        calipers.extend(box(c + FORK_BACK * 0.0, (0.05, 0.11, 0.035), 4.0))
-    put("front_calipers", calipers.transformed(rot_z(-0.5)), "black_engine", "front_lower")
+    for z in (-0.075, 0.075):
+        sgn = 1 if z > 0 else -1
+        arc = np.radians(np.linspace(116, 156, 14))
+        path = np.stack([0.152 * np.cos(arc), 0.152 * np.sin(arc), np.full_like(arc, z)], 1)
+        taper = 0.75 + 0.25 * np.sin(np.linspace(0, math.pi, 14)) ** 0.5
+        calipers.extend(sweep(path, 0.029 * taper, 0.024 * taper, 5.0, 28, up_hint=(0, 0, 1)))
+        for ang in (126, 146):
+            c = np.array([0.140 * math.cos(math.radians(ang)), 0.140 * math.sin(math.radians(ang)), z + sgn * 0.022])
+            calipers.extend(lathe([(0.0, 0.0), (0.016, 0.0), (0.017, 0.004), (0.015, 0.008), (0.0, 0.009)], seg=24,
+                                  axis=(0, 0, sgn), centre=c))
+        for ang in (118, 154):               # mounting lugs, bolted radially to the leg's foot
+            c = np.array([0.18 * math.cos(math.radians(ang)), 0.18 * math.sin(math.radians(ang)), z + sgn * 0.012])
+            lug = lathe([(0.0, -0.012), (0.009, -0.012), (0.009, 0.012), (0.0, 0.012)], seg=16,
+                        axis=(math.cos(math.radians(ang)), math.sin(math.radians(ang)), 0), centre=c)
+            calipers.extend(lug.masked(1.0))
+    put("front_calipers", calipers, "black_engine", "front_lower")
     a = np.linspace(math.radians(125), math.radians(30), 20)
     rg = 0.325
     guard_path = np.stack([rg * np.cos(a), rg * np.sin(a), np.zeros_like(a)], 1)
