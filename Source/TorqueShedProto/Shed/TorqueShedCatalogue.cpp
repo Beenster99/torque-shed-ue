@@ -353,6 +353,12 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 					const FLinearColor Colour = TorqueShedParts::DefaultColour(FName(*PartId));
 					M->SetVectorParameterValue(TEXT("Color"), Colour);
 					M->SetVectorParameterValue(TEXT("Color2"), Colour);
+					// MI_paint_silver is the Speed Twin's metallic silver; Torque Shed's paint is solid
+					// gloss colour (plastic a little duller), so it isn't metal.
+					const bool bPlastic = TorqueShedParts::BinFor(FName(*PartId)) == FName(TEXT("plastic"));
+					for (const TCHAR* Name : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Name, 0.0f);
+					for (const TCHAR* Name : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Name, bPlastic ? 0.45f : 0.3f);
+					M->SetScalarParameterValue(TEXT("RoughVar"), 0.05f);
 				}
 			}
 			Out.Add(C);
