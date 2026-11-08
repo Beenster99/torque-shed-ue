@@ -7,18 +7,49 @@
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
 #include "Coop/TorqueSession.h"
+#include "Coop/TorquePlayerController.h"
+#include "Coop/TorquePlayerState.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerState.h"
 
 void ATorqueHUD::DrawHUD()
 {
 	Super::DrawHUD();
+	ATorquePlayerController* TPC = Cast<ATorquePlayerController>(GetOwningPlayerController());
 	if (ATorqueMenuPawn* Menu = Cast<ATorqueMenuPawn>(GetOwningPawn()))
 	{
-		Menu->DrawMenu(this, Canvas);
+		// The start menu, or its Settings over it.
+		if (TPC && TPC->IsMenuUp()) TPC->DrawMenu(this, Canvas);
+		else Menu->DrawMenu(this, Canvas);
 		return;
 	}
+	if (TPC && TPC->IsMenuUp())
+	{
+		TPC->DrawMenu(this, Canvas);   // the pause menu: nothing else over it
+		return;
+	}
+	if (TPC) TPC->DrawNote(this, Canvas);
 	DrawRiderNames();
+	// Hosting: what to tell friends, for the first minute (then it's in the Esc menu).
+	if (const UTorqueSession* Session = UTorqueSession::Get(this); Session && Canvas && GEngine && GetWorld() &&
+		Session->IsHosting() && GetWorld()->GetTimeSeconds() < 60.0)
+	{
+		UFont* F = GEngine->GetLargeFont();
+		const float HS = Canvas->ClipY / 1080.0f * 0.75f;
+		float HY = 90.0f * Canvas->ClipY / 1080.0f;
+		TArray<FString> Lines = Session->JoinInstructions();
+		Lines.Add(TEXT("(Esc shows this again)"));
+		for (const FString& L : Lines)
+		{
+			float W = 0, H = 0;
+			Canvas->StrLen(F, L, W, H);
+			const float HX = Canvas->ClipX - W * HS - 50.0f * HS;
+			DrawRect(FLinearColor(0, 0, 0, 0.35f), HX - 8.0f * HS, HY - 3.0f * HS, W * HS + 16.0f * HS, H * HS + 6.0f * HS);
+			Canvas->SetDrawColor(FColor(170, 230, 255));
+			Canvas->DrawText(F, L, HX, HY, HS, HS);
+			HY += H * HS + 8.0f * HS;
+		}
+	}
 	// Hosting with EOS: the code friends join with, top right.
 	if (const UTorqueSession* Session = UTorqueSession::Get(this); Session && !Session->FriendCode.IsEmpty() && Canvas && GEngine)
 	{
@@ -87,7 +118,26 @@ void ATorqueHUD::DrawRiderNames()
 		Canvas->StrLen(Font, Text, W, H);
 		const float X = Screen.X - 0.5f * W * K, Y = Screen.Y - H * K;
 		DrawRect(FLinearColor(0, 0, 0, 0.35f), X - 6.0f * Sc, Y - 3.0f * Sc, W * K + 12.0f * Sc, H * K + 6.0f * Sc);
-		Canvas->SetDrawColor(FColor(255, 230, 150));
+		// The name in the colour they chose (Settings > Character); pale for the dark ones.
+		const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS);
+		FColor NameColour(255, 230, 150);
+		if (TPS)
+		{
+			const FColor C = TPS->ColourValue();
+			NameColour = (C.R + C.G + C.B) < 200 ? FColor(220, 220, 220) : C;
+		}
+		Canvas->SetDrawColor(NameColour);
 		Canvas->DrawText(Font, Text, X, Y, K, K);
+		// In the shed, what they're doing: "fitting clubman bars to bay 2".
+		if (TPS && !TPS->Activity.IsEmpty() && Metres < 40.0)
+		{
+			const float AK = K * 0.7f;
+			float AW = 0, AH = 0;
+			Canvas->StrLen(Font, TPS->Activity, AW, AH);
+			const float AX = Screen.X - 0.5f * AW * AK, AY = Y + H * K + 6.0f * Sc;
+			DrawRect(FLinearColor(0, 0, 0, 0.3f), AX - 5.0f * Sc, AY - 2.0f * Sc, AW * AK + 10.0f * Sc, AH * AK + 4.0f * Sc);
+			Canvas->SetDrawColor(FColor(200, 230, 200));
+			Canvas->DrawText(Font, TPS->Activity, AX, AY, AK, AK);
+		}
 	}
 }

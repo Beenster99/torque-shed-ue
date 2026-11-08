@@ -2,6 +2,9 @@
 
 #include "TorqueRouter.h"
 #include "TorqueSettings.h"
+#include "TorquePlayerState.h"
+#include "Shed/TorqueBuildSubsystem.h"
+#include "GameFramework/GameStateBase.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -283,6 +286,18 @@ void UTorqueSession::LeaveSession()
 	if (Sessions && Sessions->GetNamedSession(NAME_GameSession)) Sessions->DestroySession(NAME_GameSession);
 	LeaveEosSession();
 	if (Router) Router->Close();
+	// A joined player had the host's shed: back to their own.
+	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+		if (B->IsHostCopy()) B->LeaveHostShed();
+}
+
+void UTorqueSession::BackToTitle()
+{
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	if (!World) return;
+	// The host leaving ends the ride: the others are told the host has gone and go to their menus.
+	LeaveSession();
+	Travel(FirstMap());   // no "play": the start menu
 }
 
 int32 UTorqueSession::GamePort()
@@ -366,6 +381,24 @@ void UTorqueSession::StartRide(UObject* WorldContext)
 	}
 	if (Mode == NM_ListenServer || Mode == NM_DedicatedServer)
 	{
+		// Every rider's bike comes back dirtier (TorqueFlow marks the host's own).
+		UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
+		if (B && World->GetGameState())
+		{
+			TSet<int32> Marked;
+			Marked.Add(B->MyBike());
+			for (APlayerState* PS : World->GetGameState()->PlayerArray)
+			{
+				const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS);
+				if (!TPS || TPS->Bay < 0 || Marked.Contains(TPS->Bay) || !B->Exists(TPS->Bay)) continue;
+				Marked.Add(TPS->Bay);
+				FTorqueShedRequest R;
+				R.Kind = ETorqueShedAct::RodeOut;
+				R.Bike = TPS->Bay;
+				FText Ignored;
+				B->Apply(R, Ignored);
+			}
+		}
 		// Everyone comes too: the game mode's seamless travel keeps each rider connected.
 		World->ServerTravel(FString(RideMap) + TEXT("?listen?play"), false);
 		return;

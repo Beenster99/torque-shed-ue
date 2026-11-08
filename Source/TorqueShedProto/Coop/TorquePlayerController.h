@@ -6,11 +6,15 @@
 // join with. Alone, it pauses the game; in co-op the world carries on.
 //
 // While a page is up, the bike and the walker leave the controls alone (MenuUp).
+//
+// It also carries this player's shed actions to the host in co-op (TorqueShedNet.h): a joined
+// player's fits, paints and new bikes as they happen, washing summed ten times a second.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "SonyPad.h"
+#include "TorqueShedNet.h"
 #include "TorquePlayerController.generated.h"
 
 class AHUD;
@@ -36,6 +40,13 @@ public:
 	void OpenSettings();   // the start menu's Settings
 	void CloseMenu();
 	void DrawMenu(AHUD* Hud, UCanvas* Canvas);
+	// A short note from the host (a part that didn't fit), under the middle of the screen.
+	void DrawNote(AHUD* Hud, UCanvas* Canvas);
+
+	// The shed in co-op: a joined player's actions, for the host to apply.
+	UFUNCTION(Server, Reliable) void ServerShed(const FTorqueShedRequestNet& Request);
+	UFUNCTION(Server, Reliable) void ServerClean(const TArray<FTorqueCleanNet>& Washed);
+	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
 
 private:
 	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Controller, Character, Controls };
@@ -67,5 +78,16 @@ private:
 	void Changed();
 	void TypeName();
 	void ReadMenuInput(float Dt);
-	bool WantsPause() ;
+	bool WantsPause();
+
+	// The shed in co-op.
+	bool ForwardShed(const FTorqueShedRequest& Request);
+	void SyncPlayerState(float Dt);
+	TMap<TPair<int32, FName>, float> Washing;
+	double WashSendIn = 0.0;
+	FString SentActivity;
+	int32 SentBay = -2;
+	bool bLookSent = false;
+	FString Note;
+	double NoteFor = 0.0;
 };

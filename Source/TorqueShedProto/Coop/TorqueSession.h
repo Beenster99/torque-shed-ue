@@ -55,6 +55,8 @@ public:
 	FString FriendCode;
 	// Back at the menu: leave any ride hosted or joined before.
 	void LeaveSession();
+	// The pause menu's "Back to the start menu" / "Leave the ride" / "End the co-op ride".
+	void BackToTitle();
 
 	// From the shed's "ride out" (TorqueFlow::RideOut) and back: in co-op the host takes everyone
 	// (a seamless server travel); a joined rider waits for the host; alone, just go.

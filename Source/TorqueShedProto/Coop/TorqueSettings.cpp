@@ -125,7 +125,8 @@ void FTorqueSettings::Apply(UWorld* World) const
 	SetCVar(TEXT("r.MotionBlurQuality"), bMotionBlur ? 4 : 0);
 	if (World)
 	{
-		if (FAudioDeviceHandle Audio = World->GetAudioDevice()) Audio->SetTransientPrimaryVolume(FMath::Clamp(Master, 0.0f, 1.0f));
+		FAudioDeviceHandle Audio = World->GetAudioDevice();
+		if (Audio.IsValid()) Audio->SetTransientPrimaryVolume(FMath::Clamp(Master, 0.0f, 1.0f));
 	}
 }
 

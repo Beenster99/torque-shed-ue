@@ -1,6 +1,7 @@
 #include "TorqueMenuPawn.h"
 
 #include "TorqueSession.h"
+#include "TorquePlayerController.h"
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
 #include "Engine/Canvas.h"
@@ -70,17 +71,16 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 	E.Hint = bShed ? TEXT("Into the shed, then out onto Buttertubs") : TEXT("Buttertubs, from the top down to Keld");
 	Out.Add(E);
 	E.Kind = EItem::Host;
-	E.Text = TEXT("Host a co-op ride");
+	E.Text = bShed ? TEXT("Host a co-op shed") : TEXT("Host a co-op ride");
 	E.Hint = S && S->HasEos()
 		? FString(TEXT("You'll get a friend code to share: friends anywhere join with it (no port forwarding)"))
-		: S && !S->LocalAddress().IsEmpty()
-		? FString::Printf(TEXT("Friends join %s (over the internet: your public address, with port 7777 forwarded)"), *S->LocalAddress())
-		: FString(TEXT("Friends join by this PC's address, port 7777"));
+		: FString::Printf(TEXT("Friends type your address to join%s; the game asks your router to open the port itself, and Esc shows the address"),
+			  S && !S->LocalAddress().IsEmpty() ? *FString::Printf(TEXT(" (%s at home)"), *S->LocalAddress()) : TEXT(""));
 	Out.Add(E);
 	E.Kind = EItem::Join;
-	E.Text = FString::Printf(TEXT("Join by address:  %s%s"), Address.IsEmpty() ? TEXT("") : *Address,
+	E.Text = FString::Printf(TEXT("Join:  %s%s"), Address.IsEmpty() ? TEXT("") : *Address,
 		FMath::Fmod(Clock, 1.0) < 0.5 ? TEXT("_") : TEXT(" "));
-	E.Hint = TEXT("Type the host's address (digits, dots, : for a port); Ctrl+V pastes");
+	E.Hint = TEXT("Type the host's address or name (192.168.1.20, 81.2.3.4:7777, a name like myshed.ddns.net), Enter joins; Ctrl+V pastes");
 	Out.Add(E);
 	if (S && S->HasEos())
 	{
@@ -106,6 +106,10 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 	E.Lan = -1;
 	E.Text = S && S->IsSearching() ? TEXT("Looking for rides on this network...") : TEXT("Look for rides on this network");
 	E.Hint = TEXT("Rides hosted on this network appear above by themselves");
+	Out.Add(E);
+	E.Kind = EItem::Settings;
+	E.Text = TEXT("Settings");
+	E.Hint = TEXT("Graphics, sound, controller and character");
 	Out.Add(E);
 	E.Kind = EItem::Quit;
 	E.Text = TEXT("Quit");
@@ -133,6 +137,9 @@ void ATorqueMenuPawn::Choose(const FEntry& E)
 		break;
 	case EItem::Lan: Busy = TEXT("Joining..."); S->JoinLan(E.Lan); break;
 	case EItem::Search: S->FindLanGames(); SearchClock = 0.0; break;
+	case EItem::Settings:
+		if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC)) TPC->OpenSettings();
+		break;
 	case EItem::Quit:
 		if (PC) PC->ConsoleCommand(TEXT("quit"));
 		break;
@@ -157,8 +164,18 @@ void ATorqueMenuPawn::TypeAddress(APlayerController* PC)
 	{
 		if (PC->WasInputKeyJustPressed(Digits[D]) || PC->WasInputKeyJustPressed(Pad10[D])) Address.AppendChar(TCHAR('0' + D));
 	}
+	// Host names (letters, digits, dots, hyphens) and IPv6 ([::1]:7777) too.
+	static const FKey Letters[26] = {EKeys::A, EKeys::B, EKeys::C, EKeys::D, EKeys::E, EKeys::F, EKeys::G, EKeys::H,
+		EKeys::I, EKeys::J, EKeys::K, EKeys::L, EKeys::M, EKeys::N, EKeys::O, EKeys::P, EKeys::Q, EKeys::R, EKeys::S,
+		EKeys::T, EKeys::U, EKeys::V, EKeys::W, EKeys::X, EKeys::Y, EKeys::Z};
+	if (!bCtrl)
+		for (int32 L = 0; L < 26; ++L)
+			if (PC->WasInputKeyJustPressed(Letters[L])) Address.AppendChar(TCHAR('a' + L));
 	if (PC->WasInputKeyJustPressed(EKeys::Period) || PC->WasInputKeyJustPressed(EKeys::Decimal)) Address.AppendChar(TEXT('.'));
 	if (PC->WasInputKeyJustPressed(EKeys::Semicolon)) Address.AppendChar(TEXT(':'));
+	if (PC->WasInputKeyJustPressed(EKeys::Hyphen) || PC->WasInputKeyJustPressed(EKeys::Subtract)) Address.AppendChar(TEXT('-'));
+	if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) Address.AppendChar(TEXT('['));
+	if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) Address.AppendChar(TEXT(']'));
 	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && Address.Len() > 0) Address.LeftChopInline(1);
 	if (PC->WasInputKeyJustPressed(EKeys::Delete)) Address.Reset();
 	Address = Address.Left(64);
@@ -206,6 +223,7 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC || !Busy.IsEmpty()) return;
+	if (ATorquePlayerController::MenuUp(PC)) return;   // Settings is open over the menu
 	const TArray<FEntry> List = Entries();
 	Selected = FMath::Clamp(Selected, 0, List.Num() - 1);
 
@@ -257,7 +275,7 @@ void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 		Y += H * K + 14.0f * Sc;
 	};
 	Line(TEXT("TORQUE SHED"), FColor::White, 3.2f, 0.45f);
-	Line(TEXT("Buttertubs, on your own or with friends"), FColor(210, 210, 210), 1.1f, 0.35f);
+	Line(TEXT("Build bikes in the shed and ride Buttertubs, on your own or with friends"), FColor(210, 210, 210), 1.1f, 0.35f);
 	Y += 30.0f * Sc;
 	const TArray<FEntry> List = Entries();
 	const UTorqueSession* S = UTorqueSession::Get(this);

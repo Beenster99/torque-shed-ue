@@ -1,4 +1,5 @@
-// The start menu: Ride solo, Host a co-op ride, Join by address, rides found on this network, Quit.
+// The start menu: Ride solo, Host co-op, Join by address or name, rides found on this network,
+// Settings (ATorquePlayerController's pages), Quit.
 // A slow camera over wherever the game starts (the shed, or the top of Buttertubs) with the menu
 // drawn by ATorqueHUD. Keys, an Xbox pad or a PlayStation pad (read directly, as on the bike).
 //
@@ -32,7 +33,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Menu") UCameraComponent* Camera;
 
 private:
-	enum class EItem : uint8 { Solo, Host, Join, Code, Lan, Search, Quit };
+	enum class EItem : uint8 { Solo, Host, Join, Code, Lan, Search, Settings, Quit };
 	struct FEntry
 	{
 		EItem Kind = EItem::Solo;

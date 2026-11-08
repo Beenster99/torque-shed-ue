@@ -10,8 +10,8 @@ public class TorqueShedProto : ModuleRules
 		bUseUnity = false;
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json", "RenderCore", "RHI",
 			// Co-op (Coop/): sessions through the online subsystem (Null now, EOS later), this PC's address,
-			// pasting an address into the menu.
-			"OnlineSubsystem", "OnlineSubsystemUtils", "Sockets", "Networking", "ApplicationCore" });
+			// pasting an address into the menu, and asking the router to open the port (UPnP over HTTP).
+			"OnlineSubsystem", "OnlineSubsystemUtils", "Sockets", "Networking", "ApplicationCore", "HTTP" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
 		// Shed/ and other subfolders include each other as "Shed/X.h" from the module root.
 		PrivateIncludePaths.Add(ModuleDirectory);

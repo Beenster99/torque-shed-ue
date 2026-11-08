@@ -5,6 +5,7 @@
 #include "TorqueSession.h"
 #include "TorqueSettings.h"
 #include "TorqueBikePawn.h"
+#include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueWalker.h"
 #include "Engine/Canvas.h"
@@ -46,13 +47,98 @@ void ATorquePlayerController::BeginPlay()
 	FTorqueSettings& S = FTorqueSettings::Get();
 	const bool bTest = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
 	if (S.bSaved && !bTest) S.Apply(GetWorld());
-	// Everyone sees the colour (and the name, if it was changed since joining) this player chose.
-	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>())
-		if (GetNetMode() != NM_Standalone) PS->ServerSetLook(S.Name, (uint8)S.Colour);
+	// A joined player: shed actions go to the host.
+	if (GetNetMode() == NM_Client)
+		if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->Forward.BindUObject(this, &ATorquePlayerController::ForwardShed);
+}
+
+bool ATorquePlayerController::ForwardShed(const FTorqueShedRequest& Request)
+{
+	if (Request.Kind == ETorqueShedAct::Clean)
+	{
+		Washing.FindOrAdd(TPair<int32, FName>(Request.Bike, Request.Part)) += Request.Amount;
+		return true;
+	}
+	ServerShed(TorqueShedNet::ToNet(Request));
+	return true;
+}
+
+void ATorquePlayerController::ServerShed_Implementation(const FTorqueShedRequestNet& Request)
+{
+	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B) return;
+	FText WhyNot;
+	if (!B->Apply(TorqueShedNet::FromNet(Request), WhyNot) && !WhyNot.IsEmpty()) ClientNote(WhyNot.ToString());
+}
+
+void ATorquePlayerController::ServerClean_Implementation(const TArray<FTorqueCleanNet>& Washed)
+{
+	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B) return;
+	for (int32 I = 0; I < FMath::Min(Washed.Num(), 256); ++I)
+	{
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::Clean;
+		R.Bike = Washed[I].Bike;
+		R.Part = Washed[I].Part;
+		R.Amount = FMath::Clamp(Washed[I].Amount, 0.0f, 1.0f);
+		FText Ignored;
+		B->Apply(R, Ignored);
+	}
+}
+
+void ATorquePlayerController::ClientNote_Implementation(const FString& Text)
+{
+	Note = Text.Left(200);
+	NoteFor = 4.0;
+}
+
+void ATorquePlayerController::SyncPlayerState(float Dt)
+{
+	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B || GetNetMode() == NM_Standalone) return;
+	// Washing: summed, sent ten times a second.
+	WashSendIn -= Dt;
+	if (Washing.Num() > 0 && WashSendIn <= 0.0)
+	{
+		TArray<FTorqueCleanNet> Batch;
+		for (const TPair<TPair<int32, FName>, float>& W : Washing)
+		{
+			FTorqueCleanNet C;
+			C.Bike = W.Key.Key;
+			C.Part = W.Key.Value;
+			C.Amount = W.Value;
+			Batch.Add(C);
+		}
+		Washing.Reset();
+		WashSendIn = 0.1;
+		ServerClean(Batch);
+	}
+	// What this player is doing and which bay is theirs, for everyone to see.
+	ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	if (!PS) return;
+	// Once the player state is here: the colour (and the name, if changed since joining) chosen.
+	if (!bLookSent)
+	{
+		bLookSent = true;
+		PS->ServerSetLook(FTorqueSettings::Get().Name, (uint8)FTorqueSettings::Get().Colour);
+	}
+	if (B->Activity() != SentActivity)
+	{
+		SentActivity = B->Activity();
+		PS->ServerSetActivity(SentActivity);
+	}
+	if (B->MyBike() != SentBay)
+	{
+		SentBay = B->MyBike();
+		PS->ServerSetBay(SentBay);
+	}
 }
 
 void ATorquePlayerController::EndPlay(const EEndPlayReason::Type Reason)
 {
+	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+		if (B->Forward.IsBoundToObject(this)) B->Forward.Unbind();
 	if (bPausedGame) SetPause(false);
 	Pad.Reset();
 	Super::EndPlay(Reason);
@@ -322,6 +408,8 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 	Super::PlayerTick(DeltaTime);
 	if (!IsLocalController()) return;
 	Clock += DeltaTime;
+	NoteFor -= DeltaTime;
+	SyncPlayerState(DeltaTime);
 	ReadMenuInput(DeltaTime);
 }
 
@@ -425,4 +513,17 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Line(List[Selected].Hint, FColor(190, 210, 240), 1.0f, 0.35f);
 	Y = Canvas->ClipY - 90.0f * Sc;
 	Line(TEXT("Up/Down to pick   Left/Right to change   Enter, Cross or A to choose   Esc, Circle or B back"), FColor(200, 200, 200), 0.9f, 0.35f);
+}
+
+void ATorquePlayerController::DrawNote(AHUD* Hud, UCanvas* Canvas)
+{
+	if (NoteFor <= 0.0 || Note.IsEmpty() || !Hud || !Canvas || !GEngine) return;
+	UFont* Font = GEngine->GetLargeFont();
+	const float Sc = Canvas->ClipY / 1080.0f;
+	float W = 0, H = 0;
+	Canvas->StrLen(Font, Note, W, H);
+	const float X = 0.5f * (Canvas->ClipX - W * Sc), Y = Canvas->ClipY * 0.62f;
+	Hud->DrawRect(FLinearColor(0, 0, 0, 0.45f), X - 12.0f * Sc, Y - 5.0f * Sc, W * Sc + 24.0f * Sc, H * Sc + 10.0f * Sc);
+	Canvas->SetDrawColor(FColor(255, 190, 120));
+	Canvas->DrawText(Font, Note, X, Y, Sc, Sc);
 }
