@@ -34,19 +34,23 @@ public:
 
 	~FTorqueRouter();
 
-	// Start asking (does nothing if already open or checking for this port).
-	void Open(int32 Port, const FString& LocalIp);
+	// Start asking (does nothing if already open or checking for this port). AllIps: every IPv4
+	// address of this PC; the port goes to the one on the router's network (a PC with VPN or
+	// Hyper-V adapters has several, and LocalIp, the system's pick, may not be it).
+	void Open(int32 Port, const FString& LocalIp, const TArray<FString>& AllIps = TArray<FString>());
 	// Not asking (a test run, or the setting off): say why in the join instructions.
 	void Skip(const FString& Reason);
 	// Hosting has ended: take the port back off the router. bWait: block (at most two seconds)
 	// until the router has answered, for the game closing.
 	void Close(bool bWait = false);
-	// At start-up: if a mapping of ours to this PC was left on the router, remove it.
-	void CleanUpLeftover(int32 GamePort, const FString& LocalIp);
+	// At start-up: if a mapping of ours to this PC (any of AllIps) was left on the router, remove it.
+	void CleanUpLeftover(int32 GamePort, const FString& LocalIp, const TArray<FString>& AllIps = TArray<FString>());
 
 	EState GetState() const { return State; }
 	// The public address friends over the internet use ("" until known).
 	const FString& PublicAddress() const { return PublicIp; }
+	// This PC's address on the router's network, once the router has answered ("" before).
+	const FString& HomeAddress() const { return FacingIp; }
 	// Why the router said no, or why it wasn't asked ("" if neither).
 	const FString& Problem() const { return Why; }
 
@@ -55,7 +59,8 @@ private:
 	bool bCleanUp = false;      // this search is to remove a leftover, not to open
 	bool bPermanent = false;    // the router only took a lease of 0
 	int32 MappedPort = 0, WantPort = 0;
-	FString LocalIp, PublicIp, Why;
+	FString LocalIp, PublicIp, Why, FacingIp;
+	TArray<FString> MyIps;      // every IPv4 address of this PC
 	FString ServiceType, ControlUrl;
 	FSocket* Socket = nullptr;
 	double SearchLeft = 0.0, ResendIn = 0.0;

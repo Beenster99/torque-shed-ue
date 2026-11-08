@@ -16,10 +16,15 @@ namespace
 {
 std::string ToStd(const FString& S) { return std::string(TCHAR_TO_UTF8(*S)); }
 FString FromStd(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
+std::vector<std::string> ToStdList(const TArray<FString>& List)
+{
+	std::vector<std::string> Out;
+	for (const FString& S : List) Out.push_back(ToStd(S));
+	return Out;
+}
 constexpr double SearchSeconds = 3.0;
 constexpr int32 LeaseSeconds = 7200;    // two hours
 constexpr float RenewSeconds = 3600.0f; // every hour while hosting
-const char* MappingName = "Torque Shed";
 const TCHAR* Section = TEXT("TorqueCoop");
 } // namespace
 
@@ -44,11 +49,14 @@ void FTorqueRouter::Skip(const FString& Reason)
 	UE_LOG(LogTemp, Log, TEXT("Torque net: not asking the router to open a port: %s"), *Reason);
 }
 
-void FTorqueRouter::Open(int32 Port, const FString& InLocalIp)
+void FTorqueRouter::Open(int32 Port, const FString& InLocalIp, const TArray<FString>& AllIps)
 {
 	if ((State == EState::Open || State == EState::Checking) && WantPort == Port) return;
 	WantPort = Port;
 	LocalIp = InLocalIp;
+	MyIps = AllIps;
+	MyIps.AddUnique(InLocalIp);
+	MyIps.Remove(FString());
 	PublicIp.Reset();
 	Why.Reset();
 	bCleanUp = false;
@@ -64,10 +72,11 @@ void FTorqueRouter::Open(int32 Port, const FString& InLocalIp)
 	UE_LOG(LogTemp, Log, TEXT("Torque net: asking the router to open UDP port %d for %s"), Port, *LocalIp);
 }
 
-void FTorqueRouter::CleanUpLeftover(int32 GamePort, const FString& InLocalIp)
+void FTorqueRouter::CleanUpLeftover(int32 GamePort, const FString& InLocalIp, const TArray<FString>& AllIps)
 {
-	// The port noted when one was last opened, else the game's own: a mapping on it named Torque
-	// Shed that points at this PC is ours, left by a game that didn't close it (or by a build from
+	// The port noted when one was last opened, else the game's own: a mapping on it named TorqueShed
+	// (or the "Torque Shed" of older builds, maybe cut short by the router) that points at any of
+	// this PC's addresses is ours, left by a game that didn't close it (or by a build from
 	// before the note), and comes off.
 	int32 Port = GamePort;
 	FString For;
@@ -76,7 +85,11 @@ void FTorqueRouter::CleanUpLeftover(int32 GamePort, const FString& InLocalIp)
 		GConfig->GetInt(Section, TEXT("UpnpOpenPort"), Port, GGameUserSettingsIni);
 		GConfig->GetString(Section, TEXT("UpnpOpenFor"), For, GGameUserSettingsIni);
 	}
-	if (State != EState::Off || Port <= 0 || (For.IsEmpty() && InLocalIp.IsEmpty())) return;
+	MyIps = AllIps;
+	MyIps.AddUnique(InLocalIp);
+	MyIps.AddUnique(For);
+	MyIps.Remove(FString());
+	if (State != EState::Off || Port <= 0 || MyIps.IsEmpty()) return;
 	UE_LOG(LogTemp, Log, TEXT("Torque net: checking the router for a UDP port %d mapping of ours left open"), Port);
 	WantPort = Port;
 	LocalIp = For.IsEmpty() ? InLocalIp : For;
@@ -146,6 +159,14 @@ bool FTorqueRouter::Poll(float Dt)
 		const std::string Location = TorqueUpnp::ParseLocation(Reply);
 		if (!Location.empty())
 		{
+			// The router's network: this PC's address on it is the one the port goes to.
+			const FString RouterIp = From->ToString(false);
+			FacingIp = FromStd(TorqueUpnp::AddressFacing(ToStd(RouterIp), ToStdList(MyIps)));
+			if (!bCleanUp && !FacingIp.IsEmpty() && FacingIp != LocalIp)
+			{
+				UE_LOG(LogTemp, Log, TEXT("Torque net: the router (%s) is on this PC's %s network, not %s's: the port goes to %s"), *RouterIp, *FacingIp, *LocalIp, *FacingIp);
+				LocalIp = FacingIp;
+			}
 			StopSearch();
 			Describe(FromStd(Location));
 			return false;
@@ -230,7 +251,7 @@ void FTorqueRouter::Map(int32 Lease)
 	TWeakPtr<FTorqueRouter> Weak = AsShared();
 	const int32 Gen = Generation;
 	const int32 Port = WantPort;
-	Soap(TEXT("AddPortMapping"), FromStd(TorqueUpnp::AddPortMapping(ToStd(ServiceType), Port, ToStd(LocalIp), MappingName, Lease)),
+	Soap(TEXT("AddPortMapping"), FromStd(TorqueUpnp::AddPortMapping(ToStd(ServiceType), Port, ToStd(LocalIp), TorqueUpnp::MappingName(), Lease)),
 		[Weak, Gen, Port, Lease](bool bOk, const FString& Answer) {
 			TSharedPtr<FTorqueRouter> Self = Weak.Pin();
 			if (!Self || Self->Generation != Gen) return;
@@ -304,10 +325,10 @@ void FTorqueRouter::RemoveLeftover()
 			{
 				UE_LOG(LogTemp, Log, TEXT("Torque net: router check: couldn't ask about UDP port %d (%s)"), Port, *Answer);
 			}
-			else if (!TorqueUpnp::IsOurMapping(ToStd(Answer), ToStd(Self->LocalIp), MappingName))
+			else if (!TorqueUpnp::IsOurMapping(ToStd(Answer), ToStdList(Self->MyIps)))
 			{
-				UE_LOG(LogTemp, Log, TEXT("Torque net: router check: UDP port %d is mapped, but not by this game to this PC (%s, \"%s\"): left alone"), Port,
-					*FromStd(TorqueUpnp::TagText(ToStd(Answer), "NewInternalClient")), *FromStd(TorqueUpnp::TagText(ToStd(Answer), "NewPortMappingDescription")));
+				UE_LOG(LogTemp, Log, TEXT("Torque net: router check: UDP port %d is mapped, but not by this game to this PC (%s, \"%s\"; this PC is %s): left alone"), Port,
+					*FromStd(TorqueUpnp::TagText(ToStd(Answer), "NewInternalClient")), *FromStd(TorqueUpnp::TagText(ToStd(Answer), "NewPortMappingDescription")), *FString::Join(Self->MyIps, TEXT(", ")));
 			}
 			else
 			{

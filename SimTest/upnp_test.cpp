@@ -76,8 +76,24 @@ int main()
 	const std::string Entry = R"(<s:Envelope><s:Body><u:GetSpecificPortMappingEntryResponse><NewInternalPort>7777</NewInternalPort>
 <NewInternalClient>192.168.1.20</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Torque Shed</NewPortMappingDescription>
 <NewLeaseDuration>0</NewLeaseDuration></u:GetSpecificPortMappingEntryResponse></s:Body></s:Envelope>)";
-	Check(IsOurMapping(Entry, "192.168.1.20", "Torque Shed"), "our mapping left behind is recognised");
-	Check(!IsOurMapping(Entry, "192.168.1.21", "Torque Shed"), "another PC's isn't ours");
+	Check(IsOurMapping(Entry, { "192.168.1.20" }), "our mapping left behind is recognised");
+	Check(!IsOurMapping(Entry, { "192.168.1.21" }), "another PC's isn't ours");
+	Check(IsOurMapping(Entry, { "172.17.0.1", "10.8.0.2", "192.168.1.20" }), "ours whichever of this PC's addresses it points at");
+	auto Named = [&](const std::string& Name) {
+		std::string E = Entry;
+		E.replace(E.find("Torque Shed</"), 11, Name);
+		return E;
+	};
+	Check(IsOurMapping(Named("Torque She"), { "192.168.1.20" }), "the old name cut to ten characters by the router");
+	Check(IsOurMapping(Named("TorqueShed"), { "192.168.1.20" }) && IsOurMapping(Named("TorqueS"), { "192.168.1.20" }), "the new name, whole or cut");
+	Check(!IsOurMapping(Named("Torque"), { "192.168.1.21" }), "a cut name on another PC still isn't ours");
+	Check(!IsOurMapping(Named("Steam"), { "192.168.1.20" }) && !IsOurMapping(Named(""), { "192.168.1.20" }) && !IsOurMapping(Named("Tor"), { "192.168.1.20" }),
+		"other names (or almost none) aren't ours");
+	Check(IsOurMapping(Named("TorqueShedServer"), { "192.168.1.20" }), "a longer name starting with ours counts (a router that adds to it)");
+	Check(std::string(MappingName()).size() <= 10, "our name fits in ten characters");
+	Check(AddressFacing("192.168.1.1", { "172.17.0.1", "10.8.0.2", "192.168.1.20", "192.168.56.1" }) == "192.168.1.20", "the address on the router's network");
+	Check(AddressFacing("10.0.0.138", { "192.168.1.20", "10.0.0.5" }) == "10.0.0.5", "on a 10. network too");
+	Check(AddressFacing("192.168.1.1", { "10.8.0.2" }).empty() && AddressFacing("junk", { "192.168.1.20" }).empty(), "none when nothing is near");
 	Check(GetSpecificPortMappingEntry("x", 7777).find("<NewExternalPort>7777</NewExternalPort>") != std::string::npos, "entry query");
 
 	std::printf("Addresses\n");

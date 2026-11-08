@@ -1,5 +1,6 @@
 #include "Shed/TorqueWalker.h"
 
+#include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -162,8 +163,9 @@ ATorqueWalker::ATorqueWalker()
 	BaseEyeHeight = (float)TWI::StandEye;
 	CrouchedEyeHeight = (float)TWI::CrouchEye;
 
-	// A grey-box body so other players in a co-op session can see you: legs, a torso in a work
+	// A shape body so other players in a co-op session can see you: legs, a torso in a work
 	// jacket, arms, a head and a cap peak that shows which way you face. You don't see your own.
+	// Others see it in the rider's kit and your colour (Coop/TorqueLook.h).
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Ball(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Block(TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -254,7 +256,12 @@ void ATorqueWalker::Doing(const FString& What, double For)
 void ATorqueWalker::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (!IsLocallyControlled()) return;
+	// Another player: dressed in the rider's kit and their colour (TorqueLook.h).
+	if (!IsLocallyControlled())
+	{
+		TorqueLook::Dress(this);
+		return;
+	}
 	UTorqueBuildSubsystem* B = Shed();
 	// This machine's player, as the shed knows them (whose hands a part is in).
 	if (!bPeerSet && B && GetPlayerState())
