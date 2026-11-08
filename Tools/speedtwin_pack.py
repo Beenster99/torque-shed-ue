@@ -28,6 +28,8 @@ FINISHES = {
     "leather_tan": F((0.30, 0.16, 0.07), 0.0, 0.5, detail="leather", uv_scale=7.0, normal_strength=0.8, rough_var=0.35),
     "leather_maroon": F((0.17, 0.018, 0.016), 0.0, 0.5, detail="leather", uv_scale=7.0, normal_strength=0.8, rough_var=0.3),
     "piping_white": F((0.80, 0.80, 0.78), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
+    "screen_smoked": F((0.03, 0.035, 0.04), 0.0, 0.03, clearcoat_roughness=0.02),
+    "wood_crate": F((0.33, 0.21, 0.10), 0.0, 0.75, detail="cast", uv_scale=3.0, normal_strength=0.4, rough_var=0.4),
     "piping_cream": F((0.76, 0.70, 0.56), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
 }
 
@@ -494,6 +496,109 @@ def grips(fit):
     return out
 
 
+# --- Screens (on the headlight, steer group) -------------------------------------------------------
+
+def sheet(fn, nu=18, nv=12):
+    """A one-sided surface from fn(u in -1..1, v in 0..1) -> point (flat pieces are two sided)."""
+    u = np.linspace(-1, 1, nu); v = np.linspace(0, 1, nv)
+    pts = np.array([fn(a, b) for b in v for a in u])
+    uv = np.array([(a, b) for b in v for a in u]) * 0.3
+    return st.Mesh().add(pts, st.grid_tris(nv, nu, wrap_cols=False), uv)
+
+
+def screens(fit, cat):
+    out = []
+    c = HL_C
+    # Flyscreen: a small smoked screen rising back from over the lamp, curved round, on two stays.
+    def fly(u, v, w0=0.10, w1=0.13, h=0.2, back=0.075):
+        w = w0 + (w1 - w0) * v
+        return c + np.array([0.045 - back * v - 0.03 * u * u, 0.085 + h * v, u * w])
+    screen = sheet(fly)
+    stays_ = stays([(c + [0.0, 0.0, sg * 0.092], fly(sg * 0.8, 0.12)) for sg in (-1, 1)], 0.005)
+    pts = np.vstack(screen.p)
+    out.append(("screen", "flyscreen", cat["fairing"]["flyscreen"]["name"], ["fairing", "flyscreen"],
+                [{"id": "screen", "group": "steer", "meshes": ["opt_screen_fly", "opt_screen_fly_stays"], "slot": "screen",
+                  "mount": {"to": "headlight.screen_mount", "type": "bracket"}, "sockets": {},
+                  "proxies": [fit.obb(pts)]}],
+                {"opt_screen_fly": (screen, "screen_smoked", "steer"), "opt_screen_fly_stays": (stays_, "black_satin", "steer")}))
+
+    # Bikini fairing: a black cowl round the lamp's top and sides (the indicators stay clear below),
+    # a short screen on its top edge, all in front of the clock.
+    def cowl(u, v):
+        a = math.radians(5 + (u + 1) / 2 * 170)   # from the right side, over the top, to the left
+        inner = np.array([0.03, 0.098 * math.sin(a), 0.098 * math.cos(a)])
+        outer = np.array([-0.03, 0.135 * math.sin(a) + 0.01, 0.175 * math.cos(a)])
+        p = inner + (outer - inner) * v
+        p[0] += 0.025 * math.sin(math.pi * v)   # a little bulge forward
+        return c + p
+    shell = sheet(cowl, 40, 8)
+    def bscreen(u, v):
+        top = cowl(u * 0.5, 1.0)
+        return top + np.array([0.01 * v - 0.015 * u * u, 0.11 * v, 0.0])
+    scr = sheet(bscreen, 16, 8)
+    # Proxies: a box round each sixth of the cowl, and the screen's.
+    prox = []
+    for k in range(6):
+        u0, u1 = -1 + k / 3.0, -1 + (k + 1) / 3.0
+        prox.append(fit.obb(np.array([cowl(u, v) for u in np.linspace(u0, u1, 5) for v in np.linspace(0, 1, 5)])))
+    prox.append(fit.obb(np.vstack(scr.p)))
+    out.append(("screen", "bikini_fairing", cat["fairing"]["bikini_fairing"]["name"], ["fairing", "bikini_fairing"],
+                [{"id": "screen", "group": "steer", "meshes": ["opt_screen_bikini", "opt_screen_bikini_screen"], "slot": "screen",
+                  "mount": {"to": "headlight.screen_mount", "type": "bracket"}, "sockets": {}, "proxies": prox}],
+                {"opt_screen_bikini": (shell, "black_gloss", "steer"), "opt_screen_bikini_screen": (scr, "screen_smoked", "steer")}))
+    return out
+
+
+# --- Luggage rack (over the tail) ------------------------------------------------------------------
+
+def rack_mesh():
+    """A chrome tube rack behind the seat: a flat loop with cross bars, its sides sweeping down and
+    forward outside the seat to the rails, and two legs down to the frame's rear loop."""
+    y = 0.585
+    loop = st.polyline([(-0.70, y, -0.11), (-0.97, y, -0.11), (-0.99, y, -0.07), (-0.99, y, 0.07), (-0.97, y, 0.11),
+                        (-0.70, y, 0.11)], 6)
+    m = st.tube(loop, 0.0085, 12)
+    for x in (-0.76, -0.83, -0.90):
+        m.extend(st.tube(np.array([(x, y, -0.11), (x, y, 0.11)]), 0.006, 10))
+    prox_paths = [loop]
+    for s in (-1, 1):
+        side = st.polyline([(-0.70, y, s * 0.11), (-0.64, y - 0.02, s * 0.155), (-0.58, 0.50, s * 0.16), (-0.56, 0.47, s * 0.11)], 6)
+        leg = np.array([(-0.92, y, s * 0.11), (-0.80, 0.47, s * 0.10)])
+        m.extend(st.tube(side, 0.0085, 12)).extend(st.tube(leg, 0.007, 10))
+        prox_paths += [side, leg]
+    return m, prox_paths
+
+
+def racks(fit, cat):
+    out = []
+    m, paths = rack_mesh()
+    prox = [p for path in paths for p in fit.chain(path, 0.009, 3)]
+    out.append(("rack", "chrome_rack", "Chrome luggage rack", None,
+                [{"id": "rack", "group": "body", "meshes": ["opt_rack_chrome"], "slot": "rack",
+                  "mount": {"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0},
+                  "sockets": {}, "proxies": prox}],
+                {"opt_rack_chrome": (m, "chrome", "body")}))
+    # The crate: slatted boards on the same rack.
+    crate = st.Mesh()
+    cx, cy, w, d, h = -0.845, 0.585 + 0.0085, 0.25, 0.30, 0.2
+    for k in range(4):   # side slats, a gap between each
+        yy = cy + 0.012 + k * (h / 4)
+        for s in (-1, 1):
+            crate.extend(st.box((cx, yy + h / 8 - 0.006, s * (w / 2 - 0.006)), (d, h / 4 - 0.012, 0.012), 8.0))
+        for s in (-1, 1):
+            crate.extend(st.box((cx + s * (d / 2 - 0.006), yy + h / 8 - 0.006, 0.0), (0.012, h / 4 - 0.012, w), 8.0))
+    crate.extend(st.box((cx, cy + 0.006, 0.0), (d, 0.012, w), 8.0))   # its floor
+    for sx in (-1, 1):
+        for sz in (-1, 1):   # corner posts
+            crate.extend(st.box((cx + sx * (d / 2 - 0.012), cy + h / 2, sz * (w / 2 - 0.012)), (0.024, h, 0.024), 8.0))
+    out.append(("rack", "wooden_crate", cat["top_box"]["wooden_crate"]["name"], ["top_box", "wooden_crate"],
+                [{"id": "rack", "group": "body", "meshes": ["opt_rack_crate_rack", "opt_rack_crate"], "slot": "rack",
+                  "mount": {"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0},
+                  "sockets": {}, "proxies": prox + [fit.obb(np.vstack(crate.p))]}],
+                {"opt_rack_crate_rack": (m, "black_satin", "body"), "opt_rack_crate": (crate, "wood_crate", "body")}))
+    return out
+
+
 def pack_options(fit, cat):
     return (seats(fit, cat) + front_guards(fit, cat) + rear_guards(fit, cat) + indicators(fit, cat) + mirrors(fit, cat)
-            + levers(fit) + grips(fit))
+            + levers(fit) + grips(fit) + screens(fit, cat) + racks(fit, cat))

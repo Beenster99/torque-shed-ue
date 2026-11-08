@@ -222,8 +222,11 @@ def stock_units(P):
     hl_c = FA + FORK_DIR * 0.56 + np.array([0.075, 0.0, 0.0])
     unit("headlight", ["headlight_shell", "headlight_lens", "headlight_projector"], slot="headlight",
          mount={"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.56)},
-         sockets={"indicator_mount": sock("bracket", hl_c, (1, 0, 0))})
+         sockets={"indicator_mount": sock("bracket", hl_c, (1, 0, 0)), "screen_mount": sock("bracket", hl_c, (1, 0, 0))})
     unit("indicators_front", ["front_indicators"], slot="indicators", mount={"to": "headlight.indicator_mount", "type": "bracket"})
+    # Places for add-ons the stock bike hasn't got (empty on stock): a screen on the headlight and a
+    # luggage rack over the tail.
+    unit("screen", [], group="steer", slot="screen", mount={"to": "headlight.screen_mount", "type": "bracket"}, proxies=[])
 
     # Bars, and what rides on them.
     bars_path = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, -0.30], BAR_CLAMP + [0.0, 0.025, -0.12],
@@ -306,6 +309,8 @@ def stock_units(P):
     unit("tail", ["tail", "rear_light", "plate_hanger", "plate"], slot="tail",
          mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0}, proxies=tp,
          sockets={"indicator_mount": sock("bracket", (-0.86, 0.44, 0.0), (1, 0, 0))})
+    unit("rack", [], group="body", slot="rack", mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0},
+         proxies=[])
     unit("indicators_rear", ["rear_indicators"], slot="indicators", mount={"to": "tail.indicator_mount", "type": "bracket"},
          proxies=[capsule((-0.86, 0.44, sg * 0.06), (-0.86, 0.44, sg * 0.13), 0.016) for sg in (-1, 1)])
     unit("side_panels", ["side_panel_l", "side_panel_l_decal", "side_panel_r", "side_panel_r_decal"], slot="side_panels",
@@ -593,7 +598,8 @@ def main():
     meshes = {}
     stock_names = {"saddle": "Speed Twin bench seat (stock)", "front_mudguard": "Speed Twin front mudguard (stock)",
                    "tail": "Speed Twin tail and plate hanger (stock)", "indicators": "Speed Twin indicators (stock)",
-                   "mirrors": "Speed Twin mirrors (stock)", "levers": "Speed Twin levers (stock)", "grips": "Speed Twin grips (stock)"}
+                   "mirrors": "Speed Twin mirrors (stock)", "levers": "Speed Twin levers (stock)", "grips": "Speed Twin grips (stock)",
+                   "screen": "No screen (stock)", "rack": "No rack (stock)"}
     for slot, pid, name, ce, u, ms, *rest in options(cat) + pack.pack_options(sys.modules[__name__], cat):
         if slot not in opts:
             opts[slot] = [{"id": "stock", "name": stock_names.get(slot, "Stock"), "stock": True, "units": []}]
