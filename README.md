@@ -169,13 +169,14 @@ tube section in any of the catalogue's bends, risers or clamp, grips, switch gea
 clutch perch and lever, and the clutch and throttle cables with their adjusters), both master
 cylinders, the clocks (raised clear of the bars from the rider's eye, as Godot raises them, which
 needs the glbs' meshes), the headlight's body, the mirrors' clamps and heads (turned to the rider's
-eye), the indicators (or a road bike's stock pair) and the front mudguard bent from its Blender
-section. Each placed part also says what it moves with as the
+eye), the indicators (or a road bike's stock pair), the front mudguard bent from its Blender
+section, and the frame (Fit/BikeFrame.cpp: every style's tubes swept from the tube glb, a sport
+bike's cast spar beams, welds, bearing cups, battery box, footpegs and gussets) with the swingarm's tubes. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
-plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators and front mudguards), each on its style's reference bike. `layout_test` requires all of
-them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes,
+plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators, front mudguards and frames), each on its style's reference bike. `layout_test` requires all of
+them to match surface by surface. Still to port: Godot's code-drawn shells and brake hoses,
 mirrors on a frame-mounted fairing (they wait for its fit), lights' trim, guards, fairings, luggage and panels.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,

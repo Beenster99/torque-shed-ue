@@ -324,7 +324,7 @@ int main(int argc, char** argv)
 			return !Ent->Get("morph") || (ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) && M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Err));
 		});
 		auto Vec = [](const Json* J) { return J && J->A.size() == 3 ? V3(J->A[0].N, J->A[1].N, J->A[2].N) : V3(1e9, 1e9, 1e9); };
-		struct Box { V3 Lo{1e9, 1e9, 1e9}, Hi{-1e9, -1e9, -1e9}; void Add(const V3& V) {
+		struct Box { V3 Lo{1e9, 1e9, 1e9}, Hi{-1e9, -1e9, -1e9}; int Meshes = 0; void Add(const V3& V) {
 			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
 		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
 		auto Collect = [&](const PartsMap& B, const Layout& L, std::map<std::string, Box>& Ours, std::map<std::string, std::map<std::string, Box>>& Tags) {
@@ -346,6 +346,7 @@ int main(int argc, char** argv)
 						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
 						Tags[Slot][S.Material].Add(ToGodot(V));
 					}
+					++Tags[Slot][S.Material].Meshes;   // (Godot's: one mesh a surface of each piece)
 				}
 			}
 		};
@@ -364,7 +365,6 @@ int main(int argc, char** argv)
 			std::string Wrong;
 			for (const auto& [Slot, ByTag] : Tags)
 			{
-				if (Slot == "frame") continue;
 				const bool Part = Partial.count(Slot) > 0;
 				const Json* Gs = GSlots->Get(Slot);
 				const Json* Gt = Gs && Nested ? Gs->Get("glb") : Gs;
@@ -373,6 +373,8 @@ int main(int argc, char** argv)
 				{
 					const Json* Gb = Gt ? Gt->Get(Tag) : nullptr;
 					const double D = Gb ? std::max(Off(Bx.Lo, Vec(Gb->Get("min"))), Off(Bx.Hi, Vec(Gb->Get("max")))) : 1e9;
+					if (Gb && std::getenv("LAYOUT_COUNTS") && static_cast<int>(Gb->Num("meshes", 0.0)) != Bx.Meshes)
+						Wrong += " " + Slot + "/" + Tag + " meshes " + std::to_string(Bx.Meshes) + " (Godot " + std::to_string(static_cast<int>(Gb->Num("meshes", 0.0))) + ")";
 					if (D >= 5e-4 && !(Part && Gb && Inside(Bx, Gb)))
 					{
 						char W[320];

@@ -76,13 +76,6 @@ bool IsPostFamily(const std::string& F)
 	return F == "cradle" || F == "softail" || F == "chopper" || F == "cruiser";
 }
 
-// A frame's own Rig built proportions (BikeRig.FRAME_RIG, with the frame's "rig" over them).
-struct FrameRig
-{
-	double Gauge = 1.0, Twin = 0.0, Top = 0.0, TankLow = 0.0, Drop = 0.0, Deep = 1.0, Wide = 1.0, Loop = 0.06, Slope = 0.0;
-	bool Split = false, Gusset = false, Steady = false;
-};
-
 FrameRig FrameRigOf(const Json* Frame)
 {
 	FrameRig R;
@@ -783,6 +776,7 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	R.TankTopMax = TopMax;
 	R.TunnelHalfW = DrawnR + 0.01;
 	R.SpineR = DrawnR;
+	R.Frig = Frig;
 	R.KneeL = FromGodot(V3(-0.17, KneeP.y, KneeP.z));
 	R.KneeR = FromGodot(V3(0.17, KneeP.y, KneeP.z));
 	R.SeatFront = FromGodot(SeatFront);
