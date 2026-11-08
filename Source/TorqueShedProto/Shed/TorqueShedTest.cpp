@@ -50,7 +50,8 @@ const TCHAR* const FabSteps =
 	TEXT("finish:mx:engine=triple_660:fork=none,log,")
 	TEXT("order:usd_sport,item:usd_sport,f,item:usd_sport,act,")
 	TEXT("part:frame,act,log,look:bike,shot,")
-	TEXT("tool:repair,fabricate,log,look:bike,shot,")
+	TEXT("tool:repair,fabricate,log,")
+	TEXT("tool:wrench,part:fork,act,log,look:bike,shot,")   // the fork goes on loose: bolt it up
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }

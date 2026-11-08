@@ -8,6 +8,10 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/Engine.h"
+#include "Materials/Material.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/Actor.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -115,11 +119,37 @@ UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint, FString& OutFi
 	return M;
 }
 
+// -TorqueCatalogueDebug=<mode>, to tell geometry from material on the PC: unlit (the engine's unlit
+// level colouring material), default (the engine's default lit material), flip (every surface
+// wound the other way from the one its normals pick), fullbuild (the static mesh's full build, not
+// the fast one). Empty for none.
+const FString& DebugMode()
+{
+	static FString Mode;
+	static bool bRead = false;
+	if (!bRead)
+	{
+		bRead = true;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueCatalogueDebug="), Mode);
+		Mode = Mode.ToLower();
+		if (!Mode.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: catalogue bikes drawn in debug mode '%s'"), *Mode);
+		}
+	}
+	return Mode;
+}
+
 // Ours (metres: x forward, y up, z right) to the bike's cm (x forward, y right, z up).
 FVector3f ToUe(const TorqueSim::V3& P) { return FVector3f((float)(P.x * 100.0), (float)(P.z * 100.0), (float)(P.y * 100.0)); }
 
 // One surface as a static mesh (its triangles turned for Unreal's left-handed frame).
-UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterialInterface* Material, TArray<FVector>& OutPos, TArray<int32>& OutTris)
+// Which way a surface is wound is chosen from its own normals: Unreal takes a triangle's face as
+// -(P1 - P0) x (P2 - P0), and the winding that agrees with most of the vertex normals is kept, so
+// a part comes out right whichever way its glb (or a code-drawn shell) was wound. bOutFlipped:
+// the glb's own order was turned round (as the axis swap needs).
+UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterialInterface* Material, TArray<FVector>& OutPos,
+	TArray<int32>& OutTris, bool& bOutFlipped)
 {
 	const int32 NumVerts = (int32)S.Pos.size();
 	if (NumVerts == 0 || S.Idx.size() < 3) return nullptr;
@@ -168,18 +198,32 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 		UVs.Set(VI, 1, FVector2f(0.0f, 0.0f));
 		Instances.Add(VI);
 	}
+	// Turned round (A, C, B), how many triangles face the way their vertex normals do.
+	int32 Agree = 0, Count = 0;
 	for (size_t T = 0; T + 2 < S.Idx.size(); T += 3)
 	{
 		const int32 A = (int32)S.Idx[T], B = (int32)S.Idx[T + 1], C = (int32)S.Idx[T + 2];
 		if (A >= NumVerts || B >= NumVerts || C >= NumVerts || A == B || B == C || A == C) continue;
+		const FVector3f Face = -FVector3f::CrossProduct(FVector3f(OutPos[C] - OutPos[A]), FVector3f(OutPos[B] - OutPos[A]));
+		const FVector3f Avg = Normals[Instances[A]] + Normals[Instances[B]] + Normals[Instances[C]];
+		++Count;
+		if (FVector3f::DotProduct(Face, Avg) >= 0.0f) ++Agree;
+	}
+	bOutFlipped = Agree * 2 >= Count;
+	if (DebugMode() == TEXT("flip")) bOutFlipped = !bOutFlipped;
+	for (size_t T = 0; T + 2 < S.Idx.size(); T += 3)
+	{
+		const int32 A = (int32)S.Idx[T], B = (int32)S.Idx[T + 1], C = (int32)S.Idx[T + 2];
+		if (A >= NumVerts || B >= NumVerts || C >= NumVerts || A == B || B == C || A == C) continue;
+		const int32 Second = bOutFlipped ? C : B, Third = bOutFlipped ? B : C;
 		TArray<FVertexInstanceID, TFixedAllocator<3>> Tri;
 		Tri.Add(Instances[A]);
-		Tri.Add(Instances[C]);
-		Tri.Add(Instances[B]);
+		Tri.Add(Instances[Second]);
+		Tri.Add(Instances[Third]);
 		MD.CreateTriangle(Group, Tri);
 		OutTris.Add(A);
-		OutTris.Add(C);
-		OutTris.Add(B);
+		OutTris.Add(Second);
+		OutTris.Add(Third);
 	}
 	if (OutTris.Num() == 0) return nullptr;
 	UStaticMesh* Mesh = NewObject<UStaticMesh>(Owner);
@@ -193,7 +237,7 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 	Mesh->GetStaticMaterials().Last().UVChannelData = FMeshUVChannelInfo(1.0f);
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bBuildSimpleCollision = false;
-	Params.bFastBuild = true;
+	Params.bFastBuild = DebugMode() != TEXT("fullbuild");
 	Params.bCommitMeshDescription = false;
 	TArray<const FMeshDescription*> Descriptions;
 	Descriptions.Add(&MD);
@@ -242,6 +286,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
 	int32 Made = 0;
 	TMap<FString, int32> Summary;   // what each surface's finish became, for the log
+	int32 Turned = 0, Kept = 0;     // surfaces wound the other way from their glb, or as it
 	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
 	{
 		if (P.Hidden) continue;   // inside a full fairing's shell (the plain headlight), as Godot hides it
@@ -262,6 +307,13 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			bool bPaint = false, bFallback = false;
 			FString Finish;
 			UMaterialInterface* Mat = TSCI::MaterialFor(Tag, bPaint, Finish, bFallback);
+			const FString& Debug = TSCI::DebugMode();
+			if (Debug == TEXT("unlit") || Debug == TEXT("default"))
+			{
+				UMaterialInterface* Plain = Debug == TEXT("unlit") && GEngine ? GEngine->LevelColorationUnlitMaterial.Get() : nullptr;
+				Mat = Plain ? Plain : UMaterial::GetDefaultMaterial(MD_Surface);
+				bPaint = false;
+			}
 			FString Line = Tag + TEXT(" -> ") + (Mat ? Mat->GetName() : FString(TEXT("no material"))) + (bFallback ? TEXT(" (fallback for ") + Finish + TEXT(")") : FString());
 			if (S.Nrm.size() < S.Pos.size()) Line += TEXT(", no normals");
 			if (bPaint)
@@ -272,8 +324,10 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			Summary.FindOrAdd(Line) += 1;
 			TArray<FVector> Pos;
 			TArray<int32> Tris;
-			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris);
+			bool bFlipped = false;
+			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped);
 			if (!Mesh) continue;
+			++(bFlipped ? Turned : Kept);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
 			C->SetStaticMesh(Mesh);
@@ -302,7 +356,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		}
 	}
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's %d surfaces by finish:"), Made);
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's %d surfaces (%d wound the other way from their glb, %d as it) by finish:"), Made, Turned, Kept);
 	}
 	for (const TPair<FString, int32>& KV : Summary)
 	{
