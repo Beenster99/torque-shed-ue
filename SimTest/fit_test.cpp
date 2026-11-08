@@ -88,6 +88,112 @@ PhysicsDatums FromSim(const TorqueSim::BikeSpec& S)
 	return P;
 }
 
+// A loose part's placement, for the log.
+void PrintLoose(const Assembly& A, const std::string& Id)
+{
+	const Placed* P = A.Find(Id);
+	if (!P) return;
+	const V3& C = P->World.T;
+	std::printf("    %s on %s%s%s at (%.3f, %.3f, %.3f), up (%.2f, %.2f, %.2f)\n", Id.c_str(), P->U.Mnt.ParentUnit.c_str(),
+		P->U.Mnt.ParentSocket.empty() ? "" : ".", P->U.Mnt.ParentSocket.c_str(), C.x, C.y, C.z, P->World.R.Y.x, P->World.R.Y.y,
+		P->World.R.Y.z);
+}
+
+// The rest of the catalogue: every part placed (an authored part, a placeholder look, a tune part or
+// a loose part) or refused with a reason; and loose parts fitted with no authored mount.
+void CheckCatalogue(BikeFit& Fit, const PartsDb& Db, const std::string& R, const Assembly& StockA)
+{
+	std::printf("\nThe catalogue on the %s (Data/Fitment/catalogue.json)\n", Fit.BikeName().c_str());
+	std::string Text, Error;
+	Expect(ReadFile(R + "/Data/Fitment/catalogue.json", Text) && Fit.AddCatalogue(Db, Text, Error), "catalogue.json loads " + Error);
+	std::map<std::string, int> ByState;
+	std::map<std::string, std::string> Refusals;   // kind -> reason (one each)
+	for (const CatalogueEntry& E : Fit.Catalogue())
+	{
+		++ByState[E.State];
+		if (E.State == "refused" && !Refusals.count(E.Kind)) Refusals[E.Kind] = E.Reason;
+	}
+	std::printf("  %zu parts:", Fit.Catalogue().size());
+	for (const auto& KV : ByState) std::printf(" %s %d,", KV.first.c_str(), KV.second);
+	std::printf("\n");
+	for (const auto& KV : Refusals) std::printf("    refused %s: %s\n", KV.first.c_str(), KV.second.c_str());
+	Expect(Fit.Catalogue().size() == Db.Count(), "every catalogue part has an answer");
+	bool AllReasoned = true;
+	for (const CatalogueEntry& E : Fit.Catalogue())
+		if ((E.State == "refused" || E.State == "loose" || E.State == "placeholder") && E.Reason.empty()) AllReasoned = false;
+	Expect(AllReasoned, "every refusal, placeholder and loose part says why or what");
+	int Fitted = 0, Failed = 0;
+	Build Stock;
+	for (const CatalogueEntry& E : Fit.Catalogue())
+	{
+		if (E.State != "placeholder" && E.State != "tune") continue;
+		std::string Why;
+		Build B;
+		B.Fitted[E.Slot] = E.Id;
+		Assembly Ab;
+		if (Fit.CanFit(Stock, E.Slot, E.Id, Why) && Fit.Assemble(B, Ab, Error)) ++Fitted;
+		else { ++Failed; std::printf("    %s/%s: %s%s\n", E.Kind.c_str(), E.Id.c_str(), Why.c_str(), Error.c_str()); }
+	}
+	Expect(Failed == 0, "every placeholder and tune part fits and assembles (" + std::to_string(Fitted) + ")");
+	const CatalogueEntry* Drag = Fit.FindCatalogue("handlebars", "drag_bar");
+	Expect(Drag && Drag->State == "placeholder" && Drag->Slot == "handlebars", "handlebars/drag_bar fits, as a placeholder (" +
+		(Drag ? Drag->Reason : std::string()) + ")");
+	const CatalogueEntry* Engine = Fit.FindCatalogue("engine", "triple_1100");
+	Expect(Engine && Engine->State == "refused" && !Engine->Reason.empty(), "an engine swap is refused, and says why");
+	const CatalogueEntry* Horn = Fit.FindCatalogue("horn", "twin_tone");
+	Expect(Horn && Horn->State == "tune" && Fit.FindOption("horn", "twin_tone") != nullptr, "a horn is a tune part, in its own slot");
+	const CatalogueEntry* Box = Fit.FindCatalogue("top_box", "top_box_30");
+	Expect(Box && Box->State == "placeholder" && Box->Slot == "rack", "a top box goes on the rack (" + (Box ? Box->Reason : std::string()) + ")");
+
+	std::printf("\nLoose parts: no authored mount, snapped by their box to the nearest interface they can use\n");
+	auto FitLoose = [&](const Build& B, const std::string& Kind, const std::string& Id, const std::string& Parent, Assembly& Out) {
+		Build Bl = B;
+		Bl.Loose.push_back({Kind, Id, V3(), false});
+		const bool Ok = Fit.Assemble(Bl, Out, Error);
+		for (const std::string& N : Out.Notes) std::printf("    note: %s\n", N.c_str());
+		const std::string UnitId = "loose_" + Kind + "_" + Id;
+		const Placed* P = Out.Find(UnitId);
+		PrintLoose(Out, UnitId);
+		bool Clean = true;
+		for (const Clash& C : Fit.Clearance(Out, &StockA))
+			if (C.A == UnitId || C.B == UnitId)
+			{
+				Clean = false;
+				std::printf("    clash: %s x %s %.1f mm at %s\n", C.A.c_str(), C.B.c_str(), C.DepthMm, C.Case.c_str());
+			}
+		Expect(Ok && P && P->U.Mnt.ParentUnit == Parent && Clean, Kind + "/" + Id + " snaps onto the " + Parent + ", clear at rest, full lock and full bump");
+		return P;
+	};
+	Assembly Al;
+	int Snapped = 0;
+	std::string Missed;
+	for (const CatalogueEntry& E : Fit.Catalogue())
+	{
+		if (E.State != "loose") continue;
+		Build Bl;
+		Bl.Loose.push_back({E.Kind, E.Id, V3(), false});
+		Assembly Ax;
+		if (Fit.Assemble(Bl, Ax, Error) && Ax.Find("loose_" + E.Kind + "_" + E.Id)) ++Snapped;
+		else Missed += " " + E.Kind + "/" + E.Id + (Ax.Notes.empty() ? std::string() : " (" + Ax.Notes.back() + ")");
+	}
+	Expect(Missed.empty(), "every loose part finds a place on the stock bike (" + std::to_string(Snapped) + ")" + Missed);
+	const LooseSpec* Nav = Fit.FindLoose("satnav", "phone_nav_mount");
+	const Placed* P = FitLoose(Stock, "satnav", "phone_nav_mount", "bars", Al);
+	if (P && Nav) Expect((P->World.T - Nav->Near).Length() < 0.08, "the sat nav lands near where it was dropped");
+	Build Clubman;
+	Clubman.Fitted["handlebars"] = "clubman_bar";
+	FitLoose(Clubman, "satnav", "phone_nav_mount", "bars", Al);
+	P = FitLoose(Stock, "tank_bag", "mag_tank_bag_8", "tank", Al);
+	if (P) Expect(P->World.R.Y.y > 0.8, "the tank bag sits on top of the tank");
+	Build Teardrop;
+	Teardrop.Fitted["tank"] = "teardrop_14";
+	P = FitLoose(Teardrop, "tank_bag", "mag_tank_bag_8", "tank", Al);
+	if (P) Expect(P->World.R.Y.y > 0.8, "and on the teardrop tank when that's fitted instead");
+	Build Rack;
+	Rack.Fitted["rack"] = "wooden_crate";
+	FitLoose(Rack, "aux_tank", "rack_can_5", "rack", Al);
+}
+
 // Every two alternatives from different slots, fitted together: they mustn't clash with each other
 // (each is already checked against the stock bike on its own).
 void CheckPairs(const BikeFit& Fit)
@@ -98,7 +204,7 @@ void CheckPairs(const BikeFit& Fit)
 	for (const std::string& S : Fit.Slots())
 		for (const Option& O : *Fit.OptionsFor(S))
 		{
-			if (O.Stock) continue;
+			if (O.Stock || O.Catalogue) continue;   // placeholders look like an authored part: nothing new to clash
 			Opt E{S, &O, {}};
 			for (const Unit& U : O.Units) E.Units.insert(U.Id);
 			for (const auto& M : O.Moves) E.Units.insert(M.first);
@@ -305,6 +411,7 @@ int main(int argc, char** argv)
 		Expect(D1 < 1e-4 && D2 < 1e-4, "an author fix moves the part (and what rides on it) for every build");
 	}
 
+	CheckCatalogue(Fit, Db, R, A);
 	for (int K = 1; K < argc; ++K)
 		if (std::string(argv[K]) == "--pairs") CheckPairs(Fit);
 

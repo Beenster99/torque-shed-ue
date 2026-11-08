@@ -124,6 +124,15 @@ alternative part and exercises geometry mode; `fit_test --pairs` also fits every
 from different slots together and fails if they clash (about a minute). To try a swap in the game without the shed, start it
 with `-TorqueBuild=handlebars:clubman_bar,exhaust:peashooter_twins`.
 
+The rest of the catalogue comes in through `Data/Fitment/catalogue.json`, which says how each kind of
+part reaches a bike (`BikeFit::AddCatalogue`). Every part of `parts.json` gets an answer: an authored
+model; a placeholder (it goes in its slot and looks like the closest authored part, tinted its
+catalogue colour); a tune part (its own slot, no model: air filters, maps, horns); a loose part
+(no authored mount: geometry mode snaps its box to the nearest interface it can use, such as a bar
+or the top of the tank, clear of everything at rest, full lock and full bump, and re-snaps when what
+it sits on is swapped); or refused, with the reason (engines, frames and anything that changes the
+riding physics wait for their own steps; consumables aren't fitted). `fit_test` checks all 717.
+
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
 without crashing and within 3 m of the centre line (its run takes 234 s, leaning up to 32 degrees).

@@ -19,6 +19,7 @@
 #include "SimMath.h"
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -108,6 +109,8 @@ struct Unit
 	bool HasMount = false;
 	Mount Mnt;
 	std::vector<ConformEnd> Conform;
+	bool Loose = false;              // a catalogue part with no authored mount, snapped by its box (Half, metres)
+	V3 Half;
 	const Socket* FindSocket(const std::string& Name) const;
 };
 
@@ -134,6 +137,43 @@ struct Option
 	std::vector<Unit> Units;                      // replacing the stock units with the same ids
 	std::map<std::string, MeshInfo> Meshes;       // the meshes it brings
 	std::map<std::string, MountMove> Moves;       // other units it moves (by unit id), whichever option they come from
+	// From the catalogue (BikeFit::AddCatalogue), not authored: a placeholder look (LooksLike's units,
+	// its first mesh of each unit tinted), or a tune part (no units: how it goes, not how it looks).
+	bool Catalogue = false, Tune = false;
+	std::string LooksLike;
+	bool HasTint = false;
+	V3 Tint;
+};
+
+// A catalogue part's place on a bike (Data/Fitment/catalogue.json over Data/Parts/parts.json).
+struct CatalogueEntry
+{
+	std::string Kind, Id, Name;
+	std::string State;            // "authored", "placeholder", "tune", "loose" or "refused"
+	std::string Slot;             // the slot it goes in (authored, placeholder, tune)
+	std::string Reason;           // refused: why; placeholder: what it looks like; loose: what it fits to
+};
+
+// A part with no authored mount: a box (Half, metres: forward, up off its mount, across) that
+// geometry mode fits to the nearest interface it can use ("bar", a socket type, or "surface:tank").
+struct LooseSpec
+{
+	std::string Kind, Id, Name;
+	V3 Half;
+	std::vector<std::string> Mounts;
+	double ClampMinMm = 0.0, ClampMaxMm = 0.0;    // a clamp's range, for path sockets with a size
+	V3 Near;                                      // where it goes if nobody says (model frame)
+	bool HasTint = false;
+	V3 Tint;
+};
+
+// A loose part in a build: where it was dropped (model frame); it snaps from there every assembly,
+// so it follows whatever it's fitted to when that is swapped.
+struct LoosePart
+{
+	std::string Kind, Id;
+	V3 Near;
+	bool HasNear = false;                         // false: the spec's Near
 };
 
 // Geometry mode for one unit.
@@ -150,6 +190,7 @@ struct Build
 {
 	std::map<std::string, std::string> Fitted;    // slot -> option id (missing or "stock": stock)
 	std::map<std::string, Adjust> Adjusts;        // unit id -> geometry mode
+	std::vector<LoosePart> Loose;                 // catalogue parts with no authored mount
 };
 
 struct Placed
@@ -198,7 +239,18 @@ public:
 
 	const std::string& BikeId() const { return Bike; }
 	const std::string& BikeName() const { return Name; }
-	std::vector<std::string> Slots() const;
+	std::vector<std::string> Slots() const;      // authored slots first, then the catalogue's
+	bool IsCatalogueSlot(const std::string& Slot) const { return CatalogueSlots.count(Slot) > 0; }
+
+	// The catalogue: every part of Data/Parts/parts.json placed on this bike by catalogue.json, as a
+	// placeholder option, a tune option or a loose part, or refused with a reason.
+	bool AddCatalogue(const PartsDb& Db, const std::string& CatalogueText, std::string& Error);
+	const std::vector<CatalogueEntry>& Catalogue() const { return CatalogueList; }
+	const CatalogueEntry* FindCatalogue(const std::string& Kind, const std::string& Id) const;
+	const LooseSpec* FindLoose(const std::string& Kind, const std::string& Id) const;
+	// Geometry mode without authored sockets: the loose part fitted to the nearest interface it can
+	// use from where it was dropped, clear of everything else (rest, full lock, full bump).
+	bool SnapLoose(const Assembly& A, const LoosePart& L, Placed& Out, std::string& WhyNot) const;
 	// The slot a name means: a slot id, any case, or an everyday alias ("bars", "pipes", "silencers": a
 	// unit's id finds its slot). Empty if none; SlotError then says so and lists the slots.
 	std::string SlotFor(const std::string& SlotOrAlias) const;
@@ -249,5 +301,8 @@ private:
 	Json Datums, ClearanceData;
 	double ToleranceMm = 1.0;
 	std::vector<std::pair<std::string, std::string>> Touch;
+	std::set<std::string> CatalogueSlots;
+	std::vector<CatalogueEntry> CatalogueList;
+	std::map<std::string, LooseSpec> LooseSpecs;           // "kind/id"
 };
 } // namespace TorqueFit

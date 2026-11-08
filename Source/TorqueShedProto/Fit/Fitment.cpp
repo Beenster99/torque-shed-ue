@@ -861,6 +861,14 @@ bool BikeFit::Assemble(const Build& B, Assembly& Out, std::string& Error) const
 	}
 	for (size_t K = 0; K < Eff.size(); ++K) Placements[K].U = Eff[K];
 	Out.Units = std::move(Placements);
+	// Loose parts: snapped from where they were dropped, onto whatever is fitted now.
+	for (const LoosePart& L : B.Loose)
+	{
+		Placed P;
+		std::string Why;
+		if (SnapLoose(Out, L, P, Why)) Out.Units.push_back(P);
+		else Out.Notes.push_back(L.Kind + "/" + L.Id + ": " + Why);
+	}
 	// Conforming parts: report ends that moved away from where the part was made.
 	for (const Placed& P : Out.Units)
 	{
@@ -1119,5 +1127,473 @@ bool BikeFit::AuthorFix(const Assembly& A, const std::string& UnitId, Json& Fix,
 	Fix.Set("slot", Json::MakeString(P->Slot));
 	Fix.Set("child", WriteFrame(Child));
 	return true;
+}
+// --- The catalogue -----------------------------------------------------------------------------------
+
+namespace
+{
+// A field by dotted path ("look.wall").
+const Json* FieldPath(const Json* J, const std::string& Path)
+{
+	size_t Start = 0;
+	while (J)
+	{
+		const size_t Dot = Path.find('.', Start);
+		J = J->Get(Path.substr(Start, Dot == std::string::npos ? std::string::npos : Dot - Start));
+		if (Dot == std::string::npos) break;
+		Start = Dot + 1;
+	}
+	return J;
+}
+
+bool ReadColour(const Json* J, V3& Out)
+{
+	if (!J || !J->IsArray() || J->A.size() < 3) return false;
+	Out = V3(J->A[0].N, J->A[1].N, J->A[2].N);
+	return true;
+}
+
+std::vector<std::string> StylesOf(const Json& P)
+{
+	std::vector<std::string> Out;
+	if (const Json* S = P.Get("styles"))
+		for (const Json& E : S->A)
+			if (E.IsString()) Out.push_back(E.S);
+	return Out;
+}
+
+std::string Words(std::string S)
+{
+	for (char& C : S) if (C == '_') C = ' ';
+	return S;
+}
+
+std::string LowerFirst(std::string S)
+{
+	if (!S.empty() && S[0] >= 'A' && S[0] <= 'Z') S[0] = static_cast<char>(S[0] - 'A' + 'a');
+	return S;
+}
+} // namespace
+
+bool BikeFit::AddCatalogue(const PartsDb& Db, const std::string& CatalogueText, std::string& Error)
+{
+	Json Cat;
+	if (!Json::Parse(CatalogueText, Cat, &Error)) { Error = "catalogue.json: " + Error; return false; }
+	const Json* Kinds = Cat.Get("kinds");
+	if (!Kinds || !Kinds->IsObject()) { Error = "catalogue.json: no kinds"; return false; }
+	// Again from scratch (a reload): take off what an earlier call added.
+	for (auto& KV : Options)
+		KV.second.erase(std::remove_if(KV.second.begin(), KV.second.end(), [](const Option& O) { return O.Catalogue; }), KV.second.end());
+	for (const std::string& S : CatalogueSlots)
+	{
+		Options.erase(S);
+		SlotOrder.erase(std::remove(SlotOrder.begin(), SlotOrder.end(), S), SlotOrder.end());
+	}
+	CatalogueSlots.clear();
+	CatalogueList.clear();
+	LooseSpecs.clear();
+
+	// The parts the bike already has authored models for.
+	std::map<std::string, std::string> Authored;   // "kind/id" -> slot
+	for (const auto& KV : Options)
+		for (const Option& Op : KV.second)
+			if (!Op.CatKind.empty()) Authored[Op.CatKind + "/" + Op.CatId] = KV.first;
+
+	auto NewSlot = [&](const std::string& Slot, const std::string& StockName) {
+		Option Stock;
+		Stock.Slot = Slot;
+		Stock.Id = "stock";
+		Stock.Name = StockName;
+		Stock.Stock = true;
+		Options[Slot].push_back(Stock);
+		SlotOrder.push_back(Slot);
+		CatalogueSlots.insert(Slot);
+	};
+
+	for (const std::string& Kind : Db.Kinds())
+	{
+		const Json* Rule = Kinds->Get(Kind);
+		for (const std::string& Id : Db.Ids(Kind))
+		{
+			const Json* Part = Db.Find(Kind, Id);
+			if (!Part) continue;
+			CatalogueEntry E;
+			E.Kind = Kind;
+			E.Id = Id;
+			E.Name = Part->Str("name", Id);
+			V3 Colour;
+			const bool HasColour = ReadColour(Part->Get("color"), Colour);
+			auto Au = Authored.find(Kind + "/" + Id);
+			if (Au != Authored.end())
+			{
+				E.State = "authored";
+				E.Slot = Au->second;
+			}
+			else if (!Rule)
+			{
+				E.State = "refused";
+				E.Reason = "catalogue.json doesn't say how a " + Words(Kind) + " fits a bike yet";
+			}
+			else if (const Json* R = Rule->Get("refuse"))
+			{
+				E.State = "refused";
+				E.Reason = R->S;
+			}
+			else if (const Json* T = Rule->Get("tune"))
+			{
+				// Its own slot, no model: how the bike goes or sounds.
+				if (!Options.count(Kind)) NewSlot(Kind, "Stock " + LowerFirst(T->S));
+				Option Op;
+				Op.Slot = Kind;
+				Op.Id = Id;
+				Op.Name = E.Name;
+				Op.CatKind = Kind;
+				Op.CatId = Id;
+				Op.Catalogue = Op.Tune = true;
+				Options[Kind].push_back(Op);
+				E.State = "tune";
+				E.Slot = Kind;
+				E.Reason = "changes how the bike goes or sounds, not how it looks";
+			}
+			else if (const Json* L = Rule->Get("loose"))
+			{
+				LooseSpec Sp;
+				Sp.Kind = Kind;
+				Sp.Id = Id;
+				Sp.Name = E.Name;
+				Sp.Half = ReadV3(L->Get("size"), V3(0.1, 0.1, 0.1)) * 0.5;
+				const std::string ScaleField = L->Str("scale_field");
+				const double Have = ScaleField.empty() ? 0.0 : Part->Num(ScaleField);
+				if (Have > 0.0) Sp.Half = Sp.Half * std::cbrt(Have / std::max(L->Num("scale_at", Have), 1e-6));
+				std::string List;
+				if (const Json* M = L->Get("mounts"))
+					for (const Json& Mj : M->A)
+					{
+						Sp.Mounts.push_back(Mj.S);
+						const std::string W = Mj.S.rfind("surface:", 0) == 0 ? "the " + Words(Mj.S.substr(8)) : "a " + Words(Mj.S);
+						List += (List.empty() ? "" : " or ") + W;
+					}
+				if (const Json* C = L->Get("clamp_mm"))
+					if (C->A.size() >= 2) { Sp.ClampMinMm = C->A[0].N; Sp.ClampMaxMm = C->A[1].N; }
+				Sp.Near = ReadV3(L->Get("near"));
+				Sp.HasTint = HasColour;
+				Sp.Tint = Colour;
+				LooseSpecs[Kind + "/" + Id] = Sp;
+				E.State = "loose";
+				E.Reason = "no authored mount: geometry mode fits it to " + List;
+			}
+			else
+			{
+				const std::string Slot = Rule->Str("slot");
+				bool StockHas = false, StockHasMeshes = false;
+				for (const Unit& Un : Units)
+					if (Un.Slot == Slot) { StockHas = true; StockHasMeshes = StockHasMeshes || !Un.Meshes.empty(); }
+				if (!Options.count(Slot) && StockHas) NewSlot(Slot, "Stock " + Words(Slot));
+				if (!Options.count(Slot))
+				{
+					E.State = "refused";
+					E.Reason = "the " + Name + " has nowhere for a " + Words(Kind);
+					CatalogueList.push_back(E);
+					continue;
+				}
+				// Its look for now: the authored part of the slot most like it (its style, then the
+				// styles they share), else the stock part, else the slot's first authored part.
+				const std::vector<Option>& List = Options[Slot];
+				const Option* Base = nullptr;
+				int Best = 0;
+				const std::string Needs = Rule->Str("needs");
+				if (Needs.empty() || FieldPath(Part, Needs))
+				{
+					const std::string Style = Part->Str("style");
+					const std::vector<std::string> Mine = StylesOf(*Part);
+					for (const Option& Op : List)
+					{
+						if (Op.Stock || Op.Catalogue || Op.CatKind.empty()) continue;
+						const Json* Q = Db.Find(Op.CatKind, Op.CatId);
+						if (!Q) continue;
+						int Score = (!Style.empty() && Q->Str("style") == Style) ? 2 : 0;
+						if (Op.CatKind == Kind) ++Score;   // a top box looks like the crate, not the bare rack
+						for (const std::string& St : StylesOf(*Q))
+							Score += static_cast<int>(std::count(Mine.begin(), Mine.end(), St));
+						if (Score > Best) { Best = Score; Base = &Op; }
+					}
+					if (!Base && !StockHasMeshes)
+						for (const Option& Op : List)
+							if (!Op.Stock && !Op.Catalogue) { Base = &Op; break; }
+				}
+				Option Ph;
+				if (Base)
+				{
+					Ph = *Base;
+					Ph.LooksLike = Base->Id;
+					E.Reason = "looks like the " + Base->Name + " for now";
+				}
+				else
+				{
+					for (const Unit& Un : Units)
+						if (Un.Slot == Slot) Ph.Units.push_back(Un);
+					Ph.LooksLike = "stock";
+					E.Reason = StockHasMeshes ? "looks like the stock part for now" : "no model for it yet";
+				}
+				Ph.Slot = Slot;
+				Ph.Id = Id;
+				Ph.Name = E.Name;
+				Ph.Stock = false;
+				Ph.CatKind = Kind;
+				Ph.CatId = Id;
+				Ph.Catalogue = true;
+				Ph.HasTint = ReadColour(FieldPath(Part, Rule->Str("tint_field", "color")), Ph.Tint);
+				Options[Slot].push_back(Ph);
+				std::string Why;
+				if (CanFit(Build(), Slot, Id, Why))
+				{
+					E.State = "placeholder";
+					E.Slot = Slot;
+				}
+				else
+				{
+					Options[Slot].pop_back();
+					E.State = "refused";
+					E.Reason = Why;
+				}
+			}
+			CatalogueList.push_back(E);
+		}
+	}
+	return true;
+}
+
+const CatalogueEntry* BikeFit::FindCatalogue(const std::string& Kind, const std::string& Id) const
+{
+	for (const CatalogueEntry& E : CatalogueList)
+		if (E.Kind == Kind && E.Id == Id) return &E;
+	return nullptr;
+}
+
+const LooseSpec* BikeFit::FindLoose(const std::string& Kind, const std::string& Id) const
+{
+	auto It = LooseSpecs.find(Kind + "/" + Id);
+	return It == LooseSpecs.end() ? nullptr : &It->second;
+}
+
+// --- Loose parts: geometry mode without authored sockets ---------------------------------------------
+
+namespace
+{
+// The point on a proxy's surface nearest P, and the surface's normal there (a box's face, not its edge).
+void NearestOnSurface(const Proxy& Q, const V3& P, V3& At, V3& Normal)
+{
+	if (!Q.IsBox)
+	{
+		const V3 Ab = Q.B - Q.A;
+		const double L2 = Ab.Dot(Ab);
+		const double T = L2 > 1e-12 ? Clamp((P - Q.A).Dot(Ab) / L2, 0.0, 1.0) : 0.0;
+		const V3 C = Q.A + Ab * T;
+		Normal = P - C;
+		if (Normal.Length() < 1e-9) Normal = V3(0, 1, 0);
+		Normal = Normal.Normalized();
+		At = C + Normal * Q.R;
+		return;
+	}
+	const V3 Ax[3] = {Q.X, Q.Y, Q.Z};
+	const double H[3] = {Q.H.x, Q.H.y, Q.H.z};
+	double L[3];
+	int Face = 0;
+	double Most = -1e9;
+	for (int K = 0; K < 3; ++K)
+	{
+		L[K] = (P - Q.C).Dot(Ax[K]);
+		const double Out = std::fabs(L[K]) - H[K];   // > 0 outside that pair of faces
+		if (Out > Most) { Most = Out; Face = K; }
+	}
+	At = Q.C;
+	for (int K = 0; K < 3; ++K)
+	{
+		const double V = K == Face ? (L[K] < 0.0 ? -H[K] : H[K]) : Clamp(L[K], -H[K], H[K]);
+		At = At + Ax[K] * V;
+	}
+	Normal = Ax[Face] * (L[Face] < 0.0 ? -1.0 : 1.0);
+}
+
+double Reach(const Proxy& Q)
+{
+	return Q.IsBox ? Q.H.Length() : (Q.B - Q.A).Length() * 0.5 + Q.R;
+}
+
+V3 Middle(const Proxy& Q)
+{
+	return Q.IsBox ? Q.C : (Q.A + Q.B) * 0.5;
+}
+} // namespace
+
+bool BikeFit::SnapLoose(const Assembly& A, const LoosePart& L, Placed& Out, std::string& WhyNot) const
+{
+	const LooseSpec* Sp = FindLoose(L.Kind, L.Id);
+	if (!Sp)
+	{
+		WhyNot = "no loose part " + L.Kind + "/" + L.Id + " in the catalogue";
+		return false;
+	}
+	const V3 Near = L.HasNear ? L.Near : Sp->Near;
+	struct Cand
+	{
+		size_t Unit;
+		std::string Socket;
+		Xf F;
+		double D;
+	};
+	std::vector<Cand> Cands;
+	// The part's frame: y off the mount, z across it (along a bar), x the third.
+	auto Add = [&](size_t K, const std::string& Sock, const V3& At, const V3& Up, const V3& Across) {
+		const V3 Y = Up.Normalized();
+		V3 Z = Across - Y * Y.Dot(Across);
+		if (Z.Length() < 0.3) Z = V3(0, 1, 0) - Y * Y.y;
+		if (Z.Length() < 0.3) Z = V3(1, 0, 0) - Y * Y.x;
+		Z = Z.Normalized();
+		Xf F;
+		F.R = M3(Y.Cross(Z), Y, Z);
+		F.T = At + Y * Sp->Half.y;
+		Cands.push_back({K, Sock, F, (F.T - Near).Length()});
+	};
+	std::string SizeWhy;
+	for (size_t K = 0; K < A.Units.size(); ++K)
+	{
+		const Placed& P = A.Units[K];
+		if (P.U.Loose) continue;
+		for (const std::string& M : Sp->Mounts)
+		{
+			if (M.rfind("surface:", 0) == 0)
+			{
+				if (P.U.Id != M.substr(8)) continue;
+				// Its proxies' surfaces near where it was dropped.
+				for (const Proxy& Q0 : P.U.Proxies)
+				{
+					const Proxy Q = Q0.Moved(P.World);
+					for (int I = -2; I <= 2; ++I)
+						for (int J = -2; J <= 2; ++J)
+							for (int Kk = -2; Kk <= 2; ++Kk)
+							{
+								V3 At, Normal;
+								NearestOnSurface(Q, Near + V3(I, J, Kk) * 0.04, At, Normal);
+								Add(K, std::string(), At, Normal, V3(0, 0, 1));
+							}
+				}
+				continue;
+			}
+			for (const Socket& S : P.U.Sockets)
+			{
+				if (S.Type != M) continue;
+				if (Sp->ClampMaxMm > 0.0 && S.HasSize && (S.SizeMm < Sp->ClampMinMm - 0.5 || S.SizeMm > Sp->ClampMaxMm + 0.5))
+				{
+					SizeWhy = Fmt("its clamp takes %.0f", Sp->ClampMinMm) + Fmt(" to %.0f mm; ", Sp->ClampMaxMm) + P.U.Id + Fmt(" is %.1f mm", S.SizeMm);
+					continue;
+				}
+				const double Rad = S.HasSize ? S.SizeMm / 2000.0 : 0.0;
+				const double Len = S.IsPath ? S.Length() : 0.0;
+				for (double At = 0.0; At <= Len + 1e-9; At += 0.005)
+				{
+					const Xf F = P.World * S.FrameAt(At);
+					const V3 Up = F.R.Y;
+					Add(K, S.Name, F.T + Up * Rad, Up, F.R.X);
+					if (!S.IsPath) break;
+				}
+			}
+		}
+	}
+	if (Cands.empty())
+	{
+		WhyNot = !SizeWhy.empty() ? SizeWhy : "nothing on the " + Name + " it can fit to";
+		return false;
+	}
+	std::stable_sort(Cands.begin(), Cands.end(), [](const Cand& X, const Cand& Y) { return X.D < Y.D; });
+
+	// Everything else, moved for each clearance case once.
+	struct Moved
+	{
+		Proxy Q;
+		V3 Mid;
+		double R;
+		size_t Unit;
+	};
+	struct Case
+	{
+		double Steer, Front, Rear;
+		std::vector<Moved> Others;
+	};
+	std::vector<Case> Cases;
+	if (const Json* Cs = ClearanceData.Get("cases"))
+		for (const Json& C : Cs->A) Cases.push_back({C.Num("steer_deg"), C.Num("front"), C.Num("rear"), {}});
+	if (Cases.empty()) Cases.push_back({0.0, 0.0, 0.0, {}});
+	for (Case& C : Cases)
+		for (size_t K = 0; K < A.Units.size(); ++K)
+		{
+			const Xf M = GroupMotion(A.Units[K].U.Group, C.Steer, C.Front, C.Rear) * A.Units[K].World;
+			for (const Proxy& Q : A.Units[K].U.Proxies)
+			{
+				const Proxy Mq = Q.Moved(M);
+				C.Others.push_back({Mq, Middle(Mq), Reach(Mq), K});
+			}
+		}
+	Proxy Box;
+	Box.IsBox = true;
+	Box.H = Sp->Half;
+	const double Tol = ToleranceMm / 1000.0;
+	const double BoxR = Sp->Half.Length();
+	size_t Tried = 0;
+	std::string Worst;
+	for (Cand& Cd : Cands)
+	{
+		if (++Tried > 800) break;
+		const std::string& Group = A.Units[Cd.Unit].U.Group;
+		// Sit on what it's fitted to: lift it off its parent's proxies (a curved tank top).
+		const Case& Rest = Cases.front();
+		for (int Step = 0; Step < 30; ++Step)
+		{
+			const Proxy Mb = Box.Moved(Cd.F);
+			double Deep = -1.0;
+			for (const Moved& O : Rest.Others)
+				if (O.Unit == Cd.Unit && (O.Mid - Mb.C).Length() < O.R + BoxR) Deep = std::max(Deep, Penetration(Mb, O.Q));
+			if (Deep <= 0.002) break;
+			Cd.F.T = Cd.F.T + Cd.F.R.Y * 0.003;
+		}
+		bool Clear = true;
+		for (const Case& C : Cases)
+		{
+			const Proxy Mb = Box.Moved(GroupMotion(Group, C.Steer, C.Front, C.Rear) * Cd.F);
+			for (const Moved& O : C.Others)
+			{
+				if (O.Unit == Cd.Unit || (O.Mid - Mb.C).Length() > O.R + BoxR + Tol) continue;
+				if (Penetration(Mb, O.Q) > Tol)
+				{
+					Clear = false;
+					if (Worst.empty()) Worst = A.Units[O.Unit].U.Id;
+					break;
+				}
+			}
+			if (!Clear) break;
+		}
+		if (!Clear) continue;
+		const Placed& Parent = A.Units[Cd.Unit];
+		Out = Placed();
+		Out.U.Id = "loose_" + L.Kind + "_" + L.Id;
+		Out.U.Group = Group;
+		Out.U.CatKind = L.Kind;
+		Out.U.CatId = L.Id;
+		Out.U.Loose = true;
+		Out.U.Half = Sp->Half;
+		Out.U.Meshes = {"placeholder_box"};
+		Out.U.Proxies = {Box};
+		Out.U.HasMount = true;
+		Out.U.Mnt.ParentUnit = Parent.U.Id;
+		Out.U.Mnt.ParentSocket = Cd.Socket;
+		Out.U.Mnt.Type = Cd.Socket.empty() ? std::string("surface") : std::string("loose");
+		Out.Slot = "loose";
+		Out.OptionId = L.Id;
+		Out.World = Out.Socket0 = Cd.F;
+		Out.AdjustKind = "loose";
+		return true;
+	}
+	WhyNot = "no room near there: it hits the " + (Worst.empty() ? std::string("bike") : Worst);
+	return false;
 }
 } // namespace TorqueFit
