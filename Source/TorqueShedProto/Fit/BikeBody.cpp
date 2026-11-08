@@ -6,8 +6,6 @@
 
 namespace TorqueFit
 {
-using TorqueSim::Clamp;
-using TorqueSim::Lerp;
 
 namespace
 {
@@ -20,7 +18,7 @@ constexpr double DeepSkirt = 0.12, OverlapUnder = 0.16, TunnelSpare = 0.006;
 constexpr double SeatNoseW = 0.06, SeatNoseH = 0.04, SeatFoam = 0.04;
 constexpr double CowlFrontW = 0.05;
 constexpr double CowlHipLead = 0.2;
-const double Inf = std::numeric_limits<double>::infinity();
+const double NoLimit = std::numeric_limits<double>::infinity();
 
 double TankKnee(const std::string& Shape)
 {
@@ -30,13 +28,13 @@ double TankKnee(const std::string& Shape)
 	return It == K.end() ? 0.0 : It->second;
 }
 
-double Item(const Json& Arr, size_t I, double Default = 0.0)
+double Nth(const Json& Arr, size_t I, double Default = 0.0)
 {
 	return (Arr.IsArray() && I < Arr.A.size() && Arr.A[I].IsNumber()) ? Arr.A[I].N : Default;
 }
 
 // A profile key list's values at u (BikeModel._key_at, _seat_key_at): Width values after the share.
-std::vector<double> KeyAt(const Json& Keys, double U, size_t Width)
+std::vector<double> KeysAt(const Json& Keys, double U, size_t Width)
 {
 	const size_t N = Keys.A.size();
 	std::vector<double> Out(Width);
@@ -44,15 +42,15 @@ std::vector<double> KeyAt(const Json& Keys, double U, size_t Width)
 	{
 		const Json& K0 = Keys.A[I];
 		const Json& K1 = Keys.A[I + 1];
-		if (U <= Item(K1, 0))
+		if (U <= Nth(K1, 0))
 		{
-			double F = (U - Item(K0, 0)) / std::max(Item(K1, 0) - Item(K0, 0), 0.0001);
+			double F = (U - Nth(K0, 0)) / std::max(Nth(K1, 0) - Nth(K0, 0), 0.0001);
 			F = F * F * (3.0 - 2.0 * F);
-			for (size_t C = 0; C < Width; ++C) Out[C] = Lerp(Item(K0, C + 1), Item(K1, C + 1), F);
+			for (size_t C = 0; C < Width; ++C) Out[C] = TorqueSim::Lerp(Nth(K0, C + 1), Nth(K1, C + 1), F);
 			return Out;
 		}
 	}
-	for (size_t C = 0; C < Width; ++C) Out[C] = Item(Keys.A[N - 1], C + 1);
+	for (size_t C = 0; C < Width; ++C) Out[C] = Nth(Keys.A[N - 1], C + 1);
 	return Out;
 }
 
@@ -68,7 +66,7 @@ OnLine LineAt(const std::vector<V3>& Line, double Z)
 	const V3 D = B - A;
 	if (std::fabs(D.z) < 0.00001) return {A, V3(0, 0, 1)};
 	double F = (Z - A.z) / D.z;
-	if (K > 1 && K < N - 1) F = Clamp(F, 0.0, 1.0);
+	if (K > 1 && K < N - 1) F = TorqueSim::Clamp(F, 0.0, 1.0);
 	return {A + D * F, D.Normalized()};
 }
 
@@ -88,7 +86,7 @@ V3 LookVec(const Json* Part, const char* Key, const V3& Default)
 	const Json* Look = Part ? Part->Get("look") : nullptr;
 	const Json* V = Look ? Look->Get(Key) : nullptr;
 	if (!V || !V->IsArray() || V->A.size() < 3) return Default;
-	return V3(Item(*V, 0, Default.x), Item(*V, 1, Default.y), Item(*V, 2, Default.z));
+	return V3(Nth(*V, 0, Default.x), Nth(*V, 1, Default.y), Nth(*V, 2, Default.z));
 }
 
 std::string LookStr(const Json* Part, const char* Key)
@@ -104,7 +102,7 @@ PartMesh::Warp InOurs(std::function<V3(const V3&)> GodotWarp)
 	return [GodotWarp](const V3& Ours) { return FromGodot(GodotWarp(ToGodot(Ours))); };
 }
 
-std::string Get(const PartsMap& P, const std::string& Slot)
+std::string SlotPart(const PartsMap& P, const std::string& Slot)
 {
 	auto It = P.find(Slot);
 	return It == P.end() || It->second.empty() ? std::string("none") : It->second;
@@ -125,7 +123,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 	for (const V3& P : L.Hard.HeadTops) Tops.push_back(ToGodot(P));
 
 	// ------------------------------------------------------------------ tank
-	const Json* Tank = Lay.Part(Get(Parts, "tank"));
+	const Json* Tank = Lay.Part(SlotPart(Parts, "tank"));
 	if (Tank)
 	{
 		const Json* Shapes = T.Get("tank_shapes");
@@ -140,11 +138,11 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		double Back = Rear.z + 0.03;
 		if (L.SeatOverlap)
 		{
-			const double Want = Len * Lerp(0.85, 1.0, Size) * Sc.x;
-			Back = Clamp(Nose.z + 0.03 + Want, Back, Back + OverlapUnder);
+			const double Want = Len * TorqueSim::Lerp(0.85, 1.0, Size) * Sc.x;
+			Back = TorqueSim::Clamp(Nose.z + 0.03 + Want, Back, Back + OverlapUnder);
 		}
 		const double Room = Back - (Nose.z + 0.03);
-		const double Length = std::min(Clamp(Len * Lerp(0.85, 1.0, Size) * Sc.x, 0.25, std::max(Room, 0.25)), Room);
+		const double Length = std::min(TorqueSim::Clamp(Len * TorqueSim::Lerp(0.85, 1.0, Size) * Sc.x, 0.25, std::max(Room, 0.25)), Room);
 		const double Front = Back - Length;
 		const double Kx = Size * Sc.y;
 		double Ky = Size * Sc.z;
@@ -152,7 +150,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		double Skirt = std::max(2.0 * (HalfW - 0.01) + 0.012 - BaseTunnelDeep * Ky, 0.0);
 		auto Tallest = [&](double K) {
 			double M = 0.0;
-			for (const Json& Kk : Keys.A) M = std::max(M, (Item(Kk, 2) + Item(Kk, 3)) * K);
+			for (const Json& Kk : Keys.A) M = std::max(M, (Nth(Kk, 2) + Nth(Kk, 3)) * K);
 			return M;
 		};
 		double Sink = 0.0;
@@ -161,10 +159,10 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 			const double Tall = Tallest(Ky);
 			for (const Json& Kk : Keys.A)
 			{
-				const V3 At = LineAt(Floor, Front + Item(Kk, 0) * Length).P;
-				Over = std::max(Over, At.y + (Item(Kk, 2) + Item(Kk, 3)) * Ky - L.TankTopMax);
+				const V3 At = LineAt(Floor, Front + Nth(Kk, 0) * Length).P;
+				Over = std::max(Over, At.y + (Nth(Kk, 2) + Nth(Kk, 3)) * Ky - L.TankTopMax);
 			}
-			Sink = Clamp(Over, 0.0, Tall * 0.5);
+			Sink = TorqueSim::Clamp(Over, 0.0, Tall * 0.5);
 			const double Left = Over - Sink;
 			if (Left > 0.002 && Tall > 0.01)
 			{
@@ -174,7 +172,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 			}
 		}
 		// How far under the floor the flanks may come and stay clear of the heads (clear_under).
-		double Below = Inf;
+		double Below = NoLimit;
 		for (const V3& Tp : Tops)
 		{
 			const V3 At = Crank + Tp;
@@ -203,14 +201,14 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		FittedPart P;
 		P.Slot = "tank";
 		P.Glb = "tank/" + Name + ".glb";
-		P.Weights["tunnel_width"] = Clamp((HalfW + TunnelSpare - BaseTunnelHalf) / 0.05 / std::max(Kx, 0.5), -0.3, 1.5);
+		P.Weights["tunnel_width"] = TorqueSim::Clamp((HalfW + TunnelSpare - BaseTunnelHalf) / 0.05 / std::max(Kx, 0.5), -0.3, 1.5);
 		P.Weights["tunnel_height"] = Sink / (TunnelSink * Ky);
 		P.Weights["flank_depth"] = (Skirt < 0.0 ? Skirt : std::max(Skirt - Sink, 0.0)) / (FlankSkirt * Ky);
 		P.Weights["nose_reach"] = 0.6;
 		const double Depth = TankKnee(Name);
 		if (Depth > 0.0)
 		{
-			const double Tk = Clamp((ToGodot(L.KneeR).z - Front) / Length, KneeAt0, KneeAt1);
+			const double Tk = TorqueSim::Clamp((ToGodot(L.KneeR).z - Front) / Length, KneeAt0, KneeAt1);
 			const double F = (Tk - KneeAt0) / (KneeAt1 - KneeAt0);
 			P.Weights["knee_fore"] = Depth * (1.0 - F);
 			P.Weights["knee_aft"] = Depth * F;
@@ -226,7 +224,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		for (int I = 0; I <= Steps; ++I)
 		{
 			const double U = static_cast<double>(I) / Steps;
-			const std::vector<double> K = KeyAt(Keys, U, 3);
+			const std::vector<double> K = KeysAt(Keys, U, 3);
 			const OnLine On = LineAt(Floor, Front + U * Length);
 			const double Down = K[2] * Ky;
 			Out.TankSecs.push_back({On.P + V3(0.0, Down - Sink, 0.0), K[0] * Kx, K[1] * Ky, Down});
@@ -234,27 +232,27 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 	}
 
 	// ------------------------------------------------------------------ seat
-	const Json* Saddle = Lay.Part(Get(Parts, "saddle"));
+	const Json* Saddle = Lay.Part(SlotPart(Parts, "saddle"));
 	const Json* SeatShapes = T.Get("seat_shapes");
 	const Json* Cowls = T.Get("tail_cowls");
-	const Json* Tail = Lay.Part(Get(Parts, "tail"));
+	const Json* Tail = Lay.Part(SlotPart(Parts, "tail"));
 	const std::string CowlKind = LookStr(Tail, "cowl");
 	const Json* CowlKeys = (Cowls && !CowlKind.empty()) ? Cowls->Get(CowlKind) : nullptr;
 	const double CowlLn = (Tail && Tail->Get("look")) ? Tail->Get("look")->Num("length", 1.0) : 1.0;
 	// A full fairing's sports tail comes forward to just behind the rider (_cowl_lead).
 	std::string FairingSet;
-	if (const Json* Fr = Lay.Part(Get(Parts, "fairing")))
+	if (const Json* Fr = Lay.Part(SlotPart(Parts, "fairing")))
 		if (Fr->Flag("frame_mount"))
 		{
 			const std::string Sh = LookStr(Fr, "shape").empty() ? Fr->Str("style") : LookStr(Fr, "shape");
 			const Json* Lk = Fr->Get("look");
 			if (Sh == "race") FairingSet = (Lk && !Lk->Flag("lamps", true)) ? "race" : "sport";
 		}
-	const double Lead = (CowlKeys && (FairingSet == "sport" || FairingSet == "race") && (CowlKind == "sport" || CowlKind == "racing")) ? CowlHipLead : Inf;
+	const double Lead = (CowlKeys && (FairingSet == "sport" || FairingSet == "race") && (CowlKind == "sport" || CowlKind == "racing")) ? CowlHipLead : NoLimit;
 	const V3 RailA = ToGodot(L.SeatFront), RailB = ToGodot(L.Tail), Hip = ToGodot(L.Hip);
 	auto CowlStart = [&](const Json& Keys) {
-		double Z = std::max(RailB.z + Item(Keys.A[0], 0) * CowlLn, RailA.z + 0.3);
-		if (Lead < Inf) Z = std::min(Z, std::max(Hip.z + Lead, RailA.z + 0.2));
+		double Z = std::max(RailB.z + Nth(Keys.A[0], 0) * CowlLn, RailA.z + 0.3);
+		if (Lead < NoLimit) Z = std::min(Z, std::max(Hip.z + Lead, RailA.z + 0.2));
 		return Z;
 	};
 	if (Saddle && SeatShapes)
@@ -264,11 +262,11 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		std::string Name = SeatShapes->Get(Key) ? Key : (SeatShapes->Get(Style) ? Style : "bench");
 		const Json* Shape = SeatShapes->Get(Name);
 		const V3 Sc = LookVec(Saddle, "scale", V3(1, 1, 1));
-		double CowlZ = Inf;
-		if (CowlKeys && Get(Parts, "tail") != "none")
+		double CowlZ = NoLimit;
+		if (CowlKeys && SlotPart(Parts, "tail") != "none")
 		{
 			CowlZ = CowlStart(*CowlKeys);
-			if (Lead < Inf)
+			if (Lead < NoLimit)
 			{
 				Name = "brat";
 				Shape = SeatShapes->Get("brat");
@@ -276,12 +274,12 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		}
 		const Json& Keys = *(Shape->Get("rig_keys") ? Shape->Get("rig_keys") : Shape->Get("keys"));
 		const double Span = Shape->Get("rig_span") ? Shape->Num("rig_span", 1.0) : Shape->Num("span", 1.0);
-		const double ZLimit = CowlZ < Inf ? CowlZ + 0.03 : Inf;
+		const double ZLimit = CowlZ < NoLimit ? CowlZ + 0.03 : NoLimit;
 		// seat_fit
 		double Slope = (RailB.y - RailA.y) / std::max(RailB.z - RailA.z, 0.01);
 		if (RailB.z - Hip.z > 0.05) Slope = std::min(Slope, (RailB.y - Hip.y) / (RailB.z - Hip.z));
 		const double Z0 = !L.SeatOverlap ? std::max(RailA.z, Rear.z - 0.01) : RailA.z + Shape->Num("from", 0.0);
-		const double Z1 = Lerp(Z0, std::max(std::min(RailB.z + Shape->Num("to", 0.0), ZLimit), Z0 + 0.25), Span * Sc.x);
+		const double Z1 = TorqueSim::Lerp(Z0, std::max(std::min(RailB.z + Shape->Num("to", 0.0), ZLimit), Z0 + 0.25), Span * Sc.x);
 		auto RailY = [RailA, Slope](double Z) { return RailA.y + Slope * (Z - RailA.z); };
 		const double Length = Z1 - Z0;
 		FittedPart P;
@@ -289,19 +287,19 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		P.Glb = "saddle/" + Name + ".glb";
 		P.ColourTag = "leather";
 		{
-			const double U = Clamp((Hip.z - Z0) / std::max(Length, 0.01), 0.0, 1.0);
-			const std::vector<double> K = KeyAt(Keys, U, 4);
+			const double U = TorqueSim::Clamp((Hip.z - Z0) / std::max(Length, 0.01), 0.0, 1.0);
+			const std::vector<double> K = KeysAt(Keys, U, 4);
 			const double Top = (K[2] + K[3] + K[1]) * Sc.z;
-			P.Weights["foam"] = Clamp((Hip.y - RailY(Hip.z) - Top) / SeatFoam / std::max(Sc.z, 0.5), -1.0, 2.5);
+			P.Weights["foam"] = TorqueSim::Clamp((Hip.y - RailY(Hip.z) - Top) / SeatFoam / std::max(Sc.z, 0.5), -1.0, 2.5);
 		}
 		if (!Out.TankSecs.empty())
 		{
 			const LoftSection& Tr = Out.TankSecs.back();
-			const std::vector<double> K0 = KeyAt(Keys, 0.0, 4);
-			P.Weights["nose_width"] = Clamp((Tr.W - K0[0] * Sc.y) / SeatNoseW, -1.0, 1.5);
+			const std::vector<double> K0 = KeysAt(Keys, 0.0, 4);
+			P.Weights["nose_width"] = TorqueSim::Clamp((Tr.W - K0[0] * Sc.y) / SeatNoseW, -1.0, 1.5);
 			const double TankTop = Tr.C.y + Tr.Up;
 			const double SeatTop = RailY(Z0) + (K0[1] + K0[2] + K0[3] + SeatFoam * P.Weights["foam"]) * Sc.z;
-			P.Weights["nose_height"] = Clamp((TankTop - SeatTop) / SeatNoseH, -1.0, Shape->Num("nose_max", 1.5));
+			P.Weights["nose_height"] = TorqueSim::Clamp((TankTop - SeatTop) / SeatNoseH, -1.0, Shape->Num("nose_max", 1.5));
 		}
 		const V3 Up = UpFrom(V3(0.0, Slope, 1.0).Normalized());
 		P.Warp = InOurs([Z0, Length, Sc, Up, RailY](const V3& G) {
@@ -313,8 +311,8 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		for (int I = 0; I <= Steps; ++I)
 		{
 			const double U = static_cast<double>(I) / Steps;
-			const std::vector<double> K = KeyAt(Keys, U, 4);
-			const double Z = Lerp(Z0, Z1, U);
+			const std::vector<double> K = KeysAt(Keys, U, 4);
+			const double Z = TorqueSim::Lerp(Z0, Z1, U);
 			const double NoseF = 1.0 - SmoothStep01(0.0, 0.2, U);
 			const double Low = (K[2] + K[3]) * Sc.z;
 			Out.SeatSecs.push_back({V3(0.0, RailY(Z) + Low, Z), (K[0] + SeatNoseW * P.Weights["nose_width"] * NoseF) * Sc.y,
@@ -322,7 +320,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		}
 		Out.SeatEnd = Out.SeatSecs[Steps];
 		if (CowlZ < Z1)
-			Out.SeatEnd = Out.SeatSecs[static_cast<size_t>(Clamp(std::round((CowlZ - Z0) / std::max(Z1 - Z0, 0.01) * Steps), 0.0, Steps))];
+			Out.SeatEnd = Out.SeatSecs[static_cast<size_t>(TorqueSim::Clamp(std::round((CowlZ - Z0) / std::max(Z1 - Z0, 0.01) * Steps), 0.0, Steps))];
 		Out.SeatZ0 = Z0;
 		Out.SeatZ1 = Z1;
 		Out.SeatSlope = Slope;
@@ -339,7 +337,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		FittedPart P;
 		P.Slot = "tail";
 		P.Glb = "tail/cowl/" + CowlKind + ".glb";
-		P.Weights["front_width"] = Clamp((Out.SeatEnd.W - Item(CowlKeys->A[0], 1)) / CowlFrontW, 0.0, 1.0);
+		P.Weights["front_width"] = TorqueSim::Clamp((Out.SeatEnd.W - Nth(CowlKeys->A[0], 1)) / CowlFrontW, 0.0, 1.0);
 		const V3 Dir = V3(0.0, Slope, 1.0).Normalized();
 		const V3 Up = UpFrom(Dir);
 		const double Kz = CowlLn;

@@ -9,9 +9,6 @@
 
 namespace TorqueFit
 {
-using TorqueSim::Clamp;
-using TorqueSim::DegToRad;
-using TorqueSim::Lerp;
 
 namespace
 {
@@ -140,7 +137,7 @@ void KeyAt(const Json& Keys, double U, double Out[3])
 		{
 			double F = (U - Item(&K0, 0, 0.0)) / std::max(Item(&K1, 0, 0.0) - Item(&K0, 0, 0.0), 0.0001);
 			F = F * F * (3.0 - 2.0 * F);
-			for (size_t C = 0; C < 3; ++C) Out[C] = Lerp(Item(&K0, C + 1, 0.0), Item(&K1, C + 1, 0.0), F);
+			for (size_t C = 0; C < 3; ++C) Out[C] = TorqueSim::Lerp(Item(&K0, C + 1, 0.0), Item(&K1, C + 1, 0.0), F);
 			return;
 		}
 	}
@@ -234,22 +231,22 @@ EngineHard HardG(const Json* Engine)
 	EngineHard H;
 	const std::string LayoutName = Str(Engine, "layout", "parallel");
 	const int Cyl = static_cast<int>(Num(Engine, "cylinders", 2.0));
-	const double S = Clamp(std::pow(Num(Engine, "displacement", 700.0) / 700.0, 0.3), 0.55, 1.2);
+	const double S = TorqueSim::Clamp(std::pow(Num(Engine, "displacement", 700.0) / 700.0, 0.3), 0.55, 1.2);
 	double K = 1.0;
 	if (LayoutName != "boxer" && LayoutName != "2stroke")
 	{
 		const double B = Num(Engine, "bore", 80.0) / 1000.0, St = Num(Engine, "stroke", 70.0) / 1000.0;
 		double Want = St * 0.5 + 1.7 * St + 0.45 * B + 1.45 * B;
 		if (LayoutName == "vtwin") Want *= VtwinTop;
-		K = Clamp((Want - Deck * S) / (BarrelFoot * S + HeadReach), HeadKMin, 1.0);
+		K = TorqueSim::Clamp((Want - Deck * S) / (BarrelFoot * S + HeadReach), HeadKMin, 1.0);
 	}
-	const double BoreR = Clamp(Num(Engine, "bore", 80.0) * 0.0006, 0.022, 0.062);
+	const double BoreR = TorqueSim::Clamp(Num(Engine, "bore", 80.0) * 0.0006, 0.022, 0.062);
 	double BlockW = (0.2 + 0.11 * (Cyl - 1)) * S;
 	if (LayoutName == "vtwin")
 	{
 		BlockW = 0.22 * S;
 		const double V = Num(Engine, "v_angle", 0.0);
-		const double Half = (V > 0.0 && V < 90.0) ? DegToRad(V) * 0.5 : TorqueSim::Pi / 8.0;
+		const double Half = (V > 0.0 && V < 90.0) ? TorqueSim::DegToRad(V) * 0.5 : TorqueSim::Pi / 8.0;
 		for (double Dir : {-1.0, 1.0})
 		{
 			const V3 Up = V3(0.0, std::cos(Half), std::sin(Half) * Dir) * K;
@@ -335,7 +332,7 @@ EngineHard HardToOurs(const EngineHard& G)
 
 LayoutAdjust LayoutAdjust::Clean() const
 {
-	auto Fix = [](double V, double Lo, double Hi) { return std::isfinite(V) && std::fabs(V) > 0.0001 ? Clamp(V, Lo, Hi) : 0.0; };
+	auto Fix = [](double V, double Lo, double Hi) { return std::isfinite(V) && std::fabs(V) > 0.0001 ? TorqueSim::Clamp(V, Lo, Hi) : 0.0; };
 	LayoutAdjust A;
 	A.TankUpMm = Fix(TankUpMm, 0.0, 30.0);
 	A.PegsMm = Fix(PegsMm, -40.0, 40.0);
@@ -549,7 +546,7 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	const double Wb = B.Wheelbase, Zf = -Wb * 0.5, Zr = Wb * 0.5;
 	const double Ground = -B.RearRadius;
 	auto AtU = [&](double U) { return Zf + U * Wb; };
-	const double Rake = DegToRad(B.RakeDeg);
+	const double Rake = TorqueSim::DegToRad(B.RakeDeg);
 	const V3 Axis(0.0, std::cos(Rake), std::sin(Rake));
 	const V3 Head = V3(0.0, 0.0, Zf) + Axis * B.ForkLength;
 	const V3 HeadBottom = Head - Axis * 0.16;
@@ -614,10 +611,10 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	const bool Overlap = T3 ? T3->Flag("seat_overlap", false) : false;
 	if (!Overlap) RearZ = std::min(RearZ, SeatFrontZ + 0.015);
 	const double ShapeLen = Shape->Num("len", 0.6);
-	const double WantLen = ShapeLen * Lerp(0.85, 1.0, Size) * ScX * TankSqueeze;
+	const double WantLen = ShapeLen * TorqueSim::Lerp(0.85, 1.0, Size) * ScX * TankSqueeze;
 	if (!Overlap)
 	{
-		RearZ = Clamp(Nose.z + 0.03 + WantLen - 0.03, RearZ, std::max(RearZ, Pivot.z + 0.02));
+		RearZ = TorqueSim::Clamp(Nose.z + 0.03 + WantLen - 0.03, RearZ, std::max(RearZ, Pivot.z + 0.02));
 		SeatFrontZ = std::max(SeatFrontZ, RearZ - 0.015);
 	}
 	if (IsPostFamily(FamilyName))
@@ -631,33 +628,33 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 			if (!Overlap) RearZ = std::max(RearZ, SeatFrontZ - 0.015);
 		}
 	}
-	const double SeatNoseY = SeatY - (Num(T4, "rider_u", 0.66) - Num(T4, "front_u", 0.55)) * Wb * std::tan(DegToRad(Num(T4, "rail_deg", 3.0)));
+	const double SeatNoseY = SeatY - (Num(T4, "rider_u", 0.66) - Num(T4, "front_u", 0.55)) * Wb * std::tan(TorqueSim::DegToRad(Num(T4, "rail_deg", 3.0)));
 	V3 Bt(0.0, SeatNoseY - EndH - (Overlap ? 0.03 : 0.0), RearZ);
 	V3 At(0.0, TopMax - Tall, Nose.z);
 	const double Back = Bt.z + 0.03;
 	const double Room = Back - (At.z + 0.03);
-	const double Length = std::min(Clamp(ShapeLen * Lerp(0.85, 1.0, Size) * ScX, 0.25, std::max(Room, 0.25)), Room);
+	const double Length = std::min(TorqueSim::Clamp(ShapeLen * TorqueSim::Lerp(0.85, 1.0, Size) * ScX, 0.25, std::max(Room, 0.25)), Room);
 	double Best = Inf;
 	for (int I = 0; I < 15; ++I)
 	{
 		const double U = I / 14.0;
-		const double Z = Lerp(Back - Length, Back, U);
+		const double Z = TorqueSim::Lerp(Back - Length, Back, U);
 		double K[3];
 		KeyAt(*Keys, U, K);
 		const double H = (K[1] + K[2]) * Size * ScZ;
-		const double Fz = Clamp((Z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 1.0);
+		const double Fz = TorqueSim::Clamp((Z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 1.0);
 		if (Fz < 0.98) Best = std::min(Best, (TopMax - H - Bt.y * Fz) / (1.0 - Fz));
 	}
 	if (Best < Inf) At.y = Best;
 	const bool Vtwin = Str(Engine, "layout") == "vtwin";
 	const double SlopeDeg = (Frig.Slope > 0.0 && Vtwin) ? Frig.Slope : Num(Geo, "tank_slope", 13.0);
-	const double MaxRise = std::tan(DegToRad(SlopeDeg)) * std::max(Bt.z - At.z, 0.01);
-	At.y = Clamp(At.y, Bt.y - MaxRise, Bt.y + MaxRise);
+	const double MaxRise = std::tan(TorqueSim::DegToRad(SlopeDeg)) * std::max(Bt.z - At.z, 0.01);
+	At.y = TorqueSim::Clamp(At.y, Bt.y - MaxRise, Bt.y + MaxRise);
 	bool Lifted = false;
 	for (const V3& Need : OverHeads)
 	{
-		const double F = Clamp((Need.z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 1.0);
-		double Short = Need.y - Lerp(At.y, Bt.y, F);
+		const double F = TorqueSim::Clamp((Need.z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 1.0);
+		double Short = Need.y - TorqueSim::Lerp(At.y, Bt.y, F);
 		if (Short <= 0.0) continue;
 		Lifted = true;
 		if (F > 0.05)
@@ -678,7 +675,7 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 		double FloorA = -Inf;
 		for (const V3& Need : OverHeads)
 		{
-			const double F = Clamp((Need.z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 0.95);
+			const double F = TorqueSim::Clamp((Need.z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 0.95);
 			FloorA = std::max(FloorA, (Need.y - Bt.y * F) / (1.0 - F));
 		}
 		At.y = std::max(Bt.y + MaxRise, FloorA);
@@ -691,32 +688,32 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	for (int I = 0; I < 15; ++I)
 	{
 		const double U = I / 14.0;
-		const double Z = Lerp(Back - Length, Back, U);
+		const double Z = TorqueSim::Lerp(Back - Length, Back, U);
 		double K[3];
 		KeyAt(*Keys, U, K);
-		const double Fz = Clamp((Z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 1.0);
-		Top = std::max(Top, Lerp(At.y, Bt.y, Fz) + (K[1] + K[2]) * Size * ScZ);
+		const double Fz = TorqueSim::Clamp((Z - At.z) / std::max(Bt.z - At.z, 0.01), 0.0, 1.0);
+		Top = std::max(Top, TorqueSim::Lerp(At.y, Bt.y, Fz) + (K[1] + K[2]) * Size * ScZ);
 	}
 	if (Lifted && Top - TopMax > TankHigh && !RigBodywork)
 		Notes.push_back({"raised tank mounts", true});
 
 	// 4: the seat line and the tail; 5: the rider and the pegs.
-	const double Rail = DegToRad(Num(T4, "rail_deg", 3.0));
+	const double Rail = TorqueSim::DegToRad(Num(T4, "rail_deg", 3.0));
 	const double Drop = Num(Geo, "seat_drop", 0.1);
 	const V3 SeatFront(0.0, SeatNoseY - Drop, SeatFrontZ);
 	V3 Hip(0.0, SeatY, AtU(Num(T4, "rider_u", 0.66)));
 	Hip.z = std::max(Hip.z, SeatFrontZ + 0.14);
 	const double TailZ = AtU(Num(T4, "tail_u", 0.98));
 	V3 Tail(0.0, SeatY - 0.02 + std::max(0.0, (TailZ - Hip.z) * std::tan(Rail)), TailZ);
-	Tail.y += Adj.HoopUpMm / 1000.0 + (TailZ - Hip.z) * std::tan(DegToRad(Adj.HoopDeg));
+	Tail.y += Adj.HoopUpMm / 1000.0 + (TailZ - Hip.z) * std::tan(TorqueSim::DegToRad(Adj.HoopDeg));
 	const V3 SeatNose(0.0, SeatY - 0.02, SeatFrontZ);
 	for (int I = 0; I < 9; ++I)
 	{
-		const double Z = Lerp(Zr - B.RearRadius * 0.9, std::min(TailZ, Zr), I / 8.0);
+		const double Z = TorqueSim::Lerp(Zr - B.RearRadius * 0.9, std::min(TailZ, Zr), I / 8.0);
 		const double Dz = Z - Zr;
 		const double Need = B.RearTravel + std::sqrt(std::max(0.0, B.RearRadius * B.RearRadius - Dz * Dz)) + RearClear;
 		const double F = (Z - SeatNose.z) / std::max(TailZ - SeatNose.z, 0.01);
-		if (F > 0.05 && Lerp(SeatNose.y, Tail.y, F) < Need) Tail.y = SeatNose.y + (Need - SeatNose.y) / F;
+		if (F > 0.05 && TorqueSim::Lerp(SeatNose.y, Tail.y, F) < Need) Tail.y = SeatNose.y + (Need - SeatNose.y) / F;
 	}
 	const Json* T5 = L.Get("5_rider");
 	const Json* PegMm = Sub(T5, "peg_mm");
