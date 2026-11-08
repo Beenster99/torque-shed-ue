@@ -30,6 +30,7 @@ FINISHES = {
     "piping_white": F((0.80, 0.80, 0.78), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
     "screen_smoked": F((0.03, 0.035, 0.04), 0.0, 0.03, clearcoat_roughness=0.02),
     "wood_crate": F((0.33, 0.21, 0.10), 0.0, 0.75, detail="cast", uv_scale=3.0, normal_strength=0.4, rough_var=0.4),
+    "black_header": F((0.03, 0.03, 0.032), 0.6, 0.45, detail="cast", uv_scale=6.0, normal_strength=0.3, rough_var=0.2),
     "piping_cream": F((0.76, 0.70, 0.56), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
 }
 
@@ -599,6 +600,210 @@ def racks(fit, cat):
     return out
 
 
+# --- Headlights (fork tube clamps, steer group) ----------------------------------------------------
+# Each keeps the stock headlight's brackets for the indicators and a screen.
+
+def headlight_unit(fit, meshes, prox):
+    return {"id": "headlight", "group": "steer", "meshes": meshes, "slot": "headlight",
+            "mount": {"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.56)},
+            "sockets": {"indicator_mount": fit.sock("bracket", HL_C, (1, 0, 0)), "screen_mount": fit.sock("bracket", HL_C, (1, 0, 0))},
+            "proxies": prox}
+
+
+def lamp_insides(c, r):
+    """Reflector bowl and a domed clear lens for a round lamp of radius r facing +x at c."""
+    refl = st.lathe([(r * 0.93, 0.03), (r * 0.75, 0.012), (r * 0.45, -0.005), (0.0, -0.01)], seg=48, axis=(1, 0, 0), centre=c)
+    bulb = st.lathe([(0.0, 0.0), (0.01, 0.005), (0.009, 0.02), (0.0, 0.026)], seg=16, axis=(1, 0, 0), centre=c)
+    lens = st.lathe([(r * 0.95, 0.032), (r * 0.7, 0.042), (r * 0.35, 0.048), (0.0, 0.05)], seg=48, axis=(1, 0, 0), centre=c)
+    return refl.extend(bulb), lens
+
+
+def headlights(fit, cat):
+    out = []
+    c = HL_C
+    r = 0.089   # 7 inches
+    # 7" round: a deep black bucket, a thin chrome rim (the mask), a domed clear lens.
+    bucket = st.lathe([(0.0, -0.075), (r * 0.6, -0.07), (r * 0.92, -0.035), (r, 0.0), (r * 1.01, 0.025), (r * 1.03, 0.03),
+                       (r * 1.02, 0.038), (r * 0.95, 0.036)], seg=64, axis=(1, 0, 0), centre=c)
+    bucket.mask_by(lambda p: ((p[:, 0] - c[0]) > 0.02).astype(float))
+    refl, lens = lamp_insides(c, r)
+    # A ring round the rim and a short core behind it (a box's corners would swing into the frame).
+    prox = fit.torus(c + [-0.01, 0.0, 0.0], (1, 0, 0), r - 0.03, 0.033, 12) + [fit.capsule(c + [-0.035, 0, 0], c, 0.05)]
+    out.append(("headlight", "round_7", cat["headlight"]["round_7"]["name"], ["headlight", "round_7"],
+                [headlight_unit(fit, ["opt_hl_round7_bucket", "opt_hl_round7_refl", "opt_hl_round7_lens"], prox)],
+                {"opt_hl_round7_bucket": (bucket, "headlight", "steer"), "opt_hl_round7_refl": (refl, "headlight_inner", "steer"),
+                 "opt_hl_round7_lens": (lens, "lens_clear", "steer")}))
+    # 7" with a fat chrome ring and chrome ears to the fork tubes.
+    bucket = st.lathe([(0.0, -0.07), (r * 0.6, -0.066), (r * 0.92, -0.033), (r, 0.0), (r, 0.022)], seg=64, axis=(1, 0, 0), centre=c)
+    ring = st.lathe([(r * 0.93, 0.02), (r * 1.06, 0.022), (r * 1.08, 0.032), (r * 1.04, 0.042), (r * 0.94, 0.04)], seg=64,
+                    axis=(1, 0, 0), centre=c)
+    ears = st.Mesh()
+    for sg in (-1, 1):
+        ears.extend(st.sweep(np.array([c + [-0.01, 0.0, sg * (r - 0.005)], c + [-0.03, 0.0, sg * 0.095]]), 0.004, 0.02, 4.0, 12,
+                             up_hint=(0, 1, 0)))
+        ears.extend(st.lathe([(0.0, -0.008), (0.016, -0.008), (0.016, 0.008), (0.0, 0.008)], seg=16, axis=(0, 0, 1),
+                             centre=c + [-0.01, 0.0, sg * (r + 0.004)]))
+    refl, lens = lamp_insides(c, r)
+    out.append(("headlight", "chrome_ring_7", cat["headlight"]["chrome_ring_7"]["name"], ["headlight", "chrome_ring_7"],
+                [headlight_unit(fit, ["opt_hl_ring7_bucket", "opt_hl_ring7_ring", "opt_hl_ring7_ears", "opt_hl_ring7_refl",
+                                      "opt_hl_ring7_lens"], prox)],
+                {"opt_hl_ring7_bucket": (bucket, "black_gloss", "steer"), "opt_hl_ring7_ring": (ring, "chrome", "steer"),
+                 "opt_hl_ring7_ears": (ears, "chrome", "steer"), "opt_hl_ring7_refl": (refl, "headlight_inner", "steer"),
+                 "opt_hl_ring7_lens": (lens, "lens_clear", "steer")}))
+    # Nacelle: a cream cowl from the lamp's rim back over the fork tops, as the old Triumphs had,
+    # with a chrome rim round the lamp.
+    xs = np.linspace(c[0] + 0.025, c[0] - NAC_BACK, 22)
+    t = (c[0] + 0.025 - xs) / (0.025 + NAC_BACK)
+    hw = r + 0.006 + (0.11 - r) * np.sin(np.clip(t, 0, 1) * math.pi * 0.5)
+    hh = r + 0.006 + 0.02 * np.sin(np.clip(t, 0, 1) * math.pi * 0.5)
+    cy = c[1] + NAC_RISE * t ** 1.5
+    nac = st.sweep(np.stack([xs, cy, 0 * xs], 1), hw, hh, 2.6, 64, caps=True)
+    rim = st.lathe([(r * 0.93, 0.02), (r * 1.04, 0.022), (r * 1.06, 0.03), (r * 0.96, 0.036)], seg=64, axis=(1, 0, 0), centre=c)
+    refl, lens = lamp_insides(c, r)
+    nprox = fit.slices(xs[::-1], (cy + hh)[::-1], (cy - hh)[::-1], hw[::-1], 5)
+    out.append(("headlight", "nacelle_lamp", cat["headlight"]["nacelle_lamp"]["name"], ["headlight", "nacelle_lamp"],
+                [headlight_unit(fit, ["opt_hl_nacelle", "opt_hl_nacelle_rim", "opt_hl_nacelle_refl", "opt_hl_nacelle_lens"], nprox)],
+                {"opt_hl_nacelle": (nac, "paint_cream", "steer"), "opt_hl_nacelle_rim": (rim, "chrome", "steer"),
+                 "opt_hl_nacelle_refl": (refl, "headlight_inner", "steer"), "opt_hl_nacelle_lens": (lens, "lens_clear", "steer")}))
+    return out
+
+
+# --- Silencers --------------------------------------------------------------------------------------
+
+NAC_BACK, NAC_RISE = 0.05, 0.015
+
+S_START = np.array([-0.25, -0.065, 0.158])   # the stock headers' slip joint
+
+
+def exhausts(fit, cat):
+    out = []
+    # Fishtails: long chrome tubes, each ending in a flattened, flared fishtail.
+    end = np.array([-0.86, 0.12, 0.172])
+    body = np.linspace(S_START, end, 18)
+    radii = np.interp(np.linspace(0, 1, 18), [0.0, 0.2, 0.5, 1.0], [0.024, 0.027, 0.036, 0.04])
+    tube_ = st.sweep(body, radii, radii, 2.0, 32, caps=False)
+    d = (end - S_START) / np.linalg.norm(end - S_START)
+    tail_path = np.array([end + d * k for k in np.linspace(0, 0.17, 10)])
+    k = np.linspace(0, 1, 10)
+    fish = st.sweep(tail_path, 0.04 - 0.026 * k, 0.04 + 0.03 * k, 3.0, 32, caps=True, up_hint=(0, 0, 1))
+    m = st.both_sides(tube_.extend(fish))
+    u = {"id": "silencers", "group": "body", "meshes": ["opt_exhaust_fishtail"], "slot": "exhaust"}
+    u.update(fit.silencer_unit(np.vstack([body, tail_path[1:]]), np.concatenate([radii, 0.04 + 0.03 * k[1:]]), 48.0))
+    out.append(("exhaust", "fishtail_pipes", cat["exhaust"]["fishtail_pipes"]["name"], ["exhaust", "fishtail_pipes"], [u],
+                {"opt_exhaust_fishtail": (m, "chrome", "body")}))
+    # Cigars, on black headers: fat in the middle, tapering to both ends.
+    end = np.array([-0.82, 0.13, 0.172])
+    body = np.linspace(S_START, end, 24)
+    t = np.linspace(0, 1, 24)
+    radii = np.maximum(0.024, 0.047 * np.sin(np.clip((t - 0.14) / 0.86, 0, 1) * math.pi) ** 0.55)
+    radii[-1] = 0.012
+    cig = st.both_sides(st.sweep(body, radii, radii, 2.0, 32, caps=True))
+    u = {"id": "silencers", "group": "body", "meshes": ["opt_exhaust_cigar"], "slot": "exhaust"}
+    u.update(fit.silencer_unit(body, radii, 48.0))
+    hu, hmesh = fit.headers_unit(0.0)
+    hu["meshes"] = ["opt_headers_black"]
+    out.append(("exhaust", "cigar_mufflers", cat["exhaust"]["cigar_mufflers"]["name"], ["exhaust", "cigar_mufflers"], [hu, u],
+                {"opt_exhaust_cigar": (cig, "chrome", "body"), "opt_headers_black": (hmesh.masked(0.0), "black_header", "body")}))
+    return out
+
+
+# --- Engine bars (add-ons on the frame's downtubes) -------------------------------------------------
+
+def guards(fit, cat):
+    out = []
+    specs = {
+        # A hoop a side in front of the cylinders, from the downtube's bend to its foot.
+        "engine_bars": [(0.398, 0.31, 0.075), (0.45, 0.37, 0.18), (0.485, 0.26, 0.255), (0.48, 0.08, 0.262), (0.44, -0.04, 0.25),
+                        (0.30, -0.13, 0.112)],
+        # One long hoop a side from the head stock round the front of the engine and under it to the pegs.
+        "wrap_bars": [(0.398, 0.31, 0.075), (0.45, 0.37, 0.19), (0.485, 0.24, 0.262), (0.48, 0.05, 0.27), (0.43, -0.07, 0.262),
+                      (0.15, -0.115, 0.258), (-0.08, -0.11, 0.25), (-0.20, -0.135, 0.115)],
+    }
+    for pid, pts in specs.items():
+        m = st.Mesh(); prox = []
+        for sg in (-1, 1):
+            path = st.polyline([(x, y, sg * z) for x, y, z in pts], 8)
+            m.extend(st.tube(path, 0.0135, 14))
+            prox += fit.chain(path, 0.015, 3)
+        n = "opt_guards_" + pid
+        out.append(("guards", pid, cat["guards"][pid]["name"], ["guards", pid],
+                    [{"id": "guards", "group": "body", "meshes": [n], "slot": "guards",
+                      "mount": {"to": "frame.lugs", "type": "bracket"}, "sockets": {}, "proxies": prox}],
+                    {n: (m, "chrome", "body")}))
+    return out
+
+
+# --- Side panels ------------------------------------------------------------------------------------
+
+def extrude(poly, z0, z1):
+    """A flat polygon (x, y points, convex, anticlockwise) extruded across z0..z1, rounded a little."""
+    poly = np.asarray(poly, float)
+    n = len(poly)
+    c = poly.mean(0)
+    pts, tris = [], []
+    for z in (z0, z1):
+        pts.append(np.c_[poly, np.full(n, z)])
+    pts = np.vstack(pts + [np.array([[c[0], c[1], z0], [c[0], c[1], z1]])])
+    for i in range(n):
+        j = (i + 1) % n
+        tris += [(i, j, n + i), (j, n + j, n + i)]          # the edge band
+        tris += [(2 * n, j, i), (2 * n + 1, n + i, n + j)]    # the two faces
+    return st.Mesh().add(pts, np.array(tris), pts[:, :2])
+
+
+def side_panels(fit, cat):
+    out = []
+    m = st.Mesh(); badge = st.Mesh(); prox = []
+    tri = [(-0.43, 0.418), (-0.195, 0.425), (-0.22, 0.27)]
+    for sg in (-1, 1):
+        z0, z1 = sg * 0.118, sg * 0.138
+        m.extend(extrude(tri, min(z0, z1), max(z0, z1)))
+        badge.extend(st.lathe([(0.0, 0.0), (0.03, 0.0), (0.03, 0.003), (0.0, 0.004)], seg=24, axis=(0, 0, sg),
+                              centre=(-0.29, 0.38, sg * 0.138)))
+        zc = (z0 + z1) / 2
+        prox += [fit.box((-0.31, 0.39, zc), np.eye(3), (0.11, 0.025, 0.012)), fit.box((-0.25, 0.32, zc), np.eye(3), (0.03, 0.045, 0.012))]
+    out.append(("side_panels", "triangle_classic", cat["side_panels"]["triangle_classic"]["name"], ["side_panels", "triangle_classic"],
+                [{"id": "side_panels", "group": "body", "meshes": ["opt_panels_triangle", "opt_panels_triangle_badge"],
+                  "slot": "side_panels", "mount": {"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "along": 0.0},
+                  "sockets": {}, "proxies": prox}],
+                {"opt_panels_triangle": (m, "black_gloss", "body"), "opt_panels_triangle_badge": (badge, "chrome", "body")}))
+    return out
+
+
+# --- Tank -------------------------------------------------------------------------------------------
+
+def tanks(fit, cat):
+    out = []
+    # Teardrop: shorter, rounder and higher at the front than the stock tank, cream, with knee pads
+    # and an oval badge; on the same mounts and tunnel.
+    xs = np.linspace(-0.11, 0.36, 90)
+    t = (xs - xs[0]) / (xs[-1] - xs[0])
+    top = 0.50 + 0.12 * np.sin(np.clip(t * 1.15, 0, 1) * math.pi * 0.7) - 0.05 * np.clip(t - 0.85, 0, 1) / 0.15
+    bot = 0.43 - 0.02 * t
+    hw = 0.055 + 0.105 * np.sin(np.clip(t, 0, 1) * math.pi) ** 0.5
+    path = np.stack([xs, (top + bot) / 2, np.zeros_like(xs)], 1)
+    tank = st.sweep(path, hw, (top - bot) / 2, 2.4, 160, caps=True)
+    pads, badges = st.Mesh(), st.Mesh()
+    for sg in (-1, 1):
+        x0 = 0.02
+        pads.extend(st.box((x0, np.interp(x0, xs, (top + bot) / 2) - 0.005, sg * (np.interp(x0, xs, hw) - 0.004)), (0.12, 0.07, 0.012), 5.0))
+        xb = 0.24
+        badges.extend(st.lathe([(0.0, 0.0), (0.028, 0.0), (0.028, 0.004), (0.0, 0.005)], seg=24, axis=(0, 0.25, sg),
+                               centre=(xb, np.interp(xb, xs, (top + bot) / 2) + 0.02, sg * (np.interp(xb, xs, hw) * 0.93))).transformed(
+                                   np.diag([1.4, 1.0, 1.0]), (-xb * 0.4, 0, 0)))
+    cap = st.lathe([(0.0, 0.0), (0.035, 0.0), (0.037, 0.012), (0.0, 0.016)], seg=28, axis=(0.1, 1, 0),
+                   centre=(0.13, np.interp(0.13, xs, top) - 0.004, 0.0))
+    out.append(("tank", "teardrop_14", cat["tank"]["teardrop_14"]["name"], ["tank", "teardrop_14"],
+                [{"id": "tank", "group": "body", "meshes": ["opt_tank_teardrop", "opt_tank_teardrop_pads", "opt_tank_teardrop_badges",
+                                                            "opt_tank_teardrop_cap"], "slot": "tank",
+                  "mount": {"to": "frame.tank_mounts", "type": "tank_mounts", "tunnel_mm": 130.0}, "sockets": {},
+                  "proxies": fit.slices(xs, top, bot, hw, 36)}],
+                {"opt_tank_teardrop": (tank, "paint_cream", "body"), "opt_tank_teardrop_pads": (pads, "rubber", "body"),
+                 "opt_tank_teardrop_badges": (badges, "chrome", "body"), "opt_tank_teardrop_cap": (cap, "chrome", "body")}))
+    return out
+
+
 def pack_options(fit, cat):
     return (seats(fit, cat) + front_guards(fit, cat) + rear_guards(fit, cat) + indicators(fit, cat) + mirrors(fit, cat)
-            + levers(fit) + grips(fit) + screens(fit, cat) + racks(fit, cat))
+            + levers(fit) + grips(fit) + screens(fit, cat) + racks(fit, cat) + headlights(fit, cat) + exhausts(fit, cat)
+            + guards(fit, cat) + side_panels(fit, cat) + tanks(fit, cat))
