@@ -411,7 +411,7 @@ FString TorqueShedPartsImpl::MaterialOf(FName Part)
 {
 	const FPartInfo* P = Catalogue().Parts.Find(Part);
 	if (P && !P->Material.IsEmpty()) return P->Material;
-	const TCHAR* M = Lookup(KindMaterials, UE_ARRAY_COUNT(KindMaterials), PartKind(Part).ToString());
+	const TCHAR* M = Lookup(KindMaterials, UE_ARRAY_COUNT(KindMaterials), TorqueShedParts::PartKind(Part).ToString());
 	return M ? FString(M) : FString(TEXT("mixed"));
 }
 
