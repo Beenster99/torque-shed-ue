@@ -344,7 +344,6 @@ int main(int argc, char** argv)
 			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
 		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
 		auto Collect = [&](const PartsMap& B, const Layout& L, std::map<std::string, Box>& Ours, std::map<std::string, std::map<std::string, Box>>& Tags) {
-			std::map<std::string, int> Names;
 			for (const FittedPart& P : Placer.Fit(B, L))
 			{
 				PartMesh M;
@@ -355,13 +354,10 @@ int main(int argc, char** argv)
 				if (P.Code)
 				{
 					// A shape Godot draws in code: no glb tag there, so it counts toward its slot's whole box
-					// and its own name's ("@" + slot + "/" + name, numbered as Godot numbers siblings).
-					std::string Key;
-					if (!P.Name.empty())
-					{
-						const int N = ++Names[P.Slot + "/" + P.Name];
-						Key = "@" + P.Slot + "/" + P.Name + (N > 1 ? std::to_string(N) : "");
-					}
+					// and its own name's ("@" + slot + "/" + name).
+					// (Godot's reference keeps the last mesh of a name in the slot, as here.)
+					const std::string Key = P.Name.empty() ? "" : "@" + P.Slot + "/" + P.Name;
+					if (!Key.empty()) Ours[Key] = Box();
 					for (const PartSurface& S : P.Made->Surfaces)
 						for (const V3& V : S.Pos)
 						{
@@ -434,6 +430,8 @@ int main(int argc, char** argv)
 			}
 			return Wrong;
 		};
+		// The slots whose every mesh, Blender or code-drawn, is ported: checked whole against Godot's.
+		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight"};
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
 		auto CodeCheck = [&](const std::map<std::string, Box>& Ours, const std::string& Slot, const Json* Gs, bool Whole) {
@@ -527,8 +525,9 @@ int main(int argc, char** argv)
 						for (const auto& [Tag, Gb] : Gt->O)
 							if (!(Tags.count(Slot) && Tags[Slot].count(Tag))) Wrong += " " + Slot + "/" + Tag + " not placed";
 			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
-			const std::string CodeWrong = CodeCheck(Ours, "swingarm", GSlots->Get("swingarm"), true) + CodeCheck(Ours, "frame", GSlots->Get("frame"), false);
-			Expect(CodeWrong.empty(), St + ": the swingarm whole and its code-drawn shapes as Godot draws them" + CodeWrong);
+			std::string CodeWrong;
+			for (const auto& [Slot, Gs] : GSlots->O) CodeWrong += CodeCheck(Ours, Slot, &Gs, WholeSlots.count(Slot) > 0);
+			Expect(CodeWrong.empty(), St + ": the swingarm whole and every code-drawn shape ported as Godot draws them" + CodeWrong);
 		}
 		// Every part of the kinds ported, one at a time on its style's reference bike, as Godot draws it.
 		const Json* Sweep = Have ? Ref.Get("sweep") : nullptr;
@@ -556,7 +555,7 @@ int main(int argc, char** argv)
 			if (const Json* Gs = PhoneNav ? nullptr : Sw.Get("slot"))
 			{
 				const std::string Swept = Key.substr(0, Key.find('/'));
-				Wrong += CodeCheck(Ours, Swept, Gs, Swept == "swingarm");
+				Wrong += CodeCheck(Ours, Swept, Gs, WholeSlots.count(Swept) > 0);
 			}
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
