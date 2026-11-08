@@ -1766,8 +1766,15 @@ void BikeParts::Indicators(const PartsMap& Parts, const Layout& L, std::vector<F
 				V3 Tip = Base + V3(Reach * Sd, 0.0, 0.0);
 				if (Style == "flush")
 					Tip = AtFront ? V3(0.075 * Sd, -0.08, -0.17) : (HasRear ? Rear : Tail + V3(0.0, -0.04, 0.12)) + V3(0.06 * Sd, 0.0, 0.0);
-				Put(Out, AtFront ? FrontSlot : BackSlot, Glb,
-					AtWith(AtFront ? GAffine() : GAffine::Rotation(GodotUp, TorqueSim::Pi), Tip + (AtFront ? H : V3())), AtFront ? "steer" : "");
+				if (!Put(Out, AtFront ? FrontSlot : BackSlot, Glb,
+						AtWith(AtFront ? GAffine() : GAffine::Rotation(GodotUp, TorqueSim::Pi), Tip + (AtFront ? H : V3())), AtFront ? "steer" : "")
+					|| Style == "flush")
+					continue;
+				// Its stalk out from the base, code-drawn.
+				const double R = Style == "bullet" ? 0.005 : Style == "mini" ? 0.004 : Style == "touring" ? 0.008 : 0.007;
+				const V3 Off = AtFront ? H : V3();
+				CodeShapes::Emit(Out, AtFront ? FrontSlot : BackSlot, Glb, AtFront ? "steer" : "", "", CodeShapes::Tube(Base, Tip, R),
+					GAffine::At(Off) * CodeShapes::TubeAt(Base, Tip), Style == "bullet" ? "chrome" : "black_metal");
 			}
 	};
 	if (P)
@@ -2819,8 +2826,39 @@ void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, 
 	if (Style == "compact") At = V3(0.13, 0.2 + DashLift * 0.5, 0.02);
 	else if (Style == "road") At = V3(0.1, 0.22 + DashLift, -0.02);
 	else if (Style == "tablet") At = V3(0.0, 0.25 + DashLift, -0.08);
-	// (Its arm, crossbar and stays are code-drawn; the unit is the Blender piece, on the steering.)
-	Put(Out, "satnav", "kit/satnav.glb", AtWith(GAffine::Rotation(GodotRight, 0.85) * GAffine::Scale(V3((Sw + 0.022) / 0.122, 1.0, (Sh + 0.022) / 0.087)), At + ToGodot(L.Head)), "steer");
+	V3 Mount(0.0, 0.12, 0.0);   // where its arm meets the bars or crossbar
+	if (Style == "compact") Mount = V3(0.12, 0.12, 0.05);
+	else if (Style == "road") Mount = V3(0.07, 0.13, 0.03);
+	else if (Style == "tablet") Mount = V3(0.0, 0.16 + DashLift, -0.08);
+	const V3 H = ToGodot(L.Head);
+	const GAffine Tilt = GAffine::Rotation(GodotRight, 0.85);
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "satnav", "kit/satnav.glb", "steer", Name, M, GAffine::At(H) * Xf, Tag);
+	};
+	auto Arm = [&](const V3& A, const V3& B, double R) { Code("", CodeShapes::Tube(A, B, R), CodeShapes::TubeAt(A, B), "black_metal"); };
+	if (Style == "adventure" || Style == "tablet")
+	{
+		// A crossbar over the clocks, on two stays from the top yoke.
+		const double BarY = At.y - Sh * 0.5 - 0.03;
+		Arm(V3(-0.1, BarY, At.z + 0.02), V3(0.1, BarY, At.z + 0.02), 0.009);
+		for (double X : {-0.08, 0.08}) Arm(V3(X, 0.05, 0.03), V3(X, BarY, At.z + 0.02), 0.007);
+		Mount = V3(0.0, BarY, At.z + 0.02);
+	}
+	// The arm from the mount up to the back of the unit, on a ball.
+	Arm(Mount, At - Tilt.Y * 0.02, 0.008);
+	Code("", CodeShapes::Sphere(0.014), GAffine::At(Mount), "black_metal");
+	// (The unit is the Blender piece.)
+	Put(Out, "satnav", "kit/satnav.glb", AtWith(Tilt * GAffine::Scale(V3((Sw + 0.022) / 0.122, 1.0, (Sh + 0.022) / 0.087)), At + H), "steer");
+	if (P->Get("accent")) Code("", CodeShapes::Box(V3(Sw + 0.03, 0.012, Sh + 0.03)), AtWith(Tilt, At - Tilt.Y * 0.004), "paint_2");
+	// A sun visor over the top edge on the bigger units.
+	if (Style == "adventure" || Style == "tablet" || Style == "road")
+		Code("", CodeShapes::Box(V3(Sw + 0.024, 0.004, 0.035)), AtWith(Tilt * GAffine::Rotation(GodotRight, -0.5), At + Tilt.Apply(V3(0.0, 0.03, -Sh * 0.5 - 0.008))), "paint");
+	// The screen: a quad on the face (its map is drawn live).
+	CodeShapes::GMesh Quad;
+	for (double Y : {-1.0, 1.0})
+		for (double X : {-1.0, 1.0}) Quad.Add(V3(X * Sw * 0.5, Y * Sh * 0.5, 0.0), V3(0.0, 0.0, 1.0), X * 0.5 + 0.5, 0.5 - Y * 0.5);
+	Quad.Quad(0, 1, 2, 3);
+	Code("SatnavScreen", Quad, AtWith(Tilt * GAffine::Rotation(GodotRight, -TorqueSim::Pi * 0.5), At + Tilt.Y * 0.0135), "glass");
 }
 
 void BikeParts::Phone(const Json& P, const Layout& L, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const

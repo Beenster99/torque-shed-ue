@@ -193,10 +193,11 @@ is scored for running into the bars and what's round them, hiding the clocks and
 seen, and the best one is used. The code-drawn pieces round the bars are made too: the mirrors'
 stalks, joints, stems and glasses; the clocks' faces, ticks, needles, screens, shift lights and
 stalk; the front brake hose and banjo; the headlight's eyes, brows, hot spots, rings, grilles,
-visors, brackets and fly-screen. The swingarm, mirrors, clocks, front master and headlight are
-checked whole against Godot. Still to port: the indicators' code pieces (until then a phone
-satnav's place can differ from Godot's, which counts them), Godot's other code shells, and its
-hiding of what a full fairing covers.
+visors, brackets and fly-screen; the indicators' stalks; a satnav's arm, ball, crossbar, stays,
+visor and screen. The swingarm, mirrors, clocks, front master, headlight, indicators and satnav
+are checked whole against Godot, and a phone satnav lands where Godot puts it. Still to port:
+Godot's other code shells (perimeter beams, castings, the rest of each slot's code pieces), and
+its hiding of what a full fairing covers.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
