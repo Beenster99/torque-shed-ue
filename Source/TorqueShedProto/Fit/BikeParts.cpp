@@ -2974,13 +2974,32 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 		else if (Size.z < Size.y) { B = GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5); Sz = V3(Size.x, Size.z, Size.y); }
 		Put(Out, Slot, Path, AtWith(B * GAffine::Scale(Sz), At), "");
 	};
+	// (Godot numbers the names of the code's meshes on the bike itself across the panniers and the top box.)
+	CodeShapes::GodotNames OnBike;
 	// (_alu_case: the body and lid, k from its height; a pannier's faces out to its side.)
 	auto AluCase = [&](const std::string& Slot, const V3& C, const V3& Size, const V3& Face) {
 		const bool Side = std::fabs(Face.x) > 0.5;
 		const std::string Glb = Side ? "alu_pannier" : "alu_top";
 		const double K = Size.y / (Side ? 0.34 : 0.26);
 		const GAffine Xf = AtWith(GAffine::Scale(V3(K * (Face.x < -0.5 ? -1.0 : 1.0), K, K)), C);
-		if (Put(Out, Slot, "luggage/" + Glb + ".glb", Xf, "")) Put(Out, Slot, "luggage/" + Glb + "_lid.glb", Xf, "");
+		if (!Put(Out, Slot, "luggage/" + Glb + ".glb", Xf, "")) return;
+		Put(Out, Slot, "luggage/" + Glb + "_lid.glb", Xf, "");
+		// (_alu_latches: two latches over the lid's seam on the face, and a reflector below them.)
+		const double Hh = Size.y, BodyH = Hh * 0.66, Bottom = C.y - Hh * 0.5;
+		const double Hx = Size.x * 0.5 + 0.002, Hz = Size.z * 0.5 + 0.002;
+		const V3 Fo(Face.x * Hx, 0.0, Face.z * Hz);
+		const V3 Across(std::fabs(Face.z), 0.0, std::fabs(Face.x)), FaceAbs(std::fabs(Face.x), std::fabs(Face.y), std::fabs(Face.z));
+		const double Span = Side ? Size.z : Size.x;
+		auto Mul = [](const V3& A, const V3& B) { return V3(A.x * B.x, A.y * B.y, A.z * B.z); };
+		const std::string Stand = "luggage/" + Glb + ".glb";
+		for (double Sg : {-1.0, 1.0})
+		{
+			const V3 At = V3(C.x, Bottom + BodyH + 0.004, C.z) + Fo + Across * (Sg * Span * 0.3);
+			CodeShapes::Emit(Out, Slot, Stand, "", OnBike("Latch"), CodeShapes::Box(Mul(V3(0.04, 0.07, 0.04), Across + V3(0.0, 1.0, 0.0)) + FaceAbs * 0.012), GAffine::At(At + Face * 0.007), "black_metal");
+			CodeShapes::Emit(Out, Slot, Stand, "", "", CodeShapes::Box(Mul(V3(0.025, 0.04, 0.025), Across + V3(0.0, 1.0, 0.0)) + FaceAbs * 0.006), GAffine::At(At + Face * 0.016 + V3(0.0, -0.012, 0.0)), "brushed_steel");
+		}
+		CodeShapes::Emit(Out, Slot, Stand, "", "", CodeShapes::Box(Across * (Span * 0.4) + V3(0.0, 0.022, 0.0) + FaceAbs * 0.005),
+			GAffine::At(V3(C.x, Bottom + BodyH * 0.72, C.z) + Fo + Face * 0.003), "lens_red");
 	};
 	if (const Json* P = Lay.Part(PartIn(Parts, "panniers")))
 	{
@@ -3000,20 +3019,48 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 			{
 				// (_roll_pannier and _throw_over: the bag's glb, and its buckles.)
 				const double Hb = 0.3 * K, Y0 = C.y - Hb * 0.5, OuterX = C.x + Sd * (Depth * 0.5 + 0.004);
+				const V3 Rail(Sd * W, Top, C.z);
+				const std::string Stand = Drawn == "roll" ? "luggage/roll_pannier.glb" : "luggage/throw_over.glb";
+				auto BagBox = [&](const V3& At, const V3& Size, const std::string& Tag) { CodeShapes::Emit(Out, "panniers", Stand, "", "", CodeShapes::Box(Size), GAffine::At(At), Tag); };
+				// (_strip: a flat strap from A to B, its face as near up as that leaves.)
+				auto Strap = [&](const V3& A, const V3& B, double Width, double Thick, const std::string& Tag) {
+					const V3 Z = (B - A).Normalized();
+					V3 X = V3(0.0, 1.0, 0.0).Cross(Z);
+					X = X.Length() < 0.01 ? GodotRight : X.Normalized();
+					CodeShapes::Emit(Out, "panniers", Stand, "", "", CodeShapes::Box(V3(Width, Thick, (B - A).Length())), BasisCols(X, Z.Cross(X), Z, (A + B) * 0.5), Tag);
+				};
 				if (Drawn == "roll")
 				{
 					const double HalfL = 0.21 * K;
+					const double RollY = Y0 + Hb + 0.022;
 					Put(Out, "panniers", "luggage/roll_pannier.glb", Xf, "");
 					for (double Z : {-1.0, 1.0})
-						Hardware("panniers", "luggage/buckle.glb", V3(OuterX + Sd * 0.006, Y0 + Hb * 0.42, C.z + Z * HalfL * 0.6), V3(0.014, 0.04, 0.034));
+					{
+						const double Sz = C.z + Z * HalfL * 0.6;
+						BagBox(V3(C.x + Sd * Depth * 0.32, RollY + 0.028, Sz), V3(Depth * 0.4, 0.006, 0.024), "fabric");
+						BagBox(V3(OuterX, Y0 + Hb * 0.62, Sz), V3(0.006, Hb * 0.62, 0.024), "fabric");
+						Hardware("panniers", "luggage/buckle.glb", V3(OuterX + Sd * 0.006, Y0 + Hb * 0.42, Sz), V3(0.014, 0.04, 0.034));
+						Strap(V3(C.x - Sd * Depth * 0.3, Y0 + Hb * 0.92, Sz), Rail + V3(0.0, 0.0, Z * 0.08), 0.022, 0.004, "fabric");   // (up to the rack rail)
+					}
+					// The compression strap round it, its buckle, and a reflective patch.
+					CodeShapes::Emit(Out, "panniers", Stand, "", "", CodeShapes::Loft({{V3(C.x, Y0 + Hb * 0.25, C.z), Depth * 0.5 + 0.004, HalfL + 0.004, HalfL + 0.004, 2.8},
+						{V3(C.x, Y0 + Hb * 0.25 + 0.026, C.z), Depth * 0.5 + 0.004, HalfL + 0.004, HalfL + 0.004, 2.8}}), GAffine(), "fabric");
 					Hardware("panniers", "luggage/buckle.glb", V3(OuterX + Sd * 0.006, Y0 + Hb * 0.25 + 0.013, C.z), V3(0.014, 0.034, 0.04));
+					BagBox(V3(OuterX, Y0 + Hb * 0.72, C.z), V3(0.004, Hb * 0.16, HalfL * 0.5), "brushed_steel");
 				}
 				else
 				{
 					const double HalfL = 0.2 * K;
 					Put(Out, "panniers", "luggage/throw_over.glb", Xf, "");
+					// The flap over its top and down its outside, the leather straps, and the yoke over the rack.
+					BagBox(V3(C.x, Y0 + Hb + 0.004, C.z), V3(Depth * 0.9, 0.008, HalfL * 2.0), "paint_2");
+					BagBox(V3(OuterX, Y0 + Hb * 0.8, C.z), V3(0.008, Hb * 0.4, HalfL * 2.0), "paint_2");
 					for (double Z : {-1.0, 1.0})
+					{
+						BagBox(V3(OuterX + Sd * 0.005, Y0 + Hb * 0.62, C.z + Z * HalfL * 0.55), V3(0.006, Hb * 0.34, 0.022), "leather");
 						Hardware("panniers", "luggage/brass_buckle.glb", V3(OuterX + Sd * 0.009, Y0 + Hb * 0.5, C.z + Z * HalfL * 0.55), V3(0.006, 0.026, 0.03));
+					}
+					Strap(V3(C.x - Sd * Depth * 0.4, Y0 + Hb, C.z), V3(0.0, Rail.y + 0.012, C.z), HalfL * 1.4, 0.006, "paint_2");
 				}
 			}
 			else if (Put(Out, "panniers", "luggage/" + std::string(Drawn == "sport_case" ? "sport_case" : "hard_case") + ".glb", Xf, "") && (Drawn == "hard_top" || Drawn == "hard"))
@@ -3038,6 +3085,9 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 		}
 		Sweep(Out, "top_box", Tube, {V3(-0.1, RailY, Back), V3(0.0, RailY, Back + 0.025), V3(0.1, RailY, Back)}, {0.009}, "");
 		TubeAB("top_box", V3(-0.1, RailY, Base.z - Size.z * 0.3), V3(0.1, RailY, Base.z - Size.z * 0.3), 0.008);
+		// The mounting plate the box clicks onto.
+		CodeShapes::Emit(Out, "top_box", "luggage/top_case.glb", "", "", CodeShapes::Box(V3(0.24, 0.014, std::min(Size.z * 0.86, 0.32))), GAffine::At(Base), "plastic");
+		CodeShapes::Emit(Out, "top_box", "luggage/top_case.glb", "", "", CodeShapes::Box(V3(0.05, 0.018, std::min(Size.z * 0.7, 0.26))), GAffine::At(Base + V3(0.0, -0.004, 0.0)), "plastic");
 		if (Style == "crate") Put(Out, "top_box", "luggage/crate.glb", AtWith(GAffine::Scale(V3(1.0, 1.0, 1.0) * (Size.y / 0.26)), Base + V3(0.0, 0.012, 0.0)), "");
 		else if (Style == "trunk")
 		{
@@ -3073,7 +3123,16 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 		{
 			// (_plastic_case, with a pillion backrest on the large one.)
 			const GAffine Xf = AtWith(GAffine::Scale(V3(1.0, 1.0, 1.0) * (Size.y / 0.26)), Base + V3(0.0, 0.016, 0.0));
-			if (Put(Out, "top_box", "luggage/top_case.glb", Xf, "") && Style == "large") Put(Out, "top_box", "luggage/backrest.glb", Xf, "");
+			if (Put(Out, "top_box", "luggage/top_case.glb", Xf, ""))
+			{
+				// (_case_reflector: the red reflector across the back of the tub, the lock over the seam.)
+				const V3 At = Base + V3(0.0, 0.016, 0.0);
+				const double Hw = Size.x * 0.5, Bz = Size.z * 0.5 * 1.03, Hh = Size.y, Seam = 0.5 * Hh;
+				CodeShapes::Emit(Out, "top_box", "luggage/top_case.glb", "", "", CodeShapes::Box(V3(Hw * 1.3, 0.035 * Hh / 0.26, 0.008)), GAffine::At(At + V3(0.0, Seam - 0.09 * Hh, Bz + 0.002)), "lens_red");
+				CodeShapes::Emit(Out, "top_box", "luggage/top_case.glb", "", "", CodeShapes::Cylinder(0.009, 0.01, -1.0, 12),
+					AtWith(GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5), At + V3(0.0, Seam + 0.012 * Hh, Bz + 0.014)), "chrome");
+				if (Style == "large") Put(Out, "top_box", "luggage/backrest.glb", Xf, "");
+			}
 		}
 	}
 	if (const Json* P = Lay.Part(PartIn(Parts, "fog_lights")))
