@@ -202,12 +202,60 @@ def make(rig=False):
                     unreal.log_warning("[Torque] %s: assemble_for_preview failed: %s" % (name, e))
                 try:
                     unreal.log("[Torque] export_geometry: " + (lib.export_geometry.__doc__ or "").strip()[:800])
-                    lib.export_geometry(ch, folder)
-                    log("%s: export_geometry to %s" % (name, folder))
+                    xp = unreal.MetaHumanGeometryExportParams()
+                    log("geometry export params: " + _props(xp))
+                    used = _set_first(xp, folder, "output_folder", "output_path", "package_path", "path", "content_path")
+                    if used is None:   # a DirectoryPath struct field
+                        dp = unreal.DirectoryPath()
+                        dp.set_editor_property("path", folder)
+                        used = _set_first(xp, dp, "output_folder", "output_path", "package_path", "path", "content_path")
+                    _set_first(xp, name, "name_override", "asset_name", "name")
+                    r = lib.export_geometry(ch, xp)
+                    log("%s: export_geometry to %s (folder via %s) = %s" % (name, folder, used, r))
                 except Exception as e:
                     unreal.log_warning("[Torque] %s: export_geometry failed: %s" % (name, e))
         unreal.EditorAssetLibrary.save_directory(folder, only_if_is_dirty=True, recursive=True)
     log("make finished: see the can_build_meta_human lines above for whether a cloud rig (Epic sign-in) is needed")
+
+
+INI = ("Config", "DefaultGame.ini")
+NEVER_COOK = ["/MetaHumanCharacter", "/MetaHumanCoreTech", "/MetaHumanSDK", "/MetaHumanCoreTechLib",
+              "/MetaHumanDefaultPipeline"]
+
+
+def plugin_mounts():
+    """The content roots of the enabled MetaHuman plugins (to keep out of the cook), logged."""
+    out = []
+    lib = getattr(unreal, "PluginBlueprintLibrary", None)
+    if lib is None or not hasattr(lib, "get_enabled_plugin_names"):
+        return out
+    for n in lib.get_enabled_plugin_names():
+        if "metahuman" in str(n).lower():
+            out.append("/" + str(n))
+    log("enabled MetaHuman plugins: " + ", ".join(out))
+    return out
+
+
+def set_never_cook(on):
+    """Put the MetaHuman plugin content in DirectoriesToNeverCook (no avatars) or take it out
+    (avatars listed: their Blueprints may use plugin materials), between the BEGIN/END markers."""
+    path = os.path.join(project_dir(), *INI)
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().split("\n")
+    try:
+        a = lines.index("; BEGIN metahuman-never-cook")
+        b = lines.index("; END metahuman-never-cook")
+    except ValueError:
+        unreal.log_warning("[Torque] no metahuman-never-cook block in %s; cook settings unchanged" % path)
+        return
+    roots = sorted(set(NEVER_COOK + plugin_mounts())) if on else []
+    body = ['+DirectoriesToNeverCook=(Path="%s")' % r for r in roots]
+    if lines[a + 1:b] == body:
+        return
+    lines[a + 1:b] = body
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    log("MetaHuman plugin content %s the cook (%s): commit it" % ("kept out of" if on else "back in", path))
 
 
 def register():
@@ -244,12 +292,14 @@ def register():
         unreal.log_warning("[Torque] no assembled MetaHumans (BP_*) under %s; players keep the shape body" % ROOT)
         if os.path.exists(path):
             os.remove(path)
+        set_never_cook(True)
         return
     with open(path, "w") as f:
         json.dump({"about": "Co-op avatars: assembled MetaHumans, one per player colour in this order "
                             "(Tools/ue_metahumans.py writes this; Source/TorqueShedProto/Shed/TorqueAvatar.* reads it).",
                    "avatars": out}, f, indent=1)
     log("%d avatars written to %s" % (len(out), path))
+    set_never_cook(False)
 
 
 def main(args):

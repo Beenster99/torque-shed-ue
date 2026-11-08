@@ -38,7 +38,7 @@ MetaHuman Creator is built into the editor from UE 5.6 and is free. Rigging and 
    - **Auto-Rig:** choose "Joints and Blend Shapes". Then **Download Texture Sources** at 2K.
    - **Assemble:** pipeline **UE Optimized**, quality **Medium**, output folder `/Game/MetaHumans/<Name>`. This makes `BP_<Name>`.
 5. **Register them:** run `py Tools/ue_metahumans.py`. It writes `Data/Avatars/avatars.json`, one line per `BP_*`. Commit that file.
-6. **Package:** `/Game/MetaHumans` is already in `DirectoriesToAlwaysCook`, because the game spawns the Blueprints by path.
+6. **Package:** `/Game/MetaHumans` is already in `DirectoriesToAlwaysCook`, because the game spawns the Blueprints by path. Until avatars exist, the MetaHuman plugins' own content is in `DirectoriesToNeverCook` (the `metahuman-never-cook` block in `Config/DefaultGame.ini`), because it adds about 557 MB to the package even when nothing uses it. When `register` lists avatars, it takes that block out, since their Blueprints may use plugin materials. When there are none, it puts the block back. Commit `DefaultGame.ini` when it changes.
 
 ## Checking without a co-op game
 
