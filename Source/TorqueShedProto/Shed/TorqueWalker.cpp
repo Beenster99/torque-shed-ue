@@ -8,6 +8,7 @@
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueShedPick.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -460,13 +461,30 @@ void ATorqueWalker::FindTarget()
 	// Of the boxes the line goes into near where it first meets something (within 30 cm), a part
 	// wins over a place (the wheel on the changer over the changer), then the smallest box (a
 	// silencer inside the frame's box).
-	struct FHitBox { ETorqueLook Kind; const UStaticMeshComponent* C; const FTorquePlace* Place; double Time, Volume; };
-	TArray<FHitBox> Hits;
+	// Each part is tested by its own shape where the bike's .glb gives one (TorqueShedPick: the
+	// twin silencers' box fills the middle of the bike), else by its box. Of what the line goes into
+	// near where it first meets something (within 30 cm), a part wins over a place (the wheel on
+	// the changer over the changer); of the parts, the first one the line touches, or, known only
+	// by their boxes, the smallest (a silencer inside the frame's box).
+	LookHits.Reset();
 	auto Consider = [&](const UStaticMeshComponent* C, ETorqueLook Kind)
 	{
 		double Time = 0.0, Volume = 0.0;
-		if (!TWI::HitMeshBox(C, Start, End, Time, Volume) || Time > Clear) return;
-		Hits.Add({Kind, C, nullptr, Time, Volume});
+		if (!TWI::HitMeshBox(C, Start, End, Time, Volume)) return;
+		double Exact = 0.0;
+		const TorqueShedPick::EHit Shape = TorqueShedPick::Trace(C, Start, End, Exact);
+		if (Shape == TorqueShedPick::EHit::Miss) return;
+		if (Shape == TorqueShedPick::EHit::Hit) Time = Exact;
+		if (Time > Clear) return;
+		// The engine's own cubes and cylinders (boxes, blocks) are their boxes.
+		const bool bExact = Shape == TorqueShedPick::EHit::Hit || (C->GetStaticMesh() && C->GetStaticMesh()->GetPathName().StartsWith(TEXT("/Engine/")));
+		FLookHit L;
+		L.Kind = Kind;
+		L.C = C;
+		L.Time = Time;
+		L.Volume = Volume;
+		L.bExact = bExact;
+		LookHits.Add(L);
 	};
 	for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
 		for (const UStaticMeshComponent* C : It->Parts)
@@ -480,17 +498,27 @@ void ATorqueWalker::FindTarget()
 	for (const FTorquePlace& P : TorqueShedLayout::Places())
 	{
 		double Time = 0.0, Volume = 0.0;
-		if (TWI::HitWorldBox(P.Box, Start, End, Time, Volume) && Time <= Clear) Hits.Add({ETorqueLook::Place, nullptr, &P, Time, Volume});
+		if (!TWI::HitWorldBox(P.Box, Start, End, Time, Volume) || Time > Clear) continue;
+		FLookHit L;
+		L.Kind = ETorqueLook::Place;
+		L.Place = &P;
+		L.Time = Time;
+		L.Volume = Volume;
+		L.bExact = true;
+		LookHits.Add(L);
 	}
 	double First = TNumericLimits<double>::Max();
-	for (const FHitBox& H : Hits) First = FMath::Min(First, H.Time);
+	for (const FLookHit& H : LookHits) First = FMath::Min(First, H.Time);
 	const double Near = First + 30.0 / FMath::Max((double)Reach, 1.0);
-	const FHitBox* Pick = nullptr;
-	for (const FHitBox& H : Hits)
+	const FLookHit* Pick = nullptr;
+	for (const FLookHit& H : LookHits)
 	{
-		if (H.Time > Near) continue;
-		const bool bPart = H.Kind != ETorqueLook::Place, bPickPart = Pick && Pick->Kind != ETorqueLook::Place;
-		if (!Pick || (bPart && !bPickPart) || (bPart == bPickPart && H.Volume < Pick->Volume)) Pick = &H;
+		if (H.Time > Near || (H.Kind != ETorqueLook::Place && !H.C.IsValid())) continue;
+		if (!Pick) { Pick = &H; continue; }
+		const bool bPart = H.Kind != ETorqueLook::Place, bPickPart = Pick->Kind != ETorqueLook::Place;
+		if (bPart != bPickPart) { if (bPart) Pick = &H; continue; }
+		if (H.bExact != Pick->bExact) { if (H.bExact) Pick = &H; continue; }
+		if (H.bExact ? H.Time < Pick->Time : H.Volume < Pick->Volume) Pick = &H;
 	}
 	if (Pick)
 	{
@@ -500,14 +528,14 @@ void ATorqueWalker::FindTarget()
 		{
 			const ATorqueShedBike* Bike = Cast<ATorqueShedBike>(Pick->C->GetOwner());
 			TargetBay = Bike ? Bike->Bay : INDEX_NONE;
-			TargetSlot = TorqueShedModel::SlotTag(Pick->C);
+			TargetSlot = TorqueShedModel::SlotTag(Pick->C.Get());
 			TargetItem = B->ItemOn(TargetBay, TargetSlot);
 		}
 		else if (Target == ETorqueLook::Item)
 		{
-			TargetItem = ATorqueShedItems::ItemOf(Pick->C);
+			TargetItem = ATorqueShedItems::ItemOf(Pick->C.Get());
 			const FTorqueItem* Thing = B->Item(TargetItem);
-			const FName Slot = TorqueShedModel::SlotTag(Pick->C);
+			const FName Slot = TorqueShedModel::SlotTag(Pick->C.Get());
 			// A part on an engine block: that part (unbolt it, take it off); a tyre stays its wheel's.
 			if (Thing && Thing->Kind == FName(TEXT("engine")) && Slot != FName(TEXT("engine")) && Thing->Slots.FindRef(Slot) != 0)
 			{
@@ -1174,6 +1202,30 @@ FString ATorqueWalker::TestAct(bool bAlt)
 	UpdateHud();
 	return FString::Printf(TEXT("%s %s (%s on %s): %s"), bOk ? TEXT("did") : TEXT("failed to"), *P.Verb, TWI::ToolName(Tool), *Seen,
 		Note.IsEmpty() ? (bComputer ? TEXT("the parts computer is up") : TEXT("done")) : *Note);
+}
+
+FString ATorqueWalker::TestCandidates() const
+{
+	// What the last look went into, nearest first: kind, what it is, how far along, shape or box.
+	const UTorqueBuildSubsystem* B = Shed();
+	TArray<const FLookHit*> Sorted;
+	for (const FLookHit& H : LookHits) Sorted.Add(&H);
+	Sorted.Sort([](const FLookHit& X, const FLookHit& Y) { return X.Time < Y.Time; });
+	FString Out;
+	for (const FLookHit* H : Sorted)
+	{
+		FString What;
+		if (H->Kind == ETorqueLook::Place) What = H->Place ? TEXT("place ") + H->Place->Name.ToString() : FString(TEXT("place ?"));
+		else if (const UStaticMeshComponent* C = H->C.Get())
+		{
+			const ATorqueShedBike* Bike = Cast<ATorqueShedBike>(C->GetOwner());
+			What = Bike ? FString::Printf(TEXT("bay %d %s"), Bike->Bay + 1, *TorqueShedModel::SlotTag(C).ToString())
+				: FString::Printf(TEXT("item %d %s"), ATorqueShedItems::ItemOf(C), B ? *B->ItemTitle(ATorqueShedItems::ItemOf(C)) : TEXT(""));
+			What += TEXT(" (") + (C->GetStaticMesh() ? C->GetStaticMesh()->GetName() : FString(TEXT("?"))) + TEXT(")");
+		}
+		Out += FString::Printf(TEXT("%s%s at %.0f cm %s"), Out.IsEmpty() ? TEXT("") : TEXT("; "), *What, H->Time * Reach, H->bExact ? TEXT("shape") : TEXT("box"));
+	}
+	return Out.IsEmpty() ? FString(TEXT("nothing")) : Out;
 }
 
 FString ATorqueWalker::TestInteract()

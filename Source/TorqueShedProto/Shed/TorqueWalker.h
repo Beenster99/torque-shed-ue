@@ -77,6 +77,8 @@ public:
 	FString Describe() const;
 	bool IsRidingOut() const { return bRidingOut; }
 	FName TestTargetSlot() const { return TargetSlot; }
+	// Everything the last look went into, nearest first (for a test whose aim missed).
+	FString TestCandidates() const;
 	int32 TestTargetItem() const { return TargetItem; }
 	const FString& LastNote() const { return Note; }
 
@@ -98,6 +100,15 @@ private:
 	const FTorquePlace* TargetPlace = nullptr;   // the place looked at, or the one an item is on
 	FVector TargetPoint = FVector::ZeroVector;   // where the look meets it
 	void FindTarget();
+	struct FLookHit
+	{
+		ETorqueLook Kind = ETorqueLook::None;
+		TWeakObjectPtr<const UStaticMeshComponent> C;
+		const FTorquePlace* Place = nullptr;
+		double Time = 0.0, Volume = 0.0;
+		bool bExact = false;   // by the part's own shape (or a box that is its shape)
+	};
+	TArray<FLookHit> LookHits;
 	// The items within Radius of a point (bike parts and loose ones), the target's first.
 	TArray<int32> ItemsNear(const FVector& At, double Radius) const;
 

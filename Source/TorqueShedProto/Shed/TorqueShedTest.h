@@ -18,6 +18,8 @@
 //                         plastic, metal (the bins), computer, bay_0-3
 //   floor:<x>:<y>         look at the floor there (world cm; the wash bay is round -900:100)
 //   door                  stand in the roller door
+//   look:<what>           stand back and look, for a screenshot: bench, washer, repair, computer,
+//                         changer, stand, bins, bike, deliveries, washbay, or any place name
 //   act[:alt]             what the work button (or the second button) does to what's looked at, at once
 //   hold:<seconds>        hold the work button that long (the pressure washer's passes)
 //   f                     press F at what's looked at (unpack a box, the parts computer, ride out)
@@ -58,6 +60,7 @@ private:
 	int32 Next = 0;
 	int32 TestBay = 0;
 	int32 Tries = 0;
+	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	double Wait = 0.0;
 	TWeakObjectPtr<UWorld> SeenWorld;
 	FTSTicker::FDelegateHandle Ticker;

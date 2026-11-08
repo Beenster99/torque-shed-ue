@@ -6,6 +6,7 @@
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueShedPick.h"
 #include "Shed/TorqueWalker.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -20,7 +21,7 @@ namespace TorqueShedTestImpl
 // Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the spray can, the
 // wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
 const TCHAR* const LoopSteps =
-	TEXT("bay:1,log,")
+	TEXT("bay:1,log,look:bike,shot,look:bench,shot,look:computer,shot,")
 	TEXT("tool:wrench,part:exhaust,act,")                    // unbolt the exhaust
 	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
 	TEXT("place:repair_0,act,")                              // onto the repair bench
@@ -182,6 +183,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		return true;
 	}
 	Tries = 0;
+	if (Verb == TEXT("item") || Verb == TEXT("place") || Verb == TEXT("floor") || Verb == TEXT("door") || Verb == TEXT("look")) bAimLost = false;
 
 	if (Verb == TEXT("tool") && P.Num() >= 2)
 	{
@@ -230,27 +232,40 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			}
 		}
 		if (!Best) { Warn(FString::Printf(TEXT("bay %d's bike has nothing drawn in that slot"), TestBay + 1)); return true; }
-		// From beside the part first, then round the bike, until the walker's look lands on that slot
-		// (a part inside a bigger one's box, an exhaust by the swingarm, can be hidden from one side).
-		const FVector At = Best->Bounds.Origin;
-		FVector Out = TSTI::Flat(At - Bike->GetActorLocation()).GetSafeNormal();
-		if (Out.IsNearlyZero()) Out = FVector(1.0, 0.0, 0.0);
-		const FVector Sides[] = {Out, FVector(1.0, 0.0, 0.0), FVector(-1.0, 0.0, 0.0), (Out + FVector(0.0, 1.0, 0.0)).GetSafeNormal(),
-			(Out - FVector(0.0, 1.0, 0.0)).GetSafeNormal(), FVector(0.0, 1.0, 0.0)};
-		const double Distances[] = {100.0, 70.0, 140.0};
-		FString Seen;
-		for (const double D : Distances)
-			for (const FVector& Away : Sides)
-			{
-				if (Away.IsNearlyZero()) continue;
-				Seen = W->TestLookAt(At, Away, D);
-				if (W->TestTargetSlot() == Slot)
+		// Each of the slot's meshes (the biggest first), from beside the bike on its side first, then
+		// round it, aiming at the mesh's own surface on the side looked from, until the walker's look
+		// lands on that slot.
+		TArray<const UStaticMeshComponent*> Meshes;
+		for (const UStaticMeshComponent* C : Bike->Parts)
+			if (C && C->IsVisible() && TorqueShedModel::SlotTag(C) == Slot) Meshes.Add(C);
+		Meshes.Sort([](const UStaticMeshComponent& X, const UStaticMeshComponent& Y) { return X.Bounds.GetBox().GetVolume() > Y.Bounds.GetBox().GetVolume(); });
+		FString Seen, Candidates;
+		const double Distances[] = {90.0, 130.0, 60.0};
+		for (const UStaticMeshComponent* C : Meshes)
+		{
+			FVector Out = TSTI::Flat(C->Bounds.Origin - Bike->GetActorLocation()).GetSafeNormal();
+			if (Out.IsNearlyZero()) Out = FVector(1.0, 0.0, 0.0);
+			const FVector Sides[] = {Out, FVector(1.0, 0.0, 0.0), FVector(-1.0, 0.0, 0.0), (Out + FVector(0.0, 1.0, 0.0)).GetSafeNormal(),
+				(Out - FVector(0.0, 1.0, 0.0)).GetSafeNormal(), FVector(0.0, 1.0, 0.0), FVector(0.0, -1.0, 0.0)};
+			for (const double D : Distances)
+				for (const FVector& Away : Sides)
 				{
-					Said(TEXT("looking at ") + Seen);
-					return true;
+					if (Away.IsNearlyZero()) continue;
+					FVector At = C->Bounds.Origin;
+					TorqueShedPick::SurfacePoint(C, Away, At);
+					Seen = W->TestLookAt(At, Away, D);
+					if (W->TestTargetSlot() == Slot)
+					{
+						bAimLost = false;
+						Said(TEXT("looking at ") + Seen);
+						return true;
+					}
+					if (Candidates.IsEmpty()) Candidates = FString::Printf(TEXT("from %.0f cm along (%.1f, %.1f) at %s: %s"), D, Away.X, Away.Y,
+						*C->GetStaticMesh()->GetName(), *W->TestCandidates());
 				}
-			}
-		Warn(TEXT("couldn't get a look at it: last saw ") + Seen);
+		}
+		bAimLost = true;
+		Warn(TEXT("couldn't get a look at it: last saw ") + Seen + TEXT(". First try went into: ") + Candidates);
 		return true;
 	}
 	if (Verb == TEXT("item") && P.Num() >= 2)
@@ -298,8 +313,44 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("rideout")) Said(W->TestInteract());
 		return true;
 	}
+	if (Verb == TEXT("look") && P.Num() >= 2)
+	{
+		// Stand back from something and look at it, for a screenshot.
+		const FString What = P[1].ToLower();
+		FVector At = FVector::ZeroVector, Away = FVector::ZeroVector;
+		double Distance = 220.0;
+		FName PlaceName = NAME_None;
+		if (What == TEXT("bench")) PlaceName = TEXT("bench_3");
+		else if (What == TEXT("washer")) PlaceName = TEXT("washer_0");
+		else if (What == TEXT("repair")) PlaceName = TEXT("repair_1");
+		else if (What == TEXT("bins")) PlaceName = TEXT("plastic");
+		else if (TorqueShedLayout::FindPlace(FName(*What))) PlaceName = FName(*What);
+		if (!PlaceName.IsNone())
+		{
+			const FTorquePlace* Place = TorqueShedLayout::FindPlace(PlaceName);
+			At = Place->Box.GetCenter() + FVector(0.0, 0.0, Place->Box.GetExtent().Z);
+			Away = TSTI::TowardsMiddle(At);
+		}
+		else if (What == TEXT("bike"))
+		{
+			At = TorqueShedLayout::BayAt(TestBay) + FVector(0.0, 0.0, 70.0);
+			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
+			Distance = 300.0;
+		}
+		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
+		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
+		else { Warn(TEXT("look at what? bench, washer, repair, computer, changer, stand, bins, bike, deliveries, washbay, or a place name")); return true; }
+		Said(TEXT("looking at ") + W->TestLookAt(At, Away, Distance));
+		return true;
+	}
 	if (Verb == TEXT("act"))
 	{
+		if (bAimLost)
+		{
+			Warn(TEXT("skipped: the look before it missed"));
+			bAimLost = false;
+			return true;
+		}
 		Said(W->TestAct(P.Num() > 1 && P[1] == TEXT("alt")));
 		LogBuild(TEXT("after it"));
 		return true;
