@@ -2,12 +2,14 @@
 
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
+#include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -54,6 +56,16 @@ const TCHAR* const FabSteps =
 	TEXT("tool:wrench,part:fork,act,log,look:bike,shot,look:screen,shot,")   // the fork goes on loose: bolt it up
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
+// The dyno room, end to end on bay 1's bike: wheel it onto the rig, strap it down at the four posts,
+// a run with the cooling fan on and one with it off (heat soaked, down on power), the big screen
+// part way through the second run and after it, then the straps undone and the bike wheeled home.
+const TCHAR* const DynoSteps =
+	TEXT("bay:1,tool:hands,wheel:rig,look:dynoroom,shot,")
+	TEXT("strap:0,strap:1,strap:2,strap:3,look:dynoroom,shot,")
+	TEXT("fan:on,dynorun,dynolog,look:dyno,shot,")
+	TEXT("fan:off,dynorun:mid,look:dyno,shot,dynolog,look:dyno,shot,look:dynoroom,shot,")
+	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,log");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -67,7 +79,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	FString Spec;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueShedAction="), Spec, false)) return;
-	// "loop" and "fab" stand for their steps anywhere in the list; alone, they quit at the end.
+	// "loop", "fab" and "dyno" stand for their steps anywhere in the list; alone, they quit at the end.
 	TArray<FString> Given;
 	Spec.ParseIntoArray(Given, TEXT(","), true);
 	for (const FString& G : Given)
@@ -76,6 +88,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		TArray<FString> Preset;
 		if (T == TEXT("loop")) FString(TSTI::LoopSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -479,9 +492,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else if (What == TEXT("board")) { At = FVector(-643.0, 60.0, 255.0); Away = FVector(1.0, 0.0, 0.0); Distance = 300.0; }
 		else if (What == TEXT("monitor")) { At = FVector(613.5, 190.0, 110.0); Away = FVector(-1.0, 0.0, 0.0); Distance = 110.0; }
+		else if (What == TEXT("dyno")) { At = FVector(0.0, -1290.0, 225.0); Away = FVector(0.35, 1.0, 0.0).GetSafeNormal(); Distance = 250.0; }
+		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, deliveries, washbay, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);
@@ -516,6 +531,86 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		Said(W->TestOrder(FName(*P[1])));
 		LogBuild(TEXT("after the order"));
+		return true;
+	}
+	if (Verb == TEXT("wheel") && P.Num() >= 2)
+	{
+		const bool bToRig = P[1] == TEXT("rig");
+		Said(W->TestWheel(TestBay, bToRig));
+		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("strap") && P.Num() >= 2)
+	{
+		// One of the rig's four posts, looked at from outside the rig (the bike behind it), and the
+		// work button: done up if it was undone, undone if it was done up.
+		const int32 Point = FMath::Clamp(FCString::Atoi(*P[1]), 0, 3);
+		const FName Name(*FString::Printf(TEXT("dyno_strap_%d"), Point));
+		const FTorquePlace* Place = TorqueShedLayout::FindPlace(Name);
+		if (!Place) { Warn(TEXT("no such strap post")); return true; }
+		const FVector At = Place->Box.GetCenter() + FVector(0.0, 0.0, Place->Box.GetExtent().Z * 0.6);
+		const FVector Away(At.X < 0.0 ? -1.0 : 1.0, 0.0, 0.0);
+		const FString Seen = W->TestLookAt(At, Away, 75.0);
+		if (W->TestTargetPlace() != Name) { Warn(TEXT("couldn't get a look at it: saw ") + Seen); return true; }
+		Said(W->TestAct());
+		Said(FString::Printf(TEXT("%d of 4 straps done up"), B->DynoRoom().StrapsDone()));
+		return true;
+	}
+	if (Verb == TEXT("fan") || Verb == TEXT("lights") || Verb == TEXT("switch"))
+	{
+		// fan:on|off, lights:on|off: the switch by the dyno room's door, flicked (F) if it isn't so
+		// already; switch:fan|lights flicks it either way.
+		const bool bFan = Verb == TEXT("fan") || (Verb == TEXT("switch") && P.Num() >= 2 && P[1] == TEXT("fan"));
+		const bool bNow = bFan ? B->DynoRoom().bFan : B->DynoRoom().bLights;
+		if (Verb != TEXT("switch") && P.Num() >= 2 && (P[1] == TEXT("on")) == bNow)
+		{
+			Said(bNow ? TEXT("already on") : TEXT("already off"));
+			return true;
+		}
+		const FName Name = bFan ? FName(TEXT("dyno_fan")) : FName(TEXT("dyno_lights"));
+		const FTorquePlace* Place = TorqueShedLayout::FindPlace(Name);
+		if (!Place) { Warn(TEXT("no such switch")); return true; }
+		const FString Seen = W->TestLookAt(Place->Box.GetCenter(), FVector(0.0, -1.0, 0.0), 70.0);
+		if (W->TestTargetPlace() != Name) { Warn(TEXT("couldn't get a look at it: saw ") + Seen); return true; }
+		Said(W->TestInteract());
+		const bool bAfter = bFan ? B->DynoRoom().bFan : B->DynoRoom().bLights;
+		Said(bAfter ? TEXT("now on") : TEXT("now off"));
+		return true;
+	}
+	if (Verb == TEXT("dynorun"))
+	{
+		// F at the dyno desk, then wait out the run (dynorun:mid stops about 60% of the way in, for a
+		// shot of the graph growing).
+		const FTorquePlace* Place = TorqueShedLayout::FindPlace(TEXT("dyno_desk"));
+		if (!Place) { Warn(TEXT("no dyno desk")); return true; }
+		const FVector At = Place->Box.GetCenter() + FVector(0.0, 0.0, Place->Box.GetExtent().Z);
+		const FString Seen = W->TestLookAt(At, FVector(-1.0, 0.0, 0.0), 90.0);
+		if (W->TestTargetPlace() != FName(TEXT("dyno_desk"))) { Warn(TEXT("couldn't get a look at the desk: saw ") + Seen); return true; }
+		const int32 Bay = B->DynoBay();
+		const int32 Before = Bay != INDEX_NONE && B->HasDynoRun(Bay) ? B->DynoRunOf(Bay).N : 0;
+		Said(W->TestInteract());
+		if (Bay == INDEX_NONE || !B->HasDynoRun(Bay) || B->DynoRunOf(Bay).N == Before) { Warn(TEXT("no run started")); return true; }
+		const float Length = TorqueShedPower::RunTime(B->DynoRunOf(Bay));
+		const bool bMid = P.Num() >= 2 && P[1] == TEXT("mid");
+		Wait = bMid ? Length * 0.6 : Length + 1.0;
+		Said(FString::Printf(TEXT("run %d started, %.1f s long"), B->DynoRunOf(Bay).N, Length));
+		return true;
+	}
+	if (Verb == TEXT("dynolog"))
+	{
+		// The rig's bike's runs, once the latest has finished playing.
+		float Rpm = 0.0f, Progress = 0.0f;
+		int32 Gear = 0;
+		if (ATorqueDynoRoom::Live(World, Rpm, Gear, Progress)) return false;   // still running: try again in a second
+		const int32 Bay = B->DynoBay();
+		if (Bay == INDEX_NONE || !B->HasDynoRun(Bay)) { Warn(TEXT("no runs on the rig's bike")); return true; }
+		for (const FTorqueDynoRun& Run : B->Bike(Bay).DynoRuns)
+		{
+			FString Line = FString::Printf(TEXT("bay %d run %d: %.1f hp @ %.0f rpm, %.1f Nm @ %.0f rpm, limiter %.0f rpm, engine %.0f C, heat %.2f"),
+				Bay + 1, Run.N, Run.PeakHp, Run.PeakHpRpm, Run.PeakNm, Run.PeakNmRpm, Run.Redline, Run.TempC, Run.Heat);
+			Line += Run.bFan ? TEXT(", fan on") : TEXT(", fan off");
+			Said(Line);
+		}
 		return true;
 	}
 	Warn(TEXT("unknown step (see TorqueShedTest.h)"));

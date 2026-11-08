@@ -98,6 +98,10 @@ public:
 	// Everything the last look went into, nearest first (for a test whose aim missed).
 	FString TestCandidates() const;
 	int32 TestTargetItem() const { return TargetItem; }
+	FName TestTargetPlace() const;
+	// Take hold of a bay's bike (as holding F on it does), walk it straight onto the dyno's rig or
+	// back to its bay (a test shortcut for the walk, not the requests), and let go (F). Says what happened.
+	FString TestWheel(int32 Bay, bool bToRig);
 	const FString& LastNote() const { return Note; }
 
 	// After walker.gd: eye 1.62 m (0.95 crouched), walk 3.2 m/s, hurry 5.5, crouched 1.5, reach 2.6 m.
