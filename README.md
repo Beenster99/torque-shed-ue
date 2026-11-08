@@ -23,11 +23,12 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Tools/make_rider.py` | Builds the rider in riding kit (jacket, jeans, boots, brown gloves, full-face helmet) as a skinned glb in `Data/Rider`, sat on the Speed Twin; the pawn poses it every frame (`Source/TorqueShedProto/RiderRig.*`) |
 | `Tools/ue_build_level.py` | Run inside the Unreal editor: imports the meshes, makes the materials, sun, sky and fog, and saves the level |
 | `Tools/import_parts.py` | Copies the Godot game's parts catalogue (`data/parts.json`, 717 parts) unchanged into `Data/Parts/parts.json`, the file the game reads; the Godot JSON stays the source of truth |
+| `Tools/import_layout_data.py` | Copies what the Godot game lays a bike out with (style lines, tank and seat shapes, slots, the 14 reference bikes) into `Data/Fitment/layout.json` for `Fit/BikeLayout` |
 | `Tools/import_blender_parts.py` | Converts the Godot game's 520 Blender part glbs (`assets/bike_parts`) into our frame at `Data/Parts/Blender`: three LOD glbs per part with a material slot per surface tag, shape keys in `.morph.bin`, and `index.json` (mounts as sockets, surfaces and the finish each is drawn in, bounds, triangles). `--sheet out.png` renders every part |
 | `Tools/make_speedtwin_fit.py` | The Speed Twin's fitment data (`Data/Bike/SpeedTwin/fitment.json`): typed sockets, datums, collision proxies, and alternative bars and silencers in its style (`Data/Bike/SpeedTwin/Options`). Run after `make_speedtwin.py` |
 | `Tools/speedtwin_pack.py` | The classic part pack (seats, mudguards and more), modelled in the Speed Twin's style and fitted by sockets; called by `make_speedtwin_fit.py`, never changes the stock bike. Outputs are committed: the PC doesn't regenerate them |
 | `Source/TorqueShedProto/Fit/` | The fitment system: parts fit by typed sockets (`Data/Fitment/interfaces.json`) with the adjustment each allows, clearance checks at full lock and full compression, geometry mode (player and author fitting). `TorqueFit.h` is the API the shed and the pawn use |
-| `SimTest/` | Standalone tests: the physics (flat-ground checks and a robot rider down the exported 3 km), and `fit_test`, which assembles the Speed Twin from its sockets and reports clashes |
+| `SimTest/` | Standalone tests: the physics (flat-ground checks and a robot rider down the exported 3 km), `fit_test`, which assembles the Speed Twin from its sockets and reports clashes, and `layout_test`, which lays out every style's reference bike |
 
 The bike is a first Speed Twin model built from your two side-on drone photos: wheels, forks, tank,
 seat, engine, headers and silencers, in simple finishes. The rider is a skinned figure in riding kit, made by `Tools/make_rider.py`: hands on the grips as the bars turn, feet on the pegs or down when you stop, weight and lean as you ride. Its kit is textured from scanned CC0 surfaces (the `rider_` roles in `Data/Textures/textures.json`, fetched by `Tools/fetch_textures.py`): textile jacket, denim, leather gloves and boots, rubber soles, the weave following the sleeves and legs. Without them it falls back to plain colours.
@@ -133,6 +134,15 @@ catalogue colour); a tune part (its own slot, no model: air filters, maps, horns
 or the top of the tank, clear of everything at rest, full lock and full bump, and re-snaps when what
 it sits on is swapped); or refused, with the reason (engines, frames and anything that changes the
 riding physics wait for their own steps; consumables aren't fitted). `fit_test` checks all 717.
+
+Every bike type, not just the Speed Twin, is laid out by `Fit/BikeLayout`, a port of the Godot
+game's layout solver (`BikeRig.solve`): from any set of parts it works out the steering head, pivot,
+engine, backbone, tank, seat, tail, pegs and grips to the style's eight lines (measured from real
+bikes), says whether the engine and frame bolt together, need fabrication (named, with hours and
+cost) or won't fit, and takes geometry mode's four range handles. Its data is
+`Data/Fitment/layout.json` (`Tools/import_layout_data.py`: the lines, tank shapes, slots and the 14
+reference bikes, one per style). `build/simtest/Release/layout_test` lays out all 14 and checks them
+as the Godot game's own rig tests do; `--dump` prints their datums.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
