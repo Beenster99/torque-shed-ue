@@ -1,7 +1,8 @@
 // The parts store: galvanised shelving along a wall with a bay for every slot the bike has options
 // for (handlebars, exhaust, saddle, mudguard...), labelled, holding that slot's spares (every option
-// not on the bike; big ones shrunk to fit the bay). Look at one and press E (Cross) to fit it.
-// On the bike itself, Q / R choose from the same options. The actor stands on the floor at the
+// not on the bike; big ones shrunk to fit the bay). Look at one and press E (Cross) to fit it to
+// your bike (the bay you last worked on). On a bike itself, Q / R choose from the same options.
+// The shelves are this machine's view: they follow its own player's bike. The actor stands on the floor at the
 // middle of the unit's foot; +x faces into the room, the bays run along +y.
 #pragma once
 
@@ -40,6 +41,8 @@ public:
 private:
 	void BuildFrame(int32 Columns);
 	void Rebuild();
-	FDelegateHandle Watch;
+	void BikeChanged(int32 Bike);
+	FDelegateHandle Watch, WatchMine;
+	int32 ShownBike = -1;
 	int32 FrameColumns = 0;
 };

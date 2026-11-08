@@ -1,7 +1,8 @@
-// The Speed Twin standing in the shed on a rear paddock stand: the same parts as the ridden bike,
-// drawn as the build has them (UTorqueBuildSubsystem + the fitment API), still, and solid to a
-// look trace so the walker can point at a part. Redrawn whenever a part is swapped. Until the
-// level script has imported the model (Data/Bike/SpeedTwin/ue_assets.json) it's a grey-box bike.
+// A bike standing in one of the shed's bays on a rear paddock stand: the same parts as the ridden
+// bike, drawn as that bay's build has them (UTorqueBuildSubsystem + the fitment API), still, so
+// the walker can point at a part. Redrawn whenever a part on it is swapped, by anyone in the shed.
+// An empty bay shows only its stand. Until the level script has imported the model
+// (Data/Bike/SpeedTwin/ue_assets.json) it's a grey-box bike.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -27,6 +28,8 @@ bool IsBodywork(FName Part);
 // A part's name for people: "side_panel_l" -> "side panel l".
 FString PartLabel(FName Part);
 // Dirt and paint from the build onto the parts' finishes (the bike's materials take Grime and Color).
+void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts);
+// The same for the bike of whoever WorldContext is (a ridden pawn: its player's bay).
 void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts);
 // One spare: option Part for Slot drawn as it would be fitted to Build, under a new holder on Parent,
 // shrunk (never grown) to fit inside MaxCm when that's set, and moved so its box sits centred on
@@ -50,6 +53,9 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
+	// Which bay this is (0 .. UTorqueBuildSubsystem::Bays - 1): the bike in it is that bay's build.
+	UPROPERTY(EditAnywhere, Category = "Bike") int32 Bay = 0;
+
 	// The slot a part of this bike belongs to (NAME_None for the frame, tank and the rest).
 	FName SlotOf(const UPrimitiveComponent* C) const;
 
@@ -66,6 +72,8 @@ public:
 private:
 	void Rebuild();
 	void Relook();
+	void BikeChanged(int32 Bike) { if (Bike == Bay) Rebuild(); }
+	void LooksChanged(int32 Bike) { if (Bike == Bay) Relook(); }
 	void BuildGreyBox();
 	void BuildStand();
 	FDelegateHandle Watch, WatchLooks;
