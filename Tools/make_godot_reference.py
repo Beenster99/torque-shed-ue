@@ -65,9 +65,10 @@ def main():
                  for k, v in s["slots"].items()}
         out["styles"][style] = {"parts": s["parts"], "stats": s["stats"], "rig": {k: (r6(v) if isinstance(v, list) else v) for k, v in rig.items()},
                                 "slots": slots}
-    # The sweep: each build as its base style's parts plus what changed, and only the running gear's
+    # The sweep: each build as its base style's parts plus what changed, and only the swept slots'
     # Blender surfaces (what the sweep is there to check).
-    keep = ("wheel", "tyre", "disc", "caliper", "pads", "fork", "shock", "swingarm", "final_drive", "chain")
+    keep = ("wheel", "tyre", "disc", "caliper", "pads", "fork", "shock", "swingarm", "final_drive", "chain",
+            "engine", "head", "spark_plugs", "fuel", "air_filter", "oil_filter", "cooling", "gearbox", "exhaust")
     out["sweep"] = {}
     for key, s in sweep.items():
         base = out["styles"][s["base"]]["parts"]

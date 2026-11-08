@@ -44,8 +44,8 @@ Ported from Torque Shed's (`scripts/main_menu.gd`), with the same names and orde
   with everyone's names. Alone it pauses the game; in co-op the world carries on and your bike or
   walker just lets go of the controls.
 - **Settings** (from the start menu or the pause menu), saved in `GameUserSettings.ini`:
-  - Graphics: quality preset, window mode, resolution, upscaler (Unreal TSR, or NVIDIA DLSS once
-    its plugin is in the build), render scale, frame-rate cap, VSync, motion blur.
+  - Graphics: quality preset, window mode, resolution, upscaler (NVIDIA DLSS, the default, or Unreal
+    TSR; render scale 100% with DLSS is DLAA), render scale, frame-rate cap, VSync, motion blur.
   - Sound: sound effects volume, engines volume.
   - Gameplay: riding realism (0 full sim .. 1 easy, Torque Shed's words for it).
   - Controller: mouse and stick look speeds, invert, the lean stick's dead zone and response, and

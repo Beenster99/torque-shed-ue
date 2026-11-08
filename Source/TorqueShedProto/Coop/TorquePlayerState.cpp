@@ -7,9 +7,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
-void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const
+void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	Super::GetLifetimeReplicatedProps(Out);
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATorquePlayerState, Activity);
 	DOREPLIFETIME(ATorquePlayerState, Colour);
 	DOREPLIFETIME(ATorquePlayerState, Bay);
