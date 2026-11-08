@@ -454,37 +454,72 @@ NO_CLIP = {("gloves", "fingers"), ("fingers", "gloves")}   # overlapping, each k
 
 
 def helmet_parts(p):
-    """The helmet, rigid on the head bone: shell, visor and the dark liner seen inside the eye port."""
+    """The helmet, rigid on the head bone: a gloss shell; a smoked visor on side pivots, with a lift
+    tab; the dark liner seen inside the eye port; and matt black trim: the rubber seal round the
+    port, the pivot covers, the chin vent's grille, the crown vent sliders, the rear exhaust under the
+    spoiler and the padded neck roll."""
     C = HELMET_C
-    fw, side, up = np.array([1.0, 0, 0]), np.array([0, 1.0, 0]), np.array([0, 0, 1.0])
-    shell = ellipsoid(p, C, (14.6, 12.6, 14.0))
-    chin = ellipsoid(p, C + np.array([6.5, 0.0, -9.0]), (8.5, 10.4, 7.5))
+    fw = np.array([1.0, 0, 0])
+    # Narrower at the cheeks and the neck than at the brow, as a real shell is (not a ball).
+    q = p.copy()
+    below = np.clip((C[2] + 2.0 - p[:, 2]) / 14.0, 0.0, 1.0)
+    q[:, 1] = C[1] + (p[:, 1] - C[1]) / (1.0 - 0.14 * below)
+    shell = ellipsoid(q, C, (14.6, 12.6, 14.0)) * (1.0 - 0.14 * below)
+    chin = ellipsoid(q, C + np.array([7.5, 0.0, -9.5]), (9.6, 10.2, 7.2)) * (1.0 - 0.14 * below)
     shell = smin(shell, chin, 4.0)
-    # A small spoiler at the back and a ridge over the top.
+    # A small spoiler at the back.
     shell = smin(shell, ellipsoid(p, C + np.array([-13.0, 0, 3.0]), (2.0, 7.0, 3.0)), 2.0)
     # The neck opening, higher at the back.
-    shell = smax(shell, -plane(p, C + np.array([0, 0, -13.5]), unit([-0.32, 0, 1.0])), 1.0)
+    neck_n = unit([-0.32, 0, 1.0])
+    shell = smax(shell, -plane(p, C + np.array([0, 0, -13.5]), neck_n), 1.0)
     # The eye port: a deep recess in the front.
     port = rbox(p, C + np.array([12.5, 0.0, -1.0]), (7.0, 8.8, 3.4), None, 2.2)
     shell_cut = smax(shell, -port, 0.5)
-    # Vents: a slot on the chin bar and two on the crown.
-    shell_cut = smax(shell_cut, -rbox(p, C + np.array([14.0, 0, -9.0]), (2.0, 2.6, 0.45), None, 0.3), 0.2)
-    for y in (-3.5, 3.5):
-        shell_cut = smax(shell_cut, -rbox(p, C + np.array([4.0, y, 13.6]), (2.4, 0.5, 1.2), None, 0.3), 0.2)
-    # The visor: a thin curved shell standing just proud of the helmet, over the port.
+    # Recesses the trim pieces sit in: the chin vent, the crown vents and the rear exhaust.
+    chin_box = rbox(p, C + np.array([16.4, 0, -10.0]), (2.2, 3.3, 1.7), None, 0.6)
+    shell_cut = smax(shell_cut, -chin_box, 0.3)
+    crown = [C + np.array([3.5, y, 14.0 * math.sqrt(1 - (3.5 / 14.6) ** 2 - (y / 12.6) ** 2) - 0.15]) for y in (-3.6, 3.6)]
+    rear = rbox(p, C + np.array([-14.2, 0, 0.6]), (1.4, 4.2, 0.9), None, 0.4)
+    shell_cut = smax(shell_cut, -rear, 0.3)
+    # The visor: a thin curved shell standing just proud of the helmet, over the port, with a tab to
+    # lift it at the lower left.
     vis_d = ellipsoid(p, C + np.array([0.6, 0, 0.0]), (14.9, 13.2, 14.4))
     visor = np.abs(vis_d) - 0.22
     visor = smax(visor, rbox(p, C + np.array([10.5, 0.0, 0.0]), (6.0, 12.6, 5.4), None, 2.5), 0.3)
     visor = smax(visor, -plane(p, C + np.array([2.5, 0, 0]), fw), 0.2)
-    # Visor pivots on each side.
-    for y in (-1, 1):
-        piv = rcone(p, C + np.array([2.0, 12.0 * y, -1.0]), C + np.array([2.0, 13.4 * y, -1.0]), 1.8, 1.8)
-        visor = np.minimum(visor, piv)
-    liner = smax(port + 0.0, -(shell + 1.5), 0.2)   # the inside of the port, where the face would be
-    liner = smax(port, plane(p, C + np.array([8.0, 0, 0]), fw * -1.0) - 0.0, 0.5)
+    tab = rbox(p, C + np.array([14.1, -6.4, -5.4]), (0.9, 1.5, 0.9), None, 0.4)
+    visor = smin(visor, smax(tab, -(vis_d - 0.2), 0.2), 0.3)
+    # The liner: the inside of the port, where the face would be.
+    liner = smax(port, plane(p, C + np.array([8.0, 0, 0]), fw * -1.0), 0.5)
     liner = smax(liner, shell - 0.05, 0.2)
-    trim = np.abs(plane(p, C + np.array([0, 0, -13.2]), unit([-0.32, 0, 1.0]))) - 0.6
-    trim = smax(trim, shell - 0.35, 0.2)
+    # Trim. Pivot covers: round plates over the visor's ends.
+    trim = np.full(len(p), 1e9)
+    for y in (-1, 1):
+        a_ = C + np.array([2.0, 12.4 * y, -1.0]); b_ = C + np.array([2.0, 13.55 * y, -1.0])
+        cover = smax(rcone(p, a_, b_, 2.1, 1.9), -shell - 0.8, 0.3)
+        cover = groove(cover, np.abs(np.linalg.norm((p - a_)[:, [0, 2]], axis=1) - 1.0), 0.12, 0.06)   # the screw ring
+        trim = np.minimum(trim, cover)
+    # The chin vent: a grille of three slats in its recess.
+    grille = smax(chin_box + 0.15, shell + 0.3, 0.2)
+    for z in (-11.0, -10.0, -9.0):
+        grille = groove(grille, np.abs(p[:, 2] - (C[2] + z)), 0.18, 0.35)
+    trim = np.minimum(trim, grille)
+    # Crown vents: two sliders standing on the shell, each with a slot.
+    for c_ in crown:
+        sl = rbox(p, c_, (2.6, 1.0, 0.55), None, 0.45)
+        sl = smax(sl, -(shell + 0.2), 0.3)
+        sl = groove(sl, np.linalg.norm((p - c_)[:, :2] * np.array([0.35, 1.0]), axis=1), 0.25, 0.3)
+        trim = np.minimum(trim, sl)
+    # Rear exhaust: two slots in an insert under the spoiler.
+    ex = smax(rear + 0.12, shell + 0.3, 0.2)
+    for y in (-2.2, 2.2):
+        ex = groove(ex, np.linalg.norm((p - (C + np.array([-14.2, y, 0.6])))[:, 1:] * np.array([0.6, 1.6]), axis=1), 0.5, 0.35)
+    trim = np.minimum(trim, ex)
+    # The padded neck roll: a soft bead round the opening, tucked under the shell's lip.
+    roll = np.abs(plane(p, C + np.array([0, 0, -13.0]), neck_n)) - 0.9
+    roll = smax(roll, shell + 0.1, 0.6)
+    roll = smax(roll, -(shell + 1.6), 0.6)
+    trim = np.minimum(trim, roll)
     return {"helmet": shell_cut, "visor": visor, "liner": liner, "trim": trim}
 
 
@@ -1061,7 +1096,7 @@ def build(out):
     print("helmet:")
     hfields = {k: (lambda k: (lambda p: helmet_parts(p)[k]))(k) for k in ("helmet", "visor", "liner", "trim")}
     lo, hi = HELMET_C - 17.5, HELMET_C + 17.5
-    hmeshes = layer_meshes(hfields, {"helmet": 0.42, "visor": 0.3, "liner": 0.45, "trim": 0.4},
+    hmeshes = layer_meshes(hfields, {"helmet": 0.4, "visor": 0.28, "liner": 0.45, "trim": 0.22},
                            {k: (lo, hi) for k in hfields})
     hwhole = lambda p: np.min([hfields[k](p) for k in hfields], axis=0)   # noqa: E731
     hprims = []
