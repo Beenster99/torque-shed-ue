@@ -580,14 +580,13 @@ def build():
                      bar_clamp, bar_clamp + [0.0, 0.025, 0.12], bar_clamp + [-0.03, 0.03, 0.30],
                      bar_clamp + [0.0, 0, 0.38]], 6)
     put("handlebar", tube(bars, 0.011, 12), "black_satin", "steer")
-    grips = Mesh(); switches = Mesh()
-    for s in (-1, 1):
+    # The parts on the bar are one mesh per side (_l, _r), so the fitment system (Fit/, fitment.json)
+    # can slide each along its own end of the bar when the bars change.
+    for s, sd in ((-1, "_l"), (1, "_r")):
         g0 = bar_clamp + [-0.005, 0.012, s * 0.255]; g1 = bar_clamp + [0.0, 0.002, s * 0.375]
-        grips.extend(tube(np.linspace(g0, g1, 4), 0.017, 20))
+        put("grips" + sd, tube(np.linspace(g0, g1, 4), 0.017, 20), "grip", "steer")
         sw = bar_clamp + [0.0, 0.015, s * 0.225]
-        switches.extend(box(sw, (0.05, 0.045, 0.045), 4.0))
-    put("grips", grips, "grip", "steer")
-    put("grips_switches", switches, "black_engine", "steer")
+        put("grips_switches" + sd, box(sw, (0.05, 0.045, 0.045), 4.0), "black_engine", "steer")
     for s, lever in ((-1, "lever_clutch"), (1, "lever_brake")):
         lp = polyline(lever_points(s), 6)
         put(lever, Mesh().extend(sweep(lp, 0.006, 0.01, 3.0, 10)), "alu_cast", "steer")
@@ -612,22 +611,15 @@ def build():
     put("headlight_lens", inner, "headlight_inner", "steer")
     put("headlight_projector", lathe([(0.03, 0.0), (0.03, 0.012), (0.026, 0.022), (0.015, 0.028), (0.0, 0.03)], seg=40,
                                      axis=(1, 0, 0), centre=hl_c), "glass_dark", "steer")
-    mirrors = Mesh(); stalks = Mesh()
-    for s in (-1, 1):
+    for s, sd in ((-1, "_l"), (1, "_r")):
         end = bar_clamp + [0.0, 0.0, s * 0.385]
         stalk = polyline([end, end + [0.0, 0.03, s * 0.02], end + [0.02, 0.1, s * 0.05]], 6)
-        stalks.extend(tube(stalk, 0.006, 10))
         mc = end + np.array([0.03, 0.16, s * 0.06])
-        mirrors.extend(lathe([(0.0, -0.008), (0.045, -0.008), (0.048, 0.0), (0.045, 0.006), (0.0, 0.006)], seg=32,
-                             axis=(1, 0.1, 0), centre=mc).transformed())
-    put("mirrors", mirrors, "black_gloss", "steer")
-    glass = Mesh()
-    for s in (-1, 1):
-        end = bar_clamp + [0.0, 0.0, s * 0.385]
-        mc = end + np.array([0.03, 0.16, s * 0.06])
-        glass.extend(lathe([(0.0, -0.0085), (0.042, -0.0085)], seg=32, axis=(1, 0.1, 0), centre=mc))
-    put("mirror_glass", glass, "mirror_glass", "steer")
-    put("mirror_stalks", stalks, "black_satin", "steer")
+        put("mirrors" + sd, lathe([(0.0, -0.008), (0.045, -0.008), (0.048, 0.0), (0.045, 0.006), (0.0, 0.006)], seg=32,
+                                  axis=(1, 0.1, 0), centre=mc).transformed(), "black_gloss", "steer")
+        put("mirror_glass" + sd, lathe([(0.0, -0.0085), (0.042, -0.0085)], seg=32, axis=(1, 0.1, 0), centre=mc),
+            "mirror_glass", "steer")
+        put("mirror_stalks" + sd, tube(stalk, 0.006, 10), "black_satin", "steer")
     ind = Mesh()
     for s in (-1, 1):
         base = hl_c + np.array([-0.04, -0.01, s * 0.11])

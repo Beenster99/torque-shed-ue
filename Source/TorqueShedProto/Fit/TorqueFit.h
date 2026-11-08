@@ -1,15 +1,17 @@
-// A stand-in for the fitment API while Fit/TorqueFit.h (the part fitting work) isn't merged: the
-// same declarations, copied from its header at 30b96f9, so the shed builds and runs before it lands.
-// Two slots on the Speed Twin, using the real option ids: "exhaust" (stock, or peashooter_twins drawn
-// as the stock silencers made 30% shorter) and "handlebars" (stock, or touring_bend_bar drawn as the
-// stock bar 40 mm higher with everything clamped to it). Only ResolveModel, Slots, Options and CanFit
-// are defined. Only compiled while TORQUE_FIT_STUB is 1 (see TorqueFitApi.h).
+// The Unreal side of the fitment system: which parts a bike can wear, whether one fits, and where
+// every model part ends up once a build is assembled from typed sockets (Fit/Fitment.h does the
+// work in plain C++, shared with the standalone FitTest).
+//
+// Data: Data/Bike/<Bike>/fitment.json (sockets, datums, options; Tools/make_speedtwin_fit.py),
+// Data/Fitment/interfaces.json (the interface types), Data/Parts/parts.json (the Godot catalogue,
+// Tools/import_parts.py) and Data/Bike/<Bike>/ue_assets.json (mesh and material paths, written by
+// Tools/ue_build_level.py). Without ue_assets.json (no import yet) ResolveModel returns nothing.
+//
+// Plain structs with Unreal types, no USTRUCT: the shed's UTorqueBuildSubsystem holds an
+// FTorqueBuild; ATorqueBikePawn::BuildModel and the shed's bike both call ResolveModel.
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Shed/TorqueFitApi.h"   // defines TORQUE_FIT_STUB (and, with #pragma once, comes back here)
-
-#if TORQUE_FIT_STUB
 
 // Geometry mode for one fit unit: only the movement its socket allows (Slide along it, turn about it,
 // or a Hole position), plus a free override for anything the sockets can't express.
@@ -50,7 +52,7 @@ struct FTorqueFitOption
 struct FTorqueResolvedPart
 {
 	FName Name;                  // model part (mesh) name
-	FName Slot;                  // the slot that owns it, NAME_None if none ("bars" and its grips: handlebars)
+	FName Slot;                  // the slot its unit belongs to ("handlebars" for the bar), NAME_None if none
 	FName Unit;                  // the fit unit it belongs to (what geometry mode moves)
 	FString Mesh, Material;
 	FName Group;
@@ -89,5 +91,3 @@ namespace TorqueFit
 	// Forget the loaded data (after an author fix, or new data on disk).
 	void Reload();
 }
-
-#endif

@@ -1,0 +1,39 @@
+{
+ "about": "Typed interfaces for the fitment system (the plan's 'Fitting parts' table). A child part fits where its mount socket's type matches the parent socket's and their sizes agree by the rule. Every socket frame's x axis is its adjustment axis (what it slides along or turns about). Lengths in metres, sizes in millimetres, angles in degrees. Hand-edited; read by Source/TorqueShedProto/Fit/Fitment.cpp.",
+ "rules": {
+  "equal": "child size equals parent size within tolerance_mm",
+  "slip": "child bore is at least the parent's outside diameter and at most tolerance_mm larger",
+  "pattern": "mounting points match within tolerance_mm (bolts on); within plate_mm a plate makes it fit; otherwise it won't",
+  "any": "no size to agree"
+ },
+ "interfaces": {
+  "steering_head": {"name": "Steering head", "parent": "frame head tube (axis, stem diameter)", "child": "fork yokes",
+                    "size": "stem_mm", "rule": "equal", "tolerance_mm": 0.5, "adjust": "steer", "turn_deg": [-40, 40]},
+  "fork_tube": {"name": "Fork tube", "parent": "fork legs (diameter)", "child": "headlight ears, mudguard, clip-ons",
+                "size": "tube_mm", "rule": "equal", "tolerance_mm": 0.5, "adjust": "slide_turn", "slide": [-0.06, 0.06], "turn_deg": [-15, 15]},
+  "fork_slide": {"name": "Fork slider", "parent": "fork legs", "child": "fork lowers (moves with the suspension)",
+                 "size": "tube_mm", "rule": "any", "adjust": "suspension"},
+  "bar_clamp": {"name": "Bar clamp", "parent": "top yoke or risers (22 or 28.6 mm)", "child": "bars",
+                "size": "bar_mm", "rule": "equal", "tolerance_mm": 0.3, "adjust": "turn", "turn_deg": [-20, 20]},
+  "bar": {"name": "Bars", "parent": "bar (diameter, length)", "child": "grips, levers, switches, mirrors",
+          "size": "bar_mm", "rule": "equal", "tolerance_mm": 0.3, "adjust": "slide_turn", "slide": [-0.05, 0.05], "turn_deg": [-30, 30]},
+  "engine_hard_points": {"name": "Engine hard points", "parent": "frame mounts (pattern of points)", "child": "engine cases",
+                         "rule": "pattern", "tolerance_mm": 2.0, "plate_mm": 30.0, "adjust": "none"},
+  "tank_mounts": {"name": "Tank mounts", "parent": "frame backbone (front pegs, rear tab)", "child": "tank tunnel",
+                  "size": "tunnel_mm", "rule": "equal", "tolerance_mm": 15.0, "adjust": "slide", "slide": [-0.01, 0.01]},
+  "seat_rails": {"name": "Seat rails and subframe", "parent": "frame (rail width, tabs)", "child": "seat, tail unit, side panels",
+                 "size": "rail_mm", "rule": "equal", "tolerance_mm": 10.0, "adjust": "slide", "slide": [-0.03, 0.03]},
+  "rearset_plates": {"name": "Rearset plates", "parent": "frame (hole pattern)", "child": "pegs and controls",
+                     "rule": "any", "adjust": "holes"},
+  "axle": {"name": "Axles", "parent": "fork or swingarm (axle diameter, slot)", "child": "wheel hub, disc, caliper bracket, sprocket",
+           "size": "axle_mm", "rule": "equal", "tolerance_mm": 0.2, "adjust": "slot", "slide": [0.0, 0.03]},
+  "swingarm_pivot": {"name": "Swingarm pivot", "parent": "frame pivot (spindle)", "child": "swingarm",
+                     "size": "spindle_mm", "rule": "equal", "tolerance_mm": 0.2, "adjust": "suspension"},
+  "exhaust_ports": {"name": "Exhaust ports", "parent": "engine head", "child": "header pipes",
+                    "size": "port_mm", "rule": "equal", "tolerance_mm": 1.0, "adjust": "route"},
+  "exhaust_slip": {"name": "Silencer slip joint", "parent": "header outlet (outside diameter)", "child": "silencer inlet (bore)",
+                   "size": "pipe_mm", "rule": "slip", "tolerance_mm": 6.0, "adjust": "slide", "slide": [-0.02, 0.02]},
+  "bracket": {"name": "Bracket", "parent": "a lug or tab", "child": "anything bolted on",
+              "rule": "any", "adjust": "none"}
+ }
+}

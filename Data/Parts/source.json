@@ -1,0 +1,8 @@
+{
+ "source": "Beenster99/torque-shed data/parts.json",
+ "commit": "0c4e6e7b6885b70b6185079e83df231efe9df882",
+ "sha256": "c4f5d0dd49ae39d581d155efc9d2083bae9b3104f802b88c5063a4ceff7ef30f",
+ "kinds": 52,
+ "parts": 717,
+ "note": "Copied unchanged by Tools/import_parts.py; edit the Godot repo, not this copy."
+}
