@@ -6,8 +6,8 @@
 // Ported so far: the engine's crankcase and its top end, and its ancillaries; the exhaust; the running gear (rims and cush drive,
 // tyres, discs and drums, calipers and pads, the fork, the sprockets and chain, the swingarm's
 // Blender pieces and the shocks). Each port keeps the Godot frame inside (as bike_model.gd) and
-// hands back FittedParts in ours. Still code-drawn in Godot and not here yet: frame and swingarm
-// tubes and shells, brake hoses. The bars, grips, controls and cables are here. The exhaust's headers and cans are here (its heat
+// hands back FittedParts in ours. The frame's tubes are Fit/BikeFrame.cpp. Code-drawn in Godot, so
+// not here: the frame's and swingarm's shells, brake hoses. The bars, grips, controls and cables are here. The exhaust's headers and cans are here (its heat
 // shield is code-drawn). Swept and bent parts take their normals from the warp, which differs a
 // little from Godot's (it turns the section's normals without the stretch).
 #pragma once
@@ -82,6 +82,9 @@ private:
 	// Puts a glb on as BikeModel._blender_pieces does, if there is one: true when it went on.
 	bool Put(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Path, const GAffine& Xf, const std::string& Node) const;
 
+	// The frame's Blender parts: its tubes swept from the tube section, welds, bearing cups, a
+	// cast spar beam, battery box, footpegs and gussets (BikeModel._draw_frame; Fit/BikeFrame.cpp).
+	void Frame(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Engine(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Wheels(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Brake(const PartsMap& Parts, const Layout& L, bool Front, double RimR, double RimW, std::vector<FittedPart>& Out) const;

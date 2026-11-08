@@ -38,7 +38,7 @@ else()
 endif()
 
 # The layout solver (the Godot game's BikeRig.solve): lays out every style's reference bike.
-add_executable(layout_test layout_test.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/PartMesh.cpp)
+add_executable(layout_test layout_test.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp)
 target_include_directories(layout_test PRIVATE ${FIT} ${SIM})
 if(MSVC)
   target_compile_options(layout_test PRIVATE /W4)

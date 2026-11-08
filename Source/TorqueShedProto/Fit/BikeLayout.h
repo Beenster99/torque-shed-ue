@@ -87,6 +87,13 @@ struct EngineHard
 	double CaseHalfW = 0.0, HeadHalfW = 0.0, TopY = 0.0, HeadK = 1.0, Scale = 1.0;
 };
 
+// A frame's own Rig built proportions (BikeRig.FRAME_RIG, with the frame's "rig" over them).
+struct FrameRig
+{
+	double Gauge = 1.0, Twin = 0.0, Top = 0.0, TankLow = 0.0, Drop = 0.0, Deep = 1.0, Wide = 1.0, Loop = 0.06, Slope = 0.0;
+	bool Split = false, Gusset = false, Steady = false;
+};
+
 // A bike laid out (BikeRig.solve's keys, in our frame).
 struct Layout
 {
@@ -98,6 +105,7 @@ struct Layout
 	std::vector<V3> Spine, TankFloor;
 	V3 TankNose, TankRear;
 	double TankTopMax = 0.0, TunnelHalfW = 0.0, SpineR = 0.0;
+	FrameRig Frig;   // the frame's proportions ("frame_rig")
 	V3 KneeL, KneeR, SeatFront, Hip, Tail, Peg, GripR, StayHead, ScreenBase;
 	double TailTop = 0.0, RailHalfW = 0.075, BellyY = 0.0, RadiatorX = 0.0;
 	bool SeatOverlap = false, HasRadiator = false;
