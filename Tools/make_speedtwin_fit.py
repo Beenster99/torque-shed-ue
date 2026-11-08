@@ -235,11 +235,10 @@ def stock_units(P):
         lever = "lever_clutch" if s < 0 else "lever_brake"
         lp = st.polyline(st.lever_points(s), 6)
         unit(lever, [lever], mount=on_bar(0.23), proxies=chain(lp, 0.008, 2))
-        # The mirrors screw into the lever clamps (make_speedtwin.py), so they ride the bar there.
-        end = BAR_CLAMP + [0.02, 0.02, s * 0.19]
-        mc = end + np.array([0.02, 0.2, s * 0.1])
-        unit("mirror_" + sd, ["mirrors_" + sd, "mirror_glass_" + sd, "mirror_stalks_" + sd], mount=on_bar(0.19),
-             proxies=[capsule(mc, mc, 0.048)] + chain([end, end + [0.01, 0.15, s * 0.08]], 0.006))
+        end = BAR_CLAMP + [0.0, 0.0, s * 0.385]
+        mc = end + np.array([0.03, 0.16, s * 0.06])
+        unit("mirror_" + sd, ["mirrors_" + sd, "mirror_glass_" + sd, "mirror_stalks_" + sd], mount=on_bar(0.38),
+             proxies=[capsule(mc, mc, 0.048)] + chain([end, end + [0.02, 0.1, s * 0.05]], 0.006))
     lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22]); lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22])
     unit("cables", ["cables"], mount={"to": "yokes.lugs", "type": "bracket"}, proxies=[],
          conform={"ends": [{"unit": u_id, "at": v(p)} for (p, _, _, u_id) in stock_cable_ends().values()]})
@@ -420,6 +419,9 @@ STOCK_BAR = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, 
                          BAR_CLAMP + [0.0, 0, 0.38]], 6)
 
 
+MIRROR_FROM_END = 0.21   # where option bars carry the mirrors: on the lever clamps, inboard of the switches
+
+
 def stock_cable_ends():
     """Each cable's bar end: (point, bar side, the mount's distance from the bar end, the unit it rides)."""
     lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22]); lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22])
@@ -493,9 +495,24 @@ def options(cat):
         cables = {"id": "cables", "group": "steer", "meshes": [cname], "mount": {"to": "yokes.lugs", "type": "bracket"},
                   "sockets": {}, "proxies": [],
                   "conform": {"ends": [{"unit": unit_id, "at": v(p), "to": v(moved[k])} for k, (p, _, _, unit_id) in ends.items()]}}
-        out.append(("handlebars", pid, e["name"], ["handlebars", pid], [u, cables],
-                    {name: (mesh, fin, "steer"),
-                     cname: (st.cable_lines(moved["clutch"], moved["brake"], moved["throttle"]), "rubber", "steer")}))
+        meshes = {name: (mesh, fin, "steer"),
+                  cname: (st.cable_lines(moved["clutch"], moved["brake"], moved["throttle"]), "rubber", "steer")}
+        # Mirrors: the stock ones are on the bar ends, which these bars sweep back towards the rider, so
+        # the option brings the same mirrors on the lever clamps, inboard of the switches. Modelled on the
+        # stock bar at that distance from its end, so they ride the new bar there. (Stock is unchanged.)
+        units = [u, cables]
+        for sd, s, half in (("l", -1, old_l), ("r", 1, old_r)):
+            base = path_frame(half, path_length(half) - MIRROR_FROM_END)[1]
+            shell, glass, stalk = st.mirror_meshes(base, s)
+            names = ["opt_mirrors_%s_%s" % (pid, sd), "opt_mirror_glass_%s_%s" % (pid, sd), "opt_mirror_stalks_%s_%s" % (pid, sd)]
+            mc = base + np.array([0.03, 0.16, s * 0.06])
+            units.append({"id": "mirror_" + sd, "group": "steer", "meshes": names,
+                          "mount": {"to": "bars.bar_" + sd, "type": "bar", "bar_mm": bar_mm, "from_end": MIRROR_FROM_END},
+                          "sockets": {},
+                          "proxies": [capsule(mc, mc, 0.048)] + chain([base, base + [0.02, 0.1, s * 0.05]], 0.006)})
+            meshes.update({names[0]: (shell, "black_gloss", "steer"), names[1]: (glass, "mirror_glass", "steer"),
+                           names[2]: (stalk, "black_satin", "steer")})
+        out.append(("handlebars", pid, e["name"], ["handlebars", pid], units, meshes))
     # Silencers: a long slim peashooter, and a short reverse cone megaphone; same slip joint.
     for pid in ("peashooter_twins", "cafe_reverse_cones"):
         e = cat["exhaust"][pid]

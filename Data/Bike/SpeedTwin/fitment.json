@@ -2830,35 +2830,35 @@
     "to": "bars.bar_l",
     "type": "bar",
     "bar_mm": 22.0,
-    "from_end": 0.19
+    "from_end": 0.0
    },
    "sockets": {},
    "proxies": [
     {
      "shape": "capsule",
      "a": [
-      0.45574,
-      0.86843,
-      -0.29
+      0.44574,
+      0.80843,
+      -0.445
      ],
      "b": [
-      0.45574,
-      0.86843,
-      -0.29
+      0.44574,
+      0.80843,
+      -0.445
      ],
      "r": 0.048
     },
     {
      "shape": "capsule",
      "a": [
-      0.43574,
-      0.66843,
-      -0.19
+      0.41574,
+      0.64843,
+      -0.385
      ],
      "b": [
-      0.44574,
-      0.81843,
-      -0.27
+      0.43574,
+      0.74843,
+      -0.435
      ],
      "r": 0.006
     }
@@ -3050,35 +3050,35 @@
     "to": "bars.bar_r",
     "type": "bar",
     "bar_mm": 22.0,
-    "from_end": 0.19
+    "from_end": 0.0
    },
    "sockets": {},
    "proxies": [
     {
      "shape": "capsule",
      "a": [
-      0.45574,
-      0.86843,
-      0.29
+      0.44574,
+      0.80843,
+      0.445
      ],
      "b": [
-      0.45574,
-      0.86843,
-      0.29
+      0.44574,
+      0.80843,
+      0.445
      ],
      "r": 0.048
     },
     {
      "shape": "capsule",
      "a": [
-      0.43574,
-      0.66843,
-      0.19
+      0.41574,
+      0.64843,
+      0.385
      ],
      "b": [
-      0.44574,
-      0.81843,
-      0.27
+      0.43574,
+      0.74843,
+      0.435
      ],
      "r": 0.006
     }
@@ -8818,6 +8818,98 @@
         }
        ]
       }
+     },
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_clubman_bar_l",
+       "opt_mirror_glass_clubman_bar_l",
+       "opt_mirror_stalks_clubman_bar_l"
+      ],
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         -0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         -0.234091
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_clubman_bar_r",
+       "opt_mirror_glass_clubman_bar_r",
+       "opt_mirror_stalks_clubman_bar_r"
+      ],
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         0.234091
+        ],
+        "r": 0.006
+       }
+      ]
      }
     ],
     "meshes": {
@@ -8830,6 +8922,36 @@
       "finish": "rubber",
       "group": "steer",
       "file": "Options/opt_cables_clubman_bar.glb"
+     },
+     "opt_mirrors_clubman_bar_l": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_clubman_bar_l.glb"
+     },
+     "opt_mirror_glass_clubman_bar_l": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_clubman_bar_l.glb"
+     },
+     "opt_mirror_stalks_clubman_bar_l": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_clubman_bar_l.glb"
+     },
+     "opt_mirrors_clubman_bar_r": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_clubman_bar_r.glb"
+     },
+     "opt_mirror_glass_clubman_bar_r": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_clubman_bar_r.glb"
+     },
+     "opt_mirror_stalks_clubman_bar_r": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_clubman_bar_r.glb"
      }
     }
    },
@@ -9297,6 +9419,98 @@
         }
        ]
       }
+     },
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_touring_bend_bar_l",
+       "opt_mirror_glass_touring_bend_bar_l",
+       "opt_mirror_stalks_touring_bend_bar_l"
+      ],
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         -0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         -0.234091
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_touring_bend_bar_r",
+       "opt_mirror_glass_touring_bend_bar_r",
+       "opt_mirror_stalks_touring_bend_bar_r"
+      ],
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         0.234091
+        ],
+        "r": 0.006
+       }
+      ]
      }
     ],
     "meshes": {
@@ -9309,6 +9523,36 @@
       "finish": "rubber",
       "group": "steer",
       "file": "Options/opt_cables_touring_bend_bar.glb"
+     },
+     "opt_mirrors_touring_bend_bar_l": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_touring_bend_bar_l.glb"
+     },
+     "opt_mirror_glass_touring_bend_bar_l": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_touring_bend_bar_l.glb"
+     },
+     "opt_mirror_stalks_touring_bend_bar_l": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_touring_bend_bar_l.glb"
+     },
+     "opt_mirrors_touring_bend_bar_r": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_touring_bend_bar_r.glb"
+     },
+     "opt_mirror_glass_touring_bend_bar_r": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_touring_bend_bar_r.glb"
+     },
+     "opt_mirror_stalks_touring_bend_bar_r": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_touring_bend_bar_r.glb"
      }
     }
    },
@@ -9790,6 +10034,98 @@
         }
        ]
       }
+     },
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_scrambler_moto_chrome_l",
+       "opt_mirror_glass_scrambler_moto_chrome_l",
+       "opt_mirror_stalks_scrambler_moto_chrome_l"
+      ],
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 28.6,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         -0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         -0.234091
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_scrambler_moto_chrome_r",
+       "opt_mirror_glass_scrambler_moto_chrome_r",
+       "opt_mirror_stalks_scrambler_moto_chrome_r"
+      ],
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 28.6,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         0.234091
+        ],
+        "r": 0.006
+       }
+      ]
      }
     ],
     "meshes": {
@@ -9802,6 +10138,36 @@
       "finish": "rubber",
       "group": "steer",
       "file": "Options/opt_cables_scrambler_moto_chrome.glb"
+     },
+     "opt_mirrors_scrambler_moto_chrome_l": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_scrambler_moto_chrome_l.glb"
+     },
+     "opt_mirror_glass_scrambler_moto_chrome_l": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_scrambler_moto_chrome_l.glb"
+     },
+     "opt_mirror_stalks_scrambler_moto_chrome_l": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_scrambler_moto_chrome_l.glb"
+     },
+     "opt_mirrors_scrambler_moto_chrome_r": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_scrambler_moto_chrome_r.glb"
+     },
+     "opt_mirror_glass_scrambler_moto_chrome_r": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_scrambler_moto_chrome_r.glb"
+     },
+     "opt_mirror_stalks_scrambler_moto_chrome_r": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_scrambler_moto_chrome_r.glb"
      }
     }
    }
