@@ -2155,6 +2155,7 @@
    "meshes": [
     "front_indicators"
    ],
+   "slot": "indicators",
    "mount": {
     "to": "headlight.indicator_mount",
     "type": "bracket"
@@ -2682,6 +2683,7 @@
    "meshes": [
     "grips_l"
    ],
+   "slot": "grips",
    "mount": {
     "to": "bars.bar_l",
     "type": "bar",
@@ -2756,6 +2758,7 @@
    "meshes": [
     "lever_clutch"
    ],
+   "slot": "levers",
    "mount": {
     "to": "bars.bar_l",
     "type": "bar",
@@ -2858,6 +2861,7 @@
     "mirror_glass_l",
     "mirror_stalks_l"
    ],
+   "slot": "mirrors",
    "mount": {
     "to": "bars.bar_l",
     "type": "bar",
@@ -2902,6 +2906,7 @@
    "meshes": [
     "grips_r"
    ],
+   "slot": "grips",
    "mount": {
     "to": "bars.bar_r",
     "type": "bar",
@@ -2976,6 +2981,7 @@
    "meshes": [
     "lever_brake"
    ],
+   "slot": "levers",
    "mount": {
     "to": "bars.bar_r",
     "type": "bar",
@@ -3078,6 +3084,7 @@
     "mirror_glass_r",
     "mirror_stalks_r"
    ],
+   "slot": "mirrors",
    "mount": {
     "to": "bars.bar_r",
     "type": "bar",
@@ -6938,6 +6945,7 @@
    "meshes": [
     "rear_indicators"
    ],
+   "slot": "indicators",
    "mount": {
     "to": "tail.indicator_mount",
     "type": "bracket"
@@ -14970,6 +14978,1274 @@
       "finish": "black_satin",
       "group": "body",
       "file": "Options/opt_tail_painted_valance_guard_struts.glb"
+     }
+    }
+   }
+  ],
+  "indicators": [
+   {
+    "id": "stock",
+    "name": "Speed Twin indicators (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "stalk_amber",
+    "name": "Amber stalk indicators",
+    "catalogue": [
+     "indicators",
+     "stalk_amber"
+    ],
+    "units": [
+     {
+      "id": "indicators_front",
+      "group": "steer",
+      "meshes": [
+       "opt_ind_stalk_amber_front",
+       "opt_ind_stalk_amber_front_lens"
+      ],
+      "slot": "indicators",
+      "mount": {
+       "to": "headlight.indicator_mount",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.524491,
+         0.506243,
+         -0.14
+        ],
+        "b": [
+         0.524491,
+         0.506243,
+         -0.2
+        ],
+        "r": 0.02
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.524491,
+         0.506243,
+         0.14
+        ],
+        "b": [
+         0.524491,
+         0.506243,
+         0.2
+        ],
+        "r": 0.02
+       }
+      ]
+     },
+     {
+      "id": "indicators_rear",
+      "group": "body",
+      "meshes": [
+       "opt_ind_stalk_amber_rear",
+       "opt_ind_stalk_amber_rear_lens"
+      ],
+      "slot": "indicators",
+      "mount": {
+       "to": "tail.indicator_mount",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         -0.86,
+         0.44,
+         -0.09
+        ],
+        "b": [
+         -0.86,
+         0.44,
+         -0.15
+        ],
+        "r": 0.02
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         -0.86,
+         0.44,
+         0.09
+        ],
+        "b": [
+         -0.86,
+         0.44,
+         0.15
+        ],
+        "r": 0.02
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_ind_stalk_amber_front": {
+      "finish": "rubber",
+      "group": "steer",
+      "file": "Options/opt_ind_stalk_amber_front.glb"
+     },
+     "opt_ind_stalk_amber_front_lens": {
+      "finish": "lens_amber",
+      "group": "steer",
+      "file": "Options/opt_ind_stalk_amber_front_lens.glb"
+     },
+     "opt_ind_stalk_amber_rear": {
+      "finish": "rubber",
+      "group": "body",
+      "file": "Options/opt_ind_stalk_amber_rear.glb"
+     },
+     "opt_ind_stalk_amber_rear_lens": {
+      "finish": "lens_amber",
+      "group": "body",
+      "file": "Options/opt_ind_stalk_amber_rear_lens.glb"
+     }
+    }
+   },
+   {
+    "id": "bullet_chrome",
+    "name": "Chrome bullet indicators",
+    "catalogue": [
+     "indicators",
+     "bullet_chrome"
+    ],
+    "units": [
+     {
+      "id": "indicators_front",
+      "group": "steer",
+      "meshes": [
+       "opt_ind_bullet_chrome_front",
+       "opt_ind_bullet_chrome_front_lens"
+      ],
+      "slot": "indicators",
+      "mount": {
+       "to": "headlight.indicator_mount",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.524491,
+         0.506243,
+         -0.14
+        ],
+        "b": [
+         0.524491,
+         0.506243,
+         -0.2
+        ],
+        "r": 0.02
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.524491,
+         0.506243,
+         0.14
+        ],
+        "b": [
+         0.524491,
+         0.506243,
+         0.2
+        ],
+        "r": 0.02
+       }
+      ]
+     },
+     {
+      "id": "indicators_rear",
+      "group": "body",
+      "meshes": [
+       "opt_ind_bullet_chrome_rear",
+       "opt_ind_bullet_chrome_rear_lens"
+      ],
+      "slot": "indicators",
+      "mount": {
+       "to": "tail.indicator_mount",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         -0.86,
+         0.44,
+         -0.09
+        ],
+        "b": [
+         -0.86,
+         0.44,
+         -0.15
+        ],
+        "r": 0.02
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         -0.86,
+         0.44,
+         0.09
+        ],
+        "b": [
+         -0.86,
+         0.44,
+         0.15
+        ],
+        "r": 0.02
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_ind_bullet_chrome_front": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_ind_bullet_chrome_front.glb"
+     },
+     "opt_ind_bullet_chrome_front_lens": {
+      "finish": "lens_amber",
+      "group": "steer",
+      "file": "Options/opt_ind_bullet_chrome_front_lens.glb"
+     },
+     "opt_ind_bullet_chrome_rear": {
+      "finish": "chrome",
+      "group": "body",
+      "file": "Options/opt_ind_bullet_chrome_rear.glb"
+     },
+     "opt_ind_bullet_chrome_rear_lens": {
+      "finish": "lens_amber",
+      "group": "body",
+      "file": "Options/opt_ind_bullet_chrome_rear_lens.glb"
+     }
+    }
+   },
+   {
+    "id": "classic_bullet_amber",
+    "name": "Chrome bullet indicators, amber",
+    "catalogue": [
+     "indicators",
+     "classic_bullet_amber"
+    ],
+    "units": [
+     {
+      "id": "indicators_front",
+      "group": "steer",
+      "meshes": [
+       "opt_ind_classic_bullet_amber_front",
+       "opt_ind_classic_bullet_amber_front_lens"
+      ],
+      "slot": "indicators",
+      "mount": {
+       "to": "headlight.indicator_mount",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.524491,
+         0.506243,
+         -0.14
+        ],
+        "b": [
+         0.524491,
+         0.506243,
+         -0.2
+        ],
+        "r": 0.02
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.524491,
+         0.506243,
+         0.14
+        ],
+        "b": [
+         0.524491,
+         0.506243,
+         0.2
+        ],
+        "r": 0.02
+       }
+      ]
+     },
+     {
+      "id": "indicators_rear",
+      "group": "body",
+      "meshes": [
+       "opt_ind_classic_bullet_amber_rear",
+       "opt_ind_classic_bullet_amber_rear_lens"
+      ],
+      "slot": "indicators",
+      "mount": {
+       "to": "tail.indicator_mount",
+       "type": "bracket"
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         -0.86,
+         0.44,
+         -0.09
+        ],
+        "b": [
+         -0.86,
+         0.44,
+         -0.15
+        ],
+        "r": 0.02
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         -0.86,
+         0.44,
+         0.09
+        ],
+        "b": [
+         -0.86,
+         0.44,
+         0.15
+        ],
+        "r": 0.02
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_ind_classic_bullet_amber_front": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_ind_classic_bullet_amber_front.glb"
+     },
+     "opt_ind_classic_bullet_amber_front_lens": {
+      "finish": "lens_amber",
+      "group": "steer",
+      "file": "Options/opt_ind_classic_bullet_amber_front_lens.glb"
+     },
+     "opt_ind_classic_bullet_amber_rear": {
+      "finish": "chrome",
+      "group": "body",
+      "file": "Options/opt_ind_classic_bullet_amber_rear.glb"
+     },
+     "opt_ind_classic_bullet_amber_rear_lens": {
+      "finish": "lens_amber",
+      "group": "body",
+      "file": "Options/opt_ind_classic_bullet_amber_rear_lens.glb"
+     }
+    }
+   }
+  ],
+  "mirrors": [
+   {
+    "id": "stock",
+    "name": "Speed Twin mirrors (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "round_mirrors",
+    "name": "Round chrome mirrors",
+    "catalogue": [
+     "mirrors",
+     "round_mirrors"
+    ],
+    "units": [
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirror_round_mirrors_l",
+       "opt_mirror_round_mirrors_l_glass",
+       "opt_mirror_round_mirrors_l_stalk"
+      ],
+      "slot": "mirrors",
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.0
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.44574,
+         0.825096,
+         -0.445
+        ],
+        "b": [
+         0.44574,
+         0.825096,
+         -0.445
+        ],
+        "r": 0.054
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.41574,
+         0.64843,
+         -0.385
+        ],
+        "b": [
+         0.43074,
+         0.75843,
+         -0.435
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirror_round_mirrors_r",
+       "opt_mirror_round_mirrors_r_glass",
+       "opt_mirror_round_mirrors_r_stalk"
+      ],
+      "slot": "mirrors",
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.0
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.44574,
+         0.825096,
+         0.445
+        ],
+        "b": [
+         0.44574,
+         0.825096,
+         0.445
+        ],
+        "r": 0.054
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.41574,
+         0.64843,
+         0.385
+        ],
+        "b": [
+         0.43074,
+         0.75843,
+         0.435
+        ],
+        "r": 0.006
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_mirror_round_mirrors_l": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_round_mirrors_l.glb"
+     },
+     "opt_mirror_round_mirrors_l_glass": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_round_mirrors_l_glass.glb"
+     },
+     "opt_mirror_round_mirrors_l_stalk": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_round_mirrors_l_stalk.glb"
+     },
+     "opt_mirror_round_mirrors_r": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_round_mirrors_r.glb"
+     },
+     "opt_mirror_round_mirrors_r_glass": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_round_mirrors_r_glass.glb"
+     },
+     "opt_mirror_round_mirrors_r_stalk": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_round_mirrors_r_stalk.glb"
+     }
+    }
+   },
+   {
+    "id": "chrome_round_large",
+    "name": "Large round chrome mirrors",
+    "catalogue": [
+     "mirrors",
+     "chrome_round_large"
+    ],
+    "units": [
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirror_chrome_round_large_l",
+       "opt_mirror_chrome_round_large_l_glass",
+       "opt_mirror_chrome_round_large_l_stalk"
+      ],
+      "slot": "mirrors",
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.0
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.44574,
+         0.891763,
+         -0.445
+        ],
+        "b": [
+         0.44574,
+         0.891763,
+         -0.445
+        ],
+        "r": 0.074
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.41574,
+         0.64843,
+         -0.385
+        ],
+        "b": [
+         0.43074,
+         0.79843,
+         -0.435
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirror_chrome_round_large_r",
+       "opt_mirror_chrome_round_large_r_glass",
+       "opt_mirror_chrome_round_large_r_stalk"
+      ],
+      "slot": "mirrors",
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.0
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.44574,
+         0.891763,
+         0.445
+        ],
+        "b": [
+         0.44574,
+         0.891763,
+         0.445
+        ],
+        "r": 0.074
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.41574,
+         0.64843,
+         0.385
+        ],
+        "b": [
+         0.43074,
+         0.79843,
+         0.435
+        ],
+        "r": 0.006
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_mirror_chrome_round_large_l": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_chrome_round_large_l.glb"
+     },
+     "opt_mirror_chrome_round_large_l_glass": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_chrome_round_large_l_glass.glb"
+     },
+     "opt_mirror_chrome_round_large_l_stalk": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_chrome_round_large_l_stalk.glb"
+     },
+     "opt_mirror_chrome_round_large_r": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_chrome_round_large_r.glb"
+     },
+     "opt_mirror_chrome_round_large_r_glass": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_chrome_round_large_r_glass.glb"
+     },
+     "opt_mirror_chrome_round_large_r_stalk": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_mirror_chrome_round_large_r_stalk.glb"
+     }
+    }
+   }
+  ],
+  "levers": [
+   {
+    "id": "stock",
+    "name": "Speed Twin levers (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "chrome_ball_levers",
+    "name": "Chrome ball-end levers",
+    "catalogue": null,
+    "units": [
+     {
+      "id": "lever_clutch",
+      "group": "steer",
+      "meshes": [
+       "opt_lever_chrome_ball_levers_l"
+      ],
+      "slot": "levers",
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.15
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43574,
+         0.65843,
+         -0.23
+        ],
+        "b": [
+         0.454258,
+         0.655096,
+         -0.241481
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.454258,
+         0.655096,
+         -0.241481
+        ],
+        "b": [
+         0.472777,
+         0.651763,
+         -0.252963
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.472777,
+         0.651763,
+         -0.252963
+        ],
+        "b": [
+         0.48574,
+         0.64843,
+         -0.27
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.48574,
+         0.64843,
+         -0.27
+        ],
+        "b": [
+         0.489443,
+         0.645096,
+         -0.296296
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.489443,
+         0.645096,
+         -0.296296
+        ],
+        "b": [
+         0.487592,
+         0.641763,
+         -0.328148
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.487592,
+         0.641763,
+         -0.328148
+        ],
+        "b": [
+         0.48574,
+         0.63843,
+         -0.36
+        ],
+        "r": 0.008
+       }
+      ]
+     },
+     {
+      "id": "lever_brake",
+      "group": "steer",
+      "meshes": [
+       "opt_lever_chrome_ball_levers_r"
+      ],
+      "slot": "levers",
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.15
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43574,
+         0.65843,
+         0.23
+        ],
+        "b": [
+         0.454258,
+         0.655096,
+         0.241481
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.454258,
+         0.655096,
+         0.241481
+        ],
+        "b": [
+         0.472777,
+         0.651763,
+         0.252963
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.472777,
+         0.651763,
+         0.252963
+        ],
+        "b": [
+         0.48574,
+         0.64843,
+         0.27
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.48574,
+         0.64843,
+         0.27
+        ],
+        "b": [
+         0.489443,
+         0.645096,
+         0.296296
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.489443,
+         0.645096,
+         0.296296
+        ],
+        "b": [
+         0.487592,
+         0.641763,
+         0.328148
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.487592,
+         0.641763,
+         0.328148
+        ],
+        "b": [
+         0.48574,
+         0.63843,
+         0.36
+        ],
+        "r": 0.008
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_lever_chrome_ball_levers_l": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_lever_chrome_ball_levers_l.glb"
+     },
+     "opt_lever_chrome_ball_levers_r": {
+      "finish": "chrome",
+      "group": "steer",
+      "file": "Options/opt_lever_chrome_ball_levers_r.glb"
+     }
+    }
+   },
+   {
+    "id": "alloy_dogleg_levers",
+    "name": "Polished alloy dogleg levers",
+    "catalogue": null,
+    "units": [
+     {
+      "id": "lever_clutch",
+      "group": "steer",
+      "meshes": [
+       "opt_lever_alloy_dogleg_levers_l"
+      ],
+      "slot": "levers",
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.15
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43574,
+         0.65843,
+         -0.23
+        ],
+        "b": [
+         0.454258,
+         0.655096,
+         -0.241481
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.454258,
+         0.655096,
+         -0.241481
+        ],
+        "b": [
+         0.472777,
+         0.651763,
+         -0.252963
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.472777,
+         0.651763,
+         -0.252963
+        ],
+        "b": [
+         0.48574,
+         0.64843,
+         -0.27
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.48574,
+         0.64843,
+         -0.27
+        ],
+        "b": [
+         0.489443,
+         0.645096,
+         -0.296296
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.489443,
+         0.645096,
+         -0.296296
+        ],
+        "b": [
+         0.487592,
+         0.641763,
+         -0.328148
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.487592,
+         0.641763,
+         -0.328148
+        ],
+        "b": [
+         0.48574,
+         0.63843,
+         -0.36
+        ],
+        "r": 0.008
+       }
+      ]
+     },
+     {
+      "id": "lever_brake",
+      "group": "steer",
+      "meshes": [
+       "opt_lever_alloy_dogleg_levers_r"
+      ],
+      "slot": "levers",
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.15
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43574,
+         0.65843,
+         0.23
+        ],
+        "b": [
+         0.454258,
+         0.655096,
+         0.241481
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.454258,
+         0.655096,
+         0.241481
+        ],
+        "b": [
+         0.472777,
+         0.651763,
+         0.252963
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.472777,
+         0.651763,
+         0.252963
+        ],
+        "b": [
+         0.48574,
+         0.64843,
+         0.27
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.48574,
+         0.64843,
+         0.27
+        ],
+        "b": [
+         0.489443,
+         0.645096,
+         0.296296
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.489443,
+         0.645096,
+         0.296296
+        ],
+        "b": [
+         0.487592,
+         0.641763,
+         0.328148
+        ],
+        "r": 0.008
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.487592,
+         0.641763,
+         0.328148
+        ],
+        "b": [
+         0.48574,
+         0.63843,
+         0.36
+        ],
+        "r": 0.008
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_lever_alloy_dogleg_levers_l": {
+      "finish": "alu_polished",
+      "group": "steer",
+      "file": "Options/opt_lever_alloy_dogleg_levers_l.glb"
+     },
+     "opt_lever_alloy_dogleg_levers_r": {
+      "finish": "alu_polished",
+      "group": "steer",
+      "file": "Options/opt_lever_alloy_dogleg_levers_r.glb"
+     }
+    }
+   }
+  ],
+  "grips": [
+   {
+    "id": "stock",
+    "name": "Speed Twin grips (stock)",
+    "stock": true,
+    "units": []
+   },
+   {
+    "id": "barrel_grips",
+    "name": "Barrel grips",
+    "catalogue": null,
+    "units": [
+     {
+      "id": "grip_l",
+      "group": "steer",
+      "meshes": [
+       "opt_grip_barrel_grips_l"
+      ],
+      "slot": "grips",
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.065
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.41074,
+         0.66043,
+         -0.255
+        ],
+        "b": [
+         0.41574,
+         0.65043,
+         -0.375
+        ],
+        "r": 0.017
+       }
+      ]
+     },
+     {
+      "id": "grip_r",
+      "group": "steer",
+      "meshes": [
+       "opt_grip_barrel_grips_r"
+      ],
+      "slot": "grips",
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.065
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.41074,
+         0.66043,
+         0.255
+        ],
+        "b": [
+         0.41574,
+         0.65043,
+         0.375
+        ],
+        "r": 0.017
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_grip_barrel_grips_l": {
+      "finish": "grip",
+      "group": "steer",
+      "file": "Options/opt_grip_barrel_grips_l.glb"
+     },
+     "opt_grip_barrel_grips_r": {
+      "finish": "grip",
+      "group": "steer",
+      "file": "Options/opt_grip_barrel_grips_r.glb"
+     }
+    }
+   },
+   {
+    "id": "leather_grips",
+    "name": "Leather-wrapped grips",
+    "catalogue": null,
+    "units": [
+     {
+      "id": "grip_l",
+      "group": "steer",
+      "meshes": [
+       "opt_grip_leather_grips_l"
+      ],
+      "slot": "grips",
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.065
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.41074,
+         0.66043,
+         -0.255
+        ],
+        "b": [
+         0.41574,
+         0.65043,
+         -0.375
+        ],
+        "r": 0.017
+       }
+      ]
+     },
+     {
+      "id": "grip_r",
+      "group": "steer",
+      "meshes": [
+       "opt_grip_leather_grips_r"
+      ],
+      "slot": "grips",
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.065
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.41074,
+         0.66043,
+         0.255
+        ],
+        "b": [
+         0.41574,
+         0.65043,
+         0.375
+        ],
+        "r": 0.017
+       }
+      ]
+     }
+    ],
+    "meshes": {
+     "opt_grip_leather_grips_l": {
+      "finish": "leather_tan",
+      "group": "steer",
+      "file": "Options/opt_grip_leather_grips_l.glb"
+     },
+     "opt_grip_leather_grips_r": {
+      "finish": "leather_tan",
+      "group": "steer",
+      "file": "Options/opt_grip_leather_grips_r.glb"
      }
     }
    }

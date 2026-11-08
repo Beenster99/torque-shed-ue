@@ -261,7 +261,7 @@ bool ResolveModel(const FTorqueBuild& InBuild, TArray<FTorqueResolvedPart>& Out,
 			const Xf Delta = Xf::Translate(-To) * P.World * Xf::Translate(From);
 			FTorqueResolvedPart R;
 			R.Name = ToName(M);
-			R.Slot = ToName(P.U.Slot);
+			R.Slot = ToName(P.Slot.empty() ? P.U.Slot : P.Slot);   // the slot its option came from
 			R.Unit = ToName(P.U.Id);
 			R.Group = ToName(P.U.Group);
 			R.Delta = XfToLocal(Delta);

@@ -304,6 +304,7 @@ void ATorqueBikePawn::BuildModel()
 	{
 		FString Name, Group, MeshPath, MaterialPath;
 		FTransform Delta;
+		FName Unit;   // the fit unit (the levers and grips are found by it, whichever option they are)
 	};
 	TArray<FPartToMake> ToMake;
 	{
@@ -316,7 +317,7 @@ void ATorqueBikePawn::BuildModel()
 		if (TorqueFit::ResolveModel(Build, Resolved, &Clashes))
 		{
 			for (const FTorqueResolvedPart& R : Resolved)
-				ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta});
+				ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta, R.Unit});
 			for (const TPair<FName, FName>& KV : Build.Fitted)
 				UE_LOG(LogTemp, Log, TEXT("Torque fit: %s: %s"), *KV.Key.ToString(), *KV.Value.ToString());
 			for (const FTorqueFitClash& C : Clashes)
@@ -335,7 +336,7 @@ void ATorqueBikePawn::BuildModel()
 			const TSharedPtr<FJsonObject>* Where = nullptr;
 			if (!(*PartsObj)->TryGetObjectField(Name, Where)) continue;
 			ToMake.Add({Name, P->GetStringField(TEXT("group")), (*Where)->GetStringField(TEXT("mesh")),
-				(*Where)->GetStringField(TEXT("material")), FTransform::Identity});
+				(*Where)->GetStringField(TEXT("material")), FTransform::Identity, NAME_None});
 		}
 	}
 	FTransform LeverDelta[2] = {FTransform::Identity, FTransform::Identity};
@@ -361,10 +362,12 @@ void ATorqueBikePawn::BuildModel()
 			C->SetMaterial(0, M);
 		C->RegisterComponent();
 		ModelParts.Add(C);
-		if (P.Name == TEXT("lever_clutch")) { LeverParts[0] = C; LeverDelta[0] = P.Delta; }
-		else if (P.Name == TEXT("lever_brake")) { LeverParts[1] = C; LeverDelta[1] = P.Delta; }
-		else if (P.Name == TEXT("grips_l")) GripDelta[0] = P.Delta;
-		else if (P.Name == TEXT("grips_r")) GripDelta[1] = P.Delta;
+		// By unit, so option levers and grips (one mesh each, modelled on the stock pivots) work too.
+		const FString UnitName = P.Unit.IsNone() ? P.Name : P.Unit.ToString();
+		if (UnitName == TEXT("lever_clutch")) { LeverParts[0] = C; LeverDelta[0] = P.Delta; }
+		else if (UnitName == TEXT("lever_brake")) { LeverParts[1] = C; LeverDelta[1] = P.Delta; }
+		else if (UnitName == TEXT("grip_l") || UnitName == TEXT("grips_l")) GripDelta[0] = P.Delta;
+		else if (UnitName == TEXT("grip_r") || UnitName == TEXT("grips_r")) GripDelta[1] = P.Delta;
 		++Made;
 	}
 	// The clutch and front brake levers swing on their perches as they're pulled.

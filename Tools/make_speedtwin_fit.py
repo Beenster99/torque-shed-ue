@@ -223,7 +223,7 @@ def stock_units(P):
     unit("headlight", ["headlight_shell", "headlight_lens", "headlight_projector"], slot="headlight",
          mount={"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.56)},
          sockets={"indicator_mount": sock("bracket", hl_c, (1, 0, 0))})
-    unit("indicators_front", ["front_indicators"], mount={"to": "headlight.indicator_mount", "type": "bracket"})
+    unit("indicators_front", ["front_indicators"], slot="indicators", mount={"to": "headlight.indicator_mount", "type": "bracket"})
 
     # Bars, and what rides on them.
     bars_path = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, -0.30], BAR_CLAMP + [0.0, 0.025, -0.12],
@@ -236,14 +236,14 @@ def stock_units(P):
         def on_bar(z_out):
             return {"to": side, "type": "bar", "bar_mm": BAR_MM, "from_end": round(float(0.38 - z_out), 5)}
         g0 = BAR_CLAMP + [-0.005, 0.012, s * 0.255]; g1 = BAR_CLAMP + [0.0, 0.002, s * 0.375]
-        unit("grip_" + sd, ["grips_" + sd], mount=on_bar(0.315), proxies=chain([g0, g1], 0.017))
+        unit("grip_" + sd, ["grips_" + sd], slot="grips", mount=on_bar(0.315), proxies=chain([g0, g1], 0.017))
         unit("switch_" + sd, ["grips_switches_" + sd], mount=on_bar(0.225))
         lever = "lever_clutch" if s < 0 else "lever_brake"
         lp = st.polyline(st.lever_points(s), 6)
-        unit(lever, [lever], mount=on_bar(0.23), proxies=chain(lp, 0.008, 2))
+        unit(lever, [lever], slot="levers", mount=on_bar(0.23), proxies=chain(lp, 0.008, 2))
         end = BAR_CLAMP + [0.0, 0.0, s * 0.385]
         mc = end + np.array([0.03, 0.16, s * 0.06])
-        unit("mirror_" + sd, ["mirrors_" + sd, "mirror_glass_" + sd, "mirror_stalks_" + sd], mount=on_bar(0.38),
+        unit("mirror_" + sd, ["mirrors_" + sd, "mirror_glass_" + sd, "mirror_stalks_" + sd], slot="mirrors", mount=on_bar(0.38),
              proxies=[capsule(mc, mc, 0.048)] + chain([end, end + [0.02, 0.1, s * 0.05]], 0.006))
     lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22]); lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22])
     unit("cables", ["cables"], mount={"to": "yokes.lugs", "type": "bracket"}, proxies=[],
@@ -306,7 +306,7 @@ def stock_units(P):
     unit("tail", ["tail", "rear_light", "plate_hanger", "plate"], slot="tail",
          mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0}, proxies=tp,
          sockets={"indicator_mount": sock("bracket", (-0.86, 0.44, 0.0), (1, 0, 0))})
-    unit("indicators_rear", ["rear_indicators"], mount={"to": "tail.indicator_mount", "type": "bracket"},
+    unit("indicators_rear", ["rear_indicators"], slot="indicators", mount={"to": "tail.indicator_mount", "type": "bracket"},
          proxies=[capsule((-0.86, 0.44, sg * 0.06), (-0.86, 0.44, sg * 0.13), 0.016) for sg in (-1, 1)])
     unit("side_panels", ["side_panel_l", "side_panel_l_decal", "side_panel_r", "side_panel_r_decal"], slot="side_panels",
          mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "along": 0.0})
@@ -592,7 +592,8 @@ def main():
             "exhaust": [{"id": "stock", "name": "Speed Twin silencers (stock)", "stock": True, "units": []}]}
     meshes = {}
     stock_names = {"saddle": "Speed Twin bench seat (stock)", "front_mudguard": "Speed Twin front mudguard (stock)",
-                   "tail": "Speed Twin tail and plate hanger (stock)"}
+                   "tail": "Speed Twin tail and plate hanger (stock)", "indicators": "Speed Twin indicators (stock)",
+                   "mirrors": "Speed Twin mirrors (stock)", "levers": "Speed Twin levers (stock)", "grips": "Speed Twin grips (stock)"}
     for slot, pid, name, ce, u, ms, *rest in options(cat) + pack.pack_options(sys.modules[__name__], cat):
         if slot not in opts:
             opts[slot] = [{"id": "stock", "name": stock_names.get(slot, "Stock"), "stock": True, "units": []}]
