@@ -6,6 +6,7 @@
 //
 // --dump prints every reference bike's datums (ours: x forward, y up, z right, metres) as JSON lines.
 #include "BikeBody.h"
+#include "BikeParts.h"
 #include "BikeLayout.h"
 
 #include <cmath>
@@ -270,6 +271,37 @@ int main(int argc, char** argv)
 			std::snprintf(Buf, sizeof(Buf), ": roof %.0f mm off the floor, top %.0f mm over its line, seat %.0f mm off at the hip, gaps %.0f and %.0f mm",
 				Roof * 1000.0, (Top - L.TankTopMax) * 1000.0, (SeatTop - Hip.y) * 1000.0, (S0 - Z1) * 1000.0, TailGap * 1000.0);
 			Expect(Roof <= 0.006 && Top - L.TankTopMax <= 0.121 && std::fabs(SeatTop - Hip.y) <= 0.04 && S0 - Z1 <= 0.02 && TailGap <= 0.02, St + Buf);
+		}
+	}
+
+	std::printf("Placed parts (engine and top end so far):\n");
+	{
+		Json Index;
+		std::string IndexText;
+		ReadFile(R + "/Data/Parts/Blender/index.json", IndexText);
+		Json::Parse(IndexText, Index, &Error);
+		const Json* Known = Index.Get("parts");
+		const BikeParts Placer(Lay, [&](const std::string& G) { return Known && Known->Get(G.substr(0, G.size() - 4)) != nullptr; });
+		for (const std::string& St : Lay.Styles())
+		{
+			const PartsMap B = Lay.ReferenceBuild(St);
+			const Layout L = Lay.Solve(B);
+			std::string Bad;
+			int Engine = 0, Head = 0;
+			for (const FittedPart& P : Placer.Fit(B, L))
+			{
+				if (P.Slot != "engine" && P.Slot != "head") continue;
+				(P.Slot == "engine" ? Engine : Head)++;
+				PartMesh M;
+				std::string Bytes;
+				if (!ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !M.LoadGlb(Bytes, Error)) { Bad += " " + P.Glb + " won't load"; continue; }
+				double Lo = 1e9, Hi = -1e9;
+				for (const PartSurface& S : M.Deformed(P.Weights, P.Warp).Surfaces)
+					for (const V3& V : S.Pos) { Lo = std::min(Lo, V.y); Hi = std::max(Hi, V.y); }
+				// On the bike: off the ground, and (the heads) under the tank's top.
+				if (Lo < L.Ground() - 0.005 || Hi > L.TankNose.y + 0.35) Bad += " " + P.Glb + " out of place";
+			}
+			Expect(Engine == 1 && Head >= 1 && Bad.empty(), St + ": crankcase and top end on the crank" + Bad);
 		}
 	}
 

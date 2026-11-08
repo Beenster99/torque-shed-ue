@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 namespace TorqueFit
 {
@@ -164,6 +165,8 @@ PartMesh PartMesh::Deformed(const std::map<std::string, double>& Weights, const 
 	if (!WarpFn) return Out;
 	const double H = 0.002;
 	for (PartSurface& S : Out.Surfaces)
+	{
+		bool Mirrors = false;
 		for (size_t I = 0; I < S.Pos.size(); ++I)
 		{
 			const V3 P = S.Pos[I];
@@ -175,10 +178,18 @@ PartMesh PartMesh::Deformed(const std::map<std::string, double>& Weights, const 
 			// Inverse transpose of [Jx Jy Jz] applied to N is the cofactor matrix times N (up to scale).
 			const V3 Cx = Jy.Cross(Jz), Cy = Jz.Cross(Jx), Cz = Jx.Cross(Jy);
 			V3 Nn = Cx * N.x + Cy * N.y + Cz * N.z;
-			if (Cx.Dot(Jx) < 0.0) Nn = -Nn;   // a mirroring warp keeps normals facing out
+			if (Cx.Dot(Jx) < 0.0)
+			{
+				Nn = -Nn;   // a mirroring warp keeps normals facing out
+				Mirrors = Mirrors || I == 0;
+			}
 			S.Pos[I] = WarpFn(P);
 			S.Nrm[I] = Nn.Normalized();
 		}
+		// A mirroring warp (a part on the left) turns its triangles round, so they still face out.
+		if (Mirrors)
+			for (size_t I = 0; I + 2 < S.Idx.size(); I += 3) std::swap(S.Idx[I + 1], S.Idx[I + 2]);
+	}
 	return Out;
 }
 
