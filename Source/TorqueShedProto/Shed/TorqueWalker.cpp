@@ -1428,18 +1428,9 @@ void ATorqueWalker::PushBike(float Dt)
 	Progress = 0.0;
 	const FTransform Xf = PushTransform();
 	if (ATorqueShedBike* Bike = BikeActor(Bay)) Bike->Preview(Xf);
-	// The shed hears where it is ten times a second (and so does everyone else).
-	PushClock += Dt;
-	if (PushClock >= 0.1)
-	{
-		PushClock = 0.0;
-		FTorqueShedRequest R;
-		R.Kind = ETorqueShedAct::MoveBike;
-		R.Bay = Bay;
-		R.Place = Xf;
-		FString WhyNot;
-		B->Request(R, WhyNot);
-	}
+	// [co-op] No MoveBike on the way: everyone else works out where the bike is from where the one
+	// wheeling it walks (their movement already comes over the net: FollowHands), and the shed
+	// hears where it ends up at ReleaseBike. (Each MoveBike made the host resend the whole shed.)
 }
 
 void ATorqueWalker::LetGo(int32 Bay)
@@ -1453,7 +1444,9 @@ void ATorqueWalker::LetGo(int32 Bay)
 	FString WhyNot;
 	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 	else Doing(FString(), 0.0);
-	if (ATorqueShedBike* Bike = BikeActor(Bay)) Bike->EndPreview();
+	// [co-op] Held where it was let go until the shed's word comes back (the bike drops the preview
+	// itself once no one's wheeling it, then glides to where the shed put it: its bay, the rig...).
+	if (ATorqueShedBike* Bike = BikeActor(Bay)) Bike->Preview(R.Place);
 }
 
 // --- F -------------------------------------------------------------------------------------------
@@ -1898,6 +1891,13 @@ void ATorqueWalker::FollowHands(float Dt)
 	Camera->SetWorldRotation(GetBaseAimRotation());
 	UpdateToolView(Dt);
 	const UTorqueBuildSubsystem* B = Shed();
+	// A bike they're wheeling: alongside them, worked out here from where they walk (no MoveBike).
+	if (B)
+	{
+		const int32 Wheeled = B->PushedBy(PeerOf());
+		if (Wheeled != INDEX_NONE)
+			if (ATorqueShedBike* Bike = BikeActor(Wheeled)) Bike->Preview(PushTransform());
+	}
 	TorqueLook::Pose(this, ToolHolder && ToolHolder->IsVisible(), B && B->HeldBy(PeerOf()) != 0, WorkBlend);
 
 	// What they're working on glows faintly in their colour (only while they work: you see them
