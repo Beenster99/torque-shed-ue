@@ -1,5 +1,6 @@
-// The shed on disk (UTorqueBuildSubsystem): every bay's bike, what's fitted, the dirt, the paint
-// and the parts last taken off. Saved on the host (the shed is the host's; clients keep a copy).
+// The shed on disk (UTorqueBuildSubsystem): every bay's bike and every item, as shed_state.gd's
+// save_snapshot. Saved on the host (the shed is the host's; clients keep a copy). The same object
+// is the shed's bytes in co-op (UTorqueBuildSubsystem::SaveShed, through SaveGameToMemory).
 // Slot "Shed" for play; test runs (any -Torque test switch, such as -TorqueShedAction=) use
 // "ShedTest", reset at the start of every run, so a test never changes the player's shed.
 #pragma once
@@ -9,16 +10,39 @@
 #include "TorqueShedSave.generated.h"
 
 USTRUCT()
+struct FTorqueShedSaveItem
+{
+	GENERATED_BODY()
+
+	UPROPERTY() int32 Id = 0;
+	UPROPERTY() FName Part;
+	UPROPERTY() FName Kind;
+	UPROPERTY() float Rust = 0.0f;
+	UPROPERTY() float Dirt = 0.0f;
+	UPROPERTY() float Wear = 0.0f;
+	UPROPERTY() FLinearColor Colour = FLinearColor(0.5f, 0.5f, 0.5f);
+	UPROPERTY() FName Finish;
+	UPROPERTY() bool bBoxed = false;
+	UPROPERTY() uint8 At = 0;          // ETorqueAt
+	UPROPERTY() int32 Ref = 0;
+	UPROPERTY() FName Spot;
+	UPROPERTY() FTransform Place;
+	UPROPERTY() TMap<FName, int32> Slots;
+	UPROPERTY() TMap<FName, bool> Bolted;
+	UPROPERTY() int32 Tyre = 0;
+};
+
+USTRUCT()
 struct FTorqueShedSaveBike
 {
 	GENERATED_BODY()
 
 	UPROPERTY() bool bExists = false;
-	UPROPERTY() FName Bike;
-	UPROPERTY() TMap<FName, FName> Fitted;
-	UPROPERTY() TMap<FName, float> Dirt;
-	UPROPERTY() TMap<FName, FLinearColor> Paint;
-	UPROPERTY() TArray<FString> Removed;   // "slot:part", newest first: what lies on the bay's bench
+	UPROPERTY() int32 Id = 0;
+	UPROPERTY() FString Name;
+	UPROPERTY() FName Model;
+	UPROPERTY() TMap<FName, int32> Slots;
+	UPROPERTY() TMap<FName, bool> Bolted;
 	UPROPERTY() bool bRode = false;
 };
 
@@ -28,15 +52,12 @@ class UTorqueShedSave : public USaveGame
 	GENERATED_BODY()
 
 public:
-	// 1: one bike (the fields below Bikes); 2: a bike per bay.
-	UPROPERTY() int32 Version = 2;
+	// 1 and 2 were the first prototype's build-per-bay sheds; 3 is the item shed. Older saves
+	// aren't read (no one has played one): the shed starts afresh.
+	static constexpr int32 CurrentVersion = 3;
+	UPROPERTY() int32 Version = CurrentVersion;
 	UPROPERTY() TArray<FTorqueShedSaveBike> Bikes;
+	UPROPERTY() TArray<FTorqueShedSaveItem> Items;
+	UPROPERTY() int32 NextId = 1;
 	UPROPERTY() int32 MyBike = 0;
-
-	// Version 1, read once and moved into bay 0.
-	UPROPERTY() FName Bike;
-	UPROPERTY() TMap<FName, FName> Fitted;
-	UPROPERTY() TMap<FName, float> Dirt;
-	UPROPERTY() TMap<FName, FLinearColor> Paint;
-	UPROPERTY() TArray<FString> Removed;
 };

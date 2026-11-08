@@ -1,18 +1,21 @@
 // A bike standing in one of the shed's bays on a rear paddock stand: the same parts as the ridden
-// bike, drawn as that bay's build has them (UTorqueBuildSubsystem + the fitment API), still, so
-// the walker can point at a part. Redrawn whenever a part on it is swapped, by anyone in the shed.
-// An empty bay shows only its stand. Until the level script has imported the model
+// bike, drawn as that bay's bike has them (UTorqueBuildSubsystem + the fitment API), still, so
+// the walker can point at a part. Only the slots with a part in them are drawn; each part is
+// tagged with its slot (Torque Shed's slot names). Redrawn whenever a part goes on or comes off,
+// by anyone in the shed. An empty bay shows only its stand. Until the level script has imported the model
 // (Data/Bike/SpeedTwin/ue_assets.json) it's a grey-box bike.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Templates/Function.h"
 #include "TorqueShedBike.generated.h"
 
 class UStaticMesh;
 class UStaticMeshComponent;
 class UBoxComponent;
 struct FTorqueBuild;
+struct FTorqueResolvedPart;
 
 // What the shed's actors share about the bike model: the importer's turn of the glTF frame and
 // where each moving group's parts are modelled from (pawn-local cm).
@@ -27,7 +30,8 @@ FName PartTag(const UActorComponent* C);
 bool IsBodywork(FName Part);
 // A part's name for people: "side_panel_l" -> "side panel l".
 FString PartLabel(FName Part);
-// Dirt and paint from the build onto the parts' finishes (the bike's materials take Grime and Color).
+// Dirt, rust and paint from the bay's parts onto their finishes (the bike's materials take Grime,
+// Rust and Color), by each part's slot tag (or, untagged, its stock model part's slot).
 void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts);
 // The same for the bike of whoever WorldContext is (a ridden pawn: its player's bay).
 void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts);
@@ -38,9 +42,13 @@ int32 MakeSpare(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Buil
 	const FVector& WorldBottom, double MaxCm, TArray<UStaticMeshComponent*>& Out, USceneComponent*& OutHolder);
 // A slot's name for people: "exhaust" -> "Exhaust".
 FString SlotLabel(FName Slot);
-// Makes the parts of a build under Parent; only the parts in OnlySlot when it's set.
+// Makes the parts of a build under Parent; only the parts in OnlySlot (a fit slot) when it's set.
 int32 MakeParts(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build, FName OnlySlot,
 	TArray<UStaticMeshComponent*>& Out);
+// The same, keeping the parts Keep says to. Each is tagged Slot:<its slot> (TorqueShedParts) and
+// Part:<model part>.
+int32 MakePartsWhere(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build,
+	TFunctionRef<bool(const FTorqueResolvedPart&)> Keep, TArray<UStaticMeshComponent*>& Out);
 }
 
 UCLASS()
@@ -56,7 +64,7 @@ public:
 	// Which bay this is (0 .. UTorqueBuildSubsystem::Bays - 1): the bike in it is that bay's build.
 	UPROPERTY(EditAnywhere, Category = "Bike") int32 Bay = 0;
 
-	// The slot a part of this bike belongs to (NAME_None for the frame, tank and the rest).
+	// The slot a part of this bike belongs to ("frame" for the frame and what's part of it).
 	FName SlotOf(const UPrimitiveComponent* C) const;
 
 	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* Root;

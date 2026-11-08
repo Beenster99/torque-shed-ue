@@ -2,10 +2,10 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
-#include "Shed/TorquePartsBench.h"
-#include "Shed/TorquePartsStore.h"
 #include "Shed/TorqueShedBike.h"
-#include "Shed/TorquePaintRack.h"
+#include "Shed/TorqueShedItems.h"
+#include "Shed/TorqueShedLayout.h"
+#include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueWalker.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -15,11 +15,40 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
+namespace TorqueShedTestImpl
+{
+// Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the spray can, the
+// wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
+const TCHAR* const LoopSteps =
+	TEXT("bay:1,log,")
+	TEXT("tool:wrench,part:exhaust,act,")                    // unbolt the exhaust
+	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
+	TEXT("place:repair_0,act,")                              // onto the repair bench
+	TEXT("tool:repair,item:exhaust,act,")                    // grind off the rust
+	TEXT("tool:spray,spray:7:matte,item:exhaust,act,shot,")  // matte teal
+	TEXT("tool:hands,item:exhaust,act,")                     // pick it up
+	TEXT("floor:-900:100,act,")                              // down in the wash bay
+	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
+	TEXT("tool:hands,item:exhaust,act,place:bench_0,act,")   // onto the workbench
+	TEXT("order:slip_on,item:slip_on,f,item:slip_on,act,")   // order a slip-on, unpack it, pick it up
+	TEXT("part:tank,act,")                                   // fit it to the bike
+	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
+	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log,quit");
+
+FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
+
+// Away from a point towards the middle of the shed: where to stand to look at it.
+FVector TowardsMiddle(const FVector& At) { return Flat(FVector(0.0, 120.0, 0.0) - At).GetSafeNormal(); }
+} // namespace TorqueShedTestImpl
+
+namespace TSTI = TorqueShedTestImpl;
+
 void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	FString Spec;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueShedAction="), Spec, false)) return;
+	if (Spec.TrimStartAndEnd() == TEXT("loop")) Spec = TSTI::LoopSteps;
 	Spec.ParseIntoArray(Steps, TEXT(","), true);
 	UE_LOG(LogTemp, Log, TEXT("Torque test: %d shed steps: %s"), Steps.Num(), *Spec);
 	Ticker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UTorqueShedTest::Step), 0.0f);
@@ -40,18 +69,44 @@ ATorqueWalker* UTorqueShedTest::Walker() const
 
 void UTorqueShedTest::LogBuild(const TCHAR* Where) const
 {
-	FString Text;
 	const UTorqueBuildSubsystem* B = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueBuildSubsystem>() : nullptr;
-	if (B)
-		for (int32 Bay = 0; Bay < B->NumBikes(); ++Bay)
+	if (!B)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s, no shed"), Where);
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque test: %s, the shed:"), Where);
+	for (int32 Bay = 0; Bay < B->NumBikes(); ++Bay)
+	{
+		if (!B->Exists(Bay))
 		{
-			if (!B->Exists(Bay)) { Text += FString::Printf(TEXT(" [bay %d empty]"), Bay + 1); continue; }
-			Text += FString::Printf(TEXT(" [bay %d %s%s:"), Bay + 1, *B->Get(Bay).Bike.ToString(), Bay == B->MyBike() ? TEXT(", mine") : TEXT(""));
-			for (const FName& Slot : TorqueFit::Slots(B->Get(Bay).Bike))
-				Text += FString::Printf(TEXT(" %s=%s"), *Slot.ToString(), *B->FittedIn(Bay, Slot).ToString());
-			Text += TEXT("]");
+			UE_LOG(LogTemp, Log, TEXT("Torque test:   bay %d empty"), Bay + 1);
+			continue;
 		}
-	UE_LOG(LogTemp, Log, TEXT("Torque test: %s, builds:%s"), Where, *Text);
+		const FTorqueShedBike& Bike = B->Bike(Bay);
+		FString Text;
+		for (const TPair<FName, int32>& KV : Bike.Slots)
+		{
+			if (KV.Value == 0) continue;
+			const FTorqueItem* It = B->Item(KV.Value);
+			Text += FString::Printf(TEXT(" %s=%s%s"), *KV.Key.ToString(), It ? *It->Part.ToString() : TEXT("?"), Bike.Bolted.FindRef(KV.Key) ? TEXT("") : TEXT("(loose)"));
+		}
+		const TArray<FName> Missing = B->MissingSlots(Bay);
+		FString MissingText;
+		for (const FName& S : Missing) MissingText += TEXT(" ") + S.ToString();
+		UE_LOG(LogTemp, Log, TEXT("Torque test:   bay %d %s%s%s:%s%s"), Bay + 1, *Bike.Name, Bay == B->MyBike() ? TEXT(", mine") : TEXT(""),
+			B->IsComplete(Bay) ? TEXT(", ready to ride") : TEXT(""), *Text, Missing.Num() ? *(TEXT("   missing:") + MissingText) : TEXT(""));
+	}
+	FString Loose;
+	for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+	{
+		const FTorqueItem& It = KV.Value;
+		if (It.At == ETorqueAt::Bike || It.At == ETorqueAt::Engine || It.At == ETorqueAt::Wheel) continue;
+		const FString At = It.At == ETorqueAt::Held ? FString(TEXT("held")) : (It.At == ETorqueAt::Spot ? It.Spot.ToString() : FString(TEXT("floor")));
+		Loose += FString::Printf(TEXT(" %d:%s@%s%s(rust %.0f%% dirt %.0f%%%s)"), It.Id, *It.Part.ToString(), *At, It.bBoxed ? TEXT(",boxed") : TEXT(""),
+			100.0f * It.Rust, 100.0f * It.Dirt, It.Finish.IsNone() ? TEXT("") : *FString::Printf(TEXT(" %s"), *It.Finish.ToString()));
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque test:   loose:%s"), Loose.IsEmpty() ? TEXT(" none") : *Loose);
 }
 
 bool UTorqueShedTest::Step(float Dt)
@@ -60,7 +115,7 @@ bool UTorqueShedTest::Step(float Dt)
 	if (!World || !World->HasBegunPlay()) return true;
 	if (SeenWorld.Get() != World)
 	{
-		// A new map: let it settle (the bike and bench draw at BeginPlay, the camera exposes).
+		// A new map: let it settle (the bikes and parts draw at BeginPlay, the camera exposes).
 		SeenWorld = World;
 		Wait = FMath::Max(Wait, 4.0);
 		LogBuild(*FString::Printf(TEXT("in %s"), *World->GetMapName()));
@@ -79,23 +134,6 @@ bool UTorqueShedTest::Step(float Dt)
 	return true;
 }
 
-namespace
-{
-// The biggest part of a component list matching a tag test, and where it is.
-UStaticMeshComponent* Biggest(const TArray<UStaticMeshComponent*>& List, TFunctionRef<bool(const UStaticMeshComponent*)> Want)
-{
-	UStaticMeshComponent* Best = nullptr;
-	double BestVol = -1.0;
-	for (UStaticMeshComponent* C : List)
-	{
-		if (!C || !Want(C)) continue;
-		const double Vol = C->Bounds.GetBox().GetVolume();
-		if (Vol > BestVol) { BestVol = Vol; Best = C; }
-	}
-	return Best;
-}
-} // namespace
-
 bool UTorqueShedTest::RunStep(const FString& S)
 {
 	TArray<FString> P;
@@ -103,207 +141,188 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (P.Num() == 0) return true;
 	UWorld* World = GetGameInstance()->GetWorld();
 	const FString& Verb = P[0];
-	static int32 Tries = 0;
+	auto Said = [&S](const FString& What) { UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, *What); };
+	auto Warn = [&S](const FString& What) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: %s"), *S, *What); };
 
-	if (Verb == TEXT("wait")) { Wait = P.Num() > 1 ? FCString::Atod(*P[1]) : 2.0; UE_LOG(LogTemp, Log, TEXT("Torque test: wait %.1f s"), Wait); return true; }
+	if (Verb == TEXT("wait")) { Wait = P.Num() > 1 ? FCString::Atod(*P[1]) : 2.0; Said(FString::Printf(TEXT("%.1f s"), Wait)); return true; }
 	if (Verb == TEXT("quit"))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque test: quit"));
+		Said(TEXT("quitting"));
 		if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("quit"));
 		return true;
 	}
 	if (Verb == TEXT("shot"))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque test: screenshot (Saved/Screenshots)"));
+		Said(TEXT("screenshot (Saved/Screenshots)"));
 		if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("HighResShot 1"));
 		return true;
 	}
+	if (Verb == TEXT("log")) { LogBuild(*S); return true; }
 	if (Verb == TEXT("bay") && P.Num() >= 2)
 	{
 		TestBay = FMath::Clamp(FCString::Atoi(*P[1]) - 1, 0, UTorqueBuildSubsystem::Bays - 1);
-		UE_LOG(LogTemp, Log, TEXT("Torque test: working on bay %d"), TestBay + 1);
-		return true;
-	}
-	if (Verb == TEXT("new") && P.Num() >= 2)
-	{
-		const int32 Bay = FMath::Clamp(FCString::Atoi(*P[1]) - 1, 0, UTorqueBuildSubsystem::Bays - 1);
-		UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
-		const bool bOk = B && B->NewBike(Bay, FName(P.Num() > 2 ? *P[2] : TEXT("speed_twin_1200")));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, bOk ? TEXT("a new bike") : TEXT("refused (see the warning above)"));
+		Said(FString::Printf(TEXT("working on bay %d"), TestBay + 1));
 		return true;
 	}
 	if (Verb == TEXT("back"))
 	{
 		const bool bOk = TorqueFlow::BackToShed(World);
-		UE_LOG(LogTemp, Log, TEXT("Torque test: back to the shed: %s"), bOk ? TEXT("going") : TEXT("refused (no shed map, or a client)"));
+		Said(bOk ? TEXT("going back to the shed") : TEXT("refused (no shed map, or a client)"));
 		return true;
 	}
 
 	// The rest need the walker in the shed.
 	ATorqueWalker* W = Walker();
-	if (!W)
+	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
+	if (!W || !B)
 	{
 		if (++Tries < 20) return false;
-		UE_LOG(LogTemp, Warning, TEXT("Torque test: %s skipped: no walker (not in the shed?)"), *S);
+		Warn(TEXT("skipped: no walker (not in the shed?)"));
 		Tries = 0;
 		return true;
 	}
 	Tries = 0;
-	// The bike and table of the bay under test (bay:<n>).
-	const int32 Bay = TestBay;
-	ATorqueShedBike* Bike = nullptr;
-	for (TActorIterator<ATorqueShedBike> It(World); It; ++It) if (It->Bay == Bay) { Bike = *It; break; }
-	ATorquePartsBench* Bench = nullptr;
-	for (TActorIterator<ATorquePartsBench> It(World); It; ++It) if (It->Bay == Bay) { Bench = *It; break; }
-	AActor* Door = nullptr;
-	for (TActorIterator<AActor> It(World); It; ++It)
-		if (It->ActorHasTag(TEXT("RideOut"))) { Door = *It; break; }
 
-	// Aim at a bike part: from the side of the bike it's on, 130 cm out.
-	// Aim at a bike part: from the side of the bike it's on, 130 cm out, at a point part way out
-	// along it (the middle of a handlebar is behind the clocks; its ends, by the grips, aren't).
-	auto AimBike = [W, Bike](UStaticMeshComponent* C) -> FString
+	if (Verb == TEXT("tool") && P.Num() >= 2)
 	{
-		const FVector Right = Bike->GetActorRightVector();
-		const double Off = FVector::DotProduct(C->Bounds.Origin - Bike->GetActorLocation(), Right);
-		const double Sign = Off < -2.0 ? -1.0 : 1.0;
-		const double Half = FVector::DotProduct(C->Bounds.BoxExtent, Right.GetAbs());
-		const FVector At = C->Bounds.Origin + Right * Sign * 0.6 * Half;
-		return W->TestLookAt(At, Right * Sign, 130.0);
-	};
-	// Aim at the bench: from the room side, 100 cm out.
-	auto AimBench = [W, Bench, Bike](UStaticMeshComponent* C) -> FString
-	{
-		const FVector At = C->Bounds.Origin;
-		FVector Out = Bench->GetActorRightVector();
-		if (Bike && FVector::DotProduct(Bike->GetActorLocation() - Bench->GetActorLocation(), Out) < 0.0) Out = -Out;
-		return W->TestLookAt(At, Out, 100.0);
-	};
-
-	if (Verb == TEXT("swap") && P.Num() >= 2)
-	{
-		const FName Slot(*P[1]);
-		UStaticMeshComponent* C = Bike ? Biggest(Bike->Parts, [Slot](const UStaticMeshComponent* X) { return TorqueShedModel::SlotTag(X) == Slot; }) : nullptr;
-		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no %s part on the shed bike"), *S, *Slot.ToString()); return true; }
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s"), *S, *AimBike(C));
-		UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
-		// Choose the part (as Q / R would), then one press of E: it ends on that part, or the log
-		// says why it won't fit and the bike stays as it was.
-		if (P.Num() >= 3) W->TestChoose(Slot, FName(*P[2]));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
-		if (P.Num() >= 3 && B)
-			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: bay %d %s now has %s (%s)"), *S, Bay + 1, *Slot.ToString(), *B->FittedIn(Bay, Slot).ToString(),
-				B->FittedIn(Bay, Slot) == FName(*P[2]) ? TEXT("as asked") : TEXT("not that part"));
-		return true;
-	}
-	if (Verb == TEXT("bench") && P.Num() >= 3)
-	{
-		const FName Slot(*P[1]), Part(*P[2]);
-		auto Match = [Slot, Part](const UStaticMeshComponent* X)
-			{ return TorqueShedModel::SlotTag(X) == Slot && TorqueShedModel::OptionTag(X) == Part; };
-		// On the bench (recently removed) first, else in the parts store, looked at from in front.
-		UStaticMeshComponent* C = Bench ? Biggest(Bench->Items, Match) : nullptr;
-		FString Seen;
-		if (C) Seen = AimBench(C);
-		else
-			for (TActorIterator<ATorquePartsStore> It(World); It && !C; ++It)
-				if ((C = Biggest(It->Items, Match)) != nullptr)
-					Seen = W->TestLookAt(C->Bounds.Origin, It->GetActorForwardVector(), 100.0) + TEXT(" (store)");
-		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no such spare on the bench or in the store (fitted already, or not imported)"), *S); return true; }
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s"), *S, *Seen);
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
-		return true;
-	}
-	if (Verb == TEXT("rideout"))
-	{
-		if (!Door) { UE_LOG(LogTemp, Warning, TEXT("Torque test: rideout: no RideOut point in the level")); return true; }
-		const FVector D = Door->GetActorLocation();
-		const FVector In = Bike ? (Bike->GetActorLocation() - D).GetSafeNormal2D() : FVector(0, -1, 0);
-		// In the doorway, looking out.
-		UE_LOG(LogTemp, Log, TEXT("Torque test: rideout: at the door, seeing %s"), *W->TestLookAt(D - In * 300.0, In, 300.0));
-		LogBuild(TEXT("riding out"));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(true));
-		Wait = 3.0;
-		return true;
-	}
-	// The bike's dirt and paint, as the shed draws them.
-	auto Looks = [World, Bike, Bay](const FString& Only) -> FString
-	{
-		const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
-		if (!B || !Bike) return TEXT("no bike");
-		double Sum = 0.0;
-		int32 N = 0;
-		FString Painted, One;
-		for (const UStaticMeshComponent* C : Bike->Parts)
-		{
-			const FName Part = TorqueShedModel::PartTag(C);
-			if (Part.IsNone()) continue;
-			Sum += B->DirtOf(Bay, Part);
-			++N;
-			FLinearColor Col;
-			if (B->PaintOf(Bay, Part, Col)) Painted += FString::Printf(TEXT(" %s=%s"), *Part.ToString(), *Col.ToFColor(true).ToHex());
-			if (Part.ToString() == Only) One = FString::Printf(TEXT(", %s %.0f%%"), *Only, 100.0f * B->DirtOf(Bay, Part));
-		}
-		return FString::Printf(TEXT("dirt %.0f%% on average over %d parts%s; painted:%s"), N ? 100.0 * Sum / N : 0.0, N, *One,
-			Painted.IsEmpty() ? TEXT(" none") : *Painted);
-	};
-	// A bike part by its model name.
-	auto PartNamed = [Bike](const FString& Name) -> UStaticMeshComponent*
-	{
-		if (!Bike) return nullptr;
-		for (UStaticMeshComponent* C : Bike->Parts)
-			if (TorqueShedModel::PartTag(C).ToString() == Name) return C;
-		return nullptr;
-	};
-	if (Verb == TEXT("dirt"))
-	{
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, *Looks(P.Num() > 1 ? P[1] : FString()));
-		return true;
-	}
-	if (Verb == TEXT("wash") && P.Num() >= 2)
-	{
-		UStaticMeshComponent* C = PartNamed(P[1]);
-		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no part %s on the shed bike"), *S, *P[1]); return true; }
-		const double Secs = P.Num() > 2 ? FCString::Atod(*P[2]) : 3.0;
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s; before: %s"), *S, *AimBike(C), *Looks(P[1]));
-		W->TestHoldWash(Secs);
-		Wait = Secs + 0.5;   // the next step (dirt:<part>) shows what came off
-		return true;
-	}
-	if (Verb == TEXT("paint") && P.Num() >= 3)
-	{
-		ATorquePaintRack* Rack = nullptr;
-		for (TActorIterator<ATorquePaintRack> It(World); It; ++It) { Rack = *It; break; }
+		static const TCHAR* const Names[] = {TEXT("hands"), TEXT("wrench"), TEXT("brush"), TEXT("repair"), TEXT("spray"), TEXT("lance")};
 		int32 Index = INDEX_NONE;
-		for (int32 I = 0; I < ATorquePaintRack::Paints().Num(); ++I)
-			if (P[1].Replace(TEXT("_"), TEXT(" ")).Equals(ATorquePaintRack::Paints()[I].Name, ESearchCase::IgnoreCase) || P[1] == FString::FromInt(I)) Index = I;
-		UStaticMeshComponent* Part = PartNamed(P[2]);
-		if (!Rack || !Rack->Cards.IsValidIndex(Index) || !Part)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no paint rack, no such paint (0-%d or a name), or no part %s"), *S, ATorquePaintRack::Paints().Num() - 1, *P[2]);
-			return true;
-		}
-		UStaticMeshComponent* Card = Rack->Cards[Index];
-		Card->UpdateBounds();
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: at the rack seeing %s"), *S, *W->TestLookAt(Card->Bounds.Origin, Rack->GetActorForwardVector(), 110.0));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: at the bike seeing %s"), *S, *AimBike(Part));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, *Looks(P[2]));
+		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Names); ++I)
+			if (P[1].Equals(Names[I], ESearchCase::IgnoreCase)) Index = I;
+		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, spray, lance)")); return true; }
+		W->TestTool((ETorqueTool)Index);
+		Said(TEXT("in hand"));
 		return true;
 	}
-	if (Verb == TEXT("look") && P.Num() >= 2)
+	if (Verb == TEXT("crouch"))
 	{
-		FString Seen;
-		if (P[1] == TEXT("bike") && Bike)
-			Seen = W->TestLookAt(Bike->GetActorLocation() + FVector(0, 0, 60), FVector(1.0, 1.4, 0.0), 260.0);
-		else if (P[1] == TEXT("bench") && Bench && Bike)
-			Seen = W->TestLookAt(Bench->GetActorLocation(), (Bike->GetActorLocation() - Bench->GetActorLocation()), 220.0);
-		else if (P[1] == TEXT("door") && Door)
-			Seen = W->TestLookAt(Door->GetActorLocation() + FVector(0, 0, 150), FVector(1.0, -1.0, 0.0), 450.0);   // from inside, clear of the bike
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: seeing %s"), *S, *Seen);
+		const bool bOn = P.Num() < 2 || P[1] != TEXT("0");
+		W->TestCrouch(bOn);
+		Said(bOn ? TEXT("crouching") : TEXT("standing"));
 		return true;
 	}
-	UE_LOG(LogTemp, Warning, TEXT("Torque test: don't know the step '%s'"), *S);
+	if (Verb == TEXT("spray") && P.Num() >= 2)
+	{
+		int32 Colour = FCString::Atoi(*P[1]);
+		for (int32 I = 0; I < UTorqueBuildSubsystem::Paints().Num(); ++I)
+			if (P[1].Equals(UTorqueBuildSubsystem::PaintName(I), ESearchCase::IgnoreCase)) Colour = I;
+		const FName Finish = P.Num() > 2 ? FName(*P[2].ToLower()) : FName(TEXT("gloss"));
+		W->TestSpray(Colour, Finish);
+		Said(FString::Printf(TEXT("%s %s"), *UTorqueBuildSubsystem::FinishName(Finish), *UTorqueBuildSubsystem::PaintName(Colour)));
+		return true;
+	}
+	if (Verb == TEXT("part") && P.Num() >= 2)
+	{
+		// The biggest mesh of that slot on the bay's bike, looked at from beside the bike.
+		const FName Slot(*P[1]);
+		const UStaticMeshComponent* Best = nullptr;
+		const ATorqueShedBike* Bike = nullptr;
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+		{
+			if (It->Bay != TestBay) continue;
+			Bike = *It;
+			double BestVol = -1.0;
+			for (const UStaticMeshComponent* C : It->Parts)
+			{
+				if (!C || !C->IsVisible() || TorqueShedModel::SlotTag(C) != Slot) continue;
+				const double Vol = C->Bounds.GetBox().GetVolume();
+				if (Vol > BestVol) { BestVol = Vol; Best = C; }
+			}
+		}
+		if (!Best) { Warn(FString::Printf(TEXT("bay %d's bike has nothing drawn in that slot"), TestBay + 1)); return true; }
+		// From beside the part first, then round the bike, until the walker's look lands on that slot
+		// (a part inside a bigger one's box, an exhaust by the swingarm, can be hidden from one side).
+		const FVector At = Best->Bounds.Origin;
+		FVector Out = TSTI::Flat(At - Bike->GetActorLocation()).GetSafeNormal();
+		if (Out.IsNearlyZero()) Out = FVector(1.0, 0.0, 0.0);
+		const FVector Sides[] = {Out, FVector(1.0, 0.0, 0.0), FVector(-1.0, 0.0, 0.0), (Out + FVector(0.0, 1.0, 0.0)).GetSafeNormal(),
+			(Out - FVector(0.0, 1.0, 0.0)).GetSafeNormal(), FVector(0.0, 1.0, 0.0)};
+		const double Distances[] = {100.0, 70.0, 140.0};
+		FString Seen;
+		for (const double D : Distances)
+			for (const FVector& Away : Sides)
+			{
+				if (Away.IsNearlyZero()) continue;
+				Seen = W->TestLookAt(At, Away, D);
+				if (W->TestTargetSlot() == Slot)
+				{
+					Said(TEXT("looking at ") + Seen);
+					return true;
+				}
+			}
+		Warn(TEXT("couldn't get a look at it: last saw ") + Seen);
+		return true;
+	}
+	if (Verb == TEXT("item") && P.Num() >= 2)
+	{
+		// The newest part off the bikes matching a part id, a kind or a slot.
+		const FName What(*P[1]);
+		const FName Kind = TorqueShedParts::KindOf(What);
+		int32 Found = 0;
+		for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+		{
+			const FTorqueItem& It = KV.Value;
+			if (It.At != ETorqueAt::Spot && It.At != ETorqueAt::Floor) continue;
+			if (It.Part == What || It.Kind == What || It.Kind == Kind || It.Part == TorqueShedParts::StockPart(What)) Found = FMath::Max(Found, It.Id);
+		}
+		FVector At;
+		bool bDrawn = false;
+		for (TActorIterator<ATorqueShedItems> It(World); It && !bDrawn; ++It) bDrawn = It->WhereIs(Found, At);
+		if (Found == 0 || !bDrawn) { Warn(Found == 0 ? TEXT("no such part off the bikes") : TEXT("it isn't drawn")); return true; }
+		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), 90.0));
+		return true;
+	}
+	if (Verb == TEXT("place") && P.Num() >= 2)
+	{
+		const FTorquePlace* Place = TorqueShedLayout::FindPlace(FName(*P[1]));
+		if (!Place) { Warn(TEXT("no such place")); return true; }
+		const FVector At = Place->Kind == ETorquePlace::Bay ? Place->Put + FVector(110.0, 40.0, 0.0) : Place->Box.GetCenter() + FVector(0.0, 0.0, Place->Box.GetExtent().Z);
+		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), Place->Kind == ETorquePlace::Bay ? 120.0 : 90.0));
+		return true;
+	}
+	if (Verb == TEXT("floor") && P.Num() >= 3)
+	{
+		const FVector At(FCString::Atod(*P[1]), FCString::Atod(*P[2]), 0.0);
+		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), 100.0));
+		return true;
+	}
+	if (Verb == TEXT("door") || Verb == TEXT("rideout"))
+	{
+		AActor* Door = nullptr;
+		for (TActorIterator<AActor> It(World); It; ++It)
+			if (It->ActorHasTag(TEXT("RideOut"))) { Door = *It; break; }
+		if (!Door) { Warn(TEXT("no RideOut point in this map")); return true; }
+		// In the opening, looking out.
+		const FVector Out = Door->GetActorLocation() + FVector(0.0, 300.0, 120.0);
+		Said(TEXT("looking at ") + W->TestLookAt(Out, FVector(0.0, -1.0, 0.0), 300.0));
+		if (Verb == TEXT("rideout")) Said(W->TestInteract());
+		return true;
+	}
+	if (Verb == TEXT("act"))
+	{
+		Said(W->TestAct(P.Num() > 1 && P[1] == TEXT("alt")));
+		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("hold") && P.Num() >= 2)
+	{
+		const double Seconds = FMath::Max(FCString::Atod(*P[1]), 0.1);
+		W->TestHoldAct(Seconds);
+		Wait = Seconds + 1.0;
+		Said(FString::Printf(TEXT("holding the work button on %s for %.1f s"), *W->Describe(), Seconds));
+		return true;
+	}
+	if (Verb == TEXT("f"))
+	{
+		Said(W->TestInteract());
+		return true;
+	}
+	if (Verb == TEXT("order") && P.Num() >= 2)
+	{
+		Said(W->TestOrder(FName(*P[1])));
+		LogBuild(TEXT("after the order"));
+		return true;
+	}
+	Warn(TEXT("unknown step (see TorqueShedTest.h)"));
 	return true;
 }

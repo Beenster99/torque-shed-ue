@@ -43,6 +43,9 @@ ATorquePlayerController::ATorquePlayerController()
 void ATorquePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+	// The host's copy of a joined player's controller: the shed's answers to them go to them.
+	if (HasAuthority() && !IsLocalController())
+		if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) TellHandle = B->OnTell.AddUObject(this, &ATorquePlayerController::TellPeer);
 	if (!IsLocalController()) return;
 	Pad = MakeUnique<FSonyPad>();
 	// The player's saved graphics and sound (a fresh install, and test runs, keep the project's own).
@@ -56,11 +59,6 @@ void ATorquePlayerController::BeginPlay()
 
 bool ATorquePlayerController::ForwardShed(const FTorqueShedRequest& Request)
 {
-	if (Request.Kind == ETorqueShedAct::Clean)
-	{
-		Washing.FindOrAdd(TPair<int32, FName>(Request.Bike, Request.Part)) += Request.Amount;
-		return true;
-	}
 	ServerShed(TorqueShedNet::ToNet(Request));
 	return true;
 }
@@ -68,25 +66,15 @@ bool ATorquePlayerController::ForwardShed(const FTorqueShedRequest& Request)
 void ATorquePlayerController::ServerShed_Implementation(const FTorqueShedRequestNet& Request)
 {
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-	if (!B) return;
-	FText WhyNot;
-	if (!B->Apply(TorqueShedNet::FromNet(Request), WhyNot) && !WhyNot.IsEmpty()) ClientNote(WhyNot.ToString());
+	if (!B || !PlayerState) return;
+	// The answer (done, or why not) comes back through OnTell (TellPeer).
+	FString WhyNot;
+	B->Apply(PlayerState->GetPlayerId(), TorqueShedNet::FromNet(Request), WhyNot);
 }
 
-void ATorquePlayerController::ServerClean_Implementation(const TArray<FTorqueCleanNet>& Washed)
+void ATorquePlayerController::TellPeer(int32 Peer, const FString& Text, bool bOk)
 {
-	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-	if (!B) return;
-	for (int32 I = 0; I < FMath::Min(Washed.Num(), 256); ++I)
-	{
-		FTorqueShedRequest R;
-		R.Kind = ETorqueShedAct::Clean;
-		R.Bike = Washed[I].Bike;
-		R.Part = Washed[I].Part;
-		R.Amount = FMath::Clamp(Washed[I].Amount, 0.0f, 1.0f);
-		FText Ignored;
-		B->Apply(R, Ignored);
-	}
+	if (!IsLocalController() && PlayerState && PlayerState->GetPlayerId() == Peer && !Text.IsEmpty()) ClientNote(Text);
 }
 
 void ATorquePlayerController::ClientNote_Implementation(const FString& Text)
@@ -99,23 +87,6 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 {
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (!B || GetNetMode() == NM_Standalone) return;
-	// Washing: summed, sent ten times a second.
-	WashSendIn -= Dt;
-	if (Washing.Num() > 0 && WashSendIn <= 0.0)
-	{
-		TArray<FTorqueCleanNet> Batch;
-		for (const TPair<TPair<int32, FName>, float>& W : Washing)
-		{
-			FTorqueCleanNet C;
-			C.Bike = W.Key.Key;
-			C.Part = W.Key.Value;
-			C.Amount = W.Value;
-			Batch.Add(C);
-		}
-		Washing.Reset();
-		WashSendIn = 0.1;
-		ServerClean(Batch);
-	}
 	// What this player is doing and which bay is theirs, for everyone to see.
 	ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
 	if (!PS) return;
@@ -140,7 +111,13 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 void ATorquePlayerController::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+	{
 		if (B->Forward.IsBoundToObject(this)) B->Forward.Unbind();
+		B->OnTell.Remove(TellHandle);
+		// A joined player gone: what was in their hands goes down where they stood.
+		if (HasAuthority() && !IsLocalController() && PlayerState)
+			B->DropHeldBy(PlayerState->GetPlayerId(), GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector);
+	}
 	if (bPausedGame) SetPause(false);
 	Pad.Reset();
 	Super::EndPlay(Reason);

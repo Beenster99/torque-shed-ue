@@ -1,0 +1,125 @@
+// Where things are in the shed, as Tools/ue_build_shed.py builds it (a port of Torque Shed's
+// workshop.gd and the machines shed_state.gd's start_new puts in): world cm, x east, y towards the
+// roller door, z up, the floor at 0. Keep the two in step.
+//
+// The places a part can be put (shed_state.gd's spots and surfaces): along the workbench, on the
+// repair bench and in the parts washer, on the tyre changer and the engine stand. Anything else
+// goes on the floor where you put it.
+#pragma once
+
+#include "CoreMinimal.h"
+
+enum class ETorquePlace : uint8
+{
+	Bench,     // the workbench down the west wall
+	Repair,    // the repair bench (grinder and welder): restore parts on it
+	Washer,    // the parts washer
+	Changer,   // the tyre changer: wheels only
+	Stand,     // the engine stand: engines only
+	Bin,       // the three bins left of the roller door
+	Computer,  // the parts computer on the east wall
+	Bay,       // a bay's floor (a frame put down here starts a bike)
+};
+
+struct FTorquePlace
+{
+	ETorquePlace Kind = ETorquePlace::Bench;
+	FName Name;          // spot name ("bench_3", "repair_1"), bin ("general") or bay ("bay_2")
+	FBox Box;            // what the walker points at
+	FVector Put = FVector::ZeroVector;   // where a part put here sits (its bottom, centred)
+	int32 Index = 0;     // the bay, for a bay
+};
+
+namespace TorqueShedLayout
+{
+// The bays (Workshop.bay_transform): along the back wall, 3.2 m apart, noses to the door.
+inline FVector BayAt(int32 Bay)
+{
+	static const double X[] = {-480.0, -160.0, 160.0, 480.0};
+	return FVector(X[FMath::Clamp(Bay, 0, 3)], -350.0, 0.0);
+}
+
+// Every place, made once.
+inline const TArray<FTorquePlace>& Places()
+{
+	static TArray<FTorquePlace> L;
+	if (L.Num() > 0) return L;
+	auto Add = [](ETorquePlace Kind, const FString& Name, const FVector& Min, const FVector& Max, const FVector& Put, int32 Index)
+	{
+		FTorquePlace P;
+		P.Kind = Kind;
+		P.Name = FName(*Name);
+		P.Box = FBox(Min, Max);
+		P.Put = Put;
+		P.Index = Index;
+		L.Add(P);
+	};
+	// The workbench: x -647.5 .. -552.5, y -180 .. 300, top 95. Eight places along it.
+	for (int32 I = 0; I < 8; ++I)
+	{
+		const double Y = -150.0 + 60.0 * I;
+		Add(ETorquePlace::Bench, FString::Printf(TEXT("bench_%d"), I), FVector(-647.5, Y - 30.0, 89.0), FVector(-552.5, Y + 30.0, 97.0),
+			FVector(-595.0, Y, 95.0), I);
+	}
+	// The repair bench against the front wall: x 250 .. 430, y 445 .. 535, top 94. Three places.
+	for (int32 I = 0; I < 3; ++I)
+	{
+		const double X = 280.0 + 55.0 * I;
+		Add(ETorquePlace::Repair, FString::Printf(TEXT("repair_%d"), I), FVector(X - 27.0, 445.0, 88.0), FVector(X + 27.0, 535.0, 96.0),
+			FVector(X, 480.0, 94.0), I);
+	}
+	// The parts washer: x 480 .. 610, y 445 .. 535, the tub's rim at 95. Two places.
+	for (int32 I = 0; I < 2; ++I)
+	{
+		const double X = 515.0 + 60.0 * I;
+		Add(ETorquePlace::Washer, FString::Printf(TEXT("washer_%d"), I), FVector(X - 30.0, 445.0, 85.0), FVector(X + 30.0, 515.0, 97.0),
+			FVector(X, 475.0, 80.0), I);
+	}
+	// The tyre changer's table past the bench's end, and the engine stand by the east bay.
+	Add(ETorquePlace::Changer, TEXT("changer"), FVector(-634.0, 325.0, 66.0), FVector(-574.0, 385.0, 80.0), FVector(-604.0, 355.0, 77.0), 0);
+	Add(ETorquePlace::Stand, TEXT("stand"), FVector(-25.0 + 560.0, -55.0, 55.0), FVector(565.0 + 20.0, -25.0, 90.0), FVector(560.0, -40.0, 82.0), 0);
+	// The bins left of the roller door, y 487 .. 547, 92 high.
+	static const TCHAR* const BinNames[] = {TEXT("general"), TEXT("plastic"), TEXT("metal")};
+	static const double BinX[] = {-275.0, -333.0, -391.0};
+	for (int32 I = 0; I < 3; ++I)
+		Add(ETorquePlace::Bin, BinNames[I], FVector(BinX[I] - 28.0, 483.0, 0.0), FVector(BinX[I] + 28.0, 549.0, 92.0),
+			FVector(BinX[I], 517.0, 92.0), I);
+	// The parts computer's desk and monitor on the east wall.
+	Add(ETorquePlace::Computer, TEXT("computer"), FVector(565.0, 125.0, 74.0), FVector(625.0, 255.0, 131.0), FVector(605.0, 190.0, 78.0), 0);
+	// Each bay's floor round the stand (a frame put down here starts a bike).
+	for (int32 I = 0; I < 4; ++I)
+	{
+		const FVector B = BayAt(I);
+		Add(ETorquePlace::Bay, FString::Printf(TEXT("bay_%d"), I), B + FVector(-140.0, -60.0, 0.0), B + FVector(140.0, 60.0, 4.0), B, I);
+	}
+	return L;
+}
+
+inline const FTorquePlace* FindPlace(FName Name)
+{
+	for (const FTorquePlace& P : Places())
+		if (P.Name == Name) return &P;
+	return nullptr;
+}
+
+// The deliveries bay on the yard east of the door (Shed.DELIVERY_AREA): x 290 .. 1070, y 750 ..
+// 1065 is its floor. Boxes go down on a grid there, the nearest the door first.
+inline FVector DeliveryAt(int32 Index)
+{
+	const int32 Cols = 7;
+	const int32 Col = Index % Cols, Row = (Index / Cols) % 3, Layer = Index / (Cols * 3);
+	return FVector(345.0 + 110.0 * Col, 810.0 + 100.0 * Row, 60.0 * Layer);
+}
+
+inline bool InDeliveries(const FVector& At) { return At.X > 280.0 && At.X < 1080.0 && At.Y > 740.0 && At.Y < 1260.0; }
+
+// The wash bay (Workshop.WASH_CENTER, WASH_HALF and the apron in front): the pressure washer's
+// lance reaches anything in it.
+inline bool InWashBay(const FVector& At) { return At.X > -1170.0 && At.X < -690.0 && At.Y > -240.0 && At.Y < 540.0; }
+
+// Inside the shed, the yard and the wash bay: where a part can be put down.
+inline bool OnSite(const FVector& At) { return FMath::Abs(At.X) < 4000.0 && FMath::Abs(At.Y) < 4000.0 && At.Z > -50.0 && At.Z < 500.0; }
+
+// Where a player stands when they come in, for parts dropped by someone who's left.
+inline FVector DropAt() { return FVector(0.0, 180.0, 0.0); }
+}

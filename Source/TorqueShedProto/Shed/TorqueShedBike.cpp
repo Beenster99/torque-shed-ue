@@ -1,6 +1,7 @@
 #include "Shed/TorqueShedBike.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedParts.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
@@ -13,7 +14,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "UObject/ConstructorHelpers.h"
 
-namespace
+namespace TorqueShedBikeImpl
 {
 bool LoadShedJson(const FString& Rel, TSharedPtr<FJsonObject>& Out)
 {
@@ -39,7 +40,8 @@ FName TagAfter(const UActorComponent* C, const FString& Prefix)
 	}
 	return NAME_None;
 }
-} // namespace
+} // namespace TorqueShedBikeImpl
+using namespace TorqueShedBikeImpl;
 
 namespace TorqueShedModel
 {
@@ -102,12 +104,16 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		if (!C) continue;
 		const FName Part = PartTag(C);
 		if (Part.IsNone()) continue;
+		const FName Slot = SlotTag(C);
+		const FName Which = Slot.IsNone() ? Part : Slot;
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;
-		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime.
-		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Bike, Part) : 0.0f);
+		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime,
+		// and their rust bloom by Rust.
+		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Bike, Which) : 0.0f);
+		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
-		if (B && B->PaintOf(Bike, Part, Paint))
+		if (B && B->PaintOf(Bike, Which, Paint))
 		{
 			M->SetVectorParameterValue(TEXT("Color"), Paint);
 			M->SetVectorParameterValue(TEXT("Color2"), Paint);
@@ -172,6 +178,12 @@ FString SlotLabel(FName Slot)
 int32 MakeParts(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build, FName OnlySlot,
 	TArray<UStaticMeshComponent*>& Out)
 {
+	return MakePartsWhere(Owner, Parent, Build, [OnlySlot](const FTorqueResolvedPart& P) { return OnlySlot.IsNone() || P.Slot == OnlySlot; }, Out);
+}
+
+int32 MakePartsWhere(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build,
+	TFunctionRef<bool(const FTorqueResolvedPart&)> Keep, TArray<UStaticMeshComponent*>& Out)
+{
 	FTransform Fix;
 	TMap<FName, FVector> Origins;
 	if (!LoadFrame(Fix, Origins)) return 0;
@@ -180,7 +192,7 @@ int32 MakeParts(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Buil
 	int32 Made = 0;
 	for (const FTorqueResolvedPart& P : Resolved)
 	{
-		if (!OnlySlot.IsNone() && P.Slot != OnlySlot) continue;
+		if (!Keep(P)) continue;
 		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *P.Mesh);
 		if (!Mesh) continue;
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
@@ -197,7 +209,8 @@ int32 MakeParts(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Buil
 		C->SetRelativeTransform(Fix * P.Delta * Group);
 		if (!P.Material.IsEmpty())
 			if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *P.Material)) C->SetMaterial(0, M);
-		if (!P.Slot.IsNone()) C->ComponentTags.Add(FName(*(FString(SlotPrefix) + P.Slot.ToString())));
+		const FName Slot = TorqueShedParts::SlotOfModelPart(P);
+		if (!Slot.IsNone()) C->ComponentTags.Add(FName(*(FString(SlotPrefix) + Slot.ToString())));
 		C->ComponentTags.Add(FName(*(TEXT("Part:") + P.Name.ToString())));
 		C->RegisterComponent();
 		Out.Add(C);
@@ -245,9 +258,7 @@ void ATorqueShedBike::BeginPlay()
 		Watch = B->OnChanged.AddUObject(this, &ATorqueShedBike::BikeChanged);
 		WatchLooks = B->OnLooks.AddUObject(this, &ATorqueShedBike::LooksChanged);
 		// Back from a ride: the bike comes in dirtier (the host's to do; clients hear it from the host).
-		TArray<FName> Names;
-		for (const UStaticMeshComponent* C : Parts) Names.Add(TorqueShedModel::PartTag(C));
-		B->Arrived(Bay, Names);
+		B->Arrived(Bay);
 	}
 }
 
@@ -283,7 +294,9 @@ void ATorqueShedBike::Rebuild()
 		return;
 	}
 	const FTorqueBuild& Build = B ? B->Get(Bay) : UTorqueBuildSubsystem::BuildFor(this);
-	const int32 Made = TorqueShedModel::MakeParts(this, BikeRoot, Build, NAME_None, Parts);
+	const int32 InBay = Bay;
+	const int32 Made = TorqueShedModel::MakePartsWhere(this, BikeRoot, Build,
+		[B, InBay](const FTorqueResolvedPart& P) { return !B || B->ShowsModelPart(InBay, P); }, Parts);
 	if (Made == 0) BuildGreyBox();
 	Relook();
 	UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %s drawn with %d parts"), Bay + 1, *Build.Bike.ToString(), Parts.Num());
@@ -291,20 +304,22 @@ void ATorqueShedBike::Rebuild()
 
 void ATorqueShedBike::BuildGreyBox()
 {
-	// No imported model: blocks the size of the Speed Twin, with the two swappable slots tagged so
-	// the walker can still try a swap (it changes the build; these shapes don't change).
+	// No imported model: blocks the size of the Speed Twin, tagged with their slots so the walker
+	// can still work on them; a slot with nothing in it isn't drawn.
 	struct FBlock { const TCHAR* Part; const TCHAR* Slot; bool bCylinder; FVector At, Size; FRotator Rot; };
 	const FBlock Blocks[] = {
-		{TEXT("front_tyre"), nullptr, true, FVector(70.6, 0, 0), FVector(60, 12, 60), FRotator(0, 0, 90)},
-		{TEXT("rear_tyre"), nullptr, true, FVector(-70.6, 0, 0), FVector(62, 16, 62), FRotator(0, 0, 90)},
-		{TEXT("engine"), nullptr, false, FVector(0, 0, 10), FVector(45, 40, 40), FRotator::ZeroRotator},
-		{TEXT("tank"), nullptr, false, FVector(10, 0, 52), FVector(55, 32, 22), FRotator::ZeroRotator},
-		{TEXT("seat"), nullptr, false, FVector(-38, 0, 52), FVector(55, 26, 10), FRotator::ZeroRotator},
+		{TEXT("front_tyre"), TEXT("front_tyre"), true, FVector(70.6, 0, 0), FVector(60, 12, 60), FRotator(0, 0, 90)},
+		{TEXT("rear_tyre"), TEXT("rear_tyre"), true, FVector(-70.6, 0, 0), FVector(62, 16, 62), FRotator(0, 0, 90)},
+		{TEXT("crankcase"), TEXT("engine"), false, FVector(0, 0, 10), FVector(45, 40, 40), FRotator::ZeroRotator},
+		{TEXT("tank"), TEXT("tank"), false, FVector(10, 0, 52), FVector(55, 32, 22), FRotator::ZeroRotator},
+		{TEXT("seat"), TEXT("saddle"), false, FVector(-38, 0, 52), FVector(55, 26, 10), FRotator::ZeroRotator},
 		{TEXT("silencers"), TEXT("exhaust"), true, FVector(-55, 20, 5), FVector(10, 10, 60), FRotator(-70, 0, 0)},
 		{TEXT("handlebar"), TEXT("handlebars"), true, FVector(40, 0, 66), FVector(3, 3, 76), FRotator(0, 0, 90)},
 	};
+	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
 	for (const FBlock& B : Blocks)
 	{
+		if (Sub && B.Slot && Sub->ItemOn(Bay, FName(B.Slot)) == 0) continue;
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 		C->SetStaticMesh(B.bCylinder ? ShapeCylinder : ShapeCube);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);

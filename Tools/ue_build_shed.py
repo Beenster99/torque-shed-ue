@@ -393,6 +393,16 @@ def bays(m):
         sx = BAY_SCREEN_X[i]
         box("BayScreen_%d" % (i + 1), sx - 130, sx + 130, -HALF_Y, -HALF_Y + 6, 245 - 73, 245 + 73, m["dark"], folder="Bays", collide=False)
         box("BayScreen_%d_Glass" % (i + 1), sx - 124, sx + 124, -HALF_Y + 6, -HALF_Y + 7, 245 - 67, 245 + 67, m["screen"], folder="Bays", collide=False)
+    # Every part that isn't on a bike (on the benches and machines, on the floor, boxed in the
+    # deliveries bay, in someone's hands) is drawn by one ATorqueShedItems (the walker makes one if
+    # it's missing).
+    items_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorqueShedItems")
+    if items_cls:
+        it = actors.spawn_actor_from_class(items_cls, unreal.Vector(0.0, 0.0, 0.0), unreal.Rotator(0.0, 0.0, 0.0))
+        it.set_actor_label("ShedItems")
+        it.set_folder_path("Bays")
+    else:
+        unreal.log_warning("[Torque] no TorqueShedItems class: build the C++ first")
 
 
 # --- What's in it (workshop.gd _build_bench, _build_computer, _build_bin, _build_radio; the fixed

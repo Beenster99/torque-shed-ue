@@ -23,7 +23,7 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATorqueGameState, Weather);
-	DOREPLIFETIME(ATorqueGameState, ShedBays);
+	DOREPLIFETIME(ATorqueGameState, Shed);
 }
 
 void ATorqueGameState::BeginPlay()
@@ -44,12 +44,11 @@ void ATorqueGameState::BeginPlay()
 		const ATorquePlayerState* PS = P->GetPlayerState<ATorquePlayerState>();
 		return PS ? PS->Bay : -1;
 	});
-	// Hosting: send every bay now, and each again whenever it changes.
+	// Hosting: send the shed now, and again whenever it changes.
 	if (HasAuthority() && GetNetMode() != NM_Standalone)
 	{
-		ShedBays.SetNum(Build->NumBikes());
-		for (int32 I = 0; I < ShedBays.Num(); ++I) SendBay(I);
-		HostChangeHandle = Build->OnHostChange.AddUObject(this, &ATorqueGameState::SendBay);
+		SendShed();
+		HostChangeHandle = Build->OnHostChange.AddUObject(this, &ATorqueGameState::SendShed);
 	}
 }
 
@@ -63,28 +62,22 @@ void ATorqueGameState::EndPlay(const EEndPlayReason::Type Reason)
 	Super::EndPlay(Reason);
 }
 
-void ATorqueGameState::SendBay(int32 Bay)
+void ATorqueGameState::SendShed()
 {
 	const UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
-	if (!Build || !HasAuthority() || Bay < 0 || Bay >= Build->NumBikes()) return;
-	if (ShedBays.Num() < Build->NumBikes()) ShedBays.SetNum(Build->NumBikes());
-	ShedBays[Bay].Data = TorqueShedNet::Write(Build->Snapshot(Bay));
-	++ShedBays[Bay].Version;
+	if (!Build || !HasAuthority()) return;
+	TArray<uint8> Data;
+	if (!Build->SaveShed(Data)) return;
+	Shed.Data = MoveTemp(Data);
+	++Shed.Version;
 	ForceNetUpdate();
 }
 
 void ATorqueGameState::OnRep_Shed()
 {
 	UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
-	if (!Build) return;
-	AppliedVersions.SetNumZeroed(ShedBays.Num());
-	for (int32 I = 0; I < ShedBays.Num(); ++I)
-	{
-		if (ShedBays[I].Version == 0 || ShedBays[I].Version == AppliedVersions[I]) continue;
-		FTorqueShedBike Bike;
-		if (TorqueShedNet::Read(ShedBays[I].Data, Bike)) Build->ApplyFromHost(I, Bike);
-		AppliedVersions[I] = ShedBays[I].Version;
-	}
+	if (!Build || Shed.Version == 0 || Shed.Version == AppliedVersion) return;
+	if (Build->LoadShedFromHost(Shed.Data)) AppliedVersion = Shed.Version;
 }
 
 void ATorqueGameState::SetWeather(int32 NewWeather)

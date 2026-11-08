@@ -317,12 +317,13 @@ void ATorqueBikePawn::BuildModel()
 		TArray<FTorqueFitClash> Clashes;
 		// The bike as built in the shed (it rides out with you); -TorqueBuild= on the command line
 		// overrides it for testing swaps without the shed.
-		const FTorqueBuild Build = FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) != nullptr
-			? TorqueFit::BuildFromCommandLine() : UTorqueBuildSubsystem::BuildFor(this);
+		const bool bCommandLineBuild = FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) != nullptr;
+		const FTorqueBuild Build = bCommandLineBuild ? TorqueFit::BuildFromCommandLine() : UTorqueBuildSubsystem::BuildFor(this);
 		if (TorqueFit::ResolveModel(Build, Resolved, &Clashes))
 		{
 			for (const FTorqueResolvedPart& R : Resolved)
-				ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta, R.Unit});
+				if (bCommandLineBuild || UTorqueBuildSubsystem::RidesWith(this, R))   // what the shed took off stays off
+					ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta, R.Unit});
 			for (const TPair<FName, FName>& KV : Build.Fitted)
 				UE_LOG(LogTemp, Log, TEXT("Torque fit: %s: %s"), *KV.Key.ToString(), *KV.Value.ToString());
 			for (const FTorqueFitClash& C : Clashes)

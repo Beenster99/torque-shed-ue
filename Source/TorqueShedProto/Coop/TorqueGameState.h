@@ -1,7 +1,7 @@
 // What everyone in a ride shares, owned by the host:
 // - the weather: the host changes it (V or D-pad right on the bike, or -TorqueWeather= at launch)
 //   and every machine applies the same sun, sky, haze, exposure and wet roads;
-// - the shed's bays (TorqueShedNet.h): the host's bikes, sent to everyone as they change.
+// - the shed (TorqueShedNet.h): the host's bikes and parts, sent to everyone as they change.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -27,11 +27,11 @@ public:
 private:
 	UPROPERTY(ReplicatedUsing = OnRep_Weather) int32 Weather = 0;
 
-	// The shed: one entry per bay, written by the host, read by everyone else.
-	UPROPERTY(ReplicatedUsing = OnRep_Shed) TArray<FTorqueShedBayNet> ShedBays;
+	// The shed: written by the host, read by everyone else.
+	UPROPERTY(ReplicatedUsing = OnRep_Shed) FTorqueShedBayNet Shed;
 	UFUNCTION() void OnRep_Shed();
-	void SendBay(int32 Bay);
-	TArray<int32> AppliedVersions;
+	void SendShed();
+	int32 AppliedVersion = 0;
 	FDelegateHandle HostChangeHandle;
 	UFUNCTION() void OnRep_Weather();
 
