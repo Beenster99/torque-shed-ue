@@ -2,6 +2,7 @@
 #include "BikePartsKit.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <memory>
 
@@ -193,6 +194,7 @@ bool BikeParts::Put(std::vector<FittedPart>& Out, const std::string& Slot, const
 
 PartMesh BikeParts::Draw(const PartMesh& Glb, const FittedPart& P)
 {
+	if (P.Made) return *P.Made;
 	if (P.Copies.empty()) return Glb.Deformed(P.Weights, P.Warp);
 	PartMesh Out;
 	for (const PartMesh::Warp& W : P.Copies)
@@ -2210,6 +2212,253 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 	}
 }
 
+namespace
+{
+// A loft section (ShapeKit.loft's): centre, half width, rise, drop and squareness.
+struct ShellSec { V3 C; double W, Up, Down, N; };
+
+// ShapeKit.loft's (and BlenderParts.loft_rows') rings of an open loft from A0 to A1, Godot frame.
+std::vector<std::vector<V3>> ShellRows(const std::vector<ShellSec>& Secs, double A0, double A1)
+{
+	constexpr int Ring = 28;
+	const double Span = A1 - A0;
+	const int Steps = std::max(4, static_cast<int>(std::lround(Ring * Span / (2.0 * TorqueSim::Pi))));
+	const int Count = static_cast<int>(Secs.size());
+	std::vector<std::vector<V3>> Rows;
+	for (int I = 0; I < Count; ++I)
+	{
+		const ShellSec& S = Secs[I];
+		V3 T = Secs[std::min(I + 1, Count - 1)].C - Secs[std::max(I - 1, 0)].C;
+		T.x = 0.0;
+		T = T.Length() > 0.0001 ? T.Normalized() : V3(0.0, 0.0, 1.0);
+		const V3 Up = T.Cross(V3(1.0, 0.0, 0.0)).Normalized();
+		const double E = 2.0 / S.N;
+		std::vector<V3> Pts;
+		for (int J = 0; J <= Steps; ++J)
+		{
+			const double A = A0 + Span * J / Steps, Ca = std::cos(A), Sa = std::sin(A);
+			const double X = (Ca > 0.0 ? 1.0 : Ca < 0.0 ? -1.0 : 0.0) * std::pow(std::fabs(Ca), E) * S.W;
+			const double Y = (Sa > 0.0 ? 1.0 : Sa < 0.0 ? -1.0 : 0.0) * std::pow(std::fabs(Sa), E) * (Sa > 0.0 ? S.Up : S.Down);
+			Pts.push_back(S.C + V3(X, 0.0, 0.0) + Up * Y);
+		}
+		Rows.push_back(Pts);
+	}
+	return Rows;
+}
+
+// The loft's outer normals (ShapeKit.loft: across the ring crossed with along, turned out from
+// the section's centre).
+std::vector<std::vector<V3>> ShellLoftNormals(const std::vector<std::vector<V3>>& Rows, const std::vector<ShellSec>& Secs)
+{
+	const int Count = static_cast<int>(Rows.size()), Width = static_cast<int>(Rows[0].size());
+	std::vector<std::vector<V3>> N(Count, std::vector<V3>(Width));
+	for (int I = 0; I < Count; ++I)
+		for (int J = 0; J < Width; ++J)
+		{
+			const V3 Across = Rows[I][std::min(J + 1, Width - 1)] - Rows[I][std::max(J - 1, 0)];
+			const V3 Along = Rows[std::min(I + 1, Count - 1)][J] - Rows[std::max(I - 1, 0)][J];
+			V3 Nm = Across.Cross(Along).Normalized();
+			if (Nm.Dot(Rows[I][J] - Secs[I].C) < 0.0) Nm = Nm * -1.0;
+			N[I][J] = Nm;
+		}
+	return N;
+}
+
+// BlenderParts._grid_normals: each grid point's normal from the faces round it, turned as Outer.
+std::vector<std::vector<V3>> ShellGridNormals(const std::vector<std::vector<V3>>& Rows, const V3& Outer)
+{
+	const int Count = static_cast<int>(Rows.size()), Width = static_cast<int>(Rows[0].size());
+	std::vector<std::vector<V3>> N(Count, std::vector<V3>(Width));
+	for (int I = 0; I + 1 < Count; ++I)
+		for (int J = 0; J + 1 < Width; ++J)
+		{
+			const V3 A = Rows[I][J];
+			V3 Fn = (Rows[I][J + 1] - A).Cross(Rows[I + 1][J] - A);
+			Fn += (Rows[I + 1][J + 1] - Rows[I + 1][J]).Cross(Rows[I + 1][J + 1] - Rows[I][J + 1]);
+			N[I][J] += Fn; N[I][J + 1] += Fn; N[I + 1][J] += Fn; N[I + 1][J + 1] += Fn;
+		}
+	const double Turn = N[0][0].Dot(Outer) < 0.0 ? -1.0 : 1.0;
+	for (auto& Row : N)
+		for (V3& V : Row) V = (V * Turn).Normalized();
+	return N;
+}
+
+// BlenderParts._grid_edges: the first row, the last, the first point across and the last, each
+// as its points and the ones next in from them ({row, across}).
+using ShellEdge = std::pair<std::vector<std::pair<int, int>>, std::vector<std::pair<int, int>>>;
+std::vector<ShellEdge> ShellGridEdges(int Count, int Width)
+{
+	std::vector<ShellEdge> E(4);
+	for (int J = 0; J < Width; ++J)
+	{
+		E[0].first.push_back({0, J}); E[0].second.push_back({1, J});
+		E[1].first.push_back({Count - 1, J}); E[1].second.push_back({Count - 2, J});
+	}
+	for (int I = 0; I < Count; ++I)
+	{
+		E[2].first.push_back({I, 0}); E[2].second.push_back({I, 1});
+		E[3].first.push_back({I, Width - 1}); E[3].second.push_back({I, Width - 2});
+	}
+	return E;
+}
+} // namespace
+
+void BikeParts::BarFairing(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* P = Lay.Part(PartIn(Parts, "fairing"));
+	if (!P || P->Flag("frame_mount") || !Meshes) return;
+	const Json* Look = P->Get("look");
+	const std::string Style = P->Str("style", "half");
+	const std::string Shape = PartStr(Look, "shape", Style);
+	if (!(Style == "flyscreen" || Style == "bikini" || Shape == "batwing" || Shape == "cowl")) return;
+	const V3 H = ToGodot(L.Head);
+	const double Screen = P->Num("screen", 0.15);
+	// (_surface: a carbon one's edges are carbon.)
+	std::string Words = PartIn(Parts, "fairing") + " " + P->Str("name") + " " + P->Str("type") + " " + P->Str("material");
+	for (char& Ch : Words) Ch = static_cast<char>(std::tolower(static_cast<unsigned char>(Ch)));
+	const bool Carbon = PartStr(Look, "surface", Words.find("carbon") != std::string::npos && Words.find("white") == std::string::npos && Words.find("painted") == std::string::npos ? "carbon" : "") == "carbon";
+	// One open shell: the code's loft set in by the edge section's thickness, the section run round
+	// its four edges (BlenderParts.shell), and for a screen its fasteners (edge_spots).
+	auto Shell = [&](const std::vector<ShellSec>& Secs, double A0, double A1, const std::string& Kind) {
+		const std::string EdgePath = "fairing/edge/" + Kind + ".glb";
+		PartMesh EdgeOurs;
+		if (Secs.size() < 2 || !Meshes(EdgePath, EdgeOurs) || EdgeOurs.Surfaces.empty()) return;
+		const PartSurface& Es = EdgeOurs.Surfaces[0];
+		double Thick = 0.0;
+		for (const V3& V : Es.Pos) Thick = std::max(Thick, -V.y);
+		const std::vector<std::vector<V3>> Rows = ShellRows(Secs, A0, A1);
+		const std::vector<std::vector<V3>> Ln = ShellLoftNormals(Rows, Secs);
+		const int Count = static_cast<int>(Rows.size()), Width = static_cast<int>(Rows[0].size());
+		auto Made = std::make_shared<PartMesh>();
+		PartSurface S;
+		S.Material = Es.Material;
+		auto Add = [&](const V3& G, const V3& Gn, double U, double V) {
+			S.Pos.push_back(FromGodot(G + H));
+			S.Nrm.push_back(FromGodot(Gn));
+			S.U.push_back(U);
+			S.V.push_back(V);
+			return static_cast<unsigned>(S.Pos.size() - 1);
+		};
+		// (Each triangle wound to face Out, as ShapeKit._tri_facing, for our meshes' way round.)
+		auto Tri = [&](unsigned A, unsigned B, unsigned C, const V3& OutDir) {
+			const V3 Face = (S.Pos[B] - S.Pos[A]).Cross(S.Pos[C] - S.Pos[A]);
+			if (Face.Dot(FromGodot(OutDir)) >= 0.0) S.Idx.insert(S.Idx.end(), {A, B, C});
+			else S.Idx.insert(S.Idx.end(), {A, C, B});
+		};
+		for (int Face = 0; Face < 2; ++Face)
+		{
+			const double Sg = Face == 0 ? 1.0 : -1.0;
+			const unsigned Base = static_cast<unsigned>(S.Pos.size());
+			for (int I = 0; I < Count; ++I)
+				for (int J = 0; J < Width; ++J)
+					Add(Rows[I][J] - (Face == 0 ? V3() : Ln[I][J] * Thick), Ln[I][J] * Sg, static_cast<double>(J) / std::max(Width - 1, 1), static_cast<double>(I) / std::max(Count - 1, 1));
+			for (int I = 0; I + 1 < Count; ++I)
+				for (int J = 0; J + 1 < Width; ++J)
+				{
+					const unsigned A = Base + I * Width + J, B = A + 1, C = A + Width, D = C + 1;
+					Tri(A, C, B, (Ln[I][J] + Ln[I + 1][J] + Ln[I][J + 1]) * Sg);
+					Tri(B, C, D, (Ln[I][J + 1] + Ln[I + 1][J] + Ln[I + 1][J + 1]) * Sg);
+				}
+		}
+		// The edge section (Godot frame: X across, Y up out of the face, Z 0..1 along) laid along
+		// each stretch of each edge, out from the shell (BlenderParts._along).
+		const std::vector<std::vector<V3>> Gn = ShellGridNormals(Rows, Ln[0][0]);
+		for (const ShellEdge& E : ShellGridEdges(Count, Width))
+			for (size_t K = 0; K + 1 < E.first.size(); ++K)
+			{
+				V3 A = Rows[E.first[K].first][E.first[K].second], B = Rows[E.first[K + 1].first][E.first[K + 1].second];
+				if ((B - A).Dot(B - A) < 1e-8) continue;
+				V3 Na = Gn[E.first[K].first][E.first[K].second], Nb = Gn[E.first[K + 1].first][E.first[K + 1].second];
+				const V3 Hint = (Rows[E.second[K].first][E.second[K].second] + Rows[E.second[K + 1].first][E.second[K + 1].second]) * 0.5;
+				const V3 OutDir = (A + B) * 0.5 - Hint;
+				if ((Na + Nb).Normalized().Cross(B - A).Dot(OutDir) < 0.0) { std::swap(A, B); std::swap(Na, Nb); }
+				const V3 Along = (B - A).Normalized();
+				const unsigned Base = static_cast<unsigned>(S.Pos.size());
+				for (size_t Q = 0; Q < Es.Pos.size(); ++Q)
+				{
+					const V3 Sv = ToGodot(Es.Pos[Q]), Sn = ToGodot(Es.Nrm[Q]);
+					const double F = TorqueSim::Clamp(Sv.z, 0.0, 1.0);
+					V3 Up = MixV(Na, Nb, F);
+					Up = (Up - Along * Up.Dot(Along)).Normalized();
+					const V3 Across = Up.Cross(Along).Normalized();
+					Add(MixV(A, B, F) + Across * Sv.x + Up * Sv.y, (Across * Sn.x + Up * Sn.y + Along * Sn.z).Normalized(), Es.U[Q], Es.V[Q]);
+				}
+				for (unsigned I : Es.Idx) S.Idx.push_back(Base + I);
+			}
+		Made->Surfaces.push_back(std::move(S));
+		FittedPart F;
+		F.Slot = "fairing";
+		F.Glb = EdgePath;
+		F.Node = "steer";
+		F.Made = Made;
+		Out.push_back(F);
+		if (Kind != "screen") return;
+		// A screen held on along its foot by screws into well nuts (edge_spots on its first row).
+		const std::string Fastener = "fairing/fastener/button.glb";
+		const std::vector<ShellEdge> Edges = ShellGridEdges(Count, Width);
+		const ShellEdge& E = Edges[0];
+		std::vector<double> Lengths = {0.0};
+		for (size_t K = 1; K < E.first.size(); ++K)
+			Lengths.push_back(Lengths.back() + (Rows[E.first[K].first][E.first[K].second] - Rows[E.first[K - 1].first][E.first[K - 1].second]).Length());
+		constexpr double Spacing = 0.09, Inset = 0.012;
+		const double Total = Lengths.back();
+		if (Total < Spacing || !HasGlb(Fastener)) return;
+		const int N = static_cast<int>(std::floor(Total / Spacing));
+		const double Gap = (Total - Spacing * (N - 1)) * 0.5;
+		FittedPart Fs;
+		Fs.Slot = "fairing";
+		Fs.Glb = Fastener;
+		Fs.Node = "steer";
+		size_t K = 1;
+		for (int C = 0; C < N; ++C)
+		{
+			const double At = Gap + Spacing * C;
+			while (K < E.first.size() - 1 && Lengths[K] < At) ++K;
+			const double Ft = TorqueSim::Clamp((At - Lengths[K - 1]) / std::max(Lengths[K] - Lengths[K - 1], 0.0001), 0.0, 1.0);
+			const V3 A = Rows[E.first[K - 1].first][E.first[K - 1].second], B = Rows[E.first[K].first][E.first[K].second];
+			const V3 Pt = MixV(A, B, Ft);
+			const V3 Hint = MixV(Rows[E.second[K - 1].first][E.second[K - 1].second], Rows[E.second[K].first][E.second[K].second], Ft);
+			const V3 Up = MixV(Gn[E.first[K - 1].first][E.first[K - 1].second], Gn[E.first[K].first][E.first[K].second], Ft).Normalized();
+			V3 Into = Hint - Pt;
+			Into = Into - Up * Into.Dot(Up);
+			if (Into.Length() < Inset * 1.5) continue;
+			V3 Along = (B - A).Normalized();
+			Along = (Along - Up * Along.Dot(Up)).Normalized();
+			Fs.Copies.push_back(BasisCols(Up.Cross(Along), Up, Along, Pt + Into.Normalized() * Inset + H).Warp());
+		}
+		if (!Fs.Copies.empty()) Out.push_back(Fs);
+	};
+	const V3 Lamp(0.0, -0.08, -0.13);   // the headlight, in the steering's space
+	const bool Big = Style == "bikini" || Shape == "batwing";
+	double W = Shape == "batwing" ? 0.3 : Shape == "cowl" ? 0.11 : (Big ? 0.17 : 0.12);
+	W *= PartNum(Look, "wide", 1.0);
+	const double Tall = PartNum(Look, "tall", 1.0) * (Shape == "batwing" ? 1.25 : 1.0);
+	const double Low = Shape == "batwing" ? 1.8 : (Big ? 1.3 : 0.7);
+	std::vector<ShellSec> Secs;
+	for (int K = 0; K < 4; ++K)
+	{
+		const double F = K / 3.0;
+		Secs.push_back({Lamp + V3(0.0, 0.01 * F, TorqueSim::Lerp(-0.05, 0.1, F)), W * TorqueSim::Lerp(0.85, 1.05, F),
+			TorqueSim::Lerp(0.1, 0.12, F) * (Big ? 1.1 : 1.0) * Tall, TorqueSim::Lerp(0.08, 0.1, F) * Low, PartNum(Look, "n", 2.6)});
+	}
+	Shell(Secs, -0.45, TorqueSim::Pi + 0.45, Carbon ? "carbon" : "moulded");
+	if (Shape != "cowl" || Screen > 0.05)
+	{
+		// (_screen: a pane up from the shell's top, tilted back.)
+		const ShellSec& Top = Secs[1];
+		const V3 Base = Top.C + V3(0.0, Top.Up - 0.01, 0.0);
+		const double Tilt = Shape == "batwing" ? 0.35 : 0.45, Half = W * 0.8;
+		const V3 Dir(0.0, std::cos(Tilt), std::sin(Tilt));
+		std::vector<ShellSec> Pane;
+		for (int K = 0; K < 4; ++K)
+		{
+			const double F = K / 3.0;
+			Pane.push_back({Base + Dir * (Screen * F) - V3(0.0, 0.035, 0.0), Half * TorqueSim::Lerp(1.0, 0.8, F), 0.04, 0.0, 2.0});
+		}
+		Shell(Pane, 0.25, TorqueSim::Pi - 0.25, "screen");
+	}
+}
+
 void BikeParts::TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
 {
 	const Json* P = Lay.Part(PartIn(Parts, "tank_bag"));
@@ -2384,6 +2633,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	V3 FrameLo, FrameHi;
 	const double FrameHalfW = std::max(CodeHalfW, DrawnBox(Out, {"frame"}, FrameLo, FrameHi) ? (FrameHi.x - FrameLo.x) * 0.5 : 0.0);
 	const std::map<std::string, V3> FairingMounts = Fairing(Parts, L, FrameHalfW, Out);
+	BarFairing(Parts, L, Out);
 	Mirrors(Parts, L, Bar, FairingMounts, Out);
 	Indicators(Parts, L, Out);
 	FrontMudguard(Parts, L, Out);

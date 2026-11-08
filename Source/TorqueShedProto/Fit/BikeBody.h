@@ -10,6 +10,7 @@
 #include "PartMesh.h"
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,9 @@ struct FittedPart
 	std::vector<PartMesh::Warp> Copies;
 	// Placed but not drawn, as Godot hides it (the plain headlight inside a full fairing).
 	bool Hidden = false;
+	// A mesh made here rather than a glb deformed (a bar fairing's shell, the code's loft given the
+	// thickness and edges of the Glb section): BikeParts::Draw hands it back as it is.
+	std::shared_ptr<const PartMesh> Made;
 };
 
 // A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.

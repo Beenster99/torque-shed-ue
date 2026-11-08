@@ -181,8 +181,10 @@ bike rides (steering, a hub, a wheel or the swingarm). The Godot reference recor
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
 plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators, front mudguards, frames and fairings), each on its style's reference bike. `layout_test` requires all of
-them to match surface by surface. Still to port: a phone satnav (fitted round the bars), Godot's code-drawn shells (a fairing on the bars among
-them) and brake hoses, and its hiding of what a full fairing covers.
+them to match surface by surface. A fairing on the bars (flyscreen, headlight cowl, bikini, batwing) is Godot's code loft given the
+Blender edge section's thickness and edges, and its screen's fasteners: made here as a mesh
+(FittedPart.Made) rather than a glb deformed. Still to port: a phone satnav (fitted round the bars),
+Godot's other code-drawn shells and brake hoses, and its hiding of what a full fairing covers.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

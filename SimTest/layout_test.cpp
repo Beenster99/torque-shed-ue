@@ -492,15 +492,11 @@ int main(int argc, char** argv)
 				if (Sw.Get("glb")->Get(Slot)) Running[Slot] = ByTag;
 			int Slots = 0;
 			std::string Wrong = Compare(Running, Sw.Get("glb"), false, Slots);
-			// (A fairing on the bars is Godot's code-drawn shell given Blender edges and fasteners
-			// (BlenderParts.shell): not ported yet.)
-			const Json* Fairing = Lay.Part(B.count("fairing") ? B.at("fairing") : "none");
-			const bool CodeFairing = Fairing && !Fairing->Flag("frame_mount");
 			// (A phone satnav is fitted round the bars by trying places for it: not ported yet.)
 			const Json* Nav = Lay.Part(B.count("satnav") ? B.at("satnav") : "none");
 			const bool PhoneNav = Nav && Nav->Str("style") == "phone";
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
-				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "fairing" && CodeFairing) && !(Slot == "satnav" && PhoneNav)) Wrong += " " + Slot + " missing";
+				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "satnav" && PhoneNav)) Wrong += " " + Slot + " missing";
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
 			if (Wrong.empty()) ++Right;
