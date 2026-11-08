@@ -35,6 +35,13 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
+	// For hands-off tests (UTorqueShedTest, -TorqueShedAction=): stand Distance cm from a point,
+	// on the side Away points to, and look at it; then press what E (Cross) or F (Triangle) does.
+	// Both go through the same targeting and the same Use / ride out as the keys, and say what
+	// they found or did.
+	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
+	FString TestPress(bool bRideOut);
+
 	// After walker.gd: eye 1.62 m, walk 3.2 m/s, hurry 5.5 m/s, reach 2.6 m.
 	UPROPERTY(EditAnywhere, Category = "Walker") float WalkSpeed = 320.0f;
 	UPROPERTY(EditAnywhere, Category = "Walker") float RunSpeed = 550.0f;
@@ -57,6 +64,15 @@ private:
 	FString Note;                     // a line under the prompt for a moment: what was fitted, or why not
 	double NoteFor = 0.0;
 	TArray<FHudLine> HudLines;
+
+	// Performance, as on the bike: P shows it, O (or -TorqueProfile) logs it each second to
+	// Saved/Profiling/torque_shed_perf_<time>.csv.
+	bool bPerfShow = false, bPerfLog = false;
+	double PerfClock = 0.0, PerfSum = 0.0, PerfWorst = 0.0, PerfRun = 0.0;
+	int32 PerfFrames = 0;
+	FString PerfText, PerfFile;
+	void UpdatePerf(float Dt);
+	FString Describe() const;
 
 	void ReadInput(float Dt, bool& bUse, bool& bRide);
 	void FindTarget();

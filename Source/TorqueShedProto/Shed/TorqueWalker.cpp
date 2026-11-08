@@ -17,6 +17,15 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "HAL/FileManager.h"
+#include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "RenderCore.h"
+#include "RHI.h"
+#include "UnrealClient.h"
 
 ATorqueWalker::ATorqueWalker()
 {
@@ -79,6 +88,7 @@ ATorqueWalker::~ATorqueWalker() = default;
 void ATorqueWalker::BeginPlay()
 {
 	Super::BeginPlay();
+	if (FParse::Param(FCommandLine::Get(), TEXT("TorqueProfile"))) { bPerfShow = true; bPerfLog = true; }
 }
 
 void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
@@ -102,8 +112,11 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		UpdateHud();
 		return;
 	}
+	UpdatePerf(DeltaSeconds);
 	bool bUse = false, bRide = false;
-	ReadInput(DeltaSeconds, bUse, bRide);
+	// Hands-off test runs (-TorqueNoInput) ignore the pad, keys and mouse, as on the bike.
+	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
+	if (!bNoInput) ReadInput(DeltaSeconds, bUse, bRide);
 	FindTarget();
 	if (bUse) Use();
 	if (bRide)
@@ -168,6 +181,12 @@ void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide)
 	bUse = Just(EKeys::E) || Just(EKeys::LeftMouseButton) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
 	bRide = Just(EKeys::F) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
 	if (Just(EKeys::H)) bShowHelp = !bShowHelp;
+	if (Just(EKeys::P)) bPerfShow = !bPerfShow;
+	if (Just(EKeys::O))
+	{
+		bPerfLog = !bPerfLog;
+		if (!bPerfLog) PerfFile.Reset();
+	}
 	const bool bPadQuit = (SonyDown & ESonyButton::Create) && (SonyDown & ESonyButton::Options);
 	const bool bXboxQuit = Down(EKeys::Gamepad_Special_Left) > 0.5f && Down(EKeys::Gamepad_Special_Right) > 0.5f;
 	if (Just(EKeys::Escape) || bPadQuit || bXboxQuit) PC->ConsoleCommand(TEXT("quit"));
@@ -204,7 +223,9 @@ void ATorqueWalker::FindTarget()
 	UWorld* World = GetWorld();
 	if (!World || !Camera) return;
 	const FVector Start = Camera->GetComponentLocation();
-	const FVector End = Start + Camera->GetForwardVector() * Reach;
+	// Where the player looks (the camera follows it a frame later).
+	const FVector Look = Controller ? GetControlRotation().Vector() : Camera->GetForwardVector();
+	const FVector End = Start + Look * Reach;
 
 	// Walls, the bench and shelves stop the look; the parts are tested against their boxes.
 	double Clear = 1.0;
@@ -330,6 +351,7 @@ void ATorqueWalker::UpdateHud()
 		break;
 	}
 	if (NoteFor > 0.0) HudLines.Add({Note, FColor(170, 230, 170), 0.65f});
+	if (bPerfShow && !PerfText.IsEmpty()) HudLines.Add({PerfText, FColor(255, 255, 160), 0.55f});
 	if (bShowHelp)
 	{
 		const FColor Help(200, 200, 200);
@@ -337,4 +359,88 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("E / Cross: swap the part you look at, or fit a spare from the bench"), Help, 0.5f});
 		HudLines.Add({TEXT("F / Triangle: ride out   Space / Circle: hop   H: hide help   Esc: quit"), Help, 0.5f});
 	}
+}
+
+void ATorqueWalker::UpdatePerf(float Dt)
+{
+	PerfClock += Dt;
+	PerfRun += Dt;
+	PerfSum += Dt;
+	PerfWorst = FMath::Max(PerfWorst, (double)Dt);
+	++PerfFrames;
+	if (PerfClock < 1.0) return;
+	const double AvgMs = PerfSum / FMath::Max(PerfFrames, 1) * 1000.0;
+	const double Fps = PerfFrames / PerfClock;
+	const double GameMs = FPlatformTime::ToMilliseconds(GGameThreadTime);
+	const double RenderMs = FPlatformTime::ToMilliseconds(GRenderThreadTime);
+	const double GpuMs = FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0));
+	FIntPoint Res(0, 0);
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport) Res = GEngine->GameViewport->Viewport->GetSizeXY();
+	PerfText = FString::Printf(TEXT("%.0f fps   frame %.1f ms (worst %.1f)   game %.1f   render %.1f   GPU %.1f ms   %dx%d"),
+		Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y);
+	if (bPerfLog)
+	{
+		if (PerfFile.IsEmpty())
+		{
+			PerfFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Profiling"),
+				FString::Printf(TEXT("torque_shed_perf_%s.csv"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"))));
+			FFileHelper::SaveStringToFile(TEXT("time_s,fps,frame_ms,worst_ms,game_ms,render_ms,gpu_ms,width,height,x_cm,y_cm,yaw\n"), *PerfFile);
+			UE_LOG(LogTemp, Log, TEXT("Torque: logging shed performance to %s"), *PerfFile);
+		}
+		const FVector At = GetActorLocation();
+		FFileHelper::SaveStringToFile(FString::Printf(TEXT("%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%.0f,%.0f,%.0f\n"),
+			PerfRun, Fps, AvgMs, PerfWorst * 1000.0, GameMs, RenderMs, GpuMs, Res.X, Res.Y, At.X, At.Y, GetControlRotation().Yaw),
+			*PerfFile, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append);
+	}
+	PerfClock = 0.0;
+	PerfSum = 0.0;
+	PerfWorst = 0.0;
+	PerfFrames = 0;
+}
+
+FString ATorqueWalker::Describe() const
+{
+	switch (Target)
+	{
+	case ETorqueLook::BikePart: return FString::Printf(TEXT("bike part %s (slot %s)"), *TargetModelPart.ToString(), *TargetSlot.ToString());
+	case ETorqueLook::Spare: return FString::Printf(TEXT("spare %s for %s (%s)"), *TargetPart.ToString(), *TargetSlot.ToString(), *TargetModelPart.ToString());
+	case ETorqueLook::Door: return TEXT("the roller door");
+	default: return TEXT("nothing");
+	}
+}
+
+FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, double Distance)
+{
+	FVector Side = FVector(Away.X, Away.Y, 0.0).GetSafeNormal();
+	if (Side.IsNearlyZero()) Side = FVector(1.0, 0.0, 0.0);
+	// Standing on the floor under the spot, the capsule's centre 90 cm up (the floor is z 0 in the shed).
+	const double FloorZ = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Stand(Point.X + Side.X * Distance, Point.Y + Side.Y * Distance, FloorZ + GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	SetActorLocation(Stand, false, nullptr, ETeleportType::TeleportPhysics);
+	const FVector Eye = Camera->GetComponentLocation();
+	const FRotator View = (Point - Eye).Rotation();
+	if (AController* C = GetController()) C->SetControlRotation(View);
+	Camera->SetWorldRotation(View);
+	FindTarget();
+	UpdateHud();
+	return Describe();
+}
+
+FString ATorqueWalker::TestPress(bool bRideOut)
+{
+	FindTarget();
+	const FString Seen = Describe();
+	if (bRideOut)
+	{
+		if (Target == ETorqueLook::Door || Target == ETorqueLook::BikePart)
+		{
+			StartRideOut();
+			return FString::Printf(TEXT("F on %s: %s"), *Seen, bRidingOut ? TEXT("riding out") : *Note);
+		}
+		return FString::Printf(TEXT("F on %s: nothing to ride out from"), *Seen);
+	}
+	Note.Reset();
+	Use();
+	UpdateHud();
+	return FString::Printf(TEXT("E on %s: %s"), *Seen, Note.IsEmpty() ? TEXT("nothing happened") : *Note);
 }
