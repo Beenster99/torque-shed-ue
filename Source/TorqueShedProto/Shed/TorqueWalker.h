@@ -21,6 +21,7 @@
 #include "GameFramework/Character.h"
 #include "Shed/TorqueBuildSubsystem.h"   // FTorqueShedRequest
 #include "TorqueBikePawn.h"   // FHudLine
+#include "Shed/TorqueAvatar.h"
 #include "TorqueWalker.generated.h"
 
 class UCameraComponent;
@@ -235,4 +236,12 @@ private:
 	void Doing(const FString& What, double For = 4.0);
 	double DoingFor = 0.0;
 	UTorqueBuildSubsystem* Shed() const;
+
+	// Another player's body as a MetaHuman (Shed/TorqueAvatar.h), when the PC has made some; the
+	// shape body (Body_*) otherwise.
+	TUniquePtr<FTorqueAvatar> Avatar;
+	UPROPERTY(Transient) USceneComponent* AvatarRoot = nullptr;
+	int32 AvatarFor = -1;             // the colour it was made for
+	bool bAvatarDemo = false;
+	void UpdateAvatar(float Dt);
 };
