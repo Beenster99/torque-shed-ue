@@ -36,6 +36,8 @@ public:
 	bool WhereIs(int32 Item, FVector& Out) const;
 	// The meshes an item is drawn with.
 	void MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>& Out) const;
+	// Hides what everyone holds (TorqueShedTest's stand-back shots).
+	bool bHideHeld = false;
 
 	UPROPERTY() UStaticMesh* ShapeCube = nullptr;
 

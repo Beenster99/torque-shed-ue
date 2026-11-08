@@ -82,6 +82,10 @@ std::string Std(const FString& S)
 
 FString Ue(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
 
+// A slot or part id as fitting knows it. FNames ignore case and keep the first spelling the engine
+// saw ("Engine", the module's name, for the slot "engine"), so their text is lowered for it.
+std::string Id(FName Name) { return Std(Name.ToString().ToLower()); }
+
 // Fitting's layout solver (Fit/BikeLayout: BikeRig in the Godot game), shared with the drawing.
 const TorqueFit::BikeLayout* FitLayout() { return TorqueShedCatalogue::Layout(); }
 
@@ -787,7 +791,7 @@ bool UTorqueBuildSubsystem::LayoutParts(int32 Bay, TMap<FString, FString>& Out) 
 		const FString Slot = TBI::Ue(SlotText);
 		const FTorqueItem* It = Items.Find(ItemOn(Bay, FName(*Slot)));
 		if (It && (TorqueShedParts::IsStock(It->Part) || !TorqueShedParts::IsPart(It->Part))) return false;
-		Out.Add(Slot, It ? It->Part.ToString() : FString(TEXT("none")));
+		Out.Add(Slot, It ? It->Part.ToString().ToLower() : FString(TEXT("none")));
 	}
 	return true;
 }
@@ -802,7 +806,7 @@ bool UTorqueBuildSubsystem::FitTier(int32 Bay, FName Slot, FName Part, FString& 
 	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	std::vector<std::string> Done;
 	for (const FString& D : Bikes[Bay].FabDone) Done.push_back(TBI::Std(D));
-	const TorqueFit::PartTier T = Lay->PartFit(Map, TBI::Std(Slot.ToString()), TBI::Std(Part.ToString()), Done);
+	const TorqueFit::PartTier T = Lay->PartFit(Map, TBI::Id(Slot), TBI::Id(Part), Done);
 	OutTier = TBI::Ue(T.Tier);
 	OutReason = TBI::Ue(T.Reason);
 	for (const TorqueFit::FabJob& J : T.Work) OutWork.Add(TBI::Ue(J.What));
@@ -855,7 +859,7 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay)
 	for (const FName& S : Order)
 	{
 		if (ItemOn(Bay, S) != 0) continue;
-		const TorqueFit::PartsMap::const_iterator Found = Ref.find(TBI::Std(S.ToString()));
+		const TorqueFit::PartsMap::const_iterator Found = Ref.find(TBI::Id(S));
 		if (Found == Ref.end() || Found->second.empty() || Found->second == "none") continue;
 		const FName Part(*TBI::Ue(Found->second));
 		if (!TorqueShedParts::IsPart(Part)) continue;
@@ -882,7 +886,7 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay)
 	OnHostChange.Broadcast();
 	const TArray<FName> Missing = MissingSlots(Bay);
 	FString Left;
-	for (const FName& S : Missing) Left += (Left.IsEmpty() ? TEXT("") : TEXT(", ")) + S.ToString();
+	for (const FName& S : Missing) Left += (Left.IsEmpty() ? TEXT("") : TEXT(", ")) + S.ToString().ToLower();
 	const FString Owed = FabOwedText(Bay);
 	return FString::Printf(TEXT("%d parts from the %s reference bike, %d more bolted up; missing: %s; owed: %s; complete: %s"),
 		Added, *TBI::Ue(Style), Bolted, Left.IsEmpty() ? TEXT("nothing") : *Left, Owed.IsEmpty() ? TEXT("nothing") : *Owed,
