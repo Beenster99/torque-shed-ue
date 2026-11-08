@@ -7453,6 +7453,7 @@
    "meshes": [
     "side_stand"
    ],
+   "slot": "side_stand",
    "mount": {
     "to": "frame.lugs",
     "type": "bracket"
@@ -24387,6 +24388,14 @@
    "clearcoat_roughness": 0.03,
    "emissive": 0.0,
    "grime": 0.6
+  }
+ },
+ "placeholders": {
+  "box": {
+   "mesh": "placeholder_box",
+   "file": "Options/placeholder_box.glb",
+   "finish": "black_satin",
+   "size_m": 1.0
   }
  }
 }

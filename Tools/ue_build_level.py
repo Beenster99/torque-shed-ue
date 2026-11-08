@@ -1189,6 +1189,9 @@ def import_bike(frame, tex=None, roles=None):
             for opt in slot_opts:
                 for name, m in opt.get("meshes", {}).items():
                     options[name] = m.get("finish", "")
+        # A loose catalogue part's stand-in (scaled and tinted by Fit/TorqueFit.cpp).
+        for ph in json.load(open(fit_path)).get("placeholders", {}).values():
+            options[ph["mesh"]] = ph.get("finish", "")
         meshes.update(import_glbs(os.path.join(folder, "Options"), BIKE_DEST + "/Options"))
     sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     for mesh in meshes.values():

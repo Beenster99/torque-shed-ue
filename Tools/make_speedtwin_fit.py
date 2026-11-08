@@ -326,7 +326,7 @@ def stock_units(P):
     unit("battery_box", ["battery_box"], mount={"to": "frame.lugs", "type": "bracket"})
     unit("guards", [], group="body", slot="guards", mount={"to": "frame.lugs", "type": "bracket"}, proxies=[])
     unit("footrests", ["footrests"], slot="rearsets", mount={"to": "frame.rearset_plates", "type": "rearset_plates"})
-    unit("side_stand", ["side_stand"], mount={"to": "frame.lugs", "type": "bracket"})
+    unit("side_stand", ["side_stand"], slot="side_stand", mount={"to": "frame.lugs", "type": "bracket"})
     unit("horn", ["horn"], mount={"to": "frame.lugs", "type": "bracket"})
 
     # Rear: swingarm on its pivot, the wheel in its axle slot, and what hangs off them.
@@ -635,6 +635,9 @@ def main():
             o["moves"] = rest[0]
         opts[slot].append(o)
         meshes.update(ms)
+    # A loose catalogue part's look until it has a model: a 1 m box about its centre, scaled to the
+    # part's box and tinted its catalogue colour (Data/Fitment/catalogue.json "loose").
+    meshes["placeholder_box"] = (st.box((0.0, 0.0, 0.0), (1.0, 1.0, 1.0), 16.0, 8), "black_satin", "body")
     write_option_glbs(meshes)
     data = {
         "bike": "speed_twin_1200",
@@ -672,6 +675,8 @@ def main():
         "options": opts,
         # The part pack's own finishes (Tools/speedtwin_pack.py); the stock ones are in speedtwin.json.
         "finishes": pack.FINISHES,
+        "placeholders": {"box": {"mesh": "placeholder_box", "file": "Options/placeholder_box.glb", "finish": "black_satin",
+                                 "size_m": 1.0}},
     }
     with open(os.path.join(OUT, "fitment.json"), "w") as f:
         json.dump(data, f, indent=1)
