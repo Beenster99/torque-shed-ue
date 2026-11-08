@@ -64,14 +64,20 @@ void FTorqueRouter::Open(int32 Port, const FString& InLocalIp)
 	UE_LOG(LogTemp, Log, TEXT("Torque net: asking the router to open UDP port %d for %s"), Port, *LocalIp);
 }
 
-void FTorqueRouter::CleanUpLeftover(const FString& InLocalIp)
+void FTorqueRouter::CleanUpLeftover(int32 GamePort, const FString& InLocalIp)
 {
-	int32 Port = 0;
+	// The port noted when one was last opened, else the game's own: a mapping on it named Torque
+	// Shed that points at this PC is ours, left by a game that didn't close it (or by a build from
+	// before the note), and comes off.
+	int32 Port = GamePort;
 	FString For;
-	if (!GConfig || !GConfig->GetInt(Section, TEXT("UpnpOpenPort"), Port, GGameUserSettingsIni) || Port <= 0) return;
-	GConfig->GetString(Section, TEXT("UpnpOpenFor"), For, GGameUserSettingsIni);
-	if (State != EState::Off) return;
-	UE_LOG(LogTemp, Log, TEXT("Torque net: last time left UDP port %d open on the router for %s: removing it"), Port, *For);
+	if (GConfig)
+	{
+		GConfig->GetInt(Section, TEXT("UpnpOpenPort"), Port, GGameUserSettingsIni);
+		GConfig->GetString(Section, TEXT("UpnpOpenFor"), For, GGameUserSettingsIni);
+	}
+	if (State != EState::Off || Port <= 0 || (For.IsEmpty() && InLocalIp.IsEmpty())) return;
+	UE_LOG(LogTemp, Log, TEXT("Torque net: checking the router for a UDP port %d mapping of ours left open"), Port);
 	WantPort = Port;
 	LocalIp = For.IsEmpty() ? InLocalIp : For;
 	bCleanUp = true;
@@ -289,6 +295,7 @@ void FTorqueRouter::RemoveLeftover()
 			TSharedPtr<FTorqueRouter> Self = Weak.Pin();
 			if (!Self || Self->Generation != Gen) return;
 			Self->bCleanUp = false;
+			if (!bOk) UE_LOG(LogTemp, Log, TEXT("Torque net: no mapping of ours on UDP port %d"), Port);
 			if (bOk && TorqueUpnp::IsOurMapping(ToStd(Answer), ToStd(Self->LocalIp), MappingName))
 			{
 				UE_LOG(LogTemp, Log, TEXT("Torque net: removed the leftover mapping of UDP port %d"), Port);

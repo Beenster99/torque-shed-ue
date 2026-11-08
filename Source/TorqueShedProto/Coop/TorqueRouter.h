@@ -10,7 +10,7 @@
 //   port open for ever (routers that only take permanent ones get one, and the next point covers it);
 // - it's removed when hosting ends and when the game closes (waiting up to two seconds for that);
 // - a mapping of ours left behind (the game was killed) is noted in GameUserSettings.ini and
-//   removed at the next start-up (CleanUpLeftover).
+//   removed at the next start-up (CleanUpLeftover, which also looks on the game's port anyway).
 //
 // Owned by UTorqueSession; everything runs on the game thread (a socket polled by a ticker, and
 // Unreal's HTTP requests).
@@ -41,8 +41,8 @@ public:
 	// Hosting has ended: take the port back off the router. bWait: block (at most two seconds)
 	// until the router has answered, for the game closing.
 	void Close(bool bWait = false);
-	// At start-up: if a mapping of ours was left behind last time, remove it.
-	void CleanUpLeftover(const FString& LocalIp);
+	// At start-up: if a mapping of ours to this PC was left on the router, remove it.
+	void CleanUpLeftover(int32 GamePort, const FString& LocalIp);
 
 	EState GetState() const { return State; }
 	// The public address friends over the internet use ("" until known).

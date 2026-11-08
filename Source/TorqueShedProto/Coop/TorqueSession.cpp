@@ -55,7 +55,8 @@ void UTorqueSession::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	Router = MakeShared<FTorqueRouter>();
 	// A port mapping left on the router by a game that was killed while hosting: take it off.
-	if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueNoUpnp"))) Router->CleanUpLeftover(LocalAddr);
+	// (Not on test runs, which never touch the router.)
+	if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueNoUpnp")) && !IsTestRun()) Router->CleanUpLeftover(GamePort(), LocalAddr);
 }
 
 void UTorqueSession::Deinitialize()
