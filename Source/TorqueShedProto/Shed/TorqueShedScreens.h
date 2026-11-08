@@ -9,6 +9,10 @@
 // fitted and bolted counts, condition, rust and dirt, the fabrication it owes, its paint, the next
 // thing to do and which tool does it, and who in the crew is on it right now.
 //
+// The parts computer's monitor: Torque Shed's parts computer, the kinds down the side, the parts of
+// one with the picked one lit and its description; what the player at it is choosing, or, with
+// no one there, a different kind every few seconds, and how many deliveries are waiting.
+//
 // The crew board: everyone in the shed in their colour and what they're doing, each bay's bike and
 // how far along it is; then Torque Shed's how-to-play pages, a page every 9 s.
 //
@@ -42,7 +46,7 @@ public:
 	static constexpr int32 PageH = 576;
 
 private:
-	// 0..3 the bays' screens, 4 the crew board.
+	// 0..3 the bays' screens, 4 the crew board, 5 the parts computer's monitor.
 	UPROPERTY(Transient) TArray<UTextureRenderTarget2D*> Pages;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Quads;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> PageMaterials;
@@ -50,6 +54,8 @@ private:
 	float Clock = 0.0f;
 	FDelegateHandle ChangedHandle, LooksHandle, ItemsHandle;
 	void Redraw();
+	void DrawPage(int32 Index, float Now);
+	void DrawComputer(UCanvas* C, float Now) const;
 	void DrawBay(UCanvas* C, int32 Bay) const;
 	void DrawCrew(UCanvas* C) const;
 	void DrawHowTo(UCanvas* C, int32 Page) const;
