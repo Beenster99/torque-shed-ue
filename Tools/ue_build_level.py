@@ -478,7 +478,7 @@ def land_material_scanned(tex, roles):
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
     g.link(land[0], grey)
     g.link(g.const(1.0), grey, "Fraction")
-    land[0] = g.lerp(grey, land[0], g.const(1.3))
+    land[0] = g.lerp(grey, land[0], g.const(1.45))
     # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.9, 1.07, -1200, g.y + 200))
     # Far away, the scanned textures shrink into a busy mottle (contour-like bands of moor and peat);
@@ -494,7 +494,7 @@ def land_material_scanned(tex, roles):
     land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.85)], far)
     # Fellside breakup that survives the distance: brightness patches tens of metres across, and
     # drifts of dead bracken / bleached moor grass (a straw-brown tint), so far slopes aren't even green.
-    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0005, 0.8, 1.12, -1200, g.y + 400))
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0005, 0.88, 1.08, -1200, g.y + 400))
     straw = g.op(unreal.MaterialExpressionMultiply, land[0], g.const((1.35, 1.0, 0.62)))
     drift = g.mask_noise(0.00035, -1.8, 1.4)   # big drifts; finer read as polka dots far off
     drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=0.5)
@@ -507,7 +507,7 @@ def land_material_scanned(tex, roles):
         return e
     rg = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False)
     g.link(land[0], rg)
-    blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.85))
+    blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.6))
     land[0] = g.op(unreal.MaterialExpressionAppendVector, rg, blue)
     return g.finish(land, min_rough=0.82, specular=0.3)
 
@@ -551,7 +551,13 @@ def road_material_scanned(tex, roles):
     line = g.op(unreal.MaterialExpressionMultiply, line, wear)
     paint = [g.const((0.62, 0.62, 0.6)), g.const((0.0, 0.0, 1.0)), g.const(0.55)]
     # Patches, repairs and darker wheel tracks: slow variation in the tarmac's brightness.
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], noise(g.m, 0.002, 0.45, 0.8, -1200, g.y + 200))   # darker, as Dales tarmac is
+    # Dales tarmac in beenster's DJI footage is a light, neutral, faintly cool grey (sRGB about 138,139,142):
+    # take the scan's brown out, then the slow variation in brightness.
+    flat = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
+    g.link(road[0], flat)
+    g.link(g.const(0.9), flat, "Fraction")
+    road[0] = g.op(unreal.MaterialExpressionMultiply, flat, g.const((0.96, 0.99, 1.06)))
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], noise(g.m, 0.002, 0.6, 0.95, -1200, g.y + 200))
     blem = road_blemish_textures()
     if blem:
         # The road's UV: u across the carriageway, v = metres / 20. The blemish map is 204.8 m long;
@@ -2060,7 +2066,7 @@ def build():
     if mode is not None:
         try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.008), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.006), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
@@ -2099,12 +2105,12 @@ def build():
             return None
     for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
                  ("auto_exposure_min_brightness", 8.5), ("auto_exposure_max_brightness", 11.5),
-                 ("auto_exposure_bias", 0.5), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
-                 ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.85),
+                 ("auto_exposure_bias", 0.9), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
+                 ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.7),
                  ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
                  ("motion_blur_amount", 0.12), ("motion_blur_max", 1.0),
-                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.05, 1.05, 1.05, 1.0)),
-                 ("color_contrast", unreal.Vector4(1.12, 1.12, 1.12, 1.0)),
+                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.12, 1.12, 1.12, 1.0)),
+                 ("color_contrast", unreal.Vector4(1.04, 1.04, 1.04, 1.0)), ("film_toe", 0.45),
                  ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
                  ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
                  ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
