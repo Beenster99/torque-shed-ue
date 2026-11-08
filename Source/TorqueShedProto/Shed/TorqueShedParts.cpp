@@ -253,7 +253,7 @@ FCatalogue& Catalogue()
 				double Num = 0.0;
 				const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;
 				if (FieldKV.Value->Type == EJson::Number && FieldKV.Value->TryGetNumber(Num)) Info.Numbers.Add(FName(*FieldKV.Key), Num);
-				else if (FieldKV.Value->TryGetArray(Arr)) Info.Numbers.Add(FName(*(FieldKV.Key + TEXT("_count"))), (double)Arr->Num());
+				else if (FieldKV.Value->TryGetArray(Arr)) Info.Numbers.Add(FName(*(FString(*FieldKV.Key) + TEXT("_count"))), (double)Arr->Num());
 			}
 			if (Info.Name.IsEmpty()) Info.Name = PartKV.Key;
 			const FName Id(*PartKV.Key);

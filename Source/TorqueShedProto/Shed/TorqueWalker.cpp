@@ -506,13 +506,13 @@ void ATorqueWalker::ReadInput(float Dt)
 		else if (FHeldFor >= TWI::HoldToPush)
 		{
 			bFArmed = false;
-			FTorqueShedRequest R;
-			R.Kind = ETorqueShedAct::GrabBike;
-			R.Bay = FBay;
+			FTorqueShedRequest Grab;
+			Grab.Kind = ETorqueShedAct::GrabBike;
+			Grab.Bay = FBay;
 			FString WhyNot;
 			if (UTorqueBuildSubsystem* GB = Shed())
 			{
-				if (!GB->Request(R, WhyNot)) Say(WhyNot, false);
+				if (!GB->Request(Grab, WhyNot)) Say(WhyNot, false);
 				else Doing(FString::Printf(TEXT("wheeling bay %d's bike"), FBay + 1), 30.0);
 			}
 		}

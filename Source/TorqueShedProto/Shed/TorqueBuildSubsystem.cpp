@@ -1817,7 +1817,8 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		bool& Strap = Dyno.Straps[R.Item];
 		Strap = !Strap;
 		if (Dyno.StrapsDone() == 4) Text = FString::Printf(TEXT("Strapped down: %s is ready for a run."), *Bikes[DynoBay()].Name);
-		else Text = FString::Printf(Strap ? TEXT("Strap done up (%d of 4)") : TEXT("Strap undone (%d of 4 done up)"), Dyno.StrapsDone());
+		else if (Strap) Text = FString::Printf(TEXT("Strap done up (%d of 4)"), Dyno.StrapsDone());
+		else Text = FString::Printf(TEXT("Strap undone (%d of 4 done up)"), Dyno.StrapsDone());
 		break;
 	}
 	case ETorqueShedAct::DynoFan:
