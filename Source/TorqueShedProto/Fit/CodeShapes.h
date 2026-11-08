@@ -149,6 +149,7 @@ struct Sec
 {
 	V3 C;
 	double W = 0.1, Up = 0.1, Down = 0.1, N = 2.4;
+	double Bw = 1.0;   // the lower half's width as a share of W (a tank narrowing to its tunnel)
 };
 
 // ShapeKit.loft (28 round): closed with flat caps at both ends, as BikeModel._shell draws an arm,
@@ -177,7 +178,7 @@ inline GMesh Loft(const std::vector<Sec>& Secs, int Ring = 28, bool Open = false
 		{
 			const double A = Open ? A0 + Span * J / Steps : -3.141592653589793 * 0.5 + Tau * J / Steps;
 			const double Ca = std::cos(A), Sa = std::sin(A);
-			const double X = Sign(Ca) * std::pow(std::fabs(Ca), E) * S.W;
+			const double X = Sign(Ca) * std::pow(std::fabs(Ca), E) * S.W * (Sa < 0.0 ? S.Bw : 1.0);
 			const double Y = Sign(Sa) * std::pow(std::fabs(Sa), E) * (Sa > 0.0 ? S.Up : S.Down);
 			Pts.push_back(S.C + V3(X, 0.0, 0.0) + Up * Y);
 		}

@@ -378,6 +378,7 @@ int main(int argc, char** argv)
 						Ours[Slot].Add(ToGodot(V));
 						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
 						if (P.Glb.rfind("tail/cowl/", 0) == 0) Ours["tail cowl"].Add(ToGodot(V));
+						if (P.Slot == "tank") Ours["tank body"].Add(ToGodot(V));   // (Godot's TankBody, without the code's cap and trim)
 						Tags[Slot][S.Material].Add(ToGodot(V));
 					}
 					++Tags[Slot][S.Material].Meshes;   // (Godot's: one mesh a surface of each piece)
@@ -472,7 +473,7 @@ int main(int argc, char** argv)
 			return Wrong;
 		};
 		// The slots whose every mesh, Blender or code-drawn, is ported: checked whole against Godot's.
-		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight", "indicators", "satnav", "front_caliper", "gearbox", "spark_plugs", "saddle", "tail", "front_mudguard"};
+		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight", "indicators", "satnav", "front_caliper", "gearbox", "spark_plugs", "saddle", "tail", "front_mudguard", "tank"};
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
 		auto CodeCheck = [&](const std::map<std::string, Box>& Ours, const std::string& Slot, const Json* Gs, bool Whole) {
@@ -538,7 +539,7 @@ int main(int argc, char** argv)
 				const Json* S = GSlots->Get(Slot);
 				return S && S->Get("named") ? S->Get("named")->Get(Name) : nullptr;
 			};
-			std::pair<std::string, const Json*> Meshes[] = {{"tank", Named("tank", "TankBody")}, {"saddle/leather", Named("saddle", "SeatPad")},
+			std::pair<std::string, const Json*> Meshes[] = {{"tank body", Named("tank", "TankBody")}, {"saddle/leather", Named("saddle", "SeatPad")},
 				{"tail cowl", Named("tail", "TailCowl")}, {"engine", GSlots->Get("engine")}, {"head", GSlots->Get("head")}};
 			double MeshOff = 0.0;
 			std::string MeshWorst;

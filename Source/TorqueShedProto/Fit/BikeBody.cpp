@@ -221,6 +221,8 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		Out.Parts.push_back(P);
 		// Its loft sections (tank_secs), as the seat's nose and the rest of the bike read them.
 		const int Steps = Shape->Flag("facet") ? 20 : 14;
+		Out.TankN = Shape->Num("n", 2.4);
+		Out.TankBw = Shape->Num("bw", 1.0);
 		for (int I = 0; I <= Steps; ++I)
 		{
 			const double U = static_cast<double>(I) / Steps;

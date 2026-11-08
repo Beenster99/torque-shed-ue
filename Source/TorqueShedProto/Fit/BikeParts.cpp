@@ -1071,6 +1071,110 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 	}
 }
 
+void BikeParts::TankTrim(const PartsMap& Parts, const Bodywork& Body, std::vector<FittedPart>& Out) const
+{
+	// The code-drawn pieces of BikeModel._draw_tank on the Blender tank's sections: an adventure
+	// tank's knee panels, the filler cap, a cruiser's console, accent stripes, the side badges,
+	// knee pads, a sports tank's chest pad and an enduro tank's radiator shrouds.
+	if (Body.TankSecs.size() < 3) return;
+	const Json* P = Lay.Part(PartIn(Parts, "tank"));
+	if (!P) return;
+	const Json* Look = P->Get("look");
+	const std::string Style = P->Str("style", "cafe");
+	std::string Stand = "tank/cafe.glb";
+	for (const FittedPart& F : Body.Parts)
+		if (F.Slot == "tank") Stand = F.Glb;
+	const int Steps = static_cast<int>(Body.TankSecs.size()) - 1;
+	auto At = [&](double F) { return Body.TankSecs[static_cast<size_t>(std::round(Steps * F))]; };
+	auto SecOf = [&](const LoftSection& L, double By) {
+		CodeShapes::Sec S{L.C, L.W * By + (By != 1.0 ? 0.001 : 0.0), L.Up * By + (By != 1.0 ? 0.001 : 0.0), L.Down * By + (By != 1.0 ? 0.001 : 0.0), Body.TankN};
+		S.Bw = Body.TankBw;
+		return S;
+	};
+	// (_grown: sections From..To a little bigger all round, for a panel laid over the tank.)
+	auto Grown = [&](double By, int From, int To) {
+		std::vector<CodeShapes::Sec> Secs;
+		for (int I = From; I <= std::min(To, Steps); ++I) Secs.push_back(SecOf(Body.TankSecs[static_cast<size_t>(I)], By));
+		return Secs;
+	};
+	// (_on_loft.)
+	auto OnLoft = [&](const LoftSection& S, double A, double Grow) {
+		const double E = 2.0 / Body.TankN;
+		const double Ca = std::cos(A), Sa = std::sin(A);
+		const double W = S.W * (Sa < 0.0 ? Body.TankBw : 1.0);
+		const double X = (Ca > 0.0 ? 1.0 : Ca < 0.0 ? -1.0 : 0.0) * std::pow(std::fabs(Ca), E) * W;
+		const double Y = (Sa > 0.0 ? 1.0 : Sa < 0.0 ? -1.0 : 0.0) * std::pow(std::fabs(Sa), E) * (Sa > 0.0 ? S.Up : S.Down);
+		return S.C + V3(X, Y, 0.0) * Grow;
+	};
+	CodeShapes::GodotNames Named;
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "tank", Stand, "", Named(Name), M, Xf, Tag);
+	};
+	const double Pi = TorqueSim::Pi;
+	if (Look && Look->Flag("panels"))
+	{
+		const int From = static_cast<int>(std::round(Steps * 0.3));
+		Code("TankPanel", CodeShapes::Loft(Grown(1.012, From, Steps - 1), 28, true, -0.85, 0.05), GAffine(), "plastic");
+		Code("TankPanel", CodeShapes::Loft(Grown(1.012, From, Steps - 1), 28, true, Pi - 0.05, Pi + 0.85), GAffine(), "plastic");
+	}
+	// The filler cap a third of the way back: plain, a raised Monza flip cap, a flush aircraft cap or a pair.
+	const LoftSection CapS = At(0.3);
+	const V3 Cap = CapS.C + V3(0.0, CapS.Up - 0.004, 0.0);
+	const std::string CapKind = PartStr(Look, "cap", "stock");
+	if (CapKind == "monza")
+	{
+		Code("", CodeShapes::Cylinder(0.045, 0.03, 0.04), GAffine::At(Cap + V3(0.0, 0.01, 0.0)), "chrome");
+		Code("", CodeShapes::Box(V3(0.03, 0.012, 0.03)), GAffine::At(Cap + V3(0.0, 0.03, 0.03)), "chrome");
+	}
+	else if (CapKind == "flush") Code("", CodeShapes::Cylinder(0.04, 0.006), GAffine::At(Cap + V3(0.0, 0.002, 0.0)), "chrome");
+	else if (CapKind == "twin")
+		for (double X : {-0.05, 0.05}) Code("", CodeShapes::Cylinder(0.03, 0.02), GAffine::At(Cap + V3(X, -0.004, 0.0)), "chrome");
+	else Code("", CodeShapes::Cylinder(0.035, 0.02), GAffine::At(Cap), "chrome");
+	const bool Console = Look && Look->Flag("console");
+	if (Console)
+	{
+		std::vector<V3> Path;
+		for (int I = static_cast<int>(std::round(Steps * 0.35)); I < static_cast<int>(std::round(Steps * 0.85)); ++I)
+			Path.push_back(OnLoft(Body.TankSecs[static_cast<size_t>(I)], Pi * 0.5, 1.0));
+		Code("", CodeShapes::Sweep(Path, 0.03, 10), GAffine(), "chrome");
+		if (Path.size() > 1)
+			Code("", CodeShapes::Cylinder(0.035, 0.012), AtWith(GAffine::Rotation(GodotRight, -0.3), Path[1] + V3(0.0, 0.02, 0.0)), "black_metal");
+	}
+	if (Look && Look->Get("accent"))
+		for (double Ang : Console ? std::vector<double>{Pi * 0.5 - 0.3, Pi * 0.5 + 0.3} : std::vector<double>{Pi * 0.5 - 0.12, Pi * 0.5 + 0.12})
+		{
+			std::vector<V3> Path;
+			for (int I = 1; I < Steps; ++I) Path.push_back(OnLoft(Body.TankSecs[static_cast<size_t>(I)], Ang, 1.004));
+			Code("TankStripe", CodeShapes::Sweep(Path, 0.009, 4), GAffine(), "paint_2");
+		}
+	// The badges on the sides: a chrome oval, a long winged script or none.
+	const std::string Badge = PartStr(Look, "badge", "oval");
+	if (Badge != "none")
+		for (double Sd : {-1.0, 1.0})
+		{
+			const LoftSection& B = CapS;
+			const V3 Scale = Badge == "wing" ? V3(0.1, 0.35, 2.6) : V3(0.15, 0.55, 1.1);
+			Code("", CodeShapes::Sphere(0.03), AtWith(GAffine::Scale(Scale), B.C + V3(B.W * 0.97 * Sd, B.Up * 0.05, 0.0)), "chrome");
+		}
+	const bool Pads = Look && Look->Get("pads") ? Look->Flag("pads") : ((Style == "cafe" || Style == "peanut") && !P->Flag("lightweight"));
+	if (Pads)
+	{
+		const LoftSection PadS = At(0.72);
+		for (double Sd : {-1.0, 1.0})
+			Code("", CodeShapes::Sphere(0.05), AtWith(GAffine::Scale(V3(0.18, 0.75, 1.3)), PadS.C + V3(PadS.W * 0.93 * Sd, -PadS.Down * 0.1, 0.0)), "rubber");
+	}
+	if (Style == "sport" && !(Look && Look->Flag("no_pad")))
+		Code("TankPad", CodeShapes::Loft(Grown(1.01, static_cast<int>(std::round(Steps * 0.62)), Steps - 1), 28, true, Pi * 0.5 - 0.55, Pi * 0.5 + 0.55), GAffine(), "rubber");
+	if (Style == "enduro")
+		for (double Sd : {-1.0, 1.0})
+		{
+			// Radiator shrouds flaring forward either side of the tank.
+			const V3 C = Body.TankSecs[2].C;
+			Code("", CodeShapes::Loft({{C + V3(0.14 * Sd, 0.02, 0.07), 0.012, 0.04, 0.03, 3.0}, {C + V3(0.16 * Sd, -0.06, 0.035), 0.012, 0.08, 0.1, 3.0},
+				{C + V3(0.155 * Sd, -0.12, -0.01), 0.012, 0.06, 0.1, 3.0}, {C + V3(0.13 * Sd, -0.16, -0.035), 0.01, 0.02, 0.04, 3.0}}), GAffine(), "paint");
+		}
+}
+
 void BikeParts::SaddleTrim(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
 {
 	// The code-drawn pieces of BikeModel._draw_saddle round the Blender seat: the stitching, the
@@ -3595,6 +3699,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Frame(Parts, L, Out, &CodeHalfW);
 	Engine(Parts, L, Out);
 	Ancillaries(Parts, L, Body, Out);
+	TankTrim(Parts, Body, Out);
 	SaddleTrim(Parts, L, Body, Out);
 	Exhaust(Parts, L, Out);
 	Swingarm(Parts, L, Out);
