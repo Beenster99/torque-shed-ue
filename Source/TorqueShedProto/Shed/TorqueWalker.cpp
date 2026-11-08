@@ -1,6 +1,8 @@
 #include "Shed/TorqueWalker.h"
 
+#include "Coop/HandsState.h"
 #include "Coop/TorqueLook.h"
+#include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -266,10 +268,12 @@ void ATorqueWalker::Doing(const FString& What, double For)
 void ATorqueWalker::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	// Another player: dressed in the rider's kit and their colour (TorqueLook.h).
+	// [co-op] Another player: dressed in the rider's kit and their colour (TorqueLook.h), their
+	// tool in hand and moving as they work (FollowHands).
 	if (!IsLocallyControlled())
 	{
 		TorqueLook::Dress(this);
+		FollowHands(DeltaSeconds);
 		return;
 	}
 	UTorqueBuildSubsystem* B = Shed();
@@ -305,6 +309,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	}
 	UpdateToolView(DeltaSeconds);
 	UpdateCues();
+	ShareHands(DeltaSeconds);   // [co-op]
 	ActHeldFor = FMath::Max(ActHeldFor - DeltaSeconds, 0.0);
 	NoteFor = FMath::Max(NoteFor - DeltaSeconds, 0.0);
 	if (DoingFor > 0.0)
@@ -960,7 +965,7 @@ void ATorqueWalker::UpdateToolView(float Dt)
 		ShownCan = Can;
 	}
 	// Hidden while you carry a part (Torque Shed puts the tool away), at the computer and riding out.
-	const bool bCarrying = B && B->HeldBy(B->Me()) != 0;
+	const bool bCarrying = B && B->HeldBy(PeerOf()) != 0;   // [co-op] PeerOf: a remote walker's own
 	ToolHolder->SetVisibility(!bCarrying && !bComputer && !bRidingOut, true);
 	// Working with it: Progress runs while the work button's held on a job that can be done.
 	const bool bWorking = Progress > 0.0 && !bCarrying;
@@ -1664,4 +1669,102 @@ void ATorqueWalker::UpdatePerf(float Dt)
 	PerfSum = 0.0;
 	PerfWorst = 0.0;
 	PerfFrames = 0;
+}
+
+// --- Co-op: hands (Coop/TorquePlayerState.h FTorqueHandsNet) -------------------------------------------
+
+int32 ATorqueWalker::PeerOf() const
+{
+	if (IsLocallyControlled())
+	{
+		const UTorqueBuildSubsystem* B = Shed();
+		return B ? B->Me() : INDEX_NONE;
+	}
+	return GetPlayerState() ? GetPlayerState()->GetPlayerId() : INDEX_NONE;
+}
+
+void ATorqueWalker::ShareHands(float Dt)
+{
+	ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	if (!PS || GetNetMode() == NM_Standalone) return;
+	FTorqueHandsNet H;
+	H.Tool = (uint8)Tool;
+	H.Work = TorqueHands::QuantiseWork(WorkFraction(), Progress > 0.0);
+	H.Colour = (uint8)FMath::Clamp(SprayColour, 0, 255);
+	H.Finish = (uint8)FMath::Clamp(SprayFinish, 0, 255);
+	H.Look = (uint8)Target;
+	H.Bay = (int8)FMath::Clamp(TargetBay, -1, 127);
+	H.Slot = TargetSlot;
+	H.Item = TargetItem;
+	H.Place = TargetPlace ? TargetPlace->Name : NAME_None;
+	H.bAway = bComputer || bRidingOut;
+	PS->OfferHands(H, Dt);
+}
+
+void ATorqueWalker::FollowHands(float Dt)
+{
+	const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	if (!PS) return;
+	const FTorqueHandsNet& H = PS->Hands;
+	Tool = (ETorqueTool)FMath::Clamp<int32>(H.Tool, 0, (int32)ETorqueTool::Count - 1);
+	SprayColour = H.Colour;
+	SprayFinish = H.Finish;
+	bComputer = H.bAway;
+	Target = (ETorqueLook)H.Look;
+	TargetBay = H.Bay;
+	TargetSlot = H.Slot;
+	TargetItem = H.Item;
+	// Progress only says "working" to UpdateToolView (it's never run as a job here).
+	Progress = H.Work > 0 ? FMath::Max(TorqueHands::WorkFraction(H.Work), 0.01) : 0.0;
+	// Their camera: where they look (Unreal replicates the pitch), at their eye height.
+	Camera->SetRelativeLocation(FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye));
+	Camera->SetWorldRotation(GetBaseAimRotation());
+	UpdateToolView(Dt);
+	const UTorqueBuildSubsystem* B = Shed();
+	TorqueLook::Pose(this, ToolHolder && ToolHolder->IsVisible(), B && B->HeldBy(PeerOf()) != 0, WorkBlend);
+
+	// What they're working on glows faintly in their colour (only while they work: you see them
+	// at it, not everything they glance at). Not a bike they're washing: the lance does the bike.
+	TArray<UStaticMeshComponent*> Now;
+	if (UWorld* World = GetWorld())
+	{
+		if (H.Work > 0 && Target == ETorqueLook::BikePart && Tool != ETorqueTool::Lance && TargetBay != INDEX_NONE)
+		{
+			for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+				if (It->Bay == TargetBay)
+					for (UStaticMeshComponent* C : It->Parts)
+						if (C && C->IsVisible() && TorqueShedModel::SlotTag(C) == TargetSlot) Now.Add(C);
+		}
+		else if (H.Work > 0 && Target == ETorqueLook::Item && TargetItem != 0)
+		{
+			TArray<const UStaticMeshComponent*> Meshes;
+			for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->MeshesOf(TargetItem, Meshes);
+			for (const UStaticMeshComponent* C : Meshes) Now.Add(const_cast<UStaticMeshComponent*>(C));
+		}
+	}
+	if (!TheirLitMaterial && Now.Num() > 0)
+	{
+		static UMaterialInterface* Glow = []() {
+			UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight"));
+			if (M) M->AddToRoot();
+			return M;
+		}();
+		if (Glow)
+		{
+			TheirLitMaterial = UMaterialInstanceDynamic::Create(Glow, this);
+			TheirLitMaterial->SetVectorParameterValue(TEXT("Color"), FLinearColor(PS->ColourValue()));
+			TheirLitMaterial->SetScalarParameterValue(TEXT("Opacity"), 0.14f);
+		}
+	}
+	for (const TWeakObjectPtr<UStaticMeshComponent>& W : TheirLit)
+		if (UStaticMeshComponent* C = W.Get())
+			if (!Now.Contains(C) && C->GetOverlayMaterial() == TheirLitMaterial) C->SetOverlayMaterial(nullptr);
+	TheirLit.Reset();
+	if (!TheirLitMaterial) return;
+	for (UStaticMeshComponent* C : Now)
+	{
+		// Your own look's glow wins over theirs (yours is the one you act on).
+		if (!C->GetOverlayMaterial()) C->SetOverlayMaterial(TheirLitMaterial);
+		TheirLit.Add(C);
+	}
 }

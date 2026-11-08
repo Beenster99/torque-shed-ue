@@ -38,7 +38,12 @@ The host owns the shed, as Torque Shed's `shed_state`: every fit, wash, paint an
 player makes goes to the host, which checks it with the fitment rules, applies it and saves it, and
 everyone's shed shows the result (`Coop/TorqueShedNet.*`). A part that doesn't fit comes back as a
 note on the player's screen. Each player walks the shed in the rider's kit with a jacket in the colour they chose
-(`Coop/TorqueLook.*`), their name floats over them in that colour, with what
+(`Coop/TorqueLook.*`) with the tool they hold in their hand, moving as they work with it (the
+spanner ratchets, the grinder throws sparks, the can mists in its colour, the lance jets), and what
+they're working on glows faintly in their colour. That is each player's hands state on
+`ATorquePlayerState` (`Coop/HandsState.h`: sent on change, progress at most ten times a second,
+tested in `SimTest/net_test.cpp`). The bay screens' "ON IT NOW" names whoever's hands are on that
+bike. Their name floats over them in that colour, with what
 they're doing under it ("fitting clubman bars to bay 2"), so you can see each other working on
 different bikes. Each player rides out on the bike in the bay they last worked on, and every rider
 sees each bike as its owner built it.

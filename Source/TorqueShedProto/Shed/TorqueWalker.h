@@ -231,6 +231,15 @@ private:
 	FString PerfText, PerfFile;
 	void UpdatePerf(float Dt);
 
+	// --- Co-op (Coop/TorquePlayerState.h FTorqueHandsNet) ---------------------------------------------
+	// This player's hands for the others: offered each frame (sent when it's worth it).
+	void ShareHands(float Dt);
+	// Another player's walker: their tool, its motion and a faint glow (their colour) on what
+	// they're working on, from their hands.
+	void FollowHands(float Dt);
+	int32 PeerOf() const;   // whose hands these are, as the shed knows them
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> TheirLit;
+	UPROPERTY(Transient) UMaterialInstanceDynamic* TheirLitMaterial = nullptr;
 	// Tell the others what you're doing; it lapses after a few seconds without anything new.
 	void Doing(const FString& What, double For = 4.0);
 	double DoingFor = 0.0;
