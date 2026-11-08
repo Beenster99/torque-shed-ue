@@ -23,7 +23,8 @@ What it makes (Unreal cm: x east, y south (towards the roller door), z up; the f
   - the parts computer on the east wall, the engine stand by the bays, the parts washer and the
     repair bench against the front wall, the three bins left of the roller door;
   - doorways to the storage room (west), the paint shop (east) and the dyno room (back wall), each
-    room built as an empty shell for now, and the wash bay lean-to on the west wall, open to the
+    room built as a shell (the dyno room and the paint shop fitted out: the rig, desk and switches;
+    the downdraft spray bay with its hooks under hexagon lights), and the wash bay lean-to on the west wall, open to the
     yard, with the pressure washer on its back wall;
   - the deliveries bay painted on the yard east of the door; fields, lane and fells round it;
   - daylight as Buttertubs; the shed's strip lights over each bay and down the middle; Lumen;
@@ -263,6 +264,15 @@ def materials():
         "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
         "screen_page": screen_page_material(),   # for the game: the screens' pages
         "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
+        # The paint shop (workshop.gd _build_booth_room, equipment_view.gd _build_booth): white walls,
+        # a dark ceiling for the hexagon LED tiles, the spray bay's panels, filter, grate and rails.
+        "paint_wall": flat("M_PaintShopWall", (0.90, 0.91, 0.92), 0.35),
+        "paint_ceiling": flat("M_PaintShopCeiling", (0.08, 0.08, 0.09), 0.6, metallic=0.2),
+        "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=8.0),
+        "booth_panel": flat("M_BoothPanel", (0.88, 0.89, 0.90), 0.55, metallic=0.1),
+        "booth_filter": flat("M_BoothFilter", (0.95, 0.60, 0.35), 0.95, grain=0.1),
+        "booth_grate": flat("M_BoothGrate", (0.20, 0.21, 0.23), 0.4, metallic=0.8),
+        "chrome": flat("M_ShedChrome", (0.88, 0.89, 0.92), 0.15, metallic=0.95),
         # Outside: the yard, the lane and the Dales round it.
         "concrete": flat("M_ShedConcrete", (0.36, 0.35, 0.33), 0.82, grain=0.18),
         "grass": world_aligned("M_ShedField", grass, 300.0, (1.0, 1.0, 1.0), ((0.17, 0.26, 0.08), 0.95)),
@@ -606,6 +616,106 @@ def deliveries(m):
     label_text("Deliveries_Mark", "DELIVERIES", ((x0 + x1) / 2, y0 - 45, 1.0), 90.0, 50.0, (217, 178, 51), "Outside", pitch=90.0)
 
 
+# --- The paint shop (workshop.gd _build_booth_room) and its spray bay (equipment "booth_shop") -----------
+# The room: interior x 680 .. 1400, y -520 .. 520 (Torque Shed x 6.8 .. 14.0, z 59.8 .. 70.2), through
+# the doorway in the shed's east wall at y 350. The downdraft spray bay (BOOTH_XF: 8 m along y, 4.7 m
+# deep, 2.7 m high) stands against the east wall, its open front at x 925 facing the walkway, open
+# topped under the room's hexagon lights, with two rails of five hooks (TorqueShedLayout::HookAt:
+# x 1270 and 1050, y -300 .. 300 every 150, the hook's tip 138 cm up).
+PAINT_X0, PAINT_X1, PAINT_Y0, PAINT_Y1 = 680.0, 1400.0, -520.0, 520.0
+BOOTH_X0, BOOTH_X1, BOOTH_HALF_Y, BOOTH_H = 925.0, 1395.0, 400.0, 270.0
+BOOTH_RAIL_Z = 235.0
+HOOK_X, HOOK_Y, HOOK_TIP = (1270.0, 1050.0), (-300.0, -150.0, 0.0, 150.0, 300.0), 138.0
+
+
+def paint_shop(m):
+    import math
+    f = "PaintShop"
+    h = ROOM_HEIGHT
+    # White inside the cladding, the doorway from the shed left open; a dark ceiling.
+    box("Paint_LiningN", PAINT_X0, PAINT_X1, PAINT_Y0, PAINT_Y0 + 1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_LiningS", PAINT_X0, PAINT_X1, PAINT_Y1 - 1, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_LiningE", PAINT_X1 - 1, PAINT_X1, PAINT_Y0, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    d0, d1 = PAINT_DOOR_Y - SIDE_DOOR_HALF, PAINT_DOOR_Y + SIDE_DOOR_HALF
+    box("Paint_LiningW_0", PAINT_X0, PAINT_X0 + 1, PAINT_Y0, d0, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_LiningW_1", PAINT_X0, PAINT_X0 + 1, d1, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_LiningW_Top", PAINT_X0, PAINT_X0 + 1, d0, d1, SIDE_DOOR_TOP, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_Ceiling", PAINT_X0, PAINT_X1, PAINT_Y0, PAINT_Y1, h - 1, h, m["paint_ceiling"], folder=f, collide=False)
+    label_text("Paint_Poster", "SPRAY GUN: TOOL 7", (PAINT_X0 + 2, PAINT_DOOR_Y - SIDE_DOOR_HALF - 120, 160.0), 0.0, 16.0, (30, 30, 36), f)
+    # The honeycomb of hexagon LED tubes across the ceiling (workshop.gd _hex_ceiling), each shared
+    # edge once, in a frame round the lot.
+    r = 55.0
+    ax0, ay0, aw, ah = PAINT_X0 + 35, PAINT_Y0 + 35, PAINT_X1 - PAINT_X0 - 70, PAINT_Y1 - PAINT_Y0 - 70
+    row_h = math.sqrt(3.0) * r
+    cols = int(math.floor((aw - 2.0 * r) / (1.5 * r))) + 1
+    rows = int(math.floor((ah - row_h) / row_h)) + 1
+    span_x = (cols - 1) * 1.5 * r + 2.0 * r
+    span_y = rows * row_h + (row_h * 0.5 if cols > 1 else 0.0)
+    ox, oy = ax0 + (aw - span_x) * 0.5 + r, ay0 + (ah - span_y) * 0.5 + row_h * 0.5
+    edges = {}
+    for col in range(cols):
+        for row in range(rows):
+            cx = ox + col * 1.5 * r
+            cy = oy + row * row_h + (row_h * 0.5 if col % 2 == 1 else 0.0)
+            for k in range(6):
+                a = (cx + r * math.cos(k * math.pi / 3.0), cy + r * math.sin(k * math.pi / 3.0))
+                b = (cx + r * math.cos((k + 1) * math.pi / 3.0), cy + r * math.sin((k + 1) * math.pi / 3.0))
+                edges[(round((a[0] + b[0]) * 0.5), round((a[1] + b[1]) * 0.5))] = (a, b)
+    lo = (ox - r - 12.0, oy - row_h * 0.5 - 12.0)
+    hi = (lo[0] + span_x + 24.0, lo[1] + span_y + 24.0)
+    segs = list(edges.values()) + [(lo, (hi[0], lo[1])), ((hi[0], lo[1]), hi), (hi, (lo[0], hi[1])), ((lo[0], hi[1]), lo)]
+    for i, (a, b) in enumerate(segs):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(dx, dy) * 0.94
+        yaw = math.degrees(math.atan2(dy, dx))
+        shape(CUBE, "Paint_Hex_%d" % i, ((a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, h - 4.0), (length, 3.5, 2.5), m["hex_led"],
+              rot=(0.0, 0.0, yaw), folder=f + "/HexLights", collide=False)
+    # Real light under the tiles: bright clean white from above (the four spots).
+    for i, (px, py) in enumerate(((-180.0, -260.0), (120.0, -260.0), (-180.0, 260.0), (120.0, 260.0))):
+        light = actors.spawn_actor_from_class(unreal.SpotLight, unreal.Vector(1040.0 + px, py, h - 12.0), unreal.Rotator(0.0, -90.0, 0.0))
+        light.set_actor_label("Paint_Spot_%d" % i)
+        light.set_folder_path(f)
+        lc = light.get_component_by_class(unreal.SpotLightComponent)
+        lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+        units = getattr(unreal, "LightUnits", None)
+        if units is not None:
+            try_set(lc, "intensity_units", units.LUMENS)
+        for k, v in (("intensity", 3200.0), ("outer_cone_angle", 70.0), ("inner_cone_angle", 30.0), ("attenuation_radius", 600.0),
+                     ("temperature", 6200.0), ("use_temperature", True)):
+            try_set(lc, k, v)
+    # The spray bay (equipment_view.gd _build_booth): back and side panels, steel posts at the open
+    # front, the filter wall at the back with its extractor grille, the downdraft grate.
+    t = 5.0
+    box("Booth_Back", BOOTH_X1 - t, BOOTH_X1, -BOOTH_HALF_Y, BOOTH_HALF_Y, 0, BOOTH_H, m["booth_panel"], folder=f + "/Booth")
+    for i, side in enumerate((-1.0, 1.0)):
+        y0, y1 = sorted((side * BOOTH_HALF_Y, side * (BOOTH_HALF_Y - t)))
+        box("Booth_Side_%d" % i, BOOTH_X0, BOOTH_X1, y0, y1, 0, BOOTH_H, m["booth_panel"], folder=f + "/Booth")
+        box("Booth_Post_%d" % i, BOOTH_X0 - 3, BOOTH_X0 + 3, y0 - 2, y1 + 2, 0, BOOTH_H, m["steel"], folder=f + "/Booth", collide=False)
+    fx = BOOTH_X1 - t - 2.0
+    box("Booth_Filter", fx - 3, fx, -320.0, 320.0, 121.5 - 81.0, 121.5 + 81.0, m["booth_filter"], folder=f + "/Booth", collide=False)
+    for i in range(6):
+        z = 54.0 + i * 27.0
+        box("Booth_Grille_%d" % i, fx - 4, fx - 3, -320.0, 320.0, z - 0.6, z + 0.6, m["steel"], folder=f + "/Booth", collide=False)
+    box("Booth_Grate", BOOTH_X0 + 5, BOOTH_X1 - 5, -BOOTH_HALF_Y + 5, BOOTH_HALF_Y - 5, 0, 4, m["booth_grate"], folder=f + "/Booth", collide=False)
+    for i in range(12):
+        x = 1371.5 - i * 38.45
+        box("Booth_GrateBar_%d" % i, x - 0.75, x + 0.75, -390.0, 390.0, 4, 5, m["steel"], folder=f + "/Booth", collide=False)
+    label_text("Booth_Name", "DOWNDRAFT SPRAY BAY", (BOOTH_X1 - t - 1.0, 0.0, BOOTH_H - 30.0), 180.0, 18.0, (31, 31, 36), f + "/Booth")
+    # The hook rails, hung from the ceiling on drop rods, and a hook on a wire for each place.
+    for i, rx in enumerate(HOOK_X):
+        box("Booth_Rail_%d" % i, rx - 2, rx + 2, -390.0, 390.0, BOOTH_RAIL_Z - 2, BOOTH_RAIL_Z + 2, m["chrome"], folder=f + "/Booth", collide=False)
+        for j, side in enumerate((-1.0, 1.0)):
+            shape(CYLINDER, "Booth_Rod_%d_%d" % (i, j), (rx, side * 370.0, (BOOTH_RAIL_Z + h) * 0.5), (2.4, 2.4, h - BOOTH_RAIL_Z),
+                  m["chrome"], folder=f + "/Booth", collide=False)
+        for j, hy in enumerate(HOOK_Y):
+            n = i * 5 + j
+            box("Booth_Hanger_%d" % n, rx - 3, rx + 3, hy - 2.5, hy + 2.5, BOOTH_RAIL_Z - 3.5, BOOTH_RAIL_Z - 2, m["dark"], folder=f + "/Booth", collide=False)
+            wire = BOOTH_RAIL_Z - HOOK_TIP - 3.0
+            shape(CYLINDER, "Booth_Wire_%d" % n, (rx, hy, HOOK_TIP + 3.0 + wire * 0.5), (0.8, 0.8, wire), m["chrome"], folder=f + "/Booth", collide=False)
+            shape(CYLINDER, "Booth_Hook_%d" % n, (rx, hy, HOOK_TIP + 2.8), (5.6, 5.6, 0.8), m["chrome"], rot=(90.0, 0.0, 0.0),
+                  folder=f + "/Booth", collide=False)
+
+
 def lights(m):
     # Workshop.gd _build_lights: a strip light over each bay with a spot under it, and three more
     # strips down the middle and over the door.
@@ -760,6 +870,7 @@ def build():
     wash_bay(m)
     rooms(m)
     dyno_room(m)
+    paint_shop(m)
     deliveries(m)
     lights(m)
     outside(m)

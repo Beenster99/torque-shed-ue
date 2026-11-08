@@ -14,8 +14,8 @@ class UMaterialInstanceDynamic;
 
 namespace TorqueToolModels
 {
-// The tools, as the walker's ETorqueTool: hands, wrench, brush, repair (the grinder), spray, lance.
-enum ETool : int32 { Hands = 0, Wrench, Brush, Repair, Spray, Lance };
+// The tools, as the walker's ETorqueTool: hands, wrench, brush, repair (the grinder), spray, lance, gun.
+enum ETool : int32 { Hands = 0, Wrench, Brush, Repair, Spray, Lance, Gun };
 
 // Builds the tool under Parent (in Unreal's frame, cm: x forward, z up), the can tinted CanColour.
 // OutNozzle: where the work comes off it (the grinder's disc, the can's nozzle, the lance's tip),

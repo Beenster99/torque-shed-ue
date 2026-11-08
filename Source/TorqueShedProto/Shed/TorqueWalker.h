@@ -44,7 +44,7 @@ enum class ETorqueLook : uint8
 };
 
 // The walker's tools (walker.gd TOOLS, without the paint gun, the stopwatch and the polisher).
-enum class ETorqueTool : uint8 { Hands, Wrench, Brush, Repair, Spray, Lance, Count };
+enum class ETorqueTool : uint8 { Hands, Wrench, Brush, Repair, Spray, Lance, Gun, Count };   // Gun: the spray gun (key 7)
 
 UCLASS()
 class ATorqueWalker : public ACharacter
@@ -70,6 +70,11 @@ public:
 	int32 ToolIndex() const { return (int32)Tool; }
 	int32 SprayColourIndex() const { return SprayColour; }
 	FString SprayFinishText() const;
+	// What the spray can or gun can be loaded with (walker.gd spray_loads), in the order T goes
+	// through them, and which is loaded.
+	TArray<FString> SprayLoadNames() const;
+	int32 SprayLoadIndex() const { return SprayFinish; }
+	bool SprayIsPaint() const;   // a colour (R picks it), not primer or a coat
 	FString CarryingText() const;
 	// For the parts computer's monitor (ATorqueShedScreens): whether this player is at it, the
 	// category (NAME_None: project bikes) and its rows, and the one picked.

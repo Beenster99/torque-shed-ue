@@ -4,7 +4,7 @@
 //
 // The places a part can be put (shed_state.gd's spots and surfaces): along the workbench, on the
 // repair bench and in the parts washer, on the tyre changer and the engine stand. Anything else
-// goes on the floor where you put it.
+// goes on the floor where you put it. And the ten hooks in the paint shop's spray bay.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -22,6 +22,7 @@ enum class ETorquePlace : uint8
 	DynoStrap, // one of the dyno rig's four strap posts (Index 0 .. 3): hold the work button to strap it
 	DynoDesk,  // the dyno desk: run the bike on the rig
 	DynoSwitch,// the dyno room's switches by the door (Index 0 the lights, 1 the fan)
+	Hook,      // a hook in the paint shop's spray bay (Index 0 .. 9): a part hung here is sprayed with the gun
 };
 
 struct FTorquePlace
@@ -40,6 +41,17 @@ inline FVector BayAt(int32 Bay)
 {
 	static const double X[] = {-480.0, -160.0, 160.0, 480.0};
 	return FVector(X[FMath::Clamp(Bay, 0, 3)], -350.0, 0.0);
+}
+
+// The spray bay's hooks: where a part on hook n hangs from (its top, centred), and the lowest a
+// hung part's bottom comes (workshop.gd HOOK_TIP, HOOK_FLOOR).
+constexpr int32 HookCount = 10;
+constexpr double HookTip = 138.0;
+constexpr double HookFloor = 12.0;
+inline FVector HookAt(int32 N)
+{
+	const int32 I = FMath::Clamp(N, 0, HookCount - 1);
+	return FVector(I < 5 ? 1270.0 : 1050.0, -300.0 + 150.0 * (I % 5), HookTip);
 }
 
 // Every place, made once.
@@ -98,6 +110,16 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::DynoDesk, TEXT("dyno_desk"), FVector(215.0, -1145.0, 65.0), FVector(365.0, -1070.0, 145.0), FVector(290.0, -1110.0, 84.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_lights"), FVector(-145.0, -590.0, 122.0), FVector(-125.0, -578.0, 148.0), FVector(-135.0, -585.0, 135.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_fan"), FVector(-169.0, -590.0, 122.0), FVector(-149.0, -578.0, 148.0), FVector(-159.0, -585.0, 135.0), 1);
+	// The paint shop's downdraft spray bay (workshop.gd BOOTH_XF, equipment.gd booth_shop): 8 m along
+	// y (-400 .. 400), its open front at x 925 to the walkway, two rails of five hooks, at x 1270 (the
+	// back) and 1050, every 150 cm along y. A hung part's top touches the hook's tip, 138 cm up (Put.Z;
+	// ATorqueShedItems hangs it from there). Keep in step with ue_build_shed.py paint_shop.
+	for (int32 I = 0; I < HookCount; ++I)
+	{
+		const FVector At = HookAt(I);
+		Add(ETorquePlace::Hook, FString::Printf(TEXT("hook_%d"), I), FVector(At.X - 25.0, At.Y - 67.5, 60.0), FVector(At.X + 25.0, At.Y + 67.5, 145.0),
+			At, I);
+	}
 	// Each bay's floor round the stand (a frame put down here starts a bike).
 	for (int32 I = 0; I < 4; ++I)
 	{

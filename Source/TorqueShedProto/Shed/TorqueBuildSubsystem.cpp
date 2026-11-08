@@ -47,10 +47,24 @@ bool SpotIs(FName Spot, ETorquePlace Kind)
 	return P && P->Kind == Kind;
 }
 
+// How a sprayed coat came out (shed_state _job_word).
+FString JobWord(float Q)
+{
+	return Q > 0.95f ? FString(TEXT("a perfect coat")) : (Q > 0.85f ? FString(TEXT("a good coat")) : (Q > 0.7f ? FString(TEXT("a bit patchy")) : FString(TEXT("patchy"))));
+}
+
+// How well a coat goes on this part: by hand for now (UTorqueBuildSubsystem::HandCoat), better on a
+// hook in the spray bay, where no dust settles in it.
+float SprayQ(const FTorqueItem& It)
+{
+	const bool bInBooth = It.At == ETorqueAt::Spot && SpotIs(It.Spot, ETorquePlace::Hook);
+	return FMath::Clamp(UTorqueBuildSubsystem::HandCoat + (bInBooth ? UTorqueBuildSubsystem::BoothFinish : 0.0f), 0.0f, 1.0f);
+}
+
 bool IsSpot(FName Spot)
 {
 	return SpotIs(Spot, ETorquePlace::Bench) || SpotIs(Spot, ETorquePlace::Repair) || SpotIs(Spot, ETorquePlace::Washer) ||
-		SpotIs(Spot, ETorquePlace::Changer) || SpotIs(Spot, ETorquePlace::Stand);
+		SpotIs(Spot, ETorquePlace::Changer) || SpotIs(Spot, ETorquePlace::Stand) || SpotIs(Spot, ETorquePlace::Hook);
 }
 
 const FName& EngineKind() { static const FName N(TEXT("engine")); return N; }
@@ -259,6 +273,11 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.Slots = It.Slots;
 		To.Bolted = It.Bolted;
 		To.Tyre = It.Tyre;
+		To.PaintQ = It.PaintQ;
+		To.Primer = It.Primer;
+		To.bPrimerTop = It.bPrimerTop;
+		To.Coat = It.Coat;
+		To.CoatQ = It.CoatQ;
 		S.Items.Add(To);
 	}
 }
@@ -313,6 +332,11 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.Slots = From.Slots;
 		It.Bolted = From.Bolted;
 		It.Tyre = From.Tyre;
+		It.PaintQ = From.PaintQ;
+		It.Primer = From.Primer;
+		It.bPrimerTop = From.bPrimerTop;
+		It.Coat = From.Coat;
+		It.CoatQ = From.CoatQ;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -360,7 +384,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 4;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit)
+constexpr int32 BytesLayout = 5;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs)
 
 struct FNameTable
 {
@@ -481,6 +505,11 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 			float Yaw = (float)It.Place.Rotator().Yaw;
 			Ar << Where << Yaw;
 		}
+		// The paint job: its quality (0: as the factory left it, else 1 + 254 x quality), primer, coat.
+		uint8 PaintQ = It.PaintQ < 0.0f ? 0 : (uint8)(1 + FMath::RoundToInt(FMath::Clamp(It.PaintQ, 0.0f, 1.0f) * 254.0f));
+		uint8 Primer = TBI::Quant(It.Primer), CoatQ = TBI::Quant(It.CoatQ), bPrimerTop = It.bPrimerTop ? 1 : 0;
+		uint16 Coat = Table.Of(It.Coat);
+		Ar << PaintQ << Primer << bPrimerTop << Coat << CoatQ;
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -590,6 +619,16 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			Ar << Where << Yaw;
 			It.Place = FTransform(FRotator(0.0, Yaw, 0.0), FVector(Where));
 		}
+		{
+			uint8 PaintQ = 0, Primer = 0, bPrimerTop = 0, CoatQ = 0;
+			uint16 Coat = 0;
+			Ar << PaintQ << Primer << bPrimerTop << Coat << CoatQ;
+			It.PaintQ = PaintQ == 0 ? -1.0f : (PaintQ - 1) / 254.0f;
+			It.Primer = TBI::Unquant(Primer);
+			It.bPrimerTop = bPrimerTop != 0;
+			It.Coat = NameAt(Coat);
+			It.CoatQ = TBI::Unquant(CoatQ);
+		}
 		Ar << bEngine;
 		if (bEngine && !TBI::ReadSlots(Ar, It.Slots, It.Bolted, false)) return false;
 		NewItems.Add(It.Id, It);
@@ -635,8 +674,8 @@ FString UTorqueBuildSubsystem::BaySignature(int32 Bay, bool bLooks) const
 		if (!It) continue;
 		Sig += FString::Printf(TEXT("|%d:%s"), It->Id, *It->Part.ToString());
 		if (bLooks)
-			Sig += FString::Printf(TEXT(":%d:%d:%s:%s:%d"), TBI::Quant(It->Dirt), TBI::Quant(It->Rust), *It->Colour.QuantizeRound().ToHex(),
-				*It->Finish.ToString(), IsBolted(Bay, S) ? 1 : 0);
+			Sig += FString::Printf(TEXT(":%d:%d:%s:%s:%d:%d"), TBI::Quant(It->Dirt), TBI::Quant(It->Rust), *It->Colour.QuantizeRound().ToHex(),
+				*It->Finish.ToString(), IsBolted(Bay, S) ? 1 : 0, It->bPrimerTop ? 1 : 0);
 	}
 	return Sig;
 }
@@ -652,6 +691,7 @@ FString UTorqueBuildSubsystem::LooseSignature() const
 		Sig += FString::Printf(TEXT("|%d:%d:%d:%s:%d:%d:%d:%d:%d:%s:%s"), It.Id, (int32)It.At, It.Ref, *It.Spot.ToString(), It.bBoxed ? 1 : 0,
 			It.Tyre, FMath::RoundToInt(P.X), FMath::RoundToInt(P.Y), TBI::Quant(It.Dirt) + 256 * TBI::Quant(It.Rust),
 			*It.Colour.QuantizeRound().ToHex(), *It.Finish.ToString());
+		if (It.bPrimerTop) Sig += TEXT(":primer");
 		for (const TPair<FName, int32>& S : It.Slots) Sig += FString::Printf(TEXT(",%d"), S.Value);
 	}
 	return Sig;
@@ -1112,14 +1152,42 @@ FString UTorqueBuildSubsystem::ConditionText(int32 Id) const
 	if (!It) return FString();
 	if (It->bBoxed) return TEXT("Brand new, still in its box");
 	FString Paint = TEXT("factory finish");
-	if (!It->Finish.IsNone())
+	if (It->bPrimerTop) Paint = TEXT("grey primer");
+	else if (!It->Finish.IsNone())
 	{
 		const FLinearColor Colour = It->Colour;
 		const int32 Idx = Paints().IndexOfByPredicate([Colour](const FLinearColor& C) { return C.Equals(Colour, 0.01f); });
 		Paint = FString::Printf(TEXT("%s %s"), *FinishName(It->Finish), *PaintName(Idx).ToLower());
 	}
-	return FString::Printf(TEXT("Condition %d%%   Rust %d%%   Dirt %d%%   Wear %d%%   %s"), FMath::RoundToInt(Health(*It) * 100.0f),
+	FString Text = FString::Printf(TEXT("Condition %d%%   Rust %d%%   Dirt %d%%   Wear %d%%   %s"), FMath::RoundToInt(Health(*It) * 100.0f),
 		FMath::RoundToInt(It->Rust * 100.0f), FMath::RoundToInt(It->Dirt * 100.0f), FMath::RoundToInt(It->Wear * 100.0f), *Paint);
+	const FString Job = PaintJobText(*It);
+	if (!Job.IsEmpty()) Text += TEXT("   ") + Job;
+	return Text;
+}
+
+FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
+{
+	// shed_state finish_text and coat_text.
+	FString Text;
+	if (It.bPrimerTop)
+	{
+		Text = FString::Printf(TEXT("In primer (%d%%): ready for its colour coat"), FMath::RoundToInt(It.Primer * 100.0f));
+		if (It.PaintQ >= 0.0f) Text += FString::Printf(TEXT(", the old paint job (%d%%) under it"), FMath::RoundToInt(It.PaintQ * 100.0f));
+	}
+	else if (It.PaintQ >= 0.0f)
+	{
+		Text = FString::Printf(TEXT("Paint job: %s (%d%%)"), *TBI::JobWord(It.PaintQ), FMath::RoundToInt(It.PaintQ * 100.0f));
+		if (It.Primer > 0.0f) Text += TEXT(", over primer");
+		if (IsLacquer(It.Coat)) Text += TEXT(", lacquered");
+	}
+	if (!It.Coat.IsNone())
+	{
+		const FString CoatText = FString::Printf(TEXT("Protective coat: %s, %s (%d%%)"), *CoatName(It.Coat).ToLower(), *TBI::JobWord(It.CoatQ),
+			FMath::RoundToInt(It.CoatQ * 100.0f));
+		Text = Text.IsEmpty() ? CoatText : Text + TEXT("   ") + CoatText;
+	}
+	return Text;
 }
 
 float UTorqueBuildSubsystem::RepairTime(const TArray<int32>& Ids) const
@@ -1146,9 +1214,9 @@ bool UTorqueBuildSubsystem::PaintOf(int32 Bay, FName Slot, FLinearColor& Out) co
 {
 	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
 	if (!It) return false;
-	if (!It->Finish.IsNone())
+	if (Repainted(*It))
 	{
-		Out = It->Colour;
+		Out = ShownColour(*It);
 		return true;
 	}
 	// A catalogue part the model has no shape for yet: the stock part tinted the catalogue colour.
@@ -1192,6 +1260,26 @@ FString UTorqueBuildSubsystem::FinishName(FName Finish)
 	if (Finish == FName(TEXT("chrome"))) return TEXT("Chrome");
 	if (Finish == FName(TEXT("patina"))) return TEXT("Old patina");
 	return TEXT("Gloss");
+}
+
+const TArray<FName>& UTorqueBuildSubsystem::Coats()
+{
+	static const TArray<FName> L = {FName(TEXT("clear")), FName(TEXT("satin_clear")), FName(TEXT("enamel_black")), FName(TEXT("enamel_silver"))};
+	return L;
+}
+
+FString UTorqueBuildSubsystem::CoatName(FName Coat)
+{
+	if (Coat == FName(TEXT("clear"))) return TEXT("Clear lacquer");
+	if (Coat == FName(TEXT("satin_clear"))) return TEXT("Satin clear lacquer");
+	if (Coat == FName(TEXT("enamel_black"))) return TEXT("Black engine enamel");
+	if (Coat == FName(TEXT("enamel_silver"))) return TEXT("Silver engine enamel");
+	return Coat.ToString();
+}
+
+bool UTorqueBuildSubsystem::IsLacquer(FName Coat)
+{
+	return Coat == FName(TEXT("clear")) || Coat == FName(TEXT("satin_clear"));
 }
 
 // --- The rules (shed_state check) ------------------------------------------------------------------
@@ -1341,7 +1429,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (ItemAtSpot(R.Spot) != 0) return TEXT("That spot is taken.");
 		if (TBI::SpotIs(R.Spot, ETorquePlace::Stand) && (HeldIt->Kind != TBI::EngineKind() || HeldIt->bBoxed))
 			return TEXT("Only an engine goes on the engine stand.");
-		if ((TBI::SpotIs(R.Spot, ETorquePlace::Washer) || TBI::SpotIs(R.Spot, ETorquePlace::Repair) || TBI::SpotIs(R.Spot, ETorquePlace::Changer)) && HeldIt->bBoxed)
+		if ((TBI::SpotIs(R.Spot, ETorquePlace::Washer) || TBI::SpotIs(R.Spot, ETorquePlace::Repair) || TBI::SpotIs(R.Spot, ETorquePlace::Changer) ||
+			TBI::SpotIs(R.Spot, ETorquePlace::Hook)) && HeldIt->bBoxed)
 			return TEXT("Unpack it first.");
 		if (TBI::SpotIs(R.Spot, ETorquePlace::Changer) && HeldIt->Kind != FName(TEXT("wheel")))
 			return TEXT("Only a wheel goes on the tyre changer. Fit tyres to a wheel on it.");
@@ -1387,15 +1476,34 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		return bAny ? FString() : FString(TEXT("It's already in top condition."));
 	}
 	case ETorqueShedAct::Paint:
+	case ETorqueShedAct::Prime:
+	case ETorqueShedAct::Coat:
 	{
+		// shed_state check "paint" / "prime" and _coat_check.
 		const FTorqueItem* It = Items.Find(R.Item);
 		if (!It) return TEXT("That part has gone.");
 		if (It->At == ETorqueAt::Held) return TEXT("Put it down first.");
 		if (It->bBoxed) return TEXT("Unpack it first.");
-		if (It->Rust > MaxPaintRust) return TEXT("Too rusty to paint. Grind it back on the repair bench first.");
+		const bool bInBooth = It->At == ETorqueAt::Spot && TBI::SpotIs(It->Spot, ETorquePlace::Hook);
+		if (R.Kind == ETorqueShedAct::Coat)
+		{
+			if (!Coats().Contains(R.Finish)) return TEXT("That's not a coat the spray gun has.");
+			const bool bCanLacquer = IsLacquer(R.Finish) && !R.bGun && It->PaintQ >= 0.0f;
+			if (IsLacquer(R.Finish) && It->bPrimerTop) return TEXT("Lacquer goes over the colour, not bare primer. Spray the colour coat on first.");
+			if (IsLacquer(R.Finish) && !R.bGun && It->PaintQ < 0.0f && !bInBooth) return TEXT("Lacquer from a can goes over fresh paint. Spray its colour on first.");
+			if (!bInBooth && !bCanLacquer) return TEXT("Protective coats go on with the spray gun in the paint shop: hang it on a hook there.");
+			if (It->Rust > MaxPaintRust) return TEXT("Too rusty to coat. Get the rust off it first.");
+			return FString();
+		}
+		if (R.bGun && !bInBooth) return TEXT("The spray gun runs off the paint booth's air line. Hang the part in the booth.");
+		if (It->Rust > MaxPaintRust)
+			return R.Kind == ETorqueShedAct::Prime ? FString(TEXT("Too rusty to prime. Grind it back on the repair bench first."))
+				: FString(TEXT("Too rusty to paint. Grind it back on the repair bench first."));
+		if (R.Kind == ETorqueShedAct::Prime)
+			return It->bPrimerTop ? FString(TEXT("It's already in primer. Spray its colour on.")) : FString();
 		const int32 Idx = FMath::Clamp(R.Colour, 0, Paints().Num() - 1);
 		const FName Finish = Finishes().Contains(R.Finish) ? R.Finish : FName(TEXT("gloss"));
-		if (It->Finish == Finish && It->Colour.Equals(Paints()[Idx], 0.001f))
+		if (!It->bPrimerTop && It->Finish == Finish && It->Colour.Equals(Paints()[Idx], 0.001f))
 			return FString::Printf(TEXT("It's already %s %s."), *FinishName(Finish).ToLower(), *PaintName(Idx).ToLower());
 		return FString();
 	}
@@ -1642,6 +1750,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Move(Held, ETorqueAt::Spot, 0, R.Spot);
 		if (TBI::SpotIs(R.Spot, ETorquePlace::Stand)) Text = TEXT("Engine on the stand. Strip it down or build it up.");
 		else if (TBI::SpotIs(R.Spot, ETorquePlace::Washer)) Text = TEXT("Into the parts washer");
+		else if (TBI::SpotIs(R.Spot, ETorquePlace::Hook)) Text = TEXT("Hung in the spray bay. Spray it with the spray gun (7): primer, colour, then lacquer.");
 		else if (TBI::SpotIs(R.Spot, ETorquePlace::Changer))
 			Text = Items[Held].Tyre != 0 ? TEXT("Wheel clamped on the tyre changer. Lever the old tyre off, or lift the wheel off again.")
 				: TEXT("Wheel clamped on the tyre changer. Hold a tyre that fits it and work it on.");
@@ -1688,11 +1797,59 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	}
 	case ETorqueShedAct::Paint:
 	{
+		// shed_state _apply "paint": fresh paint covers any coat that was on it; in the booth no
+		// dust settles in it, and over a good primer it keys on and comes out better.
 		FTorqueItem& It = Items[R.Item];
 		const int32 Idx = FMath::Clamp(R.Colour, 0, Paints().Num() - 1);
 		It.Colour = Paints()[Idx];
 		It.Finish = Finishes().Contains(R.Finish) ? R.Finish : FName(TEXT("gloss"));
+		It.Coat = NAME_None;
+		It.CoatQ = 0.0f;
+		float Q = TBI::SprayQ(It);
+		const bool bPrimed = It.bPrimerTop;
+		if (bPrimed) Q = FMath::Min(1.0f, Q + PrimerBonus * It.Primer);
+		It.bPrimerTop = false;
+		It.PaintQ = Q;
 		Text = FString::Printf(TEXT("Sprayed the %s %s %s"), *ItemTitle(R.Item), *FinishName(It.Finish).ToLower(), *PaintName(Idx).ToLower());
+		if (bPrimed) Text += TEXT(" over primer");
+		Text += TEXT(": ") + TBI::JobWord(Q);
+		Touch(R.Item);
+		break;
+	}
+	case ETorqueShedAct::Prime:
+	{
+		// shed_state _apply "prime": grey primer, the colour that was on it kept underneath for now.
+		FTorqueItem& It = Items[R.Item];
+		const float Q = TBI::SprayQ(It);
+		It.Coat = NAME_None;
+		It.CoatQ = 0.0f;
+		It.Primer = Q;
+		It.bPrimerTop = true;
+		Text = FString::Printf(TEXT("Primed the %s: %s"), *ItemTitle(R.Item), *TBI::JobWord(Q));
+		Touch(R.Item);
+		break;
+	}
+	case ETorqueShedAct::Coat:
+	{
+		// shed_state _coat_apply: clear lacquer over a paint job brings it up (once); an enamel paints it.
+		FTorqueItem& It = Items[R.Item];
+		const float Q = TBI::SprayQ(It);
+		if (IsLacquer(R.Finish))
+		{
+			if (It.PaintQ >= 0.0f && !IsLacquer(It.Coat)) It.PaintQ = FMath::Min(1.0f, It.PaintQ + LacquerBonus * Q);
+		}
+		else
+		{
+			const bool bSilver = R.Finish == FName(TEXT("enamel_silver"));
+			It.Colour = Paints()[FMath::Clamp(bSilver ? 8 : 6, 0, Paints().Num() - 1)];
+			It.Finish = bSilver ? FName(TEXT("metallic")) : FName(TEXT("gloss"));
+			const float Under = It.bPrimerTop ? It.Primer : 0.0f;
+			It.PaintQ = FMath::Min(1.0f, Q + PrimerBonus * Under);
+			It.bPrimerTop = false;
+		}
+		It.Coat = R.Finish;
+		It.CoatQ = Q;
+		Text = FString::Printf(TEXT("Gave the %s a coat of %s: %s"), *ItemTitle(R.Item).ToLower(), *CoatName(R.Finish).ToLower(), *TBI::JobWord(Q));
 		Touch(R.Item);
 		break;
 	}
