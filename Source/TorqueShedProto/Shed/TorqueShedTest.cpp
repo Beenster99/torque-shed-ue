@@ -406,7 +406,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const FString What = P[1].ToLower();
 		if (What == TEXT("player"))
 		{
-			// Co-op: turn (without moving) to face the nearest other player, to check their name tag.
+			// Co-op: stand back about 3 m from the nearest other player and face them, so a screenshot
+			// takes in all of them and the name tag over their head.
 			const APawn* Nearest = nullptr;
 			double Best = 1e30;
 			for (TActorIterator<APawn> It(W->GetWorld()); It; ++It)
@@ -417,10 +418,19 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			}
 			AController* C = W->GetController();
 			if (!Nearest || !C) { Warn(TEXT("look:player: no other player here")); return true; }
-			const FVector From = W->GetPawnViewLocation();
-			const FVector To = Nearest->GetActorLocation() + FVector(0.0, 0.0, 40.0);
-			C->SetControlRotation((To - From).Rotation());
-			Said(FString::Printf(TEXT("facing %s, %.1f m away"), *Nearest->GetPlayerState()->GetPlayerName(), FMath::Sqrt(Best) / 100.0));
+			const FVector Them = Nearest->GetActorLocation();
+			// From where we are now, or round to the first clear side (a wall or a bench in the way).
+			const FVector Back = FVector(W->GetActorLocation() - Them).GetSafeNormal2D();
+			FVector Away = Back.IsNearlyZero() ? FVector(1.0, 0.0, 0.0) : Back;
+			FCollisionQueryParams Ignore(TEXT("TorqueLookPlayer"), false, W);
+			Ignore.AddIgnoredActor(Nearest);
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Try = Away.RotateAngleAxis(45.0 * ((Turn + 1) / 2) * (Turn % 2 ? 1.0 : -1.0), FVector::UpVector);
+				if (!W->GetWorld()->LineTraceTestByChannel(Them, Them + Try * 340.0, ECC_Visibility, Ignore)) { Away = Try; break; }
+			}
+			Said(FString::Printf(TEXT("facing %s from 3 m: %s"), *Nearest->GetPlayerState()->GetPlayerName(),
+				*W->TestLookAt(Them + FVector(0.0, 0.0, 50.0), Away, 300.0)));
 			return true;
 		}
 		FVector At = FVector::ZeroVector, Away = FVector::ZeroVector;
