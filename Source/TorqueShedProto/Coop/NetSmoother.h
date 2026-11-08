@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <deque>
+#include <utility>
 
 namespace TorqueNet
 {
@@ -50,15 +51,18 @@ class Smoother
 {
 public:
 	double Delay = 0.1;         // the least time the bike is drawn behind the sender's clock (+ the trip), s
-	double MaxDelay = 0.4;      // however bad the network, never further behind than this
+	double MaxDelay = 0.25;     // however bad the network, never further behind than this
 	double MaxExtrapolate = 0.25;
 	double SnapDistance = 1500.0;   // further than this beyond where the velocity would carry it: a jump
-	double Slew = 0.05;         // how fast the drawing clock may speed up or slow down (s per s)
+	double Slew = 0.1;          // how fast the drawing clock may speed up or slow down (s per s)
+	double JumpClock = 0.3;     // further than this from where it should be, the drawing clock jumps there
+	double OffsetWindow = 4.0;  // the quickest trip is the quickest over this long (s)
 
 	void Reset()
 	{
 		Buf.clear();
 		bHaveOffset = false;
+		OffWin.clear();
 		LateEnv = SpacingAvg = 0.0;
 		Stats = SmootherStats();
 	}
@@ -81,24 +85,20 @@ public:
 		}
 		Stats.LastArrival = Now;
 		const double Off = Now - S.Time;
-		if (!bHaveOffset)
-		{
-			Target = Off;
-			bHaveOffset = true;
-		}
-		else if (Off < Target)
-		{
-			Target = Off;       // a quicker path than seen before
-		}
-		else
-		{
-			Target += (Off - Target) * 0.01;   // follow a slower network (or clock drift) gently
-		}
+		// The quickest trip over the last few seconds (a running minimum): it follows a network that
+		// has got slower (a queue building up, a host whose frame rate dropped) within seconds, where
+		// the quickest ever would leave the bike drawn ahead of what has arrived.
+		while (!OffWin.empty() && OffWin.back().second >= Off) OffWin.pop_back();
+		OffWin.emplace_back(Now, Off);
+		while (OffWin.front().first < Now - OffsetWindow) OffWin.pop_front();
+		Target = OffWin.front().second;
+		bHaveOffset = true;
 		// How late this one came compared with the quickest: the delay has to cover the late ones.
-		// The worst lately, forgotten over about ten seconds.
+		// It rises part way to each late one (one hitch doesn't set it) and falls back over a few
+		// seconds.
 		const double Late = Off - Target;
 		const double Spacing = Buf.empty() ? 0.0 : S.Time - Buf.back().Time;
-		LateEnv = Late > LateEnv ? Late : LateEnv * 0.997;
+		LateEnv = Late > LateEnv ? LateEnv + (Late - LateEnv) * 0.3 : LateEnv * 0.99;
 		SpacingAvg = SpacingAvg <= 0.0 ? Spacing : SpacingAvg + (Spacing - SpacingAvg) * 0.05;
 		if (Stats.Received == 1) Cur = Target + WantDelay();
 		Buf.push_back(S);
@@ -114,7 +114,8 @@ public:
 		// The drawing clock eases towards the estimate rather than jumping with it.
 		const double Step = Slew * (Dt > 0.0 ? Dt : 0.0);
 		const double D = Target + WantDelay() - Cur;
-		Cur += D > Step ? Step : (D < -Step ? -Step : D);
+		if (D > JumpClock || D < -JumpClock) Cur += D;   // far out (joining, a long stall): go straight there
+		else Cur += D > Step ? Step : (D < -Step ? -Step : D);
 		const double T = Now - Cur;
 		++Stats.Frames;
 
@@ -197,7 +198,7 @@ public:
 	// The delay the drawing clock is heading for (s, beyond the quickest trip seen).
 	double WantDelay() const
 	{
-		const double W = 1.5 * SpacingAvg + LateEnv + 0.01;
+		const double W = 1.2 * SpacingAvg + LateEnv + 0.01;
 		return W < Delay ? Delay : (W > MaxDelay ? MaxDelay : W);
 	}
 	// How far behind the newest snapshot we're drawing (s): negative is waiting on the next one.
@@ -207,6 +208,7 @@ public:
 
 private:
 	std::deque<Snap> Buf;
+	std::deque<std::pair<double, double>> OffWin;   // (arrived, offset), offsets rising
 	bool bHaveOffset = false, bInJump = false;
 	double Target = 0.0, Cur = 0.0, LateEnv = 0.0, SpacingAvg = 0.0;
 

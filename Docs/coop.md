@@ -10,8 +10,8 @@ works: the host runs the session, and every rider simulates their own bike.
 | --- | --- | --- |
 | Start menu | `Coop/TorqueMenuPawn.*`, drawn by `TorqueHUD` | Ride solo, Host a co-op ride, Join by address, rides found on this network, Quit. Keys, Xbox pad or DualSense (read directly). Shown when the game is launched plainly; any `-Torque...` test switch or a `play` map option skips it, so hands-off runs work as before. Not shown in Play-in-Editor unless `-TorqueMenu`. |
 | Sessions and travel | `Coop/TorqueSession.*` (a GameInstanceSubsystem) | Hosting is a listen server on port 7777. Join by IP (any address, `host:port` too), or pick a ride found on the LAN (Null online subsystem). Moving between the shed and the road (`TorqueFlow::RideOut` / `BackToShed`) is a seamless server travel that takes everyone along. Lost connections bring you back to the menu with the reason. |
-| Each rider's bike | `Coop/TorqueNetBike.*` on `ATorqueBikePawn` | Your own bike runs the sim on your machine (no input lag; co-op, so no cheating to guard against). 30 times a second it sends a snapshot: pose, velocity, steering, lean, pitch, both axles (suspension), wheel spin rates, revs, gear, throttle, brakes, lean and weight inputs, tyre slip, crashed. Client to host as an unreliable server call; host to the others as a replicated property that skips its owner. Everyone else's bikes are drawn from those snapshots, so their riders' bodies, levers, clocks, crashes and engine sound all play out. |
-| Smoothing | `Coop/NetSmoother.h` (plain C++, tested in `SimTest/net_test.cpp`) | Other bikes are drawn a little behind real time (100 ms, more if the network is jittery, at most 400 ms) on a curve through each pair of snapshots' positions and velocities, so they move smoothly however unevenly snapshots arrive. Gaps are bridged along the last velocity (up to 0.25 s); a respawn is drawn as a jump, not a slide. |
+| Each rider's bike | `Coop/TorqueNetBike.*` on `ATorqueBikePawn` | Your own bike runs the sim on your machine (no input lag; co-op, so no cheating to guard against). 30 times a second it sends a snapshot: pose, velocity, steering, lean, pitch, both axles (suspension), wheel spin rates, revs, gear, throttle, brakes, lean and weight inputs, tyre slip, crashed. Client to host as an unreliable server call; host to the others as a replicated property that skips its owner, carrying the last four snapshots and forced out each time, so a host running below 30 fps still passes every snapshot on. Everyone else's bikes are drawn from those snapshots, so their riders' bodies, levers, clocks, crashes and engine sound all play out. |
+| Smoothing | `Coop/NetSmoother.h` (plain C++, tested in `SimTest/net_test.cpp`) | Other bikes are drawn a little behind real time (100 ms, more if the network is jittery, at most 250 ms) on a curve through each pair of snapshots' positions and velocities, so they move smoothly however unevenly snapshots arrive. Gaps are bridged along the last velocity (up to 0.25 s). The delay is measured against the quickest trip of the last 4 s, so it follows a network (or a host) that has slowed down within seconds; a respawn is drawn as a jump, not a slide. |
 | Weather | `Coop/TorqueGameState.*` | The host owns it (V / D-pad right, or `-TorqueWeather=`) and every machine lights the world the same. A joined rider pressing V is told "The host sets the weather". |
 | Who's who | `ATorqueGameMode`, `TorqueHUD` | Riders' names (`-TorqueName=`, else the Windows account name) float over their bikes, with the distance when they're far off. The HUD's blue line shows hosting/joined, riders, ping and each other rider's snapshot rate. |
 | Start grid | `ATorqueBikePawn::PlaceForSlot` | Riders start two abreast either side of the line, a row every 7 m behind the first. |
@@ -34,6 +34,12 @@ for eight.
 Two copies of the packaged game on the same PC, one hosting, one joined to `127.0.0.1`. Windows
 Firewall asks the first time the game hosts: allow it on private networks.
 
+Two copies share one GPU, and a copy that gets few frames sends few snapshots (it can only send one
+per frame) and replicates the others in bunches. Cap both so they share fairly, and run them small:
+add `-ResX=1280 -ResY=720 -windowed -ExecCmds="t.MaxFPS 60"` to each. Each `Torque net:` line for
+this machine's bike starts with its frame rate: below about 30 fps the numbers say more about the GPU
+than the network.
+
 1. **Hands-off, both riding by robot** (repeatable numbers):
 
    ```
@@ -41,11 +47,13 @@ Firewall asks the first time the game hosts: allow it on private networks.
    TorqueShedProto.exe 127.0.0.1?TorqueName=Guest -windowed -ResX=1280 -ResY=720 -WinX=1300 -TorqueNoInput -TorqueAutoRide -TorqueAutoMph=40 -TorqueNetLog -log
    ```
 
-   (Start the second when the first shows the road.) Each writes `Saved/Logs/TorqueShedProto*.log`
+   (Start the second when the first shows the road. A copy started straight on a map URL or with a
+   ride test switch skips the menu and the shed.) Each writes `Saved/Logs/TorqueShedProto*.log`
    with a `Torque net:` line per second: for this machine's bike `tx 30.0/s, ping N ms, riders 2`, and
    for the other bike `rx`, the arrival spacing (mean and spread), the smoothing delay, how often it
-   had to bridge a gap (`extrapolated`) or wait (`held`), and respawn jumps. Good is: tx and rx about
-   30/s, extrapolated under 1%, held 0% after the first second, delay 100 ms on localhost.
+   had to bridge a gap (`extrapolated`) or wait (`held`), and respawn jumps. Good is: both copies at
+   30 fps or more, tx and rx about 30/s, extrapolated under 1%, held 0% after the first second, delay
+   100 to 150 ms (it rises with jitter, at most 250 ms).
    Riding at different speeds, the Guest pulls away from the Host, so both see the other ahead or
    behind, out to several km (the bikes are always relevant).
 2. **Smoothness by eye**: same, but the Host ridden by hand (no `-TorqueNoInput -TorqueAutoRide`),
@@ -64,8 +72,9 @@ Firewall asks the first time the game hosts: allow it on private networks.
    guest joining there; both walk about; the host rides out of the roller door and both land on
    Buttertubs still connected. Backspace on the host takes both back to the shed.
 
-When the shed map is built, `GameDefaultMap` in `Config/DefaultEngine.ini` can become
-`/Game/Shed/Shed`, so the menu sits over the shed and Ride solo/Host don't load Buttertubs first.
+The game starts in the shed (`GameDefaultMap`), with the menu over it; Ride solo just puts you on
+your feet there. Launched with a ride test switch (`-TorqueAutoRide`, `-TorqueStartKm=`,
+`-TorqueCamera=`, `-TorqueRide`), it goes straight on to Buttertubs as before.
 
 ## Epic Online Services: friends join without port forwarding (plan, not built yet)
 

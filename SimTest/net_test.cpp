@@ -55,7 +55,9 @@ struct Packet
 struct Result
 {
 	double RmsErr = 0.0, MaxErr = 0.0, MaxAcc = 0.0, TruthAcc = 0.0, MaxRotErr = 0.0;
-	int64_t Frames = 0, Kinks = 0;   // frames drawn, and frames whose acceleration was over twice the path's
+	int64_t Frames = 0, Kinks = 0;
+	double DelaySum = 0.0, DelayMax = 0.0;   // the smoothing delay, sampled each frame after the first 2 s
+	int64_t DelayCount = 0;   // frames drawn, and frames whose acceleration was over twice the path's
 	TorqueNet::SmootherStats Stats;
 };
 
@@ -66,6 +68,11 @@ struct Net
 	double ClockOffset = 1234.5, Drift = 100e-6;
 	double SendHz = 30.0, FrameHz = 60.0, FrameJitter = 0.003;
 	double Seconds = 120.0;
+	// A sender whose game runs slowly and unevenly (two copies sharing one GPU): snapshots only at
+	// its frames, FPS on average, each frame 0.6 to 1.4 times as long.
+	double SenderFps = 0.0;
+	// The trip gets slower part way (a queue building up): Latency + LatencyStep from LatencyStepAt s.
+	double LatencyStepAt = -1.0, LatencyStep = 0.0;
 };
 
 Result Run(const Net& N, const Path& Truth, uint32_t Seed)
@@ -74,8 +81,15 @@ Result Run(const Net& N, const Path& Truth, uint32_t Seed)
 	std::uniform_real_distribution<double> U01(0.0, 1.0);
 	std::vector<Packet> Packets;
 	int32_t Seq = 0;
-	for (double T = 0.0; T < N.Seconds; T += 1.0 / N.SendHz)
+	double LastSent = -1.0;
+	for (double T = 0.0; T < N.Seconds;
+		T += N.SenderFps > 0.0 ? (0.6 + 0.8 * U01(Rng)) / N.SenderFps : 1.0 / N.SendHz)
 	{
+		if (N.SenderFps > 0.0)
+		{
+			if (T - LastSent < 1.0 / N.SendHz - 1e-9) continue;   // not yet time for the next snapshot
+			LastSent = T;
+		}
 		const bool InBurst = N.BurstEvery > 0.0 && std::fmod(T, N.BurstEvery) > N.BurstEvery - N.BurstLength;
 		if (InBurst || U01(Rng) < N.Loss) continue;
 		Packet P;
@@ -83,7 +97,7 @@ Result Run(const Net& N, const Path& Truth, uint32_t Seed)
 		Truth.At(T, P.S.Pos, P.S.Vel, P.S.Rot);
 		P.S.Val[0] = Truth.Speed(T);
 		P.S.Ints[0] = ++Seq;
-		P.Arrive = T + N.Latency + U01(Rng) * N.Jitter;
+		P.Arrive = T + N.Latency + U01(Rng) * N.Jitter + (N.LatencyStepAt >= 0.0 && T >= N.LatencyStepAt ? N.LatencyStep : 0.0);
 		Packets.push_back(P);
 	}
 	std::stable_sort(Packets.begin(), Packets.end(), [](const Packet& A, const Packet& B) { return A.Arrive < B.Arrive; });
@@ -109,6 +123,9 @@ Result Run(const Net& N, const Path& Truth, uint32_t Seed)
 		Snap Out;
 		if (Sm.Sample(Now, Dt, Out) && Now - Start > 2.0)
 		{
+			R.DelaySum += Sm.WantDelay();
+			R.DelayMax = std::max(R.DelayMax, Sm.WantDelay());
+			++R.DelayCount;
 			// Where the bike really was at the time being drawn.
 			const double TrueT = (Out.Time - N.ClockOffset) / (1.0 + N.Drift);
 			double P[3], V[3], Q[4];
@@ -180,6 +197,7 @@ void Report(const char* Name, const Result& R)
 	const auto& S = R.Stats;
 	const double Mean = S.Intervals ? S.IntervalSum / S.Intervals : 0.0;
 	const double Sd = S.Intervals ? std::sqrt(std::max(0.0, S.IntervalSq / S.Intervals - Mean * Mean)) : 0.0;
+	std::printf("%s: delay mean %.0f ms, max %.0f ms\n  ", Name, R.DelayCount ? 1000.0 * R.DelaySum / R.DelayCount : 0.0, 1000.0 * R.DelayMax);
 	std::printf("%s: error rms %.1f cm, max %.1f cm, rot max %.2f deg; accel max %.0f cm/s2 (path %.0f); "
 		"kinks %lld of %lld frames; rx %lld (interval %.1f +- %.1f ms), extrapolated %.1f%%, held %.1f%%, jumps %lld\n",
 		Name, R.RmsErr, R.MaxErr, R.MaxRotErr, R.MaxAcc, R.TruthAcc, (long long)R.Kinks, (long long)R.Frames, (long long)S.Received, Mean * 1000.0, Sd * 1000.0,
@@ -198,6 +216,7 @@ int main()
 		Check(R.MaxErr < 30.0, "never more than 30 cm off");
 		Check(R.Kinks * 1000 <= R.Frames, "smooth: no more than 1 frame in 1000 accelerates over twice the path's");
 		Check(R.MaxRotErr < 2.0, "heading within 2 degrees");
+		Check(R.DelaySum / R.DelayCount < 0.15, "smoothing delay averages under 150 ms");
 	}
 	{
 		Net N;
@@ -231,6 +250,36 @@ int main()
 		Report("Respawn jump at 30 s", R);
 		Check(R.Stats.Snaps == 1, "the jump is drawn as one jump, not a slide");
 		Check(R.MaxErr < 30.0, "within 30 cm away from the jump");
+	}
+	{
+		// The PC test that showed the trouble: the host's game at 10-15 fps, so its snapshots come
+		// bunched, and the trip slowing from 20 ms to 350 ms part way.
+		Net N;
+		N.Latency = 0.020;
+		N.Jitter = 0.020;
+		N.Loss = 0.0;
+		N.SenderFps = 12.0;
+		N.LatencyStepAt = 40.0;
+		N.LatencyStep = 0.33;
+		Path P;
+		const Result R = Run(N, P, 5);
+		Report("Slow host (12 fps, bunched) and a trip slowing by 330 ms at 40 s", R);
+		Check(R.MaxErr < 60.0, "never more than 60 cm off");
+		Check(R.Stats.Frames > 0 && R.Stats.Held * 100 < R.Stats.Frames, "waiting on snapshots under 1% of frames");
+		Check(R.Stats.Extrapolated * 20 < R.Stats.Frames, "bridging gaps under 5% of frames");
+		Check(R.DelayMax <= 0.25 + 1e-9, "smoothing delay never over 250 ms");
+	}
+	{
+		// A good link: the delay should settle near the 100 ms floor.
+		Net N;
+		N.Latency = 0.002;
+		N.Jitter = 0.004;
+		N.Loss = 0.0;
+		Path P;
+		const Result R = Run(N, P, 6);
+		Report("Loopback at full frame rate", R);
+		Check(R.MaxErr < 5.0, "within 5 cm");
+		Check(R.DelayMax < 0.125, "smoothing delay stays near 100 ms");
 	}
 	std::printf(Failures ? "net_test: %d FAILED\n" : "net_test: all passed\n", Failures);
 	return Failures ? 1 : 0;
