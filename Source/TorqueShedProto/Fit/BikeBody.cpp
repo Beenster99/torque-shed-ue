@@ -330,6 +330,7 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		Out.SeatZ1 = Z1;
 		Out.SeatSlope = Slope;
 		Out.HasSeat = true;
+		Out.SeatN = Shape->Num("n", 2.4);
 		Out.Parts.push_back(P);
 	}
 

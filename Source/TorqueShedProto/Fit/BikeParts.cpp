@@ -1071,6 +1071,135 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 	}
 }
 
+void BikeParts::SaddleTrim(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
+{
+	// The code-drawn pieces of BikeModel._draw_saddle round the Blender seat: the stitching, the
+	// front seam and the piping on its sections, a two-up seat's grab rail and pillion pegs, a
+	// touring back, a sprung seat's springs and a sissy bar.
+	if (!Body.HasSeat || Body.SeatSecs.size() < 17) return;
+	const Json* P = Lay.Part(PartIn(Parts, "saddle"));
+	const Json* Look = P ? P->Get("look") : nullptr;
+	const std::string Style = PartStr(P, "style", "bench");
+	const std::string ShapeKey = PartStr(Look, "shape", Style);
+	std::string Stand = "saddle/bench.glb";
+	for (const FittedPart& F : Body.Parts)
+		if (F.Slot == "saddle") Stand = F.Glb;
+	const std::vector<LoftSection>& Secs = Body.SeatSecs;
+	const int Steps = 16;
+	const double N = Body.SeatN;
+	const double SeatY = L.Stats.SeatHeight - L.Stats.RearRadius;
+	const V3 Tail = ToGodot(L.Tail), Peg = ToGodot(L.Peg), Pivot = ToGodot(L.Pivot);
+	CodeShapes::GodotNames Named;
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "saddle", Stand, "", Named(Name), M, Xf, Tag);
+	};
+	auto Bend = [&](const std::string& Name, const std::vector<V3>& Path, double R, int Sides, const std::string& Tag) {
+		Code(Name, CodeShapes::Sweep(Path, R, Sides), GAffine(), Tag);
+	};
+	auto Tube = [&](const std::string& Name, const V3& A, const V3& B, double R, const std::string& Tag) {
+		Code(Name, CodeShapes::Tube(A, B, R), CodeShapes::TubeAt(A, B), Tag);
+	};
+	// (_on_loft: a point on a section's superellipse at angle A, grown out by Grow; its underside 0.85 wide.)
+	auto OnLoft = [N](const LoftSection& S, double A, double Grow) {
+		const double E = 2.0 / N;
+		const double Ca = std::cos(A), Sa = std::sin(A);
+		const double W = S.W * (Sa < 0.0 ? 0.85 : 1.0);
+		const double X = (Ca > 0.0 ? 1.0 : Ca < 0.0 ? -1.0 : 0.0) * std::pow(std::fabs(Ca), E) * W;
+		const double Y = (Sa > 0.0 ? 1.0 : Sa < 0.0 ? -1.0 : 0.0) * std::pow(std::fabs(Sa), E) * (Sa > 0.0 ? S.Up : S.Down);
+		return S.C + V3(X, Y, 0.0) * Grow;
+	};
+	if (Style == "touring" && !(Look && Look->Get("shape")))
+		Code("", CodeShapes::Box(V3(0.3, 0.26, 0.06)), AtWith(GAffine::Rotation(GodotRight, 0.2), V3(0.0, SeatY + 0.22, Body.SeatZ1 + 0.04)), "leather");
+	// Stitching: tuck-and-roll pleats across the top, ribs along it, or diamond quilting.
+	const std::string Pattern = PartStr(Look, "pattern", "");
+	if (Pattern == "tuck")
+		for (int I = 2; I < Steps - 1; I += 2)
+		{
+			std::vector<V3> Path;
+			for (int K = 0; K < 7; ++K) Path.push_back(OnLoft(Secs[static_cast<size_t>(I)], 0.35 + (TorqueSim::Pi - 0.7) * K / 6.0, 1.006));
+			Bend("", Path, 0.0035, 4, "fabric");
+		}
+	else if (Pattern == "ribs")
+		for (double A : {1.2, 1.45, 1.7, 1.95})
+		{
+			std::vector<V3> Path;
+			for (int I = 1; I < Steps; ++I) Path.push_back(OnLoft(Secs[static_cast<size_t>(I)], A, 1.006));
+			Bend("", Path, 0.0035, 4, "fabric");
+		}
+	else if (Pattern == "diamond")
+		for (int I = 1; I < Steps - 2; I += 2)
+			for (int K = 0; K < 3; ++K)
+			{
+				const double A = 0.9 + (TorqueSim::Pi - 1.8) * K / 2.0;
+				const size_t U = static_cast<size_t>(I);
+				Bend("", {OnLoft(Secs[U], A - 0.25, 1.006), OnLoft(Secs[U + 1], A, 1.006), OnLoft(Secs[U + 2], A - 0.25, 1.006)}, 0.003, 4, "fabric");
+			}
+	// The front seam and the piping round the edge.
+	const LoftSection& Mid = Secs[static_cast<size_t>(std::round(Steps * 0.3))];
+	Code("", CodeShapes::Box(V3(Mid.W * 2.02, 0.006, 0.006)), GAffine::At(Mid.C + V3(0.0, Mid.Up * 0.2, 0.0)), "fabric");
+	for (double A : {0.12, TorqueSim::Pi - 0.12})
+	{
+		std::vector<V3> Path;
+		for (int I = 1; I < Steps; ++I) Path.push_back(OnLoft(Secs[static_cast<size_t>(I)], A, 1.01));
+		Bend("Piping", Path, 0.0038, 5, "fabric");
+	}
+	// A two-up seat: a grab rail round the back and pillion pegs on hangers.
+	const double Sissy = PartNum(Look, "sissy", 0.0);
+	static const std::set<std::string> TwoUpShapes = {"bench", "touring", "stepped", "king_queen", "hump_long"};
+	if (TwoUpShapes.count(ShapeKey) && Sissy <= 0.0 && !(P && P->Flag("solo")))
+	{
+		const std::string Rail = Look && Look->Get("accent") ? "chrome" : "black_metal";
+		const LoftSection& Back = Secs[static_cast<size_t>(Steps - 1)];
+		const LoftSection& FrontS = Secs[static_cast<size_t>(std::round(Steps * 0.55))];
+		const double Ry = Back.C.y - Back.Down * 0.3;
+		std::vector<V3> Loop;
+		for (double Sd : {1.0, -1.0})
+		{
+			const double W0 = FrontS.W + 0.03, W1 = Back.W + 0.028;
+			std::vector<V3> Pts = {V3(W0 * Sd, Ry - 0.01, FrontS.C.z), V3(W1 * Sd, Ry, Back.C.z), V3(W1 * 0.55 * Sd, Ry + 0.005, Back.C.z + 0.07)};
+			if (Sd < 0.0) std::reverse(Pts.begin(), Pts.end());
+			Loop.insert(Loop.end(), Pts.begin(), Pts.end());
+		}
+		Loop.insert(Loop.begin() + 3, V3(0.0, Ry + 0.008, Back.C.z + 0.085));
+		Bend("GrabRail", Loop, 0.011, 10, Rail);
+		for (double Sd : {-1.0, 1.0})
+		{
+			const V3 At = Sd > 0.0 ? Loop.front() : Loop.back();
+			Tube("", At, At + V3(-0.02 * Sd, -0.09, 0.02), 0.009, Rail);
+		}
+		for (double Sd : {-1.0, 1.0})
+		{
+			// Behind the swingarm pivot, whatever the rider's own pegs are doing (forward controls).
+			const V3 At((Peg.x + 0.02) * Sd, std::max(Peg.y + 0.07, Pivot.y + 0.06), std::max(Peg.z + 0.3, Pivot.z + 0.16));
+			const V3 A = At + V3(-0.02 * Sd, 0.0, 0.0), B((Peg.x - 0.02) * Sd, SeatY - 0.12, At.z - 0.06);
+			const V3 D = B - A;
+			Code("", CodeShapes::Box(V3(0.03, 0.008, D.Length())), AtWith(GAffine::Rotation(GodotRight, std::atan2(-D.y, D.z)), (A + B) * 0.5), "black_metal");
+			Tube("PillionPeg", At + V3(-0.015 * Sd, 0.0, 0.0), At + V3(0.065 * Sd, 0.0, 0.0), 0.011, "rubber");
+		}
+	}
+	// A sprung solo seat on a pair of coil springs at the back.
+	if (Look && Look->Flag("springs"))
+	{
+		const LoftSection& Rear = Secs[static_cast<size_t>(Steps)];
+		for (double Sd : {-1.0, 1.0})
+		{
+			const V3 Top = Rear.C + V3(0.07 * Sd, -Rear.Down, -0.02);
+			const V3 Foot(Top.x, SeatY - 0.1, Top.z + 0.03);
+			for (int K = 0; K < 6; ++K)
+				Code("", CodeShapes::Torus(0.017, 0.004), GAffine::At(Top + (Foot - Top) * ((K + 0.5) / 6.0)), "chrome");
+		}
+	}
+	// A sissy bar: a chrome loop standing up behind the seat, Sissy metres tall.
+	if (Sissy > 0.0)
+	{
+		const V3 Root(0.0, Tail.y + 0.02, Tail.z - 0.02);
+		for (double Sd : {-1.0, 1.0})
+			Bend("", {Root + V3(0.1 * Sd, -0.08, -0.04), Root + V3(0.1 * Sd, Sissy * 0.6, 0.02), Root + V3(0.06 * Sd, Sissy, 0.04), Root + V3(0.0, Sissy + 0.02, 0.045)}, 0.009, 12, "chrome");
+		if (Look->Flag("backrest"))
+			Code("", CodeShapes::Box(V3(0.2, 0.16, 0.05)), AtWith(GAffine::Rotation(GodotRight, 0.15), Root + V3(0.0, Sissy * 0.55, 0.0)), "leather");
+	}
+}
+
 BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
 {
 	Bars Bar;
@@ -3225,6 +3354,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Frame(Parts, L, Out, &CodeHalfW);
 	Engine(Parts, L, Out);
 	Ancillaries(Parts, L, Body, Out);
+	SaddleTrim(Parts, L, Body, Out);
 	Exhaust(Parts, L, Out);
 	Swingarm(Parts, L, Out);
 	Fork(Parts, L, Out);
