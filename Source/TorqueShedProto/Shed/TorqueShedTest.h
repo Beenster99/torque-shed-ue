@@ -56,6 +56,8 @@
 //                         cafe racer): a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved,
 //                         shots of the panel and the bike, the shed saved, forgotten and loaded back,
 //                         the map opened again, and whether the fit survived (alone, it quits at the end)
+//   geotwin               the same on bay 1's Speed Twin (no rig: the bars and seat moved), then ridden out
+//                         to Buttertubs for a shot with the fit on, and back (alone, it quits at the end)
 //   geo:open              F2 on the bay's bike (geometry mode)
 //   geo:rig:<handle>:<v>  a rig handle (tank_up, pegs, hoop_up in mm; hoop_deg)
 //   geo:move:<slot>:<x>:<y>:<z>  that part moved, cm in Godot's frame (x right, y up, z back)

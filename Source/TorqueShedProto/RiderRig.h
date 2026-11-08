@@ -36,6 +36,10 @@ struct FRiderPoseInput
 	// Where the fitted grips sit against the stock ones (pawn local cm, left and right), from the
 	// fitment system's grips_l / grips_r placement: the hands follow other bars.
 	FTransform GripFit[2] = {FTransform::Identity, FTransform::Identity};
+	// The same for the seat and the pegs (pawn local cm), from geometry mode's offsets of the saddle
+	// and the rearsets: the hips sit on a moved seat and the feet go to moved pegs.
+	FTransform SeatFit = FTransform::Identity;
+	FTransform PegFit[2] = {FTransform::Identity, FTransform::Identity};
 };
 
 class FRiderRig

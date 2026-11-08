@@ -6,6 +6,7 @@
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueShedParts.h"
 
 #include "BikeSim.h"
 #include "TorqueFit.h"
@@ -313,6 +314,7 @@ void ATorqueBikePawn::BuildModel()
 		FString Name, Group, MeshPath, MaterialPath;
 		FTransform Delta;
 		FName Unit;   // the fit unit (the levers and grips are found by it, whichever option they are)
+		FName Slot;   // the shed's slot it's part of (geometry mode's offsets are by slot)
 	};
 	TArray<FPartToMake> ToMake;
 	{
@@ -326,7 +328,7 @@ void ATorqueBikePawn::BuildModel()
 		{
 			for (const FTorqueResolvedPart& R : Resolved)
 				if (bCommandLineBuild || UTorqueBuildSubsystem::RidesWith(this, R))   // what the shed took off stays off
-					ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta, R.Unit});
+					ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta, R.Unit, TorqueShedParts::SlotOfModelPart(R)});
 			for (const TPair<FName, FName>& KV : Build.Fitted)
 				UE_LOG(LogTemp, Log, TEXT("Torque fit: %s: %s"), *KV.Key.ToString(), *KV.Value.ToString());
 			for (const FTorqueFitClash& C : Clashes)
@@ -345,12 +347,15 @@ void ATorqueBikePawn::BuildModel()
 			const TSharedPtr<FJsonObject>* Where = nullptr;
 			if (!(*PartsObj)->TryGetObjectField(Name, Where)) continue;
 			ToMake.Add({Name, P->GetStringField(TEXT("group")), (*Where)->GetStringField(TEXT("mesh")),
-				(*Where)->GetStringField(TEXT("material")), FTransform::Identity, NAME_None});
+				(*Where)->GetStringField(TEXT("material")), FTransform::Identity, NAME_None, TorqueShedParts::SlotOfModelPart(FName(*Name))});
 		}
 	}
 	FTransform LeverDelta[2] = {FTransform::Identity, FTransform::Identity};
 	GripDelta[0] = GripDelta[1] = FTransform::Identity;
+	GripParts[0] = GripParts[1] = nullptr;
 	int32 Made = 0;
+	TArray<FName> PartSlots, PartGroups;   // per part made, for geometry mode's fit
+	TArray<FTransform> PartRest;
 	for (const FPartToMake& P : ToMake)
 	{
 		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *P.MeshPath);
@@ -372,16 +377,21 @@ void ATorqueBikePawn::BuildModel()
 		C->ComponentTags.Add(FName(*(TEXT("Part:") + P.Name)));   // for the shed's dirt and paint (ApplyLooks)
 		C->RegisterComponent();
 		ModelParts.Add(C);
+		PartSlots.Add(P.Slot);
+		PartGroups.Add(FName(*P.Group));
+		PartRest.Add(Fix * P.Delta);
 		// By unit, so option levers and grips (one mesh each, modelled on the stock pivots) work too.
 		const FString UnitName = P.Unit.IsNone() ? P.Name : P.Unit.ToString();
 		if (UnitName == TEXT("lever_clutch")) { LeverParts[0] = C; LeverDelta[0] = P.Delta; }
 		else if (UnitName == TEXT("lever_brake")) { LeverParts[1] = C; LeverDelta[1] = P.Delta; }
-		else if (UnitName == TEXT("grip_l") || UnitName == TEXT("grips_l")) GripDelta[0] = P.Delta;
-		else if (UnitName == TEXT("grip_r") || UnitName == TEXT("grips_r")) GripDelta[1] = P.Delta;
+		else if (UnitName == TEXT("grip_l") || UnitName == TEXT("grips_l")) { GripDelta[0] = P.Delta; GripParts[0] = C; }
+		else if (UnitName == TEXT("grip_r") || UnitName == TEXT("grips_r")) { GripDelta[1] = P.Delta; GripParts[1] = C; }
 		++Made;
 	}
 	// The dirt and paint the bike has in the shed (washed or not, resprayed or not) ride out with it.
 	TorqueShedModel::ApplyLooks(this, ModelParts);
+	// And its fit from geometry mode, as the shed draws it (-TorqueBuild= test builds have none).
+	if (FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) == nullptr) ApplyRideFit(PartSlots, PartGroups, PartRest);
 	// The clutch and front brake levers swing on their perches as they're pulled.
 	PartFix = Fix;
 	for (int32 S = 0; S < 2; ++S) LeverBase[S] = Fix * LeverDelta[S];
@@ -405,6 +415,80 @@ void ATorqueBikePawn::BuildModel()
 		for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
 		UE_LOG(LogTemp, Log, TEXT("Torque: Speed Twin model, %d parts"), Made);
 	}
+}
+
+// Geometry mode's fit on the Speed Twin model, as the shed shows it (FTorqueBikeFitView): each slot's
+// offset about the middle of its parts at rest, in the bike's frame. Standing still each group sits
+// at its origin (TorqueShedModel::LoadFrame), so a part at Rest on group origin O is at Rest * O in
+// the bike; moved, Rest * O * M, which on the group is Rest * (O * M * O^-1): it rides with the group,
+// the bars' offset turning with the steering. The wheels spin, so theirs is put back every frame in
+// UpdateVisuals, in the frame of the fork lowers or the swingarm that carry them.
+void ATorqueBikePawn::ApplyRideFit(const TArray<FName>& PartSlots, const TArray<FName>& PartGroups, const TArray<FTransform>& PartRest)
+{
+	RideFit.Reset();
+	LeverFit[0] = LeverFit[1] = GripFitMove[0] = GripFitMove[1] = SeatFitMove = PegFitMove = FTransform::Identity;
+	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
+	const int32 Bay = UTorqueBuildSubsystem::BikeFor(this);
+	if (!Sub || Bay < 0 || !Sub->Exists(Bay) || Sub->Bike(Bay).Geo.IsEmpty()) return;
+	const FString& Geo = Sub->Bike(Bay).Geo;
+	FTransform UnusedFix;
+	TMap<FName, FVector> Origins;
+	TorqueShedModel::LoadFrame(UnusedFix, Origins);
+	auto OriginOf = [&Origins](FName Group) { return FTransform(Origins.FindRef(Group)); };
+	// Each slot's middle: the box round its parts as they stand still.
+	TMap<FName, FBox> Boxes;
+	for (int32 I = 0; I < ModelParts.Num() && I < PartSlots.Num(); ++I)
+	{
+		const UStaticMeshComponent* C = ModelParts[I];
+		if (!C || !C->GetStaticMesh() || PartSlots[I].IsNone()) continue;
+		Boxes.FindOrAdd(PartSlots[I], FBox(ForceInit)) += C->GetStaticMesh()->GetBoundingBox().TransformBy(PartRest[I] * OriginOf(PartGroups[I]));
+	}
+	TMap<FName, FVector> Pivots;
+	for (const TPair<FName, FBox>& KV : Boxes)
+		if (KV.Value.IsValid) Pivots.Add(KV.Key, KV.Value.GetCenter());
+	TMap<FName, FTransform> Moves;
+	TorqueGeometryMode::SlotMoves(Geo, Pivots, Moves);
+	if (Moves.Num() == 0) return;
+	// The rider sits on the seat and rests his feet on the pegs (on the frame: bike's frame offsets).
+	if (const FTransform* Seat = Moves.Find(FName(TEXT("saddle")))) SeatFitMove = *Seat;
+	if (const FTransform* Pegs = Moves.Find(FName(TEXT("rearsets")))) PegFitMove = *Pegs;
+	static const FName FrontWheelGroup(TEXT("front_wheel")), RearWheelGroup(TEXT("rear_wheel"));
+	static const FName FrontLowerGroup(TEXT("front_lower")), SwingarmGroup(TEXT("swingarm"));
+	int32 Moved = 0;
+	for (int32 I = 0; I < ModelParts.Num() && I < PartSlots.Num(); ++I)
+	{
+		UStaticMeshComponent* C = ModelParts[I];
+		const FTransform* M = Moves.Find(PartSlots[I]);
+		if (!C || !M) continue;
+		++Moved;
+		const FName Group = PartGroups[I];
+		if (Group == FrontWheelGroup || Group == RearWheelGroup)
+		{
+			// (The fork lowers or the swingarm stand at their origins too: the offset in their frame.)
+			const bool bFront = Group == FrontWheelGroup;
+			const FName CarrierGroup = bFront ? FrontLowerGroup : SwingarmGroup;
+			const FTransform C0 = Origins.Contains(CarrierGroup) ? OriginOf(CarrierGroup) : (bFront ? OriginOf(FrontWheelGroup) : FTransform(SwingPivot));
+			FTorqueRideFit Fit;
+			Fit.Part = C;
+			Fit.Rest = PartRest[I];
+			Fit.Spin = bFront ? FrontPivot : RearPivot;
+			Fit.Carrier = bFront ? FrontHub : SwingGroup;
+			Fit.Move = C0 * *M * C0.Inverse();
+			RideFit.Add(Fit);
+			continue;
+		}
+		const FTransform O = OriginOf(Group);
+		const FTransform OnGroup = O * *M * O.Inverse();
+		C->SetRelativeTransform(PartRest[I] * OnGroup);
+		// The levers (set again as they're pulled) and the grips (the rider's hands follow them).
+		for (int32 S = 0; S < 2; ++S)
+		{
+			if (C == LeverParts[S]) LeverFit[S] = OnGroup;
+			if (C == GripParts[S]) GripFitMove[S] = OnGroup;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque: the Speed Twin rides with its fit from geometry mode: %d slots moved, %d parts (%d on the wheels)"),
+		Moves.Num(), Moved, RideFit.Num());
 }
 
 // A bike of catalogue parts (any of Torque Shed's styles, built in the shed) rides out drawn as
@@ -913,6 +997,14 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	const FVector Rest = RearRest - SwingPivot, Now = BodyToLocal(R.Centre) - SwingPivot;
 	const double Swing = FMath::Atan2(Now.Z, Now.X) - FMath::Atan2(Rest.Z, Rest.X);
 	SwingGroup->SetRelativeLocationAndRotation(SwingPivot, FQuat(FVector::RightVector, -Swing));
+	// Geometry mode's offsets on the wheels' parts: in the fork's or swingarm's frame, under the spin.
+	for (const FTorqueRideFit& Fit : RideFit)
+	{
+		UStaticMeshComponent* C = Fit.Part.Get();
+		if (!C || !Fit.Spin || !Fit.Carrier) continue;
+		const FTransform X = Fit.Spin->GetRelativeTransform() * Fit.Carrier->GetRelativeTransform().Inverse();
+		C->SetRelativeTransform(Fit.Rest * X * Fit.Move * X.Inverse());
+	}
 }
 
 namespace
@@ -1228,10 +1320,12 @@ void ATorqueBikePawn::UpdateRider()
 		{
 			if (!LeverParts[S]) continue;
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
-			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]));
+			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]) * LeverFit[S]);
 		}
-		In.GripFit[0] = GripDelta[0];
-		In.GripFit[1] = GripDelta[1];
+		In.GripFit[0] = GripDelta[0] * GripFitMove[0];
+		In.GripFit[1] = GripDelta[1] * GripFitMove[1];
+		In.SeatFit = SeatFitMove;
+		In.PegFit[0] = In.PegFit[1] = PegFitMove;
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		return;

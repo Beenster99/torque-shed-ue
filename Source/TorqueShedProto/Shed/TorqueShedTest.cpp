@@ -68,16 +68,6 @@ const TCHAR* const DynoSteps =
 	TEXT("fan:off,dynorun:mid,look:dyno,shot,dynolog,look:dyno,shot,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,wait:2,bikelog,log");
 
-// Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
-// racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
-// the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
-const TCHAR* const GeoSteps =
-	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
-	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
-	TEXT("geo:open,wait:3,geo:rig:tank_up:12,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
-	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
-	TEXT("georeload,wait:8,log,geo:check,look:bike,shot");
-
 // The paint shop's spray bay on bay 1's bike: take the exhaust off, grind its rust off on the
 // repair bench (too rusty to paint otherwise), hang it on the first hook and spray it with the gun
 // in the booth: grey primer, gloss red, then clear lacquer, a shot after each; then the gun tried on
@@ -93,6 +83,22 @@ const TCHAR* const BoothSteps =
 	TEXT("spray:3:gloss,part:tank,act,")
 	TEXT("tool:spray,spray:1:gloss,part:tank,act,look:bike,shot,")
 	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,log");
+
+// Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
+// racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
+// the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
+const TCHAR* const GeoSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
+	TEXT("geo:open,wait:3,geo:rig:tank_up:12,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
+	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
+	TEXT("georeload,wait:8,log,geo:check,look:bike,shot");
+
+// The same on bay 1's Speed Twin (the model, no rig), then ridden out: Buttertubs shows the fit.
+const TCHAR* const GeoTwinSteps =
+	TEXT("bay:1,log,look:bike,shot,geo:open,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
+	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,geo:exit,look:bike,shot,geo:check,")
+	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,geo:check");
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
@@ -117,9 +123,9 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		if (T == TEXT("loop")) FString(TSTI::LoopSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
-		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
-
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
