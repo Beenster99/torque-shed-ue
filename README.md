@@ -160,14 +160,17 @@ parts, the datums within 0.1 mm, the same tier, and the tank, seat pad, tail cow
 end within 0.5 mm. (Today they agree to under 0.01 mm.) Rerun the tool after changing the Godot game.
 
 `Fit/BikeParts` puts the rest of the Blender parts on, slot by slot, as the Godot `BikeModel` places
-them: the engine's crankcase and top end, and the running gear (rims and cush drive, tyres bent round
+them: the engine's crankcase and top end and its ancillaries (plugs and coil, carbs or throttle
+bodies, air filter, oil filter, cooling, the gearbox's pieces), the exhaust (headers swept from the
+Blender pipe section, and the cans), and the running gear (rims and cush drive, tyres bent round
 the hoop from their tread's section, discs or drums, calipers, pads, the fork, sprockets and chain,
 the swingarm's Blender pieces and the shocks). Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
-surface's bounds per slot, and also 332 single-part swaps (every wheel, tyre, disc, caliper, pads,
-fork, shock, swingarm, sprocket pair and chain on its style's bike). `layout_test` requires all of
-them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes, exhaust
-pipes and cans, controls, lights, dash, guards, fairings, luggage and panels.
+surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
+(every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
+plugs, fuel system, filters, cooling, gearbox and exhaust), each on its style's reference bike. `layout_test` requires all of
+them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes, controls,
+lights, dash, guards, fairings, luggage and panels.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
