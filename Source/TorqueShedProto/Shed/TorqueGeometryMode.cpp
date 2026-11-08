@@ -104,13 +104,8 @@ void FTorqueBikeFitView::Capture(const TArray<UStaticMeshComponent*>& Parts)
 
 void FTorqueBikeFitView::Show(const TArray<UStaticMeshComponent*>& Parts, const FString& GeoText) const
 {
-	const TorqueFit::BikeGeo G = TGMI::TgmParse(GeoText);
 	TMap<FName, FTransform> Moves;
-	for (const auto& [Slot, Off] : G.Slots)
-	{
-		const FName Name(*TGMI::TgmUe(Slot));
-		if (const FVector* P = Pivots.Find(Name)) Moves.Add(Name, TGMI::TgmSlotXform(Off, *P));
-	}
+	TorqueGeometryMode::SlotMoves(GeoText, Pivots, Moves);
 	for (int32 I = 0; I < Parts.Num() && I < Rest.Num(); ++I)
 	{
 		UStaticMeshComponent* C = Parts[I];
@@ -118,6 +113,17 @@ void FTorqueBikeFitView::Show(const TArray<UStaticMeshComponent*>& Parts, const 
 		const FTransform* M = Moves.Find(TorqueShedModel::SlotTag(C));
 		// (The part as drawn, then its slot's offset in the bike's frame.)
 		C->SetRelativeTransform(M ? Rest[I] * *M : Rest[I]);
+	}
+}
+
+void TorqueGeometryMode::SlotMoves(const FString& Geo, const TMap<FName, FVector>& Pivots, TMap<FName, FTransform>& Out)
+{
+	Out.Reset();
+	const TorqueFit::BikeGeo G = TGMI::TgmParse(Geo);
+	for (const auto& [Slot, Off] : G.Slots)
+	{
+		const FName Name(*TGMI::TgmUe(Slot));
+		if (const FVector* P = Pivots.Find(Name)) Out.Add(Name, TGMI::TgmSlotXform(Off, *P));
 	}
 }
 

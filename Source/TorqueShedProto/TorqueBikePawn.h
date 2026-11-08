@@ -24,6 +24,19 @@ class USoundWaveProcedural;
 class UAudioComponent;
 class UTorqueNetBikeComponent;
 
+// A part of the Speed Twin model moved by its slot's offset from geometry mode (the bay's saved fit).
+// On a part that turns with a group (the bars with the steering), the offset is in that group's frame,
+// so it's set once; a wheel's part spins, so its offset (in the fork's or swingarm's frame) is put
+// back on it every frame, on top of the spin.
+struct FTorqueRideFit
+{
+	TWeakObjectPtr<UStaticMeshComponent> Part;
+	FTransform Rest;                      // its place on its group, without the fit
+	USceneComponent* Spin = nullptr;      // the wheel's pivot it spins on (null: set once)
+	USceneComponent* Carrier = nullptr;   // the fork lowers or the swingarm that carry that wheel
+	FTransform Move;                      // the offset, in the carrier's frame
+};
+
 struct FHudLine
 {
 	FString Text;
@@ -168,6 +181,13 @@ private:
 	FVector LeverPivot[2] = {FVector::ZeroVector, FVector::ZeroVector}, LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
 	FTransform LeverBase[2];           // each lever's rest placement (the importer's fix, then where its socket put it)
 	FTransform GripDelta[2] = {FTransform::Identity, FTransform::Identity};   // fitted grips vs stock, for the rider's hands
+	// Geometry mode's fit on the model: the wheels' parts (put back each frame), and the offsets of the
+	// levers' and grips' slots (in the steering frame) for the levers as they're pulled and the hands.
+	TArray<FTorqueRideFit> RideFit;
+	FTransform LeverFit[2] = {FTransform::Identity, FTransform::Identity};
+	FTransform GripFitMove[2] = {FTransform::Identity, FTransform::Identity};
+	UStaticMeshComponent* GripParts[2] = {nullptr, nullptr};   // (in ModelParts)
+	void ApplyRideFit(const TArray<FName>& PartSlots, const TArray<FName>& PartGroups, const TArray<FTransform>& PartRest);
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever

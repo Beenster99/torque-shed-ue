@@ -77,6 +77,12 @@ const TCHAR* const GeoSteps =
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
 	TEXT("georeload,wait:8,log,geo:check,look:bike,shot");
 
+// The same on bay 1's Speed Twin (the model, no rig), then ridden out: Buttertubs shows the fit.
+const TCHAR* const GeoTwinSteps =
+	TEXT("bay:1,log,look:bike,shot,geo:open,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
+	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,geo:exit,look:bike,shot,geo:check,")
+	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,geo:check");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -101,6 +107,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
