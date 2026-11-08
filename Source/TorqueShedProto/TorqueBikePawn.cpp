@@ -1,5 +1,6 @@
 #include "TorqueBikePawn.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueBuildSubsystem.h"
 
 #include "BikeSim.h"
 #include "TorqueFit.h"
@@ -307,7 +308,10 @@ void ATorqueBikePawn::BuildModel()
 	{
 		TArray<FTorqueResolvedPart> Resolved;
 		TArray<FTorqueFitClash> Clashes;
-		const FTorqueBuild Build = TorqueFit::BuildFromCommandLine();
+		// The bike as built in the shed (it rides out with you); -TorqueBuild= on the command line
+		// overrides it for testing swaps without the shed.
+		const FTorqueBuild Build = FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) != nullptr
+			? TorqueFit::BuildFromCommandLine() : UTorqueBuildSubsystem::BuildFor(this);
 		if (TorqueFit::ResolveModel(Build, Resolved, &Clashes))
 		{
 			for (const FTorqueResolvedPart& R : Resolved)
