@@ -2,6 +2,7 @@
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueFlow.h"
@@ -427,7 +428,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	Holder->SetupAttachment(Root);
 	Holder->RegisterComponent();
 	double AxleHeight = SpeedTwinAxleCm;
-	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight);
+	// With its fit from geometry mode, as the shed draws it: the rig's handles lay it out, and each
+	// slot's offset moves its parts (FTorqueBikeFitView).
+	const FString& Geo = B->Bike(Bay).Geo;
+	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo);
 	if (Drawn <= 0)
 	{
 		Holder->DestroyComponent();
@@ -435,11 +439,17 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		return false;
 	}
 	Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
+	if (!Geo.IsEmpty())
+	{
+		FTorqueBikeFitView Fit;
+		Fit.Capture(ModelParts);
+		Fit.Show(ModelParts, Geo);
+	}
 	TorqueShedModel::ApplyLooks(this, ModelParts);
 	for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm; physics spec SpeedTwin1200"),
-			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight);
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s; physics spec SpeedTwin1200"),
+			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight, Geo.IsEmpty() ? TEXT("") : TEXT(", with its fit from geometry mode"));
 	}
 	return true;
 }

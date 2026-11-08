@@ -950,6 +950,26 @@ float UTorqueBuildSubsystem::FabTime(const FString& What)
 	return 4.0f + (float)TorqueFit::BikeLayout::FabJobFor(TBI::Std(What)).Hours;
 }
 
+FString UTorqueBuildSubsystem::TestReload()
+{
+	if (IsClient() || bHostCopy) return TEXT("only the host's own shed can");
+	Save();
+	Bikes.Reset();
+	Items.Reset();
+	Load();
+	Builds.SetNum(Bays);
+	for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
+	for (int32 I = 0; I < Bays; ++I) OnChanged.Broadcast(I);
+	OnItems.Broadcast();
+	int32 Count = 0, Fitted = 0;
+	for (const FTorqueShedBike& B : Bikes)
+	{
+		Count += B.bExists ? 1 : 0;
+		Fitted += B.bExists && !B.Geo.IsEmpty() ? 1 : 0;
+	}
+	return FString::Printf(TEXT("saved to %s and loaded back: %d bikes (%d with a fit), %d parts"), *SaveSlot, Count, Fitted, Items.Num());
+}
+
 FString UTorqueBuildSubsystem::TestFinish(int32 Bay, const FString& Style, const TMap<FString, FString>& Set)
 {
 	if (IsClient()) return TEXT("only the host can");

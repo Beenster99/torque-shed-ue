@@ -538,6 +538,64 @@ TArray<FName> ATorqueGeometryMode::PickableSlots() const
 	return Out;
 }
 
+// --- For hands-off tests ----------------------------------------------------------------------------
+
+FString ATorqueGeometryMode::TestRig(const FString& Key, double Value)
+{
+	FState& S = *St;
+	if (!HasRig()) return TEXT("this bike has no rig (the Speed Twin model)");
+	TorqueFit::LayoutAdjust& A = S.Draft.Rig;
+	double* Field = Key == TEXT("tank_up") ? &A.TankUpMm : Key == TEXT("pegs") ? &A.PegsMm : Key == TEXT("hoop_up") ? &A.HoopUpMm :
+		Key == TEXT("hoop_deg") ? &A.HoopDeg : nullptr;
+	if (!Field) return TEXT("no such rig handle (tank_up, pegs, hoop_up, hoop_deg)");
+	PushUndo();
+	*Field = Value;
+	A = A.Clean();
+	Refit(true);
+	return FString::Printf(TEXT("%s = %g, the bike re-formed (%d parts drawn)"), *Key, *Field, S.Bike.IsValid() ? S.Bike->Parts.Num() : 0);
+}
+
+FString ATorqueGeometryMode::TestMove(FName Slot, const FVector& Cm)
+{
+	FState& S = *St;
+	if (!GExpert && HasRig()) SetExpert(true);
+	S.List = PickableSlots();
+	if (!S.List.Contains(Slot)) return FString::Printf(TEXT("%s isn't on this bike"), *Slot.ToString());
+	Select(Slot);
+	const std::string Name = TGMI::TgmStd(Slot.ToString());
+	PushUndo();
+	TorqueFit::GeoOffset Off = S.Draft.Of(Name);
+	Off.P += TGMI::GV3(Cm.X, Cm.Y, Cm.Z) / 100.0;
+	S.Draft.Set(Name, Off);
+	Refit(false);
+	const TorqueFit::GeoOffset Now = S.Draft.Of(Name);
+	return FString::Printf(TEXT("%s moved to (%.1f, %.1f, %.1f) cm, %d gaps listed"), *Slot.ToString(), Now.P.x * 100.0, Now.P.y * 100.0, Now.P.z * 100.0,
+		S.Gaps.Num());
+}
+
+FString ATorqueGeometryMode::TestSelect(FName Slot)
+{
+	FState& S = *St;
+	S.List = PickableSlots();
+	if (!S.List.Contains(Slot)) return FString::Printf(TEXT("%s isn't on this bike"), *Slot.ToString());
+	Select(Slot);
+	return TEXT("selected ") + Slot.ToString();
+}
+
+FString ATorqueGeometryMode::TestSave()
+{
+	Save();
+	return TGMI::TgmText(St->Draft);
+}
+
+void ATorqueGeometryMode::TestExit()
+{
+	RequestExit();
+	if (St->bConfirm) DiscardAndClose();
+}
+
+int32 ATorqueGeometryMode::TestBay() const { return St->Bay; }
+
 // --- Frame by frame ---------------------------------------------------------------------------------
 
 void ATorqueGeometryMode::Tick(float DeltaSeconds)

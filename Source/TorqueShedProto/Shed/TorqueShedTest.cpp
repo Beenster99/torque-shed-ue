@@ -4,6 +4,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
@@ -66,6 +67,16 @@ const TCHAR* const DynoSteps =
 	TEXT("fan:off,dynorun:mid,look:dyno,shot,dynolog,look:dyno,shot,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,log");
 
+// Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
+// racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
+// the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
+const TCHAR* const GeoSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
+	TEXT("geo:open,wait:3,geo:rig:tank_up:12,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
+	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
+	TEXT("georeload,wait:8,log,geo:check,look:bike,shot");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -89,6 +100,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		if (T == TEXT("loop")) FString(TSTI::LoopSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -611,6 +623,62 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Line += Run.bFan ? TEXT(", fan on") : TEXT(", fan off");
 			Said(Line);
 		}
+		return true;
+	}
+	if (Verb == TEXT("georeload"))
+	{
+		Said(B->TestReload());
+		const bool bOk = TorqueFlow::BackToShed(World);
+		Said(bOk ? TEXT("opening the shed again") : TEXT("couldn't open the shed again (no shed map, or a client)"));
+		return true;
+	}
+	if (Verb == TEXT("geo") && P.Num() >= 2)
+	{
+		const FString& What = P[1];
+		ATorqueGeometryMode* G = ATorqueGeometryMode::For(W->GetController());
+		if (What == TEXT("open"))
+		{
+			FString Why;
+			if (G) Said(TEXT("already open"));
+			else if (ATorqueGeometryMode::Open(W, TestBay, Why)) Said(FString::Printf(TEXT("geometry mode open on bay %d"), TestBay + 1));
+			else Warn(TEXT("refused: ") + Why);
+			return true;
+		}
+		if (What == TEXT("check"))
+		{
+			const FString Now = B->Exists(TestBay) ? B->Bike(TestBay).Geo : FString();
+			const bool bSame = !GeoSent.IsEmpty() && Now == GeoSent;
+			if (bSame) Said(TEXT("Geo survived: yes, the bay's fit is the one saved: ") + Now);
+			else Warn(FString::Printf(TEXT("Geo survived: NO. Sent %s, the bay has %s"), GeoSent.IsEmpty() ? TEXT("nothing") : *GeoSent,
+				Now.IsEmpty() ? TEXT("nothing") : *Now));
+			// And drawn with it: each moved slot's first part, from where it'd be without the fit.
+			for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			{
+				if (It->Bay != TestBay) continue;
+				TSet<FName> Seen;
+				for (int32 I = 0; I < It->Parts.Num() && I < It->FitView.Rest.Num(); ++I)
+				{
+					const UStaticMeshComponent* C = It->Parts[I];
+					const FName Slot = C ? TorqueShedModel::SlotTag(C) : NAME_None;
+					if (Slot.IsNone() || Seen.Contains(Slot) || !Now.Contains(FString::Printf(TEXT("\"%s\""), *Slot.ToString()))) continue;
+					Seen.Add(Slot);
+					const FVector D = C->GetRelativeLocation() - It->FitView.Rest[I].GetLocation();
+					Said(FString::Printf(TEXT("%s drawn moved by (%.1f, %.1f, %.1f) cm (bike's frame: forward, right, up)"), *Slot.ToString(), D.X, D.Y, D.Z));
+				}
+			}
+			return true;
+		}
+		if (!G) { Warn(TEXT("geometry mode isn't open (geo:open first)")); return true; }
+		if (What == TEXT("rig") && P.Num() >= 4) { Said(G->TestRig(P[2], FCString::Atod(*P[3]))); return true; }
+		if (What == TEXT("move") && P.Num() >= 6)
+		{
+			Said(G->TestMove(FName(*P[2]), FVector(FCString::Atod(*P[3]), FCString::Atod(*P[4]), FCString::Atod(*P[5]))));
+			return true;
+		}
+		if (What == TEXT("select") && P.Num() >= 3) { Said(G->TestSelect(FName(*P[2]))); return true; }
+		if (What == TEXT("save")) { GeoSent = G->TestSave(); Said(TEXT("saved: ") + GeoSent); return true; }
+		if (What == TEXT("exit")) { G->TestExit(); Said(TEXT("left geometry mode")); return true; }
+		Warn(TEXT("geo what? open, rig, move, select, save, exit, check"));
 		return true;
 	}
 	Warn(TEXT("unknown step (see TorqueShedTest.h)"));

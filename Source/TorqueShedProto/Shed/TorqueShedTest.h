@@ -47,6 +47,19 @@
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   shot:ui               a screenshot of the viewport with the HUD and menus (FScreenshotRequest)
 //   wait:<seconds>        wait longer
+//   geo                   geometry mode on a catalogue bike (a steel backbone set up in bay 3, finished as a
+//                         cafe racer): a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved,
+//                         shots of the panel and the bike, the shed saved, forgotten and loaded back,
+//                         the map opened again, and whether the fit survived (alone, it quits at the end)
+//   geo:open              F2 on the bay's bike (geometry mode)
+//   geo:rig:<handle>:<v>  a rig handle (tank_up, pegs, hoop_up in mm; hoop_deg)
+//   geo:move:<slot>:<x>:<y>:<z>  that part moved, cm in Godot's frame (x right, y up, z back)
+//   geo:select:<slot>     select that part (its gizmo shows)
+//   geo:save, geo:exit    "Save to this bike"; leave geometry mode (discarding what isn't saved)
+//   geo:check             whether the bay's saved fit is the one geo:save sent, and how far its
+//                         moved parts are drawn from where they'd be without it
+//   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
+//                         it, then the shed map opened again
 //   quit
 // Every bay's bike is logged at every map load, so the log shows it survive riding out and coming
 // back. It lives on the game instance, so it carries on across the map changes.
@@ -75,6 +88,7 @@ private:
 	void LogBuild(const TCHAR* Where) const;
 
 	TArray<FString> Steps;
+	FString GeoSent;          // the fit geo:save sent, for geo:check
 	int32 Next = 0;
 	int32 TestBay = 0;
 	int32 Tries = 0;

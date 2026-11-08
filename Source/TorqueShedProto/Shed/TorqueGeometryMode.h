@@ -83,6 +83,18 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Geometry") UCameraComponent* Camera;
 
+	// --- For hands-off tests (UTorqueShedTest geo:...) ------------------------------------------------
+	// A rig handle (tank_up, pegs, hoop_up, hoop_deg) set, the bike re-formed round it.
+	FString TestRig(const FString& Key, double Value);
+	// Slot's part moved by Cm (Godot's frame: x right, y up, z back), free move on, and selected.
+	FString TestMove(FName Slot, const FVector& Cm);
+	FString TestSelect(FName Slot);
+	// "Save to this bike", and the fit as sent.
+	FString TestSave();
+	// Leaves as Exit does (asking if not saved: then discards).
+	void TestExit();
+	int32 TestBay() const;
+
 private:
 	struct FState;
 	TUniquePtr<FState> St;

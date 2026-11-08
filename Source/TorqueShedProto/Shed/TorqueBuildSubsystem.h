@@ -186,6 +186,9 @@ public:
 	// says for that slot ("none" leaves it empty), and everything on the bike is bolted up. Owed
 	// fabrication stays owed. Says what it did.
 	FString TestFinish(int32 Bay, const FString& Style, const TMap<FString, FString>& Set);
+	// A test shortcut (UTorqueShedTest georeload): the shed saved to its slot, forgotten, and loaded
+	// back from the slot, as the game coming back up would. Says what came back.
+	FString TestReload();
 	// The bike's parts as fitting's layout reads them (Godot slot -> catalogue id, "none"); false if
 	// any isn't a catalogue part (a Speed Twin's own), or there's no layout. Such a bike is drawn
 	// from the Blender parts (TorqueShedCatalogue).
