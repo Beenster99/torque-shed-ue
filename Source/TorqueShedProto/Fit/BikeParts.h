@@ -165,7 +165,7 @@ private:
 	// The luggage and kit: panniers and their rack, the top box on its rack, fog lights, an extra
 	// fuel tank and a toolbox (BikeModel._draw_panniers, _draw_top_box, _draw_fog_lights;
 	// KitModel._aux_tank, _toolbox). Their straps, latches and soft bags' code shapes aren't here.
-	void Luggage(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void Luggage(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// A fairing on the bars (a flyscreen, headlight cowl, bikini or batwing) and its screen, as the
 	// code lofts them, given the thickness and edges of the Blender edge sections and the screen's
 	// fasteners (BikeModel._draw_fairing_code, _blender_fairing; BlenderParts.shell). Needs the
