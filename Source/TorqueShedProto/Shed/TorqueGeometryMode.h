@@ -100,7 +100,7 @@ public:
 
 private:
 	struct FState;
-	TUniquePtr<FState> St;
+	TSharedPtr<FState> St;   // shared, not unique: UHT's generated vtable-helper ctor would need FState complete to delete a TUniquePtr
 	UPROPERTY(Transient) UMaterialInstanceDynamic* LitMaterial = nullptr;
 	TArray<TWeakObjectPtr<UStaticMeshComponent>> Lit;
 

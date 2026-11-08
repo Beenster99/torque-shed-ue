@@ -219,7 +219,7 @@ ATorqueGeometryMode::ATorqueGeometryMode()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GeometryCamera"));
 	Camera->SetFieldOfView(60.0f);
 	RootComponent = Camera;
-	St = MakeUnique<FState>();
+	St = MakeShared<FState>();
 }
 
 ATorqueGeometryMode::~ATorqueGeometryMode() = default;
