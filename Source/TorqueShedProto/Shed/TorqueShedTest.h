@@ -2,6 +2,8 @@
 //   -TorqueShedAction=swap:handlebars:clubman_bar,bench:exhaust:peashooter_twins,shot,rideout,wait:8,shot,back,look:bike,shot,quit
 // Each step runs about two seconds after the last (and four after a map has loaded), through the
 // walker's own targeting and the same code as E and F, and logs "Torque test: ..." lines:
+//   bay:<n>               the steps after work on bay n's bike and table (1-4; 1 to start with)
+//   new:<n>[:<bike>]      start a new bike (speed_twin_1200 unless named) in empty bay n
 //   swap:<slot>[:<part>]  stand by the bike, look at that slot's part and press E until <part> is on
 //                         (once, without a part); a part that won't fit logs its reason
 //   bench:<slot>:<part>   stand at the bench, look at that spare and press E
@@ -14,7 +16,7 @@
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   wait:<seconds>        wait longer
 //   quit
-// The build is logged at every map load, so the log shows it survive riding out and coming back.
+// Every bay's build is logged at every map load, so the log shows it survive riding out and coming back.
 // It lives on the game instance, so it carries on across the map changes.
 #pragma once
 
@@ -42,6 +44,7 @@ private:
 
 	TArray<FString> Steps;
 	int32 Next = 0;
+	int32 TestBay = 0;
 	double Wait = 0.0;
 	TWeakObjectPtr<UWorld> SeenWorld;
 	FTSTicker::FDelegateHandle Ticker;
