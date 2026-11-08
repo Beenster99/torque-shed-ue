@@ -148,7 +148,7 @@ def decals():
         text_at(im, px, "1200", -0.038, 0.072, 0.4745, 0.498, mirror=left)
 
     def panel(d, px, im, left):
-        text_at(im, px, "SPEED TWIN", -0.385, -0.228, 0.392, 0.408, slant=0.25, mirror=left)
+        text_at(im, px, "SPEED TWIN", -0.392, -0.214, 0.389, 0.411, slant=0.25, mirror=left)
 
     # Drilled brake rotor: one repeat (u) of two staggered holes, v round the disc's section: the
     # inner face 0..0.45 (bore to rim), the rim, the outer face 0.5..0.95 (rim to bore), the bore.

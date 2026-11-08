@@ -687,6 +687,10 @@ def bike_textures():
             unreal.log_warning("[Torque] couldn't import " + f)
             continue
         tex.set_editor_property("srgb", False)
+        if stem.endswith("_a"):
+            # Coverage for masked materials: no mips, or thin lines fall under the clip threshold as
+            # they average away with distance and vanish (the pinstripes did).
+            try_set(tex, "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
         if stem.endswith("_n"):
             tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
         else:
@@ -797,7 +801,7 @@ def bike_decal_master(tex, name="M_BikeDecal", wrap=False):
     m = new_material(name, BIKE_MAT_DIR)
     m.set_editor_property("two_sided", True)
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
-    try_set(m, "opacity_mask_clip_value", 0.5)
+    try_set(m, "opacity_mask_clip_value", 0.4)
     g = Graph(m)
     props = {"parameter_name": "DecalMap", "sampler_type": unreal.MaterialSamplerType.SAMPLERTYPE_MASKS,
              "sampler_source": unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS if wrap

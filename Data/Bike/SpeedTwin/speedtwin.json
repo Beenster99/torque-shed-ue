@@ -109,19 +109,19 @@
   "decal_black": {
    "shader": "decal",
    "color": [
-    0.01,
-    0.01,
-    0.011
+    0.004,
+    0.004,
+    0.0045
    ],
    "metallic": 0.0,
-   "roughness": 0.18,
+   "roughness": 0.45,
    "color2": [
-    0.01,
-    0.01,
-    0.011
+    0.004,
+    0.004,
+    0.0045
    ],
    "metallic2": 0.0,
-   "roughness2": 0.18,
+   "roughness2": 0.45,
    "detail": "decal_tank",
    "uv_scale": 1.0,
    "normal_strength": 1.0,
@@ -133,19 +133,19 @@
   "decal_white": {
    "shader": "decal",
    "color": [
-    0.8,
-    0.8,
-    0.78
+    0.86,
+    0.86,
+    0.84
    ],
    "metallic": 0.0,
-   "roughness": 0.3,
+   "roughness": 0.35,
    "color2": [
-    0.8,
-    0.8,
-    0.78
+    0.86,
+    0.86,
+    0.84
    ],
    "metallic2": 0.0,
-   "roughness2": 0.3,
+   "roughness2": 0.35,
    "detail": "decal_panel",
    "uv_scale": 1.0,
    "normal_strength": 1.0,
@@ -164,12 +164,12 @@
    "metallic": 0.0,
    "roughness": 0.12,
    "color2": [
-    0.93,
-    0.93,
-    0.93
+    0.9,
+    0.9,
+    0.89
    ],
    "metallic2": 1.0,
-   "roughness2": 0.05,
+   "roughness2": 0.22,
    "detail": "flat",
    "uv_scale": 1.0,
    "normal_strength": 1.0,
@@ -637,19 +637,19 @@
   "bolt": {
    "shader": "base",
    "color": [
-    0.62,
-    0.62,
-    0.62
+    0.42,
+    0.42,
+    0.43
    ],
    "metallic": 1.0,
-   "roughness": 0.3,
+   "roughness": 0.42,
    "color2": [
-    0.62,
-    0.62,
-    0.62
+    0.42,
+    0.42,
+    0.43
    ],
    "metallic2": 1.0,
-   "roughness2": 0.3,
+   "roughness2": 0.42,
    "detail": "cast",
    "uv_scale": 20.0,
    "normal_strength": 0.3,

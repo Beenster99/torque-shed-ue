@@ -71,10 +71,12 @@ FINISHES = {
     "paint_silver": finish((0.60, 0.61, 0.62), 1.0, 0.32, "paint", detail="flake", uv_scale=25.0, normal_strength=0.0,
                            rough_var=0.25),
     # Decals: masked by their texture (Tools/make_bike_textures.py), under the same lacquer look.
-    "decal_black": finish(GLOSS_BLACK, 0.0, 0.18, "decal", detail="decal_tank"),
-    "decal_white": finish((0.80, 0.80, 0.78), 0.0, 0.3, "decal", detail="decal_panel"),
+    # Printed vinyl reads near-black and only satin even under lacquer: a glossier black just
+    # mirrors the sky and goes grey (the first PC round).
+    "decal_black": finish((0.004, 0.004, 0.0045), 0.0, 0.45, "decal", detail="decal_tank"),
+    "decal_white": finish((0.86, 0.86, 0.84), 0.0, 0.35, "decal", detail="decal_panel"),
     # Tank badge: gloss black enamel with a polished rim (the mask).
-    "badge": finish(GLOSS_BLACK, 0.0, 0.12, color2=(0.93, 0.93, 0.93), metallic2=1.0, roughness2=0.05),
+    "badge": finish(GLOSS_BLACK, 0.0, 0.12, color2=(0.90, 0.90, 0.89), metallic2=1.0, roughness2=0.22),
     "black_gloss": finish(GLOSS_BLACK, 0.0, 0.2, "paint", detail="flake", uv_scale=25.0, normal_strength=0.0),
     "black_satin": finish((0.018, 0.018, 0.019), 0.0, 0.48, detail="powder", uv_scale=6.0, normal_strength=0.35, rough_var=0.2),
     # Black cases and barrels; the mask is machined metal (the fin edges, the cover rims).
@@ -105,7 +107,7 @@ FINISHES = {
     # Headlight: black bowl, the mask is its brushed aluminium bezel.
     "headlight": finish(GLOSS_BLACK, 0.0, 0.18, color2=(0.86, 0.86, 0.85), metallic2=1.0, roughness2=0.18,
                         detail="brushed", uv_scale=10.0, normal_strength=0.3),
-    "bolt": finish((0.62, 0.62, 0.62), 1.0, 0.3, detail="cast", uv_scale=20.0, normal_strength=0.3),
+    "bolt": finish((0.42, 0.42, 0.43), 1.0, 0.42, detail="cast", uv_scale=20.0, normal_strength=0.3),
     "lens_clear": finish((0.85, 0.87, 0.9), 1.0, 0.04),
     "lens_red": finish((0.6, 0.02, 0.02), 0.0, 0.1),
     "lens_amber": finish((0.9, 0.35, 0.02), 0.0, 0.15),
@@ -321,7 +323,7 @@ def sprocket_outline(teeth, r_tip, r_root):
     return pts
 
 
-def hex_bolt(centre, axis, size=0.0065):
+def hex_bolt(centre, axis, size=0.005):
     """A hex bolt head with a washer, standing out along axis from centre."""
     return (lathe([(0.0, 0.0), (size * 1.35, 0.0), (size * 1.35, 0.0012), (0.0, 0.0012)], seg=20, axis=axis, centre=centre)
             .extend(lathe([(0.0, 0.0012), (size, 0.0012), (size, size * 0.75), (size * 0.75, size * 0.95), (0.0, size * 0.95)],
@@ -484,7 +486,7 @@ def surface_badge(pos, tris, x, y, side, size):
             p = (1 - t) ** 2 * (b + (a - b) * 0.18) + 2 * (1 - t) * t * b + t * t * (b + (d - b) * 0.18)
             outline.append(p * size)
     rim = extrude(outline, 0.0, 0.003).masked(1.0)
-    face = extrude([(px * 0.86, py * 0.86) for px, py in outline], 0.003, 0.0038)
+    face = extrude([(px * 0.8, py * 0.8) for px, py in outline], 0.003, 0.0038)
     m = Mesh().extend(rim).extend(face)
     # Laid out square to the side view (as the photos see it), then each point dropped onto the
     # surface and stood off it along the surface normal by its height.
@@ -595,8 +597,10 @@ def build():
                              (0.0, 0.025)], seg=40, axis=clock_axis, centre=clock_c), "black_engine", "steer")
     put("clock_face", lathe([(0.0, 0.026), (0.047, 0.026)], seg=40, axis=clock_axis, centre=clock_c), "lens_clear", "steer")
     hl_c = FRONT_AXLE + FORK_DIR * 0.53 + np.array([0.075, 0.0, 0.0])
+    # Open at the front (the bezel's lip turns in to the reflector): an earlier version closed it
+    # with a flat disc, which hid the lamp's insides and read as a pale plate.
     shell = lathe([(0.0, -0.06), (0.05, -0.058), (0.08, -0.03), (0.088, 0.0), (0.0895, 0.012), (0.091, 0.02),
-                   (0.091, 0.03), (0.084, 0.034), (0.0, 0.03)], seg=64, axis=(1, 0, 0), centre=hl_c)
+                   (0.091, 0.03), (0.084, 0.034), (0.081, 0.031)], seg=64, axis=(1, 0, 0), centre=hl_c)
     put("headlight_shell", shell.mask_by(lambda p: (p[:, 0] - hl_c[0] - 0.006) / 0.006), "headlight", "steer")
     # Behind the (invisible) glass: a chrome reflector bowl, a white LED ring, and a projector lens.
     inner = lathe([(0.084, 0.031), (0.072, 0.02), (0.055, 0.008), (0.035, 0.0), (0.0, -0.003)], seg=64, axis=(1, 0, 0),
