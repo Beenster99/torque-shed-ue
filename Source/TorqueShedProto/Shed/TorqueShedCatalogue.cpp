@@ -21,6 +21,8 @@
 #include "Misc/Paths.h"
 #include "StaticMeshAttributes.h"
 
+#include <algorithm>
+
 namespace TorqueShedCatalogueImpl
 {
 std::string Std(const FString& S)
@@ -295,6 +297,8 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
 		for (const TorqueFit::PartSurface& S : Drawn.Surfaces)
 		{
+			// Surfaces behind a full fairing's side panels, as Godot hides them (_hide_covered).
+			if (std::find(P.HiddenTags.begin(), P.HiddenTags.end(), S.Material) != P.HiddenTags.end()) continue;
 			// A "tag__slot" surface belongs to that slot (a head glb's barrels are the engine's).
 			const FString Material = TSCI::Ue(S.Material);
 			FString Tag = Material, Slot = TSCI::Ue(P.Slot);
