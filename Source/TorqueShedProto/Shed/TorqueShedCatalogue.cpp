@@ -167,7 +167,11 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 	}
 	if (OutTris.Num() == 0) return nullptr;
 	UStaticMesh* Mesh = NewObject<UStaticMesh>(Owner);
+#if WITH_EDITORONLY_DATA
 	Mesh->GetStaticMaterials().Add(FStaticMaterial(Material, SlotName, SlotName));
+#else
+	Mesh->GetStaticMaterials().Add(FStaticMaterial(Material, SlotName));   // the imported-slot-name argument only exists in editor builds
+#endif
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bBuildSimpleCollision = false;
 	Params.bFastBuild = true;
