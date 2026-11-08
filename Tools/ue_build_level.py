@@ -618,7 +618,7 @@ def bike_textures():
         return out
     for f in sorted(os.listdir(folder)):
         stem, ext = os.path.splitext(f)
-        if ext.lower() != ".png" or stem[-2:] not in ("_n", "_d"):
+        if ext.lower() != ".png" or stem[-2:] not in ("_n", "_d", "_a"):
             continue
         t = unreal.AssetImportTask()
         t.set_editor_property("filename", os.path.join(folder, f))
@@ -724,12 +724,40 @@ def bike_master(name, tex, paint):
     return m
 
 
+def bike_decal_master(tex):
+    """Decals (the tank's "1200" and pinstripes, the side panels' lettering): a masked material, the
+    coverage map's red as the opacity mask, a flat colour, metallic and roughness. Cheap: one sample."""
+    m = new_material("M_BikeDecal", BIKE_MAT_DIR)
+    m.set_editor_property("two_sided", True)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    try_set(m, "opacity_mask_clip_value", 0.5)
+    g = Graph(m)
+    props = {"parameter_name": "DecalMap", "sampler_type": unreal.MaterialSamplerType.SAMPLERTYPE_MASKS,
+             "sampler_source": unreal.SamplerSourceMode.SSM_CLAMP_WORLD_GROUP_SETTINGS}
+    first = next((v["a"] for v in tex.values() if "a" in v), None)
+    if first:
+        props["texture"] = first
+    cover = g.node(unreal.MaterialExpressionTextureSampleParameter2D, -900, **props)
+    col = g.node(unreal.MaterialExpressionVectorParameter, -900, parameter_name="Color",
+                 default_value=unreal.LinearColor(0.01, 0.01, 0.01, 1.0))
+    met = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Metallic", default_value=0.0)
+    rough = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Roughness", default_value=0.2)
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(met, "", unreal.MaterialProperty.MP_METALLIC)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(cover, "R", unreal.MaterialProperty.MP_OPACITY_MASK)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
 def bike_materials(finishes):
     """A master for plain finishes and a clear coat one for paint, and an instance per finish (see
     Tools/make_speedtwin.py for what a finish holds; the rider's kit gives just colour and the two
     numbers, and the rest take defaults)."""
     tex = bike_textures()
-    masters = {"base": bike_master("M_BikeMaster", tex, False), "paint": bike_master("M_BikePaint", tex, True)}
+    masters = {"base": bike_master("M_BikeMaster", tex, False), "paint": bike_master("M_BikePaint", tex, True),
+               "decal": bike_decal_master(tex)}
     paths = {}
     for name, f in finishes.items():
         mi_name = "MI_" + name
@@ -740,6 +768,19 @@ def bike_materials(finishes):
                                       unreal.MaterialInstanceConstantFactoryNew())
         shader = f.get("shader", "base")
         mel.set_material_instance_parent(mi, masters.get(shader, masters["base"]))
+        if shader == "decal":
+            c = f["color"]
+            mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
+            mel.set_material_instance_scalar_parameter_value(mi, "Metallic", float(f.get("metallic", 0.0)))
+            mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(f.get("roughness", 0.2)))
+            cover = tex.get(f.get("detail", ""), {}).get("a")
+            if cover:
+                mel.set_material_instance_texture_parameter_value(mi, "DecalMap", cover)
+            else:
+                unreal.log_warning("[Torque] decal map %s for %s not found" % (f.get("detail"), name))
+            unreal.EditorAssetLibrary.save_loaded_asset(mi)
+            paths[name] = mi.get_path_name()
+            continue
         for key, pname in (("color", "Color"), ("color2", "Color2")):
             c = f.get(key, f["color"])
             mel.set_material_instance_vector_parameter_value(mi, pname, unreal.LinearColor(c[0], c[1], c[2], 1.0))

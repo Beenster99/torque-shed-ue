@@ -9,7 +9,9 @@ Tools/make_speedtwin.py pick a set each.
 
 Sets: flat, flake (metallic paint), brushed (streaks along V), machined (streaks along U: concentric
 on a disc), cast (sand-cast alloy), powder (powder coat), rubber, knurl (grips), leather (seat) and
-tyre (one tread repeat, bead to bead, wrapped 24 times round each tyre).
+tyre (one tread repeat, bead to bead, wrapped 24 times round each tyre). Decals (decal_<name>_a.png:
+coverage, for a masked material) cover the side-view boxes in make_speedtwin.DECALS: the tank's
+"1200" and pinstripes, measured off the drone profile, and "SPEED TWIN" on the side panels.
 """
 import os
 import numpy as np
@@ -84,6 +86,74 @@ def wrap_dist_to_segments(X, Y, pts, period_x):
     return best, along
 
 
+FONT = "/usr/share/fonts/opentype/inter/Inter-ExtraBold.otf"
+
+
+def decal(name, box, w, h, draw_fn):
+    """Draw a decal in metres (side view, x forward, y up) at 4x and filter down. The image is two
+    w x h halves side by side: the right side's art, then the left side's (draw_fn gets left=True),
+    which the left side sees mirrored."""
+    from PIL import ImageDraw
+    x0, x1, y0, y1 = box
+    k = 4
+    halves = []
+    for left in (False, True):
+        im = Image.new("L", (w * k, h * k), 0)
+        d = ImageDraw.Draw(im)
+
+        def px(x, y):
+            return ((x - x0) / (x1 - x0) * w * k, (y1 - y) / (y1 - y0) * h * k)
+        draw_fn(d, px, im, left)
+        halves.append(im.resize((w, h), Image.LANCZOS))
+    im = Image.new("L", (2 * w, h), 0)
+    im.paste(halves[0], (0, 0)); im.paste(halves[1], (w, 0))
+    os.makedirs(OUT, exist_ok=True)
+    im.save(os.path.join(OUT, "decal_%s_a.png" % name), optimize=True)
+    print("decal", name, (w, h))
+
+
+def text_at(im, px, text, x0, x1, ya, yb, slant=0.22, fill=255, mirror=False):
+    """Italic text filling the side-view box x0..x1, ya (baseline)..yb (cap height)."""
+    from PIL import ImageFont, ImageDraw
+    (ax, ay), (bx, by) = px(x0, yb), px(x1, ya)
+    W, H = int(bx - ax), int(by - ay)
+    font = ImageFont.truetype(FONT, 200)
+    l, t, r, b = font.getbbox(text)
+    t_im = Image.new("L", (r - l + 60, b - t + 20), 0)
+    ImageDraw.Draw(t_im).text((30 - l, 10 - t), text, font=font, fill=fill)
+    sw, sh = t_im.size
+    # Shear for the italic, then fit to the box.
+    t_im = t_im.transform((sw + int(sh * slant), sh), Image.AFFINE, (1, -slant, sh * slant, 0, 1, 0), Image.BICUBIC)
+    t_im = t_im.crop(t_im.getbbox()).resize((max(W, 1), max(H, 1)), Image.LANCZOS)
+    if mirror:
+        t_im = t_im.transpose(Image.FLIP_LEFT_RIGHT)
+    im.paste(255, (int(ax), int(ay)), t_im)
+
+
+def decals():
+    import sys
+    sys.path.insert(0, HERE)
+    from make_speedtwin import DECALS
+
+    def tank(d, px, im, left):
+        # Two parallel lines falling towards the front: a bold upper one broken by the "1200" and a
+        # finer one under it. Ends are cut square at the back and swept at the front.
+        def band(y0, slope, half, xa, xb, cut=0.012):
+            pts = [(xa, y0 + slope * xa + half), (xb, y0 + slope * xb + half),
+                   (xb - cut, y0 + slope * (xb - cut) - half), (xa, y0 + slope * xa - half)]
+            d.polygon([px(x, y) for x, y in pts], fill=255)
+        band(0.4735, -0.117, 0.0022, -0.106, -0.042)
+        band(0.4735, -0.117, 0.0022, 0.075, 0.368)
+        band(0.4659, -0.117, 0.0012, -0.102, 0.360)
+        text_at(im, px, "1200", -0.038, 0.072, 0.4745, 0.498, mirror=left)
+
+    def panel(d, px, im, left):
+        text_at(im, px, "SPEED TWIN", -0.385, -0.228, 0.392, 0.408, slant=0.25, mirror=left)
+
+    decal("tank", DECALS["tank"], 2048, 448, tank)
+    decal("panel", DECALS["panel"], 1024, 512, panel)
+
+
 def main():
     flat = np.zeros((4, 4))
     save("flat", flat, 1.0, flat, flat + 1.0)
@@ -155,6 +225,7 @@ def main():
     rough = np.where(side, -0.12, 0.05) + dark * 0.1 + band_noise(H, W, 10, 40) * 0.03
     shade = np.where(side, 0.82, 1.0) - dark * 0.35 + 0.03 * band_noise(H, W, 40, 120)
     save("tyre", hgt, 1.6, rough, shade)
+    decals()
 
 
 if __name__ == "__main__":
