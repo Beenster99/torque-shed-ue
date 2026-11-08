@@ -41,6 +41,8 @@ public:
 	// they found or did.
 	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
 	FString TestPress(bool bRideOut);
+	// Choose which option E fits in a slot (as Q/R, the mouse wheel or the D-pad do while looking at it).
+	void TestChoose(FName Slot, FName Part) { Chosen.Add(Slot, Part); }
 
 	// After walker.gd: eye 1.62 m, walk 3.2 m/s, hurry 5.5 m/s, reach 2.6 m.
 	UPROPERTY(EditAnywhere, Category = "Walker") float WalkSpeed = 320.0f;
@@ -74,7 +76,13 @@ private:
 	void UpdatePerf(float Dt);
 	FString Describe() const;
 
-	void ReadInput(float Dt, bool& bUse, bool& bRide);
+	// The option E will fit in each slot, chosen with Q/R, the mouse wheel or the D-pad while
+	// looking at the slot's part (the next one after what's fitted until you choose).
+	TMap<FName, FName> Chosen;
+	FName ChosenFor(FName Slot) const;
+	void Choose(int32 Step);
+
+	void ReadInput(float Dt, bool& bUse, bool& bRide, int32& Pick);
 	void FindTarget();
 	void Use();
 	void StartRideOut();

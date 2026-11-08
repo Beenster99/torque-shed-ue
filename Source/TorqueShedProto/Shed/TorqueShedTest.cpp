@@ -163,18 +163,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no %s part on the shed bike"), *S, *Slot.ToString()); return true; }
 		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s"), *S, *AimBike(C));
 		UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
-		const int32 Most = P.Num() >= 3 && B ? TorqueFit::Options(B->Get().Bike, Slot).Num() : 1;
-		for (int32 I = 0; I < Most; ++I)
-		{
-			if (P.Num() >= 3 && B && B->FittedIn(Slot) == FName(*P[2])) break;
-			UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
-			// The bike has been redrawn: look again at the slot's new part.
-			if (UStaticMeshComponent* Again = Biggest(Bike->Parts, [Slot](const UStaticMeshComponent* X) { return TorqueShedModel::SlotTag(X) == Slot; }))
-				AimBike(Again);
-		}
+		// Choose the part (as Q / R would), then one press of E: it ends on that part, or the log
+		// says why it won't fit and the bike stays as it was.
+		if (P.Num() >= 3) W->TestChoose(Slot, FName(*P[2]));
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
 		if (P.Num() >= 3 && B)
 			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s now has %s (%s)"), *S, *Slot.ToString(), *B->FittedIn(Slot).ToString(),
-				B->FittedIn(Slot) == FName(*P[2]) ? TEXT("as asked") : TEXT("NOT what was asked"));
+				B->FittedIn(Slot) == FName(*P[2]) ? TEXT("as asked") : TEXT("not that part"));
 		return true;
 	}
 	if (Verb == TEXT("bench") && P.Num() >= 3)

@@ -114,10 +114,12 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	}
 	UpdatePerf(DeltaSeconds);
 	bool bUse = false, bRide = false;
+	int32 Pick = 0;
 	// Hands-off test runs (-TorqueNoInput) ignore the pad, keys and mouse, as on the bike.
 	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
-	if (!bNoInput) ReadInput(DeltaSeconds, bUse, bRide);
+	if (!bNoInput) ReadInput(DeltaSeconds, bUse, bRide, Pick);
 	FindTarget();
+	if (Pick != 0) Choose(Pick);
 	if (bUse) Use();
 	if (bRide)
 	{
@@ -132,7 +134,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	UpdateHud();
 }
 
-void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide)
+void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide, int32& Pick)
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
@@ -181,6 +183,8 @@ void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide)
 	bUse = Just(EKeys::E) || Just(EKeys::LeftMouseButton) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
 	bRide = Just(EKeys::F) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
 	if (Just(EKeys::H)) bShowHelp = !bShowHelp;
+	if (Just(EKeys::R) || Just(EKeys::MouseScrollDown) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight)) Pick = 1;
+	if (Just(EKeys::Q) || Just(EKeys::MouseScrollUp) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)) Pick = -1;
 	if (Just(EKeys::P)) bPerfShow = !bPerfShow;
 	if (Just(EKeys::O))
 	{
@@ -294,7 +298,7 @@ void ATorqueWalker::Use()
 	UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
 	if (!Build) return;
 	FName Part;
-	if (Target == ETorqueLook::BikePart && !TargetSlot.IsNone()) Part = Build->NextOption(TargetSlot);
+	if (Target == ETorqueLook::BikePart && !TargetSlot.IsNone()) Part = ChosenFor(TargetSlot);
 	else if (Target == ETorqueLook::Spare) Part = TargetPart;
 	else
 	{
@@ -307,11 +311,21 @@ void ATorqueWalker::Use()
 	}
 	const FString Off = OptionName(Build->Get().Bike, TargetSlot, Build->FittedIn(TargetSlot));
 	const FString On = OptionName(Build->Get().Bike, TargetSlot, Part);
+	if (Part.IsNone() || Part == Build->FittedIn(TargetSlot))
+	{
+		Note = FString::Printf(TEXT("%s is already on: Q / R or the D-pad chooses another"), *On);
+		NoteFor = 3.0;
+		return;
+	}
+	// A part that won't fit leaves the bike as it was.
 	FText WhyNot;
 	if (Build->Fit(TargetSlot, Part, WhyNot))
+	{
 		Note = FString::Printf(TEXT("Fitted: %s (%s on the bench)"), *On, *Off);
+		Chosen.Remove(TargetSlot);
+	}
 	else
-		Note = FString::Printf(TEXT("Won't fit: %s"), *WhyNot.ToString());
+		Note = FString::Printf(TEXT("Won't fit: %s: %s"), *On, *WhyNot.ToString());
 	NoteFor = 3.0;
 }
 
@@ -345,7 +359,13 @@ void ATorqueWalker::UpdateHud()
 		{
 			HudLines.Add({FString::Printf(TEXT("%s: %s"), *TorqueShedModel::SlotLabel(TargetSlot),
 				*OptionName(Bike, TargetSlot, Build->FittedIn(TargetSlot))), FColor::White, 0.8f});
-			HudLines.Add({FString::Printf(TEXT("E / Cross: fit %s"), *OptionName(Bike, TargetSlot, Build->NextOption(TargetSlot))), Prompt, 0.65f});
+			const TArray<FTorqueFitOption> Opts = TorqueFit::Options(Bike, TargetSlot);
+			const FName Pick = ChosenFor(TargetSlot);
+			int32 At = 0;
+			for (int32 I = 0; I < Opts.Num(); ++I)
+				if (Opts[I].PartId == Pick) At = I + 1;
+			HudLines.Add({FString::Printf(TEXT("E / Cross: fit %s   (Q / R, wheel or D-pad: choose, %d of %d)"),
+				*OptionName(Bike, TargetSlot, Pick), At, Opts.Num()), Prompt, 0.65f});
 		}
 		else
 		{
@@ -371,7 +391,7 @@ void ATorqueWalker::UpdateHud()
 	{
 		const FColor Help(200, 200, 200);
 		HudLines.Add({TEXT("WASD / left stick: walk   Shift / L3: hurry   mouse / right stick: look"), Help, 0.5f});
-		HudLines.Add({TEXT("E / Cross: swap the part you look at, or fit a spare from the bench"), Help, 0.5f});
+		HudLines.Add({TEXT("E / Cross: fit the chosen part (Q / R, wheel or D-pad left/right to choose), or a spare from the bench"), Help, 0.5f});
 		HudLines.Add({TEXT("F / Triangle: ride out   Space / Circle: hop   H: hide help   Esc: quit"), Help, 0.5f});
 	}
 }
@@ -458,4 +478,28 @@ FString ATorqueWalker::TestPress(bool bRideOut)
 	Use();
 	UpdateHud();
 	return FString::Printf(TEXT("E on %s: %s"), *Seen, Note.IsEmpty() ? TEXT("nothing happened") : *Note);
+}
+
+FName ATorqueWalker::ChosenFor(FName Slot) const
+{
+	const UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
+	if (!Build) return NAME_None;
+	if (const FName* C = Chosen.Find(Slot))
+		if (*C != Build->FittedIn(Slot)) return *C;
+	return Build->NextOption(Slot);
+}
+
+void ATorqueWalker::Choose(int32 Step)
+{
+	if (Target != ETorqueLook::BikePart || TargetSlot.IsNone()) return;
+	const UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
+	if (!Build) return;
+	// Every option but the one that's on, round and round.
+	const FName Fitted = Build->FittedIn(TargetSlot);
+	TArray<FName> Others;
+	for (const FTorqueFitOption& O : TorqueFit::Options(Build->Get().Bike, TargetSlot))
+		if (O.PartId != Fitted) Others.Add(O.PartId);
+	if (Others.Num() == 0) return;
+	const int32 Now = FMath::Max(Others.IndexOfByKey(ChosenFor(TargetSlot)), 0);
+	Chosen.Add(TargetSlot, Others[(Now + Step + Others.Num()) % Others.Num()]);
 }

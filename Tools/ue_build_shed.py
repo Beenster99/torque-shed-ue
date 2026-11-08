@@ -274,6 +274,10 @@ def roof(mat, wood):
         # Positive roll tips +y down: the south slope falls to +y, the north one rises to it.
         shape(CUBE, "Roof_" + side, (0.0, cy, cz), (x_len, slope + 12.0, 18.0), mat, rot=(sign * pitch, 0.0, 0.0), folder="Roof")
     shape(CUBE, "Ridge", (0.0, 0.0, RIDGE + 14.0), (x_len, 30.0, 14.0), mat, folder="Roof")
+    # The wall heads packed up to the slates on the inside, so no strip of sky shows along the eaves.
+    for side, sign in (("N", -1.0), ("S", 1.0)):
+        y0, y1 = sorted((sign * (HALF_Y - 5.0), sign * (HALF_Y + 30.0)))
+        box("WallHead_" + side, -HALF_X, HALF_X, y0, y1, EAVES - 1.0, EAVES + 26.0, mat, folder="Roof")
     for i, x in enumerate((-300.0, 0.0, 300.0)):
         box("TieBeam_%d" % i, x - 10, x + 10, -HALF_Y - 5, HALF_Y + 5, EAVES - 30, EAVES - 5, wood, folder="Roof")
 
@@ -496,6 +500,14 @@ def build():
     # Start by the door looking in at the bike.
     start = (DOOR_X1 + 60.0, HALF_Y - 90.0)
     yaw = math.degrees(math.atan2(BIKE_AT[1] - start[1], BIKE_AT[0] - start[0]))
+    # Where the start menu looks from (ATorqueMenuPawn): inside the door at eye height, looking in at
+    # the bike, below the battens and beams.
+    view = (DOOR_X1 + 80.0, HALF_Y - 60.0, 165.0)
+    to = (BIKE_AT[0] - view[0], BIKE_AT[1] - view[1], 70.0 - view[2])
+    v = actors.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(*view), unreal.Rotator(
+        0.0, math.degrees(math.atan2(to[2], math.hypot(to[0], to[1]))), math.degrees(math.atan2(to[1], to[0]))))
+    v.set_actor_label("MenuView")
+    v.set_editor_property("tags", [unreal.Name("MenuView")])
     actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(start[0], start[1], 100.0), unreal.Rotator(0.0, 0.0, yaw))
 
     levels.save_current_level()

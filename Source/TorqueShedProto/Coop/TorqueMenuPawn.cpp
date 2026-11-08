@@ -2,6 +2,7 @@
 
 #include "TorqueSession.h"
 #include "Camera/CameraComponent.h"
+#include "EngineUtils.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -28,6 +29,16 @@ void ATorqueMenuPawn::BeginPlay()
 	// Up at head height over the start, looking along the way the ride goes.
 	BaseLoc = GetActorLocation() + FVector(0.0, 0.0, 200.0);
 	BaseRot = FRotator(-5.0, GetActorRotation().Yaw, 0.0);
+	// A level can say where the menu looks from: an actor tagged MenuView (the shed has one by the
+	// roller door, looking in at the bike, clear of the light battens and beams).
+	if (UWorld* World = GetWorld())
+		for (TActorIterator<AActor> It(World); It; ++It)
+			if (It->ActorHasTag(TEXT("MenuView")))
+			{
+				BaseLoc = It->GetActorLocation();
+				BaseRot = It->GetActorRotation();
+				break;
+			}
 	Camera->SetWorldLocationAndRotation(BaseLoc, BaseRot);
 	Pad = MakeUnique<FSonyPad>();
 	if (UTorqueSession* S = UTorqueSession::Get(this))
