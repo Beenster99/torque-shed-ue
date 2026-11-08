@@ -25,7 +25,7 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `SimTest/` | A standalone test of the physics: flat-ground checks and a robot rider down the exported 3 km |
 
 The bike is a first Speed Twin model built from your two side-on drone photos: wheels, forks, tank,
-seat, engine, headers and silencers, in simple finishes. The rider is a skinned figure in riding kit, made by `Tools/make_rider.py`: hands on the grips as the bars turn, feet on the pegs or down when you stop, weight and lean as you ride.
+seat, engine, headers and silencers, in simple finishes. The rider is a skinned figure in riding kit, made by `Tools/make_rider.py`: hands on the grips as the bars turn, feet on the pegs or down when you stop, weight and lean as you ride. Its kit is textured from scanned CC0 surfaces (the `rider_` roles in `Data/Textures/textures.json`, fetched by `Tools/fetch_textures.py`): textile jacket, denim, leather gloves and boots, rubber soles, the weave following the sleeves and legs. Without them it falls back to plain colours.
 
 ## Setting it up on your PC
 

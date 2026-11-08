@@ -277,17 +277,25 @@ def jacket(p):
         pad = ellipsoid(p, E + out_dir * 2.6 + unit(W - E) * 2.0,
                         (5.0, 4.0, 2.4), np.stack([unit(W - E), unit(np.cross(out_dir, unit(W - E))), out_dir]))
         arm = smin(arm, pad, 1.2)
+        arm = groove(arm, pad, 0.3, 0.1)            # the pad's stitched outline
         # Shoulder pad: on the outside of the upper arm.
         sp_dir = unit(np.array([0.0, s, 0.7]))
         spad = ellipsoid(p, S + sp_dir * 3.0 + unit(E - S) * 3.0, (6.0, 5.0, 2.5),
                          np.stack([unit(E - S), unit(np.cross(sp_dir, unit(E - S))), sp_dir]))
         arm = smin(arm, spad, 1.5)
+        arm = groove(arm, spad, 0.3, 0.1)
         # Folds bunched in the crook of the elbow and along the forearm.
         dE = np.linalg.norm(p - E, axis=1)
         crook = np.clip(1.0 - dE / 9.0, 0, 1) ** 1.5
         along = (p - E) @ unit(W - E)
         arm = arm + crook * 0.45 * np.sin(along * 1.6 + 0.8 * fold_noise(p, 9.0, 3 + s))
         arm = arm + 0.12 * fold_noise(p, 5.0, 7 + s)
+        # The sleeve concertinas where the glove's gauntlet holds it at the wrist...
+        back = (p - cuff) @ unit(E - W)
+        bunch = np.clip(1.0 - back / 10.0, 0, 1) * (back > -0.5)
+        arm = arm + bunch * 0.38 * np.sin(back * 1.9 + 0.9 * fold_noise(p, 6.0, 11 + s))
+        # ...and hangs in long soft diagonal folds under the upper arm and forearm.
+        arm = arm + 0.25 * fold_noise(p * np.array([1.0, 1.0, 0.55]), 8.0, 13 + s)
         # The sleeve's end: cut square, with a turned cuff.
         arm = smax(arm, plane(p, cuff, unit(W - E)), 0.4)
         groups["arm_" + x] = arm
@@ -441,7 +449,7 @@ def lever_fingers(p):
 
 
 LAYERS = {"jacket": jacket, "jeans": jeans, "boots": boots, "sole": soles, "gloves": gloves, "fingers": lever_fingers}
-VOXEL = {"jacket": 0.7, "jeans": 0.7, "boots": 0.5, "sole": 0.45, "gloves": 0.28, "fingers": 0.22}
+VOXEL = {"jacket": 0.5, "jeans": 0.6, "boots": 0.5, "sole": 0.45, "gloves": 0.24, "fingers": 0.2}
 NO_CLIP = {("gloves", "fingers"), ("fingers", "gloves")}   # overlapping, each kept whole
 
 
@@ -788,37 +796,122 @@ def to_model(p):
     return np.stack([p[..., 0], p[..., 2], p[..., 1]], -1) / 100.0
 
 
-def surface_frame(pos, nrm, idx):
+def cloth_charts(layer, v, joints):
+    """Sleeve-like UV charts for the textiles, so the weave runs along the arms and legs as it does on
+    real kit: each part is a cylinder about its bone (u round it, v along it, in pawn cm), with its
+    seam where it's hidden (inside and under the arms, inside the legs, under the left arm on the
+    body) and seams between parts at the shoulders, elbows, hips and knees, where the kit has them.
+    Returns (chart per vertex, chart defs (origin, axis, zero direction, v offset)), or None for a
+    layer that keeps the box map (leather and rubber, which have no grain direction to show)."""
+    if layer not in ("jacket", "jeans"):
+        return None
+    dom = [BONES[j] for j in joints[:, 0]]
+    defs = []
+
+    def cyl(a, b, ref, v0=0.0):
+        d = unit(b - a)
+        r = np.asarray(ref, np.float64); r = unit(r - d * (r @ d))
+        defs.append((np.asarray(a, np.float64), d, r, v0))
+        return len(defs) - 1
+
+    body = cyl(J["pelvis"], J["neck_01"], (0.0, 1.0, 0.0))    # zero on the right: the seam's on the left side
+    chart = np.full(len(v), body)
+    for s_, x in ((-1, "l"), (1, "r")):
+        if layer == "jacket":
+            S, E, W = arm_points(s_)
+            out_up = (0.0, 0.6 * s_, 0.8)
+            up = cyl(S, E, out_up)
+            fo = cyl(E, W, out_up, np.linalg.norm(E - S))
+            for i, bn in enumerate(dom):
+                if bn == "upperarm_" + x:
+                    chart[i] = up
+                elif bn in ("lowerarm_" + x, "hand_" + x):
+                    chart[i] = fo
+        else:
+            H, K, A = J["thigh_" + x], J["calf_" + x], J["foot_" + x]
+            out = (0.0, s_, 0.3)
+            th = cyl(H, K, out)
+            ca = cyl(K, A, out, np.linalg.norm(K - H))
+            for i, bn in enumerate(dom):
+                if bn == "thigh_" + x:
+                    chart[i] = th
+                elif bn in ("calf_" + x, "foot_" + x, "ball_" + x):
+                    chart[i] = ca
+    return chart, defs
+
+
+def surface_frame(pos, nrm, idx, pawn=None, charts=None):
     """UVs and tangents for a mesh that has no unwrap (glTF model frame, metres). Without them
-    Unreal's importer runs MikkTSpace on all-zero UVs and the kit shades in blotches. The UVs blend
-    the three axis projections by the normal (a smooth, metre-scaled box map, ready for detail
-    textures); the tangents follow u along each triangle, are averaged at the vertices and squared
-    up to the normal, and fall back to a fixed axis where they vanish."""
-    w = np.abs(nrm) ** 4
-    w /= w.sum(1, keepdims=True)
-    x, y, z = pos[:, 0], pos[:, 1], pos[:, 2]
-    uv = (w[:, :1] * np.stack([z, y], 1) + w[:, 1:2] * np.stack([x, z], 1) + w[:, 2:] * np.stack([x, y], 1))
-    p0, p1, p2 = pos[idx[:, 0]], pos[idx[:, 1]], pos[idx[:, 2]]
-    t0, t1, t2 = uv[idx[:, 0]], uv[idx[:, 1]], uv[idx[:, 2]]
+    Unreal's importer runs MikkTSpace on all-zero UVs and the kit shades in blotches.
+
+    By default a box map: each triangle takes the axis its normal is nearest, projected flat in
+    metres, flipped by the side it faces so all six charts turn the same way about the normal (a
+    blended map folded on the curves and broke the normal map into facets). With charts (from
+    cloth_charts, with the pawn-local positions) the cylinders instead. Vertices on a chart's edge
+    are split, one per chart. Returns (vertex source indices, triangles, uv, tangent xyzw); tangents
+    follow u, averaged over each vertex's triangles and squared up to its normal."""
+    nf = len(idx)
+    fnrm = nrm[idx].sum(1)
+    k = np.abs(fnrm).argmax(1)
+    chart = 2 * k + (fnrm[np.arange(nf), k] > 0)
+    corner_uv = np.zeros((nf, 3, 2))
+    wrap = np.zeros((nf, 3), np.int64)
+    if charts is not None:
+        vc, defs = charts
+        c3 = vc[idx]
+        # A triangle's chart: the one most of its corners have.
+        fc = np.where(c3[:, 1] == c3[:, 2], c3[:, 1], c3[:, 0])
+        for ci, (a, d, ref, v0) in enumerate(defs):
+            m = fc == ci
+            if not m.any():
+                continue
+            q = pawn[idx[m]] - a                       # (n, 3, 3), pawn cm
+            along = q @ d
+            perp = q - along[..., None] * d
+            th = np.arctan2(perp @ np.cross(d, ref), perp @ ref)
+            # Round the seam: a triangle across it takes the angles past pi, not wrapped back.
+            span = th.max(1) - th.min(1)
+            over = (span > math.pi)[:, None] & (th < 0)
+            th = th + over * 2 * math.pi
+            wrap[m] = over
+            rad = np.linalg.norm(perp, axis=-1)
+            corner_uv[m] = np.stack([th * rad, along + v0], -1) / 100.0
+        chart = 6 + fc
+    key = (idx * 64 + chart[:, None]) * 2 + wrap
+    uniq, first, inv = np.unique(key.ravel(), return_index=True, return_inverse=True)
+    src = uniq // 128
+    tris = inv.reshape(-1, 3)
+    P = pos[src]; N = nrm[src]
+    ch = (uniq // 2) % 64
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    ax = np.minimum(ch, 5) // 2; sg = np.where(ch % 2 == 1, 1.0, -1.0)
+    # Box: (u, v) per axis with u x v along +axis, and v up (model y) where it can be.
+    uv = np.where((ax == 0)[:, None], np.stack([-sg * z, y], 1),
+         np.where((ax == 1)[:, None], np.stack([-sg * x, z], 1), np.stack([sg * x, y], 1)))
+    from_cyl = ch >= 6
+    uv[from_cyl] = corner_uv.reshape(-1, 2)[first[from_cyl]]
+    p0, p1, p2 = P[tris[:, 0]], P[tris[:, 1]], P[tris[:, 2]]
+    t0, t1, t2 = uv[tris[:, 0]], uv[tris[:, 1]], uv[tris[:, 2]]
     e1, e2 = p1 - p0, p2 - p0
     d1, d2 = t1 - t0, t2 - t0
     r = d1[:, 0] * d2[:, 1] - d2[:, 0] * d1[:, 1]
-    r = np.where(np.abs(r) < 1e-12, 0.0, 1.0 / np.where(np.abs(r) < 1e-12, 1.0, r))[:, None]
+    ok = np.abs(r) > 1e-14
+    r = np.where(ok, 1.0 / np.where(ok, r, 1.0), 0.0)[:, None]
     tu = (e1 * d2[:, 1:] - e2 * d1[:, 1:]) * r
     tv = (e2 * d1[:, :1] - e1 * d2[:, :1]) * r
-    T = np.zeros_like(pos); Bt = np.zeros_like(pos)
-    for k in range(3):
-        np.add.at(T, idx[:, k], tu); np.add.at(Bt, idx[:, k], tv)
-    T -= nrm * (T * nrm).sum(1, keepdims=True)
+    T = np.zeros_like(P); Bt = np.zeros_like(P)
+    for j in range(3):
+        np.add.at(T, tris[:, j], tu); np.add.at(Bt, tris[:, j], tv)
+    T -= N * (T * N).sum(1, keepdims=True)
     ln = np.linalg.norm(T, axis=1)
     bad = ln < 1e-8
     if bad.any():
-        a = np.where(np.abs(nrm[bad, 0:1]) < 0.9, [[1.0, 0, 0]], [[0, 0, 1.0]])
-        T[bad] = a - nrm[bad] * (a * nrm[bad]).sum(1, keepdims=True)
+        a = np.where(np.abs(N[bad, 0:1]) < 0.9, [[1.0, 0, 0]], [[0, 0, 1.0]])
+        T[bad] = a - N[bad] * (a * N[bad]).sum(1, keepdims=True)
         ln = np.linalg.norm(T, axis=1)
     T /= ln[:, None]
-    hand = np.where((np.cross(nrm, T) * Bt).sum(1) < 0.0, -1.0, 1.0)
-    return uv.astype(np.float32), np.concatenate([T, hand[:, None]], 1).astype(np.float32)
+    hand = np.where((np.cross(N, T) * Bt).sum(1) < 0.0, -1.0, 1.0)
+    return src, tris, uv.astype(np.float32), np.concatenate([T, hand[:, None]], 1).astype(np.float32)
 
 
 def write_glb(path, prims, skin_info=None, name="mesh"):
@@ -847,20 +940,21 @@ def write_glb(path, prims, skin_info=None, name="mesh"):
 
     materials, gl_prims = [], []
     for pr in prims:
-        pos = to_model(pr["pos"]).astype(np.float32)
-        nrm = unit(to_model(pr["nrm"])).astype(np.float32)
+        pos = to_model(pr["pos"])
+        nrm = unit(to_model(pr["nrm"]))
         idx = np.asarray(pr["idx"])[:, [0, 2, 1]]       # the frame swap mirrors, so the winding flips
+        src, idx, uv, tan = surface_frame(pos, nrm, idx, np.asarray(pr["pos"], np.float64), pr.get("charts"))
+        pos = pos[src].astype(np.float32); nrm = nrm[src].astype(np.float32)
         attrs = {"POSITION": add(pos, 34962, 5126, "VEC3", len(pos), minmax=True),
                  "NORMAL": add(nrm, 34962, 5126, "VEC3", len(pos))}
         if pr.get("col") is not None:
-            col = (np.clip(pr["col"], 0, 1) * 65535).astype(np.uint16)
+            col = (np.clip(np.asarray(pr["col"])[src], 0, 1) * 65535).astype(np.uint16)
             attrs["COLOR_0"] = add(col, 34962, 5123, "VEC4", len(pos), norm=True)
-        uv, tan = surface_frame(pos.astype(np.float64), nrm.astype(np.float64), idx)
         attrs["TANGENT"] = add(tan, 34962, 5126, "VEC4", len(pos))
         attrs["TEXCOORD_0"] = add(uv, 34962, 5126, "VEC2", len(pos))
         if pr.get("joints") is not None:
-            attrs["JOINTS_0"] = add(np.asarray(pr["joints"], np.uint16), 34962, 5123, "VEC4", len(pos))
-            attrs["WEIGHTS_0"] = add(np.asarray(pr["weights"], np.float32), 34962, 5126, "VEC4", len(pos))
+            attrs["JOINTS_0"] = add(np.asarray(pr["joints"], np.uint16)[src], 34962, 5123, "VEC4", len(pos))
+            attrs["WEIGHTS_0"] = add(np.asarray(pr["weights"], np.float32)[src], 34962, 5126, "VEC4", len(pos))
         small = len(pos) < 65536
         ia = add(idx.astype(np.uint16 if small else np.uint32).ravel(), 34963, 5123 if small else 5125, "SCALAR", idx.size)
         materials.append({"name": pr["material"], "pbrMetallicRoughness": {
@@ -960,6 +1054,8 @@ def build(out):
             prims.append({"pos": v, "nrm": n, "idx": f, "col": col, "joints": joints, "weights": weights,
                           "material": mat, "color": FINISHES[mat][0], "roughness": FINISHES[mat][1]})
         tris += len(f)
+    for q in prims:
+        q["charts"] = cloth_charts(q["material"], q["pos"], q["joints"])
     write_glb(os.path.join(out, "rider.glb"), prims, (BONES, PARENTS, J), "rider")
 
     print("helmet:")

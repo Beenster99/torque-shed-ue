@@ -894,7 +894,95 @@ RIDER_DEST = "/Game/Rider"
 RIDER_MAT_DIR = "/Game/Rider/Materials"
 
 
-def rider_materials(finishes):
+# The kit's scanned surfaces (roles in Data/Textures/textures.json), by finish in rider.json.
+RIDER_TEX = {"jacket": "rider_jacket", "jeans": "rider_denim", "gloves": "rider_glove", "boots": "rider_boot",
+             "sole": "rider_sole", "liner": "rider_jacket", "trim": "rider_sole"}
+
+
+def rider_scan_master(maps):
+    """The kit from a scanned surface, on the UVs make_rider.py writes (metres, a box map blended by
+    the normal). Three samples: colour, normal, roughness. The colour is the scan's tinted to the
+    finish (Tint = finish / the scan's mean, so the weave and grain stay and the average is the
+    kit's), times the baked occlusion; the normal map is ambientCG's OpenGL one, green flipped for
+    Unreal; the roughness is the scan's scaled to the finish, and rougher in the creases."""
+    m = new_material("M_Rider_scan", RIDER_MAT_DIR)
+    m.set_editor_property("used_with_skeletal_mesh", True)
+    m.set_editor_property("used_with_static_lighting", False)
+    X = -1400
+
+    def node(cls, x, y, **props):
+        e = mel.create_material_expression(m, cls, x, y)
+        for k, v in props.items():
+            e.set_editor_property(k, v)
+        return e
+
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            unreal.log_warning("[Torque] rider material: couldn't link %s.%s to %s.%s" % (a.get_name(), out, b.get_name(), pin))
+
+    def op(cls, a, b, x, y, a_out="", b_out=""):
+        e = node(cls, x, y)
+        link(a, e, "A", a_out)
+        link(b, e, "B", b_out)
+        return e
+
+    def scalar(name, v, x, y):
+        return node(unreal.MaterialExpressionScalarParameter, x, y, parameter_name=name, default_value=v)
+
+    tc = node(unreal.MaterialExpressionTextureCoordinate, X, 0, coordinate_index=0)
+    uv = op(unreal.MaterialExpressionMultiply, tc, scalar("Repeats", 4.0, X, 120), X + 200, 0)
+
+    def sample(name, tex, kind, y):
+        st = {"color": unreal.MaterialSamplerType.SAMPLERTYPE_COLOR,
+              "normal": unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL}.get(kind, unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+        e = node(unreal.MaterialExpressionTextureSampleParameter2D, X + 450, y, parameter_name=name, texture=tex,
+                 sampler_type=st, sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
+        link(uv, e, "UVs")
+        return e
+
+    col = sample("ColorMap", maps["color"], "color", -300)
+    vc = node(unreal.MaterialExpressionVertexColor, X + 450, 300)
+    ao = node(unreal.MaterialExpressionLinearInterpolate, X + 800, 300)
+    link(const1(m, 1.0, X + 600, 260), ao, "A")
+    link(vc, ao, "B", "R")
+    link(scalar("Occlusion", 1.0, X + 600, 420), ao, "Alpha")
+    tint = node(unreal.MaterialExpressionVectorParameter, X + 450, -120, parameter_name="Tint",
+                default_value=unreal.LinearColor(1, 1, 1, 1))
+    base = op(unreal.MaterialExpressionMultiply, col, tint, X + 800, -300, a_out="RGB")
+    base = op(unreal.MaterialExpressionMultiply, base, ao, X + 1000, -300)
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(ao, "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+
+    if "normal" in maps:
+        nrm = sample("NormalMap", maps["normal"], "normal", 600)
+        flip = node(unreal.MaterialExpressionConstant3Vector, X + 600, 760, constant=unreal.LinearColor(1, -1, 1, 1))
+        nrm = op(unreal.MaterialExpressionMultiply, nrm, flip, X + 800, 600, a_out="RGB")
+        flat = node(unreal.MaterialExpressionConstant3Vector, X + 800, 760, constant=unreal.LinearColor(0, 0, 1, 1))
+        nl = node(unreal.MaterialExpressionLinearInterpolate, X + 1000, 600)
+        link(flat, nl, "A")
+        link(nrm, nl, "B")
+        link(scalar("Bump", 1.0, X + 800, 860), nl, "Alpha")
+        mel.connect_material_property(nl, "", unreal.MaterialProperty.MP_NORMAL)
+
+    if "rough" in maps:
+        r = sample("RoughMap", maps["rough"], "rough", 1000)
+        r = op(unreal.MaterialExpressionMultiply, r, scalar("RoughScale", 1.0, X + 600, 1150), X + 800, 1000, a_out="R")
+    else:
+        r = scalar("RoughScale", 0.7, X + 600, 1000)
+    crease = node(unreal.MaterialExpressionLinearInterpolate, X + 1000, 1000)
+    link(const1(m, 1.0, X + 800, 1250), crease, "A")
+    link(r, crease, "B")
+    link(vc, crease, "Alpha", "R")
+    sat = node(unreal.MaterialExpressionSaturate, X + 1200, 1000)
+    link(crease, sat)
+    mel.connect_material_property(sat, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(scalar("Specular", 0.5, X + 1000, 1300), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
+def rider_materials(finishes, tex=None, roles=None):
     """The kit: a master lit by the rider's baked occlusion (vertex colour), and a clear-coated one
     for the helmet's paint and visor. One instance per finish in rider.json."""
     paths = {}
@@ -945,10 +1033,19 @@ def rider_materials(finishes):
         mel.recompile_material(m)
         unreal.EditorAssetLibrary.save_loaded_asset(m)
         masters[kind] = m
+    tex = tex or {}
+    roles = roles or {}
+    scanned = {name: RIDER_TEX[name] for name in finishes
+               if RIDER_TEX.get(name) in tex and "mean" in roles.get(RIDER_TEX[name], {})}
+    if scanned:
+        first = tex[next(iter(scanned.values()))]
+        masters["scan"] = rider_scan_master(first)
+    log("rider kit: scanned %s; plain %s" % (", ".join("%s=%s" % (k, roles[v]["id"]) for k, v in scanned.items()) or "none",
+                                              ", ".join(k for k in finishes if k not in scanned) or "none"))
     # Leather and textiles are dielectrics with low specular; denim is very matt.
     spec = {"jeans": 0.3, "jacket": 0.45, "sole": 0.3, "liner": 0.2, "trim": 0.35}
     for name, f in finishes.items():
-        kind = "gloss" if name in ("helmet", "visor") else "kit"
+        kind = "gloss" if name in ("helmet", "visor") else "scan" if name in scanned else "kit"
         mi_name = "MI_Rider_" + name
         path = RIDER_MAT_DIR + "/" + mi_name
         if unreal.EditorAssetLibrary.does_asset_exist(path):
@@ -957,8 +1054,24 @@ def rider_materials(finishes):
                                       unreal.MaterialInstanceConstantFactoryNew())
         mel.set_material_instance_parent(mi, masters[kind])
         c = f["color"]
-        mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
-        mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(f["roughness"]))
+        if kind == "scan":
+            r = roles[scanned[name]]
+            maps = tex[scanned[name]]
+            mel.set_material_instance_texture_parameter_value(mi, "ColorMap", maps["color"])
+            if "normal" in maps:
+                mel.set_material_instance_texture_parameter_value(mi, "NormalMap", maps["normal"])
+            if "rough" in maps:
+                mel.set_material_instance_texture_parameter_value(mi, "RoughMap", maps["rough"])
+            mean = r["mean"]
+            tint = [c[i] / max(mean[i], 1e-4) for i in range(3)]
+            mel.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(tint[0], tint[1], tint[2], 1.0))
+            mel.set_material_instance_scalar_parameter_value(mi, "Repeats", 1.0 / float(r["tile_m"]))
+            mel.set_material_instance_scalar_parameter_value(mi, "Bump", float(r.get("bump", 1.0)))
+            mel.set_material_instance_scalar_parameter_value(
+                mi, "RoughScale", float(f["roughness"]) / max(float(r.get("rough_mean", 0.7)), 0.05))
+        else:
+            mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
+            mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(f["roughness"]))
         mel.set_material_instance_scalar_parameter_value(mi, "Specular", float(spec.get(name, 0.5)))
         unreal.EditorAssetLibrary.save_loaded_asset(mi)
         paths[name] = mi.get_path_name()
@@ -986,7 +1099,7 @@ def rider_build_settings(body):
         unreal.log_warning("[Torque] rider build settings not set: %s" % e)
 
 
-def import_rider():
+def import_rider(tex=None, roles=None):
     """The rider (Tools/make_rider.py): rider.glb as a skeletal mesh, helmet.glb as a static mesh, and
     the kit's materials. Returns what the pawn needs, or None."""
     folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Rider")
@@ -1021,7 +1134,7 @@ def import_rider():
     if helmet:
         nanite_off(helmet)
         unreal.EditorAssetLibrary.save_loaded_asset(helmet)
-    mats = rider_materials(info["finishes"])
+    mats = rider_materials(info["finishes"], tex, roles)
     log("rider: %s, helmet %s" % (body.get_path_name(), helmet.get_path_name() if helmet else "missing"))
     return {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
 
@@ -1054,7 +1167,7 @@ def check_bike(meshes, mats):
             unreal.log_warning("[Torque] bike check: couldn't read %s: %s" % (fin, e))
 
 
-def import_bike(frame):
+def import_bike(frame, tex=None, roles=None):
     """The Speed Twin's parts (Tools/make_speedtwin.py) and a list of where they landed, for the pawn."""
     folder = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Bike", "SpeedTwin")
     if not os.path.isdir(folder):
@@ -1085,7 +1198,7 @@ def import_bike(frame):
     check_bike(meshes, mats)
     assets = {"frame": {"yaw": frame[0], "mirror": frame[1], "scale": frame[2]}, "parts": {},
               "rider": {k[len("rider_"):]: mats[k] for k in RIDER_FINISHES}}
-    rig = import_rider()
+    rig = import_rider(tex, roles)
     if rig:
         assets["rider_rig"] = rig
     for part in info["parts"]:
@@ -2219,7 +2332,7 @@ def build():
                      "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False),
                      "glass": flat_material("M_WindowGlass", 0.06),
                      "render": render_material(tex, roles)}
-    import_bike((yaw, mirror, scale))
+    import_bike((yaw, mirror, scale), tex, roles)
 
     # Start the level afresh (a second run replaces the first).
     if unreal.EditorAssetLibrary.does_asset_exist(MAP):

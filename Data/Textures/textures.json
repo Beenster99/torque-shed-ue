@@ -1,5 +1,5 @@
 {
- "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing. 'masonry' is the rubble walling of the houses and barns.",
+ "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing. 'masonry' is the rubble walling of the houses and barns. The rider_ roles are the riding kit (Tools/ue_build_level.py rider_materials): 'mean' is the scan's linear mean colour and 'rough_mean' its mean roughness, so the kit can be tinted and scaled to the finishes in Data/Rider/rider.json; recompute them if a role's id changes.",
  "roles": {
   "grass": {
    "id": "Grass004",
@@ -64,6 +64,61 @@
   "masonry": {
    "id": "Bricks096",
    "tile_m": 1.8
+  },
+  "rider_jacket": {
+   "id": "Fabric039",
+   "tile_m": 0.25,
+   "bump": 1.0,
+   "mean": [
+    0.0768,
+    0.0768,
+    0.0768
+   ],
+   "rough_mean": 0.834
+  },
+  "rider_denim": {
+   "id": "Fabric069",
+   "tile_m": 0.2,
+   "bump": 1.0,
+   "mean": [
+    0.0581,
+    0.0965,
+    0.2459
+   ],
+   "rough_mean": 0.741
+  },
+  "rider_glove": {
+   "id": "Leather022",
+   "tile_m": 0.12,
+   "bump": 0.8,
+   "mean": [
+    0.0474,
+    0.0246,
+    0.0067
+   ],
+   "rough_mean": 0.594
+  },
+  "rider_boot": {
+   "id": "Leather026",
+   "tile_m": 0.25,
+   "bump": 0.8,
+   "mean": [
+    0.0102,
+    0.0096,
+    0.0094
+   ],
+   "rough_mean": 0.37
+  },
+  "rider_sole": {
+   "id": "Rubber004",
+   "tile_m": 0.3,
+   "bump": 0.6,
+   "mean": [
+    0.0236,
+    0.0253,
+    0.032
+   ],
+   "rough_mean": 0.591
   }
  },
  "candidates": {
@@ -128,6 +183,26 @@
    "Bricks098",
    "Bricks089",
    "Rocks025"
+  ],
+  "rider_jacket": [
+   "Fabric039",
+   "Fabric042",
+   "Fabric030"
+  ],
+  "rider_denim": [
+   "Fabric069",
+   "Fabric077"
+  ],
+  "rider_glove": [
+   "Leather022",
+   "Leather030"
+  ],
+  "rider_boot": [
+   "Leather026",
+   "Leather027"
+  ],
+  "rider_sole": [
+   "Rubber004"
   ]
  }
 }
