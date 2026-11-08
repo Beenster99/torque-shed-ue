@@ -321,11 +321,28 @@ FName ATorqueShedBike::SlotOf(const UPrimitiveComponent* C) const
 	return TorqueShedModel::SlotTag(C);
 }
 
+void ATorqueShedBike::Preview(const FString* Geo)
+{
+	if (Geo) PreviewGeo = *Geo;
+	else if (!PreviewGeo.IsSet()) return;   // nothing previewed: as drawn already
+	else PreviewGeo.Reset();
+	Rebuild();
+}
+
+FString ATorqueShedBike::FitText() const
+{
+	if (PreviewGeo.IsSet()) return PreviewGeo.GetValue();
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	return B && B->Exists(Bay) ? B->Bike(Bay).Geo : FString();
+}
+
 void ATorqueShedBike::Rebuild()
 {
 	for (UStaticMeshComponent* C : Parts)
 		if (C) C->DestroyComponent();
 	Parts.Reset();
+	FitView = FTorqueBikeFitView();
+	const FString Geo = FitText();
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (B && !B->Exists(Bay))
 	{
@@ -338,10 +355,12 @@ void ATorqueShedBike::Rebuild()
 	if (B && B->LayoutParts(Bay, CatalogueParts))
 	{
 		double AxleHeight = 31.0;
-		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight);
+		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight, Geo);
 		if (Drawn > 0)
 		{
 			BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, AxleHeight + 1.5), FRotator(-2.0, 0.0, 0.0));
+			FitView.Capture(Parts);
+			FitView.Show(Parts, Geo);
 			Relook();
 			UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %s drawn from the catalogue with %d surfaces"), Bay + 1, *B->Bike(Bay).Name, Drawn);
 			return;
@@ -353,6 +372,8 @@ void ATorqueShedBike::Rebuild()
 	const int32 Made = TorqueShedModel::MakePartsWhere(this, BikeRoot, Build,
 		[B, InBay](const FTorqueResolvedPart& P) { return !B || B->ShowsModelPart(InBay, P); }, Parts);
 	if (Made == 0) BuildGreyBox();
+	FitView.Capture(Parts);
+	FitView.Show(Parts, Geo);
 	Relook();
 	UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %s drawn with %d parts"), Bay + 1, *Build.Bike.ToString(), Parts.Num());
 }

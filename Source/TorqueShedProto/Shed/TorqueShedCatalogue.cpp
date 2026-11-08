@@ -1,5 +1,6 @@
 #include "Shed/TorqueShedCatalogue.h"
 
+#include "Fit/BikeGeometry.h"
 #include "Fit/BikeLayout.h"
 #include "Fit/BikeParts.h"
 #include "Fit/FitJson.h"
@@ -338,8 +339,37 @@ const TorqueFit::BikeLayout* Layout()
 	return bOk ? &Lay : nullptr;
 }
 
+bool DrawnParts(const TMap<FString, FString>& Parts, const FString& Geo, std::vector<TorqueFit::FittedPart>& OutParts,
+	std::vector<TorqueFit::PartMesh>& OutMeshes)
+{
+	OutParts.clear();
+	OutMeshes.clear();
+	const TorqueFit::BikeLayout* Lay = Layout();
+	const TorqueFit::Json* Idx = TSCI::Index();
+	if (!Lay || !Idx) return false;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Parts) Map[TSCI::Std(KV.Key)] = TSCI::Std(KV.Value);
+	TorqueFit::BikeGeo Fitted;
+	if (!Geo.IsEmpty()) TorqueFit::Geo::FromText(TSCI::Std(Geo), Fitted);
+	const TorqueFit::Layout L = Lay->Solve(Map, Fitted.Rig);
+	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
+	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
+	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
+	{
+		if (P.Hidden) continue;
+		TorqueFit::PartMesh Glb;
+		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
+		TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
+		Drawn.Surfaces.erase(std::remove_if(Drawn.Surfaces.begin(), Drawn.Surfaces.end(), [&P](const TorqueFit::PartSurface& S)
+			{ return std::find(P.HiddenTags.begin(), P.HiddenTags.end(), S.Material) != P.HiddenTags.end(); }), Drawn.Surfaces.end());
+		OutParts.push_back(P);
+		OutMeshes.push_back(std::move(Drawn));
+	}
+	return true;
+}
+
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
-	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight)
+	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo)
 {
 	OutAxleHeight = 31.0;
 	const TorqueFit::BikeLayout* Lay = Layout();
@@ -347,7 +377,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	if (!Lay || !Idx || !Owner || !Parent) return 0;
 	TorqueFit::PartsMap Map;
 	for (const TPair<FString, FString>& KV : Parts) Map[TSCI::Std(KV.Key)] = TSCI::Std(KV.Value);
-	const TorqueFit::Layout L = Lay->Solve(Map);
+	TorqueFit::BikeGeo Fitted;
+	if (!Geo.IsEmpty()) TorqueFit::Geo::FromText(TSCI::Std(Geo), Fitted);
+	const TorqueFit::Layout L = Lay->Solve(Map, Fitted.Rig);
 	OutAxleHeight = L.Stats.RearRadius * 100.0;
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });

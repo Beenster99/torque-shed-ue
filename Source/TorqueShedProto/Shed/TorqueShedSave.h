@@ -73,6 +73,8 @@ struct FTorqueShedSaveBike
 	UPROPERTY() FTransform Xf;
 	UPROPERTY() TArray<FTorqueShedSaveDynoRun> DynoRuns;
 	UPROPERTY() int32 DynoN = 0;
+	// Its fit from geometry mode (Fit/BikeGeometry text; "" for none).
+	UPROPERTY() FString Geo;
 };
 
 UCLASS()

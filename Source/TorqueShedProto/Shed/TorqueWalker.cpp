@@ -10,6 +10,7 @@
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
@@ -371,6 +372,14 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		UpdateHud();
 		return;
 	}
+	// Geometry mode is open (F2, ATorqueGeometryMode): it has the keys, the pad and the screen.
+	if (ATorqueGeometryMode::For(GetController()))
+	{
+		bWorkHeld = bAltHeld = bWorkPressed = bAltPressed = false;
+		const FSonyPadState Now = PadState();   // (what's held as it closes isn't pressed again here)
+		PrevPadButtons = Now.bConnected ? Now.Buttons : 0;
+		return;
+	}
 	UpdatePerf(DeltaSeconds);
 	bWorkPressed = bAltPressed = false;
 	// Hands-off test runs (-TorqueNoInput) ignore the pad, keys and mouse, as on the bike.
@@ -399,6 +408,11 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 
 // --- Input ------------------------------------------------------------------------------------------
 
+FSonyPadState ATorqueWalker::PadState() const
+{
+	return Pad ? Pad->Get() : FSonyPadState();
+}
+
 void ATorqueWalker::ReadInput(float Dt)
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
@@ -423,6 +437,13 @@ void ATorqueWalker::ReadInput(float Dt)
 	PrevPadButtons = SonyDown;
 	// The pause or settings menu is up (co-op, ATorquePlayerController): stand still, leave the keys to it.
 	if (ATorquePlayerController::MenuUp(PC)) return;
+	// F2: geometry mode on the bike looked at, or the nearest (main.gd's F2).
+	if (Just(EKeys::F2) && !bComputer && Wheeling() == INDEX_NONE)
+	{
+		FString Why;
+		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why) && !Why.IsEmpty()) Say(Why, false);
+		return;
+	}
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	const bool bWorkJust = Just(EKeys::LeftMouseButton) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
