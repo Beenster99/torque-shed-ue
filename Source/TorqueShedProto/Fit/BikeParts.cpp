@@ -963,7 +963,12 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 		const std::string Glb = Id == "flat_slide_carbs" ? "fuel/carb_flat.glb" : Id == "race_injection" ? "fuel/throttle_body_race.glb"
 			: Style == "fi" ? "fuel/throttle_body.glb" : "fuel/carb_round.glb";
 		if (Style == "carb" && Points.size() > 1)
+		{
+			// One carb on the manifold where the runners meet.
+			for (const Intake& P : Points)
+				CodeShapes::Emit(Out, "fuel", Glb, "", "", CodeShapes::Tube(P.Port, P.Port + V3(0.0, 0.0, 0.05), 0.02), CodeShapes::TubeAt(P.Port, P.Port + V3(0.0, 0.0, 0.05)), "paint");
 			Put(Out, "fuel", Glb, AtWith(BasisAlong(V3(0.0, 0.15, 1.0)), Mid + V3(0.0, 0.0, 0.03)), "");
+		}
 		else
 			for (const Intake& P : Points) Put(Out, "fuel", Glb, AtWith(BasisAlong(P.Dir), P.Port), "");
 	}
@@ -973,6 +978,8 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 	{
 		constexpr double AirFilterOut = 0.21;
 		const std::string Style = PartStr(Lay.Part(PartIn(Parts, "air_filter")), "style", "airbox");
+		// (The rubber boots and hoses from the carbs out to it.)
+		auto Boot = [&](const std::string& Glb, const CodeShapes::GMesh& M, const GAffine& Xf) { CodeShapes::Emit(Out, "air_filter", Glb, "", "", M, Xf, "rubber"); };
 		if (Style == "pods" || Style == "stacks")
 		{
 			const bool Stacks = Style == "stacks";
@@ -982,7 +989,10 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 				const V3 Dir = (P.Dir + V3(Side * 0.9, 0.0, 0.0)).Normalized();
 				const double HalfLen = Stacks ? 0.025 : 0.045;
 				const double Reach = std::max(Stacks ? 0.11 : 0.13, (AirFilterOut - std::fabs(P.Port.x)) / std::fabs(Dir.x) - HalfLen);
-				Put(Out, "air_filter", Stacks ? "filter/stack.glb" : "filter/pod.glb", AtWith(BasisUp(Dir), P.Port + Dir * Reach), "");
+				const std::string Glb = Stacks ? "filter/stack.glb" : "filter/pod.glb";
+				const V3 At = P.Port + Dir * Reach;
+				if (Reach > 0.14) Boot(Glb, CodeShapes::Tube(P.Port + Dir * 0.06, At - Dir * HalfLen, 0.024), CodeShapes::TubeAt(P.Port + Dir * 0.06, At - Dir * HalfLen));
+				Put(Out, "air_filter", Glb, AtWith(BasisUp(Dir), At), "");
 			}
 		}
 		else if (Style == "cone")
@@ -990,6 +1000,7 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 			const V3 Dir = V3(0.75, 0.05, 0.66).Normalized();
 			V3 At(std::max(AirFilterOut, Mid.x + 0.12) - Dir.x * 0.07, Mid.y + 0.02, Mid.z + 0.16);
 			At.y = std::min(At.y, TankBaseY(At.z) - 0.07);
+			Boot("filter/cone.glb", CodeShapes::Sweep({Mid + V3(0.0, 0.0, 0.07), Mid + V3(0.0, 0.01, 0.13), At - Dir * 0.07}, 0.035, 12), GAffine());
 			Put(Out, "air_filter", "filter/cone.glb", AtWith(BasisUp(Dir), At), "");
 		}
 		else if (EngLayout == "vtwin" && !Points.empty())
@@ -1010,6 +1021,8 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 				for (const LoftSection& Sec : Body.TankSecs) Edge = std::max(Edge, Sec.W);
 			const Intake& P = Points[0];
 			const double Reach = std::max(0.1, (Edge - P.Port.x) / P.Dir.x);
+			if (Reach > 0.11)
+				Boot("filter/cleaner.glb", CodeShapes::Tube(P.Port + P.Dir * 0.06, P.Port + P.Dir * (Reach - 0.02), 0.03), CodeShapes::TubeAt(P.Port + P.Dir * 0.06, P.Port + P.Dir * (Reach - 0.02)));
 			Put(Out, "air_filter", "filter/cleaner.glb", AtWith(BasisUp(P.Dir), P.Port + P.Dir * Reach), "");
 		}
 		else if (!Points.empty())

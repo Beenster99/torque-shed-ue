@@ -474,7 +474,7 @@ int main(int argc, char** argv)
 		};
 		// Every slot is checked whole against Godot's (Blender and code meshes) but these, whose
 		// code-drawn pieces aren't all ported yet.
-		const std::set<std::string> NotWhole = {"frame", "top_box", "panniers", "air_filter", "toolbox", "aux_tank", "tank_bag", "fuel"};
+		const std::set<std::string> NotWhole = {"frame", "top_box", "panniers", "toolbox", "aux_tank", "tank_bag"};
 		auto IsWhole = [&](const std::string& Slot) { return NotWhole.count(Slot) == 0; };
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
