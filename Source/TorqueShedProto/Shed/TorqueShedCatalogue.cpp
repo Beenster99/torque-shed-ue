@@ -220,6 +220,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	int32 Made = 0;
 	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
 	{
+		if (P.Hidden) continue;   // inside a full fairing's shell (the plain headlight), as Godot hides it
 		TorqueFit::PartMesh Glb;
 		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
 		const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
