@@ -316,6 +316,7 @@ def stock_units(P):
     unit("side_panels", ["side_panel_l", "side_panel_l_decal", "side_panel_r", "side_panel_r_decal"], slot="side_panels",
          mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "along": 0.0})
     unit("battery_box", ["battery_box"], mount={"to": "frame.lugs", "type": "bracket"})
+    unit("guards", [], group="body", slot="guards", mount={"to": "frame.lugs", "type": "bracket"}, proxies=[])
     unit("footrests", ["footrests"], slot="rearsets", mount={"to": "frame.rearset_plates", "type": "rearset_plates"})
     unit("side_stand", ["side_stand"], mount={"to": "frame.lugs", "type": "bracket"})
     unit("horn", ["horn"], mount={"to": "frame.lugs", "type": "bracket"})
@@ -472,6 +473,8 @@ def options(cat):
         "clubman_bar": dict(pullback=0.10, drop_mid=-0.005),
         "touring_bend_bar": dict(pullback=0.13),
         "scrambler_moto_chrome": dict(pullback=0.06),
+        "chrome_trials_bar": dict(pullback=0.06),
+        "flat_bar": dict(pullback=0.04),
     }
     for pid, kw in shapes.items():
         e = cat["handlebars"][pid]
@@ -497,7 +500,16 @@ def options(cat):
             fin = "chrome" if "chrome" in st.FINISHES else "steel_brushed"
         else:
             mesh.extend(st.tube(path, 0.011, 12))
-            fin = "black_satin"
+            if look.get("brace"):
+                # A trials bar's cross brace between its bends.
+                # (out at 270 mm a side, so it passes over the clock)
+                i0, i1 = int(np.argmin(np.abs(path[:, 2] + 0.27))), int(np.argmin(np.abs(path[:, 2] - 0.27)))
+                brace = np.array([path[i0] + [0, 0.05, 0], path[i1] + [0, 0.05, 0]])
+                mesh.extend(st.tube(np.linspace(brace[0], brace[1], 6), 0.0075, 12))
+                for k in (i0, i1):
+                    mesh.extend(st.tube(np.array([path[k], path[k] + [0, 0.05, 0]]), 0.0075, 12))
+                extra = chain(brace, 0.0075)
+            fin = "chrome" if min(e.get("color", [0, 0, 0])) > 0.5 else "black_satin"
         name = "opt_bars_" + pid
         u = {"id": "bars", "group": "steer", "meshes": [name], "slot": "handlebars", "catalogue": ["handlebars", pid]}
         u.update(bar_unit(path, bar_mm, extra))
@@ -599,7 +611,9 @@ def main():
     stock_names = {"saddle": "Speed Twin bench seat (stock)", "front_mudguard": "Speed Twin front mudguard (stock)",
                    "tail": "Speed Twin tail and plate hanger (stock)", "indicators": "Speed Twin indicators (stock)",
                    "mirrors": "Speed Twin mirrors (stock)", "levers": "Speed Twin levers (stock)", "grips": "Speed Twin grips (stock)",
-                   "screen": "No screen (stock)", "rack": "No rack (stock)"}
+                   "screen": "No screen (stock)", "rack": "No rack (stock)", "guards": "No engine bars (stock)",
+                   "headlight": "Speed Twin headlight (stock)", "side_panels": "Speed Twin side panels (stock)",
+                   "tank": "Speed Twin tank (stock)"}
     for slot, pid, name, ce, u, ms, *rest in options(cat) + pack.pack_options(sys.modules[__name__], cat):
         if slot not in opts:
             opts[slot] = [{"id": "stock", "name": stock_names.get(slot, "Stock"), "stock": True, "units": []}]
