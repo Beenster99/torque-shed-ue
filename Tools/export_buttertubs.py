@@ -38,6 +38,8 @@ ROAD_HALF = 2.5                   # half width of the tarmac
 BED_HALF = 3.2                    # flat bed under the road (a little wider than it)
 BLEND = 14.0                      # where the cut or fill has blended back into the hillside
 CROWN = 0.05                      # road centre above its edges
+MIN_RADIUS = 24.0                 # metres: no bend tighter (junction kinks in the map data)...
+MAX_SHIFT = 5.0                   # ...but the road moves at most this far off its mapped line
 SMOOTH = 12.0                     # sigma (m) of the smoothing of the road's height along its length
 
 COVER_RGB = {  # Godot cover names to a base colour (sRGB 0..255; written linear, as glTF wants)
@@ -179,6 +181,37 @@ def smooth_corners(xz, passes=3):
     return p
 
 
+def ease_tight_corners(xz, min_r=MIN_RADIUS, span=12, iters=400, max_shift=MAX_SHIFT):
+    """Open out any bend tighter than min_r (the map's junction kinks, where two roads meet at a
+    point): smooth only around those points, fading out over span samples, until none is left."""
+    p = xz.copy()
+    w = np.zeros(len(p))
+    for _ in range(iters):
+        a, b, c = p[:-2], p[1:-1], p[2:]
+        ab, bc, ac = (np.linalg.norm(b - a, axis=1), np.linalg.norm(c - b, axis=1),
+                      np.linalg.norm(c - a, axis=1))
+        cross = np.abs((b - a)[:, 0] * (c - a)[:, 1] - (b - a)[:, 1] * (c - a)[:, 0])
+        k = 2.0 * cross / np.maximum(ab * bc * ac, 1e-9)          # 1 / circumradius
+        tight = np.concatenate([[False], k > 1.0 / min_r, [False]])
+        if not tight.any():
+            break
+        w[:] = 0.0
+        for i in np.flatnonzero(tight):
+            lo, hi = max(1, i - span), min(len(p) - 1, i + span + 1)
+            w[lo:hi] = np.maximum(w[lo:hi], 1.0 - np.abs(np.arange(lo, hi) - i) / (span + 1.0))
+        q = p.copy()
+        q[1:-1] = p[1:-1] * 0.5 + (p[:-2] + p[2:]) * 0.25
+        p = p + (q - p) * w[:, None]
+    # A real hairpin would need the road moved well off its mapped line to open out: leave those
+    # bends as mapped, fading back to the mapped line over ~60 m either side.
+    far = np.linalg.norm(p - xz, axis=1) > max_shift
+    keep = np.zeros(len(p))
+    for i in np.flatnonzero(far):
+        lo, hi = max(0, i - 50), min(len(p), i + 51)
+        keep[lo:hi] = np.maximum(keep[lo:hi], np.clip(1.0 - (np.abs(np.arange(lo, hi) - i) - 20) / 30.0, 0, 1))
+    return p + (xz - p) * keep[:, None]
+
+
 # --- Meshes ---------------------------------------------------------------------------------------
 
 ROCK_RGB = (118, 114, 104)
@@ -299,7 +332,7 @@ def main():
     # The ride: resample the pass every 2 m, round its corners a little, cut the 3 km.
     full = pass_line(region)
     xz, s = resample(full, STEP)
-    xz = smooth_corners(xz)
+    xz = ease_tight_corners(smooth_corners(xz))
     keep = (s >= CUT[0] - 60.0) & (s <= CUT[1] + 60.0)   # a little road beyond each end
     xz, s = xz[keep], s[keep] - CUT[0]
     print("pass %.0f m, ride %.0f m (%d points)" % (resample(full, 1.0)[1][-1], CUT[1] - CUT[0], len(s)))

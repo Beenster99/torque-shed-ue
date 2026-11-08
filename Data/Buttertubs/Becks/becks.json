@@ -4,42 +4,42 @@
   {
    "name": "SM_BeckStone_0",
    "mesh": "SM_BeckStone_0",
-   "count": 4812,
+   "count": 4887,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_1",
    "mesh": "SM_BeckStone_1",
-   "count": 4947,
+   "count": 4952,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_2",
    "mesh": "SM_BeckStone_2",
-   "count": 4746,
+   "count": 4761,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_3",
    "mesh": "SM_BeckStone_3",
-   "count": 4840,
+   "count": 4917,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_4",
    "mesh": "SM_BeckStone_4",
-   "count": 4843,
+   "count": 4850,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_5",
    "mesh": "SM_BeckStone_5",
-   "count": 5028,
+   "count": 5030,
    "cull_m": 600,
    "shadow": true
   }
@@ -55,10 +55,10 @@
  ],
  "crossings_km": [
   4.24,
-  4.99,
+  4.98,
   5.27,
   5.45,
   5.71,
-  6.61
+  6.6
  ]
 }
