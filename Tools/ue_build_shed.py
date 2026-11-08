@@ -28,7 +28,10 @@ MAT_DIR = "/Game/Shed/Materials"
 # The knobs most likely to want tuning after a look on the PC.
 SUN_LUX = 4700.0            # as Buttertubs: 1/16 of a real 75,000 lux afternoon
 LED_LUMENS = 1800.0         # each of six battens (a real 5 ft batten is ~6000 lm; scaled with the sun, a bit brighter)
-EXPOSURE_MIN = 4.0          # EV100 floor of the auto exposure: lower lets the inside brighten more
+EXPOSURE_MIN = 5.0          # EV100 floor of the auto exposure: lower lets the inside brighten more
+#                             (4.0 in round 1 blew the windows out to pure white on the PC)
+EXPOSURE_BIAS = 0.2         # was 0.6
+HIGHLIGHTS = 0.35           # local exposure: how much contrast the bright windows and doorway keep (1 = none taken out)
 EXPOSURE_MAX = 11.5
 
 HALF_X, HALF_Y = 600.0, 400.0   # inside half sizes
@@ -419,12 +422,15 @@ def sky():
             unreal.log_warning("[Torque] no " + path)
             return None
     # The eye opening up indoors and stopping down at the door: a wide auto exposure range, slower
-    # to adapt than on the bike, and local exposure to hold the bright doorway.
+    # to adapt than on the bike, and local exposure pulling the bright windows and doorway down so
+    # the fields outside still read instead of clipping white.
     for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
                  ("auto_exposure_min_brightness", EXPOSURE_MIN), ("auto_exposure_max_brightness", EXPOSURE_MAX),
-                 ("auto_exposure_bias", 0.6), ("auto_exposure_speed_up", 1.5), ("auto_exposure_speed_down", 1.0),
-                 ("local_exposure_highlight_contrast_scale", 0.6), ("local_exposure_shadow_contrast_scale", 0.7),
-                 ("bloom_intensity", 0.3), ("vignette_intensity", 0.25), ("film_grain_intensity", 0.06),
+                 ("auto_exposure_bias", EXPOSURE_BIAS), ("auto_exposure_speed_up", 1.5), ("auto_exposure_speed_down", 1.0),
+                 ("local_exposure_highlight_contrast_scale", HIGHLIGHTS), ("local_exposure_shadow_contrast_scale", 0.7),
+                 ("auto_exposure_low_percent", 70.0), ("auto_exposure_high_percent", 97.0),   # the windows count, so it stops down a little for them
+                 ("film_shoulder", 0.4),   # a gentler roll-off into white than the default 0.26
+                 ("bloom_intensity", 0.2), ("vignette_intensity", 0.25), ("film_grain_intensity", 0.06),
                  ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.08, 1.08, 1.08, 1.0)),
                  ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
                  ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
