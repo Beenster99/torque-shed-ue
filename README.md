@@ -206,10 +206,10 @@ link rod, cable or rod, the gear linkage rod, the HT leads, the radiator's grill
 thermostat and coolant hoses, an oil cooler's lines, the ECU loom, the tank's filler cap, badges,
 knee pads, stripes, console, knee panels, chest pad and shrouds, the seat's stitching, seam,
 piping, grab rail, pillion pegs, touring back, springs and sissy bar, the front mudguard's rib,
-stripes, brackets and stays, the air filter's boots, a single carb's runners, a tyre's whitewall bands, a gas shock's reservoirs, the steering damper rod's eye, luggage latches, reflectors, straps, flaps and the top box's mounting plate, the aux tanks' and toolboxes' brackets, fuel lines and straps, and the tail's struts, brackets, cowl trim and number plate (moved
+stripes, brackets and stays, the air filter's boots, a single carb's runners, a tyre's whitewall bands, a gas shock's reservoirs, the steering damper rod's eye, luggage latches, reflectors, straps, flaps and the top box's mounting plate, the aux tanks' and toolboxes' brackets, fuel lines and straps, the tank bag's zips, handle, map pocket, straps and ring, and the tail's struts, brackets, cowl trim and number plate (moved
 off the rear mudguard the shortest way, as Godot's _clear_plates does). `layout_test` checks every
-slot whole against Godot except those in its NotWhole list, whose code pieces are still to port:
-the frame (perimeter beams, castings, engine plates) and the tank bag.
+slot whole against Godot except those in its NotWhole list, whose code pieces are still to port,
+the frame (perimeter beams, castings, engine plates).
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

@@ -3519,6 +3519,65 @@ void BikeParts::TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& 
 		return C + GodotRight * (G.x * Sx) + Up * ((G.y - Own) * Sy);
 	});
 	Out.push_back(F);
+	// The code-drawn pieces on it (KitModel._tank_bag), on its loft sections: a map pocket, the
+	// zip down each side, an accent stripe, the grab handle and its mount's straps or ring.
+	struct BagSec { V3 C; double W, Up, Down; };
+	std::vector<BagSec> Bs;
+	const int N = 5;
+	for (int I = 0; I <= N; ++I)
+	{
+		const double U = static_cast<double>(I) / N;
+		const double Z = Z0 + Length * U;
+		const auto Top = TopAt(Z);
+		const double W = std::min(Top.second * 0.82, 0.13 * K) * TorqueSim::Lerp(0.8, 1.0, std::sin(U * TorqueSim::Pi));
+		const double Hh = Height * TorqueSim::Lerp(0.7, 1.0, std::sin(std::min(U * 1.4, 1.0) * TorqueSim::Pi * 0.5));
+		Bs.push_back({V3(0.0, Top.first + Hh * 0.5, Z), W, Hh * 0.5, Hh * 0.5});
+	}
+	CodeShapes::GodotNames Named;
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "tank_bag", Path, "", Named(Name), M, Xf, Tag);
+	};
+	const BagSec& MidS = Bs[N / 2];
+	if (P->Flag("map"))
+	{
+		const V3 At(0.0, MidS.C.y + MidS.Up + 0.003, Z0 + Length * 0.5);
+		Code("", CodeShapes::Box(V3(MidS.W * 1.3, 0.003, Length * 0.6)), GAffine::At(At), "decal");
+		Code("", CodeShapes::Box(V3(MidS.W * 1.4, 0.003, Length * 0.66)), GAffine::At(At + V3(0.0, 0.004, 0.0)), "glass");
+		Code("", CodeShapes::Box(V3(0.008, 0.002, Length * 0.55)), GAffine::At(At + V3(0.0, 0.002, 0.0)), "decal");
+		Code("", CodeShapes::Box(V3(MidS.W * 1.1, 0.002, 0.006)), GAffine::At(At + V3(0.02, 0.002, 0.02)), "decal");
+	}
+	for (double Sd : {-1.0, 1.0})
+	{
+		std::vector<V3> Line;
+		for (const BagSec& Sec : Bs) Line.push_back(Sec.C + V3(Sec.W * 0.97 * Sd, Sec.Up * 0.3, 0.0));
+		Code("", CodeShapes::Sweep(Line, 0.004, 12), GAffine(), "black_metal");
+	}
+	if (P->Get("accent"))
+		for (double Sd : {-1.0, 1.0})
+		{
+			std::vector<V3> Line;
+			for (const BagSec& Sec : Bs) Line.push_back(Sec.C + V3(Sec.W * 0.99 * Sd, -Sec.Down * 0.2, 0.0));
+			Code("", CodeShapes::Sweep(Line, 0.006, 12), GAffine(), "paint_2");
+		}
+	const BagSec& Back = Bs[N];
+	Code("", CodeShapes::Sweep({Back.C + V3(-0.04, Back.Up * 0.9, -0.02), Back.C + V3(-0.02, Back.Up + 0.02, -0.02), Back.C + V3(0.02, Back.Up + 0.02, -0.02),
+		Back.C + V3(0.04, Back.Up * 0.9, -0.02)}, 0.006, 12), GAffine(), "black_metal");
+	const std::string Mount = P->Str("mount", "");
+	if (Mount == "strap")
+		for (double Sd : {-1.0, 1.0})
+			for (double U : {0.2, 0.8})
+			{
+				// Straps down the tank's sides, buckled underneath (_strip).
+				const double Z = Z0 + Length * U;
+				const auto T = TopAt(Z);
+				const V3 A(T.second * 0.75 * Sd, T.first + 0.02, Z), B((T.second + 0.012) * Sd, T.first - 0.07, Z + 0.01);
+				const V3 Dz = (B - A).Normalized();
+				V3 Xa = V3(0.0, 1.0, 0.0).Cross(Dz);
+				Xa = Xa.Length() < 0.01 ? GodotRight : Xa.Normalized();
+				Code("", CodeShapes::Box(V3(0.02, 0.003, (B - A).Length())), BasisCols(Xa, Dz.Cross(Xa), Dz, (A + B) * 0.5), "black_metal");
+			}
+	else if (Mount == "ring")
+		Code("TankRing", CodeShapes::Cylinder(0.07, 0.012, -1.0, 24), GAffine::At(V3(0.0, TopAt(Z0 + Length * 0.6).first + 0.004, Z0 + Length * 0.6)), "black_metal");
 }
 
 void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const
