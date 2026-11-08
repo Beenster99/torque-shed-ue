@@ -112,7 +112,7 @@ int main()
 	std::printf("\n");
 	for (const std::string& S : Fit.Slots())
 		for (const Option& O : *Fit.OptionsFor(S))
-			if (!O.Stock) Expect(Db.Find(O.CatKind, O.CatId) != nullptr, S + "/" + O.Id + " is in the catalogue");
+			if (!O.Stock && !O.CatKind.empty()) Expect(Db.Find(O.CatKind, O.CatId) != nullptr, S + "/" + O.Id + " is in the catalogue");   // grips and levers have no entry
 
 	std::printf("\nStock bike, assembled from sockets\n");
 	Build Stock;

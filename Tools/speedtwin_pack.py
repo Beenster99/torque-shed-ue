@@ -347,5 +347,153 @@ def rear_guards(fit, cat):
     return out
 
 
+# --- Indicators -----------------------------------------------------------------------------------
+# A pair at the front (on the headlight's bracket, steer group) and a pair at the back (on the
+# tail's), modelled where the stock ones are: bases at the headlight's sides and beside the plate.
+
+HL_C = FA + st.FORK_DIR * 0.56 + np.array([0.075, 0.0, 0.0])
+FRONT_IND = [HL_C + np.array([-0.04, -0.01, s * 0.11]) for s in (-1, 1)]
+REAR_IND = [np.array([-0.86, 0.44, s * 0.06]) for s in (-1, 1)]
+
+
+def indicator(base, s, facing, kind):
+    """One indicator from its base (where its stalk meets the bracket) out to the side s: (body, lens)."""
+    body, lens = st.Mesh(), st.Mesh()
+    out = np.array([0.0, 0.0, s])
+    if kind == "stalk":
+        # A plain amber lamp on a long black rubber stalk.
+        tip = base + out * 0.09
+        body.extend(st.tube(np.array([base, tip]), 0.0065, 10))
+        lens.extend(st.box(tip + out * 0.012 + [facing * 0.006, 0, 0], (0.04, 0.022, 0.024), 4.0))
+    else:
+        # A chrome bullet on a short chrome stalk, its amber lens at the tip (facing along x).
+        big = kind == "bullet_large"
+        L, R = (0.06, 0.02) if big else (0.048, 0.015)
+        c = base + out * (0.045 if big else 0.04)
+        body.extend(st.tube(np.array([base, c]), 0.005, 10))
+        ax = np.array([facing, 0.0, 0.0])
+        body.extend(st.lathe([(0.0, -L * 0.55), (R * 0.55, -L * 0.5), (R, -L * 0.15), (R, L * 0.3), (R * 1.05, L * 0.34), (0.0, L * 0.34)],
+                             seg=20, axis=ax, centre=c))
+        lens.extend(st.lathe([(R * 0.92, L * 0.34), (R * 0.85, L * 0.45), (R * 0.5, L * 0.55), (0.0, L * 0.58)],
+                             seg=20, axis=ax, centre=c))
+    return body, lens
+
+
+def indicators(fit, cat):
+    out = []
+    for pid, kind, body_fin in (("stalk_amber", "stalk", "rubber"), ("bullet_chrome", "bullet", "chrome"),
+                                ("classic_bullet_amber", "bullet_large", "chrome")):
+        units, meshes = [], {}
+        for end, bases, facing, grp, mount in (("front", FRONT_IND, 1.0, "steer", "headlight.indicator_mount"),
+                                              ("rear", REAR_IND, -1.0, "body", "tail.indicator_mount")):
+            body, lens = st.Mesh(), st.Mesh()
+            prox = []
+            for b, s in zip(bases, (-1, 1)):
+                bo, le = indicator(b, s, facing, kind)
+                body.extend(bo); lens.extend(le)
+                prox.append(fit.capsule(b + [0, 0, s * 0.03], b + [0, 0, s * 0.09], 0.02))
+            n = "opt_ind_%s_%s" % (pid, end)
+            units.append({"id": "indicators_" + end, "group": grp, "meshes": [n, n + "_lens"], "slot": "indicators",
+                          "mount": {"to": mount, "type": "bracket"}, "sockets": {}, "proxies": prox})
+            meshes[n] = (body, body_fin, grp)
+            meshes[n + "_lens"] = (lens, "lens_amber", grp)
+        out.append(("indicators", pid, cat["indicators"][pid]["name"], ["indicators", pid], units, meshes))
+    return out
+
+
+# --- Mirrors --------------------------------------------------------------------------------------
+# Modelled at the stock mirrors' base on the bar ends (so a bar's "moves" put them where it says).
+
+def mirror_set(base, s, head_r, stalk_len):
+    stalk = st.polyline([base, base + [0.0, 0.03, s * 0.02], base + [0.015, stalk_len, s * 0.05]], 6)
+    mc = base + np.array([0.03, stalk_len + 0.06 * head_r / 0.045, s * 0.06])
+    ax = (1, 0.1, 0)
+    shell = st.lathe([(0.0, -0.01), (head_r, -0.01), (head_r * 1.06, 0.0), (head_r, 0.007), (0.0, 0.007)], seg=36, axis=ax, centre=mc)
+    glass = st.lathe([(0.0, -0.0105), (head_r * 0.92, -0.0105)], seg=36, axis=ax, centre=mc)
+    return shell, glass, st.tube(stalk, 0.0055, 10), mc
+
+
+def mirrors(fit, cat):
+    out = []
+    for pid, head_r, stalk_len in (("round_mirrors", 0.05, 0.11), ("chrome_round_large", 0.05 * 1.4, 0.15)):
+        units, meshes = [], {}
+        for sd, s in (("l", -1), ("r", 1)):
+            base = fit.BAR_CLAMP + [0.0, 0.0, s * 0.385]
+            shell, glass, stalk, mc = mirror_set(base, s, head_r, stalk_len)
+            n = "opt_mirror_%s_%s" % (pid, sd)
+            units.append({"id": "mirror_" + sd, "group": "steer", "meshes": [n, n + "_glass", n + "_stalk"], "slot": "mirrors",
+                          "mount": {"to": "bars.bar_" + sd, "type": "bar", "bar_mm": fit.BAR_MM, "from_end": 0.0},
+                          "sockets": {}, "proxies": [fit.capsule(mc, mc, head_r + 0.004)] +
+                          fit.chain([base, base + [0.015, stalk_len, s * 0.05]], 0.006)})
+            meshes.update({n: (shell, "chrome", "steer"), n + "_glass": (glass, "mirror_glass", "steer"),
+                           n + "_stalk": (stalk, "chrome", "steer")})
+        out.append(("mirrors", pid, cat["mirrors"][pid]["name"], ["mirrors", pid], units, meshes))
+    return out
+
+
+# --- Levers and grips (no catalogue entries: UE-side choices) ------------------------------------
+# Levers keep the stock pivots (the pawn swings them about speedtwin.json's lever pivots).
+
+def lever_mesh(s, kind):
+    pts = st.lever_points(s)
+    piv = np.asarray(pts[0])
+    if kind == "ball":
+        # Long chrome blade, the classic ball on its end.
+        blade = st.polyline([pts[0], pts[1], np.asarray(pts[2]) + [0.0, -0.004, s * 0.02]], 6)
+        m = st.sweep(blade, 0.0055, 0.009, 3.0, 10)
+        m.extend(st.lathe([(0.0, -0.012), (0.012, -0.006), (0.012, 0.006), (0.0, 0.012)], seg=16, axis=(0, 0, 1),
+                          centre=blade[-1]))
+    else:
+        # A short polished dogleg: kinked forward, two fingers long.
+        tip = piv + [0.06, -0.008, s * 0.09]
+        blade = st.polyline([pts[0], piv + [0.05, 0.0, s * 0.035], tip], 6)
+        m = st.sweep(blade, 0.006, 0.011, 4.0, 10)
+    m.extend(st.lathe([(0.0, -0.012), (0.011, -0.012), (0.011, 0.012), (0.0, 0.012)], seg=16, axis=(0, 1, 0), centre=piv))
+    return m
+
+
+def levers(fit):
+    out = []
+    for pid, name, kind, fin in (("chrome_ball_levers", "Chrome ball-end levers", "ball", "chrome"),
+                                 ("alloy_dogleg_levers", "Polished alloy dogleg levers", "dogleg", "alu_polished")):
+        units, meshes = [], {}
+        for unit_id, s, sd in (("lever_clutch", -1, "l"), ("lever_brake", 1, "r")):
+            n = "opt_lever_%s_%s" % (pid, sd)
+            m = lever_mesh(s, kind)
+            units.append({"id": unit_id, "group": "steer", "meshes": [n], "slot": "levers",
+                          "mount": {"to": "bars.bar_" + sd, "type": "bar", "bar_mm": fit.BAR_MM, "from_end": 0.38 - 0.23},
+                          "sockets": {}, "proxies": fit.chain(st.polyline(st.lever_points(s), 6), 0.008, 2)})
+            meshes[n] = (m, fin, "steer")
+        out.append(("levers", pid, name, None, units, meshes))
+    return out
+
+
+def grips(fit):
+    out = []
+    for pid, name, kind, fin in (("barrel_grips", "Barrel grips", "barrel", "grip"),
+                                 ("leather_grips", "Leather-wrapped grips", "leather", "leather_tan")):
+        units, meshes = [], {}
+        for sd, s in (("l", -1), ("r", 1)):
+            g0 = fit.BAR_CLAMP + [-0.005, 0.012, s * 0.255]; g1 = fit.BAR_CLAMP + [0.0, 0.002, s * 0.375]
+            t = np.linspace(0, 1, 40)
+            if kind == "barrel":
+                # Fat in the middle, rings round it, a flange at the inner end.
+                r = 0.0165 + 0.003 * np.sin(t * math.pi) + 0.0012 * (np.sin(t * math.pi * 18) > 0.3)
+                r[:3] = 0.021
+            else:
+                # Slim, wrapped in a spiral of tan leather (the ridges), stitched at the ends.
+                r = 0.0155 + 0.0008 * np.sin(t * math.pi * 26)
+            path = g0[None] + (g1 - g0)[None] * t[:, None]
+            m = st.sweep(path, r, r, 2.0, 20)
+            n = "opt_grip_%s_%s" % (pid, sd)
+            units.append({"id": "grip_" + sd, "group": "steer", "meshes": [n], "slot": "grips",
+                          "mount": {"to": "bars.bar_" + sd, "type": "bar", "bar_mm": fit.BAR_MM, "from_end": round(0.38 - 0.315, 5)},
+                          "sockets": {}, "proxies": fit.chain([g0, g1], 0.017)})
+            meshes[n] = (m, fin, "steer")
+        out.append(("grips", pid, name, None, units, meshes))
+    return out
+
+
 def pack_options(fit, cat):
-    return seats(fit, cat) + front_guards(fit, cat) + rear_guards(fit, cat)
+    return (seats(fit, cat) + front_guards(fit, cat) + rear_guards(fit, cat) + indicators(fit, cat) + mirrors(fit, cat)
+            + levers(fit) + grips(fit))
