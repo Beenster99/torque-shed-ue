@@ -1362,15 +1362,16 @@ void ATorqueBikePawn::ApplyWeather()
 	const bool bWet = Weather == 2;
 	if (Sun)
 	{
-		Sun->SetIntensity(bDull ? SunLux * (bWet ? 0.12f : 0.18f) : SunLux);
-		Sun->SetLightSourceAngle(bDull ? 12.0f : SunAngle);   // a sun behind cloud: soft, faint shadows
+		Sun->SetIntensity(bDull ? SunLux * (bWet ? 0.03f : 0.05f) : SunLux);
+		Sun->SetLightSourceAngle(bDull ? 40.0f : SunAngle);   // a sun behind cloud: next to no shadow
 	}
-	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 1.6f : SkyIntensity);
+	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 2.2f : SkyIntensity);
 	if (Fog) Fog->SetFogDensity(bDull ? FogDensity * (bWet ? 3.0f : 2.0f) : FogDensity);
 	if (Atmo)
 	{
-		Atmo->SetMieScatteringScale(bDull ? Mie * 6.0f : Mie);         // a white-grey sky, not blue
-		Atmo->SetRayleighScatteringScale(bDull ? Rayleigh * 0.45f : Rayleigh);
+		// A white-grey British overcast: almost no Rayleigh (the blue), thick Mie (the white haze).
+		Atmo->SetMieScatteringScale(bDull ? Mie * 12.0f : Mie);
+		Atmo->SetRayleighScatteringScale(bDull ? Rayleigh * 0.08f : Rayleigh);
 	}
 	if (UMaterialParameterCollection* Mpc = LoadObject<UMaterialParameterCollection>(nullptr,
 		TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather")))

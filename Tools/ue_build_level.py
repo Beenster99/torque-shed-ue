@@ -652,7 +652,7 @@ def road_material_scanned(tex, roles):
     r_src = road[2]
     r_out = "R" if r_src.get_class().get_name() == "MaterialExpressionTextureSample" else ""
     rough = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.6), g.const(0.12), wet), a_out=r_out)
-    puddle = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.035, -7.0, 1.2), wet)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.004, -9.0, 1.0), wet)   # a few puddles metres across, not setts
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.const(0.5), wet))
     road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
     road[2] = g.lerp(rough, g.const(0.03), puddle)
@@ -1875,7 +1875,7 @@ def cloud_shadow_material():
              g.op(unreal.MaterialExpressionMultiply, b, const_b=0.3, a_out="G"))
     cloud = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
                  g.op(unreal.MaterialExpressionSubtract, n, const_b=0.6), const_b=7.0))
-    light = g.lerp(g.const(1.0), g.const(0.45), cloud)
+    light = g.lerp(g.const(1.0), g.const(0.3), cloud)
     mel.connect_material_property(light, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
@@ -2434,7 +2434,8 @@ def build():
         try_set(sc, k, v)
     cs = cloud_shadow_material()
     if cs is not None:
-        try_set(sc, "light_function_material", cs)
+        ok = try_set(sc, "light_function_material", cs)
+        log("cloud shadows: light function %s" % ("set" if ok else "NOT set"))
         try_set(sc, "light_function_fade_distance", 3000000.0)   # 30 km: the far fells get them too
         try_set(sc, "disabled_brightness", 1.0)
     # The planet's surface goes under the lowest land (the valley floors are 300 m below the start):
