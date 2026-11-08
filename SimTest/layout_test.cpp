@@ -305,6 +305,87 @@ int main(int argc, char** argv)
 		}
 	}
 
+	std::printf("Against the original game (SimTest/data/godot_reference.json, dumped from Godot):\n");
+	{
+		Json Ref, Index;
+		std::string RefText, IndexText;
+		const bool Have = ReadFile(R + "/SimTest/data/godot_reference.json", RefText) && Json::Parse(RefText, Ref, &Error)
+			&& ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) && Json::Parse(IndexText, Index, &Error);
+		Expect(Have && Ref.Get("styles"), "the Godot reference and the parts index load");
+		const Json* Known = Have ? Index.Get("parts") : nullptr;
+		const BikeParts Placer(Lay, [&](const std::string& G) { return Known && Known->Get(G.substr(0, G.size() - 4)) != nullptr; });
+		auto Vec = [](const Json* J) { return J && J->A.size() == 3 ? V3(J->A[0].N, J->A[1].N, J->A[2].N) : V3(1e9, 1e9, 1e9); };
+		struct Box { V3 Lo{1e9, 1e9, 1e9}, Hi{-1e9, -1e9, -1e9}; void Add(const V3& V) {
+			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
+		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
+		for (const std::string& St : Lay.Styles())
+		{
+			const Json* G = Have && Ref.Get("styles") ? Ref.Get("styles")->Get(St) : nullptr;
+			if (!G) { Expect(false, St + ": in the Godot reference"); continue; }
+			// The same parts as Godot's reference bike.
+			PartsMap B = Lay.ReferenceBuild(St);
+			bool SameParts = true;
+			for (const auto& [Slot, Id] : B)
+				if (const Json* Gp = G->Get("parts")->Get(Slot)) SameParts = SameParts && Gp->S == Id;
+			const Layout L = Lay.Solve(B);
+			// The rig's datums, to a tenth of a millimetre.
+			const Json* Rig = G->Get("rig");
+			const std::pair<const char*, V3> Keys[] = {{"crank", L.Crank}, {"output", L.Output}, {"hip", L.Hip}, {"seat_surface", L.Hip},
+				{"knee_l", L.KneeL}, {"knee_r", L.KneeR}, {"peg", L.Peg}, {"grip_r", L.GripR}, {"seat_front", L.SeatFront}, {"tail", L.Tail},
+				{"stay_head", L.StayHead}, {"screen_base", L.ScreenBase}, {"tank_nose", L.TankNose}, {"tank_rear", L.TankRear}};
+			double RigOff = 0.0;
+			std::string Worst;
+			for (const auto& [Key, Ours] : Keys)
+			{
+				const double D = Off(ToGodot(Ours), Vec(Rig->Get(Key)));
+				if (D > RigOff) { RigOff = D; Worst = Key; }
+			}
+			const bool TierOk = Rig->Str("fit_tier") == L.Fit.Tier;
+			// The bodywork and engine meshes' boxes, to half a millimetre (a "__engine" surface is the engine's).
+			std::map<std::string, Box> Ours;
+			for (const FittedPart& P : Placer.Fit(B, L))
+			{
+				PartMesh M;
+				std::string Bytes, MorphBytes;
+				const Json* Ent = Known ? Known->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
+				if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !M.LoadGlb(Bytes, Error)) continue;
+				if (Ent->Get("morph") && (!ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) || !M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error))) continue;
+				for (const PartSurface& S : M.Deformed(P.Weights, P.Warp).Surfaces)
+				{
+					const size_t Cut = S.Material.find("__");
+					const std::string Slot = Cut != std::string::npos && P.Slot == "head" ? S.Material.substr(Cut + 2) : P.Slot;
+					for (const V3& V : S.Pos)
+					{
+						Ours[Slot].Add(ToGodot(V));
+						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
+					}
+				}
+			}
+			const Json* GSlots = G->Get("slots");
+			auto Named = [&](const char* Slot, const char* Name) -> const Json* {
+				const Json* S = GSlots->Get(Slot);
+				return S && S->Get("named") ? S->Get("named")->Get(Name) : nullptr;
+			};
+			std::pair<std::string, const Json*> Meshes[] = {{"tank", Named("tank", "TankBody")}, {"saddle/leather", Named("saddle", "SeatPad")},
+				{"tail", Named("tail", "TailCowl")}, {"engine", GSlots->Get("engine")}, {"head", GSlots->Get("head")}};
+			double MeshOff = 0.0;
+			std::string MeshWorst;
+			int Compared = 0;
+			for (const auto& [Slot, Gb] : Meshes)
+			{
+				if (!Gb) continue;
+				if (!Ours.count(Slot)) { MeshOff = 1e9; MeshWorst = Slot + " missing"; continue; }
+				++Compared;
+				const double D = std::max(Off(Ours[Slot].Lo, Vec(Gb->Get("min"))), Off(Ours[Slot].Hi, Vec(Gb->Get("max"))));
+				if (D > MeshOff) { MeshOff = D; MeshWorst = Slot; }
+			}
+			char Buf[220];
+			std::snprintf(Buf, sizeof(Buf), ": same parts, datums within %.2f mm (%s), tier %s, %d meshes within %.2f mm (%s)",
+				RigOff * 1000.0, Worst.c_str(), L.Fit.Tier.c_str(), Compared, MeshOff * 1000.0, MeshWorst.c_str());
+			Expect(SameParts && RigOff < 1e-4 && TierOk && Compared >= 4 && MeshOff < 5e-4, St + Buf);
+		}
+	}
+
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);
 	return Failures ? 1 : 0;
 }

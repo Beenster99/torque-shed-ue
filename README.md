@@ -23,6 +23,7 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Tools/make_rider.py` | Builds the rider in riding kit (jacket, jeans, boots, brown gloves, full-face helmet) as a skinned glb in `Data/Rider`, sat on the Speed Twin; the pawn poses it every frame (`Source/TorqueShedProto/RiderRig.*`) |
 | `Tools/ue_build_level.py` | Run inside the Unreal editor: imports the meshes, makes the materials, sun, sky and fog, and saves the level |
 | `Tools/import_parts.py` | Copies the Godot game's parts catalogue (`data/parts.json`, 717 parts) unchanged into `Data/Parts/parts.json`, the file the game reads; the Godot JSON stays the source of truth |
+| `Tools/make_godot_reference.py` | Runs the Godot game headless and records its reference bikes (parts, datums, mesh bounds) into `SimTest/data/godot_reference.json`, which `layout_test` checks the port against |
 | `Tools/import_layout_data.py` | Copies what the Godot game lays a bike out with (style lines, tank and seat shapes, slots, the 14 reference bikes) into `Data/Fitment/layout.json` for `Fit/BikeLayout` |
 | `Tools/import_blender_parts.py` | Converts the Godot game's 520 Blender part glbs (`assets/bike_parts`) into our frame at `Data/Parts/Blender`: three LOD glbs per part with a material slot per surface tag, shape keys in `.morph.bin`, and `index.json` (mounts as sockets, surfaces and the finish each is drawn in, bounds, triangles). `--sheet out.png` renders every part |
 | `Tools/make_speedtwin_fit.py` | The Speed Twin's fitment data (`Data/Bike/SpeedTwin/fitment.json`): typed sockets, datums, collision proxies, and alternative bars and silencers in its style (`Data/Bike/SpeedTwin/Options`). Run after `make_speedtwin.py` |
@@ -150,6 +151,13 @@ onto the bike's lines, and `Fit/PartMesh` reads the converted glb and `.morph.bi
 `layout_test` checks the bodywork of all 14 as the Godot `rig_body_tests` do (the tank's tunnel on
 the backbone, its top under the style's line, the seat at its published height over the hip, and no
 gaps between tank, seat and tail).
+
+It also checks the port against the original game itself. `Tools/make_godot_reference.py` runs the
+Godot project headless (official Godot 4.6.2) and records every style's reference bike as Godot
+builds it: its parts, the rig's datums and fit tier, and the bounds of each slot's drawn meshes.
+The result is committed as `SimTest/data/godot_reference.json`, and `layout_test` requires the same
+parts, the datums within 0.1 mm, the same tier, and the tank, seat pad, tail cowl, engine and top
+end within 0.5 mm. (Today they agree to under 0.01 mm.) Rerun the tool after changing the Godot game.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
