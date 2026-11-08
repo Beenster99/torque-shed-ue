@@ -1316,7 +1316,7 @@ void BikeParts::Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, c
 	else Lamp("round", Sized(V3(1, 1, 1)), At);
 }
 
-void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
+void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, const std::map<std::string, V3>& FairingMounts, std::vector<FittedPart>& Out) const
 {
 	// (BikeModel._draw_mirrors: each head turned to the rider's eye on its stalk, which is
 	// code-drawn; the Blender pieces are the bar clamp and the head's shell.)
@@ -1327,9 +1327,6 @@ void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar,
 	const double K = PartNum(Look, "size", 1.0);
 	const Json* Fairing = Lay.Part(PartIn(Parts, "fairing"));
 	if (Style == "fairing" && !Fairing) Style = "sport";   // nothing to bolt to: shown as stalks
-	// Mirrors on a frame-mounted fairing sit on its Blender set's own mounts, which come with the
-	// fairing's fit (RigBodywork.fairing_fit): not ported yet, so they're left off here.
-	if (Style == "fairing" && Fairing->Flag("frame_mount")) return;
 	const V3 H = ToGodot(L.Head);
 	const V3 Eye(0.0, L.Stats.SeatHeight - L.Stats.RearRadius + 0.88, ToGodot(L.Hip).z - 0.02);
 	constexpr double ClampBack = 0.18, Rise = 0.04, Depth = 0.02;
@@ -1404,6 +1401,19 @@ void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar,
 		{
 			const V3 From = Clamp(Sd);
 			Head(From, From + V3(0.12 * Sd, 0.27, 0.0), 0.13, 0.09, 0.008, true, Rise);
+		}
+		else if (Style == "fairing" && Fairing->Flag("frame_mount"))
+		{
+			// (On the set's own mounts on its upper panels, else off the code fairing's edge by the lamp.)
+			const auto M = FairingMounts.find(Sd > 0.0 ? "mirror_r" : "mirror_l");
+			if (FairingMounts.count("mirror_r") && M != FairingMounts.end())
+				Head(M->second, M->second + V3(0.05 * Sd, 0.03, 0.03), 0.11, 0.055, 0.01, false, 0.0);
+			else
+			{
+				const double Wide = Fairing->Str("style") == "touring" ? 0.27 : 0.2;
+				const V3 Lp = H + V3(0.0, -0.08, -0.13);
+				Head(Lp + V3((Wide - 0.01) * Sd, 0.08, 0.04), Lp + V3((Wide + 0.05) * Sd, 0.1, 0.06), 0.11, 0.055, 0.01, false, 0.0);
+			}
 		}
 		else if (Style == "fairing")
 		{
@@ -1628,11 +1638,113 @@ std::vector<BikeParts::Intake> BikeParts::Intakes(const PartsMap& Parts, const L
 	return Points;
 }
 
+bool BikeParts::DrawnBox(const std::vector<FittedPart>& Out, const std::vector<std::string>& Slots, V3& Lo, V3& Hi) const
+{
+	if (!Meshes) return false;
+	auto In = [&](const std::string& S) { return std::find(Slots.begin(), Slots.end(), S) != Slots.end(); };
+	bool Any = false;
+	for (const FittedPart& F : Out)
+	{
+		PartMesh Glb;
+		if (!Meshes(F.Glb, Glb)) continue;
+		for (const PartSurface& S : Draw(Glb, F).Surfaces)
+		{
+			const size_t Cut = S.Material.find("__");
+			if (!In(Cut != std::string::npos ? S.Material.substr(Cut + 2) : F.Slot)) continue;
+			for (const V3& P : S.Pos)
+			{
+				const V3 G = ToGodot(P);
+				if (!Any) { Lo = Hi = G; Any = true; continue; }
+				Lo = V3(std::min(Lo.x, G.x), std::min(Lo.y, G.y), std::min(Lo.z, G.z));
+				Hi = V3(std::max(Hi.x, G.x), std::max(Hi.y, G.y), std::max(Hi.z, G.z));
+			}
+		}
+	}
+	return Any;
+}
+
+std::map<std::string, V3> BikeParts::Fairing(const PartsMap& Parts, const Layout& L, double FrameHalfW, std::vector<FittedPart>& Out) const
+{
+	// (BikeModel.fairing_set: which set a frame-mounted fairing is drawn as; one on the bars is
+	// code-drawn, so not here.)
+	std::map<std::string, V3> Mounts;
+	const Json* P = Lay.Part(PartIn(Parts, "fairing"));
+	if (!P || !P->Flag("frame_mount")) return Mounts;
+	const Json* Look = P->Get("look");
+	const std::string Shape = PartStr(Look, "shape", P->Str("style", ""));
+	std::string Set;
+	if (Shape == "race") Set = Look && Look->Get("lamps") && !Look->Flag("lamps") ? "race" : "sport";
+	else if (Shape == "seeley" || Shape == "adventure" || Shape == "touring" || Shape == "half") Set = Shape;
+	const std::string Path = "fairing/set/" + Set + ".glb";
+	if (Set.empty() || !HasGlb(Path)) return Mounts;
+	// The set's base mesh's bounds (its keys at 0), in the glb's Godot frame.
+	V3 BoxLo(-0.2, -0.3, -0.3), BoxHi(0.2, 0.1, 0.5);
+	PartMesh Base;
+	if (Meshes && Meshes(Path, Base))
+	{
+		bool First = true;
+		for (const PartSurface& S : Base.Surfaces)
+			for (const V3& V : S.Pos)
+			{
+				const V3 G = ToGodot(V);
+				if (First) { BoxLo = BoxHi = G; First = false; continue; }
+				BoxLo = V3(std::min(BoxLo.x, G.x), std::min(BoxLo.y, G.y), std::min(BoxLo.z, G.z));
+				BoxHi = V3(std::max(BoxHi.x, G.x), std::max(BoxHi.y, G.y), std::max(BoxHi.z, G.z));
+			}
+		// (Godot's mesh bounds take in each shape key at its full weight too.)
+		for (const ShapeKey& K : Base.Keys)
+			for (const ShapeKey::Moves& Mv : K.Surfaces)
+				for (size_t I = 0; I < Mv.Vert.size() && Mv.Surface < Base.Surfaces.size(); ++I)
+				{
+					const V3 G = ToGodot(Base.Surfaces[Mv.Surface].Pos[Mv.Vert[I]] + Mv.DPos[I]);
+					BoxLo = V3(std::min(BoxLo.x, G.x), std::min(BoxLo.y, G.y), std::min(BoxLo.z, G.z));
+					BoxHi = V3(std::max(BoxHi.x, G.x), std::max(BoxHi.y, G.y), std::max(BoxHi.z, G.z));
+				}
+	}
+	// (RigBodywork.fairing_fit: a full set wide enough round the engine as drawn and outside the
+	// frame, its belly down to the style's ground line, its sides back to the seat's nose.)
+	constexpr double Wide = 0.15, Long = 0.15, Drop = 0.08, Room = 0.035, BellyOver = 0.02;
+	const V3 Stay = ToGodot(L.StayHead);
+	FittedPart F;
+	F.Slot = "fairing";
+	F.Glb = Path;
+	if (Set == "sport" || Set == "race")
+	{
+		const V3 A = ToGodot(L.EngineMin), B = ToGodot(L.EngineMax);
+		V3 ELo(std::min(A.x, B.x), std::min(A.y, B.y), std::min(A.z, B.z)), EHi(std::max(A.x, B.x), std::max(A.y, B.y), std::max(A.z, B.z));
+		V3 DLo, DHi;
+		if (DrawnBox(Out, {"engine", "head"}, DLo, DHi))
+		{
+			ELo = V3(std::min(ELo.x, DLo.x), std::min(ELo.y, DLo.y), std::min(ELo.z, DLo.z));
+			EHi = V3(std::max(EHi.x, DHi.x), std::max(EHi.y, DHi.y), std::max(EHi.z, DHi.z));
+		}
+		const double Need = std::max(std::max(std::fabs(ELo.x), std::fabs(EHi.x)), FrameHalfW) + Room;
+		F.Weights["width"] = TorqueSim::Clamp((Need / std::max(BoxHi.x, 0.05) - 1.0) / Wide, 0.0, 2.5);
+		F.Weights["drop"] = TorqueSim::Clamp((Stay.y + BoxLo.y - L.BellyY - BellyOver) / Drop, -1.0, 2.0);
+		if (BoxHi.z > 0.1)
+		{
+			const double Reach = std::max(ToGodot(L.SeatFront).z, EHi.z + Room) - Stay.z;
+			F.Weights["length"] = TorqueSim::Clamp((Reach / BoxHi.z - 1.0) / Long, -1.0, 1.5);
+		}
+	}
+	const V3 Shift = L.StayHead;
+	F.Warp = [Shift](const V3& Q) { return Q + Shift; };
+	Out.push_back(F);
+	const double Kx = 1.0 + Wide * (F.Weights.count("width") ? F.Weights.at("width") : 0.0);
+	for (const char* Name : {"mirror_r", "mirror_l", "lamp"})
+	{
+		V3 At;
+		if (Mount(Path, Name, At)) Mounts[Name] = Stay + V3(At.x * Kx, At.y, At.z);
+	}
+	return Mounts;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
 	const Bodywork Body = BikeBody(Lay).Fit(Parts, L);
 	std::vector<FittedPart> Out = Body.Parts;
-	Frame(Parts, L, Out);
+	double CodeHalfW = 0.0;
+	Frame(Parts, L, Out, &CodeHalfW);
 	Engine(Parts, L, Out);
 	Ancillaries(Parts, L, Body, Out);
 	Exhaust(Parts, L, Out);
@@ -1641,7 +1753,11 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	const Bars Bar = Handlebars(Parts, L, Out);
 	Dashboard(Parts, L, Bar, Out);
 	Headlight(Parts, Out, ToGodot(L.Head));
-	Mirrors(Parts, L, Bar, Out);
+	// (BikeModel: the fairing after the tail, the mirrors after it, on its mounts.)
+	V3 FrameLo, FrameHi;
+	const double FrameHalfW = std::max(CodeHalfW, DrawnBox(Out, {"frame"}, FrameLo, FrameHi) ? (FrameHi.x - FrameLo.x) * 0.5 : 0.0);
+	const std::map<std::string, V3> FairingMounts = Fairing(Parts, L, FrameHalfW, Out);
+	Mirrors(Parts, L, Bar, FairingMounts, Out);
 	Indicators(Parts, L, Out);
 	FrontMudguard(Parts, L, Out);
 	Wheels(Parts, L, Out);

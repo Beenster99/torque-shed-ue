@@ -89,8 +89,9 @@ double FrameSmoothStep(double A, double B, double X)
 }
 } // namespace
 
-void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out, double* CodeHalfW) const
 {
+	if (CodeHalfW) *CodeHalfW = 0.0;
 	const Json* FramePart = Lay.Part(PartIn(Parts, "frame"));
 	const Json* Look = FramePart ? FramePart->Get("look") : nullptr;
 	const std::string Style = PartStr(FramePart, "style", "cradle");
@@ -391,6 +392,8 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 		double X = TorqueSim::Clamp(BlockW * 0.32, 0.06, 0.12);
 		for (const Cylinder& C : Cyls) X = std::max(X, std::fabs(C.Base.x) + 0.075 + 0.02);
 		const bool Cast = Look && Look->Flag("cast");
+		// (Its lugs on the engine, code-drawn, stand out to X + 0.021 each side.)
+		if (CodeHalfW) *CodeHalfW = X + 0.021;
 		for (double Side : {-1.0, 1.0})
 		{
 			const V3 U0 = Head + V3(0.045 * Side, -0.02, 0.03);
@@ -457,6 +460,8 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 		double Wide = std::max(0.15, BlockW * 0.5 + 0.05);
 		const double BeamW = RaceFairing ? std::min(Wide, 0.2) : Wide;
 		if (BeamW < Wide) Wide = std::min(Wide, 0.25);
+		// (Its pivot plates stand out to Wide + 0.002 each side: what a full fairing keeps outside.)
+		if (CodeHalfW) *CodeHalfW = Wide + 0.002;
 		for (double Side : {-1.0, 1.0})
 		{
 			Bend({Pivot + V3((Wide - 0.04) * Side, 0.14, -0.04), SeatFront + V3(0.075 * Side, -0.02, 0.02), Tail + V3(0.05 * Side, -0.01, -0.02)}, 0.014 * G);

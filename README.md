@@ -171,13 +171,14 @@ cylinders, the clocks (raised clear of the bars from the rider's eye, as Godot r
 needs the glbs' meshes), the headlight's body, the mirrors' clamps and heads (turned to the rider's
 eye), the indicators (or a road bike's stock pair), the front mudguard bent from its Blender
 section, and the frame (Fit/BikeFrame.cpp: every style's tubes swept from the tube glb, a sport
-bike's cast spar beams, welds, bearing cups, battery box, footpegs and gussets) with the swingarm's tubes. Each placed part also says what it moves with as the
+bike's cast spar beams, welds, bearing cups, battery box, footpegs and gussets) with the swingarm's tubes, and a frame-mounted fairing's Blender panel set (half, touring,
+adventure, Seeley, sport and race) widened round the engine as RigBodywork.fairing_fit does, with the
+mirrors on its mounts. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
-plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators, front mudguards and frames), each on its style's reference bike. `layout_test` requires all of
-them to match surface by surface. Still to port: Godot's code-drawn shells and brake hoses,
-mirrors on a frame-mounted fairing (they wait for its fit), lights' trim, guards, fairings, luggage and panels.
+plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators, front mudguards, frames and fairings), each on its style's reference bike. `layout_test` requires all of
+them to match surface by surface. Still to port: Godot's code-drawn shells (a fairing on the bars among them) and brake hoses, lights' trim, guards, luggage and panels.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

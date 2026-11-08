@@ -24,7 +24,7 @@ func conv(x):
 	return str(x)
 
 const SWEEP_KINDS := ["wheel", "tyre", "disc", "caliper", "pads", "fork", "shock", "swingarm", "final_drive", "chain",
-	"engine", "head", "spark_plugs", "fuel", "air_filter", "oil_filter", "cooling", "gearbox", "exhaust", "handlebars", "dashboard", "master", "headlight", "mirrors", "indicators", "front_mudguard", "frame"]
+	"engine", "head", "spark_plugs", "fuel", "air_filter", "oil_filter", "cooling", "gearbox", "exhaust", "handlebars", "dashboard", "master", "headlight", "mirrors", "indicators", "front_mudguard", "frame", "fairing"]
 
 
 func dump_build(parts: Dictionary) -> Dictionary:
