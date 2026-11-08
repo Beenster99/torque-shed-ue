@@ -38598,20 +38598,20 @@
     "tank/race_lod2.glb"
    ],
    "tris": [
-    3844,
-    1060,
-    212
+    21642,
+    5526,
+    1656
    ],
    "bounds": {
     "min": [
-     -1.0,
-     -0.0345,
-     -0.1897
+     -0.9967,
+     -0.0238,
+     -0.1842
     ],
     "max": [
-     0.0,
-     0.24,
-     0.1897
+     0.0687,
+     0.1858,
+     0.1842
     ]
    },
    "surfaces": [
@@ -38634,7 +38634,7 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2331,
+       "count": 12047,
        "offset": 0
       }
      ]
@@ -38644,8 +38644,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2322,
-       "offset": 65268
+       "count": 12044,
+       "offset": 337316
       }
      ]
     },
@@ -38654,8 +38654,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2331,
-       "offset": 130284
+       "count": 11796,
+       "offset": 674548
       }
      ]
     },
@@ -38664,8 +38664,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2278,
-       "offset": 195552
+       "count": 11735,
+       "offset": 1004836
       }
      ]
     },
@@ -38674,8 +38674,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2270,
-       "offset": 259336
+       "count": 11613,
+       "offset": 1333416
       }
      ]
     },
@@ -38684,8 +38684,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2256,
-       "offset": 322896
+       "count": 11613,
+       "offset": 1658580
       }
      ]
     },
@@ -38694,13 +38694,14 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2258,
-       "offset": 386064
+       "count": 11613,
+       "offset": 1983744
       }
      ]
     }
    ],
-   "morph": "tank/race.morph.bin"
+   "morph": "tank/race.morph.bin",
+   "redrawn": true
   },
   "tank/sport": {
    "kind": "tank",
@@ -38712,20 +38713,20 @@
     "tank/sport_lod2.glb"
    ],
    "tris": [
-    3844,
-    1060,
-    212
+    21646,
+    5490,
+    1646
    ],
    "bounds": {
     "min": [
-     -1.0,
-     -0.034,
-     -0.1896
+     -0.9967,
+     -0.0246,
+     -0.1865
     ],
     "max": [
-     0.0,
-     0.26,
-     0.1896
+     0.0687,
+     0.1951,
+     0.1865
     ]
    },
    "surfaces": [
@@ -38748,7 +38749,7 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2345,
+       "count": 12031,
        "offset": 0
       }
      ]
@@ -38758,8 +38759,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2345,
-       "offset": 65660
+       "count": 12023,
+       "offset": 336868
       }
      ]
     },
@@ -38768,8 +38769,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2345,
-       "offset": 131320
+       "count": 11773,
+       "offset": 673512
       }
      ]
     },
@@ -38778,8 +38779,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2307,
-       "offset": 196980
+       "count": 11710,
+       "offset": 1003156
       }
      ]
     },
@@ -38788,8 +38789,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2291,
-       "offset": 261576
+       "count": 11593,
+       "offset": 1331036
       }
      ]
     },
@@ -38798,8 +38799,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2277,
-       "offset": 325724
+       "count": 11593,
+       "offset": 1655640
       }
      ]
     },
@@ -38808,13 +38809,14 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 2283,
-       "offset": 389480
+       "count": 11593,
+       "offset": 1980244
       }
      ]
     }
    ],
-   "morph": "tank/sport.morph.bin"
+   "morph": "tank/sport.morph.bin",
+   "redrawn": true
   },
   "tank/streetfighter": {
    "kind": "tank",
@@ -38826,20 +38828,20 @@
     "tank/streetfighter_lod2.glb"
    ],
    "tris": [
-    1976,
-    1096,
-    212
+    23739,
+    6074,
+    1821
    ],
    "bounds": {
     "min": [
-     -1.0,
-     -0.035,
-     -0.19
+     -0.9967,
+     -0.024,
+     -0.181
     ],
     "max": [
-     0.0,
-     0.28,
-     0.19
+     0.0687,
+     0.1815,
+     0.181
     ]
    },
    "surfaces": [
@@ -38862,7 +38864,7 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1433,
+       "count": 13312,
        "offset": 0
       }
      ]
@@ -38872,8 +38874,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1433,
-       "offset": 40124
+       "count": 13311,
+       "offset": 372736
       }
      ]
     },
@@ -38882,8 +38884,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1333,
-       "offset": 80248
+       "count": 13019,
+       "offset": 745444
       }
      ]
     },
@@ -38892,8 +38894,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1213,
-       "offset": 117572
+       "count": 12976,
+       "offset": 1109976
       }
      ]
     },
@@ -38902,8 +38904,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1209,
-       "offset": 151536
+       "count": 12826,
+       "offset": 1473304
       }
      ]
     },
@@ -38912,8 +38914,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1183,
-       "offset": 185388
+       "count": 12826,
+       "offset": 1832432
       }
      ]
     },
@@ -38922,13 +38924,14 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1207,
-       "offset": 218512
+       "count": 12826,
+       "offset": 2191560
       }
      ]
     }
    ],
-   "morph": "tank/streetfighter.morph.bin"
+   "morph": "tank/streetfighter.morph.bin",
+   "redrawn": true
   },
   "tank/teardrop": {
    "kind": "tank",
@@ -39168,20 +39171,20 @@
     "tank/wedge_lod2.glb"
    ],
    "tris": [
-    1976,
-    1096,
-    212
+    23546,
+    5978,
+    1792
    ],
    "bounds": {
     "min": [
-     -1.0,
-     -0.035,
-     -0.19
+     -0.9967,
+     -0.0245,
+     -0.1847
     ],
     "max": [
-     0.0,
-     0.25,
-     0.19
+     0.0687,
+     0.1925,
+     0.1847
     ]
    },
    "surfaces": [
@@ -39204,7 +39207,7 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1449,
+       "count": 13096,
        "offset": 0
       }
      ]
@@ -39214,8 +39217,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1449,
-       "offset": 40572
+       "count": 13093,
+       "offset": 366688
       }
      ]
     },
@@ -39224,8 +39227,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1365,
-       "offset": 81144
+       "count": 12819,
+       "offset": 733292
       }
      ]
     },
@@ -39234,8 +39237,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1231,
-       "offset": 119364
+       "count": 12744,
+       "offset": 1092224
       }
      ]
     },
@@ -39244,8 +39247,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1221,
-       "offset": 153832
+       "count": 12615,
+       "offset": 1449056
       }
      ]
     },
@@ -39254,8 +39257,8 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1195,
-       "offset": 188020
+       "count": 12615,
+       "offset": 1802276
       }
      ]
     },
@@ -39264,13 +39267,14 @@
      "surfaces": [
       {
        "surface": 0,
-       "count": 1219,
-       "offset": 221480
+       "count": 12615,
+       "offset": 2155496
       }
      ]
     }
    ],
-   "morph": "tank/wedge.morph.bin"
+   "morph": "tank/wedge.morph.bin",
+   "redrawn": true
   },
   "tyre/blocks": {
    "kind": "tyre",

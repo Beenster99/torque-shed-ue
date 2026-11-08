@@ -264,6 +264,12 @@ def main():
         "tail_cowls": const(scripts["bike_model"], "TAIL_COWLS"),
         "retired": db.retired,
     }
+    # Redrawn tanks (Data/Parts/Redrawn, see import_blender_parts.py): their loft keys measured off
+    # the new meshes, so the seat nose, tank bag and the rest read the tank that is drawn.
+    redrawn = os.path.join(REPO, "Data", "Parts", "Redrawn", "tank_shapes.json")
+    if os.path.exists(redrawn):
+        for name, over in json.load(open(redrawn)).items():
+            out["tank_shapes"].setdefault(name, {}).update(over)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     data = json.dumps(out, indent=1) + "\n"
     if not os.path.exists(OUT) or open(OUT).read() != data:

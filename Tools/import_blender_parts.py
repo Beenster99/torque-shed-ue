@@ -21,6 +21,11 @@ the normals and UVs, as it does for every bike part). Shape keys are kept outsid
 static meshes Unreal imports are plain, and the fitting core can mix them in itself.
 
 The Godot glbs stay the source of truth: the output is generated, committed, and never edited by hand.
+The one exception is Data/Parts/Redrawn/<kind>/<id>.glb: parts beenster has had redrawn for this game
+(the sports tanks, from his three-view drawings; Tools/redrawn_tanks.md). They follow the same parts
+agreement, and wherever one exists it is read in place of the Godot glb of the same kind/id.
+
+    python Tools/import_blender_parts.py --redrawn      only the redrawn parts (no Godot checkout needed)
 """
 import argparse
 import glob
@@ -36,6 +41,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "Data", "Parts", "Blender")
+REDRAWN = os.path.join(REPO, "Data", "Parts", "Redrawn")
 
 # glTF to ours: ours = M @ g.
 M = np.array([[0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
@@ -330,6 +336,34 @@ def convert(src_root, rel, out_root):
     return entry, part
 
 
+def tank_keys(rels):
+    """A redrawn tank's loft keys ([u, half width, up, down], as bike_model.gd's TANK_SHAPES) measured off
+    its lod0 at the u's the Godot shape uses: its half width and top there, split into up and down in
+    the Godot shape's own proportion. Written to Data/Parts/Redrawn/tank_shapes.json (which
+    import_layout_data.py lays over the Godot shapes) and into Data/Fitment/layout.json now."""
+    if not rels:
+        return
+    lay_path = os.path.join(REPO, "Data", "Fitment", "layout.json")
+    lay = json.load(open(lay_path))
+    over_path = os.path.join(REDRAWN, "tank_shapes.json")
+    over = json.load(open(over_path)) if os.path.exists(over_path) else {}
+    for rel in rels:
+        name = os.path.basename(rel)[:-4]
+        pos = np.concatenate([p["pos"] for p in read_part(os.path.join(REDRAWN, rel))["lods"][0]])
+        old = over.get(name, {}).get("godot_keys") or lay["tank_shapes"][name]["keys"]
+        keys = []
+        for u, _, up, down in old:
+            near = np.abs(-pos[:, 0] - u)
+            m = near < max(0.02, np.sort(near)[min(40, len(near) - 1)])
+            top = float(pos[m, 1].max())
+            d = down * top / max(up + down, 1e-6)
+            keys.append([u, round(float(np.abs(pos[m, 2]).max()), 4), round(top - d, 4), round(d, 4)])
+        over[name] = {"keys": keys, "godot_keys": old}
+        lay["tank_shapes"][name].update(over[name])
+    write_if_changed(over_path, (json.dumps(over, indent=1) + "\n").encode())
+    write_if_changed(lay_path, (json.dumps(lay, indent=1) + "\n").encode())
+
+
 def git_head(path):
     try:
         return subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
@@ -341,8 +375,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--godot", default=os.path.join(os.path.dirname(REPO), "torque-shed"))
     ap.add_argument("--sheet", help="also render a contact sheet (png) of every part")
+    ap.add_argument("--redrawn", action="store_true", help="only the parts in Data/Parts/Redrawn")
     ap.add_argument("kinds", nargs="*")
     a = ap.parse_args()
+    redrawn = sorted(os.path.relpath(p, REDRAWN).replace(os.sep, "/") for p in glob.glob(os.path.join(REDRAWN, "**", "*.glb"), recursive=True))
+    if a.redrawn:
+        idx_path = os.path.join(OUT, "index.json")
+        index = json.load(open(idx_path))
+        for rel in redrawn:
+            entry, _ = convert(REDRAWN, rel, OUT)
+            entry["redrawn"] = True
+            index["parts"][rel[:-4]] = entry
+        write_if_changed(idx_path, (json.dumps(index, indent=1, sort_keys=False) + "\n").encode())
+        tank_keys([r for r in redrawn if r.startswith("tank/")])
+        print("%d redrawn parts: %s" % (len(redrawn), ", ".join(r[:-4] for r in redrawn)))
+        return
     src = os.path.join(a.godot, "assets", "bike_parts")
     rels = sorted(os.path.relpath(p, src).replace(os.sep, "/") for p in glob.glob(os.path.join(src, "**", "*.glb"), recursive=True))
     if a.kinds:
@@ -354,7 +401,9 @@ def main():
     parts = index["parts"]
     sheet = []
     for rel in rels:
-        entry, part = convert(src, rel, OUT)
+        entry, part = convert(REDRAWN if rel in redrawn else src, rel, OUT)
+        if rel in redrawn:
+            entry["redrawn"] = True
         parts[rel[:-4]] = entry
         sheet.append((rel[:-4], part))
     # Leftovers from parts the Godot repo no longer has.
