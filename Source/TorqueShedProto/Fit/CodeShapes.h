@@ -7,6 +7,8 @@
 #include "BikeParts.h"
 
 #include <cmath>
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -149,12 +151,16 @@ struct Sec
 	double W = 0.1, Up = 0.1, Down = 0.1, N = 2.4;
 };
 
-// ShapeKit.loft closed (28 round, flat caps at both ends), as BikeModel._shell draws an arm.
-inline GMesh Loft(const std::vector<Sec>& Secs, int Ring = 28)
+// ShapeKit.loft (28 round): closed with flat caps at both ends, as BikeModel._shell draws an arm,
+// or Open: only the arc A0 to A1 (radians, 0 at the right side, PI/2 at the top), both faces.
+inline GMesh Loft(const std::vector<Sec>& Secs, int Ring = 28, bool Open = false, double A0 = 0.0, double A1 = Tau)
 {
 	GMesh M;
 	const int Count = static_cast<int>(Secs.size());
 	if (Count < 2) return M;
+	const double Span = Open ? A1 - A0 : Tau;
+	const int Steps = Open ? std::max(4, static_cast<int>(std::lround(Ring * Span / Tau))) : Ring;
+	const int Width = Steps + (Open ? 1 : 0);
 	std::vector<std::vector<V3>> Rows;
 	std::vector<V3> Tangents;
 	auto Sign = [](double X) { return X > 0.0 ? 1.0 : X < 0.0 ? -1.0 : 0.0; };
@@ -167,9 +173,9 @@ inline GMesh Loft(const std::vector<Sec>& Secs, int Ring = 28)
 		const V3 Up = T.Cross(V3(1.0, 0.0, 0.0)).Normalized();
 		const double E = 2.0 / S.N;
 		std::vector<V3> Pts;
-		for (int J = 0; J < Ring; ++J)
+		for (int J = 0; J < Width; ++J)
 		{
-			const double A = -3.141592653589793 * 0.5 + Tau * J / Ring;
+			const double A = Open ? A0 + Span * J / Steps : -3.141592653589793 * 0.5 + Tau * J / Steps;
 			const double Ca = std::cos(A), Sa = std::sin(A);
 			const double X = Sign(Ca) * std::pow(std::fabs(Ca), E) * S.W;
 			const double Y = Sign(Sa) * std::pow(std::fabs(Sa), E) * (Sa > 0.0 ? S.Up : S.Down);
@@ -179,27 +185,130 @@ inline GMesh Loft(const std::vector<Sec>& Secs, int Ring = 28)
 		Tangents.push_back(T);
 	}
 	for (int I = 0; I < Count; ++I)
-		for (int J = 0; J < Ring; ++J)
+		for (int J = 0; J < Width; ++J)
 		{
-			const V3 Across = Rows[I][(J + 1) % Ring] - Rows[I][(J - 1 + Ring) % Ring];
+			const int Jp = Open ? std::min(J + 1, Width - 1) : (J + 1) % Width, Jm = Open ? std::max(J - 1, 0) : (J - 1 + Width) % Width;
+			const V3 Across = Rows[I][Jp] - Rows[I][Jm];
 			const V3 Along = Rows[std::min(I + 1, Count - 1)][J] - Rows[std::max(I - 1, 0)][J];
 			V3 Nrm = Across.Cross(Along).Normalized();
 			if (Nrm.Dot(Rows[I][J] - Secs[I].C) < 0.0) Nrm = Nrm * -1.0;
-			M.Add(Rows[I][J], Nrm, static_cast<double>(J) / (Ring - 1), static_cast<double>(I) / (Count - 1));
+			M.Add(Rows[I][J], Nrm, static_cast<double>(J) / std::max(Width - 1, 1), static_cast<double>(I) / (Count - 1));
 		}
 	for (int I = 0; I + 1 < Count; ++I)
-		for (int J = 0; J < Ring; ++J)
-			M.Quad(I * Ring + J, I * Ring + (J + 1) % Ring, (I + 1) * Ring + J, (I + 1) * Ring + (J + 1) % Ring);
+		for (int J = 0; J < (Open ? Width - 1 : Width); ++J)
+			M.Quad(I * Width + J, I * Width + (J + 1) % Width, (I + 1) * Width + J, (I + 1) * Width + (J + 1) % Width);
+	if (Open)
+	{
+		// The inside face, its normals turned in (ToOurs winds each triangle to its normals).
+		const size_t Base = M.P.size(), NIdx = M.Idx.size();
+		for (size_t K = 0; K < Base; ++K) M.Add(M.P[K], M.N[K] * -1.0, M.U[K], M.V[K]);
+		for (size_t K = 0; K < NIdx; ++K) M.Idx.push_back(M.Idx[K] + static_cast<unsigned>(Base));
+		return M;
+	}
 	for (int End : {0, Count - 1})
 	{
 		const V3 Out = Tangents[End] * (End == 0 ? -1.0 : 1.0);
 		const unsigned Mid = M.Add(Secs[End].C, Out, 0.5, 0.5);
-		for (int J = 0; J < Ring; ++J)
-			M.Add(Rows[End][J], Out, 0.5 + 0.5 * std::cos(Tau * J / Ring), 0.5 + 0.5 * std::sin(Tau * J / Ring));
-		for (int J = 0; J < Ring; ++J) M.Idx.insert(M.Idx.end(), {Mid, Mid + 1 + J, Mid + 1 + (J + 1) % Ring});
+		for (int J = 0; J < Width; ++J)
+			M.Add(Rows[End][J], Out, 0.5 + 0.5 * std::cos(Tau * J / Width), 0.5 + 0.5 * std::sin(Tau * J / Width));
+		for (int J = 0; J < Width; ++J) M.Idx.insert(M.Idx.end(), {Mid, Mid + 1 + J, Mid + 1 + (J + 1) % Width});
 	}
 	return M;
 }
+
+// A tube from A to B as BikeModel._tube draws it in code: a 12-sided cylinder, its node at the
+// middle turned from up to the way A to B runs (straight down: half a turn about X).
+inline GAffine TubeAt(const V3& A, const V3& B)
+{
+	const V3 Up(0.0, 1.0, 0.0), Dir = (B - A).Normalized();
+	GAffine R;
+	const V3 Axis = Up.Cross(Dir);
+	if (Axis.Length() > 0.0001) R = GAffine::Rotation(Axis.Normalized(), std::atan2(Axis.Length(), Up.Dot(Dir)));
+	else if (Dir.y < 0.0) R = GAffine::Rotation(V3(1.0, 0.0, 0.0), 3.141592653589793);
+	R.O = (A + B) * 0.5;
+	return R;
+}
+inline GMesh Tube(const V3& A, const V3& B, double R) { return Cylinder(R, std::max((B - A).Length(), 0.001), -1.0, 12); }
+
+// ShapeKit.smooth: a Catmull-Rom curve through the points, PerSeg steps between each pair.
+inline std::vector<V3> Smooth(const std::vector<V3>& P, int PerSeg = 6)
+{
+	if (P.size() < 3) return P;
+	std::vector<V3> Out;
+	const int N = static_cast<int>(P.size());
+	for (int I = 0; I < N - 1; ++I)
+	{
+		const V3 P0 = P[std::max(I - 1, 0)], P1 = P[I], P2 = P[I + 1], P3 = P[std::min(I + 2, N - 1)];
+		for (int K = 0; K < PerSeg; ++K)
+		{
+			const double T = static_cast<double>(K) / PerSeg, T2 = T * T, T3 = T2 * T;
+			Out.push_back((P1 * 2.0 + (P2 - P0) * T + (P0 * 2.0 - P1 * 5.0 + P2 * 4.0 - P3) * T2 + (P0 * -1.0 + P1 * 3.0 - P2 * 3.0 + P3) * T3) * 0.5);
+		}
+	}
+	Out.push_back(P.back());
+	return Out;
+}
+
+// ShapeKit.sweep: a round tube R thick bent smoothly through Path, Sides round, capped at both
+// ends (parallel-transport frames, so it doesn't twist round the bends).
+inline GMesh Sweep(const std::vector<V3>& Path, double R, int Sides = 12, bool Caps = true, int PerSeg = 6)
+{
+	GMesh M;
+	const std::vector<V3> Pts = Smooth(Path, PerSeg);
+	const int Count = static_cast<int>(Pts.size());
+	if (Count < 2) return M;
+	const V3 T0 = (Pts[1] - Pts[0]).Normalized();
+	V3 Side = T0.Cross(V3(0.0, 1.0, 0.0));
+	if (Side.Length() < 0.01) Side = T0.Cross(V3(1.0, 0.0, 0.0));
+	Side = Side.Normalized();
+	std::vector<V3> Tangents;
+	for (int I = 0; I < Count; ++I)
+	{
+		const V3 T = (Pts[std::min(I + 1, Count - 1)] - Pts[std::max(I - 1, 0)]).Normalized();
+		if (I > 0)
+		{
+			const V3 Prev = Tangents[I - 1], Axis = Prev.Cross(T);
+			if (Axis.Length() > 0.00001) Side = GAffine::Rotation(Axis.Normalized(), std::atan2(Axis.Length(), Prev.Dot(T))).Apply(Side);
+		}
+		Side = (Side - T * Side.Dot(T)).Normalized();
+		Tangents.push_back(T);
+		const V3 Up = T.Cross(Side).Normalized();
+		for (int J = 0; J <= Sides; ++J)
+		{
+			const double A = Tau * J / Sides;
+			const V3 Nrm = Side * std::cos(A) + Up * std::sin(A);
+			M.Add(Pts[I] + Nrm * R, Nrm, static_cast<double>(J) / Sides, static_cast<double>(I) / (Count - 1));
+		}
+	}
+	const unsigned Ring = static_cast<unsigned>(Sides + 1);
+	for (unsigned I = 0; I + 1 < static_cast<unsigned>(Count); ++I)
+		for (unsigned J = 0; J < static_cast<unsigned>(Sides); ++J)
+		{
+			const unsigned A = I * Ring + J;
+			M.Idx.insert(M.Idx.end(), {A, A + Ring, A + 1, A + 1, A + Ring, A + Ring + 1});
+		}
+	if (Caps)
+		for (int End : {0, Count - 1})
+		{
+			const V3 Out = Tangents[End] * (End == 0 ? -1.0 : 1.0);
+			const unsigned Mid = M.Add(Pts[End], Out, 0.5, 0.5);
+			for (int J = 0; J < Sides; ++J) M.Add(M.P[End * Ring + J], Out, 0.5, 0.5);
+			for (int J = 0; J < Sides; ++J) M.Idx.insert(M.Idx.end(), {Mid, Mid + 1 + J, Mid + 1 + (J + 1) % Sides});
+		}
+	return M;
+}
+
+// Godot's names for siblings of the same name: the first as it is, then Name2, Name3...
+struct GodotNames
+{
+	std::map<std::string, int> Seen;
+	std::string operator()(const std::string& Name)
+	{
+		if (Name.empty()) return Name;
+		const int K = ++Seen[Name];
+		return K > 1 ? Name + std::to_string(K) : Name;
+	}
+};
 
 // The mesh placed by Xf (a Godot node's transform in the bike's space at rest) into one of our
 // surfaces tagged Tag, each triangle wound to face along its normals.
@@ -224,6 +333,22 @@ inline PartSurface ToOurs(const GMesh& M, const GAffine& Xf, const std::string& 
 		else S.Idx.insert(S.Idx.end(), {A, C, B});
 	}
 	return S;
+}
+// Puts it on: a FittedPart.Made marked Code, in Slot, moving with Node, Glb a stand-in from the
+// same family (so a loader that wants a glb has one), Name Godot's mesh's.
+inline void Emit(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Glb, const std::string& Node, const std::string& Name,
+	const GMesh& M, const GAffine& Xf, const std::string& Tag)
+{
+	auto Made = std::make_shared<PartMesh>();
+	Made->Surfaces.push_back(ToOurs(M, Xf, Tag));
+	FittedPart F;
+	F.Slot = Slot;
+	F.Glb = Glb;
+	F.Node = Node;
+	F.Made = Made;
+	F.Code = true;
+	F.Name = Name;
+	Out.push_back(F);
 }
 } // namespace CodeShapes
 } // namespace TorqueFit

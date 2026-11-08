@@ -190,10 +190,14 @@ which builds Godot's box, cylinder, sphere, torus and closed loft with the same 
 carry FittedPart.Code and Godot's mesh Name, and `layout_test` checks each named one and the whole
 swingarm against Godot. A phone satnav is fitted round the bars as Godot fits it: each place tried
 is scored for running into the bars and what's round them, hiding the clocks and having its screen
-seen, and the best one is used. Godot also counts code-drawn pieces round the bars that aren't
-ported yet (mirror stalks and glasses, dial faces and needles, the brake hose), so the place chosen
-can differ; put at Godot's place, every piece matches. Still to port: those code-drawn pieces and
-Godot's other code shells, and its hiding of what a full fairing covers.
+seen, and the best one is used. The code-drawn pieces round the bars are made too: the mirrors'
+stalks, joints, stems and glasses; the clocks' faces, ticks, needles, screens, shift lights and
+stalk; the front brake hose and banjo; the headlight's eyes, brows, hot spots, rings, grilles,
+visors, brackets and fly-screen; the indicators' stalks; a satnav's arm, ball, crossbar, stays,
+visor and screen. The swingarm, mirrors, clocks, front master, headlight, indicators and satnav
+are checked whole against Godot, and a phone satnav lands where Godot puts it. Still to port:
+Godot's other code shells (perimeter beams, castings, the rest of each slot's code pieces), and
+its hiding of what a full fairing covers.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

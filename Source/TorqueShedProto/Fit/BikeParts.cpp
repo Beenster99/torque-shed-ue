@@ -405,17 +405,9 @@ void BikeParts::Swingarm(const PartsMap& Parts, const Layout& L, std::vector<Fit
 	};
 	// A code-drawn shape in the swingarm's space (Xf its node's transform there), Tag its finish:
 	// "paint" the arm's own colour, the steel and dark materials as their nearest tags.
+	CodeShapes::GodotNames Named;
 	auto ArmCode = [&](const std::string& InSlot, const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
-		auto Made = std::make_shared<PartMesh>();
-		Made->Surfaces.push_back(CodeShapes::ToOurs(M, Arm * Xf, Tag));
-		FittedPart F;
-		F.Slot = InSlot;
-		F.Glb = "swingarm/bridge.glb";
-		F.Node = "swingarm";
-		F.Made = Made;
-		F.Code = true;
-		F.Name = Name;
-		Out.push_back(F);
+		CodeShapes::Emit(Out, InSlot, "swingarm/bridge.glb", "swingarm", Named(Name), M, Arm * Xf, Tag);
 	};
 	auto ArmShell = [&](const std::string& InSlot, const std::string& Name, const std::vector<CodeShapes::Sec>& Secs) {
 		ArmCode(InSlot, Name, CodeShapes::Loft(Secs), GAffine(), "paint");
@@ -1204,7 +1196,17 @@ BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, st
 		constexpr double LeverReach = 0.127;   // BlenderParts.LEVER_REACH
 		Put(Out, "front_master", Type.rfind("Radial", 0) == 0 ? "controls/master_radial.glb" : "controls/master_axial.glb", AtWith(Br, MAt + H), "steer");
 		Put(Out, "front_master", "controls/lever.glb", AtWith(Br * GAffine::Scale(V3(-Reach / LeverReach, 1.0, 1.0)), MAt + H), "steer");
-		// (Its hose is code-drawn.)
+		// (_front_brake_line: the hose, or a drum's cable, from the master down to its joint on the
+		// fork leg, and the banjo at the master; code-drawn.)
+		const Json* ForkPart = Lay.Part(PartIn(Parts, "fork"));
+		const std::string ForkStyle = PartStr(ForkPart, "style", "conventional");
+		const double ForkX = ForkStyle == "girder" ? 0.09 : (ForkStyle == "springer" || ForkStyle == "leading_link") ? 0.085
+			: 0.09 * PartNum(ForkPart ? ForkPart->Get("look") : nullptr, "wide", 1.0);
+		const V3 Joint = V3(ForkX + 0.035, 0.0, 0.04) - ToGodot(L.SteerAxis) * 0.3;
+		const bool Drum = PartStr(Lay.Part(PartIn(Parts, "front_disc")), "style", "") == "drum";
+		const std::vector<V3> Hose = {MAt + Br.Apply(V3(0.0, -0.01, -0.025)), MixV(MAt, Joint, 0.3) + V3(0.0, 0.0, -0.16), Joint};
+		CodeShapes::Emit(Out, "front_master", "controls/lever.glb", "steer", "BrakeHose", CodeShapes::Sweep(Hose, Drum ? 0.0042 : 0.005, 8), GAffine::At(H), "rubber");
+		CodeShapes::Emit(Out, "front_master", "controls/lever.glb", "steer", "", CodeShapes::Cylinder(0.0075, 0.016), GAffine::At(MAt + Br.Apply(V3(0.0, -0.01, -0.03)) + H), "chrome");
 	}
 
 	// The clutch and throttle cables (_draw_cables): down past the head stock, then on in the frame
@@ -1392,6 +1394,49 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 			while (Lift < 0.25 && (Hidden(Eye, Lift) || Hidden(Low, Lift))) Lift += 0.005;
 	}
 	for (const auto& [Glb, C] : Housings) Put(Out, "dashboard", Glb, AtWith(Tilt, C + V3(0.0, Lift, 0.0) + H), "steer");
+	// The code-drawn faces, ticks, needles, screens and shift lights, raised with the clocks.
+	const V3 Up(0.0, Lift, 0.0);
+	auto Code = [&](const CodeShapes::GMesh& M, const GAffine& Basis, const V3& C, const std::string& Tag) {
+		CodeShapes::Emit(Out, "dashboard", Housings.empty() ? "dashboard/dial.glb" : Housings[0].first, "steer", "", M, AtWith(Basis, C + Up + H), Tag);
+	};
+	auto Leds = [&](const V3& C, double Width) {
+		static const char* Tags[6] = {"lens_white", "lens_white", "lens_amber", "lens_amber", "lens_red", "lens_red"};
+		for (int I = 0; I < 6; ++I)
+			Code(CodeShapes::Box(V3(0.016, 0.004, 0.01)), Tilt, C + Tilt.X * (-Width * 0.5 + Width * (I + 0.5) / 6.0), Tags[I]);
+	};
+	if (Style == "analog" || Style == "twin")
+	{
+		for (const auto& [Glb, C] : Housings)
+		{
+			Code(CodeShapes::Cylinder(0.043, 0.004), Tilt, C + Tilt.Y * 0.026, "dial");
+			for (int I = 0; I < 9; ++I)
+			{
+				const double A = -2.35 + 4.7 * I / 8.0;
+				Code(CodeShapes::Box(V3(0.003, 0.002, 0.008)), Tilt * GAffine::Rotation(GodotUp, -A),
+					C + Tilt.Y * 0.029 + Tilt.Apply(V3(std::sin(A) * 0.036, 0.0, -std::cos(A) * 0.036)), "black_metal");
+			}
+			// The needle on its pivot (at rest: Godot turns it with the speed or revs).
+			Code(CodeShapes::Box(V3(0.004, 0.003, 0.034)), Tilt, C + Tilt.Y * 0.031 + Tilt.Apply(V3(0.0, 0.0, -0.016)), "lens_red");
+		}
+	}
+	else if (Style == "lcd" || Style == "tft")
+	{
+		const bool Tft = Style == "tft";
+		const V3 Size = Tft ? V3(0.2, 0.03, 0.12) : V3(0.16, 0.03, 0.09);
+		Code(CodeShapes::Box(V3(Size.x - 0.02, 0.004, Size.z - 0.02)), Tilt, At + Tilt.Y * 0.016, "glass");
+		if (Tft) Leds(At + Tilt.Y * 0.017 + Tilt.Apply(V3(0.0, 0.0, -Size.z * 0.5 - 0.008)), 0.14);
+	}
+	else
+	{
+		Code(CodeShapes::Box(V3(0.18, 0.004, 0.05)), Tilt, At + Tilt.Y * 0.016 + Tilt.Apply(V3(0.0, 0.0, 0.012)), "glass");
+		Leds(At + Tilt.Y * 0.017 + Tilt.Apply(V3(0.0, 0.0, -0.028)), 0.18);
+	}
+	// Raised more than a little, the clocks stand on a stalk from the top yoke.
+	if (Lift > 0.02)
+	{
+		const V3 A(0.0, 0.0, At.z), B = At + V3(0.0, Lift - 0.012, 0.0);
+		CodeShapes::Emit(Out, "dashboard", Housings[0].first, "steer", "", CodeShapes::Tube(A, B, 0.009), GAffine::At(H) * CodeShapes::TubeAt(A, B), "black_metal");
+	}
 	if (FaceOut)
 		for (const V3& Q : Face) FaceOut->push_back(Q + V3(0.0, Lift, 0.0));
 	return Lift;
@@ -1453,6 +1498,89 @@ void BikeParts::Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, c
 	else if (Kind == "plate") Lamp("plate", GAffine::Rotation(GodotRight, 0.25), At + V3(0.0, -0.02, -0.02));
 	else if (Kind == "projector") Lamp("projector", GAffine(), At);
 	else Lamp("round", Sized(V3(1, 1, 1)), At);
+
+	// The code-drawn trim: the lamps' eyes, brows and hot spots, the look's chrome ring, grille,
+	// visor and brackets, a bug-eye pair's bracket plate and fly-screen, the arms to the fork legs.
+	CodeShapes::GodotNames Named;
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "headlight", "headlight/round.glb", "steer", Named(Name), M, GAffine::At(H) * Xf, Tag);
+	};
+	auto Arm = [&](const V3& A, const V3& B, double R, const std::string& Tag) { Code("", CodeShapes::Tube(A, B, R), CodeShapes::TubeAt(A, B), Tag); };
+	const GAffine Flat = GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5);   // (a cylinder or ring turned to face forward)
+	V3 Front = At + V3(0.0, 0.0, -Size * 0.7);
+	double FaceR = Size * 0.9;
+	if (Kind == "bullet") Front = At + V3(0.0, 0.0, -Size * 0.45);
+	else if (Kind == "nacelle") Front = At + V3(0.0, 0.0, -Size * 0.52);
+	else if (Kind == "quad" || Kind == "stacked") FaceR = 0.0;
+	else if (Kind == "square")
+	{
+		FaceR = 0.0;
+		Code("", CodeShapes::Cylinder(Size * 0.26, 0.004), AtWith(Flat, At + V3(0.0, 0.0, -Size * 0.43)), "lens_white");
+		if (!(Look && Look->Flag("brackets")))
+			for (double Sd : {-1.0, 1.0}) Arm(At + V3(Size * 2.3 * 0.45 * Sd, 0.0, Size * 0.2), V3(0.09 * Sd, -0.02, 0.0), 0.008, "black_metal");
+	}
+	else if (Kind == "bugeye")
+	{
+		FaceR = 0.0;
+		const double Gap = Size * 1.04;
+		for (double Sd : {-1.0, 1.0})
+		{
+			const V3 C = At + V3(Sd * Gap, 0.0, 0.0);
+			const GAffine B = GAffine::Rotation(GodotUp, -Sd * 0.3) * GAffine::Rotation(V3(0.0, 0.0, 1.0), -Sd * 0.28);
+			const GAffine Oval = B * GAffine::Scale(V3(0.88, 1.18, 1.0));
+			const V3 FaceAt = C + B.Apply(V3(0.0, 0.0, -Size)), Eye = FaceAt + B.Apply(V3(0.0, 0.0, -0.006));
+			// (_bugeye_eye: the reflector's ring and the bulb's hot spot in front of the glass.)
+			Code("", CodeShapes::Torus(Size * 0.55, 0.0018), AtWith(Oval * Flat, Eye), "chrome");
+			Code("", CodeShapes::Cylinder(Size * 0.3, 0.003), AtWith(Oval * Flat, Eye), "lens_white");
+			Arm(C + B.Apply(V3(0.0, -Size * 0.3, Size * 0.9)), V3(0.09 * Sd, -0.02, 0.0), 0.008, "black_metal");
+		}
+		Code("LampBracket", CodeShapes::Box(V3(Gap * 2.0, 0.012, Size * 0.9)), GAffine::At(At + V3(0.0, -Size * 0.55, Size * 0.95)), "black_metal");
+		if (!Lay.Part(PartIn(Parts, "fairing")))
+		{
+			// A small tinted fly-screen over the pair, raked back.
+			const V3 Dir(0.0, std::cos(0.55), std::sin(0.55)), Base = At + V3(0.0, Size, -Size * 0.2);
+			std::vector<CodeShapes::Sec> Secs;
+			for (int K = 0; K < 4; ++K)
+			{
+				const double F = K / 3.0;
+				Secs.push_back({Base + Dir * (0.1 * F), Gap * 1.9 * (1.0 - 0.3 * F), 0.03, 0.0, 2.0});
+			}
+			Code("FlyScreen", CodeShapes::Loft(Secs, 28, true, 0.25, TorqueSim::Pi - 0.25), GAffine(), "glass");
+		}
+	}
+	else if (Kind == "triple")
+	{
+		FaceR = 0.0;
+		const double Gap = Size * 1.15;
+		for (double Sd : {-1.0, 1.0})
+		{
+			// (_triple_trim: the projector's eye, the light brow over it and the arm to the fork leg.)
+			const V3 C = At + V3(Sd * Gap, Size * 0.1, 0.0);
+			const GAffine B = GAffine::Rotation(GodotUp, -Sd * 0.38) * GAffine::Rotation(V3(0.0, 0.0, 1.0), -Sd * 0.3);
+			Code("", CodeShapes::Cylinder(Size * 0.17, 0.004), AtWith(B * Flat, C + B.Apply(V3(-Sd * Size * 0.4, -Size * 0.08, -Size * 0.25))), "lens_white");
+			if (!Look || !Look->Get("brow") || Look->Flag("brow"))
+				Code("DRL", CodeShapes::Box(V3(Size * 1.8, Size * 0.07, 0.008)), AtWith(B, C + B.Apply(V3(0.0, Size * 0.28, -Size * 0.25))), "lens_white");
+			Arm(C + B.Apply(V3(Sd * Size * 0.3, -Size * 0.2, Size * 0.9)), V3(0.09 * Sd, -0.02, 0.0), 0.008, "black_metal");
+		}
+		Code("LampBracket", CodeShapes::Box(V3(Gap * 1.2, Size * 0.6, Size * 0.9)), GAffine::At(At + V3(0.0, -Size * 0.05, Size * 0.5)), "black_metal");
+	}
+	else if (Kind == "projector")
+		Code("", CodeShapes::Box(V3(0.15, 0.008, 0.004)), GAffine::At(At + V3(0.0, -0.035, -0.047)), "lens_white");
+	if (FaceR > 0.0)
+	{
+		if (Look && Look->Flag("ring")) Code("", CodeShapes::Torus(FaceR, 0.009), AtWith(Flat, Front + V3(0.0, 0.0, -0.004)), "chrome");
+		if (Look && Look->Flag("grille"))
+		{
+			for (int K = 0; K < 3; ++K)
+				Code("", CodeShapes::Box(V3(FaceR * 1.7, 0.006, 0.006)), GAffine::At(Front + V3(0.0, (K - 1) * FaceR * 0.5, -0.012)), "black_metal");
+			Code("", CodeShapes::Box(V3(0.006, FaceR * 1.7, 0.006)), GAffine::At(Front + V3(0.0, 0.0, -0.014)), "black_metal");
+		}
+		if (Look && Look->Flag("visor"))
+			Code("Visor", CodeShapes::Loft({{Front + V3(0.0, FaceR * 0.15, 0.02), FaceR * 1.05, FaceR * 1.05, FaceR * 1.05, 2.0},
+				{Front + V3(0.0, FaceR * 0.15, -0.05), FaceR, FaceR * 0.95, FaceR * 0.95, 2.0}}, 28, true, 0.2, TorqueSim::Pi - 0.2), GAffine(), "paint");
+	}
+	if (Look && Look->Flag("brackets"))
+		for (double Sd : {-1.0, 1.0}) Arm(At + V3(Size * 1.05 * Sd, 0.0, 0.0), V3(0.09 * Sd, -0.02, 0.0), 0.007, "chrome");
 }
 
 void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, const std::map<std::string, V3>& FairingMounts, std::vector<FittedPart>& Out) const
@@ -1477,6 +1605,13 @@ void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar,
 		const V3 N = ((Eye - Pm).Normalized() + AimDir).Normalized();
 		const V3 X = GodotUp.Cross(N).Normalized();
 		return BasisCols(X, N.Cross(X), N);
+	};
+	// (The code-drawn pieces: on the steering in its space, else the bike's. Godot numbers like-named
+	// pieces on the same node in turn; each head's glass is in its own head.)
+	CodeShapes::GodotNames Named, NamedOnBike;
+	auto Code = [&](bool OnBars, const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "mirrors", "mirror/clamp.glb", OnBars ? "steer" : "", OnBars ? Named(Name) : NamedOnBike(Name), M,
+			OnBars ? GAffine::At(H) * Xf : Xf, Tag);
 	};
 	double BarLen = 0.0;
 	for (size_t I = 1; I < Bar.Line.size(); ++I) BarLen += (Bar.Line[I] - Bar.Line[I - 1]).Length();
@@ -1504,7 +1639,9 @@ void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar,
 		Along.x *= Sd;
 		const V3 UpDir = (GodotUp - Along * Along.y).Normalized();
 		Put(Out, "mirrors", "mirror/clamp.glb", AtWith(BasisUp(Along) * GAffine::Scale(V3(Bar.R + 0.005, 1.0, Bar.R + 0.005)), C + H), "steer");
-		return C + UpDir * (Bar.R + 0.012);
+		const V3 Top = C + UpDir * (Bar.R + 0.012);
+		Code(true, "", CodeShapes::Tube(C, Top, 0.009), CodeShapes::TubeAt(C, Top), "paint");   // the boss
+		return Top;
 	};
 	// (_mirror_on_stalk and _mirror_head: the head slides back along its face's line until the
 	// stalk meets it from behind, and its shell is scaled to its size.)
@@ -1521,8 +1658,40 @@ void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar,
 		Sx *= K;
 		Sy *= K;
 		const bool Round = Sy <= 0.0;
+		const GAffine Basis = Aim(At, OnBars);
 		Put(Out, "mirrors", Round ? "mirror/round.glb" : "mirror/rect.glb",
-			AtWith(Aim(At, OnBars) * GAffine::Scale(V3(Sx, Round ? Sx : Sy, 1.0)), At + (OnBars ? H : V3())), OnBars ? "steer" : "");
+			AtWith(Basis * GAffine::Scale(V3(Sx, Round ? Sx : Sy, 1.0)), At + (OnBars ? H : V3())), OnBars ? "steer" : "");
+		// The glass on the head's face (in the head: its name is its own).
+		const GAffine HeadXf = AtWith(Basis, At);
+		if (Round)
+			Code(OnBars, "", CodeShapes::Cylinder(Sx * 0.88, 0.002), HeadXf * GAffine::At(V3(0.0, 0.0, 0.011)) * GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5), "chrome");
+		else
+			Code(OnBars, "", CodeShapes::Box(V3(Sx - 0.01, Sy - 0.01, 0.002)), HeadXf * GAffine::At(V3(0.0, 0.0, 0.011)), "chrome");
+		Out.back().Name = "MirrorGlass";
+		// The stalk from its mount to a ball joint behind the head, round the rim to the back if the
+		// head faces it, and a short stem from the joint into the head's back.
+		constexpr double Stem = 0.016;
+		std::vector<V3> Path = {From};
+		if (StalkRise > 0.0) Path.push_back(From + GodotUp * StalkRise);
+		const V3 Back = Basis.Z * -1.0;
+		const V3 Knuckle = At + Back * (Depth * 0.5 + Stem), StemEnd = At + Back * (Depth * 0.5 - 0.004);
+		const V3 Rel = Last - At;
+		const double RelDepth = Rel.Dot(Basis.Z);
+		if (RelDepth > -(Depth * 0.5 + R))
+		{
+			const V3 Flat = Rel - Basis.Z * RelDepth;
+			const double Reach = (Round ? Sx : std::sqrt(Sx * Sx + Sy * Sy) * 0.5) + R + 0.015;
+			const V3 RoundTo = Flat.Length() > 0.001 ? Flat.Normalized() * std::max(Flat.Length(), Reach) : Basis.Y * -Reach;
+			Path.push_back(At + RoundTo + Back * (Depth * 0.5 + Stem));
+		}
+		Path.push_back(Knuckle);
+		for (size_t I = 0; I + 1 < Path.size(); ++I)
+		{
+			Code(OnBars, "MirrorStalk", CodeShapes::Tube(Path[I], Path[I + 1], R), CodeShapes::TubeAt(Path[I], Path[I + 1]), "paint");
+			if (I > 0) Code(OnBars, "", CodeShapes::Sphere(R), GAffine::At(Path[I]), "paint");
+		}
+		Code(OnBars, "MirrorJoint", CodeShapes::Sphere(R * 1.5), GAffine::At(Knuckle), "paint");
+		Code(OnBars, "MirrorStem", CodeShapes::Tube(Knuckle, StemEnd, R * 0.9), CodeShapes::TubeAt(Knuckle, StemEnd), "paint");
 	};
 	for (double Sd : {-1.0, 1.0})
 	{
@@ -1597,8 +1766,15 @@ void BikeParts::Indicators(const PartsMap& Parts, const Layout& L, std::vector<F
 				V3 Tip = Base + V3(Reach * Sd, 0.0, 0.0);
 				if (Style == "flush")
 					Tip = AtFront ? V3(0.075 * Sd, -0.08, -0.17) : (HasRear ? Rear : Tail + V3(0.0, -0.04, 0.12)) + V3(0.06 * Sd, 0.0, 0.0);
-				Put(Out, AtFront ? FrontSlot : BackSlot, Glb,
-					AtWith(AtFront ? GAffine() : GAffine::Rotation(GodotUp, TorqueSim::Pi), Tip + (AtFront ? H : V3())), AtFront ? "steer" : "");
+				if (!Put(Out, AtFront ? FrontSlot : BackSlot, Glb,
+						AtWith(AtFront ? GAffine() : GAffine::Rotation(GodotUp, TorqueSim::Pi), Tip + (AtFront ? H : V3())), AtFront ? "steer" : "")
+					|| Style == "flush")
+					continue;
+				// Its stalk out from the base, code-drawn.
+				const double R = Style == "bullet" ? 0.005 : Style == "mini" ? 0.004 : Style == "touring" ? 0.008 : 0.007;
+				const V3 Off = AtFront ? H : V3();
+				CodeShapes::Emit(Out, AtFront ? FrontSlot : BackSlot, Glb, AtFront ? "steer" : "", "", CodeShapes::Tube(Base, Tip, R),
+					GAffine::At(Off) * CodeShapes::TubeAt(Base, Tip), Style == "bullet" ? "chrome" : "black_metal");
 			}
 	};
 	if (P)
@@ -2650,8 +2826,39 @@ void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, 
 	if (Style == "compact") At = V3(0.13, 0.2 + DashLift * 0.5, 0.02);
 	else if (Style == "road") At = V3(0.1, 0.22 + DashLift, -0.02);
 	else if (Style == "tablet") At = V3(0.0, 0.25 + DashLift, -0.08);
-	// (Its arm, crossbar and stays are code-drawn; the unit is the Blender piece, on the steering.)
-	Put(Out, "satnav", "kit/satnav.glb", AtWith(GAffine::Rotation(GodotRight, 0.85) * GAffine::Scale(V3((Sw + 0.022) / 0.122, 1.0, (Sh + 0.022) / 0.087)), At + ToGodot(L.Head)), "steer");
+	V3 Mount(0.0, 0.12, 0.0);   // where its arm meets the bars or crossbar
+	if (Style == "compact") Mount = V3(0.12, 0.12, 0.05);
+	else if (Style == "road") Mount = V3(0.07, 0.13, 0.03);
+	else if (Style == "tablet") Mount = V3(0.0, 0.16 + DashLift, -0.08);
+	const V3 H = ToGodot(L.Head);
+	const GAffine Tilt = GAffine::Rotation(GodotRight, 0.85);
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "satnav", "kit/satnav.glb", "steer", Name, M, GAffine::At(H) * Xf, Tag);
+	};
+	auto Arm = [&](const V3& A, const V3& B, double R) { Code("", CodeShapes::Tube(A, B, R), CodeShapes::TubeAt(A, B), "black_metal"); };
+	if (Style == "adventure" || Style == "tablet")
+	{
+		// A crossbar over the clocks, on two stays from the top yoke.
+		const double BarY = At.y - Sh * 0.5 - 0.03;
+		Arm(V3(-0.1, BarY, At.z + 0.02), V3(0.1, BarY, At.z + 0.02), 0.009);
+		for (double X : {-0.08, 0.08}) Arm(V3(X, 0.05, 0.03), V3(X, BarY, At.z + 0.02), 0.007);
+		Mount = V3(0.0, BarY, At.z + 0.02);
+	}
+	// The arm from the mount up to the back of the unit, on a ball.
+	Arm(Mount, At - Tilt.Y * 0.02, 0.008);
+	Code("", CodeShapes::Sphere(0.014), GAffine::At(Mount), "black_metal");
+	// (The unit is the Blender piece.)
+	Put(Out, "satnav", "kit/satnav.glb", AtWith(Tilt * GAffine::Scale(V3((Sw + 0.022) / 0.122, 1.0, (Sh + 0.022) / 0.087)), At + H), "steer");
+	if (P->Get("accent")) Code("", CodeShapes::Box(V3(Sw + 0.03, 0.012, Sh + 0.03)), AtWith(Tilt, At - Tilt.Y * 0.004), "paint_2");
+	// A sun visor over the top edge on the bigger units.
+	if (Style == "adventure" || Style == "tablet" || Style == "road")
+		Code("", CodeShapes::Box(V3(Sw + 0.024, 0.004, 0.035)), AtWith(Tilt * GAffine::Rotation(GodotRight, -0.5), At + Tilt.Apply(V3(0.0, 0.03, -Sh * 0.5 - 0.008))), "paint");
+	// The screen: a quad on the face (its map is drawn live).
+	CodeShapes::GMesh Quad;
+	for (double Y : {-1.0, 1.0})
+		for (double X : {-1.0, 1.0}) Quad.Add(V3(X * Sw * 0.5, Y * Sh * 0.5, 0.0), V3(0.0, 0.0, 1.0), X * 0.5 + 0.5, 0.5 - Y * 0.5);
+	Quad.Quad(0, 1, 2, 3);
+	Code("SatnavScreen", Quad, AtWith(Tilt * GAffine::Rotation(GodotRight, -TorqueSim::Pi * 0.5), At + Tilt.Y * 0.0135), "glass");
 }
 
 void BikeParts::Phone(const Json& P, const Layout& L, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const
@@ -2829,17 +3036,9 @@ void BikeParts::Phone(const Json& P, const Layout& L, const Bars& Bar, const std
 	if (Best < 0) return;
 	const GAffine Bs = Facing(At);
 	const GAffine Cradle = AtWith(Bs, At + H);   // in the bike's space
+	CodeShapes::GodotNames Named;
 	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
-		auto Made = std::make_shared<PartMesh>();
-		Made->Surfaces.push_back(CodeShapes::ToOurs(M, Xf, Tag));
-		FittedPart F;
-		F.Slot = "satnav";
-		F.Glb = "kit/phone.glb";
-		F.Node = "steer";
-		F.Made = Made;
-		F.Code = true;
-		F.Name = Name;
-		Out.push_back(F);
+		CodeShapes::Emit(Out, "satnav", "kit/phone.glb", "steer", Named(Name), M, Xf, Tag);
 	};
 	auto InCradle = [&](const std::string& Name, const V3& C, const V3& S, const std::string& Tag) { Code(Name, CodeShapes::Box(S), Cradle * GAffine::At(C), Tag); };
 	Put(Out, "satnav", "kit/phone.glb", Cradle * GAffine::Scale(V3(Half.x / 0.068, Half.y / 0.0435, 1.0)), "steer");
