@@ -426,7 +426,7 @@ void ATorqueBikePawn::BuildModel()
 void ATorqueBikePawn::ApplyRideFit(const TArray<FName>& PartSlots, const TArray<FName>& PartGroups, const TArray<FTransform>& PartRest)
 {
 	RideFit.Reset();
-	LeverFit[0] = LeverFit[1] = GripFitMove[0] = GripFitMove[1] = FTransform::Identity;
+	LeverFit[0] = LeverFit[1] = GripFitMove[0] = GripFitMove[1] = SeatFitMove = PegFitMove = FTransform::Identity;
 	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
 	const int32 Bay = UTorqueBuildSubsystem::BikeFor(this);
 	if (!Sub || Bay < 0 || !Sub->Exists(Bay) || Sub->Bike(Bay).Geo.IsEmpty()) return;
@@ -449,6 +449,9 @@ void ATorqueBikePawn::ApplyRideFit(const TArray<FName>& PartSlots, const TArray<
 	TMap<FName, FTransform> Moves;
 	TorqueGeometryMode::SlotMoves(Geo, Pivots, Moves);
 	if (Moves.Num() == 0) return;
+	// The rider sits on the seat and rests his feet on the pegs (on the frame: bike's frame offsets).
+	if (const FTransform* Seat = Moves.Find(FName(TEXT("saddle")))) SeatFitMove = *Seat;
+	if (const FTransform* Pegs = Moves.Find(FName(TEXT("rearsets")))) PegFitMove = *Pegs;
 	static const FName FrontWheelGroup(TEXT("front_wheel")), RearWheelGroup(TEXT("rear_wheel"));
 	static const FName FrontLowerGroup(TEXT("front_lower")), SwingarmGroup(TEXT("swingarm"));
 	int32 Moved = 0;
@@ -1321,6 +1324,8 @@ void ATorqueBikePawn::UpdateRider()
 		}
 		In.GripFit[0] = GripDelta[0] * GripFitMove[0];
 		In.GripFit[1] = GripDelta[1] * GripFitMove[1];
+		In.SeatFit = SeatFitMove;
+		In.PegFit[0] = In.PegFit[1] = PegFitMove;
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		return;

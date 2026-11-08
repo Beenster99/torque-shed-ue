@@ -187,6 +187,8 @@ private:
 	FTransform LeverFit[2] = {FTransform::Identity, FTransform::Identity};
 	FTransform GripFitMove[2] = {FTransform::Identity, FTransform::Identity};
 	UStaticMeshComponent* GripParts[2] = {nullptr, nullptr};   // (in ModelParts)
+	FTransform SeatFitMove = FTransform::Identity;             // the saddle's offset: the rider's hips
+	FTransform PegFitMove = FTransform::Identity;              // the rearsets': the rider's feet
 	void ApplyRideFit(const TArray<FName>& PartSlots, const TArray<FName>& PartGroups, const TArray<FTransform>& PartRest);
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)

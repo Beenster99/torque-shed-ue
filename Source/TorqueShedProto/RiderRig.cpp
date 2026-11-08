@@ -259,7 +259,7 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 	};
 
 	// The back: the whole spine turns so its top goes where the chest is put, shared up the bones.
-	const FVector Hip = Bones[Pelvis].Rest + FVector(0.0, In.HipShift, 0.0);
+	const FVector Hip = In.SeatFit.TransformPosition(Bones[Pelvis].Rest) + FVector(0.0, In.HipShift, 0.0);
 	const FVector Top0 = Bones[Neck].Rest - Bones[Pelvis].Rest;
 	const FVector Top1 = Bones[Neck].Rest + In.ChestShift - Hip;
 	const FQuat Back = FQuat::FindBetweenVectors(Top0, Top1);
@@ -311,7 +311,7 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				// Feet on the pegs, or down on the road as the bike stops.
 				const FVector A0 = Bones[Foot[S]].Rest, K0 = Bones[Calf[S]].Rest, H0 = Bones[I].Rest;
 				const FVector Down = S == 0 ? In.FootDownL : In.FootDownR;
-				const FVector A = FMath::Lerp(A0, Down, FMath::Clamp(In.FeetDown, 0.0, 1.0));
+				const FVector A = FMath::Lerp(In.PegFit[S].TransformPosition(A0), Down, FMath::Clamp(In.FeetDown, 0.0, 1.0));
 				const double Lt = (K0 - H0).Size(), Ls = (A0 - K0).Size();
 				const FVector Pole = (KneePole[S] + FVector(0.0, 0.0, 0.6) * In.FeetDown).GetSafeNormal();
 				const FVector K = RigMidJoint(P[I], A, Lt, Ls, Pole);
