@@ -102,18 +102,33 @@ void ATorqueHUD::DrawRiderNames()
 	if (PC) PC->GetPlayerViewPoint(Eye, EyeRot);
 	UFont* Font = GEngine->GetLargeFont();
 	const float Sc = Canvas->ClipY / 1080.0f;
+	int32 Others = 0, NoState = 0, Behind = 0, Drawn = 0;
 	for (TActorIterator<APawn> It(GetWorld()); It; ++It)
 	{
 		const APawn* P = *It;
 		if (P == Mine || P->IsA<ATorqueMenuPawn>()) continue;
+		++Others;
 		const APlayerState* PS = P->GetPlayerState();
-		if (!PS) continue;
-		const FVector Head = P->GetActorLocation() + FVector(0.0, 0.0, P->IsA<ATorqueBikePawn>() ? 185.0 : 110.0);
-		const FVector Screen = Project(Head, true);
-		if (Screen.Z <= 0.0) continue;   // behind the camera
+		if (!PS)
+		{
+			++NoState;
+			continue;
+		}
+		// Over the head: the bike's rider, or a walker's capsule top (plus a hand's width).
+		const double Up = P->IsA<ATorqueBikePawn>() ? 185.0 : P->GetSimpleCollisionHalfHeight() + 35.0;
+		const FVector Head = P->GetActorLocation() + FVector(0.0, 0.0, Up);
+		const FVector Ahead = PC ? EyeRot.Vector() : FVector::ForwardVector;
+		if (FVector::DotProduct(Head - Eye, Ahead) <= 10.0)
+		{
+			++Behind;   // behind the camera
+			continue;
+		}
+		const FVector Screen = Project(Head, false);
+		++Drawn;
 		const double Metres = FVector::Dist(Eye, Head) / 100.0;
 		const FString Text = Metres < 30.0 ? PS->GetPlayerName() : FString::Printf(TEXT("%s  %.0f m"), *PS->GetPlayerName(), Metres);
-		const float K = Sc * (Metres < 100.0 ? 1.0f : 0.8f);
+		// Big enough to read at a glance (and in a small window): as the HUD's main lines.
+		const float K = Sc * (Metres < 30.0 ? 1.5f : Metres < 100.0 ? 1.2f : 1.0f);
 		float W = 0, H = 0;
 		Canvas->StrLen(Font, Text, W, H);
 		const float X = Screen.X - 0.5f * W * K, Y = Screen.Y - H * K;
@@ -139,5 +154,13 @@ void ATorqueHUD::DrawRiderNames()
 			Canvas->SetDrawColor(FColor(200, 230, 200));
 			Canvas->DrawText(Font, TPS->Activity, AX, AY, AK, AK);
 		}
+	}
+	// Once every 10 s in co-op, so a test can tell why a name tag isn't there.
+	NameLogClock -= GetWorld()->GetDeltaSeconds();
+	if (NameLogClock <= 0.0f)
+	{
+		NameLogClock = 10.0f;
+		UE_LOG(LogTemp, Log, TEXT("Torque net: name tags: %d drawn of %d other players (%d without a player state yet, %d behind the camera)"),
+			Drawn, Others, NoState, Behind);
 	}
 }

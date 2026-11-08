@@ -19,6 +19,12 @@ works: the host runs the session, and every rider simulates their own bike.
 4. The first time the game hosts, Windows asks whether to let it through the firewall: tick both
    Private and Public networks.
 
+Looking after the router: the port is only asked for when a player hosts for real (never on a
+`-Torque` test run or in the editor, and not with Settings > Gameplay > "Open my router for internet
+friends" off). It has a two hour lease, renewed hourly while hosting, and is removed when hosting
+ends and when the game closes. If the game is killed while hosting, the next start-up removes it
+(it's noted in GameUserSettings.ini as `UpnpOpenPort`).
+
 If the host's internet provider shares one public address between many homes (carrier-grade NAT),
 no port can be opened; EOS friend codes (the last section) get round that.
 
@@ -47,7 +53,10 @@ Ported from Torque Shed's (`scripts/main_menu.gd`), with the same names and orde
   - Graphics: quality preset, window mode, resolution, upscaler (NVIDIA DLSS, the default, or Unreal
     TSR; render scale 100% with DLSS is DLAA), render scale, frame-rate cap, VSync, motion blur.
   - Sound: sound effects volume, engines volume.
-  - Gameplay: riding realism (0 full sim .. 1 easy, Torque Shed's words for it).
+  - Gameplay: riding realism (0 full sim .. 1 easy, Torque Shed's words for it), and "Open my
+    router for internet friends" (on, as Torque Shed always did).
+  Settings is Torque Shed's tabs: Q / E, L1 / R1 or LB / RB (or Left / Right on a row that isn't a
+  setting) move between them.
   - Controller: mouse and stick look speeds, invert, the lean stick's dead zone and response, and
     every key and button.
   - Character: your name and colour, as everyone in co-op sees them.

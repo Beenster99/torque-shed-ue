@@ -163,7 +163,7 @@ void ATorquePlayerController::OpenPause()
 void ATorquePlayerController::OpenSettings()
 {
 	Stack.Reset();
-	Open(EPage::Settings);
+	Open(EPage::Graphics);
 }
 
 void ATorquePlayerController::CloseMenu()
@@ -185,19 +185,39 @@ bool ATorquePlayerController::WantsPause()
 	return P && (P->IsA<ATorqueBikePawn>() || P->IsA<ATorqueWalker>());
 }
 
-FString ATorquePlayerController::Title() const
+namespace
+{
+// Settings is Torque Shed's tabs: Graphics, Sound, Gameplay, Controller, Character.
+const TCHAR* TabNames[] = {TEXT("Graphics"), TEXT("Sound"), TEXT("Gameplay"), TEXT("Controller"), TEXT("Character")};
+} // namespace
+
+int32 ATorquePlayerController::TabIndex() const
 {
 	switch (Page)
 	{
-	case EPage::Pause: return TEXT("PAUSED");
-	case EPage::Settings: return TEXT("SETTINGS");
-	case EPage::Graphics: return TEXT("GRAPHICS");
-	case EPage::Sound: return TEXT("SOUND");
-	case EPage::Controller: return TEXT("CONTROLLER");
-	case EPage::Character: return TEXT("CHARACTER");
-	case EPage::Gameplay: return TEXT("GAMEPLAY");
-	default: return FString();
+	case EPage::Graphics: return 0;
+	case EPage::Sound: return 1;
+	case EPage::Gameplay: return 2;
+	case EPage::Controller: return 3;
+	case EPage::Character: return 4;
+	default: return -1;
 	}
+}
+
+void ATorquePlayerController::SwitchTab(int32 Dir)
+{
+	static const EPage Tabs[] = {EPage::Graphics, EPage::Sound, EPage::Gameplay, EPage::Controller, EPage::Character};
+	const int32 At = TabIndex();
+	if (At < 0) return;
+	if (Page == EPage::Character) Changed();   // leaving the name keeps it
+	Page = Tabs[Wrap(At + Dir, 5)];   // a tab, not a new page: Back still goes to where Settings was opened from
+	Selected = 0;
+}
+
+FString ATorquePlayerController::Title() const
+{
+	if (Page == EPage::Pause) return TEXT("PAUSED");
+	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
 void ATorquePlayerController::Changed()
@@ -235,7 +255,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	case EPage::Pause:
 	{
 		Add(TEXT("Continue"), FString(), FString(), [this]() { CloseMenu(); });
-		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Character"), [this]() { Open(EPage::Settings); });
+		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Character"), [this]() { Open(EPage::Graphics); });
 		if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn()))
 		{
 			Add(TEXT("Restart the ride"), FString(), TEXT("Back to the start of the road (Home)"), [this, Bike]() {
@@ -448,6 +468,21 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	if (Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (Hit & ESonyButton::DDown)) MoveY = 1;
 	if (Just(EKeys::Left) || Just(EKeys::Gamepad_DPad_Left) || (Hit & ESonyButton::DLeft)) MoveX = -1;
 	if (Just(EKeys::Right) || Just(EKeys::Gamepad_DPad_Right) || (Hit & ESonyButton::DRight)) MoveX = 1;
+	// Settings' tabs: Q / E, the bumpers (L1 / R1, LB / RB), or Left / Right on a row that isn't a setting.
+	if (TabIndex() >= 0)
+	{
+		int32 Tab = 0;
+		if (!bTyping && (Just(EKeys::Q) || Just(EKeys::PageUp))) Tab = -1;
+		if (!bTyping && (Just(EKeys::E) || Just(EKeys::PageDown))) Tab = 1;
+		if (Just(EKeys::Gamepad_LeftShoulder) || (Hit & ESonyButton::L1)) Tab = -1;
+		if (Just(EKeys::Gamepad_RightShoulder) || (Hit & ESonyButton::R1)) Tab = 1;
+		if (MoveY == 0 && MoveX != 0 && !List[Selected].Step && !bTyping) Tab = MoveX;
+		if (Tab != 0)
+		{
+			SwitchTab(Tab);
+			return;
+		}
+	}
 	if (MoveY != 0) Selected = Wrap(Selected + MoveY, List.Num());
 	else if (MoveX != 0 && List[Selected].Step) List[Selected].Step(MoveX);
 
@@ -480,6 +515,25 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		Y += H * K + 14.0f * Sc;
 	};
 	Line(Title(), FColor::White, 2.6f, 0.45f);
+	if (TabIndex() >= 0)
+	{
+		// The tab bar: the one open bright, the others dim.
+		float TX = X;
+		for (int32 T = 0; T < 5; ++T)
+		{
+			const bool bOn = T == TabIndex();
+			const FString Tab = FString::Printf(TEXT("  %s  "), TabNames[T]);
+			float W = 0, H = 0;
+			Canvas->StrLen(Font, Tab, W, H);
+			const float K = Sc * 1.3f;
+			Hud->DrawRect(bOn ? FLinearColor(0.85f, 0.65f, 0.25f, 0.85f) : FLinearColor(0, 0, 0, 0.45f), TX, Y - 4.0f * Sc, W * K, H * K + 8.0f * Sc);
+			Canvas->SetDrawColor(bOn ? FColor(20, 20, 20) : FColor(220, 220, 220));
+			Canvas->DrawText(Font, Tab, TX, Y, K, K);
+			TX += W * K + 8.0f * Sc;
+			if (T == 4) Y += H * K + 18.0f * Sc;
+		}
+		Line(TEXT("Q / E, L1 / R1 or LB / RB: the other tabs"), FColor(190, 190, 190), 0.85f, 0.0f);
+	}
 	// As Torque Shed's Esc menu: hosting, exactly what to tell friends; who's here.
 	if (Page == EPage::Pause)
 	{

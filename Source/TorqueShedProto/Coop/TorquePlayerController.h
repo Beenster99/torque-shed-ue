@@ -73,6 +73,8 @@ private:
 	void Open(EPage P);
 	void Back();
 	FString Title() const;
+	int32 TabIndex() const;      // Settings' tab open (0 Graphics .. 4 Character), -1 for none
+	void SwitchTab(int32 Dir);
 	TArray<FRow> Rows();
 	void Changed();
 public:

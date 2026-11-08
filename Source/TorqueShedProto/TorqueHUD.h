@@ -15,4 +15,5 @@ public:
 
 private:
 	void DrawRiderNames();
+	float NameLogClock = 2.0f;
 };
