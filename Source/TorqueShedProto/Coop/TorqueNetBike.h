@@ -5,7 +5,9 @@
 // clock and the engine sound all follow, and a crash throws the rider off on every screen.
 //
 // The snapshots go client -> host as an unreliable server call, and host -> the other clients as a
-// replicated property that skips its owner. The host's own bike sets the property directly.
+// replicated property that skips its owner, holding the last four, so a host whose game runs slower
+// than 30 frames a second (each frame replicates once) still passes every snapshot on. The host's own
+// bike sets the property directly.
 //
 // This component sits on ATorqueBikePawn, which asks it each frame whether the bike is someone
 // else's (IsRemote) and, if so, lets it fill the sim's fields instead of stepping the sim.
@@ -79,7 +81,12 @@ public:
 	float SendHz = 30.f;
 
 private:
-	UPROPERTY(ReplicatedUsing = OnRep_State) FTorqueBikeNetState State;
+	// The newest few snapshots, written round in turn (RecentNext is the next to overwrite).
+	static constexpr int32 RecentCount = 4;
+	UPROPERTY(ReplicatedUsing = OnRep_State) FTorqueBikeNetState Recent[4];   // RecentCount (UHT wants a number)
+	int32 RecentNext = 0;
+	int32 LastPushedSeq = 0;
+	void Keep(const FTorqueBikeNetState& S);
 
 	UFUNCTION() void OnRep_State();
 	UFUNCTION(Server, Unreliable) void ServerState(const FTorqueBikeNetState& S);
@@ -99,8 +106,8 @@ private:
 	// Once a second: rates for the HUD and the log (Saved/Logs, "Torque net:" lines).
 	double StatClock = 0.0;
 	int32 LogCount = 9;             // the first summary goes in the log straight away
-	int32 SentInSecond = 0;
+	int32 SentInSecond = 0, FramesInSecond = 0;
 	int64 RxAtLast = 0, FramesAtLast = 0, ExtrapAtLast = 0, HeldAtLast = 0;
-	float TxHz = 0.f, RxHz = 0.f, ExtrapPct = 0.f;
+	float TxHz = 0.f, RxHz = 0.f, ExtrapPct = 0.f, Fps = 0.f;
 	FString Summary;
 };

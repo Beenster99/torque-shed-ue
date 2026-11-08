@@ -34,6 +34,21 @@ void ATorqueGameMode::BeginPlay()
 	{
 		GAreScreenMessagesEnabled = false;
 	}
+	// The game starts in the shed, but hands-off ride tests (-TorqueAutoRide, -TorqueStartKm=,
+	// -TorqueCamera=, -TorqueRide) want the road: straight there, as before the shed.
+	if (GetNetMode() == NM_Standalone && IsShed() && !UGameplayStatics::HasOption(OptionsString, TEXT("play")))
+	{
+		const TCHAR* Cmd = FCommandLine::Get();
+		FString Ignored;
+		int32 IgnoredInt = 0;
+		if (FParse::Param(Cmd, TEXT("TorqueAutoRide")) || FParse::Param(Cmd, TEXT("TorqueRide")) ||
+			FParse::Value(Cmd, TEXT("TorqueStartKm="), Ignored) || FParse::Value(Cmd, TEXT("TorqueCamera="), IgnoredInt))
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque: a ride test: to %s"), UTorqueSession::RideMap);
+			GEngine->SetClientTravel(GetWorld(), *(FString(UTorqueSession::RideMap) + TEXT("?play")), TRAVEL_Absolute);
+			return;
+		}
+	}
 	// Hosting: tell the network (the menu's LAN list) there's a ride to join.
 	if (GetNetMode() == NM_ListenServer)
 	{

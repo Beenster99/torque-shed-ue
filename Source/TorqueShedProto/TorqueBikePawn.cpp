@@ -115,6 +115,7 @@ ATorqueBikePawn::ATorqueBikePawn()
 	SetReplicateMovement(false);
 	bAlwaysRelevant = true;
 	SetNetUpdateFrequency(60.f);
+	SetMinNetUpdateFrequency(30.f);
 	NetBike = CreateDefaultSubobject<UTorqueNetBikeComponent>(TEXT("NetBike"));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));

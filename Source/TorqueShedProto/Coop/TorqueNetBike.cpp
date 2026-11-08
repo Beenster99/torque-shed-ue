@@ -51,7 +51,7 @@ void UTorqueNetBikeComponent::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UTorqueNetBikeComponent, Slot);
-	DOREPLIFETIME_CONDITION(UTorqueNetBikeComponent, State, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(UTorqueNetBikeComponent, Recent, COND_SkipOwner);
 }
 
 void UTorqueNetBikeComponent::BeginPlay()
@@ -128,6 +128,8 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 
 void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 {
+	if (S.Seq <= LastPushedSeq) return;   // already have it (the property carries the last few)
+	LastPushedSeq = S.Seq;
 	TorqueNet::Snap N;
 	N.Time = S.Time;
 	N.Pos[0] = S.Pos.X; N.Pos[1] = S.Pos.Y; N.Pos[2] = S.Pos.Z;
@@ -161,12 +163,26 @@ void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 
 void UTorqueNetBikeComponent::OnRep_State()
 {
-	Receive(State);
+	// Oldest first, skipping any already taken.
+	int32 Order[RecentCount];
+	for (int32 I = 0; I < RecentCount; ++I) Order[I] = I;
+	for (int32 I = 1; I < RecentCount; ++I)
+		for (int32 J = I; J > 0 && Recent[Order[J]].Seq < Recent[Order[J - 1]].Seq; --J) Swap(Order[J], Order[J - 1]);
+	for (int32 I = 0; I < RecentCount; ++I)
+		if (Recent[Order[I]].Seq > 0) Receive(Recent[Order[I]]);
+}
+
+void UTorqueNetBikeComponent::Keep(const FTorqueBikeNetState& S)
+{
+	Recent[RecentNext] = S;
+	RecentNext = (RecentNext + 1) % RecentCount;
+	// Out in this frame's replication, not whenever the actor's turn next comes round.
+	if (AActor* MyOwner = GetOwner()) MyOwner->ForceNetUpdate();
 }
 
 void UTorqueNetBikeComponent::ServerState_Implementation(const FTorqueBikeNetState& S)
 {
-	State = S;      // on to the other riders
+	Keep(S);        // on to the other riders
 	Receive(S);     // and drawn on the host
 }
 
@@ -278,13 +294,16 @@ void UTorqueNetBikeComponent::AfterTick(float DeltaSeconds)
 			Capture(S);
 			S.Seq = ++SendSeq;
 			++SentInSecond;
-			if (B->HasAuthority()) State = S;   // the host's own bike: straight to the others
+			if (B->HasAuthority()) Keep(S);   // the host's own bike: straight to the others
 			else ServerState(S);
 		}
 	}
 
 	StatClock += DeltaSeconds;
+	++FramesInSecond;
 	if (StatClock < 1.0) return;
+	Fps = (float)(FramesInSecond / StatClock);
+	FramesInSecond = 0;
 	const TorqueNet::SmootherStats& St = Smooth.Stats;
 	TxHz = (float)(SentInSecond / StatClock);
 	RxHz = (float)((St.Received - RxAtLast) / StatClock);
@@ -309,8 +328,8 @@ void UTorqueNetBikeComponent::AfterTick(float DeltaSeconds)
 	{
 		const APlayerState* PS = B->GetPlayerState();
 		const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
-		Summary = FString::Printf(TEXT("%s (this machine, %s): tx %.1f/s, ping %.0f ms, riders %d"),
-			*RiderName(B), B->HasAuthority() ? TEXT("host") : TEXT("client"), TxHz, PS ? PS->GetPingInMilliseconds() : 0.f,
+		Summary = FString::Printf(TEXT("%s (this machine, %s): %.0f fps, tx %.1f/s, ping %.0f ms, riders %d"),
+			*RiderName(B), B->HasAuthority() ? TEXT("host") : TEXT("client"), Fps, TxHz, PS ? PS->GetPingInMilliseconds() : 0.f,
 			GS ? GS->PlayerArray.Num() : 0);
 	}
 	// Into the log every second with -TorqueNetLog, else every ten.
