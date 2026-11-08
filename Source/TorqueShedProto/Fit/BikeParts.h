@@ -159,6 +159,11 @@ private:
 	// fuel tank and a toolbox (BikeModel._draw_panniers, _draw_top_box, _draw_fog_lights;
 	// KitModel._aux_tank, _toolbox). Their straps, latches and soft bags' code shapes aren't here.
 	void Luggage(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// A fairing on the bars (a flyscreen, headlight cowl, bikini or batwing) and its screen, as the
+	// code lofts them, given the thickness and edges of the Blender edge sections and the screen's
+	// fasteners (BikeModel._draw_fairing_code, _blender_fairing; BlenderParts.shell). Needs the
+	// mesh source (the edge sections are measured).
+	void BarFairing(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// The tank bag's Blender body laid along the tank's top (KitModel._blender_bag).
 	void TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// The rear brake's master cylinder (BikeModel._draw_rear_master).
