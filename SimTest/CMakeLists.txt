@@ -52,3 +52,13 @@ target_include_directories(upnp_test PRIVATE ${COOP})
 if(NOT MSVC)
   target_compile_options(upnp_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# Geometry mode's fit (the Godot game's GeoGizmo and apply_geometry, plus finer control): checked
+# against the real game's answers, then applied to every reference bike.
+add_executable(geo_test geo_test.cpp ${FIT}/BikeGeometry.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp)
+target_include_directories(geo_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(geo_test PRIVATE /W4)
+else()
+  target_compile_options(geo_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

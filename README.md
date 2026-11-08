@@ -213,6 +213,17 @@ neck gusset, the rearsets' hanger plates and the engine mounting plates and head
 nearest tube (_draw_rig_fittings). `layout_test` checks every slot whole against Godot (its
 NotWhole list, for a slot whose code pieces aren't all ported, is now empty).
 
+Geometry mode's fit is `Fit/BikeGeometry`, a port of Godot's geometry mode (geo_gizmo.gd,
+geometry_mode.gd, BikeModel.apply_geometry): the rig's four range handles and, with Expert free
+move, a move, turn and size per slot about the part's middle, Ctrl snapping to 1 cm, 5 degrees and
+5%. On top of it, finer control: Ctrl+Shift snaps to 1 mm, half a degree and 1%, Shift drags at a
+tenth of the mouse, keys or a pad nudge the part a step at a time, a readout value can be typed in,
+moves can follow the part's own turned axes, and the gaps from the moved part to its neighbours are
+listed. A bike's fit travels as text (`Geo::ToText`, sanitized by the host), so co-op shares it as
+it shares part fits. `geo_test` checks the maths case by case against the real game
+(`SimTest/data/godot_geo.json`, from `Tools/make_godot_reference.py --geo`) and applies a fit to
+every reference bike.
+
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
 without crashing and within 3 m of the centre line (its run takes 234 s, leaning up to 32 degrees).
