@@ -33,6 +33,7 @@
 #include "Engine/DirectionalLight.h"
 #include "Engine/SkyLight.h"
 #include "Engine/ExponentialHeightFog.h"
+#include "Engine/PostProcessVolume.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Materials/MaterialParameterCollection.h"
 
@@ -1350,6 +1351,8 @@ void ATorqueBikePawn::ApplyWeather()
 	for (TActorIterator<AExponentialHeightFog> It(W); It && !Fog; ++It) Fog = It->GetComponent();
 	USkyAtmosphereComponent* Atmo = nullptr;
 	for (TActorIterator<AActor> It(W); It && !Atmo; ++It) Atmo = It->FindComponentByClass<USkyAtmosphereComponent>();
+	APostProcessVolume* Ppv = nullptr;
+	for (TActorIterator<APostProcessVolume> It(W); It && !Ppv; ++It) if (It->bUnbound) Ppv = *It;
 	if (!bWeatherCaptured)
 	{
 		bWeatherCaptured = true;
@@ -1357,15 +1360,25 @@ void ATorqueBikePawn::ApplyWeather()
 		if (Sky) SkyIntensity = Sky->Intensity;
 		if (Fog) FogDensity = Fog->FogDensity;
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
+		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; }
 	}
 	const bool bDull = Weather >= 1;
 	const bool bWet = Weather == 2;
 	if (Sun)
 	{
-		Sun->SetIntensity(bDull ? SunLux * (bWet ? 0.03f : 0.05f) : SunLux);
+		Sun->SetIntensity(bDull ? SunLux * (bWet ? 0.10f : 0.14f) : SunLux);
 		Sun->SetLightSourceAngle(bDull ? 40.0f : SunAngle);   // a sun behind cloud: next to no shadow
 	}
-	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 2.2f : SkyIntensity);
+	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 2.5f : SkyIntensity);
+	// A real camera opens up under cloud: the exposure follows (the level's histogram range was set for
+	// sun, so it clamped and overcast came out far too dark).
+	if (Ppv)
+	{
+		Ppv->Settings.bOverride_AutoExposureBias = true;
+		Ppv->Settings.bOverride_AutoExposureMinBrightness = true;
+		Ppv->Settings.AutoExposureBias = bDull ? ExposureBias + (bWet ? 1.9f : 1.6f) : ExposureBias;
+		Ppv->Settings.AutoExposureMinBrightness = bDull ? ExposureMin - 3.0f : ExposureMin;
+	}
 	if (Fog) Fog->SetFogDensity(bDull ? FogDensity * (bWet ? 3.0f : 2.0f) : FogDensity);
 	if (Atmo)
 	{
