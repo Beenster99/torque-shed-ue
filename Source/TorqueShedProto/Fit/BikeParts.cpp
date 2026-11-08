@@ -814,12 +814,7 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 	}
 
 	// Where the intake meets each cylinder (_intake_points).
-	struct Intake { V3 Port, Dir; };
-	std::vector<Intake> Points;
-	if (EngLayout == "vtwin")
-		Points.push_back({E + V3(0.04, 0.3 * S, 0.0), V3(1.0, 0.05, 0.0).Normalized()});
-	else
-		for (const Cylinder& C : Cyls) Points.push_back({C.Base + C.Up * 0.12 + V3(0.0, 0.0, 0.09), V3(0.0, 0.15, 1.0).Normalized()});
+	const std::vector<Intake> Points = Intakes(Parts, L);
 	V3 Mid;
 	for (const Intake& P : Points) Mid += P.Port;
 	if (!Points.empty()) Mid = Mid / static_cast<double>(Points.size());
@@ -965,6 +960,408 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 	}
 }
 
+BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	Bars Bar;
+	// Everything here is drawn in the steering's space (BikeModel._steer_node: at the head, square
+	// to the bike at rest), then moved to the head.
+	const Json* P = Lay.Part(PartIn(Parts, "handlebars"));
+	const Json* Look = P ? P->Get("look") : nullptr;
+	const double Hw = PartNum(P, "width", 720.0) / 2000.0;
+	const double Rise = PartNum(P, "rise", 0.08);
+	const V3 H = ToGodot(L.Head);
+	const std::string Tube = "frame/tube/round.glb";
+	auto TubeAB = [&](const V3& A, const V3& B, double R) { Sweep(Out, "handlebars", Tube, {A + H, B + H}, {R}, "steer"); };
+	auto Bend = [&](std::vector<V3> Route, double R, const V3& At, const std::string& Node) {
+		for (V3& V : Route) V += At;
+		Sweep(Out, "handlebars", Tube, Route, {R}, Node);
+	};
+	constexpr double GripLen = 0.1;
+	constexpr double BarStraight = 0.17;
+	std::vector<V3> Line;   // the bar's line as drawn, the middle out to the right end
+	V3 Tip;
+	bool HaveTip = false;
+	const std::string Style = Look && Look->Get("bend") ? std::string("Look") : PartStr(P, "style", "Flat");
+	if (Style == "Look")
+	{
+		// (_bent_bar: one bar bent to its look's shape, each end straight for the grip and levers.)
+		const std::string BendKind = PartStr(Look, "bend", "tracker");
+		const double Pull = PartNum(Look, "pull", 0.08), Drop = PartNum(Look, "drop", 0.0);
+		const double Rh = PartNum(Look, "risers", 0.02), Thick = PartNum(Look, "thick", 0.012);
+		std::vector<V3> Right;
+		if (BendKind == "drag") Right = {V3(0.0, Rh, 0.0), V3(Hw * 0.6, Rh + Rise * 0.5, Pull * 0.4), V3(Hw, Rh + Rise, Pull)};
+		else if (BendKind == "buckhorn") Right = {V3(0.0, Rh, 0.0), V3(0.1, Rh, 0.0), V3(0.17, Rh + Rise, -0.02), V3(Hw * 0.85, Rh + Rise + 0.02, Pull * 0.8), V3(Hw, Rh + Rise - Drop - 0.03, Pull)};
+		else if (BendKind == "z") Right = {V3(0.0, Rh, 0.0), V3(0.1, Rh, 0.0), V3(0.12, Rh + 0.02, 0.0), V3(0.13, Rh + Rise - 0.02, 0.01), V3(0.15, Rh + Rise, 0.02), V3(Hw, Rh + Rise - Drop, Pull)};
+		else if (BendKind == "t") Right = {V3(0.0, Rh + Rise, 0.0), V3(Hw * 0.5, Rh + Rise, Pull * 0.3), V3(Hw, Rh + Rise - Drop, Pull)};
+		else if (BendKind == "clubman") Right = {V3(0.0, Rh, 0.0), V3(0.08, Rh, 0.0), V3(0.15, Rh - Drop * 0.7, Pull * 0.5), V3(Hw, Rh - Drop, Pull)};
+		else if (BendKind == "ape") Right = {V3(0.0, Rh, 0.0), V3(0.09, Rh, 0.0), V3(0.12, Rh + Rise * 0.6, -0.01), V3(0.14, Rh + Rise, 0.02), V3(Hw * 0.8, Rh + Rise, Pull * 0.7), V3(Hw, Rh + Rise - Drop - 0.02, Pull)};
+		else Right = {V3(0.0, Rh, 0.0), V3(0.1, Rh, 0.0), V3(0.18, Rh + Rise * 0.8, Pull * 0.4), V3(Hw, Rh + Rise - Drop, Pull)};
+		{
+			// (_straight_ends: the end run straight the way the bar heads into it, within reason.)
+			const V3 End = Right.back(), Prev = Right[Right.size() - 2];
+			const double Dx = std::max(End.x - Prev.x, 0.02);
+			const V3 OutDir = V3(1.0, TorqueSim::Clamp((End.y - Prev.y) / Dx, -0.35, 0.25), TorqueSim::Clamp((End.z - Prev.z) / Dx, -0.1, 0.6)).Normalized();
+			const V3 Start = End - OutDir * BarStraight, Lead = End - OutDir * (BarStraight + 0.03);
+			std::vector<V3> Kept = {Right[0]};
+			for (size_t I = 1; I + 1 < Right.size(); ++I)
+				if (Right[I].x < Lead.x - 0.015) Kept.push_back(Right[I]);
+			Kept.insert(Kept.end(), {Lead, Start, End});
+			Right = Kept;
+		}
+		std::vector<V3> Path;
+		for (size_t I = Right.size() - 1; I > 0; --I) Path.push_back(V3(-Right[I].x, Right[I].y, Right[I].z));
+		Path.insert(Path.end(), Right.begin(), Right.end());
+		Bend(Path, Thick, H, "steer");
+		const std::vector<V3> Drawn = SmoothCurve(Path, 6);
+		Line.assign(Drawn.begin() + static_cast<long>((Right.size() - 1) * 6), Drawn.end());
+		if (BendKind == "t")
+			TubeAB(V3(0.0, -0.01, 0.0), V3(0.0, Rh + Rise, 0.0), 0.022);
+		else if (Rh > 0.025)
+			for (double Sd : {-1.0, 1.0}) TubeAB(V3(0.04 * Sd, -0.01, 0.0), V3(0.04 * Sd, Rh + 0.005, 0.0), 0.016);
+		else
+			Put(Out, "handlebars", "controls/bar_clamp.glb", GAffine::At(V3(0.0, Rh, 0.0) + H), "steer");
+		if (Look->Flag("brace"))
+		{
+			// The cross brace, where the bar has risen 60% of the way to its end, no further out than 0.16.
+			const double Top = Right.back().y;
+			V3 At = Line.back();
+			for (size_t I = 1; I < Line.size(); ++I)
+				if (Line[I].x >= 0.16 && Line[I - 1].x <= 0.16)
+				{
+					At = MixV(Line[I - 1], Line[I], (0.16 - Line[I - 1].x) / std::max(Line[I].x - Line[I - 1].x, 0.0001));
+					break;
+				}
+			for (size_t I = 1; I < Line.size(); ++I)
+				if (Line[I].y >= TorqueSim::Lerp(Rh, Top, 0.6) && Line[I].x <= 0.16)
+				{
+					At = Line[I];
+					break;
+				}
+			TubeAB(V3(-At.x, At.y, At.z), At, 0.009);
+			// (Its pad is code-drawn: only the clocks need to know where it is.)
+			if (Look->Flag("pad")) { Bar.HasPad = true; Bar.Pad = V3(0.0, At.y, At.z); }
+		}
+		Tip = Right.back();
+		HaveTip = true;
+		Bar.R = Thick;
+	}
+	else if (Style == "Clip-ons")
+	{
+		for (double Sd : {-1.0, 1.0}) TubeAB(V3(0.09 * Sd, -0.07, 0.0), V3(Hw * Sd, Rise, 0.13), 0.013);
+		Line = {V3(0.09, -0.07, 0.0), V3(Hw, Rise, 0.13)};
+		Bar.R = 0.013;
+	}
+	else if (Style == "Ape hanger")
+	{
+		for (double Sd : {-1.0, 1.0})
+		{
+			const V3 PostTop(0.12 * Sd, Rise, 0.0);
+			TubeAB(V3(0.05 * Sd, 0.02, 0.0), PostTop, 0.012);
+			TubeAB(PostTop, V3(Hw * Sd, Rise - 0.03, 0.14), 0.012);
+		}
+		Line = {V3(0.05, 0.02, 0.0), V3(0.12, Rise, 0.0), V3(Hw, Rise - 0.03, 0.14)};
+		Bar.R = 0.012;
+	}
+	else if (Style == "MX braced")
+	{
+		for (double Sd : {-1.0, 1.0})
+		{
+			const V3 Mid(0.14 * Sd, Rise, 0.0);
+			TubeAB(Mid, V3(Hw * Sd, Rise + 0.03, 0.1), 0.014);
+			TubeAB(V3(0.04 * Sd, 0.02, 0.0), Mid, 0.016);
+		}
+		TubeAB(V3(-0.14, Rise, 0.0), V3(0.14, Rise, 0.0), 0.014);
+		TubeAB(V3(-0.12, Rise + 0.07, 0.01), V3(0.12, Rise + 0.07, 0.01), 0.01);
+		Line = {V3(0.0, Rise, 0.0), V3(0.14, Rise, 0.0), V3(Hw, Rise + 0.03, 0.1)};
+		Bar.R = 0.014;
+	}
+	else
+	{
+		TubeAB(V3(-Hw, Rise, 0.06), V3(Hw, Rise, 0.06), 0.012);
+		for (double Sd : {-1.0, 1.0}) TubeAB(V3(0.04 * Sd, 0.0, 0.0), V3(0.04 * Sd, Rise, 0.06), 0.014);
+		Line = {V3(0.0, Rise, 0.06), V3(Hw, Rise, 0.06)};
+		Bar.R = 0.012;
+	}
+	if (!HaveTip || (Tip.x == 0.0 && Tip.y == 0.0 && Tip.z == 0.0)) Tip = Line.back();
+	const V3 OutR = (Tip - Line[Line.size() - 2]).Normalized();
+	Bar.Line = Line;
+	Bar.Tip = Tip;
+	Bar.Out = OutR;
+	auto BarEnd = [&](double Sd) { return V3(Tip.x * Sd, Tip.y, Tip.z); };
+	auto BarOut = [&](double Sd) { return V3(OutR.x * Sd, OutR.y, OutR.z); };
+	// (_bar_end_basis: X along the bar to the rider's right, Y up off it, Z back to the rider.)
+	auto EndBasis = [&](double Sd) {
+		const V3 X = BarOut(Sd) * Sd;
+		const V3 Z = X.Cross(GodotUp).Normalized();
+		return BasisCols(X, Z.Cross(X).Normalized(), Z);
+	};
+	for (double Sd : {-1.0, 1.0})
+		Put(Out, "handlebars", "controls/grip.glb", AtWith(BasisUp(BarOut(Sd)), BarEnd(Sd) - BarOut(Sd) * GripLen + H), "steer");
+
+	// The controls on the bar (_draw_controls).
+	const GAffine Bl = EndBasis(-1.0), Br = EndBasis(1.0);
+	const V3 LEnd = BarEnd(-1.0), REnd = BarEnd(1.0);
+	const V3 SwL = LEnd + Bl.X * 0.118, Thr = REnd + Br.X * -0.103, Perch = LEnd + Bl.X * 0.152;
+	Put(Out, "handlebars", "controls/switch_left.glb", AtWith(Bl, SwL + H), "steer");
+	Put(Out, "handlebars", "controls/throttle.glb", AtWith(Br, Thr + H), "steer");
+	for (double Sd : {-1.0, 1.0})
+		Put(Out, "handlebars", "controls/bar_end.glb", AtWith(BasisUp(BarOut(Sd)), BarEnd(Sd) + H), "steer");
+	Put(Out, "handlebars", "controls/clutch_perch.glb", AtWith(Bl, Perch + H), "steer");
+	Put(Out, "handlebars", "controls/lever.glb", AtWith(Bl, Perch + H), "steer");
+
+	// The front brake's master cylinder just inboard of the right grip, and its lever (the clutch
+	// lever's, mirrored and reaching to where the code's ends: _draw_front_master).
+	{
+		const std::string Type = PartStr(Lay.Part(PartIn(Parts, "front_master")), "type", "");
+		const V3 GripR = REnd - BarOut(1.0) * (GripLen * 0.5);
+		const V3 MAt = GripR + Br.X * -0.08, MTip = GripR + Br.Apply(V3(0.06, -0.012, -0.05));
+		const double Reach = Br.X.Dot(MTip - MAt);
+		constexpr double LeverReach = 0.127;   // BlenderParts.LEVER_REACH
+		Put(Out, "front_master", Type.rfind("Radial", 0) == 0 ? "controls/master_radial.glb" : "controls/master_axial.glb", AtWith(Br, MAt + H), "steer");
+		Put(Out, "front_master", "controls/lever.glb", AtWith(Br * GAffine::Scale(V3(-Reach / LeverReach, 1.0, 1.0)), MAt + H), "steer");
+		// (Its hose is code-drawn.)
+	}
+
+	// The clutch and throttle cables (_draw_cables): down past the head stock, then on in the frame
+	// to the clutch arm and the carbs, a Blender-made adjuster where each goes in.
+	const V3 Axis = ToGodot(L.SteerAxis);
+	const V3 Jl = Axis * -0.24 + V3(-0.055, 0.0, 0.035), Jr = Axis * -0.24 + V3(0.055, 0.0, 0.035);
+	constexpr double CableR = 0.0042;
+	Bend({Perch + Bl.Apply(V3(0.012, 0.0, -0.05)), MixV(Perch, Jl, 0.35) + V3(0.0, 0.03, -0.14), Jl}, CableR, H, "steer");
+	Bend({Thr + Br.Apply(V3(-0.01, 0.0, -0.02)), MixV(Thr, Jr, 0.35) + V3(0.0, 0.03, -0.14), Jr}, CableR, H, "steer");
+	auto CableEnd = [&](const V3& At, const V3& From) {
+		const V3 F = From.Normalized();
+		Put(Out, "handlebars", "controls/cable_end.glb", AtWith(BasisUp(F), At + F * 0.006), "");
+	};
+	const V3 FJl = H + Jl, FJr = H + Jr;
+	const V3 E = ToGodot(L.Crank);
+	const V3 ClutchEnd = E + V3(-L.Hard.CaseHalfW - 0.02, 0.07 * L.Hard.Scale, 0.15 * L.Hard.Scale);
+	Bend({FJl, FJl + V3(-0.01, -0.06, 0.08), ClutchEnd + V3(-0.015, 0.1, -0.08), ClutchEnd}, CableR, V3(), "");
+	CableEnd(ClutchEnd, V3(-0.015, 0.1, -0.08));
+	const std::vector<Intake> In = Intakes(Parts, L);
+	if (!In.empty())
+	{
+		const V3 ThrEnd = In[0].Port + In[0].Dir * 0.05 + V3(0.03, 0.045, 0.0);
+		Bend({FJr, FJr + V3(0.01, -0.04, 0.08), ThrEnd + V3(0.0, 0.06, -0.06), ThrEnd}, CableR, V3(), "");
+		CableEnd(ThrEnd, V3(0.0, 0.06, -0.06));
+	}
+	return Bar;
+}
+
+void BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
+{
+	// (BikeModel._draw_dashboard, in the steering's space: the clocks lean back 0.9 rad to the rider.)
+	const Json* P = Lay.Part(PartIn(Parts, "dashboard"));
+	const std::string Style = PartStr(P, "style", "analog");
+	const V3 H = ToGodot(L.Head);
+	V3 At(0.0, 0.1, -0.06);
+	const Json* Fairing = Lay.Part(PartIn(Parts, "fairing"));
+	const Json* FLook = Fairing ? Fairing->Get("look") : nullptr;
+	if (PartStr(Fairing, "style", "") == "race" && PartStr(FLook, "shape", "race") != "seeley") At = V3(0.0, 0.01, 0.02);   // behind a race screen
+	const GAffine Tilt = GAffine::Rotation(GodotRight, 0.9);
+	std::vector<std::pair<std::string, V3>> Housings;   // glb, where
+	std::vector<V3> Face;                                // points over the faces (_add_face)
+	auto AddFace = [&](const V3& C, double Hx, double Hz, bool Round) {
+		if (Round)
+		{
+			Face.push_back(C);
+			for (const std::pair<double, int> Ring : {std::pair<double, int>(0.5, 8), std::pair<double, int>(1.0, 12)})
+				for (int I = 0; I < Ring.second; ++I)
+				{
+					const double A = 2.0 * TorqueSim::Pi * I / Ring.second;
+					Face.push_back(C + (Tilt.X * (std::cos(A) * Hx) + Tilt.Z * (std::sin(A) * Hz)) * Ring.first);
+				}
+			return;
+		}
+		for (int I = 0; I < 5; ++I)
+			for (int J = 0; J < 5; ++J) Face.push_back(C + Tilt.X * ((I * 0.5 - 1.0) * Hx) + Tilt.Z * ((J * 0.5 - 1.0) * Hz));
+	};
+	if (Style == "analog" || Style == "twin")
+	{
+		for (double X : Style == "twin" ? std::vector<double>{-0.06, 0.06} : std::vector<double>{0.0})
+		{
+			const V3 C = At + V3(X, 0.0, 0.0);
+			Housings.push_back({"dashboard/dial.glb", C});
+			AddFace(C + Tilt.Y * 0.028, 0.04, 0.04, true);
+		}
+	}
+	else if (Style == "lcd" || Style == "tft")
+	{
+		const bool Tft = Style == "tft";
+		const V3 Size = Tft ? V3(0.2, 0.03, 0.12) : V3(0.16, 0.03, 0.09);
+		Housings.push_back({Tft ? "dashboard/tft.glb" : "dashboard/lcd.glb", At});
+		AddFace(At + Tilt.Y * 0.018, Size.x * 0.5 - 0.01, Size.z * 0.5 - 0.01, false);
+	}
+	else
+	{
+		Housings.push_back({"dashboard/bar.glb", At});
+		AddFace(At + Tilt.Y * 0.018 + Tilt.Z * 0.012, 0.09, 0.025, false);
+	}
+
+	// (_lift_clear_of_bars: the clocks rise in 5 mm steps, up to 0.25, until the bars and what's on
+	// them hide none of the faces from the rider's eye, nor from 3 cm under it. It needs the bars'
+	// meshes, so without a mesh source the clocks stay where they are.)
+	double Lift = 0.0;
+	if (Meshes)
+	{
+		struct Tri { V3 A, B, C; };
+		std::vector<Tri> BarTris;
+		for (const FittedPart& F : Out)
+		{
+			if (F.Slot != "handlebars") continue;
+			PartMesh Glb;
+			if (!Meshes(F.Glb, Glb)) continue;
+			const PartMesh M = Draw(Glb, F);
+			// (BikeModel._bars_mesh walks each mesh's parents up to the steering: what hangs off the
+			// bike itself, the cables' frame runs, is taken in the bike's space as it is.)
+			const V3 Off = F.Node == "steer" ? H : V3();
+			for (const PartSurface& S : M.Surfaces)
+				for (size_t I = 0; I + 2 < S.Idx.size(); I += 3)
+					BarTris.push_back({ToGodot(S.Pos[S.Idx[I]]) - Off, ToGodot(S.Pos[S.Idx[I + 1]]) - Off, ToGodot(S.Pos[S.Idx[I + 2]]) - Off});
+		}
+		// A braced bar's pad, code-drawn: a CapsuleMesh (radius 0.025, 0.2 end to end, 64 round and
+		// 8 rings) turned across the bar, as Godot tessellates it.
+		if (Bar.HasPad)
+		{
+			constexpr double PadR = 0.025, PadHalf = 0.1 - 0.025;
+			constexpr int Segs = 64, Rings = 8;
+			std::vector<std::vector<V3>> Rows;
+			auto Row = [&](double W, double Y) {
+				std::vector<V3> R;
+				for (int I = 0; I <= Segs; ++I)
+				{
+					const double U = 2.0 * TorqueSim::Pi * I / Segs;
+					// (Local Y along the capsule, then turned a quarter about Z: local (x, y, z) -> (-y, x, z).)
+					const V3 Local(-std::sin(U) * PadR * W, Y, -std::cos(U) * PadR * W);
+					R.push_back(Bar.Pad + V3(0.0, 0.005, 0.0) + V3(-Local.y, Local.x, Local.z));
+				}
+				Rows.push_back(R);
+			};
+			for (int J = 0; J <= Rings + 1; ++J)
+			{
+				const double V = static_cast<double>(J) / (Rings + 1);
+				Row(std::sin(0.5 * TorqueSim::Pi * V), PadR * std::cos(0.5 * TorqueSim::Pi * V) + PadHalf);
+			}
+			for (int J = 0; J <= Rings + 1; ++J) Row(1.0, PadHalf - 2.0 * PadHalf * J / (Rings + 1));
+			for (int J = 0; J <= Rings + 1; ++J)
+			{
+				const double V = static_cast<double>(J) / (Rings + 1);
+				Row(std::cos(0.5 * TorqueSim::Pi * V), -PadHalf - PadR * std::sin(0.5 * TorqueSim::Pi * V));
+			}
+			for (size_t J = 1; J < Rows.size(); ++J)
+				for (int I = 1; I <= Segs; ++I)
+				{
+					BarTris.push_back({Rows[J - 1][I - 1], Rows[J - 1][I], Rows[J][I - 1]});
+					BarTris.push_back({Rows[J - 1][I], Rows[J][I], Rows[J][I - 1]});
+				}
+		}
+		auto Blocked = [&](const V3& From, const V3& To) {
+			const V3 D = To - From;
+			for (const Tri& T : BarTris)
+			{
+				// (Geometry3D.segment_intersects_triangle, both faces, its epsilons too: a triangle
+				// small beside the segment counts as edge on and is missed, as in Godot.)
+				const V3 E1 = T.B - T.A, E2 = T.C - T.A, Pv = D.Cross(E2);
+				const double Det = E1.Dot(Pv);
+				if (std::fabs(Det) < 0.00001) continue;
+				const double Inv = 1.0 / Det;
+				const V3 Tv = From - T.A;
+				const double U = Tv.Dot(Pv) * Inv;
+				if (U < 0.0 || U > 1.0) continue;
+				const V3 Q = Tv.Cross(E1);
+				const double V = D.Dot(Q) * Inv;
+				if (V < 0.0 || U + V > 1.0) continue;
+				const double Tt = E2.Dot(Q) * Inv;
+				if (Tt > 0.00001 && Tt <= 1.0) return true;
+			}
+			return false;
+		};
+		const V3 Eye = V3(0.0, L.Stats.SeatHeight - L.Stats.RearRadius + 0.88, ToGodot(L.Hip).z - 0.02) - H;
+		auto Hidden = [&](const V3& From0, double Up) {
+			for (const V3& Q : Face)
+			{
+				V3 From = Q + V3(0.0, Up, 0.0);
+				From += (From0 - From).Normalized() * 0.002;
+				if (Blocked(From, From0)) return true;
+			}
+			return false;
+		};
+		const V3 Low = Eye + V3(0.0, -0.03, 0.0);
+		if (!BarTris.empty() && !Face.empty())
+			while (Lift < 0.25 && (Hidden(Eye, Lift) || Hidden(Low, Lift))) Lift += 0.005;
+	}
+	for (const auto& [Glb, C] : Housings) Put(Out, "dashboard", Glb, AtWith(Tilt, C + V3(0.0, Lift, 0.0) + H), "steer");
+}
+
+void BikeParts::RearMaster(const Layout& L, std::vector<FittedPart>& Out) const
+{
+	// (BikeModel._draw_rear_master: on a stalk inboard of the right footrest, ahead of the pivot.)
+	const V3 At(0.15, 0.06, ToGodot(L.Pivot).z - 0.04);
+	Sweep(Out, "rear_master", "frame/tube/round.glb", {At, At + V3(0.0, 0.1, 0.03)}, {0.014}, "");
+	Put(Out, "rear_master", "controls/rear_master.glb", GAffine::At(At + V3(0.0, 0.16, 0.08)), "");
+}
+
+void BikeParts::Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, const V3& H) const
+{
+	// (BikeModel._draw_headlight and _blender_lamp: the lamp's body on the steering, in front of
+	// the head. Its trim (rings, grilles, visors, brackets, the lamps' eyes) is code-drawn.)
+	const Json* P = Lay.Part(PartIn(Parts, "headlight"));
+	if (!P) return;
+	const Json* Look = P->Get("look");
+	const V3 At(0.0, -0.08, -0.13);
+	const double Size = P->Num("size", 0.08) * PartNum(Look, "size", 1.0);
+	auto Lamp = [&](const std::string& Glb, const GAffine& B, const V3& C) { Put(Out, "headlight", "headlight/" + Glb + ".glb", AtWith(B, C + H), "steer"); };
+	auto Sized = [&](const V3& S) { return GAffine::Scale(S * Size); };
+	const std::string Kind = PartStr(Look, "lamp", P->Str("style", "round"));
+	if (Kind == "bullet") Lamp("bullet", Sized(V3(1, 1, 1)), At);
+	else if (Kind == "oval") Lamp("round", Sized(V3(1.3, 0.8, 1.0)), At);
+	else if (Kind == "quad")
+	{
+		for (double X : {-0.045, 0.045})
+			for (double Y : {-0.04, 0.04}) Lamp("cell", GAffine(), At + V3(X, Y, 0.0));
+	}
+	else if (Kind == "stacked")
+	{
+		for (double Y : {-0.055, 0.055}) Lamp("round", Sized(V3(0.7, 0.7, 0.7)), At + V3(0.0, Y, 0.0));
+	}
+	else if (Kind == "square") Lamp("square", Sized(V3(1, 1, 1)), At);
+	else if (Kind == "bugeye")
+	{
+		for (double Sd : {-1.0, 1.0})
+		{
+			const GAffine B = GAffine::Rotation(GodotUp, -Sd * 0.3) * GAffine::Rotation(V3(0.0, 0.0, 1.0), -Sd * 0.28);
+			Lamp("bugeye", B * Sized(V3(1, 1, 1)), At + V3(Sd * Size * 1.04, 0.0, 0.0));
+		}
+	}
+	else if (Kind == "triple")
+	{
+		// (The left's the right-hand housing mirrored across.)
+		for (double Sd : {-1.0, 1.0})
+			Lamp("triple", GAffine::Scale(V3(Sd, 1.0, 1.0)) * GAffine::Rotation(GodotUp, -0.38) * GAffine::Rotation(V3(0.0, 0.0, 1.0), -0.3) * Sized(V3(1, 1, 1)),
+				At + V3(Sd * Size * 1.15, Size * 0.1, 0.0));
+	}
+	else if (Kind == "nacelle") Lamp("nacelle", Sized(V3(1, 1, 1)), At);
+	else if (Kind == "bucket") Lamp("bucket", Sized(V3(1, 1, 1)), At + V3(0.0, 0.0, 0.03));
+	else if (Kind == "twin")
+	{
+		for (double X : {-0.07, 0.07}) Lamp("round", Sized(V3(1.0, 1.0, 0.7 / 0.75)), At + V3(X, 0.0, 0.01));
+	}
+	else if (Kind == "plate") Lamp("plate", GAffine::Rotation(GodotRight, 0.25), At + V3(0.0, -0.02, -0.02));
+	else if (Kind == "projector") Lamp("projector", GAffine(), At);
+	else Lamp("round", Sized(V3(1, 1, 1)), At);
+}
+
+std::vector<BikeParts::Intake> BikeParts::Intakes(const PartsMap& Parts, const Layout& L) const
+{
+	std::vector<Intake> Points;
+	// (A V-twin breathes out of the right-hand side of the vee.)
+	if (PartStr(Lay.Part(PartIn(Parts, "engine")), "layout", "parallel") == "vtwin")
+		Points.push_back({ToGodot(L.Crank) + V3(0.04, 0.3 * L.Hard.Scale, 0.0), V3(1.0, 0.05, 0.0).Normalized()});
+	else
+		for (const Cylinder& C : Cylinders(Parts, L)) Points.push_back({C.Base + C.Up * 0.12 + V3(0.0, 0.0, 0.09), V3(0.0, 0.15, 1.0).Normalized()});
+	return Points;
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
 	const Bodywork Body = BikeBody(Lay).Fit(Parts, L);
@@ -974,7 +1371,11 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Exhaust(Parts, L, Out);
 	Swingarm(Parts, L, Out);
 	Fork(Parts, L, Out);
+	const Bars Bar = Handlebars(Parts, L, Out);
+	Dashboard(Parts, L, Bar, Out);
+	Headlight(Parts, Out, ToGodot(L.Head));
 	Wheels(Parts, L, Out);
+	RearMaster(L, Out);
 	FinalDrive(Parts, L, Out);
 	Shocks(Parts, L, Out);
 	return Out;
