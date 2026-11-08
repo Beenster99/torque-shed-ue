@@ -32,7 +32,7 @@ public:
 
 	// How the bike looks, beside what's fitted (the strip / clean / paint loop, first slice):
 	// road dirt per model part (0 clean .. 1 filthy) and bodywork painted a new colour.
-	// The bike comes in dirty from the Dales; every ride out adds more; a wash takes it off.
+	// The bike starts lightly ridden-in; every ride out adds more; a wash takes it off.
 	float DirtOf(FName Part) const;
 	// Takes Amount of dirt off; bTell false batches several (then call TellLooks once).
 	void Clean(FName Part, float Amount, bool bTell = true);
@@ -45,7 +45,7 @@ public:
 	// Dirt or paint changed: redraw the finishes (cheap; the parts stay).
 	FSimpleMulticastDelegate OnLooks;
 
-	static constexpr float StartDirt = 0.6f;   // a stock part when the game starts
+	static constexpr float StartDirt = 0.25f;  // a stock part when the game starts: ridden, not neglected
 	static constexpr float RideDirt = 0.3f;    // added by each ride
 
 private:

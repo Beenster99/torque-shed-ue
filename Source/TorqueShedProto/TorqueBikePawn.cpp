@@ -1,5 +1,6 @@
 #include "TorqueBikePawn.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueFlow.h"
 
 #include "BikeSim.h"
@@ -360,6 +361,7 @@ void ATorqueBikePawn::BuildModel()
 		C->SetRelativeTransform(Fix * P.Delta);
 		if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *P.MaterialPath))
 			C->SetMaterial(0, M);
+		C->ComponentTags.Add(FName(*(TEXT("Part:") + P.Name)));   // for the shed's dirt and paint (ApplyLooks)
 		C->RegisterComponent();
 		ModelParts.Add(C);
 		// By unit, so option levers and grips (one mesh each, modelled on the stock pivots) work too.
@@ -370,6 +372,8 @@ void ATorqueBikePawn::BuildModel()
 		else if (UnitName == TEXT("grip_r") || UnitName == TEXT("grips_r")) GripDelta[1] = P.Delta;
 		++Made;
 	}
+	// The dirt and paint the bike has in the shed (washed or not, resprayed or not) ride out with it.
+	TorqueShedModel::ApplyLooks(this, ModelParts);
 	// The clutch and front brake levers swing on their perches as they're pulled.
 	PartFix = Fix;
 	for (int32 S = 0; S < 2; ++S) LeverBase[S] = Fix * LeverDelta[S];
