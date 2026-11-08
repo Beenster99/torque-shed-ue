@@ -277,7 +277,7 @@ void RideSound::Render(float* Out, int N)
 
 		// Wind: rushing at speed, louder in the helmet.
 		const double V = Now.Speed;
-		const double WindAmp = std::min(std::pow(V / 35.0, 2.0), 1.6) * Lerp(0.12, 0.32, Now.Inside);
+		const double WindAmp = std::min(std::pow(V / 35.0, 2.0), 1.6) * Lerp(0.12, 0.32, Now.Inside) * WindLevel;
 		const double Wind = (WindLp.Run(Noise()) * 0.8 + WindBp.Run(Noise()) * 0.25) * WindAmp;
 
 		// Tyres: a squeal when one slides on tarmac, a scrub and rumble on grass.
@@ -329,7 +329,7 @@ void RideSound::Render(float* Out, int N)
 			if (ClunkPos >= Playing->size() - 1) Playing = nullptr;
 		}
 		double Bg = 0.0;
-		if (!Amb.empty())
+		if (Ambience && !Amb.empty())
 		{
 			BirdTimer -= 1.0 / Rate;
 			if (BirdTimer <= 0.0)
