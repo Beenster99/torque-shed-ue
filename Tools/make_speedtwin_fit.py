@@ -419,6 +419,9 @@ STOCK_BAR = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, 
                          BAR_CLAMP + [0.0, 0, 0.38]], 6)
 
 
+MIRROR_FROM_END = 0.21   # where option bars carry the mirrors: on the lever clamps, inboard of the switches
+
+
 def stock_cable_ends():
     """Each cable's bar end: (point, bar side, the mount's distance from the bar end, the unit it rides)."""
     lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22]); lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22])
@@ -460,7 +463,9 @@ def options(cat):
         look = e.get("look", {})
         if look.get("bend") == "clubman":
             # The catalogue's look (drop and pull back, metres): a real clubman, not just a flat bar.
-            path = clubman_shape(e["width"], look.get("drop", 0.08), look.get("pull", 0.12))
+            # The Speed Twin's tank top is only about 40 mm below its bar clamp, so the full 80 mm drop
+            # puts the grips (and the rider's hands) below the tank top; drop as far as clears it.
+            path = clubman_shape(e["width"], min(look.get("drop", 0.08), 0.04), look.get("pull", 0.12))
         else:
             path = bar_shape(e["width"], e["rise"], **kw)
         mesh = st.Mesh()
@@ -490,9 +495,24 @@ def options(cat):
         cables = {"id": "cables", "group": "steer", "meshes": [cname], "mount": {"to": "yokes.lugs", "type": "bracket"},
                   "sockets": {}, "proxies": [],
                   "conform": {"ends": [{"unit": unit_id, "at": v(p), "to": v(moved[k])} for k, (p, _, _, unit_id) in ends.items()]}}
-        out.append(("handlebars", pid, e["name"], ["handlebars", pid], [u, cables],
-                    {name: (mesh, fin, "steer"),
-                     cname: (st.cable_lines(moved["clutch"], moved["brake"], moved["throttle"]), "rubber", "steer")}))
+        meshes = {name: (mesh, fin, "steer"),
+                  cname: (st.cable_lines(moved["clutch"], moved["brake"], moved["throttle"]), "rubber", "steer")}
+        # Mirrors: the stock ones are on the bar ends, which these bars sweep back towards the rider, so
+        # the option brings the same mirrors on the lever clamps, inboard of the switches. Modelled on the
+        # stock bar at that distance from its end, so they ride the new bar there. (Stock is unchanged.)
+        units = [u, cables]
+        for sd, s, half in (("l", -1, old_l), ("r", 1, old_r)):
+            base = path_frame(half, path_length(half) - MIRROR_FROM_END)[1]
+            shell, glass, stalk = st.mirror_meshes(base, s)
+            names = ["opt_mirrors_%s_%s" % (pid, sd), "opt_mirror_glass_%s_%s" % (pid, sd), "opt_mirror_stalks_%s_%s" % (pid, sd)]
+            mc = base + np.array([0.03, 0.16, s * 0.06])
+            units.append({"id": "mirror_" + sd, "group": "steer", "meshes": names,
+                          "mount": {"to": "bars.bar_" + sd, "type": "bar", "bar_mm": bar_mm, "from_end": MIRROR_FROM_END},
+                          "sockets": {},
+                          "proxies": [capsule(mc, mc, 0.048)] + chain([base, base + [0.02, 0.1, s * 0.05]], 0.006)})
+            meshes.update({names[0]: (shell, "black_gloss", "steer"), names[1]: (glass, "mirror_glass", "steer"),
+                           names[2]: (stalk, "black_satin", "steer")})
+        out.append(("handlebars", pid, e["name"], ["handlebars", pid], units, meshes))
     # Silencers: a long slim peashooter, and a short reverse cone megaphone; same slip joint.
     for pid in ("peashooter_twins", "cafe_reverse_cones"):
         e = cat["exhaust"][pid]

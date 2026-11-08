@@ -8273,27 +8273,27 @@
          ],
          [
           0.417105,
-          0.648198,
+          0.647944,
           -0.01713
          ],
          [
           0.420555,
-          0.647467,
+          0.646652,
           -0.034815
          ],
          [
           0.425115,
-          0.64618,
+          0.644805,
           -0.0525
          ],
          [
           0.429814,
-          0.644282,
+          0.642652,
           -0.06963
          ],
          [
           0.43368,
-          0.641717,
+          0.640444,
           -0.085648
          ],
          [
@@ -8303,92 +8303,92 @@
          ],
          [
           0.436573,
-          0.634175,
+          0.636615,
           -0.112199
          ],
          [
           0.437073,
-          0.628948,
+          0.6348,
           -0.122593
          ],
          [
           0.43674,
-          0.623055,
+          0.63293,
           -0.131875
          ],
          [
           0.435073,
-          0.6168,
+          0.630948,
           -0.140741
          ],
          [
           0.431573,
-          0.61049,
+          0.6288,
           -0.149884
          ],
          [
           0.42574,
-          0.60443,
+          0.62643,
           -0.16
          ],
          [
           0.416638,
-          0.598129,
+          0.623569,
           -0.170799
          ],
          [
           0.40448,
-          0.591244,
+          0.620207,
           -0.181667
          ],
          [
           0.39049,
-          0.584305,
+          0.61668,
           -0.192812
          ],
          [
           0.375888,
-          0.577837,
+          0.613319,
           -0.204444
          ],
          [
           0.361897,
-          0.572369,
+          0.610457,
           -0.216771
          ],
          [
           0.34974,
-          0.56843,
+          0.60843,
           -0.23
          ],
          [
           0.339467,
-          0.566346,
+          0.607388,
           -0.244387
          ],
          [
           0.33011,
-          0.565763,
+          0.607096,
           -0.259815
          ],
          [
           0.321365,
-          0.56618,
+          0.607305,
           -0.275938
          ],
          [
           0.312925,
-          0.567096,
+          0.607763,
           -0.292407
          ],
          [
           0.304485,
-          0.568013,
+          0.608221,
           -0.308877
          ],
          [
           0.29574,
-          0.56843,
+          0.60843,
           -0.325
          ]
         ],
@@ -8409,27 +8409,27 @@
          ],
          [
           0.417105,
-          0.648198,
+          0.647944,
           0.01713
          ],
          [
           0.420555,
-          0.647467,
+          0.646652,
           0.034815
          ],
          [
           0.425115,
-          0.64618,
+          0.644805,
           0.0525
          ],
          [
           0.429814,
-          0.644282,
+          0.642652,
           0.06963
          ],
          [
           0.43368,
-          0.641717,
+          0.640444,
           0.085648
          ],
          [
@@ -8439,92 +8439,92 @@
          ],
          [
           0.436573,
-          0.634175,
+          0.636615,
           0.112199
          ],
          [
           0.437073,
-          0.628948,
+          0.6348,
           0.122593
          ],
          [
           0.43674,
-          0.623055,
+          0.63293,
           0.131875
          ],
          [
           0.435073,
-          0.6168,
+          0.630948,
           0.140741
          ],
          [
           0.431573,
-          0.61049,
+          0.6288,
           0.149884
          ],
          [
           0.42574,
-          0.60443,
+          0.62643,
           0.16
          ],
          [
           0.416638,
-          0.598129,
+          0.623569,
           0.170799
          ],
          [
           0.40448,
-          0.591244,
+          0.620207,
           0.181667
          ],
          [
           0.39049,
-          0.584305,
+          0.61668,
           0.192812
          ],
          [
           0.375888,
-          0.577837,
+          0.613319,
           0.204444
          ],
          [
           0.361897,
-          0.572369,
+          0.610457,
           0.216771
          ],
          [
           0.34974,
-          0.56843,
+          0.60843,
           0.23
          ],
          [
           0.339467,
-          0.566346,
+          0.607388,
           0.244387
          ],
          [
           0.33011,
-          0.565763,
+          0.607096,
           0.259815
          ],
          [
           0.321365,
-          0.56618,
+          0.607305,
           0.275937
          ],
          [
           0.312925,
-          0.567096,
+          0.607763,
           0.292407
          ],
          [
           0.304485,
-          0.568013,
+          0.608221,
           0.308877
          ],
          [
           0.29574,
-          0.56843,
+          0.60843,
           0.325
          ]
         ],
@@ -8541,12 +8541,12 @@
         "shape": "capsule",
         "a": [
          0.29574,
-         0.56843,
+         0.60843,
          -0.325
         ],
         "b": [
          0.321365,
-         0.56618,
+         0.607305,
          -0.275938
         ],
         "r": 0.011
@@ -8555,12 +8555,12 @@
         "shape": "capsule",
         "a": [
          0.321365,
-         0.56618,
+         0.607305,
          -0.275938
         ],
         "b": [
          0.34974,
-         0.56843,
+         0.60843,
          -0.23
         ],
         "r": 0.011
@@ -8569,12 +8569,12 @@
         "shape": "capsule",
         "a": [
          0.34974,
-         0.56843,
+         0.60843,
          -0.23
         ],
         "b": [
          0.39049,
-         0.584305,
+         0.61668,
          -0.192812
         ],
         "r": 0.011
@@ -8583,12 +8583,12 @@
         "shape": "capsule",
         "a": [
          0.39049,
-         0.584305,
+         0.61668,
          -0.192812
         ],
         "b": [
          0.42574,
-         0.60443,
+         0.62643,
          -0.16
         ],
         "r": 0.011
@@ -8597,12 +8597,12 @@
         "shape": "capsule",
         "a": [
          0.42574,
-         0.60443,
+         0.62643,
          -0.16
         ],
         "b": [
          0.43674,
-         0.623055,
+         0.63293,
          -0.131875
         ],
         "r": 0.011
@@ -8611,7 +8611,7 @@
         "shape": "capsule",
         "a": [
          0.43674,
-         0.623055,
+         0.63293,
          -0.131875
         ],
         "b": [
@@ -8630,7 +8630,7 @@
         ],
         "b": [
          0.425115,
-         0.64618,
+         0.644805,
          -0.0525
         ],
         "r": 0.011
@@ -8639,7 +8639,7 @@
         "shape": "capsule",
         "a": [
          0.425115,
-         0.64618,
+         0.644805,
          -0.0525
         ],
         "b": [
@@ -8658,7 +8658,7 @@
         ],
         "b": [
          0.425115,
-         0.64618,
+         0.644805,
          0.0525
         ],
         "r": 0.011
@@ -8667,7 +8667,7 @@
         "shape": "capsule",
         "a": [
          0.425115,
-         0.64618,
+         0.644805,
          0.0525
         ],
         "b": [
@@ -8686,7 +8686,7 @@
         ],
         "b": [
          0.43674,
-         0.623055,
+         0.63293,
          0.131875
         ],
         "r": 0.011
@@ -8695,12 +8695,12 @@
         "shape": "capsule",
         "a": [
          0.43674,
-         0.623055,
+         0.63293,
          0.131875
         ],
         "b": [
          0.42574,
-         0.60443,
+         0.62643,
          0.16
         ],
         "r": 0.011
@@ -8709,12 +8709,12 @@
         "shape": "capsule",
         "a": [
          0.42574,
-         0.60443,
+         0.62643,
          0.16
         ],
         "b": [
          0.39049,
-         0.584305,
+         0.61668,
          0.192812
         ],
         "r": 0.011
@@ -8723,12 +8723,12 @@
         "shape": "capsule",
         "a": [
          0.39049,
-         0.584305,
+         0.61668,
          0.192812
         ],
         "b": [
          0.34974,
-         0.56843,
+         0.60843,
          0.23
         ],
         "r": 0.011
@@ -8737,12 +8737,12 @@
         "shape": "capsule",
         "a": [
          0.34974,
-         0.56843,
+         0.60843,
          0.23
         ],
         "b": [
          0.321365,
-         0.56618,
+         0.607305,
          0.275937
         ],
         "r": 0.011
@@ -8751,12 +8751,12 @@
         "shape": "capsule",
         "a": [
          0.321365,
-         0.56618,
+         0.607305,
          0.275937
         ],
         "b": [
          0.29574,
-         0.56843,
+         0.60843,
          0.325
         ],
         "r": 0.011
@@ -8785,9 +8785,9 @@
           -0.22
          ],
          "to": [
-          0.432382,
-          0.559737,
-          -0.20755
+          0.430578,
+          0.589078,
+          -0.208987
          ]
         },
         {
@@ -8798,9 +8798,9 @@
           0.22
          ],
          "to": [
-          0.432382,
-          0.559737,
-          0.20755
+          0.430578,
+          0.589078,
+          0.208987
          ]
         },
         {
@@ -8811,13 +8811,105 @@
           0.3
          ],
          "to": [
-          0.374065,
-          0.538237,
-          0.287374
+          0.374234,
+          0.579534,
+          0.287063
          ]
         }
        ]
       }
+     },
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_clubman_bar_l",
+       "opt_mirror_glass_clubman_bar_l",
+       "opt_mirror_stalks_clubman_bar_l"
+      ],
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         -0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         -0.234091
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_clubman_bar_r",
+       "opt_mirror_glass_clubman_bar_r",
+       "opt_mirror_stalks_clubman_bar_r"
+      ],
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         0.234091
+        ],
+        "r": 0.006
+       }
+      ]
      }
     ],
     "meshes": {
@@ -8830,6 +8922,36 @@
       "finish": "rubber",
       "group": "steer",
       "file": "Options/opt_cables_clubman_bar.glb"
+     },
+     "opt_mirrors_clubman_bar_l": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_clubman_bar_l.glb"
+     },
+     "opt_mirror_glass_clubman_bar_l": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_clubman_bar_l.glb"
+     },
+     "opt_mirror_stalks_clubman_bar_l": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_clubman_bar_l.glb"
+     },
+     "opt_mirrors_clubman_bar_r": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_clubman_bar_r.glb"
+     },
+     "opt_mirror_glass_clubman_bar_r": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_clubman_bar_r.glb"
+     },
+     "opt_mirror_stalks_clubman_bar_r": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_clubman_bar_r.glb"
      }
     }
    },
@@ -9297,6 +9419,98 @@
         }
        ]
       }
+     },
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_touring_bend_bar_l",
+       "opt_mirror_glass_touring_bend_bar_l",
+       "opt_mirror_stalks_touring_bend_bar_l"
+      ],
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         -0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         -0.234091
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_touring_bend_bar_r",
+       "opt_mirror_glass_touring_bend_bar_r",
+       "opt_mirror_stalks_touring_bend_bar_r"
+      ],
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 22.0,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         0.234091
+        ],
+        "r": 0.006
+       }
+      ]
      }
     ],
     "meshes": {
@@ -9309,6 +9523,36 @@
       "finish": "rubber",
       "group": "steer",
       "file": "Options/opt_cables_touring_bend_bar.glb"
+     },
+     "opt_mirrors_touring_bend_bar_l": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_touring_bend_bar_l.glb"
+     },
+     "opt_mirror_glass_touring_bend_bar_l": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_touring_bend_bar_l.glb"
+     },
+     "opt_mirror_stalks_touring_bend_bar_l": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_touring_bend_bar_l.glb"
+     },
+     "opt_mirrors_touring_bend_bar_r": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_touring_bend_bar_r.glb"
+     },
+     "opt_mirror_glass_touring_bend_bar_r": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_touring_bend_bar_r.glb"
+     },
+     "opt_mirror_stalks_touring_bend_bar_r": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_touring_bend_bar_r.glb"
      }
     }
    },
@@ -9790,6 +10034,98 @@
         }
        ]
       }
+     },
+     {
+      "id": "mirror_l",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_scrambler_moto_chrome_l",
+       "opt_mirror_glass_scrambler_moto_chrome_l",
+       "opt_mirror_stalks_scrambler_moto_chrome_l"
+      ],
+      "mount": {
+       "to": "bars.bar_l",
+       "type": "bar",
+       "bar_mm": 28.6,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         -0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         -0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         -0.234091
+        ],
+        "r": 0.006
+       }
+      ]
+     },
+     {
+      "id": "mirror_r",
+      "group": "steer",
+      "meshes": [
+       "opt_mirrors_scrambler_moto_chrome_r",
+       "opt_mirror_glass_scrambler_moto_chrome_r",
+       "opt_mirror_stalks_scrambler_moto_chrome_r"
+      ],
+      "mount": {
+       "to": "bars.bar_r",
+       "type": "bar",
+       "bar_mm": 28.6,
+       "from_end": 0.21
+      },
+      "sockets": {},
+      "proxies": [
+       {
+        "shape": "capsule",
+        "a": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "b": [
+         0.43474,
+         0.838091,
+         0.244091
+        ],
+        "r": 0.048
+       },
+       {
+        "shape": "capsule",
+        "a": [
+         0.40474,
+         0.678091,
+         0.184091
+        ],
+        "b": [
+         0.42474,
+         0.778091,
+         0.234091
+        ],
+        "r": 0.006
+       }
+      ]
      }
     ],
     "meshes": {
@@ -9802,6 +10138,36 @@
       "finish": "rubber",
       "group": "steer",
       "file": "Options/opt_cables_scrambler_moto_chrome.glb"
+     },
+     "opt_mirrors_scrambler_moto_chrome_l": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_scrambler_moto_chrome_l.glb"
+     },
+     "opt_mirror_glass_scrambler_moto_chrome_l": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_scrambler_moto_chrome_l.glb"
+     },
+     "opt_mirror_stalks_scrambler_moto_chrome_l": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_scrambler_moto_chrome_l.glb"
+     },
+     "opt_mirrors_scrambler_moto_chrome_r": {
+      "finish": "black_gloss",
+      "group": "steer",
+      "file": "Options/opt_mirrors_scrambler_moto_chrome_r.glb"
+     },
+     "opt_mirror_glass_scrambler_moto_chrome_r": {
+      "finish": "mirror_glass",
+      "group": "steer",
+      "file": "Options/opt_mirror_glass_scrambler_moto_chrome_r.glb"
+     },
+     "opt_mirror_stalks_scrambler_moto_chrome_r": {
+      "finish": "black_satin",
+      "group": "steer",
+      "file": "Options/opt_mirror_stalks_scrambler_moto_chrome_r.glb"
      }
     }
    }

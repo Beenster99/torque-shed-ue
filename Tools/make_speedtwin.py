@@ -519,6 +519,18 @@ def cable_lines(lever_l, lever_r, throttle=None):
     return lines
 
 
+def mirror_meshes(end, s):
+    """One side's mirror (shell, glass, stalk) on a stalk rising from end, the point where it meets the
+    bar (s -1 left, 1 right). The stock bike's are at the bar ends; make_speedtwin_fit.py puts the same
+    mirror on the lever clamps for other bars."""
+    stalk = polyline([end, end + [0.0, 0.03, s * 0.02], end + [0.02, 0.1, s * 0.05]], 6)
+    mc = end + np.array([0.03, 0.16, s * 0.06])
+    shell = lathe([(0.0, -0.008), (0.045, -0.008), (0.048, 0.0), (0.045, 0.006), (0.0, 0.006)], seg=32,
+                  axis=(1, 0.1, 0), centre=mc).transformed()
+    glass = lathe([(0.0, -0.0085), (0.042, -0.0085)], seg=32, axis=(1, 0.1, 0), centre=mc)
+    return shell, glass, tube(stalk, 0.006, 10)
+
+
 def build():
     P = {}   # name -> (mesh, finish, group)
 
@@ -634,14 +646,10 @@ def build():
     put("headlight_projector", lathe([(0.03, 0.0), (0.03, 0.012), (0.026, 0.022), (0.015, 0.028), (0.0, 0.03)], seg=40,
                                      axis=(1, 0, 0), centre=hl_c), "glass_dark", "steer")
     for s, sd in ((-1, "_l"), (1, "_r")):
-        end = bar_clamp + [0.0, 0.0, s * 0.385]
-        stalk = polyline([end, end + [0.0, 0.03, s * 0.02], end + [0.02, 0.1, s * 0.05]], 6)
-        mc = end + np.array([0.03, 0.16, s * 0.06])
-        put("mirrors" + sd, lathe([(0.0, -0.008), (0.045, -0.008), (0.048, 0.0), (0.045, 0.006), (0.0, 0.006)], seg=32,
-                                  axis=(1, 0.1, 0), centre=mc).transformed(), "black_gloss", "steer")
-        put("mirror_glass" + sd, lathe([(0.0, -0.0085), (0.042, -0.0085)], seg=32, axis=(1, 0.1, 0), centre=mc),
-            "mirror_glass", "steer")
-        put("mirror_stalks" + sd, tube(stalk, 0.006, 10), "black_satin", "steer")
+        shell, glass, stalk_mesh = mirror_meshes(bar_clamp + [0.0, 0.0, s * 0.385], s)
+        put("mirrors" + sd, shell, "black_gloss", "steer")
+        put("mirror_glass" + sd, glass, "mirror_glass", "steer")
+        put("mirror_stalks" + sd, stalk_mesh, "black_satin", "steer")
     ind = Mesh()
     for s in (-1, 1):
         base = hl_c + np.array([-0.04, -0.01, s * 0.11])

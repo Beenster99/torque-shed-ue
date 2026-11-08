@@ -229,9 +229,22 @@ bool ResolveModel(const FTorqueBuild& InBuild, TArray<FTorqueResolvedPart>& Out,
 		UE_LOG(LogTemp, Warning, TEXT("Torque fit: no ue_assets.json for %s yet (run Tools/ue_build_level.py)"), *InBuild.Bike.ToString());
 		return false;
 	}
+	const TorqueFit::Build Wanted = ToBuild(InBuild);
+	// A part that won't fit is an answer, not an error (the parts bench tries every spare, the 28.6 mm
+	// bar included): say so quietly. -TorqueBuild warns about one asked for by name.
+	for (const auto& KV : Wanted.Fitted)
+	{
+		if (KV.second.empty() || KV.second == "stock") continue;
+		std::string Why;
+		if (D->Fit.FindOption(KV.first, KV.second) && !D->Fit.CanFit(Wanted, KV.first, KV.second, Why))
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("Torque fit: %s won't fit: %s"), *ToF(KV.second), *ToF(Why));
+			return false;
+		}
+	}
 	Assembly A;
 	std::string Error;
-	if (!D->Fit.Assemble(ToBuild(InBuild), A, Error))
+	if (!D->Fit.Assemble(Wanted, A, Error))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque fit: %s"), *ToF(Error));
 		return false;
@@ -362,6 +375,12 @@ FTorqueBuild BuildFromCommandLine()
 			if (const std::vector<Option>* List = D->Fit.OptionsFor(SlotName))
 				for (const Option& O : *List) Ids += (Ids.IsEmpty() ? TEXT("") : TEXT(", ")) + ToF(O.Id);
 			UE_LOG(LogTemp, Warning, TEXT("Torque fit: -TorqueBuild: no option '%s' for %s; options: %s"), *ToF(Part), *ToF(SlotName), *Ids);
+			continue;
+		}
+		std::string Why;
+		if (!D->Fit.CanFit(ToBuild(B), SlotName, Part, Why))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque fit: -TorqueBuild: %s won't fit: %s"), *ToF(Part), *ToF(Why));
 			continue;
 		}
 		if (SlotName != Asked)

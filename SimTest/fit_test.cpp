@@ -127,6 +127,14 @@ int main()
 	}
 	Expect(Worst < 1e-4, "every part lands where it was modelled (worst " + WorstUnit + ": " + std::to_string(Worst * 1000.0) + " mm)");
 	Expect(A.Notes.empty(), "no conforming part's ends moved");
+	for (const char* Side : {"mirror_l", "mirror_r"})
+	{
+		// The stock bike is beenster's own: its mirrors stay on the bar ends, exactly as modelled.
+		const Placed* M = A.Find(Side);
+		Expect(M && M->OptionId == "stock" && M->U.Mnt.FromEnd < 0.01 && Xf::Drift(M->World, Xf()) < 1e-9 &&
+			M->U.Meshes.size() == 3 && M->U.Meshes[0].rfind("mirrors_", 0) == 0,
+			std::string("the stock ") + Side + " is the modelled one, on the bar end, unmoved");
+	}
 
 	std::printf("\nDatums: the model against the riding physics (BikeSpec::SpeedTwin1200)\n");
 	const PhysicsDatums Phys = FromSim(TorqueSim::BikeSpec::SpeedTwin1200());
@@ -165,6 +173,9 @@ int main()
 			PrintClashes(Fit.Clearance(Ab, &A));
 			if (S == "handlebars")
 			{
+				const Placed* Mirror = Ab.Find("mirror_l");
+				Expect(Mirror && Mirror->OptionId == O.Id && Mirror->U.Meshes[0].rfind("opt_mirrors_", 0) == 0,
+					"other bars bring their mirrors on the lever clamps");
 				// The grips, levers and mirrors ride the new bar's ends.
 				const Placed* Bars = Ab.Find("bars");
 				const Placed* Grip = Ab.Find("grip_r");
