@@ -195,11 +195,13 @@ def weather_mpc():
     if _weather_mpc is not None:
         return _weather_mpc or None
     try:
-        if unreal.EditorAssetLibrary.does_asset_exist(WEATHER_MPC):
-            unreal.EditorAssetLibrary.delete_asset(WEATHER_MPC)
-        folder, name = WEATHER_MPC.rsplit("/", 1)
-        mpc = asset_tools.create_asset(name, folder, unreal.MaterialParameterCollection,
-                                       unreal.MaterialParameterCollectionFactoryNew())
+        # Reuse the collection if a previous build made it: deleting it while the old M_Road still
+        # pointed at it made M_Road fail to compile (harmless, but noisy) until it was rebuilt.
+        mpc = unreal.load_asset(WEATHER_MPC) if unreal.EditorAssetLibrary.does_asset_exist(WEATHER_MPC) else None
+        if mpc is None:
+            folder, name = WEATHER_MPC.rsplit("/", 1)
+            mpc = asset_tools.create_asset(name, folder, unreal.MaterialParameterCollection,
+                                           unreal.MaterialParameterCollectionFactoryNew())
         p = unreal.CollectionScalarParameter()
         p.set_editor_property("parameter_name", "Wetness")
         p.set_editor_property("default_value", 0.0)
@@ -2451,7 +2453,7 @@ def build():
     if mode is not None:
         try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 0.8),   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 0.6),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
