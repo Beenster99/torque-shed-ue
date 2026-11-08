@@ -11,4 +11,7 @@ class ATorqueGameMode : public AGameModeBase
 public:
 	ATorqueGameMode();
 	virtual void BeginPlay() override;
+	// In the shed (an ATorqueShedBike in the level) you're on foot; on the road, on the bike.
+	// Co-op's game mode replaces this with its own choice per map.
+	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
 };

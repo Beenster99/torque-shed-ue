@@ -4,18 +4,27 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "TorqueBikePawn.h"
+#include "Shed/TorqueWalker.h"
 
 void ATorqueHUD::DrawHUD()
 {
 	Super::DrawHUD();
 	const ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetOwningPawn());
-	if (!Bike || !Canvas || !GEngine) return;
+	const ATorqueWalker* Walker = Cast<ATorqueWalker>(GetOwningPawn());   // on foot in the shed
+	if ((!Bike && !Walker) || !Canvas || !GEngine) return;
 	UFont* Font = GEngine->GetLargeFont();
 	const float S = Canvas->ClipY / 1080.0f;     // the same size on screen at 1080p, 1440p and 4K
 	float X = 40.0f * S, Y = 36.0f * S;
 
 	// Big speed and gear, then smaller lines under them.
-	const TArray<FHudLine>& Lines = Bike->GetHudLines();
+	if (Walker && Walker->ShowsCrosshair())
+	{
+		// A small dot in the middle to point at parts with.
+		const float D = 4.0f * S;
+		DrawRect(FLinearColor(0, 0, 0, 0.5f), Canvas->ClipX * 0.5f - D, Canvas->ClipY * 0.5f - D, 2.0f * D, 2.0f * D);
+		DrawRect(FLinearColor(1, 1, 1, 0.9f), Canvas->ClipX * 0.5f - 0.5f * D, Canvas->ClipY * 0.5f - 0.5f * D, D, D);
+	}
+	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
 	for (const FHudLine& L : Lines)
 	{
 		const float Scale = S * L.Size;

@@ -1,4 +1,5 @@
 #include "TorqueBikePawn.h"
+#include "Shed/TorqueFlow.h"
 
 #include "BikeSim.h"
 #include "Camera/CameraComponent.h"
@@ -609,6 +610,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::H)) bShowHelp = !bShowHelp;
+	// Backspace: back to the shed (when its map has been built).
+	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && TorqueFlow::BackToShed(this)) return;
 	if (PC->WasInputKeyJustPressed(EKeys::V) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
 	{
 		Weather = (Weather + 1) % 3;
@@ -1332,7 +1335,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
 		Add(TEXT("      R1 camera   Triangle back on road   Options restart   D-pad up/down realism, right weather   Create+Options quit"), Help, 0.85f);
 		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
-		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   H help   Esc quit"), Help, 0.85f);
+		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   H help   Backspace shed   Esc quit"), Help, 0.85f);
 	}
 }
 
