@@ -99,6 +99,7 @@ UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint)
 	if (UMaterialInterface** Found = Loaded.Find(Name)) return *Found;
 	UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), *Name, *Name));
 	if (!M) M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
+	if (M) M->AddToRoot();   // cached across map travel: unrooted, GC frees it when the shed unloads and the cache dangles
 	Loaded.Add(Name, M);
 	return M;
 }
