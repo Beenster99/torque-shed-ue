@@ -22,7 +22,10 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Tools/make_bike_textures.py` | Makes the bike's tileable detail textures (tyre tread, leather grain, brushed and cast alloy, paint flake, knurled grips) in `Data/Bike/Textures`; procedural, nothing to download |
 | `Tools/make_rider.py` | Builds the rider in riding kit (jacket, jeans, boots, brown gloves, full-face helmet) as a skinned glb in `Data/Rider`, sat on the Speed Twin; the pawn poses it every frame (`Source/TorqueShedProto/RiderRig.*`) |
 | `Tools/ue_build_level.py` | Run inside the Unreal editor: imports the meshes, makes the materials, sun, sky and fog, and saves the level |
-| `SimTest/` | A standalone test of the physics: flat-ground checks and a robot rider down the exported 3 km |
+| `Tools/import_parts.py` | Copies the Godot game's parts catalogue (`data/parts.json`, 717 parts) unchanged into `Data/Parts/parts.json`, the file the game reads; the Godot JSON stays the source of truth |
+| `Tools/make_speedtwin_fit.py` | The Speed Twin's fitment data (`Data/Bike/SpeedTwin/fitment.json`): typed sockets, datums, collision proxies, and alternative bars and silencers in its style (`Data/Bike/SpeedTwin/Options`). Run after `make_speedtwin.py` |
+| `Source/TorqueShedProto/Fit/` | The fitment system: parts fit by typed sockets (`Data/Fitment/interfaces.json`) with the adjustment each allows, clearance checks at full lock and full compression, geometry mode (player and author fitting). `TorqueFit.h` is the API the shed and the pawn use |
+| `SimTest/` | Standalone tests: the physics (flat-ground checks and a robot rider down the exported 3 km), and `fit_test`, which assembles the Speed Twin from its sockets and reports clashes |
 
 The bike is a first Speed Twin model built from your two side-on drone photos: wheels, forks, tank,
 seat, engine, headers and silencers, in simple finishes. The rider is a skinned figure in riding kit, made by `Tools/make_rider.py`: hands on the grips as the bars turn, feet on the pegs or down when you stop, weight and lean as you ride. Its kit is textured from scanned CC0 surfaces (the `rider_` roles in `Data/Textures/textures.json`, fetched by `Tools/fetch_textures.py`): textile jacket, denim, leather gloves and boots, rubber soles, the weave following the sleeves and legs. Without them it falls back to plain colours.
@@ -104,7 +107,12 @@ cmake --build build/simtest --config Release
 build/simtest/Release/sim_test Data/Buttertubs
 ```
 
-The test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
+`build/simtest/Release/fit_test` (run from the repository) assembles the Speed Twin from its
+sockets, checks the model against the physics' datums, runs the clearance checks, tries every
+alternative part and exercises geometry mode. To try a swap in the game without the shed, start it
+with `-TorqueBuild=handlebars:clubman_bar,exhaust:peashooter_twins`.
+
+The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
 without crashing and within 3 m of the centre line (its run takes 234 s, leaning up to 32 degrees).
 

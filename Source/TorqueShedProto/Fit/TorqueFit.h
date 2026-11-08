@@ -52,7 +52,7 @@ struct FTorqueFitOption
 struct FTorqueResolvedPart
 {
 	FName Name;                  // model part (mesh) name
-	FName Slot;                  // the slot that owns it, NAME_None if none ("bars" and its grips: handlebars)
+	FName Slot;                  // the slot its unit belongs to ("handlebars" for the bar), NAME_None if none
 	FName Unit;                  // the fit unit it belongs to (what geometry mode moves)
 	FString Mesh, Material;
 	FName Group;

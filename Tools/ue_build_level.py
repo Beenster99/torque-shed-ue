@@ -1181,6 +1181,15 @@ def import_bike(frame, tex=None, roles=None):
         return
     info = json.load(open(os.path.join(folder, "speedtwin.json")))
     meshes = import_glbs(folder, BIKE_DEST)
+    # The alternative parts the fitment system can fit (Tools/make_speedtwin_fit.py), with their finishes.
+    options = {}
+    fit_path = os.path.join(folder, "fitment.json")
+    if os.path.isfile(fit_path) and os.path.isdir(os.path.join(folder, "Options")):
+        for slot_opts in json.load(open(fit_path)).get("options", {}).values():
+            for opt in slot_opts:
+                for name, m in opt.get("meshes", {}).items():
+                    options[name] = m.get("finish", "")
+        meshes.update(import_glbs(os.path.join(folder, "Options"), BIKE_DEST + "/Options"))
     sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     for mesh in meshes.values():
         nanite_off(mesh)
@@ -1211,6 +1220,10 @@ def import_bike(frame, tex=None, roles=None):
         mesh = meshes.get(part["name"])
         if mesh:
             assets["parts"][part["name"]] = {"mesh": mesh.get_path_name(), "material": mats.get(part["finish"], "")}
+    for name, fin in sorted(options.items()):
+        mesh = meshes.get(name)
+        if mesh:
+            assets["parts"][name] = {"mesh": mesh.get_path_name(), "material": mats.get(fin, "")}
     with open(os.path.join(folder, "ue_assets.json"), "w") as f:
         json.dump(assets, f, indent=1)
     log("bike: %d parts imported" % len(assets["parts"]))
