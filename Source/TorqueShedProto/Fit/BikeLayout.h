@@ -34,6 +34,7 @@ struct BuildStats
 {
 	double Wheelbase = 1.4, RakeDeg = 25.0, SeatHeight = 0.85, ForkLength = 0.75;
 	double FrontRadius = 0.3, RearRadius = 0.31, FrontTravel = 0.12, RearTravel = 0.1;
+	double FrontRimRadius = 0.22, RearRimRadius = 0.22, FrontTyreWidth = 0.12, RearTyreWidth = 0.16;
 	double PivotY = 0.16, Arm = 0.6;   // the frame's geo
 };
 

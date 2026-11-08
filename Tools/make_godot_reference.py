@@ -42,18 +42,41 @@ def main():
     out = {"about": "The original Torque Shed's reference bikes as Godot draws them (Rig built look), Godot frame "
                     "(y up, -z forward, x right). Written by Tools/make_godot_reference.py; do not edit.",
            "source": {"repo": "Beenster99/torque-shed", "commit": commit, "godot": "4.6.2-stable"}, "styles": {}}
+    def glb_tags(meshes):
+        # Each glb surface tag's meshes in the slot, as one box: what the port's Blender parts are checked against.
+        out = {}
+        for m in meshes:
+            if not m.get("tag"):
+                continue
+            b = out.setdefault(m["tag"], {"min": list(m["min"]), "max": list(m["max"]), "meshes": 0})
+            b["min"] = [min(x, y) for x, y in zip(b["min"], m["min"])]
+            b["max"] = [max(x, y) for x, y in zip(b["max"], m["max"])]
+            b["meshes"] += 1
+        return {t: {"min": r6(b["min"]), "max": r6(b["max"]), "meshes": b["meshes"]} for t, b in sorted(out.items())}
+
+    sweep = data.pop("sweep", {})
     for style, s in data.items():
         rig = {k: v for k, v in s["rig"].items() if isinstance(v, list) and len(v) == 3 and all(isinstance(x, (int, float)) for x in v)}
         rig["fit_tier"] = s["rig"]["fit"]["tier"]
         rig["fit_reason"] = s["rig"]["fit"]["reason"]
         slots = {k: {"min": r6(v["min"]), "max": r6(v["max"]),
-                     "named": {m["name"]: {"min": r6(m["min"]), "max": r6(m["max"])} for m in v["meshes"] if not m["name"].startswith("@")}}
+                     "named": {m["name"]: {"min": r6(m["min"]), "max": r6(m["max"])} for m in v["meshes"] if not m["name"].startswith("@")},
+                     "glb": glb_tags(v["meshes"])}
                  for k, v in s["slots"].items()}
         out["styles"][style] = {"parts": s["parts"], "stats": s["stats"], "rig": {k: (r6(v) if isinstance(v, list) else v) for k, v in rig.items()},
                                 "slots": slots}
+    # The sweep: each build as its base style's parts plus what changed, and only the running gear's
+    # Blender surfaces (what the sweep is there to check).
+    keep = ("wheel", "tyre", "disc", "caliper", "pads", "fork", "shock", "swingarm", "final_drive", "chain")
+    out["sweep"] = {}
+    for key, s in sweep.items():
+        base = out["styles"][s["base"]]["parts"]
+        out["sweep"][key] = {"base": s["base"], "parts": {k: v for k, v in s["parts"].items() if base.get(k) != v},
+                             "fit_tier": s["rig"]["fit"]["tier"],
+                             "glb": {k: glb_tags(v["meshes"]) for k, v in s["slots"].items() if k.endswith(keep) and glb_tags(v["meshes"])}}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    open(OUT, "w").write(json.dumps(out, indent=1) + "\n")
-    print("wrote %s: %d styles" % (OUT, len(out["styles"])))
+    open(OUT, "w").write(json.dumps(out, separators=(",", ":")) + "\n")
+    print("wrote %s: %d styles, %d swept builds" % (OUT, len(out["styles"]), len(out["sweep"])))
 
 
 if __name__ == "__main__":

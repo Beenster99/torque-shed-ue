@@ -3,11 +3,15 @@
 // from the layout's datums (Fit/BikeLayout). Bodywork that bends onto the bike's lines is
 // Fit/BikeBody; this is the parts that go on whole, placed (and scaled) by a transform.
 //
-// Ported so far: the engine's crankcase and its top end. Each port keeps the Godot frame inside
-// (as bike_model.gd) and hands back FittedParts in ours.
+// Ported so far: the engine's crankcase and its top end; the running gear (rims and cush drive,
+// tyres, discs and drums, calipers and pads, the fork, the sprockets and chain, the swingarm's
+// Blender pieces and the shocks). Each port keeps the Godot frame inside (as bike_model.gd) and
+// hands back FittedParts in ours. Still code-drawn in Godot and not here yet: frame and swingarm
+// tubes and shells, exhaust pipes, brake hoses and cables.
 #pragma once
 
 #include "BikeBody.h"
+#include "FitJson.h"
 
 #include <functional>
 #include <string>
@@ -40,10 +44,12 @@ struct GAffine
 class BikeParts
 {
 public:
-	// HasGlb: whether Data/Parts/Blender has a glb at that path ("engine/twin_750.glb"), as
-	// BlenderParts.part(path) not being empty.
-	BikeParts(const BikeLayout& InLayout, std::function<bool(const std::string&)> InHasGlb)
-		: Lay(InLayout), HasGlb(std::move(InHasGlb)) {}
+	// Index: Data/Parts/Blender/index.json's "parts" (which glbs there are, their mounts).
+	BikeParts(const BikeLayout& InLayout, const Json& InIndex) : Lay(InLayout), Index(InIndex) {}
+
+	// The mesh a fitted part draws: its glb's (with its shape keys) deformed by its warp, or by
+	// each of its copies' warps one after the other.
+	static PartMesh Draw(const PartMesh& Glb, const FittedPart& P);
 
 	// Every placed part of the bike (the bodywork's too), slot by slot.
 	std::vector<FittedPart> Fit(const PartsMap& Parts, const Layout& L) const;
@@ -54,8 +60,26 @@ public:
 
 private:
 	const BikeLayout& Lay;
-	std::function<bool(const std::string&)> HasGlb;
+	const Json& Index;
+
+	// Whether Data/Parts/Blender has a glb at that path ("engine/twin_750.glb"), as
+	// BlenderParts.part(path) not being empty.
+	bool HasGlb(const std::string& Path) const;
+	// A mount of the glb at Path (Godot frame), or false.
+	bool Mount(const std::string& Path, const std::string& Name, V3& At) const;
+	// Puts a glb on as BikeModel._blender_pieces does, if there is one: true when it went on.
+	bool Put(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Path, const GAffine& Xf, const std::string& Node) const;
 
 	void Engine(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void Wheels(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void Brake(const PartsMap& Parts, const Layout& L, bool Front, double RimR, double RimW, std::vector<FittedPart>& Out) const;
+	void Fork(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void Swingarm(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void FinalDrive(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void Shocks(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// BikeModel's _swingarm node at rest (Godot frame), and its reach pivot to axle.
+	GAffine SwingarmAt(const Layout& L) const;
+	double ArmLength(const Layout& L) const;
+	std::string ArmType(const PartsMap& Parts) const;
 };
 } // namespace TorqueFit

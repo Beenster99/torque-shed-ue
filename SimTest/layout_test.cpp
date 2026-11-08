@@ -10,7 +10,9 @@
 #include "BikeLayout.h"
 
 #include <cmath>
+#include <functional>
 #include <map>
+#include <set>
 #include <vector>
 #include <cstdio>
 #include <fstream>
@@ -281,7 +283,7 @@ int main(int argc, char** argv)
 		ReadFile(R + "/Data/Parts/Blender/index.json", IndexText);
 		Json::Parse(IndexText, Index, &Error);
 		const Json* Known = Index.Get("parts");
-		const BikeParts Placer(Lay, [&](const std::string& G) { return Known && Known->Get(G.substr(0, G.size() - 4)) != nullptr; });
+		const BikeParts Placer(Lay, Known ? *Known : Index);
 		for (const std::string& St : Lay.Styles())
 		{
 			const PartsMap B = Lay.ReferenceBuild(St);
@@ -313,11 +315,70 @@ int main(int argc, char** argv)
 			&& ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) && Json::Parse(IndexText, Index, &Error);
 		Expect(Have && Ref.Get("styles"), "the Godot reference and the parts index load");
 		const Json* Known = Have ? Index.Get("parts") : nullptr;
-		const BikeParts Placer(Lay, [&](const std::string& G) { return Known && Known->Get(G.substr(0, G.size() - 4)) != nullptr; });
+		const BikeParts Placer(Lay, Known ? *Known : Index);
 		auto Vec = [](const Json* J) { return J && J->A.size() == 3 ? V3(J->A[0].N, J->A[1].N, J->A[2].N) : V3(1e9, 1e9, 1e9); };
 		struct Box { V3 Lo{1e9, 1e9, 1e9}, Hi{-1e9, -1e9, -1e9}; void Add(const V3& V) {
 			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
 		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
+		auto Collect = [&](const PartsMap& B, const Layout& L, std::map<std::string, Box>& Ours, std::map<std::string, std::map<std::string, Box>>& Tags) {
+			for (const FittedPart& P : Placer.Fit(B, L))
+			{
+				PartMesh M;
+				std::string Bytes, MorphBytes;
+				const Json* Ent = Known ? Known->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
+				if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !M.LoadGlb(Bytes, Error)) continue;
+				if (Ent->Get("morph") && (!ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) || !M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error))) continue;
+				for (const PartSurface& S : BikeParts::Draw(M, P).Surfaces)
+				{
+					// (A "tag__slot" surface is that slot's piece: a head glb's barrels are the engine's.)
+					const size_t Cut = S.Material.find("__");
+					const std::string Slot = Cut != std::string::npos ? S.Material.substr(Cut + 2) : P.Slot;
+					for (const V3& V : S.Pos)
+					{
+						Ours[Slot].Add(ToGodot(V));
+						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
+						Tags[Slot][S.Material].Add(ToGodot(V));
+					}
+				}
+			}
+		};
+		// Slots only some of whose Blender pieces are ported: there, ours only have to lie inside Godot's.
+		// (Swingarm: its swept tubes. Tail: the tray, number plate and lamp round the cowl. The frame's
+		// are mostly its tubes, swept from a Blender section: not compared yet.)
+		const std::set<std::string> Partial = {"swingarm", "tail"};
+		auto Inside = [&](const Box& In, const Json* Gb) {
+			const V3 Lo = Vec(Gb->Get("min")), Hi = Vec(Gb->Get("max"));
+			return In.Lo.x >= Lo.x - 5e-4 && In.Lo.y >= Lo.y - 5e-4 && In.Lo.z >= Lo.z - 5e-4
+				&& In.Hi.x <= Hi.x + 5e-4 && In.Hi.y <= Hi.y + 5e-4 && In.Hi.z <= Hi.z + 5e-4;
+		};
+		// Each slot's surface tags' boxes against Godot's (GSlots: slot -> {glb: tag -> box}, or with
+		// Nested false slot -> tag -> box). Returns what's off.
+		auto Compare = [&](const std::map<std::string, std::map<std::string, Box>>& Tags, const Json* GSlots, bool Nested, int& Slots) {
+			std::string Wrong;
+			for (const auto& [Slot, ByTag] : Tags)
+			{
+				if (Slot == "frame") continue;
+				const bool Part = Partial.count(Slot) > 0;
+				const Json* Gs = GSlots->Get(Slot);
+				const Json* Gt = Gs && Nested ? Gs->Get("glb") : Gs;
+				++Slots;
+				for (const auto& [Tag, Bx] : ByTag)
+				{
+					const Json* Gb = Gt ? Gt->Get(Tag) : nullptr;
+					const double D = Gb ? std::max(Off(Bx.Lo, Vec(Gb->Get("min"))), Off(Bx.Hi, Vec(Gb->Get("max")))) : 1e9;
+					if (D >= 5e-4 && !(Part && Gb && Inside(Bx, Gb)))
+					{
+						char W[160];
+						std::snprintf(W, sizeof(W), " %s/%s %s", Slot.c_str(), Tag.c_str(), Gb ? (std::to_string(static_cast<int>(D * 1000.0 + 0.5)) + "mm").c_str() : "not in Godot");
+						Wrong += W;
+					}
+				}
+				if (Gt)
+					for (const auto& [Tag, Gb] : Gt->O)
+						if (!ByTag.count(Tag) && !Part) Wrong += " " + Slot + "/" + Tag + " missing";
+			}
+			return Wrong;
+		};
 		for (const std::string& St : Lay.Styles())
 		{
 			const Json* G = Have && Ref.Get("styles") ? Ref.Get("styles")->Get(St) : nullptr;
@@ -341,26 +402,10 @@ int main(int argc, char** argv)
 				if (D > RigOff) { RigOff = D; Worst = Key; }
 			}
 			const bool TierOk = Rig->Str("fit_tier") == L.Fit.Tier;
-			// The bodywork and engine meshes' boxes, to half a millimetre (a "__engine" surface is the engine's).
+			// The bodywork and engine meshes' boxes, to half a millimetre.
 			std::map<std::string, Box> Ours;
-			for (const FittedPart& P : Placer.Fit(B, L))
-			{
-				PartMesh M;
-				std::string Bytes, MorphBytes;
-				const Json* Ent = Known ? Known->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
-				if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !M.LoadGlb(Bytes, Error)) continue;
-				if (Ent->Get("morph") && (!ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) || !M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error))) continue;
-				for (const PartSurface& S : M.Deformed(P.Weights, P.Warp).Surfaces)
-				{
-					const size_t Cut = S.Material.find("__");
-					const std::string Slot = Cut != std::string::npos && P.Slot == "head" ? S.Material.substr(Cut + 2) : P.Slot;
-					for (const V3& V : S.Pos)
-					{
-						Ours[Slot].Add(ToGodot(V));
-						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
-					}
-				}
-			}
+			std::map<std::string, std::map<std::string, Box>> Tags;
+			Collect(B, L, Ours, Tags);
 			const Json* GSlots = G->Get("slots");
 			auto Named = [&](const char* Slot, const char* Name) -> const Json* {
 				const Json* S = GSlots->Get(Slot);
@@ -383,7 +428,37 @@ int main(int argc, char** argv)
 			std::snprintf(Buf, sizeof(Buf), ": same parts, datums within %.2f mm (%s), tier %s, %d meshes within %.2f mm (%s)",
 				RigOff * 1000.0, Worst.c_str(), L.Fit.Tier.c_str(), Compared, MeshOff * 1000.0, MeshWorst.c_str());
 			Expect(SameParts && RigOff < 1e-4 && TierOk && Compared >= 4 && MeshOff < 5e-4, St + Buf);
+			// Every Blender part placed so far, surface tag by surface tag, against Godot's meshes of that
+			// tag in the slot.
+			int Slots = 0;
+			const std::string Wrong = Compare(Tags, GSlots, true, Slots);
+			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
 		}
+		// Every running-gear part, one at a time on its style's reference bike, as Godot draws it.
+		const Json* Sweep = Have ? Ref.Get("sweep") : nullptr;
+		int Builds = 0, Right = 0;
+		std::string Bad;
+		for (const auto& [Key, Sw] : Sweep ? Sweep->O : decltype(Ref.O)())
+		{
+			PartsMap B = Lay.ReferenceBuild(Sw.Str("base"));
+			for (const auto& [Slot, Id] : Sw.Get("parts")->O) B[Slot] = Id.S;
+			const Layout L = Lay.Solve(B);
+			std::map<std::string, Box> Ours;
+			std::map<std::string, std::map<std::string, Box>> Tags, Running;
+			Collect(B, L, Ours, Tags);
+			for (const auto& [Slot, ByTag] : Tags)
+				if (Sw.Get("glb")->Get(Slot)) Running[Slot] = ByTag;
+			int Slots = 0;
+			std::string Wrong = Compare(Running, Sw.Get("glb"), false, Slots);
+			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
+				if (!Tags.count(Slot) && !Partial.count(Slot)) Wrong += " " + Slot + " missing";
+			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
+			++Builds;
+			if (Wrong.empty()) ++Right;
+			else if (Bad.size() < 4000) Bad += "\n      " + Key + ":" + Wrong;
+		}
+		Expect(Builds > 300 && Right == Builds, std::to_string(Right) + " of " + std::to_string(Builds)
+			+ " single-part swaps (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprockets, chain) placed as Godot does" + Bad);
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);

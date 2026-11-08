@@ -510,14 +510,17 @@ BuildStats BikeLayout::Stats(const PartsMap& Parts) const
 	S.ForkLength = Num(Fork, "length", S.ForkLength);
 	S.FrontTravel = Num(Fork, "travel", S.FrontTravel);
 	S.RearTravel = Num(Part(Get(Parts, "shock")), "travel", S.RearTravel);
-	auto Radius = [&](const char* Wheel, const char* Tyre, double Default) {
-		const Json* W = Part(Get(Parts, Wheel));
-		const Json* T = Part(Get(Parts, Tyre));
-		if (!W || !T) return Default;
-		return Num(W, "diameter", 17.0) * 0.0127 + Num(T, "width", 120.0) / 1000.0 * Num(T, "aspect", 0.7);
+	// (BikeBuild: the rims' radii and the tyres' section widths, and the tyres' outer radii.)
+	auto Wheel = [&](const char* WheelSlot, const char* TyreSlot, double& Rim, double& Width, double& Radius) {
+		const Json* W = Part(Get(Parts, WheelSlot));
+		const Json* T = Part(Get(Parts, TyreSlot));
+		if (!W || !T) return;
+		Rim = Num(W, "diameter", 17.0) * 0.0127;
+		Width = Num(T, "width", 120.0) / 1000.0;
+		Radius = Rim + Width * Num(T, "aspect", 0.7);
 	};
-	S.FrontRadius = Radius("front_wheel", "front_tyre", S.FrontRadius);
-	S.RearRadius = Radius("rear_wheel", "rear_tyre", S.RearRadius);
+	Wheel("front_wheel", "front_tyre", S.FrontRimRadius, S.FrontTyreWidth, S.FrontRadius);
+	Wheel("rear_wheel", "rear_tyre", S.RearRimRadius, S.RearTyreWidth, S.RearRadius);
 	return S;
 }
 
