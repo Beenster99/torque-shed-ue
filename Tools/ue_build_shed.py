@@ -59,6 +59,10 @@ DYNO_DOOR_HALF, DYNO_DOOR_TOP = 85.0, 250.0         # through the back wall to t
 SIDE_DOOR_HALF, SIDE_DOOR_TOP = 65.0, 240.0          # through the side walls
 STORE_DOOR_Y, PAINT_DOOR_Y = -450.0, 350.0           # west to the storage room, east to the paint shop
 ROOM_HEIGHT = 340.0
+# The paint mixing bay through the paint shop's east wall (paint_bay.gd ROOM, DOOR_Z, DOOR_HALF,
+# DOOR_HEIGHT): its door at y 460. Keep in step with Shed/TorquePaintBay.h and TorqueShedLayout.h.
+MIXBAY_X0, MIXBAY_X1, MIXBAY_Y0, MIXBAY_Y1 = 1430.0, 1700.0, -520.0, 520.0
+MIXBAY_DOOR_Y, MIXBAY_DOOR_HALF, MIXBAY_DOOR_TOP = 460.0, 42.0, 220.0
 # The four bays (Workshop.bay_transform): along the back wall, 3.2 m apart, noses to the door.
 BAY_X = (-480.0, -160.0, 160.0, 480.0)
 BAY_Y = -350.0
@@ -525,7 +529,10 @@ def rooms(m):
     # paint shop (east) and the dyno room (through the back wall).
     room("Storage", -1500.0, -680.0, -1100.0, -280.0, m, open_sides=("e",))   # the shed's west wall closes it...
     box("Storage_WallE", -680.0, -650.0, -1100.0, -HALF_Y - WALL, 0, ROOM_HEIGHT, m["cladding"], folder="Storage")   # ...and this, behind it
-    room("PaintShop", 680.0, 1400.0, -520.0, 520.0, m, open_sides=("w",))
+    room("PaintShop", 680.0, 1400.0, -520.0, 520.0, m, open_sides=("w", "e"))
+    # Its east wall, shared with the paint mixing bay, with the bay's door in it (paint_bay.gd DOOR_Z).
+    wall("PaintShop_WallE", "y", 1400.0, 1430.0, -520.0 - WALL, 520.0 + WALL, ROOM_HEIGHT,
+         [(MIXBAY_DOOR_Y - MIXBAY_DOOR_HALF, MIXBAY_DOOR_Y + MIXBAY_DOOR_HALF, 0.0, MIXBAY_DOOR_TOP)], m["cladding"])
     room("Dyno", -450.0, 450.0, -1300.0, -580.0, m, open_sides=("s",))
 
 
@@ -635,7 +642,10 @@ def paint_shop(m):
     # White inside the cladding, the doorway from the shed left open; a dark ceiling.
     box("Paint_LiningN", PAINT_X0, PAINT_X1, PAINT_Y0, PAINT_Y0 + 1, 0, h, m["paint_wall"], folder=f, collide=False)
     box("Paint_LiningS", PAINT_X0, PAINT_X1, PAINT_Y1 - 1, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
-    box("Paint_LiningE", PAINT_X1 - 1, PAINT_X1, PAINT_Y0, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    e0, e1 = MIXBAY_DOOR_Y - MIXBAY_DOOR_HALF, MIXBAY_DOOR_Y + MIXBAY_DOOR_HALF
+    box("Paint_LiningE_0", PAINT_X1 - 1, PAINT_X1, PAINT_Y0, e0, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_LiningE_1", PAINT_X1 - 1, PAINT_X1, e1, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("Paint_LiningE_Top", PAINT_X1 - 1, PAINT_X1, e0, e1, MIXBAY_DOOR_TOP, h, m["paint_wall"], folder=f, collide=False)
     d0, d1 = PAINT_DOOR_Y - SIDE_DOOR_HALF, PAINT_DOOR_Y + SIDE_DOOR_HALF
     box("Paint_LiningW_0", PAINT_X0, PAINT_X0 + 1, PAINT_Y0, d0, 0, h, m["paint_wall"], folder=f, collide=False)
     box("Paint_LiningW_1", PAINT_X0, PAINT_X0 + 1, d1, PAINT_Y1, 0, h, m["paint_wall"], folder=f, collide=False)
@@ -714,6 +724,78 @@ def paint_shop(m):
             shape(CYLINDER, "Booth_Wire_%d" % n, (rx, hy, HOOK_TIP + 3.0 + wire * 0.5), (0.8, 0.8, wire), m["chrome"], folder=f + "/Booth", collide=False)
             shape(CYLINDER, "Booth_Hook_%d" % n, (rx, hy, HOOK_TIP + 2.8), (5.6, 5.6, 0.8), m["chrome"], rot=(90.0, 0.0, 0.0),
                   folder=f + "/Booth", collide=False)
+
+
+def paint_bay(m):
+    """The paint mixing bay (paint_bay.gd _build): the mixing bench down the east wall with the scale
+    and the shaker on it and the tint rack over it, the tin shelf beside it, the swatch wall on the
+    shared wall, the spray-out stand in the daylight booth. ATorquePaintBayRoom draws the tins, the
+    bottles, the cards and the scale's reading."""
+    f = "PaintBay"
+    h = ROOM_HEIGHT
+    x0, x1, y0, y1 = MIXBAY_X0, MIXBAY_X1, MIXBAY_Y0, MIXBAY_Y1
+    room("PaintBay", x0, x1, y0, y1, m, open_sides=("w",))   # the paint shop's east wall closes it
+    # White inside, the door left open; the ceiling dark like the paint shop's.
+    d0, d1 = MIXBAY_DOOR_Y - MIXBAY_DOOR_HALF, MIXBAY_DOOR_Y + MIXBAY_DOOR_HALF
+    box("MixBay_LiningN", x0, x1, y0, y0 + 1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("MixBay_LiningS", x0, x1, y1 - 1, y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("MixBay_LiningE", x1 - 1, x1, y0, y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("MixBay_LiningW_0", x0, x0 + 1, y0, d0, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("MixBay_LiningW_1", x0, x0 + 1, d1, y1, 0, h, m["paint_wall"], folder=f, collide=False)
+    box("MixBay_LiningW_Top", x0, x0 + 1, d0, d1, MIXBAY_DOOR_TOP, h, m["paint_wall"], folder=f, collide=False)
+    box("MixBay_Ceiling", x0, x1, y0, y1, h - 1, h, m["paint_ceiling"], folder=f, collide=False)
+    label_text("MixBay_Name", "PAINT MIXING", (x0 + 2.0, 300.0, 285.0), 0.0, 20.0, (30, 30, 36), f)
+    # The mixing bench (BENCH, BENCH_TOP): x 1635 .. 1700, y -220 .. 180, a steel top at 92.
+    box("MixBay_Bench", 1638.0, x1, -218.0, 178.0, 0, 86, m["wall_low"], folder=f)
+    box("MixBay_BenchTop", 1635.0, x1, -220.0, 180.0, 86, 92, m["steel"], folder=f)
+    # The scale (SCALE_AT): its base, a chrome pan, the read-out on the front (the room draws the grams).
+    box("MixBay_ScaleBase", 1647.0, 1677.0, -55.0, -25.0, 92, 94, m["dark"], folder=f, collide=False)
+    shape(CYLINDER, "MixBay_ScalePan", (1662.0, -40.0, 94.5), (18.0, 18.0, 1.0), m["chrome"], folder=f, collide=False)
+    box("MixBay_ScaleDisplay", 1636.0, 1638.0, -50.0, -30.0, 92, 100, m["dark"], folder=f, collide=False)
+    # The shaker (SHAKER_AT): a base plate the tin sits on at 100 and a cage round it.
+    box("MixBay_ShakerBase", 1645.0, 1680.0, 105.0, 145.0, 92, 100, m["dark"], folder=f, collide=False)
+    for i, (sx, sy) in enumerate(((1646.0, 106.0), (1679.0, 106.0), (1646.0, 144.0), (1679.0, 144.0))):
+        box("MixBay_ShakerPost_%d" % i, sx - 1, sx + 1, sy - 1, sy + 1, 100, 124, m["steel"], folder=f, collide=False)
+    box("MixBay_ShakerTop", 1645.0, 1680.0, 105.0, 145.0, 124, 126, m["dark"], folder=f, collide=False)
+    label_text("MixBay_ShakerName", "SHAKER", (1644.0, 125.0, 96.0), 180.0, 4.0, (220, 220, 220), f)
+    # The tint rack over the bench (RACK_X, RACK_Y): two steel shelves of eight bottles, 25 cm apart.
+    for i, z in enumerate((132.0, 172.0)):
+        box("MixBay_RackShelf_%d" % i, 1674.0, x1, -222.0, -12.0, z - 3, z, m["steel"], folder=f, collide=False)
+        box("MixBay_RackLip_%d" % i, 1673.0, 1674.0, -222.0, -12.0, z - 3, z + 2.5, m["steel"], folder=f, collide=False)
+    for i, ry in enumerate((-222.0, -12.0)):
+        box("MixBay_RackEnd_%d" % i, 1674.0, x1, ry - 1, ry + 1, 126, 196, m["steel"], folder=f, collide=False)
+    label_text("MixBay_RackName", "TINTS", (1698.0, -117.0, 205.0), 180.0, 8.0, (30, 30, 36), f)
+    # The tin shelf (SHELF_X, SHELF_Y, SHELF_Z): three timber shelves of four tins, uprights each end.
+    for i, z in enumerate((45.0, 95.0, 145.0)):
+        box("MixBay_TinShelf_%d" % i, 1655.0, x1, 195.0, 325.0, z - 4, z, m["wood"], folder=f)
+    for i, sy in enumerate((193.0, 327.0)):
+        box("MixBay_TinShelfEnd_%d" % i, 1655.0, x1, sy - 2, sy + 2, 0, 165, m["steel"], folder=f)
+    label_text("MixBay_TinShelfName", "TINS", (1653.0, 260.0, 158.0), 180.0, 8.0, (30, 30, 36), f)
+    # The swatch wall on the shared wall (SWATCH_X ..): a board for the cards, eight a row, four rows.
+    box("MixBay_SwatchBoard", x0 + 1, x0 + 2.5, -405.0, 210.0, 70.0, 262.0, m["wood"], folder=f, collide=False)
+    label_text("MixBay_SwatchName", "SWATCHES", (x0 + 3.0, -97.0, 268.0), 0.0, 10.0, (30, 30, 36), f)
+    # The daylight booth in the north corner (BOOTH): side panels, a light canopy over the spray-out
+    # stand (STAND_AT), the test card in its clip at 140.
+    box("MixBay_DaylightSideW", 1458.0, 1460.0, y0, -458.0, 0, 225, m["booth_panel"], folder=f, collide=False)
+    box("MixBay_DaylightSideE", 1680.0, 1682.0, y0, -458.0, 0, 225, m["booth_panel"], folder=f, collide=False)
+    box("MixBay_DaylightCanopy", 1458.0, 1682.0, y0, -458.0, 222, 226, m["booth_panel"], folder=f, collide=False)
+    box("MixBay_DaylightPanel", 1470.0, 1670.0, y0 + 4, -464.0, 220, 222, m["led"], folder=f, collide=False)
+    shape(CYLINDER, "MixBay_StandPost", (1500.0, -405.0, 60.0), (4.0, 4.0, 120.0), m["steel"], folder=f, collide=False)
+    shape(CYLINDER, "MixBay_StandFoot", (1500.0, -405.0, 1.0), (40.0, 40.0, 2.0), m["steel"], folder=f, collide=False)
+    box("MixBay_StandClip", 1497.0, 1503.0, -422.0, -388.0, 117, 121, m["dark"], folder=f, collide=False)
+    lights_at = (("MixBay_Daylight", (1570.0, -490.0, 218.0), 6500.0, 2600.0), ("MixBay_Light", (1565.0, 0.0, h - 8.0), 5600.0, 3800.0))
+    for name, at, kelvin, lumens in lights_at:
+        light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(*at), unreal.Rotator(0.0, -90.0, 0.0))
+        light.set_actor_label(name)
+        light.set_folder_path(f)
+        lc = light.get_component_by_class(unreal.RectLightComponent)
+        lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+        units = getattr(unreal, "LightUnits", None)
+        if units is not None:
+            try_set(lc, "intensity_units", units.LUMENS)
+        for k, v in (("intensity", lumens), ("source_width", 180.0), ("source_height", 50.0), ("attenuation_radius", 700.0),
+                     ("barn_door_angle", 80.0), ("temperature", kelvin), ("use_temperature", True)):
+            try_set(lc, k, v)
 
 
 def lights(m):
@@ -871,6 +953,7 @@ def build():
     rooms(m)
     dyno_room(m)
     paint_shop(m)
+    paint_bay(m)
     deliveries(m)
     lights(m)
     outside(m)

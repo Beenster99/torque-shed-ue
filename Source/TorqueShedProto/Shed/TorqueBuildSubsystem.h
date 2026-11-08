@@ -21,6 +21,7 @@
 #include "Containers/Ticker.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Shed/TorqueFitApi.h"
+#include "Shed/TorquePaintBay.h"
 #include "Shed/TorqueShedPower.h"
 #include "TorqueBuildSubsystem.generated.h"
 
@@ -62,6 +63,14 @@ struct FTorqueItem
 	bool bPrimerTop = false;
 	FName Coat;
 	float CoatQ = 0.0f;
+	// Paint mixed in the mixing bay, sprayed from the gun's cup (paint_bay.gd's mix, mix_coats,
+	// mix_under, flat): the recipe's code and name, its effect, how many coats of it, the colour
+	// that was under the first, and a lacquer's flattener over it (0 gloss .. 0.4 matt).
+	FString MixCode, MixName;
+	FName MixEffect;
+	int32 MixCoats = 0;
+	FLinearColor MixUnder = FLinearColor(0.5f, 0.5f, 0.5f);
+	float Flat = 0.0f;
 };
 
 // One bay's bike.
@@ -130,6 +139,27 @@ enum class ETorqueShedAct : uint8
 	GeoSave,                             // geometry mode's fit (Text) kept with bay Bay's bike
 	Prime,                               // Item: grey primer (bGun: the spray gun, on a booth hook)
 	Coat,                                // Item: a protective coat, Finish its id (Coats()): a lacquer or an engine enamel
+	// The paint mixing bay (paint_bay.gd's paint_* actions, TorquePaintBay.cpp). Item, Colour,
+	// Amount, Tilt and Text say which tin, base, tint, how much and what name, as each notes.
+	PaintBench,                          // step up to the bench (Item 1) or away from it (Item 0)
+	PaintTinNew,                         // a litre of base Colour on the scale
+	PaintPour,                           // Amount grams of tint Colour poured, the bottle tipped to Tilt
+	PaintPourStop,                       // the bottle back on the rack
+	PaintStir,                           // the tin on the scale stirred by Amount (of an even mix)
+	PaintTare,                           // the scale zeroed
+	PaintAddBase,                        // 250 g more base, to bring an over-pour back
+	PaintTinEmpty,                       // the tin on the scale tipped away
+	PaintTest,                           // a test card sprayed from it
+	PaintShake,                          // it into the shaker
+	PaintTinSave,                        // named Text, onto the tin shelf and the swatch wall
+	PaintRecipe,                         // recipe Item's card on the bench (Colour 1: match it by eye)
+	PaintTarget,                         // the card and the colour to match put away
+	PaintBuy,                            // Item tins or bottles more of stock Colour (FTorquePaintBay::Stock)
+	PaintTinTake,                        // tin Item off the shelf into your hands
+	PaintTinPut,                         // the tin in your hands onto shelf slot Item
+	PaintTinBench,                       // ... onto the scale
+	PaintTinBin,                         // ... into the bin
+	PaintCup,                            // the gun's cup filled from it
 	Count
 };
 
@@ -147,6 +177,8 @@ struct FTorqueShedRequest
 	bool bCrouched = false;
 	FString Text;                 // GeoSave: the fit (Fit/BikeGeometry text)
 	bool bGun = false;            // Paint, Prime, Coat: with the spray gun (it runs off the booth's air line)
+	float Amount = 0.0f;          // the mixing bay: grams poured, how much stirred
+	float Tilt = 0.0f;            // ... how far the bottle's tipped
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FTorqueBikeEvent, int32 /*Bay*/);
@@ -273,6 +305,12 @@ public:
 	// How well a coat goes on by hand until the spray job's coverage game is ported (SprayJob): a
 	// steady hold lays a decent coat, the booth makes it a good one.
 	static constexpr float HandCoat = 0.82f;
+	// Paint mixed in the mixing bay: Paint with this Finish and bGun sprays from the gun's cup.
+	static FName CupFinish() { return FName(TEXT("cup")); }
+
+	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
+	const FTorquePaintBay& PaintBay() const { return Paint; }
+	static bool IsPaintBayAct(ETorqueShedAct A);
 
 	// --- Requests ----------------------------------------------------------------------------
 	// This machine's player (a PlayerState's player id; 1 until the walker says).
@@ -334,6 +372,7 @@ public:
 private:
 	TArray<FTorqueShedBike> Bikes;
 	FTorqueDynoRoom Dyno;
+	FTorquePaintBay Paint;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;
 	TArray<FTorqueBuild> Builds;     // per bay, for drawing
@@ -382,6 +421,11 @@ private:
 	int32 FreeBay() const;
 	int32 FreeDelivery() const;
 	FString DoApply(int32 Peer, const FTorqueShedRequest& R);
+	// The mixing bay's requests and the gun's cup (TorquePaintBay.cpp).
+	FString CheckPaintBay(int32 Peer, const FTorqueShedRequest& R) const;
+	FString ApplyPaintBay(int32 Peer, const FTorqueShedRequest& R);
+	FString CheckCup(int32 Peer, const FTorqueItem& It) const;
+	float SprayFromCup(int32 Peer, FTorqueItem& It);
 	// After a change: redraw what changed, save, tell the net layer.
 	void RebuildBuild(int32 Bay);
 	// What's on a bay (and how it looks), and the loose parts, as text: the host's shed coming in

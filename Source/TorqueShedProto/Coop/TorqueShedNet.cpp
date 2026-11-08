@@ -22,6 +22,8 @@ FTorqueShedRequestNet ToNet(const FTorqueShedRequest& R)
 	N.bCrouched = R.bCrouched;
 	N.Text = R.Text;
 	N.bGun = R.bGun;   // [shed]
+	N.Amount = R.Amount;   // [shed]
+	N.Tilt = R.Tilt;   // [shed]
 	return N;
 }
 
@@ -44,6 +46,8 @@ FTorqueShedRequest FromNet(const FTorqueShedRequestNet& N)
 	R.bCrouched = N.bCrouched;
 	R.Text = N.Text;
 	R.bGun = N.bGun;   // [shed]
+	R.Amount = N.Amount;   // [shed]
+	R.Tilt = N.Tilt;   // [shed]
 	return R;
 }
 } // namespace TorqueShedNet

@@ -35,6 +35,12 @@ struct FTorqueShedSaveItem
 	UPROPERTY() bool bPrimerTop = false;
 	UPROPERTY() FName Coat;
 	UPROPERTY() float CoatQ = 0.0f;
+	UPROPERTY() FString MixCode;        // paint from the mixing bay (FTorqueItem)
+	UPROPERTY() FString MixName;
+	UPROPERTY() FName MixEffect;
+	UPROPERTY() int32 MixCoats = 0;
+	UPROPERTY() FLinearColor MixUnder = FLinearColor(0.5f, 0.5f, 0.5f);
+	UPROPERTY() float Flat = 0.0f;
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.
@@ -101,4 +107,6 @@ public:
 	UPROPERTY() bool bDynoFan = false;
 	UPROPERTY() bool bDynoLights = true;
 	UPROPERTY() float DynoHeat = 0.0f;
+	// The paint mixing bay (FTorquePaintBay::Serialize's bytes; none: a new garage's bay).
+	UPROPERTY() TArray<uint8> PaintBay;
 };

@@ -23,6 +23,8 @@ enum class ETorquePlace : uint8
 	DynoDesk,  // the dyno desk: run the bike on the rig
 	DynoSwitch,// the dyno room's switches by the door (Index 0 the lights, 1 the fan)
 	Hook,      // a hook in the paint shop's spray bay (Index 0 .. 9): a part hung here is sprayed with the gun
+	PaintBench,// the paint mixing bay's bench (F: step up to it, or put the tin in your hands on the scale)
+	PaintShelf,// a place on the mixing bay's tin shelf (Index 0 .. 11): F takes a tin or puts one down
 };
 
 struct FTorquePlace
@@ -119,6 +121,16 @@ inline const TArray<FTorquePlace>& Places()
 		const FVector At = HookAt(I);
 		Add(ETorquePlace::Hook, FString::Printf(TEXT("hook_%d"), I), FVector(At.X - 25.0, At.Y - 67.5, 60.0), FVector(At.X + 25.0, At.Y + 67.5, 145.0),
 			At, I);
+	}
+	// The paint mixing bay through the paint shop's east wall (paint_bay.gd BENCH, SHELF): the bench
+	// down the east wall, x 1635 .. 1700, y -220 .. 180, top 92; the tin shelf beside it, four tins a
+	// row at 45, 95 and 145 up. Keep in step with TorquePaintBayLayout and ue_build_shed.py paint_bay.
+	Add(ETorquePlace::PaintBench, TEXT("paint_bench"), FVector(1635.0, -220.0, 84.0), FVector(1700.0, 180.0, 100.0), FVector(1662.0, -40.0, 92.0), 0);
+	for (int32 I = 0; I < 12; ++I)
+	{
+		static const double ShelfZ[] = {45.0, 95.0, 145.0};
+		const FVector At(1672.0, 260.0 + (I % 4 - 1.5) * 30.0, ShelfZ[FMath::Clamp(I / 4, 0, 2)]);
+		Add(ETorquePlace::PaintShelf, FString::Printf(TEXT("paint_shelf_%d"), I), At + FVector(-16.0, -14.0, 0.0), At + FVector(16.0, 14.0, 18.0), At, I);
 	}
 	// Each bay's floor round the stand (a frame put down here starts a bike).
 	for (int32 I = 0; I < 4; ++I)

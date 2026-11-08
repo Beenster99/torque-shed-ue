@@ -4,6 +4,7 @@
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
 #include "Shed/TorqueDynoRoom.h"
+#include "Shed/TorquePaintBayRoom.h"
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
@@ -74,7 +75,7 @@ const TCHAR* ToolName(ETorqueTool T)
 // has primer and clear lacquer.
 struct FLoad
 {
-	enum EKind : uint8 { Paint, Coat, Primer };
+	enum EKind : uint8 { Paint, Coat, Primer, Cup };
 	EKind Kind = Paint;
 	FName Id;
 };
@@ -87,6 +88,7 @@ TArray<FLoad> Loads(ETorqueTool T)
 	{
 		for (const FName& C : UTorqueBuildSubsystem::Coats()) Out.Add({FLoad::Coat, C});
 		Out.Add({FLoad::Primer, FName(TEXT("primer"))});
+		Out.Add({FLoad::Cup, UTorqueBuildSubsystem::CupFinish()});   // paint mixed in the mixing bay
 	}
 	else
 	{
@@ -158,6 +160,14 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 		return FString::Printf(TEXT("Cooling fan (%s, engine at %.0f C)"), (B && B->DynoRoom().bFan) ? TEXT("on") : TEXT("off"),
 			TorqueShedPower::DynoTemp(B ? B->DynoRoom().Heat : 0.0f));
 	case ETorquePlace::Hook: return FString::Printf(TEXT("Spray bay hook %d"), P.Index + 1);
+	case ETorquePlace::PaintBench:
+		if (B && B->PaintBay().BenchBy != 0 && B->PaintBay().BenchBy != B->Me()) return TEXT("Mixing bench (someone's at it)");
+		return TEXT("Mixing bench");
+	case ETorquePlace::PaintShelf:
+		if (B)
+			if (const FTorqueTin* Tin = B->PaintBay().Tins.Find(B->PaintBay().TinInSlot(P.Index)))
+				return TEXT("Tin shelf: ") + B->PaintBay().TinText(*Tin);
+		return FString::Printf(TEXT("Tin shelf (place %d, empty)"), P.Index + 1);
 	case ETorquePlace::Bay:
 		if (B && B->Exists(P.Index)) return FString::Printf(TEXT("Bay %d: %s"), P.Index + 1, *B->Bike(P.Index).Name);
 		return FString::Printf(TEXT("Bay %d (empty)"), P.Index + 1);
@@ -288,6 +298,10 @@ void ATorqueWalker::BeginPlay()
 		bool bDyno = false;
 		for (TActorIterator<ATorqueDynoRoom> It(World); It; ++It) bDyno = true;
 		if (!bDyno) World->SpawnActor<ATorqueDynoRoom>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// And the paint mixing bay's tins, bottles, swatches and scale.
+		bool bPaintBay = false;
+		for (TActorIterator<ATorquePaintBayRoom> It(World); It; ++It) bPaintBay = true;
+		if (!bPaintBay) World->SpawnActor<ATorquePaintBayRoom>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -420,7 +434,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	if (!bNoInput) ReadInput(DeltaSeconds);
 	else bWorkHeld = bAltHeld = false;
 	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
-	else if (!bComputer)
+	else if (!bComputer && !bBench)
 	{
 		FindTarget();
 		MakePlan();
@@ -471,7 +485,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	// The pause or settings menu is up (co-op, ATorquePlayerController): stand still, leave the keys to it.
 	if (ATorquePlayerController::MenuUp(PC)) return;
 	// F2: geometry mode on the bike looked at, or the nearest (main.gd's F2).
-	if (Just(EKeys::F2) && !bComputer && Wheeling() == INDEX_NONE)
+	if (Just(EKeys::F2) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{
 		FString Why;
 		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why) && !Why.IsEmpty()) Say(Why, false);
@@ -494,6 +508,18 @@ void ATorqueWalker::ReadInput(float Dt)
 		if (Just(EKeys::W) || Just(EKeys::Up) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) Step = -1;
 		if (Just(EKeys::S) || Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) Step = 1;
 		ComputerInput(Step, bNext ? 1 : (bPrev ? -1 : 0), bWorkJust || Just(EKeys::Enter), bF || bBack);
+		return;
+	}
+	if (bBench)
+	{
+		// At the mixing bench: W / S (the D-pad) choose, Q / E (L1 / R1) the page, hold the work button
+		// on a tint to pour it, hold R (Square) to stir, F or Space (Circle / B) steps back.
+		int32 Step = 0;
+		if (Just(EKeys::W) || Just(EKeys::Up) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) Step = -1;
+		if (Just(EKeys::S) || Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) Step = 1;
+		const bool bWorkDown = Down(EKeys::LeftMouseButton) || Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
+		const bool bAltDown = Down(EKeys::R) || Down(EKeys::RightMouseButton) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
+		BenchInput(Dt, Step, bNext ? 1 : (bPrev ? -1 : 0), bWorkJust || Just(EKeys::Enter), bWorkDown, bAltDown, bF || bBack);
 		return;
 	}
 
@@ -535,7 +561,21 @@ void ATorqueWalker::ReadInput(float Dt)
 		if (Just(Numbers[I])) SetTool((ETorqueTool)I);
 	// The spray can: R / right mouse / Square the colour, T the finish. Otherwise those are the
 	// second button (lift a wheel off the tyre changer whole).
-	if (TWI::Sprays(Tool))
+	const UTorqueBuildSubsystem* TinShed = Shed();
+	if (TinShed && TinShed->PaintBay().HeldTin(TinShed->Me()))
+	{
+		// A tin from the mixing bay in your hands: R fills the spray gun's cup from it.
+		bAltPressed = bAltHeld = false;
+		if (bAltJust)
+		{
+			FTorqueShedRequest Cup;
+			Cup.Kind = ETorqueShedAct::PaintCup;
+			FString WhyNot;
+			if (UTorqueBuildSubsystem* CupShed = Shed())
+				if (!CupShed->Request(Cup, WhyNot)) Say(WhyNot, false);
+		}
+	}
+	else if (TWI::Sprays(Tool))
 	{
 		if (bAltJust) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
 	}
@@ -875,6 +915,8 @@ void ATorqueWalker::MakePlan()
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
+	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::PaintBench || TargetPlace->Kind == ETorquePlace::PaintShelf)) return;   // F, as the tins go
+	if (B->PaintBay().HeldTin(Me)) return;   // a tin in your hands: nothing else until it's put down
 	switch (Tool)
 	{
 	case ETorqueTool::Hands:
@@ -1059,6 +1101,14 @@ void ATorqueWalker::MakePlan()
 					: FString::Printf(TEXT("spray it with %s: sweep over all of it"), *UTorqueBuildSubsystem::CoatName(Load.Id).ToLower()));
 				Plan.Request.Finish = Load.Id;
 			}
+			else if (Load.Kind == TWI::FLoad::Cup)
+			{
+				// The gun's cup, filled from a tin from the mixing bay.
+				const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(Me);
+				const FString What = Cup ? Cup->Spec.Name : FString(TEXT("the cup"));
+				Plan = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("spray %s from the cup: go along the part in steady passes"), *What));
+				Plan.Request.Finish = UTorqueBuildSubsystem::CupFinish();
+			}
 			else
 			{
 				const FString What = FString::Printf(TEXT("%s %s"), *UTorqueBuildSubsystem::FinishName(Load.Id).ToLower(), *UTorqueBuildSubsystem::PaintName(SprayColour).ToLower());
@@ -1178,8 +1228,8 @@ void ATorqueWalker::UpdateToolView(float Dt)
 		ShownCan = Can;
 	}
 	// Hidden while you carry a part (Torque Shed puts the tool away), at the computer and riding out.
-	const bool bCarrying = B && B->HeldBy(PeerOf()) != 0;   // [co-op] PeerOf: a remote walker's own
-	ToolHolder->SetVisibility(!bCarrying && !bComputer && !bRidingOut, true);
+	const bool bCarrying = B && (B->HeldBy(PeerOf()) != 0 || B->PaintBay().HeldTin(PeerOf()) != nullptr);   // [co-op] PeerOf: a remote walker's own; a tin from the mixing bay too
+	ToolHolder->SetVisibility(!bCarrying && !bComputer && !bBench && !bRidingOut, true);
 	// Working with it: Progress runs while the work button's held on a job that can be done.
 	const bool bWorking = Progress > 0.0 && !bCarrying;
 	WorkBlend = FMath::FInterpTo(WorkBlend, bWorking ? 1.0 : 0.0, (double)Dt, 12.0);
@@ -1360,6 +1410,7 @@ TArray<FString> ATorqueWalker::SprayLoadNames() const
 	{
 		if (L.Kind == TWI::FLoad::Paint) Out.Add(UTorqueBuildSubsystem::FinishName(L.Id));
 		else if (L.Kind == TWI::FLoad::Coat) Out.Add(UTorqueBuildSubsystem::CoatName(L.Id));
+		else if (L.Kind == TWI::FLoad::Cup) Out.Add(TEXT("Cup"));
 		else Out.Add(TEXT("Grey primer"));
 	}
 	return Out;
@@ -1606,6 +1657,7 @@ void ATorqueWalker::Interact()
 		else Doing(FString::Printf(TEXT("unpacking the %s"), *B->ItemTitle(TargetItem).ToLower()));
 		return;
 	}
+	if (TinInteract()) return;   // the mixing bay's bench, its tin shelf, a tin into a bin
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Computer)
 	{
 		OpenComputer();
@@ -1780,6 +1832,11 @@ void ATorqueWalker::UpdateHud()
 		if (NoteFor > 0.0) HudLines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
 		return;
 	}
+	if (bBench)
+	{
+		BenchHud(B);
+		return;
+	}
 	// The tool, and the spray can's paint.
 	FString ToolLine = FString::Printf(TEXT("%s (Q / E)"), TWI::ToolName(Tool));
 	if (TWI::Sprays(Tool))
@@ -1793,6 +1850,14 @@ void ATorqueWalker::UpdateHud()
 	HudLines.Add({ToolLine, Title, 0.6f});
 	if (const int32 Held = B->HeldBy(B->Me()))
 		HudLines.Add({TEXT("Holding: ") + B->ItemTitle(Held), Info, 0.6f});
+	if (const FTorqueTin* Tin = B->PaintBay().HeldTin(B->Me()))
+	{
+		HudLines.Add({TEXT("Holding a tin: ") + B->PaintBay().TinText(*Tin), Info, 0.6f});
+		HudLines.Add({TEXT("R / Square: fill the spray gun's cup from it   F: onto the tin shelf, the bench's scale, or into a bin"), Prompt, 0.6f});
+	}
+	if (Tool == ETorqueTool::Gun)
+		if (const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(B->Me()))
+			HudLines.Add({FString::Printf(TEXT("Gun's cup: %s, %.2f l (load Cup with T)"), *Cup->Spec.Name, Cup->Litres), Info, 0.55f});
 	// What's looked at.
 	const FTorqueItem* Thing = B->Item(TargetItem);
 	switch (Target)
@@ -1826,6 +1891,16 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({TWI::PlaceName(*TargetPlace, B), FColor::White, 0.8f});
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::PaintBench)
+				HudLines.Add({B->PaintBay().HeldTin(B->Me()) ? TEXT("F / Triangle: put the tin on the scale and step up to the bench")
+					: TEXT("F / Triangle: step up to the mixing bench"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::PaintShelf)
+			{
+				const bool bHolding = B->PaintBay().HeldTin(B->Me()) != nullptr;
+				const bool bThere = B->PaintBay().TinInSlot(TargetPlace->Index) != 0;
+				if (bHolding && !bThere) HudLines.Add({TEXT("F / Triangle: put the tin down here"), Prompt, 0.65f});
+				else if (!bHolding && bThere) HudLines.Add({TEXT("F / Triangle: take the tin"), Prompt, 0.65f});
+			}
 			if (TargetPlace->Kind == ETorquePlace::DynoDesk)
 			{
 				HudLines.Add({TEXT("F / Triangle (or left mouse): run the bike on the rig"), Prompt, 0.65f});
@@ -2089,7 +2164,7 @@ void ATorqueWalker::ShareHands(float Dt)
 	H.Slot = TargetSlot;
 	H.Item = TargetItem;
 	H.Place = TargetPlace ? TargetPlace->Name : NAME_None;
-	H.bAway = bComputer || bRidingOut;
+	H.bAway = bComputer || bRidingOut || bBench;
 	PS->OfferHands(H, Dt);
 }
 

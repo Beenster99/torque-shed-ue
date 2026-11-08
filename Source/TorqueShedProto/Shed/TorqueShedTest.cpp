@@ -84,6 +84,22 @@ const TCHAR* const BoothSteps =
 	TEXT("tool:spray,spray:1:gloss,part:tank,act,look:bike,shot,")
 	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,log");
 
+// The paint mixing bay (paint_bay.gd): at the bench a litre of white with phthalo blue and lemon
+// yellow poured in (a green), stirred, a test card, saved as Mix 1 (its card on the swatch wall);
+// that card on the bench and mixed again to it as Mix 2; a satin lacquer (10% flattener); a silver with ultramarine
+// in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
+// the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
+const TCHAR* const MixSteps =
+	TEXT("bay:1,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,look:mixbench,shot,")
+	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
+	TEXT("bench:on,paint:recipe:0,paint:newtin:W,paint:pour:PB:38,paint:pour:LY:13,paint:stir:1,paint:save,paintlog,")
+	TEXT("paint:newtin:L,paint:pour:FL:100,paint:stir:1,paint:save:Satin clear,")
+	TEXT("paint:newtin:S,paint:pour:UB:20,paint:shake,wait:21,paintlog,paint:save,bench:off,paintlog,look:mixbench,shot,")
+	TEXT("tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,place:repair_0,act,tool:repair,item:exhaust,act,")
+	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
+	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
+	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot");
+
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
 // the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
@@ -124,6 +140,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
@@ -521,6 +538,10 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
 			Distance = 300.0;
 		}
+		else if (What == TEXT("paintbay")) { At = FVector(1565.0, 0.0, 120.0); Away = FVector(-0.35, -1.0, 0.0).GetSafeNormal(); Distance = 420.0; }
+		else if (What == TEXT("mixbench")) { At = FVector(1662.0, -40.0, 100.0); Away = FVector(-1.0, -0.3, 0.0).GetSafeNormal(); Distance = 120.0; }
+		else if (What == TEXT("swatches")) { At = FVector(1433.0, -90.0, 190.0); Away = FVector(1.0, 0.0, 0.0); Distance = 230.0; }
+		else if (What == TEXT("teststand")) { At = TorquePaintBayLayout::TestCardAt; Away = FVector(0.6, 0.6, 0.0).GetSafeNormal(); Distance = 110.0; }
 		else if (What == TEXT("bikenow"))
 		{
 			// The bike wherever it is now (mid-floor, the rig), from its front quarter.
@@ -588,6 +609,81 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (P[1] == TEXT("floor")) Where = 2;
 		Said(W->TestWheel(TestBay, Where));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("bench") && P.Num() >= 2)
+	{
+		// Step up to the mixing bench (its view) or back from it.
+		Said(W->TestBench(P[1] == TEXT("on")));
+		return true;
+	}
+	if (Verb == TEXT("paintlog"))
+	{
+		Said(B->PaintBay().Summary());
+		return true;
+	}
+	if (Verb == TEXT("paint") && P.Num() >= 2)
+	{
+		// The mixing bay's requests, as the bench's rows and the tins' keys make them.
+		const FString& What = P[1];
+		const FTorquePaintBay& Bay = B->PaintBay();
+		FTorqueShedRequest R;
+		if (What == TEXT("pour") && P.Num() >= 4)
+		{
+			Said(W->TestPour(P[2], FCString::Atof(*P[3])));
+			return true;
+		}
+		if (What == TEXT("stir"))
+		{
+			// An even mix: stirred in the bench's flushes until it's done (or a turn's worth, given less).
+			float Left = P.Num() > 2 ? FCString::Atof(*P[2]) : 1.0f;
+			FString Last;
+			while (Left > 0.0f)
+			{
+				R.Kind = ETorqueShedAct::PaintStir;
+				R.Amount = FMath::Min(Left, 0.25f);
+				Last = W->TestPaint(R);
+				Left -= 0.25f;
+			}
+			Said(Last);
+			return true;
+		}
+		if (What == TEXT("newtin") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTinNew; R.Colour = TorquePaintMix::BaseIndex(P[2]); }
+		else if (What == TEXT("tare")) R.Kind = ETorqueShedAct::PaintTare;
+		else if (What == TEXT("addbase")) R.Kind = ETorqueShedAct::PaintAddBase;
+		else if (What == TEXT("test")) R.Kind = ETorqueShedAct::PaintTest;
+		else if (What == TEXT("shake")) R.Kind = ETorqueShedAct::PaintShake;
+		else if (What == TEXT("empty")) R.Kind = ETorqueShedAct::PaintTinEmpty;
+		else if (What == TEXT("save"))
+		{
+			R.Kind = ETorqueShedAct::PaintTinSave;
+			R.Text = P.Num() > 2 ? P[2] : FString::Printf(TEXT("Mix %d"), Bay.Mixed + 1);
+		}
+		else if (What == TEXT("recipe") && P.Num() >= 3)
+		{
+			// The n-th card on the swatch wall (newest first); "eye" after it: match it by eye.
+			const TArray<const FTorquePaintRecipe*> Cards = Bay.Swatches();
+			const int32 N = FCString::Atoi(*P[2]);
+			if (!Cards.IsValidIndex(N)) { Warn(TEXT("no such card")); return true; }
+			R.Kind = ETorqueShedAct::PaintRecipe;
+			R.Item = Cards[N]->Id;
+			R.Colour = P.Num() > 3 && P[3] == TEXT("eye") ? 1 : 0;
+		}
+		else if (What == TEXT("target")) R.Kind = ETorqueShedAct::PaintTarget;
+		else if (What == TEXT("buy") && P.Num() >= 3)
+		{
+			R.Kind = ETorqueShedAct::PaintBuy;
+			R.Item = 1;
+			const int32 Base = TorquePaintMix::BaseIndex(P[2]);
+			R.Colour = Base != INDEX_NONE ? FTorquePaintBay::BaseStock(Base) : FTorquePaintBay::TintStock(TorquePaintMix::TintIndex(P[2]));
+		}
+		else if (What == TEXT("take") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTinTake; R.Item = Bay.TinInSlot(FCString::Atoi(*P[2])); }
+		else if (What == TEXT("put") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTinPut; R.Item = FCString::Atoi(*P[2]); }
+		else if (What == TEXT("tobench")) R.Kind = ETorqueShedAct::PaintTinBench;
+		else if (What == TEXT("bin")) R.Kind = ETorqueShedAct::PaintTinBin;
+		else if (What == TEXT("cup")) R.Kind = ETorqueShedAct::PaintCup;
+		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup")); return true; }
+		Said(W->TestPaint(R));
 		return true;
 	}
 	if (Verb == TEXT("bikelog"))

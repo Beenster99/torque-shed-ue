@@ -201,6 +201,13 @@ void UTorqueBuildSubsystem::Deinitialize()
 
 bool UTorqueBuildSubsystem::TickSave(float Dt)
 {
+	// The host's clock for the mixing bay's shaker.
+	if (!IsClient() && Paint.Tick(Dt))
+	{
+		MarkSave();
+		OnItems.Broadcast();
+		OnHostChange.Broadcast();
+	}
 	if (!bSaveDue) return true;
 	SaveIn -= Dt;
 	if (SaveIn <= 0.0) Save();   // washing changes dirt many times a second: one save after it settles
@@ -212,6 +219,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	Bikes.Reset();
 	Bikes.SetNum(Bays);
 	Items.Reset();
+	Paint = FTorquePaintBay::Starter();
 	NextId = 1;
 	Mine = 0;
 	bHostCopy = false;
@@ -252,6 +260,12 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.bDynoFan = Dyno.bFan;
 	S.bDynoLights = Dyno.bLights;
 	S.DynoHeat = Dyno.Heat;
+	{
+		// The paint mixing bay, as bytes (FTorquePaintBay::Serialize).
+		S.PaintBay.Reset();
+		FMemoryWriter PaintAr(S.PaintBay);
+		const_cast<FTorquePaintBay&>(Paint).Serialize(PaintAr, false);
+	}
 	S.Items.Reset();
 	for (const TPair<int32, FTorqueItem>& KV : Items)
 	{
@@ -278,6 +292,12 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.bPrimerTop = It.bPrimerTop;
 		To.Coat = It.Coat;
 		To.CoatQ = It.CoatQ;
+		To.MixCode = It.MixCode;
+		To.MixName = It.MixName;
+		To.MixEffect = It.MixEffect;
+		To.MixCoats = It.MixCoats;
+		To.MixUnder = It.MixUnder;
+		To.Flat = It.Flat;
 		S.Items.Add(To);
 	}
 }
@@ -312,6 +332,18 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	Dyno.bFan = S.bDynoFan;
 	Dyno.bLights = S.bDynoLights;
 	Dyno.Heat = S.DynoHeat;
+	Paint = FTorquePaintBay::Starter();
+	if (S.PaintBay.Num() > 0)
+	{
+		FTorquePaintBay Saved;
+		FMemoryReader PaintAr(S.PaintBay);
+		if (Saved.Serialize(PaintAr, false)) Paint = Saved;
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: the paint mixing bay's save didn't read: a new bay"));
+		}
+	}
+	Paint.AfterLoad();
 	Items.Reset();
 	for (const FTorqueShedSaveItem& From : S.Items)
 	{
@@ -337,6 +369,12 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.bPrimerTop = From.bPrimerTop;
 		It.Coat = From.Coat;
 		It.CoatQ = From.CoatQ;
+		It.MixCode = From.MixCode;
+		It.MixName = From.MixName;
+		It.MixEffect = From.MixEffect;
+		It.MixCoats = From.MixCoats;
+		It.MixUnder = From.MixUnder;
+		It.Flat = From.Flat;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -384,7 +422,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 5;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs)
+constexpr int32 BytesLayout = 6;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay)
 
 struct FNameTable
 {
@@ -510,12 +548,19 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		uint8 Primer = TBI::Quant(It.Primer), CoatQ = TBI::Quant(It.CoatQ), bPrimerTop = It.bPrimerTop ? 1 : 0;
 		uint16 Coat = Table.Of(It.Coat);
 		Ar << PaintQ << Primer << bPrimerTop << Coat << CoatQ;
+		// Paint from the mixing bay.
+		FString MixCode = It.MixCode, MixName = It.MixName;
+		uint16 MixEffect = Table.Of(It.MixEffect);
+		uint8 MixCoats = (uint8)FMath::Clamp(It.MixCoats, 0, 255), Flat = TBI::Quant(It.Flat);
+		FColor MixUnder = It.MixUnder.QuantizeRound();
+		Ar << MixCode << MixName << MixEffect << MixCoats << MixUnder << Flat;
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
 	}
 	int32 NextIdOut = NextId;
 	Ar << NextIdOut;
+	const_cast<FTorquePaintBay&>(Paint).Serialize(Ar, true);
 
 	Out.Reset();
 	FMemoryWriter Head(Out);
@@ -628,6 +673,14 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			It.bPrimerTop = bPrimerTop != 0;
 			It.Coat = NameAt(Coat);
 			It.CoatQ = TBI::Unquant(CoatQ);
+			uint16 MixEffect = 0;
+			uint8 MixCoats = 0, Flat = 0;
+			FColor MixUnder;
+			Ar << It.MixCode << It.MixName << MixEffect << MixCoats << MixUnder << Flat;
+			It.MixEffect = NameAt(MixEffect);
+			It.MixCoats = MixCoats;
+			It.MixUnder = FLinearColor::FromSRGBColor(MixUnder);
+			It.Flat = TBI::Unquant(Flat);
 		}
 		Ar << bEngine;
 		if (bEngine && !TBI::ReadSlots(Ar, It.Slots, It.Bolted, false)) return false;
@@ -635,7 +688,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	}
 	int32 HostNextId = 1;
 	Ar << HostNextId;
-	if (Ar.IsError())
+	FTorquePaintBay NewPaint;
+	const bool bPaintRead = NewPaint.Serialize(Ar, true);
+	if (Ar.IsError() || !bPaintRead)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
 		return false;
@@ -648,6 +703,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Bikes = MoveTemp(NewBikes);
 	Items = MoveTemp(NewItems);
 	Dyno = NewDyno;
+	Paint = MoveTemp(NewPaint);
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -676,6 +732,7 @@ FString UTorqueBuildSubsystem::BaySignature(int32 Bay, bool bLooks) const
 		if (bLooks)
 			Sig += FString::Printf(TEXT(":%d:%d:%s:%s:%d:%d"), TBI::Quant(It->Dirt), TBI::Quant(It->Rust), *It->Colour.QuantizeRound().ToHex(),
 				*It->Finish.ToString(), IsBolted(Bay, S) ? 1 : 0, It->bPrimerTop ? 1 : 0);
+		if (bLooks && It->Flat > 0.0f) Sig += FString::Printf(TEXT(":flat%d"), TBI::Quant(It->Flat));
 	}
 	return Sig;
 }
@@ -692,6 +749,7 @@ FString UTorqueBuildSubsystem::LooseSignature() const
 			It.Tyre, FMath::RoundToInt(P.X), FMath::RoundToInt(P.Y), TBI::Quant(It.Dirt) + 256 * TBI::Quant(It.Rust),
 			*It.Colour.QuantizeRound().ToHex(), *It.Finish.ToString());
 		if (It.bPrimerTop) Sig += TEXT(":primer");
+		if (It.Flat > 0.0f) Sig += FString::Printf(TEXT(":flat%d"), TBI::Quant(It.Flat));
 		for (const TPair<FName, int32>& S : It.Slots) Sig += FString::Printf(TEXT(",%d"), S.Value);
 	}
 	return Sig;
@@ -1198,8 +1256,12 @@ FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 	else if (It.PaintQ >= 0.0f)
 	{
 		Text = FString::Printf(TEXT("Paint job: %s (%d%%)"), *TBI::JobWord(It.PaintQ), FMath::RoundToInt(It.PaintQ * 100.0f));
+		if (!It.MixName.IsEmpty())
+			Text += FString::Printf(TEXT(", %s (%s, %d %s)"), *It.MixName, *TorquePaintMix::EffectName(It.MixEffect).ToLower(), It.MixCoats,
+				It.MixCoats == 1 ? TEXT("coat") : TEXT("coats"));
 		if (It.Primer > 0.0f) Text += TEXT(", over primer");
 		if (IsLacquer(It.Coat)) Text += TEXT(", lacquered");
+		if (It.Flat >= 0.08f) Text += TEXT(", ") + TorquePaintMix::SheenName(It.Flat) + TEXT(" lacquer");
 	}
 	if (!It.Coat.IsNone())
 	{
@@ -1370,6 +1432,10 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	const int32 Held = HeldBy(Peer);
 	const FTorqueItem* HeldIt = Items.Find(Held);
 	const ETorqueShedAct A = R.Kind;
+	if (IsPaintBayAct(A)) return CheckPaintBay(Peer, R);
+	// A tin of paint in your hands is a full pair of hands.
+	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike) && Paint.Held.Contains(Peer))
+		return TEXT("Put the tin of paint down first.");
 	const bool bSlotWork = A == ETorqueShedAct::Unbolt || A == ETorqueShedAct::Bolt || A == ETorqueShedAct::Remove;
 	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched)
 		return TEXT("Crouch down to reach it (C).");
@@ -1516,6 +1582,13 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 			return FString();
 		}
 		if (R.bGun && !bInBooth) return TEXT("The spray gun runs off the paint booth's air line. Hang the part in the booth.");
+		if (R.Kind == ETorqueShedAct::Paint && R.Finish == CupFinish())
+		{
+			// Paint mixed in the mixing bay, from the gun's cup.
+			if (!R.bGun) return TEXT("Mixed paint goes on with the spray gun: fill its cup from the tin.");
+			if (It->Rust > MaxPaintRust) return TEXT("Too rusty to paint. Grind it back on the repair bench first.");
+			return CheckCup(Peer, *It);
+		}
 		if (It->Rust > MaxPaintRust)
 			return R.Kind == ETorqueShedAct::Prime ? FString(TEXT("Too rusty to prime. Grind it back on the repair bench first."))
 				: FString(TEXT("Too rusty to paint. Grind it back on the repair bench first."));
@@ -1676,6 +1749,15 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		if (On == INDEX_NONE) bItems = true;
 		else LooksOf.Add(On);
 	};
+	if (IsPaintBayAct(R.Kind))
+	{
+		// The mixing bay (TorquePaintBay.cpp): its tins, bench, shaker and cups.
+		Text = ApplyPaintBay(Peer, R);
+		OnItems.Broadcast();
+		MarkSave();
+		OnHostChange.Broadcast();
+		return Text;
+	}
 	switch (R.Kind)
 	{
 	case ETorqueShedAct::Unbolt:
@@ -1820,17 +1902,38 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		// shed_state _apply "paint": fresh paint covers any coat that was on it; in the booth no
 		// dust settles in it, and over a good primer it keys on and comes out better.
 		FTorqueItem& It = Items[R.Item];
-		const int32 Idx = FMath::Clamp(R.Colour, 0, Paints().Num() - 1);
-		It.Colour = Paints()[Idx];
-		It.Finish = Finishes().Contains(R.Finish) ? R.Finish : FName(TEXT("gloss"));
+		const bool bPrimed = It.bPrimerTop;
+		float CoatsQ = 1.0f;
+		FString What;
+		if (R.Finish == CupFinish())
+		{
+			// Mixed paint from the gun's cup: its colour and effect, coats building up (TorquePaintBay.cpp).
+			CoatsQ = SprayFromCup(Peer, It);
+			const FTorquePaintCup* Cup = Paint.Cups.Find(Peer);
+			const TorquePaintMix::FPaintSpec Mixed = Cup ? Cup->Spec : TorquePaintMix::FPaintSpec();
+			if (Mixed.IsLacquer()) What = FString::Printf(TEXT("with %s clear lacquer"), *TorquePaintMix::SheenName(Mixed.Flat));
+			else What = FString::Printf(TEXT("%s (%s, coat %d)"), *Mixed.Name, *TorquePaintMix::EffectName(Mixed.Effect).ToLower(), It.MixCoats);
+		}
+		else
+		{
+			const int32 Idx = FMath::Clamp(R.Colour, 0, Paints().Num() - 1);
+			It.Colour = Paints()[Idx];
+			It.Finish = Finishes().Contains(R.Finish) ? R.Finish : FName(TEXT("gloss"));
+			It.MixCode.Reset();
+			It.MixName.Reset();
+			It.MixEffect = NAME_None;
+			It.MixCoats = 0;
+			It.Flat = 0.0f;
+			What = FinishName(It.Finish).ToLower() + TEXT(" ") + PaintName(Idx).ToLower();
+		}
 		It.Coat = NAME_None;
 		It.CoatQ = 0.0f;
 		float Q = TBI::SprayQ(It);
-		const bool bPrimed = It.bPrimerTop;
 		if (bPrimed) Q = FMath::Min(1.0f, Q + PrimerBonus * It.Primer);
 		It.bPrimerTop = false;
+		Q *= CoatsQ;
 		It.PaintQ = Q;
-		Text = FString::Printf(TEXT("Sprayed the %s %s %s"), *ItemTitle(R.Item), *FinishName(It.Finish).ToLower(), *PaintName(Idx).ToLower());
+		Text = FString::Printf(TEXT("Sprayed the %s %s"), *ItemTitle(R.Item), *What);
 		if (bPrimed) Text += TEXT(" over primer");
 		Text += TEXT(": ") + TBI::JobWord(Q);
 		Touch(R.Item);
@@ -2059,6 +2162,15 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 void UTorqueBuildSubsystem::DropHeldBy(int32 Peer, const FVector& At)
 {
 	if (IsClient()) return;
+	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.Cups.Contains(Peer))
+	{
+		// The mixing bay: their tin back on the shelf, away from the bench, the cup put away.
+		Paint.PutBack(Peer);
+		Paint.Cups.Remove(Peer);
+		OnItems.Broadcast();
+		MarkSave();
+		OnHostChange.Broadcast();
+	}
 	const int32 Id = HeldBy(Peer);
 	if (Id == 0) return;
 	Move(Id, ETorqueAt::Floor, 0);

@@ -62,7 +62,7 @@ public:
 	// The PlayStation pad as it is now (geometry mode reads it while it's open: one reader).
 	FSonyPadState PadState() const;
 	// Whether to draw the aiming dot (walking about, not at the computer).
-	bool ShowsCrosshair() const { return !bRidingOut && !bComputer; }
+	bool ShowsCrosshair() const { return !bRidingOut && !bComputer && !bBench; }
 	// For the HUD (Torque Shed's hud.gd): the crosshair lit over something, the work ring, the tool
 	// bar, the spray swatches and what you're carrying.
 	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
@@ -82,6 +82,10 @@ public:
 	FName ComputerKind() const { return MenuKinds.IsValidIndex(MenuCategory) ? MenuKinds[MenuCategory] : NAME_None; }
 	TArray<FName> ComputerRows() const { return MenuRows(); }
 	int32 ComputerRow() const { return MenuRow; }
+	// For the HUD at the mixing bench: the colour in the tin on the scale (as it'd spray), and the
+	// colour to match, if there's one. False when not at the bench or there's no tin.
+	bool AtBench() const { return bBench; }
+	bool BenchSwatches(FLinearColor& OutMix, bool& bOutTarget, FLinearColor& OutTarget) const;
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -114,6 +118,12 @@ public:
 	// Where bay Bay's bike is (its bay stand, the rig, being wheeled, or the floor), and its pitch and roll as drawn.
 	FString BikeWhere(int32 Bay) const;
 	const FString& LastNote() const { return Note; }
+	// The mixing bay: step up to the bench (or away), and a bay request as its keys make one
+	// (TorqueWalkerBench.cpp); pour Grams of tint Code as holding the work button would, in
+	// flushes. Say what happened.
+	FString TestBench(bool bOn);
+	FString TestPaint(const FTorqueShedRequest& R);
+	FString TestPour(const FString& Code, float Grams);
 
 	// After walker.gd: eye 1.62 m (0.95 crouched), walk 3.2 m/s, hurry 5.5, crouched 1.5, reach 2.6 m.
 	UPROPERTY(EditAnywhere, Category = "Walker") float WalkSpeed = 320.0f;
@@ -216,6 +226,32 @@ private:
 	void OpenComputer();
 	void ComputerInput(int32 RowStep, int32 CategoryStep, bool bChoose, bool bClose);
 	FString Order(FName Part);
+
+	// --- The paint mixing bench (paint_bench.gd; TorqueWalkerBench.cpp) ---------------------------------
+	// Its pages: Mix (a tin on the scale, pour, stir, test, save), Recipes (cards from the swatch
+	// wall), Supplies (restock). Holding the work button on a tint pours it, the bottle tipping
+	// further the longer it's held; holding R stirs. Pours and stirs go to the host in flushes.
+	struct FBenchRow
+	{
+		ETorqueShedAct Kind = ETorqueShedAct::Count;   // what the work button does (PaintPour: hold it)
+		int32 Item = 0, Colour = 0;
+		FString Text;
+	};
+	bool bBench = false;
+	int32 BenchPage = 0, BenchRow = 0;
+	float BenchTilt = 0.0f, BenchPourHeld = 0.0f;
+	float PourUnsent = 0.0f, StirUnsent = 0.0f, BenchSendIn = 0.0f;
+	int32 PouringTint = INDEX_NONE;
+	TArray<FBenchRow> BenchRows() const;
+	void OpenBench();
+	void CloseBench();
+	void BenchInput(float Dt, int32 RowStep, int32 PageStep, bool bChoose, bool bWorkDown, bool bAltDown, bool bClose);
+	void FlushBench(bool bStopPour);
+	bool BenchAsk(const FTorqueShedRequest& R);
+	void BenchHud(const UTorqueBuildSubsystem* B);
+	// Holding a tin from the mixing bay: F on the bench, the shelf or a bin puts it there, R fills the
+	// spray gun's cup from it.
+	bool TinInteract();
 
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();
