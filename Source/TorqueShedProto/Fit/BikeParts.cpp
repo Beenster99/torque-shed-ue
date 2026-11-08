@@ -2090,6 +2090,12 @@ void BikeParts::FrontMudguard(const PartsMap& Parts, const Layout& L, std::vecto
 		};
 		PlankTip(Blades.back(), true);
 		PlankTip(Blades.front(), false);
+		// Held up off the bottom yoke on a pair of stays.
+		for (double Sd : {-1.0, 1.0})
+		{
+			const V3 A = Base + V3(0.05 * Sd, 0.0, 0.0), B = Yoke + H + V3(0.05 * Sd, -0.02, 0.0);
+			CodeShapes::Emit(Out, "front_mudguard", "guard/" + Section + ".glb", "steer", "", CodeShapes::Tube(A, B, 0.008), CodeShapes::TubeAt(A, B), "black_metal");
+		}
 		return;
 	}
 	double Gap = 0.03, A0 = -0.5, A1 = 0.75;
@@ -2102,7 +2108,42 @@ void BikeParts::FrontMudguard(const PartsMap& Parts, const Layout& L, std::vecto
 	A0 = PartNum(Look, "a0", A0);
 	A1 = PartNum(Look, "a1", A1);
 	W += PartNum(Look, "wider", 0.0);
-	GuardArc(Out, "front_mudguard", Section, ToGodot(L.FrontAxle), R + Gap, W, A0, A1, Style == "classic" ? 10 : 6, "front_hub");
+	const V3 Axle = ToGodot(L.FrontAxle);
+	const double Radius = R + Gap;
+	GuardArc(Out, "front_mudguard", Section, Axle, Radius, W, A0, A1, Style == "classic" ? 10 : 6, "front_hub");
+	// The code-drawn pieces on the hub: a rib along the crown, accent stripes, the brackets to the
+	// fork legs and a valanced or blade guard's wire stays.
+	CodeShapes::GodotNames Named;
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "front_mudguard", "guard/" + Section + ".glb", "front_hub", Named(Name), M, GAffine::At(Axle) * Xf, Tag);
+	};
+	auto Arc = [&](double X, double Out_) {
+		std::vector<V3> Pts;
+		for (int I = 0; I < 9; ++I)
+		{
+			const double A = TorqueSim::Lerp(A0, A1, I / 8.0);
+			Pts.push_back(V3(X, 0.0, 0.0) + V3(0.0, std::cos(A), std::sin(A)) * Out_);
+		}
+		return Pts;
+	};
+	const bool Ribbed = Look && Look->Flag("rib");
+	if (Ribbed) Code("GuardRib", CodeShapes::Sweep(Arc(0.0, Radius + 0.008), 0.006, 12), GAffine(), "chrome");
+	if (Look && Look->Get("accent"))
+		for (double X : {-0.03, 0.03}) Code("", CodeShapes::Sweep(Arc(X, Radius + 0.007), 0.004, 12), GAffine(), "paint_2");
+	for (double Sd : {-1.0, 1.0}) Code("", CodeShapes::Box(V3(0.03, 0.02, 0.05)), GAffine::At(V3(0.09 * Sd, Radius * 0.92, 0.0)), "black_metal");
+	if (Style == "classic" || Style == "cafe" || Style == "bobbed")
+	{
+		const std::vector<double> Ends = Style != "bobbed" ? std::vector<double>{A0 + 0.2, A1 - 0.2} : std::vector<double>{A1 - 0.1};
+		for (double Sd : {-1.0, 1.0})
+		{
+			const double X = (W * 0.5 + 0.01) * Sd;
+			for (double A : Ends)
+			{
+				const V3 From(X, 0.0, 0.0), To = From + V3(0.0, std::cos(A), std::sin(A)) * Radius;
+				Code("", CodeShapes::Tube(From, To, 0.005), CodeShapes::TubeAt(From, To), "chrome");
+			}
+		}
+	}
 }
 
 std::vector<BikeParts::Intake> BikeParts::Intakes(const PartsMap& Parts, const Layout& L) const
