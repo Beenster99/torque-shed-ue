@@ -19,6 +19,9 @@ enum class ETorquePlace : uint8
 	Bin,       // the three bins left of the roller door
 	Computer,  // the parts computer on the east wall
 	Bay,       // a bay's floor (a frame put down here starts a bike)
+	DynoStrap, // one of the dyno rig's four strap posts (Index 0 .. 3): hold the work button to strap it
+	DynoDesk,  // the dyno desk: run the bike on the rig
+	DynoSwitch,// the dyno room's switches by the door (Index 0 the lights, 1 the fan)
 };
 
 struct FTorquePlace
@@ -86,6 +89,15 @@ inline const TArray<FTorquePlace>& Places()
 			FVector(BinX[I], 517.0, 92.0), I);
 	// The parts computer's desk and monitor on the east wall.
 	Add(ETorquePlace::Computer, TEXT("computer"), FVector(565.0, 125.0, 74.0), FVector(625.0, 255.0, 131.0), FVector(605.0, 190.0, 78.0), 0);
+	// The dyno room (dyno_room.gd, through the back wall): the rig's strap posts round (0, -940), the
+	// desk at (290, -1110), the switches by the door. Keep in step with ue_build_shed.py dyno_room.
+	static const double PostX[] = {-95.0, 95.0, -95.0, 95.0}, PostY[] = {-1000.0, -1000.0, -860.0, -860.0};
+	for (int32 I = 0; I < 4; ++I)
+		Add(ETorquePlace::DynoStrap, FString::Printf(TEXT("dyno_strap_%d"), I), FVector(PostX[I] - 17.0, PostY[I] - 17.0, 0.0),
+			FVector(PostX[I] + 17.0, PostY[I] + 17.0, 70.0), FVector(PostX[I], PostY[I], 50.0), I);
+	Add(ETorquePlace::DynoDesk, TEXT("dyno_desk"), FVector(215.0, -1145.0, 65.0), FVector(365.0, -1070.0, 145.0), FVector(290.0, -1110.0, 84.0), 0);
+	Add(ETorquePlace::DynoSwitch, TEXT("dyno_lights"), FVector(-145.0, -590.0, 122.0), FVector(-125.0, -578.0, 148.0), FVector(-135.0, -585.0, 135.0), 0);
+	Add(ETorquePlace::DynoSwitch, TEXT("dyno_fan"), FVector(-169.0, -590.0, 122.0), FVector(-149.0, -578.0, 148.0), FVector(-159.0, -585.0, 135.0), 1);
 	// Each bay's floor round the stand (a frame put down here starts a bike).
 	for (int32 I = 0; I < 4; ++I)
 	{

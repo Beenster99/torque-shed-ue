@@ -482,7 +482,9 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
 		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, deliveries, washbay, or a place name")); return true; }
-		Said(TEXT("looking at ") + W->TestLookAt(At, Away, Distance));
+		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
+		const FString Seen = W->TestLookAt(At, Away, Distance);
+		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);
 		return true;
 	}
 	if (Verb == TEXT("act"))

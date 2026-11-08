@@ -46,7 +46,7 @@ public:
 	static constexpr int32 PageH = 576;
 
 private:
-	// 0..3 the bays' screens, 4 the crew board, 5 the parts computer's monitor.
+	// 0..3 the bays' screens, 4 the crew board, 5 the parts computer's monitor, 6 the dyno room's screen.
 	UPROPERTY(Transient) TArray<UTextureRenderTarget2D*> Pages;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Quads;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> PageMaterials;
@@ -56,6 +56,8 @@ private:
 	void Redraw();
 	void DrawPage(int32 Index, float Now);
 	void DrawComputer(UCanvas* C, float Now) const;
+	void DrawDyno(UCanvas* C) const;
+	bool bDynoWasLive = false;
 	void DrawBay(UCanvas* C, int32 Bay) const;
 	void DrawCrew(UCanvas* C) const;
 	void DrawHowTo(UCanvas* C, int32 Page) const;

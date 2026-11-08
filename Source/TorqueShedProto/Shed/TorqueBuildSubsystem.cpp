@@ -1046,8 +1046,8 @@ FVector UTorqueBuildSubsystem::StrapPost(int32 Point)
 	// STRAP_POSTS, in rig space (Godot x right, z back): front left, front right, rear left, rear right.
 	static const FVector2D Posts[4] = {FVector2D(-0.95, -0.6), FVector2D(0.95, -0.6), FVector2D(-0.95, 0.8), FVector2D(0.95, 0.8)};
 	const FVector2D P = Posts[FMath::Clamp(Point, 0, 3)];
-	// The rig faces -y: its right is -x, its back +y.
-	return RigTransform().GetLocation() + FVector(-P.X * 100.0, P.Y * 100.0, 0.0);
+	// Torque Shed's room frame is the shed's turned about: its x is our x, its z (back) our y.
+	return RigTransform().GetLocation() + FVector(P.X * 100.0, P.Y * 100.0, 0.0);
 }
 
 bool UTorqueBuildSubsystem::OnDyno(int32 Bay) const

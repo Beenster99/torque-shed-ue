@@ -3,6 +3,7 @@
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
+#include "Shed/TorqueDynoRoom.h"
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
@@ -14,6 +15,7 @@
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
+#include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedScreens.h"
 #include "Shed/TorqueToolModels.h"
 #include "SonyPad.h"
@@ -113,6 +115,16 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 	case ETorquePlace::Stand: return TEXT("Engine stand");
 	case ETorquePlace::Bin: return TorqueShedParts::BinName(P.Name);
 	case ETorquePlace::Computer: return TEXT("Parts computer");
+	case ETorquePlace::DynoStrap:
+		if (B) return FString::Printf(TEXT("Strap post (%s)"), B->DynoRoom().Straps[FMath::Clamp(P.Index, 0, 3)] ? TEXT("done up") : TEXT("undone"));
+		return TEXT("Strap post");
+	case ETorquePlace::DynoDesk:
+		if (B && B->DynoBay() != INDEX_NONE) return FString::Printf(TEXT("Dyno desk: %s on the rig"), *B->Bike(B->DynoBay()).Name);
+		return TEXT("Dyno desk");
+	case ETorquePlace::DynoSwitch:
+		if (P.Index == 0) return (B && B->DynoRoom().bLights) ? TEXT("Dyno room lights (on)") : TEXT("Dyno room lights (off)");
+		return FString::Printf(TEXT("Cooling fan (%s, engine at %.0f C)"), (B && B->DynoRoom().bFan) ? TEXT("on") : TEXT("off"),
+			TorqueShedPower::DynoTemp(B ? B->DynoRoom().Heat : 0.0f));
 	case ETorquePlace::Bay:
 		if (B && B->Exists(P.Index)) return FString::Printf(TEXT("Bay %d: %s"), P.Index + 1, *B->Bike(P.Index).Name);
 		return FString::Printf(TEXT("Bay %d (empty)"), P.Index + 1);
@@ -238,6 +250,10 @@ void ATorqueWalker::BeginPlay()
 		bool bScreens = false;
 		for (TActorIterator<ATorqueShedScreens> It(World); It; ++It) bScreens = true;
 		if (!bScreens) World->SpawnActor<ATorqueShedScreens>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// And the dyno room's moving kit: the drum, the fan, the straps, the lights.
+		bool bDyno = false;
+		for (TActorIterator<ATorqueDynoRoom> It(World); It; ++It) bDyno = true;
+		if (!bDyno) World->SpawnActor<ATorqueDynoRoom>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -780,6 +796,24 @@ void ATorqueWalker::MakePlan()
 		return P;
 	};
 
+	// The dyno room's kit (dyno_room.gd plan_for): the straps whatever's in hand, the desk's run button.
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoStrap)
+	{
+		const int32 Point = FMath::Clamp(TargetPlace->Index, 0, 3);
+		const bool bDone = B->DynoRoom().Straps[Point];
+		Plan = MakeOne(ETorqueShedAct::DynoStrap, bDone ? 0.8 : 1.4, bDone ? TEXT("undo this strap") : TEXT("hook the strap on and ratchet it down tight"));
+		Plan.Request.Item = Point;
+		Plan.Blocked = B->Check(Me, Plan.Request);
+		return;
+	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoDesk)
+	{
+		Plan = MakeOne(ETorqueShedAct::DynoRun, 0.4, TEXT("run the dyno"));
+		Plan.Request.Bay = B->DynoBay();
+		Plan.Blocked = B->Check(Me, Plan.Request);
+		return;
+	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
 	switch (Tool)
 	{
 	case ETorqueTool::Hands:
@@ -1471,6 +1505,18 @@ void ATorqueWalker::Interact()
 		OpenComputer();
 		return;
 	}
+	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::DynoSwitch || TargetPlace->Kind == ETorquePlace::DynoDesk))
+	{
+		// The dyno room: the switches by the door, and the desk (F runs the bike on the rig).
+		FTorqueShedRequest R;
+		R.Kind = TargetPlace->Kind == ETorquePlace::DynoDesk ? ETorqueShedAct::DynoRun
+			: (TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan);
+		R.Bay = B->DynoBay();
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		else if (R.Kind == ETorqueShedAct::DynoRun) Doing(FString::Printf(TEXT("running bay %d's bike on the dyno"), R.Bay + 1), 10.0);
+		return;
+	}
 	if (Target == ETorqueLook::BikePart || Target == ETorqueLook::Door || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay))
 	{
 		StartRideOut(Target == ETorqueLook::Door ? B->MyBike() : TargetBay);
@@ -1671,6 +1717,16 @@ void ATorqueWalker::UpdateHud()
 		{
 			HudLines.Add({TWI::PlaceName(*TargetPlace, B), FColor::White, 0.8f});
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::DynoDesk)
+			{
+				HudLines.Add({TEXT("F / Triangle (or left mouse): run the bike on the rig"), Prompt, 0.65f});
+				if (B->HasDynoRun(B->DynoBay()))
+				{
+					const FTorqueDynoRun& Last = B->DynoRunOf(B->DynoBay());
+					HudLines.Add({FString::Printf(TEXT("Last run: %.1f hp at %.0f rpm, %.1f Nm at %.0f rpm (at the wheel)"), Last.PeakHp, Last.PeakHpRpm, Last.PeakNm, Last.PeakNmRpm), Info, 0.55f});
+				}
+			}
 			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: ride this bike out"), Prompt, 0.65f});
 		}
 		break;

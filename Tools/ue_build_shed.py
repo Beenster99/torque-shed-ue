@@ -156,7 +156,7 @@ def screen_page_material():
     white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
     if white:
         try_set(tex, "texture", white)
-    bright = expr(m, unreal.MaterialExpressionScalarParameter, -700, 250, parameter_name="Brightness", default_value=1.6)
+    bright = expr(m, unreal.MaterialExpressionScalarParameter, -700, 250, parameter_name="Brightness", default_value=4.5)
     mul = expr(m, unreal.MaterialExpressionMultiply, -300, 0)
     mel.connect_material_expressions(tex, "RGB", mul, "A")
     mel.connect_material_expressions(bright, "", mul, "B")
@@ -519,6 +519,83 @@ def rooms(m):
     room("Dyno", -450.0, 450.0, -1300.0, -580.0, m, open_sides=("s",))
 
 
+# --- The dyno room (dyno_room.gd): the rolling road behind the shed's back wall -----------------------
+# Torque Shed's room frame (Godot metres: x right, y up, z towards the shed) to the shed's (cm): the
+# room's back wall z 59.2 is this shed's back wall, y -580.
+DYNO_RIG = (0.0, -940.0)             # CENTER (0, 0, 55.6): the rig, the bike on it facing the far wall
+DYNO_DESK = (290.0, -1110.0)         # DESK (2.9, 0, 53.9)
+
+
+def g2ue(x, y, z):
+    """A point in Torque Shed's dyno room frame (metres) as the shed's (cm)."""
+    return (x * 100.0, (z - 59.2) * 100.0 - 580.0, y * 100.0)
+
+
+def gbox(label, centre, size, mat, folder="Dyno", **kw):
+    """dyno_room.gd's _deco and _solid: a box at a room-frame centre with a room-frame size (metres)."""
+    c = g2ue(*centre)
+    return shape(CUBE, label, c, (size[0] * 100.0, size[2] * 100.0, size[1] * 100.0), mat, folder=folder, **kw)
+
+
+def gcyl(label, centre, radius, height, mat, axis="y", folder="Dyno", **kw):
+    """A cylinder (radius, height in metres) along the room frame's y (up) or z (towards the shed)."""
+    c = g2ue(*centre)
+    rot = (0.0, 0.0, 0.0) if axis == "y" else (90.0, 0.0, 0.0)
+    return shape(CYLINDER, label, c, (radius * 200.0, radius * 200.0, height * 100.0), mat, rot=rot, folder=folder, **kw)
+
+
+def dyno_room(m):
+    cx, cz = 0.0, 55.6
+    hz = 3.6
+    # The rolling road (_build_rig): a steel plate flush with the floor, hazard edging, the slot the
+    # drum shows through under the rear tyre (the drum turns: the game's), the front wheel clamp.
+    gbox("Dyno_Plate", (cx, 0.007, cz - 0.05), (1.3, 0.014, 3.3), m["steel"], collide=False)
+    for i, side in enumerate((-1.0, 1.0)):
+        gbox("Dyno_Edge_%d" % i, (cx + side * 0.7, 0.009, cz - 0.05), (0.08, 0.018, 3.4), m["yellow"], collide=False)
+    gbox("Dyno_Slot", (cx, 0.016, cz + 0.71), (0.6, 0.004, 0.62), m["dark"], collide=False)
+    clamp_z = cz - 0.72
+    for i, side in enumerate((-1.0, 1.0)):
+        gbox("Dyno_Clamp_%d" % i, (cx + side * 0.1, 0.2, clamp_z - 0.08), (0.03, 0.36, 0.6), m["blue"], collide=False)
+    gbox("Dyno_ClampBase", (cx, 0.03, clamp_z - 0.08), (0.26, 0.04, 0.62), m["blue"], collide=False)
+    gbox("Dyno_ClampStop", (cx, 0.2, clamp_z - 0.42), (0.26, 0.4, 0.04), m["blue"], collide=False, rot=(-20.0, 0.0, 0.0))
+    # The four strap posts (the straps are the game's, drawn once done up).
+    for i, (px, pz) in enumerate(((-0.95, -0.6), (0.95, -0.6), (-0.95, 0.8), (0.95, 0.8))):
+        gcyl("Dyno_Post_%d" % i, (cx + px, 0.22, cz + pz), 0.045, 0.44, m["yellow"])
+        gcyl("Dyno_PostCap_%d" % i, (cx + px, 0.46, cz + pz), 0.06, 0.05, m["dark"], collide=False)
+    # The cooling fan in front of the bike (_build_fan): its base, post and housing (the blades turn: the game's).
+    fz = cz - 1.95
+    gbox("Dyno_FanBase", (cx, 0.18, fz), (0.7, 0.36, 0.45), m["dark"])
+    gbox("Dyno_FanPost", (cx, 0.55, fz), (0.12, 0.4, 0.12), m["steel"], collide=False)
+    gcyl("Dyno_FanHousing", (cx, 0.95, fz), 0.48, 0.3, m["blue"], axis="z", collide=False)
+    gcyl("Dyno_FanBack", (cx, 0.95, fz - 0.02), 0.44, 0.3, m["dark"], axis="z", collide=False)
+    gbox("Dyno_FanGrilleH", (cx, 0.95, fz + 0.17), (0.92, 0.015, 0.015), m["steel"], collide=False)
+    gbox("Dyno_FanGrilleV", (cx, 0.95, fz + 0.17), (0.015, 0.92, 0.015), m["steel"], collide=False)
+    # The dyno desk (_build_desk): a console with its monitor and the big red run button.
+    dx, dz = 2.9, 53.9
+    gbox("Dyno_Desk", (dx, 0.4, dz), (1.5, 0.8, 0.7), m["dark"])
+    gbox("Dyno_DeskTop", (dx, 0.82, dz), (1.55, 0.04, 0.75), m["wood"], collide=False)
+    gbox("Dyno_DeskMonitor", (dx, 1.17, dz - 0.18), (0.9, 0.52, 0.05), m["dark"], collide=False)
+    gbox("Dyno_DeskGlass", (dx, 1.17, dz - 0.15), (0.84, 0.46, 0.01), m["screen"], collide=False)
+    gbox("Dyno_DeskKeyboard", (dx - 0.1, 0.85, dz + 0.12), (0.5, 0.02, 0.16), m["dark"], collide=False)
+    gbox("Dyno_RunButton", (dx + 0.45, 0.86, dz + 0.12), (0.18, 0.06, 0.12), m["red"], collide=False)
+    label_text("Dyno_DeskTitle", "DYNO & TUNING", g2ue(dx, 1.30, dz - 0.14), 90.0, 6.0, (240, 160, 60), "Dyno")
+    # The big screen's frame on the far wall (_build_screen; the page is the game's).
+    gbox("Dyno_ScreenFrame", (cx, 2.25, cz - hz + 0.06), (3.3, 1.9, 0.05), m["dark"], collide=False)
+    # Hazard lines round the rig, the walkway mat by the desk, the sign over the door (_build_decor).
+    for i, side in enumerate((-1.0, 1.0)):
+        gbox("Dyno_Hazard_%d" % i, (cx + side * 1.45, 0.01, cz - 0.3), (0.06, 0.004, 4.2), m["yellow"], collide=False)
+    gbox("Dyno_HazardFront", (cx, 0.01, cz - 2.4), (2.9, 0.004, 0.06), m["yellow"], collide=False)
+    gbox("Dyno_DeskMat", (dx, 0.006, dz + 0.85), (1.6, 0.012, 0.9), m["dark"], collide=False)
+    label_text("Dyno_DoorSign", "DYNO ROOM", (0.0, -HALF_Y + 3.0, DYNO_DOOR_TOP + 45.0), 90.0, 22.0, (40, 32, 26), "Dyno")
+    # The light and fan switches by the door (_build_switches): the rockers are the game's to light.
+    sw = (-1.3, 1.35, 59.17)
+    gbox("Dyno_SwitchPlate", (sw[0] - 0.17, sw[1], sw[2]), (0.52, 0.26, 0.03), m["yellow"], collide=False)
+    for i, name in enumerate(("LIGHTS", "FAN")):
+        x = sw[0] - 0.05 - i * 0.24
+        gbox("Dyno_Switch_%d" % i, (x, sw[1], sw[2] - 0.02), (0.12, 0.16, 0.02), m["wall_in"], collide=False)
+        label_text("Dyno_SwitchLabel_%d" % i, name, g2ue(x, sw[1] + 0.17, sw[2] - 0.035), -90.0, 4.0, (40, 32, 26), "Dyno")
+
+
 def deliveries(m):
     # The deliveries bay on the yard east of the door (Shed.DELIVERY_AREA): painted lines, the
     # floor's front edge, DELIVERIES on the ground.
@@ -682,6 +759,7 @@ def build():
     machines(m)
     wash_bay(m)
     rooms(m)
+    dyno_room(m)
     deliveries(m)
     lights(m)
     outside(m)

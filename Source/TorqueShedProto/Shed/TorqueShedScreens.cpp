@@ -3,6 +3,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
+#include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorquePlayerState.h"
 #include "CanvasItem.h"
@@ -37,7 +38,9 @@ FLinearColor Srgb(float R, float G, float B, float A = 1.0f)
 const FLinearColor Bg() { return Srgb(0.03f, 0.05f, 0.07f); }
 const FLinearColor Good() { return Srgb(0.35f, 0.9f, 0.45f); }
 const FLinearColor Bad() { return Srgb(1.0f, 0.35f, 0.25f); }
-const FLinearColor Dim() { return Srgb(1.0f, 1.0f, 1.0f, 0.55f); }
+const FLinearColor Dim() { return Srgb(1.0f, 1.0f, 1.0f, 0.72f); }
+// The page's glow (M_ShedScreenPage's Brightness): 1.6 read dim against the shed's exposure.
+constexpr float PageBrightness = 4.5f;
 const FLinearColor Orange() { return Srgb(1.0f, 0.55f, 0.15f, 0.9f); }
 const FLinearColor Amber() { return Srgb(1.0f, 0.78f, 0.3f); }
 const FLinearColor Ink() { return Srgb(0.05f, 0.05f, 0.05f); }
@@ -408,12 +411,18 @@ void ATorqueShedScreens::BeginPlay()
 	Screens.Add({FVector(-642.4, 60.0, 255.0), FVector(1, 0, 0), FVector(0, -1, 0), 288.0f, 156.0f});
 	// The parts computer's monitor on the east wall (its glass at x 613.5, over the PARTS label).
 	Screens.Add({FVector(612.6, 190.0, 110.0), FVector(-1, 0, 0), FVector(0, 1, 0), 62.0f, 33.5f});
+	// The dyno room's big screen on its far wall (dyno_room.gd _build_screen: 3.2 m across, 2.25 m up).
+	Screens.Add({FVector(0.0, -1290.5, 225.0), FVector(0, 1, 0), FVector(1, 0, 0), 320.0f, 173.0f});
 	for (int32 I = 0; I < Screens.Num(); ++I)
 	{
 		const FScreen& S = Screens[I];
 		UTextureRenderTarget2D* RT = UKismetRenderingLibrary::CreateRenderTarget2D(this, PageW, PageH, RTF_RGBA8_SRGB, TSSI::Bg());
 		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, this);
-		if (RT && M) M->SetTextureParameterValue(TEXT("Page"), RT);
+		if (RT && M)
+		{
+			M->SetTextureParameterValue(TEXT("Page"), RT);
+			M->SetScalarParameterValue(TEXT("Brightness"), TSSI::PageBrightness);   // bright enough to read in the lit shed
+		}
 		UStaticMesh* Mesh = TSSI::Quad(S.Centre, S.Facing, S.Right, S.W, S.H, M);
 		if (!RT || !M || !Mesh) continue;
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
@@ -465,6 +474,14 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 				DrawPage(5, (float)World->GetRealTimeSeconds());
 				break;
 			}
+		// A dyno run playing: its graph grows as the sweep goes.
+		float Rpm = 0.0f, Progress = 0.0f;
+		int32 Gear = 0;
+		if (ATorqueDynoRoom::Live(this, Rpm, Gear, Progress) || bDynoWasLive)
+		{
+			bDynoWasLive = ATorqueDynoRoom::Live(this, Rpm, Gear, Progress);
+			DrawPage(6, (float)World->GetRealTimeSeconds());
+		}
 	}
 }
 
@@ -491,6 +508,7 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 	{
 		if (Index < 4) DrawBay(C, Index);
 		else if (Index == 5) DrawComputer(C, Now);
+		else if (Index == 6) DrawDyno(C);
 		else
 		{
 			// The crew board: the crew, then each how-to page in turn.
@@ -867,4 +885,167 @@ void ATorqueShedScreens::DrawComputer(UCanvas* C, float Now) const
 	Pen.Text(24, H - 17, Boxes == 0 ? FString(TEXT("No deliveries waiting")) : FString::Printf(TEXT("%d %s waiting to be unpacked"), Boxes, Boxes == 1 ? TEXT("box") : TEXT("boxes")),
 		18, Boxes == 0 ? Dim() : Amber());
 	Pen.Text(560, H - 17, User ? FString(TEXT("W / S choose   Q / E kind   F done")) : FString(), 16, Dim(), W - 584.0f, 1);
+}
+
+void ATorqueShedScreens::DrawDyno(UCanvas* C) const
+{
+	// dyno_graph.gd: power and torque at the wheel against rpm (the run before dashed behind the
+	// latest), drawn as far as the sweep has got, and the headline numbers under them.
+	using namespace TSSI;
+	FPen Pen;
+	Pen.C = C;
+	Pen.Font = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (!Pen.Font) return;
+	float FW = 0.0f, FH = 0.0f;
+	C->StrLen(Pen.Font, TEXT("Hg"), FW, FH);
+	Pen.LineH = FH;
+	const float W = (float)PageW, H = (float)PageH;
+	const FLinearColor Power = Srgb(0.851f, 0.467f, 0.122f), TorqueC = Srgb(0.231f, 0.561f, 0.878f), InkC = Srgb(0.9f, 0.92f, 0.95f);
+	const FLinearColor InkDim = Srgb(1.0f, 1.0f, 1.0f, 0.62f), Grid = Srgb(1.0f, 1.0f, 1.0f, 0.08f), Axis = Srgb(1.0f, 1.0f, 1.0f, 0.3f);
+	const FLinearColor PanelC = Srgb(1.0f, 1.0f, 1.0f, 0.04f), Hot = Srgb(1.0f, 0.42f, 0.32f);
+	auto Line = [C](const FVector2D& A, const FVector2D& B2, const FLinearColor& Colour, float Thick)
+	{
+		FCanvasLineItem L(A, B2);
+		L.SetColor(Colour);
+		L.LineThickness = Thick;
+		C->DrawItem(L);
+	};
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	const int32 Bay = B ? B->DynoBay() : INDEX_NONE;
+	const float Pad = 18.0f;
+	Pen.Rect(0, 0, W, H, Srgb(0.035f, 0.045f, 0.06f));
+	Pen.Text(Pad, 40, Bay != INDEX_NONE ? FString::Printf(TEXT("DYNO: %s"), *B->Bike(Bay).Name.ToUpper()) : FString(TEXT("DYNO")), 30, Power);
+	float Rpm = 0.0f, Progress = 1.0f;
+	int32 Gear = 0;
+	const bool bLive = ATorqueDynoRoom::Live(this, Rpm, Gear, Progress);
+	FString GearText = TEXT("N");
+	if (Gear > 0) GearText = FString::Printf(TEXT("GEAR %d"), Gear);
+	if (bLive)
+		Pen.Text(W - Pad - 420.0f, 40, FString::Printf(TEXT("%5.0f rpm   "), Rpm) + GearText, 26, InkC, 420.0f, 1);
+	else Progress = 1.0f;
+	TArray<const FTorqueDynoRun*> Runs;
+	if (Bay != INDEX_NONE)
+		for (const FTorqueDynoRun& R : B->Bike(Bay).DynoRuns) Runs.Add(&R);
+	if (Runs.Num() == 0)
+	{
+		const FString Msg = Bay == INDEX_NONE ? FString(TEXT("Wheel a bike onto the rig and run it from the dyno desk."))
+			: B->Strapped() ? FString(TEXT("Strapped down. Run it from the dyno desk.")) : FString::Printf(TEXT("Strap it down at the four posts: %d of 4 done up."), B->DynoRoom().StrapsDone());
+		Pen.Text(Pad, H * 0.5f, Msg, 28, InkDim, W - 2.0f * Pad, 2);
+		return;
+	}
+	const FTorqueDynoRun& Latest = *Runs.Last();
+	const FTorqueDynoRun* Previous = Runs.Num() >= 2 ? Runs[Runs.Num() - 2] : nullptr;
+	// The legend, and how hot the engine ran.
+	Line(FVector2D(Pad, 62), FVector2D(Pad + 28, 62), InkC, 2.0f);
+	Pen.Text(Pad + 36, 68, FString::Printf(TEXT("Run %d (latest)"), Latest.N), 17, InkC);
+	if (Previous)
+	{
+		for (int32 I = 0; I < 3; ++I) Line(FVector2D(Pad + 230 + I * 10, 62), FVector2D(Pad + 236 + I * 10, 62), InkDim, 2.0f);
+		Pen.Text(Pad + 266, 68, FString::Printf(TEXT("Run %d (previous)"), Previous->N), 17, InkDim);
+	}
+	const bool bHot = Latest.Heat > 0.35f;
+	Pen.Text(W - Pad - 640.0f, 68, FString::Printf(TEXT("Engine %.0f C  -  fan %s%s"), Latest.TempC, Latest.bFan ? TEXT("on") : TEXT("off"),
+		bHot ? TEXT("  -  heat soaked, down on power") : TEXT("")), 17, bHot ? Hot : InkDim, 640.0f, 1);
+	// The two charts, sharing the rpm axis.
+	float RpmMax = 0.0f;
+	for (const FTorqueDynoRun* R : Runs) RpmMax = FMath::Max(RpmMax, R->Redline);
+	RpmMax = FMath::CeilToFloat(FMath::Max(RpmMax, 1000.0f) / 1000.0f) * 1000.0f;
+	auto Nice = [](float V)
+	{
+		const float Mag = FMath::Pow(10.0f, FMath::FloorToFloat(FMath::LogX(10.0f, FMath::Max(V, 1.0f))));
+		for (float M : {1.0f, 2.0f, 2.5f, 5.0f, 10.0f})
+			if (V <= M * Mag) return M * Mag;
+		return 10.0f * Mag;
+	};
+	const float TilesH = 112.0f, Top = 84.0f;
+	const float BodyH = H - Top - TilesH - Pad * 1.5f;
+	const float Half = (BodyH - Pad) * 0.5f;
+	auto Chart = [&](float CY, const TCHAR* Label, bool bPower, const FLinearColor& Colour, bool bRpmLabels)
+	{
+		const float CX = Pad, CW = W - 2.0f * Pad;
+		Pen.Rect(CX, CY, CW, Half, PanelC);
+		Pen.Text(CX + 10, CY + 22, Label, 16, InkDim);
+		const float PX = CX + 56, PY = CY + 32, PW = CW - 70, PH = Half - (bRpmLabels ? 58.0f : 42.0f);
+		float YMax = 1.0f;
+		for (const FTorqueDynoRun* R : Runs)
+			for (float V : (bPower ? R->Hp : R->Nm)) YMax = FMath::Max(YMax, V);
+		YMax = Nice(YMax * 1.1f);
+		auto To = [&](float X, float Y) { return FVector2D(PX + PW * FMath::Clamp(X / RpmMax, 0.0f, 1.0f), PY + PH - PH * FMath::Clamp(Y / YMax, 0.0f, 1.0f)); };
+		for (int32 I = 0; I < 5; ++I)
+		{
+			const float Y = PY + PH - PH * I / 4.0f;
+			Line(FVector2D(PX, Y), FVector2D(PX + PW, Y), I > 0 ? Grid : Axis, 1.0f);
+			Pen.Text(PX - 52, Y + 6, FString::Printf(TEXT("%.0f"), YMax * I / 4.0f), 14, InkDim, 46.0f, 1);
+		}
+		const int32 Steps = FMath::RoundToInt(RpmMax / 1000.0f);
+		const int32 Every = FMath::Max(1, FMath::CeilToInt(Steps / 8.0f));
+		for (int32 I = 0; I <= Steps; I += Every)
+		{
+			const float X = PX + PW * (I * 1000.0f) / RpmMax;
+			Line(FVector2D(X, PY), FVector2D(X, PY + PH), Grid, 1.0f);
+			if (bRpmLabels) Pen.Text(X - 30, PY + PH + 20, FString::Printf(TEXT("%dk"), I), 14, InkDim, 60.0f, 2);
+		}
+		if (bRpmLabels) Pen.Text(PX + PW - 120, PY + PH + 40, TEXT("rpm"), 14, InkDim, 120.0f, 1);
+		auto Curve = [&](const FTorqueDynoRun& R, float Upto, bool bDashed, const FLinearColor& Col)
+		{
+			const TArray<float>& Ys = bPower ? R.Hp : R.Nm;
+			const int32 N = FMath::Min(R.Rpm.Num(), Ys.Num());
+			if (N < 2 || Upto < 0.0f) return;
+			const float Stop = FMath::Lerp(R.Rpm[0], R.Rpm[N - 1], FMath::Clamp(Upto, 0.0f, 1.0f));
+			for (int32 I = 1; I < N; ++I)
+			{
+				if (R.Rpm[I - 1] > Stop) break;
+				float X1 = R.Rpm[I], Y1 = Ys[I];
+				if (X1 > Stop)
+				{
+					const float F = (Stop - R.Rpm[I - 1]) / FMath::Max(X1 - R.Rpm[I - 1], 1.0f);
+					X1 = Stop;
+					Y1 = FMath::Lerp(Ys[I - 1], Ys[I], F);
+				}
+				if (!bDashed || I % 2 == 0) Line(To(R.Rpm[I - 1], Ys[I - 1]), To(X1, Y1), Col, bDashed ? 2.0f : 3.0f);
+			}
+		};
+		if (Previous) Curve(*Previous, 1.0f, true, FLinearColor(Colour.R, Colour.G, Colour.B, 0.55f));
+		Curve(Latest, Progress, false, Colour);
+		// The peak, once the sweep has passed it.
+		const float PeakX = bPower ? Latest.PeakHpRpm : Latest.PeakNmRpm, Peak = bPower ? Latest.PeakHp : Latest.PeakNm;
+		if (Progress >= 1.0f && Peak > 0.0f)
+		{
+			const FVector2D At = To(PeakX, Peak);
+			Pen.Rect(At.X - 5, At.Y - 5, 10, 10, Colour);
+			Pen.Text(At.X - 70, At.Y - 12, FString::Printf(TEXT("%.1f @ %.0f"), Peak, PeakX), 16, InkC, 140.0f, 2);
+		}
+	};
+	Chart(Top, TEXT("POWER AT THE WHEEL (hp)"), true, Power, false);
+	Chart(Top + Half + Pad, TEXT("TORQUE AT THE WHEEL (Nm)"), false, TorqueC, true);
+	// The headline numbers, each with its change since the run before.
+	const bool bDone = Progress >= 1.0f;
+	struct FTile { const TCHAR* Label; FString Value, Sub; float Now, Was, Sign; const TCHAR* Unit; bool bTenths; float Min; };
+	const float HpT = Latest.PeakHp / FMath::Max(Latest.Mass + 75.0f, 1.0f) * 1000.0f;
+	const float HpTWas = Previous ? Previous->PeakHp / FMath::Max(Previous->Mass + 75.0f, 1.0f) * 1000.0f : 0.0f;
+	const FTile Tiles[] = {
+		{TEXT("PEAK POWER"), FString::Printf(TEXT("%.1f hp"), Latest.PeakHp), FString::Printf(TEXT("@ %.0f rpm"), Latest.PeakHpRpm), Latest.PeakHp, Previous ? Previous->PeakHp : 0.0f, 1.0f, TEXT(" hp"), true, 0.05f},
+		{TEXT("PEAK TORQUE"), FString::Printf(TEXT("%.1f Nm"), Latest.PeakNm), FString::Printf(TEXT("@ %.0f rpm"), Latest.PeakNmRpm), Latest.PeakNm, Previous ? Previous->PeakNm : 0.0f, 1.0f, TEXT(" Nm"), true, 0.05f},
+		{TEXT("REV LIMIT"), FString::Printf(TEXT("%.0f rpm"), Latest.Redline), FString::Printf(TEXT("%d gears"), Latest.Gears), Latest.Redline, Previous ? Previous->Redline : 0.0f, 1.0f, TEXT(" rpm"), false, 1.0f},
+		{TEXT("POWER TO WEIGHT"), FString::Printf(TEXT("%.0f hp/t"), HpT), FString::Printf(TEXT("%.0f kg with rider"), Latest.Mass + 75.0f), HpT, HpTWas, 1.0f, TEXT(" hp/t"), false, 0.5f},
+		{TEXT("ENGINE"), FString::Printf(TEXT("%.0f C"), Latest.TempC), Latest.bFan ? FString(TEXT("fan on")) : FString(TEXT("fan off")), Latest.TempC, Previous ? Previous->TempC : 0.0f, -1.0f, TEXT(" C"), false, 1.0f},
+	};
+	const int32 NT = UE_ARRAY_COUNT(Tiles);
+	const float TW = (W - 2.0f * Pad - 12.0f * (NT - 1)) / NT, TY = H - TilesH - Pad * 0.5f;
+	for (int32 I = 0; I < NT; ++I)
+	{
+		const FTile& T = Tiles[I];
+		const float TX = Pad + I * (TW + 12.0f);
+		Pen.Rect(TX, TY, TW, TilesH, PanelC);
+		Pen.Text(TX + 12, TY + 26, T.Label, 15, InkDim);
+		Pen.Text(TX + 12, TY + 66, bDone ? T.Value : FString(TEXT("--")), 30, InkC);
+		Pen.Text(TX + 12, TY + 96, bDone ? T.Sub : FString(TEXT("running...")), 15, InkDim);
+		if (bDone && Previous && T.Now > 0.0f && T.Was > 0.0f && FMath::Abs(T.Now - T.Was) >= T.Min)
+		{
+			const bool bBetter = (T.Now - T.Was) * T.Sign > 0.0f;
+			FString DeltaText = T.bTenths ? FString::Printf(TEXT("%+.1f"), T.Now - T.Was) : FString::Printf(TEXT("%+.0f"), T.Now - T.Was);
+			DeltaText += T.Unit;
+			Pen.Text(TX + TW - 140, TY + 96, DeltaText, 16, bBetter ? Good() : Bad(), 128.0f, 1);
+		}
+	}
 }
