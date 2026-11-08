@@ -422,6 +422,7 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 	Sim->Assist = Assist;
 	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
 	CrashedFor = 0.0;
+	BodyLean = LongAcc = LastSpeed = 0.0;
 	if (bThrown)
 	{
 		// Back on the bike.
@@ -669,6 +670,14 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		RideTime += DeltaSeconds;
 	}
 
+	{
+		// The rider feels the lean and the speeding up and slowing down a moment after the bike does.
+		const double Dt = FMath::Max((double)DeltaSeconds, 1e-3);
+		const double Acc = FMath::Clamp((Sim->Speed - LastSpeed) / Dt, -15.0, 15.0);
+		LastSpeed = Sim->Speed;
+		LongAcc += (Acc - LongAcc) * FMath::Min(1.0, Dt / 0.25);
+		BodyLean += (FMath::RadiansToDegrees(Sim->LeanAngle) - BodyLean) * FMath::Min(1.0, Dt / 0.15);
+	}
 	if (Sim->Gear != LastGear) SinceShift = 0.0;   // the rider's left hand pulls the clutch
 	SinceShift += DeltaSeconds;
 	{
@@ -979,8 +988,14 @@ void ATorqueBikePawn::UpdateRider()
 		FRiderPoseInput In;
 		const double Fwd = Shift;   // weight forward (+) or back (-)
 		const double Hang = Lean;   // into the turn
-		In.ChestShift = FVector(7.0 * Fwd, Hang * 6.0, -4.0 * FMath::Max(Fwd, 0.0));
-		In.HipShift = Hang * 2.0;
+		// Riding as people do: the upper body goes in a little further than the bike leans, and the
+		// seat of the pants slides in; braking throws the chest forward and down onto the arms, and
+		// pulling hard leaves it a little back.
+		const double LeanN = FMath::Clamp(BodyLean / 45.0, -1.0, 1.0);
+		const double Braking = FMath::Clamp(-LongAcc / 9.0, 0.0, 1.0), Pulling = FMath::Clamp(LongAcc / 5.0, 0.0, 1.0);
+		In.ChestShift = FVector(7.0 * Fwd + 9.0 * Braking - 4.0 * Pulling, Hang * 6.0 + 9.0 * LeanN,
+			-4.0 * FMath::Max(Fwd, 0.0) - 3.0 * Braking);
+		In.HipShift = Hang * 2.0 + 2.5 * LeanN;
 		In.BarPivot = bHaveModel ? SteerPoint : FVector(68.0, 0.0, -1.0);
 		const FVector Axis = bHaveModel ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
 			FMath::Cos(FMath::DegreesToRadians(Sim->Build.RakeDeg)));
@@ -989,7 +1004,10 @@ void ATorqueBikePawn::UpdateRider()
 		In.FeetDown = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 1.8, 0.0, 1.0);
 		In.FootDownL = FVector(-32.0, -36.0, -22.0);
 		In.FootDownR = FVector(-32.0, 36.0, -22.0);
-		In.Look = FRotator(LookPitch * -0.4, LookYaw * 0.5, 0.0);
+		// The head turns toward where the corner goes (the apex) and stays nearer level than the bike.
+		// Unreal: + yaw looks right, + roll drops the right side.
+		const double Lean = FMath::Clamp(BodyLean, -55.0, 55.0);
+		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + 0.45 * Lean, -0.45 * Lean);
 		// Right hand: the throttle, and the front brake lever under two fingers.
 		In.Throttle = Throttle;
 		if (bThrown)
