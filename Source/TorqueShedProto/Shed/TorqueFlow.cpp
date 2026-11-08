@@ -1,7 +1,8 @@
 #include "Shed/TorqueFlow.h"
 
+#include "Coop/TorqueSession.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
-#include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 
 namespace TorqueFlow
@@ -11,10 +12,10 @@ const TCHAR* RideMap = TEXT("/Game/Maps/Buttertubs");
 
 void RideOut(UObject* WorldContext)
 {
-	// Co-op: replace with UTorqueSession::StartRide(WorldContext) once that is merged; it does the
-	// same OpenLevel when playing alone and a ServerTravel for everyone when hosting.
+	// Alone, load the ride; hosting co-op, take everyone (a seamless server travel). A joined rider
+	// waits for the host (the walker refuses on a client).
 	UE_LOG(LogTemp, Log, TEXT("Torque: riding out of the shed to %s"), RideMap);
-	UGameplayStatics::OpenLevel(WorldContext, FName(RideMap), true, TEXT("play"));
+	UTorqueSession::StartRide(WorldContext);
 }
 
 bool ShedExists()
@@ -25,8 +26,10 @@ bool ShedExists()
 bool BackToShed(UObject* WorldContext)
 {
 	if (!ShedExists()) return false;
+	const UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::ReturnNull) : nullptr;
+	if (World && World->GetNetMode() == NM_Client) return false;   // the host takes everyone back
 	UE_LOG(LogTemp, Log, TEXT("Torque: back to the shed"));
-	UGameplayStatics::OpenLevel(WorldContext, FName(ShedMap), true, TEXT("play"));
+	UTorqueSession::GoToShed(WorldContext);
 	return true;
 }
 }

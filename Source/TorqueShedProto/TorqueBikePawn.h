@@ -22,6 +22,7 @@ class UStaticMesh;
 class UMaterialInterface;
 class USoundWaveProcedural;
 class UAudioComponent;
+class UTorqueNetBikeComponent;
 
 struct FHudLine
 {
@@ -44,6 +45,9 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
+
+	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
+	void PlaceForSlot(int32 Slot);
 
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
 	UPROPERTY(EditAnywhere, Category = "Ride", meta = (ClampMin = "0", ClampMax = "1"))
@@ -87,11 +91,15 @@ public:
 	UPROPERTY() UStaticMesh* ShapeCylinder = nullptr;
 	UPROPERTY() UStaticMesh* ShapeSphere = nullptr;
 
+	// Co-op (Coop/TorqueNetBike): sends this bike to the others, or draws someone else's from theirs.
+	UPROPERTY(VisibleAnywhere, Category = "Net") UTorqueNetBikeComponent* NetBike = nullptr;
+
 	// Sound: made by TorqueSound::RideSound and fed to Unreal as it plays.
 	UPROPERTY(Transient) USoundWaveProcedural* SoundWave = nullptr;
 	UPROPERTY(Transient) UAudioComponent* SoundAudio = nullptr;
 
 private:
+	friend class UTorqueNetBikeComponent;   // reads our bike to send it, or sets someone else's
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
@@ -117,10 +125,9 @@ private:
 	TArray<FHudLine> HudLines;
 	bool bShowHelp = true;
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
+	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.
 	int32 Weather = 0;
-	bool bWeatherCaptured = false;
-	float SunLux = 0.f, SunAngle = 0.f, SkyIntensity = 1.f, FogDensity = 0.f, Mie = 0.f, Rayleigh = 0.f;
-	float ExposureBias = 0.f, ExposureMin = 0.f;
+	double HostOnlyNoteFor = 0.0;      // "the host sets the weather", on a joined rider's HUD
 	void ApplyWeather();
 	double Accum = 0.0;
 	FVector PrevPos, CurPos;          // Unreal cm, the sim body origin before and after the last step
@@ -130,6 +137,7 @@ private:
 	TArray<FVector> Line;             // (x, y, z) sim
 	double RouteLengthM = 3000.0;     // route.json length_m
 	int32 Near = 0;
+	int32 StartIndex = 0;             // where the ride starts on Line (-TorqueStartKm)
 	double RideTime = 0.0;
 	bool bFinished = false;
 
@@ -180,7 +188,9 @@ private:
 	void UpdateSound(float Dt);
 	void LoadRoute();
 	void BuildModel();
-	void Respawn(int32 LineIndex);
+	// SideM: metres to the right of the line (co-op start slots).
+	void Respawn(int32 LineIndex, double SideM = 0.0);
+	void Remount();                   // the thrown-off rider back on the bike
 	void ReadInput(float Dt);
 	void StepSim();
 	void UpdateVisuals(double Alpha);

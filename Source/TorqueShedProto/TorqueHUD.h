@@ -12,4 +12,7 @@ class ATorqueHUD : public AHUD
 	GENERATED_BODY()
 public:
 	virtual void DrawHUD() override;
+
+private:
+	void DrawRiderNames();
 };

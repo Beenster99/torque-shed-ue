@@ -80,6 +80,16 @@ Sound is made as you ride (Source/TorqueShedProto/TorqueAudio): a 270-degree twi
 the revs and throttle, with recorded idle, gear lever clunks and moorland birds from Torque Shed
 (Tools/make_sounds.py puts them in Data/Audio).
 
+### Riding with friends (co-op)
+
+The game opens on a start menu: **Ride solo**, **Host a co-op ride**, **Join by address**, rides found
+on your network, and **Quit**. The host's game is the server (port 7777); friends on the same network
+see the ride in the menu, and friends elsewhere type the host's address (the host forwards UDP port
+7777 on their router until Epic Online Services is set up). Every rider rides their own bike on their
+own machine; the others' bikes, riders and engines follow smoothly. The host sets the weather and
+takes everyone between the shed and the road. Any `-Torque...` test switch skips the menu, as before.
+How it works, the one-PC test and the plan for EOS: [Docs/coop.md](Docs/coop.md).
+
 ### DLSS on the 4090
 
 The project starts on Lumen with hardware ray tracing, virtual shadow maps and TSR. For DLSS, download

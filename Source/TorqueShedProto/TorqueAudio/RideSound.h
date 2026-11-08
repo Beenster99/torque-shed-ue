@@ -39,6 +39,9 @@ public:
 	// The exhaust's heat, 0 cold .. 1 hot: builds over tens of seconds of riding under load and
 	// cools slowly. A cold exhaust doesn't pop.
 	double Heat = 0.0;
+	// Someone else's bike in co-op: no birds (our own bike has them) and only a little wind.
+	bool Ambience = true;
+	double WindLevel = 1.0;
 
 	void SetIdle(std::vector<float> Samples, int SampleRate, double RecordedRpm);
 	void AddClunk(std::vector<float> Samples, int SampleRate);

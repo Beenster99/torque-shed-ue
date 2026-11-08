@@ -37,6 +37,8 @@
 #include "Engine/PostProcessVolume.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Materials/MaterialParameterCollection.h"
+#include "Coop/TorqueGameState.h"
+#include "Coop/TorqueNetBike.h"
 
 using namespace TorqueSim;
 
@@ -101,7 +103,17 @@ ATorqueBikePawn::ATorqueBikePawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickGroup = TG_PrePhysics;
-	AutoPossessPlayer = EAutoReceiveInput::Player0;
+	// The game mode spawns and possesses each rider's bike; auto-possessing player 0 would let a
+	// co-op rider's bike take the host's controller.
+	AutoPossessPlayer = EAutoReceiveInput::Disabled;
+	// Co-op: the bike replicates (so every machine has every rider's bike), but its movement comes
+	// from NetBike's snapshots, not Unreal's movement replication. Riders far apart on the road
+	// still see each other (the default cull distance is 150 m).
+	bReplicates = true;
+	SetReplicateMovement(false);
+	bAlwaysRelevant = true;
+	SetNetUpdateFrequency(60.f);
+	NetBike = CreateDefaultSubobject<UTorqueNetBikeComponent>(TEXT("NetBike"));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -207,12 +219,10 @@ void ATorqueBikePawn::BeginPlay()
 	// -TorqueStartKm=1.2 starts that far down the 3 km (for checking a spot with a hands-off run).
 	float StartKm = 0.f;
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueStartKm="), StartKm);
-	Respawn(Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / (float)(RouteLengthM / 1000.0), 0.f, 1.f) * (Line.Num() - 1)) : 0);
-	FString WeatherName;
-	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWeather="), WeatherName))
-		Weather = WeatherName.StartsWith(TEXT("wet")) || WeatherName.StartsWith(TEXT("rain")) ? 2 : WeatherName.StartsWith(TEXT("over")) ? 1 : 0;
-	ApplyWeather();
-	Pad = MakeUnique<FSonyPad>();
+	StartIndex = Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / (float)(RouteLengthM / 1000.0), 0.f, 1.f) * (Line.Num() - 1)) : 0;
+	Respawn(StartIndex);
+	// The weather comes from ATorqueGameState (-TorqueWeather= is read there), each frame in Tick.
+	// The PlayStation pad is opened when this turns out to be our own bike (ReadInput).
 	StartSound();
 	// -TorqueCamera=1 starts in first person (2: chin camera, 3: showroom orbit of the bike with the
 	// rider hidden), for checking the views. -TorqueOrbitYaw=N holds the orbit at N degrees from
@@ -396,7 +406,7 @@ void ATorqueBikePawn::LoadRoute()
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d cattle grids"), (int32)Sim->Grids.size());
 }
 
-void ATorqueBikePawn::Respawn(int32 LineIndex)
+void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
 {
 	V3 Pos(0, 0, 0);
 	double Heading = 0.0;
@@ -407,6 +417,12 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 		Pos = V3(A.X, A.Y, A.Z);
 		Heading = std::atan2(-(B.X - A.X), -(B.Z - A.Z));   // 0 faces -z, + turns left
 		Near = I;
+		if (SideM != 0.0)
+		{
+			// To the right of the way along (x east, z south: right of (fx, fz) is (-fz, fx)).
+			const FVector2D Fwd = FVector2D(B.X - A.X, B.Z - A.Z).GetSafeNormal();
+			Pos = Pos + V3(-Fwd.Y * SideM, 0.0, Fwd.X * SideM);
+		}
 	}
 	// Find the ground under the spawn point.
 	if (UWorld* World = GetWorld())
@@ -425,14 +441,7 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
 	CrashedFor = 0.0;
 	BodyLean = LongAcc = LastSpeed = 0.0;
-	if (bThrown)
-	{
-		// Back on the bike.
-		bThrown = false;
-		RiderRoot->SetUsingAbsoluteLocation(false);
-		RiderRoot->SetUsingAbsoluteRotation(false);
-		RiderRoot->SetRelativeLocationAndRotation(FVector::ZeroVector, FQuat::Identity);
-	}
+	Remount();
 	CurPos = PrevPos = ToUE(Sim->Position);
 	CurRot = PrevRot = BasisToUE(Sim->Basis);
 	Accum = 0.0;
@@ -441,10 +450,45 @@ void ATorqueBikePawn::Respawn(int32 LineIndex)
 	SetActorLocationAndRotation(CurPos, CurRot);
 }
 
+void ATorqueBikePawn::Remount()
+{
+	if (!bThrown) return;
+	// Back on the bike.
+	bThrown = false;
+	RiderRoot->SetUsingAbsoluteLocation(false);
+	RiderRoot->SetUsingAbsoluteRotation(false);
+	RiderRoot->SetRelativeLocationAndRotation(FVector::ZeroVector, FQuat::Identity);
+}
+
+void ATorqueBikePawn::PlaceForSlot(int32 InSlot)
+{
+	if (InSlot <= 0 || Line.Num() < 2) return;
+	// Two abreast either side of the line, a row every 7 m back from the start; at the very start of
+	// the road, where there's no room behind, the rows go forward instead.
+	const int32 Row = (InSlot + 1) / 2;
+	const double SideM = (InSlot % 2 == 1) ? -1.2 : 1.2;
+	const double Want = 7.0 * Row;
+	auto Walk = [this](int32 From, int32 Dir, double Dist) {
+		int32 I = From;
+		double Acc = 0.0;
+		while (Acc < Dist && I + Dir >= 0 && I + Dir < Line.Num() - 1)
+		{
+			Acc += FVector2D(Line[I + Dir].X - Line[I].X, Line[I + Dir].Z - Line[I].Z).Size();
+			I += Dir;
+		}
+		return TPair<int32, double>(I, Acc);
+	};
+	TPair<int32, double> Back = Walk(StartIndex, -1, Want);
+	if (Back.Value < Want - 0.5) Back = Walk(StartIndex, 1, Want);
+	Respawn(Back.Key, SideM);
+	UE_LOG(LogTemp, Log, TEXT("Torque net: start slot %d, line point %d, %.1f m to the side"), InSlot, Back.Key, SideM);
+}
+
 void ATorqueBikePawn::ReadInput(float Dt)
 {
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
+	if (!Pad) Pad = MakeUnique<FSonyPad>();   // our own bike: read the PlayStation pad
 	// Hands-off test runs (-TorqueNoInput) ignore the pad and keyboard, so nobody playing can change them.
 	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
 	// -TorqueAutoRide (with -TorqueNoInput): a simple robot rides the route at -TorqueAutoMph (default
@@ -614,8 +658,10 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && TorqueFlow::BackToShed(this)) return;
 	if (PC->WasInputKeyJustPressed(EKeys::V) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
 	{
-		Weather = (Weather + 1) % 3;
-		ApplyWeather();
+		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
+		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+		if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
+		else if (GS) HostOnlyNoteFor = 3.0;
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::P) || SonyHit(ESonyButton::L3) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftThumbstick))
 		bPerfShow = !bPerfShow;
@@ -654,24 +700,44 @@ void ATorqueBikePawn::StepSim()
 void ATorqueBikePawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	ReadInput(DeltaSeconds);
-
-	// Fixed 120 Hz steps, at most a tenth of a second's worth after a hitch.
-	Accum += FMath::Min((double)DeltaSeconds, 0.1);
-	while (Accum >= SimDt)
+	// In co-op, a bike someone else rides: drawn from their snapshots, not simulated here.
+	const bool bRemote = NetBike && NetBike->IsRemote();
+	if (const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
 	{
-		StepSim();
-		Accum -= SimDt;
+		if (GS->GetWeather() != Weather)
+		{
+			Weather = GS->GetWeather();
+			ApplyWeather();
+		}
 	}
+	HostOnlyNoteFor = FMath::Max(HostOnlyNoteFor - DeltaSeconds, 0.0);
 
-	if (Sim->IsCrashed)
+	if (bRemote)
 	{
-		CrashedFor += DeltaSeconds;
-		if (CrashedFor > 2.5) Respawn(FMath::Max(Near - 2, 0));
+		NetBike->ApplyRemote(DeltaSeconds);
+		if (!Sim->IsCrashed) Remount();   // they're back on the road
 	}
-	else if (!bFinished)
+	else
 	{
-		RideTime += DeltaSeconds;
+		ReadInput(DeltaSeconds);
+
+		// Fixed 120 Hz steps, at most a tenth of a second's worth after a hitch.
+		Accum += FMath::Min((double)DeltaSeconds, 0.1);
+		while (Accum >= SimDt)
+		{
+			StepSim();
+			Accum -= SimDt;
+		}
+
+		if (Sim->IsCrashed)
+		{
+			CrashedFor += DeltaSeconds;
+			if (CrashedFor > 2.5) Respawn(FMath::Max(Near - 2, 0));
+		}
+		else if (!bFinished)
+		{
+			RideTime += DeltaSeconds;
+		}
 	}
 
 	{
@@ -693,15 +759,22 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	LastGear = Sim->Gear;
 	GearNoteFor = FMath::Max(GearNoteFor - DeltaSeconds, 0.0);
 
-	UpdateVisuals(Accum / SimDt);
+	UpdateVisuals(bRemote ? 1.0 : Accum / SimDt);
 	ThrowRider(DeltaSeconds);
 	UpdateRider();
 	UpdateClock();
-	UpdateProgress();
-	UpdateCamera(DeltaSeconds);
+	if (!bRemote)
+	{
+		UpdateProgress();
+		UpdateCamera(DeltaSeconds);
+	}
 	UpdateSound(DeltaSeconds);
-	UpdatePerf(DeltaSeconds);
-	DrawHud();
+	if (!bRemote)
+	{
+		UpdatePerf(DeltaSeconds);
+		DrawHud();
+	}
+	if (NetBike) NetBike->AfterTick(DeltaSeconds);
 }
 
 void ATorqueBikePawn::UpdateVisuals(double Alpha)
@@ -1327,7 +1400,13 @@ void ATorqueBikePawn::DrawHud()
 	const bool bSony = Pad && Pad->Get().bConnected;
 	static const TCHAR* WeatherNames[3] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
 	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s"), Assist,
-		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), WeatherNames[Weather]), FColor(170, 200, 170), 0.9f);
+		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), WeatherNames[FMath::Clamp(Weather, 0, 2)]), FColor(170, 200, 170), 0.9f);
+	if (HostOnlyNoteFor > 0.0) Add(TEXT("The host sets the weather"), FColor(255, 220, 120), 1.1f);
+	if (NetBike)
+	{
+		const FString NetLine = NetBike->StatusLine();
+		if (!NetLine.IsEmpty()) Add(NetLine, FColor(170, 210, 255), 0.9f);
+	}
 	if (bShowHelp)
 	{
 		const FColor Help(200, 200, 200);
@@ -1340,60 +1419,10 @@ void ATorqueBikePawn::DrawHud()
 }
 
 
-// Weather: the level is built sunny; overcast dims and softens the sun, greys the sky and thickens the
-// haze; wet is overcast plus wet roads (the materials' Wetness, MPC_Weather) and a third less grip.
+// Weather: ATorqueGameState lights the world for it (the host's weather, in co-op); the bike takes
+// a third less grip on wet roads.
 void ATorqueBikePawn::ApplyWeather()
 {
-	UWorld* W = GetWorld();
-	if (!W) return;
-	UDirectionalLightComponent* Sun = nullptr;
-	for (TActorIterator<ADirectionalLight> It(W); It && !Sun; ++It) Sun = Cast<UDirectionalLightComponent>(It->GetLightComponent());
-	USkyLightComponent* Sky = nullptr;
-	for (TActorIterator<ASkyLight> It(W); It && !Sky; ++It) Sky = It->GetLightComponent();
-	UExponentialHeightFogComponent* Fog = nullptr;
-	for (TActorIterator<AExponentialHeightFog> It(W); It && !Fog; ++It) Fog = It->GetComponent();
-	USkyAtmosphereComponent* Atmo = nullptr;
-	for (TActorIterator<AActor> It(W); It && !Atmo; ++It) Atmo = It->FindComponentByClass<USkyAtmosphereComponent>();
-	APostProcessVolume* Ppv = nullptr;
-	for (TActorIterator<APostProcessVolume> It(W); It && !Ppv; ++It) if (It->bUnbound) Ppv = *It;
-	if (!bWeatherCaptured)
-	{
-		bWeatherCaptured = true;
-		if (Sun) { SunLux = Sun->Intensity; SunAngle = Sun->LightSourceAngle; }
-		if (Sky) SkyIntensity = Sky->Intensity;
-		if (Fog) FogDensity = Fog->FogDensity;
-		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
-		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; }
-	}
-	const bool bDull = Weather >= 1;
-	const bool bWet = Weather == 2;
-	if (Sun)
-	{
-		Sun->SetIntensity(bDull ? SunLux * (bWet ? 0.10f : 0.14f) : SunLux);
-		Sun->SetLightSourceAngle(bDull ? 40.0f : SunAngle);   // a sun behind cloud: next to no shadow
-	}
-	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 2.5f : SkyIntensity);
-	// A real camera opens up under cloud: the exposure follows (the level's histogram range was set for
-	// sun, so it clamped and overcast came out far too dark).
-	if (Ppv)
-	{
-		Ppv->Settings.bOverride_AutoExposureBias = true;
-		Ppv->Settings.bOverride_AutoExposureMinBrightness = true;
-		Ppv->Settings.AutoExposureBias = bDull ? ExposureBias + (bWet ? 1.9f : 1.6f) : ExposureBias;
-		Ppv->Settings.AutoExposureMinBrightness = bDull ? ExposureMin - 3.0f : ExposureMin;
-	}
-	if (Fog) Fog->SetFogDensity(bDull ? FogDensity * (bWet ? 3.0f : 2.0f) : FogDensity);
-	if (Atmo)
-	{
-		// A white-grey British overcast: almost no Rayleigh (the blue), thick Mie (the white haze).
-		Atmo->SetMieScatteringScale(bDull ? Mie * 12.0f : Mie);
-		Atmo->SetRayleighScatteringScale(bDull ? Rayleigh * 0.08f : Rayleigh);
-	}
-	if (UMaterialParameterCollection* Mpc = LoadObject<UMaterialParameterCollection>(nullptr,
-		TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather")))
-	{
-		UKismetMaterialLibrary::SetScalarParameterValue(W, Mpc, TEXT("Wetness"), bWet ? 1.0f : 0.0f);
-	}
-	if (Sim) Sim->Build.WetGrip = bWet ? 0.68 : 1.0;
-	UE_LOG(LogTemp, Log, TEXT("Torque: weather %d"), Weather);
+	if (Sim) Sim->Build.WetGrip = Weather == 2 ? 0.68 : 1.0;
+	UE_LOG(LogTemp, Log, TEXT("Torque: bike in weather %d"), Weather);
 }
