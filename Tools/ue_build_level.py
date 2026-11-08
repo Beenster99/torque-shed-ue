@@ -1564,11 +1564,11 @@ def tree_material():
     # from about 250 m to 2 km, so far woods sit in the fells' haze instead of glowing green.
     depth = g.node(unreal.MaterialExpressionPixelDepth)
     far = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
-               g.op(unreal.MaterialExpressionSubtract, depth, const_b=25000.0), const_b=175000.0))
+               g.op(unreal.MaterialExpressionSubtract, depth, const_b=15000.0), const_b=135000.0))
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)
     g.link(base, grey)
-    g.link(g.const(0.55), grey, "Fraction")
-    dull = g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.58)
+    g.link(g.const(0.65), grey, "Fraction")
+    dull = g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.52)   # beenster: far trees "a tiny bit more subtle"
     base = g.lerp(base, dull, far)
     # Far off, no glow: the light through the leaves and their sheen are a near tree's, and on the far
     # models' smooth lumps they made bright blobs on the fellsides. Both fade out with the same distance.
@@ -1754,6 +1754,19 @@ def instanced_usage(m):
     try_set(m, "used_with_nanite", True)
 
 
+def far_dull(g, col, start_cm=30000.0, span_cm=150000.0, most=0.6):
+    """Buildings and walls far off sit back into the dale (beenster: "a tiny bit more subtle"): from
+    start_cm out, lean towards a darker, greyer version of themselves, as the trees do."""
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    far = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
+               g.op(unreal.MaterialExpressionSubtract, depth, const_b=start_cm), const_b=span_cm))
+    far = g.op(unreal.MaterialExpressionMultiply, far, const_b=most)
+    grey = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(col, grey)
+    g.link(g.const(0.5), grey, "Fraction")
+    return g.lerp(col, g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.75), far)
+
+
 def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare", broad_moss=True):
     """Stone from two scans (lichened limestone and bare, bedded limestone), chosen per stone by the
     vertex colour's green; red sets its brightness; blue whitens it with lichen in patches; alpha is
@@ -1820,6 +1833,7 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     m = g.op(unreal.MaterialExpressionMultiply, m, up)
     moss = layer("moss", (70, 84, 38))
     st = g.mix(st, moss, m)
+    st[0] = far_dull(g, st[0])
     return g.finish(st)
 
 
@@ -1857,6 +1871,7 @@ def render_material(tex, roles, name="M_LimeRender"):
     dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
     col = g.lerp(col, dirt, vc, alpha_out="A")
     rough = g.lerp(g.const(0.88), g.const(0.95), vc, alpha_out="A")
+    col = far_dull(g, col)
     return g.finish([col, nrm, rough], specular=0.35)
 
 

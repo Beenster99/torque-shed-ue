@@ -221,14 +221,18 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
     n = len(N)
     base_col, spread = bark
     col0 = lin(base_col)
+    # One bark colour and one ring phase for the whole tree: a fresh colour and a turned ring on
+    # every segment made the trunk read as a stack of bands (beenster: "very low poly").
+    cv_tree = col0 * np.exp(rng.normal(0, spread, 3))
+    phase = rng.uniform(0, 1)
     for i in range(1, n):
         if r[i] < min_r:
             continue
         p = parent[i]
-        sides = 10 if r[i] > 0.12 else 7 if r[i] > 0.05 else 5 if r[i] > 0.02 else 3
+        sides = 20 if r[i] > 0.12 else 14 if r[i] > 0.05 else 8 if r[i] > 0.02 else 5 if r[i] > 0.01 else 3
         d = N[i] - N[p]
         u, v = ring_frame(d)
-        ang = np.arange(sides) / sides * 2 * np.pi + rng.uniform(0, 1)
+        ang = np.arange(sides) / sides * 2 * np.pi + phase
         rings = []
         for q, rr, yy in ((N[p], max(r[p] if p else r[i], r[i]) if kids[p] and len(kids[p]) == 1 else r[i] * 1.04, N[p][1]),
                           (N[i], r[i], N[i][1])):
@@ -243,7 +247,7 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
         a, b, c, e = k, (k + 1) % sides, k + sides, (k + 1) % sides + sides
         T = np.concatenate([np.stack([a, c, b], 1), np.stack([b, c, e], 1)])
         # Colour: the species' bark, varied, greened by algae low down on the wet (south west) side.
-        cv = col0 * np.exp(rng.normal(0, spread, 3))
+        cv = cv_tree * np.exp(rng.normal(0, spread * 0.15, 3))
         C = np.repeat(cv[None], len(P), 0)
         low = np.clip(1 - P[:, 1] / 3.0, 0, 1)
         sw = np.clip(-(P[:, 0] - N[i][0]) + (P[:, 2] - N[i][2]), 0, None) / max(r[i], 1e-3)

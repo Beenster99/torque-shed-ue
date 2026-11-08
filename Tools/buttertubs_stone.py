@@ -1195,7 +1195,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
             yy = h - 0.3 * math.sin(pitch) + um * math.sin(pitch) + 0.06
             R = rot_xyz(sd * (pitch + (0.015 if welsh else 0.03)), 0, 0)
             P, T, U = obox(((xa + xb) / 2, yy, zz), ((xb - xa) / 2, 0.012 if welsh else 0.022, seg / 2), R, (rng.uniform(0, 5), u))
-            moss = 0.04 if welsh else np.clip(0.2 + 0.4 * (1 - u / run), 0, 1)
+            moss = 0.03 if welsh else np.clip(0.06 + 0.22 * (1 - u / run) ** 2, 0, 1)   # moss low on the eaves, not a green roof
             c = scol(len(P), rb + rng.normal(0, 0.015 if welsh else 0.03), 1.0, moss)
             if welsh:
                 c[:, 2] = 0.02
@@ -1204,7 +1204,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
     for s in np.arange(xa + 0.05, xb - 0.05, 0.55):
         sl = min(0.275, (xb - s) / 2)
         P, T, U = obox((s + sl, ridge + 0.1, 0), (sl, 0.11, 0.11), rot_xyz(math.pi / 4, 0, 0), rng.uniform(0, 5, 2))
-        St.add(P, T, scol(len(P), 0.4 if not welsh else 0.25, 1.0, 0.3 if not welsh else 0.05), U)
+        St.add(P, T, scol(len(P), 0.4 if not welsh else 0.25, 1.0, 0.12 if not welsh else 0.05), U)
     # Gable copes up the verges, kneelers at the eaves (only where this house owns the gable).
     for side, xg in ((0, -w / 2), (1, w / 2)):
         if party[side] is not None and not own(side):
@@ -1284,7 +1284,7 @@ def building(rng, kind, w, d, h, plinth, opt=None):
         for sd in (-1, 1):
             c = (px + sd * (pw / 4 + 0.05), pe + (pw / 4) * math.tan(pp) + 0.05, z0 + pd / 2 + 0.05)
             P, T, U = obox(c, (sl / 2, 0.03, pd / 2 + 0.15), rot_xyz(0, 0, -sd * pp), rng.uniform(0, 5, 2))
-            cc = scol(len(P), rb, 1.0, 0.04 if welsh else 0.35)
+            cc = scol(len(P), rb, 1.0, 0.04 if welsh else 0.12)
             St.add(P, T, cc, U)
         P, T, U = obox((px, pr + 0.08, z0 + pd / 2 + 0.05), (0.1, 0.08, pd / 2 + 0.15), rot_xyz(0, 0, 0), rng.uniform(0, 5, 2))
         St.add(P, T, scol(len(P), 0.45, 1.0, 0.2), U)
@@ -1356,7 +1356,7 @@ def far_building(w, d, h, rot, x, y_lo, y, z, kind):
         return [x + u * c - v * s, yy, z + u * s + v * c]
     P = [at(u, yy, v) for yy in (y_lo, y + h) for (u, v) in ((-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2))]
     T = [[0, 4, 1], [1, 4, 5], [1, 5, 2], [2, 5, 6], [2, 6, 3], [3, 6, 7], [3, 7, 0], [0, 7, 4]]
-    col = [[0.075, 0.075, 0.066]] * 4 + [[0.06, 0.062, 0.055]] * 4
+    col = [[0.066, 0.066, 0.059]] * 4 + [[0.053, 0.055, 0.049]] * 4
     e = 0.3
     R = [at(-w / 2 - e, y + h - 0.1, -d / 2 - e), at(w / 2 + e, y + h - 0.1, -d / 2 - e), at(w / 2 + e, y + h - 0.1, d / 2 + e),
          at(-w / 2 - e, y + h - 0.1, d / 2 + e), at(-w / 2 - e, y + ridge, 0), at(w / 2 + e, y + ridge, 0)]
@@ -1369,7 +1369,7 @@ def far_building(w, d, h, rot, x, y_lo, y, z, kind):
     P += [at(-w / 2, y + h, -d / 2), at(-w / 2, y + h, d / 2), at(-w / 2, y + ridge, 0),
           at(w / 2, y + h, -d / 2), at(w / 2, y + h, d / 2), at(w / 2, y + ridge, 0)]
     T += [[n, n + 2, n + 1], [n + 3, n + 4, n + 5]]
-    col += [[0.07, 0.07, 0.062]] * 6
+    col += [[0.062, 0.062, 0.056]] * 6
     return np.array(P), np.array(T), np.array(col)
 
 
