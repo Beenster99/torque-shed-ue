@@ -235,10 +235,11 @@ def stock_units(P):
         lever = "lever_clutch" if s < 0 else "lever_brake"
         lp = st.polyline(st.lever_points(s), 6)
         unit(lever, [lever], mount=on_bar(0.23), proxies=chain(lp, 0.008, 2))
-        end = BAR_CLAMP + [0.0, 0.0, s * 0.385]
-        mc = end + np.array([0.03, 0.16, s * 0.06])
-        unit("mirror_" + sd, ["mirrors_" + sd, "mirror_glass_" + sd, "mirror_stalks_" + sd], mount=on_bar(0.38),
-             proxies=[capsule(mc, mc, 0.048)] + chain([end, end + [0.02, 0.1, s * 0.05]], 0.006))
+        # The mirrors screw into the lever clamps (make_speedtwin.py), so they ride the bar there.
+        end = BAR_CLAMP + [0.02, 0.02, s * 0.19]
+        mc = end + np.array([0.02, 0.2, s * 0.1])
+        unit("mirror_" + sd, ["mirrors_" + sd, "mirror_glass_" + sd, "mirror_stalks_" + sd], mount=on_bar(0.19),
+             proxies=[capsule(mc, mc, 0.048)] + chain([end, end + [0.01, 0.15, s * 0.08]], 0.006))
     lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22]); lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22])
     unit("cables", ["cables"], mount={"to": "yokes.lugs", "type": "bracket"}, proxies=[],
          conform={"ends": [{"unit": u_id, "at": v(p)} for (p, _, _, u_id) in stock_cable_ends().values()]})
@@ -460,7 +461,9 @@ def options(cat):
         look = e.get("look", {})
         if look.get("bend") == "clubman":
             # The catalogue's look (drop and pull back, metres): a real clubman, not just a flat bar.
-            path = clubman_shape(e["width"], look.get("drop", 0.08), look.get("pull", 0.12))
+            # The Speed Twin's tank top is only about 40 mm below its bar clamp, so the full 80 mm drop
+            # puts the grips (and the rider's hands) below the tank top; drop as far as clears it.
+            path = clubman_shape(e["width"], min(look.get("drop", 0.08), 0.04), look.get("pull", 0.12))
         else:
             path = bar_shape(e["width"], e["rise"], **kw)
         mesh = st.Mesh()

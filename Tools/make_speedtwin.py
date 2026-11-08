@@ -634,9 +634,11 @@ def build():
     put("headlight_projector", lathe([(0.03, 0.0), (0.03, 0.012), (0.026, 0.022), (0.015, 0.028), (0.0, 0.03)], seg=40,
                                      axis=(1, 0, 0), centre=hl_c), "glass_dark", "steer")
     for s, sd in ((-1, "_l"), (1, "_r")):
-        end = bar_clamp + [0.0, 0.0, s * 0.385]
-        stalk = polyline([end, end + [0.0, 0.03, s * 0.02], end + [0.02, 0.1, s * 0.05]], 6)
-        mc = end + np.array([0.03, 0.16, s * 0.06])
+        # On the lever clamps, as the real bike's are (not the bar ends), inboard of the switches: the stalk screws into the
+        # clamp's top and rises up and out, so the mirrors follow the levers onto other bars.
+        end = bar_clamp + [0.02, 0.02, s * 0.19]
+        stalk = polyline([end, end + [0.0, 0.05, s * 0.03], end + [0.01, 0.15, s * 0.08]], 6)
+        mc = end + np.array([0.02, 0.2, s * 0.1])
         put("mirrors" + sd, lathe([(0.0, -0.008), (0.045, -0.008), (0.048, 0.0), (0.045, 0.006), (0.0, 0.006)], seg=32,
                                   axis=(1, 0.1, 0), centre=mc).transformed(), "black_gloss", "steer")
         put("mirror_glass" + sd, lathe([(0.0, -0.0085), (0.042, -0.0085)], seg=32, axis=(1, 0.1, 0), centre=mc),
