@@ -8,12 +8,13 @@
 // map has loaded), through the walker's own targeting, plan and request, as a player's would, and
 // logs "Torque test: ..." lines:
 //   loop                  the steps above
-//   fab                   a scratch build that needs fabrication: a softail frame set up in bay 3, a four
-//                         fitted to it (jobs owed), the rest finished (finish), the grinder and welder
-//                         making the jobs (fabricate), and a ride out on it. loop and fab can sit
-//                         anywhere in a list; alone, they quit at the end
-//   finish                (a test shortcut, not a player's move) the bay's catalogue bike's empty slots
-//                         filled from its style's reference bike, and everything bolted up
+//   fab                   a scratch build that needs fabrication: a steel backbone frame set up in bay 3,
+//                         finished as an mx with a 660 triple and no fork, a USD sport fork fitted (a
+//                         job owed), the grinder and welder making it (fabricate), and a ride out on it.
+//                         loop and fab can sit anywhere in a list; alone, they quit at the end
+//   finish[:<style>][:<slot>=<part>|none]...  (a test shortcut, not a player's move) the bay's catalogue
+//                         bike's empty slots filled from a style's reference bike (its own style if none
+//                         is given) with those slots changed, and everything bolted up
 //   fabricate             the repair tool on the frame once for each job the bike owes
 //   bay:<n>               the steps after work on bay n's bike (1-4; 1 to start with)
 //   tool:<tool>           hands, wrench, brush, repair, spray or lance

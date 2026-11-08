@@ -38,16 +38,18 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
-// A scratch build that needs fabrication (layout_test: a four in the bobber's softail frame): order
-// the frame, set it up in the empty bay 3, order the engine and fit it (jobs owed), finish the rest
-// of the bike from the bobber's reference parts (a test shortcut: "finish"), make the jobs with the
-// grinder and welder, and ride it out.
+// A scratch build that needs fabrication. In Torque Shed (bike_rig part_fit) only a frame, engine,
+// tank or fork going onto a bike that already has a frame and an engine can owe jobs, so: order a
+// steel backbone frame and set it up in the empty bay 3, finish the rest as the mx's reference bike
+// with a 660 triple and no fork (a test shortcut: "finish"), then order an upside-down sport fork
+// and fit it (owes "downtubes reshaped to clear the front tyre"), make the job with the grinder and
+// welder (fabricate) and ride it out.
 const TCHAR* const FabSteps =
-	TEXT("bay:3,order:softail_hardtail,item:softail_hardtail,f,item:softail_hardtail,act,")
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
 	TEXT("place:bay_2,act,look:bike,shot,")
-	TEXT("order:four_1000,item:four_1000,f,item:four_1000,act,")
-	TEXT("part:frame,act,log,")
-	TEXT("finish,log,look:bike,shot,")
+	TEXT("finish:mx:engine=triple_660:fork=none,log,")
+	TEXT("order:usd_sport,item:usd_sport,f,item:usd_sport,act,")
+	TEXT("part:frame,act,log,look:bike,shot,")
 	TEXT("tool:repair,fabricate,log,look:bike,shot,")
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
@@ -361,7 +363,16 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("finish"))
 	{
 		// A test shortcut, not a player's move: the rest of the bike from its style's reference parts.
-		Said(TEXT("finished from the catalogue (test shortcut): ") + B->TestFinish(TestBay));
+		// finish[:<style>][:<slot>=<part>|none]...
+		FString Style;
+		TMap<FString, FString> Set;
+		for (int32 I = 1; I < P.Num(); ++I)
+		{
+			FString Slot, Part;
+			if (P[I].Split(TEXT("="), &Slot, &Part)) Set.Add(Slot, Part);
+			else Style = P[I];
+		}
+		Said(TEXT("finished from the catalogue (test shortcut): ") + B->TestFinish(TestBay, Style, Set));
 		return true;
 	}
 	if (Verb == TEXT("fabricate"))

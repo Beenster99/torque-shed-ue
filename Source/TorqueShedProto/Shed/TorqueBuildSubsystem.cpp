@@ -839,7 +839,7 @@ float UTorqueBuildSubsystem::FabTime(const FString& What)
 	return 4.0f + (float)TorqueFit::BikeLayout::FabJobFor(TBI::Std(What)).Hours;
 }
 
-FString UTorqueBuildSubsystem::TestFinish(int32 Bay)
+FString UTorqueBuildSubsystem::TestFinish(int32 Bay, const FString& Style, const TMap<FString, FString>& Set)
 {
 	if (IsClient()) return TEXT("only the host can");
 	if (!Exists(Bay)) return TEXT("there's no bike in that bay");
@@ -848,8 +848,9 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay)
 	if (!Lay || !LayoutParts(Bay, Parts)) return TEXT("it isn't a catalogue bike");
 	TorqueFit::PartsMap Map;
 	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
-	const std::string Style = Lay->StyleFor(Map);
-	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(Style);
+	const std::string RefStyle = Style.IsEmpty() ? Lay->StyleFor(Map) : TBI::Std(Style.ToLower());
+	TorqueFit::PartsMap Ref = Lay->ReferenceBuild(RefStyle);
+	for (const TPair<FString, FString>& KV : Set) Ref[TBI::Std(KV.Key.ToLower())] = TBI::Std(KV.Value.ToLower());
 	// The engine first, so the parts that go on it have a block to go on.
 	TArray<FName> Order;
 	Order.Add(TBI::EngineKind());
@@ -889,7 +890,7 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay)
 	for (const FName& S : Missing) Left += (Left.IsEmpty() ? TEXT("") : TEXT(", ")) + S.ToString().ToLower();
 	const FString Owed = FabOwedText(Bay);
 	return FString::Printf(TEXT("%d parts from the %s reference bike, %d more bolted up; missing: %s; owed: %s; complete: %s"),
-		Added, *TBI::Ue(Style), Bolted, Left.IsEmpty() ? TEXT("nothing") : *Left, Owed.IsEmpty() ? TEXT("nothing") : *Owed,
+		Added, *TBI::Ue(RefStyle), Bolted, Left.IsEmpty() ? TEXT("nothing") : *Left, Owed.IsEmpty() ? TEXT("nothing") : *Owed,
 		IsComplete(Bay) ? TEXT("yes") : TEXT("no"));
 }
 
