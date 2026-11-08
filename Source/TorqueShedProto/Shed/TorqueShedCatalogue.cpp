@@ -131,6 +131,9 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 	TVertexInstanceAttributesRef<FVector3f> Tangents = Attr.GetVertexInstanceTangents();
 	TVertexInstanceAttributesRef<float> Signs = Attr.GetVertexInstanceBinormalSigns();
 	TVertexInstanceAttributesRef<FVector2f> UVs = Attr.GetVertexInstanceUVs();
+	// The bike masters darken by vertex colour R (baked occlusion on the Speed Twin's glbs): leave it
+	// unset and a runtime mesh can come out black, so every vertex is explicitly white (no occlusion).
+	TVertexInstanceAttributesRef<FVector4f> Colours = Attr.GetVertexInstanceColors();
 	UVs.SetNumChannels(2);
 	TPolygonGroupAttributesRef<FName> SlotNames = Attr.GetPolygonGroupMaterialSlotNames();
 	MD.ReserveNewVertices(NumVerts);
@@ -158,6 +161,7 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 		const FVector3f Across = FMath::Abs(N.Z) < 0.9f ? FVector3f::UpVector : FVector3f::ForwardVector;
 		Tangents[VI] = FVector3f::CrossProduct(Across, N).GetSafeNormal();
 		Signs[VI] = 1.0f;
+		Colours[VI] = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
 		const float U = I < (int32)S.U.size() ? (float)S.U[I] : 0.0f;
 		const float Vv = I < (int32)S.V.size() ? (float)S.V[I] : 0.0f;
 		UVs.Set(VI, 0, FVector2f(U, Vv));
