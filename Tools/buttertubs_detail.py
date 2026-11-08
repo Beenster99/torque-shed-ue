@@ -854,7 +854,11 @@ def place_buildings(props, region_root, O, ground, near, road_dist, road_half, r
             "bld": [(b["x"], b["z"], b["w"], b["d"], b["rot"], b["kind"]) for b in rows]}
 
 
-def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_glb, counts, reach=3000.0):
+FAR_REACH = 7000.0   # far walls and buildings out to here from the road (in practice the backdrop's edge,
+                     # about 6 km: from the summit you see Wensleydale's walls and Hawes, and Muker)
+
+
+def place_far(far, region_root, O, near, road_line, to_ride, feats, out, write_glb, counts, reach=FAR_REACH):
     """Beyond the near land, out to `reach` from the road: the map's walls (folds and field walls
     alike) and buildings as light, vertex-coloured shapes on the far hills (the backdrop's own 32 m
     surface, so they sit exactly on it), merged into 1 km cells (far_X_Z.glb). One mesh each, no LODs,

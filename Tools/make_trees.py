@@ -391,7 +391,10 @@ def line_dist(px, pz, lines, cell=50.0):
     return out
 
 
-def species_for(T, C, lab, size, spread, mean_h, frac, x0, z0, leaf_at, beck_d, elev, rng):
+RIVER_BANK = 13.0   # metres from a river's centre line counted as its banks (the Swale is 8-15 m wide)
+
+
+def species_for(T, C, lab, size, spread, mean_h, frac, x0, z0, leaf_at, beck_d, elev, rng, river_d=None):
     """A species for each tree, from what the map says about where it stands."""
     j = np.clip(np.round((T[:, 1] - z0) / STEP).astype(int), 0, C.shape[0] - 1)
     i = np.clip(np.round((T[:, 0] - x0) / STEP).astype(int), 0, C.shape[1] - 1)
@@ -419,6 +422,9 @@ def species_for(T, C, lab, size, spread, mean_h, frac, x0, z0, leaf_at, beck_d, 
         v = u[k]
         if small[k] and (lone[k] or high[k]) and not by_beck[k]:
             out[k] = "hawthorn" if v < 0.9 else "birch"
+        elif river_d is not None and river_d[k] < RIVER_BANK:
+            # On a river's banks (the Swale): lines of alder with their roots in the water, some ash.
+            out[k] = "alder" if v < 0.62 else "ash" if v < 0.9 else "sycamore"
         elif by_beck[k]:
             # Gill woodland: ash and alder by the water, birch higher up, the odd sycamore and hawthorn.
             if high[k]:
@@ -558,8 +564,8 @@ def main():
                 out[m] = lf[rr, cc]
         return out
 
-    # Becks.
-    becks = []
+    # Becks (and the rivers among them: the map's kind 0).
+    becks, rivers = [], []
     for row in json.load(open(os.path.join(root, "streams.json")))["streams"]:
         lat, lon = row[1], row[2]
         pts = [to_ride(lat, lon)]
@@ -567,11 +573,14 @@ def main():
             lat += row[k]; lon += row[k + 1]
             pts.append(to_ride(lat, lon))
         becks.append(np.array(pts))
+        if row[0] == 0:
+            rivers.append(becks[-1])
     beck_d = line_dist(T[:, 0], T[:, 1], becks)
+    river_d = line_dist(T[:, 0], T[:, 1], rivers) if rivers else None
 
     ground = land(T[:, 0], T[:, 1])
     elev = ground + O[1]
-    sp = species_for(T, C, lab, size, spread, mean_h, frac, xs[0], zs[0], leaf_at, beck_d, elev, rng)
+    sp = species_for(T, C, lab, size, spread, mean_h, frac, xs[0], zs[0], leaf_at, beck_d, elev, rng, river_d)
 
     # Keep trunks off the tarmac and out of buildings.
     line = np.array(route.get("road_line_sim") or route["line_sim"])   # the whole ribbon, run-outs and all
