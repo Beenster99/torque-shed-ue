@@ -462,6 +462,7 @@ def land_material_scanned(tex, roles):
     tint = g.op(unreal.MaterialExpressionDivide, vc, g.const(lin((92, 112, 52))))
     tint = g.lerp(g.const((1.0, 1.0, 1.0)), tint, g.const(0.55))
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], tint)
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], const_b=0.85)   # grade 2: grass 1.3x too bright vs the DJI footage
     if "rock" in tex:
         nz = g.node(unreal.MaterialExpressionVertexNormalWS)
         up = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
@@ -478,7 +479,7 @@ def land_material_scanned(tex, roles):
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)   # Fraction is an input pin, not a property
     g.link(land[0], grey)
     g.link(g.const(1.0), grey, "Fraction")
-    land[0] = g.lerp(grey, land[0], g.const(1.45))
+    land[0] = g.lerp(grey, land[0], g.const(1.6))
     # Big, slow variation in brightness, so the hillside isn't one even colour from afar.
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], noise(g.m, 0.0003, 0.9, 1.07, -1200, g.y + 200))
     # Far away, the scanned textures shrink into a busy mottle (contour-like bands of moor and peat);
@@ -488,7 +489,7 @@ def land_material_scanned(tex, roles):
     far = g.op(unreal.MaterialExpressionSubtract, depth, const_b=15000.0)
     far = g.op(unreal.MaterialExpressionDivide, far, const_b=60000.0)
     far = g.op(unreal.MaterialExpressionSaturate, far)
-    far = g.op(unreal.MaterialExpressionMultiply, far, const_b=0.55)
+    far = g.op(unreal.MaterialExpressionMultiply, far, const_b=0.4)
     cover = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.1)
     cover = g.lerp(land[0], cover, g.const(0.7))
     land = g.mix(land, [cover, g.const((0.0, 0.0, 1.0)), g.const(0.85)], far)
@@ -507,7 +508,7 @@ def land_material_scanned(tex, roles):
         return e
     rg = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False)
     g.link(land[0], rg)
-    blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.6))
+    blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.4))
     land[0] = g.op(unreal.MaterialExpressionAppendVector, rg, blue)
     return g.finish(land, min_rough=0.82, specular=0.3)
 
@@ -1564,7 +1565,7 @@ def tree_material():
     # from about 250 m to 2 km, so far woods sit in the fells' haze instead of glowing green.
     depth = g.node(unreal.MaterialExpressionPixelDepth)
     far = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
-               g.op(unreal.MaterialExpressionSubtract, depth, const_b=15000.0), const_b=135000.0))
+               g.op(unreal.MaterialExpressionSubtract, depth, const_b=20000.0), const_b=150000.0))
     grey = g.node(unreal.MaterialExpressionDesaturation, -600)
     g.link(base, grey)
     g.link(g.const(0.65), grey, "Fraction")
@@ -1754,7 +1755,7 @@ def instanced_usage(m):
     try_set(m, "used_with_nanite", True)
 
 
-def far_dull(g, col, start_cm=30000.0, span_cm=150000.0, most=0.6):
+def far_dull(g, col, start_cm=30000.0, span_cm=150000.0, most=0.4):
     """Buildings and walls far off sit back into the dale (beenster: "a tiny bit more subtle"): from
     start_cm out, lean towards a darker, greyer version of themselves, as the trees do."""
     depth = g.node(unreal.MaterialExpressionPixelDepth)
@@ -2081,7 +2082,7 @@ def build():
     if mode is not None:
         try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.006), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.038), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
@@ -2091,7 +2092,7 @@ def build():
     try_set(skc, "intensity", 1.0)
     fog = spawn(unreal.ExponentialHeightFog, (0, 0, -40000))   # a thin haze, not a layer lying in the valley
     fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
-    for k, v in (("fog_density", 0.003), ("fog_height_falloff", 0.15), ("enable_volumetric_fog", True),
+    for k, v in (("fog_density", 0.0018), ("fog_height_falloff", 0.15), ("enable_volumetric_fog", True),
                  ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
                  ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
                  ("fog_inscattering_luminance", unreal.LinearColor(0.42, 0.46, 0.52, 1.0))):

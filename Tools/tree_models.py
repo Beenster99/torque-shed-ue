@@ -229,7 +229,7 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
         if r[i] < min_r:
             continue
         p = parent[i]
-        sides = 20 if r[i] > 0.12 else 14 if r[i] > 0.05 else 8 if r[i] > 0.02 else 5 if r[i] > 0.01 else 3
+        sides = 24 if r[i] > 0.12 else 18 if r[i] > 0.05 else 10 if r[i] > 0.02 else 6 if r[i] > 0.01 else 3
         d = N[i] - N[p]
         u, v = ring_frame(d)
         ang = np.arange(sides) / sides * 2 * np.pi + phase
