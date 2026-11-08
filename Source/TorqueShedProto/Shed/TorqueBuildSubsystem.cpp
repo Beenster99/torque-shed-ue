@@ -1,7 +1,97 @@
 #include "Shed/TorqueBuildSubsystem.h"
 
+#include "Shed/TorqueShedSave.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+
+bool UTorqueBuildSubsystem::IsTestRun()
+{
+	// Any -Torque switch but the player's own (name, network, menu, screen messages) is a test run.
+	const TCHAR* Cmd = FCommandLine::Get();
+	FString Token;
+	while (FParse::Token(Cmd, Token, false))
+	{
+		if (!Token.StartsWith(TEXT("-Torque"))) continue;
+		if (Token.StartsWith(TEXT("-TorqueName")) || Token.StartsWith(TEXT("-TorqueNet")) ||
+			Token.StartsWith(TEXT("-TorqueMenu")) || Token.StartsWith(TEXT("-TorqueScreenMessages")))
+			continue;
+		return true;
+	}
+	return false;
+}
+
+void UTorqueBuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	SaveSlot = IsTestRun() ? TEXT("ShedTest") : TEXT("Shed");
+	if (SaveSlot == TEXT("ShedTest"))
+	{
+		// A test starts from the stock bike every time, and never touches the player's slot.
+		if (UGameplayStatics::DoesSaveGameExist(SaveSlot, 0)) UGameplayStatics::DeleteGameInSlot(SaveSlot, 0);
+		UE_LOG(LogTemp, Log, TEXT("Torque: test run: the shed uses save slot %s, reset to stock"), *SaveSlot);
+	}
+	else
+		Load();
+	OnChanged.AddUObject(this, &UTorqueBuildSubsystem::MarkSave);
+	OnLooks.AddUObject(this, &UTorqueBuildSubsystem::MarkSave);
+	Ticker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UTorqueBuildSubsystem::TickSave), 0.5f);
+}
+
+void UTorqueBuildSubsystem::Deinitialize()
+{
+	if (Ticker.IsValid()) FTSTicker::GetCoreTicker().RemoveTicker(Ticker);
+	if (bSaveDue) Save();
+	Super::Deinitialize();
+}
+
+bool UTorqueBuildSubsystem::TickSave(float Dt)
+{
+	if (!bSaveDue) return true;
+	SaveIn -= Dt;
+	if (SaveIn <= 0.0) Save();   // washing changes dirt every frame: one save after it settles
+	return true;
+}
+
+void UTorqueBuildSubsystem::Load()
+{
+	UTorqueShedSave* S = Cast<UTorqueShedSave>(UGameplayStatics::LoadGameFromSlot(SaveSlot, 0));
+	if (!S)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: no shed save in %s yet: the stock bike"), *SaveSlot);
+		return;
+	}
+	if (!S->Bike.IsNone() && S->Bike != Build.Bike)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: shed save %s is for %s, not %s: ignored"), *SaveSlot, *S->Bike.ToString(), *Build.Bike.ToString());
+		return;
+	}
+	// Only what still fits (the parts data may have changed since it was saved).
+	for (const TPair<FName, FName>& KV : S->Fitted)
+	{
+		FText Why;
+		if (TorqueFit::CanFit(Build, KV.Key, KV.Value, Why)) Build.Fitted.Add(KV.Key, KV.Value);
+		else UE_LOG(LogTemp, Warning, TEXT("Torque: saved %s in %s no longer fits: %s"), *KV.Value.ToString(), *KV.Key.ToString(), *Why.ToString());
+	}
+	Dirt = S->Dirt;
+	Paint = S->Paint;
+	UE_LOG(LogTemp, Log, TEXT("Torque: shed loaded from %s: %d parts fitted, %d painted"), *SaveSlot, Build.Fitted.Num(), Paint.Num());
+}
+
+void UTorqueBuildSubsystem::Save()
+{
+	bSaveDue = false;
+	UTorqueShedSave* S = Cast<UTorqueShedSave>(UGameplayStatics::CreateSaveGameObject(UTorqueShedSave::StaticClass()));
+	if (!S) return;
+	S->Bike = Build.Bike;
+	S->Fitted = Build.Fitted;
+	S->Dirt = Dirt;
+	S->Paint = Paint;
+	if (!UGameplayStatics::SaveGameToSlot(S, SaveSlot, 0))
+		UE_LOG(LogTemp, Warning, TEXT("Torque: couldn't save the shed to %s"), *SaveSlot);
+}
 
 FName UTorqueBuildSubsystem::FittedIn(FName Slot) const
 {

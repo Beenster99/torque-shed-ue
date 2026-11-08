@@ -5,6 +5,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/Ticker.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Shed/TorqueFitApi.h"
 #include "TorqueBuildSubsystem.generated.h"
@@ -15,6 +16,14 @@ class UTorqueBuildSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	// Loads the shed's save (or, on a test run, starts the test slot afresh) and saves changes
+	// a couple of seconds after they're made, and on the way out.
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	// The save slot in use: "Shed", or "ShedTest" on a test run.
+	const FString& SlotName() const { return SaveSlot; }
+	static bool IsTestRun();
+
 	const FTorqueBuild& Get() const { return Build; }
 
 	// The option fitted in a slot (the stock one when nothing has been changed).
@@ -53,4 +62,13 @@ private:
 	TMap<FName, float> Dirt;
 	TMap<FName, FLinearColor> Paint;
 	bool bRode = false;
+
+	FString SaveSlot;
+	bool bSaveDue = false;
+	double SaveIn = 0.0;
+	FTSTicker::FDelegateHandle Ticker;
+	void Load();
+	void Save();
+	void MarkSave() { bSaveDue = true; SaveIn = 2.0; }
+	bool TickSave(float Dt);
 };
