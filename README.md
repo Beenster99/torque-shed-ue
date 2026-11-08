@@ -174,7 +174,7 @@ section. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
-plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors and indicators), each on its style's reference bike. `layout_test` requires all of
+plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators and front mudguards), each on its style's reference bike. `layout_test` requires all of
 them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes,
 mirrors on a frame-mounted fairing (they wait for its fit), lights' trim, guards, fairings, luggage and panels.
 
