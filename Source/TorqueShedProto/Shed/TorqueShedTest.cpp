@@ -169,6 +169,10 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (P.Num() == 0) return true;
 	UWorld* World = GetGameInstance()->GetWorld();
 	const FString& Verb = P[0];
+	// What's in hand is hidden from look: until the next step that isn't a shot or a wait, so a
+	// stand-back shot shows the bike, not the part held up in front of the camera.
+	if (Verb != TEXT("shot") && Verb != TEXT("wait"))
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->bHideHeld = Verb == TEXT("look");
 	auto Said = [&S](const FString& What) { UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, *What); };
 	auto Warn = [&S](const FString& What) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: %s"), *S, *What); };
 

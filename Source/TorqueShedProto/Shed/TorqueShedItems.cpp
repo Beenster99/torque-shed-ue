@@ -248,7 +248,7 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 		USceneComponent* H = D.Holder.Get();
 		if (!H || D.HeldBy == 0) continue;
 		FTransform Hand;
-		if (!HandOf(D.HeldBy, Hand))
+		if (bHideHeld || !HandOf(D.HeldBy, Hand))
 		{
 			H->SetVisibility(false, true);
 			continue;
