@@ -11,7 +11,8 @@ the origin and its trunk goes 1.2 m below it, so it can be sunk into a slope wit
 
 Vertex colour RGB is linear colour, A is how much sky the spot sees (dark inside the crown). UV x is 1
 on leaves and 0 on bark; UV y is how free the spot is to move in the wind (0 at the trunk, 1 at the
-outer twigs), which M_Tree turns into sway and flutter.
+outer twigs), which M_Tree turns into sway and flutter. UV1 is the bark texture's (around and along the
+branch, in metres; BARK_M per repeat around), 0 on the leaves.
 """
 import math
 import numpy as np
@@ -23,10 +24,10 @@ def lin(rgb):
 
 class Mesh:
     def __init__(self):
-        self.P, self.C, self.UV, self.T = [], [], [], []
+        self.P, self.C, self.UV, self.UV1, self.T = [], [], [], [], []
         self.n = 0
 
-    def add(self, pos, tris, col, uv):
+    def add(self, pos, tris, col, uv, uv1=None):
         pos = np.asarray(pos, np.float64).reshape(-1, 3)
         col = np.asarray(col, np.float64)
         if col.ndim == 1:
@@ -35,16 +36,30 @@ class Mesh:
         if uv.ndim == 1:
             uv = np.repeat(uv[None], len(pos), 0)
         self.P.append(pos); self.C.append(col); self.UV.append(uv)
+        self.UV1.append(np.zeros((len(pos), 2)) if uv1 is None else np.asarray(uv1, np.float64).reshape(-1, 2))
         self.T.append(np.asarray(tris, np.int64).reshape(-1, 3) + self.n)
         self.n += len(pos)
 
-    def arrays(self):
+    def uv1(self):
+        """The second UV set: the bark's texture coordinates (around, along in metres); 0 elsewhere."""
+        return np.concatenate(self.UV1)
+
+    def arrays(self, weld=False):
+        """Positions, triangles, normals, RGBA bytes and UV0. weld: vertices at the same place on the
+        bark (UV0 x 0) share one normal, so the seam where its texture wraps doesn't show."""
         P = np.concatenate(self.P); T = np.concatenate(self.T)
         C = np.concatenate(self.C); UV = np.concatenate(self.UV)
         fn = np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]])
         N = np.zeros_like(P)
         for k in range(3):
             np.add.at(N, T[:, k], fn)
+        if weld:
+            bark = np.flatnonzero(UV[:, 0] == 0)
+            key = np.round(P[bark] * 1e4).astype(np.int64)
+            _, inv = np.unique(key, axis=0, return_inverse=True)
+            S = np.zeros((inv.max() + 1, 3))
+            np.add.at(S, inv.ravel(), N[bark])
+            N[bark] = S[inv.ravel()]
         N /= np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-12)
         rgba = np.clip(np.round(C * 255), 0, 255).astype(np.uint8)
         return P, T, N, rgba, UV
@@ -216,8 +231,13 @@ def ring_frame(d):
     return u, v
 
 
+BARK_M = 0.7   # metres one repeat of the bark texture covers (Data/Textures/textures.json "bark" tile_m)
+
+
 def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=True):
-    """Bark: a ring of vertices at each node, joined to its parent's ring. Sides by thickness."""
+    """Bark: a ring of vertices at each node, joined to its parent's ring. Sides by thickness. UV1 is
+    the bark texture's: around the branch (a whole number of repeats, so it wraps without a seam) and
+    along it, in metres from the foot of the tree."""
     n = len(N)
     base_col, spread = bark
     col0 = lin(base_col)
@@ -225,6 +245,11 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
     # every segment made the trunk read as a stack of bands (beenster: "very low poly").
     cv_tree = col0 * np.exp(rng.normal(0, spread, 3))
     phase = rng.uniform(0, 1)
+    # Root flare: buttresses where the roots leave the trunk, a few per tree, spreading at the ground.
+    lobes = int(rng.integers(4, 7)); lobe_ph = rng.uniform(0, 6.3)
+    along = np.zeros(n)
+    for i in range(1, n):
+        along[i] = along[parent[i]] + np.linalg.norm(N[i] - N[parent[i]])
     for i in range(1, n):
         if r[i] < min_r:
             continue
@@ -232,20 +257,23 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
         sides = 24 if r[i] > 0.12 else 18 if r[i] > 0.05 else 10 if r[i] > 0.02 else 6 if r[i] > 0.01 else 3
         d = N[i] - N[p]
         u, v = ring_frame(d)
-        ang = np.arange(sides) / sides * 2 * np.pi + phase
+        ang = np.arange(sides + 1) / sides * 2 * np.pi + phase   # the last vertex repeats the first: the seam
+        reps = max(1, int(round(2 * np.pi * r[i] / BARK_M)))
         rings = []
         for q, rr, yy in ((N[p], max(r[p] if p else r[i], r[i]) if kids[p] and len(kids[p]) == 1 else r[i] * 1.04, N[p][1]),
                           (N[i], r[i], N[i][1])):
-            rad = np.full(sides, rr)
-            if flare and q[1] < 0.8 and rr > 0.08:
-                # Root flare and buttresses at the foot.
-                f = np.clip((0.8 - q[1]) / 1.4, 0, 1)
-                rad = rr * (1 + 0.7 * f ** 1.5 * (1 + 0.35 * np.cos(ang * 4 + 1.3)))
+            rad = np.full(sides + 1, rr)
+            if flare and q[1] < 1.4 and rr > 0.08:
+                f = np.clip((1.4 - q[1]) / 1.4, 0, 1.3)
+                rad = rr * (1 + 0.85 * f ** 2.2 * (1 + 0.5 * np.cos(ang * lobes + lobe_ph)))
             rings.append(q[None, :] + np.cos(ang)[:, None] * u[None, :] * rad[:, None] + np.sin(ang)[:, None] * v[None, :] * rad[:, None])
         P = np.vstack(rings)
         k = np.arange(sides)
-        a, b, c, e = k, (k + 1) % sides, k + sides, (k + 1) % sides + sides
+        m = sides + 1
+        a, b, c, e = k, k + 1, k + m, k + 1 + m
         T = np.concatenate([np.stack([a, c, b], 1), np.stack([b, c, e], 1)])
+        uv1 = np.concatenate([np.stack([np.arange(m) / sides * reps * BARK_M, np.full(m, along[p])], 1),
+                              np.stack([np.arange(m) / sides * reps * BARK_M, np.full(m, along[i])], 1)])
         # Colour: the species' bark, varied, greened by algae low down on the wet (south west) side.
         cv = cv_tree * np.exp(rng.normal(0, spread * 0.15, 3))
         C = np.repeat(cv[None], len(P), 0)
@@ -258,8 +286,8 @@ def tubes(mesh, N, parent, r, kids, bark, rng, wind, ao_fn, min_r=0.006, flare=T
             C = C * np.where(rng.uniform(0, 1, (len(P), 1)) < 0.22, 0.3, 1.0)
             C = C * np.clip(0.35 + P[:, 1:2] / 1.5, 0.35, 1)
         ao = ao_fn(P)
-        w = np.repeat([wind[p], wind[i]], sides)
-        mesh.add(P, T, np.concatenate([C, ao[:, None]], 1), np.stack([np.zeros(len(P)), w], 1))
+        w = np.repeat([wind[p], wind[i]], m)
+        mesh.add(P, T, np.concatenate([C, ao[:, None]], 1), np.stack([np.zeros(len(P)), w], 1), uv1)
 
 
 LEAF_SHAPES = {
@@ -480,17 +508,20 @@ def spruce(seed):
     # Trunk.
     ys = np.linspace(-1.2, h, 24)
     rt = sp["trunk_r"] * h * np.clip(1 - (ys + 1.2) / (h + 1.2), 0.03, 1) ** 0.9
-    sides = 8
-    ang = np.arange(sides) / sides * 2 * np.pi
-    P = np.concatenate([np.stack([np.cos(ang) * rr, np.full(sides, y), np.sin(ang) * rr], 1) for y, rr in zip(ys, rt)])
+    sides = 12
+    ang = np.arange(sides + 1) / sides * 2 * np.pi   # the last repeats the first: the bark's seam
+    P = np.concatenate([np.stack([np.cos(ang) * rr, np.full(sides + 1, y), np.sin(ang) * rr], 1) for y, rr in zip(ys, rt)])
     T = []
+    m1 = sides + 1
     for k in range(len(ys) - 1):
         for s in range(sides):
-            a, b = k * sides + s, k * sides + (s + 1) % sides
-            T += [[a, a + sides, b], [b, a + sides, b + sides]]
+            a, b = k * m1 + s, k * m1 + s + 1
+            T += [[a, a + m1, b], [b, a + m1, b + m1]]
+    reps = max(1, int(round(2 * np.pi * rt[0] / BARK_M)))
+    uv1 = np.concatenate([np.stack([np.arange(m1) / sides * reps * BARK_M, np.full(m1, y + 1.2)], 1) for y in ys])
     C = np.repeat(bark0[None], len(P), 0) * np.exp(rng.normal(0, 0.05, (len(P), 1)))
     for m in (near, far):
-        m.add(P, T, np.concatenate([C, ao_fn(P)[:, None]], 1), np.stack([np.zeros(len(P)), np.zeros(len(P))], 1))
+        m.add(P, T, np.concatenate([C, ao_fn(P)[:, None]], 1), np.stack([np.zeros(len(P)), np.zeros(len(P))], 1), uv1)
     # Whorls every ~0.5 m (a year's growth), 5 branches each, plus a few between.
     y = 1.0
     shoots = []

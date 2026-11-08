@@ -4,42 +4,42 @@
   {
    "name": "SM_BeckStone_0",
    "mesh": "SM_BeckStone_0",
-   "count": 4887,
+   "count": 4780,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_1",
    "mesh": "SM_BeckStone_1",
-   "count": 4952,
+   "count": 4888,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_2",
    "mesh": "SM_BeckStone_2",
-   "count": 4761,
+   "count": 4762,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_3",
    "mesh": "SM_BeckStone_3",
-   "count": 4917,
+   "count": 4797,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_4",
    "mesh": "SM_BeckStone_4",
-   "count": 4850,
+   "count": 4714,
    "cull_m": 600,
    "shadow": true
   },
   {
    "name": "SM_BeckStone_5",
    "mesh": "SM_BeckStone_5",
-   "count": 5030,
+   "count": 4886,
    "cull_m": 600,
    "shadow": true
   }
@@ -51,7 +51,8 @@
   "bed_02",
   "water_00",
   "wall_00",
-  "cope_00"
+  "cope_00",
+  "falls_00"
  ],
  "crossings_km": [
   4.24,
@@ -60,5 +61,17 @@
   5.45,
   5.71,
   6.6
+ ],
+ "waterfalls": [
+  "Catrake Force",
+  "Hoggarth's Leap",
+  "unnamed",
+  "unnamed",
+  "Scar House Force",
+  "Cliff Force",
+  "Aygill Force",
+  "Hoggarth's Leap",
+  "East Gill Force (lower)",
+  "East Gill Force (upper)"
  ]
 }

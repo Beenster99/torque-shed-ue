@@ -1,5 +1,5 @@
 {
- "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing. 'masonry' is the rubble walling of the houses and barns.",
+ "about": "Scanned CC0 textures from ambientCG (ambientcg.com, CC0: free for any use). Tools/fetch_textures.py downloads them here (the images aren't in git); Tools/ue_build_level.py builds the land and road materials from the roles. 'tile_m' is how many metres one repeat covers. The stone roles are for the walls, scars, boulders and barns (Tools/buttertubs_stone.py): 'stone' lichened limestone, 'stone_bare' bare bedded limestone, 'moss' for the moss on them. A role's optional 'ue' block names textures already in the project (Megascans from Fab, which aren't in git); the CC0 'id' is the fallback when they're missing. 'masonry' is the rubble walling of the houses and barns. 'bark' is the trees' bark (M_Tree, on the models' UV1; tile_m must match BARK_M in Tools/tree_models.py; 'mean' is its average linear brightness, which M_Tree divides out so the trees keep their own bark colours).",
  "roles": {
   "grass": {
    "id": "Grass004",
@@ -64,6 +64,11 @@
   "masonry": {
    "id": "Bricks096",
    "tile_m": 1.8
+  },
+  "bark": {
+   "id": "Bark004",
+   "tile_m": 0.7,
+   "mean": 0.3
   }
  },
  "candidates": {
@@ -128,6 +133,12 @@
    "Bricks098",
    "Bricks089",
    "Rocks025"
+  ],
+  "bark": [
+   "Bark004",
+   "Bark011",
+   "Bark001",
+   "Bark013"
   ]
  }
 }
