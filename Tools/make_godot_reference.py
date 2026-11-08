@@ -75,6 +75,12 @@ def main():
         out["sweep"][key] = {"base": s["base"], "parts": {k: v for k, v in s["parts"].items() if base.get(k) != v},
                              "fit_tier": s["rig"]["fit"]["tier"],
                              "glb": {k: glb_tags(v["meshes"]) for k, v in s["slots"].items() if k.endswith(keep) and glb_tags(v["meshes"])}}
+        # The swept slot whole (Blender and code-drawn meshes) and its named meshes, for the code-drawn shapes.
+        slot = key.split("/")[0]
+        if slot in s["slots"]:
+            v = s["slots"][slot]
+            out["sweep"][key]["slot"] = {"min": r6(v["min"]), "max": r6(v["max"]),
+                                         "named": {m["name"]: {"min": r6(m["min"]), "max": r6(m["max"])} for m in v["meshes"] if not m["name"].startswith("@")}}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     open(OUT, "w").write(json.dumps(out, separators=(",", ":")) + "\n")
     print("wrote %s: %d styles, %d swept builds" % (OUT, len(out["styles"]), len(out["sweep"])))
