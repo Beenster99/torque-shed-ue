@@ -159,11 +159,17 @@ private:
 	// fuel tank and a toolbox (BikeModel._draw_panniers, _draw_top_box, _draw_fog_lights;
 	// KitModel._aux_tank, _toolbox). Their straps, latches and soft bags' code shapes aren't here.
 	void Luggage(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The tank bag's Blender body laid along the tank's top (KitModel._blender_bag).
+	void TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// The rear brake's master cylinder (BikeModel._draw_rear_master).
 	void RearMaster(const Layout& L, std::vector<FittedPart>& Out) const;
 	// The clocks (BikeModel._draw_dashboard), raised clear of the bars as _lift_clear_of_bars
 	// raises them (that needs the mesh source).
-	void Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
+	// Returns how far they were raised (_dash_raised), for a satnav over them.
+	double Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
+	// A satnav over the clocks on its arm (KitModel._satnav), DashLift as the clocks were raised.
+	// Not yet a phone in its bar clip (KitModel._phone fits it round the bars).
+	void Satnav(const PartsMap& Parts, const Layout& L, double DashLift, std::vector<FittedPart>& Out) const;
 	// BlenderParts.sweep_section: copies of a Blender section (drawn at radius 1 along +Z, Godot
 	// frame) laid end to end along ShapeKit.smooth's curve through Route, scaled by Radii (one, or
 	// one per route point). False when there's no glb.

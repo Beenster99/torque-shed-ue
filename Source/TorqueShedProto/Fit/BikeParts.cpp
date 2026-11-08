@@ -1113,7 +1113,7 @@ BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, st
 	return Bar;
 }
 
-void BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
+double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
 {
 	// (BikeModel._draw_dashboard, in the steering's space: the clocks lean back 0.9 rad to the rider.)
 	const Json* P = Lay.Part(PartIn(Parts, "dashboard"));
@@ -1256,6 +1256,7 @@ void BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Ba
 			while (Lift < 0.25 && (Hidden(Eye, Lift) || Hidden(Low, Lift))) Lift += 0.005;
 	}
 	for (const auto& [Glb, C] : Housings) Put(Out, "dashboard", Glb, AtWith(Tilt, C + V3(0.0, Lift, 0.0) + H), "steer");
+	return Lift;
 }
 
 void BikeParts::RearMaster(const Layout& L, std::vector<FittedPart>& Out) const
@@ -2209,6 +2210,61 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 	}
 }
 
+void BikeParts::TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
+{
+	const Json* P = Lay.Part(PartIn(Parts, "tank_bag"));
+	const std::string Path = "kit/tank_bag.glb";
+	if (!P || !HasGlb(Path)) return;
+	const double K = std::pow(P->Num("litres", 10.0) / 10.0, 0.33);
+	const bool Tall = P->Str("style", "low") == "tall";
+	const double Length = 0.26 * K, Height = (Tall ? 0.15 : 0.1) * K;
+	// (BikeModel.tank_top_at: the nearest tank section's top and half width; _tank_front.)
+	auto Secs = std::make_shared<std::vector<LoftSection>>(Body.TankSecs);
+	const double SeatY = L.Stats.SeatHeight - L.Stats.RearRadius;
+	const double Z0 = (Secs->empty() ? ToGodot(L.Head).z + 0.1 : Secs->front().C.z) + 0.04;
+	auto TopAt = [Secs, SeatY](double Z) {
+		if (Secs->empty()) return std::make_pair(SeatY + 0.1, 0.12);
+		const LoftSection* Best = &Secs->front();
+		for (const LoftSection& S : *Secs)
+			if (std::fabs(S.C.z - Z) < std::fabs(Best->C.z - Z)) Best = &S;
+		return std::make_pair(Best->C.y + Best->Up, Best->W);
+	};
+	auto Rise = [](double U) { return TorqueSim::Lerp(0.7, 1.0, std::sin(std::min(TorqueSim::Clamp(U, 0.0, 1.0) * 1.4, 1.0) * TorqueSim::Pi * 0.5)); };
+	auto Mid = [=](double U) {
+		const double Z = Z0 + Length * TorqueSim::Clamp(U, 0.0, 1.0);
+		return V3(0.0, TopAt(Z).first + Height * 0.5 * Rise(U), Z);
+	};
+	FittedPart F;
+	F.Slot = "tank_bag";
+	F.Glb = Path;
+	F.Warp = GodotWarpToOurs([=](const V3& G) {
+		const double U = G.z / 0.26;
+		const V3 C = Mid(U);
+		const V3 T = Mid(U + 0.2) - Mid(U - 0.2);
+		const V3 Up = T.Cross(GodotRight).Normalized();
+		const double Sx = std::min(TopAt(C.z).second * 0.82, 0.13 * K) / 0.1, Sy = Height / 0.1;
+		const double Own = 0.05 * Rise(U);
+		return C + GodotRight * (G.x * Sx) + Up * ((G.y - Own) * Sy);
+	});
+	Out.push_back(F);
+}
+
+void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, std::vector<FittedPart>& Out) const
+{
+	const Json* P = Lay.Part(PartIn(Parts, "satnav"));
+	if (!P) return;
+	const std::string Style = P->Str("style", "road");
+	if (Style == "phone") return;
+	const Json* Size = P->Get("screen");
+	const double Sw = Size && Size->A.size() == 2 ? Size->A[0].N : 0.1, Sh = Size && Size->A.size() == 2 ? Size->A[1].N : 0.065;
+	V3 At(0.0, 0.22 + DashLift, -0.03);
+	if (Style == "compact") At = V3(0.13, 0.2 + DashLift * 0.5, 0.02);
+	else if (Style == "road") At = V3(0.1, 0.22 + DashLift, -0.02);
+	else if (Style == "tablet") At = V3(0.0, 0.25 + DashLift, -0.08);
+	// (Its arm, crossbar and stays are code-drawn; the unit is the Blender piece, on the steering.)
+	Put(Out, "satnav", "kit/satnav.glb", AtWith(GAffine::Rotation(GodotRight, 0.85) * GAffine::Scale(V3((Sw + 0.022) / 0.122, 1.0, (Sh + 0.022) / 0.087)), At + ToGodot(L.Head)), "steer");
+}
+
 bool BikeParts::DrawnBox(const std::vector<FittedPart>& Out, const std::vector<std::string>& Slots, V3& Lo, V3& Hi) const
 {
 	if (!Meshes) return false;
@@ -2322,7 +2378,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Swingarm(Parts, L, Out);
 	Fork(Parts, L, Out);
 	const Bars Bar = Handlebars(Parts, L, Out);
-	Dashboard(Parts, L, Bar, Out);
+	const double DashLift = Dashboard(Parts, L, Bar, Out);
 	Headlight(Parts, Out, ToGodot(L.Head));
 	// (BikeModel: the fairing after the tail, the mirrors after it, on its mounts.)
 	V3 FrameLo, FrameHi;
@@ -2339,6 +2395,8 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	SidePanels(Parts, L, Out);
 	Guards(Parts, L, Bar, Out);
 	Luggage(Parts, L, Out);
+	TankBag(Parts, L, Body, Out);
+	Satnav(Parts, L, DashLift, Out);
 	RearMaster(L, Out);
 	FinalDrive(Parts, L, Out);
 	Shocks(Parts, L, Out);

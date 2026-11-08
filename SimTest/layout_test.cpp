@@ -496,10 +496,11 @@ int main(int argc, char** argv)
 			// (BlenderParts.shell): not ported yet.)
 			const Json* Fairing = Lay.Part(B.count("fairing") ? B.at("fairing") : "none");
 			const bool CodeFairing = Fairing && !Fairing->Flag("frame_mount");
-			// (The tank bag laid along the tank's sections and the satnav fitted round the bars: next.)
-			static const std::set<std::string> NotYet = {"tank_bag", "satnav"};
+			// (A phone satnav is fitted round the bars by trying places for it: not ported yet.)
+			const Json* Nav = Lay.Part(B.count("satnav") ? B.at("satnav") : "none");
+			const bool PhoneNav = Nav && Nav->Str("style") == "phone";
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
-				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "fairing" && CodeFairing) && !NotYet.count(Slot)) Wrong += " " + Slot + " missing";
+				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "fairing" && CodeFairing) && !(Slot == "satnav" && PhoneNav)) Wrong += " " + Slot + " missing";
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
 			if (Wrong.empty()) ++Right;

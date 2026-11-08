@@ -176,12 +176,12 @@ adventure, Seeley, sport and race) widened round the engine as RigBodywork.fairi
 mirrors on its mounts; the tail unit (rear mudguard bent from its section, tidy tray, lamp bracket,
 rear light), the stands, rearsets, horn, ECU, side panels, engine guards and plates, number boards,
 steering damper, lever guards, panniers and their rack, top boxes on theirs, fog lights, extra fuel
-tanks and toolboxes. Under a full fairing the plain headlight is marked Hidden, as Godot hides it. Each placed part also says what it moves with as the
+tanks, toolboxes, the tank bag and a satnav unit. Under a full fairing the plain headlight is marked Hidden, as Godot hides it. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
 plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators, front mudguards, frames and fairings), each on its style's reference bike. `layout_test` requires all of
-them to match surface by surface. Still to port: the tank bag and satnav, Godot's code-drawn shells (a fairing on the bars among
+them to match surface by surface. Still to port: a phone satnav (fitted round the bars), Godot's code-drawn shells (a fairing on the bars among
 them) and brake hoses, and its hiding of what a full fairing covers.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
