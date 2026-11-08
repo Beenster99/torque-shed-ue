@@ -1,5 +1,6 @@
 #include "Shed/TorqueShedTest.h"
 
+#include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueShedBike.h"
@@ -317,6 +318,25 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// Stand back from something and look at it, for a screenshot.
 		const FString What = P[1].ToLower();
+		if (What == TEXT("player"))
+		{
+			// Co-op: turn (without moving) to face the nearest other player, to check their name tag.
+			const APawn* Nearest = nullptr;
+			double Best = 1e30;
+			for (TActorIterator<APawn> It(W->GetWorld()); It; ++It)
+			{
+				if (*It == W || !It->GetPlayerState()) continue;
+				const double D = FVector::DistSquared(It->GetActorLocation(), W->GetActorLocation());
+				if (D < Best) { Best = D; Nearest = *It; }
+			}
+			AController* C = W->GetController();
+			if (!Nearest || !C) { Warn(TEXT("look:player: no other player here")); return true; }
+			const FVector From = W->GetPawnViewLocation();
+			const FVector To = Nearest->GetActorLocation() + FVector(0.0, 0.0, 40.0);
+			C->SetControlRotation((To - From).Rotation());
+			Said(FString::Printf(TEXT("facing %s, %.1f m away"), *Nearest->GetPlayerState()->GetPlayerName(), FMath::Sqrt(Best) / 100.0));
+			return true;
+		}
 		FVector At = FVector::ZeroVector, Away = FVector::ZeroVector;
 		double Distance = 220.0;
 		FName PlaceName = NAME_None;
@@ -339,7 +359,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? bench, washer, repair, computer, changer, stand, bins, bike, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, deliveries, washbay, or a place name")); return true; }
 		Said(TEXT("looking at ") + W->TestLookAt(At, Away, Distance));
 		return true;
 	}

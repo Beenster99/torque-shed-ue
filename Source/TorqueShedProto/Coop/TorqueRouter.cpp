@@ -155,7 +155,7 @@ bool FTorqueRouter::Poll(float Dt)
 	if (SearchLeft <= 0.0)
 	{
 		StopSearch();
-		Fail(TEXT("no router answered (UPnP may be switched off on it)"));
+		Fail(FString::Printf(TEXT("no router answered the UPnP search within %.0f s (no internet gateway device found: UPnP may be off on it)"), SearchSeconds));
 		return false;
 	}
 	return true;
@@ -295,12 +295,19 @@ void FTorqueRouter::RemoveLeftover()
 			TSharedPtr<FTorqueRouter> Self = Weak.Pin();
 			if (!Self || Self->Generation != Gen) return;
 			Self->bCleanUp = false;
-			if (!bOk) UE_LOG(LogTemp, Log, TEXT("Torque net: no mapping of ours on UDP port %d"), Port);
-			if (bOk && TorqueUpnp::IsOurMapping(ToStd(Answer), ToStd(Self->LocalIp), MappingName))
-			{
-				UE_LOG(LogTemp, Log, TEXT("Torque net: removed the leftover mapping of UDP port %d"), Port);
-				Self->Soap(TEXT("DeletePortMapping"), FromStd(TorqueUpnp::DeletePortMapping(ToStd(Self->ServiceType), Port)), [](bool, const FString&) {});
-			}
+			// Every outcome in the log, so a test can tell.
+			if (!bOk && Answer.Contains(TEXT("714")))
+				UE_LOG(LogTemp, Log, TEXT("Torque net: router check: no mapping on UDP port %d (none of ours left open)"), Port);
+			else if (!bOk)
+				UE_LOG(LogTemp, Log, TEXT("Torque net: router check: couldn't ask about UDP port %d (%s)"), Port, *Answer);
+			else if (!TorqueUpnp::IsOurMapping(ToStd(Answer), ToStd(Self->LocalIp), MappingName))
+				UE_LOG(LogTemp, Log, TEXT("Torque net: router check: UDP port %d is mapped, but not by this game to this PC (%s, \"%s\"): left alone"), Port,
+					*FromStd(TorqueUpnp::TagText(ToStd(Answer), "NewInternalClient")), *FromStd(TorqueUpnp::TagText(ToStd(Answer), "NewPortMappingDescription")));
+			else
+				Self->Soap(TEXT("DeletePortMapping"), FromStd(TorqueUpnp::DeletePortMapping(ToStd(Self->ServiceType), Port)), [Port](bool bGone, const FString& Why) {
+					if (bGone) UE_LOG(LogTemp, Log, TEXT("Torque net: router check: found our leftover mapping of UDP port %d and removed it"), Port);
+					else UE_LOG(LogTemp, Log, TEXT("Torque net: router check: found our leftover mapping of UDP port %d, but removing it failed (%s)"), Port, *Why);
+				});
 			if (GConfig)
 			{
 				GConfig->RemoveKey(Section, TEXT("UpnpOpenPort"), GGameUserSettingsIni);
@@ -316,7 +323,7 @@ void FTorqueRouter::Fail(const FString& Reason)
 	{
 		// Couldn't reach the router to tidy up: try again next start-up.
 		bCleanUp = false;
-		UE_LOG(LogTemp, Log, TEXT("Torque net: couldn't remove last time's port mapping yet: %s"), *Reason);
+		UE_LOG(LogTemp, Log, TEXT("Torque net: router check: %s; nothing removed (tried again next start-up)"), *Reason);
 		return;
 	}
 	State = EState::Closed;
@@ -345,6 +352,8 @@ void FTorqueRouter::LookUpPublicIp()
 
 void FTorqueRouter::Close(bool bWait)
 {
+	// Nothing hosted (the start menu calls this): leave a start-up check for a leftover running.
+	if (State == EState::Off && MappedPort == 0) return;
 	++Generation;
 	StopSearch();
 	if (RenewTicker.IsValid())
