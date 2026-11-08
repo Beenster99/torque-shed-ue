@@ -2,7 +2,10 @@
 // against the riding physics' datums, runs the clearance checks (full lock, full compression, both),
 // tries every alternative part, and exercises geometry mode. Plain C++, no Unreal.
 //
-//     cmake -S SimTest -B build/simtest && cmake --build build/simtest && build/simtest/fit_test
+//     cmake -S SimTest -B build/simtest && cmake --build build/simtest && build/simtest/fit_test [--pairs]
+//
+// --pairs also fits every two alternatives from different slots together (a rack with each seat,
+// spotlights with each set of engine bars...) and fails if the two clash; it takes a minute or so.
 //
 // It fails (exit 1) when the data won't load, the stock bike doesn't assemble where it was
 // modelled, the physics datums the model is drawn from disagree, a part that should fit doesn't
@@ -84,9 +87,53 @@ PhysicsDatums FromSim(const TorqueSim::BikeSpec& S)
 	P.SwingPivot = V3(-S.SwingPivot.z, S.SwingPivot.y, S.SwingPivot.x);
 	return P;
 }
-} // namespace
 
-int main()
+// Every two alternatives from different slots, fitted together: they mustn't clash with each other
+// (each is already checked against the stock bike on its own).
+void CheckPairs(const BikeFit& Fit)
+{
+	std::printf("\nEvery pair of alternatives from different slots, fitted together\n");
+	struct Opt { std::string Slot; const Option* O; std::set<std::string> Units; };
+	std::vector<Opt> All;
+	for (const std::string& S : Fit.Slots())
+		for (const Option& O : *Fit.OptionsFor(S))
+		{
+			if (O.Stock) continue;
+			Opt E{S, &O, {}};
+			for (const Unit& U : O.Units) E.Units.insert(U.Id);
+			for (const auto& M : O.Moves) E.Units.insert(M.first);
+			All.push_back(E);
+		}
+	std::string Error;
+	Build Stock;
+	Assembly Base;
+	Fit.Assemble(Stock, Base, Error);
+	int Pairs = 0, Bad = 0;
+	for (size_t I = 0; I < All.size(); ++I)
+		for (size_t J = I + 1; J < All.size(); ++J)
+		{
+			if (All[I].Slot == All[J].Slot) continue;
+			Build B;
+			B.Fitted[All[I].Slot] = All[I].O->Id;
+			B.Fitted[All[J].Slot] = All[J].O->Id;
+			Assembly A;
+			if (!Fit.Assemble(B, A, Error)) continue;
+			++Pairs;
+			for (const Clash& C : Fit.Clearance(A, &Base))
+				if (C.DepthMm > 1.0 && ((All[I].Units.count(C.A) && All[J].Units.count(C.B)) ||
+														(All[I].Units.count(C.B) && All[J].Units.count(C.A))))
+				{
+					std::printf("    clash: %s/%s with %s/%s: %s x %s %.1f mm at %s\n", All[I].Slot.c_str(), All[I].O->Id.c_str(),
+						All[J].Slot.c_str(), All[J].O->Id.c_str(), C.A.c_str(), C.B.c_str(), C.DepthMm, C.Case.c_str());
+					++Bad;
+					break;
+				}
+		}
+	Expect(Bad == 0, std::to_string(Pairs) + " pairs from " + std::to_string(All.size()) + " alternatives, none clashing with each other");
+}
+}   // namespace
+
+int main(int argc, char** argv)
 {
 	const std::string R = Root();
 	std::string PartsText, FitText, TypesText, Error;
@@ -257,6 +304,9 @@ int main()
 			D2 * 1000.0);
 		Expect(D1 < 1e-4 && D2 < 1e-4, "an author fix moves the part (and what rides on it) for every build");
 	}
+
+	for (int K = 1; K < argc; ++K)
+		if (std::string(argv[K]) == "--pairs") CheckPairs(Fit);
 
 	std::printf("\n%s (%d failure%s)\n", Failures ? "FAILED" : "PASSED", Failures, Failures == 1 ? "" : "s");
 	return Failures ? 1 : 0;

@@ -216,7 +216,9 @@ def stock_units(P):
              "fork_slide": sock("fork_slide", FA, FORK_DIR, (1, 0, 0)),
              "lugs": sock("bracket", BAR_CLAMP, (1, 0, 0)),
          }, proxies=yp)
-    unit("clock", ["clock_body", "clock_face"], mount={"to": "yokes.lugs", "type": "bracket"})
+    unit("clock", ["clock_body", "clock_face"], slot="dashboard", mount={"to": "yokes.lugs", "type": "bracket"})
+    # Spotlights clamp to the fork tubes under the lower yoke (empty on stock).
+    unit("fog_lights", [], group="steer", slot="fog_lights", mount={"to": "yokes.lugs", "type": "bracket"}, proxies=[])
     # The indicators are their own units (the indicators slot), on brackets the headlight and the
     # tail carry, so they go where another headlight or tail puts them.
     hl_c = FA + FORK_DIR * 0.56 + np.array([0.075, 0.0, 0.0])
@@ -264,6 +266,9 @@ def stock_units(P):
                       (np.linalg.norm(guard[i + 3] - guard[i]) / 2, 0.006, 0.075)) for i in range(0, 17, 3)])
     unit("front_wheel", ["front_rim", "front_tyre", "front_discs", "front_carriers"], mount={"to": "fork_lowers.front_axle", "type": "axle", "axle_mm": 25.0},
          proxies=torus(FA, (0, 0, 1), 0.300 - 0.058, 0.058))
+    # A tyre's look (a white or red wall band) rides on the wheel: empty on stock.
+    unit("tyre_wall_front", [], group="front_wheel", slot="tyres", mount={"to": "fork_lowers.front_axle", "type": "axle", "axle_mm": 25.0},
+         proxies=[])
 
     # Engine and what hangs off it.
     eng = ["crankcase", "sump", "gearbox", "cylinders", "cam_cover", "engine_covers", "cover_badges", "bolts", "throttle_bodies"]
@@ -311,6 +316,9 @@ def stock_units(P):
          sockets={"indicator_mount": sock("bracket", (-0.86, 0.44, 0.0), (1, 0, 0))})
     unit("rack", [], group="body", slot="rack", mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0},
          proxies=[])
+    unit("panniers", [], group="body", slot="panniers", mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0,
+                                                               "from_end": 0.0}, proxies=[])
+    unit("toolbox", [], group="body", slot="toolbox", mount={"to": "frame.lugs", "type": "bracket"}, proxies=[])
     unit("indicators_rear", ["rear_indicators"], slot="indicators", mount={"to": "tail.indicator_mount", "type": "bracket"},
          proxies=[capsule((-0.86, 0.44, sg * 0.06), (-0.86, 0.44, sg * 0.13), 0.016) for sg in (-1, 1)])
     unit("side_panels", ["side_panel_l", "side_panel_l_decal", "side_panel_r", "side_panel_r_decal"], slot="side_panels",
@@ -332,6 +340,8 @@ def stock_units(P):
                   "lugs": sock("bracket", SWING_PIVOT, (1, 0, 0))}, proxies=sp)
     unit("rear_wheel", ["rear_rim", "rear_tyre", "rear_disc", "rear_sprocket"], mount={"to": "swingarm.rear_axle", "type": "axle", "axle_mm": 25.0},
          proxies=torus(RA, (0, 0, 1), 0.312 - 0.075, 0.075))
+    unit("tyre_wall_rear", [], group="rear_wheel", slot="tyres", mount={"to": "swingarm.rear_axle", "type": "axle", "axle_mm": 25.0},
+         proxies=[])
     # The caliper was modelled with the body; it belongs on the axle (it rides with the wheel).
     unit("rear_caliper", ["rear_caliper"], group="swingarm", mount={"to": "swingarm.rear_axle", "type": "axle", "axle_mm": 25.0})
     unit("rear_brake_line", ["rear_brake_line"], group="body", mount={"to": "frame.lugs", "type": "bracket"}, proxies=[],
@@ -613,7 +623,9 @@ def main():
                    "mirrors": "Speed Twin mirrors (stock)", "levers": "Speed Twin levers (stock)", "grips": "Speed Twin grips (stock)",
                    "screen": "No screen (stock)", "rack": "No rack (stock)", "guards": "No engine bars (stock)",
                    "headlight": "Speed Twin headlight (stock)", "side_panels": "Speed Twin side panels (stock)",
-                   "tank": "Speed Twin tank (stock)"}
+                   "tank": "Speed Twin tank (stock)", "dashboard": "Speed Twin clock (stock)",
+                   "fog_lights": "No spotlights (stock)", "panniers": "No panniers (stock)", "toolbox": "No tool roll (stock)",
+                   "tyres": "Speed Twin tyres (stock)"}
     for slot, pid, name, ce, u, ms, *rest in options(cat) + pack.pack_options(sys.modules[__name__], cat):
         if slot not in opts:
             opts[slot] = [{"id": "stock", "name": stock_names.get(slot, "Stock"), "stock": True, "units": []}]
