@@ -1021,12 +1021,47 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 			for (const Cylinder& C : Cyls)
 				Put(Out, "cooling", "radiator/fins.glb", AtWith(BasisUp(C.Up) * GAffine::Scale(V3(1.0, C.Up.Length(), 1.0)), C.Base), "");
 		else if (Style == "oil")
+		{
 			Put(Out, "cooling", "radiator/oil_cooler.glb", GAffine::At(V3(0.0, E.y + 0.2, FrontZ + 0.035)), "");
+			// Its lines back to the engine.
+			for (double Sd : {-1.0, 1.0})
+			{
+				const V3 A(0.1 * Sd, E.y + 0.15, FrontZ + 0.04), B = E + V3(0.08 * Sd, -0.05, -0.17);
+				CodeShapes::Emit(Out, "cooling", "radiator/oil_cooler.glb", "", "", CodeShapes::Tube(A, B, 0.007), CodeShapes::TubeAt(A, B), "paint");
+			}
+		}
 		else if (Style == "radiator" || Style == "race")
 		{
 			const bool Big = Style == "race";
 			const double W = Big ? 0.42 : 0.3, H = Big ? 0.34 : 0.28;
-			Put(Out, "cooling", "radiator/core.glb", AtWith(GAffine::Rotation(GodotRight, -0.25) * GAffine::Scale(V3(W, H, 1.0)), V3(0.0, E.y + 0.25, FrontZ)), "");
+			const V3 C(0.0, E.y + 0.25, FrontZ);
+			const GAffine Rb = GAffine::Rotation(GodotRight, -0.25);
+			Put(Out, "cooling", "radiator/core.glb", AtWith(Rb * GAffine::Scale(V3(W, H, 1.0)), C), "");
+			CodeShapes::GodotNames Named;
+			auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+				CodeShapes::Emit(Out, "cooling", "radiator/core.glb", "", Named(Name), M, Xf, Tag);
+			};
+			// A grille of slim slats in front, the fan behind, the shrouds that steer air through the core.
+			for (int K = 0; K < 7; ++K)
+				Code("RadiatorGrille", CodeShapes::Box(V3(W - 0.01, 0.006, 0.012)), AtWith(Rb, C + Rb.Apply(V3(0.0, TorqueSim::Lerp(-H * 0.42, H * 0.42, K / 6.0), -0.032))), "black_metal");
+			Code("", CodeShapes::Cylinder(std::min(W, H) * 0.38, 0.03), AtWith(Rb * GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5), C + Rb.Apply(V3(0.0, 0.0, 0.045))), "black_metal");
+			for (double Sx : {-1.0, 1.0})
+				Code("RadiatorShroud", CodeShapes::Box(V3(0.008, H * 0.95, 0.12)), AtWith(Rb * GAffine::Rotation(GodotUp, -0.45 * Sx), C + Rb.Apply(V3((W * 0.5 + 0.035) * Sx, 0.0, -0.02))), "paint");
+			// Coolant hoses: the top one to the thermostat on the head, the bottom one to the pump.
+			const V3 Top = C + Rb.Apply(V3(W * 0.32, H * 0.5 + 0.005, 0.03));
+			V3 Head = E + V3(0.0, 0.3 * S, -0.04);
+			if (!Cyls.empty())
+			{
+				V3 Tops;
+				for (const Cylinder& Cy : Cyls) Tops += Cy.Base + Cy.Up * 0.13;
+				Head = Tops / static_cast<double>(Cyls.size()) + V3(0.0, 0.02, -0.085);
+			}
+			Code("Thermostat", CodeShapes::Box(V3(0.04, 0.03, 0.03)), GAffine::At(Head), "paint");
+			Code("CoolantHose", CodeShapes::Sweep({Top, Top + V3(0.0, 0.03, 0.04), Head + (Top - Head) * 0.4 + V3(0.0, 0.03, 0.0), Head}, 0.014, 10), GAffine(), "rubber");
+			const V3 Bottom = C + Rb.Apply(V3(-W * 0.32, -H * 0.5 - 0.005, 0.03));
+			const V3 Pump = E + V3(-BlockW * 0.3, -0.05, -0.17);
+			Code("CoolantHose", CodeShapes::Sweep({Bottom, Bottom + V3(0.0, -0.04, 0.03), Pump + V3(0.0, 0.02, -0.04), Pump}, 0.015, 10), GAffine(), "rubber");
+			Code("", CodeShapes::Cylinder(0.025, 0.03), AtWith(GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5), Pump), "paint");
 		}
 		else if (Style == "twin")
 			for (double Side : {-1.0, 1.0})

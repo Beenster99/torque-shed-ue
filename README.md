@@ -202,8 +202,8 @@ quick-release service cap on the panel, as Godot's _hide_covered and _service_ca
 reference records which meshes it hides, and `layout_test` matches them tag by tag. Also drawn
 as Godot does: the front caliper's hose and clip, the gear linkage rod, the HT leads, and the
 seat's stitching, seam, piping, grab rail, pillion pegs, touring back, springs and sissy bar, and
-the tank's filler cap, badges, knee pads, stripes, console, knee panels, chest pad and shrouds, the front mudguard's rib, stripes, brackets and stays, the tail's struts, brackets, cowl trim and number plate, moved off the rear mudguard the shortest
-way as Godot's _clear_plates does (front caliper, gearbox, spark plugs, saddle, tail, front mudguard and tank are
+the radiator's grille, fan, shrouds, thermostat and coolant hoses, an oil cooler's lines, the ECU loom, the tank's filler cap, badges, knee pads, stripes, console, knee panels, chest pad and shrouds, the front mudguard's rib, stripes, brackets and stays, the tail's struts, brackets, cowl trim and number plate, moved off the rear mudguard the shortest
+way as Godot's _clear_plates does (front caliper, gearbox, spark plugs, saddle, tail, front mudguard, tank, ECU and cooling are
 checked whole too). Still to port: Godot's
 other code shells (perimeter beams, castings, the rest of each slot's code pieces).
 
