@@ -2412,10 +2412,18 @@ def build():
     import_bike((yaw, mirror, scale), tex, roles)
 
     # Start the level afresh (a second run replaces the first).
+    # The editor may have MAP open (or an old Scratch may exist), so move to a fresh scratch world first and
+    # check every step: a failed new_level or save used to be silent and the old map got packaged.
     if unreal.EditorAssetLibrary.does_asset_exist(MAP):
-        levels.new_level("/Game/Maps/Scratch")
-        unreal.EditorAssetLibrary.delete_asset(MAP)
-    levels.new_level(MAP)
+        scratch = "/Game/Maps/Scratch"
+        if unreal.EditorAssetLibrary.does_asset_exist(scratch):
+            unreal.EditorAssetLibrary.delete_asset(scratch)
+        if not levels.new_level(scratch):
+            raise RuntimeError("[Torque] couldn't open a scratch level to rebuild %s" % MAP)
+        if not unreal.EditorAssetLibrary.delete_asset(MAP):
+            raise RuntimeError("[Torque] couldn't delete the old %s" % MAP)
+    if not levels.new_level(MAP):
+        raise RuntimeError("[Torque] couldn't create %s" % MAP)
     rot = unreal.Rotator(0.0, 0.0, float(yaw))   # (roll, pitch, yaw) in the Python constructor
     for name, mesh in sorted(meshes.items()):
         a = actors.spawn_actor_from_object(mesh, unreal.Vector(0, 0, 0), rot)
@@ -2527,7 +2535,8 @@ def build():
     # and turns right (towards +y) as it grows.
     spawn(unreal.PlayerStart, (sp[0], sp[1], sp[2] + 100.0), (0, 0, -90.0 - heading_deg))
 
-    levels.save_current_level()
+    if not levels.save_current_level():
+        raise RuntimeError("[Torque] couldn't save %s" % MAP)
     log("built %s with %d meshes; press Play to ride" % (MAP, len(meshes)))
 
 
