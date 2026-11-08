@@ -1,5 +1,6 @@
 #include "BikeParts.h"
 #include "BikePartsKit.h"
+#include "CodeShapes.h"
 
 #include <algorithm>
 #include <cctype>
@@ -380,8 +381,8 @@ std::string BikeParts::ArmType(const PartsMap& Parts) const
 
 void BikeParts::Swingarm(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
 {
-	// (BikeModel._draw_swingarm, _draw_own_swingarm and _arm_bridge: the Blender pieces; the arms'
-	// code-drawn shells and tubes aren't here yet.)
+	// (BikeModel._draw_swingarm, _draw_own_swingarm and _arm_bridge: the Blender pieces, and the
+	// shells, blocks and castings it draws in code.)
 	const GAffine Arm = SwingarmAt(L);
 	const double ArmLen = ArmLength(L);
 	const double ArmX = std::max(0.11, std::max(L.Stats.RearTyreWidth, RimWidthOf(Lay.Part(PartIn(Parts, "rear_wheel")))) * 0.5 + 0.035);
@@ -399,32 +400,118 @@ void BikeParts::Swingarm(const PartsMap& Parts, const Layout& L, std::vector<Fit
 		for (V3& P : Path) P = Arm.Apply(P);
 		Sweep(Out, InSlot, "frame/tube/round.glb", Path, {R}, "swingarm");
 	};
+	// A code-drawn shape in the swingarm's space (Xf its node's transform there), Tag its finish:
+	// "paint" the arm's own colour, the steel and dark materials as their nearest tags.
+	auto ArmCode = [&](const std::string& InSlot, const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		auto Made = std::make_shared<PartMesh>();
+		Made->Surfaces.push_back(CodeShapes::ToOurs(M, Arm * Xf, Tag));
+		FittedPart F;
+		F.Slot = InSlot;
+		F.Glb = "swingarm/bridge.glb";
+		F.Node = "swingarm";
+		F.Made = Made;
+		F.Code = true;
+		F.Name = Name;
+		Out.push_back(F);
+	};
+	auto ArmShell = [&](const std::string& InSlot, const std::string& Name, const std::vector<CodeShapes::Sec>& Secs) {
+		ArmCode(InSlot, Name, CodeShapes::Loft(Secs), GAffine(), "paint");
+	};
+	auto ArmBox = [&](const std::string& InSlot, const std::string& Name, const V3& Centre, const V3& Size, const std::string& Tag) {
+		ArmCode(InSlot, Name, CodeShapes::Box(Size), GAffine::At(Centre), Tag);
+	};
+	// (rotation.z = PI / 2: a cylinder's axis turned from up to across the bike.)
+	const GAffine Across = GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5);
+	auto Lerp = [](double A, double B, double F) { return A + (B - A) * F; };
 	// (_to_arm: a point of the bike's at rest as the swingarm sees it.)
 	const V3 PivotG = ToGodot(L.Pivot), ToAxle = ToGodot(L.RearAxle) - PivotG;
 	auto ToArm = [&](const V3& P) { return GAffine::Rotation(GodotRight, std::atan2(ToAxle.y, ToAxle.z)).Apply(P - PivotG); };
 	const V3 SeatFrontG = ToGodot(L.SeatFront);
 	if (Own)
 	{
-		if (Kind == "single_gull") return;
+		if (Kind == "single_gull")
+		{
+			// A deep cast beam down the chain side bowing up and out in a gull-wing curve, lightening
+			// holes through it, an eccentric hub carrier and the wheel on one big centre nut.
+			const double X = -ArmX - 0.012;
+			std::vector<CodeShapes::Sec> Secs;
+			for (int K = 0; K < 9; ++K)
+			{
+				const double F = K / 8.0;
+				Secs.push_back({V3(X - 0.018 * std::sin(F * TorqueSim::Pi), 0.035 * std::sin(std::pow(F, 0.8) * TorqueSim::Pi), Lerp(0.0, ArmLen - 0.03, F)),
+					Lerp(0.045, 0.032, F), Lerp(0.085, 0.06, F), Lerp(0.07, 0.055, F), 3.4});
+			}
+			ArmShell("swingarm", "SingleSidedArm", Secs);
+			for (double F : {0.3, 0.52, 0.72})
+			{
+				const V3 At(X - 0.018 * std::sin(F * TorqueSim::Pi) - 0.04, 0.035 * std::sin(std::pow(F, 0.8) * TorqueSim::Pi) + 0.005, ArmLen * F);
+				ArmCode("swingarm", "ArmHole", CodeShapes::Sphere(0.026 * (1.0 - F * 0.35)), GAffine::At(At) * GAffine::Scale(V3(0.25, 0.8, 1.5)), "black_metal");
+			}
+			ArmCode("swingarm", "", CodeShapes::Cylinder(0.085, 0.06), GAffine::At(V3(X + 0.02, 0.0, ArmLen)) * Across, "paint");
+			ArmCode("swingarm", "", CodeShapes::Torus(0.07, 0.006), GAffine::At(V3(X - 0.012, 0.0, ArmLen)) * Across, "brushed_steel");
+			ArmCode("swingarm", "CentreNut", CodeShapes::Cylinder(0.038, 0.032, 0.035, 6), GAffine::At(V3(ArmX - 0.02, 0.0, ArmLen)) * Across, "brushed_steel");
+			ArmBox("swingarm", "", V3(-ArmX * 0.5, 0.0, 0.04), V3(ArmX + 0.03, 0.075, 0.055), "paint");
+			return;
+		}
 		if (Kind == "box_section")
 		{
-			for (double Side : {-1.0, 1.0})
-				ArmTube("swingarm", V3(ArmX * Side, 0.0, ArmLen + 0.045), V3(ArmX * Side, 0.0, ArmLen + 0.075), 0.006);
-			ArmTube("swingarm", V3(-ArmX, 0.0, ArmLen * 0.36), V3(ArmX, 0.0, ArmLen * 0.36), 0.016);
-		}
-		else if (Kind == "banana")
-			ArmTube("swingarm", V3(-ArmX, 0.06, ArmLen * 0.4), V3(ArmX, 0.08, ArmLen * 0.4), 0.014);
-		else if (Kind == "braced_mx")
+			// Deep, tapered box-section arms with the axle in slotted end blocks, an adjuster behind each.
 			for (double Side : {-1.0, 1.0})
 			{
 				const double X = ArmX * Side;
+				std::vector<CodeShapes::Sec> Secs;
+				for (int K = 0; K < 7; ++K)
+				{
+					const double F = K / 6.0;
+					Secs.push_back({V3(X, 0.012 * std::sin(F * TorqueSim::Pi), Lerp(0.0, ArmLen - 0.02, F)), 0.022, Lerp(0.055, 0.032, F), Lerp(0.05, 0.03, F), 7.0});
+				}
+				ArmShell("swingarm", "BoxArm", Secs);
+				ArmBox("swingarm", "", V3(X, 0.0, ArmLen), V3(0.05, 0.06, 0.09), "paint");
+				ArmTube("swingarm", V3(X, 0.0, ArmLen + 0.045), V3(X, 0.0, ArmLen + 0.075), 0.006);
+			}
+			ArmTube("swingarm", V3(-ArmX, 0.0, ArmLen * 0.36), V3(ArmX, 0.0, ArmLen * 0.36), 0.016);
+		}
+		else if (Kind == "banana")
+		{
+			// The arms bow up in a long curve for the expansion chambers, the right-hand one the most.
+			for (double Side : {-1.0, 1.0})
+			{
+				const double X = ArmX * Side, Bow = Side > 0.0 ? 0.11 : 0.07;
+				std::vector<CodeShapes::Sec> Secs;
+				for (int K = 0; K < 9; ++K)
+				{
+					const double F = K / 8.0;
+					Secs.push_back({V3(X, Bow * std::sin(std::pow(F, 0.85) * TorqueSim::Pi) * (1.0 - 0.25 * F), Lerp(0.0, ArmLen, F)), 0.02, Lerp(0.045, 0.03, F), Lerp(0.04, 0.028, F), 4.0});
+				}
+				ArmShell("swingarm", "BananaArm", Secs);
+				ArmBox("swingarm", "", V3(X, 0.0, ArmLen), V3(0.04, 0.055, 0.075), "paint");
+			}
+			ArmTube("swingarm", V3(-ArmX, 0.06, ArmLen * 0.4), V3(ArmX, 0.08, ArmLen * 0.4), 0.014);
+		}
+		else if (Kind == "braced_mx")
+		{
+			// Tall box arms with a truss underneath each, a chain slider and a chain guide.
+			for (double Side : {-1.0, 1.0})
+			{
+				const double X = ArmX * Side;
+				std::vector<CodeShapes::Sec> Secs;
+				for (int K = 0; K < 7; ++K)
+				{
+					const double F = K / 6.0;
+					Secs.push_back({V3(X, 0.0, Lerp(0.0, ArmLen - 0.02, F)), 0.02, Lerp(0.05, 0.03, F), Lerp(0.06, 0.03, F), 6.0});
+				}
+				ArmShell("swingarm", "MxArm", Secs);
 				ArmBend("swingarm", {V3(X, -0.05, 0.06), V3(X, -0.1, ArmLen * 0.38), V3(X, -0.05, ArmLen * 0.78)}, 0.013);
 				for (double F : {0.22, 0.42, 0.62})
 				{
 					const double Y = -0.05 - 0.05 * std::sin(TorqueSim::Clamp(F / 0.78, 0.0, 1.0) * TorqueSim::Pi);
 					ArmTube("swingarm", V3(X, -0.03, ArmLen * F), V3(X, Y + 0.005, ArmLen * F), 0.007);
 				}
+				ArmBox("swingarm", "", V3(X, 0.0, ArmLen), V3(0.045, 0.06, 0.08), "paint");
 			}
+			ArmBox("swingarm", "ChainSlider", V3(-ArmX, 0.04, ArmLen * 0.22), V3(0.03, 0.025, ArmLen * 0.4), "black_metal");
+			ArmBox("swingarm", "ChainGuide", V3(-ArmX - 0.005, -0.07, ArmLen * 0.8), V3(0.03, 0.06, 0.12), "black_metal");
+		}
 		else if (Kind == "hardtail")
 		{
 			for (double Side : {-1.0, 1.0})
@@ -434,6 +521,7 @@ void BikeParts::Swingarm(const PartsMap& Parts, const Layout& L, std::vector<Fit
 				const V3 Top = ToArm(V3(0.1 * Side, SeatFrontG.y - 0.02, PivotG.z + 0.05));
 				ArmTube("swingarm", V3(0.09 * Side, 0.0, 0.0), Axle, 0.019);
 				ArmTube("swingarm", Axle, Top, 0.018);
+				ArmBox("swingarm", "", Axle, V3(0.016, 0.075, 0.09), "paint");   // the axle plate
 			}
 			const V3 Cross = ToArm(V3(0.0, SeatFrontG.y - 0.06, PivotG.z + 0.12));
 			ArmTube("swingarm", Cross - V3(ArmX * 0.85, 0.0, 0.0), Cross + V3(ArmX * 0.85, 0.0, 0.0), 0.013);
@@ -444,10 +532,36 @@ void BikeParts::Swingarm(const PartsMap& Parts, const Layout& L, std::vector<Fit
 			return;
 		}
 	}
-	if (Kind == "single") return;
+	if (Kind == "single")
+	{
+		// A single-sided arm (a Ducati's, an RC30's): one deep cast beam down the chain side, the
+		// wheel hung off it on a big centre nut.
+		const double X = -ArmX - 0.01;
+		std::vector<CodeShapes::Sec> Secs;
+		for (int K = 0; K < 7; ++K)
+		{
+			const double F = K / 6.0;
+			Secs.push_back({V3(X, 0.01 * std::sin(F * TorqueSim::Pi), Lerp(0.0, ArmLen, F)), Lerp(0.04, 0.03, F), Lerp(0.075, 0.06, F), Lerp(0.06, 0.05, F), 3.0});
+		}
+		ArmShell(Slot, "SingleSidedArm", Secs);
+		ArmCode(Slot, "", CodeShapes::Cylinder(0.075, 0.05), GAffine::At(V3(X + 0.02, 0.0, ArmLen)) * Across, "paint");
+		ArmCode(Slot, "", CodeShapes::Cylinder(0.035, 0.03, 0.035, 6), GAffine::At(V3(ArmX - 0.02, 0.0, ArmLen)) * Across, "chrome");
+		ArmBox(Slot, "", V3(-ArmX * 0.5, 0.0, 0.04), V3(ArmX + 0.03, 0.07, 0.05), "paint");
+		return;
+	}
 	if (Kind == "braced")
 	{
-		// The brace arching over the right-hand arm (the arms are code-drawn shells).
+		for (double Side : {-1.0, 1.0})
+		{
+			std::vector<CodeShapes::Sec> Secs;
+			for (int K = 0; K < 6; ++K)
+			{
+				const double F = K / 5.0;
+				Secs.push_back({V3(ArmX * Side, 0.0, Lerp(0.0, ArmLen + 0.03, F)), 0.02, Lerp(0.06, 0.035, F), Lerp(0.045, 0.03, F), 5.0});
+			}
+			ArmShell(Slot, "", Secs);
+		}
+		// The brace arching over the right-hand arm.
 		ArmBend(Slot, {V3(ArmX, 0.05, 0.08), V3(ArmX, 0.11, ArmLen * 0.4), V3(ArmX, 0.04, ArmLen * 0.78)}, 0.014);
 		for (double F : {0.3, 0.55}) ArmTube(Slot, V3(ArmX, 0.03, ArmLen * F), V3(ArmX, 0.1, ArmLen * F), 0.008);
 	}
@@ -462,6 +576,7 @@ void BikeParts::Swingarm(const PartsMap& Parts, const Layout& L, std::vector<Fit
 			ArmTube(Slot, V3(0.09 * Side, 0.0, 0.0), Axle, 0.02);
 			ArmTube(Slot, Axle, Post, 0.017);
 			ArmTube(Slot, Post, Top, 0.017);
+			ArmBox(Slot, "", Axle, V3(0.02, 0.06, 0.07), "paint");   // the axle plate
 		}
 		const V3 Cross = ToArm(V3(0.0, SeatFrontG.y - 0.05, PivotG.z + 0.14));
 		ArmTube(Slot, Cross - V3(ArmX, 0.0, 0.0), Cross + V3(ArmX, 0.0, 0.0), 0.014);

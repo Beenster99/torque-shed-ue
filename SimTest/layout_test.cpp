@@ -344,6 +344,7 @@ int main(int argc, char** argv)
 			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
 		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
 		auto Collect = [&](const PartsMap& B, const Layout& L, std::map<std::string, Box>& Ours, std::map<std::string, std::map<std::string, Box>>& Tags) {
+			std::map<std::string, int> Names;
 			for (const FittedPart& P : Placer.Fit(B, L))
 			{
 				PartMesh M;
@@ -351,6 +352,24 @@ int main(int argc, char** argv)
 				const Json* Ent = Known ? Known->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
 				if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) || !M.LoadGlb(Bytes, Error)) continue;
 				if (Ent->Get("morph") && (!ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) || !M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error))) continue;
+				if (P.Code)
+				{
+					// A shape Godot draws in code: no glb tag there, so it counts toward its slot's whole box
+					// and its own name's ("@" + slot + "/" + name, numbered as Godot numbers siblings).
+					std::string Key;
+					if (!P.Name.empty())
+					{
+						const int N = ++Names[P.Slot + "/" + P.Name];
+						Key = "@" + P.Slot + "/" + P.Name + (N > 1 ? std::to_string(N) : "");
+					}
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& V : S.Pos)
+						{
+							Ours[P.Slot].Add(ToGodot(V));
+							if (!Key.empty()) Ours[Key].Add(ToGodot(V));
+						}
+					continue;
+				}
 				for (const PartSurface& S : BikeParts::Draw(M, P).Surfaces)
 				{
 					// (A "tag__slot" surface is that slot's piece: a head glb's barrels are the engine's.)
@@ -415,6 +434,39 @@ int main(int argc, char** argv)
 			}
 			return Wrong;
 		};
+		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
+		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
+		auto CodeCheck = [&](const std::map<std::string, Box>& Ours, const std::string& Slot, const Json* Gs, bool Whole) {
+			std::string Wrong;
+			if (!Gs) return Wrong;
+			auto Near = [&](const Box& Bx, const Json* Gb) { return std::max(Off(Bx.Lo, Vec(Gb->Get("min"))), Off(Bx.Hi, Vec(Gb->Get("max")))); };
+			const std::string Pre = "@" + Slot + "/";
+			const Json* Gn = Gs->Get("named");
+			for (auto It = Ours.lower_bound(Pre); It != Ours.end() && It->first.rfind(Pre, 0) == 0; ++It)
+			{
+				const Json* Gb = Gn ? Gn->Get(It->first.substr(Pre.size())) : nullptr;
+				const double D = Gb ? Near(It->second, Gb) : 1e9;
+				if (D >= 5e-4) Wrong += " " + It->first.substr(1) + (Gb ? " " + std::to_string(static_cast<int>(D * 1000.0 + 0.5)) + "mm" : " not in Godot");
+			}
+			if (Whole)
+			{
+				auto Mine = Ours.find(Slot);
+				const double D = Mine != Ours.end() ? Near(Mine->second, Gs) : 1e9;
+				if (D >= 5e-4)
+				{
+					char W[200] = "";
+					if (Mine != Ours.end() && std::getenv("LAYOUT_BOXES"))
+					{
+						const V3 Gl = Vec(Gs->Get("min")), Gh = Vec(Gs->Get("max"));
+						const Box& Bx = Mine->second;
+						std::snprintf(W, sizeof(W), " [%.3f %.3f %.3f .. %.3f %.3f %.3f vs %.3f %.3f %.3f .. %.3f %.3f %.3f]",
+							Bx.Lo.x, Bx.Lo.y, Bx.Lo.z, Bx.Hi.x, Bx.Hi.y, Bx.Hi.z, Gl.x, Gl.y, Gl.z, Gh.x, Gh.y, Gh.z);
+					}
+					Wrong += " " + Slot + " whole " + (Mine != Ours.end() ? std::to_string(static_cast<int>(D * 1000.0 + 0.5)) + "mm" : "missing") + W;
+				}
+			}
+			return Wrong;
+		};
 		for (const std::string& St : Lay.Styles())
 		{
 			const Json* G = Have && Ref.Get("styles") ? Ref.Get("styles")->Get(St) : nullptr;
@@ -475,6 +527,8 @@ int main(int argc, char** argv)
 						for (const auto& [Tag, Gb] : Gt->O)
 							if (!(Tags.count(Slot) && Tags[Slot].count(Tag))) Wrong += " " + Slot + "/" + Tag + " not placed";
 			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
+			const std::string CodeWrong = CodeCheck(Ours, "swingarm", GSlots->Get("swingarm"), true) + CodeCheck(Ours, "frame", GSlots->Get("frame"), false);
+			Expect(CodeWrong.empty(), St + ": the swingarm whole and its code-drawn shapes as Godot draws them" + CodeWrong);
 		}
 		// Every part of the kinds ported, one at a time on its style's reference bike, as Godot draws it.
 		const Json* Sweep = Have ? Ref.Get("sweep") : nullptr;
@@ -497,6 +551,11 @@ int main(int argc, char** argv)
 			const bool PhoneNav = Nav && Nav->Str("style") == "phone";
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
 				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "satnav" && PhoneNav)) Wrong += " " + Slot + " missing";
+			if (const Json* Gs = Sw.Get("slot"))
+			{
+				const std::string Swept = Key.substr(0, Key.find('/'));
+				Wrong += CodeCheck(Ours, Swept, Gs, Swept == "swingarm");
+			}
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
 			if (Wrong.empty()) ++Right;

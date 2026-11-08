@@ -36,6 +36,10 @@ struct FittedPart
 	// A mesh made here rather than a glb deformed (a bar fairing's shell, the code's loft given the
 	// thickness and edges of the Glb section): BikeParts::Draw hands it back as it is.
 	std::shared_ptr<const PartMesh> Made;
+	// Made from a shape the Godot game draws in code (a single-sided arm's cast beam, an axle
+	// block): Glb is only a stand-in from the same family, and Name is the Godot mesh's, if it has one.
+	bool Code = false;
+	std::string Name;
 };
 
 // A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.
