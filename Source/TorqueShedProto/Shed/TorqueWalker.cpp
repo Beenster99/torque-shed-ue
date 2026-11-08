@@ -1851,6 +1851,39 @@ FString ATorqueWalker::TestInteract()
 	return FString::Printf(TEXT("F on %s: %s"), *Seen, bRidingOut ? TEXT("riding out") : (Note.IsEmpty() ? (bComputer ? TEXT("the parts computer is up") : TEXT("nothing happened")) : *Note));
 }
 
+FName ATorqueWalker::TestTargetPlace() const
+{
+	return TargetPlace ? TargetPlace->Name : NAME_None;
+}
+
+FString ATorqueWalker::TestWheel(int32 Bay, bool bToRig)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B || !B->Exists(Bay)) return TEXT("no bike in that bay");
+	if (Wheeling() != Bay)
+	{
+		FTorqueShedRequest Grab;
+		Grab.Kind = ETorqueShedAct::GrabBike;
+		Grab.Bay = Bay;
+		FString WhyNot;
+		if (!B->Request(Grab, WhyNot)) return TEXT("couldn't take hold of it: ") + WhyNot;
+	}
+	if (Wheeling() != Bay) return TEXT("took hold of it, but the shed doesn't have us wheeling it");
+	// Stand at its bars: the bike 85 cm to our right and 25 cm behind (PushTransform), facing its way.
+	const FTransform To = bToRig ? UTorqueBuildSubsystem::RigTransform() : UTorqueBuildSubsystem::HomeOf(Bay);
+	const FRotator Heading(0.0, To.Rotator().Yaw, 0.0);
+	const FVector Ahead = Heading.Vector(), Right = FRotationMatrix(Heading).GetUnitAxis(EAxis::Y);
+	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Stand = To.GetLocation() - Right * 85.0 + Ahead * 25.0;
+	SetActorLocation(FVector(Stand.X, Stand.Y, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
+	if (AController* C = GetController()) C->SetControlRotation(Heading);
+	Note.Reset();
+	LetGo(Bay);
+	const bool bThere = bToRig ? B->DynoBay() == Bay : !B->IsAway(Bay);
+	return FString::Printf(TEXT("wheeled bay %d's bike %s: %s"), Bay + 1, bToRig ? TEXT("onto the rig") : TEXT("home"),
+		bThere ? (Note.IsEmpty() ? TEXT("there") : *Note) : TEXT("it didn't park there"));
+}
+
 FString ATorqueWalker::TestOrder(FName Part)
 {
 	Note.Reset();

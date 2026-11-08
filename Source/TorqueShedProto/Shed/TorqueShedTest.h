@@ -16,7 +16,15 @@
 //                         bike's empty slots filled from a style's reference bike (its own style if none
 //                         is given) with those slots changed, and everything bolted up
 //   fabricate             the repair tool on the frame once for each job the bike owes
+//   dyno                  the dyno room on bay 1's bike: wheel it onto the rig, strap it at the four posts,
+//                         a run with the fan on and one with it off, the big screen mid-run and after,
+//                         the straps undone and the bike wheeled home (alone, it quits at the end)
 //   bay:<n>               the steps after work on bay n's bike (1-4; 1 to start with)
+//   wheel:rig|home        take hold of the bay's bike, walk it onto the dyno's rig or back to its bay, let go
+//   strap:<0-3>           the work button at that strap post on the rig (does it up, or undoes it)
+//   fan:on|off, lights:on|off, switch:fan|lights   the dyno room's switches by the door (F)
+//   dynorun[:mid]         F at the dyno desk and wait out the run (mid: about 60% of it, for a shot)
+//   dynolog               log every run on the rig's bike (peak hp and Nm, limiter, temperature, fan)
 //   tool:<tool>           hands, wrench, brush, repair, spray or lance
 //   crouch:<0|1>          crouch (C) or stand
 //   spray:<colour>[:<finish>]  the spray can's paint: 0-15 or a name (Red, Teal...); gloss, matte, metallic, chrome, patina
@@ -27,7 +35,8 @@
 //   floor:<x>:<y>         look at the floor there (world cm; the wash bay is round -900:100)
 //   door                  stand in the roller door
 //   look:<what>           stand back and look, for a screenshot: bench, washer, repair, computer,
-//                         changer, stand, bins, bike, deliveries, washbay, or any place name; player: 3 m back from the nearest other player, facing them
+//                         changer, stand, bins, bike, screen, board, monitor, dyno (the big
+//                         screen), dynoroom (the whole room), deliveries, washbay, or any place name; player: 3 m back from the nearest other player, facing them
 //   act[:alt]             what the work button (or the second button) does to what's looked at, at once
 //   hold:<seconds>        hold the work button that long (the pressure washer's passes)
 //   f                     press F at what's looked at (unpack a box, the parts computer, ride out)
