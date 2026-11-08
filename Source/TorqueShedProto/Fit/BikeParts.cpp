@@ -3228,6 +3228,174 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 			for (FittedPart& P : Out)
 				if (P.Slot == "headlight") P.Hidden = true;
 	}
+	CoverUp(Parts, L, Out);
 	return Out;
+}
+
+void BikeParts::CoverUp(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* F = Lay.Part(PartIn(Parts, "fairing"));
+	if (!F || !F->Flag("frame_mount") || !Meshes) return;
+	const Json* Look = F->Get("look");
+	const std::string Shape = PartStr(Look, "shape", F->Str("style", ""));
+	const bool Full = F->Str("style") == "race" && Shape != "seeley";   // (the code's _full_fairing, which sets _covered)
+	const bool Touring = Shape == "touring";                              // (CAPPED_SETS)
+	if (!Full && !Touring) return;
+	struct Piece { FittedPart* Part; std::string Slot, Tag; V3 Lo, Hi; };
+	std::vector<Piece> Pieces;
+	std::vector<SegTri> Skin;
+	V3 FLo(1e9, 1e9, 1e9), FHi(-1e9, -1e9, -1e9);
+	double TopY = -1e18;
+	const double HeadZ = ToGodot(L.Head).z;
+	// (A mesh's bounds as Godot's _model_aabb takes them: a glb piece put on whole is its own box,
+	// with each shape key at full weight, carried through the placing and boxed again; one baked
+	// into the bike's space (bent, morphed, laid in copies, made here) is its points' box.)
+	auto Affine = [](const PartMesh::Warp& W) {
+		const V3 O = W(V3()), A = W(V3(1, 0, 0)), B = W(V3(0, 1, 0)), C = W(V3(0, 0, 1)), D = W(V3(0.3, -0.7, 0.5));
+		return (O + (A - O) * 0.3 + (B - O) * -0.7 + (C - O) * 0.5 - D).Length() < 1e-9;
+	};
+	for (FittedPart& P : Out)
+	{
+		PartMesh Glb;
+		if (!Meshes(P.Glb, Glb)) continue;
+		const PartMesh Drawn = Draw(Glb, P);
+		const bool Whole = !P.Made && P.Copies.empty() && P.Weights.empty() && P.Warp && Affine(P.Warp) && Drawn.Surfaces.size() == Glb.Surfaces.size();
+		for (size_t Si = 0; Si < Drawn.Surfaces.size(); ++Si)
+		{
+			const PartSurface& S = Drawn.Surfaces[Si];
+			const size_t Cut = S.Material.find("__");
+			Piece Pc{&P, Cut != std::string::npos ? S.Material.substr(Cut + 2) : P.Slot, S.Material, V3(1e9, 1e9, 1e9), V3(-1e9, -1e9, -1e9)};
+			auto Grow = [&](const V3& G) {
+				Pc.Lo = V3(std::min(Pc.Lo.x, G.x), std::min(Pc.Lo.y, G.y), std::min(Pc.Lo.z, G.z));
+				Pc.Hi = V3(std::max(Pc.Hi.x, G.x), std::max(Pc.Hi.y, G.y), std::max(Pc.Hi.z, G.z));
+			};
+			if (Whole)
+			{
+				V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+				auto Local = [&](const V3& V) { Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); };
+				for (const V3& V : Glb.Surfaces[Si].Pos) Local(V);
+				for (const ShapeKey& K : Glb.Keys)
+					for (const ShapeKey::Moves& Mv : K.Surfaces)
+						if (Mv.Surface == Si)
+							for (size_t I = 0; I < Mv.Vert.size(); ++I) Local(Glb.Surfaces[Si].Pos[Mv.Vert[I]] + Mv.DPos[I]);
+				for (int C = 0; C < 8; ++C) Grow(ToGodot(P.Warp(V3(C & 1 ? Hi.x : Lo.x, C & 2 ? Hi.y : Lo.y, C & 4 ? Hi.z : Lo.z))));
+			}
+			for (const V3& V : S.Pos)
+			{
+				const V3 G = ToGodot(V);
+				if (!Whole) Grow(G);
+				// (Up to the side panels' top edge behind the head stock: the shell's highest point there.)
+				if (Pc.Slot == "fairing" && S.Material == "paint" && G.z > HeadZ + 0.1 && std::fabs(G.x) > 0.1) TopY = std::max(TopY, G.y);
+			}
+			if (Pc.Slot == "fairing")
+			{
+				FLo = V3(std::min(FLo.x, Pc.Lo.x), std::min(FLo.y, Pc.Lo.y), std::min(FLo.z, Pc.Lo.z));
+				FHi = V3(std::max(FHi.x, Pc.Hi.x), std::max(FHi.y, Pc.Hi.y), std::max(FHi.z, Pc.Hi.z));
+				for (size_t I = 0; I + 2 < S.Idx.size(); I += 3)
+					Skin.push_back({ToGodot(S.Pos[S.Idx[I]]), ToGodot(S.Pos[S.Idx[I + 1]]), ToGodot(S.Pos[S.Idx[I + 2]])});
+			}
+			Pieces.push_back(Pc);
+		}
+	}
+	if (Skin.empty()) return;
+	// (_covered: from the set's nose back past the code fairing's end (round the engine and gearbox
+	// as drawn), from its belly up to the panels' top edge, every x.)
+	bool Covers = false;
+	V3 CLo, CHi;
+	if (Full)
+	{
+		const V3 Crank = ToGodot(L.Crank), Pivot = ToGodot(L.Pivot);
+		double BodyEnd = Crank.z;
+		for (const Piece& Pc : Pieces)
+			if (Pc.Slot == "engine" || Pc.Slot == "gearbox") BodyEnd = std::max(BodyEnd, Pc.Hi.z);
+		const double Z1 = TorqueSim::Clamp(BodyEnd + 0.03, Crank.z + (Pivot.z - Crank.z) * 0.6, Pivot.z - 0.02);
+		if (TopY < -1e17) TopY = FHi.y;
+		CLo = V3(-1.0, FLo.y, FLo.z - 0.02);
+		CHi = V3(1.0, TopY, std::max(Z1, FHi.z));
+		Covers = true;
+		// (_hide_covered: each mesh of the engine bay's slots wholly inside, side on, with a little
+		// give at the ends; the airbox lives under the tank, reached past the panel's flank.)
+		static const std::set<std::string> CoveredSlots = {"engine", "head", "gearbox", "cooling", "fuel", "spark_plugs", "oil_filter", "ecu", "horn", "exhaust"};
+		for (const Piece& Pc : Pieces)
+			if (CoveredSlots.count(Pc.Slot) && Pc.Lo.y >= CLo.y - 0.02 && Pc.Hi.y <= CHi.y + 0.02 && Pc.Lo.z >= CLo.z - 0.05 && Pc.Hi.z <= CHi.z + 0.04)
+				Pc.Part->HiddenTags.push_back(Pc.Tag);
+	}
+	auto IsHidden = [](const Piece& Pc) { return std::find(Pc.Part->HiddenTags.begin(), Pc.Part->HiddenTags.end(), Pc.Tag) != Pc.Part->HiddenTags.end(); };
+	// (_service_caps: the oil filter under a full fairing, the air filter under a touring set.)
+	std::vector<FittedPart> Caps;
+	for (const std::string& Slot : {std::string("air_filter"), std::string("oil_filter")})
+	{
+		if (Touring != (Slot == "air_filter")) continue;
+		std::vector<const Piece*> Mine;
+		V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+		bool Behind = Touring;
+		for (const Piece& Pc : Pieces)
+			if (Pc.Slot == Slot)
+			{
+				Mine.push_back(&Pc);
+				Lo = V3(std::min(Lo.x, Pc.Lo.x), std::min(Lo.y, Pc.Lo.y), std::min(Lo.z, Pc.Lo.z));
+				Hi = V3(std::max(Hi.x, Pc.Hi.x), std::max(Hi.y, Pc.Hi.y), std::max(Hi.z, Pc.Hi.z));
+				Behind = Behind || IsHidden(Pc);
+			}
+		if (Covers) Behind = Behind || (Hi.y > CLo.y && Lo.y < CHi.y && Hi.z > CLo.z && Lo.z < CHi.z);
+		if (Mine.empty() || !Behind) continue;
+		const V3 Mid = (Lo + Hi) * 0.5;
+		// The panel straight out to the right of it, or as near that as the panel goes.
+		V3 At, Normal(1.0, 0.0, 0.0);
+		bool Found = false;
+		for (const std::pair<double, double>& D : {std::pair<double, double>(0.0, 0.0), {0.0, 0.05}, {0.0, -0.05}, {-0.05, 0.0}, {0.05, 0.0},
+				{-0.05, 0.08}, {-0.05, -0.08}, {0.0, 0.12}, {0.0, -0.12}, {-0.1, 0.0}})
+		{
+			const double Y = Mid.y + D.first, Z = Mid.z + D.second;
+			double Best = -1e18;
+			const V3 From(1.0, Y, Z), Dir(-1.0, 0.0, 0.0);
+			for (const SegTri& T : Skin)
+			{
+				// (Geometry3D.segment_intersects_triangle, for where it crosses.)
+				const V3 E1 = T.B - T.A, E2 = T.C - T.A, Pv = Dir.Cross(E2);
+				const double Det = E1.Dot(Pv);
+				if (std::fabs(Det) < 0.00001) continue;
+				const double Inv = 1.0 / Det;
+				const V3 Tv = From - T.A;
+				const double U = Tv.Dot(Pv) * Inv;
+				if (U < 0.0 || U > 1.0) continue;
+				const V3 Q = Tv.Cross(E1);
+				const double V = Dir.Dot(Q) * Inv;
+				if (V < 0.0 || U + V > 1.0) continue;
+				const double Tt = E2.Dot(Q) * Inv;
+				if (Tt > 0.00001 && Tt <= 1.0 && 1.0 - Tt > Best)
+				{
+					Best = 1.0 - Tt;
+					Normal = (T.C - T.A).Cross(T.B - T.A).Normalized();
+				}
+			}
+			if (Best > -1e17)
+			{
+				At = V3(Best, Y, Z);
+				Found = true;
+				break;
+			}
+		}
+		if (!Found || (Slot == "air_filter" && Mid.x > At.x))
+		{
+			// No panel over it after all, or it stands out past the panel: it shows as it is.
+			for (const Piece* Pc : Mine)
+			{
+				std::vector<std::string>& Tags = Pc->Part->HiddenTags;
+				Tags.erase(std::remove(Tags.begin(), Tags.end(), Pc->Tag), Tags.end());
+			}
+			continue;
+		}
+		for (const Piece* Pc : Mine)
+			if (!IsHidden(*Pc)) Pc->Part->HiddenTags.push_back(Pc->Tag);
+		if (Normal.x < 0.0) Normal = Normal * -1.0;
+		const GAffine Up = BasisUp(Normal);
+		const std::string Stand = Slot == "air_filter" ? "filter/airbox.glb" : "filter/oil.glb";
+		CodeShapes::Emit(Caps, Slot, Stand, "", "ServiceCap", CodeShapes::Cylinder(0.045, 0.012), AtWith(Up, At + Normal * 0.006), "paint");
+		CodeShapes::Emit(Caps, Slot, Stand, "", "", CodeShapes::Cylinder(0.052, 0.006), AtWith(Up, At + Normal * 0.002), "black_metal");
+		CodeShapes::Emit(Caps, Slot, Stand, "", "", CodeShapes::Box(V3(0.06, 0.008, 0.012)), AtWith(Up, At + Normal * 0.014), "paint");
+	}
+	// (Added once Pieces' pointers into Out are done with.)
+	Out.insert(Out.end(), Caps.begin(), Caps.end());
 }
 } // namespace TorqueFit

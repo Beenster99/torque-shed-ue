@@ -359,11 +359,13 @@ int main(int argc, char** argv)
 					const std::string Key = P.Name.empty() ? "" : "@" + P.Slot + "/" + P.Name;
 					if (!Key.empty()) Ours[Key] = Box();
 					for (const PartSurface& S : P.Made->Surfaces)
+					{
 						for (const V3& V : S.Pos)
 						{
 							Ours[P.Slot].Add(ToGodot(V));
 							if (!Key.empty()) Ours[Key].Add(ToGodot(V));
 						}
+					}
 					continue;
 				}
 				for (const PartSurface& S : BikeParts::Draw(M, P).Surfaces)
@@ -379,6 +381,12 @@ int main(int argc, char** argv)
 						Tags[Slot][S.Material].Add(ToGodot(V));
 					}
 					++Tags[Slot][S.Material].Meshes;   // (Godot's: one mesh a surface of each piece)
+					// (What a full fairing hides: the whole part, or its surfaces of those tags.)
+					if (P.Hidden || std::find(P.HiddenTags.begin(), P.HiddenTags.end(), S.Material) != P.HiddenTags.end())
+					{
+						for (const V3& V : S.Pos) Ours["hidden:" + Slot + "/" + S.Material].Add(ToGodot(V));
+						++Ours["hidden:" + Slot + "/" + S.Material].Meshes;
+					}
 				}
 			}
 		};
@@ -428,6 +436,39 @@ int main(int argc, char** argv)
 					for (const auto& [Tag, Gb] : Gt->O)
 						if (!ByTag.count(Tag) && !Part) Wrong += " " + Slot + "/" + Tag + " missing";
 			}
+			return Wrong;
+		};
+		// What a full fairing hides, slot by slot, and the service caps on its panels (Gc: Godot's
+		// "covered", slot -> {hidden: box with its meshes, cap: box}), against ours. Returns what's off.
+		auto CoverCheck = [&](const std::map<std::string, Box>& Ours, const Json* Gc) {
+			// (Blender surfaces, slot by slot and tag by tag: ours "hidden:slot/tag".)
+			std::string Wrong;
+			auto Near = [&](const Box& Bx, const Json* Gb) { return std::max(Off(Bx.Lo, Vec(Gb->Get("min"))), Off(Bx.Hi, Vec(Gb->Get("max")))); };
+			for (const auto& [Key, Bx] : Ours)
+			{
+				if (Key.rfind("hidden:", 0) != 0) continue;
+				const std::string What = Key.substr(7), Slot = What.substr(0, What.find('/')), Tag = What.substr(What.find('/') + 1);
+				const Json* Gs = Gc ? Gc->Get(Slot) : nullptr;
+				const Json* Gh = Gs && Gs->Get("hidden") ? Gs->Get("hidden")->Get(Tag) : nullptr;
+				if (!Gh) { Wrong += " " + What + " hidden (Godot shows it)"; continue; }
+				const double D = Near(Bx, Gh);
+				if (D >= 5e-4) Wrong += " " + What + " hidden " + std::to_string(static_cast<int>(D * 1000.0 + 0.5)) + "mm";
+				if (static_cast<int>(Gh->Num("meshes", 0.0)) != Bx.Meshes)
+					Wrong += " " + What + " hidden " + std::to_string(Bx.Meshes) + " (Godot " + std::to_string(static_cast<int>(Gh->Num("meshes", 0.0))) + ")";
+			}
+			if (Gc)
+				for (const auto& [Slot, Gs] : Gc->O)
+				{
+					if (const Json* Gh = Gs.Get("hidden"))
+						for (const auto& [Tag, Gb] : Gh->O)
+							if (!Ours.count("hidden:" + Slot + "/" + Tag)) Wrong += " " + Slot + "/" + Tag + " shown (Godot hides it)";
+					if (const Json* Cap = Gs.Get("cap"))
+					{
+						auto It = Ours.find("@" + Slot + "/ServiceCap");
+						const double D = It != Ours.end() ? Near(It->second, Cap) : 1e9;
+						if (D >= 5e-4) Wrong += " " + Slot + " service cap " + (It != Ours.end() ? std::to_string(static_cast<int>(D * 1000.0 + 0.5)) + "mm" : "missing");
+					}
+				}
 			return Wrong;
 		};
 		// The slots whose every mesh, Blender or code-drawn, is ported: checked whole against Godot's.
@@ -528,6 +569,8 @@ int main(int argc, char** argv)
 			std::string CodeWrong;
 			for (const auto& [Slot, Gs] : GSlots->O) CodeWrong += CodeCheck(Ours, Slot, &Gs, WholeSlots.count(Slot) > 0);
 			Expect(CodeWrong.empty(), St + ": the swingarm whole and every code-drawn shape ported as Godot draws them" + CodeWrong);
+			const std::string CoverWrong = CoverCheck(Ours, G->Get("covered"));
+			Expect(CoverWrong.empty(), St + ": what a full fairing hides, and its service caps, as Godot" + CoverWrong);
 		}
 		// Every part of the kinds ported, one at a time on its style's reference bike, as Godot draws it.
 		const Json* Sweep = Have ? Ref.Get("sweep") : nullptr;
@@ -552,6 +595,7 @@ int main(int argc, char** argv)
 				const std::string Swept = Key.substr(0, Key.find('/'));
 				Wrong += CodeCheck(Ours, Swept, Gs, WholeSlots.count(Swept) > 0);
 			}
+			Wrong += CoverCheck(Ours, Sw.Get("covered"));
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
 			if (Wrong.empty()) ++Right;

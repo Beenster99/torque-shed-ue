@@ -186,6 +186,10 @@ private:
 	// a phone in its cradle on a clamp round the bar, put where it best keeps clear of the bars and
 	// what's round them, hides least of the clocks (DashFace) and is seen whole (KitModel._phone).
 	void Satnav(const PartsMap& Parts, const Layout& L, double DashLift, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const;
+	// BikeModel._hide_covered and _service_caps: under a full fairing's panel set, what of the
+	// engine bay sits wholly behind it side on is hidden (HiddenTags), and the oil filter (or under
+	// a touring set the air filter) comes out through a quick-release cap made on the panel.
+	void CoverUp(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// KitModel._phone and _phone_place.
 	void Phone(const Json& P, const Layout& L, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const;
 	// BlenderParts.sweep_section: copies of a Blender section (drawn at radius 1 along +Z, Godot
