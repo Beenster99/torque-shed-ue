@@ -118,10 +118,15 @@ int32 MakeSpare(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Buil
 	USceneComponent* Holder = NewObject<USceneComponent>(Owner);
 	Holder->SetupAttachment(Parent);
 	Holder->RegisterComponent();
-	OutHolder = Holder;
+	OutHolder = nullptr;
 	TArray<UStaticMeshComponent*> Made;
 	MakeParts(Owner, Holder, Trial, Slot, Made);
-	if (Made.Num() == 0) return 0;   // nothing to show (no model yet, or an option that takes parts off)
+	if (Made.Num() == 0)   // nothing to show (no model yet, or an option that takes parts off)
+	{
+		Holder->DestroyComponent();
+		return 0;
+	}
+	OutHolder = Holder;
 	auto BoxOf = [&Made]()
 	{
 		FBox Box(ForceInit);
