@@ -33,6 +33,9 @@ struct FRiderPoseInput
 	// Off the bike (0..1): the hands let go of the grips and go to HandsOff (wrists, left and right).
 	double Limp = 0.0;
 	FVector HandsOff[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	// Where the fitted grips sit against the stock ones (pawn local cm, left and right), from the
+	// fitment system's grips_l / grips_r placement: the hands follow other bars.
+	FTransform GripFit[2] = {FTransform::Identity, FTransform::Identity};
 };
 
 class FRiderRig

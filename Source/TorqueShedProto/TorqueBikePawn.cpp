@@ -338,6 +338,7 @@ void ATorqueBikePawn::BuildModel()
 		}
 	}
 	FTransform LeverDelta[2] = {FTransform::Identity, FTransform::Identity};
+	GripDelta[0] = GripDelta[1] = FTransform::Identity;
 	int32 Made = 0;
 	for (const FPartToMake& P : ToMake)
 	{
@@ -361,6 +362,8 @@ void ATorqueBikePawn::BuildModel()
 		ModelParts.Add(C);
 		if (P.Name == TEXT("lever_clutch")) { LeverParts[0] = C; LeverDelta[0] = P.Delta; }
 		else if (P.Name == TEXT("lever_brake")) { LeverParts[1] = C; LeverDelta[1] = P.Delta; }
+		else if (P.Name == TEXT("grips_l")) GripDelta[0] = P.Delta;
+		else if (P.Name == TEXT("grips_r")) GripDelta[1] = P.Delta;
 		++Made;
 	}
 	// The clutch and front brake levers swing on their perches as they're pulled.
@@ -1159,6 +1162,8 @@ void ATorqueBikePawn::UpdateRider()
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
 			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]));
 		}
+		In.GripFit[0] = GripDelta[0];
+		In.GripFit[1] = GripDelta[1];
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		return;

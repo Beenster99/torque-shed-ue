@@ -43,6 +43,8 @@ struct BikeSpec
 	double ForkLink = 0.0;
 	V3 SwingPivot;
 	double SwingLength = 0.58;
+	double SwingDrop = 0.08;           // how far the pivot sits above the axle line
+	V3 Countershaft{0.0, 0.03, -0.075};   // the gearbox sprocket, from the swingarm pivot
 	double SprocketRFront = 0.0457, SprocketRRear = 0.1037;
 
 	// Wheels and tyres.

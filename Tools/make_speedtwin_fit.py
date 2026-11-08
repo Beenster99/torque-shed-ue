@@ -207,7 +207,7 @@ def stock_units(P):
         yp += chain([stanch[0] + [0, 0, z], stanch[1] + [0, 0, z]], 0.029)
     for along in (0.47, 0.64):
         c = FA + FORK_DIR * along + FORK_BACK * 0.015
-        yp.append(box(c, np.eye(3), (0.035, 0.014, 0.125)))
+        yp.append(box(c, st.rot_z(st.RAKE).T, (0.035, 0.014, 0.125)))   # rows: the yoke's own axes
     unit("yokes", ["yokes", "fork_stanchions"], mount={"to": "frame.head_tube", "type": "steering_head", "stem_mm": 30.0},
          sockets={
              "bar_clamp": sock("bar_clamp", BAR_CLAMP, (0, 0, 1), (0, 1, 0), bar_mm=BAR_MM),
@@ -217,7 +217,7 @@ def stock_units(P):
          }, proxies=yp)
     unit("clock", ["clock_body", "clock_face"], mount={"to": "yokes.lugs", "type": "bracket"})
     unit("headlight", ["headlight_shell", "headlight_lens", "headlight_projector", "front_indicators"], slot="headlight",
-         mount={"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.53)})
+         mount={"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.56)})
 
     # Bars, and what rides on them.
     bars_path = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, -0.30], BAR_CLAMP + [0.0, 0.025, -0.12],
@@ -241,21 +241,20 @@ def stock_units(P):
              proxies=[capsule(mc, mc, 0.048)] + chain([end, end + [0.02, 0.1, s * 0.05]], 0.006))
     lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22]); lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22])
     unit("cables", ["cables"], mount={"to": "yokes.lugs", "type": "bracket"}, proxies=[],
-         conform={"ends": [{"unit": "lever_brake", "at": v(lever_r)}, {"unit": "lever_clutch", "at": v(lever_l)},
-                           {"unit": "grip_r", "at": v(lever_r + [0.0, 0.0, 0.08])}]})
+         conform={"ends": [{"unit": u_id, "at": v(p)} for (p, _, _, u_id) in stock_cable_ends().values()]})
 
     # Front suspension and wheel.
     lower = auto_proxies(P["fork_lowers"][0], "front_lower") + auto_proxies(P["front_calipers"][0], "front_lower")
     unit("fork_lowers", ["fork_lowers", "front_calipers"], mount={"to": "yokes.fork_slide", "type": "fork_slide"},
          sockets={"front_axle": sock("axle", FA, (0, 0, 1), axle_mm=25.0),
                   "guard_mounts": sock("bracket", FA, (1, 0, 0))}, proxies=lower)
-    a = np.linspace(math.radians(125), math.radians(30), 20)
+    a = np.linspace(math.radians(98), math.radians(30), 20)
     guard = np.stack([0.325 * np.cos(a), 0.325 * np.sin(a), np.zeros_like(a)], 1) + FA
     unit("front_mudguard", ["front_mudguard"], slot="front_mudguard", mount={"to": "fork_lowers.guard_mounts", "type": "bracket"},
          proxies=[box(guard[i] * 0.5 + guard[i + 3] * 0.5, frame_along(guard[i + 3] - guard[i]),
                       (np.linalg.norm(guard[i + 3] - guard[i]) / 2, 0.006, 0.075)) for i in range(0, 17, 3)])
     unit("front_wheel", ["front_rim", "front_tyre", "front_discs", "front_carriers"], mount={"to": "fork_lowers.front_axle", "type": "axle", "axle_mm": 25.0},
-         proxies=torus(FA, (0, 0, 1), 0.300 - 0.058, 0.058) + [box(FA + [0, 0, z], np.eye(3), (0.16, 0.16, 0.003)) for z in (-0.075, 0.075)])
+         proxies=torus(FA, (0, 0, 1), 0.300 - 0.058, 0.058))
 
     # Engine and what hangs off it.
     eng = ["crankcase", "sump", "gearbox", "cylinders", "cam_cover", "engine_covers", "cover_badges", "bolts", "throttle_bodies"]
@@ -267,23 +266,14 @@ def stock_units(P):
                                                                 "points": [v(p) for p in engine_pts]},
          sockets={"exhaust_ports": sock("exhaust_ports", ports[1], unit_vec((0.33, 0.31, 0.12) - ports[1]), port_mm=44.0),
                   "lugs": sock("bracket", (0, 0, 0), (1, 0, 0))}, proxies=ep)
-    header = st.polyline([(0.25, 0.315, 0.09), (0.33, 0.31, 0.12), (0.42, 0.26, 0.15), (0.45, 0.15, 0.16),
-                          (0.43, 0.03, 0.16), (0.36, -0.055, 0.155), (0.20, -0.08, 0.15), (-0.08, -0.085, 0.15),
-                          (-0.25, -0.065, 0.155)], 8)
-    hp = []
-    for s in (-1, 1):
-        hp += chain(header * [1, 1, s], 0.022, 4)
-    outlet = header[-1]
-    s_dir = unit_vec(np.array([-0.84, 0.155, 0.175]) - np.array([-0.25, -0.065, 0.158]))
-    unit("headers", ["headers"], mount={"to": "engine.exhaust_ports", "type": "exhaust_ports", "port_mm": 44.0},
-         sockets={"outlet": sock("exhaust_slip", outlet, s_dir, pipe_mm=44.0)}, proxies=hp,
-         conform={"ends": [{"unit": "engine", "at": v(ports[1])}]})
+    hu, _ = headers_unit(0.0)
+    unit("headers", ["headers"], mount=hu["mount"], sockets=hu["sockets"], proxies=hu["proxies"], conform=hu["conform"])
     unit("silencers", ["silencers", "silencer_caps"], slot="exhaust", cat=["exhaust", None],
          **silencer_unit(np.linspace([-0.25, -0.065, 0.158], [-0.84, 0.155, 0.175], 16),
                          np.interp(np.linspace(0, 1, 16), [0.0, 0.12, 0.45, 1.0], [0.024, 0.03, 0.046, 0.05]), 48.0))
     unit("radiator", ["radiator"], mount={"to": "frame.lugs", "type": "bracket"})
     unit("coolant_hoses", ["coolant_hoses"], mount={"to": "engine.lugs", "type": "bracket"}, proxies=[],
-         conform={"ends": [{"unit": "radiator", "at": [0.40, 0.255, 0.06]}, {"unit": "engine", "at": [0.26, 0.37, 0.05]}]})
+         conform={"ends": [{"unit": "radiator", "at": [0.34, 0.265, 0.05]}, {"unit": "engine", "at": [0.26, 0.37, 0.05]}]})
 
     # Tank, seat, tail, side panels.
     xs = np.linspace(-0.135, 0.37, 110)
@@ -292,7 +282,7 @@ def stock_units(P):
     bot = 0.43 - 0.02 * t
     hw = np.where(t < 0.05, 0.07, 0.06 + 0.115 * np.sin(np.clip(t, 0, 1) * math.pi) ** 0.6)
     unit("tank", ["tank", "tank_decals", "tank_badges", "tank_cap"], slot="tank",
-         mount={"to": "frame.tank_mounts", "type": "tank_mounts", "tunnel_mm": 130.0}, proxies=slices(xs, top, bot, hw, 18))
+         mount={"to": "frame.tank_mounts", "type": "tank_mounts", "tunnel_mm": 130.0}, proxies=slices(xs, top, bot, hw, 36))
     xs = np.linspace(-0.77, -0.11, 48)
     t = (xs - xs[0]) / (xs[-1] - xs[0])
     top = np.interp(xs, [-0.77, -0.76, -0.60, -0.45, -0.30, -0.15, -0.11], [0.55, 0.570, 0.568, 0.548, 0.515, 0.48, 0.472])
@@ -301,8 +291,16 @@ def stock_units(P):
     unit("seat", ["seat", "seat_pan"], slot="saddle", mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0,
                                                              "along": 0.2},
          proxies=slices(xs, top, bot, hw, 10))
+    hanger = st.polyline([(-0.78, 0.468, 0.0), (-0.86, 0.445, 0.0), (-0.95, 0.335, 0.0)], 6)
+    tp = [box((-0.775, 0.49, 0.0), np.eye(3), (0.05, 0.02, 0.07)), capsule((-0.822, 0.494, 0), (-0.848, 0.494, 0), 0.022)]
+    tp += [box(hanger[i] * 0.5 + hanger[i + 3] * 0.5, frame_along(hanger[i + 3] - hanger[i]),
+               (np.linalg.norm(hanger[i + 3] - hanger[i]) / 2, 0.006, 0.09)) for i in range(0, len(hanger) - 3, 3)]
+    tp.append(box(((-0.90 - 0.98) / 2, (0.42 + 0.30) / 2, 0.0), frame_along(np.array([-0.08, -0.12, 0.0])),
+                  (0.072, 0.002, 0.1)))
+    for s in (-1, 1):
+        tp.append(capsule((-0.86, 0.44, s * 0.06), (-0.86, 0.44, s * 0.13), 0.016))
     unit("tail", ["tail", "rear_light", "plate_hanger", "plate", "rear_indicators"], slot="tail",
-         mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0})
+         mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0}, proxies=tp)
     unit("side_panels", ["side_panel_l", "side_panel_l_decal", "side_panel_r", "side_panel_r_decal"], slot="side_panels",
          mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "along": 0.0})
     unit("battery_box", ["battery_box"], mount={"to": "frame.lugs", "type": "bracket"})
@@ -328,7 +326,7 @@ def stock_units(P):
     unit("chain", ["chain"], mount={"to": "swingarm.lugs", "type": "bracket"}, proxies=[],
          conform={"ends": [{"unit": "rear_wheel", "at": v(RA + [0, 0.104, 0.075])}]})
     unit("chain_guard", ["chain_guard"], mount={"to": "swingarm.lugs", "type": "bracket"})
-    a = np.linspace(math.radians(30), math.radians(110), 16)
+    a = np.linspace(math.radians(30), math.radians(70), 16)
     hug = np.stack([rel[0] + 0.335 * np.cos(a), rel[1] + 0.335 * np.sin(a), np.zeros_like(a)], 1) + SWING_PIVOT
     unit("hugger", ["hugger"], mount={"to": "swingarm.lugs", "type": "bracket"},
          proxies=[box(hug[i] * 0.5 + hug[i + 3] * 0.5, frame_along(hug[i + 3] - hug[i]),
@@ -336,6 +334,24 @@ def stock_units(P):
     unit("shocks", ["shock_bodies", "shock_springs", "shock_tops"], group="body", mount={"to": "frame.lugs", "type": "bracket"}, proxies=[],
          conform={"ends": [{"unit": "swingarm", "at": [-0.66, 0.10, 0.125]}]})
     return U
+
+
+def headers_unit(dz):
+    """The header pipes from the exhaust ports to the silencers' slip joint, their tails kicked dz
+    metres outboard (0: as modelled). Returns the unit and its mesh."""
+    pts = [(0.25, 0.315, 0.09), (0.33, 0.31, 0.12), (0.42, 0.26, 0.15), (0.45, 0.15, 0.16), (0.43, 0.03, 0.16),
+           (0.36, -0.055, 0.155), (0.20, -0.08, 0.15), (-0.08, -0.085, 0.15 + dz * 0.6), (-0.25, -0.065, 0.155 + dz)]
+    header = st.polyline(pts, 8)
+    hp = []
+    for s in (-1, 1):
+        hp += chain(header * [1, 1, s], 0.022, 4)
+    port = np.array([0.25, 0.315, 0.09])
+    s_dir = unit_vec(np.array([-0.84, 0.155, 0.175]) - np.array([-0.25, -0.065, 0.158]))
+    u = {"id": "headers", "group": "body", "mount": {"to": "engine.exhaust_ports", "type": "exhaust_ports", "port_mm": 44.0},
+         "sockets": {"outlet": sock("exhaust_slip", header[-1], s_dir, pipe_mm=44.0)}, "proxies": hp,
+         "conform": {"ends": [{"unit": "engine", "at": v(port)}]}}
+    mesh = st.both_sides(st.tube(header, 0.022, 24).mask_by_uv(lambda uv: 1.0 - (uv[:, 1] - 0.12) / 0.3))
+    return u, mesh
 
 
 def frame_along(d):
@@ -362,7 +378,53 @@ def silencer_unit(s_path, radii, bore_mm):
     return {"mount": {"to": "headers.outlet", "type": "exhaust_slip", "pipe_mm": bore_mm}, "proxies": prox}
 
 
+
+# --- Where a part on the bar lands on another bar (the same maths as Fit/Fitment.cpp) -----------------
+
+def frame_from(at, x, up):
+    x = unit_vec(x)
+    y = np.asarray(up, np.float64) - x * x.dot(up)
+    y = unit_vec(y)
+    return np.stack([x, y, np.cross(x, y)], 1), np.asarray(at, np.float64)   # columns are the axes
+
+
+def path_frame(path, s, up=(0, 1, 0)):
+    """The frame s metres along a path socket: x along the path, y towards up."""
+    left = max(s, 0.0)
+    for k in range(1, len(path)):
+        seg = path[k] - path[k - 1]
+        L = np.linalg.norm(seg)
+        if left <= L or k + 1 == len(path):
+            f = min(max(left / L, 0.0), 1.0) if L > 1e-9 else 0.0
+            return frame_from(path[k - 1] + seg * f, seg, up)
+        left -= L
+    return frame_from(path[-1], path[-1] - path[0], up)
+
+
+def path_length(path):
+    return float(np.sum(np.linalg.norm(np.diff(path, axis=0), axis=1)))
+
+
+def on_new_bar(point, old_half, new_half, from_end):
+    """A point on a part mounted from_end metres from a bar end, moved from the old bar to the new."""
+    R0, T0 = path_frame(old_half, path_length(old_half) - from_end)
+    R1, T1 = path_frame(new_half, path_length(new_half) - from_end)
+    return R1 @ (R0.T @ (np.asarray(point) - T0)) + T1
+
+
 # --- Alternatives, in the Speed Twin's own style ------------------------------------------------------
+
+STOCK_BAR = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, -0.30], BAR_CLAMP + [0.0, 0.025, -0.12],
+                         BAR_CLAMP, BAR_CLAMP + [0.0, 0.025, 0.12], BAR_CLAMP + [-0.03, 0.03, 0.30],
+                         BAR_CLAMP + [0.0, 0, 0.38]], 6)
+
+
+def stock_cable_ends():
+    """Each cable's bar end: (point, bar side, the mount's distance from the bar end, the unit it rides)."""
+    lever_l = BAR_CLAMP + np.array([0.02, 0.0, -0.22]); lever_r = BAR_CLAMP + np.array([0.02, 0.0, 0.22])
+    return {"clutch": (lever_l, "l", 0.38 - 0.23, "lever_clutch"), "brake": (lever_r, "r", 0.38 - 0.23, "lever_brake"),
+            "throttle": (lever_r + [0.0, 0.0, 0.08], "r", round(0.38 - 0.315, 5), "grip_r")}
+
 
 def bar_shape(width_mm, rise, pullback, drop_mid=0.0):
     """A bar's centre line from its catalogue width and rise: flat across the clamp, then a bend up (or
@@ -403,18 +465,33 @@ def options(cat):
         name = "opt_bars_" + pid
         u = {"id": "bars", "group": "steer", "meshes": [name], "slot": "handlebars", "catalogue": ["handlebars", pid]}
         u.update(bar_unit(path, bar_mm, extra))
-        out.append(("handlebars", pid, e["name"], ["handlebars", pid], u, {name: (mesh, fin, "steer")}))
+        # The cables re-routed from where the levers and throttle land on these bars (plan point 3).
+        old_l, old_r = bar_halves(STOCK_BAR)
+        new_l, new_r = bar_halves(path)
+        ends = stock_cable_ends()
+        moved = {k: on_new_bar(p, old_r if side == "r" else old_l, new_r if side == "r" else new_l, fe)
+                 for k, (p, side, fe, _) in ends.items()}
+        cname = "opt_cables_" + pid
+        cables = {"id": "cables", "group": "steer", "meshes": [cname], "mount": {"to": "yokes.lugs", "type": "bracket"},
+                  "sockets": {}, "proxies": [],
+                  "conform": {"ends": [{"unit": unit_id, "at": v(p), "to": v(moved[k])} for k, (p, _, _, unit_id) in ends.items()]}}
+        out.append(("handlebars", pid, e["name"], ["handlebars", pid], [u, cables],
+                    {name: (mesh, fin, "steer"),
+                     cname: (st.cable_lines(moved["clutch"], moved["brake"], moved["throttle"]), "rubber", "steer")}))
     # Silencers: a long slim peashooter, and a short reverse cone megaphone; same slip joint.
-    a0 = np.array([-0.25, -0.065, 0.158])
     for pid in ("peashooter_twins", "cafe_reverse_cones"):
         e = cat["exhaust"][pid]
+        # The fat cones need the header's tail kicked out to clear the frame, swingarm and side stand
+        # (the header is routed to the silencer, plan point 3); the slim peashooters fit the stock one.
+        dz = 0.05 if pid == "cafe_reverse_cones" else 0.0
+        a0 = np.array([-0.25, -0.065, 0.158 + dz])
         if pid == "peashooter_twins":
             end = np.array([-0.90, 0.10, 0.168])
             s_path = np.linspace(a0, end, 16)
             radii = np.interp(np.linspace(0, 1, 16), [0.0, 0.1, 0.3, 1.0], [0.024, 0.028, 0.034, 0.036])
             fin, cap_fin = "steel_brushed", "steel_brushed"
         else:
-            end = np.array([-0.70, 0.12, 0.17])
+            end = np.array([-0.70, 0.12, 0.17 + dz])
             s_path = np.linspace(a0, end, 16)
             radii = np.interp(np.linspace(0, 1, 16), [0.0, 0.15, 0.25, 0.85, 1.0], [0.024, 0.03, 0.062, 0.042, 0.036])
             fin, cap_fin = "steel_brushed", "black_satin"
@@ -424,8 +501,18 @@ def options(cat):
         n1, n2 = "opt_exhaust_" + pid, "opt_exhaust_" + pid + "_caps"
         u = {"id": "silencers", "group": "body", "meshes": [n1, n2], "slot": "exhaust", "catalogue": ["exhaust", pid]}
         u.update(silencer_unit(s_path, radii, 48.0))
-        out.append(("exhaust", pid, e["name"], ["exhaust", pid], u,
-                    {n1: (st.both_sides(sil), fin, "body"), n2: (st.both_sides(cap), cap_fin, "body")}))
+        units = [u]
+        meshes = {n1: (st.both_sides(sil), fin, "body"), n2: (st.both_sides(cap), cap_fin, "body")}
+        if dz:
+            hname = "opt_headers_" + pid
+            hu, hmesh = headers_unit(dz)
+            hu["meshes"] = [hname]
+            # Modelled on its own headers, so its mount frame is their outlet, not the stock one.
+            o = hu["sockets"]["outlet"]
+            u["mount"]["child"] = {"at": o["at"], "x": o["x"], "y": o["y"]}
+            units.insert(0, hu)
+            meshes[hname] = (hmesh, "header", "body")
+        out.append(("exhaust", pid, e["name"], ["exhaust", pid], units, meshes))
     return out
 
 
@@ -459,7 +546,7 @@ def main():
             "exhaust": [{"id": "stock", "name": "Speed Twin silencers (stock)", "stock": True, "units": []}]}
     meshes = {}
     for slot, pid, name, ce, u, ms in options(cat):
-        opts[slot].append({"id": pid, "name": name, "catalogue": ce, "units": [u],
+        opts[slot].append({"id": pid, "name": name, "catalogue": ce, "units": u,
                            "meshes": {k: {"finish": f, "group": g, "file": "Options/%s.glb" % k} for k, (_, f, g) in ms.items()}})
         meshes.update(ms)
     write_option_glbs(meshes)

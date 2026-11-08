@@ -277,6 +277,12 @@ bool ReadUnit(const Json& J, const std::map<std::string, Interface>& Types, Unit
 		if (const Json* F = M->Get("from_end")) { Out.Mnt.HasFromEnd = true; Out.Mnt.FromEnd = F->N; }
 		if (const Json* P = M->Get("points"))
 			for (const Json& Pt : P->A) Out.Mnt.Points.push_back(ReadV3(&Pt));
+		// A part modelled for its own parent (not the stock one) says where its mount is.
+		if (const Json* C = M->Get("child"))
+		{
+			Out.Mnt.HasChild = true;
+			Out.Mnt.Child = ReadFrame(*C);
+		}
 	}
 	if (const Json* C = J.Get("conform"))
 	{
@@ -287,6 +293,7 @@ bool ReadUnit(const Json& J, const std::map<std::string, Interface>& Types, Unit
 				ConformEnd End;
 				End.Unit = E.Str("unit");
 				End.At = ReadV3(E.Get("at"));
+				End.To = E.Get("to") ? ReadV3(E.Get("to")) : End.At;
 				Out.Conform.push_back(End);
 			}
 		}
@@ -787,9 +794,9 @@ bool BikeFit::Assemble(const Build& B, Assembly& Out, std::string& Error) const
 		{
 			const Placed* Other = Out.Find(E.Unit);
 			if (!Other) continue;
-			const double Moved = (Other->World.Point(E.At) - P.World.Point(E.At)).Length();
+			const double Moved = (Other->World.Point(E.At) - P.World.Point(E.To)).Length();
 			if (Moved > 0.002)
-				Out.Notes.push_back(P.U.Id + ": its end at " + E.Unit + Fmt(" moved %.0f mm; the route isn't regenerated yet", Moved * 1000.0));
+				Out.Notes.push_back(P.U.Id + ": its end at " + E.Unit + Fmt(" is %.0f mm away; it needs re-routing", Moved * 1000.0));
 		}
 	}
 	return true;
@@ -921,6 +928,33 @@ std::vector<Clash> BikeFit::Clearance(const Assembly& A, const Assembly* Baselin
 		}
 	}
 	return Out;
+}
+
+
+std::string BikeFit::Explain(const Assembly& A, const std::string& Ua, const std::string& Ub, double SteerDeg, double Front, double Rear) const
+{
+	const Placed* Pa = A.Find(Ua);
+	const Placed* Pb = A.Find(Ub);
+	if (!Pa || !Pb) return "no such units";
+	const Xf Ma = GroupMotion(Pa->U.Group, SteerDeg, Front, Rear) * Pa->World;
+	const Xf Mb = GroupMotion(Pb->U.Group, SteerDeg, Front, Rear) * Pb->World;
+	double Best = -1e9;
+	size_t Ia = 0, Ib = 0;
+	for (size_t I = 0; I < Pa->U.Proxies.size(); ++I)
+		for (size_t J = 0; J < Pb->U.Proxies.size(); ++J)
+		{
+			const double D = Penetration(Pa->U.Proxies[I].Moved(Ma), Pb->U.Proxies[J].Moved(Mb));
+			if (D > Best) { Best = D; Ia = I; Ib = J; }
+		}
+	if (Pa->U.Proxies.empty() || Pb->U.Proxies.empty()) return "no proxies";
+	auto Where = [](const Proxy& P) {
+		const V3 C = P.IsBox ? P.C : (P.A + P.B) * 0.5;
+		char Buf[96];
+		std::snprintf(Buf, sizeof(Buf), "%s at (%.3f, %.3f, %.3f)", P.IsBox ? "box" : "capsule", C.x, C.y, C.z);
+		return std::string(Buf);
+	};
+	return Ua + " proxy " + std::to_string(Ia) + " " + Where(Pa->U.Proxies[Ia].Moved(Ma)) + " x " + Ub + " proxy " + std::to_string(Ib) + " " +
+		Where(Pb->U.Proxies[Ib].Moved(Mb)) + Fmt(": %.1f mm", Best * 1000.0);
 }
 
 // --- Datums ---------------------------------------------------------------------------------------

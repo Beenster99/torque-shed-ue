@@ -284,11 +284,11 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 			if (I == UpperArm[S])
 			{
 				// The hands stay on the grips, which turn with the bars; the elbows bend to suit. The
-				// right hand also rolls about its grip with the throttle.
+				// right hand also rolls about its grip with the throttle, and both follow fitted bars.
 				const FHand& Hd = Hands[S];
 				const FQuat Twist(Hd.TwistAxis, FMath::DegreesToRadians(Hd.TwistDeg * FMath::Clamp(In.Throttle, 0.0, 1.0)));
 				const FVector W0 = Bones[Hand[S]].Rest, E0 = Bones[LowerArm[S]].Rest, S0 = Bones[I].Rest;
-				const FVector Wt = Hd.Grip + Twist.RotateVector(W0 - Hd.Grip);
+				const FVector Wt = In.GripFit[S].TransformPosition(Hd.Grip + Twist.RotateVector(W0 - Hd.Grip));
 				const double Off = FMath::Clamp(In.Limp, 0.0, 1.0);
 				const FVector W = FMath::Lerp(In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot), In.HandsOff[S], Off);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
@@ -296,7 +296,7 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				const FVector Hinge0 = FVector::CrossProduct(E0 - S0, W0 - E0), Hinge = FVector::CrossProduct(E - P[I], W - E);
 				D[I] = AlignFrames(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = AlignFrames(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
-				D[Hand[S]] = FQuat::Slerp(In.BarTurn * Twist, D[LowerArm[S]], Off); Set[Hand[S]] = true;
+				D[Hand[S]] = FQuat::Slerp(In.BarTurn * In.GripFit[S].GetRotation() * Twist, D[LowerArm[S]], Off); Set[Hand[S]] = true;
 				// Index and middle fingers: off the grip and over the lever, then pulling it in.
 				const double On = FMath::Clamp(In.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(In.LeverPull[S], 0.0, 1.0);
 				for (const FFinger& F : Hd.Fingers)

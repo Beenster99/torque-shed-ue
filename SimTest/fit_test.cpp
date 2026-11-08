@@ -160,6 +160,7 @@ int main()
 			Assembly Ab;
 			Expect(Fit.Assemble(B, Ab, Error), "assembles " + Error);
 			for (const std::string& N : Ab.Notes) std::printf("    note: %s\n", N.c_str());
+			if (S == "handlebars") Expect(Ab.Notes.empty(), "the option's own cables reach its levers (no re-routing left)");
 			std::printf("    clashes beyond the stock part's:\n");
 			PrintClashes(Fit.Clearance(Ab, &A));
 			if (S == "handlebars")

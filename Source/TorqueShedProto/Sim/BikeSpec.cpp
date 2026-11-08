@@ -43,7 +43,6 @@ V3 BikeSpec::RearPathAt(double Q) const
 
 V3 BikeSpec::ChainPullAt(const V3& Axle, bool Top) const
 {
-	const V3 Countershaft(0.0, 0.03, -0.075);
 	const V3 Front = SwingPivot + Countershaft;
 	const V3 D = Axle - Front;
 	const double Dist = std::max(D.Length(), 0.1);
@@ -75,7 +74,7 @@ void BikeSpec::Finish()
 	// A telescopic fork's axle slides up its legs, parallel to the steering axis.
 	ForkPath = V3(0.0, std::cos(Rake), std::sin(Rake));
 	// The swingarm pivots a little above the axle line, SwingLength ahead of the back axle.
-	const double Drop = 0.08;
+	const double Drop = SwingDrop;
 	SwingPivot = V3(0.0, Drop, Wheelbase * 0.5 - std::sqrt(SwingLength * SwingLength - Drop * Drop));
 	// Rough rider-plus-bike inertia, as Bike.setup.
 	const double M = TotalMass, Wb = Wheelbase;
@@ -95,6 +94,12 @@ BikeSpec BikeSpec::SpeedTwin1200()
 	S.TorqueNm = {68, 86, 100, 112, 108, 104, 96, 80};
 	S.TyreFront = TyreModel::Make("road", "radial", 0.9, 1.05, 0.78, 120.0, 1.32, 0.72, 0.6);
 	S.TyreRear = TyreModel::Make("road", "radial", 0.9, 1.05, 0.78, 160.0, 1.32, 0.72, 0.6);
+	// Swingarm from the side-on photos (Tools/make_speedtwin.py, checked by SimTest/fit_test): pivot
+	// 335 mm ahead of mid-wheelbase and 75 mm above the axle line, 379 mm to the rear axle; the
+	// gearbox sprocket 30 mm ahead of and 30 mm above the pivot.
+	S.SwingLength = 0.379;
+	S.SwingDrop = 0.075;
+	S.Countershaft = V3(0.0, 0.03, -0.03);
 	S.Finish();
 	return S;
 }

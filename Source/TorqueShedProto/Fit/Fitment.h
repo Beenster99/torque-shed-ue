@@ -91,10 +91,12 @@ struct Mount
 	Xf Child;
 };
 
+// One end of a conforming part: At is the point on the other unit (as modelled on the stock bike),
+// To where this part's own end is (the same, unless it was routed to fit other parts).
 struct ConformEnd
 {
 	std::string Unit;
-	V3 At;
+	V3 At, To;
 };
 
 struct Unit
@@ -200,6 +202,8 @@ public:
 	// Baseline (the stock bike), a swapped or moved part's clashes count beyond what the stock part
 	// it replaces already had. DepthMm is that extra depth.
 	std::vector<Clash> Clearance(const Assembly& A, const Assembly* Baseline = nullptr) const;
+	// Where two units' worst overlap is in a case (for authors): the two proxies and the depth.
+	std::string Explain(const Assembly& A, const std::string& Ua, const std::string& Ub, double SteerDeg, double Front, double Rear) const;
 	std::vector<DatumCheck> CheckDatums(const Assembly& A, const PhysicsDatums& P) const;
 
 	// Geometry mode, player fitting: a drag (model frame, metres) and a turn (degrees) of a unit,

@@ -500,6 +500,25 @@ def surface_badge(pos, tris, x, y, side, size):
     return out
 
 
+def cable_lines(lever_l, lever_r, throttle=None):
+    """The front brake hoses, clutch cable and throttle cable, from the levers (and the throttle's
+    housing on the right grip) to where they meet the fork, frame and engine. Tools/make_speedtwin_fit.py
+    re-routes them for fitted bars by moving their bar ends."""
+    lever_l, lever_r = np.asarray(lever_l, np.float64), np.asarray(lever_r, np.float64)
+    throttle = lever_r + [0.0, 0.0, 0.08] if throttle is None else np.asarray(throttle, np.float64)
+    lines = Mesh()
+    for z in (-0.085, 0.085):                 # front brake hoses, master cylinder to each caliper
+        cal = FRONT_AXLE + np.array([-0.06, 0.07, z])
+        lines.extend(tube(polyline([lever_r, lever_r + [0.06, -0.12, -0.12 - (0.0 if z > 0 else 0.06)],
+                                    FRONT_AXLE + FORK_DIR * 0.45 + FORK_BACK * -0.04 + [0, 0, z * 1.25],
+                                    FRONT_AXLE + FORK_DIR * 0.2 + FORK_BACK * -0.04 + [0, 0, z * 1.3], cal], 8), 0.004, 10))
+    lines.extend(tube(polyline([lever_l, lever_l + [0.05, -0.1, 0.05], (0.33, 0.33, -0.09), (0.2, 0.28, -0.17),
+                                (0.0, 0.15, -0.19)], 8), 0.0035, 10))     # clutch cable
+    lines.extend(tube(polyline([throttle, throttle + [0.05, -0.1, -0.08], (0.30, 0.35, 0.06),
+                                (0.0, 0.36, 0.08), (-0.07, 0.34, 0.1)], 8), 0.003, 10))   # throttle
+    return lines
+
+
 def build():
     P = {}   # name -> (mesh, finish, group)
 
@@ -556,7 +575,9 @@ def build():
                         axis=(math.cos(math.radians(ang)), math.sin(math.radians(ang)), 0), centre=c)
             calipers.extend(lug.masked(1.0))
     put("front_calipers", calipers, "black_engine", "front_lower")
-    a = np.linspace(math.radians(125), math.radians(30), 20)
+    # A short sports guard: its back end stops at 98 degrees so it clears the headlight at full
+    # compression (SimTest/fit_test).
+    a = np.linspace(math.radians(98), math.radians(30), 20)
     rg = 0.325
     guard_path = np.stack([rg * np.cos(a), rg * np.sin(a), np.zeros_like(a)], 1)
     put("front_mudguard", sweep(guard_path, 0.075, 0.006, 4.0, 20, caps=True, up_hint=(1, 0, 0)), "black_gloss", "front_lower")
@@ -571,7 +592,8 @@ def build():
     yokes = Mesh()
     for along in (0.47, 0.64):
         c = FRONT_AXLE + FORK_DIR * along + FORK_BACK * 0.015
-        yokes.extend(box(c, (0.07, 0.028, 0.25), 5.0).transformed())
+        # Square to the steering axis, so they turn in their own plane (and clear the tank at lock).
+        yokes.extend(box((0, 0, 0), (0.07, 0.028, 0.25), 5.0).transformed(rot_z(RAKE), c))
     put("yokes", yokes, "alu_cast", "steer")
     top = FRONT_AXLE + FORK_DIR * 0.66
     bar_clamp = top + np.array([-0.035, 0.04, 0.0])
@@ -595,7 +617,7 @@ def build():
     put("clock_body", lathe([(0.0, -0.035), (0.05, -0.035), (0.055, -0.01), (0.056, 0.02), (0.05, 0.025),
                              (0.0, 0.025)], seg=40, axis=clock_axis, centre=clock_c), "black_engine", "steer")
     put("clock_face", lathe([(0.0, 0.026), (0.047, 0.026)], seg=40, axis=clock_axis, centre=clock_c), "lens_clear", "steer")
-    hl_c = FRONT_AXLE + FORK_DIR * 0.53 + np.array([0.075, 0.0, 0.0])
+    hl_c = FRONT_AXLE + FORK_DIR * 0.56 + np.array([0.075, 0.0, 0.0])
     # Open at the front (the bezel's lip turns in to the reflector): an earlier version closed it
     # with a flat disc, which hid the lamp's insides and read as a pale plate.
     shell = lathe([(0.0, -0.06), (0.05, -0.058), (0.08, -0.03), (0.088, 0.0), (0.0895, 0.012), (0.091, 0.02),
@@ -819,39 +841,32 @@ def build():
         chain.extend(lathe([(0.0, -0.0045), (0.005, -0.0045), (0.005, 0.0045), (0.0, 0.0045)], seg=10, centre=p0))
     put("chain", chain, "chain", "swingarm")
     guard = Mesh()
-    guard.extend(sweep(np.linspace(front_sp + [0.02, 0.135, 0.0], rear_sp + [0.12, 0.125, 0.0], 8), 0.012, 0.004, 6.0, 16))
+    guard.extend(sweep(np.linspace(front_sp + [-0.07, 0.125, 0.0], rear_sp + [0.12, 0.125, 0.0], 8), 0.012, 0.004, 6.0, 16))
     put("chain_guard", guard, "black_gloss", "swingarm")
     # Hugger over the rear tyre, off the swingarm.
-    a = np.linspace(math.radians(30), math.radians(110), 16)
+    # Only the front of a hugger, behind the shocks: the photos show none over the tyre's top, where
+    # the rear frame leaves no room at full compression.
+    a = np.linspace(math.radians(30), math.radians(70), 16)
     hug = np.stack([rel[0] + 0.335 * np.cos(a), rel[1] + 0.335 * np.sin(a), np.zeros_like(a)], 1)
     put("hugger", sweep(hug, 0.085, 0.004, 4.0, 20, up_hint=(1, 0, 0)), "black_gloss", "swingarm")
 
-    # Radiator between the down tubes, low and ahead of the barrels.
+    # Radiator between the down tubes (behind their front faces, so the front tyre clears it at full
+    # compression: SimTest/fit_test), ahead of the barrels.
     rad = Mesh()
-    rc = np.array([0.405, 0.16, 0.0])
-    rad.extend(box(tuple(rc), (0.035, 0.2, 0.2), 8.0))
+    rc = np.array([0.345, 0.17, 0.0])
+    rad.extend(box(tuple(rc), (0.035, 0.2, 0.14), 8.0))
     for k in range(16):                       # the core's slats, seen through the frame
-        rad.extend(box((rc[0] + 0.019, rc[1] - 0.09 + k * 0.012, 0.0), (0.004, 0.0025, 0.18), 8.0, 12))
+        rad.extend(box((rc[0] + 0.019, rc[1] - 0.09 + k * 0.012, 0.0), (0.004, 0.0025, 0.125), 8.0, 12))
     R12 = rot_z(math.radians(-12))
     put("radiator", rad.transformed(R12, rc - R12 @ rc), "black_satin")
     hoses = Mesh()
     for s_ in (-1, 1):
-        hoses.extend(tube(polyline([(0.40, 0.255, s_ * 0.06), (0.34, 0.33, s_ * 0.06), (0.26, 0.37, s_ * 0.05)], 6), 0.011, 14))
-    hoses.extend(tube(polyline([(0.40, 0.07, 0.08), (0.35, 0.0, 0.14), (0.27, 0.02, 0.17)], 6), 0.011, 14))
+        hoses.extend(tube(polyline([(0.34, 0.265, s_ * 0.05), (0.31, 0.33, s_ * 0.05), (0.26, 0.37, s_ * 0.05)], 6), 0.011, 14))
+    hoses.extend(tube(polyline([(0.34, 0.08, 0.06), (0.32, 0.0, 0.14), (0.27, 0.02, 0.17)], 6), 0.011, 14))
     put("coolant_hoses", hoses, "rubber")
 
     # Cables and brake lines: they make a bike read as real.
-    lines = Mesh()
-    lever_l = bar_clamp_pt + np.array([0.02, 0.0, -0.22]); lever_r = bar_clamp_pt + np.array([0.02, 0.0, 0.22])
-    for z in (-0.085, 0.085):                 # front brake hoses, master cylinder to each caliper
-        cal = FRONT_AXLE + np.array([-0.06, 0.07, z])
-        lines.extend(tube(polyline([lever_r, lever_r + [0.06, -0.12, -0.12 - (0.0 if z > 0 else 0.06)],
-                                    FRONT_AXLE + FORK_DIR * 0.45 + FORK_BACK * -0.04 + [0, 0, z * 1.25],
-                                    FRONT_AXLE + FORK_DIR * 0.2 + FORK_BACK * -0.04 + [0, 0, z * 1.3], cal], 8), 0.004, 10))
-    lines.extend(tube(polyline([lever_l, lever_l + [0.05, -0.1, 0.05], (0.33, 0.33, -0.09), (0.2, 0.28, -0.17),
-                                (0.0, 0.15, -0.19)], 8), 0.0035, 10))     # clutch cable
-    lines.extend(tube(polyline([lever_r + [0.0, 0.0, 0.08], lever_r + [0.05, -0.1, 0.0], (0.30, 0.35, 0.06),
-                                (0.0, 0.36, 0.08), (-0.07, 0.34, 0.1)], 8), 0.003, 10))   # throttle
+    lines = cable_lines(bar_clamp_pt + np.array([0.02, 0.0, -0.22]), bar_clamp_pt + np.array([0.02, 0.0, 0.22]))
     put("cables", lines, "rubber", "steer")
     rear_line = tube(polyline([(-0.40, 0.12, 0.17), (-0.48, 0.10, 0.15), (-0.62, 0.05, 0.13), (-0.70, 0.02, 0.12)], 8), 0.004, 10)
     put("rear_brake_line", rear_line, "rubber")
@@ -871,7 +886,7 @@ def build():
     put("side_stand", tube(polyline([(-0.20, -0.08, -0.13), (-0.38, -0.12, -0.15), (-0.52, -0.13, -0.15)], 6), 0.012, 12)
         .extend(box((-0.53, -0.135, -0.15), (0.05, 0.01, 0.035), 4.0)), "black_satin")
     put("horn", lathe([(0.0, 0.0), (0.035, 0.0), (0.035, 0.02), (0.0, 0.025)], seg=24, axis=(1, 0, 0),
-                      centre=(0.45, 0.33, 0.0)), "black_satin")
+                      centre=(0.40, 0.42, 0.0)), "black_satin")
     return P
 
 
