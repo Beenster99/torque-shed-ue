@@ -1,6 +1,6 @@
 """Copies what the Godot game lays a bike out with into Data/Fitment/layout.json, for the fitting
-core's layout solver (Fit/BikeLayout): the 14 styles' eight lines (data/bike_lines.json), the tank
-and seat shapes BikeModel draws (TANK_SHAPES, SEAT_SHAPES), the slots and how much each says about a
+core's layout solver (Fit/BikeLayout): the 14 styles' eight lines (data/bike_lines.json), the tank,
+seat and tail cowl shapes BikeModel draws (TANK_SHAPES, SEAT_SHAPES, TAIL_COWLS), the slots and how much each says about a
 bike's style (PartsDB), and the 14 reference bikes, one per style, resolved to their parts exactly as
 Contracts.style_build resolves them (defaults, the style's own parts and engine, filler bits that
 suit it, and tyres that go on its wheels).
@@ -261,6 +261,7 @@ def main():
         "lines": lines.get("styles", lines),
         "tank_shapes": const(scripts["bike_model"], "TANK_SHAPES"),
         "seat_shapes": const(scripts["bike_model"], "SEAT_SHAPES"),
+        "tail_cowls": const(scripts["bike_model"], "TAIL_COWLS"),
         "retired": db.retired,
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

@@ -144,6 +144,13 @@ cost) or won't fit, and takes geometry mode's four range handles. Its data is
 reference bikes, one per style). `build/simtest/Release/layout_test` lays out all 14 and checks them
 as the Godot game's own rig tests do; `--dump` prints their datums.
 
+The Blender parts go on from those datums. `Fit/BikeBody` (a port of the Godot `RigBodywork`) fits
+the tank, seat and tail cowl: it works out each part's shape-key weights and the warp that bends it
+onto the bike's lines, and `Fit/PartMesh` reads the converted glb and `.morph.bin` and deforms it.
+`layout_test` checks the bodywork of all 14 as the Godot `rig_body_tests` do (the tank's tunnel on
+the backbone, its top under the style's line, the seat at its published height over the hip, and no
+gaps between tank, seat and tail).
+
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
 without crashing and within 3 m of the centre line (its run takes 234 s, leaning up to 32 degrees).
