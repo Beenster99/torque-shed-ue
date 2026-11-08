@@ -201,7 +201,8 @@ def materials():
         "black": flat("M_ShedRubber", (0.025, 0.025, 0.025), 0.9),
         "card": flat("M_ShedCardboard", (0.45, 0.32, 0.18), 0.9, grain=0.1),
         "door": flat("M_ShedDoor", (0.12, 0.22, 0.16), 0.55),          # a green-painted side door
-        "led": flat("M_ShedLed", (1.0, 0.97, 0.92), 0.5, emissive=40.0),
+        # The battens' opal diffusers: bright enough to read as lit, not a white block (round 1's 40 was).
+        "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
         "hill": flat("M_ShedFell", (0.20, 0.24, 0.12), 0.95, grain=0.25),
         "drystone": world_aligned("M_ShedDrystone", rock, 120.0, (0.9, 0.9, 0.88), ((0.38, 0.37, 0.34), 0.9)),
     }
@@ -344,7 +345,11 @@ def furniture(m):
 def leds(m):
     for i, x in enumerate((-300.0, 0.0, 300.0)):
         for j, y in enumerate((-170.0, 170.0)):
-            box("Batten_%d_%d" % (i, j), x - 6, x + 6, y - 75, y + 75, EAVES - 42, EAVES - 36, m["led"], folder="Lights", collide=False)
+            # A grey steel batten body hung on two chains from the beam, its diffuser underneath.
+            box("Batten_%d_%d" % (i, j), x - 6, x + 6, y - 76, y + 76, EAVES - 40, EAVES - 34, m["steel"], folder="Lights", collide=False)
+            box("Batten_%d_%d_Diffuser" % (i, j), x - 4, x + 4, y - 73, y + 73, EAVES - 42, EAVES - 40, m["led"], folder="Lights", collide=False)
+            for k, cy in enumerate((y - 60, y + 60)):
+                box("Batten_%d_%d_Chain%d" % (i, j, k), x - 0.6, x + 0.6, cy - 0.6, cy + 0.6, EAVES - 34, EAVES - 30, m["galv"], folder="Lights", collide=False)
             light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(x, y, EAVES - 43), unreal.Rotator(0.0, -90.0, 0.0))
             light.set_actor_label("LED_%d_%d" % (i, j))
             light.set_folder_path("Lights")

@@ -234,20 +234,35 @@ void ATorqueWalker::FindTarget()
 	if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && !(Hit.GetActor() && Hit.GetActor()->IsA<ATorqueShedBike>()))
 		Clear = Hit.Time + 0.02;   // a part lying on the bench top is just above what stopped the line
 
-	// Of the boxes the line goes into, the smallest: a silencer inside the frame's box wins.
-	double Best = TNumericLimits<double>::Max();
+	// Of the boxes the line goes into near where it first meets the bike (within 30 cm), a part
+	// that can be swapped wins over one that can't (the bars over the clocks in front of them),
+	// then the smallest box (a silencer inside the frame's box).
+	struct FHitBox { UStaticMeshComponent* C; ETorqueLook Kind; double Time, Volume; bool bSlot; };
+	TArray<FHitBox> Hits;
 	auto Consider = [&](UStaticMeshComponent* C, ETorqueLook Kind)
 	{
 		double Time = 0.0, Volume = 0.0;
-		if (!HitPartBox(C, Start, End, Time, Volume) || Time > Clear || Volume >= Best) return;
-		Best = Volume;
-		Target = Kind;
-		TargetMesh = C;
+		if (!HitPartBox(C, Start, End, Time, Volume) || Time > Clear) return;
+		Hits.Add({C, Kind, Time, Volume, !TorqueShedModel::SlotTag(C).IsNone()});
 	};
 	for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
 		for (UStaticMeshComponent* C : It->Parts) Consider(C, ETorqueLook::BikePart);
 	for (TActorIterator<ATorquePartsBench> It(World); It; ++It)
 		for (UStaticMeshComponent* C : It->Items) Consider(C, ETorqueLook::Spare);
+	double First = TNumericLimits<double>::Max();
+	for (const FHitBox& H : Hits) First = FMath::Min(First, H.Time);
+	const double Near = First + 30.0 / FMath::Max((double)Reach, 1.0);
+	const FHitBox* Pick = nullptr;
+	for (const FHitBox& H : Hits)
+	{
+		if (H.Time > Near) continue;
+		if (!Pick || (H.bSlot && !Pick->bSlot) || (H.bSlot == Pick->bSlot && H.Volume < Pick->Volume)) Pick = &H;
+	}
+	if (Pick)
+	{
+		Target = Pick->Kind;
+		TargetMesh = Pick->C;
+	}
 	if (UStaticMeshComponent* C = TargetMesh.Get())
 	{
 		TargetSlot = TorqueShedModel::SlotTag(C);

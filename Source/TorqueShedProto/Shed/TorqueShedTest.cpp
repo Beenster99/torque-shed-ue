@@ -136,11 +136,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (It->ActorHasTag(TEXT("RideOut"))) { Door = *It; break; }
 
 	// Aim at a bike part: from the side of the bike it's on, 130 cm out.
+	// Aim at a bike part: from the side of the bike it's on, 130 cm out, at a point part way out
+	// along it (the middle of a handlebar is behind the clocks; its ends, by the grips, aren't).
 	auto AimBike = [W, Bike](UStaticMeshComponent* C) -> FString
 	{
-		const FVector At = C->Bounds.Origin;
 		const FVector Right = Bike->GetActorRightVector();
-		const double Sign = FVector::DotProduct(At - Bike->GetActorLocation(), Right) < 0.0 ? -1.0 : 1.0;
+		const double Off = FVector::DotProduct(C->Bounds.Origin - Bike->GetActorLocation(), Right);
+		const double Sign = Off < -2.0 ? -1.0 : 1.0;
+		const double Half = FVector::DotProduct(C->Bounds.BoxExtent, Right.GetAbs());
+		const FVector At = C->Bounds.Origin + Right * Sign * 0.6 * Half;
 		return W->TestLookAt(At, Right * Sign, 130.0);
 	};
 	// Aim at the bench: from the room side, 100 cm out.
