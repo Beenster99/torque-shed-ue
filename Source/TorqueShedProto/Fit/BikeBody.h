@@ -63,6 +63,7 @@ struct Bodywork
 	std::string CowlKind;
 	V3 CowlT;
 	std::vector<LoftSection> CowlSecs;
+	double TankN = 2.4, TankBw = 1.0;   // the tank shape's "n" and "bw"
 	double SeatN = 3.0;   // the seat shape's superellipse power (its sections' "n")
 	// The tank's base line, front and back (BikeModel._tank_a, _tank_b: its flanks' bottom edge,
 	// what the airbox keeps under), Godot frame; equal when there's no tank.

@@ -110,6 +110,7 @@ private:
 	// The engine's ancillaries: spark plugs and coil, carbs or throttle bodies, air filter, oil
 	// filter, cooling and the gearbox's pieces (BikeModel._draw_spark_plugs to _blender_gearbox).
 	void Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
+	void TankTrim(const PartsMap& Parts, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	void SaddleTrim(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// The bars, their grips and the controls on them (the front master cylinder too), and the clutch and throttle cables
 	// (BikeModel._draw_handlebars, _bent_bar, _draw_controls and _draw_cables).

@@ -392,7 +392,7 @@ int main(int argc, char** argv)
 				if (P.Code)
 				{
 					// A shape Godot draws in code: no glb tag there, so it counts toward its slot's whole box
-					// and its own name's ("@" + slot + "/" + name).
+					// ("+" + slot) and its own name's ("@" + slot + "/" + name).
 					// (Godot's reference keeps the last mesh of a name in the slot, as here.)
 					const std::string Key = P.Name.empty() ? "" : "@" + P.Slot + "/" + P.Name;
 					if (!Key.empty()) Ours[Key] = Box();
@@ -400,7 +400,7 @@ int main(int argc, char** argv)
 					{
 						for (const V3& V : S.Pos)
 						{
-							Ours[P.Slot].Add(ToGodot(V));
+							Ours["+" + P.Slot].Add(ToGodot(V));
 							if (!Key.empty()) Ours[Key].Add(ToGodot(V));
 						}
 					}
@@ -414,6 +414,7 @@ int main(int argc, char** argv)
 					for (const V3& V : S.Pos)
 					{
 						Ours[Slot].Add(ToGodot(V));
+						Ours["+" + Slot].Add(ToGodot(V));
 						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
 						if (P.Glb.rfind("tail/cowl/", 0) == 0) Ours["tail cowl"].Add(ToGodot(V));
 						Tags[Slot][S.Material].Add(ToGodot(V));
@@ -510,8 +511,10 @@ int main(int argc, char** argv)
 				}
 			return Wrong;
 		};
-		// The slots whose every mesh, Blender or code-drawn, is ported: checked whole against Godot's.
-		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight", "indicators", "satnav", "front_caliper", "gearbox", "spark_plugs", "saddle", "tail"};
+		// Every slot is checked whole against Godot's (Blender and code meshes) but these, whose
+		// code-drawn pieces aren't all ported yet.
+		const std::set<std::string> NotWhole = {"frame", "toolbox", "aux_tank", "tank_bag"};
+		auto IsWhole = [&](const std::string& Slot) { return NotWhole.count(Slot) == 0; };
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
 		auto CodeCheck = [&](const std::map<std::string, Box>& Ours, const std::string& Slot, const Json* Gs, bool Whole) {
@@ -528,8 +531,10 @@ int main(int argc, char** argv)
 			}
 			if (Whole)
 			{
-				auto Mine = Ours.find(Slot);
-				const double D = Mine != Ours.end() ? Near(Mine->second, Gs) : 1e9;
+				// (A slot with nothing of ours to measure, such as one sitting the comparisons out, is left
+				// to the slot-by-slot check, which says when one is missing.)
+				auto Mine = Ours.find("+" + Slot);
+				const double D = Mine != Ours.end() ? Near(Mine->second, Gs) : 0.0;
 				if (D >= 5e-4)
 				{
 					char W[200] = "";
@@ -606,7 +611,7 @@ int main(int argc, char** argv)
 							if (!(Tags.count(Slot) && Tags[Slot].count(Tag))) Wrong += " " + Slot + "/" + Tag + " not placed";
 			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
 			std::string CodeWrong;
-			for (const auto& [Slot, Gs] : GSlots->O) CodeWrong += CodeCheck(Ours, Slot, &Gs, WholeSlots.count(Slot) > 0);
+			for (const auto& [Slot, Gs] : GSlots->O) CodeWrong += CodeCheck(Ours, Slot, &Gs, IsWhole(Slot));
 			Expect(CodeWrong.empty(), St + ": the swingarm whole and every code-drawn shape ported as Godot draws them" + CodeWrong);
 			const std::string CoverWrong = CoverCheck(Ours, G->Get("covered"));
 			Expect(CoverWrong.empty(), St + ": what a full fairing hides, and its service caps, as Godot" + CoverWrong);
@@ -632,7 +637,7 @@ int main(int argc, char** argv)
 			if (const Json* Gs = Sw.Get("slot"))
 			{
 				const std::string Swept = Key.substr(0, Key.find('/'));
-				Wrong += CodeCheck(Ours, Swept, Gs, WholeSlots.count(Swept) > 0);
+				Wrong += CodeCheck(Ours, Swept, Gs, IsWhole(Swept));
 			}
 			Wrong += CoverCheck(Ours, Sw.Get("covered"));
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
