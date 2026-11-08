@@ -7,6 +7,7 @@
 #include "Shed/TorqueShedSave.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
@@ -94,6 +95,47 @@ bool IsFitSlot(FName Slot)
 {
 	const FString S = Slot.ToString();
 	return S == TEXT("frame") || S == TEXT("engine") || S == TEXT("tank") || S == TEXT("fork");
+}
+// "exhaust, chain and 2 more" (shed_state _slot_list).
+FString SlotList(const TArray<FName>& Slots, int32 Most = 4)
+{
+	FString S;
+	for (int32 I = 0; I < Slots.Num() && I < Most; ++I)
+		S += (I ? TEXT(", ") : TEXT("")) + TorqueShedParts::SlotName(Slots[I]).ToLower();
+	if (Slots.Num() > Most) S += FString::Printf(TEXT(" and %d more"), Slots.Num() - Most);
+	return S;
+}
+
+// A dyno run on disk, and back.
+FTorqueShedSaveDynoRun ToSaveRun(const FTorqueDynoRun& R)
+{
+	FTorqueShedSaveDynoRun S;
+	S.N = R.N; S.Rpm = R.Rpm; S.Nm = R.Nm; S.Hp = R.Hp;
+	S.PeakHp = R.PeakHp; S.PeakHpRpm = R.PeakHpRpm; S.PeakNm = R.PeakNm; S.PeakNmRpm = R.PeakNmRpm;
+	S.Redline = R.Redline; S.IdleRpm = R.IdleRpm; S.Gears = R.Gears; S.Heat = R.Heat; S.TempC = R.TempC;
+	S.bFan = R.bFan; S.Mass = R.Mass;
+	return S;
+}
+
+FTorqueDynoRun FromSaveRun(const FTorqueShedSaveDynoRun& S)
+{
+	FTorqueDynoRun R;
+	R.N = S.N; R.Rpm = S.Rpm; R.Nm = S.Nm; R.Hp = S.Hp;
+	R.PeakHp = S.PeakHp; R.PeakHpRpm = S.PeakHpRpm; R.PeakNm = S.PeakNm; R.PeakNmRpm = S.PeakNmRpm;
+	R.Redline = S.Redline; R.IdleRpm = S.IdleRpm; R.Gears = S.Gears; R.Heat = S.Heat; R.TempC = S.TempC;
+	R.bFan = S.bFan; R.Mass = S.Mass;
+	R.Start = -1.0e9;   // long since played
+	return R;
+}
+
+// A dyno run in the shed's bytes (with the time it started, so a joiner sees it part-way).
+bool SerializeRun(FArchive& Ar, FTorqueDynoRun& R)
+{
+	uint8 bFan = R.bFan ? 1 : 0;
+	Ar << R.N << R.Start << R.Rpm << R.Nm << R.Hp << R.PeakHp << R.PeakHpRpm << R.PeakNm << R.PeakNmRpm
+		<< R.Redline << R.IdleRpm << R.Gears << R.Heat << R.TempC << bFan << R.Mass;
+	R.bFan = bFan != 0;
+	return !Ar.IsError() && R.Rpm.Num() <= 256 && R.Nm.Num() <= 256 && R.Hp.Num() <= 256;
 }
 } // namespace TorqueBuildImpl
 
@@ -183,8 +225,17 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.bRode = B.bRode;
 		To.FabOwed = B.FabOwed;
 		To.FabDone = B.FabDone;
+		To.bAway = B.bAway;
+		To.Xf = B.Xf;
+		To.DynoN = B.DynoN;
+		for (const FTorqueDynoRun& Run : B.DynoRuns) To.DynoRuns.Add(TBI::ToSaveRun(Run));
 		S.Bikes.Add(To);
 	}
+	S.DynoStraps.Reset();
+	for (bool B : Dyno.Straps) S.DynoStraps.Add(B);
+	S.bDynoFan = Dyno.bFan;
+	S.bDynoLights = Dyno.bLights;
+	S.DynoHeat = Dyno.Heat;
 	S.Items.Reset();
 	for (const TPair<int32, FTorqueItem>& KV : Items)
 	{
@@ -228,7 +279,17 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		To.bRode = From.bRode;
 		To.FabOwed = From.FabOwed;
 		To.FabDone = From.FabDone;
+		To.bAway = From.bAway;
+		To.Xf = From.Xf;
+		To.Pusher = 0;   // nobody's wheeling it when the shed opens
+		To.DynoN = From.DynoN;
+		for (const FTorqueShedSaveDynoRun& Run : From.DynoRuns) To.DynoRuns.Add(TBI::FromSaveRun(Run));
 	}
+	Dyno = FTorqueDynoRoom();
+	for (int32 I = 0; I < 4 && I < S.DynoStraps.Num(); ++I) Dyno.Straps[I] = S.DynoStraps[I];
+	Dyno.bFan = S.bDynoFan;
+	Dyno.bLights = S.bDynoLights;
+	Dyno.Heat = S.DynoHeat;
 	Items.Reset();
 	for (const FTorqueShedSaveItem& From : S.Items)
 	{
@@ -296,7 +357,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 2;   // bumped when the layout below changes (2: fabrication)
+constexpr int32 BytesLayout = 3;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno)
 
 struct FNameTable
 {
@@ -377,6 +438,26 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		TBI::WriteSlots(Ar, B.Slots, B.Bolted);
 		TArray<FString> Owed = B.FabOwed, Done = B.FabDone;
 		Ar << Owed << Done;
+		uint8 bAway = B.bAway ? 1 : 0;
+		FVector3f Where(B.Xf.GetLocation());
+		float Yaw = (float)B.Xf.Rotator().Yaw;
+		int32 Pusher = B.Pusher, DynoN = B.DynoN;
+		Ar << bAway << Where << Yaw << Pusher << DynoN;
+		uint8 Runs = (uint8)FMath::Min(B.DynoRuns.Num(), 2);
+		Ar << Runs;
+		for (int32 I = B.DynoRuns.Num() - Runs; I < B.DynoRuns.Num(); ++I)
+		{
+			FTorqueDynoRun Run = B.DynoRuns[I];
+			TBI::SerializeRun(Ar, Run);
+		}
+	}
+	{
+		// The dyno room's kit.
+		uint8 Straps = 0;
+		for (int32 I = 0; I < 4; ++I) Straps |= Dyno.Straps[I] ? (1 << I) : 0;
+		uint8 bFan = Dyno.bFan ? 1 : 0, bLights = Dyno.bLights ? 1 : 0;
+		float Heat = Dyno.Heat;
+		Ar << Straps << bFan << bLights << Heat;
 	}
 	int32 ItemCount = Items.Num();
 	Ar << ItemCount;
@@ -452,7 +533,28 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		if (!TBI::ReadSlots(Ar, B.Slots, B.Bolted, true)) return false;
 		Ar << B.FabOwed << B.FabDone;
 		if (Ar.IsError() || B.FabOwed.Num() > 64 || B.FabDone.Num() > 64) return false;
+		uint8 bAway = 0, Runs = 0;
+		FVector3f Where;
+		float Yaw = 0.0f;
+		Ar << bAway << Where << Yaw << B.Pusher << B.DynoN << Runs;
+		B.bAway = bAway != 0;
+		B.Xf = FTransform(FRotator(0.0, Yaw, 0.0), FVector(Where));
+		if (Runs > 2) return false;
+		for (int32 R = 0; R < Runs; ++R)
+		{
+			FTorqueDynoRun Run;
+			if (!TBI::SerializeRun(Ar, Run)) return false;
+			B.DynoRuns.Add(Run);
+		}
 		if (NewBikes.IsValidIndex(I)) NewBikes[I] = B;
+	}
+	FTorqueDynoRoom NewDyno;
+	{
+		uint8 Straps = 0, bFan = 0, bLights = 1;
+		Ar << Straps << bFan << bLights << NewDyno.Heat;
+		for (int32 I = 0; I < 4; ++I) NewDyno.Straps[I] = (Straps & (1 << I)) != 0;
+		NewDyno.bFan = bFan != 0;
+		NewDyno.bLights = bLights != 0;
 	}
 	int32 ItemCount = 0;
 	Ar << ItemCount;
@@ -499,6 +601,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	const FString LooseBefore = LooseSignature();
 	Bikes = MoveTemp(NewBikes);
 	Items = MoveTemp(NewItems);
+	Dyno = NewDyno;
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -911,6 +1014,69 @@ int32 UTorqueBuildSubsystem::BayOf(int32 ItemId) const
 	return INDEX_NONE;
 }
 
+// --- Wheeling bikes and the dyno room -------------------------------------------------------------
+
+FTransform UTorqueBuildSubsystem::HomeOf(int32 Bay)
+{
+	// The bays' bikes face the roller door (+y), as the level script stands them.
+	return FTransform(FRotator(0.0, 90.0, 0.0), TorqueShedLayout::BayAt(FMath::Clamp(Bay, 0, Bays - 1)));
+}
+
+FTransform UTorqueBuildSubsystem::BikeTransform(int32 Bay) const
+{
+	return IsAway(Bay) ? Bikes[Bay].Xf : HomeOf(Bay);
+}
+
+int32 UTorqueBuildSubsystem::PushedBy(int32 Peer) const
+{
+	if (Peer == 0) return INDEX_NONE;
+	for (int32 I = 0; I < Bikes.Num(); ++I)
+		if (Bikes[I].bExists && Bikes[I].Pusher == Peer) return I;
+	return INDEX_NONE;
+}
+
+FTransform UTorqueBuildSubsystem::RigTransform()
+{
+	// dyno_room.gd CENTER (0, 0, 55.6), facing the far wall: through the doorway behind bays 2 and 3.
+	return FTransform(FRotator(0.0, -90.0, 0.0), FVector(0.0, -940.0, 0.0));
+}
+
+FVector UTorqueBuildSubsystem::StrapPost(int32 Point)
+{
+	// STRAP_POSTS, in rig space (Godot x right, z back): front left, front right, rear left, rear right.
+	static const FVector2D Posts[4] = {FVector2D(-0.95, -0.6), FVector2D(0.95, -0.6), FVector2D(-0.95, 0.8), FVector2D(0.95, 0.8)};
+	const FVector2D P = Posts[FMath::Clamp(Point, 0, 3)];
+	// The rig faces -y: its right is -x, its back +y.
+	return RigTransform().GetLocation() + FVector(-P.X * 100.0, P.Y * 100.0, 0.0);
+}
+
+bool UTorqueBuildSubsystem::OnDyno(int32 Bay) const
+{
+	return IsAway(Bay) && FVector::Dist2D(Bikes[Bay].Xf.GetLocation(), RigTransform().GetLocation()) < 30.0;
+}
+
+int32 UTorqueBuildSubsystem::DynoBay() const
+{
+	for (int32 I = 0; I < Bikes.Num(); ++I)
+		if (OnDyno(I) && Bikes[I].Pusher == 0) return I;
+	return INDEX_NONE;
+}
+
+const FTorqueDynoRun& UTorqueBuildSubsystem::DynoRunOf(int32 Bay) const
+{
+	static const FTorqueDynoRun None;
+	return HasDynoRun(Bay) ? Bikes[Bay].DynoRuns.Last() : None;
+}
+
+double UTorqueBuildSubsystem::SharedNow() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	const UWorld* World = GI ? GI->GetWorld() : nullptr;
+	if (!World) return 0.0;
+	if (const AGameStateBase* GS = World->GetGameState()) return GS->GetServerWorldTimeSeconds();
+	return World->GetTimeSeconds();
+}
+
 int32 UTorqueBuildSubsystem::HeldBy(int32 Peer) const
 {
 	for (const TPair<int32, FTorqueItem>& KV : Items)
@@ -1280,6 +1446,50 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (Held != 0) return TEXT("Put the part down first.");
 		if (FabOwed(R.Bay).Num() == 0) return TEXT("It doesn't need any fabrication.");
 		return FString();
+	case ETorqueShedAct::GrabBike:
+	{
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		const FTorqueShedBike& B = Bikes[R.Bay];
+		if (B.Pusher != 0 && B.Pusher != Peer) return TEXT("Someone's already wheeling it.");
+		if (PushedBy(Peer) != INDEX_NONE) return TEXT("You're already wheeling a bike.");
+		if (Held != 0) return TEXT("Put down what you're holding first.");
+		// shed_state _wheel_check: it rolls on both wheels and tyres.
+		static const TCHAR* const Rolling[] = {TEXT("front_wheel"), TEXT("rear_wheel"), TEXT("front_tyre"), TEXT("rear_tyre")};
+		for (const TCHAR* Slot : Rolling)
+			if (ItemOn(R.Bay, FName(Slot)) == 0) return TEXT("It won't roll without both wheels and tyres.");
+		if (OnDyno(R.Bay) && Dyno.StrapsDone() > 0) return TEXT("Undo the straps first (hold the work button at each one).");
+		if (OnDyno(R.Bay) && SharedNow() < DynoBusyUntil) return TEXT("It's mid-run. Wait for it to finish.");
+		return FString();
+	}
+	case ETorqueShedAct::MoveBike:
+	case ETorqueShedAct::ReleaseBike:
+		if (!Exists(R.Bay) || Bikes[R.Bay].Pusher != Peer) return TEXT("You're not holding that bike.");
+		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("You can't put it there.");
+		return FString();
+	case ETorqueShedAct::DynoStrap:
+	{
+		const int32 On = DynoBay();
+		if (R.Item < 0 || R.Item >= 4) return TEXT("There's no strap there.");
+		if (On == INDEX_NONE) return TEXT("Wheel a bike onto the rig first.");
+		if (Bikes[On].Pusher != 0) return TEXT("Let go of the bike first.");
+		if (SharedNow() < DynoBusyUntil) return TEXT("It's mid-run. Wait for it to finish.");
+		return FString();
+	}
+	case ETorqueShedAct::DynoFan:
+	case ETorqueShedAct::DynoLights:
+		return FString();
+	case ETorqueShedAct::DynoRun:
+	{
+		if (!Exists(R.Bay) || !OnDyno(R.Bay)) return TEXT("Wheel a bike onto the dyno first.");
+		if (Bikes[R.Bay].Pusher != 0) return TEXT("Let go of it so it can be strapped down.");
+		if (SharedNow() < DynoBusyUntil) return TEXT("It's mid-run. Wait for it to finish.");
+		if (!Strapped()) return FString::Printf(TEXT("Strap it down first: %d of the 4 straps are done up."), Dyno.StrapsDone());
+		const TArray<FName> Missing = MissingSlots(R.Bay);
+		if (Missing.Num() > 0) return FString::Printf(TEXT("It won't run. Missing: %s."), *TBI::SlotList(Missing));
+		const TArray<FName> Loose = LooseSlots(R.Bay);
+		if (Loose.Num() > 0) return FString::Printf(TEXT("Bolt it up first: %s."), *TBI::SlotList(Loose));
+		return FString();
+	}
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -1565,6 +1775,77 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		const FString Left = FabOwedText(R.Bay);
 		Text = FString::Printf(TEXT("Made the %s. %s"), *What,
 			Left.IsEmpty() ? (IsComplete(R.Bay) ? TEXT("That's the fabrication done: the bike is ready to ride!") : TEXT("That's the fabrication done.")) : *FString::Printf(TEXT("Still to make: %s."), *Left));
+		break;
+	}
+	case ETorqueShedAct::GrabBike:
+	{
+		FTorqueShedBike& B = Bikes[R.Bay];
+		if (!B.bAway) B.Xf = HomeOf(R.Bay);
+		B.bAway = true;
+		B.Pusher = Peer;
+		Text = FString::Printf(TEXT("Got hold of %s. F to let go."), *B.Name);
+		break;
+	}
+	case ETorqueShedAct::MoveBike:
+		Bikes[R.Bay].Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), FVector(R.Place.GetLocation().X, R.Place.GetLocation().Y, 0.0));
+		break;
+	case ETorqueShedAct::ReleaseBike:
+	{
+		// shed_state _park: back into its bay, square on the dyno's drum, or on its stand where it is.
+		FTorqueShedBike& B = Bikes[R.Bay];
+		B.Pusher = 0;
+		const FVector At(R.Place.GetLocation().X, R.Place.GetLocation().Y, 0.0);
+		B.Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), At);
+		const int32 OnRig = DynoBay();
+		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0)
+		{
+			B.bAway = false;
+			B.Xf = HomeOf(R.Bay);
+			Text = FString::Printf(TEXT("%s is on the paddock stand in bay %d"), *B.Name, R.Bay + 1);
+		}
+		else if (FVector::Dist2D(At, RigTransform().GetLocation()) < 100.0 && (OnRig == INDEX_NONE || OnRig == R.Bay))
+		{
+			B.Xf = RigTransform();
+			for (bool& Strap : Dyno.Straps) Strap = false;
+			Text = FString::Printf(TEXT("%s is on the dyno. Strap it down at the four posts (hold the work button), then run it at the desk."), *B.Name);
+		}
+		else Text = FString::Printf(TEXT("%s is on its stand."), *B.Name);
+		break;
+	}
+	case ETorqueShedAct::DynoStrap:
+	{
+		bool& Strap = Dyno.Straps[R.Item];
+		Strap = !Strap;
+		if (Dyno.StrapsDone() == 4) Text = FString::Printf(TEXT("Strapped down: %s is ready for a run."), *Bikes[DynoBay()].Name);
+		else Text = FString::Printf(Strap ? TEXT("Strap done up (%d of 4)") : TEXT("Strap undone (%d of 4 done up)"), Dyno.StrapsDone());
+		break;
+	}
+	case ETorqueShedAct::DynoFan:
+		Dyno.bFan = !Dyno.bFan;
+		Text = Dyno.bFan ? TEXT("Cooling fan on") : TEXT("Cooling fan off");
+		break;
+	case ETorqueShedAct::DynoLights:
+		Dyno.bLights = !Dyno.bLights;
+		Text = Dyno.bLights ? TEXT("Dyno room lights on") : TEXT("Dyno room lights off");
+		break;
+	case ETorqueShedAct::DynoRun:
+	{
+		FTorqueShedBike& B = Bikes[R.Bay];
+		FTorqueDynoRun Run = TorqueShedPower::DynoRun(NumbersOf(R.Bay));
+		// Heat: hotter every run, far hotter without the fan, and a hot engine fades over the sweep.
+		Dyno.Heat = FMath::Clamp(Dyno.Heat + (Dyno.bFan ? TorqueShedPower::FanHeat : TorqueShedPower::NoFanHeat), 0.0f, 1.0f);
+		TorqueShedPower::HeatRun(Run, Dyno.Heat);
+		Run.bFan = Dyno.bFan;
+		if (!Dyno.bFan && Dyno.Heat > 0.6f)
+			if (FTorqueItem* Block = Items.Find(ItemOn(R.Bay, FName(TEXT("engine"))))) Block->Wear = FMath::Min(1.0f, Block->Wear + 0.004f);
+		B.DynoN += 1;
+		Run.N = B.DynoN;
+		Run.Start = SharedNow();
+		B.DynoRuns.Add(Run);
+		while (B.DynoRuns.Num() > 2) B.DynoRuns.RemoveAt(0);
+		DynoBusyUntil = Run.Start + TorqueShedPower::RunTime(Run);
+		Text = FString::Printf(TEXT("Dyno run %d on %s..."), B.DynoN, *B.Name);
+		if (!Dyno.bFan && Dyno.Heat > 0.5f) Text += TEXT(" It's running hot: switch the fan on.");
 		break;
 	}
 	default:

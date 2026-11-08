@@ -39,6 +39,11 @@ bool IsPart(FName Part);              // the catalogue has it, or it's one of th
 FName PartKind(FName Part);
 FString PartName(FName Part);
 FString PartDescription(FName Part);
+// A number from the part's parts.json entry ("mass", "torque_mult"; an array's length as
+// "<field>_count"), or Default (a Speed Twin part, or a field it hasn't got).
+double PartNumber(FName Part, FName Field, double Default);
+// The field's mean over every part of the kind (a Speed Twin part's mass), or Default.
+double KindAverage(FName Kind, FName Field, double Default);
 FLinearColor DefaultColour(FName Part);
 // The catalogue's parts of a kind, in its order.
 TArray<FName> PartsOfKind(FName Kind);

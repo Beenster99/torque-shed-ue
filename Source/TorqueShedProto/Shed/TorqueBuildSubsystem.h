@@ -21,6 +21,7 @@
 #include "Containers/Ticker.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Shed/TorqueFitApi.h"
+#include "Shed/TorqueShedPower.h"
 #include "TorqueBuildSubsystem.generated.h"
 
 class APawn;
@@ -68,6 +69,25 @@ struct FTorqueShedBike
 	// Fabrication (shed_state fab_owed / fab_done): jobs a part fitted here needs made before the
 	// bike rides ("engine mounts made for a V-twin"), and those made already.
 	TArray<FString> FabOwed, FabDone;
+	// Wheeled out of its bay (shed_state's bike "xf" and "pusher"): where it stands (world cm, on
+	// the dyno rig or on its stand somewhere), and who's wheeling it now (0: no one).
+	bool bAway = false;
+	FTransform Xf;
+	int32 Pusher = 0;
+	// Its last two dyno runs (the latest last), and how many it's had.
+	TArray<FTorqueDynoRun> DynoRuns;
+	int32 DynoN = 0;
+};
+
+// The dyno room's kit (shed_state's dyno): the rig's four straps, the cooling fan, the lights,
+// and how hot the engine on the rig has got from run after run (it fades without the fan).
+struct FTorqueDynoRoom
+{
+	bool Straps[4] = {false, false, false, false};
+	bool bFan = false;
+	bool bLights = true;
+	float Heat = 0.0f;
+	int32 StrapsDone() const { int32 N = 0; for (bool B : Straps) N += B ? 1 : 0; return N; }
 };
 
 // What a player asks of the shed (shed_state's actions).
@@ -89,6 +109,13 @@ enum class ETorqueShedAct : uint8
 	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer")
 	RodeOut,                             // bay Bay's bike was ridden out
 	Fabricate,                           // the grinder and welder make bay Bay's next owed job
+	GrabBike,                            // take hold of bay Bay's bike to wheel it about (hold F)
+	MoveBike,                            // ... wheeling it: it's at Place now
+	ReleaseBike,                         // ... let go at Place: into its bay, onto the dyno rig, or on its stand
+	DynoStrap,                           // strap Item (0 .. 3) on the dyno rig done up or undone
+	DynoFan,                             // the dyno room's cooling fan on or off
+	DynoLights,                          // its lights on or off
+	DynoRun,                             // a run on the dyno for the bike on the rig (Bay)
 	Count
 };
 
@@ -160,6 +187,27 @@ public:
 	bool LayoutParts(int32 Bay, TMap<FString, FString>& Out) const;
 	// The bay a fitted item is on (through its engine), or INDEX_NONE.
 	int32 BayOf(int32 ItemId) const;
+
+	// --- Wheeling bikes and the dyno room (shed_state's bike xf, pusher and dyno) ----------
+	// Where a bay's bike stands: its bay's paddock stand, or wherever it was wheeled to.
+	static FTransform HomeOf(int32 Bay);
+	FTransform BikeTransform(int32 Bay) const;
+	bool IsAway(int32 Bay) const { return Exists(Bay) && Bikes[Bay].bAway; }
+	// The bay whose bike Peer is wheeling, or INDEX_NONE.
+	int32 PushedBy(int32 Peer) const;
+	// The dyno rig (dyno_room.gd rig_transform: on the drum, nose to the far wall), its strap posts.
+	static FTransform RigTransform();
+	static FVector StrapPost(int32 Point);
+	bool OnDyno(int32 Bay) const;
+	int32 DynoBay() const;   // the bike on the rig (not being wheeled), or INDEX_NONE
+	bool Strapped() const { return DynoBay() != INDEX_NONE && Dyno.StrapsDone() == 4; }
+	const FTorqueDynoRoom& DynoRoom() const { return Dyno; }
+	bool HasDynoRun(int32 Bay) const { return Exists(Bay) && Bikes[Bay].DynoRuns.Num() > 0; }
+	const FTorqueDynoRun& DynoRunOf(int32 Bay) const;
+	// The game's clock everyone shares (the server's world time), that runs are played back by.
+	double SharedNow() const;
+	// The bike's numbers, as Torque Shed works them out (power, torque, mass).
+	FTorqueEngineNumbers NumbersOf(int32 Bay) const { return TorqueShedPower::Numbers(*this, Bay); }
 
 	// --- The items ---------------------------------------------------------------------------
 	const FTorqueItem* Item(int32 Id) const { return Items.Find(Id); }
@@ -246,6 +294,8 @@ public:
 
 private:
 	TArray<FTorqueShedBike> Bikes;
+	FTorqueDynoRoom Dyno;
+	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;
 	TArray<FTorqueBuild> Builds;     // per bay, for drawing
 	int32 NextId = 1;
