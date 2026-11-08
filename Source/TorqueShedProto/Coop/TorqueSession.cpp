@@ -3,6 +3,9 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "GameFramework/GameModeBase.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/PlatformProcess.h"
 #include "IPAddress.h"
 #include "Kismet/GameplayStatics.h"
@@ -106,6 +109,26 @@ void UTorqueSession::RideSolo()
 {
 	Status.Reset();
 	LeaveSession();
+	// The menu is already over the map the ride starts on: no need to load it again, just swap the
+	// menu's camera for the bike (or the walker).
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	if (World && World->GetNetMode() == NM_Standalone &&
+		UWorld::RemovePIEPrefix(World->GetMapName()) == FPackageName::GetShortName(FirstMap()))
+	{
+		AGameModeBase* Mode = World->GetAuthGameMode();
+		APlayerController* PC = World->GetFirstPlayerController();
+		if (Mode && PC)
+		{
+			Mode->OptionsString += TEXT("?play");   // so the game mode stops choosing the menu
+			if (APawn* Old = PC->GetPawn())
+			{
+				PC->UnPossess();
+				Old->Destroy();
+			}
+			Mode->RestartPlayer(PC);
+			return;
+		}
+	}
 	Travel(FirstMap() + TEXT("?play") + NameOption());
 }
 

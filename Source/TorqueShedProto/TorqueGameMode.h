@@ -1,3 +1,5 @@
+// The game's rules on every map: who you are (the start menu, on foot in the shed, or on the bike),
+// and co-op's comings and goings. The host's game runs it; joined riders' games don't have one.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -11,7 +13,16 @@ class ATorqueGameMode : public AGameModeBase
 public:
 	ATorqueGameMode();
 	virtual void BeginPlay() override;
-	// In the shed (an ATorqueShedBike in the level) you're on foot; on the road, on the bike.
-	// Co-op's game mode replaces this with its own choice per map.
+	// The start menu when the game is launched plainly; in the shed (the shed map, or an
+	// ATorqueShedBike in the level) on foot; on the road, the bike.
 	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+	// Co-op riders' names (the TorqueName option the start menu puts on the address).
+	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
+		const FString& Options, const FString& Portal = TEXT("")) override;
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+	virtual void Logout(AController* Exiting) override;
+
+	// Launched with no "play" option on the map, alone, and with none of the -Torque test switches.
+	bool ShowsMenu() const;
+	bool IsShed() const;
 };

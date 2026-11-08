@@ -61,6 +61,7 @@ void UTorqueNetBikeComponent::BeginPlay()
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueNetHz="), Hz)) SendHz = FMath::Clamp(Hz, 5.f, 120.f);
 	float DelayMs = 100.f;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueNetDelayMs="), DelayMs)) Smooth.Delay = FMath::Clamp(DelayMs, 20.f, 400.f) / 1000.0;
+	Smooth.MaxDelay = FMath::Max(Smooth.MaxDelay, Smooth.Delay);
 
 	// The host gives each new bike the lowest start slot nobody else has.
 	AActor* MyOwner = GetOwner();
@@ -285,11 +286,11 @@ void UTorqueNetBikeComponent::AfterTick(float DeltaSeconds)
 	StatClock += DeltaSeconds;
 	if (StatClock < 1.0) return;
 	const TorqueNet::SmootherStats& St = Smooth.Stats;
-	TxHz = SentInSecond / StatClock;
-	RxHz = (St.Received - RxAtLast) / StatClock;
+	TxHz = (float)(SentInSecond / StatClock);
+	RxHz = (float)((St.Received - RxAtLast) / StatClock);
 	const int64 Frames = St.Frames - FramesAtLast;
-	ExtrapPct = Frames > 0 ? 100.f * (St.Extrapolated - ExtrapAtLast) / Frames : 0.f;
-	const float HeldPct = Frames > 0 ? 100.f * (St.Held - HeldAtLast) / Frames : 0.f;
+	ExtrapPct = Frames > 0 ? (float)(100.0 * (St.Extrapolated - ExtrapAtLast) / Frames) : 0.f;
+	const float HeldPct = Frames > 0 ? (float)(100.0 * (St.Held - HeldAtLast) / Frames) : 0.f;
 	RxAtLast = St.Received;
 	FramesAtLast = St.Frames;
 	ExtrapAtLast = St.Extrapolated;
