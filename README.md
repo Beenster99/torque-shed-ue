@@ -120,7 +120,8 @@ build/simtest/Release/sim_test Data/Buttertubs
 
 `build/simtest/Release/fit_test` (run from the repository) assembles the Speed Twin from its
 sockets, checks the model against the physics' datums, runs the clearance checks, tries every
-alternative part and exercises geometry mode. To try a swap in the game without the shed, start it
+alternative part and exercises geometry mode; `fit_test --pairs` also fits every two alternatives
+from different slots together and fails if they clash (about a minute). To try a swap in the game without the shed, start it
 with `-TorqueBuild=handlebars:clubman_bar,exhaust:peashooter_twins`.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,

@@ -557,18 +557,18 @@ def screens(fit, cat):
 # --- Luggage rack (over the tail) ------------------------------------------------------------------
 
 def rack_mesh():
-    """A chrome tube rack behind the seat: a flat loop with cross bars, its sides sweeping down and
-    forward outside the seat to the rails, and two legs down to the frame's rear loop."""
+    """A chrome tube rack behind the seat (clear of the longest seats, which end at x -0.77): a flat
+    loop with cross bars, front legs down to the rails' ends and rear legs braced forward to them."""
     y = 0.585
-    loop = st.polyline([(-0.70, y, -0.11), (-0.97, y, -0.11), (-0.99, y, -0.07), (-0.99, y, 0.07), (-0.97, y, 0.11),
-                        (-0.70, y, 0.11)], 6)
+    loop = st.polyline([(-0.79, y, -0.11), (-0.97, y, -0.11), (-0.99, y, -0.07), (-0.99, y, 0.07), (-0.97, y, 0.11),
+                        (-0.79, y, 0.11)], 6)
     m = st.tube(loop, 0.0085, 12)
-    for x in (-0.76, -0.83, -0.90):
+    for x in (-0.79, -0.86, -0.93):
         m.extend(st.tube(np.array([(x, y, -0.11), (x, y, 0.11)]), 0.006, 10))
     prox_paths = [loop]
     for s in (-1, 1):
-        side = st.polyline([(-0.70, y, s * 0.11), (-0.64, y - 0.02, s * 0.155), (-0.58, 0.50, s * 0.16), (-0.56, 0.47, s * 0.11)], 6)
-        leg = np.array([(-0.92, y, s * 0.11), (-0.80, 0.47, s * 0.10)])
+        side = st.polyline([(-0.79, y, s * 0.11), (-0.79, 0.52, s * 0.105), (-0.778, 0.482, s * 0.094)], 6)   # outside a guard's valance
+        leg = np.array([(-0.92, y, s * 0.112), (-0.80, 0.47, s * 0.108)])
         m.extend(st.tube(side, 0.0085, 12)).extend(st.tube(leg, 0.007, 10))
         prox_paths += [side, leg]
     return m, prox_paths
@@ -585,7 +585,7 @@ def racks(fit, cat):
                 {"opt_rack_chrome": (m, "chrome", "body")}))
     # The crate: slatted boards on the same rack.
     crate = st.Mesh()
-    cx, cy, w, d, h = -0.845, 0.585 + 0.0085, 0.25, 0.30, 0.2
+    cx, cy, w, d, h = -0.885, 0.585 + 0.0085, 0.25, 0.22, 0.2
     for k in range(4):   # side slats, a gap between each
         yy = cy + 0.012 + k * (h / 4)
         for s in (-1, 1):
@@ -855,6 +855,9 @@ def dashboards(fit, cat):
 
 # --- Spotlights (clamped to the fork tubes under the lower yoke, steer group) -------------------------
 
+FOG_OFF = (0.10, -0.03, 0.06)
+
+
 def fog_lights(fit, cat):
     out = []
     for oid, r, body_f, lens_f, tag in (("halogen_spots", 0.045, "chrome", "lens_clear", "spots"),
@@ -865,7 +868,7 @@ def fog_lights(fit, cat):
             t = FA + st.FORK_DIR * 0.432 + [0.0, 0.0, sg * 0.095]
             clamp.extend(st.lathe([(0.03, -0.008), (0.035, -0.007), (0.035, 0.007), (0.03, 0.008)], seg=24, axis=st.FORK_DIR,
                                   centre=t))
-            L = t + np.array([0.085, -0.025, sg * 0.08])
+            L = t + np.array([FOG_OFF[0], FOG_OFF[1], sg * FOG_OFF[2]])
             arm = np.array([t + [0.025, -0.004, sg * 0.022], L + [-0.045, -0.006, -sg * 0.01], L + [-0.03, 0.0, 0.0]])
             clamp.extend(st.tube(st.polyline(arm, 4), 0.006, 10))
             body.extend(st.lathe([(0.0, -0.045), (r * 0.6, -0.042), (r * 0.95, -0.015), (r, 0.01), (r * 1.03, 0.016),
@@ -940,22 +943,22 @@ def panniers(fit, cat):
 
 # --- Tool roll (strapped across the tail, behind the seat) -------------------------------------------------
 
-TOOL_C = np.array([-0.845, 0.556, 0.0])
+TOOL_C = np.array([-0.845, 0.546, 0.0])   # under a rack, if one's fitted
 
 
 def toolboxes(fit, cat):
-    roll = st.lathe([(0.0, -0.1), (0.028, -0.1), (0.032, -0.09), (0.033, 0.0), (0.032, 0.09), (0.028, 0.1), (0.0, 0.1)], seg=28,
+    roll = st.lathe([(0.0, -0.08), (0.023, -0.08), (0.026, -0.072), (0.027, 0.0), (0.026, 0.072), (0.023, 0.08), (0.0, 0.08)], seg=28,
                     axis=(0, 0, 1), centre=TOOL_C)
     straps = st.Mesh()
-    for zz in (-0.055, 0.055):
-        straps.extend(st.lathe([(0.0335, -0.007), (0.0345, -0.006), (0.0345, 0.006), (0.0335, 0.007)], seg=28, axis=(0, 0, 1),
+    for zz in (-0.045, 0.045):
+        straps.extend(st.lathe([(0.0275, -0.007), (0.0285, -0.006), (0.0285, 0.006), (0.0275, 0.007)], seg=28, axis=(0, 0, 1),
                                centre=TOOL_C + [0, 0, zz]))
         sg = 1.0 if zz > 0 else -1.0
-        straps.extend(st.tube(np.array([TOOL_C + [0.02, -0.028, zz], [-0.80, 0.505, sg * 0.068], [-0.79, 0.49, sg * 0.07]]), 0.005, 8))
+        straps.extend(st.tube(np.array([TOOL_C + [0.016, -0.022, zz], [-0.80, 0.505, sg * 0.068], [-0.79, 0.49, sg * 0.07]]), 0.005, 8))
     return [("toolbox", "tool_roll_pouch", cat["toolbox"]["tool_roll_pouch"]["name"], ["toolbox", "tool_roll_pouch"],
              [{"id": "toolbox", "group": "body", "meshes": ["opt_toolroll", "opt_toolroll_straps"], "slot": "toolbox",
                "mount": {"to": "frame.lugs", "type": "bracket"}, "sockets": {},
-               "proxies": [fit.capsule(TOOL_C + [0, 0, -0.1], TOOL_C + [0, 0, 0.1], 0.034)]}],
+               "proxies": [fit.capsule(TOOL_C + [0, 0, -0.08], TOOL_C + [0, 0, 0.08], 0.028)]}],
              {"opt_toolroll": (roll, "leather_brown", "body"), "opt_toolroll_straps": (straps, "leather_tan", "body")})]
 
 
