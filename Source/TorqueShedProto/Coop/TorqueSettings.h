@@ -26,6 +26,7 @@ struct FTorqueSettings
 
 	// Gameplay.
 	float Realism = 0.6f;       // riding realism: 0 full sim .. 1 easy (Torque Shed's slider)
+	bool bOpenRouter = true;    // hosting asks the router to open the port (UPnP), as Torque Shed always did
 	static FString RealismWord(float V);
 	static FString RealismText(float V);
 

@@ -6,7 +6,8 @@
 //
 // 1. Search: a UDP multicast to 239.255.255.250:1900; routers answer with a LOCATION header.
 // 2. Fetch that XML description, find the WANIPConnection (or WANPPPConnection) service's control URL.
-// 3. SOAP calls to it: AddPortMapping, GetExternalIPAddress, DeletePortMapping when hosting ends.
+// 3. SOAP calls to it: AddPortMapping (with a lease, renewed while hosting), GetExternalIPAddress,
+//    DeletePortMapping when hosting ends; and at start-up, one of ours left by a crash is removed.
 #pragma once
 
 #include <cctype>
@@ -148,14 +149,30 @@ inline std::string SoapAction(const std::string& ServiceType, const std::string&
 	return "\"" + ServiceType + "#" + Action + "\"";
 }
 
-inline std::string AddPortMapping(const std::string& ServiceType, int Port, const std::string& LocalIp, const std::string& What)
+// LeaseSeconds: how long the router keeps it (renewed while hosting), so a game that crashes can't
+// leave the port open for ever. 0 is "until removed", for routers that only take that (error 725).
+inline std::string AddPortMapping(const std::string& ServiceType, int Port, const std::string& LocalIp, const std::string& What,
+	int LeaseSeconds = 7200)
 {
 	const std::string P = std::to_string(Port);
 	return Envelope(ServiceType, "AddPortMapping",
 		"<NewRemoteHost></NewRemoteHost><NewExternalPort>" + P + "</NewExternalPort><NewProtocol>UDP</NewProtocol>"
 		"<NewInternalPort>" + P + "</NewInternalPort><NewInternalClient>" + LocalIp + "</NewInternalClient>"
 		"<NewEnabled>1</NewEnabled><NewPortMappingDescription>" + What + "</NewPortMappingDescription>"
-		"<NewLeaseDuration>0</NewLeaseDuration>");
+		"<NewLeaseDuration>" + std::to_string(LeaseSeconds) + "</NewLeaseDuration>");
+}
+
+// Asks what the router has on that port (to find one of ours left behind).
+inline std::string GetSpecificPortMappingEntry(const std::string& ServiceType, int Port)
+{
+	return Envelope(ServiceType, "GetSpecificPortMappingEntry",
+		"<NewRemoteHost></NewRemoteHost><NewExternalPort>" + std::to_string(Port) + "</NewExternalPort><NewProtocol>UDP</NewProtocol>");
+}
+
+// Whether a GetSpecificPortMappingEntry answer is our own mapping to this PC.
+inline bool IsOurMapping(const std::string& Reply, const std::string& LocalIp, const std::string& What)
+{
+	return TagText(Reply, "NewInternalClient") == LocalIp && TagText(Reply, "NewPortMappingDescription") == What;
 }
 
 inline std::string DeletePortMapping(const std::string& ServiceType, int Port)

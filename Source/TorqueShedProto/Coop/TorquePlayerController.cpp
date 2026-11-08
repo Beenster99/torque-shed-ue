@@ -340,6 +340,9 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				S.Realism = StepF(S.Realism, D, 0.05f, 0.0f, 1.0f);
 				if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn())) Bike->Assist = S.Realism;
 			});
+		Setting(TEXT("Open my router for internet friends"), OnOff(S.bOpenRouter),
+			TEXT("Hosting asks your router to open UDP port 7777 (UPnP), and closes it again after; off: forward it by hand"),
+			[&S](int32) { S.bOpenRouter = !S.bOpenRouter; });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Controller:

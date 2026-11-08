@@ -70,6 +70,16 @@ int main()
 	std::string Code;
 	Check(IsFault(Fault, &Code) && Code == "718", "fault and its code");
 
+	Check(Add.find("<NewLeaseDuration>7200</NewLeaseDuration>") != std::string::npos, "a two hour lease by default");
+	Check(AddPortMapping("x", 7777, "1.2.3.4", "T", 0).find("<NewLeaseDuration>0</NewLeaseDuration>") != std::string::npos,
+		"lease 0 for routers that want it");
+	const std::string Entry = R"(<s:Envelope><s:Body><u:GetSpecificPortMappingEntryResponse><NewInternalPort>7777</NewInternalPort>
+<NewInternalClient>192.168.1.20</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>Torque Shed</NewPortMappingDescription>
+<NewLeaseDuration>0</NewLeaseDuration></u:GetSpecificPortMappingEntryResponse></s:Body></s:Envelope>)";
+	Check(IsOurMapping(Entry, "192.168.1.20", "Torque Shed"), "our mapping left behind is recognised");
+	Check(!IsOurMapping(Entry, "192.168.1.21", "Torque Shed"), "another PC's isn't ours");
+	Check(GetSpecificPortMappingEntry("x", 7777).find("<NewExternalPort>7777</NewExternalPort>") != std::string::npos, "entry query");
+
 	std::printf("Addresses\n");
 	Check(IsPrivate("192.168.1.20") && IsPrivate("10.1.2.3") && IsPrivate("172.20.0.1") && IsPrivate("127.0.0.1"), "private ones");
 	Check(IsPrivate("100.70.1.2"), "carrier-grade NAT counts as private");

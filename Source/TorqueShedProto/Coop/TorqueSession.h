@@ -90,6 +90,8 @@ public:
 	// the internet. Empty when not hosting.
 	TArray<FString> JoinInstructions() const;
 	bool IsHosting() const;
+	// Launched with a -Torque test switch (not a player's game).
+	static bool IsTestRun();
 	// The address a friend over the internet types ("" until known).
 	FString InternetAddress() const;
 	// The last address joined (kept in Saved/Config, GameUserSettings).
@@ -127,4 +129,7 @@ private:
 	void OnTravelFailure(UWorld* World, ETravelFailure::Type Failure, const FString& Error);
 	void Travel(const FString& Url);
 	FString NameOption() const;
+	// Whether hosting may ask the router to open the port: never on test runs or in the editor,
+	// and only with Settings > Gameplay > "Open my router for internet friends" on.
+	bool ShouldOpenRouter(FString& WhyNot) const;
 };

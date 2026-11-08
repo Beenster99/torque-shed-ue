@@ -54,6 +54,8 @@ void UTorqueSession::Initialize(FSubsystemCollectionBase& Collection)
 		if (Addr->IsValid()) LocalAddr = Addr->ToString(false);
 	}
 	Router = MakeShared<FTorqueRouter>();
+	// A port mapping left on the router by a game that was killed while hosting: take it off.
+	if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueNoUpnp"))) Router->CleanUpLeftover(LocalAddr);
 }
 
 void UTorqueSession::Deinitialize()
@@ -69,7 +71,7 @@ void UTorqueSession::Deinitialize()
 		Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindHandle);
 		Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinHandle);
 	}
-	if (Router) Router->Close();
+	if (Router) Router->Close(true);   // the game is closing: wait (briefly) for the router
 	Router.Reset();
 	Super::Deinitialize();
 }
@@ -258,7 +260,12 @@ void UTorqueSession::AdvertiseHostedGame()
 	S.bUseLobbiesIfAvailable = false;
 	S.Set(HostKey, PlayerName(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 	// Friends over the internet: ask the router to open the port (UPnP), as Torque Shed does.
-	if (Router) Router->Open(GamePort(), LocalAddr);
+	if (Router)
+	{
+		FString WhyNot;
+		if (ShouldOpenRouter(WhyNot)) Router->Open(GamePort(), LocalAddr);
+		else Router->Skip(WhyNot);
+	}
 	if (HasEos())
 	{
 		TWeakObjectPtr<UTorqueSession> Self(this);
@@ -298,6 +305,30 @@ void UTorqueSession::BackToTitle()
 	// The host leaving ends the ride: the others are told the host has gone and go to their menus.
 	LeaveSession();
 	Travel(FirstMap());   // no "play": the start menu
+}
+
+bool UTorqueSession::IsTestRun()
+{
+	// Any -Torque switch but the ones a player might use (a name, screen messages, the net log).
+	const TCHAR* Cmd = FCommandLine::Get();
+	FString Token;
+	while (FParse::Token(Cmd, Token, false))
+	{
+		if (!Token.StartsWith(TEXT("-Torque"))) continue;
+		if (Token.StartsWith(TEXT("-TorqueName")) || Token.StartsWith(TEXT("-TorqueScreenMessages")) || Token.StartsWith(TEXT("-TorqueNetLog")))
+			continue;
+		return true;
+	}
+	return false;
+}
+
+bool UTorqueSession::ShouldOpenRouter(FString& WhyNot) const
+{
+	if (FParse::Param(FCommandLine::Get(), TEXT("TorqueNoUpnp"))) WhyNot = TEXT("-TorqueNoUpnp");
+	else if (IsTestRun()) WhyNot = TEXT("a test run");
+	else if (!FTorqueSettings::Get().bOpenRouter) WhyNot = TEXT("Settings > Gameplay has it off");
+	else if (GetGameInstance() && GetGameInstance()->GetWorld() && GetGameInstance()->GetWorld()->IsPlayInEditor()) WhyNot = TEXT("playing in the editor");
+	return WhyNot.IsEmpty();
 }
 
 int32 UTorqueSession::GamePort()
@@ -363,7 +394,11 @@ TArray<FString> UTorqueSession::JoinInstructions() const
 			Home.IsEmpty() ? TEXT("this PC") : *Home[0], Public.IsEmpty() ? TEXT("your public address") : *Public,
 			Public.IsEmpty() ? TEXT("") : *PortText));
 		break;
-	default: break;
+	default:
+		if (Router && !Router->Problem().IsEmpty())
+			Lines.Add(FString::Printf(TEXT("Not opening your router's port (%s): for friends over the internet, forward UDP port %d to %s by hand."),
+				*Router->Problem(), Port, Home.IsEmpty() ? TEXT("this PC") : *Home[0]));
+		break;
 	}
 	if (!FriendCode.IsEmpty()) Lines.Add(FString::Printf(TEXT("Or anywhere, with the friend code:  %s"), *FriendCode));
 	return Lines;

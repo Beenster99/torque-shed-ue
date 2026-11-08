@@ -47,6 +47,7 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("Engine"), Engine, Ini);
 	GConfig->GetFloat(Section, TEXT("Ambience"), Ambience, Ini);
 	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
+	GConfig->GetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
 	GConfig->GetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	GConfig->GetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->GetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);
@@ -79,6 +80,7 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("Engine"), Engine, Ini);
 	GConfig->SetFloat(Section, TEXT("Ambience"), Ambience, Ini);
 	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
+	GConfig->SetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
 	GConfig->SetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	GConfig->SetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->SetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);
