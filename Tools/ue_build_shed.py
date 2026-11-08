@@ -449,12 +449,27 @@ def sky():
     ppv.set_editor_property("settings", pp)
 
 
+def fresh_level():
+    """Replace MAP with a new empty level. The editor may have MAP open (the shed is the start-up
+    map), so first move to a blank unsaved world, then delete the old map, then make the new one.
+    Any step that fails raises, so the run reports a failure instead of 'built' over the old map."""
+    blank = unreal.EditorLoadingAndSavingUtils.new_blank_map(False)
+    if not blank:
+        raise RuntimeError("couldn't open a blank map to leave %s" % MAP)
+    for old in (MAP, "/Game/Shed/Scratch"):   # Scratch: left over from round 1's way of doing this
+        if unreal.EditorAssetLibrary.does_asset_exist(old) and not unreal.EditorAssetLibrary.delete_asset(old):
+            raise RuntimeError("couldn't delete the old %s (still open or referenced?)" % old)
+    if not levels.new_level(MAP):
+        raise RuntimeError("couldn't make the new level %s" % MAP)
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    if not world or world.get_path_name().split(".")[0] != MAP:
+        raise RuntimeError("the open level is %s, not %s" % (world.get_path_name() if world else None, MAP))
+    log("new level %s" % MAP)
+
+
 def build():
     m = materials()
-    if unreal.EditorAssetLibrary.does_asset_exist(MAP):
-        levels.new_level("/Game/Shed/Scratch")
-        unreal.EditorAssetLibrary.delete_asset(MAP)
-    levels.new_level(MAP)
+    fresh_level()
 
     # Floor: the slab runs under the walls and out of the door.
     box("Floor", -HALF_X - WALL, HALF_X + WALL, -HALF_Y - WALL, HALF_Y + WALL, -12, 0, m["concrete"], folder="Walls")
@@ -510,7 +525,10 @@ def build():
     v.set_editor_property("tags", [unreal.Name("MenuView")])
     actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(start[0], start[1], 100.0), unreal.Rotator(0.0, 0.0, yaw))
 
-    levels.save_current_level()
+    if not levels.save_current_level():
+        raise RuntimeError("couldn't save %s" % MAP)
+    if not unreal.EditorAssetLibrary.does_asset_exist(MAP):
+        raise RuntimeError("%s isn't on disk after saving" % MAP)
     # Say what the saved level holds for the game's own lookups (tags), so a run's log shows it.
     for a in actors.get_all_level_actors():
         tags = [str(t) for t in a.get_editor_property("tags")]
