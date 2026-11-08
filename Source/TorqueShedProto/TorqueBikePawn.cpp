@@ -3,6 +3,7 @@
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueFlow.h"
 
 #include "BikeSim.h"
@@ -272,6 +273,7 @@ FVector ModelDirToLocal(const FVector& D) { return FVector(D.X, D.Z, D.Y).GetSaf
 
 void ATorqueBikePawn::BuildModel()
 {
+	if (BuildCatalogueModel()) return;
 	// The level script imports the parts and writes where they are, with the importer's frame.
 	TSharedPtr<FJsonObject> Assets, Spec;
 	if (!LoadJson(TEXT("Data/Bike/SpeedTwin/ue_assets.json"), Assets) ||
@@ -402,6 +404,44 @@ void ATorqueBikePawn::BuildModel()
 		for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
 		UE_LOG(LogTemp, Log, TEXT("Torque: Speed Twin model, %d parts"), Made);
 	}
+}
+
+// A bike of catalogue parts (any of Torque Shed's styles, built in the shed) rides out drawn as
+// the shed draws it (TorqueShedCatalogue::MakeBike), not as the Speed Twin. It's drawn whole on the
+// body for now: its wheels don't spin or steer (bHaveModel stays false, so the rider and the
+// wheels keep the shapes' pivots), and it rides on the Speed Twin's physics. -TorqueBuild= on the
+// command line always means the Speed Twin.
+bool ATorqueBikePawn::BuildCatalogueModel()
+{
+	if (FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) != nullptr) return false;
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B) return false;
+	const int32 Bay = UTorqueBuildSubsystem::BikeFor(this);
+	if (Bay < 0) return false;
+	TMap<FString, FString> Parts;
+	if (!B->LayoutParts(Bay, Parts)) return false;
+	// The catalogue bike's origin is at its own rear axle's height; the Speed Twin's (which the
+	// physics and the body here are set up for) is at 31 cm. Lift or drop it to sit on the ground.
+	static constexpr double SpeedTwinAxleCm = 31.0;
+	USceneComponent* Holder = NewObject<USceneComponent>(this, TEXT("CatalogueRoot"));
+	Holder->SetupAttachment(Root);
+	Holder->RegisterComponent();
+	double AxleHeight = SpeedTwinAxleCm;
+	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight);
+	if (Drawn <= 0)
+	{
+		Holder->DestroyComponent();
+		UE_LOG(LogTemp, Warning, TEXT("Torque: bay %d's catalogue bike drew nothing; riding the Speed Twin"), Bay + 1);
+		return false;
+	}
+	Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
+	TorqueShedModel::ApplyLooks(this, ModelParts);
+	for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm; physics spec SpeedTwin1200"),
+			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight);
+	}
+	return true;
 }
 
 void ATorqueBikePawn::LoadRoute()

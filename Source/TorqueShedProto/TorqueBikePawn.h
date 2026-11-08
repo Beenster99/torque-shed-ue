@@ -192,6 +192,7 @@ private:
 	void UpdateSound(float Dt);
 	void LoadRoute();
 	void BuildModel();
+	bool BuildCatalogueModel();   // true if the bike is all catalogue parts and was drawn so
 	// SideM: metres to the right of the line (co-op start slots).
 	void Respawn(int32 LineIndex, double SideM = 0.0);
 	void Remount();                   // the thrown-off rider back on the bike
