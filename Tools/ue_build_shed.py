@@ -8,7 +8,9 @@ x = 100 gx, y = 100 (gz - 65), z = 100 gy.
 In the editor: Tools > Execute Python Script... and pick this file, or start the editor with
 -ExecutePythonScript=Tools/ue_build_shed.py. Run Tools/ue_build_level.py first (it imports the
 Speed Twin and writes Data/Bike/SpeedTwin/ue_assets.json, which the shed's bikes draw from, and the
-Megascans/ambientCG textures this reuses). Safe to run again: it rebuilds the map from scratch.
+Megascans/ambientCG textures this reuses), and python Tools/fetch_textures.py for the shed's own
+scanned surfaces (the shed_ roles: floor, plaster, cladding, roof, steel, timber, the paint shop's
+walls, the yard; any not there stay plain colours). Safe to run again: it rebuilds the map from scratch.
 
 What it makes (Unreal cm: x east, y south (towards the roller door), z up; the floor at z 0):
   - the shed: 13 x 11 m inside (x -650..650, y -550..550), 4.5 m to the roof, steel-clad walls
@@ -31,6 +33,7 @@ What it makes (Unreal cm: x east, y south (towards the roller door), z up; the f
   - a point tagged RideOut in the door and a player start where Torque Shed puts walkers.
 The game mode spawns the walker (ATorqueWalker) in any map with an ATorqueShedBike in it.
 """
+import json
 import math
 import os
 
@@ -233,6 +236,124 @@ def world_aligned(name, maps, size_cm, tint=(1.0, 1.0, 1.0), fallback=None):
         return plain()
 
 
+SHED_TEX = "/Game/Shed/Textures"
+
+
+def shed_scans():
+    """The shed's scanned surfaces (the shed_ roles in Data/Textures/textures.json): a Megascans
+    surface already in the project (the role's 'ue' block) first, else the ambientCG scan that
+    Tools/fetch_textures.py downloaded, imported here (its OpenGL normal's green flipped).
+    {role: (role spec, {map: Texture2D})} for those there are; the rest stay plain colours."""
+    root = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Textures")
+    try:
+        spec = json.load(open(os.path.join(root, "textures.json")))
+    except Exception as e:
+        unreal.log_warning("[Torque] no Data/Textures/textures.json (%s): the shed stays in plain colours" % e)
+        return {}
+    out = {}
+    for role, r in spec["roles"].items():
+        if not role.startswith("shed_"):
+            continue
+        if "ue" in r:
+            maps = {k: unreal.load_asset(v) for k, v in r["ue"].items()}
+            maps = {k: v for k, v in maps.items() if isinstance(v, unreal.Texture)}
+            if "color" in maps:
+                out[role] = (r, maps)
+                continue
+        folder = os.path.join(root, r["id"])
+        if not os.path.exists(os.path.join(folder, "color.jpg")):
+            unreal.log_warning("[Torque] shed texture %s (%s) not downloaded: python Tools/fetch_textures.py" % (r["id"], role))
+            continue
+        maps = {}
+        for name in ("color", "normal", "rough"):
+            f = os.path.join(folder, name + ".jpg")
+            if not os.path.exists(f):
+                continue
+            dest = "%s/%s" % (SHED_TEX, r["id"])
+            t = unreal.AssetImportTask()
+            t.set_editor_property("filename", f)
+            t.set_editor_property("destination_path", dest)
+            t.set_editor_property("destination_name", "T_%s_%s" % (r["id"], name))
+            t.set_editor_property("automated", True)
+            t.set_editor_property("replace_existing", True)
+            t.set_editor_property("save", False)
+            asset_tools.import_asset_tasks([t])
+            tex = unreal.load_asset("%s/T_%s_%s" % (dest, r["id"], name))
+            if not tex:
+                unreal.log_warning("[Torque] couldn't import " + f)
+                continue
+            if name != "color":
+                tex.set_editor_property("srgb", False)
+            if name == "normal":
+                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+                try_set(tex, "flip_green_channel", True)   # ambientCG's normals are OpenGL's
+            unreal.EditorAssetLibrary.save_loaded_asset(tex)
+            maps[name] = tex
+        if "color" in maps:
+            out[role] = (r, maps)
+    log("shed scans: " + (", ".join("%s=%s" % (k, v[0]["id"]) for k, v in out.items()) or "none (plain colours)"))
+    return out
+
+
+def scanned(scans, role, name, rgb, rough, metallic=0.0, grain=0.06):
+    """A shed surface from its scan, projected from the world's three axes (the basic shapes' UVs
+    stretch), tinted so the scan's mean colour comes out as Torque Shed's rgb and its roughness
+    scaled to Torque Shed's rough. Without the scan (or if the nodes don't connect): flat()."""
+    if role not in scans:
+        return flat(name, rgb, rough, metallic=metallic, grain=grain)
+    r, maps = scans[role]
+    mean = r.get("mean", [0.5, 0.5, 0.5])
+    tint = [rgb[i] / max(mean[i], 0.01) for i in range(3)]
+    rough_k = rough / max(r.get("rough_mean", 0.5), 0.05)
+    size_cm = r.get("tile_m", 1.0) * 100.0
+    try:
+        m = new_material(name)
+        ok = [True]
+
+        def link(a, a_out, b, b_in):
+            ok[0] = bool(mel.connect_material_expressions(a, a_out, b, b_in)) and ok[0]
+
+        def project(tex, y, fn_path):
+            obj = expr(m, unreal.MaterialExpressionTextureObject, -1300, y, texture=tex)
+            call = expr(m, unreal.MaterialExpressionMaterialFunctionCall, -1000, y)
+            call.set_editor_property("material_function", unreal.load_asset(fn_path))
+            size = expr(m, unreal.MaterialExpressionConstant3Vector, -1300, y + 120, constant=unreal.LinearColor(size_cm, size_cm, size_cm, 1.0))
+            link(obj, "", call, "TextureObject")
+            link(size, "", call, "TextureSize")
+            return call
+
+        c = project(maps["color"], 0, WAT)
+        t = expr(m, unreal.MaterialExpressionConstant3Vector, -1000, -150, constant=unreal.LinearColor(tint[0], tint[1], tint[2], 1.0))
+        mul = expr(m, unreal.MaterialExpressionMultiply, -600, 0)
+        link(c, "XYZ Texture", mul, "A")
+        link(t, "", mul, "B")
+        mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        if "rough" in maps:
+            rr = project(maps["rough"], 300, WAT)
+            mask = expr(m, unreal.MaterialExpressionComponentMask, -700, 300, r=True, g=False, b=False, a=False)
+            link(rr, "XYZ Texture", mask, "")
+            k = expr(m, unreal.MaterialExpressionConstant, -700, 420, r=rough_k)
+            rmul = expr(m, unreal.MaterialExpressionMultiply, -450, 300)
+            link(mask, "", rmul, "A")
+            link(k, "", rmul, "B")
+            sat = expr(m, unreal.MaterialExpressionSaturate, -300, 300)
+            link(rmul, "", sat, "")
+            mel.connect_material_property(sat, "", unreal.MaterialProperty.MP_ROUGHNESS)
+        else:
+            mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -600, 300, r=rough), "", unreal.MaterialProperty.MP_ROUGHNESS)
+        if "normal" in maps:
+            n = project(maps["normal"], 600, WAN)
+            mel.connect_material_property(n, "XYZ Texture", unreal.MaterialProperty.MP_NORMAL)
+        if metallic:
+            mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -600, 800, r=metallic), "", unreal.MaterialProperty.MP_METALLIC)
+        if not ok[0]:
+            raise RuntimeError("nodes didn't connect")
+        return finish(m)
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: the scan didn't build (%s); a plain colour instead" % (name, e))
+        return flat(name, rgb, rough, metallic=metallic, grain=grain)
+
+
 def megascans(folder, name, kinds=("BaseColor", "Roughness", "Normal")):
     base = "/Game/Fab/Megascans/Surfaces/%s/%s_2K_" % (folder, folder)
     return {"color": [base + kinds[0]], "rough": [base + kinds[1]], "normal": [base + kinds[2]]}
@@ -247,17 +368,18 @@ def materials():
     rock = megascans("Layered_Rock_vl0fdhdo", "rock")
     grass = megascans("Wet_Grass_Ground_sjzkdjba", "grass")
     tarmac = megascans("Asphalt_Road_tigkfb3o", "asphalt")
+    scans = shed_scans()   # the photoreal pass: scanned surfaces in Torque Shed's colours
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
-        "cladding": flat("M_ShedCladding", (0.30, 0.33, 0.36), 0.45, metallic=0.7, grain=0.06),
-        "roof": flat("M_ShedRoof", (0.25, 0.27, 0.29), 0.5, metallic=0.6),
-        "floor": flat("M_ShedEpoxy", (0.36, 0.37, 0.38), 0.3, grain=0.06),
-        "wall_in": flat("M_ShedPlaster", (0.78, 0.76, 0.72), 0.85, grain=0.06),
-        "wall_low": flat("M_ShedWallBand", (0.20, 0.24, 0.27), 0.6),
-        "steel": flat("M_ShedSteel", (0.30, 0.32, 0.35), 0.35, metallic=0.85),
+        "cladding": scanned(scans, "shed_cladding", "M_ShedCladding", (0.30, 0.33, 0.36), 0.45, metallic=0.7, grain=0.06),
+        "roof": scanned(scans, "shed_roof", "M_ShedRoof", (0.25, 0.27, 0.29), 0.5, metallic=0.6, grain=0.0),
+        "floor": scanned(scans, "shed_floor", "M_ShedEpoxy", (0.36, 0.37, 0.38), 0.3, grain=0.06),
+        "wall_in": scanned(scans, "shed_plaster", "M_ShedPlaster", (0.78, 0.76, 0.72), 0.85, grain=0.06),
+        "wall_low": scanned(scans, "shed_plaster", "M_ShedWallBand", (0.20, 0.24, 0.27), 0.6, grain=0.0),
+        "steel": scanned(scans, "shed_steel", "M_ShedSteel", (0.30, 0.32, 0.35), 0.35, metallic=0.85, grain=0.0),
         "stand": flat("M_ShedStandOrange", (0.85, 0.35, 0.05), 0.4, metallic=0.5),
-        "wood": flat("M_ShedTimber", (0.50, 0.36, 0.22), 0.7, grain=0.08),
+        "wood": scanned(scans, "shed_timber", "M_ShedTimber", (0.50, 0.36, 0.22), 0.7, grain=0.08),
         "yellow": flat("M_ShedYellow", (0.95, 0.75, 0.05), 0.5),
         "dark": flat("M_ShedDark", (0.06, 0.06, 0.07), 0.5, metallic=0.3),
         "blue": flat("M_ShedBlue", (0.10, 0.30, 0.65), 0.35, metallic=0.6),
@@ -270,7 +392,7 @@ def materials():
         "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
         # The paint shop (workshop.gd _build_booth_room, equipment_view.gd _build_booth): white walls,
         # a dark ceiling for the hexagon LED tiles, the spray bay's panels, filter, grate and rails.
-        "paint_wall": flat("M_PaintShopWall", (0.90, 0.91, 0.92), 0.35),
+        "paint_wall": scanned(scans, "shed_paint_wall", "M_PaintShopWall", (0.90, 0.91, 0.92), 0.35, grain=0.0),
         "paint_ceiling": flat("M_PaintShopCeiling", (0.08, 0.08, 0.09), 0.6, metallic=0.2),
         "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=8.0),
         "booth_panel": flat("M_BoothPanel", (0.88, 0.89, 0.90), 0.55, metallic=0.1),
@@ -278,7 +400,7 @@ def materials():
         "booth_grate": flat("M_BoothGrate", (0.20, 0.21, 0.23), 0.4, metallic=0.8),
         "chrome": flat("M_ShedChrome", (0.88, 0.89, 0.92), 0.15, metallic=0.95),
         # Outside: the yard, the lane and the Dales round it.
-        "concrete": flat("M_ShedConcrete", (0.36, 0.35, 0.33), 0.82, grain=0.18),
+        "concrete": scanned(scans, "shed_yard", "M_ShedConcrete", (0.36, 0.35, 0.33), 0.82, grain=0.18),
         "grass": world_aligned("M_ShedField", grass, 300.0, (1.0, 1.0, 1.0), ((0.17, 0.26, 0.08), 0.95)),
         "tarmac": world_aligned("M_ShedLane", tarmac, 250.0, (1.0, 1.0, 1.0), ((0.09, 0.09, 0.09), 0.8)),
         "hill": flat("M_ShedFell", (0.20, 0.24, 0.12), 0.95, grain=0.25),
