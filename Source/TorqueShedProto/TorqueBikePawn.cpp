@@ -1006,8 +1006,8 @@ void ATorqueBikePawn::UpdateRider()
 		In.FootDownR = FVector(-32.0, 36.0, -22.0);
 		// The head turns toward where the corner goes (the apex) and stays nearer level than the bike.
 		// Unreal: + yaw looks right, + roll drops the right side.
-		const double Lean = FMath::Clamp(BodyLean, -55.0, 55.0);
-		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + 0.45 * Lean, -0.45 * Lean);
+		const double HeadLean = FMath::Clamp(BodyLean, -55.0, 55.0);
+		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + 0.45 * HeadLean, -0.45 * HeadLean);
 		// Right hand: the throttle, and the front brake lever under two fingers.
 		In.Throttle = Throttle;
 		if (bThrown)
