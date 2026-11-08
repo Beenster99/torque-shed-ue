@@ -1,6 +1,8 @@
 // The player on foot in the shed, in first person (after Torque Shed's walker.gd): walk round the
-// bike on its stand, look at a part and swap it, pick a spare off the parts bench and fit it, and
-// ride out of the roller door. Keys: WASD and the mouse, Shift to hurry, Space to hop, E to fit or
+// bikes in the bays, look at a part on any of them and swap it, wash it or paint it, pick a spare
+// off a bay's table or the parts store and fit it, and ride your bike out of the roller door. The
+// bay you last worked on (or pressed F at) is your bike: the store fits to it and you ride it.
+// What you're doing goes to the others in a co-op shed (UTorqueBuildSubsystem::ReportActivity). Keys: WASD and the mouse, Shift to hurry, Space to hop, E to fit or
 // swap, F to ride out, H for help, Esc to quit. A DualSense (read directly, as on the bike) or an
 // Xbox pad: sticks, L3 to hurry, Cross/A to fit or swap, Triangle/Y to ride out, Circle/B to hop.
 // It's a stock Character, so co-op can replicate its movement as it is.
@@ -56,6 +58,7 @@ public:
 private:
 	// What the walker is looking at.
 	ETorqueLook Target = ETorqueLook::None;
+	int32 TargetBike = INDEX_NONE;               // the bay it belongs to (a bike's part, a table's spare)
 	FName TargetSlot, TargetPart, TargetModelPart;
 	TWeakObjectPtr<UStaticMeshComponent> TargetMesh;
 	FVector TargetPoint = FVector::ZeroVector;   // where the look meets the target's box
@@ -92,6 +95,7 @@ private:
 	// The option E will fit in each slot, chosen with Q/R, the mouse wheel or the D-pad while
 	// looking at the slot's part (the next one after what's fitted until you choose).
 	TMap<FName, FName> Chosen;
+	int32 ChosenBike = INDEX_NONE;    // the bay Chosen is for (it starts again on another bike)
 	FName ChosenFor(FName Slot) const;
 	void Choose(int32 Step);
 
@@ -99,5 +103,10 @@ private:
 	void FindTarget();
 	void Use();
 	void StartRideOut();
+	// Tell the others what you're doing; it lapses after a few seconds without anything new.
+	void Doing(const FString& What, double For = 4.0);
+	double DoingFor = 0.0;
+	// This bay becomes your bike.
+	void Mine(int32 Bike);
 	void UpdateHud();
 };

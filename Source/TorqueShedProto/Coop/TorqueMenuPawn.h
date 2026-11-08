@@ -1,4 +1,6 @@
-// The start menu: Ride solo, Host a co-op ride, Join by address, rides found on this network, Quit.
+// The start menu, as Torque Shed's title: Your name, Open the shed (solo), Host a co-op shed, Join
+// (an address or a host name), rides found on this network, Settings (ATorquePlayerController's
+// pages), Exit game.
 // A slow camera over wherever the game starts (the shed, or the top of Buttertubs) with the menu
 // drawn by ATorqueHUD. Keys, an Xbox pad or a PlayStation pad (read directly, as on the bike).
 //
@@ -32,7 +34,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Menu") UCameraComponent* Camera;
 
 private:
-	enum class EItem : uint8 { Solo, Host, Join, Code, Lan, Search, Quit };
+	enum class EItem : uint8 { Name, Solo, Host, Join, Code, Lan, Search, Settings, Quit };
 	struct FEntry
 	{
 		EItem Kind = EItem::Solo;
@@ -46,7 +48,8 @@ private:
 
 	TUniquePtr<FSonyPad> Pad;
 	uint32 PrevButtons = 0;
-	int32 Selected = 0;
+	int32 Selected = 1;          // on "Open the shed"
+	bool bNameTyped = false;
 	FString Address;            // being typed for Join
 	FString Code;               // a friend code being typed (EOS)
 	FString Busy;               // "Loading the road..." once something is chosen

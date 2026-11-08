@@ -3,6 +3,8 @@
 #include "TorqueHUD.h"
 #include "Coop/TorqueGameState.h"
 #include "Coop/TorqueMenuPawn.h"
+#include "Coop/TorquePlayerController.h"
+#include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueSession.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueWalker.h"
@@ -21,6 +23,8 @@ ATorqueGameMode::ATorqueGameMode()
 	DefaultPawnClass = ATorqueBikePawn::StaticClass();
 	HUDClass = ATorqueHUD::StaticClass();
 	GameStateClass = ATorqueGameState::StaticClass();
+	PlayerControllerClass = ATorquePlayerController::StaticClass();   // the pause and settings menus
+	PlayerStateClass = ATorquePlayerState::StaticClass();             // colour, activity, bay
 	// Co-op: the host moving between the shed and the road takes everyone with them, still connected.
 	bUseSeamlessTravel = true;
 }

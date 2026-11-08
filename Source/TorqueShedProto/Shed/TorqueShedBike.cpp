@@ -91,6 +91,11 @@ FString PartLabel(FName Part) { return Part.ToString().Replace(TEXT("_"), TEXT("
 
 void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts)
 {
+	ApplyLooks(WorldContext, UTorqueBuildSubsystem::BikeFor(WorldContext), Parts);
+}
+
+void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts)
+{
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
 	for (UStaticMeshComponent* C : Parts)
 	{
@@ -100,9 +105,9 @@ void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;
 		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime.
-		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Part) : 0.0f);
+		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Bike, Part) : 0.0f);
 		FLinearColor Paint;
-		if (B && B->PaintOf(Part, Paint))
+		if (B && B->PaintOf(Bike, Part, Paint))
 		{
 			M->SetVectorParameterValue(TEXT("Color"), Paint);
 			M->SetVectorParameterValue(TEXT("Color2"), Paint);
@@ -237,18 +242,18 @@ void ATorqueShedBike::BeginPlay()
 	Rebuild();
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
 	{
-		Watch = B->OnChanged.AddUObject(this, &ATorqueShedBike::Rebuild);
-		WatchLooks = B->OnLooks.AddUObject(this, &ATorqueShedBike::Relook);
-		// Back from a ride: the bike comes in dirtier.
+		Watch = B->OnChanged.AddUObject(this, &ATorqueShedBike::BikeChanged);
+		WatchLooks = B->OnLooks.AddUObject(this, &ATorqueShedBike::LooksChanged);
+		// Back from a ride: the bike comes in dirtier (the host's to do; clients hear it from the host).
 		TArray<FName> Names;
 		for (const UStaticMeshComponent* C : Parts) Names.Add(TorqueShedModel::PartTag(C));
-		B->Arrived(Names);
+		B->Arrived(Bay, Names);
 	}
 }
 
 void ATorqueShedBike::Relook()
 {
-	TorqueShedModel::ApplyLooks(this, Parts);
+	TorqueShedModel::ApplyLooks(this, Bay, Parts);
 }
 
 void ATorqueShedBike::EndPlay(const EEndPlayReason::Type Reason)
@@ -271,10 +276,17 @@ void ATorqueShedBike::Rebuild()
 	for (UStaticMeshComponent* C : Parts)
 		if (C) C->DestroyComponent();
 	Parts.Reset();
-	const int32 Made = TorqueShedModel::MakeParts(this, BikeRoot, UTorqueBuildSubsystem::BuildFor(this), NAME_None, Parts);
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (B && !B->Exists(Bay))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: bay %d is empty"), Bay + 1);   // just the stand
+		return;
+	}
+	const FTorqueBuild& Build = B ? B->Get(Bay) : UTorqueBuildSubsystem::BuildFor(this);
+	const int32 Made = TorqueShedModel::MakeParts(this, BikeRoot, Build, NAME_None, Parts);
 	if (Made == 0) BuildGreyBox();
 	Relook();
-	UE_LOG(LogTemp, Log, TEXT("Torque: shed bike drawn with %d parts"), Parts.Num());
+	UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %s drawn with %d parts"), Bay + 1, *Build.Bike.ToString(), Parts.Num());
 }
 
 void ATorqueShedBike::BuildGreyBox()

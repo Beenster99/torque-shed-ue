@@ -10,9 +10,10 @@ What it makes (Unreal cm: x east, y south, z up; the floor at z 0):
     stone-slate roof (eaves 3.4 m, ridge 5.2 m along x) with crow-stepped gables, three tie beams;
   - a 4 m wide, 3 m high roller door in the south wall (rolled up), a side door, five small windows;
   - a concrete floor running out onto the forecourt, a lane, fields, drystone walls and far fells;
-  - inside: the Speed Twin on a rear paddock stand (ATorqueShedBike) facing the door, the workbench
-    along the north wall with its pegboard and vice and the parts bench (ATorquePartsBench) on its top
-    (the last few parts taken off), the parts store (ATorquePartsStore, every spare by slot) north-east,
+  - inside: four bike bays across the shed (ATorqueShedBike, Bay 0-3), noses to the door, each with
+    its lines and number on the floor and a parts table behind (ATorquePartsBench: the last few parts
+    taken off that bike); the workbench along the north wall with its pegboard and vice; the parts
+    store (ATorquePartsStore, every spare by slot) north-east,
     parts shelving on the west wall, a roll cab, a tyre stack and a bin;
   - daylight: the same mid-afternoon south-west sun and sky as Buttertubs (at 1/16 of real, the camera
     exposed to match), through the door and windows; six LED battens on the beams; Lumen;
@@ -40,7 +41,12 @@ HALF_X, HALF_Y = 600.0, 400.0   # inside half sizes
 WALL = 60.0
 EAVES, RIDGE = 340.0, 520.0
 DOOR_X0, DOOR_X1, DOOR_TOP = -150.0, 250.0, 300.0
-BIKE_AT = ((DOOR_X0 + DOOR_X1) * 0.5, -20.0)
+# Four bike bays across the shed, noses to the roller door (ATorqueShedBike.Bay 0..3), each with a
+# parts table behind it for what comes off that bike (ATorquePartsBench.Bay). Bay 1 is the west one.
+BAY_X = (-330.0, -110.0, 110.0, 330.0)
+BAY_Y = -20.0
+TABLE_Y = -228.0                     # the tables' middle: behind the stands, in front of the workbench
+BIKE_AT = (0.0, BAY_Y)               # what the menu view and the player start look at: the middle bays
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
@@ -207,6 +213,7 @@ def materials():
         "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
         "bucket": flat("M_ShedBucket", (0.03, 0.12, 0.35), 0.45),
         "sponge": flat("M_ShedSponge", (0.75, 0.55, 0.05), 0.95),
+        "lines": flat("M_ShedFloorLine", (0.70, 0.50, 0.03), 0.7),
         "hill": flat("M_ShedFell", (0.20, 0.24, 0.12), 0.95, grain=0.25),
         "drystone": world_aligned("M_ShedDrystone", rock, 120.0, (0.9, 0.9, 0.88), ((0.38, 0.37, 0.34), 0.9)),
     }
@@ -303,14 +310,51 @@ def workbench(m):
         box("Tool_%d" % i, x - 2, x + 2, -HALF_Y + 2, -HALF_Y + 5, 140 + (i % 3) * 18, 175 + (i % 3) * 18, m["steel"], folder="Bench", collide=False)
     box("Vice_Body", x1 - 40, x1 - 15, y1 - 20, y1 + 5, top, top + 15, m["steel"], folder="Bench")
     box("Vice_Jaw", x1 - 40, x1 - 15, y1 + 5, y1 + 12, top + 3, top + 15, m["steel"], folder="Bench")
-    bench = actors.spawn_actor_from_class(unreal.load_class(None, "/Script/TorqueShedProto.TorquePartsBench"),
-                                          unreal.Vector((x0 + x1) / 2 - 20, (y0 + y1) / 2, top), unreal.Rotator(0, 0, 0))
-    if bench:
-        bench.set_actor_label("PartsBench")
-        bench.set_folder_path("Bench")
-        try_set(bench, "length", x1 - x0 - 80.0)   # the vice's end left clear
-    else:
-        unreal.log_warning("[Torque] no TorquePartsBench class: build the C++ first")
+
+
+def bays(m):
+    # Each bay: its bike on a paddock stand, a drip tray, painted lines and its number on the floor,
+    # and a parts table behind it holding what was last taken off that bike.
+    bike_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorqueShedBike")
+    bench_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePartsBench")
+    if not bike_cls or not bench_cls:
+        unreal.log_warning("[Torque] no TorqueShedBike / TorquePartsBench class: build the C++ first")
+    top = 82.0
+    for i, x in enumerate(BAY_X):
+        folder = "Bay%d" % (i + 1)
+        if bike_cls:
+            b = actors.spawn_actor_from_class(bike_cls, unreal.Vector(x, BAY_Y, 0.0), unreal.Rotator(0.0, 0.0, 90.0))
+            b.set_actor_label("Bike_Bay%d" % (i + 1))
+            b.set_folder_path(folder)
+            try_set(b, "bay", i)
+        box("DripTray_%d" % i, x - 30, x + 30, BAY_Y - 20, BAY_Y + 20, 0, 1.5, m["black"], folder=folder, collide=False)
+        # The bay's lines either side, and its number in front of the wheel.
+        for side in (-1.0, 1.0):
+            lx = x + side * 105.0
+            box("BayLine_%d_%d" % (i, side > 0), lx - 4, lx + 4, BAY_Y - 200, BAY_Y + 150, 0, 0.3, m["lines"], folder=folder, collide=False)
+        try:
+            t = actors.spawn_actor_from_class(unreal.TextRenderActor, unreal.Vector(x, BAY_Y + 135.0, 0.5),
+                                              unreal.Rotator(0.0, 90.0, 90.0))   # lying on the floor, read from the door
+            t.set_actor_label("BayNumber_%d" % (i + 1))
+            t.set_folder_path(folder)
+            tr = t.get_editor_property("text_render")
+            tr.set_editor_property("text", "BAY %d" % (i + 1))
+            tr.set_editor_property("world_size", 26.0)
+            tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
+            tr.set_editor_property("text_render_color", unreal.Color(r=200, g=150, b=20, a=255))
+        except Exception as e:   # the number is decoration: never stop the build for it
+            unreal.log_warning("[Torque] bay number %d: %s" % (i + 1, e))
+        # The parts table: a steel-legged table, 1.0 x 0.45 m.
+        x0, x1, y0, y1 = x - 50.0, x + 50.0, TABLE_Y - 22.0, TABLE_Y + 22.0
+        box("Table_%d_Top" % i, x0, x1, y0, y1, top - 4, top, m["bench"], folder=folder)
+        for k, (lx, ly) in enumerate(((x0 + 4, y0 + 4), (x1 - 4, y0 + 4), (x0 + 4, y1 - 4), (x1 - 4, y1 - 4))):
+            box("Table_%d_Leg_%d" % (i, k), lx - 2, lx + 2, ly - 2, ly + 2, 0, top - 4, m["steel"], folder=folder)
+        if bench_cls:
+            t = actors.spawn_actor_from_class(bench_cls, unreal.Vector(x, TABLE_Y, top), unreal.Rotator(0, 0, 0))
+            t.set_actor_label("PartsTable_Bay%d" % (i + 1))
+            t.set_folder_path(folder)
+            try_set(t, "length", 90.0)
+            try_set(t, "bay", i)
 
 
 def shelving(m, label, y0, y1):
@@ -345,10 +389,9 @@ def furniture(m):
     for i in range(4):
         shape(CYLINDER, "Tyre_%d" % i, (-HALF_X + 50, 100.0, 9 + i * 18), (62, 62, 17), m["black"], folder="Kit")
     shape(CYLINDER, "Bin", (DOOR_X0 - 70, HALF_Y - 40, 45), (55, 55, 90), m["black"], folder="Kit")
-    box("DripTray", BIKE_AT[0] - 30, BIKE_AT[0] + 30, BIKE_AT[1] - 20, BIKE_AT[1] + 20, 0, 1.5, m["black"], folder="Kit", collide=False)
-    # A wash bucket and sponge behind the bike (hold G / Square on the bike to wash it).
-    shape(CYLINDER, "Bucket", (BIKE_AT[0] + 80, BIKE_AT[1] - 130, 14), (30, 30, 28), m["bucket"], folder="Kit")
-    box("Sponge", BIKE_AT[0] + 72, BIKE_AT[0] + 88, BIKE_AT[1] - 136, BIKE_AT[1] - 124, 28, 34, m["sponge"], folder="Kit", collide=False)
+    # A wash bucket and sponge between the middle bays (hold G / Square on a bike to wash it).
+    shape(CYLINDER, "Bucket", (0.0, BAY_Y - 130, 14), (30, 30, 28), m["bucket"], folder="Kit")
+    box("Sponge", -8.0, 8.0, BAY_Y - 136, BAY_Y - 124, 28, 34, m["sponge"], folder="Kit", collide=False)
     # The paint rack on the east wall between the window and the side door (ATorquePaintRack: its
     # colour cards; E picks one, E on bodywork paints it), facing into the room.
     rack_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePaintRack")
@@ -547,15 +590,9 @@ def build():
     outside(m)
     sky()
 
-    # The bike, nose to the door.
-    bike_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorqueShedBike")
-    if bike_cls:
-        b = actors.spawn_actor_from_class(bike_cls, unreal.Vector(BIKE_AT[0], BIKE_AT[1], 0.0), unreal.Rotator(0.0, 0.0, 90.0))
-        b.set_actor_label("SpeedTwin")
-    else:
-        unreal.log_warning("[Torque] no TorqueShedBike class: build the C++ first")
+    bays(m)
 
-    # Start by the door looking in at the bike.
+    # Start by the door looking in at the bikes.
     start = (DOOR_X1 + 60.0, HALF_Y - 90.0)
     yaw = math.degrees(math.atan2(BIKE_AT[1] - start[1], BIKE_AT[0] - start[0]))
     # Where the start menu looks from (ATorqueMenuPawn): inside the door at eye height, looking in at
@@ -574,7 +611,7 @@ def build():
         tags = [str(t) for t in a.get_editor_property("tags")]
         if "MenuView" in tags or "RideOut" in tags:
             log("level has %s (%s) at %s, rotation %s" % (a.get_actor_label(), ",".join(tags), a.get_actor_location(), a.get_actor_rotation()))
-    log("built %s: walk round the bike, E to swap a part, F at the door to ride out" % MAP)
+    log("built %s: %d bays; walk round the bikes, E to swap a part, F at a bike to make it yours and ride out" % (MAP, len(BAY_X)))
 
 
 build()

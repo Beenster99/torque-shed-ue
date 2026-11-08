@@ -45,3 +45,10 @@ if(MSVC)
 else()
   target_compile_options(layout_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# Opening the router's port (UPnP): the search, the router's description and the SOAP messages.
+add_executable(upnp_test upnp_test.cpp)
+target_include_directories(upnp_test PRIVATE ${COOP})
+if(NOT MSVC)
+  target_compile_options(upnp_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
+endif()

@@ -42,6 +42,8 @@ public:
 	// Someone else's bike in co-op: no birds (our own bike has them) and only a little wind.
 	bool Ambience = true;
 	double WindLevel = 1.0;
+	// The player's sound settings (Settings > Sound): the engine and exhaust, and the wind and birds.
+	double EngineLevel = 1.0, AmbienceLevel = 1.0;
 
 	void SetIdle(std::vector<float> Samples, int SampleRate, double RecordedRpm);
 	void AddClunk(std::vector<float> Samples, int SampleRate);

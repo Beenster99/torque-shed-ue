@@ -17,7 +17,7 @@ void ATorquePartsBench::BeginPlay()
 	Super::BeginPlay();
 	Rebuild();
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
-		Watch = B->OnChanged.AddUObject(this, &ATorquePartsBench::Rebuild);
+		Watch = B->OnChanged.AddUObject(this, &ATorquePartsBench::BikeChanged);
 }
 
 void ATorquePartsBench::EndPlay(const EEndPlayReason::Type Reason)
@@ -35,13 +35,14 @@ void ATorquePartsBench::Rebuild()
 	Items.Reset();
 	Holders.Reset();
 
-	const FTorqueBuild& Build = UTorqueBuildSubsystem::BuildFor(this);
 	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
+	if (!Sub) return;
+	const FTorqueBuild& Build = Sub->Get(Bay);
 	// The last few parts taken off the bike (the rest are on the parts store's shelves).
 	TArray<FTorqueRemoved> Spares;
-	if (Sub)
-		for (const FTorqueRemoved& R : Sub->RecentlyRemoved())
-			if (Sub->FittedIn(R.Slot) != R.Part) Spares.Add(R);
+	if (Sub->Exists(Bay))
+		for (const FTorqueRemoved& R : Sub->RecentlyRemoved(Bay))
+			if (Sub->FittedIn(Bay, R.Slot) != R.Part) Spares.Add(R);
 	const int32 Places = FMath::Max(Spares.Num(), 1);
 	const double Step = Length / Places;
 	const FTransform& W = Root->GetComponentTransform();
@@ -52,6 +53,6 @@ void ATorquePartsBench::Rebuild()
 		TorqueShedModel::MakeSpare(this, Root, Build, Spares[I].Slot, Spares[I].Part, At, Step - 10.0, Items, Holder);
 		if (Holder) Holders.Add(Holder);
 	}
-	TorqueShedModel::ApplyLooks(this, Items);   // a part off the bike keeps its dirt
-	UE_LOG(LogTemp, Log, TEXT("Torque: %d spare parts on the bench"), Spares.Num());
+	TorqueShedModel::ApplyLooks(this, Bay, Items);   // a part off the bike keeps its dirt
+	UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %d spare parts on its table"), Bay + 1, Spares.Num());
 }

@@ -4,11 +4,64 @@ Ride Buttertubs (and the shed) with friends. This is Phase 1's "co-op on Unreal 
 plan (https://claude.ai/artifact/6RwcD2ChqkkNmGsjZgFk5y), built the way Torque Shed's Godot co-op
 works: the host runs the session, and every rider simulates their own bike.
 
+## Hosting and joining (as in Torque Shed)
+
+1. One player picks **Host a co-op shed** on the title. Their shed is the shared one: everyone
+   works on the same bikes, and the host's game saves it.
+2. The game asks the host's router to open UDP port **7777** by itself (UPnP), and finds the public
+   address. For the first minute the top right of the screen, and after that the **Esc menu**, says
+   exactly what to tell friends:
+   - "Friends on your home network join with: 192.168.1.20"
+   - "Your router opened port 7777 for the game, so friends over the internet join with: 81.2.3.4",
+     or, if the router wouldn't, which port to forward by hand to which PC.
+3. Friends type that into **Join** and press Enter. It takes `192.168.1.20`, `81.2.3.4:7777`, a host
+   name (`myshed.ddns.net`) or `[IPv6]:port`. Rides on the same network are also listed by themselves.
+4. The first time the game hosts, Windows asks whether to let it through the firewall: tick both
+   Private and Public networks.
+
+If the host's internet provider shares one public address between many homes (carrier-grade NAT),
+no port can be opened; EOS friend codes (the last section) get round that.
+
+## In the shed together
+
+The host owns the shed, as Torque Shed's `shed_state`: every fit, wash, paint and new bike a joined
+player makes goes to the host, which checks it with the fitment rules, applies it and saves it, and
+everyone's shed shows the result (`Coop/TorqueShedNet.*`). A part that doesn't fit comes back as a
+note on the player's screen. Each player's name floats over them in the colour they chose, with what
+they're doing under it ("fitting clubman bars to bay 2"), so you can see each other working on
+different bikes. Each player rides out on the bike in the bay they last worked on, and every rider
+sees each bike as its owner built it.
+
+## Menus
+
+Ported from Torque Shed's (`scripts/main_menu.gd`), with the same names and order:
+
+- **Title**: Your name, Open the shed (solo), Host a co-op shed, Join (address box), co-op sheds
+  found on this network, Settings, Exit game.
+- **Esc** (or **Options** / **Start** on a pad): Continue, Settings, (riding: Restart the ride, Back
+  to the shed), Leave and return to title, Exit game; under the title "Hosting on port 7777." and
+  the join instructions, "Connected to a co-op shed." or "Working solo.", and "In the shed: ..."
+  with everyone's names. Alone it pauses the game; in co-op the world carries on and your bike or
+  walker just lets go of the controls.
+- **Settings** (from the start menu or the pause menu), saved in `GameUserSettings.ini`:
+  - Graphics: quality preset, window mode, resolution, upscaler (Unreal TSR, or NVIDIA DLSS once
+    its plugin is in the build), render scale, frame-rate cap, VSync, motion blur.
+  - Sound: sound effects volume, engines volume.
+  - Gameplay: riding realism (0 full sim .. 1 easy, Torque Shed's words for it).
+  - Controller: mouse and stick look speeds, invert, the lean stick's dead zone and response, and
+    every key and button.
+  - Character: your name and colour, as everyone in co-op sees them.
+  Until settings are first saved the game keeps the project's own graphics, and `-TorqueNoInput`
+  or `-TorqueNoSettings` runs ignore them, so performance tests compare like with like.
+
 ## How it works
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| Start menu | `Coop/TorqueMenuPawn.*`, drawn by `TorqueHUD` | Ride solo, Host a co-op ride, Join by address, rides found on this network, Quit. Keys, Xbox pad or DualSense (read directly). Shown when the game is launched plainly; any `-Torque...` test switch or a `play` map option skips it, so hands-off runs work as before. Not shown in Play-in-Editor unless `-TorqueMenu`. |
+| Start menu | `Coop/TorqueMenuPawn.*`, drawn by `TorqueHUD` | Ride solo, Host a co-op shed, Join (address or name), rides found on this network, Settings, Quit. Keys, Xbox pad or DualSense (read directly). Shown when the game is launched plainly; any `-Torque...` test switch or a `play` map option skips it, so hands-off runs work as before. Not shown in Play-in-Editor unless `-TorqueMenu`. |
+| Pause and settings menus | `Coop/TorquePlayerController.*`, `Coop/TorqueSettings.*` | See Menus above. |
+| Opening the router's port | `Coop/TorqueRouter.*`, `Coop/Upnp.h` (plain C++, tested in `SimTest/upnp_test.cpp`) | UPnP: a search on the network, the router's description, then AddPortMapping and GetExternalIPAddress; DeletePortMapping when hosting ends. A public address the router won't give comes from api.ipify.org. `-TorqueNoUpnp` skips it. |
+| The shared shed | `Coop/TorqueShedNet.*`, `TorqueGameState`, `TorquePlayerController`, `TorquePlayerState` | Each bay's bike as bytes on the game state (versioned, replicated); joined players' actions as server calls (washing summed ten times a second); each player's colour, activity and bay on their player state. |
 | Sessions and travel | `Coop/TorqueSession.*` (a GameInstanceSubsystem) | Hosting is a listen server on port 7777. Join by IP (any address, `host:port` too), or pick a ride found on the LAN (Null online subsystem). Moving between the shed and the road (`TorqueFlow::RideOut` / `BackToShed`) is a seamless server travel that takes everyone along. Lost connections bring you back to the menu with the reason. |
 | Each rider's bike | `Coop/TorqueNetBike.*` on `ATorqueBikePawn` | Your own bike runs the sim on your machine (no input lag; co-op, so no cheating to guard against). 30 times a second it sends a snapshot: pose, velocity, steering, lean, pitch, both axles (suspension), wheel spin rates, revs, gear, throttle, brakes, lean and weight inputs, tyre slip, crashed. Client to host as an unreliable server call; host to the others as a replicated property that skips its owner, carrying the last four snapshots and forced out each time, so a host running below 30 fps still passes every snapshot on. Everyone else's bikes are drawn from those snapshots, so their riders' bodies, levers, clocks, crashes and engine sound all play out. |
 | Smoothing | `Coop/NetSmoother.h` (plain C++, tested in `SimTest/net_test.cpp`) | Other bikes are drawn a little behind real time (100 ms, more if the network is jittery, at most 250 ms) on a curve through each pair of snapshots' positions and velocities, so they move smoothly however unevenly snapshots arrive. Gaps are bridged along the last velocity (up to 0.25 s). The delay is measured against the quickest trip of the last 4 s, so it follows a network (or a host) that has slowed down within seconds; a respawn is drawn as a jump, not a slide. |
@@ -27,8 +80,10 @@ for eight.
 - Everyone rides the same Speed Twin as built on their own machine; each rider's shed build
   (`UTorqueBuildSubsystem`) doesn't travel to the others yet.
 - Joining a ride already on the road puts you at the start grid, not next to the others.
-- Over the internet without EOS the host must forward port 7777 (UDP) on their router. With EOS
-  switched on (below), friend codes need no port forwarding.
+- Over the internet without EOS, a router that won't open the port by itself (UPnP off) needs
+  port 7777 (UDP) forwarded by hand; the Esc menu says so. EOS friend codes (below) need neither.
+- A joined rider whose bay changes after their bike has been made (on the road) sees it on the
+  next ride out.
 
 ## Testing on one PC (the hub's checklist)
 
@@ -75,6 +130,17 @@ than the network.
 7. **Shed** (once `Tools/ue_build_shed.py` has built `/Game/Shed/Shed`): Host goes to the shed with the
    guest joining there; both walk about; the host rides out of the roller door and both land on
    Buttertubs still connected. Backspace on the host takes both back to the shed.
+8. **Shared shed**: host and guest in the shed. The guest fits bars on bay 1 and washes its tank;
+   the host sees both happen, and sees "fitting ... to bay 1" under the guest's name. The host paints
+   bay 0; the guest sees it. A part that doesn't fit shows a note on the guest's screen. Ride out:
+   each rides the bay they worked on, and sees the other's bike as it was built. Quit the guest
+   and start it alone: its own shed is back as it was.
+9. **Hosting message**: the host's log says `Torque net: the router opened UDP port 7777` and
+   `friends over the internet join a.b.c.d` (or why not), and the top right and the Esc menu show
+   the same. Closing the host logs `closing UDP port 7777 on the router`.
+10. **Menus**: Esc opens the pause menu (alone the bike stops; in co-op it rolls on with the
+    controls let go). Settings > Graphics changes apply at once and are kept after a restart;
+    Character > Name and Colour change the name over you on the other copy.
 
 The game starts in the shed (`GameDefaultMap`), with the menu over it; Ride solo just puts you on
 your feet there. Launched with a ride test switch (`-TorqueAutoRide`, `-TorqueStartKm=`,

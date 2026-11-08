@@ -33,13 +33,27 @@ void ATorquePartsStore::BeginPlay()
 	Blocker->SetRelativeLocation(FVector(0.0, 0.0, 0.5 * Height));
 	Rebuild();
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
-		Watch = B->OnChanged.AddUObject(this, &ATorquePartsStore::Rebuild);
+	{
+		Watch = B->OnChanged.AddUObject(this, &ATorquePartsStore::BikeChanged);
+		WatchMine = B->OnMyBike.AddUObject(this, &ATorquePartsStore::BikeChanged);
+	}
 }
 
 void ATorquePartsStore::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->OnChanged.Remove(Watch);
+	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+	{
+		B->OnChanged.Remove(Watch);
+		B->OnMyBike.Remove(WatchMine);
+	}
 	Super::EndPlay(Reason);
+}
+
+void ATorquePartsStore::BikeChanged(int32 Bike)
+{
+	// Only the player's own bike changes what's on the shelves (and only its type changes the bays).
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (B && (Bike == B->MyBike() || ShownBike != B->MyBike())) Rebuild();
 }
 
 void ATorquePartsStore::BuildFrame(int32 Columns)
@@ -82,8 +96,10 @@ void ATorquePartsStore::Rebuild()
 	Holders.Reset();
 	Labels.Reset();
 
-	const FTorqueBuild& Build = UTorqueBuildSubsystem::BuildFor(this);
 	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
+	const int32 Bike = Sub ? Sub->MyBike() : 0;
+	ShownBike = Bike;
+	const FTorqueBuild& Build = Sub ? Sub->Get(Bike) : UTorqueBuildSubsystem::BuildFor(this);
 	const TArray<FName> Slots = TorqueFit::Slots(Build.Bike);
 	const int32 Columns = FMath::Max(1, FMath::DivideAndRoundUp(Slots.Num(), FMath::Max(Levels, 1)));
 	if (Columns != FrameColumns) BuildFrame(Columns);
@@ -107,7 +123,7 @@ void ATorquePartsStore::Rebuild()
 		T->RegisterComponent();
 		Labels.Add(T);
 
-		const FName Fitted = Sub ? Sub->FittedIn(Slots[S]) : NAME_None;
+		const FName Fitted = Sub ? Sub->FittedIn(Bike, Slots[S]) : NAME_None;
 		TArray<FName> Spares;
 		for (const FTorqueFitOption& O : TorqueFit::Options(Build.Bike, Slots[S]))
 			if (O.PartId != Fitted) Spares.Add(O.PartId);
@@ -126,6 +142,6 @@ void ATorquePartsStore::Rebuild()
 			if (Holder) Holders.Add(Holder);
 		}
 	}
-	TorqueShedModel::ApplyLooks(this, Items);
-	UE_LOG(LogTemp, Log, TEXT("Torque: parts store: %d slots, %d spares on the shelves"), Slots.Num(), Shown);
+	TorqueShedModel::ApplyLooks(this, Bike, Items);
+	UE_LOG(LogTemp, Log, TEXT("Torque: parts store for bay %d: %d slots, %d spares on the shelves"), Bike + 1, Slots.Num(), Shown);
 }

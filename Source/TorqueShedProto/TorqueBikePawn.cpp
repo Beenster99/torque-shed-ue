@@ -1,4 +1,6 @@
 #include "TorqueBikePawn.h"
+#include "Coop/TorquePlayerController.h"
+#include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueFlow.h"
@@ -184,6 +186,8 @@ ATorqueBikePawn::~ATorqueBikePawn() = default;
 void ATorqueBikePawn::BeginPlay()
 {
 	Super::BeginPlay();
+	// Settings > Gameplay > Riding realism, once the player has saved settings (test runs keep their own).
+	if (FTorqueSettings::Get().bSaved && !FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"))) Assist = FTorqueSettings::Get().Realism;
 	Sim->Setup(BikeSpec::SpeedTwin1200());
 	Sim->Ray = [this](const V3& From, const V3& To) {
 		RayHit Out;
@@ -631,23 +635,32 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	const double PadThrottle = FMath::Max(Trig[0], Trig[2]);
 	const double PadBrake = FMath::Max(Trig[1], Trig[3]);
-	const double PadLean = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), 0.08, 1.3);
+	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller
+	const double PadLean = FMath::Clamp(Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.3) * Set.Steering, -1.0, 1.0);
 	// Weight is the left stick up and down, with a wide dead zone so leaning doesn't move it.
 	const double PadShift = Stick(Either(Axis(EKeys::Gamepad_LeftY), Sony.LY), 0.4, 1.0);
 	// Right stick looks around (eased back to the front when let go).
-	const double LookX = Stick(Either(Axis(EKeys::Gamepad_RightX), Sony.RX), 0.12, 1.0);
-	const double LookY = Stick(Either(Axis(EKeys::Gamepad_RightY), Sony.RY), 0.12, 1.0);
+	const double LookX = FMath::Clamp(Stick(Either(Axis(EKeys::Gamepad_RightX), Sony.RX), 0.12, 1.0) * Set.PadLook, -1.0, 1.0);
+	const double LookY = FMath::Clamp(Stick(Either(Axis(EKeys::Gamepad_RightY), Sony.RY), 0.12, 1.0) * Set.PadLook, -1.0, 1.0) *
+						 (Set.bInvertLook ? -1.0 : 1.0);
 	const uint32 SonyDown = Sony.Buttons;
 	const uint32 SonyPressed = SonyDown & ~PrevPadButtons;
 	PrevPadButtons = SonyDown;
 	auto SonyHit = [SonyPressed](uint32 B) { return (SonyPressed & B) != 0; };
+	// The pause or settings menu is up: let go of the controls (the menu has the keys).
+	if (ATorquePlayerController::MenuUp(PC))
+	{
+		Throttle = FrontBrake = RearBrake = Shift = 0.0;
+		Lean = Approach(Lean, 0.0, 2.2, 4.0, Dt);
+		return;
+	}
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
 	LookYaw = FMath::Lerp(LookYaw, LookX * 130.0, LookK);
 	LookPitch = FMath::Lerp(LookPitch, LookY * 25.0, LookK);
 
 	const double KeyThrottle = FMath::Max(Down(EKeys::W), Down(EKeys::Up));
 	const double KeyBrake = FMath::Max(Down(EKeys::S), Down(EKeys::Down));
-	const double KeyLean = FMath::Max(Down(EKeys::D), Down(EKeys::Right)) - FMath::Max(Down(EKeys::A), Down(EKeys::Left));
+	const double KeyLean = FMath::Clamp((FMath::Max(Down(EKeys::D), Down(EKeys::Right)) - FMath::Max(Down(EKeys::A), Down(EKeys::Left))) * Set.Steering, -1.0, 1.0);
 	const double KeyShift = Down(EKeys::E) - Down(EKeys::Q);
 
 	// Keys are all or nothing, so ease them in (as Torque Shed does); the pad is used as it is.
@@ -686,13 +699,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
 		SonyHit(ESonyButton::Triangle))
 		Respawn(FMath::Max(Near - 2, 0));
-	if (PC->WasInputKeyJustPressed(EKeys::Home) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right) ||
-		SonyHit(ESonyButton::Options))
-	{
-		RideTime = 0.0;
-		bFinished = false;
-		Respawn(0);
-	}
+	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
+	if (PC->WasInputKeyJustPressed(EKeys::Home)) RestartRide();
 	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
 		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::R1 | ESonyButton::Create))
 	{
@@ -720,15 +728,16 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		bPerfLog = !bPerfLog;
 		if (!bPerfLog) PerfFile.Reset();
 	}
-	const bool bPadQuit = (SonyDown & ESonyButton::Create) && (SonyDown & ESonyButton::Options);
-	const bool bXboxQuit = Down(EKeys::Gamepad_Special_Left) > 0.5 && Down(EKeys::Gamepad_Special_Right) > 0.5;
-	if (PC->WasInputKeyJustPressed(EKeys::Escape) || bPadQuit || bXboxQuit)
-	{
-		PC->ConsoleCommand(TEXT("quit"));
-		return;
-	}
+	// Esc, Options and Start open the pause menu (ATorquePlayerController), which has Quit.
 	if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+}
+
+void ATorqueBikePawn::RestartRide()
+{
+	RideTime = 0.0;
+	bFinished = false;
+	Respawn(0);
 }
 
 void ATorqueBikePawn::StepSim()
@@ -1445,7 +1454,7 @@ void ATorqueBikePawn::DrawHud()
 	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
 		FColor(220, 220, 220), 1.1f);
 	Add(FString::Printf(TEXT("Buttertubs  %.2f of %.2f km   %d:%05.2f%s"), Done, RouteLengthM / 1000.0, Mins, Secs,
-		bFinished ? TEXT("   FINISHED - Options/Home to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
+		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	if (bPerfShow && !PerfText.IsEmpty())
 		Add(PerfText + (bPerfLog ? TEXT("   [logging to CSV]") : TEXT("")), FColor(140, 255, 160), 1.0f);
@@ -1464,9 +1473,9 @@ void ATorqueBikePawn::DrawHud()
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
-		Add(TEXT("      R1 camera   Triangle back on road   Options restart   D-pad up/down realism, right weather   Create+Options quit"), Help, 0.85f);
+		Add(TEXT("      R1 camera   Triangle back on road   D-pad up/down realism, right weather   Options menu"), Help, 0.85f);
 		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
-		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   H help   Backspace shed   Esc quit"), Help, 0.85f);
+		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   H help   Backspace shed   Esc menu"), Help, 0.85f);
 	}
 }
 

@@ -43,9 +43,15 @@ void UTorqueShedTest::LogBuild(const TCHAR* Where) const
 	FString Text;
 	const UTorqueBuildSubsystem* B = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueBuildSubsystem>() : nullptr;
 	if (B)
-		for (const FName& Slot : TorqueFit::Slots(B->Get().Bike))
-			Text += FString::Printf(TEXT(" %s=%s"), *Slot.ToString(), *B->FittedIn(Slot).ToString());
-	UE_LOG(LogTemp, Log, TEXT("Torque test: %s, build:%s"), Where, *Text);
+		for (int32 Bay = 0; Bay < B->NumBikes(); ++Bay)
+		{
+			if (!B->Exists(Bay)) { Text += FString::Printf(TEXT(" [bay %d empty]"), Bay + 1); continue; }
+			Text += FString::Printf(TEXT(" [bay %d %s%s:"), Bay + 1, *B->Get(Bay).Bike.ToString(), Bay == B->MyBike() ? TEXT(", mine") : TEXT(""));
+			for (const FName& Slot : TorqueFit::Slots(B->Get(Bay).Bike))
+				Text += FString::Printf(TEXT(" %s=%s"), *Slot.ToString(), *B->FittedIn(Bay, Slot).ToString());
+			Text += TEXT("]");
+		}
+	UE_LOG(LogTemp, Log, TEXT("Torque test: %s, builds:%s"), Where, *Text);
 }
 
 bool UTorqueShedTest::Step(float Dt)
@@ -112,6 +118,20 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("HighResShot 1"));
 		return true;
 	}
+	if (Verb == TEXT("bay") && P.Num() >= 2)
+	{
+		TestBay = FMath::Clamp(FCString::Atoi(*P[1]) - 1, 0, UTorqueBuildSubsystem::Bays - 1);
+		UE_LOG(LogTemp, Log, TEXT("Torque test: working on bay %d"), TestBay + 1);
+		return true;
+	}
+	if (Verb == TEXT("new") && P.Num() >= 2)
+	{
+		const int32 Bay = FMath::Clamp(FCString::Atoi(*P[1]) - 1, 0, UTorqueBuildSubsystem::Bays - 1);
+		UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
+		const bool bOk = B && B->NewBike(Bay, FName(P.Num() > 2 ? *P[2] : TEXT("speed_twin_1200")));
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s"), *S, bOk ? TEXT("a new bike") : TEXT("refused (see the warning above)"));
+		return true;
+	}
 	if (Verb == TEXT("back"))
 	{
 		const bool bOk = TorqueFlow::BackToShed(World);
@@ -129,10 +149,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		return true;
 	}
 	Tries = 0;
+	// The bike and table of the bay under test (bay:<n>).
+	const int32 Bay = TestBay;
 	ATorqueShedBike* Bike = nullptr;
-	for (TActorIterator<ATorqueShedBike> It(World); It; ++It) { Bike = *It; break; }
+	for (TActorIterator<ATorqueShedBike> It(World); It; ++It) if (It->Bay == Bay) { Bike = *It; break; }
 	ATorquePartsBench* Bench = nullptr;
-	for (TActorIterator<ATorquePartsBench> It(World); It; ++It) { Bench = *It; break; }
+	for (TActorIterator<ATorquePartsBench> It(World); It; ++It) if (It->Bay == Bay) { Bench = *It; break; }
 	AActor* Door = nullptr;
 	for (TActorIterator<AActor> It(World); It; ++It)
 		if (It->ActorHasTag(TEXT("RideOut"))) { Door = *It; break; }
@@ -170,8 +192,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (P.Num() >= 3) W->TestChoose(Slot, FName(*P[2]));
 		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
 		if (P.Num() >= 3 && B)
-			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: %s now has %s (%s)"), *S, *Slot.ToString(), *B->FittedIn(Slot).ToString(),
-				B->FittedIn(Slot) == FName(*P[2]) ? TEXT("as asked") : TEXT("not that part"));
+			UE_LOG(LogTemp, Log, TEXT("Torque test: %s: bay %d %s now has %s (%s)"), *S, Bay + 1, *Slot.ToString(), *B->FittedIn(Bay, Slot).ToString(),
+				B->FittedIn(Bay, Slot) == FName(*P[2]) ? TEXT("as asked") : TEXT("not that part"));
 		return true;
 	}
 	if (Verb == TEXT("bench") && P.Num() >= 3)
@@ -205,7 +227,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		return true;
 	}
 	// The bike's dirt and paint, as the shed draws them.
-	auto Looks = [World, Bike](const FString& Only) -> FString
+	auto Looks = [World, Bike, Bay](const FString& Only) -> FString
 	{
 		const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
 		if (!B || !Bike) return TEXT("no bike");
@@ -216,11 +238,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			const FName Part = TorqueShedModel::PartTag(C);
 			if (Part.IsNone()) continue;
-			Sum += B->DirtOf(Part);
+			Sum += B->DirtOf(Bay, Part);
 			++N;
 			FLinearColor Col;
-			if (B->PaintOf(Part, Col)) Painted += FString::Printf(TEXT(" %s=%s"), *Part.ToString(), *Col.ToFColor(true).ToHex());
-			if (Part.ToString() == Only) One = FString::Printf(TEXT(", %s %.0f%%"), *Only, 100.0f * B->DirtOf(Part));
+			if (B->PaintOf(Bay, Part, Col)) Painted += FString::Printf(TEXT(" %s=%s"), *Part.ToString(), *Col.ToFColor(true).ToHex());
+			if (Part.ToString() == Only) One = FString::Printf(TEXT(", %s %.0f%%"), *Only, 100.0f * B->DirtOf(Bay, Part));
 		}
 		return FString::Printf(TEXT("dirt %.0f%% on average over %d parts%s; painted:%s"), N ? 100.0 * Sum / N : 0.0, N, *One,
 			Painted.IsEmpty() ? TEXT(" none") : *Painted);

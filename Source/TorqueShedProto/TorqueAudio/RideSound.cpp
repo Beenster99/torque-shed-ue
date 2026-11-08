@@ -349,7 +349,7 @@ void RideSound::Render(float* Out, int N)
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
 
-		double Mix = (Engine + Wind + Tyre + Grid + Lever + Bg) * Volume;
+		double Mix = (Engine * EngineLevel + (Wind + Bg) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
 		// DC block, then a soft limit.
 		const double Hpo = Mix - HpIn + 0.995 * Hp;
 		HpIn = Mix;

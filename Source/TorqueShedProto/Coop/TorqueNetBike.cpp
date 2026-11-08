@@ -1,5 +1,6 @@
 #include "TorqueNetBike.h"
 
+#include "TorqueSettings.h"
 #include "TorqueBikePawn.h"
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
@@ -273,6 +274,13 @@ void UTorqueNetBikeComponent::AfterTick(float DeltaSeconds)
 		// Riding alone the sound stays exactly as the pawn made it.
 		if (SoundRemote < 0 && !bRemote) SoundRemote = 0;
 		else SetUpSound(bRemote);
+	}
+	// Settings > Sound.
+	if (B->Sound)
+	{
+		const FTorqueSettings& Set = FTorqueSettings::Get();
+		B->Sound->EngineLevel = Set.Engine;
+		B->Sound->AmbienceLevel = Set.Ambience;
 	}
 	const bool bNetworked = B->GetNetMode() != NM_Standalone;
 	if (!bNetworked) return;
