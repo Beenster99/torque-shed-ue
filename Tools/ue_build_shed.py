@@ -1,23 +1,33 @@
-"""Build the grey-box shed, /Game/Shed/Shed, in the Unreal editor: where the game starts on foot.
+"""Build the shed, /Game/Shed/Shed, in the Unreal editor: where the game starts on foot.
+
+A port of Torque Shed's shed (the Godot game's scripts/workshop.gd, with shed_state.gd's fixed
+machines): the same rooms, the same places for everything, so it plays as it did. Godot metres
+(x east, z towards the roller door, the shed's middle at z 65) become Unreal cm here as
+x = 100 gx, y = 100 (gz - 65), z = 100 gy.
 
 In the editor: Tools > Execute Python Script... and pick this file, or start the editor with
 -ExecutePythonScript=Tools/ue_build_shed.py. Run Tools/ue_build_level.py first (it imports the
-Speed Twin and writes Data/Bike/SpeedTwin/ue_assets.json, which the shed's bike draws from, and the
+Speed Twin and writes Data/Bike/SpeedTwin/ue_assets.json, which the shed's bikes draw from, and the
 Megascans/ambientCG textures this reuses). Safe to run again: it rebuilds the map from scratch.
 
-What it makes (Unreal cm: x east, y south, z up; the floor at z 0):
-  - a Dales stone workshop 12 x 8 m inside (x -600..600, y -400..400), 60 cm rubble walls, a pitched
-    stone-slate roof (eaves 3.4 m, ridge 5.2 m along x) with crow-stepped gables, three tie beams;
-  - a 4 m wide, 3 m high roller door in the south wall (rolled up), a side door, five small windows;
-  - a concrete floor running out onto the forecourt, a lane, fields, drystone walls and far fells;
-  - inside: four bike bays across the shed (ATorqueShedBike, Bay 0-3), noses to the door, each with
-    its lines and number on the floor and a parts table behind (ATorquePartsBench: the last few parts
-    taken off that bike); the workbench along the north wall with its pegboard and vice; the parts
-    store (ATorquePartsStore, every spare by slot) north-east,
-    parts shelving on the west wall, a roll cab, a tyre stack and a bin;
-  - daylight: the same mid-afternoon south-west sun and sky as Buttertubs (at 1/16 of real, the camera
-    exposed to match), through the door and windows; six LED battens on the beams; Lumen;
-  - a point tagged RideOut in the door (stand there and press F to ride out) and a player start.
+What it makes (Unreal cm: x east, y south (towards the roller door), z up; the floor at z 0):
+  - the shed: 13 x 11 m inside (x -650..650, y -550..550), 4.5 m to the roof, steel-clad walls
+    (plaster above a dark band inside), a flat roof on five steel trusses, an epoxy floor;
+  - a 4.6 m wide, 3.2 m high roller door in the front wall (+y, rolled up) with yellow posts and
+    the TORQUE SHED sign over it; the light switches to its right;
+  - four bike bays along the back wall (ATorqueShedBike, Bay 0-3, x -480/-160/160/480), noses to
+    the door, each in a painted box with BAY n in front and its screen on the wall above; a yellow
+    walkway line in front of the bays;
+  - the workbench down the west wall (parts go down anywhere on it) with the radio shelf over its
+    end and the crew board above it; the tyre changer past its end;
+  - the parts computer on the east wall, the engine stand by the bays, the parts washer and the
+    repair bench against the front wall, the three bins left of the roller door;
+  - doorways to the storage room (west), the paint shop (east) and the dyno room (back wall), each
+    room built as an empty shell for now, and the wash bay lean-to on the west wall, open to the
+    yard, with the pressure washer on its back wall;
+  - the deliveries bay painted on the yard east of the door; fields, lane and fells round it;
+  - daylight as Buttertubs; the shed's strip lights over each bay and down the middle; Lumen;
+  - a point tagged RideOut in the door and a player start where Torque Shed puts walkers.
 The game mode spawns the walker (ATorqueWalker) in any map with an ATorqueShedBike in it.
 """
 import math
@@ -30,23 +40,31 @@ MAT_DIR = "/Game/Shed/Materials"
 
 # The knobs most likely to want tuning after a look on the PC.
 SUN_LUX = 4700.0            # as Buttertubs: 1/16 of a real 75,000 lux afternoon
-LED_LUMENS = 1800.0         # each of six battens (a real 5 ft batten is ~6000 lm; scaled with the sun, a bit brighter)
+LED_LUMENS = 1800.0         # each strip light (a real 5 ft batten is ~6000 lm; scaled with the sun, a bit brighter)
 EXPOSURE_MIN = 5.0          # EV100 floor of the auto exposure: lower lets the inside brighten more
 #                             (4.0 in round 1 blew the windows out to pure white on the PC)
 EXPOSURE_BIAS = 0.2         # was 0.6
 HIGHLIGHTS = 0.35           # local exposure: how much contrast the bright windows and doorway keep (1 = none taken out)
 EXPOSURE_MAX = 11.5
 
-HALF_X, HALF_Y = 600.0, 400.0   # inside half sizes
-WALL = 60.0
-EAVES, RIDGE = 340.0, 520.0
-DOOR_X0, DOOR_X1, DOOR_TOP = -150.0, 250.0, 300.0
-# Four bike bays across the shed, noses to the roller door (ATorqueShedBike.Bay 0..3), each with a
-# parts table behind it for what comes off that bike (ATorquePartsBench.Bay). Bay 1 is the west one.
-BAY_X = (-330.0, -110.0, 110.0, 330.0)
-BAY_Y = -20.0
-TABLE_Y = -228.0                     # the tables' middle: behind the stands, in front of the workbench
-BIKE_AT = (0.0, BAY_Y)               # what the menu view and the player start look at: the middle bays
+# The shed (workshop.gd): interior half sizes, height, wall thickness.
+HALF_X, HALF_Y = 650.0, 550.0
+HEIGHT = 450.0
+WALL = 30.0
+EAVES = HEIGHT                       # (the lights hang from the trusses at this height)
+DOOR_HALF, DOOR_TOP = 230.0, 320.0   # the roller door, in the middle of the front (+y) wall
+DOOR_X0, DOOR_X1 = -DOOR_HALF, DOOR_HALF
+DYNO_DOOR_HALF, DYNO_DOOR_TOP = 85.0, 250.0         # through the back wall to the dyno room
+SIDE_DOOR_HALF, SIDE_DOOR_TOP = 65.0, 240.0          # through the side walls
+STORE_DOOR_Y, PAINT_DOOR_Y = -450.0, 350.0           # west to the storage room, east to the paint shop
+ROOM_HEIGHT = 340.0
+# The four bays (Workshop.bay_transform): along the back wall, 3.2 m apart, noses to the door.
+BAY_X = (-480.0, -160.0, 160.0, 480.0)
+BAY_Y = -350.0
+BAY_SCREEN_X = (-504.0, -232.0, 232.0, 504.0)        # their screens on the back wall, clear of the dyno doorway
+BIKE_AT = (0.0, BAY_Y)               # what the menu view and the player start look at
+# Workbench spots bench_0..3 run down the west wall at y -120, 0, 120, 240; the bench 0.6 m past each end.
+BENCH_X, BENCH_Y0, BENCH_Y1, BENCH_TOP = -600.0, -180.0, 300.0, 95.0
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
@@ -190,30 +208,31 @@ def ambientcg(asset_id):
 
 def materials():
     rock = megascans("Layered_Rock_vl0fdhdo", "rock")
-    stone_maps = {k: ambientcg("Bricks096")[k] + rock[k] for k in rock}   # the masonry scan, else layered rock
     grass = megascans("Wet_Grass_Ground_sjzkdjba", "grass")
     tarmac = megascans("Asphalt_Road_tigkfb3o", "asphalt")
     return {
-        # Gritstone/limestone rubble walls, a little warm, darker for the slate roof.
-        "stone": world_aligned("M_ShedStone", stone_maps, 180.0, (0.95, 0.92, 0.86), ((0.42, 0.40, 0.36), 0.88)),
-        "slate": world_aligned("M_ShedSlate", rock, 150.0, (0.45, 0.45, 0.47), ((0.16, 0.16, 0.17), 0.7)),
+        # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
+        # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
+        "cladding": flat("M_ShedCladding", (0.30, 0.33, 0.36), 0.45, metallic=0.7, grain=0.06),
+        "roof": flat("M_ShedRoof", (0.25, 0.27, 0.29), 0.5, metallic=0.6),
+        "floor": flat("M_ShedEpoxy", (0.36, 0.37, 0.38), 0.3, grain=0.06),
+        "wall_in": flat("M_ShedPlaster", (0.78, 0.76, 0.72), 0.85, grain=0.06),
+        "wall_low": flat("M_ShedWallBand", (0.20, 0.24, 0.27), 0.6),
+        "steel": flat("M_ShedSteel", (0.30, 0.32, 0.35), 0.35, metallic=0.85),
+        "stand": flat("M_ShedStandOrange", (0.85, 0.35, 0.05), 0.4, metallic=0.5),
+        "wood": flat("M_ShedTimber", (0.50, 0.36, 0.22), 0.7, grain=0.08),
+        "yellow": flat("M_ShedYellow", (0.95, 0.75, 0.05), 0.5),
+        "dark": flat("M_ShedDark", (0.06, 0.06, 0.07), 0.5, metallic=0.3),
+        "blue": flat("M_ShedBlue", (0.10, 0.30, 0.65), 0.35, metallic=0.6),
+        "red": flat("M_ShedRed", (0.70, 0.08, 0.06), 0.35, metallic=0.5),
+        "green": flat("M_ShedGreen", (0.20, 0.55, 0.30), 0.45, metallic=0.1),
+        "pad": flat("M_ShedWashPad", (0.42, 0.44, 0.45), 0.25, grain=0.1),
+        "screen": flat("M_ShedScreen", (0.10, 0.30, 0.50), 0.3, emissive=1.4),
+        "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
+        # Outside: the yard, the lane and the Dales round it.
+        "concrete": flat("M_ShedConcrete", (0.36, 0.35, 0.33), 0.82, grain=0.18),
         "grass": world_aligned("M_ShedField", grass, 300.0, (1.0, 1.0, 1.0), ((0.17, 0.26, 0.08), 0.95)),
         "tarmac": world_aligned("M_ShedLane", tarmac, 250.0, (1.0, 1.0, 1.0), ((0.09, 0.09, 0.09), 0.8)),
-        "concrete": flat("M_ShedConcrete", (0.36, 0.35, 0.33), 0.82, grain=0.18),
-        "wood": flat("M_ShedTimber", (0.30, 0.20, 0.12), 0.75, grain=0.1),
-        "bench": flat("M_ShedBenchTop", (0.42, 0.30, 0.18), 0.6, grain=0.1),
-        "pegboard": flat("M_ShedPegboard", (0.55, 0.45, 0.32), 0.85),
-        "steel": flat("M_ShedSteel", (0.55, 0.56, 0.58), 0.4, metallic=1.0),
-        "galv": flat("M_ShedGalv", (0.62, 0.63, 0.64), 0.5, metallic=1.0),
-        "red": flat("M_ShedRollCab", (0.45, 0.03, 0.02), 0.35),
-        "black": flat("M_ShedRubber", (0.025, 0.025, 0.025), 0.9),
-        "card": flat("M_ShedCardboard", (0.45, 0.32, 0.18), 0.9, grain=0.1),
-        "door": flat("M_ShedDoor", (0.12, 0.22, 0.16), 0.55),          # a green-painted side door
-        # The battens' opal diffusers: bright enough to read as lit, not a white block (round 1's 40 was).
-        "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
-        "bucket": flat("M_ShedBucket", (0.03, 0.12, 0.35), 0.45),
-        "sponge": flat("M_ShedSponge", (0.75, 0.55, 0.05), 0.95),
-        "lines": flat("M_ShedFloorLine", (0.70, 0.50, 0.03), 0.7),
         "hill": flat("M_ShedFell", (0.20, 0.24, 0.12), 0.95, grain=0.25),
         "drystone": world_aligned("M_ShedDrystone", rock, 120.0, (0.9, 0.9, 0.88), ((0.38, 0.37, 0.34), 0.9)),
     }
@@ -261,194 +280,250 @@ def wall(label, along, fixed0, fixed1, a0, a1, height, openings, mat):
     piece(n, at, a1, 0.0, height)
 
 
-def gable(label, x0, x1, mat):
-    """A crow-stepped gable on an end wall: three courses up to the ridge, each as wide as the roof
-    is at its foot, so the steps stand proud of the slates and leave no gaps for light."""
-    out = HALF_Y + WALL
-    steps = 3
-    rise = (RIDGE - EAVES) / steps
-    for k in range(steps):
-        hw = out * (1.0 - k / float(steps)) + 10.0
-        box("%s_%d" % (label, k), x0, x1, -hw, hw, EAVES + k * rise, EAVES + (k + 1) * rise + 12.0, mat)
+def room(label, x0, x1, y0, y1, m, open_sides=()):
+    """An empty room off the shed (for now): floor, walls on the sides not in open_sides
+    ("n", "s", "w", "e"; the shed's own wall closes one), and a roof."""
+    h = ROOM_HEIGHT
+    box(label + "_Floor", x0, x1, y0, y1, -12, 0, m["floor"], folder=label)
+    if "n" not in open_sides:
+        box(label + "_WallN", x0 - WALL, x1 + WALL, y0 - WALL, y0, 0, h, m["cladding"], folder=label)
+    if "s" not in open_sides:
+        box(label + "_WallS", x0 - WALL, x1 + WALL, y1, y1 + WALL, 0, h, m["cladding"], folder=label)
+    if "w" not in open_sides:
+        box(label + "_WallW", x0 - WALL, x0, y0, y1, 0, h, m["cladding"], folder=label)
+    if "e" not in open_sides:
+        box(label + "_WallE", x1, x1 + WALL, y0, y1, 0, h, m["cladding"], folder=label)
+    box(label + "_Roof", x0 - WALL, x1 + WALL, y0 - WALL, y1 + WALL, h, h + 20, m["roof"], folder=label)
 
 
-def roof(mat, wood):
-    out_y = HALF_Y + WALL + 35.0          # eaves overhang
-    x_len = 2 * (HALF_X + WALL) + 50.0
-    run, rise = out_y, RIDGE - EAVES + (35.0 * (RIDGE - EAVES) / (HALF_Y + WALL))
-    slope = math.hypot(run, rise)
-    pitch = math.degrees(math.atan2(rise, run))
-    eave_z = RIDGE - rise
-    for side, sign in (("N", -1.0), ("S", 1.0)):
-        cy = sign * run / 2.0
-        cz = (eave_z + RIDGE) / 2.0 + 10.0
-        # Positive roll tips +y down: the south slope falls to +y, the north one rises to it.
-        shape(CUBE, "Roof_" + side, (0.0, cy, cz), (x_len, slope + 12.0, 18.0), mat, rot=(sign * pitch, 0.0, 0.0), folder="Roof")
-    shape(CUBE, "Ridge", (0.0, 0.0, RIDGE + 14.0), (x_len, 30.0, 14.0), mat, folder="Roof")
-    # The wall heads packed up to the slates on the inside, so no strip of sky shows along the eaves.
-    for side, sign in (("N", -1.0), ("S", 1.0)):
-        y0, y1 = sorted((sign * (HALF_Y - 5.0), sign * (HALF_Y + 30.0)))
-        box("WallHead_" + side, -HALF_X, HALF_X, y0, y1, EAVES - 1.0, EAVES + 26.0, mat, folder="Roof")
-    for i, x in enumerate((-300.0, 0.0, 300.0)):
-        box("TieBeam_%d" % i, x - 10, x + 10, -HALF_Y - 5, HALF_Y + 5, EAVES - 30, EAVES - 5, wood, folder="Roof")
+def label_text(name, text, at, yaw, size, colour, folder, pitch=0.0):
+    """Words on a wall or the floor (a TextRenderActor: it faces +x, turned by yaw; pitch 90 lays
+    it flat). Decoration only: never stops the build."""
+    try:
+        t = actors.spawn_actor_from_class(unreal.TextRenderActor, unreal.Vector(*at), unreal.Rotator(0.0, pitch, yaw))
+        t.set_actor_label(name)
+        t.set_folder_path(folder)
+        tr = t.get_editor_property("text_render")
+        tr.set_editor_property("text", text)
+        tr.set_editor_property("world_size", size)
+        tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
+        tr.set_editor_property("vertical_alignment", unreal.VerticalTextAligment.EVRTA_TEXT_CENTER)
+        tr.set_editor_property("text_render_color", unreal.Color(r=colour[0], g=colour[1], b=colour[2], a=255))
+    except Exception as e:
+        unreal.log_warning("[Torque] label %s: %s" % (name, e))
 
 
-# --- The rooms' contents ----------------------------------------------------------------------------
+# --- The shed (workshop.gd _build_shell) ------------------------------------------------------------
 
-def workbench(m):
-    x0, x1 = -520.0, -100.0
-    y0, y1 = -HALF_Y, -HALF_Y + 75.0
-    top = 92.0
-    box("Bench_Top", x0, x1, y0, y1, top - 6, top, m["bench"], folder="Bench")
-    box("Bench_Shelf", x0 + 5, x1 - 5, y0 + 5, y1 - 5, 18, 22, m["wood"], folder="Bench")
-    for i, (x, y) in enumerate(((x0 + 6, y0 + 6), (x1 - 6, y0 + 6), (x0 + 6, y1 - 6), (x1 - 6, y1 - 6), ((x0 + x1) / 2, y1 - 6))):
-        box("Bench_Leg_%d" % i, x - 4, x + 4, y - 4, y + 4, 0, top - 6, m["wood"], folder="Bench")
-    box("Pegboard", x0 + 10, x1 - 10, -HALF_Y, -HALF_Y + 2, 105, 215, m["pegboard"], folder="Bench")
-    # Tools on the pegboard: spanners, a hammer, screwdrivers (grey box).
-    for i in range(10):
-        x = x0 + 40 + i * 32
-        box("Tool_%d" % i, x - 2, x + 2, -HALF_Y + 2, -HALF_Y + 5, 140 + (i % 3) * 18, 175 + (i % 3) * 18, m["steel"], folder="Bench", collide=False)
-    box("Vice_Body", x1 - 40, x1 - 15, y1 - 20, y1 + 5, top, top + 15, m["steel"], folder="Bench")
-    box("Vice_Jaw", x1 - 40, x1 - 15, y1 + 5, y1 + 12, top + 3, top + 15, m["steel"], folder="Bench")
+def shell(m):
+    c, w = m["cladding"], WALL
+    hx, hy, h = HALF_X, HALF_Y, HEIGHT
+    # Floor: the epoxy slab, running under the walls (the yard is outside()).
+    box("Floor", -hx - w, hx + w, -hy - w, hy + w, -12, 0, m["floor"], folder="Walls")
+    # Back wall, with the doorway to the dyno room; side walls with theirs; the front either side
+    # of the roller door and over it.
+    wall("Wall_Back", "x", -hy - w, -hy, -hx - w, hx + w, h, [(-DYNO_DOOR_HALF, DYNO_DOOR_HALF, 0.0, DYNO_DOOR_TOP)], c)
+    wall("Wall_W", "y", -hx - w, -hx, -hy, hy, h, [(STORE_DOOR_Y - SIDE_DOOR_HALF, STORE_DOOR_Y + SIDE_DOOR_HALF, 0.0, SIDE_DOOR_TOP)], c)
+    wall("Wall_E", "y", hx, hx + w, -hy, hy, h, [(PAINT_DOOR_Y - SIDE_DOOR_HALF, PAINT_DOOR_Y + SIDE_DOOR_HALF, 0.0, SIDE_DOOR_TOP)], c)
+    wall("Wall_Front", "x", hy, hy + w, -hx - w, hx + w, h, [(DOOR_X0, DOOR_X1, 0.0, DOOR_TOP)], c)
+    # Inside faces: painted plaster above a dark band 1.2 m high, 2 cm proud of the cladding.
+    def lining(label, along, face, inward, a0, a1, gaps):
+        f0, f1 = sorted((face, face + inward * 2.0))
+        def panel(name, s0, s1, z0, z1, mat):
+            if s1 - s0 < 1.0 or z1 - z0 < 1.0:
+                return
+            if along == "x":
+                box(name, s0, s1, f0, f1, z0, z1, mat, folder="Walls", collide=False)
+            else:
+                box(name, f0, f1, s0, s1, z0, z1, mat, folder="Walls", collide=False)
+        at = a0
+        for n, (g0, g1, top) in enumerate(sorted(gaps) + [(a1, a1, h)]):
+            panel("%s_%d_Low" % (label, n), at, g0, 0.0, 120.0, m["wall_low"])
+            panel("%s_%d_Up" % (label, n), at, g0, 120.0, h, m["wall_in"])
+            panel("%s_%d_Over" % (label, n), g0, g1, top, h, m["wall_in"])
+            at = g1
+    lining("Lining_Back", "x", -hy, 1.0, -hx, hx, [(-DYNO_DOOR_HALF, DYNO_DOOR_HALF, DYNO_DOOR_TOP)])
+    lining("Lining_Front", "x", hy, -1.0, -hx, hx, [(DOOR_X0, DOOR_X1, DOOR_TOP)])
+    lining("Lining_W", "y", -hx, 1.0, -hy, hy, [(STORE_DOOR_Y - SIDE_DOOR_HALF, STORE_DOOR_Y + SIDE_DOOR_HALF, SIDE_DOOR_TOP)])
+    lining("Lining_E", "y", hx, -1.0, -hy, hy, [(PAINT_DOOR_Y - SIDE_DOOR_HALF, PAINT_DOOR_Y + SIDE_DOOR_HALF, SIDE_DOOR_TOP)])
+    # Hazard-yellow frames round the side doorways and posts either side of the roller door.
+    for name, x, y in (("Storage", -hx - w / 2, STORE_DOOR_Y), ("Paint", hx + w / 2, PAINT_DOOR_Y)):
+        for end in (-1.0, 1.0):
+            yy = y + end * (SIDE_DOOR_HALF + 4.5)
+            box("DoorFrame_%s_%d" % (name, end > 0), x - w / 2 - 3, x + w / 2 + 3, yy - 5.5, yy + 5.5, 0, SIDE_DOOR_TOP, m["yellow"], folder="Walls", collide=False)
+        box("DoorFrame_%s_Top" % name, x - w / 2 - 3, x + w / 2 + 3, y - SIDE_DOOR_HALF - 10, y + SIDE_DOOR_HALF + 10,
+            SIDE_DOOR_TOP, SIDE_DOOR_TOP + 11, m["yellow"], folder="Walls", collide=False)
+        sx = -hx + 3 if x < 0 else hx - 3
+        label_text("DoorSign_" + name, "STORAGE" if x < 0 else "PAINT SHOP", (sx, y, SIDE_DOOR_TOP + 35), 0.0 if x < 0 else 180.0,
+                   22.0, (20, 20, 20), "Walls")
+    for side in (-1.0, 1.0):
+        px = side * (DOOR_HALF + 7.5)
+        box("DoorPost_%d" % (side > 0), px - 8.5, px + 8.5, hy - 2, hy + w + 6, 0, DOOR_TOP, m["yellow"], folder="Door", collide=False)
+    # Roof: a flat steel roof on five trusses.
+    box("Roof", -hx - 50, hx + 50, -hy - 50, hy + 50, h, h + 30, m["roof"], folder="Roof")
+    for i in range(5):
+        y = -hy + 80 + i * (2 * hy - 160) / 4.0
+        box("Truss_%d" % i, -hx, hx, y - 5, y + 5, h - 29, h - 11, m["steel"], folder="Roof", collide=False)
+    # The roller door rolled up into its drum, a dark bar under it, the sign outside.
+    shape(CYLINDER, "RollerDoor_Drum", (0.0, hy - 38, DOOR_TOP + 34), (60, 60, DOOR_HALF * 2 + 30), m["cladding"],
+          rot=(0.0, 90.0, 0.0), folder="Door", collide=False)
+    box("RollerDoor_Bar", DOOR_X0, DOOR_X1, hy - 13, hy - 3, DOOR_TOP - 2, DOOR_TOP + 6, m["dark"], folder="Door", collide=False)
+    label_text("FrontSign", "TORQUE SHED", (0.0, hy + w + 6, DOOR_TOP + 60), 90.0, 70.0, (255, 216, 89), "Door")
+    # Painted bay boxes, BAY n in front of each, and the walkway line in front of the bays.
+    for i, x in enumerate(BAY_X):
+        for side in (-1.0, 1.0):
+            lx = x + side * 150.0
+            box("BayLine_%d_%d" % (i, side > 0), lx - 3, lx + 3, BAY_Y + 40 - 155, BAY_Y + 40 + 155, 0, 0.4, m["yellow"], folder="Bays", collide=False)
+        label_text("BayNumber_%d" % (i + 1), "BAY %d" % (i + 1), (x, BAY_Y + 175, 1.2), 90.0, 40.0, (242, 204, 51), "Bays", pitch=90.0)
+    box("Walkway", -hx + 150, hx - 150, -143, -137, 0, 0.4, m["yellow"], folder="Bays", collide=False)
 
 
 def bays(m):
-    # Each bay: its bike on a paddock stand, a drip tray, painted lines and its number on the floor,
-    # and a parts table behind it holding what was last taken off that bike.
+    # Each bay's bike on its paddock stand (the stand is the bike actor's own), and its screen on
+    # the back wall above it (grey box until the screens show the bike's details).
     bike_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorqueShedBike")
-    bench_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePartsBench")
-    if not bike_cls or not bench_cls:
-        unreal.log_warning("[Torque] no TorqueShedBike / TorquePartsBench class: build the C++ first")
-    top = 82.0
+    if not bike_cls:
+        unreal.log_warning("[Torque] no TorqueShedBike class: build the C++ first")
     for i, x in enumerate(BAY_X):
-        folder = "Bay%d" % (i + 1)
         if bike_cls:
             b = actors.spawn_actor_from_class(bike_cls, unreal.Vector(x, BAY_Y, 0.0), unreal.Rotator(0.0, 0.0, 90.0))
             b.set_actor_label("Bike_Bay%d" % (i + 1))
-            b.set_folder_path(folder)
+            b.set_folder_path("Bays")
             try_set(b, "bay", i)
-        box("DripTray_%d" % i, x - 30, x + 30, BAY_Y - 20, BAY_Y + 20, 0, 1.5, m["black"], folder=folder, collide=False)
-        # The bay's lines either side, and its number in front of the wheel.
-        for side in (-1.0, 1.0):
-            lx = x + side * 105.0
-            box("BayLine_%d_%d" % (i, side > 0), lx - 4, lx + 4, BAY_Y - 200, BAY_Y + 150, 0, 0.3, m["lines"], folder=folder, collide=False)
-        try:
-            t = actors.spawn_actor_from_class(unreal.TextRenderActor, unreal.Vector(x, BAY_Y + 135.0, 0.5),
-                                              unreal.Rotator(0.0, 90.0, 90.0))   # lying on the floor, read from the door
-            t.set_actor_label("BayNumber_%d" % (i + 1))
-            t.set_folder_path(folder)
-            tr = t.get_editor_property("text_render")
-            tr.set_editor_property("text", "BAY %d" % (i + 1))
-            tr.set_editor_property("world_size", 26.0)
-            tr.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
-            tr.set_editor_property("text_render_color", unreal.Color(r=200, g=150, b=20, a=255))
-        except Exception as e:   # the number is decoration: never stop the build for it
-            unreal.log_warning("[Torque] bay number %d: %s" % (i + 1, e))
-        # The parts table: a steel-legged table, 1.0 x 0.45 m.
-        x0, x1, y0, y1 = x - 50.0, x + 50.0, TABLE_Y - 22.0, TABLE_Y + 22.0
-        box("Table_%d_Top" % i, x0, x1, y0, y1, top - 4, top, m["bench"], folder=folder)
-        for k, (lx, ly) in enumerate(((x0 + 4, y0 + 4), (x1 - 4, y0 + 4), (x0 + 4, y1 - 4), (x1 - 4, y1 - 4))):
-            box("Table_%d_Leg_%d" % (i, k), lx - 2, lx + 2, ly - 2, ly + 2, 0, top - 4, m["steel"], folder=folder)
-        if bench_cls:
-            t = actors.spawn_actor_from_class(bench_cls, unreal.Vector(x, TABLE_Y, top), unreal.Rotator(0, 0, 0))
-            t.set_actor_label("PartsTable_Bay%d" % (i + 1))
-            t.set_folder_path(folder)
-            try_set(t, "length", 90.0)
-            try_set(t, "bay", i)
+        sx = BAY_SCREEN_X[i]
+        box("BayScreen_%d" % (i + 1), sx - 130, sx + 130, -HALF_Y, -HALF_Y + 6, 245 - 73, 245 + 73, m["dark"], folder="Bays", collide=False)
+        box("BayScreen_%d_Glass" % (i + 1), sx - 124, sx + 124, -HALF_Y + 6, -HALF_Y + 7, 245 - 67, 245 + 67, m["screen"], folder="Bays", collide=False)
 
 
-def shelving(m, label, y0, y1):
-    x0, x1 = -HALF_X, -HALF_X + 50.0
-    for i, (x, y) in enumerate(((x0 + 3, y0 + 3), (x1 - 3, y0 + 3), (x0 + 3, y1 - 3), (x1 - 3, y1 - 3))):
-        box("%s_Post_%d" % (label, i), x - 2.5, x + 2.5, y - 2.5, y + 2.5, 0, 200, m["galv"], folder="Shelves")
-    for k, z in enumerate((15.0, 60.0, 105.0, 150.0, 195.0)):
-        box("%s_Shelf_%d" % (label, k), x0, x1, y0, y1, z - 2, z, m["galv"], folder="Shelves")
-        if k == 4:
-            break
-        # Boxes of parts, and the odd loose part, along each shelf.
-        y = y0 + 6
-        n = 0
-        while True:
-            w = 28.0 + ((k * 7 + n * 13) % 4) * 9.0
-            h = 18.0 + ((k * 5 + n * 11) % 3) * 9.0
-            if y + w > y1 - 6:
-                break
-            if (k + n) % 5 != 3:
-                box("%s_Box_%d_%d" % (label, k, n), x0 + 6, x1 - 8, y, y + w, z, z + h, m["card"], folder="Shelves", collide=False)
-            y += w + 5.0
-            n += 1
+# --- What's in it (workshop.gd _build_bench, _build_computer, _build_bin, _build_radio; the fixed
+# machines from shed_state.gd start_new) ---------------------------------------------------------------
+
+def workbench(m):
+    x0, x1 = BENCH_X - 47.5, BENCH_X + 47.5
+    y0, y1 = BENCH_Y0, BENCH_Y1
+    box("Bench_Body", BENCH_X - 45, BENCH_X + 45, y0, y1, 0, 94.5, m["steel"], folder="Bench")
+    box("Bench_Top", x0, x1, y0 - 2.5, y1 + 2.5, 89, BENCH_TOP, m["wood"], folder="Bench")
+    for i in range(3):   # red drawer fronts along its face
+        box("Bench_Drawers_%d" % i, BENCH_X + 45, BENCH_X + 47, y0 + 10, y1 - 10, 15 + i * 25, 35 + i * 25, m["red"], folder="Bench", collide=False)
+    label_text("Bench_Poster", "WORKBENCH", (-HALF_X + 2, BENCH_Y1 - 40, 132), 0.0, 14.0, (30, 30, 30), "Bench")
+    # The radio on its shelf over the bench's back end, and the crew board on the wall above.
+    ry = BENCH_Y0 + 60 - 25
+    box("Radio_Shelf", -HALF_X, -HALF_X + 34, ry - 30, ry + 30, 158.5, 161.5, m["wood"], folder="Bench", collide=False)
+    box("Radio", -HALF_X + 6, -HALF_X + 30, ry - 18, ry + 18, 161.5, 178, m["dark"], folder="Bench", collide=False)
+    box("CrewBoard", -HALF_X, -HALF_X + 6, 60 - 150, 60 + 150, 255 - 84, 255 + 84, m["dark"], folder="Bench", collide=False)
+    box("CrewBoard_Glass", -HALF_X + 6, -HALF_X + 7, 60 - 144, 60 + 144, 255 - 78, 255 + 78, m["screen"], folder="Bench", collide=False)
+    # The tyre changer, against the west wall just past the bench's end.
+    box("TyreChanger_Base", -HALF_X + 16, -HALF_X + 76, 325, 385, 0, 70, m["red"], folder="Bench")
+    shape(CYLINDER, "TyreChanger_Table", (-HALF_X + 46, 355, 74), (60, 60, 6), m["steel"], folder="Bench", collide=False)
+    box("TyreChanger_Column", -HALF_X + 16, -HALF_X + 26, 350, 360, 70, 150, m["steel"], folder="Bench", collide=False)
 
 
-def furniture(m):
-    # The roll cab by the bench's end, a tyre stack and a bin by the door, a drip tray under the bike.
-    box("RollCab", -80, 30, -HALF_Y + 2, -HALF_Y + 52, 8, 105, m["red"], folder="Kit")
-    box("RollCab_Top", -78, 28, -HALF_Y + 4, -HALF_Y + 48, 105, 150, m["red"], folder="Kit")
-    for i in range(4):
-        shape(CYLINDER, "RollCab_Wheel_%d" % i, (-70 + (i % 2) * 90, -HALF_Y + 10 + (i // 2) * 34, 4), (8, 8, 4), m["black"],
-              rot=(90.0, 0.0, 0.0), folder="Kit", collide=False)
-    for i in range(4):
-        shape(CYLINDER, "Tyre_%d" % i, (-HALF_X + 50, 100.0, 9 + i * 18), (62, 62, 17), m["black"], folder="Kit")
-    shape(CYLINDER, "Bin", (DOOR_X0 - 70, HALF_Y - 40, 45), (55, 55, 90), m["black"], folder="Kit")
-    # A wash bucket and sponge between the middle bays (hold G / Square on a bike to wash it).
-    shape(CYLINDER, "Bucket", (0.0, BAY_Y - 130, 14), (30, 30, 28), m["bucket"], folder="Kit")
-    box("Sponge", -8.0, 8.0, BAY_Y - 136, BAY_Y - 124, 28, 34, m["sponge"], folder="Kit", collide=False)
-    # The paint rack on the east wall between the window and the side door (ATorquePaintRack: its
-    # colour cards; E picks one, E on bodywork paints it), facing into the room.
-    rack_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePaintRack")
-    if rack_cls:
-        r = actors.spawn_actor_from_class(rack_cls, unreal.Vector(HALF_X - 2.0, 10.0, 150.0), unreal.Rotator(0.0, 0.0, 180.0))
-        r.set_actor_label("PaintRack")
-        r.set_folder_path("Kit")
-    else:
-        unreal.log_warning("[Torque] no TorquePaintRack class: build the C++ first")
-    # The parts store along the north wall east of the window (ATorquePartsStore: a labelled bay for
-    # every slot with that slot's spares; E fits one). Its foot's middle against the wall, facing in.
-    store_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePartsStore")
-    if store_cls:
-        st = actors.spawn_actor_from_class(store_cls, unreal.Vector(440.0, -HALF_Y + 23.0, 0.0), unreal.Rotator(0.0, 0.0, 90.0))
-        st.set_actor_label("PartsStore")
-        st.set_folder_path("Kit")
-    else:
-        unreal.log_warning("[Torque] no TorquePartsStore class: build the C++ first")
-    # The side door, shut, in the east wall.
-    box("SideDoor", HALF_X + 20, HALF_X + 26, 100, 190, 0, 205, m["door"], folder="Walls")
+def machines(m):
+    hx, hy = HALF_X, HALF_Y
+    # The parts computer on the east wall: desk, monitor, keyboard ("PARTS: order anything").
+    px, py = hx - 45, 190
+    box("PC_Desk", px - 37.5, px + 37.5, py - 65, py + 65, 0, 74, m["wood"], folder="Computer")
+    box("PC_DeskTop", px - 40, px + 40, py - 67.5, py + 67.5, 74, 78, m["dark"], folder="Computer", collide=False)
+    box("PC_Monitor", px + 9.5, px + 14.5, py - 34, py + 34, 89, 131, m["dark"], folder="Computer", collide=False)
+    box("PC_Screen", px + 8.5, px + 9.5, py - 31, py + 31, 92, 128, m["screen"], folder="Computer", collide=False)
+    box("PC_Keyboard", px - 24, px - 6, py - 22.5, py + 22.5, 78, 80, m["dark"], folder="Computer", collide=False)
+    label_text("PC_Title", "PARTS", (px + 8, py, 122), 180.0, 9.0, (178, 230, 255), "Computer")
+    # The engine stand by the east bay; the parts washer and repair bench against the front wall.
+    sx, sy = hx - 90, -40
+    box("EngineStand_Base", sx - 35, sx + 35, sy - 40, sy + 40, 0, 8, m["stand"], folder="Machines")
+    box("EngineStand_Post", sx - 5, sx + 5, sy - 5, sy + 5, 8, 72, m["stand"], folder="Machines")
+    box("EngineStand_Head", sx - 20, sx + 5, sy - 15, sy + 15, 62, 82, m["steel"], folder="Machines", collide=False)
+    wx, wy = hx - 105, hy - 60
+    box("PartsWasher", wx - 65, wx + 65, wy - 45, wy + 45, 0, 95, m["blue"], folder="Machines")
+    box("PartsWasher_Lid", wx - 65, wx + 65, wy + 20, wy + 45, 95, 160, m["blue"], folder="Machines", collide=False)
+    rx, ry = 340.0, hy - 60
+    box("RepairBench", rx - 90, rx + 90, ry - 45, ry + 45, 0, 90, m["steel"], folder="Machines")
+    box("RepairBench_Top", rx - 90, rx + 90, ry - 45, ry + 45, 90, 94, m["dark"], folder="Machines", collide=False)
+    box("RepairBench_Grinder", rx + 40, rx + 70, ry - 10, ry + 20, 94, 120, m["red"], folder="Machines", collide=False)
+    # The bins left of the roller door: general waste, plastic and metal recycling.
+    for name, x, col in (("General", -275.0, "dark"), ("Plastic", -333.0, "blue"), ("Metal", -391.0, "green")):
+        y = hy - 33
+        box("Bin_" + name, x - 26, x + 26, y - 30, y + 30, 0, 88, m[col], folder="Bins")
+        box("Bin_%s_Lid" % name, x - 28, x + 28, y - 34, y + 32, 88, 92, m[col], folder="Bins", collide=False)
+    # The light switches right of the door, inside.
+    box("Switches", DOOR_HALF + 48, DOOR_HALF + 62, hy - 5, hy - 2, 123, 147, m["yellow"], folder="Door", collide=False)
 
 
-def leds(m):
-    for i, x in enumerate((-300.0, 0.0, 300.0)):
-        for j, y in enumerate((-170.0, 170.0)):
-            # A grey steel batten body hung on two chains from the beam, its diffuser underneath.
-            box("Batten_%d_%d" % (i, j), x - 6, x + 6, y - 76, y + 76, EAVES - 40, EAVES - 34, m["steel"], folder="Lights", collide=False)
-            box("Batten_%d_%d_Diffuser" % (i, j), x - 4, x + 4, y - 73, y + 73, EAVES - 42, EAVES - 40, m["led"], folder="Lights", collide=False)
-            for k, cy in enumerate((y - 60, y + 60)):
-                box("Batten_%d_%d_Chain%d" % (i, j, k), x - 0.6, x + 0.6, cy - 0.6, cy + 0.6, EAVES - 34, EAVES - 30, m["galv"], folder="Lights", collide=False)
-            light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(x, y, EAVES - 43), unreal.Rotator(0.0, -90.0, 0.0))
-            light.set_actor_label("LED_%d_%d" % (i, j))
-            light.set_folder_path("Lights")
-            lc = light.get_component_by_class(unreal.RectLightComponent)
-            lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
-            units = getattr(unreal, "LightUnits", None)
-            if units is not None:
-                try_set(lc, "intensity_units", units.LUMENS)
-            for k, v in (("intensity", LED_LUMENS), ("source_width", 150.0), ("source_height", 12.0),
-                         ("attenuation_radius", 1400.0), ("barn_door_angle", 88.0),
-                         ("temperature", 5000.0), ("use_temperature", True)):
-                try_set(lc, k, v)
+def wash_bay(m):
+    # The lean-to on the west wall, open to the yard at the front (+y): back and outer walls,
+    # tiles to 2 m, a roof, a yellow post and fascia, and the pressure washer on the back wall.
+    cx, cy, hx, hy, h = -930.0, 100.0, 240.0, 340.0, 300.0
+    box("WashBay_Pad", cx - hx, cx + hx, cy - hy, cy + hy, -12, 0.6, m["pad"], folder="WashBay")
+    box("WashBay_Back", cx - hx - 20, cx + hx, cy - hy - 20, cy - hy, 0, h, m["cladding"], folder="WashBay")
+    box("WashBay_Outer", cx - hx - 20, cx - hx, cy - hy, cy + hy + 20, 0, h, m["cladding"], folder="WashBay")
+    box("WashBay_Roof", cx - hx - 40, cx + hx, cy - hy - 40, cy + hy + 40, h, h + 12, m["roof"], folder="WashBay")
+    box("WashBay_Post", cx - hx + 4, cx - hx + 16, cy + hy - 16, cy + hy - 4, 0, h, m["yellow"], folder="WashBay")
+    box("WashBay_Fascia", cx - hx, cx + hx, cy + hy - 10, cy + hy, h - 20, h, m["yellow"], folder="WashBay", collide=False)
+    label_text("WashBay_Sign", "WASH BAY", (cx, cy + hy + 2, h - 10), 90.0, 22.0, (20, 20, 20), "WashBay")
+    ux, uy = -1130.0, -180.0
+    box("PressureWasher", ux - 25, ux + 25, uy - 20, uy + 20, 0, 90, m["yellow"], folder="WashBay")
+    shape(CYLINDER, "PressureWasher_Reel", (ux + 45, uy - 10, 140), (44, 44, 12), m["dark"], rot=(90.0, 0.0, 0.0), folder="WashBay", collide=False)
+    box("WashBay_Drain", -930 - 21, -930 + 21, 100 - 21, 100 + 21, 0.6, 1.2, m["dark"], folder="WashBay", collide=False)
+
+
+def rooms(m):
+    # The rooms off the shed, as empty shells for now: storage (west, behind the wash bay), the
+    # paint shop (east) and the dyno room (through the back wall).
+    room("Storage", -1500.0, -680.0, -1100.0, -280.0, m, open_sides=("e",))   # the shed's west wall closes it...
+    box("Storage_WallE", -680.0, -650.0, -1100.0, -HALF_Y - WALL, 0, ROOM_HEIGHT, m["cladding"], folder="Storage")   # ...and this, behind it
+    room("PaintShop", 680.0, 1400.0, -520.0, 520.0, m, open_sides=("w",))
+    room("Dyno", -450.0, 450.0, -1300.0, -580.0, m, open_sides=("s",))
+
+
+def deliveries(m):
+    # The deliveries bay on the yard east of the door (Shed.DELIVERY_AREA): painted lines, the
+    # floor's front edge, DELIVERIES on the ground.
+    x0, x1, y0, y1 = 290.0, 1070.0, 750.0, 1250.0
+    for i, (a0, a1, b0, b1) in enumerate(((x0, x0 + 8, y0, y1), (x1 - 8, x1, y0, y1), (x0, x1, y0, y0 + 8), (x0, x1, y1 - 8, y1),
+                                          (x0, x1, 1065 - 3, 1065 + 3))):
+        box("Deliveries_Line_%d" % i, a0, a1, b0, b1, 0, 0.6, m["yellow"], folder="Outside", collide=False)
+    label_text("Deliveries_Mark", "DELIVERIES", ((x0 + x1) / 2, y0 - 45, 1.0), 90.0, 50.0, (217, 178, 51), "Outside", pitch=90.0)
+
+
+def lights(m):
+    # Workshop.gd _build_lights: a strip light over each bay with a spot under it, and three more
+    # strips down the middle and over the door.
+    spots = [(x, BAY_Y) for x in BAY_X] + [(-420.0, 150.0), (420.0, 150.0), (0.0, 350.0)]
+    for i, (x, y) in enumerate(spots):
+        box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(x, y, HEIGHT - 39), unreal.Rotator(0.0, -90.0, 0.0))
+        light.set_actor_label("StripLight_%d" % i)
+        light.set_folder_path("Lights")
+        lc = light.get_component_by_class(unreal.RectLightComponent)
+        lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+        units = getattr(unreal, "LightUnits", None)
+        if units is not None:
+            try_set(lc, "intensity_units", units.LUMENS)
+        for k, v in (("intensity", LED_LUMENS * (1.3 if i < len(BAY_X) else 1.0)), ("source_width", 130.0), ("source_height", 20.0),
+                     ("attenuation_radius", 1200.0), ("barn_door_angle", 70.0),
+                     ("temperature", 4800.0), ("use_temperature", True)):
+            try_set(lc, k, v)
+    # The wash bay's own strip.
+    light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(-930.0, 100.0, 290.0), unreal.Rotator(0.0, -90.0, 0.0))
+    light.set_actor_label("WashBayLight")
+    light.set_folder_path("WashBay")
+    box("WashBay_Strip", -937.5, -922.5, 20, 180, 292, 296, m["led"], folder="WashBay", collide=False)
 
 
 def outside(m):
     # Concrete apron in front of the door, the lane off it to the south, the field all round.
-    box("Forecourt", -450, 650, HALF_Y + WALL, HALF_Y + WALL + 900, -10, 0, m["concrete"], folder="Outside")
-    box("Lane", -150, 250, HALF_Y + WALL + 900, 30000, -12, -2, m["tarmac"], folder="Outside")
+    box("Forecourt", -1200, 1500, HALF_Y + WALL, HALF_Y + WALL + 900, -10, 0, m["concrete"], folder="Outside")
+    box("Yard", -1600, 1500, -1400, HALF_Y + WALL, -11, -1, m["concrete"], folder="Outside")
+    box("Lane", -200, 200, HALF_Y + WALL + 900, 30000, -12, -2, m["tarmac"], folder="Outside")
     box("Field", -40000, 40000, -40000, 40000, -30, -8, m["grass"], folder="Outside")
     # Drystone walls round the yard and along the lane.
     def dry(label, x0, x1, y0, y1):
         box(label, x0, x1, y0, y1, -8, 130, m["drystone"], folder="Outside")
-    dry("Wall_YardW", -1100, -1040, -900, HALF_Y + WALL + 900)
-    dry("Wall_YardE", 1240, 1300, -900, HALF_Y + WALL + 900)
-    dry("Wall_Back", -1100, 1300, -960, -900)
-    dry("Wall_LaneW", -230, -170, HALF_Y + WALL + 900, 12000)
-    dry("Wall_LaneE", 270, 330, HALF_Y + WALL + 900, 12000)
+    dry("Wall_YardW", -1700, -1640, -1500, HALF_Y + WALL + 900)
+    dry("Wall_YardE", 1540, 1600, -1500, HALF_Y + WALL + 900)
+    dry("Wall_Back", -1700, 1600, -1560, -1500)
+    dry("Wall_LaneW", -280, -220, HALF_Y + WALL + 900, 12000)
+    dry("Wall_LaneE", 220, 280, HALF_Y + WALL + 900, 12000)
     dry("Wall_Field1", -9000, -230, 4000, 4060)
     dry("Wall_Field2", 330, 9000, 6500, 6560)
     # Far fells: low domes 8 to 20 km off, hazed blue by the sky's aerial perspective.
@@ -557,53 +632,33 @@ def build():
     m = materials()
     before = begin_fresh_level(MAP)
 
-    # Floor: the slab runs under the walls and out of the door.
-    box("Floor", -HALF_X - WALL, HALF_X + WALL, -HALF_Y - WALL, HALF_Y + WALL, -12, 0, m["concrete"], folder="Walls")
-    # Walls: south with the roller door and a window, north with two windows, west with one, east with
-    # the side door and one. Ends run full width; the long walls sit between them.
-    s = m["stone"]
-    wall("Wall_S", "x", HALF_Y, HALF_Y + WALL, -HALF_X, HALF_X, EAVES,
-         [(DOOR_X0, DOOR_X1, 0.0, DOOR_TOP), (-480.0, -370.0, 110.0, 215.0), (380.0, 480.0, 110.0, 215.0)], s)
-    wall("Wall_N", "x", -HALF_Y - WALL, -HALF_Y, -HALF_X, HALF_X, EAVES,
-         [(-380.0, -270.0, 120.0, 220.0), (150.0, 260.0, 120.0, 220.0)], s)
-    wall("Wall_W", "y", -HALF_X - WALL, -HALF_X, -HALF_Y - WALL, HALF_Y + WALL, EAVES, [(-60.0, 60.0, 120.0, 220.0)], s)
-    wall("Wall_E", "y", HALF_X, HALF_X + WALL, -HALF_Y - WALL, HALF_Y + WALL, EAVES,
-         [(100.0, 190.0, 0.0, 210.0), (-250.0, -150.0, 120.0, 220.0)], s)
-    gable("Gable_W", -HALF_X - WALL, -HALF_X, s)
-    gable("Gable_E", HALF_X, HALF_X + WALL, s)
-    roof(m["slate"], m["wood"])
-    # The roller door, rolled up: its drum in a box over the opening, and the guide rails.
-    shape(CYLINDER, "RollerDoor_Drum", ((DOOR_X0 + DOOR_X1) / 2, HALF_Y - 28, DOOR_TOP + 22), (44, 44, DOOR_X1 - DOOR_X0 + 20),
-          m["galv"], rot=(0.0, 90.0, 0.0), folder="Door", collide=False)
-    for i, x in enumerate((DOOR_X0 - 6, DOOR_X1 + 6)):
-        box("RollerDoor_Rail_%d" % i, x - 4, x + 4, HALF_Y - 8, HALF_Y, 0, DOOR_TOP + 10, m["galv"], folder="Door")
-    ride = actors.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector((DOOR_X0 + DOOR_X1) / 2, HALF_Y + 30, 0), unreal.Rotator(0, 0, 0))
+    shell(m)
+    bays(m)
+    workbench(m)
+    machines(m)
+    wash_bay(m)
+    rooms(m)
+    deliveries(m)
+    lights(m)
+    outside(m)
+    sky()
+    ride = actors.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(0.0, HALF_Y + 30, 0), unreal.Rotator(0, 0, 0))
     ride.set_actor_label("RideOut")
     ride.set_folder_path("Door")
     ride.set_editor_property("tags", [unreal.Name("RideOut")])
 
-    workbench(m)
-    shelving(m, "ShelfA", -350.0, -150.0)
-    shelving(m, "ShelfB", 160.0, 360.0)
-    furniture(m)
-    leds(m)
-    outside(m)
-    sky()
-
-    bays(m)
-
-    # Start by the door looking in at the bikes.
-    start = (DOOR_X1 + 60.0, HALF_Y - 90.0)
-    yaw = math.degrees(math.atan2(BIKE_AT[1] - start[1], BIKE_AT[0] - start[0]))
+    # Walkers arrive where Torque Shed puts them (Workshop.walker_spawn): in a row 2.6 m in front
+    # of the middle, facing the bays.
+    for i in range(4):
+        actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(-150.0 + i * 100.0, 260.0, 100.0), unreal.Rotator(0.0, 0.0, -90.0))
     # Where the start menu looks from (ATorqueMenuPawn): inside the door at eye height, looking in at
-    # the bike, below the battens and beams.
-    view = (DOOR_X1 + 80.0, HALF_Y - 60.0, 165.0)
+    # the bays, below the trusses.
+    view = (320.0, 470.0, 170.0)
     to = (BIKE_AT[0] - view[0], BIKE_AT[1] - view[1], 70.0 - view[2])
     v = actors.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(*view), unreal.Rotator(
         0.0, math.degrees(math.atan2(to[2], math.hypot(to[0], to[1]))), math.degrees(math.atan2(to[1], to[0]))))
     v.set_actor_label("MenuView")
     v.set_editor_property("tags", [unreal.Name("MenuView")])
-    actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(start[0], start[1], 100.0), unreal.Rotator(0.0, 0.0, yaw))
 
     save_fresh_level(MAP, before)
     # Say what the saved level holds for the game's own lookups (tags), so a run's log shows it.
@@ -611,7 +666,7 @@ def build():
         tags = [str(t) for t in a.get_editor_property("tags")]
         if "MenuView" in tags or "RideOut" in tags:
             log("level has %s (%s) at %s, rotation %s" % (a.get_actor_label(), ",".join(tags), a.get_actor_location(), a.get_actor_rotation()))
-    log("built %s: %d bays; walk round the bikes, E to swap a part, F at a bike to make it yours and ride out" % (MAP, len(BAY_X)))
+    log("built %s: Torque Shed's shed, %d bays" % (MAP, len(BAY_X)))
 
 
 build()
