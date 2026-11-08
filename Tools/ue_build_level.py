@@ -1663,6 +1663,33 @@ def tree_material():
     return m
 
 
+def cloud_shadow_material():
+    """Cloud shadows sweeping over the fells, a Dales day's signature: a light function on the sun,
+    the broad noise in patches a kilometre or two across, drifting north east at about 9 m/s (the
+    prevailing south westerly), the shade let through at 45% (thin summer cumulus, not storm cloud)."""
+    nt = noise_texture()
+    if nt is None:
+        return None
+    g = Graph(new_material("M_CloudShadow"))
+    try_set(g.m, "material_domain", unreal.MaterialDomain.MD_LIGHT_FUNCTION)
+    tm = g.node(unreal.MaterialExpressionTime)
+    drift = g.op(unreal.MaterialExpressionMultiply, tm,
+                 g.node(unreal.MaterialExpressionConstant2Vector, r=-6.5 / 1800.0, g=-6.5 / 1800.0))   # +x east, +y south
+    uv = g.op(unreal.MaterialExpressionAdd, g.world_uv(1800.0), drift)
+    a = g.sample(nt, uv, "linear")
+    uv2 = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, uv, const_b=2.3), g.node(unreal.MaterialExpressionConstant2Vector, r=0.31, g=0.67))
+    b = g.sample(nt, uv2, "linear")
+    n = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, a, const_b=0.7, a_out="G"),
+             g.op(unreal.MaterialExpressionMultiply, b, const_b=0.3, a_out="G"))
+    cloud = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                 g.op(unreal.MaterialExpressionSubtract, n, const_b=0.6), const_b=7.0))
+    light = g.lerp(g.const(1.0), g.const(0.45), cloud)
+    mel.connect_material_property(light, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
 def place_trees(frame):
     """The trees (Tools/make_trees.py): import the models as Nanite meshes and add a second
     TorqueFoliage actor, "Trees", that plants them from Data/Buttertubs/Trees/instances.bin at
@@ -2179,6 +2206,11 @@ def build():
                  ("cast_cloud_shadows", True), ("cast_shadows_on_clouds", True), ("cast_shadows_on_atmosphere", True),
                  ("light_color", unreal.Color(255, 247, 235, 255))):
         try_set(sc, k, v)
+    cs = cloud_shadow_material()
+    if cs is not None:
+        try_set(sc, "light_function_material", cs)
+        try_set(sc, "light_function_fade_distance", 3000000.0)   # 30 km: the far fells get them too
+        try_set(sc, "disabled_brightness", 1.0)
     # The planet's surface goes under the lowest land (the valley floors are 300 m below the start):
     # by default it sits at the level's origin, and land below it got a broken, banded aerial
     # perspective that read as a flat blue sea.
