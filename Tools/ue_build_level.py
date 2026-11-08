@@ -1950,7 +1950,37 @@ def render_material(tex, roles, name="M_LimeRender"):
     return g.finish([col, nrm, rough], specular=0.35)
 
 
-def flat_material(name, rough, metallic=0.0, fine=0.0):
+def graze_wpo(g):
+    """Sheep come alive: the head and neck (the front of the ewe, local x past about 45 cm; she faces
+    +x) dip and nibble in bouts and turn now and then, each ewe on her own clock (per-instance random)."""
+    lp = g.node(unreal.MaterialExpressionLocalPosition)
+    x = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False)
+    g.link(lp, x)
+    w = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionDivide,
+             g.op(unreal.MaterialExpressionSubtract, x, const_b=45.0), const_b=30.0))
+    tm = g.node(unreal.MaterialExpressionTime)
+    pir = g.node(unreal.MaterialExpressionPerInstanceRandom)
+    def wave(rate, phase_mul):
+        a = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, tm, const_b=rate),
+                 g.op(unreal.MaterialExpressionMultiply, pir, const_b=phase_mul))
+        s = g.node(unreal.MaterialExpressionSine, -600, period=1.0)   # period 1: the rates are cycles per second
+        g.link(a, s)
+        return s
+    nib = wave(0.9, 3.7)                                       # a nibble a second or so
+    bout = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd, wave(0.05, 9.1), const_b=0.2))
+    dz = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, nib, bout), const_b=4.0)
+    dy = g.op(unreal.MaterialExpressionMultiply, wave(0.07, 5.3), const_b=6.0)   # a slow look round
+    off = g.op(unreal.MaterialExpressionAppendVector, g.op(unreal.MaterialExpressionAppendVector, g.const(0.0), dy), dz)
+    off = g.op(unreal.MaterialExpressionMultiply, off, w)
+    tl = g.node(unreal.MaterialExpressionTransform)   # local to world (the ewe's yaw)
+    try_set(tl, "transform_source_type", unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_LOCAL)
+    try_set(tl, "transform_type", unreal.MaterialVectorCoordTransform.TRANSFORM_WORLD)
+    g.link(off, tl)
+    try_set(g.m, "max_world_position_offset_displacement", 12.0)
+    return tl
+
+
+def flat_material(name, rough, metallic=0.0, fine=0.0, wpo=None):
     """Vertex colour as the colour, darkened and roughened by its alpha (dirt), with a little noise."""
     g = Graph(new_material(name))
     instanced_usage(g.m)
@@ -1965,6 +1995,8 @@ def flat_material(name, rough, metallic=0.0, fine=0.0):
     mel.connect_material_property(r, "", unreal.MaterialProperty.MP_ROUGHNESS)
     if metallic:
         mel.connect_material_property(g.const(metallic), "", unreal.MaterialProperty.MP_METALLIC)
+    if wpo:
+        mel.connect_material_property(wpo(g), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
     return g.m
@@ -2099,7 +2131,7 @@ def build():
     prop_meshes, prop_spec = import_props()
     prop_mats = {}
     if prop_meshes:
-        prop_mats = {"stone": stone_material(tex, roles), "fleece": flat_material("M_Fleece", 0.95, fine=0.4),
+        prop_mats = {"stone": stone_material(tex, roles), "fleece": flat_material("M_Fleece", 0.95, fine=0.4, wpo=graze_wpo),
                      "metal": flat_material("M_GalvanisedSteel", 0.42, metallic=1.0),
                      "wood": flat_material("M_BarnWood", 0.8, fine=0.15),
                      "masonry": stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False),
