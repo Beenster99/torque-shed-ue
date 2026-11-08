@@ -1087,6 +1087,24 @@ def ground_blend(g, base, h, rvt, strength):
     return g.lerp(base, gc, w, b_out="BaseColor")
 
 
+def grade_green(g, base, value=0.78, sat=1.25, blue=0.4):
+    """Grass blades and cards, matched to beenster's DJI footage (grade-2 stats: near grass about 1.4x
+    too bright and twice too blue): darker, a little richer, blue at most 0.4 of green."""
+    base = g.op(unreal.MaterialExpressionMultiply, base, const_b=value)
+    grey = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(base, grey)
+    g.link(g.const(1.0), grey, "Fraction")
+    base = g.lerp(grey, base, g.const(sat))
+    rg = g.node(unreal.MaterialExpressionComponentMask, r=True, g=True, b=False, a=False)
+    g.link(base, rg)
+    bb = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
+    g.link(base, bb)
+    gg = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
+    g.link(base, gg)
+    cap = g.op(unreal.MaterialExpressionMin, bb, g.op(unreal.MaterialExpressionMultiply, gg, const_b=blue))
+    return g.op(unreal.MaterialExpressionAppendVector, rg, cap)
+
+
 def foliage_material(rvt=None, blend=1.0, name="M_Foliage"):
     """Our plants: vertex colour (a little varied per plant), two-sided foliage shading so the sun
     glows through the blades, ambient occlusion from the vertex alpha, and wind: UV y is how far each
@@ -1101,6 +1119,7 @@ def foliage_material(rvt=None, blend=1.0, name="M_Foliage"):
     uv = g.node(unreal.MaterialExpressionTextureCoordinate)
     h = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False)
     g.link(uv, h)
+    base = grade_green(g, base)
     base = ground_blend(g, base, h, rvt, blend)
     sss = g.op(unreal.MaterialExpressionMultiply, base, g.const((0.75, 0.9, 0.35)))
     wpo = foliage_wind(g, h, pir)
@@ -1180,6 +1199,7 @@ def scan_foliage_master(defaults, rvt=None, blend=1.0):
     z = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
     g.link(lp, z)
     h = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMax, z, const_b=0.0), const_b=0.01)
+    base = grade_green(g, base)
     base = ground_blend(g, base, h, rvt, blend)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     op = tex("Opacity")
@@ -2082,7 +2102,7 @@ def build():
     if mode is not None:
         try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.038), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
@@ -2095,7 +2115,7 @@ def build():
     for k, v in (("fog_density", 0.0018), ("fog_height_falloff", 0.15), ("enable_volumetric_fog", True),
                  ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
                  ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
-                 ("fog_inscattering_luminance", unreal.LinearColor(0.42, 0.46, 0.52, 1.0))):
+                 ("fog_inscattering_luminance", unreal.LinearColor(0.45, 0.46, 0.47, 1.0))):
         try_set(fc, k, v)
     try:
         cloud = spawn(unreal.VolumetricCloud)
