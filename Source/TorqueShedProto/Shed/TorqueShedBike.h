@@ -28,6 +28,11 @@ bool IsBodywork(FName Part);
 FString PartLabel(FName Part);
 // Dirt and paint from the build onto the parts' finishes (the bike's materials take Grime and Color).
 void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts);
+// One spare: option Part for Slot drawn as it would be fitted to Build, under a new holder on Parent,
+// shrunk (never grown) to fit inside MaxCm when that's set, and moved so its box sits centred on
+// WorldBottom. Its meshes are tagged with the slot and Option:<part>. Returns how many meshes.
+int32 MakeSpare(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build, FName Slot, FName Part,
+	const FVector& WorldBottom, double MaxCm, TArray<UStaticMeshComponent*>& Out, USceneComponent*& OutHolder);
 // A slot's name for people: "exhaust" -> "Exhaust".
 FString SlotLabel(FName Slot);
 // Makes the parts of a build under Parent; only the parts in OnlySlot when it's set.

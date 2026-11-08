@@ -77,6 +77,11 @@ void UTorqueBuildSubsystem::Load()
 	}
 	Dirt = S->Dirt;
 	Paint = S->Paint;
+	for (const FString& R : S->Removed)
+	{
+		FString A, B;
+		if (R.Split(TEXT(":"), &A, &B) && Removed.Num() < RecentMax) Removed.Add({FName(*A), FName(*B)});
+	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: shed loaded from %s: %d parts fitted, %d painted"), *SaveSlot, Build.Fitted.Num(), Paint.Num());
 }
 
@@ -89,6 +94,7 @@ void UTorqueBuildSubsystem::Save()
 	S->Fitted = Build.Fitted;
 	S->Dirt = Dirt;
 	S->Paint = Paint;
+	for (const FTorqueRemoved& R : Removed) S->Removed.Add(R.Slot.ToString() + TEXT(":") + R.Part.ToString());
 	if (!UGameplayStatics::SaveGameToSlot(S, SaveSlot, 0))
 		UE_LOG(LogTemp, Warning, TEXT("Torque: couldn't save the shed to %s"), *SaveSlot);
 }
@@ -105,7 +111,12 @@ FName UTorqueBuildSubsystem::FittedIn(FName Slot) const
 bool UTorqueBuildSubsystem::Fit(FName Slot, FName PartId, FText& WhyNot)
 {
 	if (!TorqueFit::CanFit(Build, Slot, PartId, WhyNot)) return false;
+	const FName Off = FittedIn(Slot);
 	Build.Fitted.Add(Slot, PartId);
+	// What came off goes on the bench, newest first; what went on comes off it.
+	Removed.RemoveAll([Slot, PartId, Off](const FTorqueRemoved& R) { return R.Slot == Slot && (R.Part == PartId || R.Part == Off); });
+	if (!Off.IsNone() && Off != PartId) Removed.Insert({Slot, Off}, 0);
+	if (Removed.Num() > RecentMax) Removed.SetNum(RecentMax);
 	UE_LOG(LogTemp, Log, TEXT("Torque: fitted %s in %s"), *PartId.ToString(), *Slot.ToString());
 	OnChanged.Broadcast();
 	return true;

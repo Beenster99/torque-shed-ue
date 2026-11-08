@@ -10,6 +10,12 @@
 #include "Shed/TorqueFitApi.h"
 #include "TorqueBuildSubsystem.generated.h"
 
+// A part taken off the bike: which slot it came out of.
+struct FTorqueRemoved
+{
+	FName Slot, Part;
+};
+
 UCLASS()
 class UTorqueBuildSubsystem : public UGameInstanceSubsystem
 {
@@ -39,6 +45,10 @@ public:
 
 	FSimpleMulticastDelegate OnChanged;
 
+	// The parts taken off most recently (newest first, at most RecentMax): what lies on the bench.
+	const TArray<FTorqueRemoved>& RecentlyRemoved() const { return Removed; }
+	static constexpr int32 RecentMax = 4;
+
 	// How the bike looks, beside what's fitted (the strip / clean / paint loop, first slice):
 	// road dirt per model part (0 clean .. 1 filthy) and bodywork painted a new colour.
 	// The bike starts lightly ridden-in; every ride out adds more; a wash takes it off.
@@ -61,6 +71,7 @@ private:
 	FTorqueBuild Build;
 	TMap<FName, float> Dirt;
 	TMap<FName, FLinearColor> Paint;
+	TArray<FTorqueRemoved> Removed;
 	bool bRode = false;
 
 	FString SaveSlot;

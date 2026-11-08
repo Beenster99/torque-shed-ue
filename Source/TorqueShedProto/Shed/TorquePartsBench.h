@@ -1,7 +1,7 @@
-// The parts bench: the parts that aren't on the bike lie on the bench top, one slot's spares after
-// another along its length. Look at one and press E (Cross) to fit it; the part it replaces comes
-// off the bike and lands on the bench in its place. The actor sits on the bench top, its +x along
-// the bench, its +y towards the wall.
+// The parts bench: the last few parts taken off the bike lie on the bench top (the rest of the
+// spares are on the parts store's shelves, ATorquePartsStore). Look at one and press E (Cross) to
+// fit it back; the part it replaces lands on the bench in its place. The actor sits on the bench
+// top, its +x along the bench.
 #pragma once
 
 #include "CoreMinimal.h"

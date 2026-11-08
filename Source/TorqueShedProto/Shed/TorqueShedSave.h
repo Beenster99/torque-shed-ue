@@ -18,4 +18,5 @@ public:
 	UPROPERTY() TMap<FName, FName> Fitted;
 	UPROPERTY() TMap<FName, float> Dirt;
 	UPROPERTY() TMap<FName, FLinearColor> Paint;
+	UPROPERTY() TArray<FString> Removed;   // "slot:part", newest first: what lies on the bench
 };

@@ -3,6 +3,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorquePartsBench.h"
+#include "Shed/TorquePartsStore.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorquePaintRack.h"
 #include "Shed/TorqueWalker.h"
@@ -176,10 +177,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("bench") && P.Num() >= 3)
 	{
 		const FName Slot(*P[1]), Part(*P[2]);
-		UStaticMeshComponent* C = Bench ? Biggest(Bench->Items, [Slot, Part](const UStaticMeshComponent* X)
-			{ return TorqueShedModel::SlotTag(X) == Slot && TorqueShedModel::OptionTag(X) == Part; }) : nullptr;
-		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no such spare on the bench (fitted already, or not imported)"), *S); return true; }
-		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s"), *S, *AimBench(C));
+		auto Match = [Slot, Part](const UStaticMeshComponent* X)
+			{ return TorqueShedModel::SlotTag(X) == Slot && TorqueShedModel::OptionTag(X) == Part; };
+		// On the bench (recently removed) first, else in the parts store, looked at from in front.
+		UStaticMeshComponent* C = Bench ? Biggest(Bench->Items, Match) : nullptr;
+		FString Seen;
+		if (C) Seen = AimBench(C);
+		else
+			for (TActorIterator<ATorquePartsStore> It(World); It && !C; ++It)
+				if ((C = Biggest(It->Items, Match)) != nullptr)
+					Seen = W->TestLookAt(C->Bounds.Origin, It->GetActorForwardVector(), 100.0) + TEXT(" (store)");
+		if (!C) { UE_LOG(LogTemp, Warning, TEXT("Torque test: %s: no such spare on the bench or in the store (fitted already, or not imported)"), *S); return true; }
+		UE_LOG(LogTemp, Log, TEXT("Torque test: %s: looking at %s"), *S, *Seen);
 		UE_LOG(LogTemp, Log, TEXT("Torque test: %s"), *W->TestPress(false));
 		return true;
 	}

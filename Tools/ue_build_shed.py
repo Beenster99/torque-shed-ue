@@ -11,7 +11,8 @@ What it makes (Unreal cm: x east, y south, z up; the floor at z 0):
   - a 4 m wide, 3 m high roller door in the south wall (rolled up), a side door, five small windows;
   - a concrete floor running out onto the forecourt, a lane, fields, drystone walls and far fells;
   - inside: the Speed Twin on a rear paddock stand (ATorqueShedBike) facing the door, the workbench
-    along the north wall with its pegboard and vice and the parts bench (ATorquePartsBench) on its top,
+    along the north wall with its pegboard and vice and the parts bench (ATorquePartsBench) on its top
+    (the last few parts taken off), the parts store (ATorquePartsStore, every spare by slot) north-east,
     parts shelving on the west wall, a roll cab, a tyre stack and a bin;
   - daylight: the same mid-afternoon south-west sun and sky as Buttertubs (at 1/16 of real, the camera
     exposed to match), through the door and windows; six LED battens on the beams; Lumen;
@@ -357,6 +358,15 @@ def furniture(m):
         r.set_folder_path("Kit")
     else:
         unreal.log_warning("[Torque] no TorquePaintRack class: build the C++ first")
+    # The parts store along the north wall east of the window (ATorquePartsStore: a labelled bay for
+    # every slot with that slot's spares; E fits one). Its foot's middle against the wall, facing in.
+    store_cls = unreal.load_class(None, "/Script/TorqueShedProto.TorquePartsStore")
+    if store_cls:
+        st = actors.spawn_actor_from_class(store_cls, unreal.Vector(440.0, -HALF_Y + 23.0, 0.0), unreal.Rotator(0.0, 0.0, 90.0))
+        st.set_actor_label("PartsStore")
+        st.set_folder_path("Kit")
+    else:
+        unreal.log_warning("[Torque] no TorquePartsStore class: build the C++ first")
     # The side door, shut, in the east wall.
     box("SideDoor", HALF_X + 20, HALF_X + 26, 100, 190, 0, 205, m["door"], folder="Walls")
 

@@ -3,6 +3,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorquePartsBench.h"
+#include "Shed/TorquePartsStore.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorquePaintRack.h"
 #include "SonyPad.h"
@@ -259,6 +260,8 @@ void ATorqueWalker::FindTarget()
 		for (UStaticMeshComponent* C : It->Parts) Consider(C, ETorqueLook::BikePart);
 	for (TActorIterator<ATorquePartsBench> It(World); It; ++It)
 		for (UStaticMeshComponent* C : It->Items) Consider(C, ETorqueLook::Spare);
+	for (TActorIterator<ATorquePartsStore> It(World); It; ++It)
+		for (UStaticMeshComponent* C : It->Items) Consider(C, ETorqueLook::Spare);
 	for (TActorIterator<ATorquePaintRack> It(World); It; ++It)
 		for (UStaticMeshComponent* C : It->Cards) Consider(C, ETorqueLook::Swatch);
 	double First = TNumericLimits<double>::Max();
@@ -418,7 +421,7 @@ void ATorqueWalker::UpdateHud()
 		}
 		break;
 	case ETorqueLook::Spare:
-		HudLines.Add({FString::Printf(TEXT("On the bench: %s"), *OptionName(Bike, TargetSlot, TargetPart)), FColor::White, 0.8f});
+		HudLines.Add({FString::Printf(TEXT("Spare %s: %s"), *TorqueShedModel::SlotLabel(TargetSlot).ToLower(), *OptionName(Bike, TargetSlot, TargetPart)), FColor::White, 0.8f});
 		if (Build)
 			HudLines.Add({FString::Printf(TEXT("E / Cross: fit it (the %s come off)"), *OptionName(Bike, TargetSlot, Build->FittedIn(TargetSlot)).ToLower()), Prompt, 0.65f});
 		break;

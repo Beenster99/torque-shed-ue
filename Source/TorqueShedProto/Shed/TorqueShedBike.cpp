@@ -110,6 +110,48 @@ void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>
 	}
 }
 
+int32 MakeSpare(AActor* Owner, USceneComponent* Parent, const FTorqueBuild& Build, FName Slot, FName Part,
+	const FVector& WorldBottom, double MaxCm, TArray<UStaticMeshComponent*>& Out, USceneComponent*& OutHolder)
+{
+	FTorqueBuild Trial = Build;
+	Trial.Fitted.Add(Slot, Part);
+	USceneComponent* Holder = NewObject<USceneComponent>(Owner);
+	Holder->SetupAttachment(Parent);
+	Holder->RegisterComponent();
+	OutHolder = Holder;
+	TArray<UStaticMeshComponent*> Made;
+	MakeParts(Owner, Holder, Trial, Slot, Made);
+	if (Made.Num() == 0) return 0;   // nothing to show (no model yet, or an option that takes parts off)
+	auto BoxOf = [&Made]()
+	{
+		FBox Box(ForceInit);
+		for (UStaticMeshComponent* C : Made)
+		{
+			C->UpdateBounds();
+			Box += C->Bounds.GetBox();
+		}
+		return Box;
+	};
+	FBox Box = BoxOf();
+	if (MaxCm > 0.0)
+	{
+		const double Big = Box.GetSize().GetMax();
+		if (Big > MaxCm)
+		{
+			Holder->SetRelativeScale3D(FVector(MaxCm / Big));
+			Box = BoxOf();
+		}
+	}
+	const FVector Centre = Box.GetCenter();
+	Holder->SetWorldLocation(Holder->GetComponentLocation() + FVector(WorldBottom.X - Centre.X, WorldBottom.Y - Centre.Y, WorldBottom.Z + 1.0 - Box.Min.Z));
+	for (UStaticMeshComponent* C : Made)
+	{
+		C->ComponentTags.Add(FName(*FString::Printf(TEXT("Option:%s"), *Part.ToString())));
+		Out.Add(C);
+	}
+	return Made.Num();
+}
+
 FString SlotLabel(FName Slot)
 {
 	FString S = Slot.ToString().Replace(TEXT("_"), TEXT(" "));
