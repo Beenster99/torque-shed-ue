@@ -2,6 +2,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueWalker.h"
@@ -164,13 +165,29 @@ void ATorqueShedItems::Draw(int32 Id)
 		for (const TPair<FName, int32>& KV : It->Slots)
 			if (KV.Value != 0) Show.Add(KV.Key);
 		if (It->Tyre != 0) Show.Add(TorqueShedParts::TyreOf(Home));
-		FTorqueBuild Build;
-		Build.Bike = FName(TorqueShedParts::StockModel);
+		// A catalogue part (any style's) is its own Blender part, with what's on it that's catalogue too.
+		const bool bCatalogue = !TorqueShedParts::IsStock(It->Part) && TorqueShedParts::IsPart(It->Part);
+		if (bCatalogue)
+		{
+			TMap<FString, FString> Parts;
+			Parts.Add(Home.ToString().ToLower(), It->Part.ToString().ToLower());
+			for (const TPair<FName, int32>& KV : It->Slots)
+				if (const FTorqueItem* Sub = B->Item(KV.Value))
+					if (!TorqueShedParts::IsStock(Sub->Part)) Parts.Add(KV.Key.ToString().ToLower(), Sub->Part.ToString().ToLower());
+			if (const FTorqueItem* Tyre = B->Item(It->Tyre))
+				if (!TorqueShedParts::IsStock(Tyre->Part)) Parts.Add(TorqueShedParts::TyreOf(Home).ToString().ToLower(), Tyre->Part.ToString().ToLower());
+			TorqueShedCatalogue::MakePart(this, Holder, Home.ToString().ToLower(), Parts, Made);
+		}
 		FName FitSlot, Option;
-		const bool bOption = TorqueShedParts::ModelOption(It->Part, It->Kind, FitSlot, Option);
-		if (bOption) Build.Fitted.Add(FitSlot, Option);
-		TorqueShedModel::MakePartsWhere(this, Holder, Build,
-			[&Show](const FTorqueResolvedPart& P) { return Show.Contains(TorqueShedParts::SlotOfModelPart(P)); }, Made);
+		const bool bOption = !bCatalogue && TorqueShedParts::ModelOption(It->Part, It->Kind, FitSlot, Option);
+		if (Made.Num() == 0)
+		{
+			FTorqueBuild Build;
+			Build.Bike = FName(TorqueShedParts::StockModel);
+			if (bOption) Build.Fitted.Add(FitSlot, Option);
+			TorqueShedModel::MakePartsWhere(this, Holder, Build,
+				[&Show](const FTorqueResolvedPart& P) { return Show.Contains(TorqueShedParts::SlotOfModelPart(P)); }, Made);
+		}
 		const bool bTint = !It->Finish.IsNone() || (!TorqueShedParts::IsStock(It->Part) && !bOption);
 		if (Made.Num() == 0) Block(TSI::KindSize(It->Kind), It->Colour);
 		else
@@ -184,7 +201,7 @@ void ATorqueShedItems::Draw(int32 Id)
 					const int32 SubId = Slot == TorqueShedParts::TyreOf(Home) ? It->Tyre : It->Slots.FindRef(Slot);
 					if (const FTorqueItem* Sub = B->Item(SubId)) Own = Sub;
 				}
-				const bool bOwnTint = Own == It ? bTint : !Own->Finish.IsNone();
+				const bool bOwnTint = (Own == It ? bTint : !Own->Finish.IsNone()) && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
 				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &Own->Colour : nullptr);
 			}
 	}
