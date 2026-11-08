@@ -2,10 +2,12 @@
 // them in its Rig built look: every round tube and bend swept from the Blender tube section
 // (frame/tube/round.glb), the welds where tubes butt into each other, the steering head's
 // bearing cups, a cast spar beam, the battery box, the footpegs and the neck gussets. The frame's
-// shells (perimeter beams, pivot plates, trestle castings) and the engine mounting plates are
-// code-drawn in Godot and aren't here. Kept in the Godot frame inside, as bike_model.gd is.
+// shells (perimeter beams, pivot plates, trestle castings, a chopper's neck gusset) and the engine
+// mounting plates Godot draws in code, and so are they here (CodeShapes). Kept in the Godot frame
+// inside, as bike_model.gd is.
 #include "BikeParts.h"
 #include "BikePartsKit.h"
+#include "CodeShapes.h"
 
 #include <algorithm>
 #include <cmath>
@@ -127,6 +129,12 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 		Sweep(Out, "frame", FrameTube, Path, {R}, "");
 		Rails.push_back({SmoothCurve(Path, 6), R, true, Mat});
 	};
+	// (What Godot draws in code on the frame: Xf the mesh's node in the bike's space, Name its own.)
+	CodeShapes::GodotNames Named;
+	auto FrameCode = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "frame", FrameTube, "", Named(Name), M, Xf, Tag);
+	};
+	auto Shell = [&](const std::string& Name, const std::vector<CodeShapes::Sec>& Secs) { FrameCode(Name, CodeShapes::Loft(Secs), GAffine(), "paint"); };
 
 	// (_rig_low, _behind_front_tyre.)
 	auto RigLow = [&](double R) { return E.y + Sump.y - R * G - 0.004; };
@@ -402,10 +410,29 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 			const V3 A = Aft + V3(X * Side, 0.0, 0.0);
 			V3 U1 = MixV(U0, A, 0.5) + V3(0.012 * Side, 0.025, 0.0);
 			U1.x = A.x;
-			if (!Cast)
+			if (Cast)
+			{
+				std::vector<CodeShapes::Sec> Secs;
+				for (int K = 0; K < 6; ++K)
+				{
+					const double T = K / 5.0;
+					const V3 C = T < 0.5 ? MixV(U0, U1, T * 2.0) : MixV(U1, A, T * 2.0 - 1.0);
+					Secs.push_back({C, 0.018, 0.03, TorqueSim::Lerp(0.07, 0.035, T), 6.0});
+				}
+				Shell("Trestle", Secs);
+				Shell("", {{MixV(L0, U0, 0.3), 0.016, 0.02, 0.02, 6.0}, {F + V3(0.0, 0.02, 0.0), 0.016, 0.025, 0.02, 6.0}});
+			}
+			else
 				for (const auto& [P0, P1] : {std::make_pair(U0, U1), std::make_pair(U1, A), std::make_pair(L0, F), std::make_pair(L0, U1), std::make_pair(F, U1), std::make_pair(F, A)})
 					Tube(P0, P1, 0.012 * G);
+			// The lugs it bolts to the engine by.
+			for (const V3& At : {F, A})
+				FrameCode("", CodeShapes::Cylinder(0.016, 0.03), GAffine::At(At + V3(0.006 * Side, 0.0, 0.0)) * GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5), "black_metal");
 			const double Px = 0.11 * Side;
+			// Pivot plates on the back of the crankcase, carrying the swingarm.
+			const V3 CaseBack = E + V3(0.0, 0.02, 0.17 * S);
+			Shell("PivotPlate", {{CaseBack + V3(Px, 0.06, -0.02), 0.012, 0.03, 0.03, 6.0}, {Pivot + V3(Px, 0.07, -0.03), 0.012, 0.04, 0.04, 6.0},
+				{Pivot + V3(Px, -0.02, 0.0), 0.012, 0.03, 0.03, 6.0}});
 			Bend({A + V3(0.0, 0.01, 0.01), SeatFront + V3(0.075 * Side, -0.02, 0.02), Tail + V3(0.055 * Side, -0.01, 0.0)}, 0.012 * G);
 			Tube(Pivot + V3(Px, 0.1, -0.03), Tail + V3(0.05 * Side, -0.05, -0.08), 0.011 * G);
 		}
@@ -423,6 +450,11 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 		// The backbone the rig drew, the downtubes and cradle rails round the engine (_fit_bay's
 		// Rig built line), the seat post behind the gearbox, and the rails out to the tail.
 		Bend(Spine, SpineR);
+		if (Style == "chopper" && Spine.size() > 4)
+		{
+			// A gusset under the stretched neck, where the backbone meets it.
+			Shell("Gusset", {{Head + V3(0.0, -0.06, 0.03), 0.012, 0.04, 0.04, 5.0}, {MixV(Head, Spine[4], 0.35) + V3(0.0, -0.06, 0.0), 0.012, 0.04, 0.01, 5.0}});
+		}
 		const double LowY = RigLow(BayDownR);
 		double DownZ = E.z - 0.17 * S - 0.075;
 		const double BayF = BayFront(EngineCorners(), 0.0, LowY);
@@ -464,6 +496,19 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 		if (CodeHalfW) *CodeHalfW = Wide + 0.002;
 		for (double Side : {-1.0, 1.0})
 		{
+			// Two big cast beams from the head stock round the engine to the pivot plates.
+			const std::vector<V3> Path = CodeShapes::Smooth({Hb + V3(0.045 * Side, 0.04, 0.03), MixV(Hb, Pivot, 0.25) + V3(BeamW * Side, 0.09, 0.0),
+				MixV(Hb, Pivot, 0.65) + V3(BeamW * Side, 0.1, 0.0), Pivot + V3((Wide - 0.02) * Side, 0.11, -0.06)}, 4);
+			std::vector<CodeShapes::Sec> Secs;
+			for (size_t K = 0; K < Path.size(); ++K)
+			{
+				const double F = static_cast<double>(K) / static_cast<double>(Path.size() - 1);
+				const double Arc = std::sin(F * TorqueSim::Pi);
+				Secs.push_back({Path[K], 0.022 * Frig.Wide, TorqueSim::Lerp(0.05, 0.065, Arc) * Frig.Deep, TorqueSim::Lerp(0.04, 0.06, Arc) * Frig.Deep, 6.0});
+			}
+			Shell("", Secs);
+			Shell("PivotPlate", {{Pivot + V3((Wide - 0.02) * Side, 0.12, -0.06), 0.022, 0.04, 0.04, 6.0}, {Pivot + V3((Wide - 0.03) * Side, 0.0, -0.02), 0.022, 0.05, 0.05, 6.0},
+				{Pivot + V3((Wide - 0.04) * Side, -0.12, 0.0), 0.02, 0.03, 0.03, 6.0}});
 			Bend({Pivot + V3((Wide - 0.04) * Side, 0.14, -0.04), SeatFront + V3(0.075 * Side, -0.02, 0.02), Tail + V3(0.05 * Side, -0.01, -0.02)}, 0.014 * G);
 			Tube(Pivot + V3((Wide - 0.04) * Side, 0.06, 0.0), Tail + V3(0.05 * Side, -0.05, -0.08), 0.012 * G);
 		}
@@ -622,8 +667,79 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 			const V3 P(Peg.x * Side, Peg.y, Peg.z);
 			Put(Out, "frame", "frame/footpeg.glb", AtWith(GAffine::Scale(V3(Side, 1.0, 1.0)), P), "");
 			if (Peg.z < Pivot.z - 0.2) Tube(V3(0.08 * Side, Peg.y + 0.01, Peg.z + 0.02), P, 0.011);   // forward controls' stalks
+			else if (std::fabs(Peg.y - 0.02) > 0.04 || std::fabs(Peg.z - Pivot.z) > 0.04)
+				// Rearsets: a hanger plate from the frame by the pivot down to the peg.
+				FrameCode("", CodeShapes::Box(V3(0.012, std::fabs(Peg.y - Pivot.y) + 0.06, 0.06)), GAffine::At((P + V3(0.12 * Side, Pivot.y, Pivot.z - 0.02)) * 0.5), "paint");
 		}
-	// (_draw_rig_fittings: the neck gussets are Blender-made; the engine plates are code-drawn.)
+	// (_draw_rig_fittings: the plates the engine's bolted in by, from its lugs out to the nearest
+	// tube, and the head steady; then the neck gussets, Blender-made.)
+	auto NearestRail = [&](const V3& P, double Side) {
+		V3 Best(FrameInf, FrameInf, FrameInf);
+		double BestD = FrameInf;
+		for (const FrameRail& Rail : Rails)
+			for (size_t K = 0; K + 1 < Rail.Pts.size(); ++K)
+			{
+				const V3 A = Rail.Pts[K], Ab = Rail.Pts[K + 1] - A;
+				const V3 Q = A + Ab * TorqueSim::Clamp((P - A).Dot(Ab) / std::max(Ab.Dot(Ab), 1e-9), 0.0, 1.0);
+				if (Side != 0.0 && Q.x * Side < -0.01) continue;
+				const double D = (P - Q).Length();
+				if (D < BestD)
+				{
+					BestD = D;
+					Best = Q;
+				}
+			}
+		return Best;
+	};
+	// (_lug: a plate Width wide from A to B, edge on to the side, a bolt through each end.)
+	auto Lug = [&](const V3& A, const V3& B, double Width, const std::string& Name) {
+		const V3 Along = B - A;
+		const double Len = std::max(Along.Length(), 0.01);
+		const V3 Y = Along / Len;
+		V3 Across = Y.Cross(GodotRight);
+		if (Across.Length() < 0.2) Across = Y.Cross(V3(0.0, 0.0, -1.0));
+		Across = Across.Normalized();
+		const V3 Nrm = Y.Cross(Across).Normalized();
+		FrameCode(Name, CodeShapes::Box(V3(0.006, Len + Width * 0.6, Width)), BasisCols(Nrm, Y, Across, (A + B) * 0.5), "paint");
+		for (const V3& End : {A, B}) FrameCode("", CodeShapes::Cylinder(0.008, 0.016, -1.0, 8), BasisCols(Y, Nrm, Y.Cross(Nrm), End), "brushed_steel");
+	};
+	{
+		const double SumpY = E.y + Sump.y;
+		if (Style != "trestle")
+			for (const auto& [Mount, Front] : {std::make_pair(L.Hard.MountFU, true), std::make_pair(L.Hard.MountFL, true), std::make_pair(L.Hard.MountRU, false),
+					 std::make_pair(L.Hard.MountRL, false)})
+			{
+				const V3 At = E + ToGodot(Mount);
+				const double Face = E.z + (Front ? CaseFront.z : CaseRear.z);
+				for (double Side : {-1.0, 1.0})
+				{
+					const V3 Q = NearestRail(V3(CaseHalfW * 0.6 * Side, At.y, Face), Side);
+					if (Q.x == FrameInf) continue;
+					if (Q.y < SumpY + 0.01)
+					{
+						// A rail under the cases: a tab down from the case's underside to it.
+						const V3 From(Q.x, SumpY + 0.004, Q.z);
+						if (From.y - Q.y > 0.006 && From.y - Q.y < 0.09 && std::fabs(Q.z - At.z) < 0.08) Lug(From, Q, 0.035, "EngineMount");
+						continue;
+					}
+					const V3 M(TorqueSim::Clamp(Q.x, -CaseHalfW + 0.01, CaseHalfW - 0.01), At.y, Face);
+					const double OutBy = Front ? Face - Q.z : Q.z - Face;
+					if (OutBy > 0.01 && (M - Q).Length() < 0.14) Lug(M, Q, 0.04, "EngineMount");
+				}
+			}
+		if (Frig.Steady && EngLayout != "boxer")
+		{
+			// The head steady: a pair of plates from the top of the heads up to the backbone over them.
+			const V3 Hs = E + ToGodot(L.Hard.HeadSteady);
+			const V3 Q = NearestRail(Hs + V3(0.0, 0.06, 0.0), 0.0);
+			if (Q.x != FrameInf && Q.y > Hs.y + 0.012 && Q.y - Hs.y < 0.16 && std::fabs(Q.x) < 0.1)
+				for (double Side : {-1.0, 1.0})
+				{
+					const double X = Q.x + 0.024 * Side;
+					Lug(V3(X, Hs.y - 0.012, Hs.z), V3(X, Q.y, Q.z), 0.03, "HeadSteady");
+				}
+		}
+	}
 	if (Frig.Gusset && HasGlb("frame/gusset.glb"))
 	{
 		struct Leg { V3 Start, Dir; double R; };

@@ -2958,7 +2958,7 @@ void BikeParts::Guards(const PartsMap& Parts, const Layout& L, const Bars& Bar, 
 	}
 }
 
-void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
 {
 	const std::string Tube = "frame/tube/round.glb";
 	const BuildStats& St = L.Stats;
@@ -3150,29 +3150,87 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 		const double K = std::pow(P->Num("capacity", 8.0) / 8.0, 0.33);
 		const GAffine Sk = GAffine::Scale(V3(K, K, K));
 		const std::string Style = P->Str("style", "can");
-		if (Style == "can") Put(Out, "aux_tank", "kit/fuel_can.glb", AtWith(Sk, V3(-(W + 0.06), SeatY - 0.24, Zr - 0.36)), "");
+		// (KitModel._aux_tank: its brackets to the rails, and fuel lines, as the code draws them.)
+		auto Kit = [&](const std::string& Glb, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) { CodeShapes::Emit(Out, "aux_tank", Glb, "", "", M, Xf, Tag); };
+		auto KitTube = [&](const std::string& Glb, const V3& A, const V3& B, double R, const std::string& Tag) { Kit(Glb, CodeShapes::Tube(A, B, R), CodeShapes::TubeAt(A, B), Tag); };
+		if (Style == "can")
+		{
+			const V3 C(-(W + 0.06), SeatY - 0.24, Zr - 0.36);
+			const V3 Size = V3(0.075, 0.26, 0.2) * K;
+			Put(Out, "aux_tank", "kit/fuel_can.glb", AtWith(Sk, C), "");
+			KitTube("kit/fuel_can.glb", C + V3(0.03, Size.y * 0.3, 0.0), V3(-W, SeatY - 0.04, C.z), 0.007, "brushed_steel");
+			KitTube("kit/fuel_can.glb", C + V3(0.03, -Size.y * 0.45, 0.0), V3(-W + 0.02, C.y - Size.y * 0.45, C.z + 0.1), 0.007, "brushed_steel");
+		}
 		else if (Style == "cell")
 		{
 			const V3 A(-(W + 0.05), SeatY - 0.09, Zr - 0.5), B(-(W + 0.05), SeatY - 0.09, Zr - 0.02);
 			Put(Out, "aux_tank", "kit/fuel_cell.glb", AtWith(GAffine::Scale(V3(K, K, 1.0)), (A + B) * 0.5), "");
+			for (double U : {0.2, 0.8})
+			{
+				const V3 At = A + (B - A) * U;
+				KitTube("kit/fuel_cell.glb", At + V3(0.04, 0.0, 0.0), V3(-W, SeatY - 0.04, At.z), 0.006, "brushed_steel");
+			}
+			// Its fuel line forward to the tank (tank_top_at a little behind the tank's nose).
+			double TopY = SeatY + 0.1;
+			if (!Body.TankSecs.empty())
+			{
+				const double Z = Body.TankSecs.front().C.z + 0.3;
+				const LoftSection* Best = &Body.TankSecs.front();
+				for (const LoftSection& Sec : Body.TankSecs)
+					if (std::fabs(Sec.C.z - Z) < std::fabs(Best->C.z - Z)) Best = &Sec;
+				TopY = Best->C.y + Best->Up;
+			}
+			KitTube("kit/fuel_cell.glb", A + (B - A) * 0.05 + V3(0.03, -0.04, 0.0), V3(-0.08, TopY - 0.12, Pv.z), 0.005, "rubber");
 		}
 		else if (Style == "rear") Put(Out, "aux_tank", "kit/rear_tank.glb", AtWith(Sk, V3(0.0, SeatY - 0.06, Tail.z - 0.02)), "");
 		else if (Style == "twin")
 			for (double Sd : {-1.0, 1.0})
-				Put(Out, "aux_tank", "kit/side_tank.glb", AtWith(Sk, V3(Sd * (L.Hard.CaseHalfW + 0.11), E.y + 0.06, E.z - 0.14)), "");
-		else Put(Out, "aux_tank", "kit/bladder.glb", AtWith(Sk, V3(0.0, SeatY + 0.06, Tail.z - 0.08)), "");
+			{
+				const V3 C(Sd * (L.Hard.CaseHalfW + 0.11), E.y + 0.06, E.z - 0.14);
+				Put(Out, "aux_tank", "kit/side_tank.glb", AtWith(Sk, C), "");
+				KitTube("kit/side_tank.glb", C + V3(-Sd * 0.04, -0.06, 0.08), E + V3(Sd * 0.06, 0.1, 0.0), 0.005, "rubber");
+			}
+		else
+		{
+			const V3 C(0.0, SeatY + 0.06, Tail.z - 0.08);
+			Put(Out, "aux_tank", "kit/bladder.glb", AtWith(Sk, C), "");
+			for (double X : {-0.08, 0.08})
+			{
+				// Its straps (_strip), down over the seat.
+				const V3 A = C + V3(X, 0.055 * K, -0.06), B = C + V3(X, -0.06, -0.09);
+				const V3 Z = (B - A).Normalized();
+				V3 Xa = V3(0.0, 1.0, 0.0).Cross(Z);
+				Xa = Xa.Length() < 0.01 ? GodotRight : Xa.Normalized();
+				Kit("kit/bladder.glb", CodeShapes::Box(V3(0.02, 0.003, (B - A).Length())), BasisCols(Xa, Z.Cross(Xa), Z, (A + B) * 0.5), "fabric");
+			}
+		}
 	}
 	if (const Json* P = Lay.Part(PartIn(Parts, "toolbox")))
 	{
 		const std::string Style = P->Str("style", "box");
 		if (Style == "roll") Put(Out, "toolbox", "kit/tool_roll.glb", GAffine::At(V3(0.0, -0.22, -0.1) + H), "steer");
-		else if (Style == "tube") Put(Out, "toolbox", "kit/tool_tube.glb", GAffine::At(V3(-(W + 0.03), -0.03, Zr - 0.42)), "");
+		else if (Style == "tube")
+		{
+			const V3 A(-(W + 0.03), -0.03, Zr - 0.42), B(-(W + 0.03), -0.03, Zr - 0.08);
+			Put(Out, "toolbox", "kit/tool_tube.glb", GAffine::At(A), "");
+			for (double U : {0.25, 0.75})
+			{
+				const V3 At = A + (B - A) * U, To(-W + 0.02, At.y + 0.08, At.z);
+				CodeShapes::Emit(Out, "toolbox", "kit/tool_tube.glb", "", "", CodeShapes::Tube(At + V3(0.04, 0.0, 0.0), To, 0.006), CodeShapes::TubeAt(At + V3(0.04, 0.0, 0.0), To), "brushed_steel");
+			}
+		}
 		else if (Style == "bash") Put(Out, "toolbox", "kit/bash_box.glb", GAffine::At(V3(0.0, E.y - 0.22 * L.Hard.Scale - 0.04, E.z + 0.02)), "");
 		else
 		{
 			const bool Big = Style == "case";
 			const V3 Size = Big ? V3(0.1, 0.15, 0.26) : V3(0.08, 0.12, 0.22);
-			Put(Out, "toolbox", "kit/toolbox.glb", AtWith(GAffine::Scale(V3(Size.x / 0.08, Size.y / 0.12, Size.z / 0.22)), V3(-(W + Size.x * 0.5 + 0.01), -0.06, Zr - 0.36)), "");
+			const V3 C(-(W + Size.x * 0.5 + 0.01), -0.06, Zr - 0.36);
+			if (Put(Out, "toolbox", "kit/toolbox.glb", AtWith(GAffine::Scale(V3(Size.x / 0.08, Size.y / 0.12, Size.z / 0.22)), C), ""))
+			{
+				// Its bracket up to the rail.
+				const V3 A = C + V3(Size.x * 0.5, Size.y * 0.4, 0.0), B(-W + 0.02, SeatY - 0.1, C.z + 0.05);
+				CodeShapes::Emit(Out, "toolbox", "kit/toolbox.glb", "", "", CodeShapes::Tube(A, B, 0.007), CodeShapes::TubeAt(A, B), "brushed_steel");
+			}
 		}
 	}
 }
@@ -3461,6 +3519,65 @@ void BikeParts::TankBag(const PartsMap& Parts, const Layout& L, const Bodywork& 
 		return C + GodotRight * (G.x * Sx) + Up * ((G.y - Own) * Sy);
 	});
 	Out.push_back(F);
+	// The code-drawn pieces on it (KitModel._tank_bag), on its loft sections: a map pocket, the
+	// zip down each side, an accent stripe, the grab handle and its mount's straps or ring.
+	struct BagSec { V3 C; double W, Up, Down; };
+	std::vector<BagSec> Bs;
+	const int N = 5;
+	for (int I = 0; I <= N; ++I)
+	{
+		const double U = static_cast<double>(I) / N;
+		const double Z = Z0 + Length * U;
+		const auto Top = TopAt(Z);
+		const double W = std::min(Top.second * 0.82, 0.13 * K) * TorqueSim::Lerp(0.8, 1.0, std::sin(U * TorqueSim::Pi));
+		const double Hh = Height * TorqueSim::Lerp(0.7, 1.0, std::sin(std::min(U * 1.4, 1.0) * TorqueSim::Pi * 0.5));
+		Bs.push_back({V3(0.0, Top.first + Hh * 0.5, Z), W, Hh * 0.5, Hh * 0.5});
+	}
+	CodeShapes::GodotNames Named;
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "tank_bag", Path, "", Named(Name), M, Xf, Tag);
+	};
+	const BagSec& MidS = Bs[N / 2];
+	if (P->Flag("map"))
+	{
+		const V3 At(0.0, MidS.C.y + MidS.Up + 0.003, Z0 + Length * 0.5);
+		Code("", CodeShapes::Box(V3(MidS.W * 1.3, 0.003, Length * 0.6)), GAffine::At(At), "decal");
+		Code("", CodeShapes::Box(V3(MidS.W * 1.4, 0.003, Length * 0.66)), GAffine::At(At + V3(0.0, 0.004, 0.0)), "glass");
+		Code("", CodeShapes::Box(V3(0.008, 0.002, Length * 0.55)), GAffine::At(At + V3(0.0, 0.002, 0.0)), "decal");
+		Code("", CodeShapes::Box(V3(MidS.W * 1.1, 0.002, 0.006)), GAffine::At(At + V3(0.02, 0.002, 0.02)), "decal");
+	}
+	for (double Sd : {-1.0, 1.0})
+	{
+		std::vector<V3> Line;
+		for (const BagSec& Sec : Bs) Line.push_back(Sec.C + V3(Sec.W * 0.97 * Sd, Sec.Up * 0.3, 0.0));
+		Code("", CodeShapes::Sweep(Line, 0.004, 12), GAffine(), "black_metal");
+	}
+	if (P->Get("accent"))
+		for (double Sd : {-1.0, 1.0})
+		{
+			std::vector<V3> Line;
+			for (const BagSec& Sec : Bs) Line.push_back(Sec.C + V3(Sec.W * 0.99 * Sd, -Sec.Down * 0.2, 0.0));
+			Code("", CodeShapes::Sweep(Line, 0.006, 12), GAffine(), "paint_2");
+		}
+	const BagSec& Back = Bs[N];
+	Code("", CodeShapes::Sweep({Back.C + V3(-0.04, Back.Up * 0.9, -0.02), Back.C + V3(-0.02, Back.Up + 0.02, -0.02), Back.C + V3(0.02, Back.Up + 0.02, -0.02),
+		Back.C + V3(0.04, Back.Up * 0.9, -0.02)}, 0.006, 12), GAffine(), "black_metal");
+	const std::string Mount = P->Str("mount", "");
+	if (Mount == "strap")
+		for (double Sd : {-1.0, 1.0})
+			for (double U : {0.2, 0.8})
+			{
+				// Straps down the tank's sides, buckled underneath (_strip).
+				const double Z = Z0 + Length * U;
+				const auto T = TopAt(Z);
+				const V3 A(T.second * 0.75 * Sd, T.first + 0.02, Z), B((T.second + 0.012) * Sd, T.first - 0.07, Z + 0.01);
+				const V3 Dz = (B - A).Normalized();
+				V3 Xa = V3(0.0, 1.0, 0.0).Cross(Dz);
+				Xa = Xa.Length() < 0.01 ? GodotRight : Xa.Normalized();
+				Code("", CodeShapes::Box(V3(0.02, 0.003, (B - A).Length())), BasisCols(Xa, Dz.Cross(Xa), Dz, (A + B) * 0.5), "black_metal");
+			}
+	else if (Mount == "ring")
+		Code("TankRing", CodeShapes::Cylinder(0.07, 0.012, -1.0, 24), GAffine::At(V3(0.0, TopAt(Z0 + Length * 0.6).first + 0.004, Z0 + Length * 0.6)), "black_metal");
 }
 
 void BikeParts::Satnav(const PartsMap& Parts, const Layout& L, double DashLift, const Bars& Bar, const std::vector<V3>& DashFace, std::vector<FittedPart>& Out) const
@@ -3868,7 +3985,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	HornAndEcu(Parts, L, Out);
 	SidePanels(Parts, L, Out);
 	Guards(Parts, L, Bar, Out);
-	Luggage(Parts, L, Out);
+	Luggage(Parts, L, Body, Out);
 	TankBag(Parts, L, Body, Out);
 	Satnav(Parts, L, DashLift, Bar, DashFace, Out);
 	RearMaster(L, Out);
