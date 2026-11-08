@@ -45,6 +45,11 @@ struct SmootherStats
 	double LastArrival = -1.0;
 	double IntervalSum = 0.0, IntervalSq = 0.0;   // arrival spacing, s
 	int64_t Intervals = 0;
+	// Smoothness, in the units of Pos: the largest amount a drawn frame stepped off the line its
+	// previous frame was moving along (|P - (P0 + V0 dt)|). On a smooth path at 60 fps this is a few
+	// mm; a hitch or a correction shows as cm. Respawn jumps aren't counted. Zero it to start a new
+	// measuring period.
+	double StepErrMax = 0.0;
 };
 
 class Smoother
@@ -62,6 +67,7 @@ public:
 	{
 		Buf.clear();
 		bHaveOffset = false;
+		bHaveLast = bLastInJump = false;
 		OffWin.clear();
 		LateEnv = SpacingAvg = 0.0;
 		Stats = SmootherStats();
@@ -109,6 +115,32 @@ public:
 
 	// The bike as it should be drawn now. Dt is the receiver's frame time. False with nothing yet.
 	bool Sample(double Now, double Dt, Snap& Out)
+	{
+		if (!Draw(Now, Dt, Out)) return false;
+		const double H = Out.Time - Last.Time;
+		const bool bAcrossJump = bInJump || bLastInJump;
+		bLastInJump = bInJump;
+		if (bHaveLast && !bAcrossJump && H > 1e-5 && H < 0.5)
+		{
+			double E2 = 0.0;
+			for (int I = 0; I < 3; ++I)
+			{
+				const double E = Out.Pos[I] - (Last.Pos[I] + Last.Vel[I] * H);
+				E2 += E * E;
+			}
+			const double E = std::sqrt(E2);
+			if (E > Stats.StepErrMax) Stats.StepErrMax = E;
+		}
+		Last = Out;
+		bHaveLast = true;
+		return true;
+	}
+
+private:
+	Snap Last;
+	bool bHaveLast = false, bLastInJump = false;
+
+	bool Draw(double Now, double Dt, Snap& Out)
 	{
 		if (Buf.empty()) return false;
 		// The drawing clock eases towards the estimate rather than jumping with it.
@@ -195,6 +227,7 @@ public:
 		return true;
 	}
 
+public:
 	// The delay the drawing clock is heading for (s, beyond the quickest trip seen).
 	double WantDelay() const
 	{

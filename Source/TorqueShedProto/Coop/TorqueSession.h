@@ -3,9 +3,12 @@
 // Co-op is a listen server: the host's game is also the server, so there's nothing else to run.
 // Friends join by the host's IP address (port 7777, which the host's router must forward for a ride
 // over the internet), or on the same network from a list the menu finds by itself (Unreal's Null
-// online subsystem, LAN). Epic Online Services can later replace the Null subsystem so friends join
-// without port forwarding: the calls here (create, find, join a session) are the ones EOS uses too.
-// See Docs/coop.md.
+// online subsystem, LAN). See Docs/coop.md.
+//
+// Epic Online Services (TorqueSessionEos.cpp), once switched on ([TorqueCoop] bUseEOS=True in
+// DefaultGame.ini, the OnlineSubsystemEOS plugin and the product's IDs: Docs/coop.md): the host also
+// gets a six-letter friend code, and friends join with it from anywhere, through EOS's relay (P2P),
+// with no port forwarding. LAN and join-by-address stay as they are.
 //
 // One per game (a GameInstanceSubsystem), so it lives across map changes.
 #pragma once
@@ -42,6 +45,12 @@ public:
 	void JoinAddress(const FString& Address);
 	void JoinLan(int32 Index);
 	void FindLanGames();
+	// EOS: join the ride whose host shows this code.
+	void JoinByCode(const FString& Code);
+	// Whether EOS is switched on and its plugin loaded (the menu offers friend codes).
+	bool HasEos() const;
+	// The code friends join this host's ride with (empty until EOS has made the session).
+	FString FriendCode;
 	// Back at the menu: leave any ride hosted or joined before.
 	void LeaveSession();
 
@@ -78,6 +87,21 @@ private:
 	bool bSearching = false;
 	FString LocalAddr;
 	FDelegateHandle CreateHandle, FindHandle, JoinHandle, NetFailHandle, TravelFailHandle;
+
+	// EOS (TorqueSessionEos.cpp).
+	class IOnlineSubsystem* Eos() const;
+	void EosLogin(TFunction<void(bool)> Then);
+	void OnEosLogin(int32 LocalUserNum, bool bOk, const FUniqueNetId& UserId, const FString& Error);
+	void CreateEosSession();
+	void OnEosCreated(FName SessionName, bool bOk);
+	void OnCodeFound(bool bOk);
+	void OnEosJoined(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
+	void LeaveEosSession();
+	TFunction<void(bool)> PendingLogin;
+	bool bTriedPortal = false;
+	FString SearchCode;
+	TSharedPtr<FOnlineSessionSearch> CodeSearch;
+	FDelegateHandle LoginHandle, EosCreateHandle, EosFindHandle, EosJoinHandle;
 
 	void OnCreated(FName SessionName, bool bOk);
 	void OnFound(bool bOk);

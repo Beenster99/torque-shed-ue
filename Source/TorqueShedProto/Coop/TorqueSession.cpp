@@ -137,7 +137,19 @@ void UTorqueSession::Host()
 	Status.Reset();
 	LeaveSession();
 	// The game mode advertises the ride once the map is up and listening (AdvertiseHostedGame).
-	Travel(FirstMap() + TEXT("?listen?play") + NameOption());
+	const FString Url = FirstMap() + TEXT("?listen?play") + NameOption();
+	if (!HasEos())
+	{
+		Travel(Url);
+		return;
+	}
+	// With EOS the game listens through its relay, which needs us signed in first.
+	TWeakObjectPtr<UTorqueSession> Self(this);
+	EosLogin([Self, Url](bool bOk) {
+		if (!Self.IsValid()) return;
+		if (!bOk) Self->Status = TEXT("Couldn't sign in to Epic: hosting for this network and by address only");
+		Self->Travel(Url);
+	});
 }
 
 void UTorqueSession::JoinAddress(const FString& Address)
@@ -236,6 +248,13 @@ void UTorqueSession::AdvertiseHostedGame()
 	S.bAllowJoinViaPresence = false;
 	S.bUseLobbiesIfAvailable = false;
 	S.Set(HostKey, PlayerName(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	if (HasEos())
+	{
+		TWeakObjectPtr<UTorqueSession> Self(this);
+		EosLogin([Self](bool bOk) {
+			if (Self.IsValid() && bOk) Self->CreateEosSession();
+		});
+	}
 	Sessions->ClearOnCreateSessionCompleteDelegate_Handle(CreateHandle);
 	CreateHandle = Sessions->AddOnCreateSessionCompleteDelegate_Handle(
 		FOnCreateSessionCompleteDelegate::CreateUObject(this, &UTorqueSession::OnCreated));
@@ -254,6 +273,7 @@ void UTorqueSession::LeaveSession()
 	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
 	IOnlineSessionPtr Sessions = SessionsFor(World);
 	if (Sessions && Sessions->GetNamedSession(NAME_GameSession)) Sessions->DestroySession(NAME_GameSession);
+	LeaveEosSession();
 }
 
 void UTorqueSession::StartRide(UObject* WorldContext)

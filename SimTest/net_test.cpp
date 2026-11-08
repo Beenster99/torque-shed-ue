@@ -197,7 +197,8 @@ void Report(const char* Name, const Result& R)
 	const auto& S = R.Stats;
 	const double Mean = S.Intervals ? S.IntervalSum / S.Intervals : 0.0;
 	const double Sd = S.Intervals ? std::sqrt(std::max(0.0, S.IntervalSq / S.Intervals - Mean * Mean)) : 0.0;
-	std::printf("%s: delay mean %.0f ms, max %.0f ms\n  ", Name, R.DelayCount ? 1000.0 * R.DelaySum / R.DelayCount : 0.0, 1000.0 * R.DelayMax);
+	std::printf("%s: delay mean %.0f ms, max %.0f ms, step error max %.2f cm\n  ", Name, R.DelayCount ? 1000.0 * R.DelaySum / R.DelayCount : 0.0,
+		1000.0 * R.DelayMax, R.Stats.StepErrMax);
 	std::printf("%s: error rms %.1f cm, max %.1f cm, rot max %.2f deg; accel max %.0f cm/s2 (path %.0f); "
 		"kinks %lld of %lld frames; rx %lld (interval %.1f +- %.1f ms), extrapolated %.1f%%, held %.1f%%, jumps %lld\n",
 		Name, R.RmsErr, R.MaxErr, R.MaxRotErr, R.MaxAcc, R.TruthAcc, (long long)R.Kinks, (long long)R.Frames, (long long)S.Received, Mean * 1000.0, Sd * 1000.0,
@@ -217,6 +218,7 @@ int main()
 		Check(R.Kinks * 1000 <= R.Frames, "smooth: no more than 1 frame in 1000 accelerates over twice the path's");
 		Check(R.MaxRotErr < 2.0, "heading within 2 degrees");
 		Check(R.DelaySum / R.DelayCount < 0.15, "smoothing delay averages under 150 ms");
+		Check(R.Stats.StepErrMax < 2.0, "step error (the in-game smoothness figure) under 2 cm");
 	}
 	{
 		Net N;

@@ -6,6 +6,7 @@
 #include "TorqueBikePawn.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
+#include "Coop/TorqueSession.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerState.h"
 
@@ -18,6 +19,19 @@ void ATorqueHUD::DrawHUD()
 		return;
 	}
 	DrawRiderNames();
+	// Hosting with EOS: the code friends join with, top right.
+	if (const UTorqueSession* Session = UTorqueSession::Get(this); Session && !Session->FriendCode.IsEmpty() && Canvas && GEngine)
+	{
+		UFont* CodeFont = GEngine->GetLargeFont();
+		const float CS = Canvas->ClipY / 1080.0f;
+		const FString Text = FString::Printf(TEXT("Friend code: %s"), *Session->FriendCode);
+		float W = 0, H = 0;
+		Canvas->StrLen(CodeFont, Text, W, H);
+		const float CX = Canvas->ClipX - W * CS - 50.0f * CS, CY = 36.0f * CS;
+		DrawRect(FLinearColor(0, 0, 0, 0.35f), CX - 10.0f * CS, CY - 4.0f * CS, W * CS + 20.0f * CS, H * CS + 8.0f * CS);
+		Canvas->SetDrawColor(FColor(255, 220, 120));
+		Canvas->DrawText(CodeFont, Text, CX, CY, CS, CS);
+	}
 	const ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetOwningPawn());
 	const ATorqueWalker* Walker = Cast<ATorqueWalker>(GetOwningPawn());   // on foot in the shed
 	if ((!Bike && !Walker) || !Canvas || !GEngine) return;

@@ -55,7 +55,9 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 	Out.Add(E);
 	E.Kind = EItem::Host;
 	E.Text = TEXT("Host a co-op ride");
-	E.Hint = S && !S->LocalAddress().IsEmpty()
+	E.Hint = S && S->HasEos()
+		? FString(TEXT("You'll get a friend code to share: friends anywhere join with it (no port forwarding)"))
+		: S && !S->LocalAddress().IsEmpty()
 		? FString::Printf(TEXT("Friends join %s (over the internet: your public address, with port 7777 forwarded)"), *S->LocalAddress())
 		: FString(TEXT("Friends join by this PC's address, port 7777"));
 	Out.Add(E);
@@ -64,6 +66,13 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 		FMath::Fmod(Clock, 1.0) < 0.5 ? TEXT("_") : TEXT(" "));
 	E.Hint = TEXT("Type the host's address (digits, dots, : for a port); Ctrl+V pastes");
 	Out.Add(E);
+	if (S && S->HasEos())
+	{
+		E.Kind = EItem::Code;
+		E.Text = FString::Printf(TEXT("Join by friend code:  %s%s"), *Code, FMath::Fmod(Clock, 1.0) < 0.5 ? TEXT("_") : TEXT(" "));
+		E.Hint = TEXT("The six letters and digits on the host's screen; from anywhere, no ports to open");
+		Out.Add(E);
+	}
 	if (S)
 	{
 		const TArray<UTorqueSession::FLanGame>& Games = S->GetLanGames();
@@ -102,6 +111,10 @@ void ATorqueMenuPawn::Choose(const FEntry& E)
 		S->JoinAddress(Address);
 		if (S->Status.IsEmpty()) Busy = FString::Printf(TEXT("Joining %s..."), *Address);
 		break;
+	case EItem::Code:
+		S->JoinByCode(Code);
+		if (S->Status.IsEmpty()) Busy = FString::Printf(TEXT("Looking for ride %s..."), *Code.ToUpper());
+		break;
 	case EItem::Lan: Busy = TEXT("Joining..."); S->JoinLan(E.Lan); break;
 	case EItem::Search: S->FindLanGames(); SearchClock = 0.0; break;
 	case EItem::Quit:
@@ -133,6 +146,29 @@ void ATorqueMenuPawn::TypeAddress(APlayerController* PC)
 	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && Address.Len() > 0) Address.LeftChopInline(1);
 	if (PC->WasInputKeyJustPressed(EKeys::Delete)) Address.Reset();
 	Address = Address.Left(64);
+}
+
+void ATorqueMenuPawn::TypeCode(APlayerController* PC)
+{
+	static const FKey Letters[26] = {EKeys::A, EKeys::B, EKeys::C, EKeys::D, EKeys::E, EKeys::F, EKeys::G, EKeys::H,
+		EKeys::I, EKeys::J, EKeys::K, EKeys::L, EKeys::M, EKeys::N, EKeys::O, EKeys::P, EKeys::Q, EKeys::R, EKeys::S,
+		EKeys::T, EKeys::U, EKeys::V, EKeys::W, EKeys::X, EKeys::Y, EKeys::Z};
+	static const FKey Digits[10] = {EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
+		EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine};
+	const bool bCtrl = PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl);
+	if (bCtrl && PC->WasInputKeyJustPressed(EKeys::V))
+	{
+		FString Clip;
+		FPlatformApplicationMisc::ClipboardPaste(Clip);
+		Code = Clip.TrimStartAndEnd().ToUpper().Left(6);
+		return;
+	}
+	for (int32 L = 0; L < 26 && Code.Len() < 6; ++L)
+		if (PC->WasInputKeyJustPressed(Letters[L])) Code.AppendChar(TCHAR('A' + L));
+	for (int32 D = 0; D < 10 && Code.Len() < 6; ++D)
+		if (PC->WasInputKeyJustPressed(Digits[D])) Code.AppendChar(TCHAR('0' + D));
+	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && Code.Len() > 0) Code.LeftChopInline(1);
+	if (PC->WasInputKeyJustPressed(EKeys::Delete)) Code.Reset();
 }
 
 void ATorqueMenuPawn::Tick(float DeltaSeconds)
@@ -182,6 +218,7 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 	if (Move != 0) Selected = (Selected + Move + List.Num()) % List.Num();
 
 	if (List[Selected].Kind == EItem::Join) TypeAddress(PC);
+	if (List[Selected].Kind == EItem::Code) TypeCode(PC);
 	const bool bChoose = Just(EKeys::Enter) || Just(EKeys::SpaceBar) || Just(EKeys::Gamepad_FaceButton_Bottom) || (Pressed & ESonyButton::Cross);
 	if (bChoose) Choose(List[Selected]);
 	if (Just(EKeys::Escape)) PC->ConsoleCommand(TEXT("quit"));

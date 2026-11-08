@@ -32,7 +32,7 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Menu") UCameraComponent* Camera;
 
 private:
-	enum class EItem : uint8 { Solo, Host, Join, Lan, Search, Quit };
+	enum class EItem : uint8 { Solo, Host, Join, Code, Lan, Search, Quit };
 	struct FEntry
 	{
 		EItem Kind = EItem::Solo;
@@ -42,11 +42,13 @@ private:
 	TArray<FEntry> Entries() const;
 	void Choose(const FEntry& E);
 	void TypeAddress(class APlayerController* PC);
+	void TypeCode(class APlayerController* PC);
 
 	TUniquePtr<FSonyPad> Pad;
 	uint32 PrevButtons = 0;
 	int32 Selected = 0;
 	FString Address;            // being typed for Join
+	FString Code;               // a friend code being typed (EOS)
 	FString Busy;               // "Loading the road..." once something is chosen
 	double Clock = 0.0, SearchClock = 10.0, StickRepeat = 0.0;
 	int32 StickDir = 0;
