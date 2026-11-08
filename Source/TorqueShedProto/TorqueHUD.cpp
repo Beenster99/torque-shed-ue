@@ -11,6 +11,7 @@
 #include "Coop/TorquePlayerState.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerState.h"
+#include "Shed/TorqueBuildSubsystem.h"
 
 void ATorqueHUD::DrawHUD()
 {
@@ -73,10 +74,7 @@ void ATorqueHUD::DrawHUD()
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{
-		// A small dot in the middle to point at parts with.
-		const float D = 4.0f * S;
-		DrawRect(FLinearColor(0, 0, 0, 0.5f), Canvas->ClipX * 0.5f - D, Canvas->ClipY * 0.5f - D, 2.0f * D, 2.0f * D);
-		DrawRect(FLinearColor(1, 1, 1, 0.9f), Canvas->ClipX * 0.5f - 0.5f * D, Canvas->ClipY * 0.5f - 0.5f * D, D, D);
+		DrawWalkerCues(Walker, S);
 	}
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
 	for (const FHudLine& L : Lines)
@@ -162,5 +160,136 @@ void ATorqueHUD::DrawRiderNames()
 		NameLogClock = 10.0f;
 		UE_LOG(LogTemp, Log, TEXT("Torque net: name tags: %d drawn of %d other players (%d without a player state yet, %d behind the camera)"),
 			Drawn, Others, NoState, Behind);
+	}
+}
+
+namespace TorqueHudCues
+{
+// Torque Shed's UITheme.ACCENT.
+const FLinearColor Accent(1.0f, 0.62f, 0.2f);
+}
+
+void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
+{
+	// Torque Shed's hud.gd, sized from its 1080p pixels: the large font is about 20 px high there.
+	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (!Walker || !Canvas || !Font) return;
+	const FLinearColor Accent = TorqueHudCues::Accent;
+	auto Px = [S](float Size) { return S * Size / 20.0f; };
+	auto Text = [this, Font](const FString& T, float X, float Y, float Scale, const FLinearColor& C)
+	{
+		Canvas->SetDrawColor(C.ToFColor(true));
+		Canvas->DrawText(Font, T, X, Y, Scale, Scale);
+	};
+	auto Measure = [this, Font](const FString& T, float Scale)
+	{
+		float W = 0, H = 0;
+		Canvas->StrLen(Font, T, W, H);
+		return FVector2D(W * Scale, H * Scale);
+	};
+	auto Frame = [this](float X, float Y, float W, float H, const FLinearColor& C, float T)
+	{
+		DrawRect(C, X, Y, W, T);
+		DrawRect(C, X, Y + H - T, W, T);
+		DrawRect(C, X, Y, T, H);
+		DrawRect(C, X + W - T, Y, T, H);
+	};
+
+	// The dot in the middle, lit when it's over something you can work on (_draw_crosshair).
+	const float CX = Canvas->ClipX * 0.5f, CY = Canvas->ClipY * 0.5f;
+	const float D = 4.0f * S;
+	DrawRect(FLinearColor(0, 0, 0, 0.5f), CX - D, CY - D, 2.0f * D, 2.0f * D);
+	const FLinearColor Dot = Walker->HasTarget() ? Accent : FLinearColor(1, 1, 1, 0.8f);
+	DrawRect(Dot, CX - 0.5f * D, CY - 0.5f * D, D, D);
+	// The work ring: how far through the job you are, from the top round clockwise.
+	const float Done = Walker->WorkFraction();
+	if (Done > 0.0f)
+	{
+		const float R = 18.0f * S, Width = 5.0f * S;
+		const int32 Steps = 40;
+		for (int32 I = 0; I < Steps; ++I)
+		{
+			const float A0 = -UE_PI * 0.5f + 2.0f * UE_PI * I / Steps, A1 = -UE_PI * 0.5f + 2.0f * UE_PI * (I + 1) / Steps;
+			DrawLine(CX + R * FMath::Cos(A0), CY + R * FMath::Sin(A0), CX + R * FMath::Cos(A1), CY + R * FMath::Sin(A1),
+				FLinearColor(0, 0, 0, 0.4f), Width);
+		}
+		const int32 Lit = FMath::Max(1, FMath::RoundToInt(Steps * Done));
+		for (int32 I = 0; I < Lit; ++I)
+		{
+			const float A0 = -UE_PI * 0.5f + 2.0f * UE_PI * Done * I / Lit, A1 = -UE_PI * 0.5f + 2.0f * UE_PI * Done * (I + 1) / Lit;
+			DrawLine(CX + R * FMath::Cos(A0), CY + R * FMath::Sin(A0), CX + R * FMath::Cos(A1), CY + R * FMath::Sin(A1), Accent, Width);
+		}
+	}
+
+	// The tool bar along the bottom: a numbered box for each tool, the one in hand lit (_draw_toolbar).
+	static const TCHAR* Names[] = {TEXT("Hands"), TEXT("Wrench"), TEXT("Brush"), TEXT("Grinder"), TEXT("Spray can"), TEXT("Pressure wash")};
+	const int32 N = UE_ARRAY_COUNT(Names);
+	const float Gap = 8.0f * S;
+	const float BW = FMath::Min(120.0f * S, (Canvas->ClipX - 40.0f * S) / N - Gap), BH = 46.0f * S;
+	const float X0 = CX - N * (BW + Gap) * 0.5f + Gap * 0.5f;
+	const float BarY = Canvas->ClipY - 70.0f * S;
+	for (int32 I = 0; I < N; ++I)
+	{
+		const bool bOn = I == Walker->ToolIndex();
+		const float BX = X0 + I * (BW + Gap);
+		DrawRect(FLinearColor(0.05f, 0.06f, 0.08f, bOn ? 0.75f : 0.45f), BX, BarY, BW, BH);
+		if (bOn) Frame(BX, BarY, BW, BH, Accent, 2.0f * S);
+		Text(FString::FromInt(I + 1), BX + 8.0f * S, BarY + 4.0f * S, Px(13.0f), FLinearColor(1, 1, 1, 0.5f));
+		const FString Label = Names[I];
+		const FVector2D L = Measure(Label, Px(16.0f));
+		Text(Label, BX + 0.5f * (BW - L.X), BarY + BH - L.Y - 5.0f * S, Px(16.0f), bOn ? FLinearColor::White : FLinearColor(1, 1, 1, 0.65f));
+	}
+
+	// The spray can's colours and finishes above the bar while it's in your hand (_draw_spray_picker).
+	if (Walker->ToolIndex() == 4)
+	{
+		const TArray<FLinearColor>& Paints = UTorqueBuildSubsystem::Paints();
+		const TArray<FName>& Finishes = UTorqueBuildSubsystem::Finishes();
+		const float Sw = 30.0f * S, SwGap = 6.0f * S;
+		const float Total = FMath::Max(1, Paints.Num()) * (Sw + SwGap) - SwGap;
+		const float PX0 = CX - Total * 0.5f;
+		const float PY = BarY - 120.0f * S;
+		DrawRect(FLinearColor(0.05f, 0.06f, 0.08f, 0.7f), PX0 - 14.0f * S, PY - 32.0f * S, Total + 28.0f * S, 106.0f * S);
+		const int32 Pick = Walker->SprayColourIndex();
+		Text(FString::Printf(TEXT("SPRAY CAN  -  %s  %s"), *UTorqueBuildSubsystem::PaintName(Pick).ToUpper(), *Walker->SprayFinishText().ToUpper()),
+			PX0, PY - 28.0f * S, Px(15.0f), Accent);
+		for (int32 I = 0; I < Paints.Num(); ++I)
+		{
+			float SX = PX0 + I * (Sw + SwGap), SY = PY, SS = Sw;
+			if (I == Pick)
+			{
+				SX -= 4.0f * S;
+				SY -= 4.0f * S;
+				SS += 8.0f * S;
+				Frame(SX - 2.0f * S, SY - 2.0f * S, SS + 4.0f * S, SS + 4.0f * S, FLinearColor::White, 2.0f * S);
+			}
+			FLinearColor C = Paints[I];
+			C.A = 1.0f;
+			DrawRect(C, SX, SY, SS, SS);
+		}
+		float FX = PX0;
+		const FString PickedFinish = Walker->SprayFinishText();
+		for (const FName& F : Finishes)
+		{
+			const FString Label = UTorqueBuildSubsystem::FinishName(F);
+			const FVector2D L = Measure(Label, Px(15.0f));
+			const float FW = L.X + 16.0f * S, FH = 24.0f * S, FY = PY + 42.0f * S;
+			const bool bOn = Label == PickedFinish;
+			DrawRect(FLinearColor(1, 1, 1, bOn ? 0.18f : 0.05f), FX, FY, FW, FH);
+			if (bOn) Frame(FX, FY, FW, FH, Accent, 2.0f * S);
+			Text(Label, FX + 8.0f * S, FY + 0.5f * (FH - L.Y), Px(15.0f), bOn ? FLinearColor::White : FLinearColor(1, 1, 1, 0.6f));
+			FX += FW + 6.0f * S;
+		}
+	}
+
+	// What's in your hands, over the bar.
+	const FString Carrying = Walker->CarryingText();
+	if (!Carrying.IsEmpty())
+	{
+		const FString Line = TEXT("Carrying: ") + Carrying;
+		const FVector2D L = Measure(Line, Px(17.0f));
+		const float LY = BarY - 10.0f * S - L.Y - (Walker->ToolIndex() == 4 ? 150.0f * S : 0.0f);
+		DrawRect(FLinearColor(0, 0, 0, 0.35f), CX - 0.5f * L.X - 8.0f * S, LY - 2.0f * S, L.X + 16.0f * S, L.Y + 4.0f * S);
+		Text(Line, CX - 0.5f * L.X, LY, Px(17.0f), Accent);
 	}
 }

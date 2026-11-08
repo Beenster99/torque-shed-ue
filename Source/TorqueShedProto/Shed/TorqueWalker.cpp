@@ -10,11 +10,15 @@
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
+#include "Shed/TorqueShedScreens.h"
+#include "Shed/TorqueToolModels.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -169,6 +173,7 @@ ATorqueWalker::ATorqueWalker()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Ball(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Block(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	CubeMesh = Block.Object;
 	struct FBit { const TCHAR* Name; int32 Shape; FVector At, Size; };   // capsule-centre cm; 0 cylinder, 1 sphere, 2 cube
 	const FBit Bits[] = {
 		{TEXT("Body_LegL"), 0, FVector(0, -10, -45), FVector(15, 15, 88)},
@@ -223,6 +228,10 @@ void ATorqueWalker::BeginPlay()
 		bool bHave = false;
 		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) bHave = true;
 		if (!bHave) World->SpawnActor<ATorqueShedItems>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// And the screens: each bay's page and the crew board (Torque Shed's TVs).
+		bool bScreens = false;
+		for (TActorIterator<ATorqueShedScreens> It(World); It; ++It) bScreens = true;
+		if (!bScreens) World->SpawnActor<ATorqueShedScreens>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -294,6 +303,8 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		MakePlan();
 		Work(DeltaSeconds);
 	}
+	UpdateToolView(DeltaSeconds);
+	UpdateCues();
 	ActHeldFor = FMath::Max(ActHeldFor - DeltaSeconds, 0.0);
 	NoteFor = FMath::Max(NoteFor - DeltaSeconds, 0.0);
 	if (DoingFor > 0.0)
@@ -922,6 +933,353 @@ bool ATorqueWalker::Do(const FPlan& P)
 	// The host says what it did (OnTell); a joined player hears it through the net layer.
 	if (P.Request.Kind == ETorqueShedAct::StartBuild) B->SetMyBike(P.Request.Bay);
 	return true;
+}
+
+// --- The tool in your hand ------------------------------------------------------------------------
+
+void ATorqueWalker::UpdateToolView(float Dt)
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!ToolHolder)
+	{
+		ToolHolder = NewObject<USceneComponent>(this, TEXT("ToolHolder"));
+		ToolHolder->SetupAttachment(Camera);
+		ToolHolder->RegisterComponent();
+	}
+	// The can is drawn in the spray colour; a new colour or tool redraws it.
+	const int32 ToolIndex = (int32)Tool;
+	const TArray<FLinearColor>& Paints = UTorqueBuildSubsystem::Paints();
+	const FLinearColor Can = Paints.IsValidIndex(SprayColour) ? Paints[SprayColour] : FLinearColor(0.9f, 0.75f, 0.1f);
+	if (ToolIndex != ShownTool || (Tool == ETorqueTool::Spray && !Can.Equals(ShownCan)))
+	{
+		for (UStaticMeshComponent* C : ToolParts)
+			if (C) C->DestroyComponent();
+		ToolParts.Reset();
+		TorqueToolModels::Make(this, ToolHolder, ToolIndex, Can, ToolParts, ToolNozzle);
+		ShownTool = ToolIndex;
+		ShownCan = Can;
+	}
+	// Hidden while you carry a part (Torque Shed puts the tool away), at the computer and riding out.
+	const bool bCarrying = B && B->HeldBy(B->Me()) != 0;
+	ToolHolder->SetVisibility(!bCarrying && !bComputer && !bRidingOut, true);
+	// Working with it: Progress runs while the work button's held on a job that can be done.
+	const bool bWorking = Progress > 0.0 && !bCarrying;
+	WorkBlend = FMath::FInterpTo(WorkBlend, bWorking ? 1.0 : 0.0, (double)Dt, 12.0);
+	ToolClock += Dt;
+	const double T = ToolClock, W = WorkBlend;
+	// The work's motion on top of Torque Shed's hold (Unreal's frame, cm and degrees: x ahead, y
+	// right, z up; roll about the view).
+	FVector Move = FVector::ZeroVector;
+	FRotator Turn = FRotator::ZeroRotator;
+	// A little sway as you walk about.
+	const double Speed = GetVelocity().Size2D();
+	Move += FVector(0.0, FMath::Sin(T * 7.0) * 0.4, FMath::Abs(FMath::Sin(T * 7.0)) * -0.5) * FMath::Clamp(Speed / 300.0, 0.0, 1.0);
+	switch (Tool)
+	{
+	case ETorqueTool::Wrench:
+		// Ratcheting a bolt: a quarter swing about the view, out and back, pushed onto the job.
+		Turn.Roll = (FMath::Sin(T * 8.0) * 0.5 + 0.5) * 35.0 * W;
+		Move += FVector(6.0, -4.0, 3.0) * W;
+		break;
+	case ETorqueTool::Brush:
+		// Scrubbing: quick strokes side to side.
+		Move += FVector(7.0 + FMath::Sin(T * 28.0) * 1.0, -6.0 + FMath::Sin(T * 14.0) * 4.0, 2.0) * W;
+		Turn.Yaw = FMath::Sin(T * 14.0) * 6.0 * W;
+		break;
+	case ETorqueTool::Repair:
+		// The grinder's buzz, held into the work.
+		Move += FVector(8.0 + FMath::Sin(T * 91.0) * 0.25, -5.0 + FMath::Sin(T * 77.0) * 0.25, 4.0 + FMath::Sin(T * 83.0) * 0.25) * W;
+		Turn.Pitch = -6.0 * W;
+		break;
+	case ETorqueTool::Spray:
+		// Raised and swept gently across the part, the nozzle pressed.
+		Move += FVector(4.0, -6.0 + FMath::Sin(T * 3.0) * 3.0, 6.0) * W;
+		Turn.Pitch = 4.0 * W;
+		break;
+	case ETorqueTool::Lance:
+		// The kick of the jet.
+		Move += FVector(FMath::Sin(T * 60.0) * 0.3, 0.0, FMath::Sin(T * 53.0) * 0.3) * W;
+		break;
+	default:
+		break;
+	}
+	// The motion is in the camera's axes, the turn about the tool's own grip.
+	FTransform Hold = TorqueToolModels::HoldOf(ToolIndex);
+	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
+	Hold.AddToTranslation(Move);
+	ToolHolder->SetRelativeTransform(Hold);
+	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && (Tool == ETorqueTool::Repair || Tool == ETorqueTool::Spray || Tool == ETorqueTool::Lance));
+}
+
+void ATorqueWalker::UpdateFlying(float Dt, bool bEmit)
+{
+	if (!CubeMesh) return;
+	if (FlyMaterials.Num() == 0)
+	{
+		FlyMaterials.Add(TorqueToolModels::Finish(this, FLinearColor(1.0f, 0.55f, 0.15f), 0.0f, 1.0f, 40.0f));   // sparks glow
+		FlyMaterials.Add(TorqueToolModels::Finish(this, FLinearColor(0.5f, 0.5f, 0.5f), 0.0f, 0.6f));            // paint mist
+		FlyMaterials.Add(TorqueToolModels::Finish(this, FLinearColor(0.75f, 0.85f, 0.95f), 0.0f, 0.1f, 0.6f));   // water
+	}
+	const int32 Kind = Tool == ETorqueTool::Repair ? 0 : (Tool == ETorqueTool::Spray ? 1 : 2);
+	if (Kind == 1 && FlyMaterials.IsValidIndex(1) && FlyMaterials[1])
+	{
+		FlyMaterials[1]->SetVectorParameterValue(TEXT("Color"), ShownCan);
+		FlyMaterials[1]->SetVectorParameterValue(TEXT("Color2"), ShownCan);
+	}
+	// New bits off the nozzle, a stream while working.
+	if (bEmit && ToolHolder)
+	{
+		const FTransform Nozzle = FTransform(ToolNozzle) * ToolHolder->GetComponentTransform();
+		const FVector At = Nozzle.GetLocation();
+		const FVector Ahead = Camera->GetForwardVector(), Up = Camera->GetUpVector(), Right = Camera->GetRightVector();
+		const double Rate = Kind == 0 ? 160.0 : (Kind == 1 ? 90.0 : 140.0);
+		FlyDebt += Rate * Dt;
+		while (FlyDebt >= 1.0 && Flying.Num() < 220)
+		{
+			FlyDebt -= 1.0;
+			FFlyBit Bt;
+			Bt.Pos = At;
+			Bt.Kind = Kind;
+			if (Kind == 0)
+			{
+				// Sparks fan off the disc's edge, down and back towards you and out to the side.
+				Bt.Vel = (Ahead * FMath::FRandRange(-0.6, 0.2) - Up * FMath::FRandRange(0.2, 1.0) + Right * FMath::FRandRange(-0.9, 0.9)).GetSafeNormal()
+					* FMath::FRandRange(300.0, 700.0);
+				Bt.Life = FMath::FRandRange(0.15f, 0.45f);
+			}
+			else if (Kind == 1)
+			{
+				Bt.Vel = (Ahead + Up * FMath::FRandRange(-0.12, 0.12) + Right * FMath::FRandRange(-0.12, 0.12)).GetSafeNormal() * FMath::FRandRange(250.0, 420.0);
+				Bt.Life = FMath::FRandRange(0.3f, 0.5f);
+				Bt.Grow = 3.0f;
+			}
+			else
+			{
+				Bt.Vel = (Ahead + Up * FMath::FRandRange(-0.04, 0.04) + Right * FMath::FRandRange(-0.06, 0.06)).GetSafeNormal() * FMath::FRandRange(700.0, 950.0);
+				Bt.Life = FMath::FRandRange(0.18f, 0.3f);
+				Bt.Grow = 2.0f;
+			}
+			Flying.Add(Bt);
+		}
+	}
+	else FlyDebt = 0.0;
+	// Fly, fall and fade.
+	for (int32 I = Flying.Num() - 1; I >= 0; --I)
+	{
+		FFlyBit& Bt = Flying[I];
+		Bt.Age += Dt;
+		if (Bt.Age >= Bt.Life) { Flying.RemoveAtSwap(I); continue; }
+		if (Bt.Kind == 0) Bt.Vel += FVector(0.0, 0.0, -980.0) * Dt;               // sparks fall
+		else Bt.Vel *= FMath::Max(0.0, 1.0 - (Bt.Kind == 1 ? 6.0 : 2.0) * Dt);    // the mist and the spray slow in the air
+		Bt.Pos += Bt.Vel * Dt;
+	}
+	while (FlyMeshes.Num() < Flying.Num())
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetStaticMesh(CubeMesh);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetCastShadow(false);
+		C->SetUsingAbsoluteLocation(true);
+		C->SetUsingAbsoluteRotation(true);
+		C->SetUsingAbsoluteScale(true);
+		C->SetupAttachment(GetRootComponent());
+		C->RegisterComponent();
+		FlyMeshes.Add(C);
+	}
+	for (int32 I = 0; I < FlyMeshes.Num(); ++I)
+	{
+		UStaticMeshComponent* C = FlyMeshes[I];
+		if (!C) continue;
+		if (I >= Flying.Num())
+		{
+			if (C->IsVisible()) C->SetVisibility(false);
+			continue;
+		}
+		const FFlyBit& Bt = Flying[I];
+		const float F = Bt.Age / FMath::Max(Bt.Life, 0.01f);
+		UMaterialInstanceDynamic* M = FlyMaterials.IsValidIndex(Bt.Kind) ? FlyMaterials[Bt.Kind] : nullptr;
+		if (M && C->GetMaterial(0) != M) C->SetMaterial(0, M);
+		// A spark is a short streak along its flight; mist and water puffs grow and shrink away.
+		FVector Size;
+		FRotator Facing = FRotator::ZeroRotator;
+		if (Bt.Kind == 0)
+		{
+			Size = FVector(FMath::Clamp(Bt.Vel.Size() * 0.004, 0.4, 2.5), 0.12, 0.12) * (1.0f - F * 0.5f);
+			Facing = Bt.Vel.Rotation();
+		}
+		else
+		{
+			const double Puff = (Bt.Kind == 1 ? 0.25 : 0.18) * (1.0 + (Bt.Grow - 1.0) * F) * FMath::Sin(UE_DOUBLE_PI * FMath::Min(1.0f, F * 1.4f + 0.15f));
+			Size = FVector(Puff);
+		}
+		C->SetWorldLocationAndRotation(Bt.Pos, Facing);
+		C->SetWorldScale3D(Size / 100.0);   // the cube is a metre a side
+		if (!C->IsVisible()) C->SetVisibility(true);
+	}
+}
+
+// --- Cues --------------------------------------------------------------------------------------------
+
+float ATorqueWalker::WorkFraction() const
+{
+	const FPlan& P = (bWorkHeld || ActHeldFor > 0.0) ? Plan : AltPlan;
+	if (Progress <= 0.0 || !P.bValid || P.Time <= 0.0) return 0.0f;
+	return (float)FMath::Clamp(Progress / P.Time, 0.0, 1.0);
+}
+
+FString ATorqueWalker::SprayFinishText() const
+{
+	const TArray<FName>& F = UTorqueBuildSubsystem::Finishes();
+	return F.IsValidIndex(SprayFinish) ? UTorqueBuildSubsystem::FinishName(F[SprayFinish]) : FString();
+}
+
+FString ATorqueWalker::CarryingText() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
+	return Held != 0 ? B->ItemTitle(Held) : FString();
+}
+
+void ATorqueWalker::UpdateCues()
+{
+	UTorqueBuildSubsystem* B = Shed();
+	UWorld* World = GetWorld();
+	if (!B || !World) return;
+	// M_ShedHighlight comes from the shed's level script (Tools/ue_build_shed.py); without it, no cues.
+	static UMaterialInterface* Glow = nullptr;
+	static bool bLooked = false;
+	if (!bLooked)
+	{
+		bLooked = true;
+		Glow = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight"));
+		if (Glow) Glow->AddToRoot();
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_ShedHighlight (run Tools/ue_build_shed.py): no highlight or footprint"));
+		}
+	}
+	if (!Glow) return;
+	auto Make = [this](const FLinearColor& C, float Opacity)
+	{
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Glow, this);
+		M->SetVectorParameterValue(TEXT("Color"), C);
+		M->SetScalarParameterValue(TEXT("Opacity"), Opacity);
+		return M;
+	};
+	if (!LitMaterial)
+	{
+		LitMaterial = Make(FLinearColor(1.0f, 0.6f, 0.15f), 0.3f);
+		LitFaintMaterial = Make(FLinearColor(1.0f, 0.6f, 0.15f), 0.16f);
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 1.0f, 1.0f), 0.16f));
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 1.0f, 1.0f), 0.8f));
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.25f, 0.2f), 0.2f));
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.25f, 0.2f), 0.8f));
+	}
+	const int32 Held = B->HeldBy(B->Me());
+	// What's looked at glows: a bike part's whole slot (not with the lance, which washes the bike).
+	TArray<UStaticMeshComponent*> Now;
+	UMaterialInterface* NowMat = LitMaterial;
+	const bool bShow = !bComputer && !bRidingOut;
+	if (bShow && Target == ETorqueLook::BikePart && Tool != ETorqueTool::Lance && TargetBay != INDEX_NONE)
+	{
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			if (It->Bay == TargetBay)
+				for (UStaticMeshComponent* C : It->Parts)
+					if (C && C->IsVisible() && TorqueShedModel::SlotTag(C) == TargetSlot) Now.Add(C);
+	}
+	else if (bShow && Target == ETorqueLook::Item && TargetItem != 0 && Held == 0)
+	{
+		TArray<const UStaticMeshComponent*> Meshes;
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->MeshesOf(TargetItem, Meshes);
+		for (const UStaticMeshComponent* C : Meshes) Now.Add(const_cast<UStaticMeshComponent*>(C));
+		NowMat = LitFaintMaterial;
+	}
+	for (const TWeakObjectPtr<UStaticMeshComponent>& W : Lit)
+		if (UStaticMeshComponent* C = W.Get())
+			if (!Now.Contains(C)) C->SetOverlayMaterial(nullptr);
+	Lit.Reset();
+	for (UStaticMeshComponent* C : Now)
+	{
+		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
+		Lit.Add(C);
+	}
+	// A part in your hands: its footprint where it will go down (the floor, a bench, a machine).
+	bool bGhost = false;
+	FTransform At = FTransform::Identity;
+	if (bShow && Held != 0 && Tool == ETorqueTool::Hands && Plan.bValid)
+	{
+		if (Plan.Request.Kind == ETorqueShedAct::Drop)
+		{
+			At = Plan.Request.Place;
+			bGhost = true;
+		}
+		else if (Plan.Request.Kind == ETorqueShedAct::Place)
+		{
+			if (const FTorquePlace* P = TorqueShedLayout::FindPlace(Plan.Request.Spot))
+			{
+				At = FTransform(P->Put);
+				if (P->Kind == ETorquePlace::Bench) At.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
+				bGhost = true;
+			}
+		}
+	}
+	FVector2D Foot(60.0, 30.0);
+	if (bGhost)
+	{
+		TArray<const UStaticMeshComponent*> Meshes;
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->MeshesOf(Held, Meshes);
+		FBox Box(ForceInit);
+		for (const UStaticMeshComponent* C : Meshes) Box += C->Bounds.GetBox();
+		if (Box.IsValid)
+		{
+			const FVector Size = Box.GetSize();
+			Foot = FVector2D(FMath::Max(Size.X, Size.Y), FMath::Min(Size.X, Size.Y));
+			Foot.X = FMath::Clamp(Foot.X, 10.0, 220.0);
+			Foot.Y = FMath::Clamp(Foot.Y, 8.0, 120.0);
+		}
+	}
+	// The fill, its four edges and the notch on the front edge (walker.gd's pieces).
+	while (GhostParts.Num() < 6 && CubeMesh)
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetStaticMesh(CubeMesh);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetCastShadow(false);
+		C->SetUsingAbsoluteLocation(true);
+		C->SetUsingAbsoluteRotation(true);
+		C->SetUsingAbsoluteScale(true);
+		C->SetupAttachment(GetRootComponent());
+		C->RegisterComponent();
+		GhostParts.Add(C);
+	}
+	const bool bOk = Plan.Blocked.IsEmpty();
+	const double Bar = 1.2;
+	struct FPiece { FVector Size, Offset; bool bEdge; };
+	const FPiece Pieces[6] = {
+		{FVector(Foot.X, Foot.Y, 0.2), FVector(0, 0, 0.2), false},
+		{FVector(Foot.X, Bar, 0.4), FVector(0, -Foot.Y * 0.5, 0.3), true},
+		{FVector(Foot.X, Bar, 0.4), FVector(0, Foot.Y * 0.5, 0.3), true},
+		{FVector(Bar, Foot.Y, 0.4), FVector(-Foot.X * 0.5, 0, 0.3), true},
+		{FVector(Bar, Foot.Y, 0.4), FVector(Foot.X * 0.5, 0, 0.3), true},
+		{FVector(Bar * 2.0, FMath::Min(6.0, Foot.Y * 0.5), 0.5), FVector(Foot.X * 0.5, 0, 0.4), true},
+	};
+	for (int32 I = 0; I < GhostParts.Num() && I < 6; ++I)
+	{
+		UStaticMeshComponent* C = GhostParts[I];
+		if (!C) continue;
+		if (!bGhost)
+		{
+			if (C->IsVisible()) C->SetVisibility(false);
+			continue;
+		}
+		UMaterialInstanceDynamic* M = GhostMaterials.IsValidIndex((bOk ? 0 : 2) + (Pieces[I].bEdge ? 1 : 0)) ? GhostMaterials[(bOk ? 0 : 2) + (Pieces[I].bEdge ? 1 : 0)] : nullptr;
+		if (M && C->GetMaterial(0) != M) C->SetMaterial(0, M);
+		C->SetWorldLocationAndRotation(At.TransformPosition(Pieces[I].Offset + FVector(0, 0, 0.6)), At.GetRotation());
+		C->SetWorldScale3D(Pieces[I].Size / 100.0);
+		if (!C->IsVisible()) C->SetVisibility(true);
+	}
 }
 
 // --- F -------------------------------------------------------------------------------------------

@@ -25,6 +25,9 @@
 
 class UCameraComponent;
 class UStaticMeshComponent;
+class UMaterialInstanceDynamic;
+class UStaticMesh;
+class USceneComponent;
 struct FTorquePlace;
 
 // What the walker is looking at.
@@ -56,6 +59,14 @@ public:
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
 	// Whether to draw the aiming dot (walking about, not at the computer).
 	bool ShowsCrosshair() const { return !bRidingOut && !bComputer; }
+	// For the HUD (Torque Shed's hud.gd): the crosshair lit over something, the work ring, the tool
+	// bar, the spray swatches and what you're carrying.
+	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
+	float WorkFraction() const;
+	int32 ToolIndex() const { return (int32)Tool; }
+	int32 SprayColourIndex() const { return SprayColour; }
+	FString SprayFinishText() const;
+	FString CarryingText() const;
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -138,6 +149,38 @@ private:
 	// --- Tools ---------------------------------------------------------------------------------------
 	ETorqueTool Tool = ETorqueTool::Hands;
 	void SetTool(ETorqueTool T);
+	// The tool in your hand (TorqueToolModels, held where walker.gd holds it), moving as you work
+	// with it: the spanner turning, the brush scrubbing, the grinder buzzing and throwing sparks,
+	// the can's mist and the lance's jet. Hidden while you carry a part.
+	UPROPERTY(Transient) USceneComponent* ToolHolder = nullptr;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ToolParts;
+	FVector ToolNozzle = FVector::ZeroVector;   // in ToolHolder's frame
+	int32 ShownTool = -1;
+	FLinearColor ShownCan = FLinearColor::Black;
+	double ToolClock = 0.0, WorkBlend = 0.0;
+	void UpdateToolView(float Dt);
+	// Sparks, mist and spray: small bits flying off the tool's nozzle (world space).
+	struct FFlyBit
+	{
+		FVector Pos = FVector::ZeroVector, Vel = FVector::ZeroVector;
+		float Age = 0.0f, Life = 0.0f, Grow = 1.0f;
+		int32 Kind = 0;   // 0 spark, 1 paint mist, 2 water
+	};
+	TArray<FFlyBit> Flying;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> FlyMeshes;
+	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> FlyMaterials;   // spark, mist, water
+	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
+	double FlyDebt = 0.0;
+	void UpdateFlying(float Dt, bool bEmit);
+	// Torque Shed's cues for handling parts: what you look at glows orange (bike_model.gd
+	// highlight; a loose part fainter), and a part in your hands shows its footprint where it will
+	// go down (walker.gd _update_part_ghost: white, red when it can't), a notch on its front edge.
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> Lit;
+	UPROPERTY(Transient) UMaterialInstanceDynamic* LitMaterial = nullptr;
+	UPROPERTY(Transient) UMaterialInstanceDynamic* LitFaintMaterial = nullptr;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostParts;
+	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostMaterials;   // fill, edge; blocked fill, edge
+	void UpdateCues();
 	int32 SprayColour = 0;
 	int32 SprayFinish = 0;
 	bool bCrouched = false;
