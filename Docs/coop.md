@@ -23,7 +23,11 @@ Looking after the router: the port is only asked for when a player hosts for rea
 `-Torque` test run or in the editor, and not with Settings > Gameplay > "Open my router for internet
 friends" off). It has a two hour lease, renewed hourly while hosting, and is removed when hosting
 ends and when the game closes. If the game is killed while hosting, the next start-up removes it
-(it's noted in GameUserSettings.ini as `UpnpOpenPort`).
+(it's noted in GameUserSettings.ini as `UpnpOpenPort`). The mapping is named `TorqueShed` (ten
+letters, as some routers cut names to ten), and the port goes to this PC's address on the router's
+own network (a PC with VPN or Hyper-V adapters has several). The start-up check counts a mapping as
+ours when it points at any of this PC's addresses and its name is ours or the start of ours (older
+builds used "Torque Shed", which a router keeps as "Torque She").
 
 If the host's internet provider shares one public address between many homes (carrier-grade NAT),
 no port can be opened; EOS friend codes (the last section) get round that.
@@ -33,7 +37,8 @@ no port can be opened; EOS friend codes (the last section) get round that.
 The host owns the shed, as Torque Shed's `shed_state`: every fit, wash, paint and new bike a joined
 player makes goes to the host, which checks it with the fitment rules, applies it and saves it, and
 everyone's shed shows the result (`Coop/TorqueShedNet.*`). A part that doesn't fit comes back as a
-note on the player's screen. Each player's name floats over them in the colour they chose, with what
+note on the player's screen. Each player walks the shed in the rider's kit with a jacket in the colour they chose
+(`Coop/TorqueLook.*`), their name floats over them in that colour, with what
 they're doing under it ("fitting clubman bars to bay 2"), so you can see each other working on
 different bikes. Each player rides out on the bike in the bay they last worked on, and every rider
 sees each bike as its owner built it.

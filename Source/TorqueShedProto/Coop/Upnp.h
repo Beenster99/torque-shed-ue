@@ -13,6 +13,7 @@
 #include <cctype>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 namespace TorqueUpnp
 {
@@ -169,10 +170,62 @@ inline std::string GetSpecificPortMappingEntry(const std::string& ServiceType, i
 		"<NewRemoteHost></NewRemoteHost><NewExternalPort>" + std::to_string(Port) + "</NewExternalPort><NewProtocol>UDP</NewProtocol>");
 }
 
-// Whether a GetSpecificPortMappingEntry answer is our own mapping to this PC.
-inline bool IsOurMapping(const std::string& Reply, const std::string& LocalIp, const std::string& What)
+// The name our mappings carry: ten letters, as some routers keep only the first ten.
+inline const char* MappingName() { return "TorqueShed"; }
+
+// Whether a mapping's description is ours. Routers cut descriptions short (one keeps ten
+// characters: "Torque She"), so either may be the start of the other; builds before this one used
+// "Torque Shed". Six characters at least, so an empty or tiny name never matches.
+inline bool IsOurName(const std::string& Have)
 {
-	return TagText(Reply, "NewInternalClient") == LocalIp && TagText(Reply, "NewPortMappingDescription") == What;
+	auto Starts = [](const std::string& Long, const std::string& Short) { return Short.size() >= 6 && Long.compare(0, Short.size(), Short) == 0; };
+	for (const char* Ours : { MappingName(), "Torque Shed" })
+		if (Have == Ours || Starts(Have, Ours) || Starts(Ours, Have)) return true;
+	return false;
+}
+
+// Whether a GetSpecificPortMappingEntry answer is our own mapping to this PC (any of its addresses:
+// a PC with VPN or Hyper-V adapters has several, and the one the router knows needn't be the first).
+inline bool IsOurMapping(const std::string& Reply, const std::vector<std::string>& LocalIps)
+{
+	const std::string Client = TagText(Reply, "NewInternalClient");
+	bool bThisPc = false;
+	for (const std::string& Ip : LocalIps) bThisPc |= !Ip.empty() && Ip == Client;
+	return bThisPc && IsOurName(TagText(Reply, "NewPortMappingDescription"));
+}
+
+// Of this PC's addresses, the one on the router's network: the most leading bits in common with the
+// router's address (192.168.1.20 for a router at 192.168.1.1, not the VPN's 10.8.0.2). "" if none
+// shares even the first byte.
+inline unsigned ParseIpv4(const std::string& Ip, bool* bOk = nullptr)
+{
+	unsigned A = 0, B = 0, C = 0, D = 0;
+	char Tail = 0;
+	const bool bGood = std::sscanf(Ip.c_str(), "%u.%u.%u.%u%c", &A, &B, &C, &D, &Tail) == 4 && A < 256 && B < 256 && C < 256 && D < 256;
+	if (bOk) *bOk = bGood;
+	return bGood ? (A << 24) | (B << 16) | (C << 8) | D : 0;
+}
+inline std::string AddressFacing(const std::string& RouterIp, const std::vector<std::string>& LocalIps)
+{
+	bool bOk = false;
+	const unsigned R = ParseIpv4(RouterIp, &bOk);
+	if (!bOk) return "";
+	std::string Best;
+	int BestBits = 7;
+	for (const std::string& Ip : LocalIps)
+	{
+		bool bMine = false;
+		const unsigned L = ParseIpv4(Ip, &bMine);
+		if (!bMine || L == R) continue;
+		int Bits = 0;
+		while (Bits < 32 && ((L ^ R) & (0x80000000u >> Bits)) == 0) ++Bits;
+		if (Bits > BestBits)
+		{
+			BestBits = Bits;
+			Best = Ip;
+		}
+	}
+	return Best;
 }
 
 inline std::string DeletePortMapping(const std::string& ServiceType, int Port)

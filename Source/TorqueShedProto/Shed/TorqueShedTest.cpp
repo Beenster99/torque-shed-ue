@@ -16,6 +16,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "UnrealClient.h"
 
 namespace TorqueShedTestImpl
 {
@@ -166,8 +167,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	if (Verb == TEXT("shot"))
 	{
-		Said(TEXT("screenshot (Saved/Screenshots)"));
-		if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("HighResShot 1"));
+		// "shot:ui": the viewport as the player sees it, HUD and menus included (HighResShot
+		// leaves them out).
+		if (P.Num() > 1 && P[1] == TEXT("ui"))
+		{
+			Said(TEXT("screenshot with the HUD (Saved/Screenshots)"));
+			FScreenshotRequest::RequestScreenshot(FString(), true, true);
+		}
+		else
+		{
+			Said(TEXT("screenshot (Saved/Screenshots)"));
+			if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("HighResShot 1"));
+		}
 		return true;
 	}
 	if (Verb == TEXT("log")) { LogBuild(*S); return true; }

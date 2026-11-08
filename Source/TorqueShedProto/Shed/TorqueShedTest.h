@@ -30,6 +30,7 @@
 //   back                  on the road: back to the shed (as Backspace)
 //   log                   log every bay's bike and the loose parts
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
+//   shot:ui               a screenshot of the viewport with the HUD and menus (FScreenshotRequest)
 //   wait:<seconds>        wait longer
 //   quit
 // Every bay's bike is logged at every map load, so the log shows it survive riding out and coming

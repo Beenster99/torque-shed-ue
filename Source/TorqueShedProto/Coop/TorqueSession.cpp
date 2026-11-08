@@ -56,7 +56,7 @@ void UTorqueSession::Initialize(FSubsystemCollectionBase& Collection)
 	Router = MakeShared<FTorqueRouter>();
 	// A port mapping left on the router by a game that was killed while hosting: take it off.
 	// (Not on test runs, which never touch the router.)
-	if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueNoUpnp")) && !IsTestRun()) Router->CleanUpLeftover(GamePort(), LocalAddr);
+	if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueNoUpnp")) && !IsTestRun()) Router->CleanUpLeftover(GamePort(), LocalAddr, LocalAddresses());
 }
 
 void UTorqueSession::Deinitialize()
@@ -264,7 +264,7 @@ void UTorqueSession::AdvertiseHostedGame()
 	if (Router)
 	{
 		FString WhyNot;
-		if (ShouldOpenRouter(WhyNot)) Router->Open(GamePort(), LocalAddr);
+		if (ShouldOpenRouter(WhyNot)) Router->Open(GamePort(), LocalAddr, LocalAddresses());
 		else Router->Skip(WhyNot);
 	}
 	if (HasEos())
@@ -376,7 +376,9 @@ TArray<FString> UTorqueSession::JoinInstructions() const
 	if (!IsHosting()) return Lines;
 	const int32 Port = GamePort();
 	const FString PortText = Port == 7777 ? FString() : FString::Printf(TEXT(":%d"), Port);
-	const TArray<FString> Home = LocalAddresses();
+	// Once the router has answered, the one address of this PC on its network; until then all of them.
+	TArray<FString> Home = LocalAddresses();
+	if (Router && !Router->HomeAddress().IsEmpty()) Home = { Router->HomeAddress() };
 	Lines.Add(FString::Printf(TEXT("Friends on your home network join with:  %s%s"),
 		Home.IsEmpty() ? TEXT("this PC's address") : *FString::Join(Home, *(PortText + TEXT("  or  "))), *PortText));
 	const FString Public = InternetAddress();
