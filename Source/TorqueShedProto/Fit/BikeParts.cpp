@@ -2737,6 +2737,9 @@ void BikeParts::HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<F
 		const V3 SeatFront = ToGodot(L.SeatFront), Tail = ToGodot(L.Tail);
 		const V3 At(0.12, L.Stats.SeatHeight - L.Stats.RearRadius - 0.17, TorqueSim::Lerp(SeatFront.z, Tail.z, 0.3));
 		Put(Out, "ecu", "ecu/box.glb", GAffine::At(At), "");
+		// Its loom, forward and in to the frame.
+		const V3 A = At + V3(0.0, 0.04, -0.06), B = At + V3(-0.08, 0.1, -0.16);
+		CodeShapes::Emit(Out, "ecu", "ecu/box.glb", "", "", CodeShapes::Tube(A, B, 0.006), CodeShapes::TubeAt(A, B), "rubber");
 	}
 }
 
@@ -2932,7 +2935,9 @@ void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 						Hardware("panniers", "luggage/brass_buckle.glb", V3(OuterX + Sd * 0.009, Y0 + Hb * 0.5, C.z + Z * HalfL * 0.55), V3(0.006, 0.026, 0.03));
 				}
 			}
-			else Put(Out, "panniers", "luggage/" + std::string(Drawn == "sport_case" ? "sport_case" : "hard_case") + ".glb", Xf, "");
+			else if (Put(Out, "panniers", "luggage/" + std::string(Drawn == "sport_case" ? "sport_case" : "hard_case") + ".glb", Xf, "") && (Drawn == "hard_top" || Drawn == "hard"))
+				CodeShapes::Emit(Out, "panniers", "luggage/hard_case.glb", "", "", CodeShapes::Box(V3(0.006, 0.012, 0.42 * K)),
+					GAffine::At(C + V3(Sd * (0.15 * K * 0.5 + 0.002), 0.06 * K, 0.0)), "paint_2");   // (its trim strip)
 			TubeAB("panniers", V3(Sd * W, Top, Pv.z + 0.1), V3(Sd * W, Top, Zr + 0.16), 0.008);
 			TubeAB("panniers", V3(Sd * W, Top, Zr + 0.16), V3(Sd * W, Top - 0.3 * K, Zr + 0.12), 0.008);
 		}

@@ -473,7 +473,7 @@ int main(int argc, char** argv)
 			return Wrong;
 		};
 		// The slots whose every mesh, Blender or code-drawn, is ported: checked whole against Godot's.
-		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight", "indicators", "satnav", "front_caliper", "gearbox", "spark_plugs", "saddle", "tail", "front_mudguard", "tank"};
+		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight", "indicators", "satnav", "front_caliper", "gearbox", "spark_plugs", "saddle", "tail", "front_mudguard", "tank", "ecu"};
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
 		auto CodeCheck = [&](const std::map<std::string, Box>& Ours, const std::string& Slot, const Json* Gs, bool Whole) {
