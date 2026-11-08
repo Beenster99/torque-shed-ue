@@ -9,7 +9,7 @@
    "triangles": 16156,
    "ground_blend": 0.7,
    "min_draw_m": 0.0,
-   "count": 173111
+   "count": 141971
   },
   {
    "name": "carpet_moor",
@@ -19,7 +19,7 @@
    "triangles": 15000,
    "ground_blend": 0.7,
    "min_draw_m": 0.0,
-   "count": 187613
+   "count": 218753
   },
   {
    "name": "carpet_far_green",
@@ -29,7 +29,7 @@
    "triangles": 4968,
    "ground_blend": 0.7,
    "min_draw_m": 30.0,
-   "count": 89725
+   "count": 74801
   },
   {
    "name": "carpet_far_moor",
@@ -39,7 +39,7 @@
    "triangles": 4892,
    "ground_blend": 0.7,
    "min_draw_m": 30.0,
-   "count": 149022
+   "count": 163946
   },
   {
    "name": "tuft_a",
@@ -49,7 +49,7 @@
    "triangles": 900,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 364658
+   "count": 346120
   },
   {
    "name": "tuft_b",
@@ -59,7 +59,7 @@
    "triangles": 780,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 364559
+   "count": 346757
   },
   {
    "name": "tussock_a",
@@ -69,7 +69,7 @@
    "triangles": 1360,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 226935
+   "count": 216164
   },
   {
    "name": "tussock_b",
@@ -79,7 +79,7 @@
    "triangles": 1200,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 227581
+   "count": 215828
   },
   {
    "name": "matgrass",
@@ -89,7 +89,7 @@
    "triangles": 780,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 163370
+   "count": 157534
   },
   {
    "name": "far_a",
@@ -99,7 +99,7 @@
    "triangles": 240,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 193503
+   "count": 193481
   },
   {
    "name": "far_b",
@@ -109,7 +109,7 @@
    "triangles": 216,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 194317
+   "count": 194217
   },
   {
    "name": "rush_a",
@@ -119,7 +119,7 @@
    "triangles": 3466,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 41581
+   "count": 41427
   },
   {
    "name": "rush_b",
@@ -129,7 +129,7 @@
    "triangles": 3604,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 41584
+   "count": 41514
   },
   {
    "name": "heather_twig_a",
@@ -139,7 +139,7 @@
    "triangles": 7036,
    "ground_blend": 0.15,
    "min_draw_m": 0.0,
-   "count": 17727
+   "count": 36742
   },
   {
    "name": "heather_twig_b",
@@ -149,7 +149,7 @@
    "triangles": 11700,
    "ground_blend": 0.15,
    "min_draw_m": 0.0,
-   "count": 11825
+   "count": 24557
   },
   {
    "name": "heather_a",
@@ -159,7 +159,7 @@
    "triangles": 3238,
    "ground_blend": 0.15,
    "min_draw_m": 0.0,
-   "count": 72142
+   "count": 98026
   },
   {
    "name": "heather_b",
@@ -169,7 +169,7 @@
    "triangles": 3238,
    "ground_blend": 0.15,
    "min_draw_m": 0.0,
-   "count": 47848
+   "count": 65856
   },
   {
    "name": "moss",
@@ -179,7 +179,7 @@
    "triangles": 1432,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 6240
+   "count": 6310
   },
   {
    "name": "bracken",
@@ -189,9 +189,9 @@
    "triangles": 2136,
    "ground_blend": 1.0,
    "min_draw_m": 0.0,
-   "count": 34652
+   "count": 34542
   }
  ],
- "total": 2607993,
+ "total": 2618546,
  "density": 1.0
 }

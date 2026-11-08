@@ -463,11 +463,14 @@ def place_street(props, region_root, O, line, village, junctions, ground, road_h
                 sit("Farm4x4_%d" % ci, lambda ci=ci: ST.utility_4x4(np.random.default_rng(760 + ci), cols[ci]),
                     p[0], p[1], rot + (math.pi if rng.uniform() < 0.5 else 0.0) + rng.normal(0, 0.12), 2.5)
                 n["farm_4x4s"] += 1
-                if rng.uniform() < 0.5:
-                    q = p + np.array([c, s_]) * 3.4
-                    if yard_free(*q, 0.9):
-                        sit("QuadBike", lambda: ST.quad_bike(np.random.default_rng(770)), q[0], q[1], rot + rng.normal(0, 0.5), 1.2)
-                        n["quad_bikes"] += 1
+                if rng.uniform() < 0.5 or dmin < 80:     # always by the yards the ride passes close to
+                    for q in (p + np.array([c, s_]) * 4.1, p - np.array([c, s_]) * 4.1, p + np.array([-s_, c]) * 2.6):
+                        if yard_free(*q, 0.9) and float(np.hypot(xz[:, 0] - q[0], xz[:, 1] - q[1]).min()) > road_half + 2.5 \
+                                and all(math.hypot(q[0] - o[0], q[1] - o[1]) > 2.5 for o in placed):
+                            sit("QuadBike", lambda: ST.quad_bike(np.random.default_rng(770)), q[0], q[1],
+                                rot + np.random.default_rng(i).normal(0, 0.5), 1.2)
+                            placed.append(tuple(q)); n["quad_bikes"] += 1
+                            break
         if kind in ("barn", "farm") and dmin < 350 and i % 3 == 0:
             # bales along the barn's gable end
             nb_ = 5                       # the mesh holds five
@@ -1367,7 +1370,8 @@ def place_life(props, region_root, O, line, village, tops, ground, near, road_di
         else:
             for t in (-0.28, 0.28):
                 spots.append(np.array([x, z]) + ex * w * t + ez * (d_ / 2 + 1.9))
-        cars = [(v[0] / 100, v[1] / 100) for k_, vs in props.inst.items() if k_.startswith("SM_Car_") for v in vs]
+        cars = [(v[0] / 100, v[1] / 100) for k_, vs in props.inst.items()
+                if k_.startswith(("SM_Car_", "SM_Farm4x4_", "SM_QuadBike_")) for v in vs]
         for p in spots:
             if any(math.hypot(p[0] - cx_, p[1] - cz_) < 4.0 for cx_, cz_ in cars):
                 p = p - ex * 3.0 if all(math.hypot(p[0] - 3.0 * ex[0] - cx_, p[1] - 3.0 * ex[1] - cz_) >= 4.0 for cx_, cz_ in cars) else p + ex * 3.0
