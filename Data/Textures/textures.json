@@ -208,6 +208,12 @@
   ],
   "rider_sole": [
    "Rubber004"
+  ],
+  "bark": [
+   "Bark004",
+   "Bark011",
+   "Bark001",
+   "Bark013"
   ]
  }
 }
