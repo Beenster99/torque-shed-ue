@@ -1,6 +1,8 @@
 #include "Shed/TorqueWalker.h"
 
 #include "Coop/HandsState.h"
+#include "Shed/TorqueAvatar.h"
+#include "Shed/TorqueAvatarDemo.h"
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
@@ -242,7 +244,45 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (UTorqueBuildSubsystem* B = Shed()) B->OnTell.Remove(TellHandle);
 	Pad.Reset();   // stops its reading thread
+	if (Avatar) Avatar->Destroy();   // its MetaHuman Blueprint goes with it
 	Super::EndPlay(Reason);
+}
+
+void ATorqueWalker::UpdateAvatar(float Dt)
+{
+	// A MetaHuman per player colour, when Data/Avatars/avatars.json lists some (Tools/ue_metahumans.py).
+	if (FTorqueAvatar::Count() == 0 || GetNetMode() == NM_DedicatedServer) return;
+	const ATorquePlayerState* PS = Cast<ATorquePlayerState>(GetPlayerState());
+	if (!PS) return;
+	if (AvatarFor != (int32)PS->Colour)
+	{
+		AvatarFor = PS->Colour;
+		if (!AvatarRoot)
+		{
+			AvatarRoot = NewObject<USceneComponent>(this, TEXT("AvatarRoot"));
+			AvatarRoot->SetupAttachment(GetCapsuleComponent());
+			AvatarRoot->RegisterComponent();
+		}
+		if (!Avatar) Avatar = MakeUnique<FTorqueAvatar>();
+		const bool bMade = Avatar->Build(this, AvatarRoot, PS->Colour);
+		// The shape body goes while the MetaHuman stands in for it.
+		TArray<UStaticMeshComponent*> Shapes;
+		GetComponents(Shapes);
+		for (UStaticMeshComponent* C : Shapes)
+			if (C->GetName().StartsWith(TEXT("Body_"))) C->SetVisibility(!bMade);
+	}
+	if (!Avatar || !Avatar->IsValid()) return;
+	// Feet on the floor: the capsule's bottom (it shrinks and drops when crouched).
+	AvatarRoot->SetRelativeLocation(FVector(0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+	FTorqueAvatarInput In;
+	In.Velocity = GetVelocity();
+	In.Facing = GetActorRotation();
+	In.LookPitch = FRotator::NormalizeAxis(GetBaseAimRotation().Pitch);
+	In.Crouch = bIsCrouched ? 1.0 : 0.0;
+	In.bInAir = GetCharacterMovement() && GetCharacterMovement()->IsFalling();
+	// What they're doing, as the crew board shows it: hands out in front for work and carrying.
+	In.bWorking = !PS->Activity.IsEmpty();
+	Avatar->Pose(In, Dt);
 }
 
 void ATorqueWalker::Told(int32 Peer, const FString& Text, bool bOk)
@@ -272,11 +312,23 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	// tool in hand and moving as they work (FollowHands).
 	if (!IsLocallyControlled())
 	{
-		TorqueLook::Dress(this);
+		UpdateAvatar(DeltaSeconds);
+		if (!Avatar || !Avatar->IsValid()) TorqueLook::Dress(this);
 		FollowHands(DeltaSeconds);
 		return;
 	}
 	UTorqueBuildSubsystem* B = Shed();
+	// -TorqueAvatarDemo: the MetaHuman avatars walking about 3 m in front of you (TorqueAvatarDemo.h).
+	if (!bAvatarDemo && FParse::Param(FCommandLine::Get(), TEXT("TorqueAvatarDemo")))
+	{
+		bAvatarDemo = true;
+		if (UWorld* World = GetWorld())
+		{
+			const FRotator Ahead(0.0, GetActorRotation().Yaw, 0.0);
+			const FVector Feet = GetActorLocation() - FVector(0.0, 0.0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+			World->SpawnActor<ATorqueAvatarDemo>(Feet + Ahead.Vector() * 300.0, Ahead);
+		}
+	}
 	// This machine's player, as the shed knows them (whose hands a part is in).
 	if (!bPeerSet && B && GetPlayerState())
 	{
