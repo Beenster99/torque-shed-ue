@@ -45,7 +45,6 @@ public:
 
 	// The shed in co-op: a joined player's actions, for the host to apply.
 	UFUNCTION(Server, Reliable) void ServerShed(const FTorqueShedRequestNet& Request);
-	UFUNCTION(Server, Reliable) void ServerClean(const TArray<FTorqueCleanNet>& Washed);
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
 
 private:
@@ -86,9 +85,10 @@ private:
 
 	// The shed in co-op.
 	bool ForwardShed(const FTorqueShedRequest& Request);
+	// The host: what the shed says to this (joined) player about what they did.
+	void TellPeer(int32 Peer, const FString& Text, bool bOk);
+	FDelegateHandle TellHandle;
 	void SyncPlayerState(float Dt);
-	TMap<TPair<int32, FName>, float> Washing;
-	double WashSendIn = 0.0;
 	FString SentActivity;
 	int32 SentBay = -2;
 	bool bLookSent = false;

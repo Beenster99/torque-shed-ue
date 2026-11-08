@@ -429,9 +429,9 @@ void UTorqueSession::StartRide(UObject* WorldContext)
 				Marked.Add(TPS->Bay);
 				FTorqueShedRequest R;
 				R.Kind = ETorqueShedAct::RodeOut;
-				R.Bike = TPS->Bay;
-				FText Ignored;
-				B->Apply(R, Ignored);
+				R.Bay = TPS->Bay;
+				FString Ignored;
+				B->Apply(TPS->GetPlayerId(), R, Ignored);
 			}
 		}
 		// Everyone comes too: the game mode's seamless travel keeps each rider connected.

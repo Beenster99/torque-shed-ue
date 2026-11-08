@@ -229,6 +229,11 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 			const double Down = K[2] * Ky;
 			Out.TankSecs.push_back({On.P + V3(0.0, Down - Sink, 0.0), K[0] * Kx, K[1] * Ky, Down});
 		}
+		// (RigBodywork.tank_fit's "flank", and BikeModel._draw_tank's base line from it.)
+		const double Flank = (Skirt < 0.0 ? Skirt : std::max(Sink, Skirt)) + BaseTunnelDeep * Ky;
+		const double Under = Sink - Flank;
+		Out.TankA = Out.TankSecs.front().C + V3(0.0, Under - Out.TankSecs.front().Down, 0.0);
+		Out.TankB = Out.TankSecs.back().C + V3(0.0, Under - Out.TankSecs.back().Down, 0.0);
 	}
 
 	// ------------------------------------------------------------------ seat
