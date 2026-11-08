@@ -17,6 +17,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -298,6 +299,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		Work(DeltaSeconds);
 	}
 	UpdateToolView(DeltaSeconds);
+	UpdateCues();
 	ActHeldFor = FMath::Max(ActHeldFor - DeltaSeconds, 0.0);
 	NoteFor = FMath::Max(NoteFor - DeltaSeconds, 0.0);
 	if (DoingFor > 0.0)
@@ -1108,6 +1110,169 @@ void ATorqueWalker::UpdateFlying(float Dt, bool bEmit)
 		}
 		C->SetWorldLocationAndRotation(Bt.Pos, Facing);
 		C->SetWorldScale3D(Size / 100.0);   // the cube is a metre a side
+		if (!C->IsVisible()) C->SetVisibility(true);
+	}
+}
+
+// --- Cues --------------------------------------------------------------------------------------------
+
+float ATorqueWalker::WorkFraction() const
+{
+	const FPlan& P = (bWorkHeld || ActHeldFor > 0.0) ? Plan : AltPlan;
+	if (Progress <= 0.0 || !P.bValid || P.Time <= 0.0) return 0.0f;
+	return (float)FMath::Clamp(Progress / P.Time, 0.0, 1.0);
+}
+
+FString ATorqueWalker::SprayFinishText() const
+{
+	const TArray<FName>& F = UTorqueBuildSubsystem::Finishes();
+	return F.IsValidIndex(SprayFinish) ? UTorqueBuildSubsystem::FinishName(F[SprayFinish]) : FString();
+}
+
+FString ATorqueWalker::CarryingText() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
+	return Held != 0 ? B->ItemTitle(Held) : FString();
+}
+
+void ATorqueWalker::UpdateCues()
+{
+	UTorqueBuildSubsystem* B = Shed();
+	UWorld* World = GetWorld();
+	if (!B || !World) return;
+	// M_ShedHighlight comes from the shed's level script (Tools/ue_build_shed.py); without it, no cues.
+	static UMaterialInterface* Glow = nullptr;
+	static bool bLooked = false;
+	if (!bLooked)
+	{
+		bLooked = true;
+		Glow = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight"));
+		if (Glow) Glow->AddToRoot();
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_ShedHighlight (run Tools/ue_build_shed.py): no highlight or footprint"));
+		}
+	}
+	if (!Glow) return;
+	auto Make = [this](const FLinearColor& C, float Opacity)
+	{
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Glow, this);
+		M->SetVectorParameterValue(TEXT("Color"), C);
+		M->SetScalarParameterValue(TEXT("Opacity"), Opacity);
+		return M;
+	};
+	if (!LitMaterial)
+	{
+		LitMaterial = Make(FLinearColor(1.0f, 0.6f, 0.15f), 0.3f);
+		LitFaintMaterial = Make(FLinearColor(1.0f, 0.6f, 0.15f), 0.16f);
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 1.0f, 1.0f), 0.16f));
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 1.0f, 1.0f), 0.8f));
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.25f, 0.2f), 0.2f));
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.25f, 0.2f), 0.8f));
+	}
+	const int32 Held = B->HeldBy(B->Me());
+	// What's looked at glows: a bike part's whole slot (not with the lance, which washes the bike).
+	TArray<UStaticMeshComponent*> Now;
+	UMaterialInterface* NowMat = LitMaterial;
+	const bool bShow = !bComputer && !bRidingOut;
+	if (bShow && Target == ETorqueLook::BikePart && Tool != ETorqueTool::Lance && TargetBay != INDEX_NONE)
+	{
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			if (It->Bay == TargetBay)
+				for (UStaticMeshComponent* C : It->Parts)
+					if (C && C->IsVisible() && TorqueShedModel::SlotTag(C) == TargetSlot) Now.Add(C);
+	}
+	else if (bShow && Target == ETorqueLook::Item && TargetItem != 0 && Held == 0)
+	{
+		TArray<const UStaticMeshComponent*> Meshes;
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->MeshesOf(TargetItem, Meshes);
+		for (const UStaticMeshComponent* C : Meshes) Now.Add(const_cast<UStaticMeshComponent*>(C));
+		NowMat = LitFaintMaterial;
+	}
+	for (const TWeakObjectPtr<UStaticMeshComponent>& W : Lit)
+		if (UStaticMeshComponent* C = W.Get())
+			if (!Now.Contains(C)) C->SetOverlayMaterial(nullptr);
+	Lit.Reset();
+	for (UStaticMeshComponent* C : Now)
+	{
+		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
+		Lit.Add(C);
+	}
+	// A part in your hands: its footprint where it will go down (the floor, a bench, a machine).
+	bool bGhost = false;
+	FTransform At = FTransform::Identity;
+	if (bShow && Held != 0 && Tool == ETorqueTool::Hands && Plan.bValid)
+	{
+		if (Plan.Request.Kind == ETorqueShedAct::Drop)
+		{
+			At = Plan.Request.Place;
+			bGhost = true;
+		}
+		else if (Plan.Request.Kind == ETorqueShedAct::Place)
+		{
+			if (const FTorquePlace* P = TorqueShedLayout::FindPlace(Plan.Request.Spot))
+			{
+				At = FTransform(P->Put);
+				if (P->Kind == ETorquePlace::Bench) At.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
+				bGhost = true;
+			}
+		}
+	}
+	FVector2D Foot(60.0, 30.0);
+	if (bGhost)
+	{
+		TArray<const UStaticMeshComponent*> Meshes;
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->MeshesOf(Held, Meshes);
+		FBox Box(ForceInit);
+		for (const UStaticMeshComponent* C : Meshes) Box += C->Bounds.GetBox();
+		if (Box.IsValid)
+		{
+			const FVector Size = Box.GetSize();
+			Foot = FVector2D(FMath::Max(Size.X, Size.Y), FMath::Min(Size.X, Size.Y));
+			Foot.X = FMath::Clamp(Foot.X, 10.0, 220.0);
+			Foot.Y = FMath::Clamp(Foot.Y, 8.0, 120.0);
+		}
+	}
+	// The fill, its four edges and the notch on the front edge (walker.gd's pieces).
+	while (GhostParts.Num() < 6 && CubeMesh)
+	{
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetStaticMesh(CubeMesh);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetCastShadow(false);
+		C->SetUsingAbsoluteLocation(true);
+		C->SetUsingAbsoluteRotation(true);
+		C->SetUsingAbsoluteScale(true);
+		C->SetupAttachment(GetRootComponent());
+		C->RegisterComponent();
+		GhostParts.Add(C);
+	}
+	const bool bOk = Plan.Blocked.IsEmpty();
+	const double Bar = 1.2;
+	struct FPiece { FVector Size, Offset; bool bEdge; };
+	const FPiece Pieces[6] = {
+		{FVector(Foot.X, Foot.Y, 0.2), FVector(0, 0, 0.2), false},
+		{FVector(Foot.X, Bar, 0.4), FVector(0, -Foot.Y * 0.5, 0.3), true},
+		{FVector(Foot.X, Bar, 0.4), FVector(0, Foot.Y * 0.5, 0.3), true},
+		{FVector(Bar, Foot.Y, 0.4), FVector(-Foot.X * 0.5, 0, 0.3), true},
+		{FVector(Bar, Foot.Y, 0.4), FVector(Foot.X * 0.5, 0, 0.3), true},
+		{FVector(Bar * 2.0, FMath::Min(6.0, Foot.Y * 0.5), 0.5), FVector(Foot.X * 0.5, 0, 0.4), true},
+	};
+	for (int32 I = 0; I < GhostParts.Num() && I < 6; ++I)
+	{
+		UStaticMeshComponent* C = GhostParts[I];
+		if (!C) continue;
+		if (!bGhost)
+		{
+			if (C->IsVisible()) C->SetVisibility(false);
+			continue;
+		}
+		UMaterialInstanceDynamic* M = GhostMaterials.IsValidIndex((bOk ? 0 : 2) + (Pieces[I].bEdge ? 1 : 0)) ? GhostMaterials[(bOk ? 0 : 2) + (Pieces[I].bEdge ? 1 : 0)] : nullptr;
+		if (M && C->GetMaterial(0) != M) C->SetMaterial(0, M);
+		C->SetWorldLocationAndRotation(At.TransformPosition(Pieces[I].Offset + FVector(0, 0, 0.6)), At.GetRotation());
+		C->SetWorldScale3D(Pieces[I].Size / 100.0);
 		if (!C->IsVisible()) C->SetVisibility(true);
 	}
 }

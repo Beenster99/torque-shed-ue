@@ -59,6 +59,14 @@ public:
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
 	// Whether to draw the aiming dot (walking about, not at the computer).
 	bool ShowsCrosshair() const { return !bRidingOut && !bComputer; }
+	// For the HUD (Torque Shed's hud.gd): the crosshair lit over something, the work ring, the tool
+	// bar, the spray swatches and what you're carrying.
+	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
+	float WorkFraction() const;
+	int32 ToolIndex() const { return (int32)Tool; }
+	int32 SprayColourIndex() const { return SprayColour; }
+	FString SprayFinishText() const;
+	FString CarryingText() const;
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -164,6 +172,15 @@ private:
 	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
 	double FlyDebt = 0.0;
 	void UpdateFlying(float Dt, bool bEmit);
+	// Torque Shed's cues for handling parts: what you look at glows orange (bike_model.gd
+	// highlight; a loose part fainter), and a part in your hands shows its footprint where it will
+	// go down (walker.gd _update_part_ghost: white, red when it can't), a notch on its front edge.
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> Lit;
+	UPROPERTY(Transient) UMaterialInstanceDynamic* LitMaterial = nullptr;
+	UPROPERTY(Transient) UMaterialInstanceDynamic* LitFaintMaterial = nullptr;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostParts;
+	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostMaterials;   // fill, edge; blocked fill, edge
+	void UpdateCues();
 	int32 SprayColour = 0;
 	int32 SprayFinish = 0;
 	bool bCrouched = false;

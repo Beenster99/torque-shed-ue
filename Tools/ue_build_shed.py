@@ -132,6 +132,38 @@ def flat(name, rgb, rough, metallic=0.0, emissive=0.0, grain=0.0):
     return finish(m)
 
 
+def highlight_material():
+    """M_ShedHighlight, for the game (C++) to lay over what you look at and to draw where a held part
+    goes down: Torque Shed's soft orange glow (bike_model.gd highlight) and white footprint. Unlit
+    and see-through; Color and Opacity are parameters."""
+    m = new_material("M_ShedHighlight")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    col = expr(m, unreal.MaterialExpressionVectorParameter, -600, 0, parameter_name="Color",
+               default_value=unreal.LinearColor(1.0, 0.6, 0.15, 1.0))
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    op = expr(m, unreal.MaterialExpressionScalarParameter, -600, 200, parameter_name="Opacity", default_value=0.3)
+    mel.connect_material_property(op, "", unreal.MaterialProperty.MP_OPACITY)
+    return finish(m)
+
+
+def screen_page_material():
+    """M_ShedScreenPage: a screen showing a page the game draws (C++ canvas render targets: the bay
+    screens, Torque Shed's TVs). Unlit, the page's texture as its glow (parameter Page), Brightness."""
+    m = new_material("M_ShedScreenPage")
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    tex = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -700, 0, parameter_name="Page")
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    if white:
+        try_set(tex, "texture", white)
+    bright = expr(m, unreal.MaterialExpressionScalarParameter, -700, 250, parameter_name="Brightness", default_value=1.6)
+    mul = expr(m, unreal.MaterialExpressionMultiply, -300, 0)
+    mel.connect_material_expressions(tex, "RGB", mul, "A")
+    mel.connect_material_expressions(bright, "", mul, "B")
+    mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    return finish(m)
+
+
 def first_texture(paths):
     for p in paths:
         if p and unreal.EditorAssetLibrary.does_asset_exist(p):
@@ -228,6 +260,8 @@ def materials():
         "green": flat("M_ShedGreen", (0.20, 0.55, 0.30), 0.45, metallic=0.1),
         "pad": flat("M_ShedWashPad", (0.42, 0.44, 0.45), 0.25, grain=0.1),
         "screen": flat("M_ShedScreen", (0.10, 0.30, 0.50), 0.3, emissive=1.4),
+        "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
+        "screen_page": screen_page_material(),   # for the game: the screens' pages
         "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
         # Outside: the yard, the lane and the Dales round it.
         "concrete": flat("M_ShedConcrete", (0.36, 0.35, 0.33), 0.82, grain=0.18),
