@@ -25,6 +25,9 @@
 
 class UCameraComponent;
 class UStaticMeshComponent;
+class UMaterialInstanceDynamic;
+class UStaticMesh;
+class USceneComponent;
 struct FTorquePlace;
 
 // What the walker is looking at.
@@ -138,6 +141,29 @@ private:
 	// --- Tools ---------------------------------------------------------------------------------------
 	ETorqueTool Tool = ETorqueTool::Hands;
 	void SetTool(ETorqueTool T);
+	// The tool in your hand (TorqueToolModels, held where walker.gd holds it), moving as you work
+	// with it: the spanner turning, the brush scrubbing, the grinder buzzing and throwing sparks,
+	// the can's mist and the lance's jet. Hidden while you carry a part.
+	UPROPERTY(Transient) USceneComponent* ToolHolder = nullptr;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> ToolParts;
+	FVector ToolNozzle = FVector::ZeroVector;   // in ToolHolder's frame
+	int32 ShownTool = -1;
+	FLinearColor ShownCan = FLinearColor::Black;
+	double ToolClock = 0.0, WorkBlend = 0.0;
+	void UpdateToolView(float Dt);
+	// Sparks, mist and spray: small bits flying off the tool's nozzle (world space).
+	struct FFlyBit
+	{
+		FVector Pos = FVector::ZeroVector, Vel = FVector::ZeroVector;
+		float Age = 0.0f, Life = 0.0f, Grow = 1.0f;
+		int32 Kind = 0;   // 0 spark, 1 paint mist, 2 water
+	};
+	TArray<FFlyBit> Flying;
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> FlyMeshes;
+	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> FlyMaterials;   // spark, mist, water
+	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
+	double FlyDebt = 0.0;
+	void UpdateFlying(float Dt, bool bEmit);
 	int32 SprayColour = 0;
 	int32 SprayFinish = 0;
 	bool bCrouched = false;
