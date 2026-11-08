@@ -58,6 +58,11 @@ struct Bodywork
 	LoftSection SeatEnd;
 	double SeatZ0 = 0.0, SeatZ1 = 0.0, SeatSlope = 0.0;   // Godot frame (z back), as RigBodywork
 	bool HasSeat = false;
+	// A lofted tail cowl's sections and where its keys start from (BikeModel._tail_cowl's secs and
+	// "t", from _cowl_fit), Godot frame, for the code-drawn pieces on it; CowlKind "" with none.
+	std::string CowlKind;
+	V3 CowlT;
+	std::vector<LoftSection> CowlSecs;
 	double SeatN = 3.0;   // the seat shape's superellipse power (its sections' "n")
 	// The tank's base line, front and back (BikeModel._tank_a, _tank_b: its flanks' bottom edge,
 	// what the airbox keeps under), Godot frame; equal when there's no tank.

@@ -349,6 +349,10 @@ Bodywork BikeBody::Fit(const PartsMap& Parts, const Layout& L) const
 		const double Kz = CowlLn;
 		P.Warp = InOurs([From, Dir, Up, Kz](const V3& G) { return From + Dir * (G.z * Kz) + Up * G.y + V3(G.x, 0.0, 0.0); });
 		Out.Parts.push_back(P);
+		Out.CowlKind = CowlKind;
+		Out.CowlT = From + V3(0.0, Nth(CowlKeys->A[0], 3) - 0.02, -Nth(CowlKeys->A[0], 0) * CowlLn);
+		for (const Json& K : CowlKeys->A)
+			Out.CowlSecs.push_back({Out.CowlT + V3(0.0, Nth(K, 4), Nth(K, 0) * CowlLn), Nth(K, 1), Nth(K, 2), Nth(K, 3)});
 	}
 	return Out;
 }

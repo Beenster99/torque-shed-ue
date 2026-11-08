@@ -2116,7 +2116,41 @@ std::vector<BikeParts::Intake> BikeParts::Intakes(const PartsMap& Parts, const L
 	return Points;
 }
 
-void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+// BikeModel._obb_push: how far, and which way, box A has to move to come out of box B (the
+// separating axes that could part them), zero when they don't overlap.
+V3 BikeParts::ObbPush(const Obb& A, const Obb& B)
+{
+	std::vector<V3> Axes;
+	for (int I = 0; I < 3; ++I)
+	{
+		Axes.push_back(A.H[I].Normalized());
+		Axes.push_back(B.H[I].Normalized());
+	}
+	for (int I = 0; I < 3; ++I)
+		for (int J = 0; J < 3; ++J)
+		{
+			const V3 N = A.H[I].Cross(B.H[J]);
+			if (N.Length() > 1e-6) Axes.push_back(N.Normalized());
+		}
+	double Least = 1e18;
+	V3 Way;
+	const V3 Gap = A.C - B.C;
+	for (const V3& N : Axes)
+	{
+		double Reach = 0.0;
+		for (int I = 0; I < 3; ++I) Reach += std::fabs(A.H[I].Dot(N)) + std::fabs(B.H[I].Dot(N));
+		const double Overlap = Reach - std::fabs(Gap.Dot(N));
+		if (Overlap <= 0.0) return V3();
+		if (Overlap < Least)
+		{
+			Least = Overlap;
+			Way = N * (Gap.Dot(N) >= 0.0 ? Overlap : -Overlap);
+		}
+	}
+	return Way;
+}
+
+void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
 {
 	const Json* P = Lay.Part(PartIn(Parts, "tail"));
 	if (!P) return;
@@ -2141,6 +2175,41 @@ void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<Fit
 	};
 	auto GuardAt = [&](double A, double Radius) { return Axle + V3(0.0, std::cos(A), std::sin(A)) * GuardR(A, Radius); };
 	auto InSeat = [&](const V3& At) { return At.y > Tail.y - 0.02 && At.z < Tail.z + 0.04; };
+	// The rear mudguard's pieces as boxes (BikeModel._rear_guard, as _obb takes them: the code's
+	// flat plates, which a redrawn piece keeps as its box), for the number plate to keep clear of.
+	std::vector<Obb> GuardBoxes;
+	auto BoxOf = [](const V3& C, const GAffine& B, const V3& Size, double Grow) {
+		return Obb{C, {B.X * (Size.x * 0.5 + Grow), B.Y * (Size.y * 0.5 + Grow), B.Z * (Size.z * 0.5 + Grow)}};
+	};
+	// (_guard_tip's box: its rows' points across, top and bottom, in its own frame.)
+	auto TipBox = [](const std::vector<V3>& Path, const std::vector<V3>& Ups, double Width, double Thick) {
+		const size_t Rows = Path.size(), Mid = Rows / 2;
+		std::vector<V3> Normals;
+		for (size_t I = 0; I < Rows; ++I)
+		{
+			const V3 D = (Path[std::min(I + 1, Rows - 1)] - Path[I > 0 ? I - 1 : 0]).Normalized();
+			Normals.push_back((Ups[I] - D * Ups[I].Dot(D)).Normalized());
+		}
+		const V3 Along = (Path[Rows - 1] - Path[0]).Normalized();
+		const V3 Up = (Normals[Mid] - Along * Normals[Mid].Dot(Along)).Normalized();
+		const V3 Ax = Up.Cross(Along).Normalized();
+		V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+		for (size_t I = 0; I < Rows; ++I)
+		{
+			const double T = static_cast<double>(I) / static_cast<double>(Rows - 1);
+			const double Half = Width * 0.5 * std::sqrt(std::max(1.0 - T * T, 0.0));
+			for (int J = 0; J <= 6; ++J)
+				for (double K : {0.5, -0.5})
+				{
+					const V3 Off = Path[I] + V3(-Half + 2.0 * Half * J / 6.0, 0.0, 0.0) + Normals[I] * (Thick * K) - Path[Mid];
+					const V3 Lc(Off.Dot(Ax), Off.Dot(Up), Off.Dot(Along));
+					Lo = V3(std::min(Lo.x, Lc.x), std::min(Lo.y, Lc.y), std::min(Lo.z, Lc.z));
+					Hi = V3(std::max(Hi.x, Lc.x), std::max(Hi.y, Lc.y), std::max(Hi.z, Lc.z));
+				}
+		}
+		const V3 Cl = (Lo + Hi) * 0.5, Hs = (Hi - Lo) * 0.5;
+		return Obb{Path[Mid] + Ax * Cl.x + Up * Cl.y + Along * Cl.z, {Ax * Hs.x, Up * Hs.y, Along * Hs.z}};
+	};
 	// (_rear_arc: plates round the wheel, those that would run up into the seat left out, both
 	// ends rounded off unless that would.)
 	auto RearArc = [&](double Radius, double Width, double A0, double A1, int Segs) {
@@ -2158,6 +2227,8 @@ void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<Fit
 				Ups.push_back((Pts.back() - Axle).Normalized());
 			}
 			SectionAlong(Out, "tail", Guard, Pts, Ups, Width, false, "");
+			const V3 D = GuardAt(A + Step * 0.5, Radius) - GuardAt(A - Step * 0.5, Radius);
+			GuardBoxes.push_back(BoxOf(GuardAt(A, Radius), GAffine::Rotation(GodotRight, std::atan2(-D.y, D.z)), V3(Width, 0.012, D.Length() * 1.1), 0.0));
 			First = std::min(First, A - Step * 0.5);
 			Last = std::max(Last, A + Step * 0.5);
 			Any = true;
@@ -2174,6 +2245,7 @@ void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<Fit
 			}
 			if (InSeat(Path.back())) continue;
 			GuardTip(Out, "tail", Section, Path, Ups, Width, "");
+			GuardBoxes.push_back(TipBox(Path, Ups, Width, 0.012));
 		}
 	};
 	// A flat piece of the guard (a tray or a blade, as _box or _plank makes it: centre, basis and
@@ -2225,7 +2297,24 @@ void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<Fit
 	{
 		Piece Tray{Tail + V3(0.0, -0.05, 0.1), GAffine::Rotation(GodotRight, -0.15), V3(0.18, 0.025, 0.28)};
 		LiftClear(Tray);
-		if (Tray.Valid) Put(Out, "tail", "tail/tidy_tray.glb", AtWith(Tray.B, Tray.C), "");
+		if (Tray.Valid && Put(Out, "tail", "tail/tidy_tray.glb", AtWith(Tray.B, Tray.C), ""))
+		{
+			// (Its Blender pieces stand in the guard for it, each its own glb box placed with it.)
+			PartMesh Glb;
+			if (Meshes && Meshes("tail/tidy_tray.glb", Glb))
+				for (const PartSurface& Sf : Glb.Surfaces)
+				{
+					V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+					for (const V3& V : Sf.Pos)
+					{
+						const V3 G = ToGodot(V);
+						Lo = V3(std::min(Lo.x, G.x), std::min(Lo.y, G.y), std::min(Lo.z, G.z));
+						Hi = V3(std::max(Hi.x, G.x), std::max(Hi.y, G.y), std::max(Hi.z, G.z));
+					}
+					if (Sf.Pos.empty()) continue;
+					GuardBoxes.push_back(BoxOf(Tray.C + Tray.B.Apply((Lo + Hi) * 0.5) - Tray.B.O, Tray.B, Hi - Lo, 0.0));
+				}
+		}
 		Put(Out, "tail", "tail/lamp_bracket.glb", GAffine::At(Lamp - V3(0.0, 0.0, 0.012)), "");
 	}
 	else if (Style == "enduro")
@@ -2256,6 +2345,7 @@ void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<Fit
 				Ups.push_back(Bs.Y.Normalized());
 			}
 			GuardTip(Out, "tail", Section, Path, Ups, Planks[1].Size.x, "");
+			GuardBoxes.push_back(TipBox(Path, Ups, Planks[1].Size.x, Planks[1].Size.y));
 		}
 		for (const Piece& Pl : Planks)
 		{
@@ -2267,10 +2357,120 @@ void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<Fit
 				Ups.push_back(Pl.B.Y.Normalized());
 			}
 			SectionAlong(Out, "tail", Guard, Pts, Ups, Pl.Size.x, false, "");
+			GuardBoxes.push_back(BoxOf(Pl.C, Pl.B, Pl.Size, 0.0));
 		}
 	}
 	else
 		RearArc(R + 0.05, W + 0.02, -0.45, 1.75, 10);
+
+	// The code-drawn pieces round it (BikeModel._draw_tail): struts, brackets and the number plate.
+	CodeShapes::GodotNames Named;
+	const std::string Stand = "tail_light/round.glb";
+	auto Code = [&](const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+		CodeShapes::Emit(Out, "tail", Stand, "", Named(Name), M, Xf, Tag);
+	};
+	auto Tube = [&](const V3& A, const V3& B, double Rad, const std::string& Tag) { Code("", CodeShapes::Tube(A, B, Rad), CodeShapes::TubeAt(A, B), Tag); };
+	// On a lofted cowl (_tail_cowl): a tracker's oval number board, a solo cowl's back stop, the
+	// accent's stripe along the top.
+	if (!Body.CowlKind.empty() && Body.CowlKind != "sport" && Body.CowlKind != "racing")
+	{
+		const double Ln = PartNum(Look, "length", 1.0);
+		const V3 T = Body.CowlT;
+		if (Body.CowlKind == "tracker")
+			Code("", CodeShapes::Cylinder(0.12, 0.012),
+				AtWith(GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5 - 0.15) * GAffine::Scale(V3(1.15, 1.0, 0.75)), T + V3(0.0, 0.07, 0.31 * Ln)), "paint_2");
+		else if (Body.CowlKind == "solo")
+			Code("", CodeShapes::Box(V3(0.18, 0.08, 0.04)), GAffine::At(T + V3(0.0, 0.1, 0.2 * Ln)), "paint");
+		if (Look && Look->Get("accent"))
+		{
+			std::vector<V3> Stripe;
+			for (const LoftSection& Sec : Body.CowlSecs) Stripe.push_back(Sec.C + V3(0.0, Sec.Up + 0.002, 0.0));
+			Code("", CodeShapes::Sweep(Stripe, 0.012, 12), GAffine(), "paint_2");
+		}
+	}
+	if (Look && Look->Flag("struts"))
+		for (double Sd : {-1.0, 1.0})
+		{
+			const double X = (W * 0.5 + 0.015) * Sd;
+			Tube(Axle + V3(X, 0.0, 0.0), Axle + V3(X, R * 0.78, -0.12), 0.011, "chrome");
+			Tube(Axle + V3(X, 0.0, 0.0), Axle + V3(X, R * 0.6, 0.3), 0.009, "chrome");
+		}
+	struct Plate { V3 At; GAffine B; V3 Size; };
+	std::vector<Plate> Plates;
+	auto NumberPlate = [&](const V3& At, double Sx, double Sy, double Tilt) { Plates.push_back({At, GAffine::Rotation(GodotRight, Tilt), V3(Sx, Sy, 0.005)}); };
+	if (Style == "cafe")
+	{
+		Code("", CodeShapes::Box(V3(0.24, 0.12, 0.3)), AtWith(GAffine::Rotation(GodotRight, -0.08), Tail + V3(0.0, 0.0, 0.14)), "paint");
+		Code("", CodeShapes::Box(V3(0.2, 0.07, 0.24)), AtWith(GAffine::Rotation(GodotRight, 0.22), Tail + V3(0.0, 0.08, 0.1)), "paint");
+		Tube(Tail + V3(0.0, -0.05, 0.24), Tail + V3(0.0, -0.15, 0.31), 0.008, "black_metal");
+		NumberPlate(Tail + V3(0.0, -0.2, 0.32), 0.18, 0.12, -0.2);
+	}
+	else if (Style == "loop")
+	{
+		for (double Sd : {-1.0, 1.0})
+		{
+			Tube(Tail + V3(0.07 * Sd, 0.0, -0.08), Tail + V3(0.07 * Sd, 0.01, 0.2), 0.012, "paint");
+			Tube(Tail + V3(0.07 * Sd, 0.01, 0.2), Tail + V3(0.04 * Sd, 0.04, 0.25), 0.012, "paint");
+		}
+		Tube(Tail + V3(-0.04, 0.04, 0.25), Tail + V3(0.04, 0.04, 0.25), 0.012, "paint");
+		Tube(Tail + V3(0.0, 0.01, 0.2), Lamp, 0.008, "black_metal");
+		NumberPlate(Lamp + V3(0.0, -0.09, 0.0), 0.16, 0.11, -0.1);
+	}
+	else if (Style == "tidy")
+	{
+		Tube(Tail + V3(0.0, -0.06, 0.2), Tail + V3(0.0, -0.15, 0.33), 0.01, "black_metal");
+		NumberPlate(Tail + V3(0.0, -0.2, 0.34), 0.17, 0.11, -0.35);
+	}
+	else if (Style == "bobber")
+	{
+		const V3 PlateAt = Axle + V3(-(W * 0.5 + 0.06), 0.14, 0.04);
+		Tube(Axle + V3(-(W * 0.5 + 0.02), 0.04, 0.0), PlateAt, 0.008, "black_metal");
+		Plates.push_back({PlateAt, GAffine::Rotation(GodotUp, TorqueSim::Pi * 0.5), V3(0.17, 0.12, 0.005)});
+	}
+	else if (Style == "enduro")
+		NumberPlate(Lamp + V3(0.0, -0.07, -0.01), 0.13, 0.08, -0.3);
+	else
+	{
+		// The lamp on a bracket off the guard, the plate below it.
+		const double A = std::atan2(Lamp.z - Axle.z, Lamp.y - Axle.y);
+		Tube(Lamp, GuardAt(A, R + 0.05), 0.01, "paint");
+		const double Below = A + 0.4;
+		NumberPlate(GuardAt(Below, R + 0.05) + V3(0.0, std::cos(Below), std::sin(Below)) * 0.03, 0.2, 0.13, -0.25);
+	}
+	// (_clear_plates: each plate moved the shortest way off the guard, PLATE_GAP to spare, out
+	// through its face either way, out from the wheel, back or down, on a bracket from where it was.)
+	constexpr double PlateGap = 0.004;
+	for (Plate& Pl : Plates)
+	{
+		auto Clear = [&](const V3& At) {
+			const Obb A = BoxOf(At, Pl.B, Pl.Size, PlateGap);
+			for (const Obb& G : GuardBoxes)
+				if (ObbPush(A, G).Length() > 0.0) return false;
+			return true;
+		};
+		const V3 Start = Pl.At;
+		const V3 Face = Pl.B.Z.Normalized();
+		V3 Best;
+		double BestD = 1e18;
+		for (const V3& Way : {Face, Face * -1.0, V3(0.0, Start.y - Axle.y, Start.z - Axle.z).Normalized(), V3(0.0, 0.0, 1.0), V3(0.0, -1.0, 0.0)})
+			for (int I = 0; I < 16; ++I)
+			{
+				double D = I * 0.01;
+				if (D >= BestD) break;
+				if (!Clear(Start + Way * D)) continue;
+				while (D > 0.0)
+				{
+					if (!Clear(Start + Way * (D - 0.002))) break;
+					D -= 0.002;
+				}
+				Best = Way * D;
+				BestD = D;
+				break;
+			}
+		Pl.At = Start + Best;
+		Code("NumberPlate", CodeShapes::Box(Pl.Size), AtWith(Pl.B, Pl.At), "decal");
+		if (Best.Length() > 0.01) Tube(Start, Pl.At, 0.006, "black_metal");
+	}
 	// The rear light (_blender_tail_light), at the lamp.
 	static const char* Lamps[] = {"tombstone", "cateye", "twin", "halo", "lucas", "strip", "bullet", "led"};
 	const std::string Kind = PartStr(Look, "lamp", P->Str("light", "round"));
@@ -3371,7 +3571,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Indicators(Parts, L, Out);
 	FrontMudguard(Parts, L, Out);
 	Wheels(Parts, L, Out);
-	TailUnit(Parts, L, Out);
+	TailUnit(Parts, L, Body, Out);
 	Stands(Parts, L, Out);
 	Rearsets(Parts, L, Out);
 	HornAndEcu(Parts, L, Out);
