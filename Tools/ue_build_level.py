@@ -184,6 +184,43 @@ def new_material(name, folder=MAT_DIR):
     return asset_tools.create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
 
 
+WEATHER_MPC = MAT_DIR + "/MPC_Weather"   # TorqueBikePawn sets Wetness (0 dry .. 1 wet) at run time
+_weather_mpc = None
+
+
+def weather_mpc():
+    """The weather's material parameter collection, made once per build: a scalar Wetness that the
+    road, land and walls read, set by the game (-TorqueWeather=sunny|overcast|wet, V or D-pad right)."""
+    global _weather_mpc
+    if _weather_mpc is not None:
+        return _weather_mpc or None
+    try:
+        if unreal.EditorAssetLibrary.does_asset_exist(WEATHER_MPC):
+            unreal.EditorAssetLibrary.delete_asset(WEATHER_MPC)
+        folder, name = WEATHER_MPC.rsplit("/", 1)
+        mpc = asset_tools.create_asset(name, folder, unreal.MaterialParameterCollection,
+                                       unreal.MaterialParameterCollectionFactoryNew())
+        p = unreal.CollectionScalarParameter()
+        p.set_editor_property("parameter_name", "Wetness")
+        p.set_editor_property("default_value", 0.0)
+        mpc.set_editor_property("scalar_parameters", [p])
+        unreal.EditorAssetLibrary.save_loaded_asset(mpc)
+        _weather_mpc = mpc
+        log("weather parameter collection made")
+    except Exception as e:
+        unreal.log_warning("[Torque] no weather parameter collection: %s" % e)
+        _weather_mpc = False
+    return _weather_mpc or None
+
+
+def wetness(g):
+    """The Wetness scalar in a material (0 when the collection couldn't be made)."""
+    mpc = weather_mpc()
+    if mpc is None:
+        return g.const(0.0)
+    return g.node(unreal.MaterialExpressionCollectionParameter, collection=mpc, parameter_name="Wetness")
+
+
 def const3(mat, rgb, x, y):
     e = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, x, y)
     e.set_editor_property("constant", unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
@@ -510,7 +547,13 @@ def land_material_scanned(tex, roles):
     g.link(land[0], rg)
     blue = g.op(unreal.MaterialExpressionMin, chan(land[0], "B"), g.op(unreal.MaterialExpressionMultiply, chan(land[0], "G"), const_b=0.4))
     land[0] = g.op(unreal.MaterialExpressionAppendVector, rg, blue)
-    return g.finish(land, min_rough=0.82, specular=0.3)
+    # Rain darkens the ground a little and takes the edge off its roughness.
+    wet = wetness(g)
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], g.lerp(g.const(1.0), g.const(0.8), wet))
+    r_src = land[2]
+    r_out = "R" if r_src.get_class().get_name() == "MaterialExpressionTextureSample" else ""
+    land[2] = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.82), g.const(0.55), wet), a_out=r_out)
+    return g.finish(land, specular=0.3)
 
 
 def road_blemish_textures():
@@ -603,7 +646,18 @@ def road_material_scanned(tex, roles):
         slope = g.op(unreal.MaterialExpressionMultiply, bn, g.const((1.0, 1.0, 0.0)))
         road[1] = g.op(unreal.MaterialExpressionAdd, road[1], slope)
     road = g.mix(road, paint, line)
-    return g.finish(road, min_rough=0.6, specular=0.4)
+    # Weather: dry tarmac keeps a roughness floor (no white sheen into the sun); wet, it goes dark and
+    # glossy, with standing water in patches and along the wheel-polished tracks.
+    wet = wetness(g)
+    r_src = road[2]
+    r_out = "R" if r_src.get_class().get_name() == "MaterialExpressionTextureSample" else ""
+    rough = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.6), g.const(0.12), wet), a_out=r_out)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.035, -7.0, 1.2), wet)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.const(0.5), wet))
+    road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
+    road[2] = g.lerp(rough, g.const(0.03), puddle)
+    road[1] = g.lerp(road[1], g.const((0.0, 0.0, 1.0)), puddle)   # still water is flat
+    return g.finish(road, specular=0.4)
 
 
 BIKE_TEX_DEST = "/Game/Bike/Textures"

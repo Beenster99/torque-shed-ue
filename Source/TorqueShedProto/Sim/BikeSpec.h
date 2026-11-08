@@ -49,6 +49,7 @@ struct BikeSpec
 	double FrontRadius = 0.300, RearRadius = 0.312;
 	double FrontInertia = 0.72, RearInertia = 1.0;
 	TyreParams TyreFront, TyreRear;
+	double WetGrip = 1.0;             // the weather: wet roads take about a third of the grip away
 	double Rolling = 0.015;
 
 	// Brakes: the torque a full squeeze asks for at the wheel (N m).

@@ -116,6 +116,11 @@ private:
 	void UpdatePerf(float Dt);
 	TArray<FHudLine> HudLines;
 	bool bShowHelp = true;
+	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
+	int32 Weather = 0;
+	bool bWeatherCaptured = false;
+	float SunLux = 0.f, SunAngle = 0.f, SkyIntensity = 1.f, FogDensity = 0.f, Mie = 0.f, Rayleigh = 0.f;
+	void ApplyWeather();
 	double Accum = 0.0;
 	FVector PrevPos, CurPos;          // Unreal cm, the sim body origin before and after the last step
 	FQuat PrevRot, CurRot;

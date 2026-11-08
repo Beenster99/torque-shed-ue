@@ -59,10 +59,10 @@ double BikeSpec::TyreGrip(bool Front, int Surf) const
 	const TyreParams& T = Front ? TyreFront : TyreRear;
 	switch (Surf)
 	{
-	case SURF_GRAVEL: return T.GripGravel;
-	case SURF_GRASS: return T.GripGrass;
-	case SURF_GRID: return T.GripTarmac * 0.75;   // smooth steel bars
-	default: return T.GripTarmac;
+	case SURF_GRAVEL: return T.GripGravel * (0.5 + 0.5 * WetGrip);
+	case SURF_GRASS: return T.GripGrass * (0.3 + 0.7 * WetGrip);
+	case SURF_GRID: return T.GripTarmac * 0.75 * WetGrip * WetGrip;   // smooth steel bars, lethal wet
+	default: return T.GripTarmac * WetGrip;
 	}
 }
 

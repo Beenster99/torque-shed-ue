@@ -25,6 +25,16 @@
 #include "Serialization/JsonSerializer.h"
 #include "Sound/SoundWaveProcedural.h"
 #include "UObject/ConstructorHelpers.h"
+#include "EngineUtils.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/SkyLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialParameterCollection.h"
 
 using namespace TorqueSim;
 
@@ -196,6 +206,10 @@ void ATorqueBikePawn::BeginPlay()
 	float StartKm = 0.f;
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueStartKm="), StartKm);
 	Respawn(Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / (float)(RouteLengthM / 1000.0), 0.f, 1.f) * (Line.Num() - 1)) : 0);
+	FString WeatherName;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWeather="), WeatherName))
+		Weather = WeatherName.StartsWith(TEXT("wet")) || WeatherName.StartsWith(TEXT("rain")) ? 2 : WeatherName.StartsWith(TEXT("over")) ? 1 : 0;
+	ApplyWeather();
 	Pad = MakeUnique<FSonyPad>();
 	StartSound();
 	// -TorqueCamera=1 starts in first person (2: chin camera, 3: showroom orbit of the bike with the
@@ -593,6 +607,11 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::H)) bShowHelp = !bShowHelp;
+	if (PC->WasInputKeyJustPressed(EKeys::V) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
+	{
+		Weather = (Weather + 1) % 3;
+		ApplyWeather();
+	}
 	if (PC->WasInputKeyJustPressed(EKeys::P) || SonyHit(ESonyButton::L3) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftThumbstick))
 		bPerfShow = !bPerfShow;
 	if (PC->WasInputKeyJustPressed(EKeys::O))
@@ -1284,15 +1303,62 @@ void ATorqueBikePawn::DrawHud()
 	if (bPerfShow && !PerfText.IsEmpty())
 		Add(PerfText + (bPerfLog ? TEXT("   [logging to CSV]") : TEXT("")), FColor(140, 255, 160), 1.0f);
 	const bool bSony = Pad && Pad->Get().bConnected;
-	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s"), Assist,
-		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad")), FColor(170, 200, 170), 0.9f);
+	static const TCHAR* WeatherNames[3] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
+	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s"), Assist,
+		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), WeatherNames[Weather]), FColor(170, 200, 170), 0.9f);
 	if (bShowHelp)
 	{
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
-		Add(TEXT("      R1 camera   Triangle back on road   Options restart   D-pad realism   Create+Options quit"), Help, 0.85f);
+		Add(TEXT("      R1 camera   Triangle back on road   Options restart   D-pad up/down realism, right weather   Create+Options quit"), Help, 0.85f);
 		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
-		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   P performance   O log it   H help   Esc quit"), Help, 0.85f);
+		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   H help   Esc quit"), Help, 0.85f);
 	}
+}
+
+
+// Weather: the level is built sunny; overcast dims and softens the sun, greys the sky and thickens the
+// haze; wet is overcast plus wet roads (the materials' Wetness, MPC_Weather) and a third less grip.
+void ATorqueBikePawn::ApplyWeather()
+{
+	UWorld* W = GetWorld();
+	if (!W) return;
+	UDirectionalLightComponent* Sun = nullptr;
+	for (TActorIterator<ADirectionalLight> It(W); It && !Sun; ++It) Sun = Cast<UDirectionalLightComponent>(It->GetLightComponent());
+	USkyLightComponent* Sky = nullptr;
+	for (TActorIterator<ASkyLight> It(W); It && !Sky; ++It) Sky = It->GetLightComponent();
+	UExponentialHeightFogComponent* Fog = nullptr;
+	for (TActorIterator<AExponentialHeightFog> It(W); It && !Fog; ++It) Fog = It->GetComponent();
+	USkyAtmosphereComponent* Atmo = nullptr;
+	for (TActorIterator<AActor> It(W); It && !Atmo; ++It) Atmo = It->FindComponentByClass<USkyAtmosphereComponent>();
+	if (!bWeatherCaptured)
+	{
+		bWeatherCaptured = true;
+		if (Sun) { SunLux = Sun->Intensity; SunAngle = Sun->LightSourceAngle; }
+		if (Sky) SkyIntensity = Sky->Intensity;
+		if (Fog) FogDensity = Fog->FogDensity;
+		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
+	}
+	const bool bDull = Weather >= 1;
+	const bool bWet = Weather == 2;
+	if (Sun)
+	{
+		Sun->SetIntensity(bDull ? SunLux * (bWet ? 0.12f : 0.18f) : SunLux);
+		Sun->SetLightSourceAngle(bDull ? 12.0f : SunAngle);   // a sun behind cloud: soft, faint shadows
+	}
+	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 1.6f : SkyIntensity);
+	if (Fog) Fog->SetFogDensity(bDull ? FogDensity * (bWet ? 3.0f : 2.0f) : FogDensity);
+	if (Atmo)
+	{
+		Atmo->SetMieScatteringScale(bDull ? Mie * 6.0f : Mie);         // a white-grey sky, not blue
+		Atmo->SetRayleighScatteringScale(bDull ? Rayleigh * 0.45f : Rayleigh);
+	}
+	if (UMaterialParameterCollection* Mpc = LoadObject<UMaterialParameterCollection>(nullptr,
+		TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather")))
+	{
+		UKismetMaterialLibrary::SetScalarParameterValue(W, Mpc, TEXT("Wetness"), bWet ? 1.0f : 0.0f);
+	}
+	if (Sim) Sim->Build.WetGrip = bWet ? 0.68 : 1.0;
+	UE_LOG(LogTemp, Log, TEXT("Torque: weather %d"), Weather);
 }
