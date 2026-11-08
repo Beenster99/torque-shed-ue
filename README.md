@@ -199,13 +199,18 @@ are checked whole against Godot, and a phone satnav lands where Godot puts it. U
 panel set, what of the engine bay sits wholly behind it side on is hidden surface by surface
 (FittedPart.HiddenTags), and the oil filter (under a touring set, the air filter) gets a
 quick-release service cap on the panel, as Godot's _hide_covered and _service_caps; the Godot
-reference records which meshes it hides, and `layout_test` matches them tag by tag. Also drawn
-as Godot does: the front caliper's hose and clip, the gear linkage rod, the HT leads, and the
-seat's stitching, seam, piping, grab rail, pillion pegs, touring back, springs and sissy bar, and
-the radiator's grille, fan, shrouds, thermostat and coolant hoses, an oil cooler's lines, the ECU loom, the tank's filler cap, badges, knee pads, stripes, console, knee panels, chest pad and shrouds, the front mudguard's rib, stripes, brackets and stays, the tail's struts, brackets, cowl trim and number plate, moved off the rear mudguard the shortest
-way as Godot's _clear_plates does (front caliper, gearbox, spark plugs, saddle, tail, front mudguard, tank, ECU and cooling are
-checked whole too). Still to port: Godot's
-other code shells (perimeter beams, castings, the rest of each slot's code pieces).
+reference records which meshes it hides, and `layout_test` matches them tag by tag.
+
+Also drawn in code as Godot does: the front caliper's hose and clip, a drum brake's torque stay,
+link rod, cable or rod, the gear linkage rod, the HT leads, the radiator's grille, fan, shrouds,
+thermostat and coolant hoses, an oil cooler's lines, the ECU loom, the tank's filler cap, badges,
+knee pads, stripes, console, knee panels, chest pad and shrouds, the seat's stitching, seam,
+piping, grab rail, pillion pegs, touring back, springs and sissy bar, the front mudguard's rib,
+stripes, brackets and stays, and the tail's struts, brackets, cowl trim and number plate (moved
+off the rear mudguard the shortest way, as Godot's _clear_plates does). `layout_test` checks every
+slot whole against Godot except those in its NotWhole list, whose code pieces are still to port:
+the frame (perimeter beams, castings, engine plates), luggage, the toolbox, the aux tank, the
+air filter, the tyres' walls, the damper, the shock and the fuel system's extras.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

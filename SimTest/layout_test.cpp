@@ -472,8 +472,10 @@ int main(int argc, char** argv)
 				}
 			return Wrong;
 		};
-		// The slots whose every mesh, Blender or code-drawn, is ported: checked whole against Godot's.
-		const std::set<std::string> WholeSlots = {"swingarm", "mirrors", "dashboard", "front_master", "headlight", "indicators", "satnav", "front_caliper", "gearbox", "spark_plugs", "saddle", "tail", "front_mudguard", "tank", "ecu", "cooling"};
+		// Every slot is checked whole against Godot's (Blender and code meshes) but these, whose
+		// code-drawn pieces aren't all ported yet.
+		const std::set<std::string> NotWhole = {"frame", "top_box", "panniers", "air_filter", "rear_tyre", "front_tyre", "toolbox", "aux_tank", "tank_bag", "steering_damper", "shock", "fuel"};
+		auto IsWhole = [&](const std::string& Slot) { return NotWhole.count(Slot) == 0; };
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
 		auto CodeCheck = [&](const std::map<std::string, Box>& Ours, const std::string& Slot, const Json* Gs, bool Whole) {
@@ -568,7 +570,7 @@ int main(int argc, char** argv)
 							if (!(Tags.count(Slot) && Tags[Slot].count(Tag))) Wrong += " " + Slot + "/" + Tag + " not placed";
 			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
 			std::string CodeWrong;
-			for (const auto& [Slot, Gs] : GSlots->O) CodeWrong += CodeCheck(Ours, Slot, &Gs, WholeSlots.count(Slot) > 0);
+			for (const auto& [Slot, Gs] : GSlots->O) CodeWrong += CodeCheck(Ours, Slot, &Gs, IsWhole(Slot));
 			Expect(CodeWrong.empty(), St + ": the swingarm whole and every code-drawn shape ported as Godot draws them" + CodeWrong);
 			const std::string CoverWrong = CoverCheck(Ours, G->Get("covered"));
 			Expect(CoverWrong.empty(), St + ": what a full fairing hides, and its service caps, as Godot" + CoverWrong);
@@ -594,7 +596,7 @@ int main(int argc, char** argv)
 			if (const Json* Gs = Sw.Get("slot"))
 			{
 				const std::string Swept = Key.substr(0, Key.find('/'));
-				Wrong += CodeCheck(Ours, Swept, Gs, WholeSlots.count(Swept) > 0);
+				Wrong += CodeCheck(Ours, Swept, Gs, IsWhole(Swept));
 			}
 			Wrong += CoverCheck(Ours, Sw.Get("covered"));
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";

@@ -297,13 +297,24 @@ void BikeParts::Brake(const PartsMap& Parts, const Layout& L, bool Front, double
 				Put(Out, Side + "_disc", Path, AtWith(GAffine::Scale(V3(1.0, K, K)), Axle + V3(0.018 * Sx, 0.0, 0.0)), Wheel);
 				Put(Out, Side + "_disc", Plate, AtWith(GAffine::Scale(V3(Sx, K, K * (Front ? 1.0 : -1.0))), Axle + V3((X - 0.012) * Sx, 0.0, 0.0)), Hub);
 			}
-		// The brake arm on each cam (two on a twin leading shoe).
+		// The torque stay: to the fork leg at the front, forward along the swingarm at the back.
+		auto HubCode = [&](const std::string& InSlot, const std::string& Glb, const std::string& Name, const CodeShapes::GMesh& M, const GAffine& Xf, const std::string& Tag) {
+			CodeShapes::Emit(Out, InSlot, Glb, Hub, Name, M, GAffine::At(Axle) * Xf, Tag);
+		};
+		auto HubTube = [&](const std::string& InSlot, const std::string& Glb, const std::string& Name, const V3& A, const V3& B, double Rad, const std::string& Tag) {
+			HubCode(InSlot, Glb, Name, CodeShapes::Tube(A, B, Rad), CodeShapes::TubeAt(A, B), Tag);
+		};
+		if (Front) HubTube(Side + "_disc", Plate, "", V3(X, -R * 0.6, -R * 0.2), V3(X, 0.05, 0.02), 0.007, "brushed_steel");
+		else HubTube(Side + "_disc", Plate, "", V3(X, -R * 0.5, -R * 0.3), V3(X, -0.03, -0.32), 0.008, "brushed_steel");
+		// The brake arm on each cam (two on a twin leading shoe, the link rod between them).
 		std::vector<std::pair<double, double>> Cams = {{R * 0.6, R * 0.5}};
 		if (Shoes != "sls") Cams.push_back({-R * 0.6, -R * 0.5});
+		std::vector<V3> Tips;
 		for (const auto& Cam : Cams)
 		{
 			const V3 At(X + 0.01, Cam.first, Cam.second * (Front ? 1.0 : -1.0));
 			const V3 Tip = At + V3(0.0, 0.07, Front ? 0.03 : -0.03);
+			Tips.push_back(Tip);
 			const V3 Up = (Tip - At).Normalized();
 			const double S = (Tip - At).Length() / DrumArm;
 			Put(Out, Side + "_caliper", "caliper/drum_arm.glb",
@@ -322,7 +333,10 @@ void BikeParts::Brake(const PartsMap& Parts, const Layout& L, bool Front, double
 			const V3 From = (J + (Tip0 - J) * 0.5 + V3(0.02, 0.0, 0.03)) - Tip0;
 			const V3 At = Tip0 + From.Normalized() * 0.012;
 			Put(Out, "front_caliper", "controls/cable_end.glb", AtWith(BasisUp(From.Normalized()), Axle + At + From.Normalized() * 0.006), Hub);
+			HubCode("front_caliper", "caliper/drum_arm.glb", "BrakeCable", CodeShapes::Sweep({J, J + (Tip0 - J) * 0.5 + V3(0.02, 0.0, 0.03), Tip0}, 0.0042, 6), GAffine(), "rubber");
 		}
+		else HubTube("rear_caliper", "caliper/drum_arm.glb", "BrakeRod", Tips[0], V3(X + 0.02, 0.0, -0.45), 0.004, "paint");   // (forward to the pedal)
+		if (Tips.size() > 1) HubTube(Side + "_caliper", "caliper/drum_arm.glb", "LinkRod", Tips[0], Tips[1], 0.004, "paint");
 		// The shoes, inside the drum.
 		for (double Sx : Sides)
 			for (double Kk : {-1.0, 1.0})
