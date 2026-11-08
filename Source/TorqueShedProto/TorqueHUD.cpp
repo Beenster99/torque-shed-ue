@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "TorqueBikePawn.h"
+#include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorqueMenuPawn.h"
 #include "Coop/TorqueSession.h"
@@ -27,6 +28,11 @@ void ATorqueHUD::DrawHUD()
 	if (TPC && TPC->IsMenuUp())
 	{
 		TPC->DrawMenu(this, Canvas);   // the pause menu: nothing else over it
+		return;
+	}
+	if (ATorqueGeometryMode* Geo = ATorqueGeometryMode::For(GetOwningPlayerController()))
+	{
+		Geo->DrawPanel(this, Canvas);   // geometry mode's panel, parts list and gizmo
 		return;
 	}
 	if (TPC) TPC->DrawNote(this, Canvas);

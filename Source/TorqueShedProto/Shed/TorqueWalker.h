@@ -30,6 +30,7 @@ class UMaterialInstanceDynamic;
 class UStaticMesh;
 class USceneComponent;
 struct FTorquePlace;
+struct FSonyPadState;
 
 // What the walker is looking at.
 enum class ETorqueLook : uint8
@@ -58,6 +59,8 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
+	// The PlayStation pad as it is now (geometry mode reads it while it's open: one reader).
+	FSonyPadState PadState() const;
 	// Whether to draw the aiming dot (walking about, not at the computer).
 	bool ShowsCrosshair() const { return !bRidingOut && !bComputer; }
 	// For the HUD (Torque Shed's hud.gd): the crosshair lit over something, the work ring, the tool

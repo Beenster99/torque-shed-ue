@@ -9,6 +9,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Templates/Function.h"
+#include "Shed/TorqueGeometryMode.h"
 #include "TorqueShedBike.generated.h"
 
 class UStaticMesh;
@@ -83,7 +84,15 @@ public:
 	UPROPERTY() UStaticMesh* ShapeCube = nullptr;
 	UPROPERTY() UStaticMesh* ShapeCylinder = nullptr;
 
+	// Its parts as drawn, and its fit from geometry mode shown on them (the bay's saved fit, or
+	// geometry mode's draft while it's open on this bike).
+	FTorqueBikeFitView FitView;
+	// Geometry mode's draft fit drawn in place of the saved one (null: back to the saved one).
+	void Preview(const FString* Geo);
+
 private:
+	TOptional<FString> PreviewGeo;
+	FString FitText() const;
 	void Rebuild();
 	void Relook();
 	void BikeChanged(int32 Bike) { if (Bike == Bay) Rebuild(); }

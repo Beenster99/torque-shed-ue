@@ -77,6 +77,9 @@ struct FTorqueShedBike
 	// Its last two dyno runs (the latest last), and how many it's had.
 	TArray<FTorqueDynoRun> DynoRuns;
 	int32 DynoN = 0;
+	// Its fit from geometry mode (shed_state's bike "geo": Fit/BikeGeometry text, "" for none):
+	// the rig's range handles and each slot's free offset, how it's drawn. Looks only.
+	FString Geo;
 };
 
 // The dyno room's kit (shed_state's dyno): the rig's four straps, the cooling fan, the lights,
@@ -116,6 +119,7 @@ enum class ETorqueShedAct : uint8
 	DynoFan,                             // the dyno room's cooling fan on or off
 	DynoLights,                          // its lights on or off
 	DynoRun,                             // a run on the dyno for the bike on the rig (Bay)
+	GeoSave,                             // geometry mode's fit (Text) kept with bay Bay's bike
 	Count
 };
 
@@ -131,6 +135,7 @@ struct FTorqueShedRequest
 	int32 Colour = 0;
 	FTransform Place;
 	bool bCrouched = false;
+	FString Text;                 // GeoSave: the fit (Fit/BikeGeometry text)
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FTorqueBikeEvent, int32 /*Bay*/);
