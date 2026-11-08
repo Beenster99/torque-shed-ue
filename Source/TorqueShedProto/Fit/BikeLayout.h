@@ -119,6 +119,8 @@ public:
 	std::string StyleName(const std::string& Style) const;
 	std::string KindOfSlot(const std::string& Slot) const;
 	std::string KindOfPart(const std::string& Id) const;
+	// The styles a part belongs to (PartsDB.styles_of).
+	std::vector<std::string> StylesOf(const std::string& Id) const;
 	const Json* Part(const std::string& Id) const;
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).
 	const Json& Tables() const { return Data; }
@@ -154,7 +156,6 @@ private:
 	std::vector<std::string> StyleList, SlotList;
 
 	const Json* Lines(const std::string& Style) const;
-	std::vector<std::string> StylesOf(const std::string& Id) const;
 	std::string Brief(const PartsMap& Parts, Json& LinesOut) const;
 	FitReport FitOf(const Layout& L, const Json* Engine, double FrontClearWant, const std::vector<std::pair<std::string, bool>>& Notes) const;
 };

@@ -1351,6 +1351,307 @@ void BikeParts::Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, c
 	else Lamp("round", Sized(V3(1, 1, 1)), At);
 }
 
+void BikeParts::Mirrors(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
+{
+	// (BikeModel._draw_mirrors: each head turned to the rider's eye on its stalk, which is
+	// code-drawn; the Blender pieces are the bar clamp and the head's shell.)
+	const Json* P = Lay.Part(PartIn(Parts, "mirrors"));
+	if (!P) return;
+	const Json* Look = P->Get("look");
+	std::string Style = PartStr(Look, "shape", P->Str("style", "round"));
+	const double K = PartNum(Look, "size", 1.0);
+	const Json* Fairing = Lay.Part(PartIn(Parts, "fairing"));
+	if (Style == "fairing" && !Fairing) Style = "sport";   // nothing to bolt to: shown as stalks
+	// Mirrors on a frame-mounted fairing sit on its Blender set's own mounts, which come with the
+	// fairing's fit (RigBodywork.fairing_fit): not ported yet, so they're left off here.
+	if (Style == "fairing" && Fairing->Flag("frame_mount")) return;
+	const V3 H = ToGodot(L.Head);
+	const V3 Eye(0.0, L.Stats.SeatHeight - L.Stats.RearRadius + 0.88, ToGodot(L.Hip).z - 0.02);
+	constexpr double ClampBack = 0.18, Rise = 0.04, Depth = 0.02;
+	// (_mirror_aim: half way between back at the rider's eyes and back past their shoulder.)
+	auto Aim = [&](const V3& At, bool OnBars) {
+		const V3 Pm = OnBars ? At + H : At;
+		const double Sx = Pm.x > 0.0 ? 1.0 : Pm.x < 0.0 ? -1.0 : 0.0;
+		const V3 AimDir = V3(0.16 * Sx, 0.0, 1.0).Normalized();
+		const V3 N = ((Eye - Pm).Normalized() + AimDir).Normalized();
+		const V3 X = GodotUp.Cross(N).Normalized();
+		return BasisCols(X, N.Cross(X), N);
+	};
+	double BarLen = 0.0;
+	for (size_t I = 1; I < Bar.Line.size(); ++I) BarLen += (Bar.Line[I] - Bar.Line[I - 1]).Length();
+	// (bar_point: the point on the right of the bar `Back` in from its end, and the bar's way there.)
+	auto BarPoint = [&](double Back, V3& At, V3& Along) {
+		double Left = std::max(Back, 0.0);
+		for (size_t I = Bar.Line.size() - 1; I > 0; --I)
+		{
+			const V3 A = Bar.Line[I - 1], B = Bar.Line[I];
+			const double D = (B - A).Length();
+			if (Left <= D || I == 1)
+			{
+				At = MixV(B, A, TorqueSim::Clamp(Left / std::max(D, 0.0001), 0.0, 1.0));
+				Along = (B - A).Normalized();
+				return;
+			}
+			Left -= D;
+		}
+	};
+	// (_mirror_clamp: a collar on the bar inboard of the levers; the stalk starts on its boss.)
+	auto Clamp = [&](double Sd) {
+		V3 C, Along;
+		BarPoint(std::min(ClampBack, BarLen - 0.03), C, Along);
+		C.x *= Sd;
+		Along.x *= Sd;
+		const V3 UpDir = (GodotUp - Along * Along.y).Normalized();
+		Put(Out, "mirrors", "mirror/clamp.glb", AtWith(BasisUp(Along) * GAffine::Scale(V3(Bar.R + 0.005, 1.0, Bar.R + 0.005)), C + H), "steer");
+		return C + UpDir * (Bar.R + 0.012);
+	};
+	// (_mirror_on_stalk and _mirror_head: the head slides back along its face's line until the
+	// stalk meets it from behind, and its shell is scaled to its size.)
+	auto Head = [&](const V3& From, V3 At, double Sx, double Sy, double R, bool OnBars, double StalkRise) {
+		const V3 Last = StalkRise > 0.0 ? From + GodotUp * StalkRise : From;
+		const double Need = -(Depth * 0.5 + R * 1.5 + 0.012);
+		for (int I = 0; I < 3; ++I)
+		{
+			const V3 N = Aim(At, OnBars).Z;
+			const double D = (Last - At).Dot(N);
+			if (D <= Need) break;
+			At += N * (D - Need);
+		}
+		Sx *= K;
+		Sy *= K;
+		const bool Round = Sy <= 0.0;
+		Put(Out, "mirrors", Round ? "mirror/round.glb" : "mirror/rect.glb",
+			AtWith(Aim(At, OnBars) * GAffine::Scale(V3(Sx, Round ? Sx : Sy, 1.0)), At + (OnBars ? H : V3())), OnBars ? "steer" : "");
+	};
+	for (double Sd : {-1.0, 1.0})
+	{
+		if (Style == "bar_end")
+		{
+			const V3 From = Bar.End(Sd) + Bar.OutAt(Sd) * 0.019;
+			Head(From, From + Bar.OutAt(Sd) * 0.012 + V3(0.06 * Sd, -0.035, 0.05), 0.045, 0.0, 0.008, true, 0.0);
+		}
+		else if (Style == "sport")
+		{
+			const V3 From = Clamp(Sd);
+			Head(From, From + V3(0.12 * Sd, 0.15, 0.0), 0.13, 0.06, 0.007, true, Rise);
+		}
+		else if (Style == "rect")
+		{
+			const V3 From = Clamp(Sd);
+			Head(From, From + V3(0.12 * Sd, 0.27, 0.0), 0.13, 0.09, 0.008, true, Rise);
+		}
+		else if (Style == "fairing")
+		{
+			const V3 Lamp(0.0, -0.08, -0.13);
+			Head(Lamp + V3(0.12 * Sd, 0.06, 0.03), Lamp + V3(0.2 * Sd, 0.08, 0.05), 0.1, 0.05, 0.009, true, 0.0);
+		}
+		else
+		{
+			const V3 From = Clamp(Sd);
+			Head(From, From + V3(0.08 * Sd, 0.2, 0.0), 0.05, 0.0, 0.007, true, Rise);
+		}
+	}
+}
+
+void BikeParts::Indicators(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	// (BikeModel._draw_indicators and _blender_indicator: a pair at the front on the steering and
+	// a pair by the rear light, each head a Blender piece on a code-drawn stalk. With no set
+	// fitted, a road bike keeps its little stock stalks, drawn with the headlight and the tail.)
+	const Json* P = Lay.Part(PartIn(Parts, "indicators"));
+	const V3 H = ToGodot(L.Head), Tail = ToGodot(L.Tail);
+	const Json* TailPart = Lay.Part(PartIn(Parts, "tail"));
+	V3 Rear;
+	bool HasRear = false;
+	if (TailPart)
+	{
+		const Json* At = TailPart->Get("light_at");
+		const bool Two = At && At->IsArray() && At->A.size() >= 2;
+		Rear = Tail + V3(0.0, Two ? At->A[0].N : 0.0, Two ? At->A[1].N : 0.25);
+		HasRear = true;
+	}
+	auto Set = [&](const std::string& Style, bool Front, bool Back, const std::string& FrontSlot, const std::string& BackSlot) {
+		const V3 RearAt = HasRear ? Rear : Tail + V3(0.0, -0.04, 0.12);
+		const double Reach = Style == "stalk" ? 0.09 : Style == "bullet" ? 0.07 : Style == "mini" ? 0.05 : Style == "flush" ? 0.0 : Style == "touring" ? 0.13 : 0.08;
+		const bool Known = Style == "flush" || Style == "bullet" || Style == "mini" || Style == "touring";
+		const std::string Glb = "indicator/" + (Known ? Style : std::string("stalk")) + ".glb";
+		for (double Sd : {-1.0, 1.0})
+			for (bool AtFront : {true, false})
+			{
+				if ((AtFront && !Front) || (!AtFront && !Back)) continue;
+				const V3 Base = AtFront ? V3(0.08 * Sd, -0.05, -0.08) : RearAt + V3(0.05 * Sd, -0.02, -0.04);
+				V3 Tip = Base + V3(Reach * Sd, 0.0, 0.0);
+				if (Style == "flush")
+					Tip = AtFront ? V3(0.075 * Sd, -0.08, -0.17) : (HasRear ? Rear : Tail + V3(0.0, -0.04, 0.12)) + V3(0.06 * Sd, 0.0, 0.0);
+				Put(Out, AtFront ? FrontSlot : BackSlot, Glb,
+					AtWith(AtFront ? GAffine() : GAffine::Rotation(GodotUp, TorqueSim::Pi), Tip + (AtFront ? H : V3())), AtFront ? "steer" : "");
+			}
+	};
+	if (P)
+	{
+		Set(P->Str("style", "stalk"), true, true, "indicators", "indicators");
+		return;
+	}
+	// (_stock_indicators: none on a race or MX frame, none at the front behind a fairing.)
+	const std::vector<std::string> FrameStyles = Lay.StylesOf(PartIn(Parts, "frame"));
+	bool Competition = !FrameStyles.empty();
+	for (const std::string& S : FrameStyles) Competition = Competition && (S == "race" || S == "mx");
+	if (Competition) return;
+	const bool Front = Lay.Part(PartIn(Parts, "headlight")) && !Lay.Part(PartIn(Parts, "fairing"));
+	if (Front) Set("stalk", true, false, "headlight", "headlight");
+	if (HasRear) Set("stalk", false, true, "tail", "tail");
+}
+
+bool BikeParts::SectionAlong(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Path, const std::vector<V3>& Pts,
+	const std::vector<V3>& Ups, double Width, bool Tip, const std::string& Node) const
+{
+	// (BlenderParts.section_along: the section's 0..1 along its +Z laid along the points' line,
+	// its X across (narrowing to a point for a tip) and its Y out along the ups.)
+	if (!HasGlb(Path) || Pts.size() < 2) return false;
+	auto Lengths = std::make_shared<std::vector<double>>(1, 0.0);
+	for (size_t I = 1; I < Pts.size(); ++I) Lengths->push_back(Lengths->back() + (Pts[I] - Pts[I - 1]).Length());
+	const double Total = std::max(Lengths->back(), 0.0001);
+	FittedPart P;
+	P.Slot = Slot;
+	P.Glb = Path;
+	P.Node = Node;
+	P.Warp = GodotWarpToOurs([Pts, Ups, Lengths, Total, Width, Tip](const V3& V) {
+		const double At = TorqueSim::Clamp(V.z, 0.0, 1.0) * Total;
+		size_t K = 1;
+		while (K < Pts.size() - 1 && (*Lengths)[K] < At) ++K;
+		const double F = TorqueSim::Clamp((At - (*Lengths)[K - 1]) / std::max((*Lengths)[K] - (*Lengths)[K - 1], 0.0001), 0.0, 1.0);
+		const V3 Along = (Pts[K] - Pts[K - 1]).Normalized();
+		V3 Up = MixV(Ups[K - 1], Ups[K], F);
+		Up = (Up - Along * Up.Dot(Along)).Normalized();
+		const V3 Across = Up.Cross(Along).Normalized();
+		const double W = Width * (Tip ? std::sqrt(std::max(1.0 - V.z * V.z, 0.0)) : 1.0);
+		return MixV(Pts[K - 1], Pts[K], F) + Across * (V.x * W) + Up * V.y;
+	});
+	Out.push_back(P);
+	return true;
+}
+
+void BikeParts::GuardTip(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Section, const std::vector<V3>& Path,
+	const std::vector<V3>& Ups, double Width, const std::string& Node) const
+{
+	// (BikeModel._guard_tip: its face square to the path at each point.)
+	const size_t Rows = Path.size();
+	std::vector<V3> Normals;
+	for (size_t I = 0; I < Rows; ++I)
+	{
+		const V3 D = (Path[std::min(I + 1, Rows - 1)] - Path[I > 0 ? I - 1 : 0]).Normalized();
+		Normals.push_back((Ups[I] - D * Ups[I].Dot(D)).Normalized());
+	}
+	SectionAlong(Out, Slot, "guard/" + Section + "_tip.glb", Path, Normals, Width, true, Node);
+}
+
+void BikeParts::GuardArc(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Section, const V3& C, double Radius,
+	double Width, double A0, double A1, int Segs, const std::string& Node) const
+{
+	// (BikeModel._guard: plates round the wheel, each bent from the section, and the leading end
+	// rounded off carrying on round it.)
+	const double Step = (A1 - A0) / Segs;
+	auto Round = [](double A) { return V3(0.0, std::cos(A), std::sin(A)); };
+	for (int I = 0; I < Segs; ++I)
+	{
+		const double A = A0 + Step * (I + 0.5);
+		std::vector<V3> Pts, Ups;
+		for (int K = 0; K < 3; ++K)
+		{
+			Ups.push_back(Round(A + Step * (K - 1) * 0.5));
+			Pts.push_back(C + Ups.back() * Radius);
+		}
+		SectionAlong(Out, Slot, "guard/" + Section + ".glb", Pts, Ups, Width, false, Node);
+	}
+	constexpr int TipRows = 6;
+	const double Reach = TorqueSim::Clamp(Width * 0.4, 0.035, 0.08) / Radius;
+	std::vector<V3> Path, Ups;
+	for (int I = 0; I < TipRows; ++I)
+	{
+		const double A = A0 - Reach * I / (TipRows - 1.0);
+		Ups.push_back(Round(A));
+		Path.push_back(C + Ups.back() * Radius);
+	}
+	GuardTip(Out, Slot, Section, Path, Ups, Width, Node);
+}
+
+void BikeParts::FrontMudguard(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	// (BikeModel._draw_front_mudguard: a low guard round the tyre on the fork legs, or a high one
+	// under the bottom yoke on the steering. Its stays, rib and brackets are code-drawn.)
+	const Json* P = Lay.Part(PartIn(Parts, "front_mudguard"));
+	if (!P) return;
+	const std::string Material = P->Str("material", "plastic");
+	std::string Style = P->Str("style", "hugger");
+	const double R = L.Stats.FrontRadius;
+	double W = L.Stats.FrontTyreWidth + 0.03;
+	const std::string Section = Style == "classic" ? "valanced" : (Material == "plastic" && (Style == "high" || Style == "enduro")) ? "plastic" : "steel";
+	if (Style == "high" || Style == "enduro")
+	{
+		// (Under an adventure or touring fairing's beak the guard hugs the tyre.)
+		const Json* F = Lay.Part(PartIn(Parts, "fairing"));
+		if (F && F->Flag("frame_mount"))
+		{
+			const Json* FL = F->Get("look");
+			const std::string Shape = PartStr(FL, "shape", F->Str("style", ""));
+			if (Shape == "adventure" || Shape == "touring") Style = "hugger";
+		}
+	}
+	if (Style == "high" || Style == "enduro")
+	{
+		const V3 H = ToGodot(L.Head);
+		const V3 Axle = V3(0.0, 0.0, -L.Stats.Wheelbase * 0.5) - H;
+		const V3 Top = Axle + V3(0.0, R + 0.1, 0.0);
+		const V3 Yoke = ToGodot(L.SteerAxis) * -0.16;
+		// (Laid out in the steering's space, then moved to the head.)
+		const V3 Base = V3(0.0, std::min(Top.y, Yoke.y - 0.03), TorqueSim::Lerp(Top.z, Yoke.z, 0.5)) + H;
+		const bool Long = Style == "enduro";
+		const V3 Back = Base + V3(0.0, -0.04, Long ? 0.14 : 0.08);
+		const V3 Mid = Base + V3(0.0, 0.0, -0.08);
+		const V3 Nose = Base + V3(0.0, 0.06, Long ? -0.3 : -0.34);
+		// (_plank and _guard_blade: a flat blade A to B, its face up off the line; _plank_tip.)
+		struct Plank { V3 A, B; double W; };
+		std::vector<Plank> Blades = {{Back, Base, W + 0.02}, {Base, Mid, W + 0.01}, {Mid, Nose, W}};
+		if (Long) Blades.push_back({Nose, Nose + V3(0.0, -0.05, -0.03), W * 0.8});
+		auto UpOf = [](const Plank& Pl) {
+			const V3 D = (Pl.B - Pl.A).Normalized();
+			return V3(0.0, D.z, -D.y);
+		};
+		for (const Plank& Pl : Blades)
+		{
+			const V3 M = (Pl.A + Pl.B) * 0.5, D = Pl.B - Pl.A;
+			const V3 Up = UpOf(Pl);
+			SectionAlong(Out, "front_mudguard", "guard/" + Section + ".glb", {M - D * 0.5, M, M + D * 0.5}, {Up, Up, Up}, Pl.W, false, "steer");
+		}
+		auto PlankTip = [&](const Plank& Pl, bool AtB) {
+			const V3 Dir = (Pl.B - Pl.A).Normalized() * (AtB ? 1.0 : -1.0);
+			const V3 Start = (Pl.A + Pl.B) * 0.5 + Dir * ((Pl.B - Pl.A).Length() * 0.5);
+			const double Reach = TorqueSim::Clamp(Pl.W * 0.4, 0.035, 0.08);
+			std::vector<V3> Path, Ups;
+			for (int I = 0; I < 6; ++I)
+			{
+				Path.push_back(Start + Dir * (Reach * I / 5.0));
+				Ups.push_back(UpOf(Pl));
+			}
+			GuardTip(Out, "front_mudguard", Section, Path, Ups, Pl.W, "steer");
+		};
+		PlankTip(Blades.back(), true);
+		PlankTip(Blades.front(), false);
+		return;
+	}
+	double Gap = 0.03, A0 = -0.5, A1 = 0.75;
+	if (Style == "sport") { Gap = 0.02; A0 = -0.35; A1 = 0.65; W -= 0.01; }
+	else if (Style == "cafe") { Gap = 0.035; A0 = -0.75; A1 = 0.95; W -= 0.02; }
+	else if (Style == "bobbed") { Gap = 0.03; A0 = -0.3; A1 = 0.45; }
+	else if (Style == "classic") { Gap = 0.045; A0 = -1.0; A1 = 1.3; W += 0.03; }
+	const Json* Look = P->Get("look");
+	Gap = PartNum(Look, "gap", Gap);
+	A0 = PartNum(Look, "a0", A0);
+	A1 = PartNum(Look, "a1", A1);
+	W += PartNum(Look, "wider", 0.0);
+	GuardArc(Out, "front_mudguard", Section, ToGodot(L.FrontAxle), R + Gap, W, A0, A1, Style == "classic" ? 10 : 6, "front_hub");
+}
+
 std::vector<BikeParts::Intake> BikeParts::Intakes(const PartsMap& Parts, const Layout& L) const
 {
 	std::vector<Intake> Points;
@@ -1374,6 +1675,9 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	const Bars Bar = Handlebars(Parts, L, Out);
 	Dashboard(Parts, L, Bar, Out);
 	Headlight(Parts, Out, ToGodot(L.Head));
+	Mirrors(Parts, L, Bar, Out);
+	Indicators(Parts, L, Out);
+	FrontMudguard(Parts, L, Out);
 	Wheels(Parts, L, Out);
 	RearMaster(L, Out);
 	FinalDrive(Parts, L, Out);
