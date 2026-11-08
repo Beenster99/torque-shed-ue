@@ -7,7 +7,7 @@
 // tyres, discs and drums, calipers and pads, the fork, the sprockets and chain, the swingarm's
 // Blender pieces and the shocks). Each port keeps the Godot frame inside (as bike_model.gd) and
 // hands back FittedParts in ours. Still code-drawn in Godot and not here yet: frame and swingarm
-// tubes and shells, brake hoses and cables. The exhaust's headers and cans are here (its heat
+// tubes and shells, brake hoses. The bars, grips, controls and cables are here. The exhaust's headers and cans are here (its heat
 // shield is code-drawn). Swept and bent parts take their normals from the warp, which differs a
 // little from Godot's (it turns the section's normals without the stretch).
 #pragma once
@@ -65,6 +65,9 @@ public:
 	// The engine's cylinders as BikeModel._place_cylinders lays them (Godot frame): base and "up".
 	struct Cylinder { V3 Base, Up; };
 	std::vector<Cylinder> Cylinders(const PartsMap& Parts, const Layout& L) const;
+	// Where the intake meets each cylinder (BikeModel._intake_points, Godot frame).
+	struct Intake { V3 Port, Dir; };
+	std::vector<Intake> Intakes(const PartsMap& Parts, const Layout& L) const;
 
 private:
 	const BikeLayout& Lay;
@@ -90,6 +93,27 @@ private:
 	// The engine's ancillaries: spark plugs and coil, carbs or throttle bodies, air filter, oil
 	// filter, cooling and the gearbox's pieces (BikeModel._draw_spark_plugs to _blender_gearbox).
 	void Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
+	// The bars, their grips and the controls on them (the front master cylinder too), and the clutch and throttle cables
+	// (BikeModel._draw_handlebars, _bent_bar, _draw_controls and _draw_cables).
+	// The bar as drawn, in the steering's space (BikeModel's _bar_line, _bar_tip, _bar_out, _bar_r),
+	// and a braced bar's pad (code-drawn), for what goes on or near it.
+	struct Bars
+	{
+		std::vector<V3> Line;   // the middle out to the right end
+		V3 Tip, Out, Pad;
+		double R = 0.012;
+		bool HasPad = false;
+		V3 End(double Side) const { return V3(Tip.x * Side, Tip.y, Tip.z); }
+		V3 OutAt(double Side) const { return V3(Out.x * Side, Out.y, Out.z); }
+	};
+	Bars Handlebars(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The headlight's Blender-made body on the steering (H: the head, Godot frame).
+	void Headlight(const PartsMap& Parts, std::vector<FittedPart>& Out, const V3& H) const;
+	// The rear brake's master cylinder (BikeModel._draw_rear_master).
+	void RearMaster(const Layout& L, std::vector<FittedPart>& Out) const;
+	// The clocks (BikeModel._draw_dashboard), raised clear of the bars as _lift_clear_of_bars
+	// raises them (that needs the mesh source).
+	void Dashboard(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
 	// BlenderParts.sweep_section: copies of a Blender section (drawn at radius 1 along +Z, Godot
 	// frame) laid end to end along ShapeKit.smooth's curve through Route, scaled by Radii (one, or
 	// one per route point). False when there's no glb.

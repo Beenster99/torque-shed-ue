@@ -164,13 +164,17 @@ them: the engine's crankcase and top end and its ancillaries (plugs and coil, ca
 bodies, air filter, oil filter, cooling, the gearbox's pieces), the exhaust (headers swept from the
 Blender pipe section, and the cans), and the running gear (rims and cush drive, tyres bent round
 the hoop from their tread's section, discs or drums, calipers, pads, the fork, sprockets and chain,
-the swingarm's Blender pieces and the shocks). Each placed part also says what it moves with as the
+the swingarm's Blender pieces and the shocks), and the handlebars (the bar swept from the Blender
+tube section in any of the catalogue's bends, risers or clamp, grips, switch gear, throttle, bar ends,
+clutch perch and lever, and the clutch and throttle cables with their adjusters), both master
+cylinders, the clocks (raised clear of the bars from the rider's eye, as Godot raises them, which
+needs the glbs' meshes) and the headlight's body. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
-plugs, fuel system, filters, cooling, gearbox and exhaust), each on its style's reference bike. `layout_test` requires all of
-them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes, controls,
-lights, dash, guards, fairings, luggage and panels.
+plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks and master cylinders), each on its style's reference bike. `layout_test` requires all of
+them to match surface by surface. Still to port: the code-drawn frame and swingarm tubes,
+mirrors, indicators, lights' trim, guards, fairings, luggage and panels.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

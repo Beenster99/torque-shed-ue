@@ -464,7 +464,7 @@ int main(int argc, char** argv)
 			else if (Bad.size() < 4000) Bad += "\n      " + Key + ":" + Wrong;
 		}
 		Expect(Builds > 300 && Right == Builds, std::to_string(Right) + " of " + std::to_string(Builds)
-			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts) placed as Godot does" + Bad);
+			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts, bars, controls, master cylinders and clocks) placed as Godot does" + Bad);
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);
