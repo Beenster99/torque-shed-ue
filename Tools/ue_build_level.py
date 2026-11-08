@@ -499,7 +499,7 @@ def land_material_scanned(tex, roles):
     tint = g.op(unreal.MaterialExpressionDivide, vc, g.const(lin((92, 112, 52))))
     tint = g.lerp(g.const((1.0, 1.0, 1.0)), tint, g.const(0.55))
     land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], tint)
-    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], const_b=0.85)   # grade 2: grass 1.3x too bright vs the DJI footage
+    land[0] = g.op(unreal.MaterialExpressionMultiply, land[0], const_b=0.75)   # grade 2/4: grass 1.3x too bright vs the DJI footage
     if "rock" in tex:
         nz = g.node(unreal.MaterialExpressionVertexNormalWS)
         up = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
@@ -1196,7 +1196,7 @@ def ground_blend(g, base, h, rvt, strength):
     return g.lerp(base, gc, w, b_out="BaseColor")
 
 
-def grade_green(g, base, value=0.78, sat=1.25, blue=0.4):
+def grade_green(g, base, value=0.65, sat=1.25, blue=0.4):
     """Grass blades and cards, matched to beenster's DJI footage (grade-2 stats: near grass about 1.4x
     too bright and twice too blue): darker, a little richer, blue at most 0.4 of green."""
     base = g.op(unreal.MaterialExpressionMultiply, base, const_b=value)
@@ -2275,7 +2275,7 @@ def build():
     if mode is not None:
         try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
     # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 1.3),   # sic: the engine spells it so,
+    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 0.8),   # sic: the engine spells it so,
                  ("height_fog_contribution", 1.0)):
         try_set(ac, k, v)
     sky = spawn(unreal.SkyLight, (0, 0, 20000))
