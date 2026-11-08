@@ -1,5 +1,7 @@
 #include "TorqueSession.h"
 
+#include "TorqueRouter.h"
+#include "TorqueSettings.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -48,6 +50,7 @@ void UTorqueSession::Initialize(FSubsystemCollectionBase& Collection)
 		TSharedRef<FInternetAddr> Addr = Sockets->GetLocalHostAddr(*GLog, bCanBind);
 		if (Addr->IsValid()) LocalAddr = Addr->ToString(false);
 	}
+	Router = MakeShared<FTorqueRouter>();
 }
 
 void UTorqueSession::Deinitialize()
@@ -63,6 +66,8 @@ void UTorqueSession::Deinitialize()
 		Sessions->ClearOnFindSessionsCompleteDelegate_Handle(FindHandle);
 		Sessions->ClearOnJoinSessionCompleteDelegate_Handle(JoinHandle);
 	}
+	if (Router) Router->Close();
+	Router.Reset();
 	Super::Deinitialize();
 }
 
@@ -80,7 +85,8 @@ FString UTorqueSession::FirstMap()
 FString UTorqueSession::PlayerName() const
 {
 	FString Name;
-	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueName="), Name) || Name.IsEmpty()) Name = FPlatformProcess::UserName(false);
+	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueName="), Name) || Name.IsEmpty()) Name = FTorqueSettings::Get().Name.TrimStartAndEnd();
+	if (Name.IsEmpty()) Name = FPlatformProcess::UserName(false);
 	if (Name.IsEmpty()) Name = TEXT("Rider");
 	// It travels in a URL: no separators.
 	for (TCHAR& C : Name.GetCharArray())
@@ -248,6 +254,8 @@ void UTorqueSession::AdvertiseHostedGame()
 	S.bAllowJoinViaPresence = false;
 	S.bUseLobbiesIfAvailable = false;
 	S.Set(HostKey, PlayerName(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	// Friends over the internet: ask the router to open the port (UPnP), as Torque Shed does.
+	if (Router) Router->Open(GamePort(), LocalAddr);
 	if (HasEos())
 	{
 		TWeakObjectPtr<UTorqueSession> Self(this);
@@ -274,6 +282,76 @@ void UTorqueSession::LeaveSession()
 	IOnlineSessionPtr Sessions = SessionsFor(World);
 	if (Sessions && Sessions->GetNamedSession(NAME_GameSession)) Sessions->DestroySession(NAME_GameSession);
 	LeaveEosSession();
+	if (Router) Router->Close();
+}
+
+int32 UTorqueSession::GamePort()
+{
+	int32 Port = 7777;
+	if (GConfig) GConfig->GetInt(TEXT("URL"), TEXT("Port"), Port, GEngineIni);
+	FParse::Value(FCommandLine::Get(), TEXT("Port="), Port);
+	return Port;
+}
+
+TArray<FString> UTorqueSession::LocalAddresses() const
+{
+	TArray<FString> Out;
+	if (ISocketSubsystem* Sockets = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM))
+	{
+		TArray<TSharedPtr<FInternetAddr>> Addrs;
+		if (Sockets->GetLocalAdapterAddresses(Addrs))
+			for (const TSharedPtr<FInternetAddr>& A : Addrs)
+			{
+				if (!A.IsValid() || A->GetProtocolType() != FNetworkProtocolTypes::IPv4) continue;
+				const FString Ip = A->ToString(false);
+				if (Ip.StartsWith(TEXT("127.")) || Ip.StartsWith(TEXT("169.254.")) || Ip == TEXT("0.0.0.0")) continue;
+				Out.AddUnique(Ip);
+			}
+	}
+	if (Out.IsEmpty() && !LocalAddr.IsEmpty()) Out.Add(LocalAddr);
+	return Out;
+}
+
+bool UTorqueSession::IsHosting() const
+{
+	const UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	return World && World->GetNetMode() == NM_ListenServer;
+}
+
+FString UTorqueSession::InternetAddress() const
+{
+	return Router ? Router->PublicAddress() : FString();
+}
+
+TArray<FString> UTorqueSession::JoinInstructions() const
+{
+	TArray<FString> Lines;
+	if (!IsHosting()) return Lines;
+	const int32 Port = GamePort();
+	const FString PortText = Port == 7777 ? FString() : FString::Printf(TEXT(":%d"), Port);
+	const TArray<FString> Home = LocalAddresses();
+	Lines.Add(FString::Printf(TEXT("Friends on your home network join with:  %s%s"),
+		Home.IsEmpty() ? TEXT("this PC's address") : *FString::Join(Home, *(PortText + TEXT("  or  "))), *PortText));
+	const FString Public = InternetAddress();
+	switch (Router ? Router->GetState() : FTorqueRouter::EState::Off)
+	{
+	case FTorqueRouter::EState::Checking:
+		Lines.Add(TEXT("Checking whether friends over the internet can reach you..."));
+		break;
+	case FTorqueRouter::EState::Open:
+		Lines.Add(FString::Printf(TEXT("Your router opened port %d for the game, so friends over the internet join with:  %s%s"), Port,
+			Public.IsEmpty() ? TEXT("your public address (finding it...)") : *Public, Public.IsEmpty() ? TEXT("") : *PortText));
+		break;
+	case FTorqueRouter::EState::Closed:
+		Lines.Add(FString::Printf(TEXT("Your router didn't open the port by itself (%s)."), *Router->Problem()));
+		Lines.Add(FString::Printf(TEXT("For friends over the internet, forward UDP port %d on your router to %s; they then join with:  %s%s"), Port,
+			Home.IsEmpty() ? TEXT("this PC") : *Home[0], Public.IsEmpty() ? TEXT("your public address") : *Public,
+			Public.IsEmpty() ? TEXT("") : *PortText));
+		break;
+	default: break;
+	}
+	if (!FriendCode.IsEmpty()) Lines.Add(FString::Printf(TEXT("Or anywhere, with the friend code:  %s"), *FriendCode));
+	return Lines;
 }
 
 void UTorqueSession::StartRide(UObject* WorldContext)

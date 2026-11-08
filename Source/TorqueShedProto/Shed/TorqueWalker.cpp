@@ -1,5 +1,7 @@
 #include "Shed/TorqueWalker.h"
 
+#include "Coop/TorquePlayerController.h"
+#include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorquePartsBench.h"
@@ -160,6 +162,9 @@ void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide, int32& Pick)
 	const uint32 SonyDown = S.bConnected ? S.Buttons : 0;
 	const uint32 SonyHit = SonyDown & ~PrevPadButtons;
 	PrevPadButtons = SonyDown;
+	// The pause or settings menu is up (co-op, ATorquePlayerController): stand still, leave the keys to it.
+	if (ATorquePlayerController::MenuUp(PC)) return;
+	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	// Walking: keys, then whichever stick is pushed further.
 	float Fwd = Down(EKeys::W) - Down(EKeys::S), Side = Down(EKeys::D) - Down(EKeys::A);
@@ -179,8 +184,10 @@ void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide, int32& Pick)
 	float LookX = S.bConnected ? Dead(S.RX) : Dead(Axis(EKeys::Gamepad_RightX));
 	float LookY = S.bConnected ? Dead(S.RY) : Dead(Axis(EKeys::Gamepad_RightY));
 	FRotator R = PC->GetControlRotation();
-	R.Yaw += Mx * MouseDegPerPixel + LookX * PadDegPerSecond * Dt;
-	R.Pitch = FMath::Clamp(FRotator::NormalizeAxis(R.Pitch + My * MouseDegPerPixel + LookY * PadDegPerSecond * 0.7f * Dt), -85.0, 85.0);
+	const float Invert = Set.bInvertLook ? -1.0f : 1.0f;
+	R.Yaw += Mx * MouseDegPerPixel * Set.MouseLook + LookX * PadDegPerSecond * Set.PadLook * Dt;
+	R.Pitch = FMath::Clamp(FRotator::NormalizeAxis(R.Pitch + Invert * (My * MouseDegPerPixel * Set.MouseLook +
+		LookY * PadDegPerSecond * Set.PadLook * 0.7f * Dt)), -85.0, 85.0);
 	R.Roll = 0.0;
 	PC->SetControlRotation(R);
 
@@ -197,9 +204,7 @@ void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide, int32& Pick)
 		bPerfLog = !bPerfLog;
 		if (!bPerfLog) PerfFile.Reset();
 	}
-	const bool bPadQuit = (SonyDown & ESonyButton::Create) && (SonyDown & ESonyButton::Options);
-	const bool bXboxQuit = Down(EKeys::Gamepad_Special_Left) > 0.5f && Down(EKeys::Gamepad_Special_Right) > 0.5f;
-	if (Just(EKeys::Escape) || bPadQuit || bXboxQuit) PC->ConsoleCommand(TEXT("quit"));
+	// Esc, Options and Start open the pause menu (ATorquePlayerController), which has Quit.
 }
 
 namespace
@@ -440,7 +445,7 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({TEXT("WASD / left stick: walk   Shift / L3: hurry   mouse / right stick: look"), Help, 0.5f});
 		HudLines.Add({TEXT("E / Cross: fit the chosen part (Q / R, wheel or D-pad left/right to choose), or a spare from the bench"), Help, 0.5f});
 		HudLines.Add({TEXT("Hold G / Square: wash the bike   paint rack: E picks a colour, E on bodywork paints it"), Help, 0.5f});
-		HudLines.Add({TEXT("F / Triangle: ride out   Space / Circle: hop   H: hide help   Esc: quit"), Help, 0.5f});
+		HudLines.Add({TEXT("F / Triangle: ride out   Space / Circle: hop   H: hide help   Esc: menu"), Help, 0.5f});
 	}
 }
 

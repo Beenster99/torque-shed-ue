@@ -1,9 +1,10 @@
 // Starting, hosting and joining rides, and moving everyone between the shed and the road.
 //
 // Co-op is a listen server: the host's game is also the server, so there's nothing else to run.
-// Friends join by the host's IP address (port 7777, which the host's router must forward for a ride
-// over the internet), or on the same network from a list the menu finds by itself (Unreal's Null
-// online subsystem, LAN). See Docs/coop.md.
+// As in Torque Shed: friends type the host's address (or a host name) and join. Hosting asks the
+// router to open the port itself (UPnP, TorqueRouter), and the pause menu shows the host exactly
+// which address to give friends. On the same network the menu also lists rides by itself (Unreal's
+// Null online subsystem, LAN). See Docs/coop.md.
 //
 // Epic Online Services (TorqueSessionEos.cpp), once switched on ([TorqueCoop] bUseEOS=True in
 // DefaultGame.ini, the OnlineSubsystemEOS plugin and the product's IDs: Docs/coop.md): the host also
@@ -20,6 +21,7 @@
 #include "TorqueSession.generated.h"
 
 class FOnlineSessionSearch;
+class FTorqueRouter;
 class UNetDriver;
 
 UCLASS()
@@ -72,16 +74,29 @@ public:
 	const TArray<FLanGame>& GetLanGames() const { return LanGames; }
 	bool IsSearching() const { return bSearching; }
 
-	// The rider's name (-TorqueName=, else the Windows account name) and this machine's address on
-	// the network, for telling friends.
+	// The rider's name (-TorqueName=, else Settings > Character, else the Windows account name) and
+	// this machine's address on the network, for telling friends.
 	FString PlayerName() const;
 	FString LocalAddress() const { return LocalAddr; }
+	// Every address this PC has on its networks (wired and wireless), for friends at home.
+	TArray<FString> LocalAddresses() const;
+	// The port the game listens on (7777 unless the URL says otherwise).
+	static int32 GamePort();
+
+	// What to tell friends, line by line, for the pause menu and the HUD while hosting (as Torque
+	// Shed's Esc menu): the address at home, whether the router opened the port, and the address over
+	// the internet. Empty when not hosting.
+	TArray<FString> JoinInstructions() const;
+	bool IsHosting() const;
+	// The address a friend over the internet types ("" until known).
+	FString InternetAddress() const;
 	// The last address joined (kept in Saved/Config, GameUserSettings).
 	FString LastAddress;
 	// What went wrong last (lost connection, couldn't join...), for the menu. Empty if nothing.
 	FString Status;
 
 private:
+	TSharedPtr<FTorqueRouter> Router;
 	TSharedPtr<FOnlineSessionSearch> Search;
 	TArray<FLanGame> LanGames;
 	bool bSearching = false;

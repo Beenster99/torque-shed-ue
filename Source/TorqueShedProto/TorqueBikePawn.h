@@ -48,6 +48,8 @@ public:
 
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
 	void PlaceForSlot(int32 Slot);
+	// Back to the start of the road, the clock reset (Home, or the pause menu).
+	void RestartRide();
 
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
 	UPROPERTY(EditAnywhere, Category = "Ride", meta = (ClampMin = "0", ClampMax = "1"))
