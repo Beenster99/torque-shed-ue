@@ -36,3 +36,12 @@ if(MSVC)
 else()
   target_compile_options(fit_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# The layout solver (the Godot game's BikeRig.solve): lays out every style's reference bike.
+add_executable(layout_test layout_test.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp)
+target_include_directories(layout_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(layout_test PRIVATE /W4)
+else()
+  target_compile_options(layout_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

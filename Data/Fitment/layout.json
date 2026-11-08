@@ -1,0 +1,3499 @@
+{
+ "about": "What the Godot game lays a bike out with (scripts/bike_rig.gd, bike_model.gd, parts_db.gd, contracts.gd; data/bike_lines.json), for Fit/BikeLayout. Written by Tools/import_layout_data.py; do not edit.",
+ "source": {
+  "repo": "Beenster99/torque-shed",
+  "commit": "0c4e6e7b6885b70b6185079e83df231efe9df882"
+ },
+ "styles": [
+  "classic",
+  "cafe",
+  "bobber",
+  "chopper",
+  "cruiser",
+  "scrambler",
+  "adventure",
+  "roader",
+  "tourer",
+  "sport",
+  "race",
+  "naked",
+  "supermoto",
+  "mx"
+ ],
+ "style_names": {
+  "classic": "Classic",
+  "cafe": "Cafe racer",
+  "bobber": "Bobber",
+  "chopper": "Chopper",
+  "cruiser": "Cruiser",
+  "scrambler": "Scrambler",
+  "adventure": "Adventure bike",
+  "roader": "Tall roader",
+  "tourer": "Tourer",
+  "sport": "Sports bike",
+  "race": "Race bike",
+  "naked": "Naked bike",
+  "supermoto": "Supermoto",
+  "mx": "MX bike"
+ },
+ "slots": [
+  "frame",
+  "fork",
+  "shock",
+  "front_wheel",
+  "rear_wheel",
+  "front_tyre",
+  "rear_tyre",
+  "front_disc",
+  "rear_disc",
+  "front_caliper",
+  "rear_caliper",
+  "front_pads",
+  "rear_pads",
+  "front_master",
+  "rear_master",
+  "tank",
+  "saddle",
+  "handlebars",
+  "dashboard",
+  "engine",
+  "exhaust",
+  "final_drive",
+  "chain",
+  "side_stand",
+  "centre_stand",
+  "headlight",
+  "horn",
+  "ecu",
+  "panniers",
+  "top_box",
+  "fog_lights",
+  "tail",
+  "fairing",
+  "mirrors",
+  "head",
+  "fuel",
+  "air_filter",
+  "oil_filter",
+  "spark_plugs",
+  "cooling",
+  "gearbox",
+  "front_mudguard",
+  "indicators",
+  "side_panels",
+  "rearsets",
+  "guards",
+  "number_boards",
+  "swingarm",
+  "steering_damper",
+  "tank_bag",
+  "aux_tank",
+  "toolbox",
+  "satnav",
+  "lever_guards"
+ ],
+ "slot_kind": {
+  "frame": "frame",
+  "fork": "fork",
+  "shock": "shock",
+  "front_wheel": "wheel",
+  "rear_wheel": "wheel",
+  "front_tyre": "tyre",
+  "rear_tyre": "tyre",
+  "front_disc": "disc",
+  "rear_disc": "disc",
+  "front_caliper": "caliper",
+  "rear_caliper": "caliper",
+  "front_pads": "pads",
+  "rear_pads": "pads",
+  "front_master": "master",
+  "rear_master": "master",
+  "tank": "tank",
+  "saddle": "saddle",
+  "handlebars": "handlebars",
+  "dashboard": "dashboard",
+  "engine": "engine",
+  "exhaust": "exhaust",
+  "final_drive": "final_drive",
+  "chain": "chain",
+  "head": "head",
+  "fuel": "fuel",
+  "air_filter": "air_filter",
+  "oil_filter": "oil_filter",
+  "spark_plugs": "spark_plugs",
+  "cooling": "cooling",
+  "gearbox": "gearbox",
+  "side_stand": "side_stand",
+  "centre_stand": "centre_stand",
+  "headlight": "headlight",
+  "horn": "horn",
+  "ecu": "ecu",
+  "panniers": "panniers",
+  "top_box": "top_box",
+  "fog_lights": "fog_lights",
+  "tail": "tail",
+  "fairing": "fairing",
+  "mirrors": "mirrors",
+  "front_mudguard": "front_mudguard",
+  "indicators": "indicators",
+  "side_panels": "side_panels",
+  "rearsets": "rearsets",
+  "guards": "guards",
+  "number_boards": "number_boards",
+  "swingarm": "swingarm",
+  "steering_damper": "steering_damper",
+  "tank_bag": "tank_bag",
+  "aux_tank": "aux_tank",
+  "toolbox": "toolbox",
+  "satnav": "satnav",
+  "lever_guards": "lever_guards"
+ },
+ "mounts": {
+  "frame": [],
+  "fork": [
+   "frame"
+  ],
+  "shock": [
+   "frame"
+  ],
+  "front_wheel": [
+   "fork"
+  ],
+  "rear_wheel": [
+   "shock"
+  ],
+  "front_tyre": [
+   "front_wheel"
+  ],
+  "rear_tyre": [
+   "rear_wheel"
+  ],
+  "front_disc": [
+   "front_wheel"
+  ],
+  "rear_disc": [
+   "rear_wheel"
+  ],
+  "front_caliper": [
+   "front_disc"
+  ],
+  "rear_caliper": [
+   "rear_disc"
+  ],
+  "front_pads": [
+   "front_caliper"
+  ],
+  "rear_pads": [
+   "rear_caliper"
+  ],
+  "handlebars": [
+   "fork"
+  ],
+  "dashboard": [
+   "handlebars"
+  ],
+  "front_master": [
+   "handlebars"
+  ],
+  "rear_master": [
+   "frame"
+  ],
+  "tank": [
+   "frame"
+  ],
+  "saddle": [
+   "frame"
+  ],
+  "engine": [
+   "frame"
+  ],
+  "exhaust": [
+   "engine"
+  ],
+  "final_drive": [
+   "engine",
+   "rear_wheel"
+  ],
+  "chain": [
+   "final_drive"
+  ],
+  "head": [
+   "engine"
+  ],
+  "oil_filter": [
+   "engine"
+  ],
+  "cooling": [
+   "engine"
+  ],
+  "gearbox": [
+   "engine"
+  ],
+  "spark_plugs": [
+   "head"
+  ],
+  "fuel": [
+   "head"
+  ],
+  "air_filter": [
+   "fuel"
+  ],
+  "side_stand": [
+   "frame"
+  ],
+  "centre_stand": [
+   "frame"
+  ],
+  "headlight": [
+   "fork"
+  ],
+  "horn": [
+   "frame"
+  ],
+  "ecu": [
+   "frame"
+  ],
+  "panniers": [
+   "frame"
+  ],
+  "top_box": [
+   "frame"
+  ],
+  "fog_lights": [
+   "fork"
+  ],
+  "tail": [
+   "frame"
+  ],
+  "fairing": [
+   "headlight"
+  ],
+  "mirrors": [
+   "handlebars"
+  ],
+  "front_mudguard": [
+   "fork"
+  ],
+  "indicators": [
+   "frame"
+  ],
+  "side_panels": [
+   "frame"
+  ],
+  "rearsets": [
+   "frame"
+  ],
+  "guards": [
+   "frame"
+  ],
+  "number_boards": [
+   "frame"
+  ],
+  "swingarm": [
+   "frame"
+  ],
+  "steering_damper": [
+   "fork"
+  ],
+  "tank_bag": [
+   "tank"
+  ],
+  "satnav": [
+   "handlebars"
+  ],
+  "aux_tank": [
+   "frame"
+  ],
+  "toolbox": [
+   "frame"
+  ],
+  "lever_guards": [
+   "handlebars"
+  ]
+ },
+ "optional_slots": [
+  "headlight",
+  "indicators",
+  "front_mudguard",
+  "ecu",
+  "steering_damper",
+  "mirrors",
+  "lever_guards",
+  "fairing",
+  "satnav",
+  "tail",
+  "guards",
+  "panniers",
+  "top_box",
+  "tank_bag",
+  "number_boards",
+  "aux_tank",
+  "toolbox",
+  "fog_lights",
+  "horn",
+  "side_panels",
+  "centre_stand"
+ ],
+ "frame_own_slots": [
+  "rearsets",
+  "swingarm"
+ ],
+ "filler_slots": [
+  "indicators",
+  "side_panels",
+  "rearsets",
+  "guards",
+  "number_boards",
+  "swingarm"
+ ],
+ "style_weight": {
+  "frame": 3.0,
+  "tank": 2.0,
+  "saddle": 2.0,
+  "handlebars": 2.0,
+  "tail": 2.0,
+  "fairing": 2.0,
+  "fork": 1.5,
+  "exhaust": 1.5,
+  "front_mudguard": 1.5,
+  "number_boards": 1.5,
+  "front_wheel": 1.0,
+  "rear_wheel": 1.0,
+  "headlight": 1.0,
+  "panniers": 1.0,
+  "side_panels": 1.0,
+  "rearsets": 1.0,
+  "guards": 1.0,
+  "shock": 0.5,
+  "front_tyre": 0.5,
+  "rear_tyre": 0.5,
+  "mirrors": 0.5,
+  "top_box": 0.5,
+  "fog_lights": 0.5,
+  "dashboard": 0.5,
+  "indicators": 0.5,
+  "swingarm": 1.0,
+  "tank_bag": 0.5,
+  "aux_tank": 0.5,
+  "toolbox": 0.5,
+  "lever_guards": 0.5
+ },
+ "empty_styles": {
+  "fairing": [
+   "classic",
+   "cafe",
+   "bobber",
+   "chopper",
+   "cruiser",
+   "scrambler",
+   "naked",
+   "supermoto",
+   "mx"
+  ]
+ },
+ "default_build": {
+  "frame": "steel_cradle",
+  "fork": "telescopic_road",
+  "shock": "twin_shock",
+  "front_wheel": "cast_17_front",
+  "rear_wheel": "cast_17",
+  "front_tyre": "sport_road_120",
+  "rear_tyre": "sport_road",
+  "front_disc": "floating_310",
+  "rear_disc": "solid_240",
+  "front_caliper": "four_piston_axial",
+  "rear_caliper": "single_piston",
+  "front_pads": "semi_metallic",
+  "rear_pads": "semi_metallic",
+  "front_master": "axial_14",
+  "rear_master": "axial_14",
+  "tank": "cafe_15",
+  "saddle": "flat_bench",
+  "handlebars": "flat_bar",
+  "dashboard": "twin_clocks",
+  "engine": "twin_700",
+  "exhaust": "stock_muffler",
+  "final_drive": "short_14_50",
+  "chain": "oring_520",
+  "head": "four_valve",
+  "fuel": "twin_carbs",
+  "air_filter": "paper_airbox",
+  "oil_filter": "paper_oil",
+  "spark_plugs": "iridium_plugs",
+  "cooling": "oil_cooler",
+  "gearbox": "five_wide",
+  "side_stand": "stamped_side",
+  "centre_stand": "none",
+  "headlight": "round_7",
+  "horn": "disc_horn",
+  "ecu": "none",
+  "panniers": "none",
+  "top_box": "none",
+  "fog_lights": "none",
+  "tail": "classic_mudguard",
+  "fairing": "none",
+  "mirrors": "none",
+  "front_mudguard": "chrome_classic",
+  "indicators": "none",
+  "side_panels": "none",
+  "rearsets": "none",
+  "guards": "none",
+  "number_boards": "none",
+  "swingarm": "none",
+  "steering_damper": "none",
+  "tank_bag": "none",
+  "aux_tank": "none",
+  "toolbox": "none",
+  "satnav": "none",
+  "lever_guards": "none"
+ },
+ "reference_builds": {
+  "classic": {
+   "frame": "featherbed_cradle",
+   "fork": "classic_conventional",
+   "shock": "twin_shock",
+   "front_wheel": "wire_19_chrome",
+   "rear_wheel": "spoked_18",
+   "front_tyre": "touring_road_110",
+   "rear_tyre": "touring_road_130",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "teardrop_14",
+   "saddle": "ribbed_bench",
+   "handlebars": "flat_bar",
+   "dashboard": "twin_clocks",
+   "engine": "twin_750",
+   "exhaust": "peashooter_twins",
+   "final_drive": "top_speed_16_40",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "chrome_ring_7",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "classic_mudguard",
+   "fairing": "none",
+   "mirrors": "round_mirrors",
+   "head": "two_valve_stock",
+   "fuel": "twin_carbs",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "air_fins",
+   "gearbox": "five_wide",
+   "front_mudguard": "chrome_classic",
+   "indicators": "stalk_amber",
+   "side_panels": "triangle_classic",
+   "rearsets": "road_pegs",
+   "guards": "wrap_bars",
+   "number_boards": "none",
+   "swingarm": "box_alloy_polished",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "cafe": {
+   "frame": "steel_cradle",
+   "fork": "telescopic_road",
+   "shock": "twin_shock",
+   "front_wheel": "wire_19_chrome",
+   "rear_wheel": "spoked_18",
+   "front_tyre": "touring_road_110",
+   "rear_tyre": "touring_road_130",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "cafe_15",
+   "saddle": "cafe_hump",
+   "handlebars": "alloy_clip_ons",
+   "dashboard": "twin_clocks",
+   "engine": "parallel_750",
+   "exhaust": "full_system",
+   "final_drive": "tall_15_42",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "bates_cafe",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "cafe_tail",
+   "fairing": "none",
+   "mirrors": "bar_end_mirrors",
+   "head": "big_valve_ported",
+   "fuel": "twin_carbs",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "oil_cooler",
+   "gearbox": "six_close",
+   "front_mudguard": "alloy_cafe_blade",
+   "indicators": "bullet_chrome",
+   "side_panels": "oval_number",
+   "rearsets": "alloy_rearsets",
+   "guards": "wrap_bars",
+   "number_boards": "oval_race_plates",
+   "swingarm": "single_gull_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "bobber": {
+   "frame": "softail_hardtail",
+   "fork": "telescopic_road",
+   "shock": "twin_shock",
+   "front_wheel": "wire_16_bobber",
+   "rear_wheel": "wire_16_bobber",
+   "front_tyre": "vintage_ribbed",
+   "rear_tyre": "touring_road_150",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "peanut_9",
+   "saddle": "bobber_gunfighter",
+   "handlebars": "drag_bar",
+   "dashboard": "twin_clocks",
+   "engine": "vtwin_1500",
+   "exhaust": "straight_pipe",
+   "final_drive": "stock_15_45",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "round_7",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "bobber_fender",
+   "fairing": "none",
+   "mirrors": "bar_end_mirrors",
+   "head": "two_valve_stock",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "oil_cooler",
+   "gearbox": "six_cruiser_od",
+   "front_mudguard": "bobbed_steel",
+   "indicators": "bullet_chrome",
+   "side_panels": "battery_cover_chrome",
+   "rearsets": "forward_controls",
+   "guards": "none",
+   "number_boards": "none",
+   "swingarm": "hardtail_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "chopper": {
+   "frame": "chopper_raked",
+   "fork": "springer_long",
+   "shock": "twin_shock",
+   "front_wheel": "wire_19_chrome",
+   "rear_wheel": "wire_16_bobber",
+   "front_tyre": "vintage_ribbed",
+   "rear_tyre": "touring_road_150",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "coffin_10",
+   "saddle": "flat_bench",
+   "handlebars": "ape_hangers",
+   "dashboard": "twin_clocks",
+   "engine": "vtwin_1800",
+   "exhaust": "shotgun_duals",
+   "final_drive": "top_speed_16_40",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "bates_cafe",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "bobber_fender",
+   "fairing": "none",
+   "mirrors": "bar_end_mirrors",
+   "head": "two_valve_stock",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "oil_cooler",
+   "gearbox": "six_cruiser_od",
+   "front_mudguard": "none",
+   "indicators": "bullet_chrome",
+   "side_panels": "battery_cover_chrome",
+   "rearsets": "forward_controls",
+   "guards": "none",
+   "number_boards": "none",
+   "swingarm": "hardtail_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "cruiser": {
+   "frame": "cruiser_cradle",
+   "fork": "telescopic_road",
+   "shock": "twin_shock",
+   "front_wheel": "cast_19_six",
+   "rear_wheel": "wire_16_bobber",
+   "front_tyre": "touring_road_130",
+   "rear_tyre": "touring_road_150",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "fatbob_23",
+   "saddle": "touring_comfort",
+   "handlebars": "drag_bar",
+   "dashboard": "twin_clocks",
+   "engine": "vtwin_1800",
+   "exhaust": "shotgun_duals",
+   "final_drive": "top_speed_16_40",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "round_7",
+   "horn": "disc_horn",
+   "ecu": "ecu_safety",
+   "panniers": "leather_saddlebags",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "classic_mudguard",
+   "fairing": "none",
+   "mirrors": "round_mirrors",
+   "head": "two_valve_stock",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "oil_cooler",
+   "gearbox": "six_cruiser_od",
+   "front_mudguard": "chrome_classic",
+   "indicators": "stalk_amber",
+   "side_panels": "battery_cover_chrome",
+   "rearsets": "bobber_mid_pegs",
+   "guards": "engine_bars",
+   "number_boards": "none",
+   "swingarm": "hardtail_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "scrambler": {
+   "frame": "steel_backbone",
+   "fork": "enduro_usd",
+   "shock": "twin_shock",
+   "front_wheel": "spoked_19_adventure",
+   "rear_wheel": "spoked_18",
+   "front_tyre": "dual_sport_90",
+   "rear_tyre": "dual_sport",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "teardrop_14",
+   "saddle": "flat_bench",
+   "handlebars": "mx_tall",
+   "dashboard": "twin_clocks",
+   "engine": "boxer_800",
+   "exhaust": "scrambler_high_twin",
+   "final_drive": "tall_15_42",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "round_7",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "scrambler_loop",
+   "fairing": "none",
+   "mirrors": "round_mirrors",
+   "head": "four_valve",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "air_fins",
+   "gearbox": "six_close",
+   "front_mudguard": "enduro_front_fender",
+   "indicators": "mini_led",
+   "side_panels": "triangle_classic",
+   "rearsets": "road_pegs",
+   "guards": "bash_plate",
+   "number_boards": "none",
+   "swingarm": "braced_mx_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "adventure": {
+   "frame": "adv_trellis",
+   "fork": "enduro_usd",
+   "shock": "enduro_mono",
+   "front_wheel": "spoked_19_adventure",
+   "rear_wheel": "adv_17_cast",
+   "front_tyre": "trail_road_110",
+   "rear_tyre": "trail_road_150",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "adv_25",
+   "saddle": "cruiser_stepped_seat",
+   "handlebars": "mx_tall",
+   "dashboard": "twin_clocks",
+   "engine": "boxer_1100",
+   "exhaust": "mx_upswept",
+   "final_drive": "top_speed_16_40",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "led_projector",
+   "horn": "disc_horn",
+   "ecu": "ecu_safety",
+   "panniers": "aluminium_boxes",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "enduro_fender",
+   "fairing": "adventure_fairing",
+   "mirrors": "touring_mirrors",
+   "head": "four_valve",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "six_wide_enduro",
+   "front_mudguard": "enduro_front_fender",
+   "indicators": "touring_large",
+   "side_panels": "none",
+   "rearsets": "road_pegs",
+   "guards": "bash_plate",
+   "number_boards": "none",
+   "swingarm": "braced_mx_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "roader": {
+   "frame": "roader_spar_red",
+   "fork": "roader_usd_black",
+   "shock": "sport_mono",
+   "front_wheel": "cast_17_front",
+   "rear_wheel": "cast_17",
+   "front_tyre": "sport_road_120",
+   "rear_tyre": "sport_road",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "sport_17",
+   "saddle": "cruiser_stepped_seat",
+   "handlebars": "roader_wide",
+   "dashboard": "twin_clocks",
+   "engine": "triple_850",
+   "exhaust": "roader_tri",
+   "final_drive": "tall_15_42",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "twin_round",
+   "horn": "disc_horn",
+   "ecu": "ecu_safety",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "roader_sport",
+   "fairing": "half_fairing",
+   "mirrors": "fairing_mirrors",
+   "head": "four_valve",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "six_close",
+   "front_mudguard": "chrome_classic",
+   "indicators": "stalk_amber",
+   "side_panels": "sport_cowl",
+   "rearsets": "road_pegs",
+   "guards": "engine_bars",
+   "number_boards": "none",
+   "swingarm": "single_gull_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "tourer": {
+   "frame": "tourer_heavy_spar",
+   "fork": "telescopic_road",
+   "shock": "twin_shock",
+   "front_wheel": "cast_17_front",
+   "rear_wheel": "cast_17",
+   "front_tyre": "touring_road_120",
+   "rear_tyre": "touring_road",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "angular_gt_19",
+   "saddle": "tourer_stepped",
+   "handlebars": "flat_bar",
+   "dashboard": "twin_clocks",
+   "engine": "inline_1000",
+   "exhaust": "tourer_black",
+   "final_drive": "stock_15_45",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "led_projector",
+   "horn": "disc_horn",
+   "ecu": "ecu_safety",
+   "panniers": "plastic_cases",
+   "top_box": "adv_black_top_42",
+   "fog_lights": "halogen_spots",
+   "tail": "tourer_rack_tail",
+   "fairing": "touring_fairing",
+   "mirrors": "fairing_mirrors",
+   "head": "four_valve",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "six_close",
+   "front_mudguard": "road_hugger",
+   "indicators": "stalk_amber",
+   "side_panels": "sport_cowl",
+   "rearsets": "cruiser_chrome_boards",
+   "guards": "wrap_bars",
+   "number_boards": "none",
+   "swingarm": "single_gull_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "sport": {
+   "frame": "sport_perimeter_red",
+   "fork": "usd_sport",
+   "shock": "sport_mono",
+   "front_wheel": "cast_17_front",
+   "rear_wheel": "cast_17",
+   "front_tyre": "sport_road_120",
+   "rear_tyre": "sport_road",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "sport_17",
+   "saddle": "sport_solo",
+   "handlebars": "clip_ons",
+   "dashboard": "twin_clocks",
+   "engine": "inline_600",
+   "exhaust": "race_underseat_ti",
+   "final_drive": "stock_15_45",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "led_projector",
+   "horn": "disc_horn",
+   "ecu": "sport_ecu",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "sport_pointed_tail",
+   "fairing": "race_fairing",
+   "mirrors": "fairing_mirrors",
+   "head": "big_valve_ported",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "six_close",
+   "front_mudguard": "carbon_hugger",
+   "indicators": "mini_led",
+   "side_panels": "sport_cowl",
+   "rearsets": "alloy_rearsets",
+   "guards": "race_sliders",
+   "number_boards": "none",
+   "swingarm": "box_alloy_polished",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "race": {
+   "frame": "race_alu_perimeter",
+   "fork": "race_works_usd",
+   "shock": "sport_mono",
+   "front_wheel": "cast_17_front",
+   "rear_wheel": "race_mag_gold",
+   "front_tyre": "sport_road_120",
+   "rear_tyre": "sport_road_190",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "carbon_sport_16",
+   "saddle": "race_foam_seat",
+   "handlebars": "race_black_clips",
+   "dashboard": "twin_clocks",
+   "engine": "inline_1000",
+   "exhaust": "race_hex_carbon",
+   "final_drive": "tall_15_42",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "led_projector",
+   "horn": "disc_horn",
+   "ecu": "race_ecu",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "race_hump",
+   "fairing": "carbon_race_fairing",
+   "mirrors": "none",
+   "head": "hot_cam",
+   "fuel": "race_injection",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "twin_radiators",
+   "gearbox": "six_race_quickshift",
+   "front_mudguard": "carbon_hugger",
+   "indicators": "flush_led",
+   "side_panels": "sport_cowl",
+   "rearsets": "sport_gold_rearsets",
+   "guards": "race_sliders",
+   "number_boards": "none",
+   "swingarm": "single_gull_alloy",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "naked": {
+   "frame": "alu_trestle",
+   "fork": "naked_gold",
+   "shock": "sport_mono",
+   "front_wheel": "cast_17_front",
+   "rear_wheel": "cast_17",
+   "front_tyre": "sport_road_120",
+   "rear_tyre": "sport_road",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "sport_17",
+   "saddle": "roader_sport_seat",
+   "handlebars": "naked_fat_bar",
+   "dashboard": "twin_clocks",
+   "engine": "triple_850",
+   "exhaust": "naked_stubby",
+   "final_drive": "tall_15_42",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "naked_round_led",
+   "horn": "disc_horn",
+   "ecu": "ecu_safety",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "sport_pointed_tail",
+   "fairing": "none",
+   "mirrors": "sport_mirrors",
+   "head": "big_valve_ported",
+   "fuel": "throttle_bodies",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "six_close",
+   "front_mudguard": "chrome_classic",
+   "indicators": "stalk_amber",
+   "side_panels": "none",
+   "rearsets": "road_pegs",
+   "guards": "frame_sliders",
+   "number_boards": "none",
+   "swingarm": "single_gull_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "supermoto": {
+   "frame": "sm_white_loop",
+   "fork": "long_travel_mx",
+   "shock": "mono_shock_mx",
+   "front_wheel": "supermoto_17",
+   "rear_wheel": "supermoto_17",
+   "front_tyre": "touring_road",
+   "rear_tyre": "sport_road_160",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "enduro_12",
+   "saddle": "mx_ribbed_seat",
+   "handlebars": "mx_tall",
+   "dashboard": "twin_clocks",
+   "engine": "single_450",
+   "exhaust": "mx_upswept",
+   "final_drive": "mx_13_52",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "rect_enduro",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "enduro_fender",
+   "fairing": "none",
+   "mirrors": "sport_mirrors",
+   "head": "four_valve",
+   "fuel": "flat_slide_carbs",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "six_wide_enduro",
+   "front_mudguard": "mx_high_fender",
+   "indicators": "mini_led",
+   "side_panels": "mx_plate",
+   "rearsets": "mx_cleats",
+   "guards": "skid_plate_mx",
+   "number_boards": "mx_side_boards",
+   "swingarm": "braced_mx_alloy",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  },
+  "mx": {
+   "frame": "mx_twin_loop",
+   "fork": "long_travel_mx",
+   "shock": "mono_shock_mx",
+   "front_wheel": "excel_21_black",
+   "rear_wheel": "spoked_18",
+   "front_tyre": "knobbly_mx_80",
+   "rear_tyre": "knobbly_mx",
+   "front_disc": "floating_310",
+   "rear_disc": "solid_240",
+   "front_caliper": "four_piston_axial",
+   "rear_caliper": "single_piston",
+   "front_pads": "semi_metallic",
+   "rear_pads": "semi_metallic",
+   "front_master": "axial_14",
+   "rear_master": "axial_14",
+   "tank": "enduro_12",
+   "saddle": "enduro_seat",
+   "handlebars": "mx_tall",
+   "dashboard": "twin_clocks",
+   "engine": "single_450",
+   "exhaust": "mx_upswept",
+   "final_drive": "mx_13_52",
+   "chain": "oring_520",
+   "side_stand": "stamped_side",
+   "centre_stand": "none",
+   "headlight": "rect_enduro",
+   "horn": "disc_horn",
+   "ecu": "none",
+   "panniers": "none",
+   "top_box": "none",
+   "fog_lights": "none",
+   "tail": "enduro_fender",
+   "fairing": "none",
+   "mirrors": "none",
+   "head": "four_valve",
+   "fuel": "flat_slide_carbs",
+   "air_filter": "paper_airbox",
+   "oil_filter": "paper_oil",
+   "spark_plugs": "iridium_plugs",
+   "cooling": "single_radiator",
+   "gearbox": "five_close_mx",
+   "front_mudguard": "mx_high_fender",
+   "indicators": "flush_led",
+   "side_panels": "mx_plate",
+   "rearsets": "mx_cleats",
+   "guards": "mx_carbon_skid",
+   "number_boards": "mx_side_boards",
+   "swingarm": "braced_mx_black",
+   "steering_damper": "none",
+   "tank_bag": "none",
+   "aux_tank": "none",
+   "toolbox": "none",
+   "satnav": "none",
+   "lever_guards": "none"
+  }
+ },
+ "lines": {
+  "classic": {
+   "reference": "Triumph Bonneville T120",
+   "published": {
+    "wheelbase_mm": 1445,
+    "seat_mm": 790,
+    "rake_deg": 25.5,
+    "ground_clearance_mm": 150
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 40,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -10,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.55,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.55,
+     "rail_deg": 3,
+     "rail_tol_deg": 4,
+     "rider_u": 0.66,
+     "tail_u": 0.98,
+     "tail_rise_mm": 20,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      120,
+      440
+     ],
+     "grip_mm": [
+      550,
+      260
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 20,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 150,
+     "tol_mm": 40
+    }
+   }
+  },
+  "cafe": {
+   "reference": "Triumph Thruxton RS",
+   "published": {
+    "wheelbase_mm": 1415,
+    "seat_mm": 810,
+    "rake_deg": 22.8,
+    "ground_clearance_mm": 150
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 35,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 0,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 60,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.57,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.57,
+     "rail_deg": 4,
+     "rail_tol_deg": 4,
+     "rider_u": 0.68,
+     "tail_u": 0.97,
+     "tail_rise_mm": 90,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      -40,
+      400
+     ],
+     "grip_mm": [
+      580,
+      120
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 20,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 150,
+     "tol_mm": 40
+    }
+   }
+  },
+  "bobber": {
+   "reference": "Harley-Davidson Street Bob 114",
+   "published": {
+    "wheelbase_mm": 1630,
+    "seat_mm": 680,
+    "rake_deg": 30.0,
+    "ground_clearance_mm": 125
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 30,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 20,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.6,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.62,
+     "rail_deg": 0,
+     "rail_tol_deg": 4,
+     "rider_u": 0.72,
+     "tail_u": 0.9,
+     "tail_rise_mm": 10,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      320,
+      380
+     ],
+     "grip_mm": [
+      560,
+      420
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 90,
+     "pivot_above_mm": 30,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 125,
+     "tol_mm": 40
+    }
+   }
+  },
+  "chopper": {
+   "reference": "Harley-Davidson Breakout 117",
+   "published": {
+    "wheelbase_mm": 1695,
+    "seat_mm": 665,
+    "rake_deg": 34.0,
+    "ground_clearance_mm": 120
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 30,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -60,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.52,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.54,
+     "rail_deg": 0,
+     "rail_tol_deg": 4,
+     "rider_u": 0.62,
+     "tail_u": 0.78,
+     "tail_rise_mm": 40,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      560,
+      360
+     ],
+     "grip_mm": [
+      620,
+      330
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 90,
+     "pivot_above_mm": 30,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 120,
+     "tol_mm": 40
+    }
+   }
+  },
+  "cruiser": {
+   "reference": "Harley-Davidson Nightster",
+   "published": {
+    "wheelbase_mm": 1545,
+    "seat_mm": 705,
+    "rake_deg": 30.0,
+    "ground_clearance_mm": 120
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 30,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 35,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.6,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.61,
+     "rail_deg": 0,
+     "rail_tol_deg": 4,
+     "rider_u": 0.73,
+     "tail_u": 0.9,
+     "tail_rise_mm": 10,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      500,
+      400
+     ],
+     "grip_mm": [
+      600,
+      300
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 80,
+     "pivot_above_mm": 25,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 120,
+     "tol_mm": 40
+    }
+   }
+  },
+  "scrambler": {
+   "reference": "Ducati Scrambler Icon",
+   "published": {
+    "wheelbase_mm": 1445,
+    "seat_mm": 795,
+    "rake_deg": 24.0,
+    "ground_clearance_mm": 170
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 40,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -20,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.53,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.53,
+     "rail_deg": 2,
+     "rail_tol_deg": 4,
+     "rider_u": 0.64,
+     "tail_u": 0.98,
+     "tail_rise_mm": 30,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      120,
+      470
+     ],
+     "grip_mm": [
+      560,
+      330
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 20,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 25
+    },
+    "8_ground": {
+     "clear_mm": 170,
+     "tol_mm": 40
+    }
+   }
+  },
+  "adventure": {
+   "reference": "BMW R 1250 GS",
+   "published": {
+    "wheelbase_mm": 1525,
+    "seat_mm": 850,
+    "rake_deg": 26.0,
+    "ground_clearance_mm": 200
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 50,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -40,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 80,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.52,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.52,
+     "rail_deg": 6,
+     "rail_tol_deg": 4,
+     "rider_u": 0.62,
+     "tail_u": 1.02,
+     "tail_rise_mm": 60,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      60,
+      500
+     ],
+     "grip_mm": [
+      560,
+      360
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 20,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 40
+    },
+    "8_ground": {
+     "clear_mm": 200,
+     "tol_mm": 40
+    }
+   }
+  },
+  "roader": {
+   "reference": "Yamaha Tracer 9 GT",
+   "published": {
+    "wheelbase_mm": 1500,
+    "seat_mm": 820,
+    "rake_deg": 25.0,
+    "ground_clearance_mm": 140
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "spar",
+     "clear_mm": 50,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -10,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.53,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.53,
+     "rail_deg": 8,
+     "rail_tol_deg": 4,
+     "rider_u": 0.63,
+     "tail_u": 1.02,
+     "tail_rise_mm": 70,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      40,
+      460
+     ],
+     "grip_mm": [
+      560,
+      300
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 25,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 140,
+     "tol_mm": 40
+    }
+   }
+  },
+  "tourer": {
+   "reference": "Yamaha FJR1300",
+   "published": {
+    "wheelbase_mm": 1545,
+    "seat_mm": 815,
+    "rake_deg": 26.0,
+    "ground_clearance_mm": 130
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "spar",
+     "clear_mm": 50,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 10,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 80,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.51,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.51,
+     "rail_deg": 11,
+     "rail_tol_deg": 4,
+     "rider_u": 0.61,
+     "tail_u": 1.04,
+     "tail_rise_mm": 170,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      100,
+      450
+     ],
+     "grip_mm": [
+      560,
+      270
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 25,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 130,
+     "tol_mm": 40
+    }
+   }
+  },
+  "sport": {
+   "reference": "BMW S1000RR (and Panigale V4)",
+   "published": {
+    "wheelbase_mm": 1457,
+    "seat_mm": 830,
+    "rake_deg": 23.5,
+    "ground_clearance_mm": 130
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "spar",
+     "clear_mm": 60,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 40,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 60,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.54,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.54,
+     "rail_deg": 12,
+     "rail_tol_deg": 4,
+     "rider_u": 0.64,
+     "tail_u": 1.02,
+     "tail_rise_mm": 150,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      -60,
+      370
+     ],
+     "grip_mm": [
+      560,
+      110
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 30,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 25
+    },
+    "8_ground": {
+     "clear_mm": 130,
+     "tol_mm": 40
+    }
+   }
+  },
+  "race": {
+   "reference": "MotoGP (Desmosedici GP)",
+   "published": {
+    "wheelbase_mm": 1450,
+    "seat_mm": 870,
+    "rake_deg": 23.0,
+    "ground_clearance_mm": 120
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "spar",
+     "clear_mm": 60,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 30,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 60,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.55,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.55,
+     "rail_deg": 14,
+     "rail_tol_deg": 4,
+     "rider_u": 0.66,
+     "tail_u": 1.0,
+     "tail_rise_mm": 170,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      -90,
+      330
+     ],
+     "grip_mm": [
+      540,
+      70
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 30,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 25
+    },
+    "8_ground": {
+     "clear_mm": 120,
+     "tol_mm": 40
+    }
+   }
+  },
+  "naked": {
+   "reference": "Yamaha MT-09",
+   "published": {
+    "wheelbase_mm": 1430,
+    "seat_mm": 825,
+    "rake_deg": 25.0,
+    "ground_clearance_mm": 140
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "spar",
+     "clear_mm": 50,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": 10,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 70,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.54,
+     "seat_overlap": false,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.54,
+     "rail_deg": 10,
+     "rail_tol_deg": 4,
+     "rider_u": 0.64,
+     "tail_u": 0.98,
+     "tail_rise_mm": 110,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      20,
+      420
+     ],
+     "grip_mm": [
+      560,
+      270
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 70,
+     "pivot_above_mm": 25,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 30
+    },
+    "8_ground": {
+     "clear_mm": 140,
+     "tol_mm": 40
+    }
+   }
+  },
+  "supermoto": {
+   "reference": "KTM 390 SMC R",
+   "published": {
+    "wheelbase_mm": 1453,
+    "seat_mm": 860,
+    "rake_deg": 26.9,
+    "ground_clearance_mm": 230
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 40,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -70,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 80,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.45,
+     "seat_overlap": true,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.38,
+     "rail_deg": 4,
+     "rail_tol_deg": 4,
+     "rider_u": 0.55,
+     "tail_u": 1.0,
+     "tail_rise_mm": 60,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      60,
+      520
+     ],
+     "grip_mm": [
+      520,
+      320
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 60,
+     "pivot_above_mm": 20,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 40
+    },
+    "8_ground": {
+     "clear_mm": 230,
+     "tol_mm": 40
+    }
+   }
+  },
+  "mx": {
+   "reference": "KTM 450 SX-F",
+   "published": {
+    "wheelbase_mm": 1485,
+    "seat_mm": 963,
+    "rake_deg": 26.1,
+    "ground_clearance_mm": 335
+   },
+   "lines": {
+    "1_backbone": {
+     "kind": "tube",
+     "clear_mm": 40,
+     "tol_mm": 15
+    },
+    "2_tank": {
+     "top_over_yoke_mm": -90,
+     "tol_mm": 25,
+     "nose_behind_axis_mm": 80,
+     "nose_tol_mm": 20
+    },
+    "3_tank_seat": {
+     "tank_rear_u": 0.44,
+     "seat_overlap": true,
+     "gap_mm": 15,
+     "step_tol_mm": 25
+    },
+    "4_seat": {
+     "front_u": 0.36,
+     "rail_deg": 3,
+     "rail_tol_deg": 4,
+     "rider_u": 0.55,
+     "tail_u": 1.0,
+     "tail_rise_mm": 50,
+     "tol_u": 0.03
+    },
+    "5_rider": {
+     "peg_mm": [
+      60,
+      580
+     ],
+     "grip_mm": [
+      500,
+      320
+     ],
+     "tol_mm": 50
+    },
+    "6_drive": {
+     "countershaft_ahead_mm": 60,
+     "pivot_above_mm": 20,
+     "tol_mm": 25
+    },
+    "7_front": {
+     "clear_mm": 40
+    },
+    "8_ground": {
+     "clear_mm": 335,
+     "tol_mm": 40
+    }
+   }
+  }
+ },
+ "tank_shapes": {
+  "teardrop": {
+   "len": 0.52,
+   "n": 2.3,
+   "bw": 0.8,
+   "keys": [
+    [
+     0.0,
+     0.06,
+     0.05,
+     0.04
+    ],
+    [
+     0.15,
+     0.13,
+     0.11,
+     0.07
+    ],
+    [
+     0.35,
+     0.145,
+     0.12,
+     0.075
+    ],
+    [
+     0.7,
+     0.11,
+     0.09,
+     0.06
+    ],
+    [
+     1.0,
+     0.045,
+     0.03,
+     0.025
+    ]
+   ]
+  },
+  "cafe": {
+   "len": 0.66,
+   "n": 2.6,
+   "bw": 0.8,
+   "keys": [
+    [
+     0.0,
+     0.07,
+     0.05,
+     0.04
+    ],
+    [
+     0.12,
+     0.135,
+     0.11,
+     0.06
+    ],
+    [
+     0.35,
+     0.155,
+     0.13,
+     0.07
+    ],
+    [
+     0.62,
+     0.1,
+     0.12,
+     0.07
+    ],
+    [
+     0.8,
+     0.105,
+     0.1,
+     0.065
+    ],
+    [
+     0.95,
+     0.09,
+     0.07,
+     0.05
+    ],
+    [
+     1.0,
+     0.05,
+     0.03,
+     0.03
+    ]
+   ]
+  },
+  "peanut": {
+   "len": 0.5,
+   "n": 2.2,
+   "bw": 0.8,
+   "keys": [
+    [
+     0.0,
+     0.05,
+     0.04,
+     0.03
+    ],
+    [
+     0.2,
+     0.095,
+     0.085,
+     0.05
+    ],
+    [
+     0.55,
+     0.105,
+     0.095,
+     0.055
+    ],
+    [
+     0.85,
+     0.08,
+     0.07,
+     0.045
+    ],
+    [
+     1.0,
+     0.035,
+     0.025,
+     0.02
+    ]
+   ],
+   "rig_keys": [
+    [
+     0.0,
+     0.05,
+     0.05,
+     0.035
+    ],
+    [
+     0.18,
+     0.095,
+     0.1,
+     0.055
+    ],
+    [
+     0.5,
+     0.105,
+     0.08,
+     0.05
+    ],
+    [
+     0.8,
+     0.085,
+     0.045,
+     0.04
+    ],
+    [
+     1.0,
+     0.04,
+     0.015,
+     0.02
+    ]
+   ]
+  },
+  "coffin": {
+   "len": 0.5,
+   "n": 5.0,
+   "bw": 0.95,
+   "keys": [
+    [
+     0.0,
+     0.07,
+     0.06,
+     0.04
+    ],
+    [
+     0.08,
+     0.11,
+     0.09,
+     0.06
+    ],
+    [
+     0.9,
+     0.11,
+     0.09,
+     0.06
+    ],
+    [
+     1.0,
+     0.07,
+     0.05,
+     0.04
+    ]
+   ]
+  },
+  "fatbob": {
+   "len": 0.64,
+   "n": 2.8,
+   "bw": 0.9,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.08,
+     0.07
+    ],
+    [
+     0.15,
+     0.18,
+     0.13,
+     0.1
+    ],
+    [
+     0.5,
+     0.2,
+     0.14,
+     0.11
+    ],
+    [
+     0.85,
+     0.17,
+     0.12,
+     0.09
+    ],
+    [
+     1.0,
+     0.1,
+     0.06,
+     0.05
+    ]
+   ],
+   "rig_keys": [
+    [
+     0.0,
+     0.1,
+     0.08,
+     0.07
+    ],
+    [
+     0.15,
+     0.18,
+     0.11,
+     0.085
+    ],
+    [
+     0.4,
+     0.195,
+     0.1,
+     0.08
+    ],
+    [
+     0.7,
+     0.17,
+     0.06,
+     0.07
+    ],
+    [
+     0.9,
+     0.13,
+     0.025,
+     0.05
+    ],
+    [
+     1.0,
+     0.09,
+     0.01,
+     0.035
+    ]
+   ]
+  },
+  "sport": {
+   "len": 0.56,
+   "n": 3.4,
+   "bw": 0.85,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.08,
+     0.06
+    ],
+    [
+     0.15,
+     0.17,
+     0.15,
+     0.09
+    ],
+    [
+     0.4,
+     0.19,
+     0.16,
+     0.1
+    ],
+    [
+     0.65,
+     0.16,
+     0.12,
+     0.09
+    ],
+    [
+     0.85,
+     0.12,
+     0.08,
+     0.07
+    ],
+    [
+     1.0,
+     0.08,
+     0.04,
+     0.04
+    ]
+   ]
+  },
+  "race": {
+   "len": 0.54,
+   "n": 3.8,
+   "bw": 0.9,
+   "keys": [
+    [
+     0.0,
+     0.11,
+     0.09,
+     0.06
+    ],
+    [
+     0.15,
+     0.18,
+     0.15,
+     0.09
+    ],
+    [
+     0.38,
+     0.19,
+     0.14,
+     0.1
+    ],
+    [
+     0.6,
+     0.15,
+     0.085,
+     0.09
+    ],
+    [
+     0.82,
+     0.11,
+     0.05,
+     0.07
+    ],
+    [
+     1.0,
+     0.07,
+     0.03,
+     0.04
+    ]
+   ]
+  },
+  "touring": {
+   "len": 0.66,
+   "n": 2.6,
+   "bw": 0.85,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.07,
+     0.06
+    ],
+    [
+     0.15,
+     0.18,
+     0.14,
+     0.11
+    ],
+    [
+     0.45,
+     0.21,
+     0.16,
+     0.13
+    ],
+    [
+     0.75,
+     0.19,
+     0.14,
+     0.12
+    ],
+    [
+     0.92,
+     0.14,
+     0.1,
+     0.09
+    ],
+    [
+     1.0,
+     0.09,
+     0.05,
+     0.05
+    ]
+   ]
+  },
+  "adv": {
+   "len": 0.58,
+   "n": 1.8,
+   "bw": 0.9,
+   "keys": [
+    [
+     0.0,
+     0.11,
+     0.06,
+     0.11
+    ],
+    [
+     0.15,
+     0.18,
+     0.1,
+     0.15
+    ],
+    [
+     0.45,
+     0.17,
+     0.085,
+     0.12
+    ],
+    [
+     0.75,
+     0.13,
+     0.065,
+     0.08
+    ],
+    [
+     1.0,
+     0.08,
+     0.03,
+     0.05
+    ]
+   ]
+  },
+  "enduro": {
+   "len": 0.5,
+   "n": 2.4,
+   "bw": 0.9,
+   "keys": [
+    [
+     0.0,
+     0.06,
+     0.05,
+     0.05
+    ],
+    [
+     0.2,
+     0.12,
+     0.09,
+     0.08
+    ],
+    [
+     0.5,
+     0.13,
+     0.1,
+     0.08
+    ],
+    [
+     0.8,
+     0.1,
+     0.07,
+     0.06
+    ],
+    [
+     1.0,
+     0.05,
+     0.03,
+     0.03
+    ]
+   ]
+  },
+  "gt": {
+   "len": 0.6,
+   "n": 4.0,
+   "bw": 0.8,
+   "facet": true,
+   "knee": [
+    0.55,
+    0.92,
+    0.2
+   ],
+   "keys": [
+    [
+     0.0,
+     0.11,
+     0.1,
+     0.06
+    ],
+    [
+     0.12,
+     0.19,
+     0.17,
+     0.1
+    ],
+    [
+     0.36,
+     0.2,
+     0.17,
+     0.11
+    ],
+    [
+     0.62,
+     0.16,
+     0.11,
+     0.1
+    ],
+    [
+     0.85,
+     0.12,
+     0.06,
+     0.08
+    ],
+    [
+     1.0,
+     0.085,
+     0.035,
+     0.05
+    ]
+   ]
+  },
+  "streetfighter": {
+   "len": 0.54,
+   "n": 4.0,
+   "bw": 0.78,
+   "facet": true,
+   "knee": [
+    0.48,
+    0.9,
+    0.24
+   ],
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.1,
+     0.06
+    ],
+    [
+     0.12,
+     0.18,
+     0.19,
+     0.09
+    ],
+    [
+     0.3,
+     0.19,
+     0.17,
+     0.1
+    ],
+    [
+     0.56,
+     0.14,
+     0.1,
+     0.09
+    ],
+    [
+     0.82,
+     0.105,
+     0.05,
+     0.07
+    ],
+    [
+     1.0,
+     0.075,
+     0.03,
+     0.04
+    ]
+   ]
+  },
+  "wedge": {
+   "len": 0.56,
+   "n": 4.0,
+   "bw": 0.82,
+   "facet": true,
+   "knee": [
+    0.55,
+    0.9,
+    0.2
+   ],
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.09,
+     0.06
+    ],
+    [
+     0.14,
+     0.18,
+     0.16,
+     0.09
+    ],
+    [
+     0.4,
+     0.19,
+     0.15,
+     0.1
+    ],
+    [
+     0.62,
+     0.15,
+     0.09,
+     0.09
+    ],
+    [
+     0.84,
+     0.11,
+     0.05,
+     0.07
+    ],
+    [
+     1.0,
+     0.08,
+     0.03,
+     0.04
+    ]
+   ]
+  }
+ },
+ "seat_shapes": {
+  "bench": {
+   "n": 3.2,
+   "from": -0.02,
+   "to": 0.02,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.02,
+     0.03,
+     0.0
+    ],
+    [
+     0.08,
+     0.13,
+     0.04,
+     0.035,
+     0.0
+    ],
+    [
+     0.5,
+     0.14,
+     0.045,
+     0.035,
+     -0.005
+    ],
+    [
+     0.92,
+     0.13,
+     0.04,
+     0.035,
+     0.0
+    ],
+    [
+     1.0,
+     0.1,
+     0.02,
+     0.03,
+     0.0
+    ]
+   ]
+  },
+  "cafe": {
+   "n": 3.0,
+   "from": -0.02,
+   "to": 0.0,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.02,
+     0.03,
+     0.0
+    ],
+    [
+     0.08,
+     0.12,
+     0.035,
+     0.03,
+     0.0
+    ],
+    [
+     0.5,
+     0.125,
+     0.035,
+     0.03,
+     -0.005
+    ],
+    [
+     0.6,
+     0.12,
+     0.035,
+     0.03,
+     0.0
+    ],
+    [
+     0.7,
+     0.11,
+     0.06,
+     0.06,
+     0.035
+    ],
+    [
+     0.88,
+     0.1,
+     0.06,
+     0.07,
+     0.06
+    ],
+    [
+     1.0,
+     0.06,
+     0.03,
+     0.05,
+     0.045
+    ]
+   ]
+  },
+  "enduro": {
+   "n": 4.0,
+   "from": -0.32,
+   "to": 0.06,
+   "keys": [
+    [
+     0.0,
+     0.06,
+     0.03,
+     0.03,
+     0.04
+    ],
+    [
+     0.12,
+     0.09,
+     0.045,
+     0.04,
+     0.035
+    ],
+    [
+     0.4,
+     0.1,
+     0.05,
+     0.04,
+     0.0
+    ],
+    [
+     0.9,
+     0.095,
+     0.045,
+     0.04,
+     0.0
+    ],
+    [
+     1.0,
+     0.07,
+     0.025,
+     0.035,
+     0.0
+    ]
+   ]
+  },
+  "sport": {
+   "n": 3.0,
+   "from": -0.02,
+   "to": 0.04,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.02,
+     0.025,
+     0.0
+    ],
+    [
+     0.1,
+     0.12,
+     0.03,
+     0.03,
+     0.0
+    ],
+    [
+     0.42,
+     0.12,
+     0.03,
+     0.03,
+     0.0
+    ],
+    [
+     0.55,
+     0.105,
+     0.05,
+     0.05,
+     0.03
+    ],
+    [
+     0.85,
+     0.08,
+     0.06,
+     0.07,
+     0.07
+    ],
+    [
+     1.0,
+     0.05,
+     0.03,
+     0.06,
+     0.08
+    ]
+   ]
+  },
+  "touring": {
+   "n": 3.4,
+   "from": -0.03,
+   "to": 0.02,
+   "keys": [
+    [
+     0.0,
+     0.12,
+     0.03,
+     0.04,
+     0.0
+    ],
+    [
+     0.1,
+     0.17,
+     0.05,
+     0.05,
+     -0.005
+    ],
+    [
+     0.42,
+     0.175,
+     0.05,
+     0.05,
+     -0.015
+    ],
+    [
+     0.55,
+     0.16,
+     0.06,
+     0.05,
+     0.04
+    ],
+    [
+     0.85,
+     0.16,
+     0.065,
+     0.05,
+     0.05
+    ],
+    [
+     1.0,
+     0.12,
+     0.04,
+     0.04,
+     0.05
+    ]
+   ]
+  },
+  "brat": {
+   "n": 4.5,
+   "from": -0.02,
+   "to": 0.06,
+   "keys": [
+    [
+     0.0,
+     0.11,
+     0.015,
+     0.02,
+     0.0
+    ],
+    [
+     0.05,
+     0.12,
+     0.025,
+     0.02,
+     0.0
+    ],
+    [
+     0.95,
+     0.12,
+     0.025,
+     0.02,
+     0.0
+    ],
+    [
+     1.0,
+     0.11,
+     0.015,
+     0.02,
+     0.0
+    ]
+   ]
+  },
+  "stepped": {
+   "n": 3.2,
+   "from": -0.03,
+   "to": 0.04,
+   "keys": [
+    [
+     0.0,
+     0.13,
+     0.03,
+     0.035,
+     0.0
+    ],
+    [
+     0.1,
+     0.17,
+     0.05,
+     0.04,
+     -0.01
+    ],
+    [
+     0.38,
+     0.17,
+     0.05,
+     0.04,
+     -0.015
+    ],
+    [
+     0.5,
+     0.13,
+     0.06,
+     0.04,
+     0.04
+    ],
+    [
+     0.6,
+     0.12,
+     0.04,
+     0.04,
+     0.06
+    ],
+    [
+     0.95,
+     0.12,
+     0.04,
+     0.04,
+     0.065
+    ],
+    [
+     1.0,
+     0.1,
+     0.02,
+     0.03,
+     0.06
+    ]
+   ]
+  },
+  "king_queen": {
+   "n": 3.2,
+   "from": -0.03,
+   "to": 0.04,
+   "keys": [
+    [
+     0.0,
+     0.13,
+     0.03,
+     0.035,
+     0.0
+    ],
+    [
+     0.1,
+     0.17,
+     0.05,
+     0.04,
+     -0.01
+    ],
+    [
+     0.38,
+     0.17,
+     0.05,
+     0.04,
+     -0.015
+    ],
+    [
+     0.5,
+     0.13,
+     0.08,
+     0.04,
+     0.07
+    ],
+    [
+     0.6,
+     0.12,
+     0.05,
+     0.04,
+     0.11
+    ],
+    [
+     0.95,
+     0.12,
+     0.05,
+     0.04,
+     0.11
+    ],
+    [
+     1.0,
+     0.1,
+     0.03,
+     0.03,
+     0.11
+    ]
+   ]
+  },
+  "solo": {
+   "n": 3.0,
+   "from": -0.02,
+   "to": 0.0,
+   "span": 0.55,
+   "keys": [
+    [
+     0.0,
+     0.08,
+     0.02,
+     0.02,
+     0.0
+    ],
+    [
+     0.15,
+     0.12,
+     0.035,
+     0.025,
+     0.0
+    ],
+    [
+     0.75,
+     0.14,
+     0.045,
+     0.025,
+     0.01
+    ],
+    [
+     1.0,
+     0.12,
+     0.03,
+     0.025,
+     0.02
+    ]
+   ]
+  },
+  "gunfighter": {
+   "n": 3.0,
+   "from": -0.06,
+   "to": 0.0,
+   "span": 0.7,
+   "keys": [
+    [
+     0.0,
+     0.07,
+     0.02,
+     0.03,
+     -0.02
+    ],
+    [
+     0.2,
+     0.13,
+     0.04,
+     0.03,
+     -0.01
+    ],
+    [
+     0.6,
+     0.15,
+     0.05,
+     0.03,
+     0.0
+    ],
+    [
+     0.85,
+     0.14,
+     0.07,
+     0.03,
+     0.04
+    ],
+    [
+     1.0,
+     0.11,
+     0.04,
+     0.03,
+     0.06
+    ]
+   ],
+   "rig_span": 0.8,
+   "nose_max": 2.5,
+   "rig_keys": [
+    [
+     0.0,
+     0.07,
+     0.02,
+     0.03,
+     0.06
+    ],
+    [
+     0.12,
+     0.11,
+     0.035,
+     0.03,
+     0.045
+    ],
+    [
+     0.35,
+     0.15,
+     0.05,
+     0.03,
+     0.005
+    ],
+    [
+     0.55,
+     0.16,
+     0.05,
+     0.03,
+     0.0
+    ],
+    [
+     0.78,
+     0.15,
+     0.05,
+     0.03,
+     0.015
+    ],
+    [
+     0.93,
+     0.13,
+     0.05,
+     0.03,
+     0.04
+    ],
+    [
+     1.0,
+     0.1,
+     0.03,
+     0.03,
+     0.045
+    ]
+   ]
+  },
+  "hump_long": {
+   "n": 3.0,
+   "from": -0.02,
+   "to": 0.04,
+   "keys": [
+    [
+     0.0,
+     0.1,
+     0.02,
+     0.03,
+     0.0
+    ],
+    [
+     0.08,
+     0.12,
+     0.035,
+     0.03,
+     0.0
+    ],
+    [
+     0.45,
+     0.125,
+     0.035,
+     0.03,
+     -0.005
+    ],
+    [
+     0.55,
+     0.12,
+     0.05,
+     0.05,
+     0.02
+    ],
+    [
+     0.75,
+     0.11,
+     0.08,
+     0.08,
+     0.06
+    ],
+    [
+     0.92,
+     0.09,
+     0.07,
+     0.08,
+     0.07
+    ],
+    [
+     1.0,
+     0.05,
+     0.03,
+     0.05,
+     0.05
+    ]
+   ]
+  },
+  "flat_track": {
+   "n": 4.0,
+   "from": -0.02,
+   "to": 0.08,
+   "keys": [
+    [
+     0.0,
+     0.08,
+     0.02,
+     0.02,
+     0.0
+    ],
+    [
+     0.1,
+     0.1,
+     0.03,
+     0.025,
+     0.0
+    ],
+    [
+     0.8,
+     0.1,
+     0.03,
+     0.025,
+     0.01
+    ],
+    [
+     0.9,
+     0.09,
+     0.06,
+     0.06,
+     0.05
+    ],
+    [
+     1.0,
+     0.07,
+     0.04,
+     0.05,
+     0.05
+    ]
+   ]
+  }
+ },
+ "retired": {
+  "alloy_cafe_14": "cafe_15",
+  "teardrop_classic": "teardrop_14",
+  "slab_pinstripe": "teardrop_14",
+  "chrome_panel_tank": "teardrop_14",
+  "classic_console_tank": "fatbob_23",
+  "kneedent_alloy": "cafe_15",
+  "cafe_racing_stripe": "cafe_15",
+  "cafe_band_tank": "cafe_15",
+  "cafe_spitfire_tank": "cafe_15",
+  "bobber_mini_peanut": "peanut_9",
+  "bobber_coffin": "coffin_10",
+  "bobber_wassell": "peanut_9",
+  "bobber_two_tone_peanut": "peanut_9",
+  "chopper_sportster_flames": "peanut_9",
+  "chopper_coffin_chrome": "coffin_10",
+  "chopper_teardrop_candy": "teardrop_14",
+  "chopper_stretched_peanut": "peanut_9",
+  "cruiser_fatbob_console": "fatbob_23",
+  "cruiser_fatbob_flames": "fatbob_23",
+  "cruiser_two_tone_fat": "fatbob_23",
+  "cruiser_slim_sport": "peanut_9",
+  "scrambler_round_tank": "teardrop_14",
+  "scrambler_slab_stripe": "teardrop_14",
+  "scrambler_alloy_wassell": "teardrop_14",
+  "scrambler_banded": "teardrop_14",
+  "mx_orange_tank": "enduro_12",
+  "mx_yellow_tank": "enduro_12",
+  "mx_blue_tank": "enduro_12",
+  "mx_vintage_alloy": "enduro_12",
+  "sm_orange_tank": "enduro_12",
+  "sm_white_tank": "enduro_12",
+  "sm_lime_tank": "enduro_12",
+  "sm_street_slab": "sport_17",
+  "adv_big_tank": "adv_25",
+  "adv_orange_tank": "adv_25",
+  "adv_sand_tank": "adv_25",
+  "adv_alloy_tank": "adv_25",
+  "sport_blue_white": "sport_17",
+  "sport_red_two_tone": "sport_17",
+  "sport_green_pin": "sport_17",
+  "sport_black_band": "sport_17",
+  "race_carbon_stripe": "carbon_sport_16",
+  "race_white_red": "sport_17",
+  "race_yellow_tank": "sport_17",
+  "race_vintage_spitfire": "cafe_15",
+  "naked_slab_orange": "sport_17",
+  "naked_grey_tank": "sport_17",
+  "naked_retro_tank": "teardrop_14",
+  "naked_black_matt": "sport_17",
+  "roader_slab_tank": "sport_17",
+  "roader_red_tank": "sport_17",
+  "roader_white_tank": "touring_23",
+  "roader_matt_tank": "sport_17",
+  "tourer_blue": "touring_23",
+  "tourer_red": "fatbob_23",
+  "tourer_silver": "touring_23",
+  "tourer_classic_slab": "touring_23",
+  "cafe_seeley_half": "seeley_half",
+  "cafe_dome_cowl": "headlight_cowl",
+  "cruiser_batwing": "batwing_fairing",
+  "cruiser_windshield": "batwing_fairing",
+  "adv_rally_tower": "adventure_fairing",
+  "adv_beak_red": "adventure_fairing",
+  "adv_beak_grey": "adventure_fairing",
+  "adv_tracer_black": "adventure_fairing",
+  "sport_red_fairing": "race_fairing",
+  "sport_blue_fairing": "race_fairing",
+  "sport_grey_winged": "race_fairing",
+  "sport_black_half": "half_fairing",
+  "race_white_fairing": "carbon_race_fairing",
+  "race_yellow_fairing": "race_fairing",
+  "race_red_winged": "race_fairing",
+  "race_carbon_winged": "carbon_race_fairing",
+  "race_dustbin": "seeley_half",
+  "naked_flyscreen": "flyscreen",
+  "naked_cowl": "headlight_cowl",
+  "roader_half_grey": "half_fairing",
+  "roader_beak_half": "half_fairing",
+  "tourer_batwing": "batwing_fairing",
+  "tourer_full": "touring_fairing",
+  "adv_tall_screen_adj": "adventure_fairing",
+  "adv_touring_screen_adj": "adventure_fairing",
+  "adv_rally_screen_tall": "adventure_fairing",
+  "adv_spoiler_screen_adj": "adventure_fairing",
+  "chromoly_trellis": "steel_trestle",
+  "cafe_bronze_trellis": "steel_trestle",
+  "sm_trellis_red": "steel_trestle",
+  "naked_trellis_green": "alu_trestle",
+  "stock_ecu": "none",
+  "abs_ecu": "ecu_safety",
+  "2stroke_600": "2stroke_500",
+  "2stroke_750": "2stroke_500",
+  "2stroke_800": "2stroke_500",
+  "2stroke_1000": "2stroke_500",
+  "2stroke_1100": "2stroke_500",
+  "2stroke_1200": "2stroke_500",
+  "twin_50": "twin_500",
+  "twin_125": "twin_500",
+  "twin_350": "twin_500",
+  "parallel_50": "parallel_600",
+  "parallel_125": "parallel_600",
+  "parallel_350": "parallel_600",
+  "parallel_500": "parallel_600",
+  "vtwin_50": "vtwin_750",
+  "vtwin_125": "vtwin_750",
+  "vtwin_350": "vtwin_750",
+  "vtwin_500": "vtwin_750",
+  "vtwin_600": "vtwin_750",
+  "boxer_50": "boxer_350",
+  "boxer_125": "boxer_350",
+  "inline_50": "inline_500",
+  "inline_125": "inline_500",
+  "inline_350": "inline_500",
+  "mx_blue_seat": "mx_ribbed_seat",
+  "mx_red_seat": "mx_ribbed_seat",
+  "sm_flat_seat": "mx_ribbed_seat",
+  "sm_red_seat": "mx_ribbed_seat",
+  "adv_rally_seat": "mx_ribbed_seat",
+  "adv_two_tone": "chopper_stepped_tuck",
+  "roader_brown": "chopper_stepped_tuck",
+  "adv_comfort_seat": "cruiser_stepped_seat",
+  "roader_comfort": "cruiser_stepped_seat",
+  "naked_step_seat": "roader_sport_seat",
+  "sport_blue_seat": "naked_sport_seat",
+  "tourer_brown": "classic_tuck_seat",
+  "scrambler_ribbed_flat": "cafe_brat_seat",
+  "sm_tracker_seat": "scrambler_tracker_seat",
+  "cafe_black_clip_ons": "clip_ons",
+  "sport_gold_clip": "clip_ons",
+  "race_ti_clips": "race_black_clips",
+  "race_blue_clips": "race_black_clips",
+  "roader_gold": "roader_wide",
+  "sm_braced_orange": "mx_braced_blue",
+  "sm_low_hugger": "road_hugger",
+  "adv_low_hugger": "road_hugger",
+  "sport_red_hugger": "road_hugger",
+  "roader_hugger": "road_hugger",
+  "mx_white_front": "mx_high_fender",
+  "mx_yellow_front": "mx_high_fender",
+  "sm_white_beak": "mx_high_fender",
+  "adv_high_beak": "enduro_front_fender",
+  "naked_carbon": "carbon_hugger",
+  "race_white_hugger": "carbon_hugger",
+  "cruiser_full_valance": "valanced_painted_guard",
+  "tourer_valance": "valanced_painted_guard",
+  "mx_white_fender": "enduro_fender",
+  "mx_red_fender": "enduro_fender",
+  "sm_white_fender": "enduro_fender",
+  "adv_rack_tail": "enduro_fender",
+  "adv_white_tail": "enduro_fender",
+  "sport_white_tail": "sport_pointed_tail",
+  "roader_red": "sport_pointed_tail",
+  "naked_sport_tail": "sport_pointed_tail",
+  "race_carbon_tail": "sport_pointed_tail",
+  "chopper_cateye_stub": "bobber_cateye_fender",
+  "cruiser_ribbed_fender": "classic_tombstone_guard",
+  "tourer_halo": "cruiser_halo_fender",
+  "sm_tri_black": "mx_tri_oval",
+  "adv_black_tri": "mx_tri_oval",
+  "roader_stubby": "naked_stubby",
+  "roader_carbon": "sport_carbon_slip",
+  "sm_high_carbon": "mx_titanium",
+  "roader_hard_cases": "cruiser_hard_bags",
+  "tourer_hard_top": "cruiser_hard_bags",
+  "tourer_leather": "cruiser_leather_saddlebags",
+  "adv_alloy_black": "aluminium_boxes",
+  "adv_soft_rolls": "adventure_soft",
+  "classic_toolbox_panels": "triangle_classic",
+  "scrambler_oval_panels": "triangle_classic",
+  "chopper_chrome_oil": "battery_cover_chrome",
+  "mx_blue_panels": "mx_plate",
+  "sm_orange_panels": "mx_plate",
+  "mx_yellow_boards": "mx_side_boards",
+  "mx_white_boards": "mx_side_boards",
+  "sm_white_plates": "front_plate_race",
+  "race_white_plate": "front_plate_race",
+  "cafe_oval_plates": "oval_race_plates",
+  "scrambler_tracker_plates": "flat_track_boards",
+  "mx_number_lamp": "rect_enduro",
+  "sm_plate_lamp": "rect_enduro",
+  "sm_led_plate": "led_projector",
+  "sport_led_twin": "led_projector",
+  "sport_quad_led": "adv_quad",
+  "naked_quad": "adv_quad",
+  "roader_quad": "adv_quad",
+  "roader_twin": "twin_round",
+  "adv_twin_led": "twin_round",
+  "scrambler_bar_end_black": "bar_end_mirrors",
+  "naked_bar_end": "bar_end_mirrors"
+ }
+}
