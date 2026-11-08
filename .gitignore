@@ -15,3 +15,7 @@ Data/Buttertubs/sim_*
 __pycache__/
 Data/Textures/*/
 !Data/Textures/Noise/
+
+# NVIDIA DLSS plugin: installed locally on the PC, not committed (1+ GB of binaries)
+Plugins/DLSS*/
+Plugins/StreamlineNGXCommon/
