@@ -474,9 +474,9 @@ def build_models():
             t0 = time.time()
             near, far, meta = TM.make(sp, 1000 + 37 * k + len(sp))
             for tag, m in (("SM_Tree", near), ("SM_TreeFar", far)):
-                P, T, N, C, UV = m.arrays()
+                P, T, N, C, UV = m.arrays(weld=True)
                 name = "%s_%s_%d" % (tag, sp, k)
-                write_glb(os.path.join(OUT, name + ".glb"), P, T, N, C, name, UV)
+                write_glb(os.path.join(OUT, name + ".glb"), P, T, N, C, name, UV, m.uv1())
                 info[name] = {"species": sp, "height": round(float(P[:, 1].max()), 2), "triangles": int(len(T)),
                               "radius": round(float(np.percentile(np.linalg.norm(P[P[:, 1] > 1][:, [0, 2]], axis=1), 98)), 2)}
             print("%-10s %d: %6d triangles near, %5d far, %.0f m, %.1f s" % (

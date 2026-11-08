@@ -262,6 +262,114 @@ def find_crossings(streams, road, land):
     return cross
 
 
+def read_waterfalls(root, to_ride):
+    """The map's waterfalls (features.json points of kind 'waterfall'): [(name, (x, z))] in the ride frame."""
+    f = json.load(open(os.path.join(root, "features.json")))
+    kinds, names = f["kinds"], f["names"]
+    out = []
+    for p in f["points"]:
+        if kinds[p[0]] == "waterfall":
+            out.append((names[p[6]] if p[6] else "", np.array(to_ride(p[1], p[2]), float)))
+    return out
+
+
+def cascade(q, sd, dq, gy, hb, hw, rng, rock, water):
+    """A waterfall where the map has one: the beck's steep stretches nearby (on the 2 m land, the falls
+    are smoothed into a slope) rebuilt as limestone steps across the bed, each a shelf of rock with
+    still water on it that pours over its lip as a white sheet to the next. Returns which points of the
+    beck it covers (its own water and stones are left off there)."""
+    n = len(q)
+    covered = np.zeros(n, bool)
+    g = smooth(gy, 1.5)
+    slope = -np.gradient(g) / STEP
+    steep = slope > 0.12
+    for a, b in ((r[0], r[-1] + 1) for r in np.split(np.flatnonzero(steep), np.flatnonzero(np.diff(np.flatnonzero(steep)) > 1) + 1) if len(r)):
+        a, b = max(a - 1, 0), min(b + 1, n - 1)
+        fall = g[a] - g[b]
+        if fall < 0.8 or b - a < 2:
+            continue
+        steps = int(np.clip(round(fall / 1.3), 1, 6))
+        # The lips: where the floor passes each step's height (a ragged share of the fall each).
+        cuts = np.sort(rng.uniform(0.2, 0.8, steps - 1)) if steps > 1 else np.array([])
+        levels = g[a] - fall * np.concatenate([[0], cuts, [1]])
+        lips = [a] + [int(a + np.argmax(g[a:b + 1] <= lv)) for lv in levels[1:-1]] + [b]
+        covered[a:b + 1] = True
+        for k in range(steps):
+            j0, j1 = lips[k], max(lips[k + 1], lips[k] + 1)
+            top, below = levels[k], levels[k + 1]
+            idx = np.arange(max(j0 - 1, 0), j1 + 1)
+            m = len(idx)
+            # The shelf: a trapezoid across the bed (top as wide as the bed, sloping into the banks),
+            # its top a little rough, run along the beck to its lip, where its face drops to the next.
+            across = np.linspace(-1, 1, 7)
+            rough_top = top - 0.06 + rng.normal(0, 0.04, (m, 7))
+            wt = hb[idx][:, None] * 1.05
+            base = np.minimum(gy[idx], below)[:, None] - 0.8
+            Pt = np.stack([q[idx, 0, None] + sd[idx, 0, None] * wt * across, rough_top,
+                           q[idx, 1, None] + sd[idx, 1, None] * wt * across], -1)
+            Pb = np.stack([q[idx, 0, None] + sd[idx, 0, None] * wt * 1.5 * across, np.repeat(base, 7, 1),
+                           q[idx, 1, None] + sd[idx, 1, None] * wt * 1.5 * across], -1)
+            # The lip: ragged, a little forward here and back there.
+            jag = rng.uniform(-0.35, 0.35, 7)
+            Pt[-1, :, [0, 2]] += (dq[idx[-1]][:, None] * jag[None]) * 0.8
+            col = np.array([0.42, 1.0, 0.25, 0.15])
+            # Top (rows across), the two sloping sides, and the lip's face.
+            ii = np.arange(m * 7).reshape(m, 7)
+            pa, pb, pc, pd = ii[:-1, :-1], ii[:-1, 1:], ii[1:, :-1], ii[1:, 1:]
+            T = np.concatenate([np.stack([pa, pc, pb], -1).reshape(-1, 3), np.stack([pb, pc, pd], -1).reshape(-1, 3)])
+            PP = Pt.reshape(-1, 3)
+            if np.cross(PP[T[0, 1]] - PP[T[0, 0]], PP[T[0, 2]] - PP[T[0, 0]])[1] < 0:
+                T = T[:, [0, 2, 1]]
+            along = np.arange(m)[:, None].repeat(7, 1) * STEP
+            rock.add(PP, T, col, np.stack([along, (across[None] * wt)], -1).reshape(-1, 2))
+            for e in (0, -1):
+                A, B = Pt[:, e], Pb[:, e]
+                if e == 0:
+                    A, B = B, A
+                strip(rock, A, B, col)
+            A, B = Pt[-1], Pb[-1]
+            strip(rock, B, A, col) if np.dot(np.cross(A[1] - A[0], B[0] - A[0]), np.r_[dq[idx[-1]][0], 0, dq[idx[-1]][1]]) > 0 \
+                else strip(rock, A, B, col)
+            # The water on the shelf: still, then quickening to the lip, where it pours over.
+            hwk = hw[idx] * 0.95
+            Xw = q[idx, None, 0] + sd[idx, None, 0] * hwk[:, None] * np.linspace(-1, 1, 3)[None]
+            Zw = q[idx, None, 1] + sd[idx, None, 1] * hwk[:, None] * np.linspace(-1, 1, 3)[None]
+            Yw = np.full_like(Xw, top + 0.03)
+            Pw = np.stack([Xw, Yw, Zw], -1)
+            ii = np.arange(m * 3).reshape(m, 3)
+            pa, pb, pc, pd = ii[:-1, :-1], ii[:-1, 1:], ii[1:, :-1], ii[1:, 1:]
+            Tw = np.concatenate([np.stack([pa, pc, pb], -1).reshape(-1, 3), np.stack([pb, pc, pd], -1).reshape(-1, 3)])
+            PW = Pw.reshape(-1, 3)
+            if np.cross(PW[Tw[0, 1]] - PW[Tw[0, 0]], PW[Tw[0, 2]] - PW[Tw[0, 0]])[1] < 0:
+                Tw = Tw[:, [0, 2, 1]]
+            dist_lip = (m - 1 - np.arange(m)) * STEP
+            dist_top = np.arange(m) * STEP
+            speed = np.clip(np.maximum(1 - dist_lip / 2.0, 1 - dist_top / 2.5) , 0.15, 1.0)   # foam below the last fall too
+            Cw = np.zeros((m, 3, 4)); Cw[..., 0] = speed[:, None]; Cw[..., 3] = 1
+            UVw = np.stack([np.linspace(0, 1, 3)[None].repeat(m, 0), dist_top[:, None].repeat(3, 1)], -1)
+            water.add(PW, Tw, Cw.reshape(-1, 4), UVw.reshape(-1, 2))
+            # The sheet: over the lip, out a little and down to the pool below.
+            drop = top - below + 0.1
+            t = np.linspace(0, 1, 7)
+            lip = Pw[-1]
+            fwd = np.r_[dq[idx[-1]][0], 0.0, dq[idx[-1]][1]]
+            rows = [lip + fwd[None] * (0.45 * math.sqrt(drop) * math.sqrt(tt) + 0.05) - np.array([0, drop * tt, 0])[None]
+                    for tt in t]
+            Ps = np.array(rows)          # (7, 3, 3)
+            ii = np.arange(7 * 3).reshape(7, 3)
+            pa, pb, pc, pd = ii[:-1, :-1], ii[:-1, 1:], ii[1:, :-1], ii[1:, 1:]
+            Ts = np.concatenate([np.stack([pa, pc, pb], -1).reshape(-1, 3), np.stack([pb, pc, pd], -1).reshape(-1, 3)])
+            PS = Ps.reshape(-1, 3)
+            nrm = np.cross(PS[Ts[0, 1]] - PS[Ts[0, 0]], PS[Ts[0, 2]] - PS[Ts[0, 0]])
+            if np.dot(nrm, fwd) < 0:
+                Ts = Ts[:, [0, 2, 1]]
+            Cs = np.zeros((7, 3, 4)); Cs[..., 0] = 1.0; Cs[..., 3] = 1
+            # UV y runs 4x the metres, so the ripples fall faster than they flow.
+            UVs = np.stack([np.linspace(0, 1, 3)[None].repeat(7, 0), (dist_top[-1] + 4 * drop * t)[:, None].repeat(3, 1)], -1)
+            water.add(PS, Ts, Cs.reshape(-1, 4), UVs.reshape(-1, 2))
+    return covered
+
+
 def headwalls(cross, road, ground, rng):
     """At each crossing, a culvert headwall either side of the road: a battered masonry wall from the
     beck's bed to a parapet a little under a metre over the road, capped with upright coping stones
@@ -347,6 +455,9 @@ def main():
     rng = np.random.default_rng(31)
     streams = read_streams(root, to_ride)
     cross = find_crossings(streams, rd, land)
+    falls = read_waterfalls(root, to_ride)
+    rock = TM.Mesh()
+    fell = []
     bed, water = Out(), Out()
     total = 0.0
     stones = []
@@ -409,6 +520,18 @@ def main():
             taper = np.clip(np.minimum(e0, e1) / 3.0, 0.2, 1)
             # The bed: wet stone and gravel, a good deal wider than the water, mossy at its edges.
             hb = (wv * 0.9 + 0.5) * taper
+            # A waterfall the map marks on this stretch: its steps, shelves and pouring water.
+            covered = np.zeros(n, bool)
+            for wname, wp in falls:
+                dw = np.hypot(q[:, 0] - wp[0], q[:, 1] - wp[1])
+                iw = int(np.argmin(dw))
+                if dw[iw] < 8.0:
+                    lo, hi = max(iw - 40, 0), min(iw + 41, n)
+                    c = cascade(q[lo:hi], sd[lo:hi], dq[lo:hi], gy[lo:hi], hb[lo:hi], wv[lo:hi] * 0.5 * taper[lo:hi],
+                                rng, rock, water)
+                    if c.any():
+                        covered[lo:hi] |= c
+                        fell.append(wname or "unnamed")
             P, T = ribbon(q, sd, hb, 7, ground, LIFT * (0.25 + 0.75 * (1 - np.linspace(-1, 1, 7) ** 2))[None])
             na = P.shape[1]
             across = np.abs(np.linspace(-1, 1, na))[None].repeat(n, 0)
@@ -420,7 +543,7 @@ def main():
             UV = np.stack([along, across * hb[:, None]], -1)
             bed.add(P.reshape(-1, 3), T, C.reshape(-1, 4), UV.reshape(-1, 2))
             # The water: a little over the bed, narrower, stopping short of the road.
-            wet = np.flatnonzero(drq > half_road + WATER_GAP)
+            wet = np.flatnonzero((drq > half_road + WATER_GAP) & ~covered)
             for wr in np.split(wet, np.flatnonzero(np.diff(wet) > 1) + 1):
                 if len(wr) < 3:
                     continue
@@ -432,6 +555,8 @@ def main():
                 water.add(Pw.reshape(-1, 3), Tw, Cw.reshape(-1, 4), UVw.reshape(-1, 2))
             # Stones: cobbles all along, boulders now and then, more at the edges and on the steep.
             for k in range(n):
+                if covered[k]:
+                    continue
                 for _ in range(rng.poisson(1.2 + 3 * steep[k])):
                     a = rng.uniform(-1, 1) * hb[k] * 1.05
                     sz = rng.choice([0.08, 0.14, 0.22, 0.4, 0.7], p=[0.35, 0.3, 0.2, 0.11, 0.04])
@@ -450,7 +575,7 @@ def main():
         if f.endswith(".glb"):
             os.remove(os.path.join(OUT, f))
     names = bed.write("bed") + water.write("water")
-    for m, name in ((wall, "wall_00"), (cope, "cope_00")):
+    for m, name in ((wall, "wall_00"), (cope, "cope_00"), (rock, "falls_00")):
         if m.n:
             P, T, N, C, UV = m.arrays()
             write_glb(os.path.join(OUT, name + ".glb"), P, T, N, C, name, UV)
@@ -483,10 +608,11 @@ def main():
                "species": [{"name": n, "mesh": n, "count": int((st[:, 0] == k).sum()), "cull_m": 600, "shadow": True}
                            for k, n in enumerate(rock_names)],
                "km": round(total / 1000, 2), "meshes": names,
-               "crossings_km": [round(c[0] / 1000, 2) for c in cross]},
+               "crossings_km": [round(c[0] / 1000, 2) for c in cross], "waterfalls": fell},
               open(os.path.join(OUT, "becks.json"), "w"), indent=1)
     print("becks: %.1f km, %d stones, %d meshes: %s" % (total / 1000, len(stones), len(names), names))
     print("culverts at km", ", ".join("%.2f" % (c[0] / 1000) for c in cross))
+    print("waterfalls:", ", ".join(fell))
 
 
 if __name__ == "__main__":

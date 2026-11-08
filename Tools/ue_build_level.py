@@ -1777,10 +1777,12 @@ def tree_wind(g, w, leaf):
     return g.op(unreal.MaterialExpressionAdd, limb, flutter)
 
 
-def tree_material():
+def tree_material(tex=None, roles=None):
     """The trees: vertex colour (each tree's leaves a little different, whole stands drifting in tone),
     two-sided foliage shading so the sun glows through the leaves and not the bark, ambient occlusion
-    from the vertex alpha (dark inside the crown), and wind (tree_wind). Opaque: no alpha cut-outs."""
+    from the vertex alpha (dark inside the crown), and wind (tree_wind). Opaque: no alpha cut-outs.
+    The bark takes a scanned bark (the "bark" texture role) on UV1, which runs around and along each
+    branch in metres: its relief as the normal, its detail on the vertex colour, its occlusion."""
     g = Graph(new_material("M_Tree"))
     m = g.m
     foliage_flags(m)
@@ -1797,6 +1799,27 @@ def tree_material():
     tint = g.lerp(g.const((0.95, 0.95, 0.95)), tint, g.op(unreal.MaterialExpressionAdd,
                   g.op(unreal.MaterialExpressionMultiply, leaf, const_b=0.8), const_b=0.2))
     base = g.op(unreal.MaterialExpressionMultiply, vc, tint)
+    bark_w = g.op(unreal.MaterialExpressionOneMinus, leaf)
+    normal = g.const((0.0, 0.0, 1.0))
+    ao = g.op(unreal.MaterialExpressionMultiply, vc, a_out="A", const_b=1.0)
+    if tex and "bark" in tex:
+        # The bark: the scan's detail (mostly its light and dark, a little of its colour) on the tree's
+        # own bark colour, so ash stays grey and birch white; its relief; its crevices' occlusion.
+        bm = tex["bark"]; tile = float(roles["bark"].get("tile_m", 0.7))
+        buv = g.node(unreal.MaterialExpressionTextureCoordinate, coordinate_index=1, u_tiling=1.0 / tile, v_tiling=1.0 / tile)
+        bc = g.sample(bm["color"], buv, "color")
+        bd = g.node(unreal.MaterialExpressionDesaturation, -700)
+        g.link(bc, bd)
+        g.link(g.const(0.6), bd, "Fraction")
+        detail = g.op(unreal.MaterialExpressionMultiply, bd, const_b=1.0 / float(roles["bark"].get("mean", 0.3)))
+        base = g.lerp(base, g.op(unreal.MaterialExpressionMultiply, base, detail), bark_w)
+        if "normal" in bm:
+            bn = g.sample(bm["normal"], buv, "normal")
+            bn = g.op(unreal.MaterialExpressionMultiply, bn, g.const((1.0, -1.0, 1.0)))   # ambientCG's are OpenGL's
+            normal = g.lerp(normal, bn, bark_w)
+        if "ao" in bm:
+            bao = g.lerp(g.const(1.0), g.sample(bm["ao"], buv, "ao"), bark_w, b_out="R")
+            ao = g.op(unreal.MaterialExpressionMultiply, ao, bao)
     nt = noise_texture()
     if nt is not None:
         # Stands a few hundred metres across drift a little in tone, as real woods do.
@@ -1822,7 +1845,8 @@ def tree_material():
     spec = g.lerp(g.const(0.32), g.const(0.12), far)
     mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(sss, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
-    mel.connect_material_property(vc, "A", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    mel.connect_material_property(ao, "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+    mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(tree_wind(g, w, leaf), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
@@ -1858,7 +1882,38 @@ def cloud_shadow_material():
     return g.m
 
 
-def place_trees(frame):
+def tree_shadow_nanite(mesh):
+    """The near trees' leaves, as Nanite simplifies them (for the shadow map more than for the eye):
+    with preserve-area, a crown's tiny leaves merge into a few big triangles grown to keep their area,
+    and their shadows on the road read as big angular shards. A cap on how long a simplified edge can
+    grow (relative to the source's edges) keeps them leaf-sized. TORQUE_TREE_EDGE sets the cap
+    (default 2; 0 turns it off). TORQUE_TREE_VOXEL=on tries Nanite's voxel foliage instead (5.7+,
+    experimental), which simplifies a crown to fine voxels rather than to triangles."""
+    try:
+        ns = mesh.get_editor_property("nanite_settings")
+        did = []
+        if os.environ.get("TORQUE_TREE_VOXEL", "off").lower() == "on" and hasattr(unreal, "NaniteShapePreservation") \
+                and hasattr(unreal.NaniteShapePreservation, "VOXELIZE"):
+            if try_set(ns, "shape_preservation", unreal.NaniteShapePreservation.VOXELIZE):
+                did.append("voxelize")
+        cap = float(os.environ.get("TORQUE_TREE_EDGE", "2.0"))
+        if cap > 0 and try_set(ns, "max_edge_length_factor", cap):
+            did.append("edge cap %.1f" % cap)
+        if did:
+            try:
+                unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).set_nanite_settings(mesh, ns, True)
+            except Exception:
+                mesh.set_editor_property("nanite_settings", ns)
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+        else:
+            unreal.log_warning("[Torque] %s: no Nanite edge cap or voxel setting in this engine" % mesh.get_name())
+        return did
+    except Exception as e:
+        unreal.log_warning("[Torque] tree shadow Nanite settings on %s: %s" % (mesh.get_name(), e))
+        return []
+
+
+def place_trees(frame, tex=None, roles=None):
     """The trees (Tools/make_trees.py): import the models as Nanite meshes and add a second
     TorqueFoliage actor, "Trees", that plants them from Data/Buttertubs/Trees/instances.bin at
     BeginPlay. No cull distance: the far ones are their own cheap models, so nothing pops in.
@@ -1883,7 +1938,7 @@ def place_trees(frame):
     over_path = os.path.join(folder, "overrides.json")
     overrides = json.load(open(over_path)) if os.path.exists(over_path) else {}
     meshes = import_glbs(folder, TREE_DEST)
-    mat = tree_material()
+    mat = tree_material(tex, roles)
     species = []
     total = 0
     for s in spec["species"]:
@@ -1902,6 +1957,8 @@ def place_trees(frame):
                 pass
         else:
             foliage_nanite(ours)
+            if not s.get("far"):
+                tree_shadow_nanite(ours)
         kind = s["name"].split("_")[2] if s["name"].count("_") >= 3 else ""
         o = overrides.get(kind) if not s.get("far") else None
         scans = []
@@ -2441,7 +2498,7 @@ def build():
     ppv.set_editor_property("settings", pp)
 
     place_foliage((yaw, mirror, scale))
-    place_trees((yaw, mirror, scale))
+    place_trees((yaw, mirror, scale), tex, roles)
 
     sp = route["spawn"]["ue"]
     heading_deg = math.degrees(route["spawn"]["heading"])
