@@ -173,9 +173,17 @@ int main()
 			PrintClashes(Fit.Clearance(Ab, &A));
 			if (S == "handlebars")
 			{
+				// Whatever mirrors are fitted go on these bars' lever clamps (the bar option's "moves").
 				const Placed* Mirror = Ab.Find("mirror_l");
-				Expect(Mirror && Mirror->OptionId == O.Id && Mirror->U.Meshes[0].rfind("opt_mirrors_", 0) == 0,
-					"other bars bring their mirrors on the lever clamps");
+				const Placed* Bar = Ab.Find("bars");
+				const Socket* LeftHalf = Bar ? Bar->U.FindSocket("bar_l") : nullptr;
+				if (Mirror && LeftHalf)
+				{
+					const V3 Base = Mirror->World.Point(V3(0.4157, 0.6484, -0.385));   // the stock mirror's base
+					const Xf At = Bar->World * LeftHalf->FrameAt(LeftHalf->Length() - 0.21);
+					Expect(Mirror->OptionId == "stock" && (Base - At.T).Length() < 0.002,
+						"the stock mirrors move to these bars' lever clamps (" + std::to_string((Base - At.T).Length() * 1000.0) + " mm)");
+				}
 				// The grips, levers and mirrors ride the new bar's ends.
 				const Placed* Bars = Ab.Find("bars");
 				const Placed* Grip = Ab.Find("grip_r");

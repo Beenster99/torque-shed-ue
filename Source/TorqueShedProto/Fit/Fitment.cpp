@@ -486,6 +486,17 @@ bool BikeFit::Load(const std::string& FitmentText, const std::string& Interfaces
 						Op.Units.push_back(Un);
 					}
 				}
+				if (const Json* Mo = Oj.Get("moves"))
+				{
+					for (const auto& Mv : Mo->O)
+					{
+						MountMove Mm;
+						if (const Json* Fe = Mv.second.Get("from_end")) { Mm.HasFromEnd = true; Mm.FromEnd = Fe->N; }
+						if (const Json* Ch = Mv.second.Get("child")) { Mm.HasChild = true; Mm.Child = ReadFrame(*Ch); }
+						if (!Seen.count(Mv.first)) { Error = KV.first + "/" + Op.Id + ": moves " + Mv.first + ", which the bike hasn't got"; return false; }
+						Op.Moves[Mv.first] = Mm;
+					}
+				}
 				if (const Json* Om = Oj.Get("meshes"))
 				{
 					for (const auto& Mv : Om->O)
@@ -689,6 +700,22 @@ std::vector<Unit> BikeFit::EffectiveUnits(const Build& B, std::vector<std::pair<
 				if (Out[K].Id != Un.Id) continue;
 				Out[K] = Un;
 				From[K] = std::make_pair(SlotName, Op->Id);
+			}
+		}
+	}
+	// Then the moves: what one option says about where another slot's units sit on it.
+	for (const auto& KV : B.Fitted)
+	{
+		if (KV.second.empty() || KV.second == "stock") continue;
+		const Option* Op = FindOption(KV.first, KV.second);
+		if (!Op) continue;
+		for (const auto& Mv : Op->Moves)
+		{
+			for (size_t K = 0; K < Out.size(); ++K)
+			{
+				if (Out[K].Id != Mv.first || From[K].second == Op->Id) continue;
+				if (Mv.second.HasFromEnd) { Out[K].Mnt.HasFromEnd = true; Out[K].Mnt.HasAlong = false; Out[K].Mnt.FromEnd = Mv.second.FromEnd; }
+				if (Mv.second.HasChild) { Out[K].Mnt.HasChild = true; Out[K].Mnt.Child = Mv.second.Child; }
 			}
 		}
 	}

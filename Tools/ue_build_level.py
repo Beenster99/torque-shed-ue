@@ -1208,6 +1208,8 @@ def import_bike(frame, tex=None, roles=None):
             body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     finishes = dict(info["finishes"])
+    if os.path.isfile(fit_path):
+        finishes.update(json.load(open(fit_path)).get("finishes", {}))   # the part pack's (speedtwin_pack.py)
     finishes.update(RIDER_FINISHES)
     mats = bike_materials(finishes)
     check_bike(meshes, mats)
