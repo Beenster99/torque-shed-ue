@@ -64,16 +64,21 @@ def finish(color, metallic, roughness, shader="base", color2=None, metallic2=Non
 GLOSS_BLACK = (0.010, 0.010, 0.011)
 MACHINED = (0.78, 0.78, 0.77)
 FINISHES = {
-    # Silver tank: metallic base with flake under lacquer; the mask is the black pinstripe.
-    "paint_silver": finish((0.60, 0.61, 0.62), 1.0, 0.32, "paint", color2=GLOSS_BLACK, metallic2=0.0, roughness2=0.2,
-                           detail="flake", uv_scale=25.0, normal_strength=0.0, rough_var=0.25),
+    # Silver tank: metallic base with flake under lacquer.
+    "paint_silver": finish((0.60, 0.61, 0.62), 1.0, 0.32, "paint", detail="flake", uv_scale=25.0, normal_strength=0.0,
+                           rough_var=0.25),
+    # Decals: masked by their texture (Tools/make_bike_textures.py), under the same lacquer look.
+    "decal_black": finish(GLOSS_BLACK, 0.0, 0.18, "decal", detail="decal_tank"),
+    "decal_white": finish((0.80, 0.80, 0.78), 0.0, 0.3, "decal", detail="decal_panel"),
+    # Tank badge: gloss black enamel with a polished rim (the mask).
+    "badge": finish(GLOSS_BLACK, 0.0, 0.12, color2=(0.93, 0.93, 0.93), metallic2=1.0, roughness2=0.05),
     "black_gloss": finish(GLOSS_BLACK, 0.0, 0.2, "paint", detail="flake", uv_scale=25.0, normal_strength=0.0),
     "black_satin": finish((0.018, 0.018, 0.019), 0.0, 0.48, detail="powder", uv_scale=6.0, normal_strength=0.35, rough_var=0.2),
     # Black cases and barrels; the mask is machined metal (the fin edges, the cover rims).
     "black_engine": finish((0.022, 0.022, 0.024), 0.25, 0.4, color2=MACHINED, metallic2=1.0, roughness2=0.22,
                            detail="cast", uv_scale=8.0, normal_strength=0.5, rough_var=0.25),
     "chrome": finish((0.93, 0.93, 0.93), 1.0, 0.04),
-    "steel_brushed": finish((0.74, 0.73, 0.71), 1.0, 0.26, detail="brushed", uv_scale=5.0, normal_strength=0.6, rough_var=0.35),
+    "steel_brushed": finish((0.76, 0.75, 0.73), 1.0, 0.33, detail="brushed", uv_scale=5.0, normal_strength=0.6, rough_var=0.35),
     # Brushed stainless headers, golden and blue heat tint near the ports (the mask).
     "header": finish((0.74, 0.73, 0.71), 1.0, 0.26, color2=(0.62, 0.40, 0.22), metallic2=1.0, roughness2=0.3,
                      detail="brushed", uv_scale=5.0, normal_strength=0.6, rough_var=0.35),
@@ -397,6 +402,89 @@ def disc(centre_z, r_out, r_in, holes=True):
     return d, carrier
 
 
+# Decals: side-view boxes (x0, x1, y0, y1, metres) that Tools/make_bike_textures.py draws into a
+# texture of the same name (decal_<name>_a.png, coverage in red), laid on the part's outer surface.
+DECALS = {
+    "tank": (-0.125, 0.385, 0.405, 0.515),     # "1200" and the two pinstripes (from the drone profile)
+    "panel": (-0.405, -0.205, 0.33, 0.43),     # "SPEED TWIN" on the side panels
+}
+
+
+def surface_z(pos, tris, qx, qy, side):
+    """For side-view points (qx, qy), the outermost surface of a mesh on one side (z > 0 for side 1):
+    its z and normal, or nan where the point misses."""
+    t = tris[(pos[tris][:, :, 2].mean(1) * side) > 0]
+    A, B, C = pos[t[:, 0]], pos[t[:, 1]], pos[t[:, 2]]
+    fn = np.cross(B - A, C - A)
+    ok = np.abs(fn[:, 2]) > 1e-12
+    A, B, C, fn = A[ok], B[ok], C[ok], fn[ok]
+    lo = np.minimum(np.minimum(A, B), C); hi = np.maximum(np.maximum(A, B), C)
+    zs = np.full(len(qx), np.nan); ns = np.zeros((len(qx), 3))
+    for i, (x, y) in enumerate(zip(qx, qy)):
+        c = (lo[:, 0] <= x) & (x <= hi[:, 0]) & (lo[:, 1] <= y) & (y <= hi[:, 1])
+        if not c.any():
+            continue
+        a, b, cc = A[c], B[c], C[c]
+        d = (b[:, 1] - cc[:, 1]) * (a[:, 0] - cc[:, 0]) + (cc[:, 0] - b[:, 0]) * (a[:, 1] - cc[:, 1])
+        l1 = ((b[:, 1] - cc[:, 1]) * (x - cc[:, 0]) + (cc[:, 0] - b[:, 0]) * (y - cc[:, 1])) / d
+        l2 = ((cc[:, 1] - a[:, 1]) * (x - cc[:, 0]) + (a[:, 0] - cc[:, 0]) * (y - cc[:, 1])) / d
+        l3 = 1 - l1 - l2
+        inside = (l1 >= -1e-9) & (l2 >= -1e-9) & (l3 >= -1e-9)
+        if not inside.any():
+            continue
+        z = (l1 * a[:, 2] + l2 * b[:, 2] + l3 * cc[:, 2])[inside]
+        k = np.argmax(z * side)
+        zs[i] = z[k]
+        n = fn[c][inside][k]; n = n / np.linalg.norm(n)
+        ns[i] = n if n[2] * side > 0 else -n
+    return zs, ns
+
+
+def decal_patch(pos, tris, name, side, nu=72, nv=18, lift=0.0006):
+    """A grid laid on a part's outer surface over a DECALS box, lifted a little off it, with UVs
+    across the box for the decal texture (see below for the two halves)."""
+    x0, x1, y0, y1 = DECALS[name]
+    u, v = np.meshgrid(np.linspace(0, 1, nu), np.linspace(0, 1, nv))
+    qx = (x0 + u * (x1 - x0)).ravel(); qy = (y1 - v * (y1 - y0)).ravel()
+    z, n = surface_z(pos, tris, qx, qy, side)
+    good = ~np.isnan(z)
+    p = np.c_[qx, qy, np.where(good, z, 0.0)] + n * lift
+    # The texture holds both sides: the right side's art in its left half, and in its right half the
+    # left side's, drawn so that seen from the left the lines mirror and the lettering still reads.
+    uv = np.c_[u.ravel() * 0.5 + (0.0 if side > 0 else 0.5), v.ravel()]
+    t = grid_tris(nv, nu, wrap_cols=False)
+    t = t[good[t].all(1)]
+    if side < 0:
+        t = t[:, [0, 2, 1]]
+    used = np.unique(t)                 # drop the points that missed the surface
+    remap = np.full(len(p), -1); remap[used] = np.arange(len(used))
+    return Mesh().add(p[used], remap[t], uv[used])
+
+
+def surface_badge(pos, tris, x, y, side, size):
+    """A rounded triangle badge, point down, sitting on a surface: black face, bright rim (mask 1)."""
+    corners = [(0.0, -0.55), (0.5, 0.36), (-0.5, 0.36)]      # point down, flat top
+    outline = []
+    for i in range(3):
+        a = np.array(corners[i - 1]); b = np.array(corners[i]); d = np.array(corners[(i + 1) % 3])
+        for t in np.linspace(0, 1, 6):       # round each corner with a little quadratic
+            p = (1 - t) ** 2 * (b + (a - b) * 0.18) + 2 * (1 - t) * t * b + t * t * (b + (d - b) * 0.18)
+            outline.append(p * size)
+    rim = extrude(outline, 0.0, 0.003).masked(1.0)
+    face = extrude([(px * 0.86, py * 0.86) for px, py in outline], 0.003, 0.0038)
+    m = Mesh().extend(rim).extend(face)
+    # Laid out square to the side view (as the photos see it), then each point dropped onto the
+    # surface and stood off it along the surface normal by its height.
+    out = Mesh()
+    for p, t, uv, k in zip(m.p, m.t, m.uv, m.m):
+        qx = x + p[:, 0] * side; qy = y + p[:, 1]
+        z, n = surface_z(pos, tris, qx, qy, side)
+        z = np.where(np.isnan(z), np.nanmax(np.abs(z)) * side, z)
+        q = np.c_[qx, qy, z] + n * (p[:, 2:3] + 0.0004)
+        out.add(q, t if side > 0 else t[:, [0, 2, 1]], uv, k)
+    return out
+
+
 def build():
     P = {}   # name -> (mesh, finish, group)
 
@@ -510,29 +598,19 @@ def build():
     hw = 0.06 + 0.115 * np.sin(np.clip(t, 0, 1) * math.pi) ** 0.6
     hw = np.where(t < 0.05, 0.07, hw)
     path = np.stack([xs, (top + bot) / 2, np.zeros_like(xs)], 1)
-    tank = sweep(path, hw, (top - bot) / 2, 2.6, 384, caps=True)
-
-    def pinstripe(p):
-        # Two fine black lines along each side, straight in side view, as on beenster's bike
-        # (measured off the drone profile): the upper one under the "1200", rising to the badge, and
-        # a lower one that dips a little towards the front.
-        x, y = p[:, 0], p[:, 1]
-
-        def line(y0, slope, x0, x1, half=0.0018):
-            d = np.abs(y - (y0 + slope * x)) - half
-            ends = np.clip((x - x0) / 0.02, 0, 1) * np.clip((x1 - x) / 0.02, 0, 1)
-            return np.clip(1 - d / 0.0015, 0, 1) * ends
-        side = np.abs(p[:, 2]) > 0.05
-        return np.maximum(line(0.484, 0.0465, -0.12, 0.335), line(0.450, -0.027, -0.10, 0.30)) * side
-    put("tank", tank.mask_by(pinstripe), "paint_silver")
-    # A chrome Triumph badge high on each side of the tank, towards the front.
+    tank = sweep(path, hw, (top - bot) / 2, 2.6, 192, caps=True)
+    put("tank", tank, "paint_silver")
+    # The "1200" and the two pinstripes are a decal laid on the tank's sides (see DECALS and
+    # Tools/make_bike_textures.py), crisp at any distance where vertex masks went soft.
+    tank_pos, tank_tris, _, _ = tank.arrays()
+    put("tank_decals", Mesh().extend(decal_patch(tank_pos, tank_tris, "tank", 1))
+        .extend(decal_patch(tank_pos, tank_tris, "tank", -1)), "decal_black")
+    # The badge high on each side towards the front: a rounded triangle, point down, black with a
+    # bright rim (the logo itself is left off).
     badges = Mesh()
     for s_ in (-1, 1):
-        bt = (0.25 - xs[0]) / (xs[-1] - xs[0])
-        bw = 0.06 + 0.115 * math.sin(min(max(bt, 0), 1) * math.pi) ** 0.6
-        badges.extend(lathe([(0.0, 0.0), (0.03, 0.0), (0.032, 0.003), (0.0, 0.005)], seg=32, axis=(0, 0.3, s_),
-                            centre=(0.25, 0.56, s_ * (bw * 0.93))))
-    put("tank_badges", badges, "chrome")
+        badges.extend(surface_badge(tank_pos, tank_tris, 0.325, 0.55, s_, 0.064))
+    put("tank_badges", badges, "badge")
     put("tank_cap", lathe([(0.0, 0.0), (0.04, 0.0), (0.042, 0.012), (0.0, 0.016)], seg=28, axis=(0.15, 1, 0),
                           centre=(0.12, 0.618, 0.0)), "alu_cast")
 
@@ -566,6 +644,8 @@ def build():
         topy = 0.418 + 0.012 * t; boty = 0.31 - 0.02 * t
         put(nm, sweep(np.stack([xs, (topy + boty) / 2, np.full_like(xs, s * 0.13)], 1), 0.018, (topy - boty) / 2,
                       6.0, 20), "black_gloss")
+        panel_pos, panel_tris, _, _ = P[nm][0].arrays()
+        put(nm + "_decal", decal_patch(panel_pos, panel_tris, "panel", s), "decal_white")
     put("battery_box", box((-0.30, 0.35, 0.0), (0.22, 0.14, 0.2), 6.0), "black_satin")
 
     # Engine: 270 degree parallel twin, upright finned cylinders, wide black cases.
@@ -849,6 +929,8 @@ def check_render(P, photo, path, px_per_m=500.0, origin_px=(818, 597), view="rig
     polys = []
     light = np.array([0.3, 0.8, 0.5]); light /= np.linalg.norm(light)
     for name, pos, tris, fin, mask in place(P):
+        if FINISHES[fin]["shader"] == "decal":
+            continue       # textured; nothing to show flat-shaded
         c1 = np.array(FINISHES[fin]["color"]) ** (1 / 2.2); c2 = np.array(FINISHES[fin]["color2"]) ** (1 / 2.2)
         fn = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
         ln = np.linalg.norm(fn, axis=1); ok = ln > 1e-12
