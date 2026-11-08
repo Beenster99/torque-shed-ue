@@ -29,6 +29,8 @@ FINISHES = {
     "leather_maroon": F((0.17, 0.018, 0.016), 0.0, 0.5, detail="leather", uv_scale=7.0, normal_strength=0.8, rough_var=0.3),
     "piping_white": F((0.80, 0.80, 0.78), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
     "screen_smoked": F((0.03, 0.035, 0.04), 0.0, 0.03, clearcoat_roughness=0.02),
+    # Torque Shed's screen glass (BikeModel._draw_fairing_code), drawn opaque here.
+    "screen_clear": F((0.5, 0.58, 0.66), 0.2, 0.05, clearcoat_roughness=0.02),
     "wood_crate": F((0.33, 0.21, 0.10), 0.0, 0.75, detail="cast", uv_scale=3.0, normal_strength=0.4, rough_var=0.4),
     "black_header": F((0.03, 0.03, 0.032), 0.6, 0.45, detail="cast", uv_scale=6.0, normal_strength=0.3, rough_var=0.2),
     "piping_cream": F((0.76, 0.70, 0.56), 0.0, 0.45, detail="leather", uv_scale=7.0, normal_strength=0.5, rough_var=0.2),
@@ -527,30 +529,63 @@ def screens(fit, cat):
                   "proxies": [fit.obb(pts)]}],
                 {"opt_screen_fly": (screen, "screen_smoked", "steer"), "opt_screen_fly_stays": (stays_, "black_satin", "steer")}))
 
-    # Bikini fairing: a black cowl round the lamp's top and sides (the indicators stay clear below),
-    # a short screen on its top edge, all in front of the clock.
-    def cowl(u, v):
-        a = math.radians(5 + (u + 1) / 2 * 170)   # from the right side, over the top, to the left
-        inner = np.array([0.03, 0.098 * math.sin(a), 0.098 * math.cos(a)])
-        outer = np.array([-0.03, 0.135 * math.sin(a) + 0.01, 0.175 * math.cos(a)])
-        p = inner + (outer - inner) * v
-        p[0] += 0.025 * math.sin(math.pi * v)   # a little bulge forward
-        return c + p
-    shell = sheet(cowl, 40, 8)
-    def bscreen(u, v):
-        top = cowl(u * 0.5, 1.0)
-        return top + np.array([0.01 * v - 0.015 * u * u, 0.11 * v, 0.0])
-    scr = sheet(bscreen, 16, 8)
-    # Proxies: a box round each sixth of the cowl, and the screen's.
+    # Bikini fairing, as Torque Shed draws it (BikeModel._draw_fairing_code, style "bikini"): a shell
+    # lofted round the lamp from 5 cm ahead of its centre to 10 cm behind, 17 cm half-wide, wrapping
+    # down past the sides (-0.45 to PI + 0.45 rad round), and an 18 cm screen tilted 0.45 rad back
+    # on its crown. In the bike's paint (Torque Shed paints it in the part's colour, which the player
+    # picks); the screen in Torque Shed's light blue-grey glass.
+    def godot_loft(secs, a0, a1, ring=28):
+        """ShapeKit.loft's open skin through Godot-frame sections (c relative to the lamp, w, up,
+        down, n), in ours (x forward = -gz, y up, z right = gx) round the lamp centre."""
+        steps = max(4, round(ring * (a1 - a0) / (2 * math.pi)))
+        rows = []
+        for i, sc in enumerate(secs):
+            prev, nxt = np.array(secs[max(i - 1, 0)]["c"]), np.array(secs[min(i + 1, len(secs) - 1)]["c"])
+            t = nxt - prev
+            t[0] = 0.0
+            t = t / np.linalg.norm(t) if np.linalg.norm(t) > 1e-4 else np.array([0.0, 0.0, 1.0])
+            up = np.cross(t, [1.0, 0.0, 0.0])
+            up /= np.linalg.norm(up)
+            e = 2.0 / sc["n"]
+            row = []
+            for j in range(steps + 1):
+                a = a0 + (a1 - a0) * j / steps
+                ca, sa = math.cos(a), math.sin(a)
+                x = math.copysign(abs(ca) ** e, ca) * sc["w"]
+                y = math.copysign(abs(sa) ** e, sa) * (sc["up"] if sa > 0 else sc["down"])
+                g = np.array(sc["c"]) + np.array([x, 0.0, 0.0]) + up * y
+                row.append(c + np.array([-g[2], g[1], g[0]]))
+            rows.append(row)
+        pts = np.array([p for row in rows for p in row])
+        uv = np.array([(j / steps, i / max(len(rows) - 1, 1)) for i in range(len(rows)) for j in range(steps + 1)]) * 0.3
+        return st.Mesh().add(pts, st.grid_tris(len(rows), steps + 1, wrap_cols=False), uv)
+
+    bw = 0.17
+    bsecs = []
+    for k in range(4):
+        f = k / 3.0
+        bsecs.append({"c": (0.0, 0.01 * f, -0.05 + 0.15 * f), "w": bw * (0.85 + 0.2 * f), "up": (0.1 + 0.02 * f) * 1.1,
+                      "down": (0.08 + 0.02 * f) * 1.3, "n": 2.6})
+    shell = godot_loft(bsecs, -0.45, math.pi + 0.45)
+    crown = bsecs[1]
+    base = np.array(crown["c"]) + np.array([0.0, crown["up"] - 0.01, 0.0])
+    tilt, height = 0.45, cat["fairing"]["bikini_fairing"].get("screen", 0.18)
+    sdir = np.array([0.0, math.cos(tilt), math.sin(tilt)])
+    ssecs = [{"c": tuple(base + sdir * height * (k / 3.0) - np.array([0.0, 0.035, 0.0])), "w": bw * 0.8 * (1.0 - 0.2 * k / 3.0),
+              "up": 0.04, "down": 0.0, "n": 2.0} for k in range(4)]
+    scr = godot_loft(ssecs, 0.25, math.pi - 0.25)
+    # Proxies: a box round each sixth of the shell (all its sections), and the screen's.
+    sp = shell.p[0]
+    cols = len(sp) // 4
     prox = []
     for k in range(6):
-        u0, u1 = -1 + k / 3.0, -1 + (k + 1) / 3.0
-        prox.append(fit.obb(np.array([cowl(u, v) for u in np.linspace(u0, u1, 5) for v in np.linspace(0, 1, 5)])))
+        j0, j1 = k * cols // 6, min((k + 1) * cols // 6 + 1, cols)
+        prox.append(fit.obb(np.array([sp[r * cols + j] for r in range(4) for j in range(j0, j1)])))
     prox.append(fit.obb(np.vstack(scr.p)))
     out.append(("screen", "bikini_fairing", cat["fairing"]["bikini_fairing"]["name"], ["fairing", "bikini_fairing"],
                 [{"id": "screen", "group": "steer", "meshes": ["opt_screen_bikini", "opt_screen_bikini_screen"], "slot": "screen",
                   "mount": {"to": "headlight.screen_mount", "type": "bracket"}, "sockets": {}, "proxies": prox}],
-                {"opt_screen_bikini": (shell, "black_gloss", "steer"), "opt_screen_bikini_screen": (scr, "screen_smoked", "steer")}))
+                {"opt_screen_bikini": (shell, "paint_silver", "steer"), "opt_screen_bikini_screen": (scr, "screen_clear", "steer")}))
     return out
 
 
