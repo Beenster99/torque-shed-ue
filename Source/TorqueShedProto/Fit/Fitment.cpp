@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iterator>
 #include <set>
 
 namespace TorqueFit
@@ -538,9 +539,41 @@ bool BikeFit::ApplyFixes(const std::string& FixesText, std::string& Error)
 
 std::vector<std::string> BikeFit::Slots() const { return SlotOrder; }
 
+namespace
+{
+std::string FitLower(std::string S)
+{
+	for (char& C : S) if (C >= 'A' && C <= 'Z') C = static_cast<char>(C - 'A' + 'a');
+	return S;
+}
+}
+
+std::string BikeFit::SlotFor(const std::string& SlotOrAlias) const
+{
+	const std::string Key = FitLower(SlotOrAlias);
+	for (const std::string& S : SlotOrder)
+		if (FitLower(S) == Key) return S;
+	// Everyday names, then the id of a unit that belongs to a slot ("bars" -> handlebars).
+	static const std::pair<const char*, const char*> Aliases[] = {
+		{"bars", "handlebars"}, {"bar", "handlebars"}, {"handlebar", "handlebars"},
+		{"pipes", "exhaust"}, {"pipe", "exhaust"}, {"exhausts", "exhaust"}, {"cans", "exhaust"}, {"silencer", "exhaust"}};
+	for (const auto& A : Aliases)
+		if (Key == A.first && Options.count(A.second)) return A.second;
+	for (const Unit& Un : Units)
+		if (!Un.Slot.empty() && FitLower(Un.Id) == Key && Options.count(Un.Slot)) return Un.Slot;
+	return std::string();
+}
+
+std::string BikeFit::SlotError(const std::string& SlotOrAlias) const
+{
+	std::string List;
+	for (const std::string& S : SlotOrder) List += (List.empty() ? "" : ", ") + S;
+	return "no slot '" + SlotOrAlias + "' on the " + Bike + "; slots: " + List;
+}
+
 const std::vector<Option>* BikeFit::OptionsFor(const std::string& SlotName) const
 {
-	auto It = Options.find(SlotName);
+	auto It = Options.find(SlotFor(SlotName));
 	return It == Options.end() ? nullptr : &It->second;
 }
 
@@ -637,10 +670,16 @@ std::vector<Unit> BikeFit::EffectiveUnits(const Build& B, std::vector<std::pair<
 	for (const auto& KV : B.Fitted)
 	{
 		if (KV.second.empty() || KV.second == "stock") continue;
-		const Option* Op = FindOption(KV.first, KV.second);
+		const std::string SlotName = SlotFor(KV.first);
+		if (SlotName.empty())
+		{
+			Error = SlotError(KV.first);
+			return {};
+		}
+		const Option* Op = FindOption(SlotName, KV.second);
 		if (!Op)
 		{
-			Error = "no " + KV.second + " option for " + KV.first;
+			Error = "no '" + KV.second + "' option for " + SlotName;
 			return {};
 		}
 		for (const Unit& Un : Op->Units)
@@ -649,7 +688,7 @@ std::vector<Unit> BikeFit::EffectiveUnits(const Build& B, std::vector<std::pair<
 			{
 				if (Out[K].Id != Un.Id) continue;
 				Out[K] = Un;
-				From[K] = std::make_pair(KV.first, Op->Id);
+				From[K] = std::make_pair(SlotName, Op->Id);
 			}
 		}
 	}
@@ -667,14 +706,22 @@ double BikeFit::PathParam(const Socket& S, const Mount& M) const
 bool BikeFit::CanFit(const Build& B, const std::string& SlotName, const std::string& Id, std::string& WhyNot) const
 {
 	WhyNot.clear();
-	const Option* Op = FindOption(SlotName, Id);
+	const std::string Canon = SlotFor(SlotName);
+	if (Canon.empty())
+	{
+		WhyNot = SlotError(SlotName);
+		return false;
+	}
+	const Option* Op = FindOption(Canon, Id);
 	if (!Op)
 	{
-		WhyNot = "the " + Name + " has no " + Id + " for its " + SlotName;
+		WhyNot = "the " + Name + " has no " + Id + " for its " + Canon;
 		return false;
 	}
 	Build Trial = B;
-	Trial.Fitted[SlotName] = Id;
+	for (auto It = Trial.Fitted.begin(); It != Trial.Fitted.end();)
+		It = SlotFor(It->first) == Canon ? Trial.Fitted.erase(It) : std::next(It);
+	Trial.Fitted[Canon] = Id;
 	std::vector<std::pair<std::string, std::string>> From;
 	std::string Error;
 	const std::vector<Unit> Eff = EffectiveUnits(Trial, From, Error);

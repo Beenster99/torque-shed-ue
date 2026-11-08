@@ -337,7 +337,36 @@ FTorqueBuild BuildFromCommandLine()
 	for (const FString& Item : Items)
 	{
 		FString SlotPart, OptionPart;
-		if (Item.Split(TEXT(":"), &SlotPart, &OptionPart)) B.Fitted.Add(FName(*SlotPart.TrimStartAndEnd()), FName(*OptionPart.TrimStartAndEnd()));
+		if (!Item.Split(TEXT(":"), &SlotPart, &OptionPart))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque fit: -TorqueBuild item '%s' isn't slot:option"), *Item);
+			continue;
+		}
+		const std::string Asked = ToStd(SlotPart.TrimStartAndEnd()), Part = ToStd(OptionPart.TrimStartAndEnd());
+		FBikeData* D = Get(B.Bike);
+		if (!D)
+		{
+			B.Fitted.Add(ToName(Asked), ToName(Part));
+			continue;
+		}
+		// Aliases ("bars", "pipes") go to their slot; an unknown slot or option says what there is.
+		const std::string SlotName = D->Fit.SlotFor(Asked);
+		if (SlotName.empty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque fit: -TorqueBuild: %s"), *ToF(D->Fit.SlotError(Asked)));
+			continue;
+		}
+		if (!D->Fit.FindOption(SlotName, Part))
+		{
+			FString Ids;
+			if (const std::vector<Option>* List = D->Fit.OptionsFor(SlotName))
+				for (const Option& O : *List) Ids += (Ids.IsEmpty() ? TEXT("") : TEXT(", ")) + ToF(O.Id);
+			UE_LOG(LogTemp, Warning, TEXT("Torque fit: -TorqueBuild: no option '%s' for %s; options: %s"), *ToF(Part), *ToF(SlotName), *Ids);
+			continue;
+		}
+		if (SlotName != Asked)
+			UE_LOG(LogTemp, Log, TEXT("Torque fit: -TorqueBuild: '%s' means the %s slot"), *ToF(Asked), *ToF(SlotName));
+		B.Fitted.Add(ToName(SlotName), ToName(Part));
 	}
 	return B;
 }
