@@ -18,11 +18,18 @@ namespace TorqueFit
 // A Blender part fitted to a bike: which glb, its shape keys' weights and the warp from the glb's
 // space to the bike's (ours). Colour: the part's own paint goes on the surfaces tagged ColourTag
 // ("" for every surface the paint tags would take).
+//
+// Node: what the part moves with as the bike rides (BikeModel's nodes): "" the bike itself,
+// "steer" (bars, fork tops), "front_hub" / "rear_hub" (go up and down with the suspension: fork
+// sliders, calipers), "front_wheel" / "rear_wheel" (spin too: rims, tyres, discs) and "swingarm".
+// The warp places it on the bike at rest. Copies: when set, the glb is drawn once with each of
+// these warps instead (a tyre is its tread's section bent round the hoop 32 times).
 struct FittedPart
 {
-	std::string Slot, Glb, ColourTag;
+	std::string Slot, Glb, ColourTag, Node;
 	std::map<std::string, double> Weights;
 	PartMesh::Warp Warp;
+	std::vector<PartMesh::Warp> Copies;
 };
 
 // A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.
