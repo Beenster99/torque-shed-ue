@@ -46,6 +46,7 @@ struct FTorqueShedRequestNet
 	UPROPERTY() FTransform Place;
 	UPROPERTY() bool bCrouched = false;
 	UPROPERTY() FString Text;    // GeoSave's fit (the host refuses one that's too long)
+	UPROPERTY() bool bGun = false;   // [shed] the spray gun (the booth's paint jobs)
 };
 
 namespace TorqueShedNet

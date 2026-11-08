@@ -392,6 +392,45 @@ void Lance(FBuilder& B)
 	B.Nozzle = FVector(0, 0, -0.6);
 }
 
+// _paint_gun: an HVLP gravity-feed spray gun, body along z, the cup on top in the paint colour,
+// nozzle forward (-z).
+void PaintGun(FBuilder& B, const FLinearColor& Can)
+{
+	const double By = 0.02;
+	const FString CupLow = FBuilder::Tint(Can, 0.0f, 0.25f), Cup = FBuilder::Tint(Can, 0.0f, 0.2f), Hose = FBuilder::Tint(FLinearColor(0.15f, 0.3f, 0.7f), 0.0f, 0.5f);
+	const FVector Along(Pi * 0.5, 0, 0), Raked(Deg(-15.0), 0, 0);
+	// Forged body along z.
+	B.Add(Cyl(0.0135, 0.0155, 0.1, 20), TEXT("alu"), FXf(FVector(0, By, -0.045), Along));
+	B.Add(Box(FVector(0.024, 0.03, 0.05)), TEXT("alu"), FXf(FVector(0, By - 0.006, 0.01)));
+	// Air cap and fluid tip at the front, with the two horns of the fan cap.
+	B.Add(Cyl(0.0125, 0.0145, 0.012, 20), TEXT("chrome"), FXf(FVector(0, By, -0.1), Along));
+	B.Add(Cyl(0.0095, 0.012, 0.008, 20), TEXT("chrome"), FXf(FVector(0, By, -0.11), Along));
+	for (const double Side : {-1.0, 1.0}) B.Add(Box(FVector(0.006, 0.006, 0.014)), TEXT("chrome"), FXf(FVector(Side * 0.0125, By, -0.109)));
+	B.Add(Cyl(0.003, 0.004, 0.008, 10), TEXT("brass"), FXf(FVector(0, By, -0.117), Along));
+	// Gravity cup: neck, cup in the paint colour, steel lid with a vent.
+	B.Add(Cyl(0.0065, 0.0065, 0.022, 14), TEXT("chrome"), FXf(FVector(0, By + 0.022, -0.055)));
+	B.Add(Cyl(0.028, 0.02, 0.016, 24), CupLow, FXf(FVector(0, By + 0.04, -0.055)));
+	B.Add(Cyl(0.029, 0.028, 0.055, 24), Cup, FXf(FVector(0, By + 0.0755, -0.055)));
+	B.Add(Cyl(0.0305, 0.0305, 0.008, 24), TEXT("steel"), FXf(FVector(0, By + 0.106, -0.055)));
+	B.Add(Torus(0.027, 0.0315, 24), TEXT("steel"), FXf(FVector(0, By + 0.103, -0.055)));
+	B.Add(Cyl(0.003, 0.003, 0.012, 8), TEXT("plastic_black"), FXf(FVector(0.012, By + 0.114, -0.055)));
+	// Handle, raked back, with a rubber grip.
+	B.Add(Box(FVector(0.02, 0.1, 0.028)), TEXT("alu"), FXf(FVector(0, By - 0.06, 0.03), Raked));
+	B.Add(Box(FVector(0.023, 0.07, 0.03)), TEXT("rubber"), FXf(FVector(0, By - 0.07, 0.034), Raked));
+	// Trigger: a finger lever hung from the front of the body.
+	B.Add(Box(FVector(0.016, 0.058, 0.004)), TEXT("chrome"), FXf(FVector(0, By - 0.035, -0.018), FVector(Deg(10.0), 0, 0)));
+	B.Add(Box(FVector(0.016, 0.004, 0.012)), TEXT("chrome"), FXf(FVector(0, By - 0.0015, -0.02)));
+	// Air inlet fitting and a stub of air hose under the handle.
+	B.Add(Cyl(0.0075, 0.0075, 0.014, 6), TEXT("brass"), FXf(FVector(0, By - 0.117, 0.046), Raked));
+	B.Add(Cyl(0.005, 0.005, 0.016, 12), TEXT("brass"), FXf(FVector(0, By - 0.13, 0.05), Raked));
+	B.Add(Cyl(0.0065, 0.0065, 0.05, 12), Hose, FXf(FVector(0, By - 0.16, 0.058), Raked));
+	// Adjuster knobs at the back: fluid (centre) and fan (top).
+	B.Add(Cyl(0.0035, 0.0035, 0.02, 10), TEXT("chrome"), FXf(FVector(0, By, 0.04), Along));
+	B.Add(Cyl(0.0085, 0.0085, 0.012, 14), TEXT("plastic_black"), FXf(FVector(0, By, 0.054), Along));
+	B.Add(Cyl(0.0065, 0.0065, 0.01, 12), TEXT("plastic_black"), FXf(FVector(0, By + 0.018, 0.03), Along));
+	B.Nozzle = FVector(0, By, -0.12);
+}
+
 // One material's pieces as a static mesh. Each triangle is wound to face the way its normals do
 // (Unreal's face: -(P1 - P0) x (P2 - P0)), so the primitives needn't agree on a winding.
 UStaticMesh* BuildMesh(const FGeo& G, UMaterialInterface* Material)
@@ -507,7 +546,7 @@ int32 Make(AActor* Owner, USceneComponent* Parent, int32 Tool, const FLinearColo
 		FVector Nozzle = FVector::ZeroVector;
 	};
 	static TMap<FString, FTool> Cache;
-	const FString Key = FString::Printf(TEXT("%d:%s"), Tool, Tool == Spray ? *CanColour.ToString() : TEXT(""));
+	const FString Key = FString::Printf(TEXT("%d:%s"), Tool, (Tool == Spray || Tool == Gun) ? *CanColour.ToString() : TEXT(""));
 	FTool* Found = Cache.Find(Key);
 	if (!Found)
 	{
@@ -519,6 +558,7 @@ int32 Make(AActor* Owner, USceneComponent* Parent, int32 Tool, const FLinearColo
 		case Repair: TTMI::Grinder(Bld); break;
 		case Spray: TTMI::SprayCan(Bld, CanColour); break;
 		case Lance: TTMI::Lance(Bld); break;
+		case Gun: TTMI::PaintGun(Bld, CanColour); break;
 		default: break;
 		}
 		FTool T;

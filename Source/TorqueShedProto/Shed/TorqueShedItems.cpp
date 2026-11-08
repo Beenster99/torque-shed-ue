@@ -188,8 +188,8 @@ void ATorqueShedItems::Draw(int32 Id)
 			TorqueShedModel::MakePartsWhere(this, Holder, Build,
 				[&Show](const FTorqueResolvedPart& P) { return Show.Contains(TorqueShedParts::SlotOfModelPart(P)); }, Made);
 		}
-		const bool bTint = !It->Finish.IsNone() || (!TorqueShedParts::IsStock(It->Part) && !bOption);
-		if (Made.Num() == 0) Block(TSI::KindSize(It->Kind), It->Colour);
+		const bool bTint = UTorqueBuildSubsystem::Repainted(*It) || (!TorqueShedParts::IsStock(It->Part) && !bOption);
+		if (Made.Num() == 0) Block(TSI::KindSize(It->Kind), UTorqueBuildSubsystem::ShownColour(*It));
 		else
 			for (UStaticMeshComponent* C : Made)
 			{
@@ -201,8 +201,9 @@ void ATorqueShedItems::Draw(int32 Id)
 					const int32 SubId = Slot == TorqueShedParts::TyreOf(Home) ? It->Tyre : It->Slots.FindRef(Slot);
 					if (const FTorqueItem* Sub = B->Item(SubId)) Own = Sub;
 				}
-				const bool bOwnTint = (Own == It ? bTint : !Own->Finish.IsNone()) && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
-				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &Own->Colour : nullptr);
+				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+				const FLinearColor OwnShown = UTorqueBuildSubsystem::ShownColour(*Own);   // grey while it's in primer
+				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr);
 			}
 	}
 	FBox Box(ForceInit);
@@ -233,6 +234,9 @@ void ATorqueShedItems::Draw(int32 Id)
 		Rest = FTransform(P ? P->Put : TorqueShedLayout::DropAt());
 		// Along the workbench (it runs north-south).
 		if (P && P->Kind == ETorquePlace::Bench) Rest.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
+		// Hung on a spray bay hook: its top at the hook's tip, along the rail, never down on the grate.
+		if (P && P->Kind == ETorquePlace::Hook)
+			Rest = FTransform(FRotator(0.0, 90.0, 0.0), FVector(P->Put.X, P->Put.Y, FMath::Max(P->Put.Z - Box.GetSize().Z, TorqueShedLayout::HookFloor)));
 	}
 	else if (It->At == ETorqueAt::Floor)
 		Rest = It->Place;

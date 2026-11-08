@@ -30,6 +30,11 @@ struct FTorqueShedSaveItem
 	UPROPERTY() TMap<FName, int32> Slots;
 	UPROPERTY() TMap<FName, bool> Bolted;
 	UPROPERTY() int32 Tyre = 0;
+	UPROPERTY() float PaintQ = -1.0f;   // the paint job (FTorqueItem): -1 as the factory left it
+	UPROPERTY() float Primer = 0.0f;
+	UPROPERTY() bool bPrimerTop = false;
+	UPROPERTY() FName Coat;
+	UPROPERTY() float CoatQ = 0.0f;
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.
