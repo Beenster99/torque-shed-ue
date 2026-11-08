@@ -2,6 +2,7 @@
 // path: snapshots sent 30 times a second on a clock with an offset and drift, arriving with delay
 // and jitter, some lost, drawn at an uneven 60 frames a second. Reports how far the drawn bike is
 // from where it really was, and how smooth it is (its acceleration against the real path's).
+#include "HandsState.h"
 #include "NetSmoother.h"
 
 #include <algorithm>
@@ -282,6 +283,39 @@ int main()
 		Report("Loopback at full frame rate", R);
 		Check(R.MaxErr < 5.0, "within 5 cm");
 		Check(R.DelayMax < 0.125, "smoothing delay stays near 100 ms");
+	}
+	{
+		// The shed: what a player's hands are doing, sent to the host only when it's worth it.
+		std::printf("Hands in the shed\n");
+		using namespace TorqueHands;
+		Check(QuantiseWork(0.0, false) == 0 && QuantiseWork(0.7, false) == 0, "not working is 0");
+		Check(QuantiseWork(0.0, true) == 1 && QuantiseWork(1.0, true) == 16 && QuantiseWork(2.0, true) == 16, "working is 1..16");
+		Check(std::fabs(WorkFraction(QuantiseWork(0.5, true)) - 0.5) < 0.04, "progress comes back within a step");
+		const uint64_t Wrench = MakeKey(1, 0, 0, 1, 2, 77, 0, 0, false), Brush = MakeKey(2, 0, 0, 1, 2, 77, 0, 0, false);
+		Check(Wrench != Brush && Wrench != MakeKey(1, 0, 0, 1, 3, 77, 0, 0, false), "a new tool or bay changes the key");
+		Check(Wrench == MakeKey(1, 0, 0, 1, 2, 77, 0, 0, false), "the same state, the same key");
+		FSendState A{Wrench, 0}, B{Brush, 0}, Go{Wrench, 1}, More{Wrench, 5};
+		Check(ShouldSend(A, A, 0.0, false), "the first is always sent");
+		Check(ShouldSend(A, B, 0.0, true), "a new tool goes at once");
+		Check(ShouldSend(A, Go, 0.0, true) && ShouldSend(More, A, 0.0, true), "starting and stopping go at once");
+		Check(!ShouldSend(Go, More, 0.05, true) && ShouldSend(Go, More, 0.1, true), "progress at most ten times a second");
+		Check(!ShouldSend(A, A, 1.0, true) && ShouldSend(A, A, 2.0, true), "unchanged: again every two seconds");
+		// A two-second job, held at 60 fps: how many sends.
+		FSendState Sent{};
+		bool bEver = false;
+		double Since = 0.0;
+		int Sends = 0;
+		for (int F = 0; F <= 150; ++F)
+		{
+			const double T = F / 60.0;
+			const bool bOn = T < 2.0;
+			const FSendState Now{Wrench, QuantiseWork(T / 2.0, bOn)};
+			if (ShouldSend(Sent, Now, Since, bEver)) { Sent = Now; bEver = true; Since = 0.0; ++Sends; }
+			Since += 1.0 / 60.0;
+		}
+		std::printf("  a two second job: %d sends\n", Sends);
+		Check(Sends >= 10 && Sends <= 22, "a two second job sends 10-22 updates, not 120");
+		Check(Sent.Work == 0, "and ends with stopped");
 	}
 	std::printf(Failures ? "net_test: %d FAILED\n" : "net_test: all passed\n", Failures);
 	return Failures ? 1 : 0;

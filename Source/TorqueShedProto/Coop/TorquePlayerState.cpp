@@ -1,5 +1,6 @@
 #include "TorquePlayerState.h"
 
+#include "HandsState.h"
 #include "TorqueSettings.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
@@ -13,6 +14,7 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, Activity);
 	DOREPLIFETIME(ATorquePlayerState, Colour);
 	DOREPLIFETIME(ATorquePlayerState, Bay);
+	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
 }
 
 void ATorquePlayerState::CopyProperties(APlayerState* Into)
@@ -56,4 +58,51 @@ ATorquePlayerState* ATorquePlayerState::Mine(const UObject* WorldContext)
 FColor ATorquePlayerState::ColourValue() const
 {
 	return FTorqueSettings::Colours()[FMath::Clamp<int32>(Colour, 0, FTorqueSettings::Colours().Num() - 1)];
+}
+
+namespace
+{
+TorqueHands::FSendState SendStateOf(const FTorqueHandsNet& H)
+{
+	TorqueHands::FSendState S;
+	S.Key = TorqueHands::MakeKey(H.Tool, H.Colour, H.Finish, H.Look, H.Bay, GetTypeHash(H.Slot), H.Item, GetTypeHash(H.Place), H.bAway);
+	S.Work = H.Work;
+	return S;
+}
+} // namespace
+
+void ATorquePlayerState::OfferHands(const FTorqueHandsNet& Now, float Dt)
+{
+	Hands = Now;
+	SinceHands += Dt;
+	if (!TorqueHands::ShouldSend(SendStateOf(SentHands), SendStateOf(Now), SinceHands, bHandsSent)) return;
+	SentHands = Now;
+	SinceHands = 0.0;
+	bHandsSent = true;
+	if (HasAuthority())
+	{
+		ForceNetUpdate();   // the host's own: straight out
+	}
+	else
+	{
+		ServerSetHands(Now);
+	}
+}
+
+void ATorquePlayerState::ServerSetHands_Implementation(const FTorqueHandsNet& NewHands)
+{
+	Hands = NewHands;
+	Hands.Work = (uint8)FMath::Min<int32>(Hands.Work, 16);
+	ForceNetUpdate();
+}
+
+void ATorquePlayerState::OnRep_Hands(const FTorqueHandsNet& Before)
+{
+	// For the two-copy tests: another player's tool and starting or stopping work, in the log.
+	if (Hands.Tool != Before.Tool || (Hands.Work > 0) != (Before.Work > 0) || Hands.bAway != Before.bAway)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque net: hands: %s holds tool %d%s%s (aimed at %d bay %d %s item %d)"), *GetPlayerName(), Hands.Tool,
+			Hands.Work > 0 ? TEXT(", working") : TEXT(""), Hands.bAway ? TEXT(", away") : TEXT(""), Hands.Look, Hands.Bay,
+			*Hands.Slot.ToString(), Hands.Item);
+	}
 }

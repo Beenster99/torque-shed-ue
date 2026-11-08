@@ -86,3 +86,26 @@ void TorqueLook::Dress(APawn* Pawn)
 		}
 	}
 }
+
+void TorqueLook::Pose(APawn* Pawn, bool bTool, bool bCarrying, double Work)
+{
+	if (!Pawn) return;
+	// From the shoulder (the top of the arm, ATorqueWalker's Body_Arm at y +-25, z 22, 60 long):
+	// pitched forward about it, the arm's middle 30 cm down the swung arm.
+	const double Right = bCarrying ? 70.0 : (bTool ? 55.0 + 20.0 * FMath::Clamp(Work, 0.0, 1.0) : 0.0);
+	const double Left = bCarrying ? 70.0 : 0.0;
+	TArray<UStaticMeshComponent*> Parts;
+	Pawn->GetComponents(Parts);
+	for (UStaticMeshComponent* C : Parts)
+	{
+		const FString Name = C->GetName();
+		const bool bRight = Name == TEXT("Body_ArmR");
+		if (!bRight && Name != TEXT("Body_ArmL")) continue;
+		const FVector Shoulder(0.0, bRight ? 25.0 : -25.0, 52.0);
+		// Pitch up swings the arm's lower end forward (x+); a little in towards the middle as it rises.
+		const double Pitch = bRight ? Right : Left;
+		const FQuat Swing = FRotator(Pitch, 0.0, (bRight ? -1.0 : 1.0) * Pitch * 0.12).Quaternion();
+		const FVector Mid = Shoulder + Swing.RotateVector(FVector(0.0, 0.0, -30.0));
+		C->SetRelativeLocationAndRotation(Mid, Swing);
+	}
+}

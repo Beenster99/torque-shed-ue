@@ -237,6 +237,7 @@ struct FCrewRow
 	FString Name, Doing;
 	FLinearColor Colour = FLinearColor::White;
 	bool bMe = false;
+	int32 WorkingBay = -1;   // [co-op] the bay their hands are working on now (ATorquePlayerState::Hands)
 };
 
 TArray<FCrewRow> Crew(const UWorld* World, const UTorqueBuildSubsystem* B)
@@ -258,6 +259,7 @@ TArray<FCrewRow> Crew(const UWorld* World, const UTorqueBuildSubsystem* B)
 			const FColor C = TPS->ColourValue();
 			Row.Colour = (C.R + C.G + C.B) < 200 ? FLinearColor(0.85f, 0.85f, 0.85f) : FLinearColor(C);
 			Row.Doing = TPS->Activity;
+			Row.WorkingBay = TPS->WorkingBay();
 		}
 		if (Row.bMe && B && !B->Activity().IsEmpty()) Row.Doing = B->Activity();
 		Out.Add(Row);
@@ -593,7 +595,11 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	const FString Tag = FString::Printf(TEXT("bay %d"), Bay + 1);
 	TArray<TSSI::FCrewRow> On;
 	for (const TSSI::FCrewRow& R : Crew(GetWorld(), UTorqueBuildSubsystem::Of(this)))
-		if (R.Doing.Contains(Tag)) On.Add(R);
+		if (R.Doing.Contains(Tag) || R.WorkingBay == Bay)
+		{
+			On.Add(R);
+			if (!R.Doing.Contains(Tag)) On.Last().Doing = FString::Printf(TEXT("working on %s"), *Tag);
+		}
 	float CY = H - 46.0f - 26.0f * FMath::Max(0, FMath::Min(On.Num(), 2) - 1);
 	if (On.Num() > 0) Pen.Text(24, CY - 26.0f, TEXT("ON IT NOW"), 14, Dim());
 	for (int32 I = 0; I < On.Num() && I < 2; ++I)
