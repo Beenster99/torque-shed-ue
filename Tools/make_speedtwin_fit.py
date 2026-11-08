@@ -419,6 +419,7 @@ STOCK_BAR = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, 
                          BAR_CLAMP + [0.0, 0, 0.38]], 6)
 
 
+CLUBMAN_MIN_WIDTH = 700.0   # mm: narrower puts the gloves and forearms over the Speed Twin's tank
 MIRROR_FROM_END = 0.21   # where option bars carry the mirrors: on the lever clamps, inboard of the switches
 
 
@@ -441,10 +442,12 @@ def bar_shape(width_mm, rise, pullback, drop_mid=0.0):
 
 def clubman_shape(width_mm, drop, pull):
     """A clubman drop bar: flat across the clamp, a short kick forward, then down by drop and back by
-    pull to the ends, so the grips sit low and narrow like clip-ons."""
+    pull to the ends, so the grips sit low and narrow like clip-ons. Most of the sweep back is done
+    by 250 mm out, so the grips sit on a nearly straight end and the hands aren't turned in towards
+    the tank."""
     h = width_mm / 2000.0
     c = BAR_CLAMP
-    half = [c + [0.02, -0.01, 0.10], c + [0.01, -drop * 0.55, 0.16], c + [-pull * 0.55, -drop, 0.23], c + [-pull, -drop, h]]
+    half = [c + [0.02, -0.008, 0.15], c + [0.0, -drop * 0.6, 0.19], c + [-pull * 0.6, -drop, 0.25], c + [-pull, -drop, h]]
     pts = [p * [1, 1, -1] + c * [0, 0, 2] for p in half[::-1]] + [c] + half
     return st.polyline(pts, 6)
 
@@ -463,9 +466,10 @@ def options(cat):
         look = e.get("look", {})
         if look.get("bend") == "clubman":
             # The catalogue's look (drop and pull back, metres): a real clubman, not just a flat bar.
-            # The Speed Twin's tank top is only about 40 mm below its bar clamp, so the full 80 mm drop
-            # puts the grips (and the rider's hands) below the tank top; drop as far as clears it.
-            path = clubman_shape(e["width"], min(look.get("drop", 0.08), 0.04), look.get("pull", 0.12))
+            # The Speed Twin's tank top is only about 40 mm below its bar clamp, so the catalogue's 80 mm
+            # drop (and 650 mm width) put the rider's gloves and forearms on the tank: 25 mm down,
+            # 100 mm back and at least 700 mm wide keeps them clear and still reads as a drop bar.
+            path = clubman_shape(max(e["width"], CLUBMAN_MIN_WIDTH), min(look.get("drop", 0.08), 0.025), min(look.get("pull", 0.12), 0.10))
         else:
             path = bar_shape(e["width"], e["rise"], **kw)
         mesh = st.Mesh()
