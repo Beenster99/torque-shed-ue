@@ -2361,6 +2361,42 @@ def place_props(meshes, spec, materials, frame):
 
 # --- The level -------------------------------------------------------------------------------------
 
+# --- Replacing a map in place (shared with ue_build_level.py / ue_build_shed.py; keep the copies alike) ---
+# Build into a blank unsaved world and save it over the map's path. Deleting the old map first doesn't
+# work when it was the editor's start-up map: delete_asset says yes but the .umap stays on disk, and
+# new_level(MAP) then refuses ("An asset already exists at this location").
+
+def umap_file(map_path):
+    return os.path.abspath(os.path.join(unreal.Paths.project_content_dir(), map_path[len("/Game/"):] + ".umap"))
+
+
+def begin_fresh_level(map_path):
+    """An empty unsaved world to build map_path in; returns the .umap's old modified time (or None)."""
+    f = umap_file(map_path)
+    before = os.path.getmtime(f) if os.path.exists(f) else None
+    if not unreal.EditorLoadingAndSavingUtils.new_blank_map(False):
+        raise RuntimeError("couldn't open a blank map to build %s in" % map_path)
+    unreal.SystemLibrary.collect_garbage()   # let the old map's world go before saving over it
+    log("building %s in a blank world (old .umap %s)" % (map_path, "from %.0f" % before if before else "absent"))
+    return before
+
+
+def save_fresh_level(map_path, before):
+    """Save the world being built over map_path, and check the .umap really was written."""
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    if not world:
+        raise RuntimeError("no editor world to save as %s" % map_path)
+    if not unreal.EditorLoadingAndSavingUtils.save_map(world, map_path):
+        raise RuntimeError("couldn't save the level as %s" % map_path)
+    f = umap_file(map_path)
+    if not os.path.exists(f):
+        raise RuntimeError("%s isn't on disk after saving (%s)" % (map_path, f))
+    after = os.path.getmtime(f)
+    if before is not None and after <= before:
+        raise RuntimeError("%s wasn't rewritten (%s still from %.0f)" % (map_path, f, before))
+    log("saved %s (%s)" % (map_path, f))
+
+
 def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0)):
     return actors.spawn_actor_from_class(cls, unreal.Vector(*loc), unreal.Rotator(*rot))
 
@@ -2413,19 +2449,9 @@ def build():
                      "paint": flat_material("M_Paint", 0.32, fine=0.05)}
     import_bike((yaw, mirror, scale), tex, roles)
 
-    # Start the level afresh (a second run replaces the first).
-    # The editor may have MAP open (or an old Scratch may exist), so move to a fresh scratch world first and
-    # check every step: a failed new_level or save used to be silent and the old map got packaged.
-    if unreal.EditorAssetLibrary.does_asset_exist(MAP):
-        scratch = "/Game/Maps/Scratch"
-        if unreal.EditorAssetLibrary.does_asset_exist(scratch):
-            unreal.EditorAssetLibrary.delete_asset(scratch)
-        if not levels.new_level(scratch):
-            raise RuntimeError("[Torque] couldn't open a scratch level to rebuild %s" % MAP)
-        if not unreal.EditorAssetLibrary.delete_asset(MAP):
-            raise RuntimeError("[Torque] couldn't delete the old %s" % MAP)
-    if not levels.new_level(MAP):
-        raise RuntimeError("[Torque] couldn't create %s" % MAP)
+    # Start the level afresh (a second run replaces the first): built in a blank world and saved over
+    # MAP at the end, checked (see begin_fresh_level).
+    before = begin_fresh_level(MAP)
     rot = unreal.Rotator(0.0, 0.0, float(yaw))   # (roll, pitch, yaw) in the Python constructor
     for name, mesh in sorted(meshes.items()):
         a = actors.spawn_actor_from_object(mesh, unreal.Vector(0, 0, 0), rot)
@@ -2537,8 +2563,7 @@ def build():
     # and turns right (towards +y) as it grows.
     spawn(unreal.PlayerStart, (sp[0], sp[1], sp[2] + 100.0), (0, 0, -90.0 - heading_deg))
 
-    if not levels.save_current_level():
-        raise RuntimeError("[Torque] couldn't save %s" % MAP)
+    save_fresh_level(MAP, before)
     log("built %s with %d meshes; press Play to ride" % (MAP, len(meshes)))
 
 

@@ -19,6 +19,7 @@ What it makes (Unreal cm: x east, y south, z up; the floor at z 0):
 The game mode spawns the walker (ATorqueWalker) in any map with an ATorqueShedBike in it.
 """
 import math
+import os
 
 import unreal
 
@@ -463,27 +464,45 @@ def sky():
     ppv.set_editor_property("settings", pp)
 
 
-def fresh_level():
-    """Replace MAP with a new empty level. The editor may have MAP open (the shed is the start-up
-    map), so first move to a blank unsaved world, then delete the old map, then make the new one.
-    Any step that fails raises, so the run reports a failure instead of 'built' over the old map."""
-    blank = unreal.EditorLoadingAndSavingUtils.new_blank_map(False)
-    if not blank:
-        raise RuntimeError("couldn't open a blank map to leave %s" % MAP)
-    for old in (MAP, "/Game/Shed/Scratch"):   # Scratch: left over from round 1's way of doing this
-        if unreal.EditorAssetLibrary.does_asset_exist(old) and not unreal.EditorAssetLibrary.delete_asset(old):
-            raise RuntimeError("couldn't delete the old %s (still open or referenced?)" % old)
-    if not levels.new_level(MAP):
-        raise RuntimeError("couldn't make the new level %s" % MAP)
+# --- Replacing a map in place (shared with ue_build_level.py / ue_build_shed.py; keep the copies alike) ---
+# Build into a blank unsaved world and save it over the map's path. Deleting the old map first doesn't
+# work when it was the editor's start-up map: delete_asset says yes but the .umap stays on disk, and
+# new_level(MAP) then refuses ("An asset already exists at this location").
+
+def umap_file(map_path):
+    return os.path.abspath(os.path.join(unreal.Paths.project_content_dir(), map_path[len("/Game/"):] + ".umap"))
+
+
+def begin_fresh_level(map_path):
+    """An empty unsaved world to build map_path in; returns the .umap's old modified time (or None)."""
+    f = umap_file(map_path)
+    before = os.path.getmtime(f) if os.path.exists(f) else None
+    if not unreal.EditorLoadingAndSavingUtils.new_blank_map(False):
+        raise RuntimeError("couldn't open a blank map to build %s in" % map_path)
+    unreal.SystemLibrary.collect_garbage()   # let the old map's world go before saving over it
+    log("building %s in a blank world (old .umap %s)" % (map_path, "from %.0f" % before if before else "absent"))
+    return before
+
+
+def save_fresh_level(map_path, before):
+    """Save the world being built over map_path, and check the .umap really was written."""
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-    if not world or world.get_path_name().split(".")[0] != MAP:
-        raise RuntimeError("the open level is %s, not %s" % (world.get_path_name() if world else None, MAP))
-    log("new level %s" % MAP)
+    if not world:
+        raise RuntimeError("no editor world to save as %s" % map_path)
+    if not unreal.EditorLoadingAndSavingUtils.save_map(world, map_path):
+        raise RuntimeError("couldn't save the level as %s" % map_path)
+    f = umap_file(map_path)
+    if not os.path.exists(f):
+        raise RuntimeError("%s isn't on disk after saving (%s)" % (map_path, f))
+    after = os.path.getmtime(f)
+    if before is not None and after <= before:
+        raise RuntimeError("%s wasn't rewritten (%s still from %.0f)" % (map_path, f, before))
+    log("saved %s (%s)" % (map_path, f))
 
 
 def build():
     m = materials()
-    fresh_level()
+    before = begin_fresh_level(MAP)
 
     # Floor: the slab runs under the walls and out of the door.
     box("Floor", -HALF_X - WALL, HALF_X + WALL, -HALF_Y - WALL, HALF_Y + WALL, -12, 0, m["concrete"], folder="Walls")
@@ -539,10 +558,7 @@ def build():
     v.set_editor_property("tags", [unreal.Name("MenuView")])
     actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(start[0], start[1], 100.0), unreal.Rotator(0.0, 0.0, yaw))
 
-    if not levels.save_current_level():
-        raise RuntimeError("couldn't save %s" % MAP)
-    if not unreal.EditorAssetLibrary.does_asset_exist(MAP):
-        raise RuntimeError("%s isn't on disk after saving" % MAP)
+    save_fresh_level(MAP, before)
     # Say what the saved level holds for the game's own lookups (tags), so a run's log shows it.
     for a in actors.get_all_level_actors():
         tags = [str(t) for t in a.get_editor_property("tags")]
