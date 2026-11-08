@@ -1,7 +1,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 
 #include "Fit/BikeLayout.h"
-#include "Fit/PartsDb.h"
+#include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedSave.h"
@@ -82,29 +82,8 @@ std::string Std(const FString& S)
 
 FString Ue(const std::string& S) { return FString(UTF8_TO_TCHAR(S.c_str())); }
 
-// Fitting's layout solver (Fit/BikeLayout: BikeRig in the Godot game), loaded once on the
-// catalogue and Data/Fitment/layout.json; null if it won't load.
-const TorqueFit::BikeLayout* FitLayout()
-{
-	static TorqueFit::PartsDb Db;
-	static TorqueFit::BikeLayout Lay;
-	static bool bTried = false, bOk = false;
-	if (!bTried)
-	{
-		bTried = true;
-		FString PartsText, LayoutText;
-		const FString Root = FPaths::ProjectDir();
-		std::string Error;
-		bOk = FFileHelper::LoadFileToString(PartsText, *FPaths::Combine(Root, TEXT("Data/Parts/parts.json"))) &&
-			FFileHelper::LoadFileToString(LayoutText, *FPaths::Combine(Root, TEXT("Data/Fitment/layout.json"))) &&
-			Db.LoadFromText(Std(PartsText), Error) && Lay.Load(Std(LayoutText), Db, Error);
-		if (!bOk)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Torque: the bike layout didn't load (%s): every part bolts on"), *Ue(Error));
-		}
-	}
-	return bOk ? &Lay : nullptr;
-}
+// Fitting's layout solver (Fit/BikeLayout: BikeRig in the Godot game), shared with the drawing.
+const TorqueFit::BikeLayout* FitLayout() { return TorqueShedCatalogue::Layout(); }
 
 // The slots Torque Shed asks the layout about when a part goes on (shed_state install).
 bool IsFitSlot(FName Slot)

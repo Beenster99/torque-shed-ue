@@ -149,6 +149,10 @@ public:
 	TArray<FString> FabOwed(int32 Bay) const;
 	static float FabTime(const FString& What);
 	FString FabOwedText(int32 Bay) const;
+	// The bike's parts as fitting's layout reads them (Godot slot -> catalogue id, "none"); false if
+	// any isn't a catalogue part (a Speed Twin's own), or there's no layout. Such a bike is drawn
+	// from the Blender parts (TorqueShedCatalogue).
+	bool LayoutParts(int32 Bay, TMap<FString, FString>& Out) const;
 	// The bay a fitted item is on (through its engine), or INDEX_NONE.
 	int32 BayOf(int32 ItemId) const;
 
@@ -275,8 +279,7 @@ private:
 	// frame, engine, tank and fork): false when it can't judge (a Speed Twin part on it: those
 	// aren't in the catalogue), else the tier ("bolts on", "fabricate", "won't fit"), why, and the jobs.
 	bool FitTier(int32 Bay, FName Slot, FName Part, FString& OutTier, FString& OutReason, TArray<FString>& OutWork) const;
-	// The bike's parts as the layout reads them; false if any isn't a catalogue part.
-	bool LayoutParts(int32 Bay, TMap<FString, FString>& Out) const;
+
 	int32 NewItem(FName Part, float Rust, float Dirt, float Wear);
 	int32 AgedItem(FName Part, float Age);
 	void Move(int32 Id, ETorqueAt At, int32 Ref, FName Spot = NAME_None);

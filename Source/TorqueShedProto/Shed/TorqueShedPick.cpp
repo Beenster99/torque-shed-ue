@@ -133,6 +133,39 @@ bool ReadGlb(const FString& Path, TArray<FVector>& OutPos, TArray<int32>& OutTri
 // The model's frame (metres, x forward, y up, z right) to bike-local cm, as TorqueShedBike draws it.
 FVector ModelToLocal(const FVector& P) { return FVector(P.X * 100.0, P.Z * 100.0, P.Y * 100.0); }
 
+// Drops triangles (mesh-local cm) into the shape's cells.
+void Fill(FShape& S, const TArray<FVector>& Pos, const TArray<int32>& Tris)
+{
+	FBox Box(ForceInit);
+	for (const FVector& P : Pos) Box += P;
+	if (!Box.IsValid) return;
+	S.Box = Box;
+	S.Cell = FMath::Clamp(Box.GetSize().GetMax() / 48.0, 1.5, 4.0);
+	S.Origin = Box.Min - FVector(S.Cell);
+	// Every triangle, sampled finer than a cell.
+	for (int32 T = 0; T + 2 < Tris.Num(); T += 3)
+	{
+		if (!Pos.IsValidIndex(Tris[T]) || !Pos.IsValidIndex(Tris[T + 1]) || !Pos.IsValidIndex(Tris[T + 2])) continue;
+		const FVector A = Pos[Tris[T]], B = Pos[Tris[T + 1]], C = Pos[Tris[T + 2]];
+		const double Edge = FMath::Max3((B - A).Size(), (C - B).Size(), (A - C).Size());
+		const int32 N = FMath::Clamp(FMath::CeilToInt(Edge / (S.Cell * 0.5)), 1, 200);
+		for (int32 I = 0; I <= N; ++I)
+			for (int32 J = 0; J <= N - I; ++J)
+			{
+				const double U = (double)I / N, V = (double)J / N;
+				S.Mark(A + (B - A) * U + (C - A) * V);
+			}
+	}
+	S.bValid = S.Cells.Num() > 0;
+}
+
+// Shapes of meshes built at run time, by the mesh (gone meshes are dropped as new ones come).
+TMap<TWeakObjectPtr<const UStaticMesh>, TSharedPtr<FShape>>& RuntimeShapes()
+{
+	static TMap<TWeakObjectPtr<const UStaticMesh>, TSharedPtr<FShape>> Shapes;
+	return Shapes;
+}
+
 TSharedPtr<FShape> MakeShape(const UStaticMesh* Mesh)
 {
 	TSharedPtr<FShape> S = MakeShared<FShape>();
@@ -161,23 +194,7 @@ TSharedPtr<FShape> MakeShape(const UStaticMesh* Mesh)
 		UE_LOG(LogTemp, Warning, TEXT("Torque: %s.glb doesn't match its mesh (%.1f cm off): pointing at its box"), *Name, Err);
 		return S;
 	}
-	S->Box = Box;
-	S->Cell = FMath::Clamp(Box.GetSize().GetMax() / 48.0, 1.5, 4.0);
-	S->Origin = Box.Min - FVector(S->Cell);
-	// Every triangle, sampled finer than a cell.
-	for (int32 T = 0; T + 2 < Tris.Num(); T += 3)
-	{
-		const FVector A = Pos[Tris[T]], B = Pos[Tris[T + 1]], C = Pos[Tris[T + 2]];
-		const double Edge = FMath::Max3((B - A).Size(), (C - B).Size(), (A - C).Size());
-		const int32 N = FMath::Clamp(FMath::CeilToInt(Edge / (S->Cell * 0.5)), 1, 200);
-		for (int32 I = 0; I <= N; ++I)
-			for (int32 J = 0; J <= N - I; ++J)
-			{
-				const double U = (double)I / N, V = (double)J / N;
-				S->Mark(A + (B - A) * U + (C - A) * V);
-			}
-	}
-	S->bValid = S->Cells.Num() > 0;
+	Fill(*S, Pos, Tris);
 	return S;
 }
 
@@ -185,6 +202,8 @@ const FShape* ShapeOf(const UStaticMeshComponent* C)
 {
 	const UStaticMesh* Mesh = C ? C->GetStaticMesh() : nullptr;
 	if (!Mesh) return nullptr;
+	if (const TSharedPtr<FShape>* Built = RuntimeShapes().Find(TWeakObjectPtr<const UStaticMesh>(Mesh)))
+		return (*Built)->bValid ? Built->Get() : nullptr;
 	static TMap<FString, TSharedPtr<FShape>> Cache;
 	const FString Key = Mesh->GetPathName();
 	if (const TSharedPtr<FShape>* Found = Cache.Find(Key)) return (*Found)->bValid ? Found->Get() : nullptr;
@@ -199,6 +218,17 @@ namespace TSPI = TorqueShedPickImpl;
 
 namespace TorqueShedPick
 {
+void AddShape(const UStaticMesh* Mesh, const TArray<FVector>& Pos, const TArray<int32>& Tris)
+{
+	if (!Mesh) return;
+	TMap<TWeakObjectPtr<const UStaticMesh>, TSharedPtr<TSPI::FShape>>& Shapes = TSPI::RuntimeShapes();
+	for (auto It = Shapes.CreateIterator(); It; ++It)
+		if (!It->Key.IsValid()) It.RemoveCurrent();
+	TSharedPtr<TSPI::FShape> S = MakeShared<TSPI::FShape>();
+	TSPI::Fill(*S, Pos, Tris);
+	Shapes.Add(TWeakObjectPtr<const UStaticMesh>(Mesh), S);
+}
+
 EHit Trace(const UStaticMeshComponent* C, const FVector& Start, const FVector& End, double& OutTime)
 {
 	const TSPI::FShape* S = TSPI::ShapeOf(C);
