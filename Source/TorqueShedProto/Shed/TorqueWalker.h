@@ -67,6 +67,12 @@ public:
 	int32 SprayColourIndex() const { return SprayColour; }
 	FString SprayFinishText() const;
 	FString CarryingText() const;
+	// For the parts computer's monitor (ATorqueShedScreens): whether this player is at it, the
+	// category (NAME_None: project bikes) and its rows, and the one picked.
+	bool AtComputer() const { return bComputer; }
+	FName ComputerKind() const { return MenuKinds.IsValidIndex(MenuCategory) ? MenuKinds[MenuCategory] : NAME_None; }
+	TArray<FName> ComputerRows() const { return MenuRows(); }
+	int32 ComputerRow() const { return MenuRow; }
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 

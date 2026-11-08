@@ -2,6 +2,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueWalker.h"
 #include "Coop/TorquePlayerState.h"
 #include "CanvasItem.h"
 #include "Components/StaticMeshComponent.h"
@@ -11,6 +12,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
@@ -383,7 +385,7 @@ constexpr double BayScreenX[4] = {-504.0, -232.0, 232.0, 504.0};
 ATorqueShedScreens::ATorqueShedScreens()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.TickInterval = 0.25f;
+	PrimaryActorTick.TickInterval = 0.1f;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
 }
 
@@ -401,6 +403,8 @@ void ATorqueShedScreens::BeginPlay()
 	for (int32 I = 0; I < 4; ++I)
 		Screens.Add({FVector(TSSI::BayScreenX[I], -542.4, 245.0), FVector(0, 1, 0), FVector(1, 0, 0), 248.0f, 134.0f});
 	Screens.Add({FVector(-642.4, 60.0, 255.0), FVector(1, 0, 0), FVector(0, -1, 0), 288.0f, 156.0f});
+	// The parts computer's monitor on the east wall (its glass at x 613.5, over the PARTS label).
+	Screens.Add({FVector(612.6, 190.0, 110.0), FVector(-1, 0, 0), FVector(0, 1, 0), 62.0f, 33.5f});
 	for (int32 I = 0; I < Screens.Num(); ++I)
 	{
 		const FScreen& S = Screens[I];
@@ -449,6 +453,16 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	Clock -= DeltaSeconds;
 	if (bDirty || Clock <= 0.0f) Redraw();
+	else if (UWorld* World = GetWorld())
+	{
+		// Someone here at the parts computer: its monitor follows what they pick.
+		for (TActorIterator<ATorqueWalker> It(World); It; ++It)
+			if (It->IsLocallyControlled() && It->AtComputer())
+			{
+				DrawPage(5, (float)World->GetRealTimeSeconds());
+				break;
+			}
+	}
 }
 
 void ATorqueShedScreens::Redraw()
@@ -458,30 +472,33 @@ void ATorqueShedScreens::Redraw()
 	UWorld* World = GetWorld();
 	if (!World) return;
 	const float Now = (float)World->GetRealTimeSeconds();
-	for (int32 I = 0; I < Pages.Num(); ++I)
+	for (int32 I = 0; I < Pages.Num(); ++I) DrawPage(I, Now);
+}
+
+void ATorqueShedScreens::DrawPage(int32 Index, float Now)
+{
+	UTextureRenderTarget2D* RT = Pages.IsValidIndex(Index) ? Pages[Index] : nullptr;
+	if (!RT) return;
+	UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, TSSI::Bg());
+	UCanvas* C = nullptr;
+	FVector2D Size;
+	FDrawToRenderTargetContext Context;
+	UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, RT, C, Size, Context);
+	if (C)
 	{
-		UTextureRenderTarget2D* RT = Pages[I];
-		if (!RT) continue;
-		UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, TSSI::Bg());
-		UCanvas* C = nullptr;
-		FVector2D Size;
-		FDrawToRenderTargetContext Context;
-		UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, RT, C, Size, Context);
-		if (C)
+		if (Index < 4) DrawBay(C, Index);
+		else if (Index == 5) DrawComputer(C, Now);
+		else
 		{
-			if (I < 4) DrawBay(C, I);
-			else
-			{
-				// The crew board: the crew, then each how-to page in turn.
-				const int32 N = TSSI::HowTo().Num();
-				const float Cycle = TSSI::CrewPageTime + N * TSSI::HowToPageTime;
-				const float T = FMath::Fmod(Now, Cycle);
-				if (T < TSSI::CrewPageTime) DrawCrew(C);
-				else DrawHowTo(C, FMath::Clamp(int32((T - TSSI::CrewPageTime) / TSSI::HowToPageTime), 0, N - 1));
-			}
+			// The crew board: the crew, then each how-to page in turn.
+			const int32 N = TSSI::HowTo().Num();
+			const float Cycle = TSSI::CrewPageTime + N * TSSI::HowToPageTime;
+			const float T = FMath::Fmod(Now, Cycle);
+			if (T < TSSI::CrewPageTime) DrawCrew(C);
+			else DrawHowTo(C, FMath::Clamp(int32((T - TSSI::CrewPageTime) / TSSI::HowToPageTime), 0, N - 1));
 		}
-		UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
 	}
+	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
 }
 
 void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
@@ -691,4 +708,114 @@ void ATorqueShedScreens::DrawHowTo(UCanvas* C, int32 Page) const
 	// A dot for each page, the one showing lit.
 	for (int32 I = 0; I < All.Num(); ++I)
 		Pen.Rect(W * 0.5f - All.Num() * 12.0f + I * 24.0f, H - 28, 12, 12, I == Page ? Amber() : Dim());
+}
+
+void ATorqueShedScreens::DrawComputer(UCanvas* C, float Now) const
+{
+	using namespace TSSI;
+	FPen Pen;
+	Pen.C = C;
+	Pen.Font = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (!Pen.Font) return;
+	float FW = 0.0f, FH = 0.0f;
+	C->StrLen(Pen.Font, TEXT("Hg"), FW, FH);
+	Pen.LineH = FH;
+	const float W = (float)PageW, H = (float)PageH;
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	// The kinds, as the walker lists them: project bikes first, then every kind with parts and a slot.
+	TArray<FName> Kinds;
+	Kinds.Add(NAME_None);
+	for (const FName& K : TorqueShedParts::Kinds())
+		if (TorqueShedParts::PartsOfKind(K).Num() > 0 && TorqueShedParts::SlotsForKind(K).Num() > 0) Kinds.Add(K);
+	// Whoever's at it here, or the shop turning over on its own (a kind every 6 s, a part every 2 s).
+	const ATorqueWalker* User = nullptr;
+	for (TActorIterator<ATorqueWalker> It(GetWorld()); It; ++It)
+		if (It->IsLocallyControlled() && It->AtComputer()) { User = *It; break; }
+	FName Kind;
+	TArray<FName> Rows;
+	int32 Pick = 0;
+	if (User)
+	{
+		Kind = User->ComputerKind();
+		Rows = User->ComputerRows();
+		Pick = User->ComputerRow();
+	}
+	else
+	{
+		const int32 Turn = int32(Now / 6.0f);
+		Kind = Kinds[Turn % Kinds.Num()];
+		if (Kind.IsNone()) Rows.Add(FName(TEXT("bike")));
+		else Rows = TorqueShedParts::PartsOfKind(Kind);
+		Pick = Rows.Num() > 0 ? int32(Now / 2.0f) % Rows.Num() : 0;
+	}
+	auto KindTitle = [](FName K) { return K.IsNone() ? FString(TEXT("Project bikes")) : TorqueShedParts::KindName(K); };
+	auto RowTitle = [](FName R) { return R == FName(TEXT("bike")) ? FString(TEXT("Triumph Speed Twin 1200 project")) : TorqueShedParts::PartName(R); };
+
+	Pen.Rect(0, 0, W, 70, Orange());
+	Pen.Text(24, 50, TEXT("PARTS COMPUTER"), 40, Ink());
+	Pen.Text(560, 56, User ? FString(TEXT("ORDERING")) : FString(TEXT("F AT THE DESK TO ORDER")), 22, Ink(), W - 584.0f, 1);
+	// Left: the kinds, the one showing lit (as many as fit round it).
+	const int32 KindRows = 11;
+	int32 KindAt = FMath::Max(0, Kinds.IndexOfByKey(Kind));
+	const int32 KFrom = FMath::Clamp(KindAt - KindRows / 2, 0, FMath::Max(0, Kinds.Num() - KindRows));
+	for (int32 I = KFrom; I < Kinds.Num() && I < KFrom + KindRows; ++I)
+	{
+		const float Y = 104.0f + (I - KFrom) * 38.0f;
+		const bool bOn = I == KindAt;
+		if (bOn) Pen.Rect(12, Y - 26, 236, 36, Srgb(1.0f, 0.62f, 0.2f, 0.25f));
+		Pen.Text(24, Y, Left(KindTitle(Kinds[I]), 18), 22, bOn ? FLinearColor::White : Dim());
+	}
+	// Middle: the parts of that kind, the picked one lit.
+	const int32 PartRows = 11;
+	const int32 PFrom = FMath::Clamp(Pick - PartRows / 2, 0, FMath::Max(0, Rows.Num() - PartRows));
+	Pen.Text(272, 104, KindTitle(Kind).ToUpper(), 20, Amber());
+	for (int32 I = PFrom; I < Rows.Num() && I < PFrom + PartRows; ++I)
+	{
+		const float Y = 142.0f + (I - PFrom) * 38.0f;
+		const bool bOn = I == Pick;
+		Pen.Rect(264, Y - 26, 420, 36, bOn ? Srgb(1.0f, 0.62f, 0.2f, 0.3f) : Panel());
+		Pen.Text(276, Y, Left(RowTitle(Rows[I]), 30), 22, bOn ? FLinearColor::White : Srgb(1.0f, 1.0f, 1.0f, 0.75f));
+	}
+	if (Rows.Num() > PFrom + PartRows) Pen.Text(276, 142.0f + PartRows * 38.0f, FString::Printf(TEXT("and %d more"), Rows.Num() - PFrom - PartRows), 16, Dim());
+	// Right: the picked part, what it is and where it goes.
+	if (Rows.IsValidIndex(Pick))
+	{
+		const FName R = Rows[Pick];
+		float Y = 104.0f;
+		for (const FString& L : Wrap(RowTitle(R), 22))
+		{
+			Pen.Text(704, Y, L, 26, FLinearColor::White);
+			Y += 32.0f;
+		}
+		Y += 8.0f;
+		const FString Desc = R == FName(TEXT("bike")) ? FString(TEXT("Tired, rusty and complete: strip it, restore every part and build it back up."))
+			: TorqueShedParts::PartDescription(R);
+		for (const FString& L : Wrap(Desc, 30))
+		{
+			if (Y > H - 130.0f) break;
+			Pen.Text(704, Y, L, 18, Srgb(1.0f, 1.0f, 1.0f, 0.75f));
+			Y += 24.0f;
+		}
+		if (R != FName(TEXT("bike")))
+		{
+			FString Slots;
+			for (const FName& S : TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R)))
+				Slots += (Slots.IsEmpty() ? TEXT("") : TEXT(", ")) + TorqueShedParts::SlotName(S).ToLower();
+			if (!Slots.IsEmpty())
+			{
+				Y += 10.0f;
+				Pen.Text(704, Y, Left(TEXT("Fits: ") + Slots, 34), 16, Amber());
+			}
+		}
+		Pen.Text(704, H - 90, User ? FString(TEXT("Left mouse: order it")) : FString(TEXT("Delivered outside the roller door")), 18, Good());
+	}
+	// How many boxes are waiting to be unpacked.
+	int32 Boxes = 0;
+	if (B)
+		for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+			if (KV.Value.bBoxed) ++Boxes;
+	Pen.Rect(0, H - 50, W, 50, Panel());
+	Pen.Text(24, H - 17, Boxes == 0 ? FString(TEXT("No deliveries waiting")) : FString::Printf(TEXT("%d %s waiting to be unpacked"), Boxes, Boxes == 1 ? TEXT("box") : TEXT("boxes")),
+		18, Boxes == 0 ? Dim() : Amber());
+	Pen.Text(560, H - 17, User ? FString(TEXT("W / S choose   Q / E kind   F done")) : FString(), 16, Dim(), W - 584.0f, 1);
 }

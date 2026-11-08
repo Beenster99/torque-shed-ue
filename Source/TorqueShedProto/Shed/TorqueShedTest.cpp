@@ -23,7 +23,7 @@ namespace TorqueShedTestImpl
 // Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the spray can, the
 // wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
 const TCHAR* const LoopSteps =
-	TEXT("bay:1,log,look:bike,shot,look:bench,shot,look:computer,shot,")
+	TEXT("bay:1,log,look:bike,shot,look:screen,shot,look:board,shot,look:bench,shot,look:computer,shot,look:monitor,shot,")
 	TEXT("tool:wrench,part:exhaust,act,")                    // unbolt the exhaust
 	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
 	TEXT("place:repair_0,act,")                              // onto the repair bench
@@ -51,7 +51,7 @@ const TCHAR* const FabSteps =
 	TEXT("order:usd_sport,item:usd_sport,f,item:usd_sport,act,")
 	TEXT("part:frame,act,log,look:bike,shot,")
 	TEXT("tool:repair,fabricate,log,")
-	TEXT("tool:wrench,part:fork,act,log,look:bike,shot,")   // the fork goes on loose: bolt it up
+	TEXT("tool:wrench,part:fork,act,log,look:bike,shot,look:screen,shot,")   // the fork goes on loose: bolt it up
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
@@ -469,9 +469,19 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
 			Distance = 300.0;
 		}
+		else if (What == TEXT("screen"))
+		{
+			// The bay's screen on the back wall, whole (ATorqueShedScreens), from the middle of the shed.
+			const double ScreenX[4] = {-504.0, -232.0, 232.0, 504.0};
+			At = FVector(ScreenX[FMath::Clamp(TestBay, 0, 3)], -543.0, 245.0);
+			Away = FVector(0.0, 1.0, 0.0);
+			Distance = 260.0;
+		}
+		else if (What == TEXT("board")) { At = FVector(-643.0, 60.0, 255.0); Away = FVector(1.0, 0.0, 0.0); Distance = 300.0; }
+		else if (What == TEXT("monitor")) { At = FVector(613.5, 190.0, 110.0); Away = FVector(-1.0, 0.0, 0.0); Distance = 110.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, deliveries, washbay, or a place name")); return true; }
 		Said(TEXT("looking at ") + W->TestLookAt(At, Away, Distance));
 		return true;
 	}
