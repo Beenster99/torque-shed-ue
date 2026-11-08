@@ -10,6 +10,8 @@ public class TorqueShedProto : ModuleRules
 		bUseUnity = false;
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json", "RenderCore", "RHI" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
+		// Shed/ and other subfolders include each other as "Shed/X.h" from the module root.
+		PrivateIncludePaths.Add(ModuleDirectory);
 		// SonyPad reads PlayStation pads through Windows HID.
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });

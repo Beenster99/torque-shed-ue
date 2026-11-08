@@ -1,3 +1,4 @@
+#include "Shed/TorqueFitStub.h"
 #include "Shed/TorqueFitApi.h"
 
 #if TORQUE_FIT_STUB

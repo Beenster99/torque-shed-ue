@@ -7,6 +7,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Shed/TorqueFitApi.h"   // defines TORQUE_FIT_STUB (and, with #pragma once, comes back here)
 
 #if TORQUE_FIT_STUB
 
