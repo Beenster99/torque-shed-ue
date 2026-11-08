@@ -1638,6 +1638,577 @@ std::vector<BikeParts::Intake> BikeParts::Intakes(const PartsMap& Parts, const L
 	return Points;
 }
 
+void BikeParts::TailUnit(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* P = Lay.Part(PartIn(Parts, "tail"));
+	if (!P) return;
+	const Json* Look = P->Get("look");
+	const std::string Style = P->Str("style", "classic");
+	const BuildStats& St = L.Stats;
+	const V3 Tail = ToGodot(L.Tail);
+	const V3 Axle(0.0, 0.0, St.Wheelbase * 0.5);
+	const double R = St.RearRadius, W = St.RearTyreWidth + 0.05;
+	V3 Lamp = Tail;
+	if (const Json* At = P->Get("light_at"); At && At->A.size() == 2) Lamp = Tail + V3(0.0, At->A[0].N, At->A[1].N);
+	else Lamp = Tail + V3(0.0, 0.0, 0.25);
+	const std::string Section = Style == "classic" ? "valanced" : Style == "enduro" ? "plastic" : "steel";
+	const std::string Guard = "guard/" + Section + ".glb";
+	constexpr double GuardGap = 0.015;
+	constexpr int TipRows = 6;
+	auto TipLength = [](double Width) { return TorqueSim::Clamp(Width * 0.4, 0.035, 0.08); };
+	// (_rear_guard_r: the guard stands off the tyre at full bump, so further out over the top.)
+	auto GuardR = [&](double A, double Radius) {
+		const double T = St.RearTravel, Need = St.RearRadius + GuardGap, Sa = T * std::sin(A);
+		return std::max(Radius, T * std::cos(A) + std::sqrt(std::max(Need * Need - Sa * Sa, 0.0)));
+	};
+	auto GuardAt = [&](double A, double Radius) { return Axle + V3(0.0, std::cos(A), std::sin(A)) * GuardR(A, Radius); };
+	auto InSeat = [&](const V3& At) { return At.y > Tail.y - 0.02 && At.z < Tail.z + 0.04; };
+	// (_rear_arc: plates round the wheel, those that would run up into the seat left out, both
+	// ends rounded off unless that would.)
+	auto RearArc = [&](double Radius, double Width, double A0, double A1, int Segs) {
+		const double Step = (A1 - A0) / Segs;
+		double First = 1e9, Last = -1e9;
+		bool Any = false;
+		for (int I = 0; I < Segs; ++I)
+		{
+			const double A = A0 + Step * (I + 0.5);
+			if (GuardR(A, Radius) > Radius + 0.002 && InSeat(GuardAt(A, Radius))) continue;
+			std::vector<V3> Pts, Ups;
+			for (int K = 0; K < 3; ++K)
+			{
+				Pts.push_back(GuardAt(A + Step * (K - 1) * 0.5, Radius));
+				Ups.push_back((Pts.back() - Axle).Normalized());
+			}
+			SectionAlong(Out, "tail", Guard, Pts, Ups, Width, false, "");
+			First = std::min(First, A - Step * 0.5);
+			Last = std::max(Last, A + Step * 0.5);
+			Any = true;
+		}
+		if (!Any) return;
+		const double Reach = TipLength(Width) / Radius;
+		for (const auto& [End, Way] : {std::make_pair(First, -1.0), std::make_pair(Last, 1.0)})
+		{
+			std::vector<V3> Path, Ups;
+			for (int I = 0; I < TipRows; ++I)
+			{
+				Path.push_back(GuardAt(End + Way * Reach * I / (TipRows - 1.0), Radius));
+				Ups.push_back((Path.back() - Axle).Normalized());
+			}
+			if (InSeat(Path.back())) continue;
+			GuardTip(Out, "tail", Section, Path, Ups, Width, "");
+		}
+	};
+	// A flat piece of the guard (a tray or a blade, as _box or _plank makes it: centre, basis and
+	// size), and how deep the tyre at full bump runs into it (_tyre_depth on its _obb).
+	struct Piece { V3 C; GAffine B; V3 Size; bool Valid = true; };
+	const Json* Tyre = Lay.Part(PartIn(Parts, "rear_tyre"));
+	const std::string TyreStyle = PartStr(Tyre, "style", "road");
+	auto TyreDepth = [&](const Piece& Pc) {
+		const V3 BumpAxle(0.0, St.RearTravel, St.Wheelbase * 0.5);
+		const double Half = St.RearTyreWidth * 0.5;
+		const double Bulge = St.RearRimRadius + (R - St.RearRimRadius) * 0.4;
+		const double Pw = TyreStyle == "slick" || TyreStyle == "road" ? 2.0 : 2.8;
+		const V3 Ax = Pc.B.X * (Pc.Size.x * 0.5), Ay = Pc.B.Y * (Pc.Size.y * 0.5), Az = Pc.B.Z * (Pc.Size.z * 0.5);
+		double Worst = -1e18;
+		for (int I = 0; I < 5; ++I)
+			for (int J = 0; J < 5; ++J)
+				for (double K : {-1.0, 1.0})
+				{
+					const V3 At = Pc.C + Ax * (I * 0.5 - 1.0) + Ay * K + Az * (J * 0.5 - 1.0);
+					const double X = std::fabs(At.x) / Half;
+					if (X >= 1.0) continue;
+					const double Crown = Bulge + (R - Bulge) * std::pow(1.0 - std::pow(X, Pw), 1.0 / Pw);
+					const double Dy = At.y - BumpAxle.y, Dz = At.z - BumpAxle.z;
+					Worst = std::max(Worst, Crown - std::sqrt(Dy * Dy + Dz * Dz));
+				}
+		return Worst;
+	};
+	// (_lift_clear_of_tyre: up until the tyre at full bump is clear; one that ends up in the seat
+	// is left out.)
+	auto LiftClear = [&](Piece& Pc) {
+		const double Start = Pc.C.y;
+		for (int I = 0; I < 40; ++I)
+		{
+			const double D = TyreDepth(Pc);
+			if (D <= 0.0) break;
+			Pc.C.y += D + 0.003;
+		}
+		if (Pc.C.y > Start + 0.002 && InSeat(Pc.C + V3(0.0, -0.02, 0.0))) Pc.Valid = false;
+	};
+	// (_plank: a blade from A to B, turned about X to lie along it.)
+	auto PlankOf = [](const V3& A, const V3& B, double Width, double Thick) {
+		const V3 D = B - A;
+		return Piece{(A + B) * 0.5, GAffine::Rotation(GodotRight, std::atan2(-D.y, D.z)), V3(Width, Thick, D.Length())};
+	};
+	if (Style == "cafe") RearArc(R + 0.03, W, -0.25, 0.75, 5);
+	else if (Style == "loop") RearArc(R + 0.04, W, -0.3, 0.8, 5);
+	else if (Style == "bobber") RearArc(R + 0.035, W, -0.55, 1.05, 6);
+	else if (Style == "tidy")
+	{
+		Piece Tray{Tail + V3(0.0, -0.05, 0.1), GAffine::Rotation(GodotRight, -0.15), V3(0.18, 0.025, 0.28)};
+		LiftClear(Tray);
+		if (Tray.Valid) Put(Out, "tail", "tail/tidy_tray.glb", AtWith(Tray.B, Tray.C), "");
+		Put(Out, "tail", "tail/lamp_bracket.glb", GAffine::At(Lamp - V3(0.0, 0.0, 0.012)), "");
+	}
+	else if (Style == "enduro")
+	{
+		const V3 A = Tail + V3(0.0, -0.05, -0.12);
+		const V3 C = Tail + V3(0.0, 0.06, 0.34);
+		const V3 B = MixV(A, C, 0.4);
+		Piece Planks[2] = {PlankOf(A, B, W + 0.02, 0.012), PlankOf(B, C, W, 0.012)};
+		const double Was[2] = {Planks[0].C.y, Planks[1].C.y};
+		for (Piece& Pl : Planks) LiftClear(Pl);
+		if (Planks[0].Valid && Planks[1].Valid)
+		{
+			const double Up = std::max(Planks[0].C.y - Was[0], Planks[1].C.y - Was[1]);
+			for (int I = 0; I < 2; ++I) Planks[I].C.y = Was[I] + Up;
+			Lamp = MixV(C, B, 0.3) + V3(0.0, Up - 0.035, 0.0);
+		}
+		// (_plank_tip at the far end, then each blade bent from the section: _guard_blade.)
+		if (Planks[1].Valid)
+		{
+			const GAffine& Bs = Planks[1].B;
+			const V3 Dir = Bs.Z.Normalized();
+			const V3 Start = Planks[1].C + Dir * (Planks[1].Size.z * 0.5);
+			const double Reach = TipLength(Planks[1].Size.x);
+			std::vector<V3> Path, Ups;
+			for (int I = 0; I < TipRows; ++I)
+			{
+				Path.push_back(Start + Dir * (Reach * I / (TipRows - 1.0)));
+				Ups.push_back(Bs.Y.Normalized());
+			}
+			GuardTip(Out, "tail", Section, Path, Ups, Planks[1].Size.x, "");
+		}
+		for (const Piece& Pl : Planks)
+		{
+			if (!Pl.Valid) continue;
+			std::vector<V3> Pts, Ups;
+			for (int K = 0; K < 3; ++K)
+			{
+				Pts.push_back(Pl.C + Pl.B.Z * (Pl.Size.z * (K - 1) * 0.5));
+				Ups.push_back(Pl.B.Y.Normalized());
+			}
+			SectionAlong(Out, "tail", Guard, Pts, Ups, Pl.Size.x, false, "");
+		}
+	}
+	else
+		RearArc(R + 0.05, W + 0.02, -0.45, 1.75, 10);
+	// The rear light (_blender_tail_light), at the lamp.
+	static const char* Lamps[] = {"tombstone", "cateye", "twin", "halo", "lucas", "strip", "bullet", "led"};
+	const std::string Kind = PartStr(Look, "lamp", P->Str("light", "round"));
+	const bool Known = std::find_if(std::begin(Lamps), std::end(Lamps), [&](const char* K) { return Kind == K; }) != std::end(Lamps);
+	Put(Out, "tail", "tail_light/" + (Known ? Kind : std::string("round")) + ".glb", GAffine::At(Lamp), "");
+}
+
+void BikeParts::Stands(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	// (Drawn as Godot draws them with no stand_pose: folded, as on the ride and in the shed.)
+	const std::string Tube = "frame/tube/round.glb";
+	const V3 Pv = ToGodot(L.Pivot);
+	if (const Json* P = Lay.Part(PartIn(Parts, "side_stand")))
+	{
+		const V3 Pivot(-0.12, -0.04, Pv.z - 0.16);
+		const V3 Foot = Pivot + V3(-0.03, -0.04, P->Num("length", 0.3) * 0.95);
+		Sweep(Out, "side_stand", Tube, {Pivot, Foot}, {0.012}, "");
+		if (Put(Out, "side_stand", "stand/foot.glb", GAffine::At(Foot), ""))
+			Put(Out, "side_stand", "stand/pivot.glb", GAffine::At(Pivot), "");
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "centre_stand")))
+	{
+		const double Z = Pv.z - 0.08;
+		const double Reach = L.Stats.RearRadius - 0.06 + P->Num("lift", 0.04);
+		for (double Side : {-1.0, 1.0})
+		{
+			const V3 Top(0.1 * Side, -0.06, Z);
+			const V3 Foot = Top + V3(0.0, -0.08, Reach * 0.9);
+			Sweep(Out, "centre_stand", Tube, {Top, Foot}, {0.013}, "");
+			Put(Out, "centre_stand", "stand/foot.glb", AtWith(GAffine::Scale(V3(1.0, 1.0, 0.06 / 0.07)), Foot), "");
+		}
+		const double BarZ = Z + Reach * 0.9, BarY = -0.14;
+		Sweep(Out, "centre_stand", Tube, {V3(-0.1, BarY + 0.04, BarZ), V3(0.1, BarY + 0.04, BarZ)}, {0.01}, "");
+		Sweep(Out, "centre_stand", Tube, {V3(-0.1, BarY + 0.04, BarZ), V3(-0.2, BarY + 0.08, BarZ + 0.05)}, {0.01}, "");
+	}
+}
+
+void BikeParts::Rearsets(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* P = Lay.Part(PartIn(Parts, "rearsets"));
+	if (!P) return;
+	const std::string Style = P->Str("style", "road");
+	const std::string Tube = "frame/tube/round.glb";
+	const V3 Pg = ToGodot(L.Peg), Pv = ToGodot(L.Pivot);
+	constexpr double HangerT = 0.012;   // (BlenderParts.HANGER_T)
+	auto TubeAB = [&](const V3& A, const V3& B, double R) { Sweep(Out, "rearsets", Tube, {A, B}, {R}, ""); };
+	for (double Side : {-1.0, 1.0})
+	{
+		const V3 Peg(Pg.x * Side, Pg.y, Pg.z);
+		const V3 Root(0.1 * Side, Pv.y - 0.02, Pv.z - 0.03);
+		const GAffine Mirror = GAffine::Scale(V3(Side, 1.0, 1.0));
+		auto Plate = [&](const V3& At, const V3& Size) {
+			Put(Out, "rearsets", "controls/hanger.glb", AtWith(GAffine::Scale(V3(Side * Size.x / HangerT, Size.y, Size.z)), At), "");
+		};
+		if (Style == "forward")
+		{
+			TubeAB(V3(0.08 * Side, Pg.y + 0.02, Pg.z + 0.08), Peg, 0.012);
+			Put(Out, "rearsets", "frame/footpeg.glb", AtWith(Mirror * GAffine::Scale(V3(0.9, 1.45, 1.45)), Peg + V3(0.005 * Side, 0.0, 0.0)), "");
+			TubeAB(Peg + V3(-0.02 * Side, 0.0, -0.02), Peg + V3(-0.02 * Side, 0.08, -0.08), 0.008);
+		}
+		else if (Style == "boards")
+		{
+			TubeAB(V3(0.08 * Side, Pg.y + 0.01, Pg.z), V3(0.14 * Side, Pg.y, Pg.z), 0.01);
+			Put(Out, "rearsets", "controls/floorboard.glb", AtWith(Mirror, V3(0.2 * Side, Pg.y, Pg.z)), "");
+		}
+		else if (Style == "rearset")
+		{
+			Plate((Peg + Root) * 0.5 + V3(0.015 * Side, 0.0, 0.0), V3(0.01, std::fabs(Peg.y - Root.y) + 0.07, std::fabs(Peg.z - Root.z) + 0.07));
+			Put(Out, "rearsets", "controls/peg_alloy.glb", AtWith(Mirror, Peg), "");
+			TubeAB(Peg + V3(0.0, -0.01, 0.0), Peg + V3(-0.005 * Side, -0.02, -0.13), 0.006);
+		}
+		else if (Style == "cleat")
+		{
+			Plate((Peg + Root) * 0.5, V3(0.012, std::fabs(Peg.y - Root.y) + 0.06, 0.06));
+			Put(Out, "rearsets", "controls/cleat.glb", AtWith(Mirror, Peg), "");
+			TubeAB(Peg + V3(-0.03 * Side, -0.01, 0.0), Peg + V3(-0.03 * Side, -0.02, -0.14), 0.007);
+		}
+		else
+		{
+			if (std::fabs(Peg.y - Root.y) > 0.04 || std::fabs(Peg.z - Root.z) > 0.06)
+				Plate((Peg + Root) * 0.5, V3(0.012, std::fabs(Peg.y - Root.y) + 0.06, 0.06));
+			Put(Out, "rearsets", "frame/footpeg.glb", AtWith(Mirror, Peg + V3(0.01 * Side, 0.0, 0.0)), "");
+			TubeAB(Peg + V3(-0.03 * Side, 0.0, 0.0), Peg + V3(-0.03 * Side, -0.03, -0.15), 0.007);
+		}
+	}
+}
+
+void BikeParts::HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	if (const Json* P = Lay.Part(PartIn(Parts, "horn")))
+	{
+		const V3 At = ToGodot(L.HeadBottom) + V3(0.0, -0.1, 0.07);
+		const std::string Style = P->Str("style", "disc");
+		auto Horn = [&](const std::string& Glb, const GAffine& Xf) { Put(Out, "horn", "horn/" + Glb + ".glb", Xf, ""); };
+		if (Style == "snail")
+			for (double X : {-0.045, 0.045}) Horn("snail", GAffine::At(At + V3(X, 0.0, 0.0)));
+		else if (Style == "air")
+		{
+			const Json* Tones = P->Get("tones");
+			const int N = Tones ? static_cast<int>(Tones->A.size()) : 2;
+			for (int I = 0; I < N; ++I)
+			{
+				const double Len = 0.12 + 0.03 * I;
+				Horn("trumpet", AtWith(GAffine::Scale(V3(1.0, 1.0, Len)), At + V3((I - (N - 1) * 0.5) * 0.04, 0.0, -0.1 * Len)));
+			}
+			Horn("compressor", GAffine::At(At + V3(0.0, -0.03, 0.04)));
+		}
+		else if (Style == "melody")
+			for (int I = 0; I < 5; ++I)
+			{
+				const double Len = 0.08 + 0.02 * I;
+				Horn("trumpet", AtWith(GAffine::Scale(V3(0.022 / 0.03, 0.022 / 0.03, Len)), At + V3((I - 2) * 0.026, 0.0, -0.03 + 0.2 * Len)));
+			}
+		else if (Style == "klaxon" || Style == "bulb") Horn(Style, GAffine::At(At));
+		else Horn("disc", GAffine::At(At));
+	}
+	if (Lay.Part(PartIn(Parts, "ecu")))
+	{
+		const V3 SeatFront = ToGodot(L.SeatFront), Tail = ToGodot(L.Tail);
+		const V3 At(0.12, L.Stats.SeatHeight - L.Stats.RearRadius - 0.17, TorqueSim::Lerp(SeatFront.z, Tail.z, 0.3));
+		Put(Out, "ecu", "ecu/box.glb", GAffine::At(At), "");
+	}
+}
+
+void BikeParts::SidePanels(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const Json* P = Lay.Part(PartIn(Parts, "side_panels"));
+	if (!P) return;
+	const std::string Style = P->Str("style", "triangle");
+	const std::string Path = "side_panels/" + Style + ".glb";
+	const double PivotY = ToGodot(L.Pivot).y, PivotZ = ToGodot(L.Pivot).z;
+	const double SeatY = L.Stats.SeatHeight - L.Stats.RearRadius;
+	const V3 C(0.0, TorqueSim::Lerp(PivotY, SeatY, 0.55), PivotZ + 0.07);
+	const double H = TorqueSim::Clamp((SeatY - PivotY) * 0.62, 0.1, 0.24);
+	const double K = H / 0.2;
+	for (double Side : {-1.0, 1.0})
+		Put(Out, "side_panels", Path, AtWith(GAffine::Scale(V3(Side, K, Style == "chrome" || Style == "oval" ? K : 1.0)), C + V3(0.115 * Side, 0.0, 0.0)), "");
+}
+
+void BikeParts::Guards(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const
+{
+	const std::string Tube = "frame/tube/round.glb";
+	const V3 H = ToGodot(L.Head), Hb = ToGodot(L.HeadBottom), E = ToGodot(L.Crank);
+	const V3 Pv = ToGodot(L.Pivot), Pg = ToGodot(L.Peg), SeatFront = ToGodot(L.SeatFront), Tail = ToGodot(L.Tail);
+	const double S = L.Hard.Scale;
+	const double SeatY = L.Stats.SeatHeight - L.Stats.RearRadius;
+	auto Line = [&](const std::string& Slot, const std::vector<V3>& Pts, double R, bool Steer = false) {
+		std::vector<V3> Route = Pts;
+		if (Steer) for (V3& P : Route) P += H;
+		Sweep(Out, Slot, Tube, Route, {R}, Steer ? "steer" : "");
+	};
+	if (const Json* P = Lay.Part(PartIn(Parts, "guards")))
+	{
+		const std::string Style = P->Str("style", "bars");
+		const bool Shiny = Style == "bars" || Style == "wrap";
+		double OutX = L.Hard.CaseHalfW + 0.07;
+		if (PartStr(Lay.Part(PartIn(Parts, "engine")), "layout", "parallel") == "boxer") OutX = std::max(OutX, 0.36 * S + 0.06);
+		const double Bottom = E.y - 0.13 * S, Nose = E.z - 0.17 * S;
+		if (Style == "bars" || Style == "cage")
+		{
+			for (double Sd : {-1.0, 1.0})
+			{
+				Line("guards", {Hb + V3(0.05 * Sd, -0.06, 0.04), V3(OutX * 0.8 * Sd, E.y + 0.12 * S, Nose - 0.04), V3(OutX * Sd, E.y, Nose + 0.02),
+					V3(OutX * 0.85 * Sd, Bottom + 0.02, Nose + 0.08), V3(0.08 * Sd, Bottom - 0.03, Nose + 0.14)}, Shiny ? 0.013 : 0.015);
+				if (Style == "cage")
+				{
+					Line("guards", {Hb + V3(0.05 * Sd, 0.0, 0.03), H + V3(0.2 * Sd, -0.16, 0.22), SeatFront + V3(0.18 * Sd, -0.12, -0.12), SeatFront + V3(0.1 * Sd, -0.16, 0.0)}, 0.014);
+					Line("guards", {V3(OutX * Sd, E.y, Nose + 0.02), H + V3(0.2 * Sd, -0.16, 0.22)}, 0.012);
+				}
+			}
+			if (Style == "cage") Line("guards", {V3(-0.08, Bottom - 0.03, Nose + 0.14), V3(0.08, Bottom - 0.03, Nose + 0.14)}, 0.013);
+		}
+		else if (Style == "wrap")
+		{
+			for (double Sd : {-1.0, 1.0})
+				Line("guards", {Hb + V3(0.05 * Sd, -0.05, 0.04), V3(OutX * 0.85 * Sd, E.y + 0.14 * S, Nose - 0.06), V3(OutX * Sd, E.y + 0.02, Nose - 0.03),
+					V3(OutX * 0.95 * Sd, Bottom + 0.01, Nose + 0.06), V3(OutX * 0.8 * Sd, Bottom - 0.02, E.z + 0.08), V3(0.12 * Sd, Pg.y + 0.05, Pg.z - 0.08)}, 0.014);
+			Line("guards", {V3(-OutX * 0.97, E.y + 0.06, Nose - 0.04), V3(0.0, E.y + 0.07, Nose - 0.07), V3(OutX * 0.97, E.y + 0.06, Nose - 0.04)}, 0.011);
+		}
+		else if (Style == "plate" || Style == "skid")
+		{
+			constexpr double PlateLen = 0.42;   // (GUARD_PLATE_LEN)
+			const double Length = 0.34 * S + 0.08;
+			Put(Out, "guards", "guards/" + Style + ".glb",
+				AtWith(GAffine::Rotation(GodotRight, -0.05) * GAffine::Scale(V3(1.0, 1.0, Length / PlateLen)), V3(0.0, Bottom - 0.035, E.z + 0.02)), "");
+		}
+		else
+			for (double Sd : {-1.0, 1.0})
+				for (const V3& At : {V3(OutX * 0.8 * Sd, E.y + 0.1 * S, Nose + 0.06), V3(0.11 * Sd, Pv.y + 0.06, Pv.z - 0.04)})
+					Put(Out, "guards", "guards/bung.glb", AtWith(GAffine::Rotation(GodotUp, Sd > 0.0 ? 0.0 : TorqueSim::Pi), At + V3(0.012 * Sd, 0.0, 0.0)), "");
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "number_boards")))
+	{
+		const std::string Style = P->Str("style", "mx");
+		auto Board = [&](const std::string& Kind, const GAffine& Xf, bool Steer) {
+			GAffine X = Xf;
+			if (Steer) X.O += H;
+			Put(Out, "number_boards", "number_board/" + Kind + ".glb", X, Steer ? "steer" : "");
+		};
+		const V3 SideAt(0.0, SeatY - 0.1, TorqueSim::Lerp(SeatFront.z, Tail.z, 0.62));
+		if (Style == "oval")
+			Board("oval", AtWith(GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5 + 0.15) * GAffine::Scale(V3(1.25, 1.0, 1.0)), V3(0.0, -0.02, -0.2)), true);
+		else if (Style == "mx" || Style == "front")
+			Board("plate", AtWith(GAffine::Rotation(GodotRight, 0.22), V3(0.0, -0.05, -0.2)), true);
+		const V3 Back(0.0, 0.0, 1.0);
+		if (Style == "mx" || Style == "tracker")
+			for (double Sd : {-1.0, 1.0})
+			{
+				const V3 Spot = SideAt + V3(0.14 * Sd, 0.0, 0.0);
+				if (Style == "tracker")
+					Board("oval", AtWith(GAffine::Rotation(Back, TorqueSim::Pi * 0.5 * Sd) * GAffine::Scale(V3(1.2, 1.25, 1.68)), Spot), false);
+				else
+					Board("plate", AtWith(GAffine::Rotation(GodotRight, -0.12) * GAffine::Rotation(GodotUp, TorqueSim::Pi * 0.5) * GAffine::Scale(V3(0.27 / 0.22, 0.19 / 0.21, 1.0)), Spot), false);
+			}
+		else if (Style == "shrouds")
+			for (double Sd : {-1.0, 1.0})
+			{
+				const GAffine Wing = GAffine::Rotation(GodotUp, -0.3 * Sd) * GAffine::Rotation(GodotRight, 0.35);
+				Board("plate", AtWith(Wing * GAffine::Rotation(GodotUp, TorqueSim::Pi * 0.5) * GAffine::Scale(V3(0.24 / 0.22, 0.2 / 0.21, 1.25)), H + V3(0.16 * Sd, -0.2, 0.2)), false);
+			}
+		else if (Style == "oval")
+			Board("oval", AtWith(GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5 - 0.25) * GAffine::Scale(V3(1.25, 1.0, 1.0)) * GAffine::Scale(V3(0.8, 1.0, 0.8)), Tail + V3(0.0, 0.06, 0.2)), false);
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "steering_damper")))
+	{
+		const std::string Style = P->Str("style", "linear");
+		if (Style == "linear")
+		{
+			const V3 Back = Hb + V3(0.14, -0.025, 0.25), Front = Hb + V3(0.14, -0.02, 0.1);
+			Put(Out, "steering_damper", "damper/linear.glb", AtWith(BasisUp(Front - Back) * GAffine::Scale(V3(1.0, (Front - Back).Length() / 0.15, 1.0)), Back), "");
+			Line("steering_damper", {Front - H, Hb + V3(0.11, -0.02, -0.03) - H}, 0.006, true);
+		}
+		else if (Style == "rotary")
+		{
+			const V3 Ax = ToGodot(L.SteerAxis);
+			Put(Out, "steering_damper", "damper/rotary.glb", AtWith(GAffine::Rotation(GodotRight, std::atan2(Ax.z, Ax.y)), V3(0.0, 0.04, 0.05) + H), "steer");
+			Line("steering_damper", {H + V3(0.0, 0.02, 0.06), H + V3(0.0, 0.0, 0.16)}, 0.006);
+		}
+		else
+			Put(Out, "steering_damper", "damper/friction.glb", GAffine::At(Hb + V3(0.0, -0.05, 0.02)), "");
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "lever_guards")))
+	{
+		std::vector<double> Sides = {1.0};
+		if (P->Str("style", "brake") == "pair") Sides.push_back(-1.0);
+		for (double Sd : Sides)
+		{
+			const V3 End = Bar.End(Sd);
+			const V3 X = Bar.OutAt(Sd) * Sd;
+			const V3 Z = X.Cross(GodotUp).Normalized();
+			const GAffine B = BasisCols(X, Z.Cross(X).Normalized(), Z);
+			auto At = [&](double Dx, double Dy, double Dz) { return End + B.Apply(V3(Dx * Sd, Dy, Dz)) - B.O; };
+			Put(Out, "lever_guards", "guards/lever_boss.glb", AtWith(BasisUp(B.X * Sd), At(0.026, 0.0, 0.0) + H), "steer");
+			Line("lever_guards", {At(0.03, -0.004, -0.012), At(0.042, -0.01, -0.05), At(0.024, -0.014, -0.082), At(-0.045, -0.014, -0.09)}, 0.0065, true);
+		}
+	}
+}
+
+void BikeParts::Luggage(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const
+{
+	const std::string Tube = "frame/tube/round.glb";
+	const BuildStats& St = L.Stats;
+	const V3 H = ToGodot(L.Head), Tail = ToGodot(L.Tail), Pv = ToGodot(L.Pivot), E = ToGodot(L.Crank);
+	const double SeatY = St.SeatHeight - St.RearRadius, Zr = St.Wheelbase * 0.5;
+	const double W = St.RearTyreWidth * 0.5 + 0.12;
+	auto TubeAB = [&](const std::string& Slot, const V3& A, const V3& B, double R) { Sweep(Out, Slot, Tube, {A, B}, {R}, ""); };
+	// (_hardware: a unit-sized fitting stretched to Size, turned so its thin way is its own Y.)
+	auto Hardware = [&](const std::string& Slot, const std::string& Path, const V3& At, const V3& Size) {
+		GAffine B;
+		V3 Sz = Size;
+		if (Size.x < Size.y && Size.x < Size.z) { B = GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5); Sz = V3(Size.y, Size.x, Size.z); }
+		else if (Size.z < Size.y) { B = GAffine::Rotation(GodotRight, TorqueSim::Pi * 0.5); Sz = V3(Size.x, Size.z, Size.y); }
+		Put(Out, Slot, Path, AtWith(B * GAffine::Scale(Sz), At), "");
+	};
+	// (_alu_case: the body and lid, k from its height; a pannier's faces out to its side.)
+	auto AluCase = [&](const std::string& Slot, const V3& C, const V3& Size, const V3& Face) {
+		const bool Side = std::fabs(Face.x) > 0.5;
+		const std::string Glb = Side ? "alu_pannier" : "alu_top";
+		const double K = Size.y / (Side ? 0.34 : 0.26);
+		const GAffine Xf = AtWith(GAffine::Scale(V3(K * (Face.x < -0.5 ? -1.0 : 1.0), K, K)), C);
+		if (Put(Out, Slot, "luggage/" + Glb + ".glb", Xf, "")) Put(Out, Slot, "luggage/" + Glb + "_lid.glb", Xf, "");
+	};
+	if (const Json* P = Lay.Part(PartIn(Parts, "panniers")))
+	{
+		const Json* Look = P->Get("look");
+		const double K = std::pow(P->Num("litres", 40.0) / 60.0, 0.33);
+		const double Top = SeatY - 0.04;
+		const std::string Shape = PartStr(Look, "shape", P->Str("style", "hard"));
+		const std::string Drawn = Shape == "hard" && !(Look && Look->Get("shape")) ? "sport_case" : Shape;
+		for (double Sd : {-1.0, 1.0})
+		{
+			const double Depth = 0.15 * K;
+			const V3 C(Sd * (W + Depth * 0.5), Top - 0.17 * K, Zr - 0.08);
+			const GAffine Xf = AtWith(GAffine::Scale(V3(Sd * K, K, K)), C);
+			if (Drawn == "saddlebag" || Drawn == "leather") Put(Out, "panniers", "luggage/saddlebag.glb", Xf, "");
+			else if (Drawn == "alloy") AluCase("panniers", C, V3(0.15, 0.34, 0.46) * K, V3(Sd, 0.0, 0.0));
+			else if (Drawn == "roll" || Drawn == "soft")
+			{
+				// (_roll_pannier and _throw_over: the bag's glb, and its buckles.)
+				const double Hb = 0.3 * K, Y0 = C.y - Hb * 0.5, OuterX = C.x + Sd * (Depth * 0.5 + 0.004);
+				if (Drawn == "roll")
+				{
+					const double HalfL = 0.21 * K;
+					Put(Out, "panniers", "luggage/roll_pannier.glb", Xf, "");
+					for (double Z : {-1.0, 1.0})
+						Hardware("panniers", "luggage/buckle.glb", V3(OuterX + Sd * 0.006, Y0 + Hb * 0.42, C.z + Z * HalfL * 0.6), V3(0.014, 0.04, 0.034));
+					Hardware("panniers", "luggage/buckle.glb", V3(OuterX + Sd * 0.006, Y0 + Hb * 0.25 + 0.013, C.z), V3(0.014, 0.034, 0.04));
+				}
+				else
+				{
+					const double HalfL = 0.2 * K;
+					Put(Out, "panniers", "luggage/throw_over.glb", Xf, "");
+					for (double Z : {-1.0, 1.0})
+						Hardware("panniers", "luggage/brass_buckle.glb", V3(OuterX + Sd * 0.009, Y0 + Hb * 0.5, C.z + Z * HalfL * 0.55), V3(0.006, 0.026, 0.03));
+				}
+			}
+			else Put(Out, "panniers", "luggage/" + std::string(Drawn == "sport_case" ? "sport_case" : "hard_case") + ".glb", Xf, "");
+			TubeAB("panniers", V3(Sd * W, Top, Pv.z + 0.1), V3(Sd * W, Top, Zr + 0.16), 0.008);
+			TubeAB("panniers", V3(Sd * W, Top, Zr + 0.16), V3(Sd * W, Top - 0.3 * K, Zr + 0.12), 0.008);
+		}
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "top_box")))
+	{
+		const std::string Style = P->Str("style", "small");
+		const double K = std::pow(P->Num("litres", 35.0) / 35.0, 0.33);
+		const V3 Size = (Style == "roll" ? V3(0.56, 0.24, 0.27) : V3(0.36, 0.26, 0.34)) * K;
+		const V3 Base(0.0, SeatY + 0.04, Tail.z + 0.03 + Size.z * 0.5);
+		// (_top_rack: rails back off the subframe, stays, a cross bar; its plate is code-drawn.)
+		const double Back = Base.z + Size.z * 0.42, RailY = Base.y - 0.012;
+		for (double X : {-1.0, 1.0})
+		{
+			Sweep(Out, "top_box", Tube, {Tail + V3(0.08 * X, -0.02, -0.12), Tail + V3(0.1 * X, RailY - Tail.y, 0.02), V3(0.1 * X, RailY, Back)}, {0.009}, "");
+			TubeAB("top_box", V3(0.1 * X, RailY, Base.z - Size.z * 0.1), Tail + V3(0.085 * X, -0.13, 0.04), 0.008);
+		}
+		Sweep(Out, "top_box", Tube, {V3(-0.1, RailY, Back), V3(0.0, RailY, Back + 0.025), V3(0.1, RailY, Back)}, {0.009}, "");
+		TubeAB("top_box", V3(-0.1, RailY, Base.z - Size.z * 0.3), V3(0.1, RailY, Base.z - Size.z * 0.3), 0.008);
+		if (Style == "crate") Put(Out, "top_box", "luggage/crate.glb", AtWith(GAffine::Scale(V3(1.0, 1.0, 1.0) * (Size.y / 0.26)), Base + V3(0.0, 0.012, 0.0)), "");
+		else if (Style == "trunk")
+		{
+			const GAffine Xf = AtWith(GAffine::Scale(V3(1.0, 1.0, 1.0) * (Size.y / 0.26)), Base + V3(0.0, 0.012, 0.0));
+			if (Put(Out, "top_box", "luggage/trunk.glb", Xf, "")) Put(Out, "top_box", "luggage/trunk_lid.glb", Xf, "");
+		}
+		else if (Style == "alloy") AluCase("top_box", Base + V3(0.0, 0.016 + Size.y * 0.5, 0.0), Size, V3(0.0, 0.0, 1.0));
+		else if (Style == "roll")
+		{
+			// (_roll_bag: the bag across the rack, its buckles and the cargo straps' hooks.)
+			const double R = Size.y * 0.5, Half = Size.x * 0.5 - 0.06;
+			const V3 C = Base + V3(0.0, R * 0.92 + 0.008, 0.0);
+			Put(Out, "top_box", "luggage/roll_bag.glb", AtWith(GAffine::Scale(V3(1.0, 1.0, 1.0) * (Size.y / 0.24)), C), "");
+			for (double X : {-1.0, 1.0})
+			{
+				for (double Y : {-1.0, 1.0}) Hardware("top_box", "luggage/buckle.glb", C + V3(X * (Half + 0.075), Y * (R * 0.75 + 0.012), 0.0), V3(0.034, 0.022, 0.034));
+				Hardware("top_box", "luggage/buckle.glb", C + V3(X * (Half - 0.07), R + 0.006, 0.0), V3(0.035, 0.012, 0.03));
+			}
+			for (double X : {-1.0, 1.0})
+			{
+				const double Bx = X * Half * 0.5;
+				Hardware("top_box", "luggage/buckle.glb", C + V3(Bx, R + 0.008, 0.0), V3(0.034, 0.014, 0.05));
+				for (double Z : {-1.0, 1.0})
+				{
+					const V3 Foot(0.1 * (Bx > 0.0 ? 1.0 : -1.0), Base.y - 0.012, C.z + Z * (Size.z * 0.5 + 0.015));
+					Hardware("top_box", "luggage/strap_hook.glb", Foot + V3(0.0, 0.008, 0.0), V3(0.012, 0.025, 0.02));
+				}
+			}
+			// Its carry handle, swept from the tube section as the rack is.
+			Sweep(Out, "top_box", Tube, {C + V3(-0.06, R * 0.98, 0.0), C + V3(-0.04, R + 0.03, 0.0), C + V3(0.04, R + 0.03, 0.0), C + V3(0.06, R * 0.98, 0.0)}, {0.008}, "");
+		}
+		else
+		{
+			// (_plastic_case, with a pillion backrest on the large one.)
+			const GAffine Xf = AtWith(GAffine::Scale(V3(1.0, 1.0, 1.0) * (Size.y / 0.26)), Base + V3(0.0, 0.016, 0.0));
+			if (Put(Out, "top_box", "luggage/top_case.glb", Xf, "") && Style == "large") Put(Out, "top_box", "luggage/backrest.glb", Xf, "");
+		}
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "fog_lights")))
+	{
+		const std::string Style = P->Str("style", "round");
+		const V3 Axis = ToGodot(L.SteerAxis);
+		if (Style == "bar") Put(Out, "fog_lights", "fog/bar.glb", GAffine::At(Axis * -0.2 + V3(0.0, 0.0, -0.1) + H), "steer");
+		else
+			for (double X : {-1.0, 1.0})
+				Put(Out, "fog_lights", "fog/" + std::string(Style == "cube" || Style == "rally" ? Style : "round") + ".glb",
+					GAffine::At(Axis * -0.34 + V3(0.15 * X, 0.0, -0.06) + H), "steer");
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "aux_tank")))
+	{
+		const double K = std::pow(P->Num("capacity", 8.0) / 8.0, 0.33);
+		const GAffine Sk = GAffine::Scale(V3(K, K, K));
+		const std::string Style = P->Str("style", "can");
+		if (Style == "can") Put(Out, "aux_tank", "kit/fuel_can.glb", AtWith(Sk, V3(-(W + 0.06), SeatY - 0.24, Zr - 0.36)), "");
+		else if (Style == "cell")
+		{
+			const V3 A(-(W + 0.05), SeatY - 0.09, Zr - 0.5), B(-(W + 0.05), SeatY - 0.09, Zr - 0.02);
+			Put(Out, "aux_tank", "kit/fuel_cell.glb", AtWith(GAffine::Scale(V3(K, K, 1.0)), (A + B) * 0.5), "");
+		}
+		else if (Style == "rear") Put(Out, "aux_tank", "kit/rear_tank.glb", AtWith(Sk, V3(0.0, SeatY - 0.06, Tail.z - 0.02)), "");
+		else if (Style == "twin")
+			for (double Sd : {-1.0, 1.0})
+				Put(Out, "aux_tank", "kit/side_tank.glb", AtWith(Sk, V3(Sd * (L.Hard.CaseHalfW + 0.11), E.y + 0.06, E.z - 0.14)), "");
+		else Put(Out, "aux_tank", "kit/bladder.glb", AtWith(Sk, V3(0.0, SeatY + 0.06, Tail.z - 0.08)), "");
+	}
+	if (const Json* P = Lay.Part(PartIn(Parts, "toolbox")))
+	{
+		const std::string Style = P->Str("style", "box");
+		if (Style == "roll") Put(Out, "toolbox", "kit/tool_roll.glb", GAffine::At(V3(0.0, -0.22, -0.1) + H), "steer");
+		else if (Style == "tube") Put(Out, "toolbox", "kit/tool_tube.glb", GAffine::At(V3(-(W + 0.03), -0.03, Zr - 0.42)), "");
+		else if (Style == "bash") Put(Out, "toolbox", "kit/bash_box.glb", GAffine::At(V3(0.0, E.y - 0.22 * L.Hard.Scale - 0.04, E.z + 0.02)), "");
+		else
+		{
+			const bool Big = Style == "case";
+			const V3 Size = Big ? V3(0.1, 0.15, 0.26) : V3(0.08, 0.12, 0.22);
+			Put(Out, "toolbox", "kit/toolbox.glb", AtWith(GAffine::Scale(V3(Size.x / 0.08, Size.y / 0.12, Size.z / 0.22)), V3(-(W + Size.x * 0.5 + 0.01), -0.06, Zr - 0.36)), "");
+		}
+	}
+}
+
 bool BikeParts::DrawnBox(const std::vector<FittedPart>& Out, const std::vector<std::string>& Slots, V3& Lo, V3& Hi) const
 {
 	if (!Meshes) return false;
@@ -1761,6 +2332,13 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Indicators(Parts, L, Out);
 	FrontMudguard(Parts, L, Out);
 	Wheels(Parts, L, Out);
+	TailUnit(Parts, L, Out);
+	Stands(Parts, L, Out);
+	Rearsets(Parts, L, Out);
+	HornAndEcu(Parts, L, Out);
+	SidePanels(Parts, L, Out);
+	Guards(Parts, L, Bar, Out);
+	Luggage(Parts, L, Out);
 	RearMaster(L, Out);
 	FinalDrive(Parts, L, Out);
 	Shocks(Parts, L, Out);
