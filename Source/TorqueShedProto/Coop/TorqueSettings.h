@@ -15,7 +15,7 @@ struct FTorqueSettings
 	int32 Quality = 3;          // Unreal's scalability: 0 low, 1 medium, 2 high, 3 epic, 4 cinematic
 	int32 WindowMode = 0;       // 0 fullscreen, 1 borderless window, 2 window
 	FIntPoint Resolution = FIntPoint(0, 0);   // 0 x 0: the desktop's
-	int32 Upscaler = 0;         // 0 TSR (Unreal's), 1 DLSS (when NVIDIA's plugin is in the build)
+	int32 Upscaler = 1;         // 0 TSR (Unreal's), 1 DLSS (TSR when NVIDIA's plugin is missing)
 	int32 UpscaleMode = 1;      // 0 native, 1 quality, 2 balanced, 3 performance, 4 ultra performance
 	int32 FrameCap = 0;         // frames per second, 0 for no cap
 	bool bVSync = false;

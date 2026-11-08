@@ -116,14 +116,9 @@ void FTorqueSettings::Apply(UWorld* World) const
 	const bool bDlss = Upscaler == 1 && HasDlss();
 	SetCVar(TEXT("r.AntiAliasingMethod"), 4);   // TSR (DLSS takes over from it when on)
 	SetCVar(TEXT("r.ScreenPercentage"), ScreenPercent(UpscaleMode));
-	if (HasDlss())
-	{
-		SetCVar(TEXT("r.NGX.DLSS.Enable"), bDlss ? 1 : 0);
-		// The plugin's own quality setting: 2 ultra quality .. -2 ultra performance.
-		static const int32 DlssQuality[5] = {2, 1, 0, -1, -2};
-		SetCVar(TEXT("r.NGX.DLSS.Quality"), DlssQuality[FMath::Clamp(UpscaleMode, 0, 4)]);
-		SetCVar(TEXT("r.NGX.DLAA.Enable"), bDlss && UpscaleMode == 0 ? 1 : 0);
-	}
+	// NVIDIA's DLSS 4.5 plugin (UE 5.8, v8.9): on or off; its quality is the screen percentage set
+	// above (Quality 66.7, Balanced 58, Performance 50, Ultra performance 33, and 100 is DLAA).
+	if (HasDlss()) SetCVar(TEXT("r.NGX.DLSS.Enable"), bDlss ? 1 : 0);
 	SetCVar(TEXT("r.MotionBlurQuality"), bMotionBlur ? 4 : 0);
 	if (World)
 	{

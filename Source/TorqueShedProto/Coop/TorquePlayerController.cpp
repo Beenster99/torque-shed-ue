@@ -315,7 +315,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Setting(TEXT("Upscaler"), S.Upscaler == 1 && bDlss ? FString(TEXT("NVIDIA DLSS")) : FString(TEXT("Unreal TSR")),
 			bDlss ? TEXT("DLSS on an RTX card: sharper for the same frame rate") : TEXT("DLSS needs NVIDIA's DLSS plugin in the build (on its way)"),
 			[&S, bDlss](int32 D) { S.Upscaler = bDlss ? Wrap(S.Upscaler + D, 2) : 0; });
-		Setting(TEXT("Render scale"), Scales[S.UpscaleMode], TEXT("Lower draws fewer pixels and upscales: more frames"),
+		const bool bDlssOn = S.Upscaler == 1 && FTorqueSettings::HasDlss();
+		Setting(TEXT("Render scale"), bDlssOn && S.UpscaleMode == 0 ? FString(TEXT("DLAA (100%)")) : FString(Scales[S.UpscaleMode]), TEXT("Lower draws fewer pixels and upscales: more frames"),
 			[&S](int32 D) { S.UpscaleMode = FMath::Clamp(S.UpscaleMode + D, 0, 4); });
 		int32 CapAt = 0;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(FrameCaps); ++I)
