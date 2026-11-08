@@ -12,7 +12,9 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/World.h"
+#include "GameFramework/GameStateBase.h"
 #include "GameFramework/HUD.h"
+#include "GameFramework/PlayerState.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "InputCoreTypes.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -216,7 +218,7 @@ FString ATorquePlayerController::Title() const
 	case EPage::Sound: return TEXT("SOUND");
 	case EPage::Controller: return TEXT("CONTROLLER");
 	case EPage::Character: return TEXT("CHARACTER");
-	case EPage::Controls: return TEXT("CONTROLS");
+	case EPage::Gameplay: return TEXT("GAMEPLAY");
 	default: return FString();
 	}
 }
@@ -255,8 +257,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	{
 	case EPage::Pause:
 	{
-		Add(TEXT("Resume"), FString(), FString(), [this]() { CloseMenu(); });
-		Add(TEXT("Settings"), FString(), TEXT("Graphics, sound, controller and character"), [this]() { Open(EPage::Settings); });
+		Add(TEXT("Continue"), FString(), FString(), [this]() { CloseMenu(); });
+		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Character"), [this]() { Open(EPage::Settings); });
 		if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn()))
 		{
 			Add(TEXT("Restart the ride"), FString(), TEXT("Back to the start of the road (Home)"), [this, Bike]() {
@@ -269,20 +271,21 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					TorqueFlow::BackToShed(this);
 				});
 		}
-		Add(bHost ? TEXT("End the co-op ride") : bClient ? TEXT("Leave the ride") : TEXT("Back to the start menu"), FString(),
-			bHost ? TEXT("Everyone who joined goes back to their start menu") : FString(), [this, Session]() {
+		Add(TEXT("Leave and return to title"), FString(),
+			bHost ? TEXT("Ends the co-op shed: everyone who joined goes back to their title") : FString(), [this, Session]() {
 				CloseMenu();
 				if (Session) Session->BackToTitle();
 			});
-		Add(TEXT("Quit the game"), FString(), FString(), [this]() { ConsoleCommand(TEXT("quit")); });
+		Add(TEXT("Exit game"), FString(), FString(), [this]() { ConsoleCommand(TEXT("quit")); });
 		break;
 	}
 	case EPage::Settings:
-		Add(TEXT("Graphics"), FString(), TEXT("Quality, display, resolution, upscaling, frame cap"), [this]() { Open(EPage::Graphics); });
-		Add(TEXT("Sound"), FString(), TEXT("Volumes"), [this]() { Open(EPage::Sound); });
-		Add(TEXT("Controller"), FString(), TEXT("Look speed, invert, the lean stick"), [this]() { Open(EPage::Controller); });
-		Add(TEXT("Character"), FString(), TEXT("Your name and colours, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
-		Add(TEXT("Controls"), FString(), TEXT("Every key and button, on foot and on the bike"), [this]() { Open(EPage::Controls); });
+		// Torque Shed's Settings tabs (less its Debug tab).
+		Add(TEXT("Graphics"), FString(), TEXT("Quality preset, window mode, resolution, VSync, frame-rate cap, upscaling"), [this]() { Open(EPage::Graphics); });
+		Add(TEXT("Sound"), FString(), TEXT("Sound effects and engines volumes"), [this]() { Open(EPage::Sound); });
+		Add(TEXT("Gameplay"), FString(), TEXT("Riding realism"), [this]() { Open(EPage::Gameplay); });
+		Add(TEXT("Controller"), FString(), TEXT("Look speeds, invert, the lean stick, and every key and button"), [this]() { Open(EPage::Controller); });
+		Add(TEXT("Character"), FString(), TEXT("Your name and colour, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Graphics:
@@ -291,9 +294,9 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		static const TCHAR* Modes[] = {TEXT("Fullscreen"), TEXT("Borderless window"), TEXT("Window")};
 		static const TCHAR* Scales[] = {TEXT("Native (100%)"), TEXT("Quality (67%)"), TEXT("Balanced (58%)"), TEXT("Performance (50%)"),
 			TEXT("Ultra performance (33%)")};
-		Setting(TEXT("Quality"), Qualities[S.Quality], TEXT("Unreal's scalability: shadows, Lumen, foliage, effects"),
+		Setting(TEXT("Quality preset"), Qualities[S.Quality], TEXT("Unreal's scalability: shadows, Lumen, foliage, effects"),
 			[&S](int32 D) { S.Quality = FMath::Clamp(S.Quality + D, 0, 4); });
-		Setting(TEXT("Display"), Modes[S.WindowMode], FString(), [&S](int32 D) { S.WindowMode = Wrap(S.WindowMode + D, 3); });
+		Setting(TEXT("Window mode"), Modes[S.WindowMode], FString(), [&S](int32 D) { S.WindowMode = Wrap(S.WindowMode + D, 3); });
 		if (Resolutions.IsEmpty())
 		{
 			TArray<FIntPoint> Found;
@@ -317,7 +320,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		int32 CapAt = 0;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(FrameCaps); ++I)
 			if (FrameCaps[I] == S.FrameCap) CapAt = I;
-		Setting(TEXT("Frame cap"), S.FrameCap == 0 ? FString(TEXT("Off")) : FString::Printf(TEXT("%d fps"), S.FrameCap), FString(),
+		Setting(TEXT("Frame-rate cap"), S.FrameCap == 0 ? FString(TEXT("Off")) : FString::Printf(TEXT("%d fps"), S.FrameCap), FString(),
 			[&S, CapAt](int32 D) { S.FrameCap = FrameCaps[Wrap(CapAt + D, (int32)UE_ARRAY_COUNT(FrameCaps))]; });
 		Setting(TEXT("VSync"), OnOff(S.bVSync), TEXT("No tearing, but frames wait for the screen"), [&S](int32) { S.bVSync = !S.bVSync; });
 		Setting(TEXT("Motion blur"), OnOff(S.bMotionBlur), FString(), [&S](int32) { S.bMotionBlur = !S.bMotionBlur; });
@@ -325,9 +328,17 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		break;
 	}
 	case EPage::Sound:
-		Setting(TEXT("Everything"), Pct(S.Master), FString(), [&S](int32 D) { S.Master = StepF(S.Master, D, 0.1f, 0.0f, 1.0f); });
-		Setting(TEXT("Engines"), Pct(S.Engine), TEXT("Your bike and everyone else's"), [&S](int32 D) { S.Engine = StepF(S.Engine, D, 0.1f, 0.0f, 1.0f); });
-		Setting(TEXT("Wind and birds"), Pct(S.Ambience), FString(), [&S](int32 D) { S.Ambience = StepF(S.Ambience, D, 0.1f, 0.0f, 1.0f); });
+		Setting(TEXT("Sound effects volume"), Pct(S.Ambience), TEXT("Wind, birds and the world"),
+			[&S](int32 D) { S.Ambience = StepF(S.Ambience, D, 0.1f, 0.0f, 1.0f); });
+		Setting(TEXT("Engines volume"), Pct(S.Engine), TEXT("Your bike and everyone else's"), [&S](int32 D) { S.Engine = StepF(S.Engine, D, 0.1f, 0.0f, 1.0f); });
+		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
+		break;
+	case EPage::Gameplay:
+		Setting(TEXT("Riding realism"), FString::Printf(TEXT("%.2f  %s"), S.Realism, *FTorqueSettings::RealismWord(S.Realism)),
+			FTorqueSettings::RealismText(S.Realism) + TEXT("   (0 = full sim, 1 = easy; [ and ] while riding)"), [this, &S](int32 D) {
+				S.Realism = StepF(S.Realism, D, 0.05f, 0.0f, 1.0f);
+				if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn())) Bike->Assist = S.Realism;
+			});
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Controller:
@@ -340,6 +351,16 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			[&S](int32 D) { S.StickDeadZone = StepF(S.StickDeadZone, D, 0.01f, 0.02f, 0.25f); });
 		Setting(TEXT("Lean response"), FString::Printf(TEXT("%.1fx"), S.Steering), TEXT("How much lean the stick and the A/D keys ask for"),
 			[&S](int32 D) { S.Steering = StepF(S.Steering, D, 0.1f, 0.5f, 2.0f); });
+		{
+			// Every key and button (Torque Shed lists them on this tab too).
+			auto Info = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
+			Info(TEXT("On foot:  WASD walk, Shift run, mouse look, E or click use, Q / R pick, G wash, F ride out, Space hop"));
+			Info(TEXT("     Pad:  left stick walk, right stick look, Cross / A use, D-pad left / right pick, Square / X wash, Triangle / Y ride out"));
+			Info(TEXT("Riding:  W throttle, S front brake, Space rear brake, A / D lean, Q / E weight, X / Z gears, G auto / manual"));
+			Info(TEXT("     B ABS, C camera, R back on the road, Home restart, [ ] realism, V weather, Backspace back to the shed, H help"));
+			Info(TEXT("     Pad:  R2 throttle, L2 front brake, L1 rear brake, left stick lean and weight, Cross / Square gears, R1 camera"));
+			Info(TEXT("Anywhere:  Esc, Options or Start opens the menu"));
+		}
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Character:
@@ -357,50 +378,38 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	}
-	case EPage::Controls:
-	{
-		auto Info = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
-		Info(TEXT("On foot:  WASD walk, Shift run, mouse look, E or click use, Q / R pick, G wash, F ride out, Space hop"));
-		Info(TEXT("     Pad:  left stick walk, right stick look, Cross / A use, D-pad left / right pick, Square / X wash, Triangle / Y ride out"));
-		Info(TEXT("Riding:  W throttle, S front brake, Space rear brake, A / D lean, Q / E weight, X / Z gears, G auto / manual"));
-		Info(TEXT("     B ABS, C camera, R back on the road, Home restart, V weather, Backspace back to the shed, H help"));
-		Info(TEXT("     Pad:  R2 throttle, L2 front brake, L1 rear brake, left stick lean and weight, Cross / Square gears, R1 camera"));
-		Info(TEXT("Anywhere:  Esc, Options or Start opens this menu"));
-		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
-		break;
-	}
 	default: break;
 	}
 	return R;
 }
 
-void ATorquePlayerController::TypeName()
+void ATorquePlayerController::TypeText(APlayerController* PC, FString& Text, int32 Max)
 {
 	static const FKey Letters[26] = {EKeys::A, EKeys::B, EKeys::C, EKeys::D, EKeys::E, EKeys::F, EKeys::G, EKeys::H,
 		EKeys::I, EKeys::J, EKeys::K, EKeys::L, EKeys::M, EKeys::N, EKeys::O, EKeys::P, EKeys::Q, EKeys::R, EKeys::S,
 		EKeys::T, EKeys::U, EKeys::V, EKeys::W, EKeys::X, EKeys::Y, EKeys::Z};
 	static const FKey Digits[10] = {EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
 		EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine};
-	FString& Name = FTorqueSettings::Get().Name;
-	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
-	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
-	if (bCtrl && WasInputKeyJustPressed(EKeys::V))
+	if (!PC) return;
+	const bool bCtrl = PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl);
+	const bool bShift = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift);
+	if (bCtrl && PC->WasInputKeyJustPressed(EKeys::V))
 	{
 		FString Clip;
 		FPlatformApplicationMisc::ClipboardPaste(Clip);
-		Name = Clip.TrimStartAndEnd().Left(20);
+		Text = Clip.TrimStartAndEnd().Left(Max);
 		return;
 	}
 	if (bCtrl) return;
 	for (int32 L = 0; L < 26; ++L)
-		if (WasInputKeyJustPressed(Letters[L])) Name.AppendChar(TCHAR((bShift || Name.IsEmpty() ? 'A' : 'a') + L));
+		if (PC->WasInputKeyJustPressed(Letters[L])) Text.AppendChar(TCHAR((bShift || Text.IsEmpty() ? 'A' : 'a') + L));
 	for (int32 D = 0; D < 10; ++D)
-		if (WasInputKeyJustPressed(Digits[D])) Name.AppendChar(TCHAR('0' + D));
-	if (WasInputKeyJustPressed(EKeys::SpaceBar) && !Name.IsEmpty()) Name.AppendChar(TEXT(' '));
-	if (WasInputKeyJustPressed(EKeys::Hyphen)) Name.AppendChar(bShift ? TEXT('_') : TEXT('-'));
-	if (WasInputKeyJustPressed(EKeys::BackSpace) && Name.Len() > 0) Name.LeftChopInline(1);
-	if (WasInputKeyJustPressed(EKeys::Delete)) Name.Reset();
-	Name = Name.Left(20);
+		if (PC->WasInputKeyJustPressed(Digits[D])) Text.AppendChar(TCHAR('0' + D));
+	if (PC->WasInputKeyJustPressed(EKeys::SpaceBar) && !Text.IsEmpty()) Text.AppendChar(TEXT(' '));
+	if (PC->WasInputKeyJustPressed(EKeys::Hyphen)) Text.AppendChar(bShift ? TEXT('_') : TEXT('-'));
+	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && Text.Len() > 0) Text.LeftChopInline(1);
+	if (PC->WasInputKeyJustPressed(EKeys::Delete)) Text.Reset();
+	Text = Text.Left(Max);
 }
 
 void ATorquePlayerController::PlayerTick(float DeltaTime)
@@ -461,7 +470,7 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	if (MoveY != 0) Selected = Wrap(Selected + MoveY, List.Num());
 	else if (MoveX != 0 && List[Selected].Step) List[Selected].Step(MoveX);
 
-	if (bTyping) TypeName();
+	if (bTyping) TypeText(this, FTorqueSettings::Get().Name, 20);
 	const bool bChoose = Just(EKeys::Enter) || (!bTyping && Just(EKeys::SpaceBar)) || Just(EKeys::Gamepad_FaceButton_Bottom) ||
 						 (Hit & ESonyButton::Cross);
 	const bool bBack = (Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (Hit & ESonyButton::Circle) ||
@@ -490,14 +499,28 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		Y += H * K + 14.0f * Sc;
 	};
 	Line(Title(), FColor::White, 2.6f, 0.45f);
-	// Hosting: exactly what to tell friends (as Torque Shed's Esc menu).
+	// As Torque Shed's Esc menu: hosting, exactly what to tell friends; who's here.
 	if (Page == EPage::Pause)
-		if (const UTorqueSession* S = UTorqueSession::Get(this))
+	{
+		const UTorqueSession* Session = UTorqueSession::Get(this);
+		if (GetNetMode() == NM_ListenServer && Session)
 		{
-			const TArray<FString> Join = S->JoinInstructions();
-			for (const FString& L : Join) Line(L, FColor(170, 230, 255), 1.0f, 0.4f);
-			if (GetNetMode() == NM_Client) Line(TEXT("Riding with friends: the host's world carries on while this menu is open"), FColor(200, 200, 200), 0.9f, 0.35f);
+			Line(FString::Printf(TEXT("Hosting on port %d."), UTorqueSession::GamePort()), FColor(170, 230, 255), 1.0f, 0.4f);
+			for (const FString& L : Session->JoinInstructions()) Line(L, FColor(170, 230, 255), 1.0f, 0.4f);
 		}
+		else if (GetNetMode() == NM_Client)
+			Line(TEXT("Connected to a co-op shed."), FColor(170, 230, 255), 1.0f, 0.4f);
+		else
+			Line(TEXT("Working solo."), FColor(200, 200, 200), 1.0f, 0.35f);
+		if (GetNetMode() != NM_Standalone)
+			if (const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr)
+			{
+				TArray<FString> Names;
+				for (const APlayerState* PS : GS->PlayerArray)
+					if (PS) Names.Add(PS->GetPlayerName());
+				Line(TEXT("In the shed: ") + FString::Join(Names, TEXT(", ")), FColor(220, 220, 220), 1.0f, 0.35f);
+			}
+	}
 	Y += 24.0f * Sc;
 	const TArray<FRow> List = Rows();
 	for (int32 I = 0; I < List.Num(); ++I)

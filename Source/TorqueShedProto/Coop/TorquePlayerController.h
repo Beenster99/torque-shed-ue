@@ -49,7 +49,7 @@ public:
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
 
 private:
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Controller, Character, Controls };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character };
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -76,7 +76,11 @@ private:
 	FString Title() const;
 	TArray<FRow> Rows();
 	void Changed();
-	void TypeName();
+public:
+	// Typing into a text row (a name): letters (Shift for capitals), digits, space, - and _,
+	// Backspace, Delete clears, Ctrl+V pastes. Shared with the start menu.
+	static void TypeText(APlayerController* PC, FString& Text, int32 Max);
+private:
 	void ReadMenuInput(float Dt);
 	bool WantsPause();
 

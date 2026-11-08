@@ -46,6 +46,7 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->GetFloat(Section, TEXT("Engine"), Engine, Ini);
 	GConfig->GetFloat(Section, TEXT("Ambience"), Ambience, Ini);
+	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->GetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	GConfig->GetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->GetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);
@@ -77,6 +78,7 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("Master"), Master, Ini);
 	GConfig->SetFloat(Section, TEXT("Engine"), Engine, Ini);
 	GConfig->SetFloat(Section, TEXT("Ambience"), Ambience, Ini);
+	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->SetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
 	GConfig->SetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->SetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);
@@ -155,4 +157,21 @@ const TArray<FString>& FTorqueSettings::ColourNames()
 FColor FTorqueSettings::RiderColour() const
 {
 	return Colours()[FMath::Clamp(Colour, 0, Colours().Num() - 1)];
+}
+
+// As Torque Shed's main_menu.gd realism_word / realism_text.
+FString FTorqueSettings::RealismWord(float V)
+{
+	if (V < 0.15f) return TEXT("full sim");
+	if (V < 0.45f) return TEXT("mostly sim");
+	if (V < 0.8f) return TEXT("assisted");
+	return TEXT("easy");
+}
+
+FString FTorqueSettings::RealismText(float V)
+{
+	if (V < 0.15f) return TEXT("full sim: nothing saves the front, slides can high-side");
+	if (V < 0.45f) return TEXT("mostly sim: the rider barely saves the front");
+	if (V < 0.8f) return TEXT("the rider protects the front and smooths the throttle");
+	return TEXT("easy: the rider also balances the bike for you");
 }

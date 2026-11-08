@@ -24,6 +24,11 @@ struct FTorqueSettings
 	// Sound, 0 .. 1.
 	float Master = 1.0f, Engine = 1.0f, Ambience = 1.0f;
 
+	// Gameplay.
+	float Realism = 0.6f;       // riding realism: 0 full sim .. 1 easy (Torque Shed's slider)
+	static FString RealismWord(float V);
+	static FString RealismText(float V);
+
 	// Controller.
 	float MouseLook = 1.0f;     // times the default
 	float PadLook = 1.0f;

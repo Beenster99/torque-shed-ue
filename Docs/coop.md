@@ -6,7 +6,7 @@ works: the host runs the session, and every rider simulates their own bike.
 
 ## Hosting and joining (as in Torque Shed)
 
-1. One player picks **Host a co-op shed** on the start menu. Their shed is the shared one: everyone
+1. One player picks **Host a co-op shed** on the title. Their shed is the shared one: everyone
    works on the same bikes, and the host's game saves it.
 2. The game asks the host's router to open UDP port **7777** by itself (UPnP), and finds the public
    address. For the first minute the top right of the screen, and after that the **Esc menu**, says
@@ -34,16 +34,23 @@ sees each bike as its owner built it.
 
 ## Menus
 
-- **Esc** (or **Options** / **Start** on a pad) opens the pause menu: Resume, Settings, Restart the
-  ride, Back to the shed, Leave / End the co-op ride, Quit. Alone it pauses the game; in co-op the
-  world carries on and your bike or walker just lets go of the controls.
+Ported from Torque Shed's (`scripts/main_menu.gd`), with the same names and order:
+
+- **Title**: Your name, Open the shed (solo), Host a co-op shed, Join (address box), co-op sheds
+  found on this network, Settings, Exit game.
+- **Esc** (or **Options** / **Start** on a pad): Continue, Settings, (riding: Restart the ride, Back
+  to the shed), Leave and return to title, Exit game; under the title "Hosting on port 7777." and
+  the join instructions, "Connected to a co-op shed." or "Working solo.", and "In the shed: ..."
+  with everyone's names. Alone it pauses the game; in co-op the world carries on and your bike or
+  walker just lets go of the controls.
 - **Settings** (from the start menu or the pause menu), saved in `GameUserSettings.ini`:
-  - Graphics: quality preset, fullscreen / borderless / window, resolution, upscaler (Unreal TSR,
-    or NVIDIA DLSS once its plugin is in the build), render scale, frame cap, VSync, motion blur.
-  - Sound: everything, engines, wind and birds.
-  - Controller: mouse and stick look speeds, invert, the lean stick's dead zone and response.
+  - Graphics: quality preset, window mode, resolution, upscaler (Unreal TSR, or NVIDIA DLSS once
+    its plugin is in the build), render scale, frame-rate cap, VSync, motion blur.
+  - Sound: sound effects volume, engines volume.
+  - Gameplay: riding realism (0 full sim .. 1 easy, Torque Shed's words for it).
+  - Controller: mouse and stick look speeds, invert, the lean stick's dead zone and response, and
+    every key and button.
   - Character: your name and colour, as everyone in co-op sees them.
-  - Controls: every key and button.
   Until settings are first saved the game keeps the project's own graphics, and `-TorqueNoInput`
   or `-TorqueNoSettings` runs ignore them, so performance tests compare like with like.
 

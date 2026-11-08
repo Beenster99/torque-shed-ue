@@ -186,6 +186,8 @@ ATorqueBikePawn::~ATorqueBikePawn() = default;
 void ATorqueBikePawn::BeginPlay()
 {
 	Super::BeginPlay();
+	// Settings > Gameplay > Riding realism, once the player has saved settings (test runs keep their own).
+	if (FTorqueSettings::Get().bSaved && !FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"))) Assist = FTorqueSettings::Get().Realism;
 	Sim->Setup(BikeSpec::SpeedTwin1200());
 	Sim->Ray = [this](const V3& From, const V3& To) {
 		RayHit Out;

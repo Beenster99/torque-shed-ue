@@ -2,6 +2,7 @@
 
 #include "TorqueSession.h"
 #include "TorquePlayerController.h"
+#include "TorqueSettings.h"
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
 #include "Engine/Canvas.h"
@@ -66,9 +67,15 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 	const UTorqueSession* S = UTorqueSession::Get(this);
 	const bool bShed = UTorqueSession::FirstMap() == UTorqueSession::ShedMap;
 	FEntry E;
+	E.Kind = EItem::Name;
+	const FString& Name = FTorqueSettings::Get().Name;
+	E.Text = FString::Printf(TEXT("Your name:  %s%s"), *Name, (Selected == 0 && FMath::Fmod(Clock, 1.0) < 0.5) ? TEXT("_") : TEXT(" "));
+	E.Hint = Name.IsEmpty() && S ? FString::Printf(TEXT("Type it (empty: %s); friends see it over you"), *S->PlayerName())
+								 : FString(TEXT("Friends see it over you in co-op"));
+	Out.Add(E);
 	E.Kind = EItem::Solo;
-	E.Text = TEXT("Ride solo");
-	E.Hint = bShed ? TEXT("Into the shed, then out onto Buttertubs") : TEXT("Buttertubs, from the top down to Keld");
+	E.Text = bShed ? TEXT("Open the shed (solo)") : TEXT("Ride solo");
+	E.Hint = bShed ? TEXT("Your shed, on your own; ride out of the roller door onto Buttertubs") : TEXT("Buttertubs, from the top down to Keld");
 	Out.Add(E);
 	E.Kind = EItem::Host;
 	E.Text = bShed ? TEXT("Host a co-op shed") : TEXT("Host a co-op ride");
@@ -96,7 +103,7 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 		{
 			E.Kind = EItem::Lan;
 			E.Lan = I;
-			E.Text = FString::Printf(TEXT("Join %s's ride  (%d of %d riding, %d ms)"), *Games[I].Host, Games[I].Riders,
+			E.Text = FString::Printf(TEXT("Join %s's shed  (%d of %d in, %d ms)"), *Games[I].Host, Games[I].Riders,
 				Games[I].MaxRiders, Games[I].PingMs);
 			E.Hint = TEXT("Found on this network");
 			Out.Add(E);
@@ -104,15 +111,15 @@ TArray<ATorqueMenuPawn::FEntry> ATorqueMenuPawn::Entries() const
 	}
 	E.Kind = EItem::Search;
 	E.Lan = -1;
-	E.Text = S && S->IsSearching() ? TEXT("Looking for rides on this network...") : TEXT("Look for rides on this network");
-	E.Hint = TEXT("Rides hosted on this network appear above by themselves");
+	E.Text = S && S->IsSearching() ? TEXT("Looking for co-op sheds on this network...") : TEXT("Look for co-op sheds on this network");
+	E.Hint = TEXT("Sheds hosted on this network appear above by themselves");
 	Out.Add(E);
 	E.Kind = EItem::Settings;
 	E.Text = TEXT("Settings");
 	E.Hint = TEXT("Graphics, sound, controller and character");
 	Out.Add(E);
 	E.Kind = EItem::Quit;
-	E.Text = TEXT("Quit");
+	E.Text = TEXT("Exit game");
 	E.Hint = FString();
 	Out.Add(E);
 	return Out;
@@ -125,6 +132,7 @@ void ATorqueMenuPawn::Choose(const FEntry& E)
 	if (!S) return;
 	switch (E.Kind)
 	{
+	case EItem::Name: break;
 	case EItem::Solo: Busy = TEXT("Loading..."); S->RideSolo(); break;
 	case EItem::Host: Busy = TEXT("Loading, then waiting for friends..."); S->Host(); break;
 	case EItem::Join:
@@ -251,11 +259,31 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 	}
 	if (Move != 0) Selected = (Selected + Move + List.Num()) % List.Num();
 
+	// Your name: kept as soon as you move off it (or start).
+	if (List[Selected].Kind == EItem::Name)
+	{
+		const FString Before = FTorqueSettings::Get().Name;
+		ATorquePlayerController::TypeText(PC, FTorqueSettings::Get().Name, 20);
+		bNameTyped |= Before != FTorqueSettings::Get().Name;
+	}
+	else if (bNameTyped)
+	{
+		bNameTyped = false;
+		FTorqueSettings::Get().Save();
+	}
 	if (List[Selected].Kind == EItem::Join) TypeAddress(PC);
 	if (List[Selected].Kind == EItem::Code) TypeCode(PC);
-	const bool bChoose = Just(EKeys::Enter) || Just(EKeys::SpaceBar) || Just(EKeys::Gamepad_FaceButton_Bottom) || (Pressed & ESonyButton::Cross);
-	if (bChoose) Choose(List[Selected]);
-	if (Just(EKeys::Escape)) PC->ConsoleCommand(TEXT("quit"));
+	const bool bTyping = List[Selected].Kind == EItem::Name;
+	const bool bChoose = Just(EKeys::Enter) || (!bTyping && Just(EKeys::SpaceBar)) || Just(EKeys::Gamepad_FaceButton_Bottom) || (Pressed & ESonyButton::Cross);
+	if (bChoose)
+	{
+		if (bNameTyped)
+		{
+			bNameTyped = false;
+			FTorqueSettings::Get().Save();
+		}
+		Choose(List[Selected]);
+	}
 }
 
 void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
@@ -275,7 +303,7 @@ void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 		Y += H * K + 14.0f * Sc;
 	};
 	Line(TEXT("TORQUE SHED"), FColor::White, 3.2f, 0.45f);
-	Line(TEXT("Build bikes in the shed and ride Buttertubs, on your own or with friends"), FColor(210, 210, 210), 1.1f, 0.35f);
+	Line(TEXT("Strip it. Clean it. Fix it. Ride it."), FColor(210, 210, 210), 1.1f, 0.35f);
 	Y += 30.0f * Sc;
 	const TArray<FEntry> List = Entries();
 	const UTorqueSession* S = UTorqueSession::Get(this);
@@ -290,5 +318,5 @@ void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 	if (!Busy.IsEmpty()) Line(Busy, FColor(170, 255, 170), 1.2f, 0.45f);
 	else if (S && !S->Status.IsEmpty()) Line(S->Status, FColor(255, 170, 90), 1.2f, 0.45f);
 	Y = Canvas->ClipY - 90.0f * Sc;
-	Line(TEXT("Up/Down, D-pad or left stick to pick   Enter, Cross or A to choose   Esc quits"), FColor(200, 200, 200), 0.9f, 0.35f);
+	Line(TEXT("Up/Down, D-pad or left stick to pick   Enter, Cross or A to choose"), FColor(200, 200, 200), 0.9f, 0.35f);
 }
