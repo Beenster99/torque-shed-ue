@@ -5,9 +5,12 @@
 //     cmake -S SimTest -B build/simtest && cmake --build build/simtest && build/simtest/layout_test [--dump]
 //
 // --dump prints every reference bike's datums (ours: x forward, y up, z right, metres) as JSON lines.
+#include "BikeBody.h"
 #include "BikeLayout.h"
 
 #include <cmath>
+#include <map>
+#include <vector>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -194,6 +197,80 @@ int main(int argc, char** argv)
 			}
 		std::printf("  %d bolt on, %d need fabrication, %d won't fit (of 196)\n", Bolts, Fab, No);
 		Expect(Bolts > 0 && Fab > 0 && No > 0, "all three tiers turn up");
+	}
+
+	std::printf("Bodywork on its lines (as the Godot game's rig_body_tests):\n");
+	{
+		Json Index;
+		std::string IndexText;
+		if (!ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) || !Json::Parse(IndexText, Index, &Error))
+			Expect(false, "Data/Parts/Blender/index.json loads");
+		const BikeBody Body(Lay);
+		for (const std::string& St : Lay.Styles())
+		{
+			const PartsMap B = Lay.ReferenceBuild(St);
+			const Layout L = Lay.Solve(B);
+			const Bodywork W = Body.Fit(B, L);
+			std::map<std::string, std::vector<V3>> Pts;   // Godot frame, as the Godot test measures
+			bool Loaded = true;
+			for (const FittedPart& P : W.Parts)
+			{
+				PartMesh M;
+				std::string Bytes, MorphBytes;
+				const Json* Ent = Index.Get("parts") ? Index.Get("parts")->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;
+				Loaded = Loaded && Ent && ReadFile(R + "/Data/Parts/Blender/" + P.Glb, Bytes) && M.LoadGlb(Bytes, Error);
+				if (Loaded && Ent->Get("morph"))
+					Loaded = ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) && M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Error);
+				if (!Loaded) break;
+				for (const PartSurface& S : M.Deformed(P.Weights, P.Warp).Surfaces)
+					for (const V3& V : S.Pos) Pts[P.Slot].push_back(ToGodot(V));
+			}
+			Expect(Loaded && Pts.count("tank") && Pts.count("saddle"), St + ": tank and seat parts load and fit");
+			if (!Loaded || !Pts.count("tank") || !Pts.count("saddle")) continue;
+			std::vector<V3> Floor;
+			for (const V3& P : L.TankFloor) Floor.push_back(ToGodot(P));
+			auto FloorY = [&](double Z) {
+				size_t K = 1;
+				while (K < Floor.size() - 1 && Floor[K].z < Z) ++K;
+				const V3 A = Floor[K - 1], D = Floor[K] - Floor[K - 1];
+				double F = std::fabs(D.z) < 1e-5 ? 0.0 : (Z - A.z) / D.z;
+				if (K > 1 && K < Floor.size() - 1) F = std::min(std::max(F, 0.0), 1.0);
+				return A.y + D.y * F;
+			};
+			double Z0 = 1e9, Z1 = -1e9, Top = -1e9;
+			for (const V3& V : Pts["tank"]) { Z0 = std::min(Z0, V.z); Z1 = std::max(Z1, V.z); Top = std::max(Top, V.y); }
+			const double Span = Z1 - Z0;
+			std::vector<std::pair<double, double>> Low;
+			double R0 = 1e9, R1 = -1e9;
+			for (const V3& V : Pts["tank"])
+			{
+				if (std::fabs(V.x) > 0.002 || V.z < Z0 + Span * 0.2 || V.z > Z1 - Span * 0.2) continue;
+				const double On = FloorY(V.z);
+				if (V.y < On + 0.03) { Low.push_back({V.z, V.y - On}); R0 = std::min(R0, V.z); R1 = std::max(R1, V.z); }
+			}
+			double Roof = 0.0;
+			for (const auto& Q : Low)
+				if (Q.first > R0 + 0.02 && Q.first < R1 - 0.02) Roof = std::max(Roof, std::fabs(Q.second));
+			const V3 Hip = ToGodot(L.Hip);
+			double SeatTop = -1e9, S0 = 1e9, S1 = -1e9;
+			for (const V3& V : Pts["saddle"])
+			{
+				S0 = std::min(S0, V.z);
+				S1 = std::max(S1, V.z);
+				if (std::fabs(V.z - Hip.z) < 0.03 && std::fabs(V.x) < 0.04) SeatTop = std::max(SeatTop, V.y);
+			}
+			double TailGap = 0.0;
+			if (Pts.count("tail") && St != "mx" && St != "supermoto")
+			{
+				double T0 = 1e9;
+				for (const V3& V : Pts["tail"]) T0 = std::min(T0, V.z);
+				TailGap = T0 - S1;
+			}
+			char Buf[200];
+			std::snprintf(Buf, sizeof(Buf), ": roof %.0f mm off the floor, top %.0f mm over its line, seat %.0f mm off at the hip, gaps %.0f and %.0f mm",
+				Roof * 1000.0, (Top - L.TankTopMax) * 1000.0, (SeatTop - Hip.y) * 1000.0, (S0 - Z1) * 1000.0, TailGap * 1000.0);
+			Expect(Roof <= 0.006 && Top - L.TankTopMax <= 0.121 && std::fabs(SeatTop - Hip.y) <= 0.04 && S0 - Z1 <= 0.02 && TailGap <= 0.02, St + Buf);
+		}
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);

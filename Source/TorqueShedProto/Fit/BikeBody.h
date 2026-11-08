@@ -1,0 +1,53 @@
+// The bodywork on any laid-out bike: the tank, the seat and the tail cowl fitted to the lines the
+// layout solver hands over (Fit/BikeLayout), a port of the Godot game's RigBodywork
+// (scripts/rig_bodywork.gd) and the parts of BikeModel._draw_tank, _draw_saddle and _tail_cowl that
+// call it. Each Blender part (Data/Parts/Blender) carries shape keys; this works out each key's
+// weight for the bike and the warp that bends the part onto its lines (PartMesh::Deformed draws it).
+// Nothing here moves the layout: it only fits to it. Plain C++, deterministic (co-op).
+#pragma once
+
+#include "BikeLayout.h"
+#include "PartMesh.h"
+
+#include <map>
+#include <string>
+#include <vector>
+
+namespace TorqueFit
+{
+// A Blender part fitted to a bike: which glb, its shape keys' weights and the warp from the glb's
+// space to the bike's (ours). Colour: the part's own paint goes on the surfaces tagged ColourTag
+// ("" for every surface the paint tags would take).
+struct FittedPart
+{
+	std::string Slot, Glb, ColourTag;
+	std::map<std::string, double> Weights;
+	PartMesh::Warp Warp;
+};
+
+// A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.
+struct LoftSection
+{
+	V3 C;
+	double W = 0.0, Up = 0.0, Down = 0.0;
+};
+
+struct Bodywork
+{
+	std::vector<FittedPart> Parts;
+	std::vector<LoftSection> TankSecs, SeatSecs;
+	LoftSection SeatEnd;
+	double SeatZ0 = 0.0, SeatZ1 = 0.0, SeatSlope = 0.0;   // Godot frame (z back), as RigBodywork
+	bool HasSeat = false;
+};
+
+class BikeBody
+{
+public:
+	explicit BikeBody(const BikeLayout& InLayout) : Lay(InLayout) {}
+	Bodywork Fit(const PartsMap& Parts, const Layout& L) const;
+
+private:
+	const BikeLayout& Lay;
+};
+} // namespace TorqueFit

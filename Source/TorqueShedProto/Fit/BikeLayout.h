@@ -119,6 +119,8 @@ public:
 	std::string KindOfSlot(const std::string& Slot) const;
 	std::string KindOfPart(const std::string& Id) const;
 	const Json* Part(const std::string& Id) const;
+	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).
+	const Json& Tables() const { return Data; }
 	bool MayBeEmpty(const std::string& Slot) const;
 	// The style's reference bike (Contracts.style_build), every slot filled or "none".
 	PartsMap ReferenceBuild(const std::string& Style) const;
