@@ -137,6 +137,28 @@ private:
 		const std::vector<V3>& Ups, double Width, const std::string& Node) const;
 	void GuardArc(std::vector<FittedPart>& Out, const std::string& Slot, const std::string& Section, const V3& C, double Radius,
 		double Width, double A0, double A1, int Segs, const std::string& Node) const;
+	// The tail unit's Blender pieces (BikeModel._draw_tail): the rear mudguard bent from its
+	// section, a tidy tail's tray and lamp bracket, an enduro's blade, and the rear light. Its
+	// cowl is the bodywork's (Fit/BikeBody); its struts, stays and number plate are code-drawn.
+	void TailUnit(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The side and centre stands, folded up (BikeModel._draw_side_stand, _draw_centre_stand):
+	// legs swept from the tube section, the Blender foot and pivot.
+	void Stands(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The rearsets: pegs, boards or cleats, hanger plates and lever tubes (BikeModel._blender_rearset).
+	void Rearsets(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The horn under the head stock (BikeModel._blender_horn) and the ECU under the seat's front
+	// (BikeModel._draw_ecu; its loom is code-drawn).
+	void HornAndEcu(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The side panels under the seat's nose (BikeModel._blender_side_panel).
+	void SidePanels(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// Engine guards, bash and skid plates, crash bungs (BikeModel._draw_guards); number boards
+	// (_draw_number_boards); the steering damper (_draw_steering_damper); lever guards on the bar
+	// ends (_draw_lever_guards).
+	void Guards(const PartsMap& Parts, const Layout& L, const Bars& Bar, std::vector<FittedPart>& Out) const;
+	// The luggage and kit: panniers and their rack, the top box on its rack, fog lights, an extra
+	// fuel tank and a toolbox (BikeModel._draw_panniers, _draw_top_box, _draw_fog_lights;
+	// KitModel._aux_tank, _toolbox). Their straps, latches and soft bags' code shapes aren't here.
+	void Luggage(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	// The rear brake's master cylinder (BikeModel._draw_rear_master).
 	void RearMaster(const Layout& L, std::vector<FittedPart>& Out) const;
 	// The clocks (BikeModel._draw_dashboard), raised clear of the bars as _lift_clear_of_bars

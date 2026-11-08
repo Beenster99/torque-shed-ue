@@ -360,6 +360,7 @@ int main(int argc, char** argv)
 					{
 						Ours[Slot].Add(ToGodot(V));
 						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
+						if (P.Glb.rfind("tail/cowl/", 0) == 0) Ours["tail cowl"].Add(ToGodot(V));
 						Tags[Slot][S.Material].Add(ToGodot(V));
 					}
 					++Tags[Slot][S.Material].Meshes;   // (Godot's: one mesh a surface of each piece)
@@ -369,7 +370,7 @@ int main(int argc, char** argv)
 		// Slots only some of whose Blender pieces are ported: there, ours only have to lie inside Godot's.
 		// (Swingarm: its swept tubes. Tail: the tray, number plate and lamp round the cowl. The frame's
 		// are mostly its tubes, swept from a Blender section: not compared yet.)
-		const std::set<std::string> Partial = {"swingarm", "tail"};
+		const std::set<std::string> Partial = {"swingarm"};
 		auto Inside = [&](const Box& In, const Json* Gb) {
 			const V3 Lo = Vec(Gb->Get("min")), Hi = Vec(Gb->Get("max"));
 			return In.Lo.x >= Lo.x - 5e-4 && In.Lo.y >= Lo.y - 5e-4 && In.Lo.z >= Lo.z - 5e-4
@@ -447,7 +448,7 @@ int main(int argc, char** argv)
 				return S && S->Get("named") ? S->Get("named")->Get(Name) : nullptr;
 			};
 			std::pair<std::string, const Json*> Meshes[] = {{"tank", Named("tank", "TankBody")}, {"saddle/leather", Named("saddle", "SeatPad")},
-				{"tail", Named("tail", "TailCowl")}, {"engine", GSlots->Get("engine")}, {"head", GSlots->Get("head")}};
+				{"tail cowl", Named("tail", "TailCowl")}, {"engine", GSlots->Get("engine")}, {"head", GSlots->Get("head")}};
 			double MeshOff = 0.0;
 			std::string MeshWorst;
 			int Compared = 0;
@@ -466,7 +467,13 @@ int main(int argc, char** argv)
 			// Every Blender part placed so far, surface tag by surface tag, against Godot's meshes of that
 			// tag in the slot.
 			int Slots = 0;
-			const std::string Wrong = Compare(Tags, GSlots, true, Slots);
+			std::string Wrong = Compare(Tags, GSlots, true, Slots);
+			// (LAYOUT_MISSING=1: Godot's Blender surfaces we don't place yet, slot/tag.)
+			if (std::getenv("LAYOUT_MISSING"))
+				for (const auto& [Slot, Gs] : GSlots->O)
+					if (const Json* Gt = Gs.Get("glb"))
+						for (const auto& [Tag, Gb] : Gt->O)
+							if (!(Tags.count(Slot) && Tags[Slot].count(Tag))) Wrong += " " + Slot + "/" + Tag + " not placed";
 			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
 		}
 		// Every part of the kinds ported, one at a time on its style's reference bike, as Godot draws it.
@@ -489,15 +496,17 @@ int main(int argc, char** argv)
 			// (BlenderParts.shell): not ported yet.)
 			const Json* Fairing = Lay.Part(B.count("fairing") ? B.at("fairing") : "none");
 			const bool CodeFairing = Fairing && !Fairing->Flag("frame_mount");
+			// (The tank bag laid along the tank's sections and the satnav fitted round the bars: next.)
+			static const std::set<std::string> NotYet = {"tank_bag", "satnav"};
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
-				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "fairing" && CodeFairing)) Wrong += " " + Slot + " missing";
+				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "fairing" && CodeFairing) && !NotYet.count(Slot)) Wrong += " " + Slot + " missing";
 			if (Sw.Str("fit_tier") != L.Fit.Tier) Wrong += " tier " + L.Fit.Tier + " (Godot: " + Sw.Str("fit_tier") + ")";
 			++Builds;
 			if (Wrong.empty()) ++Right;
 			else if (Bad.size() < 4000) Bad += "\n      " + Key + ":" + Wrong;
 		}
 		Expect(Builds > 300 && Right == Builds, std::to_string(Right) + " of " + std::to_string(Builds)
-			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts, bars, controls, master cylinders, clocks, lights, mirrors, indicators, front mudguards, frames and fairings) placed as Godot does" + Bad);
+			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts, bars, controls, master cylinders, clocks, lights, mirrors, indicators, front mudguards, frames, fairings, tails, stands, rearsets, guards, boards, luggage and kit) placed as Godot does" + Bad);
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);

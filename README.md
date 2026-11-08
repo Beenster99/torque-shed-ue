@@ -173,12 +173,16 @@ eye), the indicators (or a road bike's stock pair), the front mudguard bent from
 section, and the frame (Fit/BikeFrame.cpp: every style's tubes swept from the tube glb, a sport
 bike's cast spar beams, welds, bearing cups, battery box, footpegs and gussets) with the swingarm's tubes, and a frame-mounted fairing's Blender panel set (half, touring,
 adventure, Seeley, sport and race) widened round the engine as RigBodywork.fairing_fit does, with the
-mirrors on its mounts. Each placed part also says what it moves with as the
+mirrors on its mounts; the tail unit (rear mudguard bent from its section, tidy tray, lamp bracket,
+rear light), the stands, rearsets, horn, ECU, side panels, engine guards and plates, number boards,
+steering damper, lever guards, panniers and their rack, top boxes on theirs, fog lights, extra fuel
+tanks and toolboxes. Under a full fairing the plain headlight is marked Hidden, as Godot hides it. Each placed part also says what it moves with as the
 bike rides (steering, a hub, a wheel or the swingarm). The Godot reference records every Blender
 surface's bounds per slot, and also a single-part swap for every part of the kinds ported so far
 (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprocket pair, chain, engine, head,
 plugs, fuel system, filters, cooling, gearbox, exhaust, handlebars, clocks, master cylinders, headlights, mirrors, indicators, front mudguards, frames and fairings), each on its style's reference bike. `layout_test` requires all of
-them to match surface by surface. Still to port: Godot's code-drawn shells (a fairing on the bars among them) and brake hoses, lights' trim, guards, luggage and panels.
+them to match surface by surface. Still to port: the tank bag and satnav, Godot's code-drawn shells (a fairing on the bars among
+them) and brake hoses, and its hiding of what a full fairing covers.
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km
