@@ -181,6 +181,19 @@ int main()
 		}
 	}
 
+	std::printf("\nSlot names\n");
+	Expect(Fit.SlotFor("bars") == "handlebars" && Fit.SlotFor("Handlebars") == "handlebars", "'bars' and 'Handlebars' mean the handlebars slot");
+	Expect(Fit.SlotFor("pipes") == "exhaust" && Fit.SlotFor("silencers") == "exhaust", "'pipes' and 'silencers' mean the exhaust slot");
+	{
+		Build Alias;
+		Alias.Fitted["bars"] = "clubman_bar";
+		Assembly Aa;
+		std::string Why;
+		Expect(Fit.CanFit(Stock, "bars", "clubman_bar", Why) && Fit.Assemble(Alias, Aa, Error), "bars:clubman_bar fits and assembles " + Why + Error);
+		Build Bad;
+		Bad.Fitted["mudguards"] = "x";
+		Expect(!Fit.Assemble(Bad, Aa, Error) && Error.find("slots: handlebars") != std::string::npos, "an unknown slot lists the slots: " + Error);
+	}
 	std::printf("\nGeometry mode\n");
 	{
 		// Player fitting: drag the headlight 3 cm straight down; it may only slide down the fork tubes.

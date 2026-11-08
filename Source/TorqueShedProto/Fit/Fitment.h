@@ -187,6 +187,10 @@ public:
 	const std::string& BikeId() const { return Bike; }
 	const std::string& BikeName() const { return Name; }
 	std::vector<std::string> Slots() const;
+	// The slot a name means: a slot id, any case, or an everyday alias ("bars", "pipes", "silencers": a
+	// unit's id finds its slot). Empty if none; SlotError then says so and lists the slots.
+	std::string SlotFor(const std::string& SlotOrAlias) const;
+	std::string SlotError(const std::string& SlotOrAlias) const;
 	const std::vector<Option>* OptionsFor(const std::string& Slot) const;
 	const Option* FindOption(const std::string& Slot, const std::string& Id) const;
 	const Interface* FindInterface(const std::string& Id) const;
