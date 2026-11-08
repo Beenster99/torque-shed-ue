@@ -38,6 +38,8 @@ ROAD_HALF = 2.5                   # half width of the tarmac
 BED_HALF = 3.2                    # flat bed under the road (a little wider than it)
 BLEND = 14.0                      # where the cut or fill has blended back into the hillside
 CROWN = 0.05                      # road centre above its edges
+SAT_NEAR = 0.5                    # how much of the satellite's ground colour the near land takes...
+SAT_FAR = 0.85                    # ...and the far hills and horizon (Tools/fetch_satellite.py)
 MIN_RADIUS = 24.0                 # metres: no bend tighter (junction kinks in the map data)...
 MAX_SHIFT = 5.0                   # ...but the road moves at most this far off its mapped line
 SMOOTH = 12.0                     # sigma (m) of the smoothing of the road's height along its length
@@ -60,6 +62,20 @@ class Region:
         self.levels = {l["name"]: l for l in meta["levels"]}
         self.cover_names = meta["cover"]
         self._tiles = {}
+        self._sat = None
+        sat = os.path.join(REPO, "build", "satellite", "albedo.npz")   # Tools/fetch_satellite.py
+        if os.path.exists(sat):
+            d = np.load(sat)
+            self._sat = (d["rgb"].astype(np.float64), float(d["x0"]), float(d["z0"]), float(d["step"]))
+            # One gain per channel for everywhere (so near, backdrop and horizon meet without a seam):
+            # the satellite's grass, the median over the region's grass cover, maps to COVER_RGB's grass.
+            b = meta["bounds"]
+            gx = np.linspace(b[0] + 500, b[2] - 500, 160); gz = np.linspace(b[1] + 500, b[3] - 500, 80)
+            s = self._sample_sat(gx, gz)
+            g = (self.cover(gx, gz) == self.cover_names.index("grass")) & np.isfinite(s[..., 0])
+            want = np.power(np.array(COVER_RGB["grass"]) / 255.0, 2.2)
+            self._sat_gain = want / np.median(s[g], axis=0)
+            print("satellite ground colour: gain %s" % self._sat_gain.round(2))
 
     def _tile(self, level, tx, tz, cover=False):
         key = (level, tx, tz, cover)
@@ -112,6 +128,22 @@ class Region:
             hole = np.isnan(out)
             out[hole] = h[hole]
         return out
+
+    def _sample_sat(self, xs, zs):
+        rgb, x0, z0, st = self._sat
+        fx = np.clip((xs - x0) / st, 0, rgb.shape[1] - 1.001); fz = np.clip((zs - z0) / st, 0, rgb.shape[0] - 1.001)
+        ix, iz = fx.astype(int), fz.astype(int)
+        ux, uz = (fx - ix)[None, :, None], (fz - iz)[:, None, None]
+        a = rgb[np.ix_(iz, ix)]; b = rgb[np.ix_(iz, ix + 1)]; c = rgb[np.ix_(iz + 1, ix)]; d = rgb[np.ix_(iz + 1, ix + 1)]
+        return (a * (1 - ux) + b * ux) * (1 - uz) + (c * (1 - ux) + d * ux) * uz
+
+    def satellite(self, xs, zs):
+        """The real ground's colour from Sentinel-2 on the grid xs by zs (region metres), as sRGB
+        0..255 on COVER_RGB's scale; None without build/satellite/albedo.npz."""
+        if self._sat is None:
+            return None
+        lin = np.clip(self._sample_sat(xs, zs) * self._sat_gain, 0, 1)
+        return np.power(lin, 1 / 2.2) * 255.0
 
     def cover(self, xs, zs):
         s = self.levels["fine"]["spacing"]
@@ -217,13 +249,18 @@ def ease_tight_corners(xz, min_r=MIN_RADIUS, span=12, iters=400, max_shift=MAX_S
 ROCK_RGB = (118, 114, 104)
 
 
-def land_colour(cov, names, slope):
+def land_colour(cov, names, slope, sat=None, w=0.0):
     """Per-vertex colour: the cover's, turning to scree and rock on slopes steeper than about 35
-    degrees, as linear values in 0..255 (glTF COLOR_0 is linear; Unreal's VertexColor gives it back)."""
+    degrees, as linear values in 0..255 (glTF COLOR_0 is linear; Unreal's VertexColor gives it back).
+    sat (Region.satellite) is the real ground's colour, mixed in by w: the dale's true patchwork of
+    meadow, pasture, heather and bracken that the cover classes can't tell apart."""
     rgb = np.zeros(cov.shape + (3,), np.float64)
     rgb[...] = COVER_RGB["grass"]
     for ci, name in enumerate(names):
         rgb[cov == ci] = COVER_RGB.get(name, COVER_RGB["grass"])
+    if sat is not None and w > 0:
+        ok = np.isfinite(sat[..., :1])
+        rgb = np.where(ok, rgb * (1 - w) + np.nan_to_num(sat) * w, rgb)
     rock = np.clip((slope - 0.6) / 0.4, 0, 1)[..., None]   # tan 31 deg .. tan 45 deg
     rgb = rgb * (1 - rock) + np.array(ROCK_RGB) * rock
     return (np.power(rgb / 255.0, 2.2) * 255.0).round().astype(np.uint8)
@@ -391,7 +428,7 @@ def main():
     # Vertex colour: the cover's colour, alpha 255 on open land fading to 0 on the verge and road bed
     # (the material blends to verge grass and gravel by it).
     slope = np.hypot(*np.gradient(H, STEP))
-    rgb = land_colour(cov, region.cover_names, slope)
+    rgb = land_colour(cov, region.cover_names, slope, region.satellite(xs + O[0], zs + O[2]), SAT_NEAR)
     alpha = (np.clip((best - ROAD_HALF) / 4.0, 0, 1) * 255).astype(np.uint8)
     col = np.concatenate([rgb, alpha[..., None]], -1)
 
@@ -462,7 +499,8 @@ def main():
         B = np.where(inside, np.minimum(B - 3.0, m4 - 1.0), np.where(edge, np.minimum(B - 0.6, m4 - 0.3), B))
         bcol = np.zeros(B.shape + (4,), np.uint8); bcol[..., 3] = 255
         bcov = region.cover(bx + O[0], bz + O[2])
-        bcol[..., :3] = land_colour(bcov, region.cover_names, np.hypot(*np.gradient(B, bs)))
+        bcol[..., :3] = land_colour(bcov, region.cover_names, np.hypot(*np.gradient(B, bs)),
+                                    region.satellite(bx + O[0], bz + O[2]), SAT_FAR)
         # The map's limestone scars and screes on the far fells (Tools/buttertubs_far.py).
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import buttertubs_far
@@ -480,7 +518,8 @@ def main():
         R = np.where(inner < BACKDROP - hs, R - 150.0, np.where(inner < BACKDROP + hs, R - 6.0, R))
         hcol = np.zeros(R.shape + (4,), np.uint8); hcol[..., 3] = 255
         hcov = region.cover(hx + O[0], hz + O[2])
-        hcol[..., :3] = land_colour(hcov, region.cover_names, np.hypot(*np.gradient(R, hs)))
+        hcol[..., :3] = land_colour(hcov, region.cover_names, np.hypot(*np.gradient(R, hs)),
+                                    region.satellite(hx + O[0], hz + O[2]), SAT_FAR)
         pos, tris, nrm, cc, uv = grid_mesh(R, hx[0], hz[0], hs, hcol)
         write_glb(os.path.join(args.out, "horizon.glb"), pos, tris, nrm, cc, "horizon", uv)
 
