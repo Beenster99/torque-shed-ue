@@ -306,6 +306,22 @@ int main(int argc, char** argv)
 			}
 			Expect(Engine == 1 && Head >= 1 && Bad.empty(), St + ": crankcase and top end on the crank" + Bad);
 		}
+		// Godot hides the plain headlight inside a full race or adventure fairing, and only there.
+		std::string Wrong;
+		for (const std::string& St : Lay.Styles())
+		{
+			const PartsMap B = Lay.ReferenceBuild(St);
+			const bool Inside = St == "sport" || St == "race" || St == "adventure";
+			int Lamps = 0;
+			for (const FittedPart& P : Placer.Fit(B, Lay.Solve(B)))
+				if (P.Slot == "headlight")
+				{
+					++Lamps;
+					if (P.Hidden != Inside) Wrong += " " + St;
+				}
+			if (!Lamps) Wrong += " " + St + "(no headlight)";
+		}
+		Expect(Wrong.empty(), "the headlight hidden inside a full fairing (sport, race, adventure), shown on the rest" + Wrong);
 	}
 
 	std::printf("Against the original game (SimTest/data/godot_reference.json, dumped from Godot):\n");
