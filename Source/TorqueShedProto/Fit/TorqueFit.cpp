@@ -41,8 +41,11 @@ FString FolderFor(FName Bike)
 
 bool ReadText(const FString& Rel, std::string& Out)
 {
+	// A missing file is just false (no "Failed to read file" in the log): fitment_fixes.json is optional.
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(), Rel);
+	if (!FPaths::FileExists(Path)) return false;
 	TArray<uint8> Bytes;
-	if (!FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(FPaths::ProjectDir(), Rel))) return false;
+	if (!FFileHelper::LoadFileToArray(Bytes, *Path)) return false;
 	Out.assign(reinterpret_cast<const char*>(Bytes.GetData()), static_cast<size_t>(Bytes.Num()));
 	return true;
 }
@@ -71,6 +74,7 @@ FBikeData* Get(FName Bike)
 		UE_LOG(LogTemp, Warning, TEXT("Torque fit: %s"), *ToF(Error));
 		return nullptr;
 	}
+	// Author fixes are optional: only a bike someone has fitted in geometry mode has the file.
 	std::string Fixes;
 	if (ReadText(Dir + TEXT("fitment_fixes.json"), Fixes) && !D->Fit.ApplyFixes(Fixes, Error))
 		UE_LOG(LogTemp, Warning, TEXT("Torque fit: author fixes not applied: %s"), *ToF(Error));

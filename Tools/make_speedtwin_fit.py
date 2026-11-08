@@ -436,6 +436,16 @@ def bar_shape(width_mm, rise, pullback, drop_mid=0.0):
     return st.polyline(pts, 6)
 
 
+def clubman_shape(width_mm, drop, pull):
+    """A clubman drop bar: flat across the clamp, a short kick forward, then down by drop and back by
+    pull to the ends, so the grips sit low and narrow like clip-ons."""
+    h = width_mm / 2000.0
+    c = BAR_CLAMP
+    half = [c + [0.02, -0.01, 0.10], c + [0.01, -drop * 0.55, 0.16], c + [-pull * 0.55, -drop, 0.23], c + [-pull, -drop, h]]
+    pts = [p * [1, 1, -1] + c * [0, 0, 2] for p in half[::-1]] + [c] + half
+    return st.polyline(pts, 6)
+
+
 def options(cat):
     """The alternatives: (slot, id, display name, catalogue id, unit, meshes {name: (Mesh, finish, group)})."""
     out = []
@@ -447,7 +457,12 @@ def options(cat):
     }
     for pid, kw in shapes.items():
         e = cat["handlebars"][pid]
-        path = bar_shape(e["width"], e["rise"], **kw)
+        look = e.get("look", {})
+        if look.get("bend") == "clubman":
+            # The catalogue's look (drop and pull back, metres): a real clubman, not just a flat bar.
+            path = clubman_shape(e["width"], look.get("drop", 0.08), look.get("pull", 0.12))
+        else:
+            path = bar_shape(e["width"], e["rise"], **kw)
         mesh = st.Mesh()
         bar_mm = BAR_MM
         extra = []
@@ -486,10 +501,13 @@ def options(cat):
         dz = 0.05 if pid == "cafe_reverse_cones" else 0.0
         a0 = np.array([-0.25, -0.065, 0.158 + dz])
         if pid == "peashooter_twins":
-            end = np.array([-0.90, 0.10, 0.168])
-            s_path = np.linspace(a0, end, 16)
-            radii = np.interp(np.linspace(0, 1, 16), [0.0, 0.1, 0.3, 1.0], [0.024, 0.028, 0.034, 0.036])
-            fin, cap_fin = "steel_brushed", "steel_brushed"
+            # Long, low and slim, in chrome, past the rear axle, tapering to a small tail pipe: the
+            # stock cans are fatter (100 mm), shorter and kick up more.
+            end = np.array([-1.02, 0.05, 0.17])
+            s_path = np.linspace(a0, end, 24)
+            radii = np.interp(np.linspace(0, 1, 24), [0.0, 0.06, 0.16, 0.74, 0.97, 1.0],
+                              [0.024, 0.03, 0.035, 0.035, 0.016, 0.014])
+            fin, cap_fin = "chrome", "chrome"
         else:
             end = np.array([-0.70, 0.12, 0.17 + dz])
             s_path = np.linspace(a0, end, 16)
