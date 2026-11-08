@@ -354,7 +354,7 @@ int main(int argc, char** argv)
 				if (P.Code)
 				{
 					// A shape Godot draws in code: no glb tag there, so it counts toward its slot's whole box
-					// and its own name's ("@" + slot + "/" + name).
+					// ("+" + slot) and its own name's ("@" + slot + "/" + name).
 					// (Godot's reference keeps the last mesh of a name in the slot, as here.)
 					const std::string Key = P.Name.empty() ? "" : "@" + P.Slot + "/" + P.Name;
 					if (!Key.empty()) Ours[Key] = Box();
@@ -362,7 +362,7 @@ int main(int argc, char** argv)
 					{
 						for (const V3& V : S.Pos)
 						{
-							Ours[P.Slot].Add(ToGodot(V));
+							Ours["+" + P.Slot].Add(ToGodot(V));
 							if (!Key.empty()) Ours[Key].Add(ToGodot(V));
 						}
 					}
@@ -376,9 +376,9 @@ int main(int argc, char** argv)
 					for (const V3& V : S.Pos)
 					{
 						Ours[Slot].Add(ToGodot(V));
+						Ours["+" + Slot].Add(ToGodot(V));
 						Ours[Slot + "/" + S.Material].Add(ToGodot(V));   // (the saddle's pad is its leather)
 						if (P.Glb.rfind("tail/cowl/", 0) == 0) Ours["tail cowl"].Add(ToGodot(V));
-						if (P.Slot == "tank") Ours["tank body"].Add(ToGodot(V));   // (Godot's TankBody, without the code's cap and trim)
 						Tags[Slot][S.Material].Add(ToGodot(V));
 					}
 					++Tags[Slot][S.Material].Meshes;   // (Godot's: one mesh a surface of each piece)
@@ -492,8 +492,10 @@ int main(int argc, char** argv)
 			}
 			if (Whole)
 			{
-				auto Mine = Ours.find(Slot);
-				const double D = Mine != Ours.end() ? Near(Mine->second, Gs) : 1e9;
+				// (A slot with nothing of ours to measure, such as one sitting the comparisons out, is left
+				// to the slot-by-slot check, which says when one is missing.)
+				auto Mine = Ours.find("+" + Slot);
+				const double D = Mine != Ours.end() ? Near(Mine->second, Gs) : 0.0;
 				if (D >= 5e-4)
 				{
 					char W[200] = "";
@@ -541,7 +543,7 @@ int main(int argc, char** argv)
 				const Json* S = GSlots->Get(Slot);
 				return S && S->Get("named") ? S->Get("named")->Get(Name) : nullptr;
 			};
-			std::pair<std::string, const Json*> Meshes[] = {{"tank body", Named("tank", "TankBody")}, {"saddle/leather", Named("saddle", "SeatPad")},
+			std::pair<std::string, const Json*> Meshes[] = {{"tank", Named("tank", "TankBody")}, {"saddle/leather", Named("saddle", "SeatPad")},
 				{"tail cowl", Named("tail", "TailCowl")}, {"engine", GSlots->Get("engine")}, {"head", GSlots->Get("head")}};
 			double MeshOff = 0.0;
 			std::string MeshWorst;
