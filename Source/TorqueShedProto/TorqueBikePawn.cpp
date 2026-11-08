@@ -2,6 +2,7 @@
 #include "Shed/TorqueFlow.h"
 
 #include "BikeSim.h"
+#include "TorqueFit.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
@@ -294,41 +295,73 @@ void ATorqueBikePawn::BuildModel()
 	if (Spec->TryGetObjectField(TEXT("group_origins"), Origins))
 		RearRest = ModelToLocal(JsonVec(*Origins, TEXT("rear_wheel")));
 
+	// What to make: the fitment system's assembly of the build (parts on their sockets, swapped
+	// parts, geometry mode; Fit/TorqueFit.h), or if there's no fitment data, the model as
+	// speedtwin.json lists it.
+	struct FPartToMake
+	{
+		FString Name, Group, MeshPath, MaterialPath;
+		FTransform Delta;
+	};
+	TArray<FPartToMake> ToMake;
+	{
+		TArray<FTorqueResolvedPart> Resolved;
+		TArray<FTorqueFitClash> Clashes;
+		const FTorqueBuild Build = TorqueFit::BuildFromCommandLine();
+		if (TorqueFit::ResolveModel(Build, Resolved, &Clashes))
+		{
+			for (const FTorqueResolvedPart& R : Resolved)
+				ToMake.Add({R.Name.ToString(), R.Group.ToString(), R.Mesh, R.Material, R.Delta});
+			for (const TPair<FName, FName>& KV : Build.Fitted)
+				UE_LOG(LogTemp, Log, TEXT("Torque fit: %s: %s"), *KV.Key.ToString(), *KV.Value.ToString());
+			for (const FTorqueFitClash& C : Clashes)
+				UE_LOG(LogTemp, Log, TEXT("Torque fit: %s hits %s at %s (%.0f mm)"), *C.A.ToString(), *C.B.ToString(), *C.Case, C.DepthMm);
+		}
+	}
 	const TSharedPtr<FJsonObject>* PartsObj = nullptr;
 	const TArray<TSharedPtr<FJsonValue>>* List = nullptr;
 	if (!Assets->TryGetObjectField(TEXT("parts"), PartsObj) || !Spec->TryGetArrayField(TEXT("parts"), List)) return;
-	int32 Made = 0;
-	for (const TSharedPtr<FJsonValue>& V : *List)
+	if (ToMake.Num() == 0)
 	{
-		const TSharedPtr<FJsonObject> P = V->AsObject();
-		const FString Name = P->GetStringField(TEXT("name"));
-		const FString Group = P->GetStringField(TEXT("group"));
-		const TSharedPtr<FJsonObject>* Where = nullptr;
-		if (!(*PartsObj)->TryGetObjectField(Name, Where)) continue;
-		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *(*Where)->GetStringField(TEXT("mesh")));
+		for (const TSharedPtr<FJsonValue>& V : *List)
+		{
+			const TSharedPtr<FJsonObject> P = V->AsObject();
+			const FString Name = P->GetStringField(TEXT("name"));
+			const TSharedPtr<FJsonObject>* Where = nullptr;
+			if (!(*PartsObj)->TryGetObjectField(Name, Where)) continue;
+			ToMake.Add({Name, P->GetStringField(TEXT("group")), (*Where)->GetStringField(TEXT("mesh")),
+				(*Where)->GetStringField(TEXT("material")), FTransform::Identity});
+		}
+	}
+	FTransform LeverDelta[2] = {FTransform::Identity, FTransform::Identity};
+	int32 Made = 0;
+	for (const FPartToMake& P : ToMake)
+	{
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *P.MeshPath);
 		if (!Mesh) continue;
 		USceneComponent* Parent = Root;
-		if (Group == TEXT("steer")) Parent = SteerGroup;
-		else if (Group == TEXT("front_lower")) Parent = FrontHub;
-		else if (Group == TEXT("front_wheel")) Parent = FrontPivot;
-		else if (Group == TEXT("swingarm")) Parent = SwingGroup;
-		else if (Group == TEXT("rear_wheel")) Parent = RearPivot;
-		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *(TEXT("Part_") + Name));
+		if (P.Group == TEXT("steer")) Parent = SteerGroup;
+		else if (P.Group == TEXT("front_lower")) Parent = FrontHub;
+		else if (P.Group == TEXT("front_wheel")) Parent = FrontPivot;
+		else if (P.Group == TEXT("swingarm")) Parent = SwingGroup;
+		else if (P.Group == TEXT("rear_wheel")) Parent = RearPivot;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this, *(TEXT("Part_") + P.Name));
 		C->SetStaticMesh(Mesh);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
 		C->SetupAttachment(Parent);
-		C->SetRelativeTransform(Fix);
-		if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *(*Where)->GetStringField(TEXT("material"))))
+		C->SetRelativeTransform(Fix * P.Delta);
+		if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *P.MaterialPath))
 			C->SetMaterial(0, M);
 		C->RegisterComponent();
 		ModelParts.Add(C);
-		if (Name == TEXT("lever_clutch")) LeverParts[0] = C;
-		else if (Name == TEXT("lever_brake")) LeverParts[1] = C;
+		if (P.Name == TEXT("lever_clutch")) { LeverParts[0] = C; LeverDelta[0] = P.Delta; }
+		else if (P.Name == TEXT("lever_brake")) { LeverParts[1] = C; LeverDelta[1] = P.Delta; }
 		++Made;
 	}
 	// The clutch and front brake levers swing on their perches as they're pulled.
 	PartFix = Fix;
+	for (int32 S = 0; S < 2; ++S) LeverBase[S] = Fix * LeverDelta[S];
 	const TSharedPtr<FJsonObject>* Levers = nullptr;
 	if (Spec->TryGetObjectField(TEXT("levers"), Levers))
 	{
@@ -336,9 +369,11 @@ void ATorqueBikePawn::BuildModel()
 		{
 			const TSharedPtr<FJsonObject>* L = nullptr;
 			if (!(*Levers)->TryGetObjectField(S == 0 ? TEXT("clutch") : TEXT("brake"), L)) continue;
-			LeverPivot[S] = ModelToLocal(JsonVec(*L, TEXT("pivot")));
-			LeverAxis[S] = ModelDirToLocal(JsonVec(*L, TEXT("axis")));
+			// On fitted bars a lever sits where its socket put it: its perch moves with it.
+			LeverPivot[S] = LeverDelta[S].TransformPosition(ModelToLocal(JsonVec(*L, TEXT("pivot"))));
+			LeverAxis[S] = LeverDelta[S].TransformVectorNoScale(ModelDirToLocal(JsonVec(*L, TEXT("axis"))));
 			LeverPullRad[S] = FMath::DegreesToRadians((*L)->GetNumberField(TEXT("pull_deg")));
+			LeverBase[S] = Fix * LeverDelta[S];
 		}
 	}
 	if (Made > 0)
@@ -1118,7 +1153,7 @@ void ATorqueBikePawn::UpdateRider()
 		{
 			if (!LeverParts[S]) continue;
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
-			LeverParts[S]->SetRelativeTransform(PartFix * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]));
+			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]));
 		}
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;

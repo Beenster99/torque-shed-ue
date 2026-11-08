@@ -164,6 +164,7 @@ private:
 	FVector RearRest = FVector::ZeroVector;
 	FTransform PartFix;                // the importer's turn of the model's frame
 	FVector LeverPivot[2] = {FVector::ZeroVector, FVector::ZeroVector}, LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
+	FTransform LeverBase[2];           // each lever's rest placement (the importer's fix, then where its socket put it)
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever

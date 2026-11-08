@@ -26,3 +26,13 @@ target_include_directories(net_test PRIVATE ${COOP})
 if(NOT MSVC)
   target_compile_options(net_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# The fitment system: assembles the Speed Twin from its sockets and runs the clearance checks.
+set(FIT ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Fit)
+add_executable(fit_test fit_test.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/Fitment.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(fit_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(fit_test PRIVATE /W4)
+else()
+  target_compile_options(fit_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

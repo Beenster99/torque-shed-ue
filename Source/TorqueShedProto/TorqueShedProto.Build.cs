@@ -17,6 +17,8 @@ public class TorqueShedProto : ModuleRules
 		PrivateIncludePaths.Add(ModuleDirectory);
 		// The co-op smoothing (Coop/NetSmoother.h) is plain C++ shared with SimTest too.
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Coop"));
+		// The fitment system (Fit/): plain C++ shared with SimTest's fit_test, plus its Unreal adaptor.
+		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Fit"));
 		// SonyPad reads PlayStation pads through Windows HID.
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 			PublicSystemLibraries.AddRange(new string[] { "hid.lib", "setupapi.lib" });
