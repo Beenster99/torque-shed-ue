@@ -199,8 +199,13 @@ are checked whole against Godot, and a phone satnav lands where Godot puts it. U
 panel set, what of the engine bay sits wholly behind it side on is hidden surface by surface
 (FittedPart.HiddenTags), and the oil filter (under a touring set, the air filter) gets a
 quick-release service cap on the panel, as Godot's _hide_covered and _service_caps; the Godot
-reference records which meshes it hides, and `layout_test` matches them tag by tag. Still to
-port: Godot's other code shells (perimeter beams, castings, the rest of each slot's code pieces).
+reference records which meshes it hides, and `layout_test` matches them tag by tag. Also drawn
+as Godot does: the front caliper's hose and clip, the gear linkage rod, the HT leads, and the
+seat's stitching, seam, piping, grab rail, pillion pegs, touring back, springs and sissy bar, and
+the tail's struts, brackets, cowl trim and number plate, moved off the rear mudguard the shortest
+way as Godot's _clear_plates does (front caliper, gearbox, spark plugs, saddle and tail are
+checked whole too). Still to port: Godot's
+other code shells (perimeter beams, castings, the rest of each slot's code pieces).
 
 The physics test checks the bike settles on its springs, does 0 to 60 mph in about 3.2 s, holds a lean,
 stands back up, stops from 60 mph in about 36 m, and that a simple robot rider gets down the 3 km

@@ -46,6 +46,8 @@ struct GAffine
 
 // A triangle for the sight-line and fit checks (Godot frame).
 struct SegTri { V3 A, B, C; };
+// A box by its centre and its three half-axes (BikeModel._obb), Godot frame.
+struct Obb { V3 C; V3 H[3]; };
 
 class BikeParts
 {
@@ -108,6 +110,7 @@ private:
 	// The engine's ancillaries: spark plugs and coil, carbs or throttle bodies, air filter, oil
 	// filter, cooling and the gearbox's pieces (BikeModel._draw_spark_plugs to _blender_gearbox).
 	void Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
+	void SaddleTrim(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// The bars, their grips and the controls on them (the front master cylinder too), and the clutch and throttle cables
 	// (BikeModel._draw_handlebars, _bent_bar, _draw_controls and _draw_cables).
 	// The bar as drawn, in the steering's space (BikeModel's _bar_line, _bar_tip, _bar_out, _bar_r),
@@ -143,7 +146,7 @@ private:
 	// The tail unit's Blender pieces (BikeModel._draw_tail): the rear mudguard bent from its
 	// section, a tidy tail's tray and lamp bracket, an enduro's blade, and the rear light. Its
 	// cowl is the bodywork's (Fit/BikeBody); its struts, stays and number plate are code-drawn.
-	void TailUnit(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	void TailUnit(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// The side and centre stands, folded up (BikeModel._draw_side_stand, _draw_centre_stand):
 	// legs swept from the tube section, the Blender foot and pivot.
 	void Stands(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
@@ -180,6 +183,7 @@ private:
 	// head), empty without a mesh source; whether a segment crosses any of some triangles
 	// (TriangleMesh.intersect_segment); the rider's eye (BikeModel._eye_point, Godot frame).
 	std::vector<SegTri> BarTriangles(const std::vector<FittedPart>& Out, const Bars& Bar, const V3& H) const;
+	static V3 ObbPush(const Obb& A, const Obb& B);
 	static bool SegmentHits(const std::vector<SegTri>& Tris, const V3& From, const V3& To);
 	V3 EyeAt(const Layout& L) const;
 	// A satnav over the clocks on its arm (KitModel._satnav), DashLift as the clocks were raised;
