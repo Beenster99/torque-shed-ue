@@ -340,6 +340,22 @@ void BikeParts::Brake(const PartsMap& Parts, const Layout& L, bool Front, double
 	const V3 CalAt(X + 0.012, DiscR * 0.62, Front ? DiscR * 0.62 : -DiscR * 0.62);
 	const GAffine CalBasis = GAffine::Rotation(GodotRight, Front ? -TorqueSim::Pi * 0.25 : TorqueSim::Pi * 0.25);
 	Put(Out, Side + "_caliper", "caliper/" + CaliperId + ".glb", AtWith(CalBasis, Axle + CalAt), Hub);
+	if (Front)
+	{
+		// The hose from the bottom yoke down the back of the fork leg to the caliper, and its clip.
+		const Json* ForkPart = Lay.Part(PartIn(Parts, "fork"));
+		const std::string ForkStyle = PartStr(ForkPart, "style", "conventional");
+		const Json* Look = ForkPart ? ForkPart->Get("look") : nullptr;
+		const double ForkX = ForkStyle == "girder" ? 0.09 : (ForkStyle == "springer" || ForkStyle == "leading_link") ? 0.085 : 0.09 * PartNum(Look, "wide", 1.0);
+		const V3 Axis = ToGodot(L.SteerAxis);
+		const V3 J = V3(ForkX + 0.035, 0.0, 0.04) - Axis * 0.3 + Axis * L.Stats.ForkLength;
+		const V3 Slide = V3(ForkX + 0.035, 0.0, 0.045) + Axis * (L.Stats.ForkLength * 0.42);
+		const V3 Into = CalAt + CalBasis.Apply(V3(0.0, CalH * 0.5 + 0.004, 0.0)) - CalBasis.O;
+		const std::string Stand = "caliper/" + CaliperId + ".glb";
+		CodeShapes::Emit(Out, "front_caliper", Stand, Hub, "BrakeHose",
+			CodeShapes::Sweep({J, J + (Slide - J) * 0.5 + V3(0.012, 0.0, 0.0), Slide, Into}, 0.005, 8), GAffine::At(Axle), "rubber");
+		CodeShapes::Emit(Out, "front_caliper", Stand, Hub, "", CodeShapes::Box(V3(0.012, 0.025, 0.02)), GAffine::At(Axle + Slide), "black_metal");
+	}
 	const V3 PadAt = CalAt + CalBasis.Y * (CalH * 0.5 + 0.012);
 	Put(Out, Side + "_pads", "pads/" + PadsId + ".glb", AtWith(CalBasis, Axle + PadAt), Hub);
 }
@@ -886,7 +902,18 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 			V3 Mid;
 			for (const V3& End : Ends) { Top = std::max(Top, End.y); Mid += End; }
 			Mid = Mid / static_cast<double>(Ends.size());
-			Put(Out, "spark_plugs", "spark_plugs/coil.glb", GAffine::At(V3(0.0, Top - 0.11, Mid.z + 0.16)), "");
+			const V3 Coil(0.0, Top - 0.11, Mid.z + 0.16);
+			Put(Out, "spark_plugs", "spark_plugs/coil.glb", GAffine::At(Coil), "");
+			// The HT leads from the caps, sagging back into the coil's towers.
+			CodeShapes::GodotNames Named;
+			for (size_t I = 0; I < Ends.size(); ++I)
+			{
+				const V3 End = Ends[I];
+				const V3 Into = Coil + V3(I % 2 == 0 ? -0.012 : 0.012, 0.0, -0.05);
+				const V3 Sag = End + (Into - End) * 0.5 + V3(0.0, -0.03, 0.0);
+				CodeShapes::Emit(Out, "spark_plugs", "spark_plugs/coil.glb", "", Named("HTLead"),
+					CodeShapes::Sweep({End, End + V3(0.0, 0.012, 0.02), Sag, Into}, 0.0045, 6), GAffine(), "rubber");
+			}
 		}
 	}
 
@@ -1026,10 +1053,17 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 			const V3 Start = Shaft + Turn.Apply(Arm) * 0.032;
 			const Json* G = Lay.Part(Id);
 			const Json* Qs = G ? G->Get("quickshifter") : nullptr;
-			if ((Start - Lever).Length() > 0.02 && Qs && Qs->B)
+			if ((Start - Lever).Length() > 0.02)
 			{
-				const V3 Along = (Lever - Start).Normalized();
-				Put(Out, "gearbox", "gearbox/quickshifter.glb", AtWith(BasisUp(Along), Start + Along * std::min(0.06, (Start - Lever).Length() * 0.4)), "");
+				// The linkage rod from the shaft's arm to the gear lever, its ball joint at the lever.
+				CodeShapes::GodotNames Named;
+				CodeShapes::Emit(Out, "gearbox", "gearbox/selector.glb", "", Named("GearLinkage"), CodeShapes::Tube(Start, Lever, 0.0055), CodeShapes::TubeAt(Start, Lever), "chrome");
+				CodeShapes::Emit(Out, "gearbox", "gearbox/selector.glb", "", Named("GearLinkage"), CodeShapes::Sphere(0.008), GAffine::At(Lever), "chrome");
+				if (Qs && Qs->B)
+				{
+					const V3 Along = (Lever - Start).Normalized();
+					Put(Out, "gearbox", "gearbox/quickshifter.glb", AtWith(BasisUp(Along), Start + Along * std::min(0.06, (Start - Lever).Length() * 0.4)), "");
+				}
 			}
 			if (EngLayout == "single" || EngLayout == "2stroke" || EngLayout == "twin")
 				Put(Out, "gearbox", "gearbox/kickstart.glb", GAffine::At(E + V3(BlockW * 0.5 + 0.035, -0.04, 0.2)), "");
