@@ -117,7 +117,7 @@ std::vector<double> SmoothFloats(const std::vector<double>& V, int PerSeg)
 	return Out;
 }
 
-V3 LerpV(const V3& A, const V3& B, double F) { return A + (B - A) * F; }
+V3 MixV(const V3& A, const V3& B, double F) { return A + (B - A) * F; }
 
 double SprocketRadius(int Teeth)
 {
@@ -606,9 +606,9 @@ bool BikeParts::Sweep(std::vector<FittedPart>& Out, const std::string& Slot, con
 			int I = static_cast<int>(std::lower_bound(C->Arc.begin(), C->Arc.end(), D) - C->Arc.begin());
 			I = std::min(std::max(I - 1, 0), Count - 2);
 			const double F = TorqueSim::Clamp((D - C->Arc[I]) / std::max(C->Arc[I + 1] - C->Arc[I], 0.000001), 0.0, 1.0);
-			const V3 At = LerpV(C->Pts[I], C->Pts[I + 1], F);
-			const V3 Tan = LerpV(C->Tan[I], C->Tan[I + 1], F).Normalized();
-			V3 Sd = LerpV(C->Side[I], C->Side[I + 1], F);
+			const V3 At = MixV(C->Pts[I], C->Pts[I + 1], F);
+			const V3 Tan = MixV(C->Tan[I], C->Tan[I + 1], F).Normalized();
+			V3 Sd = MixV(C->Side[I], C->Side[I + 1], F);
 			Sd = (Sd - Tan * Sd.Dot(Tan)).Normalized();
 			const V3 Up = Tan.Cross(Sd).Normalized();
 			double R = C->Radii[0];
@@ -694,7 +694,7 @@ void BikeParts::Exhaust(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 		for (const V3& Port : Ports)
 			Bend({Port, Port + V3(0.0, -0.03, -0.06), V3(0.12, E.y - 0.02, E.z - 0.14 * S), V3(0.16, E.y + 0.02, E.z + 0.0), Join}, {R});
 		const V3 CanA(0.18, SeatY - 0.2, Pivot.z + 0.02);
-		Bend({Join, LerpV(Join, CanA, 0.5) + V3(0.005, 0.0, 0.0), CanA}, {0.026});
+		Bend({Join, MixV(Join, CanA, 0.5) + V3(0.005, 0.0, 0.0), CanA}, {0.026});
 		Can(Out, CanA, V3(0.18, SeatY - 0.12, Tail.z - 0.02), CanShape, 0.045);
 	}
 	else if (Route == "upswept")
@@ -755,7 +755,7 @@ void BikeParts::Exhaust(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 				CanA = Collector + V3(0.02, 0.02, 0.06);
 				CanB = V3(0.15, Pivot.y - 0.06, Pivot.z + 0.2);
 			}
-			Bend({Collector, LerpV(Collector, CanA, 0.5), CanA}, {0.026});
+			Bend({Collector, MixV(Collector, CanA, 0.5), CanA}, {0.026});
 			Can(Out, CanA, CanB, CanShape, Style == "stock" ? 0.06 : 0.05);
 		}
 	}
