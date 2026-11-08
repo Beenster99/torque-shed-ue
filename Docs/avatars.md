@@ -21,9 +21,14 @@ MetaHuman Creator is built into the editor from UE 5.6 and is free. Rigging and 
 
 1. **Plugins:** in Edit > Plugins, search "MetaHuman". Turn on **MetaHuman Creator** and **MetaHuman Character** (and **MetaHuman Core Tech** if it's listed on its own), then restart the editor.
 2. **Find out what can be scripted:** run `py Tools/ue_metahumans.py discover` in the Output Log, or headless:
-   `UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="Tools/ue_metahumans.py discover" -unattended`.
+   `UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="G:/Dev/torque-shed-ue/Tools/ue_metahumans.py discover" -unattended`.
+   Use forward slashes in that path: UE escape-processes backslashes, so `\t` would become a tab.
    It writes `Saved/metahuman_api.txt`. Send that file back, so the making can be fully scripted next time.
-3. **Try making them by script:** run `py Tools/ue_metahumans.py make`. This is best effort. It logs each step this engine's API allows, then registers whatever got assembled.
+3. **Make them by script:** run `py Tools/ue_metahumans.py make`. It creates `Avatar_A` to `Avatar_D` under `/Game/MetaHumans`, each with a different height, and tries to build each one without the cloud. The log line `can_build_meta_human = False`, with the reason above it, means the build needs a rig. In that case:
+   - sign in to your Epic account, then run `py Tools/ue_metahumans.py make rig`. That auto-rigs each one in Epic's cloud (Joints Only), then builds it;
+   - if a build still fails, the script exports the preview body mesh instead, and the game poses that body on its own.
+
+   It registers whatever it made at the end.
 4. **Or make them by hand.** Four people is enough for a 4-player crew. For each one:
    - In the Content Browser, go to `/Game/MetaHumans/<Name>/`, right-click and choose **MetaHuman > MetaHuman Character**. Name it after the person and open it.
    - **Presets:** pick a different face for each person, a mix of ages and looks.

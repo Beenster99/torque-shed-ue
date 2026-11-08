@@ -9,11 +9,13 @@ colour, posed in code; without the file it keeps the shape body.
                                            Data/Avatars/avatars.json (run after making or changing any)
     py Tools/ue_metahumans.py discover     write Saved/metahuman_api.txt: the editor's MetaHuman Python
                                            API in this engine version, to script the making next
-    py Tools/ue_metahumans.py make         try to make the avatars below by script (best effort: logs
-                                           what this engine's API lets it do, then registers)
+    py Tools/ue_metahumans.py make         make the avatars below by script and build them without the
+                                           cloud (logs can_build_meta_human's reason if a rig is needed)
+    py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
 
 Or without opening the editor:
-    UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="Tools/ue_metahumans.py discover" -unattended
+    UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="G:/Dev/torque-shed-ue/Tools/ue_metahumans.py discover" -unattended
+(forward slashes in the path: UE escape-processes backslashes, so "\\t" becomes a tab)
 
 Needs the MetaHuman plugins on (Edit > Plugins > "MetaHuman": MetaHuman Creator / MetaHuman Character).
 """
@@ -67,10 +69,65 @@ def discover():
     return path
 
 
-def make():
-    """Best effort with the API this engine has: make a MetaHuman Character asset per avatar, rig it,
-    and assemble it. Each step logs what it found; a step the API hasn't stops with a clear note
-    (then make them by hand as Docs/avatars.md says, and run this script again to register)."""
+def _props(obj):
+    """An editor struct or object's Python properties, for the log (names this version uses)."""
+    return ", ".join(m for m in dir(obj) if not m.startswith("_") and not callable(getattr(obj, m, None)))
+
+
+def _set_first(obj, value, *names):
+    for n in names:
+        try:
+            obj.set_editor_property(n, value)
+            return n
+        except Exception:
+            continue
+    return None
+
+
+def _vary_body(sub, ch, i):
+    """A different height and build for each avatar, through the parametric body constraints."""
+    heights = (170.0, 176.0, 182.0, 188.0)
+    try:
+        cons = sub.get_body_constraints(ch, False)
+    except Exception as e:
+        unreal.log_warning("[Torque] get_body_constraints failed: %s" % e)
+        return
+    names = []
+    for c in cons:
+        try:
+            n = str(c.get_editor_property("name"))
+        except Exception:
+            n = str(getattr(c, "name", ""))
+        names.append(n)
+        if "height" in n.lower() and "head" not in n.lower():
+            for prop in ("target_measurement", "target", "value"):
+                try:
+                    c.set_editor_property(prop, heights[i % len(heights)])
+                    break
+                except Exception:
+                    continue
+            for prop in ("is_active", "active", "b_is_active"):
+                try:
+                    c.set_editor_property(prop, True)
+                    break
+                except Exception:
+                    continue
+    log("body constraints: " + ", ".join(names))
+    if cons:
+        log("body constraint fields: " + _props(cons[0]))
+    try:
+        sub.set_body_constraints(ch, cons)
+        log("%s: height %.0f cm" % (ch.get_name(), heights[i % len(heights)]))
+    except Exception as e:
+        unreal.log_warning("[Torque] set_body_constraints failed: %s" % e)
+
+
+def make(rig=False):
+    """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
+
+    Without `rig`, nothing goes to Epic's cloud: the build uses whatever rig the character has, and
+    can_build_meta_human logs why when it needs one. With `rig` (`make rig`), each character is first
+    auto-rigged in the cloud (Joints Only, blocking), which needs the Epic account sign-in."""
     discover()
     cls = getattr(unreal, "MetaHumanCharacter", None)
     sub_cls = getattr(unreal, "MetaHumanCharacterEditorSubsystem", None)
@@ -79,38 +136,78 @@ def make():
                            "turn the MetaHuman plugins on, or make the avatars by hand (Docs/avatars.md)")
         return
     tools = unreal.AssetToolsHelpers.get_asset_tools()
-    factory = None
-    for fname in ("MetaHumanCharacterFactoryNew", "MetaHumanCharacterFactory"):
-        if hasattr(unreal, fname):
-            factory = getattr(unreal, fname)()
-            break
+    factory = getattr(unreal, "MetaHumanCharacterFactoryNew", None)
     sub = unreal.get_editor_subsystem(sub_cls)
-    log("subsystem methods: " + ", ".join(m for m in dir(sub) if not m.startswith("_")))
-    for av in AVATARS:
-        folder = ROOT + "/" + av["name"]
-        path = folder + "/" + av["name"]
+    for i, av in enumerate(AVATARS):
+        name = av["name"]
+        folder = ROOT + "/" + name
+        path = folder + "/" + name
         ch = unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
         if ch is None:
             try:
-                ch = tools.create_asset(av["name"], folder, cls, factory)
+                ch = tools.create_asset(name, folder, cls, factory() if factory else None)
             except Exception as e:
                 unreal.log_warning("[Torque] couldn't create %s: %s" % (path, e))
                 continue
+        if ch is None:
+            unreal.log_warning("[Torque] create_asset gave nothing for %s" % path)
+            continue
         log("character: %s" % ch.get_path_name())
-        # Open it for editing, rig it in the cloud and assemble, by whichever names this version uses.
-        for step in (("try_add_object_to_edit", "add_object_to_edit"),
-                     ("auto_rig_face", "request_auto_rigging"),
-                     ("request_texture_sources", "download_texture_sources")):
-            fn = next((getattr(sub, n) for n in step if hasattr(sub, n)), None)
-            if fn is None:
-                unreal.log_warning("[Torque] %s: no %s in this API; see Saved/metahuman_api.txt" % (av["name"], " / ".join(step)))
-                continue
+        if not sub.try_add_object_to_edit(ch):
+            unreal.log_warning("[Torque] %s: try_add_object_to_edit refused it" % name)
+            continue
+        _vary_body(sub, ch, i)
+        if rig:
             try:
-                fn(ch)
-                log("%s: %s done" % (av["name"], fn.__name__))
+                params = unreal.MetaHumanCharacterAutoRiggingRequestParams() if hasattr(unreal, "MetaHumanCharacterAutoRiggingRequestParams") else None
+                if params is not None:
+                    log("auto-rig params: " + _props(params))
+                    rt = getattr(unreal, "MetaHumanRigType", None)
+                    if rt is not None and hasattr(rt, "JOINTS_ONLY"):
+                        _set_first(params, rt.JOINTS_ONLY, "rig_type")
+                    _set_first(params, True, "blocking", "b_blocking")
+                    sub.request_auto_rigging(ch, params)
+                else:
+                    sub.request_auto_rigging(ch)
+                log("%s: auto-rig requested (cloud)" % name)
             except Exception as e:
-                unreal.log_warning("[Torque] %s: %s failed: %s" % (av["name"], fn.__name__, e))
-    log("made what this API allowed; assemble each in its editor (Assemble, UE Optimized, Medium) if they aren't yet")
+                unreal.log_warning("[Torque] %s: request_auto_rigging failed (signed in to Epic?): %s" % (name, e))
+        ok = False
+        try:
+            ok = sub.can_build_meta_human(ch, True)   # logs its reason when it says no
+        except Exception as e:
+            unreal.log_warning("[Torque] %s: can_build_meta_human failed: %s" % (name, e))
+        log("%s: can_build_meta_human = %s" % (name, ok))
+        built = False
+        if ok and hasattr(unreal, "MetaHumanCharacterEditorBuildParameters"):
+            bp = unreal.MetaHumanCharacterEditorBuildParameters()
+            log("build parameters: " + _props(bp))
+            used = _set_first(bp, folder, "absolute_build_path", "build_path", "output_folder", "output_path")
+            _set_first(bp, name, "name_override", "name", "asset_name")
+            log("%s: build path set via %s" % (name, used))
+            try:
+                sub.build_meta_human(ch, bp)
+                built = True
+                log("%s: build_meta_human done" % name)
+            except Exception as e:
+                unreal.log_warning("[Torque] %s: build_meta_human failed: %s" % (name, e))
+        if not built:
+            # No rig to build with: export the preview body's skeletal mesh instead, so the game
+            # can still pose a body (register lists a body-only mesh too).
+            lib = getattr(unreal, "MetaHumanCharacterExportBlueprintLibrary", None)
+            if lib is not None and hasattr(lib, "export_geometry"):
+                try:
+                    sub.assemble_for_preview(ch)
+                except Exception as e:
+                    unreal.log_warning("[Torque] %s: assemble_for_preview failed: %s" % (name, e))
+                try:
+                    unreal.log("[Torque] export_geometry: " + (lib.export_geometry.__doc__ or "").strip()[:800])
+                    lib.export_geometry(ch, folder)
+                    log("%s: export_geometry to %s" % (name, folder))
+                except Exception as e:
+                    unreal.log_warning("[Torque] %s: export_geometry failed: %s" % (name, e))
+        unreal.EditorAssetLibrary.save_directory(folder, only_if_is_dirty=True, recursive=True)
+    log("make finished: see the can_build_meta_human lines above for whether a cloud rig (Epic sign-in) is needed")
 
 
 def register():
@@ -127,6 +224,14 @@ def register():
         elif cls == "SkeletalMesh":
             meshes.append((pkg, name))
     out = []
+    bp_folders = set(pkg.rsplit("/", 1)[0] for pkg, _ in blueprints)
+    for pkg, name in sorted(meshes):   # a body mesh with no Blueprint beside it (export_geometry)
+        folder = pkg.rsplit("/", 1)[0]
+        if folder in bp_folders or "body" not in name.lower() or "face" in name.lower():
+            continue
+        out.append({"name": folder.rsplit("/", 1)[1], "blueprint": "", "body": "%s.%s" % (pkg, name)})
+        bp_folders.add(folder)
+        log("avatar %s: body only %s" % (out[-1]["name"], out[-1]["body"]))
     for pkg, name in sorted(blueprints):
         folder = pkg.rsplit("/", 1)[0]
         body = [p for p, n in meshes if p.startswith(folder + "/") and "body" in n.lower() and "face" not in n.lower()]
@@ -152,7 +257,7 @@ def main(args):
     if mode == "discover":
         discover()
     elif mode == "make":
-        make()
+        make(rig=len(args) > 1 and args[1] == "rig")
         register()
     else:
         register()
