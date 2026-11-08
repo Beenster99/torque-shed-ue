@@ -30,6 +30,8 @@ struct FittedPart
 	std::map<std::string, double> Weights;
 	PartMesh::Warp Warp;
 	std::vector<PartMesh::Warp> Copies;
+	// Placed but not drawn, as Godot hides it (the plain headlight inside a full fairing).
+	bool Hidden = false;
 };
 
 // A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.

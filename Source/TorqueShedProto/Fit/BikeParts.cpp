@@ -1764,6 +1764,15 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	RearMaster(L, Out);
 	FinalDrive(Parts, L, Out);
 	Shocks(Parts, L, Out);
+	// (BikeModel._full_fairing_fitted: a full race fairing, or an adventure one, carries its own
+	// lamps, so the plain headlight is tucked away inside it.)
+	if (const Json* F = Lay.Part(PartIn(Parts, "fairing")))
+	{
+		const std::string Shape = PartStr(F->Get("look"), "shape", F->Str("style", ""));
+		if ((F->Str("style") == "race" && Shape != "seeley") || Shape == "adventure")
+			for (FittedPart& P : Out)
+				if (P.Slot == "headlight") P.Hidden = true;
+	}
 	return Out;
 }
 } // namespace TorqueFit
