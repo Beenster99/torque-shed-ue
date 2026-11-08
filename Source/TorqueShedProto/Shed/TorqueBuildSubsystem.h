@@ -30,6 +30,27 @@ public:
 
 	FSimpleMulticastDelegate OnChanged;
 
+	// How the bike looks, beside what's fitted (the strip / clean / paint loop, first slice):
+	// road dirt per model part (0 clean .. 1 filthy) and bodywork painted a new colour.
+	// The bike comes in dirty from the Dales; every ride out adds more; a wash takes it off.
+	float DirtOf(FName Part) const;
+	// Takes Amount of dirt off; bTell false batches several (then call TellLooks once).
+	void Clean(FName Part, float Amount, bool bTell = true);
+	void TellLooks() { OnLooks.Broadcast(); }
+	bool PaintOf(FName Part, FLinearColor& Out) const;
+	void SetPaint(FName Part, const FLinearColor& Colour);
+	// Riding out marks the bike to come back dirtier; the shed's bike calls Arrived with its parts.
+	void RodeOut() { bRode = true; }
+	void Arrived(const TArray<FName>& PartsOnBike);
+	// Dirt or paint changed: redraw the finishes (cheap; the parts stay).
+	FSimpleMulticastDelegate OnLooks;
+
+	static constexpr float StartDirt = 0.6f;   // a stock part when the game starts
+	static constexpr float RideDirt = 0.3f;    // added by each ride
+
 private:
 	FTorqueBuild Build;
+	TMap<FName, float> Dirt;
+	TMap<FName, FLinearColor> Paint;
+	bool bRode = false;
 };

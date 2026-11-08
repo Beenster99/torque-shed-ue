@@ -4,6 +4,7 @@
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorquePartsBench.h"
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorquePaintRack.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -121,6 +122,9 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	FindTarget();
 	if (Pick != 0) Choose(Pick);
 	if (bUse) Use();
+	if (bWashHeld || WashHeldFor > 0.0) Wash(DeltaSeconds);
+	else WashedFor = 0.0;
+	WashHeldFor = FMath::Max(WashHeldFor - DeltaSeconds, 0.0);
 	if (bRide)
 	{
 		if (Target == ETorqueLook::Door || Target == ETorqueLook::BikePart) StartRideOut();
@@ -180,6 +184,7 @@ void ATorqueWalker::ReadInput(float Dt, bool& bUse, bool& bRide, int32& Pick)
 	PC->SetControlRotation(R);
 
 	if (Just(EKeys::SpaceBar) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle)) Jump();
+	bWashHeld = Down(EKeys::G) > 0.5f || Down(EKeys::Gamepad_FaceButton_Left) > 0.5f || (SonyDown & ESonyButton::Square) != 0;
 	bUse = Just(EKeys::E) || Just(EKeys::LeftMouseButton) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
 	bRide = Just(EKeys::F) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
 	if (Just(EKeys::H)) bShowHelp = !bShowHelp;
@@ -223,6 +228,7 @@ void ATorqueWalker::FindTarget()
 {
 	Target = ETorqueLook::None;
 	TargetSlot = TargetPart = TargetModelPart = NAME_None;
+	TargetPaint = INDEX_NONE;
 	TargetMesh.Reset();
 	UWorld* World = GetWorld();
 	if (!World || !Camera) return;
@@ -253,6 +259,8 @@ void ATorqueWalker::FindTarget()
 		for (UStaticMeshComponent* C : It->Parts) Consider(C, ETorqueLook::BikePart);
 	for (TActorIterator<ATorquePartsBench> It(World); It; ++It)
 		for (UStaticMeshComponent* C : It->Items) Consider(C, ETorqueLook::Spare);
+	for (TActorIterator<ATorquePaintRack> It(World); It; ++It)
+		for (UStaticMeshComponent* C : It->Cards) Consider(C, ETorqueLook::Swatch);
 	double First = TNumericLimits<double>::Max();
 	for (const FHitBox& H : Hits) First = FMath::Min(First, H.Time);
 	const double Near = First + 30.0 / FMath::Max((double)Reach, 1.0);
@@ -266,6 +274,10 @@ void ATorqueWalker::FindTarget()
 	{
 		Target = Pick->Kind;
 		TargetMesh = Pick->C;
+		TargetPoint = Start + Look * Reach * Pick->Time;
+		TargetPaint = INDEX_NONE;
+		if (Target == ETorqueLook::Swatch)
+			if (const ATorquePaintRack* Rack = Cast<ATorquePaintRack>(Pick->C->GetOwner())) TargetPaint = Rack->PaintOf(Pick->C);
 	}
 	if (UStaticMeshComponent* C = TargetMesh.Get())
 	{
@@ -300,11 +312,30 @@ void ATorqueWalker::Use()
 	FName Part;
 	if (Target == ETorqueLook::BikePart && !TargetSlot.IsNone()) Part = ChosenFor(TargetSlot);
 	else if (Target == ETorqueLook::Spare) Part = TargetPart;
+	else if (Target == ETorqueLook::Swatch && ATorquePaintRack::Paints().IsValidIndex(TargetPaint))
+	{
+		PickedPaint = TargetPaint;
+		Note = FString::Printf(TEXT("Picked %s: E on the tank, side panels, mudguard or tail paints it"), ATorquePaintRack::Paints()[PickedPaint].Name);
+		NoteFor = 3.0;
+		return;
+	}
+	else if (Target == ETorqueLook::BikePart && TorqueShedModel::IsBodywork(TargetModelPart))
+	{
+		if (!ATorquePaintRack::Paints().IsValidIndex(PickedPaint))
+			Note = TEXT("Pick a colour off the paint rack first");
+		else
+		{
+			Build->SetPaint(TargetModelPart, ATorquePaintRack::Paints()[PickedPaint].Colour);
+			Note = FString::Printf(TEXT("Painted the %s %s"), *TorqueShedModel::PartLabel(TargetModelPart), ATorquePaintRack::Paints()[PickedPaint].Name);
+		}
+		NoteFor = 3.0;
+		return;
+	}
 	else
 	{
 		if (Target == ETorqueLook::BikePart)
 		{
-			Note = TEXT("Nothing to swap there yet: try the silencers or the handlebar");
+			Note = TEXT("Nothing to swap there yet: try the silencers or the handlebar (or hold G / Square to wash it)");
 			NoteFor = 2.5;
 		}
 		return;
@@ -371,7 +402,20 @@ void ATorqueWalker::UpdateHud()
 		{
 			HudLines.Add({FString::Printf(TEXT("Speed Twin 1200: %s"), *TargetModelPart.ToString().Replace(TEXT("_"), TEXT(" "))), FColor::White, 0.8f});
 		}
+		if (TorqueShedModel::IsBodywork(TargetModelPart))
+			HudLines.Add({ATorquePaintRack::Paints().IsValidIndex(PickedPaint)
+				? FString::Printf(TEXT("E / Cross: paint it %s"), ATorquePaintRack::Paints()[PickedPaint].Name)
+				: FString(TEXT("Paint: pick a colour off the rack by the side door")), Prompt, 0.65f});
+		if (Build)
+			HudLines.Add({FString::Printf(TEXT("Dirt %.0f%%   hold G / Square: wash"), 100.0f * Build->DirtOf(TargetModelPart)), Prompt, 0.65f});
 		HudLines.Add({TEXT("F / Triangle: ride out"), Prompt, 0.65f});
+		break;
+	case ETorqueLook::Swatch:
+		if (ATorquePaintRack::Paints().IsValidIndex(TargetPaint))
+		{
+			HudLines.Add({FString::Printf(TEXT("Paint: %s"), ATorquePaintRack::Paints()[TargetPaint].Name), FColor::White, 0.8f});
+			HudLines.Add({TEXT("E / Cross: pick it"), Prompt, 0.65f});
+		}
 		break;
 	case ETorqueLook::Spare:
 		HudLines.Add({FString::Printf(TEXT("On the bench: %s"), *OptionName(Bike, TargetSlot, TargetPart)), FColor::White, 0.8f});
@@ -392,6 +436,7 @@ void ATorqueWalker::UpdateHud()
 		const FColor Help(200, 200, 200);
 		HudLines.Add({TEXT("WASD / left stick: walk   Shift / L3: hurry   mouse / right stick: look"), Help, 0.5f});
 		HudLines.Add({TEXT("E / Cross: fit the chosen part (Q / R, wheel or D-pad left/right to choose), or a spare from the bench"), Help, 0.5f});
+		HudLines.Add({TEXT("Hold G / Square: wash the bike   paint rack: E picks a colour, E on bodywork paints it"), Help, 0.5f});
 		HudLines.Add({TEXT("F / Triangle: ride out   Space / Circle: hop   H: hide help   Esc: quit"), Help, 0.5f});
 	}
 }
@@ -440,6 +485,7 @@ FString ATorqueWalker::Describe() const
 	case ETorqueLook::BikePart: return FString::Printf(TEXT("bike part %s (slot %s)"), *TargetModelPart.ToString(), *TargetSlot.ToString());
 	case ETorqueLook::Spare: return FString::Printf(TEXT("spare %s for %s (%s)"), *TargetPart.ToString(), *TargetSlot.ToString(), *TargetModelPart.ToString());
 	case ETorqueLook::Door: return TEXT("the roller door");
+	case ETorqueLook::Swatch: return FString::Printf(TEXT("paint card %d"), TargetPaint);
 	default: return TEXT("nothing");
 	}
 }
@@ -502,4 +548,24 @@ void ATorqueWalker::Choose(int32 Step)
 	if (Others.Num() == 0) return;
 	const int32 Now = FMath::Max(Others.IndexOfByKey(ChosenFor(TargetSlot)), 0);
 	Chosen.Add(TargetSlot, Others[(Now + Step + Others.Num()) % Others.Num()]);
+}
+
+void ATorqueWalker::Wash(float Dt)
+{
+	UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
+	if (!Build || Target != ETorqueLook::BikePart || TargetModelPart.IsNone()) return;
+	// The part looked at comes clean in about two seconds; whatever is within 30 cm of the sponge
+	// in about three.
+	Build->Clean(TargetModelPart, 0.5f * Dt, false);
+	for (TActorIterator<ATorqueShedBike> It(GetWorld()); It; ++It)
+		for (const UStaticMeshComponent* C : It->Parts)
+		{
+			if (!C || C->Bounds.GetBox().ComputeSquaredDistanceToPoint(TargetPoint) > 30.0 * 30.0) continue;
+			const FName P = TorqueShedModel::PartTag(C);
+			if (!P.IsNone() && P != TargetModelPart) Build->Clean(P, 0.33f * Dt, false);
+		}
+	Build->TellLooks();
+	WashedFor += Dt;
+	Note = FString::Printf(TEXT("Washing the %s: %.0f%% dirt left"), *TorqueShedModel::PartLabel(TargetModelPart), 100.0f * Build->DirtOf(TargetModelPart));
+	NoteFor = 1.0;
 }

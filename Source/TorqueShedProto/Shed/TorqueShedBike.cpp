@@ -6,6 +6,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -74,6 +75,40 @@ bool LoadFrame(FTransform& Fix, TMap<FName, FVector>& GroupOrigins)
 
 FName SlotTag(const UActorComponent* C) { return TagAfter(C, SlotPrefix); }
 FName OptionTag(const UActorComponent* C) { return TagAfter(C, OptionPrefix); }
+
+FName PartTag(const UActorComponent* C) { return TagAfter(C, TEXT("Part:")); }
+
+bool IsBodywork(FName Part)
+{
+	static const TCHAR* const Names[] = {TEXT("tank"), TEXT("side_panel_l"), TEXT("side_panel_r"),
+		TEXT("front_mudguard"), TEXT("tail"), TEXT("hugger")};
+	for (const TCHAR* N : Names)
+		if (Part == FName(N)) return true;
+	return false;
+}
+
+FString PartLabel(FName Part) { return Part.ToString().Replace(TEXT("_"), TEXT(" ")); }
+
+void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts)
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
+	for (UStaticMeshComponent* C : Parts)
+	{
+		if (!C) continue;
+		const FName Part = PartTag(C);
+		if (Part.IsNone()) continue;
+		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
+		if (!M) continue;
+		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime.
+		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Part) : 0.0f);
+		FLinearColor Paint;
+		if (B && B->PaintOf(Part, Paint))
+		{
+			M->SetVectorParameterValue(TEXT("Color"), Paint);
+			M->SetVectorParameterValue(TEXT("Color2"), Paint);
+		}
+	}
+}
 
 FString SlotLabel(FName Slot)
 {
@@ -154,12 +189,28 @@ void ATorqueShedBike::BeginPlay()
 	BuildStand();
 	Rebuild();
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+	{
 		Watch = B->OnChanged.AddUObject(this, &ATorqueShedBike::Rebuild);
+		WatchLooks = B->OnLooks.AddUObject(this, &ATorqueShedBike::Relook);
+		// Back from a ride: the bike comes in dirtier.
+		TArray<FName> Names;
+		for (const UStaticMeshComponent* C : Parts) Names.Add(TorqueShedModel::PartTag(C));
+		B->Arrived(Names);
+	}
+}
+
+void ATorqueShedBike::Relook()
+{
+	TorqueShedModel::ApplyLooks(this, Parts);
 }
 
 void ATorqueShedBike::EndPlay(const EEndPlayReason::Type Reason)
 {
-	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->OnChanged.Remove(Watch);
+	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+	{
+		B->OnChanged.Remove(Watch);
+		B->OnLooks.Remove(WatchLooks);
+	}
 	Super::EndPlay(Reason);
 }
 
@@ -175,6 +226,7 @@ void ATorqueShedBike::Rebuild()
 	Parts.Reset();
 	const int32 Made = TorqueShedModel::MakeParts(this, BikeRoot, UTorqueBuildSubsystem::BuildFor(this), NAME_None, Parts);
 	if (Made == 0) BuildGreyBox();
+	Relook();
 	UE_LOG(LogTemp, Log, TEXT("Torque: shed bike drawn with %d parts"), Parts.Num());
 }
 

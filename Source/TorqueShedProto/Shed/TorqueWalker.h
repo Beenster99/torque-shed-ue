@@ -15,7 +15,7 @@ class UCameraComponent;
 class UStaticMeshComponent;
 
 // What the walker is looking at: a part of the bike, a spare on the bench, or the roller door.
-enum class ETorqueLook : uint8 { None, BikePart, Spare, Door };
+enum class ETorqueLook : uint8 { None, BikePart, Spare, Door, Swatch };
 
 UCLASS()
 class ATorqueWalker : public ACharacter
@@ -43,6 +43,8 @@ public:
 	FString TestPress(bool bRideOut);
 	// Choose which option E fits in a slot (as Q/R, the mouse wheel or the D-pad do while looking at it).
 	void TestChoose(FName Slot, FName Part) { Chosen.Add(Slot, Part); }
+	// Hold the wash button (G / Square) for this long, wherever the walker is looking.
+	void TestHoldWash(double Seconds) { WashHeldFor = Seconds; }
 
 	// After walker.gd: eye 1.62 m, walk 3.2 m/s, hurry 5.5 m/s, reach 2.6 m.
 	UPROPERTY(EditAnywhere, Category = "Walker") float WalkSpeed = 320.0f;
@@ -56,6 +58,17 @@ private:
 	ETorqueLook Target = ETorqueLook::None;
 	FName TargetSlot, TargetPart, TargetModelPart;
 	TWeakObjectPtr<UStaticMeshComponent> TargetMesh;
+	FVector TargetPoint = FVector::ZeroVector;   // where the look meets the target's box
+	int32 TargetPaint = INDEX_NONE;              // the paint card looked at
+
+	// Washing: hold G / Square (X on an Xbox pad) on the bike; a sponge takes the dirt off the part
+	// you look at and anything within 30 cm of where you look.
+	bool bWashHeld = false;
+	double WashHeldFor = 0.0;
+	double WashedFor = 0.0;
+	void Wash(float Dt);
+	// The paint picked off the rack, which E puts on bodywork.
+	int32 PickedPaint = INDEX_NONE;
 
 	TUniquePtr<FSonyPad> Pad;
 	uint32 PrevPadButtons = 0;
