@@ -24,6 +24,7 @@ real land, at 4K on an RTX 4090? Plan and ideas: https://claude.ai/artifact/6Rwc
 | `Tools/ue_build_level.py` | Run inside the Unreal editor: imports the meshes, makes the materials, sun, sky and fog, and saves the level |
 | `Tools/import_parts.py` | Copies the Godot game's parts catalogue (`data/parts.json`, 717 parts) unchanged into `Data/Parts/parts.json`, the file the game reads; the Godot JSON stays the source of truth |
 | `Tools/make_speedtwin_fit.py` | The Speed Twin's fitment data (`Data/Bike/SpeedTwin/fitment.json`): typed sockets, datums, collision proxies, and alternative bars and silencers in its style (`Data/Bike/SpeedTwin/Options`). Run after `make_speedtwin.py` |
+| `Tools/speedtwin_pack.py` | The classic part pack (seats, mudguards and more), modelled in the Speed Twin's style and fitted by sockets; called by `make_speedtwin_fit.py`, never changes the stock bike. Outputs are committed: the PC doesn't regenerate them |
 | `Source/TorqueShedProto/Fit/` | The fitment system: parts fit by typed sockets (`Data/Fitment/interfaces.json`) with the adjustment each allows, clearance checks at full lock and full compression, geometry mode (player and author fitting). `TorqueFit.h` is the API the shed and the pawn use |
 | `SimTest/` | Standalone tests: the physics (flat-ground checks and a robot rider down the exported 3 km), and `fit_test`, which assembles the Speed Twin from its sockets and reports clashes |
 

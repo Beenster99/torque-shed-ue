@@ -116,12 +116,24 @@ struct MeshInfo
 	std::string Group, Finish, File;
 };
 
+// An option's say over where another slot's unit goes on it ("moves" in fitment.json): a swept-back
+// bar puts whatever mirrors are fitted by the levers, not on its ends. FromEnd replaces the unit's
+// mount distance; Child (when given) its mount frame, as modelled on the stock bike.
+struct MountMove
+{
+	bool HasFromEnd = false;
+	double FromEnd = 0.0;
+	bool HasChild = false;
+	Xf Child;
+};
+
 struct Option
 {
 	std::string Slot, Id, Name, CatKind, CatId;
 	bool Stock = false;
 	std::vector<Unit> Units;                      // replacing the stock units with the same ids
 	std::map<std::string, MeshInfo> Meshes;       // the meshes it brings
+	std::map<std::string, MountMove> Moves;       // other units it moves (by unit id), whichever option they come from
 };
 
 // Geometry mode for one unit.

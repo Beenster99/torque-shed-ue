@@ -27,6 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import make_speedtwin as st  # noqa: E402
+import speedtwin_pack as pack  # noqa: E402
 
 OUT = os.path.join(REPO, "Data", "Bike", "SpeedTwin")
 OPT_DIR = os.path.join(OUT, "Options")
@@ -216,8 +217,13 @@ def stock_units(P):
              "lugs": sock("bracket", BAR_CLAMP, (1, 0, 0)),
          }, proxies=yp)
     unit("clock", ["clock_body", "clock_face"], mount={"to": "yokes.lugs", "type": "bracket"})
-    unit("headlight", ["headlight_shell", "headlight_lens", "headlight_projector", "front_indicators"], slot="headlight",
-         mount={"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.56)})
+    # The indicators are their own units (the indicators slot), on brackets the headlight and the
+    # tail carry, so they go where another headlight or tail puts them.
+    hl_c = FA + FORK_DIR * 0.56 + np.array([0.075, 0.0, 0.0])
+    unit("headlight", ["headlight_shell", "headlight_lens", "headlight_projector"], slot="headlight",
+         mount={"to": "yokes.fork_tubes", "type": "fork_tube", "tube_mm": 58.0, "from_end": float(0.69 - 0.56)},
+         sockets={"indicator_mount": sock("bracket", hl_c, (1, 0, 0))})
+    unit("indicators_front", ["front_indicators"], mount={"to": "headlight.indicator_mount", "type": "bracket"})
 
     # Bars, and what rides on them.
     bars_path = st.polyline([BAR_CLAMP + [0.0, 0, -0.38], BAR_CLAMP + [-0.03, 0.03, -0.30], BAR_CLAMP + [0.0, 0.025, -0.12],
@@ -297,10 +303,11 @@ def stock_units(P):
                (np.linalg.norm(hanger[i + 3] - hanger[i]) / 2, 0.006, 0.09)) for i in range(0, len(hanger) - 3, 3)]
     tp.append(box(((-0.90 - 0.98) / 2, (0.42 + 0.30) / 2, 0.0), frame_along(np.array([-0.08, -0.12, 0.0])),
                   (0.072, 0.002, 0.1)))
-    for s in (-1, 1):
-        tp.append(capsule((-0.86, 0.44, s * 0.06), (-0.86, 0.44, s * 0.13), 0.016))
-    unit("tail", ["tail", "rear_light", "plate_hanger", "plate", "rear_indicators"], slot="tail",
-         mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0}, proxies=tp)
+    unit("tail", ["tail", "rear_light", "plate_hanger", "plate"], slot="tail",
+         mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "from_end": 0.0}, proxies=tp,
+         sockets={"indicator_mount": sock("bracket", (-0.86, 0.44, 0.0), (1, 0, 0))})
+    unit("indicators_rear", ["rear_indicators"], mount={"to": "tail.indicator_mount", "type": "bracket"},
+         proxies=[capsule((-0.86, 0.44, sg * 0.06), (-0.86, 0.44, sg * 0.13), 0.016) for sg in (-1, 1)])
     unit("side_panels", ["side_panel_l", "side_panel_l_decal", "side_panel_r", "side_panel_r_decal"], slot="side_panels",
          mount={"to": "frame.seat_rails", "type": "seat_rails", "rail_mm": 180.0, "along": 0.0})
     unit("battery_box", ["battery_box"], mount={"to": "frame.lugs", "type": "bracket"})
@@ -505,18 +512,15 @@ def options(cat):
         # the option brings the same mirrors on the lever clamps, inboard of the switches. Modelled on the
         # stock bar at that distance from its end, so they ride the new bar there. (Stock is unchanged.)
         units = [u, cables]
-        for sd, s, half in (("l", -1, old_l), ("r", 1, old_r)):
-            base = path_frame(half, path_length(half) - MIRROR_FROM_END)[1]
-            shell, glass, stalk = st.mirror_meshes(base, s)
-            names = ["opt_mirrors_%s_%s" % (pid, sd), "opt_mirror_glass_%s_%s" % (pid, sd), "opt_mirror_stalks_%s_%s" % (pid, sd)]
-            mc = base + np.array([0.03, 0.16, s * 0.06])
-            units.append({"id": "mirror_" + sd, "group": "steer", "meshes": names,
-                          "mount": {"to": "bars.bar_" + sd, "type": "bar", "bar_mm": bar_mm, "from_end": MIRROR_FROM_END},
-                          "sockets": {},
-                          "proxies": [capsule(mc, mc, 0.048)] + chain([base, base + [0.02, 0.1, s * 0.05]], 0.006)})
-            meshes.update({names[0]: (shell, "black_gloss", "steer"), names[1]: (glass, "mirror_glass", "steer"),
-                           names[2]: (stalk, "black_satin", "steer")})
-        out.append(("handlebars", pid, e["name"], ["handlebars", pid], units, meshes))
+        # Whatever mirrors are fitted (stock or the mirrors slot's) go on the lever clamps of these
+        # bars, inboard of the switches, not on their swept-back ends: modelled on the stock bar ends,
+        # so their mount frame is the stock bar's frame there, at the stock mirror's base.
+        moves = {}
+        for sd, sgn, half in (("l", -1, old_l), ("r", 1, old_r)):
+            R0 = path_frame(half, path_length(half) - MIRROR_FROM_END)[0]
+            base = BAR_CLAMP + [0.0, 0.0, sgn * 0.385]
+            moves["mirror_" + sd] = {"from_end": MIRROR_FROM_END, "child": {"at": v(base), "x": v(R0[:, 0]), "y": v(R0[:, 1])}}
+        out.append(("handlebars", pid, e["name"], ["handlebars", pid], units, meshes, moves))
     # Silencers: a long slim peashooter, and a short reverse cone megaphone; same slip joint.
     for pid in ("peashooter_twins", "cafe_reverse_cones"):
         e = cat["exhaust"][pid]
@@ -587,9 +591,16 @@ def main():
     opts = {"handlebars": [{"id": "stock", "name": "Speed Twin bars (stock)", "stock": True, "units": []}],
             "exhaust": [{"id": "stock", "name": "Speed Twin silencers (stock)", "stock": True, "units": []}]}
     meshes = {}
-    for slot, pid, name, ce, u, ms in options(cat):
-        opts[slot].append({"id": pid, "name": name, "catalogue": ce, "units": u,
-                           "meshes": {k: {"finish": f, "group": g, "file": "Options/%s.glb" % k} for k, (_, f, g) in ms.items()}})
+    stock_names = {"saddle": "Speed Twin bench seat (stock)", "front_mudguard": "Speed Twin front mudguard (stock)",
+                   "tail": "Speed Twin tail and plate hanger (stock)"}
+    for slot, pid, name, ce, u, ms, *rest in options(cat) + pack.pack_options(sys.modules[__name__], cat):
+        if slot not in opts:
+            opts[slot] = [{"id": "stock", "name": stock_names.get(slot, "Stock"), "stock": True, "units": []}]
+        o = {"id": pid, "name": name, "catalogue": ce, "units": u,
+             "meshes": {k: {"finish": f, "group": g, "file": "Options/%s.glb" % k} for k, (_, f, g) in ms.items()}}
+        if rest and rest[0]:
+            o["moves"] = rest[0]
+        opts[slot].append(o)
         meshes.update(ms)
     write_option_glbs(meshes)
     data = {
@@ -626,6 +637,8 @@ def main():
         "meshes": {m: {"group": P[m][2], "finish": P[m][1]} for m in sorted(P)},
         "units": units,
         "options": opts,
+        # The part pack's own finishes (Tools/speedtwin_pack.py); the stock ones are in speedtwin.json.
+        "finishes": pack.FINISHES,
     }
     with open(os.path.join(OUT, "fitment.json"), "w") as f:
         json.dump(data, f, indent=1)
