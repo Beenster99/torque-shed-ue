@@ -15,5 +15,7 @@ public:
 
 private:
 	void DrawRiderNames();
+	// On foot in the shed: Torque Shed's crosshair and work ring, tool bar, spray picker and carrying line.
+	void DrawWalkerCues(const class ATorqueWalker* Walker, float S);
 	float NameLogClock = 2.0f;
 };

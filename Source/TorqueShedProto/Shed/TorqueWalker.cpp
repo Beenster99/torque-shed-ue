@@ -10,6 +10,7 @@
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
+#include "Shed/TorqueShedScreens.h"
 #include "Shed/TorqueToolModels.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
@@ -227,6 +228,10 @@ void ATorqueWalker::BeginPlay()
 		bool bHave = false;
 		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) bHave = true;
 		if (!bHave) World->SpawnActor<ATorqueShedItems>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// And the screens: each bay's page and the crew board (Torque Shed's TVs).
+		bool bScreens = false;
+		for (TActorIterator<ATorqueShedScreens> It(World); It; ++It) bScreens = true;
+		if (!bScreens) World->SpawnActor<ATorqueShedScreens>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
