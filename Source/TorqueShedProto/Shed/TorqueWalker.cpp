@@ -280,8 +280,13 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 	In.LookPitch = FRotator::NormalizeAxis(GetBaseAimRotation().Pitch);
 	In.Crouch = bIsCrouched ? 1.0 : 0.0;
 	In.bInAir = GetCharacterMovement() && GetCharacterMovement()->IsFalling();
-	// What they're doing, as the crew board shows it: hands out in front for work and carrying.
-	In.bWorking = !PS->Activity.IsEmpty();
+	// Their hands (FollowHands, from FTorqueHandsNet): a part carried in both hands; a tool in the
+	// right, the hand on its grip; both hands forward working with bare hands.
+	const UTorqueBuildSubsystem* B = Shed();
+	In.bCarrying = B && B->HeldBy(PeerOf()) != 0;
+	In.bToolInHand = !In.bCarrying && Tool != ETorqueTool::Hands && ToolHolder && ToolHolder->IsVisible();
+	if (In.bToolInHand) In.ToolGrip = ToolHolder->GetComponentLocation();
+	In.bWorking = Tool == ETorqueTool::Hands && WorkBlend > 0.2;
 	Avatar->Pose(In, Dt);
 }
 
@@ -312,9 +317,10 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	// tool in hand and moving as they work (FollowHands).
 	if (!IsLocallyControlled())
 	{
+		// (Their hands first: the avatar's right hand reaches for the tool where FollowHands put it.)
+		FollowHands(DeltaSeconds);
 		UpdateAvatar(DeltaSeconds);
 		if (!Avatar || !Avatar->IsValid()) TorqueLook::Dress(this);
-		FollowHands(DeltaSeconds);
 		return;
 	}
 	UTorqueBuildSubsystem* B = Shed();

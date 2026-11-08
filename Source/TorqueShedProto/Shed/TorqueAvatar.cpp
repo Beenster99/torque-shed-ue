@@ -285,6 +285,8 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 	Phase = FMath::Fmod(Phase + 2.0 * PI * Speed / FMath::Max(Stride, 1.0) * Dt * (Fore < -10.0 ? -1.0 : 1.0), 2.0 * PI);
 	const double HandsWant = In.bCarrying ? 1.0 : In.bWorking ? 0.7 : 0.0;
 	Hands += (HandsWant - Hands) * FMath::Min(1.0, Dt * 6.0);
+	Gripping += ((In.bToolInHand ? 1.0 : 0.0) - Gripping) * FMath::Min(1.0, Dt * 8.0);
+	const FVector GripLocal = Driver->GetComponentTransform().InverseTransformPosition(In.ToolGrip);
 	const double LeanWant = FMath::Clamp(Speed / 550.0, 0.0, 1.0) * 8.0 + In.Crouch * 18.0;   // degrees forward
 	Lean += (LeanWant - Lean) * FMath::Min(1.0, Dt * 4.0);
 	const double Crouch = FMath::Clamp(In.Crouch, 0.0, 1.0);
@@ -341,9 +343,14 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 				const double Swing = Walk * (12.0 + 10.0 * FMath::Clamp(Speed / 550.0, 0.0, 1.0)) * FMath::Sin(Phase + (S == 0 ? PI : 0.0));
 				const FVector Hang = P[I] - Up * (ArmLen * 0.93) + Right * (Sign * 6.0) + Fwd * (3.0 + Swing);
 				const FVector Hold = P[I] - Up * (ArmLen * 0.45) + Fwd * (ArmLen * 0.55) - Right * (Sign * 8.0);
-				const FVector W = FMath::Lerp(Hang, Hold, Hands);
+				FVector W = FMath::Lerp(Hang, Hold, Hands);
+				// The right hand holds the tool where the tool is (the wrist a hand's width short of the grip).
+				const double OnTool = S == 1 ? Gripping : 0.0;
+				if (OnTool > 0.0)
+					W = FMath::Lerp(W, GripLocal - (GripLocal - P[I]).GetSafeNormal() * 7.0, OnTool);
+				const double Up2 = FMath::Max(Hands, OnTool);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
-				const FVector Pole = (-Fwd * (1.0 - Hands) + Right * (Sign * 0.6) - Up * (0.4 + Hands)).GetSafeNormal();
+				const FVector Pole = (-Fwd * (1.0 - Up2) + Right * (Sign * 0.6) - Up * (0.4 + Up2)).GetSafeNormal();
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
 				const FVector Hinge0 = FVector::CrossProduct(W0 - S0, -Fwd);
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
