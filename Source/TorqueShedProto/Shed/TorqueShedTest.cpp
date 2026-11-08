@@ -61,11 +61,12 @@ const TCHAR* const FabSteps =
 // a run with the cooling fan on and one with it off (heat soaked, down on power), the big screen
 // part way through the second run and after it, then the straps undone and the bike wheeled home.
 const TCHAR* const DynoSteps =
-	TEXT("bay:1,tool:hands,wheel:rig,look:dynoroom,shot,")
+	TEXT("bay:1,tool:hands,wheel:floor,wait:2,bikelog,look:bikenow,shot,wheel:home,wait:2,bikelog,")
+	TEXT("wheel:rig,wait:2,bikelog,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,look:dynoroom,shot,")
 	TEXT("fan:on,dynorun,dynolog,look:dyno,shot,")
 	TEXT("fan:off,dynorun:mid,look:dyno,shot,dynolog,look:dyno,shot,look:dynoroom,shot,")
-	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,log");
+	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,wait:2,bikelog,log");
 
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
@@ -514,6 +515,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
 			Distance = 300.0;
 		}
+		else if (What == TEXT("bikenow"))
+		{
+			// The bike wherever it is now (mid-floor, the rig), from its front quarter.
+			const UTorqueBuildSubsystem* NowShed = W->GetWorld()->GetGameInstance()->GetSubsystem<UTorqueBuildSubsystem>();
+			At = (NowShed ? NowShed->BikeTransform(TestBay).GetLocation() : TorqueShedLayout::BayAt(TestBay)) + FVector(0.0, 0.0, 70.0);
+			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
+			Distance = 300.0;
+		}
 		else if (What == TEXT("screen"))
 		{
 			// The bay's screen on the back wall, whole (ATorqueShedScreens), from the middle of the shed.
@@ -568,9 +577,17 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	if (Verb == TEXT("wheel") && P.Num() >= 2)
 	{
-		const bool bToRig = P[1] == TEXT("rig");
-		Said(W->TestWheel(TestBay, bToRig));
+		int32 Where = 0;
+		if (P[1] == TEXT("rig")) Where = 1;
+		else if (P[1] == TEXT("floor")) Where = 2;
+		Said(W->TestWheel(TestBay, Where));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("bikelog"))
+	{
+		// Where the bike's ended up once it's settled (after a wait), and how it's standing.
+		Said(W->BikeWhere(TestBay));
 		return true;
 	}
 	if (Verb == TEXT("strap") && P.Num() >= 2)

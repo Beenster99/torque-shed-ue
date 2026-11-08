@@ -583,7 +583,11 @@ void ATorqueWalker::ReadInput(float Dt)
 			if (UTorqueBuildSubsystem* GB = Shed())
 			{
 				if (!GB->Request(Grab, WhyNot)) Say(WhyNot, false);
-				else Doing(FString::Printf(TEXT("wheeling bay %d's bike"), FBay + 1), 30.0);
+				else
+				{
+					Doing(FString::Printf(TEXT("wheeling bay %d's bike"), FBay + 1), 30.0);
+					UE_LOG(LogTemp, Log, TEXT("Torque: grab: %s"), *BikeWhere(FBay));
+				}
 			}
 		}
 	}
@@ -1570,8 +1574,16 @@ void ATorqueWalker::LetGo(int32 Bay)
 	R.Bay = Bay;
 	R.Place = PushTransform();
 	FString WhyNot;
-	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
-	else Doing(FString(), 0.0);
+	if (!B->Request(R, WhyNot))
+	{
+		Say(WhyNot, false);
+		UE_LOG(LogTemp, Log, TEXT("Torque: let go refused: %s"), *WhyNot);
+	}
+	else
+	{
+		Doing(FString(), 0.0);
+		UE_LOG(LogTemp, Log, TEXT("Torque: let go, park: %s"), *BikeWhere(Bay));
+	}
 	// [co-op] Held where it was let go until the shed's word comes back (the bike drops the preview
 	// itself once no one's wheeling it, then glides to where the shed put it: its bay, the rig...).
 	if (ATorqueShedBike* Bike = BikeActor(Bay)) Bike->Preview(R.Place);
@@ -1952,7 +1964,22 @@ FName ATorqueWalker::TestTargetPlace() const
 	return TargetPlace ? TargetPlace->Name : NAME_None;
 }
 
-FString ATorqueWalker::TestWheel(int32 Bay, bool bToRig)
+FString ATorqueWalker::BikeWhere(int32 Bay) const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!B || !B->Exists(Bay)) return FString::Printf(TEXT("no bike in bay %d"), Bay + 1);
+	const FTransform Xf = B->BikeTransform(Bay);
+	FString Spot = TEXT("on its stand on the floor");
+	if (B->Bike(Bay).Pusher != 0) Spot = TEXT("being wheeled");
+	else if (!B->IsAway(Bay)) Spot = TEXT("on its bay stand");
+	else if (B->DynoBay() == Bay) Spot = TEXT("on the dyno rig");
+	FRotator Drawn = Xf.Rotator();
+	if (const ATorqueShedBike* Bike = BikeActor(Bay)) Drawn = Bike->GetActorRotation();
+	return FString::Printf(TEXT("bay %d's bike %s at (%.0f, %.0f) yaw %.0f, pitch %.1f roll %.1f"), Bay + 1, *Spot,
+		Xf.GetLocation().X, Xf.GetLocation().Y, Xf.Rotator().Yaw, Drawn.Pitch, Drawn.Roll);
+}
+
+FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 {
 	UTorqueBuildSubsystem* B = Shed();
 	if (!B || !B->Exists(Bay)) return TEXT("no bike in that bay");
@@ -1963,10 +1990,14 @@ FString ATorqueWalker::TestWheel(int32 Bay, bool bToRig)
 		Grab.Bay = Bay;
 		FString WhyNot;
 		if (!B->Request(Grab, WhyNot)) return TEXT("couldn't take hold of it: ") + WhyNot;
+		UE_LOG(LogTemp, Log, TEXT("Torque: grab: %s"), *BikeWhere(Bay));
 	}
 	if (Wheeling() != Bay) return TEXT("took hold of it, but the shed doesn't have us wheeling it");
 	// Stand at its bars: the bike 85 cm to our right and 25 cm behind (PushTransform), facing its way.
-	const FTransform To = bToRig ? UTorqueBuildSubsystem::RigTransform() : UTorqueBuildSubsystem::HomeOf(Bay);
+	// Mid-floor is 2.5 m out from its bay towards the door, square to it.
+	FTransform To = UTorqueBuildSubsystem::HomeOf(Bay);
+	if (Where == 1) To = UTorqueBuildSubsystem::RigTransform();
+	else if (Where == 2) To.AddToTranslation(FVector(0.0, 250.0, 0.0));
 	const FRotator Heading(0.0, To.Rotator().Yaw, 0.0);
 	const FVector Ahead = Heading.Vector(), Right = FRotationMatrix(Heading).GetUnitAxis(EAxis::Y);
 	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
@@ -1975,9 +2006,15 @@ FString ATorqueWalker::TestWheel(int32 Bay, bool bToRig)
 	if (AController* C = GetController()) C->SetControlRotation(Heading);
 	Note.Reset();
 	LetGo(Bay);
-	const bool bThere = bToRig ? B->DynoBay() == Bay : !B->IsAway(Bay);
-	return FString::Printf(TEXT("wheeled bay %d's bike %s: %s"), Bay + 1, bToRig ? TEXT("onto the rig") : TEXT("home"),
-		bThere ? (Note.IsEmpty() ? TEXT("there") : *Note) : TEXT("it didn't park there"));
+	bool bThere = B->IsAway(Bay) && B->DynoBay() != Bay && B->Bike(Bay).Pusher == 0;
+	if (Where == 0) bThere = !B->IsAway(Bay);
+	else if (Where == 1) bThere = B->DynoBay() == Bay;
+	FString WhereText = TEXT("home");
+	if (Where == 1) WhereText = TEXT("onto the rig");
+	else if (Where == 2) WhereText = TEXT("mid-floor");
+	FString Result = TEXT("it didn't park there");
+	if (bThere) Result = Note.IsEmpty() ? FString(TEXT("there")) : Note;
+	return FString::Printf(TEXT("wheeled bay %d's bike %s: %s"), Bay + 1, *WhereText, *Result);
 }
 
 FString ATorqueWalker::TestOrder(FName Part)

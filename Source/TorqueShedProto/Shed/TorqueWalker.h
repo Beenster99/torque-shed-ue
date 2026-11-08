@@ -109,7 +109,10 @@ public:
 	FName TestTargetPlace() const;
 	// Take hold of a bay's bike (as holding F on it does), walk it straight onto the dyno's rig or
 	// back to its bay (a test shortcut for the walk, not the requests), and let go (F). Says what happened.
-	FString TestWheel(int32 Bay, bool bToRig);
+	// Wheel bay Bay's bike to Where: 0 home onto its stand, 1 onto the dyno rig, 2 out mid-floor.
+	FString TestWheel(int32 Bay, int32 Where);
+	// Where bay Bay's bike is (its bay stand, the rig, being wheeled, or the floor), and its pitch and roll as drawn.
+	FString BikeWhere(int32 Bay) const;
 	const FString& LastNote() const { return Note; }
 
 	// After walker.gd: eye 1.62 m (0.95 crouched), walk 3.2 m/s, hurry 5.5, crouched 1.5, reach 2.6 m.
