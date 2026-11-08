@@ -542,16 +542,18 @@ int main(int argc, char** argv)
 			std::map<std::string, Box> Ours;
 			std::map<std::string, std::map<std::string, Box>> Tags, Running;
 			Collect(B, L, Ours, Tags);
-			for (const auto& [Slot, ByTag] : Tags)
-				if (Sw.Get("glb")->Get(Slot)) Running[Slot] = ByTag;
-			int Slots = 0;
-			std::string Wrong = Compare(Running, Sw.Get("glb"), false, Slots);
-			// (A phone satnav is fitted round the bars by trying places for it: not ported yet.)
+			// (A phone satnav goes where it best keeps clear of what's round the bars, and Godot counts
+			// code-drawn pieces there not ported yet (mirror stalks and glasses, dial faces and needles,
+			// the brake hose), so its place can differ: its pieces match Godot's when put at Godot's place.)
 			const Json* Nav = Lay.Part(B.count("satnav") ? B.at("satnav") : "none");
 			const bool PhoneNav = Nav && Nav->Str("style") == "phone";
+			for (const auto& [Slot, ByTag] : Tags)
+				if (Sw.Get("glb")->Get(Slot) && !(PhoneNav && Slot == "satnav")) Running[Slot] = ByTag;
+			int Slots = 0;
+			std::string Wrong = Compare(Running, Sw.Get("glb"), false, Slots);
 			for (const auto& [Slot, Gt] : Sw.Get("glb")->O)
-				if (!Tags.count(Slot) && !Partial.count(Slot) && !(Slot == "satnav" && PhoneNav)) Wrong += " " + Slot + " missing";
-			if (const Json* Gs = Sw.Get("slot"))
+				if (!Tags.count(Slot) && !Partial.count(Slot)) Wrong += " " + Slot + " missing";
+			if (const Json* Gs = PhoneNav ? nullptr : Sw.Get("slot"))
 			{
 				const std::string Swept = Key.substr(0, Key.find('/'));
 				Wrong += CodeCheck(Ours, Swept, Gs, Swept == "swingarm");
