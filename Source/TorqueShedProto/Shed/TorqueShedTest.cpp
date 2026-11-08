@@ -36,17 +36,20 @@ const TCHAR* const LoopSteps =
 	TEXT("order:slip_on,item:slip_on,f,item:slip_on,act,")   // order a slip-on, unpack it, pick it up
 	TEXT("part:tank,act,")                                   // fit it to the bike
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
-	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log,quit");
+	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
 // A scratch build that needs fabrication (layout_test: a four in the bobber's softail frame): order
-// the frame, set it up in the empty bay 3, order the engine and fit it (jobs owed), make the jobs
-// with the grinder and welder.
+// the frame, set it up in the empty bay 3, order the engine and fit it (jobs owed), finish the rest
+// of the bike from the bobber's reference parts (a test shortcut: "finish"), make the jobs with the
+// grinder and welder, and ride it out.
 const TCHAR* const FabSteps =
 	TEXT("bay:3,order:softail_hardtail,item:softail_hardtail,f,item:softail_hardtail,act,")
 	TEXT("place:bay_2,act,look:bike,shot,")
 	TEXT("order:four_1000,item:four_1000,f,item:four_1000,act,")
 	TEXT("part:frame,act,log,")
-	TEXT("tool:repair,part:frame,act,act,act,log,look:bike,shot,quit");
+	TEXT("finish,log,look:bike,shot,")
+	TEXT("tool:repair,fabricate,log,look:bike,shot,")
+	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
@@ -61,9 +64,20 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	FString Spec;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("TorqueShedAction="), Spec, false)) return;
-	if (Spec.TrimStartAndEnd() == TEXT("loop")) Spec = TSTI::LoopSteps;
-	else if (Spec.TrimStartAndEnd() == TEXT("fab")) Spec = TSTI::FabSteps;
-	Spec.ParseIntoArray(Steps, TEXT(","), true);
+	// "loop" and "fab" stand for their steps anywhere in the list; alone, they quit at the end.
+	TArray<FString> Given;
+	Spec.ParseIntoArray(Given, TEXT(","), true);
+	for (const FString& G : Given)
+	{
+		const FString T = G.TrimStartAndEnd();
+		TArray<FString> Preset;
+		if (T == TEXT("loop")) FString(TSTI::LoopSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else Preset.Add(T);
+		Steps.Append(Preset);
+	}
+	if (Given.Num() == 1 && Steps.Num() > 1) Steps.Add(TEXT("quit"));
+	Spec = FString::Join(Steps, TEXT(","));
 	UE_LOG(LogTemp, Log, TEXT("Torque test: %d shed steps: %s"), Steps.Num(), *Spec);
 	Ticker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UTorqueShedTest::Step), 0.0f);
 }
@@ -305,9 +319,59 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		FVector At;
 		bool bDrawn = false;
-		for (TActorIterator<ATorqueShedItems> It(World); It && !bDrawn; ++It) bDrawn = It->WhereIs(Found, At);
+		TArray<const UStaticMeshComponent*> Meshes;
+		for (TActorIterator<ATorqueShedItems> It(World); It && !bDrawn; ++It)
+		{
+			bDrawn = It->WhereIs(Found, At);
+			if (bDrawn) It->MeshesOf(Found, Meshes);
+		}
 		if (Found == 0 || !bDrawn) { Warn(Found == 0 ? TEXT("no such part off the bikes") : TEXT("it isn't drawn")); return true; }
-		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), 90.0));
+		// From the middle of the shed first, then round it, aiming at the part's own surface (a
+		// frame's box is mostly air), until the walker's look lands on the item.
+		Meshes.Sort([](const UStaticMeshComponent& X, const UStaticMeshComponent& Y) { return X.Bounds.GetBox().GetVolume() > Y.Bounds.GetBox().GetVolume(); });
+		const FVector Middle = TSTI::TowardsMiddle(At);
+		const FVector Sides[] = {Middle, (Middle + FVector(0.0, 1.0, 0.0)).GetSafeNormal(), (Middle - FVector(0.0, 1.0, 0.0)).GetSafeNormal(),
+			FVector(1.0, 0.0, 0.0), FVector(-1.0, 0.0, 0.0), FVector(0.0, 1.0, 0.0), FVector(0.0, -1.0, 0.0)};
+		const double Distances[] = {90.0, 130.0, 60.0};
+		FString Seen, Candidates;
+		for (const double D : Distances)
+			for (const FVector& Away : Sides)
+			{
+				if (Away.IsNearlyZero()) continue;
+				FVector Aim = At;
+				for (const UStaticMeshComponent* C : Meshes)
+					if (TorqueShedPick::SurfacePoint(C, Away, Aim)) break;
+				Seen = W->TestLookAt(Aim, Away, D);
+				if (W->TestTargetItem() == Found)
+				{
+					bAimLost = false;
+					Said(TEXT("looking at ") + Seen);
+					return true;
+				}
+				if (Candidates.IsEmpty()) Candidates = FString::Printf(TEXT("from %.0f cm along (%.1f, %.1f): %s"), D, Away.X, Away.Y, *W->TestCandidates());
+			}
+		bAimLost = true;
+		Warn(FString::Printf(TEXT("couldn't get a look at item %d: last saw "), Found) + Seen + TEXT(". First try went into: ") + Candidates);
+		return true;
+	}
+	if (Verb == TEXT("finish"))
+	{
+		// A test shortcut, not a player's move: the rest of the bike from its style's reference parts.
+		Said(TEXT("finished from the catalogue (test shortcut): ") + B->TestFinish(TestBay));
+		return true;
+	}
+	if (Verb == TEXT("fabricate"))
+	{
+		// Each job the bike owes, made with the repair tool on its frame (the grinder and welder).
+		const int32 Jobs = B->FabOwed(TestBay).Num();
+		TArray<FString> More;
+		for (int32 J = 0; J < Jobs; ++J)
+		{
+			More.Add(TEXT("part:frame"));
+			More.Add(TEXT("act"));
+		}
+		Steps.Insert(More, Next + 1);   // after this step
+		Said(FString::Printf(TEXT("%d jobs owed: %s"), Jobs, *B->FabOwedText(TestBay)));
 		return true;
 	}
 	if (Verb == TEXT("place") && P.Num() >= 2)

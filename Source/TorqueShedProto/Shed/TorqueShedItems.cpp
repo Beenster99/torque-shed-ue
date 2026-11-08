@@ -105,6 +105,12 @@ bool ATorqueShedItems::WhereIs(int32 Item, FVector& Out) const
 	return false;
 }
 
+void ATorqueShedItems::MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>& Out) const
+{
+	for (const UStaticMeshComponent* C : Meshes)
+		if (C && ItemOf(C) == Item) Out.Add(C);
+}
+
 void ATorqueShedItems::Rebuild()
 {
 	for (FDrawn& D : Drawn)

@@ -34,6 +34,8 @@ public:
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Meshes;
 	// Where an item is drawn now (its box's centre), if it's drawn.
 	bool WhereIs(int32 Item, FVector& Out) const;
+	// The meshes an item is drawn with.
+	void MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>& Out) const;
 
 	UPROPERTY() UStaticMesh* ShapeCube = nullptr;
 

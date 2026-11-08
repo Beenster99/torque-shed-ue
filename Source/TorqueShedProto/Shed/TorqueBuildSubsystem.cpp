@@ -835,6 +835,60 @@ float UTorqueBuildSubsystem::FabTime(const FString& What)
 	return 4.0f + (float)TorqueFit::BikeLayout::FabJobFor(TBI::Std(What)).Hours;
 }
 
+FString UTorqueBuildSubsystem::TestFinish(int32 Bay)
+{
+	if (IsClient()) return TEXT("only the host can");
+	if (!Exists(Bay)) return TEXT("there's no bike in that bay");
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	TMap<FString, FString> Parts;
+	if (!Lay || !LayoutParts(Bay, Parts)) return TEXT("it isn't a catalogue bike");
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	const std::string Style = Lay->StyleFor(Map);
+	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(Style);
+	// The engine first, so the parts that go on it have a block to go on.
+	TArray<FName> Order;
+	Order.Add(TBI::EngineKind());
+	for (const FName& S : TorqueShedParts::Slots())
+		if (S != TBI::EngineKind()) Order.Add(S);
+	int32 Added = 0;
+	for (const FName& S : Order)
+	{
+		if (ItemOn(Bay, S) != 0) continue;
+		const TorqueFit::PartsMap::const_iterator Found = Ref.find(TBI::Std(S.ToString()));
+		if (Found == Ref.end() || Found->second.empty() || Found->second == "none") continue;
+		const FName Part(*TBI::Ue(Found->second));
+		if (!TorqueShedParts::IsPart(Part)) continue;
+		if (!HostOf(Bay, S, 0).Slots) continue;
+		const int32 Id = NewItem(Part, 0.0f, 0.0f, 0.0f);
+		const FHost H = HostOf(Bay, S, 0);   // (looked up again: adding an item may move the items' storage)
+		Move(Id, H.Engine != 0 ? ETorqueAt::Engine : ETorqueAt::Bike, H.Engine != 0 ? H.Engine : Bay);
+		H.Slots->Add(S, Id);
+		H.Bolted->Add(S, true);
+		++Added;
+	}
+	int32 Bolted = 0;
+	for (const FName& S : TorqueShedParts::Slots())
+	{
+		const FHost H = HostOf(Bay, S, 0);
+		if (!H.Slots || H.Slots->FindRef(S) == 0 || H.Bolted->FindRef(S)) continue;
+		H.Bolted->Add(S, true);
+		++Bolted;
+	}
+	RebuildBuild(Bay);
+	OnChanged.Broadcast(Bay);
+	OnItems.Broadcast();
+	MarkSave();
+	OnHostChange.Broadcast();
+	const TArray<FName> Missing = MissingSlots(Bay);
+	FString Left;
+	for (const FName& S : Missing) Left += (Left.IsEmpty() ? TEXT("") : TEXT(", ")) + S.ToString();
+	const FString Owed = FabOwedText(Bay);
+	return FString::Printf(TEXT("%d parts from the %s reference bike, %d more bolted up; missing: %s; owed: %s; complete: %s"),
+		Added, *TBI::Ue(Style), Bolted, Left.IsEmpty() ? TEXT("nothing") : *Left, Owed.IsEmpty() ? TEXT("nothing") : *Owed,
+		IsComplete(Bay) ? TEXT("yes") : TEXT("no"));
+}
+
 FString UTorqueBuildSubsystem::FabOwedText(int32 Bay) const
 {
 	return FString::Join(FabOwed(Bay), TEXT(", "));

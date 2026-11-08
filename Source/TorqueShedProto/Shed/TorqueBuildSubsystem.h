@@ -149,6 +149,10 @@ public:
 	TArray<FString> FabOwed(int32 Bay) const;
 	static float FabTime(const FString& What);
 	FString FabOwedText(int32 Bay) const;
+	// For TorqueShedTest's "finish" only (host): every empty slot of a catalogue bike gets its
+	// style's reference part (fitting's layout), and everything on the bike is bolted up. Owed
+	// fabrication stays owed. Says what it did.
+	FString TestFinish(int32 Bay);
 	// The bike's parts as fitting's layout reads them (Godot slot -> catalogue id, "none"); false if
 	// any isn't a catalogue part (a Speed Twin's own), or there's no layout. Such a bike is drawn
 	// from the Blender parts (TorqueShedCatalogue).
