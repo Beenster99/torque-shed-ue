@@ -184,6 +184,9 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 #else
 	Mesh->GetStaticMaterials().Add(FStaticMaterial(Material, SlotName));   // the imported-slot-name argument only exists in editor builds
 #endif
+	// A runtime mesh never gets the editor's UV-density pass: mark it initialised for texture streaming,
+	// or every draw trips UVChannelData.bInitialized ensures (and hitches) in a game build.
+	Mesh->GetStaticMaterials().Last().UVChannelData = FMeshUVChannelInfo(1.0f);
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bBuildSimpleCollision = false;
 	Params.bFastBuild = true;
