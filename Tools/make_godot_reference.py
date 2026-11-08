@@ -7,6 +7,10 @@ It copies the Godot project to a temporary folder (the clone is left alone), imp
 Tools/godot_reference/dump_ref.tscn headless (every style's reference bike: its build, the rig's
 solve, and the bounds of every slot's drawn meshes in the Rig built look), and writes the result,
 trimmed, to SimTest/data/godot_reference.json. SimTest/layout_test compares the port with it.
+
+With --geo it runs Tools/godot_reference/dump_geo.tscn instead: geometry mode's maths (GeoGizmo's
+drags and offsets, sanitize, BikeRig.clean_adjust) on a fixed set of inputs, written to
+SimTest/data/godot_geo.json for SimTest/geo_test.
 """
 import argparse
 import json
@@ -18,6 +22,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "SimTest", "data", "godot_reference.json")
+GEO_OUT = os.path.join(REPO, "SimTest", "data", "godot_geo.json")
 
 
 def main():
@@ -26,6 +31,7 @@ def main():
     ap.add_argument("--bin", help="the official Godot 4.6.2 binary")
     ap.add_argument("--keep-raw", help="also keep Godot's untrimmed dump here")
     ap.add_argument("--from-raw", help="trim a kept dump again instead of running Godot")
+    ap.add_argument("--geo", action="store_true", help="dump geometry mode's maths (godot_geo.json) instead")
     a = ap.parse_args()
     if a.from_raw:
         data = json.load(open(a.from_raw))
@@ -41,6 +47,12 @@ def main():
         shutil.copytree(os.path.join(HERE, "godot_reference"), os.path.join(proj, "dump"))
         subprocess.run([a.bin, "--headless", "--path", proj, "--import"], check=True, capture_output=True)
         raw = os.path.join(tmp, "ref.json")
+        if a.geo:
+            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_geo.tscn", "--", "--out=" + raw],
+                           check=True, capture_output=True, timeout=600)
+            shutil.copyfile(raw, GEO_OUT)
+            print("wrote %s" % GEO_OUT)
+            return
         subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_ref.tscn", "--", "--out=" + raw],
                        check=True, capture_output=True, timeout=1800)
         data = json.load(open(raw))
