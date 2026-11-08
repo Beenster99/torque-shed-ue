@@ -1,6 +1,9 @@
 #include "TorqueGameMode.h"
 #include "TorqueBikePawn.h"
 #include "TorqueHUD.h"
+#include "Shed/TorqueShedBike.h"
+#include "Shed/TorqueWalker.h"
+#include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -20,4 +23,14 @@ void ATorqueGameMode::BeginPlay()
 	{
 		GAreScreenMessagesEnabled = false;
 	}
+}
+
+UClass* ATorqueGameMode::GetDefaultPawnClassForController_Implementation(AController* InController)
+{
+	if (UWorld* World = GetWorld())
+	{
+		TActorIterator<ATorqueShedBike> It(World);
+		if (It) return ATorqueWalker::StaticClass();
+	}
+	return Super::GetDefaultPawnClassForController_Implementation(InController);
 }
