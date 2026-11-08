@@ -86,7 +86,7 @@ bool LoadPart(const std::string& Glb, TorqueFit::PartMesh& Out)
 
 // The bike's material for a surface tag ("chrome", "paint__engine"): index.json's tag_finish, then
 // /Game/Bike/Materials/MI_<finish> (the level script's), paint as the Speed Twin's silver.
-UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint)
+UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint, FString& OutFinish, bool& bOutFallback)
 {
 	const TorqueFit::Json* Idx = Index();
 	const TorqueFit::Json* Finishes = Idx ? Idx->Get("tag_finish") : nullptr;
@@ -95,10 +95,21 @@ UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint)
 	bPaint = Finish == "paint" || Finish == "paint_2";
 	if (bPaint) Finish = "paint_silver";
 	static TMap<FString, UMaterialInterface*> Loaded;
+	static TSet<FString> FellBack;   // finishes with no MI of their own (the brushed steel stands in)
 	const FString Name = Ue(Finish);
-	if (UMaterialInterface** Found = Loaded.Find(Name)) return *Found;
+	OutFinish = Name;
+	if (UMaterialInterface** Found = Loaded.Find(Name))
+	{
+		bOutFallback = FellBack.Contains(Name);
+		return *Found;
+	}
 	UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), *Name, *Name));
-	if (!M) M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
+	bOutFallback = M == nullptr;
+	if (!M)
+	{
+		FellBack.Add(Name);
+		M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
+	}
 	if (M) M->AddToRoot();   // cached across map travel: unrooted, GC frees it when the shed unloads and the cache dangles
 	Loaded.Add(Name, M);
 	return M;
@@ -223,6 +234,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
 	int32 Made = 0;
+	TMap<FString, int32> Summary;   // what each surface's finish became, for the log
 	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
 	{
 		if (P.Hidden) continue;   // inside a full fairing's shell (the plain headlight), as Godot hides it
@@ -240,8 +252,17 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 				Tag = Material.Left(At);
 				Slot = Material.Mid(At + 2);
 			}
-			bool bPaint = false;
-			UMaterialInterface* Mat = TSCI::MaterialFor(Tag, bPaint);
+			bool bPaint = false, bFallback = false;
+			FString Finish;
+			UMaterialInterface* Mat = TSCI::MaterialFor(Tag, bPaint, Finish, bFallback);
+			FString Line = Tag + TEXT(" -> ") + (Mat ? Mat->GetName() : FString(TEXT("no material"))) + (bFallback ? TEXT(" (fallback for ") + Finish + TEXT(")") : FString());
+			if (S.Nrm.size() < S.Pos.size()) Line += TEXT(", no normals");
+			if (bPaint)
+			{
+				const FLinearColor Colour = TorqueShedParts::DefaultColour(FName(*Parts.FindRef(Slot)));
+				Line += FString::Printf(TEXT(", %s colour %.2f %.2f %.2f"), *Slot, Colour.R, Colour.G, Colour.B);
+			}
+			Summary.FindOrAdd(Line) += 1;
 			TArray<FVector> Pos;
 			TArray<int32> Tris;
 			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris);
@@ -272,6 +293,13 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			Out.Add(C);
 			++Made;
 		}
+	}
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's %d surfaces by finish:"), Made);
+	}
+	for (const TPair<FString, int32>& KV : Summary)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque:   %d x %s"), KV.Value, *KV.Key);
 	}
 	return Made;
 }
