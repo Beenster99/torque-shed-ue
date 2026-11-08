@@ -150,6 +150,20 @@ def decals():
     def panel(d, px, im, left):
         text_at(im, px, "SPEED TWIN", -0.385, -0.228, 0.392, 0.408, slant=0.25, mirror=left)
 
+    # Drilled brake rotor: one repeat (u) of two staggered holes, v round the disc's section: the
+    # inner face 0..0.45 (bore to rim), the rim, the outer face 0.5..0.95 (rim to bore), the bore.
+    from PIL import ImageDraw
+    W, H, k = 128, 512, 4
+    im = Image.new("L", (W * k, H * k), 255)
+    d = ImageDraw.Draw(im)
+    r = 15.4 * k
+    for u, f in ((0.25, 0.33), (0.75, 0.68)):
+        for v in (f * 0.45, 0.5 + (1 - f) * 0.45):
+            for du in (-1, 0, 1):                 # wrap across the tile's edges
+                cx, cy = (u + du) * W * k, v * H * k
+                d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=0)
+    im.resize((W, H), Image.LANCZOS).save(os.path.join(OUT, "disc_holes_a.png"), optimize=True)
+    print("disc holes", (W, H))
     decal("tank", DECALS["tank"], 2048, 448, tank)
     decal("panel", DECALS["panel"], 1024, 512, panel)
 

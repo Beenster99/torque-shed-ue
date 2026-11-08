@@ -52,13 +52,16 @@ def lever_points(s):
 # second finish its parts blend to by their vertex mask, and a detail set from Tools/make_bike_textures.py
 # (a normal map and a roughness/shade map) repeated uv_scale times per metre of UV.
 def finish(color, metallic, roughness, shader="base", color2=None, metallic2=None, roughness2=None,
-           detail="flat", uv_scale=1.0, normal_strength=1.0, rough_var=0.0, clearcoat_roughness=0.03, emissive=0.0):
+           detail="flat", uv_scale=1.0, normal_strength=1.0, rough_var=0.0, clearcoat_roughness=0.03, emissive=0.0,
+           grime=None):
     return {"shader": shader, "color": list(color), "metallic": metallic, "roughness": roughness,
             "color2": list(color2 if color2 is not None else color),
             "metallic2": metallic if metallic2 is None else metallic2,
             "roughness2": roughness if roughness2 is None else roughness2,
             "detail": detail, "uv_scale": uv_scale, "normal_strength": normal_strength, "rough_var": rough_var,
-            "clearcoat_roughness": clearcoat_roughness, "emissive": emissive}
+            "clearcoat_roughness": clearcoat_roughness, "emissive": emissive,
+            # How much road dust the low parts take (the level of each point is in UV channel 1's v).
+            "grime": (0.25 if shader == "paint" else 0.6) if grime is None else grime}
 
 
 GLOSS_BLACK = (0.010, 0.010, 0.011)
@@ -77,7 +80,7 @@ FINISHES = {
     # Black cases and barrels; the mask is machined metal (the fin edges, the cover rims).
     "black_engine": finish((0.022, 0.022, 0.024), 0.25, 0.4, color2=MACHINED, metallic2=1.0, roughness2=0.22,
                            detail="cast", uv_scale=8.0, normal_strength=0.5, rough_var=0.25),
-    "chrome": finish((0.93, 0.93, 0.93), 1.0, 0.04),
+    "chrome": finish((0.93, 0.93, 0.93), 1.0, 0.04, grime=0.35),
     "steel_brushed": finish((0.76, 0.75, 0.73), 1.0, 0.33, detail="brushed", uv_scale=5.0, normal_strength=0.6, rough_var=0.35),
     # Brushed stainless headers, golden and blue heat tint near the ports (the mask).
     "header": finish((0.74, 0.73, 0.71), 1.0, 0.26, color2=(0.62, 0.40, 0.22), metallic2=1.0, roughness2=0.3,
@@ -87,9 +90,17 @@ FINISHES = {
     "rubber": finish((0.018, 0.018, 0.018), 0.0, 0.85, detail="rubber", uv_scale=12.0, normal_strength=0.6, rough_var=0.2),
     "grip": finish((0.016, 0.016, 0.016), 0.0, 0.8, detail="knurl", uv_scale=30.0, normal_strength=1.0, rough_var=0.2),
     # Tyres: the tread map is wrapped 24 times round and once across, from bead to bead.
-    "tyre": finish((0.022, 0.022, 0.022), 0.0, 0.78, detail="tyre", uv_scale=1.0, normal_strength=1.0, rough_var=0.4),
+    "tyre": finish((0.022, 0.022, 0.022), 0.0, 0.78, detail="tyre", uv_scale=1.0, normal_strength=1.0, rough_var=0.4,
+                   grime=0.0),
     "leather": finish((0.020, 0.019, 0.018), 0.0, 0.55, detail="leather", uv_scale=7.0, normal_strength=0.8, rough_var=0.3),
     "disc_steel": finish((0.55, 0.55, 0.56), 1.0, 0.3, detail="machined", uv_scale=8.0, normal_strength=0.5, rough_var=0.4),
+    # Drilled rotors: the holes are cut out by a repeating mask (Tools/make_bike_textures.py).
+    "disc_drilled": finish((0.55, 0.55, 0.56), 1.0, 0.28, "cutout", detail="disc_holes"),
+    # Headlamp: chrome reflector bowl with a white LED ring (the mask), a dark projector lens.
+    "headlight_inner": finish((0.9, 0.9, 0.9), 1.0, 0.06, color2=(0.75, 0.75, 0.73), metallic2=0.0, roughness2=0.35,
+                              grime=0.0),
+    "glass_dark": finish((0.012, 0.013, 0.015), 0.0, 0.03, "paint", grime=0.0),
+    "mirror_glass": finish((0.92, 0.92, 0.92), 1.0, 0.0, grime=0.0),
     "fork_inner": finish((0.62, 0.62, 0.63), 1.0, 0.12, color2=(0.018, 0.018, 0.019), metallic2=0.0, roughness2=0.45),
     # Headlight: black bowl, the mask is its brushed aluminium bezel.
     "headlight": finish(GLOSS_BLACK, 0.0, 0.18, color2=(0.86, 0.86, 0.85), metallic2=1.0, roughness2=0.18,
@@ -389,9 +400,11 @@ def wheel(radius_tyre, tyre_w, rim_r=0.2159, rim_w=None, spokes=10, front=True):
     return parts
 
 
-def disc(centre_z, r_out, r_in, holes=True):
+def disc(centre_z, r_out, r_in, holes=36):
+    # u: one drilling repeat (two staggered holes) per 1/holes of a turn, about 24 mm of the face;
+    # v: 0..1 round the section (inner face, rim, outer face, bore).
     d = lathe([(r_in, centre_z - 0.0025), (r_out, centre_z - 0.0025), (r_out, centre_z + 0.0025),
-               (r_in, centre_z + 0.0025), (r_in, centre_z - 0.0025)], seg=64)
+               (r_in, centre_z + 0.0025), (r_in, centre_z - 0.0025)], seg=144, uv_norm=holes)
     carrier = lathe([(0.04, centre_z - 0.003), (r_in + 0.005, centre_z - 0.003), (r_in + 0.005, centre_z + 0.003),
                      (0.04, centre_z + 0.003), (0.04, centre_z - 0.003)], seg=40)
     # Floating disc: ten bobbins joining the carrier to the rotor.
@@ -498,10 +511,10 @@ def build():
         put("rear_" + name, w[0], w[1], "rear_wheel")
     d1, c1 = disc(0.075, 0.16, 0.115)
     d2, c2 = disc(-0.075, 0.16, 0.115)
-    put("front_discs", Mesh().extend(d1).extend(d2), "disc_steel", "front_wheel")
+    put("front_discs", Mesh().extend(d1).extend(d2), "disc_drilled", "front_wheel")
     put("front_carriers", Mesh().extend(c1).extend(c2), "alu_cast", "front_wheel")
-    rd, rc = disc(-0.07, 0.11, 0.07)
-    put("rear_disc", rd, "disc_steel", "rear_wheel")
+    rd, rc = disc(-0.07, 0.11, 0.07, holes=24)
+    put("rear_disc", rd, "disc_drilled", "rear_wheel")
     # Sprocket on the right (as on beenster's bike), 41 teeth, about 104 mm.
     sprocket = extrude(sprocket_outline(41, 0.106, 0.098), 0.068, 0.074)
     for k in range(5):     # the five bolts holding it to the cush drive
@@ -570,8 +583,16 @@ def build():
     shell = lathe([(0.0, -0.06), (0.05, -0.058), (0.08, -0.03), (0.088, 0.0), (0.0895, 0.012), (0.091, 0.02),
                    (0.091, 0.03), (0.084, 0.034), (0.0, 0.03)], seg=64, axis=(1, 0, 0), centre=hl_c)
     put("headlight_shell", shell.mask_by(lambda p: (p[:, 0] - hl_c[0] - 0.006) / 0.006), "headlight", "steer")
-    put("headlight_lens", lathe([(0.0, 0.05), (0.06, 0.045), (0.084, 0.032)], seg=48, axis=(1, 0, 0), centre=hl_c),
-        "lens_clear", "steer")
+    # Behind the (invisible) glass: a chrome reflector bowl, a white LED ring, and a projector lens.
+    inner = lathe([(0.084, 0.031), (0.072, 0.02), (0.055, 0.008), (0.035, 0.0), (0.0, -0.003)], seg=64, axis=(1, 0, 0),
+                  centre=hl_c)
+    ring_a = np.linspace(0, 2 * math.pi, 65)
+    ring = np.stack([np.full_like(ring_a, hl_c[0] + 0.022), hl_c[1] + 0.066 * np.cos(ring_a),
+                     hl_c[2] + 0.066 * np.sin(ring_a)], 1)
+    inner.extend(sweep(ring, 0.0045, 0.003, 4.0, 12, caps=False, up_hint=(1, 0, 0)).masked(1.0))
+    put("headlight_lens", inner, "headlight_inner", "steer")
+    put("headlight_projector", lathe([(0.03, 0.0), (0.03, 0.012), (0.026, 0.022), (0.015, 0.028), (0.0, 0.03)], seg=40,
+                                     axis=(1, 0, 0), centre=hl_c), "glass_dark", "steer")
     mirrors = Mesh(); stalks = Mesh()
     for s in (-1, 1):
         end = bar_clamp + [0.0, 0.0, s * 0.385]
@@ -581,6 +602,12 @@ def build():
         mirrors.extend(lathe([(0.0, -0.008), (0.045, -0.008), (0.048, 0.0), (0.045, 0.006), (0.0, 0.006)], seg=32,
                              axis=(1, 0.1, 0), centre=mc).transformed())
     put("mirrors", mirrors, "black_gloss", "steer")
+    glass = Mesh()
+    for s in (-1, 1):
+        end = bar_clamp + [0.0, 0.0, s * 0.385]
+        mc = end + np.array([0.03, 0.16, s * 0.06])
+        glass.extend(lathe([(0.0, -0.0085), (0.042, -0.0085)], seg=32, axis=(1, 0.1, 0), centre=mc))
+    put("mirror_glass", glass, "mirror_glass", "steer")
     put("mirror_stalks", stalks, "black_satin", "steer")
     ind = Mesh()
     for s in (-1, 1):
@@ -889,7 +916,13 @@ def write_parts(P, out):
         col[:, 3] = 255
         # The mask goes in a second UV channel's u as well as vertex colour: Unreal's glTF import
         # keeps UVs reliably, and a mesh without it reads 0 (the first finish), not white.
-        uv1 = np.c_[np.clip(mask, 0, 1), np.zeros(len(mask))]
+        # v: road grime, by how low the point sits on the bike (wheels, which spin, take an even coat).
+        if group in ("front_wheel", "rear_wheel"):
+            grime = np.full(len(pos), 0.35)
+        else:
+            y = pos[:, 1] + {"swingarm": SWING_PIVOT[1]}.get(group, 0.0)
+            grime = np.clip((0.28 - y) / 0.38, 0, 1) ** 1.3
+        uv1 = np.c_[np.clip(mask, 0, 1), grime]
         write_glb(os.path.join(out, name + ".glb"), pos, tris, normals(mesh), col, name, uv=uv, uv1=uv1)
         listing.append({"name": name, "group": group, "finish": fin, "tris": int(len(tris))})
     info = {
@@ -902,7 +935,7 @@ def write_parts(P, out):
         "levers": {k: {"part": "lever_" + k, "pivot": lever_points(s)[0].tolist(), "axis": [0.0, -1.0 if s < 0 else 1.0, 0.0],
                        "pull_deg": LEVER_PULL_DEG[k]} for k, s in (("clutch", -1), ("brake", 1))},
         "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); "
-              "TEXCOORD_1 u (and COLOR_0 red) is the mask towards each finish's second finish",
+              "TEXCOORD_1 u (and COLOR_0 red) is the mask towards each finish's second finish, v the road grime (0..1, low parts dirtier)",
         "finishes": FINISHES,
         "parts": listing,
     }

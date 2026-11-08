@@ -80,7 +80,7 @@
    "pull_deg": 14.0
   }
  },
- "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); TEXCOORD_1 u (and COLOR_0 red) is the mask towards each finish's second finish",
+ "uv": "TEXCOORD_0 in metres (u round, v along) except tyres (24 repeats round, 0..1 bead to bead); TEXCOORD_1 u (and COLOR_0 red) is the mask towards each finish's second finish, v the road grime (0..1, low parts dirtier)",
  "finishes": {
   "paint_silver": {
    "shader": "paint",
@@ -103,7 +103,8 @@
    "normal_strength": 0.0,
    "rough_var": 0.25,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.25
   },
   "decal_black": {
    "shader": "decal",
@@ -126,7 +127,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "decal_white": {
    "shader": "decal",
@@ -149,7 +151,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "badge": {
    "shader": "base",
@@ -172,7 +175,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "black_gloss": {
    "shader": "paint",
@@ -195,7 +199,8 @@
    "normal_strength": 0.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.25
   },
   "black_satin": {
    "shader": "base",
@@ -218,7 +223,8 @@
    "normal_strength": 0.35,
    "rough_var": 0.2,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "black_engine": {
    "shader": "base",
@@ -241,7 +247,8 @@
    "normal_strength": 0.5,
    "rough_var": 0.25,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "chrome": {
    "shader": "base",
@@ -264,7 +271,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.35
   },
   "steel_brushed": {
    "shader": "base",
@@ -287,7 +295,8 @@
    "normal_strength": 0.6,
    "rough_var": 0.35,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "header": {
    "shader": "base",
@@ -310,7 +319,8 @@
    "normal_strength": 0.6,
    "rough_var": 0.35,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "alu_cast": {
    "shader": "base",
@@ -333,7 +343,8 @@
    "normal_strength": 0.6,
    "rough_var": 0.3,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "alu_brushed": {
    "shader": "base",
@@ -356,7 +367,8 @@
    "normal_strength": 0.5,
    "rough_var": 0.3,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "rubber": {
    "shader": "base",
@@ -379,7 +391,8 @@
    "normal_strength": 0.6,
    "rough_var": 0.2,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "grip": {
    "shader": "base",
@@ -402,7 +415,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.2,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "tyre": {
    "shader": "base",
@@ -425,7 +439,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.4,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.0
   },
   "leather": {
    "shader": "base",
@@ -448,7 +463,8 @@
    "normal_strength": 0.8,
    "rough_var": 0.3,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "disc_steel": {
    "shader": "base",
@@ -471,7 +487,104 @@
    "normal_strength": 0.5,
    "rough_var": 0.4,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "disc_drilled": {
+   "shader": "cutout",
+   "color": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28,
+   "color2": [
+    0.55,
+    0.55,
+    0.56
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.28,
+   "detail": "disc_holes",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "headlight_inner": {
+   "shader": "base",
+   "color": [
+    0.9,
+    0.9,
+    0.9
+   ],
+   "metallic": 1.0,
+   "roughness": 0.06,
+   "color2": [
+    0.75,
+    0.75,
+    0.73
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.35,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.0
+  },
+  "glass_dark": {
+   "shader": "paint",
+   "color": [
+    0.012,
+    0.013,
+    0.015
+   ],
+   "metallic": 0.0,
+   "roughness": 0.03,
+   "color2": [
+    0.012,
+    0.013,
+    0.015
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.03,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.0
+  },
+  "mirror_glass": {
+   "shader": "base",
+   "color": [
+    0.92,
+    0.92,
+    0.92
+   ],
+   "metallic": 1.0,
+   "roughness": 0.0,
+   "color2": [
+    0.92,
+    0.92,
+    0.92
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.0,
+   "detail": "flat",
+   "uv_scale": 1.0,
+   "normal_strength": 1.0,
+   "rough_var": 0.0,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.0
   },
   "fork_inner": {
    "shader": "base",
@@ -494,7 +607,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "headlight": {
    "shader": "base",
@@ -517,7 +631,8 @@
    "normal_strength": 0.3,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "bolt": {
    "shader": "base",
@@ -540,7 +655,8 @@
    "normal_strength": 0.3,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "lens_clear": {
    "shader": "base",
@@ -563,7 +679,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "lens_red": {
    "shader": "base",
@@ -586,7 +703,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "lens_amber": {
    "shader": "base",
@@ -609,7 +727,8 @@
    "normal_strength": 1.0,
    "rough_var": 0.0,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "plate": {
    "shader": "base",
@@ -632,7 +751,8 @@
    "normal_strength": 0.2,
    "rough_var": 0.1,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   },
   "chain": {
    "shader": "base",
@@ -655,7 +775,8 @@
    "normal_strength": 0.5,
    "rough_var": 0.3,
    "clearcoat_roughness": 0.03,
-   "emissive": 0.0
+   "emissive": 0.0,
+   "grime": 0.6
   }
  },
  "parts": [
@@ -776,8 +897,8 @@
   {
    "name": "front_discs",
    "group": "front_wheel",
-   "finish": "disc_steel",
-   "tris": 1024
+   "finish": "disc_drilled",
+   "tris": 2304
   },
   {
    "name": "front_indicators",
@@ -836,8 +957,14 @@
   {
    "name": "headlight_lens",
    "group": "steer",
-   "finish": "lens_clear",
-   "tris": 192
+   "finish": "headlight_inner",
+   "tris": 2048
+  },
+  {
+   "name": "headlight_projector",
+   "group": "steer",
+   "finish": "glass_dark",
+   "tris": 320
   },
   {
    "name": "headlight_shell",
@@ -868,6 +995,12 @@
    "group": "steer",
    "finish": "alu_cast",
    "tris": 260
+  },
+  {
+   "name": "mirror_glass",
+   "group": "steer",
+   "finish": "mirror_glass",
+   "tris": 128
   },
   {
    "name": "mirror_stalks",
@@ -914,8 +1047,8 @@
   {
    "name": "rear_disc",
    "group": "rear_wheel",
-   "finish": "disc_steel",
-   "tris": 512
+   "finish": "disc_drilled",
+   "tris": 1152
   },
   {
    "name": "rear_indicators",

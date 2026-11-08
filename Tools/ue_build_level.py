@@ -743,6 +743,18 @@ def bike_master(name, tex, paint):
     roff = g.op(unreal.MaterialExpressionSubtract, dtex, a_out="R", const_b=0.5)
     roff = g.op(unreal.MaterialExpressionMultiply, roff, scalar("RoughVar", 0.0))
     rough = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd, rough, roff))
+    # Road grime: UV channel 1's v says how low (and so how dirty) each point sits on the bike;
+    # Grime scales it per finish, broken up by the detail map's roughness noise. Dust is matte and
+    # dulls metal. No extra texture samples.
+    gv = g.node(unreal.MaterialExpressionComponentMask, -1300, r=False, g=True, b=False, a=False)
+    g.link(uv1, gv)
+    brk = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, dtex, a_out="R", const_b=0.26),
+               g.const(2.5))
+    dirt = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, gv, scalar("Grime", 0.0)), brk)
+    dirt = g.op(unreal.MaterialExpressionSaturate, dirt)
+    shaded = g.lerp(shaded, g.const((0.105, 0.095, 0.08)), dirt)
+    met = g.lerp(met, g.const(0.0), g.op(unreal.MaterialExpressionMultiply, dirt, g.const(0.8)))
+    rough = g.lerp(rough, g.const(0.8), dirt)
     emis = g.op(unreal.MaterialExpressionMultiply, col, scalar("Emissive", 0.0))
     outs = [(shaded, "BaseColor", "MP_BASE_COLOR"), (met, "Metallic", "MP_METALLIC"), (rough, "Roughness", "MP_ROUGHNESS"),
             (nrm, "Normal", "MP_NORMAL"), (emis, "EmissiveColor", "MP_EMISSIVE_COLOR")]
@@ -778,16 +790,18 @@ def bike_master(name, tex, paint):
     return m
 
 
-def bike_decal_master(tex):
+def bike_decal_master(tex, name="M_BikeDecal", wrap=False):
     """Decals (the tank's "1200" and pinstripes, the side panels' lettering): a masked material, the
-    coverage map's red as the opacity mask, a flat colour, metallic and roughness. Cheap: one sample."""
-    m = new_material("M_BikeDecal", BIKE_MAT_DIR)
+    coverage map's red as the opacity mask, a flat colour, metallic and roughness. Cheap: one sample.
+    With wrap, the same for repeating cut-outs (the brake discs' drilling)."""
+    m = new_material(name, BIKE_MAT_DIR)
     m.set_editor_property("two_sided", True)
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     try_set(m, "opacity_mask_clip_value", 0.5)
     g = Graph(m)
     props = {"parameter_name": "DecalMap", "sampler_type": unreal.MaterialSamplerType.SAMPLERTYPE_MASKS,
-             "sampler_source": unreal.SamplerSourceMode.SSM_CLAMP_WORLD_GROUP_SETTINGS}
+             "sampler_source": unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS if wrap
+             else unreal.SamplerSourceMode.SSM_CLAMP_WORLD_GROUP_SETTINGS}
     first = next((v["a"] for v in tex.values() if "a" in v), None)
     if first:
         props["texture"] = first
@@ -811,7 +825,7 @@ def bike_materials(finishes):
     numbers, and the rest take defaults)."""
     tex = bike_textures()
     masters = {"base": bike_master("M_BikeMaster", tex, False), "paint": bike_master("M_BikePaint", tex, True),
-               "decal": bike_decal_master(tex)}
+               "decal": bike_decal_master(tex), "cutout": bike_decal_master(tex, "M_BikeCutout", True)}
     paths = {}
     for name, f in finishes.items():
         mi_name = "MI_" + name
@@ -822,7 +836,7 @@ def bike_materials(finishes):
                                       unreal.MaterialInstanceConstantFactoryNew())
         shader = f.get("shader", "base")
         mel.set_material_instance_parent(mi, masters.get(shader, masters["base"]))
-        if shader == "decal":
+        if shader in ("decal", "cutout"):
             c = f["color"]
             mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
             mel.set_material_instance_scalar_parameter_value(mi, "Metallic", float(f.get("metallic", 0.0)))
@@ -840,7 +854,7 @@ def bike_materials(finishes):
             mel.set_material_instance_vector_parameter_value(mi, pname, unreal.LinearColor(c[0], c[1], c[2], 1.0))
         for key, pname, default in (("metallic", "Metallic", 0.0), ("roughness", "Roughness", 0.5),
                                     ("uv_scale", "UVScale", 1.0), ("normal_strength", "NormalStrength", 1.0),
-                                    ("rough_var", "RoughVar", 0.0), ("emissive", "Emissive", 0.0)):
+                                    ("rough_var", "RoughVar", 0.0), ("emissive", "Emissive", 0.0), ("grime", "Grime", 0.0)):
             mel.set_material_instance_scalar_parameter_value(mi, pname, float(f.get(key, default)))
         mel.set_material_instance_scalar_parameter_value(mi, "Metallic2", float(f.get("metallic2", f["metallic"])))
         mel.set_material_instance_scalar_parameter_value(mi, "Roughness2", float(f.get("roughness2", f["roughness"])))
