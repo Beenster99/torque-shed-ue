@@ -931,16 +931,28 @@
    "tris": 728
   },
   {
-   "name": "grips",
+   "name": "grips_l",
    "group": "steer",
    "finish": "grip",
-   "tris": 320
+   "tris": 160
   },
   {
-   "name": "grips_switches",
+   "name": "grips_r",
+   "group": "steer",
+   "finish": "grip",
+   "tris": 160
+  },
+  {
+   "name": "grips_switches_l",
    "group": "steer",
    "finish": "black_engine",
-   "tris": 1456
+   "tris": 728
+  },
+  {
+   "name": "grips_switches_r",
+   "group": "steer",
+   "finish": "black_engine",
+   "tris": 728
   },
   {
    "name": "handlebar",
@@ -997,22 +1009,40 @@
    "tris": 260
   },
   {
-   "name": "mirror_glass",
+   "name": "mirror_glass_l",
    "group": "steer",
    "finish": "mirror_glass",
-   "tris": 128
+   "tris": 64
   },
   {
-   "name": "mirror_stalks",
+   "name": "mirror_glass_r",
+   "group": "steer",
+   "finish": "mirror_glass",
+   "tris": 64
+  },
+  {
+   "name": "mirror_stalks_l",
    "group": "steer",
    "finish": "black_satin",
-   "tris": 1040
+   "tris": 520
   },
   {
-   "name": "mirrors",
+   "name": "mirror_stalks_r",
+   "group": "steer",
+   "finish": "black_satin",
+   "tris": 520
+  },
+  {
+   "name": "mirrors_l",
    "group": "steer",
    "finish": "black_gloss",
-   "tris": 512
+   "tris": 256
+  },
+  {
+   "name": "mirrors_r",
+   "group": "steer",
+   "finish": "black_gloss",
+   "tris": 256
   },
   {
    "name": "plate",
