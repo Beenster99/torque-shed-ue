@@ -31,14 +31,19 @@ void ATorqueMenuPawn::BeginPlay()
 	BaseRot = FRotator(-5.0, GetActorRotation().Yaw, 0.0);
 	// A level can say where the menu looks from: an actor tagged MenuView (the shed has one by the
 	// roller door, looking in at the bike, clear of the light battens and beams).
+	bool bFromView = false;
 	if (UWorld* World = GetWorld())
 		for (TActorIterator<AActor> It(World); It; ++It)
 			if (It->ActorHasTag(TEXT("MenuView")))
 			{
 				BaseLoc = It->GetActorLocation();
 				BaseRot = It->GetActorRotation();
+				bFromView = true;
 				break;
 			}
+	UE_LOG(LogTemp, Log, TEXT("[Torque] menu view: %s at %s, looking %s (map %s)"),
+		bFromView ? TEXT("from MenuView") : TEXT("fallback over the player start"), *BaseLoc.ToString(), *BaseRot.ToString(),
+		GetWorld() ? *GetWorld()->GetMapName() : TEXT("?"));
 	Camera->SetWorldLocationAndRotation(BaseLoc, BaseRot);
 	Pad = MakeUnique<FSonyPad>();
 	if (UTorqueSession* S = UTorqueSession::Get(this))

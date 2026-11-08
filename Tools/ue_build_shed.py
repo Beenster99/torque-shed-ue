@@ -511,6 +511,11 @@ def build():
     actors.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(start[0], start[1], 100.0), unreal.Rotator(0.0, 0.0, yaw))
 
     levels.save_current_level()
+    # Say what the saved level holds for the game's own lookups (tags), so a run's log shows it.
+    for a in actors.get_all_level_actors():
+        tags = [str(t) for t in a.get_editor_property("tags")]
+        if "MenuView" in tags or "RideOut" in tags:
+            log("level has %s (%s) at %s, rotation %s" % (a.get_actor_label(), ",".join(tags), a.get_actor_location(), a.get_actor_rotation()))
     log("built %s: walk round the bike, E to swap a part, F at the door to ride out" % MAP)
 
 
