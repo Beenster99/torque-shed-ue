@@ -177,7 +177,8 @@ ATorqueWalker::ATorqueWalker()
 		{TEXT("Body_ArmL"), 0, FVector(0, -25, 22), FVector(10, 10, 60)},
 		{TEXT("Body_ArmR"), 0, FVector(0, 25, 22), FVector(10, 10, 60)},
 		{TEXT("Body_Head"), 1, FVector(0, 0, 70), FVector(21, 19, 24)},
-		{TEXT("Body_CapPeak"), 2, FVector(12, 0, 77), FVector(10, 18, 2)},
+		{TEXT("Body_Cap"), 1, FVector(0, 0, 77), FVector(23, 21, 13)},       // the crown, over the top of the head
+		{TEXT("Body_CapPeak"), 2, FVector(14, 0, 76), FVector(11, 17, 1.5)},  // the peak, out of the crown's front
 	};
 	for (const FBit& Bit : Bits)
 	{

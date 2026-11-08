@@ -5,7 +5,10 @@
 #include "Engine/World.h"
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformProcess.h"
+#include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -54,7 +57,16 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("StickDeadZone"), StickDeadZone, Ini);
 	GConfig->GetFloat(Section, TEXT("Steering"), Steering, Ini);
 	GConfig->GetString(Section, TEXT("Name"), Name, Ini);
-	GConfig->GetInt(Section, TEXT("Colour"), Colour, Ini);
+	// A colour nobody chose (or a -TorqueName test copy, so two on one PC differ): one of the bright
+	// ones, from the name, rather than everyone in black. -TorqueColour=N picks one.
+	FString TestName;
+	const bool bTestName = FParse::Value(FCommandLine::Get(), TEXT("TorqueName="), TestName);
+	if (!GConfig->GetInt(Section, TEXT("Colour"), Colour, Ini) || bTestName)
+	{
+		const FString By = bTestName ? TestName : (Name.IsEmpty() ? FString(FPlatformProcess::UserName()) : Name);
+		Colour = 1 + (int32)(GetTypeHash(By) % (uint32)(Colours().Num() - 1));
+	}
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueColour="), Colour);
 	Quality = FMath::Clamp(Quality, 0, 4);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
 	UpscaleMode = FMath::Clamp(UpscaleMode, 0, 4);

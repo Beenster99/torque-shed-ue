@@ -26,7 +26,7 @@
 //   floor:<x>:<y>         look at the floor there (world cm; the wash bay is round -900:100)
 //   door                  stand in the roller door
 //   look:<what>           stand back and look, for a screenshot: bench, washer, repair, computer,
-//                         changer, stand, bins, bike, deliveries, washbay, or any place name
+//                         changer, stand, bins, bike, deliveries, washbay, or any place name; player: 3 m back from the nearest other player, facing them
 //   act[:alt]             what the work button (or the second button) does to what's looked at, at once
 //   hold:<seconds>        hold the work button that long (the pressure washer's passes)
 //   f                     press F at what's looked at (unpack a box, the parts computer, ride out)
