@@ -315,7 +315,13 @@ int main(int argc, char** argv)
 			&& ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) && Json::Parse(IndexText, Index, &Error);
 		Expect(Have && Ref.Get("styles"), "the Godot reference and the parts index load");
 		const Json* Known = Have ? Index.Get("parts") : nullptr;
-		const BikeParts Placer(Lay, Known ? *Known : Index);
+		BikeParts Placer(Lay, Known ? *Known : Index);
+		Placer.SetMeshSource([&](const std::string& Glb, PartMesh& M) {
+			std::string Bytes, MorphBytes, Err;
+			const Json* Ent = Known ? Known->Get(Glb.substr(0, Glb.size() - 4)) : nullptr;
+			if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + Glb, Bytes) || !M.LoadGlb(Bytes, Err)) return false;
+			return !Ent->Get("morph") || (ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) && M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Err));
+		});
 		auto Vec = [](const Json* J) { return J && J->A.size() == 3 ? V3(J->A[0].N, J->A[1].N, J->A[2].N) : V3(1e9, 1e9, 1e9); };
 		struct Box { V3 Lo{1e9, 1e9, 1e9}, Hi{-1e9, -1e9, -1e9}; void Add(const V3& V) {
 			Lo = V3(std::min(Lo.x, V.x), std::min(Lo.y, V.y), std::min(Lo.z, V.z)); Hi = V3(std::max(Hi.x, V.x), std::max(Hi.y, V.y), std::max(Hi.z, V.z)); } };
@@ -434,7 +440,7 @@ int main(int argc, char** argv)
 			const std::string Wrong = Compare(Tags, GSlots, true, Slots);
 			Expect(Wrong.empty(), St + ": " + std::to_string(Slots) + " slots' Blender parts where Godot puts them, surface by surface" + Wrong);
 		}
-		// Every running-gear part, one at a time on its style's reference bike, as Godot draws it.
+		// Every part of the kinds ported, one at a time on its style's reference bike, as Godot draws it.
 		const Json* Sweep = Have ? Ref.Get("sweep") : nullptr;
 		int Builds = 0, Right = 0;
 		std::string Bad;
@@ -458,7 +464,7 @@ int main(int argc, char** argv)
 			else if (Bad.size() < 4000) Bad += "\n      " + Key + ":" + Wrong;
 		}
 		Expect(Builds > 300 && Right == Builds, std::to_string(Right) + " of " + std::to_string(Builds)
-			+ " single-part swaps (every wheel, tyre, disc, caliper, pads, fork, shock, swingarm, sprockets, chain) placed as Godot does" + Bad);
+			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts) placed as Godot does" + Bad);
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);

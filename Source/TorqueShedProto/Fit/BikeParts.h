@@ -3,7 +3,7 @@
 // from the layout's datums (Fit/BikeLayout). Bodywork that bends onto the bike's lines is
 // Fit/BikeBody; this is the parts that go on whole, placed (and scaled) by a transform.
 //
-// Ported so far: the engine's crankcase and its top end; the exhaust; the running gear (rims and cush drive,
+// Ported so far: the engine's crankcase and its top end, and its ancillaries; the exhaust; the running gear (rims and cush drive,
 // tyres, discs and drums, calipers and pads, the fork, the sprockets and chain, the swingarm's
 // Blender pieces and the shocks). Each port keeps the Godot frame inside (as bike_model.gd) and
 // hands back FittedParts in ours. Still code-drawn in Godot and not here yet: frame and swingarm
@@ -49,6 +49,12 @@ public:
 	// Index: Data/Parts/Blender/index.json's "parts" (which glbs there are, their mounts).
 	BikeParts(const BikeLayout& InLayout, const Json& InIndex) : Lay(InLayout), Index(InIndex) {}
 
+	// Where the glbs' meshes come from (Data/Parts/Blender/<path> loaded with its shape keys), for
+	// the few placements that measure another part's mesh, as BikeModel's slot_bounds does (a
+	// V-twin's air cleaner stands out past the tank's edge). Without it they use the loft's sections.
+	using MeshSource = std::function<bool(const std::string& Glb, PartMesh& Out)>;
+	void SetMeshSource(MeshSource In) { Meshes = std::move(In); }
+
 	// The mesh a fitted part draws: its glb's (with its shape keys) deformed by its warp, or by
 	// each of its copies' warps one after the other.
 	static PartMesh Draw(const PartMesh& Glb, const FittedPart& P);
@@ -63,6 +69,7 @@ public:
 private:
 	const BikeLayout& Lay;
 	const Json& Index;
+	MeshSource Meshes;
 
 	// Whether Data/Parts/Blender has a glb at that path ("engine/twin_750.glb"), as
 	// BlenderParts.part(path) not being empty.
@@ -80,6 +87,9 @@ private:
 	void FinalDrive(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Shocks(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
 	void Exhaust(const PartsMap& Parts, const Layout& L, std::vector<FittedPart>& Out) const;
+	// The engine's ancillaries: spark plugs and coil, carbs or throttle bodies, air filter, oil
+	// filter, cooling and the gearbox's pieces (BikeModel._draw_spark_plugs to _blender_gearbox).
+	void Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const;
 	// BlenderParts.sweep_section: copies of a Blender section (drawn at radius 1 along +Z, Godot
 	// frame) laid end to end along ShapeKit.smooth's curve through Route, scaled by Radii (one, or
 	// one per route point). False when there's no glb.

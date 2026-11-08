@@ -119,6 +119,15 @@ std::vector<double> SmoothFloats(const std::vector<double>& V, int PerSeg)
 
 V3 MixV(const V3& A, const V3& B, double F) { return A + (B - A) * F; }
 
+// BikeModel._basis_along: +Z along Dir, +Y as near straight up as that leaves.
+GAffine BasisAlong(const V3& Dir)
+{
+	const V3 Z = Dir.Normalized();
+	V3 X = GodotUp.Cross(Z);
+	X = X.Length() < 0.001 ? GodotRight : X.Normalized();
+	return BasisCols(X, Z.Cross(X).Normalized(), Z);
+}
+
 double SprocketRadius(int Teeth)
 {
 	return ChainPitch / (2.0 * std::sin(TorqueSim::Pi / std::max(static_cast<double>(Teeth), 6.0))) + 0.003;
@@ -761,10 +770,207 @@ void BikeParts::Exhaust(const PartsMap& Parts, const Layout& L, std::vector<Fitt
 	}
 }
 
+void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
+{
+	const std::vector<Cylinder> Cyls = Cylinders(Parts, L);
+	const Json* Engine = Lay.Part(PartIn(Parts, "engine"));
+	const std::string EngLayout = PartStr(Engine, "layout", "parallel");
+	const V3 E = ToGodot(L.Crank);
+	const double S = L.Hard.Scale;
+	const double BlockW = L.Hard.CaseHalfW * 2.0;
+	const double SeatY = L.Stats.SeatHeight - L.Stats.RearRadius;
+	auto TankBaseY = [&](double Z) {
+		if (Body.TankA.x == Body.TankB.x && Body.TankA.y == Body.TankB.y && Body.TankA.z == Body.TankB.z) return SeatY;
+		return TorqueSim::Lerp(Body.TankA.y, Body.TankB.y, TorqueSim::Clamp((Z - Body.TankA.z) / std::max(Body.TankB.z - Body.TankA.z, 0.01), 0.0, 1.0));
+	};
+
+	// Spark plugs, their caps turning out sideways, and the coil under the tank (_draw_spark_plugs).
+	if (HasGlb("spark_plugs/plug.glb"))
+	{
+		std::vector<V3> Ends;
+		for (size_t I = 0; I < Cyls.size(); ++I)
+		{
+			const V3 Up = Cyls[I].Up, Un = Up.Normalized();
+			const V3 At = Cyls[I].Base + Up * 0.2 + V3(0.0, 0.0, 0.02);
+			V3 OutDir = Up;
+			const bool Straight = std::fabs(Up.x) >= 0.5;
+			if (!Straight) OutDir = V3(Cyls.size() == 2 && I == 0 ? -1.0 : 1.0, 0.0, 0.0);
+			V3 Side = OutDir - Un * OutDir.Dot(Un);
+			if (Side.Length() < 0.01) Side = V3(0.0, 0.0, -1.0) - Un * Un.Dot(V3(0.0, 0.0, -1.0));
+			Side = Side.Normalized();
+			const GAffine B = BasisCols(Side, Up, Side.Cross(Up).Normalized(), At);
+			Put(Out, "spark_plugs", "spark_plugs/plug.glb", B, "");
+			Put(Out, "spark_plugs", Straight ? "spark_plugs/cap_straight.glb" : "spark_plugs/cap.glb", B, "");
+			Ends.push_back(Straight ? At + Up * 0.075 : At + Up * 0.025 + Side * 0.05);
+		}
+		if (!Ends.empty())
+		{
+			double Top = -1e9;
+			V3 Mid;
+			for (const V3& End : Ends) { Top = std::max(Top, End.y); Mid += End; }
+			Mid = Mid / static_cast<double>(Ends.size());
+			Put(Out, "spark_plugs", "spark_plugs/coil.glb", GAffine::At(V3(0.0, Top - 0.11, Mid.z + 0.16)), "");
+		}
+	}
+
+	// Where the intake meets each cylinder (_intake_points).
+	struct Intake { V3 Port, Dir; };
+	std::vector<Intake> Points;
+	if (EngLayout == "vtwin")
+		Points.push_back({E + V3(0.04, 0.3 * S, 0.0), V3(1.0, 0.05, 0.0).Normalized()});
+	else
+		for (const Cylinder& C : Cyls) Points.push_back({C.Base + C.Up * 0.12 + V3(0.0, 0.0, 0.09), V3(0.0, 0.15, 1.0).Normalized()});
+	V3 Mid;
+	for (const Intake& P : Points) Mid += P.Port;
+	if (!Points.empty()) Mid = Mid / static_cast<double>(Points.size());
+
+	// Carbs or throttle bodies (_draw_fuel, _fuel_glb).
+	{
+		const std::string Id = PartIn(Parts, "fuel");
+		const Json* F = Lay.Part(Id);
+		const std::string Style = PartStr(F, "style", "carbs");
+		const std::string Glb = Id == "flat_slide_carbs" ? "fuel/carb_flat.glb" : Id == "race_injection" ? "fuel/throttle_body_race.glb"
+			: Style == "fi" ? "fuel/throttle_body.glb" : "fuel/carb_round.glb";
+		if (Style == "carb" && Points.size() > 1)
+			Put(Out, "fuel", Glb, AtWith(BasisAlong(V3(0.0, 0.15, 1.0)), Mid + V3(0.0, 0.0, 0.03)), "");
+		else
+			for (const Intake& P : Points) Put(Out, "fuel", Glb, AtWith(BasisAlong(P.Dir), P.Port), "");
+	}
+
+	// The air filter (_draw_air_filter, _blender_airbox): pods or stacks, a cone, a V-twin's round
+	// cleaner, or the airbox under the tank with its element's housing out to the right.
+	{
+		constexpr double AirFilterOut = 0.21;
+		const std::string Style = PartStr(Lay.Part(PartIn(Parts, "air_filter")), "style", "airbox");
+		if (Style == "pods" || Style == "stacks")
+		{
+			const bool Stacks = Style == "stacks";
+			for (const Intake& P : Points)
+			{
+				const double Side = P.Port.x < -0.01 ? -1.0 : 1.0;
+				const V3 Dir = (P.Dir + V3(Side * 0.9, 0.0, 0.0)).Normalized();
+				const double HalfLen = Stacks ? 0.025 : 0.045;
+				const double Reach = std::max(Stacks ? 0.11 : 0.13, (AirFilterOut - std::fabs(P.Port.x)) / std::fabs(Dir.x) - HalfLen);
+				Put(Out, "air_filter", Stacks ? "filter/stack.glb" : "filter/pod.glb", AtWith(BasisUp(Dir), P.Port + Dir * Reach), "");
+			}
+		}
+		else if (Style == "cone")
+		{
+			const V3 Dir = V3(0.75, 0.05, 0.66).Normalized();
+			V3 At(std::max(AirFilterOut, Mid.x + 0.12) - Dir.x * 0.07, Mid.y + 0.02, Mid.z + 0.16);
+			At.y = std::min(At.y, TankBaseY(At.z) - 0.07);
+			Put(Out, "air_filter", "filter/cone.glb", AtWith(BasisUp(Dir), At), "");
+		}
+		else if (EngLayout == "vtwin" && !Points.empty())
+		{
+			// (Out past the tank's edge: its meshes' bounds, else its widest section.)
+			double Edge = AirFilterOut;
+			bool Measured = false;
+			if (Meshes)
+				for (const FittedPart& P : Body.Parts)
+				{
+					PartMesh M;
+					if (P.Slot != "tank" || !Meshes(P.Glb, M)) continue;
+					for (const PartSurface& Sf : Draw(M, P).Surfaces)
+						for (const V3& V : Sf.Pos) Edge = std::max(Edge, ToGodot(V).x);
+					Measured = true;
+				}
+			if (!Measured)
+				for (const LoftSection& Sec : Body.TankSecs) Edge = std::max(Edge, Sec.W);
+			const Intake& P = Points[0];
+			const double Reach = std::max(0.1, (Edge - P.Port.x) / P.Dir.x);
+			Put(Out, "air_filter", "filter/cleaner.glb", AtWith(BasisUp(P.Dir), P.Port + P.Dir * Reach), "");
+		}
+		else if (!Points.empty())
+		{
+			V3 At = Mid + V3(0.0, 0.04, 0.16);
+			At.y = std::min(At.y, TankBaseY(At.z) - 0.08);
+			const double Wide = std::max(0.2, BlockW * 0.8);
+			const double OutX = std::max(AirFilterOut, Wide * 0.5 + 0.05);
+			if (Put(Out, "air_filter", "filter/airbox.glb", AtWith(GAffine::Scale(V3(Wide / 0.2, 1.0, 1.0)), At), ""))
+			{
+				const GAffine Turn = GAffine::Rotation(V3(0.0, 0.0, 1.0), TorqueSim::Pi * 0.5);
+				const double Length = OutX - Wide * 0.5 + 0.01;
+				Put(Out, "air_filter", "filter/housing.glb", AtWith(Turn * GAffine::Scale(V3(1.0, Length, 1.0)), V3((Wide * 0.5 + OutX) * 0.5, At.y, At.z)), "");
+				Put(Out, "air_filter", "filter/lid.glb", AtWith(Turn, V3(OutX, At.y, At.z)), "");
+			}
+		}
+	}
+
+	// The spin-on oil filter, low on the right of the cases (out of the front on a boxer).
+	{
+		V3 At, Dir;
+		if (EngLayout == "boxer")
+		{
+			const double Off = 0.02;   // (Rig built: a little lower and further out)
+			At = E + V3(0.05 * S, -0.08 * S - Off, -0.17 * S - 0.03 - Off);
+			Dir = V3(0.0, 0.0, -1.0);
+		}
+		else
+		{
+			At = E + V3(BlockW * 0.5 + 0.07 * 0.5 - 0.003, -0.1 * S - 0.015, -0.11 * S - 0.005);
+			Dir = GodotRight;
+		}
+		Put(Out, "oil_filter", "filter/oil.glb", AtWith(BasisUp(Dir), At), "");
+	}
+
+	// Cooling (_draw_cooling): fins on each barrel, an oil cooler, a radiator, or twin side radiators.
+	{
+		const std::string Style = PartStr(Lay.Part(PartIn(Parts, "cooling")), "style", "fins");
+		const double FrontZ = E.z - 0.3;
+		if (Style == "fins")
+			for (const Cylinder& C : Cyls)
+				Put(Out, "cooling", "radiator/fins.glb", AtWith(BasisUp(C.Up) * GAffine::Scale(V3(1.0, C.Up.Length(), 1.0)), C.Base), "");
+		else if (Style == "oil")
+			Put(Out, "cooling", "radiator/oil_cooler.glb", GAffine::At(V3(0.0, E.y + 0.2, FrontZ + 0.035)), "");
+		else if (Style == "radiator" || Style == "race")
+		{
+			const bool Big = Style == "race";
+			const double W = Big ? 0.42 : 0.3, H = Big ? 0.34 : 0.28;
+			Put(Out, "cooling", "radiator/core.glb", AtWith(GAffine::Rotation(GodotRight, -0.25) * GAffine::Scale(V3(W, H, 1.0)), V3(0.0, E.y + 0.25, FrontZ)), "");
+		}
+		else if (Style == "twin")
+			for (double Side : {-1.0, 1.0})
+				Put(Out, "cooling", "radiator/side.glb",
+					AtWith(GAffine::Rotation(GodotUp, 0.35 * Side) * GAffine::Scale(V3(Side, 1.0, 1.0)), V3(0.16 * Side, E.y + 0.24, FrontZ + 0.08)), "");
+	}
+
+	// The gearbox (_blender_gearbox): the case stretched to the engine's width, the clutch cover,
+	// the gear change shaft's arm turned to the lever, a quickshifter and a kickstart.
+	{
+		const std::string Id = PartIn(Parts, "gearbox");
+		const std::string Root = "gearbox/" + Id + "/";
+		if (HasGlb(Root + "case.glb"))
+		{
+			Put(Out, "gearbox", Root + "case.glb", AtWith(GAffine::Scale(V3(BlockW * 0.8 / 0.16, 1.0, 1.0)), E + V3(0.0, -0.06, 0.22)), "");
+			Put(Out, "gearbox", Root + "clutch.glb", GAffine::At(E + V3(BlockW * 0.5, -0.02, 0.1)), "");
+			const V3 Peg = ToGodot(L.Peg);
+			const V3 Shaft = E + V3(-BlockW * 0.5 - 0.06, -0.09, 0.2);
+			const V3 Lever(-std::fabs(Peg.x) + 0.015, Peg.y + 0.04, Peg.z + 0.015);
+			const V3 Arm = V3(0.0, -0.06, -0.08).Normalized();
+			const V3 To = Lever - Shaft;
+			const GAffine Turn = GAffine::Rotation(GodotRight, std::atan2(Arm.y, Arm.z) - std::atan2(To.y, To.z));
+			Put(Out, "gearbox", "gearbox/selector.glb", AtWith(Turn, Shaft), "");
+			const V3 Start = Shaft + Turn.Apply(Arm) * 0.032;
+			const Json* G = Lay.Part(Id);
+			const Json* Qs = G ? G->Get("quickshifter") : nullptr;
+			if ((Start - Lever).Length() > 0.02 && Qs && Qs->B)
+			{
+				const V3 Along = (Lever - Start).Normalized();
+				Put(Out, "gearbox", "gearbox/quickshifter.glb", AtWith(BasisUp(Along), Start + Along * std::min(0.06, (Start - Lever).Length() * 0.4)), "");
+			}
+			if (EngLayout == "single" || EngLayout == "2stroke" || EngLayout == "twin")
+				Put(Out, "gearbox", "gearbox/kickstart.glb", GAffine::At(E + V3(BlockW * 0.5 + 0.035, -0.04, 0.2)), "");
+		}
+	}
+}
+
 std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) const
 {
-	std::vector<FittedPart> Out = BikeBody(Lay).Fit(Parts, L).Parts;
+	const Bodywork Body = BikeBody(Lay).Fit(Parts, L);
+	std::vector<FittedPart> Out = Body.Parts;
 	Engine(Parts, L, Out);
+	Ancillaries(Parts, L, Body, Out);
 	Exhaust(Parts, L, Out);
 	Swingarm(Parts, L, Out);
 	Fork(Parts, L, Out);
