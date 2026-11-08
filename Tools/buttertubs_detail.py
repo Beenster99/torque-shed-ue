@@ -482,7 +482,7 @@ def place_street(props, region_root, O, line, village, junctions, ground, road_h
     counts.update(n)
 
 
-def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, counts):
+def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, counts, tops=None):
     """Drystone walls along the map's wall lines in 2 m lengths, each tilted to the ground under it,
     stopped short of the tarmac with a wall head, a pier on each sharp bend, and a gate between two
     stoops wherever the map has a gate on the wall."""
@@ -559,9 +559,13 @@ def place_walls(props, lines, gates, ground, near, road_dist, road_half, rng, co
                     pitch = max(-0.45, min(0.45, math.atan2(yB - yA, c)))
                     m = (A + B) / 2
                     flip = rng.uniform() < 0.5        # walls look alike from both sides: turn half of them round
-                    props.add(props.wall(int(rng.integers(len(WALL_VARIANTS)))), m[0], (yA + yB) / 2 - 0.03, m[1],
+                    kv = int(rng.integers(len(WALL_VARIANTS))); sy_ = rng.uniform(0.92, 1.06)
+                    props.add(props.wall(kv), m[0], (yA + yB) / 2 - 0.03, m[1],
                               a + (math.pi if flip else 0.0), -pitch if flip else pitch, 0.0,
-                              (c / ST.WALL_L * 1.02, rng.uniform(0.92, 1.06), 1.0))
+                              (c / ST.WALL_L * 1.02, sy_, 1.0))
+                    if tops is not None:
+                        tops.append((kv, m[0], (yA + yB) / 2 - 0.03, m[1], a + (math.pi if flip else 0.0),
+                                     -pitch if flip else pitch, c / ST.WALL_L * 1.02, sy_, kind))
                     if prev is not None:
                         turn = abs((a - prev + math.pi) % (2 * math.pi) - math.pi)
                         if turn > math.radians(28):
@@ -1155,6 +1159,275 @@ def place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, rng
     counts["sheep"] = n
 
 
+def place_life(props, region_root, O, line, village, tops, ground, near, road_dist, road_half, slope_at, rng, counts):
+    """Life around the walls and fields, all from the map: ewes with lambs in the in-bye fields by
+    the dale's farms and field barns; jackdaws and crows on the wall tops near the road; washing lines
+    behind village houses and log piles against their gables; picnic tables, a bench and bins outside
+    the inn the map has in Keld (Keartons); grit washed onto the road's edge on the steep pitches and
+    sheep droppings on the open fell road."""
+    xz = line[:, [0, 2]]
+    seg = np.linalg.norm(np.diff(xz, axis=0), axis=1); s_al = np.concatenate([[0], np.cumsum(seg)])
+    fwd = np.gradient(xz, axis=0); fwd /= np.maximum(np.linalg.norm(fwd, axis=1, keepdims=True), 1e-9)
+    left = np.stack([fwd[:, 1], -fwd[:, 0]], 1)
+    bld = village.get("bld", [])
+    vills = village.get("villages", [])
+    gardens = village.get("gardens", [])
+    n = {"ewes": 0, "lambs": 0, "inbye_flocks": 0, "corvids": 0, "washing_lines": 0, "log_piles": 0,
+         "pub_tables": 0, "gravel_washes": 0, "droppings": 0}
+    made = {}
+
+    def parts(name, make):
+        if name not in made:
+            names = []
+            for mat, M in make().items():
+                if M.n:
+                    nm = "SM_%s_%s" % (name, mat.capitalize())
+                    props.meshes[nm] = M; props.mats[nm] = mat
+                    names.append(nm)
+            made[name] = names
+        return made[name]
+
+    def clear(x, z, r, skip=-1):
+        """Clear of every building but skip (footprint grown by r) and of the front gardens."""
+        for i, (bx_, bz_, bw, bd, br, _k) in enumerate(bld):
+            if i == skip:
+                continue
+            c, s_ = math.cos(br), math.sin(br)
+            u = (x - bx_) * c + (z - bz_) * s_; v = -(x - bx_) * s_ + (z - bz_) * c
+            if abs(u) < bw / 2 + r and abs(v) < bd / 2 + r:
+                return False
+        for gx, gz, gw, gf, gr in gardens:
+            c, s_ = math.cos(gr), math.sin(gr)
+            u = (x - gx) * c + (z - gz) * s_; v = -(x - gx) * s_ + (z - gz) * c
+            if abs(u) < gw / 2 + r and abs(v) < gf / 2 + r:
+                return False
+        return True
+
+    def tarmac_d(x, z):
+        return float(np.hypot(xz[:, 0] - x, xz[:, 1] - z).min())
+
+    def in_village(x, z, pad=0.0):
+        return any(math.hypot(x - vx, z - vz) < vr + pad for vx, vz, vr in vills)
+
+    def facing(f):
+        return math.atan2(-f[0], f[1])
+
+    # Ewes and lambs in the in-bye fields: the walled meadows round the dale's farms and field
+    # barns (below the moor wall, 385 m), a flock of 4 to 9 ewes in the field beside the building,
+    # about half of them with a lamb (or twins) at foot.
+    poses = [("SM_Sheep_A", "graze"), ("SM_Sheep_B", "graze"), ("SM_Sheep_C", "look"), ("SM_Sheep_D", "lie")]
+    lamb_poses = [("SM_Sheep_LambA", "graze"), ("SM_Sheep_LambB", "look"), ("SM_Sheep_LambC", "lie")]
+    cand = [i for i, b in enumerate(bld) if b[5] in ("barn", "farm") and float(ground(b[0], b[1])) + O[1] < 385.0
+            and not in_village(b[0], b[1], 20) and near(b[0], b[1], 30)]
+    cand = [cand[i] for i in rng.permutation(len(cand))]
+    done = []
+    for i in cand:
+        if n["inbye_flocks"] >= 16:
+            break
+        x0, z0 = bld[i][0], bld[i][1]
+        if any(math.hypot(x0 - p[0], z0 - p[1]) < 120 for p in done) or tarmac_d(x0, z0) > 500:
+            continue
+        for _ in range(12):
+            ang = rng.uniform(0, 2 * math.pi); r_ = rng.uniform(18, 40)
+            cx, cz = x0 + math.cos(ang) * r_, z0 + math.sin(ang) * r_
+            if near(cx, cz, 12) and road_dist(cx, cz) > road_half + 14 and slope_at(cx, cz) < 0.35 and clear(cx, cz, 8) \
+                    and not in_village(cx, cz, 10):
+                break
+        else:
+            continue
+        done.append((x0, z0)); n["inbye_flocks"] += 1
+        heading = rng.uniform(0, 2 * math.pi)
+
+        def sheep_at(name, make, x, z, a, sc):
+            fx, fz = math.cos(a), math.sin(a)
+            pitch = math.atan2(float(ground(x + fx * 0.5, z + fz * 0.5)) - float(ground(x - fx * 0.5, z - fz * 0.5)), 1.0)
+            props.add(props.mesh(name, make), x, float(ground(x, z)) - 0.02, z, a, pitch, 0.0, (sc, sc, sc))
+
+        for _ in range(int(rng.integers(4, 10))):
+            x = cx + rng.normal(0, 5); z = cz + rng.normal(0, 5)
+            if not (near(x, z, 2) and road_dist(x, z) > road_half + 8 and slope_at(x, z) < 0.45 and clear(x, z, 2)):
+                continue
+            k = int(rng.choice(4, p=[0.35, 0.3, 0.2, 0.15]))
+            name, pose = poses[k]
+            a = heading + rng.normal(0, 0.9)
+            sc = rng.uniform(0.92, 1.06)
+            sheep_at(name, lambda k=k, pose=pose: ST.sheep(np.random.default_rng(700 + k), pose), x, z, a, sc)
+            n["ewes"] += 1
+            if rng.uniform() < 0.55:
+                fx, fz = math.cos(a), math.sin(a)
+                for t in range(1 if rng.uniform() < 0.7 else 2):     # twins now and then
+                    side = (1 if t == 0 else -1) * (1 if rng.uniform() < 0.5 else -1)
+                    lx = x - fx * rng.uniform(0.1, 0.6) + (-fz) * side * rng.uniform(0.6, 0.9)
+                    lz = z - fz * rng.uniform(0.1, 0.6) + fx * side * rng.uniform(0.6, 0.9)
+                    kl = int(rng.choice(3, p=[0.45, 0.35, 0.2] if pose != "lie" else [0.1, 0.2, 0.7]))
+                    ln, lp = lamb_poses[kl]
+                    sheep_at(ln, lambda kl=kl, lp=lp: ST.sheep(np.random.default_rng(720 + kl), lp, fleece=(0.6, 0.58, 0.52)),
+                             lx, lz, a + rng.normal(0, 0.6), rng.uniform(0.5, 0.58))
+                    n["lambs"] += 1
+
+    # Jackdaws and crows on the wall tops: small parties within sight of the road, on the copes.
+    cope_cache = {}
+
+    def cope_top(kv, u):
+        """The top of wall variant kv's copes at u along it (mesh frame)."""
+        if kv not in cope_cache:
+            v = WALL_VARIANTS[kv % len(WALL_VARIANTS)]
+            P = ST.wall_module(np.random.default_rng(100 + ord(v))).arrays()[0]
+            cope_cache[kv] = P[np.abs(P[:, 2]) < 0.12]
+        P = cope_cache[kv]
+        sel = P[np.abs(P[:, 0] - u) < 0.05]
+        return float(sel[:, 1].max()) if len(sel) else ST.WALL_H + 0.2
+
+    T = [t for t in tops if 6 < road_dist(t[1], t[3]) < 160]
+    groups = 0; perched = []
+    for j in rng.permutation(len(T)):
+        if groups >= 24:
+            break
+        kv, mx, my, mz, a, pitch, sx, sy, _kind = T[j]
+        if any(math.hypot(mx - p[0], mz - p[1]) < 90 for p in perched):
+            continue
+        perched.append((mx, mz)); groups += 1
+        species = "Jackdaw" if rng.uniform() < 0.7 else "Crow"
+        for _ in range(int(rng.choice([1, 2, 2, 3, 4]))):
+            u = rng.uniform(-0.8, 0.8)
+            y = my + cope_top(kv, u) * sy + u * sx * math.tan(pitch)
+            x = mx + math.cos(a) * u * sx; z = mz + math.sin(a) * u * sx
+            pose = "perch" if rng.uniform() < 0.65 else "peck"
+            k = (0 if species == "Jackdaw" else 2) + (pose == "peck")
+            nm = "Corvid_%d" % k
+            sc = (0.9 if species == "Jackdaw" else 1.35) * rng.uniform(0.92, 1.08)
+            for m in parts(nm, lambda k=k, pose=pose: ST.corvid(np.random.default_rng(790 + k), pose)):
+                props.add(m, x, y - 0.01, z, a + rng.choice([0, math.pi]) + rng.normal(0, 0.5), 0.0, 0.0, (sc, sc, sc))
+            n["corvids"] += 1
+    n["corvid_groups"] = groups
+
+    # Gardens of the village houses: a washing line out at the back, a log pile against a gable.
+    for i, (x, z, w, d_, rot, kind) in enumerate(bld):
+        if kind not in ("house", "farm") or not in_village(x, z):
+            continue
+        c, s_ = math.cos(rot), math.sin(rot)
+        ex, ez = np.array([c, s_]), np.array([-s_, c])          # along the house; its front
+        if rng.uniform() < 0.3:
+            L = float(min(5.0, max(3.0, w - 1.0)))
+            back = d_ / 2 + rng.uniform(3.0, 5.0)
+            p0 = np.array([x, z]) - ez * back - ex * L / 2
+            pts = [p0 + ex * t for t in (0.0, L / 2, L)]
+            if all(clear(*q, 0.6) and near(*q, 1) and tarmac_d(*q) > road_half + 2.5 for q in pts):
+                ys = [float(ground(*q)) for q in pts]
+                pitch = max(-0.2, min(0.2, math.atan2(ys[2] - ys[0], L)))
+                for m in parts("WashingLine_%d" % (n["washing_lines"] % 3),
+                               lambda k=n["washing_lines"] % 3: ST.washing_line(np.random.default_rng(800 + k), 4.5)):
+                    props.add(m, p0[0], ys[0] - 0.05, p0[1], rot, pitch, 0.0, (L / 4.5, 1.0, 1.0))
+                n["washing_lines"] += 1
+        if rng.uniform() < 0.35:
+            for end in ((1, -1) if rng.uniform() < 0.5 else (-1, 1)):
+                L = float(min(2.2, d_ - 1.0))
+                if L < 1.2:
+                    break
+                g = np.array([x, z]) + ex * end * (w / 2 + 0.22)
+                pts = [g + ez * t for t in (-L / 2, 0, L / 2)] + [g + ex * end * 0.5]
+                if all(clear(*q, 0.15, skip=i) and tarmac_d(*q) > road_half + 1.5 for q in pts):
+                    k = n["log_piles"] % 3
+                    f = ex * end
+                    a = facing(f)                        # its log ends (+z) out from the gable
+                    # its +x is then (cos a, sin a) = -ez*end... start the pile so it is centred on g
+                    ax = np.array([math.cos(a), math.sin(a)])
+                    st = g - ax * L / 2
+                    for m in parts("LogPile_%d" % k, lambda k=k: ST.log_pile(np.random.default_rng(810 + k), 2.2, 1.1)):
+                        props.add(m, st[0], float(min(ground(*q) for q in pts[:3])) - 0.03, st[1], a, 0.0, 0.0,
+                                  (L / 2.2, rng.uniform(0.75, 1.0), 1.0))
+                    n["log_piles"] += 1
+                    break
+
+    # Keartons, the inn in Keld (the map's point of interest): picnic tables in front, a bench by
+    # the door and the bins round the side.
+    try:
+        inns = [(p["x"] - O[0], p["z"] - O[2]) for p in json.load(open(os.path.join(region_root, "pois.json")))
+                if p.get("name") == "Keartons"]
+    except (OSError, ValueError):
+        inns = []
+    for px_, pz_ in inns:
+        if not bld:
+            break
+        i = min(range(len(bld)), key=lambda i: math.hypot(bld[i][0] - px_, bld[i][1] - pz_))
+        x, z, w, d_, rot, kind = bld[i]
+        if math.hypot(x - px_, z - pz_) > 40:
+            continue
+        c, s_ = math.cos(rot), math.sin(rot)
+        ex, ez = np.array([c, s_]), np.array([-s_, c])
+        y_front = None
+        for gx, gz, gw, gf, gr in gardens:     # its front garden, if it has one: tables in it
+            if math.hypot(gx - (x + ez[0] * d_ / 2), gz - (z + ez[1] * d_ / 2)) < gf / 2 + 2 and gf > 3.2:
+                y_front = (gx, gz, gw, gf)
+        spots = []
+        if y_front:
+            gx, gz, gw, gf = y_front
+            for t in (-0.25, 0.25):
+                spots.append(np.array([gx, gz]) + ex * gw * t + ez * 0.2)
+        else:
+            for t in (-0.28, 0.28):
+                spots.append(np.array([x, z]) + ex * w * t + ez * (d_ / 2 + 1.9))
+        cars = [(v[0] / 100, v[1] / 100) for k_, vs in props.inst.items() if k_.startswith("SM_Car_") for v in vs]
+        for p in spots:
+            if any(math.hypot(p[0] - cx_, p[1] - cz_) < 4.0 for cx_, cz_ in cars):
+                p = p - ex * 3.0 if all(math.hypot(p[0] - 3.0 * ex[0] - cx_, p[1] - 3.0 * ex[1] - cz_) >= 4.0 for cx_, cz_ in cars) else p + ex * 3.0
+            if tarmac_d(*p) > road_half + 2.2 and clear(*p, 1.0, skip=i) or y_front:
+                for m in parts("PicnicTable", lambda: ST.picnic_table(np.random.default_rng(820))):
+                    props.add(m, p[0], float(ground(*p)) - 0.03, p[1], rot + rng.normal(0, 0.08))
+                n["pub_tables"] += 1
+        p = np.array([x, z]) + ez * (d_ / 2 + 0.5) + ex * w * 0.08
+        if tarmac_d(*p) > road_half + 1.5:
+            for m in parts("Bench", lambda: ST.bench(np.random.default_rng(712))):
+                props.add(m, p[0], float(ground(*p)) - 0.02, p[1], facing(ez))
+            n["pub_bench"] = 1
+        for end in (1, -1):
+            g = np.array([x, z]) + ex * end * (w / 2 + 0.55) - ez * (d_ / 2 - 0.6)
+            if clear(*g, 0.35, skip=i) and tarmac_d(*g) > road_half + 1.5:
+                for j_, col in enumerate([(0.02, 0.07, 0.03), (0.03, 0.03, 0.03), (0.02, 0.03, 0.08)]):   # as the street bins
+                    q = g - ez * (-j_ * 0.68)
+                    for m in parts("Bin_%d" % j_, lambda j_=j_, col=col: ST.wheelie_bin(np.random.default_rng(740 + j_), col)):
+                        props.add(m, q[0], float(ground(*q)) - 0.02, q[1], facing(ex * end) + rng.normal(0, 0.08))
+                n["pub_bins"] = 3
+                break
+
+    # The road itself: grit washed onto the edge on the steep pitches, every 80 m or so on alternate
+    # sides; sheep droppings on the tarmac out on the open fell (above 330 m, out of the walls).
+    def surface_y(k, off):
+        return float(line[k, 1] + np.interp(abs(off) / road_half, [0, 0.5, 1.0], [0.05, 0.0375, 0.0]))
+
+    grade = np.abs(np.gradient(line[:, 1]) / np.maximum(np.gradient(s_al), 1e-6))
+    last = -1e9; side = 1
+    for k in range(2, len(line) - 2):
+        if grade[k] < 0.07 or s_al[k] - last < 80 or in_village(*xz[k], 10):
+            continue
+        last = s_al[k] + rng.uniform(-15, 25); side = -side
+        off = road_half - 0.3
+        p = xz[k] + left[k] * side * off
+        a = facing(-left[k] * side)              # its verge side (-z) to the verge
+        pitch_ = math.atan2(line[k + 1, 1] - line[k - 1, 1], s_al[k + 1] - s_al[k - 1])
+        # +x of the mesh is along (cos a, sin a): uphill or down with it
+        ax = np.array([math.cos(a), math.sin(a)])
+        if ax @ fwd[k] < 0:
+            pitch_ = -pitch_
+        kk = int(rng.integers(3))
+        sc = rng.uniform(0.8, 1.5)
+        for m in parts("GravelWash_%d" % kk, lambda kk=kk: ST.gravel_wash(np.random.default_rng(830 + kk))):
+            props.add(m, p[0], surface_y(k, off) - 0.004, p[1], a, pitch_, 0.0, (sc, 1.0, rng.uniform(0.8, 1.3)))
+        n["gravel_washes"] += 1
+    for k in range(2, len(line) - 2, 6):
+        if line[k, 1] + O[1] < 330.0 or in_village(*xz[k], 60) or rng.uniform() > 0.45:
+            continue
+        off = float(np.clip(rng.normal(0, 1) * road_half * 0.55, -road_half + 0.2, road_half - 0.2))
+        if rng.uniform() < 0.6:                  # mostly near the edges, where they lie by the verge
+            off = (road_half - rng.uniform(0.25, 0.9)) * (1 if rng.uniform() < 0.5 else -1)
+        p = xz[k] + left[k] * off + fwd[k] * rng.uniform(-5, 5)
+        kk = int(rng.integers(3))
+        for m in parts("Droppings_%d" % kk, lambda kk=kk: ST.droppings(np.random.default_rng(840 + kk))):
+            props.add(m, p[0], surface_y(k, off) - 0.004, p[1], rng.uniform(0, 2 * math.pi))
+        n["droppings"] += 1
+    counts.update(n)
+
+
 def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, write_glb, seed=7, far=None):
     rng = np.random.default_rng(seed)
     step = xs[1] - xs[0]
@@ -1222,7 +1495,8 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     village = place_buildings(props, region_root, O, ground, near, road_dist, road_half, prng, counts, line, to_ride)
     lines["roadside"], lines["roadside_gates"], junctions = roadside_walls(region_root, O, line, lines, village, road_half, near,
                                                                 lambda x, z: ground(x, z) + O[1], prng)
-    place_walls(props, lines, points.get("gate", []), ground, near, road_dist, road_half, prng, counts)
+    tops = []
+    place_walls(props, lines, points.get("gate", []), ground, near, road_dist, road_half, prng, counts, tops)
     counts["roadside_wall_runs"] = len(lines["roadside"])
     place_street(props, region_root, O, line, village, junctions, ground, road_half, prng, counts)
 
@@ -1379,6 +1653,8 @@ def build(region_root, meta, O, H, xs, zs, best, line, tiles, road_half, out, wr
     counts["boulders"] = nb
 
     place_sheep(props, ground, near, road_dist, road_half, slope_at, xs, zs, prng, counts)
+    place_life(props, region_root, O, line, village, tops, ground, near, road_dist, road_half, slope_at,
+               np.random.default_rng(seed + 2000), counts)
 
     names = B.write(out, write_glb)
     for f in os.listdir(out):   # the old stick tufts, now replaced by the foliage
