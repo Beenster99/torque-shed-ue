@@ -276,6 +276,59 @@ int main(int Argc, char** Argv)
 		return 1;
 	}
 	const Json* Styles = Ref.Get("styles");
+	bool Calib = false;
+	for (int A = 1; A < Argc; ++A) Calib |= std::strcmp(Argv[A], "--calib") == 0;
+	if (Calib)
+	{
+		// --calib: each style's reference bike as the game builds it, for calibrating against the real
+		// figures (docs: bike_style_performance.md): peak power, wet weight, wheelbase, seat height, top
+		// speed flat out on the level (3 minutes, the most it reaches), 0-60, and the petrol at a steady
+		// 56 mph in top (TorqueDash's sums, UK mpg).
+		std::printf("style,hp,wet_kg,wheelbase_mm,seat_mm,top_mph,t60_s,mpg56_uk,cda,gears\n");
+		for (const Real& Rl : Reals)
+		{
+			const Json* G = Styles ? Styles->Get(Rl.Name) : nullptr;
+			BikeSpec S;
+			if (!G || !SpecFor(Lay, Rl.Name, *G, S)) continue;
+			Riding = Rl.Name;
+			const Result Res = Ride(S);
+			double PeakKw = 0.0;
+			for (double Rpm = S.IdleRpm; Rpm <= S.Redline; Rpm += 50.0) PeakKw = std::max(PeakKw, S.EngineTorque(Rpm) * Rpm * 6.2832 / 60.0 / 1000.0);
+			double Top = 0.0;
+			{
+				BikeSim Sim;
+				Start(Sim, S);
+				for (int I = 0; I < 180 * 120 && !Sim.IsCrashed; ++I)
+				{
+					Sim.Throttle = 1.0;
+					Sim.BodyShift = I > 10 * 120 ? 0.0 : 0.6;
+					Sim.Step(Dt);
+					Top = std::max(Top, Sim.Speed);
+				}
+			}
+			// TorqueDash::CruiseEconomy at 25 m/s (56 mph), the reference parts' head and block.
+			const auto Parts = Lay.ReferenceBuild(Rl.Name);
+			auto PartJ = [&](const char* Slot) -> const Json* { auto It = Parts.find(Slot); return It == Parts.end() ? nullptr : Lay.Part(It->second); };
+			const Json* Block = PartJ("engine");
+			const Json* Head = PartJ("head");
+			const double Disp = Block ? Block->Num("displacement", 700.0) : 700.0;
+			const bool Two = Block && Block->Str("layout") == "2stroke";
+			const double Fric = (Head ? Head->Num("thirst", 1.0) : 1.0) * (1.0 + 0.08 * ((Block ? Block->Num("cylinders", 2.0) : 2.0) - 2.0));
+			const double V = 25.0;
+			const double Kw = (0.5 * 1.2 * S.CdA * V * V * V + S.Rolling * S.TotalMass * 9.81 * V) / S.DrivetrainEfficiency / 1000.0;
+			const double Rpm = std::max(V / S.RearRadius * S.OverallRatio(S.GearCount()) * 60.0 / 6.2832, S.IdleRpm);
+			const double Pk = S.EngineTorque(Rpm) * Rpm * 6.2832 / 60.0 / 1000.0;
+			const double Load = std::clamp(Kw / std::max(Pk, 0.1), 0.0, 1.0);
+			const double Bar = (0.9 + 0.13 * Rpm / 1000.0) * Fric + 0.75 * (1.0 - Load);
+			const double FricKw = Bar * 100000.0 * Disp / 1e6 * Rpm / 120.0 / 1000.0;
+			const double Lph = (Kw + FricKw) * 0.30 * (Two ? 1.35 : 1.0);
+			const double KmPerL = 90.0 / Lph;
+			const double MpgUk = KmPerL * 0.621371 * 4.54609;
+			std::printf("%s,%.0f,%.0f,%.0f,%.0f,%.0f,%.2f,%.0f,%.2f,%d\n", Rl.Name, PeakKw * 1.341, S.BikeMass, S.Wheelbase * 1000.0, S.SeatHeight * 1000.0,
+				Top * 2.23694, Res.T60, MpgUk, S.CdA, S.GearCount());
+		}
+		return 0;
+	}
 	if (Table)
 	{
 		std::printf("| Style | 0-60 s (real; Godot) | 60-0 m (real; Godot) | Lean deg (real; Godot) | Sideways g (real; Godot) |\n|---|---|---|---|---|\n");
