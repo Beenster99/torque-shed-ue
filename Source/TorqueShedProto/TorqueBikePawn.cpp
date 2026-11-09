@@ -1514,7 +1514,6 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 	// pivot as BikeModel._draw_side_stand / _draw_centre_stand swing them with a stand_pose. Godot's
 	// bike frame (x right, y up, z back, metres) is the drawn bike's (X forward, Y right, Z up, cm).
 	static const FName SideTag(TEXT("Slot:side_stand")), CentreTag(TEXT("Slot:centre_stand"));
-	static const FName FootTag(TEXT("Part:stand/foot.glb")), PivotTag(TEXT("Part:stand/pivot.glb"));
 	if (StandRest.Num() == 0)
 		for (UStaticMeshComponent* C : ModelParts)
 			if (C && (C->ComponentHasTag(SideTag) || C->ComponentHasTag(CentreTag))) StandRest.Add({C, C->GetRelativeTransform()});
@@ -1523,18 +1522,11 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 	if (Stand == 0 || StandRest.Num() == 0) return;
 	auto Godot = [](double X, double Y, double Z) { return FVector(-Z, X, Y) * 100.0; };
 	const FName& Tag = Stand == 1 ? SideTag : CentreTag;
-	FVector Pivot = FVector::ZeroVector, Foot = FVector::ZeroVector, Folded = FVector::ZeroVector, Down = FVector::ZeroVector;
-	int32 Feet = 0;
-	bool bPivot = false;
+	FVector Pivot = FVector::ZeroVector, Folded = FVector::ZeroVector, Down = FVector::ZeroVector;
+	int32 Pieces = 0;
 	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
-	{
-		UStaticMeshComponent* C = KV.Key.Get();
-		if (!C || !C->ComponentHasTag(Tag)) continue;
-		if (C->ComponentHasTag(FootTag)) { Foot += KV.Value.GetLocation(); ++Feet; }
-		if (C->ComponentHasTag(PivotTag)) { Pivot = KV.Value.GetLocation(); bPivot = true; }
-	}
-	if (Feet == 0) return;
-	Foot /= Feet;
+		if (KV.Key.IsValid() && KV.Key->ComponentHasTag(Tag)) ++Pieces;
+	if (Pieces == 0) return;
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	const double Rr = Sim->Build.RearRadius;
 	if (Stand == 1)
@@ -1554,7 +1546,9 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 		}
 		Folded = Godot(-0.03, -0.04, Len * 0.95);
 		Down = Godot(-Len * FMath::Sin(Best), -Len * FMath::Cos(Best), -0.06);
-		if (!bPivot) Pivot = Foot - Folded;
+		// Where BikeParts::Stands puts it: 12 cm left, 4 cm under the origin, 16 cm ahead of the
+		// swingarm pivot. (Its surfaces' own places are no help: their shapes are drawn in place.)
+		Pivot = FVector(SwingPivot.X + 16.0, -12.0, -4.0);
 	}
 	else
 	{
@@ -1562,14 +1556,15 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 		const double Reach = Rr - 0.06 + (P ? P->Num("lift", 0.04) : 0.04);
 		Folded = Godot(0.0, -0.08, Reach * 0.9);
 		Down = Godot(0.0, -Reach, -0.02);
-		Pivot = Foot - Folded;   // the legs' tops, on the bike's middle
+		// The legs' tops: on the bike's middle, 6 cm under its origin, 8 cm ahead of the swingarm pivot.
+		Pivot = FVector(SwingPivot.X + 8.0, 0.0, -6.0);
 	}
 	const FQuat Swing = FQuat::FindBetweenVectors(Folded.GetSafeNormal(), Down.GetSafeNormal());
 	const FTransform About = FTransform(-Pivot) * FTransform(Swing) * FTransform(Pivot);
 	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
 		if (KV.Key.IsValid() && KV.Key->ComponentHasTag(Tag)) KV.Key->SetRelativeTransform(KV.Value * About);
-	UE_LOG(LogTemp, Log, TEXT("Torque: %s stand down (folded foot %.0f cm from its pivot as drawn, %.0f as Godot has it)"),
-		Stand == 1 ? TEXT("side") : TEXT("centre"), (Foot - Pivot).Size(), Folded.Size());
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s stand down, swung %.0f deg about (%.0f, %.0f, %.0f) cm (the swingarm pivot at %.0f cm along)"),
+		Stand == 1 ? TEXT("side") : TEXT("centre"), FMath::RadiansToDegrees(Swing.GetAngle()), Pivot.X, Pivot.Y, Pivot.Z, SwingPivot.X);
 }
 
 void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY)
