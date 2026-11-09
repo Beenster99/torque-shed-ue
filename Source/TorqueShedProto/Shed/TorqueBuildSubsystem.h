@@ -198,6 +198,9 @@ enum class ETorqueShedAct : uint8
 	ReleaseStand,
 	Extinguisher,
 	ExtinguisherSpray,
+	// Bay Bay's bike scrapped: it and every part on it gone for good, the bay free (shed_state.gd
+	// remove_bike; the UE shed has no money, so nothing is paid for it).
+	ScrapBike,
 	Count
 };
 

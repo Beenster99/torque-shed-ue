@@ -155,6 +155,11 @@ const TCHAR* const WashGameSteps =
 	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,washpass:1:60,shot,crouch:0,look:washbay,shot,")
 	TEXT("tool:hands,place:lift_wash,f,wait:5,wheel:home,wait:2,bikelog,log");
 
+// Scrapping a bike: bay 2's project bike, its screen on, right mouse held on its frame, the bike
+// and its parts gone and the screen blank.
+const TCHAR* const ScrapSteps =
+	TEXT("bay:2,tool:hands,log,look:screen,shot,part:frame,act:alt,log,wait:2,look:screen,shot,look:bike,shot");
+
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
 // the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
@@ -233,6 +238,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("scrap")) FString(TSTI::ScrapSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("washgame")) FString(TSTI::WashGameSteps).ParseIntoArray(Preset, TEXT(","), true);   // [wash]
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);

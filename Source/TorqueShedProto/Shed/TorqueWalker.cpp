@@ -1368,6 +1368,14 @@ void ATorqueWalker::MakePlan()
 		AltPlan.Request.Item = Hook;
 		AltPlan.Request.Amount = B->HookTipOf(Hook);
 	}
+	// Hands free on a bay's bike: right mouse, held, scraps it (shed_state.gd remove_bike: no money
+	// in the UE shed, so it and every part on it are simply gone, and the bay is free).
+	if (!AltPlan.bValid && Target == ETorqueLook::BikePart && B->Exists(TargetBay) && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me))
+	{
+		AltPlan = MakeOne(ETorqueShedAct::ScrapBike, 4.0, FString::Printf(TEXT("hold to scrap %s and every part on it (frees bay %d)"),
+			*B->Bike(TargetBay).Name, TargetBay + 1));
+		AltPlan.Request.Bay = TargetBay;
+	}
 	if (Plan.bValid && !Plan.bComputer) Plan.Blocked = B->Check(Me, Plan.Request);
 	if (AltPlan.bValid) AltPlan.Blocked = B->Check(Me, AltPlan.Request);
 }

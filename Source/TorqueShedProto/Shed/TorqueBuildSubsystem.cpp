@@ -2176,6 +2176,11 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 					return L == WashLift ? FString(TEXT("The wash bay lift is up. Lower it first, then wheel the bike on."))
 						: FString::Printf(TEXT("Bay %d's lift is up. Lower it first, then wheel the bike on."), L + 1);
 		return FString();
+	case ETorqueShedAct::ScrapBike:
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		if (Bikes[R.Bay].Pusher != 0) return TEXT("Someone's wheeling it.");
+		if (OnDyno(R.Bay) && SharedNow() < DynoBusyUntil) return TEXT("It's mid-run. Wait for it to finish.");
+		return FString();
 	case ETorqueShedAct::Lift:
 	{
 		if (!IsLift(R.Item)) return TEXT("There's no lift there.");
@@ -2707,6 +2712,26 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			Text = FString::Printf(TEXT("%s is on the wash bay lift. F on the button post raises it."), *B.Name);
 		}
 		else Text = FString::Printf(TEXT("%s is on its stand."), *B.Name);
+		break;
+	}
+	case ETorqueShedAct::ScrapBike:
+	{
+		// shed_state.gd remove_bike: every part on it goes (an engine with what's bolted to it, a
+		// wheel with its tyre), then the bike; the bay is free for the next project.
+		const FString Name = Bikes[R.Bay].Name;
+		int32 Gone = 0;
+		for (const FName& S : TorqueShedParts::BikeSlots())
+			if (const int32 Id = Bikes[R.Bay].Slots.FindRef(S))
+			{
+				EraseItem(Id);
+				++Gone;
+			}
+		if (OnDyno(R.Bay))
+			for (bool& Strap : Dyno.Straps) Strap = false;
+		Bikes[R.Bay] = FTorqueShedBike();
+		PartsOf.Add(R.Bay);
+		bItems = true;
+		Text = FString::Printf(TEXT("Scrapped %s and the %d parts on it. Bay %d is free."), *Name, Gone, R.Bay + 1);
 		break;
 	}
 	case ETorqueShedAct::Lift:
