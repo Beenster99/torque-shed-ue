@@ -254,6 +254,7 @@ private:
 	// Smoothed rider inputs from keys, pad and wheel.
 	double Throttle = 0, FrontBrake = 0, RearBrake = 0, Lean = 0, Shift = 0;
 	double CrashedFor = 0.0;
+	bool bGhostHidden = false;   // the respawn ghost's blink: the bike and rider hidden this frame
 
 	// Camera.
 	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit

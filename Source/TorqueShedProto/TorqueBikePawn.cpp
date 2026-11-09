@@ -851,7 +851,7 @@ void ATorqueBikePawn::GatherOtherBikes()
 	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
 	{
 		const ATorqueBikePawn* Other = *It;
-		if (Other == this || !Other->Sim || Other->IsHidden()) continue;
+		if (Other == this || !Other->Sim || Other->IsHidden() || Other->Sim->IsGhost()) continue;   // (a ghost passes through)
 		Other->Sim->AsCapsules(Contacts->Capsules);
 	}
 }
@@ -1188,7 +1188,10 @@ void ATorqueBikePawn::ReadInput(float Dt)
 
 	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
 		SonyHit(ESonyButton::Triangle))
+	{
 		Respawn(FMath::Max(Near - 2, 0));
+		Sim->StartGhost();
+	}
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
 	if (FTorqueKeys::Just(PC, ETorqueKey::Restart)) RestartRide();
 	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
@@ -1280,9 +1283,10 @@ FString ATorqueBikePawn::TestControl(const FString& What, int32 Arg)
 		Sim->ClutchIn = bTestClutch;
 	}
 	const TCHAR* Engine = Sim->IsStarting() ? TEXT("cranking") : Sim->EngineOn ? TEXT("running") : TEXT("off");
-	return FString::Printf(TEXT("gear %s at %.1f mph, engine %s (%.0f rpm), clutch %s, %s gears"),
+	return FString::Printf(TEXT("gear %s at %.1f mph, engine %s (%.0f rpm), clutch %s, %s gears; tyres %s (%.0f / %.0f C), engine %s (%.0f C); ghost %.1f s"),
 		Sim->Gear == BikeSim::NEUTRAL ? TEXT("N") : *FString::FromInt(Sim->Gear), Sim->Speed * 2.23694, Engine, Sim->Rpm,
-		Sim->ClutchIn ? TEXT("in") : TEXT("out"), bManual ? TEXT("manual") : TEXT("automatic"));
+		Sim->ClutchIn ? TEXT("in") : TEXT("out"), bManual ? TEXT("manual") : TEXT("automatic"), UTF8_TO_TCHAR(Sim->Heat.TyreState()),
+		Sim->Heat.TyreTemp(0), Sim->Heat.TyreTemp(1), UTF8_TO_TCHAR(Sim->Heat.EngineState()), Sim->Heat.Engine, Sim->GhostLeft);
 }
 
 void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
@@ -1344,6 +1348,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	}
 	if (!Sim->EngineOn) { Sim->StopEngine(); Sim->EngineOn = true; }   // (switched off on the key: the robot needs it)
 	Sim->Heat.WarmThrough();   // the road tests' bike is warmed through, as SimTest's
+	Sim->GhostLeft = 0.0;   // solid: the crash test hits things
 	Respawn(Best);
 	if (bTestWantFlat)
 	{
@@ -1645,7 +1650,11 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		if (Sim->IsCrashed)
 		{
 			CrashedFor += DeltaSeconds;
-			if (CrashedFor > 2.5) Respawn(FMath::Max(Near - 2, 0));
+			if (CrashedFor > 2.5)
+			{
+				Respawn(FMath::Max(Near - 2, 0));
+				Sim->StartGhost();   // a ghost for 5 s: nothing knocks the rider off again straight away
+			}
 		}
 		else if (!bFinished)
 		{
@@ -1710,6 +1719,18 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 {
 	// Draw between the last two steps so the bike moves smoothly at any frame rate.
 	SetActorLocationAndRotation(FMath::Lerp(PrevPos, CurPos, Alpha), FQuat::Slerp(PrevRot, CurRot, Alpha));
+	// The respawn ghost (BikeGhost): Torque Shed drew it see-through; here it blinks, hidden for a
+	// share of each eighth of a second that follows how faint Torque Shed's would be.
+	{
+		const double Look = Sim->GhostLook();
+		const double Phase = FMath::Frac(GetWorld() ? GetWorld()->GetTimeSeconds() * 8.0 : 0.0);
+		const bool bHide = Look > 0.0 && Phase < Look * 0.7;
+		if (bHide != bGhostHidden)
+		{
+			bGhostHidden = bHide;
+			Root->SetHiddenInGame(bHide, true);
+		}
+	}
 
 	const Wheel& F = Sim->Wheels[0];
 	const Wheel& R = Sim->Wheels[1];

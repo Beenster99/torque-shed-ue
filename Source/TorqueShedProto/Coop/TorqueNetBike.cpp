@@ -27,7 +27,7 @@ enum ENetVal
 static_assert(NV_Count <= TorqueNet::MaxVals, "more values than a snapshot holds");
 enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf };
 
-constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4;
+constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8;
 
 bool NetLogEverySecond()
 {
@@ -122,7 +122,7 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	S.FrontSlip = (float)F.Slip;
 	S.RearSlip = (float)R.Slip;
 	S.Gear = (uint8)FMath::Clamp(Sim.Gear, 0, 255);
-	S.Flags = (Sim.IsCrashed ? FlagCrashed : 0) | (F.Contact ? FlagFrontDown : 0) | (R.Contact ? FlagRearDown : 0);
+	S.Flags = (Sim.IsCrashed ? FlagCrashed : 0) | (F.Contact ? FlagFrontDown : 0) | (R.Contact ? FlagRearDown : 0) | (Sim.IsGhost() ? FlagGhost : 0);
 	S.FrontSurf = (uint8)FMath::Clamp(F.Surf, 0, 255);
 	S.RearSurf = (uint8)FMath::Clamp(R.Surf, 0, 255);
 }
@@ -214,6 +214,8 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	Sim.Rpm = Out.Val[NV_Rpm];
 	Sim.Gear = Out.Ints[NI_Gear];
 	Sim.IsCrashed = (Out.Ints[NI_Flags] & FlagCrashed) != 0;
+	// A ghost (respawned): the others pass through it. The time left isn't sent: drawn at its faintest.
+	Sim.GhostLeft = (Out.Ints[NI_Flags] & FlagGhost) != 0 ? 2.0 : 0.0;
 	B->Throttle = Out.Val[NV_Throttle];
 	B->FrontBrake = Out.Val[NV_FrontBrake];
 	B->RearBrake = Out.Val[NV_RearBrake];

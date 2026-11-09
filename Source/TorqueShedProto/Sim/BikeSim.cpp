@@ -239,8 +239,17 @@ void BikeSim::Integrate(double Delta)
 
 // --- each tick -------------------------------------------------------------------------------------
 
+double BikeSim::GhostLook() const
+{
+	if (GhostLeft <= 0.0) return 0.0;
+	double T = 0.6 * Clamp(GhostLeft / 1.5, 0.0, 1.0);
+	if (GhostLeft < 1.0) T *= 0.55 + 0.45 * (0.5 + 0.5 * std::cos(GhostLeft * TAU * 4.0));
+	return T;
+}
+
 void BikeSim::Step(double Delta)
 {
+	GhostLeft = std::max(0.0, GhostLeft - Delta);
 	const V3 Fwd = -Basis.Z;
 	Speed = LinearVelocity.Dot(Fwd);
 	MeasureAttitude();
@@ -358,6 +367,7 @@ void BikeSim::ResolveContacts(double Delta)
 		Contacts->Query(P, Pr.Radius, Hits);
 		for (const ContactHit& H : Hits)
 		{
+			if (H.Bike && IsGhost()) continue;   // a ghost passes through other bikes
 			// Out of it, and no further in: an impulse at the probe stops the motion into what was hit
 			// (bouncing back a little) and drags along it, turning the bike as well where it struck.
 			Position += H.Normal * H.Depth;
@@ -383,7 +393,7 @@ void BikeSim::ResolveContacts(double Delta)
 			AngularVelocity += InvInertiaWorld(R.Cross(Impulse));
 			const double Into = -Vn;
 			if (Into > Hardest) { Hardest = Into; HardestBike = H.Bike; }
-			if (!IsCrashed && ((Pr.Rider && Into > RIDER_KNOCK) || (!Pr.Rider && Into > BIKE_KNOCK)))
+			if (!IsCrashed && !IsGhost() && ((Pr.Rider && Into > RIDER_KNOCK) || (!Pr.Rider && Into > BIKE_KNOCK)))
 			{
 				IsCrashed = true;
 				CrashTimer = 0.0;
@@ -1412,6 +1422,7 @@ void BikeSim::CheckCrash()
 	{
 		IsCrashed = true;
 		CrashTimer = 0.0;
+		GhostLeft = 0.0;   // came off by itself: the ghost's over, the next respawn starts another
 	}
 }
 } // namespace TorqueSim

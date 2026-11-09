@@ -676,6 +676,40 @@ static void ContactTests()
 		const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
 		Check(Nose > -10.0 - 0.3 && S.HitCount >= 1 && !S.IsCrashed, "  riding into it at 3 m/s: stops against it, stays on (m past its middle)", -10.0 - Nose);
 	}
+	// The respawn ghost: through a stopped bike at 8 m/s, and into the wall at 8 m/s (which knocks a solid rider off), it stays on;
+	// the wall still stops it. Then it wears off.
+	{
+		ContactWorld Others;
+		Others.SetBoxes({});
+		ContactCapsule Low;
+		Low.A = V3(-0.7, 0.35, -10.0); Low.B = V3(0.7, 0.35, -10.0); Low.Radius = 0.35;
+		Others.Capsules = {Low};
+		BikeSim S;
+		Roll(S, 8.0);
+		S.Contacts = &Others;
+		S.StartGhost();
+		for (int i = 0; i < 120 * 3; ++i)
+		{
+			S.Throttle = Clamp(0.1 + (8.0 - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+		}
+		Check(S.Position.z < -14.0 && !S.IsCrashed, "a ghost rides through a stopped bike at 8 m/s, still on (z, m)", S.Position.z);
+		BikeSim W;
+		Roll(W, 8.0);
+		W.Contacts = &World;
+		W.StartGhost();
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 3; ++i)
+		{
+			W.Throttle = W.HitCount > 0 ? 0.0 : Clamp(0.1 + (8.0 - W.Speed) * 0.4, 0.0, 1.0);
+			W.Step(Dt);
+			Furthest = std::min(Furthest, W.Position.z);
+		}
+		Check(Furthest > -20.45 && W.HitCount >= 1, "  into the wall at 8 m/s: the wall still stops it (furthest z, m)", Furthest);
+		Check(!W.IsCrashed, "  and nothing knocks the rider off", W.LastHitSpeed);
+		for (int i = 0; i < 120 * 3; ++i) W.Step(Dt);
+		Check(!W.IsGhost() && W.GhostLook() == 0.0, "  after 5 s it's solid again", W.GhostLeft);
+	}
 	// A bike going down slides into a wall and stops against it, not through it.
 	{
 		BikeSim S;
