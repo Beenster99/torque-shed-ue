@@ -622,6 +622,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			// No drawn grips (a style whose bars don't take them): the layout's.
 			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
 			RiderGrip[0] = GripBox[0].IsValid ? GripBox[0].GetCenter() : FVector(RiderGrip[1].X, -RiderGrip[1].Y, RiderGrip[1].Z);
+			bRiderLaidBack = Frame.bLaidBack;
 			bRiderOnLayout = true;
 			bRiderFitted = false;
 		}
@@ -714,10 +715,17 @@ FString ATorqueBikePawn::TestRideLog() const
 	{
 		// Where the rider was sat (FitRiderToBike): the bike's seat, pegs and grips, and the pose's
 		// targets on them (the rig's pelvis, wrists and ankles), pawn local cm.
-		Out += FString::Printf(TEXT("\nrider: seat %s, pegs %s / %s, grips %s / %s; pose hips %s, wrists %s / %s, ankles %s / %s, back leant %.1f deg%s"),
+		// (The wrist bone sits 6.4 cm behind and 3.4 cm above the grip's middle, the palm round the
+		// grip; the ankle 11.5 cm behind and above the peg, the ball of the foot on it: as on the
+		// Speed Twin the rig was made on.)
+		Out += FString::Printf(TEXT("\nrider (%s%s): seat %s, pegs %s / %s, grips %s / %s; pose hips %s, wrists %s / %s, ankles %s / %s, ")
+			TEXT("back %.1f deg forward of upright; reach %.1f / %.1f cm of a %.1f cm arm (%s), hip to ankle %.1f / %.1f of a %.1f cm leg%s"),
+			*RiderStyle, bRiderLaidBack ? TEXT(", laid back") : TEXT(""),
 			*RiderSeat.ToString(), *RiderPeg[0].ToString(), *RiderPeg[1].ToString(), *RiderGrip[0].ToString(), *RiderGrip[1].ToString(),
 			*PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(), *PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(),
-			RiderBackDeg, bRiderFitted && RiderRig.IsValid() ? TEXT("") : TEXT(" (not fitted: no rig)"));
+			RiderBackDeg, RiderReach[0], RiderReach[1], RiderArm,
+			FMath::Max(RiderReach[0], RiderReach[1]) > RiderArm ? *FString::Printf(TEXT("hands %.1f cm short of the grips"), FMath::Max(RiderReach[0], RiderReach[1]) - RiderArm) : TEXT("hands on the grips"),
+			RiderLegReach[0], RiderLegReach[1], RiderLeg, bRiderFitted && RiderRig.IsValid() ? TEXT("") : TEXT(" (not fitted: no rig)"));
 	}
 	return Out;
 }
@@ -1478,29 +1486,69 @@ void ATorqueBikePawn::FitRiderToBike()
 		PoseWrist[S] = RiderGripFit[S].TransformPosition(Wrist0[S]);
 		PoseAnkle[S] = RiderPegFit[S].TransformPosition(Ankle0[S]);
 	}
-	// The back's lean (about the hips, + forward) that leaves each shoulder its Speed Twin reach to
-	// its wrist. The Speed Twin's rider leans about 29 degrees forward, so -29 is sat bolt upright;
-	// up to -35 (a little back, a chopper's), and where the bars are nearer still the elbows bend.
+	// The back's lean as Torque Shed has it: by the rider's riding style (RiderStyle.INFO's torso,
+	// hips to shoulders; the profile's choice there, -TorqueRiderStyle= here, situp by default), most
+	// of the way up to LAID_BACK_TORSO on cruiser and chopper seating (feet forward). Not by the bike:
+	// a sport bike's rider crouches only as a scratcher. Godot's arms then stretch 0.85..1.15 to the
+	// grips; the rig's can't, so where the grips are out of reach (past 0.95 of the arm) the back
+	// leans on forward until they're in it, and where they're very near (under 0.6, the elbows
+	// folded: an MX's bars) it sits back up, to upright at most.
+	struct FStyleTorso { const TCHAR* Name; double Up, Fwd; };
+	static const FStyleTorso Torsos[] = {{TEXT("situp"), 0.57, 0.13}, {TEXT("scratcher"), 0.42, 0.4}, {TEXT("naked"), 0.45, 0.37}, {TEXT("rossi"), 0.45, 0.35}};
+	FString Style = TEXT("situp");
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueRiderStyle="), Style);
+	FStyleTorso Torso = Torsos[0];
+	for (const FStyleTorso& T : Torsos)
+		if (Style.Equals(T.Name, ESearchCase::IgnoreCase)) Torso = T;
+	RiderStyle = Torso.Name;
+	if (bRiderLaidBack)
+	{
+		Torso.Up = FMath::Lerp(Torso.Up, 0.56, 0.75);
+		Torso.Fwd = FMath::Lerp(Torso.Fwd, 0.05, 0.75);
+	}
+	const double RestLean = FMath::RadiansToDegrees(FMath::Atan2(Neck0.X - Pelvis0.X, Neck0.Z - Pelvis0.Z));
+	const double StyleLean = FMath::RadiansToDegrees(FMath::Atan2(Torso.Fwd, Torso.Up));
 	auto Tilt = [](const FVector& V, double Deg) {
 		const double A = FMath::DegreesToRadians(Deg), C = FMath::Cos(A), Sn = FMath::Sin(A);
 		return FVector(V.X * C + V.Z * Sn, V.Y, -V.X * Sn + V.Z * C);
 	};
-	double Best = 0.0, BestMiss = TNumericLimits<double>::Max();
-	for (double Deg = -35.0; Deg <= 50.0; Deg += 0.25)
+	FVector Elbow0[2], Thigh0[2], Knee0[2];
+	for (int32 S = 0; S < 2; ++S)
 	{
-		double Miss = 0.0;
+		const TCHAR* Side = S == 0 ? TEXT("l") : TEXT("r");
+		if (!RiderRig.BoneRest(*FString::Printf(TEXT("lowerarm_%s"), Side), Elbow0[S]) ||
+			!RiderRig.BoneRest(*FString::Printf(TEXT("thigh_%s"), Side), Thigh0[S]) ||
+			!RiderRig.BoneRest(*FString::Printf(TEXT("calf_%s"), Side), Knee0[S])) return;
+	}
+	RiderArm = (Elbow0[1] - Shoulder0[1]).Size() + (Wrist0[1] - Elbow0[1]).Size();
+	RiderLeg = (Knee0[1] - Thigh0[1]).Size() + (Ankle0[1] - Knee0[1]).Size();
+	auto Reach = [&](double Deg, double& Near, double& Far) {
+		Near = TNumericLimits<double>::Max();
+		Far = 0.0;
 		for (int32 S = 0; S < 2; ++S)
 		{
-			const FVector Shoulder = PoseHip + Tilt(Shoulder0[S] - Pelvis0, Deg);
-			Miss += FMath::Square((PoseWrist[S] - Shoulder).Size() - (Wrist0[S] - Shoulder0[S]).Size());
+			RiderReach[S] = (PoseWrist[S] - (PoseHip + Tilt(Shoulder0[S] - Pelvis0, Deg))).Size();
+			Near = FMath::Min(Near, RiderReach[S]);
+			Far = FMath::Max(Far, RiderReach[S]);
 		}
-		if (Miss < BestMiss - 1e-9) { BestMiss = Miss; Best = Deg; }
+	};
+	double Deg = StyleLean - RestLean, Near = 0.0, Far = 0.0;
+	Reach(Deg, Near, Far);
+	while (Far > 0.95 * RiderArm && Deg + RestLean < 60.0) Reach(Deg += 0.25, Near, Far);
+	while (Near < 0.6 * RiderArm && Far < 0.95 * RiderArm && Deg + RestLean > 0.0)
+	{
+		Reach(Deg - 0.25, Near, Far);
+		if (Far > 0.95 * RiderArm) { Reach(Deg, Near, Far); break; }
+		Deg -= 0.25;
 	}
-	RiderBackDeg = Best;
-	RiderChest = PoseHip + Tilt(Neck0 - Pelvis0, Best) - Neck0;
-	UE_LOG(LogTemp, Log, TEXT("Torque: the rider sat on the catalogue bike: hips %s, wrists %s / %s, ankles %s / %s, back leant %.1f deg (reach off by %.1f cm)"),
-		*PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(), *PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(),
-		RiderBackDeg, FMath::Sqrt(BestMiss * 0.5));
+	RiderBackDeg = Deg + RestLean;   // forward of upright, as the log says it
+	RiderChest = PoseHip + Tilt(Neck0 - Pelvis0, Deg) - Neck0;
+	for (int32 S = 0; S < 2; ++S) RiderLegReach[S] = (PoseAnkle[S] - (PoseHip + (Thigh0[S] - Pelvis0))).Size();
+	UE_LOG(LogTemp, Log, TEXT("Torque: the rider sat on the catalogue bike (%s%s): hips %s, wrists %s / %s, ankles %s / %s, back %.1f deg forward of upright; ")
+		TEXT("reach %.1f / %.1f cm of a %.1f cm arm, hip to ankle %.1f / %.1f of a %.1f cm leg"),
+		*RiderStyle, bRiderLaidBack ? TEXT(", laid back") : TEXT(""), *PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(),
+		*PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(), RiderBackDeg, RiderReach[0], RiderReach[1], RiderArm,
+		RiderLegReach[0], RiderLegReach[1], RiderLeg);
 }
 
 void ATorqueBikePawn::UpdateRider()

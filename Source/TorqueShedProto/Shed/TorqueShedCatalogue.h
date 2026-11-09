@@ -44,6 +44,7 @@ struct FBikeFrame
 	FVector Seat = FVector::ZeroVector;   // where the rider's hips sit on the seat (BikeRig's hip)
 	FVector Peg = FVector::ZeroVector;    // the right footpeg (BikeRig's peg; the left is its mirror)
 	FVector Grip = FVector::ZeroVector;   // the right grip as BikeRig has it (the drawn bars' may differ)
+	bool bLaidBack = false;               // cruiser or chopper seating (bike_model.gd _laid_back)
 };
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo = FString(),

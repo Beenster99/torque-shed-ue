@@ -395,6 +395,11 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		OutFrame->Peg = FVector(Peg.X, FMath::Abs(Peg.Y), Peg.Z);
 		const FVector Grip(TSCI::ToUe(L.GripR));
 		OutFrame->Grip = FVector(Grip.X, FMath::Abs(Grip.Y), Grip.Z);
+		// Feet forward: the pegs 20 cm ahead of the swingarm pivot, or a cruiser's or chopper's frame.
+		const auto Frm = Map.find("frame");
+		const TorqueFit::Json* FramePart = Frm != Map.end() ? Lay->Part(Frm->second) : nullptr;
+		const std::string FrameStyle = FramePart ? FramePart->Str("style") : std::string();
+		OutFrame->bLaidBack = L.Peg.x > L.Pivot.x + 0.2 || FrameStyle == "chopper" || FrameStyle == "cruiser";
 	}
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });

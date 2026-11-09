@@ -129,8 +129,9 @@ const TCHAR* const RideSteps =
 // The rider sat on four styles in turn, one bay: the scratch bike above made a cafe racer, then
 // remade as a chopper, a sport bike and an MX bike (a test shortcut), each ridden out, logged at
 // the start and after 10 s of the robot riding (spec, groups, the rider's seat, pegs, grips and
-// pose), a shot of it on the road, and back.
-#define TORQUE_RIDE_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",log,look:bike,shot,tool:hands,rideout,wait:6,ridelog,shot,robot:on,wait:10,ridelog,shot,robot:off,back,wait:6,")
+// pose), a shot of it on the road and one side on from its right, and back.
+#define TORQUE_RIDE_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",log,look:bike,shot,tool:hands,rideout,wait:6,ridelog,shot,robot:on,wait:10,ridelog,shot,") \
+	TEXT("camera:3:90,wait:1,shot,camera:0,robot:off,back,wait:6,")
 const TCHAR* const RidesSteps =
 	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
 	TORQUE_RIDE_STYLE("cafe") TORQUE_RIDE_STYLE("chopper") TORQUE_RIDE_STYLE("sport") TORQUE_RIDE_STYLE("mx")
@@ -309,7 +310,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -322,7 +323,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
-		if (Verb == TEXT("robot"))
+		if (Verb == TEXT("camera"))
+		{
+			const int32 Mode = P.Num() > 1 ? FCString::Atoi(*P[1]) : 0;
+			const double Yaw = P.Num() > 2 ? FCString::Atod(*P[2]) : 40.0;
+			Bike->TestCamera(Mode, Yaw);
+			Said(FString::Printf(TEXT("camera %d, %.0f deg round"), Mode, Yaw));
+			return true;
+		}
+				if (Verb == TEXT("robot"))
 		{
 			const bool bOn = P.Num() < 2 || P[1] != TEXT("off");
 			Bike->TestAutoRide(bOn);
