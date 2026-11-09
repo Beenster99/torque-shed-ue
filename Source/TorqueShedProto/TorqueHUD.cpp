@@ -1,5 +1,7 @@
 #include "TorqueHUD.h"
 
+#include "Coop/TorqueUi.h"
+
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -44,39 +46,33 @@ void ATorqueHUD::DrawHUD()
 	if (const UTorqueSession* Session = UTorqueSession::Get(this); Session && Canvas && GEngine && GetWorld() &&
 		Session->IsHosting() && GetWorld()->GetTimeSeconds() < 60.0)
 	{
-		UFont* F = GEngine->GetLargeFont();
-		const float HS = Canvas->ClipY / 1080.0f * 0.75f;
-		float HY = 90.0f * Canvas->ClipY / 1080.0f;
+		const float HS = TorqueUi::Scale(Canvas), Px = 17.0f * HS;
+		float HY = 90.0f * HS;
 		TArray<FString> Lines = Session->JoinInstructions();
 		Lines.Add(TEXT("(Esc shows this again)"));
 		for (const FString& L : Lines)
 		{
-			float W = 0, H = 0;
-			Canvas->StrLen(F, L, W, H);
-			const float HX = Canvas->ClipX - W * HS - 50.0f * HS;
-			DrawRect(FLinearColor(0, 0, 0, 0.35f), HX - 8.0f * HS, HY - 3.0f * HS, W * HS + 16.0f * HS, H * HS + 6.0f * HS);
-			Canvas->SetDrawColor(FColor(170, 230, 255));
-			Canvas->DrawText(F, L, HX, HY, HS, HS);
-			HY += H * HS + 8.0f * HS;
+			const float W = (float)TorqueUi::Measure(L, Px).X;
+			const float HX = Canvas->ClipX - W - 40.0f * HS;
+			TorqueUi::Rect(Canvas, HX - 10.0f * HS, HY - 4.0f * HS, W + 20.0f * HS, Px * 1.2f + 8.0f * HS, TorqueUi::Panel);
+			TorqueUi::Text(Canvas, L, HX, HY, Px, TorqueUi::Ink);
+			HY += Px * 1.2f + 10.0f * HS;
 		}
 	}
 	// Hosting with EOS: the code friends join with, top right.
 	if (const UTorqueSession* Session = UTorqueSession::Get(this); Session && !Session->FriendCode.IsEmpty() && Canvas && GEngine)
 	{
-		UFont* CodeFont = GEngine->GetLargeFont();
-		const float CS = Canvas->ClipY / 1080.0f;
-		const FString Text = FString::Printf(TEXT("Friend code: %s"), *Session->FriendCode);
-		float W = 0, H = 0;
-		Canvas->StrLen(CodeFont, Text, W, H);
-		const float CX = Canvas->ClipX - W * CS - 50.0f * CS, CY = 36.0f * CS;
-		DrawRect(FLinearColor(0, 0, 0, 0.35f), CX - 10.0f * CS, CY - 4.0f * CS, W * CS + 20.0f * CS, H * CS + 8.0f * CS);
-		Canvas->SetDrawColor(FColor(255, 220, 120));
-		Canvas->DrawText(CodeFont, Text, CX, CY, CS, CS);
+		const float CS = TorqueUi::Scale(Canvas), Px = 20.0f * CS;
+		const FString Code = FString::Printf(TEXT("FRIEND CODE  %s"), *Session->FriendCode);
+		const float W = (float)TorqueUi::Measure(Code, Px, true).X;
+		const float CX = Canvas->ClipX - W - 40.0f * CS, CY = 36.0f * CS;
+		TorqueUi::Rect(Canvas, CX - 12.0f * CS, CY - 6.0f * CS, W + 24.0f * CS, Px * 1.2f + 12.0f * CS, TorqueUi::Panel);
+		TorqueUi::Rect(Canvas, CX - 12.0f * CS, CY - 6.0f * CS, 3.0f * CS, Px * 1.2f + 12.0f * CS, TorqueUi::Accent);
+		TorqueUi::Text(Canvas, Code, CX, CY, Px, TorqueUi::Accent, true);
 	}
 	const ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetOwningPawn());
 	const ATorqueWalker* Walker = Cast<ATorqueWalker>(GetOwningPawn());   // on foot in the shed
 	if ((!Bike && !Walker) || !Canvas || !GEngine) return;
-	UFont* Font = GEngine->GetLargeFont();
 	const float S = Canvas->ClipY / 1080.0f;     // the same size on screen at 1080p, 1440p and 4K
 	float X = 40.0f * S, Y = 36.0f * S;
 
@@ -106,13 +102,13 @@ void ATorqueHUD::DrawHUD()
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role != 0) continue;
-		const float Scale = S * L.Size;
-		float W = 0, H = 0;
-		Canvas->StrLen(Font, L.Text, W, H);
-		DrawRect(FLinearColor(0, 0, 0, 0.35f), X - 10.0f * S, Y - 4.0f * S, W * Scale + 20.0f * S, H * Scale + 8.0f * S);
-		Canvas->SetDrawColor(L.Colour);
-		Canvas->DrawText(Font, L.Text, X, Y, Scale, Scale);
-		Y += H * Scale + 12.0f * S;
+		// The corner lines: crisp text on a dark plate (the first, biggest, in bold).
+		const float Px = 22.0f * S * L.Size;
+		const bool bBig = L.Size >= 1.5f;
+		const float W = (float)TorqueUi::Measure(L.Text, Px, bBig).X, H = Px * 1.2f;
+		TorqueUi::Rect(Canvas, X - 12.0f * S, Y - 5.0f * S, W + 24.0f * S, H + 10.0f * S, FLinearColor(0.035f, 0.04f, 0.045f, 0.62f));
+		TorqueUi::Text(Canvas, L.Text, X, Y, Px, FLinearColor(L.Colour), bBig);
+		Y += H + 14.0f * S;
 	}
 }
 
@@ -416,15 +412,12 @@ void ATorqueHUD::DrawFrameRate()
 		FpsTime = 0.0f;
 		FpsFrames = 0;
 	}
-	UFont* Font = GEngine->GetLargeFont();
-	const float Sc = Canvas->ClipY / 1080.0f;
-	const FString Text = FString::Printf(TEXT("%.0f fps"), FpsShown);
-	float W = 0, H = 0;
-	Canvas->StrLen(Font, Text, W, H);
-	const float FX = 0.5f * (Canvas->ClipX - W * Sc), FY = 8.0f * Sc;
-	DrawRect(FLinearColor(0, 0, 0, 0.45f), FX - 8.0f * Sc, FY - 2.0f * Sc, W * Sc + 16.0f * Sc, H * Sc + 4.0f * Sc);
-	Canvas->SetDrawColor(FpsShown >= 59.0f ? FColor(150, 255, 150) : FpsShown >= 40.0f ? FColor(255, 220, 120) : FColor(255, 130, 110));
-	Canvas->DrawText(Font, Text, FX, FY, Sc, Sc);
+	const float Sc = TorqueUi::Scale(Canvas), Px = 17.0f * Sc;
+	const FString Fps = FString::Printf(TEXT("%.0f FPS"), FpsShown);
+	const float W = (float)TorqueUi::Measure(Fps, Px, true).X;
+	const float FX = 0.5f * (Canvas->ClipX - W), FY = 8.0f * Sc;
+	TorqueUi::Rect(Canvas, FX - 10.0f * Sc, FY - 3.0f * Sc, W + 20.0f * Sc, Px * 1.2f + 6.0f * Sc, TorqueUi::Panel);
+	TorqueUi::Text(Canvas, Fps, FX, FY, Px, FpsShown >= 59.0f ? FLinearColor(0.55f, 1.0f, 0.55f, 1.0f) : FpsShown >= 40.0f ? TorqueUi::Accent : TorqueUi::Warn, true);
 }
 
 // Settings > Gameplay > Telemetry overlay (F3): Torque Shed's live strips of what the bike is doing,
