@@ -167,5 +167,97 @@
 			],
 			"pack": "chopper"
 		}
+	},
+	"fairing": {
+		"flyscreen": {
+			"name": "Headlight flyscreen",
+			"description": "A little cowl and screen over the headlight. Takes the wind off your chest, just.",
+			"mass": 0.8,
+			"type": "Headlight cowl",
+			"style": "flyscreen",
+			"cda": -0.01,
+			"screen": 0.12,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked",
+				"cafe",
+				"scrambler",
+				"supermoto"
+			],
+			"price": 90,
+			"pack": "naked"
+		},
+		"headlight_cowl": {
+			"mass": 0.8,
+			"type": "Headlight cowl",
+			"style": "flyscreen",
+			"cda": -0.01,
+			"screen": 0.08,
+			"name": "Headlight cowl",
+			"description": "A little round cowl over the headlamp with a tiny screen.",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"styles": [
+				"cafe",
+				"naked"
+			],
+			"price": 70,
+			"look": {
+				"shape": "cowl"
+			},
+			"pack": "cafe"
+		},
+		"bikini_fairing": {
+			"name": "Bikini fairing",
+			"description": "A small fairing round the headlight, on the forks, with a short screen. Classic 70s look.",
+			"mass": 2.0,
+			"type": "Fork-mounted, small",
+			"style": "bikini",
+			"cda": -0.025,
+			"screen": 0.18,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"cafe",
+				"naked",
+				"classic",
+				"roader"
+			],
+			"price": 160,
+			"pack": "cafe"
+		},
+		"half_fairing": {
+			"name": "Half fairing",
+			"description": "A creased, frame-mounted upper fairing with a proper screen. Calm at motorway speeds.",
+			"mass": 4.5,
+			"type": "Frame-mounted, upper",
+			"style": "half",
+			"cda": -0.05,
+			"screen": 0.22,
+			"frame_mount": true,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"sport",
+				"roader",
+				"naked",
+				"tourer"
+			],
+			"price": 300,
+			"pack": "sport"
+		}
 	}
 }

@@ -15221,7 +15221,6 @@
 				0.09
 			],
 			"styles": [
-				"naked",
 				"cafe",
 				"scrambler",
 				"supermoto"
@@ -15243,8 +15242,7 @@
 				0.045
 			],
 			"styles": [
-				"cafe",
-				"naked"
+				"cafe"
 			],
 			"price": 70,
 			"look": {
@@ -15267,7 +15265,6 @@
 			],
 			"styles": [
 				"cafe",
-				"naked",
 				"classic",
 				"roader"
 			],
@@ -15342,7 +15339,6 @@
 			"styles": [
 				"sport",
 				"roader",
-				"naked",
 				"tourer"
 			],
 			"price": 300,
@@ -15448,6 +15444,121 @@
 				"roundel": true
 			},
 			"pack": "race"
+		},
+		"naked_fairing_1": {
+			"name": "Naked fairing 1",
+			"description": "Tall screen over a creased cowl with twin angular lamps and slatted vents under them, and wing fins at the bottom.",
+			"mass": 3.2,
+			"type": "Frame-mounted, naked",
+			"style": "naked",
+			"cda": -0.04,
+			"screen": 0.2,
+			"frame_mount": true,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked"
+			],
+			"price": 260,
+			"look": {
+				"shape": "naked_1"
+			},
+			"pack": "naked"
+		},
+		"naked_fairing_2": {
+			"name": "Naked fairing 2",
+			"description": "Short wide screen over a broad cowl with framed twin lamps and open triangular ducts below.",
+			"mass": 3.2,
+			"type": "Frame-mounted, naked",
+			"style": "naked",
+			"cda": -0.04,
+			"screen": 0.2,
+			"frame_mount": true,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked"
+			],
+			"price": 260,
+			"look": {
+				"shape": "naked_2"
+			},
+			"pack": "naked"
+		},
+		"naked_fairing_3": {
+			"name": "Naked fairing 3",
+			"description": "Rounded screen over a squared cowl, with twin slim lamps and a hexagonal centre lamp.",
+			"mass": 3.2,
+			"type": "Frame-mounted, naked",
+			"style": "naked",
+			"cda": -0.04,
+			"screen": 0.2,
+			"frame_mount": true,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked"
+			],
+			"price": 260,
+			"look": {
+				"shape": "naked_3"
+			},
+			"pack": "naked"
+		},
+		"naked_fairing_4": {
+			"name": "Naked fairing 4",
+			"description": "Tall squared screen over a blunt cowl with twin LED-pod lamps and a deep lower bracket.",
+			"mass": 3.2,
+			"type": "Frame-mounted, naked",
+			"style": "naked",
+			"cda": -0.04,
+			"screen": 0.2,
+			"frame_mount": true,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked"
+			],
+			"price": 260,
+			"look": {
+				"shape": "naked_4"
+			},
+			"pack": "naked"
+		},
+		"naked_fairing_5": {
+			"name": "Naked fairing 5",
+			"description": "Short curved screen over a sharp-edged cowl with twin lamps, a mesh centre grille and open ducts.",
+			"mass": 3.2,
+			"type": "Frame-mounted, naked",
+			"style": "naked",
+			"cda": -0.04,
+			"screen": 0.2,
+			"frame_mount": true,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"naked"
+			],
+			"price": 260,
+			"look": {
+				"shape": "naked_5"
+			},
+			"pack": "naked"
 		}
 	},
 	"mirrors": {

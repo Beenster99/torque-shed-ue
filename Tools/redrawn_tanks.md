@@ -139,3 +139,25 @@ beenster's five cruiser tank drawings (Nov 2026) replace the cruiser's tanks:
 - The tanks are `like` the `fatbob` shape, drawn whole at its length (0.64 m), with round sections from the
   front view (as the chopper tanks); the thin lines are flush creases and the bottom line a crease.
 - Models, renders and scripts are in the project files under `cruiser_tanks/`.
+
+# New naked fairings
+
+beenster's five naked fairing drawings (Nov 2026, side | front | top) are the naked bike's fairings now:
+parts `naked_fairing_1` to `naked_fairing_5` (frame-mounted, naked only), drawn as the sets
+`Data/Parts/Redrawn/fairing/set/naked_1..5.glb` (`look.shape` `naked_N`; `BikeParts::Fairing` reads any
+`naked_*` shape as its own set). `flyscreen`, `headlight_cowl`, `bikini_fairing` and `half_fairing` no longer
+list naked; the naked reference bike still has no fairing.
+
+- How they are made: the front view is split into the panels its lines close off (screen, cowl panels,
+  lamps, vents). Each front pixel's depth comes from the side view (the cowl's / screen's front and rear
+  edge at that height) and the top view (how the front contour sweeps back across the width). Each panel
+  gets its own smooth surface fitted over that depth, so neighbouring panels meet in a crease along the
+  drawn line. The front view sets widths and heights (420 mm across, as the half fairing), the side and
+  top views the depth.
+- Shells: cowl 3 mm, separate smoked screen 4 mm (`glass`), lamps drawn in the fairing (`lens_white`,
+  6 mm back, in a dark `plastic` housing 3 mm back); the fitted bike's own headlight is hidden. Hatched
+  vents are 5 mm `plastic` recesses. The stays are 6 mm `black_metal` plates where the side view draws them,
+  at the top view's spacing, ending at their bolt eyes at the head stock.
+- Left out, as agreed: N3's fork legs, N4's yoke and bar clamps, and the dashes.
+- Placed as the half set: nose about 0.35 m ahead of the head stock, lamps at -0.17 m (`mount_lamp`).
+- Models, renders and scripts are in the project files under `naked_fairings/`.
