@@ -402,7 +402,7 @@ bool DrawnParts(const TMap<FString, FString>& Parts, const FString& Geo, std::ve
 
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo, TArray<FName>* OutNodes, FBikeFrame* OutFrame,
-	TArray<FDashGauge>* OutGauges)
+	TArray<FDashGauge>* OutGauges, bool bOnlyFitted)
 {
 	OutAxleHeight = 31.0;
 	const TorqueFit::BikeLayout* Lay = Layout();
@@ -442,6 +442,12 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	for (const TorqueFit::FittedPart& P : Placer.Fit(Map, L))
 	{
 		if (P.Hidden) continue;   // inside a full fairing's shell (the plain headlight), as Godot hides it
+		if (bOnlyFitted && P.Slot != "frame")
+		{
+			// Only what's fitted: the layout dresses an empty slot with a stand-in (bars, tyres...).
+			const auto Fitted = Map.find(P.Slot);
+			if (Fitted != Map.end() && (Fitted->second.empty() || Fitted->second == "none")) continue;
+		}
 		TorqueFit::PartMesh Glb;
 		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
 		const TorqueFit::PartMesh Drawn = TorqueFit::BikeParts::Draw(Glb, P);
