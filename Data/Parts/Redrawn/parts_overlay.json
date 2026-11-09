@@ -905,10 +905,14 @@
    "rear_disc": "drilled_245_rear"
   },
   "chopper": {
-   "tank": "chopper_1"
+   "tank": "chopper_1",
+   "front_caliper": "single_piston",
+   "front_pads": "organic"
   },
   "cruiser": {
-   "tank": "cruiser_1"
+   "tank": "cruiser_1",
+   "front_caliper": "twin_piston",
+   "front_pads": "organic"
   },
   "roader": {
    "rear_disc": "drilled_245_rear"
@@ -930,6 +934,10 @@
   },
   "mx": {
    "rear_disc": "drilled_220_rear"
+  },
+  "bobber": {
+   "front_caliper": "twin_piston",
+   "front_pads": "organic"
   }
  }
 }
