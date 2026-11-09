@@ -41,6 +41,8 @@ struct FTorqueShedSaveItem
 	UPROPERTY() int32 MixCoats = 0;
 	UPROPERTY() FLinearColor MixUnder = FLinearColor(0.5f, 0.5f, 0.5f);
 	UPROPERTY() float Flat = 0.0f;
+	UPROPERTY() FString OrderedBy;     // a delivery: who it's for (FTorqueItem)
+	UPROPERTY() FLinearColor OrderedTint = FLinearColor(0.98f, 0.85f, 0.2f);
 	UPROPERTY() int32 Tape = 0;         // masking tape on it, and a masked pattern (FTorqueItem)
 	UPROPERTY() int32 Mask = 0;
 	UPROPERTY() FLinearColor MaskColour = FLinearColor::White;

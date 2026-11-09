@@ -9,9 +9,11 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueWalker.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -37,6 +39,144 @@ FVector KindSize(FName Kind)
 }
 
 const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
+
+// --- Deliveries (the props thread's Data/Props/deliveries.json) -----------------------------------------
+// A boxed part comes in cardboard, or a wooden crate for the heavy kinds and anything long; the box
+// whose shape is nearest, scaled to the part's size; a made-up courier's label on the lid (and the
+// front of a crate) with the part and a tracking number; a sticky note saying who it's for.
+struct FBoxVariant { const TCHAR* Id; FVector Size; };
+const FBoxVariant CardboardBoxes[] = {
+	{TEXT("box_cardboard"), FVector(45, 40, 35)}, {TEXT("box_cardboard_long"), FVector(95, 32, 30)}, {TEXT("box_cardboard_flat"), FVector(70, 60, 25)}};
+const FBoxVariant Crates[] = {
+	{TEXT("crate_wood"), FVector(75, 65, 65)}, {TEXT("crate_wood_long"), FVector(150, 60, 55)}, {TEXT("crate_wood_flat"), FVector(100, 85, 45)}};
+const TCHAR* const CrateKinds[] = {TEXT("frame"), TEXT("engine"), TEXT("gearbox"), TEXT("head"), TEXT("wheel"), TEXT("tyre"), TEXT("fork"),
+	TEXT("swingarm"), TEXT("exhaust"), TEXT("fairing"), TEXT("tank")};
+constexpr double CrateOverCm = 75.0, LabelInset = 4.0;
+const FVector2D LabelSize(16.0, 10.0), NoteSize(7.6, 7.6);
+constexpr int32 Couriers = 8;
+
+UStaticMesh* PropMesh(const FString& Id)
+{
+	// Loaded once each; a prop not imported yet is remembered as missing.
+	static TMap<FString, TWeakObjectPtr<UStaticMesh>> Found;
+	static TSet<FString> Missing;
+	if (Missing.Contains(Id)) return nullptr;
+	if (const TWeakObjectPtr<UStaticMesh>* M = Found.Find(Id); M && M->IsValid()) return M->Get();
+	const FString Path = FString::Printf(TEXT("/Game/Shed/Props/%s/SM_%s.SM_%s"), *Id, *Id, *Id);
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (Mesh) Found.Add(Id, Mesh);
+	else Missing.Add(Id);
+	return Mesh;
+}
+
+// How far apart two boxes' shapes are, whatever their sizes.
+double ShapeGap(const FVector& A, const FVector& B)
+{
+	const FVector L(FMath::Loge(A.X / B.X), FMath::Loge(A.Y / B.Y), FMath::Loge(A.Z / B.Z));
+	const double Mean = (L.X + L.Y + L.Z) / 3.0;
+	return FMath::Square(L.X - Mean) + FMath::Square(L.Y - Mean) + FMath::Square(L.Z - Mean);
+}
+
+// A stable number from the item id (bike_model.gd courier_for / tracking_for seed on it too).
+uint32 Seed(int32 Id, uint32 Salt) { return HashCombine(GetTypeHash(Id), Salt); }
+
+// A rotation from where its +x and +z should point.
+FRotator Facing(const FVector& X, const FVector& Z) { return FRotationMatrix::MakeFromXZ(X, Z).Rotator(); }
+
+UTextRenderComponent* Words(AActor* Owner, USceneComponent* Parent, const FString& Text, const FVector& At, const FRotator& Rot,
+	float Size, const FColor& Ink)
+{
+	UTextRenderComponent* T = NewObject<UTextRenderComponent>(Owner);
+	T->SetupAttachment(Parent);
+	T->RegisterComponent();
+	T->SetRelativeLocationAndRotation(At, Rot);
+	T->SetHorizontalAlignment(EHTA_Center);
+	T->SetVerticalAlignment(EVRTA_TextCenter);
+	T->SetWorldSize(Size);
+	T->SetTextRenderColor(Ink);
+	T->SetCastShadow(false);
+	T->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	T->SetText(FText::FromString(Text));
+	return T;
+}
+
+UStaticMeshComponent* Prop(AActor* Owner, USceneComponent* Parent, UStaticMesh* Mesh, const FVector& At, const FRotator& Rot, const FVector& Scale)
+{
+	UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
+	C->SetStaticMesh(Mesh);
+	C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	C->SetupAttachment(Parent);
+	C->SetRelativeLocationAndRotation(At, Rot);
+	C->SetRelativeScale3D(Scale);
+	C->RegisterComponent();
+	return C;
+}
+
+// The delivery for It, Size across (cm, x long, y wide, z high), its floor in the middle of Parent.
+// False (nothing made) while the box models aren't in the project.
+bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It, const FVector& Size, TArray<UStaticMeshComponent*>& Made)
+{
+	bool bCrate = Size.GetMax() > CrateOverCm;
+	for (const TCHAR* K : CrateKinds) bCrate = bCrate || It.Kind == FName(K);
+	const FBoxVariant* Best = nullptr;
+	double BestGap = 1e30;
+	for (const FBoxVariant& V : bCrate ? MakeArrayView(Crates) : MakeArrayView(CardboardBoxes))
+	{
+		const double Gap = ShapeGap(Size, V.Size);
+		if (Gap < BestGap) { BestGap = Gap; Best = &V; }
+	}
+	UStaticMesh* BoxMesh = Best ? PropMesh(Best->Id) : nullptr;
+	if (!BoxMesh) return false;
+	// Scaled to the part's box by the model's own size (its origin's its floor centre, its front +y).
+	const FVector Native = BoxMesh->GetBoundingBox().GetSize();
+	const FVector Scale(Size.X / FMath::Max(Native.X, 1.0), Size.Y / FMath::Max(Native.Y, 1.0), Size.Z / FMath::Max(Native.Z, 1.0));
+	Made.Add(Prop(Owner, Parent, BoxMesh, FVector::ZeroVector, FRotator::ZeroRotator, Scale));
+	// The courier's label, flat on the lid near a corner, and on a crate's front too.
+	const int32 Courier = (int32)(Seed(It.Id, 0x0C0021E5u) % Couriers);
+	const uint32 Track = Seed(It.Id, 0x7AC4u);
+	const FString Tracking = FString::Printf(TEXT("TS %03u %04u %03u"), Track % 1000u, (Track / 1000u) % 10000u, (Track / 10000000u) % 1000u);
+	const FString LabelText = TorqueShedParts::PartName(It.Part) + TEXT("\n") + Tracking;
+	const FColor Ink(20, 20, 20);
+	UStaticMesh* LabelMesh = PropMesh(TEXT("courier_label"));
+	auto Label = [&](const FVector& At, const FRotator& Rot, const FRotator& TextRot, const FVector& StripOffset)
+	{
+		if (UStaticMeshComponent* L = Prop(Owner, Parent, LabelMesh, At, Rot, FVector::OneVector))
+			if (UMaterialInstanceDynamic* M = L->CreateDynamicMaterialInstance(0)) M->SetScalarParameterValue(TEXT("Courier"), (float)Courier);
+		// The contents and tracking number over the label's blank strip (its lower quarter).
+		Words(Owner, Parent, LabelText, At + StripOffset, TextRot, 0.9f, Ink);
+	};
+	if (LabelMesh)
+	{
+		const FVector Lid(Size.X * 0.5 - LabelInset - LabelSize.X * 0.5, Size.Y * 0.5 - LabelInset - LabelSize.Y * 0.5, Size.Z + 0.15);
+		// Flat, read from the front (+y): its top away from you.
+		Label(Lid, FRotator::ZeroRotator, Facing(FVector::UpVector, FVector(0.0, -1.0, 0.0)), FVector(0.0, LabelSize.Y * 0.36, 0.05));
+		if (bCrate)
+		{
+			// On the front, standing up, right of the middle.
+			const FVector Front(Size.X * 0.2, Size.Y * 0.5 + 0.15, Size.Z * 0.55);
+			Label(Front, Facing(FVector::ForwardVector, FVector(0.0, 1.0, 0.0)), Facing(FVector(0.0, 1.0, 0.0), FVector::UpVector),
+				FVector(0.0, 0.05, -LabelSize.Y * 0.36));
+		}
+	}
+	// The sticky note: the front face's upper left (as you face it), a few degrees off square, in the
+	// colour of whoever ordered it, with their name.
+	if (UStaticMesh* NoteMesh = PropMesh(TEXT("sticky_note")))
+	{
+		const FVector At(Size.X * 0.25, Size.Y * 0.5 + 0.2, Size.Z * 0.72);
+		const float Skew = (float)((int32)(Seed(It.Id, 0x5717u) % 9u) - 4);
+		const FQuat Tilt(FVector(0.0, 1.0, 0.0), FMath::DegreesToRadians(Skew));
+		const FRotator Rot = (Tilt * Facing(FVector::ForwardVector, FVector(0.0, 1.0, 0.0)).Quaternion()).Rotator();
+		if (UStaticMeshComponent* N = Prop(Owner, Parent, NoteMesh, At, Rot, FVector::OneVector))
+			if (UMaterialInstanceDynamic* M = N->CreateDynamicMaterialInstance(0)) M->SetVectorParameterValue(TEXT("Tint"), It.OrderedTint);
+		FString Who = It.OrderedBy;
+		if (Who.IsEmpty())
+			if (const UWorld* World = Owner->GetWorld())
+				if (const APlayerController* PC = World->GetFirstPlayerController(); PC && PC->PlayerState) Who = PC->PlayerState->GetPlayerName();
+		const FRotator TextRot = (Tilt * Facing(FVector(0.0, 1.0, 0.0), FVector::UpVector).Quaternion()).Rotator();
+		Words(Owner, Parent, TEXT("For ") + Who, At + FVector(0.0, 0.1, 0.0), TextRot, 1.1f, FColor(25, 25, 30));
+	}
+	return true;
+}
 const TCHAR* const ItemPrefix = TEXT("Item:");
 
 void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour, const FTorqueItem* Finished = nullptr,
@@ -166,7 +306,11 @@ void ATorqueShedItems::Draw(int32 Id)
 		Made.Add(C);
 	};
 	if (It->bBoxed)
-		Block(TSI::KindSize(It->Kind) + FVector(8.0), TSI::Cardboard);
+	{
+		// As delivered: the props' box or crate, labelled, or a plain cardboard block until they're in.
+		const FVector BoxSize = TSI::KindSize(It->Kind) + FVector(8.0);
+		if (!TSI::MakeDelivery(this, Holder, *It, BoxSize, Made)) Block(BoxSize, TSI::Cardboard);
+	}
 	else
 	{
 		// The model's own part, its fit option for a catalogue part, or the stock part of that kind

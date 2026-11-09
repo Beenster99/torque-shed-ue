@@ -74,6 +74,9 @@ struct FTorqueItem
 	// Masking tape (paint_bay.gd tape, mask): the pattern taped on it (0: none), and the pattern
 	// of the colour that was under the tape when the next colour went over it, with that colour's
 	// metal and roughness (0: none).
+	// A delivery: who ordered it (their name and player colour), for the sticky note on its box.
+	FString OrderedBy;
+	FLinearColor OrderedTint = FLinearColor(0.98f, 0.85f, 0.2f);
 	int32 Tape = 0;
 	int32 Mask = 0;
 	FLinearColor MaskColour = FLinearColor::White;
@@ -313,6 +316,8 @@ public:
 	static bool EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintLook& Out);
 	// Sprayed over masking tape: the pattern of the paint under it kept as its mask (TorquePaintBay.cpp).
 	static void MaskUnderTape(FTorqueItem& It);
+	// Who player Peer is, for a delivery's sticky note: their name and player colour.
+	void OrdererOf(int32 Peer, FString& OutName, FLinearColor& OutTint) const;
 	bool EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintLook& Out) const;
 	bool FinishOf(int32 Bay, FName Slot, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness) const;
 	static constexpr float RideDirt = 0.3f;    // added by each ride (shed_state ROAD_DIRT)

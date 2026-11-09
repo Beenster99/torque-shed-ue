@@ -7,6 +7,7 @@
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedSave.h"
+#include "Coop/TorquePlayerState.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
@@ -308,6 +309,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MixCoats = It.MixCoats;
 		To.MixUnder = It.MixUnder;
 		To.Flat = It.Flat;
+		To.OrderedBy = It.OrderedBy;
+		To.OrderedTint = It.OrderedTint;
 		To.Tape = It.Tape;
 		To.Mask = It.Mask;
 		To.MaskColour = It.MaskColour;
@@ -392,6 +395,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MixCoats = From.MixCoats;
 		It.MixUnder = From.MixUnder;
 		It.Flat = From.Flat;
+		It.OrderedBy = From.OrderedBy;
+		It.OrderedTint = From.OrderedTint;
 		It.Tape = FMath::Clamp(From.Tape, 0, TorquePaintMix::TapePatterns);
 		It.Mask = FMath::Clamp(From.Mask, 0, TorquePaintMix::TapePatterns);
 		It.MaskColour = From.MaskColour;
@@ -450,7 +455,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 10;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape)
+constexpr int32 BytesLayout = 11;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for)
 
 struct FNameTable
 {
@@ -565,6 +570,13 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		FColor Colour = It.Colour.QuantizeRound();
 		uint8 bBoxed = It.bBoxed ? 1 : 0, At = (uint8)It.At;
 		Ar << Id << Part << Kind << Rust << Dirt << Wear << Colour << Finish << bBoxed << At << Ref << Spot << Tyre;
+		if (It.bBoxed)
+		{
+			// Who the delivery's for.
+			FString OrderedBy = It.OrderedBy;
+			FColor OrderedTint = It.OrderedTint.QuantizeRound();
+			Ar << OrderedBy << OrderedTint;
+		}
 		if (It.At == ETorqueAt::Floor)
 		{
 			FVector3f Where(It.Place.GetLocation());
@@ -692,6 +704,12 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		It.Wear = TBI::Unquant(Wear);
 		It.Colour = Colour.ReinterpretAsLinear();   // (QuantizeRound wrote it as the numbers are: no sRGB step)
 		It.bBoxed = bBoxed != 0;
+		if (It.bBoxed)
+		{
+			FColor OrderedTint;
+			Ar << It.OrderedBy << OrderedTint;
+			It.OrderedTint = OrderedTint.ReinterpretAsLinear();
+		}
 		It.At = (ETorqueAt)FMath::Min<uint8>(At, (uint8)ETorqueAt::Wheel);
 		if (It.At == ETorqueAt::Floor)
 		{
@@ -2047,6 +2065,24 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 
 // --- Doing it (shed_state _apply) -------------------------------------------------------------------
 
+void UTorqueBuildSubsystem::OrdererOf(int32 Peer, FString& OutName, FLinearColor& OutTint) const
+{
+	// Their name and the colour they ride in (the jacket, the name over them), from their player state.
+	OutName = TEXT("the workshop");
+	OutTint = FLinearColor(0.98f, 0.85f, 0.2f);   // deliveries.json's first sticky note colour
+	const UGameInstance* GI = GetGameInstance();
+	const UWorld* World = GI ? GI->GetWorld() : nullptr;
+	const AGameStateBase* GS = World ? World->GetGameState() : nullptr;
+	if (!GS) return;
+	const APlayerState* Found = nullptr;
+	for (const APlayerState* PS : GS->PlayerArray)
+		if (PS && PS->GetPlayerId() == Peer) Found = PS;
+	if (!Found && GS->PlayerArray.Num() == 1) Found = GS->PlayerArray[0];   // alone: it's you
+	if (!Found) return;
+	OutName = Found->GetPlayerName();
+	if (const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(Found)) OutTint = FLinearColor::FromSRGBColor(TPS->ColourValue());
+}
+
 bool UTorqueBuildSubsystem::Request(const FTorqueShedRequest& R, FString& WhyNot)
 {
 	WhyNot = Check(Me(), R);
@@ -2336,6 +2372,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Items[Id].bBoxed = true;
 		Items[Id].At = ETorqueAt::Floor;
 		Items[Id].Place = FTransform(FRotator(0.0, Rng.FRandRange(-8.0f, 8.0f), 0.0), TorqueShedLayout::DeliveryAt(Cell));
+		OrdererOf(Peer, Items[Id].OrderedBy, Items[Id].OrderedTint);
 		Text = FString::Printf(TEXT("Ordered %s. The box is in the delivery area outside the roller door."), *TorqueShedParts::PartName(R.Part));
 		bItems = true;
 		break;

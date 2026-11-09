@@ -42,7 +42,7 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
 	TEXT("tool:hands,item:exhaust,act,place:bench_0,act,")   // onto the workbench
 	TEXT("look:computer,f,computer:exhaust:slip_on,shot:ui,computer:paint:tints,shot:ui,computer:close,")   // the computer's page
-	TEXT("order:slip_on,item:slip_on,f,item:slip_on,act,")   // order a slip-on, unpack it, pick it up
+	TEXT("order:slip_on,order:steel_backbone,look:deliveries,shot,item:slip_on,f,item:slip_on,act,")   // order a slip-on (and a frame: a crate), the boxes, unpack it, pick it up
 	TEXT("floor:300:700,act,item:slip_on,act,")               // put it down in the yard and pick it up again
 	TEXT("part:tank,act,")                                   // fit it to the bike
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
