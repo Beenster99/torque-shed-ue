@@ -1072,6 +1072,8 @@ bool FTorqueBikeConfigurator::Scroll(const FVector2D& Mouse, int32 Dir)
 
 bool FTorqueBikeConfigurator::Pad(int32 RowStep, bool bChoose, FString& OutOrder)
 {
+	// (The walker calls this every frame: only a step or Cross closes a list the mouse opened.)
+	if (RowStep == 0 && !bChoose) return false;
 	if (Popup != EPopup::None) ClosePopup();
 	const int32 Rows = SlotRows.Num() + 2;   // the style, the slots, Order
 	if (RowStep != 0)
