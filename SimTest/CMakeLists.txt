@@ -111,3 +111,12 @@ if(MSVC)
 else()
   target_compile_options(engine_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# Every style's stock bike ridden against the real bikes it stands for (0-60, 60-0, full-lean turn).
+add_executable(realism_test realism_test.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(realism_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(realism_test PRIVATE /W4)
+else()
+  target_compile_options(realism_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

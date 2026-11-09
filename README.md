@@ -121,6 +121,13 @@ cmake --build build/simtest --config Release
 build/simtest/Release/sim_test Data/Buttertubs
 ```
 
+`build/simtest/Release/realism_test` (run from the repository) rides every style's stock bike against
+the real bikes it stands for: 0-60 mph, the stop from 60 mph and a full-lean turn, held to the
+real figures in Torque Shed's `docs/bike_style_performance.md` rather than to the Godot game's own
+numbers. `realism_test --table` prints the results with the real and Godot figures beside them, and
+`--swap style:slot=part,...` tries other parts on the stock bikes first. Three launches still fail
+(the scrambler, adventure bike and chopper are slow to 60).
+
 `build/simtest/Release/fit_test` (run from the repository) assembles the Speed Twin from its
 sockets, checks the model against the physics' datums, runs the clearance checks, tries every
 alternative part and exercises geometry mode; `fit_test --pairs` also fits every two alternatives

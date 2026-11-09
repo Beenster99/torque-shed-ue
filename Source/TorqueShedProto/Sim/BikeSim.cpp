@@ -39,7 +39,10 @@ const double LEAN_RATE_MAX = 1.0;
 const double LEAN_CATCH = 2.0;
 const double STEER_CATCH = 30.0;
 const double STEER_CATCH_FAST = 0.8;
-const double GRIP_IN_HAND = 0.8;
+// The share of the tyres' grip a rider leans on in a steady turn (the rest kept in hand). Godot's 0.8
+// left road bikes short of the sideways g road tests get (a naked or sports bike 1.04 g against
+// 1.1-1.2); 0.86 brings every style into its real range (SimTest/realism_test).
+const double GRIP_IN_HAND = 0.86;
 const double BALANCE_FROM = 0.35;
 const double BALANCE_RATE_GAIN = 5.5;
 const double BALANCE_RATE_MAX = 1.5;
@@ -52,7 +55,10 @@ const double STOPPIE_PITCH = DegToRad(14.0);
 const double STOPPIE_SKIM = DegToRad(4.0);
 const double RIDER_SPIN_FEEL = 1.5;
 const double CARELESS_SLIP = 0.9;
-const double BRAKE_KEEP = 0.55;
+// How near the tyre's peak slip a hard stop works (the rider, or ABS). Godot's 0.55 stopped every road
+// bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m against 34-37); 0.45 puts
+// them in range (SimTest/realism_test).
+const double BRAKE_KEEP = 0.45;
 const double AIR_DENSITY = 1.2;
 const double AIR_REV_PITCH = 7.0;
 } // namespace
