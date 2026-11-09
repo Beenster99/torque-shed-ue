@@ -30,6 +30,7 @@ struct RideInputs
 	bool OnTarmac = true;
 	bool Airborne = false;
 	double Inside = 0.0;        // 0 heard from behind the bike .. 1 in the rider's helmet
+	bool EngineOn = true;       // switched off (or cranking): the engine fades out, the rest plays on
 };
 
 class RideSound
@@ -97,6 +98,7 @@ private:
 	int NextFire = 0;                 // 0: the firing at 0 degrees, 1: at 270
 	double Pulse = 0.0, PulseNoise = 0.0, PulseDecay = 0.0, PulseAmp = 0.0;
 	double Cut = 0.0;                 // seconds left of the ignition cut
+	double Running = 1.0;             // the engine's share heard, fading as it's switched off or catches
 	double Overrun = 0.0;             // seconds since the throttle shut with the revs up
 	double DownshiftPop = 0.0;        // seconds left in which a downshift on the overrun can pop
 	double SincePop = 1.0;

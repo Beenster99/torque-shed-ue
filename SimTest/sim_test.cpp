@@ -693,6 +693,99 @@ static void ContactTests()
 	}
 }
 
+static void EngineTests()
+{
+	std::printf("Engine, neutral and the clutch\n");
+	const double Dt = 1.0 / 120.0;
+	{
+		// Stopped in first, one click up finds neutral; the throttle revs it free and nothing moves.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		S.AutoShift = false;
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		S.ShiftUp();
+		Check(S.Gear == BikeSim::NEUTRAL, "stopped, a click up from first finds neutral", S.Gear);
+		double Most = 0.0;
+		for (int i = 0; i < 240; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+			Most = std::max(Most, S.Rpm);
+		}
+		Check(Most > S.Build.Redline * 0.95, "  a handful revs it free up to the limiter (rpm)", Most);
+		Check(std::fabs(S.Speed) < 0.2, "  and the bike stays put (m/s)", S.Speed);
+		S.Throttle = 0.0;
+		for (int i = 0; i < 360; ++i) S.Step(Dt);
+		Check(std::fabs(S.Rpm - S.Build.IdleRpm) < 150.0, "  shut, it falls back to tickover (rpm)", S.Rpm);
+		S.ShiftDown();
+		Check(S.Gear == 1, "  a click down: first", S.Gear);
+	}
+	{
+		// Riding in third at 15 m/s: the clutch in, a handful only revs it; let out, it drives again.
+		BikeSim S;
+		Roll(S, 15.0);
+		S.AutoShift = false;
+		S.Gear = 3;
+		S.ClutchIn = true;
+		const double V0 = 15.0;
+		double Most = 0.0;
+		for (int i = 0; i < 120; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+			Most = std::max(Most, S.Rpm);
+		}
+		Check(S.Speed < V0, "clutch in at 15 m/s, full throttle: no drive, it slows (m/s)", S.Speed);
+		Check(Most > S.Build.Redline * 0.9, "  and the engine revs free (rpm)", Most);
+		S.ClutchIn = false;
+		const double V1 = S.Speed;
+		for (int i = 0; i < 120; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+		}
+		Check(S.Speed > V1 + 1.0 && !S.IsCrashed, "  let out, it pulls again and stays on (m/s gained)", S.Speed - V1);
+	}
+	{
+		// Engine off: it rolls with no drive; the starter fires it again (not with an empty tank).
+		BikeSim S;
+		Roll(S, 15.0);
+		S.StopEngine();
+		const double V0 = 15.0;
+		for (int i = 0; i < 120; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+		}
+		Check(!S.EngineOn && S.Speed < V0, "engine off, full throttle: it only slows (m/s)", S.Speed);
+		S.FuelLitres = 0.0;
+		Check(S.StartEngine() == "Out of petrol.", "  no petrol: it won't start", 0.0);
+		S.FuelLitres = 10.0;
+		Check(S.StartEngine().empty() && S.IsStarting(), "  with petrol the starter cranks", 0.0);
+		for (int i = 0; i < 60; ++i) S.Step(Dt);
+		Check(!S.EngineOn, "  not yet fired at 0.5 s", 0.0);
+		for (int i = 0; i < 60; ++i) S.Step(Dt);
+		Check(S.EngineOn, "  fired by 1 s", 0.0);
+	}
+	{
+		// The automatic box in neutral picks first as the rider opens up.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		S.ShiftUp();
+		for (int i = 0; i < 240; ++i)
+		{
+			S.Throttle = 0.5;
+			S.Step(Dt);
+		}
+		Check(S.Gear >= 1 && S.Speed > 3.0, "auto-shift in neutral: opening up pulls away in gear (m/s)", S.Speed);
+	}
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
@@ -700,6 +793,7 @@ int main(int Argc, char** Argv)
 	CrashTests();
 	GridTests();
 	ContactTests();
+	EngineTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

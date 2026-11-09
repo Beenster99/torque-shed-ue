@@ -12,6 +12,7 @@
 #include "BikeContacts.h"
 #include "BikeSpec.h"
 #include <functional>
+#include <string>
 #include <vector>
 
 namespace TorqueSim
@@ -79,6 +80,21 @@ public:
 	double Assist = 0.5;        // Riding realism: 0 full sim .. 1 easy
 	bool AutoShift = true;
 
+	// The engine and the clutch. Gear 0 is neutral (NEUTRAL). ClutchIn: the rider holding the lever
+	// (the engine spins free of the box in any gear); Clutch how far it's in now, 0..1. EngineOn off
+	// lets it roll with no drive and the revs fall to nothing. FuelLitres: the petrol in the tank
+	// (the game keeps it; at 0 the engine can't start). EngineKw: the power it's making now, and
+	// Overrun the throttle shut in gear above tickover (for the fuel it burns).
+	static constexpr int NEUTRAL = 0;
+	bool ClutchIn = false;
+	double Clutch = 0.0;
+	bool EngineOn = true;
+	double FuelLitres = 15.0;
+	double EngineKw = 0.0;
+	bool Overrun = false;
+	// 0..1, how hard the back tyre's spinning on the spot (a burnout).
+	double Burnout = 0.0;
+
 	// Rigid body state (world: +Y up). Position is the body origin (axle height, mid wheelbase).
 	V3 Position;
 	M3 Basis;
@@ -113,8 +129,15 @@ public:
 	void Place(const V3& Pos, double Heading);
 	void Step(double Delta);
 	// The rider's foot on the lever (with AutoShift off): one gear up or down. False at the end of the box.
-	bool ShiftUp() { if (Gear >= Build.GearCount()) return false; Select(Gear + 1); return true; }
-	bool ShiftDown() { if (Gear <= 1) return false; Select(Gear - 1); return true; }
+	// One click: up from first finds neutral at a walking pace or slower (as down from second does),
+	// neutral goes to second (up) or first (down). False at the end of the box.
+	bool ShiftUp();
+	bool ShiftDown();
+	// The key: the starter cranks for a moment (longer the harder it struggles, 0..1: worn plugs, a
+	// tired engine, frost), then it fires. Says why it won't ("" when it's cranking). And off.
+	std::string StartEngine(double Struggle = 0.0);
+	void StopEngine();
+	bool IsStarting() const { return Starting > 0.0; }
 
 	V3 BodyToWorld(const V3& P) const { return Position + Basis * P; }
 	// This bike as other riders' bikes meet it (ContactWorld::Capsules): the bike low, rear tyre to
@@ -186,6 +209,7 @@ private:
 	V3 PrevW, PrevV;
 	bool HavePrev = false;
 	double Seen[4] = {0, 0, 0, 0};
+	double Starting = 0.0;
 	double ShiftTimer = 0.0, SinceShift = 0.0, Traction = 1.0, ShiftFromRpm = 0.0, ThrottleEff = 0.0, ShiftLoad = 0.0;
 };
 } // namespace TorqueSim

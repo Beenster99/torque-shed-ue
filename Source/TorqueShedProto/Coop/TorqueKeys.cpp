@@ -45,6 +45,8 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("ShiftDown"), TEXT("Shift down"), R, {EKeys::Z, EKeys::LeftControl}},
 	{TEXT("AutoShift"), TEXT("Automatic gearbox on / off"), R, {EKeys::G, FKey()}},
 	{TEXT("Abs"), TEXT("ABS on / off"), R, {EKeys::B, FKey()}},
+	{TEXT("Clutch"), TEXT("Clutch in (hold): rev it in any gear"), R, {EKeys::F, FKey()}},
+	{TEXT("Ignition"), TEXT("Engine on / off"), R, {EKeys::I, FKey()}},
 	{TEXT("Camera"), TEXT("Camera: chase, first person, chin, showroom"), R, {EKeys::C, FKey()}},
 	{TEXT("LookBack"), TEXT("Reverse view: hold to look behind"), R, {EKeys::Tab, FKey()}},
 	{TEXT("BackOnRoad"), TEXT("Back on the road after a crash"), R, {EKeys::R, FKey()}},

@@ -1168,6 +1168,30 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Keep.bAutoShift = !bManual;
 		if (Keep.bSaved) Keep.Save();
 	}
+	// The clutch, held (F): the engine spins free of the box in any gear. The key (I): the engine
+	// off, or the starter cranks it and it fires (not on an empty tank, or with the bike down).
+	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch);
+	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition))
+	{
+		UTorqueSfx* Sfx = UTorqueSfx::Get(this);
+		if (Sim->EngineOn || Sim->IsStarting())
+		{
+			Sim->StopEngine();
+			EngineNote = TEXT("Engine off");
+			EngineNoteFor = 1.2;
+		}
+		else
+		{
+			Sim->FuelLitres = Dash.FuelLitres;
+			const std::string Why = Sim->StartEngine();
+			if (!Why.empty())
+			{
+				EngineNote = UTF8_TO_TCHAR(Why.c_str());
+				EngineNoteFor = 2.0;
+			}
+			else if (Sfx) Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 0.8f);
+		}
+	}
 	// ABS: Circle/B or the B key. Off, the rear brake will lock the wheel.
 	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || FTorqueKeys::Just(PC, ETorqueKey::Abs))
 	{
@@ -1263,26 +1287,37 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	// enough for 2 s at the speed and the manoeuvre after, already rolling at the speed in a gear
 	// that suits it, as Torque Shed's ride_slope starts its runs. No launch, no hunting for a straight.
 	if (Line.Num() < 3) return;
-	const double Need = TestMps * 2.5 + 70.0;
+	// The straightest stretch: how far the road strays from the straight line between its ends
+	// (Buttertubs has few true straights; a long gentle bend scored as straight by its heading
+	// alone, and the robot never settled on it at 60). The grade counts for a lot on the test pad
+	// (it starts pitched otherwise), less on the road, where the log allows for it.
+	const double Need = TestMps * 4.0 + 60.0;
+	const double GradeWeight = bTestWantFlat ? 40.0 : 12.0;
 	int32 Best = 0;
 	double BestScore = 1e30;
 	for (int32 I = 0; I + 1 < Line.Num(); ++I)
 	{
-		double Run = 0.0, Turn = 0.0;
-		const FVector2D Dir0 = FVector2D(Line[I + 1].X - Line[I].X, Line[I + 1].Z - Line[I].Z).GetSafeNormal();
+		double Run = 0.0;
 		int32 J = I;
 		while (J + 1 < Line.Num() && Run < Need)
 		{
-			const FVector2D Seg(Line[J + 1].X - Line[J].X, Line[J + 1].Z - Line[J].Z);
-			Run += Seg.Size();
-			Turn = FMath::Max(Turn, FMath::Acos(FMath::Clamp(FVector2D::DotProduct(Dir0, Seg.GetSafeNormal()), -1.0, 1.0)));
+			Run += FVector2D(Line[J + 1].X - Line[J].X, Line[J + 1].Z - Line[J].Z).Size();
 			++J;
 		}
 		if (Run < Need) break;
+		const FVector2D A(Line[I].X, Line[I].Z), Chord = FVector2D(Line[J].X, Line[J].Z) - A;
+		const double ChordLen = FMath::Max(Chord.Size(), 1.0);
+		double Stray = 0.0;
+		for (int32 K = I; K <= J; ++K)
+		{
+			const FVector2D P = FVector2D(Line[K].X, Line[K].Z) - A;
+			Stray = FMath::Max(Stray, FMath::Abs(P.X * Chord.Y - P.Y * Chord.X) / ChordLen);
+		}
 		const double Grade = FMath::Abs(Line[J].Y - Line[I].Y) / Run;
-		const double Score = Turn + 4.0 * Grade;
+		const double Score = Stray + GradeWeight * Grade;
 		if (Score < BestScore) { BestScore = Score; Best = I; }
 	}
+	if (!Sim->EngineOn) { Sim->StopEngine(); Sim->EngineOn = true; }   // (switched off on the key: the robot needs it)
 	Respawn(Best);
 	if (bTestWantFlat)
 	{
@@ -1299,7 +1334,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	while (Gi < Sim->Build.GearCount() && TestMps / Sim->Build.RearRadius * Sim->Build.OverallRatio(Gi) * 60.0 / (2.0 * PI) > Sim->Build.Redline * 0.75) ++Gi;
 	Sim->Gear = Gi;
 	Sim->Rpm = TestMps / Sim->Build.RearRadius * Sim->Build.OverallRatio(Gi) * 60.0 / (2.0 * PI);
-	UE_LOG(LogTemp, Log, TEXT("Torque: test %s starts at route point %d of %d (%.0f m of road, straightness and grade score %.3f), %.0f mph in gear %d%s"),
+	UE_LOG(LogTemp, Log, TEXT("Torque: test %s starts at route point %d of %d (%.0f m of road, strays and grade score %.2f m), %.0f mph in gear %d%s"),
 		Kind == 0 ? TEXT("brakestop") : Kind == 1 ? TEXT("lean") : Kind == 2 ? TEXT("crash:wall") : TEXT("crash:bike"), Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
 }
 
@@ -1615,7 +1650,19 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	UpdateRider();
 	UpdateClock();
 	// [dash] The trip and the petrol (the rider's own bike), and the clocks on every bike.
-	if (!bRemote) Dash.Step(*Sim, Throttle, EngineCatchIn <= 0.0, DeltaSeconds);
+	if (!bRemote)
+	{
+		Dash.Step(*Sim, Throttle, Sim->EngineOn, DeltaSeconds);
+		// The tank is the dash's (it burns the petrol); run dry, the engine stops.
+		Sim->FuelLitres = Dash.FuelLitres;
+		if (Sim->EngineOn && Dash.FuelLitres <= 0.0)
+		{
+			Sim->StopEngine();
+			EngineNote = TEXT("Out of petrol!");
+			EngineNoteFor = 4.0;
+		}
+	}
+	EngineNoteFor = FMath::Max(EngineNoteFor - DeltaSeconds, 0.0);
 	else Dash.Step(*Sim, 0.0, true, 0.0);
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
@@ -2325,10 +2372,12 @@ void ATorqueBikePawn::StartSound()
 	{
 		Sfx->PlayMadeOn(TorqueEngine::RenderStarter(Engine->Spec, true, 1.0, FMath::RandRange(1, 3)), TorqueEngine::Rate, Root, FVector(0.0, 0.0, 45.0));
 		EngineCatchIn = 0.5;
+		Sim->EngineOn = false;
 	}
 	else if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f))
 	{
 		EngineCatchIn = 1.1;
+		Sim->EngineOn = false;
 	}
 	else
 	{
@@ -2347,7 +2396,12 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 		if (EngineCatchIn > 0.0) return;
 		SoundAudio->Play();   // it's caught: the engine from here
 		Sound->Catch();
+		Sim->EngineOn = true;
+		bEngineWas = true;
 	}
+	// Switched off and on again on the key (the sim's starter): heard catching once it fires.
+	if (Sim->EngineOn && !bEngineWas) Sound->Catch();
+	bEngineWas = Sim->EngineOn;
 	TorqueSound::RideInputs In;
 	In.Rpm = Sim->Rpm;
 	In.Throttle = Throttle;
@@ -2364,6 +2418,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.Grid = (F.Contact && F.Surf == SURF_GRID ? 1.0 : 0.0) + (R.Contact && R.Surf == SURF_GRID ? 1.0 : 0.0);
 	In.Airborne = !F.Contact && !R.Contact;
 	In.Inside = (CameraMode == 0 || CameraMode == 3) ? 0.0 : 1.0;
+	In.EngineOn = Sim->EngineOn;
 	Sound->Set(In);
 
 	// Keep about 80 ms queued: enough for a slow frame, little enough that it answers the throttle.
@@ -2531,6 +2586,7 @@ void ATorqueBikePawn::DrawHud()
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
 	// [dash] The speed, gear and revs are on the speedo now (ATorqueHUD::DrawSpeedo, hud.gd's); the
 	// gears and ABS show here for a moment as they're switched.
+	if (EngineNoteFor > 0.0) Add(EngineNote, FColor(255, 220, 120), 1.2f);
 	if (GearNoteFor > 0.0)
 		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
 			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);

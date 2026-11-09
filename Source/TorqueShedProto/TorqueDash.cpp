@@ -222,7 +222,7 @@ void FTorqueDash::UpdateClocks(int32 Units)
 	const double Fuel = FMath::Clamp(FuelLitres / FMath::Max(FuelCapacity, 0.1), 0.0, 1.0);
 	const int32 Bars = FMath::RoundToInt(Fuel * 8.0);
 	const FString BarsText = FString::ChrN(Bars, TEXT('|')) + FString::ChrN(8 - Bars, TEXT('.'));
-	const FString GearText = Has(TEXT("gear")) ? FString::Printf(TEXT("G%d"), Gear) : FString();
+	const FString GearText = Has(TEXT("gear")) ? (Gear == 0 ? FString(TEXT("N")) : FString::Printf(TEXT("G%d"), Gear)) : FString();
 	const FString Unit = bMetric ? TEXT("km/h") : TEXT("mph");
 	const bool bLow = Fuel < TDI::LowFuel;
 	FString Text;

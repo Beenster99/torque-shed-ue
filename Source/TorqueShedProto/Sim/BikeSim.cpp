@@ -60,6 +60,19 @@ const double STOPPIE_SKIM = DegToRad(4.0);
 const double RIDER_SPIN_FEEL = 4.0;
 const double RIDER_SPIN_FROM = 0.8;
 const double CARELESS_SLIP = 0.9;
+// The clutch lever: seconds to pull it in and to let it out, and how hard the drive pulls the free
+// revs round to the back wheel's as it bites (1/s, times how far it's out). Neutral sits between
+// first and second: at a walking pace or slower one click finds it.
+const double CLUTCH_PULL = 0.08;
+const double CLUTCH_LET_OUT = 0.35;
+const double CLUTCH_BITE = 25.0;
+const double NEUTRAL_FIND_SPEED = 2.0;
+// In neutral the engine spins only itself: it makes this share of its torque to do it (fuel, heat).
+const double FREE_REV_LOAD = 0.12;
+// Seconds on the starter before it fires, and how much longer a struggling start cranks.
+const double START_TIME = 0.7;
+const double STRUGGLE_FROM = 0.35;
+const double STRUGGLE_CRANK = 1.8;
 // How near the tyre's peak slip a hard stop works (the rider, or ABS). Godot's 0.55 stopped every road
 // bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m against 34-37); 0.45 puts
 // them in range (SimTest/realism_test).
@@ -705,16 +718,52 @@ double BikeSim::FrontStiffness(double V, bool Live) const
 void BikeSim::UpdateEngine(double Delta)
 {
 	Wheel& Rear = Wheels[1];
-	const double Ratio = Build.OverallRatio(Gear);
+	const bool InNeutral = Gear == NEUTRAL;
+	const double Ratio = Build.OverallRatio(std::max(Gear, 1));
 	const double WheelRpm = Rear.Omega * Ratio * 60.0 / TAU;
 	const double IdleRpm = Build.IdleRpm;
 	const double ClutchRpm = IdleRpm + 900.0;
-	const bool Engaged = WheelRpm >= ClutchRpm;
+	// The lever: pulled in over CLUTCH_PULL, let out over CLUTCH_LET_OUT, biting as it comes out.
+	Clutch = MoveToward(Clutch, ClutchIn ? 1.0 : 0.0, Delta / (ClutchIn ? CLUTCH_PULL : CLUTCH_LET_OUT));
+	const double Drive = 1.0 - Clutch;   // the share of the engine's pull that reaches the box
+	const bool Engaged = WheelRpm >= ClutchRpm && !InNeutral && Clutch <= 0.0;
 	const bool Shifting = ShiftTimer > 0.0;
 	ShiftTimer -= Delta;
-
-	if (Shifting)
+	if (Starting > 0.0)
 	{
+		// The starter cranking it over; it fires when it's done.
+		Starting -= Delta;
+		Rpm = std::max(Rpm, IdleRpm * 0.3);
+		if (Starting <= 0.0)
+		{
+			Starting = 0.0;
+			EngineOn = true;
+			Rpm = std::max(Rpm, IdleRpm);
+		}
+	}
+
+	if (InNeutral || Clutch > 0.0)
+	{
+		if (EngineOn)
+		{
+			// Nothing but the engine's own flywheel to spin: it revs freely, quick to rise on the
+			// throttle and slower to fall back to idle, and bounces off the limiter.
+			const double Free = Lerp(IdleRpm, Build.Redline * 1.01, std::pow(std::max(ThrottleEff, 0.0), 0.8));
+			Rpm = Lerp(Rpm, Free, 1.0 - std::exp(-(Free > Rpm ? 6.0 : 2.5) * Delta));
+			if (Rpm >= Build.Redline) Rpm -= Build.Redline * 0.04;
+			if (!InNeutral && Drive > 0.0)
+			{
+				// Letting the lever out: as it bites the revs are pulled round to the back wheel's
+				// (or launch revs, pulling away), so they meet it by the time it's all the way out.
+				const double Launch = Lerp(IdleRpm, Build.PeakTorqueRpm * 0.75, ThrottleEff);
+				const double Meet = WheelRpm >= ClutchRpm ? WheelRpm : std::max(Launch, WheelRpm);
+				Rpm = Lerp(Rpm, std::max(Meet, IdleRpm), 1.0 - std::exp(-CLUTCH_BITE * Drive * Delta));
+			}
+		}
+	}
+	else if (Shifting && EngineOn)
+	{
+		// The clutch is in: the revs fall (or blip up) to the new gear's speed instead of jumping.
 		const double F = Clamp(1.0 - ShiftTimer / std::max(Build.ShiftTime, 0.01), 0.0, 1.0);
 		Rpm = Lerp(ShiftFromRpm, std::max(WheelRpm, IdleRpm), F * F);
 	}
@@ -722,7 +771,7 @@ void BikeSim::UpdateEngine(double Delta)
 	{
 		Rpm = WheelRpm;
 	}
-	else
+	else if (EngineOn)
 	{
 		// Slipping clutch: the engine holds launch revs while the wheel catches up.
 		const double Launch = Lerp(IdleRpm, Build.PeakTorqueRpm * 0.75, ThrottleEff);
@@ -746,7 +795,7 @@ void BikeSim::UpdateEngine(double Delta)
 		TcFrom = Build.TyreRear.KappaPeak * RIDER_SPIN_FROM;
 		TcGain = RIDER_SPIN_FEEL / Build.TyreRear.KappaPeak;
 	}
-	if (Tc > 0.05 && SpinRatio > TcFrom && Rear.Contact)
+	if (Tc > 0.05 && SpinRatio > TcFrom && Rear.Contact && Burnout <= 0.0)
 		TcTarget = Clamp(1.0 - (SpinRatio - TcFrom) * TcGain * Tc, 0.15, 1.0);
 	if (!Wheels[0].Contact && Rear.Contact && PitchAngle > DegToRad(1.5))
 	{
@@ -758,13 +807,45 @@ void BikeSim::UpdateEngine(double Delta)
 	Traction = Lerp(Traction, TcTarget, 1.0 - std::exp(-25.0 * Delta));
 	double EngineNm = Build.EngineTorque(Rpm) * ThrottleEff * Traction;
 	if (Rpm >= Build.Redline) EngineNm = 0.0;   // rev limiter
+	double Made = std::max(EngineNm, 0.0);
 	if (Engaged) EngineNm -= (1.0 - ThrottleEff) * Build.PeakTorque * 0.25 * Clamp(Rpm / Build.Redline, 0.0, 1.0);
-	if (Shifting) EngineNm = 0.0;
+	if (Shifting)
+	{
+		EngineNm = 0.0;
+		Made = 0.0;
+	}
+	if (InNeutral)
+	{
+		// Nothing to drive: the back wheel just rolls.
+		Made *= FREE_REV_LOAD;
+		EngineNm = 0.0;
+	}
+	else if (Clutch > 0.0)
+	{
+		// The clutch in, or biting as it comes out: only its share of the pull gets through.
+		Made *= Lerp(FREE_REV_LOAD, 1.0, Drive);
+		EngineNm *= Drive;
+	}
+	if (!EngineOn)
+	{
+		// Engine off: the bike just rolls. The revs fall away to nothing (or turn with the wheel).
+		EngineNm = 0.0;
+		Made = 0.0;
+		if (Starting <= 0.0) Rpm = Engaged ? WheelRpm : MoveToward(Rpm, 0.0, 3000.0 * Delta);
+	}
+	EngineKw = Made * Rpm * TAU / 60.0 / 1000.0;
+	Overrun = EngineOn && Engaged && !Shifting && ThrottleEff < 0.02 && Rpm > IdleRpm * 1.3;
 	Rear.DriveTorque = EngineNm * Ratio * Build.DrivetrainEfficiency;
-	Rpm = Clamp(Rpm, IdleRpm * 0.9, Build.Redline * 1.02);
+	Rpm = Clamp(Rpm, EngineOn ? IdleRpm * 0.9 : 0.0, Build.Redline * 1.02);
 
 	SinceShift += Delta;
-	if (AutoShift && !Shifting && SinceShift > 0.6)
+	if (AutoShift && InNeutral)
+	{
+		// The automatic box drops into a gear that suits the road speed as soon as the rider opens
+		// the throttle (first from a standstill); it never picks neutral by itself.
+		if (EngineOn && Throttle > 0.05) Select(GearForSpeed());
+	}
+	else if (AutoShift && !Shifting && SinceShift > 0.6)
 	{
 		const double RoadRpm = std::fabs(Speed) / Build.RearRadius * Ratio * 60.0 / TAU;
 		const double UpAt = AutoUpRpm(ShiftLoad);
@@ -796,8 +877,42 @@ void BikeSim::Select(int NewGear)
 	if (NewGear == Gear) return;
 	ShiftFromRpm = Rpm;
 	Gear = NewGear;
-	ShiftTimer = Build.ShiftTime;
+	// Into a gear the clutch is in for a moment while the revs meet it; into neutral the drive lets go.
+	ShiftTimer = NewGear != NEUTRAL ? Build.ShiftTime : 0.0;
 	SinceShift = 0.0;
+}
+
+bool BikeSim::ShiftUp()
+{
+	if (Gear == 1 && std::fabs(Speed) < NEUTRAL_FIND_SPEED) Select(NEUTRAL);
+	else if (Gear == NEUTRAL) Select(std::min(2, Build.GearCount()));
+	else if (Gear < Build.GearCount()) Select(Gear + 1);
+	else return false;
+	return true;
+}
+
+bool BikeSim::ShiftDown()
+{
+	if (Gear == 2 && std::fabs(Speed) < NEUTRAL_FIND_SPEED) Select(NEUTRAL);
+	else if (Gear == NEUTRAL) Select(1);
+	else if (Gear > 1) Select(Gear - 1);
+	else return false;
+	return true;
+}
+
+std::string BikeSim::StartEngine(double Struggle)
+{
+	if (EngineOn || Starting > 0.0) return "";
+	if (IsCrashed) return "Pick the bike up first.";
+	if (FuelLitres <= 0.0) return "Out of petrol.";
+	Starting = START_TIME + (Struggle >= STRUGGLE_FROM ? STRUGGLE_CRANK * Clamp(Struggle, 0.0, 1.0) : 0.0);
+	return "";
+}
+
+void BikeSim::StopEngine()
+{
+	Starting = 0.0;
+	EngineOn = false;
 }
 
 int BikeSim::GearForSpeed() const

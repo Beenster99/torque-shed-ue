@@ -159,7 +159,7 @@ Result Ride(const BikeSpec& S)
 			std::printf("    mass %.0f kg, com %.2f m, wheelbase %.3f, peak %.0f Nm at %.0f, redline %.0f, TC %d (%.2f), rear kappa peak %.3f, ratios",
 				S.TotalMass, S.ComHeight, S.Wheelbase, S.PeakTorque, S.PeakTorqueRpm, S.Redline, S.TractionControl ? 1 : 0, S.TractionStrength, S.TyreRear.KappaPeak);
 			for (int Gi = 1; Gi <= S.GearCount(); ++Gi) std::printf(" %.1f m/s", S.Redline / 60.0 * 6.2832 / S.OverallRatio(Gi) * S.RearRadius);
-			std::printf("\n");
+			std::printf("\n    brakes %.0f / %.0f N m, tyres %.2f / %.2f grip, ABS %d / %d\n", S.FrontBrakeTorque, S.RearBrakeTorque, S.TyreFront.GripTarmac, S.TyreRear.GripTarmac, S.AbsFront ? 1 : 0, S.AbsRear ? 1 : 0);
 		}
 		for (int I = 0; I < 8 * 120; ++I)
 		{

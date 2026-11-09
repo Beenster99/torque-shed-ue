@@ -516,7 +516,7 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 	Box(RX, RY, 226.0f, 172.0f, FLinearColor(0.03f, 0.03f, 0.04f, 0.6f));
 	Say(FString::FromInt(SpeedValue(D.Speed)), RX + 12.0f, RY + 58.0f, 50.0f, FLinearColor::White);
 	Say(SpeedUnit, RX + 120.0f, RY + 34.0f, 15.0f, Dim(0.6f));
-	if (D.Has(TEXT("gear"))) Say(FString::Printf(TEXT("GEAR %d"), D.Gear), RX + 120.0f, RY + 60.0f, 20.0f, Accent);
+	if (D.Has(TEXT("gear"))) Say(D.Gear == 0 ? FString(TEXT("GEAR N")) : FString::Printf(TEXT("GEAR %d"), D.Gear), RX + 120.0f, RY + 60.0f, 20.0f, Accent);
 	if (D.Has(TEXT("top_speed"))) Say(FString::Printf(TEXT("TOP %d"), SpeedValue(D.TopKmh / 3.6)), RX + 170.0f, RY + 34.0f, 12.0f, Dim(0.6f));
 	const float Frac = (float)FMath::Clamp(D.Rpm / FMath::Max(D.Redline, 1.0), 0.0, 1.0);
 	if (D.Has(TEXT("rpm")))

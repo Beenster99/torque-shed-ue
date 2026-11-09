@@ -213,6 +213,10 @@ private:
 	bool bAbs = true;                // the ABS switched on; off lets the rear lock
 	bool bHasAbs[2] = {true, true};  // the bike has ABS at the front, the rear (a catalogue bike's ECU may not)
 	double GearNoteFor = 0.0;
+	// A word on the HUD for a moment: "Engine off", "Out of petrol!" (EngineNote, for EngineNoteFor s).
+	FString EngineNote;
+	double EngineNoteFor = 0.0;
+	bool bEngineWas = true;   // the sim's engine running last frame (to hear it catch or stop)
 	// Performance: P shows frame, game, render and GPU times; O (or -TorqueProfile) logs them each
 	// second to Saved/Profiling/torque_perf_<time>.csv.
 	bool bPerfShow = false, bPerfLog = false;
