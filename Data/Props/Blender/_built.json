@@ -1,25 +1,148 @@
 {
- "booth_shop": {
+ "box_cardboard": {
   "bounds_min": [
-   -4.02,
-   0.0,
-   -2.365
+   -0.227,
+   0.0005,
+   -0.2
   ],
   "bounds_max": [
-   4.02,
-   2.73,
-   2.365
+   0.227,
+   0.3515,
+   0.2011
   ],
-  "tris": 9116,
+  "tris": 216,
   "materials": [
-   "paint_white",
-   "aluminium",
-   "led_white",
-   "steel",
-   "filter_media",
-   "label_yellow",
-   "paint_black",
-   "steel_dark"
+   "cardboard",
+   "cardboard_dark",
+   "parcel_tape",
+   "ink_black"
+  ]
+ },
+ "box_cardboard_flat": {
+  "bounds_min": [
+   -0.352,
+   0.0005,
+   -0.3
+  ],
+  "bounds_max": [
+   0.352,
+   0.2515,
+   0.3011
+  ],
+  "tris": 216,
+  "materials": [
+   "cardboard",
+   "cardboard_dark",
+   "parcel_tape",
+   "ink_black"
+  ]
+ },
+ "box_cardboard_long": {
+  "bounds_min": [
+   -0.477,
+   0.0005,
+   -0.16
+  ],
+  "bounds_max": [
+   0.477,
+   0.3015,
+   0.1611
+  ],
+  "tris": 216,
+  "materials": [
+   "cardboard",
+   "cardboard_dark",
+   "parcel_tape",
+   "ink_black"
+  ]
+ },
+ "courier_label": {
+  "bounds_min": [
+   -0.08,
+   0.0,
+   -0.05
+  ],
+  "bounds_max": [
+   0.08,
+   0.0008,
+   0.05
+  ],
+  "tris": 12,
+  "materials": [
+   "courier_label"
+  ]
+ },
+ "crate_wood": {
+  "bounds_min": [
+   -0.397,
+   0.0,
+   -0.3485
+  ],
+  "bounds_max": [
+   0.397,
+   0.672,
+   0.3485
+  ],
+  "tris": 4388,
+  "materials": [
+   "crate_wood_dark",
+   "crate_wood",
+   "steel_dark",
+   "ink_black"
+  ]
+ },
+ "crate_wood_flat": {
+  "bounds_min": [
+   -0.522,
+   0.0,
+   -0.4485
+  ],
+  "bounds_max": [
+   0.522,
+   0.472,
+   0.4485
+  ],
+  "tris": 4280,
+  "materials": [
+   "crate_wood_dark",
+   "crate_wood",
+   "steel_dark",
+   "ink_black"
+  ]
+ },
+ "crate_wood_long": {
+  "bounds_min": [
+   -0.772,
+   0.0,
+   -0.3235
+  ],
+  "bounds_max": [
+   0.772,
+   0.572,
+   0.3235
+  ],
+  "tris": 4064,
+  "materials": [
+   "crate_wood_dark",
+   "crate_wood",
+   "steel_dark",
+   "ink_black"
+  ]
+ },
+ "sticky_note": {
+  "bounds_min": [
+   -0.038,
+   -0.0404,
+   -0.0
+  ],
+  "bounds_max": [
+   0.038,
+   0.035,
+   0.0032
+  ],
+  "tris": 24,
+  "materials": [
+   "sticky_note"
   ]
  }
 }

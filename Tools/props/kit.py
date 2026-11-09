@@ -276,6 +276,18 @@ def _box_uv(obj):
                 l[uv].uv = (p.x * (-1 if n.y > 0 else 1), p.z)
             else:
                 l[uv].uv = (p.x, p.y * (1 if n.z > 0 else -1))
+    # Printed things (a label from an atlas) get 0..1 over their front face instead of metres.
+    for i, slot in enumerate(obj.material_slots):
+        if not (_MATS.get(slot.material.name, {}).get("unit_uv")):
+            continue
+        loops = [l for f in bm.faces if f.material_index == i for l in f.loops]
+        if not loops:
+            continue
+        us = [l[uv].uv.x for l in loops]
+        vs = [l[uv].uv.y for l in loops]
+        u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+        for l in loops:
+            l[uv].uv = ((l[uv].uv.x - u0) / max(1e-6, u1 - u0), (l[uv].uv.y - v0) / max(1e-6, v1 - v0))
     bm.to_mesh(me)
     bm.free()
 

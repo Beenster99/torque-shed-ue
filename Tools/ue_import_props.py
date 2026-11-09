@@ -157,6 +157,37 @@ def glass_master():
     return m
 
 
+def printed_master():
+    """M_PropPrinted: a printed atlas (Atlas, Rows rows top to bottom) showing row Courier (the game
+    sets it per box), unit UVs over the face; Rough as for the rest."""
+    m = new_asset("M_PropPrinted", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1200, 0)
+    u = expr(m, unreal.MaterialExpressionComponentMask, -1000, -100, r=True, g=False, b=False, a=False)
+    v = expr(m, unreal.MaterialExpressionComponentMask, -1000, 100, r=False, g=True, b=False, a=False)
+    link(uv, "", u, "")
+    link(uv, "", v, "")
+    row = expr(m, unreal.MaterialExpressionScalarParameter, -1000, 250, parameter_name="Courier", default_value=0.0)
+    rows = expr(m, unreal.MaterialExpressionScalarParameter, -1000, 350, parameter_name="Rows", default_value=8.0)
+    add = expr(m, unreal.MaterialExpressionAdd, -800, 150)
+    link(v, "", add, "A")
+    link(row, "", add, "B")
+    div = expr(m, unreal.MaterialExpressionDivide, -650, 150)
+    link(add, "", div, "A")
+    link(rows, "", div, "B")
+    uv2 = expr(m, unreal.MaterialExpressionAppendVector, -500, 0)
+    link(u, "", uv2, "A")
+    link(div, "", uv2, "B")
+    tex = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -300, 0, parameter_name="Atlas",
+               texture=unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture"))
+    link(uv2, "", tex, "UVs")
+    mel.connect_material_property(tex, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+    rough = expr(m, unreal.MaterialExpressionScalarParameter, -300, 250, parameter_name="Rough", default_value=0.55)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.recompile_material(m)
+    eal.save_loaded_asset(m)
+    return m
+
+
 def import_texture(path, dest, name, normal=False, srgb=True):
     t = unreal.AssetImportTask()
     t.set_editor_property("filename", path)
@@ -203,11 +234,25 @@ def materials(spec):
     """MI_Prop_<key> for every key in materials.json."""
     m_master = master()
     m_glass = glass_master()
+    m_printed = printed_master()
     scans = scan_textures(spec)
     out = {}
     for key, s in spec["materials"].items():
         glass = s["base"] == "glass"
         mi = new_asset("MI_Prop_" + key, MATS, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        if s["base"] == "printed":
+            mi.set_editor_property("parent", m_printed)
+            f = os.path.join(ROOT, s["texture"])
+            name = "T_" + os.path.splitext(os.path.basename(f))[0]
+            tex = import_texture(f, MATS + "/Printed", name) if os.path.exists(f) else None
+            if tex:
+                tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_FROM_TEXTURE_GROUP)
+                mel.set_material_instance_texture_parameter_value(mi, "Atlas", tex)
+            mel.set_material_instance_scalar_parameter_value(mi, "Rows", float(s.get("rows", 1)))
+            mel.set_material_instance_scalar_parameter_value(mi, "Rough", s.get("rough", 0.55))
+            eal.save_loaded_asset(mi)
+            out[key] = mi
+            continue
         mi.set_editor_property("parent", m_glass if glass else m_master)
         c = s.get("tint", [0.5, 0.5, 0.5])
         mel.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(c[0], c[1], c[2], 1.0))
