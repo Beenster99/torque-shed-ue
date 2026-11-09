@@ -3,7 +3,7 @@
 // triangles, TorqueShedPick), one for each side of its surface the jet can get to, each on a part.
 //
 // Where the jet lands it washes the muck off the surfaces facing it (a surface side on to it barely
-// gets wet, one facing away not at all, so you go round the bike, and raise it on the wash bay's
+// gets wet, one facing away only from the splash, so you go round the bike, and raise it on the wash bay's
 // lift and crouch for underneath), as wide as the distance makes it and weaker the further off you
 // are; caked muck takes longer than a film of dust. What's washed off shows on the bike there and
 // then, exactly where the jet went: the space round the bike is split into little cubes, each
@@ -43,11 +43,18 @@ constexpr double FarDist = 120.0;         // further than this it starts to lose
 constexpr double OutDist = 260.0;     // and past this it doesn't reach at all
 constexpr double Skim = 0.1;          // how square on the jet has to meet a surface: none at all this side on,
 constexpr double FaceOn = 0.5;        // all of it by this (cosines)
-constexpr float DoneShare = 0.975f;    // this much of a part clean and it's done
-constexpr float Specks = 0.02f;       // or all but this share of its patches (at least SpecksMin)
+constexpr float DoneShare = 0.95f;    // this much of a part clean and it's done
+constexpr float Specks = 0.05f;       // or all but this share of its patches (at least SpecksMin)
 constexpr int32 SpecksMin = 3;
+constexpr float BikeFinish = 0.95f;   // this much of the whole bike clean and it's all done
 constexpr float CreditSpan = 0.3f;    // a patch this much dirtier than clean counts for nothing
-constexpr float CleanLevel = 0.04f;        // a patch this clean or cleaner counts as clean (Dirt.CLEAN)
+constexpr float CleanLevel = 0.06f;        // a patch this clean or cleaner counts as clean (Dirt.CLEAN)
+constexpr float WashedLo = 0.6f;      // or a patch with this much of its muck off counts for something,
+constexpr float WashedHi = 0.92f;     // and with this much off it counts as clean
+constexpr double SlantLo = 0.25;      // a surface at a slant to a side (cosine) counts as washed from it
+constexpr double SlantHi = 0.6;       // in full by this
+constexpr double Splash = 0.25;       // the splash washes everything round where it lands this much as fast
+constexpr double SplashDepth = 8.0;   // as deep in behind as this many cubes
 constexpr double WayOut = 40.0;       // clear of the bike this far out from a point, and the jet can get to it
 // The mask's cubes.
 constexpr double MinVoxel = 3.0;
