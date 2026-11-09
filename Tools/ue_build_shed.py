@@ -36,6 +36,7 @@ The game mode spawns the walker (ATorqueWalker) in any map with an ATorqueShedBi
 import json
 import math
 import os
+import sys
 
 import unreal
 
@@ -1234,6 +1235,12 @@ def build():
         0.0, math.degrees(math.atan2(to[2], math.hypot(to[0], to[1]))), math.degrees(math.atan2(to[1], to[0]))))
     v.set_actor_label("MenuView")
     v.set_editor_property("tags", [unreal.Name("MenuView")])
+
+    # The real models over the grey boxes (Tools/ue_import_props.py, Data/Props/swaps.json): the
+    # boxes stay as the colliders. Without imported props the boxes simply stay showing.
+    sys.path.insert(0, os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Tools"))
+    import ue_import_props
+    ue_import_props.dress()
 
     save_fresh_level(MAP, before)
     # Say what the saved level holds for the game's own lookups (tags), so a run's log shows it.

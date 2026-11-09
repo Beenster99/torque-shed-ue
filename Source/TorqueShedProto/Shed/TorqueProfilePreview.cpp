@@ -123,7 +123,7 @@ void ATorqueProfilePreview::Tick(float DeltaSeconds)
 
 	// The camera on -x, looking back at the face or the whole figure (the target is 3:4).
 	const FVector Base = GetActorLocation();
-	const double Tall = FMath::Max(Avatar.Height(), 120.0);
+	const double Tall = FMath::Max(Avatar.StandingHeight(), 120.0);
 	FVector Aim;
 	double Dist;
 	if (bFaceView)

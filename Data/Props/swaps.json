@@ -1,0 +1,28 @@
+{
+  "about": "Where Tools/ue_build_shed.py's grey-box kit gets its real models (Tools/shed_props.py, run at the end of the shed build). Each swap spawns prop 'prop' (/Game/Shed/Props/<prop>/SM_<prop>) at 'at' (cm, the shed's frame; its floor point, or its wall point for wall kit) turned 'yaw' degrees (0: its front, +z in Torque Shed's frame, faces the shed's +y, the roller door; -90 faces +x, 90 faces -x, 180 faces -y), and hides the boxes whose labels start with any of 'hide' in game and in the editor while keeping their collision, so walking, aiming and putting parts down behave exactly as before. A swap whose prop isn't imported leaves its boxes showing and says so in the log. 'dress' entries only add a model (no boxes hidden, no collision): the photoreal pass's clutter.",
+  "swaps": [
+    {"prop": "shed_workbench", "at": [-600, 60, 0], "yaw": -90, "hide": ["Bench_Body", "Bench_Top", "Bench_Drawers_"]},
+    {"prop": "shed_radio", "at": [-633, -145, 161.5], "yaw": -90, "hide": ["Radio_Shelf", "Radio"]},
+    {"prop": "tyre_changer", "at": [-604, 355, 0], "yaw": -90, "hide": ["TyreChanger_"]},
+    {"prop": "parts_computer", "at": [605, 190, 0], "yaw": 90, "hide": ["PC_Desk", "PC_DeskTop", "PC_Monitor", "PC_Keyboard"]},
+    {"prop": "engine_stand", "at": [560, -40, 0], "yaw": 0, "hide": ["EngineStand_"]},
+    {"prop": "washer_standard", "at": [545, 490, 0], "yaw": 180, "hide": ["PartsWasher"]},
+    {"prop": "repair_standard", "at": [340, 490, 0], "yaw": 180, "hide": ["RepairBench"]},
+    {"prop": "bin_general", "at": [-275, 517, 0], "yaw": 180, "hide": ["Bin_General"]},
+    {"prop": "bin_plastic", "at": [-333, 517, 0], "yaw": 180, "hide": ["Bin_Plastic"]},
+    {"prop": "bin_metal", "at": [-391, 517, 0], "yaw": 180, "hide": ["Bin_Metal"]},
+    {"prop": "light_switches", "at": [285, 548, 128], "yaw": 180, "hide": ["Switches"]}
+  ],
+  "dress": [
+    {"prop": "dress_barrel_02", "at": [-605, 505, 0], "yaw": 20},
+    {"prop": "dress_barrel_02", "at": [-545, 515, 0], "yaw": 70},
+    {"prop": "dress_old_tyre", "at": [-470, 535, 0], "yaw": 0},
+    {"prop": "dress_lubricant_spray", "at": [-570, 255, 94.5], "yaw": 30},
+    {"prop": "dress_oil_tin", "at": [-620, 270, 94.5], "yaw": 0},
+    {"prop": "dress_spray_paint_bottles", "at": [-625, 200, 94.5], "yaw": 80},
+    {"prop": "dress_multi_cleaner_5_litre", "at": [330, 510, 96], "yaw": 160},
+    {"prop": "dress_metal_jerrycan_green", "at": [455, 530, 0], "yaw": 180},
+    {"prop": "dress_korean_fire_extinguisher_01", "at": [-630, 440, 0], "yaw": -90},
+    {"prop": "trinket_clock", "at": [648, 190, 230], "yaw": 90}
+  ]
+}
