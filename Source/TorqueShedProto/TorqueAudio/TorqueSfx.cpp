@@ -328,9 +328,9 @@ void UTorqueSfx::JobDone(const FTorqueShedRequest& R, int32 HeldBefore, const FV
 	// Each job's sound in the log (the test rounds read it): the act, the sound, its voice (0: it
 	// didn't play: the sound's missing or there's no mixer).
 	// Acts Torque Shed has no name for here (no done sound of their own) show as their number.
-	const FString Shown = Name.IsEmpty() ? FString::Printf(TEXT("act %d"), (int32)R.Kind) : Name;
-	auto Said = [&Shown](const TCHAR* Sound, int32 Voice) {
-		UE_LOG(LogTemp, Log, TEXT("Torque: sfx job %s: %s (voice %d)"), *Shown, Sound, Voice);
+	const FString ActShown = Name.IsEmpty() ? FString::Printf(TEXT("act %d"), (int32)R.Kind) : Name;
+	auto Said = [&ActShown](const TCHAR* Sound, int32 Voice) {
+		UE_LOG(LogTemp, Log, TEXT("Torque: sfx job %s: %s (voice %d)"), *ActShown, Sound, Voice);
 	};
 	// Putting a part down lands it, by what it's made of and what it lands on (sfx.gd job_done).
 	if ((R.Kind == ETorqueShedAct::Drop || R.Kind == ETorqueShedAct::Place) && HeldBefore != 0 && B)
