@@ -42,6 +42,8 @@ public:
 	void Hold(const FVector2D& Mouse, bool bLeftDown);
 	void RightClick(const FVector2D& Mouse);
 	FString PreviewShowing() const;   // for the test log
+	// The preview shows the row picked now (Draw does this each frame; a test step reads it before the next).
+	void SyncPreview(AHUD* Hud) { ShowPicked(Hud); }
 	FTorqueComputerAction Pad(int32 RowStep, int32 KindStep, bool bChoose);
 	// For the test steps: pick a kind ("bikes", "paint:bases", "paint:tints" or a part kind) and a model.
 	bool PickKind(FName Kind);
