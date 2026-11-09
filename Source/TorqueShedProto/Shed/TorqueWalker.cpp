@@ -537,6 +537,9 @@ void ATorqueWalker::ReadInput(float Dt)
 			CloseComputer();
 			return;
 		}
+		// The 3D preview: dragging turns it, a right-click on it stops or starts it turning.
+		Computer.Hold(Mouse, Down(EKeys::LeftMouseButton));
+		if (Just(EKeys::RightMouseButton)) Computer.RightClick(Mouse);
 		if (Just(EKeys::LeftMouseButton))
 		{
 			ComputerDo(Computer.Click(Mouse));
@@ -2028,7 +2031,7 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 	if (!bComputer) OpenComputer();
 	if (!Kind.IsNone() && !Computer.PickKind(Kind)) return FString::Printf(TEXT("no kind %s on the computer"), *Kind.ToString());
 	if (!Part.IsNone() && !Computer.PickPart(Part)) return FString::Printf(TEXT("no %s under %s"), *Part.ToString(), *Kind.ToString());
-	FString Out = Computer.Describe();
+	FString Out = Computer.Describe() + TEXT(" [3D preview: ") + Computer.PreviewShowing() + TEXT("]");
 	if (bOrder)
 	{
 		Note.Reset();

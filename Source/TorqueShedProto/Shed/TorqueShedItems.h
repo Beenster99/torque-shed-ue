@@ -30,6 +30,10 @@ public:
 
 	// The item a mesh shows (0 for none).
 	static int32 ItemOf(const UActorComponent* C);
+	// A new part as it comes out of its box (the shop's 3D preview, ATorqueShopPreview): drawn as
+	// Draw draws an unboxed part with nothing on it, under Holder, in the catalogue's colour. Cube is
+	// the block for a part with no model yet. Returns the meshes made.
+	static int32 MakeNewPart(AActor* Outer, USceneComponent* Holder, FName Part, UStaticMesh* Cube, TArray<UStaticMeshComponent*>& Made);
 	// All the meshes, for the walker's look test.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Meshes;
 	// Where an item is drawn now (its box's centre), if it's drawn.
