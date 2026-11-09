@@ -121,3 +121,21 @@ beenster's five chopper tank drawings (Nov 2026) replace the chopper's tanks:
   round-roofed tunnel the whole length; tank 1's side line is a crease, and tank 2's double outline is its
   rounded edge (no crease).
 - Models, renders and scripts are in the project files under `chopper_tanks/`.
+
+# New cruiser tanks
+
+beenster's five cruiser tank drawings (Nov 2026) replace the cruiser's tanks:
+
+| Drawing | Part and shape | Capacity |
+|---|---|---|
+| Tank 1 (recessed side panel, 2 mm) | `cruiser_1` (the cruiser reference bike's tank) | 30 L |
+| Tank 2 | `cruiser_2` | 23 L |
+| Tank 3 | `cruiser_3` | 32 L |
+| Tank 4 | `cruiser_4` | 29 L |
+| Tank 5 | `cruiser_5` | 21 L |
+
+- `fatbob_23` is taken off sale (it had no other style left; old saves move to `cruiser_1`), and `peanut_9`
+  is now a bobber tank only.
+- The tanks are `like` the `fatbob` shape, drawn whole at its length (0.64 m), with round sections from the
+  front view (as the chopper tanks); the thin lines are flush creases and the bottom line a crease.
+- Models, renders and scripts are in the project files under `cruiser_tanks/`.
