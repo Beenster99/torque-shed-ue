@@ -1838,10 +1838,10 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		const double Yaw = FMath::DegreesToRadians(OrbitYaw + LookYaw);
 		const FVector Right = FVector::CrossProduct(FVector::UpVector, Flat);
 		const FVector Centre = BikePos + Flat * 5.0 + FVector(0, 0, 55.0);
-		const FVector Pos = Centre + (Flat * FMath::Cos(Yaw) + Right * FMath::Sin(Yaw)) * 270.0
+		const FVector Pos = Centre + (Flat * FMath::Cos(Yaw) + Right * FMath::Sin(Yaw)) * OrbitDist
 			+ FVector(0, 0, 55.0 - LookPitch * 4.0);
 		Camera->SetWorldLocationAndRotation(Pos, (Centre - Pos).Rotation());
-		Camera->SetFieldOfView(40.0f);
+		Camera->SetFieldOfView((float)OrbitFov);
 		return;
 	}
 	if (CameraMode == 1 || CameraMode == 2)

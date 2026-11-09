@@ -76,8 +76,9 @@
 //                         reference part (the frame too) thrown away, and the bike finished as that style
 //   ridelog               on the road: our bike's riding spec, what it's doing now, its drawn groups and
 //                         where the rider sits (seat, pegs, grips and the pose's hips, wrists and ankles)
-//   camera:<mode>[:<yaw>] on the road: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at yaw degrees
-//                         round from ahead (90 side on from the right)
+//   camera:<mode>[:<yaw>[:<cm>[:<fov>]]]  on the road: 0 chase, 1 first person, 2 chin, 3 the showroom orbit
+//                         held at yaw degrees round from ahead (90 side on from the right), cm out (270)
+//                         with that field of view (40); rides uses 3:90:450:60, the whole rider and bike
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again

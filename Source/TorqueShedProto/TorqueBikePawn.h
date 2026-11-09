@@ -71,7 +71,15 @@ public:
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
 	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
 	// from straight ahead (90: side on from the bike's right).
-	void TestCamera(int32 Mode, double Yaw) { CameraMode = FMath::Clamp(Mode, 0, CameraModes - 1); OrbitYaw = Yaw; bOrbitHeld = true; }
+	// Dist and Fov: the orbit's distance (cm) and field of view (degrees), 0 for the showroom's own.
+	void TestCamera(int32 Mode, double Yaw, double Dist = 0.0, double Fov = 0.0)
+	{
+		CameraMode = FMath::Clamp(Mode, 0, CameraModes - 1);
+		OrbitYaw = Yaw;
+		bOrbitHeld = true;
+		OrbitDist = Dist > 0.0 ? Dist : 270.0;
+		OrbitFov = Fov > 0.0 ? Fov : 40.0;
+	}
 
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
 	UPROPERTY(EditAnywhere, Category = "Ride", meta = (ClampMin = "0", ClampMax = "1"))
@@ -174,6 +182,7 @@ private:
 	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit
 	static constexpr int32 CameraModes = 4;
 	double OrbitYaw = 40.0;           // showroom: degrees round from straight ahead, to the right
+	double OrbitDist = 270.0, OrbitFov = 40.0;   // the showroom's distance (cm) and field of view
 	bool bOrbitHeld = false;          // -TorqueOrbitYaw: hold the angle instead of turning
 	bool bRiderShown = true;
 	FVector CamPos = FVector::ZeroVector;

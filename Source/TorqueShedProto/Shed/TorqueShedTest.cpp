@@ -131,7 +131,7 @@ const TCHAR* const RideSteps =
 // the start and after 10 s of the robot riding (spec, groups, the rider's seat, pegs, grips and
 // pose), a shot of it on the road and one side on from its right, and back.
 #define TORQUE_RIDE_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",log,look:bike,shot,tool:hands,rideout,wait:6,ridelog,shot,robot:on,wait:10,ridelog,shot,") \
-	TEXT("camera:3:90,wait:1,shot,camera:0,robot:off,back,wait:6,")
+	TEXT("camera:3:90:450:60,wait:1,shot,camera:0,robot:off,back,wait:6,")
 const TCHAR* const RidesSteps =
 	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
 	TORQUE_RIDE_STYLE("cafe") TORQUE_RIDE_STYLE("chopper") TORQUE_RIDE_STYLE("sport") TORQUE_RIDE_STYLE("mx")
@@ -327,8 +327,9 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			const int32 Mode = P.Num() > 1 ? FCString::Atoi(*P[1]) : 0;
 			const double Yaw = P.Num() > 2 ? FCString::Atod(*P[2]) : 40.0;
-			Bike->TestCamera(Mode, Yaw);
-			Said(FString::Printf(TEXT("camera %d, %.0f deg round"), Mode, Yaw));
+			const double Dist = P.Num() > 3 ? FCString::Atod(*P[3]) : 0.0, Fov = P.Num() > 4 ? FCString::Atod(*P[4]) : 0.0;
+			Bike->TestCamera(Mode, Yaw, Dist, Fov);
+			Said(FString::Printf(TEXT("camera %d, %.0f deg round, %.0f cm out, %.0f deg view"), Mode, Yaw, Dist, Fov));
 			return true;
 		}
 				if (Verb == TEXT("robot"))
