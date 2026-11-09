@@ -11,6 +11,7 @@
 #include "CoreMinimal.h"
 
 class AHUD;
+class ATorqueShopPreview;
 class UCanvas;
 class UFont;
 class UTorqueBuildSubsystem;
@@ -33,7 +34,12 @@ public:
 	// The page, sized to the screen. Mouse: the cursor, for the hover. Status: what the shed last said.
 	void Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSubsystem* Shed, const FVector2D& Mouse, const FString& Status, bool bStatusOk);
 	FTorqueComputerAction Click(const FVector2D& Mouse);
-	void Scroll(const FVector2D& Mouse, int32 Dir);   // the wheel over a list: Dir +1 down, -1 up
+	void Scroll(const FVector2D& Mouse, int32 Dir);   // the wheel over a list: Dir +1 down, -1 up (over the preview: zoom)
+	// The 3D preview's mouse (ATorqueShopPreview): every frame the page is up, where the mouse is and
+	// whether the left button is held (dragging turns it); a right-click on it stops or starts it turning.
+	void Hold(const FVector2D& Mouse, bool bLeftDown);
+	void RightClick(const FVector2D& Mouse);
+	FString PreviewShowing() const;   // for the test log
 	FTorqueComputerAction Pad(int32 RowStep, int32 KindStep, bool bChoose);
 	// For the test steps: pick a kind ("bikes", "paint:bases", "paint:tints" or a part kind) and a model.
 	bool PickKind(FName Kind);
@@ -49,7 +55,7 @@ private:
 	enum class ESection : uint8 { Bike, Shed };
 	struct FKindRow { FName Kind; FString Heading; };   // a heading row has no Kind
 	struct FRow { FName Part; int32 Stock = INDEX_NONE; };
-	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order };
+	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style };
 	struct FHit { FBox2D Box; EHit What; int32 Arg; };
 
 	ESection Section = ESection::Bike;
@@ -61,6 +67,12 @@ private:
 	TArray<FHit> Hits;           // where the last drawing put its buttons
 	FBox2D KindBox = FBox2D(ForceInit), RowBox = FBox2D(ForceInit);
 	int32 KindsShown = 1, RowsShown = 1;
+	// The picked item turning in 3D at the top of the detail column (the local player's studio).
+	TWeakObjectPtr<ATorqueShopPreview> Preview;
+	int32 BikeStyle = 0;         // the project bike's style shown (the one ordered is any of them)
+	FString StyleShown;          // ... and its reference bike's parts, looked up when it changes
+	TMap<FString, FString> StyleParts;
+	void ShowPicked(AHUD* Hud);
 
 	void Relist();               // KindRows and Rows for the aisle and kind
 	void PickSection(ESection S);

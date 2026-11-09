@@ -4,10 +4,12 @@
 #include "Shed/TorquePaintBay.h"
 #include "Shed/TorquePaintMix.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueShopPreview.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "GameFramework/HUD.h"
+#include "GameFramework/PlayerController.h"
 
 namespace TorquePartsComputerImpl
 {
@@ -108,6 +110,14 @@ FString KindTitle(FName K)
 	if (K == PaintBases) return TEXT("Paint bases");
 	if (K == PaintTints) return TEXT("Tints");
 	return TorqueShedParts::KindName(K);
+}
+
+// "cafe_racer" -> "Cafe racer".
+FString StyleTitle(const FString& Id)
+{
+	FString Out = Id.Replace(TEXT("_"), TEXT(" "));
+	if (Out.Len() > 0) Out[0] = FChar::ToUpper(Out[0]);
+	return Out;
 }
 
 FString Join(const TArray<FString>& Parts)
@@ -279,6 +289,8 @@ const FTorquePartsComputer::FHit* FTorquePartsComputer::HitAt(const FVector2D& M
 FTorqueComputerAction FTorquePartsComputer::Click(const FVector2D& Mouse)
 {
 	FTorqueComputerAction A;
+	if (ATorqueShopPreview* P = Preview.Get())
+		if (P->Press(Mouse)) return A;
 	const FHit* H = HitAt(Mouse);
 	if (!H) return A;
 	switch (H->What)
@@ -289,16 +301,74 @@ FTorqueComputerAction FTorquePartsComputer::Click(const FVector2D& Mouse)
 	case EHit::Kind: PickKindAt(H->Arg); break;
 	case EHit::Row: if (Rows.IsValidIndex(H->Arg)) Row = H->Arg; break;
 	case EHit::Order: A = OrderPicked(); break;
+	case EHit::Style:
+	{
+		const int32 N = ATorqueShopPreview::BikeStyles().Num();
+		if (N > 0) BikeStyle = (BikeStyle + H->Arg + N) % N;
+		break;
+	}
 	}
 	return A;
 }
 
 void FTorquePartsComputer::Scroll(const FVector2D& Mouse, int32 Dir)
 {
+	if (ATorqueShopPreview* P = Preview.Get())
+		if (P->Wheel(Mouse, Dir)) return;
 	if (KindBox.bIsValid && KindBox.IsInside(Mouse))
 		KindScroll = FMath::Clamp(KindScroll + Dir * 3, 0, FMath::Max(0, KindRows.Num() - KindsShown));
 	else if (RowBox.bIsValid && RowBox.IsInside(Mouse))
 		RowScroll = FMath::Clamp(RowScroll + Dir * 2, 0, FMath::Max(0, Rows.Num() - RowsShown));
+}
+
+void FTorquePartsComputer::Hold(const FVector2D& Mouse, bool bLeftDown)
+{
+	if (ATorqueShopPreview* P = Preview.Get()) P->Hold(Mouse, bLeftDown);
+}
+
+void FTorquePartsComputer::RightClick(const FVector2D& Mouse)
+{
+	if (ATorqueShopPreview* P = Preview.Get()) P->RightPress(Mouse);
+}
+
+FString FTorquePartsComputer::PreviewShowing() const
+{
+	const ATorqueShopPreview* P = Preview.Get();
+	return P ? P->Showing() : FString(TEXT("no preview"));
+}
+
+void FTorquePartsComputer::ShowPicked(AHUD* Hud)
+{
+	ATorqueShopPreview* P = Preview.Get();
+	if (!P && Hud)
+	{
+		P = ATorqueShopPreview::For(Hud->PlayerOwner);
+		Preview = P;
+	}
+	if (!P) return;
+	if (!Rows.IsValidIndex(Row))
+	{
+		P->ShowNothing();
+		return;
+	}
+	const FRow& R = Rows[Row];
+	if (R.Stock != INDEX_NONE) P->ShowPaint(R.Stock);
+	else if (R.Part == FName(TEXT("bike")))
+	{
+		const TArray<FString> Styles = ATorqueShopPreview::BikeStyles();
+		if (Styles.Num() == 0) P->ShowNothing();
+		else
+		{
+			const FString& Style = Styles[FMath::Clamp(BikeStyle, 0, Styles.Num() - 1)];
+			if (Style != StyleShown)
+			{
+				StyleShown = Style;
+				StyleParts = ATorqueShopPreview::StyleBike(Style);
+			}
+			P->ShowBike(StyleParts);
+		}
+	}
+	else P->ShowPart(R.Part);
 }
 
 FTorqueComputerAction FTorquePartsComputer::Pad(int32 RowStep, int32 KindStep, bool bChoose)
@@ -454,7 +524,8 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		else if (R.Part == FName(TEXT("bike")))
 		{
 			Title = TEXT("A project bike");
-			Desc = TEXT("A tired, rusty bike, complete, put in the first free bay. Strip it down, clean it up, rebuild it and ride it out of the door.");
+			Desc = TEXT("A tired, rusty bike, complete, put in the first free bay. Strip it down, clean it up, rebuild it and ride it out of the door.")
+				TEXT("\n\nIt comes in any of the styles: the one above is shown clean, as it was built.");
 			OrderText = TEXT("Order a project bike");
 		}
 		else
@@ -471,6 +542,30 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		}
 	}
 	float DY = ColTop + 4.0f * S;
+	// The picked item in 3D, turning (drag to turn, wheel to zoom, right-click to pause).
+	ShowPicked(Hud);
+	if (ATorqueShopPreview* P = Preview.Get())
+	{
+		const float PrevH = FMath::Min(DW / 1.6f, (ColBottom - ColTop) * 0.5f);
+		P->Draw(Hud, Canvas, FBox2D(FVector2D(DX, DY), FVector2D(DX + DW, DY + PrevH)), Mouse);
+		DY += PrevH + 8.0f * S;
+		// A project bike comes in any style: page through them.
+		if (Rows.IsValidIndex(Row) && Rows[Row].Part == FName(TEXT("bike")))
+		{
+			const TArray<FString> Styles = ATorqueShopPreview::BikeStyles();
+			if (Styles.Num() > 0)
+			{
+				BikeStyle = FMath::Clamp(BikeStyle, 0, Styles.Num() - 1);
+				const float SB = 30.0f * S;
+				Btn(DX, DY, SB, SB, TEXT("<"), 16.0f * S, false, EHit::Style, -1);
+				Btn(DX + DW - SB, DY, SB, SB, TEXT(">"), 16.0f * S, false, EHit::Style, 1);
+				const FString Label = Pen.Fit(FString::Printf(TEXT("%s  (style %d of %d)"), *TPCI::StyleTitle(Styles[BikeStyle]), BikeStyle + 1, Styles.Num()),
+					15.0f * S, DW - 2.0f * SB - 16.0f * S);
+				Pen.Text(DX + (DW - Pen.Width(Label, 15.0f * S)) * 0.5f, DY + (SB - 18.0f * S) * 0.5f, Label, 15.0f * S, TPCI::Text);
+				DY += SB + 8.0f * S;
+			}
+		}
+	}
 	for (const FString& L : Pen.Wrap(Title, 22.0f * S, DW))
 	{
 		Pen.Text(DX, DY, L, 22.0f * S, FColor::White);
