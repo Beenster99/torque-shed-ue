@@ -39,6 +39,7 @@ private:
 	UPROPERTY(Transient) UInstancedStaticMeshComponent* Puffs = nullptr;
 	TWeakObjectPtr<UExponentialHeightFogComponent> HeightFog;
 	bool bTurnedOnVolumetric = false;
+	float WasFogDistance = 6000.0f;   // the height fog's volumetric distance before the mist shortened it
 	double Haze = 0.0, Clock = 0.0;
 	double FogUnit = 0.0;       // the fog volume's radius at scale 1 (cm)
 	struct FPuff
