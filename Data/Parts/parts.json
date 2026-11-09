@@ -6591,8 +6591,7 @@
 				"pads": false
 			},
 			"styles": [
-				"bobber",
-				"cruiser"
+				"bobber"
 			],
 			"pack": "bobber"
 		},
@@ -6618,29 +6617,6 @@
 				"bobber"
 			],
 			"pack": "chopper"
-		},
-		"fatbob_23": {
-			"name": "Fat bob tank, 23 L",
-			"description": "The big split cruiser tank: twin caps and a chrome console down the middle with the speedo in it.",
-			"mass": 5.5,
-			"capacity": 23,
-			"style": "touring",
-			"color": [
-				0.04,
-				0.04,
-				0.045
-			],
-			"price": 340,
-			"look": {
-				"shape": "fatbob",
-				"cap": "twin",
-				"console": true,
-				"badge": "wing"
-			},
-			"styles": [
-				"cruiser"
-			],
-			"pack": "cruiser"
 		},
 		"sport_17": {
 			"name": "Sport tank, 17 L",
@@ -7326,6 +7302,136 @@
 				"chopper"
 			],
 			"pack": "chopper"
+		},
+		"cruiser_1": {
+			"name": "Cruiser tank 1, 30 L",
+			"description": "Tall cruiser tank with a recessed panel in each flank and a crisp lower edge.",
+			"mass": 7.2,
+			"capacity": 30,
+			"style": "touring",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"price": 340,
+			"look": {
+				"shape": "cruiser_1",
+				"badge": "none",
+				"scale": [
+					0.963,
+					0.796,
+					0.796
+				]
+			},
+			"styles": [
+				"cruiser"
+			],
+			"pack": "cruiser"
+		},
+		"cruiser_2": {
+			"name": "Cruiser tank 2, 23 L",
+			"description": "Long, low teardrop cruiser tank with soft flush creases.",
+			"mass": 5.5,
+			"capacity": 23,
+			"style": "touring",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"price": 340,
+			"look": {
+				"shape": "cruiser_2",
+				"badge": "none",
+				"scale": [
+					0.978,
+					0.868,
+					0.868
+				]
+			},
+			"styles": [
+				"cruiser"
+			],
+			"pack": "cruiser"
+		},
+		"cruiser_3": {
+			"name": "Cruiser tank 3, 32 L",
+			"description": "Bulbous cruiser tank with a stepped tail and a sweeping crease on each flank.",
+			"mass": 7.7,
+			"capacity": 32,
+			"style": "touring",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"price": 340,
+			"look": {
+				"shape": "cruiser_3",
+				"badge": "none",
+				"scale": [
+					0.959,
+					0.779,
+					0.779
+				]
+			},
+			"styles": [
+				"cruiser"
+			],
+			"pack": "cruiser"
+		},
+		"cruiser_4": {
+			"name": "Cruiser tank 4, 29 L",
+			"description": "Broad, squared-off cruiser tank with flush creases along its shoulders.",
+			"mass": 6.9,
+			"capacity": 29,
+			"style": "touring",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"price": 340,
+			"look": {
+				"shape": "cruiser_4",
+				"badge": "none",
+				"scale": [
+					0.965,
+					0.804,
+					0.804
+				]
+			},
+			"styles": [
+				"cruiser"
+			],
+			"pack": "cruiser"
+		},
+		"cruiser_5": {
+			"name": "Cruiser tank 5, 21 L",
+			"description": "Cruiser tank with a slim waist, a sweeping flank crease and a crisp lower edge.",
+			"mass": 5.0,
+			"capacity": 21,
+			"style": "touring",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"price": 340,
+			"look": {
+				"shape": "cruiser_5",
+				"badge": "none",
+				"scale": [
+					0.983,
+					0.895,
+					0.895
+				]
+			},
+			"styles": [
+				"cruiser"
+			],
+			"pack": "cruiser"
 		}
 	},
 	"saddle": {

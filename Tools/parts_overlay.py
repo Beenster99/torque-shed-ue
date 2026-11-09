@@ -38,8 +38,8 @@ def apply_catalogue(cat, ov=None):
     for kind, ids in ov.get("remove", {}).items():
         for pid in ids:
             p = cat.get(kind, {}).pop(pid, None)
-            if p is not None:
-                removed.setdefault(kind, {})[pid] = p
+            if p is not None and pid not in removed.get(kind, {}):
+                removed.setdefault(kind, {})[pid] = p   # (Godot's, the first time)
     for kind, m in ov.get("drop_styles", {}).items():
         for pid, styles in m.items():
             p = cat.get(kind, {}).get(pid)

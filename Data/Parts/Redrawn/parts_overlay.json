@@ -521,12 +521,143 @@
      "chopper"
     ],
     "pack": "chopper"
+   },
+   "cruiser_1": {
+    "name": "Cruiser tank 1, 30 L",
+    "description": "Tall cruiser tank with a recessed panel in each flank and a crisp lower edge.",
+    "mass": 7.2,
+    "capacity": 30,
+    "style": "touring",
+    "color": [
+     0.04,
+     0.04,
+     0.045
+    ],
+    "price": 340,
+    "look": {
+     "shape": "cruiser_1",
+     "badge": "none",
+     "scale": [
+      0.963,
+      0.796,
+      0.796
+     ]
+    },
+    "styles": [
+     "cruiser"
+    ],
+    "pack": "cruiser"
+   },
+   "cruiser_2": {
+    "name": "Cruiser tank 2, 23 L",
+    "description": "Long, low teardrop cruiser tank with soft flush creases.",
+    "mass": 5.5,
+    "capacity": 23,
+    "style": "touring",
+    "color": [
+     0.04,
+     0.04,
+     0.045
+    ],
+    "price": 340,
+    "look": {
+     "shape": "cruiser_2",
+     "badge": "none",
+     "scale": [
+      0.978,
+      0.868,
+      0.868
+     ]
+    },
+    "styles": [
+     "cruiser"
+    ],
+    "pack": "cruiser"
+   },
+   "cruiser_3": {
+    "name": "Cruiser tank 3, 32 L",
+    "description": "Bulbous cruiser tank with a stepped tail and a sweeping crease on each flank.",
+    "mass": 7.7,
+    "capacity": 32,
+    "style": "touring",
+    "color": [
+     0.04,
+     0.04,
+     0.045
+    ],
+    "price": 340,
+    "look": {
+     "shape": "cruiser_3",
+     "badge": "none",
+     "scale": [
+      0.959,
+      0.779,
+      0.779
+     ]
+    },
+    "styles": [
+     "cruiser"
+    ],
+    "pack": "cruiser"
+   },
+   "cruiser_4": {
+    "name": "Cruiser tank 4, 29 L",
+    "description": "Broad, squared-off cruiser tank with flush creases along its shoulders.",
+    "mass": 6.9,
+    "capacity": 29,
+    "style": "touring",
+    "color": [
+     0.04,
+     0.04,
+     0.045
+    ],
+    "price": 340,
+    "look": {
+     "shape": "cruiser_4",
+     "badge": "none",
+     "scale": [
+      0.965,
+      0.804,
+      0.804
+     ]
+    },
+    "styles": [
+     "cruiser"
+    ],
+    "pack": "cruiser"
+   },
+   "cruiser_5": {
+    "name": "Cruiser tank 5, 21 L",
+    "description": "Cruiser tank with a slim waist, a sweeping flank crease and a crisp lower edge.",
+    "mass": 5.0,
+    "capacity": 21,
+    "style": "touring",
+    "color": [
+     0.04,
+     0.04,
+     0.045
+    ],
+    "price": 340,
+    "look": {
+     "shape": "cruiser_5",
+     "badge": "none",
+     "scale": [
+      0.983,
+      0.895,
+      0.895
+     ]
+    },
+    "styles": [
+     "cruiser"
+    ],
+    "pack": "cruiser"
    }
   }
  },
  "remove": {
   "tank": [
-   "adv_25"
+   "adv_25",
+   "fatbob_23"
   ]
  },
  "drop_styles": {
@@ -540,11 +671,9 @@
    "touring_23": [
     "tourer"
    ],
-   "fatbob_23": [
-    "tourer"
-   ],
    "peanut_9": [
-    "chopper"
+    "chopper",
+    "cruiser"
    ],
    "coffin_10": [
     "chopper"
@@ -552,7 +681,8 @@
   }
  },
  "retired": {
-  "adv_25": "adventure_1"
+  "adv_25": "adventure_1",
+  "fatbob_23": "cruiser_1"
  },
  "reference": {
   "adventure": {
@@ -563,6 +693,9 @@
   },
   "chopper": {
    "tank": "chopper_1"
+  },
+  "cruiser": {
+   "tank": "cruiser_1"
   }
  }
 }
