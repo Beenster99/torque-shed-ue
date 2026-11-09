@@ -190,6 +190,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->SetupAttachment(Driver);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
@@ -217,6 +218,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
 		C->SetCastShadow(true);
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards %s on %s%s"), *E.Name, *P.Static, *On->GetName(),
@@ -251,6 +253,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->SetupAttachment(Driver);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		C->SetLeaderPoseComponent(Driver, true);
 		ApplyMaterials(C, P.Materials);
@@ -301,6 +304,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 			PC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			PC->SetGenerateOverlapEvents(false);
 		}
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		if (UMeshComponent* MC = Cast<UMeshComponent>(C)) ApplyMaterials(MC, P.Materials);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s%s, LOD %d (asset %s)"), *E.Name, *P.Name, *On->GetName(),
@@ -509,6 +513,7 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 		const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(Fwd.Y, Fwd.X));
 		Driver->SetRelativeRotation(FRotator(0.0, -Yaw, 0.0));
 	}
+	Driver->PrecachePSOs();
 	Driver->RegisterComponent();
 	if (AActor* A = Spawned.Get())
 	{

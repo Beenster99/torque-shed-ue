@@ -939,19 +939,53 @@ def _get_any(obj, *names):
 
 
 def _cards_lod(groom):
-    """The first LOD of the groom drawn as cards or meshes in every hair group (strands are the GPU
-    cost), or -1 if it's strands at every LOD."""
+    """The first LOD the groom can draw without strands in every hair group: drawn as cards or
+    meshes, visible, and with that card or mesh geometry actually in the asset (a short style built
+    at Medium can list cards at a LOD that has none, or hide its cards LODs). -1 if there isn't one.
+    Logs the whole LOD table, so a groom that won't show can be read off."""
+    def prop(o, *names):
+        for n in names:
+            try:
+                return o.get_editor_property(n)
+            except Exception:
+                pass
+        return None
     try:
         groups = list(groom.get_editor_property("hair_groups_lod"))
-        per = [[str(l.get_editor_property("geometry_type")).upper() for l in grp.get_editor_property("lods")] for grp in groups]
     except Exception as e:
         log("groom %s: couldn't read its LODs: %s" % (_path(groom), e))
         return -1
-    n = max((len(p) for p in per), default=0)
+    # Which (group, lod) have card or mesh geometry.
+    have = set()
+    for field, mesh_names in (("hair_groups_cards", ("imported_mesh", "procedural_mesh", "mesh")),
+                              ("hair_groups_meshes", ("imported_mesh", "mesh"))):
+        for d in (prop(groom, field) or []):
+            gi, li = prop(d, "group_index"), prop(d, "lod_index")
+            m = next((v for v in (prop(d, n) for n in mesh_names) if v is not None), None)
+            log("groom %s: %s group %s lod %s mesh %s" % (_path(groom).rsplit(".", 1)[-1], field, gi, li, _path(m) if m is not None else "none"))
+            if m is not None and gi is not None and li is not None:
+                have.add((int(gi), int(li)))
+    table = []
+    for gi, grp in enumerate(groups):
+        row = []
+        for li, l in enumerate(prop(grp, "lods") or []):
+            row.append((str(prop(l, "geometry_type")).upper(), prop(l, "visible", "b_visible"), prop(l, "screen_size")))
+        table.append(row)
+    log("groom %s LODs (type, visible, screen size) per group: %s" % (_path(groom).rsplit(".", 1)[-1], table))
+    n = max((len(r) for r in table), default=0)
     for i in range(n):
-        if all(i < len(p) and "STRAND" not in p[i] for p in per):
+        ok = True
+        for gi, r in enumerate(table):
+            if i >= len(r):
+                ok = False
+                break
+            typ, vis, _ = r[i]
+            if "STRAND" in typ or vis is False or (have and (gi, i) not in have):
+                ok = False
+                break
+        if ok:
             return i
-    log("groom %s: strands at every LOD (%s)" % (_path(groom), per))
+    log("groom %s: no LOD drawn without strands in every group" % _path(groom))
     return -1
 
 
