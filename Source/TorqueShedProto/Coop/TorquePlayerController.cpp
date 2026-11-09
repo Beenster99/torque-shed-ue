@@ -287,9 +287,9 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 		break;
 	}
 	const APlayerCameraManager* Cam = PlayerCameraManager;
-	const FString Clock = !GS ? FString(TEXT("-")) : GS->GetHour() < 0.0f ? FString(TEXT("level's own")) : ATorqueGameState::ClockText(GS->GetHour());
+	const FString ClockNow = !GS ? FString(TEXT("-")) : GS->GetHour() < 0.0f ? FString(TEXT("level's own")) : ATorqueGameState::ClockText(GS->GetHour());
 	return FString::Printf(TEXT("set %s = %s: fov %.0f (camera now %.1f), clock %s, weather %d, telemetry %d, units %s%s"), *Field, *Value, S.Fov,
-		Cam ? Cam->GetFOVAngle() : 0.0f, *Clock, GS ? GS->GetWeather() : -1, S.bTelemetry ? 1 : 0, S.Units == 0 ? TEXT("metric") : TEXT("imperial"), *Sun);
+		Cam ? Cam->GetFOVAngle() : 0.0f, *ClockNow, GS ? GS->GetWeather() : -1, S.bTelemetry ? 1 : 0, S.Units == 0 ? TEXT("metric") : TEXT("imperial"), *Sun);
 }
 
 FString ATorquePlayerController::TestFace(const FString& Slider, float Value)
