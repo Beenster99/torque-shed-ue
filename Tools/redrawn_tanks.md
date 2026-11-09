@@ -60,7 +60,7 @@ beenster's five adventure tank drawings (Nov 2026) replace the Godot game's adve
 
 | Drawing | Part and shape | Capacity |
 |---|---|---|
-| Tank 1 | `adventure_1` (the adventure reference bike's tank) | 34 L |
+| Tank 1 | `adventure_1` (the adventure reference bike's tank) | 39 L |
 | Tank 2 | `adventure_2` | 34 L |
 | Tank 3 | `adventure_3` | 37 L |
 | Tank 4 | `adventure_4` | 33 L |
@@ -72,9 +72,31 @@ beenster's five adventure tank drawings (Nov 2026) replace the Godot game's adve
   compares with Godot using them and Godot's own reference bikes (`SimTest/data/godot_reference.json`).
 - Each tank has a low tail that runs back under the seat. The body (nose to where the top drops under
   55% of its height) is drawn at the adv tank's length, 0.58 m, and the tail runs on past x = -1.
-  Capacity is 85% of the body's volume (the tail is not fuel).
+  Capacity is 85% of the body's volume (the tail is not fuel), measured off the crease cage (`vol3.py`).
 - The game grows a tank with its capacity; these are modelled at full size, so each part's `look.scale`
   cancels that growth and the game draws the tank as modelled.
 - The tank rests on the floor line at the lowest point of its tunnel over the middle 60% of its whole
   length, tail included (where `layout_test` reads it).
 - Models, renders and scripts are in the project files under `adventure_tanks/`.
+
+# New sports tourer tanks
+
+beenster's five sports tourer tank drawings (Nov 2026) replace the tourer's tanks:
+
+| Drawing | Part and shape | Capacity |
+|---|---|---|
+| Tank 1 | `sports_tourer_1` (the tourer reference bike's tank) | 32 L |
+| Tank 2 | `sports_tourer_2` | 30 L |
+| Tank 3 | `sports_tourer_3` | 28 L |
+| Tank 4 | `sports_tourer_4` | 30 L |
+| Tank 5 | `sports_tourer_5` | 28 L |
+
+- `angular_gt_19`, `touring_23` and `fatbob_23` are no longer offered for tourers (they keep their other
+  styles). The new tanks are `like` the `gt` shape, with the body drawn at its length (0.6 m) and the
+  short tail step running on past x = -1, as the adventure tanks.
+- The front U cut-out goes right through the nose (`gnotch.py`, as the sports tanks' steering-head notch);
+  the game mesh has it too, with each vertex's shape keys taken from its nearest uncut vertex.
+- The lugs under the side view are mirrored pairs on the front view's feet (matched by height), the tail's
+  step bracket sits at the plan's rear tabs, and tank 5's flank loop is a 2 mm pocket. Lugs, cap and pocket
+  are in the model files, not the game mesh (body only, as every tank).
+- Models, renders and scripts are in the project files under `tourer_tanks/`.
