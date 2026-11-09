@@ -51,7 +51,12 @@ EXPOSURE_BIAS = 0.2         # was 0.6
 HIGHLIGHTS = 0.35           # local exposure: how much contrast the bright windows and doorway keep (1 = none taken out)
 EXPOSURE_MAX = 11.5
 VOLUMETRIC_FOG = True       # the faint dusty shaft of daylight through the roller door (the fog's volumetric)
-SKY_LEAK = 0.04             # Lumen's skylight leaking: keeps the shed's far corners from going crushed black
+SKY_LEAK = 0.02             # Lumen's skylight leaking: keeps the far corners off crushed black (0.04 flattened the AO)
+LOCAL_FOG = 0.05            # the dust in the hall's air (a local fog volume's height fog extinction): 0 for none
+SUN_SCATTER = 3.0           # how strongly the sun lights that dust (the directional light's volumetric scattering)
+SUN_K, STRIP_K = 5000.0, 6000.0   # warm sun, cool daylight-white fluorescents (the white balance sits at 6300 K)
+LED_GLOW = 45.0             # the tubes' own glow (6 read as grey boxes against the exposure)
+FOOT_AO = 0.45              # the soft dark at the foot of walls, cabinets and benches (a decal each): 0 for none
 
 # The shed (workshop.gd): interior half sizes, height, wall thickness.
 HALF_X, HALF_Y = 650.0, 550.0
@@ -391,12 +396,12 @@ def materials():
         "screen": flat("M_ShedScreen", (0.10, 0.30, 0.50), 0.3, emissive=1.4),
         "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
         "screen_page": screen_page_material(),   # for the game: the screens' pages
-        "led": flat("M_ShedLed", (0.9, 0.88, 0.84), 0.5, emissive=6.0),
+        "led": flat("M_ShedLed", (0.9, 0.92, 0.95), 0.5, emissive=LED_GLOW),
         # The paint shop (workshop.gd _build_booth_room, equipment_view.gd _build_booth): white walls,
         # a dark ceiling for the hexagon LED tiles, the spray bay's panels, filter, grate and rails.
         "paint_wall": scanned(scans, "shed_paint_wall", "M_PaintShopWall", (0.90, 0.91, 0.92), 0.35, grain=0.0),
         "paint_ceiling": flat("M_PaintShopCeiling", (0.08, 0.08, 0.09), 0.6, metallic=0.2),
-        "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=8.0),
+        "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=LED_GLOW),
         "booth_panel": flat("M_BoothPanel", (0.94, 0.95, 0.96), 0.5, metallic=0.05),   # white enamel (0.88 read light grey)
         "booth_filter": flat("M_BoothFilter", (0.95, 0.60, 0.35), 0.95, grain=0.1),
         "booth_grate": flat("M_BoothGrate", (0.20, 0.21, 0.23), 0.4, metallic=0.8),
@@ -425,7 +430,15 @@ def shape(mesh, label, centre, size, mat, rot=(0.0, 0.0, 0.0), folder="Shed", co
     if not collide:
         c.set_collision_profile_name("NoCollision")
         c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    # Standing on the floor (walls, cabinets, benches, posts): a soft dark at its foot (foot_ao).
+    bottom = centre[2] - size[2] * 0.5
+    if (abs(bottom) < 1.5 and size[2] >= 30.0 and min(size[0], size[1]) >= 2.0 and rot == (0.0, 0.0, 0.0)
+            and not folder.startswith("Outside")):
+        FOOTPRINTS.append((label, centre[0], centre[1], size[0], size[1]))
     return a
+
+
+FOOTPRINTS = []   # (label, x, y, size x, size y) of what stands on the floor, for foot_ao()
 
 
 def box(label, x0, x1, y0, y1, z0, z1, mat, **kw):
@@ -939,7 +952,7 @@ def lights(m):
             try_set(lc, "intensity_units", units.LUMENS)
         for k, v in (("intensity", LED_LUMENS * (1.3 if i < len(BAY_X) else 1.0)), ("source_width", 130.0), ("source_height", 20.0),
                      ("attenuation_radius", 1200.0), ("barn_door_angle", 70.0),
-                     ("temperature", 4800.0), ("use_temperature", True), ("contact_shadow_length", 0.05)):
+                     ("temperature", STRIP_K), ("use_temperature", True), ("contact_shadow_length", 0.05)):
             try_set(lc, k, v)
     # The wash bay's own strip, and one down the middle of the storage room (it had none).
     strip_light("WashBayLight", (-930.0, 100.0, 290.0), 1400.0, 160.0, 15.0, 700.0, "WashBay")
@@ -948,7 +961,7 @@ def lights(m):
     box("Storage_Strip", -1100.0, -1080.0, -755.0, -625.0, ROOM_HEIGHT - 7.5, ROOM_HEIGHT - 2.5, m["led"], folder="Storage", collide=False)
 
 
-def strip_light(label, at, lumens, width, height, radius, folder, kelvin=4800.0):
+def strip_light(label, at, lumens, width, height, radius, folder, kelvin=None):
     # An LED batten's light, pointing down: a rect light the batten's size, a little contact shadow
     # so things sit on the bench and floor under it.
     light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(*at), unreal.Rotator(0.0, -90.0, 0.0))
@@ -961,7 +974,7 @@ def strip_light(label, at, lumens, width, height, radius, folder, kelvin=4800.0)
         try_set(lc, "intensity_units", units.LUMENS)
     for k, v in (("intensity", lumens), ("source_width", width), ("source_height", height),
                  ("attenuation_radius", radius), ("barn_door_angle", 70.0),
-                 ("temperature", kelvin), ("use_temperature", True), ("contact_shadow_length", 0.05)):
+                 ("temperature", kelvin or STRIP_K), ("use_temperature", True), ("contact_shadow_length", 0.05)):
         try_set(lc, k, v)
     return lc
 
@@ -990,13 +1003,81 @@ def outside(m):
         shape(SPHERE, "Fell_%d" % i, (x, y, -h * 0.25), (w, d, h * 2.0), m["hill"], folder="Outside", collide=False)
 
 
+def foot_ao():
+    """Ambient occlusion where things meet the floor: Lumen's GI leaves the foot of a wall or a
+    cabinet as bright as open floor, so they look pasted down. A soft dark decal round each
+    footprint (15 cm out from it, darkest at its edge), projected down onto the floor."""
+    if FOOT_AO <= 0.0 or not FOOTPRINTS:
+        return
+    mat = new_material("M_ShedFootAO")
+    try_set(mat, "material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    try_set(mat, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    uv = expr(mat, unreal.MaterialExpressionTextureCoordinate, -1200, 0)
+    centred = expr(mat, unreal.MaterialExpressionConstantBiasScale, -1000, 0, bias=-0.5, scale=2.0)
+    mel.connect_material_expressions(uv, "", centred, "")
+    ab = expr(mat, unreal.MaterialExpressionAbs, -850, 0)
+    mel.connect_material_expressions(centred, "", ab, "")
+    pw = expr(mat, unreal.MaterialExpressionPower, -700, 0, const_exponent=3.0)
+    mel.connect_material_expressions(ab, "", pw, "Base")
+    inv = expr(mat, unreal.MaterialExpressionOneMinus, -550, 0)
+    mel.connect_material_expressions(pw, "", inv, "")
+    mu = expr(mat, unreal.MaterialExpressionComponentMask, -400, -60, r=True, g=False, b=False, a=False)
+    mv = expr(mat, unreal.MaterialExpressionComponentMask, -400, 60, r=False, g=True, b=False, a=False)
+    mel.connect_material_expressions(inv, "", mu, "")
+    mel.connect_material_expressions(inv, "", mv, "")
+    both = expr(mat, unreal.MaterialExpressionMultiply, -250, 0)
+    mel.connect_material_expressions(mu, "", both, "A")
+    mel.connect_material_expressions(mv, "", both, "B")
+    strength = expr(mat, unreal.MaterialExpressionMultiply, -100, 0, const_b=FOOT_AO)
+    mel.connect_material_expressions(both, "", strength, "A")
+    mel.connect_material_property(strength, "", unreal.MaterialProperty.MP_OPACITY)
+    black = expr(mat, unreal.MaterialExpressionConstant3Vector, -100, -200, constant=unreal.LinearColor(0.0, 0.0, 0.0, 1.0))
+    mel.connect_material_property(black, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mat = finish(mat)
+    reach = 15.0
+    n = 0
+    for label, x, y, sx, sy in FOOTPRINTS[:500]:
+        d = actors.spawn_actor_from_class(unreal.DecalActor, unreal.Vector(x, y, 0.0), unreal.Rotator(0.0, -90.0, 0.0))
+        d.set_actor_label("FootAO_" + label)
+        d.set_folder_path("Lights/FootAO")
+        dc = d.get_component_by_class(unreal.DecalComponent)
+        dc.set_decal_material(mat)
+        # Pointing down: the decal's X is down, its Y the world's Y, its Z the world's X (half sizes).
+        try_set(dc, "decal_size", unreal.Vector(12.0, sy * 0.5 + reach, sx * 0.5 + reach))
+        n += 1
+    log("foot AO: %d decals" % n)
+
+
+def hall_dust():
+    """The dust in the hall's air, for the sun through the roller door to show in: a local fog
+    volume over the shed, its fog lying low (volumetric fog draws it lit by the sun and the strips)."""
+    cls = getattr(unreal, "LocalFogVolume", None)
+    if LOCAL_FOG <= 0.0 or cls is None:
+        log("no hall dust (LOCAL_FOG %.3f, LocalFogVolume %s)" % (LOCAL_FOG, cls is not None))
+        return
+    a = actors.spawn_actor_from_class(cls, unreal.Vector(0.0, 0.0, 200.0), unreal.Rotator(0, 0, 0))
+    a.set_actor_label("HallDust")
+    a.set_folder_path("Lights")
+    # Its sphere sized to the hall (whatever the engine's unit size is): about 8 m across the middle.
+    origin, extent = a.get_actor_bounds(False)
+    unit = max(extent.x, 1.0)
+    a.set_actor_scale3d(unreal.Vector(820.0 / unit, 820.0 / unit, 820.0 / unit))
+    fc = a.get_component_by_class(getattr(unreal, "LocalFogVolumeComponent"))
+    if fc:
+        for k, v in (("radial_fog_extinction", 0.0), ("height_fog_extinction", LOCAL_FOG), ("height_fog_falloff", 250.0),
+                     ("height_fog_offset", 0.0), ("fog_phase_g", 0.6), ("fog_albedo", unreal.LinearColor(0.92, 0.9, 0.86, 1.0))):
+            try_set(fc, k, v)
+    log("hall dust: local fog unit %.0f cm, scaled to 820" % unit)
+
+
 def sky():
     sun = actors.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 50000), unreal.Rotator(0.0, -30.0, -45.0))
     sun.set_actor_label("Sun")
     sc = sun.get_component_by_class(unreal.DirectionalLightComponent)
     sc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
     for k, v in (("atmosphere_sun_light", True), ("intensity", SUN_LUX), ("light_source_angle", 0.53),
-                 ("light_color", unreal.Color(255, 247, 235, 255))):
+                 ("light_color", unreal.Color(255, 255, 255, 255)), ("use_temperature", True), ("temperature", SUN_K),
+                 ("volumetric_scattering_intensity", SUN_SCATTER)):
         try_set(sc, k, v)
     atm = actors.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, -100), unreal.Rotator(0, 0, 0))
     ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
@@ -1007,6 +1088,7 @@ def sky():
     skc = skl.get_component_by_class(unreal.SkyLightComponent)
     skc.set_editor_property("real_time_capture", True)
     skc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    try_set(skc, "light_color", unreal.Color(232, 242, 255, 255))   # the sky's fill a touch cool against the warm sun
     fog = actors.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, -500), unreal.Rotator(0, 0, 0))
     fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
     for k, v in (("fog_density", 0.0018), ("fog_height_falloff", 0.15), ("start_distance", 1500.0),
@@ -1046,10 +1128,12 @@ def sky():
                  ("local_exposure_highlight_contrast_scale", HIGHLIGHTS), ("local_exposure_shadow_contrast_scale", 0.7),
                  ("auto_exposure_low_percent", 70.0), ("auto_exposure_high_percent", 97.0),   # the windows count, so it stops down a little for them
                  ("film_shoulder", 0.4),   # a gentler roll-off into white than the default 0.26
-                 ("bloom_intensity", 0.2), ("vignette_intensity", 0.25), ("film_grain_intensity", 0.06),
+                 ("bloom_intensity", 0.35), ("vignette_intensity", 0.25), ("film_grain_intensity", 0.06),
                  ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.08, 1.08, 1.08, 1.0)),
-                 ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
-                 ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
+                 # Finer GI: the sunlit floor patch bouncing warm onto the walls, the junctions occluded.
+                 ("lumen_final_gather_quality", 4.0), ("lumen_scene_lighting_quality", 3.0),
+                 ("lumen_scene_detail", 4.0), ("lumen_reflection_quality", 2.0),
+                 ("lumen_final_gather_lighting_update_speed", 2.0), ("indirect_lighting_intensity", 1.25),
                  ("lumen_skylight_leaking", SKY_LEAK),
                  ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
         if v is not None and try_set(pp, k, v):
@@ -1109,6 +1193,8 @@ def build():
     deliveries(m)
     lights(m)
     outside(m)
+    foot_ao()
+    hall_dust()
     sky()
     ride = actors.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(0.0, HALF_Y + 30, 0), unreal.Rotator(0, 0, 0))
     ride.set_actor_label("RideOut")
