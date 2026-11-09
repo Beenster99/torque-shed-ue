@@ -817,7 +817,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("newbike"))
 	{
 		// The parts computer's New bike aisle: "newbike[:STYLE[:SLOT=PART]...][:order]" configures a
-		// style's bike (cafe to start), puts those parts on, colours it and orders it built.
+		// style's bike (cafe to start), puts those parts on, colours it and orders it built
+		// (logo=ID, brand=NAME and font=ID put a badge on its tank).
 		const FString Style = P.Num() >= 2 && !P[1].Contains(TEXT("=")) && P[1] != TEXT("order") ? P[1] : FString();
 		TArray<FString> Swaps;
 		bool bOrder = false;

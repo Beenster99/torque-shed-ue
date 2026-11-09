@@ -1,14 +1,17 @@
 #include "Shed/TorqueBikeConfigurator.h"
 
+#include "Shed/TorqueBikeBadge.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShopPreview.h"
 #include "Fit/BikeRideSpec.h"
 #include "Fit/BikeShop.h"
+#include "CanvasItem.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
+#include "Engine/Texture.h"
 #include "GameFramework/HUD.h"
 
 namespace TorqueBikeConfiguratorImpl
@@ -33,6 +36,8 @@ const FColor Bad(255, 140, 120);
 FString CfgSlotLabel(const FString& Slot)
 {
 	if (Slot == TEXT("tail")) return TEXT("Rear guard, tail");
+	if (Slot == TEXT("badge_logo")) return TEXT("Logo");
+	if (Slot == TEXT("badge_brand")) return TEXT("Brand name");
 	return TorqueShedParts::SlotName(FName(*Slot));
 }
 
@@ -114,6 +119,7 @@ struct FTorqueBikeConfigurator::FBikeState
 {
 	std::string Style;
 	TorqueFit::PartsMap Parts;
+	TorqueFit::Shop::Badge Badge;   // the tank's (it stays when the style changes)
 };
 
 FTorqueBikeConfigurator::FBikeState& FTorqueBikeConfigurator::B() const
@@ -210,6 +216,12 @@ FLinearColor FTorqueBikeConfigurator::FactoryColour(const FString& Slot) const
 
 FLinearColor FTorqueBikeConfigurator::ColourOf(const FString& Slot) const
 {
+	// The badge's logo and brand name in their own colours.
+	if (Slot == TEXT("badge_logo") || Slot == TEXT("badge_brand"))
+	{
+		const double* Rgb = Slot == TEXT("badge_logo") ? B().Badge.LogoColour : B().Badge.BrandColour;
+		return FLinearColor((float)Rgb[0], (float)Rgb[1], (float)Rgb[2]);
+	}
 	// BikeShopTab.colour_of: picked, or as it comes.
 	if (const FLinearColor* C = Colours.Find(Slot)) return *C;
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
@@ -238,7 +250,15 @@ bool FTorqueBikeConfigurator::TakesColour(const FString& Slot) const
 void FTorqueBikeConfigurator::SetColour(const FString& Key, const FLinearColor& C)
 {
 	// BikeShopTab.set_colour: the tank's colour is the bike's paint (the fairing's too unless it has
-	// its own); a group's colour clears its slots' own.
+	// its own); a group's colour clears its slots' own. The badge's are its own.
+	if (Key == TEXT("badge_logo") || Key == TEXT("badge_brand"))
+	{
+		double* Rgb = Key == TEXT("badge_logo") ? B().Badge.LogoColour : B().Badge.BrandColour;
+		Rgb[0] = C.R;
+		Rgb[1] = C.G;
+		Rgb[2] = C.B;
+		return;
+	}
 	if (Key == TEXT("tank")) Paint = C;
 	Colours.Add(Key, C);
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
@@ -278,6 +298,7 @@ TorqueFit::Shop::Order FTorqueBikeConfigurator::MakeOrder() const
 	for (const TPair<FString, FLinearColor>& KV : Colours) O.Colours[TBCI::CfgStd(KV.Key)] = {KV.Value.R, KV.Value.G, KV.Value.B};
 	O.Colours["tank"] = {Paint.R, Paint.G, Paint.B};
 	for (const TPair<FString, FName>& KV : Finishes) O.Finishes[TBCI::CfgStd(KV.Key)] = TBCI::CfgStd(KV.Value.ToString());
+	O.TankBadge = TorqueFit::Shop::CleanBadge(B().Badge);
 	return O;
 }
 
@@ -296,6 +317,8 @@ FString FTorqueBikeConfigurator::Describe() const
 		const auto It = B().Parts.find(S);
 		Out += FString::Printf(TEXT(" %s=%s"), *TBCI::CfgUe(S), It == B().Parts.end() ? TEXT("?") : *TBCI::CfgUe(It->second));
 	}
+	const std::string Badge = TorqueFit::Shop::BadgeText(B().Badge);
+	if (!Badge.empty()) Out += TEXT(" badge=") + TBCI::CfgUe(Badge);
 	return Out;
 }
 
@@ -307,7 +330,11 @@ FString FTorqueBikeConfigurator::TestSetup(const FString& NewStyleId, const TArr
 	{
 		FString Slot, Id;
 		if (!Swap.Split(TEXT("="), &Slot, &Id)) continue;
-		SetPart(Slot.ToLower(), TBCI::CfgStd(Id.ToLower()));
+		// The badge: logo=star, brand=Kestrel, font=bebas.
+		if (Slot.ToLower() == TEXT("logo")) B().Badge.Logo = TBCI::CfgStd(Id.ToLower());
+		else if (Slot.ToLower() == TEXT("brand")) B().Badge.Brand = TBCI::CfgStd(Id);
+		else if (Slot.ToLower() == TEXT("font")) B().Badge.Font = TBCI::CfgStd(Id.ToLower());
+		else SetPart(Slot.ToLower(), TBCI::CfgStd(Id.ToLower()));
 	}
 	// A colour of its own on the tank and the wheels, metallic, so the order shows it carries looks.
 	SetColour(TEXT("tank"), FLinearColor(0.1f, 0.35f, 0.8f));
@@ -347,7 +374,7 @@ void FTorqueBikeConfigurator::ShowOnPreview(AHUD* Hud)
 		}
 		Looks.Add(FName(*TBCI::CfgUe(KV.first)), F);
 	}
-	P->ShowBike(Shown, Looks);
+	P->ShowBike(Shown, Looks, TBCI::CfgUe(TorqueFit::Shop::BadgeText(B().Badge)));
 }
 
 void FTorqueBikeConfigurator::OpenPopup(EPopup Kind, const FString& Key, const FBox2D& Anchor)
@@ -396,14 +423,64 @@ int32 FTorqueBikeConfigurator::PopupCount() const
 		return Lay ? (int32)Lay->Styles().size() : 0;
 	}
 	if (Popup == EPopup::Finish) return UTorqueBuildSubsystem::Finishes().Num() + 1;
+	if (Popup == EPopup::Logo) return (int32)TorqueFit::Shop::Logos().size() + 1;
 	if (Popup == EPopup::Part)
 		for (const FSlotRow& R : SlotRows)
 			if (R.Slot == PopupKey) return R.Choices.Num();
 	return 0;
 }
 
+double& FTorqueBikeConfigurator::Placing(int32 Slider) const
+{
+	// BikeBadge's logo_size, logo_x, logo_y, brand_size, brand_x, brand_y.
+	TorqueFit::Shop::Badge& Bd = B().Badge;
+	double* Vals[6] = {&Bd.LogoSize, &Bd.LogoX, &Bd.LogoY, &Bd.BrandSize, &Bd.BrandX, &Bd.BrandY};
+	return *Vals[FMath::Clamp(Slider, 0, 5)];
+}
+
+void FTorqueBikeConfigurator::SetSlider(int32 Slider, double Value)
+{
+	// BikeShopTab.place_badge: sizes SIZE_MIN .. SIZE_MAX, moves -MOVE_MAX .. MOVE_MAX, in 0.01 steps.
+	const bool bSize = Slider % 3 == 0;
+	const double Lo = bSize ? TorqueFit::Shop::BadgeSizeMin : -TorqueFit::Shop::BadgeMoveMax;
+	const double Hi = bSize ? TorqueFit::Shop::BadgeSizeMax : TorqueFit::Shop::BadgeMoveMax;
+	Placing(Slider) = FMath::RoundToDouble(FMath::Clamp(Value, Lo, Hi) * 100.0) / 100.0;
+}
+
+void FTorqueBikeConfigurator::Hold(const FVector2D& Mouse, bool bLeftDown)
+{
+	// A badge slider being dragged follows the mouse; anything else is the preview's (turning it).
+	if (DragSlider != INDEX_NONE)
+	{
+		if (!bLeftDown)
+		{
+			DragSlider = INDEX_NONE;
+			return;
+		}
+		const bool bSize = DragSlider % 3 == 0;
+		const double Lo = bSize ? TorqueFit::Shop::BadgeSizeMin : -TorqueFit::Shop::BadgeMoveMax;
+		const double Hi = bSize ? TorqueFit::Shop::BadgeSizeMax : TorqueFit::Shop::BadgeMoveMax;
+		const double At = FMath::Clamp((Mouse.X - DragBox.Min.X) / FMath::Max(1.0, DragBox.GetSize().X), 0.0, 1.0);
+		SetSlider(DragSlider, Lo + (Hi - Lo) * At);
+		return;
+	}
+	if (ATorqueShopPreview* P = Preview.Get()) P->Hold(Mouse, bLeftDown);
+}
+
+void FTorqueBikeConfigurator::Typed()
+{
+	// BikeShopTab.set_brand (the LineEdit's max_length: BRAND_MAX).
+	BrandEdit = BrandEdit.Left(TorqueFit::Shop::BrandMax);
+	B().Badge.Brand = TBCI::CfgStd(BrandEdit);
+}
+
 bool FTorqueBikeConfigurator::Back()
 {
+	if (bTyping)
+	{
+		bTyping = false;
+		return true;
+	}
 	if (Popup == EPopup::None) return false;
 	ClosePopup();
 	return true;
@@ -461,7 +538,8 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 	const float PartX = X0 + Inset + LabelW, PartW = LW - 2.0f * Inset - LabelW - CellW - 6.0f * S;
 	const float CellX = PartX + PartW + 6.0f * S;
 	const float StylePx = 14.0f * S;
-	ListHeight = HeadH + RowH + HeadH + SlotRows.Num() * RowH + Inset;
+	constexpr int32 BadgeRows = 8;   // the logo, its place, the brand, four of lettering, its place
+	ListHeight = HeadH + RowH + HeadH + SlotRows.Num() * RowH + HeadH + BadgeRows * RowH + Inset;
 	ListScroll = FMath::Clamp(ListScroll, 0.0f, FMath::Max(0.0f, ListHeight - (H0 - Inset)));
 	float Y = Y0 + 6.0f * S - ListScroll;
 	auto Visible = [&](float RY, float RH) { return RY >= Y0 && RY + RH <= Y0 + H0; };
@@ -508,6 +586,112 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		if (Changed(R.Slot))
 			Btn(CellX + SwW + FinW + 12.0f * S, Y, CellW - SwW - FinW - 12.0f * S, RowH - 4.0f * S, TEXT("Reset"), 11.0f * S, false, EHit::Reset, I);
 	}
+	// --- The badge on the tank (BikeShopTab._badge_rows): the logo and its colour, its size and
+	// place; the brand name (typed), its colour, its lettering, its size and place. ---
+	const TorqueFit::Shop::Badge& Bdg = B().Badge;
+	if (Visible(Y, HeadH)) Pen.Draw(X0 + Inset, Y + 6.0f * S, TEXT("BADGE ON THE TANK"), 12.0f * S, TBCI::Accent);
+	Y += HeadH;
+	const float BtnH = RowH - 4.0f * S;
+	auto RowLabel = [&](float RY, const FString& L)
+	{
+		Pen.Draw(X0 + Inset + 4.0f * S, RY + (BtnH - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(L, 13.0f * S, LabelW - 8.0f * S), 13.0f * S, TBCI::Dim);
+	};
+	auto BadgeSwatch = [&](float RY, int32 Which)
+	{
+		const float BsW = 36.0f * S, BsH = RowH - 8.0f * S, BsY = RY + 2.0f * S;
+		const FLinearColor BsCol = ColourOf(Which == 0 ? TEXT("badge_logo") : TEXT("badge_brand"));
+		const bool bBsOver = !bPopup && Over(CellX, BsY, BsW, BsH);
+		Box(CellX - 1.0f, BsY - 1.0f, BsW + 2.0f, BsH + 2.0f, bBsOver ? FLinearColor(1, 1, 1, 0.6f) : TBCI::Edge);
+		Box(CellX, BsY, BsW, BsH, FLinearColor(BsCol.R, BsCol.G, BsCol.B, 1.0f));
+		AddHit(CellX, BsY, BsW, BsH, EHit::BadgeColour, Which);
+	};
+	// Size, along the tank and up it (BikeShopTab._place_row): a mark where each comes, and Reset.
+	auto PlaceRow = [&](float RY, int32 Which)
+	{
+		RowLabel(RY, TEXT("   size, along, up"));
+		const float Sep = 10.0f * S, SlW = (PartW - 2.0f * Sep) / 3.0f, Mid = RY + BtnH * 0.5f;
+		for (int32 Ax = 0; Ax < 3; ++Ax)
+		{
+			const int32 SlId = Which * 3 + Ax;
+			const float SlX = PartX + Ax * (SlW + Sep);
+			const double Lo = Ax == 0 ? TorqueFit::Shop::BadgeSizeMin : -TorqueFit::Shop::BadgeMoveMax;
+			const double Hi = Ax == 0 ? TorqueFit::Shop::BadgeSizeMax : TorqueFit::Shop::BadgeMoveMax;
+			const float Frac = (float)FMath::Clamp((Placing(SlId) - Lo) / (Hi - Lo), 0.0, 1.0);
+			const float Home = (float)(((Ax == 0 ? 1.0 : 0.0) - Lo) / (Hi - Lo));
+			const bool bSlLit = DragSlider == SlId || (!bPopup && Over(SlX, RY, SlW, BtnH));
+			Box(SlX, Mid - 2.0f * S, SlW, 4.0f * S, TBCI::Button);
+			Box(SlX + Home * SlW - 1.0f, Mid - 6.0f * S, 2.0f, 12.0f * S, TBCI::Edge);
+			Box(SlX + Frac * SlW - 5.0f * S, Mid - 8.0f * S, 10.0f * S, 16.0f * S, bSlLit ? TBCI::PickedHover : TBCI::Picked);
+			AddHit(SlX, RY, SlW, BtnH, EHit::Slider, SlId);
+		}
+		Btn(CellX, RY, 90.0f * S, BtnH, TEXT("Reset"), 11.0f * S, false, EHit::PlaceReset, Which);
+	};
+	// The logo: its list (with its picture), its colour.
+	if (Visible(Y, RowH))
+	{
+		RowLabel(Y, TEXT("Logo"));
+		FString LogoName = TEXT("None");
+		for (const auto& Lg : TorqueFit::Shop::Logos())
+			if (Lg.first == Bdg.Logo) LogoName = TBCI::CfgUe(Lg.second);
+		Btn(PartX, Y, PartW, BtnH, (Bdg.Logo.empty() ? FString() : FString(TEXT("        "))) + LogoName + TEXT("   v"), 13.0f * S, Popup == EPopup::Logo, EHit::Logo, 0, true);
+		UTexture* Icon = Bdg.Logo.empty() ? nullptr : TorqueBikeBadge::Logo(TBCI::CfgUe(Bdg.Logo));
+		if (Icon && Icon->GetResource())
+		{
+			FCanvasTileItem Tile(FVector2D(PartX + 8.0f * S, Y + 3.0f * S), Icon->GetResource(), FVector2D(BtnH - 6.0f * S, BtnH - 6.0f * S), ColourOf(TEXT("badge_logo")));
+			Tile.BlendMode = SE_BLEND_Translucent;
+			Canvas->DrawItem(Tile);
+		}
+		BadgeSwatch(Y, 0);
+	}
+	Y += RowH;
+	if (Visible(Y, RowH)) PlaceRow(Y, 0);
+	Y += RowH;
+	// The brand name: typed in (click it), its colour.
+	if (Visible(Y, RowH))
+	{
+		RowLabel(Y, TEXT("Brand name"));
+		const bool bFieldOver = !bPopup && Over(PartX, Y, PartW, BtnH);
+		Box(PartX - 1.0f, Y - 1.0f, PartW + 2.0f, BtnH + 2.0f, bTyping ? FLinearColor(TBCI::Accent) : (bFieldOver ? FLinearColor(1, 1, 1, 0.5f) : TBCI::Edge));
+		Box(PartX, Y, PartW, BtnH, FLinearColor(0.05f, 0.05f, 0.06f, 1.0f));
+		const FString BrandNow = bTyping ? BrandEdit : TBCI::CfgUe(Bdg.Brand);
+		const bool bCaret = bTyping && FMath::Fmod(FPlatformTime::Seconds(), 1.0) < 0.55;
+		const bool bPlaceholder = BrandNow.IsEmpty() && !bTyping;
+		const FString BrandShown = bPlaceholder ? FString(TEXT("Your own make (click to type)")) : BrandNow + (bCaret ? TEXT("|") : TEXT(""));
+		Pen.Draw(PartX + 8.0f * S, Y + (BtnH - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(BrandShown, 13.0f * S, PartW - 16.0f * S), 13.0f * S,
+			bPlaceholder ? TBCI::Off : TBCI::Text);
+		AddHit(PartX, Y, PartW, BtnH, EHit::Brand, 0);
+		BadgeSwatch(Y, 1);
+	}
+	Y += RowH;
+	// Its lettering: a button for each, its name written in it.
+	{
+		const std::vector<std::pair<std::string, std::string>>& FontList = TorqueFit::Shop::Fonts();
+		const std::string FontNow = Bdg.Font.empty() ? std::string("plain") : Bdg.Font;
+		const float FSep = 4.0f * S, FW = (PartW - 2.0f * FSep) / 3.0f;
+		for (int32 Fr = 0; Fr < 4; ++Fr, Y += RowH)
+		{
+			if (!Visible(Y, RowH)) continue;
+			if (Fr == 0) RowLabel(Y, TEXT("   lettering"));
+			for (int32 Fc = 0; Fc < 3; ++Fc)
+			{
+				const int32 Fi = Fr * 3 + Fc;
+				if (Fi >= (int32)FontList.size()) continue;
+				const float FX = PartX + Fc * (FW + FSep);
+				const bool bFontOn = FontList[(size_t)Fi].first == FontNow;
+				Btn(FX, Y, FW, BtnH, FString(), 13.0f * S, bFontOn, EHit::Font, Fi);
+				const FString FontName = TBCI::CfgUe(FontList[(size_t)Fi].second);
+				const FLinearColor FontInk = bFontOn ? FLinearColor(TBCI::Ink) : FLinearColor(TBCI::Text);
+				if (!TorqueBikeBadge::DrawLettering(Canvas, FBox2D(FVector2D(FX + 4.0f * S, Y), FVector2D(FX + FW - 4.0f * S, Y + BtnH)),
+						FontName, TBCI::CfgUe(FontList[(size_t)Fi].first), 15.0f * S, FontInk))
+				{
+					const FString Fitted = Pen.Fit(FontName, 13.0f * S, FW - 10.0f * S);
+					Pen.Draw(FX + (FW - Pen.Width(Fitted, 13.0f * S)) * 0.5f, Y + (BtnH - 13.0f * S * 1.2f) * 0.5f, Fitted, 13.0f * S, bFontOn ? TBCI::Ink : TBCI::Text);
+				}
+			}
+		}
+	}
+	if (Visible(Y, RowH)) PlaceRow(Y, 1);
+	Y += RowH;
 	if (ListHeight > H0)
 		Pen.Draw(X0 + LW - 80.0f * S, Y0 + H0 - 20.0f * S, TEXT("(wheel)"), 12.0f * S, TBCI::Dim);
 
@@ -627,6 +811,20 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 			OffRows.Add(false);
 			if (Lay->Styles()[(size_t)I] == B().Style) On = I;
 		}
+	else if (Popup == EPopup::Logo)
+	{
+		Labels.Add(TEXT("None"));
+		Tips.Add(FString());
+		OffRows.Add(false);
+		On = B().Badge.Logo.empty() ? 0 : INDEX_NONE;
+		for (const auto& Lg : TorqueFit::Shop::Logos())
+		{
+			if (Lg.first == B().Badge.Logo) On = Labels.Num();
+			Labels.Add(TEXT("        ") + TBCI::CfgUe(Lg.second));
+			Tips.Add(FString());
+			OffRows.Add(false);
+		}
+	}
 	else if (Popup == EPopup::Finish)
 	{
 		const FName* F = Finishes.Find(PopupKey);
@@ -674,6 +872,15 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		else if (bOver && !OffRows[I]) Box(PX + 4.0f * S, IY, PW - 8.0f * S, IH - 2.0f * S, TBCI::ButtonHover);
 		Pen.Draw(PX + 12.0f * S, IY + (IH - 13.0f * S * 1.2f) * 0.5f, Pen.Fit(Labels[I], 13.0f * S, PW - 24.0f * S), 13.0f * S,
 			I == On ? TBCI::Ink : (OffRows[I] ? TBCI::Off : TBCI::Text));
+		// The logos' pictures beside their names.
+		if (Popup == EPopup::Logo && I > 0 && I <= (int32)TorqueFit::Shop::Logos().size())
+			if (UTexture* Icon = TorqueBikeBadge::Logo(TBCI::CfgUe(TorqueFit::Shop::Logos()[(size_t)(I - 1)].first)); Icon && Icon->GetResource())
+			{
+				FCanvasTileItem Tile(FVector2D(PX + 12.0f * S, IY + 2.0f * S), Icon->GetResource(), FVector2D(IH - 6.0f * S, IH - 6.0f * S),
+					I == On ? FLinearColor(TBCI::Ink) : FLinearColor::White);
+				Tile.BlendMode = SE_BLEND_Translucent;
+				Canvas->DrawItem(Tile);
+			}
 		if (bOver) HoverTip = Tips[I];
 		AddHit(PX + 4.0f * S, IY, PW - 8.0f * S, IH - 2.0f * S, EHit::PopupRow, I);
 	}
@@ -711,6 +918,13 @@ bool FTorqueBikeConfigurator::ClickPopup(const FVector2D& Mouse)
 			{
 				NewStyle(Lay->Styles()[(size_t)Arg]);   // (the preview keeps its view: a bike for a bike)
 			}
+			ClosePopup();
+		}
+		else if (Popup == EPopup::Logo)
+		{
+			// BikeShopTab.set_logo (its colour stays as picked).
+			const auto& Lgs = TorqueFit::Shop::Logos();
+			B().Badge.Logo = Arg >= 1 && Arg <= (int32)Lgs.size() ? Lgs[(size_t)(Arg - 1)].first : std::string();
 			ClosePopup();
 		}
 		else if (Popup == EPopup::Finish)
@@ -773,6 +987,8 @@ bool FTorqueBikeConfigurator::Click(const FVector2D& Mouse, FString& OutOrder)
 	const FHit* H = nullptr;
 	for (int32 I = Hits.Num() - 1; I >= 0 && !H; --I)
 		if (Hits[I].Box.IsInside(Mouse)) H = &Hits[I];
+	// A click anywhere but the brand name stops its typing.
+	if (bTyping && (!H || H->What != EHit::Brand)) bTyping = false;
 	if (!H) return false;
 	const FBox2D Anchor = H->Box;
 	const int32 Arg = H->Arg;
@@ -801,6 +1017,32 @@ bool FTorqueBikeConfigurator::Click(const FVector2D& Mouse, FString& OutOrder)
 	case EHit::Order:
 		OutOrder = OrderText();
 		return true;
+	case EHit::Logo:
+		OpenPopup(EPopup::Logo, TEXT("logo"), Anchor);
+		break;
+	case EHit::BadgeColour:
+		OpenPopup(EPopup::Colour, Arg == 0 ? TEXT("badge_logo") : TEXT("badge_brand"), Anchor);
+		break;
+	case EHit::Brand:
+		if (!bTyping) BrandEdit = TBCI::CfgUe(B().Badge.Brand);
+		bTyping = true;
+		break;
+	case EHit::Font:
+	{
+		// BikeShopTab.set_brand_font ("plain" is none).
+		const auto& Fts = TorqueFit::Shop::Fonts();
+		if (Arg >= 0 && Arg < (int32)Fts.size()) B().Badge.Font = Fts[(size_t)Arg].first == "plain" ? std::string() : Fts[(size_t)Arg].first;
+		break;
+	}
+	case EHit::Slider:
+		DragSlider = Arg;
+		DragBox = Anchor;
+		Hold(Mouse, true);
+		break;
+	case EHit::PlaceReset:
+		// BikeShopTab.reset_place: back to its usual size and place.
+		for (int32 Ax = 0; Ax < 3; ++Ax) Placing(Arg * 3 + Ax) = Ax == 0 ? 1.0 : 0.0;
+		break;
 	default:
 		break;
 	}
@@ -814,6 +1056,12 @@ bool FTorqueBikeConfigurator::Scroll(const FVector2D& Mouse, int32 Dir)
 		PopupScroll = FMath::Clamp(PopupScroll + Dir * 2, 0, FMath::Max(0, PopupCount() - 14));
 		return true;
 	}
+	for (const FHit& H : Hits)
+		if (H.What == EHit::Slider && H.Box.IsInside(Mouse))
+		{
+			SetSlider(H.Arg, Placing(H.Arg) - Dir * (H.Arg % 3 == 0 ? 0.05 : 0.02));
+			return true;
+		}
 	if (ListBox.bIsValid && ListBox.IsInside(Mouse))
 	{
 		ListScroll += Dir * RowH * 2.0f;

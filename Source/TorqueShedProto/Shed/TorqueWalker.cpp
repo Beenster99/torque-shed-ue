@@ -551,6 +551,21 @@ void ATorqueWalker::ReadInput(float Dt)
 		FVector2D Mouse(-1.0, -1.0);
 		float Mx = 0.0f, My = 0.0f;
 		if (PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+		// Typing the New bike's brand name: the keys are letters (F, W, S, Q and E too) till Enter,
+		// Tab or Esc; the mouse still works the page.
+		if (Computer.Typing())
+		{
+			FTorqueBikeConfigurator& Cfg = Computer.NewBike();
+			if (Just(EKeys::Enter) || Just(EKeys::Tab) || Just(EKeys::Escape)) Cfg.StopTyping();
+			else
+			{
+				ATorquePlayerController::TypeText(PC, Cfg.TypingText(), 64);
+				Cfg.Typed();
+			}
+			Computer.Hold(Mouse, Down(EKeys::LeftMouseButton));
+			if (Just(EKeys::LeftMouseButton)) ComputerDo(Computer.Click(Mouse));
+			return;
+		}
 		if (bF || Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle))
 		{
 			// (A list open on the New bike page closes first.)
@@ -2313,6 +2328,10 @@ FString ATorqueWalker::TestNewBike(const FString& Style, const TArray<FString>& 
 		A.Order = Computer.NewBike().OrderText();
 		ComputerDo(A);
 		Out += TEXT(": ") + (Note.IsEmpty() ? FString(TEXT("ordered")) : Note);
+		// Where the tank's badge went (BadgeOf: the tank item carries it).
+		if (const UTorqueBuildSubsystem* Sh = Shed())
+			for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+				if (!Sh->BadgeOf(Bay).IsEmpty()) Out += FString::Printf(TEXT(" [bay %d's tank badge: %s]"), Bay + 1, *Sh->BadgeOf(Bay));
 	}
 	return Out;
 }

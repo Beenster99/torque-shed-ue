@@ -81,6 +81,9 @@ struct FTorqueItem
 	int32 Mask = 0;
 	FLinearColor MaskColour = FLinearColor::White;
 	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
+	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
+	FString Badge;
 };
 
 // One bay's bike.
@@ -307,6 +310,8 @@ public:
 	float DirtOf(int32 Bay, FName Slot) const;
 	float RustOf(int32 Bay, FName Slot) const;
 	bool PaintOf(int32 Bay, FName Slot, FLinearColor& Out) const;
+	// The badge on bay Bay's tank (Fit/BikeShop's badge text), "" for none.
+	FString BadgeOf(int32 Bay) const;
 	// How a repainted part's finish looks (bike_model.gd _apply_finish): gloss is wet-look, matte
 	// soaks up the light, metallic has flake under the lacquer, chrome is a tinted mirror, patina is
 	// faded old paint; primer is flat grey, and a lacquer's flattener takes the shine off. The colour

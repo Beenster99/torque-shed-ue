@@ -86,6 +86,10 @@ const std::vector<std::pair<std::string, std::string>>& Logos();
 const std::vector<std::pair<std::string, std::string>>& Fonts();
 // BikeBadge.clean: a known logo or none, the brand trimmed, sizes and moves in range.
 Badge CleanBadge(const Badge& In);
+// A badge as text (JSON, as the tank item keeps it: BikeBadge's keys), "" for none; and back, cleaned
+// (an empty badge for none or nonsense).
+std::string BadgeText(const Badge& B);
+Badge ParseBadge(const std::string& Text);
 
 // A configured new bike as it's ordered: its style, its parts, the colours picked (a slot or a
 // group -> linear RGB; one left out comes as the factory makes it, the tank's being the bike's

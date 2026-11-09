@@ -2,7 +2,9 @@
 // bike_shop_tab.gd), as the parts computer's third aisle, "New bike". Pick a style, then its parts
 // slot by slot from the ones that suit it (or anything that fits: the ones that won't go on greyed
 // out with why, the ones that need fabrication marked), its extras (a front mudguard, panniers, a
-// top box, a sat nav, a toolbox), and each part's colour and paint finish. The bike turns in the
+// top box, a sat nav, a toolbox), each part's colour and paint finish, and a badge for the tank
+// (BikeBadge: a logo and a brand name in a lettering, each in its own colour, sized and moved on
+// the tank with sliders). The bike turns in the
 // shop's 3D studio beside the list (ATorqueShopPreview: drag it, zoom, stop it turning), with what
 // it is, what it's laid out to and the fabrication the works will do, and Order. It comes new,
 // built in those colours and ready to ride, into the first free bay (an OrderBike request carrying
@@ -40,8 +42,17 @@ public:
 	// Esc with a list or the colour picker open closes that (true); else the computer closes.
 	bool Back();
 	bool PopupOpen() const { return Popup != EPopup::None; }
+	// The left mouse held (a badge slider dragged; the 3D preview turned).
+	void Hold(const FVector2D& Mouse, bool bLeftDown);
+	// Typing the brand name (clicked into): the walker types into TypingText (ATorquePlayerController::
+	// TypeText), then calls Typed; Enter, Tab or Esc stops it.
+	bool Typing() const { return bTyping; }
+	FString& TypingText() { return BrandEdit; }
+	void Typed();
+	void StopTyping() { bTyping = false; }
 
-	// For the test steps: start Style's bike and put these parts on (slot=part), give it a colour.
+	// For the test steps: start Style's bike and put these parts on (slot=part; logo=, brand=, font=
+	// for its badge), give it a colour.
 	FString TestSetup(const FString& StyleId, const TArray<FString>& Swaps);
 	FString OrderText() const;
 	FString Describe() const;
@@ -66,7 +77,8 @@ private:
 
 	// The page's rows (for the pad and the scroll), the list's scroll (px) and what the last
 	// drawing put where.
-	enum class EHit : uint8 { None, Style, Part, Colour, Finish, Reset, Order, PopupRow, PopupSwatch, PopupHue, PopupSv, PopupShade };
+	enum class EHit : uint8 { None, Style, Part, Colour, Finish, Reset, Order, Logo, BadgeColour, Brand, Font, Slider, PlaceReset,
+		PopupRow, PopupSwatch, PopupHue, PopupSv, PopupShade };
 	struct FHit { FBox2D Box; EHit What = EHit::None; int32 Arg = 0; };
 	TArray<FHit> Hits;
 	FBox2D ListBox = FBox2D(ForceInit);
@@ -74,8 +86,17 @@ private:
 	int32 Focus = 0;           // the pad's row: 0 the style, 1.. the slots, then Order
 	TWeakObjectPtr<ATorqueShopPreview> Preview;
 
-	// The list open over the page (a part's, the style's, a finish's) or the colour picker.
-	enum class EPopup : uint8 { None, Style, Part, Finish, Colour };
+	// The badge: the slider being dragged (what * 3 + axis: the logo's or brand's size, along, up)
+	// and where it is; the brand name as it's typed.
+	int32 DragSlider = INDEX_NONE;
+	FBox2D DragBox = FBox2D(ForceInit);
+	bool bTyping = false;
+	FString BrandEdit;
+	double& Placing(int32 Slider) const;
+	void SetSlider(int32 Slider, double Value);
+
+	// The list open over the page (a part's, the style's, a finish's, the logo's) or the colour picker.
+	enum class EPopup : uint8 { None, Style, Part, Finish, Colour, Logo };
 	EPopup Popup = EPopup::None;
 	FString PopupKey;          // the slot (or "style")
 	FBox2D PopupAnchor = FBox2D(ForceInit);

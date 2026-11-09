@@ -399,6 +399,64 @@ Badge CleanBadge(const Badge& In)
 	return Out;
 }
 
+namespace BikeShopImpl
+{
+// A cleaned badge as BikeBadge keeps it (logo, logo_color, brand, brand_color, brand_font, the
+// sizes and moves), and back.
+Json ShopBadgeJson(const Badge& B)
+{
+	Json Bj = Json::MakeObject();
+	if (!B.Logo.empty())
+	{
+		Bj.Set("logo", Json::MakeString(B.Logo));
+		Bj.Set("logo_color", ShopRgbJson(B.LogoColour));
+		Bj.Set("logo_size", Json::MakeNumber(B.LogoSize));
+		Bj.Set("logo_x", Json::MakeNumber(B.LogoX));
+		Bj.Set("logo_y", Json::MakeNumber(B.LogoY));
+	}
+	if (!B.Brand.empty())
+	{
+		Bj.Set("brand", Json::MakeString(B.Brand));
+		Bj.Set("brand_color", ShopRgbJson(B.BrandColour));
+		if (!B.Font.empty()) Bj.Set("brand_font", Json::MakeString(B.Font));
+		Bj.Set("brand_size", Json::MakeNumber(B.BrandSize));
+		Bj.Set("brand_x", Json::MakeNumber(B.BrandX));
+		Bj.Set("brand_y", Json::MakeNumber(B.BrandY));
+	}
+	return Bj;
+}
+
+Badge ShopBadgeOf(const Json& B)
+{
+	Badge In;
+	In.Logo = B.Str("logo");
+	In.Brand = B.Str("brand");
+	In.Font = B.Str("brand_font");
+	ShopRgb(B.Get("logo_color"), In.LogoColour);
+	ShopRgb(B.Get("brand_color"), In.BrandColour);
+	In.LogoSize = B.Num("logo_size", 1.0);
+	In.LogoX = B.Num("logo_x", 0.0);
+	In.LogoY = B.Num("logo_y", 0.0);
+	In.BrandSize = B.Num("brand_size", 1.0);
+	In.BrandX = B.Num("brand_x", 0.0);
+	In.BrandY = B.Num("brand_y", 0.0);
+	return CleanBadge(In);
+}
+} // namespace BikeShopImpl
+
+std::string BadgeText(const Badge& In)
+{
+	const Badge B = CleanBadge(In);
+	return B.Empty() ? std::string() : BSI::ShopBadgeJson(B).Dump(0);
+}
+
+Badge ParseBadge(const std::string& Text)
+{
+	Json J;
+	if (Text.empty() || !Json::Parse(Text, J) || !J.IsObject()) return Badge();
+	return BSI::ShopBadgeOf(J);
+}
+
 std::string OrderText(const Order& O)
 {
 	Json J = Json::MakeObject();
@@ -420,28 +478,7 @@ std::string OrderText(const Order& O)
 	for (const auto& KV : O.Finishes) F.Set(KV.first, Json::MakeString(KV.second));
 	J.Set("finishes", F);
 	const Badge B = CleanBadge(O.TankBadge);
-	if (!B.Empty())
-	{
-		Json Bj = Json::MakeObject();
-		if (!B.Logo.empty())
-		{
-			Bj.Set("logo", Json::MakeString(B.Logo));
-			Bj.Set("logo_color", BSI::ShopRgbJson(B.LogoColour));
-			Bj.Set("logo_size", Json::MakeNumber(B.LogoSize));
-			Bj.Set("logo_x", Json::MakeNumber(B.LogoX));
-			Bj.Set("logo_y", Json::MakeNumber(B.LogoY));
-		}
-		if (!B.Brand.empty())
-		{
-			Bj.Set("brand", Json::MakeString(B.Brand));
-			Bj.Set("brand_color", BSI::ShopRgbJson(B.BrandColour));
-			if (!B.Font.empty()) Bj.Set("brand_font", Json::MakeString(B.Font));
-			Bj.Set("brand_size", Json::MakeNumber(B.BrandSize));
-			Bj.Set("brand_x", Json::MakeNumber(B.BrandX));
-			Bj.Set("brand_y", Json::MakeNumber(B.BrandY));
-		}
-		J.Set("badge", Bj);
-	}
+	if (!B.Empty()) J.Set("badge", BSI::ShopBadgeJson(B));
 	return J.Dump(0);
 }
 
@@ -472,22 +509,7 @@ bool ParseOrder(const BikeLayout& Lay, const std::string& Text, Order& Out)
 	if (const Json* F = J.Get("finishes"))
 		for (const auto& KV : F->O)
 			if (KV.second.IsString() && BSI::ShopHas(BSI::ShopFinishes(), KV.second.S)) Out.Finishes[KV.first] = KV.second.S;
-	if (const Json* B = J.Get("badge"))
-	{
-		Badge In;
-		In.Logo = B->Str("logo");
-		In.Brand = B->Str("brand");
-		In.Font = B->Str("brand_font");
-		BSI::ShopRgb(B->Get("logo_color"), In.LogoColour);
-		BSI::ShopRgb(B->Get("brand_color"), In.BrandColour);
-		In.LogoSize = B->Num("logo_size", 1.0);
-		In.LogoX = B->Num("logo_x", 0.0);
-		In.LogoY = B->Num("logo_y", 0.0);
-		In.BrandSize = B->Num("brand_size", 1.0);
-		In.BrandX = B->Num("brand_x", 0.0);
-		In.BrandY = B->Num("brand_y", 0.0);
-		Out.TankBadge = CleanBadge(In);
-	}
+	if (const Json* B = J.Get("badge")) Out.TankBadge = BSI::ShopBadgeOf(*B);
 	return true;
 }
 

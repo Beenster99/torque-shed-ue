@@ -48,6 +48,7 @@ struct FTorqueShedSaveItem
 	UPROPERTY() FLinearColor MaskColour = FLinearColor::White;
 	UPROPERTY() float MaskMetal = 0.05f;
 	UPROPERTY() float MaskRough = 0.15f;
+	UPROPERTY() FString Badge;          // a tank's badge (FTorqueItem)
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.

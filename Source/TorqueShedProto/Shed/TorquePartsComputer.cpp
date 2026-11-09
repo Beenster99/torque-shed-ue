@@ -359,6 +359,12 @@ void FTorquePartsComputer::Scroll(const FVector2D& Mouse, int32 Dir)
 
 void FTorquePartsComputer::Hold(const FVector2D& Mouse, bool bLeftDown)
 {
+	// (The New bike page's badge sliders are dragged too; it hands the rest to the preview.)
+	if (Section == ESection::NewBike)
+	{
+		Configurator.Hold(Mouse, bLeftDown);
+		return;
+	}
 	if (ATorqueShopPreview* P = Preview.Get()) P->Hold(Mouse, bLeftDown);
 }
 

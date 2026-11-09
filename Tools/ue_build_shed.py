@@ -196,6 +196,27 @@ def screen_page_material():
     return finish(m)
 
 
+def badge_material():
+    """M_ShedBadge: a tank's badge (Shed/TorqueBikeBadge.cpp, bike_badge.gd's decals), a thin skin
+    over the tank's paint wearing its picture: the picture (parameter Badge, white where it covers)
+    cut out of it, in its colour (Color), lit as a glossy transfer (Roughness)."""
+    m = new_material("M_ShedBadge")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_MASKED)
+    # The picture's soft edge is sampled as sRGB: a linear 0.2 is about half way across it.
+    try_set(m, "opacity_mask_clip_value", 0.2)
+    tex = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -700, 0, parameter_name="Badge")
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    if white:
+        try_set(tex, "texture", white)
+    mel.connect_material_property(tex, "R", unreal.MaterialProperty.MP_OPACITY_MASK)
+    col = expr(m, unreal.MaterialExpressionVectorParameter, -700, -250, parameter_name="Color",
+               default_value=unreal.LinearColor(0.92, 0.92, 0.9, 1.0))
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    rough = expr(m, unreal.MaterialExpressionScalarParameter, -700, 300, parameter_name="Roughness", default_value=0.3)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return finish(m)
+
+
 # The masked pattern, in the part's frame in cm (paint_mix.gd masked(), its metres x 100): 1 a centre
 # stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone).
 MASK_HLSL = """
@@ -552,6 +573,7 @@ def materials():
         "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
         "ghost_xray": ghost_xray_material(),   # for the game: where a part goes down, seen through things
         "screen_page": screen_page_material(),   # for the game: the screens' pages
+        "badge": badge_material(),               # for the game: a tank's badge
         "effect_paint": effect_paint_material(),   # for the game: parts sprayed with pearl, candy, flake, chameleon
         "led": flat("M_ShedLed", (0.9, 0.92, 0.95), 0.5, emissive=LED_GLOW),
         # The paint shop (workshop.gd _build_booth_room, equipment_view.gd _build_booth): white walls,

@@ -49,6 +49,8 @@ public:
 	// The New bike aisle (the configurator): opened on it, and the configurator itself for the tests.
 	void OpenNewBike();
 	FTorqueBikeConfigurator& NewBike() { return Configurator; }
+	// The New bike's brand name being typed (the keys go into it, not the computer's).
+	bool Typing() const { return Section == ESection::NewBike && Configurator.Typing(); }
 	// Esc: closes a list open on the page first (true); false when the computer should close.
 	bool Back();
 	FString Describe() const;    // "Bike aisle, Exhaust: <part>" for the test log
