@@ -173,6 +173,7 @@ private:
 	int32 HornId = 0;
 	bool bHornDown = false;
 	double EngineCatchIn = 0.0;
+	int32 RideBay = INDEX_NONE;   // the shed bay whose bike this is (BuildCatalogueModel): its engine sound
 	TArray<float> SoundFloat;
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;

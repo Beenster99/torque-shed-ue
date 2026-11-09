@@ -5,7 +5,10 @@
 // slides, the drum of the tyres over a cattle grid's bars, and moorland birds behind it all. Mono, 48 kHz.
 #pragma once
 
+#include "EngineSynth.h"
+
 #include <cstdint>
+#include <memory>
 #include <random>
 #include <string>
 #include <vector>
@@ -48,6 +51,14 @@ public:
 	void SetIdle(std::vector<float> Samples, int SampleRate, double RecordedRpm);
 	void AddClunk(std::vector<float> Samples, int SampleRate);
 	void SetAmbience(std::vector<float> Samples, int SampleRate);
+
+	// The bike's own engine (Torque Shed's EngineSynth, baked for its engine, exhaust, airbox and
+	// gearbox): played in place of the made 270 twin and its idle recording once it's set.
+	void SetEngine(std::shared_ptr<TorqueEngine::FBank> Bank);
+	bool HasEngine() const { return (bool)EngineVoice; }
+	// The engine's just caught off the starter (its first ragged firings and the revs flaring).
+	void Catch() { if (EngineVoice) EngineVoice->Catch(); }
+	const TorqueEngine::FVoice* EngineSound() const { return EngineVoice.get(); }
 
 	void Set(const RideInputs& In) { Target = In; }
 	void GearChange(bool Up);   // the lever, and the ignition cut while it changes
@@ -116,6 +127,9 @@ private:
 	Biquad GridThud, GridRing, GridRing2;
 	double BarPhase = 0.0, BarEnv = 0.0, BarRingEnv = 0.0;
 	double SquealPhase = 0.0;
+
+	std::unique_ptr<TorqueEngine::FVoice> EngineVoice;
+	std::vector<float> EngineBuf;
 
 	void Retune();
 	int RetuneIn = 0;

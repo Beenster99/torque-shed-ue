@@ -22,6 +22,7 @@
 #include "CoreMinimal.h"
 #include "Components/SynthComponent.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "TorqueAudio/EngineSynth.h"
 #include "TorqueAudio/SfxBank.h"
 #include "TorqueAudio/SfxMix.h"
 #include "TorqueAudio/SfxRules.h"
@@ -84,6 +85,13 @@ public:
 	// The horn on bay Bay's bike (its horn slot's part in Data/Parts/parts.json, worn ones quieter);
 	// the stock disc horn when there's no shed bike (INDEX_NONE). 0 if the bike has no horn.
 	int32 StartBikeHorn(USceneComponent* Source, int32 Bay);
+
+	// Bay Bay's engine sound (Torque Shed's EngineSynth recipe from its engine, head, exhaust, air
+	// filter, gearbox and plugs; EngineSound plays it): shared by every bike with the same recipe and
+	// baking in the background, idle first. Null if the bay has no engine.
+	static std::shared_ptr<TorqueEngine::FBank> BikeEngine(const UObject* WorldContext, int32 Bay);
+	// A sound made on the spot (a kick start), riding along on Source like PlayOn.
+	int32 PlayMadeOn(const std::vector<float>& Samples, int32 SampleRate, USceneComponent* Source, const FVector& Offset, float Db = 0.0f);
 
 	// The room the listener's in ("" outside) and how many voices are sounding (tests).
 	const FString& ListenerRoom() const { return ListenerRoomName; }
