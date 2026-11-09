@@ -1957,7 +1957,7 @@ void ATorqueWalker::UpdateCues()
 	}
 	// The same, with a thin soft line round it (TorqueLookOutline); with empty hands, a place's own
 	// machine, bin, hook or computer too.
-	if (LookOutline.Attach(Camera))
+	if (LookOutline.Attach(this))
 	{
 		TArray<UPrimitiveComponent*> Lined;
 		for (UStaticMeshComponent* C : Now) Lined.Add(C);
