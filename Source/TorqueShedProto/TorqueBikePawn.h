@@ -82,6 +82,16 @@ public:
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
 
+	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
+	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand
+	// (the back wheel lifted), its engine left as it was, ticking over if it was running. F by the
+	// bike gets back on. Parked: a bike seen standing with nobody on it (ours, or in co-op another
+	// rider's), its stand down and the rider hidden.
+	bool IsOnFoot() const { return bOnFoot; }
+	void SetParkedLook(bool bParked);
+	// For TorqueShedTest: "off" or "on" as F does, "walk:<cm>" steps that far ahead (on foot).
+	FString TestFoot(const FString& What);
+
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
 	void PlaceForSlot(int32 Slot);
 	// Back to the start of the road, the clock reset (Home, or the pause menu).
@@ -96,7 +106,7 @@ public:
 	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
 	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
 	// The stage 3 controls for TorqueShedTest, as the keys work them: What "gear" (Arg +1 up, -1 down, as
-	// X / Z: the box goes manual), "ignition" (as I), "clutch" (Arg 1 held, 0 let go, as F) or "state"
+	// X / Z: the box goes manual), "ignition" (as I), "clutch" (Arg 1 held, 0 let go, as Left Alt) or "state"
 	// (nothing). Says the gear, the engine, the clutch and the speed after it.
 	FString TestControl(const FString& What, int32 Arg);
 	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
@@ -286,6 +296,24 @@ private:
 	// groups as the Speed Twin model's (wheels spinning, bars and fork steering, the fork lowers and
 	// the swingarm on the suspension), its geometry above from the layout, and its own riding spec.
 	bool bCatalogueModel = false;
+	// [foot] Off the bike: where you stand (world cm, at your feet) and look; where the bike's parked
+	// (sim frame: the ground under it, its heading, which stand, how far it leans or is lifted); the
+	// catalogue bike's stands (their parts, and each stand surface's place as drawn, folded).
+	bool bOnFoot = false, bParkedLook = false;
+	FVector FootPos = FVector::ZeroVector;
+	double FootYaw = 0.0, FootPitch = 0.0, OnFootFor = 0.0, FootNoteFor = 0.0;
+	FString FootNote;
+	TorqueSim::V3 ParkGround;
+	double ParkHeading = 0.0, ParkLean = 0.0, ParkLift = 0.0;
+	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
+	FString SideStandPart, CentreStandPart;
+	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
+	void ChooseStand();
+	bool GetOff();
+	bool GetOn();
+	void HoldParked();
+	void StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY);
+	void PoseStands(int32 Stand);
 	FString CatalogueSpec;             // the spec, as logged
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
