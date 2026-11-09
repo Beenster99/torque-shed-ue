@@ -77,7 +77,9 @@ float4 B = F.Tri(MaskB, MaskBSampler, v);
 // it faces), averaged over the cubes that have surface in them.
 float w = max(B.a, 1e-3);
 float3 n2 = n * n;
-float washed = saturate((n2.x * (n.x > 0 ? A.r : A.g) + n2.y * (n.y > 0 ? A.b : A.a) + n2.z * (n.z > 0 ? B.r : B.g)) / w);
+float3 wf = float3(n.x > 0 ? A.r : A.g, n.y > 0 ? A.b : A.a, n.z > 0 ? B.r : B.g);
+float3 fair = saturate((abs(n) - 0.25) / 0.35);   // a slant washed from a side it faces well enough (TorqueWash SlantLo/Hi)
+float washed = saturate(max(dot(n2, wf), max(max(wf.x * fair.x, wf.y * fair.y), wf.z * fair.z)) / w);
 washed *= saturate(B.a * 2.5);
 
 // The muck as it lies: thick low down and underneath, a film of dust up top (TorqueWashJob Pattern).

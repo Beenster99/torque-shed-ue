@@ -385,7 +385,13 @@ float FTorqueWashJob::WashedFacing(int32 I, const FVector& N) const
 {
 	if (I < 0) return 0.0f;
 	const float* W = &Washed[I * 6];
-	return (float)(N.X * N.X * W[N.X > 0.0 ? 0 : 1] + N.Y * N.Y * W[N.Y > 0.0 ? 2 : 3] + N.Z * N.Z * W[N.Z > 0.0 ? 4 : 5]);
+	const float Wx = W[N.X > 0.0 ? 0 : 1], Wy = W[N.Y > 0.0 ? 2 : 3], Wz = W[N.Z > 0.0 ? 4 : 5];
+	// Each side weighted by how square on it faces; or a surface at a slant washed from one way it
+	// faces well enough counts in full (the jet that hits it square on is diagonal to the cubes).
+	// M_WashDirt works it out the same way.
+	const float Blend = (float)(N.X * N.X * Wx + N.Y * N.Y * Wy + N.Z * N.Z * Wz);
+	auto Fair = [](double C) { return (float)FMath::Clamp((FMath::Abs(C) - TW::SlantLo) / (TW::SlantHi - TW::SlantLo), 0.0, 1.0); };
+	return FMath::Max(Blend, FMath::Max3(Wx * Fair(N.X), Wy * Fair(N.Y), Wz * Fair(N.Z)));
 }
 
 float FTorqueWashJob::Remaining(int32 Point) const
@@ -398,7 +404,11 @@ float FTorqueWashJob::Remaining(int32 Point) const
 float FTorqueWashJob::Credit(int32 Point) const
 {
 	const float L = Remaining(Point);
-	return L <= TW::CleanLevel ? 1.0f : FMath::Clamp(1.0f - (L - TW::CleanLevel) / TW::CreditSpan, 0.0f, 1.0f);
+	if (L <= TW::CleanLevel) return 1.0f;
+	// By how little's left, or by how much of it's come off (the thickest caked muck the same as a film).
+	const float W = FMath::Clamp(WashedFacing(Vox[Point], Normals[Point]), 0.0f, 1.0f);
+	return FMath::Max(FMath::Clamp(1.0f - (L - TW::CleanLevel) / TW::CreditSpan, 0.0f, 1.0f),
+		FMath::Clamp((W - TW::WashedLo) / (TW::WashedHi - TW::WashedLo), 0.0f, 1.0f));
 }
 
 float FTorqueWashJob::PartClean(int32 Part) const
@@ -519,17 +529,24 @@ void FTorqueWashJob::Wash(const FVector& At, const FVector& Along, double Reach,
 				const FVector P = Origin + (FVector(X, Y, Z) + FVector(0.5)) * Vx;
 				const FVector V = P - At;
 				const double Depth = FVector::DotProduct(V, Along);
-				if (Depth < -Vx * 1.5 || Depth > Vx * 3.0) continue;   // the surface it lands on, not the far side of the bike
+				// The surface it lands on, and the water bouncing in round it behind (into a caliper,
+				// round the back of a fork leg), not the far side of the bike.
+				if (Depth < -Vx * 1.5 || Depth > Vx * TW::SplashDepth) continue;
 				const double Off = (V - Along * Depth).Size();
 				if (Off >= Reach) continue;
 				const float Add = (float)(Amount * (1.0 - TW::JetFalloff * Off / Reach));
+				const bool bFace = Depth <= Vx * 3.0;
 				bool bAny = false;
 				for (int32 K = 0; K < 6; ++K)
-					if (TakeK[K] > 0.0f && Washed[I * 6 + K] < 1.0f)
+				{
+					// Square on where it lands; the splash gets everything round about, more slowly.
+					const float T = FMath::Max(bFace ? TakeK[K] : 0.0f, (float)TW::Splash);
+					if (Washed[I * 6 + K] < 1.0f)
 					{
-						Washed[I * 6 + K] = FMath::Min(1.0f, Washed[I * 6 + K] + Add * TakeK[K]);
+						Washed[I * 6 + K] = FMath::Min(1.0f, Washed[I * 6 + K] + Add * T);
 						bAny = true;
 					}
+				}
 				if (!bAny) continue;
 				Store(I);
 				bSlice = true;
@@ -562,6 +579,19 @@ void FTorqueWashJob::CheckDone(const TSet<int32>& Touched)
 			Dinged[P] = true;
 			Cues.Add({false, Names[P]});
 		}
+	}
+	// Near enough the whole bike clean: the last specks tucked away out of reach go with it.
+	if (!bBikeDone && Done.Contains(false))
+	{
+		double Sum = 0.0;
+		for (int32 I = 0; I < Points.Num(); ++I) Sum += Credit(I);
+		if (Sum >= TW::BikeFinish * Points.Num())
+			for (int32 P = 0; P < Items.Num(); ++P)
+				if (!Done[P])
+				{
+					Done[P] = true;
+					ToCallClean.AddUnique(P);
+				}
 	}
 	if (!bBikeDone && !Done.Contains(false))
 	{
@@ -813,7 +843,10 @@ int32 FTorqueWashJob::TestSweep(int32 Passes, double Distance, bool bUnder)
 	for (const FVector& P : Points) Box += P;
 	const FVector C = Box.GetCenter(), Ext = Box.GetExtent();
 	// The sides looked from (model axes: x along the bike, y across, z up).
-	TArray<FVector> Sides = {FVector(0, 1, 0), FVector(0, -1, 0), FVector(1, 0, 0), FVector(-1, 0, 0), FVector(0.3, 0, 1).GetSafeNormal()};
+	// Round the bike: each side, each corner (a little from above), and the top.
+	TArray<FVector> Sides = {FVector(0, 1, 0), FVector(0, -1, 0), FVector(1, 0, 0), FVector(-1, 0, 0),
+		FVector(1, 1, 0.35).GetSafeNormal(), FVector(1, -1, 0.35).GetSafeNormal(), FVector(-1, 1, 0.35).GetSafeNormal(), FVector(-1, -1, 0.35).GetSafeNormal(),
+		FVector(0.3, 0, 1).GetSafeNormal()};
 	if (bUnder) Sides.Add(FVector(0.2, 0, -1).GetSafeNormal());
 	const double RowStep = TW::JetAt(Distance).Radius;   // rows half overlapping
 	const double Dt = 1.0 / 60.0;
