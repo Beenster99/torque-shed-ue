@@ -131,6 +131,16 @@ public:
 	double TractionNow() const { return Traction; }
 	double ThrottleNow() const { return ThrottleEff; }
 	double CrashTimer = 0.0;
+	// Respawn protection (Torque Shed's BikeGhost): for GHOST_TIME seconds after a respawn the bike
+	// passes through other bikes and nothing it touches throws the rider off (it still rides the ground
+	// and stops at walls). Coming off by itself ends it.
+	static constexpr double GHOST_TIME = 5.0;
+	double GhostLeft = 0.0;
+	void StartGhost(double Seconds = GHOST_TIME) { GhostLeft = Seconds; }
+	bool IsGhost() const { return GhostLeft > 0.0; }
+	// How see-through a ghost is drawn now (BikeGhost.look: 0 solid, at most 0.6), fading back to solid
+	// over its last 1.5 s with a flicker in the last one.
+	double GhostLook() const;
 	Wheel Wheels[2];
 
 	void Setup(const BikeSpec& Spec);

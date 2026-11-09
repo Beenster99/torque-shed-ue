@@ -192,6 +192,19 @@ const TCHAR* const RidesSteps =
 	TEXT("log");
 #undef TORQUE_RIDE_STYLE
 
+// Physics stage 4: every style's reference bike (the scratch bike above remade as each), ridden out
+// and measured as SimTest/realism_test measures it: a launch, a stop from 60 on the level test pad
+// and a full-lean bend at 45, each logged; then back.
+#define TORQUE_PHYSICS_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,ridelog,launch,brakestop:60:flat,lean:max,back,wait:6,")
+const TCHAR* const PhysicsSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TORQUE_PHYSICS_STYLE("classic") TORQUE_PHYSICS_STYLE("cafe") TORQUE_PHYSICS_STYLE("scrambler") TORQUE_PHYSICS_STYLE("tourer")
+	TORQUE_PHYSICS_STYLE("roader") TORQUE_PHYSICS_STYLE("naked") TORQUE_PHYSICS_STYLE("sport") TORQUE_PHYSICS_STYLE("race")
+	TORQUE_PHYSICS_STYLE("bobber") TORQUE_PHYSICS_STYLE("chopper") TORQUE_PHYSICS_STYLE("cruiser") TORQUE_PHYSICS_STYLE("adventure")
+	TORQUE_PHYSICS_STYLE("supermoto") TORQUE_PHYSICS_STYLE("mx")
+	TEXT("log");
+#undef TORQUE_PHYSICS_STYLE
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -225,6 +238,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -424,7 +438,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
-		Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
+		Verb == TEXT("launch") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -478,6 +492,27 @@ bool UTorqueShedTest::RunStep(const FString& S)
 				Bike->TestStartMove(bBikeHit ? 3 : 2, Mph, true);
 				bMoveStarted = true;
 				Said(FString::Printf(TEXT("getting up to %.0f mph to ride into %s"), Mph, bBikeHit ? TEXT("a stopped bike") : TEXT("a wall")));
+				Tries = 0;
+				return false;
+			}
+			if (Bike->TestMoveBusy())
+			{
+				Tries = 0;
+				return false;
+			}
+			bMoveStarted = false;
+			Said(Bike->TestMoveResult());
+			return true;
+		}
+		// launch[:MPH] (rolling at 10 before it): on the test pad, stopped, then flat out for 10 s.
+		if (Verb == TEXT("launch"))
+		{
+			const double Mph = P.Num() > 1 ? FCString::Atod(*P[1]) : 10.0;
+			if (!bMoveStarted)
+			{
+				Bike->TestStartMove(4, Mph, true);
+				bMoveStarted = true;
+				Said(TEXT("rolling onto the test pad for a launch"));
 				Tries = 0;
 				return false;
 			}
