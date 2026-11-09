@@ -47,6 +47,11 @@ public:
 	UFUNCTION(Server, Reliable) void ServerShed(const FTorqueShedRequestNet& Request);
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
 
+	// A walker put somewhere at once (stepping up to the paint bench, the tests' looks): on a joined
+	// copy a pawn moved there alone is snapped back by the host's movement, so the host moves it too.
+	static void PlaceOnHost(APawn* Pawn, const FVector& At, const FRotator& View);
+	UFUNCTION(Server, Reliable) void ServerPlace(FVector At, FRotator View);
+
 private:
 	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character };
 	struct FRow

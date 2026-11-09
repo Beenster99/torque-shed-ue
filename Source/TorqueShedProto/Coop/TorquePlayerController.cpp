@@ -587,3 +587,18 @@ void ATorquePlayerController::DrawNote(AHUD* Hud, UCanvas* Canvas)
 	Canvas->SetDrawColor(FColor(255, 190, 120));
 	Canvas->DrawText(Font, Note, X, Y, Sc, Sc);
 }
+
+void ATorquePlayerController::PlaceOnHost(APawn* Pawn, const FVector& At, const FRotator& View)
+{
+	if (!Pawn || Pawn->HasAuthority()) return;
+	if (ATorquePlayerController* PC = Cast<ATorquePlayerController>(Pawn->GetController())) PC->ServerPlace(At, View);
+}
+
+void ATorquePlayerController::ServerPlace_Implementation(FVector At, FRotator View)
+{
+	APawn* P = GetPawn();
+	if (!P) return;
+	P->SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
+	SetControlRotation(View);
+	UE_LOG(LogTemp, Log, TEXT("Torque net: %s put at %s (from its own machine)"), *P->GetName(), *At.ToCompactString());
+}

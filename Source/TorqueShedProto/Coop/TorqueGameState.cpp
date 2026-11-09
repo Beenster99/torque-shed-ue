@@ -102,7 +102,24 @@ void ATorqueGameState::OnRep_Shed()
 {
 	UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
 	if (!Build || Shed.Version == 0 || Shed.Version == AppliedVersion) return;
-	if (Build->LoadShedFromHost(Shed.Data)) AppliedVersion = Shed.Version;
+	if (!Build->LoadShedFromHost(Shed.Data)) return;
+	AppliedVersion = Shed.Version;
+	// For the two-copy tests: where each bike stands on this (joined) copy, when that changes.
+	FString Where;
+	const int32 OnRig = Build->DynoBay();
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+	{
+		if (!Build->Exists(Bay)) continue;
+		const FTorqueShedBike& Bike = Build->Bike(Bay);
+		const FVector At = Build->BikeTransform(Bay).GetLocation();
+		const TCHAR* Parked = Bike.Pusher != 0 ? TEXT("being wheeled") : OnRig == Bay ? TEXT("on the dyno rig") : !Bike.bAway ? TEXT("in its bay") : TEXT("on the floor");
+		Where += FString::Printf(TEXT("%sbay %d %s %s at (%.0f, %.0f)"), Where.IsEmpty() ? TEXT("") : TEXT("; "), Bay + 1, *Bike.Name, Parked, At.X, At.Y);
+	}
+	if (Where != LoggedBikes)
+	{
+		LoggedBikes = Where;
+		UE_LOG(LogTemp, Log, TEXT("Torque net: shed from the host (version %d): %s"), Shed.Version, Where.IsEmpty() ? TEXT("no bikes") : *Where);
+	}
 }
 
 void ATorqueGameState::SetWeather(int32 NewWeather)

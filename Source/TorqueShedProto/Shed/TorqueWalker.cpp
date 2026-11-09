@@ -2007,6 +2007,7 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 	const FVector Eye = GetActorLocation() + FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
 	const FRotator View = (Point - Eye).Rotation();
 	if (AController* C = GetController()) C->SetControlRotation(View);
+	ATorquePlayerController::PlaceOnHost(this, GetActorLocation(), View);   // [co-op] a joined copy: the host too
 	Camera->SetRelativeLocation(FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye));
 	Camera->SetWorldRotation(View);
 	FindTarget();
@@ -2111,6 +2112,7 @@ FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 	const FVector Stand = To.GetLocation() - Right * 85.0 + Ahead * 25.0;
 	SetActorLocation(FVector(Stand.X, Stand.Y, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
 	if (AController* C = GetController()) C->SetControlRotation(Heading);
+	ATorquePlayerController::PlaceOnHost(this, GetActorLocation(), Heading);   // [co-op] a joined copy: the host too
 	Note.Reset();
 	LetGo(Bay);
 	bool bThere = B->IsAway(Bay) && B->DynoBay() != Bay && B->Bike(Bay).Pusher == 0;
