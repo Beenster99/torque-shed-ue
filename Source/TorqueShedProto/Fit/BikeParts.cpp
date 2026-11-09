@@ -3889,6 +3889,7 @@ std::map<std::string, V3> BikeParts::Fairing(const PartsMap& Parts, const Layout
 	std::string Set;
 	if (Shape == "race") Set = Look && Look->Get("lamps") && !Look->Flag("lamps") ? "race" : "sport";
 	else if (Shape == "seeley" || Shape == "adventure" || Shape == "touring" || Shape == "half") Set = Shape;
+	else if (Shape.rfind("naked_", 0) == 0) Set = Shape;   // beenster's naked fairings (Data/Parts/Redrawn/fairing/set)
 	const std::string Path = "fairing/set/" + Set + ".glb";
 	if (Set.empty() || !HasGlb(Path)) return Mounts;
 	// The set's base mesh's bounds (its keys at 0), in the glb's Godot frame.
@@ -3992,11 +3993,12 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	FinalDrive(Parts, L, Out);
 	Shocks(Parts, L, Out);
 	// (BikeModel._full_fairing_fitted: a full race fairing, or an adventure one, carries its own
-	// lamps, so the plain headlight is tucked away inside it.)
+	// lamps, so the plain headlight is tucked away inside it. So does each of beenster's naked
+	// fairings, whose lamps are drawn into the fairing.)
 	if (const Json* F = Lay.Part(PartIn(Parts, "fairing")))
 	{
 		const std::string Shape = PartStr(F->Get("look"), "shape", F->Str("style", ""));
-		if ((F->Str("style") == "race" && Shape != "seeley") || Shape == "adventure")
+		if ((F->Str("style") == "race" && Shape != "seeley") || Shape == "adventure" || (F->Flag("frame_mount") && Shape.rfind("naked_", 0) == 0))
 			for (FittedPart& P : Out)
 				if (P.Slot == "headlight") P.Hidden = true;
 	}
