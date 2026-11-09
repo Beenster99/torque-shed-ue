@@ -40,6 +40,7 @@ struct FTorqueSettings
 	// Character.
 	FString Name;               // empty: the Windows account name
 	int32 Colour = 0;           // index into Colours(): the rider's jacket and the name over them
+	int32 RiderStyle = 0;       // index into RiderStyles(): how you sit on the bike (Torque Shed's Rider style)
 
 	// Whether the player has ever saved settings: until then the game keeps the project's defaults
 	// (so a fresh install, and test runs, look as before).
@@ -53,6 +54,13 @@ struct FTorqueSettings
 	static const TArray<FColor>& Colours();
 	static const TArray<FString>& ColourNames();
 	FColor RiderColour() const;
+	// Torque Shed's riding styles (rider_style.gd STYLES / INFO), in its Profile tab's order: the id
+	// the rider pose reads, the name and the line under it. Only looks: the bike rides the same.
+	struct FRiderStyle { const TCHAR* Id; const TCHAR* Name; const TCHAR* Desc; };
+	static const TArray<FRiderStyle>& RiderStyles();
+	// The style a ridden pawn's rider sits in: this machine's own from Settings (or
+	// -TorqueRiderStyle=), another player's from their ATorquePlayerState. An id from RiderStyles().
+	static FString RiderStyleFor(const class APawn* Pawn);
 	// Screen percentage for the upscaler mode.
 	static float ScreenPercent(int32 Mode);
 	static bool HasDlss();

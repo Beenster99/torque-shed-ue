@@ -13,6 +13,7 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATorquePlayerState, Activity);
 	DOREPLIFETIME(ATorquePlayerState, Colour);
+	DOREPLIFETIME(ATorquePlayerState, RiderStyle);
 	DOREPLIFETIME(ATorquePlayerState, Bay);
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
 }
@@ -24,6 +25,7 @@ void ATorquePlayerState::CopyProperties(APlayerState* Into)
 	if (ATorquePlayerState* T = Cast<ATorquePlayerState>(Into))
 	{
 		T->Colour = Colour;
+		T->RiderStyle = RiderStyle;
 		T->Bay = Bay;
 	}
 }
@@ -42,6 +44,11 @@ void ATorquePlayerState::ServerSetLook_Implementation(const FString& NewName, ui
 		if (AGameModeBase* Mode = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr)
 			if (AController* C = GetOwningController()) Mode->ChangeName(C, Clean, false);
 	}
+}
+
+void ATorquePlayerState::ServerSetRiderStyle_Implementation(uint8 NewStyle)
+{
+	RiderStyle = (uint8)FMath::Clamp<int32>(NewStyle, 0, FTorqueSettings::RiderStyles().Num() - 1);
 }
 
 void ATorquePlayerState::ServerSetBay_Implementation(int32 NewBay)

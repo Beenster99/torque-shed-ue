@@ -1,5 +1,8 @@
 #include "TorqueSettings.h"
 
+#include "TorquePlayerState.h"
+#include "GameFramework/Pawn.h"
+
 #include "AudioDevice.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -71,6 +74,8 @@ void FTorqueSettings::Load()
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
 	UpscaleMode = FMath::Clamp(UpscaleMode, 0, 4);
 	Colour = FMath::Clamp(Colour, 0, Colours().Num() - 1);
+	GConfig->GetInt(Section, TEXT("RiderStyle"), RiderStyle, Ini);
+	RiderStyle = FMath::Clamp(RiderStyle, 0, RiderStyles().Num() - 1);
 }
 
 void FTorqueSettings::Save()
@@ -100,6 +105,7 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("Steering"), Steering, Ini);
 	GConfig->SetString(Section, TEXT("Name"), *Name, Ini);
 	GConfig->SetInt(Section, TEXT("Colour"), Colour, Ini);
+	GConfig->SetInt(Section, TEXT("RiderStyle"), RiderStyle, Ini);
 	GConfig->Flush(false, Ini);
 }
 
@@ -183,4 +189,32 @@ FString FTorqueSettings::RealismText(float V)
 	if (V < 0.45f) return TEXT("mostly sim: the rider barely saves the front");
 	if (V < 0.8f) return TEXT("the rider protects the front and smooths the throttle");
 	return TEXT("easy: the rider also balances the bike for you");
+}
+
+const TArray<FTorqueSettings::FRiderStyle>& FTorqueSettings::RiderStyles()
+{
+	static const TArray<FRiderStyle> S = {
+		{TEXT("situp"), TEXT("Sit-up adventure"), TEXT("Straight back, tall in the saddle, and neutral through the corners.")},
+		{TEXT("scratcher"), TEXT("Knee-down scratcher"), TEXT("Tucked in and hanging off: the further over you go, the lower the inside knee.")},
+		{TEXT("naked"), TEXT("Elbows-out naked"), TEXT("Leant forward over the tank with the elbows out, and a bit of knee out in the corners.")},
+		{TEXT("rossi"), TEXT("Rossi leg out"), TEXT("Braking hard into a corner, the inside leg comes off the peg and dangles forward and out.")},
+	};
+	return S;
+}
+
+FString FTorqueSettings::RiderStyleFor(const APawn* Pawn)
+{
+	const TArray<FRiderStyle>& Styles = RiderStyles();
+	const bool bMine = !Pawn || Pawn->IsLocallyControlled() || Pawn->GetNetMode() == NM_Standalone;
+	if (bMine)
+	{
+		static FString Style;
+		static const bool bAsked = FParse::Value(FCommandLine::Get(), TEXT("TorqueRiderStyle="), Style);   // (asked every frame)
+		if (bAsked)
+			for (const FRiderStyle& R : Styles)
+				if (Style.Equals(R.Id, ESearchCase::IgnoreCase)) return R.Id;
+		return Styles[FMath::Clamp(Get().RiderStyle, 0, Styles.Num() - 1)].Id;
+	}
+	const ATorquePlayerState* PS = Pawn->GetPlayerState<ATorquePlayerState>();
+	return Styles[FMath::Clamp<int32>(PS ? PS->RiderStyle : 0, 0, Styles.Num() - 1)].Id;
 }

@@ -1495,8 +1495,8 @@ void ATorqueBikePawn::FitRiderToBike()
 	// folded: an MX's bars) it sits back up, to upright at most.
 	struct FStyleTorso { const TCHAR* Name; double Up, Fwd; };
 	static const FStyleTorso Torsos[] = {{TEXT("situp"), 0.57, 0.13}, {TEXT("scratcher"), 0.42, 0.4}, {TEXT("naked"), 0.45, 0.37}, {TEXT("rossi"), 0.45, 0.35}};
-	FString Style = TEXT("situp");
-	FParse::Value(FCommandLine::Get(), TEXT("TorqueRiderStyle="), Style);
+	// [co-op] Settings > Character > Riding style (or -TorqueRiderStyle=), another player's from theirs.
+	const FString Style = FTorqueSettings::RiderStyleFor(this);
 	FStyleTorso Torso = Torsos[0];
 	for (const FStyleTorso& T : Torsos)
 		if (Style.Equals(T.Name, ESearchCase::IgnoreCase)) Torso = T;
@@ -1553,6 +1553,8 @@ void ATorqueBikePawn::FitRiderToBike()
 
 void ATorqueBikePawn::UpdateRider()
 {
+	// [co-op] A new riding style (chosen in Settings, or another player's arriving): sit again.
+	if (bRiderFitted && !RiderStyle.IsEmpty() && FTorqueSettings::RiderStyleFor(this) != RiderStyle) bRiderFitted = false;
 	if (RiderRig.IsValid() && bRiderOnLayout && !bRiderFitted) FitRiderToBike();
 	if (RiderRig.IsValid())
 	{

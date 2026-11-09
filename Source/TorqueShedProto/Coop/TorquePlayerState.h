@@ -35,6 +35,8 @@ public:
 
 	UPROPERTY(Replicated) FString Activity;
 	UPROPERTY(Replicated) uint8 Colour = 0;
+	// How they sit on the bike (FTorqueSettings::RiderStyles), so everyone's riders look as they chose.
+	UPROPERTY(Replicated) uint8 RiderStyle = 0;
 	// The shed bay this player last worked on or claimed (-1 none): which bike they ride out on.
 	UPROPERTY(Replicated) int32 Bay = -1;
 	// The hands (the owner's own copy is set at once; the others get the host's).
@@ -45,6 +47,7 @@ public:
 	UFUNCTION(Server, Reliable) void ServerSetActivity(const FString& What);
 	UFUNCTION(Server, Reliable) void ServerSetLook(const FString& NewName, uint8 NewColour);
 	UFUNCTION(Server, Reliable) void ServerSetBay(int32 NewBay);
+	UFUNCTION(Server, Reliable) void ServerSetRiderStyle(uint8 NewStyle);
 	UFUNCTION(Server, Reliable) void ServerSetHands(const FTorqueHandsNet& NewHands);
 
 	// The owner's walker, every frame: sent on to the host when it's worth it (HandsState.h).
