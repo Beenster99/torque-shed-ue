@@ -1662,8 +1662,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			EngineNoteFor = 4.0;
 		}
 	}
-	EngineNoteFor = FMath::Max(EngineNoteFor - DeltaSeconds, 0.0);
 	else Dash.Step(*Sim, 0.0, true, 0.0);
+	EngineNoteFor = FMath::Max(EngineNoteFor - DeltaSeconds, 0.0);
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
 	{
