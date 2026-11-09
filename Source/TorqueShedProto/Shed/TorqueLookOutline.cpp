@@ -3,6 +3,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Materials/MaterialInterface.h"
@@ -55,6 +56,15 @@ void FTorqueLookOutline::Show(const TArray<UPrimitiveComponent*>& Now)
 		if (!C->bRenderCustomDepth) C->SetRenderCustomDepth(true);
 		if (C->CustomDepthStencilValue != Stencil) C->SetCustomDepthStencilValue(Stencil);
 		Shown.Add(C);
+	}
+	// Once a game, the first time something is outlined: what, and whether custom depth is on.
+	static bool bSaid = false;
+	if (!bSaid && Shown.Num() > 0)
+	{
+		bSaid = true;
+		static const IConsoleVariable* Depth = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
+		UE_LOG(LogTemp, Log, TEXT("Torque: look outline round %d mesh(es), first %s (r.CustomDepth=%d)"), Shown.Num(),
+			*GetNameSafe(Shown[0].Get()), Depth ? Depth->GetInt() : -1);
 	}
 }
 
