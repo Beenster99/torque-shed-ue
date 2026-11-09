@@ -244,6 +244,28 @@ public:
 	const FString& SlotName() const { return SaveSlot; }
 	static bool IsTestRun();
 
+	// --- Saved games (the title screen's New, Load and Delete Game) -------------------------
+	// Each game is its own save slot: "Shed" is game 1 (the slot every earlier build saved to),
+	// then "Shed_2", "Shed_3"... The game starts on the most recently saved one.
+	struct FSavedGame
+	{
+		FString Slot;
+		int32 Number = 1;
+		FDateTime Saved;      // the file's time (UTC)
+		int32 BikeCount = -1; // -1: couldn't read it
+	};
+	// The games saved on this PC, newest first.
+	static TArray<FSavedGame> SavedGames();
+	// The slot a new game goes in: the first free number.
+	static FString NewGameSlot();
+	static int32 GameNumber(const FString& Slot);
+	// Switches the shed to Slot: a new shed there (saved straight away, so it's listed), or the one
+	// saved in it. Changes still owed to the slot in use are saved there first.
+	void UseGame(const FString& Slot, bool bNew);
+	// Deletes a saved game. If it's the one in use, the shed switches to the newest one left (or a
+	// new, unsaved shed in "Shed" when none is), so the deleted one is never saved again.
+	bool DeleteGame(const FString& Slot);
+
 	// --- The bays --------------------------------------------------------------------------
 	static constexpr int32 Bays = 4;
 	static constexpr int32 StartBikes = 2;   // a new shed: a project bike in each of the first two bays
