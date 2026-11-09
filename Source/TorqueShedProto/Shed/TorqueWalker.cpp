@@ -2604,6 +2604,13 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 	return Out;
 }
 
+FString ATorqueWalker::TestComputerType(const FString& Type)
+{
+	if (!bComputer) OpenComputer();
+	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);
+	return Computer.Describe();
+}
+
 FString ATorqueWalker::TestColour(const TArray<FString>& Args)
 {
 	if (!bComputer) OpenComputer();

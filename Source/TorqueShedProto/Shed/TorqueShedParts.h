@@ -45,6 +45,14 @@ double PartNumber(FName Part, FName Field, double Default);
 // The field's mean over every part of the kind (a Speed Twin part's mass), or Default.
 double KindAverage(FName Kind, FName Field, double Default);
 FLinearColor DefaultColour(FName Part);
+// Bike types (Torque Shed's styles: "cafe", "bobber", "adventure"...; layout.json style_names has
+// their names). A part's preferred type is the style pack it came in, else the first of its
+// "styles"; NAME_None when it has none (brakes, gearboxes, plugs...: they go on any bike).
+FName PreferredStyle(FName Part);
+// Every type it suits, the preferred one first (empty: any bike).
+TArray<FName> PartStyles(FName Part);
+// It suits a bike of this type (true for a part made for any bike, or for Style none).
+bool SuitsStyle(FName Part, FName Style);
 // The catalogue's parts of a kind, in its order.
 TArray<FName> PartsOfKind(FName Kind);
 // Kinds that bolt on (no fluids), in the game's order.
