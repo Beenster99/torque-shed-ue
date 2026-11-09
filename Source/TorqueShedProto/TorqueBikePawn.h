@@ -95,6 +95,14 @@ public:
 	// Hold a lever for a check of the rider's fingers on it: Side 0 the clutch, 1 the front brake;
 	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
 	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
+	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
+	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
+	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at
+	// that speed for 6 s (the ground taken as tarmac, as the bike leaves the road) and comes back to
+	// where the bend began. TestMoveBusy until it's done, then TestMoveResult says what it measured.
+	void TestStartMove(int32 Kind, double Mph);
+	bool TestMoveBusy() const { return TestMove >= 0; }
+	const FString& TestMoveResult() const { return TestMoveText; }
 	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
 	// from straight ahead (90: side on from the bike's right).
 	// Dist and Fov: the orbit's distance (cm) and field of view (degrees), 0 for the showroom's own.
@@ -249,6 +257,15 @@ private:
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
+	// TestStartMove's manoeuvre: which (-1 none), its phase (0 getting up to speed, 1 measuring), the
+	// speed it's held at (m/s), and what it has measured so far.
+	int32 TestMove = -1, TestPhase = 0, TestFromNear = 0;
+	double TestMps = 0.0, TestClock = 0.0, TestSteady = 0.0, TestDist = 0.0, TestV0 = 0.0, TestSide = 1.0;
+	double TestNose = 0.0, TestLeanSum = 0.0, TestGSum = 0.0, TestLeanPeak = 0.0, TestGPeak = 0.0, TestSlide = 0.0, TestLateLean = 0.0;
+	int32 TestSamples = 0, TestLateSamples = 0;
+	bool bTestRobotWas = false, bTestTarmac = false;
+	FString TestMoveText;
+	void TestMoveStep();
 	// Where its rider sits (pawn local cm): the seat's surface under the hips, the pegs (0 left, 1
 	// right) and the grips' centres, from the layout (as Torque Shed sits its rider: BikeRig's hip
 	// and peg) and the grips as drawn, with geometry mode's offsets. FitRiderToBike turns them into

@@ -87,6 +87,12 @@
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
+//   brakestop[:<mph>]     on the road: the robot holds mph (60) on a straight, then brakes as a road test does
+//                         (front full, rear 0.6) to a stop; logs the distance, time, average g and nose dive
+//   lean:max[:<mph>]      on the road: the robot holds mph (45) on a straight, then the steer input is held full
+//                         for 6 s (the ground taken as tarmac off the road); logs the lean and sideways g it
+//                         settles at, the peaks, and whether it slid or stood up; then back where the bend began.
+//                         Both wait until done (up to about two minutes); the bike's own log says the same
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again
 //   quit
@@ -121,6 +127,7 @@ private:
 	int32 Next = 0;
 	int32 TestBay = 0;
 	int32 Tries = 0;
+	bool bMoveStarted = false;   // a brakestop or lean step has started its manoeuvre and is waiting for it
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	double Wait = 0.0;
 	// How long each step (and the wait after it) took, real and game time, and in how many frames:
