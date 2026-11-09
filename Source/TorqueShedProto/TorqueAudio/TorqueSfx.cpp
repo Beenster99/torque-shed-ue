@@ -499,8 +499,8 @@ int32 UTorqueSfx::StartBikeHorn(USceneComponent* Source, int32 Bay)
 			Health = UTorqueBuildSubsystem::Health(*It);
 		}
 	// The horns in the parts list (bike_build.gd: style, tones, loudness, and the recordings' sound).
-	static TSharedPtr<FJsonObject> Horns;
-	if (!Horns.IsValid())
+	static TSharedPtr<FJsonObject> HornParts;
+	if (!HornParts.IsValid())
 	{
 		FString Text;
 		TSharedPtr<FJsonObject> Root;
@@ -508,12 +508,12 @@ int32 UTorqueSfx::StartBikeHorn(USceneComponent* Source, int32 Bay)
 			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) && Root.IsValid())
 		{
 			const TSharedPtr<FJsonObject>* H = nullptr;
-			if (Root->TryGetObjectField(TEXT("horn"), H)) Horns = *H;
+			if (Root->TryGetObjectField(TEXT("horn"), H)) HornParts = *H;
 		}
-		if (!Horns.IsValid()) Horns = MakeShared<FJsonObject>();
+		if (!HornParts.IsValid()) HornParts = MakeShared<FJsonObject>();
 	}
 	const TSharedPtr<FJsonObject>* Entry = nullptr;
-	if (!Horns->TryGetObjectField(Part.ToString(), Entry)) return 0;
+	if (!HornParts->TryGetObjectField(Part.ToString(), Entry)) return 0;
 	FString Sound, Style;
 	(*Entry)->TryGetStringField(TEXT("sound"), Sound);
 	(*Entry)->TryGetStringField(TEXT("style"), Style);
