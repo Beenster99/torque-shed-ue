@@ -129,12 +129,9 @@ def shed_workbench():
         w = L / 3 - 0.16
         box("Cab%d" % i, (cx, 0.53, 0.02), (w, 0.66, D - 0.1), "paint_red", bevel=0.004)
         drawer_bank("Drawer%d" % i, cx - w / 2 + 0.01, cx + w / 2 - 0.01, 0.21, 0.85, D / 2 - 0.03, 3, "paint_red", cols=2)
-    # Pegboard up the wall behind it, a few tools hung on it.
+    # Pegboard up the wall behind it. Its tools are their own prop, pegboard_tools
+    # (Tools/props/make_pegboard_tools.py), placed with the bench.
     box("Peg", (0.0, 1.3, -D / 2 + 0.01), (L * 0.6, 0.6, 0.012), "pegboard", bevel=0.002)
-    for i in range(7):
-        x = -L * 0.27 + i * 0.22
-        box("Hook%d" % i, (x, 1.5, -D / 2 + 0.04), (0.004, 0.004, 0.05), "chrome", bevel=0.0)
-        box("Spanner%d" % i, (x, 1.4 - i * 0.012, -D / 2 + 0.03), (0.022, 0.18 + i * 0.02, 0.005), "chrome", bevel=0.002)
     vice("Vice", (L / 2 - 0.35, 0.945, D / 2 - 0.15))
 
 
@@ -144,7 +141,8 @@ def parts_computer():
     Its front (where you stand) is +z here; Torque Shed's desk is 0.75 x 1.3 with the screen across it."""
     W, D = 1.35, 0.8
     box("DeskTop", (0.0, 0.755, 0.0), (W, 0.03, D), "plywood", bevel=0.003)
-    box("DeskEdge", (0.0, 0.755, D / 2 - 0.004), (W, 0.03, 0.008), "plastic_black", bevel=0.001)
+    # The edge banding wraps the top's front 2 mm proud (flush, it z-fought the top).
+    box("DeskEdge", (0.0, 0.755, D / 2 - 0.002), (W + 0.004, 0.034, 0.008), "plastic_black", bevel=0.001)
     for x in (-W / 2 + 0.04, W / 2 - 0.04):
         box("Panel%.1f" % x, (x, 0.37, 0.0), (0.025, 0.74, D - 0.04), "paint_grey", bevel=0.003)
     box("Modesty", (0.0, 0.5, -D / 2 + 0.05), (W - 0.1, 0.4, 0.018), "paint_grey", bevel=0.002)
@@ -336,7 +334,8 @@ def _shelving(W, H, D, levels, heavy):
         y = min(0.06 + level * pitch, H - 0.02)
         box("Board%d" % level, (0.0, y, 0.0), (W - 0.01, 0.018, D - 0.01), "plywood" if heavy else "paint_board", bevel=0.002)
         for z in (-D / 2 + 0.015, D / 2 - 0.015):
-            box("Beam%d%.2f" % (level, z), (0.0, y - 0.03, z), (W - post * 0.5, 0.05 if heavy else 0.035, 0.03), beam, bevel=0.003)
+            # (28 mm deep: 1 mm inside the posts' faces, not in their plane.)
+            box("Beam%d%.2f" % (level, z), (0.0, y - 0.03, z), (W - post * 0.5, 0.05 if heavy else 0.035, 0.028), beam, bevel=0.003)
     box("Plate", (0.0, H - 0.12, D / 2 + 0.005), (0.7, 0.14, 0.008), "label_white", bevel=0.002)
     for x in (-0.33, 0.33):
         cyl("Rivet%.2f" % x, (x, H - 0.12, D / 2 + 0.01), 0.006, 0.004, "chrome", axis="z", verts=10)
@@ -420,7 +419,7 @@ def _washer(pid):
         box("Solvent", (0.0, top - 0.14, 0.0), (W - 0.1, 0.004, D - 0.1), "solvent", bevel=0.0)
         box("Grate", (0.0, top - 0.02, 0.0), (W - 0.12, 0.012, D - 0.12), "steel_dark", bevel=0.001)
         for i in range(int((W - 0.12) / 0.05)):
-            box("GrateBar%d" % i, (-W / 2 + 0.085 + i * 0.05, top - 0.012, 0.0), (0.008, 0.012, D - 0.12), "steel", bevel=0.0)
+            box("GrateBar%d" % i, (-W / 2 + 0.085 + i * 0.05, top - 0.012, 0.0), (0.008, 0.012, D - 0.122), "steel", bevel=0.0)
     if pid in ("washer_standard", "washer_industrial", "washer_cabinet"):
         back = min(H - top, 1.1)
         if pid != "washer_cabinet":
@@ -484,7 +483,7 @@ def _repair(pid):
         prism("Window", [(D / 2 - 0.26, top + 0.17), (D / 2 - 0.01, top + 0.01), (D / 2 - 0.0, top + 0.02), (D / 2 - 0.25, top + 0.185)], W * 0.7, "glass", axis="x", bevel=0.0)
         for x in (-0.2, 0.2):
             torus("Port%.1f" % x, (x, top - 0.18, D / 2 + 0.005), 0.075, 0.012, "rubber", axis="z")
-            cyl("Glove%.1f" % x, (x, top - 0.18, D / 2 - 0.06), 0.07, 0.12, "rubber", axis="z", bevel=0.02)
+            cyl("Glove%.1f" % x, (x, top - 0.18, D / 2 - 0.058), 0.07, 0.12, "rubber", axis="z", bevel=0.02)   # (2 mm proud)
         box("Dust", (W / 2 + 0.1, 0.4, -D / 4), (0.2, 0.8, 0.25), "paint_grey", bevel=0.01)
         hose("Duct", [(W / 2 + 0.1, 0.8, -D / 4), (W / 2 + 0.1, top + 0.1, -D / 4), (W / 2 - 0.05, top + 0.12, -D / 4)], 0.04, "plastic_black")
         box("Pedal", (0.0, 0.03, D / 2 - 0.05), (0.12, 0.04, 0.2), "steel_dark", bevel=0.005)
@@ -631,7 +630,7 @@ def _trolley(flatbed):
             box("Chassis%.2f" % x, (x, top - 0.05, 0.0), (0.04, 0.04, D), frame, bevel=0.004)
     else:
         for y in (top - 0.02, 0.24):
-            box("Deck%.2f" % y, (0.0, y, 0.0), (W, 0.02, D), "paint_grey", bevel=0.003)
+            box("Deck%.2f" % y, (0.0, y, 0.0), (W - 0.004, 0.02, D - 0.004), "paint_grey", bevel=0.003)   # (inside the lips)
             for s in (-1, 1):
                 box("LipX%.2f%d" % (y, s), (s * (W / 2 - 0.008), y + 0.02, 0.0), (0.016, 0.04, D), frame, bevel=0.003)
                 box("LipZ%.2f%d" % (y, s), (0.0, y + 0.02, s * (D / 2 - 0.008)), (W, 0.04, 0.016), frame, bevel=0.003)
@@ -945,11 +944,12 @@ def _blaster(pid):
     ang = math.degrees(math.atan2(b[1] - a[1], a[2] - b[2]))
     L = math.hypot(b[1] - a[1], a[2] - b[2])
     mid = (0.0, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)
-    box("Glass", mid, (W - 0.06, 0.008, L), "glass", bevel=0.0, rot=(ang, 0, 0))
+    box("Glass", mid, (W - 0.06, 0.008, L - 0.006), "glass", bevel=0.0, rot=(ang, 0, 0))   # (ends inside the bars)
     for s in (-1, 1):
         box("GlassRail%d" % s, (s * (W / 2 - 0.03), mid[1], mid[2]), (0.05, 0.05, L), "paint_black", bevel=0.005, rot=(ang, 0, 0))
-    box("GlassLow", (0.0, front_top, D / 2 - 0.02), (W, 0.05, 0.05), "paint_black", bevel=0.005)
-    box("GlassHigh", (0.0, top + 0.02, glass_z), (W, 0.05, 0.05), "paint_black", bevel=0.005)
+    # (3 mm short of the sides' outer faces each end: flush, they z-fought.)
+    box("GlassLow", (0.0, front_top, D / 2 - 0.02), (W - 0.006, 0.05, 0.05), "paint_black", bevel=0.005)
+    box("GlassHigh", (0.0, top + 0.02, glass_z), (W - 0.006, 0.05, 0.05), "paint_black", bevel=0.005)
     box("Lamp", (0.0, top - 0.01, glass_z - 0.2), (W * 0.6, 0.02, 0.12), "led_white", bevel=0.0)
     port_y = (floor_y + front_top) / 2
     for s in (-1, 1):

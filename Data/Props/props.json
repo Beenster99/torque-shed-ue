@@ -6,6 +6,12 @@
    "torque_shed": "workshop.gd _build_bench",
    "source": "blender"
   },
+  "pegboard_tools": {
+   "name": "Hand tools on the workbench's pegboard (spanners, sockets, screwdrivers, pliers, hammer...)",
+   "torque_shed": "workshop.gd _build_bench (the pegboard's tools)",
+   "source": "blender",
+   "made_by": "Tools/props/make_pegboard_tools.py (plain Python, no Blender)"
+  },
   "parts_computer": {
    "name": "Parts computer desk",
    "torque_shed": "workshop.gd _build_computer",

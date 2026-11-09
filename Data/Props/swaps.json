@@ -8,9 +8,9 @@
     {"prop": "engine_stand", "at": [560, -40, 0], "yaw": 0, "hide": ["EngineStand_*"]},
     {"prop": "washer_standard", "at": [545, 490, 0], "yaw": 180, "hide": ["PartsWasher", "PartsWasher_Lid"]},
     {"prop": "repair_standard", "at": [340, 490, 0], "yaw": 180, "hide": ["RepairBench*"]},
-    {"prop": "bin_general", "at": [-275, 517, 0], "yaw": 180, "hide": ["Bin_General*"]},
-    {"prop": "bin_plastic", "at": [-333, 517, 0], "yaw": 180, "hide": ["Bin_Plastic*"]},
-    {"prop": "bin_metal", "at": [-391, 517, 0], "yaw": 180, "hide": ["Bin_Metal*"]},
+    {"prop": "bin_general", "at": [-277, 517, 0], "yaw": 180, "hide": ["Bin_General*"]},
+    {"prop": "bin_plastic", "at": [-337, 517, 0], "yaw": 180, "hide": ["Bin_Plastic*"]},
+    {"prop": "bin_metal", "at": [-397, 517, 0], "yaw": 180, "hide": ["Bin_Metal*"]},
     {"prop": "light_switches", "at": [285, 548, 128], "yaw": 180, "hide": ["Switches"]},
     {"prop": "pressure_washer", "at": [-1130, -215, 0], "yaw": 0, "hide": ["PressureWasher", "PressureWasher_Reel"]},
     {"prop": "dyno_rig", "at": [0, -940, 0], "yaw": 0, "hide": ["Dyno_Plate", "Dyno_Edge_*", "Dyno_Slot", "Dyno_Clamp_*", "Dyno_ClampBase", "Dyno_ClampStop", "Dyno_Post_*", "Dyno_PostCap_*"]},
@@ -28,6 +28,7 @@
     {"prop": "dress_multi_cleaner_5_litre", "at": [330, 510, 96], "yaw": 160},
     {"prop": "dress_metal_jerrycan_green", "at": [455, 530, 0], "yaw": 180},
     {"prop": "dress_korean_fire_extinguisher_01", "at": [-630, 440, 0], "yaw": -90},
-    {"prop": "trinket_clock", "at": [648, 190, 230], "yaw": 90}
+    {"prop": "trinket_clock", "at": [648, 190, 230], "yaw": 90},
+    {"prop": "pegboard_tools", "at": [-600, 60, 0], "yaw": -90}
   ]
 }
