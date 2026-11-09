@@ -607,7 +607,8 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	const FString& Geo = B->Bike(Bay).Geo;
 	TArray<FName> Nodes;
 	TorqueShedCatalogue::FBikeFrame Frame;
-	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame);
+	TArray<TorqueShedCatalogue::FDashGauge> Gauges;   // [dash] the clocks' needles, shift lights and readout
+	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame, &Gauges);
 	if (Drawn <= 0)
 	{
 		Holder->DestroyComponent();
@@ -693,6 +694,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
 		CatalogueSpec = TEXT("SpeedTwin1200 (its own spec didn't work out)");
 	}
+	// [dash] Its dashboard: what the dash part shows, the tank, the engine's thirst, and its clocks
+	// (on their groups now, so their rest is where they ride).
+	Dash.Setup(Parts);
+	Dash.HookClocks(this, ModelParts, Gauges);
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s"),
 			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight, Geo.IsEmpty() ? TEXT("") : TEXT(", with its fit from geometry mode"));
@@ -1266,6 +1271,10 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	ThrowRider(DeltaSeconds);
 	UpdateRider();
 	UpdateClock();
+	// [dash] The trip and the petrol (the rider's own bike), and the clocks on every bike.
+	if (!bRemote) Dash.Step(*Sim, Throttle, EngineCatchIn <= 0.0, DeltaSeconds);
+	else Dash.Step(*Sim, 0.0, true, 0.0);
+	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
 	{
 		UpdateProgress();
@@ -2168,12 +2177,11 @@ void ATorqueBikePawn::DrawHud()
 	const double Secs = RideTime - Mins * 60.0;
 	HudLines.Reset();
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
-	Add(FString::Printf(TEXT("%s   gear %d"), *Set.SpeedText(Sim->Speed), Sim->Gear), FColor::White, 2.0f);
-	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
-		!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")),
-		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
-	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
-		FColor(220, 220, 220), 1.1f);
+	// [dash] The speed, gear and revs are on the speedo now (ATorqueHUD::DrawSpeedo, hud.gd's); the
+	// gears and ABS show here for a moment as they're switched.
+	if (GearNoteFor > 0.0)
+		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
+			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
 	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);

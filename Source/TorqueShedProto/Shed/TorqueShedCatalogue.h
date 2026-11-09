@@ -46,9 +46,17 @@ struct FBikeFrame
 	FVector Grip = FVector::ZeroVector;   // the right grip as BikeRig has it (the drawn bars' may differ)
 	bool bLaidBack = false;               // cruiser or chopper seating (bike_model.gd _laid_back)
 };
+// [dash] OutGauges: the clocks' working pieces among the meshes made (FittedPart::Gauge), for the
+// ridden bike to drive: in the meshes' own space (the bike's frame, cm), as the meshes are made.
+struct FDashGauge
+{
+	FName What;                   // speed, rpm, led0 .. led5, readout
+	int32 Mesh = INDEX_NONE;      // which of Out
+	FVector At = FVector::ZeroVector, Axis = FVector::UpVector, Up = FVector::ForwardVector;
+};
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo = FString(),
-	TArray<FName>* OutNodes = nullptr, FBikeFrame* OutFrame = nullptr);
+	TArray<FName>* OutNodes = nullptr, FBikeFrame* OutFrame = nullptr, TArray<FDashGauge>* OutGauges = nullptr);
 
 // The same bike's parts as fitting has them, not drawn: each part placed and its mesh bent onto the
 // bike (fitting's frame, metres), what's hidden left out. For geometry mode's gaps. False if the

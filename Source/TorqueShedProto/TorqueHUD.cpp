@@ -13,6 +13,8 @@
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueSettings.h"
+#include "Coop/TorqueKeys.h"
+#include "HAL/PlatformTime.h"
 #include "EngineUtils.h"
 #include "Misc/App.h"
 #include "GameFramework/PlayerState.h"
@@ -89,6 +91,7 @@ void ATorqueHUD::DrawHUD()
 		return;
 	}
 	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
+	if (Bike) DrawSpeedo(Bike);
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{
@@ -481,4 +484,83 @@ void ATorqueHUD::DrawTelemetry(const ATorqueBikePawn* Bike, float S)
 		Canvas->DrawText(Font, FString::Printf(TEXT("%s  %s"), St.Name, *Value), X0 + 6.0f * S, Y0 + 3.0f * S, S * 1.1f, S * 1.1f);
 		Y0 += H + Gap;
 	}
+}
+
+// [dash] hud.gd _draw_speedo: "The speedo shows what the bike's dashboard can: every dash the speed,
+// gear, trip, fuel economy and range; most the revs; a TFT or race logger a shift light." A dark
+// box in the bottom right corner, in Torque Shed's own pixels (its window is 1600 x 900, stretched
+// to the screen's height), its text on the same baselines.
+void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
+{
+	if (!Bike || !Canvas || !GEngine) return;
+	const FTorqueDash& D = Bike->GetDash();
+	const FTorqueSettings& Set = FTorqueSettings::Get();
+	const bool bMetric = Set.Units == 0;
+	const float G = TorqueUi::Scale(Canvas) * 1080.0f / 900.0f;   // screen pixels per Godot pixel
+	const float W = Canvas->ClipX / G, H = Canvas->ClipY / G;     // the screen in Godot pixels
+	const FLinearColor Accent(1.0f, 0.62f, 0.2f, 1.0f);           // UITheme.ACCENT
+	auto Dim = [](float A) { return FLinearColor(1.0f, 1.0f, 1.0f, A); };
+	auto Box = [this, G](float X, float Y, float BW, float BH, const FLinearColor& C) { TorqueUi::Rect(Canvas, X * G, Y * G, BW * G, BH * G, C); };
+	// Godot draws a string on its baseline; Roboto's ascent is 0.93 of its size.
+	auto Say = [this, G](const FString& Str, float X, float Base, float Size, const FLinearColor& C, TorqueUi::EAlign Align = TorqueUi::EAlign::Left) {
+		TorqueUi::Text(Canvas, Str, X * G, (Base - 0.93f * Size) * G, Size * G, C, false, Align);
+	};
+	auto SpeedValue = [bMetric](double Mps) { return FMath::RoundToInt(FMath::Abs(Mps) * (bMetric ? 3.6 : 2.23694)); };
+	auto Distance = [bMetric](double Km, int32 Decimals) {
+		const double V = bMetric ? Km : Km / 1.609344;
+		return (Decimals > 0 ? FString::Printf(TEXT("%.1f"), V) : FString::Printf(TEXT("%.0f"), V)) + (bMetric ? TEXT(" km") : TEXT(" miles"));
+	};
+	const TCHAR* SpeedUnit = bMetric ? TEXT("km/h") : TEXT("mph");
+
+	const float RX = W - 250.0f, RY = H - 196.0f;   // Rect2(size.x - 250, size.y - 196, 226, 172)
+	Box(RX, RY, 226.0f, 172.0f, FLinearColor(0.03f, 0.03f, 0.04f, 0.6f));
+	Say(FString::FromInt(SpeedValue(D.Speed)), RX + 12.0f, RY + 58.0f, 50.0f, FLinearColor::White);
+	Say(SpeedUnit, RX + 120.0f, RY + 34.0f, 15.0f, Dim(0.6f));
+	if (D.Has(TEXT("gear"))) Say(FString::Printf(TEXT("GEAR %d"), D.Gear), RX + 120.0f, RY + 60.0f, 20.0f, Accent);
+	if (D.Has(TEXT("top_speed"))) Say(FString::Printf(TEXT("TOP %d"), SpeedValue(D.TopKmh / 3.6)), RX + 170.0f, RY + 34.0f, 12.0f, Dim(0.6f));
+	const float Frac = (float)FMath::Clamp(D.Rpm / FMath::Max(D.Redline, 1.0), 0.0, 1.0);
+	if (D.Has(TEXT("rpm")))
+	{
+		Box(RX + 12.0f, RY + 74.0f, 202.0f, 8.0f, Dim(0.12f));
+		Box(RX + 12.0f, RY + 74.0f, 202.0f * Frac, 8.0f, Frac < 0.92f ? Accent : FLinearColor(1.0f, 0.2f, 0.15f));
+		// The revs as a number under the bar, to the nearest 50.
+		Say(FString::Printf(TEXT("%d rpm"), FMath::RoundToInt(D.Rpm / 50.0) * 50), RX + 214.0f, RY + 93.0f, 11.0f, Dim(0.6f), TorqueUi::EAlign::Right);
+	}
+	if (D.Has(TEXT("shift_light")) && Frac > 0.88f)
+	{
+		// draw_circle(r.position + (206, 18), 8): yellow, red past 94%.
+		const FLinearColor Lamp = Frac > 0.94f ? FLinearColor(1.0f, 0.15f, 0.1f) : FLinearColor(1.0f, 0.85f, 0.1f);
+		const float CX = (RX + 206.0f) * G, CY = (RY + 18.0f) * G, Rad = 8.0f * G;
+		for (int32 Row = -FMath::CeilToInt(Rad); Row <= FMath::CeilToInt(Rad); ++Row)
+		{
+			const float Half = FMath::Sqrt(FMath::Max(Rad * Rad - (float)(Row * Row), 0.0f));
+			if (Half > 0.0f) TorqueUi::Rect(Canvas, CX - Half, CY + Row, 2.0f * Half, 1.0f, Lamp);
+		}
+	}
+	// Fuel gauge and how far this ride's petrol has gone.
+	const double Fuel = FMath::Clamp(D.FuelLitres / FMath::Max(D.FuelCapacity, 0.1), 0.0, 1.0);
+	Say(TEXT("FUEL"), RX + 12.0f, RY + 106.0f, 13.0f, Dim(0.6f));
+	Box(RX + 52.0f, RY + 96.0f, 162.0f, 10.0f, Dim(0.12f));
+	Box(RX + 52.0f, RY + 96.0f, 162.0f * (float)Fuel, 10.0f, Fuel < 0.15 ? FLinearColor(1.0f, 0.3f, 0.2f) : FLinearColor(0.9f, 0.85f, 0.3f));
+	const double KmPerL = D.TripEconomy();
+	FString Economy;
+	if (KmPerL <= 0.0) Economy = bMetric ? TEXT("-- L/100 km") : TEXT("-- mpg");
+	else Economy = bMetric ? FString::Printf(TEXT("%.1f L/100 km"), 100.0 / KmPerL) : FString::Printf(TEXT("%d mpg"), FMath::RoundToInt(KmPerL / 1.609344 * 4.54609));
+	FString Line = FString::Printf(TEXT("%.1f L"), D.FuelLitres);
+	if (D.Has(TEXT("economy"))) Line += TEXT("  \u00B7  ") + Economy;
+	Say(Line, RX + 12.0f, RY + 130.0f, 15.0f, Dim(0.8f));
+	// The trip and the range left: the trip computer the dash has.
+	TArray<FString> Bits;
+	if (D.Has(TEXT("trip"))) Bits.Add(TEXT("TRIP ") + Distance(D.TripKm, 1));
+	if (D.Has(TEXT("range"))) Bits.Add(TEXT("RANGE ") + Distance(Bike->DashRangeKm(), 0));
+	Say(FString::Join(Bits, TEXT("   ")), RX + 12.0f, RY + 152.0f, 13.0f, Dim(0.7f));
+	// The low fuel light, blinking.
+	if (Fuel < 0.15 && ((int32)(FPlatformTime::Seconds() * 2.0)) % 2 == 0)
+		Say(TEXT("LOW FUEL"), RX + 140.0f, RY + 106.0f, 13.0f, FLinearColor(1.0f, 0.65f, 0.1f));
+	// What to press, along the bottom: starting, or stopped.
+	FString Hint;
+	if (Bike->IsStarting()) Hint = TEXT("Starting...");
+	else if (FMath::Abs(D.Speed) < 2.0 && !D.bCrashed)
+		Hint = FString::Printf(TEXT("%s: back to the shed   \u00B7   Esc: menu"), *FTorqueKeys::Text(ETorqueKey::BackToShed));
+	if (!Hint.IsEmpty()) Say(Hint, W * 0.5f, H - 40.0f, 16.0f, Dim(0.75f), TorqueUi::EAlign::Centre);
 }
