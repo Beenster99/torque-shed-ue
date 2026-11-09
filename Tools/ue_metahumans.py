@@ -13,6 +13,7 @@ colour, posed in code; without the file it keeps the shape body.
                                            cloud (logs can_build_meta_human's reason if a rig is needed)
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
     py Tools/ue_metahumans.py make rig nowardrobe   the same with no hair or clothes (whole bodies)
+    py Tools/ue_metahumans.py make rig A B          only Avatar_A and Avatar_B (the others kept)
     py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
@@ -36,9 +37,12 @@ SOURCES = "/Game/MetaHumanSources"   # the MetaHuman Character assets they're bu
 PIPELINE_TYPE = "OPTIMIZED"    # the pipeline_type member whose name has this
 PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
 MAX_TEXTURE = 1024
+# Hair styles too short to build as a groom (a buzz cut or waves are painted on the scalp at
+# Optimized/Medium, so the avatar looks bald in game): never picked.
+HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["_s_", "short", "crop"], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["buzz", "_s_", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_s_", "crew", "slick", "messy", "short"], "outfit": ["work", "jacket", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["_s_", "messy", "scrag", "wav", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
     {"name": "Avatar_C", "height": 182.0, "hair": ["_s_", "short", "side"], "outfit": ["overall", "work", "boot"]},
     {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "outfit": ["shirt", "trouser", "pant", "boot"]},
 ]
@@ -387,6 +391,8 @@ def _dress(sub, ch, av):
             is_hair = ("hair" in n or "groom" in cls.lower()) and not any(w in n for w in ("brow", "beard", "mustache", "lash", "fuzz"))
             if hair_slot != is_hair:
                 continue
+            if hair_slot and any(w in n for w in HAIR_TOO_SHORT):
+                continue
             if not hair_slot and "groom" in cls.lower():
                 continue
             if "top" in low and any(w in n for w in ("pant", "trouser", "jean", "short", "boot", "shoe")):
@@ -585,7 +591,7 @@ def slim():
     log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
 
 
-def make(rig=False, wardrobe=True):
+def make(rig=False, wardrobe=True, only=None):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
     Without `rig`, nothing goes to Epic's cloud: the build uses whatever rig the character has, and
@@ -604,6 +610,8 @@ def make(rig=False, wardrobe=True):
     sub = unreal.get_editor_subsystem(sub_cls)
     for i, av in enumerate(AVATARS):
         name = av["name"]
+        if only and not any(name.lower().endswith("_" + o.lower()) or name.lower() == o.lower() for o in only):
+            continue
         folder = ROOT + "/" + name                 # build output
         src_folder = SOURCES + "/" + name
         path = src_folder + "/" + name
@@ -1240,7 +1248,9 @@ def main(args):
     elif mode == "slim":
         slim()
     elif mode == "make":
-        make(rig="rig" in args[1:], wardrobe="nowardrobe" not in args[1:])
+        rest = args[1:]
+        only = [a for a in rest if a not in ("rig", "nowardrobe")]   # e.g. `make rig A B`: just those
+        make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()
     else:
         register()
