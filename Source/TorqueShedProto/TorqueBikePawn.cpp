@@ -216,6 +216,7 @@ void ATorqueBikePawn::BeginPlay()
 			Out.Normal = DirToSim(Hit.ImpactNormal).Normalized();
 			const AActor* A = Hit.GetActor();
 			Out.Surface = (A && A->ActorHasTag(TEXT("Road"))) ? SURF_TARMAC : SURF_GRASS;
+			if (bTestTarmac) Out.Surface = SURF_TARMAC;   // a lean test off the road's edge measures the bike, not the grass
 		}
 		return Out;
 	};
@@ -942,7 +943,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
 		(void)bMph;
-		const double Want = AutoMph / 2.23694;
+		const double Want = TestMove >= 0 ? TestMps : AutoMph / 2.23694;
 		const V3 P = Sim->Position;
 		int32 Ahead = Near;
 		double Acc = 0.0;
@@ -1174,8 +1175,114 @@ void ATorqueBikePawn::RestartRide()
 	Respawn(0);
 }
 
+void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph)
+{
+	TestMove = FMath::Clamp(Kind, 0, 1);
+	TestPhase = 0;
+	TestMps = FMath::Max(Mph, 5.0) / 2.23694;
+	TestClock = TestSteady = TestDist = TestV0 = 0.0;
+	TestNose = TestLeanSum = TestGSum = TestLeanPeak = TestGPeak = TestSlide = TestLateLean = 0.0;
+	TestSamples = TestLateSamples = 0;
+	TestMoveText.Reset();
+	bTestRobotWas = bTestAutoRide;
+	bTestAutoRide = true;   // the robot steers along the road and gets it up to speed
+	bTestTarmac = false;
+}
+
+// One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
+// sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
+void ATorqueBikePawn::TestMoveStep()
+{
+	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TEXT("lean");
+	const double Mph = TestMps * 2.23694;
+	auto Finish = [&](const FString& Text) {
+		TestMoveText = Text;
+		UE_LOG(LogTemp, Log, TEXT("Torque: test %s at %.0f mph: %s"), Name, Mph, *Text);
+		bTestTarmac = false;
+		bTestAutoRide = bTestRobotWas;
+		if (TestMove == 1 && TestPhase == 1)
+		{
+			Respawn(TestFromNear);   // back on the road where the bend began
+			Throttle = FrontBrake = RearBrake = Lean = 0.0;
+		}
+		TestMove = -1;
+	};
+	TestClock += SimDt;
+	const double V = Sim->Speed;
+	if (Sim->IsCrashed)
+	{
+		Finish(FString::Printf(TEXT("crashed (%s, %.1f s in, %.1f m)"), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		return;
+	}
+	if (TestPhase == 0)
+	{
+		// The robot rides (slowing for bends) until it's held the speed on a straight for 1.5 s.
+		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FrontBrake <= 0.0 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1;
+		TestSteady = bSteady ? TestSteady + SimDt : 0.0;
+		if (TestSteady < 1.5)
+		{
+			if (TestClock > 90.0) Finish(FString::Printf(TEXT("never held %.0f mph on a straight in 90 s (at %.1f mph)"), Mph, V * 2.23694));
+			return;
+		}
+		TestPhase = 1;
+		TestClock = TestDist = 0.0;
+		TestV0 = V;
+		TestFromNear = Near;
+		TestSide = Lean < 0.0 ? -1.0 : 1.0;
+		bTestTarmac = TestMove == 1;
+	}
+	TestDist += FMath::Abs(V) * SimDt;
+	if (TestMove == 0)
+	{
+		// As the road tests (and SimTest/realism_test): front full, rear 0.6, no weight forward.
+		Throttle = 0.0;
+		Shift = 0.0;
+		FrontBrake = 1.0;
+		RearBrake = 0.6;
+		TestNose = FMath::Min(TestNose, Sim->PitchAngle);
+		if (V < 0.3)
+		{
+			const double G = TestV0 * TestV0 / (2.0 * FMath::Max(TestDist, 0.1)) / 9.81;
+			Finish(FString::Printf(TEXT("stopped in %.1f m, %.2f s (from %.1f mph, %.2f g on average, nose down %.1f deg at most, ABS front %s)"), TestDist,
+				TestClock, TestV0 * 2.23694, G, FMath::RadiansToDegrees(-TestNose), Sim->Build.AbsFront ? TEXT("on") : TEXT("off")));
+		}
+		else if (TestClock > 20.0) Finish(FString::Printf(TEXT("still going after 20 s (%.1f mph, %.0f m)"), V * 2.23694, TestDist));
+		return;
+	}
+	// Lean: the steer input held full the way the road was bending, the speed held, for 6 s;
+	// measured over the last 3 (the lean it settles at), as SimTest/realism_test.
+	Lean = TestSide;
+	Throttle = FMath::Clamp(0.25 + (TestMps - V) * 0.4, 0.0, 1.0);
+	FrontBrake = RearBrake = 0.0;
+	Shift = 0.0;
+	const double LeanDeg = FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle));
+	const double G = FMath::Abs(Sim->AngularVelocity.y * V) / 9.81;
+	TestLeanPeak = FMath::Max(TestLeanPeak, LeanDeg);
+	if (TestClock > 3.0)
+	{
+		TestLeanSum += LeanDeg;
+		TestGSum += G;
+		TestGPeak = FMath::Max(TestGPeak, G);
+		++TestSamples;
+	}
+	if (TestClock > 5.0)
+	{
+		TestLateLean += LeanDeg;
+		++TestLateSamples;
+	}
+	if (FMath::Max(Sim->Wheels[0].GripUsed, Sim->Wheels[1].GripUsed) > 1.05) TestSlide += SimDt;
+	if (TestClock >= 6.0)
+	{
+		const double N = FMath::Max(TestSamples, 1), Late = TestLateLean / FMath::Max(TestLateSamples, 1);
+		const bool bSlid = TestSlide > 0.25, bStoodUp = Late < 0.6 * TestLeanPeak;
+		Finish(FString::Printf(TEXT("leaned %.1f deg (peak %.1f), %.2f g (peak %.2f) at %.1f mph; %s%s (past the tyres' peak %.2f s)"), TestLeanSum / N, TestLeanPeak,
+			TestGSum / N, TestGPeak, V * 2.23694, bSlid ? TEXT("slid") : TEXT("held its line"), bStoodUp ? TEXT(", stood up") : TEXT(""), TestSlide));
+	}
+}
+
 void ATorqueBikePawn::StepSim()
 {
+	if (TestMove >= 0) TestMoveStep();
 	Sim->Throttle = Throttle;
 	Sim->FrontBrake = FrontBrake;
 	Sim->RearBrake = RearBrake;

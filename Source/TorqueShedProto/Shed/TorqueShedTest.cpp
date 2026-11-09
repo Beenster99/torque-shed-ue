@@ -421,7 +421,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -449,6 +449,31 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			const double Pull = P.Num() > 2 ? FCString::Atod(*P[2]) : 1.0;
 			Bike->TestLever(LeverSide, Pull);
 			Said(FString::Printf(TEXT("%s held, pulled %.2f"), LeverSide == 0 ? TEXT("clutch") : TEXT("brake"), Pull));
+			return true;
+		}
+		// brakestop:MPH (default 60): the robot holds MPH on a straight, then stops as hard as a road
+		// test does; lean:max[:MPH] (default 45): a full-lean bend held 6 s at MPH. Each waits until
+		// it's done (up to about two minutes) and logs what it measured.
+		if (Verb == TEXT("brakestop") || Verb == TEXT("lean"))
+		{
+			const bool bBrake = Verb == TEXT("brakestop");
+			const FString MphArg = bBrake ? (P.Num() > 1 ? P[1] : FString()) : (P.Num() > 2 ? P[2] : FString());
+			const double Mph = MphArg.IsEmpty() ? (bBrake ? 60.0 : 45.0) : FCString::Atod(*MphArg);
+			if (!bMoveStarted)
+			{
+				Bike->TestStartMove(bBrake ? 0 : 1, Mph);
+				bMoveStarted = true;
+				Said(FString::Printf(TEXT("getting up to %.0f mph on a straight"), Mph));
+				Tries = 0;
+				return false;
+			}
+			if (Bike->TestMoveBusy())
+			{
+				Tries = 0;   // (it takes as long as it takes; the bike gives up by itself)
+				return false;
+			}
+			bMoveStarted = false;
+			Said(Bike->TestMoveResult());
 			return true;
 		}
 		if (Verb == TEXT("camera"))
