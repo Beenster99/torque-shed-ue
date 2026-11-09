@@ -757,7 +757,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			}
 			const FBox& WheelBox = TyreBox.IsValid ? TyreBox : RimBox;
 			if (!TyreBike || !WheelBox.IsValid) { Warn(FString::Printf(TEXT("bay %d's bike has no %s drawn"), TestBay + 1, *TyreSlot.ToString())); return true; }
-			const FVector Ahead = TSTI::Flat(TyreBike->GetActorForwardVector()).GetSafeNormal();
+			const FVector Ahead = TSTI::Flat(TyreBike->GetActorForwardVector()).GetSafeNormal() * (bRearTyre ? -1.0 : 1.0);   // away from the bike
 			FVector Right = TSTI::Flat(TyreBike->GetActorRightVector()).GetSafeNormal();
 			if ((Right | TSTI::TowardsMiddle(WheelBox.GetCenter())) < 0.0) Right = -Right;   // the side open to the floor
 			const double Radius = WheelBox.GetExtent().Z;
