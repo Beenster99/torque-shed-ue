@@ -12,6 +12,7 @@
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
+#include "TimerManager.h"
 #include "EngineUtils.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Materials/MaterialParameterCollection.h"
@@ -48,7 +49,7 @@ void ATorqueGameState::BeginPlay()
 	if (HasAuthority() && GetNetMode() != NM_Standalone)
 	{
 		SendShed();
-		HostChangeHandle = Build->OnHostChange.AddUObject(this, &ATorqueGameState::SendShed);
+		HostChangeHandle = Build->OnHostChange.AddUObject(this, &ATorqueGameState::QueueShed);
 	}
 }
 
@@ -71,6 +72,30 @@ void ATorqueGameState::SendShed()
 	Shed.Data = MoveTemp(Data);
 	++Shed.Version;
 	ForceNetUpdate();
+	if (const UWorld* World = GetWorld()) ShedSentAt = World->GetRealTimeSeconds();
+}
+
+void ATorqueGameState::QueueShed()
+{
+	constexpr double Gap = 0.1;
+	UWorld* World = GetWorld();
+	if (!World) return;
+	if (bShedQueued) return;   // already going out with the next one
+	const double Since = World->GetRealTimeSeconds() - ShedSentAt;
+	if (ShedSentAt < 0.0 || Since >= Gap)
+	{
+		SendShed();
+		return;
+	}
+	bShedQueued = true;
+	World->GetTimerManager().SetTimer(ShedTimer, FTimerDelegate::CreateUObject(this, &ATorqueGameState::FlushShed),
+		(float)FMath::Max(Gap - Since, 0.01), false);
+}
+
+void ATorqueGameState::FlushShed()
+{
+	bShedQueued = false;
+	SendShed();
 }
 
 void ATorqueGameState::OnRep_Shed()

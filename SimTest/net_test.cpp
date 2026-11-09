@@ -8,8 +8,66 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <fstream>
+#include <regex>
+#include <set>
+#include <sstream>
+#include <string>
 #include <random>
 #include <vector>
+
+
+namespace
+{
+// The shed's requests over the net (Coop/TorqueShedNet.*): read from the source, so a field the
+// shed adds to FTorqueShedRequest can't be left out of the net copy or of ToNet / FromNet.
+std::string ReadSource(const char* Rel)
+{
+	std::ifstream In(std::string(TORQUE_SOURCE) + "/" + Rel);
+	std::stringstream S;
+	S << In.rdbuf();
+	return S.str();
+}
+std::string Between(const std::string& Text, const std::string& From, const std::string& To)
+{
+	const size_t A = Text.find(From);
+	if (A == std::string::npos) return "";
+	const size_t B = Text.find(To, A + From.size());
+	return Text.substr(A, B == std::string::npos ? std::string::npos : B - A);
+}
+// Field names declared in a struct body ("int32 Bay = -1;", "FName Spot, Part, Bin, Finish;").
+std::set<std::string> FieldsOf(const std::string& Body)
+{
+	std::set<std::string> Out;
+	std::istringstream Lines(Body);
+	std::string L;
+	const std::regex Decl(R"(^\s*(?:UPROPERTY\(\)\s*)?([A-Za-z_][\w<>:]*)\s+([^;(){}]+);)");
+	while (std::getline(Lines, L))
+	{
+		std::smatch M;
+		if (!std::regex_search(L, M, Decl) || M[1] == "GENERATED_BODY" || M[1] == "return") continue;
+		std::string Names = M[2];
+		std::stringstream Parts(Names);
+		std::string N;
+		while (std::getline(Parts, N, ','))
+		{
+			N = N.substr(0, N.find('='));
+			N.erase(0, N.find_first_not_of(" \t"));
+			N.erase(N.find_last_not_of(" \t") + 1);
+			if (!N.empty()) Out.insert(N);
+		}
+	}
+	return Out;
+}
+std::set<std::string> Copied(const std::string& Body, const std::string& To, const std::string& From)
+{
+	std::set<std::string> Out;
+	const std::regex Copy(To + R"(\.(\w+)\s*=\s*)" + From + R"(\.(\w+))");
+	for (std::sregex_iterator It(Body.begin(), Body.end(), Copy), End; It != End; ++It)
+		if ((*It)[1] == (*It)[2]) Out.insert((*It)[1]);
+	return Out;
+}
+} // namespace
 
 using TorqueNet::Smoother;
 using TorqueNet::Snap;
@@ -316,6 +374,44 @@ int main()
 		std::printf("  a two second job: %d sends\n", Sends);
 		Check(Sends >= 10 && Sends <= 22, "a two second job sends 10-22 updates, not 120");
 		Check(Sent.Work == 0, "and ends with stopped");
+	}
+	{
+		std::printf("The shed's requests over the net\n");
+		const std::string Shed = ReadSource("Shed/TorqueBuildSubsystem.h");
+		const std::string NetH = ReadSource("Coop/TorqueShedNet.h");
+		const std::string NetCpp = ReadSource("Coop/TorqueShedNet.cpp");
+		Check(!Shed.empty() && !NetH.empty() && !NetCpp.empty(), "sources found");
+		const std::set<std::string> Req = FieldsOf(Between(Shed, "struct FTorqueShedRequest\n{", "};"));
+		const std::set<std::string> Net = FieldsOf(Between(NetH, "struct FTorqueShedRequestNet\n{", "};"));
+		const std::set<std::string> To = Copied(Between(NetCpp, "ToNet(", "FromNet("), "N", "R");
+		const std::set<std::string> From = Copied(Between(NetCpp, "FromNet(", "} // namespace"), "R", "N");
+		std::printf("  %zu request fields, %zu net fields\n", Req.size(), Net.size());
+		Check(Req.size() >= 17 && Req.count("Amount") && Req.count("Tilt") && Req.count("bGun"), "the request's fields read (the mixing bay's too)");
+		std::string Missing;
+		for (const std::string& F : Req)
+		{
+			if (F == "Kind") continue;   // sent as a byte, clamped
+			if (!Net.count(F)) Missing += " net:" + F;
+			if (!To.count(F)) Missing += " to:" + F;
+			if (!From.count(F)) Missing += " from:" + F;
+		}
+		if (!Missing.empty()) std::printf("  missing:%s\n", Missing.c_str());
+		Check(Missing.empty(), "every request field is in the net copy and copied both ways");
+		Check(NetCpp.find("N.Kind = (uint8)R.Kind") != std::string::npos && NetCpp.find("ETorqueShedAct::Count") != std::string::npos,
+			"the kind goes as a byte and comes back clamped to the known ones");
+		// The kinds fit the byte: count them.
+		const std::string Kinds = Between(Shed, "enum class ETorqueShedAct : uint8", "Count");
+		int NumKinds = 0;
+		std::istringstream Lines(Kinds);
+		std::string L;
+		while (std::getline(Lines, L))
+		{
+			L = L.substr(0, L.find("//"));
+			if (L.find("enum class") != std::string::npos) continue;
+			for (char C : L) NumKinds += C == ',';
+		}
+		std::printf("  %d request kinds\n", NumKinds);
+		Check(NumKinds >= 48 && NumKinds < 255, "every kind (the paint bay's 19 too) fits the byte");
 	}
 	std::printf(Failures ? "net_test: %d FAILED\n" : "net_test: all passed\n", Failures);
 	return Failures ? 1 : 0;

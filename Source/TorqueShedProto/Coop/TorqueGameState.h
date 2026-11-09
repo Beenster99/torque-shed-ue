@@ -31,6 +31,13 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_Shed) FTorqueShedBayNet Shed;
 	UFUNCTION() void OnRep_Shed();
 	void SendShed();
+	// The host's changes come in bursts (a pour, a wash, a stir several times a second): the shed
+	// goes out at once, then at most ten times a second, the latest each time.
+	void QueueShed();
+	void FlushShed();
+	double ShedSentAt = -1.0;
+	bool bShedQueued = false;
+	FTimerHandle ShedTimer;
 	int32 AppliedVersion = 0;
 	FDelegateHandle HostChangeHandle;
 	UFUNCTION() void OnRep_Weather();
