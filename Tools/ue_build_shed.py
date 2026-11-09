@@ -187,7 +187,8 @@ def outline_material():
     stencil samples (a crisp inner one, a fainter outer one for softness), drawn fainter where
     something in front hides the part's edge, and blended before depth of field (so TSR steadies it):
     orange over dark things, deeper orange over light ones.
-    Parameters: Color, DarkColor, Opacity, Width (pixels at 1080p, scaled with the screen),
+    The part itself is tinted too (Fill), where it's in view.
+    Parameters: Color, DarkColor, Opacity, Fill, Width (pixels at 1080p, scaled with the screen),
     Hidden (how much of the line shows through things in front)."""
     m = new_material("M_ShedOutline")
     if not try_set(m, "material_domain", unreal.MaterialDomain.MD_POST_PROCESS):
@@ -251,7 +252,7 @@ def outline_material():
     link(view, vw, "")
     vh = expr(m, unreal.MaterialExpressionComponentMask, -2800, 250, r=False, g=True, b=False, a=False)
     link(view, vh, "")
-    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 1.7), const(-2800, 420, 1080.0))
+    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 2.6), const(-2800, 420, 1080.0))
     step_x = op(unreal.MaterialExpressionMultiply, -2400, 200, op(unreal.MaterialExpressionDivide, -2600, 200, vh, vw), width)
     step = op(unreal.MaterialExpressionAppendVector, -2200, 250, step_x, width)
 
@@ -288,8 +289,20 @@ def outline_material():
     link(num("Hidden", -650, y + 100, 0.3), show, "A")
     link(const(-650, y + 120, 1.0), show, "B")
     link(seen, show, "Alpha")
-    alpha = op(unreal.MaterialExpressionMultiply, -300, y, op(unreal.MaterialExpressionMultiply, -450, y, edge, show),
-               num("Opacity", -500, y + 300, 0.75))
+    line = op(unreal.MaterialExpressionMultiply, -300, y, op(unreal.MaterialExpressionMultiply, -450, y, edge, show),
+              num("Opacity", -500, y + 300, 0.9))
+    # The part itself, softly tinted where it's in view (Torque Shed's soft orange glow over the part,
+    # bike_model.gd highlight; beenster, Nov 9: "where has highlighting of bike parts gone?"): the
+    # overlay glow alone barely shows in the lit shed. In view: the scene here is no nearer than the
+    # part's own depth here.
+    own = scene(T.PPI_CUSTOM_DEPTH, -1700, y + 400)
+    vis = expr(m, unreal.MaterialExpressionSaturate, -600, y + 400)
+    link(op(unreal.MaterialExpressionAdd, -750, y + 400,
+            op(unreal.MaterialExpressionDivide, -900, y + 400, op(unreal.MaterialExpressionSubtract, -1000, y + 400, here, own),
+               const(-1100, y + 460, 2.0)), const(-900, y + 460, 1.0)), vis, "")
+    fill = op(unreal.MaterialExpressionMultiply, -450, y + 400, op(unreal.MaterialExpressionMultiply, -600, y + 500, centre, vis),
+              num("Fill", -700, y + 560, 0.2))
+    alpha = op(unreal.MaterialExpressionMax, -200, y + 100, line, fill)
     base = expr(m, unreal.MaterialExpressionSceneTexture, -700, y - 450, scene_texture_id=T.PPI_POST_PROCESS_INPUT0)
     rgb = expr(m, unreal.MaterialExpressionComponentMask, -450, y - 450, r=True, g=True, b=True, a=False)
     link(base, rgb, "")
