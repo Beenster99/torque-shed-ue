@@ -703,6 +703,12 @@ def materials():
         ue_build_spray.build()
     except Exception as e:
         unreal.log_error("[Torque] spray materials: %s" % e)
+    # [fluids] The see-through cans and bottles and the fluid sloshing in them (TorqueFluidModels.cpp).
+    try:
+        import ue_build_fluids
+        ue_build_fluids.build()
+    except Exception as e:
+        unreal.log_error("[Torque] fluid materials: %s" % e)
     # (The wash mini game draws no muck of its own: the bike's materials carry the road dirt and its
     # wash mask, Tools/ue_bike_dirt.py.)
     return {

@@ -12,6 +12,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Shed/TorqueFluidModels.h"
 #include "TorqueShedItems.generated.h"
 
 class UStaticMesh;
@@ -64,8 +65,12 @@ private:
 	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
 	FTransform HungAt(int32 Hook, double Height) const;
 	TArray<FDrawn> Drawn;
+	// [fluids] The cans and bottles drawn see-through, their fluid sloshing (TorqueFluidModels), by item;
+	// kept across redraws so a pour eases the level and a slosh carries on.
+	TMap<int32, TorqueFluidModels::FVessel> Vessels;
 	void Rebuild();
 	void Draw(int32 Item);
+	void TickVessels(float DeltaSeconds);
 	bool HandOf(int32 Peer, FTransform& Out) const;
 	FDelegateHandle WatchItems, WatchBikes;
 };

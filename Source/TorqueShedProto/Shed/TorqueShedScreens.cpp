@@ -602,7 +602,7 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	}
 	// What's holding the engine back (Torque Shed's notes).
 	Y += 10.0f;
-	for (int32 I = 0; I < E.Notes.Num() && I < 6; ++I)
+	for (int32 I = 0; I < E.Notes.Num() && I < 6 && Y < H - 120.0f; ++I)
 	{
 		Pen.Text(24, Y, Left(E.Notes[I], 46), 17, Srgb(1.0f, 0.75f, 0.3f));
 		Y += 26.0f;
@@ -665,7 +665,7 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	Y += 30.0f;
 	for (const FString& L : Wrap(D.Next, 44))
 	{
-		if (Y > H - 70.0f) break;
+		if (Y > H - 124.0f) break;
 		Pen.Text(24, Y, L, 19, Amber());
 		Y += 25.0f;
 	}
@@ -678,7 +678,7 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 			On.Add(R);
 			if (!R.Doing.Contains(Tag)) On.Last().Doing = FString::Printf(TEXT("working on %s"), *Tag);
 		}
-	float CY = H - 46.0f - 26.0f * FMath::Max(0, FMath::Min(On.Num(), 2) - 1);
+	float CY = H - 100.0f - 26.0f * FMath::Max(0, FMath::Min(On.Num(), 2) - 1);
 	if (On.Num() > 0) Pen.Text(24, CY - 26.0f, TEXT("ON IT NOW"), 14, Dim());
 	for (int32 I = 0; I < On.Num() && I < 2; ++I)
 	{
@@ -687,6 +687,35 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 		CY += 26.0f;
 	}
 
+	}
+
+	// [fluids] Along the bottom on both pages (dashboard.gd's fluid bars): the petrol, the oil, each
+	// brake's fluid and the chain's lube, green when good, amber when low or old, red when it's
+	// nearly out; a part that isn't on the bike shows a dash.
+	if (Shed)
+	{
+		const UTorqueBuildSubsystem::FFluidLevels F = Shed->FluidsOf(Bay);
+		const float FY = H - 46.0f;
+		Pen.Rect(16, FY - 34, 512, 2, Panel());
+		auto Gauge = [&Pen, FY](int32 Col, const FString& Label, bool bHas, float Level, float Age, const FString& Value)
+		{
+			const float GX = 24.0f + Col * 100.0f;
+			Pen.Text(GX, FY - 14, Label, 13, Dim());
+			if (!bHas)
+			{
+				Pen.Text(GX, FY + 12, TEXT("-"), 14, Dim());
+				return;
+			}
+			const FLinearColor Col2 = Level < 0.3f ? Bad() : ((Level < 0.6f || Age > 0.6f) ? Amber() : Good());
+			Pen.Bar(GX, FY - 6, 88, 10, Level, Col2);
+			Pen.Text(GX, FY + 22, Value, 13, Col2);
+		};
+		const float FuelFrac = F.FuelCapacity > 0.0f ? F.FuelLitres / F.FuelCapacity : 0.0f;
+		Gauge(0, TEXT("FUEL"), F.bTank, FuelFrac, F.FuelAge, FString::Printf(TEXT("%.1f / %.0f L"), F.FuelLitres, F.FuelCapacity));
+		Gauge(1, TEXT("OIL"), F.bEngine, F.Oil, F.OilAge, FString::Printf(TEXT("%.0f%%"), F.Oil * 100.0f));
+		Gauge(2, TEXT("BRAKE F"), F.bFrontBrake, F.FrontBrake, F.BrakeAge, FString::Printf(TEXT("%.0f%%"), F.FrontBrake * 100.0f));
+		Gauge(3, TEXT("BRAKE R"), F.bRearBrake, F.RearBrake, F.BrakeAge, FString::Printf(TEXT("%.0f%%"), F.RearBrake * 100.0f));
+		Gauge(4, TEXT("CHAIN LUBE"), F.bChain, F.Lube, 0.0f, FString::Printf(TEXT("%.0f%%"), F.Lube * 100.0f));
 	}
 
 	// Right: every part, in two columns, with its condition (dashboard.gd's part list).

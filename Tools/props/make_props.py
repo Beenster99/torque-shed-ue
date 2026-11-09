@@ -1088,9 +1088,9 @@ def ear_defenders():
 @model("petrol_pump", (0.55, 1.75, 0.45))
 def petrol_pump():
     """shed_pump_view.gd: a red wall-mounted pump cabinet with a cream face, the lit display up top,
-    the holster on the right with the nozzle in it, and the pipe from the tank up out of the
-    ground. Origin on the wall at the ground; the nozzle and hose move in the game, so the hose here
-    only runs to the holster."""
+    the empty holster on the right, and the pipe from the tank up out of the ground. Origin on the
+    wall at the ground. The nozzle and its hose are the game's (Shed/TorqueShedPump.cpp draws them,
+    in the holster or in someone's hand), so they aren't in the model."""
     box("WallPlate", (0.0, 1.05, 0.006), (0.5, 0.95, 0.012), "steel_dark", bevel=0.003)
     box("Case", (0.0, 1.05, 0.13), (0.46, 0.9, 0.24), "paint_red", bevel=0.02)
     box("Face", (0.0, 1.0, 0.252), (0.36, 0.55, 0.004), "paint_cream", bevel=0.002)
@@ -1101,9 +1101,6 @@ def petrol_pump():
     box("Top", (0.0, 1.52, 0.13), (0.48, 0.04, 0.26), "paint_white", bevel=0.01)
     box("Holster", (0.28, 1.0, 0.15), (0.08, 0.2, 0.1), "plastic_black", bevel=0.01)
     box("Bracket", (0.25, 1.0, 0.1), (0.04, 0.06, 0.06), "steel_dark", bevel=0.004)
-    box("NozzleGrip", (0.28, 1.14, 0.17), (0.04, 0.12, 0.05), "plastic_black", bevel=0.01)
-    tube("Spout", bent([(0.28, 1.08, 0.17), (0.28, 0.92, 0.17)], 0.01), 0.011, "aluminium")
-    hose("Hose", [(-0.15, 0.6, 0.15), (-0.12, 0.3, 0.25), (0.1, 0.2, 0.3), (0.28, 0.6, 0.25), (0.28, 1.2, 0.2)], 0.014, "rubber")
     tube("Pipe", [(-0.15, 0.0, 0.08), (-0.15, 0.6, 0.08)], 0.025, "steel")
     cyl("PipeCollar", (-0.15, 0.02, 0.08), 0.045, 0.04, "steel_dark")
 

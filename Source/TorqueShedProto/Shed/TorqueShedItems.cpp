@@ -386,6 +386,11 @@ void ATorqueShedItems::Rebuild()
 		const ETorqueAt At = KV.Value.At;
 		if (At == ETorqueAt::Spot || At == ETorqueAt::Floor || At == ETorqueAt::Held) Draw(KV.Key);
 	}
+	// [fluids] Forget the cans no longer drawn (binned, boxed, gone).
+	TSet<int32> Shown;
+	for (const FDrawn& D : Drawn) Shown.Add(D.Item);
+	for (auto VIt = Vessels.CreateIterator(); VIt; ++VIt)
+		if (!Shown.Contains(VIt.Key())) VIt.RemoveCurrent();
 }
 
 void ATorqueShedItems::Draw(int32 Id)
@@ -410,11 +415,18 @@ void ATorqueShedItems::Draw(int32 Id)
 		TSI::SetLooks(C, 0.0f, 0.0f, &Colour);
 		Made.Add(C);
 	};
+	TorqueFluidModels::FVessel Vessel;
+	bool bVessel = false;
 	if (It->bBoxed)
 	{
 		// As delivered: the props' box or crate, labelled, or a plain cardboard block until they're in.
 		const FVector BoxSize = TSI::KindSize(It->Kind) + FVector(8.0);
 		if (!TSI::MakeDelivery(this, Holder, *It, BoxSize, Made)) Block(BoxSize, TSI::Cardboard);
+	}
+	else if (TorqueShedParts::IsFluid(It->Part) && TorqueFluidModels::Make(this, Holder, It->Part, Made, Vessel))
+	{
+		// [fluids] A can or bottle: see-through, with its fluid in it (Tick moves the level and the slosh).
+		bVessel = true;
 	}
 	else
 	{
@@ -516,6 +528,19 @@ void ATorqueShedItems::Draw(int32 Id)
 		if (const FTorquePlace* StandP = TorqueShedLayout::FindPlace(It->Spot); StandP && StandP->Kind == ETorquePlace::Stand)
 			D.bOnStand = true;   // [kit]
 	Drawn.Add(D);
+	if (bVessel)
+	{
+		// The same can redrawn (something in the shed changed): its level and slosh carry on.
+		if (const TorqueFluidModels::FVessel* Was = Vessels.Find(Id))
+		{
+			Vessel.Shown = Was->Shown;
+			Vessel.Tilt = Was->Tilt;
+			Vessel.TiltRate = Was->TiltRate;
+			Vessel.Clock = Was->Clock;
+		}
+		Vessels.Add(Id, Vessel);
+	}
+	else Vessels.Remove(Id);
 	// Where it sits: on its place, on the floor where it was put, or in someone's hands (Tick).
 	FTransform Rest;
 	if (It->At == ETorqueAt::Spot)
@@ -568,6 +593,7 @@ FTransform ATorqueShedItems::HungAt(int32 Hook, double Height) const
 void ATorqueShedItems::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TickVessels(DeltaSeconds);
 	for (const FDrawn& D : Drawn)
 	{
 		USceneComponent* H = D.Holder.Get();
@@ -597,5 +623,25 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 		}
 		H->SetVisibility(true, true);
 		H->SetWorldLocationAndRotation(Hand.GetLocation() - Hand.GetRotation().RotateVector(D.Centre), Hand.GetRotation());
+	}
+}
+
+void ATorqueShedItems::TickVessels(float DeltaSeconds)
+{
+	// [fluids] Each can's level (what's in it, eased as it pours) and its fluid's slosh as it's carried,
+	// in the fluid's colour, darker as it ages.
+	if (Vessels.Num() == 0 || DeltaSeconds <= 0.0f) return;
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B) return;
+	for (TPair<int32, TorqueFluidModels::FVessel>& KV : Vessels)
+	{
+		const FTorqueItem* Can = B->Item(KV.Key);
+		if (!Can) continue;
+		const float Cap = TorqueShedParts::FluidCapacity(Can->Part);
+		const float Fill = Cap > 0.0f ? Can->Litres / Cap : 0.0f;
+		const FName Kind = TorqueShedParts::PartKind(Can->Part);
+		const FName Source = Can->FluidType.IsNone() ? Can->Part : Can->FluidType;
+		const FLinearColor Colour = TorqueFluidModels::AgedColour(Kind, TorqueShedParts::LiquidColour(Source), Can->FluidAge);
+		TorqueFluidModels::Update(KV.Value, Fill, Colour, Can->FluidAge, DeltaSeconds);
 	}
 }

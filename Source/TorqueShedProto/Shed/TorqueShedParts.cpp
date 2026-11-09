@@ -87,6 +87,9 @@ const FPair KindMaterials[] = {
 	{TEXT("number_boards"), TEXT("plastic")}, {TEXT("swingarm"), TEXT("metal")}, {TEXT("steering_damper"), TEXT("metal")},
 	{TEXT("tank_bag"), TEXT("fabric")}, {TEXT("aux_tank"), TEXT("metal")}, {TEXT("toolbox"), TEXT("metal")},
 	{TEXT("satnav"), TEXT("electronics")}, {TEXT("lever_guards"), TEXT("metal")},
+	// [fluids] Torque Shed's cans were steel; ours are the plastic ones you can see the level through
+	// (oil and brake fluid bottles were plastic there too), and the chain lube's an aerosol.
+	{TEXT("petrol"), TEXT("plastic")}, {TEXT("oil"), TEXT("plastic")}, {TEXT("brake_fluid"), TEXT("plastic")}, {TEXT("chain_lube"), TEXT("metal")},
 };
 const FPair MaterialTitles[] = {{TEXT("metal"), TEXT("Metal")}, {TEXT("plastic"), TEXT("Plastic")}, {TEXT("rubber"), TEXT("Rubber")},
 	{TEXT("carbon"), TEXT("Carbon fibre")}, {TEXT("mixed"), TEXT("Mixed materials")}, {TEXT("electronics"), TEXT("Electronics")},
@@ -206,6 +209,12 @@ struct FPartInfo
 	TArray<FName> Styles;          // the bike types it suits (parts.json "styles"), empty: any bike
 	FName Pack;                    // the style pack it came in (parts.json "pack"), if any
 	TMap<FName, double> Numbers;   // every number field ("mass", "torque_mult"); an array's length as "<field>_count"
+	// [fluids] A can or bottle of fluid: what it is ("Jerry can"), the grade it holds ("grade": a big
+	// can of a fuel holds that fuel), whether it comes empty, and the colour of what's in it.
+	FString Container;
+	FName Grade;
+	bool bEmpty = false;
+	FLinearColor Liquid = FLinearColor(0.6f, 0.45f, 0.15f);
 };
 
 struct FCatalogue
@@ -254,6 +263,13 @@ FCatalogue& Catalogue()
 				for (const TSharedPtr<FJsonValue>& V : *Styles) Info.Styles.AddUnique(FName(*V->AsString()));
 			FString Pack;
 			if ((*P)->TryGetStringField(TEXT("pack"), Pack) && !Pack.IsEmpty()) Info.Pack = FName(*Pack);
+			(*P)->TryGetStringField(TEXT("container"), Info.Container);
+			FString Grade;
+			if ((*P)->TryGetStringField(TEXT("grade"), Grade) && !Grade.IsEmpty()) Info.Grade = FName(*Grade);
+			(*P)->TryGetBoolField(TEXT("empty"), Info.bEmpty);
+			const TArray<TSharedPtr<FJsonValue>>* Liq = nullptr;
+			if ((*P)->TryGetArrayField(TEXT("liquid"), Liq) && Liq->Num() >= 3)
+				Info.Liquid = FLinearColor((float)(*Liq)[0]->AsNumber(), (float)(*Liq)[1]->AsNumber(), (float)(*Liq)[2]->AsNumber());
 			for (const auto& FieldKV : (*P)->Values)
 			{
 				if (!FieldKV.Value.IsValid()) continue;
@@ -539,6 +555,71 @@ bool ModelOption(FName Part, FName Kind, FName& OutFitSlot, FName& OutOption)
 				return true;
 			}
 	return false;
+}
+
+// --- [fluids] (PartsDB FLUID_KINDS, FLUID_HOLDERS, fluid_kind, fluid_capacity, fluid_grade) ---------
+const TArray<FName>& FluidKinds()
+{
+	static const TArray<FName> L = {FName(TEXT("petrol")), FName(TEXT("oil")), FName(TEXT("brake_fluid")), FName(TEXT("chain_lube"))};
+	return L;
+}
+
+bool IsFluid(FName Part) { return FluidKinds().Contains(PartKind(Part)); }
+
+FName FluidKind(FName Part)
+{
+	const FName K = PartKind(Part);
+	if (FluidKinds().Contains(K)) return K;
+	if (K == FName(TEXT("tank")) || K == FName(TEXT("aux_tank"))) return FName(TEXT("petrol"));
+	if (K == FName(TEXT("engine"))) return FName(TEXT("oil"));
+	if (K == FName(TEXT("master"))) return FName(TEXT("brake_fluid"));
+	return NAME_None;
+}
+
+FName FluidGrade(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P && !P->Grade.IsNone() ? P->Grade : Part;
+}
+
+float FluidCapacity(FName Part)
+{
+	const FName K = PartKind(Part);
+	if (K == FName(TEXT("tank")) || K == FName(TEXT("aux_tank")))
+		return (float)PartNumber(Part, FName(TEXT("capacity")), IsStock(Part) ? 14.5 : (K == FName(TEXT("tank")) ? 15.0 : 0.0));
+	if (K == FName(TEXT("engine")))
+		return FMath::RoundToFloat((1.0f + (float)PartNumber(Part, FName(TEXT("displacement")), IsStock(Part) ? 1200.0 : 700.0) / 400.0f) * 10.0f) / 10.0f;
+	if (K == FName(TEXT("master"))) return MasterFluid;
+	if (FluidKinds().Contains(K)) return (float)PartNumber(Part, FName(TEXT("litres")), 1.0);
+	return 0.0f;
+}
+
+bool ComesEmpty(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P && P->bEmpty;
+}
+
+FString ContainerName(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	return P && !P->Container.IsEmpty() ? P->Container : FString(TEXT("Can"));
+}
+
+FLinearColor LiquidColour(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	if (P) return P->Liquid;
+	return FLinearColor(0.6f, 0.45f, 0.15f);
+}
+
+FString FluidName(FName Kind)
+{
+	if (Kind == FName(TEXT("petrol"))) return TEXT("Petrol");
+	if (Kind == FName(TEXT("oil"))) return TEXT("Oil");
+	if (Kind == FName(TEXT("brake_fluid"))) return TEXT("Brake fluid");
+	if (Kind == FName(TEXT("chain_lube"))) return TEXT("Chain lube");
+	return TEXT("Fluid");
 }
 } // namespace TorqueShedParts
 

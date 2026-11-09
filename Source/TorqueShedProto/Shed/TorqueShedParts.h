@@ -66,6 +66,21 @@ FString MaterialName(FName Part);
 const TArray<FName>& Bins();
 FString BinName(FName Bin);
 
+// --- [fluids] Fluids and what holds them (PartsDB FLUID_KINDS, FLUID_HOLDERS) ---------------------
+// Fluids come in cans and bottles you carry and pour ("petrol", "oil", "brake_fluid", "chain_lube":
+// parts.json kinds of their own); they don't bolt on anywhere. A tank holds petrol, an engine its
+// oil, a master cylinder brake fluid.
+const TArray<FName>& FluidKinds();
+bool IsFluid(FName Part);              // a can or bottle of fluid
+FName FluidKind(FName Part);           // the fluid it holds (a container its own kind), NAME_None for none
+FName FluidGrade(FName Part);          // the grade a container holds: its own id, or a big can's "grade"
+float FluidCapacity(FName Part);       // litres: a tank's capacity, an engine's sump, a container's label
+bool ComesEmpty(FName Part);           // an empty jerry can, the drain pan, the bleed bottle
+FString ContainerName(FName Part);     // "Jerry can", "Oil bottle", "Drain pan"
+FLinearColor LiquidColour(FName Part); // the colour of the fluid itself (parts.json "liquid")
+FString FluidName(FName Kind);         // "Petrol", "Oil", "Brake fluid", "Chain lube"
+constexpr float MasterFluid = 0.25f;   // a master cylinder's reservoir and line (PartsDB.MASTER_FLUID)
+
 // --- The Speed Twin model -----------------------------------------------------------------------
 // The Speed Twin's own parts are items like any other, with the part id "speed_twin_<slot>"
 // (they aren't in the catalogue): "speed_twin_front_wheel".

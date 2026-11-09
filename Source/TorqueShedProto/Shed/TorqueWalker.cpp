@@ -1,6 +1,7 @@
 #include "Shed/TorqueWalker.h"
 #include "Misc/ScopeExit.h"
 #include "Shed/TorqueFurniture.h"
+#include "Shed/TorqueShedPump.h"
 
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
@@ -164,6 +165,9 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 		return (B && B->DoorUp()) ? TEXT("Roller door (up)") : TEXT("Roller door (down)");
 	case ETorquePlace::Extinguisher:
 		return (B && B->ExtinguisherHeldBy() != 0) ? TEXT("Fire extinguisher's place (someone has it)") : TEXT("Fire extinguisher");
+	case ETorquePlace::Pump:   // [fluids]
+		if (B && B->PumpSale() > 0.0f) return FString::Printf(TEXT("Petrol pump (unleaded, last sale %.2f L)"), B->PumpSale());
+		return TEXT("Petrol pump (unleaded)");
 	case ETorquePlace::Bin: return TorqueShedParts::BinName(P.Name);
 	case ETorquePlace::Computer: return TEXT("Parts computer");
 	case ETorquePlace::DynoStrap:
@@ -351,6 +355,8 @@ void ATorqueWalker::BeginPlay()
 		if (!bKit) World->SpawnActor<ATorqueShedKit>(FVector::ZeroVector, FRotator::ZeroRotator);
 		// [furniture] And the movable shed and yard kit, the yard's built-in pieces and its markings.
 		ATorqueFurnishings::SpawnMissing(World);
+		// [fluids] And the petrol pump on the front wall outside, its nozzle and hose.
+		ATorqueShedPump::SpawnMissing(World);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -874,7 +880,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
-	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown);   // [furniture] first
+	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bF);   // [furniture] first; [fluids] the pump
 	if (bKitF)
 	{
 	}
@@ -1219,6 +1225,12 @@ void ATorqueWalker::MakePlan()
 	// [kit] F works the switch boxes and takes the extinguisher; holding it, the work button sprays it.
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher)) return;
 	if (B->ExtinguisherHeldBy() == Me || B->StandPushedBy() == Me) return;
+	// [fluids] The pump's nozzle in your hand: the work button fills the bike you're at (TorqueWalkerFluids.cpp).
+	if (B->PumpHeldBy() == Me || (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
+	{
+		PumpPlan();
+		return;
+	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
 	{
 		// The radio (walker.gd _make_plan): on, then round the stations; F switches it off.
@@ -1272,6 +1284,10 @@ void ATorqueWalker::MakePlan()
 	switch (HeldIt ? ETorqueTool::Hands : Tool)
 	{
 	case ETorqueTool::Hands:
+		// [fluids] A can or bottle in your hands: pour it in, drain into it, lube the chain, tip it away
+		// (TorqueWalkerFluids.cpp); else it's put down like any part.
+		if (HeldIt && TorqueShedParts::IsFluid(HeldIt->Part) && FluidPlan(Held))
+			break;
 		if (HeldIt)
 		{
 			const FString Title = TWI::Lower(B->ItemTitle(Held));
@@ -2751,6 +2767,9 @@ void ATorqueWalker::UpdateHud()
 					: FString(B->DoorUp() ? TEXT("F / Triangle: roller door down") : TEXT("F / Triangle: roller door up")), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Extinguisher && B->ExtinguisherHeldBy() == 0)
 				HudLines.Add({TEXT("F / Triangle: take the fire extinguisher"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Pump)   // [fluids]
+				HudLines.Add({B->PumpHeldBy() == B->Me() ? TEXT("F / Triangle: hang the nozzle back up")
+					: (B->PumpHeldBy() == 0 ? TEXT("F / Triangle: lift the nozzle off the pump") : TEXT("Someone has the nozzle")), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0)
 				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Radio)

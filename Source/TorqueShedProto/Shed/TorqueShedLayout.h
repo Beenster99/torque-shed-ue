@@ -31,6 +31,8 @@ enum class ETorquePlace : uint8
 	// [kit] (ATorqueShedKit)
 	ShedSwitch,   // the switch boxes right of the roller door (Index 0 the main lights, 1 the door's up / down)
 	Extinguisher, // the fire extinguisher by the workbench: F takes it, F hangs it back
+	// [fluids] (ATorqueShedPump)
+	Pump,         // the petrol pump on the front wall outside: F lifts the nozzle off it, F hangs it back
 };
 
 struct FTorquePlace
@@ -160,6 +162,10 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::ShedSwitch, TEXT("shed_lights"), FVector(277.0, 536.0, 114.0), FVector(293.0, 550.0, 129.0), FVector(285.0, 547.0, 122.0), 0);
 	Add(ETorquePlace::ShedSwitch, TEXT("door_button"), FVector(277.0, 536.0, 129.0), FVector(293.0, 550.0, 146.0), FVector(285.0, 546.0, 136.0), 1);
 	Add(ETorquePlace::Extinguisher, TEXT("extinguisher"), FVector(-652.0, 418.0, 0.0), FVector(-608.0, 462.0, 70.0), FVector(-630.0, 440.0, 0.0), 0);
+	// [fluids] The petrol pump's cabinet on the front wall outside, west of the roller door
+	// (UTorqueBuildSubsystem::PumpAt: -360, 580; the props' petrol_pump, 46 cm wide, its case 60 .. 150
+	// up and 24 deep), the box out past its face and holster so the look finds it before the wall.
+	Add(ETorquePlace::Pump, TEXT("petrol_pump"), FVector(-386.0, 578.0, 55.0), FVector(-322.0, 612.0, 158.0), FVector(-332.0, 597.0, 100.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_lights"), FVector(-145.0, -590.0, 122.0), FVector(-125.0, -578.0, 148.0), FVector(-135.0, -585.0, 135.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_fan"), FVector(-169.0, -590.0, 122.0), FVector(-149.0, -578.0, 148.0), FVector(-159.0, -585.0, 135.0), 1);
 	// The paint shop's downdraft spray bay (workshop.gd BOOTH_XF, equipment.gd booth_shop): 8 m along

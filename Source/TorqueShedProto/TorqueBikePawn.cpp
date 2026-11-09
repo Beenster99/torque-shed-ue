@@ -582,6 +582,9 @@ bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FSt
 	// damper), the chain's slack and the parts drilled and trimmed for lightness.
 	for (const TPair<FName, float>& KV : B.TuneOf(Bay)) In.Tune[PawnStd(KV.Key.ToString())] = KV.Value;
 	In.ChainSlack = B.ChainSlackOf(Bay);
+	// [fluids] The petrol in its tanks and the oil in its engine, as the shed has them.
+	if (B.FuelCapacityOf(Bay) > 0.0f) In.FuelLitres = B.FuelOf(Bay);
+	if (const FTorqueItem* Sump = B.Item(B.ItemOn(Bay, FName(TEXT("engine"))))) In.OilLitres = Sump->Litres;
 	for (const FName& Slot : B.LightenedOf(Bay)) In.Lightened.push_back(PawnStd(Slot.ToString()));
 	std::vector<std::string> Notes;
 	BikeSpec S;
@@ -758,6 +761,8 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	// [dash] Its dashboard: what the dash part shows, the tank, the engine's thirst, and its clocks
 	// (on their groups now, so their rest is where they ride).
 	Dash.Setup(Parts);
+	// [fluids] The petrol it rides out with is what's in its tank in the shed (filled at the pump).
+	if (B->FuelCapacityOf(Bay) > 0.0f) Dash.FuelLitres = FMath::Clamp((double)B->FuelOf(Bay), 0.0, Dash.FuelCapacity);
 	Dash.HookClocks(this, ModelParts, Gauges);
 	SideStandPart = Parts.FindRef(TEXT("side_stand"));
 	CentreStandPart = Parts.FindRef(TEXT("centre_stand"));
@@ -2230,6 +2235,9 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			EngineNote = TEXT("Out of petrol!");
 			EngineNoteFor = 4.0;
 		}
+		// [fluids] The shed keeps what's left in the tank (sent as it burns, a quarter litre at a time).
+		if (RideBay >= 0)
+			if (UTorqueBuildSubsystem* FuelShed = UTorqueBuildSubsystem::Of(this)) FuelShed->ReportRideFuel(RideBay, (float)Dash.FuelLitres);
 	}
 	else Dash.Step(*Sim, 0.0, true, 0.0);
 	EngineNoteFor = FMath::Max(EngineNoteFor - DeltaSeconds, 0.0);

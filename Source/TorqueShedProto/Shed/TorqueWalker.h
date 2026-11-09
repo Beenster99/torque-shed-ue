@@ -483,6 +483,15 @@ private:
 	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
 	// (TorqueWalkerKit.cpp): true when F went to one of them.
 	bool KitInput(float Dt, bool bF, bool bFDown);
+	// [fluids] (TorqueWalkerFluids.cpp) The petrol pump: F at it lifts the nozzle, F anywhere hangs it
+	// back (and walking off further than the hose goes pulls it out of your hand); with it in your
+	// hand the work button fills the bike you're at (PumpPlan). A can or bottle of fluid in your hands:
+	// the work button pours it into the tank, engine or brake looked at, the other button drains into
+	// it, it lubes a chain, and at the general waste it's tipped away (FluidPlan: false when it has no
+	// fluid job here, so it's put down like any part).
+	bool FluidInput(bool bF);
+	void PumpPlan();
+	bool FluidPlan(int32 Held);
 	// [furniture] The movable shed and yard kit (TorqueWalkerFurniture.cpp): the piece looked at (it
 	// wins over what FindTarget found when it's nearer), hold F on it to take hold of it, R turns it,
 	// F puts it down; its HUD lines and outline.

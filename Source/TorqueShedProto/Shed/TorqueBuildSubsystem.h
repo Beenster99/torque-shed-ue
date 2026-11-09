@@ -93,6 +93,15 @@ struct FTorqueItem
 	// lightness (once: lighter, a little weaker).
 	TMap<FName, float> Tune;
 	bool bLightened = false;
+	// [fluids] What's in it, for a tank, an engine, a master cylinder or a can or bottle of fluid
+	// (shed_state's fluid{type, litres, age}): the grade (a part id, "unleaded_95"; none when it's
+	// empty), how many litres, and how old (0 fresh .. 1 stale petrol, black oil, wet brake fluid).
+	// A chain's lube (shed_state's chain lube: 1 freshly lubed .. 0 dry) and which lube it was.
+	FName FluidType;
+	float Litres = 0.0f;
+	float FluidAge = 0.0f;
+	float Lube = 1.0f;
+	FName LubeType;
 };
 
 // One bay's bike.
@@ -225,6 +234,21 @@ enum class ETorqueShedAct : uint8
 	TurnFurniture,
 	ReleaseFurniture,
 	OrderFurniture,
+	// [fluids] (TorqueShedFluids.cpp; shed_state.gd pour, drain, lube, tip; shed_pump.gd): the can or
+	// bottle in your hands poured into Item (a tank, an engine, a master cylinder), or Item drained
+	// into it (the drain pan under an engine, the bleed bottle on a brake, an empty jerry can on a
+	// tank); a can of chain lube swept along chain Item (Amount: how well it went on, 0 .. 1; Tilt:
+	// how much was overdone and flung off); what's in your can tipped away in the general waste; the
+	// petrol pump's nozzle lifted off the pump (Item 1) or hung back on it (Item 0); a squeeze of the
+	// nozzle into bay Bay's tank (Amount litres); the petrol bay Bay's bike has left after a ride
+	// (Amount litres, from the bike's own dash).
+	Pour,
+	Drain,
+	Lube,
+	Tip,
+	PumpNozzle,
+	PumpFill,
+	RideFuel,
 	Count
 };
 
@@ -471,6 +495,48 @@ public:
 	// [kit] The shed's lights, roller door, engine stand and extinguisher (TorqueShedKit.cpp).
 	static bool IsKitAct(ETorqueShedAct A);
 
+	// --- [fluids] Fluids, the drain pan and the petrol pump (TorqueShedFluids.cpp) -------------
+	static bool IsFluidAct(ETorqueShedAct A);
+	// A bay's fluids as Torque Shed's TV shows them (dashboard.gd's fluid bars): each level 0 .. 1 and
+	// how old it is; Has* false when the part isn't on the bike.
+	struct FFluidLevels
+	{
+		bool bTank = false, bEngine = false, bFrontBrake = false, bRearBrake = false, bChain = false;
+		float FuelLitres = 0.0f, FuelCapacity = 0.0f, FuelAge = 0.0f;
+		float Oil = 0.0f, OilAge = 0.0f;
+		float FrontBrake = 0.0f, RearBrake = 0.0f, BrakeAge = 0.0f;
+		float Lube = 0.0f;
+	};
+	FFluidLevels FluidsOf(int32 Bay) const;
+	// The petrol in a bay's tanks (the main one and any auxiliary), what they hold, and the room left.
+	float FuelOf(int32 Bay) const;
+	float FuelCapacityOf(int32 Bay) const;
+	float FuelSpace(int32 Bay) const { return FMath::Max(0.0f, FuelCapacityOf(Bay) - FuelOf(Bay)); }
+	// "Petrol: 3.2 of 15 L  ·  Unleaded petrol (95), fresh" (shed_state fluid_text), "" for a part that
+	// holds none; "Chain lube 20% (dry)" for a chain.
+	FString FluidText(const FTorqueItem& It) const;
+	// What holds Kind of fluid on a bike (or the engine block Engine): the tank, the engine, the master
+	// cylinder looked at (Slot) else the front one (shed_state fluid_holder). 0 for none.
+	int32 FluidHolder(int32 Bay, int32 Engine, FName Slot, FName Kind) const;
+	// How long pouring from one holder into another takes (shed_state pour_time), seconds.
+	static float PourTime(const FTorqueItem& From, const FTorqueItem& Into);
+	// The petrol pump on the shed's front wall outside (shed_pump.gd): who has its nozzle (0: it's
+	// hung on the pump), the litres on its display (this sale, from lifting the nozzle), where the hose
+	// comes out of the cabinet and how far it reaches, and whether a bay's bike is within its reach.
+	int32 PumpHeldBy() const { return PumpBy; }
+	float PumpSale() const { return PumpLitres; }
+	static FTransform PumpAt();            // the cabinet: its origin on the wall at the ground, facing out
+	static FVector PumpHoseRoot();
+	static FVector PumpHolster();
+	static constexpr double PumpHose = 340.0;     // cm (ShedPump.HOSE)
+	static constexpr float PumpRate = 0.6f;      // litres a second (FuelStop.FILL_RATE)
+	FVector FillerOf(int32 Bay) const;           // where a bay's bike's filler cap is (world cm)
+	bool PumpReaches(int32 Bay) const;
+	// The bike pawn: the petrol its own dash says is left (sent each quarter litre burnt, and as the
+	// ride ends), kept in the shed's tank.
+	void ReportRideFuel(int32 Bay, float Litres);
+	static constexpr float LubeUse = 0.03f;      // litres of chain lube a full coat takes (LUBE_USE)
+
 	// --- Requests ----------------------------------------------------------------------------
 	// This machine's player (a PlayerState's player id; 1 until the walker says).
 	int32 Me() const { return LocalPeer; }
@@ -549,6 +615,19 @@ private:
 	int32 FurnitureNextId = 1;
 	bool bFurnished = false;   // the starting kit's been put out (an older save gets it when it loads)
 	void FurnishFresh();
+	// [fluids] (TorqueShedFluids.cpp)
+	int32 PumpBy = 0;
+	float PumpLitres = 0.0f;
+	float RideFuelSent = -1.0f;   // the last fuel ReportRideFuel sent (this machine's)
+	void NewItemFluid(FTorqueItem& It) const;          // shed_state _new_item's fluid: a can full (unless it comes empty), a holder dry
+	void FillFluids(int32 Bay, float Age);             // shed_state _fill_fluids: an old bike's tank, oil, brakes and chain
+	void ReadyToRide(int32 Bay, float FuelShare);      // shed_state _ready_to_ride and top_up_fuel
+	void FluidsForOldSave();                           // shed_state _brim_old_tanks, and oil and brakes too
+	float FillTanks(int32 Bay, float Litres);          // shed_state _fill_tanks: fresh unleaded, the main tank first
+	static float Transfer(FTorqueItem& From, FTorqueItem& Into);   // shed_state _transfer
+	FString CheckFluid(int32 Peer, const FTorqueShedRequest& R) const;
+	FString ApplyFluid(int32 Peer, const FTorqueShedRequest& R, TSet<int32>& LooksOf, bool& bItems);
+	void DropFluidOf(int32 Peer);                      // someone's left: the nozzle back on the pump
 	FVector FurnitureDropAt(const TorqueFurniture::FModel& M) const;
 	FString CheckFurniture(int32 Peer, const FTorqueShedRequest& R) const;
 	FString ApplyFurniture(int32 Peer, const FTorqueShedRequest& R);

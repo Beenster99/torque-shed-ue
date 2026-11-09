@@ -202,6 +202,15 @@ void FTorquePartsComputer::Relist()
 		KindRows.Add({NAME_None, TEXT("Paint mixing bay")});
 		KindRows.Add({TPCI::PaintBases, FString()});
 		KindRows.Add({TPCI::PaintTints, FString()});
+		// [fluids] Petrol, oil, brake fluid and chain lube, and the cans, the drain pan and the bleed bottle.
+		bool bFluidHead = false;
+		for (const FName& K : TorqueShedParts::FluidKinds())
+		{
+			if (TorqueShedParts::PartsOfKind(K).Num() == 0) continue;
+			if (!bFluidHead) KindRows.Add({NAME_None, TEXT("Fluids")});
+			bFluidHead = true;
+			KindRows.Add({K, FString()});
+		}
 		// The shed's kit, its trinkets and the yard's kit (equipment.gd's catalogue, trinkets.gd).
 		const TCHAR* Headings[] = {TEXT("Shed equipment"), TEXT("Trinkets"), TEXT("Yard kit")};
 		for (int32 H = 0; H < 3; ++H)
@@ -234,7 +243,7 @@ void FTorquePartsComputer::Relist()
 		for (int32 I = 0; I < TorquePaintMix::Tints().Num(); ++I) Rows.Add({NAME_None, FTorquePaintBay::TintStock(I)});
 	else if (TPCI::IsKit(Kind))
 		for (const FName& M : TorqueFurniture::SoldOfKind(TPCI::KitKind(Kind))) Rows.Add({M});
-	else if (TypeFilter.IsNone())
+	else if (TypeFilter.IsNone() || !Filtered())
 		for (const FName& P : TorqueShedParts::PartsOfKind(Kind)) Rows.Add({P});
 	else
 	{

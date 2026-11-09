@@ -412,6 +412,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		SerializeFurniture(FurnAr, false, List, FurnNext);
 		S.bFurnished = bFurnished;
 	}
+	S.bFluids = true;   // [fluids]
+	S.PumpLitres = PumpLitres;
 	{
 		// The paint mixing bay, as bytes (FTorquePaintBay::Serialize).
 		S.PaintBay.Reset();
@@ -460,6 +462,11 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.Badge = It.Badge;
 		To.Tune = It.Tune;
 		To.bLightened = It.bLightened;
+		To.FluidType = It.FluidType;   // [fluids]
+		To.Litres = It.Litres;
+		To.FluidAge = It.FluidAge;
+		To.Lube = It.Lube;
+		To.LubeType = It.LubeType;
 		S.Items.Add(To);
 	}
 }
@@ -577,10 +584,19 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.Badge = From.Badge;
 		It.Tune = From.Tune;
 		It.bLightened = From.bLightened;
+		It.FluidType = From.FluidType;   // [fluids]
+		It.Litres = FMath::Clamp(From.Litres, 0.0f, TorqueShedParts::FluidCapacity(It.Part));
+		It.FluidAge = FMath::Clamp(From.FluidAge, 0.0f, 1.0f);
+		It.Lube = FMath::Clamp(From.Lube, 0.0f, 1.0f);
+		It.LubeType = From.LubeType;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
 	for (const TPair<int32, FTorqueItem>& KV : Items) NextId = FMath::Max(NextId, KV.Key + 1);
+	// [fluids] A shed saved before fluids: its bikes ready to ride, its cans as they came.
+	PumpBy = 0;
+	PumpLitres = FMath::Max(S.PumpLitres, 0.0f);
+	if (!S.bFluids) FluidsForOldSave();
 	Mine = FMath::Clamp(S.MyBike, 0, Bays - 1);
 	Builds.SetNum(Bays);
 	for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
@@ -630,7 +646,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 16;   // bumped when the layout below changes (16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 17;   // bumped when the layout below changes (17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -818,6 +834,20 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		TBI::WriteTune(Ar, Table, It.Tune);
 		uint8 bLightenedB = It.bLightened ? 1 : 0;
 		Ar << bLightenedB;
+		// [fluids] What's in it (only for what holds fluid), and a chain's lube.
+		if (TorqueShedParts::FluidCapacity(It.Part) > 0.0f)
+		{
+			uint16 FluidType = Table.Of(It.FluidType);
+			float Litres = It.Litres;
+			uint8 Age = TBI::Quant(It.FluidAge);
+			Ar << FluidType << Litres << Age;
+		}
+		if (It.Kind == FName(TEXT("chain")))
+		{
+			uint8 Lube = TBI::Quant(It.Lube);
+			uint16 LubeType = Table.Of(It.LubeType);
+			Ar << Lube << LubeType;
+		}
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -843,6 +873,12 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		TArray<FTorqueFurniture> List = Furnishings;
 		int32 FurnNext = FurnitureNextId;
 		SerializeFurniture(Ar, true, List, FurnNext);
+	}
+	{
+		// [fluids] The petrol pump: who has the nozzle, and the litres on its display.
+		int32 By = PumpBy;
+		float Sale = PumpLitres;
+		Ar << By << Sale;
 	}
 
 	Out.Reset();
@@ -995,6 +1031,24 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			uint8 bLightenedB = 0;
 			Ar << bLightenedB;
 			It.bLightened = bLightenedB != 0;
+			// [fluids]
+			if (TorqueShedParts::FluidCapacity(It.Part) > 0.0f)
+			{
+				uint16 FluidType = 0;
+				uint8 Age = 0;
+				Ar << FluidType << It.Litres << Age;
+				if (!FMath::IsFinite(It.Litres)) return false;
+				It.FluidType = NameAt(FluidType);
+				It.FluidAge = TBI::Unquant(Age);
+			}
+			if (It.Kind == FName(TEXT("chain")))
+			{
+				uint8 Lube = 255;
+				uint16 LubeType = 0;
+				Ar << Lube << LubeType;
+				It.Lube = TBI::Unquant(Lube);
+				It.LubeType = NameAt(LubeType);
+			}
 		}
 		Ar << bEngine;
 		if (bEngine && !TBI::ReadSlots(Ar, It.Slots, It.Bolted, false)) return false;
@@ -1017,7 +1071,10 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	TArray<FTorqueFurniture> FurnIn;   // [furniture]
 	int32 FurnNextIn = 1;
 	SerializeFurniture(Ar, true, FurnIn, FurnNextIn);
-	if (Ar.IsError() || !bPaintRead)
+	int32 PumpByIn = 0;   // [fluids]
+	float PumpLitresIn = 0.0f;
+	Ar << PumpByIn << PumpLitresIn;
+	if (Ar.IsError() || !bPaintRead || !FMath::IsFinite(PumpLitresIn))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
 		return false;
@@ -1043,6 +1100,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Furnishings = MoveTemp(FurnIn);   // [furniture]
 	FurnitureNextId = FurnNextIn;
 	bFurnished = true;
+	PumpBy = PumpByIn;   // [fluids]
+	PumpLitres = PumpLitresIn;
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -1119,6 +1178,7 @@ int32 UTorqueBuildSubsystem::NewItem(FName Part, float Rust, float Dirt, float W
 	It.Colour = TorqueShedParts::DefaultColour(Part);
 	It.At = ETorqueAt::Floor;
 	It.Place = FTransform(TorqueShedLayout::DropAt());
+	NewItemFluid(It);   // [fluids]
 	Items.Add(It.Id, It);
 	return It.Id;
 }
@@ -1194,6 +1254,7 @@ bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& 
 	TMap<FName, FName> Parts;
 	for (const auto& KV : Ref) Parts.Add(FName(*TBI::Ue(KV.first)), FName(*TBI::Ue(KV.second)));
 	FillBike(Bay, Parts, Age);
+	FillFluids(Bay, Age);   // [fluids]
 	UE_LOG(LogTemp, Log, TEXT("Torque: %s, a %s project bike, in bay %d"), *Bikes[Bay].Name, *TBI::Ue(Want), Bay + 1);
 	return true;
 }
@@ -1264,6 +1325,7 @@ FString UTorqueBuildSubsystem::NewOrderedBike(int32 Peer, int32 Bay, const FStri
 	// The badge on the tank (BikeShop.buy_new: the tank item carries it).
 	if (FTorqueItem* Tank = Items.Find(ItemOn(Bay, FName(TEXT("tank")))))
 		Tank->Badge = TBI::Ue(TorqueFit::Shop::BadgeText(O.TankBadge));
+	ReadyToRide(Bay, 0.5f);   // [fluids] oil and brake fluid to the mark, the chain lubed, half a tank
 	FTorqueShedBike& B = Bikes[Bay];
 	for (const std::string& What : Lay->Solve(O.Parts).Fit.Work) B.FabDone.Add(TBI::Ue(What));
 	FString By;
@@ -1682,6 +1744,7 @@ FString UTorqueBuildSubsystem::TestFinish(int32 Bay, const FString& Style, const
 		H.Bolted->Add(S, true);
 		++Bolted;
 	}
+	ReadyToRide(Bay, 1.0f);   // [fluids] a test bike rides on a full tank, its oil and brakes to the mark
 	RebuildBuild(Bay);
 	OnChanged.Broadcast(Bay);
 	OnItems.Broadcast();
@@ -1826,6 +1889,7 @@ FString UTorqueBuildSubsystem::ConditionText(int32 Id) const
 	const FTorqueItem* It = Items.Find(Id);
 	if (!It) return FString();
 	if (It->bBoxed) return TEXT("Brand new, still in its box");
+	if (TorqueShedParts::IsFluid(It->Part)) return FluidText(*It);   // [fluids] a can: what's in it
 	FString PaintText = TEXT("factory finish");
 	if (It->bPrimerTop) PaintText = TEXT("grey primer");
 	else if (!It->Finish.IsNone())
@@ -1838,6 +1902,8 @@ FString UTorqueBuildSubsystem::ConditionText(int32 Id) const
 		FMath::RoundToInt(It->Rust * 100.0f), FMath::RoundToInt(It->Dirt * 100.0f), FMath::RoundToInt(It->Wear * 100.0f), *PaintText);
 	const FString Job = PaintJobText(*It);
 	if (!Job.IsEmpty()) Text += TEXT("   ") + Job;
+	const FString Fluid = FluidText(*It);   // [fluids] a tank's petrol, an engine's oil, a chain's lube
+	if (!Fluid.IsEmpty()) Text += TEXT("   ") + Fluid;
 	return Text;
 }
 
@@ -2171,6 +2237,12 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		&& StandPusher == Peer && A != ETorqueShedAct::ReleaseStand)
 		return TEXT("Let go of the engine stand first (F).");
 	if (IsKitAct(A)) return CheckKit(Peer, R);
+	// [fluids] The pump's nozzle in your hand is a full pair of hands too.
+	if (IsFluidAct(A)) return CheckFluid(Peer, R);
+	if (PumpBy == Peer && (A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike
+		|| A == ETorqueShedAct::GrabStand || A == ETorqueShedAct::Extinguisher || A == ETorqueShedAct::PaintTapeTake
+		|| A == ETorqueShedAct::GrabFurniture))
+		return TEXT("Hang the nozzle back on the pump first.");
 	// [furniture] Moving a piece of kit: your hands are full of it.
 	if (IsFurnitureAct(A)) return CheckFurniture(Peer, R);
 	if (const int32 Moving = FurnitureMovedBy(Peer))
@@ -2269,6 +2341,13 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!HeldIt) return TEXT("You're not holding a part.");
 		const FName Which = R.Bin.IsNone() ? FName(TEXT("general")) : R.Bin;
 		if (!TorqueShedParts::Bins().Contains(Which)) return TEXT("That's not a bin.");
+		// [fluids] Fluid goes in the general waste on its own (tipped away), and a tank or an engine is
+		// drained first (shed_state bin_check).
+		if (HeldIt->Litres > 0.01f && TorqueShedParts::FluidCapacity(HeldIt->Part) > 0.0f)
+		{
+			if (TorqueShedParts::IsFluid(HeldIt->Part)) return TEXT("Empty it first: tip it away at the general waste bin.");
+			return FString::Printf(TEXT("Drain the %s out of it first."), *TorqueShedParts::FluidName(TorqueShedParts::FluidKind(HeldIt->Part)).ToLower());
+		}
 		if (Which == FName(TEXT("general"))) return FString();
 		if (HeldIt->bBoxed) return TEXT("Unpack it first.");
 		if (HeldIt->Kind == TBI::EngineKind())
@@ -2352,7 +2431,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		return TEXT("It's already clean.");
 	case ETorqueShedAct::OrderPart:
 		if (!TorqueShedParts::IsPart(R.Part) || TorqueShedParts::IsStock(R.Part)) return TEXT("Unknown part.");
-		if (TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R.Part)).Num() == 0) return TEXT("That's not sold here yet.");
+		if (TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R.Part)).Num() == 0 && !TorqueShedParts::IsFluid(R.Part))
+			return TEXT("That's not sold here yet.");
 		if (FreeDelivery() == INDEX_NONE) return TEXT("The delivery area outside is full. Bring some boxes in first.");
 		return FString();
 	case ETorqueShedAct::OrderBike:
@@ -2497,6 +2577,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (Missing.Num() > 0) return FString::Printf(TEXT("It won't run. Missing: %s."), *TBI::SlotList(Missing));
 		const TArray<FName> Loose = LooseSlots(R.Bay);
 		if (Loose.Num() > 0) return FString::Printf(TEXT("Bolt it up first: %s."), *TBI::SlotList(Loose));
+		if (FuelOf(R.Bay) < 0.05f) return TEXT("There's no petrol in the tank.");   // [fluids]
 		return FString();
 	}
 	case ETorqueShedAct::GeoSave:
@@ -2614,6 +2695,16 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		// [furniture] The movable shed and yard kit (TorqueFurniture.cpp).
 		Text = ApplyFurniture(Peer, R);
 		if (R.Kind != ETorqueShedAct::TurnFurniture) MarkSave();
+		OnHostChange.Broadcast();
+		return Text;
+	}
+	if (IsFluidAct(R.Kind))
+	{
+		// [fluids] Pouring, draining, lubing, tipping away, the pump (TorqueShedFluids.cpp).
+		Text = ApplyFluid(Peer, R, LooksOf, bItems);
+		for (int32 Bay : LooksOf) OnLooks.Broadcast(Bay);
+		if (bItems) OnItems.Broadcast();
+		MarkSave();
 		OnHostChange.Broadcast();
 		return Text;
 	}
@@ -2869,11 +2960,13 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		const int32 Cell = FreeDelivery();
 		const int32 Id = NewItem(R.Part, 0.0f, 0.0f, 0.0f);
-		Items[Id].bBoxed = true;
+		Items[Id].bBoxed = !TorqueShedParts::IsFluid(R.Part);   // [fluids] cans and bottles come as they are
 		Items[Id].At = ETorqueAt::Floor;
 		Items[Id].Place = FTransform(FRotator(0.0, Rng.FRandRange(-8.0f, 8.0f), 0.0), TorqueShedLayout::DeliveryAt(Cell));
 		OrdererOf(Peer, Items[Id].OrderedBy, Items[Id].OrderedTint);
-		Text = FString::Printf(TEXT("Ordered %s. The box is in the delivery area outside the roller door."), *TorqueShedParts::PartName(R.Part));
+		Text = TorqueShedParts::IsFluid(R.Part)
+			? FString::Printf(TEXT("Ordered %s. It's in the delivery area outside the roller door."), *TorqueShedParts::PartName(R.Part))
+			: FString::Printf(TEXT("Ordered %s. The box is in the delivery area outside the roller door."), *TorqueShedParts::PartName(R.Part));
 		bItems = true;
 		break;
 	}
@@ -3108,6 +3201,8 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		while (B.DynoRuns.Num() > 2) B.DynoRuns.RemoveAt(0);
 		DynoBusyUntil = Run.Start + TorqueShedPower::RunTime(Run);
 		Text = FString::Printf(TEXT("Dyno run %d on %s..."), B.DynoN, *B.Name);
+		// [fluids] A run burns a splash of petrol.
+		if (FTorqueItem* Tank = Items.Find(ItemOn(R.Bay, FName(TEXT("tank"))))) Tank->Litres = FMath::Max(0.0f, Tank->Litres - 0.05f);
 		if (!Dyno.bFan && Dyno.Heat > 0.5f) Text += TEXT(" It's running hot: switch the fan on.");
 		break;
 	}
@@ -3169,6 +3264,7 @@ void UTorqueBuildSubsystem::DropHeldBy(int32 Peer, const FVector& At)
 	if (IsClient()) return;
 	DropKitOf(Peer);   // [kit]
 	DropFurnitureOf(Peer);   // [furniture]
+	DropFluidOf(Peer);   // [fluids]
 	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.Cups.Contains(Peer))
 	{
 		// The mixing bay: their tin back on the shelf, away from the bench, the cup put away.
