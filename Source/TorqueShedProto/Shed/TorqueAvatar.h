@@ -62,6 +62,8 @@ public:
 	// The player's profile on it: height, and the face sliders on its face's joints (TorqueProfile.h).
 	void SetLook(const FTorqueProfile& Look);
 	FVector HeadWorld() const;
+	// A bone of the posed body in the world (ZeroVector when there's no avatar or no such bone).
+	FVector BoneWorld(FName BoneName) const;
 	// On a bike: seated, hands on the grips, feet on the pegs (FTorqueRideTargets).
 	void PoseRiding(const FTorqueRideTargets& T);
 	// The head joint's place and its turn from rest in the parent's space, as last posed (riding).

@@ -483,8 +483,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			const int32 Mode = P.Num() > 1 ? FCString::Atoi(*P[1]) : 0;
 			const double Yaw = P.Num() > 2 ? FCString::Atod(*P[2]) : 40.0;
 			const double Dist = P.Num() > 3 ? FCString::Atod(*P[3]) : 0.0, Fov = P.Num() > 4 ? FCString::Atod(*P[4]) : 0.0;
-			Bike->TestCamera(Mode, Yaw, Dist, Fov);
-			Said(FString::Printf(TEXT("camera %d, %.0f deg round, %.0f cm out, %.0f deg view"), Mode, Yaw, Dist, Fov));
+			const double Rise = P.Num() > 5 ? FCString::Atod(*P[5]) : 0.0;
+			const FString AtName = P.Num() > 6 ? P[6].ToLower() : FString(TEXT("bike"));
+			const int32 AtIndex = AtName == TEXT("lhand") ? 1 : AtName == TEXT("rhand") ? 2 : 0;
+			Bike->TestCamera(Mode, Yaw, Dist, Fov, Rise, AtIndex);
+			Said(FString::Printf(TEXT("camera %d, %.0f deg round, %.0f cm out, %.0f deg view, %.0f cm up, at %s"), Mode, Yaw, Dist, Fov, Rise, *AtName));
 			return true;
 		}
 				if (Verb == TEXT("robot"))

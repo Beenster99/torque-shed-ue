@@ -992,6 +992,34 @@ def _cards_lod(groom):
 HAIR_WORDS = ("hair", "brow", "lash", "beard", "mustache", "moustache")
 
 
+def _cards_mesh(groom, lod):
+    """The groom's card geometry at lod (group 0) as a static mesh path, and the material its cards
+    use (by the cards' slot name among the groom's materials), for drawing the hair as a plain mesh."""
+    def prop(o, *names):
+        for n in names:
+            try:
+                return o.get_editor_property(n)
+            except Exception:
+                pass
+        return None
+    mesh, slot = None, None
+    for d in (prop(groom, "hair_groups_cards") or []):
+        if prop(d, "group_index") == 0 and prop(d, "lod_index") == lod:
+            mesh = next((v for v in (prop(d, n) for n in ("imported_mesh", "procedural_mesh", "mesh")) if v is not None), None)
+            slot = prop(d, "material_slot_name")
+            break
+    mat = None
+    mats = list(prop(groom, "hair_groups_materials") or [])
+    for m in mats:
+        if slot is not None and str(prop(m, "slot_name")) == str(slot):
+            mat = prop(m, "material")
+    if mat is None and mats:
+        mat = prop(mats[0], "material")
+    log("groom %s: cards at LOD %d = %s, slot %s, material %s (materials: %s)" % (_path(groom).rsplit(".", 1)[-1], lod, _path(mesh),
+        slot, _path(mat), ", ".join("%s=%s" % (prop(m, "slot_name"), _path(prop(m, "material"))) for m in mats)))
+    return _path(mesh), _path(mat)
+
+
 def _hair_from_build(entry, av):
     """The hair the build made under /Game/MetaHumans/<Name>/, for when the Blueprint's groom
     components read empty (UE 5.8 fills them at run time): each GroomAsset with the GroomBindingAsset
@@ -1038,7 +1066,9 @@ def _hair_from_build(entry, av):
             bind = next((b for b in bindings if stem.replace("groom_", "") in b.lower()), "")
         name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
         lod = _cards_lod(ga)
-        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": []})
+        cards, cards_mat = _cards_mesh(ga, lod) if lod >= 0 else ("", "")
+        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": [],
+                               "cards_mesh": cards, "cards_materials": [cards_mat] if cards_mat else []})
         log("%s: groom %s from the build = %s (binding %s, cards from LOD %d)" % (av, name, g, bind or "none", lod))
         done.add(group(g))
     # Hair cards as static meshes, one per group not covered by a groom: the lowest LOD of each.

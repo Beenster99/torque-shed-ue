@@ -2212,9 +2212,18 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		if (!bOrbitHeld) OrbitYaw = FMath::Fmod(OrbitYaw + 12.0 * Dt, 360.0);
 		const double Yaw = FMath::DegreesToRadians(OrbitYaw + LookYaw);
 		const FVector Right = FVector::CrossProduct(FVector::UpVector, Flat);
-		const FVector Centre = BikePos + Flat * 5.0 + FVector(0, 0, 55.0);
+		FVector Centre = BikePos + Flat * 5.0 + FVector(0, 0, 55.0);
+		if (OrbitAt > 0)
+		{
+			// A test's close look at one of the rider's hands on its grip.
+			const FName HandName(OrbitAt == 1 ? TEXT("hand_l") : TEXT("hand_r"));
+			FVector HandAt = RiderAvatar.IsValid() ? RiderAvatar.BoneWorld(HandName) : FVector::ZeroVector;
+			if (HandAt.IsZero() && RiderBody && RiderBody->GetBoneIndex(HandName) != INDEX_NONE)
+				HandAt = RiderBody->GetBoneLocationByName(HandName, EBoneSpaces::WorldSpace);
+			if (!HandAt.IsZero()) Centre = HandAt;
+		}
 		const FVector Pos = Centre + (Flat * FMath::Cos(Yaw) + Right * FMath::Sin(Yaw)) * OrbitDist
-			+ FVector(0, 0, 55.0 - LookPitch * 4.0);
+			+ FVector(0, 0, OrbitRise != 0.0 ? OrbitRise : 55.0 - LookPitch * 4.0);
 		Camera->SetWorldLocationAndRotation(Pos, (Centre - Pos).Rotation());
 		Camera->SetFieldOfView((float)OrbitFov);
 		return;

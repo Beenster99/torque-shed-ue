@@ -83,7 +83,9 @@
 //                         where the rider sits (seat, pegs, grips and the pose's hips, wrists and ankles)
 //   camera:<mode>[:<yaw>[:<cm>[:<fov>]]]  on the road: 0 chase, 1 first person, 2 chin, 3 the showroom orbit
 //                         held at yaw degrees round from ahead (90 side on from the right), cm out (270)
-//                         with that field of view (40); rides uses 3:90:450:60, the whole rider and bike
+//                         with that field of view (40); rides uses 3:90:450:60, the whole rider and bike;
+//                         then :<rise> cm above (below 0: from under) and :bike|lhand|rhand to look at,
+//                         e.g. camera:3:60:35:40:-20:rhand, the right hand on its grip from below
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops

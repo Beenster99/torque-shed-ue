@@ -12,6 +12,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ReferenceSkeleton.h"
@@ -54,7 +56,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
-struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone; TArray<FString> Materials; int32 Lod = -1; };
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh; TArray<FString> Materials, CardsMaterials; int32 Lod = -1; };
 struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
@@ -111,6 +113,8 @@ const TArray<FEntry>& Entries()
 				(*PO)->TryGetStringField(TEXT("cloth"), P.Cloth);
 				(*PO)->TryGetStringField(TEXT("static"), P.Static);
 				(*PO)->TryGetStringField(TEXT("bone"), P.Bone);
+				(*PO)->TryGetStringField(TEXT("cards_mesh"), P.CardsMesh);
+				P.CardsMaterials = Strings(*PO, TEXT("cards_materials"));
 				(*PO)->TryGetNumberField(TEXT("lod"), P.Lod);
 				P.Materials = Strings(*PO, TEXT("materials"));
 				E.Parts.Add(P);
@@ -199,8 +203,24 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		Out.Add(C);
 	}
 	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
-	// bone's rest so it sits where it was made and turns with the head.
+	// bone's rest so it sits where it was made and turns with the head. With -TorqueHairMesh (or no
+	// hair module), each groom is drawn this way too, from its cards LOD's own mesh and material.
+	const bool bHairMesh = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairMesh"))
+		|| !FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
+	TArray<FPart> Statics;
 	for (const FPart& P : E.Parts)
+	{
+		if (!P.Static.IsEmpty()) Statics.Add(P);
+		else if (bHairMesh && !P.Groom.IsEmpty() && !P.CardsMesh.IsEmpty())
+		{
+			FPart Q = P;
+			Q.Static = P.CardsMesh;
+			Q.Materials = P.CardsMaterials;
+			Q.Bone = TEXT("head");
+			Statics.Add(Q);
+		}
+	}
+	for (const FPart& P : Statics)
 	{
 		if (P.Static.IsEmpty()) continue;
 		UStaticMesh* SM = LoadObject<UStaticMesh>(nullptr, *P.Static);
@@ -221,8 +241,9 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
-		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards %s on %s%s"), *E.Name, *P.Static, *On->GetName(),
-			bOnBone ? *FString::Printf(TEXT(", bone %s"), *P.Bone) : TEXT(""));
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards %s on %s%s; bounds %s r %.0f cm; material %s"), *E.Name, *P.Static, *On->GetName(),
+			bOnBone ? *FString::Printf(TEXT(", bone %s"), *P.Bone) : TEXT(""), *C->Bounds.Origin.ToCompactString(), C->Bounds.SphereRadius,
+			C->GetNumMaterials() > 0 && C->GetMaterial(0) ? *C->GetMaterial(0)->GetPathName() : TEXT("none"));
 		Out.Add(C);
 	}
 	// Clothes kept as a Chaos outfit or cloth asset: a cloth component posed by the body, not simulated
@@ -266,7 +287,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		GroomClass ? TEXT("loaded") : TEXT("missing"), ClothClass ? TEXT("loaded") : TEXT("missing"));
 	for (const FPart& P : E.Parts)
 	{
-		if (P.Groom.IsEmpty()) continue;
+		if (P.Groom.IsEmpty() || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
 		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
 		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
 		if (!G) continue;
@@ -307,8 +328,16 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		if (UMeshComponent* MC = Cast<UMeshComponent>(C)) ApplyMaterials(MC, P.Materials);
-		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s%s, LOD %d (asset %s)"), *E.Name, *P.Name, *On->GetName(),
-			bOnBone ? TEXT(", bone head") : TEXT(""), P.Lod, bSet ? TEXT("set") : TEXT("by property"));
+		UMaterialInterface* GroomMat = nullptr;
+		FBoxSphereBounds GroomBounds;
+		if (UPrimitiveComponent* GP = Cast<UPrimitiveComponent>(C))
+		{
+			GroomMat = GP->GetNumMaterials() > 0 ? GP->GetMaterial(0) : nullptr;
+			GroomBounds = GP->Bounds;
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s%s, LOD %d (asset %s); bounds %s r %.0f cm (head at %s); material %s"), *E.Name, *P.Name, *On->GetName(),
+			bOnBone ? TEXT(", bone head") : TEXT(""), P.Lod, bSet ? TEXT("set") : TEXT("by property"), *GroomBounds.Origin.ToCompactString(),
+			GroomBounds.SphereRadius, *On->GetSocketLocation(FName(TEXT("head"))).ToCompactString(), GroomMat ? *GroomMat->GetPathName() : TEXT("none"));
 		Out.Add(C);
 	}
 }
@@ -779,6 +808,12 @@ void FTorqueAvatar::SetLook(const FTorqueProfile& Look)
 		if (Grow != 1.0) FaceLocal[I].SetScale3D(FaceLocal[I].GetScale3D() * Grow);
 	}
 	PoseFace();
+}
+
+FVector FTorqueAvatar::BoneWorld(FName BoneName) const
+{
+	if (!Driver || Driver->GetBoneIndex(BoneName) == INDEX_NONE) return FVector::ZeroVector;
+	return Driver->GetBoneLocationByName(BoneName, EBoneSpaces::WorldSpace);
 }
 
 FVector FTorqueAvatar::HeadWorld() const

@@ -106,8 +106,12 @@ public:
 	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
 	// from straight ahead (90: side on from the bike's right).
 	// Dist and Fov: the orbit's distance (cm) and field of view (degrees), 0 for the showroom's own.
-	void TestCamera(int32 Mode, double Yaw, double Dist = 0.0, double Fov = 0.0)
+	// Rise: the orbit's height above what it looks at (cm; 0 for the showroom's own, below 0 looks up
+	// from under); At: 0 the bike, 1 the rider's left hand, 2 the right hand.
+	void TestCamera(int32 Mode, double Yaw, double Dist = 0.0, double Fov = 0.0, double Rise = 0.0, int32 At = 0)
 	{
+		OrbitRise = Rise;
+		OrbitAt = FMath::Clamp(At, 0, 2);
 		CameraMode = FMath::Clamp(Mode, 0, CameraModes - 1);
 		OrbitYaw = Yaw;
 		bOrbitHeld = true;
@@ -231,7 +235,8 @@ private:
 	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit
 	static constexpr int32 CameraModes = 4;
 	double OrbitYaw = 40.0;           // showroom: degrees round from straight ahead, to the right
-	double OrbitDist = 270.0, OrbitFov = 40.0;   // the showroom's distance (cm) and field of view
+	double OrbitDist = 270.0, OrbitFov = 40.0, OrbitRise = 0.0;
+	int32 OrbitAt = 0;   // TestCamera's: 0 the bike, 1 the left hand, 2 the right   // the showroom's distance (cm) and field of view
 	bool bOrbitHeld = false;          // -TorqueOrbitYaw: hold the angle instead of turning
 	bool bRiderShown = true;
 	FVector CamPos = FVector::ZeroVector;
