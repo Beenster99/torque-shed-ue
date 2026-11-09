@@ -471,6 +471,7 @@ FString UTorqueBuildSubsystem::ApplyFluid(int32 Peer, const FTorqueShedRequest& 
 				It->Litres = FMath::Min(Left, TorqueShedParts::FluidCapacity(It->Part));
 				Left -= It->Litres;
 			}
+		LooksOf.Add(R.Bay);   // (the bay TV's fuel bar)
 		return FString();
 	}
 	default:

@@ -220,7 +220,7 @@ const TCHAR* const PhysicsSteps =
 // [fluids] The pump and the cans: the bike wheeled up to the pump and filled, an oil bottle carried
 // and sloshed, oil poured in and drained into the pan, the chain lubed, the levels on the bay TV.
 const TCHAR* const FluidSteps =
-	TEXT("fluid:log,look:pump,shot,wheel:pump,pump:lift,pump:state,pump:fill:20,pump:state,shot,pump:hang,pump:state,wheel:home,")
+	TEXT("fluid:log,look:pump,shot,wheel:pump,pump:burn:8,pump:lift,pump:state,pump:fill:20,pump:state,shot,pump:hang,pump:state,wheel:home,")
 	TEXT("fluid:carry:drain_pan,crouch:1,part:engine,act,fluid:log,crouch:0,fluid:drop,")
 	TEXT("fluid:carry:oil,fluid:slosh,fluid:slosh:3,wait:0.4,fluid:slosh,shot,wait:4,fluid:slosh,part:engine,act,fluid:log,fluid:drop,")
 	TEXT("fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,look:screen,shot,fluid:log");
@@ -1132,7 +1132,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	if (Verb == TEXT("pump") || Verb == TEXT("fluid"))
 	{
-		// [fluids] pump:lift|fill[:seconds]|hang|state, fluid:carry:<kind or part>|log|slosh[:kick]
+		// [fluids] pump:lift|fill[:seconds]|hang|burn[:litres]|state, fluid:carry:<kind or part>|log|slosh[:kick]
 		// (ATorqueWalker::TestFluid); each logs the litres, the nozzle and the can's slosh.
 		TArray<FString> Args;
 		for (int32 I = 1; I < P.Num(); ++I) Args.Add(P[I].ToLower());

@@ -167,7 +167,7 @@ public:
 	// Order from the parts computer, as its menu does: a part id, or "bike" for a project bike.
 	FString TestOrder(FName Part);
 	// [fluids] (TorqueWalkerFluids.cpp) pump: lift, fill[:seconds] (bay Bay's bike, as the work
-	// button), hang, state; fluid: carry:<kind or part>, log, slosh[:kick]. Each says the litres
+	// button), hang, burn[:litres] (as if ridden), state; fluid: carry:<kind or part>, log, slosh[:kick]. Each says the litres
 	// before and after, the nozzle's state, the can's slosh.
 	FString TestFluid(const FString& Verb, const TArray<FString>& Args, int32 Bay);
 	FString FluidLog() const;
