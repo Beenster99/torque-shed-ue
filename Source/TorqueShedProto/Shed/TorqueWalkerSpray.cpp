@@ -927,7 +927,7 @@ FString ATorqueWalker::TestSprayPasses(int32 Passes, double Distance)
 		if (Job->Complete()) break;
 	}
 	const FStats St = Job->Stats();
-	FString Said = FString::Printf(TEXT("%d frames of spraying: %d%% covered, even %d%%, runs %d%%, dry %d%%, thin %d%% (sides %d/%d/%d/%d)"), Frames,
+	FString Said = FString::Printf(TEXT("[%s, %d cubes painted, overlay on %d meshes] "), *Job->Key, Job->PaintedCount(), Job->Meshes().Num()) + FString::Printf(TEXT("%d frames of spraying: %d%% covered, even %d%%, runs %d%%, dry %d%%, thin %d%% (sides %d/%d/%d/%d)"), Frames,
 		FMath::RoundToInt(St.Covered * 100.0f), FMath::RoundToInt(St.Even * 100.0f), FMath::RoundToInt(St.Runs * 100.0f), FMath::RoundToInt(St.Dry * 100.0f),
 		FMath::RoundToInt(St.Thin * 100.0f), FMath::RoundToInt(St.Sides[0] * 100.0f), FMath::RoundToInt(St.Sides[1] * 100.0f),
 		FMath::RoundToInt(St.Sides[2] * 100.0f), FMath::RoundToInt(St.Sides[3] * 100.0f));
