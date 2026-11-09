@@ -52,10 +52,11 @@ HIGHLIGHTS = 0.35           # local exposure: how much contrast the bright windo
 EXPOSURE_MAX = 11.5
 VOLUMETRIC_FOG = True       # the faint dusty shaft of daylight through the roller door (the fog's volumetric)
 SKY_LEAK = 0.02             # Lumen's skylight leaking: keeps the far corners off crushed black (0.04 flattened the AO)
-LOCAL_FOG = 0.05            # the dust in the hall's air (a local fog volume's height fog extinction): 0 for none
+LOCAL_FOG = 0.15            # the dust in the hall's air (a local fog volume's height fog extinction): 0 for none
 SUN_SCATTER = 3.0           # how strongly the sun lights that dust (the directional light's volumetric scattering)
 SUN_K, STRIP_K = 5000.0, 6000.0   # warm sun, cool daylight-white fluorescents (the white balance sits at 6300 K)
-LED_GLOW = 45.0             # the tubes' own glow (6 read as grey boxes against the exposure)
+LED_GLOW = 600.0            # the tubes' own glow: a real tube is ~200x a lit wall (6, then 45, read as white boxes)
+HEX_GLOW = 250.0            # the paint shop's hex tiles (many of them, so less each)
 FOOT_AO = 0.45              # the soft dark at the foot of walls, cabinets and benches (a decal each): 0 for none
 
 # The shed (workshop.gd): interior half sizes, height, wall thickness.
@@ -401,7 +402,7 @@ def materials():
         # a dark ceiling for the hexagon LED tiles, the spray bay's panels, filter, grate and rails.
         "paint_wall": scanned(scans, "shed_paint_wall", "M_PaintShopWall", (0.90, 0.91, 0.92), 0.35, grain=0.0),
         "paint_ceiling": flat("M_PaintShopCeiling", (0.08, 0.08, 0.09), 0.6, metallic=0.2),
-        "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=LED_GLOW),
+        "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=HEX_GLOW),
         "booth_panel": flat("M_BoothPanel", (0.94, 0.95, 0.96), 0.5, metallic=0.05),   # white enamel (0.88 read light grey)
         "booth_filter": flat("M_BoothFilter", (0.95, 0.60, 0.35), 0.95, grain=0.1),
         "booth_grate": flat("M_BoothGrate", (0.20, 0.21, 0.23), 0.4, metallic=0.8),
@@ -1010,8 +1011,6 @@ def foot_ao():
     if FOOT_AO <= 0.0 or not FOOTPRINTS:
         return
     mat = new_material("M_ShedFootAO")
-    try_set(mat, "material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
-    try_set(mat, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     uv = expr(mat, unreal.MaterialExpressionTextureCoordinate, -1200, 0)
     centred = expr(mat, unreal.MaterialExpressionConstantBiasScale, -1000, 0, bias=-0.5, scale=2.0)
     mel.connect_material_expressions(uv, "", centred, "")
@@ -1033,6 +1032,9 @@ def foot_ao():
     mel.connect_material_property(strength, "", unreal.MaterialProperty.MP_OPACITY)
     black = expr(mat, unreal.MaterialExpressionConstant3Vector, -100, -200, constant=unreal.LinearColor(0.0, 0.0, 0.0, 1.0))
     mel.connect_material_property(black, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    # The domain and blend once the graph's whole (set first, the empty graph compiled as a surface).
+    try_set(mat, "material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    try_set(mat, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat = finish(mat)
     reach = 15.0
     n = 0
@@ -1067,7 +1069,9 @@ def hall_dust():
         for k, v in (("radial_fog_extinction", 0.0), ("height_fog_extinction", LOCAL_FOG), ("height_fog_falloff", 250.0),
                      ("height_fog_offset", 0.0), ("fog_phase_g", 0.6), ("fog_albedo", unreal.LinearColor(0.92, 0.9, 0.86, 1.0))):
             try_set(fc, k, v)
-    log("hall dust: local fog unit %.0f cm, scaled to 820" % unit)
+    origin, extent = a.get_actor_bounds(False)
+    log("hall dust: local fog unit %.0f cm, scaled to 820 (now %.0f x %.0f x %.0f cm), extinction %.2f"
+        % (unit, extent.x * 2, extent.y * 2, extent.z * 2, LOCAL_FOG))
 
 
 def sky():
@@ -1097,10 +1101,19 @@ def sky():
     if VOLUMETRIC_FOG:
         # Dust in the air of a working shed: the sun through the door and the strips over the bays
         # pick it out a little. Start at the eye (the height fog's 1500 cm start is for the haze outside).
-        for k, v in (("volumetric_fog", True), ("enable_volumetric_fog", True), ("volumetric_fog_scattering_distribution", 0.6),
+        # (bEnableVolumetricFog: "enable_volumetric_fog" to Python, and SetVolumetricFog too, to be sure.)
+        try:
+            fc.set_volumetric_fog(True)
+        except Exception as e:
+            unreal.log_warning("[Torque] no set_volumetric_fog: %s" % e)
+        for k, v in (("enable_volumetric_fog", True), ("volumetric_fog_scattering_distribution", 0.6),
                      ("volumetric_fog_albedo", unreal.Color(235, 230, 220, 255)), ("volumetric_fog_extinction_scale", 1.0),
                      ("volumetric_fog_start_distance", 0.0), ("volumetric_fog_distance", 6000.0)):
             try_set(fc, k, v)
+        try:
+            log("volumetric fog on: %s" % fc.get_editor_property("enable_volumetric_fog"))
+        except Exception as e:
+            unreal.log_warning("[Torque] can't read enable_volumetric_fog back: %s" % e)
     try:
         actors.spawn_actor_from_class(unreal.VolumetricCloud, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
     except Exception as e:
@@ -1131,7 +1144,7 @@ def sky():
                  ("bloom_intensity", 0.35), ("vignette_intensity", 0.25), ("film_grain_intensity", 0.06),
                  ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.08, 1.08, 1.08, 1.0)),
                  # Finer GI: the sunlit floor patch bouncing warm onto the walls, the junctions occluded.
-                 ("lumen_final_gather_quality", 4.0), ("lumen_scene_lighting_quality", 3.0),
+                 ("lumen_final_gather_quality", 6.0), ("lumen_scene_lighting_quality", 3.0),
                  ("lumen_scene_detail", 4.0), ("lumen_reflection_quality", 2.0),
                  ("lumen_final_gather_lighting_update_speed", 2.0), ("indirect_lighting_intensity", 1.25),
                  ("lumen_skylight_leaking", SKY_LEAK),
