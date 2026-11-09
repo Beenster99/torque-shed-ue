@@ -15,6 +15,7 @@
 class UStaticMesh;
 class UStaticMeshComponent;
 class UBoxComponent;
+class UMaterialInstanceDynamic;
 struct FTorqueBuild;
 struct FTorqueResolvedPart;
 
@@ -34,6 +35,10 @@ FString PartLabel(FName Part);
 // Dirt, rust and paint from the bay's parts onto their finishes (the bike's materials take Grime,
 // Rust and Color), by each part's slot tag (or, untagged, its stock model part's slot).
 void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts);
+// The road dirt in a part's material (Tools/ue_bike_dirt.py): how many dead flies a slot's part
+// collects up front (Dirt.FLY_SLOTS), and its mesh's frame in the bike's and the bike's height.
+float FlyGain(FName Slot);
+void SetDirtFrame(UMaterialInstanceDynamic* M, const FTransform& PartToBike, const FVector2D& ZRange);
 // The same for the bike of whoever WorldContext is (a ridden pawn: its player's bay).
 void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>& Parts);
 // One spare: option Part for Slot drawn as it would be fitted to Build, under a new holder on Parent,

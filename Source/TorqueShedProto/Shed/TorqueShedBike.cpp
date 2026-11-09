@@ -102,11 +102,34 @@ void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>
 	ApplyLooks(WorldContext, UTorqueBuildSubsystem::BikeFor(WorldContext), Parts);
 }
 
+float FlyGain(FName Slot)
+{
+	// Dirt.FLY_SLOTS: the parts out in front that collect dead flies at speed, and how many land on each.
+	static const TMap<FName, float> Gains = {
+		{TEXT("headlight"), 1.0f}, {TEXT("fairing"), 1.0f}, {TEXT("fog_lights"), 0.9f}, {TEXT("mirrors"), 0.6f},
+		{TEXT("front_mudguard"), 0.7f}, {TEXT("fork"), 0.55f}, {TEXT("indicators"), 0.5f}, {TEXT("number_boards"), 0.6f},
+		{TEXT("handlebars"), 0.35f}, {TEXT("dashboard"), 0.35f}, {TEXT("tank"), 0.3f}, {TEXT("front_master"), 0.3f},
+		{TEXT("horn"), 0.5f}, {TEXT("cooling"), 0.45f}, {TEXT("steering_damper"), 0.3f}, {TEXT("lever_guards"), 0.3f}};
+	const float* G = Gains.Find(Slot);
+	return G ? *G : 0.0f;
+}
+
+void SetDirtFrame(UMaterialInstanceDynamic* M, const FTransform& PartToBike, const FVector2D& ZRange)
+{
+	if (!M) return;
+	const FMatrix X = PartToBike.ToMatrixWithScale();
+	M->SetVectorParameterValue(TEXT("Row0"), FLinearColor((float)X.M[0][0], (float)X.M[1][0], (float)X.M[2][0], 0.0f));
+	M->SetVectorParameterValue(TEXT("Row1"), FLinearColor((float)X.M[0][1], (float)X.M[1][1], (float)X.M[2][1], 0.0f));
+	M->SetVectorParameterValue(TEXT("Row2"), FLinearColor((float)X.M[0][2], (float)X.M[1][2], (float)X.M[2][2], 0.0f));
+	M->SetVectorParameterValue(TEXT("RowOffset"), FLinearColor((float)X.M[3][0], (float)X.M[3][1], (float)X.M[3][2], 0.0f));
+	M->SetVectorParameterValue(TEXT("ZRange"), FLinearColor((float)ZRange.X, (float)ZRange.Y, 0.0f, 0.0f));
+}
+
 void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts)
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
-	// Being pressure washed: the wash game draws its muck over the parts itself (TorqueWashJob), so
-	// the parts' own grime is held off while it's on them.   [wash]
+	// Being pressure washed: the wash game sets the parts' dirt itself (TorqueWashJob: as it was when
+	// the wash began, and the mask of what's been washed off), so it's left as it is.   [wash]
 	const bool bWashing = TorqueWash::HidesGrime(WorldContext, Bike);
 	// Each part's box in the bike's frame (its actor: x forward, y right, z up), for a masked stripe.
 	TMap<FName, FBox> Boxes;
@@ -122,6 +145,21 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 	for (UStaticMeshComponent* C : Parts)
 		if (C && !PartTag(C).IsNone() && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)))
 			HasPaint.Add(SlotTag(C).IsNone() ? PartTag(C) : SlotTag(C));
+	// The road dirt's frame (Tools/ue_bike_dirt.py): each mesh in the bike's (its actor's, unscaled),
+	// and how high the bike stands, from the bottom of its tyres.
+	FBox Whole(ForceInit);
+	for (const TPair<FName, FBox>& Bx : Boxes) Whole += Bx.Value;
+	const FVector2D ZRange = Whole.IsValid ? FVector2D(Whole.Min.Z, FMath::Max(Whole.Max.Z, Whole.Min.Z + 10.0)) : FVector2D(0.0, 120.0);
+	auto Dirt = [&](UStaticMeshComponent* C, FName Which, float Grime)
+	{
+		UMaterialInstanceDynamic* M = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0));
+		if (!M || !C->GetOwner()) return;
+		FTransform Frame = C->GetOwner()->GetActorTransform();
+		Frame.SetScale3D(FVector::OneVector);
+		SetDirtFrame(M, C->GetComponentTransform().GetRelativeTransform(Frame), ZRange);
+		M->SetScalarParameterValue(TEXT("FlyGain"), FlyGain(Which));
+		if (!bWashing || M->K2_GetScalarParameterValue(TEXT("HasMask")) < 0.5f) M->SetScalarParameterValue(TEXT("Grime"), Grime);
+	};
 	for (UStaticMeshComponent* C : Parts)
 	{
 		if (!C) continue;
@@ -129,6 +167,7 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		if (Part.IsNone()) continue;
 		const FName Slot = SlotTag(C);
 		const FName Which = Slot.IsNone() ? Part : Slot;
+		const float Grime = B ? B->DirtOf(Bike, Which) : 0.0f;
 		// Sprayed with a pearl, candy, flake or chameleon from the mixing bay, or masked: the effect
 		// paint (TorqueEffectPaint.h) in place of the part's own material; any other paint, its own.
 		TorquePaintMix::FPaintLook Effect;
@@ -149,21 +188,29 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 				}
 				const FBox Box = Boxes.FindRef(Which);
 				const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
-				if (TorqueEffectPaint::Apply(C, Plain, bWashing ? 0.0f : B->DirtOf(Bike, Which), ToPart)) continue;
+				if (TorqueEffectPaint::Apply(C, Plain, Grime, ToPart))
+				{
+					Dirt(C, Which, Grime);
+					continue;
+				}
 			}
 		}
 		if (B && C->GetOwner() && !bBare && B->EffectOf(Bike, Which, Effect))
 		{
 			const FBox Box = Boxes.FindRef(Which);
 			const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
-			if (TorqueEffectPaint::Apply(C, Effect, bWashing ? 0.0f : B->DirtOf(Bike, Which), ToPart)) continue;
+			if (TorqueEffectPaint::Apply(C, Effect, Grime, ToPart))
+			{
+				Dirt(C, Which, Grime);
+				continue;
+			}
 		}
 		TorqueEffectPaint::Restore(C);
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;
-		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime,
-		// and their rust bloom by Rust.
-		M->SetScalarParameterValue(TEXT("Grime"), B && !bWashing ? B->DirtOf(Bike, Which) : 0.0f);
+		// The bike's masters draw their road dirt by Grime (mud low down, dust on top, flies up front:
+		// Tools/ue_bike_dirt.py), and their rust bloom by Rust.
+		Dirt(C, Which, Grime);
 		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
 		if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))

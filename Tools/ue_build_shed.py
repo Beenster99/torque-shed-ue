@@ -367,7 +367,8 @@ def effect_paint_material():
     with the angle for a chameleon (Color to FlipA to FlipB, by Flip), takes a pearl's sheen at the
     edges (PearlTint, by Pearl), deepens towards the edges for a candy (Depth), and sparkles with
     flakes stuck to the part (FlakeColour, by Flake). Opaque, a handful of maths nodes and one
-    texture-based noise: solid paints keep the bike's own materials. Grime dulls it."""
+    texture-based noise: solid paints keep the bike's own materials. The road dirt over it as on the
+    bike's own (Tools/ue_bike_dirt.py: Grime and the rest)."""
     m = new_material("M_ShedEffectPaint")
     try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_CLEAR_COAT)
     M = unreal.MaterialProperty
@@ -445,20 +446,21 @@ def effect_paint_material():
     tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, num("Tape", -900, 2000, 0.0))
     masked = lerp(-500, 0, c5, vec("MaskColor", -700, 1700, (1.0, 1.0, 1.0)), mask)
     taped = lerp(-450, 0, masked, vec("TapeColor", -700, 2100, (0.18, 0.42, 0.85)), tape)
-    # Grime dulls it.
-    grime = num("Grime", -600, 1500, 0.0)
-    dirt = op(unreal.MaterialExpressionMultiply, -500, 1500, grime, const_b=0.5)
-    base = lerp(-300, 0, taped, expr(m, unreal.MaterialExpressionConstant3Vector, -500, 1400, constant=unreal.LinearColor(0.18, 0.15, 0.12, 1.0)), dirt)
-    mel.connect_material_property(base, "", M.MP_BASE_COLOR)
     metal = lerp(-300, 300, num("Metallic", -600, 300, 0.0), expr(m, unreal.MaterialExpressionConstant, -600, 380, r=1.0), speck)
     metal = lerp(-250, 300, metal, num("MaskMetal", -500, 330, 0.05), mask)
     metal = lerp(-200, 300, metal, expr(m, unreal.MaterialExpressionConstant, -400, 380, r=0.0), tape)
-    mel.connect_material_property(metal, "", M.MP_METALLIC)
     rough = lerp(-300, 500, num("Roughness", -600, 500, 0.15), expr(m, unreal.MaterialExpressionConstant, -600, 580, r=0.08), speck)
     rough = lerp(-250, 500, rough, num("MaskRough", -500, 530, 0.15), mask)
     rough = lerp(-200, 500, rough, expr(m, unreal.MaterialExpressionConstant, -400, 580, r=0.85), tape)
-    rough = op(unreal.MaterialExpressionAdd, -150, 500, rough, op(unreal.MaterialExpressionMultiply, -300, 650, grime, const_b=0.3))
+    # The road dirt over it, as on the bike's own materials (Tools/ue_bike_dirt.py).
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import ue_bike_dirt
+    look, glow = ue_bike_dirt.add_dirt(m)
+    base, metal, rough, emis, _ = ue_bike_dirt.lay_over(m, -150, 2400, look, glow, taped, metal, rough)
+    mel.connect_material_property(base, "", M.MP_BASE_COLOR)
+    mel.connect_material_property(metal, "", M.MP_METALLIC)
     mel.connect_material_property(rough, "", M.MP_ROUGHNESS)
+    mel.connect_material_property(emis, "", M.MP_EMISSIVE_COLOR)
     # Clear coat and its roughness: UE 5.8's Python MaterialProperty has no MP_CUSTOM_DATA0/1, so set them
     # only where the enum has them (unconnected, the clear-coat model defaults to a full coat).
     if hasattr(M, "MP_CUSTOM_DATA0"):
@@ -681,13 +683,8 @@ def materials():
         ue_build_spray.build()
     except Exception as e:
         unreal.log_error("[Torque] spray materials: %s" % e)
-    # The wash mini game's muck, washed off where the jet goes (TorqueWashJob.cpp; it needs the spray's
-    # mask default texture, made just above).
-    try:
-        import ue_build_wash
-        ue_build_wash.build()
-    except Exception as e:
-        unreal.log_error("[Torque] wash materials: %s" % e)
+    # (The wash mini game draws no muck of its own: the bike's materials carry the road dirt and its
+    # wash mask, Tools/ue_bike_dirt.py.)
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
