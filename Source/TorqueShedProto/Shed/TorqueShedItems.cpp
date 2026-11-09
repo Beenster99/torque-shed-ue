@@ -259,6 +259,59 @@ int32 ATorqueShedItems::ItemOf(const UActorComponent* C)
 	return 0;
 }
 
+int32 ATorqueShedItems::MakeNewPart(AActor* Outer, USceneComponent* Holder, FName Part, UStaticMesh* Cube, TArray<UStaticMeshComponent*>& Made)
+{
+	// Draw's unboxed path for a part fresh from the shop: its home slot, the catalogue's Blender part
+	// (or the stock part of that kind), tinted the catalogue's colour.
+	const int32 Before = Made.Num();
+	if (!Outer || !Holder || !TorqueShedParts::IsPart(Part)) return 0;
+	const FName Kind = TorqueShedParts::PartKind(Part);
+	const TArray<FName> KindSlots = TorqueShedParts::SlotsForKind(Kind);
+	const FName Home = TorqueShedParts::IsStock(Part) ? TorqueShedParts::StockSlot(Part) : (KindSlots.Num() > 0 ? KindSlots[0] : NAME_None);
+	const bool bCatalogue = !TorqueShedParts::IsStock(Part);
+	if (bCatalogue && !Home.IsNone())
+	{
+		TMap<FString, FString> Parts;
+		Parts.Add(Home.ToString().ToLower(), Part.ToString().ToLower());
+		TorqueShedCatalogue::MakePart(Outer, Holder, Home.ToString().ToLower(), Parts, Made);
+	}
+	FName FitSlot, Option;
+	const bool bOption = !bCatalogue && TorqueShedParts::ModelOption(Part, Kind, FitSlot, Option);
+	if (Made.Num() == Before)
+	{
+		FTorqueBuild Build;
+		Build.Bike = FName(TorqueShedParts::StockModel);
+		if (bOption) Build.Fitted.Add(FitSlot, Option);
+		TorqueShedModel::MakePartsWhere(Outer, Holder, Build,
+			[Home](const FTorqueResolvedPart& P) { return TorqueShedParts::SlotOfModelPart(P) == Home; }, Made);
+	}
+	const FLinearColor Colour = TorqueShedParts::DefaultColour(Part);
+	if (Made.Num() == Before)
+	{
+		if (!Cube) return 0;
+		// No shape for it yet: a block the size of its kind, as the shed draws it.
+		const FVector Size = TSI::KindSize(Kind);
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Outer);
+		C->SetStaticMesh(Cube);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetupAttachment(Holder);
+		C->SetRelativeLocation(FVector(0.0, 0.0, Size.Z * 0.5));
+		C->SetRelativeScale3D(Size / 100.0);
+		C->RegisterComponent();
+		TSI::SetLooks(C, 0.0f, 0.0f, &Colour);
+		Made.Add(C);
+		return Made.Num() - Before;
+	}
+	const bool bTint = bCatalogue;   // (as Draw: a catalogue part shows the catalogue's colour)
+	for (int32 I = Before; I < Made.Num(); ++I)
+	{
+		UStaticMeshComponent* C = Made[I];
+		const bool bPaint = bTint && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+		TSI::SetLooks(C, 0.0f, 0.0f, bPaint ? &Colour : nullptr);
+	}
+	return Made.Num() - Before;
+}
+
 bool ATorqueShedItems::WhereIs(int32 Item, FVector& Out) const
 {
 	for (const FDrawn& D : Drawn)
