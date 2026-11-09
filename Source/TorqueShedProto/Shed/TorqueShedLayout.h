@@ -171,11 +171,12 @@ inline const TArray<FTorquePlace>& Places()
 		const FVector At = LiftPostAt(WashLiftId);
 		Add(ETorquePlace::Lift, TEXT("lift_wash"), At + FVector(-20.0, -20.0, 40.0), At + FVector(20.0, 20.0, 120.0), At + FVector(0.0, 0.0, 110.0), WashLiftId);
 	}
-	// Each bay's floor round the stand (a frame put down here starts a bike).
+	// Each bay's floor round the stand (a frame put down here starts a bike), up to its lift's
+	// platform when that's down (ATorqueBikeLift::LowTop).
 	for (int32 I = 0; I < 4; ++I)
 	{
 		const FVector B = BayAt(I);
-		Add(ETorquePlace::Bay, FString::Printf(TEXT("bay_%d"), I), B + FVector(-140.0, -60.0, 0.0), B + FVector(140.0, 60.0, 4.0), B, I);
+		Add(ETorquePlace::Bay, FString::Printf(TEXT("bay_%d"), I), B + FVector(-140.0, -60.0, 0.0), B + FVector(140.0, 60.0, 20.0), B, I);
 	}
 	return L;
 }
