@@ -247,7 +247,7 @@ void ATorqueShedRadio::Tick(float DeltaSeconds)
 	// Settings > Sound > Radio volume.
 	{
 		const float Vol = FMath::Clamp(FTorqueSettings::Get().Radio, 0.0f, 1.0f);
-		if (Speaker && !FMath::IsNearlyEqual(Speaker->VolumeMultiplier, 0.7f * Vol)) Speaker->SetVolumeMultiplier(0.7f * Vol);
+		if (Speaker && !FMath::IsNearlyEqual(SpeakerVolume, 0.7f * Vol)) { SpeakerVolume = 0.7f * Vol; Speaker->SetVolumeMultiplier(SpeakerVolume); }
 		if (Hiss && !FMath::IsNearlyEqual(Hiss->VolumeMultiplier, 0.12f * Vol)) Hiss->SetVolumeMultiplier(0.12f * Vol);
 	}
 	if (!bOn)

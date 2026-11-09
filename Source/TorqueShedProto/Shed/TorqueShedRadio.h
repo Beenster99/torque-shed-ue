@@ -65,6 +65,7 @@ private:
 	UPROPERTY() UStaticMesh* CylinderMesh = nullptr;
 	UPROPERTY(Transient) UMediaPlayer* Player = nullptr;
 	UPROPERTY(Transient) UMediaSoundComponent* Speaker = nullptr;
+	float SpeakerVolume = -1.0f;   // the multiplier last set on Speaker (UMediaSoundComponent hides VolumeMultiplier)
 	UPROPERTY(Transient) USoundWaveProcedural* HissWave = nullptr;
 	UPROPERTY(Transient) UAudioComponent* Hiss = nullptr;
 	UPROPERTY(Transient) UStaticMeshComponent* Needle = nullptr;

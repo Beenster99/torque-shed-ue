@@ -586,8 +586,8 @@ FFan FTorqueSprayJob::FanAt(double Dist) const
 	F.Radius = Radius * FMath::Clamp(D / DRef, 0.6, 1.8);
 	F.Flow = Rate * Flow * FMath::Clamp(DRef / D * (1.0 + 3.0 * FMath::Max(0.0, S.X - D) / S.X), 0.3, 4.0);
 	F.Dry = FMath::SmoothStep(S.Y, S.Y + DrySpan, D);
-	F.Flow *= 1.0 - FMath::SmoothStep(S.Y + DrySpan * 0.6, S.Y + Out, D);
-	F.Zone = D < S.X ? EZone::Close : (D > S.Y + Out ? EZone::Out : (D > S.Y ? EZone::Far : EZone::Good));
+	F.Flow *= 1.0 - FMath::SmoothStep(S.Y + DrySpan * 0.6, S.Y + OutPast, D);
+	F.Zone = D < S.X ? EZone::Close : (D > S.Y + OutPast ? EZone::Out : (D > S.Y ? EZone::Far : EZone::Good));
 	return F;
 }
 

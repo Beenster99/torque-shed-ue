@@ -499,7 +499,7 @@ void ATorqueWalker::UpdateSprayFx(float Dt)
 		Shot.At = Hit.ImpactPoint;
 		Shot.Normal = Hit.ImpactNormal;
 		const double D = FVector::Dist(Eye, Shot.At);
-		Shot.Zone = D < Near ? EZone::Close : (D > Far + Out ? EZone::Out : (D > Far ? EZone::Far : EZone::Good));
+		Shot.Zone = D < Near ? EZone::Close : (D > Far + OutPast ? EZone::Out : (D > Far ? EZone::Far : EZone::Good));
 	};
 	if (IsLocallyControlled())
 	{
@@ -634,7 +634,7 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		{
 			// Distance: too close (red), the sweet spot (green), too far (blue, dry), out of reach.
 			const FVector2D Sw = Job->Sweet();
-			const double Span = Sw.Y + Out + 30.0;
+			const double Span = Sw.Y + OutPast + 30.0;
 			const double Dist = Jet.bHit ? Jet.Dist : Span;
 			const EZone Z = Jet.bHit ? Jet.Zone : EZone::Out;
 			const float GX = X0 + In, GY = Y + 20.0f * S, GW = Half, GH = 12.0f * S;
@@ -644,8 +644,8 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 			Text(Label, GX, Y, Px(13.0f), TWSI::ZoneColour(Z), 2, GW);
 			Rect(FLinearColor(TWSI::Bad.R, TWSI::Bad.G, TWSI::Bad.B, 0.7f), GX, GY, At(Sw.X) - GX, GH);
 			Rect(FLinearColor(TWSI::Good.R, TWSI::Good.G, TWSI::Good.B, 0.8f), At(Sw.X), GY, At(Sw.Y) - At(Sw.X), GH);
-			Rect(FLinearColor(TWSI::Cool.R, TWSI::Cool.G, TWSI::Cool.B, 0.6f), At(Sw.Y), GY, At(Sw.Y + Out) - At(Sw.Y), GH);
-			Rect(FLinearColor(0.3f, 0.3f, 0.3f, 0.6f), At(Sw.Y + Out), GY, GX + GW - At(Sw.Y + Out), GH);
+			Rect(FLinearColor(TWSI::Cool.R, TWSI::Cool.G, TWSI::Cool.B, 0.6f), At(Sw.Y), GY, At(Sw.Y + OutPast) - At(Sw.Y), GH);
+			Rect(FLinearColor(0.3f, 0.3f, 0.3f, 0.6f), At(Sw.Y + OutPast), GY, GX + GW - At(Sw.Y + OutPast), GH);
 			Frame(FLinearColor(1, 1, 1, 0.25f), GX, GY, GW, GH, 1.0f);
 			Marker(At(Dist), GY, GH);
 			Text(TEXT("close"), GX, GY + GH + 2.0f * S, Px(11.0f), TWSI::Dim);

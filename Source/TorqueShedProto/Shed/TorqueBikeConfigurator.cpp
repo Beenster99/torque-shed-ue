@@ -5,6 +5,7 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShopPreview.h"
 #include "Fit/BikeRideSpec.h"
+#include "Fit/BikeShop.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
