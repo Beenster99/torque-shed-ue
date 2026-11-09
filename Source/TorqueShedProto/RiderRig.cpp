@@ -241,6 +241,14 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 	return true;
 }
 
+double FRiderRig::DrawnSpineDeg() const
+{
+	if (!Body || Pelvis == INDEX_NONE || Neck == INDEX_NONE) return 0.0;
+	const FVector A = CompToLocal.TransformPosition(Body->GetBoneLocationByName(Bones[Pelvis].Name, EBoneSpaces::ComponentSpace));
+	const FVector B = CompToLocal.TransformPosition(Body->GetBoneLocationByName(Bones[Neck].Name, EBoneSpaces::ComponentSpace));
+	return FMath::RadiansToDegrees(FMath::Atan2(B.X - A.X, B.Z - A.Z));
+}
+
 bool FRiderRig::BoneRest(const TCHAR* Name, FVector& Out) const
 {
 	const int32 I = Find(Name);
@@ -330,6 +338,8 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 			}
 		}
 	}
+
+	PosedSpineDeg = FMath::RadiansToDegrees(FMath::Atan2(P[Neck].X - P[Pelvis].X, P[Neck].Z - P[Pelvis].Z));
 
 	// Hand the pose to the mesh, parents first.
 	for (int32 I = 0; I < N; ++I)
