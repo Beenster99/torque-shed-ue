@@ -69,7 +69,11 @@ Ported from Torque Shed's (`scripts/main_menu.gd`), with the same names and orde
   setting) move between them.
   - Controller: mouse and stick look speeds, invert, the lean stick's dead zone and response, and
     every key and button.
-  - Character: your name and colour, as everyone in co-op sees them.
+  - Character: your name, colour and riding style (Torque Shed's four), as everyone in co-op sees them.
+- Every menu (start, pause, Settings) works with the mouse too (`Coop/TorqueMenuMouse.h`): the
+  pointer shows while a menu is up, moving over a row picks it, a click chooses it, a setting's
+  < and > step it (a click elsewhere on it gives the next value), a click on a tab opens it, the
+  wheel scrolls, and the right button goes back.
   Until settings are first saved the game keeps the project's own graphics, and `-TorqueNoInput`
   or `-TorqueNoSettings` runs ignore them, so performance tests compare like with like.
 

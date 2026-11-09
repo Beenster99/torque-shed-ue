@@ -11,6 +11,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "SonyPad.h"
+#include "TorqueMenuMouse.h"
 #include "TorqueMenuPawn.generated.h"
 
 class AHUD;
@@ -55,6 +56,9 @@ private:
 	FString Busy;               // "Loading the road..." once something is chosen
 	double Clock = 0.0, SearchClock = 10.0, StickRepeat = 0.0;
 	int32 StickDir = 0;
+	// The mouse (TorqueMenuMouse.h): where the last drawing put the rows, and the pointer's last place.
+	mutable FTorqueMenuHits Hits;
+	FVector2D LastMouse = FVector2D(-1.0, -1.0);
 	FVector BaseLoc = FVector::ZeroVector;
 	FRotator BaseRot = FRotator::ZeroRotator;
 };

@@ -257,6 +257,15 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 		StickRepeat = 0.15;
 		Move = Dir;
 	}
+	// The mouse: over an entry picks it, a click chooses it, the wheel moves.
+	FVector2D Mouse;
+	const bool bMoved = ATorquePlayerController::MouseMoved(PC, LastMouse, Mouse);
+	const FTorqueMenuHits::FHit* Over = Hits.At(Mouse);
+	bool bClicked = false;
+	if (Over && List.IsValidIndex(Over->Index) && (bMoved || Just(EKeys::LeftMouseButton))) Selected = Over->Index;
+	if (Over && List.IsValidIndex(Over->Index) && Just(EKeys::LeftMouseButton)) bClicked = true;
+	if (Just(EKeys::MouseScrollUp)) Move = -1;
+	if (Just(EKeys::MouseScrollDown)) Move = 1;
 	if (Move != 0) Selected = (Selected + Move + List.Num()) % List.Num();
 
 	// Your name: kept as soon as you move off it (or start).
@@ -274,7 +283,8 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 	if (List[Selected].Kind == EItem::Join) TypeAddress(PC);
 	if (List[Selected].Kind == EItem::Code) TypeCode(PC);
 	const bool bTyping = List[Selected].Kind == EItem::Name;
-	const bool bChoose = Just(EKeys::Enter) || (!bTyping && Just(EKeys::SpaceBar)) || Just(EKeys::Gamepad_FaceButton_Bottom) || (Pressed & ESonyButton::Cross);
+	const bool bChoose = Just(EKeys::Enter) || (!bTyping && Just(EKeys::SpaceBar)) || Just(EKeys::Gamepad_FaceButton_Bottom) || (Pressed & ESonyButton::Cross)
+		|| (bClicked && !bTyping);   // a click on your name puts you in it to type
 	if (bChoose)
 	{
 		if (bNameTyped)
@@ -288,6 +298,7 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 
 void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 {
+	Hits.Reset();
 	if (!Hud || !Canvas || !GEngine) return;
 	UFont* Font = GEngine->GetLargeFont();
 	const float Sc = Canvas->ClipY / 1080.0f;
@@ -310,13 +321,15 @@ void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 	for (int32 I = 0; I < List.Num(); ++I)
 	{
 		const bool bSel = I == Selected;
+		const float Top = Y;
 		Line((bSel ? TEXT(">  ") : TEXT("    ")) + List[I].Text, bSel ? FColor(255, 220, 120) : FColor(235, 235, 235), bSel ? 1.6f : 1.4f,
 			bSel ? 0.6f : 0.35f);
+		Hits.Add(X - 16.0f * Sc, Top - 6.0f * Sc, X + 900.0f * Sc, Y - 8.0f * Sc, I, FTorqueMenuHits::Row);   // for the mouse
 	}
 	Y += 20.0f * Sc;
 	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Line(List[Selected].Hint, FColor(190, 210, 240), 1.0f, 0.35f);
 	if (!Busy.IsEmpty()) Line(Busy, FColor(170, 255, 170), 1.2f, 0.45f);
 	else if (S && !S->Status.IsEmpty()) Line(S->Status, FColor(255, 170, 90), 1.2f, 0.45f);
 	Y = Canvas->ClipY - 90.0f * Sc;
-	Line(TEXT("Up/Down, D-pad or left stick to pick   Enter, Cross or A to choose"), FColor(200, 200, 200), 0.9f, 0.35f);
+	Line(TEXT("Click to choose (the wheel scrolls)   Up/Down, D-pad or left stick to pick   Enter, Cross or A to choose"), FColor(200, 200, 200), 0.9f, 0.35f);
 }
