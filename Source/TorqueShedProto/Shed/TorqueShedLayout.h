@@ -27,6 +27,10 @@ enum class ETorquePlace : uint8
 	PaintShelf,// a place on the mixing bay's tin shelf (Index 0 .. 11): F takes a tin or puts one down
 	Radio,     // the shed radio over the workbench: F switches it on or off, the work button retunes it
 	Tape,      // the masking tape roll's hook inside the mixing bay door: take it, hang it back
+	Lift,      // a bike lift's control post (Index: the lift, a bay or UTorqueBuildSubsystem::WashLift): F raises or lowers it
+	// [kit] (ATorqueShedKit)
+	ShedSwitch,   // the switch boxes right of the roller door (Index 0 the main lights, 1 the door's up / down)
+	Extinguisher, // the fire extinguisher by the workbench: F takes it, F hangs it back
 };
 
 struct FTorquePlace
@@ -46,6 +50,24 @@ inline FVector BayAt(int32 Bay)
 	static const double X[] = {-480.0, -160.0, 160.0, 480.0};
 	return FVector(X[FMath::Clamp(Bay, 0, 3)], -350.0, 0.0);
 }
+
+// The bike lifts (workshop_upgrades.gd _build_lift, wash.gd LIFT): one under each bay's paddock
+// stand, and the wash bay's narrow runway over its drain. A lift's frame: x along the bike, nose
+// first, y to its right, its origin on the floor under the bike's middle. Lift ids are the bays
+// (0 .. 3) and WashLiftId (UTorqueBuildSubsystem::WashLift).
+constexpr int32 WashLiftId = 7;
+inline FTransform WashLiftXf() { return FTransform(FRotator(0.0, -90.0, 0.0), FVector(-930.0, 100.0, 0.0)); }   // facing the back wall
+inline FTransform LiftXf(int32 Lift)
+{
+	if (Lift == WashLiftId) return WashLiftXf();
+	return FTransform(FRotator(0.0, 90.0, 0.0), BayAt(Lift));   // UTorqueBuildSubsystem::HomeOf
+}
+// Its control post (in the lift's frame): behind it and to one side, as Torque Shed's. East of
+// the bike (-y here), but bay 2's on its west, clear of the dyno room's doorway (bay 1's is clear
+// of the storage room's door that way): world (-355, -510), (-285, -510), (285, -510), (605, -510),
+// and the wash bay's at (-1055, 260).
+inline FVector LiftPostLocal(int32 Lift) { return FVector(-160.0, Lift == 1 ? 125.0 : -125.0, 0.0); }
+inline FVector LiftPostAt(int32 Lift) { return LiftXf(Lift).TransformPosition(LiftPostLocal(Lift)); }
 
 // The spray bay's hooks: where a part on hook n hangs from (its top, centred), and the lowest a
 // hung part's bottom comes (workshop.gd HOOK_TIP, HOOK_FLOOR).
@@ -119,6 +141,12 @@ inline const TArray<FTorquePlace>& Places()
 	// The masking tape's hook (paint_bay.gd TAPE_AT, by the door): on the mixing bay's west wall just
 	// inside its door (y 418 .. 502), the roll drawn by ATorquePaintBayRoom (TorquePaintBayLayout::TapeAt).
 	Add(ETorquePlace::Tape, TEXT("tape"), FVector(1430.0, 380.0, 112.0), FVector(1450.0, 410.0, 148.0), FVector(1438.0, 395.0, 130.0), 0);
+	// [kit] The switch boxes right of the roller door, inside (swaps.json light_switches at 285, 548,
+	// 128, facing in): the light switch's plate 122 up, the door's yellow box with its buttons above
+	// it. And the fire extinguisher standing by the end of the workbench (swaps.json dress at -630, 440).
+	Add(ETorquePlace::ShedSwitch, TEXT("shed_lights"), FVector(277.0, 536.0, 114.0), FVector(293.0, 550.0, 129.0), FVector(285.0, 547.0, 122.0), 0);
+	Add(ETorquePlace::ShedSwitch, TEXT("door_button"), FVector(277.0, 536.0, 129.0), FVector(293.0, 550.0, 146.0), FVector(285.0, 546.0, 136.0), 1);
+	Add(ETorquePlace::Extinguisher, TEXT("extinguisher"), FVector(-652.0, 418.0, 0.0), FVector(-608.0, 462.0, 70.0), FVector(-630.0, 440.0, 0.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_lights"), FVector(-145.0, -590.0, 122.0), FVector(-125.0, -578.0, 148.0), FVector(-135.0, -585.0, 135.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_fan"), FVector(-169.0, -590.0, 122.0), FVector(-149.0, -578.0, 148.0), FVector(-159.0, -585.0, 135.0), 1);
 	// The paint shop's downdraft spray bay (workshop.gd BOOTH_XF, equipment.gd booth_shop): 8 m along
@@ -142,13 +170,44 @@ inline const TArray<FTorquePlace>& Places()
 		const FVector At(1672.0, 260.0 + (I % 4 - 1.5) * 30.0, ShelfZ[FMath::Clamp(I / 4, 0, 2)]);
 		Add(ETorquePlace::PaintShelf, FString::Printf(TEXT("paint_shelf_%d"), I), At + FVector(-16.0, -14.0, 0.0), At + FVector(16.0, 14.0, 18.0), At, I);
 	}
-	// Each bay's floor round the stand (a frame put down here starts a bike).
+	// The bike lifts' control posts (ATorqueBikeLift draws them): the box takes in the whole post.
+	for (int32 I = 0; I < 4; ++I)
+	{
+		const FVector At = LiftPostAt(I);
+		Add(ETorquePlace::Lift, FString::Printf(TEXT("lift_%d"), I), At + FVector(-20.0, -20.0, 40.0), At + FVector(20.0, 20.0, 120.0), At + FVector(0.0, 0.0, 110.0), I);
+	}
+	{
+		const FVector At = LiftPostAt(WashLiftId);
+		Add(ETorquePlace::Lift, TEXT("lift_wash"), At + FVector(-20.0, -20.0, 40.0), At + FVector(20.0, 20.0, 120.0), At + FVector(0.0, 0.0, 110.0), WashLiftId);
+	}
+	// Each bay's floor round the stand (a frame put down here starts a bike), up to its lift's
+	// platform when that's down (ATorqueBikeLift::LowTop).
 	for (int32 I = 0; I < 4; ++I)
 	{
 		const FVector B = BayAt(I);
-		Add(ETorquePlace::Bay, FString::Printf(TEXT("bay_%d"), I), B + FVector(-140.0, -60.0, 0.0), B + FVector(140.0, 60.0, 4.0), B, I);
+		Add(ETorquePlace::Bay, FString::Printf(TEXT("bay_%d"), I), B + FVector(-140.0, -60.0, 0.0), B + FVector(140.0, 60.0, 20.0), B, I);
 	}
 	return L;
+}
+
+// [kit] The engine stand rolls (UTorqueBuildSubsystem::StandTransform, drawn by ATorqueShedKit):
+// where it is now, and its place (what you point at, where an engine on it sits) moved with it.
+// The stand's own frame: its origin on the floor under the engine plate, +y its front.
+inline FTransform& StandNow()
+{
+	static FTransform X(FVector(560.0, -40.0, 0.0));
+	return X;
+}
+inline void MoveStand(const FTransform& Xf)
+{
+	StandNow() = Xf;
+	for (const FTorquePlace& C : Places())
+		if (C.Kind == ETorquePlace::Stand)
+		{
+			FTorquePlace& P = const_cast<FTorquePlace&>(C);
+			P.Put = Xf.TransformPosition(FVector(0.0, 0.0, 82.0));
+			P.Box = FBox(FVector(-35.0, -30.0, 20.0), FVector(35.0, 30.0, 95.0)).TransformBy(Xf);
+		}
 }
 
 inline const FTorquePlace* FindPlace(FName Name)

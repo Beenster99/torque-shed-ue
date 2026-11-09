@@ -1,8 +1,9 @@
 #include "Shed/TorqueLookOutline.h"
 
-#include "Camera/CameraComponent.h"
+#include "Components/PostProcessComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Materials/MaterialInterface.h"
@@ -10,10 +11,10 @@
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
 
-bool FTorqueLookOutline::Attach(UCameraComponent* Camera)
+bool FTorqueLookOutline::Attach(AActor* Owner)
 {
-	if (!Camera || bNoMaterial) return false;
-	if (AttachedTo.Get() == Camera) return true;
+	if (!Owner || bNoMaterial) return false;
+	if (Post.IsValid() && Post->GetOwner() == Owner) return true;
 	static UMaterialInterface* Line = nullptr;
 	static bool bLooked = false;
 	if (!bLooked)
@@ -31,11 +32,16 @@ bool FTorqueLookOutline::Attach(UCameraComponent* Camera)
 		bNoMaterial = true;
 		return false;
 	}
-	TArray<FWeightedBlendable>& List = Camera->PostProcessSettings.WeightedBlendables.Array;
-	if (!List.ContainsByPredicate([](const FWeightedBlendable& W) { return W.Object == Line; }))
-		List.Add(FWeightedBlendable(1.0f, Line));
-	AttachedTo = Camera;
-	UE_LOG(LogTemp, Log, TEXT("Torque: look outline on (M_ShedOutline, stencil %d)"), Stencil);
+	UPostProcessComponent* P = NewObject<UPostProcessComponent>(Owner, TEXT("LookOutlinePost"));
+	P->bUnbound = true;
+	P->BlendWeight = 1.0f;
+	P->Priority = 10.0f;
+	P->Settings.WeightedBlendables.Array.Add(FWeightedBlendable(1.0f, Line));
+	P->SetupAttachment(Owner->GetRootComponent());
+	P->RegisterComponent();
+	Owner->AddInstanceComponent(P);
+	Post = P;
+	UE_LOG(LogTemp, Log, TEXT("Torque: look outline on (M_ShedOutline on its own unbound post-process, stencil %d)"), Stencil);
 	return true;
 }
 
@@ -55,6 +61,15 @@ void FTorqueLookOutline::Show(const TArray<UPrimitiveComponent*>& Now)
 		if (!C->bRenderCustomDepth) C->SetRenderCustomDepth(true);
 		if (C->CustomDepthStencilValue != Stencil) C->SetCustomDepthStencilValue(Stencil);
 		Shown.Add(C);
+	}
+	// Once a game, the first time something is outlined: what, and whether custom depth is on.
+	static bool bSaid = false;
+	if (!bSaid && Shown.Num() > 0)
+	{
+		bSaid = true;
+		static const IConsoleVariable* Depth = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
+		UE_LOG(LogTemp, Log, TEXT("Torque: look outline round %d mesh(es), first %s (r.CustomDepth=%d)"), Shown.Num(),
+			*GetNameSafe(Shown[0].Get()), Depth ? Depth->GetInt() : -1);
 	}
 }
 

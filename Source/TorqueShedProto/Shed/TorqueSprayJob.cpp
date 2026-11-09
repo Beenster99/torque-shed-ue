@@ -66,8 +66,14 @@ FLook LookFor(const UTorqueBuildSubsystem& B, int32 Peer, const FTorqueShedReque
 	L.Under = Flatted(It);
 	L.UnderRough = 0.95f;
 	const ELayer Layer = LayerOf(R);
+	// Bare metal, or a part as it came, shows as it is round the new coat: only old paint is shown
+	// flatted back, and only lightly, so the coat going on is what changes the part.
+	if (!UTorqueBuildSubsystem::Repainted(It)) L.Under.A = 0.0f;
+	else L.Under.A *= 0.5f;
 	if (Layer == ELayer::Primer)
 	{
+		// Primer goes on over the part as it is: the grey builds up where you spray it.
+		L.Under.A = 0.0f;
 		L.Colour = UTorqueBuildSubsystem::PrimerColour();
 		L.Rough = 0.75f;
 		L.Metal = 0.0f;
@@ -437,8 +443,16 @@ bool FTorqueSprayJob::Setup(UWorld* World, int32 InItem, const FString& InKey, c
 		Sum += Points[I];
 	}
 	Middle = Sum / Points.Num();
-	UE_LOG(LogTemp, Log, TEXT("Torque spray: %s on item %d: %d points (%d out of reach), mask %dx%dx%d of %.1f cm"),
-		*Key, Item, Points.Num(), Dropped, Dims.X, Dims.Y, Dims.Z, Vx);
+	int32 Boxed = 0;
+	for (const UStaticMeshComponent* C : Parts)
+	{
+		const TArray<FVector>* Pos = nullptr;
+		const TArray<int32>* Tris = nullptr;
+		if (!TorqueShedPick::Triangles(C, Pos, Tris)) ++Boxed;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque spray: %s on item %d: %d meshes (%d by their box, no shape), %d points (%d out of reach), mask %dx%dx%d of %.1f cm, atlas %dx%d, coat material %s"),
+		*Key, Item, Parts.Num(), Boxed, Points.Num(), Dropped, Dims.X, Dims.Y, Dims.Z, Vx, AtlasSize.X, AtlasSize.Y,
+		CoatMaterial() ? *CoatMaterial()->GetName() : TEXT("MISSING"));
 	Attach(World);
 	return true;
 }

@@ -9,6 +9,8 @@ namespace TorqueSound
 namespace
 {
 constexpr double Pi = 3.14159265358979323846;
+// Torque Shed's engine (TorqueEngine::FVoice) to this mix: as loud as the made twin was.
+constexpr double EngineGain = 3.5;
 
 double Clamp01(double V) { return std::min(std::max(V, 0.0), 1.0); }
 double Smooth(double A, double B, double X)
@@ -165,8 +167,26 @@ void RideSound::Retune()
 	GridRing2.BandPass(1310.0, 11.0);
 }
 
+void RideSound::SetEngine(std::shared_ptr<TorqueEngine::FBank> Bank)
+{
+	EngineVoice = Bank ? std::make_unique<TorqueEngine::FVoice>(std::move(Bank), Rate) : nullptr;
+}
+
 void RideSound::Render(float* Out, int N)
 {
+	if (EngineVoice)
+	{
+		// The bike's own engine, as Torque Shed plays it.
+		TorqueEngine::FVoice::FInputs E;
+		E.Rpm = Target.Rpm;
+		E.Throttle = Target.Throttle;
+		E.Inside = Target.Inside;
+		E.bRemote = !Ambience;   // (someone else's bike in co-op: TorqueNetBike turns its birds off)
+		E.bCut = Cut > 0.0;
+		EngineVoice->Set(E);
+		EngineBuf.assign(N, 0.0f);
+		EngineVoice->Render(EngineBuf.data(), N);
+	}
 	const double Kr = 1.0 - std::exp(-1.0 / (Rate * 0.012));   // revs follow in about 12 ms
 	const double Kt = 1.0 - std::exp(-1.0 / (Rate * 0.02));
 	const double Ks = 1.0 - std::exp(-1.0 / (Rate * 0.05));
@@ -272,8 +292,8 @@ void RideSound::Render(float* Out, int N)
 			IdlePos += Pitch;
 			if (IdlePos >= Idle.size() - 1) IdlePos -= Idle.size() - 1;
 		}
-		const double Engine = (Ex * Lerp(1.0, 0.75, Now.Inside) + In * Lerp(0.5, 1.2, Now.Inside)) * (1.0 - Share)
-			+ IdleOut * Share + Pop * Lerp(1.0, 0.7, Now.Inside);
+		const double Engine = EngineVoice ? EngineBuf[S] * EngineGain
+			: (Ex * Lerp(1.0, 0.75, Now.Inside) + In * Lerp(0.5, 1.2, Now.Inside)) * (1.0 - Share) + IdleOut * Share + Pop * Lerp(1.0, 0.7, Now.Inside);
 
 		// Wind: rushing at speed, louder in the helmet.
 		const double V = Now.Speed;

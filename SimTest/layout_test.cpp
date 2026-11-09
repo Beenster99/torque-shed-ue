@@ -687,6 +687,58 @@ int main(int argc, char** argv)
 			+ " single-part swaps (every part of each kind ported: running gear, engines, heads, ancillaries, exhausts, bars, controls, master cylinders, clocks, lights, mirrors, indicators, front mudguards, frames, fairings, tails, stands, rearsets, guards, boards, luggage and kit) placed as Godot does" + Bad);
 	}
 
+	std::printf("The clocks' working pieces, for the ridden bike to drive (FittedPart::Gauge):\n");
+	{
+		Json Index;
+		std::string IndexText;
+		const bool Have = ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) && Json::Parse(IndexText, Index, &Error);
+		const Json* Known = Have ? Index.Get("parts") : nullptr;
+		BikeParts Placer(Lay, Known ? *Known : Index);
+		// Unreal's frame from ours (x forward, y up, z right): x, z, y.
+		auto Ue = [](const V3& V) { return V3(V.x, V.z, V.y); };
+		auto Cross = [](const V3& A, const V3& B) { return V3(A.y * B.z - A.z * B.y, A.z * B.x - A.x * B.z, A.x * B.y - A.y * B.x); };
+		int Dashes = 0;
+		std::string Bad;
+		for (const std::string& Id : Db.Ids("dashboard"))
+		{
+			++Dashes;
+			PartsMap B = Lay.ReferenceBuild("naked");
+			B["dashboard"] = Id;
+			const std::string Style = Lay.Part(Id) ? Lay.Part(Id)->Str("style") : "";
+			int Speed = 0, Revs = 0, Readout = 0, Leds = 0;
+			std::string Wrong;
+			for (const FittedPart& P : Placer.Fit(B, Lay.Solve(B)))
+			{
+				if (P.Gauge.empty()) continue;
+				if (P.Slot != "dashboard" || P.Node != "steer" || !P.Code || !P.Made) Wrong += " " + P.Gauge + " not a clock piece on the steering";
+				// Out of the face towards the rider and up, and the text reading to the rider's right (a text
+				// render faces its +x, Axis, its up Up, and reads along its -y: Up x Axis in Unreal).
+				const V3 Axis = Ue(P.GaugeAxis), Up = Ue(P.GaugeUp);
+				if (!(Axis.x < -0.3 && Axis.z > 0.3 && Up.x > 0.3 && Up.z > 0.3)) Wrong += " " + P.Gauge + " faces " + P3(Axis) + " up " + P3(Up);
+				if (Cross(Up, Axis).y > -0.9) Wrong += " " + P.Gauge + " reads the wrong way";
+				if (P.Gauge == "speed" || P.Gauge == "rpm")
+				{
+					(P.Gauge == "speed" ? Speed : Revs) += 1;
+					// The needle's middle is 16 mm up the dial from its pivot (bike_model.gd).
+					V3 Mid;
+					size_t N = 0;
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& Q : S.Pos) { Mid += Q; ++N; }
+					Mid = Mid * (1.0 / std::max<size_t>(N, 1));
+					if ((Mid - (P.GaugeAt + P.GaugeUp * 0.016)).Length() > 0.001) Wrong += " " + P.Gauge + " needle off its pivot " + P3(Mid) + " vs " + P3(P.GaugeAt);
+				}
+				else if (P.Gauge == "readout") ++Readout;
+				else if (P.Gauge.rfind("led", 0) == 0) ++Leds;
+			}
+			const bool Dial = Style == "analog" || Style == "twin";
+			const int WantLeds = Style == "tft" || (!Dial && Style != "lcd") ? 6 : 0;
+			if (Speed != (Dial ? 1 : 0) || Revs != (Style == "twin" ? 1 : 0) || Readout != 1 || Leds != WantLeds)
+				Wrong += " speed " + std::to_string(Speed) + ", revs " + std::to_string(Revs) + ", readout " + std::to_string(Readout) + ", shift lights " + std::to_string(Leds);
+			if (!Wrong.empty()) Bad += "\n      " + Id + " (" + Style + "):" + Wrong;
+		}
+		Expect(Have && Dashes >= 7 && Bad.empty(), std::to_string(Dashes) + " dashes: dials have their needles (the twin's revs too), every dash a readout, TFTs and the race logger their shift lights, all facing the rider" + Bad);
+	}
+
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);
 	return Failures ? 1 : 0;
 }

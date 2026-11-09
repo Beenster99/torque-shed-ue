@@ -13,6 +13,7 @@ colour, posed in code; without the file it keeps the shape body.
                                            cloud (logs can_build_meta_human's reason if a rig is needed)
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
     py Tools/ue_metahumans.py make rig nowardrobe   the same with no hair or clothes (whole bodies)
+    py Tools/ue_metahumans.py make rig A B          only Avatar_A and Avatar_B (the others kept)
     py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
@@ -36,9 +37,12 @@ SOURCES = "/Game/MetaHumanSources"   # the MetaHuman Character assets they're bu
 PIPELINE_TYPE = "OPTIMIZED"    # the pipeline_type member whose name has this
 PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
 MAX_TEXTURE = 1024
+# Hair styles too short to build as a groom (a buzz cut or waves are painted on the scalp at
+# Optimized/Medium, so the avatar looks bald in game): never picked.
+HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["_s_", "short", "crop"], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["buzz", "_s_", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_s_", "crew", "slick", "messy", "short"], "outfit": ["work", "jacket", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["_s_", "messy", "scrag", "wav", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
     {"name": "Avatar_C", "height": 182.0, "hair": ["_s_", "short", "side"], "outfit": ["overall", "work", "boot"]},
     {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "outfit": ["shirt", "trouser", "pant", "boot"]},
 ]
@@ -387,6 +391,8 @@ def _dress(sub, ch, av):
             is_hair = ("hair" in n or "groom" in cls.lower()) and not any(w in n for w in ("brow", "beard", "mustache", "lash", "fuzz"))
             if hair_slot != is_hair:
                 continue
+            if hair_slot and any(w in n for w in HAIR_TOO_SHORT):
+                continue
             if not hair_slot and "groom" in cls.lower():
                 continue
             if "top" in low and any(w in n for w in ("pant", "trouser", "jean", "short", "boot", "shoe")):
@@ -585,7 +591,7 @@ def slim():
     log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
 
 
-def make(rig=False, wardrobe=True):
+def make(rig=False, wardrobe=True, only=None):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
     Without `rig`, nothing goes to Epic's cloud: the build uses whatever rig the character has, and
@@ -604,6 +610,8 @@ def make(rig=False, wardrobe=True):
     sub = unreal.get_editor_subsystem(sub_cls)
     for i, av in enumerate(AVATARS):
         name = av["name"]
+        if only and not any(name.lower().endswith("_" + o.lower()) or name.lower() == o.lower() for o in only):
+            continue
         folder = ROOT + "/" + name                 # build output
         src_folder = SOURCES + "/" + name
         path = src_folder + "/" + name
@@ -931,23 +939,85 @@ def _get_any(obj, *names):
 
 
 def _cards_lod(groom):
-    """The first LOD of the groom drawn as cards or meshes in every hair group (strands are the GPU
-    cost), or -1 if it's strands at every LOD."""
+    """The first LOD the groom can draw without strands in every hair group: drawn as cards or
+    meshes, visible, and with that card or mesh geometry actually in the asset (a short style built
+    at Medium can list cards at a LOD that has none, or hide its cards LODs). -1 if there isn't one.
+    Logs the whole LOD table, so a groom that won't show can be read off."""
+    def prop(o, *names):
+        for n in names:
+            try:
+                return o.get_editor_property(n)
+            except Exception:
+                pass
+        return None
     try:
         groups = list(groom.get_editor_property("hair_groups_lod"))
-        per = [[str(l.get_editor_property("geometry_type")).upper() for l in grp.get_editor_property("lods")] for grp in groups]
     except Exception as e:
         log("groom %s: couldn't read its LODs: %s" % (_path(groom), e))
         return -1
-    n = max((len(p) for p in per), default=0)
+    # Which (group, lod) have card or mesh geometry.
+    have = set()
+    for field, mesh_names in (("hair_groups_cards", ("imported_mesh", "procedural_mesh", "mesh")),
+                              ("hair_groups_meshes", ("imported_mesh", "mesh"))):
+        for d in (prop(groom, field) or []):
+            gi, li = prop(d, "group_index"), prop(d, "lod_index")
+            m = next((v for v in (prop(d, n) for n in mesh_names) if v is not None), None)
+            log("groom %s: %s group %s lod %s mesh %s" % (_path(groom).rsplit(".", 1)[-1], field, gi, li, _path(m) if m is not None else "none"))
+            if m is not None and gi is not None and li is not None:
+                have.add((int(gi), int(li)))
+    table = []
+    for gi, grp in enumerate(groups):
+        row = []
+        for li, l in enumerate(prop(grp, "lods") or []):
+            row.append((str(prop(l, "geometry_type")).upper(), prop(l, "visible", "b_visible"), prop(l, "screen_size")))
+        table.append(row)
+    log("groom %s LODs (type, visible, screen size) per group: %s" % (_path(groom).rsplit(".", 1)[-1], table))
+    n = max((len(r) for r in table), default=0)
     for i in range(n):
-        if all(i < len(p) and "STRAND" not in p[i] for p in per):
+        ok = True
+        for gi, r in enumerate(table):
+            if i >= len(r):
+                ok = False
+                break
+            typ, vis, _ = r[i]
+            if "STRAND" in typ or vis is False or (have and (gi, i) not in have):
+                ok = False
+                break
+        if ok:
             return i
-    log("groom %s: strands at every LOD (%s)" % (_path(groom), per))
+    log("groom %s: no LOD drawn without strands in every group" % _path(groom))
     return -1
 
 
 HAIR_WORDS = ("hair", "brow", "lash", "beard", "mustache", "moustache")
+
+
+def _cards_mesh(groom, lod):
+    """The groom's card geometry at lod (group 0) as a static mesh path, and the material its cards
+    use (by the cards' slot name among the groom's materials), for drawing the hair as a plain mesh."""
+    def prop(o, *names):
+        for n in names:
+            try:
+                return o.get_editor_property(n)
+            except Exception:
+                pass
+        return None
+    mesh, slot = None, None
+    for d in (prop(groom, "hair_groups_cards") or []):
+        if prop(d, "group_index") == 0 and prop(d, "lod_index") == lod:
+            mesh = next((v for v in (prop(d, n) for n in ("imported_mesh", "procedural_mesh", "mesh")) if v is not None), None)
+            slot = prop(d, "material_slot_name")
+            break
+    mat = None
+    mats = list(prop(groom, "hair_groups_materials") or [])
+    for m in mats:
+        if slot is not None and str(prop(m, "slot_name")) == str(slot):
+            mat = prop(m, "material")
+    if mat is None and mats:
+        mat = prop(mats[0], "material")
+    log("groom %s: cards at LOD %d = %s, slot %s, material %s (materials: %s)" % (_path(groom).rsplit(".", 1)[-1], lod, _path(mesh),
+        slot, _path(mat), ", ".join("%s=%s" % (prop(m, "slot_name"), _path(prop(m, "material"))) for m in mats)))
+    return _path(mesh), _path(mat)
 
 
 def _hair_from_build(entry, av):
@@ -996,7 +1066,9 @@ def _hair_from_build(entry, av):
             bind = next((b for b in bindings if stem.replace("groom_", "") in b.lower()), "")
         name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
         lod = _cards_lod(ga)
-        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": []})
+        cards, cards_mat = _cards_mesh(ga, lod) if lod >= 0 else ("", "")
+        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": [],
+                               "cards_mesh": cards, "cards_materials": [cards_mat] if cards_mat else []})
         log("%s: groom %s from the build = %s (binding %s, cards from LOD %d)" % (av, name, g, bind or "none", lod))
         done.add(group(g))
     # Hair cards as static meshes, one per group not covered by a groom: the lowest LOD of each.
@@ -1240,7 +1312,9 @@ def main(args):
     elif mode == "slim":
         slim()
     elif mode == "make":
-        make(rig="rig" in args[1:], wardrobe="nowardrobe" not in args[1:])
+        rest = args[1:]
+        only = [a for a in rest if a not in ("rig", "nowardrobe")]   # e.g. `make rig A B`: just those
+        make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()
     else:
         register()

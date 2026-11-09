@@ -3,6 +3,8 @@
 // TorqueSprayFx.
 #include "Shed/TorqueWalker.h"
 
+#include "Coop/TorqueUi.h"
+
 #include "Shed/TorqueBoothHooks.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
@@ -50,7 +52,7 @@ const FLinearColor Bad(1.0f, 0.45f, 0.35f);
 const FLinearColor Warn(1.0f, 0.75f, 0.3f);
 const FLinearColor Cool(0.45f, 0.7f, 1.0f);
 const FLinearColor Dim(1.0f, 1.0f, 1.0f, 0.6f);
-const FLinearColor Accent(1.0f, 0.62f, 0.2f);   // the shed HUD's (TorqueHudCues::Accent)
+const FLinearColor Accent = TorqueUi::Accent;   // the game's UI kit
 constexpr double CueLife = 1.8;
 constexpr double Linger = 2.2;
 
@@ -434,6 +436,61 @@ void ATorqueWalker::SetSprayScan(bool bOn)
 	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("switch"), Camera->GetComponentLocation(), -6.0f);
 }
 
+int32 ATorqueWalker::SprayHook() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueItem* It = B && SprayItem != 0 ? B->Item(SprayItem) : nullptr;
+	if (!It || It->At != ETorqueAt::Spot) return INDEX_NONE;
+	const FTorquePlace* P = TorqueShedLayout::FindPlace(It->Spot);
+	return P && P->Kind == ETorquePlace::Hook ? P->Index : INDEX_NONE;
+}
+
+void ATorqueWalker::SprayWind(float Dt, int32 Step, int32 Held)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	const int32 Hook = SprayHook();
+	if (!B || Hook == INDEX_NONE)
+	{
+		SprayHookSet = -1.0f;
+		SprayHookHeld = 0.0;
+		return;
+	}
+	if (Step == 0 && Held == 0)
+	{
+		// Let go: where it was wound to goes to the shed if the last step hadn't yet.
+		if (SprayHookSet >= 0.0f && FMath::Abs(SprayHookSet - B->HookTipOf(Hook)) >= 0.5f)
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::PaintHook;
+			R.Item = Hook;
+			R.Amount = SprayHookSet;
+			FString WhyNot;
+			B->Request(R, WhyNot);
+		}
+		SprayHookSet = -1.0f;
+		SprayHookHeld = 0.0;
+		return;
+	}
+	if (SprayHookSet < 0.0f) SprayHookSet = B->HookTipOf(Hook);
+	const float Was = SprayHookSet;
+	// A click moves it 8 cm; held past a moment it winds on at the hook's own pace.
+	if (Step != 0) SprayHookSet += 8.0f * Step;
+	SprayHookHeld = Held != 0 ? SprayHookHeld + Dt : 0.0;
+	if (Held != 0 && SprayHookHeld > 0.3) SprayHookSet += 45.0f * Held * Dt;
+	SprayHookSet = FMath::Clamp(SprayHookSet, FTorquePaintBay::HookLow, FTorquePaintBay::HookHigh);
+	SprayHookSend -= Dt;
+	if (SprayHookSend > 0.0 && Step == 0) return;
+	if (FMath::Abs(SprayHookSet - B->HookTipOf(Hook)) < 0.5f && Was == SprayHookSet) return;
+	SprayHookSend = 0.15;
+	FTorqueShedRequest R;
+	R.Kind = ETorqueShedAct::PaintHook;
+	R.Item = Hook;
+	R.Amount = SprayHookSet;
+	FString WhyNot;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+	else Doing(FString::Printf(TEXT("hook %d at %d cm"), Hook + 1, FMath::RoundToInt(SprayHookSet)), 1.0);
+}
+
 void ATorqueWalker::UpdateSway(float Dt)
 {
 	// The slight sway of your hand with the spray controls up: more as you move, much less while you
@@ -532,8 +589,9 @@ void ATorqueWalker::UpdateSprayFx(float Dt)
 
 FString ATorqueWalker::SprayControlsText() const
 {
-	return TEXT("Hold left mouse (Cross) and sweep in steady, overlapping passes; go round it for the far side and crouch for underneath   ")
-		TEXT("Hold right mouse (L2) to steady your hand   X (D-pad up): show what's missed   F (Triangle): step back");
+	return SprayHook() != INDEX_NONE
+		? FString(TEXT("Hold left mouse (Cross): sweep in steady passes   Right mouse (L2): steady your hand   Q / E or wheel (L1 / R1): hook down / up   X (D-pad up): what's missed   F (Triangle): step back"))
+		: FString(TEXT("Hold left mouse (Cross): sweep in steady passes; go round it and crouch for underneath   Right mouse (L2): steady your hand   X (D-pad up): what's missed   F (Triangle): step back"));
 }
 
 // --- The readout (spray_hud.gd) ---------------------------------------------------------------------
@@ -558,27 +616,15 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		Rect(C, X, Y, T, H);
 		Rect(C, X + W - T, Y, T, H);
 	};
-	auto Measure = [Canvas, Font](const FString& T, float Scale)
-	{
-		float W = 0.0f, H = 0.0f;
-		Canvas->StrLen(Font, T, W, H);
-		return FVector2D(W * Scale, H * Scale);
-	};
+	// The lettering in the game's UI kit (Coop/TorqueUi.h: crisp Slate text at its real size), sized as
+	// the engine's large font scaled by Size.
+	const float Em = (float)FMath::Max(Font->LegacyFontSize, 8);
 	// Text by its top left; Align 0 left, 1 centred in Width, 2 right-aligned to X + Width.
-	auto Text = [Canvas, Font, &Measure](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
+	auto Text = [Canvas, Em](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
 	{
-		const FVector2D M = Measure(T, Size);
-		float TX = X;
-		if (Align == 1) TX = X + (Width - M.X) * 0.5f;
-		else if (Align == 2) TX = X + Width - M.X;
-		if (bShadow)
-		{
-			Canvas->SetDrawColor(FColor(0, 0, 0, (uint8)(C.A * 200.0f)));
-			for (const FVector2D& O : {FVector2D(-2.0, 0.0), FVector2D(2.0, 0.0), FVector2D(0.0, -2.0), FVector2D(0.0, 2.0)})
-				Canvas->DrawText(Font, T, TX + O.X * Size, Y + O.Y * Size, Size, Size);
-		}
-		Canvas->SetDrawColor(C.ToFColor(true));
-		Canvas->DrawText(Font, T, TX, Y, Size, Size);
+		const TorqueUi::EAlign A = Align == 1 ? TorqueUi::EAlign::Centre : (Align == 2 ? TorqueUi::EAlign::Right : TorqueUi::EAlign::Left);
+		const float AX = Align == 1 ? X + Width * 0.5f : (Align == 2 ? X + Width : X);
+		TorqueUi::Text(Canvas, T, AX, Y, Em * Size, C, false, A, bShadow);
 	};
 	const float CW = Canvas->ClipX, CH = Canvas->ClipY;
 	// The flash when a coat's on, and when it's done.
@@ -815,12 +861,14 @@ FString ATorqueWalker::TestSprayPasses(int32 Passes, double Distance)
 	if (!Box.IsValid) return TEXT("no box to sweep");
 	const FVector Mid = Box.GetCenter(), Ext = Box.GetExtent();
 	const FVector Toward = (Camera->GetComponentLocation() - Mid).GetSafeNormal2D();
-	const FVector Sides[5] = {Toward, -Toward, FVector::CrossProduct(Toward, FVector::UpVector), -FVector::CrossProduct(Toward, FVector::UpVector), FVector::UpVector};
+	// (Underneath too: a player crouches for it.)
+	const FVector Sides[6] = {Toward, -Toward, FVector::CrossProduct(Toward, FVector::UpVector), -FVector::CrossProduct(Toward, FVector::UpVector), FVector::UpVector,
+		-FVector::UpVector};
 	const double Dt = 1.0 / 60.0, Speed = 90.0, Fan = (bGun ? GunRadius : CanRadius) * FMath::Clamp(Distance / DRef, 0.6, 1.8);
 	int32 Frames = 0;
 	for (int32 Pass = 0; Pass < Passes; ++Pass)
 	{
-		const FVector Facing = Sides[Pass % 5];
+		const FVector Facing = Sides[Pass % 6];
 		FVector Across = FVector::CrossProduct(Facing, FVector::UpVector).GetSafeNormal();
 		if (Across.IsNearlyZero()) Across = FVector::ForwardVector;
 		const FVector Down = FVector::CrossProduct(Across, Facing).GetSafeNormal();
@@ -847,7 +895,7 @@ FString ATorqueWalker::TestSprayPasses(int32 Passes, double Distance)
 		if (Job->Complete()) break;
 	}
 	const FStats St = Job->Stats();
-	FString Said = FString::Printf(TEXT("%d frames of spraying: %d%% covered, even %d%%, runs %d%%, dry %d%%, thin %d%% (sides %d/%d/%d/%d)"), Frames,
+	FString Said = FString::Printf(TEXT("[%s, %d cubes painted, overlay on %d meshes] "), *Job->Key, Job->PaintedCount(), Job->Meshes().Num()) + FString::Printf(TEXT("%d frames of spraying: %d%% covered, even %d%%, runs %d%%, dry %d%%, thin %d%% (sides %d/%d/%d/%d)"), Frames,
 		FMath::RoundToInt(St.Covered * 100.0f), FMath::RoundToInt(St.Even * 100.0f), FMath::RoundToInt(St.Runs * 100.0f), FMath::RoundToInt(St.Dry * 100.0f),
 		FMath::RoundToInt(St.Thin * 100.0f), FMath::RoundToInt(St.Sides[0] * 100.0f), FMath::RoundToInt(St.Sides[1] * 100.0f),
 		FMath::RoundToInt(St.Sides[2] * 100.0f), FMath::RoundToInt(St.Sides[3] * 100.0f));

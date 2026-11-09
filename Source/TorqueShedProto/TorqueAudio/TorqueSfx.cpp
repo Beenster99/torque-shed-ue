@@ -15,7 +15,10 @@
 #include "GameFramework/PlayerController.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Fit/BikeRideSpec.h"
+#include "HAL/FileManager.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorquePaintBay.h"
 #include "Shed/TorqueShedLayout.h"
@@ -469,6 +472,139 @@ void UTorqueSfx::SetMuffled(bool bOn)
 	if (Mixer) Mixer->SetMuffled(bOn);
 }
 
+// --- Engines --------------------------------------------------------------------------------------
+
+std::shared_ptr<TorqueEngine::FBank> UTorqueSfx::BikeEngine(const UObject* WorldContext, int32 Bay)
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
+	TMap<FString, FString> Parts;
+	if (!B || Bay < 0 || !B->LayoutParts(Bay, Parts)) return nullptr;
+	const FTorqueEngineNumbers E = TorqueShedPower::Numbers(*B, Bay);
+	if (!E.bValid) return nullptr;
+	// The parts list (Data/Parts/parts.json), read the once.
+	static TSharedPtr<FJsonObject> AllParts;
+	if (!AllParts.IsValid())
+	{
+		FString Text;
+		TSharedPtr<FJsonObject> Root;
+		if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Parts/parts.json"))) &&
+			FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) && Root.IsValid())
+			AllParts = Root;
+		else
+			AllParts = MakeShared<FJsonObject>();
+	}
+	auto PartOf = [&Parts](const TCHAR* Slot) {
+		TSharedPtr<FJsonObject> Out;
+		const FString* Id = Parts.Find(Slot);
+		const TSharedPtr<FJsonObject>* Kind = nullptr;
+		const TSharedPtr<FJsonObject>* Entry = nullptr;
+		if (Id && AllParts->TryGetObjectField(Slot, Kind) && (*Kind)->TryGetObjectField(*Id, Entry)) Out = *Entry;
+		return Out;
+	};
+	auto Str = [](const TSharedPtr<FJsonObject>& O, const TCHAR* Field, const FString& Default) {
+		FString Out;
+		return O.IsValid() && O->TryGetStringField(Field, Out) ? Out : Default;
+	};
+	auto Num = [](const TSharedPtr<FJsonObject>& O, const TCHAR* Field, double Default) {
+		double Out = Default;
+		if (O.IsValid()) O->TryGetNumberField(Field, Out);
+		return Out;
+	};
+	auto Flag = [](const TSharedPtr<FJsonObject>& O, const TCHAR* Field) {
+		bool Out = false;
+		if (O.IsValid()) O->TryGetBoolField(Field, Out);
+		return Out;
+	};
+	const TSharedPtr<FJsonObject> Block = PartOf(TEXT("engine")), Head = PartOf(TEXT("head")), Ex = PartOf(TEXT("exhaust"));
+	const TSharedPtr<FJsonObject> Air = PartOf(TEXT("air_filter")), Box = PartOf(TEXT("gearbox"));
+	if (!Block.IsValid()) return nullptr;
+	// EngineSynth.spec_from_build.
+	TorqueEngine::FSpec Spec;
+	Spec.Layout = TCHAR_TO_UTF8(*Str(Block, TEXT("layout"), TEXT("parallel")));
+	Spec.Cylinders = (int)Num(Block, TEXT("cylinders"), 2.0);
+	Spec.Cc = Num(Block, TEXT("displacement"), 900.0);
+	Spec.Crank = TCHAR_TO_UTF8(*Str(Block, TEXT("crank"), TEXT("")));
+	if (Spec.Crank.empty() && Spec.Layout == "vtwin")
+	{
+		// A V-twin fires as its V is wide: 45, 60 or (the ones without an angle) 90 degrees.
+		const int32 Vee = FMath::RoundToInt(Num(Block, TEXT("v_angle"), 90.0));
+		Spec.Crank = Vee == 45 ? "45v" : (Vee == 60 ? "60v" : "90v");
+	}
+	Spec.Valves = (int)Num(Head, TEXT("valves"), 4.0);
+	Spec.Idle = E.IdleRpm;
+	Spec.Redline = E.Redline;
+	Spec.Peak = E.PeakTorqueRpm;
+	// The exhaust's character: nothing fitted is open ports; a loud full system is a race can.
+	if (!Ex.IsValid()) Spec.Exhaust = "straight";
+	else
+	{
+		const FString Style = Str(Ex, TEXT("style"), TEXT("stock"));
+		Spec.Exhaust = (Style == TEXT("full") && Num(Ex, TEXT("loudness"), 1.0) >= 1.1) ? "race" : TCHAR_TO_UTF8(*Style);
+	}
+	Spec.Loud = Ex.IsValid() ? Num(Ex, TEXT("loudness"), 0.8) : 1.4;
+	Spec.Intake = TCHAR_TO_UTF8(*(Air.IsValid() ? Str(Air, TEXT("style"), TEXT("airbox")) : FString(TEXT("cone"))));
+	FString Feel = Str(Box, TEXT("shift_feel"), TEXT(""));
+	if (Feel.IsEmpty())
+	{
+		const double T = Num(Box, TEXT("shift_time"), 0.12);
+		Feel = T <= 0.05 ? TEXT("slick") : (T <= 0.1 ? TEXT("click") : TEXT("clunk"));
+	}
+	Spec.Shift = TCHAR_TO_UTF8(*Feel);
+	Spec.Quickshifter = Flag(Box, TEXT("quickshifter"));
+	Spec.DryClutch = Flag(Box, TEXT("dry_clutch"));
+	if (const FTorqueItem* Pipe = B->Item(B->ItemOn(Bay, FName(TEXT("exhaust"))))) Spec.Rust = FMath::Clamp((double)Pipe->Rust, 0.0, 1.0);
+	double Plugs = 1.0;
+	if (const FTorqueItem* P = B->Item(B->ItemOn(Bay, FName(TEXT("spark_plugs"))))) Plugs = TorqueFit::PartHealth(P->Wear, P->Rust, P->Dirt);
+	Spec.Misfire = FMath::Clamp((0.6 - Plugs) * 0.6, 0.0, 0.3);
+	// Kick-started: a two-stroke single, a single with the vintage box, or any little single, twin or
+	// two-stroke of 125 cc or less.
+	const FString* BoxId = Parts.Find(TEXT("gearbox"));
+	Spec.Kick = (Spec.Layout == "2stroke" && Spec.Cylinders == 1) || (Spec.Layout == "single" && BoxId && *BoxId == TEXT("four_vintage"))
+		|| ((Spec.Layout == "single" || Spec.Layout == "twin" || Spec.Layout == "2stroke") && Spec.Cc <= 125.0);
+
+	const FString Data = FPaths::Combine(FPaths::ProjectDir(), TEXT("Data"));
+	std::shared_ptr<TorqueEngine::FBank> Bank = TorqueEngine::FBank::For(Spec,
+		[Data](const std::string& Rel) {
+			TArray<uint8> Bytes;
+			FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(Data, UTF8_TO_TCHAR(Rel.c_str())), FILEREAD_Silent);
+			return std::vector<uint8_t>(Bytes.GetData(), Bytes.GetData() + Bytes.Num());
+		},
+		[Data](const std::string& Rel) {
+			TArray<FString> Files;
+			IFileManager::Get().FindFiles(Files, *FPaths::Combine(Data, UTF8_TO_TCHAR(Rel.c_str()), TEXT("*.wav")), true, false);
+			std::vector<std::string> Out;
+			for (const FString& F : Files) Out.push_back(TCHAR_TO_UTF8(*F));
+			return Out;
+		});
+	if (Bank && Bank->Claim())
+	{
+		Async(EAsyncExecution::ThreadPool, [Bank] {
+			Bank->Bake();
+			UE_LOG(LogTemp, Log, TEXT("Torque: engine sound %s baked in %.0f ms"), UTF8_TO_TCHAR(Bank->Sig.c_str()), Bank->BakeMs);
+		});
+	}
+	return Bank;
+}
+
+int32 UTorqueSfx::PlayMadeOn(const std::vector<float>& Samples, int32 SampleRate, USceneComponent* Source, const FVector& Offset, float Db)
+{
+	if (!Mixer || !Source || Samples.empty()) return 0;
+	auto Clip = std::make_shared<FClip>();
+	Clip->SampleRate = SampleRate;
+	Clip->S.resize(Samples.size());
+	for (size_t I = 0; I < Samples.size(); ++I) Clip->S[I] = (int16_t)FMath::Clamp(FMath::RoundToInt(Samples[I] * 32767.0f), -32768, 32767);
+	const FVector At = Source->GetComponentTransform().TransformPosition(Offset);
+	FPlay P;
+	P.Clip = Clip;
+	P.At = V(At);
+	P.Db = Db + Occlusion(At);
+	P.Bus = BusFor(At);
+	P.Life = Clip->Seconds() + 0.25;
+	const int32 Id = Mixer->Play(P);
+	if (Id) Follows.Add({Id, Source, Offset});
+	return Id;
+}
+
 // --- Horns ------------------------------------------------------------------------------------------
 
 int32 UTorqueSfx::StartHorn(USceneComponent* Source, const FString& Sound, const FString& Style, const TArray<double>& Tones, float Loudness)
@@ -832,6 +968,12 @@ void UTorqueSfx::TickKit(float Dt)
 			std::vector<float> Clunk = Wav(*FString::Printf(TEXT("gearclunk%d.wav"), I), WavRate);
 			if (!Clunk.empty()) Gen->Sound.AddClunk(std::move(Clunk), WavRate);
 		}
+		// The bike on the rig's own engine (Torque Shed's EngineSynth), as it sounds on the road.
+		if (std::shared_ptr<TorqueEngine::FBank> RigEngine = BikeEngine(this, B->DynoBay()))
+		{
+			Gen->Sound.SetEngine(RigEngine);
+			Gen->Sound.IdleRpm = RigEngine->Spec.Idle;
+		}
 		DynoEngine = Gen;
 		DynoGearSeen = Gear;
 		FPlay P;
@@ -848,7 +990,7 @@ void UTorqueSfx::TickKit(float Dt)
 	{
 		FRideGen* Gen = static_cast<FRideGen*>(DynoEngine.get());
 		std::lock_guard<std::mutex> G(Gen->Lock);
-		Gen->In.Rpm = bLive ? Rpm : 1100.0;
+		Gen->In.Rpm = bLive ? Rpm : Gen->Sound.IdleRpm;
 		Gen->In.Throttle = bLive ? 1.0 : 0.0;
 		Gen->In.Inside = 0.0;
 		if (bLive && Gear != DynoGearSeen)

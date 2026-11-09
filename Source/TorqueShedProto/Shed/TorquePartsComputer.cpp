@@ -5,6 +5,7 @@
 #include "Shed/TorquePaintMix.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShopPreview.h"
+#include "Coop/TorqueUi.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -35,40 +36,29 @@ const TArray<FGroup>& Groups()
 	return G;
 }
 
-// Torque Shed's UITheme: the page, its panels and the accent.
-const FLinearColor Shade(0.0f, 0.0f, 0.0f, 0.55f);
-const FLinearColor Page(0.07f, 0.08f, 0.10f, 0.97f);
-const FLinearColor Column(1.0f, 1.0f, 1.0f, 0.04f);
-const FLinearColor Button(0.16f, 0.18f, 0.22f, 1.0f);
-const FLinearColor ButtonHover(0.24f, 0.27f, 0.33f, 1.0f);
-const FLinearColor Picked(0.95f, 0.62f, 0.2f, 0.9f);
-const FLinearColor PickedHover(1.0f, 0.7f, 0.3f, 1.0f);
-const FColor Accent(255, 190, 90);
-const FColor Text(235, 235, 235);
-const FColor Dim(170, 170, 175);
-const FColor Ink(20, 20, 24);
-const FColor Good(140, 230, 150);
-const FColor Bad(255, 140, 120);
+// The game's UI kit (Coop/TorqueUi.h, the menus' look): its palette, panels and crisp Slate text.
+const FLinearColor Page(TorqueUi::Panel.R, TorqueUi::Panel.G, TorqueUi::Panel.B, 0.94f);
+const FLinearColor Column = TorqueUi::PanelLight;
+const FLinearColor Button(1.0f, 1.0f, 1.0f, 0.07f);
+const FLinearColor ButtonHover(1.0f, 1.0f, 1.0f, 0.15f);
+const FLinearColor Picked(TorqueUi::Accent.R, TorqueUi::Accent.G, TorqueUi::Accent.B, 0.88f);
+const FLinearColor PickedHover = TorqueUi::Accent;
+const FLinearColor Accent = TorqueUi::Accent;
+const FLinearColor Text = TorqueUi::Ink;
+const FLinearColor Dim = TorqueUi::Dim;
+const FLinearColor Ink(0.03f, 0.03f, 0.035f, 1.0f);      // text on the amber
+const FLinearColor InkDim(0.10f, 0.08f, 0.06f, 1.0f);
+const FLinearColor Good(0.45f, 0.88f, 0.52f, 1.0f);
+const FLinearColor Bad = TorqueUi::Warn;
 
-// Text in pixel sizes on the canvas (the engine's large font, scaled).
+// Text in pixel sizes, through the kit (Slate's font at the size it's shown).
 struct FPen
 {
 	UCanvas* C = nullptr;
-	UFont* Font = nullptr;
-	float LineH = 24.0f;
-
-	float K(float Px) const { return Px / FMath::Max(LineH, 1.0f); }
-	float Width(const FString& S, float Px) const
+	float Width(const FString& S, float Px) const { return (float)TorqueUi::Measure(S, Px).X; }
+	void Text(float X, float Y, const FString& S, float Px, const FLinearColor& Colour, bool bBold = false) const
 	{
-		float W = 0.0f, H = 0.0f;
-		C->StrLen(Font, S, W, H);
-		return W * K(Px);
-	}
-	void Text(float X, float Y, const FString& S, float Px, const FColor& Colour) const
-	{
-		if (S.IsEmpty()) return;
-		C->SetDrawColor(Colour);
-		C->DrawText(Font, S, X, Y, K(Px), K(Px));
+		TorqueUi::Text(C, S, X, Y, Px, Colour, bBold, TorqueUi::EAlign::Left, Colour.A > 0.0f && Colour != Ink && Colour != InkDim);
 	}
 	// Cut to fit Width, with "..." if it was cut.
 	FString Fit(const FString& S, float Px, float MaxW) const
@@ -76,29 +66,18 @@ struct FPen
 		if (Width(S, Px) <= MaxW) return S;
 		FString Out = S;
 		while (Out.Len() > 1 && Width(Out + TEXT("..."), Px) > MaxW) Out.LeftChopInline(1);
-		return Out + TEXT("...");
+		return Out.TrimEnd() + TEXT("...");
 	}
-	// Word-wrapped lines (a new line in S starts a new one).
+	// Word-wrapped lines (a new line in S starts a new one; an empty one is a gap).
 	TArray<FString> Wrap(const FString& S, float Px, float MaxW) const
 	{
 		TArray<FString> Out, Paras;
 		S.ParseIntoArray(Paras, TEXT("\n"), false);
 		for (const FString& P : Paras)
 		{
-			TArray<FString> Words;
-			P.ParseIntoArray(Words, TEXT(" "), true);
-			FString Line;
-			for (const FString& W : Words)
-			{
-				const FString Try = Line.IsEmpty() ? W : Line + TEXT(" ") + W;
-				if (!Line.IsEmpty() && Width(Try, Px) > MaxW)
-				{
-					Out.Add(Line);
-					Line = W;
-				}
-				else Line = Try;
-			}
-			Out.Add(Line);
+			const TArray<FString> Lines = TorqueUi::WrapLines(P, Px, MaxW);
+			if (Lines.Num() == 0) Out.Add(FString());
+			else Out.Append(Lines);
 		}
 		return Out;
 	}
@@ -454,14 +433,8 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 	if (!Hud || !Canvas || !GEngine) return;
 	TPCI::FPen Pen;
 	Pen.C = Canvas;
-	Pen.Font = GEngine->GetLargeFont();
-	{
-		float W = 0.0f, H = 0.0f;
-		Canvas->StrLen(Pen.Font, TEXT("Hg"), W, H);
-		Pen.LineH = H;
-	}
-	const float S = Canvas->ClipY / 1080.0f;   // Torque Shed's sizes at 1080p
-	auto Box = [&](float X, float Y, float W, float H, const FLinearColor& C) { Hud->DrawRect(C, X, Y, W, H); };
+	const float S = TorqueUi::Scale(Canvas);   // Torque Shed's sizes at 1080p (the kit's scale, as the menus)
+	auto Box = [&](float X, float Y, float W, float H, const FLinearColor& C) { TorqueUi::Rect(Canvas, X, Y, W, H, C); };
 	auto Over = [&Mouse](float X, float Y, float W, float H) { return Mouse.X >= X && Mouse.X <= X + W && Mouse.Y >= Y && Mouse.Y <= Y + H; };
 	auto AddHit = [this](float X, float Y, float W, float H, EHit What, int32 Arg) { Hits.Add({FBox2D(FVector2D(X, Y), FVector2D(X + W, Y + H)), What, Arg}); };
 	// A button: its box, lit when the mouse is over it (or it's the one picked), its words centred.
@@ -470,12 +443,12 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		const bool bOver = Over(X, Y, W, H);
 		Box(X, Y, W, H, bPicked ? (bOver ? TPCI::PickedHover : TPCI::Picked) : (bOver ? TPCI::ButtonHover : TPCI::Button));
 		const FString Fitted = Pen.Fit(Label, Px, W - 16.0f * S);
-		Pen.Text(X + (W - Pen.Width(Fitted, Px)) * 0.5f, Y + (H - Px * 1.2f) * 0.5f, Fitted, Px, bPicked ? TPCI::Ink : TPCI::Text);
+		Pen.Text(X + (W - Pen.Width(Fitted, Px)) * 0.5f, Y + (H - Px * 1.2f) * 0.5f, Fitted, Px, bPicked ? TPCI::Ink : TPCI::Text, bPicked);
 		AddHit(X, Y, W, H, What, Arg);
 	};
 
 	// The shade over the shed, and the page (parts_computer.gd PANEL_MAX 1240 x 840, a margin round it).
-	Box(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, TPCI::Shade);
+	TorqueUi::Backdrop(Canvas, 0.6f);
 	const float PW = FMath::Min(1240.0f * S, Canvas->ClipX - 80.0f * S), PH = FMath::Min(840.0f * S, Canvas->ClipY - 60.0f * S);
 	const float X0 = (Canvas->ClipX - PW) * 0.5f, Y0 = (Canvas->ClipY - PH) * 0.5f;
 	const float Margin = 18.0f * S;
@@ -484,7 +457,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 
 	// The header: the title, and on the right the project bike order and Close.
 	float Y = Y0 + Margin;
-	Pen.Text(X0 + Margin, Y, TEXT("PARTS COMPUTER"), 26.0f * S, TPCI::Accent);
+	Pen.Text(X0 + Margin, Y, TEXT("PARTS COMPUTER"), 28.0f * S, TPCI::Accent, true);
 	const float BH = 36.0f * S;
 	const float CloseW = 150.0f * S, BikeW = 240.0f * S;
 	Btn(X0 + PW - Margin - CloseW, Y, CloseW, BH, TEXT("Close (F / Esc)"), 15.0f * S, false, EHit::Close, 0);
@@ -562,7 +535,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 		}
 		const float TW = RowW - 32.0f * S;
 		Pen.Text(RX + 16.0f * S, RY + 5.0f * S, Pen.Fit(Name, 16.0f * S, TW), 16.0f * S, bPicked ? TPCI::Ink : TPCI::Text);
-		Pen.Text(RX + 16.0f * S, RY + 26.0f * S, Pen.Fit(Sub, 12.0f * S, TW), 12.0f * S, bPicked ? FColor(40, 34, 30) : TPCI::Dim);
+		Pen.Text(RX + 16.0f * S, RY + 26.0f * S, Pen.Fit(Sub, 12.0f * S, TW), 12.0f * S, bPicked ? TPCI::InkDim : TPCI::Dim);
 		AddHit(RX + 6.0f * S, RY, RowW - 12.0f * S, RH - 4.0f * S, EHit::Row, I);
 	}
 	if (Rows.Num() > RowsShown)
@@ -630,7 +603,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 	}
 	for (const FString& L : Pen.Wrap(Title, 22.0f * S, DW))
 	{
-		Pen.Text(DX, DY, L, 22.0f * S, FColor::White);
+		Pen.Text(DX, DY, L, 22.0f * S, TPCI::Text, true);
 		DY += 28.0f * S;
 	}
 	DY += 6.0f * S;

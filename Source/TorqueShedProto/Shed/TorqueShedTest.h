@@ -27,6 +27,9 @@
 //   strap:<0-3>           the work button at that strap post on the rig (does it up, or undoes it)
 //   fan:on|off, lights:on|off, switch:fan|lights   the dyno room's switches by the door (F)
 //   dynorun[:mid]         F at the dyno desk and wait out the run (mid: about 60% of it, for a shot)
+//   shedlights:on|off, rollerdoor:up|down   the switch boxes right of the roller door (F)
+//   extinguisher:take|spray|stop|put        the fire extinguisher: F takes it, the work button sprays, F puts it back
+//   standmove:<x>:<y>[:<yaw>]               wheel the engine stand there (world cm) and let go
 //   dynolog               log every run on the rig's bike (peak hp and Nm, limiter, temperature, fan)
 //   tool:<tool>           hands, wrench, brush, repair, spray, lance or gun (the spray gun)
 //   crouch:<0|1>          crouch (C) or stand
@@ -82,8 +85,20 @@
 //                         where the rider sits (seat, pegs, grips and the pose's hips, wrists and ankles)
 //   camera:<mode>[:<yaw>[:<cm>[:<fov>]]]  on the road: 0 chase, 1 first person, 2 chin, 3 the showroom orbit
 //                         held at yaw degrees round from ahead (90 side on from the right), cm out (270)
-//                         with that field of view (40); rides uses 3:90:450:60, the whole rider and bike
+//                         with that field of view (40); rides uses 3:90:450:60, the whole rider and bike;
+//                         then :<rise> cm above (below 0: from under) and :bike|lhand|rhand to look at,
+//                         e.g. camera:3:60:35:40:-20:rhand, the right hand on its grip from below
+//   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
+//                         lever:off lets both go back to the riding
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
+//   brakestop[:<mph>][:flat]  on the road: the robot holds mph (60) on a straight, then brakes as a road test
+//                         does (front full, rear 0.6, realism 0.5) to a stop; logs the distance, time, average g,
+//                         nose dive, the road's grade and the level stop from 60 it comes to, and the brakes and
+//                         tyres. :flat stops on a level test pad (SimTest's flat ground) instead of the road
+//   lean:max[:<mph>]      on the road: the robot holds mph (45) on a level straight, then on the test pad the
+//                         steer input is held full for 6 s; logs the lean and sideways g it settles at, the
+//                         peaks, and whether it slid or stood up; then back on the road where it began.
+//                         Both wait until done (up to about two minutes); the bike's own log says the same
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again
 //   quit
@@ -118,8 +133,15 @@ private:
 	int32 Next = 0;
 	int32 TestBay = 0;
 	int32 Tries = 0;
+	bool bMoveStarted = false;   // a brakestop or lean step has started its manoeuvre and is waiting for it
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	double Wait = 0.0;
+	// How long each step (and the wait after it) took, real and game time, and in how many frames:
+	// a slow one is logged ("Torque test: slow step"), and the slowest at the end.
+	double StepRealAt = 0.0, StepGame = 0.0, RunRealAt = 0.0;
+	int32 StepFrames = 0;
+	FString StepWas;
+	TArray<TPair<double, FString>> SlowSteps;
 	TWeakObjectPtr<UWorld> SeenWorld;
 	FTSTicker::FDelegateHandle Ticker;
 };

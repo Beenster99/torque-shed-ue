@@ -1,8 +1,10 @@
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorqueWashJob.h"
 
 #include "Shed/TorqueShedCatalogue.h"
 
 #include "Shed/TorqueBikeBadge.h"
+#include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedParts.h"
@@ -103,6 +105,9 @@ void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>
 void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts)
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
+	// Being pressure washed: the wash game draws its muck over the parts itself (TorqueWashJob), so
+	// the parts' own grime is held off while it's on them.   [wash]
+	const bool bWashing = TorqueWash::HidesGrime(WorldContext, Bike);
 	// Each part's box in the bike's frame (its actor: x forward, y right, z up), for a masked stripe.
 	TMap<FName, FBox> Boxes;
 	for (UStaticMeshComponent* C : Parts)
@@ -111,6 +116,12 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		const FName Slot = SlotTag(C);
 		Boxes.FindOrAdd(Slot.IsNone() ? PartTag(C) : Slot, FBox(ForceInit)) += TorqueEffectPaint::BoxIn(C, C->GetOwner()->GetActorTransform());
 	}
+	// The parts with a painted surface at all: one with none (a stainless exhaust, a chrome bar) that's
+	// been sprayed is painted all over, as the spray game paints it (TorqueSpray::MeshesOf).   [spray]
+	TSet<FName> HasPaint;
+	for (UStaticMeshComponent* C : Parts)
+		if (C && !PartTag(C).IsNone() && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)))
+			HasPaint.Add(SlotTag(C).IsNone() ? PartTag(C) : SlotTag(C));
 	for (UStaticMeshComponent* C : Parts)
 	{
 		if (!C) continue;
@@ -121,18 +132,38 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		// Sprayed with a pearl, candy, flake or chameleon from the mixing bay, or masked: the effect
 		// paint (TorqueEffectPaint.h) in place of the part's own material; any other paint, its own.
 		TorquePaintMix::FPaintLook Effect;
-		if (B && C->GetOwner() && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B->EffectOf(Bike, Which, Effect))
+		const bool bBare = C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+		if (bBare && !HasPaint.Contains(Which) && B && C->GetOwner())
+		{
+			// Sprayed all over: its metal's material has no colour, so it's drawn in the paint material.
+			FLinearColor Shown;
+			float Metallic = 0.05f, Roughness = 0.15f;
+			if (B->FinishOf(Bike, Which, Shown, Metallic, Roughness))
+			{
+				TorquePaintMix::FPaintLook Plain;
+				if (!B->EffectOf(Bike, Which, Plain))
+				{
+					Plain.Spec.Colour = Shown;
+					Plain.Spec.Metal = Metallic;
+					Plain.Spec.Rough = Roughness;
+				}
+				const FBox Box = Boxes.FindRef(Which);
+				const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
+				if (TorqueEffectPaint::Apply(C, Plain, bWashing ? 0.0f : B->DirtOf(Bike, Which), ToPart)) continue;
+			}
+		}
+		if (B && C->GetOwner() && !bBare && B->EffectOf(Bike, Which, Effect))
 		{
 			const FBox Box = Boxes.FindRef(Which);
 			const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
-			if (TorqueEffectPaint::Apply(C, Effect, B->DirtOf(Bike, Which), ToPart)) continue;
+			if (TorqueEffectPaint::Apply(C, Effect, bWashing ? 0.0f : B->DirtOf(Bike, Which), ToPart)) continue;
 		}
 		TorqueEffectPaint::Restore(C);
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;
 		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime,
 		// and their rust bloom by Rust.
-		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Bike, Which) : 0.0f);
+		M->SetScalarParameterValue(TEXT("Grime"), B && !bWashing ? B->DirtOf(Bike, Which) : 0.0f);
 		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
 		if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))
@@ -318,7 +349,10 @@ void ATorqueShedBike::Follow(float Dt)
 	if (bPushed != (Blocker->GetCollisionEnabled() == ECollisionEnabled::NoCollision))
 		Blocker->SetCollisionEnabled(bPushed ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 	if (!bPushed) bPreview = false;
-	const FTransform Want = bPreview ? PreviewXf : B->BikeTransform(Bay);
+	FTransform Want = bPreview ? PreviewXf : B->BikeTransform(Bay);
+	// Standing on a bike lift (in its bay, or the wash bay's): up with the platform
+	// (workshop_upgrades.gd _ride_lifts; not while it's being wheeled).
+	if (!bPreview && !bPushed) Want.AddToTranslation(FVector(0.0, 0.0, ATorqueBikeLift::HeightAt(this, Want.GetLocation())));
 	const FVector At = GetActorLocation();
 	const double Gap = FVector::Dist(At, Want.GetLocation());
 	if (Gap < 0.05 && GetActorRotation().Equals(Want.Rotator(), 0.05)) return;
@@ -327,7 +361,10 @@ void ATorqueShedBike::Follow(float Dt)
 	else
 	{
 		const float K = FMath::Clamp(Dt * 12.0f, 0.0f, 1.0f);
-		SetActorLocationAndRotation(FMath::Lerp(At, Want.GetLocation(), (double)K), FQuat::Slerp(GetActorQuat(), Want.GetRotation(), K));
+		FVector To = FMath::Lerp(At, Want.GetLocation(), (double)K);
+		// Going up or down with a lift: with the platform, not lagging behind it.
+		if (FMath::Abs(At.Z - Want.GetLocation().Z) < 5.0) To.Z = Want.GetLocation().Z;
+		SetActorLocationAndRotation(To, FQuat::Slerp(GetActorQuat(), Want.GetRotation(), K));
 	}
 }
 

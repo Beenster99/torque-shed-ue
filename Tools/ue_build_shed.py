@@ -185,8 +185,9 @@ def outline_material():
     depth and stencil (r.CustomDepth=3); this draws a line just outside that shape: two rings of
     stencil samples (a crisp inner one, a fainter outer one for softness), drawn fainter where
     something in front hides the part's edge, and blended after tonemapping so it stays the same
-    pale line however the shed's exposure moves. Parameters: Color, Opacity, Width (pixels at
-    1080p, scaled with the screen), Hidden (how much of the line shows through things in front)."""
+    line however the shed's exposure moves: orange over dark things, deeper orange over light ones.
+    Parameters: Color, DarkColor, Opacity, Width (pixels at 1080p, scaled with the screen),
+    Hidden (how much of the line shows through things in front)."""
     m = new_material("M_ShedOutline")
     if not try_set(m, "material_domain", unreal.MaterialDomain.MD_POST_PROCESS):
         raise RuntimeError("M_ShedOutline: can't make a post-process material")
@@ -244,7 +245,7 @@ def outline_material():
     link(view, vw, "")
     vh = expr(m, unreal.MaterialExpressionComponentMask, -2800, 250, r=False, g=True, b=False, a=False)
     link(view, vh, "")
-    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 1.4), const(-2800, 420, 1080.0))
+    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 1.7), const(-2800, 420, 1080.0))
     step_x = op(unreal.MaterialExpressionMultiply, -2400, 200, op(unreal.MaterialExpressionDivide, -2600, 200, vh, vw), width)
     step = op(unreal.MaterialExpressionAppendVector, -2200, 250, step_x, width)
 
@@ -282,12 +283,23 @@ def outline_material():
     link(const(-650, y + 120, 1.0), show, "B")
     link(seen, show, "Alpha")
     alpha = op(unreal.MaterialExpressionMultiply, -300, y, op(unreal.MaterialExpressionMultiply, -450, y, edge, show),
-               num("Opacity", -500, y + 300, 0.4))
-    colour = expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 300, parameter_name="Color",
-                  default_value=unreal.LinearColor(1.0, 0.88, 0.66, 1.0))
+               num("Opacity", -500, y + 300, 0.75))
     base = expr(m, unreal.MaterialExpressionSceneTexture, -700, y - 450, scene_texture_id=T.PPI_POST_PROCESS_INPUT0)
     rgb = expr(m, unreal.MaterialExpressionComponentMask, -450, y - 450, r=True, g=True, b=True, a=False)
     link(base, rgb, "")
+    # Orange (beenster, Nov 9): Torque Shed's highlight orange over dark things, a deeper orange over
+    # light ones (the white walls, a silver tank), so it reads against either.
+    lum = op(unreal.MaterialExpressionDotProduct, -300, y - 600, rgb,
+             expr(m, unreal.MaterialExpressionConstant3Vector, -450, y - 600, constant=unreal.LinearColor(0.3, 0.59, 0.11, 1.0)))
+    bright = expr(m, unreal.MaterialExpressionSaturate, -100, y - 600)
+    link(op(unreal.MaterialExpressionMultiply, -200, y - 600,
+            op(unreal.MaterialExpressionSubtract, -250, y - 650, lum, const(-400, y - 650, 0.4)), const(-400, y - 700, 3.0)), bright, "")
+    colour = expr(m, unreal.MaterialExpressionLinearInterpolate, -300, y - 300)
+    link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 350, parameter_name="Color",
+              default_value=unreal.LinearColor(1.0, 0.55, 0.12, 1.0)), colour, "A")
+    link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 250, parameter_name="DarkColor",
+              default_value=unreal.LinearColor(0.85, 0.32, 0.0, 1.0)), colour, "B")
+    link(bright, colour, "Alpha")
     out = expr(m, unreal.MaterialExpressionLinearInterpolate, -150, y - 200)
     link(rgb, out, "A")
     link(colour, out, "B")
@@ -669,6 +681,13 @@ def materials():
         ue_build_spray.build()
     except Exception as e:
         unreal.log_error("[Torque] spray materials: %s" % e)
+    # The wash mini game's muck, washed off where the jet goes (TorqueWashJob.cpp; it needs the spray's
+    # mask default texture, made just above).
+    try:
+        import ue_build_wash
+        ue_build_wash.build()
+    except Exception as e:
+        unreal.log_error("[Torque] wash materials: %s" % e)
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
@@ -1235,10 +1254,14 @@ def lights(m):
     # strips down the middle and over the door.
     spots = [(x, BAY_Y) for x in BAY_X] + [(-420.0, 150.0), (420.0, 150.0), (0.0, 350.0)]
     for i, (x, y) in enumerate(spots):
-        box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        strip = box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        if strip is not None:
+            strip.set_editor_property("tags", [unreal.Name("ShedLightStrip")])   # its glow goes off with the lights
         light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(x, y, HEIGHT - 39), unreal.Rotator(0.0, -90.0, 0.0))
         light.set_actor_label("StripLight_%d" % i)
         light.set_folder_path("Lights")
+        # The main lights the switch by the roller door works (ATorqueShedKit finds them by tag).
+        light.set_editor_property("tags", [unreal.Name("ShedLight")])
         lc = light.get_component_by_class(unreal.RectLightComponent)
         lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
         units = getattr(unreal, "LightUnits", None)

@@ -86,6 +86,15 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("Clouds"), Clouds, Ini);
 	GConfig->GetBool(Section, TEXT("AmbientOcclusion"), bAmbientOcclusion, Ini);
 	GConfig->GetFloat(Section, TEXT("Bloom"), Bloom, Ini);
+	GConfig->GetInt(Section, TEXT("PostProcess"), PostProcess, Ini);
+	GConfig->GetInt(Section, TEXT("Shading"), Shading, Ini);
+	GConfig->GetInt(Section, TEXT("Anisotropy"), Anisotropy, Ini);
+	GConfig->GetBool(Section, TEXT("Hdr"), bHdr, Ini);
+	GConfig->GetFloat(Section, TEXT("FilmGrain"), FilmGrain, Ini);
+	GConfig->GetFloat(Section, TEXT("Vignette"), Vignette, Ini);
+	GConfig->GetBool(Section, TEXT("LensFlares"), bLensFlares, Ini);
+	GConfig->GetBool(Section, TEXT("ChromaticAberration"), bChromaticAberration, Ini);
+	GConfig->GetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->GetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->GetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
 	GConfig->GetFloat(Section, TEXT("Master"), Master, Ini);
@@ -132,6 +141,11 @@ void FTorqueSettings::Load()
 	Fog = FMath::Clamp(Fog, -1, 2);
 	Clouds = FMath::Clamp(Clouds, -1, 4);
 	Bloom = FMath::Clamp(Bloom, 0.0f, 2.0f);
+	PostProcess = FMath::Clamp(PostProcess, -1, 4);
+	Shading = FMath::Clamp(Shading, -1, 4);
+	Anisotropy = FMath::Clamp(Anisotropy, -1, 4);
+	FilmGrain = FMath::Clamp(FilmGrain, 0.0f, 2.0f);
+	Vignette = FMath::Clamp(Vignette, 0.0f, 2.0f);
 	Fov = FMath::Clamp(Fov, 60.0f, 110.0f);
 	Units = FMath::Clamp(Units, 0, 1);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
@@ -175,6 +189,15 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("Clouds"), Clouds, Ini);
 	GConfig->SetBool(Section, TEXT("AmbientOcclusion"), bAmbientOcclusion, Ini);
 	GConfig->SetFloat(Section, TEXT("Bloom"), Bloom, Ini);
+	GConfig->SetInt(Section, TEXT("PostProcess"), PostProcess, Ini);
+	GConfig->SetInt(Section, TEXT("Shading"), Shading, Ini);
+	GConfig->SetInt(Section, TEXT("Anisotropy"), Anisotropy, Ini);
+	GConfig->SetBool(Section, TEXT("Hdr"), bHdr, Ini);
+	GConfig->SetFloat(Section, TEXT("FilmGrain"), FilmGrain, Ini);
+	GConfig->SetFloat(Section, TEXT("Vignette"), Vignette, Ini);
+	GConfig->SetBool(Section, TEXT("LensFlares"), bLensFlares, Ini);
+	GConfig->SetBool(Section, TEXT("ChromaticAberration"), bChromaticAberration, Ini);
+	GConfig->SetBool(Section, TEXT("DepthOfField"), bDepthOfField, Ini);
 	GConfig->SetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
 	GConfig->SetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
 	GConfig->SetFloat(Section, TEXT("Master"), Master, Ini);
@@ -212,10 +235,25 @@ float FTorqueSettings::ScreenPercent(int32 Mode)
 	return Pct[FMath::Clamp(Mode, 0, 4)];
 }
 
+bool FTorqueSettings::HdrAvailable()
+{
+	const UGameUserSettings* G = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	return G && G->SupportsHDRDisplayOutput();
+}
+
 bool FTorqueSettings::HasDlss()
 {
 	// NVIDIA's DLSS plugin (free, from Fab) registers these when it's in the build and the GPU can.
-	return IConsoleManager::Get().FindConsoleVariable(TEXT("r.NGX.DLSS.Enable")) != nullptr;
+	// Asked every frame by the menus: keep the answer once it's yes, and look again at most every 2 s
+	// while it's no (the plugin registers its cvars late, at PostEngineInit).
+	static bool bFound = false;
+	static double NextLook = 0.0;
+	if (bFound) return true;
+	const double Now = FPlatformTime::Seconds();
+	if (Now < NextLook) return false;
+	NextLook = Now + 2.0;
+	bFound = IConsoleManager::Get().FindConsoleVariable(TEXT("r.NGX.DLSS.Enable")) != nullptr;
+	return bFound;
 }
 
 void FTorqueSettings::Apply(UWorld* World) const
@@ -231,6 +269,8 @@ void FTorqueSettings::Apply(UWorld* World) const
 		G->SetReflectionQuality(Reflections < 0 ? Quality : Reflections);
 		G->SetVisualEffectQuality(Effects < 0 ? Quality : Effects);
 		G->SetFoliageQuality(Foliage < 0 ? Quality : Foliage);
+		G->SetPostProcessingQuality(PostProcess < 0 ? Quality : PostProcess);
+		G->SetShadingQuality(Shading < 0 ? Quality : Shading);
 		G->SetFullscreenMode(WindowMode == 0 ? EWindowMode::Fullscreen : WindowMode == 1 ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed);
 		const FIntPoint Res = (Resolution.X > 0 && Resolution.Y > 0) ? Resolution : G->GetDesktopResolution();
 		G->SetScreenResolution(Res);
@@ -240,6 +280,8 @@ void FTorqueSettings::Apply(UWorld* World) const
 		// Every scalability setting put back as its group's level says (Unreal only sets the ones whose
 		// level changed), so the rows below start from the preset each time.
 		Scalability::SetQualityLevels(Scalability::GetQualityLevels(), true);
+		// HDR output, only where the screen has it (and back off when the setting is off).
+		if (G->SupportsHDRDisplayOutput() && G->IsHDREnabled() != bHdr) G->EnableHDRDisplayOutput(bHdr);
 	}
 	const bool bDlss = Upscaler == 1 && HasDlss();
 	// TSR (DLSS takes over from it when on, and needs a temporal one under it), TAA, FXAA or none.
@@ -270,6 +312,12 @@ void FTorqueSettings::Apply(UWorld* World) const
 		static const TCHAR* Steps[5] = {TEXT("128"), TEXT("256"), TEXT("512"), TEXT("768"), TEXT("1024")};
 		SetCVarDefault(TEXT("r.VolumetricCloud.ViewRaySampleMaxCount"), Clouds > 0, Steps[FMath::Clamp(Clouds, 0, 4)]);
 	}
+	// Texture filtering: the preset's, or 1x (bilinear) to 16x anisotropic.
+	if (Anisotropy >= 0) SetCVar(TEXT("r.MaxAnisotropy"), 1 << FMath::Clamp(Anisotropy, 0, 4), ECVF_SetByScalability);
+	// The camera effects, each on as the level has it or off.
+	SetCVarDefault(TEXT("r.LensFlareQuality"), !bLensFlares, TEXT("0"));
+	SetCVarDefault(TEXT("r.SceneColorFringeQuality"), !bChromaticAberration, TEXT("0"));
+	SetCVarDefault(TEXT("r.DepthOfFieldQuality"), !bDepthOfField, TEXT("0"));
 	// Ambient occlusion: the screen-space one and Lumen's short-range one.
 	SetCVarDefault(TEXT("r.AmbientOcclusionLevels"), !bAmbientOcclusion, TEXT("0"));
 	SetCVarDefault(TEXT("r.Lumen.ScreenProbeGather.ShortRangeAO"), !bAmbientOcclusion, TEXT("0"));
@@ -277,14 +325,27 @@ void FTorqueSettings::Apply(UWorld* World) const
 	SetCVarDefault(TEXT("r.BloomQuality"), Bloom < 0.005f, TEXT("0"));
 	if (World)
 	{
-		static TMap<TWeakObjectPtr<APostProcessVolume>, float> LevelBloom;
+		// Bloom, film grain and the vignette: each volume's own strength (or Unreal's default), times the setting.
+		struct FOwn { float BloomOwn, GrainOwn, VignetteOwn; };
+		static TMap<TWeakObjectPtr<APostProcessVolume>, FOwn> Level;
 		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
 		{
 			APostProcessVolume* Ppv = *It;
-			const float* Own = LevelBloom.Find(Ppv);
-			const float Base = Own ? *Own : LevelBloom.Add(Ppv, Ppv->Settings.bOverride_BloomIntensity ? Ppv->Settings.BloomIntensity : 0.675f);
-			Ppv->Settings.bOverride_BloomIntensity = true;
-			Ppv->Settings.BloomIntensity = Base * FMath::Clamp(Bloom, 0.0f, 2.0f);
+			FPostProcessSettings& P = Ppv->Settings;
+			const FOwn* Found = Level.Find(Ppv);
+			const FOwn Own = Found ? *Found
+								   : Level.Add(Ppv, FOwn{P.bOverride_BloomIntensity ? P.BloomIntensity : 0.675f, P.bOverride_FilmGrainIntensity ? P.FilmGrainIntensity : 0.0f,
+										 P.bOverride_VignetteIntensity ? P.VignetteIntensity : 0.4f});
+			P.bOverride_BloomIntensity = true;
+			P.BloomIntensity = Own.BloomOwn * FMath::Clamp(Bloom, 0.0f, 2.0f);
+			P.bOverride_FilmGrainIntensity = true;
+			// (up to the level's own at 1, then on to twice it, or a clear amount where the level has little)
+			auto Times = [](float Base, float K, float Most) {
+				return K <= 1.0f ? Base * K : FMath::Lerp(Base, FMath::Max(Base * 2.0f, Most), FMath::Min(K - 1.0f, 1.0f));
+			};
+			P.FilmGrainIntensity = FMath::Clamp(Times(Own.GrainOwn, FilmGrain, 0.5f), 0.0f, 1.0f);
+			P.bOverride_VignetteIntensity = true;
+			P.VignetteIntensity = FMath::Clamp(Times(Own.VignetteOwn, Vignette, 0.8f), 0.0f, 1.0f);
 		}
 		FAudioDeviceHandle Audio = World->GetAudioDevice();
 		if (Audio.IsValid()) Audio->SetTransientPrimaryVolume(FMath::Clamp(Master, 0.0f, 1.0f));

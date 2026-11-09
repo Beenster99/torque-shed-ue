@@ -14,6 +14,7 @@
 #include "Shed/TorqueAvatar.h"   // the full type: a member below
 #include "SonyPad.h"
 #include "TorqueAudio/RideSound.h"   // the full type, as for the sim
+#include "TorqueDash.h"   // the dashboard: a member below
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
@@ -72,6 +73,12 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
+	// [dash] The dashboard as Torque Shed has it (TorqueDash.h): what the dash part shows, the trip
+	// computer and the petrol, for the HUD's speedo (hud.gd _draw_speedo); and how far the petrol goes.
+	const FTorqueDash& GetDash() const { return Dash; }
+	double DashRangeKm() const { return Sim ? Dash.RangeKm(Sim->Build) : 0.0; }
+	// The engine still being started (the starter cranking it over), for the speedo's "Starting...".
+	bool IsStarting() const { return EngineCatchIn > 0.0; }
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
 
@@ -85,11 +92,28 @@ public:
 	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
 	FString TestRideLog() const;
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+	// Hold a lever for a check of the rider's fingers on it: Side 0 the clutch, 1 the front brake;
+	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
+	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
+	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
+	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
+	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at
+	// that speed for 6 s on a level test pad (the road's edge, banks and ditches are no part of it) and
+	// comes back to where the bend began. bFlat puts a brake stop on the pad too (else it's on the
+	// road, its grade allowed for in the log). Riding realism is the road tests' 0.5 while measuring.
+	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
+	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
+	bool TestMoveBusy() const { return TestMove >= 0; }
+	const FString& TestMoveResult() const { return TestMoveText; }
 	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
 	// from straight ahead (90: side on from the bike's right).
 	// Dist and Fov: the orbit's distance (cm) and field of view (degrees), 0 for the showroom's own.
-	void TestCamera(int32 Mode, double Yaw, double Dist = 0.0, double Fov = 0.0)
+	// Rise: the orbit's height above what it looks at (cm; 0 for the showroom's own, below 0 looks up
+	// from under); At: 0 the bike, 1 the rider's left hand, 2 the right hand.
+	void TestCamera(int32 Mode, double Yaw, double Dist = 0.0, double Fov = 0.0, double Rise = 0.0, int32 At = 0)
 	{
+		OrbitRise = Rise;
+		OrbitAt = FMath::Clamp(At, 0, 2);
 		CameraMode = FMath::Clamp(Mode, 0, CameraModes - 1);
 		OrbitYaw = Yaw;
 		bOrbitHeld = true;
@@ -170,6 +194,7 @@ private:
 	int32 HornId = 0;
 	bool bHornDown = false;
 	double EngineCatchIn = 0.0;
+	int32 RideBay = INDEX_NONE;   // the shed bay whose bike this is (BuildCatalogueModel): its engine sound
 	TArray<float> SoundFloat;
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;
@@ -185,6 +210,7 @@ private:
 	FString PerfText, PerfFile;
 	void UpdatePerf(float Dt);
 	TArray<FHudLine> HudLines;
+	FTorqueDash Dash;   // [dash]
 	bool bShowHelp = true;
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
 	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.
@@ -211,7 +237,8 @@ private:
 	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit
 	static constexpr int32 CameraModes = 4;
 	double OrbitYaw = 40.0;           // showroom: degrees round from straight ahead, to the right
-	double OrbitDist = 270.0, OrbitFov = 40.0;   // the showroom's distance (cm) and field of view
+	double OrbitDist = 270.0, OrbitFov = 40.0, OrbitRise = 0.0;
+	int32 OrbitAt = 0;   // TestCamera's: 0 the bike, 1 the left hand, 2 the right   // the showroom's distance (cm) and field of view
 	bool bOrbitHeld = false;          // -TorqueOrbitYaw: hold the angle instead of turning
 	bool bRiderShown = true;
 	FVector CamPos = FVector::ZeroVector;
@@ -236,6 +263,20 @@ private:
 	FString CatalogueSpec;             // the spec, as logged
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
+	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
+	// TestStartMove's manoeuvre: which (-1 none), its phase (0 getting up to speed, 1 measuring), the
+	// speed it's held at (m/s), and what it has measured so far.
+	int32 TestMove = -1, TestPhase = 0, TestFromNear = 0;
+	double TestMps = 0.0, TestClock = 0.0, TestSteady = 0.0, TestDist = 0.0, TestV0 = 0.0, TestSide = 1.0;
+	double TestNose = 0.0, TestLeanSum = 0.0, TestGSum = 0.0, TestLeanPeak = 0.0, TestGPeak = 0.0, TestSlide = 0.0, TestLateLean = 0.0;
+	int32 TestSamples = 0, TestLateSamples = 0;
+	bool bTestRobotWas = false, bTestTarmac = false;
+	// The test pad: while set, the wheels see a level tarmac plane at TestPadY (sim metres) and nothing
+	// else, so a manoeuvre measures the bike as SimTest/realism_test's flat ground does.
+	bool bTestFlat = false, bTestWantFlat = false;
+	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
+	FString TestMoveText;
+	void TestMoveStep();
 	// Where its rider sits (pawn local cm): the seat's surface under the hips, the pegs (0 left, 1
 	// right) and the grips' centres, from the layout (as Torque Shed sits its rider: BikeRig's hip
 	// and peg) and the grips as drawn, with geometry mode's offsets. FitRiderToBike turns them into

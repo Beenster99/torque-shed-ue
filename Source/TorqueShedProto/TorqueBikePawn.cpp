@@ -205,6 +205,18 @@ void ATorqueBikePawn::BeginPlay()
 	Sim->Setup(BikeSpec::SpeedTwin1200());
 	Sim->Ray = [this](const V3& From, const V3& To) {
 		RayHit Out;
+		if (bTestFlat)
+		{
+			// The test pad (TestStartMove): level tarmac at TestPadY, as SimTest's flat ground.
+			if (From.y >= TestPadY && To.y <= TestPadY && From.y > To.y)
+			{
+				Out.Hit = true;
+				Out.Position = From + (To - From) * ((From.y - TestPadY) / (From.y - To.y));
+				Out.Normal = V3(0.0, 1.0, 0.0);
+				Out.Surface = SURF_TARMAC;
+			}
+			return Out;
+		}
 		UWorld* World = GetWorld();
 		if (!World) return Out;
 		FHitResult Hit;
@@ -592,6 +604,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			if (B->LayoutParts(I, Parts)) Bay = I;
 		if (Bay < 0) return false;
 	}
+	RideBay = Bay;
 	// Its own physics, or if that won't work out, the Speed Twin's (on which the drawn bike's origin,
 	// at its own rear axle's height, is lifted or dropped to the Speed Twin's 31 cm).
 	BikeSpec Spec;
@@ -606,7 +619,8 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	const FString& Geo = B->Bike(Bay).Geo;
 	TArray<FName> Nodes;
 	TorqueShedCatalogue::FBikeFrame Frame;
-	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame);
+	TArray<TorqueShedCatalogue::FDashGauge> Gauges;   // [dash] the clocks' needles, shift lights and readout
+	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame, &Gauges);
 	if (Drawn <= 0)
 	{
 		Holder->DestroyComponent();
@@ -692,6 +706,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
 		CatalogueSpec = TEXT("SpeedTwin1200 (its own spec didn't work out)");
 	}
+	// [dash] Its dashboard: what the dash part shows, the tank, the engine's thirst, and its clocks
+	// (on their groups now, so their rest is where they ride).
+	Dash.Setup(Parts);
+	Dash.HookClocks(this, ModelParts, Gauges);
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s"),
 			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight, Geo.IsEmpty() ? TEXT("") : TEXT(", with its fit from geometry mode"));
@@ -936,7 +954,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
 		(void)bMph;
-		const double Want = AutoMph / 2.23694;
+		const double Want = TestMove >= 0 ? TestMps : AutoMph / 2.23694;
 		const V3 P = Sim->Position;
 		int32 Ahead = Near;
 		double Acc = 0.0;
@@ -1168,8 +1186,140 @@ void ATorqueBikePawn::RestartRide()
 	Respawn(0);
 }
 
+void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
+{
+	bTestWantFlat = bFlat || Kind == 1;
+	bTestFlat = false;
+	TestMove = FMath::Clamp(Kind, 0, 1);
+	TestPhase = 0;
+	TestMps = FMath::Max(Mph, 5.0) / 2.23694;
+	TestClock = TestSteady = TestDist = TestV0 = 0.0;
+	TestNose = TestLeanSum = TestGSum = TestLeanPeak = TestGPeak = TestSlide = TestLateLean = 0.0;
+	TestSamples = TestLateSamples = 0;
+	TestMoveText.Reset();
+	bTestRobotWas = bTestAutoRide;
+	bTestAutoRide = true;   // the robot steers along the road and gets it up to speed
+	bTestTarmac = false;
+	TestAssistWas = Assist;
+}
+
+// One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
+// sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
+void ATorqueBikePawn::TestMoveStep()
+{
+	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TEXT("lean");
+	const double Mph = TestMps * 2.23694;
+	auto Finish = [&](const FString& Text) {
+		TestMoveText = Text;
+		UE_LOG(LogTemp, Log, TEXT("Torque: test %s at %.0f mph: %s"), Name, Mph, *Text);
+		bTestTarmac = false;
+		bTestAutoRide = bTestRobotWas;
+		Assist = TestAssistWas;
+		const bool bWasFlat = bTestFlat;
+		bTestFlat = false;
+		if (bWasFlat || (TestMove == 1 && TestPhase == 1))
+		{
+			Respawn(TestFromNear);   // back on the road where it began
+			Throttle = FrontBrake = RearBrake = Lean = 0.0;
+		}
+		TestMove = -1;
+	};
+	TestClock += SimDt;
+	const double V = Sim->Speed;
+	if (Sim->IsCrashed)
+	{
+		Finish(FString::Printf(TEXT("crashed (%s, %.1f s in, %.1f m)"), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
+		return;
+	}
+	if (TestPhase == 0)
+	{
+		// The robot rides (slowing for bends) until it's held the speed on a straight for 1.5 s (a
+		// fairly level one, under 4%, for the test pad, so the bike doesn't land on it pitched).
+		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FrontBrake <= 0.0 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1 &&
+			(!bTestWantFlat || FMath::Abs(Sim->RoadPitch) < 0.04);
+		TestSteady = bSteady ? TestSteady + SimDt : 0.0;
+		if (TestSteady < 1.5)
+		{
+			if (TestClock > 90.0) Finish(FString::Printf(TEXT("never held %.0f mph on a straight in 90 s (at %.1f mph)"), Mph, V * 2.23694));
+			return;
+		}
+		TestPhase = 1;
+		TestClock = TestDist = 0.0;
+		TestV0 = V;
+		TestFromNear = Near;
+		TestSide = Lean < 0.0 ? -1.0 : 1.0;
+		TestY0 = Sim->Position.y;
+		Assist = 0.5;   // the road tests' rider (SimTest/realism_test)
+		if (bTestWantFlat)
+		{
+			// The pad at the height of the ground under the wheels now.
+			const double Under = 0.5 * (Sim->Wheels[0].ContactPos.y + Sim->Wheels[1].ContactPos.y);
+			TestPadY = (Sim->Wheels[0].Contact && Sim->Wheels[1].Contact) ? Under : Sim->Position.y - Sim->Build.RearRadius;
+			bTestFlat = true;
+		}
+	}
+	TestDist += FMath::Abs(V) * SimDt;
+	if (TestMove == 0)
+	{
+		// As the road tests (and SimTest/realism_test): front full, rear 0.6, no weight forward.
+		Throttle = 0.0;
+		Shift = 0.0;
+		FrontBrake = 1.0;
+		RearBrake = 0.6;
+		TestNose = FMath::Min(TestNose, Sim->PitchAngle);
+		if (V < 0.3)
+		{
+			// What the road's grade did (the height lost or gained, as energy), and the stop the brakes
+			// alone give from exactly 60 mph on the level, to set beside SimTest/realism_test's.
+			const double D = FMath::Max(TestDist, 0.1), Rise = Sim->Position.y - TestY0;
+			const double G = TestV0 * TestV0 / (2.0 * D) / 9.81;
+			const double Brakes = FMath::Max((0.5 * TestV0 * TestV0 + 9.81 * Rise) / D, 0.1);
+			const double Level60 = 26.8224 * 26.8224 / (2.0 * Brakes);
+			const BikeSpec& B = Sim->Build;
+			Finish(FString::Printf(TEXT("stopped in %.1f m, %.2f s (from %.1f mph, %.2f g on average, nose down %.1f deg at most, ABS front %s); ")
+				TEXT("%s, %.1f%% grade on average, so %.1f m from 60 mph on the level; brakes %.0f / %.0f N m, tyres %.2f / %.2f grip, wet grip x%.2f"),
+				TestDist, TestClock, TestV0 * 2.23694, G, FMath::RadiansToDegrees(-TestNose), B.AbsFront ? TEXT("on") : TEXT("off"),
+				bTestFlat ? TEXT("on the test pad") : TEXT("on the road"), 100.0 * Rise / D, Level60, B.FrontBrakeTorque, B.RearBrakeTorque,
+				B.TyreFront.GripTarmac, B.TyreRear.GripTarmac, B.WetGrip));
+		}
+		else if (TestClock > 20.0) Finish(FString::Printf(TEXT("still going after 20 s (%.1f mph, %.0f m)"), V * 2.23694, TestDist));
+		return;
+	}
+	// Lean: the steer input held full the way the road was bending, the speed held, for 6 s;
+	// measured over the last 3 (the lean it settles at), as SimTest/realism_test.
+	Lean = TestSide;
+	Throttle = FMath::Clamp(0.25 + (TestMps - V) * 0.4, 0.0, 1.0);
+	FrontBrake = RearBrake = 0.0;
+	Shift = 0.0;
+	const double LeanDeg = FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle));
+	const double G = FMath::Abs(Sim->AngularVelocity.y * V) / 9.81;
+	TestLeanPeak = FMath::Max(TestLeanPeak, LeanDeg);
+	if (TestClock > 3.0)
+	{
+		TestLeanSum += LeanDeg;
+		TestGSum += G;
+		TestGPeak = FMath::Max(TestGPeak, G);
+		++TestSamples;
+	}
+	if (TestClock > 5.0)
+	{
+		TestLateLean += LeanDeg;
+		++TestLateSamples;
+	}
+	if (FMath::Max(Sim->Wheels[0].GripUsed, Sim->Wheels[1].GripUsed) > 1.05) TestSlide += SimDt;
+	if (TestClock >= 6.0)
+	{
+		const double N = FMath::Max(TestSamples, 1), Late = TestLateLean / FMath::Max(TestLateSamples, 1);
+		const bool bSlid = TestSlide > 0.25, bStoodUp = Late < 0.6 * TestLeanPeak;
+		Finish(FString::Printf(TEXT("leaned %.1f deg (peak %.1f), %.2f g (peak %.2f) at %.1f mph on the test pad; %s%s (past the tyres' peak %.2f s); tyres %.2f / %.2f grip, wet grip x%.2f"),
+			TestLeanSum / N, TestLeanPeak, TestGSum / N, TestGPeak, V * 2.23694, bSlid ? TEXT("slid") : TEXT("held its line"), bStoodUp ? TEXT(", stood up") : TEXT(""),
+			TestSlide, Sim->Build.TyreFront.GripTarmac, Sim->Build.TyreRear.GripTarmac, Sim->Build.WetGrip));
+	}
+}
+
 void ATorqueBikePawn::StepSim()
 {
+	if (TestMove >= 0) TestMoveStep();
 	Sim->Throttle = Throttle;
 	Sim->FrontBrake = FrontBrake;
 	Sim->RearBrake = RearBrake;
@@ -1265,6 +1415,10 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	ThrowRider(DeltaSeconds);
 	UpdateRider();
 	UpdateClock();
+	// [dash] The trip and the petrol (the rider's own bike), and the clocks on every bike.
+	if (!bRemote) Dash.Step(*Sim, Throttle, EngineCatchIn <= 0.0, DeltaSeconds);
+	else Dash.Step(*Sim, 0.0, true, 0.0);
+	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
 	{
 		UpdateProgress();
@@ -1840,6 +1994,12 @@ void ATorqueBikePawn::UpdateRider()
 			In.LeverPull[0] = FMath::Max(PullShift, Held);
 		}
 		for (int32 S = 0; S < 2; ++S)
+			if (TestLeverHold[S] >= 0.0)
+			{
+				In.LeverFingers[S] = 1.0;
+				In.LeverPull[S] = FMath::Clamp(TestLeverHold[S], 0.0, 1.0);
+			}
+		for (int32 S = 0; S < 2; ++S)
 		{
 			if (!LeverParts[S]) continue;
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
@@ -1950,11 +2110,32 @@ void ATorqueBikePawn::StartSound()
 	SoundAudio->SetupAttachment(Root);
 	SoundAudio->RegisterComponent();
 	SoundAudio->SetSound(SoundWave);
+	// The bike's own engine, as Torque Shed makes it from its engine, head, exhaust, air filter,
+	// gearbox and plugs (EngineSynth), in place of the made 270 twin: every bike from the part list.
+	std::shared_ptr<TorqueEngine::FBank> Engine = RideBay >= 0 ? UTorqueSfx::BikeEngine(this, RideBay) : nullptr;
+	if (Engine)
+	{
+		Sound->SetEngine(Engine);
+		UE_LOG(LogTemp, Log, TEXT("Torque: riding with Torque Shed's engine sound %s"), UTF8_TO_TCHAR(Engine->Sig.c_str()));
+	}
 	UpdateSound(0.0f);   // a little queued before it starts
-	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), then it catches.
+	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), or it's kicked
+	// over (made for the engine), then it catches.
 	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
-	if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f)) EngineCatchIn = 1.1;
-	else SoundAudio->Play();
+	if (Sfx && Engine && Engine->Spec.Kick)
+	{
+		Sfx->PlayMadeOn(TorqueEngine::RenderStarter(Engine->Spec, true, 1.0, FMath::RandRange(1, 3)), TorqueEngine::Rate, Root, FVector(0.0, 0.0, 45.0));
+		EngineCatchIn = 0.5;
+	}
+	else if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f))
+	{
+		EngineCatchIn = 1.1;
+	}
+	else
+	{
+		SoundAudio->Play();
+		Sound->Catch();
+	}
 	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
 }
 
@@ -1966,6 +2147,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 		EngineCatchIn -= Dt;
 		if (EngineCatchIn > 0.0) return;
 		SoundAudio->Play();   // it's caught: the engine from here
+		Sound->Catch();
 	}
 	TorqueSound::RideInputs In;
 	In.Rpm = Sim->Rpm;
@@ -2067,9 +2249,18 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		if (!bOrbitHeld) OrbitYaw = FMath::Fmod(OrbitYaw + 12.0 * Dt, 360.0);
 		const double Yaw = FMath::DegreesToRadians(OrbitYaw + LookYaw);
 		const FVector Right = FVector::CrossProduct(FVector::UpVector, Flat);
-		const FVector Centre = BikePos + Flat * 5.0 + FVector(0, 0, 55.0);
+		FVector Centre = BikePos + Flat * 5.0 + FVector(0, 0, 55.0);
+		if (OrbitAt > 0)
+		{
+			// A test's close look at one of the rider's hands on its grip.
+			const FName HandName(OrbitAt == 1 ? TEXT("hand_l") : TEXT("hand_r"));
+			FVector HandAt = RiderAvatar.IsValid() ? RiderAvatar.BoneWorld(HandName) : FVector::ZeroVector;
+			if (HandAt.IsZero() && RiderBody && RiderBody->GetBoneIndex(HandName) != INDEX_NONE)
+				HandAt = RiderBody->GetBoneLocationByName(HandName, EBoneSpaces::WorldSpace);
+			if (!HandAt.IsZero()) Centre = HandAt;
+		}
 		const FVector Pos = Centre + (Flat * FMath::Cos(Yaw) + Right * FMath::Sin(Yaw)) * OrbitDist
-			+ FVector(0, 0, 55.0 - LookPitch * 4.0);
+			+ FVector(0, 0, OrbitRise != 0.0 ? OrbitRise : 55.0 - LookPitch * 4.0);
 		Camera->SetWorldLocationAndRotation(Pos, (Centre - Pos).Rotation());
 		Camera->SetFieldOfView((float)OrbitFov);
 		return;
@@ -2139,12 +2330,11 @@ void ATorqueBikePawn::DrawHud()
 	const double Secs = RideTime - Mins * 60.0;
 	HudLines.Reset();
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
-	Add(FString::Printf(TEXT("%s   gear %d"), *Set.SpeedText(Sim->Speed), Sim->Gear), FColor::White, 2.0f);
-	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
-		!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")),
-		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
-	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
-		FColor(220, 220, 220), 1.1f);
+	// [dash] The speed, gear and revs are on the speedo now (ATorqueHUD::DrawSpeedo, hud.gd's); the
+	// gears and ABS show here for a moment as they're switched.
+	if (GearNoteFor > 0.0)
+		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
+			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
 	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);

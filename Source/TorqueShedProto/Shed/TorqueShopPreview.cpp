@@ -9,6 +9,7 @@
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueToolModels.h"
+#include "Coop/TorqueUi.h"
 #include "CanvasItem.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -45,7 +46,7 @@ constexpr double MinZoom = 0.6, MaxZoom = 3.5;
 // The backdrop's glow (M_ShedScreenPage's Brightness): the gradient's top a little under the lit part.
 constexpr float BackdropBrightness = 14.0f;
 
-// The backdrop's picture: a cool slate at the top falling to near black at the floor, a soft warm
+// The backdrop's picture: a light grey at the top falling to a dark grey at the floor, a soft
 // pool of light behind the middle of the item, and the corners shaded off.
 UTexture2D* MakeGradient()
 {
@@ -59,7 +60,7 @@ UTexture2D* MakeGradient()
 	FTexture2DMipMap& Mip = T->GetPlatformData()->Mips[0];
 	FColor* Px = static_cast<FColor*>(Mip.BulkData.Lock(LOCK_READ_WRITE));
 	if (!Px) return nullptr;
-	const FLinearColor Top(0.30f, 0.33f, 0.39f), Bottom(0.055f, 0.058f, 0.068f), Glow(0.62f, 0.56f, 0.50f);
+	const FLinearColor Top(0.46f, 0.46f, 0.47f), Bottom(0.11f, 0.11f, 0.115f), Glow(0.64f, 0.64f, 0.64f);   // greys (build 101)
 	for (int32 Y = 0; Y < N; ++Y)
 		for (int32 X = 0; X < N; ++X)
 		{
@@ -177,26 +178,6 @@ void BottleLook(const TorquePaintMix::FTint& T, float& OutMetal, float& OutRough
 	}
 }
 
-// Text on the canvas at a pixel size (the engine's large font, scaled).
-struct FPen
-{
-	UCanvas* C = nullptr;
-	UFont* Font = nullptr;
-	float LineH = 24.0f;
-	float K(float Px) const { return Px / FMath::Max(LineH, 1.0f); }
-	float Width(const FString& S, float Px) const
-	{
-		float W = 0.0f, H = 0.0f;
-		C->StrLen(Font, S, W, H);
-		return W * K(Px);
-	}
-	void Text(float X, float Y, const FString& S, float Px, const FColor& Colour) const
-	{
-		if (S.IsEmpty()) return;
-		C->SetDrawColor(Colour);
-		C->DrawText(Font, S, X, Y, K(Px), K(Px));
-	}
-};
 } // namespace TorqueShopPreviewImpl
 
 namespace TSPI = TorqueShopPreviewImpl;
@@ -554,7 +535,7 @@ void ATorqueShopPreview::Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, con
 		Target->UpdateResourceImmediate(true);
 		Capture->TextureTarget = Target;
 	}
-	const float S = Canvas->ClipY / 1080.0f;
+	const float S = TorqueUi::Scale(Canvas);
 	const float BX0 = (float)Box.Min.X, BY0 = (float)Box.Min.Y, BX1 = (float)Box.Max.X, BY1 = (float)Box.Max.Y;
 	const float BW = BX1 - BX0, BHt = BY1 - BY0;
 	const FLinearColor Frame(1.0f, 1.0f, 1.0f, 0.08f);
@@ -571,42 +552,13 @@ void ATorqueShopPreview::Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, con
 	Hud->DrawRect(Frame, BX0, BY0, 1.0f, BHt);
 	Hud->DrawRect(Frame, BX1 - 1.0f, BY0, 1.0f, BHt);
 
-	TSPI::FPen Pen;
-	Pen.C = Canvas;
-	Pen.Font = GEngine->GetLargeFont();
-	{
-		float TW = 0.0f, TH = 0.0f;
-		Canvas->StrLen(Pen.Font, TEXT("Hg"), TW, TH);
-		Pen.LineH = TH;
-	}
-	// The buttons along the bottom right: pause / turn, zoom out, zoom in, reset.
-	const float BH = 28.0f * S, Pad = 8.0f * S, Gap = 6.0f * S;
-	struct FLabel { EButton What; FString Text; float W; };
-	const FLabel Labels[] = {
-		{EButton::Spin, bSpin ? TEXT("Pause") : TEXT("Turn"), 74.0f * S},
-		{EButton::ZoomOut, TEXT("-"), BH},
-		{EButton::ZoomIn, TEXT("+"), BH},
-		{EButton::Reset, TEXT("Reset"), 64.0f * S},
-	};
-	float RowW = -Gap;
-	for (const FLabel& Lb : Labels) RowW += Lb.W + Gap;
-	float X = BX1 - Pad - RowW;
-	const float Y = BY1 - Pad - BH;
-	for (const FLabel& Lb : Labels)
-	{
-		const FBox2D B(FVector2D(X, Y), FVector2D(X + Lb.W, Y + BH));
-		const bool bOver = B.IsInside(Mouse);
-		Hud->DrawRect(bOver ? FLinearColor(0.95f, 0.62f, 0.2f, 0.95f) : FLinearColor(0.08f, 0.09f, 0.11f, 0.72f), X, Y, Lb.W, BH);
-		const float Px = (Lb.What == EButton::ZoomIn || Lb.What == EButton::ZoomOut) ? 20.0f * S : 14.0f * S;
-		Pen.Text(X + (Lb.W - Pen.Width(Lb.Text, Px)) * 0.5f, Y + (BH - Px * 1.2f) * 0.5f, Lb.Text, Px, bOver ? FColor(20, 20, 24) : FColor(235, 235, 235));
-		Buttons.Add({B, Lb.What});
-		X += Lb.W + Gap;
-	}
-	// How to work it, bottom left, while there's room.
+	// No buttons over the picture (beenster, build 101): the mouse works it, as Torque Shed's PartPreview.
+	const float Pad = 8.0f * S;
+	// How to work it, faint, bottom left.
 	const FString Hint = TEXT("Drag to turn  |  wheel to zoom  |  right-click to pause");
-	const float HintPx = 12.0f * S;
-	if (Pen.Width(Hint, HintPx) < BW - RowW - 3.0f * Pad)
-		Pen.Text(BX0 + Pad, BY1 - Pad - HintPx * 1.6f, Hint, HintPx, FColor(200, 200, 205, 200));
+	const float HintPx = 13.0f * S;
+	if ((float)TorqueUi::Measure(Hint, HintPx).X < BW - 2.0f * Pad)
+		TorqueUi::Text(Canvas, Hint, BX0 + Pad, BY1 - Pad - HintPx * 1.3f, HintPx, FLinearColor(TorqueUi::Ink.R, TorqueUi::Ink.G, TorqueUi::Ink.B, 0.6f));
 }
 
 bool ATorqueShopPreview::Press(const FVector2D& Mouse)

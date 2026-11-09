@@ -24,6 +24,7 @@ FTorqueShedRequestNet ToNet(const FTorqueShedRequest& R)
 	N.bGun = R.bGun;   // [shed]
 	N.Amount = R.Amount;   // [shed]
 	N.Tilt = R.Tilt;   // [shed]
+	N.Amounts = R.Amounts;   // [wash]
 	return N;
 }
 
@@ -48,6 +49,8 @@ FTorqueShedRequest FromNet(const FTorqueShedRequestNet& N)
 	R.bGun = N.bGun;   // [shed]
 	R.Amount = N.Amount;   // [shed]
 	R.Tilt = N.Tilt;   // [shed]
+	R.Amounts = N.Amounts;   // [wash]
+	if (R.Amounts.Num() > R.Items.Num()) R.Amounts.SetNum(R.Items.Num());
 	return R;
 }
 } // namespace TorqueShedNet

@@ -1758,24 +1758,44 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 	auto Code = [&](const CodeShapes::GMesh& M, const GAffine& Basis, const V3& C, const std::string& Tag) {
 		CodeShapes::Emit(Out, "dashboard", Housings.empty() ? "dashboard/dial.glb" : Housings[0].first, "steer", "", M, AtWith(Basis, C + Up + H), Tag);
 	};
+	// The last piece put on works for the game (FittedPart::Gauge): At in the clocks' space, as Code's.
+	auto Works = [&](const std::string& What, const V3& At2, const V3& Axis, const V3& Upward) {
+		FittedPart& F = Out.back();
+		F.Gauge = What;
+		F.GaugeAt = FromGodot(At2 + Up + H);
+		F.GaugeAxis = FromGodot(Axis);
+		F.GaugeUp = FromGodot(Upward);
+	};
 	auto Leds = [&](const V3& C, double Width) {
 		static const char* Tags[6] = {"lens_white", "lens_white", "lens_amber", "lens_amber", "lens_red", "lens_red"};
 		for (int I = 0; I < 6; ++I)
-			Code(CodeShapes::Box(V3(0.016, 0.004, 0.01)), Tilt, C + Tilt.X * (-Width * 0.5 + Width * (I + 0.5) / 6.0), Tags[I]);
+		{
+			const V3 Led = C + Tilt.X * (-Width * 0.5 + Width * (I + 0.5) / 6.0);
+			Code(CodeShapes::Box(V3(0.016, 0.004, 0.01)), Tilt, Led, Tags[I]);
+			Works("led" + std::to_string(I), Led, Tilt.Y, Tilt.Z * -1.0);
+		}
 	};
+	// (_dash_screen: where the readout is written, its text reading up the face, away from the rider.)
+	auto Readout = [&](const V3& At2) { Works("readout", At2, Tilt.Y, Tilt.Z * -1.0); };
 	if (Style == "analog" || Style == "twin")
 	{
-		for (const auto& [Glb, C] : Housings)
+		const bool Twin = Style == "twin";
+		for (size_t K = 0; K < Housings.size(); ++K)
 		{
+			const V3 C = Housings[K].second;
 			Code(CodeShapes::Cylinder(0.043, 0.004), Tilt, C + Tilt.Y * 0.026, "dial");
+			// The little window under the needle (or between the two dials) for the gear and fuel.
+			if (K == 0) Readout(At + Tilt.Y * 0.032 + Tilt.Apply(V3(0.0, 0.0, Twin ? 0.046 : 0.022)));
 			for (int I = 0; I < 9; ++I)
 			{
 				const double A = -2.35 + 4.7 * I / 8.0;
 				Code(CodeShapes::Box(V3(0.003, 0.002, 0.008)), Tilt * GAffine::Rotation(GodotUp, -A),
 					C + Tilt.Y * 0.029 + Tilt.Apply(V3(std::sin(A) * 0.036, 0.0, -std::cos(A) * 0.036)), "black_metal");
 			}
-			// The needle on its pivot (at rest: Godot turns it with the speed or revs).
+			// The needle on its pivot (at rest: the game turns it with the speed or revs; the twin's
+			// left dial the speed, its right the revs).
 			Code(CodeShapes::Box(V3(0.004, 0.003, 0.034)), Tilt, C + Tilt.Y * 0.031 + Tilt.Apply(V3(0.0, 0.0, -0.016)), "lens_red");
+			Works(Twin && K == 1 ? "rpm" : "speed", C + Tilt.Y * 0.031, Tilt.Y, Tilt.Z * -1.0);
 		}
 	}
 	else if (Style == "lcd" || Style == "tft")
@@ -1783,11 +1803,13 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 		const bool Tft = Style == "tft";
 		const V3 Size = Tft ? V3(0.2, 0.03, 0.12) : V3(0.16, 0.03, 0.09);
 		Code(CodeShapes::Box(V3(Size.x - 0.02, 0.004, Size.z - 0.02)), Tilt, At + Tilt.Y * 0.016, "glass");
+		Readout(At + Tilt.Y * 0.019);
 		if (Tft) Leds(At + Tilt.Y * 0.017 + Tilt.Apply(V3(0.0, 0.0, -Size.z * 0.5 - 0.008)), 0.14);
 	}
 	else
 	{
 		Code(CodeShapes::Box(V3(0.18, 0.004, 0.05)), Tilt, At + Tilt.Y * 0.016 + Tilt.Apply(V3(0.0, 0.0, 0.012)), "glass");
+		Readout(At + Tilt.Y * 0.019 + Tilt.Apply(V3(0.0, 0.0, 0.012)));
 		Leds(At + Tilt.Y * 0.017 + Tilt.Apply(V3(0.0, 0.0, -0.028)), 0.18);
 	}
 	// Raised more than a little, the clocks stand on a stalk from the top yoke.

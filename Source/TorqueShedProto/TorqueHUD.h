@@ -24,6 +24,8 @@ private:
 	// Settings: the frame rate at the top of the screen, and the telemetry overlay's strips.
 	void DrawFrameRate();
 	void DrawTelemetry(const ATorqueBikePawn* Bike, float S);
+	// [dash] Riding: Torque Shed's speedo in the bottom right corner (hud.gd _draw_speedo).
+	void DrawSpeedo(const ATorqueBikePawn* Bike);
 	float FpsTime = 0.0f, FpsShown = 0.0f;
 	int32 FpsFrames = 0;
 };

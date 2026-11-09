@@ -49,6 +49,7 @@ struct FTorqueShedRequestNet
 	UPROPERTY() bool bGun = false;   // [shed] the spray gun (the booth's paint jobs)
 	UPROPERTY() float Amount = 0.0f; // [shed] the mixing bay: grams poured, how much stirred
 	UPROPERTY() float Tilt = 0.0f;   // [shed] ... how far the bottle's tipped
+	UPROPERTY() TArray<float> Amounts;   // [wash] Wash: each item's dirt times this
 };
 
 namespace TorqueShedNet

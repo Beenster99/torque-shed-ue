@@ -7,6 +7,7 @@
 #include "Shed/TorqueShopPreview.h"
 #include "Fit/BikeRideSpec.h"
 #include "Fit/BikeShop.h"
+#include "Coop/TorqueUi.h"
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -16,21 +17,22 @@
 
 namespace TorqueBikeConfiguratorImpl
 {
-// The parts computer's look (Torque Shed's UITheme), as TorquePartsComputer.cpp draws it.
-const FLinearColor Column(1.0f, 1.0f, 1.0f, 0.04f);
-const FLinearColor Button(0.16f, 0.18f, 0.22f, 1.0f);
-const FLinearColor ButtonHover(0.24f, 0.27f, 0.33f, 1.0f);
-const FLinearColor Picked(0.95f, 0.62f, 0.2f, 0.9f);
-const FLinearColor PickedHover(1.0f, 0.7f, 0.3f, 1.0f);
-const FLinearColor PopupBack(0.11f, 0.12f, 0.14f, 1.0f);
-const FLinearColor Edge(1.0f, 1.0f, 1.0f, 0.25f);
-const FColor Accent(255, 190, 90);
-const FColor Text(235, 235, 235);
-const FColor Dim(170, 170, 175);
-const FColor Off(110, 110, 115);
-const FColor Ink(20, 20, 24);
-const FColor Good(140, 230, 150);
-const FColor Bad(255, 140, 120);
+// The game's UI kit (Coop/TorqueUi.h, the menus' look), as the parts computer's other aisles have it.
+const FLinearColor Column = TorqueUi::PanelLight;
+const FLinearColor Button(1.0f, 1.0f, 1.0f, 0.07f);
+const FLinearColor ButtonHover(1.0f, 1.0f, 1.0f, 0.15f);
+const FLinearColor Picked(TorqueUi::Accent.R, TorqueUi::Accent.G, TorqueUi::Accent.B, 0.88f);
+const FLinearColor PickedHover = TorqueUi::Accent;
+const FLinearColor PopupBack(0.06f, 0.065f, 0.07f, 0.98f);
+const FLinearColor Edge = TorqueUi::Line;
+const FLinearColor Field(0.0f, 0.0f, 0.0f, 0.45f);
+const FLinearColor Accent = TorqueUi::Accent;
+const FLinearColor Text = TorqueUi::Ink;
+const FLinearColor Dim = TorqueUi::Dim;
+const FLinearColor Off = TorqueUi::Faint;
+const FLinearColor Ink(0.03f, 0.03f, 0.035f, 1.0f);   // text on the amber
+const FLinearColor Good(0.45f, 0.88f, 0.52f, 1.0f);
+const FLinearColor Bad = TorqueUi::Warn;
 
 // BikeShop.SLOT_LABELS: where the parts list's name for a slot isn't clear enough.
 FString CfgSlotLabel(const FString& Slot)
@@ -49,53 +51,34 @@ std::string CfgStd(const FString& S)
 	return std::string(Conv.Get(), Conv.Length());
 }
 
-// Text in pixel sizes on the canvas (the engine's large font, scaled), as the parts computer's.
+// Text in pixel sizes, through the kit (Slate's font at the size it's shown).
 struct FCfgPen
 {
 	UCanvas* C = nullptr;
-	UFont* Font = nullptr;
-	float LineH = 24.0f;
-
-	float K(float Px) const { return Px / FMath::Max(LineH, 1.0f); }
-	float Width(const FString& S, float Px) const
-	{
-		float W = 0.0f, H = 0.0f;
-		C->StrLen(Font, S, W, H);
-		return W * K(Px);
-	}
-	void Draw(float X, float Y, const FString& S, float Px, const FColor& Colour) const
+	float Width(const FString& S, float Px) const { return (float)TorqueUi::Measure(S, Px).X; }
+	void Draw(float X, float Y, const FString& S, float Px, const FLinearColor& Colour) const
 	{
 		if (S.IsEmpty()) return;
-		C->SetDrawColor(Colour);
-		C->DrawText(Font, S, X, Y, K(Px), K(Px));
+		TorqueUi::Text(C, S, X, Y, Px, Colour, false, TorqueUi::EAlign::Left, Colour != Ink);
 	}
+	// Cut to fit, with "..." if it was cut.
 	FString Fit(const FString& S, float Px, float MaxW) const
 	{
 		if (Width(S, Px) <= MaxW) return S;
 		FString Out = S;
 		while (Out.Len() > 1 && Width(Out + TEXT("..."), Px) > MaxW) Out.LeftChopInline(1);
-		return Out + TEXT("...");
+		return Out.TrimEnd() + TEXT("...");
 	}
+	// Word-wrapped lines (a new line starts a new one).
 	TArray<FString> Wrap(const FString& S, float Px, float MaxW) const
 	{
 		TArray<FString> Out, Paras;
 		S.ParseIntoArray(Paras, TEXT("\n"), false);
 		for (const FString& P : Paras)
 		{
-			TArray<FString> Words;
-			P.ParseIntoArray(Words, TEXT(" "), true);
-			FString Line;
-			for (const FString& W : Words)
-			{
-				const FString Try = Line.IsEmpty() ? W : Line + TEXT(" ") + W;
-				if (!Line.IsEmpty() && Width(Try, Px) > MaxW)
-				{
-					Out.Add(Line);
-					Line = W;
-				}
-				else Line = Try;
-			}
-			Out.Add(Line);
+			const TArray<FString> Lines = TorqueUi::WrapLines(P, Px, MaxW);
+			if (Lines.Num() == 0) Out.Add(FString());
+			else Out.Append(Lines);
 		}
 		return Out;
 	}
@@ -494,13 +477,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	TBCI::FCfgPen Pen;
 	Pen.C = Canvas;
-	Pen.Font = GEngine->GetLargeFont();
-	{
-		float W = 0.0f, H = 0.0f;
-		Canvas->StrLen(Pen.Font, TEXT("Hg"), W, H);
-		Pen.LineH = H;
-	}
-	auto Box = [&](float X, float Y, float W, float H, const FLinearColor& C) { Hud->DrawRect(C, X, Y, W, H); };
+	auto Box = [&](float X, float Y, float W, float H, const FLinearColor& C) { TorqueUi::Rect(Canvas, X, Y, W, H, C); };
 	auto Over = [&Mouse](float X, float Y, float W, float H) { return Mouse.X >= X && Mouse.X <= X + W && Mouse.Y >= Y && Mouse.Y <= Y + H; };
 	auto AddHit = [this](float X, float Y, float W, float H, EHit What, int32 Arg) { Hits.Add({FBox2D(FVector2D(X, Y), FVector2D(X + W, Y + H)), What, Arg}); };
 	const bool bPopup = Popup != EPopup::None;
@@ -652,7 +629,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		RowLabel(Y, TEXT("Brand name"));
 		const bool bFieldOver = !bPopup && Over(PartX, Y, PartW, BtnH);
 		Box(PartX - 1.0f, Y - 1.0f, PartW + 2.0f, BtnH + 2.0f, bTyping ? FLinearColor(TBCI::Accent) : (bFieldOver ? FLinearColor(1, 1, 1, 0.5f) : TBCI::Edge));
-		Box(PartX, Y, PartW, BtnH, FLinearColor(0.05f, 0.05f, 0.06f, 1.0f));
+		Box(PartX, Y, PartW, BtnH, TBCI::Field);
 		const FString BrandNow = bTyping ? BrandEdit : TBCI::CfgUe(Bdg.Brand);
 		const bool bCaret = bTyping && FMath::Fmod(FPlatformTime::Seconds(), 1.0) < 0.55;
 		const bool bPlaceholder = BrandNow.IsEmpty() && !bTyping;
@@ -706,7 +683,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		DY += PicH + 4.0f * S;
 		const FString Hint = TEXT("Drag: turn,  scroll: zoom,  right-click: stop or start turning");
 		const FString Tip = Pen.Fit(Hint, 12.0f * S, RW);
-		Pen.Draw(RX + (RW - Pen.Width(Tip, 12.0f * S)) * 0.5f, DY, Tip, 12.0f * S, FColor(255, 255, 255, 128));
+		Pen.Draw(RX + (RW - Pen.Width(Tip, 12.0f * S)) * 0.5f, DY, Tip, 12.0f * S, TorqueUi::Faint);
 		DY += 22.0f * S;
 	}
 	const float StatusY = Y0 + H0 - OrderH - 28.0f * S;
@@ -1072,6 +1049,8 @@ bool FTorqueBikeConfigurator::Scroll(const FVector2D& Mouse, int32 Dir)
 
 bool FTorqueBikeConfigurator::Pad(int32 RowStep, bool bChoose, FString& OutOrder)
 {
+	// (The walker calls this every frame: only a step or Cross closes a list the mouse opened.)
+	if (RowStep == 0 && !bChoose) return false;
 	if (Popup != EPopup::None) ClosePopup();
 	const int32 Rows = SlotRows.Num() + 2;   // the style, the slots, Order
 	if (RowStep != 0)

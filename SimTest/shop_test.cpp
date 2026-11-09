@@ -168,6 +168,12 @@ int main()
 	}
 	Expect(Shop::ConfigSlots() == Strings(Ref.Get("slots")), "the configurator's slots: " + List(Shop::ConfigSlots()));
 
+	Json Overlay, OverlayRef = Json::MakeObject();
+	{
+		std::string OverlayText;
+		if (ReadFile(R + "/Data/Parts/Redrawn/parts_overlay.json", OverlayText) && Json::Parse(OverlayText, Overlay, &Error) && Overlay.Get("reference"))
+			OverlayRef = *Overlay.Get("reference");
+	}
 	int Styles = 0, Steps = 0;
 	for (const auto& [Style, E] : Ref.Get("styles")->O)
 	{
@@ -182,6 +188,20 @@ int main()
 			{
 				std::printf("  note %s's reference %s is this repo's own %s: starting from Godot's stock bike\n", Style.c_str(), Slot.c_str(), Id.c_str());
 				Parts = PartsOf(Entry.Get("stock")->Get("parts"));
+			}
+		// Or a part the overlay changed on purpose (Data/Parts/Redrawn/parts_overlay.json "reference",
+		// such as the cruisers' front brakes, set for the real bikes' stops in SimTest/realism_test).
+		if (const Json* Changed = OverlayRef.Get(Style))
+			for (const auto& [Slot, Id] : Changed->O)
+			{
+				const Json* GodotParts = Entry.Get("stock")->Get("parts");
+				const Json* Was = GodotParts ? GodotParts->Get(Slot) : nullptr;
+				if (Was && Was->S != Id.S && GLay.Part(Id.S))
+				{
+					std::printf("  note %s's reference %s is the overlay's %s (Godot %s): starting from Godot's stock bike\n", Style.c_str(), Slot.c_str(),
+						Id.S.c_str(), Was->S.c_str());
+					Parts = PartsOf(GodotParts);
+				}
 			}
 		Expect(GLay.StyleName(Style) == Entry.Str("name"), "  " + Style + " is called " + GLay.StyleName(Style));
 		CheckState(GLay, Style, Parts, *Entry.Get("stock"), Style + " stock");
