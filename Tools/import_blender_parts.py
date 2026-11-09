@@ -339,7 +339,8 @@ def convert(src_root, rel, out_root):
 def tank_keys(rels):
     """A redrawn tank's loft keys ([u, half width, up, down], as bike_model.gd's TANK_SHAPES) measured off
     its lod0 at the u's the Godot shape uses: its half width and top there, split into up and down in
-    the Godot shape's own proportion. Written to Data/Parts/Redrawn/tank_shapes.json (which
+    the Godot shape's own proportion (for a tank new to this game, the shape its tank_shapes.json entry
+    names as "like"). Written to Data/Parts/Redrawn/tank_shapes.json (which
     import_layout_data.py lays over the Godot shapes) and into Data/Fitment/layout.json now."""
     if not rels:
         return
@@ -350,7 +351,16 @@ def tank_keys(rels):
     for rel in rels:
         name = os.path.basename(rel)[:-4]
         pos = np.concatenate([p["pos"] for p in read_part(os.path.join(REDRAWN, rel))["lods"][0]])
-        old = over.get(name, {}).get("godot_keys") or lay["tank_shapes"][name]["keys"]
+        like = over.get(name, {}).get("like")
+        if like:
+            # A tank the Godot game does not have: the u's and up/down split of the shape it is
+            # most like (its "like"), and that shape's len, n and bw unless the overlay sets its own.
+            base = lay["tank_shapes"][like]
+            old = base.get("godot_keys") or base["keys"]
+            for k in ("len", "n", "bw"):
+                over[name].setdefault(k, base[k])
+        else:
+            old = over.get(name, {}).get("godot_keys") or lay["tank_shapes"][name]["keys"]
         keys = []
         for u, _, up, down in old:
             near = np.abs(-pos[:, 0] - u)
@@ -358,8 +368,11 @@ def tank_keys(rels):
             top = float(pos[m, 1].max())
             d = down * top / max(up + down, 1e-6)
             keys.append([u, round(float(np.abs(pos[m, 2]).max()), 4), round(top - d, 4), round(d, 4)])
-        over[name] = {"keys": keys, "godot_keys": old}
-        lay["tank_shapes"][name].update(over[name])
+        if like:
+            over[name]["keys"] = keys
+        else:
+            over[name] = {"keys": keys, "godot_keys": old}
+        lay["tank_shapes"].setdefault(name, {}).update(over[name])
     write_if_changed(over_path, (json.dumps(over, indent=1) + "\n").encode())
     write_if_changed(lay_path, (json.dumps(lay, indent=1) + "\n").encode())
 

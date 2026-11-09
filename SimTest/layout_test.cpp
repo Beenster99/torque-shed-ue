@@ -232,9 +232,27 @@ int main(int argc, char** argv)
 		if (!ReadFile(R + "/Data/Parts/Blender/index.json", IndexText) || !Json::Parse(IndexText, Index, &Error))
 			Expect(false, "Data/Parts/Blender/index.json loads");
 		const BikeBody Body(Lay);
+		// Each style's reference bike, and the same bike with each tank drawn new for this game (a tank
+		// shape with a "like": the part of the same id) that suits the style.
+		std::vector<std::pair<std::string, PartsMap>> Bikes;
 		for (const std::string& St : Lay.Styles())
 		{
-			const PartsMap B = Lay.ReferenceBuild(St);
+			Bikes.push_back({St, Lay.ReferenceBuild(St)});
+			if (const Json* Shapes = Lay.Tables().Get("tank_shapes"))
+				for (const auto& [Name, Sh] : Shapes->O)
+				{
+					if (!Sh.Get("like") || !Lay.Part(Name)) continue;
+					const std::vector<std::string> Suits = Lay.StylesOf(Name);
+					if (std::find(Suits.begin(), Suits.end(), St) == Suits.end()) continue;
+					PartsMap B = Lay.ReferenceBuild(St);
+					if (B["tank"] == Name) continue;
+					B["tank"] = Name;
+					Bikes.push_back({St + " with " + Name, B});
+				}
+		}
+		for (const auto& [St, B] : Bikes)
+		{
+			const std::string Style = St.substr(0, St.find(' '));
 			const Layout L = Lay.Solve(B);
 			const Bodywork W = Body.Fit(B, L);
 			std::map<std::string, std::vector<V3>> Pts;   // Godot frame, as the Godot test measures
@@ -296,7 +314,7 @@ int main(int argc, char** argv)
 				if (std::fabs(V.z - Hip.z) < 0.03 && std::fabs(V.x) < 0.04) SeatTop = std::max(SeatTop, V.y);
 			}
 			double TailGap = 0.0;
-			if (Pts.count("tail") && St != "mx" && St != "supermoto")
+			if (Pts.count("tail") && Style != "mx" && Style != "supermoto")
 			{
 				double T0 = 1e9;
 				for (const V3& V : Pts["tail"]) T0 = std::min(T0, V.z);
