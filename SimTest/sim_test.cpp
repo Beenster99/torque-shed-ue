@@ -851,6 +851,45 @@ static void EngineTests()
 	}
 }
 
+// Heat (BikeHeat): a bike out of a cold shed has cold tyres (less grip), a cold engine (a fast idle,
+// a little less power) and cold brakes; ridden, the tyres and engine warm up, and a hard stop heats
+// the discs.
+static void HeatTests()
+{
+	std::printf("Heat\n");
+	const double Dt = 1.0 / 120.0;
+	BikeSim S;
+	Roll(S, 20.0);
+	S.Assist = 0.0;   // full sim: nothing softened
+	S.Heat.Air = S.Heat.Road = 5.0;
+	S.Heat.Soak(5.0);
+	S.Step(Dt);
+	const double GripCold = S.Heat.Grip[1], TyreCold = S.Heat.TyreTemp(1), EngineCold = S.Heat.Engine;
+	Check(GripCold < 0.97, "soaked at 5 C, the rear tyre grips less (share)", GripCold);
+	Check(S.Heat.Idle > 1.05, "  and the engine idles fast on the choke (share)", S.Heat.Idle);
+	Check(std::string(S.Heat.TyreState()) == "cold", "  the HUD says the tyres are cold", 0.0);
+	// Two minutes at 20 m/s, held on the throttle.
+	for (int i = 0; i < 120 * 120 && !S.IsCrashed; ++i)
+	{
+		S.Throttle = Clamp(0.3 + (20.0 - S.Speed) * 0.3, 0.0, 1.0);
+		S.Step(Dt);
+	}
+	Check(!S.IsCrashed, "  ridden two minutes at 20 m/s, it stays up", 0.0);
+	Check(S.Heat.TyreTemp(1) > TyreCold + 5.0, "  the rear tyre warms (C)", S.Heat.TyreTemp(1));
+	Check(S.Heat.Grip[1] > GripCold, "  and grips more (share)", S.Heat.Grip[1]);
+	Check(S.Heat.Engine > EngineCold + 20.0, "  the engine warms (C)", S.Heat.Engine);
+	const double Disc0 = S.Heat.Discs[0];
+	S.Throttle = 0.0;
+	S.FrontBrake = 1.0;
+	S.RearBrake = 0.6;
+	for (int i = 0; i < 120 * 6 && S.Speed > 0.5; ++i) S.Step(Dt);
+	Check(S.Heat.Discs[0] > Disc0 + 15.0, "  a hard stop heats the front disc (C gained)", S.Heat.Discs[0] - Disc0);
+	// Warmed through (the road tests' bike): full grip, a normal idle.
+	S.Heat.WarmThrough();
+	S.Step(Dt);
+	Check(S.Heat.Grip[1] > 0.99 && S.Heat.Idle < 1.02, "warmed through: full grip and a normal idle (grip)", S.Heat.Grip[1]);
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
@@ -859,6 +898,7 @@ int main(int Argc, char** Argv)
 	GridTests();
 	ContactTests();
 	EngineTests();
+	HeatTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

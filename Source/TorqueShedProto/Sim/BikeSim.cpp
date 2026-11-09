@@ -131,6 +131,7 @@ std::vector<V3> CrashPoints(const BikeSpec& B)
 void BikeSim::Setup(const BikeSpec& Spec)
 {
 	Build = Spec;
+	Heat.Setup(Build);
 	BaseCom = V3(0.0, Build.ComHeight - Build.RearRadius, 0.06 + Build.ComOffset.z);
 	CenterOfMass = BaseCom;
 	const double Rake = DegToRad(Build.RakeDeg);
@@ -290,8 +291,9 @@ void BikeSim::Step(double Delta)
 		FrontGrip *= Clamp(1.0 - (Over * 5.0 + Falling * 0.8) * Steadiness(), 0.0, 1.0);
 	}
 	if (Paddling) FrontGrip = 0.0;
-	Wheels[0].BrakeTorque = FrontGrip * Build.FrontBrakeTorque;
-	Wheels[1].BrakeTorque = Burnout > 0.0 ? 0.0 : RearGrip * Build.RearBrakeTorque;
+	// Cold pads bite a little less (BikeHeat); hot ones never fade.
+	Wheels[0].BrakeTorque = FrontGrip * Build.FrontBrakeTorque * Heat.Bite[0];
+	Wheels[1].BrakeTorque = Burnout > 0.0 ? 0.0 : RearGrip * Build.RearBrakeTorque * Heat.Bite[1];
 	for (Wheel& W : Wheels) WheelForces(W, Delta);
 	MeasureGeometry(Delta);
 	ApplyWheelGyro();
@@ -299,6 +301,7 @@ void BikeSim::Step(double Delta)
 	ApplyRiderBalance(Delta);
 	ApplyFeet();
 	ApplyDonut(Delta);
+	Heat.Step(*this, Delta);
 	CheckCrash();
 	Integrate(Delta);
 	ResolveContacts(Delta);
@@ -552,7 +555,9 @@ double BikeSim::GripLean() const { return std::min(TyreLean(), BalanceLean(Build
 double BikeSim::TyreLean() const
 {
 	const int Surf = Wheels[1].Surf;
-	const double Mu = std::min(Build.TyreGrip(true, Surf), Build.TyreGrip(false, Surf));
+	double Mu = std::min(Build.TyreGrip(true, Surf), Build.TyreGrip(false, Surf));
+	// The rider feels cold (or cooked) tyres and leans less on them, the more so with more care.
+	Mu *= Lerp(1.0, std::min(Heat.TyreGrip(0, Surf), Heat.TyreGrip(1, Surf)), Clamp(Assist * 2.0, 0.0, 1.0));
 	return std::min(std::atan(Mu * GRIP_IN_HAND), MAX_LEAN);
 }
 
@@ -735,7 +740,7 @@ void BikeSim::UpdateEngine(double Delta)
 	const bool InNeutral = Gear == NEUTRAL;
 	const double Ratio = Build.OverallRatio(std::max(Gear, 1));
 	const double WheelRpm = Rear.Omega * Ratio * 60.0 / TAU;
-	const double IdleRpm = Build.IdleRpm;
+	const double IdleRpm = Build.IdleRpm * Heat.Idle;   // higher on the choke while it's cold
 	const double ClutchRpm = IdleRpm + 900.0;
 	// The lever: pulled in over CLUTCH_PULL, let out over CLUTCH_LET_OUT, biting as it comes out.
 	Clutch = MoveToward(Clutch, ClutchIn ? 1.0 : 0.0, Delta / (ClutchIn ? CLUTCH_PULL : CLUTCH_LET_OUT));
@@ -844,7 +849,7 @@ void BikeSim::UpdateEngine(double Delta)
 		TcTarget = std::min(TcTarget, Clamp(1.0 - (PitchOverRoad - Cap) * 12.0, 0.05, 1.0));
 	}
 	Traction = Lerp(Traction, TcTarget, 1.0 - std::exp(-25.0 * Delta));
-	double EngineNm = Build.EngineTorque(Rpm) * ThrottleEff * Traction;
+	double EngineNm = Build.EngineTorque(Rpm) * ThrottleEff * Traction * Heat.Power;   // a cold engine is a little down, an overheating one more so
 	if (Rpm >= Build.Redline) EngineNm = 0.0;   // rev limiter
 	double Made = std::max(EngineNm, 0.0);
 	if (Engaged) EngineNm -= (1.0 - ThrottleEff) * Build.PeakTorque * 0.25 * Clamp(Rpm / Build.Redline, 0.0, 1.0);
@@ -1062,7 +1067,7 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 		W.BrakeUsed = std::fabs(Spun - OmegaAir) * InertiaW / Delta;
 		W.Omega = OmegaAir * 0.999;
 		W.Spin = std::fmod(W.Spin + W.Omega * Delta, TAU);
-		W.Slip = W.GripUsed = W.Kappa = W.Alpha = W.Sy = W.FSide = W.FSusp = 0.0;
+		W.Slip = W.GripUsed = W.Kappa = W.Alpha = W.Sy = W.FSide = W.FSusp = W.PSlip = W.PRoll = 0.0;
 		W.Eased = W.Bottomed = false;
 		W.Force = W.FLat = V3();
 		return;
@@ -1140,7 +1145,7 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 	const double VLong = VContact.Dot(LongDir);
 	const double VLat = VContact.Dot(LatDir);
 	const double VAbs = std::fabs(VLong);
-	const double MuSurf = Build.TyreGrip(IsFront, HitSurf);
+	const double MuSurf = Build.TyreGrip(IsFront, HitSurf) * Heat.TyreGrip(IsFront ? 0 : 1, HitSurf);   // a cold tyre (or a cooked one) grips less
 	const double Mu = TyreModel::MuAt(MuSurf, Fz, Build.TotalMass * G * 0.5, Tp);
 	const double FPeak = Mu * Fz;
 	const double Bc = TyreModel::StiffnessAtZero(Tp);
@@ -1200,6 +1205,8 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 	// At a crawl the tyre can't push harder sideways than it takes to stop the sideways creep.
 	const double FyCap = std::fabs(VLat) * Build.TotalMass * 0.5 / Delta;
 	Fy = Clamp(Fy, -FyCap, FyCap);
+	W.PSlip = std::fabs(Fx * (OmegaNew * REff - VLong)) + std::fabs(Fy * VLat);
+	W.PRoll = RollK * Fz * VAbs;
 	Fx -= Sign(VLong) * RollK * Fz;
 	W.Slip = SlipRatio;
 	W.Rx = Fx / std::max(Fz, 1.0);

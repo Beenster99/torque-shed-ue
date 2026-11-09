@@ -204,6 +204,7 @@ void ATorqueBikePawn::BeginPlay()
 	// Settings > Gameplay > Automatic gearbox: how each ride starts (G / R3 changes it while riding).
 	bManual = !FTorqueSettings::Get().bAutoShift;
 	Sim->Setup(BikeSpec::SpeedTwin1200());
+	WeatherHeat(true);
 	Sim->Ray = [this](const V3& From, const V3& To) {
 		RayHit Out;
 		if (bTestFlat)
@@ -667,6 +668,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		// The sim's body frame is the drawn bike's (the origin at axle height midway between the
 		// axles, a wheelbase apart: SimTest/spec_test checks the layout and the spec agree).
 		Sim->Setup(Spec);
+		WeatherHeat(true);   // out of the shed: cold tyres, brakes and engine
 		// ABS as its ECU gives it (the HUD and the B key follow).
 		bHasAbs[0] = Spec.AbsFront;
 		bHasAbs[1] = Spec.AbsRear;
@@ -1318,6 +1320,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 		if (Score < BestScore) { BestScore = Score; Best = I; }
 	}
 	if (!Sim->EngineOn) { Sim->StopEngine(); Sim->EngineOn = true; }   // (switched off on the key: the robot needs it)
+	Sim->Heat.WarmThrough();   // the road tests' bike is warmed through, as SimTest's
 	Respawn(Best);
 	if (bTestWantFlat)
 	{
@@ -1570,6 +1573,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			ApplyWeather();
 		}
 	}
+	if (!bRemote && !bTestFlat) WeatherHeat(false);
 	HostOnlyNoteFor = FMath::Max(HostOnlyNoteFor - DeltaSeconds, 0.0);
 
 	if (bRemote)
@@ -2593,6 +2597,17 @@ void ATorqueBikePawn::DrawHud()
 	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
+	{
+		// The heat (BikeHeat): cold tyres grip less, an overheating engine loses power.
+		const FString Tyres = UTF8_TO_TCHAR(Sim->Heat.TyreState()), Engine = UTF8_TO_TCHAR(Sim->Heat.EngineState());
+		if (Tyres != TEXT("warm") || Engine != TEXT("warm"))
+		{
+			FString T;
+			if (Tyres != TEXT("warm")) T = FString::Printf(TEXT("Tyres %s (%.0f / %.0f C)"), *Tyres, Sim->Heat.TyreTemp(0), Sim->Heat.TyreTemp(1));
+			if (Engine != TEXT("warm")) T += FString::Printf(TEXT("%sEngine %s (%.0f C)"), T.IsEmpty() ? TEXT("") : TEXT("   "), *Engine, Sim->Heat.Engine);
+			Add(T, Tyres == TEXT("hot") || Engine == TEXT("hot") ? FColor(255, 150, 90) : FColor(150, 200, 255), 0.95f);
+		}
+	}
 	if (bPerfShow && !PerfText.IsEmpty())
 		Add(PerfText + (bPerfLog ? TEXT("   [logging to CSV]") : TEXT("")), FColor(140, 255, 160), 1.0f);
 	const bool bSony = Pad && Pad->Get().bConnected;
@@ -2631,4 +2646,23 @@ void ATorqueBikePawn::ApplyWeather()
 {
 	if (Sim) Sim->Build.WetGrip = Weather == 2 ? 0.68 : 1.0;
 	UE_LOG(LogTemp, Log, TEXT("Torque: bike in weather %d"), Weather);
+}
+
+void ATorqueBikePawn::WeatherHeat(bool bSoak)
+{
+	if (!Sim) return;
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	const double Hour = GS && GS->GetHour() >= 0.0f ? GS->GetHour() : 13.0;
+	// Sunny, overcast, wet roads: how much cloud, and how wet.
+	const int32 W = FMath::Clamp(Weather, 0, 2);
+	const double Cover = W == 0 ? 0.1 : W == 1 ? 0.7 : 0.9;
+	const double Wet = W == 2 ? 0.8 : 0.0;
+	const double Swing = 7.0 * (1.0 - 0.6 * Cover);
+	const double Air = 12.0 + Swing * FMath::Cos((Hour - 15.0) / 24.0 * UE_DOUBLE_TWO_PI) - 3.0 * Wet;
+	const double Sun = FMath::Abs(Hour - 13.0) < 7.5 ? FMath::Max(FMath::Cos((Hour - 13.0) / 24.0 * UE_DOUBLE_TWO_PI * 1.6), 0.0) : 0.0;
+	Sim->Heat.Air = Air;
+	Sim->Heat.Road = Air + 10.0 * Sun * (1.0 - Cover) * (1.0 - Wet);
+	Sim->Heat.Wetness = Wet;
+	// The shed is out of the wind and a little warmer than outside.
+	if (bSoak) Sim->Heat.Soak(Air + 3.0);
 }

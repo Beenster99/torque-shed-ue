@@ -232,6 +232,9 @@ private:
 	int32 Weather = 0;
 	double HostOnlyNoteFor = 0.0;      // "the host sets the weather", on a joined rider's HUD
 	void ApplyWeather();
+	// The heat's air, road and wetness from the weather and the time of day (BikeHeat ambient_c,
+	// road_c); bSoak: the whole bike at the shed's temperature (a ride starting from the shed).
+	void WeatherHeat(bool bSoak);
 	double Accum = 0.0;
 	FVector PrevPos, CurPos;          // Unreal cm, the sim body origin before and after the last step
 	FQuat PrevRot, CurRot;

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "BikeContacts.h"
+#include "BikeHeat.h"
 #include "BikeSpec.h"
 #include <functional>
 #include <string>
@@ -52,6 +53,7 @@ struct Wheel
 	int Surf = SURF_TARMAC;
 	double Kappa = 0.0, Alpha = 0.0, Sy = 0.0, Camber = 0.0, GripUsed = 0.0, Mu = 0.0, FSide = 0.0, REff = 0.3;
 	double SlipShare = 1.0;
+	double PSlip = 0.0, PRoll = 0.0;   // W: the tyre's work sliding over the road, and flexing as it rolls (heat)
 	bool Eased = false;
 	V3 Force, FLat, LongDir{0, 0, -1}, ContactLocal, NormalLocal{0, 1, 0}, ContactPos, Normal{0, 1, 0};
 	V3 Axle;
@@ -92,6 +94,10 @@ public:
 	double FuelLitres = 15.0;
 	double EngineKw = 0.0;
 	bool Overrun = false;
+	// The tyres', brakes' and engine's temperatures and what they do (BikeHeat). Setup warms it
+	// through; the game cools it to the shed's temperature as a ride starts (Heat.Soak) and sets its
+	// air, road and wetness.
+	BikeHeat Heat;
 	// 0..1, how hard the back tyre's spinning on the spot (a burnout); seconds of full burnout since
 	// the game last took them (they wear the back tyre); how far it has spun the bike round (rad,
 	// + left). Paddling: walking the bike backwards with the rider's feet.

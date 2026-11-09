@@ -8,6 +8,28 @@
 
 namespace TorqueSim
 {
+// What the bike's heat (BikeHeat) works from, out of its parts (bike_heat.gd setup).
+struct BikeHeatParts
+{
+	struct TyrePart
+	{
+		double Lo = 15.0, Hi = 90.0, ColdGrip = 0.9;   // working window: full grip from, greasy above (°C), grip share stone cold
+		double Mass = 4.5, TreadArea = 0.25, SideArea = 0.2;
+	};
+	struct BrakePart
+	{
+		double DiscC = 720.0, DiscArea = 0.06, DiscCool = 1.0;   // heat capacity J/K, shedding area m², cooling against a solid disc
+		double PadFrom = 80.0, PadCold = 0.95;                   // pads bite fully from °C, bite share cold
+	};
+	TyrePart Tyre[2];
+	BrakePart Brake[2];
+	bool Liquid = true;
+	double OilFollow = 1.0;            // how far the oil follows the engine's heat (air-cooled less)
+	double Displacement = 1200.0, IdleRpm = 950.0;
+	double Head = 1.0;                 // how hot the head runs against a stock one
+	double CoolingCapacity = 1.0;
+};
+
 struct BikeSpec
 {
 	// Mass and layout (bike space: +Y up, -Z forward, origin at axle height midway between the wheels).
@@ -53,6 +75,7 @@ struct BikeSpec
 	TyreParams TyreFront, TyreRear;
 	double WetGrip = 1.0;             // the weather: wet roads take about a third of the grip away
 	double Rolling = 0.015;
+	BikeHeatParts Heat;
 
 	// Brakes: the torque a full squeeze asks for at the wheel (N m).
 	double FrontBrakeTorque = 1500.0, RearBrakeTorque = 520.0;
