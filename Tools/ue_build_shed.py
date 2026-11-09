@@ -1011,6 +1011,10 @@ def foot_ao():
     if FOOT_AO <= 0.0 or not FOOTPRINTS:
         return
     mat = new_material("M_ShedFootAO")
+    # Blend first, then the domain: a decal can't be Opaque (the default), and setting the domain
+    # on an opaque material fails to compile ("DeferredDecal ... only ... Translucent").
+    try_set(mat, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    try_set(mat, "material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
     uv = expr(mat, unreal.MaterialExpressionTextureCoordinate, -1200, 0)
     centred = expr(mat, unreal.MaterialExpressionConstantBiasScale, -1000, 0, bias=-0.5, scale=2.0)
     mel.connect_material_expressions(uv, "", centred, "")
@@ -1032,9 +1036,6 @@ def foot_ao():
     mel.connect_material_property(strength, "", unreal.MaterialProperty.MP_OPACITY)
     black = expr(mat, unreal.MaterialExpressionConstant3Vector, -100, -200, constant=unreal.LinearColor(0.0, 0.0, 0.0, 1.0))
     mel.connect_material_property(black, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    # The domain and blend once the graph's whole (set first, the empty graph compiled as a surface).
-    try_set(mat, "material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
-    try_set(mat, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat = finish(mat)
     reach = 15.0
     n = 0
