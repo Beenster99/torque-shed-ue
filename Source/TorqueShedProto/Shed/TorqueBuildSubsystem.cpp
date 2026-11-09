@@ -323,6 +323,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MaskColour = It.MaskColour;
 		To.MaskMetal = It.MaskMetal;
 		To.MaskRough = It.MaskRough;
+		To.Badge = It.Badge;
 		S.Items.Add(To);
 	}
 }
@@ -409,6 +410,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MaskColour = From.MaskColour;
 		It.MaskMetal = From.MaskMetal;
 		It.MaskRough = From.MaskRough;
+		It.Badge = From.Badge;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -462,7 +464,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 11;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for)
+constexpr int32 BytesLayout = 12;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge)
 
 struct FNameTable
 {
@@ -606,6 +608,14 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		FColor MaskColour = It.MaskColour.QuantizeRound();
 		Ar << Tape << Mask;
 		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough;
+		// A tank's badge.
+		uint8 bBadge = It.Badge.IsEmpty() ? 0 : 1;
+		Ar << bBadge;
+		if (bBadge)
+		{
+			FString Badge = It.Badge;
+			Ar << Badge;
+		}
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -754,6 +764,13 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 				It.MaskColour = MaskColour.ReinterpretAsLinear();
 				It.MaskMetal = TBI::Unquant(MaskMetal);
 				It.MaskRough = TBI::Unquant(MaskRough);
+			}
+			uint8 bBadge = 0;
+			Ar << bBadge;
+			if (bBadge)
+			{
+				Ar << It.Badge;
+				if (It.Badge.Len() > 2000) It.Badge.Reset();   // (not a badge)
 			}
 		}
 		Ar << bEngine;
@@ -1001,6 +1018,9 @@ FString UTorqueBuildSubsystem::NewOrderedBike(int32 Peer, int32 Bay, const FStri
 		It->Colour = FLinearColor((float)KV.second.Colour[0], (float)KV.second.Colour[1], (float)KV.second.Colour[2]);
 		It->Finish = KV.second.Finish.empty() ? NAME_None : FName(*TBI::Ue(KV.second.Finish));
 	}
+	// The badge on the tank (BikeShop.buy_new: the tank item carries it).
+	if (FTorqueItem* Tank = Items.Find(ItemOn(Bay, FName(TEXT("tank")))))
+		Tank->Badge = TBI::Ue(TorqueFit::Shop::BadgeText(O.TankBadge));
 	FTorqueShedBike& B = Bikes[Bay];
 	for (const std::string& What : Lay->Solve(O.Parts).Fit.Work) B.FabDone.Add(TBI::Ue(What));
 	FString By;
@@ -1551,6 +1571,12 @@ float UTorqueBuildSubsystem::RustOf(int32 Bay, FName Slot) const
 {
 	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
 	return It ? It->Rust : 0.0f;
+}
+
+FString UTorqueBuildSubsystem::BadgeOf(int32 Bay) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(FName(TEXT("tank")))));
+	return It ? It->Badge : FString();
 }
 
 bool UTorqueBuildSubsystem::PaintOf(int32 Bay, FName Slot, FLinearColor& Out) const

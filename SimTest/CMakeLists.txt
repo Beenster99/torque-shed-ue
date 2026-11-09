@@ -91,3 +91,13 @@ if(MSVC)
 else()
   target_compile_options(shop_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# The tank badge (the Godot game's BikeBadge): the logos' pictures, where the badge goes on the
+# tank and the decal skins cut from it, checked against the real game's.
+add_executable(badge_test badge_test.cpp ${FIT}/BikeBadge.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(badge_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(badge_test PRIVATE /W4)
+else()
+  target_compile_options(badge_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

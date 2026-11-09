@@ -16,6 +16,10 @@ With --shop it runs Tools/godot_reference/dump_shop.tscn: the New bike configura
 every style, its slots' options and a fixed walk of part changes, written to
 SimTest/data/godot_shop.json for SimTest/shop_test.
 
+With --badge it runs Tools/godot_reference/dump_badge.tscn: the tank badge (BikeBadge: the logos'
+pictures, and badges stamped on a made-up tank) into SimTest/data/godot_badge.json for
+SimTest/badge_test.
+
 With --spec it runs Tools/godot_reference/dump_spec.tscn: BikeBuild's riding numbers (chassis,
 wheels, tyres, suspension, brakes, gearbox, mass spread, aids, engine torque) for every style's
 reference bike and a sweep of swaps, written to SimTest/data/godot_spec.json for SimTest/spec_test.
@@ -33,6 +37,7 @@ OUT = os.path.join(REPO, "SimTest", "data", "godot_reference.json")
 GEO_OUT = os.path.join(REPO, "SimTest", "data", "godot_geo.json")
 SPEC_OUT = os.path.join(REPO, "SimTest", "data", "godot_spec.json")
 SHOP_OUT = os.path.join(REPO, "SimTest", "data", "godot_shop.json")
+BADGE_OUT = os.path.join(REPO, "SimTest", "data", "godot_badge.json")
 
 
 def main():
@@ -44,6 +49,7 @@ def main():
     ap.add_argument("--geo", action="store_true", help="dump geometry mode's maths (godot_geo.json) instead")
     ap.add_argument("--spec", action="store_true", help="dump BikeBuild's riding numbers (godot_spec.json) instead")
     ap.add_argument("--shop", action="store_true", help="dump the New bike configurator (godot_shop.json) instead")
+    ap.add_argument("--badge", action="store_true", help="dump the tank badge (godot_badge.json) instead")
     a = ap.parse_args()
     if a.from_raw:
         data = json.load(open(a.from_raw))
@@ -78,6 +84,12 @@ def main():
                     "source": {"repo": "Beenster99/torque-shed", "commit": commit, "godot": "4.6.2-stable"}, **r(data)}
             json.dump(data, open(SPEC_OUT, "w"), separators=(",", ":"), sort_keys=True)
             print("wrote %s" % SPEC_OUT)
+            return
+        if a.badge:
+            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_badge.tscn", "--", "--out=" + raw],
+                           check=True, capture_output=True, timeout=600)
+            json.dump(json.load(open(raw)), open(BADGE_OUT, "w"), separators=(",", ":"))
+            print("wrote %s" % BADGE_OUT)
             return
         if a.shop:
             subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_shop.tscn", "--", "--out=" + raw],

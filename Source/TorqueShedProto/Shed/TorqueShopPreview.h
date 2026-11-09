@@ -48,8 +48,11 @@ public:
 	// What to show. Each only rebuilds when it changes, so call it every frame it's drawn.
 	void ShowPart(FName Part);           // a catalogue part as it comes out of its box
 	void ShowPaint(int32 Stock);         // a tin of base or a bottle of tint (FTorquePaintBay stock index)
-	// A whole bike: slot -> catalogue part id (TorqueShedCatalogue::MakeBike's map), each slot's paint.
-	void ShowBike(const TMap<FString, FString>& Parts, const TMap<FName, FTorqueShopFinish>& Finishes = TMap<FName, FTorqueShopFinish>());
+	// A whole bike: slot -> catalogue part id (TorqueShedCatalogue::MakeBike's map), each slot's paint,
+	// and the badge on its tank (Fit/BikeShop's badge text; a new badge is stamped on the bike that's
+	// there, not a new bike built).
+	void ShowBike(const TMap<FString, FString>& Parts, const TMap<FName, FTorqueShopFinish>& Finishes = TMap<FName, FTorqueShopFinish>(),
+		const FString& Badge = FString());
 	void ShowNothing();
 	// The project bike's styles (the fitting layout's), to page through their reference bikes.
 	static TArray<FString> BikeStyles();

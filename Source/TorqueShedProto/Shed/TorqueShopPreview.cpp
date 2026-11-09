@@ -1,4 +1,5 @@
 #include "Shed/TorqueShopPreview.h"
+#include "Shed/TorqueBikeBadge.h"
 
 #include "Fit/BikeLayout.h"
 #include "Shed/TorquePaintBay.h"
@@ -339,6 +340,7 @@ void ATorqueShopPreview::Rebuild(const FString& NewKey, TFunctionRef<void()> Mak
 	const bool bKeepView = Key.StartsWith(TEXT("bike:")) && NewKey.StartsWith(TEXT("bike:"));
 	Key = NewKey;
 	Clear();
+	TorqueBikeBadge::Stamp(TArray<UStaticMeshComponent*>(), FString());   // (the last bike's badge goes with it)
 	Make();
 	for (UStaticMeshComponent* C : Shown) Studio(C);
 	Framed();
@@ -421,7 +423,7 @@ void ATorqueShopPreview::ShowPaint(int32 Stock)
 	});
 }
 
-void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMap<FName, FTorqueShopFinish>& Finishes)
+void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMap<FName, FTorqueShopFinish>& Finishes, const FString& Badge)
 {
 	// The key: every slot's part and finish, in slot order.
 	TArray<FString> Slots;
@@ -454,6 +456,8 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 				TSPI::Paint(C, TorqueShedParts::DefaultColour(FName(**Part)), -1.0f, -1.0f);   // as the shed shows a catalogue part
 		}
 	});
+	// The badge on its tank (again only when it's changed, or the bike has).
+	TorqueBikeBadge::Stamp(TorqueBikeBadge::TankOf(Shown), Badge);
 }
 
 TArray<FString> ATorqueShopPreview::BikeStyles()
