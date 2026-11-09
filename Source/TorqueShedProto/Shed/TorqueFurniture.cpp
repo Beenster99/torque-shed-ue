@@ -535,8 +535,10 @@ void ATorqueFurnishings::BeginPlay()
 	}
 	for (const TorqueFurniture::FPlaced& P : TorqueFurniture::Yard().Fixed)
 		if (UStaticMeshComponent* C = Make(P.Model, P.Xf, false)) FixedDrawn.Add(C);
+	const int32 NumFixed = FixedDrawn.Num();
 	Paint();
-	UE_LOG(LogTemp, Log, TEXT("Torque furniture: the yard's %d fixed pieces drawn (of %d)"), FixedDrawn.Num(), TorqueFurniture::Yard().Fixed.Num());
+	UE_LOG(LogTemp, Log, TEXT("Torque furniture: the yard's %d fixed pieces drawn (of %d), %d painted marks, %d words"), NumFixed,
+		TorqueFurniture::Yard().Fixed.Num(), FixedDrawn.Num() - NumFixed, WordsDrawn.Num());
 }
 
 void ATorqueFurnishings::Paint()
