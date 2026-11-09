@@ -2031,6 +2031,10 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 	if (!bComputer) OpenComputer();
 	if (!Kind.IsNone() && !Computer.PickKind(Kind)) return FString::Printf(TEXT("no kind %s on the computer"), *Kind.ToString());
 	if (!Part.IsNone() && !Computer.PickPart(Part)) return FString::Printf(TEXT("no %s under %s"), *Part.ToString(), *Kind.ToString());
+	{
+		const APlayerController* MyPC = Cast<APlayerController>(GetController());
+		Computer.SyncPreview(MyPC ? MyPC->GetHUD() : nullptr);   // (the pick is made after this frame's Draw)
+	}
 	FString Out = Computer.Describe() + TEXT(" [3D preview: ") + Computer.PreviewShowing() + TEXT("]");
 	if (bOrder)
 	{
