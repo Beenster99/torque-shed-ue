@@ -3,6 +3,7 @@
 #include "Shed/TorqueShedCatalogue.h"
 
 #include "Shed/TorqueBikeBadge.h"
+#include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedParts.h"
@@ -318,7 +319,10 @@ void ATorqueShedBike::Follow(float Dt)
 	if (bPushed != (Blocker->GetCollisionEnabled() == ECollisionEnabled::NoCollision))
 		Blocker->SetCollisionEnabled(bPushed ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 	if (!bPushed) bPreview = false;
-	const FTransform Want = bPreview ? PreviewXf : B->BikeTransform(Bay);
+	FTransform Want = bPreview ? PreviewXf : B->BikeTransform(Bay);
+	// Standing on a bike lift (in its bay, or the wash bay's): up with the platform
+	// (workshop_upgrades.gd _ride_lifts; not while it's being wheeled).
+	if (!bPreview && !bPushed) Want.AddToTranslation(FVector(0.0, 0.0, ATorqueBikeLift::HeightAt(this, Want.GetLocation())));
 	const FVector At = GetActorLocation();
 	const double Gap = FVector::Dist(At, Want.GetLocation());
 	if (Gap < 0.05 && GetActorRotation().Equals(Want.Rotator(), 0.05)) return;
@@ -327,7 +331,10 @@ void ATorqueShedBike::Follow(float Dt)
 	else
 	{
 		const float K = FMath::Clamp(Dt * 12.0f, 0.0f, 1.0f);
-		SetActorLocationAndRotation(FMath::Lerp(At, Want.GetLocation(), (double)K), FQuat::Slerp(GetActorQuat(), Want.GetRotation(), K));
+		FVector To = FMath::Lerp(At, Want.GetLocation(), (double)K);
+		// Going up or down with a lift: with the platform, not lagging behind it.
+		if (FMath::Abs(At.Z - Want.GetLocation().Z) < 5.0) To.Z = Want.GetLocation().Z;
+		SetActorLocationAndRotation(To, FQuat::Slerp(GetActorQuat(), Want.GetRotation(), K));
 	}
 }
 

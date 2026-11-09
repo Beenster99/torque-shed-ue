@@ -17,13 +17,22 @@
 namespace TorqueBikeConfiguratorImpl
 {
 // The parts computer's look (Torque Shed's UITheme), as TorquePartsComputer.cpp draws it.
-const FLinearColor Column(1.0f, 1.0f, 1.0f, 0.04f);
-const FLinearColor Button(0.16f, 0.18f, 0.22f, 1.0f);
-const FLinearColor ButtonHover(0.24f, 0.27f, 0.33f, 1.0f);
-const FLinearColor Picked(0.95f, 0.62f, 0.2f, 0.9f);
-const FLinearColor PickedHover(1.0f, 0.7f, 0.3f, 1.0f);
-const FLinearColor PopupBack(0.11f, 0.12f, 0.14f, 1.0f);
-const FLinearColor Edge(1.0f, 1.0f, 1.0f, 0.25f);
+// Godot's numbers are sRGB, as they look on screen; the HUD's canvas takes linear colours, so each
+// goes through CfgSrgb (given as they are, the page came out washed out and faded).
+FLinearColor CfgSrgb(float R, float G, float B, float A)
+{
+	FLinearColor C = FLinearColor::FromSRGBColor(FLinearColor(R, G, B).ToFColor(false));
+	C.A = A;
+	return C;
+}
+const FLinearColor Column = CfgSrgb(1.0f, 1.0f, 1.0f, 0.04f);
+const FLinearColor Button = CfgSrgb(0.16f, 0.18f, 0.22f, 1.0f);
+const FLinearColor ButtonHover = CfgSrgb(0.24f, 0.27f, 0.33f, 1.0f);
+const FLinearColor Picked = CfgSrgb(0.95f, 0.62f, 0.2f, 0.9f);
+const FLinearColor PickedHover = CfgSrgb(1.0f, 0.7f, 0.3f, 1.0f);
+const FLinearColor PopupBack = CfgSrgb(0.11f, 0.12f, 0.14f, 1.0f);
+const FLinearColor Edge = CfgSrgb(1.0f, 1.0f, 1.0f, 0.25f);
+const FLinearColor Field = CfgSrgb(0.05f, 0.05f, 0.06f, 1.0f);
 const FColor Accent(255, 190, 90);
 const FColor Text(235, 235, 235);
 const FColor Dim(170, 170, 175);
@@ -652,7 +661,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		RowLabel(Y, TEXT("Brand name"));
 		const bool bFieldOver = !bPopup && Over(PartX, Y, PartW, BtnH);
 		Box(PartX - 1.0f, Y - 1.0f, PartW + 2.0f, BtnH + 2.0f, bTyping ? FLinearColor(TBCI::Accent) : (bFieldOver ? FLinearColor(1, 1, 1, 0.5f) : TBCI::Edge));
-		Box(PartX, Y, PartW, BtnH, FLinearColor(0.05f, 0.05f, 0.06f, 1.0f));
+		Box(PartX, Y, PartW, BtnH, TBCI::Field);
 		const FString BrandNow = bTyping ? BrandEdit : TBCI::CfgUe(Bdg.Brand);
 		const bool bCaret = bTyping && FMath::Fmod(FPlatformTime::Seconds(), 1.0) < 0.55;
 		const bool bPlaceholder = BrandNow.IsEmpty() && !bTyping;
@@ -1072,6 +1081,8 @@ bool FTorqueBikeConfigurator::Scroll(const FVector2D& Mouse, int32 Dir)
 
 bool FTorqueBikeConfigurator::Pad(int32 RowStep, bool bChoose, FString& OutOrder)
 {
+	// (The walker calls this every frame: only a step or Cross closes a list the mouse opened.)
+	if (RowStep == 0 && !bChoose) return false;
 	if (Popup != EPopup::None) ClosePopup();
 	const int32 Rows = SlotRows.Num() + 2;   // the style, the slots, Order
 	if (RowStep != 0)

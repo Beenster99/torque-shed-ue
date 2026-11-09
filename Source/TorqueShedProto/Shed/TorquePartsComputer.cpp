@@ -35,14 +35,22 @@ const TArray<FGroup>& Groups()
 	return G;
 }
 
-// Torque Shed's UITheme: the page, its panels and the accent.
-const FLinearColor Shade(0.0f, 0.0f, 0.0f, 0.55f);
-const FLinearColor Page(0.07f, 0.08f, 0.10f, 0.97f);
-const FLinearColor Column(1.0f, 1.0f, 1.0f, 0.04f);
-const FLinearColor Button(0.16f, 0.18f, 0.22f, 1.0f);
-const FLinearColor ButtonHover(0.24f, 0.27f, 0.33f, 1.0f);
-const FLinearColor Picked(0.95f, 0.62f, 0.2f, 0.9f);
-const FLinearColor PickedHover(1.0f, 0.7f, 0.3f, 1.0f);
+// Torque Shed's UITheme: the page, its panels and the accent. Godot's numbers are sRGB, as they
+// look on screen; the HUD's canvas takes linear colours, so each goes through Srgb (given as they
+// are they came out washed out and faded: 0.07 drew as a mid grey).
+FLinearColor Srgb(float R, float G, float B, float A)
+{
+	FLinearColor C = FLinearColor::FromSRGBColor(FLinearColor(R, G, B).ToFColor(false));
+	C.A = A;
+	return C;
+}
+const FLinearColor Shade = Srgb(0.0f, 0.0f, 0.0f, 0.6f);
+const FLinearColor Page = Srgb(0.07f, 0.08f, 0.10f, 0.97f);
+const FLinearColor Column = Srgb(1.0f, 1.0f, 1.0f, 0.04f);
+const FLinearColor Button = Srgb(0.16f, 0.18f, 0.22f, 1.0f);
+const FLinearColor ButtonHover = Srgb(0.24f, 0.27f, 0.33f, 1.0f);
+const FLinearColor Picked = Srgb(0.95f, 0.62f, 0.2f, 0.95f);
+const FLinearColor PickedHover = Srgb(1.0f, 0.7f, 0.3f, 1.0f);
 const FColor Accent(255, 190, 90);
 const FColor Text(235, 235, 235);
 const FColor Dim(170, 170, 175);

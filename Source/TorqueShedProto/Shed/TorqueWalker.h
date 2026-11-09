@@ -376,6 +376,12 @@ private:
 	void SprayLetGo(bool bFinishReady);
 	void FinishSpray(const TSharedPtr<FTorqueSprayJob>& Job);
 	void SetSprayScan(bool bOn);
+	// The booth hook the part under the spray controls hangs on (INDEX_NONE: not on one), and winding
+	// it: Step a click (+1 up, -1 down), Held the way a button's held down.
+	int32 SprayHook() const;
+	void SprayWind(float Dt, int32 Step, int32 Held);
+	float SprayHookSet = -1.0f;        // the height being wound to (-1: not winding)
+	double SprayHookHeld = 0.0, SprayHookSend = 0.0;
 	FString SprayKey(const FTorqueShedRequest& R) const;
 	TSharedPtr<FTorqueSprayJob> SprayJobFor(int32 Item, const FTorqueShedRequest& R, int32 Bay, FName Slot);
 	bool SprayOwns(const UStaticMeshComponent* C) const;

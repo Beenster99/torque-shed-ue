@@ -1,5 +1,6 @@
 #include "Shed/TorqueShedTest.h"
 #include "Shed/TorqueShedRadio.h"
+#include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBoothHooks.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
@@ -99,10 +100,11 @@ const TCHAR* const BoothSteps =
 const TCHAR* const SprayGameSteps =
 	TEXT("bay:1,restyle:cafe,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
 	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
-	TEXT("place:hook_0,act,tool:gun,spray:0:primer,item:exhaust,spraypass:6:80,wait:3,look:hook_0,shot,")
-	TEXT("spray:0:gloss,item:exhaust,spraypass:1:80,look:hook_0,shot,sprayscan:1,wait:1,shot,sprayscan:0,")
-	TEXT("item:exhaust,spraypass:6:80,wait:3,look:hook_0,shot,")
-	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,look:hook_0,shot,item:exhaust,spraypass:3:35,look:hook_0,shot,log");
+	TEXT("place:hook_0,act,tool:gun,spray:0:primer,item:exhaust,shot,spraypass:2:80,item:exhaust,shot,")
+	TEXT("item:exhaust,spraypass:4:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
+	TEXT("spray:0:gloss,item:exhaust,spraypass:1:80,item:exhaust,shot,sprayscan:1,wait:1,shot,sprayscan:0,")
+	TEXT("item:exhaust,spraypass:6:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
+	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,item:exhaust,shot,item:exhaust,spraypass:3:35,item:exhaust,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
 // test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
@@ -131,6 +133,15 @@ const TCHAR* const MixSteps =
 	TEXT("tool:hands,paint:tapetake,paint:pattern:2,item:exhaust,act,log,look:hook_0,shot,paint:tapeput,")   // masking tape: twin stripes
 	TEXT("paint:take:3,paint:cup,paint:put:3,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,item:exhaust,act:alt,log,look:hook_0,shot");
+
+// The bike lifts on bay 1's bike: its post, raised (the bike rides up), wheeling it off refused,
+// a part off it standing (no crouching), lowered, wheeled out, onto the wash bay's lift and up on
+// that, down and home.
+const TCHAR* const LiftSteps =
+	TEXT("bay:1,restyle:cafe,tool:hands,lifts,look:lift_0,shot,place:lift_0,f,wait:4,lifts,look:bike,shot,")
+	TEXT("wheel:floor,lifts,tool:wrench,part:exhaust,act,log,")
+	TEXT("place:lift_0,f,wait:4,lifts,tool:hands,wheel:floor,wait:2,bikelog,wheel:wash,wait:2,bikelog,")
+	TEXT("place:lift_wash,f,wait:5,lifts,look:washbay,shot,place:lift_wash,f,wait:5,lifts,wheel:home,wait:2,bikelog,lifts,log");
 
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
@@ -196,6 +207,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -372,7 +384,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -385,6 +397,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		if (Verb == TEXT("lever"))
+		{
+			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
+			const FString Which = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
+			if (Which == TEXT("off"))
+			{
+				Bike->TestLever(0, -1.0);
+				Bike->TestLever(1, -1.0);
+				Said(TEXT("levers let go"));
+				return true;
+			}
+			const int32 LeverSide = Which == TEXT("clutch") ? 0 : 1;
+			const double Pull = P.Num() > 2 ? FCString::Atod(*P[2]) : 1.0;
+			Bike->TestLever(LeverSide, Pull);
+			Said(FString::Printf(TEXT("%s held, pulled %.2f"), LeverSide == 0 ? TEXT("clutch") : TEXT("brake"), Pull));
+			return true;
+		}
 		if (Verb == TEXT("camera"))
 		{
 			const int32 Mode = P.Num() > 1 ? FCString::Atoi(*P[1]) : 0;
@@ -836,6 +865,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		int32 Where = 0;
 		if (P[1] == TEXT("rig")) Where = 1;
 		else if (P[1] == TEXT("floor")) Where = 2;
+		else if (P[1] == TEXT("wash")) Where = 3;
 		Said(W->TestWheel(TestBay, Where));
 		LogBuild(TEXT("after it"));
 		return true;
@@ -929,6 +959,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// What the shed radio's playing (its station and song, or why not).
 		Said(ATorqueShedRadio::NowPlaying(World).Replace(TEXT("\n"), TEXT(" / ")));
+		return true;
+	}
+	if (Verb == TEXT("lifts"))
+	{
+		// Each lift: up or down as the shed has it, how high it's got, and the test bay's bike's height.
+		FString Line;
+		for (int32 L = 0; L <= UTorqueBuildSubsystem::WashLift; ++L)
+		{
+			if (!UTorqueBuildSubsystem::IsLift(L)) continue;
+			const ATorqueBikeLift* Lift = ATorqueBikeLift::Find(World, L);
+			Line += FString::Printf(TEXT("%s%s %s %.0f cm"), Line.IsEmpty() ? TEXT("") : TEXT("; "), *UTorqueBuildSubsystem::LiftName(L),
+				B->LiftUp(L) ? TEXT("up") : TEXT("down"), Lift ? Lift->Height() : -1.0);
+		}
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			if (It->Bay == TestBay)
+				Line += FString::Printf(TEXT("; bay %d's bike at z %.1f (on lift %d)"), TestBay + 1, It->GetActorLocation().Z, B->LiftOf(TestBay));
+		Said(Line);
 		return true;
 	}
 	if (Verb == TEXT("bikelog"))

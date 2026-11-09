@@ -9,6 +9,7 @@
 #include "Shed/TorquePaintBayRoom.h"
 #include "Shed/TorqueBoothHooks.h"
 #include "Shed/TorqueShedRadio.h"
+#include "Shed/TorqueBikeLift.h"
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
@@ -166,6 +167,8 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 	case ETorquePlace::Hook: return FString::Printf(TEXT("Spray bay hook %d"), P.Index + 1);
 	case ETorquePlace::Radio: return TEXT("Shed radio (everyone hears it)");
 	case ETorquePlace::Tape: return TEXT("Masking tape");
+	case ETorquePlace::Lift:
+		return FString::Printf(TEXT("%s (%s)"), *UTorqueBuildSubsystem::LiftName(P.Index), (B && B->LiftUp(P.Index)) ? TEXT("up") : TEXT("down"));
 	case ETorquePlace::PaintBench:
 		if (B && B->PaintBay().BenchBy != 0 && B->PaintBay().BenchBy != B->Me()) return TEXT("Mixing bench (someone's at it)");
 		return TEXT("Mixing bench");
@@ -327,6 +330,8 @@ void ATorqueWalker::BeginPlay()
 		bool bRadio = false;
 		for (TActorIterator<ATorqueShedRadio> It(World); It; ++It) bRadio = true;
 		if (!bRadio) World->SpawnActor<ATorqueShedRadio>(TorqueShedRadio::At, FRotator::ZeroRotator);
+		// And the bike lifts: one under each bay's stand, and the wash bay's.
+		ATorqueBikeLift::SpawnMissing(World);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -665,8 +670,21 @@ void ATorqueWalker::ReadInput(float Dt)
 		TurnKeyFor = -1.0;
 		CarryFor = 0;
 		HoldTurn = 0.0;
-		if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
-		if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+		if (SprayItem != 0 && SprayHook() != INDEX_NONE)
+		{
+			// The spray controls up on a part on a booth hook: Q / E, the wheel or L1 / R1 wind the hook
+			// down and up (a click a step, held it keeps going), so you can get at it all without
+			// putting the gun down. F puts the controls down to change tool.
+			const bool bUpHeld = KeyDown(ETorqueKey::NextTool) || Down(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1);
+			const bool bDownHeld = KeyDown(ETorqueKey::PrevTool) || Down(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1);
+			SprayWind(Dt, bNext ? 1 : (bPrev ? -1 : 0), bUpHeld ? 1 : (bDownHeld ? -1 : 0));
+		}
+		else
+		{
+			SprayWind(Dt, 0, 0);
+			if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
+			if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+		}
 	}
 	static const ETorqueKey Numbers[] = {ETorqueKey::Tool1, ETorqueKey::Tool2, ETorqueKey::Tool3, ETorqueKey::Tool4, ETorqueKey::Tool5,
 		ETorqueKey::Tool6, ETorqueKey::Tool7};
@@ -2153,6 +2171,17 @@ void ATorqueWalker::Interact()
 		OpenComputer();
 		return;
 	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Lift)
+	{
+		// A bike lift's button post (walker.gd interact "lift"): up if it's down, down if it's up.
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::Lift;
+		R.Item = TargetPlace->Index;
+		R.Colour = B->LiftUp(TargetPlace->Index) ? 0 : 1;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		return;
+	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
 	{
 		// The radio's switch (walker.gd: interact at the radio).
@@ -2202,6 +2231,11 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 		if (Missing.Num() > 0) Why += TEXT(" Fit the ") + TWI::SlotList(Missing) + TEXT(".");
 		if (Loose.Num() > 0) Why += TEXT(" Bolt up the ") + TWI::SlotList(Loose) + TEXT(".");
 		Say(Why, false, 4.0);
+		return;
+	}
+	if (B->LiftRaised(Bay))
+	{
+		Say(TEXT("It's up on the lift. Lower the lift first (F on the button post)."), false, 3.0);
 		return;
 	}
 	const FString Fab = B->FabOwedText(Bay);
@@ -2460,6 +2494,8 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({TWI::PlaceName(*TargetPlace, B), FColor::White, 0.8f});
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Lift)
+				HudLines.Add({B->LiftUp(TargetPlace->Index) ? TEXT("F / Triangle: lower it") : TEXT("F / Triangle: raise it"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Radio)
 			{
 				// What's on (walker.gd: the station, then the song), and its switch.
@@ -2713,6 +2749,7 @@ FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 	FTransform To = UTorqueBuildSubsystem::HomeOf(Bay);
 	if (Where == 1) To = UTorqueBuildSubsystem::RigTransform();
 	else if (Where == 2) To.AddToTranslation(FVector(0.0, 250.0, 0.0));
+	else if (Where == 3) To = TorqueShedLayout::WashLiftXf();
 	const FRotator Heading(0.0, To.Rotator().Yaw, 0.0);
 	const FVector Ahead = Heading.Vector(), Right = FRotationMatrix(Heading).GetUnitAxis(EAxis::Y);
 	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
@@ -2726,9 +2763,11 @@ FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 	bool bThere = B->IsAway(Bay) && B->DynoBay() != Bay && B->Bike(Bay).Pusher == 0;
 	if (Where == 0) bThere = !B->IsAway(Bay);
 	else if (Where == 1) bThere = B->DynoBay() == Bay;
+	else if (Where == 3) bThere = B->LiftOf(Bay) == UTorqueBuildSubsystem::WashLift;
 	FString WhereText = TEXT("home");
 	if (Where == 1) WhereText = TEXT("onto the rig");
 	else if (Where == 2) WhereText = TEXT("mid-floor");
+	else if (Where == 3) WhereText = TEXT("onto the wash bay lift");
 	FString Result = TEXT("it didn't park there");
 	if (bThere) Result = Note.IsEmpty() ? FString(TEXT("there")) : Note;
 	return FString::Printf(TEXT("wheeled bay %d's bike %s: %s"), Bay + 1, *WhereText, *Result);

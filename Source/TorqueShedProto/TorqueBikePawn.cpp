@@ -1840,6 +1840,12 @@ void ATorqueBikePawn::UpdateRider()
 			In.LeverPull[0] = FMath::Max(PullShift, Held);
 		}
 		for (int32 S = 0; S < 2; ++S)
+			if (TestLeverHold[S] >= 0.0)
+			{
+				In.LeverFingers[S] = 1.0;
+				In.LeverPull[S] = FMath::Clamp(TestLeverHold[S], 0.0, 1.0);
+			}
+		for (int32 S = 0; S < 2; ++S)
 		{
 			if (!LeverParts[S]) continue;
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
