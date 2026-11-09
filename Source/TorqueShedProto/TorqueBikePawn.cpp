@@ -1172,28 +1172,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	// The clutch, held (F): the engine spins free of the box in any gear. The key (I): the engine
 	// off, or the starter cranks it and it fires (not on an empty tank, or with the bike down).
-	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch);
-	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition))
-	{
-		UTorqueSfx* Sfx = UTorqueSfx::Get(this);
-		if (Sim->EngineOn || Sim->IsStarting())
-		{
-			Sim->StopEngine();
-			EngineNote = TEXT("Engine off");
-			EngineNoteFor = 1.2;
-		}
-		else
-		{
-			Sim->FuelLitres = Dash.FuelLitres;
-			const std::string Why = Sim->StartEngine();
-			if (!Why.empty())
-			{
-				EngineNote = UTF8_TO_TCHAR(Why.c_str());
-				EngineNoteFor = 2.0;
-			}
-			else if (Sfx) Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 0.8f);
-		}
-	}
+	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch;
+	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition)) PressIgnition();
 	// ABS: Circle/B or the B key. Off, the rear brake will lock the wheel.
 	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || FTorqueKeys::Just(PC, ETorqueKey::Abs))
 	{
@@ -1260,6 +1240,49 @@ void ATorqueBikePawn::RestartRide()
 	RideTime = 0.0;
 	bFinished = false;
 	Respawn(0);
+}
+
+void ATorqueBikePawn::PressIgnition()
+{
+	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
+	if (Sim->EngineOn || Sim->IsStarting())
+	{
+		Sim->StopEngine();
+		EngineNote = TEXT("Engine off");
+		EngineNoteFor = 1.2;
+	}
+	else
+	{
+		Sim->FuelLitres = Dash.FuelLitres;
+		const std::string Why = Sim->StartEngine();
+		if (!Why.empty())
+		{
+			EngineNote = UTF8_TO_TCHAR(Why.c_str());
+			EngineNoteFor = 2.0;
+		}
+		else if (Sfx) Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 0.8f);
+	}
+}
+
+FString ATorqueBikePawn::TestControl(const FString& What, int32 Arg)
+{
+	if (What == TEXT("gear"))
+	{
+		bManual = true;
+		Sim->AutoShift = false;
+		if (Arg > 0) Sim->ShiftUp();
+		else Sim->ShiftDown();
+	}
+	else if (What == TEXT("ignition")) PressIgnition();
+	else if (What == TEXT("clutch"))
+	{
+		bTestClutch = Arg != 0;
+		Sim->ClutchIn = bTestClutch;
+	}
+	const TCHAR* Engine = Sim->IsStarting() ? TEXT("cranking") : Sim->EngineOn ? TEXT("running") : TEXT("off");
+	return FString::Printf(TEXT("gear %s at %.1f mph, engine %s (%.0f rpm), clutch %s, %s gears"),
+		Sim->Gear == BikeSim::NEUTRAL ? TEXT("N") : *FString::FromInt(Sim->Gear), Sim->Speed * 2.23694, Engine, Sim->Rpm,
+		Sim->ClutchIn ? TEXT("in") : TEXT("out"), bManual ? TEXT("manual") : TEXT("automatic"));
 }
 
 void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)

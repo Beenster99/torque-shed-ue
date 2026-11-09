@@ -90,6 +90,9 @@
 //                         e.g. camera:3:60:35:40:-20:rhand, the right hand on its grip from below
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
+//   gear:up|down, ignition, clutch:1|0, bikestate   on the road: a click of the gear lever (the box goes
+//                         manual), the key (I), the clutch held or let go (F), or nothing; each logs the gear,
+//                         speed, engine, revs and clutch after it, e.g. "gear N at 0.0 mph, engine running"
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   brakestop[:<mph>][:flat]  on the road: the robot holds mph (60) on a straight, then brakes as a road test
 //                         does (front full, rear 0.6, realism 0.5) to a stop; logs the distance, time, average g,

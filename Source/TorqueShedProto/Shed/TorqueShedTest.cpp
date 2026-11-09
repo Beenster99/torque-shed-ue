@@ -423,7 +423,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
+		Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -436,6 +437,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		// gear:up|down, ignition, clutch:1|0 and bikestate: the stage 3 controls as their keys work them.
+		if (Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
+		{
+			const FString Arg = P.Num() > 1 ? P[1].ToLower() : FString();
+			const int32 N = Verb == TEXT("gear") ? (Arg == TEXT("down") ? -1 : 1) : (Arg == TEXT("0") || Arg == TEXT("off") ? 0 : 1);
+			Said(Bike->TestControl(Verb == TEXT("bikestate") ? FString(TEXT("state")) : Verb, N));
+			return true;
+		}
 		if (Verb == TEXT("lever"))
 		{
 			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
