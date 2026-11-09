@@ -339,6 +339,9 @@ private:
 	bool bTestAutoRide = false;
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
 	bool bTestClutch = false;   // TestControl's clutch, held
+	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
+	double PadStartHeld = 0.0;
+	bool bPadRBWas = false, bPadComboUsed = false, bPadStartDone = false;
 	void PressIgnition();   // the key (I): off, or the starter
 	// TestStartMove's manoeuvre: which (-1 none), its phase (0 getting up to speed, 1 measuring), the
 	// speed it's held at (m/s), and what it has measured so far.

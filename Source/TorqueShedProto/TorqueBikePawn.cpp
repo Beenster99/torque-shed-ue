@@ -1290,8 +1290,34 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
 	if (FTorqueKeys::Just(PC, ETorqueKey::Restart)) RestartRide();
-	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
-		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::R1 | ESonyButton::Create))
+	// The pad's starter (beenster): LB and RB held together for a moment start the engine. RB alone
+	// changes the camera, now as it's let go (so the start doesn't change it as well); LB alone is
+	// the rear brake as before.
+	const bool bPadLB = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
+	const bool bPadRB = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
+	bool bCameraTap = false;
+	if (bPadRB)
+	{
+		if (bPadLB)
+		{
+			PadStartHeld += Dt;
+			bPadComboUsed = true;
+			if (PadStartHeld >= 0.3 && !bPadStartDone)
+			{
+				bPadStartDone = true;
+				if (!Sim->EngineOn && !Sim->IsStarting()) PressIgnition();
+			}
+		}
+		bPadRBWas = true;
+	}
+	else
+	{
+		if (bPadRBWas && !bPadComboUsed) bCameraTap = true;   // RB let go, no start: the camera
+		bPadRBWas = bPadComboUsed = bPadStartDone = false;
+		PadStartHeld = 0.0;
+	}
+	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || bCameraTap ||
+		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::Create))
 	{
 		CameraMode = (CameraMode + 1) % CameraModes;
 		bCamInit = false;
@@ -3116,7 +3142,7 @@ void ATorqueBikePawn::DrawHud()
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
-		Add(TEXT("      R1 camera   Triangle back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.85f);
+		Add(TEXT("      R1 camera   L1 + R1 held: start   Triangle get off (stopped) / back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.85f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),
