@@ -12,6 +12,7 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make         make the avatars below by script and build them without the
                                            cloud (logs can_build_meta_human's reason if a rig is needed)
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
+    py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
 Or without opening the editor:
     UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="G:/Dev/torque-shed-ue/Tools/ue_metahumans.py discover" -unattended
@@ -26,7 +27,13 @@ import sys
 import unreal
 
 ROOT = "/Game/MetaHumans"            # what the game uses: the built Blueprints and meshes (cooked once avatars exist)
-SOURCES = "/Game/MetaHumanSources"   # the MetaHuman Character assets they're built from: never cooked
+SOURCES = "/Game/MetaHumanSources"
+# How the avatars are built: shed walkers seen at 2-10 m. UE Optimized at Medium keeps a face that
+# holds up at 2 m, with card hair (strands only come at High/Cinematic); try "LOW" if size matters
+# more. Every texture under /Game/MetaHumans is then capped at MAX_TEXTURE (`py ... slim` redoes it).
+PIPELINE_TYPE = "OPTIMIZED"    # the pipeline_type member whose name has this
+PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
+MAX_TEXTURE = 1024   # the MetaHuman Character assets they're built from: never cooked
 AVATARS = [   # the people made by `make`: a name each and the preset to start from (the first that exists)
     {"name": "Avatar_A"}, {"name": "Avatar_B"}, {"name": "Avatar_C"}, {"name": "Avatar_D"},
 ]
@@ -123,6 +130,152 @@ def _vary_body(sub, ch, i):
         unreal.log_warning("[Torque] set_body_constraints failed: %s" % e)
 
 
+def _find_class(*words):
+    """The first unreal class whose name has all of words (case blind), for structs whose exact
+    name this engine version decides."""
+    for n in sorted(dir(unreal)):
+        low = n.lower()
+        if all(w in low for w in words):
+            return getattr(unreal, n)
+    return None
+
+
+def _is_rigged(sub, ch):
+    """True / False from whichever is-rigged query this version has, or None when it has none."""
+    for n in ("is_character_rigged", "is_rigged", "has_face_dna", "get_rigging_state"):
+        if not hasattr(sub, n):
+            continue
+        try:
+            v = getattr(sub, n)(ch)
+        except Exception:
+            continue
+        if isinstance(v, bool):
+            return v
+        txt = str(v).upper()   # an enum such as RIGGED / UNRIGGED / RIG_REQUIRES_REFIT
+        return ("RIGGED" in txt and "UNRIGGED" not in txt and "NOT" not in txt)
+    for n in ("is_rigged", "has_face_dna"):
+        if hasattr(ch, n):
+            try:
+                return bool(getattr(ch, n)())
+            except Exception:
+                pass
+    return None
+
+
+def _auto_rig(sub, ch, name):
+    try:
+        params = unreal.MetaHumanCharacterAutoRiggingRequestParams() if hasattr(unreal, "MetaHumanCharacterAutoRiggingRequestParams") else None
+        if params is not None:
+            rt = getattr(unreal, "MetaHumanRigType", None)
+            if rt is not None and hasattr(rt, "JOINTS_ONLY"):
+                _set_first(params, rt.JOINTS_ONLY, "rig_type")
+            _set_first(params, True, "blocking", "b_blocking")
+            sub.request_auto_rigging(ch, params)
+        else:
+            sub.request_auto_rigging(ch)
+        log("%s: auto-rig requested (cloud)" % name)
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: request_auto_rigging failed (signed in to Epic?): %s" % (name, e))
+
+
+def _texture_sources(sub, ch, name):
+    """Download Texture Sources (cloud, blocking, 2K where it can be chosen): the build refuses a
+    character without them."""
+    if not hasattr(sub, "request_texture_sources"):
+        unreal.log_warning("[Torque] %s: no request_texture_sources in this API" % name)
+        return
+    try:
+        cls = _find_class("metahuman", "texture", "request", "param") or _find_class("metahuman", "texture", "source", "param")
+        params = cls() if cls else None
+        if params is not None:
+            log("texture request params (%s): %s" % (type(params).__name__, _props(params)))
+            _set_first(params, True, "blocking", "b_blocking")
+            res = _find_class("metahuman", "texture", "resolution") or _find_class("metahuman", "texture", "quality")
+            if res is not None:
+                v = next((getattr(res, n) for n in dir(res) if "2K" in n.upper() or "2048" in n), None)
+                if v is not None:
+                    for f in ("resolution", "face_resolution", "body_resolution", "texture_resolution", "quality"):
+                        _set_first(params, v, f)
+            sub.request_texture_sources(ch, params)
+        else:
+            sub.request_texture_sources(ch)
+        log("%s: texture sources requested (cloud)" % name)
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: request_texture_sources failed: %s" % (name, e))
+
+
+def _save(ch, name):
+    try:
+        ok = unreal.EditorAssetLibrary.save_loaded_asset(ch, only_if_is_dirty=False)
+        log("%s: saved = %s" % (name, ok))
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: save failed: %s" % (name, e))
+
+
+def _export_materials(lib, ch, name, folder):
+    """Copy the character's materials into its avatar folder, so the exported meshes stop using the
+    plugin's placeholder (which isn't packaged) and register can take them as a body-only avatar."""
+    if not hasattr(lib, "export_materials"):
+        unreal.log_warning("[Torque] %s: no export_materials in this API" % name)
+        return
+    unreal.log("[Torque] export_materials: " + (lib.export_materials.__doc__ or "").strip()[:800])
+    cls = _find_class("metahuman", "material", "export", "param")
+    try:
+        if cls is not None:
+            mp = cls()
+            log("material export params (%s): %s" % (cls.__name__, _props(mp)))
+            _set_first(mp, folder, "project_path", "output_folder", "path")
+            _set_first(mp, True, "overwrite_existing_assets")
+            r = lib.export_materials(ch, mp)
+        else:
+            r = lib.export_materials(ch, folder)
+        log("%s: export_materials to %s = %s" % (name, folder, r))
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: export_materials failed: %s" % (name, e))
+
+
+def _set_enum(obj, field, word):
+    """Set an enum field to its member whose name contains word (logging the choices)."""
+    try:
+        cur = obj.get_editor_property(field)
+    except Exception:
+        log("no %s in %s" % (field, type(obj).__name__))
+        return
+    members = [n for n in dir(type(cur)) if n.isupper()]
+    pick = next((n for n in members if word in n), None)
+    log("%s: %s of %s -> %s" % (field, cur, ", ".join(members), pick))
+    if pick:
+        obj.set_editor_property(field, getattr(type(cur), pick))
+
+
+def slim():
+    """Cap every texture under /Game/MetaHumans at MAX_TEXTURE (what's cooked is the cap, the
+    source stays), and list the grooms (strand hair is the big one; cards are fine)."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    if not unreal.EditorAssetLibrary.does_directory_exist(ROOT):
+        return
+    capped = 0
+    for a in reg.get_assets_by_path(ROOT, recursive=True):
+        cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
+        pkg = str(a.package_name)
+        if cls in ("Texture2D", "VirtualTexture2D"):
+            t = unreal.load_asset(pkg)
+            if t is None:
+                continue
+            try:
+                w = t.blueprint_get_size_x()
+                cur = t.get_editor_property("max_texture_size")
+                if w > MAX_TEXTURE and (cur == 0 or cur > MAX_TEXTURE):
+                    t.set_editor_property("max_texture_size", MAX_TEXTURE)
+                    unreal.EditorAssetLibrary.save_loaded_asset(t, only_if_is_dirty=False)
+                    capped += 1
+            except Exception as e:
+                unreal.log_warning("[Torque] couldn't cap %s: %s" % (pkg, e))
+        elif cls in ("GroomAsset", "GroomBindingAsset"):
+            log("groom: %s %s" % (cls, pkg))
+    log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
+
+
 def make(rig=False):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
@@ -166,20 +319,16 @@ def make(rig=False):
             continue
         _vary_body(sub, ch, i)
         if rig:
-            try:
-                params = unreal.MetaHumanCharacterAutoRiggingRequestParams() if hasattr(unreal, "MetaHumanCharacterAutoRiggingRequestParams") else None
-                if params is not None:
-                    log("auto-rig params: " + _props(params))
-                    rt = getattr(unreal, "MetaHumanRigType", None)
-                    if rt is not None and hasattr(rt, "JOINTS_ONLY"):
-                        _set_first(params, rt.JOINTS_ONLY, "rig_type")
-                    _set_first(params, True, "blocking", "b_blocking")
-                    sub.request_auto_rigging(ch, params)
-                else:
-                    sub.request_auto_rigging(ch)
-                log("%s: auto-rig requested (cloud)" % name)
-            except Exception as e:
-                unreal.log_warning("[Torque] %s: request_auto_rigging failed (signed in to Epic?): %s" % (name, e))
+            if _is_rigged(sub, ch) is not True:
+                _auto_rig(sub, ch, name)
+                if _is_rigged(sub, ch) is False:
+                    log("%s: still not rigged after the auto-rig; trying once more" % name)
+                    _auto_rig(sub, ch, name)
+                log("%s: rigged = %s" % (name, _is_rigged(sub, ch)))
+            else:
+                log("%s: already rigged" % name)
+            _texture_sources(sub, ch, name)
+            _save(ch, name)
         ok = False
         try:
             ok = sub.can_build_meta_human(ch, True)   # logs its reason when it says no
@@ -193,6 +342,13 @@ def make(rig=False):
             used = _set_first(bp, folder, "absolute_build_path", "build_path", "output_folder", "output_path")
             _set_first(bp, name, "name_override", "name", "asset_name")
             log("%s: build path set via %s" % (name, used))
+            _set_enum(bp, "pipeline_type", PIPELINE_TYPE)
+            _set_enum(bp, "pipeline_quality", PIPELINE_QUALITY)
+            # A rebuild at another quality leaves the old build's files behind, and /Game/MetaHumans
+            # is always cooked, so clear this avatar's old build first.
+            if unreal.EditorAssetLibrary.does_directory_exist(folder):
+                log("%s: clearing the old build in %s" % (name, folder))
+                unreal.EditorAssetLibrary.delete_directory(folder)
             try:
                 sub.build_meta_human(ch, bp)
                 built = True
@@ -218,6 +374,9 @@ def make(rig=False):
                         dp.set_editor_property("path", folder)
                         used = _set_first(xp, dp, "project_path")
                     _set_first(xp, True, "overwrite_existing_assets")
+                    _set_first(xp, True, "full_body_skeletal_mesh")   # head and body as one posable mesh
+                    _set_first(xp, True, "body_skeletal_mesh")
+                    _set_first(xp, True, "head_skeletal_mesh")
                     for f in ("body_skeletal_mesh", "full_body_skeletal_mesh", "head_skeletal_mesh", "project_path"):
                         try:
                             v = xp.get_editor_property(f)
@@ -228,9 +387,11 @@ def make(rig=False):
                     log("%s: export_geometry to %s (folder via %s) = %s" % (name, folder, used, r))
                 except Exception as e:
                     unreal.log_warning("[Torque] %s: export_geometry failed: %s" % (name, e))
+                _export_materials(lib, ch, name, folder)
         for d in (src_folder, folder):
             if unreal.EditorAssetLibrary.does_directory_exist(d):
                 unreal.EditorAssetLibrary.save_directory(d, only_if_is_dirty=True, recursive=True)
+    slim()
     log("make finished: see the can_build_meta_human lines above for whether a cloud rig (Epic sign-in) is needed")
 
 
@@ -315,6 +476,17 @@ def _incomplete_body(pkg):
     outside = [m.get_path_name() for m in mats if not m.get_path_name().startswith("/Game/")]
     if outside:
         return "materials outside /Game (plugin content isn't packaged): " + ", ".join(outside[:3])
+    mel = getattr(unreal, "MaterialEditingLibrary", None)
+    if mel is not None and hasattr(mel, "get_used_textures"):
+        tex = set()
+        for m in mats:
+            try:
+                tex.update(t.get_path_name() for t in mel.get_used_textures(m) if t is not None)
+            except Exception:
+                pass
+        outside = sorted(t for t in tex if not t.startswith("/Game/") and not t.startswith("/Engine/"))
+        if outside:
+            return "textures outside /Game (plugin content isn't packaged): " + ", ".join(outside[:3])
     names = _bone_names(mesh)
     if names is None:
         log("%s: couldn't list its bones from Python; not checked" % pkg)
@@ -367,11 +539,12 @@ def register():
             continue
         if av in by_name:
             continue
-        body = [p for p, n in meshes if avatar_of(p) == av and "body" in n.lower() and "face" not in n.lower()]
+        body = sorted((p for p, n in meshes if avatar_of(p) == av and "body" in n.lower() and "face" not in n.lower()),
+                      key=lambda p: "full" not in p.lower())
         by_name[av] = {"name": av, "blueprint": "%s.%s_C" % (pkg, name),
                        "body": "%s.%s" % (body[0], body[0].rsplit("/", 1)[1]) if body else ""}
         log("avatar %s: %s (body %s)" % (av, by_name[av]["blueprint"], by_name[av]["body"] or "found in the Blueprint"))
-    for pkg, name in sorted(meshes):
+    for pkg, name in sorted(meshes, key=lambda m: "full" not in m[1].lower()):   # a full body (with head) first
         av = avatar_of(pkg)
         if av in by_name or "body" not in name.lower() or "face" in name.lower():
             continue
@@ -405,6 +578,8 @@ def main(args):
     mode = args[0] if args else "register"
     if mode == "discover":
         discover()
+    elif mode == "slim":
+        slim()
     elif mode == "make":
         make(rig=len(args) > 1 and args[1] == "rig")
         register()

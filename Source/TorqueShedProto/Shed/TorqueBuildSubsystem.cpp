@@ -229,7 +229,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	Mine = 0;
 	bHostCopy = false;
 	// The project bikes the shed starts with (shed_state's demo bikes: a couple to get stuck into).
-	for (int32 I = 0; I < StartBikes && I < Bays; ++I) NewStockBike(I, Rng.FRandRange(0.35f, 0.6f));
+	for (int32 I = 0; I < StartBikes && I < Bays; ++I) NewProjectBike(I, Rng.FRandRange(0.35f, 0.6f));
 	Builds.SetNum(Bays);
 	for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
 	UE_LOG(LogTemp, Log, TEXT("Torque: a new shed: %d project bikes, %d parts"), StartBikes, Items.Num());
@@ -407,6 +407,12 @@ void UTorqueBuildSubsystem::Load()
 			KV.Value.At = ETorqueAt::Floor;
 			KV.Value.Place = FTransform(TorqueShedLayout::DropAt() + FVector(Rng.FRandRange(-60.0f, 60.0f), Rng.FRandRange(-40.0f, 40.0f), 0.0));
 		}
+	if (DropSpeedTwins() > 0)
+	{
+		Builds.SetNum(Bays);
+		for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
+		MarkSave();
+	}
 	int32 Count = 0;
 	for (const FTorqueShedBike& B : Bikes) Count += B.bExists ? 1 : 0;
 	UE_LOG(LogTemp, Log, TEXT("Torque: shed loaded from %s: %d bikes, %d parts"), *SaveSlot, Count, Items.Num());
@@ -840,6 +846,102 @@ void UTorqueBuildSubsystem::NewStockBike(int32 Bay, float Age)
 			Items[Block].Bolted.Add(S, true);
 		}
 	}
+}
+
+bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& Style)
+{
+	// shed_state _style_bike: a project bike built as a style's reference bike from the part list
+	// (any style for "any old project bike"), every part as worn as Age.
+	if (!Bikes.IsValidIndex(Bay)) return false;
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay || Lay->Styles().empty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: no fitting layout (Data/Fitment/layout.json): no project bike for bay %d"), Bay + 1);
+		return false;
+	}
+	const std::vector<std::string>& StyleIds = Lay->Styles();
+	const std::string Want = Style.IsEmpty() ? StyleIds[Rng.RandRange(0, (int32)StyleIds.size() - 1)] : TBI::Std(Style.ToLower());
+	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(Want);
+	if (Ref.empty()) return false;
+	{
+		FTorqueShedBike& B = Bikes[Bay];
+		B = FTorqueShedBike();
+		B.bExists = true;
+		B.Id = NextId++;
+		B.Name = TBI::BikeNames[Rng.RandRange(0, (int32)UE_ARRAY_COUNT(TBI::BikeNames) - 1)];
+		B.Model = FName(TorqueShedParts::StockModel);   // (the fitment API's name for a bike; its parts are the catalogue's)
+		for (const FName& S : TorqueShedParts::BikeSlots())
+		{
+			B.Slots.Add(S, 0);
+			B.Bolted.Add(S, false);
+		}
+	}
+	// The engine first, so the parts that go on it have a block to go on.
+	TArray<FName> Order;
+	Order.Add(TBI::EngineKind());
+	for (const FName& S : TorqueShedParts::Slots())
+		if (S != TBI::EngineKind()) Order.Add(S);
+	for (const FName& S : Order)
+	{
+		if (ItemOn(Bay, S) != 0) continue;
+		const TorqueFit::PartsMap::const_iterator Found = Ref.find(TBI::Id(S));
+		if (Found == Ref.end() || Found->second.empty() || Found->second == "none") continue;
+		const FName Part(*TBI::Ue(Found->second));
+		if (!TorqueShedParts::IsPart(Part) || !HostOf(Bay, S, 0).Slots) continue;
+		const int32 Id = AgedItem(Part, Age);
+		if (S == TBI::EngineKind())
+			for (const FName& ES : TorqueShedParts::EngineSlots())
+			{
+				Items[Id].Slots.Add(ES, 0);
+				Items[Id].Bolted.Add(ES, false);
+			}
+		const FHost H = HostOf(Bay, S, 0);   // (looked up again: adding an item may move the items' storage)
+		Move(Id, H.Engine != 0 ? ETorqueAt::Engine : ETorqueAt::Bike, H.Engine != 0 ? H.Engine : Bay);
+		H.Slots->Add(S, Id);
+		H.Bolted->Add(S, true);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s, a %s project bike, in bay %d"), *Bikes[Bay].Name, *TBI::Ue(Want), Bay + 1);
+	return true;
+}
+
+int32 UTorqueBuildSubsystem::DropSpeedTwins()
+{
+	// Every bike is made from the part list now (the Speed Twin model is out of the game): a saved
+	// bike with any of the Speed Twin's own parts on it becomes a project bike in its bay, and any
+	// Speed Twin part left about the shed goes.
+	int32 Bikes2 = 0;
+	for (int32 Bay = 0; Bay < Bikes.Num(); ++Bay)
+	{
+		if (!Bikes[Bay].bExists) continue;
+		bool bTwin = false;
+		for (const FName& S : TorqueShedParts::Slots())
+			if (const FTorqueItem* It = Items.Find(ItemOn(Bay, S))) bTwin = bTwin || TorqueShedParts::IsStock(It->Part);
+		if (!bTwin) continue;
+		for (const FName& S : TorqueShedParts::BikeSlots())
+			if (const int32 Id = Bikes[Bay].Slots.FindRef(S)) EraseItem(Id);
+		NewProjectBike(Bay, Rng.FRandRange(0.35f, 0.6f));
+		++Bikes2;
+	}
+	TArray<int32> Loose;
+	for (const TPair<int32, FTorqueItem>& KV : Items)
+		if (TorqueShedParts::IsStock(KV.Value.Part)) Loose.Add(KV.Key);
+	for (int32 Id : Loose)
+	{
+		// (Off an engine or a wheel that stays: clear its place there first.)
+		for (TPair<int32, FTorqueItem>& KV : Items)
+		{
+			for (TPair<FName, int32>& Sl : KV.Value.Slots)
+				if (Sl.Value == Id) Sl.Value = 0;
+			if (KV.Value.Tyre == Id) KV.Value.Tyre = 0;
+		}
+		for (FTorqueShedBike& B : Bikes)
+			for (TPair<FName, int32>& Sl : B.Slots)
+				if (Sl.Value == Id) Sl.Value = 0;
+		EraseItem(Id);
+	}
+	if (Bikes2 > 0 || Loose.Num() > 0)
+		UE_LOG(LogTemp, Log, TEXT("Torque: the saved shed's Speed Twins are project bikes now (%d bikes, %d loose Speed Twin parts gone)"), Bikes2, Loose.Num());
+	return Bikes2 + Loose.Num();
 }
 
 void UTorqueBuildSubsystem::Move(int32 Id, ETorqueAt At, int32 Ref, FName Spot)
@@ -2096,7 +2198,11 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	case ETorqueShedAct::OrderBike:
 	{
 		const int32 Bay = FreeBay();
-		NewStockBike(Bay, Rng.FRandRange(0.35f, 0.9f));
+		if (!NewProjectBike(Bay, Rng.FRandRange(0.35f, 0.9f)))
+		{
+			Text = TEXT("No project bike could be found (the part list's bike layout is missing).");
+			break;
+		}
 		Text = FString::Printf(TEXT("%s has been delivered to bay %d"), *Bikes[Bay].Name, Bay + 1);
 		PartsOf.Add(Bay);
 		break;

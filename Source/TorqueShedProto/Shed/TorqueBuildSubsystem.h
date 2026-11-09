@@ -203,7 +203,7 @@ public:
 
 	// --- The bays --------------------------------------------------------------------------
 	static constexpr int32 Bays = 4;
-	static constexpr int32 StartBikes = 2;   // a new shed: a project Speed Twin in each of the first two bays
+	static constexpr int32 StartBikes = 2;   // a new shed: a project bike in each of the first two bays
 	int32 NumBikes() const { return Bikes.Num(); }
 	bool Exists(int32 Bay) const { return Bikes.IsValidIndex(Bay) && Bikes[Bay].bExists; }
 	const FTorqueShedBike& Bike(int32 Bay) const;
@@ -429,6 +429,11 @@ private:
 	void Move(int32 Id, ETorqueAt At, int32 Ref, FName Spot = NAME_None);
 	void EraseItem(int32 Id);
 	void NewStockBike(int32 Bay, float Age);
+	// A project bike from the part list: a style's reference bike (any style when Style is empty),
+	// every part aged. False (the bay left as it was) without the fitting layout.
+	bool NewProjectBike(int32 Bay, float Age, const FString& Style = FString());
+	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
+	int32 DropSpeedTwins();
 	int32 FreeBay() const;
 	int32 FreeDelivery() const;
 	FString DoApply(int32 Peer, const FTorqueShedRequest& R);

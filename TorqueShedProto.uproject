@@ -17,6 +17,7 @@
 		{ "Name": "OnlineSubsystemNull", "Enabled": true },
 		{ "Name": "OnlineSubsystemUtils", "Enabled": true },
 		{ "Name": "DLSS", "Enabled": true, "Optional": true },
-		{ "Name": "MetaHumanCharacter", "Enabled": true, "TargetAllowList": [ "Editor" ] }
+		{ "Name": "MetaHumanCharacter", "Enabled": true, "TargetAllowList": [ "Editor" ] },
+		{ "Name": "LiveLink", "Enabled": true }
 	]
 }

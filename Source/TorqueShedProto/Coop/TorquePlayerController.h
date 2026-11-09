@@ -14,6 +14,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "SonyPad.h"
+#include "TorqueMenuMouse.h"
 #include "TorqueShedNet.h"
 #include "TorquePlayerController.generated.h"
 
@@ -88,6 +89,16 @@ public:
 	static void TypeText(APlayerController* PC, FString& Text, int32 Max);
 private:
 	void ReadMenuInput(float Dt);
+	// The mouse on the menus (TorqueMenuMouse.h): where the last drawing put things, the pointer's
+	// last place (a row is picked only when it moves), and the cursor shown while a menu is up.
+	FTorqueMenuHits Hits;
+	FVector2D LastMouse = FVector2D(-1.0, -1.0);
+	bool bCursorMine = false;
+	void UpdateCursor();
+public:
+	// Whether the pointer moved this frame (and where it is): shared with the start menu.
+	static bool MouseMoved(APlayerController* PC, FVector2D& Last, FVector2D& Now);
+private:
 	bool WantsPause();
 
 	// The shed in co-op.

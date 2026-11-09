@@ -433,7 +433,51 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 	Clock += DeltaTime;
 	NoteFor -= DeltaTime;
 	SyncPlayerState(DeltaTime);
+	UpdateCursor();
 	ReadMenuInput(DeltaTime);
+}
+
+void ATorquePlayerController::UpdateCursor()
+{
+	// The pointer while a menu's up (the start menu or this one), for the mouse to work it; back to
+	// the game's own (hidden, captured) when it closes, unless something else had it showing (geometry mode).
+	const bool bWant = Page != EPage::None || Cast<ATorqueMenuPawn>(GetPawn()) != nullptr;
+	if (bWant && !bCursorMine)
+	{
+		bCursorMine = true;
+		if (!bShowMouseCursor)
+		{
+			bShowMouseCursor = true;
+			FInputModeGameAndUI Mode;
+			Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			Mode.SetHideCursorDuringCapture(false);
+			SetInputMode(Mode);
+		}
+		else
+		{
+			bCursorMine = false;   // already shown by someone else: theirs to hide
+		}
+	}
+	else if (!bWant && bCursorMine)
+	{
+		bCursorMine = false;
+		bShowMouseCursor = false;
+		SetInputMode(FInputModeGameOnly());
+	}
+}
+
+bool ATorquePlayerController::MouseMoved(APlayerController* PC, FVector2D& Last, FVector2D& Now)
+{
+	float MX = 0.f, MY = 0.f;
+	if (!PC || !PC->GetMousePosition(MX, MY))
+	{
+		Now = FVector2D(-1.0, -1.0);
+		return false;
+	}
+	Now = FVector2D(MX, MY);
+	const bool bMoved = Last.X >= 0.0 && FVector2D::DistSquared(Now, Last) > 1.0;
+	Last = Now;
+	return bMoved;
 }
 
 void ATorquePlayerController::ReadMenuInput(float Dt)
@@ -496,6 +540,44 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 			return;
 		}
 	}
+	// The mouse: over a row picks it, a click chooses it or steps it (its arrows, or the next value),
+	// a click on a tab opens it, the wheel moves, the right button goes back.
+	{
+		FVector2D Mouse;
+		const bool bMoved = MouseMoved(this, LastMouse, Mouse);
+		const FTorqueMenuHits::FHit* Over = Hits.At(Mouse);
+		if (bMoved && Over && Over->Kind != FTorqueMenuHits::Tab && List.IsValidIndex(Over->Index) && Over->Index != Selected)
+		{
+			if (bTyping) Changed();   // leaving the name keeps it
+			Selected = Over->Index;
+		}
+		if (Just(EKeys::MouseScrollUp)) MoveY = -1;
+		if (Just(EKeys::MouseScrollDown)) MoveY = 1;
+		if (Just(EKeys::LeftMouseButton) && Over)
+		{
+			if (Over->Kind == FTorqueMenuHits::Tab)
+			{
+				if (Over->Index != TabIndex()) SwitchTab(Over->Index - TabIndex());
+				return;
+			}
+			if (List.IsValidIndex(Over->Index))
+			{
+				Selected = Over->Index;
+				FRow& Row = List[Selected];
+				if (Over->Kind == FTorqueMenuHits::Less && Row.Step) Row.Step(-1);
+				else if (Over->Kind == FTorqueMenuHits::More && Row.Step) Row.Step(1);
+				else if (Row.Choose) Row.Choose();
+				else if (Row.Step) Row.Step(1);
+				return;
+			}
+		}
+		if (Just(EKeys::RightMouseButton))
+		{
+			if (bTyping) Changed();
+			Back();
+			return;
+		}
+	}
 	if (MoveY != 0) Selected = Wrap(Selected + MoveY, List.Num());
 	else if (MoveX != 0 && List[Selected].Step) List[Selected].Step(MoveX);
 
@@ -512,6 +594,7 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 
 void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 {
+	Hits.Reset();
 	if (Page == EPage::None || !Hud || !Canvas || !GEngine) return;
 	UFont* Font = GEngine->GetLargeFont();
 	const float Sc = Canvas->ClipY / 1080.0f;
@@ -540,12 +623,13 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 			Canvas->StrLen(Font, Tab, W, H);
 			const float K = Sc * 1.3f;
 			Hud->DrawRect(bOn ? FLinearColor(0.85f, 0.65f, 0.25f, 0.85f) : FLinearColor(0, 0, 0, 0.45f), TX, Y - 4.0f * Sc, W * K, H * K + 8.0f * Sc);
+			Hits.Add(TX, Y - 4.0f * Sc, TX + W * K, Y + H * K + 4.0f * Sc, T, FTorqueMenuHits::Tab);
 			Canvas->SetDrawColor(bOn ? FColor(20, 20, 20) : FColor(220, 220, 220));
 			Canvas->DrawText(Font, Tab, TX, Y, K, K);
 			TX += W * K + 8.0f * Sc;
 			if (T == 4) Y += H * K + 18.0f * Sc;
 		}
-		Line(TEXT("Q / E, L1 / R1 or LB / RB: the other tabs"), FColor(190, 190, 190), 0.85f, 0.0f);
+		Line(TEXT("Click a tab, or Q / E, L1 / R1 or LB / RB: the other tabs"), FColor(190, 190, 190), 0.85f, 0.0f);
 	}
 	// As Torque Shed's Esc menu: hosting, exactly what to tell friends; who's here.
 	if (Page == EPage::Pause)
@@ -577,13 +661,28 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 		FString Text = (bSel ? TEXT(">  ") : TEXT("    ")) + List[I].Label;
 		if (!List[I].Value.IsEmpty()) Text += List[I].Step && bSel ? FString::Printf(TEXT(":   <  %s  >"), *List[I].Value) : FString::Printf(TEXT(":   %s"), *List[I].Value);
 		const bool bInfo = !List[I].Choose && !List[I].Step;
-		Line(Text, bSel ? FColor(255, 220, 120) : (bInfo ? FColor(210, 210, 210) : FColor(235, 235, 235)), bInfo ? 1.0f : (bSel ? 1.4f : 1.25f),
-			bSel ? 0.6f : 0.35f);
+		const float Size = bInfo ? 1.0f : (bSel ? 1.4f : 1.25f);
+		const float Top = Y;
+		Line(Text, bSel ? FColor(255, 220, 120) : (bInfo ? FColor(210, 210, 210) : FColor(235, 235, 235)), Size, bSel ? 0.6f : 0.35f);
+		// Where it went, for the mouse: the row's box (the width of the menu, easy to hit), and a
+		// setting's < and > when they're drawn.
+		const float K = Sc * Size, Bottom = Y - 8.0f * Sc;
+		if (!bInfo) Hits.Add(X - 16.0f * Sc, Top - 6.0f * Sc, X + 900.0f * Sc, Bottom, I, FTorqueMenuHits::Row);
+		int32 Less = INDEX_NONE, More = INDEX_NONE;
+		if (bSel && List[I].Step && Text.FindChar(TEXT('<'), Less) && Text.FindLastChar(TEXT('>'), More) && More > Less)
+		{
+			float WL = 0, WM = 0, WA = 0, H = 0;
+			Canvas->StrLen(Font, Text.Left(Less), WL, H);
+			Canvas->StrLen(Font, Text.Left(More), WM, H);
+			Canvas->StrLen(Font, TEXT(">"), WA, H);
+			Hits.Add(X + WL * K - 14.0f * Sc, Top - 6.0f * Sc, X + (WL + WA) * K + 14.0f * Sc, Bottom, I, FTorqueMenuHits::Less);
+			Hits.Add(X + WM * K - 14.0f * Sc, Top - 6.0f * Sc, X + (WM + WA) * K + 14.0f * Sc, Bottom, I, FTorqueMenuHits::More);
+		}
 	}
 	Y += 16.0f * Sc;
 	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Line(List[Selected].Hint, FColor(190, 210, 240), 1.0f, 0.35f);
 	Y = Canvas->ClipY - 90.0f * Sc;
-	Line(TEXT("Up/Down to pick   Left/Right to change   Enter, Cross or A to choose   Esc, Circle or B back"), FColor(200, 200, 200), 0.9f, 0.35f);
+	Line(TEXT("Mouse: click to choose, < > to change, right-click back   Keys: Up/Down, Left/Right, Enter, Esc   Pad: Cross or A, Circle or B"), FColor(200, 200, 200), 0.9f, 0.35f);
 }
 
 void ATorquePlayerController::DrawNote(AHUD* Hud, UCanvas* Canvas)

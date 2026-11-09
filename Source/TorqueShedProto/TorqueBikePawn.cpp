@@ -281,6 +281,13 @@ FVector ModelDirToLocal(const FVector& D) { return FVector(D.X, D.Z, D.Y).GetSaf
 void ATorqueBikePawn::BuildModel()
 {
 	if (BuildCatalogueModel()) return;
+	// Every bike is made from the part list: the Speed Twin model (beenster's own bike, the
+	// prototype's) only comes back for the fitting tests (-TorqueBuild=) or with -TorqueSpeedTwin.
+	if (FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) == nullptr && !FParse::Param(FCommandLine::Get(), TEXT("TorqueSpeedTwin")))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: no bike from the part list to ride (no shed bike); using shapes"));
+		return;
+	}
 	// The level script imports the parts and writes where they are, with the importer's frame.
 	TSharedPtr<FJsonObject> Assets, Spec;
 	if (!LoadJson(TEXT("Data/Bike/SpeedTwin/ue_assets.json"), Assets) ||
@@ -569,10 +576,16 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	if (FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) != nullptr) return false;
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (!B) return false;
-	const int32 Bay = UTorqueBuildSubsystem::BikeFor(this);
-	if (Bay < 0) return false;
+	// Your bike, or (none in that bay) the shed's first bike from the part list.
+	int32 Bay = UTorqueBuildSubsystem::BikeFor(this);
 	TMap<FString, FString> Parts;
-	if (!B->LayoutParts(Bay, Parts)) return false;
+	if (Bay < 0 || !B->LayoutParts(Bay, Parts))
+	{
+		Bay = INDEX_NONE;
+		for (int32 I = 0; I < UTorqueBuildSubsystem::Bays && Bay < 0; ++I)
+			if (B->LayoutParts(I, Parts)) Bay = I;
+		if (Bay < 0) return false;
+	}
 	// Its own physics, or if that won't work out, the Speed Twin's (on which the drawn bike's origin,
 	// at its own rear axle's height, is lifted or dropped to the Speed Twin's 31 cm).
 	BikeSpec Spec;
@@ -591,7 +604,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	if (Drawn <= 0)
 	{
 		Holder->DestroyComponent();
-		UE_LOG(LogTemp, Warning, TEXT("Torque: bay %d's catalogue bike drew nothing; riding the Speed Twin"), Bay + 1);
+		UE_LOG(LogTemp, Warning, TEXT("Torque: bay %d's catalogue bike drew nothing"), Bay + 1);
 		return false;
 	}
 	FTorqueBikeFitView Fit;
