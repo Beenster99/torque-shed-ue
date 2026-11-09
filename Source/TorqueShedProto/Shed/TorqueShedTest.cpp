@@ -217,6 +217,14 @@ const TCHAR* const PhysicsSteps =
 // The movable kit: the yard's test area, a cone looked at, taken hold of, turned both ways, carried
 // and put down; a ramp ordered from the Shed aisle into the drop-off and a stool into the shed's;
 // the shed saved and the kit logged.
+// [fluids] The pump and the cans: the bike wheeled up to the pump and filled, an oil bottle carried
+// and sloshed, oil poured in and drained into the pan, the chain lubed, the levels on the bay TV.
+const TCHAR* const FluidSteps =
+	TEXT("fluid:log,look:pump,shot,wheel:pump,pump:lift,pump:state,pump:fill:20,pump:state,shot,pump:hang,pump:state,wheel:home,")
+	TEXT("fluid:carry:drain_pan,crouch:1,part:engine,act,fluid:log,crouch:0,fluid:drop,")
+	TEXT("fluid:carry:oil,fluid:slosh,fluid:slosh:3,wait:0.4,fluid:slosh,shot,wait:4,fluid:slosh,part:engine,act,fluid:log,fluid:drop,")
+	TEXT("fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,look:screen,shot,fluid:log");
+
 const TCHAR* const KitSteps =
 	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
 	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
@@ -256,6 +264,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("fluids")) FString(TSTI::FluidSteps).ParseIntoArray(Preset, TEXT(","), true);   // [fluids]
 		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
@@ -948,6 +957,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
 			Distance = 300.0;
 		}
+		// [fluids] The petrol pump on the front wall outside, from the yard (its display and holster).
+		else if (What == TEXT("pump")) { At = UTorqueBuildSubsystem::PumpAt().TransformPosition(FVector(0.0, 25.0, 115.0)); Away = FVector(0.25, 1.0, 0.0).GetSafeNormal(); Distance = 200.0; }
 		else if (What == TEXT("paintbay")) { At = FVector(1565.0, 0.0, 120.0); Away = FVector(-0.35, -1.0, 0.0).GetSafeNormal(); Distance = 420.0; }
 		// The scale and its read-out on the bench's front edge, from where you'd stand at the bench.
 		else if (What == TEXT("mixbench")) { At = FVector(1645.0, -40.0, 90.0); Away = FVector(-1.0, -0.15, 0.0).GetSafeNormal(); Distance = 95.0; }
@@ -1119,12 +1130,24 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(W->TestColour(Args));
 		return true;
 	}
+	if (Verb == TEXT("pump") || Verb == TEXT("fluid"))
+	{
+		// [fluids] pump:lift|fill[:seconds]|hang|state, fluid:carry:<kind or part>|log|slosh[:kick]
+		// (ATorqueWalker::TestFluid); each logs the litres, the nozzle and the can's slosh.
+		TArray<FString> Args;
+		for (int32 I = 1; I < P.Num(); ++I) Args.Add(P[I].ToLower());
+		const FString Out = W->TestFluid(Verb, Args, TestBay);
+		if (Out.StartsWith(TEXT("not ")) || Out.StartsWith(TEXT("can't ")) || Out.StartsWith(TEXT("failed "))) Warn(Out);
+		else Said(Out);
+		return true;
+	}
 	if (Verb == TEXT("wheel") && P.Num() >= 2)
 	{
 		int32 Where = 0;
 		if (P[1] == TEXT("rig")) Where = 1;
 		else if (P[1] == TEXT("floor")) Where = 2;
 		else if (P[1] == TEXT("wash")) Where = 3;
+		else if (P[1] == TEXT("pump")) Where = 4;   // [fluids]
 		Said(W->TestWheel(TestBay, Where));
 		LogBuild(TEXT("after it"));
 		return true;

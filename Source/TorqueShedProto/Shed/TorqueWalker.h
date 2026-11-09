@@ -166,6 +166,11 @@ public:
 	void StartAdventure();
 	// Order from the parts computer, as its menu does: a part id, or "bike" for a project bike.
 	FString TestOrder(FName Part);
+	// [fluids] (TorqueWalkerFluids.cpp) pump: lift, fill[:seconds] (bay Bay's bike, as the work
+	// button), hang, state; fluid: carry:<kind or part>, log, slosh[:kick]. Each says the litres
+	// before and after, the nozzle's state, the can's slosh.
+	FString TestFluid(const FString& Verb, const TArray<FString>& Args, int32 Bay);
+	FString FluidLog() const;
 	// The movable kit (TorqueWalkerFurniture.cpp): look:<model or piece id> (stand back from the nearest
 	// one and look at it), grab, turn:<deg>, walk:<x>:<y> (carry it there), drop, order:<model> (the
 	// parts computer's Shed aisle), log. Each says what happened and where the piece is.

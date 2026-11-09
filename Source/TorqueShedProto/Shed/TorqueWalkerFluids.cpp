@@ -5,8 +5,10 @@
 // lube on a chain; at the general waste bin it's tipped away).
 #include "Shed/TorqueWalker.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
+#include "EngineUtils.h"
 
 namespace
 {
@@ -159,4 +161,172 @@ bool ATorqueWalker::FluidPlan(int32 Held)
 	DrainTo.Request.Item = Into;
 	DrainTo.Blocked = B->Check(Me, DrainTo.Request);
 	return true;
+}
+
+// --- For the tests (UTorqueShedTest pump: and fluid: steps) -------------------------------------------
+
+FString ATorqueWalker::FluidLog() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!B) return TEXT("no shed");
+	FString Out;
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+	{
+		if (!B->Exists(Bay)) continue;
+		const UTorqueBuildSubsystem::FFluidLevels F = B->FluidsOf(Bay);
+		auto Pc = [](bool bHas, float V) { return bHas ? FString::Printf(TEXT("%.0f%%"), V * 100.0f) : FString(TEXT("-")); };
+		Out += FString::Printf(TEXT("[bay %d %s: fuel %s, oil %s (age %.2f), brake F %s R %s, chain lube %s] "), Bay + 1, *B->Bike(Bay).Name,
+			F.bTank ? *FString::Printf(TEXT("%.2f / %.1f L"), F.FuelLitres, F.FuelCapacity) : TEXT("-"),
+			*Pc(F.bEngine, F.Oil), F.OilAge, *Pc(F.bFrontBrake, F.FrontBrake), *Pc(F.bRearBrake, F.RearBrake), *Pc(F.bChain, F.Lube));
+	}
+	const int32 Me = B->Me();
+	const FTorqueItem* Can = B->Item(B->HeldBy(Me));
+	if (Can && TorqueShedParts::IsFluid(Can->Part))
+		Out += FString::Printf(TEXT("[in hand: item %d %s, %.2f of %.2f L] "), Can->Id, *Can->Part.ToString(), Can->Litres, TorqueShedParts::FluidCapacity(Can->Part));
+	const int32 By = B->PumpHeldBy();
+	Out += FString::Printf(TEXT("[pump: nozzle %s, sale %.2f L]"), By == 0 ? TEXT("hung up") : (By == Me ? TEXT("in my hand") : TEXT("in someone else's hand")), B->PumpSale());
+	return Out;
+}
+
+FString ATorqueWalker::TestFluid(const FString& Verb, const TArray<FString>& Args, int32 Bay)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return TEXT("not ready: no shed");
+	const int32 Me = B->Me();
+	const FString What = Args.Num() > 0 ? Args[0] : FString(TEXT("log"));
+	Note.Reset();
+	if (What == TEXT("log") || What == TEXT("state")) return FluidLog();
+
+	if (Verb == TEXT("pump"))
+	{
+		if (What == TEXT("lift"))
+		{
+			if (B->PumpHeldBy() == Me) return TEXT("already holding the nozzle: ") + FluidLog();
+			// From the yard, in front of the cabinet, looking at it.
+			const FTorquePlace* Place = TorqueShedLayout::FindPlace(FName(TEXT("petrol_pump")));
+			if (!Place) return TEXT("not there: no petrol_pump place");
+			const FString Seen = TestLookAt(Place->Box.GetCenter(), FVector(0.2, 1.0, 0.0).GetSafeNormal(), 110.0);
+			FindTarget();
+			if (!(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
+				return TEXT("not looking at the pump: ") + Seen + TEXT(" (went into: ") + TestCandidates() + TEXT(")");
+			FluidInput(true);
+			return FString::Printf(TEXT("F at the pump: %s; %s"), Note.IsEmpty() ? TEXT("-") : *Note, *FluidLog());
+		}
+		if (What == TEXT("hang"))
+		{
+			if (B->PumpHeldBy() != Me) return TEXT("not holding the nozzle: ") + FluidLog();
+			FluidInput(true);
+			return FString::Printf(TEXT("F with the nozzle: %s; %s"), Note.IsEmpty() ? TEXT("-") : *Note, *FluidLog());
+		}
+		if (What == TEXT("fill"))
+		{
+			if (B->PumpHeldBy() != Me) return TEXT("can't fill: not holding the nozzle (pump:lift first)");
+			if (!B->Exists(Bay)) return TEXT("can't fill: no bike in that bay");
+			const float Before = B->FuelOf(Bay);
+			const double Seconds = Args.Num() > 1 ? FMath::Clamp(FCString::Atod(*Args[1]), 0.5, 120.0) : 10.0;
+			// Stand by the filler on the pump's side and hold the work button, a squirt each half second.
+			const FVector Filler = B->FillerOf(Bay);
+			FVector Side = (UTorqueBuildSubsystem::PumpHoseRoot() - Filler).GetSafeNormal2D();
+			if (Side.IsNearlyZero()) Side = FVector(0.0, 1.0, 0.0);
+			const FString Seen = TestLookAt(Filler, Side, 90.0);
+			int32 Squirts = 0;
+			FString Stop = TEXT("held for the time");
+			for (double T = 0.0; T < Seconds; T += 0.5)
+			{
+				ReAim();
+				FindTarget();
+				MakePlan();
+				if (!Plan.bValid || Plan.Request.Kind != ETorqueShedAct::PumpFill)
+				{
+					Stop = TEXT("no fill plan looking at ") + Describe();
+					break;
+				}
+				if (!Plan.Blocked.IsEmpty())
+				{
+					Stop = Plan.Blocked;
+					break;
+				}
+				if (!Do(Plan)) { Stop = Note; break; }
+				++Squirts;
+			}
+			const float After = B->FuelOf(Bay);
+			const FString Out = FString::Printf(TEXT("filled bay %d (looking at %s): %d squirts, fuel %.2f -> %.2f of %.1f L, stopped: %s%s; %s"),
+				Bay + 1, *Seen, Squirts, Before, After, B->FuelCapacityOf(Bay), *Stop, Note.IsEmpty() ? TEXT("") : *(TEXT(" [") + Note + TEXT("]")), *FluidLog());
+			return After > Before + 0.01f ? Out : TEXT("failed to fill: ") + Out;
+		}
+		return TEXT("not a pump step: ") + What;
+	}
+
+	// fluid:
+	if (What == TEXT("carry"))
+	{
+		if (Args.Num() < 2) return TEXT("not said what: fluid:carry:<oil|petrol|brake_fluid|chain_lube|part id>");
+		FString Want = Args[1];
+		if (Want == TEXT("brake")) Want = TEXT("brake_fluid");
+		else if (Want == TEXT("lube")) Want = TEXT("chain_lube");
+		else if (Want == TEXT("pan")) Want = TEXT("drain_pan");
+		const FName WantName(*Want);
+		if (const FTorqueItem* Held = B->Item(B->HeldBy(Me)))
+		{
+			if (Held->Part == WantName || (TorqueShedParts::PartKind(Held->Part) == WantName && !TorqueShedParts::ComesEmpty(Held->Part)))
+				return TEXT("already holding it: ") + FluidLog();
+			return TEXT("can't: hands full (fluid:drop first)");
+		}
+		// The fullest one lying about (a part id, or a kind's that doesn't come empty); else order one.
+		auto Find = [&]()
+		{
+			int32 Best = 0;
+			float BestL = -1.0f;
+			for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+			{
+				const FTorqueItem& It = KV.Value;
+				if (!TorqueShedParts::IsFluid(It.Part) || (It.At != ETorqueAt::Floor && It.At != ETorqueAt::Spot)) continue;
+				const bool bMatch = It.Part == WantName || (TorqueShedParts::PartKind(It.Part) == WantName && !TorqueShedParts::ComesEmpty(It.Part));
+				if (bMatch && It.Litres > BestL) { BestL = It.Litres; Best = KV.Key; }
+			}
+			return Best;
+		};
+		int32 Id = Find();
+		FString Ordered;
+		if (Id == 0)
+		{
+			FName Part = WantName;
+			if (!TorqueShedParts::IsFluid(Part))
+				for (const FName& P : TorqueShedParts::PartsOfKind(WantName))
+					if (!TorqueShedParts::ComesEmpty(P)) { Part = P; break; }
+			if (!TorqueShedParts::IsFluid(Part)) return TEXT("not a fluid: ") + Want;
+			Ordered = TestOrder(Part) + TEXT("; ");
+			Id = Find();
+			if (Id == 0) return TEXT("not delivered: ") + Ordered;
+		}
+		const FTorqueItem* It = B->Item(Id);
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::Take;
+		if (It->At == ETorqueAt::Floor) R.Item = Id;
+		else R.Spot = It->Spot;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) return TEXT("can't take it: ") + WhyNot;
+		return Ordered + FString::Printf(TEXT("took item %d (%s); "), Id, *It->Part.ToString()) + FluidLog();
+	}
+	if (What == TEXT("drop"))
+	{
+		if (B->HeldBy(Me) == 0) return TEXT("nothing in hand");
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::Drop;
+		R.Place = CarryDrop();
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) return TEXT("can't put it down: ") + WhyNot;
+		return TEXT("put it down");
+	}
+	if (What == TEXT("slosh"))
+	{
+		const int32 Held = B->HeldBy(Me);
+		if (Held == 0) return TEXT("not holding a can");
+		const double Kick = Args.Num() > 1 ? FCString::Atod(*Args[1]) : 0.0;
+		FString Out = TEXT("not drawn: no shed items");
+		for (TActorIterator<ATorqueShedItems> It(GetWorld()); It; ++It)
+			if (!It->TestSlosh(Held, FVector2D(Kick, Kick * 0.4), Out)) Out = TEXT("not drawn as a can: ") + Out;
+		return Out;
+	}
+	return TEXT("not a fluid step: ") + What;
 }

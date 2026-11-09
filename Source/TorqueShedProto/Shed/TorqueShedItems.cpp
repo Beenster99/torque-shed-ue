@@ -645,3 +645,19 @@ void ATorqueShedItems::TickVessels(float DeltaSeconds)
 		TorqueFluidModels::Update(KV.Value, Fill, Colour, Can->FluidAge, DeltaSeconds);
 	}
 }
+
+bool ATorqueShedItems::TestSlosh(int32 Item, const FVector2D& Kick, FString& Out)
+{
+	TorqueFluidModels::FVessel* V = Vessels.Find(Item);
+	if (!V)
+	{
+		Out = FString::Printf(TEXT("item %d isn't drawn as a can"), Item);
+		return false;
+	}
+	V->TiltRate += Kick;
+	const double Deg = FMath::RadiansToDegrees(FMath::Atan(V->Tilt.Size()));
+	Out = FString::Printf(TEXT("slosh: level shown %.2f, surface tilt %.1f deg (x %.3f, y %.3f), swinging %.2f/s, liquid %s%s"),
+		V->Shown, Deg, V->Tilt.X, V->Tilt.Y, V->TiltRate.Size(), V->Liquid.IsValid() ? TEXT("drawn") : TEXT("none (opaque can)"),
+		Kick.IsNearlyZero() ? TEXT("") : TEXT(", kicked"));
+	return true;
+}
