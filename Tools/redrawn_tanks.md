@@ -161,6 +161,17 @@ list naked; the naked reference bike still has no fairing.
   voxel surface (1.2 mm), smoothed, and decimated to about 90k triangles; each face takes the finish of the
   nearest built face (lamp and vent finishes only on faces turned to the front), lone faces take their
   neighbours' finish, and the points on each finish border are moved onto that border's smooth edge.
+- Finish borders as real edges: after the remesh, every front-facing edge that crosses the lamp, housing
+  or vent outline (the zero level of its smoothed signed distance) is split there and its faces split
+  along the cut, then each face takes its finish from the drawing at its centre. The borders are edge loops
+  on the drawn line, kept through decimation (lod0 is about 160k triangles, lod1 14k, lod2 2.5k).
+  N4 and N5's lamps are drawn with inner modules; each lamp is filled as one lens (`lens_close`).
+- Hand-placed creases: candidate strokes are traced from the front drawing (`creases.py`), and the ones
+  that aren't panel creases (bolt eyes, screen mounts, lamp-housing lips, vent edges, N3's fork legs,
+  brackets) are left out per drawing (`crease_drop` in `ncfg.py`). Each kept stroke is a smooth spline,
+  mirrored; points within a voxel slide onto it so the apex is one clean chain, and a V 2.5-4.5 mm deep
+  and about 4.5 mm wide each side is pressed in (ridge or valley as the drawing's depth says), sharp at
+  the line and easing into the panels. The crease lines are protected when decimating.
 - Shells: cowl 3 mm, separate smoked screen 4 mm (`glass`), lamps drawn in the fairing (`lens_white`,
   6 mm back, in a dark `plastic` housing 3 mm back); the fitted bike's own headlight is hidden. Hatched
   vents are 5 mm `plastic` recesses. The stays are 6 mm `black_metal` plates where the side view draws them,

@@ -233,8 +233,12 @@ ATorqueGeometryMode* ATorqueGeometryMode::For(const AController* Controller)
 	return nullptr;
 }
 
+namespace { uint64 GGeoClosedFrame = 0; }   // the frame geometry mode last closed in
+
 bool ATorqueGeometryMode::Open(ATorqueWalker* Walker, int32 LookedAtBay, FString& WhyNot)
 {
+	// The F2 that just closed it (this tick, before the walker's) mustn't open it again at once.
+	if (GFrameCounter <= GGeoClosedFrame + 1) return true;
 	UWorld* World = Walker ? Walker->GetWorld() : nullptr;
 	APlayerController* PC = Walker ? Cast<APlayerController>(Walker->GetController()) : nullptr;
 	if (!World || !PC) return false;
@@ -458,6 +462,7 @@ void ATorqueGeometryMode::Close()
 	}
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->ReportActivity(FString());
 	S.PC = nullptr;   // (no longer this player's: For() won't find it)
+	GGeoClosedFrame = GFrameCounter;
 	Destroy();
 }
 
