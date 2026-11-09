@@ -150,17 +150,25 @@ void ATorqueWashMist::UpdateVolumetric(bool bWant)
 {
 	UExponentialHeightFogComponent* F = HeightFog.Get();
 	if (!F) return;
-	// Only when the player's Settings have volumetric fog on (r.VolumetricFog): it costs.
+	// Volumetric fog cost the shed ~3x its GPU time when it was on everywhere (round 88), so only
+	// while there's mist and you're near it, only when the Settings already have volumetric fog on
+	// (r.VolumetricFog), only to 25 m out, and torque.WashVolumetric 0 keeps the mist to the local
+	// fog volume alone (its own cheap pass) for measuring.
+	static TAutoConsoleVariable<int32> CVarWash(TEXT("torque.WashVolumetric"), 1,
+		TEXT("1: the wash bay's mist turns on volumetric fog (near the bay, while misty, if r.VolumetricFog is on). 0: local fog volume only."));
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricFog"));
-	if (bWant && CVar && CVar->GetInt() == 0) bWant = false;
+	if (bWant && ((CVar && CVar->GetInt() == 0) || CVarWash.GetValueOnGameThread() == 0)) bWant = false;
 	if (bWant && !bTurnedOnVolumetric && !F->bEnableVolumetricFog)
 	{
+		WasFogDistance = F->VolumetricFogDistance;
+		F->SetVolumetricFogDistance(2500.0f);
 		F->SetVolumetricFog(true);
 		bTurnedOnVolumetric = true;
 	}
 	else if (!bWant && bTurnedOnVolumetric)
 	{
 		F->SetVolumetricFog(false);
+		F->SetVolumetricFogDistance(WasFogDistance);
 		bTurnedOnVolumetric = false;
 	}
 }
