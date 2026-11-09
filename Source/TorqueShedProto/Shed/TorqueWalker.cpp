@@ -1739,6 +1739,50 @@ void ATorqueWalker::CarryInput(float Dt, bool bOut, bool bIn, bool bTurnDown, bo
 	}
 }
 
+FString ATorqueWalker::TestCarry(const FString& What, double Value)
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
+	if (Held == 0) return TEXT("not holding a part");
+	if (Held != CarryFor)
+	{
+		CarryFor = Held;
+		CarryReach = 0.0;
+		HoldTurn = 0.0;
+	}
+	TurnKeyFor = -1.0;
+	if (What == TEXT("reach")) CarryReach = FMath::Clamp(Value, TWI::CarryMin, TWI::CarryMax);
+	else if (What == TEXT("wheel")) CarryReach = FMath::Clamp(CarryReach + TWI::CarryStep * FMath::RoundToDouble(Value), TWI::CarryMin, TWI::CarryMax);
+	else if (What == TEXT("turn")) HoldTurn = FRotator::NormalizeAxis(Value);
+	else if (What == TEXT("turntap"))
+	{
+		// As taps of R: each onto the next quarter (CarryInput).
+		const int32 Taps = FMath::RoundToInt(Value);
+		for (int32 I = 0; I < FMath::Abs(Taps); ++I)
+			HoldTurn = FRotator::NormalizeAxis(90.0 * FMath::RoundToDouble((HoldTurn + (Taps < 0 ? -90.0 : 90.0)) / 90.0));
+	}
+	FindTarget();
+	MakePlan();
+	UpdateCues();
+	return CarryText();
+}
+
+FString ATorqueWalker::CarryText() const
+{
+	int32 Shown = 0;
+	for (const UStaticMeshComponent* C : GhostParts) if (C && C->IsVisible()) ++Shown;
+	int32 Through = 0;
+	for (const UStaticMeshComponent* C : GhostXRayParts) if (C && C->IsVisible()) ++Through;
+	const FTransform& At = Plan.Request.Place;
+	const bool bDrop = Plan.bValid && Plan.Request.Kind == ETorqueShedAct::Drop;
+	return FString::Printf(TEXT("carry: reach %+.0f cm, turned %.0f deg, plan '%s'%s%s, drop %s, box %s (%d pieces, %d seen through)"),
+		CarryReach, FRotator::ClampAxis(HoldTurn), Plan.bValid ? *Plan.Verb : TEXT("none"),
+		Plan.Blocked.IsEmpty() ? TEXT("") : TEXT(" BLOCKED: "), *Plan.Blocked,
+		bDrop ? *FString::Printf(TEXT("at (%.0f, %.0f, %.0f) yaw %.0f, %.0f cm ahead"), At.GetLocation().X, At.GetLocation().Y, At.GetLocation().Z,
+			At.Rotator().Yaw, FVector::Dist2D(At.GetLocation(), GetActorLocation())) : TEXT("none (not on the floor)"),
+		Shown == 0 ? TEXT("hidden") : (Plan.Blocked.IsEmpty() ? TEXT("blue") : TEXT("red")), Shown, Through);
+}
+
 FTransform ATorqueWalker::CarryDrop() const
 {
 	const UTorqueBuildSubsystem* B = Shed();

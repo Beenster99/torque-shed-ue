@@ -130,6 +130,10 @@ public:
 	FString TestAct(bool bAlt = false);
 	// Hold the work button for this long (the lance's passes, a real hold).
 	void TestHoldAct(double Seconds) { ActHeldFor = Seconds; }
+	// Carrying a part, as the wheel and R would (Reach: cm beyond arm's length, Wheel: clicks out (+) or
+	// in (-), Turn: degrees, Taps: quarter turns): then the plan and drop box as they stand. Says it.
+	FString TestCarry(const FString& What, double Value);
+	FString CarryText() const;
 	// Press F at what's looked at (unpack, the computer, ride out).
 	FString TestInteract();
 	// Order from the parts computer, as its menu does: a part id, or "bike" for a project bike.
