@@ -492,6 +492,9 @@ void ATorqueShedItems::Draw(int32 Id)
 			D.Hook = HookP->Index;
 			D.Height = Box.GetSize().Z;
 		}
+	if (It->At == ETorqueAt::Spot)
+		if (const FTorquePlace* StandP = TorqueShedLayout::FindPlace(It->Spot); StandP && StandP->Kind == ETorquePlace::Stand)
+			D.bOnStand = true;   // [kit]
 	Drawn.Add(D);
 	// Where it sits: on its place, on the floor where it was put, or in someone's hands (Tick).
 	FTransform Rest;
@@ -503,6 +506,8 @@ void ATorqueShedItems::Draw(int32 Id)
 		if (P && P->Kind == ETorquePlace::Bench) Rest.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
 		// Hung on a spray bay hook: its top at the hook's tip, along the rail, never down on the grate.
 		if (P && P->Kind == ETorquePlace::Hook) Rest = HungAt(D.Hook, D.Height);
+		// [kit] On the engine stand: turned as the stand is.
+		if (P && P->Kind == ETorquePlace::Stand) Rest.SetRotation(TorqueShedLayout::StandNow().GetRotation());
 	}
 	else if (It->At == ETorqueAt::Floor)
 		Rest = It->Place;
@@ -551,6 +556,16 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 			// On a booth hook: at its height, swinging with it.
 			const FTransform Rest = HungAt(D.Hook, D.Height);
 			H->SetWorldLocationAndRotation(Rest.GetLocation() - Rest.GetRotation().RotateVector(D.Offset), Rest.GetRotation());
+			continue;
+		}
+		if (H && D.HeldBy == 0 && D.bOnStand)
+		{
+			// [kit] On the engine stand: where it is now, rolling with it while someone wheels it.
+			if (const FTorquePlace* P = TorqueShedLayout::FindPlace(FName(TEXT("stand"))))
+			{
+				const FQuat Turn = TorqueShedLayout::StandNow().GetRotation();
+				H->SetWorldLocationAndRotation(P->Put - Turn.RotateVector(D.Offset), Turn);
+			}
 			continue;
 		}
 		if (!H || D.HeldBy == 0) continue;
