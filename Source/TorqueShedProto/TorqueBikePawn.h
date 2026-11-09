@@ -69,6 +69,9 @@ public:
 	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
 	FString TestRideLog() const;
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
+	// from straight ahead (90: side on from the bike's right).
+	void TestCamera(int32 Mode, double Yaw) { CameraMode = FMath::Clamp(Mode, 0, CameraModes - 1); OrbitYaw = Yaw; bOrbitHeld = true; }
 
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
 	UPROPERTY(EditAnywhere, Category = "Ride", meta = (ClampMin = "0", ClampMax = "1"))
@@ -200,7 +203,11 @@ private:
 	FVector RiderSeat = FVector::ZeroVector, RiderPeg[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's
-	double RiderBackDeg = 0.0;                  // and the back's lean for it (+ forward)
+	double RiderBackDeg = 0.0;                  // and the back's lean for it, forward of upright
+	bool bRiderLaidBack = false;                // cruiser or chopper seating (feet forward)
+	FString RiderStyle;                         // Torque Shed's riding style (situp, scratcher...)
+	double RiderReach[2] = {0.0, 0.0}, RiderArm = 0.0;        // shoulder to wrist, and the arm's length
+	double RiderLegReach[2] = {0.0, 0.0}, RiderLeg = 0.0;     // hip to ankle, and the leg's length
 	FTransform RiderSeatFit = FTransform::Identity, RiderPegFit[2], RiderGripFit[2];
 	FVector PoseHip = FVector::ZeroVector, PoseWrist[2] = {FVector::ZeroVector, FVector::ZeroVector}, PoseAnkle[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	void FitRiderToBike();
