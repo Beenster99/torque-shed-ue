@@ -445,8 +445,8 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		if (bOnlyFitted && P.Slot != "frame")
 		{
 			// Only what's fitted: the layout dresses an empty slot with a stand-in (bars, tyres...).
-			const auto Fitted = Map.find(P.Slot);
-			if (Fitted != Map.end() && (Fitted->second.empty() || Fitted->second == "none")) continue;
+			const auto InSlot = Map.find(P.Slot);
+			if (InSlot != Map.end() && (InSlot->second.empty() || InSlot->second == "none")) continue;
 		}
 		TorqueFit::PartMesh Glb;
 		if (!TSCI::LoadPart(P.Glb, Glb)) continue;
