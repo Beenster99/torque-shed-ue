@@ -57,6 +57,10 @@ public:
 	FString TestSetup(const FString& StyleId, const TArray<FString>& Swaps);
 	FString OrderText() const;
 	FString Describe() const;
+	// The colour picker for the test steps (the PC's driver has no mouse): "open:SLOT" (tank, wheels,
+	// badge_logo, ...), "sv:S:V", "hue:H" (0..360), "hex:RRGGBB", "was" (back to where it started),
+	// "close". Says what the picker and the bike's colour are after it.
+	FString TestColour(const TArray<FString>& Args);
 
 private:
 	// The bike being configured: its style and parts (fitting's, in the .cpp), the colours picked

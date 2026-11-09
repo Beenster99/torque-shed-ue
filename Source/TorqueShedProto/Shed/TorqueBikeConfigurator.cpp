@@ -378,6 +378,63 @@ FString FTorqueBikeConfigurator::Describe() const
 	return Out;
 }
 
+FString FTorqueBikeConfigurator::TestColour(const TArray<FString>& Args)
+{
+	const FString Step = Args.Num() > 0 ? Args[0] : FString();
+	if (Step == TEXT("open"))
+	{
+		if (Args.Num() < 2) return TEXT("colour:open needs a slot (tank, wheels, badge_logo, ...)");
+		const FString Key = Args[1];
+		if (bDirty) Relist();
+		const bool bBadge = Key == TEXT("badge_logo") || Key == TEXT("badge_brand");
+		if (!bBadge && !TakesColour(Key)) return FString::Printf(TEXT("the %s takes no colour on this bike"), *Key);
+		// Under its swatch as the page last drew it (else near the top left of the page).
+		FBox2D Anchor(FVector2D(420.0, 160.0), FVector2D(470.0, 180.0));
+		for (const FHit& H : Hits)
+			if ((H.What == EHit::Colour && SlotRows.IsValidIndex(H.Arg) && SlotRows[H.Arg].Slot == Key) ||
+				(H.What == EHit::BadgeColour && (H.Arg == 0 ? TEXT("badge_logo") : TEXT("badge_brand")) == Key))
+				Anchor = H.Box;
+		OpenPopup(EPopup::Colour, Key, Anchor);
+	}
+	else if (Popup != EPopup::Colour) return TEXT("the colour picker isn't open (colour:open:SLOT first)");
+	else if (Step == TEXT("sv") && Args.Num() >= 3)
+	{
+		PopupSat = FMath::Clamp(FCString::Atof(*Args[1]), 0.0f, 1.0f);
+		PopupVal = FMath::Clamp(FCString::Atof(*Args[2]), 0.0f, 1.0f);
+		SetColour(PopupKey, PickedColour());
+	}
+	else if (Step == TEXT("hue") && Args.Num() >= 2)
+	{
+		PopupHue = FMath::Clamp(FCString::Atof(*Args[1]), 0.0f, 359.99f);
+		if (PopupSat < 0.05f) PopupSat = 0.8f;
+		if (PopupVal < 0.05f) PopupVal = 0.8f;
+		SetColour(PopupKey, PickedColour());
+	}
+	else if (Step == TEXT("hex") && Args.Num() >= 2)
+	{
+		bTypingHex = true;
+		HexEdit = Args[1];
+		Typed();
+		StopTyping();
+	}
+	else if (Step == TEXT("was"))
+	{
+		SetColour(PopupKey, PopupStart);
+		PickFrom(PopupStart);
+	}
+	else if (Step == TEXT("close"))
+	{
+		const FString Key = PopupKey;
+		const FLinearColor C = ColourOf(Key);
+		ClosePopup();
+		return FString::Printf(TEXT("colour picker closed; the %s is #%s"), *Key, *TBCI::HexOf(C));
+	}
+	else return TEXT("colour steps: open:SLOT, sv:S:V, hue:H, hex:RRGGBB, was, close");
+	const FLinearColor Now = PickedColour(), Bike = ColourOf(PopupKey);
+	return FString::Printf(TEXT("colour picker on the %s: hue %.1f sat %.3f val %.3f; was #%s, now #%s (linear %.3f %.3f %.3f); the bike's %s is #%s"),
+		*PopupKey, PopupHue, PopupSat, PopupVal, *TBCI::HexOf(PopupStart), *TBCI::HexOf(Now), Now.R, Now.G, Now.B, *PopupKey, *TBCI::HexOf(Bike));
+}
+
 FString FTorqueBikeConfigurator::TestSetup(const FString& NewStyleId, const TArray<FString>& Swaps)
 {
 	Open();

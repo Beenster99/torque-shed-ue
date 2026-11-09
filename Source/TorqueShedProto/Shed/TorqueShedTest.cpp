@@ -1082,6 +1082,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (bOrder) LogBuild(TEXT("after the order"));
 		return true;
 	}
+	if (Verb == TEXT("colour") && P.Num() >= 2)
+	{
+		// The New bike page's colour picker: "colour:open:SLOT", "colour:sv:S:V", "colour:hue:H",
+		// "colour:hex:RRGGBB", "colour:was", "colour:close".
+		TArray<FString> Args(P);
+		Args.RemoveAt(0);
+		Said(W->TestColour(Args));
+		return true;
+	}
 	if (Verb == TEXT("wheel") && P.Num() >= 2)
 	{
 		int32 Where = 0;

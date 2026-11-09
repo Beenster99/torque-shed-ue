@@ -102,6 +102,8 @@ public:
 	FString TestComputer(FName Kind, FName Part, bool bOrder);
 	// The New bike aisle: Style's bike (as it starts) with Swaps (slot=part) on, a colour of its own, ordered.
 	FString TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder);
+	// The New bike page's colour picker (FTorqueBikeConfigurator::TestColour's steps).
+	FString TestColour(const TArray<FString>& Args);
 	void TestCloseComputer() { CloseComputer(); }
 	// The dyno desk's page as it'd be worked (opened where you stand if it isn't up): What "open",
 	// "tab" (Key: its name), "set" (Key to Value), "stock" (Key back to stock), "run", "close",

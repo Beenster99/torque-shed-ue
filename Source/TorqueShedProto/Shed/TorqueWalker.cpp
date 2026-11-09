@@ -2521,6 +2521,13 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 	return Out;
 }
 
+FString ATorqueWalker::TestColour(const TArray<FString>& Args)
+{
+	if (!bComputer) OpenComputer();
+	Computer.OpenNewBike();   // (already on it: stays as it is, the picker open)
+	return Computer.NewBike().TestColour(Args);
+}
+
 FString ATorqueWalker::TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder)
 {
 	if (!bComputer) OpenComputer();
