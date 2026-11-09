@@ -137,13 +137,14 @@
   },
   "shed_plaster": {
    "id": "Plaster002",
-   "tile_m": 2.0,
+   "tile_m": 3.0,
    "mean": [
     0.6943,
     0.6698,
     0.6458
    ],
-   "rough_mean": 0.548
+   "rough_mean": 0.548,
+   "normal_k": 0.4
   },
   "shed_cladding": {
    "id": "CorrugatedSteel005",
@@ -177,13 +178,14 @@
   },
   "shed_timber": {
    "id": "Wood049",
-   "tile_m": 1.0,
+   "tile_m": 0.5,
    "mean": [
     0.202,
     0.1273,
     0.0769
    ],
-   "rough_mean": 0.504
+   "rough_mean": 0.504,
+   "normal_k": 0.2
   },
   "shed_paint_wall": {
    "id": "PaintedPlaster017",

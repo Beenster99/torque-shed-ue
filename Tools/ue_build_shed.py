@@ -351,7 +351,17 @@ def scanned(scans, role, name, rgb, rough, metallic=0.0, grain=0.06):
             mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -600, 300, r=rough), "", unreal.MaterialProperty.MP_ROUGHNESS)
         if "normal" in maps:
             n = project(maps["normal"], 600, WAN)
-            mel.connect_material_property(n, "XYZ Texture", unreal.MaterialProperty.MP_NORMAL)
+            # The role's normal_k: how much of the scan's relief shows (1 all, 0 flat); a big face
+            # shows a strong scan's height as ripples.
+            nk = float(r.get("normal_k", 1.0))
+            if nk < 0.999:
+                up = expr(m, unreal.MaterialExpressionConstant3Vector, -700, 700, constant=unreal.LinearColor(0.0, 0.0, 1.0, 1.0))
+                soft = expr(m, unreal.MaterialExpressionLinearInterpolate, -450, 600, const_alpha=max(nk, 0.0))
+                link(up, "", soft, "A")
+                link(n, "XYZ Texture", soft, "B")
+                mel.connect_material_property(soft, "", unreal.MaterialProperty.MP_NORMAL)
+            else:
+                mel.connect_material_property(n, "XYZ Texture", unreal.MaterialProperty.MP_NORMAL)
         if metallic:
             mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -600, 800, r=metallic), "", unreal.MaterialProperty.MP_METALLIC)
         if not ok[0]:
