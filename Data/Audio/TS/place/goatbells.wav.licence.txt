@@ -1,0 +1,7 @@
+Sound: goatbells.ogg, goat bells at Montargil, Portugal
+Source: https://archive.org/details/aporee_13297_15532
+Author: Carlos Santos, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 381 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Montargil, 7425 Ponte de Sor Municipality, Portugal - goat bells. Goats on a field, bells ringing, Foros dos Mocho, Montargil, stereo, church-audio binaurals clipped on fence, zoom h4n
+Inputs: 265062c6ce40

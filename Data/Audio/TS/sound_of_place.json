@@ -1,0 +1,68 @@
+{
+	"_about": "What a place sounds like on a ride (PlaceSound reads it). layers: the looped beds, each a recording in audio/place/ (or synth: one of Sfx's own sounds) at db when full. events: one-off sounds at their hours. The country lists say which countries have which town sounds; a country not listed gets the defaults.",
+	"layers": {
+		"wind": {"sound": "synth:amb_out", "db": -10.0},
+		"birds_temperate": {"sound": "birds_temperate", "db": -14.0},
+		"birds_moor": {"sound": "birds_moor", "db": -13.0},
+		"birds_alpine": {"sound": "birds_alpine", "db": -14.0},
+		"birds_wetland": {"sound": "birds_wetland", "db": -13.0},
+		"birds_med": {"sound": "birds_med", "db": -14.0},
+		"birds_arid": {"sound": "birds_arid", "db": -15.0},
+		"birds_tropical": {"sound": "birds_tropical", "db": -13.0},
+		"birds_east_asia": {"sound": "birds_east_asia", "db": -14.0},
+		"birds_nz": {"sound": "birds_nz", "db": -13.0},
+		"cicadas": {"sound": "cicadas", "db": -15.0},
+		"cicadas_east_asia": {"sound": "cicadas_east_asia", "db": -15.0},
+		"crickets": {"sound": "synth:crickets", "db": -14.0},
+		"frogs": {"sound": "frogs", "db": -15.0},
+		"stream": {"sound": "stream", "db": -18.0},
+		"surf": {"sound": "surf", "db": -12.0},
+		"sheep": {"sound": "sheep", "db": -18.0},
+		"cowbells": {"sound": "cowbells", "db": -16.0},
+		"goatbells": {"sound": "goatbells", "db": -17.0},
+		"market": {"sound": "market", "db": -14.0},
+		"market_latin": {"sound": "market_latin", "db": -14.0},
+		"market_maghreb": {"sound": "market_maghreb", "db": -14.0},
+		"market_east_asia": {"sound": "market_east_asia", "db": -15.0},
+		"traffic": {"sound": "traffic_horns", "db": -16.0},
+		"scooters": {"sound": "scooters", "db": -17.0},
+		"bicycles": {"sound": "cycle_street", "db": -18.0}
+	},
+	"events": {
+		"church_bells": {"sound": "church_bells", "db": -8.0, "hours": [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]},
+		"temple_bell": {"sound": "temple_bell", "db": -8.0, "hours": [6, 18]},
+		"call_to_prayer": {"sound": "call_to_prayer", "db": -9.0, "hours": [5.25, 13.0, 16.5, 19.0, 20.5]}
+	},
+	"countries": {
+		"prayer": ["AE", "AF", "AL", "AZ", "BA", "BD", "BH", "BN", "DJ", "DZ", "EG", "EH", "GM", "GN", "ID", "IQ", "IR", "JO", "KG", "KM", "KW", "KZ", "LB", "LY", "MA", "ML", "MR", "MV", "MY", "NE", "OM", "PK", "PS", "QA", "SA", "SD", "SN", "SO", "SY", "TD", "TJ", "TM", "TN", "TR", "UZ", "XK", "YE"],
+		"prayer_and_church": ["AL", "BA", "LB", "EG", "NG", "TZ", "ET", "XK"],
+		"temple": ["BT", "CN", "JP", "KH", "KR", "LA", "LK", "MM", "MN", "NP", "TH", "TW", "VN", "IN"],
+		"birds": {"NZ": "birds_nz", "JP": "birds_east_asia", "KR": "birds_east_asia", "CN": "birds_east_asia", "TW": "birds_east_asia"},
+		"cicadas": {"JP": "cicadas_east_asia", "KR": "cicadas_east_asia", "CN": "cicadas_east_asia", "TW": "cicadas_east_asia"},
+		"market": {
+			"MX": "market_latin", "GT": "market_latin", "HN": "market_latin", "SV": "market_latin", "NI": "market_latin", "CR": "market_latin", "PA": "market_latin",
+			"CO": "market_latin", "VE": "market_latin", "EC": "market_latin", "PE": "market_latin", "BO": "market_latin", "CL": "market_latin", "AR": "market_latin",
+			"UY": "market_latin", "PY": "market_latin", "CU": "market_latin", "DO": "market_latin", "ES": "market_latin", "PR": "market_latin",
+			"MA": "market_maghreb", "DZ": "market_maghreb", "TN": "market_maghreb", "LY": "market_maghreb", "EG": "market_maghreb", "MR": "market_maghreb",
+			"JO": "market_maghreb", "SY": "market_maghreb", "LB": "market_maghreb", "IQ": "market_maghreb", "SA": "market_maghreb", "YE": "market_maghreb", "OM": "market_maghreb",
+			"JP": "market_east_asia", "KR": "market_east_asia", "CN": "market_east_asia", "TW": "market_east_asia"
+		},
+		"horns": {
+			"_default": 0.35,
+			"EG": 1.0, "IN": 1.0, "BD": 1.0, "PK": 1.0, "VN": 0.9, "MA": 0.85, "NG": 0.9, "ID": 0.8, "PH": 0.8, "MX": 0.7, "TR": 0.7, "TH": 0.6, "IT": 0.55,
+			"BR": 0.6, "CO": 0.7, "PE": 0.7, "KE": 0.8, "IR": 0.9, "IQ": 0.9, "GR": 0.6, "CN": 0.6,
+			"GB": 0.15, "IE": 0.15, "NL": 0.1, "BE": 0.15, "DE": 0.12, "AT": 0.12, "CH": 0.1, "DK": 0.1, "SE": 0.1, "NO": 0.1, "FI": 0.1,
+			"JP": 0.08, "NZ": 0.15, "AU": 0.15, "CA": 0.2, "FR": 0.3
+		},
+		"scooters": {
+			"_default": 0.1,
+			"VN": 1.0, "ID": 0.9, "TW": 0.9, "TH": 0.8, "IN": 0.8, "MY": 0.7, "PH": 0.6, "IT": 0.6, "MA": 0.6, "GR": 0.5, "CN": 0.6, "MX": 0.4,
+			"ES": 0.35, "FR": 0.3, "JP": 0.3, "TN": 0.5, "EG": 0.4, "CO": 0.5, "BR": 0.5,
+			"GB": 0.05, "NL": 0.15, "DE": 0.08, "NZ": 0.05
+		},
+		"bicycles": {"_default": 0.0, "NL": 1.0, "DK": 0.8, "BE": 0.4, "JP": 0.35, "DE": 0.2, "CN": 0.3, "SE": 0.2},
+		"sheep": ["GB", "IE", "NZ", "IS", "AU", "UY", "FO", "NO"],
+		"cows": ["AT", "CH", "DE", "FR", "IT", "SI", "LI", "AD", "ES"],
+		"goats": ["MA", "DZ", "TN", "GR", "TR", "CY", "AL", "ES", "PT", "MX", "PE", "BO", "IR", "AF", "PK", "IN", "NP", "ET", "KE", "YE", "OM", "JO", "SY", "LB", "MT"]
+	}
+}

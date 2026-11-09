@@ -1,0 +1,7 @@
+Sound: call_to_prayer.ogg, the afternoon adhan from many mosques across Fès
+Source: https://archive.org/details/aporee_23335_27099
+Author: almsaffr, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 75 s cut from 210 s in, made mono, loudness levelled, faded out, Ogg Vorbis.
+Original description: Inane Sghir, Fès, Morocco - The Adhan, or Call to Prayer. From this spot, one can see across the old city of Fès, or Fès Bali, and hear all the sounds emanating from the city. This recording was made during the afternoon adhan, where the voices from many mosques mix with the natural sounds.
+Inputs: 7be3b111e3a7

@@ -1952,13 +1952,16 @@ bool UTorqueBuildSubsystem::Request(const FTorqueShedRequest& R, FString& WhyNot
 {
 	WhyNot = Check(Me(), R);
 	if (!WhyNot.IsEmpty()) return false;
+	const int32 HeldBefore = HeldBy(Me());   // [sound] for OnRequestDone
 	if (IsClient())
 	{
-		if (Forward.Execute(R)) return true;
+		if (Forward.Execute(R)) { OnRequestDone.Broadcast(R, HeldBefore); return true; }
 		WhyNot = TEXT("The host didn't get that: try again.");
 		return false;
 	}
-	return Apply(Me(), R, WhyNot);
+	if (!Apply(Me(), R, WhyNot)) return false;
+	OnRequestDone.Broadcast(R, HeldBefore);
+	return true;
 }
 
 bool UTorqueBuildSubsystem::Apply(int32 Peer, const FTorqueShedRequest& R, FString& WhyNot)

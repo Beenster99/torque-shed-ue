@@ -72,3 +72,13 @@ if(MSVC)
 else()
   target_compile_options(spec_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# The shed's sounds (Torque Shed's Sfx): the manifest and takes in Data/Audio/TS, the rules, the mixer.
+add_executable(sfx_test sfx_test.cpp ${SOUND}/SfxMix.cpp ${SOUND}/SfxBank.cpp ${FIT}/FitJson.cpp)
+target_include_directories(sfx_test PRIVATE ${SOUND} ${FIT})
+target_compile_definitions(sfx_test PRIVATE TORQUE_DATA="${CMAKE_CURRENT_SOURCE_DIR}/../Data")
+if(MSVC)
+  target_compile_options(sfx_test PRIVATE /W4)
+else()
+  target_compile_options(sfx_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
+endif()

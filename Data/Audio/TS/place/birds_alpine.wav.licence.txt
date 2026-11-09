@@ -1,0 +1,7 @@
+Sound: birds_alpine.ogg, alpine choughs and the mountain night at Chamonix
+Source: https://archive.org/details/aporee_72824_85018
+Author: Jean-François CAVRO, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 79 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Chamonix-Mont-Blanc, Auvergne-Rhône-Alpes, France - choucas nocturnes et ambiance de la nuit. Ambiance de la nuit.Je suis réveillé par ce qui semble être une dispute âpre entre choucas nocturnes.Le temps de sortir et mettre en route le matériel, la "dispute" semble terminée. les belligérants s'éloignent et c'est le retour au calme.Ambiance de la nuit avec la présence continue de l'Arveyron.Prise d
+Inputs: f549840fe42a

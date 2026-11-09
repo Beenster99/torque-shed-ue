@@ -1,0 +1,7 @@
+Sound: birds_nz.ogg, the dawn chorus at the Sign of the Bellbird, Christchurch
+Source: https://archive.org/details/aporee_19801_23000
+Author: Reuben Derrick, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 607 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Kennedys Bush, Christchurch 7672, New Zealand - Dawn chorus at Sign of the Bellbird. MKH 34/40 m-s
+Inputs: d56344485b12

@@ -1,0 +1,7 @@
+Sound: market.ogg, the Sunday morning market, Saint-Étienne
+Source: https://archive.org/details/aporee_64562_74508
+Author: Jean-François CAVRO, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 77 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: 19 Pl. Bellevue, 42100 Saint-Étienne, France - Marché du dimanche matin place Bellevue.. Marché du dimanche matin place Bellevue.Avec Atmane, musiciens auteur/compositeur.Une chanson sur la mine.Prise de sons : JF CAVRO
+Inputs: 2adab669b34e

@@ -1,0 +1,7 @@
+Sound: market_latin.ogg, a tianguis market in León, Guanajuato
+Source: https://archive.org/details/aporee_47619_54112
+Author: Ed Visoso, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 40 s cut from 204 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: 37320, Jardín Allende 180, Obregon, 37320 León, Gto., Mexico - Mercado tianguis del Barrio o centro comercial Allende y jardín.. Walking around the market, tianguis and plaza Jardín Allende.It was a Tuesday, day that the tianguis is working together to the market that works every day.There are many businesses like a tortilla, butcher, fruit shops, and also clothes, stamen, dolls stands, and people
+Inputs: b9ea598f7645

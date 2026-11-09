@@ -1,0 +1,7 @@
+Sound: church_bells.ogg, church bells tolling near Malton, North Yorkshire
+Source: https://archive.org/details/aporee_42740_73868
+Author: david m, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 45 s cut from 215 s in, made mono, loudness levelled, faded out, Ogg Vorbis.
+Original description: Unnamed Road, Malton YO17 8TJ, UK - church bells tolling .... church bells tolling ... xlr sass on tripod to zoom h5 .. passing traffic noise ...
+Inputs: fc11cc90dec4

@@ -1,0 +1,7 @@
+Sound: birds_tropical.ogg, loud birds in Puerto Escondido, Oaxaca
+Source: https://archive.org/details/aporee_70898_82664
+Author: 3gatti, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 106 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Av. Oaxaca 105, Centro, Puerto Escondido, Oaxaca, Mexico - loud birds. very loud birds on the pedestrian street trees.this is the fourteenth recording I did with my sonic presence sp15cciancaleone
+Inputs: aa2ac1d3aa2c

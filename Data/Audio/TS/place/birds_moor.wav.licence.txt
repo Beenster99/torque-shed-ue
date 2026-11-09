@@ -1,0 +1,7 @@
+Sound: birds_moor.ogg, skylarks over North Yorkshire
+Source: https://archive.org/details/aporee_70366_82037
+Author: spudmel, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 40 s cut from 1427 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: North Yorkshire, England, United Kingdom - Skylark soundscape …. Skylark song … dummy head to mini disk … taken from unattended time edited extended recording … calls … song from … corn bunting … crow … red-legged partridge … lapwing … quail … background noise …
+Inputs: 3794d629393c

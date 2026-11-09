@@ -1,0 +1,7 @@
+Sound: market_east_asia.ogg, the Sunday fish market at dawn, Manazuru, Japan
+Source: https://archive.org/details/aporee_59474_68271
+Author: Satoshi Sugiyama, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 116 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Manazuru, Kanagawa, Japan - Dawn, Sunday Fish Market. dawn, fine, sunday, fish market, port, fisherman, boat, seabird, tombi, crow, zoom H4n ProYouTube Podcasthttps://www.youtube.com/channel/UCjvy121vH40wwwT4Y5KgGAA
+Inputs: 073ba98f79d8

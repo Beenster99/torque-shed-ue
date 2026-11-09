@@ -186,6 +186,7 @@ struct FTorqueShedRequest
 DECLARE_MULTICAST_DELEGATE_OneParam(FTorqueBikeEvent, int32 /*Bay*/);
 DECLARE_MULTICAST_DELEGATE_OneParam(FTorqueActivityEvent, const FString& /*What*/);
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FTorqueTellEvent, int32 /*Peer*/, const FString& /*Text*/, bool /*bOk*/);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FTorqueRequestEvent, const FTorqueShedRequest& /*Request*/, int32 /*HeldBefore*/);
 DECLARE_DELEGATE_RetVal_OneParam(bool, FTorqueShedForward, const FTorqueShedRequest&);
 DECLARE_DELEGATE_RetVal_OneParam(int32, FTorqueBikeOfPawn, const APawn*);
 
@@ -359,6 +360,9 @@ public:
 	// What the host says to the player who asked ("Fitted the clubman bars as the handlebars..."),
 	// or why it couldn't (bOk false). The net layer passes other players' on to them.
 	FTorqueTellEvent OnTell;
+	// This machine's player's request went through (done here, or sent to the host), with what was in
+	// their hands before it: the sound of the job (TorqueAudio/TorqueSfx, sfx.gd job_done).
+	FTorqueRequestEvent OnRequestDone;
 	// The whole shed as bytes (every bike and item, versioned), and the host's copy coming in
 	// (sets it, no save, tells everyone). Until LeaveHostShed a client keeps the host's shed and
 	// never saves it over its own.

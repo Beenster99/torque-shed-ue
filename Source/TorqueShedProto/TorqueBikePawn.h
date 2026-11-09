@@ -144,6 +144,11 @@ private:
 	double InputLogTimer = 0.0;
 	int32 InputLogCount = 0;
 	TUniquePtr<TorqueSound::RideSound> Sound;
+	// Torque Shed's horn on this bike (TorqueAudio/TorqueSfx: its part's recordings or synthesis), held on
+	// J or the d-pad's left; and the starter cranking it over before the engine catches.
+	int32 HornId = 0;
+	bool bHornDown = false;
+	double EngineCatchIn = 0.0;
 	TArray<float> SoundFloat;
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;

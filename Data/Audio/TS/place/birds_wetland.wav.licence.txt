@@ -1,0 +1,7 @@
+Sound: birds_wetland.ogg, a flock of lapwings on wet meadows
+Source: https://archive.org/details/aporee_69946_81448
+Author: radio aporee, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY-SA 3.0 https://creativecommons.org/licenses/by-sa/3.0/
+Changes: 40 s cut from 499 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Kozmice meadows, Opava region - wetland ambience, a flock of Northern Lapwing. A flock of Northern Lapwing (Vanellus vanellus) nearby, distant traffic noise, light wind09:36 Kozmice meadows, Opava region - wetland ambiencehttps://radio.earth/https://aporee.org/fieldradio(remote microphone: AOM5024HDR | RasPi Zero /w IQAudio Zero | 4G modem)
+Inputs: 78f69c7e5e65

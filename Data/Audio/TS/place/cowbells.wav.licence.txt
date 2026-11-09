@@ -1,0 +1,7 @@
+Sound: cowbells.ogg, cowbells in the Pyrenees
+Source: https://archive.org/details/aporee_24327_28236
+Author: Chloé Despax, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 13 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Parc National des Pyrénées, France - Cowbells in the Pyrenees. 
+Inputs: 316d0dd1a6db

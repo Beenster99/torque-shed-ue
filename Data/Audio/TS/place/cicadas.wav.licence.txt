@@ -1,0 +1,7 @@
+Sound: cicadas.ogg, summer cicadas in a Lisbon park
+Source: https://archive.org/details/aporee_20041_23336
+Author: Carlos Santos, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 30 s cut from 157 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Parque Vale do Silêncio, 1800 Lisbon, Portugal - Summer cicadas. High volume cicadas on the park, Church-audio binaurals + zoom H4n
+Inputs: 3f4aed4c712c

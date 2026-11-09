@@ -1,0 +1,7 @@
+Sound: surf.ogg, big waves at Mazunte, Oaxaca
+Source: https://archive.org/details/aporee_70939_82721
+Author: 3gatti, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 30 s cut from 294 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Playa Mazunte, Oaxaca, Mexico - Mazunte big waves. walking along the shorelinethis is the fourteen recording I did with my sonic presence sp15cciancaleone
+Inputs: d75dd2a79a8b

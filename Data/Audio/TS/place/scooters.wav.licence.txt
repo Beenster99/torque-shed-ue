@@ -1,0 +1,7 @@
+Sound: scooters.ogg, traffic on Minsheng East Road, Taipei
+Source: https://archive.org/details/aporee_16067_18642
+Author: Wu,Tsan-Cheng, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 40 s cut from 0 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Sec. 5, Minsheng E. Rd., Songshan Dist., Taipei City - Traffic noise. Traffic noise,Binaural recordings , ( Sound and Taiwan , http://www.soundandtaiwan.com - Taiwan SoundMap project / SoundMap20121029-7) , recorded by Wu,Tsancheng
+Inputs: 1798e92147d2
