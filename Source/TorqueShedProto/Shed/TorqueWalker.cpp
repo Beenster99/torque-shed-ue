@@ -336,6 +336,7 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 	if (UTorqueBuildSubsystem* B = Shed()) B->OnTell.Remove(TellHandle);
 	Pad.Reset();   // stops its reading thread
 	if (Avatar) Avatar->Destroy();   // its MetaHuman Blueprint goes with it
+	LookOutline.Clear();
 	Super::EndPlay(Reason);
 }
 
@@ -1893,6 +1894,16 @@ void ATorqueWalker::UpdateCues()
 		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
 		Lit.Add(C);
 	}
+	// The same, with a thin soft line round it (TorqueLookOutline); with empty hands, a place's own
+	// machine, bin, hook or computer too.
+	if (LookOutline.Attach(Camera))
+	{
+		TArray<UPrimitiveComponent*> Lined;
+		for (UStaticMeshComponent* C : Now) Lined.Add(C);
+		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0)
+			Lined.Append(LookOutline.PlaceMeshes(World, TargetPlace));
+		LookOutline.Show(Lined);
+	}
 	// A part in your hands: where it will go down (the floor, a bench, a machine), as a box its size
 	// with bright edges, a notch on its front edge, glowing so it shows in the lit shed, and its
 	// edges seen faintly through whatever's in the way (the part in your hands). Whatever tool was
@@ -2570,6 +2581,8 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 	Camera->SetWorldRotation(View);
 	FindTarget();
 	MakePlan();
+	UpdateCues();
+	UE_LOG(LogTemp, Log, TEXT("Torque test: look outline round %d mesh(es)"), LookOutline.Count());
 	UpdateHud();
 	return Describe();
 }

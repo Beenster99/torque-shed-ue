@@ -179,6 +179,123 @@ def ghost_xray_material():
     return finish(m)
 
 
+def outline_material():
+    """M_ShedOutline: a thin, soft line round what you look at, for the game (C++, TorqueLookOutline)
+    to put on the walker's camera as a post-process. The game marks what's looked at with custom
+    depth and stencil (r.CustomDepth=3); this draws a line just outside that shape: two rings of
+    stencil samples (a crisp inner one, a fainter outer one for softness), drawn fainter where
+    something in front hides the part's edge, and blended after tonemapping so it stays the same
+    pale line however the shed's exposure moves. Parameters: Color, Opacity, Width (pixels at
+    1080p, scaled with the screen), Hidden (how much of the line shows through things in front)."""
+    m = new_material("M_ShedOutline")
+    if not try_set(m, "material_domain", unreal.MaterialDomain.MD_POST_PROCESS):
+        raise RuntimeError("M_ShedOutline: can't make a post-process material")
+    loc = None
+    for name in ("BL_SCENE_COLOR_AFTER_TONEMAPPING", "BL_AFTER_TONEMAPPING"):
+        loc = getattr(unreal.BlendableLocation, name, None)
+        if loc is not None:
+            break
+    if loc is None or not try_set(m, "blendable_location", loc):
+        unreal.log_warning("[Torque] M_ShedOutline: no after-tonemapping location; left at its default")
+    M = unreal.MaterialProperty
+
+    def link(a, b, pin, out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            raise RuntimeError("M_ShedOutline: can't connect %s -> %s.%s" % (a.get_name(), b.get_name(), pin))
+
+    def op(cls, x, y, a, b=None, **props):
+        e = expr(m, cls, x, y, **props)
+        link(a, e, "A")
+        if b is not None:
+            link(b, e, "B")
+        return e
+
+    def num(name, x, y, v):
+        return expr(m, unreal.MaterialExpressionScalarParameter, x, y, parameter_name=name, default_value=v)
+
+    def const(x, y, v):
+        return expr(m, unreal.MaterialExpressionConstant, x, y, r=v)
+
+    def red(x, y, e):
+        k = expr(m, unreal.MaterialExpressionComponentMask, x, y, r=True, g=False, b=False, a=False)
+        link(e, k, "")
+        return k
+
+    uv_pin = [None]
+
+    def scene(tex_id, x, y, uv=None):
+        e = expr(m, unreal.MaterialExpressionSceneTexture, x, y, scene_texture_id=tex_id)
+        if uv is not None:
+            # The pin is "UVs" in the editor (Coordinates in C++): find it once.
+            names = [uv_pin[0]] if uv_pin[0] else ["UVs", "Coordinates", "UV"]
+            for n in names:
+                if mel.connect_material_expressions(uv, "", e, n):
+                    uv_pin[0] = n
+                    break
+            else:
+                raise RuntimeError("M_ShedOutline: no UV pin on SceneTexture")
+        return red(x + 250, y, e)
+
+    T = unreal.SceneTextureId
+    # A pixel step: Width/1080 of the screen's height, the same across (times height/width).
+    screen = expr(m, unreal.MaterialExpressionScreenPosition, -3000, 0)
+    view = expr(m, unreal.MaterialExpressionViewSize, -3000, 200)
+    vw = expr(m, unreal.MaterialExpressionComponentMask, -2800, 150, r=True, g=False, b=False, a=False)
+    link(view, vw, "")
+    vh = expr(m, unreal.MaterialExpressionComponentMask, -2800, 250, r=False, g=True, b=False, a=False)
+    link(view, vh, "")
+    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 1.4), const(-2800, 420, 1080.0))
+    step_x = op(unreal.MaterialExpressionMultiply, -2400, 200, op(unreal.MaterialExpressionDivide, -2600, 200, vh, vw), width)
+    step = op(unreal.MaterialExpressionAppendVector, -2200, 250, step_x, width)
+
+    dirs = [(1, 0), (-1, 0), (0, 1), (0, -1), (0.7071, 0.7071), (-0.7071, 0.7071), (0.7071, -0.7071), (-0.7071, -0.7071)]
+    rings = []
+    depth_min = None
+    y = 0
+    for r in (1.0, 2.2):
+        ring = None
+        for i, (dx, dy) in enumerate(dirs):
+            off = op(unreal.MaterialExpressionMultiply, -2000, y, step,
+                     expr(m, unreal.MaterialExpressionConstant2Vector, -2200, y + 60, r=dx * r, g=dy * r))
+            uv = op(unreal.MaterialExpressionAdd, -1800, y, screen, off)
+            mark = expr(m, unreal.MaterialExpressionSaturate, -1300, y)
+            link(scene(T.PPI_CUSTOM_STENCIL, -1700, y, uv), mark, "")
+            ring = mark if ring is None else op(unreal.MaterialExpressionMax, -1100, y, ring, mark)
+            if i < 4:   # the part's nearest depth beside this pixel
+                d = scene(T.PPI_CUSTOM_DEPTH, -1700, y + 80, uv)
+                depth_min = d if depth_min is None else op(unreal.MaterialExpressionMin, -1100, y + 80, depth_min, d)
+            y += 180
+        rings.append(ring)
+    centre = expr(m, unreal.MaterialExpressionSaturate, -1300, y)
+    link(scene(T.PPI_CUSTOM_STENCIL, -1700, y), centre, "")
+    outside = op(unreal.MaterialExpressionSubtract, -900, y, const(-1100, y + 60, 1.0), centre)
+    soft = op(unreal.MaterialExpressionMax, -900, y - 200, rings[0],
+              op(unreal.MaterialExpressionMultiply, -1000, y - 140, rings[1], const(-1200, y - 100, 0.45)))
+    edge = op(unreal.MaterialExpressionMultiply, -700, y - 100, soft, outside)
+    # Hidden: this pixel is nearer than the part's edge beside it (something in front of the part).
+    here = scene(T.PPI_SCENE_DEPTH, -1700, y + 200)
+    gap = op(unreal.MaterialExpressionDivide, -900, y + 200, op(unreal.MaterialExpressionSubtract, -1000, y + 200, here, depth_min), const(-1100, y + 260, 4.0))
+    seen = expr(m, unreal.MaterialExpressionSaturate, -600, y + 200)
+    link(op(unreal.MaterialExpressionAdd, -750, y + 200, gap, const(-900, y + 260, 1.0)), seen, "")
+    show = expr(m, unreal.MaterialExpressionLinearInterpolate, -450, y + 150)
+    link(num("Hidden", -650, y + 100, 0.3), show, "A")
+    link(const(-650, y + 120, 1.0), show, "B")
+    link(seen, show, "Alpha")
+    alpha = op(unreal.MaterialExpressionMultiply, -300, y, op(unreal.MaterialExpressionMultiply, -450, y, edge, show),
+               num("Opacity", -500, y + 300, 0.4))
+    colour = expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 300, parameter_name="Color",
+                  default_value=unreal.LinearColor(1.0, 0.88, 0.66, 1.0))
+    base = expr(m, unreal.MaterialExpressionSceneTexture, -700, y - 450, scene_texture_id=T.PPI_POST_PROCESS_INPUT0)
+    rgb = expr(m, unreal.MaterialExpressionComponentMask, -450, y - 450, r=True, g=True, b=True, a=False)
+    link(base, rgb, "")
+    out = expr(m, unreal.MaterialExpressionLinearInterpolate, -150, y - 200)
+    link(rgb, out, "A")
+    link(colour, out, "B")
+    link(alpha, out, "Alpha")
+    mel.connect_material_property(out, "", M.MP_EMISSIVE_COLOR)
+    return finish(m)
+
+
 def screen_page_material():
     """M_ShedScreenPage: a screen showing a page the game draws (C++ canvas render targets: the bay
     screens, Torque Shed's TVs). Unlit, the page's texture as its glow (parameter Page), Brightness."""
@@ -551,6 +668,7 @@ def materials():
         "screen": flat("M_ShedScreen", (0.10, 0.30, 0.50), 0.3, emissive=1.4),
         "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
         "ghost_xray": ghost_xray_material(),   # for the game: where a part goes down, seen through things
+        "outline": outline_material(),         # for the game: the soft line round what's looked at
         "screen_page": screen_page_material(),   # for the game: the screens' pages
         "effect_paint": effect_paint_material(),   # for the game: parts sprayed with pearl, candy, flake, chameleon
         "led": flat("M_ShedLed", (0.9, 0.92, 0.95), 0.5, emissive=LED_GLOW),
