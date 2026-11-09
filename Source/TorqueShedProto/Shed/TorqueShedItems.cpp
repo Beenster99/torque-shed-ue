@@ -37,16 +37,23 @@ FVector KindSize(FName Kind)
 const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
 const TCHAR* const ItemPrefix = TEXT("Item:");
 
-void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour)
+void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour, const FTorqueItem* Finished = nullptr)
 {
 	UMaterialInstanceDynamic* M = C ? C->CreateDynamicMaterialInstance(0) : nullptr;
 	if (!M) return;
 	M->SetScalarParameterValue(TEXT("Grime"), Dirt);
 	M->SetScalarParameterValue(TEXT("Rust"), Rust);
-	if (Colour)
+	if (!Colour) return;
+	FLinearColor Shown = *Colour;
+	float Metallic = 0.0f, Roughness = 0.5f;
+	const bool bFinish = Finished && UTorqueBuildSubsystem::FinishLook(*Finished, Shown, Metallic, Roughness);
+	M->SetVectorParameterValue(TEXT("Color"), Shown);
+	M->SetVectorParameterValue(TEXT("Color2"), Shown);
+	if (bFinish)
 	{
-		M->SetVectorParameterValue(TEXT("Color"), *Colour);
-		M->SetVectorParameterValue(TEXT("Color2"), *Colour);
+		// Repainted: its finish (gloss, matte, metallic, chrome, patina, primer, a satin clear).
+		for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, Metallic);
+		for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, Roughness);
 	}
 }
 } // namespace TorqueShedItemsImpl
@@ -203,7 +210,7 @@ void ATorqueShedItems::Draw(int32 Id)
 				}
 				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
 				const FLinearColor OwnShown = UTorqueBuildSubsystem::ShownColour(*Own);   // grey while it's in primer
-				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr);
+				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr, UTorqueBuildSubsystem::Repainted(*Own) ? Own : nullptr);
 			}
 	}
 	FBox Box(ForceInit);

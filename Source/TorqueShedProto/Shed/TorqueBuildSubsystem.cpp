@@ -1298,7 +1298,9 @@ bool UTorqueBuildSubsystem::PaintOf(int32 Bay, FName Slot, FLinearColor& Out) co
 	if (!It) return false;
 	if (Repainted(*It))
 	{
+		float Metallic = 0.0f, Roughness = 0.5f;
 		Out = ShownColour(*It);
+		FinishLook(*It, Out, Metallic, Roughness);
 		return true;
 	}
 	// A catalogue part the model has no shape for yet: the stock part tinted the catalogue colour.
@@ -1309,6 +1311,61 @@ bool UTorqueBuildSubsystem::PaintOf(int32 Bay, FName Slot, FLinearColor& Out) co
 		return true;
 	}
 	return false;
+}
+
+bool UTorqueBuildSubsystem::FinishLook(const FTorqueItem& It, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness)
+{
+	if (!Repainted(It)) return false;
+	FLinearColor C = ShownColour(It);
+	if (It.bPrimerTop)
+	{
+		OutColour = C;
+		OutMetallic = 0.0f;
+		OutRoughness = 0.7f;
+		return true;
+	}
+	const FName F = It.Finish.IsNone() ? FName(TEXT("gloss")) : It.Finish;
+	float Metal = 0.05f, Rough = 0.12f;
+	if (F == FName(TEXT("matte")))
+	{
+		Metal = 0.0f;
+		Rough = 0.9f;
+		C = C * 0.92f;   // Color.darkened(0.08)
+	}
+	else if (F == FName(TEXT("metallic")))
+	{
+		Metal = 0.8f;
+		Rough = 0.32f;
+		C = C + (FLinearColor::White - C) * 0.08f;   // Color.lightened(0.08)
+	}
+	else if (F == FName(TEXT("chrome")))
+	{
+		Metal = 1.0f;
+		Rough = 0.1f;
+		C = FMath::Lerp(C, FLinearColor(0.97f, 0.97f, 0.99f), 0.7f);
+	}
+	else if (F == FName(TEXT("patina")))
+	{
+		Metal = 0.15f;
+		Rough = 0.78f;
+		FLinearColor Hsv = C.LinearRGBToHSV();
+		Hsv.G *= 0.55f;
+		Hsv.B *= 0.8f;
+		C = Hsv.HSVToLinearRGB();
+	}
+	// A lacquer's flattener (the mixing bay's satin and matt clears): the shine taken off.
+	if (It.Flat > 0.0f) Rough = FMath::Lerp(Rough, 0.8f, FMath::Clamp(It.Flat / 0.4f, 0.0f, 1.0f));
+	C.A = 1.0f;
+	OutColour = C;
+	OutMetallic = Metal;
+	OutRoughness = Rough;
+	return true;
+}
+
+bool UTorqueBuildSubsystem::FinishOf(int32 Bay, FName Slot, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
+	return It && FinishLook(*It, OutColour, OutMetallic, OutRoughness);
 }
 
 const TArray<FLinearColor>& UTorqueBuildSubsystem::Paints()

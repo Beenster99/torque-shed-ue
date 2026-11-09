@@ -119,6 +119,14 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		{
 			M->SetVectorParameterValue(TEXT("Color"), Paint);
 			M->SetVectorParameterValue(TEXT("Color2"), Paint);
+			// Repainted: its finish too (gloss, matte, metallic, chrome, patina, primer, a satin clear).
+			FLinearColor Shown;
+			float Metallic = 0.0f, Roughness = 0.5f;
+			if (B->FinishOf(Bike, Which, Shown, Metallic, Roughness))
+			{
+				for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, Metallic);
+				for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, Roughness);
+			}
 		}
 	}
 }

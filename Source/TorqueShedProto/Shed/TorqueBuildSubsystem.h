@@ -277,6 +277,12 @@ public:
 	float DirtOf(int32 Bay, FName Slot) const;
 	float RustOf(int32 Bay, FName Slot) const;
 	bool PaintOf(int32 Bay, FName Slot, FLinearColor& Out) const;
+	// How a repainted part's finish looks (bike_model.gd _apply_finish): gloss is wet-look, matte
+	// soaks up the light, metallic has flake under the lacquer, chrome is a tinted mirror, patina is
+	// faded old paint; primer is flat grey, and a lacquer's flattener takes the shine off. The colour
+	// as the finish shows it, its metal and roughness. False for a part as it came (the model's own).
+	static bool FinishLook(const FTorqueItem& It, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness);
+	bool FinishOf(int32 Bay, FName Slot, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness) const;
 	static constexpr float RideDirt = 0.3f;    // added by each ride (shed_state ROAD_DIRT)
 	static constexpr float JetClean = 0.07f;   // the pressure washer, each pass (JET_CLEAN)
 	static constexpr float MaxPaintRust = 0.2f;
