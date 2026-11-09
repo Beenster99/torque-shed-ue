@@ -4,7 +4,8 @@ them (Data/Props/swaps.json). Run in the editor, after Tools/fetch_props.py has 
     UnrealEditor-Cmd TorqueShedProto.uproject -ExecutePythonScript="Tools/ue_import_props.py"
     UnrealEditor-Cmd TorqueShedProto.uproject -ExecutePythonScript="Tools/ue_import_props.py all"
 
-'all' re-imports everything; without it, only props not yet in the project. Then build the shed
+'all' re-imports everything; prop ids (e.g. "Tools/ue_import_props.py bin_general bin_metal")
+re-import just those; with neither, only props not yet in the project. Then build the shed
 (Tools/ue_build_shed.py), which calls dress() below at its end.
 
   * Blender props (Data/Props/Blender/<id>.glb, committed): their material slots are named by the keys
@@ -501,7 +502,8 @@ def fab_glb(pid):
     return out
 
 
-def import_all(force=False):
+def import_all(force=False, only=()):
+    """force re-imports everything; only (prop ids) re-imports just those, the rest as without force."""
     props = json.load(open(os.path.join(DATA, "props.json")))["props"]
     spec = json.load(open(os.path.join(DATA, "materials.json")))
     mats = materials(spec)
@@ -523,7 +525,7 @@ def import_all(force=False):
         if not os.path.exists(src):
             missing.append(pid)
             continue
-        if not force and eal.does_asset_exist(mesh_path(pid)):
+        if not (force or pid in only) and eal.does_asset_exist(mesh_path(pid)):
             mesh = unreal.load_asset(mesh_path(pid))
         else:
             try:
@@ -648,4 +650,5 @@ def dress():
 
 
 if __name__ == "__main__":
-    import_all(force="all" in sys.argv[1:] or any("all" == a for a in " ".join(sys.argv[1:]).split()))
+    words = " ".join(sys.argv[1:]).split()
+    import_all(force="all" in words, only=tuple(w for w in words if w != "all"))
