@@ -1825,7 +1825,7 @@ void ATorqueWalker::UpdateHud()
 		const int32 From = FMath::Clamp(MenuRow - 4, 0, FMath::Max(Rows.Num() - 9, 0));
 		for (int32 I = From; I < Rows.Num() && I < From + 9; ++I)
 		{
-			const FString Name = Rows[I] == FName(TEXT("bike")) ? FString(TEXT("Triumph Speed Twin 1200 (a project: tired, rusty, complete)"))
+			const FString Name = Rows[I] == FName(TEXT("bike")) ? FString(TEXT("A project bike (any old one, as they come: tired, rusty, complete)"))
 				: TorqueShedParts::PartName(Rows[I]) + TEXT("   ") + TorqueShedParts::PartDescription(Rows[I]).Left(70);
 			HudLines.Add({(I == MenuRow ? TEXT("> ") : TEXT("   ")) + Name, I == MenuRow ? Prompt : Info, 0.6f});
 		}
