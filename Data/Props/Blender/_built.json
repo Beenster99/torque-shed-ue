@@ -1,0 +1,62 @@
+{
+ "bin_general": {
+  "bounds_min": [
+   -0.294,
+   0.0,
+   -0.38
+  ],
+  "bounds_max": [
+   0.294,
+   0.895,
+   0.32
+  ],
+  "tris": 3044,
+  "materials": [
+   "paint_bin_black",
+   "steel",
+   "rubber",
+   "plastic_grey",
+   "label_white"
+  ]
+ },
+ "bin_metal": {
+  "bounds_min": [
+   -0.294,
+   0.0,
+   -0.38
+  ],
+  "bounds_max": [
+   0.294,
+   0.895,
+   0.32
+  ],
+  "tris": 3044,
+  "materials": [
+   "paint_bin_green",
+   "steel",
+   "rubber",
+   "plastic_grey",
+   "label_white"
+  ]
+ },
+ "bin_plastic": {
+  "bounds_min": [
+   -0.294,
+   0.0,
+   -0.38
+  ],
+  "bounds_max": [
+   0.294,
+   0.895,
+   0.32
+  ],
+  "tris": 3044,
+  "materials": [
+   "paint_bin_blue",
+   "steel",
+   "rubber",
+   "plastic_grey",
+   "label_white"
+  ]
+ }
+}

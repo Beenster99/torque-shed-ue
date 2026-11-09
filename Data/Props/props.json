@@ -1,0 +1,580 @@
+{
+ "about": "Every item in the shed and what its model is: 'blender' (Tools/props/make_props.py -> Data/Props/Blender/<id>.glb, committed), 'polyhaven' (a CC0 scan, Tools/fetch_props.py -> build/props, not committed) or 'todo' (its plan). Bike parts are the fitting thread's, not here. Data/Props/swaps.json says where the shed puts them.",
+ "props": {
+  "shed_workbench": {
+   "name": "Shed workbench",
+   "torque_shed": "workshop.gd _build_bench",
+   "source": "blender"
+  },
+  "parts_computer": {
+   "name": "Parts computer desk",
+   "torque_shed": "workshop.gd _build_computer",
+   "source": "blender"
+  },
+  "bin_general": {
+   "name": "Wheelie bin (general)",
+   "torque_shed": "workshop.gd _build_bin",
+   "source": "blender"
+  },
+  "bin_plastic": {
+   "name": "Wheelie bin (plastic)",
+   "torque_shed": "workshop.gd _build_bin",
+   "source": "blender"
+  },
+  "bin_metal": {
+   "name": "Wheelie bin (metal)",
+   "torque_shed": "workshop.gd _build_bin",
+   "source": "blender"
+  },
+  "shed_radio": {
+   "name": "Radio and its shelf",
+   "torque_shed": "workshop.gd _build_radio, shed_radio.gd",
+   "source": "blender"
+  },
+  "whiteboard": {
+   "name": "Crew whiteboard",
+   "torque_shed": "Equipment whiteboard, whiteboard.gd",
+   "source": "blender"
+  },
+  "light_switches": {
+   "name": "Door and light switches",
+   "torque_shed": "workshop.gd _build_door_and_switches",
+   "source": "blender"
+  },
+  "bay_screen": {
+   "name": "Bay screen",
+   "torque_shed": "workshop.gd BAY_SCREEN_*",
+   "source": "blender"
+  },
+  "roller_door": {
+   "name": "Roller door",
+   "torque_shed": "workshop.gd _build_door_and_switches",
+   "source": "polyhaven",
+   "polyhaven": "rollershutter_door",
+   "note": "scan; the shed thread animates it"
+  },
+  "strip_light": {
+   "name": "Strip light batten",
+   "torque_shed": "workshop.gd _build_lights",
+   "source": "polyhaven",
+   "polyhaven": "mounted_fluorescent_lights"
+  },
+  "pressure_washer": {
+   "name": "Pressure washer and hose reel",
+   "torque_shed": "workshop.gd _build_wash_bay",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "petrol_pump": {
+   "name": "Petrol pump cabinet and nozzle",
+   "torque_shed": "shed_pump_view.gd",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "delivery_box": {
+   "name": "Delivery box",
+   "torque_shed": "bike_model.gd cardboard box",
+   "source": "polyhaven",
+   "polyhaven": "cardboard_box_01",
+   "note": "the game sizes it per part"
+  },
+  "engine_stand": {
+   "name": "engine stand",
+   "torque_shed": "Equipment.MODELS engine_stand",
+   "source": "blender"
+  },
+  "engine_stand_folding": {
+   "name": "engine stand folding",
+   "torque_shed": "Equipment.MODELS engine_stand_folding",
+   "source": "blender"
+  },
+  "shelf_compact": {
+   "name": "shelf compact",
+   "torque_shed": "Equipment.MODELS shelf_compact",
+   "source": "blender"
+  },
+  "shelf_standard": {
+   "name": "shelf standard",
+   "torque_shed": "Equipment.MODELS shelf_standard",
+   "source": "blender"
+  },
+  "shelf_tall": {
+   "name": "shelf tall",
+   "torque_shed": "Equipment.MODELS shelf_tall",
+   "source": "blender"
+  },
+  "shelf_wide": {
+   "name": "shelf wide",
+   "torque_shed": "Equipment.MODELS shelf_wide",
+   "source": "blender"
+  },
+  "shelf_staff": {
+   "name": "shelf staff",
+   "torque_shed": "Equipment.MODELS shelf_staff",
+   "source": "blender"
+  },
+  "shelf_racking": {
+   "name": "shelf racking",
+   "torque_shed": "Equipment.MODELS shelf_racking",
+   "source": "blender"
+  },
+  "shelf_delivery": {
+   "name": "shelf delivery",
+   "torque_shed": "Equipment.MODELS shelf_delivery",
+   "source": "blender"
+  },
+  "washer_compact": {
+   "name": "washer compact",
+   "torque_shed": "Equipment.MODELS washer_compact",
+   "source": "blender"
+  },
+  "washer_standard": {
+   "name": "washer standard",
+   "torque_shed": "Equipment.MODELS washer_standard",
+   "source": "blender"
+  },
+  "washer_ultrasonic": {
+   "name": "washer ultrasonic",
+   "torque_shed": "Equipment.MODELS washer_ultrasonic",
+   "source": "blender"
+  },
+  "washer_cabinet": {
+   "name": "washer cabinet",
+   "torque_shed": "Equipment.MODELS washer_cabinet",
+   "source": "blender"
+  },
+  "washer_industrial": {
+   "name": "washer industrial",
+   "torque_shed": "Equipment.MODELS washer_industrial",
+   "source": "blender"
+  },
+  "repair_compact": {
+   "name": "repair compact",
+   "torque_shed": "Equipment.MODELS repair_compact",
+   "source": "blender"
+  },
+  "repair_standard": {
+   "name": "repair standard",
+   "torque_shed": "Equipment.MODELS repair_standard",
+   "source": "blender"
+  },
+  "repair_blaster": {
+   "name": "repair blaster",
+   "torque_shed": "Equipment.MODELS repair_blaster",
+   "source": "blender"
+  },
+  "repair_pro": {
+   "name": "repair pro",
+   "torque_shed": "Equipment.MODELS repair_pro",
+   "source": "blender"
+  },
+  "repair_workshop": {
+   "name": "repair workshop",
+   "torque_shed": "Equipment.MODELS repair_workshop",
+   "source": "blender"
+  },
+  "bench_compact": {
+   "name": "bench compact",
+   "torque_shed": "Equipment.MODELS bench_compact",
+   "source": "blender"
+  },
+  "bench_mobile": {
+   "name": "bench mobile",
+   "torque_shed": "Equipment.MODELS bench_mobile",
+   "source": "blender"
+  },
+  "bench_standard": {
+   "name": "bench standard",
+   "torque_shed": "Equipment.MODELS bench_standard",
+   "source": "blender"
+  },
+  "bench_long": {
+   "name": "bench long",
+   "torque_shed": "Equipment.MODELS bench_long",
+   "source": "blender"
+  },
+  "bench_pro": {
+   "name": "bench pro",
+   "torque_shed": "Equipment.MODELS bench_pro",
+   "source": "blender"
+  },
+  "trolley_parts": {
+   "name": "trolley parts",
+   "torque_shed": "Equipment.MODELS trolley_parts",
+   "source": "blender"
+  },
+  "trolley_flatbed": {
+   "name": "trolley flatbed",
+   "torque_shed": "Equipment.MODELS trolley_flatbed",
+   "source": "blender"
+  },
+  "tyre_changer": {
+   "name": "tyre changer",
+   "torque_shed": "Equipment.MODELS tyre_changer",
+   "source": "blender"
+  },
+  "seat_stool": {
+   "name": "seat stool",
+   "torque_shed": "Equipment.MODELS seat_stool",
+   "source": "blender"
+  },
+  "seat_creeper": {
+   "name": "seat creeper",
+   "torque_shed": "Equipment.MODELS seat_creeper",
+   "source": "blender"
+  },
+  "seat_chair": {
+   "name": "seat chair",
+   "torque_shed": "Equipment.MODELS seat_chair",
+   "source": "blender"
+  },
+  "seat_bench": {
+   "name": "seat bench",
+   "torque_shed": "Equipment.MODELS seat_bench",
+   "source": "blender"
+  },
+  "seat_sofa": {
+   "name": "seat sofa",
+   "torque_shed": "Equipment.MODELS seat_sofa",
+   "source": "blender"
+  },
+  "tv_120": {
+   "name": "tv 120",
+   "torque_shed": "Equipment.MODELS tv_120",
+   "source": "blender"
+  },
+  "tv_128": {
+   "name": "tv 128",
+   "torque_shed": "Equipment.MODELS tv_128",
+   "source": "blender"
+  },
+  "tv_136": {
+   "name": "tv 136",
+   "torque_shed": "Equipment.MODELS tv_136",
+   "source": "blender"
+  },
+  "poster_frame": {
+   "name": "Poster frame (all posters)",
+   "torque_shed": "Equipment poster_*",
+   "source": "blender"
+  },
+  "blaster_cabinet": {
+   "name": "blaster_cabinet",
+   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_blaster",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "blaster_pro": {
+   "name": "blaster_pro",
+   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_blaster",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "booth_compact": {
+   "name": "booth_compact",
+   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
+   "source": "todo",
+   "plan": "blender, round 2; hangers with the shed thread"
+  },
+  "booth_standard": {
+   "name": "booth_standard",
+   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
+   "source": "todo",
+   "plan": "blender, round 2; hangers with the shed thread"
+  },
+  "booth_pro": {
+   "name": "booth_pro",
+   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
+   "source": "todo",
+   "plan": "blender, round 2; hangers with the shed thread"
+  },
+  "booth_shop": {
+   "name": "booth_shop",
+   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
+   "source": "todo",
+   "plan": "blender, round 2; hangers with the shed thread"
+  },
+  "dyno_rig": {
+   "name": "Rolling road (plate, drum, clamp, posts)",
+   "torque_shed": "dyno_room.gd",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "dyno_fan": {
+   "name": "Cooling fan",
+   "torque_shed": "dyno_room.gd",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "dyno_desk": {
+   "name": "Dyno desk and PC",
+   "torque_shed": "dyno_room.gd",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "dyno_hose": {
+   "name": "Extraction hose, duct and extractor",
+   "torque_shed": "dyno_room.gd",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "ear_defenders": {
+   "name": "Ear defenders on hook",
+   "torque_shed": "dyno_room.gd",
+   "source": "todo",
+   "plan": "blender, round 2"
+  },
+  "trinket_bobblehead": {
+   "name": "Bobblehead racer",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_gnome": {
+   "name": "Biker gnome",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_plant": {
+   "name": "Potted plant",
+   "torque_shed": "trinkets.gd",
+   "source": "polyhaven",
+   "polyhaven": "potted_plant_02"
+  },
+  "trinket_photo": {
+   "name": "Framed photo",
+   "torque_shed": "trinkets.gd",
+   "source": "polyhaven",
+   "polyhaven": "fancy_picture_frame_01"
+  },
+  "trinket_lava": {
+   "name": "Lava lamp",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_clock": {
+   "name": "Workshop wall clock",
+   "torque_shed": "trinkets.gd",
+   "source": "polyhaven",
+   "polyhaven": "wall_clock"
+  },
+  "trinket_clock_digital": {
+   "name": "Digital wall clock",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_clock_desk": {
+   "name": "Digital desk clock",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_trophy": {
+   "name": "Gold race trophy",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_rug": {
+   "name": "Chequered flag rug",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_radio": {
+   "name": "Toolbox radio",
+   "torque_shed": "trinkets.gd",
+   "source": "polyhaven",
+   "polyhaven": "boombox"
+  },
+  "trinket_bike_model": {
+   "name": "Mini bike model",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "from the bike parts, round 3"
+  },
+  "trinket_neon": {
+   "name": "Neon shed sign",
+   "torque_shed": "trinkets.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "trinket_adventure_photo": {
+   "name": "Adventure photo",
+   "torque_shed": "trinkets.gd",
+   "source": "polyhaven",
+   "polyhaven": "fancy_picture_frame_02"
+  },
+  "tool_wrench": {
+   "name": "Hand tool: wrench",
+   "torque_shed": "tool_models.gd",
+   "source": "polyhaven",
+   "polyhaven": "combination_wrench"
+  },
+  "tool_brush": {
+   "name": "Hand tool: brush",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "tool_repair": {
+   "name": "Hand tool: repair",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender (angle grinder), round 3"
+  },
+  "tool_spray": {
+   "name": "Hand tool: spray",
+   "torque_shed": "tool_models.gd",
+   "source": "polyhaven",
+   "polyhaven": "spray_paint_bottles"
+  },
+  "tool_lance": {
+   "name": "Hand tool: lance",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "tool_gun": {
+   "name": "Hand tool: gun",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender (HVLP gun), round 3"
+  },
+  "tool_polisher": {
+   "name": "Hand tool: polisher",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "tool_applicator": {
+   "name": "Hand tool: applicator",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "tool_stopwatch": {
+   "name": "Hand tool: stopwatch",
+   "torque_shed": "tool_models.gd",
+   "source": "todo",
+   "plan": "blender, round 3"
+  },
+  "dress_barrel_02": {
+   "name": "Oil drum",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "Barrel_02"
+  },
+  "dress_old_tyre": {
+   "name": "Old tyre",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "old_tyre"
+  },
+  "dress_korean_fire_extinguisher_01": {
+   "name": "Fire extinguisher",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "korean_fire_extinguisher_01"
+  },
+  "dress_metal_tool_chest": {
+   "name": "Tool chest",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "metal_tool_chest"
+  },
+  "dress_plastic_broom": {
+   "name": "Broom",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "plastic_broom"
+  },
+  "dress_metal_jerrycan_green": {
+   "name": "Jerrycan",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "metal_jerrycan_green"
+  },
+  "dress_oil_tin": {
+   "name": "Oil tin",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "oil_tin"
+  },
+  "dress_lubricant_spray": {
+   "name": "Lubricant spray",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "lubricant_spray"
+  },
+  "dress_spray_paint_bottles": {
+   "name": "Spray cans",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "spray_paint_bottles"
+  },
+  "dress_multi_cleaner_5_litre": {
+   "name": "5 litre cleaner",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "multi_cleaner_5_litre"
+  },
+  "dress_small_oil_can_01": {
+   "name": "Oil can",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "small_oil_can_01"
+  },
+  "dress_ratchet_wrench": {
+   "name": "Ratchet",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "ratchet_wrench"
+  },
+  "dress_flathead_screwdriver": {
+   "name": "Screwdriver",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "flathead_screwdriver"
+  },
+  "dress_pliers": {
+   "name": "Pliers",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "pliers"
+  },
+  "dress_measuring_tape_01": {
+   "name": "Tape measure",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "measuring_tape_01"
+  },
+  "dress_tire_pump": {
+   "name": "Track pump",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "tire_pump"
+  },
+  "dress_power_box_01": {
+   "name": "Power box",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "power_box_01"
+  },
+  "dress_bench_vice_01": {
+   "name": "Bench vice (scan)",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "bench_vice_01"
+  },
+  "dress_wetfloorsign_01": {
+   "name": "Wet floor sign",
+   "torque_shed": "dressing (new)",
+   "source": "polyhaven",
+   "polyhaven": "WetFloorSign_01"
+  }
+ }
+}
