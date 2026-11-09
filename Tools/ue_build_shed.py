@@ -859,7 +859,7 @@ def paint_shop(m):
         x = 1371.5 - i * 38.45
         box("Booth_GrateBar_%d" % i, x - 0.75, x + 0.75, -390.0, 390.0, 4, 5, m["steel"], folder=f + "/Booth", collide=False)
     label_text("Booth_Name", "DOWNDRAFT SPRAY BAY", (BOOTH_X1 - t - 1.0, 0.0, BOOTH_H - 30.0), 180.0, 18.0, (31, 31, 36), f + "/Booth")
-    # The hook rails, hung from the ceiling on drop rods, and a hook on a wire for each place.
+    # The hook rails, hung from the ceiling on drop rods, and a hanger for each place's hook.
     for i, rx in enumerate(HOOK_X):
         box("Booth_Rail_%d" % i, rx - 2, rx + 2, -390.0, 390.0, BOOTH_RAIL_Z - 2, BOOTH_RAIL_Z + 2, m["chrome"], folder=f + "/Booth", collide=False)
         for j, side in enumerate((-1.0, 1.0)):
@@ -868,10 +868,7 @@ def paint_shop(m):
         for j, hy in enumerate(HOOK_Y):
             n = i * 5 + j
             box("Booth_Hanger_%d" % n, rx - 3, rx + 3, hy - 2.5, hy + 2.5, BOOTH_RAIL_Z - 3.5, BOOTH_RAIL_Z - 2, m["dark"], folder=f + "/Booth", collide=False)
-            wire = BOOTH_RAIL_Z - HOOK_TIP - 3.0
-            shape(CYLINDER, "Booth_Wire_%d" % n, (rx, hy, HOOK_TIP + 3.0 + wire * 0.5), (0.8, 0.8, wire), m["chrome"], folder=f + "/Booth", collide=False)
-            shape(CYLINDER, "Booth_Hook_%d" % n, (rx, hy, HOOK_TIP + 2.8), (5.6, 5.6, 0.8), m["chrome"], rot=(90.0, 0.0, 0.0),
-                  folder=f + "/Booth", collide=False)
+            # (The wire and its hook are ATorqueBoothHooks': they're raised, lowered and swing.)
 
 
 def paint_bay(m):

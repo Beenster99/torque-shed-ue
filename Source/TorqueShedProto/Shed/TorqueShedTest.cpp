@@ -83,6 +83,7 @@ const TCHAR* const BoothSteps =
 	TEXT("tool:gun,spray:0:primer,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("spray:0:gloss,item:exhaust,act,look:hook_0,shot,")
 	TEXT("spray:0:clear,item:exhaust,act,log,look:hook_0,shot,look:booth,shot,")
+	TEXT("paint:hook:1:185,look:hook_0,shot,paint:hook:1:138,")
 	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,")
 	TEXT("tool:gun,spray:3:gloss,part:exhaust,act,")
 	TEXT("tool:spray,spray:1:gloss,part:exhaust,act,look:bike,shot,log");
@@ -780,7 +781,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("tobench")) R.Kind = ETorqueShedAct::PaintTinBench;
 		else if (What == TEXT("bin")) R.Kind = ETorqueShedAct::PaintTinBin;
 		else if (What == TEXT("cup")) R.Kind = ETorqueShedAct::PaintCup;
-		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup")); return true; }
+		else if (What == TEXT("hook") && P.Num() >= 4)
+		{
+			// paint:hook:N:CM: spray booth hook N (1 .. 10) wound to CM off the floor.
+			R.Kind = ETorqueShedAct::PaintHook;
+			R.Item = FCString::Atoi(*P[2]) - 1;
+			R.Amount = FCString::Atof(*P[3]);
+		}
+		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM")); return true; }
 		Said(W->TestPaint(R));
 		return true;
 	}

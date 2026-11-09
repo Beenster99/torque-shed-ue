@@ -5,6 +5,7 @@
 #include "Shed/TorqueAvatarDemo.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorquePaintBayRoom.h"
+#include "Shed/TorqueBoothHooks.h"
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
@@ -302,6 +303,10 @@ void ATorqueWalker::BeginPlay()
 		bool bPaintBay = false;
 		for (TActorIterator<ATorquePaintBayRoom> It(World); It; ++It) bPaintBay = true;
 		if (!bPaintBay) World->SpawnActor<ATorquePaintBayRoom>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// And the spray booth's hooks on their wires, raised and lowered, swinging.
+		bool bHooks = false;
+		for (TActorIterator<ATorqueBoothHooks> It(World); It; ++It) bHooks = true;
+		if (!bHooks) World->SpawnActor<ATorqueBoothHooks>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -440,6 +445,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		FindTarget();
 		MakePlan();
 		Work(DeltaSeconds);
+		HookWork(DeltaSeconds);
 	}
 	UpdateToolView(DeltaSeconds);
 	UpdateCues();
@@ -1181,8 +1187,64 @@ void ATorqueWalker::MakePlan()
 	default:
 		break;
 	}
+	// Hands free at a spray booth hook (or the part on it): right mouse winds it up or down.
+	const int32 Hook = HookOf();
+	if (!AltPlan.bValid && Hook != INDEX_NONE && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me))
+	{
+		const bool bUp = HookMoving == Hook ? HookDir < 0 : HookDir > 0;   // while winding: the way it's going
+		AltPlan = MakeOne(ETorqueShedAct::PaintHook, 0.0, FString::Printf(TEXT("hold to %s the hook (%d cm)"),
+			bUp ? TEXT("raise") : TEXT("lower"), FMath::RoundToInt(HookMoving == Hook ? HookSet : B->HookTipOf(Hook))));
+		AltPlan.Request.Item = Hook;
+		AltPlan.Request.Amount = B->HookTipOf(Hook);
+	}
 	if (Plan.bValid && !Plan.bComputer) Plan.Blocked = B->Check(Me, Plan.Request);
 	if (AltPlan.bValid) AltPlan.Blocked = B->Check(Me, AltPlan.Request);
+}
+
+int32 ATorqueWalker::HookOf() const
+{
+	if (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Hook) return TargetPlace->Index;
+	const UTorqueBuildSubsystem* B = Shed();
+	if (Target != ETorqueLook::Item || !B) return INDEX_NONE;
+	const FTorqueItem* It = B->Item(TargetItem);
+	if (!It || It->At != ETorqueAt::Spot) return INDEX_NONE;
+	const FTorquePlace* P = TorqueShedLayout::FindPlace(It->Spot);
+	return P && P->Kind == ETorquePlace::Hook ? P->Index : INDEX_NONE;
+}
+
+void ATorqueWalker::HookWork(float Dt)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	const bool bOn = B && bAltHeld && AltPlan.bValid && AltPlan.Request.Kind == ETorqueShedAct::PaintHook && AltPlan.Blocked.IsEmpty();
+	if (!bOn || (HookMoving != INDEX_NONE && HookMoving != AltPlan.Request.Item))
+	{
+		if (HookMoving != INDEX_NONE)
+		{
+			HookMoving = INDEX_NONE;
+			HookDir = -HookDir;   // the next hold goes back the other way
+		}
+		return;
+	}
+	const int32 Hook = AltPlan.Request.Item;
+	if (HookMoving == INDEX_NONE)
+	{
+		HookMoving = Hook;
+		HookSet = B->HookTipOf(Hook);
+		HookSendIn = 0.0;
+		// At the top or the bottom already: go the way it can.
+		if (HookSet >= FTorquePaintBay::HookHigh - 0.5f) HookDir = -1;
+		else if (HookSet <= FTorquePaintBay::HookLow + 0.5f) HookDir = 1;
+	}
+	const float Was = HookSet;
+	HookSet = FMath::Clamp(HookSet + HookDir * 45.0f * Dt, FTorquePaintBay::HookLow, FTorquePaintBay::HookHigh);
+	HookSendIn -= Dt;
+	if (HookSendIn > 0.0 && HookSet != FTorquePaintBay::HookLow && HookSet != FTorquePaintBay::HookHigh) return;
+	if (FMath::Abs(HookSet - B->HookTipOf(Hook)) < 0.5f && Was == HookSet) return;
+	HookSendIn = 0.15;
+	FTorqueShedRequest R = AltPlan.Request;
+	R.Amount = HookSet;
+	FString WhyNot;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 }
 
 void ATorqueWalker::Work(float Dt)
@@ -1232,6 +1294,7 @@ bool ATorqueWalker::Do(const FPlan& P)
 		OpenComputer();
 		return true;
 	}
+	if (P.Request.Kind == ETorqueShedAct::PaintHook) return true;   // wound while it's held (HookWork)
 	// Working on a bike makes it yours (the one you ride out).
 	const int32 Bay = P.Request.Bay != INDEX_NONE ? P.Request.Bay : B->BayOf(P.Request.Item);
 	if (Bay != INDEX_NONE && B->Exists(Bay) && P.Request.Kind != ETorqueShedAct::Wash) B->SetMyBike(Bay);

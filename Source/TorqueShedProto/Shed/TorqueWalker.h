@@ -186,6 +186,14 @@ private:
 	bool bWaitRelease = false;        // a job's done: let go before the next
 	void Work(float Dt);
 	bool Do(const FPlan& P);
+	// The spray booth's hooks: with your hands free at one, hold right mouse / Square to wind it up
+	// or down (the way flips each hold); the shed's told as it goes (PaintHook).
+	int32 HookOf() const;              // the hook looked at (or the part on it), else INDEX_NONE
+	void HookWork(float Dt);
+	int32 HookDir = 1;                 // the next hold's way: +1 up, -1 down
+	int32 HookMoving = INDEX_NONE;     // the hook being wound
+	float HookSet = 0.0f;
+	double HookSendIn = 0.0;
 
 	// --- Tools ---------------------------------------------------------------------------------------
 	ETorqueTool Tool = ETorqueTool::Hands;

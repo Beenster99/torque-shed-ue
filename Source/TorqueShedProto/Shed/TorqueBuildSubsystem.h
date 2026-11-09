@@ -160,6 +160,7 @@ enum class ETorqueShedAct : uint8
 	PaintTinBench,                       // ... onto the scale
 	PaintTinBin,                         // ... into the bin
 	PaintCup,                            // the gun's cup filled from it
+	PaintHook,                           // booth hook Item's tip set to Amount cm off the floor
 	Count
 };
 
@@ -320,6 +321,8 @@ public:
 
 	// --- The paint mixing bay (TorquePaintBay.h) ---------------------------------------------
 	const FTorquePaintBay& PaintBay() const { return Paint; }
+	// How high booth hook n's tip is set (cm off the floor), as everyone sees it.
+	float HookTipOf(int32 Hook) const;
 	static bool IsPaintBayAct(ETorqueShedAct A);
 
 	// --- Requests ----------------------------------------------------------------------------

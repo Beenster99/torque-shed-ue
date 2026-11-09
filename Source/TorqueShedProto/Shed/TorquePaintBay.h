@@ -84,6 +84,10 @@ struct FTorquePaintBay
 	// Each player's cup and the tin in their hands.
 	TMap<int32, FTorquePaintCup> Cups;
 	TMap<int32, int32> Held;
+	// The spray booth's hooks: how high each one's tip is set (cm off the floor; empty or short:
+	// TorqueShedLayout::HookTip). Kept with the bay so it goes in the save and to everyone.
+	TArray<float> HookTips;
+	static constexpr float HookLow = 70.0f, HookHigh = 211.0f;
 
 	static constexpr float StarterTint = 120.0f;
 	static constexpr float MaxStock = 100000.0f;

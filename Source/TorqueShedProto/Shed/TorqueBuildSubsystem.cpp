@@ -433,7 +433,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 6;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay)
+constexpr int32 BytesLayout = 7;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights)
 
 struct FNameTable
 {
@@ -1951,7 +1951,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		// The mixing bay (TorquePaintBay.cpp): its tins, bench, shaker and cups.
 		Text = ApplyPaintBay(Peer, R);
-		OnItems.Broadcast();
+		if (R.Kind != ETorqueShedAct::PaintHook) OnItems.Broadcast();   // a hook's height is read as it's drawn
 		MarkSave();
 		OnHostChange.Broadcast();
 		return Text;

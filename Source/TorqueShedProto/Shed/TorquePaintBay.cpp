@@ -1,4 +1,5 @@
 #include "Shed/TorquePaintBay.h"
+#include "Shed/TorqueShedLayout.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Serialization/Archive.h"
@@ -216,6 +217,13 @@ bool FTorquePaintBay::Serialize(FArchive& Ar, bool bNet)
 		Ar << Held;
 		if (Held.Num() > 64) return false;
 	}
+	// The booth's hook heights, last so a save from before them still reads.
+	if (!Ar.IsLoading() || bNet || !Ar.AtEnd())
+	{
+		Ar << HookTips;
+		if (HookTips.Num() > 32) return false;
+		for (float& T : HookTips) T = FMath::Clamp(T, HookLow, HookHigh);
+	}
 	return !Ar.IsError();
 }
 
@@ -311,9 +319,14 @@ FString FTorquePaintBay::Summary() const
 
 // --- The requests (paint_bay.gd check and apply), on the shed ------------------------------------------
 
+float UTorqueBuildSubsystem::HookTipOf(int32 Hook) const
+{
+	return Paint.HookTips.IsValidIndex(Hook) ? Paint.HookTips[Hook] : (float)TorqueShedLayout::HookTip;
+}
+
 bool UTorqueBuildSubsystem::IsPaintBayAct(ETorqueShedAct A)
 {
-	return (uint8)A >= (uint8)ETorqueShedAct::PaintBench && (uint8)A <= (uint8)ETorqueShedAct::PaintCup;
+	return (uint8)A >= (uint8)ETorqueShedAct::PaintBench && (uint8)A <= (uint8)ETorqueShedAct::PaintHook;
 }
 
 FString UTorqueBuildSubsystem::CheckPaintBay(int32 Peer, const FTorqueShedRequest& R) const
@@ -437,6 +450,10 @@ FString UTorqueBuildSubsystem::CheckPaintBay(int32 Peer, const FTorqueShedReques
 			return TEXT("The cup's full of it already.");
 		return FString();
 	}
+	case ETorqueShedAct::PaintHook:
+		if (R.Item < 0 || R.Item >= TorqueShedLayout::HookCount) return TEXT("That isn't a hook.");
+		if (!FMath::IsFinite(R.Amount)) return TEXT("That isn't a height.");
+		return FString();
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -643,6 +660,12 @@ FString UTorqueBuildSubsystem::ApplyPaintBay(int32 Peer, const FTorqueShedReques
 		Cup.Litres = Have + Pour;
 		P.Cups.Add(Peer, Cup);
 		return FString::Printf(TEXT("Spray gun's cup filled with %s (%.2f l). Pick Cup on the spray gun (T)."), *T.Name, Cup.Litres);
+	}
+	case ETorqueShedAct::PaintHook:
+	{
+		while (P.HookTips.Num() < TorqueShedLayout::HookCount) P.HookTips.Add((float)TorqueShedLayout::HookTip);
+		P.HookTips[R.Item] = FMath::Clamp(R.Amount, FTorquePaintBay::HookLow, FTorquePaintBay::HookHigh);
+		return FString::Printf(TEXT("Hook %d at %d cm."), R.Item + 1, FMath::RoundToInt(P.HookTips[R.Item]));
 	}
 	default:
 		return FString();

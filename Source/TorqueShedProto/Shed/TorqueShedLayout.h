@@ -114,12 +114,13 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_fan"), FVector(-169.0, -590.0, 122.0), FVector(-149.0, -578.0, 148.0), FVector(-159.0, -585.0, 135.0), 1);
 	// The paint shop's downdraft spray bay (workshop.gd BOOTH_XF, equipment.gd booth_shop): 8 m along
 	// y (-400 .. 400), its open front at x 925 to the walkway, two rails of five hooks, at x 1270 (the
-	// back) and 1050, every 150 cm along y. A hung part's top touches the hook's tip, 138 cm up (Put.Z;
-	// ATorqueShedItems hangs it from there). Keep in step with ue_build_shed.py paint_shop.
+	// back) and 1050, every 150 cm along y. A hung part's top touches the hook's tip, 138 cm up unless
+	// the hook's been raised or lowered (UTorqueBuildSubsystem::HookTipOf; ATorqueShedItems hangs it
+	// from there, swinging with ATorqueBoothHooks). The box reaches the hook at any height. Keep in step with ue_build_shed.py paint_shop.
 	for (int32 I = 0; I < HookCount; ++I)
 	{
 		const FVector At = HookAt(I);
-		Add(ETorquePlace::Hook, FString::Printf(TEXT("hook_%d"), I), FVector(At.X - 25.0, At.Y - 67.5, 60.0), FVector(At.X + 25.0, At.Y + 67.5, 145.0),
+		Add(ETorquePlace::Hook, FString::Printf(TEXT("hook_%d"), I), FVector(At.X - 25.0, At.Y - 67.5, 40.0), FVector(At.X + 25.0, At.Y + 67.5, 215.0),
 			At, I);
 	}
 	// The paint mixing bay through the paint shop's east wall (paint_bay.gd BENCH, SHELF): the bench

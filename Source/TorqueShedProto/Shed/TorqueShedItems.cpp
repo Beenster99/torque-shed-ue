@@ -1,4 +1,5 @@
 #include "Shed/TorqueShedItems.h"
+#include "Shed/TorqueBoothHooks.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
@@ -232,6 +233,12 @@ void ATorqueShedItems::Draw(int32 Id)
 	D.Centre = Box.GetCenter();
 	D.Offset = FVector(D.Centre.X, D.Centre.Y, Box.Min.Z);
 	if (It->At == ETorqueAt::Held) D.HeldBy = It->Ref;
+	if (It->At == ETorqueAt::Spot)
+		if (const FTorquePlace* HookP = TorqueShedLayout::FindPlace(It->Spot); HookP && HookP->Kind == ETorquePlace::Hook)
+		{
+			D.Hook = HookP->Index;
+			D.Height = Box.GetSize().Z;
+		}
 	Drawn.Add(D);
 	// Where it sits: on its place, on the floor where it was put, or in someone's hands (Tick).
 	FTransform Rest;
@@ -242,8 +249,7 @@ void ATorqueShedItems::Draw(int32 Id)
 		// Along the workbench (it runs north-south).
 		if (P && P->Kind == ETorquePlace::Bench) Rest.SetRotation(FRotator(0.0, 90.0, 0.0).Quaternion());
 		// Hung on a spray bay hook: its top at the hook's tip, along the rail, never down on the grate.
-		if (P && P->Kind == ETorquePlace::Hook)
-			Rest = FTransform(FRotator(0.0, 90.0, 0.0), FVector(P->Put.X, P->Put.Y, FMath::Max(P->Put.Z - Box.GetSize().Z, TorqueShedLayout::HookFloor)));
+		if (P && P->Kind == ETorquePlace::Hook) Rest = HungAt(D.Hook, D.Height);
 	}
 	else if (It->At == ETorqueAt::Floor)
 		Rest = It->Place;
@@ -268,12 +274,31 @@ bool ATorqueShedItems::HandOf(int32 Peer, FTransform& Out) const
 	return false;
 }
 
+FTransform ATorqueShedItems::HungAt(int32 Hook, double Height) const
+{
+	const FVector At = TorqueShedLayout::HookAt(Hook);
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	const double Tip = B ? (double)B->HookTipOf(Hook) : TorqueShedLayout::HookTip;
+	const FVector Still(At.X, At.Y, FMath::Max(Tip - Height, TorqueShedLayout::HookFloor));
+	FVector Pivot;
+	FQuat Turn;
+	ATorqueBoothHooks::Swing(this, Hook, Pivot, Turn);
+	return FTransform(Turn * FRotator(0.0, 90.0, 0.0).Quaternion(), Pivot + Turn.RotateVector(Still - Pivot));
+}
+
 void ATorqueShedItems::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	for (const FDrawn& D : Drawn)
 	{
 		USceneComponent* H = D.Holder.Get();
+		if (H && D.HeldBy == 0 && D.Hook != INDEX_NONE)
+		{
+			// On a booth hook: at its height, swinging with it.
+			const FTransform Rest = HungAt(D.Hook, D.Height);
+			H->SetWorldLocationAndRotation(Rest.GetLocation() - Rest.GetRotation().RotateVector(D.Offset), Rest.GetRotation());
+			continue;
+		}
 		if (!H || D.HeldBy == 0) continue;
 		FTransform Hand;
 		if (bHideHeld || !HandOf(D.HeldBy, Hand))

@@ -50,7 +50,11 @@ private:
 		FVector Offset = FVector::ZeroVector;   // holder location from where the part sits (its bottom centre)
 		FVector Centre = FVector::ZeroVector;   // the meshes' box centre, from the holder
 		int32 HeldBy = 0;                       // a peer, if it's in someone's hands
+		int32 Hook = INDEX_NONE;                // the spray booth hook it hangs on: it swings with it (Tick)
+		double Height = 0.0;                    // how tall it is, to hang its top at the hook's tip
 	};
+	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
+	FTransform HungAt(int32 Hook, double Height) const;
 	TArray<FDrawn> Drawn;
 	void Rebuild();
 	void Draw(int32 Item);
