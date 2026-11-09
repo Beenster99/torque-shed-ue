@@ -294,8 +294,11 @@ def effect_paint_material():
     rough = lerp(-200, 500, rough, expr(m, unreal.MaterialExpressionConstant, -400, 580, r=0.85), tape)
     rough = op(unreal.MaterialExpressionAdd, -150, 500, rough, op(unreal.MaterialExpressionMultiply, -300, 650, grime, const_b=0.3))
     mel.connect_material_property(rough, "", M.MP_ROUGHNESS)
-    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 800, r=1.0), "", M.MP_CUSTOM_DATA0)   # clear coat
-    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 900, r=0.04), "", M.MP_CUSTOM_DATA1)   # its roughness
+    # Clear coat and its roughness: UE 5.8's Python MaterialProperty has no MP_CUSTOM_DATA0/1, so set them
+    # only where the enum has them (unconnected, the clear-coat model defaults to a full coat).
+    if hasattr(M, "MP_CUSTOM_DATA0"):
+        mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 800, r=1.0), "", M.MP_CUSTOM_DATA0)   # clear coat
+        mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 900, r=0.04), "", M.MP_CUSTOM_DATA1)   # its roughness
     return finish(m)
 
 
