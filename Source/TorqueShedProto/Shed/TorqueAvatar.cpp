@@ -311,10 +311,13 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!bSet)
 			if (FObjectPropertyBase* Pr = FindFProperty<FObjectPropertyBase>(C->GetClass(), TEXT("GroomAsset")))
 				Pr->SetObjectPropertyValue_InContainer(C, G);
-		// Cards, not strands, where the groom has them: strands are the GPU cost.
-		if (P.Lod >= 0)
+		// Cards, not strands, where the groom has them: strands are the GPU cost. -TorqueHairLod=N
+		// forces another LOD for every groom (-1: the groom picks its own), to find one that draws.
+		int32 LodWanted = P.Lod;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueHairLod="), LodWanted);
+		if (LodWanted >= 0)
 		{
-			const int32 Lod = P.Lod;
+			const int32 Lod = LodWanted;
 			CallWithOne(C, TEXT("SetForcedLOD"), [Lod](FProperty* Pr, void* V)
 			{
 				if (FIntProperty* I = CastField<FIntProperty>(Pr)) I->SetPropertyValue(V, Lod);
@@ -336,7 +339,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 			GroomBounds = GP->Bounds;
 		}
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s%s, LOD %d (asset %s); bounds %s r %.0f cm (head at %s); material %s"), *E.Name, *P.Name, *On->GetName(),
-			bOnBone ? TEXT(", bone head") : TEXT(""), P.Lod, bSet ? TEXT("set") : TEXT("by property"), *GroomBounds.Origin.ToCompactString(),
+			bOnBone ? TEXT(", bone head") : TEXT(""), LodWanted, bSet ? TEXT("set") : TEXT("by property"), *GroomBounds.Origin.ToCompactString(),
 			GroomBounds.SphereRadius, *On->GetSocketLocation(FName(TEXT("head"))).ToCompactString(), GroomMat ? *GroomMat->GetPathName() : TEXT("none"));
 		Out.Add(C);
 	}

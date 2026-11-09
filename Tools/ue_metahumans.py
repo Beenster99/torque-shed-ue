@@ -1015,6 +1015,26 @@ def _cards_mesh(groom, lod):
             mat = prop(m, "material")
     if mat is None and mats:
         mat = prop(mats[0], "material")
+    # The cards' textures (coverage, tangent, depth...): without them the cards draw nothing.
+    for d in (prop(groom, "hair_groups_cards") or []):
+        tex = prop(d, "textures")
+        names = []
+        if tex is not None:
+            for f in [m for m in dir(tex) if not m.startswith("_")]:
+                try:
+                    v = tex.get_editor_property(f)
+                except Exception:
+                    continue
+                for t in (v if isinstance(v, (list, tuple, unreal.Array)) else [v]):
+                    if isinstance(t, unreal.Texture):
+                        names.append("%s=%s" % (f, _path(t)))
+                    elif t is not None and not isinstance(t, (bool, int, float, str)):
+                        names.append("%s=%s" % (f, t))
+        log("groom %s: cards group %s lod %s textures: %s" % (_path(groom).rsplit(".", 1)[-1], prop(d, "group_index"), prop(d, "lod_index"),
+            "; ".join(names) or "NONE"))
+    bad = _editor_only_deps(groom.get_outermost().get_name())
+    if bad:
+        log("groom %s pulls in plugin content: %s" % (_path(groom).rsplit(".", 1)[-1], ", ".join(sorted(bad)[:12])))
     log("groom %s: cards at LOD %d = %s, slot %s, material %s (materials: %s)" % (_path(groom).rsplit(".", 1)[-1], lod, _path(mesh),
         slot, _path(mat), ", ".join("%s=%s" % (prop(m, "slot_name"), _path(prop(m, "material"))) for m in mats)))
     return _path(mesh), _path(mat)
