@@ -1552,19 +1552,37 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 	// pivot as BikeModel._draw_side_stand / _draw_centre_stand swing them with a stand_pose. Godot's
 	// bike frame (x right, y up, z back, metres) is the drawn bike's (X forward, Y right, Z up, cm).
 	static const FName SideTag(TEXT("Slot:side_stand")), CentreTag(TEXT("Slot:centre_stand"));
-	if (StandRest.Num() == 0)
+	// (Taken again if the model was made again since: a gone surface means the list is stale.)
+	bool bStale = StandRest.Num() == 0;
+	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
+		if (!KV.Key.IsValid()) bStale = true;
+	if (bStale)
+	{
+		StandRest.Reset();
 		for (UStaticMeshComponent* C : ModelParts)
 			if (C && (C->ComponentHasTag(SideTag) || C->ComponentHasTag(CentreTag))) StandRest.Add({C, C->GetRelativeTransform()});
+	}
 	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
 		if (KV.Key.IsValid()) KV.Key->SetRelativeTransform(KV.Value);
-	if (Stand == 0 || StandRest.Num() == 0) return;
+	if (Stand == 0) return;
+	if (StandRest.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: no stand drawn to put down (%s model, %d surfaces, side stand '%s', centre stand '%s')"),
+			bCatalogueModel ? TEXT("catalogue") : TEXT("Speed Twin"), ModelParts.Num(), *SideStandPart, *CentreStandPart);
+		return;
+	}
 	auto Godot = [](double X, double Y, double Z) { return FVector(-Z, X, Y) * 100.0; };
 	const FName& Tag = Stand == 1 ? SideTag : CentreTag;
 	FVector Pivot = FVector::ZeroVector, Folded = FVector::ZeroVector, Down = FVector::ZeroVector;
 	int32 Pieces = 0;
 	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
 		if (KV.Key.IsValid() && KV.Key->ComponentHasTag(Tag)) ++Pieces;
-	if (Pieces == 0) return;
+	if (Pieces == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: the %s stand isn't drawn on this bike (%d stand surfaces of the other kind)"),
+			Stand == 1 ? TEXT("side") : TEXT("centre"), StandRest.Num());
+		return;
+	}
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
 	const double Rr = Sim->Build.RearRadius;
 	if (Stand == 1)
@@ -1701,9 +1719,14 @@ FString ATorqueBikePawn::TestFoot(const FString& What)
 		const int32 Steps = FMath::Max(1, FMath::CeilToInt(FMath::Abs(Cm) / 2.0));
 		for (int32 I = 0; I < Steps; ++I) StepFoot(nullptr, 2.0 / 150.0, 0.0, Cm >= 0.0 ? 1.0 : -1.0);
 	}
-	return FString::Printf(TEXT("%s; bike on its %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you"),
-		bOnFoot ? TEXT("on foot") : TEXT("riding"), !bOnFoot ? TEXT("wheels") : ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"),
-		Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"), Sim->Rpm, bOnFoot ? FVector::Dist(FootPos, GetActorLocation()) : 0.0);
+	// Where the bike is now (the actor only catches up on the next tick), and how it stands.
+	if (bOnFoot) HoldParked();
+	const FVector BikeAt = ToUE(Sim->Position);
+	const TCHAR* Stood = !bOnFoot ? TEXT("on its wheels") : bPushing ? TEXT("upright in your hands") : ParkStand == 1 ? TEXT("on its side stand")
+		: ParkStand == 2 ? TEXT("on its centre stand") : TEXT("on its wheels");
+	return FString::Printf(TEXT("%s; bike %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you, at (%.0f, %.0f) cm"),
+		bOnFoot ? TEXT("on foot") : TEXT("riding"), Stood, Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"), Sim->Rpm,
+		bOnFoot ? FVector::Dist2D(FootPos, BikeAt) : 0.0, BikeAt.X, BikeAt.Y);
 }
 
 void ATorqueBikePawn::PressIgnition()
