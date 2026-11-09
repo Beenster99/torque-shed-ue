@@ -134,7 +134,8 @@ private:
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;
 	bool bManual = false;            // gears changed by hand (the first press of a shift button)
-	bool bAbs = true;                // the Speed Twin's ABS; off lets the rear lock
+	bool bAbs = true;                // the ABS switched on; off lets the rear lock
+	bool bHasAbs[2] = {true, true};  // the bike has ABS at the front, the rear (a catalogue bike's ECU may not)
 	double GearNoteFor = 0.0;
 	// Performance: P shows frame, game, render and GPU times; O (or -TorqueProfile) logs them each
 	// second to Saved/Profiling/torque_perf_<time>.csv.
@@ -188,6 +189,7 @@ private:
 	// the swingarm on the suspension), its geometry above from the layout, and its own riding spec.
 	bool bCatalogueModel = false;
 	FString CatalogueSpec;             // the spec, as logged
+	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
 	FTransform PartFix;                // the importer's turn of the model's frame
 	FVector LeverPivot[2] = {FVector::ZeroVector, FVector::ZeroVector}, LeverAxis[2] = {FVector::UpVector, FVector::UpVector};

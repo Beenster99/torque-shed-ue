@@ -604,6 +604,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		// The sim's body frame is the drawn bike's (the origin at axle height midway between the
 		// axles, a wheelbase apart: SimTest/spec_test checks the layout and the spec agree).
 		Sim->Setup(Spec);
+		// ABS as its ECU gives it (the HUD and the B key follow).
+		bHasAbs[0] = Spec.AbsFront;
+		bHasAbs[1] = Spec.AbsRear;
+		bAbs = Spec.AbsFront || Spec.AbsRear;
 		SteerPoint = Frame.SteerPoint;
 		SteerDir = Frame.SteerDir;
 		SwingPivot = Frame.SwingPivot;
@@ -612,7 +616,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		// bike goes on its group at T * GroupRest^-1.
 		static const FName SteerNode(TEXT("steer")), FrontHubNode(TEXT("front_hub")), FrontWheelNode(TEXT("front_wheel"));
 		static const FName RearHubNode(TEXT("rear_hub")), RearWheelNode(TEXT("rear_wheel")), SwingNode(TEXT("swingarm"));
-		int32 Count[6] = {0, 0, 0, 0, 0, 0};
+		int32* Count = GroupParts;
 		for (int32 I = 0; I < ModelParts.Num(); ++I)
 		{
 			UStaticMeshComponent* C = ModelParts[I];
@@ -664,12 +668,23 @@ FString ATorqueBikePawn::TestRideLog() const
 		Sim->IsCrashed ? TEXT(", crashed") : TEXT(""), bTestAutoRide ? TEXT(", the robot riding") : TEXT(""));
 	if (bCatalogueModel)
 	{
-		// The drawn groups, as UpdateVisuals left them: the bars turned, the front wheel's pivot and
-		// the swingarm.
-		Out += FString::Printf(TEXT("\ndrawn: bars turned %.2f deg, front wheel at %s, rear at %s, swingarm %.2f deg"),
-			FMath::RadiansToDegrees(SteerGroup->GetRelativeRotation().Quaternion().GetAngle()),
+		// The drawn groups, as UpdateVisuals left them: the bars' turn about the steering axis (signed
+		// as the sim's steer, so the two agree when the bars turn the way the sim steers), the
+		// wheels' pivots, the swingarm's swing about its axle line (+ down), and how many meshes each
+		// group carries.
+		auto Signed = [](const FQuat& Q, const FVector& About) {
+			FVector Axis;
+			double Angle = 0.0;
+			Q.ToAxisAndAngle(Axis, Angle);
+			if (Angle > PI) Angle -= 2.0 * PI;
+			return FMath::RadiansToDegrees(FVector::DotProduct(Axis, About) < 0.0 ? -Angle : Angle);
+		};
+		Out += FString::Printf(TEXT("\ndrawn: bars turned %.2f deg, front wheel at %s, rear at %s, swingarm %.2f deg; ")
+			TEXT("meshes on the bike %d, steering %d, fork lowers %d, front wheel %d, swingarm %d, rear wheel %d"),
+			Signed(SteerGroup->GetRelativeRotation().Quaternion(), SteerDir),
 			*FrontPivot->GetRelativeLocation().ToString(), *RearPivot->GetRelativeLocation().ToString(),
-			FMath::RadiansToDegrees(SwingGroup->GetRelativeRotation().Quaternion().GetAngle()));
+			Signed(SwingGroup->GetRelativeRotation().Quaternion(), FVector::RightVector),
+			GroupParts[0], GroupParts[1], GroupParts[2], GroupParts[3], GroupParts[4], GroupParts[5]);
 	}
 	return Out;
 }
@@ -960,8 +975,10 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// ABS: Circle/B or the B key. Off, the rear brake will lock the wheel.
 	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || Just(EKeys::B))
 	{
-		bAbs = !bAbs;
-		Sim->Build.AbsFront = Sim->Build.AbsRear = bAbs;
+		// Only on a bike that has it (as Torque Shed: the ECU's aid); none, it stays off.
+		bAbs = !bAbs && (bHasAbs[0] || bHasAbs[1]);
+		Sim->Build.AbsFront = bAbs && bHasAbs[0];
+		Sim->Build.AbsRear = bAbs && bHasAbs[1];
 		GearNoteFor = 2.0;
 	}
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
@@ -1731,7 +1748,8 @@ void ATorqueBikePawn::DrawHud()
 	HudLines.Reset();
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
 	Add(FString::Printf(TEXT("%.0f mph   gear %d"), FMath::Abs(Mph), Sim->Gear), FColor::White, 2.0f);
-	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"), bAbs ? TEXT("on") : TEXT("off")),
+	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
+		!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")),
 		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
 	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
 		FColor(220, 220, 220), 1.1f);
