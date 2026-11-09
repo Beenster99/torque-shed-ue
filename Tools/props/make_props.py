@@ -1216,6 +1216,121 @@ def booth_shop():
         box("GrateBar%d" % k, (0.0, 0.035, -D / 2 + 0.1 + k * 0.03), (W - 0.14, 0.03, 0.004), "steel_dark", bevel=0.0)
 
 
+# --- Deliveries: cardboard boxes, wooden crates, the courier's label and the sticky note --------------
+# Drawn at a nominal size; the game scales each to the part's box (TorqueShedItems KindSize + 8 cm),
+# choosing the variant nearest in shape (Data/Props/deliveries.json) so nothing stretches far. The
+# label and the note are separate little meshes the game lays on at their real size, so they never
+# stretch at all.
+
+def _cardboard(W, H, D):
+    box("Body", (0.0, H / 2, 0.0), (W, H - 0.004, D), "cardboard", bevel=0.006)
+    # The two top flaps meeting down the middle, and the bottom's the same.
+    for y in (H - 0.002, 0.002):
+        box("Seam%.3f" % y, (0.0, y, 0.0), (W - 0.01, 0.003, 0.004), "cardboard_dark", bevel=0.0)
+    # Brown parcel tape along the seam and down both ends.
+    box("TapeTop", (0.0, H + 0.0005, 0.0), (W + 0.004, 0.002, 0.05), "parcel_tape", bevel=0.0)
+    for s in (-1, 1):
+        box("TapeEnd%d" % s, (s * (W / 2 + 0.0005), H - 0.06, 0.0), (0.002, 0.12, 0.05), "parcel_tape", bevel=0.0)
+    # Printed handling marks on the front: an arrow pair ("this way up") and a glass.
+    for k in (-1, 1):
+        prism("Arrow%d" % k, [(k * 0.02 - 0.012, 0.0), (k * 0.02 + 0.012, 0.0), (k * 0.02 + 0.012, 0.035), (k * 0.02 + 0.022, 0.035),
+                              (k * 0.02, 0.06), (k * 0.02 - 0.022, 0.035), (k * 0.02 - 0.012, 0.035)], 0.001, "ink_black", axis="z",
+              centre=D / 2 + 0.0006, bevel=0.0)
+        kit._pieces[-1].location.x += W / 2 - 0.08
+        kit._pieces[-1].location.z += H - 0.11
+
+
+@model("box_cardboard", (0.45, 0.35, 0.4))
+def box_cardboard():
+    _cardboard(0.45, 0.35, 0.4)
+
+
+@model("box_cardboard_long", (0.95, 0.3, 0.32))
+def box_cardboard_long():
+    _cardboard(0.95, 0.3, 0.32)
+
+
+@model("box_cardboard_flat", (0.7, 0.25, 0.6))
+def box_cardboard_flat():
+    _cardboard(0.7, 0.25, 0.6)
+
+
+def _crate(W, H, D):
+    """A nailed pine crate: a board skin on every face, battens round each face's edges, the
+    corner posts, a pallet-style skid underneath, nail heads and a stencilled band."""
+    skid = 0.08
+    for z in (-D / 2 + 0.05, 0.0, D / 2 - 0.05):
+        box("Skid%.2f" % z, (0.0, skid / 2, z), (W, skid, 0.07), "crate_wood_dark", bevel=0.004)
+    y0 = skid
+    h = H - skid
+    # Board skins: horizontal boards on the front, back and ends, boards along x on the lid.
+    nb = max(3, int(round(h / 0.14)))
+    for i in range(nb):
+        y = y0 + h * (i + 0.5) / nb
+        bh = h / nb - 0.008
+        for s in (-1, 1):
+            box("FB%d_%d" % (i, s), (0.0, y, s * (D / 2 - 0.009)), (W - 0.004, bh, 0.018), "crate_wood", bevel=0.002)
+            box("EB%d_%d" % (i, s), (s * (W / 2 - 0.009), y, 0.0), (0.018, bh, D - 0.04), "crate_wood", bevel=0.002)
+    nl = max(3, int(round(D / 0.14)))
+    for i in range(nl):
+        z = -D / 2 + D * (i + 0.5) / nl
+        box("Lid%d" % i, (0.0, H - 0.009, z), (W - 0.004, 0.018, D / nl - 0.008), "crate_wood", bevel=0.002)
+    # Battens framing each face.
+    bt, bw = 0.022, 0.07
+    for s in (-1, 1):
+        for y in (y0 + bw / 2, H - bw / 2):
+            box("BatH%d%.2f" % (s, y), (0.0, y, s * (D / 2 + bt / 2)), (W, bw, bt), "crate_wood_dark", bevel=0.003)
+        for x in (-W / 2 + bw / 2, W / 2 - bw / 2):
+            box("BatV%d%.2f" % (s, x), (x, y0 + h / 2, s * (D / 2 + bt / 2)), (bw, h - 2 * bw, bt), "crate_wood_dark", bevel=0.003)
+        if W > 0.9:   # a diagonal brace on the long faces
+            L = math.hypot(W - 2 * bw, h - 2 * bw)
+            ang = math.degrees(math.atan2(h - 2 * bw, W - 2 * bw))
+            box("Brace%d" % s, (0.0, y0 + h / 2, s * (D / 2 + bt / 2)), (L, bw * 0.9, bt * 0.9), "crate_wood_dark", bevel=0.003, rot=(0, 0, ang * s))
+        for z in (-D / 2 + bw / 2, D / 2 - bw / 2):
+            box("BatE%d%.2f" % (s, z), (s * (W / 2 + bt / 2), y0 + h / 2, z), (bt, h, bw), "crate_wood_dark", bevel=0.003)
+        box("LidBat%d" % s, (s * (W / 2 - bw / 2), H + bt / 2, 0.0), (bw, bt, D), "crate_wood_dark", bevel=0.003)
+    # Nail heads at the batten corners, and a stencilled band on the front.
+    for s in (-1, 1):
+        for x in (-W / 2 + bw / 2, W / 2 - bw / 2):
+            for y in (y0 + bw / 2, H - bw / 2):
+                cyl("Nail%d%.2f%.2f" % (s, x, y), (x, y, s * (D / 2 + bt + 0.0005)), 0.004, 0.002, "steel_dark", axis="z", verts=8, bevel=0.0)
+    box("Stencil", (-W * 0.2, y0 + h * 0.3, D / 2 + bt + 0.0006), (min(0.3, W * 0.35), 0.04, 0.001), "ink_black", bevel=0.0)
+    for k in range(2):
+        prism("Up%d" % k, [(-0.01, 0.0), (0.01, 0.0), (0.01, 0.03), (0.02, 0.03), (0.0, 0.05), (-0.02, 0.03), (-0.01, 0.03)], 0.001, "ink_black",
+              axis="z", centre=D / 2 + bt + 0.0006, bevel=0.0)
+        kit._pieces[-1].location.x += W * 0.25 + k * 0.05
+        kit._pieces[-1].location.z += y0 + h * 0.25
+
+
+@model("crate_wood", (0.75, 0.65, 0.65))
+def crate_wood():
+    _crate(0.75, 0.65, 0.65)
+
+
+@model("crate_wood_long", (1.5, 0.55, 0.6))
+def crate_wood_long():
+    _crate(1.5, 0.55, 0.6)
+
+
+@model("crate_wood_flat", (1.0, 0.45, 0.85))
+def crate_wood_flat():
+    _crate(1.0, 0.45, 0.85)
+
+
+@model("courier_label", (0.16, 0.0, 0.1))
+def courier_label():
+    """The shipping label (10 x 16 cm), lying face up with its top edge towards -z; its face is one
+    quad UV'd 0..1 for the courier atlas (the game picks the row), so it isn't box-UV'd."""
+    box("Label", (0.0, 0.0004, 0.0), (0.16, 0.0008, 0.1), "courier_label", bevel=0.0)
+
+
+@model("sticky_note", (0.076, 0.076, 0.0))
+def sticky_note():
+    """A 76 mm square sticky note standing on a face (facing +z), its bottom corner lifting a touch."""
+    box("Note", (0.0, 0.0, 0.0004), (0.076, 0.07, 0.0008), "sticky_note", bevel=0.0)
+    box("Curl", (0.0, -0.0375, 0.0016), (0.076, 0.006, 0.0008), "sticky_note", bevel=0.0, rot=(-25, 0, 0))
+
+
 # --- Running it --------------------------------------------------------------------------------------
 
 def main():

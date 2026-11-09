@@ -539,6 +539,79 @@
    ],
    "rough": 0.95,
    "tile": 6.0
+  },
+  "cardboard_dark": {
+   "base": "paper",
+   "tint": [
+    0.22,
+    0.15,
+    0.08
+   ],
+   "rough": 0.9,
+   "tile": 1.0
+  },
+  "parcel_tape": {
+   "base": "plastic",
+   "tint": [
+    0.55,
+    0.4,
+    0.2
+   ],
+   "rough": 0.3,
+   "tile": 4.0
+  },
+  "ink_black": {
+   "base": "paper",
+   "tint": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "rough": 0.8,
+   "tile": 1.0
+  },
+  "crate_wood": {
+   "base": "plywood",
+   "tint": [
+    0.7,
+    0.56,
+    0.36
+   ],
+   "rough": 0.8,
+   "tile": 1.2
+  },
+  "crate_wood_dark": {
+   "base": "plywood",
+   "tint": [
+    0.55,
+    0.42,
+    0.26
+   ],
+   "rough": 0.8,
+   "tile": 1.2
+  },
+  "courier_label": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/courier_labels.png",
+   "rows": 8,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.55,
+   "unit_uv": true
+  },
+  "sticky_note": {
+   "base": "paper",
+   "tint": [
+    0.98,
+    0.85,
+    0.2
+   ],
+   "rough": 0.8,
+   "tile": 1.0,
+   "unit_uv": true
   }
  }
 }

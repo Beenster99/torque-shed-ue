@@ -1,0 +1,26 @@
+{
+  "about": "How a delivery looks (beenster, 9 Nov: cardboard for smaller parts, wooden crates for larger and heavier ones, a label from a made-up delivery firm, a coloured sticky note saying who it's for). The game (ATorqueShedItems, drawing a boxed item) picks the container by the part's kind, the variant nearest the box's shape (its size: TorqueShedItems KindSize + 8 cm) and scales it to that size; lays SM_courier_label flat on the lid (and one on the front for a crate) at its real 16 x 10 cm, its material's 'Courier' row from the item id (as bike_model.gd courier_for), and writes the contents and tracking number into the label's blank strip; and sticks SM_sticky_note on the front face, its 'Tint' the orderer's player colour, with 'For <name>' written on it. Couriers are Torque Shed's own (bike_model.gd COURIERS): made-up names, no real companies.",
+  "crate_kinds": ["frame", "engine", "gearbox", "head", "wheel", "tyre", "fork", "swingarm", "exhaust", "fairing", "tank"],
+  "crate_over_cm": 75,
+  "variants": {
+    "cardboard": {"box_cardboard": [45, 40, 35], "box_cardboard_long": [95, 32, 30], "box_cardboard_flat": [70, 60, 25]},
+    "crate": {"crate_wood": [75, 65, 65], "crate_wood_long": [150, 60, 55], "crate_wood_flat": [100, 85, 45]}
+  },
+  "variant_sizes_note": "cm as (long x, wide y, high z) in UE, the same order as KindSize. The meshes' own frame is Torque Shed's (x long, y up, z deep): the game maps x->x, z->y, y->z.",
+  "label": {"mesh": "/Game/Shed/Props/courier_label/SM_courier_label", "size_cm": [16, 10], "lid_inset_cm": 4, "front_on": ["crate"],
+            "material_rows": 8, "row_param": "Courier"},
+  "label_text": {"strip_v": [0.72, 1.0], "lines": ["<part name>", "<tracking, bike_model.gd tracking_for: TS 000 0000 000>"], "colour": [0.08, 0.08, 0.08]},
+  "note": {"mesh": "/Game/Shed/Props/sticky_note/SM_sticky_note", "size_cm": [7.6, 7.6], "tint_param": "Tint", "text": "For {name}",
+           "place": "front face, upper left quarter, a few degrees off square", "colours_if_no_player_colour": [[0.98, 0.85, 0.2], [0.98, 0.45, 0.65], [0.45, 0.85, 0.95], [0.6, 0.9, 0.4]]},
+  "address": ["THE TORQUE SHED", "WORKSHOP YARD, THWAITE", "SWALEDALE"],
+  "couriers": [
+    {"name": "HEDGEHOG PARCELS", "bg": [0.98, 0.78, 0.12], "ink": [0.12, 0.10, 0.08], "mark": "disc", "tagline": "slow and steady, but there", "service": "48 HOUR"},
+    {"name": "RAPID ROOSTER", "bg": [0.82, 0.12, 0.10], "ink": [1.0, 0.95, 0.85], "mark": "chevron", "tagline": "up before the sun", "service": "NEXT DAY"},
+    {"name": "SPANNER EXPRESS", "bg": [0.12, 0.30, 0.72], "ink": [1.0, 1.0, 1.0], "mark": "stripes", "tagline": "parts people, parts couriers", "service": "EXPRESS"},
+    {"name": "KWIKKRATE", "bg": [0.10, 0.55, 0.30], "ink": [1.0, 1.0, 1.0], "mark": "diamond", "tagline": "we crate, you create", "service": "FREIGHT"},
+    {"name": "OTTERPOST", "bg": [0.42, 0.20, 0.62], "ink": [1.0, 0.90, 0.30], "mark": "disc", "tagline": "slips through anywhere", "service": "NEXT DAY"},
+    {"name": "MUDGUARD MAIL", "bg": [0.20, 0.20, 0.22], "ink": [0.98, 0.60, 0.10], "mark": "stripes", "tagline": "whatever the weather", "service": "STANDARD"},
+    {"name": "PISTON PARCEL CO", "bg": [0.95, 0.45, 0.08], "ink": [0.10, 0.10, 0.10], "mark": "diamond", "tagline": "four strokes to your door", "service": "TIMED"},
+    {"name": "BOLT & BARREL", "bg": [0.0, 0.55, 0.60], "ink": [1.0, 1.0, 1.0], "mark": "chevron", "tagline": "heavy haulage, light touch", "service": "FREIGHT"}
+  ]
+}

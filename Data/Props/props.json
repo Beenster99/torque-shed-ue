@@ -551,6 +551,46 @@
    "torque_shed": "dressing (new)",
    "source": "polyhaven",
    "polyhaven": "WetFloorSign_01"
+  },
+  "box_cardboard": {
+   "name": "Cardboard delivery box",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "box_cardboard_long": {
+   "name": "Cardboard delivery box, long",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "box_cardboard_flat": {
+   "name": "Cardboard delivery box, flat",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "crate_wood": {
+   "name": "Wooden delivery crate",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "crate_wood_long": {
+   "name": "Wooden delivery crate, long",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "crate_wood_flat": {
+   "name": "Wooden delivery crate, flat",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "courier_label": {
+   "name": "Courier label (8 fictitious couriers, atlas)",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
+  },
+  "sticky_note": {
+   "name": "Sticky note (tinted per orderer)",
+   "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
+   "source": "blender"
   }
  }
 }
