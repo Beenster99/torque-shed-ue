@@ -135,11 +135,27 @@ void BikeSim::Setup(const BikeSpec& Spec)
 	Wheels[1] = Make(false);
 	Gear = 1;
 	Rpm = Build.IdleRpm;
+
+	// The probe spheres, body space (origin at axle height midway between the wheels, -z ahead), as
+	// the Godot bike's collision shapes: the frame and engine low along the wheelbase, bumpers ahead
+	// of the front tyre and behind the back one, the bars' ends, and the rider (hips, chest, head).
+	Probes.clear();
+	const double Half = Build.Wheelbase * 0.5;
+	const double Seat = Build.SeatHeight - Build.RearRadius;   // the saddle above the axles
+	for (const double Z : {-0.55, 0.0, 0.55}) Probes.push_back({V3(0.0, 0.12, Z * Half), 0.24, false});
+	Probes.push_back({V3(0.0, 0.0, -Half - Build.FrontRadius * 0.8), 0.15, false});
+	Probes.push_back({V3(0.0, 0.0, Half + Build.RearRadius * 0.8), 0.15, false});
+	const double BarHalf = Build.BarWidthMm * 0.0005;
+	for (const double X : {-BarHalf, BarHalf}) Probes.push_back({V3(X, Seat + 0.2, -Half + 0.3), 0.07, false});
+	Probes.push_back({V3(0.0, Seat + 0.15, 0.1), 0.2, true});
+	Probes.push_back({V3(0.0, Seat + 0.5, -0.1), 0.2, true});
+	Probes.push_back({V3(0.0, Seat + 0.85, -0.2), 0.15, true});
 }
 
 void BikeSim::Place(const V3& Pos, double Heading)
 {
 	IsCrashed = false;
+	KnockedOff = false;
 	CrashTimer = 0.0;
 	Basis = M3::AxisAngle(UP, Heading);
 	Position = Pos + UP * (Build.RearRadius + 0.05);
@@ -214,6 +230,7 @@ void BikeSim::Step(double Delta)
 		}
 		const int Sub = std::max(1, (int)std::ceil(Delta * 480.0));
 		for (int I = 0; I < Sub; ++I) StepCrashed(Delta / Sub);
+		ResolveContacts(Delta);
 		return;
 	}
 
@@ -252,6 +269,101 @@ void BikeSim::Step(double Delta)
 	ApplyFeet();
 	CheckCrash();
 	Integrate(Delta);
+	ResolveContacts(Delta);
+}
+
+// --- walls, props and other bikes ----------------------------------------------------------------
+
+namespace
+{
+const double HIT_BOUNCE = 0.1;        // walls give back little
+const double HIT_BOUNCE_BIKE = 0.3;   // bikes a little more
+const double HIT_FRICTION = 0.6;      // scraping along stone or another bike
+// The rider comes off when they strike something faster than this (m/s), as Torque Shed's rider
+// shape did (bike.gd _on_body_shape_entered: over 4 m/s).
+const double RIDER_KNOCK = 4.0;
+// And when the bike itself goes into something hard faster than this (m/s into it): a rider isn't
+// still sat on after a 13 mph wall. (Godot's Jolt body pitched them over instead, the rider shape
+// then striking the wall.)
+const double BIKE_KNOCK = 6.0;
+} // namespace
+
+void BikeSim::AsCapsules(std::vector<ContactCapsule>& Out) const
+{
+	const double Half = Build.Wheelbase * 0.5;
+	const double Seat = Build.SeatHeight - Build.RearRadius;
+	ContactCapsule Low;
+	Low.A = BodyToWorld(V3(0.0, 0.1, Half + Build.RearRadius * 0.6));
+	Low.B = BodyToWorld(V3(0.0, 0.1, -Half - Build.FrontRadius * 0.6));
+	Low.Radius = 0.3;
+	Low.Velocity = LinearVelocity;
+	Out.push_back(Low);
+	if (IsCrashed) return;   // the rider is off and down beside it
+	ContactCapsule Up;
+	Up.A = BodyToWorld(V3(0.0, Seat + 0.2, 0.05));
+	Up.B = BodyToWorld(V3(0.0, Seat + 0.8, -0.15));
+	Up.Radius = 0.22;
+	Up.Velocity = LinearVelocity;
+	Up.Rider = true;
+	Out.push_back(Up);
+}
+
+void BikeSim::ResolveContacts(double Delta)
+{
+	SinceHit += Delta;
+	if (!Contacts) return;
+	const double M = Build.TotalMass;
+	double Hardest = 0.0;
+	bool HardestBike = false;
+	for (const Probe& Pr : Probes)
+	{
+		if (Pr.Rider && IsCrashed) continue;   // thrown off: the rider's no longer on it
+		const V3 P = Position + Basis * Pr.Local;
+		Hits.clear();
+		Contacts->Query(P, Pr.Radius, Hits);
+		for (const ContactHit& H : Hits)
+		{
+			// Out of it, and no further in: an impulse at the probe stops the motion into what was hit
+			// (bouncing back a little) and drags along it, turning the bike as well where it struck.
+			Position += H.Normal * H.Depth;
+			const V3 Com = Position + Basis * CenterOfMass;
+			const V3 R = (Position + Basis * Pr.Local) - Com;
+			const V3 V = LinearVelocity + AngularVelocity.Cross(R) - H.OtherVelocity;
+			const double Vn = V.Dot(H.Normal);
+			if (Vn >= 0.0) continue;
+			const V3 Rn = R.Cross(H.Normal);
+			const double Kn = 1.0 / M + H.Normal.Dot(InvInertiaWorld(Rn).Cross(R));
+			const double J = -(1.0 + (H.Bike ? HIT_BOUNCE_BIKE : HIT_BOUNCE)) * Vn / std::max(Kn, 1e-9);
+			V3 Impulse = H.Normal * J;
+			const V3 Vt = V - H.Normal * Vn;
+			const double Slide = Vt.Length();
+			if (Slide > 1e-4)
+			{
+				const V3 T = Vt / Slide;
+				const V3 Rt = R.Cross(T);
+				const double Kt = 1.0 / M + T.Dot(InvInertiaWorld(Rt).Cross(R));
+				Impulse -= T * std::min(Slide / std::max(Kt, 1e-9), HIT_FRICTION * J);
+			}
+			LinearVelocity += Impulse / M;
+			AngularVelocity += InvInertiaWorld(R.Cross(Impulse));
+			const double Into = -Vn;
+			if (Into > Hardest) { Hardest = Into; HardestBike = H.Bike; }
+			if (!IsCrashed && ((Pr.Rider && Into > RIDER_KNOCK) || (!Pr.Rider && Into > BIKE_KNOCK)))
+			{
+				IsCrashed = true;
+				CrashTimer = 0.0;
+				KnockedOff = true;
+			}
+		}
+	}
+	if (Hardest > 0.5)
+	{
+		// A new knock (not the same scrape going on): for the sound and the HUD.
+		if (SinceHit > 0.25 || Hardest > LastHitSpeed * 1.5) ++HitCount;
+		LastHitSpeed = Hardest;
+		LastHitBike = HardestBike;
+		SinceHit = 0.0;
+	}
 }
 
 // --- off: the bike as a tumbling body on the ground ----------------------------------------------
