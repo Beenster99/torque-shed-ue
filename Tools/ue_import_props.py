@@ -376,13 +376,58 @@ def import_mesh(path, pid):
         # Some importer versions name the mesh after the glTF node: give it its fixed name.
         eal.rename_asset(mesh.get_path_name().split(".")[0], mesh_path(pid))
         mesh = unreal.load_asset(mesh_path(pid))
-    try:
-        ns = mesh.get_editor_property("nanite_settings")
-        ns.set_editor_property("enabled", False)
-        unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).set_nanite_settings(mesh, ns, True)
-    except Exception as e:
-        warn("%s: couldn't turn Nanite off (%s)" % (pid, e))
     return mesh
+
+
+def _nanite_on(mesh):
+    try:
+        return bool(mesh.get_editor_property("nanite_settings").get_editor_property("enabled"))
+    except Exception:
+        return False
+
+
+def no_nanite(mesh, pid):
+    """Props are small and many have glass or paper (translucent, which Nanite can't draw), so every
+    prop is a plain static mesh. Checked on every run, not just fresh imports: an import from an
+    older run (or an importer that turns Nanite on) is put right too. The materials the Poly Haven
+    imports made also get their Nanite usage flag, so nothing falls back to the default material if
+    a mesh is ever Nanite again."""
+    if _nanite_on(mesh):
+        try:
+            ns = mesh.get_editor_property("nanite_settings")
+            ns.set_editor_property("enabled", False)
+            sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+            sub.set_nanite_settings(mesh, ns, True)
+        except Exception as e:
+            warn("%s: set_nanite_settings failed (%s), setting the property" % (pid, e))
+        if _nanite_on(mesh):
+            try:
+                ns = mesh.get_editor_property("nanite_settings")
+                ns.set_editor_property("enabled", False)
+                mesh.set_editor_property("nanite_settings", ns)
+                mesh.modify()
+                mesh.post_edit_change()
+            except Exception as e:
+                warn("%s: couldn't turn Nanite off (%s)" % (pid, e))
+        if _nanite_on(mesh):
+            warn("%s: still Nanite" % pid)
+        else:
+            log("%s: Nanite off" % pid)
+            eal.save_loaded_asset(mesh)
+    # Usage flags on the base materials under this mesh's own (imported) slots.
+    for s in mesh.get_editor_property("static_materials"):
+        m = s.get_editor_property("material_interface")
+        base = m.get_base_material() if m else None
+        # Only the project's own copies can change (an engine or plugin master can't be saved).
+        if not base or not base.get_path_name().startswith("/Game/") or base.get_path_name().startswith(MATS):
+            continue
+        try:
+            if not base.get_editor_property("used_with_nanite"):
+                base.set_editor_property("used_with_nanite", True)
+                mel.recompile_material(base)
+                eal.save_loaded_asset(base)
+        except Exception as e:
+            warn("%s: no Nanite usage on %s (%s)" % (pid, base.get_name(), e))
 
 
 def mesh_path(pid):
@@ -434,6 +479,7 @@ def import_all(force=False):
                 warn("%s: %s" % (pid, e))
                 missing.append(pid)
                 continue
+        no_nanite(mesh, pid)
         if p["source"] == "blender":
             give_materials(mesh, mats)
         got += 1
