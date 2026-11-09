@@ -9,6 +9,11 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "GameFramework/HUD.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "InputCoreTypes.h"
@@ -296,6 +301,35 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 	}
 }
 
+namespace
+{
+	// The build stamp on the title screen: Data/build.json, written by the PC's packaging step
+	// ({"round": 100, "commit": "abc1234", "built": "2026-11-09 13:05"}). A build without one says so.
+	const FString& BuildStamp()
+	{
+		static FString Stamp;
+		static bool bRead = false;
+		if (bRead) return Stamp;
+		bRead = true;
+		Stamp = TEXT("Dev build (no build number)");
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/build.json")))) return Stamp;
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid()) return Stamp;
+		int32 Round = 0;
+		FString Commit, Built;
+		Root->TryGetNumberField(TEXT("round"), Round);
+		Root->TryGetStringField(TEXT("commit"), Commit);
+		Root->TryGetStringField(TEXT("built"), Built);
+		if (Round > 0) Stamp = FString::Printf(TEXT("Build %d"), Round);
+		if (!Built.IsEmpty()) Stamp += TEXT("  ") + Built;
+		if (!Commit.IsEmpty()) Stamp += TEXT("  (") + Commit.Left(7) + TEXT(")");
+		UE_LOG(LogTemp, Log, TEXT("[Torque] build stamp: %s"), *Stamp);
+		return Stamp;
+	}
+}
+
 void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 {
 	Hits.Reset();
@@ -332,4 +366,16 @@ void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 	else if (S && !S->Status.IsEmpty()) Line(S->Status, FColor(255, 170, 90), 1.2f, 0.45f);
 	Y = Canvas->ClipY - 90.0f * Sc;
 	Line(TEXT("Click to choose (the wheel scrolls)   Up/Down, D-pad or left stick to pick   Enter, Cross or A to choose"), FColor(200, 200, 200), 0.9f, 0.35f);
+	{
+		// The build number, bottom right, on every build (beenster, 9 Nov).
+		const FString& Stamp = BuildStamp();
+		float W = 0, H = 0;
+		Canvas->StrLen(Font, Stamp, W, H);
+		const float K = 1.1f * Sc;
+		const float BX = Canvas->ClipX - W * K - 40.0f * Sc;
+		const float BY = Canvas->ClipY - H * K - 30.0f * Sc;
+		Hud->DrawRect(FLinearColor(0, 0, 0, 0.45f), BX - 14.0f * Sc, BY - 6.0f * Sc, W * K + 28.0f * Sc, H * K + 12.0f * Sc);
+		Canvas->SetDrawColor(FColor(255, 220, 120));
+		Canvas->DrawText(Font, Stamp, BX, BY, K, K);
+	}
 }

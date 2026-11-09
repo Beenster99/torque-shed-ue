@@ -23,3 +23,6 @@ SimTest/sfx_test.wav
 
 # SimTest outputs written at the repo root
 /*_test.wav
+
+# Written by the PC packaging step (round, commit, time) and staged with the build; not tracked
+/Data/build.json
