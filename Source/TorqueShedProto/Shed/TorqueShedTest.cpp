@@ -23,6 +23,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "UnrealClient.h"
@@ -291,13 +292,38 @@ bool UTorqueShedTest::Step(float Dt)
 		LogBuild(*FString::Printf(TEXT("in %s"), *World->GetMapName()));
 	}
 	Wait -= Dt;
+	StepGame += Dt;
+	++StepFrames;
 	if (Wait > 0.0) return true;
+	// The last step and the wait after it: real time against game time (the hub's run timed out
+	// once with every step fine: this says where the time went).
+	const double RealNow = FPlatformTime::Seconds();
+	if (RunRealAt == 0.0) RunRealAt = RealNow;
+	if (!StepWas.IsEmpty())
+	{
+		const double Real = RealNow - StepRealAt;
+		if (Real > StepGame + 3.0 || Real > 12.0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque test: slow step: '%s' took %.1f s real, %.1f s game, %d frames (%.0f fps)"), *StepWas, Real, StepGame, StepFrames,
+				StepFrames / FMath::Max(Real, 0.001));
+		}
+		SlowSteps.Add(TPair<double, FString>(Real, StepWas));
+	}
+	StepRealAt = RealNow;
+	StepGame = 0.0;
+	StepFrames = 0;
+	StepWas.Reset();
 	if (Next >= Steps.Num())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque test: all shed steps done"));
+		SlowSteps.Sort([](const TPair<double, FString>& X, const TPair<double, FString>& Y) { return X.Key > Y.Key; });
+		FString Slowest;
+		for (int32 I = 0; I < SlowSteps.Num() && I < 5; ++I)
+			Slowest += FString::Printf(TEXT("%s'%s' %.1f s"), I == 0 ? TEXT("") : TEXT(", "), *SlowSteps[I].Value, SlowSteps[I].Key);
+		UE_LOG(LogTemp, Log, TEXT("Torque test: all shed steps done in %.0f s real; slowest: %s"), RealNow - RunRealAt, *Slowest);
 		return false;   // stop ticking
 	}
 	const FString S = Steps[Next].TrimStartAndEnd();
+	StepWas = S;
 	Wait = 2.0;
 	if (RunStep(S)) ++Next;
 	else Wait = 1.0;   // not ready (no walker yet): try again in a second, but not for ever
@@ -441,6 +467,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World);
 	if (!W || !B)
 	{
+		if (Tries == 0) Warn(TEXT("waiting for the walker (up to 20 s)"));
 		if (++Tries < 20) return false;
 		Warn(TEXT("skipped: no walker (not in the shed?)"));
 		Tries = 0;
