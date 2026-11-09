@@ -218,6 +218,20 @@ FString ATorqueWalker::TestFluid(const FString& Verb, const TArray<FString>& Arg
 			FluidInput(true);
 			return FString::Printf(TEXT("F with the nozzle: %s; %s"), Note.IsEmpty() ? TEXT("-") : *Note, *FluidLog());
 		}
+		if (What == TEXT("burn"))
+		{
+			// As if it had been ridden: Litres burnt out of its tank (the ride's own report to the shed).
+			if (!B->Exists(Bay)) return TEXT("can't burn: no bike in that bay");
+			const float Before = B->FuelOf(Bay);
+			const float Burn = Args.Num() > 1 ? FMath::Max(0.0f, (float)FCString::Atod(*Args[1])) : 5.0f;
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::RideFuel;
+			R.Bay = Bay;
+			R.Amount = FMath::Max(0.0f, Before - Burn);
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) return TEXT("can't burn: ") + WhyNot;
+			return FString::Printf(TEXT("burnt bay %d's petrol: %.2f -> %.2f L; %s"), Bay + 1, Before, B->FuelOf(Bay), *FluidLog());
+		}
 		if (What == TEXT("fill"))
 		{
 			if (B->PumpHeldBy() != Me) return TEXT("can't fill: not holding the nozzle (pump:lift first)");
