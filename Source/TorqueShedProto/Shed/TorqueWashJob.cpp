@@ -273,9 +273,9 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	// The bike's height as its materials have it (TorqueShedModel::ApplyLooks), so the dirt here lies
 	// exactly as it's drawn.
 	for (UStaticMeshComponent* C : Meshes)
-		if (const UMaterialInstanceDynamic* Mid = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0)))
+		if (UMaterialInstanceDynamic* Dyn = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0)))
 		{
-			const FLinearColor Z = Mid->K2_GetVectorParameterValue(TEXT("ZRange"));
+			const FLinearColor Z = Dyn->K2_GetVectorParameterValue(TEXT("ZRange"));
 			if (Z.G > Z.R + 1.0f)
 			{
 				ZLo = Z.R;
