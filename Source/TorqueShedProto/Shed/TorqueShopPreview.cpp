@@ -334,13 +334,16 @@ void ATorqueShopPreview::Clear()
 void ATorqueShopPreview::Rebuild(const FString& NewKey, TFunctionRef<void()> Make)
 {
 	if (NewKey == Key) return;
+	// Another bike in place of a bike (a part or colour changed in the configurator) keeps the view
+	// as it was (part_preview.gd show_bike); anything else starts at the start view.
+	const bool bKeepView = Key.StartsWith(TEXT("bike:")) && NewKey.StartsWith(TEXT("bike:"));
 	Key = NewKey;
 	Clear();
 	Make();
 	for (UStaticMeshComponent* C : Shown) Studio(C);
 	Framed();
-	// A new item starts at the start view (turning on as it was).
-	ResetView();
+	// A new item starts at the start view (turning on or paused as it was).
+	if (!bKeepView) ResetView();
 	Capture->ShowOnlyActors.Reset();
 	Capture->ShowOnlyActors.Add(this);
 }
