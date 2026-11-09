@@ -36,10 +36,10 @@ PIPELINE_TYPE = "OPTIMIZED"    # the pipeline_type member whose name has this
 PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
 MAX_TEXTURE = 1024
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["short", "crop"], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["buzz", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
-    {"name": "Avatar_C", "height": 182.0, "hair": ["short", "side"], "outfit": ["overall", "work", "boot"]},
-    {"name": "Avatar_D", "height": 188.0, "hair": ["curl", "short"], "outfit": ["shirt", "trouser", "pant", "boot"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_s_", "short", "crop"], "outfit": ["work", "jacket", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["buzz", "_s_", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
+    {"name": "Avatar_C", "height": 182.0, "hair": ["_s_", "short", "side"], "outfit": ["overall", "work", "boot"]},
+    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "outfit": ["shirt", "trouser", "pant", "boot"]},
 ]
 
 
@@ -146,7 +146,7 @@ def _vary_body(sub, ch, i):
 _WARDROBE = None
 
 
-WEAR_CLASSES = ("wardrobe", "groom", "outfit", "clothing", "garment")
+WEAR_CLASSES = ("wardrobe", "groom", "outfit", "cloth", "garment")
 
 
 def _wardrobe():
@@ -215,27 +215,51 @@ def _as_wardrobe_item(obj):
     return item if used else None
 
 
+def _collections(sub, ch):
+    """The character's own collection (what the build assembles from) and the editor's preview one."""
+    out = []
+    for get in (lambda: ch.get_editor_property("internal_collection"),
+                lambda: sub.get_preview_collection(ch) if hasattr(sub, "get_preview_collection") else None):
+        try:
+            c = get()
+        except Exception:
+            c = None
+        if c is not None and all(c != o for o in out):
+            out.append(c)
+    return out
+
+
+def _key_for(coll, slot, item, r):
+    """The palette item key for item in slot: from try_add's result, else among the slot's keys."""
+    for v in (r if isinstance(r, (tuple, list)) else [r]):
+        if v is not None and not isinstance(v, bool) and "key" in type(v).__name__.lower():
+            return v
+    try:
+        keys = list(coll.get_item_keys_for_slot(unreal.Name(slot)))
+    except Exception:
+        keys = []
+    stem = item.get_name().lower()
+    for k in keys:
+        if stem in str(k).lower():
+            return k
+    return keys[-1] if keys else None
+
+
 def _dress(sub, ch, av):
     """Hair and workshop clothes from the wardrobe: for each of the character's slots, the item whose
-    name best matches the avatar's keywords (hair slots: av["hair"]; outfit slots: av["outfit"])."""
-    try:
-        coll = sub.get_preview_collection(ch) if hasattr(sub, "get_preview_collection") else None
-        if coll is None:
-            coll = ch.get_editor_property("internal_collection")
-    except Exception as e:
-        unreal.log_warning("[Torque] %s: no collection to dress: %s" % (av["name"], e))
+    name best matches the avatar's keywords (hair slots: av["hair"]; outfit slots: av["outfit"]),
+    added to the character's collections and selected on their default instance."""
+    colls = _collections(sub, ch)
+    if not colls:
+        unreal.log_warning("[Torque] %s: no collection to dress" % av["name"])
         return
     try:
-        slots = [str(n) for n in coll.get_slot_names()]
+        slots = [str(n) for n in colls[0].get_slot_names()]
     except Exception as e:
         unreal.log_warning("[Torque] %s: get_slot_names failed: %s" % (av["name"], e))
         return
-    log("%s: wardrobe slots %s" % (av["name"], ", ".join(slots)))
+    log("%s: wardrobe slots %s (%d collections)" % (av["name"], ", ".join(slots), len(colls)))
     items = _wardrobe()
-    try:
-        inst = coll.get_editor_property("default_instance")
-    except Exception:
-        inst = getattr(coll, "default_instance", None)
     for slot in slots:
         low = slot.lower()
         if "hair" in low:
@@ -248,6 +272,7 @@ def _dress(sub, ch, av):
         best, score = None, 0
         for pkg, name, cls in items:
             n = name.lower() + " " + pkg.lower()
+            # Wardrobe items first (what the Creator itself offers); a bare groom or cloth asset is wrapped.
             is_hair = ("hair" in n or "groom" in cls.lower()) and not any(w in n for w in ("brow", "beard", "mustache", "lash", "fuzz"))
             if hair_slot != is_hair:
                 continue
@@ -257,7 +282,9 @@ def _dress(sub, ch, av):
                 continue
             if "bottom" in low and any(w in n for w in ("shirt", "jacket", "hoodie", "top", "tee")):
                 continue
-            sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words) + 1   # any fits the slot
+            sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words) + 1
+            if "wardrobe" in cls.lower():
+                sc += 2
             if sc > score:
                 best, score = (pkg, name), sc
         if best is None:
@@ -267,20 +294,38 @@ def _dress(sub, ch, av):
         if item is None:
             log("%s: %s isn't a wardrobe item and couldn't be wrapped in one" % (av["name"], best[0]))
             continue
-        try:
-            r = coll.try_add_item_from_wardrobe_item(unreal.Name(slot), item)
-            key = r[-1] if isinstance(r, tuple) else r
-            log("%s: %s <- %s (%s)" % (av["name"], slot, best[0], r))
-            if inst is not None and key is not None and not isinstance(key, bool):
-                inst.set_single_slot_selection(unreal.Name(slot), key)
-                log("%s: %s selected" % (av["name"], slot))
-        except Exception as e:
-            unreal.log_warning("[Torque] %s: dressing %s with %s failed: %s" % (av["name"], slot, best[0], e))
+        for ci, coll in enumerate(colls):
             try:
+                r = coll.try_add_item_from_wardrobe_item(unreal.Name(slot), item)
+            except Exception as e:
+                unreal.log_warning("[Torque] %s: dressing %s with %s failed: %s" % (av["name"], slot, best[0], e))
                 log("try_add_item_from_wardrobe_item: " + (coll.try_add_item_from_wardrobe_item.__doc__ or "")[:600])
-                log("set_single_slot_selection: " + (inst.set_single_slot_selection.__doc__ or "")[:600] if inst else "no instance")
+                continue
+            key = _key_for(coll, slot, item, r)
+            log("%s: %s <- %s (collection %d, result %r, key %s)" % (av["name"], slot, best[0], ci, r, key))
+            try:
+                inst = coll.get_editor_property("default_instance")
             except Exception:
-                pass
+                inst = getattr(coll, "default_instance", None)
+            if inst is None or key is None:
+                log("%s: %s not selected (instance %s, key %s)" % (av["name"], slot, inst, key))
+                continue
+            try:
+                sel = inst.set_single_slot_selection(unreal.Name(slot), key)
+                log("%s: %s selected (%r)" % (av["name"], slot, sel))
+            except Exception as e:
+                unreal.log_warning("[Torque] %s: selecting %s failed: %s; %s" % (av["name"], slot, e,
+                                   (inst.set_single_slot_selection.__doc__ or "")[:400]))
+    for ci, coll in enumerate(colls):
+        try:
+            for slot in slots:
+                log("  collection %d %s: %s" % (ci, slot, ", ".join(str(k) for k in coll.get_item_keys_for_slot(unreal.Name(slot)))))
+        except Exception:
+            pass
+    try:
+        unreal.EditorAssetLibrary.save_loaded_asset(ch, only_if_is_dirty=False)
+    except Exception:
+        pass
 
 
 def _find_class(*words):
@@ -496,6 +541,15 @@ def make(rig=False):
             used = _set_first(bp, folder, "absolute_build_path", "build_path", "output_folder", "output_path")
             _set_first(bp, name, "name_override", "name", "asset_name")
             log("%s: build path set via %s" % (name, used))
+            for f in [m for m in dir(bp) if not m.startswith("_")]:
+                try:
+                    v = bp.get_editor_property(f)
+                except Exception:
+                    continue
+                log("  build param %s = %r" % (f, v))
+                if isinstance(v, bool) and not v and any(w in f.lower() for w in ("groom", "hair", "cloth", "outfit", "wardrobe", "garment")):
+                    bp.set_editor_property(f, True)
+                    log("  build param %s -> True" % f)
             _set_enum(bp, "pipeline_type", PIPELINE_TYPE)
             _set_enum(bp, "pipeline_quality", PIPELINE_QUALITY)
             # A rebuild at another quality leaves the old build's files behind, and /Game/MetaHumans
@@ -507,6 +561,12 @@ def make(rig=False):
                 sub.build_meta_human(ch, bp)
                 built = True
                 log("%s: build_meta_human done" % name)
+                # What it made, by class: grooms and garments should be among them.
+                reg = unreal.AssetRegistryHelpers.get_asset_registry()
+                made = {}
+                for a in reg.get_assets_by_path(folder, recursive=True):
+                    made[_cls_name(a)] = made.get(_cls_name(a), 0) + 1
+                log("%s: built %s" % (name, ", ".join("%d %s" % (n, c) for c, n in sorted(made.items()))))
             except Exception as e:
                 unreal.log_warning("[Torque] %s: build_meta_human failed: %s" % (name, e))
         if not built:
@@ -756,6 +816,11 @@ def _parts_of_blueprint(pkg, name, av):
         unreal.log_warning("[Torque] %s: couldn't spawn %s in the editor world" % (av, pkg))
         return None
     try:
+        try:
+            log("%s: Blueprint components: %s" % (av, ", ".join("%s (%s)" % (c.get_name(), type(c).__name__)
+                                                              for c in actor.get_components_by_class(unreal.ActorComponent))))
+        except Exception:
+            pass
         skins = []
         for c in actor.get_components_by_class(unreal.SkeletalMeshComponent):
             try:
