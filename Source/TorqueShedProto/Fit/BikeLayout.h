@@ -130,6 +130,8 @@ public:
 	// The styles a part belongs to (PartsDB.styles_of).
 	std::vector<std::string> StylesOf(const std::string& Id) const;
 	const Json* Part(const std::string& Id) const;
+	// The parts catalogue it was loaded on (its kinds and ids in parts.json's order).
+	const PartsDb* Catalogue() const { return Db; }
 	// layout.json as loaded (tank_shapes, seat_shapes, tail_cowls...).
 	const Json& Tables() const { return Data; }
 	bool MayBeEmpty(const std::string& Slot) const;

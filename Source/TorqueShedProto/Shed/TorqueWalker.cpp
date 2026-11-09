@@ -553,6 +553,8 @@ void ATorqueWalker::ReadInput(float Dt)
 		if (PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
 		if (bF || Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle))
 		{
+			// (A list open on the New bike page closes first.)
+			if (!bF && Computer.Back()) return;
 			CloseComputer();
 			return;
 		}
@@ -2200,6 +2202,19 @@ void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 	case FTorqueComputerAction::EKind::OrderPart:
 		Order(A.Part);
 		break;
+	case FTorqueComputerAction::EKind::OrderNewBike:
+		if (UTorqueBuildSubsystem* B = Shed())
+		{
+			// The New bike configurator's bike: the host builds it into a free bay (a project bike
+			// request carrying the order).
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::OrderBike;
+			R.Text = A.Order;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+			else Doing(TEXT("ordering a new bike"));
+		}
+		break;
 	case FTorqueComputerAction::EKind::BuyPaint:
 		if (UTorqueBuildSubsystem* B = Shed())
 		{
@@ -2236,6 +2251,23 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 	{
 		Note.Reset();
 		ComputerDo(Computer.Pad(0, 0, true));
+		Out += TEXT(": ") + (Note.IsEmpty() ? FString(TEXT("ordered")) : Note);
+	}
+	return Out;
+}
+
+FString ATorqueWalker::TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder)
+{
+	if (!bComputer) OpenComputer();
+	Computer.OpenNewBike();
+	FString Out = Computer.NewBike().TestSetup(Style, Swaps) + TEXT(" [3D preview: ") + Computer.PreviewShowing() + TEXT("]");
+	if (bOrder)
+	{
+		Note.Reset();
+		FTorqueComputerAction A;
+		A.Kind = FTorqueComputerAction::EKind::OrderNewBike;
+		A.Order = Computer.NewBike().OrderText();
+		ComputerDo(A);
 		Out += TEXT(": ") + (Note.IsEmpty() ? FString(TEXT("ordered")) : Note);
 	}
 	return Out;

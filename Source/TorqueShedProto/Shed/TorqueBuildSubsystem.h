@@ -133,7 +133,8 @@ enum class ETorqueShedAct : uint8
 	Paint,                               // Item: sprayed Colour (an index into Paints()) and Finish
 	Wash,                                // Items: the pressure washer takes some muck off each
 	OrderPart,                           // Part: delivered boxed to the deliveries bay
-	OrderBike,                           // a project bike, into the first empty bay
+	OrderBike,                           // a project bike, into the first empty bay (Text: a new bike
+	                                     // from the configurator instead, Fit/BikeShop's order text)
 	Unpack,                              // Item: a box opened where it is
 	StartBuild,                          // the frame in your hands onto bay Bay's stand
 	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer")
@@ -473,6 +474,12 @@ private:
 	// A project bike from the part list: a style's reference bike (any style when Style is empty),
 	// every part aged. False (the bay left as it was) without the fitting layout.
 	bool NewProjectBike(int32 Bay, float Age, const FString& Style = FString());
+	// A bike in bay Bay built of Parts (slot -> catalogue part, "none" for empty), every part as worn
+	// as Age (0: new). NewProjectBike's and the New bike configurator's (OrderBike with an order).
+	void FillBike(int32 Bay, const TMap<FName, FName>& Parts, float Age);
+	// The New bike configurator's order (Fit/BikeShop's text): built new into bay Bay in its colours,
+	// its fabrication done by the works, named after who ordered it. Why not, or "".
+	FString NewOrderedBike(int32 Peer, int32 Bay, const FString& Order);
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
 	int32 FreeBay() const;

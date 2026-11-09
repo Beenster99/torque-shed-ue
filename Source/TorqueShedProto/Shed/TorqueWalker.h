@@ -96,6 +96,8 @@ public:
 	void DrawComputer(class AHUD* Hud, class UCanvas* Canvas) const;
 	// For the test steps: the computer's page as it'd be clicked (pick a kind and a model, order it).
 	FString TestComputer(FName Kind, FName Part, bool bOrder);
+	// The New bike aisle: Style's bike (as it starts) with Swaps (slot=part) on, a colour of its own, ordered.
+	FString TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder);
 	void TestCloseComputer() { CloseComputer(); }
 	// For the HUD at the mixing bench: the colour in the tin on the scale (as it'd spray), and the
 	// colour to match, if there's one. False when not at the bench or there's no tin.

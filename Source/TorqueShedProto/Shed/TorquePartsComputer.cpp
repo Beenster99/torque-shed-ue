@@ -138,6 +138,7 @@ void FTorquePartsComputer::PickSection(ESection S)
 {
 	if (S == Section) return;
 	Section = S;
+	if (S == ESection::NewBike) Configurator.Open();
 	Kind = S == ESection::Bike ? TPCI::Bikes : TPCI::PaintBases;
 	Row = 0;
 	KindScroll = RowScroll = 0;
@@ -147,6 +148,12 @@ void FTorquePartsComputer::PickSection(ESection S)
 void FTorquePartsComputer::Relist()
 {
 	KindRows.Reset();
+	if (Section == ESection::NewBike)
+	{
+		// The configurator's page instead of the lists (TorqueBikeConfigurator).
+		Rows.Reset();
+		return;
+	}
 	if (Section == ESection::Bike)
 	{
 		// What the shop sells for a bike: kinds with parts that go on a bike, under parts_computer.gd's headings.
@@ -239,8 +246,19 @@ bool FTorquePartsComputer::PickPart(FName Part)
 	return false;
 }
 
+void FTorquePartsComputer::OpenNewBike()
+{
+	PickSection(ESection::NewBike);
+}
+
+bool FTorquePartsComputer::Back()
+{
+	return Section == ESection::NewBike && Configurator.Back();
+}
+
 FString FTorquePartsComputer::Describe() const
 {
+	if (Section == ESection::NewBike) return Configurator.Describe();
 	FString Picked;
 	if (Rows.IsValidIndex(Row))
 		Picked = Rows[Row].Stock != INDEX_NONE ? FTorquePaintBay::StockName(Rows[Row].Stock) : Rows[Row].Part.ToString();
@@ -289,15 +307,23 @@ const FTorquePartsComputer::FHit* FTorquePartsComputer::HitAt(const FVector2D& M
 FTorqueComputerAction FTorquePartsComputer::Click(const FVector2D& Mouse)
 {
 	FTorqueComputerAction A;
+	const bool bNewBike = Section == ESection::NewBike;
 	if (ATorqueShopPreview* P = Preview.Get())
-		if (P->Press(Mouse)) return A;
+		if (!(bNewBike && Configurator.PopupOpen()) && P->Press(Mouse)) return A;
 	const FHit* H = HitAt(Mouse);
+	// The New bike aisle: its page takes the click, but for the header and the aisles.
+	if (bNewBike && (!H || (H->What != EHit::Close && H->What != EHit::Section && H->What != EHit::OrderBike)))
+	{
+		if (Configurator.Click(Mouse, A.Order)) A.Kind = FTorqueComputerAction::EKind::OrderNewBike;
+		return A;
+	}
 	if (!H) return A;
+	if (bNewBike) Configurator.Back();
 	switch (H->What)
 	{
 	case EHit::Close: A.Kind = FTorqueComputerAction::EKind::Close; break;
 	case EHit::OrderBike: A.Kind = FTorqueComputerAction::EKind::OrderBike; break;
-	case EHit::Section: PickSection(H->Arg == 0 ? ESection::Bike : ESection::Shed); break;
+	case EHit::Section: PickSection(H->Arg == 0 ? ESection::Bike : (H->Arg == 1 ? ESection::Shed : ESection::NewBike)); break;
 	case EHit::Kind: PickKindAt(H->Arg); break;
 	case EHit::Row: if (Rows.IsValidIndex(H->Arg)) Row = H->Arg; break;
 	case EHit::Order: A = OrderPicked(); break;
@@ -313,8 +339,18 @@ FTorqueComputerAction FTorquePartsComputer::Click(const FVector2D& Mouse)
 
 void FTorquePartsComputer::Scroll(const FVector2D& Mouse, int32 Dir)
 {
+	if (Section == ESection::NewBike && Configurator.PopupOpen())
+	{
+		Configurator.Scroll(Mouse, Dir);
+		return;
+	}
 	if (ATorqueShopPreview* P = Preview.Get())
 		if (P->Wheel(Mouse, Dir)) return;
+	if (Section == ESection::NewBike)
+	{
+		Configurator.Scroll(Mouse, Dir);
+		return;
+	}
 	if (KindBox.bIsValid && KindBox.IsInside(Mouse))
 		KindScroll = FMath::Clamp(KindScroll + Dir * 3, 0, FMath::Max(0, KindRows.Num() - KindsShown));
 	else if (RowBox.bIsValid && RowBox.IsInside(Mouse))
@@ -373,6 +409,19 @@ void FTorquePartsComputer::ShowPicked(AHUD* Hud)
 
 FTorqueComputerAction FTorquePartsComputer::Pad(int32 RowStep, int32 KindStep, bool bChoose)
 {
+	if (Section == ESection::NewBike)
+	{
+		// L1 / R1: back round the aisles; the D-pad and Cross work the configurator's rows.
+		FTorqueComputerAction A;
+		if (KindStep != 0)
+		{
+			Configurator.Back();
+			PickSection(KindStep > 0 ? ESection::Bike : ESection::Shed);
+			return A;
+		}
+		if (Configurator.Pad(RowStep, bChoose, A.Order)) A.Kind = FTorqueComputerAction::EKind::OrderNewBike;
+		return A;
+	}
 	if (KindStep != 0)
 	{
 		// The next kind (over the headings), round into the other aisle at either end.
@@ -382,7 +431,7 @@ FTorqueComputerAction FTorquePartsComputer::Pad(int32 RowStep, int32 KindStep, b
 		int32 Next = At + KindStep;
 		while (KindRows.IsValidIndex(Next) && KindRows[Next].Kind.IsNone()) Next += KindStep;
 		if (KindRows.IsValidIndex(Next)) PickKindAt(Next);
-		else PickSection(Section == ESection::Bike ? ESection::Shed : ESection::Bike);
+		else PickSection(Section == ESection::Bike ? (KindStep > 0 ? ESection::Shed : ESection::NewBike) : (KindStep > 0 ? ESection::NewBike : ESection::Bike));
 	}
 	if (RowStep != 0 && Rows.Num() > 0)
 	{
@@ -435,13 +484,20 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 	Btn(X0 + PW - Margin - CloseW, Y, CloseW, BH, TEXT("Close (F / Esc)"), 15.0f * S, false, EHit::Close, 0);
 	Btn(X0 + PW - Margin - CloseW - 10.0f * S - BikeW, Y, BikeW, BH, TEXT("Order a project bike"), 15.0f * S, false, EHit::OrderBike, 0);
 	Y += BH + 8.0f * S;
-	Pen.Text(X0 + Margin, Y, TEXT("Pick a kind of part, then a model. Orders arrive in boxes outside the roller door, in the deliveries bay."), 14.0f * S, TPCI::Dim);
+	Pen.Text(X0 + Margin, Y, Section == ESection::NewBike
+		? TEXT("Configure a new bike: a style, then its parts, colours and finishes. It's built new into a free bay, ready to ride.")
+		: TEXT("Pick a kind of part, then a model. Orders arrive in boxes outside the roller door, in the deliveries bay."), 14.0f * S, TPCI::Dim);
 	Y += 28.0f * S;
-	// The aisles.
-	const TCHAR* Aisles[] = {TEXT("Bike"), TEXT("Shed")};
-	for (int32 I = 0; I < 2; ++I)
+	// The aisles (and the New bike configurator, Torque Shed's Bike shop "New: configure your own").
+	const TCHAR* Aisles[] = {TEXT("Bike"), TEXT("Shed"), TEXT("New bike")};
+	for (int32 I = 0; I < 3; ++I)
 		Btn(X0 + Margin + I * 130.0f * S, Y, 120.0f * S, 34.0f * S, Aisles[I], 16.0f * S, (int32)Section == I, EHit::Section, I);
 	Y += 34.0f * S + 12.0f * S;
+	if (Section == ESection::NewBike)
+	{
+		Configurator.Draw(Hud, Canvas, Shed, FBox2D(FVector2D(X0 + Margin, Y), FVector2D(X0 + PW - Margin, Y0 + PH - Margin)), S, Mouse, Status, bStatusOk);
+		return;
+	}
 
 	// The three columns: kinds, models, the one picked.
 	const float ColTop = Y, ColBottom = Y0 + PH - Margin;

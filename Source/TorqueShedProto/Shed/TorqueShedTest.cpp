@@ -769,6 +769,22 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (bOrder) LogBuild(TEXT("after the order"));
 		return true;
 	}
+	if (Verb == TEXT("newbike"))
+	{
+		// The parts computer's New bike aisle: "newbike[:STYLE[:SLOT=PART]...][:order]" configures a
+		// style's bike (cafe to start), puts those parts on, colours it and orders it built.
+		const FString Style = P.Num() >= 2 && !P[1].Contains(TEXT("=")) && P[1] != TEXT("order") ? P[1] : FString();
+		TArray<FString> Swaps;
+		bool bOrder = false;
+		for (int32 I = 1; I < P.Num(); ++I)
+		{
+			if (P[I] == TEXT("order")) bOrder = true;
+			else if (P[I].Contains(TEXT("="))) Swaps.Add(P[I]);
+		}
+		Said(W->TestNewBike(Style, Swaps, bOrder));
+		if (bOrder) LogBuild(TEXT("after the order"));
+		return true;
+	}
 	if (Verb == TEXT("wheel") && P.Num() >= 2)
 	{
 		int32 Where = 0;

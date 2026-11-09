@@ -12,6 +12,10 @@ With --geo it runs Tools/godot_reference/dump_geo.tscn instead: geometry mode's 
 drags and offsets, sanitize, BikeRig.clean_adjust) on a fixed set of inputs, written to
 SimTest/data/godot_geo.json for SimTest/geo_test.
 
+With --shop it runs Tools/godot_reference/dump_shop.tscn: the New bike configurator (BikeShop) on
+every style, its slots' options and a fixed walk of part changes, written to
+SimTest/data/godot_shop.json for SimTest/shop_test.
+
 With --spec it runs Tools/godot_reference/dump_spec.tscn: BikeBuild's riding numbers (chassis,
 wheels, tyres, suspension, brakes, gearbox, mass spread, aids, engine torque) for every style's
 reference bike and a sweep of swaps, written to SimTest/data/godot_spec.json for SimTest/spec_test.
@@ -28,6 +32,7 @@ REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "SimTest", "data", "godot_reference.json")
 GEO_OUT = os.path.join(REPO, "SimTest", "data", "godot_geo.json")
 SPEC_OUT = os.path.join(REPO, "SimTest", "data", "godot_spec.json")
+SHOP_OUT = os.path.join(REPO, "SimTest", "data", "godot_shop.json")
 
 
 def main():
@@ -38,6 +43,7 @@ def main():
     ap.add_argument("--from-raw", help="trim a kept dump again instead of running Godot")
     ap.add_argument("--geo", action="store_true", help="dump geometry mode's maths (godot_geo.json) instead")
     ap.add_argument("--spec", action="store_true", help="dump BikeBuild's riding numbers (godot_spec.json) instead")
+    ap.add_argument("--shop", action="store_true", help="dump the New bike configurator (godot_shop.json) instead")
     a = ap.parse_args()
     if a.from_raw:
         data = json.load(open(a.from_raw))
@@ -72,6 +78,12 @@ def main():
                     "source": {"repo": "Beenster99/torque-shed", "commit": commit, "godot": "4.6.2-stable"}, **r(data)}
             json.dump(data, open(SPEC_OUT, "w"), separators=(",", ":"), sort_keys=True)
             print("wrote %s" % SPEC_OUT)
+            return
+        if a.shop:
+            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_shop.tscn", "--", "--out=" + raw],
+                           check=True, capture_output=True, timeout=900)
+            shutil.copyfile(raw, SHOP_OUT)
+            print("wrote %s" % SHOP_OUT)
             return
         if a.geo:
             subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_geo.tscn", "--", "--out=" + raw],

@@ -9,6 +9,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Shed/TorqueBikeConfigurator.h"
 
 class AHUD;
 class ATorqueShopPreview;
@@ -19,11 +20,12 @@ class UTorqueBuildSubsystem;
 // What a click (or the pad) asks for.
 struct FTorqueComputerAction
 {
-	enum class EKind : uint8 { None, Close, OrderBike, OrderPart, BuyPaint };
+	enum class EKind : uint8 { None, Close, OrderBike, OrderPart, BuyPaint, OrderNewBike };
 	EKind Kind = EKind::None;
 	FName Part;                 // OrderPart
 	int32 Stock = INDEX_NONE;   // BuyPaint: the bay's stock index (FTorquePaintBay::BaseStock / TintStock)
 	int32 Count = 1;
+	FString Order;              // OrderNewBike: the configured bike (Fit/BikeShop's order text)
 };
 
 class FTorquePartsComputer
@@ -44,6 +46,11 @@ public:
 	// For the test steps: pick a kind ("bikes", "paint:bases", "paint:tints" or a part kind) and a model.
 	bool PickKind(FName Kind);
 	bool PickPart(FName Part);
+	// The New bike aisle (the configurator): opened on it, and the configurator itself for the tests.
+	void OpenNewBike();
+	FTorqueBikeConfigurator& NewBike() { return Configurator; }
+	// Esc: closes a list open on the page first (true); false when the computer should close.
+	bool Back();
 	FString Describe() const;    // "Bike aisle, Exhaust: <part>" for the test log
 	// For the computer's monitor in the shed (ATorqueShedScreens): the part kind showing (NAME_None
 	// for project bikes or the paint supplies), its parts ("bike" for a project bike), the one picked.
@@ -52,7 +59,7 @@ public:
 	int32 PickedRow() const { return Row; }
 
 private:
-	enum class ESection : uint8 { Bike, Shed };
+	enum class ESection : uint8 { Bike, Shed, NewBike };
 	struct FKindRow { FName Kind; FString Heading; };   // a heading row has no Kind
 	struct FRow { FName Part; int32 Stock = INDEX_NONE; };
 	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style };
@@ -69,6 +76,8 @@ private:
 	int32 KindsShown = 1, RowsShown = 1;
 	// The picked item turning in 3D at the top of the detail column (the local player's studio).
 	TWeakObjectPtr<ATorqueShopPreview> Preview;
+	FTorqueBikeConfigurator Configurator;   // the New bike aisle
+
 	int32 BikeStyle = 0;         // the project bike's style shown (the one ordered is any of them)
 	FString StyleShown;          // ... and its reference bike's parts, looked up when it changes
 	TMap<FString, FString> StyleParts;
