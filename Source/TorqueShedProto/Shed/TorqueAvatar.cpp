@@ -288,6 +288,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 	for (const FPart& P : E.Parts)
 	{
 		if (P.Groom.IsEmpty() || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
+		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueNoGroom"))) { UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s left off (-TorqueNoGroom)"), *E.Name, *P.Name); continue; }
 		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
 		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
 		if (!G) continue;
