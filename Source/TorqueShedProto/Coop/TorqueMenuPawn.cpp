@@ -20,6 +20,9 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "InputCoreTypes.h"
+#include "Containers/Ticker.h"
+#include "Misc/Parse.h"
+#include "Misc/CommandLine.h"
 
 ATorqueMenuPawn::ATorqueMenuPawn()
 {
@@ -56,6 +59,15 @@ void ATorqueMenuPawn::BeginPlay()
 		GetWorld() ? *GetWorld()->GetMapName() : TEXT("?"));
 	Camera->SetWorldLocationAndRotation(BaseLoc, BaseRot);
 	Pad = MakeUnique<FSonyPad>();
+	FString Steps;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueTitleTest="), Steps, false))
+	{
+		Steps.ParseIntoArray(TestSteps, TEXT(","), true);
+		for (FString& Step : TestSteps) Step.TrimStartAndEndInline();
+		TestClock = 3.0;   // the title up and settled first
+		UE_LOG(LogTemp, Log, TEXT("title: test steps: %s (games in slots named %s)"), *FString::Join(TestSteps, TEXT(", ")),
+			*UTorqueBuildSubsystem::SlotBase());
+	}
 	if (UTorqueSession* S = UTorqueSession::Get(this))
 	{
 		S->LeaveSession();   // back from a ride: we're not in it any more
@@ -203,8 +215,26 @@ void ATorqueMenuPawn::Start(const FString& Slot, bool bNew)
 {
 	UTorqueSession* S = UTorqueSession::Get(this);
 	if (!S) return;
+	const FString Use = bNew ? UTorqueBuildSubsystem::NewGameSlot() : Slot;
 	if (UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this))
-		Shed->UseGame(bNew ? UTorqueBuildSubsystem::NewGameSlot() : Slot, bNew);
+	{
+		Shed->UseGame(Use, bNew);
+		int32 Count = 0;
+		for (int32 B = 0; B < Shed->NumBikes(); ++B) Count += Shed->Exists(B) ? 1 : 0;
+		UE_LOG(LogTemp, Log, TEXT("title: %s %s game %d (slot %s, now in use: %s, %d bikes)"), bHosting ? TEXT("hosting") : TEXT("solo,"),
+			bNew ? TEXT("new") : TEXT("loaded"), UTorqueBuildSubsystem::GameNumber(Use), *Use, *Shed->SlotName(), Count);
+	}
+	// A test that goes on to quit: the game started, a few seconds to log the shed, then out.
+	if (TestSteps.Contains(TEXT("quit")))
+	{
+		UE_LOG(LogTemp, Log, TEXT("title: quitting in 8 s (steps after a start don't run: the menu has gone)"));
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float) {
+			UE_LOG(LogTemp, Log, TEXT("title: test done, quitting"));
+			FPlatformMisc::RequestExit(false, TEXT("TorqueTitleTest"));
+			return false;
+		}), 8.0f);
+		TestSteps.Reset();
+	}
 	if (bHosting)
 	{
 		Busy = TEXT("Loading, then waiting for friends...");
@@ -320,6 +350,15 @@ void ATorqueMenuPawn::Tick(float DeltaSeconds)
 	if (S && !S->Status.IsEmpty()) Busy.Reset();   // something went wrong: the menu is usable again
 
 	APlayerController* PC = Cast<APlayerController>(GetController());
+	// The hands-off test, a step every 1.5 s.
+	if (PC && TestSteps.Num() > 0 && Busy.IsEmpty() && (TestClock -= DeltaSeconds) <= 0.0)
+	{
+		TestClock = 1.5;
+		const FString Step = TestSteps[0];
+		TestSteps.RemoveAt(0);
+		RunTestStep(Step);
+		return;
+	}
 	if (!PC || !Busy.IsEmpty()) return;
 	if (ATorquePlayerController::MenuUp(PC)) return;   // Settings is open over the menu
 	const TArray<FEntry> List = Entries();
@@ -496,4 +535,123 @@ void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 	}
 	// The build number, bottom right, on every build (beenster, 9 Nov).
 	Ui::Text(Canvas, BuildStamp(), Canvas->ClipX - 40.0f * Sc, Canvas->ClipY - 66.0f * Sc, 17.0f * Sc, Ui::Dim, false, Ui::EAlign::Right);
+}
+
+// --- The hands-off title test (-TorqueTitleTest=) ---------------------------------------------
+
+bool ATorqueMenuPawn::TestChoose(EItem Kind, const TCHAR* What)
+{
+	const TArray<FEntry> List = Entries();
+	for (int32 I = 0; I < List.Num(); ++I)
+		if (List[I].Kind == Kind)
+		{
+			Selected = I;
+			UE_LOG(LogTemp, Log, TEXT("title: choose \"%s\""), *List[I].Text);
+			Choose(List[I]);
+			return true;
+		}
+	UE_LOG(LogTemp, Warning, TEXT("title: FAIL: no \"%s\" on page \"%s\""), What, Page == EPage::Main ? TEXT("MAIN") : *PageTitle());
+	return false;
+}
+
+void ATorqueMenuPawn::RunTestStep(const FString& Step)
+{
+	UE_LOG(LogTemp, Log, TEXT("title: step \"%s\""), *Step);
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC);
+	FString Verb = Step.ToLower(), Arg;
+	if (Step.Split(TEXT(":"), &Verb, &Arg)) Verb = Verb.ToLower();
+	const int32 Number = Arg.IsNumeric() ? FCString::Atoi(*Arg) : -1;
+	// A game by its number on the Load or Delete page.
+	auto PickGame = [this, Number]() {
+		for (int32 I = 0; I < Games.Num(); ++I)
+			if (UTorqueBuildSubsystem::GameNumber(Games[I].Slot) == Number)
+			{
+				const TArray<FEntry> List = Entries();
+				for (int32 R = 0; R < List.Num(); ++R)
+					if (List[R].Kind == EItem::Game && List[R].Game == I)
+					{
+						Selected = R;
+						UE_LOG(LogTemp, Log, TEXT("title: choose \"%s\" (slot %s)"), *Games[I].Name, *Games[I].Slot);
+						Choose(List[R]);
+						return true;
+					}
+			}
+		UE_LOG(LogTemp, Warning, TEXT("title: FAIL: no Game %d listed"), Number);
+		return false;
+	};
+
+	if (Verb == TEXT("back"))
+	{
+		if (TPC && ATorquePlayerController::MenuUp(PC))
+		{
+			TPC->CloseMenu();
+			UE_LOG(LogTemp, Log, TEXT("title: Settings closed"));
+		}
+		else
+			Back();
+	}
+	else if (Verb == TEXT("solo")) TestChoose(EItem::Solo, TEXT("Start Solo"));
+	else if (Verb == TEXT("host")) TestChoose(EItem::Host, TEXT("Host Game"));
+	else if (Verb == TEXT("join")) TestChoose(Page == EPage::Join ? EItem::JoinNow : EItem::Join, TEXT("Join"));
+	else if (Verb == TEXT("settings"))
+	{
+		TestChoose(EItem::Settings, TEXT("Settings"));
+		UE_LOG(LogTemp, Log, TEXT("title: Settings %s"), ATorquePlayerController::MenuUp(PC) ? TEXT("open") : TEXT("FAIL: didn't open"));
+		return;
+	}
+	else if (Verb == TEXT("new")) TestChoose(EItem::NewGame, TEXT("New Game"));
+	else if (Verb == TEXT("load") || Verb == TEXT("delete"))
+	{
+		const bool bLoad = Verb == TEXT("load");
+		const EPage Want = bLoad ? EPage::Load : EPage::Delete;
+		if (Page != Want && !TestChoose(bLoad ? EItem::LoadGame : EItem::DeleteGame, bLoad ? TEXT("Load Game") : TEXT("Delete Game"))) return;
+		if (Number > 0)
+		{
+			LogPage();
+			if (!PickGame()) return;
+			if (!bLoad) TestChoose(EItem::Yes, TEXT("Delete it"));
+		}
+	}
+	else if (Verb == TEXT("yes")) TestChoose(EItem::Yes, TEXT("Delete it"));
+	else if (Verb == TEXT("keep")) TestChoose(EItem::No, TEXT("Keep it"));
+	else if (Verb == TEXT("address")) Address = Arg;
+	else if (Verb == TEXT("wipe"))
+	{
+		UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		int32 Gone = 0;
+		if (Shed)
+			for (const UTorqueBuildSubsystem::FSavedGame& G : UTorqueBuildSubsystem::SavedGames())
+				Gone += Shed->DeleteGame(G.Slot) ? 1 : 0;
+		if (Page == EPage::Load || Page == EPage::Delete) ReadGames();
+		UE_LOG(LogTemp, Log, TEXT("title: wiped %d test games"), Gone);
+	}
+	else if (Verb == TEXT("quit"))
+	{
+		UE_LOG(LogTemp, Log, TEXT("title: test done, quitting"));
+		FPlatformMisc::RequestExit(false, TEXT("TorqueTitleTest"));
+		return;
+	}
+	else
+		UE_LOG(LogTemp, Warning, TEXT("title: FAIL: unknown step \"%s\""), *Step);
+	if (Busy.IsEmpty()) LogPage();
+}
+
+void ATorqueMenuPawn::LogPage() const
+{
+	const TArray<FEntry> List = Entries();
+	TArray<FString> Rows;
+	for (const FEntry& E : List) Rows.Add(E.Text);
+	const FString Name = Page == EPage::Main ? FString(TEXT("MAIN")) : PageTitle();
+	UE_LOG(LogTemp, Log, TEXT("title: page %s: %s"), *Name, *FString::Join(Rows, TEXT(" | ")));
+	if (Page == EPage::Load || Page == EPage::Delete)
+	{
+		TArray<FString> Listed;
+		for (const FGameRow& G : Games)
+			Listed.Add(FString::Printf(TEXT("%s (%s, %d bikes, %s)"), *G.Name, *G.Slot, G.Bikes, *G.When));
+		UE_LOG(LogTemp, Log, TEXT("title: %s lists %s"), Page == EPage::Load ? TEXT("Load Game") : TEXT("Delete Game"),
+			Listed.IsEmpty() ? TEXT("no games") : *FString::Join(Listed, TEXT(", ")));
+	}
+	if (!Note.IsEmpty()) UE_LOG(LogTemp, Log, TEXT("title: note: %s"), *Note);
+	if (const UTorqueSession* S = UTorqueSession::Get(this); S && !S->Status.IsEmpty()) UE_LOG(LogTemp, Log, TEXT("title: status: %s"), *S->Status);
 }

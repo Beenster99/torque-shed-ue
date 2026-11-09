@@ -177,7 +177,8 @@ bool UTorqueBuildSubsystem::IsTestRun()
 	{
 		if (!Token.StartsWith(TEXT("-Torque"))) continue;
 		if (Token.StartsWith(TEXT("-TorqueName")) || Token.StartsWith(TEXT("-TorqueNet")) ||
-			Token.StartsWith(TEXT("-TorqueMenu")) || Token.StartsWith(TEXT("-TorqueScreenMessages")))
+			Token.StartsWith(TEXT("-TorqueMenu")) || Token.StartsWith(TEXT("-TorqueScreenMessages")) ||
+			Token.StartsWith(TEXT("-TorqueTitleTest")))   // its own slots (SlotBase), never the player's
 			continue;
 		return true;
 	}
@@ -187,7 +188,7 @@ bool UTorqueBuildSubsystem::IsTestRun()
 void UTorqueBuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	SaveSlot = TEXT("Shed");
+	SaveSlot = SlotBase();
 	if (IsTestRun()) SaveSlot = TEXT("ShedTest");
 	else
 	{
@@ -236,11 +237,18 @@ bool UTorqueBuildSubsystem::TickSave(float FrameDt)
 	return true;
 }
 
+FString UTorqueBuildSubsystem::SlotBase()
+{
+	FString Steps;
+	return FParse::Value(FCommandLine::Get(), TEXT("TorqueTitleTest="), Steps) ? FString(TEXT("TitleTest")) : FString(TEXT("Shed"));
+}
+
 int32 UTorqueBuildSubsystem::GameNumber(const FString& Slot)
 {
-	if (Slot == TEXT("Shed")) return 1;
-	if (!Slot.StartsWith(TEXT("Shed_"), ESearchCase::CaseSensitive)) return 0;
-	const FString Num = Slot.Mid(5);
+	const FString Base = SlotBase();
+	if (Slot == Base) return 1;
+	if (!Slot.StartsWith(Base + TEXT("_"), ESearchCase::CaseSensitive)) return 0;
+	const FString Num = Slot.Mid(Base.Len() + 1);
 	if (Num.IsEmpty() || !Num.IsNumeric() || Num.Contains(TEXT("."))) return 0;
 	return FCString::Atoi(*Num);
 }
@@ -275,7 +283,7 @@ FString UTorqueBuildSubsystem::NewGameSlot()
 	for (const FSavedGame& G : SavedGames()) Used.Add(G.Number);
 	int32 N = 1;
 	while (Used.Contains(N)) ++N;
-	return N == 1 ? FString(TEXT("Shed")) : FString::Printf(TEXT("Shed_%d"), N);
+	return N == 1 ? SlotBase() : FString::Printf(TEXT("%s_%d"), *SlotBase(), N);
 }
 
 void UTorqueBuildSubsystem::UseGame(const FString& Slot, bool bNew)
@@ -315,7 +323,7 @@ bool UTorqueBuildSubsystem::DeleteGame(const FString& Slot)
 		else
 		{
 			// Nothing left: a new shed in game 1's slot, saved only once something is done in it.
-			SaveSlot = TEXT("Shed");
+			SaveSlot = SlotBase();
 			Bikes.Reset();
 			Items.Reset();
 			StartFresh();
