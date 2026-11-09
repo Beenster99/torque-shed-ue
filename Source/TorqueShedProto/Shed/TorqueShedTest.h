@@ -95,6 +95,10 @@
 //                         does (front full, rear 0.6, realism 0.5) to a stop; logs the distance, time, average g,
 //                         nose dive, the road's grade and the level stop from 60 it comes to, and the brakes and
 //                         tyres. :flat stops on a level test pad (SimTest's flat ground) instead of the road
+//   crash:wall|bike[:<mph>]  on the road: the robot holds mph (30) on a straight, then on the test pad rides
+//                         straight into a drystone wall (or a stopped bike of the same build, drawn as a debug
+//                         outline) 12 m ahead; logs the hit's speed, whether the rider came off, and where the
+//                         front tyre stopped; then back on the road where it began
 //   lean:max[:<mph>]      on the road: the robot holds mph (45) on a level straight, then on the test pad the
 //                         steer input is held full for 6 s; logs the lean and sideways g it settles at, the
 //                         peaks, and whether it slid or stood up; then back on the road where it began.

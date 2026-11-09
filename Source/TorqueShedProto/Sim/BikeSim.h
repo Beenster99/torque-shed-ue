@@ -101,6 +101,10 @@ public:
 	// How far the bike's lowest part (tyres, bars, pegs, covers...) is above the ground, m; negative
 	// is into it. For tests and checks.
 	double GroundGap();
+	// How much of the throttle the rider's wrist or traction control lets through (1 all of it), and
+	// the throttle as the wrist has rolled it: for the HUD's traction light and the tests.
+	double TractionNow() const { return Traction; }
+	double ThrottleNow() const { return ThrottleEff; }
 	double CrashTimer = 0.0;
 	Wheel Wheels[2];
 

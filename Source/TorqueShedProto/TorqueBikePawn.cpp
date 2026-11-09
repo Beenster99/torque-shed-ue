@@ -44,6 +44,7 @@
 #include "Sound/SoundWaveProcedural.h"
 #include "UObject/ConstructorHelpers.h"
 #include "EngineUtils.h"
+#include "DrawDebugHelpers.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
@@ -1239,7 +1240,12 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 {
 	bTestWantFlat = bFlat || Kind == 1;
 	bTestFlat = false;
-	TestMove = FMath::Clamp(Kind, 0, 1);
+	TestMove = FMath::Clamp(Kind, 0, 3);
+	bTestWantFlat = bTestWantFlat || TestMove >= 2;
+	TestContacts.SetBoxes({});
+	TestContacts.Capsules.clear();
+	TestParked.Reset();
+	TestAfterHit = -1.0;
 	TestPhase = 0;
 	TestMps = FMath::Max(Mph, 5.0) / 2.23694;
 	TestClock = TestSteady = TestDist = TestV0 = 0.0;
@@ -1294,14 +1300,14 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	Sim->Gear = Gi;
 	Sim->Rpm = TestMps / Sim->Build.RearRadius * Sim->Build.OverallRatio(Gi) * 60.0 / (2.0 * PI);
 	UE_LOG(LogTemp, Log, TEXT("Torque: test %s starts at route point %d of %d (%.0f m of road, straightness and grade score %.3f), %.0f mph in gear %d%s"),
-		Kind == 0 ? TEXT("brakestop") : TEXT("lean"), Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
+		Kind == 0 ? TEXT("brakestop") : Kind == 1 ? TEXT("lean") : Kind == 2 ? TEXT("crash:wall") : TEXT("crash:bike"), Best, Line.Num(), Need, BestScore, Mph, Gi, bTestFlat ? TEXT(", on the test pad") : TEXT(""));
 }
 
 // One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
 // sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
 void ATorqueBikePawn::TestMoveStep()
 {
-	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TEXT("lean");
+	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TEXT("crash:bike");
 	const double Mph = TestMps * 2.23694;
 	auto Finish = [&](const FString& Text) {
 		TestMoveText = Text;
@@ -1311,6 +1317,9 @@ void ATorqueBikePawn::TestMoveStep()
 		Assist = TestAssistWas;
 		const bool bWasFlat = bTestFlat;
 		bTestFlat = false;
+		TestContacts.SetBoxes({});
+		TestContacts.Capsules.clear();
+		TestParked.Reset();
 		if (bWasFlat || (TestMove == 1 && TestPhase == 1))
 		{
 			Respawn(TestFromNear);   // back on the road where it began
@@ -1320,7 +1329,7 @@ void ATorqueBikePawn::TestMoveStep()
 	};
 	TestClock += SimDt;
 	const double V = Sim->Speed;
-	if (Sim->IsCrashed)
+	if (Sim->IsCrashed && !(TestMove >= 2 && TestPhase == 1))
 	{
 		Finish(FString::Printf(TEXT("crashed (%s, %.1f s in, %.1f m)"), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
 		return;
@@ -1348,8 +1357,95 @@ void ATorqueBikePawn::TestMoveStep()
 		TestFromNear = Near;
 		TestSide = Lean < 0.0 ? -1.0 : 1.0;
 		TestY0 = Sim->Position.y;
+		if (TestMove >= 2)
+		{
+			// What it's to hit: 12 m ahead, square across its path, standing on the pad.
+			const V3 Fwd = Sim->Basis.Z * -1.0;
+			TestFwd = FVector2D(Fwd.x, Fwd.z).GetSafeNormal();
+			const double Ahead = 12.0;
+			TestAt = FVector2D(Sim->Position.x, Sim->Position.z) + TestFwd * Ahead;
+			TestHitsWas = Sim->HitCount;
+			if (TestMove == 2)
+			{
+				// A drystone wall, as Tools/make_collision.py's wall boxes: 0.94 m thick, 1.7 m high; 6 m long.
+				ContactBox Wall;
+				Wall.Cx = TestAt.X;
+				Wall.Cz = TestAt.Y;
+				Wall.Ux = -TestFwd.Y;
+				Wall.Uz = TestFwd.X;
+				Wall.Hu = 3.0;
+				Wall.Hv = 0.47;
+				Wall.Y0 = TestPadY - 0.2;
+				Wall.Y1 = TestPadY + 1.73;
+				TestContacts.SetBoxes({Wall});
+				TestFace = Ahead - Wall.Hv;
+			}
+			else
+			{
+				// A bike of the same build, stopped across the path with its rider on.
+				TestParked = MakeUnique<BikeSim>();
+				TestParked->Setup(Sim->Build);
+				const double PadY = TestPadY;
+				TestParked->Ray = [PadY](const V3& From, const V3& To) {
+					RayHit Out;
+					if (From.y >= PadY && To.y <= PadY && From.y > To.y)
+					{
+						Out.Hit = true;
+						Out.Position = From + (To - From) * ((From.y - PadY) / (From.y - To.y));
+						Out.Normal = V3(0.0, 1.0, 0.0);
+						Out.Surface = SURF_TARMAC;
+					}
+					return Out;
+				};
+				const double Heading = FMath::Atan2(-TestFwd.X, -TestFwd.Y) + PI * 0.5;
+				TestParked->Place(V3(TestAt.X, PadY, TestAt.Y), Heading);
+				for (int32 I = 0; I < 60; ++I) TestParked->Step(SimDt);
+				TestParked->LinearVelocity = TestParked->AngularVelocity = V3();
+				TestContacts.SetBoxes({});
+				TestParked->AsCapsules(TestContacts.Capsules);
+				TestFace = Ahead - 0.3;
+			}
+		}
 	}
 	TestDist += FMath::Abs(V) * SimDt;
+	if (TestMove >= 2)
+	{
+		// Straight on into it, holding the speed until the first knock, then off the throttle.
+		const bool bHit = Sim->HitCount != TestHitsWas;
+		Lean = 0.0;
+		Shift = 0.0;
+		FrontBrake = RearBrake = 0.0;
+		Throttle = bHit || Sim->IsCrashed ? 0.0 : FMath::Clamp(0.25 + (TestMps - V) * 0.4, 0.0, 1.0);
+		if (TestAfterHit < 0.0 && bHit) TestAfterHit = 0.0;
+		if (TestAfterHit >= 0.0) TestAfterHit += SimDt;
+#if ENABLE_DRAW_DEBUG
+		if (UWorld* W = GetWorld())
+		{
+			for (const ContactCapsule& C : TestContacts.Capsules)
+				DrawDebugLine(W, ToUE(C.A), ToUE(C.B), FColor::Orange, false, 0.0f, 0, (float)(C.Radius * 200.0));
+			if (TestMove == 2)
+			{
+				const FVector Mid = ToUE(V3(TestAt.X, TestPadY + 0.765, TestAt.Y));
+				const FQuat Turn = FRotationMatrix::MakeFromX(FVector(TestFwd.X, TestFwd.Y, 0.0)).ToQuat();
+				DrawDebugSolidBox(W, Mid, FVector(47.0, 300.0, 96.5), Turn, FColor(150, 140, 120), false, 0.0f);
+			}
+		}
+#endif
+		const double Along = FVector2D::DotProduct(FVector2D(Sim->Position.x, Sim->Position.z) - (TestAt - TestFwd * 12.0), TestFwd);
+		const double Nose = Along + Sim->Build.Wheelbase * 0.5 + Sim->Build.FrontRadius;
+		if (TestAfterHit > 2.0 || (TestAfterHit > 0.3 && FMath::Abs(V) < 0.3) || TestClock > 8.0)
+		{
+			const TCHAR* What = TestMove == 2 ? TEXT("a drystone wall") : TEXT("a stopped bike");
+			if (TestAfterHit < 0.0)
+				Finish(FString::Printf(TEXT("never hit %s %.0f m ahead (%.1f m along, %.1f mph)"), What, TestFace, Along, V * 2.23694));
+			else
+				Finish(FString::Printf(TEXT("hit %s at %.1f m/s (%.0f mph) from %.1f mph; %s; front tyre %.2f m %s its face, %.1f mph a little after; the knock was %s"),
+					What, Sim->LastHitSpeed, Sim->LastHitSpeed * 2.23694, TestV0 * 2.23694,
+					Sim->IsCrashed ? (Sim->KnockedOff ? TEXT("the rider was knocked off") : TEXT("the rider came off")) : TEXT("the rider stayed on"),
+					FMath::Abs(Nose - TestFace), Nose > TestFace ? TEXT("past") : TEXT("short of"), V * 2.23694, Sim->LastHitBike ? TEXT("a bike") : TEXT("a wall")));
+		}
+		return;
+	}
 	if (TestMove == 0)
 	{
 		// As the road tests (and SimTest/realism_test): front full, rear 0.6, no weight forward.
@@ -1467,7 +1563,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 
 		// Walls and the other riders' bikes (off on the test pad, which runs wide of the road).
 		GatherOtherBikes();
-		Sim->Contacts = bTestFlat ? nullptr : Contacts.Get();
+		Sim->Contacts = bTestFlat ? (TestMove >= 2 ? &TestContacts : nullptr) : Contacts.Get();
 		// Fixed 120 Hz steps, at most a tenth of a second's worth after a hitch.
 		Accum += FMath::Min((double)DeltaSeconds, 0.1);
 		while (Accum >= SimDt)

@@ -101,6 +101,10 @@ public:
 	// that speed for 6 s on a level test pad (the road's edge, banks and ditches are no part of it) and
 	// comes back to where the bend began. bFlat puts a brake stop on the pad too (else it's on the
 	// road, its grade allowed for in the log). Riding realism is the road tests' 0.5 while measuring.
+	// Kind 2 and 3 are knocks, on the test pad: Kind 2 rides at Mph into a drystone wall stood across
+	// its path 12 m ahead (as collision.json's wall boxes), Kind 3 into a stand-in bike of the same
+	// build stopped across it (seen as a debug outline only), the robot holding the line and the speed
+	// until it hits. The log has the hit's speed and whether the rider came off.
 	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
 	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
@@ -284,6 +288,12 @@ private:
 	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
 	FString TestMoveText;
 	void TestMoveStep();
+	// Kind 2 and 3's wall or stopped bike (only these, on the pad), the hits before it, and where it is.
+	TorqueSim::ContactWorld TestContacts;
+	TUniquePtr<TorqueSim::BikeSim> TestParked;
+	int32 TestHitsWas = 0;
+	double TestFace = 0.0, TestAfterHit = -1.0;
+	FVector2D TestAt = FVector2D::ZeroVector, TestFwd = FVector2D::ZeroVector;
 	// Where its rider sits (pawn local cm): the seat's surface under the hips, the pegs (0 left, 1
 	// right) and the grips' centres, from the layout (as Torque Shed sits its rider: BikeRig's hip
 	// and peg) and the grips as drawn, with geometry mode's offsets. FitRiderToBike turns them into

@@ -423,7 +423,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -457,6 +457,30 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// road test does (on the road, or :flat on the level test pad); lean:max[:MPH] (default 45): a
 		// full-lean bend held 6 s at MPH on the test pad. Each waits until
 		// it's done (up to about two minutes) and logs what it measured.
+		// crash:wall|bike[:MPH] (default 30): on the test pad, the robot rides straight into a drystone
+		// wall, or a stopped bike, stood across its path 12 m ahead; logs the hit and whether the rider
+		// came off, then back on the road where it began.
+		if (Verb == TEXT("crash"))
+		{
+			const bool bBikeHit = P.Num() > 1 && P[1].ToLower() == TEXT("bike");
+			const double Mph = P.Num() > 2 ? FCString::Atod(*P[2]) : 30.0;
+			if (!bMoveStarted)
+			{
+				Bike->TestStartMove(bBikeHit ? 3 : 2, Mph, true);
+				bMoveStarted = true;
+				Said(FString::Printf(TEXT("getting up to %.0f mph to ride into %s"), Mph, bBikeHit ? TEXT("a stopped bike") : TEXT("a wall")));
+				Tries = 0;
+				return false;
+			}
+			if (Bike->TestMoveBusy())
+			{
+				Tries = 0;
+				return false;
+			}
+			bMoveStarted = false;
+			Said(Bike->TestMoveResult());
+			return true;
+		}
 		if (Verb == TEXT("brakestop") || Verb == TEXT("lean"))
 		{
 			const bool bBrake = Verb == TEXT("brakestop");
