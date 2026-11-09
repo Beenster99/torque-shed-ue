@@ -181,6 +181,84 @@ def screen_page_material():
     return finish(m)
 
 
+def effect_paint_material():
+    """M_ShedEffectPaint, for the game (C++, TorqueEffectPaint.cpp) to put on a part sprayed with an
+    effect paint from the mixing bay (paint_mix.gd's spec): a clear-coated paint whose colour flips
+    with the angle for a chameleon (Color to FlipA to FlipB, by Flip), takes a pearl's sheen at the
+    edges (PearlTint, by Pearl), deepens towards the edges for a candy (Depth), and sparkles with
+    flakes stuck to the part (FlakeColour, by Flake). Opaque, a handful of maths nodes and one
+    texture-based noise: solid paints keep the bike's own materials. Grime dulls it."""
+    m = new_material("M_ShedEffectPaint")
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_CLEAR_COAT)
+    M = unreal.MaterialProperty
+
+    def vec(name, x, y, rgb):
+        return expr(m, unreal.MaterialExpressionVectorParameter, x, y, parameter_name=name,
+                    default_value=unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
+
+    def num(name, x, y, v):
+        return expr(m, unreal.MaterialExpressionScalarParameter, x, y, parameter_name=name, default_value=v)
+
+    def op(cls, x, y, a, b=None, a_out="", b_out="", **props):
+        e = expr(m, cls, x, y, **props)
+        mel.connect_material_expressions(a, a_out, e, "A")
+        if b is not None:
+            mel.connect_material_expressions(b, b_out, e, "B")
+        return e
+
+    def lerp(x, y, a, b, alpha):
+        e = expr(m, unreal.MaterialExpressionLinearInterpolate, x, y)
+        mel.connect_material_expressions(a, "", e, "A")
+        mel.connect_material_expressions(b, "", e, "B")
+        mel.connect_material_expressions(alpha, "", e, "Alpha")
+        return e
+
+    def sat(x, y, a):
+        e = expr(m, unreal.MaterialExpressionSaturate, x, y)
+        mel.connect_material_expressions(a, "", e, "")
+        return e
+
+    col = vec("Color", -2000, 0, (0.8, 0.1, 0.1))
+    fres = expr(m, unreal.MaterialExpressionFresnel, -2000, 200, exponent=3.0, base_reflect_fraction=0.0)
+    # The chameleon: facing you its colour, turning away FlipA, then FlipB at the very edge.
+    flip = num("Flip", -2000, 400, 0.0)
+    f2 = op(unreal.MaterialExpressionMultiply, -1800, 200, fres, const_b=2.0)
+    near = sat(-1600, 200, f2)
+    far = sat(-1600, 300, op(unreal.MaterialExpressionSubtract, -1700, 300, f2, const_b=1.0))
+    c1 = lerp(-1400, 0, col, vec("FlipA", -1600, 450, (0.1, 0.6, 0.3)), op(unreal.MaterialExpressionMultiply, -1500, 250, near, flip))
+    c2 = lerp(-1200, 0, c1, vec("FlipB", -1400, 450, (0.1, 0.3, 0.8)), op(unreal.MaterialExpressionMultiply, -1300, 300, far, flip))
+    # The pearl's sheen at the edges.
+    pearl = op(unreal.MaterialExpressionMultiply, -1200, 600, fres, num("Pearl", -1400, 650, 0.0))
+    c3 = lerp(-1000, 0, c2, vec("PearlTint", -1200, 750, (0.9, 0.9, 1.0)), op(unreal.MaterialExpressionMultiply, -1100, 600, pearl, const_b=0.6))
+    # A candy looks deeper where you see through more of it (the edges): its colour times itself there.
+    depth = sat(-1000, 900, op(unreal.MaterialExpressionMultiply, -1100, 900, fres, num("Depth", -1300, 950, 0.0)))
+    deep = lerp(-900, 800, expr(m, unreal.MaterialExpressionConstant, -1000, 800, r=1.0), c3, depth)
+    c4 = op(unreal.MaterialExpressionMultiply, -800, 0, c3, deep)
+    # Flakes: specks of the flake colour stuck to the part (its own position, so they move with it).
+    noise = expr(m, unreal.MaterialExpressionNoise, -1400, 1100, scale=2.5, levels=1, output_min=0.0, output_max=1.0, turbulence=False)
+    try_set(noise, "noise_function", unreal.NoiseFunction.NOISEFUNCTION_SIMPLEX_TEX)
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionLocalPosition, -1600, 1100), "", noise, "Position")
+    flake = num("Flake", -1400, 1300, 0.0)
+    cut = op(unreal.MaterialExpressionSubtract, -1200, 1300, expr(m, unreal.MaterialExpressionConstant, -1300, 1250, r=1.0),
+             op(unreal.MaterialExpressionMultiply, -1300, 1300, flake, const_b=0.35))
+    speck = sat(-900, 1150, op(unreal.MaterialExpressionMultiply, -1000, 1150,
+                               op(unreal.MaterialExpressionSubtract, -1100, 1150, noise, cut), const_b=12.0))
+    c5 = lerp(-600, 0, c4, vec("FlakeColour", -800, 1300, (0.85, 0.85, 0.88)), op(unreal.MaterialExpressionMultiply, -700, 1150, speck, const_b=0.8))
+    # Grime dulls it.
+    grime = num("Grime", -600, 1500, 0.0)
+    dirt = op(unreal.MaterialExpressionMultiply, -500, 1500, grime, const_b=0.5)
+    base = lerp(-300, 0, c5, expr(m, unreal.MaterialExpressionConstant3Vector, -500, 1400, constant=unreal.LinearColor(0.18, 0.15, 0.12, 1.0)), dirt)
+    mel.connect_material_property(base, "", M.MP_BASE_COLOR)
+    metal = lerp(-300, 300, num("Metallic", -600, 300, 0.0), expr(m, unreal.MaterialExpressionConstant, -600, 380, r=1.0), speck)
+    mel.connect_material_property(metal, "", M.MP_METALLIC)
+    rough = lerp(-300, 500, num("Roughness", -600, 500, 0.15), expr(m, unreal.MaterialExpressionConstant, -600, 580, r=0.08), speck)
+    rough = op(unreal.MaterialExpressionAdd, -150, 500, rough, op(unreal.MaterialExpressionMultiply, -300, 650, grime, const_b=0.3))
+    mel.connect_material_property(rough, "", M.MP_ROUGHNESS)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 800, r=1.0), "", M.MP_CUSTOM_DATA0)   # clear coat
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 900, r=0.04), "", M.MP_CUSTOM_DATA1)   # its roughness
+    return finish(m)
+
+
 def first_texture(paths):
     for p in paths:
         if p and unreal.EditorAssetLibrary.does_asset_exist(p):
@@ -408,6 +486,7 @@ def materials():
         "screen": flat("M_ShedScreen", (0.10, 0.30, 0.50), 0.3, emissive=1.4),
         "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
         "screen_page": screen_page_material(),   # for the game: the screens' pages
+        "effect_paint": effect_paint_material(),   # for the game: parts sprayed with pearl, candy, flake, chameleon
         "led": flat("M_ShedLed", (0.9, 0.92, 0.95), 0.5, emissive=LED_GLOW),
         # The paint shop (workshop.gd _build_booth_room, equipment_view.gd _build_booth): white walls,
         # a dark ceiling for the hexagon LED tiles, the spray bay's panels, filter, grate and rails.

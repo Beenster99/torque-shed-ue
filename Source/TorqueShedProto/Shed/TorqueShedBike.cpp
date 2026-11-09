@@ -3,6 +3,7 @@
 #include "Shed/TorqueShedCatalogue.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedParts.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -108,6 +109,13 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		if (Part.IsNone()) continue;
 		const FName Slot = SlotTag(C);
 		const FName Which = Slot.IsNone() ? Part : Slot;
+		// Sprayed with a pearl, candy, flake or chameleon from the mixing bay: the effect paint
+		// (TorqueEffectPaint.h) in place of the part's own material; any other paint, its own.
+		TorquePaintMix::FPaintSpec Effect;
+		if (B && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B->EffectOf(Bike, Which, Effect)
+			&& TorqueEffectPaint::Apply(C, Effect, B->DirtOf(Bike, Which)))
+			continue;
+		TorqueEffectPaint::Restore(C);
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;
 		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime,

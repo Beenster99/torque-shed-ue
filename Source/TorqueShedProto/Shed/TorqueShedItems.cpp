@@ -2,6 +2,7 @@
 #include "Shed/TorqueBoothHooks.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
@@ -40,6 +41,10 @@ const TCHAR* const ItemPrefix = TEXT("Item:");
 
 void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour, const FTorqueItem* Finished = nullptr)
 {
+	// Sprayed with a pearl, candy, flake or chameleon from the mixing bay: the effect paint.
+	TorquePaintMix::FPaintSpec Effect;
+	if (Colour && Finished && UTorqueBuildSubsystem::EffectLook(*Finished, Effect) && TorqueEffectPaint::Apply(C, Effect, Dirt)) return;
+	TorqueEffectPaint::Restore(C);
 	UMaterialInstanceDynamic* M = C ? C->CreateDynamicMaterialInstance(0) : nullptr;
 	if (!M) return;
 	M->SetScalarParameterValue(TEXT("Grime"), Dirt);

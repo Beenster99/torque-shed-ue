@@ -1518,6 +1518,29 @@ bool UTorqueBuildSubsystem::FinishLook(const FTorqueItem& It, FLinearColor& OutC
 	return true;
 }
 
+bool UTorqueBuildSubsystem::EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintSpec& Out)
+{
+	namespace TPM = TorquePaintMix;
+	if (!Repainted(It) || It.bPrimerTop || It.MixCode.IsEmpty()) return false;
+	static const FName Effects[] = {FName(TEXT("pearl")), FName(TEXT("candy")), FName(TEXT("flake")), FName(TEXT("chameleon"))};
+	bool bEffect = false;
+	for (const FName& E : Effects) bEffect = bEffect || It.MixEffect == E;
+	TPM::FTinMix Mix;
+	if (!bEffect || !TPM::ParseCode(It.MixCode, Mix)) return false;
+	Out = TPM::Spec(Mix, It.MixName);
+	Out.Colour = It.Colour;   // as sprayed (a candy's coats deepen it), not lightened as a plain metallic is
+	Out.Colour.A = 1.0f;
+	// A satin or matt clear over it takes the shine off, as it does a plain paint.
+	if (It.Flat > 0.0f) Out.Rough = FMath::Lerp(Out.Rough, 0.8f, FMath::Clamp(It.Flat / 0.4f, 0.0f, 1.0f));
+	return true;
+}
+
+bool UTorqueBuildSubsystem::EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintSpec& Out) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
+	return It && EffectLook(*It, Out);
+}
+
 bool UTorqueBuildSubsystem::FinishOf(int32 Bay, FName Slot, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness) const
 {
 	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));

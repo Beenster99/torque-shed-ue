@@ -292,6 +292,11 @@ public:
 	// faded old paint; primer is flat grey, and a lacquer's flattener takes the shine off. The colour
 	// as the finish shows it, its metal and roughness. False for a part as it came (the model's own).
 	static bool FinishLook(const FTorqueItem& It, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness);
+	// A part sprayed with an effect paint from the mixing bay (pearl, candy, flake, chameleon): its
+	// spec with the colour it shows and its finish's roughness (TorqueEffectPaint.h). False for any
+	// other paint, or under primer.
+	static bool EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintSpec& Out);
+	bool EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintSpec& Out) const;
 	bool FinishOf(int32 Bay, FName Slot, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness) const;
 	static constexpr float RideDirt = 0.3f;    // added by each ride (shed_state ROAD_DIRT)
 	static constexpr float JetClean = 0.07f;   // the pressure washer, each pass (JET_CLEAN)
