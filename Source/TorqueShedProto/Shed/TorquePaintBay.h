@@ -140,8 +140,16 @@ const FVector ShakerAt(1662.0, 125.0, 92.0);
 const FVector BenchStand(1560.0, -40.0, 0.0);        // where you stand at the bench
 const FVector BenchEye(1595.0, -40.0, 155.0);        // and the bench view
 const FVector TestCardAt(1500.0, -405.0, 140.0);     // the spray-out stand in the daylight booth
+// The effects rack (pearls, candy dyes, flakes, chameleons): two shelves of six over the shaker,
+// up out of its way, y -10 .. 140 (ATorquePaintBayRoom draws it).
+constexpr double EffectsY0 = -10.0, EffectsY1 = 140.0, EffectsLow = 142.0, EffectsHigh = 182.0;
 inline FVector RackAt(int32 Tint)                    // a tint's bottle on the rack (its foot)
 {
+	if (Tint >= TorquePaintMix::StockTints)
+	{
+		const int32 E = Tint - TorquePaintMix::StockTints, Row = E / 6, Col = E % 6;
+		return FVector(1686.0, 3.0 + 25.0 * Col, Row == 0 ? EffectsLow : EffectsHigh);
+	}
 	const int32 Row = Tint / 8, Col = Tint % 8;
 	return FVector(1686.0, -205.0 + 25.0 * Col, Row == 0 ? 132.0 : 172.0);
 }

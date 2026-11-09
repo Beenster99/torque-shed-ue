@@ -36,6 +36,26 @@ const FBoothLight BoothLamps[] = {
 };
 const FLinearColor Neutral(0.42f, 0.42f, 0.43f);   // a viewing booth's mid grey
 const FLinearColor StickWood(0.72f, 0.58f, 0.4f);
+const FLinearColor RackSteel(0.6f, 0.61f, 0.63f);
+
+// How a bottle on the racks looks: the metallic tints and the flakes shine, a pearl has a soft
+// sheen, a candy dye's glossy.
+void BottleLook(const TorquePaintMix::FTint& T, float& OutMetal, float& OutRough)
+{
+	using TorquePaintMix::ETintKind;
+	OutMetal = 0.0f;
+	OutRough = 0.35f;
+	switch (T.Kind)
+	{
+	case ETintKind::Alu:
+	case ETintKind::Sparkle:
+	case ETintKind::Flake:     OutMetal = 0.8f; OutRough = 0.3f; break;
+	case ETintKind::Pearl:     OutMetal = 0.45f; OutRough = 0.22f; break;
+	case ETintKind::Chameleon: OutMetal = 0.6f; OutRough = 0.18f; break;
+	case ETintKind::Candy:     OutRough = 0.08f; break;
+	default: break;
+	}
+}
 }
 
 namespace TPBRI = TorquePaintBayRoomImpl;
@@ -85,9 +105,11 @@ void ATorquePaintBayRoom::BeginPlay()
 	for (int32 I = 0; I < TPM::Tints().Num(); ++I)
 	{
 		const FVector Foot = TorquePaintBayLayout::RackAt(I);
+		float BottleMetal = 0.0f, BottleRough = 0.35f;
+		TPBRI::BottleLook(TPM::Tints()[I], BottleMetal, BottleRough);
 		UStaticMeshComponent* Body = Piece(Root, CylinderMesh, Foot + FVector(0.0, 0.0, TPBRI::BottleHeight * 0.5),
 			FVector(TPBRI::BottleRadius * 2.0, TPBRI::BottleRadius * 2.0, TPBRI::BottleHeight), FRotator::ZeroRotator, TPM::Tints()[I].Colour,
-			TPM::Tints()[I].Kind == TPM::ETintKind::Alu || TPM::Tints()[I].Kind == TPM::ETintKind::Sparkle ? 0.8f : 0.0f, 0.35f);
+			BottleMetal, BottleRough);
 		if (Body)
 			Piece(Body, CylinderMesh, FVector(0.0, 0.0, 56.0), FVector(55.0, 55.0, 12.0), FRotator::ZeroRotator, FLinearColor(0.03f, 0.03f, 0.03f), 0.0f, 0.5f);
 		Bottles.Add(Body);
@@ -122,6 +144,7 @@ void ATorquePaintBayRoom::BeginPlay()
 	Piece(Stick, CubeMesh, FVector(2.2, 0.0, 13.0), FVector(0.6, 2.0, 28.0), FRotator(-14.0, 0.0, 0.0), TPBRI::StickWood, 0.0f, 0.7f);
 	Stick->SetVisibility(false, true);
 	BuildBooth(Root);
+	BuildEffectsRack(Root);
 	// The swatch wall's cards, facing into the room (+x), and the test card on the stand.
 	for (int32 I = 0; I < FTorquePaintBay::MaxSwatches; ++I)
 	{
@@ -201,6 +224,34 @@ void ATorquePaintBayRoom::BuildBooth(USceneComponent* Root)
 		Name->SetText(FText::FromString(Spec.Name));
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: mixing bay light booth: %d bays"), BoothCards.Num());
+}
+
+void ATorquePaintBayRoom::BuildEffectsRack(USceneComponent* Root)
+{
+	// Torque Shed's effects rack (paint_bay.gd EFFECTS_RACK): two steel shelves of six over the
+	// shaker, beside the tints, each with a lip, ends either side and its name over it.
+	namespace TPBL = TorquePaintBayLayout;
+	using TPBRI::RackSteel;
+	const double X0 = 1674.0, X1 = 1700.0, Y0 = TPBL::EffectsY0, Y1 = TPBL::EffectsY1;
+	const double CX = (X0 + X1) * 0.5, CY = (Y0 + Y1) * 0.5, W = Y1 - Y0;
+	for (const double Z : {TPBL::EffectsLow, TPBL::EffectsHigh})
+	{
+		Piece(Root, CubeMesh, FVector(CX, CY, Z - 1.5), FVector(X1 - X0, W, 3.0), FRotator::ZeroRotator, RackSteel, 0.85f, 0.35f);
+		Piece(Root, CubeMesh, FVector(X0 - 0.5, CY, Z), FVector(1.0, W, 5.5), FRotator::ZeroRotator, RackSteel, 0.85f, 0.35f);
+	}
+	for (const double Y : {Y0, Y1})
+		Piece(Root, CubeMesh, FVector(CX, Y, (TPBL::EffectsLow - 6.0 + TPBL::EffectsHigh + 24.0) * 0.5),
+			FVector(X1 - X0, 2.0, TPBL::EffectsHigh + 30.0 - TPBL::EffectsLow), FRotator::ZeroRotator, RackSteel, 0.85f, 0.35f);
+	UTextRenderComponent* Name = NewObject<UTextRenderComponent>(this);
+	Name->SetupAttachment(Root);
+	Name->RegisterComponent();
+	Name->SetRelativeLocationAndRotation(FVector(1698.0, CY, TPBL::EffectsHigh + 33.0), FRotator(0.0, 180.0, 0.0));
+	Name->SetHorizontalAlignment(EHTA_Center);
+	Name->SetVerticalAlignment(EVRTA_TextCenter);
+	Name->SetWorldSize(8.0f);
+	Name->SetTextRenderColor(FColor(30, 30, 36));
+	Name->SetCastShadow(false);
+	Name->SetText(FText::FromString(TEXT("EFFECTS")));
 }
 
 FVector ATorquePaintBayRoom::HeldAt(int32 Peer, FRotator& OutRot) const

@@ -101,6 +101,7 @@ const TCHAR* const MixSteps =
 	TEXT("bench:on,paint:recipe:0,paint:newtin:W,paint:pour:PB:38,paint:pour:LY:13,paint:stir:1,paint:save,paintlog,")
 	TEXT("paint:newtin:L,paint:pour:FL:100,paint:stir:1,paint:save:Satin clear,")
 	TEXT("paint:newtin:S,paint:pour:UB:20,paint:shake,wait:22,paintlog,paint:save,bench:off,paintlog,look:mixbench,shot,")
+	TEXT("bench:on,paint:newtin:C,paint:pour:CR:30,paint:stir:1,paint:save:Candy red,paint:newtin:W,paint:pour:PW:20,paint:pour:XP:12,paint:stir:1,paint:save,paintlog,bench:off,")   // the effects rack
 	TEXT("tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,place:repair_0,act,tool:repair,item:exhaust,act,")
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")

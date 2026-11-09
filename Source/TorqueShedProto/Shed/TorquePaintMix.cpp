@@ -52,6 +52,9 @@ const TArray<FBase>& Bases()
 		{TEXT("B"), TEXT("Black base"), FLinearColor(0.025f, 0.025f, 0.03f), true, 0.0f},
 		{TEXT("S"), TEXT("Metallic silver base"), FLinearColor(0.72f, 0.73f, 0.75f), true, 0.8f},
 		{TEXT("L"), TEXT("Clear lacquer"), FLinearColor(0.9f, 0.9f, 0.9f), false, 0.0f},
+		{TEXT("C"), TEXT("Clear base (candy)"), FLinearColor(0.9f, 0.9f, 0.9f), false, 0.0f},
+		// A mirror-silver base: sprayed (three coats) it looks like chrome plate; a tint smokes or colours it.
+		{TEXT("H"), TEXT("Chrome-effect base"), FLinearColor(0.88f, 0.89f, 0.9f), true, 1.0f},
 	};
 	return L;
 }
@@ -75,6 +78,22 @@ const TArray<FTint>& Tints()
 		{TEXT("AL"), TEXT("Fine aluminium"), FLinearColor(0.78f, 0.79f, 0.8f), 3.0f, ETintKind::Alu},
 		{TEXT("AS"), TEXT("Sparkle aluminium"), FLinearColor(0.82f, 0.83f, 0.85f), 2.0f, ETintKind::Sparkle},
 		{TEXT("FL"), TEXT("Flattener"), FLinearColor(0.92f, 0.92f, 0.92f), 0.0f, ETintKind::Flattener},
+		// The effects rack.
+		{TEXT("PW"), TEXT("Pearl white"), FLinearColor(0.95f, 0.95f, 0.97f), 0.6f, ETintKind::Pearl, FLinearColor(0.85f, 0.9f, 1.0f)},
+		{TEXT("PU"), TEXT("Pearl blue"), FLinearColor(0.7f, 0.8f, 1.0f), 0.8f, ETintKind::Pearl, FLinearColor(0.3f, 0.55f, 1.0f)},
+		{TEXT("PO"), TEXT("Pearl gold"), FLinearColor(0.95f, 0.82f, 0.5f), 0.8f, ETintKind::Pearl, FLinearColor(1.0f, 0.75f, 0.25f)},
+		{TEXT("CR"), TEXT("Candy red"), FLinearColor(0.75f, 0.02f, 0.05f), 30.0f, ETintKind::Candy},
+		{TEXT("CB"), TEXT("Candy blue"), FLinearColor(0.03f, 0.15f, 0.75f), 30.0f, ETintKind::Candy},
+		{TEXT("CG"), TEXT("Candy green"), FLinearColor(0.1f, 0.65f, 0.08f), 30.0f, ETintKind::Candy},
+		{TEXT("FS"), TEXT("Silver flake"), FLinearColor(0.86f, 0.87f, 0.9f), 0.3f, ETintKind::Flake},
+		{TEXT("FG"), TEXT("Gold flake"), FLinearColor(0.95f, 0.75f, 0.3f), 0.3f, ETintKind::Flake},
+		{TEXT("FH"), TEXT("Holo flake"), FLinearColor(0.85f, 0.85f, 0.95f), 0.3f, ETintKind::Flake, FLinearColor::Black, FLinearColor::Black, true},
+		{TEXT("XP"), TEXT("Chameleon purple-green"), FLinearColor(0.45f, 0.1f, 0.6f), 15.0f, ETintKind::Chameleon,
+			FLinearColor(0.05f, 0.6f, 0.3f), FLinearColor(0.1f, 0.3f, 0.75f)},
+		{TEXT("XB"), TEXT("Chameleon blue-gold"), FLinearColor(0.1f, 0.25f, 0.75f), 15.0f, ETintKind::Chameleon,
+			FLinearColor(0.85f, 0.65f, 0.15f), FLinearColor(0.6f, 0.1f, 0.4f)},
+		{TEXT("XR"), TEXT("Chameleon red-gold"), FLinearColor(0.7f, 0.05f, 0.1f), 15.0f, ETintKind::Chameleon,
+			FLinearColor(0.95f, 0.7f, 0.1f), FLinearColor(0.3f, 0.6f, 0.2f)},
 	};
 	return L;
 }
@@ -136,6 +155,7 @@ FString PourProblem(const FTinMix& Tin, int32 Tint)
 	const bool bFlattener = Tints()[Tint].Kind == ETintKind::Flattener;
 	if (IsLacquerBase(Tin.Base) && !bFlattener) return TEXT("Clear lacquer only takes flattener.");
 	if (!IsLacquerBase(Tin.Base) && bFlattener) return TEXT("Flattener goes in a tin of clear lacquer.");
+	if (Tints()[Tint].Kind == ETintKind::Candy && !IsClearBase(Tin.Base)) return TEXT("Candy dye goes in a clear base.");
 	bool bIn = false;
 	for (const FTintGrams& T : Tin.Tints) bIn = bIn || T.Tint == Tint;
 	if (!bIn && Tin.Tints.Num() >= MaxTints) return TEXT("Five tints is the most a recipe takes.");
@@ -143,11 +163,10 @@ FString PourProblem(const FTinMix& Tin, int32 Tint)
 	return FString();
 }
 
-FPaintSpec Spec(const FTinMix& Tin, const FString& Name)
+// The paint a tin makes, but its code (FullCode asks this for the effect's letter).
+FPaintSpec Look(const FTinMix& Tin)
 {
 	FPaintSpec Out;
-	Out.Name = Name;
-	Out.Code = FullCode(Tin);
 	Out.Stir = FMath::Clamp(Tin.Stir, 0.0f, 1.0f);
 	const FBase& B = Bases()[Bases().IsValidIndex(Tin.Base) ? Tin.Base : 0];
 	const float BaseG = FMath::Max(Tin.BaseGrams, 1.0f);
@@ -159,21 +178,63 @@ FPaintSpec Spec(const FTinMix& Tin, const FString& Name)
 		Out.Need = 1;
 		return Out;
 	}
-	// The colour: a weighted geometric mean of the reflectances, by weight times strength.
-	double WSum = BaseG;
-	FVector LSum = TPMI::LnOf(TPMI::ToLinear(B.Colour)) * BaseG;
-	float Metal = B.Metal, Sparkle = 0.0f;
+	// The colour: a weighted geometric mean of the reflectances, by weight times strength (in a clear
+	// base, the colour pigments are the candy's dye instead).
+	const bool bOpaque = B.bOpaque;
+	double WSum = 0.0, DyeW = 0.0;
+	FVector LSum = FVector::ZeroVector, DyeSum = FVector::ZeroVector;
+	if (bOpaque)
+	{
+		WSum = BaseG;
+		LSum = TPMI::LnOf(TPMI::ToLinear(B.Colour)) * BaseG;
+	}
+	float Metal = B.Metal, Sparkle = 0.0f, PearlAmt = 0.0f, FlakeAmt = 0.0f, FlipAmt = 0.0f;
+	float PearlG = 0.0f, FlakeG = 0.0f, FlipG = 0.0f;
+	FVector PearlSum = FVector::ZeroVector, FlakeSum = FVector::ZeroVector, ASum = FVector::ZeroVector, BSum = FVector::ZeroVector;
+	bool bHolo = false;
 	for (const FTintGrams& TG : Tin.Tints)
 	{
 		if (!Tints().IsValidIndex(TG.Tint) || TG.Grams <= 0.0f) continue;
 		const FTint& T = Tints()[TG.Tint];
 		const float Share = TG.Grams / BaseG;   // grams per gram of base
 		const double W = TG.Grams * T.K;
-		if (T.Kind == ETintKind::Alu) Metal = FMath::Max(Metal, FMath::Clamp(Share * 20.0f, 0.0f, 0.85f));
-		else if (T.Kind == ETintKind::Sparkle)
+		switch (T.Kind)
 		{
+		case ETintKind::Alu:
+			Metal = FMath::Max(Metal, FMath::Clamp(Share * 20.0f, 0.0f, 0.85f));
+			break;
+		case ETintKind::Sparkle:
 			Metal = FMath::Max(Metal, FMath::Clamp(Share * 12.0f, 0.0f, 0.7f));
 			Sparkle += FMath::Clamp(Share * 15.0f, 0.0f, 1.0f);
+			break;
+		case ETintKind::Pearl:
+			PearlAmt += FMath::Clamp(Share * 18.0f, 0.0f, 1.0f);
+			PearlSum += TPMI::ToLinear(T.A) * TG.Grams;
+			PearlG += TG.Grams;
+			break;
+		case ETintKind::Flake:
+			FlakeAmt += FMath::Clamp(Share * 22.0f, 0.0f, 1.0f);
+			FlakeSum += TPMI::ToLinear(T.Colour) * TG.Grams;
+			FlakeG += TG.Grams;
+			bHolo = bHolo || T.bHolo;
+			break;
+		case ETintKind::Chameleon:
+			FlipAmt += FMath::Clamp(Share * 16.0f, 0.0f, 1.0f);
+			ASum += TPMI::ToLinear(T.A) * TG.Grams;
+			BSum += TPMI::ToLinear(T.B) * TG.Grams;
+			FlipG += TG.Grams;
+			break;
+		default:
+			break;
+		}
+		if (!bOpaque)
+		{
+			if (T.Kind == ETintKind::Tint || T.Kind == ETintKind::Candy)
+			{
+				DyeW += W;
+				DyeSum += TPMI::LnOf(TPMI::ToLinear(T.Colour)) * W;
+			}
+			continue;
 		}
 		if (W > 0.0)
 		{
@@ -181,14 +242,69 @@ FPaintSpec Spec(const FTinMix& Tin, const FString& Name)
 			LSum += TPMI::LnOf(TPMI::ToLinear(T.Colour)) * W;
 		}
 	}
-	const FVector Lin(FMath::Exp(LSum.X / WSum), FMath::Exp(LSum.Y / WSum), FMath::Exp(LSum.Z / WSum));
-	Out.Colour = TPMI::ToSrgb(Lin);
+	FLinearColor Col = WSum > 0.0 ? TPMI::ToSrgb(FVector(FMath::Exp(LSum.X / WSum), FMath::Exp(LSum.Y / WSum), FMath::Exp(LSum.Z / WSum))) : B.Colour;
 	Out.Metal = Metal;
-	if (Sparkle > 0.0f) Out.Flake = FMath::Clamp(Sparkle * 0.35f, 0.0f, 1.0f);
-	Out.Effect = Metal >= 0.25f ? FName(TEXT("metallic")) : FName(TEXT("solid"));
-	Out.Rough = Metal >= 0.25f ? 0.3f : 0.1f;
-	Out.Need = 2;
+	if (PearlAmt > 0.0f)
+	{
+		Out.Pearl = FMath::Clamp(PearlAmt, 0.0f, 1.0f);
+		Out.PearlTint = TPMI::ToSrgb(PearlSum / FMath::Max(PearlG, 0.001f));
+	}
+	if (FlakeAmt > 0.0f || Sparkle > 0.0f)
+	{
+		Out.Flake = FMath::Clamp(FlakeAmt + Sparkle * 0.35f, 0.0f, 1.0f);
+		Out.FlakeColour = FlakeAmt > 0.0f ? TPMI::ToSrgb(FlakeSum / FMath::Max(FlakeG, 0.001f)) : FLinearColor(0.86f, 0.87f, 0.9f);
+		Out.bHolo = bHolo;
+	}
+	if (FlipAmt > 0.0f)
+	{
+		Out.Flip = FMath::Clamp(FlipAmt, 0.0f, 1.0f);
+		Out.FlipA = TPMI::ToSrgb(ASum / FMath::Max(FlipG, 0.001f));
+		Out.FlipB = TPMI::ToSrgb(BSum / FMath::Max(FlipG, 0.001f));
+	}
+	if (!bOpaque)
+	{
+		// A candy: the dye and how deep each coat of it is, shown over silver at its best coats.
+		if (DyeW > 0.0)
+		{
+			Out.Dye = TPMI::ToSrgb(FVector(FMath::Exp(DyeSum.X / DyeW), FMath::Exp(DyeSum.Y / DyeW), FMath::Exp(DyeSum.Z / DyeW)));
+			Out.Depth = FMath::Clamp((float)(DyeW / BaseG) * 0.35f, 0.02f, 3.0f);
+		}
+		Col = CandyColour(FLinearColor(0.72f, 0.73f, 0.75f), Out, CandyBestLow);
+	}
+	Out.Colour = Col;
+	// Which effect it is, the showiest last.
+	FName Effect(TEXT("solid"));
+	if (Metal >= 0.25f) Effect = FName(TEXT("metallic"));
+	if (Out.Pearl >= 0.2f) Effect = FName(TEXT("pearl"));
+	if (!bOpaque && Out.Depth > 0.0f) Effect = FName(TEXT("candy"));
+	if (FlakeAmt >= 0.25f) Effect = FName(TEXT("flake"));
+	if (IsChromeBase(Tin.Base) && FlakeAmt < 0.25f) Effect = FName(TEXT("chrome"));   // the mirror base, whatever smoke or colour's in it
+	if (FlipAmt >= 0.3f) Effect = FName(TEXT("chameleon"));
+	Out.Effect = Effect;
+	if (Effect == FName(TEXT("metallic"))) Out.Rough = 0.3f;
+	else if (Effect == FName(TEXT("flake")) || Effect == FName(TEXT("pearl"))) Out.Rough = 0.18f;
+	else if (Effect == FName(TEXT("chrome"))) Out.Rough = 0.03f;
+	else Out.Rough = 0.1f;
+	Out.Need = (Effect == FName(TEXT("solid")) || Effect == FName(TEXT("metallic"))) ? 2 : 3;
 	return Out;
+}
+
+FPaintSpec Spec(const FTinMix& Tin, const FString& Name)
+{
+	FPaintSpec Out = Look(Tin);
+	Out.Name = Name;
+	Out.Code = FullCode(Tin);
+	return Out;
+}
+
+FLinearColor CandyColour(const FLinearColor& Under, const FPaintSpec& S, int32 Coats)
+{
+	// Each coat filters the light through the dye again: deeper and darker the more goes on.
+	const FVector Dye = TPMI::ToLinear(S.Dye);
+	const double E = (double)S.Depth * FMath::Max(Coats, 0);
+	const FVector U = TPMI::ToLinear(Under);
+	return TPMI::ToSrgb(FVector(U.X * FMath::Pow(FMath::Max(Dye.X, 0.0015), E), U.Y * FMath::Pow(FMath::Max(Dye.Y, 0.0015), E),
+		U.Z * FMath::Pow(FMath::Max(Dye.Z, 0.0015), E)));
 }
 
 FString GramsText(float Grams)
@@ -216,37 +332,24 @@ FString CodeOf(const FTinMix& Tin)
 
 FString EffectLetter(FName Effect)
 {
-	if (Effect == FName(TEXT("metallic"))) return TEXT("M");
-	if (Effect == FName(TEXT("lacquer"))) return TEXT("L");
-	return TEXT("S");
+	static const TMap<FName, FString> L = {{FName(TEXT("metallic")), TEXT("M")}, {FName(TEXT("pearl")), TEXT("P")}, {FName(TEXT("candy")), TEXT("C")},
+		{FName(TEXT("flake")), TEXT("F")}, {FName(TEXT("chrome")), TEXT("H")}, {FName(TEXT("chameleon")), TEXT("X")}, {FName(TEXT("lacquer")), TEXT("L")}};
+	const FString* Found = L.Find(Effect);
+	return Found ? *Found : FString(TEXT("S"));
 }
 
 FString EffectName(FName Effect)
 {
-	if (Effect == FName(TEXT("metallic"))) return TEXT("Metallic");
-	if (Effect == FName(TEXT("lacquer"))) return TEXT("Lacquer");
-	return TEXT("Solid");
+	static const TMap<FName, FString> L = {{FName(TEXT("metallic")), TEXT("Metallic")}, {FName(TEXT("pearl")), TEXT("Pearl")},
+		{FName(TEXT("candy")), TEXT("Candy")}, {FName(TEXT("flake")), TEXT("Flake")}, {FName(TEXT("chrome")), TEXT("Chrome effect")},
+		{FName(TEXT("chameleon")), TEXT("Chameleon")}, {FName(TEXT("lacquer")), TEXT("Lacquer")}};
+	const FString* Found = L.Find(Effect);
+	return Found ? *Found : FString(TEXT("Solid"));
 }
 
 FString FullCode(const FTinMix& Tin)
 {
-	// The effect, without working the code out again (Spec calls this).
-	FName Effect(TEXT("solid"));
-	if (IsLacquerBase(Tin.Base)) Effect = FName(TEXT("lacquer"));
-	else
-	{
-		const float BaseG = FMath::Max(Tin.BaseGrams, 1.0f);
-		float Metal = Bases()[Bases().IsValidIndex(Tin.Base) ? Tin.Base : 0].Metal;
-		for (const FTintGrams& TG : Tin.Tints)
-		{
-			if (!Tints().IsValidIndex(TG.Tint)) continue;
-			const float Share = TG.Grams / BaseG;
-			if (Tints()[TG.Tint].Kind == ETintKind::Alu) Metal = FMath::Max(Metal, FMath::Clamp(Share * 20.0f, 0.0f, 0.85f));
-			if (Tints()[TG.Tint].Kind == ETintKind::Sparkle) Metal = FMath::Max(Metal, FMath::Clamp(Share * 12.0f, 0.0f, 0.7f));
-		}
-		if (Metal >= 0.25f) Effect = FName(TEXT("metallic"));
-	}
-	return CodeOf(Tin) + TEXT(":") + EffectLetter(Effect);
+	return CodeOf(Tin) + TEXT(":") + EffectLetter(Look(Tin).Effect);
 }
 
 bool ParseCode(const FString& Code, FTinMix& Out)
@@ -302,6 +405,7 @@ float Unstir(float Stir, float Grams, float Total)
 
 FLinearColor SprayedColour(const FPaintSpec& S, int32 Coats, const FLinearColor& Under)
 {
+	if (S.Effect == FName(TEXT("candy"))) return CandyColour(Under, S, Coats);
 	const int32 Need = FMath::Max(S.Need, 1);
 	const float Cover = Coats < Need ? FMath::Clamp(0.65f + 0.35f * float(Coats - 1) / float(FMath::Max(Need - 1, 1)), 0.0f, 1.0f) : 1.0f;
 	FLinearColor C = FMath::Lerp(Under, S.Colour, Cover);
@@ -311,13 +415,22 @@ FLinearColor SprayedColour(const FPaintSpec& S, int32 Coats, const FLinearColor&
 
 float CoatsFactor(const FPaintSpec& S, int32 Coats)
 {
+	if (S.Effect == FName(TEXT("candy")))
+	{
+		if (Coats < CandyBestLow) return 0.7f + 0.1f * Coats;
+		return Coats <= CandyBestHigh ? 1.0f : FMath::Max(0.75f, 1.0f - 0.1f * (Coats - CandyBestHigh));
+	}
 	const int32 Need = FMath::Max(S.Need, 1);
 	return Coats >= Need ? 1.0f : 0.75f + 0.25f * float(Coats) / float(Need);
 }
 
 FName FinishOf(const FPaintSpec& S)
 {
-	return S.Effect == FName(TEXT("metallic")) ? FName(TEXT("metallic")) : FName(TEXT("gloss"));
+	// The finishes a part's drawn with: the effect itself is kept as its MixEffect.
+	if (S.Effect == FName(TEXT("chrome"))) return FName(TEXT("chrome"));
+	if (S.Effect == FName(TEXT("metallic")) || S.Effect == FName(TEXT("pearl")) || S.Effect == FName(TEXT("flake")) || S.Effect == FName(TEXT("chameleon")))
+		return FName(TEXT("metallic"));
+	return FName(TEXT("gloss"));
 }
 
 float DeltaE(const FLinearColor& A, const FLinearColor& B)

@@ -9,8 +9,9 @@
 // way), so the base sets how light the colour can go. Aluminium tints make it metallic.
 //
 // Torque Shed unlocks more as you level up (candy, pearl, flake, chrome and chameleon, the effects
-// rack). The UE shed has no levels yet, so this is the bay a new garage starts with: the four
-// level 1 bases, the stock rack's sixteen tints, and solid, metallic and lacquer.
+// rack). The UE shed has no levels yet, so it's all there from the start: the six bases (with the
+// clear candy base and the chrome-effect base), the stock rack's sixteen tints and the effects
+// rack's twelve (pearls, candy dyes, flakes, chameleons), and every effect.
 //
 // Colours are Torque Shed's sRGB numbers held in FLinearColor as they are (as Paints() does), so
 // the model draws them the same as the spray can's.
@@ -30,8 +31,10 @@ constexpr float CupLitres = 0.6f;        // the spray gun's cup
 constexpr float TestCardGrams = 15.0f;   // paint a test card takes from the tin
 constexpr float GoodMatch = 0.95f;       // a target is matched at this much
 constexpr float EffectMiss = 0.12f;      // off the match for the wrong effect (solid for a metallic)
+constexpr int32 CandyBestLow = 3, CandyBestHigh = 4;   // a candy's best coats: it darkens with each
+constexpr int32 StockTints = 16;         // the stock rack's; the effects rack's come after them
 
-enum class ETintKind : uint8 { Tint, Alu, Sparkle, Flattener };
+enum class ETintKind : uint8 { Tint, Alu, Sparkle, Flattener, Pearl, Candy, Flake, Chameleon };
 
 struct FBase
 {
@@ -49,14 +52,20 @@ struct FTint
 	FLinearColor Colour;
 	float K;          // tinting strength
 	ETintKind Kind;
+	FLinearColor A = FLinearColor::Black;   // a pearl's sheen, a chameleon's first flip colour
+	FLinearColor B = FLinearColor::Black;   // a chameleon's second
+	bool bHolo = false;                     // a holographic flake
 };
 
-// BASES (W, B, S, L) and the stock rack's TINTS, in the rack's order.
+// BASES (W, B, S, L, then C and H) and the TINTS, the stock rack's then the effects rack's, in the
+// racks' order (indices are kept in saves: new ones only go on the end).
 const TArray<FBase>& Bases();
 const TArray<FTint>& Tints();
 int32 BaseIndex(const FString& Code);    // INDEX_NONE if there's none
 int32 TintIndex(const FString& Code);
 inline bool IsLacquerBase(int32 Base) { return Base == 3; }
+inline bool IsClearBase(int32 Base) { return Base == 4; }    // C: a candy's clear base
+inline bool IsChromeBase(int32 Base) { return Base == 5; }   // H: the mirror base
 
 struct FTintGrams
 {
@@ -89,6 +98,14 @@ struct FPaintSpec
 	FLinearColor Colour = FLinearColor(0.9f, 0.9f, 0.9f);
 	float Metal = 0.0f, Rough = 0.12f, Flake = 0.0f, Flat = 0.0f, Stir = 1.0f;
 	int32 Need = 2;             // coats it needs
+	// The effects (paint_mix.gd spec): pearl and its sheen, flake and its colour (holographic),
+	// a chameleon's flip between two colours, a candy's dye and how deep each coat of it goes.
+	float Pearl = 0.0f, Flip = 0.0f, Depth = 0.0f;
+	FLinearColor PearlTint = FLinearColor::White;
+	FLinearColor FlakeColour = FLinearColor(0.85f, 0.85f, 0.88f);
+	FLinearColor FlipA = FLinearColor::Black, FlipB = FLinearColor::Black;
+	FLinearColor Dye = FLinearColor::White;
+	bool bHolo = false;
 	bool IsLacquer() const { return Effect == FName(TEXT("lacquer")); }
 };
 
@@ -117,7 +134,9 @@ constexpr float StirPerTurn = 0.12f * 1.04f;
 float Unstir(float Stir, float Grams, float Total);
 
 // What a part looks like after Coats coats of S over Under (a first coat of two lets a bit of what
-// was under it show through), and how well the coats so far suit the paint (thin short of Need).
+// was under it show through; a candy deepens with each), and how well the coats so far suit the
+// paint (thin short of Need; a candy's best at 3 or 4 and too dark past that).
+FLinearColor CandyColour(const FLinearColor& Under, const FPaintSpec& S, int32 Coats);
 FLinearColor SprayedColour(const FPaintSpec& S, int32 Coats, const FLinearColor& Under);
 float CoatsFactor(const FPaintSpec& S, int32 Coats);
 // The finish word kept as a part's Finish for a sprayed spec ("gloss" for solid).

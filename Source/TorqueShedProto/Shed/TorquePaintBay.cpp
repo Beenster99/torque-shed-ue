@@ -8,7 +8,8 @@ namespace TorquePaintBayImpl
 {
 namespace TPM = TorquePaintMix;
 
-constexpr int32 SaveLayout = 1;    // bumped when the bytes below change
+constexpr int32 SaveLayout = 2;    // bumped when the bytes below change (1: before the effects rack)
+constexpr int32 OldBases = 4;      // layout 1's bases (W, B, S, L): C and H came with layout 2
 
 void SerializeMix(FArchive& Ar, TPM::FTinMix& Mix)
 {
@@ -28,11 +29,15 @@ void SerializeMix(FArchive& Ar, TPM::FTinMix& Mix)
 	}
 }
 
-void SerializeSpec(FArchive& Ar, TPM::FPaintSpec& S)
+void SerializeSpec(FArchive& Ar, TPM::FPaintSpec& S, int32 Layout)
 {
 	FString Effect = S.Effect.ToString();
 	Ar << S.Name << S.Code << Effect << S.Colour << S.Metal << S.Rough << S.Flake << S.Flat << S.Stir << S.Need;
 	if (Ar.IsLoading()) S.Effect = FName(*Effect);
+	if (Layout < 2) return;
+	uint8 bHoloB = S.bHolo ? 1 : 0;
+	Ar << S.Pearl << S.Flip << S.Depth << S.PearlTint << S.FlakeColour << S.FlipA << S.FlipB << S.Dye << bHoloB;
+	S.bHolo = bHoloB != 0;
 }
 
 // A tin from the bay's stock: TS "W", "PB" for the codes, and the stock index of each.
@@ -58,6 +63,8 @@ FTorquePaintBay FTorquePaintBay::Starter()
 	B.Stock[BaseStock(1)] = 2.0f;   // B
 	B.Stock[BaseStock(2)] = 2.0f;   // S
 	B.Stock[BaseStock(3)] = 2.0f;   // L
+	B.Stock[BaseStock(4)] = 1.0f;   // C (candy's clear)
+	B.Stock[BaseStock(5)] = 1.0f;   // H (chrome)
 	for (int32 I = 0; I < NT; ++I) B.Stock[TintStock(I)] = StarterTint;
 	return B;
 }
@@ -137,9 +144,19 @@ bool FTorquePaintBay::Serialize(FArchive& Ar, bool bNet)
 {
 	int32 Layout = TPBI::SaveLayout;
 	Ar << Layout;
-	if (Layout != TPBI::SaveLayout) return false;
+	if (Layout < 1 || Layout > TPBI::SaveLayout || (bNet && Layout != TPBI::SaveLayout)) return false;
 	Ar << Stock;
 	if (Stock.Num() > 64) return false;
+	if (Ar.IsLoading() && Layout < 2)
+	{
+		// A garage from before the effects rack: room for C and H after the old bases (none in
+		// stock), and the effects rack's bottles as a new garage gets them.
+		Stock.SetNumZeroed(FMath::Max(Stock.Num(), TPBI::OldBases));
+		Stock.InsertZeroed(TPBI::OldBases, TorquePaintMix::Bases().Num() - TPBI::OldBases);
+		const int32 Was = Stock.Num();
+		Stock.SetNumZeroed(TorquePaintMix::Bases().Num() + TorquePaintMix::Tints().Num());
+		for (int32 I = Was; I < Stock.Num(); ++I) Stock[I] = StarterTint;
+	}
 	int32 NumTins = Tins.Num();
 	Ar << NumTins;
 	if (NumTins < 0 || NumTins > MaxTins + 8) return false;
@@ -186,7 +203,7 @@ bool FTorquePaintBay::Serialize(FArchive& Ar, bool bNet)
 	if (Ar.IsLoading()) TargetEffect = FName(*Effect);
 	Ar << ShakerTin << ShakerLeft << bTestB << TestBy << TestN;
 	bTest = bTestB != 0;
-	TPBI::SerializeSpec(Ar, Test);
+	TPBI::SerializeSpec(Ar, Test, Layout);
 	if (bNet)
 	{
 		Ar << BenchBy << PourTint << Tilt;
@@ -201,7 +218,7 @@ bool FTorquePaintBay::Serialize(FArchive& Ar, bool bNet)
 				int32 Peer = 0;
 				FTorquePaintCup C;
 				Ar << Peer << C.Litres;
-				TPBI::SerializeSpec(Ar, C.Spec);
+				TPBI::SerializeSpec(Ar, C.Spec, Layout);
 				Cups.Add(Peer, C);
 			}
 		}
@@ -211,7 +228,7 @@ bool FTorquePaintBay::Serialize(FArchive& Ar, bool bNet)
 			{
 				int32 Peer = KV.Key;
 				Ar << Peer << KV.Value.Litres;
-				TPBI::SerializeSpec(Ar, KV.Value.Spec);
+				TPBI::SerializeSpec(Ar, KV.Value.Spec, Layout);
 			}
 		}
 		Ar << Held;

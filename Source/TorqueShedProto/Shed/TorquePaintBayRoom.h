@@ -50,6 +50,7 @@ private:
 	int32 LastStirTin = 0;
 	double StirringFor = 0.0;
 	void BuildBooth(USceneComponent* Root);
+	void BuildEffectsRack(USceneComponent* Root);
 	FString Shown;            // what's drawn now (redrawn when the bay changes)
 	TArray<FString> TinSigs;  // the paint each pooled tin shows
 	double ShakeClock = 0.0;
