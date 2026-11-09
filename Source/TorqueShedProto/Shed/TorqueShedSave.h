@@ -51,6 +51,12 @@ struct FTorqueShedSaveItem
 	UPROPERTY() FString Badge;          // a tank's badge (FTorqueItem)
 	UPROPERTY() TMap<FName, float> Tune;   // the dyno desk's settings kept on the part (FTorqueItem)
 	UPROPERTY() bool bLightened = false;
+	// [fluids] (FTorqueItem): what's in it, how much and how old; a chain's lube.
+	UPROPERTY() FName FluidType;
+	UPROPERTY() float Litres = 0.0f;
+	UPROPERTY() float FluidAge = 0.0f;
+	UPROPERTY() float Lube = 1.0f;
+	UPROPERTY() FName LubeType;
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.
@@ -135,4 +141,8 @@ public:
 	// and whether it's been put out (an older save hasn't: it gets the starting kit).
 	UPROPERTY() TArray<uint8> Furniture;
 	UPROPERTY() bool bFurnished = false;
+	// [fluids] Whether the shed keeps fluids (an older save doesn't: every bike's tank, oil and brake
+	// fluid are filled when it loads, so nobody loads in stranded), and the pump's last sale.
+	UPROPERTY() bool bFluids = false;
+	UPROPERTY() float PumpLitres = 0.0f;
 };
