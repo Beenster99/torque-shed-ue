@@ -497,6 +497,125 @@ def _incomplete_body(pkg):
     return ""
 
 
+def _cls_name(a):
+    return str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
+
+
+def _path(obj):
+    return obj.get_path_name() if obj is not None else ""
+
+
+def _editor_only_deps(pkg):
+    """The packages under /MetaHuman* (editor-only plugins, not in the game) that pkg pulls in."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    opts = unreal.AssetRegistryDependencyOptions(include_soft_package_references=False, include_hard_package_references=True,
+                                                 include_searchable_names=False, include_soft_management_references=False,
+                                                 include_hard_management_references=False)
+    seen, todo, bad = set(), [pkg], []
+    while todo:
+        p = todo.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        if p.startswith("/MetaHuman"):
+            bad.append(p)
+            continue
+        if p.startswith("/Script/") or p.startswith("/Engine/"):
+            continue
+        for d in reg.get_dependencies(p, opts) or []:
+            todo.append(str(d))
+    return bad
+
+
+def _game_safe_mesh(mesh, av):
+    """Drop a skeletal mesh's post-process Anim Blueprint when it needs the MetaHuman plugin (the
+    game poses the bones itself), then report anything else of the plugin it still pulls in."""
+    pkg = mesh.get_outermost().get_name()
+    try:
+        abp = mesh.get_editor_property("post_process_anim_blueprint")
+    except Exception:
+        abp = None
+    if abp is not None and _editor_only_deps(abp.get_outermost().get_name()):
+        mesh.set_editor_property("post_process_anim_blueprint", None)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh, only_if_is_dirty=False)
+        log("%s: %s: post-process Anim Blueprint %s dropped (needs the MetaHuman plugin)" % (av, pkg, _path(abp)))
+    bad = _editor_only_deps(pkg)
+    if bad:
+        unreal.log_warning("[Torque] %s: %s still pulls in editor-only MetaHuman content: %s" % (av, pkg, ", ".join(sorted(bad)[:5])))
+
+
+def _parts_of_blueprint(pkg, name, av):
+    """The avatar entry for an assembled MetaHuman Blueprint: its body mesh (the one the game poses)
+    and every other skeletal mesh and groom, with the components' material overrides and what each
+    groom is attached to. Read from an instance spawned in the editor world for a moment."""
+    cls = unreal.load_class(None, "%s.%s_C" % (pkg, name)) if hasattr(unreal, "load_class") else None
+    if cls is None:
+        bp = unreal.load_asset(pkg)
+        cls = bp.generated_class() if bp is not None and hasattr(bp, "generated_class") else None
+    if cls is None:
+        unreal.log_warning("[Torque] %s: couldn't load %s" % (av, pkg))
+        return None
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+    try:
+        actor = actors.spawn_actor_from_class(cls, unreal.Vector(0, 0, -100000), unreal.Rotator(0, 0, 0), transient=True)
+    except TypeError:
+        actor = actors.spawn_actor_from_class(cls, unreal.Vector(0, 0, -100000))
+    if actor is None:
+        unreal.log_warning("[Torque] %s: couldn't spawn %s in the editor world" % (av, pkg))
+        return None
+    try:
+        skins = []
+        for c in actor.get_components_by_class(unreal.SkeletalMeshComponent):
+            try:
+                m = c.get_skeletal_mesh_asset() if hasattr(c, "get_skeletal_mesh_asset") else c.get_editor_property("skeletal_mesh")
+            except Exception:
+                m = None
+            if m is not None:
+                skins.append((c, m))
+        if not skins:
+            unreal.log_warning("[Torque] %s: %s has no skeletal meshes" % (av, pkg))
+            return None
+        body = next(((c, m) for c, m in skins if c.get_name().lower() == "body"), None) \
+            or next(((c, m) for c, m in skins if "body" in c.get_name().lower()), None) or skins[0]
+
+        def mats(c):
+            try:
+                out = [_path(m) for m in (c.get_editor_property("override_materials") or [])]
+            except Exception:
+                return []
+            for m in out:
+                if m and _editor_only_deps(m.split(".")[0]):
+                    unreal.log_warning("[Torque] %s: %s's material %s needs editor-only MetaHuman content" % (av, c.get_name(), m))
+            return out
+        entry = {"name": av, "blueprint": "", "body": _path(body[1]), "body_materials": mats(body[0]), "parts": []}
+        _game_safe_mesh(body[1], av)
+        for c, m in skins:
+            if c == body[0]:
+                continue
+            entry["parts"].append({"name": c.get_name(), "mesh": _path(m), "materials": mats(c)})
+            _game_safe_mesh(m, av)
+        gcls = getattr(unreal, "GroomComponent", None)
+        if gcls is not None:
+            for g in actor.get_components_by_class(gcls):
+                try:
+                    groom = g.get_editor_property("groom_asset")
+                    binding = g.get_editor_property("binding_asset")
+                except Exception:
+                    continue
+                if groom is None:
+                    continue
+                parent = g.get_attach_parent()
+                entry["parts"].append({"name": g.get_name(), "groom": _path(groom), "binding": _path(binding),
+                                       "attach": parent.get_name() if parent is not None else "", "materials": mats(g)})
+                bad = _editor_only_deps(groom.get_outermost().get_name())
+                if bad:
+                    unreal.log_warning("[Torque] %s: groom %s pulls in editor-only content: %s" % (av, _path(groom), ", ".join(bad[:5])))
+        log("avatar %s: body %s, parts %s" % (av, entry["body"], ", ".join(p["name"] for p in entry["parts"])))
+        return entry
+    finally:
+        actors.destroy_actor(actor)
+
+
 def register():
     """Data/Avatars/avatars.json from the assembled MetaHumans under /Game/MetaHumans/<Name>/: each
     Blueprint named BP_* with its body mesh, or a complete body mesh on its own. The never-cook block
@@ -504,6 +623,11 @@ def register():
     reg = unreal.AssetRegistryHelpers.get_asset_registry()
     assets = reg.get_assets_by_path(ROOT, recursive=True) if unreal.EditorAssetLibrary.does_directory_exist(ROOT) else []
     blueprints, meshes = [], []
+    if unreal.EditorAssetLibrary.does_directory_exist(SOURCES):   # Blueprints moved there by an earlier register
+        for a in reg.get_assets_by_path(SOURCES, recursive=True):
+            cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
+            if cls == "Blueprint" and str(a.asset_name).startswith("BP_"):
+                blueprints.append((str(a.package_name), str(a.asset_name)))
     for a in assets:
         cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
         pkg = str(a.package_name); name = str(a.asset_name)
@@ -529,7 +653,8 @@ def register():
     # (skeleton, the mannequin bones the game poses, and materials of its own in /Game). Anything
     # else (a stray export, a loose mesh in /Game/MetaHumans itself) is skipped and lifts nothing.
     def avatar_of(pkg):
-        rest = pkg[len(ROOT) + 1:].split("/")
+        base = SOURCES if pkg.startswith(SOURCES + "/") else ROOT
+        rest = pkg[len(base) + 1:].split("/")
         return rest[0] if len(rest) >= 2 else None
     by_name = {}
     for pkg, name in sorted(blueprints):
@@ -539,11 +664,16 @@ def register():
             continue
         if av in by_name:
             continue
-        body = sorted((p for p, n in meshes if avatar_of(p) == av and "body" in n.lower() and "face" not in n.lower()),
-                      key=lambda p: "full" not in p.lower())
-        by_name[av] = {"name": av, "blueprint": "%s.%s_C" % (pkg, name),
-                       "body": "%s.%s" % (body[0], body[0].rsplit("/", 1)[1]) if body else ""}
-        log("avatar %s: %s (body %s)" % (av, by_name[av]["blueprint"], by_name[av]["body"] or "found in the Blueprint"))
+        entry = _parts_of_blueprint(pkg, name, av)
+        if entry is None:
+            continue
+        by_name[av] = entry
+        # The Blueprint itself isn't used by the game (its Anim Blueprints need the editor-only
+        # MetaHuman plugin): keep it with the sources, which are never cooked.
+        if pkg.startswith(ROOT + "/"):
+            dest = SOURCES + pkg[len(ROOT):]
+            ok = unreal.EditorAssetLibrary.rename_asset(pkg, dest)
+            log("%s: Blueprint %s %s %s" % (av, pkg, "moved to" if ok else "COULDN'T be moved to", dest))
     for pkg, name in sorted(meshes, key=lambda m: "full" not in m[1].lower()):   # a full body (with head) first
         av = avatar_of(pkg)
         if av in by_name or "body" not in name.lower() or "face" in name.lower():
