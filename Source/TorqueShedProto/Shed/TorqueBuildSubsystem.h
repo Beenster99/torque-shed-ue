@@ -23,10 +23,12 @@
 #include "Shed/TorqueFitApi.h"
 #include "Shed/TorquePaintBay.h"
 #include "Shed/TorqueShedPower.h"
+#include "Shed/TorqueFurniture.h"
 #include "TorqueBuildSubsystem.generated.h"
 
 class APawn;
 class UTorqueShedSave;
+namespace TorqueFit { class BikeTune; }
 
 // Where an item is (shed_state's "at"), and what Ref means there.
 enum class ETorqueAt : uint8
@@ -84,6 +86,13 @@ struct FTorqueItem
 	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
 	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
 	FString Badge;
+	// The dyno desk's settings kept on the part they adjust (shed_state TUNE_HOME: a fork's or
+	// shock's preload / bump / rebound, a tyre's pressure, the sprockets' front / rear teeth, a
+	// cassette gearbox's spread, a steering damper's clicks, the chain's slack), so they go with it
+	// when it's swapped; a field missing is stock. And whether it's been drilled and trimmed for
+	// lightness (once: lighter, a little weaker).
+	TMap<FName, float> Tune;
+	bool bLightened = false;
 };
 
 // One bay's bike.
@@ -110,6 +119,9 @@ struct FTorqueShedBike
 	// Its fit from geometry mode (shed_state's bike "geo": Fit/BikeGeometry text, "" for none):
 	// the rig's range handles and each slot's free offset, how it's drawn. Looks only.
 	FString Geo;
+	// The dyno desk's settings kept on the bike (shed_state TUNE_HOME "bike": the fuel map, the
+	// ignition, the rev limiter and the ECU's rider aid levels); a setting missing is stock.
+	TMap<FName, float> Tune;
 };
 
 // The dyno room's kit (shed_state's dyno): the rig's four straps, the cooling fan, the lights,
@@ -198,6 +210,21 @@ enum class ETorqueShedAct : uint8
 	ReleaseStand,
 	Extinguisher,
 	ExtinguisherSpray,
+	// Bay Bay's bike scrapped: it and every part on it gone for good, the bay free (shed_state.gd
+	// remove_bike; the UE shed has no money, so nothing is paid for it).
+	ScrapBike,
+	// The dyno desk (tuning_computer.gd's "tune" and "lighten"): bay Bay's setting Text (a
+	// TorqueFit::TuneLimits key) set to Amount, or back to stock (Item 1); part Item drilled and
+	// trimmed for lightness.
+	Tune,
+	Lighten,
+	// [furniture] The shed's and the yard's movable kit (TorqueFurniture.h): piece Item taken hold of
+	// (hold F), turned by Amount degrees while it's moved (R), put down at Place (F); a new piece of
+	// model Part ordered from the parts computer (free: it's left by the door or in the yard's drop-off).
+	GrabFurniture,
+	TurnFurniture,
+	ReleaseFurniture,
+	OrderFurniture,
 	Count
 };
 
@@ -240,6 +267,30 @@ public:
 	// The save slot in use: "Shed", or "ShedTest" on a test run.
 	const FString& SlotName() const { return SaveSlot; }
 	static bool IsTestRun();
+
+	// --- Saved games (the title screen's New, Load and Delete Game) -------------------------
+	// Each game is its own save slot: "Shed" is game 1 (the slot every earlier build saved to),
+	// then "Shed_2", "Shed_3"... The game starts on the most recently saved one.
+	struct FSavedGame
+	{
+		FString Slot;
+		int32 Number = 1;
+		FDateTime Saved;      // the file's time (UTC)
+		int32 BikeCount = -1; // -1: couldn't read it
+	};
+	// The games saved on this PC, newest first.
+	static TArray<FSavedGame> SavedGames();
+	// The slot a new game goes in: the first free number.
+	static FString NewGameSlot();
+	static int32 GameNumber(const FString& Slot);
+	// "Shed", or "TitleTest" under -TorqueTitleTest= (its games are TitleTest, TitleTest_2...).
+	static FString SlotBase();
+	// Switches the shed to Slot: a new shed there (saved straight away, so it's listed), or the one
+	// saved in it. Changes still owed to the slot in use are saved there first.
+	void UseGame(const FString& Slot, bool bNew);
+	// Deletes a saved game. If it's the one in use, the shed switches to the newest one left (or a
+	// new, unsaved shed in "Shed" when none is), so the deleted one is never saved again.
+	bool DeleteGame(const FString& Slot);
 
 	// --- The bays --------------------------------------------------------------------------
 	static constexpr int32 Bays = 4;
@@ -308,6 +359,12 @@ public:
 	int32 StandPushedBy() const { return StandPusher; }
 	int32 ExtinguisherHeldBy() const { return ExtinguisherBy; }
 	bool ExtinguisherSpraying() const { return ExtinguisherBy != 0 && bFoaming; }
+	// [furniture] The movable shed and yard kit (TorqueFurniture.h): every piece, one by id, and the
+	// piece Peer is moving (0: none).
+	const TArray<FTorqueFurniture>& Furniture() const { return Furnishings; }
+	const FTorqueFurniture* FurnitureById(int32 Id) const;
+	int32 FurnitureMovedBy(int32 Peer) const;
+	static bool IsFurnitureAct(ETorqueShedAct A);
 	// Where the engine stand starts (ue_build_shed.py / swaps.json engine_stand: at 560, -40, facing +y).
 	static FTransform StandHome() { return FTransform(FVector(560.0, -40.0, 0.0)); }
 	int32 RadioStation() const { return RadioTuned; }
@@ -330,6 +387,16 @@ public:
 	double SharedNow() const;
 	// The bike's numbers, as Torque Shed works them out (power, torque, mass).
 	FTorqueEngineNumbers NumbersOf(int32 Bay) const { return TorqueShedPower::Numbers(*this, Bay); }
+	// --- The dyno desk's tune (shed_state tune_of, TUNE_HOME) -------------------------------
+	// Bay Bay's tune gathered from where each setting is kept: setting -> value, those never
+	// touched left out (stock). The chain's slack isn't in it: ChainSlackOf.
+	TMap<FName, float> TuneOf(int32 Bay) const;
+	float ChainSlackOf(int32 Bay) const;
+	// The bike's slots whose parts were drilled and trimmed for lightness.
+	TArray<FName> LightenedOf(int32 Bay) const;
+	// Fn handed the bike's tune rules (Fit/BikeTune: its parts as Torque Shed sees them, with its
+	// tune); false (Fn not called) when it isn't a bike of catalogue parts.
+	bool WithTune(int32 Bay, TFunctionRef<void(const TorqueFit::BikeTune&)> Fn) const;
 
 	// --- The items ---------------------------------------------------------------------------
 	const FTorqueItem* Item(int32 Id) const { return Items.Find(Id); }
@@ -477,6 +544,16 @@ private:
 	int32 StandPusher = 0;
 	int32 ExtinguisherBy = 0;
 	bool bFoaming = false;
+	// [furniture] (TorqueFurniture.cpp)
+	TArray<FTorqueFurniture> Furnishings;
+	int32 FurnitureNextId = 1;
+	bool bFurnished = false;   // the starting kit's been put out (an older save gets it when it loads)
+	void FurnishFresh();
+	FVector FurnitureDropAt(const TorqueFurniture::FModel& M) const;
+	FString CheckFurniture(int32 Peer, const FTorqueShedRequest& R) const;
+	FString ApplyFurniture(int32 Peer, const FTorqueShedRequest& R);
+	void DropFurnitureOf(int32 Peer);
+	static void SerializeFurniture(FArchive& Ar, bool bNet, TArray<FTorqueFurniture>& List, int32& NextIdIo);
 	FTorquePaintBay Paint;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;

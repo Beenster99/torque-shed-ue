@@ -2,6 +2,8 @@
 
 #include "Fit/BikeLayout.h"
 #include "Fit/BikeShop.h"
+#include "Fit/BikeRideSpec.h"
+#include "Fit/BikeTune.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
@@ -13,6 +15,7 @@
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/Pawn.h"
+#include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
@@ -176,7 +179,8 @@ bool UTorqueBuildSubsystem::IsTestRun()
 	{
 		if (!Token.StartsWith(TEXT("-Torque"))) continue;
 		if (Token.StartsWith(TEXT("-TorqueName")) || Token.StartsWith(TEXT("-TorqueNet")) ||
-			Token.StartsWith(TEXT("-TorqueMenu")) || Token.StartsWith(TEXT("-TorqueScreenMessages")))
+			Token.StartsWith(TEXT("-TorqueMenu")) || Token.StartsWith(TEXT("-TorqueScreenMessages")) ||
+			Token.StartsWith(TEXT("-TorqueTitleTest")))   // its own slots (SlotBase), never the player's
 			continue;
 		return true;
 	}
@@ -186,7 +190,14 @@ bool UTorqueBuildSubsystem::IsTestRun()
 void UTorqueBuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	SaveSlot = IsTestRun() ? TEXT("ShedTest") : TEXT("Shed");
+	SaveSlot = SlotBase();
+	if (IsTestRun()) SaveSlot = TEXT("ShedTest");
+	else
+	{
+		// The game saved last (the title screen's Load Game picks another).
+		const TArray<FSavedGame> Games = SavedGames();
+		if (Games.Num() > 0) SaveSlot = Games[0].Slot;
+	}
 	// A test run's shed comes out the same every time.
 	Rng.Initialize(SaveSlot == TEXT("ShedTest") ? 12345 : (int32)(FDateTime::Now().GetTicks() & 0x7fffffff));
 	if (SaveSlot == TEXT("ShedTest"))
@@ -228,6 +239,105 @@ bool UTorqueBuildSubsystem::TickSave(float FrameDt)
 	return true;
 }
 
+FString UTorqueBuildSubsystem::SlotBase()
+{
+	FString Steps;
+	return FParse::Value(FCommandLine::Get(), TEXT("TorqueTitleTest="), Steps) ? FString(TEXT("TitleTest")) : FString(TEXT("Shed"));
+}
+
+int32 UTorqueBuildSubsystem::GameNumber(const FString& Slot)
+{
+	const FString Base = SlotBase();
+	if (Slot == Base) return 1;
+	if (!Slot.StartsWith(Base + TEXT("_"), ESearchCase::CaseSensitive)) return 0;
+	const FString Num = Slot.Mid(Base.Len() + 1);
+	if (Num.IsEmpty() || !Num.IsNumeric() || Num.Contains(TEXT("."))) return 0;
+	return FCString::Atoi(*Num);
+}
+
+TArray<UTorqueBuildSubsystem::FSavedGame> UTorqueBuildSubsystem::SavedGames()
+{
+	TArray<FSavedGame> Out;
+	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"));
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *FPaths::Combine(Dir, TEXT("*.sav")), true, false);
+	for (const FString& File : Files)
+	{
+		FSavedGame G;
+		G.Slot = FPaths::GetBaseFilename(File);
+		G.Number = GameNumber(G.Slot);
+		if (G.Number <= 0) continue;   // ShedTest and anything else that isn't a game
+		G.Saved = IFileManager::Get().GetTimeStamp(*FPaths::Combine(Dir, File));
+		if (const UTorqueShedSave* S = Cast<UTorqueShedSave>(UGameplayStatics::LoadGameFromSlot(G.Slot, 0)))
+		{
+			G.BikeCount = 0;
+			for (const FTorqueShedSaveBike& B : S->Bikes) G.BikeCount += B.bExists ? 1 : 0;
+		}
+		Out.Add(G);
+	}
+	Out.Sort([](const FSavedGame& A, const FSavedGame& B) { return A.Saved > B.Saved; });
+	return Out;
+}
+
+FString UTorqueBuildSubsystem::NewGameSlot()
+{
+	TSet<int32> Used;
+	for (const FSavedGame& G : SavedGames()) Used.Add(G.Number);
+	int32 N = 1;
+	while (Used.Contains(N)) ++N;
+	return N == 1 ? SlotBase() : FString::Printf(TEXT("%s_%d"), *SlotBase(), N);
+}
+
+void UTorqueBuildSubsystem::UseGame(const FString& Slot, bool bNew)
+{
+	if (IsTestRun() || Slot.IsEmpty()) return;
+	if (bSaveDue) Save();   // the game in use keeps what was done to it
+	SaveSlot = Slot;
+	Bikes.Reset();
+	Items.Reset();
+	if (bNew)
+	{
+		StartFresh();
+		Save();
+	}
+	else
+		Load();
+	bSaveDue = false;
+	Builds.SetNum(Bays);
+	for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
+	for (int32 I = 0; I < Bays; ++I) OnChanged.Broadcast(I);
+	OnItems.Broadcast();
+	OnHostChange.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("Torque: playing game %d (slot %s, %s)"), GameNumber(Slot), *Slot, bNew ? TEXT("new") : TEXT("loaded"));
+}
+
+bool UTorqueBuildSubsystem::DeleteGame(const FString& Slot)
+{
+	if (GameNumber(Slot) <= 0 || !UGameplayStatics::DoesSaveGameExist(Slot, 0)) return false;
+	const bool bInUse = Slot == SaveSlot;
+	if (bInUse) bSaveDue = false;   // never written back after it's gone
+	const bool bOk = UGameplayStatics::DeleteGameInSlot(Slot, 0);
+	UE_LOG(LogTemp, Log, TEXT("Torque: deleted game %d (slot %s): %s"), GameNumber(Slot), *Slot, bOk ? TEXT("done") : TEXT("FAILED"));
+	if (bOk && bInUse)
+	{
+		const TArray<FSavedGame> Left = SavedGames();
+		if (Left.Num() > 0) UseGame(Left[0].Slot, false);
+		else
+		{
+			// Nothing left: a new shed in game 1's slot, saved only once something is done in it.
+			SaveSlot = SlotBase();
+			Bikes.Reset();
+			Items.Reset();
+			StartFresh();
+			bSaveDue = false;
+			for (int32 I = 0; I < Bays; ++I) OnChanged.Broadcast(I);
+			OnItems.Broadcast();
+			OnHostChange.Broadcast();
+		}
+	}
+	return bOk;
+}
+
 void UTorqueBuildSubsystem::StartFresh()
 {
 	Bikes.Reset();
@@ -243,6 +353,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	StandPusher = 0;
 	ExtinguisherBy = 0;
 	bFoaming = false;
+	FurnishFresh();   // [furniture]
 	NextId = 1;
 	Mine = 0;
 	bHostCopy = false;
@@ -276,6 +387,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.DynoN = B.DynoN;
 		for (const FTorqueDynoRun& Run : B.DynoRuns) To.DynoRuns.Add(TBI::ToSaveRun(Run));
 		To.Geo = B.Geo;
+		To.Tune = B.Tune;
 		S.Bikes.Add(To);
 	}
 	S.DynoStraps.Reset();
@@ -291,6 +403,15 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.bStandMoved = true;
 	S.StandAt = StandXf.GetLocation();
 	S.StandYaw = (float)StandXf.Rotator().Yaw;
+	{
+		// [furniture] The movable shed and yard kit, as bytes.
+		S.Furniture.Reset();
+		FMemoryWriter FurnAr(S.Furniture);
+		TArray<FTorqueFurniture> List = Furnishings;
+		int32 FurnNext = FurnitureNextId;
+		SerializeFurniture(FurnAr, false, List, FurnNext);
+		S.bFurnished = bFurnished;
+	}
 	{
 		// The paint mixing bay, as bytes (FTorquePaintBay::Serialize).
 		S.PaintBay.Reset();
@@ -337,6 +458,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MaskMetal = It.MaskMetal;
 		To.MaskRough = It.MaskRough;
 		To.Badge = It.Badge;
+		To.Tune = It.Tune;
+		To.bLightened = It.bLightened;
 		S.Items.Add(To);
 	}
 }
@@ -365,6 +488,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		To.DynoN = From.DynoN;
 		for (const FTorqueShedSaveDynoRun& Run : From.DynoRuns) To.DynoRuns.Add(TBI::FromSaveRun(Run));
 		To.Geo = TorqueGeometryMode::Clean(From.Geo);
+		To.Tune = From.Tune;
 	}
 	Dyno = FTorqueDynoRoom();
 	for (int32 I = 0; I < 4 && I < S.DynoStraps.Num(); ++I) Dyno.Straps[I] = S.DynoStraps[I];
@@ -382,6 +506,24 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	StandPusher = 0;
 	ExtinguisherBy = 0;
 	bFoaming = false;
+	{
+		// [furniture] An older save (or one that won't read) gets the starting kit.
+		bool bRead = false;
+		if (S.bFurnished && S.Furniture.Num() > 0)
+		{
+			FMemoryReader FurnAr(S.Furniture);
+			TArray<FTorqueFurniture> List;
+			int32 FurnNext = 1;
+			SerializeFurniture(FurnAr, false, List, FurnNext);
+			if (!FurnAr.IsError())
+			{
+				Furnishings = MoveTemp(List);
+				FurnitureNextId = FurnNext;
+				bFurnished = bRead = true;
+			}
+		}
+		if (!bRead) FurnishFresh();
+	}
 	Paint = FTorquePaintBay::Starter();
 	if (S.PaintBay.Num() > 0)
 	{
@@ -433,6 +575,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MaskMetal = From.MaskMetal;
 		It.MaskRough = From.MaskRough;
 		It.Badge = From.Badge;
+		It.Tune = From.Tune;
+		It.bLightened = From.bLightened;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -486,7 +630,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 14;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher)
+constexpr int32 BytesLayout = 16;   // bumped when the layout below changes (16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -502,6 +646,37 @@ struct FNameTable
 };
 
 uint8 Quant(float V) { return (uint8)FMath::Clamp(FMath::RoundToInt(V * 255.0f), 0, 255); }
+
+// The dyno desk's settings on a bike or a part: how many, then each name (from the table) and value.
+void WriteTune(FArchive& Ar, FNameTable& Table, const TMap<FName, float>& Tune)
+{
+	uint8 N = (uint8)FMath::Min(Tune.Num(), 255);
+	Ar << N;
+	int32 Done = 0;
+	for (const TPair<FName, float>& KV : Tune)
+	{
+		if (Done++ >= N) break;
+		uint16 Key = Table.Of(KV.Key);
+		float V = KV.Value;
+		Ar << Key << V;
+	}
+}
+
+bool ReadTune(FArchive& Ar, const TArray<FName>& Names, TMap<FName, float>& Tune)
+{
+	Tune.Reset();
+	uint8 N = 0;
+	Ar << N;
+	for (int32 I = 0; I < N && !Ar.IsError(); ++I)
+	{
+		uint16 Key = 0;
+		float V = 0.0f;
+		Ar << Key << V;
+		if (!Names.IsValidIndex(Key) || !FMath::IsFinite(V)) return false;
+		Tune.Add(Names[Key], V);
+	}
+	return !Ar.IsError();
+}
 float Unquant(uint8 V) { return V / 255.0f; }
 
 void WriteSlots(FArchive& Ar, const TMap<FName, int32>& Slots, const TMap<FName, bool>& Bolted)
@@ -581,6 +756,7 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		}
 		FString Geo = B.Geo;
 		Ar << Geo;
+		TBI::WriteTune(Ar, Table, B.Tune);
 	}
 	{
 		// The dyno room's kit.
@@ -638,6 +814,10 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 			FString Badge = It.Badge;
 			Ar << Badge;
 		}
+		// The dyno desk's settings kept on it, and whether it's been lightened.
+		TBI::WriteTune(Ar, Table, It.Tune);
+		uint8 bLightenedB = It.bLightened ? 1 : 0;
+		Ar << bLightenedB;
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -657,6 +837,12 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		double StandYaw = StandXf.Rotator().Yaw;
 		int32 Pusher = StandPusher, ExtBy = ExtinguisherBy;
 		Ar << bLightsB << bDoorB << StandAt << StandYaw << Pusher << ExtBy << bFoamB;
+	}
+	{
+		// [furniture] The movable shed and yard kit.
+		TArray<FTorqueFurniture> List = Furnishings;
+		int32 FurnNext = FurnitureNextId;
+		SerializeFurniture(Ar, true, List, FurnNext);
 	}
 
 	Out.Reset();
@@ -724,6 +910,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		}
 		Ar << B.Geo;
 		if (Ar.IsError() || B.Geo.Len() > TorqueGeometryMode::MaxText) return false;
+		if (!TBI::ReadTune(Ar, Names, B.Tune)) return false;
 		if (NewBikes.IsValidIndex(I)) NewBikes[I] = B;
 	}
 	FTorqueDynoRoom NewDyno;
@@ -804,6 +991,10 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 				Ar << It.Badge;
 				if (It.Badge.Len() > 2000) It.Badge.Reset();   // (not a badge)
 			}
+			if (!TBI::ReadTune(Ar, Names, It.Tune)) return false;
+			uint8 bLightenedB = 0;
+			Ar << bLightenedB;
+			It.bLightened = bLightenedB != 0;
 		}
 		Ar << bEngine;
 		if (bEngine && !TBI::ReadSlots(Ar, It.Slots, It.Bolted, false)) return false;
@@ -823,6 +1014,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	double StandYawIn = 0.0;
 	int32 PusherIn = 0, ExtByIn = 0;
 	Ar << bLightsB << bDoorB << StandAtIn << StandYawIn << PusherIn << ExtByIn << bFoamB;
+	TArray<FTorqueFurniture> FurnIn;   // [furniture]
+	int32 FurnNextIn = 1;
+	SerializeFurniture(Ar, true, FurnIn, FurnNextIn);
 	if (Ar.IsError() || !bPaintRead)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
@@ -846,6 +1040,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	StandPusher = PusherIn;
 	ExtinguisherBy = ExtByIn;
 	bFoaming = bFoamB != 0;
+	Furnishings = MoveTemp(FurnIn);   // [furniture]
+	FurnitureNextId = FurnNextIn;
+	bFurnished = true;
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -1293,6 +1490,57 @@ bool UTorqueBuildSubsystem::LayoutParts(int32 Bay, TMap<FString, FString>& Out) 
 		if (It && (TorqueShedParts::IsStock(It->Part) || !TorqueShedParts::IsPart(It->Part))) return false;
 		Out.Add(Slot, It ? It->Part.ToString().ToLower() : FString(TEXT("none")));
 	}
+	return true;
+}
+
+TMap<FName, float> UTorqueBuildSubsystem::TuneOf(int32 Bay) const
+{
+	TMap<FName, float> Out;
+	if (!Exists(Bay)) return Out;
+	for (const TorqueFit::TuneTab& Tab : TorqueFit::TuneTabs())
+		for (const TorqueFit::TuneRow& Row : Tab.Rows)
+		{
+			std::string Home, Field;
+			if (Row.Key == "chain" || !TorqueFit::TuneHome(Row.Key, Home, Field)) continue;
+			const TMap<FName, float>* Holder = nullptr;
+			if (Home == "bike") Holder = &Bikes[Bay].Tune;
+			else if (const FTorqueItem* It = Items.Find(ItemOn(Bay, FName(*TBI::Ue(Home))))) Holder = &It->Tune;
+			if (const float* V = Holder ? Holder->Find(FName(*TBI::Ue(Field))) : nullptr) Out.Add(FName(*TBI::Ue(Row.Key)), *V);
+		}
+	return Out;
+}
+
+float UTorqueBuildSubsystem::ChainSlackOf(int32 Bay) const
+{
+	const FTorqueItem* Chain = Items.Find(ItemOn(Bay, FName(TEXT("chain"))));
+	const float* Slack = Chain ? Chain->Tune.Find(FName(TEXT("slack"))) : nullptr;
+	return Slack ? *Slack : (float)TorqueFit::ChainSlackStock;
+}
+
+TArray<FName> UTorqueBuildSubsystem::LightenedOf(int32 Bay) const
+{
+	TArray<FName> Out;
+	if (!Exists(Bay)) return Out;
+	for (const TPair<FName, int32>& KV : Bikes[Bay].Slots)
+		if (const FTorqueItem* It = Items.Find(KV.Value))
+			if (It->bLightened) Out.Add(KV.Key);
+	return Out;
+}
+
+bool UTorqueBuildSubsystem::WithTune(int32 Bay, TFunctionRef<void(const TorqueFit::BikeTune&)> Fn) const
+{
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	TMap<FString, FString> Parts;
+	if (!Lay || !LayoutParts(Bay, Parts)) return false;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	TorqueFit::TuneMap Tune;
+	for (const TPair<FName, float>& KV : TuneOf(Bay)) Tune[TBI::Id(KV.Key)] = KV.Value;
+	double EcuHealth = 1.0;
+	if (const FTorqueItem* Ecu = Items.Find(ItemOn(Bay, FName(TEXT("ecu")))))
+		EcuHealth = TorqueFit::PartHealth(Ecu->Wear, Ecu->Rust, Ecu->Dirt);
+	const TorqueFit::BikeTune T(*Lay, TorqueFit::RideParts(*Lay, Map), Tune, EcuHealth);
+	Fn(T);
 	return true;
 }
 
@@ -1923,6 +2171,12 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		&& StandPusher == Peer && A != ETorqueShedAct::ReleaseStand)
 		return TEXT("Let go of the engine stand first (F).");
 	if (IsKitAct(A)) return CheckKit(Peer, R);
+	// [furniture] Moving a piece of kit: your hands are full of it.
+	if (IsFurnitureAct(A)) return CheckFurniture(Peer, R);
+	if (const int32 Moving = FurnitureMovedBy(Peer))
+		if (A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike || A == ETorqueShedAct::GrabStand
+			|| A == ETorqueShedAct::Extinguisher || A == ETorqueShedAct::PaintTapeTake || A == ETorqueShedAct::PaintTinTake)
+			return TEXT("Put down what you're moving first (F).");
 	const bool bSlotWork = A == ETorqueShedAct::Unbolt || A == ETorqueShedAct::Bolt || A == ETorqueShedAct::Remove;
 	// (Not with the bike up on a lift: then the low parts are at chest height.)
 	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched && !LiftRaised(R.Bay))
@@ -2172,9 +2426,14 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("You can't put it there.");
 		if (A == ETorqueShedAct::ReleaseBike)
 			for (int32 L = 0; L <= WashLift; ++L)
-				if (LiftUp(L) && FVector::Dist2D(R.Place.GetLocation(), TorqueShedLayout::LiftXf(L).GetLocation()) < 90.0)
+				if (IsLift(L) && LiftUp(L) && TorqueShedLayout::OntoLift(L, R.Place.GetLocation()))
 					return L == WashLift ? FString(TEXT("The wash bay lift is up. Lower it first, then wheel the bike on."))
 						: FString::Printf(TEXT("Bay %d's lift is up. Lower it first, then wheel the bike on."), L + 1);
+		return FString();
+	case ETorqueShedAct::ScrapBike:
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		if (Bikes[R.Bay].Pusher != 0) return TEXT("Someone's wheeling it.");
+		if (OnDyno(R.Bay) && SharedNow() < DynoBusyUntil) return TEXT("It's mid-run. Wait for it to finish.");
 		return FString();
 	case ETorqueShedAct::Lift:
 	{
@@ -2242,6 +2501,36 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	}
 	case ETorqueShedAct::GeoSave:
 		return TorqueGeometryMode::CheckSave(*this, R);
+	case ETorqueShedAct::Tune:
+	{
+		// shed_state check "tune": the bike, the setting, the part that keeps it, what its parts allow.
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		const std::string Key = TBI::Std(R.Text);
+		std::string Home, Field;
+		if (!TorqueFit::TuneHome(Key, Home, Field)) return TEXT("There's nothing like that to adjust.");
+		if (Home != "bike" && ItemOn(R.Bay, FName(*TBI::Ue(Home))) == 0)
+			return FString::Printf(TEXT("There's no %s fitted."), *TorqueShedParts::SlotName(FName(*TBI::Ue(Home))).ToLower());
+		if (R.Item == 0 && !FMath::IsFinite(R.Amount)) return TEXT("Pick a setting.");
+		FString Why;
+		if (!WithTune(R.Bay, [&Why, &Key](const TorqueFit::BikeTune& T) { Why = TBI::Ue(T.Block(Key)); }))
+			return TEXT("The dyno desk can't read this bike's parts.");
+		return Why;
+	}
+	case ETorqueShedAct::Lighten:
+	{
+		const FTorqueItem* It = Items.Find(R.Item);
+		if (!It) return TEXT("That part has gone.");
+		if (It->bBoxed) return TEXT("Unpack it first.");
+		if (It->bLightened) return TEXT("It's already been drilled and trimmed.");
+		const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+		const std::string Id = TBI::Id(It->Part);
+		const TorqueFit::Json* P = Lay ? Lay->Part(Id) : nullptr;
+		if (!P) return TEXT("There's nothing to trim off that.");
+		if (P->Flag("lightweight")) return TEXT("It's already as light as it goes.");
+		const TorqueFit::BikeTune T(*Lay, TorqueFit::PartsMap(), TorqueFit::TuneMap());
+		if (T.LightenCut(Id) <= 0.0) return TEXT("There's nothing to trim off that.");
+		return FString();
+	}
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -2317,6 +2606,14 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = ApplyKit(Peer, R);
 		if (R.Kind == ETorqueShedAct::ReleaseStand) OnItems.Broadcast();   // an engine on it sits where it stopped
 		if (R.Kind != ETorqueShedAct::ExtinguisherSpray) MarkSave();
+		OnHostChange.Broadcast();
+		return Text;
+	}
+	if (IsFurnitureAct(R.Kind))
+	{
+		// [furniture] The movable shed and yard kit (TorqueFurniture.cpp).
+		Text = ApplyFurniture(Peer, R);
+		if (R.Kind != ETorqueShedAct::TurnFurniture) MarkSave();
 		OnHostChange.Broadcast();
 		return Text;
 	}
@@ -2688,7 +2985,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		const FVector At(R.Place.GetLocation().X, R.Place.GetLocation().Y, 0.0);
 		B.Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), At);
 		const int32 OnRig = DynoBay();
-		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0)
+		// Wheeled onto a lift (its own bay's, another empty bay's, the wash bay's): square on it,
+		// its front tyre in the lift's wheel vice (ATorqueBikeLift slides the vice to it).
+		int32 Onto = INDEX_NONE;
+		for (int32 L = 0; L <= WashLift && Onto == INDEX_NONE; ++L)
+			if (IsLift(L) && TorqueShedLayout::OntoLift(L, At) && (L == R.Bay || BikeOnLift(L, R.Bay) == INDEX_NONE)) Onto = L;
+		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0 || Onto == R.Bay)
 		{
 			B.bAway = false;
 			B.Xf = HomeOf(R.Bay);
@@ -2700,13 +3002,34 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			for (bool& Strap : Dyno.Straps) Strap = false;
 			Text = FString::Printf(TEXT("%s is on the dyno. Strap it down at the four posts (hold the work button), then run it at the desk."), *B.Name);
 		}
-		else if (FVector::Dist2D(At, TorqueShedLayout::WashLiftXf().GetLocation()) < 90.0 && BikeOnLift(WashLift, R.Bay) == INDEX_NONE)
+		else if (Onto != INDEX_NONE)
 		{
-			// wash.gd LIFT_SNAP: wheeled onto the wash bay's lift, square on it in its wheel chock.
-			B.Xf = TorqueShedLayout::WashLiftXf();
-			Text = FString::Printf(TEXT("%s is on the wash bay lift. F on the button post raises it."), *B.Name);
+			// wash.gd LIFT_SNAP: square on the lift, locked in its wheel vice.
+			B.Xf = TorqueShedLayout::LiftXf(Onto);
+			Text = FString::Printf(TEXT("%s is locked onto %s. F on the button post raises it."), *B.Name,
+				Onto == WashLift ? TEXT("the wash bay lift") : *FString::Printf(TEXT("bay %d's lift"), Onto + 1));
 		}
 		else Text = FString::Printf(TEXT("%s is on its stand."), *B.Name);
+		break;
+	}
+	case ETorqueShedAct::ScrapBike:
+	{
+		// shed_state.gd remove_bike: every part on it goes (an engine with what's bolted to it, a
+		// wheel with its tyre), then the bike; the bay is free for the next project.
+		const FString Name = Bikes[R.Bay].Name;
+		int32 Gone = 0;
+		for (const FName& S : TorqueShedParts::BikeSlots())
+			if (const int32 Id = Bikes[R.Bay].Slots.FindRef(S))
+			{
+				EraseItem(Id);
+				++Gone;
+			}
+		if (OnDyno(R.Bay))
+			for (bool& Strap : Dyno.Straps) Strap = false;
+		Bikes[R.Bay] = FTorqueShedBike();
+		PartsOf.Add(R.Bay);
+		bItems = true;
+		Text = FString::Printf(TEXT("Scrapped %s and the %d parts on it. Bay %d is free."), *Name, Gone, R.Bay + 1);
 		break;
 	}
 	case ETorqueShedAct::Lift:
@@ -2792,6 +3115,39 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = TorqueGeometryMode::ApplySave(Bikes[R.Bay], R.Text);
 		PartsOf.Add(R.Bay);
 		break;
+	case ETorqueShedAct::Tune:
+	{
+		// shed_state _apply "tune": kept where TUNE_HOME says, within what the parts allow; the
+		// chain's slack on the chain. Says nothing (the desk shows it).
+		const std::string Key = TBI::Std(R.Text);
+		std::string Home, Field;
+		TorqueFit::TuneHome(Key, Home, Field);
+		TMap<FName, float>* Holder = nullptr;
+		if (Home == "bike") Holder = &Bikes[R.Bay].Tune;
+		else if (FTorqueItem* It = Items.Find(ItemOn(R.Bay, FName(*TBI::Ue(Home))))) Holder = &It->Tune;
+		if (!Holder) break;
+		const FName FieldName(*TBI::Ue(Field));
+		double Lo = 0.0, Hi = 0.0;
+		if (Key == "chain") TorqueFit::TuneLimits(Key, Lo, Hi);
+		else WithTune(R.Bay, [&Lo, &Hi, &Key](const TorqueFit::BikeTune& T) { T.Range(Key, Lo, Hi); });
+		if (R.Item != 0) Holder->Remove(FieldName);
+		else Holder->Add(FieldName, (float)FMath::Clamp((double)R.Amount, Lo, Hi));
+		break;
+	}
+	case ETorqueShedAct::Lighten:
+	{
+		FTorqueItem& It = Items[R.Item];
+		const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+		const std::string Id = TBI::Id(It.Part);
+		const TorqueFit::BikeTune T(*Lay, TorqueFit::PartsMap(), TorqueFit::TuneMap());
+		const TorqueFit::Json* P = Lay->Part(Id);
+		const double Kg = (P ? P->Num("mass", 0.0) : 0.0) * T.LightenCut(Id);
+		It.bLightened = true;
+		It.Wear = FMath::Min(1.0f, It.Wear + (float)TorqueFit::LightenWear);
+		Text = FString::Printf(TEXT("Drilled and trimmed the %s: %.1f kg lighter, but a little weaker"), *ItemTitle(R.Item), Kg);
+		Touch(R.Item);
+		break;
+	}
 	default:
 		break;
 	}
@@ -2812,6 +3168,7 @@ void UTorqueBuildSubsystem::DropHeldBy(int32 Peer, const FVector& At)
 {
 	if (IsClient()) return;
 	DropKitOf(Peer);   // [kit]
+	DropFurnitureOf(Peer);   // [furniture]
 	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.Cups.Contains(Peer))
 	{
 		// The mixing bay: their tin back on the shelf, away from the bench, the cup put away.

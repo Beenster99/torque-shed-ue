@@ -551,12 +551,388 @@ static void GridTests()
 	}
 }
 
+
+// Walls and other bikes (BikeContacts): the bike rolling at a speed, heading -z (Place's heading 0),
+// held there by the throttle and steered by nobody.
+static void Roll(BikeSim& S, double V)
+{
+	S.Setup(BikeSpec::SpeedTwin1200());
+	S.Ray = FlatRay;
+	S.Place(V3(0, 0, 0), 0.0);
+	for (int i = 0; i < 240; ++i) S.Step(1.0 / 120.0);
+	S.LinearVelocity = V3(0.0, 0.0, -V);
+	S.Wheels[0].Omega = V / S.Build.FrontRadius;
+	S.Wheels[1].Omega = V / S.Build.RearRadius;
+	S.Gear = V > 15.0 ? 4 : V > 8.0 ? 2 : 1;
+}
+
+static void ContactTests()
+{
+	std::printf("Walls and other bikes\n");
+	const double Dt = 1.0 / 120.0;
+	// A drystone wall across the road 20 m ahead (as Tools/make_collision.py's wall module: 1.2 m
+	// high, 0.9 m thick), 6 m wide.
+	ContactWorld World;
+	ContactBox Wall;
+	Wall.Cx = 0.0; Wall.Cz = -20.0; Wall.Ux = 1.0; Wall.Uz = 0.0; Wall.Hu = 3.0; Wall.Hv = 0.45; Wall.Y0 = -0.2; Wall.Y1 = 1.2;
+	World.SetBoxes({Wall});
+	for (const double V : {4.0, 15.0})
+	{
+		BikeSim S;
+		Roll(S, V);
+		S.Contacts = &World;
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			// (Rolling on until it meets the wall, then off the throttle, as a rider would.)
+			S.Throttle = S.IsCrashed || S.HitCount > 0 ? 0.0 : Clamp(0.1 + (V - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		// Nothing of the bike gets through: its middle stays short of the wall's far face (z = -20.45),
+		// and, still on, its front tyre stops at the near face (z = -19.55).
+		char What[96];
+		std::snprintf(What, sizeof What, "into a wall at %.0f m/s: the bike stays this side of it (furthest z, m)", V);
+		Check(Furthest > -20.45, What, Furthest);
+		if (!S.IsCrashed)
+		{
+			const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
+			Check(Nose > -19.55 - 0.25, "  the front tyre stops at its face (m past it)", -19.55 - Nose);
+		}
+		std::snprintf(What, sizeof What, "  %s (m/s into it)", V > 6.0 ? "knocked off" : "stays on");
+		Check(V > 6.0 ? (S.IsCrashed && S.KnockedOff) : !S.IsCrashed, What, S.LastHitSpeed);
+		Check(S.HitCount >= 1, "  and the knock is counted", S.HitCount);
+	}
+	// A wall alongside, the bike drifting into it at a shallow angle: it scrapes along, stays on.
+	{
+		ContactWorld Side;
+		ContactBox Along;
+		Along.Cx = 1.1; Along.Cz = -50.0; Along.Ux = 0.0; Along.Uz = 1.0; Along.Hu = 60.0; Along.Hv = 0.45; Along.Y0 = -0.2; Along.Y1 = 1.2;
+		Side.SetBoxes({Along});
+		BikeSim S;
+		Roll(S, 12.0);
+		S.LinearVelocity = V3(0.6, 0.0, -12.0);
+		S.Contacts = &Side;
+		double MostRight = 0.0;
+		for (int i = 0; i < 120 * 4; ++i)
+		{
+			S.Throttle = Clamp(0.1 + (12.0 - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			MostRight = std::max(MostRight, S.Position.x);
+		}
+		Check(MostRight < 1.1 - 0.45, "a glancing wall keeps the bike out of it (furthest x, m)", MostRight);
+		Check(!S.IsCrashed && S.Speed > 6.0, "  scraping along it at 0.6 m/s in, the rider stays on and rides on (m/s)", S.Speed);
+	}
+	// Another bike stopped across the road: a slow nudge pushes off it; at speed the rider comes off.
+	for (const double V : {2.0, 8.0})
+	{
+		ContactWorld Others;
+		Others.SetBoxes({});
+		ContactCapsule Low, High;
+		Low.A = V3(-0.7, 0.35, -10.0); Low.B = V3(0.7, 0.35, -10.0); Low.Radius = 0.35;
+		High.A = V3(0.0, 0.9, -10.0); High.B = V3(0.0, 1.4, -10.0); High.Radius = 0.25; High.Rider = true;
+		Others.Capsules = {Low, High};
+		BikeSim S;
+		Roll(S, V);
+		S.Contacts = &Others;
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			S.Throttle = S.IsCrashed || S.HitCount > 0 ? 0.0 : Clamp(0.1 + (V - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
+		char What[96];
+		std::snprintf(What, sizeof What, "into a stopped bike at %.0f m/s: doesn't pass through it (m past its side)", V);
+		Check(Nose > -10.0 + 0.35 - 0.3, What, (-10.0 + 0.35) - Nose);
+		std::snprintf(What, sizeof What, "  %s", V > 5.0 ? "and the rider comes off" : "and the rider stays on");
+		Check(V > 5.0 ? S.IsCrashed : !S.IsCrashed, What, S.LastHitSpeed);
+		Check(S.LastHitBike, "  the knock was another bike", S.LastHitBike ? 1.0 : 0.0);
+	}
+	// Two of our own bikes: one stood across the road (its own capsules, BikeSim::AsCapsules, as the
+	// game gathers them from the other riders), the other riding into it at a walk.
+	{
+		BikeSim Parked;
+		Parked.Setup(BikeSpec::SpeedTwin1200());
+		Parked.Ray = FlatRay;
+		Parked.Place(V3(0.0, 0.0, -10.0), 1.5708);
+		for (int i = 0; i < 60; ++i) Parked.Step(Dt);
+		ContactWorld Others;
+		Others.SetBoxes({});
+		Parked.AsCapsules(Others.Capsules);
+		Check(Others.Capsules.size() == 2 && std::fabs(Others.Capsules[0].A.z - Others.Capsules[0].B.z) < 0.2,
+			"a bike's own capsules lie along it (across the road here: z spread, m)", std::fabs(Others.Capsules[0].A.z - Others.Capsules[0].B.z));
+		BikeSim S;
+		Roll(S, 3.0);
+		S.Contacts = &Others;
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 5; ++i)
+		{
+			S.Throttle = S.IsCrashed || S.HitCount > 0 ? 0.0 : Clamp(0.1 + (3.0 - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
+		Check(Nose > -10.0 - 0.3 && S.HitCount >= 1 && !S.IsCrashed, "  riding into it at 3 m/s: stops against it, stays on (m past its middle)", -10.0 - Nose);
+	}
+	// The respawn ghost: through a stopped bike at 8 m/s, and into the wall at 8 m/s (which knocks a solid rider off), it stays on;
+	// the wall still stops it. Then it wears off.
+	{
+		ContactWorld Others;
+		Others.SetBoxes({});
+		ContactCapsule Low;
+		Low.A = V3(-0.7, 0.35, -10.0); Low.B = V3(0.7, 0.35, -10.0); Low.Radius = 0.35;
+		Others.Capsules = {Low};
+		BikeSim S;
+		Roll(S, 8.0);
+		S.Contacts = &Others;
+		S.StartGhost();
+		for (int i = 0; i < 120 * 3; ++i)
+		{
+			S.Throttle = Clamp(0.1 + (8.0 - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+		}
+		Check(S.Position.z < -14.0 && !S.IsCrashed, "a ghost rides through a stopped bike at 8 m/s, still on (z, m)", S.Position.z);
+		BikeSim W;
+		Roll(W, 8.0);
+		W.Contacts = &World;
+		W.StartGhost();
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 3; ++i)
+		{
+			W.Throttle = W.HitCount > 0 ? 0.0 : Clamp(0.1 + (8.0 - W.Speed) * 0.4, 0.0, 1.0);
+			W.Step(Dt);
+			Furthest = std::min(Furthest, W.Position.z);
+		}
+		Check(Furthest > -20.45 && W.HitCount >= 1, "  into the wall at 8 m/s: the wall still stops it (furthest z, m)", Furthest);
+		Check(!W.IsCrashed, "  and nothing knocks the rider off", W.LastHitSpeed);
+		for (int i = 0; i < 120 * 3; ++i) W.Step(Dt);
+		Check(!W.IsGhost() && W.GhostLook() == 0.0, "  after 5 s it's solid again", W.GhostLeft);
+	}
+	// A bike going down slides into a wall and stops against it, not through it.
+	{
+		BikeSim S;
+		Roll(S, 14.0);
+		S.Contacts = &World;
+		S.IsCrashed = true;
+		S.AngularVelocity = V3(0.0, 0.0, 2.5);
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		Check(Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius > -19.55 - 0.3, "a sliding, fallen bike stops at the wall (furthest z, m)", Furthest);
+	}
+}
+
+static void EngineTests()
+{
+	std::printf("Engine, neutral and the clutch\n");
+	const double Dt = 1.0 / 120.0;
+	{
+		// Stopped in first, one click up finds neutral; the throttle revs it free and nothing moves.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		S.AutoShift = false;
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		S.ShiftUp();
+		Check(S.Gear == BikeSim::NEUTRAL, "stopped, a click up from first finds neutral", S.Gear);
+		double Most = 0.0;
+		for (int i = 0; i < 240; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+			Most = std::max(Most, S.Rpm);
+		}
+		Check(Most > S.Build.Redline * 0.95, "  a handful revs it free up to the limiter (rpm)", Most);
+		Check(std::fabs(S.Speed) < 0.2, "  and the bike stays put (m/s)", S.Speed);
+		S.Throttle = 0.0;
+		for (int i = 0; i < 360; ++i) S.Step(Dt);
+		Check(std::fabs(S.Rpm - S.Build.IdleRpm) < 150.0, "  shut, it falls back to tickover (rpm)", S.Rpm);
+		S.ShiftDown();
+		Check(S.Gear == 1, "  a click down: first", S.Gear);
+	}
+	{
+		// Riding in third at 15 m/s: the clutch in, a handful only revs it; let out, it drives again.
+		BikeSim S;
+		Roll(S, 15.0);
+		S.AutoShift = false;
+		S.Gear = 3;
+		S.ClutchIn = true;
+		const double V0 = 15.0;
+		double Most = 0.0;
+		for (int i = 0; i < 120; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+			Most = std::max(Most, S.Rpm);
+		}
+		Check(S.Speed < V0, "clutch in at 15 m/s, full throttle: no drive, it slows (m/s)", S.Speed);
+		Check(Most > S.Build.Redline * 0.9, "  and the engine revs free (rpm)", Most);
+		S.ClutchIn = false;
+		const double V1 = S.Speed;
+		for (int i = 0; i < 120; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+		}
+		Check(S.Speed > V1 + 1.0 && !S.IsCrashed, "  let out, it pulls again and stays on (m/s gained)", S.Speed - V1);
+	}
+	{
+		// Engine off: it rolls with no drive; the starter fires it again (not with an empty tank).
+		BikeSim S;
+		Roll(S, 15.0);
+		S.StopEngine();
+		const double V0 = 15.0;
+		for (int i = 0; i < 120; ++i)
+		{
+			S.Throttle = 1.0;
+			S.Step(Dt);
+		}
+		Check(!S.EngineOn && S.Speed < V0, "engine off, full throttle: it only slows (m/s)", S.Speed);
+		S.FuelLitres = 0.0;
+		Check(S.StartEngine() == "Out of petrol.", "  no petrol: it won't start", 0.0);
+		S.FuelLitres = 10.0;
+		Check(S.StartEngine().empty() && S.IsStarting(), "  with petrol the starter cranks", 0.0);
+		for (int i = 0; i < 60; ++i) S.Step(Dt);
+		Check(!S.EngineOn, "  not yet fired at 0.5 s", 0.0);
+		for (int i = 0; i < 60; ++i) S.Step(Dt);
+		Check(S.EngineOn, "  fired by 1 s", 0.0);
+	}
+	{
+		// The automatic box in neutral picks first as the rider opens up.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		S.ShiftUp();
+		for (int i = 0; i < 240; ++i)
+		{
+			S.Throttle = 0.5;
+			S.Step(Dt);
+		}
+		Check(S.Gear >= 1 && S.Speed > 3.0, "auto-shift in neutral: opening up pulls away in gear (m/s)", S.Speed);
+	}
+	{
+		// A burnout: stopped in first, front brake on, a handful: the back tyre spins, the bike stays
+		// put; leaning swings it round (a donut). Then walking it backwards on the front brake.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		double Moved = 0.0;
+		for (int i = 0; i < 240; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Throttle = 0.8;
+			S.Step(Dt);
+			Moved = std::max(Moved, std::hypot(S.Position.x, S.Position.z));
+		}
+		Check(S.Burnout > 0.4 && S.Wheels[1].Omega * S.Build.RearRadius > 8.0, "burnout: the back tyre lights up (burnout 0..1)", S.Burnout);
+		Check(Moved < 0.6 && !S.IsCrashed, "  held on the spot by the front brake (m moved)", Moved);
+		for (int i = 0; i < 360; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Throttle = 0.8;
+			S.LeanInput = 1.0;
+			S.Step(Dt);
+		}
+		Check(std::fabs(S.DonutTurn) > 1.5 && !S.IsCrashed, "  leaning, it swings round in a donut (rad turned)", S.DonutTurn);
+		Check(S.BurnoutTime > 2.0, "  and the tyre's burnout seconds are counted (s)", S.BurnoutTime);
+		S.LeanInput = 0.0;
+		S.Throttle = 0.0;
+		for (int i = 0; i < 360; ++i)
+		{
+			S.FrontBrake = 0.0;
+			S.Step(Dt);
+		}
+		Check(S.Burnout <= 0.0, "  throttle shut: it goes out", S.Burnout);
+		for (int i = 0; i < 300; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Step(Dt);
+		}
+		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "front brake held at a standstill: the rider walks it backwards (m/s)", S.Speed);
+	}
+	for (const bool Aid : {false, true})
+	{
+		// Weight back, full throttle in first, Riding realism 0: anti-wheelie keeps the front skimming.
+		BikeSim S;
+		BikeSpec Spec = BikeSpec::SpeedTwin1200();
+		Spec.AntiWheelie = Aid ? 1.0 : 0.0;
+		S.Setup(Spec);
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		S.Assist = 0.0;
+		S.AutoShift = false;
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		double Most = 0.0;
+		for (int i = 0; i < 120 * 3 && !S.IsCrashed; ++i)
+		{
+			S.Throttle = 1.0;
+			S.BodyShift = -1.0;
+			S.Step(Dt);
+			Most = std::max(Most, S.PitchAngle * 57.2958);
+		}
+		if (Aid) Check(Most < 8.0 && !S.IsCrashed, "anti-wheelie on: weight back, full throttle, the front stays near the road (deg)", Most);
+		else Check(Most > 15.0, "anti-wheelie off: the same comes up (deg)", Most);
+	}
+}
+
+// Heat (BikeHeat): a bike out of a cold shed has cold tyres (less grip), a cold engine (a fast idle,
+// a little less power) and cold brakes; ridden, the tyres and engine warm up, and a hard stop heats
+// the discs.
+static void HeatTests()
+{
+	std::printf("Heat\n");
+	const double Dt = 1.0 / 120.0;
+	BikeSim S;
+	Roll(S, 20.0);
+	S.Assist = 0.0;   // full sim: nothing softened
+	S.Heat.Air = S.Heat.Road = 5.0;
+	S.Heat.Soak(5.0);
+	S.Step(Dt);
+	const double GripCold = S.Heat.Grip[1], TyreCold = S.Heat.TyreTemp(1), EngineCold = S.Heat.Engine;
+	Check(GripCold < 0.97, "soaked at 5 C, the rear tyre grips less (share)", GripCold);
+	Check(S.Heat.Idle > 1.05, "  and the engine idles fast on the choke (share)", S.Heat.Idle);
+	Check(std::string(S.Heat.TyreState()) == "cold", "  the HUD says the tyres are cold", 0.0);
+	// Two minutes at 20 m/s, held on the throttle.
+	for (int i = 0; i < 120 * 120 && !S.IsCrashed; ++i)
+	{
+		S.Throttle = Clamp(0.3 + (20.0 - S.Speed) * 0.3, 0.0, 1.0);
+		S.Step(Dt);
+	}
+	Check(!S.IsCrashed, "  ridden two minutes at 20 m/s, it stays up", 0.0);
+	Check(S.Heat.TyreTemp(1) > TyreCold + 5.0, "  the rear tyre warms (C)", S.Heat.TyreTemp(1));
+	Check(S.Heat.Grip[1] > GripCold, "  and grips more (share)", S.Heat.Grip[1]);
+	Check(S.Heat.Engine > EngineCold + 20.0, "  the engine warms (C)", S.Heat.Engine);
+	const double Disc0 = S.Heat.Discs[0];
+	S.Throttle = 0.0;
+	S.FrontBrake = 1.0;
+	S.RearBrake = 0.6;
+	for (int i = 0; i < 120 * 6 && S.Speed > 0.5; ++i) S.Step(Dt);
+	Check(S.Heat.Discs[0] > Disc0 + 15.0, "  a hard stop heats the front disc (C gained)", S.Heat.Discs[0] - Disc0);
+	// Warmed through (the road tests' bike): full grip, a normal idle.
+	S.Heat.WarmThrough();
+	S.Step(Dt);
+	Check(S.Heat.Grip[1] > 0.99 && S.Heat.Idle < 1.02, "warmed through: full grip and a normal idle (grip)", S.Heat.Grip[1]);
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
 	WheelieTests();
 	CrashTests();
 	GridTests();
+	ContactTests();
+	EngineTests();
+	HeatTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

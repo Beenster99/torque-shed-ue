@@ -1,5 +1,6 @@
 #include "Shed/TorqueShopPreview.h"
 #include "Shed/TorqueBikeBadge.h"
+#include "Shed/TorqueFurniture.h"
 
 #include "Fit/BikeLayout.h"
 #include "Shed/TorquePaintBay.h"
@@ -364,6 +365,22 @@ void ATorqueShopPreview::ShowPart(FName Part)
 		TArray<UStaticMeshComponent*> Made;
 		ATorqueShedItems::MakeNewPart(this, Holder, Part, Cube, Made);
 		Shown.Append(Made);
+	});
+}
+
+void ATorqueShopPreview::ShowKit(FName Model)
+{
+	Rebuild(TEXT("kit:") + Model.ToString(), [this, Model]
+	{
+		// The piece's own model with its own materials (none when it isn't imported: an empty view).
+		UStaticMesh* Mesh = TorqueFurniture::Mesh(Model);
+		if (!Mesh) return;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+		C->SetStaticMesh(Mesh);
+		C->SetupAttachment(Holder);
+		C->SetRelativeRotation(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0));
+		C->RegisterComponent();
+		Shown.Add(C);
 	});
 }
 

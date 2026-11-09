@@ -9,6 +9,7 @@
 
 #include "CoreMinimal.h"
 #include "Fonts/SlateFontInfo.h"
+#include "Templates/Function.h"
 
 class UCanvas;
 
@@ -47,6 +48,11 @@ float TextWrap(UCanvas* Canvas, const FString& Str, float X, float Y, float Px, 
 void Rect(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour);
 // A rectangle's outline, T thick.
 void Frame(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour, float T);
+// A smooth left-to-right fade of Colour over X..X+W: AlphaAt(t), t 0 at the left edge to 1 at the
+// right, times Colour.A. Drawn as one strip of float-precision vertex colours (Segments pieces, each
+// interpolated on the GPU), so there are no bands like stacked see-through rectangles leave.
+void HGradient(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour, TFunctionRef<float(float)> AlphaAt,
+	int32 Segments = 64);
 // Darkens the world behind a menu, more at the edges.
 void Backdrop(UCanvas* Canvas, float Alpha = 0.6f);
 // A keycap ("Esc", "Enter", "Q") and the words after it, for the hints along the bottom; returns the width.

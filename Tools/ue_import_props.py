@@ -4,7 +4,8 @@ them (Data/Props/swaps.json). Run in the editor, after Tools/fetch_props.py has 
     UnrealEditor-Cmd TorqueShedProto.uproject -ExecutePythonScript="Tools/ue_import_props.py"
     UnrealEditor-Cmd TorqueShedProto.uproject -ExecutePythonScript="Tools/ue_import_props.py all"
 
-'all' re-imports everything; without it, only props not yet in the project. Then build the shed
+'all' re-imports everything; prop ids (e.g. "Tools/ue_import_props.py bin_general bin_metal")
+re-import just those; with neither, only props not yet in the project. Then build the shed
 (Tools/ue_build_shed.py), which calls dress() below at its end.
 
   * Blender props (Data/Props/Blender/<id>.glb, committed): their material slots are named by the keys
@@ -435,6 +436,25 @@ def no_nanite(mesh, pid):
             warn("%s: no Nanite usage on %s (%s)" % (pid, base.get_name(), e))
 
 
+def complex_collision(mesh, pid):
+    """Its triangles are its collision (complex as simple): the movable kit (TorqueFurniture) is
+    walked into and stood on by its real shape, and the bike's wheels ride up a ramp's deck."""
+    try:
+        bs = mesh.get_editor_property("body_setup")
+        if bs is None:
+            # No body yet (imported without collision): a box makes one, then its triangles take over.
+            unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem).add_simple_collisions(mesh, unreal.ScriptCollisionShapeType.BOX)
+            bs = mesh.get_editor_property("body_setup")
+        if bs and bs.get_editor_property("collision_trace_flag") != unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE:
+            bs.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+            mesh.modify()
+            mesh.post_edit_change()
+            eal.save_loaded_asset(mesh)
+            log("%s: collides by its own shape" % pid)
+    except Exception as e:
+        warn("%s: couldn't set complex collision (%s)" % (pid, e))
+
+
 def mesh_path(pid):
     return "%s/%s/SM_%s" % (DEST, pid, pid)
 
@@ -501,9 +521,13 @@ def fab_glb(pid):
     return out
 
 
-def import_all(force=False):
+def import_all(force=False, only=()):
+    """force re-imports everything; only (prop ids) re-imports just those, the rest as without force."""
     props = json.load(open(os.path.join(DATA, "props.json")))["props"]
     spec = json.load(open(os.path.join(DATA, "materials.json")))
+    # The movable shed and yard kit (Data/Furniture/models.json) is walked into, looked at and ridden
+    # over by its own shape, so its meshes collide by their triangles.
+    furniture = set(json.load(open(os.path.join(ROOT, "Data", "Furniture", "models.json")))["models"])
     mats = materials(spec)
     got, missing = 0, []
     for pid, p in sorted(props.items()):
@@ -523,7 +547,7 @@ def import_all(force=False):
         if not os.path.exists(src):
             missing.append(pid)
             continue
-        if not force and eal.does_asset_exist(mesh_path(pid)):
+        if not (force or pid in only) and eal.does_asset_exist(mesh_path(pid)):
             mesh = unreal.load_asset(mesh_path(pid))
         else:
             try:
@@ -535,6 +559,8 @@ def import_all(force=False):
         no_nanite(mesh, pid)
         if p["source"] == "blender":
             give_materials(mesh, mats)
+        if pid in furniture:
+            complex_collision(mesh, pid)
         got += 1
     log("%d props in %s%s" % (got, DEST, "; not there: " + ", ".join(missing) if missing else ""))
     if missing and any(props[m]["source"] == "polyhaven" for m in missing):
@@ -648,4 +674,5 @@ def dress():
 
 
 if __name__ == "__main__":
-    import_all(force="all" in sys.argv[1:] or any("all" == a for a in " ".join(sys.argv[1:]).split()))
+    words = " ".join(sys.argv[1:]).split()
+    import_all(force="all" in words, only=tuple(w for w in words if w != "all"))

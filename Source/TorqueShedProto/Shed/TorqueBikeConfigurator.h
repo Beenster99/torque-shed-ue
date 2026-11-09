@@ -46,16 +46,21 @@ public:
 	void Hold(const FVector2D& Mouse, bool bLeftDown);
 	// Typing the brand name (clicked into): the walker types into TypingText (ATorquePlayerController::
 	// TypeText), then calls Typed; Enter, Tab or Esc stops it.
-	bool Typing() const { return bTyping; }
-	FString& TypingText() { return BrandEdit; }
+	// The colour picker's hex field types the same way (its digits; Enter puts it on).
+	bool Typing() const { return bTyping || bTypingHex; }
+	FString& TypingText() { return bTypingHex ? HexEdit : BrandEdit; }
 	void Typed();
-	void StopTyping() { bTyping = false; }
+	void StopTyping();
 
 	// For the test steps: start Style's bike and put these parts on (slot=part; logo=, brand=, font=
 	// for its badge), give it a colour.
 	FString TestSetup(const FString& StyleId, const TArray<FString>& Swaps);
 	FString OrderText() const;
 	FString Describe() const;
+	// The colour picker for the test steps (the PC's driver has no mouse): "open:SLOT" (tank, wheels,
+	// badge_logo, ...), "sv:S:V", "hue:H" (0..360), "hex:RRGGBB", "was" (back to where it started),
+	// "close". Says what the picker and the bike's colour are after it.
+	FString TestColour(const TArray<FString>& Args);
 
 private:
 	// The bike being configured: its style and parts (fitting's, in the .cpp), the colours picked
@@ -78,7 +83,7 @@ private:
 	// The page's rows (for the pad and the scroll), the list's scroll (px) and what the last
 	// drawing put where.
 	enum class EHit : uint8 { None, Style, Part, Colour, Finish, Reset, Order, Logo, BadgeColour, Brand, Font, Slider, PlaceReset,
-		PopupRow, PopupSwatch, PopupHue, PopupSv, PopupShade };
+		PopupRow, PopupSwatch, PopupHue, PopupSv, PopupShade, PopupHex };
 	struct FHit { FBox2D Box; EHit What = EHit::None; int32 Arg = 0; };
 	TArray<FHit> Hits;
 	FBox2D ListBox = FBox2D(ForceInit);
@@ -101,8 +106,17 @@ private:
 	FString PopupKey;          // the slot (or "style")
 	FBox2D PopupAnchor = FBox2D(ForceInit);
 	int32 PopupScroll = 0;
+	// The colour picker: hue (0..360), saturation and value as it shows them (on the screen's sRGB,
+	// so the square reads evenly, as Godot's ColorPicker does), the colour it opened on, what's being
+	// dragged (the square, the hue strip) and where, and the hex field as it's typed.
 	float PopupHue = 0.0f, PopupSat = 1.0f, PopupVal = 1.0f;
 	FLinearColor PopupStart = FLinearColor::White;
+	enum class EPick : uint8 { None, Square, Hue };
+	EPick DragPick = EPick::None;
+	FBox2D DragPickBox = FBox2D(ForceInit);
+	double PickPushed = 0.0;   // when a drag last put its colour on the bike (the preview rebuilds)
+	bool bTypingHex = false;
+	FString HexEdit;
 
 	void NewStyle(const std::string& NewStyleId);
 	void SetPart(const FString& Slot, const std::string& Id);
@@ -121,4 +135,7 @@ private:
 	void ClosePopup();
 	int32 PopupCount() const;
 	bool ClickPopup(const FVector2D& Mouse);
+	FLinearColor PickedColour() const;
+	void PickAt(const FVector2D& Mouse, bool bPush);
+	void PickFrom(const FLinearColor& C);
 };

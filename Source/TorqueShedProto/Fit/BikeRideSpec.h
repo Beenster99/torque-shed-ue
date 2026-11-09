@@ -9,11 +9,12 @@
 // engine part's multiplier): Out's TorqueRpm / TorqueNm, IdleRpm, Redline and the peak are left
 // as they are.
 //
-// As new parts with no tune (the factory settings: pressures, sprockets, clickers, aids at their
-// factory level, the screen down). Checked against the Godot game itself by SimTest/spec_test.
+// With the dyno desk's tune (RideSpecInput.Tune; none: the factory settings, the screen down).
+// Checked against the Godot game itself by SimTest/spec_test.
 #pragma once
 
 #include "BikeLayout.h"
+#include "BikeTune.h"
 #include "../Sim/BikeSpec.h"
 
 #include <map>
@@ -29,6 +30,11 @@ struct RideSpecInput
 	PartsMap Parts;
 	std::map<std::string, double> Health;
 	double FuelLitres = -1.0, OilLitres = -1.0;
+	// The dyno desk's tune (BikeTune: pressures, sprockets, clickers, ratio spacing, aids, steering
+	// damper), the chain's slack (mm) and the slots whose parts were drilled and trimmed for lightness.
+	TuneMap Tune;
+	double ChainSlack = ChainSlackStock;
+	std::vector<std::string> Lightened;
 };
 
 // BikeBuild.part_health.

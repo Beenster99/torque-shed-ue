@@ -8,6 +8,7 @@
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/SlateRenderer.h"
+#include "RenderUtils.h"
 #include "Styling/CoreStyle.h"
 
 namespace TorqueUi
@@ -124,21 +125,49 @@ void Frame(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearCol
 	Rect(Canvas, X + W - T, Y + T, T, H - 2.0f * T, Colour);
 }
 
+void HGradient(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour, TFunctionRef<float(float)> AlphaAt,
+	int32 Segments)
+{
+	if (!Canvas || W <= 0.0f || H <= 0.0f || Colour.A <= 0.0f) return;
+	Segments = FMath::Clamp(Segments, 1, 512);
+	TArray<FCanvasUVTri> Tris;
+	Tris.Reserve(Segments * 2);
+	auto At = [&](int32 I) {
+		FLinearColor C = Colour;
+		C.A = Colour.A * FMath::Clamp(AlphaAt((float)I / Segments), 0.0f, 1.0f);
+		return C;
+	};
+	FLinearColor CA = At(0);
+	for (int32 I = 0; I < Segments; ++I)
+	{
+		const FLinearColor CB = At(I + 1);
+		const float X0 = X + W * (float)I / Segments, X1 = X + W * (float)(I + 1) / Segments;
+		FCanvasUVTri T0, T1;
+		T0.V0_Pos = FVector2D(X0, Y);     T0.V0_Color = CA; T0.V0_UV = FVector2D(0, 0);
+		T0.V1_Pos = FVector2D(X1, Y);     T0.V1_Color = CB; T0.V1_UV = FVector2D(1, 0);
+		T0.V2_Pos = FVector2D(X1, Y + H); T0.V2_Color = CB; T0.V2_UV = FVector2D(1, 1);
+		T1.V0_Pos = FVector2D(X0, Y);     T1.V0_Color = CA; T1.V0_UV = FVector2D(0, 0);
+		T1.V1_Pos = FVector2D(X1, Y + H); T1.V1_Color = CB; T1.V1_UV = FVector2D(1, 1);
+		T1.V2_Pos = FVector2D(X0, Y + H); T1.V2_Color = CA; T1.V2_UV = FVector2D(0, 1);
+		Tris.Add(T0);
+		Tris.Add(T1);
+		CA = CB;
+	}
+	FCanvasTriangleItem Item(Tris, GWhiteTexture);
+	Item.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Item);
+}
+
 void Backdrop(UCanvas* Canvas, float Alpha)
 {
 	if (!Canvas) return;
 	const float W = Canvas->ClipX, H = Canvas->ClipY;
 	Rect(Canvas, 0, 0, W, H, FLinearColor(0.0f, 0.0f, 0.0f, Alpha * 0.75f));
-	// A soft vignette: bands darker towards each side.
-	const int32 Bands = 12;
+	// A soft vignette, darker towards each side (as the 12 stacked bands it replaces, but smooth).
 	const float Edge = W * 0.22f;
-	for (int32 I = 0; I < Bands; ++I)
-	{
-		const float A = Alpha * 0.06f;
-		const float BW = Edge * (float)(Bands - I) / Bands;
-		Rect(Canvas, 0, 0, BW, H, FLinearColor(0, 0, 0, A));
-		Rect(Canvas, W - BW, 0, BW, H, FLinearColor(0, 0, 0, A));
-	}
+	const float Keep = 1.0f - Alpha * 0.06f;
+	HGradient(Canvas, 0, 0, Edge, H, FLinearColor::Black, [Keep](float T) { return 1.0f - FMath::Pow(Keep, 12.0f * (1.0f - T)); });
+	HGradient(Canvas, W - Edge, 0, Edge, H, FLinearColor::Black, [Keep](float T) { return 1.0f - FMath::Pow(Keep, 12.0f * T); });
 }
 
 float KeyHint(UCanvas* Canvas, const FString& Key, const FString& What, float X, float Y, float S)

@@ -49,6 +49,8 @@ struct FTorqueShedSaveItem
 	UPROPERTY() float MaskMetal = 0.05f;
 	UPROPERTY() float MaskRough = 0.15f;
 	UPROPERTY() FString Badge;          // a tank's badge (FTorqueItem)
+	UPROPERTY() TMap<FName, float> Tune;   // the dyno desk's settings kept on the part (FTorqueItem)
+	UPROPERTY() bool bLightened = false;
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.
@@ -94,6 +96,7 @@ struct FTorqueShedSaveBike
 	UPROPERTY() int32 DynoN = 0;
 	// Its fit from geometry mode (Fit/BikeGeometry text; "" for none).
 	UPROPERTY() FString Geo;
+	UPROPERTY() TMap<FName, float> Tune;   // the dyno desk's settings kept on the bike
 };
 
 UCLASS()
@@ -128,4 +131,8 @@ public:
 	UPROPERTY() float StandYaw = 0.0f;
 	// The paint mixing bay (FTorquePaintBay::Serialize's bytes; none: a new garage's bay).
 	UPROPERTY() TArray<uint8> PaintBay;
+	// [furniture] The movable shed and yard kit (UTorqueBuildSubsystem::SerializeFurniture's bytes),
+	// and whether it's been put out (an older save hasn't: it gets the starting kit).
+	UPROPERTY() TArray<uint8> Furniture;
+	UPROPERTY() bool bFurnished = false;
 };

@@ -11,7 +11,8 @@
 // overlay's changes), with Godot's curve for the same engine (SimTest/data/godot_spec.json).
 //
 //     build/simtest/realism_test [--table] [--swap style:slot=part,...]
-// --table prints the markdown table for the docs; --swap tries other parts on the reference bikes.
+// --table prints the markdown table for the docs; --swap tries other parts on the reference bikes;
+// --trace STYLE prints that style's launch.
 #include "BikeRideSpec.h"
 #include "BikeSim.h"
 #include "PartsDb.h"
@@ -144,17 +145,34 @@ struct Result
 	bool Crashed[3] = {false, false, false};
 };
 
+// --trace STYLE prints that style's launch every tenth of a second (what holds it back).
+std::string TraceStyle, Riding;
+
 Result Ride(const BikeSpec& S)
 {
 	Result R;
 	{   // Launch: 8 s flat out.
 		BikeSim Sim;
 		Start(Sim, S);
+		if (Riding == TraceStyle)
+		{
+			std::printf("    mass %.0f kg, com %.2f m, wheelbase %.3f, peak %.0f Nm at %.0f, redline %.0f, TC %d (%.2f), rear kappa peak %.3f, ratios",
+				S.TotalMass, S.ComHeight, S.Wheelbase, S.PeakTorque, S.PeakTorqueRpm, S.Redline, S.TractionControl ? 1 : 0, S.TractionStrength, S.TyreRear.KappaPeak);
+			for (int Gi = 1; Gi <= S.GearCount(); ++Gi) std::printf(" %.1f m/s", S.Redline / 60.0 * 6.2832 / S.OverallRatio(Gi) * S.RearRadius);
+			std::printf("\n    brakes %.0f / %.0f N m, tyres %.2f / %.2f grip, ABS %d / %d\n", S.FrontBrakeTorque, S.RearBrakeTorque, S.TyreFront.GripTarmac, S.TyreRear.GripTarmac, S.AbsFront ? 1 : 0, S.AbsRear ? 1 : 0);
+		}
 		for (int I = 0; I < 8 * 120; ++I)
 		{
 			Sim.Throttle = 1.0;
 			Sim.BodyShift = 0.6;
 			Sim.Step(Dt);
+			if (Riding == TraceStyle && I % 12 == 0 && R.T60 < 0)
+			{
+				const TorqueSim::Wheel& F = Sim.Wheels[0];
+				const TorqueSim::Wheel& B = Sim.Wheels[1];
+				std::printf("    t %.2f  %5.1f m/s  gear %d  %5.0f rpm  drive %6.0f Nm  rear load %5.0f slip %.3f used %.2f mu %.2f  front load %5.0f  pitch %+.1f deg  thr %.2f tc %.2f\n",
+					I * Dt, Sim.Speed, Sim.Gear, Sim.Rpm, B.DriveTorque, B.Load, B.Kappa, B.GripUsed, B.Mu, F.Load, Sim.PitchAngle * Deg, Sim.ThrottleNow(), Sim.TractionNow());
+			}
 			if (R.T60 < 0 && Sim.Speed >= MPH60) R.T60 = I * Dt;
 			R.Crashed[0] |= Sim.IsCrashed;
 		}
@@ -233,6 +251,7 @@ int main(int Argc, char** Argv)
 	for (int A = 1; A < Argc; ++A)
 	{
 		if (std::strcmp(Argv[A], "--table") == 0) Table = true;
+		else if (std::strcmp(Argv[A], "--trace") == 0 && A + 1 < Argc) TraceStyle = Argv[++A];
 		else if (std::strcmp(Argv[A], "--swap") == 0 && A + 1 < Argc)
 		{
 			std::stringstream Ss(Argv[++A]);
@@ -270,6 +289,7 @@ int main(int Argc, char** Argv)
 			Expect(false, "%s: the reference bike's spec", Rl.Name);
 			continue;
 		}
+		Riding = Rl.Name;
 		const Result Res = Ride(S);
 		if (Table)
 		{

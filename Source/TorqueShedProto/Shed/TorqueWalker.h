@@ -24,6 +24,7 @@
 #include "TorqueBikePawn.h"   // FHudLine
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueLookOutline.h"
+#include "Shed/TorqueDynoDesk.h"
 #include "Shed/TorquePartsComputer.h"
 #include "Shed/TorquePaintBenchPanel.h"
 #include "Shed/TorqueSprayJob.h"
@@ -99,9 +100,18 @@ public:
 	void DrawComputer(class AHUD* Hud, class UCanvas* Canvas) const;
 	// For the test steps: the computer's page as it'd be clicked (pick a kind and a model, order it).
 	FString TestComputer(FName Kind, FName Part, bool bOrder);
+	// The parts computer's bike type filter ("cafe", "all"...): what the page shows after.
+	FString TestComputerType(const FString& Type);
 	// The New bike aisle: Style's bike (as it starts) with Swaps (slot=part) on, a colour of its own, ordered.
 	FString TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder);
+	// The New bike page's colour picker (FTorqueBikeConfigurator::TestColour's steps).
+	FString TestColour(const TArray<FString>& Args);
 	void TestCloseComputer() { CloseComputer(); }
+	// The dyno desk's page as it'd be worked (opened where you stand if it isn't up): What "open",
+	// "tab" (Key: its name), "set" (Key to Value), "stock" (Key back to stock), "run", "close",
+	// "log". Says what the page shows after.
+	FString TestDesk(const FString& What, const FString& Key, float Value);
+	bool AtDesk() const { return bComputer && bDesk; }
 	// For the HUD at the mixing bench: the colour in the tin on the scale (as it'd spray), and the
 	// colour to match, if there's one. False when not at the bench or there's no tin.
 	bool AtBench() const { return bBench; }
@@ -125,6 +135,7 @@ public:
 	// For the tests: sweep the lance over the wash bay's bike from every side, Passes times at Distance cm
 	// (from underneath too if it's raised), the shed told; says how it went.
 	FString TestWashPasses(int32 Passes, double Distance);
+	void TestWashScan(bool bOn) { bWashScan = bOn; }
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -150,8 +161,15 @@ public:
 	FString CarryText() const;
 	// Press F at what's looked at (unpack, the computer, ride out).
 	FString TestInteract();
+	// The pause menu's "Set off on Buttertubs" (the host's, or alone): your bike, checked as F at the
+	// door checks it, and everyone goes. A joined player is told it's the host's to choose.
+	void StartAdventure();
 	// Order from the parts computer, as its menu does: a part id, or "bike" for a project bike.
 	FString TestOrder(FName Part);
+	// The movable kit (TorqueWalkerFurniture.cpp): look:<model or piece id> (stand back from the nearest
+	// one and look at it), grab, turn:<deg>, walk:<x>:<y> (carry it there), drop, order:<model> (the
+	// parts computer's Shed aisle), log. Each says what happened and where the piece is.
+	FString TestFurniture(const FString& What, const TArray<FString>& Args);
 	FString Describe() const;
 	bool IsRidingOut() const { return bRidingOut; }
 	// For the shed's sounds (TorqueAudio/TorqueSfx): the tool in hand, whether it's at work (another
@@ -319,6 +337,12 @@ private:
 	void CloseComputer();
 	void ComputerDo(const FTorqueComputerAction& A);
 	FString Order(FName Part);
+	// The dyno desk (tuning_computer.gd; TorqueDynoDesk): a page like the parts computer's, so it
+	// rides on bComputer (the walker stands still, the mouse is out), with bDesk saying which.
+	bool bDesk = false;
+	mutable FTorqueDynoDesk Desk;     // (mutable: drawing it notes where its buttons went)
+	void OpenDesk();
+	void DeskDo(const FTorqueDeskOut& Out);
 
 	// --- The paint mixing bench (paint_bench.gd; TorqueWalkerBench.cpp) ---------------------------------
 	// Its pages: Mix (a tin on the scale, pour, stir, test, save), Recipes (cards from the swatch
@@ -409,7 +433,7 @@ private:
 	// job stays on the bike (its muck drawn as washed) until it leaves the bay.
 	TSharedPtr<FTorqueWashJob> WashJob;
 	UPROPERTY(Transient) UTorqueWashFx* WashFx = nullptr;
-	bool bWashScan = true;             // X: the muck still to do lit up (on to start with)
+	bool bWashScan = false;            // X: the muck still to do lit up (off to start with, as in Torque Shed)
 	bool bWashFiring = false;          // the jet's going this frame (this walker's own)
 	double WashSendIn = 0.0, WashLinger = 0.0, WashCueAge = 100.0, WashFlash = 0.0;
 	FString WashCue;
@@ -424,7 +448,10 @@ private:
 
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();
-	void StartRideOut(int32 Bay);
+	// F at a bike or the roller door: ride it out into the yard (anyone). bAdventure: set off on
+	// Buttertubs with everyone instead (the host's choice alone: the pause menu, StartAdventure).
+	// bAtBike: got on where the bike stands (F at it), else just outside the door (F at the door).
+	void StartRideOut(int32 Bay, bool bAdventure = false, bool bAtBike = false);
 	bool bRidingOut = false;
 	double RideOutIn = 0.0;
 
@@ -456,6 +483,16 @@ private:
 	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
 	// (TorqueWalkerKit.cpp): true when F went to one of them.
 	bool KitInput(float Dt, bool bF, bool bFDown);
+	// [furniture] The movable shed and yard kit (TorqueWalkerFurniture.cpp): the piece looked at (it
+	// wins over what FindTarget found when it's nearer), hold F on it to take hold of it, R turns it,
+	// F puts it down; its HUD lines and outline.
+	int32 TargetFurniture = 0;
+	bool bFurnArmed = false;
+	double FurnFHeld = 0.0;
+	void FindFurniture();
+	bool FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust);
+	bool FurnitureHud(TArray<FHudLine>& Lines) const;   // true: moving one, nothing else to show
+	void FurnitureOutline(TArray<UPrimitiveComponent*>& Lined) const;
 	bool bStandArmed = false;
 	double StandFHeld = 0.0;
 	bool bSprayAsked = false;
@@ -496,4 +533,11 @@ private:
 	TArray<uint8> AvatarLook;         // the profile (height, face) put on it
 	bool bAvatarDemo = false;
 	void UpdateAvatar(float Dt);
+	// [hands] Your own body in first person: your avatar under the camera, its hands round the
+	// tool (the tool goes where the hand can reach), the camera at its eyes. Off with -TorqueNoBody.
+	FVector FirstEye = FVector::ZeroVector;   // the camera's spot (capsule frame) from the body's eyes
+	bool bFirstEye = false;
+	int32 HandsLogged = -1;                    // the tool whose grip was last logged
+	double HandsHeldFor = 0.0;
+	FVector EyeSpot() const;                  // where the camera goes: FirstEye, else Torque Shed's eye height
 };

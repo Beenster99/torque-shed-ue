@@ -1,4 +1,6 @@
 #include "Shed/TorqueWalker.h"
+#include "Misc/ScopeExit.h"
+#include "Shed/TorqueFurniture.h"
 
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
@@ -16,6 +18,7 @@
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -61,6 +64,8 @@ const double BrushReach = 35.0;
 const double JetReach = 30.0;
 const double StandEye = 162.0 - 90.0;
 const double CrouchEye = 95.0 - 55.0;
+// [hands] How far behind the camera your own body stands, cm (the camera keeps to its eyes).
+const double BodyBack = 6.0;
 const float CrouchHalfHeight = 55.0f;
 
 const TCHAR* ToolName(ETorqueTool T)
@@ -311,6 +316,7 @@ void ATorqueWalker::BeginPlay()
 {
 	Super::BeginPlay();
 	if (FParse::Param(FCommandLine::Get(), TEXT("TorqueProfile"))) { bPerfShow = true; bPerfLog = true; }
+	if (GetNetMode() != NM_DedicatedServer) TorqueToolModels::Warm();   // [hands] the tools' meshes built now, not as you take one up
 	// The loose parts are drawn by one ATorqueShedItems; a level built before it existed has none.
 	if (UWorld* World = GetWorld())
 	{
@@ -343,6 +349,8 @@ void ATorqueWalker::BeginPlay()
 		bool bKit = false;
 		for (TActorIterator<ATorqueShedKit> It(World); It; ++It) bKit = true;
 		if (!bKit) World->SpawnActor<ATorqueShedKit>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// [furniture] And the movable shed and yard kit, the yard's built-in pieces and its markings.
+		ATorqueFurnishings::SpawnMissing(World);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -358,10 +366,21 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 	Super::EndPlay(Reason);
 }
 
+FVector ATorqueWalker::EyeSpot() const
+{
+	// [hands] Your body's eyes (first person), else Torque Shed's eye height.
+	if (bFirstEye && IsLocallyControlled()) return FirstEye;
+	return FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
+}
+
 void ATorqueWalker::UpdateAvatar(float Dt)
 {
 	// A MetaHuman per player colour, when Data/Avatars/avatars.json lists some (Tools/ue_metahumans.py).
-	if (FTorqueAvatar::Count() == 0 || GetNetMode() == NM_DedicatedServer) return;
+	// [hands] Yours too, seen from inside it (unless -TorqueNoBody).
+	static const bool bNoBody = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoBody"));
+	const bool bMine = IsLocallyControlled();
+	if (bMine && bNoBody) { bFirstEye = false; return; }
+	if (FTorqueAvatar::Count() == 0 || GetNetMode() == NM_DedicatedServer) { bFirstEye = false; return; }
 	const ATorquePlayerState* PS = Cast<ATorquePlayerState>(GetPlayerState());
 	if (!PS) return;
 	// Who they are: their Profile page's choice (Shed/TorqueProfile.h), or the one for their colour.
@@ -379,20 +398,23 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 		}
 		if (!Avatar) Avatar = MakeUnique<FTorqueAvatar>();
 		const bool bMade = Avatar->Build(this, AvatarRoot, Want);
+		if (bMade) Avatar->SetOwnerView(bMine);   // [hands] your own face and hair out of your view
+		bFirstEye = false;
 		// The shape body goes while the MetaHuman stands in for it.
 		TArray<UStaticMeshComponent*> Shapes;
 		GetComponents(Shapes);
 		for (UStaticMeshComponent* C : Shapes)
 			if (C->GetName().StartsWith(TEXT("Body_"))) C->SetVisibility(!bMade);
 	}
-	if (!Avatar || !Avatar->IsValid()) return;
+	if (!Avatar || !Avatar->IsValid()) { bFirstEye = false; return; }
 	if (AvatarLook != PS->Profile)   // their height and face
 	{
 		AvatarLook = PS->Profile;
 		Avatar->SetLook(Look);
 	}
-	// Feet on the floor: the capsule's bottom (it shrinks and drops when crouched).
-	AvatarRoot->SetRelativeLocation(FVector(0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+	// Feet on the floor: the capsule's bottom (it shrinks and drops when crouched). [hands] Your own a
+	// few cm back, so looking down you see your chest and feet, not the inside of your collar.
+	AvatarRoot->SetRelativeLocation(FVector(bMine ? -TWI::BodyBack : 0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 	FTorqueAvatarInput In;
 	In.Velocity = GetVelocity();
 	In.Facing = GetActorRotation();
@@ -406,7 +428,53 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 	In.bToolInHand = !In.bCarrying && Tool != ETorqueTool::Hands && ToolHolder && ToolHolder->IsVisible();
 	if (In.bToolInHand) In.ToolGrip = ToolHolder->GetComponentLocation();
 	In.bWorking = Tool == ETorqueTool::Hands && WorkBlend > 0.2;
+	// [hands] The hands round the tool's handles (Data/Tools/tools.json grips), fingers on its
+	// trigger pulled as you work.
+	const FTransform HolderAt = ToolHolder ? ToolHolder->GetComponentTransform() : FTransform::Identity;
+	TorqueToolModels::FGrip Grips[2];
+	for (int32 S = 0; S < 2; ++S)
+	{
+		if (!In.bToolInHand || !TorqueToolModels::GripOf((int32)Tool, S, Grips[S])) continue;
+		FTorqueHandGrip& G = In.Grip[S];
+		G.bOn = true;
+		G.At = HolderAt.TransformPosition(Grips[S].At);
+		G.Axis = HolderAt.TransformVectorNoScale(Grips[S].Axis);
+		G.Aim = HolderAt.TransformVectorNoScale(Grips[S].Aim);
+		G.Radius = Grips[S].Radius * HolderAt.GetScale3D().X;
+		G.TriggerFingers = Grips[S].Trigger;
+		G.TriggerPull = WorkBlend;
+		G.bIndexTop = Grips[S].bIndexTop;
+	}
 	Avatar->Pose(In, Dt);
+	// The tool follows the right hand when the arm couldn't reach where the view holds it.
+	FVector Reached;
+	if (In.Grip[1].bOn && ToolHolder && Avatar->GripReached(1, Reached))
+	{
+		const FVector Short = Reached - In.Grip[1].At;
+		if (Short.SizeSquared() > 0.01) ToolHolder->SetWorldLocation(ToolHolder->GetComponentLocation() + Short);
+		// Once per tool, a second in: how far short of the view's hold the hand came (0 = in reach).
+		HandsHeldFor = (int32)Tool == HandsLogged ? HandsHeldFor : HandsHeldFor + Dt;
+		if (bMine && (int32)Tool != HandsLogged && HandsHeldFor > 1.0)
+		{
+			HandsLogged = (int32)Tool;
+			HandsHeldFor = 0.0;
+			FVector LeftAt;
+			const bool bLeft = In.Grip[0].bOn && Avatar->GripReached(0, LeftAt);
+			UE_LOG(LogTemp, Log, TEXT("Torque: hands on tool %d: right hand %.1f cm short of the hold%s, eye %s"), (int32)Tool, Short.Size(),
+				bLeft ? *FString::Printf(TEXT(", left hand %.1f cm short"), (LeftAt - In.Grip[0].At).Size()) : TEXT(""), *FirstEye.ToCompactString());
+		}
+	}
+	else HandsHeldFor = 0.0;
+	// Your camera at your body's eyes (from this pose, for the next frame), eased so a step's bob is soft.
+	FVector Eye;
+	if (bMine && Avatar->EyeWorld(Eye))
+	{
+		FVector EyeWant = GetCapsuleComponent()->GetComponentTransform().InverseTransformPosition(Eye) + FVector(TWI::BodyBack, 0.0, 0.0);
+		const double EyeBase = bIsCrouched ? TWI::CrouchEye : TWI::StandEye;
+		EyeWant = FVector(FMath::Clamp(EyeWant.X, -20.0, 25.0), FMath::Clamp(EyeWant.Y, -15.0, 15.0), FMath::Clamp(EyeWant.Z, EyeBase - 25.0, EyeBase + 20.0));
+		FirstEye = bFirstEye ? FMath::VInterpTo(FirstEye, EyeWant, (double)Dt, 14.0) : EyeWant;
+		bFirstEye = true;
+	}
 }
 
 void ATorqueWalker::Told(int32 Peer, const FString& Text, bool bOk)
@@ -436,9 +504,9 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	// tool in hand and moving as they work (FollowHands).
 	if (!IsLocallyControlled())
 	{
-		// (Their hands first: the avatar's right hand reaches for the tool where FollowHands put it.)
+		// (Their hands: FollowHands puts their tool in front of them, and the avatar's hands take
+		// it there, from UpdateToolView.)
 		FollowHands(DeltaSeconds);
-		UpdateAvatar(DeltaSeconds);
 		if (!Avatar || !Avatar->IsValid()) TorqueLook::Dress(this);
 		return;
 	}
@@ -460,7 +528,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		B->SetLocalPeer(GetPlayerState()->GetPlayerId());
 		bPeerSet = true;
 	}
-	Camera->SetRelativeLocation(FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye));
+	Camera->SetRelativeLocation(EyeSpot());   // [hands] at your body's eyes when it's there
 	UpdateRoomExposure(DeltaSeconds);
 	if (bRidingOut)
 	{
@@ -564,6 +632,41 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bPrev = KeyJust(ETorqueKey::PrevTool) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
 	const bool bBack = KeyJust(ETorqueKey::Jump) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle);
 
+	if (bComputer && bDesk)
+	{
+		// At the dyno desk (tuning_computer.gd): the mouse drags its sliders and clicks its buttons,
+		// the wheel scrolls the settings. Keys and pad: Q / E (L1 / R1) the tabs, W / S (up / down) a
+		// setting, A / D (left / right) moves it, R (Square) resets it, Enter (Cross) runs the dyno.
+		// F, Esc or Circle / B walks away.
+		FVector2D Mouse(-1.0, -1.0);
+		float Mx = 0.0f, My = 0.0f;
+		if (PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+		if (bF || Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle))
+		{
+			CloseComputer();
+			return;
+		}
+		if (Just(EKeys::LeftMouseButton))
+		{
+			DeskDo(Desk.Click(Mouse));
+			if (!bComputer) return;
+		}
+		DeskDo(Desk.Hold(Mouse, Down(EKeys::LeftMouseButton)));
+		if (Just(EKeys::MouseScrollDown)) Desk.Scroll(1);
+		if (Just(EKeys::MouseScrollUp)) Desk.Scroll(-1);
+		int32 Step = 0, Move = 0;
+		if (Just(EKeys::W) || Just(EKeys::Up) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) Step = -1;
+		if (Just(EKeys::S) || Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) Step = 1;
+		if (Just(EKeys::A) || Just(EKeys::Left) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)) Move = -1;
+		if (Just(EKeys::D) || Just(EKeys::Right) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight)) Move = 1;
+		const bool bPadNext = Just(EKeys::E) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
+		const bool bPadPrev = Just(EKeys::Q) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
+		const bool bReset = Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
+		const bool bRun = Just(EKeys::Enter) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
+		if (Step != 0 || Move != 0 || bPadNext || bPadPrev || bReset || bRun)
+			DeskDo(Desk.Pad(Step, Move, bPadNext ? 1 : (bPadPrev ? -1 : 0), bReset, bRun));
+		return;
+	}
 	if (bComputer)
 	{
 		// At the parts computer (parts_computer.gd): the mouse clicks its buttons and the wheel scrolls
@@ -771,7 +874,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
-	const bool bKitF = KitInput(Dt, bF, bFDown);
+	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown);   // [furniture] first
 	if (bKitF)
 	{
 	}
@@ -857,6 +960,7 @@ void ATorqueWalker::TestSpray(int32 Colour, FName Finish)
 
 void ATorqueWalker::FindTarget()
 {
+	ON_SCOPE_EXIT { FindFurniture(); };   // [furniture] a piece of kit nearer than what's found here wins
 	Target = ETorqueLook::None;
 	TargetBay = INDEX_NONE;
 	TargetSlot = NAME_None;
@@ -1105,9 +1209,10 @@ void ATorqueWalker::MakePlan()
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoDesk)
 	{
-		Plan = MakeOne(ETorqueShedAct::DynoRun, 0.4, TEXT("run the dyno"));
+		// tuning_computer.gd: the desk's page (tune the bike, run the dyno).
+		Plan = MakeOne(ETorqueShedAct::DynoRun, 0.15, TEXT("use the dyno desk"));
 		Plan.Request.Bay = B->DynoBay();
-		Plan.Blocked = B->Check(Me, Plan.Request);
+		Plan.bComputer = true;
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
@@ -1368,6 +1473,14 @@ void ATorqueWalker::MakePlan()
 		AltPlan.Request.Item = Hook;
 		AltPlan.Request.Amount = B->HookTipOf(Hook);
 	}
+	// Hands free on a bay's bike: right mouse, held, scraps it (shed_state.gd remove_bike: no money
+	// in the UE shed, so it and every part on it are simply gone, and the bay is free).
+	if (!AltPlan.bValid && Target == ETorqueLook::BikePart && B->Exists(TargetBay) && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me))
+	{
+		AltPlan = MakeOne(ETorqueShedAct::ScrapBike, 4.0, FString::Printf(TEXT("hold to scrap %s and every part on it (frees bay %d)"),
+			*B->Bike(TargetBay).Name, TargetBay + 1));
+		AltPlan.Request.Bay = TargetBay;
+	}
 	if (Plan.bValid && !Plan.bComputer) Plan.Blocked = B->Check(Me, Plan.Request);
 	if (AltPlan.bValid) AltPlan.Blocked = B->Check(Me, AltPlan.Request);
 }
@@ -1503,7 +1616,8 @@ bool ATorqueWalker::Do(const FPlan& P)
 	if (!B) return false;
 	if (P.bComputer)
 	{
-		OpenComputer();
+		if (P.Request.Kind == ETorqueShedAct::DynoRun) OpenDesk();
+		else OpenComputer();
 		return true;
 	}
 	if (P.Request.Kind == ETorqueShedAct::PaintHook) return true;   // wound while it's held (HookWork)
@@ -1595,6 +1709,7 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
 	Hold.AddToTranslation(Move);
 	ToolHolder->SetRelativeTransform(Hold);
+	UpdateAvatar(Dt);   // [hands] the body, its hands round the tool (the tool brought to the hand when it can't reach)
 	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && Tool == ETorqueTool::Repair);   // (the lance's water: UpdateWashFx)
 	UpdateSprayFx(Dt);   // the spray itself: the jet, the overspray, the footprint (TorqueWalkerSpray.cpp)
 	UpdateWashFx(Dt);    // the pressure washer's jet, its mist and splash (TorqueWalkerWash.cpp)
@@ -1955,14 +2070,18 @@ void ATorqueWalker::UpdateCues()
 		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
 		Lit.Add(C);
 	}
-	// The same, with a thin soft line round it (TorqueLookOutline); with empty hands, a place's own
-	// machine, bin, hook or computer too.
+	// The same, with a thin soft line round it (TorqueLookOutline). Only bike parts and things that
+	// move (beenster, Nov 9: "Only bike parts and objects which can be moved need highlighting"): with
+	// empty hands, the engine stand, the extinguisher, the tape roll or a paint tin too, never the
+	// fixed kit (benches, machines, bins, the computer, hooks, switches, the radio).
 	if (LookOutline.Attach(this))
 	{
 		TArray<UPrimitiveComponent*> Lined;
 		for (UStaticMeshComponent* C : Now) Lined.Add(C);
-		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0)
+		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0
+			&& FTorqueLookOutline::Movable(TargetPlace->Kind))
 			Lined.Append(LookOutline.PlaceMeshes(World, TargetPlace));
+		if (bShow && Held == 0 && SprayItem == 0) FurnitureOutline(Lined);   // [furniture]
 		LookOutline.Show(Lined);
 	}
 	// A part in your hands: where it will go down (the floor, a bench, a machine), as a box its size
@@ -2017,25 +2136,19 @@ void ATorqueWalker::UpdateCues()
 			M->SetScalarParameterValue(TEXT("Opacity"), 0.35f);
 			GhostXRayMaterials.Add(M);
 		}
-	// The pieces, in the box's frame (its bottom centre, X ahead): the fill on the floor, a faint
-	// box, the twelve edges and the notch.
-	const double Bar = FMath::Clamp(FMath::Min(Size.X, Size.Y) * 0.04, 1.0, 2.0);
-	const double X = Size.X * 0.5, Y = Size.Y * 0.5, Z = Size.Z;
-	struct FPiece { FVector Size, Offset; int32 Kind; };   // 0 floor fill, 1 box, 2 edge
-	TArray<FPiece, TInlineAllocator<16>> Pieces;
-	Pieces.Add({FVector(Size.X, Size.Y, 0.3), FVector(0, 0, 0.35), 0});
-	Pieces.Add({FVector(Size.X, Size.Y, Z), FVector(0, 0, Z * 0.5 + 0.5), 1});
-	for (const double Up : {0.6, Z + 0.5})
-	{
-		Pieces.Add({FVector(Size.X + Bar, Bar, Bar), FVector(0, -Y, Up), 2});
-		Pieces.Add({FVector(Size.X + Bar, Bar, Bar), FVector(0, Y, Up), 2});
-		Pieces.Add({FVector(Bar, Size.Y + Bar, Bar), FVector(-X, 0, Up), 2});
-		Pieces.Add({FVector(Bar, Size.Y + Bar, Bar), FVector(X, 0, Up), 2});
-	}
-	for (const double SX : {-X, X})
-		for (const double SY : {-Y, Y})
-			Pieces.Add({FVector(Bar, Bar, Z), FVector(SX, SY, Z * 0.5 + 0.5), 2});
-	Pieces.Add({FVector(Bar * 3.0, FMath::Min(10.0, Size.Y * 0.5), Bar * 1.5), FVector(X, 0, 0.9), 2});   // the front
+	// The pieces, in the footprint's frame (its bottom centre, X ahead): only the floor the part will
+	// take up (beenster, Nov 9: "a thinner line, be orange and only show the floor space that the
+	// placed part will occupy"): a faint fill and a thin line round its edge, no box, no notch.
+	const double Bar = 0.6;
+	const double X = Size.X * 0.5, Y = Size.Y * 0.5;
+	struct FPiece { FVector Size, Offset; int32 Kind; };   // 0 floor fill, 2 edge
+	TArray<FPiece, TInlineAllocator<8>> Pieces;
+	Pieces.Add({FVector(Size.X, Size.Y, 0.2), FVector(0, 0, 0.25), 0});
+	const double Up = 0.45;
+	Pieces.Add({FVector(Size.X + Bar, Bar, Bar * 0.5), FVector(0, -Y, Up), 2});
+	Pieces.Add({FVector(Size.X + Bar, Bar, Bar * 0.5), FVector(0, Y, Up), 2});
+	Pieces.Add({FVector(Bar, Size.Y + Bar, Bar * 0.5), FVector(-X, 0, Up), 2});
+	Pieces.Add({FVector(Bar, Size.Y + Bar, Bar * 0.5), FVector(X, 0, Up), 2});
 	auto MakePart = [this](TArray<UStaticMeshComponent*>& Into)
 	{
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
@@ -2053,20 +2166,19 @@ void ATorqueWalker::UpdateCues()
 	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
 	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
 	const bool bOk = Plan.Blocked.IsEmpty();
-	// The edges breathe a little, so the eye finds them.
-	GhostClock += World->GetDeltaSeconds();
-	const float Pulse = 0.5f + 0.5f * FMath::Sin((float)GhostClock * 2.0f * PI * 1.2f);
+	// Orange where it can go (Torque Shed's highlight orange), red where it can't; steady, no pulse.
 	if (GhostMaterials.Num() >= 4)
 	{
 		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
-		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.85f, 1.0f) * 3.0f);
-		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.3f);
-		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.85f, 1.0f) * (5.0f + 3.0f * Pulse));
-		GhostMaterials[1]->SetScalarParameterValue(TEXT("Opacity"), 0.85f + 0.15f * Pulse);
-		GhostMaterials[2]->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.2f) * 3.0f);
-		GhostMaterials[2]->SetScalarParameterValue(TEXT("Opacity"), 0.3f);
-		GhostMaterials[3]->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.2f) * (5.0f + 3.0f * Pulse));
-		GhostMaterials[3]->SetScalarParameterValue(TEXT("Opacity"), 0.85f + 0.15f * Pulse);
+		const FLinearColor Can(1.0f, 0.45f, 0.08f), Cannot(1.0f, 0.15f, 0.1f);
+		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), Can * 3.0f);
+		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
+		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), Can * 6.0f);
+		GhostMaterials[1]->SetScalarParameterValue(TEXT("Opacity"), 0.95f);
+		GhostMaterials[2]->SetVectorParameterValue(TEXT("Color"), Cannot * 3.0f);
+		GhostMaterials[2]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
+		GhostMaterials[3]->SetVectorParameterValue(TEXT("Color"), Cannot * 6.0f);
+		GhostMaterials[3]->SetScalarParameterValue(TEXT("Opacity"), 0.95f);
 	}
 	auto Lay = [&](TArray<UStaticMeshComponent*>& Parts, bool bThrough)
 	{
@@ -2242,27 +2354,36 @@ void ATorqueWalker::Interact()
 		else if (R.Kind == ETorqueShedAct::Extinguisher) Doing(TEXT("holding the fire extinguisher"), 6.0);
 		return;
 	}
-	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::DynoSwitch || TargetPlace->Kind == ETorquePlace::DynoDesk))
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoDesk)
 	{
-		// The dyno room: the switches by the door, and the desk (F runs the bike on the rig).
+		OpenDesk();
+		return;
+	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch)
+	{
+		// The dyno room: the switches by the door.
 		FTorqueShedRequest R;
-		R.Kind = TargetPlace->Kind == ETorquePlace::DynoDesk ? ETorqueShedAct::DynoRun
-			: (TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan);
+		R.Kind = TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan;
 		R.Bay = B->DynoBay();
 		FString WhyNot;
 		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
-		else if (R.Kind == ETorqueShedAct::DynoRun) Doing(FString::Printf(TEXT("running bay %d's bike on the dyno"), R.Bay + 1), 10.0);
 		return;
 	}
 	if (Target == ETorqueLook::BikePart || Target == ETorqueLook::Door || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay))
 	{
-		StartRideOut(Target == ETorqueLook::Door ? B->MyBike() : TargetBay);
+		StartRideOut(Target == ETorqueLook::Door ? B->MyBike() : TargetBay, false, Target != ETorqueLook::Door);
 		return;
 	}
 	Say(TEXT("F: unpack a box, use the parts computer, or ride out (at your bike or the roller door)"), true, 2.5);
 }
 
-void ATorqueWalker::StartRideOut(int32 Bay)
+void ATorqueWalker::StartAdventure()
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (B) StartRideOut(B->MyBike(), true);
+}
+
+void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure, bool bAtBike)
 {
 	UTorqueBuildSubsystem* B = Shed();
 	if (!B) return;
@@ -2271,7 +2392,8 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 		Say(FString::Printf(TEXT("Bay %d is empty: press F at a bike to ride it"), Bay + 1), false, 2.5);
 		return;
 	}
-	if (!B->DoorUp())   // [kit]
+	// (A bike parked out on the yard's pad doesn't need the door: it's out already.)
+	if (!B->DoorUp() && !(bAtBike && B->BikeTransform(Bay).GetLocation().Y > 600.0))   // [kit]
 	{
 		Say(TEXT("The roller door's down: open it at the yellow box right of the door (F)."), false, 3.0);
 		return;
@@ -2302,11 +2424,18 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 		Say(TEXT("Put down what you're holding first."), false, 2.5);
 		return;
 	}
-	B->SetMyBike(Bay);
-	if (GetNetMode() == NM_Client)
+	if (bAdventure && GetNetMode() == NM_Client)
 	{
-		Say(FString::Printf(TEXT("You'll ride %s: the host starts the ride"), *B->Bike(Bay).Name), true, 2.5);
-		Doing(FString::Printf(TEXT("ready to ride bay %d's bike"), Bay + 1), 30.0);
+		Say(TEXT("Only the host can set off on an adventure. Ride in the yard till they do."), false, 3.0);
+		return;
+	}
+	B->SetMyBike(Bay);
+	if (!bAdventure)
+	{
+		// [yard] On it where it stands (at the door: just outside), to ride it out of the roller door
+		// and back in (Shed/TorqueYard.h); the host's pawn swap, asked for over the net by a joined player.
+		Doing(FString::Printf(TEXT("riding bay %d's bike in the yard"), Bay + 1), 30.0);
+		TorqueYard::RideOut(Cast<APlayerController>(GetController()), Bay, bAtBike);
 		return;
 	}
 	Doing(FString::Printf(TEXT("riding out on bay %d's bike"), Bay + 1), 30.0);
@@ -2336,6 +2465,13 @@ void ATorqueWalker::OpenComputer()
 void ATorqueWalker::CloseComputer()
 {
 	if (!bComputer) return;
+	if (bDesk)
+	{
+		bDesk = false;   // (first: DeskDo's close comes back here)
+		FTorqueDeskOut Out = Desk.Close();
+		Out.bClose = false;
+		DeskDo(Out);
+	}
 	bComputer = false;
 	bWaitRelease = true;
 	ComputerClosedFrame = GFrameCounter;
@@ -2372,6 +2508,18 @@ void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 			else Doing(TEXT("ordering a new bike"));
 		}
 		break;
+	case FTorqueComputerAction::EKind::OrderKit:
+		if (UTorqueBuildSubsystem* B = Shed())
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::OrderFurniture;
+			R.Part = A.Part;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+			else if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(A.Part))
+				Say(FString::Printf(TEXT("%s ordered: it's %s."), *M->Name, M->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("outside, left of the roller door")), true, 4.0);
+		}
+		break;
 	case FTorqueComputerAction::EKind::BuyPaint:
 		if (UTorqueBuildSubsystem* B = Shed())
 		{
@@ -2389,12 +2537,44 @@ void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 	}
 }
 
+void ATorqueWalker::OpenDesk()
+{
+	// tuning_computer.gd open: the bike on the rig, or the nearest within reach.
+	OpenComputer();
+	bDesk = true;
+	Desk.Open(Shed(), GetActorLocation());
+	Doing(TEXT("at the dyno desk"), 6.0);
+}
+
+void ATorqueWalker::DeskDo(const FTorqueDeskOut& Out)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	for (const FTorqueShedRequest& R : Out.Requests)
+	{
+		if (!B) break;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		else if (R.Kind == ETorqueShedAct::DynoRun)
+		{
+			B->SetMyBike(R.Bay);
+			Doing(FString::Printf(TEXT("running bay %d's bike on the dyno"), R.Bay + 1), 10.0);
+		}
+		else if (R.Kind == ETorqueShedAct::Tune) Doing(FString::Printf(TEXT("tuning bay %d's bike"), R.Bay + 1), 4.0);
+	}
+	if (Out.bClose) CloseComputer();
+}
+
 void ATorqueWalker::DrawComputer(AHUD* Hud, UCanvas* Canvas) const
 {
 	const APlayerController* PC = Cast<APlayerController>(GetController());
 	FVector2D Mouse(-1.0, -1.0);
 	float Mx = 0.0f, My = 0.0f;
 	if (PC && PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+	if (bDesk)
+	{
+		Desk.Draw(Hud, Canvas, Shed(), Mouse, NoteFor > 0.0 ? Note : FString(), bNoteOk);
+		return;
+	}
 	Computer.Draw(Hud, Canvas, Shed(), Mouse, NoteFor > 0.0 ? Note : FString(), bNoteOk);
 }
 
@@ -2415,6 +2595,20 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 		Out += TEXT(": ") + (Note.IsEmpty() ? FString(TEXT("ordered")) : Note);
 	}
 	return Out;
+}
+
+FString ATorqueWalker::TestComputerType(const FString& Type)
+{
+	if (!bComputer) OpenComputer();
+	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);
+	return Computer.Describe();
+}
+
+FString ATorqueWalker::TestColour(const TArray<FString>& Args)
+{
+	if (!bComputer) OpenComputer();
+	Computer.OpenNewBike();   // (already on it: stays as it is, the picker open)
+	return Computer.NewBike().TestColour(Args);
 }
 
 FString ATorqueWalker::TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder)
@@ -2482,6 +2676,7 @@ void ATorqueWalker::UpdateHud()
 	}
 	if (bComputer) return;   // the parts computer's page instead (DrawComputer)
 	if (bBench) return;   // the bench's card instead (DrawBench)
+	if (FurnitureHud(HudLines)) return;   // [furniture] moving a piece of kit
 	// The tool, and the spray can's paint.
 	FString ToolLine = FString::Printf(TEXT("%s (Q / E)"), TWI::ToolName(Tool));
 	if (TWI::Sprays(Tool))
@@ -2578,19 +2773,22 @@ void ATorqueWalker::UpdateHud()
 			}
 			if (TargetPlace->Kind == ETorquePlace::DynoDesk)
 			{
-				HudLines.Add({TEXT("F / Triangle (or left mouse): run the bike on the rig"), Prompt, 0.65f});
+				HudLines.Add({TEXT("F / Triangle (or left mouse): tune the bike and run the dyno"), Prompt, 0.65f});
 				if (B->HasDynoRun(B->DynoBay()))
 				{
 					const FTorqueDynoRun& Last = B->DynoRunOf(B->DynoBay());
 					HudLines.Add({FString::Printf(TEXT("Last run: %.1f hp at %.0f rpm, %.1f Nm at %.0f rpm (at the wheel)"), Last.PeakHp, Last.PeakHpRpm, Last.PeakNm, Last.PeakNmRpm), Info, 0.55f});
 				}
 			}
-			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: ride this bike out"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: get on and ride it"), Prompt, 0.65f});
 		}
 		break;
 	case ETorqueLook::Door:
 		HudLines.Add({TEXT("Roller door"), FColor::White, 0.8f});
-		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out to Buttertubs"), B->MyBike() + 1), Prompt, 0.65f});
+		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out from the door"), B->MyBike() + 1), Prompt, 0.65f});
+		// [yard] The adventure is the host's to start, from the pause menu.
+		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on Buttertubs (their menu)"))
+			: FString(TEXT("Esc / Options: Set off on Buttertubs")), Info, 0.55f});
 		break;
 	default:
 		break;
@@ -2604,7 +2802,7 @@ void ATorqueWalker::UpdateHud()
 	if (AltPlan.bValid)
 		HudLines.Add({AltPlan.Blocked.IsEmpty() ? FString::Printf(TEXT("Right mouse / Square: %s"), *AltPlan.Verb)
 			: FString::Printf(TEXT("Can't %s: %s"), *AltPlan.Verb, *AltPlan.Blocked), AltPlan.Blocked.IsEmpty() ? Prompt : Blocked, 0.6f});
-	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out"), Prompt, 0.6f});
+	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out   Hold F / Triangle: wheel it"), Prompt, 0.6f});
 	const FPlan* Active = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
 	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3)
 		HudLines.Add({TWI::Bar(Progress / Active->Time), FColor::White, 0.6f});
@@ -2646,7 +2844,13 @@ FString ATorqueWalker::Describe() const
 	case ETorqueLook::Place: return FString::Printf(TEXT("place %s"), TargetPlace ? *TargetPlace->Name.ToString() : TEXT("?"));
 	case ETorqueLook::Floor: return FString::Printf(TEXT("the floor at %.0f, %.0f"), TargetPoint.X, TargetPoint.Y);
 	case ETorqueLook::Door: return TEXT("the roller door");
-	default: return TEXT("nothing");
+	default:
+		if (TargetFurniture != 0)
+		{
+			const FTorqueFurniture* F = B ? B->FurnitureById(TargetFurniture) : nullptr;
+			return FString::Printf(TEXT("kit piece %d (%s)"), TargetFurniture, F ? *F->Model.ToString() : TEXT("?"));
+		}
+		return TEXT("nothing");
 	}
 }
 
@@ -2769,7 +2973,28 @@ FString ATorqueWalker::TestInteract()
 	Note.Reset();
 	Interact();
 	UpdateHud();
-	return FString::Printf(TEXT("F on %s: %s"), *Seen, bRidingOut ? TEXT("riding out") : (Note.IsEmpty() ? (bComputer ? TEXT("the parts computer is up") : TEXT("nothing happened")) : *Note));
+	return FString::Printf(TEXT("F on %s: %s"), *Seen, bRidingOut ? TEXT("riding out") : (Note.IsEmpty() ? (bComputer ? (bDesk ? TEXT("the dyno desk is up") : TEXT("the parts computer is up")) : TEXT("nothing happened")) : *Note));
+}
+
+FString ATorqueWalker::TestDesk(const FString& What, const FString& Key, float Value)
+{
+	if (What == TEXT("close"))
+	{
+		CloseComputer();
+		return TEXT("walked away from the desk");
+	}
+	if (!(bComputer && bDesk))
+	{
+		if (bComputer) CloseComputer();
+		OpenDesk();
+	}
+	Note.Reset();
+	if (What == TEXT("tab") && !Desk.PickTab(Key)) return TEXT("no tab ") + Key;
+	if (What == TEXT("set") || What == TEXT("stock")) DeskDo(Desk.TestSet(Key, Value, What == TEXT("stock")));
+	if (What == TEXT("run")) DeskDo(Desk.Pad(0, 0, 0, false, true));
+	FString Out = Desk.Describe(Shed());
+	if (!Note.IsEmpty()) Out += TEXT(" [") + Note + TEXT("]");
+	return Out;
 }
 
 FName ATorqueWalker::TestTargetPlace() const

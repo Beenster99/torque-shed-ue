@@ -612,6 +612,476 @@
    "rough": 0.8,
    "tile": 1.0,
    "unit_uv": true
+  },
+  "bin_label_general": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/bin_label_general.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.45,
+   "unit_uv": true
+  },
+  "bin_label_plastic": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/bin_label_plastic.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.45,
+   "unit_uv": true
+  },
+  "bin_label_metal": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/bin_label_metal.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.45,
+   "unit_uv": true
+  },
+  "dirt": {
+   "base": "concrete",
+   "tint": [
+    0.33,
+    0.24,
+    0.15
+   ],
+   "rough": 0.95,
+   "tile": 0.5
+  },
+  "dirt_dark": {
+   "base": "concrete",
+   "tint": [
+    0.22,
+    0.16,
+    0.1
+   ],
+   "rough": 0.97,
+   "tile": 0.5
+  },
+  "stone": {
+   "base": "concrete",
+   "tint": [
+    0.45,
+    0.43,
+    0.4
+   ],
+   "rough": 0.85,
+   "tile": 2.0
+  },
+  "drum_blue": {
+   "base": "painted",
+   "tint": [
+    0.08,
+    0.22,
+    0.5
+   ],
+   "rough": 0.5,
+   "metal": 0.3,
+   "tile": 1.0
+  },
+  "drum_red": {
+   "base": "painted",
+   "tint": [
+    0.55,
+    0.07,
+    0.05
+   ],
+   "rough": 0.5,
+   "metal": 0.3,
+   "tile": 1.0
+  },
+  "drum_green": {
+   "base": "painted",
+   "tint": [
+    0.1,
+    0.3,
+    0.14
+   ],
+   "rough": 0.5,
+   "metal": 0.3,
+   "tile": 1.0
+  },
+  "rust": {
+   "base": "metal",
+   "tint": [
+    0.34,
+    0.15,
+    0.06
+   ],
+   "rough": 0.85,
+   "metal": 0.3,
+   "tile": 2.0
+  },
+  "bark": {
+   "base": "wood",
+   "tint": [
+    0.2,
+    0.14,
+    0.09
+   ],
+   "rough": 0.95,
+   "tile": 1.5
+  },
+  "log_end": {
+   "base": "wood",
+   "tint": [
+    0.62,
+    0.46,
+    0.28
+   ],
+   "rough": 0.85,
+   "tile": 1.0
+  },
+  "hay": {
+   "base": "fabric",
+   "tint": [
+    0.72,
+    0.6,
+    0.3
+   ],
+   "rough": 0.95,
+   "tile": 2.0
+  },
+  "twine": {
+   "base": "fabric",
+   "tint": [
+    0.55,
+    0.4,
+    0.2
+   ],
+   "rough": 0.9,
+   "tile": 6.0
+  },
+  "car_paint": {
+   "base": "painted",
+   "tint": [
+    0.22,
+    0.38,
+    0.38
+   ],
+   "rough": 0.65,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "glass_dirty": {
+   "base": "glass",
+   "tint": [
+    0.55,
+    0.55,
+    0.5
+   ],
+   "rough": 0.4,
+   "opacity": 0.55
+  },
+  "lamp_lens": {
+   "base": "glass",
+   "tint": [
+    0.95,
+    0.95,
+    0.9
+   ],
+   "rough": 0.05,
+   "opacity": 0.6
+  },
+  "amber_lens": {
+   "base": "plastic",
+   "tint": [
+    0.9,
+    0.45,
+    0.05
+   ],
+   "rough": 0.2,
+   "tile": 4.0
+  },
+  "red_lens": {
+   "base": "plastic",
+   "tint": [
+    0.55,
+    0.03,
+    0.02
+   ],
+   "rough": 0.2,
+   "tile": 4.0
+  },
+  "bus_red": {
+   "base": "painted",
+   "tint": [
+    0.48,
+    0.06,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "bus_green": {
+   "base": "painted",
+   "tint": [
+    0.07,
+    0.26,
+    0.12
+   ],
+   "rough": 0.45,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "bus_blue": {
+   "base": "painted",
+   "tint": [
+    0.06,
+    0.14,
+    0.36
+   ],
+   "rough": 0.45,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "bus_cream": {
+   "base": "painted",
+   "tint": [
+    0.8,
+    0.72,
+    0.55
+   ],
+   "rough": 0.45,
+   "metal": 0.1,
+   "tile": 1.0
+  },
+  "bus_maroon": {
+   "base": "painted",
+   "tint": [
+    0.3,
+    0.05,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "bus_orange": {
+   "base": "painted",
+   "tint": [
+    0.62,
+    0.2,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "bus_silver": {
+   "base": "painted",
+   "tint": [
+    0.7,
+    0.7,
+    0.68
+   ],
+   "rough": 0.4,
+   "metal": 0.4,
+   "tile": 1.0
+  },
+  "bus_roof": {
+   "base": "painted",
+   "tint": [
+    0.5,
+    0.5,
+    0.48
+   ],
+   "rough": 0.7,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "concrete": {
+   "base": "concrete",
+   "tint": [
+    0.62,
+    0.6,
+    0.56
+   ],
+   "rough": 0.85,
+   "tile": 1.0
+  },
+  "concrete_dark": {
+   "base": "concrete",
+   "tint": [
+    0.3,
+    0.29,
+    0.27
+   ],
+   "rough": 0.9,
+   "tile": 1.0
+  },
+  "reflect_red": {
+   "base": "plastic",
+   "tint": [
+    0.75,
+    0.05,
+    0.04
+   ],
+   "rough": 0.25,
+   "tile": 4.0
+  },
+  "reflect_white": {
+   "base": "plastic",
+   "tint": [
+    0.9,
+    0.9,
+    0.88
+   ],
+   "rough": 0.2,
+   "tile": 4.0
+  },
+  "mortar": {
+   "base": "concrete",
+   "tint": [
+    0.6,
+    0.58,
+    0.53
+   ],
+   "rough": 0.95,
+   "tile": 1.0
+  },
+  "brick": {
+   "base": "concrete",
+   "tint": [
+    0.5,
+    0.2,
+    0.12
+   ],
+   "rough": 0.85,
+   "tile": 2.0
+  },
+  "brick_dark": {
+   "base": "concrete",
+   "tint": [
+    0.36,
+    0.14,
+    0.09
+   ],
+   "rough": 0.85,
+   "tile": 2.0
+  },
+  "fence_wood": {
+   "base": "wood",
+   "tint": [
+    0.45,
+    0.36,
+    0.24
+   ],
+   "rough": 0.85,
+   "tile": 1.0
+  },
+  "galvanised": {
+   "base": "metal",
+   "tint": [
+    0.6,
+    0.62,
+    0.62
+   ],
+   "rough": 0.45,
+   "metal": 1.0,
+   "tile": 2.0
+  },
+  "cone_orange": {
+   "base": "plastic",
+   "tint": [
+    0.95,
+    0.3,
+    0.03
+   ],
+   "rough": 0.4,
+   "tile": 4.0
+  },
+  "rubber_hump": {
+   "base": "rubber",
+   "tint": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "rough": 0.85,
+   "tile": 2.0
+  },
+  "cloth_red": {
+   "base": "fabric",
+   "tint": [
+    0.7,
+    0.05,
+    0.04
+   ],
+   "rough": 0.85,
+   "tile": 4.0
+  },
+  "cloth_blue": {
+   "base": "fabric",
+   "tint": [
+    0.06,
+    0.18,
+    0.65
+   ],
+   "rough": 0.85,
+   "tile": 4.0
+  },
+  "cloth_white": {
+   "base": "fabric",
+   "tint": [
+    0.85,
+    0.85,
+    0.82
+   ],
+   "rough": 0.85,
+   "tile": 4.0
+  },
+  "cloth_black": {
+   "base": "fabric",
+   "tint": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "rough": 0.85,
+   "tile": 4.0
+  },
+  "cloth_yellow": {
+   "base": "fabric",
+   "tint": [
+    0.9,
+    0.7,
+    0.08
+   ],
+   "rough": 0.85,
+   "tile": 4.0
+  },
+  "cloth_green": {
+   "base": "fabric",
+   "tint": [
+    0.1,
+    0.45,
+    0.18
+   ],
+   "rough": 0.85,
+   "tile": 4.0
+  },
+  "cloth_orange": {
+   "base": "fabric",
+   "tint": [
+    0.9,
+    0.4,
+    0.05
+   ],
+   "rough": 0.85,
+   "tile": 4.0
   }
  }
 }

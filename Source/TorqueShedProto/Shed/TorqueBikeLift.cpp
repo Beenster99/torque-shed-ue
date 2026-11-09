@@ -1,6 +1,7 @@
 #include "Shed/TorqueBikeLift.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueToolModels.h"
 #include "TorqueAudio/TorqueSfx.h"
@@ -28,7 +29,9 @@ const FLinearColor Hazard(0.95f, 0.70f, 0.05f);
 // on the inner arms it pushes (from their low pivot); the ramp's length.
 constexpr double PivotX = 80.0, LowPivotZ = 5.0, HighPivotDrop = 11.0;
 constexpr double RamFootX = PivotX - 0.95 * 150.0, RamFootZ = 7.0, BarrelLength = 45.0, RamAt = 0.45;
-constexpr double RampLength = 40.0;
+constexpr double RampLength = TorqueShedLayout::LiftRampLength;
+// The vice's stop: how far in front of the jaws' middle its face is, and how high its middle is.
+constexpr double StopFace = 17.5, StopZ = 11.5;
 }
 namespace TBLI = TorqueBikeLiftImpl;
 
@@ -185,8 +188,8 @@ void ATorqueBikeLift::BeginPlay()
 		// Checker plate wings each side, on their brackets.
 		for (const double Side : {-1.0, 1.0})
 		{
-			Piece(Deck, FVector(-8.0, Side * (W * 0.5 + 11.0), -1.0), FVector(150.0, 22.0, 2.0), TBLI::Alu, 1.0f, 0.38f, true);
-			for (const double X : {-65.0, 50.0})
+			Piece(Deck, FVector(-8.0, Side * (W * 0.5 + 11.0), -1.0), FVector(L - 70.0, 22.0, 2.0), TBLI::Alu, 1.0f, 0.38f, true);
+			for (const double X : {-L * 0.5 + 45.0, L * 0.5 - 60.0})
 				Piece(Deck, FVector(X, Side * (W * 0.5 + 5.0), -4.0), FVector(4.0, 10.0, 4.0), TBLI::Paint, 0.3f, 0.45f);
 		}
 	}
@@ -196,17 +199,24 @@ void ATorqueBikeLift::BeginPlay()
 		Piece(Deck, FVector(0.0, Side * (W * 0.5 - 1.5), -6.0), FVector(L, 3.0, 9.0), TBLI::Paint, 0.3f, 0.45f);
 		Piece(Deck, FVector(Side * (L * 0.5 - 1.5), 0.0, -6.0), FVector(3.0, W, 9.0), TBLI::Paint, 0.3f, 0.45f);
 	}
-	// The wheel vice at the front: its base plate, the front stop, the screw and its crank, and two
-	// side jaws that close on the front tyre when a bike's on (PoseJaws).
-	const double VX = L * 0.5 - 32.0;
-	Piece(Deck, FVector(VX + 4.0, 0.0, 0.75), FVector(44.0, FMath::Min(W - 4.0, 40.0), 1.5), TBLI::Paint, 0.3f, 0.45f);
-	Piece(Deck, FVector(VX + 19.0, 0.0, 11.5), FVector(3.0, 24.0, 20.0), TBLI::Paint, 0.3f, 0.45f);
-	UStaticMeshComponent* Screw = Piece(Deck, FVector::ZeroVector, FVector::OneVector, TBLI::Chrome, 1.0f, 0.2f, false, 0.0f, true);
-	Span(Screw, FVector(VX, -20.0, 4.0), FVector(VX, 20.0, 4.0), 2.0);
-	UStaticMeshComponent* Crank = Piece(Deck, FVector::ZeroVector, FVector::OneVector, TBLI::Black, 0.3f, 0.5f, false, 0.0f, true);
-	Span(Crank, FVector(VX, W * 0.5 + 0.5, 4.0), FVector(VX, W * 0.5 + 2.5, 4.0), 10.0);
+	// The wheel vice: a carriage on a slotted rail down the platform's middle that slides to the
+	// front tyre of the bike on it (Tick), its base plate, the front stop, the screw and its crank,
+	// and two side jaws that close on the tyre (PoseJaws). Its frame's origin is the jaws' middle.
+	Piece(Deck, FVector(L * 0.25 - 10.0, 0.0, 0.3), FVector(L * 0.5 + 10.0, 10.0, 0.6), TBLI::Base, 0.5f, 0.5f);
+	for (const double Side : {-1.0, 1.0})
+		Piece(Deck, FVector(L * 0.25 - 10.0, Side * 3.5, 0.65), FVector(L * 0.5 + 10.0, 1.0, 0.1), TBLI::Black, 0.0f, 0.9f);
+	Vice = NewObject<USceneComponent>(this);
+	Vice->SetMobility(EComponentMobility::Movable);
+	Vice->SetupAttachment(Deck);
+	Vice->RegisterComponent();
+	Piece(Vice, FVector(4.0, 0.0, 0.75), FVector(44.0, FMath::Min(W - 4.0, 40.0), 1.5), TBLI::Paint, 0.3f, 0.45f);
+	Piece(Vice, FVector(TBLI::StopFace + 1.5, 0.0, TBLI::StopZ), FVector(3.0, 24.0, 20.0), TBLI::Paint, 0.3f, 0.45f);
+	UStaticMeshComponent* Screw = Piece(Vice, FVector::ZeroVector, FVector::OneVector, TBLI::Chrome, 1.0f, 0.2f, false, 0.0f, true);
+	Span(Screw, FVector(0.0, -20.0, 4.0), FVector(0.0, 20.0, 4.0), 2.0);
+	UStaticMeshComponent* Crank = Piece(Vice, FVector::ZeroVector, FVector::OneVector, TBLI::Black, 0.3f, 0.5f, false, 0.0f, true);
+	Span(Crank, FVector(0.0, W * 0.5 + 0.5, 4.0), FVector(0.0, W * 0.5 + 2.5, 4.0), 10.0);
 	for (int32 I = 0; I < 2; ++I)
-		Jaws.Add(Piece(Deck, FVector(VX, 0.0, 10.5), FVector(30.0, 2.0, 18.0), TBLI::Base, 0.6f, 0.4f));
+		Jaws.Add(Piece(Vice, FVector(0.0, 0.0, 10.5), FVector(30.0, 2.0, 18.0), TBLI::Base, 0.6f, 0.4f));
 	// --- The ramp at the back, hinged on the table: down to the floor when it's down, folding up as
 	// a stop as it rises.
 	Ramp = Piece(Root, FVector::ZeroVector, FVector(TBLI::RampLength, W - 6.0, 2.5), bWash ? TBLI::Grate : TBLI::Alu, 1.0f, 0.38f, true);
@@ -230,6 +240,8 @@ void ATorqueBikeLift::BeginPlay()
 	bWantUp = B && B->LiftUp(LiftId);
 	H = bWantUp ? Top() : LowTop();
 	JawGap = (B && B->BikeOnLift(LiftId) != INDEX_NONE) ? 0.0 : 1.0;
+	ViceX = ViceRest();
+	if (Vice) Vice->SetRelativeLocation(FVector(ViceX, 0.0, 0.0));
 	Pose();
 	PoseJaws();
 	UE_LOG(LogTemp, Log, TEXT("Torque lift: %s at (%.0f, %.0f), %s"), *UTorqueBuildSubsystem::LiftName(LiftId), GetActorLocation().X, GetActorLocation().Y,
@@ -295,6 +307,27 @@ void ATorqueBikeLift::PoseJaws()
 		}
 }
 
+double ATorqueBikeLift::ViceWant(const UTorqueBuildSubsystem* B) const
+{
+	const int32 On = B ? B->BikeOnLift(LiftId) : INDEX_NONE;
+	UWorld* Here = GetWorld();
+	if (On == INDEX_NONE || !Here) return ViceRest();
+	for (TActorIterator<ATorqueShedBike> It(Here); It; ++It)
+	{
+		if (It->Bay != On) continue;
+		// Its front axle, where the shed has the bike (not where it's drawn gliding there), in the
+		// lift's frame; facing the other way on it, the vice stays back.
+		const FVector Axle = GetActorTransform().InverseTransformPosition(B->BikeTransform(On).TransformPosition(FVector(It->FrontAxleX, 0.0, 0.0)));
+		if (Axle.X < 0.0) return ViceRest();
+		// The stop's face against the tyre's front at the stop's middle height.
+		const double R = It->FrontRadius, Z = FMath::Min(TBLI::StopZ, R);
+		const double Front = FMath::Sqrt(FMath::Max(R * R - (R - Z) * (R - Z), 0.0));
+		const double Most = DeckLength() * 0.5 - TBLI::StopFace - 4.5;   // the stop at the platform's front edge
+		return FMath::Clamp(Axle.X + Front - TBLI::StopFace, 0.0, Most);
+	}
+	return ViceRest();
+}
+
 void ATorqueBikeLift::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -318,9 +351,18 @@ void ATorqueBikeLift::Tick(float DeltaSeconds)
 		bMoving = bNowMoving;
 		if (Sfx && Motor != INDEX_NONE) Sfx->SetLoop(Motor, bMoving ? TEXT("door") : TEXT(""));
 	}
-	// The vice closes on a bike standing on it (and opens when it's wheeled off).
+	// The vice slides to the front tyre of a bike standing on it, then closes on it (and opens, and
+	// goes back, when it's wheeled off).
 	const int32 On = B ? B->BikeOnLift(LiftId) : INDEX_NONE;
-	const double JawWant = (On != INDEX_NONE && B->Bike(On).Pusher == 0) ? 0.0 : 1.0;
+	const bool bBikeOn = On != INDEX_NONE && B->Bike(On).Pusher == 0;
+	const double Slide = ViceWant(B);
+	if (!FMath::IsNearlyEqual(ViceX, Slide, 0.05) && (JawGap > 0.99 || !bBikeOn))
+	{
+		const double SlideStep = 60.0 * (double)DeltaSeconds;
+		ViceX = Slide > ViceX ? FMath::Min(Slide, ViceX + SlideStep) : FMath::Max(Slide, ViceX - SlideStep);
+		if (Vice) Vice->SetRelativeLocation(FVector(ViceX, 0.0, 0.0));
+	}
+	const double JawWant = (bBikeOn && FMath::IsNearlyEqual(ViceX, Slide, 0.05)) ? 0.0 : 1.0;
 	if (!FMath::IsNearlyEqual(JawGap, JawWant))
 	{
 		const double JawStep = 1.5 * (double)DeltaSeconds;

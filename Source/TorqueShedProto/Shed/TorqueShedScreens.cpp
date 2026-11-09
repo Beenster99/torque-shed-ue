@@ -505,6 +505,19 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 {
 	UTextureRenderTarget2D* RT = Pages.IsValidIndex(Index) ? Pages[Index] : nullptr;
 	if (!RT) return;
+	if (Index < 4)
+	{
+		// A bay's screen is on while there's a bike in the bay (wherever it's been wheeled), and goes
+		// blank, off, when it's scrapped or stripped to nothing.
+		const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+		const bool bOn = B && B->Exists(Index);
+		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(bOn);
+		if (!bOn)
+		{
+			UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, FLinearColor::Black);
+			return;
+		}
+	}
 	UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, TSSI::Bg());
 	UCanvas* C = nullptr;
 	FVector2D Size;

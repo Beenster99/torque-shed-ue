@@ -9,6 +9,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -75,6 +76,8 @@ const TCHAR* const DynoSteps =
 	TEXT("wheel:rig,wait:2,bikelog,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,look:dynoroom,shot,")
 	TEXT("fan:on,dynorun,dynolog,look:dyno,shot,")
+	TEXT("desk:tab:engine,tune:map:0.25,tune:ignition:0.25,shot:ui,dynorun,dynolog,desk:tab:Tyres & chain,tune:psi_r:1.6,")
+	TEXT("desk:tab:Gearing,tune:sprocket_r:48,shot:ui,desk:tab:Suspension,desk:log,desk:tab:Weight,shot:ui,desk:close,")
 	TEXT("fan:off,dynorun:mid,look:dyno,shot,dynolog,look:dyno,shot,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,wait:2,bikelog,log");
 
@@ -146,13 +149,19 @@ const TCHAR* const LiftSteps =
 	TEXT("place:lift_wash,f,wait:5,lifts,look:washbay,shot,place:lift_wash,f,wait:5,lifts,wheel:home,wait:2,bikelog,lifts,log");
 
 // The wash game: bay 1's bike wheeled into the wash bay, the lance held on its tank and its engine (the
-// muck coming off where the jet goes, the shed told), the scan on, the bike raised on the wash lift
-// and its underside washed crouched, then home.   [wash]
+// muck coming off where the jet goes, the shed told), the scan on and off, the bike raised on the
+// wash lift and its underside washed crouched, then home. The bike's shot in its bay first: it should
+// look the same arriving in the wash bay.   [wash]
 const TCHAR* const WashGameSteps =
-	TEXT("bay:1,tool:hands,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
-	TEXT("part:tank,hold:3,washstate,shot,part:engine,hold:3,washstate,shot,washpass:1:60,shot,washpass:1:60,look:washbay,shot,log,")
+	TEXT("bay:1,tool:hands,look:bike,shot,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
+	TEXT("part:tank,hold:3,washstate,shot,washscan:1,wait:1,shot,washscan:0,part:engine,hold:3,washstate,shot,washpass:1:60,shot,washpass:1:60,look:washbay,shot,log,")
 	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,washpass:1:60,shot,crouch:0,look:washbay,shot,")
 	TEXT("tool:hands,place:lift_wash,f,wait:5,wheel:home,wait:2,bikelog,log");
+
+// Scrapping a bike: bay 2's project bike, its screen on, right mouse held on its frame, the bike
+// and its parts gone and the screen blank.
+const TCHAR* const ScrapSteps =
+	TEXT("bay:2,tool:hands,log,look:screen,shot,part:frame,act:alt,log,wait:2,look:screen,shot,look:bike,shot");
 
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
@@ -192,6 +201,27 @@ const TCHAR* const RidesSteps =
 	TEXT("log");
 #undef TORQUE_RIDE_STYLE
 
+// Physics stage 4: every style's reference bike (the scratch bike above remade as each), ridden out
+// and measured as SimTest/realism_test measures it: a launch, a stop from 60 on the level test pad
+// and a full-lean bend at 45, each logged; then back.
+#define TORQUE_PHYSICS_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,ridelog,launch,brakestop:60:flat,lean:max,back,wait:6,")
+const TCHAR* const PhysicsSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TORQUE_PHYSICS_STYLE("classic") TORQUE_PHYSICS_STYLE("cafe") TORQUE_PHYSICS_STYLE("scrambler") TORQUE_PHYSICS_STYLE("tourer")
+	TORQUE_PHYSICS_STYLE("roader") TORQUE_PHYSICS_STYLE("naked") TORQUE_PHYSICS_STYLE("sport") TORQUE_PHYSICS_STYLE("race")
+	TORQUE_PHYSICS_STYLE("bobber") TORQUE_PHYSICS_STYLE("chopper") TORQUE_PHYSICS_STYLE("cruiser") TORQUE_PHYSICS_STYLE("adventure")
+	TORQUE_PHYSICS_STYLE("supermoto") TORQUE_PHYSICS_STYLE("mx")
+	TEXT("log");
+#undef TORQUE_PHYSICS_STYLE
+
+// The movable kit: the yard's test area, a cone looked at, taken hold of, turned both ways, carried
+// and put down; a ramp ordered from the Shed aisle into the drop-off and a stool into the shed's;
+// the shed saved and the kit logged.
+const TCHAR* const KitSteps =
+	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
+	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
+	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,furn:log");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -219,12 +249,15 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("scrap")) FString(TSTI::ScrapSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("washgame")) FString(TSTI::WashGameSteps).ParseIntoArray(Preset, TEXT(","), true);   // [wash]
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -415,15 +448,26 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(FString::Printf(TEXT("working on bay %d"), TestBay + 1));
 		return true;
 	}
-	if (Verb == TEXT("back"))
+	if (Verb == TEXT("back") || Verb == TEXT("walkin"))
 	{
+		// [yard] On a bike in the shed's yard: park it and walk back in.
+		APlayerController* PC = World->GetFirstPlayerController();
+		const ATorqueBikePawn* YardBike = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
+		if (YardBike && YardBike->InYard())
+		{
+			TorqueYard::WalkBackIn(PC);
+			Said(TEXT("parked in the yard, walking back in"));
+			return true;
+		}
+		if (Verb == TEXT("walkin")) { Warn(TEXT("walkin: not riding in the yard")); return true; }
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("going back to the shed") : TEXT("refused (no shed map, or a client)"));
 		return true;
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
+		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -436,6 +480,21 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
+		if (Verb == TEXT("foot"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
+			Said(Bike->TestFoot(What));
+			return true;
+		}
+		// gear:up|down, ignition, clutch:1|0 and bikestate: the stage 3 controls as their keys work them.
+		if (Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
+		{
+			const FString Arg = P.Num() > 1 ? P[1].ToLower() : FString();
+			const int32 N = Verb == TEXT("gear") ? (Arg == TEXT("down") ? -1 : 1) : (Arg == TEXT("0") || Arg == TEXT("off") ? 0 : 1);
+			Said(Bike->TestControl(Verb == TEXT("bikestate") ? FString(TEXT("state")) : Verb, N));
+			return true;
+		}
 		if (Verb == TEXT("lever"))
 		{
 			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
@@ -457,6 +516,51 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// road test does (on the road, or :flat on the level test pad); lean:max[:MPH] (default 45): a
 		// full-lean bend held 6 s at MPH on the test pad. Each waits until
 		// it's done (up to about two minutes) and logs what it measured.
+		// crash:wall|bike[:MPH] (default 30): on the test pad, the robot rides straight into a drystone
+		// wall, or a stopped bike, stood across its path 12 m ahead; logs the hit and whether the rider
+		// came off, then back on the road where it began.
+		if (Verb == TEXT("crash"))
+		{
+			const bool bBikeHit = P.Num() > 1 && P[1].ToLower() == TEXT("bike");
+			const double Mph = P.Num() > 2 ? FCString::Atod(*P[2]) : 30.0;
+			if (!bMoveStarted)
+			{
+				Bike->TestStartMove(bBikeHit ? 3 : 2, Mph, true);
+				bMoveStarted = true;
+				Said(FString::Printf(TEXT("getting up to %.0f mph to ride into %s"), Mph, bBikeHit ? TEXT("a stopped bike") : TEXT("a wall")));
+				Tries = 0;
+				return false;
+			}
+			if (Bike->TestMoveBusy())
+			{
+				Tries = 0;
+				return false;
+			}
+			bMoveStarted = false;
+			Said(Bike->TestMoveResult());
+			return true;
+		}
+		// launch[:MPH] (rolling at 10 before it): on the test pad, stopped, then flat out for 10 s.
+		if (Verb == TEXT("launch"))
+		{
+			const double Mph = P.Num() > 1 ? FCString::Atod(*P[1]) : 10.0;
+			if (!bMoveStarted)
+			{
+				Bike->TestStartMove(4, Mph, true);
+				bMoveStarted = true;
+				Said(TEXT("rolling onto the test pad for a launch"));
+				Tries = 0;
+				return false;
+			}
+			if (Bike->TestMoveBusy())
+			{
+				Tries = 0;
+				return false;
+			}
+			bMoveStarted = false;
+			Said(Bike->TestMoveResult());
+			return true;
+		}
 		if (Verb == TEXT("brakestop") || Verb == TEXT("lean"))
 		{
 			const bool bBrake = Verb == TEXT("brakestop");
@@ -561,6 +665,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("washpass"))   // [wash] washpass:PASSES:CM sweeps the lance over the whole bike
 	{
 		Said(W->TestWashPasses(P.Num() > 1 ? FCString::Atoi(*P[1]) : 1, P.Num() > 2 ? FCString::Atod(*P[2]) : 60.0));
+		return true;
+	}
+	if (Verb == TEXT("washscan"))   // [wash] washscan:1/0, the X scan of the muck still to do
+	{
+		const bool bOn = P.Num() < 2 || P[1] != TEXT("0");
+		W->TestWashScan(bOn);
+		Said(bOn ? TEXT("wash scan on") : TEXT("wash scan off"));
 		return true;
 	}
 	if (Verb == TEXT("washstate"))   // [wash] how the wash game on the wash bay's bike is going
@@ -756,7 +867,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), 100.0));
 		return true;
 	}
-	if (Verb == TEXT("door") || Verb == TEXT("rideout"))
+	if (Verb == TEXT("door") || Verb == TEXT("rideout") || Verb == TEXT("yard"))
 	{
 		AActor* Door = nullptr;
 		for (TActorIterator<AActor> It(World); It; ++It)
@@ -765,7 +876,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// In the opening, looking out.
 		const FVector Out = Door->GetActorLocation() + FVector(0.0, 300.0, 120.0);
 		Said(TEXT("looking at ") + W->TestLookAt(Out, FVector(0.0, -1.0, 0.0), 300.0));
-		if (Verb == TEXT("rideout")) Said(W->TestInteract());
+		// F at the door rides out into the yard; Buttertubs is the host's menu choice (as the pause menu).
+		if (Verb == TEXT("yard")) Said(W->TestInteract());
+		if (Verb == TEXT("rideout"))
+		{
+			W->StartAdventure();
+			Said(W->IsRidingOut() ? TEXT("setting off on Buttertubs") : TEXT("not setting off (see the walker's note)"));
+		}
 		return true;
 	}
 	if (Verb == TEXT("look") && P.Num() >= 2)
@@ -898,8 +1015,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("dyno")) { At = FVector(0.0, -1290.0, 225.0); Away = FVector(0.35, 1.0, 0.0).GetSafeNormal(); Distance = 250.0; }
 		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
+		else if (What == TEXT("testarea")) { At = FVector(9000.0, 8000.0, 100.0); Away = FVector(-1.0, -0.35, 0.0).GetSafeNormal(); Distance = 1800.0; }
+		else if (What == TEXT("dropoff")) { At = FVector(19600.0, 7780.0, 60.0); Away = FVector(-1.0, -0.5, 0.0).GetSafeNormal(); Distance = 700.0; }
+		else if (What == TEXT("kitdrop")) { At = FVector(-900.0, 1100.0, 60.0); Away = FVector(0.3, -1.0, 0.0).GetSafeNormal(); Distance = 500.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, testarea, dropoff, kitdrop, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);
@@ -930,6 +1050,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(W->TestInteract());
 		return true;
 	}
+	if (Verb == TEXT("furn") && P.Num() >= 2)
+	{
+		TArray<FString> Args(P);
+		Args.RemoveAt(0, 2);
+		const FString Out = W->TestFurniture(P[1].ToLower(), Args);
+		if (Out.StartsWith(TEXT("not "))) Warn(Out);
+		else Said(Out);
+		return true;
+	}
 	if (Verb == TEXT("order") && P.Num() >= 2)
 	{
 		Said(W->TestOrder(FName(*P[1])));
@@ -939,11 +1068,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("computer"))
 	{
 		// The parts computer's page: "computer" opens it, "computer:KIND[:PART[:order]]" picks a kind
-		// (bikes, paint:bases, paint:tints or a part kind) and a model and orders it, "computer:close".
+		// (bikes, paint:bases, paint:tints or a part kind) and a model and orders it, "computer:close",
+		// "computer:type:<style>" cuts the part lists to a bike type ("computer:type:all" for every type).
 		if (P.Num() >= 2 && P[1] == TEXT("close"))
 		{
 			Said(W->TestComputer(NAME_None, NAME_None, false) + TEXT(" (closing)"));
 			W->TestCloseComputer();
+			return true;
+		}
+		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type.
+		if (P.Num() >= 3 && P[1] == TEXT("type"))
+		{
+			Said(W->TestComputerType(P[2]));
 			return true;
 		}
 		// (paint:bases has a colon in it: put it back together)
@@ -972,6 +1108,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		Said(W->TestNewBike(Style, Swaps, bOrder));
 		if (bOrder) LogBuild(TEXT("after the order"));
+		return true;
+	}
+	if (Verb == TEXT("colour") && P.Num() >= 2)
+	{
+		// The New bike page's colour picker: "colour:open:SLOT", "colour:sv:S:V", "colour:hue:H",
+		// "colour:hex:RRGGBB", "colour:was", "colour:close".
+		TArray<FString> Args(P);
+		Args.RemoveAt(0);
+		Said(W->TestColour(Args));
 		return true;
 	}
 	if (Verb == TEXT("wheel") && P.Num() >= 2)
@@ -1199,12 +1344,33 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (W->TestTargetPlace() != FName(TEXT("dyno_desk"))) { Warn(TEXT("couldn't get a look at the desk: saw ") + Seen); return true; }
 		const int32 Bay = B->DynoBay();
 		const int32 Before = Bay != INDEX_NONE && B->HasDynoRun(Bay) ? B->DynoRunOf(Bay).N : 0;
-		Said(W->TestInteract());
+		// F opens the desk's page (tuning_computer.gd); its Run the dyno starts the run.
+		const bool bWasUp = W->AtDesk();
+		if (!bWasUp) Said(W->TestInteract());
+		Said(W->TestDesk(TEXT("run"), FString(), 0.0f));
+		if (!bWasUp) W->TestDesk(TEXT("close"), FString(), 0.0f);
 		if (Bay == INDEX_NONE || !B->HasDynoRun(Bay) || B->DynoRunOf(Bay).N == Before) { Warn(TEXT("no run started")); return true; }
 		const float Length = TorqueShedPower::RunTime(B->DynoRunOf(Bay));
 		const bool bMid = P.Num() >= 2 && P[1] == TEXT("mid");
 		Wait = bMid ? Length * 0.6 : Length + 1.0;
 		Said(FString::Printf(TEXT("run %d started, %.1f s long"), B->DynoRunOf(Bay).N, Length));
+		return true;
+	}
+	if (Verb == TEXT("desk") || Verb == TEXT("tune"))
+	{
+		// The dyno desk's page: desk[:open|close|log], desk:tab:<name>, tune:<key>:<value|stock>.
+		FString What = P.Num() >= 2 ? P[1] : FString(TEXT("log"));
+		FString Key;
+		float Value = 0.0f;
+		if (Verb == TEXT("desk") && What == TEXT("tab")) Key = P.Num() >= 3 ? P[2] : FString();
+		if (Verb == TEXT("tune"))
+		{
+			if (P.Num() < 3) { Warn(TEXT("tune:<key>:<value|stock>")); return true; }
+			Key = P[1];
+			What = P[2] == TEXT("stock") ? TEXT("stock") : TEXT("set");
+			Value = FCString::Atof(*P[2]);
+		}
+		Said(W->TestDesk(What, Key, Value));
 		return true;
 	}
 	if (Verb == TEXT("dynolog"))

@@ -1,0 +1,307 @@
+// The walker at the movable shed and yard kit (TorqueFurniture.h): what's looked at, holding F on a
+// piece to take hold of it, R turning it (Shift+R the other way), F putting it down, the HUD's lines
+// and the outline round it. Torque Shed's walker.gd furniture moves: "hold F to move one".
+#include "Shed/TorqueWalker.h"
+#include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueFurniture.h"
+#include "Components/StaticMeshComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+
+namespace TorqueWalkerFurnitureImpl
+{
+constexpr double HoldToMove = 0.35;   // seconds F is held on a piece to take hold of it
+constexpr float TurnStep = 15.0f;     // degrees an R press turns it
+
+// Where the line from Start to End first goes into C's model's box (0..1 along it), or false.
+bool HitBox(const UStaticMeshComponent* C, const FVector& Start, const FVector& End, double& OutTime)
+{
+	const UStaticMesh* Mesh = C ? C->GetStaticMesh() : nullptr;
+	if (!Mesh || !C->IsVisible()) return false;
+	const FBox Box = Mesh->GetBoundingBox();
+	const FTransform& T = C->GetComponentTransform();
+	const FVector A = T.InverseTransformPosition(Start), B = T.InverseTransformPosition(End);
+	if (Box.IsInside(A)) { OutTime = 0.0; return true; }
+	FVector HitAt, HitNormal;
+	float Time = 0.0f;
+	if (!FMath::LineExtentBoxIntersection(Box, A, B, FVector::ZeroVector, HitAt, HitNormal, Time)) return false;
+	OutTime = Time;
+	return true;
+}
+} // namespace TorqueWalkerFurnitureImpl
+
+namespace TWFI = TorqueWalkerFurnitureImpl;
+
+void ATorqueWalker::FindFurniture()
+{
+	TargetFurniture = 0;
+	UWorld* World = GetWorld();
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!World || !Camera || !B || bComputer || bRidingOut) return;
+	if (B->FurnitureMovedBy(B->Me()) != 0) return;   // moving one: nothing else is looked at
+	const FVector Start = Camera->GetComponentLocation();
+	const FVector Look = Controller ? GetControlRotation().Vector() : Camera->GetForwardVector();
+	const FVector End = Start + Look * Reach;
+	// What stops the look first (walls, benches, the kit's own shapes), so a piece behind a wall
+	// isn't picked through it.
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerFurniture), true, this);
+	FHitResult Hit;
+	const double Clear = World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) ? Hit.Time + 0.03 : 1.0;
+	double Best = Clear;
+	for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
+		for (const TPair<int32, UStaticMeshComponent*>& KV : It->Pieces())
+		{
+			const FTorqueFurniture* F = B->FurnitureById(KV.Key);
+			if (!F || F->Mover != 0) continue;
+			double Time = 0.0;
+			if (!TWFI::HitBox(KV.Value, Start, End, Time) || Time > Best) continue;
+			Best = Time;
+			TargetFurniture = KV.Key;
+		}
+	if (TargetFurniture == 0) return;
+	// Nearer than what FindTarget found (a part lying on a bench is nearer than the bench): the kit.
+	const double FurnDist = Best * Reach;
+	if (Target != ETorqueLook::None && Target != ETorqueLook::Floor && Target != ETorqueLook::Door
+		&& FVector::Dist(Start, TargetPoint) < FurnDist + 5.0)
+	{
+		TargetFurniture = 0;
+		return;
+	}
+	Target = ETorqueLook::None;
+	TargetItem = TargetEngine = 0;
+	TargetBay = INDEX_NONE;
+	TargetSlot = NAME_None;
+	TargetPlace = nullptr;
+	TargetPoint = Start + Look * FurnDist;
+}
+
+bool ATorqueWalker::FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return false;
+	FString WhyNot;
+	// Moving one: R turns it, F puts it down where it is (or where you look, for a small one or a
+	// wall one).
+	if (const int32 Moving = B->FurnitureMovedBy(B->Me()))
+	{
+		bFurnArmed = false;
+		const FTorqueFurniture* F = B->FurnitureById(Moving);
+		const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+		if (bAltJust)
+		{
+			const APlayerController* PC = Cast<APlayerController>(Controller);
+			const bool bBack = PC && (PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift));
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::TurnFurniture;
+			R.Item = Moving;
+			R.Amount = bBack ? -TWFI::TurnStep : TWFI::TurnStep;
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		}
+		if (!bF) return true;   // (nothing else happens with your hands full of it)
+		if (!M) return true;
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::ReleaseFurniture;
+		R.Item = Moving;
+		if (!TorqueFurniture::PutDownXf(this, *M, F->Turn, R.Place, WhyNot) || !B->Request(R, WhyNot)) Say(WhyNot, false);
+		else Doing(FString(), 0.0);
+		return true;
+	}
+	// Looking at one with empty hands: hold F to take hold of it (a tap does nothing else here).
+	if (bF && TargetFurniture != 0)
+	{
+		bFurnArmed = true;
+		FurnFHeld = 0.0;
+		return true;
+	}
+	if (bFurnArmed)
+	{
+		FurnFHeld += Dt;
+		if (!bFDown)
+		{
+			bFurnArmed = false;
+			Say(TEXT("Hold F to take hold of it."), true, 2.0);
+			return true;
+		}
+		if (FurnFHeld >= TWFI::HoldToMove)
+		{
+			bFurnArmed = false;
+			const FTorqueFurniture* F = B->FurnitureById(TargetFurniture);
+			const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::GrabFurniture;
+			R.Item = TargetFurniture;
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+			else Doing(M ? FString::Printf(TEXT("moving the %s"), *M->Name.ToLower()) : FString(TEXT("moving kit")), 30.0);
+		}
+		return true;
+	}
+	return false;
+}
+
+bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!B) return false;
+	const FColor Title(190, 210, 255), Prompt(255, 214, 120), Blocked(255, 140, 120), Info(220, 220, 220);
+	if (const int32 Moving = B->FurnitureMovedBy(B->Me()))
+	{
+		const FTorqueFurniture* F = B->FurnitureById(Moving);
+		const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+		if (!M) return false;
+		Lines.Add({FString::Printf(TEXT("Moving the %s"), *M->Name.ToLower()), FColor::White, 0.8f});
+		Lines.Add({M->bWall ? TEXT("Look at a wall: F hangs it there.") : (M->Small() ? TEXT("Look where it goes (a bench, a shelf, the floor): F puts it down.")
+			: TEXT("Walk to push it about, back up to pull it.")), Info, 0.6f});
+		Lines.Add({FString::Printf(TEXT("R / Square: turn it (Shift+R the other way, %+.0f deg)   F / Triangle: put it down"), F->Turn), Prompt, 0.65f});
+		if (NoteFor > 0.0) Lines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
+		return true;
+	}
+	if (TargetFurniture == 0 || bComputer || bBench) return false;
+	const FTorqueFurniture* F = B->FurnitureById(TargetFurniture);
+	const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+	if (!M) return false;
+	FString Heading;
+	for (const TPair<FName, FString>& K : TorqueFurniture::Kinds())
+		if (K.Key == M->Kind) Heading = K.Value;
+	Lines.Add({Heading, Title, 0.6f});
+	Lines.Add({M->Name, FColor::White, 0.8f});
+	if (!M->Desc.IsEmpty()) Lines.Add({M->Desc, Info, 0.55f});
+	if (B->HeldBy(B->Me()) == 0) Lines.Add({TEXT("Hold F / Triangle: move it"), Prompt, 0.65f});
+	return false;
+}
+
+void ATorqueWalker::FurnitureOutline(TArray<UPrimitiveComponent*>& Lined) const
+{
+	if (TargetFurniture == 0) return;
+	UWorld* World = GetWorld();
+	if (!World) return;
+	for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
+		if (UStaticMeshComponent* const* C = It->Pieces().Find(TargetFurniture))
+			if (*C) Lined.Add(*C);
+}
+
+// --- Tests ------------------------------------------------------------------------------------------------
+
+namespace TorqueWalkerFurnitureImpl
+{
+FString Where(const FTorqueFurniture& F)
+{
+	const FVector At = F.Xf.GetLocation();
+	return FString::Printf(TEXT("piece %d %s at %.0f, %.0f, %.0f yaw %.0f"), F.Id, *F.Model.ToString(), At.X, At.Y, At.Z, F.Xf.Rotator().Yaw);
+}
+} // namespace TorqueWalkerFurnitureImpl
+
+FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>& Args)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return TEXT("not furniture: no shed");
+	FString WhyNot;
+	const int32 Moving = B->FurnitureMovedBy(B->Me());
+	if (What == TEXT("log"))
+	{
+		TMap<FName, int32> Count;
+		for (const FTorqueFurniture& F : B->Furniture()) ++Count.FindOrAdd(F.Model);
+		FString Out = FString::Printf(TEXT("%d pieces"), B->Furniture().Num());
+		for (const TPair<FName, int32>& KV : Count) Out += FString::Printf(TEXT(", %s x%d"), *KV.Key.ToString(), KV.Value);
+		if (Moving != 0)
+			if (const FTorqueFurniture* F = B->FurnitureById(Moving)) Out += TEXT("; moving ") + TWFI::Where(*F);
+		return Out;
+	}
+	if (What == TEXT("look"))
+	{
+		if (Args.Num() == 0) return TEXT("not furniture: look at what? a model or a piece id");
+		if (Moving != 0) return TEXT("not looking: you're moving a piece (furn:drop first)");
+		// A piece id, or the nearest piece of that model.
+		const FTorqueFurniture* Pick = Args[0].IsNumeric() ? B->FurnitureById(FCString::Atoi(*Args[0])) : nullptr;
+		if (!Pick)
+		{
+			double Best = 1e30;
+			for (const FTorqueFurniture& F : B->Furniture())
+			{
+				if (F.Mover != 0 || F.Model != FName(*Args[0])) continue;
+				const double D = FVector::DistSquared(F.Xf.GetLocation(), GetActorLocation());
+				if (D < Best) { Best = D; Pick = &F; }
+			}
+		}
+		if (!Pick) return TEXT("not furniture: no ") + Args[0] + TEXT(" out");
+		const TorqueFurniture::FModel* M = TorqueFurniture::Find(Pick->Model);
+		const double Height = M ? M->Size.Y : 60.0;
+		const double Across = M ? FMath::Max(M->Size.X, M->Size.Z) * 0.5 : 50.0;
+		// From its front (+y at yaw 0), a little off to the side, close enough for the reach.
+		const FVector Front = Pick->Xf.GetRotation().RotateVector(FVector(0.25, 1.0, 0.0)).GetSafeNormal2D();
+		const FVector Mid = Pick->Xf.GetLocation() + FVector(0.0, 0.0, FMath::Min(Height * 0.6, 120.0));
+		const int32 Id = Pick->Id;
+		const FString Seen = TestLookAt(Mid, Front, FMath::Min(Across + 110.0, (double)Reach - 40.0));
+		return FString::Printf(TEXT("%s (wanted piece %d)%s"), *Seen, Id, TargetFurniture == Id ? TEXT("") : TEXT(": not the one looked at"));
+	}
+	if (What == TEXT("grab"))
+	{
+		ReAim();
+		FindTarget();
+		if (TargetFurniture == 0) return TEXT("not grabbed: no kit piece looked at (") + Describe() + TEXT(")");
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::GrabFurniture;
+		R.Item = TargetFurniture;
+		if (!B->Request(R, WhyNot)) return TEXT("not grabbed: ") + WhyNot;
+		bTestAim = false;
+		const FTorqueFurniture* F = B->FurnitureById(R.Item);
+		return F && F->Mover == B->Me() ? TEXT("picked up ") + TWFI::Where(*F) : FString(TEXT("not grabbed: the host didn't give it"));
+	}
+	if (Moving == 0 && What != TEXT("order")) return TEXT("not furniture: not moving a piece (furn:grab first)");
+	if (What == TEXT("turn"))
+	{
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::TurnFurniture;
+		R.Item = Moving;
+		R.Amount = Args.Num() > 0 ? FCString::Atof(*Args[0]) : TWFI::TurnStep;
+		if (!B->Request(R, WhyNot)) return TEXT("not turned: ") + WhyNot;
+		const FTorqueFurniture* F = B->FurnitureById(Moving);
+		return FString::Printf(TEXT("turned to %+.0f deg"), F ? F->Turn : 0.0f);
+	}
+	if (What == TEXT("walk"))
+	{
+		// Carry it there: stand short of the spot facing it, so a big one sits on the spot.
+		if (Args.Num() < 2) return TEXT("not furniture: walk where? x:y");
+		const FTorqueFurniture* F = B->FurnitureById(Moving);
+		const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+		const FVector To(FCString::Atod(*Args[0]), FCString::Atod(*Args[1]), 0.0);
+		const FVector Dir = FVector(To - GetActorLocation()).GetSafeNormal2D();
+		const double Short = M && !M->Small() && !M->bWall ? FMath::Max(M->Size.Z, M->Size.X) * 0.5 + 55.0 : 55.0;
+		const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector Stand = To - (Dir.IsNearlyZero() ? FVector(1.0, 0.0, 0.0) : Dir) * Short;
+		SetActorLocation(FVector(Stand.X, Stand.Y, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
+		const FRotator View = FRotator(-10.0, (Dir.IsNearlyZero() ? FVector(1.0, 0.0, 0.0) : Dir).Rotation().Yaw, 0.0);
+		if (AController* C = GetController()) C->SetControlRotation(View);
+		Camera->SetWorldRotation(View);
+		const FTransform Xf = M ? TorqueFurniture::MovedXf(this, *M, F->Turn) : FTransform::Identity;
+		return FString::Printf(TEXT("carried to %.0f, %.0f (it's at %.0f, %.0f)"), Stand.X, Stand.Y, Xf.GetLocation().X, Xf.GetLocation().Y);
+	}
+	if (What == TEXT("drop"))
+	{
+		const FTorqueFurniture* F = B->FurnitureById(Moving);
+		const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+		if (!M) return TEXT("not dropped: no model");
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::ReleaseFurniture;
+		R.Item = Moving;
+		if (!TorqueFurniture::PutDownXf(this, *M, F->Turn, R.Place, WhyNot) || !B->Request(R, WhyNot)) return TEXT("not dropped: ") + WhyNot;
+		F = B->FurnitureById(Moving);
+		return F ? TEXT("dropped ") + TWFI::Where(*F) : FString(TEXT("dropped (gone?)"));
+	}
+	if (What == TEXT("order"))
+	{
+		const TorqueFurniture::FModel* M = Args.Num() > 0 ? TorqueFurniture::Find(FName(*Args[0])) : nullptr;
+		if (!M) return TEXT("not ordered: no such kit");
+		int32 Before = 0;
+		for (const FTorqueFurniture& F : B->Furniture()) Before = FMath::Max(Before, F.Id);
+		FString Out = TestComputer(FName(*(TEXT("kit:") + M->Kind.ToString())), M->Id, true);
+		CloseComputer();
+		for (const FTorqueFurniture& F : B->Furniture())
+			if (F.Id > Before && F.Model == M->Id) return Out + TEXT("; landed: ") + TWFI::Where(F);
+		return Out + TEXT("; not ordered: no new piece");
+	}
+	return TEXT("not furniture: look, grab, turn, walk, drop, order or log");
+}

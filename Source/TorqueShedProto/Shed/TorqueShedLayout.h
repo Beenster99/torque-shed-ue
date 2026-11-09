@@ -68,6 +68,19 @@ inline FTransform LiftXf(int32 Lift)
 // and the wash bay's at (-1055, 260).
 inline FVector LiftPostLocal(int32 Lift) { return FVector(-160.0, Lift == 1 ? 125.0 : -125.0, 0.0); }
 inline FVector LiftPostAt(int32 Lift) { return LiftXf(Lift).TransformPosition(LiftPostLocal(Lift)); }
+// The lifts' platform: long enough for the longest bike the parts make (the long-rake chopper,
+// 1.92 m between its axles: its front tyre in the vice and its back tyre still on the table;
+// SimTest/spec_test checks every frame), and the ramp hinged on its back.
+constexpr double LiftDeckLength = 260.0;
+constexpr double LiftRampLength = 40.0;
+// Whether a bike let go with its middle at At is going onto lift Lift: anywhere over its platform
+// or ramp (or just in front), not off to either side. It's then wheeled square onto it.
+inline bool OntoLift(int32 Lift, const FVector& At)
+{
+	const FVector Local = LiftXf(Lift).InverseTransformPosition(FVector(At.X, At.Y, 0.0));
+	const double Half = LiftDeckLength * 0.5;
+	return Local.X > -(Half + LiftRampLength + 30.0) && Local.X < Half + 30.0 && FMath::Abs(Local.Y) < 75.0;
+}
 
 // The spray bay's hooks: where a part on hook n hangs from (its top, centred), and the lowest a
 // hung part's bottom comes (workshop.gd HOOK_TIP, HOOK_FLOOR).
@@ -121,7 +134,7 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::Stand, TEXT("stand"), FVector(-25.0 + 560.0, -55.0, 55.0), FVector(565.0 + 20.0, -25.0, 90.0), FVector(560.0, -40.0, 82.0), 0);
 	// The bins left of the roller door, y 487 .. 547, 92 high.
 	static const TCHAR* const BinNames[] = {TEXT("general"), TEXT("plastic"), TEXT("metal")};
-	static const double BinX[] = {-275.0, -333.0, -391.0};
+	static const double BinX[] = {-277.0, -337.0, -397.0};   // 60 cm apart: the wheel hubs are 59 cm across
 	for (int32 I = 0; I < 3; ++I)
 		Add(ETorquePlace::Bin, BinNames[I], FVector(BinX[I] - 28.0, 483.0, 0.0), FVector(BinX[I] + 28.0, 549.0, 92.0),
 			FVector(BinX[I], 517.0, 92.0), I);
@@ -233,7 +246,14 @@ inline bool InDeliveries(const FVector& At) { return At.X > 280.0 && At.X < 1080
 inline bool InWashBay(const FVector& At) { return At.X > -1170.0 && At.X < -690.0 && At.Y > -240.0 && At.Y < 540.0; }
 
 // Inside the shed, the yard and the wash bay: where a part can be put down.
-inline bool OnSite(const FVector& At) { return FMath::Abs(At.X) < 4000.0 && FMath::Abs(At.Y) < 4000.0 && At.Z > -50.0 && At.Z < 500.0; }
+// (And out on the riding yard's pad, where a bike ridden out is parked: Tools/shed_yard.py's PAD, 600 m
+// across and 1.6 km out from the door.)
+inline bool OnSite(const FVector& At)
+{
+	const bool bShed = FMath::Abs(At.X) < 4000.0 && FMath::Abs(At.Y) < 4000.0;
+	const bool bPad = FMath::Abs(At.X) < 30000.0 && At.Y > 0.0 && At.Y < 160580.0;
+	return (bShed || bPad) && At.Z > -50.0 && At.Z < 500.0;
+}
 
 // Where a player stands when they come in, for parts dropped by someone who's left.
 inline FVector DropAt() { return FVector(0.0, 180.0, 0.0); }

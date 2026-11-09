@@ -15,6 +15,7 @@
 #include "TorqueBikePawn.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueWalker.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueProfile.h"
@@ -448,7 +449,38 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Character"), [this]() { Open(EPage::Graphics); });
 		// [profile] (also the picture top right)
 		Add(TEXT("Profile"), FString(), TEXT("Your character: which MetaHuman you are, your height and your face"), [this]() { Open(EPage::Profile); });
-		if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn()))
+		ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn());
+		ATorqueWalker* Walker = Cast<ATorqueWalker>(GetPawn());
+		if (Bike && Bike->InYard())
+		{
+			// [yard] Riding about on the concrete outside the shed.
+			Add(TEXT("Back to the door"), FString(), TEXT("Your bike back in front of the roller door (Home)"), [this, Bike]() {
+				CloseMenu();
+				Bike->RestartRide();
+			});
+			Add(TEXT("Park and walk back in"), FString(), FTorqueKeys::Text(ETorqueKey::BackToShed), [this]() {
+				CloseMenu();
+				TorqueYard::WalkBackIn(this);
+			});
+		}
+		if ((Bike && Bike->InYard()) || Walker)
+		{
+			// [yard] The adventure: the host's to choose, and everyone goes (riders in the yard and
+			// those still in the shed, each on the bike they last took out or worked on).
+			if (!bClient)
+				Add(bHost ? TEXT("Set off on Buttertubs (everyone)") : TEXT("Set off on Buttertubs"), FString(),
+					TEXT("The adventure: over the pass, from the top down to Keld"), [this, Bike, Walker]() {
+						CloseMenu();
+						if (Walker) Walker->StartAdventure();
+						else if (Bike) TorqueFlow::RideOut(this);
+					});
+			else
+			{
+				Add(TEXT("Set off on Buttertubs"), FString(), TEXT("The host chooses when everyone sets off"), nullptr);
+				R.Last().bDisabled = true;
+			}
+		}
+		if (Bike && !Bike->InYard())
 		{
 			Add(TEXT("Restart the ride"), FString(), TEXT("Back to the start of the road (Home)"), [this, Bike]() {
 				CloseMenu();
@@ -1528,4 +1560,19 @@ void ATorquePlayerController::ServerPlace_Implementation(FVector At, FRotator Vi
 	P->SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
 	SetControlRotation(View);
 	UE_LOG(LogTemp, Log, TEXT("Torque net: %s put at %s (from its own machine)"), *P->GetName(), *At.ToCompactString());
+}
+
+void ATorquePlayerController::ServerRideYard_Implementation(int32 Bay, bool bAtBike)
+{
+	TorqueYard::HostRideOut(this, Bay, bAtBike);
+}
+
+void ATorquePlayerController::ServerGetOffYard_Implementation()
+{
+	TorqueYard::HostGetOff(this);
+}
+
+void ATorquePlayerController::ServerWalkBackIn_Implementation()
+{
+	TorqueYard::HostWalkBackIn(this);
 }

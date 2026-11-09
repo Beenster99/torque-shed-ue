@@ -6,7 +6,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 set(SIM ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Sim)
-add_executable(sim_test sim_test.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp ${SIM}/BikeSim.cpp)
+add_executable(sim_test sim_test.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp)
 if(MSVC)
   target_compile_options(sim_test PRIVATE /W4)
 else()
@@ -65,12 +65,21 @@ else()
 endif()
 
 # How a bike of catalogue parts rides (BikeBuild): checked against the real game's numbers.
-add_executable(spec_test spec_test.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+add_executable(spec_test spec_test.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
 target_include_directories(spec_test PRIVATE ${FIT} ${SIM})
 if(MSVC)
   target_compile_options(spec_test PRIVATE /W4)
 else()
   target_compile_options(spec_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
+# The dyno desk's tune (BikeBuild's tune rules and what a tune does): checked against the real game's.
+add_executable(tune_test tune_test.cpp ${FIT}/BikeTune.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(tune_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(tune_test PRIVATE /W4)
+else()
+  target_compile_options(tune_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
 
 # The shed's sounds (Torque Shed's Sfx): the manifest and takes in Data/Audio/TS, the rules, the mixer.
@@ -84,7 +93,7 @@ else()
 endif()
 
 # The New bike configurator (the Godot game's BikeShop): checked against the real game's answers.
-add_executable(shop_test shop_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+add_executable(shop_test shop_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
 target_include_directories(shop_test PRIVATE ${FIT} ${SIM})
 if(MSVC)
   target_compile_options(shop_test PRIVATE /W4)
@@ -94,7 +103,7 @@ endif()
 
 # The tank badge (the Godot game's BikeBadge): the logos' pictures, where the badge goes on the
 # tank and the decal skins cut from it, checked against the real game's.
-add_executable(badge_test badge_test.cpp ${FIT}/BikeBadge.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+add_executable(badge_test badge_test.cpp ${FIT}/BikeBadge.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
 target_include_directories(badge_test PRIVATE ${FIT} ${SIM})
 if(MSVC)
   target_compile_options(badge_test PRIVATE /W4)
@@ -113,7 +122,7 @@ else()
 endif()
 
 # Every style's stock bike ridden against the real bikes it stands for (0-60, 60-0, full-lean turn).
-add_executable(realism_test realism_test.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+add_executable(realism_test realism_test.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
 target_include_directories(realism_test PRIVATE ${FIT} ${SIM})
 if(MSVC)
   target_compile_options(realism_test PRIVATE /W4)

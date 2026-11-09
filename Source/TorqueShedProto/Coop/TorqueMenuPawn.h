@@ -1,6 +1,5 @@
-// The start menu, as Torque Shed's title: Your name, Open the shed (solo), Host a co-op shed, Join
-// (an address or a host name), rides found on this network, Settings (ATorquePlayerController's
-// pages), Exit game.
+// The start menu: Start Solo, Host Game, Join Game, Settings (ATorquePlayerController's pages),
+// Exit, each with its own page (see EPage below). Your name is in Settings > Character.
 // A slow camera over wherever the game starts (the shed, or the top of Buttertubs) with the menu
 // drawn by ATorqueHUD. Keys, an Xbox pad or a PlayStation pad (read directly, as on the bike).
 //
@@ -35,26 +34,60 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Menu") UCameraComponent* Camera;
 
 private:
-	enum class EItem : uint8 { Name, Solo, Host, Join, Code, Lan, Search, Settings, Quit };
+	// beenster's menu tree (9 Nov):
+	//   Start Solo: New Game, Load Game, Delete Game, Back
+	//   Host Game:  New Game, Load Game, Back
+	//   Join Game:  IP address (typed), Join, Back
+	//   Settings, Exit
+	// Load Game and Delete Game list the saved games (UTorqueBuildSubsystem::SavedGames); deleting
+	// asks first.
+	enum class EPage : uint8 { Main, Solo, Host, Join, Load, Delete, Confirm };
+	enum class EItem : uint8 { Solo, Host, Join, Settings, Quit, NewGame, LoadGame, DeleteGame, Back, Address, JoinNow, Game, Yes, No };
 	struct FEntry
 	{
-		EItem Kind = EItem::Solo;
-		int32 Lan = -1;
-		FString Text, Hint;
+		EItem Kind = EItem::Back;
+		int32 Game = -1;   // EItem::Game: the index into Games
+		FString Text, Hint, Side;   // Side: small grey words at the row's right (a game's date)
 	};
 	TArray<FEntry> Entries() const;
+	FString PageTitle() const;
 	void Choose(const FEntry& E);
+	void GoTo(EPage To);
+	void Back();
 	void TypeAddress(class APlayerController* PC);
-	void TypeCode(class APlayerController* PC);
+	// Starts the chosen game: solo or hosted (bHosting), new or from Slot.
+	void Start(const FString& Slot, bool bNew);
+
+	EPage Page = EPage::Main;
+	bool bHosting = false;     // the Load page was opened from Host Game
+	TArray<int32> SelectedOn;  // the row picked on each page, for coming back to it
+	struct FGameRow
+	{
+		FString Slot, Name, When;
+		int32 Bikes = -1;
+	};
+	TArray<FGameRow> Games;    // read when Load or Delete opens
+	int32 DeleteIndex = -1;    // the game the Confirm page asks about
+	FString Note;              // "Game 3 deleted" and the like, under the menu
+	void ReadGames();
+
+	// The PC's hands-off check of the title pages: -TorqueTitleTest=solo,new or host,load:1 etc.
+	// Steps (1.5 s apart): solo, host, join, settings, back, new, load, load:N, delete:N (and yes),
+	// delete, yes, keep, address:TEXT, wipe (deletes every test game), quit. The test's games are
+	// their own slots (TitleTest, TitleTest_2...), never the player's. Each page it lands on, the
+	// games listed and the game started go to the log as "title: ...".
+	TArray<FString> TestSteps;
+	double TestClock = 0.0;
+	void RunTestStep(const FString& Step);
+	bool TestChoose(EItem Kind, const TCHAR* What);
+	void LogPage() const;
 
 	TUniquePtr<FSonyPad> Pad;
 	uint32 PrevButtons = 0;
-	int32 Selected = 1;          // on "Open the shed"
-	bool bNameTyped = false;
+	int32 Selected = 0;
 	FString Address;            // being typed for Join
-	FString Code;               // a friend code being typed (EOS)
-	FString Busy;               // "Loading the road..." once something is chosen
-	double Clock = 0.0, SearchClock = 10.0, StickRepeat = 0.0;
+	FString Busy;               // "Loading..." once something is chosen
+	double Clock = 0.0, StickRepeat = 0.0;
 	int32 StickDir = 0;
 	// The mouse (TorqueMenuMouse.h): where the last drawing put the rows, and the pointer's last place.
 	mutable FTorqueMenuHits Hits;

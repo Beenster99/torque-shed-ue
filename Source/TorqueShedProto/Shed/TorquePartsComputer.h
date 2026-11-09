@@ -20,7 +20,7 @@ class UTorqueBuildSubsystem;
 // What a click (or the pad) asks for.
 struct FTorqueComputerAction
 {
-	enum class EKind : uint8 { None, Close, OrderBike, OrderPart, BuyPaint, OrderNewBike };
+	enum class EKind : uint8 { None, Close, OrderBike, OrderPart, BuyPaint, OrderNewBike, OrderKit };
 	EKind Kind = EKind::None;
 	FName Part;                 // OrderPart
 	int32 Stock = INDEX_NONE;   // BuyPaint: the bay's stock index (FTorquePaintBay::BaseStock / TintStock)
@@ -48,6 +48,9 @@ public:
 	// For the test steps: pick a kind ("bikes", "paint:bases", "paint:tints" or a part kind) and a model.
 	bool PickKind(FName Kind);
 	bool PickPart(FName Part);
+	// The bike type filter over the part lists ("cafe", "bobber"...; "all" or "" for every type).
+	// False if there's no such type.
+	bool PickBikeType(const FString& Type);
 	// The New bike aisle (the configurator): opened on it, and the configurator itself for the tests.
 	void OpenNewBike();
 	FTorqueBikeConfigurator& NewBike() { return Configurator; }
@@ -66,7 +69,7 @@ private:
 	enum class ESection : uint8 { Bike, Shed, NewBike };
 	struct FKindRow { FName Kind; FString Heading; };   // a heading row has no Kind
 	struct FRow { FName Part; int32 Stock = INDEX_NONE; };
-	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style };
+	enum class EHit : uint8 { Close, OrderBike, Section, Kind, Row, Order, Style, Type };
 	struct FHit { FBox2D Box; EHit What; int32 Arg; };
 
 	ESection Section = ESection::Bike;
@@ -81,6 +84,12 @@ private:
 	// The picked item turning in 3D at the top of the detail column (the local player's studio).
 	TWeakObjectPtr<ATorqueShopPreview> Preview;
 	FTorqueBikeConfigurator Configurator;   // the New bike aisle
+
+	// The bike type the part lists are cut to (a layout style id; NAME_None: every type). Parts made
+	// for any bike stay in; those that prefer the type come first.
+	FName TypeFilter;
+	bool Filtered() const;       // the kind showing is a part kind (the filter applies to it)
+	void StepType(int32 Dir);
 
 	int32 BikeStyle = 0;         // the project bike's style shown (the one ordered is any of them)
 	FString StyleShown;          // ... and its reference bike's parts, looked up when it changes

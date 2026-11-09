@@ -211,6 +211,7 @@ void RideSound::Render(float* Out, int N)
 		Now.Grid += (Target.Grid - Now.Grid) * Kt;
 		Now.OnTarmac = Target.OnTarmac;
 		Now.Airborne = Target.Airborne;
+		Running += ((Target.EngineOn ? 1.0 : 0.0) - Running) * Kt;
 		if (--RetuneIn <= 0) { Retune(); RetuneIn = 256; }
 
 		const double Rpm = std::max(Now.Rpm, 300.0);
@@ -294,6 +295,7 @@ void RideSound::Render(float* Out, int N)
 		}
 		const double Engine = EngineVoice ? EngineBuf[S] * EngineGain
 			: (Ex * Lerp(1.0, 0.75, Now.Inside) + In * Lerp(0.5, 1.2, Now.Inside)) * (1.0 - Share) + IdleOut * Share + Pop * Lerp(1.0, 0.7, Now.Inside);
+		const double EngineHeard = Engine * Running;
 
 		// Wind: rushing at speed, louder in the helmet.
 		const double V = Now.Speed;
@@ -369,7 +371,7 @@ void RideSound::Render(float* Out, int N)
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
 
-		double Mix = (Engine * EngineLevel + (Wind + Bg) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
+		double Mix = (EngineHeard * EngineLevel + (Wind + Bg) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
 		// DC block, then a soft limit.
 		const double Hpo = Mix - HpIn + 0.995 * Hp;
 		HpIn = Mix;

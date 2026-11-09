@@ -17,7 +17,9 @@
 //                         is given) with those slots changed, and everything bolted up
 //   fabricate             the repair tool on the frame once for each job the bike owes
 //   dyno                  the dyno room on bay 1's bike: wheel it onto the rig, strap it at the four posts,
-//                         a run with the fan on and one with it off, the big screen mid-run and after,
+//                         a run with the fan on, the dyno desk's page (the map and ignition tuned and run
+//                         again, the pressures, gearing, clickers and Weight tabs), one with the fan off,
+//                         the big screen mid-run and after,
 //                         the straps undone and the bike wheeled home (alone, it quits at the end)
 //   booth                 the paint shop's spray bay on bay 1's bike: its exhaust restored, hung on a hook and
 //                         sprayed with the gun (primer, gloss red, clear lacquer), the gun refused on the
@@ -26,7 +28,13 @@
 //   wheel:rig|home        take hold of the bay's bike, walk it onto the dyno's rig or back to its bay, let go
 //   strap:<0-3>           the work button at that strap post on the rig (does it up, or undoes it)
 //   fan:on|off, lights:on|off, switch:fan|lights   the dyno room's switches by the door (F)
-//   dynorun[:mid]         F at the dyno desk and wait out the run (mid: about 60% of it, for a shot)
+//   dynorun[:mid]         F at the dyno desk, Run the dyno on its page, and wait out the run (mid: about 60%
+//                         of it, for a shot); the page closes again unless it was up already
+//   desk[:open|close|log], desk:tab:<name>   the dyno desk's page (TorqueDynoDesk): opened, walked away from,
+//                         logged (the tab's settings and what the bike makes), or a tab picked (Engine,
+//                         Suspension, Tyres & chain, Gearing, Rider aids, Weight)
+//   tune:<key>:<value|stock>   a setting on the desk moved (map 0.25, psi_r 1.6, sprocket_r 48, aid_traction 2)
+//                         or put back to stock, as its slider would
 //   shedlights:on|off, rollerdoor:up|down   the switch boxes right of the roller door (F)
 //   extinguisher:take|spray|stop|put        the fire extinguisher: F takes it, the work button sprays, F puts it back
 //   standmove:<x>:<y>[:<yaw>]               wheel the engine stand there (world cm) and let go
@@ -53,8 +61,11 @@
 //   order:<part>|bike     order from the parts computer (delivered outside the roller door)
 //   newbike[:<style>][:<slot>=<part>]...[:order]  the parts computer's New bike aisle (the configurator):
 //                         that style's bike with those parts on, a colour of its own, ordered built into a free bay
-//   rideout               stand in the roller door and press F (loads Buttertubs with the bike as built)
-//   back                  on the road: back to the shed (as Backspace)
+//   rideout               stand in the roller door and set off on Buttertubs (the host's pause menu choice;
+//                         loads Buttertubs with the bike as built)
+//   yard                  stand in the roller door and press F: ride your bike out onto the yard's concrete
+//   back                  on the road: back to the shed (as Backspace); in the yard, as walkin
+//   walkin                in the yard: park the bike and walk back in through the door
 //   log                   log every bay's bike and the loose parts
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   shot:ui               a screenshot of the viewport with the HUD and menus (FScreenshotRequest)
@@ -79,6 +90,15 @@
 //   rides                 the rider sat on four styles in turn: the ride test's scratch bike remade as a cafe
 //                         racer, chopper, sport bike and MX bike, each ridden out and logged with a shot
 //                         at the start and after 10 s of the robot, plus a side-on shot (alone, it quits at the end)
+//   physics               physics stage 4: the ride test's scratch bike remade as each of the 14 styles' reference
+//                         bikes in turn, each ridden out for a launch, a stop from 60 on the test pad and a
+//                         full-lean bend at 45 (launch, brakestop:60:flat, lean:max), and back (alone, it quits)
+//   kit                   the movable shed and yard kit: the test area, a cone taken hold of, turned, carried
+//                         and put down, a ramp and a stool ordered and moved (alone, it quits at the end)
+//   furn:look:<model|id>, furn:grab, furn:turn:<deg>, furn:walk:<x>:<y>, furn:drop, furn:order:<model>, furn:log
+//                         the movable kit (TorqueFurniture): stand back from the nearest one and look at it, take
+//                         hold of it, turn it, carry it there, put it down, order it from the Shed aisle; each logs
+//                         where the piece is (look:testarea, look:dropoff, look:kitdrop frame the yard)
 //   restyle:<style>       (a test shortcut) every part of the bay's catalogue bike that isn't that style's
 //                         reference part (the frame too) thrown away, and the bike finished as that style
 //   ridelog               on the road: our bike's riding spec, what it's doing now, its drawn groups and
@@ -90,11 +110,23 @@
 //                         e.g. camera:3:60:35:40:-20:rhand, the right hand on its grip from below
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
+//   foot:off|on|walk:<cm> on the road: get off (as F, stopped; the bike on its stand, the engine left as it was),
+//                         back on (as F by the bike), or walk that far ahead on foot; logs where the bike stands
+//   gear:up|down, ignition, clutch:1|0, bikestate   on the road: a click of the gear lever (the box goes
+//                         manual), the key (I), the clutch held or let go (Left Alt), or nothing; each logs the gear,
+//                         speed, engine, revs and clutch after it, e.g. "gear N at 0.0 mph, engine running"
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   brakestop[:<mph>][:flat]  on the road: the robot holds mph (60) on a straight, then brakes as a road test
 //                         does (front full, rear 0.6, realism 0.5) to a stop; logs the distance, time, average g,
 //                         nose dive, the road's grade and the level stop from 60 it comes to, and the brakes and
 //                         tyres. :flat stops on a level test pad (SimTest's flat ground) instead of the road
+//   crash:wall|bike[:<mph>]  on the road: the robot holds mph (30) on a straight, then on the test pad rides
+//                         straight into a drystone wall (or a stopped bike of the same build, drawn as a debug
+//                         outline) 12 m ahead; logs the hit's speed, whether the rider came off, and where the
+//                         front tyre stopped; then back on the road where it began
+//   launch[:<mph>]        on the road: the robot rolls at mph (10) onto the test pad, stops, stands a second, then
+//                         goes flat out (weight forward, automatic box) for 10 s; logs 0-30 and 0-60 mph and
+//                         0-100 km/h, as SimTest/realism_test's launch; then back on the road where it began
 //   lean:max[:<mph>]      on the road: the robot holds mph (45) on a level straight, then on the test pad the
 //                         steer input is held full for 6 s; logs the lean and sideways g it settles at, the
 //                         peaks, and whether it slid or stood up; then back on the road where it began.

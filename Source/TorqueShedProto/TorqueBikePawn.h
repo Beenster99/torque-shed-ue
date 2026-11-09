@@ -82,8 +82,35 @@ public:
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
 
+	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
+	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand
+	// (the back wheel lifted), its engine left as it was, ticking over if it was running. F by the
+	// bike gets back on. Parked: a bike seen standing with nobody on it (ours, or in co-op another
+	// rider's), its stand down and the rider hidden.
+	bool IsOnFoot() const { return bOnFoot; }
+	void SetParkedLook(bool bParked);
+	// For TorqueShedTest: "off" or "on" as F does, "push" / "letgo" as holding F by it and F again,
+	// "walk:<cm>" steps that far ahead (on foot, the bike alongside if it's being wheeled).
+	FString TestFoot(const FString& What);
+
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
 	void PlaceForSlot(int32 Slot);
+	// [yard] Ridden in the shed's yard (the concrete pad outside the roller door, Tools/shed_yard.py)
+	// rather than on Buttertubs: the yard's route and walls, no finish, a crashed rider put back on
+	// where he fell, and Backspace parks it and walks back in (Shed/TorqueYard.h).
+	bool InYard() const { return bYard; }
+	// The shed bay whose bike this is (-1 the Speed Twin model). The yard's spawner sets it before
+	// BeginPlay (SpawnActorDeferred): on the host, a joined rider's bike isn't theirs to ask yet.
+	int32 GetRideBay() const { return RideBay; }
+	void SetYardBay(int32 Bay) { YardBay = Bay; }
+	// [yard] Where it starts (Unreal cm, yaw degrees): where the bike stood in the shed when the rider
+	// got on it there. Set by the host before BeginPlay and sent with the bike, so the rider's own
+	// machine (which runs the bike) starts it there too, not at the door.
+	void SetYardStart(const FVector& At, double Yaw) { bYardStart = true; YardStartAt = At; YardStartYaw = (float)Yaw; }
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	UPROPERTY(Replicated) bool bYardStart = false;
+	UPROPERTY(Replicated) FVector YardStartAt = FVector::ZeroVector;
+	UPROPERTY(Replicated) float YardStartYaw = 0.0f;
 	// Back to the start of the road, the clock reset (Home, or the pause menu).
 	void RestartRide();
 
@@ -95,12 +122,23 @@ public:
 	// Hold a lever for a check of the rider's fingers on it: Side 0 the clutch, 1 the front brake;
 	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
 	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
+	// The stage 3 controls for TorqueShedTest, as the keys work them: What "gear" (Arg +1 up, -1 down, as
+	// X / Z: the box goes manual), "ignition" (as I), "clutch" (Arg 1 held, 0 let go, as Left Alt) or "state"
+	// (nothing). Says the gear, the engine, the clutch and the speed after it.
+	FString TestControl(const FString& What, int32 Arg);
 	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
 	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
 	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at
 	// that speed for 6 s on a level test pad (the road's edge, banks and ditches are no part of it) and
 	// comes back to where the bend began. bFlat puts a brake stop on the pad too (else it's on the
 	// road, its grade allowed for in the log). Riding realism is the road tests' 0.5 while measuring.
+	// Kind 2 and 3 are knocks, on the test pad: Kind 2 rides at Mph into a drystone wall stood across
+	// its path 12 m ahead (as collision.json's wall boxes), Kind 3 into a stand-in bike of the same
+	// build stopped across it (seen as a debug outline only), the robot holding the line and the speed
+	// until it hits. The log has the hit's speed and whether the rider came off.
+	// Kind 4 is a launch on the test pad, as SimTest/realism_test's: rolling at Mph (10) it stops, stands
+	// a second, then full throttle with the weight forward on the automatic box for 10 s; the log has
+	// 0-60 mph (and 0-30, 0-100 km/h) and the quarter of the way's speed.
 	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
 	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
@@ -173,6 +211,17 @@ public:
 private:
 	friend class UTorqueNetBikeComponent;   // reads our bike to send it, or sets someone else's
 	TUniquePtr<TorqueSim::BikeSim> Sim;
+	// What the bike bumps into besides the ground (Sim/BikeContacts.h): the ride's walls, buildings,
+	// gates and props from Data/Buttertubs/collision.json (Tools/make_collision.py), and the other
+	// riders' bikes, gathered each frame. HitsHeard: the sim's knock count already sounded.
+	TUniquePtr<TorqueSim::ContactWorld> Contacts;
+	int32 HitsHeard = 0;
+	void LoadContacts();
+	void GatherOtherBikes();
+	// [furniture] The ride's own boxes, and the yard's solid kit added to them (TorqueFurniture.h):
+	// rebuilt whenever the kit's moved (its ContactVersion changes).
+	TArray<TorqueSim::ContactBox> BaseBoxes;
+	int32 FurnitureSeen = 0;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it
@@ -195,6 +244,10 @@ private:
 	bool bHornDown = false;
 	double EngineCatchIn = 0.0;
 	int32 RideBay = INDEX_NONE;   // the shed bay whose bike this is (BuildCatalogueModel): its engine sound
+	int32 YardBay = INDEX_NONE;   // [yard] SetYardBay's: the bay to draw, before anyone asks whose bike it is
+	bool bYard = false;           // [yard] InYard
+	FBox2D YardOpen = FBox2D(ForceInit);   // [yard] the open concrete (sim x, z) a fallen rider goes back on
+	void BackOnWheels();          // after a crash or Triangle: back on the road (the yard: where he fell)
 	TArray<float> SoundFloat;
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;
@@ -202,6 +255,10 @@ private:
 	bool bAbs = true;                // the ABS switched on; off lets the rear lock
 	bool bHasAbs[2] = {true, true};  // the bike has ABS at the front, the rear (a catalogue bike's ECU may not)
 	double GearNoteFor = 0.0;
+	// A word on the HUD for a moment: "Engine off", "Out of petrol!" (EngineNote, for EngineNoteFor s).
+	FString EngineNote;
+	double EngineNoteFor = 0.0;
+	bool bEngineWas = true;   // the sim's engine running last frame (to hear it catch or stop)
 	// Performance: P shows frame, game, render and GPU times; O (or -TorqueProfile) logs them each
 	// second to Saved/Profiling/torque_perf_<time>.csv.
 	bool bPerfShow = false, bPerfLog = false;
@@ -217,6 +274,9 @@ private:
 	int32 Weather = 0;
 	double HostOnlyNoteFor = 0.0;      // "the host sets the weather", on a joined rider's HUD
 	void ApplyWeather();
+	// The heat's air, road and wetness from the weather and the time of day (BikeHeat ambient_c,
+	// road_c); bSoak: the whole bike at the shed's temperature (a ride starting from the shed).
+	void WeatherHeat(bool bSoak);
 	double Accum = 0.0;
 	FVector PrevPos, CurPos;          // Unreal cm, the sim body origin before and after the last step
 	FQuat PrevRot, CurRot;
@@ -232,6 +292,7 @@ private:
 	// Smoothed rider inputs from keys, pad and wheel.
 	double Throttle = 0, FrontBrake = 0, RearBrake = 0, Lean = 0, Shift = 0;
 	double CrashedFor = 0.0;
+	bool bGhostHidden = false;   // the respawn ghost's blink: the bike and rider hidden this frame
 
 	// Camera.
 	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit
@@ -260,23 +321,62 @@ private:
 	// groups as the Speed Twin model's (wheels spinning, bars and fork steering, the fork lowers and
 	// the swingarm on the suspension), its geometry above from the layout, and its own riding spec.
 	bool bCatalogueModel = false;
+	// [foot] Off the bike: where you stand (world cm, at your feet) and look; where the bike's parked
+	// (sim frame: the ground under it, its heading, which stand, how far it leans or is lifted); the
+	// catalogue bike's stands (their parts, and each stand surface's place as drawn, folded).
+	bool bOnFoot = false, bParkedLook = false;
+	FVector FootPos = FVector::ZeroVector;
+	double FootYaw = 0.0, FootPitch = 0.0, OnFootFor = 0.0, FootNoteFor = 0.0;
+	FString FootNote;
+	TorqueSim::V3 ParkGround;
+	double ParkHeading = 0.0, ParkLean = 0.0, ParkLift = 0.0;
+	int32 ParkStand = 0;   // 0 none, 1 side stand, 2 centre stand
+	FString SideStandPart, CentreStandPart;
+	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
+	void ChooseStand();
+	bool GetOff();
+	bool GetOn();
+	void HoldParked();
+	void StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY);
+	void PoseStands(int32 Stand);
+	// Wheeling it on foot (hold F by it): it follows alongside, upright, the stand up; F lets go.
+	bool bPushing = false, bUseArmed = false;
+	double UseHeld = 0.0;
+	void TakeHoldOfBike();
+	void LetGoBike();
+	void FollowPusher();
 	FString CatalogueSpec;             // the spec, as logged
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
+	bool bTestClutch = false;   // TestControl's clutch, held
+	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
+	double PadStartHeld = 0.0;
+	bool bPadRBWas = false, bPadComboUsed = false, bPadStartDone = false;
+	void PressIgnition();   // the key (I): off, or the starter
 	// TestStartMove's manoeuvre: which (-1 none), its phase (0 getting up to speed, 1 measuring), the
 	// speed it's held at (m/s), and what it has measured so far.
 	int32 TestMove = -1, TestPhase = 0, TestFromNear = 0;
 	double TestMps = 0.0, TestClock = 0.0, TestSteady = 0.0, TestDist = 0.0, TestV0 = 0.0, TestSide = 1.0;
 	double TestNose = 0.0, TestLeanSum = 0.0, TestGSum = 0.0, TestLeanPeak = 0.0, TestGPeak = 0.0, TestSlide = 0.0, TestLateLean = 0.0;
 	int32 TestSamples = 0, TestLateSamples = 0;
-	bool bTestRobotWas = false, bTestTarmac = false;
+	bool bTestRobotWas = false, bTestTarmac = false, bTestManualWas = false;
+	double TestT30 = -1.0, TestT60 = -1.0, TestT100k = -1.0, TestStill = 0.0;
 	// The test pad: while set, the wheels see a level tarmac plane at TestPadY (sim metres) and nothing
 	// else, so a manoeuvre measures the bike as SimTest/realism_test's flat ground does.
 	bool bTestFlat = false, bTestWantFlat = false;
 	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
 	FString TestMoveText;
 	void TestMoveStep();
+	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps
+	double TestFirstHit = 0.0, TestPreHit = 0.0;   // the first knock's speed into it, and the speed the step before
+	bool TestFirstBike = false;
+	// Kind 2 and 3's wall or stopped bike (only these, on the pad), the hits before it, and where it is.
+	TorqueSim::ContactWorld TestContacts;
+	TUniquePtr<TorqueSim::BikeSim> TestParked;
+	int32 TestHitsWas = 0;
+	double TestFace = 0.0, TestAfterHit = -1.0;
+	FVector2D TestAt = FVector2D::ZeroVector, TestFwd = FVector2D::ZeroVector;
 	// Where its rider sits (pawn local cm): the seat's surface under the hips, the pegs (0 left, 1
 	// right) and the grips' centres, from the layout (as Torque Shed sits its rider: BikeRig's hip
 	// and peg) and the grips as drawn, with geometry mode's offsets. FitRiderToBike turns them into
@@ -336,6 +436,7 @@ private:
 	bool BuildCatalogueModel();   // true if the bike is all catalogue parts and was drawn so
 	// SideM: metres to the right of the line (co-op start slots).
 	void Respawn(int32 LineIndex, double SideM = 0.0);
+	void PlaceOnGround(TorqueSim::V3 Pos, double Heading);   // Respawn's second half: upright there, on the ground
 	void Remount();                   // the thrown-off rider back on the bike
 	void ReadInput(float Dt);
 	void StepSim();
