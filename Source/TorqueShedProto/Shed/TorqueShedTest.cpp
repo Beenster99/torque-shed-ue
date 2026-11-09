@@ -146,11 +146,12 @@ const TCHAR* const LiftSteps =
 	TEXT("place:lift_wash,f,wait:5,lifts,look:washbay,shot,place:lift_wash,f,wait:5,lifts,wheel:home,wait:2,bikelog,lifts,log");
 
 // The wash game: bay 1's bike wheeled into the wash bay, the lance held on its tank and its engine (the
-// muck coming off where the jet goes, the shed told), the scan on, the bike raised on the wash lift
-// and its underside washed crouched, then home.   [wash]
+// muck coming off where the jet goes, the shed told), the scan on and off, the bike raised on the
+// wash lift and its underside washed crouched, then home. The bike's shot in its bay first: it should
+// look the same arriving in the wash bay.   [wash]
 const TCHAR* const WashGameSteps =
-	TEXT("bay:1,tool:hands,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
-	TEXT("part:tank,hold:3,washstate,shot,part:engine,hold:3,washstate,shot,washpass:1:60,shot,washpass:1:60,look:washbay,shot,log,")
+	TEXT("bay:1,tool:hands,look:bike,shot,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
+	TEXT("part:tank,hold:3,washstate,shot,washscan:1,wait:1,shot,washscan:0,part:engine,hold:3,washstate,shot,washpass:1:60,shot,washpass:1:60,look:washbay,shot,log,")
 	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,washpass:1:60,shot,crouch:0,look:washbay,shot,")
 	TEXT("tool:hands,place:lift_wash,f,wait:5,wheel:home,wait:2,bikelog,log");
 
@@ -629,6 +630,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("washpass"))   // [wash] washpass:PASSES:CM sweeps the lance over the whole bike
 	{
 		Said(W->TestWashPasses(P.Num() > 1 ? FCString::Atoi(*P[1]) : 1, P.Num() > 2 ? FCString::Atod(*P[2]) : 60.0));
+		return true;
+	}
+	if (Verb == TEXT("washscan"))   // [wash] washscan:1/0, the X scan of the muck still to do
+	{
+		const bool bOn = P.Num() < 2 || P[1] != TEXT("0");
+		W->TestWashScan(bOn);
+		Said(bOn ? TEXT("wash scan on") : TEXT("wash scan off"));
 		return true;
 	}
 	if (Verb == TEXT("washstate"))   // [wash] how the wash game on the wash bay's bike is going

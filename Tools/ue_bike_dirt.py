@@ -213,8 +213,10 @@ if (Scan > 0.001 && s > 0.06)
     float sweep = 0.45 + 0.55 * smoothstep(0.85, 1.0, band);
     float k = Scan * saturate((s - 0.06) * 8.0);
     glow = sc * sweep * k * 1.4;
-    col = lerp(col, sc * 0.35, k * 0.5);
-    alpha = max(alpha, k * 0.8);
+    // A bright highlight that reads as the scan, never as more mud: the dirt itself stays as it is
+    // and only glows (a touch of its colour where the dirt's too faint to glow by itself).
+    col = lerp(col, sc, k * 0.25 * (1.0 - alpha));
+    alpha = max(alpha, k * 0.25);
 }
 glow += float3(0.25, 1.0, 0.45) * Flash * 0.9;
 if (!(alpha >= 0.0 && alpha <= 1.0)) return float4(0, 0, 0, 0);   // never a NaN to the screen

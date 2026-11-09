@@ -125,6 +125,7 @@ public:
 	// For the tests: sweep the lance over the wash bay's bike from every side, Passes times at Distance cm
 	// (from underneath too if it's raised), the shed told; says how it went.
 	FString TestWashPasses(int32 Passes, double Distance);
+	void TestWashScan(bool bOn) { bWashScan = bOn; }
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -409,7 +410,7 @@ private:
 	// job stays on the bike (its muck drawn as washed) until it leaves the bay.
 	TSharedPtr<FTorqueWashJob> WashJob;
 	UPROPERTY(Transient) UTorqueWashFx* WashFx = nullptr;
-	bool bWashScan = true;             // X: the muck still to do lit up (on to start with)
+	bool bWashScan = false;            // X: the muck still to do lit up (off to start with, as in Torque Shed)
 	bool bWashFiring = false;          // the jet's going this frame (this walker's own)
 	double WashSendIn = 0.0, WashLinger = 0.0, WashCueAge = 100.0, WashFlash = 0.0;
 	FString WashCue;
