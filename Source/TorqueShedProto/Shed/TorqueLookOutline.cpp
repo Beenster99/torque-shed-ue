@@ -73,6 +73,20 @@ void FTorqueLookOutline::Show(const TArray<UPrimitiveComponent*>& Now)
 	}
 }
 
+bool FTorqueLookOutline::Movable(ETorquePlace Kind)
+{
+	switch (Kind)
+	{
+	case ETorquePlace::Stand:
+	case ETorquePlace::Extinguisher:
+	case ETorquePlace::Tape:
+	case ETorquePlace::PaintShelf:
+		return true;
+	default:
+		return false;
+	}
+}
+
 const TArray<UPrimitiveComponent*>& FTorqueLookOutline::PlaceMeshes(UWorld* World, const FTorquePlace* Place)
 {
 	if (Place != CachedPlace)

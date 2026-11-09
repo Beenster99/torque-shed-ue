@@ -9,12 +9,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Shed/TorqueShedLayout.h"
 
 class AActor;
 class UPostProcessComponent;
 class UPrimitiveComponent;
 class UWorld;
-struct FTorquePlace;
 
 struct FTorqueLookOutline
 {
@@ -30,6 +30,9 @@ struct FTorqueLookOutline
 	void Show(const TArray<UPrimitiveComponent*>& Now);
 	void Clear() { Show(TArray<UPrimitiveComponent*>()); }
 	int32 Count() const { return Shown.Num(); }
+	// Places whose own meshes are things that move (the engine stand, the extinguisher, the tape
+	// roll, a paint tin): the only places outlined. Fixed kit isn't.
+	static bool Movable(ETorquePlace Kind);
 	// The level's own meshes that make up a place (a machine, a bin, the computer, a hook, the
 	// radio): the ones mostly inside its box, found once per place. None for a bay's floor.
 	const TArray<UPrimitiveComponent*>& PlaceMeshes(UWorld* World, const FTorquePlace* Place);

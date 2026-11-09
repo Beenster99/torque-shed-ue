@@ -3,7 +3,7 @@
 // an outer arm each side, crossing on a pin; fixed pivots at the front, rollers running in tracks at
 // the back) pushed up by a hydraulic ram from the power pack under it, the platform (a rubber mat
 // on a painted table with a box skirt, checker plate wings each side, a rear wheel drop-out panel,
-// a wheel vice at the front that closes on a bike's front tyre), a ramp at the back that the bike
+// a wheel vice that slides to a bike's front tyre and closes on it), a ramp at the back that the bike
 // is wheeled up and that folds up as a stop when it rises, and a control box on a stand beside it.
 // F on the control box raises or lowers it (a Lift request: TorqueShedLayout place "lift_N"). The
 // wash bay's (bWash) is a narrow grated runway, so the jet gets through to underneath.
@@ -15,11 +15,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Shed/TorqueShedLayout.h"
 #include "TorqueBikeLift.generated.h"
 
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class UTorqueBuildSubsystem;
 
 UCLASS()
 class ATorqueBikeLift : public AActor
@@ -69,15 +71,19 @@ private:
 	UPROPERTY(Transient) UStaticMeshComponent* RamRod = nullptr;
 	UPROPERTY(Transient) UStaticMeshComponent* Ramp = nullptr;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Jaws;
+	// The wheel vice (its jaws' middle; the stop is in front of it), sliding along the platform to
+	// meet the front tyre of the bike on it.
+	UPROPERTY(Transient) USceneComponent* Vice = nullptr;
 	double H = 0.0;
 	double JawGap = 1.0;    // the vice: 1 open, 0 closed on a tyre
+	double ViceX = 0.0;     // where along the platform the vice is (cm from its middle)
 	bool bSeen = false;     // the shed's word on it has been read once (no click for the start)
 	bool bWantUp = false;
 	bool bMoving = false;
 	int32 Motor = INDEX_NONE;
 
 	// Its sizes (cm): the platform's length and width, the scissor's half spacing.
-	double DeckLength() const { return 220.0; }
+	double DeckLength() const { return TorqueShedLayout::LiftDeckLength; }
 	double DeckWidth() const { return bWash ? 34.0 : 70.0; }
 	double ArmY() const { return bWash ? 9.0 : 22.0; }
 
@@ -88,4 +94,7 @@ private:
 	void Label(const FString& Text, const FVector& Where, float Size);
 	void Pose();
 	void PoseJaws();
+	// Where the vice wants to be: at the front tyre of the bike on it, or back at rest.
+	double ViceWant(const UTorqueBuildSubsystem* B) const;
+	double ViceRest() const { return DeckLength() * 0.5 - 40.0; }
 };

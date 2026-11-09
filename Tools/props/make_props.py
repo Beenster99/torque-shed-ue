@@ -164,7 +164,7 @@ def parts_computer():
     box("TowerLed", (W / 2 - 0.2, 0.42, 0.178), (0.06, 0.004, 0.002), "display_green", bevel=0.0)
 
 
-def _wheelie_bin(name, body):
+def _wheelie_bin(name, body, label_mat="label_white"):
     """Torque Shed's bin: BIN_SIZE 0.52 x 0.9 x 0.6; a tapering body, lid with the hinge and handle
     at the back (+z here is the front, the label side), the wheels at the back."""
     W, H, D = 0.52, 0.9, 0.6
@@ -178,22 +178,27 @@ def _wheelie_bin(name, body):
         cyl(name + "_Wheel%d" % s, (s * (W / 2 + 0.005), 0.1, -D / 2 + 0.02), 0.1, 0.05, "rubber", axis="x", bevel=0.01)
         cyl(name + "_Hub%d" % s, (s * (W / 2 + 0.008), 0.1, -D / 2 + 0.02), 0.04, 0.052, "plastic_grey", axis="x")
     box(name + "_Foot", (0.0, 0.03, D / 2 - 0.06), (W - 0.1, 0.06, 0.08), body, bevel=0.01)
-    box(name + "_Label", (0.0, 0.58, D / 2 - 0.012), (W - 0.1, 0.26, 0.004), "label_white", bevel=0.001)
+    # The printed label (Tools/props/bin_labels.py draws it, materials.json bin_label_<kind>), lying
+    # on the sloping front: 5 cm lean over the body's 80 cm.
+    lean = math.atan2(0.05, H - 0.1)
+    front = D / 2 - 0.05 + 0.05 * (0.58 - 0.05) / (H - 0.1)
+    box(name + "_Label", (0.0, 0.58, front + 0.0004 + 0.002 / math.cos(lean)), (W - 0.1, 0.26, 0.004), label_mat,
+        bevel=0.001, rot=(math.degrees(lean), 0.0, 0.0))
 
 
 @model("bin_general", (0.52, 0.9, 0.6))
 def bin_general():
-    _wheelie_bin("Bin", "paint_bin_black")
+    _wheelie_bin("Bin", "paint_bin_black", "bin_label_general")
 
 
 @model("bin_plastic", (0.52, 0.9, 0.6))
 def bin_plastic():
-    _wheelie_bin("Bin", "paint_bin_blue")
+    _wheelie_bin("Bin", "paint_bin_blue", "bin_label_plastic")
 
 
 @model("bin_metal", (0.52, 0.9, 0.6))
 def bin_metal():
-    _wheelie_bin("Bin", "paint_bin_green")
+    _wheelie_bin("Bin", "paint_bin_green", "bin_label_metal")
 
 
 def _radio_shelf():
