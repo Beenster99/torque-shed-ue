@@ -42,6 +42,13 @@ struct FittedPart
 	// block): Glb is only a stand-in from the same family, and Name is the Godot mesh's, if it has one.
 	bool Code = false;
 	std::string Name;
+	// [dash] One of the clocks' working pieces (BikeModel's _needles, _leds and _dash_screen), so the
+	// game can drive them: "speed" or "rpm", a needle at rest (straight up the dial) turning about
+	// GaugeAxis through GaugeAt, the rest pointing along GaugeUp; "led0" .. "led5", a shift light
+	// from the left; "readout", the face the readout is written on, GaugeAt its middle, GaugeAxis
+	// out of the face towards the rider and GaugeUp the way its text reads up. Ours frame, bike space.
+	std::string Gauge;
+	V3 GaugeAt, GaugeAxis, GaugeUp;
 };
 
 // A loft section (BikeModel's "secs"): centre, half-width, rise above and drop below it.

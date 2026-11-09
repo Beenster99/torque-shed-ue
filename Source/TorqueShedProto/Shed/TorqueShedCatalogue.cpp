@@ -401,7 +401,8 @@ bool DrawnParts(const TMap<FString, FString>& Parts, const FString& Geo, std::ve
 }
 
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
-	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo, TArray<FName>* OutNodes, FBikeFrame* OutFrame)
+	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo, TArray<FName>* OutNodes, FBikeFrame* OutFrame,
+	TArray<FDashGauge>* OutGauges)
 {
 	OutAxleHeight = 31.0;
 	const TorqueFit::BikeLayout* Lay = Layout();
@@ -473,6 +474,17 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
+			if (OutGauges && !P.Gauge.empty())
+			{
+				// (Ours to Unreal as the vertices go: x, z, y; points in cm.)
+				FDashGauge G;
+				G.What = FName(*TSCI::Ue(P.Gauge));
+				G.Mesh = Out.Num() - 1;
+				G.At = FVector(TSCI::ToUe(P.GaugeAt));
+				G.Axis = FVector(P.GaugeAxis.x, P.GaugeAxis.z, P.GaugeAxis.y).GetSafeNormal();
+				G.Up = FVector(P.GaugeUp.x, P.GaugeUp.z, P.GaugeUp.y).GetSafeNormal();
+				OutGauges->Add(G);
+			}
 			++Made;
 		}
 	}

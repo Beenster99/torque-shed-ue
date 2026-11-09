@@ -14,6 +14,7 @@
 #include "Shed/TorqueAvatar.h"   // the full type: a member below
 #include "SonyPad.h"
 #include "TorqueAudio/RideSound.h"   // the full type, as for the sim
+#include "TorqueDash.h"   // the dashboard: a member below
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
@@ -72,6 +73,12 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
+	// [dash] The dashboard as Torque Shed has it (TorqueDash.h): what the dash part shows, the trip
+	// computer and the petrol, for the HUD's speedo (hud.gd _draw_speedo); and how far the petrol goes.
+	const FTorqueDash& GetDash() const { return Dash; }
+	double DashRangeKm() const { return Sim ? Dash.RangeKm(Sim->Build) : 0.0; }
+	// The engine still being started (the starter cranking it over), for the speedo's "Starting...".
+	bool IsStarting() const { return EngineCatchIn > 0.0; }
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
 
@@ -173,6 +180,7 @@ private:
 	int32 HornId = 0;
 	bool bHornDown = false;
 	double EngineCatchIn = 0.0;
+	int32 RideBay = INDEX_NONE;   // the shed bay whose bike this is (BuildCatalogueModel): its engine sound
 	TArray<float> SoundFloat;
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;
@@ -188,6 +196,7 @@ private:
 	FString PerfText, PerfFile;
 	void UpdatePerf(float Dt);
 	TArray<FHudLine> HudLines;
+	FTorqueDash Dash;   // [dash]
 	bool bShowHelp = true;
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
 	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.

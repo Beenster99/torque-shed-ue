@@ -35,6 +35,8 @@ class UMaterialInstanceDynamic;
 class UStaticMesh;
 class USceneComponent;
 class UTorqueSprayFx;
+class UTorqueWashFx;
+class FTorqueWashJob;
 struct FTorquePlace;
 struct FSonyPadState;
 
@@ -112,6 +114,17 @@ public:
 	bool SprayHudUp() const;
 	void DrawSpray(class AHUD* Hud, class UCanvas* Canvas) const;
 	bool SprayControlsUp() const { return SprayItem != 0; }
+	// The wash game (Torque Shed's wash_job.gd, wash_hud.gd; TorqueWalkerWash.cpp): its readout's up
+	// (the lance out at a bike in the wash bay, or a cue showing), and whether this walker's jet is
+	// going in the wash bay (anyone's: the bay's mist, ATorqueWashMist).
+	bool WashHudUp() const;
+	void DrawWash(class AHUD* Hud, class UCanvas* Canvas) const;
+	bool WashJetting() const;
+	// For the tests: how the wash on the bike in the wash bay is going ("" with none).
+	FString TestWashState() const;
+	// For the tests: sweep the lance over the wash bay's bike from every side, Passes times at Distance cm
+	// (from underneath too if it's raised), the shed told; says how it went.
+	FString TestWashPasses(int32 Passes, double Distance);
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -390,6 +403,25 @@ private:
 	TSet<FString> SprayNoGo;           // coats that couldn't start (nothing drawn to paint): the timed hold does those
 	FString SprayControlsText() const;
 
+	// --- Pressure washing (Torque Shed's wash mini game; TorqueWalkerWash.cpp) --------------------------
+	// With the lance at a bike in the wash bay, holding the work button washes the muck off exactly
+	// where the jet lands (FTorqueWashJob), the shed told as it goes; X shows the muck still to do. The
+	// job stays on the bike (its muck drawn as washed) until it leaves the bay.
+	TSharedPtr<FTorqueWashJob> WashJob;
+	UPROPERTY(Transient) UTorqueWashFx* WashFx = nullptr;
+	bool bWashScan = true;             // X: the muck still to do lit up (on to start with)
+	bool bWashFiring = false;          // the jet's going this frame (this walker's own)
+	double WashSendIn = 0.0, WashLinger = 0.0, WashCueAge = 100.0, WashFlash = 0.0;
+	FString WashCue;
+	bool bWashCueBike = false;
+	int32 WashBayOf() const;           // the bike in the wash bay, nearest (INDEX_NONE: none)
+	bool WashWork(float Dt);           // the work button with the lance: true when the wash game has it
+	void TickWash(float Dt);           // the job follows its bike, the shed's dirt, the scan
+	void UpdateWashFx(float Dt);
+	void SendWash();
+	bool WashOwns(const UStaticMeshComponent* C) const;
+	FString WashControlsText() const;
+
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();
 	void StartRideOut(int32 Bay);
@@ -421,6 +453,12 @@ private:
 	void PushBike(float Dt);
 	void LetGo(int32 Bay);
 	class ATorqueShedBike* BikeActor(int32 Bay) const;
+	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
+	// (TorqueWalkerKit.cpp): true when F went to one of them.
+	bool KitInput(float Dt, bool bF, bool bFDown);
+	bool bStandArmed = false;
+	double StandFHeld = 0.0;
+	bool bSprayAsked = false;
 
 	// Performance, as on the bike: P shows it, O (or -TorqueProfile) logs it each second to
 	// Saved/Profiling/torque_shed_perf_<time>.csv.

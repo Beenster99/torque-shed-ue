@@ -592,6 +592,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			if (B->LayoutParts(I, Parts)) Bay = I;
 		if (Bay < 0) return false;
 	}
+	RideBay = Bay;
 	// Its own physics, or if that won't work out, the Speed Twin's (on which the drawn bike's origin,
 	// at its own rear axle's height, is lifted or dropped to the Speed Twin's 31 cm).
 	BikeSpec Spec;
@@ -606,7 +607,8 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	const FString& Geo = B->Bike(Bay).Geo;
 	TArray<FName> Nodes;
 	TorqueShedCatalogue::FBikeFrame Frame;
-	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame);
+	TArray<TorqueShedCatalogue::FDashGauge> Gauges;   // [dash] the clocks' needles, shift lights and readout
+	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame, &Gauges);
 	if (Drawn <= 0)
 	{
 		Holder->DestroyComponent();
@@ -692,6 +694,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
 		CatalogueSpec = TEXT("SpeedTwin1200 (its own spec didn't work out)");
 	}
+	// [dash] Its dashboard: what the dash part shows, the tank, the engine's thirst, and its clocks
+	// (on their groups now, so their rest is where they ride).
+	Dash.Setup(Parts);
+	Dash.HookClocks(this, ModelParts, Gauges);
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s"),
 			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight, Geo.IsEmpty() ? TEXT("") : TEXT(", with its fit from geometry mode"));
@@ -1265,6 +1271,10 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	ThrowRider(DeltaSeconds);
 	UpdateRider();
 	UpdateClock();
+	// [dash] The trip and the petrol (the rider's own bike), and the clocks on every bike.
+	if (!bRemote) Dash.Step(*Sim, Throttle, EngineCatchIn <= 0.0, DeltaSeconds);
+	else Dash.Step(*Sim, 0.0, true, 0.0);
+	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
 	{
 		UpdateProgress();
@@ -1956,11 +1966,32 @@ void ATorqueBikePawn::StartSound()
 	SoundAudio->SetupAttachment(Root);
 	SoundAudio->RegisterComponent();
 	SoundAudio->SetSound(SoundWave);
+	// The bike's own engine, as Torque Shed makes it from its engine, head, exhaust, air filter,
+	// gearbox and plugs (EngineSynth), in place of the made 270 twin: every bike from the part list.
+	std::shared_ptr<TorqueEngine::FBank> Engine = RideBay >= 0 ? UTorqueSfx::BikeEngine(this, RideBay) : nullptr;
+	if (Engine)
+	{
+		Sound->SetEngine(Engine);
+		UE_LOG(LogTemp, Log, TEXT("Torque: riding with Torque Shed's engine sound %s"), UTF8_TO_TCHAR(Engine->Sig.c_str()));
+	}
 	UpdateSound(0.0f);   // a little queued before it starts
-	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), then it catches.
+	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), or it's kicked
+	// over (made for the engine), then it catches.
 	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
-	if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f)) EngineCatchIn = 1.1;
-	else SoundAudio->Play();
+	if (Sfx && Engine && Engine->Spec.Kick)
+	{
+		Sfx->PlayMadeOn(TorqueEngine::RenderStarter(Engine->Spec, true, 1.0, FMath::RandRange(1, 3)), TorqueEngine::Rate, Root, FVector(0.0, 0.0, 45.0));
+		EngineCatchIn = 0.5;
+	}
+	else if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f))
+	{
+		EngineCatchIn = 1.1;
+	}
+	else
+	{
+		SoundAudio->Play();
+		Sound->Catch();
+	}
 	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
 }
 
@@ -1972,6 +2003,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 		EngineCatchIn -= Dt;
 		if (EngineCatchIn > 0.0) return;
 		SoundAudio->Play();   // it's caught: the engine from here
+		Sound->Catch();
 	}
 	TorqueSound::RideInputs In;
 	In.Rpm = Sim->Rpm;
@@ -2145,12 +2177,11 @@ void ATorqueBikePawn::DrawHud()
 	const double Secs = RideTime - Mins * 60.0;
 	HudLines.Reset();
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
-	Add(FString::Printf(TEXT("%s   gear %d"), *Set.SpeedText(Sim->Speed), Sim->Gear), FColor::White, 2.0f);
-	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
-		!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")),
-		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
-	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
-		FColor(220, 220, 220), 1.1f);
+	// [dash] The speed, gear and revs are on the speedo now (ATorqueHUD::DrawSpeedo, hud.gd's); the
+	// gears and ABS show here for a moment as they're switched.
+	if (GearNoteFor > 0.0)
+		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
+			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
 	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);

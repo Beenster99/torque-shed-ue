@@ -102,10 +102,11 @@ const TCHAR* const SprayGameSteps =
 	TEXT("bay:1,restyle:cafe,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
 	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
 	TEXT("place:hook_0,act,tool:gun,spray:0:primer,item:exhaust,shot,spraypass:2:80,item:exhaust,shot,")
-	TEXT("item:exhaust,spraypass:4:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
+	TEXT("item:exhaust,spraypass:12:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
 	TEXT("spray:0:gloss,item:exhaust,spraypass:1:80,item:exhaust,shot,sprayscan:1,wait:1,shot,sprayscan:0,")
-	TEXT("item:exhaust,spraypass:6:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
-	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,item:exhaust,shot,item:exhaust,spraypass:3:35,item:exhaust,shot,log");
+	TEXT("item:exhaust,spraypass:12:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
+	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,item:exhaust,shot,item:exhaust,spraypass:3:35,item:exhaust,shot,")
+	TEXT("item:exhaust,spraypass:12:80,wait:3,item:exhaust,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
 // test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
@@ -143,6 +144,15 @@ const TCHAR* const LiftSteps =
 	TEXT("wheel:floor,lifts,tool:wrench,part:exhaust,act,log,")
 	TEXT("place:lift_0,f,wait:4,lifts,tool:hands,wheel:floor,wait:2,bikelog,wheel:wash,wait:2,bikelog,")
 	TEXT("place:lift_wash,f,wait:5,lifts,look:washbay,shot,place:lift_wash,f,wait:5,lifts,wheel:home,wait:2,bikelog,lifts,log");
+
+// The wash game: bay 1's bike wheeled into the wash bay, the lance held on its tank and its engine (the
+// muck coming off where the jet goes, the shed told), the scan on, the bike raised on the wash lift
+// and its underside washed crouched, then home.   [wash]
+const TCHAR* const WashGameSteps =
+	TEXT("bay:1,tool:hands,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
+	TEXT("part:tank,hold:3,washstate,shot,part:engine,hold:3,washstate,shot,washpass:1:60,shot,washpass:1:60,look:washbay,shot,log,")
+	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,washpass:1:60,shot,crouch:0,look:washbay,shot,")
+	TEXT("tool:hands,place:lift_wash,f,wait:5,wheel:home,wait:2,bikelog,log");
 
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
@@ -209,6 +219,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("washgame")) FString(TSTI::WashGameSteps).ParseIntoArray(Preset, TEXT(","), true);   // [wash]
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -512,6 +523,17 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const double Distance = P.Num() > 2 ? FMath::Clamp(FCString::Atod(*P[2]), 10.0, 300.0) : 80.0;
 		Said(W->TestSprayPasses(Passes, Distance));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("washpass"))   // [wash] washpass:PASSES:CM sweeps the lance over the whole bike
+	{
+		Said(W->TestWashPasses(P.Num() > 1 ? FCString::Atoi(*P[1]) : 1, P.Num() > 2 ? FCString::Atod(*P[2]) : 60.0));
+		return true;
+	}
+	if (Verb == TEXT("washstate"))   // [wash] how the wash game on the wash bay's bike is going
+	{
+		const FString State = W->TestWashState();
+		Said(State.IsEmpty() ? FString(TEXT("no wash going")) : State);
 		return true;
 	}
 	if (Verb == TEXT("sprayscan"))
@@ -1046,6 +1068,59 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(W->TestInteract());
 		const bool bAfter = bFan ? B->DynoRoom().bFan : B->DynoRoom().bLights;
 		Said(bAfter ? TEXT("now on") : TEXT("now off"));
+		return true;
+	}
+	if (Verb == TEXT("shedlights") || Verb == TEXT("rollerdoor") || Verb == TEXT("extinguisher"))
+	{
+		// [kit] shedlights:on|off, rollerdoor:up|down: F at the switch boxes right of the roller door
+		// (if it isn't so already); extinguisher:take|spray|stop|put: F at it, the work button held
+		// or let go, F to put it back.
+		const FString Arg = P.Num() >= 2 ? P[1] : FString();
+		if (Verb == TEXT("extinguisher") && (Arg == TEXT("spray") || Arg == TEXT("stop")))
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::ExtinguisherSpray;
+			R.Item = Arg == TEXT("spray") ? 1 : 0;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Warn(WhyNot);
+			else Said(Arg == TEXT("spray") ? TEXT("spraying") : TEXT("stopped"));
+			return true;
+		}
+		if (Verb == TEXT("extinguisher") && Arg == TEXT("put"))
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::Extinguisher;
+			R.Item = 0;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Warn(WhyNot);
+			else Said(TEXT("put back"));
+			return true;
+		}
+		const bool bLights = Verb == TEXT("shedlights");
+		if (!bLights && Verb == TEXT("rollerdoor") && (Arg == TEXT("up")) == B->DoorUp()) { Said(TEXT("already so")); return true; }
+		if (bLights && (Arg == TEXT("on")) == B->ShedLightsOn()) { Said(TEXT("already so")); return true; }
+		const FName Name = Verb == TEXT("extinguisher") ? FName(TEXT("extinguisher")) : (bLights ? FName(TEXT("shed_lights")) : FName(TEXT("door_button")));
+		const FTorquePlace* Place = TorqueShedLayout::FindPlace(Name);
+		if (!Place) { Warn(TEXT("no such place")); return true; }
+		const FVector Away = Verb == TEXT("extinguisher") ? FVector(1.0, 0.0, 0.0) : FVector(0.0, -1.0, 0.0);
+		const FString Seen = W->TestLookAt(Place->Box.GetCenter(), Away, 80.0);
+		if (W->TestTargetPlace() != Name) { Warn(TEXT("couldn't get a look at it: saw ") + Seen); return true; }
+		Said(W->TestInteract());
+		Said(FString::Printf(TEXT("lights %s, door %s, extinguisher held by %d"), B->ShedLightsOn() ? TEXT("on") : TEXT("off"),
+			B->DoorUp() ? TEXT("up") : TEXT("down"), B->ExtinguisherHeldBy()));
+		return true;
+	}
+	if (Verb == TEXT("standmove") && P.Num() >= 3)
+	{
+		// [kit] standmove:<x>:<y>[:<yaw>]: take hold of the engine stand and let go of it there.
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::GrabStand;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) { Warn(WhyNot); return true; }
+		R.Kind = ETorqueShedAct::ReleaseStand;
+		R.Place = FTransform(FRotator(0.0, P.Num() >= 4 ? FCString::Atod(*P[3]) : 0.0, 0.0), FVector(FCString::Atod(*P[1]), FCString::Atod(*P[2]), 0.0));
+		if (!B->Request(R, WhyNot)) { Warn(WhyNot); return true; }
+		Said(FString::Printf(TEXT("engine stand at (%.0f, %.0f)"), B->StandTransform().GetLocation().X, B->StandTransform().GetLocation().Y));
 		return true;
 	}
 	if (Verb == TEXT("dynorun"))

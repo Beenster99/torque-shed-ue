@@ -185,7 +185,7 @@ def outline_material():
     depth and stencil (r.CustomDepth=3); this draws a line just outside that shape: two rings of
     stencil samples (a crisp inner one, a fainter outer one for softness), drawn fainter where
     something in front hides the part's edge, and blended after tonemapping so it stays the same
-    line however the shed's exposure moves: pale warm over dark things, amber over light ones.
+    line however the shed's exposure moves: orange over dark things, deeper orange over light ones.
     Parameters: Color, DarkColor, Opacity, Width (pixels at 1080p, scaled with the screen),
     Hidden (how much of the line shows through things in front)."""
     m = new_material("M_ShedOutline")
@@ -287,8 +287,8 @@ def outline_material():
     base = expr(m, unreal.MaterialExpressionSceneTexture, -700, y - 450, scene_texture_id=T.PPI_POST_PROCESS_INPUT0)
     rgb = expr(m, unreal.MaterialExpressionComponentMask, -450, y - 450, r=True, g=True, b=True, a=False)
     link(base, rgb, "")
-    # A pale warm line over dark things, a deeper amber one over light things (the white walls, a
-    # silver tank), so it reads against either (build 101: a pale line alone vanished in the shed).
+    # Orange (beenster, Nov 9): Torque Shed's highlight orange over dark things, a deeper orange over
+    # light ones (the white walls, a silver tank), so it reads against either.
     lum = op(unreal.MaterialExpressionDotProduct, -300, y - 600, rgb,
              expr(m, unreal.MaterialExpressionConstant3Vector, -450, y - 600, constant=unreal.LinearColor(0.3, 0.59, 0.11, 1.0)))
     bright = expr(m, unreal.MaterialExpressionSaturate, -100, y - 600)
@@ -296,9 +296,9 @@ def outline_material():
             op(unreal.MaterialExpressionSubtract, -250, y - 650, lum, const(-400, y - 650, 0.4)), const(-400, y - 700, 3.0)), bright, "")
     colour = expr(m, unreal.MaterialExpressionLinearInterpolate, -300, y - 300)
     link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 350, parameter_name="Color",
-              default_value=unreal.LinearColor(1.0, 0.86, 0.6, 1.0)), colour, "A")
+              default_value=unreal.LinearColor(1.0, 0.55, 0.12, 1.0)), colour, "A")
     link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 250, parameter_name="DarkColor",
-              default_value=unreal.LinearColor(0.75, 0.38, 0.06, 1.0)), colour, "B")
+              default_value=unreal.LinearColor(0.85, 0.32, 0.0, 1.0)), colour, "B")
     link(bright, colour, "Alpha")
     out = expr(m, unreal.MaterialExpressionLinearInterpolate, -150, y - 200)
     link(rgb, out, "A")
@@ -681,6 +681,13 @@ def materials():
         ue_build_spray.build()
     except Exception as e:
         unreal.log_error("[Torque] spray materials: %s" % e)
+    # The wash mini game's muck, washed off where the jet goes (TorqueWashJob.cpp; it needs the spray's
+    # mask default texture, made just above).
+    try:
+        import ue_build_wash
+        ue_build_wash.build()
+    except Exception as e:
+        unreal.log_error("[Torque] wash materials: %s" % e)
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
@@ -1247,10 +1254,14 @@ def lights(m):
     # strips down the middle and over the door.
     spots = [(x, BAY_Y) for x in BAY_X] + [(-420.0, 150.0), (420.0, 150.0), (0.0, 350.0)]
     for i, (x, y) in enumerate(spots):
-        box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        strip = box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        if strip is not None:
+            strip.set_editor_property("tags", [unreal.Name("ShedLightStrip")])   # its glow goes off with the lights
         light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(x, y, HEIGHT - 39), unreal.Rotator(0.0, -90.0, 0.0))
         light.set_actor_label("StripLight_%d" % i)
         light.set_folder_path("Lights")
+        # The main lights the switch by the roller door works (ATorqueShedKit finds them by tag).
+        light.set_editor_property("tags", [unreal.Name("ShedLight")])
         lc = light.get_component_by_class(unreal.RectLightComponent)
         lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
         units = getattr(unreal, "LightUnits", None)

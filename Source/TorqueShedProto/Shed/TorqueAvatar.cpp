@@ -140,6 +140,23 @@ bool CallWithOne(UObject* O, const TCHAR* Fn, TFunctionRef<void(FProperty*, void
 	return true;
 }
 
+// Where Bone sits at rest in On's mesh space (false when it has no such bone).
+bool BoneRest(const USkinnedMeshComponent* On, FName BoneName, FTransform& Rest)
+{
+	Rest = FTransform::Identity;
+	const USkinnedAsset* SA = On ? On->GetSkinnedAsset() : nullptr;
+	if (!SA || BoneName.IsNone()) return false;
+	const FReferenceSkeleton& Ref = SA->GetRefSkeleton();
+	int32 B = Ref.FindBoneIndex(BoneName);
+	if (B == INDEX_NONE) return false;
+	while (B != INDEX_NONE)
+	{
+		Rest = Rest * Ref.GetRefBonePose()[B];
+		B = Ref.GetParentIndex(B);
+	}
+	return true;
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -173,6 +190,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->SetupAttachment(Driver);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
@@ -191,19 +209,8 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		USkinnedMeshComponent* On = To ? Cast<USkinnedMeshComponent>(*To) : nullptr;
 		if (!On) On = Driver;
 		const FName BoneName(*P.Bone);
-		FTransform Rest = FTransform::Identity;   // the bone in the mesh's space, at rest
-		bool bOnBone = false;
-		if (const USkinnedAsset* SA = On->GetSkinnedAsset())
-		{
-			const FReferenceSkeleton& Ref = SA->GetRefSkeleton();
-			int32 B = P.Bone.IsEmpty() ? INDEX_NONE : Ref.FindBoneIndex(BoneName);
-			bOnBone = B != INDEX_NONE;
-			while (B != INDEX_NONE)
-			{
-				Rest = Rest * Ref.GetRefBonePose()[B];
-				B = Ref.GetParentIndex(B);
-			}
-		}
+		FTransform Rest;
+		const bool bOnBone = BoneRest(On, BoneName, Rest);
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
 		C->SetStaticMesh(SM);
 		C->SetupAttachment(On, bOnBone ? BoneName : NAME_None);
@@ -211,6 +218,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
 		C->SetCastShadow(true);
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards %s on %s%s"), *E.Name, *P.Static, *On->GetName(),
@@ -245,6 +253,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->SetupAttachment(Driver);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		C->SetLeaderPoseComponent(Driver, true);
 		ApplyMaterials(C, P.Materials);
@@ -261,17 +270,26 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
 		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
 		if (!G) continue;
-		USceneComponent* C = NewObject<USceneComponent>(Owner, GroomClass);
+		// Rigid on the head bone (made in the face's space, so offset by the bone's rest), not
+		// bound to the skin: short hair barely deforms, and a binding needs the skin cache and costs
+		// a GPU pass per avatar. The asset and LOD are set through the component's own functions
+		// before it's registered, so it builds its hair groups and precaches its shaders.
 		USceneComponent** To = ByName.Find(P.AttachTo);
-		C->SetupAttachment(To ? *To : (USceneComponent*)Driver);
-		auto SetObj = [C](const TCHAR* Prop, UObject* V)
+		USkinnedMeshComponent* On = To ? Cast<USkinnedMeshComponent>(*To) : nullptr;
+		if (!On) On = Driver;
+		FTransform Rest;
+		const bool bOnBone = BoneRest(On, FName(TEXT("head")), Rest);
+		USceneComponent* C = NewObject<USceneComponent>(Owner, GroomClass);
+		C->SetupAttachment(On, bOnBone ? FName(TEXT("head")) : NAME_None);
+		C->SetRelativeTransform(bOnBone ? Rest.Inverse() : FTransform::Identity);
+		const bool bSet = CallWithOne(C, TEXT("SetGroomAsset"), [G](FProperty* Pr, void* V)
 		{
-			if (FObjectPropertyBase* Pr = FindFProperty<FObjectPropertyBase>(C->GetClass(), Prop))
-				Pr->SetObjectPropertyValue_InContainer(C, V);
-		};
-		SetObj(TEXT("GroomAsset"), G);
-		if (!P.Binding.IsEmpty()) SetObj(TEXT("BindingAsset"), StaticLoadObject(UObject::StaticClass(), nullptr, *P.Binding));
-		C->RegisterComponent();
+			if (FObjectPropertyBase* OP = CastField<FObjectPropertyBase>(Pr))
+				if (G->IsA(OP->PropertyClass)) OP->SetObjectPropertyValue(V, G);
+		});
+		if (!bSet)
+			if (FObjectPropertyBase* Pr = FindFProperty<FObjectPropertyBase>(C->GetClass(), TEXT("GroomAsset")))
+				Pr->SetObjectPropertyValue_InContainer(C, G);
 		// Cards, not strands, where the groom has them: strands are the GPU cost.
 		if (P.Lod >= 0)
 		{
@@ -281,8 +299,16 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 				if (FIntProperty* I = CastField<FIntProperty>(Pr)) I->SetPropertyValue(V, Lod);
 			});
 		}
+		if (UPrimitiveComponent* PC = Cast<UPrimitiveComponent>(C))
+		{
+			PC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			PC->SetGenerateOverlapEvents(false);
+		}
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
+		C->RegisterComponent();
 		if (UMeshComponent* MC = Cast<UMeshComponent>(C)) ApplyMaterials(MC, P.Materials);
-		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s, LOD %d"), *E.Name, *P.Name, To ? *(*To)->GetName() : TEXT("the body"), P.Lod);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s%s, LOD %d (asset %s)"), *E.Name, *P.Name, *On->GetName(),
+			bOnBone ? TEXT(", bone head") : TEXT(""), P.Lod, bSet ? TEXT("set") : TEXT("by property"));
 		Out.Add(C);
 	}
 }
@@ -487,6 +513,7 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 		const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(Fwd.Y, Fwd.X));
 		Driver->SetRelativeRotation(FRotator(0.0, -Yaw, 0.0));
 	}
+	Driver->PrecachePSOs();
 	Driver->RegisterComponent();
 	if (AActor* A = Spawned.Get())
 	{
@@ -811,45 +838,75 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 
 	// The back from the hips towards the rider's neck, shared up the spine as the rider rig does.
 	const FVector Hip = ToC(Tg.Hip);
-	const FQuat Back = FQuat::FindBetweenVectors(Bones[Neck != INDEX_NONE ? Neck : Head].Rest - Bones[Pelvis].Rest, ToC(Tg.Neck) - Hip);
+	FQuat Back = FQuat::FindBetweenVectors(Bones[Neck != INDEX_NONE ? Neck : Head].Rest - Bones[Pelvis].Rest, ToC(Tg.Neck) - Hip);
 	const FQuat LookC = ToCQ(Tg.Look);
 	const double Off = FMath::Clamp(Tg.Limp, 0.0, 1.0);
+
+	// The hands round the grips: each hand's frame from its own bones (wrist to middle knuckle, and
+	// across the knuckles from pinky to index, which lies along the bar), turned so the fingers point
+	// forward and down past the bar with the index inboard, and placed so the bar sits across the
+	// palm just short of the knuckles. Off the bike (Limp), the rider rig's wrist.
+	FQuat HandQ[2];
+	FVector Aim0[2], Palm0[2], WristAt[2];
+	for (int32 S = 0; S < 2; ++S)
+	{
+		const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
+		const FVector W0 = Bones[HandBone[S]].Rest, E0 = Bones[LowerArm[S]].Rest;
+		const int32 Knuckle = Finger[S][2][0], IndexK = Finger[S][1][0], PinkyK = Finger[S][4][0];
+		Aim0[S] = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
+		FVector Across0 = (IndexK != INDEX_NONE && PinkyK != INDEX_NONE) ? Bones[IndexK].Rest - Bones[PinkyK].Rest : Right * Side;
+		Across0 -= Aim0[S].GetSafeNormal() * FVector::DotProduct(Across0, Aim0[S].GetSafeNormal());
+		// Palm side: Aim x Across for the right hand, the other way for the left (mirrored).
+		Palm0[S] = (FVector::CrossProduct(Aim0[S], Across0) * Side).GetSafeNormal();
+		const FVector Bar = ToC(Tg.Grip[S]);
+		const FVector Across1 = -Right * Side;   // the index towards the bike's middle
+		FVector Aim1 = Bar - ToC(Tg.Wrist[S]);
+		Aim1 -= Across1 * FVector::DotProduct(Aim1, Across1);
+		Aim1 = (Aim1.Size() > 2.0 ? Aim1.GetSafeNormal() : FVector::ZeroVector) + (Fwd * 0.8 - Up * 0.6) * 0.5;
+		Aim1 = (Aim1 - Across1 * FVector::DotProduct(Aim1, Across1)).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
+		HandQ[S] = Align(Aim0[S], Across0, Aim1, Across1);
+		const FVector Palm1 = HandQ[S].RotateVector(Palm0[S]);
+		const FVector KnuckleAt = Bar + Aim1 * 1.5 - Palm1 * 3.0;   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
+		WristAt[S] = FMath::Lerp(KnuckleAt - HandQ[S].RotateVector(Aim0[S]), ToC(Tg.Wrist[S]), Off);
+	}
+	const FQuat BackRig = Back;   // the head keeps the rider rig's gaze, however far the back leans
+	// Low, far bars (clip-ons): lean the back further forward, from the hips, until the shoulders are
+	// near enough for both hands to reach (at most 35 degrees more). Shoulders estimated as turned
+	// with the whole back, which the upper spine nearly is.
+	{
+		const FVector Pitch = FVector::CrossProduct(Right, Up).GetSafeNormal();   // turning about Right takes Up towards this
+		const double Sign = FVector::DotProduct(Pitch, Fwd) >= 0.0 ? 1.0 : -1.0;
+		const FVector Pelvis0 = Bones[Pelvis].Rest;
+		for (int32 Step = 0; Step < 12; ++Step)
+		{
+			double Short = 0.0;
+			for (int32 S = 0; S < 2; ++S)
+			{
+				const FVector S0 = Bones[UpperArm[S]].Rest;
+				const double Reach = ((Bones[LowerArm[S]].Rest - S0).Size() + (Bones[HandBone[S]].Rest - Bones[LowerArm[S]].Rest).Size()) * 0.97;
+				const FVector Sh = Hip + Back.RotateVector(S0 - Pelvis0);
+				Short = FMath::Max(Short, (WristAt[S] - Sh).Size() - Reach);
+			}
+			if (Short <= 0.0 || Off > 0.5) break;
+			Back = FQuat(Right, Sign * FMath::DegreesToRadians(3.0)) * Back;
+		}
+	}
 	for (int32 I = 0; I < N; ++I)
 	{
 		if (I == Pelvis) { P[I] = Hip; D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.15); Set[I] = true; continue; }
 		if (I == Spine[0]) { D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.4); Set[I] = true; }
 		else if (I == Spine[1]) { D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.75); Set[I] = true; }
 		else if (I == Spine[2] || I == Neck) { D[I] = Back; Set[I] = true; }
-		else if (I == Head) { D[I] = LookC * FQuat::Slerp(FQuat::Identity, Back, 0.3); Set[I] = true; }
+		else if (I == Head) { D[I] = LookC * FQuat::Slerp(FQuat::Identity, BackRig, 0.3); Set[I] = true; }
 		Fk(I);
 		for (int32 S = 0; S < 2; ++S)
 		{
 			const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
 			if (I == UpperArm[S])
 			{
-				// The hand round the grip: its frame from its own bones (wrist to middle knuckle, and
-				// across the knuckles from pinky to index, which lies along the bar), turned so the
-				// fingers point forward and down past the bar with the index inboard, and placed so
-				// the bar sits across the palm just short of the knuckles. The arm then reaches the
-				// wrist that gives (as far as it can). Off the bike (Limp), the rider rig's wrist.
+				// The arm reaches the wrist the hand needs on the bar (as far as it can).
 				const FVector S0 = Bones[I].Rest, E0 = Bones[LowerArm[S]].Rest, W0 = Bones[HandBone[S]].Rest;
-				const int32 Knuckle = Finger[S][2][0], IndexK = Finger[S][1][0], PinkyK = Finger[S][4][0];
-				const FVector Aim0 = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
-				FVector Across0 = (IndexK != INDEX_NONE && PinkyK != INDEX_NONE) ? Bones[IndexK].Rest - Bones[PinkyK].Rest : Right * Side;
-				Across0 -= Aim0.GetSafeNormal() * FVector::DotProduct(Across0, Aim0.GetSafeNormal());
-				// Palm side: Aim x Across for the right hand, the other way for the left (mirrored).
-				const FVector Palm0 = (FVector::CrossProduct(Aim0, Across0) * Side).GetSafeNormal();
-				const FVector Bar = ToC(Tg.Grip[S]);
-				const FVector Across1 = -Right * Side;   // the index towards the bike's middle
-				FVector Aim1 = Bar - ToC(Tg.Wrist[S]);
-				Aim1 -= Across1 * FVector::DotProduct(Aim1, Across1);
-				Aim1 = (Aim1.Size() > 2.0 ? Aim1.GetSafeNormal() : FVector::ZeroVector) + (Fwd * 0.8 - Up * 0.6) * 0.5;
-				Aim1 = (Aim1 - Across1 * FVector::DotProduct(Aim1, Across1)).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
-				const FQuat HandQ = Align(Aim0, Across0, Aim1, Across1);
-				const FVector Palm1 = HandQ.RotateVector(Palm0);
-				const FVector KnuckleAt = Bar + Aim1 * 1.5 - Palm1 * 3.0;   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
-				const FVector WOnBar = KnuckleAt - HandQ.RotateVector(Aim0);
-				const FVector W = FMath::Lerp(WOnBar, ToC(Tg.Wrist[S]), Off);
+				const FVector W = WristAt[S];
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector Pole = (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
@@ -857,10 +914,10 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
-				D[HandBone[S]] = FQuat::Slerp(HandQ, D[LowerArm[S]], Off); Set[HandBone[S]] = true;
+				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], Off); Set[HandBone[S]] = true;
 				// The fingers round the grip; the index and middle over a lever when they're on it.
 				// Each finger turns about the bar's line, towards the palm.
-				const FVector Curl0 = FVector::CrossProduct(Aim0.GetSafeNormal(), Palm0).GetSafeNormal();
+				const FVector Curl0 = FVector::CrossProduct(Aim0[S].GetSafeNormal(), Palm0[S]).GetSafeNormal();
 				const FVector Curl = D[HandBone[S]].RotateVector(Curl0);
 				static const double WrapDeg[3] = {55.0, 80.0, 45.0};
 				for (int32 F = 0; F < 5; ++F)

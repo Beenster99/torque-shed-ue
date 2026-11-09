@@ -34,6 +34,14 @@ struct FTorqueSettings
 	float Bloom = 1.0f;         // glow and bloom: 0 off .. 2, times the level's own
 	bool bFpsCounter = false;   // the frame rate at the top of the screen
 	bool bAvatarShadows = true; // people on foot cast shadows
+	// The rest of a PC game's graphics page.
+	int32 PostProcess = -1, Shading = -1;   // Unreal's post-processing and shading groups, as the others
+	int32 Anisotropy = -1;      // texture filtering: -1 the preset's, 0 bilinear (1x), 1 2x, 2 4x, 3 8x, 4 16x
+	bool bHdr = false;          // HDR output, on a screen that has it
+	float FilmGrain = 1.0f;     // 0 off .. 2, times the level's own
+	float Vignette = 1.0f;      // 0 off .. 2, times the level's own darkening at the corners
+	bool bLensFlares = true, bChromaticAberration = true, bDepthOfField = true;
+	static bool HdrAvailable();
 
 	// Sound, 0 .. 1: everything, the sound effects (tools, knocks, the shed's machines), the engines,
 	// the world around (wind, birds, the shed's hum) and the shed radio.

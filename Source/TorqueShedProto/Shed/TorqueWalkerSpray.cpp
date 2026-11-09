@@ -895,12 +895,14 @@ FString ATorqueWalker::TestSprayPasses(int32 Passes, double Distance)
 	if (!Box.IsValid) return TEXT("no box to sweep");
 	const FVector Mid = Box.GetCenter(), Ext = Box.GetExtent();
 	const FVector Toward = (Camera->GetComponentLocation() - Mid).GetSafeNormal2D();
-	const FVector Sides[5] = {Toward, -Toward, FVector::CrossProduct(Toward, FVector::UpVector), -FVector::CrossProduct(Toward, FVector::UpVector), FVector::UpVector};
+	// (Underneath too: a player crouches for it.)
+	const FVector Sides[6] = {Toward, -Toward, FVector::CrossProduct(Toward, FVector::UpVector), -FVector::CrossProduct(Toward, FVector::UpVector), FVector::UpVector,
+		-FVector::UpVector};
 	const double Dt = 1.0 / 60.0, Speed = 90.0, Fan = (bGun ? GunRadius : CanRadius) * FMath::Clamp(Distance / DRef, 0.6, 1.8);
 	int32 Frames = 0;
 	for (int32 Pass = 0; Pass < Passes; ++Pass)
 	{
-		const FVector Facing = Sides[Pass % 5];
+		const FVector Facing = Sides[Pass % 6];
 		FVector Across = FVector::CrossProduct(Facing, FVector::UpVector).GetSafeNormal();
 		if (Across.IsNearlyZero()) Across = FVector::ForwardVector;
 		const FVector Down = FVector::CrossProduct(Across, Facing).GetSafeNormal();

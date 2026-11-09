@@ -19,12 +19,14 @@
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
+#include "Shed/TorqueShedKit.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedScreens.h"
 #include "Shed/TorqueToolModels.h"
+#include "Shed/TorqueWashJob.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -152,6 +154,11 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 	case ETorquePlace::Washer: return TEXT("Parts washer");
 	case ETorquePlace::Changer: return TEXT("Tyre changer");
 	case ETorquePlace::Stand: return TEXT("Engine stand");
+	case ETorquePlace::ShedSwitch:   // [kit]
+		if (P.Index == 0) return (B && B->ShedLightsOn()) ? TEXT("Shed lights (on)") : TEXT("Shed lights (off)");
+		return (B && B->DoorUp()) ? TEXT("Roller door (up)") : TEXT("Roller door (down)");
+	case ETorquePlace::Extinguisher:
+		return (B && B->ExtinguisherHeldBy() != 0) ? TEXT("Fire extinguisher's place (someone has it)") : TEXT("Fire extinguisher");
 	case ETorquePlace::Bin: return TorqueShedParts::BinName(P.Name);
 	case ETorquePlace::Computer: return TEXT("Parts computer");
 	case ETorquePlace::DynoStrap:
@@ -332,6 +339,10 @@ void ATorqueWalker::BeginPlay()
 		if (!bRadio) World->SpawnActor<ATorqueShedRadio>(TorqueShedRadio::At, FRotator::ZeroRotator);
 		// And the bike lifts: one under each bay's stand, and the wash bay's.
 		ATorqueBikeLift::SpawnMissing(World);
+		// [kit] And the roller door, the main lights, the rolling engine stand and the extinguisher.
+		bool bKit = false;
+		for (TActorIterator<ATorqueShedKit> It(World); It; ++It) bKit = true;
+		if (!bKit) World->SpawnActor<ATorqueShedKit>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -342,6 +353,8 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 	Pad.Reset();   // stops its reading thread
 	if (Avatar) Avatar->Destroy();   // its MetaHuman Blueprint goes with it
 	LookOutline.Clear();
+	if (WashJob.IsValid()) WashJob->Detach();   // the bike's own grime back   [wash]
+	WashJob.Reset();
 	Super::EndPlay(Reason);
 }
 
@@ -475,12 +488,13 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	if (!bNoInput) ReadInput(DeltaSeconds);
 	else bWorkHeld = bAltHeld = false;
 	TickSprays(DeltaSeconds);   // the coats going on (and drying off) follow their parts as they're redrawn
+	TickWash(DeltaSeconds);     // the wash game's muck follows its bike (TorqueWalkerWash.cpp)
 	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
 	else if (!bComputer && !bBench)
 	{
 		FindTarget();
 		MakePlan();
-		if (!SprayWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game
+		if (!SprayWork(DeltaSeconds) && !WashWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game; the lance at a bike: the wash game
 		HookWork(DeltaSeconds);
 	}
 	UpdateSway(DeltaSeconds);
@@ -537,7 +551,8 @@ void ATorqueWalker::ReadInput(float Dt)
 	if (KeyJust(ETorqueKey::GeometryMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{
 		FString Why;
-		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why) && !Why.IsEmpty()) Say(Why, false);
+		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
+			Say(Why.IsEmpty() ? FString(TEXT("Geometry mode couldn't open here.")) : Why, false);
 		return;
 	}
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
@@ -742,6 +757,8 @@ void ATorqueWalker::ReadInput(float Dt)
 	{
 		bAltPressed = bAltJust;
 		bAltHeld = KeyDown(ETorqueKey::AltWork) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
+		// The lance: X (D-pad up) lights up the muck still to do, or puts it out.   [wash]
+		if (Tool == ETorqueTool::Lance && (Just(EKeys::X) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp))) bWashScan = !bWashScan;
 	}
 	if (KeyJust(ETorqueKey::SprayFinish) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight))
 		if (TWI::Sprays(Tool)) SprayFinish = (SprayFinish + 1) % FMath::Max(1, TWI::Loads(Tool).Num());
@@ -753,7 +770,12 @@ void ATorqueWalker::ReadInput(float Dt)
 	const int32 Pushing = Wheeling();
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
-	if (bF && SprayInteract())
+	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
+	const bool bKitF = KitInput(Dt, bF, bFDown);
+	if (bKitF)
+	{
+	}
+	else if (bF && SprayInteract())
 	{
 		// The can or gun on a part: F brings the spray controls up (or puts them down).
 	}
@@ -1089,6 +1111,9 @@ void ATorqueWalker::MakePlan()
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
+	// [kit] F works the switch boxes and takes the extinguisher; holding it, the work button sprays it.
+	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher)) return;
+	if (B->ExtinguisherHeldBy() == Me || B->StandPushedBy() == Me) return;
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
 	{
 		// The radio (walker.gd _make_plan): on, then round the stations; F switches it off.
@@ -1570,8 +1595,9 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
 	Hold.AddToTranslation(Move);
 	ToolHolder->SetRelativeTransform(Hold);
-	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && (Tool == ETorqueTool::Repair || Tool == ETorqueTool::Lance));
+	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && Tool == ETorqueTool::Repair);   // (the lance's water: UpdateWashFx)
 	UpdateSprayFx(Dt);   // the spray itself: the jet, the overspray, the footprint (TorqueWalkerSpray.cpp)
+	UpdateWashFx(Dt);    // the pressure washer's jet, its mist and splash (TorqueWalkerWash.cpp)
 }
 
 void ATorqueWalker::UpdateFlying(float Dt, bool bEmit)
@@ -1688,6 +1714,8 @@ float ATorqueWalker::WorkFraction() const
 {
 	// Spraying: how much of the coat's on, to the mark where it counts.
 	if (Spray.IsValid() && Spray->bLive) return FMath::Clamp(Spray->Last.Covered / TorqueSpray::Done, 0.0f, 1.0f);
+	// Washing: how clean the bike is.   [wash]
+	if (bWashFiring && WashJob.IsValid()) return FMath::Clamp(WashJob->Stats().Clean, 0.0f, 1.0f);
 	const FPlan& P = (bWorkHeld || ActHeldFor > 0.0) ? Plan : AltPlan;
 	if (Progress <= 0.0 || !P.bValid || P.Time <= 0.0) return 0.0f;
 	return (float)FMath::Clamp(Progress / P.Time, 0.0, 1.0);
@@ -1917,7 +1945,7 @@ void ATorqueWalker::UpdateCues()
 	}
 	// (A part being sprayed shows its wet coat instead: the glow leaves it be.)
 	if (SprayItem != 0) Now.Reset();
-	Now.RemoveAll([this](const UStaticMeshComponent* C) { return SprayOwns(C); });
+	Now.RemoveAll([this](const UStaticMeshComponent* C) { return SprayOwns(C) || WashOwns(C); });
 	for (const TWeakObjectPtr<UStaticMeshComponent>& W : Lit)
 		if (UStaticMeshComponent* C = W.Get())
 			if (!Now.Contains(C) && (C->GetOverlayMaterial() == LitMaterial || C->GetOverlayMaterial() == LitFaintMaterial)) C->SetOverlayMaterial(nullptr);
@@ -1929,7 +1957,7 @@ void ATorqueWalker::UpdateCues()
 	}
 	// The same, with a thin soft line round it (TorqueLookOutline); with empty hands, a place's own
 	// machine, bin, hook or computer too.
-	if (LookOutline.Attach(Camera))
+	if (LookOutline.Attach(this))
 	{
 		TArray<UPrimitiveComponent*> Lined;
 		for (UStaticMeshComponent* C : Now) Lined.Add(C);
@@ -2194,6 +2222,26 @@ void ATorqueWalker::Interact()
 		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 		return;
 	}
+	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher))
+	{
+		// [kit] The light switch or the roller door's box right of the door (up if it's down, down if
+		// it's up); the fire extinguisher off its place (the work button sprays it, F puts it back).
+		FTorqueShedRequest R;
+		if (TargetPlace->Kind == ETorquePlace::ShedSwitch)
+		{
+			R.Kind = TargetPlace->Index == 0 ? ETorqueShedAct::ShedLights : ETorqueShedAct::Door;
+			R.Item = TargetPlace->Index == 0 ? (B->ShedLightsOn() ? 0 : 1) : (B->DoorUp() ? 0 : 1);
+		}
+		else
+		{
+			R.Kind = ETorqueShedAct::Extinguisher;
+			R.Item = 1;
+		}
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		else if (R.Kind == ETorqueShedAct::Extinguisher) Doing(TEXT("holding the fire extinguisher"), 6.0);
+		return;
+	}
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::DynoSwitch || TargetPlace->Kind == ETorquePlace::DynoDesk))
 	{
 		// The dyno room: the switches by the door, and the desk (F runs the bike on the rig).
@@ -2221,6 +2269,11 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 	if (!B->Exists(Bay))
 	{
 		Say(FString::Printf(TEXT("Bay %d is empty: press F at a bike to ride it"), Bay + 1), false, 2.5);
+		return;
+	}
+	if (!B->DoorUp())   // [kit]
+	{
+		Say(TEXT("The roller door's down: open it at the yellow box right of the door (F)."), false, 3.0);
 		return;
 	}
 	// A bike rides only with everything on it and bolted up (shed_state ride check).
@@ -2472,6 +2525,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({FString::Printf(TEXT("%s: %s   %s"), *TorqueShedParts::SlotName(TargetSlot), *B->ItemTitle(TargetItem),
 			B->IsBolted(TargetBay, TargetSlot) ? TEXT("bolted") : TEXT("loose")), FColor::White, 0.8f});
 		if (Thing) HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
+		if (B->Exists(TargetBay))
+			HudLines.Add({FString::Printf(TEXT("%s: geometry mode (fit this bike's parts)"), *FTorqueKeys::Text(ETorqueKey::GeometryMode)), Prompt, 0.55f});
 		const FString Fab = B->FabOwedText(TargetBay);
 		if (!Fab.IsEmpty()) HudLines.Add({TEXT("Needs fabrication: ") + Fab + TEXT(" (grinder and welder)"), Info, 0.55f});
 		break;
@@ -2496,6 +2551,13 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Lift)
 				HudLines.Add({B->LiftUp(TargetPlace->Index) ? TEXT("F / Triangle: lower it") : TEXT("F / Triangle: raise it"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::ShedSwitch)   // [kit]
+				HudLines.Add({TargetPlace->Index == 0 ? FString(TEXT("F / Triangle: flick the lights"))
+					: FString(B->DoorUp() ? TEXT("F / Triangle: roller door down") : TEXT("F / Triangle: roller door up")), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Extinguisher && B->ExtinguisherHeldBy() == 0)
+				HudLines.Add({TEXT("F / Triangle: take the fire extinguisher"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0)
+				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Radio)
 			{
 				// What's on (walker.gd: the station, then the song), and its switch.

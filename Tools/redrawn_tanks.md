@@ -154,6 +154,9 @@ list naked; the naked reference bike still has no fairing.
   gets its own smooth surface fitted over that depth, so neighbouring panels meet in a crease along the
   drawn line. The front view sets widths and heights (420 mm across, as the half fairing), the side and
   top views the depth.
+- Clean edges: the surface is a 3 px grid over the front view, but its outline points, the lamp, lamp
+  housing and vent edges, and the drawn creases are snapped onto smooth curves (the zero level of each
+  mask's smoothed signed distance), so no edge follows the pixel grid. The stays' outlines are snapped the same way.
 - Shells: cowl 3 mm, separate smoked screen 4 mm (`glass`), lamps drawn in the fairing (`lens_white`,
   6 mm back, in a dark `plastic` housing 3 mm back); the fitted bike's own headlight is hidden. Hatched
   vents are 5 mm `plastic` recesses. The stays are 6 mm `black_metal` plates where the side view draws them,
