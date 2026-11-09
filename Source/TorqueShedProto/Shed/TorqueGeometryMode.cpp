@@ -160,6 +160,7 @@ struct ATorqueGeometryMode::FState
 	TWeakObjectPtr<APlayerController> PC;
 	TWeakObjectPtr<ATorqueShedBike> Bike;
 	int32 Bay = INDEX_NONE;
+	uint64 OpenFrame = 0;   // the frame it opened in: the F2 that opened it is still "just pressed" then
 	TorqueFit::BikeGeo Draft, Saved;
 	TArray<TorqueFit::BikeGeo> Undo;
 	FString DrawnRig;                 // the rig handles the bike's drawn with (the draft's, once refit)
@@ -280,6 +281,7 @@ void ATorqueGeometryMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, in
 	S.PC = Cast<APlayerController>(Walker->GetController());
 	S.Bike = Bike;
 	S.Bay = Bay;
+	S.OpenFrame = GFrameCounter;
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	S.Saved = TGMI::TgmParse(B ? B->Bike(Bay).Geo : FString());
 	S.Draft = S.Saved;
@@ -907,6 +909,9 @@ void ATorqueGeometryMode::ReadInput(float Dt)
 	FState& S = *St;
 	APlayerController* PC = S.PC.Get();
 	if (!PC) return;
+	// Spawned from the walker's tick, this ticks in the same frame: the F2 that opened it would read as
+	// pressed again here and close it at once (beenster: "F2 does nothing"). Keys count from the next frame.
+	if (GFrameCounter <= S.OpenFrame) return;
 	auto Down = [PC](const FKey& K) { return PC->IsInputKeyDown(K); };
 	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
 	auto Up = [PC](const FKey& K) { return PC->WasInputKeyJustReleased(K); };
