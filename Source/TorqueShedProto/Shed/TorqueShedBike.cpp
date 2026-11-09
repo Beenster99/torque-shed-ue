@@ -8,7 +8,9 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedParts.h"
+#include "TorqueBikePawn.h"
 #include "Components/BoxComponent.h"
+#include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
@@ -382,6 +384,17 @@ void ATorqueShedBike::Follow(float Dt)
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (!B) return;
+	{
+		// [yard] Being ridden in the yard (Shed/TorqueYard.h): it's out there, so not in its bay too.
+		bool bRidden = false;
+		for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It && !bRidden; ++It)
+			bRidden = It->InYard() && It->GetRideBay() == Bay;
+		if (bRidden != IsHidden())
+		{
+			SetActorHiddenInGame(bRidden);
+			SetActorEnableCollision(!bRidden);
+		}
+	}
 	const bool bAway = B->IsAway(Bay);
 	if (bAway != bShownAway)
 	{
@@ -469,9 +482,17 @@ void ATorqueShedBike::Rebuild()
 	if (B && B->LayoutParts(Bay, CatalogueParts))
 	{
 		double AxleHeight = 31.0;
-		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight, Geo);
+		TorqueShedCatalogue::FBikeFrame Frame;
+		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight, Geo, nullptr, &Frame);
 		if (Drawn > 0)
 		{
+			if (Frame.bValid)
+			{
+				// Its origin is at the rear axle's height, so the front tyre's radius is that plus the
+				// front axle's height over it.
+				FrontAxleX = Frame.FrontAxle.X;
+				FrontRadius = FMath::Clamp(AxleHeight + Frame.FrontAxle.Z, 20.0, 45.0);
+			}
 			BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, AxleHeight + 1.5), FRotator(-2.0, 0.0, 0.0));
 			FitView.Capture(Parts);
 			FitView.Show(Parts, Geo);
@@ -481,6 +502,8 @@ void ATorqueShedBike::Rebuild()
 		}
 	}
 	BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 32.5), FRotator(-2.0, 0.0, 0.0));
+	FrontAxleX = 70.6;   // the Speed Twin's 1413 mm wheelbase
+	FrontRadius = 30.0;
 	const FTorqueBuild& Build = B ? B->Get(Bay) : UTorqueBuildSubsystem::BuildFor(this);
 	const int32 InBay = Bay;
 	const int32 Made = TorqueShedModel::MakePartsWhere(this, BikeRoot, Build,

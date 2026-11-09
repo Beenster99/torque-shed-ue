@@ -15,6 +15,7 @@
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/Pawn.h"
+#include "HAL/FileManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
@@ -188,7 +189,14 @@ bool UTorqueBuildSubsystem::IsTestRun()
 void UTorqueBuildSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-	SaveSlot = IsTestRun() ? TEXT("ShedTest") : TEXT("Shed");
+	SaveSlot = TEXT("Shed");
+	if (IsTestRun()) SaveSlot = TEXT("ShedTest");
+	else
+	{
+		// The game saved last (the title screen's Load Game picks another).
+		const TArray<FSavedGame> Games = SavedGames();
+		if (Games.Num() > 0) SaveSlot = Games[0].Slot;
+	}
 	// A test run's shed comes out the same every time.
 	Rng.Initialize(SaveSlot == TEXT("ShedTest") ? 12345 : (int32)(FDateTime::Now().GetTicks() & 0x7fffffff));
 	if (SaveSlot == TEXT("ShedTest"))
@@ -228,6 +236,98 @@ bool UTorqueBuildSubsystem::TickSave(float FrameDt)
 	SaveIn -= Dt;
 	if (SaveIn <= 0.0) Save();   // washing changes dirt many times a second: one save after it settles
 	return true;
+}
+
+int32 UTorqueBuildSubsystem::GameNumber(const FString& Slot)
+{
+	if (Slot == TEXT("Shed")) return 1;
+	if (!Slot.StartsWith(TEXT("Shed_"), ESearchCase::CaseSensitive)) return 0;
+	const FString Num = Slot.Mid(5);
+	if (Num.IsEmpty() || !Num.IsNumeric() || Num.Contains(TEXT("."))) return 0;
+	return FCString::Atoi(*Num);
+}
+
+TArray<UTorqueBuildSubsystem::FSavedGame> UTorqueBuildSubsystem::SavedGames()
+{
+	TArray<FSavedGame> Out;
+	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("SaveGames"));
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *FPaths::Combine(Dir, TEXT("*.sav")), true, false);
+	for (const FString& File : Files)
+	{
+		FSavedGame G;
+		G.Slot = FPaths::GetBaseFilename(File);
+		G.Number = GameNumber(G.Slot);
+		if (G.Number <= 0) continue;   // ShedTest and anything else that isn't a game
+		G.Saved = IFileManager::Get().GetTimeStamp(*FPaths::Combine(Dir, File));
+		if (const UTorqueShedSave* S = Cast<UTorqueShedSave>(UGameplayStatics::LoadGameFromSlot(G.Slot, 0)))
+		{
+			G.BikeCount = 0;
+			for (const FTorqueShedSaveBike& B : S->Bikes) G.BikeCount += B.bExists ? 1 : 0;
+		}
+		Out.Add(G);
+	}
+	Out.Sort([](const FSavedGame& A, const FSavedGame& B) { return A.Saved > B.Saved; });
+	return Out;
+}
+
+FString UTorqueBuildSubsystem::NewGameSlot()
+{
+	TSet<int32> Used;
+	for (const FSavedGame& G : SavedGames()) Used.Add(G.Number);
+	int32 N = 1;
+	while (Used.Contains(N)) ++N;
+	return N == 1 ? FString(TEXT("Shed")) : FString::Printf(TEXT("Shed_%d"), N);
+}
+
+void UTorqueBuildSubsystem::UseGame(const FString& Slot, bool bNew)
+{
+	if (IsTestRun() || Slot.IsEmpty()) return;
+	if (bSaveDue) Save();   // the game in use keeps what was done to it
+	SaveSlot = Slot;
+	Bikes.Reset();
+	Items.Reset();
+	if (bNew)
+	{
+		StartFresh();
+		Save();
+	}
+	else
+		Load();
+	bSaveDue = false;
+	Builds.SetNum(Bays);
+	for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
+	for (int32 I = 0; I < Bays; ++I) OnChanged.Broadcast(I);
+	OnItems.Broadcast();
+	OnHostChange.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("Torque: playing game %d (slot %s, %s)"), GameNumber(Slot), *Slot, bNew ? TEXT("new") : TEXT("loaded"));
+}
+
+bool UTorqueBuildSubsystem::DeleteGame(const FString& Slot)
+{
+	if (GameNumber(Slot) <= 0 || !UGameplayStatics::DoesSaveGameExist(Slot, 0)) return false;
+	const bool bInUse = Slot == SaveSlot;
+	if (bInUse) bSaveDue = false;   // never written back after it's gone
+	const bool bOk = UGameplayStatics::DeleteGameInSlot(Slot, 0);
+	UE_LOG(LogTemp, Log, TEXT("Torque: deleted game %d (slot %s): %s"), GameNumber(Slot), *Slot, bOk ? TEXT("done") : TEXT("FAILED"));
+	if (bOk && bInUse)
+	{
+		const TArray<FSavedGame> Left = SavedGames();
+		if (Left.Num() > 0) UseGame(Left[0].Slot, false);
+		else
+		{
+			// Nothing left: a new shed in game 1's slot, saved only once something is done in it.
+			SaveSlot = TEXT("Shed");
+			Bikes.Reset();
+			Items.Reset();
+			StartFresh();
+			bSaveDue = false;
+			for (int32 I = 0; I < Bays; ++I) OnChanged.Broadcast(I);
+			OnItems.Broadcast();
+			OnHostChange.Broadcast();
+		}
+	}
+	return bOk;
 }
 
 void UTorqueBuildSubsystem::StartFresh()
@@ -2272,7 +2372,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("You can't put it there.");
 		if (A == ETorqueShedAct::ReleaseBike)
 			for (int32 L = 0; L <= WashLift; ++L)
-				if (LiftUp(L) && FVector::Dist2D(R.Place.GetLocation(), TorqueShedLayout::LiftXf(L).GetLocation()) < 90.0)
+				if (IsLift(L) && LiftUp(L) && TorqueShedLayout::OntoLift(L, R.Place.GetLocation()))
 					return L == WashLift ? FString(TEXT("The wash bay lift is up. Lower it first, then wheel the bike on."))
 						: FString::Printf(TEXT("Bay %d's lift is up. Lower it first, then wheel the bike on."), L + 1);
 		return FString();
@@ -2823,7 +2923,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		const FVector At(R.Place.GetLocation().X, R.Place.GetLocation().Y, 0.0);
 		B.Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), At);
 		const int32 OnRig = DynoBay();
-		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0)
+		// Wheeled onto a lift (its own bay's, another empty bay's, the wash bay's): square on it,
+		// its front tyre in the lift's wheel vice (ATorqueBikeLift slides the vice to it).
+		int32 Onto = INDEX_NONE;
+		for (int32 L = 0; L <= WashLift && Onto == INDEX_NONE; ++L)
+			if (IsLift(L) && TorqueShedLayout::OntoLift(L, At) && (L == R.Bay || BikeOnLift(L, R.Bay) == INDEX_NONE)) Onto = L;
+		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0 || Onto == R.Bay)
 		{
 			B.bAway = false;
 			B.Xf = HomeOf(R.Bay);
@@ -2835,11 +2940,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			for (bool& Strap : Dyno.Straps) Strap = false;
 			Text = FString::Printf(TEXT("%s is on the dyno. Strap it down at the four posts (hold the work button), then run it at the desk."), *B.Name);
 		}
-		else if (FVector::Dist2D(At, TorqueShedLayout::WashLiftXf().GetLocation()) < 90.0 && BikeOnLift(WashLift, R.Bay) == INDEX_NONE)
+		else if (Onto != INDEX_NONE)
 		{
-			// wash.gd LIFT_SNAP: wheeled onto the wash bay's lift, square on it in its wheel chock.
-			B.Xf = TorqueShedLayout::WashLiftXf();
-			Text = FString::Printf(TEXT("%s is on the wash bay lift. F on the button post raises it."), *B.Name);
+			// wash.gd LIFT_SNAP: square on the lift, locked in its wheel vice.
+			B.Xf = TorqueShedLayout::LiftXf(Onto);
+			Text = FString::Printf(TEXT("%s is locked onto %s. F on the button post raises it."), *B.Name,
+				Onto == WashLift ? TEXT("the wash bay lift") : *FString::Printf(TEXT("bay %d's lift"), Onto + 1));
 		}
 		else Text = FString::Printf(TEXT("%s is on its stand."), *B.Name);
 		break;

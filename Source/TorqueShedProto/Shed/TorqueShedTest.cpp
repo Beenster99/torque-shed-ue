@@ -9,6 +9,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -438,8 +439,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(FString::Printf(TEXT("working on bay %d"), TestBay + 1));
 		return true;
 	}
-	if (Verb == TEXT("back"))
+	if (Verb == TEXT("back") || Verb == TEXT("walkin"))
 	{
+		// [yard] On a bike in the shed's yard: park it and walk back in.
+		APlayerController* PC = World->GetFirstPlayerController();
+		const ATorqueBikePawn* YardBike = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
+		if (YardBike && YardBike->InYard())
+		{
+			TorqueYard::WalkBackIn(PC);
+			Said(TEXT("parked in the yard, walking back in"));
+			return true;
+		}
+		if (Verb == TEXT("walkin")) { Warn(TEXT("walkin: not riding in the yard")); return true; }
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("going back to the shed") : TEXT("refused (no shed map, or a client)"));
 		return true;
@@ -447,7 +458,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
-		Verb == TEXT("launch") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
+		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -460,6 +471,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
+		if (Verb == TEXT("foot"))
+		{
+			const FString What = P.Num() > 2 ? P[1].ToLower() + TEXT(":") + P[2] : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
+			Said(Bike->TestFoot(What));
+			return true;
+		}
 		// gear:up|down, ignition, clutch:1|0 and bikestate: the stage 3 controls as their keys work them.
 		if (Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
 		{
@@ -840,7 +858,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), 100.0));
 		return true;
 	}
-	if (Verb == TEXT("door") || Verb == TEXT("rideout"))
+	if (Verb == TEXT("door") || Verb == TEXT("rideout") || Verb == TEXT("yard"))
 	{
 		AActor* Door = nullptr;
 		for (TActorIterator<AActor> It(World); It; ++It)
@@ -849,7 +867,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// In the opening, looking out.
 		const FVector Out = Door->GetActorLocation() + FVector(0.0, 300.0, 120.0);
 		Said(TEXT("looking at ") + W->TestLookAt(Out, FVector(0.0, -1.0, 0.0), 300.0));
-		if (Verb == TEXT("rideout")) Said(W->TestInteract());
+		// F at the door rides out into the yard; Buttertubs is the host's menu choice (as the pause menu).
+		if (Verb == TEXT("yard")) Said(W->TestInteract());
+		if (Verb == TEXT("rideout"))
+		{
+			W->StartAdventure();
+			Said(W->IsRidingOut() ? TEXT("setting off on Buttertubs") : TEXT("not setting off (see the walker's note)"));
+		}
 		return true;
 	}
 	if (Verb == TEXT("look") && P.Num() >= 2)

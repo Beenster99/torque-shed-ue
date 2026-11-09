@@ -16,6 +16,7 @@
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -2000,13 +2001,16 @@ void ATorqueWalker::UpdateCues()
 		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
 		Lit.Add(C);
 	}
-	// The same, with a thin soft line round it (TorqueLookOutline); with empty hands, a place's own
-	// machine, bin, hook or computer too.
+	// The same, with a thin soft line round it (TorqueLookOutline). Only bike parts and things that
+	// move (beenster, Nov 9: "Only bike parts and objects which can be moved need highlighting"): with
+	// empty hands, the engine stand, the extinguisher, the tape roll or a paint tin too, never the
+	// fixed kit (benches, machines, bins, the computer, hooks, switches, the radio).
 	if (LookOutline.Attach(this))
 	{
 		TArray<UPrimitiveComponent*> Lined;
 		for (UStaticMeshComponent* C : Now) Lined.Add(C);
-		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0)
+		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0
+			&& FTorqueLookOutline::Movable(TargetPlace->Kind))
 			Lined.Append(LookOutline.PlaceMeshes(World, TargetPlace));
 		LookOutline.Show(Lined);
 	}
@@ -2312,7 +2316,13 @@ void ATorqueWalker::Interact()
 	Say(TEXT("F: unpack a box, use the parts computer, or ride out (at your bike or the roller door)"), true, 2.5);
 }
 
-void ATorqueWalker::StartRideOut(int32 Bay)
+void ATorqueWalker::StartAdventure()
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (B) StartRideOut(B->MyBike(), true);
+}
+
+void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure)
 {
 	UTorqueBuildSubsystem* B = Shed();
 	if (!B) return;
@@ -2352,11 +2362,18 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 		Say(TEXT("Put down what you're holding first."), false, 2.5);
 		return;
 	}
-	B->SetMyBike(Bay);
-	if (GetNetMode() == NM_Client)
+	if (bAdventure && GetNetMode() == NM_Client)
 	{
-		Say(FString::Printf(TEXT("You'll ride %s: the host starts the ride"), *B->Bike(Bay).Name), true, 2.5);
-		Doing(FString::Printf(TEXT("ready to ride bay %d's bike"), Bay + 1), 30.0);
+		Say(TEXT("Only the host can set off on an adventure. Ride in the yard till they do."), false, 3.0);
+		return;
+	}
+	B->SetMyBike(Bay);
+	if (!bAdventure)
+	{
+		// [yard] Out of the roller door onto the concrete (Shed/TorqueYard.h); the host's pawn swap,
+		// asked for over the net by a joined player.
+		Doing(FString::Printf(TEXT("riding bay %d's bike in the yard"), Bay + 1), 30.0);
+		TorqueYard::RideOut(Cast<APlayerController>(GetController()), Bay);
 		return;
 	}
 	Doing(FString::Printf(TEXT("riding out on bay %d's bike"), Bay + 1), 30.0);
@@ -2674,12 +2691,15 @@ void ATorqueWalker::UpdateHud()
 					HudLines.Add({FString::Printf(TEXT("Last run: %.1f hp at %.0f rpm, %.1f Nm at %.0f rpm (at the wheel)"), Last.PeakHp, Last.PeakHpRpm, Last.PeakNm, Last.PeakNmRpm), Info, 0.55f});
 				}
 			}
-			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: ride this bike out"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: ride this bike out into the yard"), Prompt, 0.65f});
 		}
 		break;
 	case ETorqueLook::Door:
 		HudLines.Add({TEXT("Roller door"), FColor::White, 0.8f});
-		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out to Buttertubs"), B->MyBike() + 1), Prompt, 0.65f});
+		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out into the yard"), B->MyBike() + 1), Prompt, 0.65f});
+		// [yard] The adventure is the host's to start, from the pause menu.
+		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on Buttertubs (their menu)"))
+			: FString(TEXT("Esc / Options: Set off on Buttertubs")), Info, 0.55f});
 		break;
 	default:
 		break;

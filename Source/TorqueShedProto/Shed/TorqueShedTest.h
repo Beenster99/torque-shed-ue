@@ -61,8 +61,11 @@
 //   order:<part>|bike     order from the parts computer (delivered outside the roller door)
 //   newbike[:<style>][:<slot>=<part>]...[:order]  the parts computer's New bike aisle (the configurator):
 //                         that style's bike with those parts on, a colour of its own, ordered built into a free bay
-//   rideout               stand in the roller door and press F (loads Buttertubs with the bike as built)
-//   back                  on the road: back to the shed (as Backspace)
+//   rideout               stand in the roller door and set off on Buttertubs (the host's pause menu choice;
+//                         loads Buttertubs with the bike as built)
+//   yard                  stand in the roller door and press F: ride your bike out onto the yard's concrete
+//   back                  on the road: back to the shed (as Backspace); in the yard, as walkin
+//   walkin                in the yard: park the bike and walk back in through the door
 //   log                   log every bay's bike and the loose parts
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   shot:ui               a screenshot of the viewport with the HUD and menus (FScreenshotRequest)
@@ -101,8 +104,10 @@
 //                         e.g. camera:3:60:35:40:-20:rhand, the right hand on its grip from below
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
+//   foot:off|on|walk:<cm> on the road: get off (as F, stopped; the bike on its stand, the engine left as it was),
+//                         back on (as F by the bike), or walk that far ahead on foot; logs where the bike stands
 //   gear:up|down, ignition, clutch:1|0, bikestate   on the road: a click of the gear lever (the box goes
-//                         manual), the key (I), the clutch held or let go (F), or nothing; each logs the gear,
+//                         manual), the key (I), the clutch held or let go (Left Alt), or nothing; each logs the gear,
 //                         speed, engine, revs and clutch after it, e.g. "gear N at 0.0 mph, engine running"
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   brakestop[:<mph>][:flat]  on the road: the robot holds mph (60) on a straight, then brakes as a road test

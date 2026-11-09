@@ -157,6 +157,9 @@ public:
 	FString CarryText() const;
 	// Press F at what's looked at (unpack, the computer, ride out).
 	FString TestInteract();
+	// The pause menu's "Set off on Buttertubs" (the host's, or alone): your bike, checked as F at the
+	// door checks it, and everyone goes. A joined player is told it's the host's to choose.
+	void StartAdventure();
 	// Order from the parts computer, as its menu does: a part id, or "bike" for a project bike.
 	FString TestOrder(FName Part);
 	FString Describe() const;
@@ -437,7 +440,9 @@ private:
 
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();
-	void StartRideOut(int32 Bay);
+	// F at a bike or the roller door: ride it out into the yard (anyone). bAdventure: set off on
+	// Buttertubs with everyone instead (the host's choice alone: the pause menu, StartAdventure).
+	void StartRideOut(int32 Bay, bool bAdventure = false);
 	bool bRidingOut = false;
 	double RideOutIn = 0.0;
 

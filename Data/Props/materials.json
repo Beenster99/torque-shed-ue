@@ -612,6 +612,42 @@
    "rough": 0.8,
    "tile": 1.0,
    "unit_uv": true
+  },
+  "bin_label_general": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/bin_label_general.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.45,
+   "unit_uv": true
+  },
+  "bin_label_plastic": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/bin_label_plastic.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.45,
+   "unit_uv": true
+  },
+  "bin_label_metal": {
+   "base": "printed",
+   "texture": "Data/Props/Textures/bin_label_metal.png",
+   "rows": 1,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "rough": 0.45,
+   "unit_uv": true
   }
  }
 }

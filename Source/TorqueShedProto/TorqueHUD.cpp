@@ -561,6 +561,7 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 	FString Hint;
 	if (Bike->IsStarting()) Hint = TEXT("Starting...");
 	else if (FMath::Abs(D.Speed) < 2.0 && !D.bCrashed)
-		Hint = FString::Printf(TEXT("%s: back to the shed   \u00B7   Esc: menu"), *FTorqueKeys::Text(ETorqueKey::BackToShed));
+		Hint = FString::Printf(TEXT("%s: %s   \u00B7   Esc: menu"), *FTorqueKeys::Text(ETorqueKey::BackToShed),
+			Bike->InYard() ? TEXT("park and walk back in") : TEXT("back to the shed"));   // [yard]
 	if (!Hint.IsEmpty()) Say(Hint, W * 0.5f, H - 40.0f, 16.0f, Dim(0.75f), TorqueUi::EAlign::Centre);
 }

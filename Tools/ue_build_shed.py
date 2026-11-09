@@ -28,7 +28,8 @@ What it makes (Unreal cm: x east, y south (towards the roller door), z up; the f
     room built as a shell (the dyno room and the paint shop fitted out: the rig, desk and switches;
     the downdraft spray bay with its hooks under hexagon lights), and the wash bay lean-to on the west wall, open to the
     yard, with the pressure washer on its back wall;
-  - the deliveries bay painted on the yard east of the door; fields, lane and fells round it;
+  - the deliveries bay painted on the yard east of the door; the riding pad, a flat 120 x 90 m of
+    concrete in front of the shed (Tools/shed_yard.py); fields, lane and fells round it;
   - daylight as Buttertubs; the shed's strip lights over each bay and down the middle; Lumen;
   - a point tagged RideOut in the door and a player start where Torque Shed puts walkers.
 The game mode spawns the walker (ATorqueWalker) in any map with an ATorqueShedBike in it.
@@ -184,20 +185,25 @@ def outline_material():
     to put on the walker's camera as a post-process. The game marks what's looked at with custom
     depth and stencil (r.CustomDepth=3); this draws a line just outside that shape: two rings of
     stencil samples (a crisp inner one, a fainter outer one for softness), drawn fainter where
-    something in front hides the part's edge, and blended after tonemapping so it stays the same
-    line however the shed's exposure moves: orange over dark things, deeper orange over light ones.
+    something in front hides the part's edge, and blended before depth of field (so TSR steadies it):
+    orange over dark things, deeper orange over light ones.
     Parameters: Color, DarkColor, Opacity, Width (pixels at 1080p, scaled with the screen),
     Hidden (how much of the line shows through things in front)."""
     m = new_material("M_ShedOutline")
     if not try_set(m, "material_domain", unreal.MaterialDomain.MD_POST_PROCESS):
         raise RuntimeError("M_ShedOutline: can't make a post-process material")
+    # Before depth of field, so before TSR (beenster, Nov 9: "highlighter should not shimmer"). After
+    # tonemapping it ran on the upscaled frame but read custom depth/stencil at render size, jittered
+    # a sub-pixel each frame: the 1-2 px line crawled. Here TSR averages the jitter into a steady,
+    # anti-aliased line. The scene colour here is pre-exposed HDR, so Color ~1 still reads the same
+    # whatever the shed's exposure.
     loc = None
-    for name in ("BL_SCENE_COLOR_AFTER_TONEMAPPING", "BL_AFTER_TONEMAPPING"):
+    for name in ("BL_SCENE_COLOR_BEFORE_DOF", "BL_BEFORE_TRANSLUCENCY"):
         loc = getattr(unreal.BlendableLocation, name, None)
         if loc is not None:
             break
     if loc is None or not try_set(m, "blendable_location", loc):
-        unreal.log_warning("[Torque] M_ShedOutline: no after-tonemapping location; left at its default")
+        raise RuntimeError("M_ShedOutline: can't put it before depth of field (it would shimmer)")
     M = unreal.MaterialProperty
 
     def link(a, b, pin, out=""):
@@ -288,17 +294,18 @@ def outline_material():
     rgb = expr(m, unreal.MaterialExpressionComponentMask, -450, y - 450, r=True, g=True, b=True, a=False)
     link(base, rgb, "")
     # Orange (beenster, Nov 9): Torque Shed's highlight orange over dark things, a deeper orange over
-    # light ones (the white walls, a silver tank), so it reads against either.
+    # light ones (the white walls, a silver tank), so it reads against either. Linear colours now (it
+    # blends before the tonemapper): the same oranges as before once tonemapped.
     lum = op(unreal.MaterialExpressionDotProduct, -300, y - 600, rgb,
              expr(m, unreal.MaterialExpressionConstant3Vector, -450, y - 600, constant=unreal.LinearColor(0.3, 0.59, 0.11, 1.0)))
     bright = expr(m, unreal.MaterialExpressionSaturate, -100, y - 600)
     link(op(unreal.MaterialExpressionMultiply, -200, y - 600,
-            op(unreal.MaterialExpressionSubtract, -250, y - 650, lum, const(-400, y - 650, 0.4)), const(-400, y - 700, 3.0)), bright, "")
+            op(unreal.MaterialExpressionSubtract, -250, y - 650, lum, const(-400, y - 650, 0.3)), const(-400, y - 700, 2.5)), bright, "")
     colour = expr(m, unreal.MaterialExpressionLinearInterpolate, -300, y - 300)
     link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 350, parameter_name="Color",
-              default_value=unreal.LinearColor(1.0, 0.55, 0.12, 1.0)), colour, "A")
+              default_value=unreal.LinearColor(1.2, 0.3, 0.02, 1.0)), colour, "A")
     link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 250, parameter_name="DarkColor",
-              default_value=unreal.LinearColor(0.85, 0.32, 0.0, 1.0)), colour, "B")
+              default_value=unreal.LinearColor(0.85, 0.1, 0.0, 1.0)), colour, "B")
     link(bright, colour, "Alpha")
     out = expr(m, unreal.MaterialExpressionLinearInterpolate, -150, y - 200)
     link(rgb, out, "A")
@@ -754,6 +761,76 @@ def shape(mesh, label, centre, size, mat, rot=(0.0, 0.0, 0.0), folder="Shed", co
 FOOTPRINTS = []   # (label, x, y, size x, size y) of what stands on the floor, for foot_ao()
 
 
+FLOOR_PAINT = []   # M_ShedFloorPaint, made on first use
+
+
+def floor_paint_material():
+    """M_ShedFloorPaint: yellow line paint rolled onto the floor (beenster, Nov 9: "should be
+    painted on, not like tape"). A decal, so it has no thickness and no edge to catch the light:
+    it takes the floor's own bumps (no normal of its own), with a satin paint's roughness, its
+    edges just soft, and a little wear where feet and tyres have scuffed it (world-space noise, so
+    every line wears differently)."""
+    if FLOOR_PAINT:
+        return FLOOR_PAINT[0]
+    mat = new_material("M_ShedFloorPaint")
+    try_set(mat, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    try_set(mat, "material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    uv = expr(mat, unreal.MaterialExpressionTextureCoordinate, -1400, 0)
+    centred = expr(mat, unreal.MaterialExpressionConstantBiasScale, -1200, 0, bias=-0.5, scale=2.0)
+    mel.connect_material_expressions(uv, "", centred, "")
+    ab = expr(mat, unreal.MaterialExpressionAbs, -1050, 0)
+    mel.connect_material_expressions(centred, "", ab, "")
+    # 1 - |c|^24 on each axis: full paint to just short of the edge, then a quick soft fall-off.
+    pw = expr(mat, unreal.MaterialExpressionPower, -900, 0, const_exponent=24.0)
+    mel.connect_material_expressions(ab, "", pw, "Base")
+    inv = expr(mat, unreal.MaterialExpressionOneMinus, -750, 0)
+    mel.connect_material_expressions(pw, "", inv, "")
+    mu = expr(mat, unreal.MaterialExpressionComponentMask, -600, -60, r=True, g=False, b=False, a=False)
+    mv = expr(mat, unreal.MaterialExpressionComponentMask, -600, 60, r=False, g=True, b=False, a=False)
+    mel.connect_material_expressions(inv, "", mu, "")
+    mel.connect_material_expressions(inv, "", mv, "")
+    edge = expr(mat, unreal.MaterialExpressionMultiply, -450, 0)
+    mel.connect_material_expressions(mu, "", edge, "A")
+    mel.connect_material_expressions(mv, "", edge, "B")
+    # Wear: big soft patches (~40 cm) and fine speckle (~2 cm), from 1 (whole) down to ~0.55.
+    wear = None
+    for i, (scale, lo) in enumerate(((0.025, 0.72), (0.45, 0.8))):
+        n = expr(mat, unreal.MaterialExpressionNoise, -900, 250 + i * 200, scale=scale, quality=1, levels=2,
+                 output_min=lo, output_max=1.25, turbulence=False)
+        sat = expr(mat, unreal.MaterialExpressionSaturate, -700, 250 + i * 200)
+        mel.connect_material_expressions(n, "", sat, "")
+        if wear is None:
+            wear = sat
+        else:
+            both = expr(mat, unreal.MaterialExpressionMultiply, -550, 300)
+            mel.connect_material_expressions(wear, "", both, "A")
+            mel.connect_material_expressions(sat, "", both, "B")
+            wear = both
+    alpha = expr(mat, unreal.MaterialExpressionMultiply, -300, 100)
+    mel.connect_material_expressions(edge, "", alpha, "A")
+    mel.connect_material_expressions(wear, "", alpha, "B")
+    mel.connect_material_property(alpha, "", unreal.MaterialProperty.MP_OPACITY)
+    col = expr(mat, unreal.MaterialExpressionConstant3Vector, -300, -200, constant=unreal.LinearColor(0.78, 0.55, 0.02, 1.0))
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(expr(mat, unreal.MaterialExpressionConstant, -300, -80, r=0.42), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    FLOOR_PAINT.append(finish(mat))
+    return FLOOR_PAINT[0]
+
+
+def floor_paint(label, x0, x1, y0, y1, folder, z=0.0):
+    """A painted line on the floor between x0..x1, y0..y1 (cm), at floor height z: a decal pointing
+    down that only reaches 2 cm either side of the floor, so it paints nothing standing on it."""
+    d = actors.spawn_actor_from_class(unreal.DecalActor, unreal.Vector((x0 + x1) / 2, (y0 + y1) / 2, z), unreal.Rotator(0.0, -90.0, 0.0))
+    d.set_actor_label(label)
+    d.set_folder_path(folder)
+    dc = d.get_component_by_class(unreal.DecalComponent)
+    dc.set_decal_material(floor_paint_material())
+    # Pointing down: the decal's X is down, its Y the world's Y, its Z the world's X (half sizes).
+    try_set(dc, "decal_size", unreal.Vector(2.0, (y1 - y0) * 0.5, (x1 - x0) * 0.5))
+    try_set(dc, "fade_screen_size", 0.0)   # thin lines would fade out across the shed otherwise
+    return d
+
+
 def box(label, x0, x1, y0, y1, z0, z1, mat, **kw):
     return shape(CUBE, label, ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), (x1 - x0, y1 - y0, z1 - z0), mat, **kw)
 
@@ -871,9 +948,9 @@ def shell(m):
     for i, x in enumerate(BAY_X):
         for side in (-1.0, 1.0):
             lx = x + side * 150.0
-            box("BayLine_%d_%d" % (i, side > 0), lx - 3, lx + 3, BAY_Y + 40 - 155, BAY_Y + 40 + 155, 0, 0.4, m["yellow"], folder="Bays", collide=False)
-        label_text("BayNumber_%d" % (i + 1), "BAY %d" % (i + 1), (x, BAY_Y + 175, 1.2), 90.0, 40.0, (242, 204, 51), "Bays", pitch=90.0)
-    box("Walkway", -hx + 150, hx - 150, -143, -137, 0, 0.4, m["yellow"], folder="Bays", collide=False)
+            floor_paint("BayLine_%d_%d" % (i, side > 0), lx - 3, lx + 3, BAY_Y + 40 - 155, BAY_Y + 40 + 155, "Bays")
+        label_text("BayNumber_%d" % (i + 1), "BAY %d" % (i + 1), (x, BAY_Y + 175, 0.15), 90.0, 40.0, (242, 204, 51), "Bays", pitch=90.0)
+    floor_paint("Walkway", -hx + 150, hx - 150, -143, -137, "Bays")
 
 
 def bays(m):
@@ -1004,6 +1081,13 @@ def gbox(label, centre, size, mat, folder="Dyno", **kw):
     return shape(CUBE, label, c, (size[0] * 100.0, size[2] * 100.0, size[1] * 100.0), mat, folder=folder, **kw)
 
 
+def gpaint(label, centre, size, folder="Dyno"):
+    """A painted floor line in the dyno room: centre (x, z) and size (x, z) in the room frame (metres)."""
+    c = g2ue(centre[0], 0.0, centre[1])
+    hx, hy = size[0] * 50.0, size[1] * 50.0
+    return floor_paint(label, c[0] - hx, c[0] + hx, c[1] - hy, c[1] + hy, folder, z=c[2])
+
+
 def gcyl(label, centre, radius, height, mat, axis="y", folder="Dyno", **kw):
     """A cylinder (radius, height in metres) along the room frame's y (up) or z (towards the shed)."""
     c = g2ue(*centre)
@@ -1050,8 +1134,8 @@ def dyno_room(m):
     gbox("Dyno_ScreenFrame", (cx, 2.25, cz - hz + 0.06), (3.3, 1.9, 0.05), m["dark"], collide=False)
     # Hazard lines round the rig, the walkway mat by the desk, the sign over the door (_build_decor).
     for i, side in enumerate((-1.0, 1.0)):
-        gbox("Dyno_Hazard_%d" % i, (cx + side * 1.45, 0.01, cz - 0.3), (0.06, 0.004, 4.2), m["yellow"], collide=False)
-    gbox("Dyno_HazardFront", (cx, 0.01, cz - 2.4), (2.9, 0.004, 0.06), m["yellow"], collide=False)
+        gpaint("Dyno_Hazard_%d" % i, (cx + side * 1.45, cz - 0.3), (0.06, 4.2))
+    gpaint("Dyno_HazardFront", (cx, cz - 2.4), (2.9, 0.06))
     gbox("Dyno_DeskMat", (dx, 0.006, dz + 0.85), (1.6, 0.012, 0.9), m["dark"], collide=False)
     label_text("Dyno_DoorSign", "DYNO ROOM", (0.0, -HALF_Y + 3.0, DYNO_DOOR_TOP + 45.0), 90.0, 22.0, (40, 32, 26), "Dyno")
     # The light and fan switches by the door (_build_switches): the rockers are the game's to light.
@@ -1069,8 +1153,8 @@ def deliveries(m):
     x0, x1, y0, y1 = 290.0, 1070.0, 750.0, 1250.0
     for i, (a0, a1, b0, b1) in enumerate(((x0, x0 + 8, y0, y1), (x1 - 8, x1, y0, y1), (x0, x1, y0, y0 + 8), (x0, x1, y1 - 8, y1),
                                           (x0, x1, 1065 - 3, 1065 + 3))):
-        box("Deliveries_Line_%d" % i, a0, a1, b0, b1, 0, 0.6, m["yellow"], folder="Outside", collide=False)
-    label_text("Deliveries_Mark", "DELIVERIES", ((x0 + x1) / 2, y0 - 45, 1.0), 90.0, 50.0, (217, 178, 51), "Outside", pitch=90.0)
+        floor_paint("Deliveries_Line_%d" % i, a0, a1, b0, b1, "Outside")
+    label_text("Deliveries_Mark", "DELIVERIES", ((x0 + x1) / 2, y0 - 45, 0.15), 90.0, 50.0, (217, 178, 51), "Outside", pitch=90.0)
 
 
 # --- The paint shop (workshop.gd _build_booth_room) and its spray bay (equipment "booth_shop") -----------
@@ -1294,26 +1378,54 @@ def strip_light(label, at, lumens, width, height, radius, folder, kelvin=None):
 
 
 def outside(m):
-    # Concrete apron in front of the door, the lane off it to the south, the field all round.
-    # (The yard reaches past the paint mixing bay, x 1430 .. 1700, its east wall clear of it.)
-    box("Forecourt", -1200, 1840, HALF_Y + WALL, HALF_Y + WALL + 900, -10, 0, m["concrete"], folder="Outside")
-    box("Yard", -1600, 1840, -1400, HALF_Y + WALL, -11, -1, m["concrete"], folder="Outside")
-    box("Lane", -200, 200, HALF_Y + WALL + 900, 30000, -12, -2, m["tarmac"], folder="Outside")
-    box("Field", -40000, 40000, -40000, 40000, -30, -8, m["grass"], folder="Outside")
-    # Drystone walls round the yard and along the lane.
+    # The riding yard (Tools/shed_yard.py): a large flat concrete pad in front of the door, poured in
+    # 6 m slabs, where the bikes are ridden; the concrete yard behind and beside the shed; drystone
+    # walls round both; the lane beyond the pad's far wall; the field all round. The concrete is
+    # tagged Road, so the ridden bike's wheels stand on it (ATorqueBikePawn's ground trace); the
+    # walls and buildings it can't pass are in Data/Shed/Yard/collision.json, written from the same
+    # sizes here.
+    sys.path.insert(0, os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Tools"))
+    import importlib
+    import shed_yard as sy
+    importlib.reload(sy)   # (the editor keeps modules between runs)
+    sy.write(os.path.abspath(unreal.Paths.project_dir()))
+
+    def ground(a, tag):
+        a.set_editor_property("tags", [unreal.Name(tag)])
+        return a
+    ground(box("RidePad", sy.PAD_X0, sy.PAD_X1, sy.PAD_Y0, sy.PAD_Y1, -10, 0, m["concrete"], folder="Outside"), "Road")
+    ground(box("Yard", sy.YARD_X0, sy.YARD_X1, sy.YARD_Y0, sy.YARD_Y1, -11, -1, m["concrete"], folder="Outside"), "Road")
+    ground(box("Field", -80000, 80000, -80000, 80000, -30, -8, m["grass"], folder="Outside"), "Land")
+    # The slabs' saw cuts: thin dark joints, a hair proud of the concrete (no collision: the wheels
+    # don't feel them).
+    n = 0
+    x = sy.PAD_X0 + sy.SLAB
+    while x < sy.PAD_X1 - 1.0:
+        box("RidePad_JointX_%d" % n, x - 0.8, x + 0.8, sy.PAD_Y0, sy.PAD_Y1, 0, 0.15, m["dark"], folder="Outside/Joints", collide=False)
+        n += 1
+        x += sy.SLAB
+    y = sy.PAD_Y0 + sy.SLAB
+    while y < sy.PAD_Y1 - 1.0:
+        box("RidePad_JointY_%d" % n, sy.PAD_X0, sy.PAD_X1, y - 0.8, y + 0.8, 0, 0.15, m["dark"], folder="Outside/Joints", collide=False)
+        n += 1
+        y += sy.SLAB
+    # Drystone walls round the yard and the pad, and along the lane beyond it.
     def dry(label, x0, x1, y0, y1):
-        box(label, x0, x1, y0, y1, -8, 130, m["drystone"], folder="Outside")
-    dry("Wall_YardW", -1700, -1640, -1500, HALF_Y + WALL + 900)
-    dry("Wall_YardE", 1840, 1900, -1500, HALF_Y + WALL + 900)
-    dry("Wall_Back", -1700, 1900, -1560, -1500)
-    dry("Wall_LaneW", -280, -220, HALF_Y + WALL + 900, 12000)
-    dry("Wall_LaneE", 220, 280, HALF_Y + WALL + 900, 12000)
-    dry("Wall_Field1", -9000, -230, 4000, 4060)
-    dry("Wall_Field2", 330, 9000, 6500, 6560)
-    # Far fells: low domes 8 to 20 km off, hazed blue by the sky's aerial perspective.
+        box(label, x0, x1, y0, y1, -8, sy.DRYSTONE_H, m["drystone"], folder="Outside")
+    for (label, x0, x1, y0, y1) in sy.WALLS:
+        dry(label, x0, x1, y0, y1)
+    box("Lane", -sy.LANE_HALF, sy.LANE_HALF, sy.LANE_Y0, sy.LANE_Y1, -12, -2, m["tarmac"], folder="Outside")
+    dry("Wall_LaneW", -sy.LANE_HALF - 80, -sy.LANE_HALF - 20, sy.LANE_Y0, sy.LANE_Y0 + 12000)
+    dry("Wall_LaneE", sy.LANE_HALF + 20, sy.LANE_HALF + 80, sy.LANE_Y0, sy.LANE_Y0 + 12000)
+    dry("Wall_Field1", -9000, -sy.LANE_HALF - 80, sy.LANE_Y0 + 3000, sy.LANE_Y0 + 3060)
+    dry("Wall_Field2", sy.LANE_HALF + 80, 9000, sy.LANE_Y0 + 5500, sy.LANE_Y0 + 5560)
+    # Far fells: low domes all round, hazed blue by the sky's aerial perspective. FELL_K moved them out
+    # (and up, so they look the same) when the riding pad came: none reaches over the pad or the yard.
+    FELL_K = 2.2
     for i, (x, y, w, d, h) in enumerate(((-14000, 9000, 26000, 9000, 2600), (9000, 15000, 30000, 12000, 3400),
                                          (20000, -6000, 14000, 30000, 2400), (-6000, -16000, 34000, 10000, 3000),
                                          (-20000, -2000, 12000, 26000, 2200))):
+        x, y, w, d, h = (v * FELL_K for v in (x, y, w, d, h))
         shape(SPHERE, "Fell_%d" % i, (x, y, -h * 0.25), (w, d, h * 2.0), m["hill"], folder="Outside", collide=False)
 
 
