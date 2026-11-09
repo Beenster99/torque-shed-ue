@@ -10,6 +10,7 @@
 #pragma once
 
 #include "BikeContacts.h"
+#include "BikeHeat.h"
 #include "BikeSpec.h"
 #include <functional>
 #include <string>
@@ -52,6 +53,7 @@ struct Wheel
 	int Surf = SURF_TARMAC;
 	double Kappa = 0.0, Alpha = 0.0, Sy = 0.0, Camber = 0.0, GripUsed = 0.0, Mu = 0.0, FSide = 0.0, REff = 0.3;
 	double SlipShare = 1.0;
+	double PSlip = 0.0, PRoll = 0.0;   // W: the tyre's work sliding over the road, and flexing as it rolls (heat)
 	bool Eased = false;
 	V3 Force, FLat, LongDir{0, 0, -1}, ContactLocal, NormalLocal{0, 1, 0}, ContactPos, Normal{0, 1, 0};
 	V3 Axle;
@@ -92,8 +94,15 @@ public:
 	double FuelLitres = 15.0;
 	double EngineKw = 0.0;
 	bool Overrun = false;
-	// 0..1, how hard the back tyre's spinning on the spot (a burnout).
-	double Burnout = 0.0;
+	// The tyres', brakes' and engine's temperatures and what they do (BikeHeat). Setup warms it
+	// through; the game cools it to the shed's temperature as a ride starts (Heat.Soak) and sets its
+	// air, road and wetness.
+	BikeHeat Heat;
+	// 0..1, how hard the back tyre's spinning on the spot (a burnout); seconds of full burnout since
+	// the game last took them (they wear the back tyre); how far it has spun the bike round (rad,
+	// + left). Paddling: walking the bike backwards with the rider's feet.
+	double Burnout = 0.0, BurnoutTime = 0.0, DonutTurn = 0.0;
+	bool Paddling = false;
 
 	// Rigid body state (world: +Y up). Position is the body origin (axle height, mid wheelbase).
 	V3 Position;
@@ -186,6 +195,8 @@ private:
 	double BrakeCare(bool IsFront) const;
 	void ApplyAero();
 	void ApplyRiderBalance(double Delta);
+	void UpdateFeet(double Delta);
+	void ApplyDonut(double Delta);
 	void ApplyFeet();
 	void CheckCrash();
 	void StepCrashed(double Delta);   // off: falls, slides and tumbles on the ground
@@ -209,7 +220,8 @@ private:
 	V3 PrevW, PrevV;
 	bool HavePrev = false;
 	double Seen[4] = {0, 0, 0, 0};
-	double Starting = 0.0;
+	double Starting = 0.0, StoppedBrake = 0.0;
+	V3 BurnoutAt;
 	double ShiftTimer = 0.0, SinceShift = 0.0, Traction = 1.0, ShiftFromRpm = 0.0, ThrottleEff = 0.0, ShiftLoad = 0.0;
 };
 } // namespace TorqueSim

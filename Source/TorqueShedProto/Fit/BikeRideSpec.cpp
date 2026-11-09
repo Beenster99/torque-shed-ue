@@ -1,6 +1,7 @@
 #include "BikeRideSpec.h"
 
 #include "../Sim/TyreModel.h"
+#include <cctype>
 
 #include <algorithm>
 #include <cmath>
@@ -461,6 +462,66 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 		const V3 Rough(M * Wb * Wb * 0.16, M * Wb * Wb * 0.13, M * 0.11);
 		const V3 Sum = Rough + InertiaAdd;
 		S.Inertia = V3(std::max(Sum.x, Rough.x * 0.6), std::max(Sum.y, Rough.y * 0.6), std::max(Sum.z, Rough.z * 0.6));
+	}
+
+	// What its heat works from (BikeHeat.setup): the tyres' windows and sizes, the discs and pads,
+	// the engine and its cooling.
+	{
+		TorqueSim::BikeHeatParts& H = S.Heat;
+		const char* Sides[2] = {"front", "rear"};
+		for (int I = 0; I < 2; ++I)
+		{
+			const Json& T = I == 0 ? Tf : Tr;
+			const Json& Rim = I == 0 ? Wf : Wr;
+			TorqueSim::BikeHeatParts::TyrePart& Tp = H.Tyre[I];
+			// window_of: by compound; an off-road knobbly's soft compound is made for the cold mud.
+			std::string Compound = T.Str("compound", "Medium");
+			for (char& C : Compound) C = (char)std::tolower((unsigned char)C);
+			double Lo = 15.0, Hi = 90.0, Cold = 0.9;
+			if (Compound == "super soft") { Lo = 70.0; Hi = 110.0; Cold = 0.55; }
+			else if (Compound == "soft") { Lo = 35.0; Hi = 95.0; Cold = 0.8; }
+			else if (Compound == "dual") { Lo = 10.0; Hi = 95.0; Cold = 0.92; }
+			else if (Compound == "hard") { Lo = 10.0; Hi = 85.0; Cold = 0.9; }
+			if (T.Str("style") == "offroad" && Compound == "soft") { Lo = 15.0; Hi = 85.0; Cold = 0.9; }
+			if (const Json* W = T.Get("temp_window"))
+				if (W->A.size() >= 2) { Lo = W->A[0].N; Hi = W->A[1].N; }
+			Tp.Lo = Lo;
+			Tp.Hi = Hi;
+			Tp.ColdGrip = T.Num("cold_grip", Cold);
+			Tp.Mass = std::max(T.Num("mass", 4.5), 1.0);
+			const double R = I == 0 ? S.FrontRadius : S.RearRadius;
+			const double RimR = Rim.Num("diameter", 17.0) * 0.0127;
+			const double W = I == 0 ? FrontWidth : RearWidth;
+			Tp.TreadArea = 2.0 * RsPi * R * W * 1.2;
+			Tp.SideArea = 2.0 * RsPi * std::max(R * R - RimR * RimR, 0.005);
+			// The disc (or drum) and pads.
+			const Json& Disc = B.Part(std::string(Sides[I]) + "_disc");
+			const std::string DiscStyle = Disc.Str("style");
+			const double D = Disc.Num("diameter", 280.0) / 1000.0;
+			TorqueSim::BikeHeatParts::BrakePart& Bp = H.Brake[I];
+			Bp.DiscC = (Disc.Num("mass", 1.0) + 0.5) * 480.0;
+			Bp.DiscArea = DiscStyle == "drum" ? RsPi * D * 0.06 + RsPi * (D * 0.5) * (D * 0.5)
+				: 2.0 * RsPi * std::max((D * 0.5) * (D * 0.5) - (D * 0.5 - 0.04) * (D * 0.5 - 0.04), 0.01);
+			Bp.DiscCool = DiscStyle == "drum" ? 0.5 : (DiscStyle == "drilled" || DiscStyle == "wave" || DiscStyle == "floating") ? 1.25 : 1.0;
+			std::string Pad = B.Part(std::string(Sides[I]) + "_pads").Str("type", "semi-metallic");
+			for (char& C : Pad) C = (char)std::tolower((unsigned char)C);
+			Bp.PadFrom = 80.0;
+			Bp.PadCold = 0.95;
+			if (Pad == "organic") { Bp.PadFrom = 40.0; Bp.PadCold = 1.0; }
+			else if (Pad == "sintered") { Bp.PadCold = 0.94; }
+			else if (Pad == "ceramic") { Bp.PadFrom = 120.0; Bp.PadCold = 0.9; }
+			else if (Pad == "carbon-ceramic") { Bp.PadFrom = 250.0; Bp.PadCold = 0.65; }
+		}
+		const Json& Cooling = B.Part("cooling");
+		std::string Kind = Cooling.Str("type", "Air");
+		for (char& C : Kind) C = (char)std::tolower((unsigned char)C);
+		H.Liquid = Kind.find("liquid") != std::string::npos;
+		H.OilFollow = H.Liquid ? 1.0 : Kind.find("oil") != std::string::npos ? 0.6 : 0.75;
+		H.Displacement = std::max(Block.Num("displacement", 700.0), 30.0);
+		H.IdleRpm = std::max(Block.Num("idle_rpm", 950.0), 500.0);
+		// engine_heat over the litres: the head's heat and how hard the block breathes.
+		H.Head = RsClamp(B.Part("head").Num("heat", 1.0) * Block.Num("breathing", 1.0), 0.5, 2.0);
+		H.CoolingCapacity = std::max(Cooling.Num("capacity", 1.0) * RsLerp(0.6, 1.0, B.Health("cooling")), 0.2);
 	}
 	return true;
 }
