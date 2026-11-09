@@ -2,6 +2,8 @@
 
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/UnrealType.h"
 #include "Dom/JsonObject.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
@@ -45,7 +47,27 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 	return FQuat::Slerp(FQuat::Identity, FQuat::FindBetweenVectors(From, To), Frac);
 }
 
-struct FEntry { FString Name, Blueprint, BodyMesh; };
+// One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
+// beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
+// the mesh's own).
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo; TArray<FString> Materials; };
+struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; };
+
+TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
+{
+	TArray<FString> Out;
+	const TArray<TSharedPtr<FJsonValue>>* Arr = nullptr;
+	if (O->TryGetArrayField(Field, Arr))
+		for (const TSharedPtr<FJsonValue>& V : *Arr) Out.Add(V->AsString());
+	return Out;
+}
+
+void ApplyMaterials(UMeshComponent* C, const TArray<FString>& Paths)
+{
+	for (int32 I = 0; I < Paths.Num(); ++I)
+		if (!Paths[I].IsEmpty())
+			if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *Paths[I])) C->SetMaterial(I, M);
+}
 
 const TArray<FEntry>& Entries()
 {
@@ -68,10 +90,71 @@ const TArray<FEntry>& Entries()
 		(*O)->TryGetStringField(TEXT("name"), E.Name);
 		(*O)->TryGetStringField(TEXT("blueprint"), E.Blueprint);
 		(*O)->TryGetStringField(TEXT("body"), E.BodyMesh);
+		E.BodyMaterials = Strings(*O, TEXT("body_materials"));
+		const TArray<TSharedPtr<FJsonValue>>* PArr = nullptr;
+		if ((*O)->TryGetArrayField(TEXT("parts"), PArr))
+			for (const TSharedPtr<FJsonValue>& PV : *PArr)
+			{
+				const TSharedPtr<FJsonObject>* PO = nullptr;
+				if (!PV->TryGetObject(PO)) continue;
+				FPart P;
+				(*PO)->TryGetStringField(TEXT("name"), P.Name);
+				(*PO)->TryGetStringField(TEXT("mesh"), P.Mesh);
+				(*PO)->TryGetStringField(TEXT("groom"), P.Groom);
+				(*PO)->TryGetStringField(TEXT("binding"), P.Binding);
+				(*PO)->TryGetStringField(TEXT("attach"), P.AttachTo);
+				P.Materials = Strings(*PO, TEXT("materials"));
+				E.Parts.Add(P);
+			}
 		if (!E.Blueprint.IsEmpty() || !E.BodyMesh.IsEmpty()) List.Add(E);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d MetaHuman avatars listed"), List.Num());
 	return List;
+}
+// The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
+// Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
+// made by class name, so the game needn't link the hair module (and skips them without it).
+void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TArray<TWeakObjectPtr<USceneComponent>>& Out)
+{
+	TMap<FString, USceneComponent*> ByName;
+	for (const FPart& P : E.Parts)
+	{
+		if (P.Mesh.IsEmpty()) continue;
+		USkeletalMesh* M = LoadObject<USkeletalMesh>(nullptr, *P.Mesh);
+		if (!M) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no mesh %s"), *E.Name, *P.Mesh); continue; }
+		USkeletalMeshComponent* C = NewObject<USkeletalMeshComponent>(Owner);
+		C->SetupAttachment(Driver);
+		C->SetSkeletalMeshAsset(M);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+		C->RegisterComponent();
+		ApplyMaterials(C, P.Materials);
+		C->SetLeaderPoseComponent(Driver, true);
+		ByName.Add(P.Name, C);
+		Out.Add(C);
+	}
+	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
+	for (const FPart& P : E.Parts)
+	{
+		if (P.Groom.IsEmpty()) continue;
+		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
+		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
+		if (!G) continue;
+		USceneComponent* C = NewObject<USceneComponent>(Owner, GroomClass);
+		USceneComponent** To = ByName.Find(P.AttachTo);
+		C->SetupAttachment(To ? *To : (USceneComponent*)Driver);
+		auto SetObj = [C](const TCHAR* Prop, UObject* V)
+		{
+			if (FObjectPropertyBase* Pr = FindFProperty<FObjectPropertyBase>(C->GetClass(), Prop))
+				Pr->SetObjectPropertyValue_InContainer(C, V);
+		};
+		SetObj(TEXT("GroomAsset"), G);
+		if (!P.Binding.IsEmpty()) SetObj(TEXT("BindingAsset"), StaticLoadObject(UObject::StaticClass(), nullptr, *P.Binding));
+		C->RegisterComponent();
+		if (UMeshComponent* MC = Cast<UMeshComponent>(C)) ApplyMaterials(MC, P.Materials);
+		Out.Add(C);
+	}
 }
 } // namespace TorqueAvatarMath
 
@@ -92,6 +175,9 @@ void FTorqueAvatar::Destroy()
 {
 	if (AActor* A = Spawned.Get()) A->Destroy();
 	Spawned.Reset();
+	for (TWeakObjectPtr<USceneComponent>& P : Parts)
+		if (USceneComponent* C = P.Get()) C->DestroyComponent();
+	Parts.Reset();
 	if (Driver) Driver->DestroyComponent();
 	Driver = nullptr;
 	Bones.Reset();
@@ -246,10 +332,15 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	Driver->RegisterComponent();
 	if (AActor* A = Spawned.Get())
 	{
-		TArray<USkinnedMeshComponent*> Parts;
-		A->GetComponents(Parts);
-		for (USkinnedMeshComponent* C : Parts)
+		TArray<USkinnedMeshComponent*> Skins;
+		A->GetComponents(Skins);
+		for (USkinnedMeshComponent* C : Skins)
 			if (C != Driver) C->SetLeaderPoseComponent(Driver, true);
+	}
+	else
+	{
+		ApplyMaterials(Driver, E.BodyMaterials);
+		AddParts(Owner, Driver, E, Parts);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s (%s, %d bones driven, legs %.0f cm, arms %.0f cm)"), *Name,
 		*Mesh->GetName(), Bones.Num(), LegLen, ArmLen);

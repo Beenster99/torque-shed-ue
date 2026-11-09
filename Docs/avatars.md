@@ -11,7 +11,7 @@ The bodies are posed in code, with no animation assets or Anim Blueprint:
 - the head looks where the player looks;
 - the hands come up in front while the player is working (their crew-board activity).
 
-The assembled Blueprint's parts (body, face, hair and clothes) all follow a hidden poseable copy of the body.
+The game doesn't load the assembled Blueprint, because its Anim Blueprints (LiveLink, face post-process) need the MetaHuman plugin, which is editor-only. `register` reads the Blueprint's meshes and grooms into `avatars.json` instead, and moves the Blueprint to `/Game/MetaHumanSources`, which is never cooked. It also drops any mesh's post-process Anim Blueprint that needs the plugin, and warns about anything else of the plugin that's still pulled in. In the game, the body is a poseable mesh posed in code, and the face, clothes and hair follow it.
 
 If there's no `avatars.json`, or an avatar fails to load, players keep the shape body as before.
 
