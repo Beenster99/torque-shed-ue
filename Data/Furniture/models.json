@@ -30,10 +30,6 @@
    "Trolleys"
   ],
   [
-   "booth",
-   "Paint booths"
-  ],
-  [
    "changer",
    "Tyre changers"
   ],
@@ -382,50 +378,6 @@
     1.6
    ],
    "sold": true
-  },
-  "booth_compact": {
-   "kind": "booth",
-   "name": "Pop-up spray tent",
-   "desc": "A folding tent with an extractor fan. Two hooks: room for a tank and a mudguard.",
-   "size": [
-    1.6,
-    2.2,
-    1.4
-   ],
-   "sold": false
-  },
-  "booth_standard": {
-   "kind": "booth",
-   "name": "Paint booth",
-   "desc": "Lit, filtered spray booth with four hooks on a rail. Hang the parts and go along them with the spray gun.",
-   "size": [
-    2.6,
-    2.4,
-    1.8
-   ],
-   "sold": false
-  },
-  "booth_pro": {
-   "kind": "booth",
-   "name": "Downdraft spray booth",
-   "desc": "Pro booth: air pulled down through a floor grate so no dust lands in the paint. Six hooks.",
-   "size": [
-    3.4,
-    2.5,
-    2.2
-   ],
-   "sold": false
-  },
-  "booth_shop": {
-   "kind": "booth",
-   "name": "Downdraft spray bay",
-   "desc": "The paint shop's spray bay: a floor grate pulls the air down, ten hooks on two rails with room to walk round each part.",
-   "size": [
-    8.0,
-    2.7,
-    4.7
-   ],
-   "sold": false
   },
   "tyre_changer": {
    "kind": "changer",

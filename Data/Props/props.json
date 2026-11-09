@@ -282,24 +282,6 @@
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_blaster",
    "source": "blender"
   },
-  "booth_compact": {
-   "name": "booth_compact",
-   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
-   "source": "todo",
-   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
-  },
-  "booth_standard": {
-   "name": "booth_standard",
-   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
-   "source": "todo",
-   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
-  },
-  "booth_pro": {
-   "name": "booth_pro",
-   "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
-   "source": "todo",
-   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
-  },
   "booth_shop": {
    "name": "booth_shop",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
