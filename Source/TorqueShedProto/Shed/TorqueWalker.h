@@ -79,6 +79,9 @@ public:
 	int32 SprayLoadIndex() const { return SprayFinish; }
 	bool SprayIsPaint() const;   // a colour (R picks it), not primer or a coat
 	FString CarryingText() const;
+	// How far the part in your hands is turned from the way you face, in degrees (R turns it, as
+	// walker.gd's hold_turn): the items actor turns it in your hands, and it goes down that way.
+	double HeldTurn() const { return HoldTurn; }
 	// For the parts computer's monitor (ATorqueShedScreens): whether this player is at it, the
 	// category (NAME_None: project bikes) and its rows, and the one picked.
 	bool AtComputer() const { return bComputer; }
@@ -248,7 +251,24 @@ private:
 	UPROPERTY(Transient) UMaterialInstanceDynamic* LitFaintMaterial = nullptr;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostParts;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostMaterials;   // fill, edge; blocked fill, edge
+	// The same edges again, seen through whatever's in the way (the part in your hands, a bench):
+	// M_ShedGhostXRay draws without the depth test. Empty when the level script hasn't made it.
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostXRayParts;
+	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostXRayMaterials;   // edge; blocked edge
+	double GhostClock = 0.0;
 	void UpdateCues();
+	// Carrying a part (walker.gd carry_reach, hold_turn): the mouse wheel (Q / E, L1 / R1) puts where
+	// it goes down a step further out or nearer, and R (Square) turns it, a quarter a tap or freely
+	// while held. Both start again with each part you pick up.
+	double CarryReach = 0.0;          // cm further out than arm's length (TWI::CarryMin..CarryMax)
+	double HoldTurn = 0.0;            // degrees from the way you face
+	double TurnKeyFor = 0.0;          // how long R has been held (-1: not held)
+	int32 TurnSign = 1;               // Shift+R turns the other way
+	int32 CarryFor = 0;               // the part these were set for
+	void CarryInput(float Dt, bool bOut, bool bIn, bool bTurnDown, bool bTurnBack);
+	// Where the part in your hands goes down on the floor: arm's length plus CarryReach ahead (short
+	// of a wall), turned by HoldTurn (walker.gd _push_transform, for a part).
+	FTransform CarryDrop() const;
 	int32 SprayColour = 0;
 	int32 SprayFinish = 0;
 	bool bCrouched = false;

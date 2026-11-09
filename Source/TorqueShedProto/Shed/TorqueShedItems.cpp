@@ -288,6 +288,17 @@ bool ATorqueShedItems::WhereIs(int32 Item, FVector& Out) const
 	return false;
 }
 
+bool ATorqueShedItems::SizeOf(int32 Item, FVector& Out) const
+{
+	for (const FDrawn& D : Drawn)
+		if (D.Item == Item && !D.Size.IsNearlyZero())
+		{
+			Out = D.Size;
+			return true;
+		}
+	return false;
+}
+
 void ATorqueShedItems::MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>& Out) const
 {
 	for (const UStaticMeshComponent* C : Meshes)
@@ -420,6 +431,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	D.Holder = Holder;
 	D.Centre = Box.GetCenter();
 	D.Offset = FVector(D.Centre.X, D.Centre.Y, Box.Min.Z);
+	D.Size = Box.GetSize();   // (the holder is at the origin, unturned, while it's made)
 	if (It->At == ETorqueAt::Held) D.HeldBy = It->Ref;
 	if (It->At == ETorqueAt::Spot)
 		if (const FTorquePlace* HookP = TorqueShedLayout::FindPlace(It->Spot); HookP && HookP->Kind == ETorquePlace::Hook)
@@ -453,10 +465,11 @@ bool ATorqueShedItems::HandOf(int32 Peer, FTransform& Out) const
 	{
 		const APlayerState* PS = W->GetPlayerState();
 		if (!PS || PS->GetPlayerId() != Peer) continue;
-		// Out in front at chest height, a little to the right: in view, not in the way.
+		// Out in front at chest height, a little to the right: in view, not in the way. Turned as
+		// R has turned it (walker.gd hold_turn), the way it'll go down.
 		const FRotator Aim = W->GetBaseAimRotation();
 		const FRotator Yaw(0.0, Aim.Yaw, 0.0);
-		Out = FTransform(Yaw, W->GetPawnViewLocation() + Yaw.RotateVector(FVector(60.0, 18.0, -45.0)));
+		Out = FTransform(FRotator(0.0, Aim.Yaw + W->HeldTurn(), 0.0), W->GetPawnViewLocation() + Yaw.RotateVector(FVector(60.0, 18.0, -45.0)));
 		return true;
 	}
 	return false;

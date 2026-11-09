@@ -214,6 +214,14 @@ FString SlotList(const TArray<FName>& Slots, int32 Most = 4)
 }
 // Hold F this long on a bike to wheel it instead of riding it (walker.gd HOLD_TO_PUSH).
 constexpr double HoldToPush = 0.35;
+// Carrying a part (walker.gd CARRY_STEP, CARRY_MIN, CARRY_MAX, TURN_HOLD, TURN_RATE): a click of the
+// wheel moves where it goes down this far out or in, between these of arm's length; R held this
+// long turns it freely, this fast (degrees a second); a tap turns it a quarter.
+constexpr double CarryStep = 25.0;
+constexpr double CarryMin = -15.0;
+constexpr double CarryMax = 300.0;
+constexpr double TurnHold = 0.2;
+constexpr double TurnRate = 90.0;
 } // namespace TorqueWalkerImpl
 
 namespace TWI = TorqueWalkerImpl;
@@ -609,10 +617,23 @@ void ATorqueWalker::ReadInput(float Dt)
 
 	if (bBack) Jump();
 	if (Just(EKeys::C) || Just(EKeys::LeftControl) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3)) SetCrouched(!bCrouched);
-	// The tools: Q / E, the wheel, L1 / R1, or 1-7.
+	// The tools: Q / E, the wheel, L1 / R1, or 1-7. Carrying a part, your hands are full: the wheel
+	// (Q / E, L1 / R1) moves where it goes down out or in, and R / Square turns it (CarryInput).
 	const int32 Tools = (int32)ETorqueTool::Count;
-	if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
-	if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+	const UTorqueBuildSubsystem* CarryShed = Shed();
+	const bool bCarryPart = CarryShed && CarryShed->HeldBy(CarryShed->Me()) != 0 && !CarryShed->PaintBay().HeldTin(CarryShed->Me())
+		&& CarryShed->PaintBay().TapeBy != CarryShed->Me();
+	if (bCarryPart)
+		CarryInput(Dt, bPrev, bNext, Down(EKeys::R) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square),
+			Down(EKeys::LeftShift) || Down(EKeys::RightShift));
+	else
+	{
+		TurnKeyFor = -1.0;
+		CarryFor = 0;
+		HoldTurn = 0.0;
+		if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
+		if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+	}
 	static const FKey Numbers[] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven};
 	for (int32 I = 0; I < Tools && I < (int32)UE_ARRAY_COUNT(Numbers); ++I)
 		if (Just(Numbers[I])) SetTool((ETorqueTool)I);
@@ -645,6 +666,12 @@ void ATorqueWalker::ReadInput(float Dt)
 				if (!TapeShed->Request(Pick, WhyNot)) Say(WhyNot, false);
 				else Say(FString::Printf(TEXT("Masking tape: %s"), *FString(TorquePaintMix::PatternName(Pick.Colour)).ToLower()), true);
 			}
+		bAltPressed = Just(EKeys::RightMouseButton);
+		bAltHeld = Down(EKeys::RightMouseButton);
+	}
+	else if (bCarryPart)
+	{
+		// R / Square turn the part in your hands (CarryInput): only right mouse is the second button.
 		bAltPressed = Just(EKeys::RightMouseButton);
 		bAltHeld = Down(EKeys::RightMouseButton);
 	}
@@ -954,40 +981,22 @@ void ATorqueWalker::MakePlan()
 	{
 		// Something in your hands and nothing in reach to put it on (looking ahead, out in the yard,
 		// in the doorway): it goes down on the ground at your feet, a step in front.
-		if (HeldIt && !B->PaintBay().HeldTin(Me))
+		if (HeldIt && !B->PaintBay().HeldTin(Me) && B->PaintBay().TapeBy != Me)
 		{
-			const FVector Ahead = FRotator(0.0, GetControlRotation().Yaw, 0.0).Vector();
-			FVector At = GetActorLocation() + Ahead * 70.0;
-			At.Z = 0.0;
-			FHitResult Hit;
-			FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerFeet), false, this);
-			for (TActorIterator<ATorqueShedBike> It(GetWorld()); It; ++It) Params.AddIgnoredActor(*It);
-			for (TActorIterator<ATorqueShedItems> It(GetWorld()); It; ++It) Params.AddIgnoredActor(*It);
-			const FVector Top(At.X, At.Y, GetActorLocation().Z);
-			if (GetWorld()->LineTraceSingleByChannel(Hit, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Hit.ImpactPoint.Z;
-			Plan = MakeOne(ETorqueShedAct::Drop, 0.25, TEXT("put it down at your feet"));
-			Plan.Request.Place = FTransform(FRotator(0.0, GetControlRotation().Yaw, 0.0), At);
+			Plan = MakeOne(ETorqueShedAct::Drop, 0.25, CarryReach > 1.0 ? TEXT("put it down there") : TEXT("put it down in front of you"));
+			Plan.Request.Place = CarryDrop();
 			Plan.Blocked = B->Check(Me, Plan.Request);
 		}
 		return;
 	}
 	const FTorqueItem* Thing = B->Item(TargetItem);
 	const FName Engine(TEXT("engine"));
-	// The floor under where you look, for putting a part down.
-	auto FloorUnder = [this](const FVector& At)
-	{
-		FVector Out(At.X, At.Y, 0.0);
-		FHitResult Hit;
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerFloor), false, this);
-		for (TActorIterator<ATorqueShedBike> It(GetWorld()); It; ++It) Params.AddIgnoredActor(*It);
-		for (TActorIterator<ATorqueShedItems> It(GetWorld()); It; ++It) Params.AddIgnoredActor(*It);
-		if (GetWorld()->LineTraceSingleByChannel(Hit, At + FVector(0, 0, 20), At - FVector(0, 0, 400), ECC_Visibility, Params)) Out.Z = Hit.ImpactPoint.Z;
-		return FTransform(FRotator(0.0, GetControlRotation().Yaw, 0.0), Out);
-	};
+	// Putting a part down on the floor: as far out as the wheel has put it, turned as R has
+	// (walker.gd: equipment you carry goes down where its outline is, not where the crosshair is).
 	auto DropPlan = [&]()
 	{
-		FPlan P = MakeOne(ETorqueShedAct::Drop, 0.25, TEXT("put it down here"));
-		P.Request.Place = FloorUnder(TargetPoint);
+		FPlan P = MakeOne(ETorqueShedAct::Drop, 0.25, TEXT("put it down there"));
+		P.Request.Place = CarryDrop();
 		return P;
 	};
 
@@ -1635,6 +1644,82 @@ FString ATorqueWalker::CarryingText() const
 	return Held != 0 ? B->ItemTitle(Held) : FString();
 }
 
+void ATorqueWalker::CarryInput(float Dt, bool bOut, bool bIn, bool bTurnDown, bool bTurnBack)
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
+	if (Held != CarryFor)
+	{
+		// Picked up something new: it starts at arm's length, the way you face (walker.gd _push).
+		CarryFor = Held;
+		CarryReach = 0.0;
+		HoldTurn = 0.0;
+		TurnKeyFor = -1.0;
+	}
+	if (bOut) CarryReach = FMath::Clamp(CarryReach + TWI::CarryStep, TWI::CarryMin, TWI::CarryMax);
+	if (bIn) CarryReach = FMath::Clamp(CarryReach - TWI::CarryStep, TWI::CarryMin, TWI::CarryMax);
+	if (bTurnDown)
+	{
+		if (TurnKeyFor < 0.0)
+		{
+			TurnKeyFor = 0.0;
+			TurnSign = bTurnBack ? -1 : 1;
+		}
+		TurnKeyFor += Dt;
+		// Held: it turns freely while the key's down, from the angle it's at.
+		if (TurnKeyFor >= TWI::TurnHold) HoldTurn = FRotator::NormalizeAxis(HoldTurn + TurnSign * TWI::TurnRate * Dt);
+	}
+	else if (TurnKeyFor >= 0.0)
+	{
+		// A tap: a quarter turn, onto the next quarter (walker.gd _stepped, Placement.snap_yaw).
+		if (TurnKeyFor < TWI::TurnHold)
+			HoldTurn = FRotator::NormalizeAxis(90.0 * FMath::RoundToDouble((HoldTurn + TurnSign * 90.0) / 90.0));
+		TurnKeyFor = -1.0;
+	}
+}
+
+FTransform ATorqueWalker::CarryDrop() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const int32 Held = B ? B->HeldBy(B->Me()) : 0;
+	UWorld* World = GetWorld();
+	const double Yaw = GetControlRotation().Yaw;
+	const FVector Flat = FRotator(0.0, Yaw, 0.0).Vector();
+	// How far it reaches towards you and away, turned however you've turned it (walker.gd _push_transform).
+	FVector Size(60.0, 30.0, 20.0);
+	if (World)
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It)
+			if (It->SizeOf(Held, Size)) break;
+	const double Rad = FMath::DegreesToRadians(HoldTurn);
+	const double Half = FMath::Abs(FMath::Cos(Rad)) * Size.X * 0.5 + FMath::Abs(FMath::Sin(Rad)) * Size.Y * 0.5;
+	const double Base = 55.0 + Half;
+	double Dist = Base + FMath::Clamp(CarryReach, TWI::CarryMin, TWI::CarryMax);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerCarry), false, this);
+	if (World)
+	{
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It) Params.AddIgnoredActor(*It);
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) Params.AddIgnoredActor(*It);
+	}
+	const FVector Feet = GetActorLocation() - FVector(0.0, 0.0, GetCapsuleComponent() ? GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 90.0);
+	if (World && Dist > Base)
+	{
+		// Pushed out: not through a wall (looked for low down and at waist height, walker.gd _wall_gap).
+		for (const double H : {30.0, 100.0})
+		{
+			FHitResult Hit;
+			const FVector From = Feet + FVector(0.0, 0.0, H);
+			if (World->LineTraceSingleByChannel(Hit, From, From + Flat * (Dist + Half + 10.0), ECC_Visibility, Params))
+				Dist = FMath::Min(Dist, FMath::Max(Base, Hit.Distance - Half - 2.0));
+		}
+	}
+	FVector At = Feet + Flat * Dist;
+	FHitResult Down;
+	const FVector Top(At.X, At.Y, Feet.Z + 120.0);
+	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
+	else At.Z = Feet.Z;
+	return FTransform(FRotator(0.0, Yaw + HoldTurn, 0.0), At);
+}
+
 void ATorqueWalker::UpdateCues()
 {
 	UTorqueBuildSubsystem* B = Shed();
@@ -1669,6 +1754,8 @@ void ATorqueWalker::UpdateCues()
 		GhostMaterials.Add(Make(FLinearColor(1.0f, 1.0f, 1.0f), 0.8f));
 		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.25f, 0.2f), 0.2f));
 		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.25f, 0.2f), 0.8f));
+		GhostMaterials.Add(Make(FLinearColor(0.35f, 0.85f, 1.0f), 0.1f));   // the box itself, faint (can, can't)
+		GhostMaterials.Add(Make(FLinearColor(1.0f, 0.3f, 0.2f), 0.1f));
 	}
 	const int32 Held = B->HeldBy(B->Me());
 	// What's looked at glows: a bike part's whole slot (not with the lance, which washes the bike).
@@ -1698,10 +1785,13 @@ void ATorqueWalker::UpdateCues()
 		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
 		Lit.Add(C);
 	}
-	// A part in your hands: its footprint where it will go down (the floor, a bench, a machine).
+	// A part in your hands: where it will go down (the floor, a bench, a machine), as a box its size
+	// with bright edges, a notch on its front edge, glowing so it shows in the lit shed, and its
+	// edges seen faintly through whatever's in the way (the part in your hands). Whatever tool was
+	// last picked: your hands are full.
 	bool bGhost = false;
 	FTransform At = FTransform::Identity;
-	if (bShow && Held != 0 && Tool == ETorqueTool::Hands && Plan.bValid)
+	if (bShow && Held != 0 && Plan.bValid)
 	{
 		if (Plan.Request.Kind == ETorqueShedAct::Drop)
 		{
@@ -1718,23 +1808,55 @@ void ATorqueWalker::UpdateCues()
 			}
 		}
 	}
-	FVector2D Foot(60.0, 30.0);
+	FVector Size(60.0, 30.0, 20.0);
 	if (bGhost)
 	{
-		TArray<const UStaticMeshComponent*> Meshes;
-		for (TActorIterator<ATorqueShedItems> It(World); It; ++It) It->MeshesOf(Held, Meshes);
-		FBox Box(ForceInit);
-		for (const UStaticMeshComponent* C : Meshes) Box += C->Bounds.GetBox();
-		if (Box.IsValid)
+		for (TActorIterator<ATorqueShedItems> It(World); It; ++It)
+			if (It->SizeOf(Held, Size)) break;
+		Size.X = FMath::Clamp(Size.X, 10.0, 220.0);
+		Size.Y = FMath::Clamp(Size.Y, 8.0, 160.0);
+		Size.Z = FMath::Clamp(Size.Z, 4.0, 160.0);
+	}
+	static UMaterialInterface* XRay = nullptr;
+	static bool bLookedXRay = false;
+	if (!bLookedXRay)
+	{
+		bLookedXRay = true;
+		XRay = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedGhostXRay.M_ShedGhostXRay"));
+		if (XRay) XRay->AddToRoot();
+		else
 		{
-			const FVector Size = Box.GetSize();
-			Foot = FVector2D(FMath::Max(Size.X, Size.Y), FMath::Min(Size.X, Size.Y));
-			Foot.X = FMath::Clamp(Foot.X, 10.0, 220.0);
-			Foot.Y = FMath::Clamp(Foot.Y, 8.0, 120.0);
+			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_ShedGhostXRay (run Tools/ue_build_shed.py): the drop box isn't seen through things"));
 		}
 	}
-	// The fill, its four edges and the notch on the front edge (walker.gd's pieces).
-	while (GhostParts.Num() < 6 && CubeMesh)
+	if (XRay && GhostXRayMaterials.Num() == 0)
+		for (const FLinearColor& C : {FLinearColor(0.35f, 0.85f, 1.0f), FLinearColor(1.0f, 0.3f, 0.2f)})
+		{
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(XRay, this);
+			M->SetVectorParameterValue(TEXT("Color"), C * 2.0f);
+			M->SetScalarParameterValue(TEXT("Opacity"), 0.35f);
+			GhostXRayMaterials.Add(M);
+		}
+	// The pieces, in the box's frame (its bottom centre, X ahead): the fill on the floor, a faint
+	// box, the twelve edges and the notch.
+	const double Bar = FMath::Clamp(FMath::Min(Size.X, Size.Y) * 0.04, 1.0, 2.0);
+	const double X = Size.X * 0.5, Y = Size.Y * 0.5, Z = Size.Z;
+	struct FPiece { FVector Size, Offset; int32 Kind; };   // 0 floor fill, 1 box, 2 edge
+	TArray<FPiece, TInlineAllocator<16>> Pieces;
+	Pieces.Add({FVector(Size.X, Size.Y, 0.3), FVector(0, 0, 0.35), 0});
+	Pieces.Add({FVector(Size.X, Size.Y, Z), FVector(0, 0, Z * 0.5 + 0.5), 1});
+	for (const double Up : {0.6, Z + 0.5})
+	{
+		Pieces.Add({FVector(Size.X + Bar, Bar, Bar), FVector(0, -Y, Up), 2});
+		Pieces.Add({FVector(Size.X + Bar, Bar, Bar), FVector(0, Y, Up), 2});
+		Pieces.Add({FVector(Bar, Size.Y + Bar, Bar), FVector(-X, 0, Up), 2});
+		Pieces.Add({FVector(Bar, Size.Y + Bar, Bar), FVector(X, 0, Up), 2});
+	}
+	for (const double SX : {-X, X})
+		for (const double SY : {-Y, Y})
+			Pieces.Add({FVector(Bar, Bar, Z), FVector(SX, SY, Z * 0.5 + 0.5), 2});
+	Pieces.Add({FVector(Bar * 3.0, FMath::Min(10.0, Size.Y * 0.5), Bar * 1.5), FVector(X, 0, 0.9), 2});   // the front
+	auto MakePart = [this](TArray<UStaticMeshComponent*>& Into)
 	{
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 		C->SetStaticMesh(CubeMesh);
@@ -1746,34 +1868,53 @@ void ATorqueWalker::UpdateCues()
 		C->SetUsingAbsoluteScale(true);
 		C->SetupAttachment(GetRootComponent());
 		C->RegisterComponent();
-		GhostParts.Add(C);
-	}
-	const bool bOk = Plan.Blocked.IsEmpty();
-	const double Bar = 1.2;
-	struct FPiece { FVector Size, Offset; bool bEdge; };
-	const FPiece Pieces[6] = {
-		{FVector(Foot.X, Foot.Y, 0.2), FVector(0, 0, 0.2), false},
-		{FVector(Foot.X, Bar, 0.4), FVector(0, -Foot.Y * 0.5, 0.3), true},
-		{FVector(Foot.X, Bar, 0.4), FVector(0, Foot.Y * 0.5, 0.3), true},
-		{FVector(Bar, Foot.Y, 0.4), FVector(-Foot.X * 0.5, 0, 0.3), true},
-		{FVector(Bar, Foot.Y, 0.4), FVector(Foot.X * 0.5, 0, 0.3), true},
-		{FVector(Bar * 2.0, FMath::Min(6.0, Foot.Y * 0.5), 0.5), FVector(Foot.X * 0.5, 0, 0.4), true},
+		Into.Add(C);
 	};
-	for (int32 I = 0; I < GhostParts.Num() && I < 6; ++I)
+	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
+	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
+	const bool bOk = Plan.Blocked.IsEmpty();
+	// The edges breathe a little, so the eye finds them.
+	GhostClock += World->GetDeltaSeconds();
+	const float Pulse = 0.5f + 0.5f * FMath::Sin((float)GhostClock * 2.0f * PI * 1.2f);
+	if (GhostMaterials.Num() >= 4)
 	{
-		UStaticMeshComponent* C = GhostParts[I];
-		if (!C) continue;
-		if (!bGhost)
-		{
-			if (C->IsVisible()) C->SetVisibility(false);
-			continue;
-		}
-		UMaterialInstanceDynamic* M = GhostMaterials.IsValidIndex((bOk ? 0 : 2) + (Pieces[I].bEdge ? 1 : 0)) ? GhostMaterials[(bOk ? 0 : 2) + (Pieces[I].bEdge ? 1 : 0)] : nullptr;
-		if (M && C->GetMaterial(0) != M) C->SetMaterial(0, M);
-		C->SetWorldLocationAndRotation(At.TransformPosition(Pieces[I].Offset + FVector(0, 0, 0.6)), At.GetRotation());
-		C->SetWorldScale3D(Pieces[I].Size / 100.0);
-		if (!C->IsVisible()) C->SetVisibility(true);
+		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
+		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.85f, 1.0f) * 3.0f);
+		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.3f);
+		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.85f, 1.0f) * (5.0f + 3.0f * Pulse));
+		GhostMaterials[1]->SetScalarParameterValue(TEXT("Opacity"), 0.85f + 0.15f * Pulse);
+		GhostMaterials[2]->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.2f) * 3.0f);
+		GhostMaterials[2]->SetScalarParameterValue(TEXT("Opacity"), 0.3f);
+		GhostMaterials[3]->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.2f) * (5.0f + 3.0f * Pulse));
+		GhostMaterials[3]->SetScalarParameterValue(TEXT("Opacity"), 0.85f + 0.15f * Pulse);
 	}
+	auto Lay = [&](TArray<UStaticMeshComponent*>& Parts, bool bThrough)
+	{
+		for (int32 I = 0; I < Parts.Num(); ++I)
+		{
+			UStaticMeshComponent* C = Parts[I];
+			if (!C) continue;
+			// Through things, only the edges.
+			if (!bGhost || !Pieces.IsValidIndex(I) || (bThrough && Pieces[I].Kind != 2))
+			{
+				if (C->IsVisible()) C->SetVisibility(false);
+				continue;
+			}
+			UMaterialInstanceDynamic* M = nullptr;
+			if (bThrough) M = GhostXRayMaterials.IsValidIndex(bOk ? 0 : 1) ? GhostXRayMaterials[bOk ? 0 : 1] : nullptr;
+			else
+			{
+				const int32 Which = Pieces[I].Kind == 1 ? (bOk ? 4 : 5) : (bOk ? 0 : 2) + (Pieces[I].Kind == 2 ? 1 : 0);
+				M = GhostMaterials.IsValidIndex(Which) ? GhostMaterials[Which] : nullptr;
+			}
+			if (M && C->GetMaterial(0) != M) C->SetMaterial(0, M);
+			C->SetWorldLocationAndRotation(At.TransformPosition(Pieces[I].Offset), At.GetRotation());
+			C->SetWorldScale3D(Pieces[I].Size / 100.0);
+			if (!C->IsVisible()) C->SetVisibility(true);
+		}
+	};
+	Lay(GhostParts, false);
+	Lay(GhostXRayParts, true);
 }
 
 // --- Wheeling a bike (walker.gd _push_bike) ---------------------------------------------------------
@@ -2094,7 +2235,12 @@ void ATorqueWalker::UpdateHud()
 	if (bCrouched) ToolLine += TEXT("   crouching");
 	HudLines.Add({ToolLine, Title, 0.6f});
 	if (const int32 Held = B->HeldBy(B->Me()))
+	{
 		HudLines.Add({TEXT("Holding: ") + B->ItemTitle(Held), Info, 0.6f});
+		if (!B->PaintBay().HeldTin(B->Me()) && B->PaintBay().TapeBy != B->Me())
+			HudLines.Add({FString::Printf(TEXT("Wheel (Q / E): put it down nearer or further (%+.2f m)   R: turn it, tap a quarter or hold to turn (Shift+R the other way, %.0f deg)"),
+				CarryReach / 100.0, FRotator::ClampAxis(HoldTurn)), Prompt, 0.55f});
+	}
 	if (const FTorqueTin* Tin = B->PaintBay().HeldTin(B->Me()))
 	{
 		HudLines.Add({TEXT("Holding a tin: ") + B->PaintBay().TinText(*Tin), Info, 0.6f});
@@ -2487,6 +2633,7 @@ void ATorqueWalker::ShareHands(float Dt)
 	H.Item = TargetItem;
 	H.Place = TargetPlace ? TargetPlace->Name : NAME_None;
 	H.bAway = bComputer || bRidingOut || bBench;
+	H.Turn = (uint8)(FMath::RoundToInt(FRotator::ClampAxis(HoldTurn) * 256.0 / 360.0) & 0xFF);
 	PS->OfferHands(H, Dt);
 }
 
@@ -2503,6 +2650,7 @@ void ATorqueWalker::FollowHands(float Dt)
 	TargetBay = H.Bay;
 	TargetSlot = H.Slot;
 	TargetItem = H.Item;
+	HoldTurn = H.Turn * 360.0 / 256.0;   // the part in their hands, turned as they've turned it
 	// Progress only says "working" to UpdateToolView (it's never run as a job here).
 	Progress = H.Work > 0 ? FMath::Max(TorqueHands::WorkFraction(H.Work), 0.01) : 0.0;
 	// Their camera: where they look (Unreal replicates the pitch), at their eye height.

@@ -81,7 +81,7 @@ namespace
 TorqueHands::FSendState SendStateOf(const FTorqueHandsNet& H)
 {
 	TorqueHands::FSendState S;
-	S.Key = TorqueHands::MakeKey(H.Tool, H.Colour, H.Finish, H.Look, H.Bay, GetTypeHash(H.Slot), H.Item, GetTypeHash(H.Place), H.bAway);
+	S.Key = TorqueHands::MakeKey(H.Tool, H.Colour, H.Finish, H.Look, H.Bay, GetTypeHash(H.Slot), H.Item, GetTypeHash(H.Place) ^ ((uint32)H.Turn * 2654435761u), H.bAway);   // (Turn: the part in their hands turned)
 	S.Work = H.Work;
 	return S;
 }
