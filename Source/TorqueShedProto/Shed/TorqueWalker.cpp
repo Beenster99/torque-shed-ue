@@ -1013,6 +1013,7 @@ void ATorqueWalker::MakePlan()
 	{
 		// The radio (walker.gd _make_plan): on, then round the stations; F switches it off.
 		const int32 Num = TorqueShedRadio::Stations().Num();
+		UE_LOG(LogTemp, Verbose, TEXT("Torque radio: looking at it (%d stations)"), Num);
 		if (Num == 0) return;
 		if (!B->RadioOn()) Plan = MakeOne(ETorqueShedAct::Radio, 0.2, TEXT("switch the radio on"));
 		else
@@ -1880,6 +1881,7 @@ void ATorqueWalker::Interact()
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
 	{
 		// The radio's switch (walker.gd: interact at the radio).
+		UE_LOG(LogTemp, Log, TEXT("Torque radio: F at the radio (it's %s)"), B->RadioOn() ? TEXT("on") : TEXT("off"));
 		FTorqueShedRequest R;
 		R.Kind = ETorqueShedAct::Radio;
 		R.Item = B->RadioOn() ? 0 : 1;
@@ -2273,6 +2275,8 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 		}
 	}
 	SetActorLocation(Stand, false, nullptr, ETeleportType::TeleportPhysics);
+	TestAim = Point;
+	bTestAim = true;
 	UpdateRoomExposure(10.0f);   // there now, not easing in
 	const FVector Eye = GetActorLocation() + FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
 	const FRotator View = (Point - Eye).Rotation();
@@ -2286,13 +2290,25 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 	return Describe();
 }
 
+void ATorqueWalker::ReAim()
+{
+	if (!bTestAim || !Camera) return;
+	const FVector Eye = GetActorLocation() + FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
+	const FRotator View = (TestAim - Eye).Rotation();
+	if (AController* C = GetController()) C->SetControlRotation(View);
+	Camera->SetRelativeLocation(FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye));
+	Camera->SetWorldRotation(View);
+}
+
 FString ATorqueWalker::TestAct(bool bAlt)
 {
+	ReAim();
 	FindTarget();
 	MakePlan();
 	const FString Seen = Describe();
 	const FPlan P = bAlt ? AltPlan : Plan;
-	if (!P.bValid) return FString::Printf(TEXT("%s with %s on %s: nothing to do"), bAlt ? TEXT("alt") : TEXT("work"), TWI::ToolName(Tool), *Seen);
+	if (!P.bValid) return FString::Printf(TEXT("%s with %s on %s: nothing to do (the look went into: %s)"), bAlt ? TEXT("alt") : TEXT("work"),
+		TWI::ToolName(Tool), *Seen, *TestCandidates());
 	if (!P.Blocked.IsEmpty()) return FString::Printf(TEXT("can't %s (%s on %s): %s"), *P.Verb, TWI::ToolName(Tool), *Seen, *P.Blocked);
 	Note.Reset();
 	const bool bOk = Do(P);
@@ -2329,6 +2345,7 @@ FString ATorqueWalker::TestCandidates() const
 
 FString ATorqueWalker::TestInteract()
 {
+	ReAim();
 	FindTarget();
 	const FString Seen = Describe();
 	Note.Reset();
@@ -2382,6 +2399,7 @@ FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 	const FVector Stand = To.GetLocation() - Right * 85.0 + Ahead * 25.0;
 	SetActorLocation(FVector(Stand.X, Stand.Y, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
 	if (AController* C = GetController()) C->SetControlRotation(Heading);
+	bTestAim = false;
 	ATorquePlayerController::PlaceOnHost(this, GetActorLocation(), Heading);   // [co-op] a joined copy: the host too
 	Note.Reset();
 	LetGo(Bay);

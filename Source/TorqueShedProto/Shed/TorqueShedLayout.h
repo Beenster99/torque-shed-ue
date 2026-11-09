@@ -112,8 +112,10 @@ inline const TArray<FTorquePlace>& Places()
 		Add(ETorquePlace::DynoStrap, FString::Printf(TEXT("dyno_strap_%d"), I), FVector(PostX[I] - 17.0, PostY[I] - 17.0, 0.0),
 			FVector(PostX[I] + 17.0, PostY[I] + 17.0, 70.0), FVector(PostX[I], PostY[I], 50.0), I);
 	Add(ETorquePlace::DynoDesk, TEXT("dyno_desk"), FVector(215.0, -1145.0, 65.0), FVector(365.0, -1070.0, 145.0), FVector(290.0, -1110.0, 84.0), 0);
-	// The radio on its shelf over the workbench's back end (TorqueShedRadio::At).
-	Add(ETorquePlace::Radio, TEXT("radio"), FVector(-648.0, -170.0, 160.0), FVector(-628.0, -120.0, 190.0), FVector(-638.0, -145.0, 161.5), 0);
+	// The radio on its shelf over the workbench's back end (TorqueShedRadio::At). Its box comes out
+	// past the front of the props' radio model (which stops the look like a wall), so the look
+	// reaches the radio and not the wall behind it.
+	Add(ETorquePlace::Radio, TEXT("radio"), FVector(-650.0, -178.0, 158.0), FVector(-606.0, -112.0, 205.0), FVector(-638.0, -145.0, 161.5), 0);
 	// The masking tape's hook (paint_bay.gd TAPE_AT, by the door): on the mixing bay's west wall just
 	// inside its door (y 418 .. 502), the roll drawn by ATorquePaintBayRoom (TorquePaintBayLayout::TapeAt).
 	Add(ETorquePlace::Tape, TEXT("tape"), FVector(1430.0, 380.0, 112.0), FVector(1450.0, 410.0, 148.0), FVector(1438.0, 395.0, 130.0), 0);

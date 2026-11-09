@@ -2498,6 +2498,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		break;
 	}
 	case ETorqueShedAct::Radio:
+		UE_LOG(LogTemp, Log, TEXT("Torque radio: request from player %d: %s, station %d"), Peer, R.Item != 0 ? TEXT("on") : TEXT("off"), R.Colour);
 		bRadioOn = R.Item != 0;
 		RadioTuned = R.Colour;
 		Text = bRadioOn ? FString::Printf(TEXT("Radio: %s"), *TorqueShedRadio::Stations()[RadioTuned].Name) : FString(TEXT("Radio off"));

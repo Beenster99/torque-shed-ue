@@ -69,6 +69,7 @@ void ATorqueWalker::OpenBench()
 	SetActorLocation(FVector(Stand.X, Stand.Y, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
 	const FVector Eye = Camera ? Camera->GetComponentLocation() : FVector(Stand.X, Stand.Y, 160.0);
 	if (AController* C = GetController()) C->SetControlRotation((TorquePaintBayLayout::ScaleAt + FVector(20.0, 0.0, 10.0) - Eye).Rotation());
+	bTestAim = false;
 	ATorquePlayerController::PlaceOnHost(this, GetActorLocation(), GetControlRotation());   // [co-op] a joined copy: the host too
 	Doing(TEXT("mixing paint at the bench"), 30.0);
 }

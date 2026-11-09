@@ -116,6 +116,7 @@ void ATorqueShedRadio::BeginPlay()
 	// The dial's glowing needle, along the dial window (the model's: just in front of its glass, as the
 	// props thread gave it; the drawn one's: on its dial).
 	NeedleX = bModel ? 15.7 : 8.6;
+	UE_LOG(LogTemp, Log, TEXT("Torque radio: on its shelf (%s), %d stations"), bModel ? TEXT("the props' model") : TEXT("drawn"), TorqueShedRadio::Stations().Num());
 	Needle = Piece(CubeMesh, FVector(NeedleX, -5.0, 17.0), FVector(0.4, 0.5, 6.0), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
 	// The station and the song over it.
 	Display = NewObject<UTextRenderComponent>(this);
@@ -195,6 +196,7 @@ void ATorqueShedRadio::Sync()
 	const int32 Want = B ? B->RadioStation() : 0;
 	const FString NewSig = FString::Printf(TEXT("%d|%d"), bWantOn ? 1 : 0, Want);
 	if (NewSig == Sig) return;
+	UE_LOG(LogTemp, Log, TEXT("Torque radio: the shed says %s, station %d"), bWantOn ? TEXT("on") : TEXT("off"), Want);
 	Sig = NewSig;
 	bOn = bWantOn;
 	Station = Want;

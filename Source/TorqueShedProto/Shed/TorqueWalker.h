@@ -104,6 +104,11 @@ public:
 	// --- For hands-off tests (UTorqueShedTest, -TorqueShedAction=) --------------------------------
 	// Stand Distance cm from a point, on the side Away points to, and look at it; say what's seen.
 	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
+	// The tests' last look: the act after it aims there again from wherever the walker's settled
+	// (it can be nudged off a bench's edge between steps, and the look slides off what it was on).
+	FVector TestAim = FVector::ZeroVector;
+	bool bTestAim = false;
+	void ReAim();
 	void TestTool(ETorqueTool T) { SetTool(T); }
 	void TestCrouch(bool bOn) { SetCrouched(bOn); }
 	void TestSpray(int32 Colour, FName Finish);
