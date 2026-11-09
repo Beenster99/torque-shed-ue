@@ -278,6 +278,10 @@ void ContactBoxes(const UObject* WorldContext, std::vector<TorqueSim::ContactBox
 		B.Hv = M.Size.Z / 200.0;
 		B.Y0 = C.Z / 100.0;
 		B.Y1 = (C.Z + M.Size.Y) / 100.0;
+		// A piece that's both ridden and solid (wreck, bus): its top is Road for the wheels, so the box
+		// stops 10 cm under it, or the frame probes and bumpers dip into it on a firm landing and the
+		// rider gets knocked off the roof (probes reach 3-6 cm of the tyres' surface at full travel).
+		if (M.bRide) B.Y1 = FMath::Max(B.Y0, B.Y1 - 0.10);
 		Out.push_back(B);
 	};
 	for (const FPlaced& P : Yard().Fixed)
