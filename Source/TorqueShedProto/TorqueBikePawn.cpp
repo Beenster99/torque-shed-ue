@@ -714,6 +714,9 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	// (on their groups now, so their rest is where they ride).
 	Dash.Setup(Parts);
 	Dash.HookClocks(this, ModelParts, Gauges);
+	SideStandPart = Parts.FindRef(TEXT("side_stand"));
+	CentreStandPart = Parts.FindRef(TEXT("centre_stand"));
+	StandRest.Reset();
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s"),
 			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight, Geo.IsEmpty() ? TEXT("") : TEXT(", with its fit from geometry mode"));
@@ -915,6 +918,11 @@ void ATorqueBikePawn::LoadRoute()
 
 void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
 {
+	if (bOnFoot)
+	{
+		bOnFoot = false;   // back on the bike (the pause menu's Restart, a test)
+		SetParkedLook(false);
+	}
 	V3 Pos(0, 0, 0);
 	double Heading = 0.0;
 	if (Line.Num() >= 2)
@@ -1107,6 +1115,24 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Lean = Approach(Lean, 0.0, 2.2, 4.0, Dt);
 		return;
 	}
+	// [foot] F (or Triangle / Y, stopped) gets off; on foot, F by the bike gets back on.
+	const bool bPadUse = SonyHit(ESonyButton::Triangle) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top);
+	if (bOnFoot)
+	{
+		Throttle = FrontBrake = RearBrake = Shift = Lean = 0.0;
+		const double KeyX = (FTorqueKeys::Down(PC, ETorqueKey::WalkRight) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkLeft) ? 1.0 : 0.0);
+		const double KeyY = (FTorqueKeys::Down(PC, ETorqueKey::WalkForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ? 1.0 : 0.0);
+		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
+		const double StickY = Stick(Either(Axis(EKeys::Gamepad_LeftY), Sony.LY), Set.StickDeadZone, 1.0);
+		StepFoot(PC, Dt, FMath::Abs(StickX) > FMath::Abs(KeyX) ? StickX : KeyX, FMath::Abs(StickY) > FMath::Abs(KeyY) ? StickY : KeyY);
+		if ((FTorqueKeys::Just(PC, ETorqueKey::Use) || bPadUse) && OnFootFor > 0.4) GetOn();
+		if (FTorqueKeys::Just(PC, ETorqueKey::BackToShed)) TorqueFlow::BackToShed(this);   // (as riding)
+		return;
+	}
+	if (FTorqueKeys::Just(PC, ETorqueKey::Use) || (bPadUse && !Sim->IsCrashed && FMath::Abs(Sim->Speed) <= 2.0))
+	{
+		if (GetOff()) return;
+	}
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
 	// Settings > Gameplay > Chase camera recentres: off, the view stays where the stick left it.
 	const bool bStickLooking = FMath::Abs(LookX) > 0.02 || FMath::Abs(LookY) > 0.02;
@@ -1170,7 +1196,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Keep.bAutoShift = !bManual;
 		if (Keep.bSaved) Keep.Save();
 	}
-	// The clutch, held (F): the engine spins free of the box in any gear. The key (I): the engine
+	// The clutch, held (Left Alt; F is get off): the engine spins free of the box in any gear. The key (I): the engine
 	// off, or the starter cranks it and it fires (not on an empty tank, or with the bike down).
 	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch;
 	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition)) PressIgnition();
@@ -1186,8 +1212,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
-	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
-		SonyHit(ESonyButton::Triangle))
+	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || (bPadUse && (Sim->IsCrashed || FMath::Abs(Sim->Speed) > 2.0)))
 	{
 		Respawn(FMath::Max(Near - 2, 0));
 		Sim->StartGhost();
@@ -1243,6 +1268,247 @@ void ATorqueBikePawn::RestartRide()
 	RideTime = 0.0;
 	bFinished = false;
 	Respawn(0);
+}
+
+// --- [foot] getting off and on, the bike on its stand ----------------------------------------------
+
+void ATorqueBikePawn::ChooseStand()
+{
+	// Torque Shed's parked bike (customer.gd _set_parked): on the side stand, leaned over by the
+	// stand's lean; else on the centre stand, lifted by its lift; neither, upright. The Speed Twin
+	// stand-in has a side stand.
+	ParkStand = 0;
+	ParkLean = ParkLift = 0.0;
+	const TorqueFit::BikeLayout* Lay = bCatalogueModel ? TorqueShedCatalogue::Layout() : nullptr;
+	const TorqueFit::Json* Side = Lay && !SideStandPart.IsEmpty() && SideStandPart != TEXT("none") ? Lay->Part(PawnStd(SideStandPart)) : nullptr;
+	const TorqueFit::Json* Centre = Lay && !CentreStandPart.IsEmpty() && CentreStandPart != TEXT("none") ? Lay->Part(PawnStd(CentreStandPart)) : nullptr;
+	if (Side || !bCatalogueModel)
+	{
+		ParkStand = 1;
+		ParkLean = FMath::DegreesToRadians(Side ? Side->Num("lean", 12.0) : 12.0);
+	}
+	else if (Centre)
+	{
+		ParkStand = 2;
+		ParkLift = Centre->Num("lift", 0.04);
+	}
+}
+
+bool ATorqueBikePawn::GetOff()
+{
+	if (bOnFoot) return false;
+	if (Sim->IsCrashed) return false;
+	if (FMath::Abs(Sim->Speed) > 2.0)
+	{
+		FootNote = TEXT("Stop first, then get off.");
+		FootNoteFor = 1.5;
+		return false;
+	}
+	// The ground under the bike and the way it points.
+	const V3 Fwd = Sim->Basis.Z * -1.0;
+	ParkHeading = std::atan2(-Fwd.x, -Fwd.z);
+	ParkGround = Sim->Position - V3(0.0, Sim->Build.RearRadius, 0.0);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueGetOff), true, this);
+	FHitResult Hit;
+	if (UWorld* World = GetWorld())
+		if (GroundTrace(World, ToUE(Sim->Position + V3(0.0, 1.0, 0.0)), ToUE(Sim->Position - V3(0.0, 3.0, 0.0)), Params, Hit)) ParkGround = ToSim(Hit.ImpactPoint);
+	ChooseStand();
+	// The rider steps off to the left (the side stand's side), facing the way the bike points.
+	const FVector Ahead = DirToUE(V3(Fwd.x, 0.0, Fwd.z)).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Ahead);
+	FootPos = ToUE(ParkGround) - Right * 90.0;
+	if (UWorld* World = GetWorld())
+		if (GroundTrace(World, FootPos + FVector(0, 0, 150.0), FootPos - FVector(0, 0, 300.0), Params, Hit)) FootPos = Hit.ImpactPoint;
+	FootYaw = Ahead.Rotation().Yaw;
+	FootPitch = 0.0;
+	bOnFoot = true;
+	OnFootFor = 0.0;
+	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
+	bTestClutch = false;
+	Sim->ClutchIn = false;
+	Sim->Gear = BikeSim::NEUTRAL;   // left in neutral, ticking over if it was running
+	HoldParked();
+	PrevPos = CurPos = ToUE(Sim->Position);
+	PrevRot = CurRot = BasisToUE(Sim->Basis);
+	SetParkedLook(true);
+	UE_LOG(LogTemp, Log, TEXT("Torque: got off, the bike on its %s, engine %s"),
+		ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("running") : TEXT("off"));
+	return true;
+}
+
+bool ATorqueBikePawn::GetOn()
+{
+	if (!bOnFoot) return false;
+	const FVector Bike = GetActorLocation();
+	if (FVector::Dist2D(FootPos, Bike) > 250.0 || FMath::Abs(FootPos.Z - Bike.Z) > 200.0)
+	{
+		FootNote = TEXT("Walk back to the bike to get on.");
+		FootNoteFor = 1.5;
+		return false;
+	}
+	bOnFoot = false;
+	// Upright on its wheels where it stood, the stand up, the engine as it was.
+	const bool bRunning = Sim->EngineOn;
+	const double RpmWas = Sim->Rpm;
+	Sim->Place(ParkGround, ParkHeading);
+	Sim->EngineOn = bRunning;
+	Sim->Rpm = RpmWas;
+	Sim->Gear = bManual ? BikeSim::NEUTRAL : 1;
+	PrevPos = CurPos = ToUE(Sim->Position);
+	PrevRot = CurRot = BasisToUE(Sim->Basis);
+	Accum = 0.0;
+	bCamInit = false;
+	LastGear = Sim->Gear;
+	SetParkedLook(false);
+	UE_LOG(LogTemp, Log, TEXT("Torque: got back on, engine %s"), Sim->EngineOn ? TEXT("running") : TEXT("off"));
+	return true;
+}
+
+void ATorqueBikePawn::HoldParked()
+{
+	// Stood on its stand: leaned over about the line its tyres touch the ground along (side stand),
+	// or lifted (centre stand). No riding physics; the engine ticks over (or winds down, off).
+	const M3 Heading = M3::AxisAngle(V3(0.0, 1.0, 0.0), ParkHeading);
+	Sim->Basis = Heading * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
+	Sim->Position = ParkGround + Sim->Basis * V3(0.0, Sim->Build.RearRadius + ParkLift, 0.0);
+	Sim->LinearVelocity = Sim->AngularVelocity = V3();
+	Sim->Speed = 0.0;
+	Sim->Throttle = Sim->FrontBrake = Sim->RearBrake = Sim->LeanInput = Sim->BodyShift = 0.0;
+	for (TorqueSim::Wheel& W : Sim->Wheels) W.Omega = 0.0;
+	const double Want = Sim->EngineOn ? Sim->Build.IdleRpm * Sim->Heat.Idle : 0.0;
+	Sim->Rpm += (Want - Sim->Rpm) * FMath::Min(1.0, SimDt * 3.0);
+	Sim->EngineKw = 0.0;
+}
+
+void ATorqueBikePawn::SetParkedLook(bool bParked)
+{
+	if (bParked == bParkedLook) return;
+	bParkedLook = bParked;
+	ShowRider(!bParked);
+	ShowHead(!bParked);
+	if (bParked && ParkStand == 0) ChooseStand();   // (a co-op rider's bike: its stand as ours would choose)
+	PoseStands(bParked ? ParkStand : 0);
+}
+
+void ATorqueBikePawn::PoseStands(int32 Stand)
+{
+	// The catalogue bike's stands are drawn folded (BikeParts::Stands); down, each is swung about its
+	// pivot as BikeModel._draw_side_stand / _draw_centre_stand swing them with a stand_pose. Godot's
+	// bike frame (x right, y up, z back, metres) is the drawn bike's (X forward, Y right, Z up, cm).
+	static const FName SideTag(TEXT("Slot:side_stand")), CentreTag(TEXT("Slot:centre_stand"));
+	static const FName FootTag(TEXT("Part:stand/foot.glb")), PivotTag(TEXT("Part:stand/pivot.glb"));
+	if (StandRest.Num() == 0)
+		for (UStaticMeshComponent* C : ModelParts)
+			if (C && (C->ComponentHasTag(SideTag) || C->ComponentHasTag(CentreTag))) StandRest.Add({C, C->GetRelativeTransform()});
+	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
+		if (KV.Key.IsValid()) KV.Key->SetRelativeTransform(KV.Value);
+	if (Stand == 0 || StandRest.Num() == 0) return;
+	auto Godot = [](double X, double Y, double Z) { return FVector(-Z, X, Y) * 100.0; };
+	const FName& Tag = Stand == 1 ? SideTag : CentreTag;
+	FVector Pivot = FVector::ZeroVector, Foot = FVector::ZeroVector, Folded = FVector::ZeroVector, Down = FVector::ZeroVector;
+	int32 Feet = 0;
+	bool bPivot = false;
+	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
+	{
+		UStaticMeshComponent* C = KV.Key.Get();
+		if (!C || !C->ComponentHasTag(Tag)) continue;
+		if (C->ComponentHasTag(FootTag)) { Foot += KV.Value.GetLocation(); ++Feet; }
+		if (C->ComponentHasTag(PivotTag)) { Pivot = KV.Value.GetLocation(); bPivot = true; }
+	}
+	if (Feet == 0) return;
+	Foot /= Feet;
+	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
+	const double Rr = Sim->Build.RearRadius;
+	if (Stand == 1)
+	{
+		const TorqueFit::Json* P = Lay ? Lay->Part(PawnStd(SideStandPart)) : nullptr;
+		const double Len = P ? P->Num("length", 0.3) : 0.3;
+		const double LeanS = FMath::DegreesToRadians(P ? P->Num("lean", 12.0) : 12.0);
+		// Swung out until it meets the ground with the bike leaned over on it.
+		const double Px = -0.12, Height = -0.04 + Rr;
+		double Best = 0.0, BestErr = 1e9;
+		for (int32 I = 0; I < 90; ++I)
+		{
+			const double A = FMath::DegreesToRadians((double)I);
+			const double Fx = Px - Len * FMath::Sin(A), Fy = Height - Len * FMath::Cos(A);
+			const double Err = FMath::Abs(Fy * FMath::Cos(LeanS) + Fx * FMath::Sin(LeanS));
+			if (Err < BestErr) { BestErr = Err; Best = FMath::DegreesToRadians((double)I); }
+		}
+		Folded = Godot(-0.03, -0.04, Len * 0.95);
+		Down = Godot(-Len * FMath::Sin(Best), -Len * FMath::Cos(Best), -0.06);
+		if (!bPivot) Pivot = Foot - Folded;
+	}
+	else
+	{
+		const TorqueFit::Json* P = Lay ? Lay->Part(PawnStd(CentreStandPart)) : nullptr;
+		const double Reach = Rr - 0.06 + (P ? P->Num("lift", 0.04) : 0.04);
+		Folded = Godot(0.0, -0.08, Reach * 0.9);
+		Down = Godot(0.0, -Reach, -0.02);
+		Pivot = Foot - Folded;   // the legs' tops, on the bike's middle
+	}
+	const FQuat Swing = FQuat::FindBetweenVectors(Folded.GetSafeNormal(), Down.GetSafeNormal());
+	const FTransform About = FTransform(-Pivot) * FTransform(Swing) * FTransform(Pivot);
+	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
+		if (KV.Key.IsValid() && KV.Key->ComponentHasTag(Tag)) KV.Key->SetRelativeTransform(KV.Value * About);
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s stand down (folded foot %.0f cm from its pivot as drawn, %.0f as Godot has it)"),
+		Stand == 1 ? TEXT("side") : TEXT("centre"), (Foot - Pivot).Size(), Folded.Size());
+}
+
+void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY)
+{
+	// Walking about: WASD or the left stick, Shift to hurry; the mouse or right stick looks.
+	OnFootFor += Dt;
+	const FTorqueSettings& Set = FTorqueSettings::Get();
+	float Mx = 0.0f, My = 0.0f;
+	if (PC) PC->GetInputMouseDelta(Mx, My);
+	FootYaw += Mx * 0.25 * Set.MouseLook;
+	FootPitch = FMath::Clamp(FootPitch + My * 0.25 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -80.0, 80.0);
+	if (PC)
+	{
+		FootYaw += PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX) * 120.0 * Dt * Set.PadLook;
+		FootPitch = FMath::Clamp(FootPitch + PC->GetInputAnalogKeyState(EKeys::Gamepad_RightY) * 90.0 * Dt * Set.PadLook, -80.0, 80.0);
+	}
+	FVector2D In(MoveX, MoveY);
+	if (In.SizeSquared() > 1.0) In.Normalize();
+	if (In.SizeSquared() < 1e-4) return;
+	const bool bRun = PC && FTorqueKeys::Down(PC, ETorqueKey::Run);
+	const FRotator Yaw(0.0, FootYaw, 0.0);
+	const FVector Walk = (Yaw.RotateVector(FVector::ForwardVector) * In.Y + Yaw.RotateVector(FVector::RightVector) * In.X) * (bRun ? 330.0 : 150.0) * Dt;
+	UWorld* World = GetWorld();
+	if (!World) return;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueFoot), true, this);
+	auto TryMove = [&](const FVector& D) {
+		const FVector To = FootPos + D;
+		// Walls and banks at waist height stop you; the ground under you follows, up steps of 45 cm.
+		FHitResult Hit;
+		if (World->SweepSingleByChannel(Hit, FootPos + FVector(0, 0, 90.0), To + FVector(0, 0, 90.0), FQuat::Identity, ECC_Visibility,
+			FCollisionShape::MakeSphere(30.0f), Params))
+			return false;
+		if (!GroundTrace(World, To + FVector(0, 0, 120.0), To - FVector(0, 0, 400.0), Params, Hit)) return false;
+		if (Hit.ImpactPoint.Z - FootPos.Z > 45.0 || Hit.ImpactNormal.Z < 0.6) return false;
+		FootPos = Hit.ImpactPoint;
+		return true;
+	};
+	if (!TryMove(Walk))
+	{
+		// Slide along it.
+		if (!TryMove(FVector(Walk.X, 0.0, 0.0))) TryMove(FVector(0.0, Walk.Y, 0.0));
+	}
+}
+
+FString ATorqueBikePawn::TestFoot(const FString& What)
+{
+	if (What == TEXT("off")) GetOff();
+	else if (What == TEXT("on")) GetOn();
+	else if (What.StartsWith(TEXT("walk:")) && bOnFoot)
+	{
+		const double Cm = FCString::Atod(*What.Mid(5));
+		const int32 Steps = FMath::Max(1, FMath::CeilToInt(FMath::Abs(Cm) / 2.0));
+		for (int32 I = 0; I < Steps; ++I) StepFoot(nullptr, 2.0 / 150.0, 0.0, Cm >= 0.0 ? 1.0 : -1.0);
+	}
+	return FString::Printf(TEXT("%s; bike on its %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you"),
+		bOnFoot ? TEXT("on foot") : TEXT("riding"), !bOnFoot ? TEXT("wheels") : ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"),
+		Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"), Sim->Rpm, bOnFoot ? FVector::Dist(FootPos, GetActorLocation()) : 0.0);
 }
 
 void ATorqueBikePawn::PressIgnition()
@@ -1640,6 +1906,16 @@ void ATorqueBikePawn::TestMoveStep()
 
 void ATorqueBikePawn::StepSim()
 {
+	if (bOnFoot)
+	{
+		// Parked on its stand while you walk about: held there, the engine ticking over.
+		PrevPos = CurPos;
+		PrevRot = CurRot;
+		HoldParked();
+		CurPos = ToUE(Sim->Position);
+		CurRot = BasisToUE(Sim->Basis);
+		return;
+	}
 	if (TestMove >= 0) TestMoveStep();
 	Sim->Throttle = Throttle;
 	Sim->FrontBrake = FrontBrake;
@@ -1767,6 +2043,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	}
 	else Dash.Step(*Sim, 0.0, true, 0.0);
 	EngineNoteFor = FMath::Max(EngineNoteFor - DeltaSeconds, 0.0);
+	FootNoteFor = FMath::Max(FootNoteFor - DeltaSeconds, 0.0);
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
 	{
@@ -2602,6 +2879,13 @@ void ATorqueBikePawn::UpdateProgress()
 
 void ATorqueBikePawn::UpdateCamera(float Dt)
 {
+	if (bOnFoot)
+	{
+		// On foot, in first person at eye height (the shed walker's view).
+		Camera->SetWorldLocationAndRotation(FootPos + FVector(0.0, 0.0, 165.0), FRotator(-FootPitch, FootYaw, 0.0));
+		Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(80.0f));
+		return;
+	}
 	const FVector BikePos = GetActorLocation();
 	const FQuat BikeRot = GetActorQuat();
 	const FVector Fwd = BikeRot.GetForwardVector();
@@ -2708,6 +2992,18 @@ void ATorqueBikePawn::DrawHud()
 	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
+	// [foot] Getting off and on.
+	if (FootNoteFor > 0.0) Add(FootNote, FColor(255, 220, 120), 1.2f);
+	if (bOnFoot)
+	{
+		const double Away = FVector::Dist2D(FootPos, GetActorLocation());
+		Add(FString::Printf(TEXT("On foot: %s to walk, %s %s   (the bike's on its %s, engine %s)"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
+			*FTorqueKeys::Text(ETorqueKey::Use), Away <= 250.0 ? TEXT("to get back on") : TEXT("by the bike to get back on"),
+			ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
+			FColor(200, 230, 200), 1.0f);
+	}
+	else if (!Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
+		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);
 	{
 		// The heat (BikeHeat): cold tyres grip less, an overheating engine loses power.
 		const FString Tyres = UTF8_TO_TCHAR(Sim->Heat.TyreState()), Engine = UTF8_TO_TCHAR(Sim->Heat.EngineState());
