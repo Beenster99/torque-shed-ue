@@ -1,6 +1,7 @@
 // The walker at the paint mixing bench (Torque Shed's PaintBench, paint_bench.gd) and carrying a
 // tin from the mixing bay: ATorqueWalker's bench mode, its HUD lines and the test hooks.
 #include "Shed/TorqueWalker.h"
+#include "Coop/TorquePlayerController.h"
 
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -55,6 +56,7 @@ void ATorqueWalker::OpenBench()
 	SetActorLocation(FVector(Stand.X, Stand.Y, Half + 2.0), false, nullptr, ETeleportType::TeleportPhysics);
 	const FVector Eye = Camera ? Camera->GetComponentLocation() : FVector(Stand.X, Stand.Y, 160.0);
 	if (AController* C = GetController()) C->SetControlRotation((TorquePaintBayLayout::ScaleAt + FVector(20.0, 0.0, 10.0) - Eye).Rotation());
+	ATorquePlayerController::PlaceOnHost(this, GetActorLocation(), GetControlRotation());   // [co-op] a joined copy: the host too
 	Doing(TEXT("mixing paint at the bench"), 30.0);
 }
 

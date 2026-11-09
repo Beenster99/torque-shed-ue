@@ -39,6 +39,7 @@ private:
 	bool bShedQueued = false;
 	FTimerHandle ShedTimer;
 	int32 AppliedVersion = 0;
+	FString LoggedBikes;
 	FDelegateHandle HostChangeHandle;
 	UFUNCTION() void OnRep_Weather();
 
