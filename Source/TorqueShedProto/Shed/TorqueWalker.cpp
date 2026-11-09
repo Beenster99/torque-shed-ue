@@ -2780,7 +2780,13 @@ FString ATorqueWalker::Describe() const
 	case ETorqueLook::Place: return FString::Printf(TEXT("place %s"), TargetPlace ? *TargetPlace->Name.ToString() : TEXT("?"));
 	case ETorqueLook::Floor: return FString::Printf(TEXT("the floor at %.0f, %.0f"), TargetPoint.X, TargetPoint.Y);
 	case ETorqueLook::Door: return TEXT("the roller door");
-	default: return TEXT("nothing");
+	default:
+		if (TargetFurniture != 0)
+		{
+			const FTorqueFurniture* F = B ? B->FurnitureById(TargetFurniture) : nullptr;
+			return FString::Printf(TEXT("kit piece %d (%s)"), TargetFurniture, F ? *F->Model.ToString() : TEXT("?"));
+		}
+		return TEXT("nothing");
 	}
 }
 

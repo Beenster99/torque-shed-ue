@@ -214,6 +214,14 @@ const TCHAR* const PhysicsSteps =
 	TEXT("log");
 #undef TORQUE_PHYSICS_STYLE
 
+// The movable kit: the yard's test area, a cone looked at, taken hold of, turned both ways, carried
+// and put down; a ramp ordered from the Shed aisle into the drop-off and a stool into the shed's;
+// the shed saved and the kit logged.
+const TCHAR* const KitSteps =
+	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
+	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
+	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,furn:log");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -248,6 +256,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
@@ -1006,8 +1015,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("dyno")) { At = FVector(0.0, -1290.0, 225.0); Away = FVector(0.35, 1.0, 0.0).GetSafeNormal(); Distance = 250.0; }
 		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
+		else if (What == TEXT("testarea")) { At = FVector(9000.0, 8000.0, 100.0); Away = FVector(-1.0, -0.35, 0.0).GetSafeNormal(); Distance = 1800.0; }
+		else if (What == TEXT("dropoff")) { At = FVector(19600.0, 7780.0, 60.0); Away = FVector(-1.0, -0.5, 0.0).GetSafeNormal(); Distance = 700.0; }
+		else if (What == TEXT("kitdrop")) { At = FVector(-900.0, 1100.0, 60.0); Away = FVector(0.3, -1.0, 0.0).GetSafeNormal(); Distance = 500.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, testarea, dropoff, kitdrop, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);
@@ -1036,6 +1048,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("f"))
 	{
 		Said(W->TestInteract());
+		return true;
+	}
+	if (Verb == TEXT("furn") && P.Num() >= 2)
+	{
+		TArray<FString> Args(P);
+		Args.RemoveAt(0, 2);
+		const FString Out = W->TestFurniture(P[1].ToLower(), Args);
+		if (Out.StartsWith(TEXT("not "))) Warn(Out);
+		else Said(Out);
 		return true;
 	}
 	if (Verb == TEXT("order") && P.Num() >= 2)

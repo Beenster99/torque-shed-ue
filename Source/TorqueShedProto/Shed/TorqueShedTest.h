@@ -93,6 +93,12 @@
 //   physics               physics stage 4: the ride test's scratch bike remade as each of the 14 styles' reference
 //                         bikes in turn, each ridden out for a launch, a stop from 60 on the test pad and a
 //                         full-lean bend at 45 (launch, brakestop:60:flat, lean:max), and back (alone, it quits)
+//   kit                   the movable shed and yard kit: the test area, a cone taken hold of, turned, carried
+//                         and put down, a ramp and a stool ordered and moved (alone, it quits at the end)
+//   furn:look:<model|id>, furn:grab, furn:turn:<deg>, furn:walk:<x>:<y>, furn:drop, furn:order:<model>, furn:log
+//                         the movable kit (TorqueFurniture): stand back from the nearest one and look at it, take
+//                         hold of it, turn it, carry it there, put it down, order it from the Shed aisle; each logs
+//                         where the piece is (look:testarea, look:dropoff, look:kitdrop frame the yard)
 //   restyle:<style>       (a test shortcut) every part of the bay's catalogue bike that isn't that style's
 //                         reference part (the frame too) thrown away, and the bike finished as that style
 //   ridelog               on the road: our bike's riding spec, what it's doing now, its drawn groups and
