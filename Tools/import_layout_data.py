@@ -233,9 +233,11 @@ def main():
     read = lambda *p: open(os.path.join(g, *p), encoding="utf-8").read()
     scripts = {"parts_db": read("scripts", "parts_db.gd"), "contracts": read("scripts", "contracts.gd"),
                "bike_model": read("scripts", "bike_model.gd")}
-    parts_json = json.loads(read("data", "parts.json"))
+    import parts_overlay
+    parts_json = parts_overlay.apply_catalogue(json.loads(read("data", "parts.json")))
     retired_path = os.path.join(g, "data", "retired_parts.json")
     retired = json.load(open(retired_path)).get("parts", {}) if os.path.exists(retired_path) else {}
+    retired.update(parts_overlay.load().get("retired", {}))
     db = Db(parts_json, retired, scripts)
     merges = style_merges(scripts["contracts"])
     engines = const(scripts["contracts"], "STYLE_ENGINE")
@@ -270,6 +272,7 @@ def main():
     if os.path.exists(redrawn):
         for name, over in json.load(open(redrawn)).items():
             out["tank_shapes"].setdefault(name, {}).update(over)
+    parts_overlay.apply_layout(out)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     data = json.dumps(out, indent=1) + "\n"
     if not os.path.exists(OUT) or open(OUT).read() != data:

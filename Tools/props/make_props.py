@@ -1167,6 +1167,55 @@ def tool_stopwatch():
         cyl("Pusher%d" % s, (s * 0.02, 0.026, 0.0), 0.003, 0.008, "chrome", rot=(0, 0, -s * 40))
 
 
+# --- The paint shop's spray bay (equipment 'booth_shop'; ue_build_shed.py paint_shop()) -----------------
+
+@model("booth_shop", (8.0, 2.7, 4.7))
+def booth_shop():
+    """The downdraft spray bay's shell to the shed's boxes (BOOTH_X0..X1 925..1395, half width 400,
+    height 270): insulated panel walls with aluminium trims and seams, lit side panels, steel posts
+    at the open front, the pleated filter wall with its grille at the back, and a walk-on floor grate
+    over the extraction pit. The rails, drop rods and hangers are the shed's (they move); nothing
+    here comes below the rails' 2.35 m inside the bay, so the hooks swing clear."""
+    W, H, D = 8.0, 2.7, 4.7
+    t = 0.05
+    box("Back", (0.0, H / 2, -D / 2 + t / 2), (W, H, t), "paint_white", bevel=0.004)
+    for s in (-1, 1):
+        box("Side%d" % s, (s * (W / 2 - t / 2), H / 2, 0.0), (t, H, D), "paint_white", bevel=0.004)
+        # Panel seams every 1.17 m and a cap trim along the top.
+        for k in range(1, 4):
+            box("Seam%d_%d" % (s, k), (s * (W / 2 - t - 0.002), H / 2, -D / 2 + k * D / 4), (0.006, H, 0.02), "aluminium", bevel=0.001)
+        box("Cap%d" % s, (s * (W / 2 - t / 2), H + 0.015, 0.0), (t + 0.03, 0.03, D + 0.03), "aluminium", bevel=0.004)
+        # Two tall light panels on each side wall, angled in.
+        for k, z in enumerate((-1.1, 0.6)):
+            box("LightBox%d_%d" % (s, k), (s * (W / 2 - t - 0.06), 1.5, z), (0.12, 1.9, 0.5), "aluminium", bevel=0.01)
+            box("LightLens%d_%d" % (s, k), (s * (W / 2 - t - 0.121), 1.5, z), (0.004, 1.84, 0.44), "led_white", bevel=0.0)
+        # The front posts, a kick plate.
+        box("Post%d" % s, (s * (W / 2 - 0.025), H / 2, D / 2 - 0.03), (0.09, H, 0.06), "steel", bevel=0.006)
+        box("Kick%d" % s, (s * (W / 2 - t - 0.002), 0.1, 0.0), (0.004, 0.2, D), "steel", bevel=0.001)
+    for k in range(1, 7):
+        box("BackSeam%d" % k, (-W / 2 + k * W / 7, H / 2, -D / 2 + t + 0.002), (0.02, H, 0.006), "aluminium", bevel=0.001)
+    box("BackCap", (0.0, H + 0.015, -D / 2 + t / 2), (W + 0.03, 0.03, t + 0.03), "aluminium", bevel=0.004)
+    # The filter wall: a frame of pleated media and the grille bars over it.
+    fz = -D / 2 + t + 0.02
+    box("FilterFrame", (0.0, 1.215, fz + 0.01), (6.5, 1.66, 0.03), "steel", bevel=0.004)
+    for k in range(64):
+        x = -3.2 + (k + 0.5) * 0.1
+        box("Pleat%d" % k, (x, 1.215, fz + 0.03), (0.07, 1.6, 0.02), "filter_media", bevel=0.0, rot=(0, 25 if k % 2 else -25, 0))
+    for i in range(6):
+        box("Grille%d" % i, (0.0, 0.54 + i * 0.27, fz + 0.05), (6.4, 0.012, 0.01), "steel", bevel=0.001)
+    for k in range(9):
+        box("GrilleV%d" % k, (-3.2 + k * 0.8, 1.215, fz + 0.05), (0.012, 1.6, 0.01), "steel", bevel=0.001)
+    box("FilterSign", (2.6, 2.2, fz + 0.01), (0.5, 0.18, 0.004), "label_yellow", bevel=0.0)
+    # The floor grate over the pit: a steel frame, the pit's dark beneath and a grid of flat bars.
+    box("Pit", (0.0, 0.004, 0.0), (W - 0.1, 0.008, D - 0.1), "paint_black", bevel=0.0)
+    box("GrateFrameF", (0.0, 0.02, D / 2 - 0.07), (W - 0.1, 0.04, 0.04), "steel", bevel=0.003)
+    box("GrateFrameB", (0.0, 0.02, -D / 2 + 0.07), (W - 0.1, 0.04, 0.04), "steel", bevel=0.003)
+    for k in range(13):
+        box("GrateBeam%d" % k, (-W / 2 + 0.07 + k * (W - 0.14) / 12, 0.02, 0.0), (0.04, 0.04, D - 0.1), "steel", bevel=0.003)
+    for k in range(int((D - 0.2) / 0.03)):
+        box("GrateBar%d" % k, (0.0, 0.035, -D / 2 + 0.1 + k * 0.03), (W - 0.14, 0.03, 0.004), "steel_dark", bevel=0.0)
+
+
 # --- Running it --------------------------------------------------------------------------------------
 
 def main():

@@ -15,7 +15,8 @@
     {"prop": "pressure_washer", "at": [-1130, -215, 0], "yaw": 0, "hide": ["PressureWasher", "PressureWasher_Reel"]},
     {"prop": "dyno_rig", "at": [0, -940, 0], "yaw": 0, "hide": ["Dyno_Plate", "Dyno_Edge_*", "Dyno_Slot", "Dyno_Clamp_*", "Dyno_ClampBase", "Dyno_ClampStop", "Dyno_Post_*", "Dyno_PostCap_*"]},
     {"prop": "dyno_fan", "at": [0, -1135, 0], "yaw": 0, "hide": ["Dyno_FanBase", "Dyno_FanPost", "Dyno_FanHousing", "Dyno_FanBack", "Dyno_FanGrilleH", "Dyno_FanGrilleV"]},
-    {"prop": "dyno_desk", "at": [290, -1110, 0], "yaw": 0, "hide": ["Dyno_Desk", "Dyno_DeskTop", "Dyno_DeskMonitor", "Dyno_DeskKeyboard", "Dyno_RunButton"]}
+    {"prop": "dyno_desk", "at": [290, -1110, 0], "yaw": 0, "hide": ["Dyno_Desk", "Dyno_DeskTop", "Dyno_DeskMonitor", "Dyno_DeskKeyboard", "Dyno_RunButton"]},
+    {"prop": "booth_shop", "at": [1160, 0, 0], "yaw": 90, "hide": ["Booth_Back", "Booth_Side_*", "Booth_Post_*", "Booth_Filter", "Booth_Grille_*", "Booth_Grate", "Booth_GrateBar_*"]}
   ],
   "dress": [
     {"prop": "dress_barrel_02", "at": [-605, 505, 0], "yaw": 20},

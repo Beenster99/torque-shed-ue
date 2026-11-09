@@ -1,0 +1,117 @@
+{
+ "about": "This repo's changes to the Godot parts catalogue; see Tools/parts_overlay.py.",
+ "add": {
+  "tank": {
+   "bobber_1": {
+    "name": "Bobber tank 1, 14 L",
+    "description": "Long low teardrop with a raised top spine and a deep knee sweep.",
+    "mass": 3.9,
+    "capacity": 14,
+    "style": "peanut",
+    "color": [
+     0.42,
+     0.05,
+     0.05
+    ],
+    "price": 180,
+    "look": {
+     "shape": "bobber_1",
+     "badge": "none",
+     "pads": false
+    },
+    "styles": [
+     "bobber"
+    ],
+    "pack": "bobber"
+   },
+   "bobber_2": {
+    "name": "Bobber tank 2, 14 L",
+    "description": "Teardrop with a recessed side panel and a crisp top spine.",
+    "mass": 3.9,
+    "capacity": 14,
+    "style": "peanut",
+    "color": [
+     0.42,
+     0.05,
+     0.05
+    ],
+    "price": 180,
+    "look": {
+     "shape": "bobber_2",
+     "badge": "none",
+     "pads": false
+    },
+    "styles": [
+     "bobber"
+    ],
+    "pack": "bobber"
+   },
+   "bobber_3": {
+    "name": "Bobber tank 3, 10 L",
+    "description": "Slim tank with a creased shoulder and a cut-in knee line.",
+    "mass": 2.8,
+    "capacity": 10,
+    "style": "peanut",
+    "color": [
+     0.42,
+     0.05,
+     0.05
+    ],
+    "price": 180,
+    "look": {
+     "shape": "bobber_3",
+     "badge": "none",
+     "pads": false
+    },
+    "styles": [
+     "bobber"
+    ],
+    "pack": "bobber"
+   },
+   "bobber_4": {
+    "name": "Bobber tank 4, 11 L",
+    "description": "Slim tank with a stepped shoulder and a scalloped side crease.",
+    "mass": 3.1,
+    "capacity": 11,
+    "style": "peanut",
+    "color": [
+     0.42,
+     0.05,
+     0.05
+    ],
+    "price": 180,
+    "look": {
+     "shape": "bobber_4",
+     "badge": "none",
+     "pads": false
+    },
+    "styles": [
+     "bobber"
+    ],
+    "pack": "bobber"
+   },
+   "bobber_5": {
+    "name": "Bobber tank 5, 10 L",
+    "description": "Short, slim tank with a single shoulder crease.",
+    "mass": 2.8,
+    "capacity": 10,
+    "style": "peanut",
+    "color": [
+     0.42,
+     0.05,
+     0.05
+    ],
+    "price": 180,
+    "look": {
+     "shape": "bobber_5",
+     "badge": "none",
+     "pads": false
+    },
+    "styles": [
+     "bobber"
+    ],
+    "pack": "bobber"
+   }
+  }
+ }
+}
