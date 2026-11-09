@@ -324,6 +324,11 @@ void UTorqueSfx::JobDone(const FTorqueShedRequest& R, int32 HeldBefore, const FV
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	const FString Name = ActName(R.Kind);
+	// Each job's sound in the log (the test rounds read it): the act, the sound, its voice (0: it
+	// didn't play: the sound's missing or there's no mixer).
+	auto Said = [&Name](const TCHAR* Sound, int32 Voice) {
+		UE_LOG(LogTemp, Log, TEXT("Torque: sfx job %s: %s (voice %d)"), Name.IsEmpty() ? TEXT("?") : *Name, Sound, Voice);
+	};
 	// Putting a part down lands it, by what it's made of and what it lands on (sfx.gd job_done).
 	if ((R.Kind == ETorqueShedAct::Drop || R.Kind == ETorqueShedAct::Place) && HeldBefore != 0 && B)
 	{
@@ -341,31 +346,40 @@ void UTorqueSfx::JobDone(const FTorqueShedRequest& R, int32 HeldBefore, const FV
 			Surface = R.Spot.ToString().ToLower().StartsWith(TEXT("bench")) ? TEXT("wood") : TEXT("steel");
 			if (const FTorquePlace* Pl = TorqueShedLayout::FindPlace(R.Spot)) Land = Pl->Box.GetCenter();
 		}
-		Impact(Mat, Surface, R.Kind == ETorqueShedAct::Drop ? 0.85f : 0.5f, Land);
+		const int32 Voice = Impact(Mat, Surface, R.Kind == ETorqueShedAct::Drop ? 0.85f : 0.5f, Land);
+		Said(*FString::Printf(TEXT("impact_%s_%s"), *Mat, *Surface), Voice);
 		return;
 	}
 	// The odd ones walker.gd plays itself as it asks.
 	switch (R.Kind)
 	{
-	case ETorqueShedAct::Unpack: PlayAt(TEXT("pickup"), At, -4.0f); return;
-	case ETorqueShedAct::PaintCup: PlayAt(TEXT("pickup"), At - FVector(0.0, 0.0, 30.0), -6.0f); return;
-	case ETorqueShedAct::PaintTinTake: PlayAt(TEXT("pickup"), At, -6.0f); return;
-	case ETorqueShedAct::TyreFit: PlayAt(TEXT("bead_pop"), At, -4.0f); return;
-	case ETorqueShedAct::Fabricate: PlayAt(TEXT("ting"), At, -2.0f); return;
+	case ETorqueShedAct::Unpack: Said(TEXT("pickup"), PlayAt(TEXT("pickup"), At, -4.0f)); return;
+	case ETorqueShedAct::PaintCup: Said(TEXT("pickup"), PlayAt(TEXT("pickup"), At - FVector(0.0, 0.0, 30.0), -6.0f)); return;
+	case ETorqueShedAct::PaintTinTake: Said(TEXT("pickup"), PlayAt(TEXT("pickup"), At, -6.0f)); return;
+	case ETorqueShedAct::TyreFit: Said(TEXT("bead_pop"), PlayAt(TEXT("bead_pop"), At, -4.0f)); return;
+	case ETorqueShedAct::Fabricate: Said(TEXT("ting"), PlayAt(TEXT("ting"), At, -2.0f)); return;
 	case ETorqueShedAct::ScrapBike:
 	{
 		// The bike going for scrap (shed_state remove_bike, recovery_view's "scrap"): at its bay, the
 		// heap of metal crashing down, a heavy steel knock, and the frame hitting the floor after.
 		const FVector Heap = TorqueShedLayout::BayAt(R.Bay) + FVector(0.0, 0.0, 60.0);
-		PlayAt(TEXT("scrap"), Heap, 2.0f);
-		Impact(TEXT("metal"), TEXT("steel"), 1.0f, Heap);
-		Impact(TEXT("metal"), TEXT("concrete"), 0.9f, Heap - FVector(0.0, 0.0, 50.0));
+		Said(TEXT("scrap"), PlayAt(TEXT("scrap"), Heap, 2.0f));
+		Said(TEXT("impact_metal_steel"), Impact(TEXT("metal"), TEXT("steel"), 1.0f, Heap));
+		Said(TEXT("impact_metal_concrete"), Impact(TEXT("metal"), TEXT("concrete"), 0.9f, Heap - FVector(0.0, 0.0, 50.0)));
 		return;
 	}
 	default: break;
 	}
 	const char* Done = DoneSound(S(Name));
-	if (*Done) PlayAt(UTF8_TO_TCHAR(Done), At, -4.0f);
+	if (*Done)
+	{
+		const FString Sound = UTF8_TO_TCHAR(Done);
+		Said(*Sound, PlayAt(Sound, At, -4.0f));
+	}
+	else
+	{
+		Said(TEXT("none"), 0);
+	}
 }
 
 void UTorqueSfx::Requested(const FTorqueShedRequest& R, int32 HeldBefore)
