@@ -56,3 +56,16 @@ and looking up and down throughout. The log shows `Torque: N MetaHuman avatars l
 Each avatar is a MetaHuman at Medium (the face and body together are about 60-100k triangles) plus its hair. Only other players get one; you never see your own.
 
 On disk, the first four built at the default quality added about 1.76 GB to the package. `make` now builds UE Optimized at Medium, with card hair, and caps every texture under `/Game/MetaHumans` at 1024 (`PIPELINE_QUALITY` and `MAX_TEXTURE` at the top of `Tools/ue_metahumans.py`). It also clears an avatar's old build before rebuilding, because `/Game/MetaHumans` is always cooked.
+
+## Your profile: character and face
+
+This works as in Torque Shed: the profile picture at the top right of the Esc menu opens your **Profile**. You can also get there from Esc > Profile, or from Settings > Character > Profile. On the Profile page:
+
+- **Character:** which MetaHuman you are. The default is the one that goes with your colour.
+- **Height:** up to 6% shorter or taller than that MetaHuman.
+- **Face:** eleven sliders: head size, brow, eye spacing, nose length, width and bridge, cheekbones, lips, jaw width, chin and ears. Each one moves a group of the MetaHuman face's own joints (`FACIAL_*`) from rest. **Reset the face** puts them all back.
+- **View:** the live picture on the right shows your face or your whole figure.
+
+The picture is a scene capture of your avatar, posed high above the level, so it doesn't show up in the world. Your choice is saved in `GameUserSettings.ini` under `[TorqueProfile]`. It's sent to everyone in co-op as about 13 bytes (`ATorquePlayerState::Profile`), so the others see your height and face on your avatar.
+
+This doesn't edit the MetaHuman itself: skin, hair and clothes come from the avatars made on the PC. The face sliders are a runtime layer on top. If a slider seems to do nothing, that MetaHuman's face probably has no joints with those names at its quality level.

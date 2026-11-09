@@ -3,6 +3,7 @@
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
+#include "Shed/TorqueProfile.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorquePaintBayRoom.h"
 #include "Coop/TorqueLook.h"
@@ -320,9 +321,13 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 	if (FTorqueAvatar::Count() == 0 || GetNetMode() == NM_DedicatedServer) return;
 	const ATorquePlayerState* PS = Cast<ATorquePlayerState>(GetPlayerState());
 	if (!PS) return;
-	if (AvatarFor != (int32)PS->Colour)
+	// Who they are: their Profile page's choice (Shed/TorqueProfile.h), or the one for their colour.
+	const FTorqueProfile Look = FTorqueProfile::Unpack(PS->Profile);
+	const int32 Want = Look.AvatarFor(PS->Colour);
+	if (AvatarFor != Want)
 	{
-		AvatarFor = PS->Colour;
+		AvatarFor = Want;
+		AvatarLook.Reset();
 		if (!AvatarRoot)
 		{
 			AvatarRoot = NewObject<USceneComponent>(this, TEXT("AvatarRoot"));
@@ -330,7 +335,7 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 			AvatarRoot->RegisterComponent();
 		}
 		if (!Avatar) Avatar = MakeUnique<FTorqueAvatar>();
-		const bool bMade = Avatar->Build(this, AvatarRoot, PS->Colour);
+		const bool bMade = Avatar->Build(this, AvatarRoot, Want);
 		// The shape body goes while the MetaHuman stands in for it.
 		TArray<UStaticMeshComponent*> Shapes;
 		GetComponents(Shapes);
@@ -338,6 +343,11 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 			if (C->GetName().StartsWith(TEXT("Body_"))) C->SetVisibility(!bMade);
 	}
 	if (!Avatar || !Avatar->IsValid()) return;
+	if (AvatarLook != PS->Profile)   // their height and face
+	{
+		AvatarLook = PS->Profile;
+		Avatar->SetLook(Look);
+	}
 	// Feet on the floor: the capsule's bottom (it shrinks and drops when crouched).
 	AvatarRoot->SetRelativeLocation(FVector(0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 	FTorqueAvatarInput In;

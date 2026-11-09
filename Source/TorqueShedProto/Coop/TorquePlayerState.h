@@ -37,6 +37,9 @@ public:
 	UPROPERTY(Replicated) uint8 Colour = 0;
 	// How they sit on the bike (FTorqueSettings::RiderStyles), so everyone's riders look as they chose.
 	UPROPERTY(Replicated) uint8 RiderStyle = 0;
+	// [profile] Their character from the Profile page (Shed/TorqueProfile.h, FTorqueProfile::Pack):
+	// which MetaHuman, height and face. About 13 bytes, sent when it changes.
+	UPROPERTY(Replicated) TArray<uint8> Profile;
 	// The shed bay this player last worked on or claimed (-1 none): which bike they ride out on.
 	UPROPERTY(Replicated) int32 Bay = -1;
 	// The hands (the owner's own copy is set at once; the others get the host's).
@@ -48,6 +51,7 @@ public:
 	UFUNCTION(Server, Reliable) void ServerSetLook(const FString& NewName, uint8 NewColour);
 	UFUNCTION(Server, Reliable) void ServerSetBay(int32 NewBay);
 	UFUNCTION(Server, Reliable) void ServerSetRiderStyle(uint8 NewStyle);
+	UFUNCTION(Server, Reliable) void ServerSetProfile(const TArray<uint8>& NewProfile);   // [profile]
 	UFUNCTION(Server, Reliable) void ServerSetHands(const FTorqueHandsNet& NewHands);
 
 	// The owner's walker, every frame: sent on to the host when it's worth it (HandsState.h).

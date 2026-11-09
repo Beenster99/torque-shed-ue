@@ -326,7 +326,8 @@ private:
 	// shape body (Body_*) otherwise.
 	TUniquePtr<FTorqueAvatar> Avatar;
 	UPROPERTY(Transient) USceneComponent* AvatarRoot = nullptr;
-	int32 AvatarFor = -1;             // the colour it was made for
+	int32 AvatarFor = -1;             // the avatar it was made as (their profile's, or their colour's)
+	TArray<uint8> AvatarLook;         // the profile (height, face) put on it
 	bool bAvatarDemo = false;
 	void UpdateAvatar(float Dt);
 };

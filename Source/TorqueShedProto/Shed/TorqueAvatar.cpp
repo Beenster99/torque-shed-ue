@@ -1,5 +1,6 @@
 #include "Shed/TorqueAvatar.h"
 
+#include "Shed/TorqueProfile.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
@@ -114,7 +115,8 @@ const TArray<FEntry>& Entries()
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
-void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TArray<TWeakObjectPtr<USceneComponent>>& Out)
+void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TArray<TWeakObjectPtr<USceneComponent>>& Out,
+	UPoseableMeshComponent*& OutFace)
 {
 	TMap<FString, USceneComponent*> ByName;
 	for (const FPart& P : E.Parts)
@@ -122,15 +124,30 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (P.Mesh.IsEmpty()) continue;
 		USkeletalMesh* M = LoadObject<USkeletalMesh>(nullptr, *P.Mesh);
 		if (!M) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no mesh %s"), *E.Name, *P.Mesh); continue; }
-		USkeletalMeshComponent* C = NewObject<USkeletalMeshComponent>(Owner);
+		// The face is posed too (copying the body's neck and head, plus the profile's face edits);
+		// the rest follow the body as their leader.
+		const bool bFace = !OutFace && (P.Name.Contains(TEXT("Face")) || M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_FacialRoot")) != INDEX_NONE);
+		USkinnedMeshComponent* C = nullptr;
+		if (bFace)
+		{
+			UPoseableMeshComponent* F = NewObject<UPoseableMeshComponent>(Owner);
+			F->SetSkinnedAssetAndUpdate(M);
+			F->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			OutFace = F;
+			C = F;
+		}
+		else
+		{
+			USkeletalMeshComponent* S = NewObject<USkeletalMeshComponent>(Owner);
+			S->SetSkeletalMeshAsset(M);
+			C = S;
+		}
 		C->SetupAttachment(Driver);
-		C->SetSkeletalMeshAsset(M);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetGenerateOverlapEvents(false);
-		C->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
-		C->SetLeaderPoseComponent(Driver, true);
+		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
 		ByName.Add(P.Name, C);
 		Out.Add(C);
 	}
@@ -164,6 +181,13 @@ FTorqueAvatar::~FTorqueAvatar() = default;
 
 int32 FTorqueAvatar::Count() { return TorqueAvatarMath::Entries().Num(); }
 
+FString FTorqueAvatar::NameOf(int32 Index)
+{
+	const TArray<TorqueAvatarMath::FEntry>& List = TorqueAvatarMath::Entries();
+	if (List.Num() == 0) return FString();
+	return List[((Index % List.Num()) + List.Num()) % List.Num()].Name.Replace(TEXT("_"), TEXT(" "));
+}
+
 int32 FTorqueAvatar::Find(const TCHAR* BoneName) const
 {
 	for (int32 I = 0; I < Bones.Num(); ++I)
@@ -178,6 +202,9 @@ void FTorqueAvatar::Destroy()
 	for (TWeakObjectPtr<USceneComponent>& P : Parts)
 		if (USceneComponent* C = P.Get()) C->DestroyComponent();
 	Parts.Reset();
+	FaceMesh = nullptr;
+	FaceFromDriver.Reset();
+	FaceLocal.Reset();
 	if (Driver) Driver->DestroyComponent();
 	Driver = nullptr;
 	Bones.Reset();
@@ -340,7 +367,8 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	else
 	{
 		ApplyMaterials(Driver, E.BodyMaterials);
-		AddParts(Owner, Driver, E, Parts);
+		AddParts(Owner, Driver, E, Parts, FaceMesh);
+		if (FaceMesh) SetupFace();
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s (%s, %d bones driven, legs %.0f cm, arms %.0f cm)"), *Name,
 		*Mesh->GetName(), Bones.Num(), LegLen, ArmLen);
@@ -456,4 +484,123 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 		const FTransform T(D[I] * Bones[I].RestQ, P[I]);
 		Driver->SetBoneTransformByName(Bones[I].Name, T, EBoneSpaces::ComponentSpace);
 	}
+	PoseFace();
+}
+
+void FTorqueAvatar::SetupFace()
+{
+	const FReferenceSkeleton& Ref = FaceMesh->GetSkinnedAsset()->GetRefSkeleton();
+	const FReferenceSkeleton& Body = Driver->GetSkinnedAsset()->GetRefSkeleton();
+	const int32 Num = Ref.GetNum();
+	FaceFromDriver.SetNum(Num);
+	FaceLocal.SetNum(Num);
+	for (int32 I = 0; I < Num; ++I)
+	{
+		FaceFromDriver[I] = Body.FindBoneIndex(Ref.GetBoneName(I));
+		FaceLocal[I] = Ref.GetRefBonePose()[I];
+	}
+	FaceHead = Ref.FindBoneIndex(TEXT("head"));
+	FaceScale = 1.0;
+	PoseFace();
+}
+
+void FTorqueAvatar::PoseFace()
+{
+	if (!FaceMesh || !Driver || FaceMesh->BoneSpaceTransforms.Num() != FaceLocal.Num()) return;
+	const TArray<FTransform>& From = Driver->BoneSpaceTransforms;
+	for (int32 I = 0; I < FaceLocal.Num(); ++I)
+	{
+		const int32 D = FaceFromDriver[I];
+		FTransform T = D != INDEX_NONE && From.IsValidIndex(D) ? From[D] : FaceLocal[I];
+		if (I == FaceHead) T.SetScale3D(T.GetScale3D() * FaceScale);
+		FaceMesh->BoneSpaceTransforms[I] = T;
+	}
+	FaceMesh->MarkRefreshTransformDirty();
+}
+
+namespace TorqueAvatarMath
+{
+// A face slider's joints: any FACIAL_* bone whose name (lower case) has one of Any and none of
+// Not; Sides only the left and right ones. Each is moved by Move (cm, in the body's up / forward /
+// out-to-its-side axes) or scaled by 1 + Scale, times the slider's -1 .. 1.
+struct FFaceEdit
+{
+	int32 Slider;
+	const TCHAR* Any[5];
+	const TCHAR* Not[3];
+	bool bSides;
+	FVector Move;      // x up, y forward, z out to the side
+	double Scale;
+};
+const FFaceEdit FaceEdits[] = {
+	{1, {TEXT("brow"), TEXT("forehead")}, {}, false, FVector(0.5, 0.0, 0.0), 0.0},
+	{2, {TEXT("_eye"), TEXT("eyelid"), TEXT("eyesack"), TEXT("eyecorner"), TEXT("eyelash")}, {TEXT("brow")}, true, FVector(0.0, 0.0, 0.35), 0.0},
+	{3, {TEXT("nosetip")}, {}, false, FVector(0.0, 0.6, 0.0), 0.0},
+	{4, {TEXT("nostril"), TEXT("nosewing")}, {}, true, FVector(0.0, 0.0, 0.3), 0.0},
+	{5, {TEXT("noseupper"), TEXT("nosebridge")}, {}, false, FVector(0.0, 0.35, 0.0), 0.0},
+	{6, {TEXT("cheekbone"), TEXT("cheekouter"), TEXT("cheekupper")}, {}, true, FVector(0.0, 0.15, 0.35), 0.0},
+	{7, {TEXT("lip")}, {TEXT("corner"), TEXT("rotation")}, false, FVector(0.0, 0.2, 0.0), 0.0},
+	{8, {TEXT("jaw"), TEXT("masseter")}, {}, true, FVector(0.0, 0.0, 0.5), 0.0},
+	{9, {TEXT("chin")}, {}, false, FVector(-0.4, 0.4, 0.0), 0.0},
+	{10, {TEXT("_ear")}, {}, true, FVector::ZeroVector, 0.15},
+};
+} // namespace TorqueAvatarMath
+
+void FTorqueAvatar::SetLook(const FTorqueProfile& Look)
+{
+	using namespace TorqueAvatarMath;
+	if (!Driver) return;
+	Driver->SetRelativeScale3D(FVector(Look.HeightScale()));
+	if (!FaceMesh) return;
+	FaceScale = 1.0 + 0.06 * FMath::Clamp((double)Look.Face[0], -1.0, 1.0);
+	const FReferenceSkeleton& Ref = FaceMesh->GetSkinnedAsset()->GetRefSkeleton();
+	const int32 Num = Ref.GetNum();
+	TArray<FTransform> RestCS;
+	RestCS.SetNum(Num);
+	TArray<FVector> Moved;   // each joint's move, its parents' included (component space)
+	Moved.Init(FVector::ZeroVector, Num);
+	for (int32 I = 0; I < Num; ++I)
+	{
+		const int32 Par = Ref.GetParentIndex(I);
+		RestCS[I] = Par >= 0 ? Ref.GetRefBonePose()[I] * RestCS[Par] : Ref.GetRefBonePose()[I];
+		FaceLocal[I] = Ref.GetRefBonePose()[I];
+		if (Par >= 0) Moved[I] = Moved[Par];
+		const FString Low = Ref.GetBoneName(I).ToString().ToLower();
+		if (!Low.StartsWith(TEXT("facial_"))) continue;
+		const double SideSign = Low.Contains(TEXT("_l_")) ? -1.0 : Low.Contains(TEXT("_r_")) ? 1.0 : 0.0;
+		FVector Own = FVector::ZeroVector;
+		double Grow = 1.0;
+		for (const FFaceEdit& Ed : FaceEdits)
+		{
+			const double V = FMath::Clamp((double)Look.Face[Ed.Slider], -1.0, 1.0);
+			if (V == 0.0 || (Ed.bSides && SideSign == 0.0)) continue;
+			bool bAny = false, bNot = false;
+			for (const TCHAR* W : Ed.Any) if (W && Low.Contains(W)) bAny = true;
+			for (const TCHAR* W : Ed.Not) if (W && Low.Contains(W)) bNot = true;
+			if (!bAny || bNot) continue;
+			Own += (Up * Ed.Move.X + Fwd * Ed.Move.Y + Right * (SideSign * Ed.Move.Z)) * V;
+			Grow *= 1.0 + Ed.Scale * V;
+		}
+		Moved[I] += Own;
+		if (Par >= 0 && !Moved[I].IsNearlyZero())
+		{
+			// Its place in its parent's (moved, unturned) frame.
+			const FVector At = RestCS[I].GetLocation() + Moved[I];
+			const FVector ParAt = RestCS[Par].GetLocation() + Moved[Par];
+			FaceLocal[I].SetTranslation(RestCS[Par].GetRotation().UnrotateVector(At - ParAt) / RestCS[Par].GetScale3D());
+		}
+		if (Grow != 1.0) FaceLocal[I].SetScale3D(FaceLocal[I].GetScale3D() * Grow);
+	}
+	PoseFace();
+}
+
+FVector FTorqueAvatar::HeadWorld() const
+{
+	return Driver && Head != INDEX_NONE ? Driver->GetSocketLocation(Bones[Head].Name) : FVector::ZeroVector;
+}
+
+double FTorqueAvatar::StandingHeight() const
+{
+	if (!Driver || Head == INDEX_NONE) return 0.0;
+	return (FVector::DotProduct(Bones[Head].Rest, Up) + 20.0) * Driver->GetRelativeScale3D().Z;
 }

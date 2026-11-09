@@ -14,6 +14,7 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, Activity);
 	DOREPLIFETIME(ATorquePlayerState, Colour);
 	DOREPLIFETIME(ATorquePlayerState, RiderStyle);
+	DOREPLIFETIME(ATorquePlayerState, Profile);   // [profile]
 	DOREPLIFETIME(ATorquePlayerState, Bay);
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
 }
@@ -26,6 +27,7 @@ void ATorquePlayerState::CopyProperties(APlayerState* Into)
 	{
 		T->Colour = Colour;
 		T->RiderStyle = RiderStyle;
+		T->Profile = Profile;   // [profile]
 		T->Bay = Bay;
 	}
 }
@@ -49,6 +51,13 @@ void ATorquePlayerState::ServerSetLook_Implementation(const FString& NewName, ui
 void ATorquePlayerState::ServerSetRiderStyle_Implementation(uint8 NewStyle)
 {
 	RiderStyle = (uint8)FMath::Clamp<int32>(NewStyle, 0, FTorqueSettings::RiderStyles().Num() - 1);
+}
+
+// [profile]
+void ATorquePlayerState::ServerSetProfile_Implementation(const TArray<uint8>& NewProfile)
+{
+	Profile = NewProfile;
+	Profile.SetNum(FMath::Min(Profile.Num(), 32));
 }
 
 void ATorquePlayerState::ServerSetBay_Implementation(int32 NewBay)
