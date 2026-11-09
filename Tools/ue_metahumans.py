@@ -212,12 +212,18 @@ def make(rig=False):
                     unreal.log("[Torque] export_geometry: " + (lib.export_geometry.__doc__ or "").strip()[:800])
                     xp = unreal.MetaHumanGeometryExportParams()
                     log("geometry export params: " + _props(xp))
-                    used = _set_first(xp, folder, "output_folder", "output_path", "package_path", "path", "content_path")
+                    used = _set_first(xp, folder, "project_path")   # else it exports into /Game/MetaHumans itself
                     if used is None:   # a DirectoryPath struct field
                         dp = unreal.DirectoryPath()
                         dp.set_editor_property("path", folder)
-                        used = _set_first(xp, dp, "output_folder", "output_path", "package_path", "path", "content_path")
-                    _set_first(xp, name, "name_override", "asset_name", "name")
+                        used = _set_first(xp, dp, "project_path")
+                    _set_first(xp, True, "overwrite_existing_assets")
+                    for f in ("body_skeletal_mesh", "full_body_skeletal_mesh", "head_skeletal_mesh", "project_path"):
+                        try:
+                            v = xp.get_editor_property(f)
+                            log("  %s = %r (%s)" % (f, v, type(v).__name__))
+                        except Exception:
+                            pass
                     r = lib.export_geometry(ch, xp)
                     log("%s: export_geometry to %s (folder via %s) = %s" % (name, folder, used, r))
                 except Exception as e:
@@ -271,9 +277,58 @@ def set_never_cook(on):
     log("MetaHuman plugin content %s the cook (%s): commit it" % ("kept out of" if on else "back in", path))
 
 
+POSED_BONES = ("pelvis", "spine_01", "head", "upperarm_l", "hand_l", "upperarm_r", "hand_r",
+               "thigh_l", "foot_l", "thigh_r", "foot_r")
+
+
+def _bone_names(mesh):
+    lib = getattr(unreal, "SkeletalMeshEditorSubsystem", None)
+    for fn in (lambda: [str(n) for n in mesh.get_bone_names()] if hasattr(mesh, "get_bone_names") else None,
+               lambda: [str(n) for n in unreal.get_editor_subsystem(lib).get_bone_names(mesh)] if lib else None):
+        try:
+            names = fn()
+            if names:
+                return names
+        except Exception:
+            continue
+    return None   # this version can't list bones from Python: not checked
+
+
+def _incomplete_body(pkg):
+    """Why the body mesh at pkg isn't a usable avatar body, or "" when it is."""
+    mesh = unreal.load_asset(pkg)
+    if not isinstance(mesh, unreal.SkeletalMesh):
+        return "not a skeletal mesh"
+    try:
+        sk = mesh.get_editor_property("skeleton")
+    except Exception:
+        sk = None
+    if sk is None:
+        return "no skeleton"
+    try:
+        mats = [m.get_editor_property("material_interface") for m in mesh.get_editor_property("materials")]
+    except Exception:
+        mats = []
+    mats = [m for m in mats if m is not None]
+    if not mats:
+        return "no materials"
+    outside = [m.get_path_name() for m in mats if not m.get_path_name().startswith("/Game/")]
+    if outside:
+        return "materials outside /Game (plugin content isn't packaged): " + ", ".join(outside[:3])
+    names = _bone_names(mesh)
+    if names is None:
+        log("%s: couldn't list its bones from Python; not checked" % pkg)
+    else:
+        missing = [b for b in POSED_BONES if b not in names]
+        if missing:
+            return "missing bones " + ", ".join(missing)
+    return ""
+
+
 def register():
-    """Data/Avatars/avatars.json from the assembled MetaHumans under /Game/MetaHumans: each
-    Blueprint named BP_*, and its body mesh (the skeletal mesh in its folder with body in the name)."""
+    """Data/Avatars/avatars.json from the assembled MetaHumans under /Game/MetaHumans/<Name>/: each
+    Blueprint named BP_* with its body mesh, or a complete body mesh on its own. The never-cook block
+    is lifted only when at least one real avatar is listed."""
     reg = unreal.AssetRegistryHelpers.get_asset_registry()
     assets = reg.get_assets_by_path(ROOT, recursive=True) if unreal.EditorAssetLibrary.does_directory_exist(ROOT) else []
     blueprints, meshes = [], []
@@ -297,21 +352,39 @@ def register():
     if redirs:
         unreal.AssetToolsHelpers.get_asset_tools().fixup_referencers(redirs)
         log("fixed up %d redirectors under %s" % (len(redirs), ROOT))
-    out = []
-    bp_folders = set(pkg.rsplit("/", 1)[0] for pkg, _ in blueprints)
-    for pkg, name in sorted(meshes):   # a body mesh with no Blueprint beside it (export_geometry)
-        folder = pkg.rsplit("/", 1)[0]
-        if folder in bp_folders or "body" not in name.lower() or "face" in name.lower():
-            continue
-        out.append({"name": folder.rsplit("/", 1)[1], "blueprint": "", "body": "%s.%s" % (pkg, name)})
-        bp_folders.add(folder)
-        log("avatar %s: body only %s" % (out[-1]["name"], out[-1]["body"]))
+    # Only real avatars: each in its own folder /Game/MetaHumans/<Name>/..., named after that folder.
+    # A Blueprint BP_* there is one; with no Blueprint, a body mesh counts only if it's complete
+    # (skeleton, the mannequin bones the game poses, and materials of its own in /Game). Anything
+    # else (a stray export, a loose mesh in /Game/MetaHumans itself) is skipped and lifts nothing.
+    def avatar_of(pkg):
+        rest = pkg[len(ROOT) + 1:].split("/")
+        return rest[0] if len(rest) >= 2 else None
+    by_name = {}
     for pkg, name in sorted(blueprints):
-        folder = pkg.rsplit("/", 1)[0]
-        body = [p for p, n in meshes if p.startswith(folder + "/") and "body" in n.lower() and "face" not in n.lower()]
-        out.append({"name": name[3:], "blueprint": "%s.%s_C" % (pkg, name),
-                    "body": "%s.%s" % (body[0], body[0].rsplit("/", 1)[1]) if body else ""})
-        log("avatar %s: %s (body %s)" % (name[3:], out[-1]["blueprint"], out[-1]["body"] or "found in the Blueprint"))
+        av = avatar_of(pkg)
+        if av is None:
+            unreal.log_warning("[Torque] skipping %s: not in an avatar folder %s/<Name>/" % (pkg, ROOT))
+            continue
+        if av in by_name:
+            continue
+        body = [p for p, n in meshes if avatar_of(p) == av and "body" in n.lower() and "face" not in n.lower()]
+        by_name[av] = {"name": av, "blueprint": "%s.%s_C" % (pkg, name),
+                       "body": "%s.%s" % (body[0], body[0].rsplit("/", 1)[1]) if body else ""}
+        log("avatar %s: %s (body %s)" % (av, by_name[av]["blueprint"], by_name[av]["body"] or "found in the Blueprint"))
+    for pkg, name in sorted(meshes):
+        av = avatar_of(pkg)
+        if av in by_name or "body" not in name.lower() or "face" in name.lower():
+            continue
+        if av is None:
+            unreal.log_warning("[Torque] skipping %s: a loose mesh, not an avatar" % pkg)
+            continue
+        why = _incomplete_body(pkg)
+        if why:
+            unreal.log_warning("[Torque] skipping body %s: %s" % (pkg, why))
+            continue
+        by_name[av] = {"name": av, "blueprint": "", "body": "%s.%s" % (pkg, name)}
+        log("avatar %s: body only %s" % (av, by_name[av]["body"]))
+    out = [by_name[k] for k in sorted(by_name)]
     path = os.path.join(project_dir(), "Data", "Avatars", "avatars.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if not out:
