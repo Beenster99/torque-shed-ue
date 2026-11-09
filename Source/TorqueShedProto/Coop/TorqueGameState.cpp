@@ -2,6 +2,7 @@
 
 #include "TorquePlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorquePaintBay.h"
 #include "GameFramework/Pawn.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -104,7 +105,8 @@ void ATorqueGameState::OnRep_Shed()
 	if (!Build || Shed.Version == 0 || Shed.Version == AppliedVersion) return;
 	if (!Build->LoadShedFromHost(Shed.Data)) return;
 	AppliedVersion = Shed.Version;
-	// For the two-copy tests: where each bike stands on this (joined) copy, when that changes.
+	// For the two-copy tests: where each bike stands on this (joined) copy and the paint bench's
+	// state, when either changes.
 	FString Where;
 	const int32 OnRig = Build->DynoBay();
 	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
@@ -114,6 +116,21 @@ void ATorqueGameState::OnRep_Shed()
 		const FVector At = Build->BikeTransform(Bay).GetLocation();
 		const TCHAR* Parked = Bike.Pusher != 0 ? TEXT("being wheeled") : OnRig == Bay ? TEXT("on the dyno rig") : !Bike.bAway ? TEXT("in its bay") : TEXT("on the floor");
 		Where += FString::Printf(TEXT("%sbay %d %s %s at (%.0f, %.0f)"), Where.IsEmpty() ? TEXT("") : TEXT("; "), Bay + 1, *Bike.Name, Parked, At.X, At.Y);
+	}
+	// The paint mixing bench: who's at it, the tin on the scale (what's in it, how well stirred), the
+	// scale's reading, the bottle being poured and the shaker.
+	{
+		const FTorquePaintBay& P = Build->PaintBay();
+		FString Bench = FString::Printf(TEXT("paint bench: %s"), P.BenchBy != 0 ? *FString::Printf(TEXT("player %d at it"), P.BenchBy) : TEXT("no one at it"));
+		if (const FTorqueTin* Tin = P.BenchTinPtr())
+			Bench += FString::Printf(TEXT(", tin %d on the scale (base %d, %.0f g base + %d g of %d tints, stirred %d%%), scale %d g"), Tin->Id,
+				Tin->Mix.Base, Tin->Mix.BaseGrams, FMath::RoundToInt(Tin->Mix.TintGrams() / 10.0f) * 10, Tin->Mix.Tints.Num(),
+				FMath::RoundToInt(Tin->Mix.Stir * 10.0f) * 10, FMath::RoundToInt(P.ScaleGrams() / 10.0f) * 10);   // (rounded: a line per real change, not per gram)
+		else
+			Bench += TEXT(", scale empty");
+		if (P.PourTint != INDEX_NONE) Bench += FString::Printf(TEXT(", pouring tint %d"), P.PourTint);
+		Bench += P.ShakerTin != 0 ? FString::Printf(TEXT(", tin %d in the shaker"), P.ShakerTin) : FString(TEXT(", shaker empty"));
+		Where += (Where.IsEmpty() ? TEXT("") : TEXT("; ")) + Bench;
 	}
 	if (Where != LoggedBikes)
 	{
