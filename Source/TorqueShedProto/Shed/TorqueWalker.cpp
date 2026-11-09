@@ -26,6 +26,7 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedScreens.h"
 #include "Shed/TorqueToolModels.h"
+#include "Shed/TorqueWashJob.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -352,6 +353,8 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 	Pad.Reset();   // stops its reading thread
 	if (Avatar) Avatar->Destroy();   // its MetaHuman Blueprint goes with it
 	LookOutline.Clear();
+	if (WashJob.IsValid()) WashJob->Detach();   // the bike's own grime back   [wash]
+	WashJob.Reset();
 	Super::EndPlay(Reason);
 }
 
@@ -485,12 +488,13 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	if (!bNoInput) ReadInput(DeltaSeconds);
 	else bWorkHeld = bAltHeld = false;
 	TickSprays(DeltaSeconds);   // the coats going on (and drying off) follow their parts as they're redrawn
+	TickWash(DeltaSeconds);     // the wash game's muck follows its bike (TorqueWalkerWash.cpp)
 	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
 	else if (!bComputer && !bBench)
 	{
 		FindTarget();
 		MakePlan();
-		if (!SprayWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game
+		if (!SprayWork(DeltaSeconds) && !WashWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game; the lance at a bike: the wash game
 		HookWork(DeltaSeconds);
 	}
 	UpdateSway(DeltaSeconds);
@@ -753,6 +757,8 @@ void ATorqueWalker::ReadInput(float Dt)
 	{
 		bAltPressed = bAltJust;
 		bAltHeld = KeyDown(ETorqueKey::AltWork) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
+		// The lance: X (D-pad up) lights up the muck still to do, or puts it out.   [wash]
+		if (Tool == ETorqueTool::Lance && (Just(EKeys::X) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp))) bWashScan = !bWashScan;
 	}
 	if (KeyJust(ETorqueKey::SprayFinish) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight))
 		if (TWI::Sprays(Tool)) SprayFinish = (SprayFinish + 1) % FMath::Max(1, TWI::Loads(Tool).Num());
@@ -1589,8 +1595,9 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
 	Hold.AddToTranslation(Move);
 	ToolHolder->SetRelativeTransform(Hold);
-	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && (Tool == ETorqueTool::Repair || Tool == ETorqueTool::Lance));
+	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && Tool == ETorqueTool::Repair);   // (the lance's water: UpdateWashFx)
 	UpdateSprayFx(Dt);   // the spray itself: the jet, the overspray, the footprint (TorqueWalkerSpray.cpp)
+	UpdateWashFx(Dt);    // the pressure washer's jet, its mist and splash (TorqueWalkerWash.cpp)
 }
 
 void ATorqueWalker::UpdateFlying(float Dt, bool bEmit)
@@ -1707,6 +1714,8 @@ float ATorqueWalker::WorkFraction() const
 {
 	// Spraying: how much of the coat's on, to the mark where it counts.
 	if (Spray.IsValid() && Spray->bLive) return FMath::Clamp(Spray->Last.Covered / TorqueSpray::Done, 0.0f, 1.0f);
+	// Washing: how clean the bike is.   [wash]
+	if (bWashFiring && WashJob.IsValid()) return FMath::Clamp(WashJob->Stats().Clean, 0.0f, 1.0f);
 	const FPlan& P = (bWorkHeld || ActHeldFor > 0.0) ? Plan : AltPlan;
 	if (Progress <= 0.0 || !P.bValid || P.Time <= 0.0) return 0.0f;
 	return (float)FMath::Clamp(Progress / P.Time, 0.0, 1.0);
@@ -1936,7 +1945,7 @@ void ATorqueWalker::UpdateCues()
 	}
 	// (A part being sprayed shows its wet coat instead: the glow leaves it be.)
 	if (SprayItem != 0) Now.Reset();
-	Now.RemoveAll([this](const UStaticMeshComponent* C) { return SprayOwns(C); });
+	Now.RemoveAll([this](const UStaticMeshComponent* C) { return SprayOwns(C) || WashOwns(C); });
 	for (const TWeakObjectPtr<UStaticMeshComponent>& W : Lit)
 		if (UStaticMeshComponent* C = W.Get())
 			if (!Now.Contains(C) && (C->GetOverlayMaterial() == LitMaterial || C->GetOverlayMaterial() == LitFaintMaterial)) C->SetOverlayMaterial(nullptr);

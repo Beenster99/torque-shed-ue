@@ -2553,12 +2553,19 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	}
 	case ETorqueShedAct::Wash:
 		// No message: it's a pass of the jet, many a second while the trigger is held.
-		for (int32 Id : R.Items)
+		// With Amounts (the wash game, TorqueWashJob): each part's dirt times its share left, as the jet
+		// actually took it off; without, a timed pass off everything near.
+		for (int32 I = 0; I < R.Items.Num(); ++I)
 		{
-			FTorqueItem* It = Items.Find(Id);
+			FTorqueItem* It = Items.Find(R.Items[I]);
 			if (!It || It->bBoxed || It->Dirt <= 0.0f) continue;
-			It->Dirt = FMath::Max(0.0f, It->Dirt - JetClean);
-			Touch(Id);
+			if (R.Amounts.IsValidIndex(I))
+			{
+				const float K = FMath::Clamp(R.Amounts[I], 0.0f, 1.0f);
+				It->Dirt = K <= 0.0f || It->Dirt * K < 0.005f ? 0.0f : It->Dirt * K;
+			}
+			else It->Dirt = FMath::Max(0.0f, It->Dirt - JetClean);
+			Touch(R.Items[I]);
 		}
 		break;
 	case ETorqueShedAct::OrderPart:

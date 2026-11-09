@@ -144,6 +144,15 @@ const TCHAR* const LiftSteps =
 	TEXT("place:lift_0,f,wait:4,lifts,tool:hands,wheel:floor,wait:2,bikelog,wheel:wash,wait:2,bikelog,")
 	TEXT("place:lift_wash,f,wait:5,lifts,look:washbay,shot,place:lift_wash,f,wait:5,lifts,wheel:home,wait:2,bikelog,lifts,log");
 
+// The wash game: bay 1's bike wheeled into the wash bay, the lance held on its tank and its engine (the
+// muck coming off where the jet goes, the shed told), the scan on, the bike raised on the wash lift
+// and its underside washed crouched, then home.   [wash]
+const TCHAR* const WashGameSteps =
+	TEXT("bay:1,tool:hands,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
+	TEXT("part:tank,hold:3,washstate,shot,part:engine,hold:3,washstate,shot,part:front_wheel,hold:3,washstate,shot,log,")
+	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,shot,crouch:0,")
+	TEXT("tool:hands,place:lift_wash,f,wait:5,wheel:home,wait:2,bikelog,log");
+
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
 // the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
@@ -209,6 +218,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("washgame")) FString(TSTI::WashGameSteps).ParseIntoArray(Preset, TEXT(","), true);   // [wash]
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -512,6 +522,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const double Distance = P.Num() > 2 ? FMath::Clamp(FCString::Atod(*P[2]), 10.0, 300.0) : 80.0;
 		Said(W->TestSprayPasses(Passes, Distance));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("washstate"))   // [wash] how the wash game on the wash bay's bike is going
+	{
+		const FString State = W->TestWashState();
+		Said(State.IsEmpty() ? FString(TEXT("no wash going")) : State);
 		return true;
 	}
 	if (Verb == TEXT("sprayscan"))

@@ -681,6 +681,13 @@ def materials():
         ue_build_spray.build()
     except Exception as e:
         unreal.log_error("[Torque] spray materials: %s" % e)
+    # The wash mini game's muck, washed off where the jet goes (TorqueWashJob.cpp; it needs the spray's
+    # mask default texture, made just above).
+    try:
+        import ue_build_wash
+        ue_build_wash.build()
+    except Exception as e:
+        unreal.log_error("[Torque] wash materials: %s" % e)
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.

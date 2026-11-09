@@ -217,6 +217,7 @@ struct FTorqueShedRequest
 	bool bGun = false;            // Paint, Prime, Coat: with the spray gun (it runs off the booth's air line)
 	float Amount = 0.0f;          // the mixing bay: grams poured, how much stirred
 	float Tilt = 0.0f;            // ... how far the bottle's tipped
+	TArray<float> Amounts;        // Wash: each of Items' dirt times this (the wash game, TorqueWashJob); none: a timed pass
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FTorqueBikeEvent, int32 /*Bay*/);
