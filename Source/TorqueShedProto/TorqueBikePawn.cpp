@@ -205,6 +205,18 @@ void ATorqueBikePawn::BeginPlay()
 	Sim->Setup(BikeSpec::SpeedTwin1200());
 	Sim->Ray = [this](const V3& From, const V3& To) {
 		RayHit Out;
+		if (bTestFlat)
+		{
+			// The test pad (TestStartMove): level tarmac at TestPadY, as SimTest's flat ground.
+			if (From.y >= TestPadY && To.y <= TestPadY && From.y > To.y)
+			{
+				Out.Hit = true;
+				Out.Position = From + (To - From) * ((From.y - TestPadY) / (From.y - To.y));
+				Out.Normal = V3(0.0, 1.0, 0.0);
+				Out.Surface = SURF_TARMAC;
+			}
+			return Out;
+		}
 		UWorld* World = GetWorld();
 		if (!World) return Out;
 		FHitResult Hit;
@@ -216,7 +228,6 @@ void ATorqueBikePawn::BeginPlay()
 			Out.Normal = DirToSim(Hit.ImpactNormal).Normalized();
 			const AActor* A = Hit.GetActor();
 			Out.Surface = (A && A->ActorHasTag(TEXT("Road"))) ? SURF_TARMAC : SURF_GRASS;
-			if (bTestTarmac) Out.Surface = SURF_TARMAC;   // a lean test off the road's edge measures the bike, not the grass
 		}
 		return Out;
 	};
@@ -1175,8 +1186,10 @@ void ATorqueBikePawn::RestartRide()
 	Respawn(0);
 }
 
-void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph)
+void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 {
+	bTestWantFlat = bFlat || Kind == 1;
+	bTestFlat = false;
 	TestMove = FMath::Clamp(Kind, 0, 1);
 	TestPhase = 0;
 	TestMps = FMath::Max(Mph, 5.0) / 2.23694;
@@ -1187,6 +1200,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph)
 	bTestRobotWas = bTestAutoRide;
 	bTestAutoRide = true;   // the robot steers along the road and gets it up to speed
 	bTestTarmac = false;
+	TestAssistWas = Assist;
 }
 
 // One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
@@ -1200,9 +1214,12 @@ void ATorqueBikePawn::TestMoveStep()
 		UE_LOG(LogTemp, Log, TEXT("Torque: test %s at %.0f mph: %s"), Name, Mph, *Text);
 		bTestTarmac = false;
 		bTestAutoRide = bTestRobotWas;
-		if (TestMove == 1 && TestPhase == 1)
+		Assist = TestAssistWas;
+		const bool bWasFlat = bTestFlat;
+		bTestFlat = false;
+		if (bWasFlat || (TestMove == 1 && TestPhase == 1))
 		{
-			Respawn(TestFromNear);   // back on the road where the bend began
+			Respawn(TestFromNear);   // back on the road where it began
 			Throttle = FrontBrake = RearBrake = Lean = 0.0;
 		}
 		TestMove = -1;
@@ -1216,8 +1233,10 @@ void ATorqueBikePawn::TestMoveStep()
 	}
 	if (TestPhase == 0)
 	{
-		// The robot rides (slowing for bends) until it's held the speed on a straight for 1.5 s.
-		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FrontBrake <= 0.0 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1;
+		// The robot rides (slowing for bends) until it's held the speed on a straight for 1.5 s (a
+		// fairly level one, under 4%, for the test pad, so the bike doesn't land on it pitched).
+		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FrontBrake <= 0.0 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1 &&
+			(!bTestWantFlat || FMath::Abs(Sim->RoadPitch) < 0.04);
 		TestSteady = bSteady ? TestSteady + SimDt : 0.0;
 		if (TestSteady < 1.5)
 		{
@@ -1229,7 +1248,15 @@ void ATorqueBikePawn::TestMoveStep()
 		TestV0 = V;
 		TestFromNear = Near;
 		TestSide = Lean < 0.0 ? -1.0 : 1.0;
-		bTestTarmac = TestMove == 1;
+		TestY0 = Sim->Position.y;
+		Assist = 0.5;   // the road tests' rider (SimTest/realism_test)
+		if (bTestWantFlat)
+		{
+			// The pad at the height of the ground under the wheels now.
+			const double Under = 0.5 * (Sim->Wheels[0].ContactPos.y + Sim->Wheels[1].ContactPos.y);
+			TestPadY = (Sim->Wheels[0].Contact && Sim->Wheels[1].Contact) ? Under : Sim->Position.y - Sim->Build.RearRadius;
+			bTestFlat = true;
+		}
 	}
 	TestDist += FMath::Abs(V) * SimDt;
 	if (TestMove == 0)
@@ -1242,9 +1269,18 @@ void ATorqueBikePawn::TestMoveStep()
 		TestNose = FMath::Min(TestNose, Sim->PitchAngle);
 		if (V < 0.3)
 		{
-			const double G = TestV0 * TestV0 / (2.0 * FMath::Max(TestDist, 0.1)) / 9.81;
-			Finish(FString::Printf(TEXT("stopped in %.1f m, %.2f s (from %.1f mph, %.2f g on average, nose down %.1f deg at most, ABS front %s)"), TestDist,
-				TestClock, TestV0 * 2.23694, G, FMath::RadiansToDegrees(-TestNose), Sim->Build.AbsFront ? TEXT("on") : TEXT("off")));
+			// What the road's grade did (the height lost or gained, as energy), and the stop the brakes
+			// alone give from exactly 60 mph on the level, to set beside SimTest/realism_test's.
+			const double D = FMath::Max(TestDist, 0.1), Rise = Sim->Position.y - TestY0;
+			const double G = TestV0 * TestV0 / (2.0 * D) / 9.81;
+			const double Brakes = FMath::Max((0.5 * TestV0 * TestV0 + 9.81 * Rise) / D, 0.1);
+			const double Level60 = 26.8224 * 26.8224 / (2.0 * Brakes);
+			const BikeSpec& B = Sim->Build;
+			Finish(FString::Printf(TEXT("stopped in %.1f m, %.2f s (from %.1f mph, %.2f g on average, nose down %.1f deg at most, ABS front %s); ")
+				TEXT("%s, %.1f%% grade on average, so %.1f m from 60 mph on the level; brakes %.0f / %.0f N m, tyres %.2f / %.2f grip, wet grip x%.2f"),
+				TestDist, TestClock, TestV0 * 2.23694, G, FMath::RadiansToDegrees(-TestNose), B.AbsFront ? TEXT("on") : TEXT("off"),
+				bTestFlat ? TEXT("on the test pad") : TEXT("on the road"), 100.0 * Rise / D, Level60, B.FrontBrakeTorque, B.RearBrakeTorque,
+				B.TyreFront.GripTarmac, B.TyreRear.GripTarmac, B.WetGrip));
 		}
 		else if (TestClock > 20.0) Finish(FString::Printf(TEXT("still going after 20 s (%.1f mph, %.0f m)"), V * 2.23694, TestDist));
 		return;
@@ -1275,8 +1311,9 @@ void ATorqueBikePawn::TestMoveStep()
 	{
 		const double N = FMath::Max(TestSamples, 1), Late = TestLateLean / FMath::Max(TestLateSamples, 1);
 		const bool bSlid = TestSlide > 0.25, bStoodUp = Late < 0.6 * TestLeanPeak;
-		Finish(FString::Printf(TEXT("leaned %.1f deg (peak %.1f), %.2f g (peak %.2f) at %.1f mph; %s%s (past the tyres' peak %.2f s)"), TestLeanSum / N, TestLeanPeak,
-			TestGSum / N, TestGPeak, V * 2.23694, bSlid ? TEXT("slid") : TEXT("held its line"), bStoodUp ? TEXT(", stood up") : TEXT(""), TestSlide));
+		Finish(FString::Printf(TEXT("leaned %.1f deg (peak %.1f), %.2f g (peak %.2f) at %.1f mph on the test pad; %s%s (past the tyres' peak %.2f s); tyres %.2f / %.2f grip, wet grip x%.2f"),
+			TestLeanSum / N, TestLeanPeak, TestGSum / N, TestGPeak, V * 2.23694, bSlid ? TEXT("slid") : TEXT("held its line"), bStoodUp ? TEXT(", stood up") : TEXT(""),
+			TestSlide, Sim->Build.TyreFront.GripTarmac, Sim->Build.TyreRear.GripTarmac, Sim->Build.WetGrip));
 	}
 }
 

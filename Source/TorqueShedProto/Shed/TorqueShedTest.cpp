@@ -453,17 +453,20 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Said(FString::Printf(TEXT("%s held, pulled %.2f"), LeverSide == 0 ? TEXT("clutch") : TEXT("brake"), Pull));
 			return true;
 		}
-		// brakestop:MPH (default 60): the robot holds MPH on a straight, then stops as hard as a road
-		// test does; lean:max[:MPH] (default 45): a full-lean bend held 6 s at MPH. Each waits until
+		// brakestop[:MPH][:flat] (default 60): the robot holds MPH on a straight, then stops as hard as a
+		// road test does (on the road, or :flat on the level test pad); lean:max[:MPH] (default 45): a
+		// full-lean bend held 6 s at MPH on the test pad. Each waits until
 		// it's done (up to about two minutes) and logs what it measured.
 		if (Verb == TEXT("brakestop") || Verb == TEXT("lean"))
 		{
 			const bool bBrake = Verb == TEXT("brakestop");
-			const FString MphArg = bBrake ? (P.Num() > 1 ? P[1] : FString()) : (P.Num() > 2 ? P[2] : FString());
+			const int32 MphAt = bBrake ? 1 : 2;
+			const FString MphArg = P.Num() > MphAt && P[MphAt].ToLower() != TEXT("flat") ? P[MphAt] : FString();
 			const double Mph = MphArg.IsEmpty() ? (bBrake ? 60.0 : 45.0) : FCString::Atod(*MphArg);
+			const bool bFlat = P.Last().ToLower() == TEXT("flat");
 			if (!bMoveStarted)
 			{
-				Bike->TestStartMove(bBrake ? 0 : 1, Mph);
+				Bike->TestStartMove(bBrake ? 0 : 1, Mph, bFlat);
 				bMoveStarted = true;
 				Said(FString::Printf(TEXT("getting up to %.0f mph on a straight"), Mph));
 				Tries = 0;
