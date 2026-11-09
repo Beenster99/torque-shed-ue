@@ -67,8 +67,7 @@
   "petrol_pump": {
    "name": "Petrol pump cabinet and nozzle",
    "torque_shed": "shed_pump_view.gd",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "delivery_box": {
    "name": "Delivery box",
@@ -271,25 +270,25 @@
    "name": "booth_compact",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
    "source": "todo",
-   "plan": "blender, round 2; hangers with the shed thread"
+   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
   },
   "booth_standard": {
    "name": "booth_standard",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
    "source": "todo",
-   "plan": "blender, round 2; hangers with the shed thread"
+   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
   },
   "booth_pro": {
    "name": "booth_pro",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
    "source": "todo",
-   "plan": "blender, round 2; hangers with the shed thread"
+   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
   },
   "booth_shop": {
    "name": "booth_shop",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
    "source": "todo",
-   "plan": "blender, round 2; hangers with the shed thread"
+   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
   },
   "dyno_rig": {
    "name": "Rolling road (plate, drum, clamp, posts)",
@@ -315,20 +314,17 @@
   "ear_defenders": {
    "name": "Ear defenders on hook",
    "torque_shed": "dyno_room.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_bobblehead": {
    "name": "Bobblehead racer",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_gnome": {
    "name": "Biker gnome",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_plant": {
    "name": "Potted plant",
@@ -345,8 +341,7 @@
   "trinket_lava": {
    "name": "Lava lamp",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_clock": {
    "name": "Workshop wall clock",
@@ -357,26 +352,22 @@
   "trinket_clock_digital": {
    "name": "Digital wall clock",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_clock_desk": {
    "name": "Digital desk clock",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_trophy": {
    "name": "Gold race trophy",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_rug": {
    "name": "Chequered flag rug",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_radio": {
    "name": "Toolbox radio",
@@ -393,8 +384,7 @@
   "trinket_neon": {
    "name": "Neon shed sign",
    "torque_shed": "trinkets.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "trinket_adventure_photo": {
    "name": "Adventure photo",
@@ -411,14 +401,12 @@
   "tool_brush": {
    "name": "Hand tool: brush",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "tool_repair": {
    "name": "Hand tool: repair",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender (angle grinder), round 3"
+   "source": "blender"
   },
   "tool_spray": {
    "name": "Hand tool: spray",
@@ -429,32 +417,27 @@
   "tool_lance": {
    "name": "Hand tool: lance",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "tool_gun": {
    "name": "Hand tool: gun",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender (HVLP gun), round 3"
+   "source": "blender"
   },
   "tool_polisher": {
    "name": "Hand tool: polisher",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "tool_applicator": {
    "name": "Hand tool: applicator",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "tool_stopwatch": {
    "name": "Hand tool: stopwatch",
    "torque_shed": "tool_models.gd",
-   "source": "todo",
-   "plan": "blender, round 3"
+   "source": "blender"
   },
   "dress_barrel_02": {
    "name": "Oil drum",
