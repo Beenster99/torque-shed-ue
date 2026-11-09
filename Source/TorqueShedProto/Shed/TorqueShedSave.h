@@ -118,6 +118,7 @@ public:
 	// The shed radio (added to version 3 too: an older save's is off).
 	UPROPERTY() bool bRadioOn = false;
 	UPROPERTY() int32 RadioStation = 0;
+	UPROPERTY() int32 LiftsUp = 0;   // the bike lifts that are up (a bit per lift id)
 	// [kit] The main lights, the roller door and where the engine stand was left (added to version
 	// 3 too: an older save's lights are on, its door up, its stand at home).
 	UPROPERTY() bool bShedLights = true;

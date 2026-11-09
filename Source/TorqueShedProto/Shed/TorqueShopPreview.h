@@ -2,7 +2,7 @@
 // turntable in a little photo studio high over the level, filmed by a scene capture that sees only
 // the studio. A soft gradient backdrop behind it, its own key, fill and rim lights (lighting
 // channel 2, so the level's sun and lamps don't reach it). Drawn into a box on the computer's page
-// with a few buttons over the picture: pause / turn, zoom out / in, and back to the start view.
+// worked with the mouse alone (no buttons over the picture).
 //
 // Mouse: drag to turn it (and tip it up or down), the wheel zooms, right-click stops or starts the
 // turning. One per local player, made the first time the shop wants it and kept (hidden, not
@@ -58,7 +58,7 @@ public:
 	static TArray<FString> BikeStyles();
 	static TMap<FString, FString> StyleBike(const FString& Style);
 
-	// The picture in Box, its buttons over it, and keeps it filming. Mouse: for the buttons' hover.
+	// The picture in Box, and keeps it filming. (Buttons is left empty: no buttons over it since build 101.)
 	void Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, const FVector2D& Mouse);
 	// Input. Press: the left mouse went down (true when it was on the picture: a drag or a button).
 	bool Press(const FVector2D& Mouse);

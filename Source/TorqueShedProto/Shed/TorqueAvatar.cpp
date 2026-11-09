@@ -827,10 +827,29 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
 			if (I == UpperArm[S])
 			{
-				// The wrist where the rider's is; the hand aimed into the grip, palm down; elbows out
-				// and down. Too short an arm reaches as far as it can.
+				// The hand round the grip: its frame from its own bones (wrist to middle knuckle, and
+				// across the knuckles from pinky to index, which lies along the bar), turned so the
+				// fingers point forward and down past the bar with the index inboard, and placed so
+				// the bar sits across the palm just short of the knuckles. The arm then reaches the
+				// wrist that gives (as far as it can). Off the bike (Limp), the rider rig's wrist.
 				const FVector S0 = Bones[I].Rest, E0 = Bones[LowerArm[S]].Rest, W0 = Bones[HandBone[S]].Rest;
-				const FVector W = ToC(Tg.Wrist[S]);
+				const int32 Knuckle = Finger[S][2][0], IndexK = Finger[S][1][0], PinkyK = Finger[S][4][0];
+				const FVector Aim0 = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
+				FVector Across0 = (IndexK != INDEX_NONE && PinkyK != INDEX_NONE) ? Bones[IndexK].Rest - Bones[PinkyK].Rest : Right * Side;
+				Across0 -= Aim0.GetSafeNormal() * FVector::DotProduct(Across0, Aim0.GetSafeNormal());
+				// Palm side: Aim x Across for the right hand, the other way for the left (mirrored).
+				const FVector Palm0 = (FVector::CrossProduct(Aim0, Across0) * Side).GetSafeNormal();
+				const FVector Bar = ToC(Tg.Grip[S]);
+				const FVector Across1 = -Right * Side;   // the index towards the bike's middle
+				FVector Aim1 = Bar - ToC(Tg.Wrist[S]);
+				Aim1 -= Across1 * FVector::DotProduct(Aim1, Across1);
+				Aim1 = (Aim1.Size() > 2.0 ? Aim1.GetSafeNormal() : FVector::ZeroVector) + (Fwd * 0.8 - Up * 0.6) * 0.5;
+				Aim1 = (Aim1 - Across1 * FVector::DotProduct(Aim1, Across1)).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
+				const FQuat HandQ = Align(Aim0, Across0, Aim1, Across1);
+				const FVector Palm1 = HandQ.RotateVector(Palm0);
+				const FVector KnuckleAt = Bar + Aim1 * 1.5 - Palm1 * 3.0;   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
+				const FVector WOnBar = KnuckleAt - HandQ.RotateVector(Aim0);
+				const FVector W = FMath::Lerp(WOnBar, ToC(Tg.Wrist[S]), Off);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector Pole = (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
@@ -838,17 +857,10 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
-				// The hand: its rest aim (wrist to middle knuckle) and palm (towards the body in the
-				// A-pose) turned to the grip's aim and palm down.
-				const int32 Knuckle = Finger[S][2][0];
-				const FVector Aim0 = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
-				const FVector Palm0 = -Right * Side;
-				FVector Aim1 = ToC(Tg.Grip[S]) - W;
-				if (Aim1.Size() < 2.0) Aim1 = W - E;
-				const FVector Palm1 = (-Up - Aim1.GetSafeNormal() * FVector::DotProduct(-Up, Aim1.GetSafeNormal())).GetSafeNormal(UE_SMALL_NUMBER, -Up);
-				D[HandBone[S]] = FQuat::Slerp(Align(Aim0, Palm0, Aim1, Palm1), D[LowerArm[S]], Off); Set[HandBone[S]] = true;
+				D[HandBone[S]] = FQuat::Slerp(HandQ, D[LowerArm[S]], Off); Set[HandBone[S]] = true;
 				// The fingers round the grip; the index and middle over a lever when they're on it.
-				const FVector Curl0 = FVector::CrossProduct(Aim0, Palm0).GetSafeNormal();
+				// Each finger turns about the bar's line, towards the palm.
+				const FVector Curl0 = FVector::CrossProduct(Aim0.GetSafeNormal(), Palm0).GetSafeNormal();
 				const FVector Curl = D[HandBone[S]].RotateVector(Curl0);
 				static const double WrapDeg[3] = {55.0, 80.0, 45.0};
 				for (int32 F = 0; F < 5; ++F)

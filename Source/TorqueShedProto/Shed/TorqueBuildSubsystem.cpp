@@ -236,6 +236,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	Paint = FTorquePaintBay::Starter();
 	bRadioOn = false;
 	RadioTuned = 0;
+	LiftsUp = 0;
 	bShedLights = true;   // [kit]
 	bDoorUp = true;
 	StandXf = StandHome();
@@ -284,6 +285,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.DynoHeat = Dyno.Heat;
 	S.bRadioOn = bRadioOn;
 	S.RadioStation = RadioTuned;
+	S.LiftsUp = LiftsUp;
 	S.bShedLights = bShedLights;   // [kit]
 	S.bDoorUp = bDoorUp;
 	S.bStandMoved = true;
@@ -371,6 +373,9 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	Dyno.Heat = S.DynoHeat;
 	bRadioOn = S.bRadioOn;
 	RadioTuned = FMath::Clamp(S.RadioStation, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
+	LiftsUp = 0;
+	for (int32 L = 0; L < 31; ++L)
+		if (IsLift(L) && (S.LiftsUp & (1 << L)) != 0) LiftsUp |= 1 << L;
 	bShedLights = S.bShedLights;   // [kit]
 	bDoorUp = S.bDoorUp;
 	StandXf = S.bStandMoved && TorqueShedLayout::OnSite(S.StandAt) ? FTransform(FRotator(0.0, S.StandYaw, 0.0), FVector(S.StandAt.X, S.StandAt.Y, 0.0)) : StandHome();
@@ -643,6 +648,8 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 	uint8 bRadioB = bRadioOn ? 1 : 0;
 	int32 RadioOut = RadioTuned;
 	Ar << bRadioB << RadioOut;
+	int32 LiftsOut = LiftsUp;
+	Ar << LiftsOut;
 	{
 		// [kit] The main lights, the roller door, the engine stand, the fire extinguisher.
 		uint8 bLightsB = bShedLights ? 1 : 0, bDoorB = bDoorUp ? 1 : 0, bFoamB = bFoaming ? 1 : 0;
@@ -809,6 +816,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	uint8 bRadioB = 0;
 	int32 RadioIn = 0;
 	Ar << bRadioB << RadioIn;
+	int32 LiftsIn = 0;
+	Ar << LiftsIn;
 	uint8 bLightsB = 1, bDoorB = 1, bFoamB = 0;   // [kit]
 	FVector StandAtIn = StandHome().GetLocation();
 	double StandYawIn = 0.0;
@@ -830,6 +839,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Paint = MoveTemp(NewPaint);
 	bRadioOn = bRadioB != 0;
 	RadioTuned = FMath::Clamp(RadioIn, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
+	LiftsUp = LiftsIn;
 	bShedLights = bLightsB != 0;   // [kit]
 	bDoorUp = bDoorB != 0;
 	StandXf = FTransform(FRotator(0.0, StandYawIn, 0.0), StandAtIn);
@@ -1468,6 +1478,30 @@ FTransform UTorqueBuildSubsystem::BikeTransform(int32 Bay) const
 	return IsAway(Bay) ? Bikes[Bay].Xf : HomeOf(Bay);
 }
 
+static_assert(UTorqueBuildSubsystem::WashLift == TorqueShedLayout::WashLiftId, "the wash bay lift's id, in both");
+
+FString UTorqueBuildSubsystem::LiftName(int32 Lift)
+{
+	return Lift == WashLift ? FString(TEXT("The wash bay lift")) : FString::Printf(TEXT("Bay %d's lift"), Lift + 1);
+}
+
+int32 UTorqueBuildSubsystem::LiftOf(int32 Bay) const
+{
+	// shed_state.gd lift_of: within half a metre of a lift's middle.
+	if (!Exists(Bay)) return INDEX_NONE;
+	const FVector At = BikeTransform(Bay).GetLocation();
+	for (int32 L = 0; L <= WashLift; ++L)
+		if (IsLift(L) && FVector::Dist2D(At, TorqueShedLayout::LiftXf(L).GetLocation()) < 50.0) return L;
+	return INDEX_NONE;
+}
+
+int32 UTorqueBuildSubsystem::BikeOnLift(int32 Lift, int32 Besides) const
+{
+	for (int32 I = 0; I < Bikes.Num(); ++I)
+		if (I != Besides && LiftOf(I) == Lift) return I;
+	return INDEX_NONE;
+}
+
 int32 UTorqueBuildSubsystem::PushedBy(int32 Peer) const
 {
 	if (Peer == 0) return INDEX_NONE;
@@ -1890,7 +1924,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		return TEXT("Let go of the engine stand first (F).");
 	if (IsKitAct(A)) return CheckKit(Peer, R);
 	const bool bSlotWork = A == ETorqueShedAct::Unbolt || A == ETorqueShedAct::Bolt || A == ETorqueShedAct::Remove;
-	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched)
+	// (Not with the bike up on a lift: then the low parts are at chest height.)
+	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched && !LiftRaised(R.Bay))
 		return TEXT("Crouch down to reach it (C).");
 	if (bSlotWork || A == ETorqueShedAct::Install)
 	{
@@ -2121,6 +2156,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		const FTorqueShedBike& B = Bikes[R.Bay];
 		if (B.Pusher != 0 && B.Pusher != Peer) return TEXT("Someone's already wheeling it.");
 		if (PushedBy(Peer) != INDEX_NONE) return TEXT("You're already wheeling a bike.");
+		if (LiftRaised(R.Bay)) return TEXT("It's up on the lift. Lower the lift first (F on the button post).");
 		if (Held != 0) return TEXT("Put down what you're holding first.");
 		// shed_state _wheel_check: it rolls on both wheels and tyres.
 		static const TCHAR* const Rolling[] = {TEXT("front_wheel"), TEXT("rear_wheel"), TEXT("front_tyre"), TEXT("rear_tyre")};
@@ -2134,7 +2170,21 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	case ETorqueShedAct::ReleaseBike:
 		if (!Exists(R.Bay) || Bikes[R.Bay].Pusher != Peer) return TEXT("You're not holding that bike.");
 		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("You can't put it there.");
+		if (A == ETorqueShedAct::ReleaseBike)
+			for (int32 L = 0; L <= WashLift; ++L)
+				if (LiftUp(L) && FVector::Dist2D(R.Place.GetLocation(), TorqueShedLayout::LiftXf(L).GetLocation()) < 90.0)
+					return L == WashLift ? FString(TEXT("The wash bay lift is up. Lower it first, then wheel the bike on."))
+						: FString::Printf(TEXT("Bay %d's lift is up. Lower it first, then wheel the bike on."), L + 1);
 		return FString();
+	case ETorqueShedAct::Lift:
+	{
+		if (!IsLift(R.Item)) return TEXT("There's no lift there.");
+		if (R.Colour != 0 && R.Colour != 1) return TEXT("Up or down?");
+		const int32 On = BikeOnLift(R.Item);
+		if (On != INDEX_NONE && Bikes[On].Pusher != 0)
+			return R.Item == WashLift ? FString(TEXT("Someone's moving the bike on the wash bay lift.")) : FString::Printf(TEXT("Someone's moving the bike in bay %d."), R.Item + 1);
+		return FString();
+	}
 	case ETorqueShedAct::DynoStrap:
 	{
 		const int32 On = DynoBay();
@@ -2643,9 +2693,20 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			for (bool& Strap : Dyno.Straps) Strap = false;
 			Text = FString::Printf(TEXT("%s is on the dyno. Strap it down at the four posts (hold the work button), then run it at the desk."), *B.Name);
 		}
+		else if (FVector::Dist2D(At, TorqueShedLayout::WashLiftXf().GetLocation()) < 90.0 && BikeOnLift(WashLift, R.Bay) == INDEX_NONE)
+		{
+			// wash.gd LIFT_SNAP: wheeled onto the wash bay's lift, square on it in its wheel chock.
+			B.Xf = TorqueShedLayout::WashLiftXf();
+			Text = FString::Printf(TEXT("%s is on the wash bay lift. F on the button post raises it."), *B.Name);
+		}
 		else Text = FString::Printf(TEXT("%s is on its stand."), *B.Name);
 		break;
 	}
+	case ETorqueShedAct::Lift:
+		if (R.Colour != 0) LiftsUp |= 1 << R.Item;
+		else LiftsUp &= ~(1 << R.Item);
+		Text = FString::Printf(TEXT("%s going %s"), *LiftName(R.Item), R.Colour != 0 ? TEXT("up") : TEXT("down"));
+		break;
 	case ETorqueShedAct::DynoStrap:
 	{
 		bool& Strap = Dyno.Straps[R.Item];

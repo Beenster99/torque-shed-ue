@@ -184,6 +184,9 @@ enum class ETorqueShedAct : uint8
 	PaintTapePattern,
 	PaintTape,
 	PaintPeel,
+	// A bike lift (workshop_upgrades.gd / shed_state.gd "lift"): lift Item (a bay, or WashLift)
+	// raised (Colour 1) or lowered (Colour 0).
+	Lift,
 	// [kit] The shed's own kit (ATorqueShedKit). The switch boxes right of the roller door
 	// (workshop.gd _build_door_and_switches): the main lights on (Item 1) or off (Item 0), the roller
 	// door up (Item 1) or down (Item 0). The engine stand on its castors: taken hold of (hold F),
@@ -307,6 +310,19 @@ public:
 	// Where the engine stand starts (ue_build_shed.py / swaps.json engine_stand: at 560, -40, facing +y).
 	static FTransform StandHome() { return FTransform(FVector(560.0, -40.0, 0.0)); }
 	int32 RadioStation() const { return RadioTuned; }
+	// The bike lifts (shed_state.gd lifts): one under each bay's paddock stand (its id the bay) and
+	// the wash bay's (WashLift), up or down; ATorqueBikeLift draws them and moves them on every
+	// player's game. A bike standing on one goes up with it, and can't be wheeled off or ridden
+	// till it's down.
+	static constexpr int32 WashLift = 7;   // TorqueShedLayout::WashLiftId
+	static bool IsLift(int32 Lift) { return (Lift >= 0 && Lift < Bays) || Lift == WashLift; }
+	bool LiftUp(int32 Lift) const { return IsLift(Lift) && (LiftsUp & (1 << Lift)) != 0; }
+	static FString LiftName(int32 Lift);   // "Bay 2's lift", "The wash bay lift"
+	// The lift bay Bay's bike is standing on (within 50 cm of its middle), or INDEX_NONE.
+	int32 LiftOf(int32 Bay) const;
+	bool LiftRaised(int32 Bay) const { return LiftUp(LiftOf(Bay)); }
+	// The bike standing on that lift (other than Besides), or INDEX_NONE.
+	int32 BikeOnLift(int32 Lift, int32 Besides = INDEX_NONE) const;
 	bool HasDynoRun(int32 Bay) const { return Exists(Bay) && Bikes[Bay].DynoRuns.Num() > 0; }
 	const FTorqueDynoRun& DynoRunOf(int32 Bay) const;
 	// The game's clock everyone shares (the server's world time), that runs are played back by.
@@ -452,6 +468,7 @@ private:
 	FTorqueDynoRoom Dyno;
 	bool bRadioOn = false;
 	int32 RadioTuned = 0;
+	int32 LiftsUp = 0;               // a bit per lift id that's up
 	// [kit]
 	bool bShedLights = true;
 	bool bDoorUp = true;
