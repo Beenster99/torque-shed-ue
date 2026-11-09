@@ -1,4 +1,5 @@
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorqueWashJob.h"
 
 #include "Shed/TorqueShedCatalogue.h"
 
@@ -104,6 +105,9 @@ void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>
 void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts)
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
+	// Being pressure washed: the wash game draws its muck over the parts itself (TorqueWashJob), so
+	// the parts' own grime is held off while it's on them.   [wash]
+	const bool bWashing = TorqueWash::HidesGrime(WorldContext, Bike);
 	// Each part's box in the bike's frame (its actor: x forward, y right, z up), for a masked stripe.
 	TMap<FName, FBox> Boxes;
 	for (UStaticMeshComponent* C : Parts)
@@ -126,14 +130,14 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		{
 			const FBox Box = Boxes.FindRef(Which);
 			const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
-			if (TorqueEffectPaint::Apply(C, Effect, B->DirtOf(Bike, Which), ToPart)) continue;
+			if (TorqueEffectPaint::Apply(C, Effect, bWashing ? 0.0f : B->DirtOf(Bike, Which), ToPart)) continue;
 		}
 		TorqueEffectPaint::Restore(C);
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;
 		// The bike's masters scale their road grime (low on the bike, in the brake dust) by Grime,
 		// and their rust bloom by Rust.
-		M->SetScalarParameterValue(TEXT("Grime"), B ? B->DirtOf(Bike, Which) : 0.0f);
+		M->SetScalarParameterValue(TEXT("Grime"), B && !bWashing ? B->DirtOf(Bike, Which) : 0.0f);
 		M->SetScalarParameterValue(TEXT("Rust"), B ? B->RustOf(Bike, Which) : 0.0f);
 		FLinearColor Paint;
 		if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B && B->PaintOf(Bike, Which, Paint))
