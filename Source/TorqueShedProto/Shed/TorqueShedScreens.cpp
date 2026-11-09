@@ -822,7 +822,7 @@ void ATorqueShedScreens::DrawComputer(UCanvas* C, float Now) const
 		Pick = Rows.Num() > 0 ? int32(Now / 2.0f) % Rows.Num() : 0;
 	}
 	auto KindTitle = [](FName K) { return K.IsNone() ? FString(TEXT("Project bikes")) : TorqueShedParts::KindName(K); };
-	auto RowTitle = [](FName R) { return R == FName(TEXT("bike")) ? FString(TEXT("Triumph Speed Twin 1200 project")) : TorqueShedParts::PartName(R); };
+	auto RowTitle = [](FName R) { return R == FName(TEXT("bike")) ? FString(TEXT("A project bike")) : TorqueShedParts::PartName(R); };
 
 	Pen.Rect(0, 0, W, 70, Orange());
 	Pen.Text(24, 50, TEXT("PARTS COMPUTER"), 40, Ink());

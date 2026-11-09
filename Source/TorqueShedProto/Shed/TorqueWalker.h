@@ -18,10 +18,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "CoreGlobals.h"   // GFrameCounter
 #include "GameFramework/Character.h"
 #include "Shed/TorqueBuildSubsystem.h"   // FTorqueShedRequest
 #include "TorqueBikePawn.h"   // FHudLine
 #include "Shed/TorqueAvatar.h"
+#include "Shed/TorquePartsComputer.h"
 #include "TorqueWalker.generated.h"
 
 class UCameraComponent;
@@ -79,9 +81,15 @@ public:
 	// For the parts computer's monitor (ATorqueShedScreens): whether this player is at it, the
 	// category (NAME_None: project bikes) and its rows, and the one picked.
 	bool AtComputer() const { return bComputer; }
-	FName ComputerKind() const { return MenuKinds.IsValidIndex(MenuCategory) ? MenuKinds[MenuCategory] : NAME_None; }
-	TArray<FName> ComputerRows() const { return MenuRows(); }
-	int32 ComputerRow() const { return MenuRow; }
+	// At the computer this frame or the last (Esc that closed it isn't also the pause menu's).
+	bool ComputerUpOrJustClosed() const { return bComputer || GFrameCounter <= ComputerClosedFrame + 1; }
+	FName ComputerKind() const { return Computer.ScreenKind(); }
+	TArray<FName> ComputerRows() const { return Computer.ScreenRows(); }
+	int32 ComputerRow() const { return Computer.PickedRow(); }
+	// The parts computer's page over the screen (parts_computer.gd), for the HUD to draw.
+	void DrawComputer(class AHUD* Hud, class UCanvas* Canvas) const;
+	// For the test steps: the computer's page as it'd be clicked (pick a kind and a model, order it).
+	FString TestComputer(FName Kind, FName Part, bool bOrder);
 	// For the HUD at the mixing bench: the colour in the tin on the scale (as it'd spray), and the
 	// colour to match, if there's one. False when not at the bench or there's no tin.
 	bool AtBench() const { return bBench; }
@@ -220,11 +228,11 @@ private:
 
 	// --- The parts computer (Torque Shed's PartsComputer: order parts and project bikes) ------------
 	bool bComputer = false;
-	int32 MenuCategory = 0, MenuRow = 0;
-	TArray<FName> MenuKinds;          // NAME_None first: the project bikes
-	TArray<FName> MenuRows() const;   // the parts of the category ("bike" for a project bike)
+	mutable FTorquePartsComputer Computer;
+	uint64 ComputerClosedFrame = 0;   // (mutable: drawing it notes where its buttons went)
 	void OpenComputer();
-	void ComputerInput(int32 RowStep, int32 CategoryStep, bool bChoose, bool bClose);
+	void CloseComputer();
+	void ComputerDo(const FTorqueComputerAction& A);
 	FString Order(FName Part);
 
 	// --- The paint mixing bench (paint_bench.gd; TorqueWalkerBench.cpp) ---------------------------------

@@ -503,12 +503,31 @@ void ATorqueWalker::ReadInput(float Dt)
 
 	if (bComputer)
 	{
-		// At the parts computer: W / S (D-pad, stick) choose, Q / E (L1 / R1) the category, the work
-		// button orders, F or Space (Circle / B) walks away.
+		// At the parts computer (parts_computer.gd): the mouse clicks its buttons and the wheel scrolls
+		// the list under it; on a pad the D-pad picks a model, L1 / R1 the kind, Cross orders. F, Esc or
+		// Circle / B walks away.
+		FVector2D Mouse(-1.0, -1.0);
+		float Mx = 0.0f, My = 0.0f;
+		if (PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+		if (bF || Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle))
+		{
+			CloseComputer();
+			return;
+		}
+		if (Just(EKeys::LeftMouseButton))
+		{
+			ComputerDo(Computer.Click(Mouse));
+			return;
+		}
+		if (Just(EKeys::MouseScrollDown)) Computer.Scroll(Mouse, 1);
+		if (Just(EKeys::MouseScrollUp)) Computer.Scroll(Mouse, -1);
 		int32 Step = 0;
 		if (Just(EKeys::W) || Just(EKeys::Up) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) Step = -1;
 		if (Just(EKeys::S) || Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) Step = 1;
-		ComputerInput(Step, bNext ? 1 : (bPrev ? -1 : 0), bWorkJust || Just(EKeys::Enter), bF || bBack);
+		const bool bPadNext = Just(EKeys::E) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
+		const bool bPadPrev = Just(EKeys::Q) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
+		const bool bChoose = Just(EKeys::Enter) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
+		ComputerDo(Computer.Pad(Step, bPadNext ? 1 : (bPadPrev ? -1 : 0), bChoose));
 		return;
 	}
 	if (bBench)
@@ -874,10 +893,31 @@ void ATorqueWalker::MakePlan()
 	Plan = FPlan();
 	AltPlan = FPlan();
 	const UTorqueBuildSubsystem* B = Shed();
-	if (!B || Target == ETorqueLook::None || Target == ETorqueLook::Door) return;
+	if (!B) return;
 	const int32 Me = B->Me();
 	const int32 Held = B->HeldBy(Me);
 	const FTorqueItem* HeldIt = B->Item(Held);
+	if (Target == ETorqueLook::None || Target == ETorqueLook::Door)
+	{
+		// Something in your hands and nothing in reach to put it on (looking ahead, out in the yard,
+		// in the doorway): it goes down on the ground at your feet, a step in front.
+		if (HeldIt && !B->PaintBay().HeldTin(Me))
+		{
+			const FVector Ahead = FRotator(0.0, GetControlRotation().Yaw, 0.0).Vector();
+			FVector At = GetActorLocation() + Ahead * 70.0;
+			At.Z = 0.0;
+			FHitResult Hit;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWalkerFeet), false, this);
+			for (TActorIterator<ATorqueShedBike> It(GetWorld()); It; ++It) Params.AddIgnoredActor(*It);
+			for (TActorIterator<ATorqueShedItems> It(GetWorld()); It; ++It) Params.AddIgnoredActor(*It);
+			const FVector Top(At.X, At.Y, GetActorLocation().Z);
+			if (GetWorld()->LineTraceSingleByChannel(Hit, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Hit.ImpactPoint.Z;
+			Plan = MakeOne(ETorqueShedAct::Drop, 0.25, TEXT("put it down at your feet"));
+			Plan.Request.Place = FTransform(FRotator(0.0, GetControlRotation().Yaw, 0.0), At);
+			Plan.Blocked = B->Check(Me, Plan.Request);
+		}
+		return;
+	}
 	const FTorqueItem* Thing = B->Item(TargetItem);
 	const FName Engine(TEXT("engine"));
 	// The floor under where you look, for putting a part down.
@@ -918,7 +958,9 @@ void ATorqueWalker::MakePlan()
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::PaintBench || TargetPlace->Kind == ETorquePlace::PaintShelf)) return;   // F, as the tins go
 	if (B->PaintBay().HeldTin(Me)) return;   // a tin in your hands: nothing else until it's put down
-	switch (Tool)
+	// A part in your hands: your hands are full, whatever tool was last picked (the scroll wheel
+	// changes it), so it's put down or fitted as with bare hands.
+	switch (HeldIt ? ETorqueTool::Hands : Tool)
 	{
 	case ETorqueTool::Hands:
 		if (HeldIt)
@@ -1730,47 +1772,86 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 
 void ATorqueWalker::OpenComputer()
 {
-	MenuKinds.Reset();
-	MenuKinds.Add(NAME_None);   // project bikes
-	for (const FName& K : TorqueShedParts::Kinds())
-		if (TorqueShedParts::PartsOfKind(K).Num() > 0 && TorqueShedParts::SlotsForKind(K).Num() > 0) MenuKinds.Add(K);
-	MenuCategory = FMath::Clamp(MenuCategory, 0, MenuKinds.Num() - 1);
-	MenuRow = 0;
+	// parts_computer.gd: a page over the screen, worked with the mouse (the pad works it too).
+	Computer.Open();
 	bComputer = true;
 	Progress = 0.0;
 	bWaitRelease = true;
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->bShowMouseCursor = true;
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		PC->SetInputMode(Mode);
+	}
 	Doing(TEXT("on the parts computer"), 6.0);
 }
 
-TArray<FName> ATorqueWalker::MenuRows() const
+void ATorqueWalker::CloseComputer()
 {
-	TArray<FName> Rows;
-	if (!MenuKinds.IsValidIndex(MenuCategory)) return Rows;
-	if (MenuKinds[MenuCategory].IsNone())
+	if (!bComputer) return;
+	bComputer = false;
+	bWaitRelease = true;
+	ComputerClosedFrame = GFrameCounter;
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
-		Rows.Add(FName(TEXT("bike")));
-		return Rows;
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
 	}
-	return TorqueShedParts::PartsOfKind(MenuKinds[MenuCategory]);
 }
 
-void ATorqueWalker::ComputerInput(int32 RowStep, int32 CategoryStep, bool bChoose, bool bClose)
+void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 {
-	if (bClose)
+	switch (A.Kind)
 	{
-		bComputer = false;
-		bWaitRelease = true;
-		return;
+	case FTorqueComputerAction::EKind::Close:
+		CloseComputer();
+		break;
+	case FTorqueComputerAction::EKind::OrderBike:
+		Order(FName(TEXT("bike")));
+		break;
+	case FTorqueComputerAction::EKind::OrderPart:
+		Order(A.Part);
+		break;
+	case FTorqueComputerAction::EKind::BuyPaint:
+		if (UTorqueBuildSubsystem* B = Shed())
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::PaintBuy;
+			R.Colour = A.Stock;
+			R.Item = FMath::Max(A.Count, 1);
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+			else Doing(TEXT("restocking the mixing bay"));
+		}
+		break;
+	default:
+		break;
 	}
-	if (CategoryStep != 0 && MenuKinds.Num() > 0)
+}
+
+void ATorqueWalker::DrawComputer(AHUD* Hud, UCanvas* Canvas) const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	FVector2D Mouse(-1.0, -1.0);
+	float Mx = 0.0f, My = 0.0f;
+	if (PC && PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+	Computer.Draw(Hud, Canvas, Shed(), Mouse, NoteFor > 0.0 ? Note : FString(), bNoteOk);
+}
+
+FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
+{
+	if (!bComputer) OpenComputer();
+	if (!Kind.IsNone() && !Computer.PickKind(Kind)) return FString::Printf(TEXT("no kind %s on the computer"), *Kind.ToString());
+	if (!Part.IsNone() && !Computer.PickPart(Part)) return FString::Printf(TEXT("no %s under %s"), *Part.ToString(), *Kind.ToString());
+	FString Out = Computer.Describe();
+	if (bOrder)
 	{
-		MenuCategory = (MenuCategory + CategoryStep + MenuKinds.Num()) % MenuKinds.Num();
-		MenuRow = 0;
+		Note.Reset();
+		ComputerDo(Computer.Pad(0, 0, true));
+		Out += TEXT(": ") + (Note.IsEmpty() ? FString(TEXT("ordered")) : Note);
 	}
-	const TArray<FName> Rows = MenuRows();
-	if (Rows.Num() == 0) return;
-	MenuRow = (MenuRow + RowStep + Rows.Num()) % Rows.Num();
-	if (bChoose) Order(Rows[MenuRow]);
+	return Out;
 }
 
 FString ATorqueWalker::Order(FName Part)
@@ -1815,24 +1896,7 @@ void ATorqueWalker::UpdateHud()
 		if (NoteFor > 0.0) HudLines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
 		return;
 	}
-	if (bComputer)
-	{
-		HudLines.Add({TEXT("PARTS: order anything"), FColor::White, 0.9f});
-		const FName Kind = MenuKinds.IsValidIndex(MenuCategory) ? MenuKinds[MenuCategory] : NAME_None;
-		HudLines.Add({FString::Printf(TEXT("< %s >   (%d of %d: Q / E, L1 / R1)"), Kind.IsNone() ? TEXT("Project bikes") : *TorqueShedParts::KindName(Kind),
-			MenuCategory + 1, MenuKinds.Num()), Title, 0.7f});
-		const TArray<FName> Rows = MenuRows();
-		const int32 From = FMath::Clamp(MenuRow - 4, 0, FMath::Max(Rows.Num() - 9, 0));
-		for (int32 I = From; I < Rows.Num() && I < From + 9; ++I)
-		{
-			const FString Name = Rows[I] == FName(TEXT("bike")) ? FString(TEXT("Triumph Speed Twin 1200 (a project: tired, rusty, complete)"))
-				: TorqueShedParts::PartName(Rows[I]) + TEXT("   ") + TorqueShedParts::PartDescription(Rows[I]).Left(70);
-			HudLines.Add({(I == MenuRow ? TEXT("> ") : TEXT("   ")) + Name, I == MenuRow ? Prompt : Info, 0.6f});
-		}
-		HudLines.Add({TEXT("W / S or the D-pad: choose   left mouse / Cross: order (delivered outside the roller door)   F / Circle: done"), Help, 0.55f});
-		if (NoteFor > 0.0) HudLines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
-		return;
-	}
+	if (bComputer) return;   // the parts computer's page instead (DrawComputer)
 	if (bBench)
 	{
 		BenchHud(B);
@@ -1984,7 +2048,7 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 {
 	FVector Side = FVector(Away.X, Away.Y, 0.0).GetSafeNormal();
 	if (Side.IsNearlyZero()) Side = FVector(1.0, 0.0, 0.0);
-	bComputer = false;
+	CloseComputer();
 	// Standing on the floor under the spot (the floor is z 0 in the shed and the yard).
 	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	FVector Stand(Point.X + Side.X * Distance, Point.Y + Side.Y * Distance, Half + 2.0);
