@@ -56,22 +56,6 @@
    "ink_black"
   ]
  },
- "courier_label": {
-  "bounds_min": [
-   -0.08,
-   0.0,
-   -0.05
-  ],
-  "bounds_max": [
-   0.08,
-   0.0008,
-   0.05
-  ],
-  "tris": 12,
-  "materials": [
-   "courier_label"
-  ]
- },
  "crate_wood": {
   "bounds_min": [
    -0.397,
@@ -127,22 +111,6 @@
    "crate_wood",
    "steel_dark",
    "ink_black"
-  ]
- },
- "sticky_note": {
-  "bounds_min": [
-   -0.038,
-   -0.0404,
-   -0.0
-  ],
-  "bounds_max": [
-   0.038,
-   0.035,
-   0.0032
-  ],
-  "tris": 24,
-  "materials": [
-   "sticky_note"
   ]
  }
 }
