@@ -11,6 +11,7 @@
 #include "GameFramework/Pawn.h"
 #include "Sim/BikeSim.h"   // the full type: the code Unreal generates for this class deletes it
 #include "RiderRig.h"
+#include "Shed/TorqueAvatar.h"   // the full type: a member below
 #include "SonyPad.h"
 #include "TorqueAudio/RideSound.h"   // the full type, as for the sim
 #include "TorqueBikePawn.generated.h"
@@ -138,6 +139,14 @@ private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
+	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it
+	// reaches for the joints RiderRig was posed to on this bike (seat, grips, pegs), the helmet on its
+	// head. The rig's own kit body is hidden then. -TorqueKitRider keeps the kit rider.
+	FTorqueAvatar RiderAvatar;
+	int32 RiderAvatarFor = -2;
+	TArray<uint8> RiderAvatarLook;
+	void UpdateRiderAvatar();
+	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
 	bool bTrigSeen[4] = {false, false, false, false}, bTrigLive[4] = {false, false, false, false};
 	double TrigRest[4] = {0, 0, 0, 0};

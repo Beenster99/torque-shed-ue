@@ -1,6 +1,8 @@
 #include "TorqueBikePawn.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
+#include "Coop/TorquePlayerState.h"
+#include "Shed/TorqueProfile.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
@@ -1423,11 +1425,85 @@ void ATorqueBikePawn::ShowHead(bool bShow)
 	{
 		bHeadShown = bShow;
 		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bRiderShown);
+		ShowRiderAvatar();
 		return;
 	}
 	if (RiderParts.Num() < RP_Count) return;
 	bHeadShown = bShow;
 	for (int32 I : {RP_Helmet, RP_Visor, RP_Neck}) RiderParts[I]->SetVisibility(bShow);
+}
+
+void ATorqueBikePawn::ShowRiderAvatar()
+{
+	if (!RiderAvatar.IsValid()) return;
+	if (RiderBody) RiderBody->SetVisibility(false);
+	// Hair stays hidden: the helmet's on.
+	RiderAvatar.SetShown(bRiderShown, bRiderShown && bHeadShown, false);
+}
+
+void ATorqueBikePawn::UpdateRiderAvatar()
+{
+	if (FTorqueAvatar::Count() == 0 || !RiderRig.IsValid() || !RiderRig.Last.bValid) return;
+	static const bool bKit = FParse::Param(FCommandLine::Get(), TEXT("TorqueKitRider"));
+	if (bKit) return;
+	// Whose: this machine's own profile, or the player riding it in co-op.
+	FTorqueProfile Look;
+	int32 Colour = 0;
+	const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+	if (IsLocallyControlled() || !PS)
+	{
+		Look = FTorqueProfile::Mine();
+		Colour = FTorqueSettings::Get().Colour;
+	}
+	else
+	{
+		Look = FTorqueProfile::Unpack(PS->Profile);
+		Colour = PS->Colour;
+	}
+	const int32 Want = Look.AvatarFor(Colour);
+	if (Want != RiderAvatarFor)
+	{
+		RiderAvatarFor = Want;
+		RiderAvatarLook.Reset();
+		if (!RiderAvatar.Build(this, RiderRoot, Want))
+		{
+			if (RiderBody) RiderBody->SetVisibility(bRiderShown);
+			return;
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque: riding as MetaHuman %s"), *RiderAvatar.Name);
+		ShowRiderAvatar();
+	}
+	if (!RiderAvatar.IsValid()) return;
+	const TArray<uint8> Packed = Look.Pack();
+	if (Packed != RiderAvatarLook)
+	{
+		RiderAvatarLook = Packed;
+		RiderAvatar.SetLook(Look);
+	}
+	// Where the rider rig put its joints on this bike: the MetaHuman reaches for the same.
+	const FRiderPoseOut& R = RiderRig.Last;
+	FTorqueRideTargets T;
+	T.Hip = R.Hip;
+	T.Neck = R.Neck;
+	T.Look = R.Look;
+	T.Limp = R.Limp;
+	for (int32 S = 0; S < 2; ++S)
+	{
+		T.Wrist[S] = R.Wrist[S];
+		T.Grip[S] = R.Grip[S];
+		T.Ankle[S] = R.Ankle[S];
+		T.LeverFingers[S] = R.LeverFingers[S];
+		T.LeverPull[S] = R.LeverPull[S];
+	}
+	RiderAvatar.PoseRiding(T);
+	// The helmet on its head, and the eyes (first person) in the helmet.
+	FVector At;
+	FQuat Turn;
+	if (RiderAvatar.HeadInParent(At, Turn))
+	{
+		if (RiderHelmet) RiderHelmet->SetRelativeTransform(RiderRig.HelmetOnHead() * FTransform(Turn, At));
+		HeadLocal = At + Turn.RotateVector(RiderRig.HelmetCentreOnHead());
+	}
 }
 
 void ATorqueBikePawn::ShowRider(bool bShow)
@@ -1438,6 +1514,7 @@ void ATorqueBikePawn::ShowRider(bool bShow)
 		bRiderShown = bShow;
 		if (RiderBody) RiderBody->SetVisibility(bShow);
 		if (RiderHelmet) RiderHelmet->SetVisibility(bShow && bHeadShown);
+		ShowRiderAvatar();
 		return;
 	}
 	if (RiderParts.Num() < RP_Count) return;
@@ -1720,6 +1797,7 @@ void ATorqueBikePawn::UpdateRider()
 		}
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
+		UpdateRiderAvatar();
 		return;
 	}
 	if (RiderParts.Num() < RP_Count) return;

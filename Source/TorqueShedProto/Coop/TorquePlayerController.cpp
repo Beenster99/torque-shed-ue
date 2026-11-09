@@ -443,36 +443,41 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	{
 		FTorqueProfile& Me = FTorqueProfile::Mine();
 		const int32 NumAv = FTorqueAvatar::Count();
-		auto Prof = [this, &Add](const FString& Label, const FString& Value, const FString& Hint, TFunction<void(int32)> Step) {
-			Add(Label, Value, Hint, [this, Step]() { Step(1); ProfileChanged(); }, [this, Step](int32 Dir) { Step(Dir); ProfileChanged(); });
+		// A slider (-1 .. 1, the middle the MetaHuman's own): dragged with the mouse, Left / Right
+		// steps it. It changes your picture as it moves; letting go saves it and tells the others.
+		auto Slide = [this, &R](const FString& Label, float& V, const FString& Value, const FString& Hint, bool bFace) {
+			float* Ptr = &V;
+			FRow Row;
+			Row.Label = Label;
+			Row.Value = Value;
+			Row.Hint = Hint;
+			Row.Step = [this, Ptr](int32 Dir) { *Ptr = StepF(*Ptr, Dir, 0.1f, -1.0f, 1.0f); ProfileChanged(); };
+			Row.Frac = (FMath::Clamp(V, -1.0f, 1.0f) + 1.0f) * 0.5f;
+			Row.SetFrac = [Ptr](float F) { *Ptr = FMath::Clamp(F * 2.0f - 1.0f, -1.0f, 1.0f); };
+			Row.bFace = bFace;
+			R.Add(MoveTemp(Row));
 		};
-		auto Bar = [](float V) {
-			// -1 .. 1 as a slider: eleven marks, the knob where it is.
-			FString B;
-			const int32 At = FMath::RoundToInt((FMath::Clamp(V, -1.0f, 1.0f) + 1.0f) * 5.0f);
-			for (int32 I = 0; I <= 10; ++I) B.AppendChar(I == At ? TEXT('O') : (I == 5 ? TEXT('|') : TEXT('-')));
-			return FString::Printf(TEXT("%s  %+.1f"), *B, V);
-		};
+		auto Heading = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
 		if (NumAv == 0)
 		{
-			Add(TEXT("No MetaHuman avatars in this build yet: in co-op you show as the shape body, in your colour."), FString(), FString(), nullptr);
+			Heading(TEXT("No MetaHuman avatars in this build yet: in co-op you show as the shape body, in your colour."));
 		}
 		else
 		{
 			const ATorqueProfilePreview* Pv = Preview.Get();
 			const FString Own = FTorqueAvatar::NameOf(Me.AvatarFor(S.Colour));
-			Prof(TEXT("Character"), Me.Avatar < 0 ? FString::Printf(TEXT("Goes with my colour (%s)"), *Own) : Own,
-				TEXT("Which MetaHuman you are in the shed: everyone in co-op sees you as them"),
-				[&Me, NumAv](int32 D) { Me.Avatar = Wrap(Me.Avatar + 1 + D, NumAv + 1) - 1; });
-			Prof(TEXT("Height"), Pv && Pv->Height() > 0.0 ? FString::Printf(TEXT("about %.2f m   %s"), Pv->Height() / 100.0, *Bar(Me.Height)) : Bar(Me.Height),
-				TEXT("Shorter or taller than the MetaHuman's own height, by up to 6%"),
-				[&Me](int32 D) { Me.Height = StepF(Me.Height, D, 0.1f, -1.0f, 1.0f); });
-			Add(TEXT("View"), bProfileFace ? FString(TEXT("Face")) : FString(TEXT("Whole figure")), TEXT("What the picture shows"),
-				[this]() { bProfileFace = !bProfileFace; }, [this](int32) { bProfileFace = !bProfileFace; });
+			Heading(TEXT("CHARACTER"));
+			Add(TEXT("Who"), Me.Avatar < 0 ? FString::Printf(TEXT("%s (goes with my colour)"), *Own) : Own,
+				TEXT("Which MetaHuman you are, in the shed and on the bike: everyone in co-op sees you as them"),
+				[this, &Me, NumAv]() { Me.Avatar = Wrap(Me.Avatar + 2, NumAv + 1) - 1; ProfileChanged(); },
+				[this, &Me, NumAv](int32 D) { Me.Avatar = Wrap(Me.Avatar + 1 + D, NumAv + 1) - 1; ProfileChanged(); });
+			Slide(TEXT("Height"), Me.Height, Pv && Pv->Height() > 0.0 ? FString::Printf(TEXT("%.2f m"), Pv->Height() / 100.0) : FString::Printf(TEXT("%+.0f%%"), Me.Height * 6.0f),
+				TEXT("Shorter or taller than the MetaHuman's own height, by up to 6%"), false);
+			Heading(TEXT("FACE"));
 			for (int32 F = 0; F < FTorqueProfile::NumFace; ++F)
-				Prof(FTorqueProfile::Sliders[F].Name, Bar(Me.Face[F]), FTorqueProfile::Sliders[F].Hint,
-					[&Me, F](int32 D) { Me.Face[F] = StepF(Me.Face[F], D, 0.1f, -1.0f, 1.0f); });
+				Slide(FTorqueProfile::Sliders[F].Name, Me.Face[F], FString::Printf(TEXT("%+.1f"), Me.Face[F]), FTorqueProfile::Sliders[F].Hint, true);
 			Add(TEXT("Reset the face"), FString(), TEXT("Back to the MetaHuman's own face"), [this, &Me]() { Me.ResetFace(); ProfileChanged(); });
+			R.Last().bFace = true;
 		}
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
@@ -632,13 +637,33 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 		FVector2D Mouse;
 		const bool bMoved = MouseMoved(this, LastMouse, Mouse);
 		const FTorqueMenuHits::FHit* Over = Hits.At(Mouse);
-		if (bMoved && Over && Over->Kind != FTorqueMenuHits::Tab && Over->Kind != FTorqueMenuHits::Badge && List.IsValidIndex(Over->Index) && Over->Index != Selected)
+		if (bMoved && DragRow < 0 && Over && Over->Kind != FTorqueMenuHits::Tab && Over->Kind != FTorqueMenuHits::Badge && List.IsValidIndex(Over->Index) && Over->Index != Selected)
 		{
 			if (bTyping) Changed();   // leaving the name keeps it
 			Selected = Over->Index;
 		}
 		if (Just(EKeys::MouseScrollUp)) MoveY = -1;
 		if (Just(EKeys::MouseScrollDown)) MoveY = 1;
+		// [profile] A slider dragged: the value follows the pointer along its track until let go.
+		if (DragRow >= 0)
+		{
+			if (IsInputKeyDown(EKeys::LeftMouseButton) && List.IsValidIndex(DragRow) && List[DragRow].SetFrac && Mouse.X >= 0.0)
+			{
+				List[DragRow].SetFrac(FMath::Clamp((float)((Mouse.X - DragX0) / FMath::Max(DragX1 - DragX0, 1.0)), 0.0f, 1.0f));
+				return;
+			}
+			DragRow = -1;
+			ProfileChanged();
+			return;
+		}
+		if (Just(EKeys::LeftMouseButton) && Over && Over->Kind == FTorqueMenuHits::Slider && List.IsValidIndex(Over->Index))
+		{
+			Selected = DragRow = Over->Index;
+			DragX0 = Over->Box.Min.X;
+			DragX1 = Over->Box.Max.X;
+			if (List[DragRow].SetFrac) List[DragRow].SetFrac(FMath::Clamp((float)((Mouse.X - DragX0) / FMath::Max(DragX1 - DragX0, 1.0)), 0.0f, 1.0f));
+			return;
+		}
 		if (Just(EKeys::LeftMouseButton) && Over)
 		{
 			if (Over->Kind == FTorqueMenuHits::Badge)   // [profile] the picture top right: your profile, or back from it
@@ -750,6 +775,29 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	const TArray<FRow> List = Rows();
 	for (int32 I = 0; I < List.Num(); ++I)
 	{
+		if (List[I].Frac >= 0.0f)
+		{
+			// [profile] A slider row: the name, a track with the middle marked, filled from the middle
+			// to the knob, and the value; the track is what the mouse drags.
+			const bool bOn = I == Selected || I == DragRow;
+			const float RowH = 40.0f * Sc, K = Sc * (bOn ? 1.15f : 1.05f);
+			Hud->DrawRect(FLinearColor(0, 0, 0, bOn ? 0.6f : 0.35f), X - 16.0f * Sc, Y - 6.0f * Sc, 900.0f * Sc, RowH);
+			if (bOn) Hud->DrawRect(FLinearColor(0.85f, 0.65f, 0.25f, 0.9f), X - 16.0f * Sc, Y - 6.0f * Sc, 4.0f * Sc, RowH);
+			Canvas->SetDrawColor(bOn ? FColor(255, 220, 120) : FColor(235, 235, 235));
+			Canvas->DrawText(Font, List[I].Label, X, Y, K, K);
+			const float TX0 = X + 300.0f * Sc, TX1 = X + 700.0f * Sc, TY = Y + 12.0f * Sc;
+			const float Mid = 0.5f * (TX0 + TX1), Knob = FMath::Lerp(TX0, TX1, FMath::Clamp(List[I].Frac, 0.0f, 1.0f));
+			Hud->DrawRect(FLinearColor(1, 1, 1, 0.18f), TX0, TY, TX1 - TX0, 6.0f * Sc);
+			Hud->DrawRect(FLinearColor(0.85f, 0.65f, 0.25f, bOn ? 0.95f : 0.7f), FMath::Min(Mid, Knob), TY, FMath::Abs(Knob - Mid), 6.0f * Sc);
+			Hud->DrawRect(FLinearColor(1, 1, 1, 0.5f), Mid - 1.0f * Sc, TY - 6.0f * Sc, 2.0f * Sc, 18.0f * Sc);
+			Hud->DrawRect(bOn ? FLinearColor(1.0f, 0.86f, 0.5f, 1.0f) : FLinearColor(0.92f, 0.92f, 0.92f, 1.0f), Knob - 7.0f * Sc, TY - 9.0f * Sc, 14.0f * Sc, 24.0f * Sc);
+			Canvas->SetDrawColor(FColor(210, 210, 210));
+			Canvas->DrawText(Font, List[I].Value, TX1 + 24.0f * Sc, Y, Sc, Sc);
+			Hits.Add(X - 16.0f * Sc, Y - 6.0f * Sc, X + 884.0f * Sc, Y - 6.0f * Sc + RowH, I, FTorqueMenuHits::Row);
+			Hits.Add(TX0, Y - 6.0f * Sc, TX1, Y - 6.0f * Sc + RowH, I, FTorqueMenuHits::Slider);
+			Y += RowH + 6.0f * Sc;
+			continue;
+		}
 		const bool bSel = I == Selected;
 		FString Text = (bSel ? TEXT(">  ") : TEXT("    ")) + List[I].Label;
 		if (!List[I].Value.IsEmpty()) Text += List[I].Step && bSel ? FString::Printf(TEXT(":   <  %s  >"), *List[I].Value) : FString::Printf(TEXT(":   %s"), *List[I].Value);
@@ -792,7 +840,14 @@ void ATorquePlayerController::UpdateProfilePreview()
 	// Filmed while the pause menu (its badge) or the Profile page is up.
 	if (Page != EPage::Pause && Page != EPage::Profile) return;
 	if (!Preview.IsValid()) Preview = ATorqueProfilePreview::For(this);
-	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Page == EPage::Pause || bProfileFace, FTorqueSettings::Get().Colour);
+	bool bFace = true;
+	if (Page == EPage::Profile)
+	{
+		const TArray<FRow> List = Rows();
+		const int32 At = DragRow >= 0 ? DragRow : Selected;
+		bFace = List.IsValidIndex(At) && List[At].bFace;
+	}
+	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(bFace, FTorqueSettings::Get().Colour);
 }
 
 void ATorquePlayerController::DrawProfile(AHUD* Hud, UCanvas* Canvas)

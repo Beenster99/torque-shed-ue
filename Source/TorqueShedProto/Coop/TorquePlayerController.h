@@ -68,6 +68,10 @@ private:
 		TFunction<void()> Choose;           // Enter / Cross / A
 		TFunction<void(int32)> Step;        // Left / Right: -1 or +1
 		bool bTyping = false;               // the name: letters typed go into it
+		// [profile] A slider: drawn as a track with a knob at Frac (0..1); dragging calls SetFrac.
+		float Frac = -1.0f;
+		TFunction<void(float)> SetFrac;
+		bool bFace = false;                 // the Profile picture shows the face for this row
 	};
 
 	EPage Page = EPage::None;
@@ -123,7 +127,8 @@ private:
 	// [profile] Torque Shed's profile picture, top right of the Esc menu: it opens the Profile page
 	// (your MetaHuman, height and face; Shed/TorqueProfile.h), which shows you beside its sliders.
 	TWeakObjectPtr<ATorqueProfilePreview> Preview;
-	bool bProfileFace = true;   // the Profile page's picture: the face, or the whole figure
+	int32 DragRow = -1;         // the slider being dragged, and its track's ends on screen
+	double DragX0 = 0.0, DragX1 = 1.0;
 	bool bProfileSent = false;
 	void ProfileChanged();
 	void UpdateProfilePreview();
