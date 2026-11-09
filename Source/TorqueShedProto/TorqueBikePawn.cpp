@@ -58,6 +58,7 @@
 #include "Materials/MaterialParameterCollection.h"
 #include "Coop/TorqueGameState.h"
 #include "Coop/TorqueNetBike.h"
+#include "Net/UnrealNetwork.h"
 
 using namespace TorqueSim;
 
@@ -197,6 +198,14 @@ ATorqueBikePawn::ATorqueBikePawn()
 
 ATorqueBikePawn::~ATorqueBikePawn() = default;
 
+void ATorqueBikePawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ATorqueBikePawn, bYardStart);   // [yard]
+	DOREPLIFETIME(ATorqueBikePawn, YardStartAt);
+	DOREPLIFETIME(ATorqueBikePawn, YardStartYaw);
+}
+
 void ATorqueBikePawn::BeginPlay()
 {
 	Super::BeginPlay();
@@ -267,6 +276,12 @@ void ATorqueBikePawn::BeginPlay()
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueStartKm="), StartKm);
 	StartIndex = Line.Num() > 1 ? FMath::RoundToInt(FMath::Clamp(StartKm / (float)(RouteLengthM / 1000.0), 0.f, 1.f) * (Line.Num() - 1)) : 0;
 	Respawn(StartIndex);
+	// [yard] Got on in the shed: from where the bike stood (sim heading 0 faces -z, + turning left).
+	if (bYardStart)
+	{
+		const FVector Ahead = FRotator(0.0, YardStartYaw, 0.0).Vector();
+		PlaceOnGround(ToSim(YardStartAt), std::atan2(-Ahead.X, -Ahead.Y));
+	}
 	// The weather comes from ATorqueGameState (-TorqueWeather= is read there), each frame in Tick.
 	// The PlayStation pad is opened when this turns out to be our own bike (ReadInput).
 	StartSound();
@@ -1014,7 +1029,7 @@ void ATorqueBikePawn::Remount()
 
 void ATorqueBikePawn::PlaceForSlot(int32 InSlot)
 {
-	if (InSlot <= 0 || Line.Num() < 2) return;
+	if (InSlot <= 0 || Line.Num() < 2 || bYardStart) return;   // ([yard] got on where it stood: stays there)
 	// Two abreast either side of the line, a row every 7 m back from the start; at the very start of
 	// the road, where there's no room behind, the rows go forward instead.
 	const int32 Row = (InSlot + 1) / 2;
@@ -1172,7 +1187,22 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Use) || (bPadUse && !Sim->IsCrashed && FMath::Abs(Sim->Speed) <= 2.0))
 	{
-		if (GetOff()) return;
+		// [yard] In the shed's yard or the shed itself: getting off parks the bike where it stands (in
+		// its bay if that's where it is) and you're on your feet in the shed's own way (TorqueYard).
+		if (bYard)
+		{
+			if (Sim->IsCrashed || FMath::Abs(Sim->Speed) > 2.0)
+			{
+				FootNote = TEXT("Stop first, then get off.");
+				FootNoteFor = 1.5;
+			}
+			else
+			{
+				TorqueYard::GetOff(PC);
+				return;
+			}
+		}
+		else if (GetOff()) return;
 	}
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
 	// Settings > Gameplay > Chase camera recentres: off, the view stays where the stick left it.
@@ -3040,7 +3070,8 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
 			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
 	if (bYard)   // [yard]
-		Add(FString::Printf(TEXT("The yard   %s: park it and walk back in"), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
+		Add(FString::Printf(TEXT("The yard   stopped, %s: get off and park it here   %s: back to its bay and walk in"),
+			*FTorqueKeys::Text(ETorqueKey::Use), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
 	else
 		Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 			bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);

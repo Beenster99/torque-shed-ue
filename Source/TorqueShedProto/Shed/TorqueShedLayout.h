@@ -246,7 +246,14 @@ inline bool InDeliveries(const FVector& At) { return At.X > 280.0 && At.X < 1080
 inline bool InWashBay(const FVector& At) { return At.X > -1170.0 && At.X < -690.0 && At.Y > -240.0 && At.Y < 540.0; }
 
 // Inside the shed, the yard and the wash bay: where a part can be put down.
-inline bool OnSite(const FVector& At) { return FMath::Abs(At.X) < 4000.0 && FMath::Abs(At.Y) < 4000.0 && At.Z > -50.0 && At.Z < 500.0; }
+// (And out on the riding yard's pad, where a bike ridden out is parked: Tools/shed_yard.py's PAD, 600 m
+// across and 1.6 km out from the door.)
+inline bool OnSite(const FVector& At)
+{
+	const bool bShed = FMath::Abs(At.X) < 4000.0 && FMath::Abs(At.Y) < 4000.0;
+	const bool bPad = FMath::Abs(At.X) < 30000.0 && At.Y > 0.0 && At.Y < 160580.0;
+	return (bShed || bPad) && At.Z > -50.0 && At.Z < 500.0;
+}
 
 // Where a player stands when they come in, for parts dropped by someone who's left.
 inline FVector DropAt() { return FVector(0.0, 180.0, 0.0); }

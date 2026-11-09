@@ -20,10 +20,11 @@ import os
 # The shed's front wall: its outer face (ue_build_shed.py HALF_Y + WALL).
 FRONT = 580.0
 
-# The riding pad: 120 m across, 90 m out from the shed's front. Flat concrete, poured in slabs.
-PAD_X0, PAD_X1 = -6000.0, 6000.0
-PAD_Y0, PAD_Y1 = FRONT, FRONT + 9000.0
-SLAB = 600.0              # the slabs' size: a saw-cut joint every 6 m each way
+# The riding pad: 600 m across and 1.6 km out from the shed's front (beenster, Nov 9: "much bigger,
+# big enough to allow the bike to get up to speed": a Speed Twin needs ~250 m to 100 mph and as much
+# again to stop). Flat concrete, like an old airfield's apron.
+PAD_X0, PAD_X1 = -30000.0, 30000.0
+PAD_Y0, PAD_Y1 = FRONT, FRONT + 160000.0
 # The yard behind and beside the shed (it was there before the pad), concrete too.
 YARD_X0, YARD_X1, YARD_Y0, YARD_Y1 = -1600.0, 1840.0, -1400.0, FRONT
 
@@ -41,13 +42,20 @@ WALLS = (
 )
 # The lane leaves past the pad's far wall (a field gate in it, shut), between walls of its own.
 LANE_HALF = 200.0
-LANE_Y0, LANE_Y1 = PAD_Y1 + 60.0, 30000.0
+LANE_Y0, LANE_Y1 = PAD_Y1 + 60.0, PAD_Y1 + 30000.0
 
-# The buildings' footprints (outer faces), as the bike meets them: the shed (its roller door counts
-# as shut: riders park outside it and walk in), the wash bay lean-to, the storage room, the dyno
-# room and the paint shop with the mixing bay. Keep in step with ue_build_shed.py's rooms.
+# The buildings' footprints (outer faces), as the bike meets them: the shed's own four walls (the
+# bikes are ridden in and out through the roller door, x -230 .. 230, and about the hall: its floor is
+# ridable), the wash bay lean-to, the storage room, the dyno room and the paint shop with the mixing
+# bay. Keep in step with ue_build_shed.py's shell and rooms.
+DOOR_HALF = 230.0
 BUILDINGS = (
-    ("Shed", -680.0, 680.0, -580.0, FRONT),
+    ("Shed_WallW", -680.0, -650.0, -580.0, FRONT),
+    ("Shed_WallE", 650.0, 680.0, -580.0, FRONT),
+    ("Shed_WallBack", -680.0, 680.0, -580.0, -550.0),
+    ("Shed_WallFrontW", -680.0, -DOOR_HALF, 550.0, FRONT),
+    ("Shed_WallFrontE", DOOR_HALF, 680.0, 550.0, FRONT),
+    ("Shed_Workbench", -650.0, -555.0, -180.0, 300.0),
     ("WashBay", -1190.0, -650.0, -260.0, 460.0),
     ("Storage", -1530.0, -650.0, -1130.0, -250.0),
     ("Dyno", -480.0, 480.0, -1330.0, -550.0),
@@ -55,9 +63,10 @@ BUILDINGS = (
 )
 BUILDING_H = 350.0
 
-# Where a bike rolls out: in front of the door (rear wheel ~2 m clear of the wall), facing out.
+# Where a bike rolls out when it's started from the door (F there): in front of it, facing out. From
+# a bike in the shed it starts where that bike stands.
 START_Y = FRONT + 300.0
-LINE_END_Y = PAD_Y1 - 1500.0
+LINE_END_Y = START_Y + 6000.0
 # A crashed rider goes back on at the spot inside this (3 m clear of the walls); anywhere else
 # (the back yard, against a wall) back to the door.
 OPEN_MARGIN = 300.0

@@ -444,7 +444,8 @@ private:
 	void Interact();
 	// F at a bike or the roller door: ride it out into the yard (anyone). bAdventure: set off on
 	// Buttertubs with everyone instead (the host's choice alone: the pause menu, StartAdventure).
-	void StartRideOut(int32 Bay, bool bAdventure = false);
+	// bAtBike: got on where the bike stands (F at it), else just outside the door (F at the door).
+	void StartRideOut(int32 Bay, bool bAdventure = false, bool bAtBike = false);
 	bool bRidingOut = false;
 	double RideOutIn = 0.0;
 

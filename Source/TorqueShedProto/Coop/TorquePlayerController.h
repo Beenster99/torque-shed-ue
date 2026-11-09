@@ -56,7 +56,8 @@ public:
 
 	// [yard] A joined player riding their bike out into the shed's yard, or parking it and walking
 	// back in: the host swaps the pawns (Shed/TorqueYard.h).
-	UFUNCTION(Server, Reliable) void ServerRideYard(int32 Bay);
+	UFUNCTION(Server, Reliable) void ServerRideYard(int32 Bay, bool bAtBike);
+	UFUNCTION(Server, Reliable) void ServerGetOffYard();
 	UFUNCTION(Server, Reliable) void ServerWalkBackIn();
 
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
