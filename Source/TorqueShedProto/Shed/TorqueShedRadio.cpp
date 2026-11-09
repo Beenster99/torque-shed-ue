@@ -100,7 +100,10 @@ void ATorqueShedRadio::BeginPlay()
 	SetActorLocationAndRotation(TorqueShedRadio::At, FRotator::ZeroRotator);
 	// The garage props' radio model (Tools/ue_import_props.py dresses the level with it, over the
 	// shelf, when it's been made): then it's that, and this only plays it and shows what's on.
-	const bool bModel = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Shed/Props/shed_radio/SM_shed_radio.SM_shed_radio"), nullptr, LOAD_NoWarn | LOAD_Quiet) != nullptr;
+	auto Has = [](const TCHAR* Path) { return LoadObject<UStaticMesh>(nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet) != nullptr; };
+	// beenster's Fab radio on our shelf, when both are in (Data/Props/swaps.json 'prefer', as dress() does).
+	const bool bFab = Has(TEXT("/Game/Shed/Props/fab_radio/SM_fab_radio.SM_fab_radio")) && Has(TEXT("/Game/Shed/Props/radio_shelf/SM_radio_shelf.SM_radio_shelf"));
+	const bool bModel = bFab || Has(TEXT("/Game/Shed/Props/shed_radio/SM_shed_radio.SM_shed_radio"));
 	// Else shed_radio.gd _ready, in cm: its front faces +x, its width along y (Torque Shed's x is our -y).
 	const FRotator None = FRotator::ZeroRotator;
 	if (!bModel)
@@ -117,8 +120,18 @@ void ATorqueShedRadio::BeginPlay()
 	// The dial's glowing needle, along the dial window (the model's: just in front of its glass, as the
 	// props thread gave it; the drawn one's: on its dial).
 	NeedleX = bModel ? 15.7 : 8.6;
-	UE_LOG(LogTemp, Log, TEXT("Torque radio: on its shelf (%s), %d stations"), bModel ? TEXT("the props' model") : TEXT("drawn"), TorqueShedRadio::Stations().Num());
-	Needle = Piece(CubeMesh, FVector(NeedleX, -5.0, 17.0), FVector(0.4, 0.5, 6.0), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
+	if (bFab)
+	{
+		// Its dial window (Data/Props/fab.json): face 8.4 cm in front of the shelf's middle (so 13.4
+		// from here), 15.8 .. 24.2 cm up; the needle sweeps its scale's 0 .. 90, Torque Shed x -0.125 .. 0.03 (short of the tuning box).
+		NeedleX = 13.7;
+		NeedleY0 = -12.5;
+		NeedleSpan = 15.5;
+		NeedleZ = 20.0;
+		NeedleH = 7.5;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque radio: on its shelf (%s), %d stations"), bFab ? TEXT("the Fab model") : bModel ? TEXT("the props' model") : TEXT("drawn"), TorqueShedRadio::Stations().Num());
+	Needle = Piece(CubeMesh, FVector(NeedleX, -NeedleY0, NeedleZ), FVector(0.4, 0.5, NeedleH), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
 	// The station and the song over it.
 	Display = NewObject<UTextRenderComponent>(this);
 	Display->SetupAttachment(GetRootComponent());
@@ -307,7 +320,7 @@ void ATorqueShedRadio::UpdateLooks()
 	{
 		Needle->SetVisibility(bOn);
 		const double F = N > 1 ? (double)Station / (N - 1) : 0.0;
-		Needle->SetRelativeLocation(FVector(NeedleX, -(5.0 + 14.0 * F), 17.0));
+		Needle->SetRelativeLocation(FVector(NeedleX, -(NeedleY0 + NeedleSpan * F), NeedleZ));
 	}
 	if (Display)
 	{

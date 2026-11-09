@@ -78,6 +78,10 @@ private:
 	FString Title;             // the song, as the station last said
 	FString Shown;             // what the display over it says
 	double NeedleX = 8.6;      // the dial's front, from the radio's base (cm)
+	double NeedleY0 = 5.0;     // the needle's sweep, station 0 at -NeedleY0, the last at -(NeedleY0 + NeedleSpan) (cm)
+	double NeedleSpan = 14.0;
+	double NeedleZ = 17.0;     // its middle's height and its length (cm)
+	double NeedleH = 6.0;
 	double TunedAt = 0.0, RetryAt = 0.0, PeekAt = 0.0, PeekStarted = 0.0;
 	bool bLive = false;
 	uint32 HissSeed = 12345;

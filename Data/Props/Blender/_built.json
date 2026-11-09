@@ -112,5 +112,22 @@
    "steel_dark",
    "ink_black"
   ]
+ },
+ "radio_shelf": {
+  "bounds_min": [
+   -0.3,
+   -0.18,
+   -0.17
+  ],
+  "bounds_max": [
+   0.3,
+   0.0,
+   0.17
+  ],
+  "tris": 292,
+  "materials": [
+   "wood_top",
+   "steel_dark"
+  ]
  }
 }

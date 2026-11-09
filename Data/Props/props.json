@@ -1,5 +1,5 @@
 {
- "about": "Every item in the shed and what its model is: 'blender' (Tools/props/make_props.py -> Data/Props/Blender/<id>.glb, committed), 'polyhaven' (a CC0 scan, Tools/fetch_props.py -> build/props, not committed) or 'todo' (its plan). Bike parts are the fitting thread's, not here. Data/Props/swaps.json says where the shed puts them.",
+ "about": "Every item in the shed and what its model is: 'blender' (Tools/props/make_props.py -> Data/Props/Blender/<id>.glb, committed), 'polyhaven' (a CC0 scan, Tools/fetch_props.py -> build/props, not committed) 'fab' (a model from beenster's Fab library, Data/Props/fab.json: never committed, read from the launcher's cache on the PC) or 'todo' (its plan). Bike parts are the fitting thread's, not here. Data/Props/swaps.json says where the shed puts them.",
  "props": {
   "shed_workbench": {
    "name": "Shed workbench",
@@ -30,6 +30,16 @@
    "name": "Radio and its shelf",
    "torque_shed": "workshop.gd _build_radio, shed_radio.gd",
    "source": "blender"
+  },
+  "radio_shelf": {
+   "name": "The radio's shelf on its own (what fab_radio stands on)",
+   "torque_shed": "workshop.gd _build_radio",
+   "source": "blender"
+  },
+  "fab_radio": {
+   "name": "Radio (Fab: PTish Radio, by Florian 5000)",
+   "torque_shed": "shed_radio.gd",
+   "source": "fab"
   },
   "whiteboard": {
    "name": "Crew whiteboard",

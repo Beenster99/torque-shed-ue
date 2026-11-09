@@ -196,15 +196,26 @@ def bin_metal():
     _wheelie_bin("Bin", "paint_bin_green")
 
 
+def _radio_shelf():
+    box("Shelf", (0.0, -0.015, 0.0), (0.6, 0.03, 0.34), "wood_top", bevel=0.003)
+    for x in (-0.22, 0.22):
+        prism("Bracket%.2f" % x, [(-0.17, -0.03), (-0.17, -0.18), (-0.15, -0.18), (0.1, -0.03)], 0.025, "steel_dark", axis="x", centre=x)
+
+
+@model("radio_shelf", (0.6, 0.18, 0.34))
+def radio_shelf():
+    """The radio's shelf and its two brackets on their own (shed_radio below without its radio): what
+    a bought radio model (Data/Props/fab.json fab_radio) stands on, in the same frame as shed_radio."""
+    _radio_shelf()
+
+
 @model("shed_radio", (0.6, 0.45, 0.34))
 def shed_radio():
     """shed_radio.gd on its shelf (workshop.gd _build_radio): a 0.46 x 0.26 x 0.16 workshop radio,
     grille cloth, tuning dial and knobs, a carry handle, on a wooden shelf with two brackets. The
     shelf is 0.6 long (x here) and 0.34 deep, its top at 0.03 above the origin; the origin is at the
     shelf's top centre at the wall (-z), like the radio's own."""
-    box("Shelf", (0.0, -0.015, 0.0), (0.6, 0.03, 0.34), "wood_top", bevel=0.003)
-    for x in (-0.22, 0.22):
-        prism("Bracket%.2f" % x, [(-0.17, -0.03), (-0.17, -0.18), (-0.15, -0.18), (0.1, -0.03)], 0.025, "steel_dark", axis="x", centre=x)
+    _radio_shelf()
     y0 = 0.0
     box("Body", (0.0, y0 + 0.13, 0.02), (0.46, 0.26, 0.16), "plastic_red", bevel=0.02)
     box("Grille", (-0.1, y0 + 0.13, 0.1), (0.2, 0.18, 0.004), "fabric_grille" if False else "paper", bevel=0.001)
