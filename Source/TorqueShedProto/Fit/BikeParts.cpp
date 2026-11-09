@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <set>
 
@@ -31,6 +32,16 @@ constexpr double DrumArm = 0.076;
 constexpr double DrumShoeR = 0.1;
 constexpr double BoxArmReach = 0.55;
 constexpr int TyreSections = 32;
+// How many sections go round a tyre of each tread (Tools/make_tyre_treads.py SECTIONS: the same
+// numbers). Torque Shed bends 32 of every tread round; the redrawn road treads are longer, so a
+// groove can sweep from the middle to the shoulder as a real one does.
+int TyreSectionsFor(const std::string& Tread)
+{
+	static const std::map<std::string, int> Count = {{"sport", 10}, {"touring", 12}, {"sipes", 12}, {"cruiser", 16},
+		{"trail", 14}, {"blocks", 24}};
+	const auto It = Count.find(Tread);
+	return It != Count.end() ? It->second : TyreSections;
+}
 constexpr double TyreBulge = 0.434;
 
 double SprocketRadius(int Teeth)
@@ -251,12 +262,13 @@ void BikeParts::Wheels(const PartsMap& Parts, const Layout& L, std::vector<Fitte
 			const double Bead = std::min(RimW * 0.5 - 0.004, Half * 0.9);
 			const double Base = RimR - 0.006;
 			const double Span = std::max(Radius - RimR, 0.02) + 0.006;
-			const double Step = 2.0 * TorqueSim::Pi / TyreSections;
+			const int Sections = TyreSectionsFor(Tread.empty() ? std::string("slick") : Tread);
+			const double Step = 2.0 * TorqueSim::Pi / Sections;
 			FittedPart P;
 			P.Slot = Side + "_tyre";
 			P.Glb = TyrePath;
 			P.Node = Side + "_wheel";
-			for (int K = 0; K < TyreSections; ++K)
+			for (int K = 0; K < Sections; ++K)
 				P.Copies.push_back(GodotWarpToOurs([=](const V3& V) {
 					const double A = (K + V.z) * Step;
 					const double R = Base + V.y * Span;
