@@ -329,9 +329,22 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 			PC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			PC->SetGenerateOverlapEvents(false);
 		}
+		// Its materials: the listed ones, but never one from the MetaHuman plugin (editor-only, so
+		// not in the game: a groom with one draws nothing); those slots get the hair module's own
+		// default hair material, which always draws. Set before registering, for the PSO precache.
+		if (UMeshComponent* MC = Cast<UMeshComponent>(C))
+		{
+			ApplyMaterials(MC, P.Materials);
+			static UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
+			for (int32 Slot = 0; Slot < FMath::Max(MC->GetNumMaterials(), 1); ++Slot)
+			{
+				UMaterialInterface* M = MC->GetMaterial(Slot);
+				if (HairDefault && (!M || M->GetPathName().StartsWith(TEXT("/MetaHuman"))))
+					MC->SetMaterial(Slot, HairDefault);
+			}
+		}
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
-		if (UMeshComponent* MC = Cast<UMeshComponent>(C)) ApplyMaterials(MC, P.Materials);
 		UMaterialInterface* GroomMat = nullptr;
 		FBoxSphereBounds GroomBounds;
 		if (UPrimitiveComponent* GP = Cast<UPrimitiveComponent>(C))
