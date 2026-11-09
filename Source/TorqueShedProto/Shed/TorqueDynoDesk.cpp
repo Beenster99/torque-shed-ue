@@ -186,7 +186,7 @@ void FTorqueDynoDesk::Relist(const UTorqueBuildSubsystem* B)
 {
 	Rows.Reset();
 	LightenItems.Reset();
-	const TArray<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
+	const std::vector<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
 	if (Tab < (int32)Tabs.size())
 	{
 		for (const TorqueFit::TuneRow& R : Tabs[Tab].Rows)
@@ -213,7 +213,7 @@ void FTorqueDynoDesk::Relist(const UTorqueBuildSubsystem* B)
 
 bool FTorqueDynoDesk::PickTab(const FString& Name)
 {
-	const TArray<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
+	const std::vector<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
 	for (int32 I = 0; I < (int32)Tabs.size(); ++I)
 		if (Name.Equals(TDDI::Ue(Tabs[I].Name), ESearchCase::IgnoreCase))
 		{
@@ -499,7 +499,7 @@ void FTorqueDynoDesk::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSubsyst
 	const float Bottom = Y0 + PH - M;
 
 	// The tabs.
-	const TArray<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
+	const std::vector<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
 	{
 		float TX = LX;
 		const float TH = 32.0f * S;
@@ -754,8 +754,8 @@ void FTorqueDynoDesk::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSubsyst
 FString FTorqueDynoDesk::Describe(const UTorqueBuildSubsystem* B) const
 {
 	if (!B || !B->Exists(Bay)) return TEXT("dyno desk: no bike in reach");
-	const TArray<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
-	FString Out = FString::Printf(TEXT("dyno desk: %s, %s tab:"), *B->Bike(Bay).Name, Tab < (int32)Tabs.size() ? *TDDI::Ue(Tabs[Tab].Name) : TDDI::WeightTab);
+	const std::vector<TorqueFit::TuneTab>& Tabs = TorqueFit::TuneTabs();
+	FString Out = FString::Printf(TEXT("dyno desk: %s, %s tab:"), *B->Bike(Bay).Name, *(Tab < (int32)Tabs.size() ? TDDI::Ue(Tabs[Tab].Name) : FString(TDDI::WeightTab)));
 	for (const FRow& R : Rows)
 	{
 		const TDDI::FSetting S = TDDI::Read(B, Bay, R.Key);
