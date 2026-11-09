@@ -2300,12 +2300,10 @@ void ATorqueWalker::Interact()
 	{
 		// The dyno room: the switches by the door.
 		FTorqueShedRequest R;
-		R.Kind = TargetPlace->Kind == ETorquePlace::DynoDesk ? ETorqueShedAct::DynoRun
-			: (TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan);
+		R.Kind = TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan;
 		R.Bay = B->DynoBay();
 		FString WhyNot;
 		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
-		else if (R.Kind == ETorqueShedAct::DynoRun) Doing(FString::Printf(TEXT("running bay %d's bike on the dyno"), R.Bay + 1), 10.0);
 		return;
 	}
 	if (Target == ETorqueLook::BikePart || Target == ETorqueLook::Door || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay))
