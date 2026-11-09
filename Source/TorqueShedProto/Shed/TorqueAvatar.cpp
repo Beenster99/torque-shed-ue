@@ -847,7 +847,7 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 	// forward and down past the bar with the index inboard, and placed so the bar sits across the
 	// palm just short of the knuckles. Off the bike (Limp), the rider rig's wrist.
 	FQuat HandQ[2];
-	FVector Aim0[2], Palm0[2], WristAt[2];
+	FVector Aim0[2], Palm0[2], WristAt[2], BarAt[2], BarAxis[2], AimOn[2], PalmOn[2];
 	for (int32 S = 0; S < 2; ++S)
 	{
 		const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
@@ -868,6 +868,10 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 		const FVector Palm1 = HandQ[S].RotateVector(Palm0[S]);
 		const FVector KnuckleAt = Bar + Aim1 * 1.5 - Palm1 * 3.0;   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
 		WristAt[S] = FMath::Lerp(KnuckleAt - HandQ[S].RotateVector(Aim0[S]), ToC(Tg.Wrist[S]), Off);
+		BarAt[S] = Bar;
+		BarAxis[S] = Across1.GetSafeNormal();
+		AimOn[S] = Aim1;
+		PalmOn[S] = Palm1;
 	}
 	const FQuat BackRig = Back;   // the head keeps the rider rig's gaze, however far the back leans
 	// Low, far bars (clip-ons): lean the back further forward, from the hips, until the shoulders are
@@ -915,26 +919,63 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
 				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], Off); Set[HandBone[S]] = true;
-				// The fingers round the grip; the index and middle over a lever when they're on it.
-				// Each finger turns about the bar's line, towards the palm.
-				const FVector Curl0 = FVector::CrossProduct(Aim0[S].GetSafeNormal(), Palm0[S]).GetSafeNormal();
-				const FVector Curl = D[HandBone[S]].RotateVector(Curl0);
-				static const double WrapDeg[3] = {55.0, 80.0, 45.0};
-				for (int32 F = 0; F < 5; ++F)
+				// The fingers wrapped round the bar: joint by joint, each bone turns (about the bar's
+				// line, towards the palm) until its far end touches the grip's surface, so they follow
+				// the bar whatever the hand's size. The index and middle lift onto a lever when they're
+				// on it. The thumb tucks under, round the other side to meet the fingertips.
+				const FQuat Hq = D[HandBone[S]];
+				const FVector WAct = E + D[LowerArm[S]].RotateVector(W0 - E0);   // where the wrist got to
+				const FVector Curl = Hq.RotateVector(FVector::CrossProduct(Aim0[S].GetSafeNormal(), Palm0[S]).GetSafeNormal());
+				const FVector Ax = BarAxis[S];
+				const double GripR = 2.6;   // the grip's radius plus half a finger
+				auto FromBar = [&](const FVector& X) { const FVector V = X - BarAt[S]; return (V - Ax * FVector::DotProduct(V, Ax)).Size(); };
+				const double Loose = 1.0 - Off * 0.7;
+				for (int32 F = 1; F < 5; ++F)
 				{
-					double K = 1.0 - Off * 0.7;
+					double K = Loose;
 					if (F == 1 || F == 2)
 					{
 						const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
 						K *= FMath::Lerp(1.0, 0.35 + 0.45 * Pull, On);
 					}
-					double Sum = 0.0;
+					const int32 B0 = Finger[S][F][0];
+					if (B0 == INDEX_NONE) continue;
+					FQuat Par = Hq;
+					FVector Pj = WAct + Hq.RotateVector(Bones[B0].Rest - W0);
 					for (int32 J = 0; J < 3; ++J)
 					{
 						const int32 B = Finger[S][F][J];
-						if (B == INDEX_NONE) continue;
-						Sum += (F == 0 ? 0.45 : 1.0) * WrapDeg[J] * K;
-						D[B] = FQuat(Curl, FMath::DegreesToRadians(Sum)) * D[HandBone[S]]; Set[B] = true;
+						if (B == INDEX_NONE) break;
+						const int32 Bn = J < 2 ? Finger[S][F][J + 1] : INDEX_NONE;
+						const int32 Bp = J > 0 ? Finger[S][F][J - 1] : INDEX_NONE;
+						const FVector Seg0 = Bn != INDEX_NONE ? Bones[Bn].Rest - Bones[B].Rest
+							: (Bp != INDEX_NONE ? (Bones[B].Rest - Bones[Bp].Rest) * 0.8 : FVector::ZeroVector);
+						const FVector Seg = Par.RotateVector(Seg0);   // the bone as its parent has turned it
+						double Deg = J == 2 ? 70.0 : 90.0;   // as far as it bends when the bar's out of reach
+						for (double T = 0.0; T <= 110.0; T += 3.0)
+							if (FromBar(Pj + FQuat(Curl, FMath::DegreesToRadians(T)).RotateVector(Seg)) <= GripR) { Deg = T; break; }
+						const FQuat Q(Curl, FMath::DegreesToRadians(Deg * K));
+						D[B] = Q * Par; Set[B] = true;
+						Pj += Q.RotateVector(Seg);
+						Par = D[B];
+					}
+				}
+				// The thumb: round the inside of the bar from the wrist side, its tip under the bar.
+				{
+					const int32 T0 = Finger[S][0][0], T1 = Finger[S][0][1], T2 = Finger[S][0][2];
+					if (T0 != INDEX_NONE && T2 != INDEX_NONE)
+					{
+						const FVector P0 = WAct + Hq.RotateVector(Bones[T0].Rest - W0);
+						const FVector TipRest = Bones[T2].Rest + (Bones[T2].Rest - Bones[T1 != INDEX_NONE ? T1 : T0].Rest) * 0.8;
+						const FVector TipNow = Hq.RotateVector(TipRest - Bones[T0].Rest);
+						FVector Goal = BarAt[S] - AimOn[S] * (GripR * 0.7) + PalmOn[S] * (GripR * 0.7);
+						Goal += Ax * FVector::DotProduct(P0 - BarAt[S], Ax);   // where along the bar the thumb is
+						FQuat Q = FQuat::FindBetweenVectors(TipNow, Goal - P0);
+						const double Ang = Q.GetAngle();
+						if (Ang > FMath::DegreesToRadians(80.0)) Q = FQuat::Slerp(FQuat::Identity, Q, FMath::DegreesToRadians(80.0) / Ang);
+						Q = FQuat::Slerp(Q, FQuat::Identity, Off);
+						for (int32 J = 0; J < 3; ++J)
+							if (Finger[S][0][J] != INDEX_NONE) { D[Finger[S][0][J]] = Q * Hq; Set[Finger[S][0][J]] = true; }
 					}
 				}
 			}
