@@ -241,11 +241,24 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 	return true;
 }
 
+double FRiderRig::SetSpineDeg() const
+{
+	if (!Body || Pelvis == INDEX_NONE || Neck == INDEX_NONE) return 0.0;
+	// (Worked out by the component from the bone transforms it was handed, not what it last drew.)
+	const FVector A = CompToLocal.TransformPosition(Body->GetBoneLocationByName(Bones[Pelvis].Name, EBoneSpaces::ComponentSpace));
+	const FVector B = CompToLocal.TransformPosition(Body->GetBoneLocationByName(Bones[Neck].Name, EBoneSpaces::ComponentSpace));
+	return FMath::RadiansToDegrees(FMath::Atan2(B.X - A.X, B.Z - A.Z));
+}
+
 double FRiderRig::DrawnSpineDeg() const
 {
 	if (!Body || Pelvis == INDEX_NONE || Neck == INDEX_NONE) return 0.0;
-	const FVector A = CompToLocal.TransformPosition(Body->GetBoneLocationByName(Bones[Pelvis].Name, EBoneSpaces::ComponentSpace));
-	const FVector B = CompToLocal.TransformPosition(Body->GetBoneLocationByName(Bones[Neck].Name, EBoneSpaces::ComponentSpace));
+	// The component-space pose the mesh was last refreshed with: what goes to the renderer.
+	const TArray<FTransform>& Cs = Body->GetComponentSpaceTransforms();
+	const int32 IA = Body->GetBoneIndex(Bones[Pelvis].Name), IB = Body->GetBoneIndex(Bones[Neck].Name);
+	if (!Cs.IsValidIndex(IA) || !Cs.IsValidIndex(IB)) return -999.0;
+	const FVector A = CompToLocal.TransformPosition(Cs[IA].GetLocation());
+	const FVector B = CompToLocal.TransformPosition(Cs[IB].GetLocation());
 	return FMath::RadiansToDegrees(FMath::Atan2(B.X - A.X, B.Z - A.Z));
 }
 

@@ -15,6 +15,9 @@
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimInstance.h"
+#include "UObject/UObjectIterator.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
@@ -719,13 +722,47 @@ FString ATorqueBikePawn::TestRideLog() const
 		// grip; the ankle 11.5 cm behind and above the peg, the ball of the foot on it: as on the
 		// Speed Twin the rig was made on.)
 		Out += FString::Printf(TEXT("\nrider (%s%s): seat %s, pegs %s / %s, grips %s / %s; pose hips %s, wrists %s / %s, ankles %s / %s, ")
-			TEXT("back %.1f deg forward of upright (spine posed %.1f, drawn %.1f); reach %.1f / %.1f cm of a %.1f cm arm (%s), hip to ankle %.1f / %.1f of a %.1f cm leg%s"),
+			TEXT("back %.1f deg forward of upright (style's own %.1f; spine posed %.1f, set %.1f, drawn %.1f); reach %.1f / %.1f cm of a %.1f cm arm (%s), hip to ankle %.1f / %.1f of a %.1f cm leg%s"),
 			*RiderStyle, bRiderLaidBack ? TEXT(", laid back") : TEXT(""),
 			*RiderSeat.ToString(), *RiderPeg[0].ToString(), *RiderPeg[1].ToString(), *RiderGrip[0].ToString(), *RiderGrip[1].ToString(),
 			*PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(), *PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(),
-			RiderBackDeg, RiderRig.PosedSpineDeg, RiderRig.DrawnSpineDeg(), RiderReach[0], RiderReach[1], RiderArm,
+			RiderBackDeg, RiderStyleDeg, RiderRig.PosedSpineDeg, RiderRig.SetSpineDeg(), RiderRig.DrawnSpineDeg(), RiderReach[0], RiderReach[1], RiderArm,
 			FMath::Max(RiderReach[0], RiderReach[1]) > RiderArm ? *FString::Printf(TEXT("hands %.1f cm short of the grips"), FMath::Max(RiderReach[0], RiderReach[1]) - RiderArm) : TEXT("hands on the grips"),
 			RiderLegReach[0], RiderLegReach[1], RiderLeg, bRiderFitted && RiderRig.IsValid() ? TEXT("") : TEXT(" (not fitted: no rig)"));
+		if (RiderRig.Helmet)
+			Out += FString::Printf(TEXT("\nrider helmet at %s (pawn local)"), *RiderRig.Helmet->GetRelativeLocation().ToString());
+	}
+	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
+	// rider root, and any skinned mesh in the world within 3 m (another player's or a walker's).
+	{
+		auto Describe = [this](const UPrimitiveComponent* C) {
+			FString Desc = FString::Printf(TEXT("\n  %s.%s (%s): %s%s%s%s, rendered %s, at %s"),
+				C->GetOwner() ? *C->GetOwner()->GetName() : TEXT("?"), *C->GetName(), *C->GetClass()->GetName(),
+				C->IsVisible() ? TEXT("visible") : TEXT("not visible"), C->bHiddenInGame ? TEXT(", hidden in game") : TEXT(""),
+				C->bOwnerNoSee ? TEXT(", owner no see") : TEXT(""), C->bOnlyOwnerSee ? TEXT(", only owner sees") : TEXT(""),
+				C->WasRecentlyRendered(0.5f) ? TEXT("yes") : TEXT("no"),
+				*GetActorTransform().InverseTransformPosition(C->GetComponentLocation()).ToString());
+			if (const USkinnedMeshComponent* Sk = Cast<USkinnedMeshComponent>(C))
+			{
+				const USkinnedMeshComponent* Leader = Sk->LeaderPoseComponent.Get();
+				Desc += FString::Printf(TEXT(", mesh %s, leader pose %s"), Sk->GetSkinnedAsset() ? *Sk->GetSkinnedAsset()->GetName() : TEXT("none"),
+					Leader ? *FString::Printf(TEXT("%s.%s"), Leader->GetOwner() ? *Leader->GetOwner()->GetName() : TEXT("?"), *Leader->GetName()) : TEXT("none"));
+				if (const USkeletalMeshComponent* Skel = Cast<USkeletalMeshComponent>(Sk))
+					Desc += FString::Printf(TEXT(", anim mode %d, anim instance %s"), (int32)Skel->GetAnimationMode(),
+						Skel->GetAnimInstance() ? *Skel->GetAnimInstance()->GetClass()->GetName() : TEXT("none"));
+			}
+			return Desc;
+		};
+		TArray<const UPrimitiveComponent*> Seen;
+		TArray<UPrimitiveComponent*> Mine;
+		GetComponents(Mine);
+		for (const UPrimitiveComponent* C : Mine)
+			if (C && (C->IsA<USkinnedMeshComponent>() || (RiderRoot && C->IsAttachedTo(RiderRoot)))) Seen.AddUnique(C);
+		const FVector Here = GetActorLocation();
+		for (TObjectIterator<USkinnedMeshComponent> It; It; ++It)
+			if (It->GetWorld() == GetWorld() && It->IsRegistered() && FVector::Dist(It->GetComponentLocation(), Here) < 300.0) Seen.AddUnique(*It);
+		Out += FString::Printf(TEXT("\nrider components (%d):"), Seen.Num());
+		for (const UPrimitiveComponent* C : Seen) Out += Describe(C);
 	}
 	return Out;
 }
@@ -1508,6 +1545,7 @@ void ATorqueBikePawn::FitRiderToBike()
 	}
 	const double RestLean = FMath::RadiansToDegrees(FMath::Atan2(Neck0.X - Pelvis0.X, Neck0.Z - Pelvis0.Z));
 	const double StyleLean = FMath::RadiansToDegrees(FMath::Atan2(Torso.Fwd, Torso.Up));
+	RiderStyleDeg = StyleLean;
 	auto Tilt = [](const FVector& V, double Deg) {
 		const double A = FMath::DegreesToRadians(Deg), C = FMath::Cos(A), Sn = FMath::Sin(A);
 		return FVector(V.X * C + V.Z * Sn, V.Y, -V.X * Sn + V.Z * C);

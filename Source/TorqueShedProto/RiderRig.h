@@ -57,8 +57,10 @@ public:
 	bool BoneRest(const TCHAR* Name, FVector& Out) const;
 	FVector GripRest(int32 Side) const { return Hands[FMath::Clamp(Side, 0, 1)].Grip; }
 	// The back's lean forward of upright (degrees, pelvis to neck seen from the side): as the last
-	// Pose put it, and as the mesh's bones have it now (what's drawn), for the test log.
+	// Pose put it, as the mesh works it out from the bones it was handed (set), and in the pose the
+	// mesh last refreshed for the renderer (drawn), for the test log.
 	double PosedSpineDeg = 0.0;
+	double SetSpineDeg() const;
 	double DrawnSpineDeg() const;
 
 	UPoseableMeshComponent* Body = nullptr;
