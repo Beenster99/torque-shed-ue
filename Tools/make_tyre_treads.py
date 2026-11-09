@@ -7,11 +7,15 @@ into a carcass only six rows long and ten points across the crown, 2.5 mm deep, 
 Unreal the tread barely shows; and an MX tyre has four big knobs in each 1/32 of the way round.
 beenster's build 101: "all tyres (except slicks) need tread, and knobbles for the MX tyres".
 
-These are the same patterns (treads.py's groove() and knob layout, the same carcass profile and the
-same units, so BlenderParts.tyre_hoop and Fit/BikeParts.cpp bend them round exactly as before),
-drawn finer: 16 rows along and 48 points across the crown, grooves 4.5 mm deep with steep walls,
-and off-road knobs as a real MX tyre has them (seven a section in two staggered rows, shoulder
-knobs leaning out with the carcass, each standing square off it). The slick stays Torque Shed's.
+These keep Torque Shed's carcass profile and units (so BlenderParts.tyre_hoop and
+Fit/BikeParts.cpp bend them round exactly as before), drawn finer (20 rows along, 56 points across
+the crown, grooves 4.5 mm deep with steep walls), with each pattern modelled on how real tyres of
+its kind are cut (beenster: "use real world tyre manufacturers ... tread designs"): a hypersport
+tyre's lightning-bolt centre grooves and slick shoulders, a sport-touring tyre's long slanted
+grooves and sipes, a cruiser's centre groove and chevrons, a classic ribbed front, an adventure
+90/10's Z grooves, an MX tyre's staggered knobs with split middle blocks and tie bars, a 50/50's
+big offset blocks. Reference only: no maker's pattern is traced, and no names or logos go on the
+tyres. The slick stays Torque Shed's.
 
 Writes Data/Parts/Redrawn/tyre/<tread>.glb in the parts agreement (glTF frame: x across -1..1, y
 from the bead 0 to the crown 1, z 0..1 along 1/32 of the way round; nodes lod0..lod2; materials
@@ -37,7 +41,7 @@ BULGE = 0.434
 DEEP = 0.045               # a road groove, in tyre heights (4.5 mm on the reference 0.1 m tyre)
 
 # Per LOD: rows along the section, points across the crown, points up each wall.
-ROAD_DETAIL = [{"along": 16, "crown": 48, "wall": 6}, {"along": 8, "crown": 20, "wall": 3}, {"along": 1, "crown": 2, "wall": 1}]
+ROAD_DETAIL = [{"along": 20, "crown": 56, "wall": 6}, {"along": 8, "crown": 20, "wall": 3}, {"along": 1, "crown": 2, "wall": 1}]
 OFF_DETAIL = [{"along": 6, "crown": 24, "wall": 5}, {"along": 2, "crown": 8, "wall": 2}, {"along": 1, "crown": 2, "wall": 1}]
 
 RUBBER = {"name": "rubber", "doubleSided": True,
@@ -74,28 +78,72 @@ def profile(tread, d):
     return pts, on_crown
 
 
+# The road patterns, each modelled on how the real tyres of its kind are cut (reference only: no
+# maker's pattern is copied, and no names or logos go on the tyres). x across (-1..1, half widths),
+# u along the section (0..1, a section about 1.4 half widths long); grooves as polylines, the left
+# half the right one mirrored and half a section on, as the real ones alternate.
+ALONG = 1.4                # a section's length in half widths (a road tyre at its usual size)
+
+GROOVES = {
+    # Supersport (a hypersport road tyre): a pair of lightning-bolt grooves either side of the
+    # middle, a swept groove further out, and slick shoulders for full lean.
+    "sport": [((0.06, 0.02), (0.2, 0.34), (0.11, 0.4), (0.27, 0.74)), ((0.36, 0.5), (0.5, 0.72), (0.62, 1.02))],
+    # Sport-touring (a modern road tyre: about 14% void, sipes as well as grooves, cut nearly to the
+    # shoulder so there's tread at any lean): long slanted grooves crossing the middle by turns, and
+    # a short one and a sipe between.
+    "touring": [((0.0, 0.0), (0.3, 0.2), (0.78, 0.48)), ((0.34, 0.58), (0.78, 0.86))],
+    # Cruiser (a big-twin tyre): a straight groove round the middle, chevrons either side of it.
+    "cruiser": [((0.11, 0.0), (0.42, 0.18), (0.74, 0.3)), ((0.11, 0.5), (0.42, 0.68), (0.74, 0.8))],
+    # Ribbed (a classic front): grooves round the tyre, gently zigzagged.
+    "rib": [],
+    # Adventure 90/10 (a trail tyre): deep Z-shaped grooves across the middle, a slash on the shoulder.
+    "trail": [((0.0, 0.08), (0.3, 0.16), (0.34, 0.42), (0.7, 0.52)), ((0.48, 0.76), (0.8, 0.96))],
+    # Winter / rain: the touring cut with fine sipes across it.
+    "sipes": [((0.0, 0.0), (0.3, 0.2), (0.78, 0.48)), ((0.34, 0.58), (0.78, 0.86))],
+}
+WIDTH = {"sport": 0.055, "touring": 0.05, "cruiser": 0.06, "rib": 0.05, "trail": 0.075, "sipes": 0.05}
+SIPES = {"touring": [((0.2, 0.42), (0.5, 0.6))], "sipes": [((0.12, 0.3), (0.62, 0.62)), ((0.22, 0.78), (0.6, 1.0)), ((0.05, 0.62), (0.3, 0.75))]}
+
+
+def seg_dist(px, pu, a, b):
+    ax, au = a[0], a[1] * ALONG
+    bx, bu = b[0], b[1] * ALONG
+    pu = pu * ALONG
+    dx, du = bx - ax, bu - au
+    t = max(0.0, min(1.0, ((px - ax) * dx + (pu - au) * du) / max(dx * dx + du * du, 1e-12)))
+    return math.hypot(px - (ax + t * dx), pu - (au + t * du))
+
+
+def line_dist(x, u, line):
+    best = 9.0
+    for k in range(len(line) - 1):
+        for wrap in (-1.0, 0.0, 1.0):   # (a groove runs on into the next section)
+            best = min(best, seg_dist(x, u + wrap, line[k], line[k + 1]))
+    return best
+
+
 def groove(tread, u, x):
-    """treads.py groove(): how deep a road tread's groove is at u along and x across (at DEEP)."""
+    """How deep a road tread's groove is at u along and x across."""
     ax = abs(x)
-    deep = DEEP
-    if ax > 0.75:
-        return 0.0
+    if ax > 0.86:
+        return 0.0                          # (the shoulder's edge stays smooth, so the outline does)
+    # The left half is the right one mirrored, half a section on.
+    uu = u if x >= 0.0 else (u + 0.5) % 1.0
     if tread == "rib":
-        return deep if min(ax, abs(ax - 0.45)) < 0.08 else 0.0
-    if tread == "touring":
-        if abs(ax - 0.3) < 0.08:
-            return deep
-        return deep * 0.6 if 0.45 < ax < 0.9 and abs((u * 2.0 + ax) % 1.0 - 0.5) < 0.12 else 0.0
-    if tread == "sport":
-        return deep if 0.15 < ax < 0.9 and abs((u * 2.0 + ax * 0.8) % 1.0 - 0.5) < 0.14 else 0.0
-    if tread == "cruiser":
-        if ax < 0.07:
-            return deep
-        return deep if 0.2 < ax < 0.85 and abs((u * 2.0 - ax * 0.6) % 1.0 - 0.5) < 0.13 else 0.0
-    if tread == "trail":
-        return deep if (u * 3.0) % 1.0 < 0.2 or abs(ax - 0.35) < 0.07 else 0.0
-    if tread == "sipes":
-        return deep * 0.6 if (u * 3.0) % 1.0 < 0.18 and ax < 0.9 else 0.0
+        for c in (0.0, 0.3, 0.58):
+            zig = 0.022 * (1.0 - abs((uu * 4.0) % 2.0 - 1.0) * 2.0)
+            if abs(ax - (c + zig if c else 0.0)) < WIDTH["rib"]:
+                return DEEP
+        return 0.0
+    if tread == "cruiser" and ax < 0.045:
+        return DEEP
+    w = WIDTH[tread]
+    for line in GROOVES.get(tread, []):
+        if line_dist(ax, uu, line) < w:
+            return DEEP
+    for line in SIPES.get(tread, []):
+        if line_dist(ax, uu, line) < 0.022:
+            return DEEP * 0.7
     return 0.0
 
 
@@ -246,17 +294,32 @@ def stud(mesh, at, up3):
 
 
 def knob_layout(tread, lod):
-    """(x across, u along, width, length) of each knob in a section: two staggered rows, as an MX
-    tyre's (a 50/50's blocks bigger, flatter and fewer)."""
+    """(x across, u along, width, length, height scale) of each knob in a section. Modelled on how
+    real knobblies are laid out (reference only): an MX tyre's knobs in staggered rows, more of them
+    on the shoulders, the middle ones split in two (a block within a block), and low tie bars from
+    the middle knobs to the outer ones; a 50/50 adventure tyre's bigger, flatter blocks in offset
+    rows, the shoulder blocks staggered."""
     if tread == "blocks":
-        spots = [(0.24, 0.25, 0.44, 0.38), (-0.24, 0.25, 0.44, 0.38), (0.0, 0.75, 0.4, 0.38),
-                 (0.66, 0.75, 0.36, 0.34), (-0.66, 0.75, 0.36, 0.34), (0.86, 0.25, 0.22, 0.3), (-0.86, 0.25, 0.22, 0.3)]
+        spots = [(0.17, 0.2, 0.3, 0.36, 1.0), (-0.17, 0.2, 0.3, 0.36, 1.0),
+                 (0.52, 0.32, 0.32, 0.34, 1.0), (-0.52, 0.32, 0.32, 0.34, 1.0),
+                 (0.0, 0.7, 0.36, 0.34, 1.0), (0.36, 0.76, 0.28, 0.32, 1.0), (-0.36, 0.76, 0.28, 0.32, 1.0),
+                 (0.8, 0.66, 0.26, 0.3, 0.9), (-0.8, 0.66, 0.26, 0.3, 0.9), (0.9, 0.2, 0.18, 0.26, 0.8), (-0.9, 0.2, 0.18, 0.26, 0.8)]
     else:
-        spots = [(0.3, 0.25, 0.34, 0.26), (-0.3, 0.25, 0.34, 0.26), (0.88, 0.25, 0.22, 0.24), (-0.88, 0.25, 0.22, 0.24),
-                 (0.0, 0.75, 0.4, 0.26), (0.62, 0.75, 0.3, 0.26), (-0.62, 0.75, 0.3, 0.26)]
+        spots = [(0.11, 0.25, 0.17, 0.24, 1.0), (-0.11, 0.25, 0.17, 0.24, 1.0),   # the split middle block
+                 (0.47, 0.22, 0.24, 0.22, 1.0), (-0.47, 0.22, 0.24, 0.22, 1.0),
+                 (0.88, 0.25, 0.2, 0.22, 0.95), (-0.88, 0.25, 0.2, 0.22, 0.95),
+                 (0.25, 0.74, 0.26, 0.22, 1.0), (-0.25, 0.74, 0.26, 0.22, 1.0),
+                 (0.68, 0.76, 0.22, 0.2, 0.95), (-0.68, 0.76, 0.22, 0.2, 0.95)]
     if lod == 1:
-        spots = [s for s in spots if abs(s[0]) < 0.7]
+        spots = [s for s in spots if abs(s[0]) < 0.6]
     return spots if lod < 2 else []
+
+
+def tie_bars(tread, lod):
+    """Low ribs joining an MX tyre's middle knobs to the outer ones (x0, x1, u, width along)."""
+    if tread == "blocks" or lod > 0:
+        return []
+    return [(0.11, 0.47, 0.235, 0.08), (-0.11, -0.47, 0.235, 0.08), (0.25, 0.68, 0.75, 0.08), (-0.25, -0.68, 0.75, 0.08)]
 
 
 def section(tread, lod):
@@ -264,8 +327,11 @@ def section(tread, lod):
     carcass(tread, lod, rubber)
     if tread in OFFROAD:
         h = 0.1 if tread == "blocks" else 0.19
-        for x, u, w, length in knob_layout(tread, lod):
-            top = knob(rubber, tread, x, u, w, length, h)
+        for x0, x1, u, length in tie_bars(tread, lod):
+            # (A tie bar: a long low knob between the two, a third of a knob's height.)
+            knob(rubber, tread, (x0 + x1) * 0.5, u, abs(x1 - x0), length, h * 0.33)
+        for x, u, w, length, hs in knob_layout(tread, lod):
+            top = knob(rubber, tread, x, u, w, length, h * hs)
             if tread == "studs" and lod == 0:
                 _, n = crown_point(tread, x)
                 stud(steel, top, np.array([n[0], n[1], 0.0]))
