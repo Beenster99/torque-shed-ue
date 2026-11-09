@@ -1562,9 +1562,14 @@ void ATorquePlayerController::ServerPlace_Implementation(FVector At, FRotator Vi
 	UE_LOG(LogTemp, Log, TEXT("Torque net: %s put at %s (from its own machine)"), *P->GetName(), *At.ToCompactString());
 }
 
-void ATorquePlayerController::ServerRideYard_Implementation(int32 Bay)
+void ATorquePlayerController::ServerRideYard_Implementation(int32 Bay, bool bAtBike)
 {
-	TorqueYard::HostRideOut(this, Bay);
+	TorqueYard::HostRideOut(this, Bay, bAtBike);
+}
+
+void ATorquePlayerController::ServerGetOffYard_Implementation()
+{
+	TorqueYard::HostGetOff(this);
 }
 
 void ATorquePlayerController::ServerWalkBackIn_Implementation()

@@ -1,8 +1,8 @@
 {
  "name": "Shed yard",
  "about": "Made by Tools/shed_yard.py. The ridden bike in the shed's yard: a straight line out of the roller door (sim frame, m: x east, y up, z south) and the open concrete a crashed rider is put back on [x0, z0, x1, z1].",
- "length_m": 72.0,
- "road_half_width_m": 60.0,
+ "length_m": 60.0,
+ "road_half_width_m": 300.0,
  "line_sim": [
   [
    0.0,
@@ -308,74 +308,14 @@
    0.0,
    0.0,
    68.8
-  ],
-  [
-   0.0,
-   0.0,
-   69.8
-  ],
-  [
-   0.0,
-   0.0,
-   70.8
-  ],
-  [
-   0.0,
-   0.0,
-   71.8
-  ],
-  [
-   0.0,
-   0.0,
-   72.8
-  ],
-  [
-   0.0,
-   0.0,
-   73.8
-  ],
-  [
-   0.0,
-   0.0,
-   74.8
-  ],
-  [
-   0.0,
-   0.0,
-   75.8
-  ],
-  [
-   0.0,
-   0.0,
-   76.8
-  ],
-  [
-   0.0,
-   0.0,
-   77.8
-  ],
-  [
-   0.0,
-   0.0,
-   78.8
-  ],
-  [
-   0.0,
-   0.0,
-   79.8
-  ],
-  [
-   0.0,
-   0.0,
-   80.8
   ]
  ],
  "yard": true,
  "open_area_sim": [
-  -57.0,
+  -297.0,
   8.8,
-  57.0,
-  92.8
+  297.0,
+  1602.8
  ],
  "cattle_grids": []
 }

@@ -28,7 +28,7 @@ What it makes (Unreal cm: x east, y south (towards the roller door), z up; the f
     room built as a shell (the dyno room and the paint shop fitted out: the rig, desk and switches;
     the downdraft spray bay with its hooks under hexagon lights), and the wash bay lean-to on the west wall, open to the
     yard, with the pressure washer on its back wall;
-  - the deliveries bay painted on the yard east of the door; the riding pad, a flat 120 x 90 m of
+  - the deliveries bay painted on the yard east of the door; the riding pad, a flat 600 m x 1.6 km of
     concrete in front of the shed (Tools/shed_yard.py); fields, lane and fells round it;
   - daylight as Buttertubs; the shed's strip lights over each bay and down the middle; Lumen;
   - a point tagged RideOut in the door and a player start where Torque Shed puts walkers.
@@ -894,7 +894,8 @@ def shell(m):
     c, w = m["cladding"], WALL
     hx, hy, h = HALF_X, HALF_Y, HEIGHT
     # Floor: the epoxy slab, running under the walls (the yard is outside()).
-    box("Floor", -hx - w, hx + w, -hy - w, hy + w, -12, 0, m["floor"], folder="Walls")
+    # The floor is ridable: bikes are ridden in and out of the roller door (tagged Road, as the yard).
+    box("Floor", -hx - w, hx + w, -hy - w, hy + w, -12, 0, m["floor"], folder="Walls").set_editor_property("tags", [unreal.Name("Road")])
     # Back wall, with the doorway to the dyno room; side walls with theirs; the front either side
     # of the roller door and over it.
     wall("Wall_Back", "x", -hy - w, -hy, -hx - w, hx + w, h, [(-DYNO_DOOR_HALF, DYNO_DOOR_HALF, 0.0, DYNO_DOOR_TOP)], c)
@@ -1382,8 +1383,8 @@ def strip_light(label, at, lumens, width, height, radius, folder, kelvin=None):
 
 
 def outside(m):
-    # The riding yard (Tools/shed_yard.py): a large flat concrete pad in front of the door, poured in
-    # 6 m slabs, where the bikes are ridden; the concrete yard behind and beside the shed; drystone
+    # The riding yard (Tools/shed_yard.py): a large flat concrete pad in front of the door (600 m x
+    # 1.6 km, room to get a bike up to speed and stop again), where the bikes are ridden; the concrete yard behind and beside the shed; drystone
     # walls round both; the lane beyond the pad's far wall; the field all round. The concrete is
     # tagged Road, so the ridden bike's wheels stand on it (ATorqueBikePawn's ground trace); the
     # walls and buildings it can't pass are in Data/Shed/Yard/collision.json, written from the same
@@ -1399,20 +1400,7 @@ def outside(m):
         return a
     ground(box("RidePad", sy.PAD_X0, sy.PAD_X1, sy.PAD_Y0, sy.PAD_Y1, -10, 0, m["concrete"], folder="Outside"), "Road")
     ground(box("Yard", sy.YARD_X0, sy.YARD_X1, sy.YARD_Y0, sy.YARD_Y1, -11, -1, m["concrete"], folder="Outside"), "Road")
-    ground(box("Field", -80000, 80000, -80000, 80000, -30, -8, m["grass"], folder="Outside"), "Land")
-    # The slabs' saw cuts: thin dark joints, a hair proud of the concrete (no collision: the wheels
-    # don't feel them).
-    n = 0
-    x = sy.PAD_X0 + sy.SLAB
-    while x < sy.PAD_X1 - 1.0:
-        box("RidePad_JointX_%d" % n, x - 0.8, x + 0.8, sy.PAD_Y0, sy.PAD_Y1, 0, 0.15, m["dark"], folder="Outside/Joints", collide=False)
-        n += 1
-        x += sy.SLAB
-    y = sy.PAD_Y0 + sy.SLAB
-    while y < sy.PAD_Y1 - 1.0:
-        box("RidePad_JointY_%d" % n, sy.PAD_X0, sy.PAD_X1, y - 0.8, y + 0.8, 0, 0.15, m["dark"], folder="Outside/Joints", collide=False)
-        n += 1
-        y += sy.SLAB
+    ground(box("Field", -500000, 500000, -500000, 500000, -30, -8, m["grass"], folder="Outside"), "Land")
     # Drystone walls round the yard and the pad, and along the lane beyond it.
     def dry(label, x0, x1, y0, y1):
         box(label, x0, x1, y0, y1, -8, sy.DRYSTONE_H, m["drystone"], folder="Outside")
@@ -1423,13 +1411,11 @@ def outside(m):
     dry("Wall_LaneE", sy.LANE_HALF + 20, sy.LANE_HALF + 80, sy.LANE_Y0, sy.LANE_Y0 + 12000)
     dry("Wall_Field1", -9000, -sy.LANE_HALF - 80, sy.LANE_Y0 + 3000, sy.LANE_Y0 + 3060)
     dry("Wall_Field2", sy.LANE_HALF + 80, 9000, sy.LANE_Y0 + 5500, sy.LANE_Y0 + 5560)
-    # Far fells: low domes all round, hazed blue by the sky's aerial perspective. FELL_K moved them out
-    # (and up, so they look the same) when the riding pad came: none reaches over the pad or the yard.
-    FELL_K = 2.2
-    for i, (x, y, w, d, h) in enumerate(((-14000, 9000, 26000, 9000, 2600), (9000, 15000, 30000, 12000, 3400),
-                                         (20000, -6000, 14000, 30000, 2400), (-6000, -16000, 34000, 10000, 3000),
-                                         (-20000, -2000, 12000, 26000, 2200))):
-        x, y, w, d, h = (v * FELL_K for v in (x, y, w, d, h))
+    # Far fells: low domes all round, kilometres off past the pad, hazed blue by the sky's aerial
+    # perspective (x, y, size x, size y, height, cm). None reaches over the pad or the yard.
+    for i, (x, y, w, d, h) in enumerate(((-250000, 60000, 300000, 120000, 60000), (40000, 420000, 380000, 140000, 70000),
+                                         (260000, 100000, 160000, 340000, 50000), (-40000, -220000, 400000, 120000, 65000),
+                                         (-260000, -120000, 140000, 300000, 45000))):
         shape(SPHERE, "Fell_%d" % i, (x, y, -h * 0.25), (w, d, h * 2.0), m["hill"], folder="Outside", collide=False)
 
 

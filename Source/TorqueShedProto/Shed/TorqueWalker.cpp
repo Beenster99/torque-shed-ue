@@ -2308,7 +2308,7 @@ void ATorqueWalker::Interact()
 	}
 	if (Target == ETorqueLook::BikePart || Target == ETorqueLook::Door || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay))
 	{
-		StartRideOut(Target == ETorqueLook::Door ? B->MyBike() : TargetBay);
+		StartRideOut(Target == ETorqueLook::Door ? B->MyBike() : TargetBay, false, Target != ETorqueLook::Door);
 		return;
 	}
 	Say(TEXT("F: unpack a box, use the parts computer, or ride out (at your bike or the roller door)"), true, 2.5);
@@ -2320,7 +2320,7 @@ void ATorqueWalker::StartAdventure()
 	if (B) StartRideOut(B->MyBike(), true);
 }
 
-void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure)
+void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure, bool bAtBike)
 {
 	UTorqueBuildSubsystem* B = Shed();
 	if (!B) return;
@@ -2329,7 +2329,8 @@ void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure)
 		Say(FString::Printf(TEXT("Bay %d is empty: press F at a bike to ride it"), Bay + 1), false, 2.5);
 		return;
 	}
-	if (!B->DoorUp())   // [kit]
+	// (A bike parked out on the yard's pad doesn't need the door: it's out already.)
+	if (!B->DoorUp() && !(bAtBike && B->BikeTransform(Bay).GetLocation().Y > 600.0))   // [kit]
 	{
 		Say(TEXT("The roller door's down: open it at the yellow box right of the door (F)."), false, 3.0);
 		return;
@@ -2368,10 +2369,10 @@ void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure)
 	B->SetMyBike(Bay);
 	if (!bAdventure)
 	{
-		// [yard] Out of the roller door onto the concrete (Shed/TorqueYard.h); the host's pawn swap,
-		// asked for over the net by a joined player.
+		// [yard] On it where it stands (at the door: just outside), to ride it out of the roller door
+		// and back in (Shed/TorqueYard.h); the host's pawn swap, asked for over the net by a joined player.
 		Doing(FString::Printf(TEXT("riding bay %d's bike in the yard"), Bay + 1), 30.0);
-		TorqueYard::RideOut(Cast<APlayerController>(GetController()), Bay);
+		TorqueYard::RideOut(Cast<APlayerController>(GetController()), Bay, bAtBike);
 		return;
 	}
 	Doing(FString::Printf(TEXT("riding out on bay %d's bike"), Bay + 1), 30.0);
@@ -2696,12 +2697,12 @@ void ATorqueWalker::UpdateHud()
 					HudLines.Add({FString::Printf(TEXT("Last run: %.1f hp at %.0f rpm, %.1f Nm at %.0f rpm (at the wheel)"), Last.PeakHp, Last.PeakHpRpm, Last.PeakNm, Last.PeakNmRpm), Info, 0.55f});
 				}
 			}
-			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: ride this bike out into the yard"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Bay && B->Exists(TargetPlace->Index)) HudLines.Add({TEXT("F / Triangle: get on and ride it"), Prompt, 0.65f});
 		}
 		break;
 	case ETorqueLook::Door:
 		HudLines.Add({TEXT("Roller door"), FColor::White, 0.8f});
-		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out into the yard"), B->MyBike() + 1), Prompt, 0.65f});
+		HudLines.Add({FString::Printf(TEXT("F / Triangle: ride bay %d's bike out from the door"), B->MyBike() + 1), Prompt, 0.65f});
 		// [yard] The adventure is the host's to start, from the pause menu.
 		HudLines.Add({GetNetMode() == NM_Client ? FString(TEXT("The host sets off on Buttertubs (their menu)"))
 			: FString(TEXT("Esc / Options: Set off on Buttertubs")), Info, 0.55f});

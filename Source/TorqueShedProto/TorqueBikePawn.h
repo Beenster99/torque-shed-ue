@@ -102,6 +102,14 @@ public:
 	// BeginPlay (SpawnActorDeferred): on the host, a joined rider's bike isn't theirs to ask yet.
 	int32 GetRideBay() const { return RideBay; }
 	void SetYardBay(int32 Bay) { YardBay = Bay; }
+	// [yard] Where it starts (Unreal cm, yaw degrees): where the bike stood in the shed when the rider
+	// got on it there. Set by the host before BeginPlay and sent with the bike, so the rider's own
+	// machine (which runs the bike) starts it there too, not at the door.
+	void SetYardStart(const FVector& At, double Yaw) { bYardStart = true; YardStartAt = At; YardStartYaw = (float)Yaw; }
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	UPROPERTY(Replicated) bool bYardStart = false;
+	UPROPERTY(Replicated) FVector YardStartAt = FVector::ZeroVector;
+	UPROPERTY(Replicated) float YardStartYaw = 0.0f;
 	// Back to the start of the road, the clock reset (Home, or the pause menu).
 	void RestartRide();
 
