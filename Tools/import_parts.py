@@ -72,15 +72,21 @@ def main():
     if problems:
         sys.exit("not imported: fix the catalogue first")
     os.makedirs(OUT, exist_ok=True)
+    # This repo's own tanks and the ones they replace (Data/Parts/Redrawn/parts_overlay.json).
+    import parts_overlay
+    if parts_overlay.load():
+        out = (json.dumps(parts_overlay.apply_catalogue(json.loads(raw)), indent="\t", ensure_ascii=False) + "\n").encode("utf-8")
+    else:
+        out = raw
     with open(os.path.join(OUT, "parts.json"), "wb") as f:
-        f.write(raw)
+        f.write(out)
     info = {
         "source": "Beenster99/torque-shed data/parts.json",
         "commit": godot_commit(args.godot),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "kinds": len(cat),
         "parts": sum(len(v) for v in cat.values()),
-        "note": "Copied unchanged by Tools/import_parts.py; edit the Godot repo, not this copy.",
+        "note": "Copied by Tools/import_parts.py with Data/Parts/Redrawn/parts_overlay.json laid over it; edit the Godot repo or the overlay, not this copy.",
     }
     json.dump(info, open(os.path.join(OUT, "source.json"), "w"), indent=1)
     print("%d kinds, %d parts from %s" % (info["kinds"], info["parts"], info["commit"][:10]))

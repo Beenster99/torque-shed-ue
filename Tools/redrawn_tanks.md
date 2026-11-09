@@ -27,3 +27,29 @@ game's sports tanks:
   arched, so the tank must rest on the floor line at its lowest point.
 - The model files, renders, silhouette checks and Blender build scripts are in the project files, under
   `tanks/` (scripts in `tanks/source/`).
+
+# New bobber tanks
+
+beenster's five bobber tank drawings (one sheet, Nov 2026) are added to the parts list as five new
+bobber-only tanks. The Godot game has no tank like them, so nothing is replaced (peanut_9 and coffin_10
+stay):
+
+| Drawing | Part and shape | Capacity |
+|---|---|---|
+| Row 1 | `bobber_1` | 14 L |
+| Row 2 (recessed side panel, 2 mm) | `bobber_2` | 14 L |
+| Row 3 | `bobber_3` | 10 L |
+| Row 4 | `bobber_4` | 11 L |
+| Row 5 | `bobber_5` | 10 L |
+
+- The parts are in `Data/Parts/Redrawn/parts_overlay.json`. `Tools/parts_overlay.py` lays it over the Godot
+  catalogue, and `import_parts.py` and `import_layout_data.py` apply it on every re-import. The overlay can
+  also remove parts, drop styles from a part, map removed parts to their replacements (`retired`, for old
+  saves) and set a style's reference-bike parts.
+- A new shape's `tank_shapes.json` entry names the Godot shape it is most `like` (`peanut`). The import
+  takes that shape's u's, up/down split, `len`, `n` and `bw`, and measures the keys off the new mesh. The
+  part id is the shape name.
+- Size: drawn at the peanut tank's length, with the drawing's proportions. Capacity is 85% of the shell's
+  modelled volume, which also sets how big the game draws it (as for every tank).
+- `layout_test` puts each new tank on its style's reference bike and holds it to the same bodywork rules.
+- Models, renders and scripts are in the project files under `bobber_tanks/`.
