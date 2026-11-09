@@ -241,6 +241,14 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 	return true;
 }
 
+bool FRiderRig::BoneRest(const TCHAR* Name, FVector& Out) const
+{
+	const int32 I = Find(Name);
+	if (I == INDEX_NONE) return false;
+	Out = Bones[I].Rest;
+	return true;
+}
+
 void FRiderRig::Pose(const FRiderPoseInput& In)
 {
 	if (!Body) return;

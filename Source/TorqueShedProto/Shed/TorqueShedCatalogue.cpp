@@ -390,6 +390,11 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		FVector Dir = FVector(TSCI::ToUe(L.SteerAxis)).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 		OutFrame->SteerDir = Dir.Z < 0.0 ? -Dir : Dir;
 		OutFrame->SwingPivot = FVector(TSCI::ToUe(L.Pivot));
+		OutFrame->Seat = FVector(TSCI::ToUe(L.Hip));
+		const FVector Peg(TSCI::ToUe(L.Peg));
+		OutFrame->Peg = FVector(Peg.X, FMath::Abs(Peg.Y), Peg.Z);
+		const FVector Grip(TSCI::ToUe(L.GripR));
+		OutFrame->Grip = FVector(Grip.X, FMath::Abs(Grip.Y), Grip.Z);
 	}
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });

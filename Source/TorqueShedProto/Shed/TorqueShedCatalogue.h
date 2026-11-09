@@ -41,6 +41,9 @@ struct FBikeFrame
 	FVector FrontAxle = FVector::ZeroVector, RearAxle = FVector::ZeroVector;
 	FVector SteerPoint = FVector::ZeroVector, SteerDir = FVector::UpVector;   // a point on the steering axis, and up it
 	FVector SwingPivot = FVector::ZeroVector;
+	FVector Seat = FVector::ZeroVector;   // where the rider's hips sit on the seat (BikeRig's hip)
+	FVector Peg = FVector::ZeroVector;    // the right footpeg (BikeRig's peg; the left is its mirror)
+	FVector Grip = FVector::ZeroVector;   // the right grip as BikeRig has it (the drawn bars' may differ)
 };
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo = FString(),

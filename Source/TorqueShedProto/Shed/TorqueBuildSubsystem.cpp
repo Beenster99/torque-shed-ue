@@ -1073,6 +1073,40 @@ FString UTorqueBuildSubsystem::TestReload()
 	return FString::Printf(TEXT("saved to %s and loaded back: %d bikes (%d with a fit), %d parts"), *SaveSlot, Count, Fitted, Items.Num());
 }
 
+FString UTorqueBuildSubsystem::TestRestyle(int32 Bay, const FString& Style)
+{
+	if (IsClient()) return TEXT("only the host can");
+	if (!Exists(Bay)) return TEXT("there's no bike in that bay");
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	TMap<FString, FString> Parts;
+	if (!Lay || !LayoutParts(Bay, Parts)) return TEXT("it isn't a catalogue bike");
+	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(TBI::Std(Style.ToLower()));
+	if (Ref.empty()) return TEXT("no such style: ") + Style;
+	// The engine's own parts first, then the bike's, the engine block last (it takes what's left on it).
+	TArray<FName> Order;
+	for (const FName& S : TorqueShedParts::Slots())
+		if (S != TBI::EngineKind() && TorqueShedParts::IsEngineSlot(S)) Order.Add(S);
+	for (const FName& S : TorqueShedParts::Slots())
+		if (S != TBI::EngineKind() && !TorqueShedParts::IsEngineSlot(S)) Order.Add(S);
+	Order.Add(TBI::EngineKind());
+	int32 Gone = 0;
+	for (const FName& S : Order)
+	{
+		const int32 Id = ItemOn(Bay, S);
+		const FTorqueItem* It = Items.Find(Id);
+		if (!It) continue;
+		const TorqueFit::PartsMap::const_iterator Want = Ref.find(TBI::Id(S));
+		if (Want != Ref.end() && Want->second == TBI::Std(It->Part.ToString().ToLower())) continue;
+		const FHost H = HostOf(Bay, S, 0);
+		if (!H.Slots) continue;
+		H.Slots->Remove(S);
+		H.Bolted->Remove(S);
+		EraseItem(Id);
+		++Gone;
+	}
+	return FString::Printf(TEXT("%d parts thrown away; "), Gone) + TestFinish(Bay, Style, TMap<FString, FString>());
+}
+
 FString UTorqueBuildSubsystem::TestFinish(int32 Bay, const FString& Style, const TMap<FString, FString>& Set)
 {
 	if (IsClient()) return TEXT("only the host can");

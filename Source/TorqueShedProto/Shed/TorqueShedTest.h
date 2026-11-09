@@ -69,7 +69,13 @@
 //                         racer, ridden out on its own physics, its spec logged, the robot rider taking it
 //                         10 s down the road, logged again (speed, gear, wheel spin, bars, suspension), and
 //                         back (alone, it quits at the end)
-//   ridelog               on the road: our bike's riding spec and what it's doing now
+//   rides                 the rider sat on four styles in turn: the ride test's scratch bike remade as a cafe
+//                         racer, chopper, sport bike and MX bike, each ridden out and logged with a shot
+//                         at the start and after 10 s of the robot (alone, it quits at the end)
+//   restyle:<style>       (a test shortcut) every part of the bay's catalogue bike that isn't that style's
+//                         reference part (the frame too) thrown away, and the bike finished as that style
+//   ridelog               on the road: our bike's riding spec, what it's doing now, its drawn groups and
+//                         where the rider sits (seat, pegs, grips and the pose's hips, wrists and ankles)
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again

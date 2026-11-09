@@ -126,6 +126,17 @@ const TCHAR* const RideSteps =
 	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
 	TEXT("tool:hands,rideout,wait:6,ridelog,robot:on,wait:10,ridelog,shot,robot:off,back,wait:6,log");
 
+// The rider sat on four styles in turn, one bay: the scratch bike above made a cafe racer, then
+// remade as a chopper, a sport bike and an MX bike (a test shortcut), each ridden out, logged at
+// the start and after 10 s of the robot riding (spec, groups, the rider's seat, pegs, grips and
+// pose), a shot of it on the road, and back.
+#define TORQUE_RIDE_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",log,look:bike,shot,tool:hands,rideout,wait:6,ridelog,shot,robot:on,wait:10,ridelog,shot,robot:off,back,wait:6,")
+const TCHAR* const RidesSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TORQUE_RIDE_STYLE("cafe") TORQUE_RIDE_STYLE("chopper") TORQUE_RIDE_STYLE("sport") TORQUE_RIDE_STYLE("mx")
+	TEXT("log");
+#undef TORQUE_RIDE_STYLE
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -154,6 +165,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -483,7 +495,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("finished from the catalogue (test shortcut): ") + B->TestFinish(TestBay, Style, Set));
 		return true;
 	}
-	if (Verb == TEXT("fabricate"))
+	if (Verb == TEXT("restyle") && P.Num() >= 2)
+	{
+		Said(TEXT("remade from the catalogue (test shortcut): ") + B->TestRestyle(TestBay, P[1]));
+		return true;
+	}
+		if (Verb == TEXT("fabricate"))
 	{
 		// Each job the bike owes, made with the repair tool on its frame (the grinder and welder).
 		const int32 Jobs = B->FabOwed(TestBay).Num();

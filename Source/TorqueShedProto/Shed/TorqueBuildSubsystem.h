@@ -229,6 +229,10 @@ public:
 	// says for that slot ("none" leaves it empty), and everything on the bike is bolted up. Owed
 	// fabrication stays owed. Says what it did.
 	FString TestFinish(int32 Bay, const FString& Style, const TMap<FString, FString>& Set);
+	// For TorqueShedTest's "restyle" only (host): every part of a catalogue bike that isn't Style's
+	// reference part (the frame too) thrown away, then the bike finished as Style (TestFinish), so
+	// one bay rides each style in turn. Says what it did.
+	FString TestRestyle(int32 Bay, const FString& Style);
 	// A test shortcut (UTorqueShedTest georeload): the shed saved to its slot, forgotten, and loaded
 	// back from the slot, as the game coming back up would. Says what came back.
 	FString TestReload();

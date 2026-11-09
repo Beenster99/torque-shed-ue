@@ -52,6 +52,10 @@ public:
 	void Pose(const FRiderPoseInput& In);
 	bool IsValid() const { return Body != nullptr; }
 	FVector PelvisRest() const { return Pelvis != INDEX_NONE ? Bones[Pelvis].Rest : FVector(-34.0, 0.0, 61.5); }
+	// Read only, for fitting the pose to another bike: a bone's joint at rest (pawn local cm; false
+	// if the mesh has no such bone), and the grip centre each hand holds at rest (0 left, 1 right).
+	bool BoneRest(const TCHAR* Name, FVector& Out) const;
+	FVector GripRest(int32 Side) const { return Hands[FMath::Clamp(Side, 0, 1)].Grip; }
 
 	UPoseableMeshComponent* Body = nullptr;
 	UStaticMeshComponent* Helmet = nullptr;

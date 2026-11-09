@@ -191,6 +191,19 @@ private:
 	FString CatalogueSpec;             // the spec, as logged
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
+	// Where its rider sits (pawn local cm): the seat's surface under the hips, the pegs (0 left, 1
+	// right) and the grips' centres, from the layout (as Torque Shed sits its rider: BikeRig's hip
+	// and peg) and the grips as drawn, with geometry mode's offsets. FitRiderToBike turns them into
+	// the rig's pose input, once the rig is built: SeatFit, PegFit and GripFit against the Speed
+	// Twin the rig was made on, and the back leant so the hands reach the bars.
+	bool bRiderOnLayout = false, bRiderFitted = false;
+	FVector RiderSeat = FVector::ZeroVector, RiderPeg[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's
+	double RiderBackDeg = 0.0;                  // and the back's lean for it (+ forward)
+	FTransform RiderSeatFit = FTransform::Identity, RiderPegFit[2], RiderGripFit[2];
+	FVector PoseHip = FVector::ZeroVector, PoseWrist[2] = {FVector::ZeroVector, FVector::ZeroVector}, PoseAnkle[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	void FitRiderToBike();
 	FTransform PartFix;                // the importer's turn of the model's frame
 	FVector LeverPivot[2] = {FVector::ZeroVector, FVector::ZeroVector}, LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
 	FTransform LeverBase[2];           // each lever's rest placement (the importer's fix, then where its socket put it)

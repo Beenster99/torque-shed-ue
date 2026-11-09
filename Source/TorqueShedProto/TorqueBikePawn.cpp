@@ -591,16 +591,40 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 		UE_LOG(LogTemp, Warning, TEXT("Torque: bay %d's catalogue bike drew nothing; riding the Speed Twin"), Bay + 1);
 		return false;
 	}
-	if (!Geo.IsEmpty())
-	{
-		FTorqueBikeFitView Fit;
-		Fit.Capture(ModelParts);
-		Fit.Show(ModelParts, Geo);
-	}
+	FTorqueBikeFitView Fit;
+	Fit.Capture(ModelParts);
+	if (!Geo.IsEmpty()) Fit.Show(ModelParts, Geo);
 	TorqueShedModel::ApplyLooks(this, ModelParts);
 	for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
 	if (bOwnSpec && Frame.bValid && Nodes.Num() == ModelParts.Num())
 	{
+		// Where the rider sits, before the parts go on their groups (the bike's frame is the holder's,
+		// which stays at the pawn's origin): the layout's seat and pegs, moved as geometry mode moved
+		// the saddle and the rearsets, and the grips' middles as drawn (their surfaces' boxes).
+		{
+			static const FName SaddleTag(TEXT("Slot:saddle")), RearsetsTag(TEXT("Slot:rearsets")), GripTag(TEXT("Part:controls/grip.glb"));
+			auto MoveOf = [&](const FName& Tag) {
+				for (int32 I = 0; I < ModelParts.Num() && I < Fit.Rest.Num(); ++I)
+					if (ModelParts[I] && ModelParts[I]->ComponentHasTag(Tag)) return Fit.Rest[I].Inverse() * ModelParts[I]->GetRelativeTransform();
+				return FTransform::Identity;
+			};
+			RiderSeat = MoveOf(SaddleTag).TransformPosition(Frame.Seat);
+			const FTransform PegMove = MoveOf(RearsetsTag);
+			RiderPeg[1] = PegMove.TransformPosition(Frame.Peg);
+			RiderPeg[0] = PegMove.TransformPosition(FVector(Frame.Peg.X, -Frame.Peg.Y, Frame.Peg.Z));
+			FBox GripBox[2] = {FBox(ForceInit), FBox(ForceInit)};
+			for (UStaticMeshComponent* C : ModelParts)
+				if (C && C->GetStaticMesh() && C->ComponentHasTag(GripTag))
+				{
+					const FBox Box = C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
+					GripBox[Box.GetCenter().Y < 0.0 ? 0 : 1] += Box;
+				}
+			// No drawn grips (a style whose bars don't take them): the layout's.
+			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
+			RiderGrip[0] = GripBox[0].IsValid ? GripBox[0].GetCenter() : FVector(RiderGrip[1].X, -RiderGrip[1].Y, RiderGrip[1].Z);
+			bRiderOnLayout = true;
+			bRiderFitted = false;
+		}
 		// The sim's body frame is the drawn bike's (the origin at axle height midway between the
 		// axles, a wheelbase apart: SimTest/spec_test checks the layout and the spec agree).
 		Sim->Setup(Spec);
@@ -685,6 +709,15 @@ FString ATorqueBikePawn::TestRideLog() const
 			*FrontPivot->GetRelativeLocation().ToString(), *RearPivot->GetRelativeLocation().ToString(),
 			Signed(SwingGroup->GetRelativeRotation().Quaternion(), FVector::RightVector),
 			GroupParts[0], GroupParts[1], GroupParts[2], GroupParts[3], GroupParts[4], GroupParts[5]);
+	}
+	if (bRiderOnLayout)
+	{
+		// Where the rider was sat (FitRiderToBike): the bike's seat, pegs and grips, and the pose's
+		// targets on them (the rig's pelvis, wrists and ankles), pawn local cm.
+		Out += FString::Printf(TEXT("\nrider: seat %s, pegs %s / %s, grips %s / %s; pose hips %s, wrists %s / %s, ankles %s / %s, back leant %.1f deg%s"),
+			*RiderSeat.ToString(), *RiderPeg[0].ToString(), *RiderPeg[1].ToString(), *RiderGrip[0].ToString(), *RiderGrip[1].ToString(),
+			*PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(), *PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(),
+			RiderBackDeg, bRiderFitted && RiderRig.IsValid() ? TEXT("") : TEXT(" (not fitted: no rig)"));
 	}
 	return Out;
 }
@@ -1413,8 +1446,66 @@ void ATorqueBikePawn::ThrowRider(float Dt)
 	RiderRoot->SetWorldLocationAndRotation(ThrowPelvis - Q.RotateVector(Pelvis0), Q);
 }
 
+// The rider (made sat on the Speed Twin, Tools/make_rider.py) sat on a catalogue bike as Torque Shed
+// sits its own (bike_model.gd _build_rider: hips on BikeRig's hip point, feet on its pegs, hands on
+// the bars' grips): everything moved by the seat's, pegs' and grips' places against the Speed
+// Twin's, and the back leant forward or back about the hips until the hands reach the grips as far
+// as they do on the Speed Twin (a racer's crouch over clip-ons, a chopper's sit-up to high bars).
+void ATorqueBikePawn::FitRiderToBike()
+{
+	bRiderFitted = true;
+	if (!bRiderOnLayout || !RiderRig.IsValid()) return;
+	// The Speed Twin's, as make_rider.py sat the rider: the seat's top under the hips, the pegs.
+	static const FVector TwinSeat(-34.0, 0.0, 52.4);
+	static const FVector TwinPeg[2] = {FVector(-22.0, -17.0, 4.0), FVector(-22.0, 17.0, 4.0)};
+	FVector Neck0, Shoulder0[2], Wrist0[2], Ankle0[2];
+	const FVector Pelvis0 = RiderRig.PelvisRest();
+	if (!RiderRig.BoneRest(TEXT("neck_01"), Neck0)) return;
+	for (int32 S = 0; S < 2; ++S)
+	{
+		const TCHAR* Side = S == 0 ? TEXT("l") : TEXT("r");
+		if (!RiderRig.BoneRest(*FString::Printf(TEXT("upperarm_%s"), Side), Shoulder0[S]) ||
+			!RiderRig.BoneRest(*FString::Printf(TEXT("hand_%s"), Side), Wrist0[S]) ||
+			!RiderRig.BoneRest(*FString::Printf(TEXT("foot_%s"), Side), Ankle0[S])) return;
+	}
+	const FVector SeatMove = RiderSeat - TwinSeat;
+	RiderSeatFit = FTransform(SeatMove);
+	PoseHip = Pelvis0 + SeatMove;
+	for (int32 S = 0; S < 2; ++S)
+	{
+		RiderPegFit[S] = FTransform(RiderPeg[S] - TwinPeg[S]);
+		RiderGripFit[S] = FTransform(RiderGrip[S] - RiderRig.GripRest(S));
+		PoseWrist[S] = RiderGripFit[S].TransformPosition(Wrist0[S]);
+		PoseAnkle[S] = RiderPegFit[S].TransformPosition(Ankle0[S]);
+	}
+	// The back's lean (about the hips, + forward) that leaves each shoulder its Speed Twin reach to
+	// its wrist. The Speed Twin's rider leans about 29 degrees forward, so -29 is sat bolt upright;
+	// up to -35 (a little back, a chopper's), and where the bars are nearer still the elbows bend.
+	auto Tilt = [](const FVector& V, double Deg) {
+		const double A = FMath::DegreesToRadians(Deg), C = FMath::Cos(A), Sn = FMath::Sin(A);
+		return FVector(V.X * C + V.Z * Sn, V.Y, -V.X * Sn + V.Z * C);
+	};
+	double Best = 0.0, BestMiss = TNumericLimits<double>::Max();
+	for (double Deg = -35.0; Deg <= 50.0; Deg += 0.25)
+	{
+		double Miss = 0.0;
+		for (int32 S = 0; S < 2; ++S)
+		{
+			const FVector Shoulder = PoseHip + Tilt(Shoulder0[S] - Pelvis0, Deg);
+			Miss += FMath::Square((PoseWrist[S] - Shoulder).Size() - (Wrist0[S] - Shoulder0[S]).Size());
+		}
+		if (Miss < BestMiss - 1e-9) { BestMiss = Miss; Best = Deg; }
+	}
+	RiderBackDeg = Best;
+	RiderChest = PoseHip + Tilt(Neck0 - Pelvis0, Best) - Neck0;
+	UE_LOG(LogTemp, Log, TEXT("Torque: the rider sat on the catalogue bike: hips %s, wrists %s / %s, ankles %s / %s, back leant %.1f deg (reach off by %.1f cm)"),
+		*PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(), *PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(),
+		RiderBackDeg, FMath::Sqrt(BestMiss * 0.5));
+}
+
 void ATorqueBikePawn::UpdateRider()
 {
+	if (RiderRig.IsValid() && bRiderOnLayout && !bRiderFitted) FitRiderToBike();
 	if (RiderRig.IsValid())
 	{
 		// Pawn local cm: x forward, y right, z up, from the body origin (axle height, mid wheelbase).
@@ -1428,6 +1519,7 @@ void ATorqueBikePawn::UpdateRider()
 		const double Braking = FMath::Clamp(-LongAcc / 9.0, 0.0, 1.0), Pulling = FMath::Clamp(LongAcc / 5.0, 0.0, 1.0);
 		In.ChestShift = FVector(7.0 * Fwd + 9.0 * Braking - 4.0 * Pulling, Hang * 6.0 + 9.0 * LeanN,
 			-4.0 * FMath::Max(Fwd, 0.0) - 3.0 * Braking);
+		if (bRiderOnLayout) In.ChestShift += RiderChest;   // sat on a catalogue bike (FitRiderToBike)
 		In.HipShift = Hang * 2.0 + 2.5 * LeanN;
 		In.BarPivot = (bHaveModel || bCatalogueModel) ? SteerPoint : FVector(68.0, 0.0, -1.0);
 		const FVector Axis = (bHaveModel || bCatalogueModel) ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
@@ -1437,6 +1529,14 @@ void ATorqueBikePawn::UpdateRider()
 		In.FeetDown = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 1.8, 0.0, 1.0);
 		In.FootDownL = FVector(-32.0, -36.0, -22.0);
 		In.FootDownR = FVector(-32.0, 36.0, -22.0);
+		if (bRiderOnLayout)
+		{
+			// On a catalogue bike: down from its own pegs, to its own ground (the Speed Twin's axles
+			// are 31 cm up, this one's its rear wheel's radius).
+			const FVector Down(RiderPeg[1].X - (-22.0), 0.0, 31.0 - Sim->Build.RearRadius * 100.0);
+			In.FootDownL += Down;
+			In.FootDownR += Down;
+		}
 		// The head turns toward where the corner goes (the apex) and stays nearer level than the bike.
 		// Unreal: + yaw looks right, + roll drops the right side.
 		const double HeadLean = FMath::Clamp(BodyLean, -55.0, 55.0);
@@ -1480,6 +1580,16 @@ void ATorqueBikePawn::UpdateRider()
 		In.GripFit[1] = GripDelta[1] * GripFitMove[1];
 		In.SeatFit = SeatFitMove;
 		In.PegFit[0] = In.PegFit[1] = PegFitMove;
+		if (bRiderOnLayout)
+		{
+			// (Geometry mode's offsets are in these already: FitRiderToBike's points are as drawn.)
+			for (int32 S = 0; S < 2; ++S)
+			{
+				In.GripFit[S] = RiderGripFit[S];
+				In.PegFit[S] = RiderPegFit[S];
+			}
+			In.SeatFit = RiderSeatFit;
+		}
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
 		return;
