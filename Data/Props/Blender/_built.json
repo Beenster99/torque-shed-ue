@@ -1,62 +1,324 @@
 {
- "bin_general": {
+ "ear_defenders": {
   "bounds_min": [
-   -0.294,
-   0.0,
-   -0.38
+   -0.088,
+   -0.185,
+   -0.0
   ],
   "bounds_max": [
-   0.294,
-   0.895,
-   0.32
+   0.088,
+   0.03,
+   0.105
   ],
-  "tris": 3044,
+  "tris": 2548,
   "materials": [
-   "paint_bin_black",
+   "steel_dark",
    "steel",
-   "rubber",
-   "plastic_grey",
-   "label_white"
+   "plastic_black",
+   "plastic_yellow",
+   "foam_black"
   ]
  },
- "bin_metal": {
+ "petrol_pump": {
   "bounds_min": [
-   -0.294,
+   -0.25,
    0.0,
-   -0.38
+   -0.0
   ],
   "bounds_max": [
-   0.294,
-   0.895,
-   0.32
+   0.32,
+   1.54,
+   0.3096
   ],
-  "tris": 3044,
+  "tris": 1988,
   "materials": [
-   "paint_bin_green",
-   "steel",
+   "steel_dark",
+   "paint_red",
+   "paint_cream",
+   "screen",
+   "display_green",
+   "paint_white",
+   "plastic_black",
+   "aluminium",
    "rubber",
-   "plastic_grey",
-   "label_white"
+   "steel"
   ]
  },
- "bin_plastic": {
+ "tool_applicator": {
   "bounds_min": [
-   -0.294,
-   0.0,
-   -0.38
+   -0.031,
+   -0.021,
+   -0.066
   ],
   "bounds_max": [
-   0.294,
-   0.895,
-   0.32
+   0.031,
+   0.015,
+   0.026
   ],
-  "tris": 3044,
+  "tris": 216,
   "materials": [
-   "paint_bin_blue",
-   "steel",
+   "paint_blue",
+   "plastic_white"
+  ]
+ },
+ "tool_brush": {
+  "bounds_min": [
+   -0.02,
+   -0.155,
+   -0.027
+  ],
+  "bounds_max": [
+   0.02,
+   0.115,
+   0.014
+  ],
+  "tris": 432,
+  "materials": [
+   "wood_top",
+   "steel"
+  ]
+ },
+ "tool_gun": {
+  "bounds_min": [
+   -0.032,
+   -0.145,
+   -0.116
+  ],
+  "bounds_max": [
+   0.032,
+   0.116,
+   0.0555
+  ],
+  "tris": 2440,
+  "materials": [
+   "aluminium",
+   "chrome",
+   "plastic_white",
+   "brass"
+  ]
+ },
+ "tool_lance": {
+  "bounds_min": [
+   -0.017,
+   -0.1297,
+   -0.62
+  ],
+  "bounds_max": [
+   0.017,
+   0.0225,
+   0.0874
+  ],
+  "tris": 1544,
+  "materials": [
+   "plastic_yellow",
+   "plastic_black",
+   "steel"
+  ]
+ },
+ "tool_polisher": {
+  "bounds_min": [
+   -0.037,
+   -0.037,
+   -0.1
+  ],
+  "bounds_max": [
+   0.037,
+   0.065,
+   0.127
+  ],
+  "tris": 1904,
+  "materials": [
+   "plastic_red",
+   "foam_black",
+   "plastic_black"
+  ]
+ },
+ "tool_repair": {
+  "bounds_min": [
+   -0.029,
+   -0.23,
+   -0.108
+  ],
+  "bounds_max": [
+   0.08,
+   0.142,
+   0.029
+  ],
+  "tris": 2848,
+  "materials": [
+   "paint_blue",
    "rubber",
-   "plastic_grey",
-   "label_white"
+   "aluminium",
+   "steel_dark",
+   "steel",
+   "plastic_black"
+  ]
+ },
+ "tool_stopwatch": {
+  "bounds_min": [
+   -0.03,
+   -0.03,
+   -0.008
+  ],
+  "bounds_max": [
+   0.03,
+   0.0545,
+   0.01
+  ],
+  "tris": 2664,
+  "materials": [
+   "chrome",
+   "paint_white",
+   "glass"
+  ]
+ },
+ "trinket_bobblehead": {
+  "bounds_min": [
+   -0.05,
+   0.0,
+   -0.05
+  ],
+  "bounds_max": [
+   0.05,
+   0.215,
+   0.05
+  ],
+  "tris": 1800,
+  "materials": [
+   "plastic_black",
+   "leather_brown",
+   "paint_red",
+   "chrome",
+   "paint_white"
+  ]
+ },
+ "trinket_clock_desk": {
+  "bounds_min": [
+   -0.09,
+   0.0,
+   -0.0346
+  ],
+  "bounds_max": [
+   0.09,
+   0.095,
+   0.0346
+  ],
+  "tris": 228,
+  "materials": [
+   "plastic_black",
+   "display_green",
+   "plastic_grey"
+  ]
+ },
+ "trinket_clock_digital": {
+  "bounds_min": [
+   -0.26,
+   -0.1,
+   -0.0
+  ],
+  "bounds_max": [
+   0.26,
+   0.1,
+   0.052
+  ],
+  "tris": 384,
+  "materials": [
+   "plastic_black",
+   "screen",
+   "display_red"
+  ]
+ },
+ "trinket_gnome": {
+  "bounds_min": [
+   -0.1,
+   0.0,
+   -0.1
+  ],
+  "bounds_max": [
+   0.1,
+   0.348,
+   0.1
+  ],
+  "tris": 4252,
+  "materials": [
+   "paint_grey",
+   "plastic_black",
+   "leather_brown",
+   "paint_white",
+   "paint_cream",
+   "paint_red",
+   "chrome"
+  ]
+ },
+ "trinket_lava": {
+  "bounds_min": [
+   -0.0638,
+   0.0,
+   -0.0638
+  ],
+  "bounds_max": [
+   0.0638,
+   0.42,
+   0.0638
+  ],
+  "tris": 2592,
+  "materials": [
+   "aluminium",
+   "glass",
+   "lava_glow",
+   "lava_blob"
+  ]
+ },
+ "trinket_neon": {
+  "bounds_min": [
+   -0.45,
+   -0.18,
+   -0.0
+  ],
+  "bounds_max": [
+   0.45,
+   0.18,
+   0.046
+  ],
+  "tris": 2852,
+  "materials": [
+   "glass",
+   "chrome",
+   "neon_pink"
+  ]
+ },
+ "trinket_rug": {
+  "bounds_min": [
+   -0.8,
+   0.0,
+   -0.5
+  ],
+  "bounds_max": [
+   0.8,
+   0.012,
+   0.5
+  ],
+  "tris": 480,
+  "materials": [
+   "rug_black",
+   "rug_white"
+  ]
+ },
+ "trinket_trophy": {
+  "bounds_min": [
+   -0.121,
+   0.0,
+   -0.08
+  ],
+  "bounds_max": [
+   0.121,
+   0.35,
+   0.082
+  ],
+  "tris": 2508,
+  "materials": [
+   "wood_top",
+   "brass"
   ]
  }
 }

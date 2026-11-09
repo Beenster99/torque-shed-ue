@@ -766,6 +766,407 @@ def poster_frame():
         box("EdgeV%.2f" % x, (x, 0.0, 0.008), (0.01, H + 0.01, 0.012), "aluminium", bevel=0.002)
 
 
+# --- The dyno room (dyno_room.gd), in its own frame: built so yaw 0 lines up --------------------------
+# Each is drawn about its own point in the room (Godot metres: the rig about CENTER, the fan about
+# CENTER + (0, 0, -1.95), the desk about DESK); the room's +z (towards the shed) is the props' front.
+# The drum and the fan's blades turn, so the game draws those (TorqueDynoRoom.cpp): not here.
+
+@model("dyno_rig", (2.0, 0.5, 3.4))
+def dyno_rig():
+    """dyno_room.gd _build_rig: the chequer plate flush with the floor with its hazard edging, the
+    framed slot the drum shows through (DRUM_Z 0.71), the front wheel clamp and four strap posts."""
+    box("Plate", (0.0, 0.007, -0.05), (1.3, 0.014, 3.3), "steel", bevel=0.003)
+    for i in range(22):   # tread bars, so it reads as chequer plate
+        for j in range(8):
+            z = -1.65 + 0.15 * i + (0.075 if j % 2 else 0.0)
+            if abs(z - 0.71) < 0.36:
+                continue
+            box("Tread%d_%d" % (i, j), (-0.56 + j * 0.16, 0.0155, z), (0.06, 0.003, 0.012), "steel", bevel=0.001, rot=(0, 45 if (i + j) % 2 else -45, 0))
+    for s in (-1, 1):
+        box("Edge%d" % s, (s * 0.7, 0.009, -0.05), (0.08, 0.018, 3.4), "paint_yellow", bevel=0.003)
+        for k in range(17):   # black hazard stripes over the yellow
+            box("Stripe%d_%d" % (s, k), (s * 0.7, 0.0185, -1.65 + k * 0.2), (0.075, 0.002, 0.05), "paint_black", bevel=0.0, rot=(0, 40, 0))
+    box("SlotFrame", (0.0, 0.016, 0.71), (0.66, 0.006, 0.68), "steel_dark", bevel=0.002)
+    box("Slot", (0.0, 0.018, 0.71), (0.58, 0.004, 0.6), "paint_black", bevel=0.0)
+    cz = -0.72
+    for s in (-1, 1):
+        prism("Cradle%d" % s, [(cz - 0.38, 0.03), (cz + 0.22, 0.03), (cz + 0.22, 0.12), (cz - 0.05, 0.38), (cz - 0.38, 0.38)], 0.03, "paint_blue", axis="x", centre=s * 0.1)
+    box("ClampBase", (0.0, 0.03, cz - 0.08), (0.26, 0.04, 0.62), "paint_blue", bevel=0.004)
+    box("ClampStop", (0.0, 0.2, cz - 0.42), (0.26, 0.4, 0.04), "paint_blue", bevel=0.004, rot=(-20, 0, 0))
+    for k in range(5):
+        cyl("ClampRoller%d" % k, (0.0, 0.07, cz + 0.15 - k * 0.07), 0.02, 0.17, "rubber", axis="x")
+    cyl("ClampPin", (0.0, 0.3, cz - 0.1), 0.012, 0.3, "chrome", axis="x")
+    for i, (px, pz) in enumerate(((-0.95, -0.6), (0.95, -0.6), (-0.95, 0.8), (0.95, 0.8))):
+        box("PostPlate%d" % i, (px, 0.006, pz), (0.16, 0.012, 0.16), "steel_dark", bevel=0.002)
+        cyl("Post%d" % i, (px, 0.22, pz), 0.045, 0.44, "paint_yellow", bevel=0.004)
+        cyl("PostCap%d" % i, (px, 0.46, pz), 0.06, 0.05, "steel_dark", bevel=0.004)
+        torus("PostRing%d" % i, (px, 0.44, pz), 0.055, 0.008, "steel", axis="y", verts=16)
+
+
+@model("dyno_fan", (1.0, 1.45, 0.5))
+def dyno_fan():
+    """dyno_room.gd _build_fan: the cooling fan on its base, an open drum housing (the blades
+    and hub are the game's, turning at (0, 0.95, 0.12)), the motor behind and the grille on the front."""
+    box("Base", (0.0, 0.18, 0.0), (0.7, 0.36, 0.45), "paint_black", bevel=0.01)
+    for x in (-0.3, 0.3):
+        for z in (-0.17, 0.17):
+            castor("C%.1f%.2f" % (x, z), (x, z), 0.04)
+    box("Post", (0.0, 0.55, 0.0), (0.12, 0.4, 0.12), "steel", bevel=0.006)
+    box("Yoke", (0.0, 0.75, 0.0), (1.02, 0.05, 0.08), "steel", bevel=0.006)
+    for s in (-1, 1):
+        box("YokeArm%d" % s, (s * 0.5, 0.86, 0.0), (0.04, 0.24, 0.08), "steel", bevel=0.005)
+        cyl("Knob%d" % s, (s * 0.53, 0.95, 0.0), 0.03, 0.04, "plastic_black", axis="x")
+    # The housing: a ring, open front and back, around where the blades turn.
+    n = 40
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        box("Shell%d" % k, (math.cos(a) * 0.475, 0.95 + math.sin(a) * 0.475, 0.0), (0.077, 0.012, 0.3), "paint_blue", bevel=0.0, rot=(0, 0, math.degrees(a) + 90))
+    torus("LipF", (0.0, 0.95, 0.15), 0.476, 0.012, "paint_blue", axis="z", verts=48)
+    torus("LipB", (0.0, 0.95, -0.15), 0.476, 0.012, "paint_blue", axis="z", verts=48)
+    cyl("Motor", (0.0, 0.95, -0.12), 0.11, 0.22, "paint_black", axis="z", bevel=0.015)
+    for k in range(3):
+        a = math.radians(90 + 120 * k)
+        tube("Strut%d" % k, [(math.cos(a) * 0.1, 0.95 + math.sin(a) * 0.1, -0.1), (math.cos(a) * 0.47, 0.95 + math.sin(a) * 0.47, -0.12)], 0.008, "steel")
+    for r in (0.2, 0.33, 0.46):
+        torus("Grille%.2f" % r, (0.0, 0.95, 0.17), r, 0.005, "steel", axis="z", verts=48)
+    for a in (0, 45, 90, 135):
+        box("Spoke%d" % a, (0.0, 0.95, 0.17), (0.93, 0.008, 0.008), "steel", bevel=0.0, rot=(0, 0, a))
+    hose("Cable", [(0.08, 0.95, -0.23), (0.15, 0.6, -0.25), (0.25, 0.1, -0.25), (0.4, 0.008, -0.6)], 0.008, "plastic_black")
+
+
+@model("dyno_desk", (1.6, 1.45, 0.8))
+def dyno_desk():
+    """dyno_room.gd _build_desk: the console (1.5 x 0.8 x 0.7), its worktop, the monitor (its
+    screen 0.84 x 0.46 just behind the game's glass at z -0.15), keyboard, mouse and the big red
+    run button on its yellow pod."""
+    box("Console", (0.0, 0.4, 0.0), (1.5, 0.8, 0.7), "paint_grey", bevel=0.008)
+    for i, x in enumerate((-0.55, 0.0, 0.55)):
+        box("Door%d" % i, (x, 0.42, 0.352), (0.45, 0.66, 0.012), "paint_grey", bevel=0.003)
+        box("Pull%d" % i, (x + 0.17, 0.62, 0.364), (0.015, 0.1, 0.015), "chrome", bevel=0.004)
+    box("Plinth", (0.0, 0.03, 0.0), (1.46, 0.06, 0.66), "paint_black", bevel=0.003)
+    box("Top", (0.0, 0.82, 0.0), (1.55, 0.04, 0.75), "wood_top", bevel=0.004)
+    box("Arm", (0.0, 0.92, -0.25), (0.06, 0.16, 0.05), "aluminium", bevel=0.006)
+    box("MonBack", (0.0, 1.17, -0.2), (0.9, 0.52, 0.05), "plastic_black", bevel=0.008)
+    box("MonScreen", (0.0, 1.17, -0.1755), (0.86, 0.48, 0.002), "screen", bevel=0.0)
+    box("Keyboard", (-0.1, 0.85, 0.12), (0.5, 0.02, 0.16), "plastic_black", bevel=0.004)
+    for r in range(5):
+        box("Keys%d" % r, (-0.1, 0.861, 0.07 + r * 0.025), (0.48, 0.005, 0.018), "plastic_grey", bevel=0.001)
+    box("Mouse", (0.22, 0.85, 0.12), (0.06, 0.02, 0.1), "plastic_black", bevel=0.009)
+    box("ButtonPod", (0.45, 0.865, 0.12), (0.18, 0.05, 0.12), "plastic_yellow", bevel=0.01)
+    cyl("RunButton", (0.45, 0.9, 0.12), 0.04, 0.025, "plastic_red", bevel=0.008)
+    box("Logger", (-0.55, 0.88, -0.22), (0.3, 0.08, 0.2), "paint_black", bevel=0.006)
+    for k in range(4):
+        box("LoggerLed%d" % k, (-0.65 + k * 0.05, 0.89, -0.119), (0.012, 0.008, 0.002), "display_green", bevel=0.0)
+    hose("LoggerCable", [(-0.55, 0.88, -0.32), (-0.6, 0.6, -0.4), (-0.7, 0.01, -0.5)], 0.006, "plastic_black")
+
+
+# --- The wash bay's pressure washer (workshop.gd _build_wash_bay) ---------------------------------------
+
+@model("pressure_washer", (0.9, 1.65, 0.5))
+def pressure_washer():
+    """A trolley pressure washer against the wash bay's back wall (its front +z out into the bay),
+    with the hose reel on the wall to its right (the reel's middle at (0.45, 1.4, -0.1))."""
+    W, D = 0.5, 0.4
+    box("Body", (0.0, 0.42, 0.0), (W - 0.04, 0.6, D - 0.04), "paint_yellow", bevel=0.03)
+    box("Hood", (0.0, 0.75, -0.02), (W - 0.08, 0.08, D - 0.1), "plastic_black", bevel=0.02)
+    box("Panel", (0.0, 0.55, D / 2 - 0.015), (0.3, 0.18, 0.01), "plastic_black", bevel=0.004)
+    cyl("Dial", (-0.07, 0.56, D / 2 - 0.005), 0.035, 0.02, "plastic_grey", axis="z", bevel=0.004)
+    cyl("Gauge", (0.08, 0.56, D / 2 - 0.005), 0.03, 0.015, "paint_white", axis="z", bevel=0.003)
+    for s in (-1, 1):
+        cyl("Wheel%d" % s, (s * (W / 2 + 0.01), 0.12, -D / 2 + 0.08), 0.12, 0.06, "rubber", axis="x", bevel=0.015)
+        cyl("Hub%d" % s, (s * (W / 2 + 0.014), 0.12, -D / 2 + 0.08), 0.05, 0.062, "plastic_grey", axis="x")
+        tube("Handle%d" % s, [(s * 0.18, 0.7, -D / 2 + 0.03), (s * 0.18, 0.95, -D / 2 + 0.0)], 0.013, "plastic_black")
+    box("Foot", (0.0, 0.04, D / 2 - 0.08), (W - 0.12, 0.08, 0.08), "plastic_black", bevel=0.01)
+    cyl("Grip", (0.0, 0.95, -D / 2), 0.016, 0.38, "plastic_black", axis="x")
+    # The lance and gun in their holster on the side.
+    tube("Lance", [(W / 2 + 0.03, 0.25, 0.08), (W / 2 + 0.03, 0.95, 0.06)], 0.008, "steel")
+    box("Gun", (W / 2 + 0.03, 0.2, 0.08), (0.04, 0.16, 0.06), "plastic_yellow", bevel=0.008)
+    # The reel on the wall bracket, the hose wound on it and running down to the machine.
+    box("ReelPlate", (0.45, 1.4, -0.19), (0.14, 0.3, 0.012), "steel_dark", bevel=0.003)
+    cyl("ReelAxle", (0.45, 1.4, -0.12), 0.02, 0.16, "steel", axis="z")
+    for z in (-0.16, -0.04):
+        cyl("ReelSide%.2f" % z, (0.45, 1.4, z), 0.22, 0.01, "plastic_grey", axis="z", bevel=0.003)
+    cyl("HoseWound", (0.45, 1.4, -0.1), 0.16, 0.11, "plastic_black", axis="z", bevel=0.02)
+    tube("Crank", bent([(0.45, 1.4, -0.03), (0.45, 1.4, -0.0), (0.45, 1.28, -0.0), (0.45, 1.28, 0.05)], 0.01), 0.007, "chrome")
+    hose("Hose", [(0.45, 1.24, -0.1), (0.4, 0.9, -0.05), (0.22, 0.5, 0.15), (0.0, 0.35, D / 2)], 0.009, "plastic_black")
+
+
+# --- Sandblasting cabinets (equipment_view.gd _build_blaster) -----------------------------------------
+
+def _blaster(pid):
+    """The engine blast cabinet: legs, the hopper, a chamber (floor at 0.72, roof at size.y - 0.15)
+    with a low front and its glove ports, the sloping glass, the turntable grate, ribs, the filter
+    box and duct on the back, and a compressor beside it."""
+    W, H, D = {"blaster_cabinet": (1.7, 2.35, 1.7), "blaster_pro": (2.0, 2.45, 1.95)}[pid]
+    body = "paint_blue" if pid == "blaster_cabinet" else "paint_red"
+    floor_y = 0.72
+    top = H - 0.15
+    front_top = floor_y + 0.43
+    glass_z = D / 2 - 0.04 - (top - front_top) * 0.6
+    leg_h = floor_y - 0.04
+    for x in (-W * 0.45, W * 0.45):
+        for z in (-D * 0.42, D * 0.42):
+            box("Leg%.2f%.2f" % (x, z), (x, leg_h / 2, z), (0.06, leg_h, 0.06), "steel", bevel=0.004)
+            box("Foot%.2f%.2f" % (x, z), (x, 0.005, z), (0.1, 0.01, 0.1), "steel_dark", bevel=0.002)
+    cyl("Hopper", (0.0, floor_y - 0.22, 0.0), W * 0.3, 0.36, body, radius2=W * 0.3, bevel=0.005)
+    cyl("HopperCone", (0.0, floor_y - 0.5, 0.0), 0.08, 0.2, body, radius2=W * 0.3)
+    cyl("Valve", (0.0, floor_y - 0.65, 0.0), 0.04, 0.08, "steel_dark")
+    box("Floor", (0.0, floor_y - 0.04, 0.0), (W, 0.08, D), body, bevel=0.006)
+    box("Back", (0.0, (floor_y + top) / 2, -D / 2 + 0.02), (W, top - floor_y, 0.04), body, bevel=0.006)
+    for s in (-1, 1):
+        box("Side%d" % s, (s * (W / 2 - 0.02), (floor_y + top) / 2, 0.0), (0.04, top - floor_y, D), body, bevel=0.006)
+        for k in range(3):
+            box("Rib%d%d" % (s, k), (s * (W / 2 + 0.01), (floor_y + top) / 2, (-0.35 + 0.35 * k) * D), (0.02, top - floor_y, 0.05), body, bevel=0.004)
+    box("Door", (W / 2 + 0.005, (floor_y + top) / 2 - 0.1, 0.0), (0.012, (top - floor_y) * 0.6, D * 0.5), body, bevel=0.003)
+    box("DoorHandle", (W / 2 + 0.025, (floor_y + top) / 2 - 0.1, D * 0.2), (0.02, 0.18, 0.025), "chrome", bevel=0.006)
+    box("Front", (0.0, (floor_y + front_top) / 2, D / 2 - 0.02), (W, front_top - floor_y, 0.04), body, bevel=0.006)
+    roof_d = glass_z + D / 2
+    box("Roof", (0.0, top + 0.02, glass_z - roof_d / 2), (W, 0.04, roof_d), body, bevel=0.006)
+    # The glass from the front's top up to the roof, and its frame.
+    a = (0.0, front_top, D / 2 - 0.02)
+    b = (0.0, top + 0.02, glass_z)
+    ang = math.degrees(math.atan2(b[1] - a[1], a[2] - b[2]))
+    L = math.hypot(b[1] - a[1], a[2] - b[2])
+    mid = (0.0, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2)
+    box("Glass", mid, (W - 0.06, 0.008, L), "glass", bevel=0.0, rot=(ang, 0, 0))
+    for s in (-1, 1):
+        box("GlassRail%d" % s, (s * (W / 2 - 0.03), mid[1], mid[2]), (0.05, 0.05, L), "paint_black", bevel=0.005, rot=(ang, 0, 0))
+    box("GlassLow", (0.0, front_top, D / 2 - 0.02), (W, 0.05, 0.05), "paint_black", bevel=0.005)
+    box("GlassHigh", (0.0, top + 0.02, glass_z), (W, 0.05, 0.05), "paint_black", bevel=0.005)
+    box("Lamp", (0.0, top - 0.01, glass_z - 0.2), (W * 0.6, 0.02, 0.12), "led_white", bevel=0.0)
+    port_y = (floor_y + front_top) / 2
+    for s in (-1, 1):
+        torus("Port%d" % s, (s * 0.3, port_y, D / 2 + 0.005), 0.1, 0.018, "rubber", axis="z")
+        cyl("Glove%d" % s, (s * 0.3, port_y - 0.1, D / 2 - 0.2), 0.065, 0.4, "rubber", axis="z", bevel=0.03, rot=(-20, 0, 0))
+    grate_r = min(W, D) * 0.36
+    turn_z = -D * 0.06
+    cyl("Turntable", (0.0, floor_y + 0.015, turn_z), grate_r, 0.03, "steel", verts=48)
+    for k in range(6):
+        box("Bar%d" % k, (0.0, floor_y + 0.035, turn_z), (grate_r * 2, 0.012, 0.02), "steel_dark", bevel=0.0, rot=(0, 30 * k, 0))
+    box("Filter", (W * 0.25, top - 0.35, -D / 2 - 0.12), (0.4, 0.6, 0.2), "paint_black", bevel=0.01)
+    cyl("Duct", (W * 0.25, top + 0.12, -D / 2 - 0.12), 0.08, 0.3, "steel")
+    box("Pedal", (0.0, 0.03, D / 2 + 0.1), (0.14, 0.04, 0.22), "steel_dark", bevel=0.006)
+    hose("PedalLine", [(0.0, 0.05, D / 2), (0.1, 0.3, D / 2 - 0.1), (W / 2 - 0.1, floor_y - 0.3, 0.0)], 0.007, "plastic_black")
+    # A compressor tank beside it on the left.
+    cyl("Compressor", (-W / 2 - 0.25, 0.35, -D / 2 + 0.35), 0.18, 0.55, "paint_red" if pid == "blaster_cabinet" else "paint_blue", axis="z", bevel=0.05)
+    cyl("CompMotor", (-W / 2 - 0.25, 0.6, -D / 2 + 0.25), 0.08, 0.18, "paint_black", axis="x", bevel=0.01)
+    for z in (-D / 2 + 0.15, -D / 2 + 0.55):
+        box("CompFoot%.2f" % z, (-W / 2 - 0.25, 0.08, z), (0.3, 0.16, 0.04), "steel_dark", bevel=0.004)
+    hose("AirHose", [(-W / 2 - 0.25, 0.55, -D / 2 + 0.6), (-W / 2 - 0.1, 0.4, -D / 2 + 0.7), (-W / 2 + 0.02, floor_y - 0.1, -D / 4)], 0.01, "plastic_yellow")
+
+
+for _pid, _size in (("blaster_cabinet", (1.7, 2.35, 1.7)), ("blaster_pro", (2.0, 2.45, 1.95))):
+    MODELS[_pid] = ((lambda p: (lambda: _blaster(p)))(_pid), _size)
+
+
+# --- Trinkets (trinkets.gd): standing on a surface (origin under them) or on a wall (origin on it) -----
+
+@model("trinket_bobblehead", (0.12, 0.22, 0.12))
+def trinket_bobblehead():
+    cyl("Base", (0.0, 0.01, 0.0), 0.05, 0.02, "plastic_black", bevel=0.004)
+    box("Legs", (0.0, 0.05, 0.0), (0.035, 0.06, 0.025), "leather_brown", bevel=0.008)
+    box("Body", (0.0, 0.1, 0.0), (0.045, 0.05, 0.03), "paint_red", bevel=0.01)
+    cyl("Spring", (0.0, 0.13, 0.0), 0.006, 0.02, "chrome")
+    sphere("Helmet", (0.0, 0.17, 0.0), 0.045, "paint_white")
+    box("Visor", (0.0, 0.168, 0.036), (0.06, 0.022, 0.012), "plastic_black", bevel=0.006)
+    box("Stripe", (0.0, 0.2, 0.0), (0.012, 0.03, 0.09), "paint_red", bevel=0.004)
+
+
+@model("trinket_gnome", (0.22, 0.4, 0.22))
+def trinket_gnome():
+    cyl("Base", (0.0, 0.02, 0.0), 0.1, 0.04, "concrete_grey" if False else "paint_grey", bevel=0.01)
+    cyl("Body", (0.0, 0.13, 0.0), 0.085, 0.18, "plastic_black", radius2=0.06, bevel=0.02)
+    for s in (-1, 1):
+        cyl("Boot%d" % s, (s * 0.04, 0.05, 0.03), 0.03, 0.04, "leather_brown", axis="z", bevel=0.01)
+    sphere("Beard", (0.0, 0.24, 0.035), 0.055, "paint_white", scale=(1, 1.2, 0.8))
+    sphere("Face", (0.0, 0.27, 0.03), 0.045, "paint_cream")
+    sphere("Nose", (0.0, 0.27, 0.075), 0.014, "paint_red")
+    sphere("Helmet", (0.0, 0.3, 0.0), 0.06, "paint_red", scale=(1, 0.8, 1))
+    box("Goggles", (0.0, 0.3, 0.05), (0.09, 0.02, 0.02), "chrome", bevel=0.006)
+
+
+@model("trinket_lava", (0.14, 0.42, 0.14))
+def trinket_lava():
+    cyl("Base", (0.0, 0.06, 0.0), 0.065, 0.12, "aluminium", radius2=0.035, bevel=0.005)
+    cyl("Glass", (0.0, 0.25, 0.0), 0.035, 0.26, "glass", radius2=0.055, bevel=0.0)
+    cyl("Fluid", (0.0, 0.25, 0.0), 0.032, 0.25, "lava_glow", radius2=0.05, bevel=0.0)
+    cyl("Cap", (0.0, 0.4, 0.0), 0.025, 0.04, "aluminium", radius2=0.015, bevel=0.003)
+    for k, (y, r) in enumerate(((0.17, 0.02), (0.26, 0.016), (0.33, 0.012))):
+        sphere("Blob%d" % k, (0.005 * k, y, 0.0), r, "lava_blob", scale=(1, 1.4, 1))
+
+
+@model("trinket_clock_digital", (0.52, 0.2, 0.05))
+def trinket_clock_digital():
+    box("Case", (0.0, 0.0, 0.025), (0.52, 0.2, 0.05), "plastic_black", bevel=0.008)
+    box("Face", (0.0, 0.0, 0.0505), (0.48, 0.16, 0.001), "screen", bevel=0.0)
+    for k, x in enumerate((-0.17, -0.07, 0.07, 0.17)):
+        for seg in ((0, 0.05, 0.05, 0.008), (0, 0, 0.05, 0.008), (0, -0.05, 0.05, 0.008), (-0.028, 0.025, 0.008, 0.045), (0.028, -0.025, 0.008, 0.045)):
+            box("Seg%d_%.3f%.3f" % (k, seg[0], seg[1]), (x + seg[0], seg[1], 0.0515), (seg[2], seg[3], 0.001), "display_red", bevel=0.0)
+    for y in (0.025, -0.025):
+        box("Colon%.3f" % y, (0.0, y, 0.0515), (0.01, 0.01, 0.001), "display_red", bevel=0.0)
+
+
+@model("trinket_clock_desk", (0.18, 0.09, 0.07))
+def trinket_clock_desk():
+    prism("Case", [(-0.035, 0.0), (0.035, 0.0), (0.025, 0.09), (-0.03, 0.09)], 0.18, "plastic_black", axis="x", bevel=0.008)
+    box("Face", (0.0, 0.045, 0.031), (0.15, 0.05, 0.002), "display_green", bevel=0.0, rot=(-6, 0, 0))
+    box("Snooze", (0.0, 0.092, -0.005), (0.08, 0.006, 0.025), "plastic_grey", bevel=0.002)
+
+
+@model("trinket_trophy", (0.2, 0.4, 0.2))
+def trinket_trophy():
+    box("Plinth", (0.0, 0.04, 0.0), (0.16, 0.08, 0.16), "wood_top", bevel=0.006)
+    box("Plaque", (0.0, 0.04, 0.081), (0.1, 0.035, 0.002), "brass", bevel=0.0)
+    cyl("Foot", (0.0, 0.095, 0.0), 0.05, 0.03, "brass", radius2=0.03)
+    cyl("Stem", (0.0, 0.15, 0.0), 0.012, 0.08, "brass")
+    cyl("Cup", (0.0, 0.27, 0.0), 0.03, 0.16, "brass", radius2=0.075, verts=40, bevel=0.003)
+    for s in (-1, 1):
+        torus("Handle%d" % s, (s * 0.075, 0.28, 0.0), 0.04, 0.006, "brass", axis="z", verts=24)
+
+
+@model("trinket_rug", (1.6, 0.012, 1.0))
+def trinket_rug():
+    n, m = 8, 5
+    for i in range(n):
+        for j in range(m):
+            box("Sq%d_%d" % (i, j), (-0.8 + 0.1 + i * 0.2, 0.006, -0.5 + 0.1 + j * 0.2), (0.2, 0.012, 0.2),
+                "rug_white" if (i + j) % 2 else "rug_black", bevel=0.0)
+
+
+@model("trinket_neon", (0.9, 0.36, 0.06))
+def trinket_neon():
+    box("Backboard", (0.0, 0.0, 0.006), (0.9, 0.36, 0.012), "glass", bevel=0.003)
+    for k, (x, y) in enumerate(((-0.36, 0.1), (0.36, 0.1), (-0.36, -0.1), (0.36, -0.1))):
+        cyl("Stand%d" % k, (x, y, 0.025), 0.006, 0.03, "chrome", axis="z")
+    # TORQUE SHED as simple stroked neon tubes: a frame round it and two rows of strokes.
+    tube("Frame", [(-0.42, -0.15, 0.04), (-0.42, 0.15, 0.04), (0.42, 0.15, 0.04), (0.42, -0.15, 0.04), (-0.42, -0.15, 0.04)], 0.006, "neon_pink", sides=8)
+    def letter(strokes, x, y, s=0.05):
+        for a, b in strokes:
+            tube("L%.3f%.3f%.2f%.2f" % (x, y, a[0], a[1]), [(x + a[0] * s, y + a[1] * s, 0.04), (x + b[0] * s, y + b[1] * s, 0.04)], 0.005, "neon_pink", sides=8)
+    L = {"T": [((0, 2), (2, 2)), ((1, 2), (1, 0))], "O": [((0, 0), (0, 2)), ((0, 2), (2, 2)), ((2, 2), (2, 0)), ((2, 0), (0, 0))],
+         "R": [((0, 0), (0, 2)), ((0, 2), (2, 2)), ((2, 2), (2, 1)), ((2, 1), (0, 1)), ((0, 1), (2, 0))],
+         "Q": [((0, 0), (0, 2)), ((0, 2), (2, 2)), ((2, 2), (2, 0)), ((2, 0), (0, 0)), ((1.2, 0.6), (2.3, -0.3))],
+         "U": [((0, 2), (0, 0)), ((0, 0), (2, 0)), ((2, 0), (2, 2))], "E": [((2, 2), (0, 2)), ((0, 2), (0, 0)), ((0, 0), (2, 0)), ((0, 1), (1.5, 1))],
+         "S": [((2, 2), (0, 2)), ((0, 2), (0, 1)), ((0, 1), (2, 1)), ((2, 1), (2, 0)), ((2, 0), (0, 0))], "H": [((0, 0), (0, 2)), ((2, 0), (2, 2)), ((0, 1), (2, 1))],
+         "D": [((0, 0), (0, 2)), ((0, 2), (1.5, 2)), ((1.5, 2), (2, 1.5)), ((2, 1.5), (2, 0.5)), ((2, 0.5), (1.5, 0)), ((1.5, 0), (0, 0))]}
+    for row, (word, y) in enumerate((("TORQUE", 0.02), ("SHED", -0.12))):
+        w = len(word) * 0.13
+        for k, ch in enumerate(word):
+            letter(L[ch], -w / 2 + k * 0.13 + 0.015, y)
+
+
+# --- The dyno room's ear defenders on their hook, and the petrol pump -----------------------------------
+
+@model("ear_defenders", (0.2, 0.25, 0.12))
+def ear_defenders():
+    """Ear defenders hanging on their wall hook (dyno_room.gd PHONES_HOOK): origin on the wall."""
+    box("HookPlate", (0.0, 0.0, 0.004), (0.04, 0.06, 0.008), "steel_dark", bevel=0.002)
+    tube("Hook", bent([(0.0, 0.0, 0.008), (0.0, 0.0, 0.06), (0.0, 0.025, 0.07)], 0.01), 0.004, "steel")
+    tube("Band", bent([(-0.075, -0.11, 0.06), (-0.075, -0.01, 0.06), (0.0, 0.01, 0.06), (0.075, -0.01, 0.06), (0.075, -0.11, 0.06)], 0.05), 0.008, "plastic_black")
+    for s in (-1, 1):
+        cyl("Cup%d" % s, (s * 0.068, -0.14, 0.06), 0.045, 0.04, "plastic_yellow", axis="x", bevel=0.012)
+        cyl("Pad%d" % s, (s * 0.044, -0.14, 0.06), 0.04, 0.015, "foam_black", axis="x", bevel=0.006)
+
+
+@model("petrol_pump", (0.55, 1.75, 0.45))
+def petrol_pump():
+    """shed_pump_view.gd: a red wall-mounted pump cabinet with a cream face, the lit display up top,
+    the holster on the right with the nozzle in it, and the pipe from the tank up out of the
+    ground. Origin on the wall at the ground; the nozzle and hose move in the game, so the hose here
+    only runs to the holster."""
+    box("WallPlate", (0.0, 1.05, 0.006), (0.5, 0.95, 0.012), "steel_dark", bevel=0.003)
+    box("Case", (0.0, 1.05, 0.13), (0.46, 0.9, 0.24), "paint_red", bevel=0.02)
+    box("Face", (0.0, 1.0, 0.252), (0.36, 0.55, 0.004), "paint_cream", bevel=0.002)
+    box("Display", (0.0, 1.3, 0.255), (0.3, 0.14, 0.004), "screen", bevel=0.0)
+    for k in range(2):
+        box("Digits%d" % k, (0.03, 1.33 - k * 0.06, 0.258), (0.2, 0.035, 0.001), "display_green", bevel=0.0)
+    box("Badge", (0.0, 0.85, 0.256), (0.16, 0.08, 0.002), "paint_red", bevel=0.0)
+    box("Top", (0.0, 1.52, 0.13), (0.48, 0.04, 0.26), "paint_white", bevel=0.01)
+    box("Holster", (0.28, 1.0, 0.15), (0.08, 0.2, 0.1), "plastic_black", bevel=0.01)
+    box("Bracket", (0.25, 1.0, 0.1), (0.04, 0.06, 0.06), "steel_dark", bevel=0.004)
+    box("NozzleGrip", (0.28, 1.14, 0.17), (0.04, 0.12, 0.05), "plastic_black", bevel=0.01)
+    tube("Spout", bent([(0.28, 1.08, 0.17), (0.28, 0.92, 0.17)], 0.01), 0.011, "aluminium")
+    hose("Hose", [(-0.15, 0.6, 0.15), (-0.12, 0.3, 0.25), (0.1, 0.2, 0.3), (0.28, 0.6, 0.25), (0.28, 1.2, 0.2)], 0.014, "rubber")
+    tube("Pipe", [(-0.15, 0.0, 0.08), (-0.15, 0.6, 0.08)], 0.025, "steel")
+    cyl("PipeCollar", (-0.15, 0.02, 0.08), 0.045, 0.04, "steel_dark")
+
+
+# --- Hand tools (tool_models.gd): held, forward -z, up +y ------------------------------------------------
+
+@model("tool_brush", (0.04, 0.28, 0.03))
+def tool_brush():
+    box("Handle", (0.0, -0.075, 0.004), (0.03, 0.16, 0.02), "wood_top", bevel=0.009)
+    box("Head", (0.0, 0.055, 0.0), (0.04, 0.12, 0.02), "wood_top", bevel=0.004)
+    for i in range(6):
+        for j in range(3):
+            box("Bristle%d_%d" % (i, j), (-0.012 + j * 0.012, 0.015 + i * 0.016, -0.018), (0.008, 0.012, 0.018), "steel", bevel=0.0)
+
+
+@model("tool_repair", (0.1, 0.25, 0.14))
+def tool_repair():
+    """An angle grinder: body down the hand, the gearhead and guarded disc at the top."""
+    cyl("Body", (0.0, -0.05, 0.0), 0.028, 0.18, "paint_blue", radius2=0.026, bevel=0.006)
+    cyl("Grip", (0.0, -0.095, 0.0), 0.029, 0.075, "rubber", bevel=0.005)
+    cyl("Tail", (0.0, -0.15, 0.0), 0.026, 0.03, "paint_blue", radius2=0.012, bevel=0.005)
+    cyl("Cable", (0.0, -0.2, 0.0), 0.004, 0.06, "rubber")
+    box("Gearhead", (0.0, 0.055, -0.01), (0.05, 0.04, 0.06), "aluminium", bevel=0.01)
+    cyl("Disc", (0.0, 0.07, -0.05), 0.058, 0.004, "steel_dark", axis="x")
+    cyl("Guard", (-0.004, 0.08, -0.04), 0.062, 0.02, "steel", axis="x", bevel=0.002)
+    cyl("SideHandle", (0.045, 0.06, 0.0), 0.012, 0.07, "plastic_black", axis="x", bevel=0.004)
+
+
+@model("tool_lance", (0.06, 0.2, 0.75))
+def tool_lance():
+    box("Gun", (0.0, 0.0, -0.02), (0.034, 0.045, 0.12), "plastic_yellow", bevel=0.008)
+    cyl("Back", (0.0, 0.0, 0.04), 0.0225, 0.034, "plastic_yellow", axis="x")
+    box("Grip", (0.0, -0.07, 0.055), (0.03, 0.12, 0.035), "plastic_black", bevel=0.01, rot=(-18, 0, 0))
+    box("Trigger", (0.0, -0.05, 0.012), (0.012, 0.075, 0.012), "plastic_yellow", bevel=0.003, rot=(-14, 0, 0))
+    cyl("Lance", (0.0, 0.0, -0.35), 0.006, 0.5, "steel", axis="z")
+    cyl("Nozzle", (0.0, 0.0, -0.6), 0.011, 0.04, "plastic_black", axis="z", bevel=0.003)
+
+
+@model("tool_gun", (0.05, 0.25, 0.15))
+def tool_gun():
+    """An HVLP spray gun: aluminium body, air cap, trigger, the cup on top (tinted by the game)."""
+    by = 0.0
+    cyl("Barrel", (0.0, by, -0.045), 0.0135, 0.1, "aluminium", axis="z", radius2=0.0155)
+    box("Body", (0.0, by - 0.006, 0.01), (0.024, 0.03, 0.05), "aluminium", bevel=0.005)
+    cyl("AirCap", (0.0, by, -0.1), 0.0125, 0.012, "chrome", axis="z")
+    for s in (-1, 1):
+        box("Horn%d" % s, (s * 0.0125, by, -0.109), (0.006, 0.006, 0.014), "chrome", bevel=0.001)
+    box("Handle", (0.0, -0.07, 0.03), (0.022, 0.12, 0.03), "aluminium", bevel=0.008, rot=(-12, 0, 0))
+    box("Trigger", (0.0, -0.035, -0.02), (0.008, 0.06, 0.01), "chrome", bevel=0.002, rot=(-10, 0, 0))
+    cyl("Cup", (0.0, 0.065, -0.02), 0.03, 0.09, "plastic_white", bevel=0.005)
+    cyl("Lid", (0.0, 0.112, -0.02), 0.032, 0.008, "aluminium")
+    cyl("Inlet", (0.0, -0.135, 0.04), 0.006, 0.02, "brass")
+
+
+@model("tool_polisher", (0.08, 0.12, 0.25))
+def tool_polisher():
+    cyl("Body", (0.0, 0.0, 0.02), 0.034, 0.15, "plastic_red", axis="z", bevel=0.008)
+    sphere("Back", (0.0, 0.0, 0.095), 0.032, "plastic_red")
+    cyl("Pad", (0.0, 0.0, -0.075), 0.037, 0.05, "foam_black", axis="z", bevel=0.01)
+    cyl("Plate", (0.0, 0.0, -0.045), 0.03, 0.01, "plastic_black", axis="z")
+    box("Handle", (0.0, 0.055, 0.03), (0.022, 0.02, 0.1), "plastic_black", bevel=0.006)
+
+
+@model("tool_applicator", (0.06, 0.035, 0.09))
+def tool_applicator():
+    box("Block", (0.0, 0.0, -0.02), (0.06, 0.03, 0.09), "paint_blue", bevel=0.006)
+    box("Cloth", (0.0, -0.018, -0.02), (0.062, 0.006, 0.092), "plastic_white", bevel=0.002)
+
+
+@model("tool_stopwatch", (0.07, 0.09, 0.02))
+def tool_stopwatch():
+    cyl("Case", (0.0, 0.0, 0.0), 0.03, 0.016, "chrome", axis="z", bevel=0.004)
+    cyl("Face", (0.0, 0.0, 0.0085), 0.026, 0.001, "paint_white", axis="z")
+    cyl("Glass", (0.0, 0.0, 0.0095), 0.027, 0.001, "glass", axis="z")
+    cyl("Crown", (0.0, 0.036, 0.0), 0.005, 0.012, "chrome")
+    torus("Loop", (0.0, 0.046, 0.0), 0.007, 0.0015, "chrome", axis="z", verts=16)
+    for s in (-1, 1):
+        cyl("Pusher%d" % s, (s * 0.02, 0.026, 0.0), 0.003, 0.008, "chrome", rot=(0, 0, -s * 40))
+
+
 # --- Running it --------------------------------------------------------------------------------------
 
 def main():

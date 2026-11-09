@@ -52,7 +52,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
 struct FPart { FString Name, Mesh, Groom, Binding, AttachTo; TArray<FString> Materials; };
-struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; };
+struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
 {
@@ -92,6 +92,7 @@ const TArray<FEntry>& Entries()
 		(*O)->TryGetStringField(TEXT("blueprint"), E.Blueprint);
 		(*O)->TryGetStringField(TEXT("body"), E.BodyMesh);
 		E.BodyMaterials = Strings(*O, TEXT("body_materials"));
+		(*O)->TryGetNumberField(TEXT("height_cm"), E.HeightCm);
 		const TArray<TSharedPtr<FJsonValue>>* PArr = nullptr;
 		if ((*O)->TryGetArrayField(TEXT("parts"), PArr))
 			for (const TSharedPtr<FJsonValue>& PV : *PArr)
@@ -370,8 +371,25 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 		AddParts(Owner, Driver, E, Parts, FaceMesh);
 		if (FaceMesh) SetupFace();
 	}
-	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s (%s, %d bones driven, legs %.0f cm, arms %.0f cm)"), *Name,
-		*Mesh->GetName(), Bones.Num(), LegLen, ArmLen);
+	// Its height: the top of its head (the face mesh's bounds, else the head bone and a crown), and
+	// scaled to the height avatars.json gives it (the builds can come out all the template's size).
+	RestHeight = FVector::DotProduct(Bones[Head].Rest, Up) + 20.0;
+	if (const USkeletalMesh* FaceAsset = FaceMesh ? Cast<USkeletalMesh>(FaceMesh->GetSkinnedAsset()) : nullptr)
+	{
+		const FBox Box = FaceAsset->GetImportedBounds().GetBox();
+		double Top = 0.0;
+		for (int32 C = 0; C < 8; ++C)
+		{
+			const FVector Corner((C & 1) ? Box.Max.X : Box.Min.X, (C & 2) ? Box.Max.Y : Box.Min.Y, (C & 4) ? Box.Max.Z : Box.Min.Z);
+			Top = FMath::Max(Top, FVector::DotProduct(Corner, Up));
+		}
+		if (Top > RestHeight - 30.0 && Top < RestHeight + 30.0) RestHeight = Top;
+	}
+	BaseScale = E.HeightCm > 100.0 && RestHeight > 100.0 ? FMath::Clamp(E.HeightCm / RestHeight, 0.85, 1.15) : 1.0;
+	Driver->SetRelativeScale3D(FVector(BaseScale));
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s (%s, %d bones driven, legs %.0f cm, arms %.0f cm, %.0f cm tall, shown at %.0f cm)"), *Name,
+		*Mesh->GetName(), Bones.Num(), LegLen, ArmLen, RestHeight, RestHeight * BaseScale);
+	bPoseLogged = false;
 	return true;
 }
 
@@ -485,6 +503,16 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 		Driver->SetBoneTransformByName(Bones[I].Name, T, EBoneSpaces::ComponentSpace);
 	}
 	PoseFace();
+	// Once, a second or so in: whether the pose reached the mesh (the left foot from its rest).
+	PosedFor += Dt;
+	if (!bPoseLogged && PosedFor > 1.5)
+	{
+		bPoseLogged = true;
+		const FVector Asked = P[FootBone[0]];
+		const FVector Got = Driver->GetBoneTransform(Bones[FootBone[0]].Index, FTransform::Identity).GetLocation();
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s posing: walk %.2f, left foot asked %s, mesh has %s (rest %s)"), *Name, Walk,
+			*Asked.ToCompactString(), *Got.ToCompactString(), *Bones[FootBone[0]].Rest.ToCompactString());
+	}
 }
 
 void FTorqueAvatar::SetupFace()
@@ -550,7 +578,7 @@ void FTorqueAvatar::SetLook(const FTorqueProfile& Look)
 {
 	using namespace TorqueAvatarMath;
 	if (!Driver) return;
-	Driver->SetRelativeScale3D(FVector(Look.HeightScale()));
+	Driver->SetRelativeScale3D(FVector(BaseScale * Look.HeightScale()));
 	if (!FaceMesh) return;
 	FaceScale = 1.0 + 0.06 * FMath::Clamp((double)Look.Face[0], -1.0, 1.0);
 	const FReferenceSkeleton& Ref = FaceMesh->GetSkinnedAsset()->GetRefSkeleton();
@@ -602,5 +630,5 @@ FVector FTorqueAvatar::HeadWorld() const
 double FTorqueAvatar::StandingHeight() const
 {
 	if (!Driver || Head == INDEX_NONE) return 0.0;
-	return (FVector::DotProduct(Bones[Head].Rest, Up) + 20.0) * Driver->GetRelativeScale3D().Z;
+	return RestHeight * Driver->GetRelativeScale3D().Z;
 }

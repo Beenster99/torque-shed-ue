@@ -27,15 +27,18 @@ import sys
 import unreal
 
 ROOT = "/Game/MetaHumans"            # what the game uses: the built Blueprints and meshes (cooked once avatars exist)
-SOURCES = "/Game/MetaHumanSources"
+SOURCES = "/Game/MetaHumanSources"   # the MetaHuman Character assets they're built from: never cooked
 # How the avatars are built: shed walkers seen at 2-10 m. UE Optimized at Medium keeps a face that
 # holds up at 2 m, with card hair (strands only come at High/Cinematic); try "LOW" if size matters
 # more. Every texture under /Game/MetaHumans is then capped at MAX_TEXTURE (`py ... slim` redoes it).
 PIPELINE_TYPE = "OPTIMIZED"    # the pipeline_type member whose name has this
 PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
-MAX_TEXTURE = 1024   # the MetaHuman Character assets they're built from: never cooked
-AVATARS = [   # the people made by `make`: a name each and the preset to start from (the first that exists)
-    {"name": "Avatar_A"}, {"name": "Avatar_B"}, {"name": "Avatar_C"}, {"name": "Avatar_D"},
+MAX_TEXTURE = 1024
+AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
+    {"name": "Avatar_A", "height": 170.0, "hair": ["short", "crop"], "outfit": ["work", "jacket", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["buzz", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
+    {"name": "Avatar_C", "height": 182.0, "hair": ["short", "side"], "outfit": ["overall", "work", "boot"]},
+    {"name": "Avatar_D", "height": 188.0, "hair": ["curl", "short"], "outfit": ["shirt", "trouser", "pant", "boot"]},
 ]
 
 
@@ -92,42 +95,136 @@ def _set_first(obj, value, *names):
     return None
 
 
-def _vary_body(sub, ch, i):
-    """A different height and build for each avatar, through the parametric body constraints."""
-    heights = (170.0, 176.0, 182.0, 188.0)
+def _constraint_name(c):
     try:
-        cons = sub.get_body_constraints(ch, False)
+        return str(c.get_editor_property("name"))
+    except Exception:
+        return str(getattr(c, "name", ""))
+
+
+def _vary_body(sub, ch, i):
+    """A different height for each avatar, through the parametric body constraints. (The array's
+    structs come back as copies: each changed one is put back by its index, then read back.)"""
+    want = AVATARS[i % len(AVATARS)].get("height", 176.0)
+    try:
+        log("%s: fixed_body_type = %s" % (ch.get_name(), ch.get_editor_property("fixed_body_type")))
+    except Exception:
+        pass
+    try:
+        cons = list(sub.get_body_constraints(ch, False))
     except Exception as e:
         unreal.log_warning("[Torque] get_body_constraints failed: %s" % e)
         return
-    names = []
-    for c in cons:
-        try:
-            n = str(c.get_editor_property("name"))
-        except Exception:
-            n = str(getattr(c, "name", ""))
-        names.append(n)
-        if "height" in n.lower() and "head" not in n.lower():
-            for prop in ("target_measurement", "target", "value"):
-                try:
-                    c.set_editor_property(prop, heights[i % len(heights)])
-                    break
-                except Exception:
-                    continue
-            for prop in ("is_active", "active", "b_is_active"):
-                try:
-                    c.set_editor_property(prop, True)
-                    break
-                except Exception:
-                    continue
-    log("body constraints: " + ", ".join(names))
-    if cons:
-        log("body constraint fields: " + _props(cons[0]))
+    for idx, c in enumerate(cons):
+        n = _constraint_name(c).lower()
+        if "height" in n and "head" not in n:
+            try:
+                lo, hi = c.get_editor_property("min_measurement"), c.get_editor_property("max_measurement")
+                log("%s: height range %s .. %s" % (ch.get_name(), lo, hi))
+                v = min(max(want, lo), hi) if hi > lo else want
+            except Exception:
+                v = want
+            c.set_editor_property("target_measurement", v)
+            c.set_editor_property("is_active", True)
+            cons[idx] = c
+    log("body constraints: " + ", ".join(_constraint_name(c) for c in cons))
     try:
         sub.set_body_constraints(ch, cons)
-        log("%s: height %.0f cm" % (ch.get_name(), heights[i % len(heights)]))
     except Exception as e:
         unreal.log_warning("[Torque] set_body_constraints failed: %s" % e)
+        return
+    try:
+        back = [c for c in sub.get_body_constraints(ch, False) if _constraint_name(c).lower() == "height"]
+        got = back[0].get_editor_property("target_measurement") if back else None
+        log("%s: height asked %.0f cm, constraint now %s (active %s)" % (ch.get_name(), want, got,
+            back[0].get_editor_property("is_active") if back else None))
+    except Exception as e:
+        log("couldn't read the height back: %s" % e)
+
+
+_WARDROBE = None
+
+
+def _wardrobe():
+    """Every wardrobe item this editor has (hair, brows, beards, clothes): any asset whose class has
+    Wardrobe in its name, in the MetaHuman plugins' content (incl. Optional Content) or the project."""
+    global _WARDROBE
+    if _WARDROBE is not None:
+        return _WARDROBE
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    found = []
+    for root in ("/MetaHumanCharacter", "/MetaHumanCoreTech", "/MetaHumanSDK", "/MetaHumanDefaultPipeline", "/Game"):
+        try:
+            assets = reg.get_assets_by_path(root, recursive=True)
+        except Exception:
+            continue
+        for a in assets:
+            cls = _cls_name(a)
+            if "wardrobe" in cls.lower():
+                found.append((str(a.package_name), str(a.asset_name), cls))
+    _WARDROBE = found
+    log("wardrobe items found: %d" % len(found))
+    for pkg, name, cls in found:
+        log("  wardrobe %s (%s)" % (pkg, cls))
+    return found
+
+
+def _dress(sub, ch, av):
+    """Hair and workshop clothes from the wardrobe: for each of the character's slots, the item whose
+    name best matches the avatar's keywords (hair slots: av["hair"]; outfit slots: av["outfit"])."""
+    try:
+        coll = sub.get_preview_collection(ch) if hasattr(sub, "get_preview_collection") else None
+        if coll is None:
+            coll = ch.get_editor_property("internal_collection")
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: no collection to dress: %s" % (av["name"], e))
+        return
+    try:
+        slots = [str(n) for n in coll.get_slot_names()]
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: get_slot_names failed: %s" % (av["name"], e))
+        return
+    log("%s: wardrobe slots %s" % (av["name"], ", ".join(slots)))
+    items = _wardrobe()
+    try:
+        inst = coll.get_editor_property("default_instance")
+    except Exception:
+        inst = getattr(coll, "default_instance", None)
+    for slot in slots:
+        low = slot.lower()
+        if "hair" in low:
+            words = av.get("hair", [])
+        elif any(w in low for w in ("outfit", "cloth", "garment", "body", "top", "bottom", "shoe", "feet")):
+            words = av.get("outfit", [])
+        else:
+            continue   # brows, lashes, beards, skin: the character's own
+        hair_slot = "hair" in low
+        best, score = None, 0
+        for pkg, name, cls in items:
+            n = name.lower() + " " + pkg.lower()
+            if hair_slot != ("hair" in n and "eyebrow" not in n and "beard" not in n and "mustache" not in n):
+                continue
+            sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words)
+            if sc > score:
+                best, score = (pkg, name), sc
+        if best is None:
+            log("%s: nothing in the wardrobe for slot %s (%s)" % (av["name"], slot, ", ".join(words)))
+            continue
+        item = unreal.load_asset(best[0])
+        try:
+            r = coll.try_add_item_from_wardrobe_item(unreal.Name(slot), item)
+            key = r[-1] if isinstance(r, tuple) else r
+            log("%s: %s <- %s (%s)" % (av["name"], slot, best[0], r))
+            if inst is not None and key is not None and not isinstance(key, bool):
+                inst.set_single_slot_selection(unreal.Name(slot), key)
+                log("%s: %s selected" % (av["name"], slot))
+        except Exception as e:
+            unreal.log_warning("[Torque] %s: dressing %s with %s failed: %s" % (av["name"], slot, best[0], e))
+            try:
+                log("try_add_item_from_wardrobe_item: " + (coll.try_add_item_from_wardrobe_item.__doc__ or "")[:600])
+                log("set_single_slot_selection: " + (inst.set_single_slot_selection.__doc__ or "")[:600] if inst else "no instance")
+            except Exception:
+                pass
 
 
 def _find_class(*words):
@@ -318,6 +415,7 @@ def make(rig=False):
             unreal.log_warning("[Torque] %s: try_add_object_to_edit refused it" % name)
             continue
         _vary_body(sub, ch, i)
+        _dress(sub, ch, AVATARS[i % len(AVATARS)])
         if rig:
             if _is_rigged(sub, ch) is not True:
                 _auto_rig(sub, ch, name)
@@ -539,6 +637,44 @@ def _game_safe_mesh(mesh, av):
         mesh.set_editor_property("post_process_anim_blueprint", None)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh, only_if_is_dirty=False)
         log("%s: %s: post-process Anim Blueprint %s dropped (needs the MetaHuman plugin)" % (av, pkg, _path(abp)))
+    # Its LOD settings asset (only used to regenerate LODs in the editor) and its skeleton, when they
+    # are the plugin's: the settings dropped, the skeleton swapped for a project copy.
+    changed = False
+    try:
+        ls = mesh.get_editor_property("lod_settings")
+        if ls is not None and ls.get_path_name().startswith("/MetaHuman"):
+            mesh.set_editor_property("lod_settings", None)
+            changed = True
+            log("%s: %s: LOD settings %s dropped" % (av, pkg, ls.get_path_name()))
+    except Exception as e:
+        log("%s: lod_settings: %s" % (av, e))
+    try:
+        sk = mesh.get_editor_property("skeleton")
+        if sk is not None and sk.get_path_name().startswith("/MetaHuman"):
+            copy = ROOT + "/Common/" + sk.get_name()
+            eal = unreal.EditorAssetLibrary
+            if not eal.does_asset_exist(copy):
+                eal.duplicate_asset(sk.get_outermost().get_name(), copy)
+            new = unreal.load_asset(copy)
+            if new is not None:
+                mesh.set_editor_property("skeleton", new)
+                changed = True
+                log("%s: %s: skeleton %s -> %s" % (av, pkg, sk.get_path_name(), copy))
+    except Exception as e:
+        log("%s: couldn't swap the skeleton of %s: %s" % (av, pkg, e))
+    if changed:
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh, only_if_is_dirty=False)
+    # The clothes' and hair's colour parameters, for tinting them to the player's colour later.
+    mel = getattr(unreal, "MaterialEditingLibrary", None)
+    if mel is not None:
+        try:
+            for slot in mesh.get_editor_property("materials"):
+                m = slot.get_editor_property("material_interface")
+                if m is not None and hasattr(mel, "get_vector_parameter_names"):
+                    log("%s: %s material %s colours: %s" % (av, pkg.rsplit("/", 1)[-1], m.get_name(),
+                        ", ".join(str(n) for n in mel.get_vector_parameter_names(m))))
+        except Exception:
+            pass
     bad = _editor_only_deps(pkg)
     if bad:
         unreal.log_warning("[Torque] %s: %s still pulls in editor-only MetaHuman content: %s" % (av, pkg, ", ".join(sorted(bad)[:5])))
@@ -587,7 +723,8 @@ def _parts_of_blueprint(pkg, name, av):
                 if m and _editor_only_deps(m.split(".")[0]):
                     unreal.log_warning("[Torque] %s: %s's material %s needs editor-only MetaHuman content" % (av, c.get_name(), m))
             return out
-        entry = {"name": av, "blueprint": "", "body": _path(body[1]), "body_materials": mats(body[0]), "parts": []}
+        entry = {"name": av, "blueprint": "", "body": _path(body[1]), "body_materials": mats(body[0]), "parts": [],
+                 "height_cm": next((a.get("height", 0.0) for a in AVATARS if a["name"] == av), 0.0)}
         _game_safe_mesh(body[1], av)
         for c, m in skins:
             if c == body[0]:
@@ -685,7 +822,8 @@ def register():
         if why:
             unreal.log_warning("[Torque] skipping body %s: %s" % (pkg, why))
             continue
-        by_name[av] = {"name": av, "blueprint": "", "body": "%s.%s" % (pkg, name)}
+        by_name[av] = {"name": av, "blueprint": "", "body": "%s.%s" % (pkg, name),
+                       "height_cm": next((a.get("height", 0.0) for a in AVATARS if a["name"] == av), 0.0)}
         log("avatar %s: body only %s" % (av, by_name[av]["body"]))
     out = [by_name[k] for k in sorted(by_name)]
     path = os.path.join(project_dir(), "Data", "Avatars", "avatars.json")

@@ -1,17 +1,21 @@
 {
-  "about": "Where Tools/ue_build_shed.py's grey-box kit gets its real models (Tools/shed_props.py, run at the end of the shed build). Each swap spawns prop 'prop' (/Game/Shed/Props/<prop>/SM_<prop>) at 'at' (cm, the shed's frame; its floor point, or its wall point for wall kit) turned 'yaw' degrees (0: its front, +z in Torque Shed's frame, faces the shed's +y, the roller door; -90 faces +x, 90 faces -x, 180 faces -y), and hides the boxes whose labels start with any of 'hide' in game and in the editor while keeping their collision, so walking, aiming and putting parts down behave exactly as before. A swap whose prop isn't imported leaves its boxes showing and says so in the log. 'dress' entries only add a model (no boxes hidden, no collision): the photoreal pass's clutter.",
+  "about": "Where Tools/ue_build_shed.py's grey-box kit gets its real models (Tools/ue_import_props.py dress(), run at the end of the shed build). Each swap spawns prop 'prop' (/Game/Shed/Props/<prop>/SM_<prop>) at 'at' (cm, the shed's frame; its floor point, or its wall point for wall kit) turned 'yaw' degrees (0: its front, +z in Torque Shed's frame, faces the shed's +y, the roller door; -90 faces +x, 90 faces -x, 180 faces -y), and hides the boxes labelled as in 'hide' (a trailing * matches every label starting so) in game and in the editor while keeping their collision, so walking, aiming and putting parts down behave exactly as before. A swap whose prop isn't imported leaves its boxes showing and says so in the log. 'dress' entries only add a model (no boxes hidden, no collision): the photoreal pass's clutter.",
   "swaps": [
-    {"prop": "shed_workbench", "at": [-600, 60, 0], "yaw": -90, "hide": ["Bench_Body", "Bench_Top", "Bench_Drawers_"]},
+    {"prop": "shed_workbench", "at": [-600, 60, 0], "yaw": -90, "hide": ["Bench_Body", "Bench_Top", "Bench_Drawers_*"]},
     {"prop": "shed_radio", "at": [-633, -145, 161.5], "yaw": -90, "hide": ["Radio_Shelf", "Radio"]},
-    {"prop": "tyre_changer", "at": [-604, 355, 0], "yaw": -90, "hide": ["TyreChanger_"]},
+    {"prop": "tyre_changer", "at": [-604, 355, 0], "yaw": -90, "hide": ["TyreChanger_*"]},
     {"prop": "parts_computer", "at": [605, 190, 0], "yaw": 90, "hide": ["PC_Desk", "PC_DeskTop", "PC_Monitor", "PC_Keyboard"]},
-    {"prop": "engine_stand", "at": [560, -40, 0], "yaw": 0, "hide": ["EngineStand_"]},
-    {"prop": "washer_standard", "at": [545, 490, 0], "yaw": 180, "hide": ["PartsWasher"]},
-    {"prop": "repair_standard", "at": [340, 490, 0], "yaw": 180, "hide": ["RepairBench"]},
-    {"prop": "bin_general", "at": [-275, 517, 0], "yaw": 180, "hide": ["Bin_General"]},
-    {"prop": "bin_plastic", "at": [-333, 517, 0], "yaw": 180, "hide": ["Bin_Plastic"]},
-    {"prop": "bin_metal", "at": [-391, 517, 0], "yaw": 180, "hide": ["Bin_Metal"]},
-    {"prop": "light_switches", "at": [285, 548, 128], "yaw": 180, "hide": ["Switches"]}
+    {"prop": "engine_stand", "at": [560, -40, 0], "yaw": 0, "hide": ["EngineStand_*"]},
+    {"prop": "washer_standard", "at": [545, 490, 0], "yaw": 180, "hide": ["PartsWasher", "PartsWasher_Lid"]},
+    {"prop": "repair_standard", "at": [340, 490, 0], "yaw": 180, "hide": ["RepairBench*"]},
+    {"prop": "bin_general", "at": [-275, 517, 0], "yaw": 180, "hide": ["Bin_General*"]},
+    {"prop": "bin_plastic", "at": [-333, 517, 0], "yaw": 180, "hide": ["Bin_Plastic*"]},
+    {"prop": "bin_metal", "at": [-391, 517, 0], "yaw": 180, "hide": ["Bin_Metal*"]},
+    {"prop": "light_switches", "at": [285, 548, 128], "yaw": 180, "hide": ["Switches"]},
+    {"prop": "pressure_washer", "at": [-1130, -215, 0], "yaw": 0, "hide": ["PressureWasher", "PressureWasher_Reel"]},
+    {"prop": "dyno_rig", "at": [0, -940, 0], "yaw": 0, "hide": ["Dyno_Plate", "Dyno_Edge_*", "Dyno_Slot", "Dyno_Clamp_*", "Dyno_ClampBase", "Dyno_ClampStop", "Dyno_Post_*", "Dyno_PostCap_*"]},
+    {"prop": "dyno_fan", "at": [0, -1135, 0], "yaw": 0, "hide": ["Dyno_FanBase", "Dyno_FanPost", "Dyno_FanHousing", "Dyno_FanBack", "Dyno_FanGrilleH", "Dyno_FanGrilleV"]},
+    {"prop": "dyno_desk", "at": [290, -1110, 0], "yaw": 0, "hide": ["Dyno_Desk", "Dyno_DeskTop", "Dyno_DeskMonitor", "Dyno_DeskKeyboard", "Dyno_RunButton"]}
   ],
   "dress": [
     {"prop": "dress_barrel_02", "at": [-605, 505, 0], "yaw": 20},
