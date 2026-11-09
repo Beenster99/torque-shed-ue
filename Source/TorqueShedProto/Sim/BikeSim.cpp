@@ -53,7 +53,12 @@ const double CRASH_PITCH = DegToRad(72.0);
 const double WHEELIE_PITCH = DegToRad(22.0);
 const double STOPPIE_PITCH = DegToRad(14.0);
 const double STOPPIE_SKIM = DegToRad(4.0);
-const double RIDER_SPIN_FEEL = 1.5;
+// Pulling hard, the rider feels the back step out and rolls off from a little short of the tyre's
+// peak slip (RIDER_SPIN_FROM of it), firmly enough to hold it near the peak, as a good road tester
+// does. Godot's 1.5 from the peak itself let dual-sport and bias-ply tyres spin at 1.4-2x their peak
+// all the way through first gear (smoking the tyre where the testers don't).
+const double RIDER_SPIN_FEEL = 4.0;
+const double RIDER_SPIN_FROM = 0.8;
 const double CARELESS_SLIP = 0.9;
 // How near the tyre's peak slip a hard stop works (the rider, or ABS). Godot's 0.55 stopped every road
 // bike 1-3 m shorter from 60 mph than road tests do (a naked bike 32.7 m against 34-37); 0.45 puts
@@ -738,8 +743,8 @@ void BikeSim::UpdateEngine(double Delta)
 	if (Build.TractionControl) TcFrom = Lerp(0.1, 0.06, Clamp(AidStrength, 0.0, 1.0));
 	else
 	{
-		TcFrom = Build.TyreRear.KappaPeak;
-		TcGain = RIDER_SPIN_FEEL / TcFrom;
+		TcFrom = Build.TyreRear.KappaPeak * RIDER_SPIN_FROM;
+		TcGain = RIDER_SPIN_FEEL / Build.TyreRear.KappaPeak;
 	}
 	if (Tc > 0.05 && SpinRatio > TcFrom && Rear.Contact)
 		TcTarget = Clamp(1.0 - (SpinRatio - TcFrom) * TcGain * Tc, 0.15, 1.0);
