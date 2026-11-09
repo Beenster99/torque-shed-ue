@@ -880,6 +880,72 @@ def _game_safe_mesh(mesh, av):
         unreal.log_warning("[Torque] %s: %s still pulls in editor-only MetaHuman content: %s" % (av, pkg, ", ".join(sorted(bad)[:5])))
 
 
+def _get_any(obj, *names):
+    for n in names:
+        try:
+            v = obj.get_editor_property(n)
+        except Exception:
+            v = getattr(obj, n, None)
+        if v is not None:
+            return v
+    return None
+
+
+def _cards_lod(groom):
+    """The first LOD of the groom drawn as cards or meshes in every hair group (strands are the GPU
+    cost), or -1 if it's strands at every LOD."""
+    try:
+        groups = list(groom.get_editor_property("hair_groups_lod"))
+        per = [[str(l.get_editor_property("geometry_type")).upper() for l in grp.get_editor_property("lods")] for grp in groups]
+    except Exception as e:
+        log("groom %s: couldn't read its LODs: %s" % (_path(groom), e))
+        return -1
+    n = max((len(p) for p in per), default=0)
+    for i in range(n):
+        if all(i < len(p) and "STRAND" not in p[i] for p in per):
+            return i
+    log("groom %s: strands at every LOD (%s)" % (_path(groom), per))
+    return -1
+
+
+def _add_clothes(entry, av, skins):
+    """The clothes the build made under /Game/MetaHumans/<Name>/: skeletal meshes that aren't the
+    body or face (posed by the body), else the Chaos outfit or cloth assets (a cloth component posed
+    by the body). The Blueprint has no component of its own for them in UE 5.8."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    folder = ROOT + "/" + av
+    if not unreal.EditorAssetLibrary.does_directory_exist(folder):
+        return
+    used = {_path(m) for c, m in skins}
+    meshes, outfits, cloths = [], [], []
+    for a in reg.get_assets_by_path(folder, recursive=True):
+        cls, pkg, name = _cls_name(a), str(a.package_name), str(a.asset_name)
+        obj = "%s.%s" % (pkg, name)
+        low = pkg.lower()
+        if cls == "SkeletalMesh" and obj not in used and "/face/" not in low and "/body/" not in low:
+            meshes.append(obj)
+        elif cls == "ChaosOutfitAsset":
+            outfits.append(obj)
+        elif cls == "ChaosClothAsset":
+            cloths.append(obj)
+        elif any(w in low for w in ("cloth", "outfit", "garment")):
+            log("%s: clothing asset %s (%s) not used" % (av, obj, cls))
+    if meshes:
+        for m in meshes:
+            entry["parts"].append({"name": "Clothes_" + m.rsplit(".", 1)[-1], "mesh": m, "materials": []})
+            mesh = unreal.load_asset(m.split(".")[0])
+            if mesh is not None:
+                _game_safe_mesh(mesh, av)
+    else:
+        for c in (outfits or cloths):
+            entry["parts"].append({"name": "Clothes_" + c.rsplit(".", 1)[-1], "cloth": c, "materials": []})
+            bad = _editor_only_deps(c.split(".")[0])
+            if bad:
+                unreal.log_warning("[Torque] %s: clothes %s pull in editor-only content: %s" % (av, c, ", ".join(bad[:5])))
+    log("%s: clothes: %d meshes, %d outfits, %d cloth assets found; %s used" % (av, len(meshes), len(outfits), len(cloths),
+        "the meshes" if meshes else ("the outfits" if outfits else ("the cloth assets" if cloths else "none"))))
+
+
 def _parts_of_blueprint(pkg, name, av):
     """The avatar entry for an assembled MetaHuman Blueprint: its body mesh (the one the game poses)
     and every other skeletal mesh and groom, with the components' material overrides and what each
@@ -936,22 +1002,30 @@ def _parts_of_blueprint(pkg, name, av):
                 continue
             entry["parts"].append({"name": c.get_name(), "mesh": _path(m), "materials": mats(c)})
             _game_safe_mesh(m, av)
-        gcls = getattr(unreal, "GroomComponent", None)
-        if gcls is not None:
-            for g in actor.get_components_by_class(gcls):
-                try:
-                    groom = g.get_editor_property("groom_asset")
-                    binding = g.get_editor_property("binding_asset")
-                except Exception:
-                    continue
-                if groom is None:
-                    continue
-                parent = g.get_attach_parent()
-                entry["parts"].append({"name": g.get_name(), "groom": _path(groom), "binding": _path(binding),
-                                       "attach": parent.get_name() if parent is not None else "", "materials": mats(g)})
-                bad = _editor_only_deps(groom.get_outermost().get_name())
-                if bad:
-                    unreal.log_warning("[Torque] %s: groom %s pulls in editor-only content: %s" % (av, _path(groom), ", ".join(bad[:5])))
+        # The grooms (hair, brows, lashes, beard): any component whose class says Groom. The
+        # peach fuzz is strands only and too fine to see at shed distances, so it's left out.
+        for g in actor.get_components_by_class(unreal.ActorComponent):
+            if "groom" not in type(g).__name__.lower():
+                continue
+            gname = g.get_name()
+            if "fuzz" in gname.lower():
+                log("%s: groom %s left out (peach fuzz)" % (av, gname))
+                continue
+            groom = _get_any(g, "groom_asset", "GroomAsset")
+            binding = _get_any(g, "binding_asset", "BindingAsset")
+            if groom is None:
+                log("%s: groom component %s has no groom asset (fields: %s)" % (av, gname, _props(g)[:300]))
+                continue
+            parent = g.get_attach_parent()
+            lod = _cards_lod(groom)
+            entry["parts"].append({"name": gname, "groom": _path(groom), "binding": _path(binding),
+                                   "attach": parent.get_name() if parent is not None else "", "lod": lod, "materials": mats(g)})
+            log("%s: groom %s = %s (binding %s, on %s, cards from LOD %d)" % (av, gname, _path(groom), _path(binding),
+                parent.get_name() if parent is not None else "-", lod))
+            bad = _editor_only_deps(groom.get_outermost().get_name())
+            if bad:
+                unreal.log_warning("[Torque] %s: groom %s pulls in editor-only content: %s" % (av, _path(groom), ", ".join(bad[:5])))
+        _add_clothes(entry, av, skins)
         log("avatar %s: body %s, parts %s" % (av, entry["body"], ", ".join(p["name"] for p in entry["parts"])))
         return entry
     finally:
