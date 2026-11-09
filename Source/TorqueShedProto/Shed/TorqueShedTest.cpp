@@ -373,7 +373,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -386,6 +386,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		if (Verb == TEXT("lever"))
+		{
+			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
+			const FString Which = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
+			if (Which == TEXT("off"))
+			{
+				Bike->TestLever(0, -1.0);
+				Bike->TestLever(1, -1.0);
+				Said(TEXT("levers let go"));
+				return true;
+			}
+			const int32 LeverSide = Which == TEXT("clutch") ? 0 : 1;
+			const double Pull = P.Num() > 2 ? FCString::Atod(*P[2]) : 1.0;
+			Bike->TestLever(LeverSide, Pull);
+			Said(FString::Printf(TEXT("%s held, pulled %.2f"), LeverSide == 0 ? TEXT("clutch") : TEXT("brake"), Pull));
+			return true;
+		}
 		if (Verb == TEXT("camera"))
 		{
 			const int32 Mode = P.Num() > 1 ? FCString::Atoi(*P[1]) : 0;
