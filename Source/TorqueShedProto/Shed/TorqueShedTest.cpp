@@ -100,10 +100,11 @@ const TCHAR* const BoothSteps =
 const TCHAR* const SprayGameSteps =
 	TEXT("bay:1,restyle:cafe,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
 	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
-	TEXT("place:hook_0,act,tool:gun,spray:0:primer,item:exhaust,spraypass:6:80,wait:3,look:hook_0,shot,")
-	TEXT("spray:0:gloss,item:exhaust,spraypass:1:80,look:hook_0,shot,sprayscan:1,wait:1,shot,sprayscan:0,")
-	TEXT("item:exhaust,spraypass:6:80,wait:3,look:hook_0,shot,")
-	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,look:hook_0,shot,item:exhaust,spraypass:3:35,look:hook_0,shot,log");
+	TEXT("place:hook_0,act,tool:gun,spray:0:primer,item:exhaust,shot,spraypass:2:80,item:exhaust,shot,")
+	TEXT("item:exhaust,spraypass:4:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
+	TEXT("spray:0:gloss,item:exhaust,spraypass:1:80,item:exhaust,shot,sprayscan:1,wait:1,shot,sprayscan:0,")
+	TEXT("item:exhaust,spraypass:6:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
+	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,item:exhaust,shot,item:exhaust,spraypass:3:35,item:exhaust,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
 // test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
@@ -383,7 +384,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
-	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera"))
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -396,6 +397,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		if (Verb == TEXT("lever"))
+		{
+			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
+			const FString Which = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
+			if (Which == TEXT("off"))
+			{
+				Bike->TestLever(0, -1.0);
+				Bike->TestLever(1, -1.0);
+				Said(TEXT("levers let go"));
+				return true;
+			}
+			const int32 LeverSide = Which == TEXT("clutch") ? 0 : 1;
+			const double Pull = P.Num() > 2 ? FCString::Atod(*P[2]) : 1.0;
+			Bike->TestLever(LeverSide, Pull);
+			Said(FString::Printf(TEXT("%s held, pulled %.2f"), LeverSide == 0 ? TEXT("clutch") : TEXT("brake"), Pull));
+			return true;
+		}
 		if (Verb == TEXT("camera"))
 		{
 			const int32 Mode = P.Num() > 1 ? FCString::Atoi(*P[1]) : 0;

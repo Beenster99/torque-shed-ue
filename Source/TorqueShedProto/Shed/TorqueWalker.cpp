@@ -670,8 +670,21 @@ void ATorqueWalker::ReadInput(float Dt)
 		TurnKeyFor = -1.0;
 		CarryFor = 0;
 		HoldTurn = 0.0;
-		if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
-		if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+		if (SprayItem != 0 && SprayHook() != INDEX_NONE)
+		{
+			// The spray controls up on a part on a booth hook: Q / E, the wheel or L1 / R1 wind the hook
+			// down and up (a click a step, held it keeps going), so you can get at it all without
+			// putting the gun down. F puts the controls down to change tool.
+			const bool bUpHeld = KeyDown(ETorqueKey::NextTool) || Down(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1);
+			const bool bDownHeld = KeyDown(ETorqueKey::PrevTool) || Down(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1);
+			SprayWind(Dt, bNext ? 1 : (bPrev ? -1 : 0), bUpHeld ? 1 : (bDownHeld ? -1 : 0));
+		}
+		else
+		{
+			SprayWind(Dt, 0, 0);
+			if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
+			if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+		}
 	}
 	static const ETorqueKey Numbers[] = {ETorqueKey::Tool1, ETorqueKey::Tool2, ETorqueKey::Tool3, ETorqueKey::Tool4, ETorqueKey::Tool5,
 		ETorqueKey::Tool6, ETorqueKey::Tool7};
