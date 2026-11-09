@@ -1,6 +1,11 @@
 #include "Shed/TorqueToolModels.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Dom/JsonObject.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/Actor.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -433,7 +438,7 @@ void PaintGun(FBuilder& B, const FLinearColor& Can)
 
 // One material's pieces as a static mesh. Each triangle is wound to face the way its normals do
 // (Unreal's face: -(P1 - P0) x (P2 - P0)), so the primitives needn't agree on a winding.
-UStaticMesh* BuildMesh(const FGeo& G, UMaterialInterface* Material)
+UStaticMesh* BuildMesh(const FGeo& G, UMaterialInterface* Material, const TArray<FVector2f>* InUVs = nullptr)
 {
 	if (G.T.Num() < 3) return nullptr;
 	FMeshDescription MD;
@@ -463,7 +468,7 @@ UStaticMesh* BuildMesh(const FGeo& G, UMaterialInterface* Material)
 		Tangents[VI] = FVector3f::CrossProduct(Across, N).GetSafeNormal();
 		Signs[VI] = 1.0f;
 		Colours[VI] = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
-		UVs.Set(VI, 0, FVector2f((float)(G.P[I].X + G.P[I].Y) * 0.1f, (float)G.P[I].Z * 0.1f));
+		UVs.Set(VI, 0, InUVs && InUVs->IsValidIndex(I) ? (*InUVs)[I] : FVector2f((float)(G.P[I].X + G.P[I].Y) * 0.1f, (float)G.P[I].Z * 0.1f));
 		UVs.Set(VI, 1, FVector2f(0.0f, 0.0f));
 		Instances.Add(VI);
 	}
@@ -507,6 +512,212 @@ UMaterialInterface* BaseMaterial()
 	}
 	return M;
 }
+
+// --- [hands] The detailed models (Data/Tools, Tools/props/make_hand_tools.py) ------------------------
+
+// A material slot: a shed prop material (MI_Prop_<Prop>) with its scans tiled Tile a metre, else a
+// plain finish; bPaint: the spray colour.
+struct FSlotSpec
+{
+	FString Prop;
+	double Tile = 0.0;
+	FFinish Plain;
+	bool bPaint = false;
+};
+
+struct FToolSpec
+{
+	bool bValid = false;
+	FString Mesh;
+	TMap<FString, FSlotSpec> Slots;
+	FVector Nozzle = FVector::ZeroVector;
+	FTransform Hold = FTransform::Identity;
+	TorqueToolModels::FGrip Grips[2];
+};
+
+const TCHAR* const ToolIds[] = {TEXT(""), TEXT("wrench"), TEXT("brush"), TEXT("repair"), TEXT("spray"), TEXT("lance"), TEXT("gun")};
+
+FVector Vec(const TSharedPtr<FJsonObject>& O, const TCHAR* Field, const FVector& Default)
+{
+	const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+	if (!O.IsValid() || !O->TryGetArrayField(Field, A) || A->Num() < 3) return Default;
+	return FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber());
+}
+
+const FToolSpec& SpecOf(int32 Tool)
+{
+	static FToolSpec Specs[UE_ARRAY_COUNT(ToolIds)];
+	static bool bRead = false;
+	static const FToolSpec None;
+	if (!bRead)
+	{
+		bRead = true;
+		const FString Dir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Tools"));
+		FString Text;
+		TSharedPtr<FJsonObject> Root;
+		if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(Dir, TEXT("tools.json")))
+			&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) && Root.IsValid())
+		{
+			const TSharedPtr<FJsonObject>* Tools = nullptr;
+			if (Root->TryGetObjectField(TEXT("tools"), Tools))
+				for (int32 I = 1; I < (int32)UE_ARRAY_COUNT(ToolIds); ++I)
+				{
+					const TSharedPtr<FJsonObject>* T = nullptr;
+					if (!(*Tools)->TryGetObjectField(ToolIds[I], T)) continue;
+					FToolSpec& S = Specs[I];
+					(*T)->TryGetStringField(TEXT("mesh"), S.Mesh);
+					S.Mesh = FPaths::Combine(Dir, S.Mesh);
+					S.Nozzle = Vec(*T, TEXT("nozzle"), FVector::ZeroVector);
+					const TSharedPtr<FJsonObject>* Slots = nullptr;
+					if ((*T)->TryGetObjectField(TEXT("slots"), Slots))
+						for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : (*Slots)->Values)
+						{
+							const TSharedPtr<FJsonObject> O = KV.Value->AsObject();
+							if (!O.IsValid()) continue;
+							FSlotSpec Sl;
+							O->TryGetStringField(TEXT("prop"), Sl.Prop);
+							O->TryGetNumberField(TEXT("tile"), Sl.Tile);
+							O->TryGetBoolField(TEXT("paint"), Sl.bPaint);
+							const FVector C = Vec(O, TEXT("colour"), FVector(0.5));
+							Sl.Plain.Colour = FLinearColor(C.X, C.Y, C.Z);
+							double M = 0.0, R = 0.5;
+							O->TryGetNumberField(TEXT("metal"), M);
+							O->TryGetNumberField(TEXT("rough"), R);
+							Sl.Plain.Metallic = (float)M;
+							Sl.Plain.Roughness = (float)R;
+							S.Slots.Add(KV.Key, Sl);
+						}
+					// The hold: where the right hand's grip sits in the camera's frame, and the tool's x and z there.
+					const TSharedPtr<FJsonObject>* H = nullptr;
+					if ((*T)->TryGetObjectField(TEXT("hold"), H))
+					{
+						const FVector At = Vec(*H, TEXT("at"), FVector(40.0, 18.0, -20.0));
+						const FVector X = Vec(*H, TEXT("x"), FVector::ForwardVector), Z = Vec(*H, TEXT("z"), FVector::UpVector);
+						S.Hold = FTransform(FRotationMatrix::MakeFromXZ(X, Z).ToQuat(), At);
+					}
+					const TSharedPtr<FJsonObject>* G = nullptr;
+					if ((*T)->TryGetObjectField(TEXT("grips"), G))
+						for (int32 Hand = 0; Hand < 2; ++Hand)
+						{
+							const TSharedPtr<FJsonObject>* O = nullptr;
+							if (!(*G)->TryGetObjectField(Hand == 0 ? TEXT("left") : TEXT("right"), O)) continue;
+							TorqueToolModels::FGrip& Gr = S.Grips[Hand];
+							Gr.bOn = true;
+							Gr.At = Vec(*O, TEXT("at"), FVector::ZeroVector);
+							Gr.Axis = Vec(*O, TEXT("axis"), FVector::UpVector).GetSafeNormal();
+							Gr.Aim = Vec(*O, TEXT("aim"), FVector::ForwardVector).GetSafeNormal();
+							(*O)->TryGetNumberField(TEXT("radius"), Gr.Radius);
+							(*O)->TryGetNumberField(TEXT("trigger"), Gr.Trigger);
+							FString Index;
+							Gr.bIndexTop = (*O)->TryGetStringField(TEXT("index"), Index) && Index == TEXT("top");
+						}
+					S.bValid = !S.Mesh.IsEmpty() && FPaths::FileExists(S.Mesh) && S.Grips[1].bOn;
+					if (!S.bValid) UE_LOG(LogTemp, Warning, TEXT("Torque: tool %s: no model at %s (drawing Torque Shed's)"), ToolIds[I], *S.Mesh);
+				}
+		}
+	}
+	return Tool > 0 && Tool < (int32)UE_ARRAY_COUNT(ToolIds) ? Specs[Tool] : None;
+}
+
+// A .tmesh (sdf_kit.py write_tmesh): its slots' geometry, cm in Unreal's frame.
+struct FSlotGeo
+{
+	FString Name;
+	FGeo Geo;
+	TArray<FVector2f> UV;
+};
+
+bool ReadTMesh(const FString& Path, TArray<FSlotGeo>& Out)
+{
+	TArray<uint8> B;
+	if (!FFileHelper::LoadFileToArray(B, *Path)) return false;
+	int64 At = 0;
+	auto Need = [&B, &At](int64 N) { return At + N <= B.Num(); };
+	auto U32 = [&B, &At]() { uint32 V; FMemory::Memcpy(&V, B.GetData() + At, 4); At += 4; return V; };
+	auto F32 = [&B, &At]() { float V; FMemory::Memcpy(&V, B.GetData() + At, 4); At += 4; return V; };
+	if (!Need(12) || FMemory::Memcmp(B.GetData(), "TMSH", 4) != 0) return false;
+	At = 4;
+	if (U32() != 1) return false;
+	const uint32 NumSlots = U32();
+	for (uint32 S = 0; S < NumSlots; ++S)
+	{
+		if (!Need(4)) return false;
+		const uint32 NameLen = U32();
+		if (!Need(NameLen + 8)) return false;
+		FSlotGeo G;
+		for (uint32 C = 0; C < NameLen; ++C) G.Name.AppendChar((TCHAR)B[At + C]);   // (plain ASCII keys)
+		At += NameLen;
+		const uint32 NumV = U32(), NumI = U32();
+		if (!Need((int64)NumV * 32 + (int64)NumI * 4)) return false;
+		G.Geo.P.SetNum(NumV);
+		G.Geo.N.SetNum(NumV);
+		G.UV.SetNum(NumV);
+		for (uint32 I = 0; I < NumV; ++I) { const float X = F32(), Y = F32(), Z = F32(); G.Geo.P[I] = FVector(X, Y, Z); }
+		for (uint32 I = 0; I < NumV; ++I) { const float X = F32(), Y = F32(), Z = F32(); G.Geo.N[I] = FVector(X, Y, Z); }
+		for (uint32 I = 0; I < NumV; ++I) { const float U = F32(), V = F32(); G.UV[I] = FVector2f(U, V); }
+		G.Geo.T.SetNum(NumI);
+		for (uint32 I = 0; I < NumI; ++I)
+		{
+			const uint32 Ix = U32();
+			if (Ix >= NumV) return false;
+			G.Geo.T[I] = (int32)Ix;
+		}
+		Out.Add(MoveTemp(G));
+	}
+	return true;
+}
+
+// A slot's material on a component: the prop material (its tiling for a small tool) or a finish.
+UMaterialInterface* SlotMaterial(UObject* Outer, const FSlotSpec& S, const FLinearColor& Paint)
+{
+	if (S.bPaint) return TorqueToolModels::Finish(Outer, Paint, S.Plain.Metallic, S.Plain.Roughness);
+	if (!S.Prop.IsEmpty())
+	{
+		static TMap<FString, TWeakObjectPtr<UMaterialInterface>> Found;
+		UMaterialInterface* M = Found.FindRef(S.Prop).Get();
+		if (!M && !Found.Contains(S.Prop))
+		{
+			M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Shed/Props/Materials/MI_Prop_%s.MI_Prop_%s"), *S.Prop, *S.Prop),
+				nullptr, LOAD_NoWarn | LOAD_Quiet);
+			Found.Add(S.Prop, M);
+		}
+		if (M)
+		{
+			if (S.Tile <= 0.0) return M;
+			UMaterialInstanceDynamic* D = UMaterialInstanceDynamic::Create(M, Outer);
+			D->SetScalarParameterValue(TEXT("Tile"), (float)S.Tile);
+			return D;
+		}
+	}
+	return TorqueToolModels::Finish(Outer, S.Plain.Colour, S.Plain.Metallic, S.Plain.Roughness);
+}
+
+// A detailed tool's meshes, one per material slot, built the first time they're wanted and kept.
+struct FDataPart
+{
+	UStaticMesh* Mesh = nullptr;
+	FString Slot;
+};
+const TArray<FDataPart>& DataParts(int32 Tool)
+{
+	static TMap<int32, TArray<FDataPart>> Built;
+	if (const TArray<FDataPart>* Have = Built.Find(Tool)) return *Have;
+	TArray<FDataPart> Made;
+	const FToolSpec& Spec = SpecOf(Tool);
+	TArray<FSlotGeo> Geo;
+	if (Spec.bValid && ReadTMesh(Spec.Mesh, Geo))
+		for (const FSlotGeo& G : Geo)
+		{
+			FDataPart P;
+			P.Mesh = BuildMesh(G.Geo, BaseMaterial(), &G.UV);
+			P.Slot = G.Name;
+			if (!P.Mesh) continue;
+			P.Mesh->AddToRoot();   // kept across map travel
+			Made.Add(P);
+		}
+	else if (Spec.bValid) UE_LOG(LogTemp, Warning, TEXT("Torque: tool model %s didn't read"), *Spec.Mesh);
+	return Built.Add(Tool, Made);
+}
 } // namespace TorqueToolModelsImpl
 
 namespace TTMI = TorqueToolModelsImpl;
@@ -534,6 +745,30 @@ int32 Make(AActor* Owner, USceneComponent* Parent, int32 Tool, const FLinearColo
 {
 	OutNozzle = FVector::ZeroVector;
 	if (!Owner || !Parent) return 0;
+	// [hands] The detailed model, when Data/Tools has it: its meshes built once and kept.
+	const TTMI::FToolSpec& Spec = TTMI::SpecOf(Tool);
+	if (Spec.bValid)
+	{
+		const TArray<TTMI::FDataPart>* Parts = &TTMI::DataParts(Tool);
+		if (Parts->Num() > 0)
+		{
+			for (const TTMI::FDataPart& P : *Parts)
+			{
+				UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
+				C->SetStaticMesh(P.Mesh);
+				C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				C->SetGenerateOverlapEvents(false);
+				C->SetCastShadow(true);   // (with your hands round it, its shadow goes with theirs)
+				C->SetupAttachment(Parent);
+				C->RegisterComponent();
+				const TTMI::FSlotSpec* Sl = Spec.Slots.Find(P.Slot);
+				C->SetMaterial(0, TTMI::SlotMaterial(C, Sl ? *Sl : TTMI::FSlotSpec(), CanColour));
+				Out.Add(C);
+			}
+			OutNozzle = Spec.Nozzle;
+			return Parts->Num();
+		}
+	}
 	// Built once for each tool (and can colour) and kept.
 	struct FMade
 	{
@@ -590,8 +825,28 @@ int32 Make(AActor* Owner, USceneComponent* Parent, int32 Tool, const FLinearColo
 	return Found->Parts.Num();
 }
 
+void Warm()
+{
+	for (int32 T = Wrench; T <= Gun; ++T)
+		if (TTMI::SpecOf(T).bValid) TTMI::DataParts(T);
+}
+
+bool HasModel(int32 Tool)
+{
+	return TTMI::SpecOf(Tool).bValid;
+}
+
+bool GripOf(int32 Tool, int32 Hand, FGrip& Out)
+{
+	const TTMI::FToolSpec& S = TTMI::SpecOf(Tool);
+	if (!S.bValid || Hand < 0 || Hand > 1 || !S.Grips[Hand].bOn) return false;
+	Out = S.Grips[Hand];
+	return true;
+}
+
 FTransform HoldOf(int32 Tool)
 {
+	if (TTMI::SpecOf(Tool).bValid) return TTMI::SpecOf(Tool).Hold;   // [hands]
 	// walker.gd _set_tool_view, in the camera's frame (Godot: x right, y up, -z ahead).
 	FVector Pos(0.28, -0.28, -0.5), Rot(0.25, -0.3, 0.0);
 	if (Tool == Lance)
