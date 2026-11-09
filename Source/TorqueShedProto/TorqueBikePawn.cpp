@@ -305,6 +305,7 @@ void ATorqueBikePawn::BeginPlay()
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
 {
 	Pad.Reset();   // stops its reading thread
+	if (TripLogTime > 0.0) TripLog(TEXT("ride over"));   // [dash]
 	if (SoundAudio) SoundAudio->Stop();
 	Super::EndPlay(Reason);
 }
@@ -2250,6 +2251,13 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	if (!bRemote)
 	{
 		Dash.Step(*Sim, Throttle, Sim->EngineOn, DeltaSeconds);
+		TripSpeedKm += FMath::Abs(Sim->Speed) * DeltaSeconds / 1000.0;
+		TripLogTime += DeltaSeconds;
+		if ((TripLogClock += DeltaSeconds) >= 10.0)
+		{
+			TripLogClock = 0.0;
+			TripLog(TEXT("riding"));
+		}
 		// The tank is the dash's (it burns the petrol); run dry, the engine stops.
 		Sim->FuelLitres = Dash.FuelLitres;
 		if (Sim->EngineOn && Dash.FuelLitres <= 0.0)
@@ -3199,6 +3207,17 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.25;
 	Camera->SetWorldLocationAndRotation(Pos, Rot);
 	Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(72.0f));   // Settings > Gameplay > Field of view
+}
+
+// [dash] "Torque trip:" the dash's trip (the ground covered), speed x frame time, the route's
+// progress (Buttertubs) and the seconds ridden, so the trip can be checked against the road.
+void ATorqueBikePawn::TripLog(const TCHAR* Why)
+{
+	if (!Sim) return;
+	const double DoneM = Line.Num() > 1 ? RouteLengthM * Near / (Line.Num() - 1) : 0.0;
+	UE_LOG(LogTemp, Log, TEXT("Torque trip (%s): dash %.3f km, speed x time %.3f km, %s, %.1f s ridden, now %.1f km/h"),
+		Why, Dash.TripKm, TripSpeedKm, bYard ? TEXT("in the yard (no route)") : *FString::Printf(TEXT("Buttertubs route %.3f km of %.3f"), DoneM / 1000.0, RouteLengthM / 1000.0),
+		TripLogTime, FMath::Abs(Sim->Speed) * 3.6);
 }
 
 void ATorqueBikePawn::DrawHud()

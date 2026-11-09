@@ -268,6 +268,10 @@ private:
 	void UpdatePerf(float Dt);
 	TArray<FHudLine> HudLines;
 	FTorqueDash Dash;   // [dash]
+	// [dash] The trip check: every 10 s of riding, a log line with the dash's trip next to speed x
+	// time, the route's progress and how far the clock says (TripLog).
+	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;
+	void TripLog(const TCHAR* Why);
 	bool bShowHelp = true;
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
 	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.
