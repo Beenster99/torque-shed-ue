@@ -80,6 +80,7 @@ FString ActName(ETorqueShedAct K)
 	case ETorqueShedAct::Drop: return TEXT("drop");
 	case ETorqueShedAct::Place: return TEXT("place");
 	case ETorqueShedAct::Bin: return TEXT("bin");
+	case ETorqueShedAct::ScrapBike: return TEXT("scrap_bike");
 	case ETorqueShedAct::Clean: return TEXT("clean");
 	case ETorqueShedAct::Repair: return TEXT("repair");
 	case ETorqueShedAct::Fabricate: return TEXT("repair");
