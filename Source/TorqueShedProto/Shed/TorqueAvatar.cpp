@@ -526,6 +526,8 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	Right = Bones[Thigh[1]].Rest - Bones[Thigh[0]].Rest;
 	Right = (Right - Up * FVector::DotProduct(Right, Up) - Fwd * FVector::DotProduct(Right, Fwd)).GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
 	ArmLen = (Bones[LowerArm[0]].Rest - Bones[UpperArm[0]].Rest).Size() + (Bones[HandBone[0]].Rest - Bones[LowerArm[0]].Rest).Size();
+	EyeRest = Fwd * 9.5 + Up * 7.0;   // [hands] the eyes from the head joint, till the face's eye joints say (SetupFace)
+	bPosed = false;
 	LegLen = (Bones[Calf[0]].Rest - Bones[Thigh[0]].Rest).Size() + (Bones[FootBone[0]].Rest - Bones[Calf[0]].Rest).Size();
 
 	// The poseable copy: in the Blueprint body's own space (hidden, the parts follow it), or shown
@@ -614,8 +616,31 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 	Phase = FMath::Fmod(Phase + 2.0 * PI * Speed / FMath::Max(Stride, 1.0) * Dt * (Fore < -10.0 ? -1.0 : 1.0), 2.0 * PI);
 	const double HandsWant = In.bCarrying ? 1.0 : In.bWorking ? 0.7 : 0.0;
 	Hands += (HandsWant - Hands) * FMath::Min(1.0, Dt * 6.0);
-	Gripping += ((In.bToolInHand ? 1.0 : 0.0) - Gripping) * FMath::Min(1.0, Dt * 8.0);
-	const FVector GripLocal = Driver->GetComponentTransform().InverseTransformPosition(In.ToolGrip);
+	Gripping += ((In.bToolInHand && !In.Grip[1].bOn ? 1.0 : 0.0) - Gripping) * FMath::Min(1.0, Dt * 8.0);
+	const FTransform CT = Driver->GetComponentTransform();
+	const FVector GripLocal = CT.InverseTransformPosition(In.ToolGrip);
+	// [hands] The hands on the tool's handles (HandOnBar): each hand's turn, wrist and the bar, here
+	// in component space; eased on as a tool's taken up, let go at once when it's put away.
+	FQuat BarQ[2];
+	FVector BarWrist[2], BarC[2], BarAxisC[2], BarAimC[2], BarPalm[2];
+	double BarR[2] = {1.5, 1.5};
+	for (int32 S = 0; S < 2; ++S)
+	{
+		const FTorqueHandGrip& G = In.Grip[S];
+		bGripReached[S] = false;
+		if (!G.bOn) { GripW[S] = 0.0; continue; }
+		GripW[S] += (1.0 - GripW[S]) * FMath::Min(1.0, Dt * 8.0);
+		const double Scale = FMath::Max(CT.GetScale3D().X, 0.01);
+		BarC[S] = CT.InverseTransformPosition(G.At);
+		BarAxisC[S] = CT.InverseTransformVectorNoScale(G.Axis).GetSafeNormal(UE_SMALL_NUMBER, Up);
+		FVector Aim = CT.InverseTransformVectorNoScale(G.Aim);
+		Aim = (Aim - BarAxisC[S] * FVector::DotProduct(Aim, BarAxisC[S])).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
+		BarAimC[S] = Aim;
+		BarR[S] = G.Radius / Scale;
+		// The knuckles a little past the bar and the bones a finger's thickness behind its surface
+		// (for the riding grips' 1.6 cm bar: 1.5 and 3 cm).
+		HandOnBar(S, BarC[S], BarAxisC[S], Aim, FMath::Min(BarR[S], 2.0) * 0.9, BarR[S] + 1.4, BarQ[S], BarWrist[S], BarPalm[S]);
+	}
 	const double LeanWant = FMath::Clamp(Speed / 550.0, 0.0, 1.0) * 8.0 + In.Crouch * 18.0;   // degrees forward
 	Lean += (LeanWant - Lean) * FMath::Min(1.0, Dt * 4.0);
 	const double Crouch = FMath::Clamp(In.Crouch, 0.0, 1.0);
@@ -677,7 +702,10 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 				const double OnTool = S == 1 ? Gripping : 0.0;
 				if (OnTool > 0.0)
 					W = FMath::Lerp(W, GripLocal - (GripLocal - P[I]).GetSafeNormal() * 7.0, OnTool);
-				const double Up2 = FMath::Max(Hands, OnTool);
+				// [hands] Or round a handle, the wrist where the hand needs it.
+				const double OnBar = In.Grip[S].bOn ? GripW[S] : 0.0;
+				if (OnBar > 0.0) W = FMath::Lerp(W, BarWrist[S], OnBar);
+				const double Up2 = FMath::Max3(Hands, OnTool, OnBar);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector Pole = (-Fwd * (1.0 - Up2) + Right * (Sign * 0.6) - Up * (0.4 + Up2)).GetSafeNormal();
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
@@ -686,6 +714,26 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
 				D[HandBone[S]] = D[LowerArm[S]]; Set[HandBone[S]] = true;
+				if (OnBar > 0.0)
+				{
+					// [hands] The hand turned onto the handle and the fingers round it: on a trigger
+					// (eased open to hook it, curled as it's pulled), the index up on a spray head.
+					const FTorqueHandGrip& G = In.Grip[S];
+					D[HandBone[S]] = FQuat::Slerp(D[LowerArm[S]], BarQ[S], OnBar);
+					const FVector WAct = E + D[LowerArm[S]].RotateVector(W0 - E0);
+					double K[5] = {0.0, 1.0, 1.0, 1.0, 1.0};
+					const double Pull = FMath::Clamp(G.TriggerPull, 0.0, 1.0);
+					if (G.TriggerFingers >= 4)
+						for (int32 F = 1; F < 5; ++F) K[F] = FMath::Lerp(0.88, 1.0, Pull);
+					else
+						for (int32 F = 1; F <= G.TriggerFingers && F < 5; ++F) K[F] = FMath::Lerp(0.45, 0.8, Pull);
+					if (G.bIndexTop) K[1] = 0.3 + 0.3 * Pull;   // pressing the spray head
+					for (int32 F = 1; F < 5; ++F) K[F] *= OnBar;
+					WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarC[S], BarAxisC[S], BarAimC[S], BarPalm[S], BarR[S] + 1.0, K, 1.0 - OnBar);
+					// Where the bar is now (the tool goes with the hand when the arm can't reach).
+					GripAt[S] = CT.TransformPosition(BarC[S] + (WAct - BarWrist[S]));
+					bGripReached[S] = true;
+				}
 			}
 		}
 	}
@@ -695,6 +743,9 @@ void FTorqueAvatar::Pose(const FTorqueAvatarInput& In, double Dt)
 		Driver->SetBoneTransformByName(Bones[I].Name, T, EBoneSpaces::ComponentSpace);
 	}
 	PoseFace();
+	HeadAtC = P[Head];
+	HeadTurnC = D[Head];
+	bPosed = true;
 	// Once, a second or so in: whether the pose reached the mesh (the left foot from its rest).
 	PosedFor += Dt;
 	if (!bPoseLogged && PosedFor > 1.5)
@@ -721,7 +772,51 @@ void FTorqueAvatar::SetupFace()
 	}
 	FaceHead = Ref.FindBoneIndex(TEXT("head"));
 	FaceScale = 1.0;
+	// [hands] Where the eyes are from the head joint (the face's eye joints at rest), for the
+	// first-person camera; kept to the default when they're missing or look wrong.
+	{
+		TArray<FTransform> RestCS;
+		RestCS.SetNum(Num);
+		for (int32 I = 0; I < Num; ++I)
+		{
+			const int32 Par = Ref.GetParentIndex(I);
+			RestCS[I] = Par >= 0 ? Ref.GetRefBonePose()[I] * RestCS[Par] : Ref.GetRefBonePose()[I];
+		}
+		const int32 L = Ref.FindBoneIndex(TEXT("FACIAL_L_Eye")), R = Ref.FindBoneIndex(TEXT("FACIAL_R_Eye"));
+		if (L != INDEX_NONE && R != INDEX_NONE && Head != INDEX_NONE)
+		{
+			const FVector Off = (RestCS[L].GetLocation() + RestCS[R].GetLocation()) * 0.5 - Bones[Head].Rest;
+			if (Off.Size() > 4.0 && Off.Size() < 20.0 && FVector::DotProduct(Off, Fwd) > 2.0) EyeRest = Off;
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: eyes %s from the head joint%s"), *Name, *EyeRest.ToCompactString(),
+			L != INDEX_NONE && R != INDEX_NONE ? TEXT(" (the face's eye joints)") : TEXT(" (no eye joints: a guess)"));
+	}
 	PoseFace();
+}
+
+bool FTorqueAvatar::GripReached(int32 Hand, FVector& At) const
+{
+	if (!Driver || Hand < 0 || Hand > 1 || !bGripReached[Hand]) return false;
+	At = GripAt[Hand];
+	return true;
+}
+
+bool FTorqueAvatar::EyeWorld(FVector& At) const
+{
+	if (!Driver || !bPosed || Head == INDEX_NONE) return false;
+	At = Driver->GetComponentTransform().TransformPosition(HeadAtC + HeadTurnC.RotateVector(EyeRest));
+	return true;
+}
+
+void FTorqueAvatar::SetOwnerView(bool bFirstPerson)
+{
+	for (const TWeakObjectPtr<USceneComponent>& P : Parts)
+	{
+		UPrimitiveComponent* C = Cast<UPrimitiveComponent>(P.Get());
+		if (!C || (C != FaceMesh && !Hair.Contains(P))) continue;
+		C->SetOwnerNoSee(bFirstPerson);
+		C->SetCastHiddenShadow(true);
+	}
 }
 
 void FTorqueAvatar::PoseFace()
@@ -852,6 +947,86 @@ bool FTorqueAvatar::HeadInParent(FVector& At, FQuat& Turn) const
 	return true;
 }
 
+void FTorqueAvatar::HandRest(int32 S, FVector& Aim0, FVector& Across0, FVector& Palm0) const
+{
+	// The hand's own frame at rest: wrist to middle knuckle, and across the knuckles from pinky to
+	// index; the palm's side is Aim x Across for the right hand, the other way for the left (mirrored).
+	const double Side = S == 0 ? -1.0 : 1.0;
+	const FVector W0 = Bones[HandBone[S]].Rest, E0 = Bones[LowerArm[S]].Rest;
+	const int32 Knuckle = Finger[S][2][0], IndexK = Finger[S][1][0], PinkyK = Finger[S][4][0];
+	Aim0 = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
+	Across0 = (IndexK != INDEX_NONE && PinkyK != INDEX_NONE) ? Bones[IndexK].Rest - Bones[PinkyK].Rest : Right * Side;
+	Across0 -= Aim0.GetSafeNormal() * FVector::DotProduct(Across0, Aim0.GetSafeNormal());
+	Palm0 = (FVector::CrossProduct(Aim0, Across0) * Side).GetSafeNormal();
+}
+
+void FTorqueAvatar::HandOnBar(int32 S, const FVector& Bar, const FVector& Across1, const FVector& Aim1, double AimOff, double PalmOff,
+	FQuat& HandQ, FVector& WristAt, FVector& Palm1) const
+{
+	// Turned so the knuckles point along Aim1 with the index along Across1, and placed so the bar
+	// sits across the palm just short of the knuckles: AimOff short of them, PalmOff palm-side of the bones.
+	FVector Aim0, Across0, Palm0;
+	HandRest(S, Aim0, Across0, Palm0);
+	HandQ = TorqueAvatarMath::Align(Aim0, Across0, Aim1, Across1);
+	Palm1 = HandQ.RotateVector(Palm0);
+	const FVector KnuckleAt = Bar + Aim1 * AimOff - Palm1 * PalmOff;
+	WristAt = KnuckleAt - HandQ.RotateVector(Aim0);
+}
+
+void FTorqueAvatar::WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, const FQuat& Hq, const FVector& WAct, const FVector& Bar,
+	const FVector& Axis, const FVector& Aim1, const FVector& Palm1, double GripR, const double FingerK[5], double ThumbOff) const
+{
+	// Joint by joint, each finger bone turns (about the bar's line, towards the palm) until its far
+	// end touches the grip's surface (GripR from the bar's line), so the fingers follow the bar
+	// whatever the hand's size; FingerK opens each finger (1 wrapped, 0 straight). The thumb tucks
+	// round the other side to meet the fingertips (ThumbOff 1: left at rest).
+	FVector Aim0, Across0, Palm0;
+	HandRest(S, Aim0, Across0, Palm0);
+	const FVector W0 = Bones[HandBone[S]].Rest;
+	const FVector Curl = Hq.RotateVector(FVector::CrossProduct(Aim0.GetSafeNormal(), Palm0).GetSafeNormal());
+	const FVector Ax = Axis.GetSafeNormal();
+	auto FromBar = [&](const FVector& X) { const FVector V = X - Bar; return (V - Ax * FVector::DotProduct(V, Ax)).Size(); };
+	for (int32 F = 1; F < 5; ++F)
+	{
+		const double K = FingerK[F];
+		const int32 B0 = Finger[S][F][0];
+		if (B0 == INDEX_NONE) continue;
+		FQuat Par = Hq;
+		FVector Pj = WAct + Hq.RotateVector(Bones[B0].Rest - W0);
+		for (int32 J = 0; J < 3; ++J)
+		{
+			const int32 B = Finger[S][F][J];
+			if (B == INDEX_NONE) break;
+			const int32 Bn = J < 2 ? Finger[S][F][J + 1] : INDEX_NONE;
+			const int32 Bp = J > 0 ? Finger[S][F][J - 1] : INDEX_NONE;
+			const FVector Seg0 = Bn != INDEX_NONE ? Bones[Bn].Rest - Bones[B].Rest
+				: (Bp != INDEX_NONE ? (Bones[B].Rest - Bones[Bp].Rest) * 0.8 : FVector::ZeroVector);
+			const FVector Seg = Par.RotateVector(Seg0);   // the bone as its parent has turned it
+			double Deg = J == 2 ? 70.0 : 90.0;   // as far as it bends when the bar's out of reach
+			for (double T = 0.0; T <= 110.0; T += 3.0)
+				if (FromBar(Pj + FQuat(Curl, FMath::DegreesToRadians(T)).RotateVector(Seg)) <= GripR) { Deg = T; break; }
+			const FQuat Q(Curl, FMath::DegreesToRadians(Deg * K));
+			D[B] = Q * Par; Set[B] = true;
+			Pj += Q.RotateVector(Seg);
+			Par = D[B];
+		}
+	}
+	// The thumb: round the inside of the bar from the wrist side, its tip under the bar.
+	const int32 T0 = Finger[S][0][0], T1 = Finger[S][0][1], T2 = Finger[S][0][2];
+	if (T0 == INDEX_NONE || T2 == INDEX_NONE) return;
+	const FVector P0 = WAct + Hq.RotateVector(Bones[T0].Rest - W0);
+	const FVector TipRest = Bones[T2].Rest + (Bones[T2].Rest - Bones[T1 != INDEX_NONE ? T1 : T0].Rest) * 0.8;
+	const FVector TipNow = Hq.RotateVector(TipRest - Bones[T0].Rest);
+	FVector Goal = Bar - Aim1 * (GripR * 0.7) + Palm1 * (GripR * 0.7);
+	Goal += Ax * FVector::DotProduct(P0 - Bar, Ax);   // where along the bar the thumb is
+	FQuat Q = FQuat::FindBetweenVectors(TipNow, Goal - P0);
+	const double Ang = Q.GetAngle();
+	if (Ang > FMath::DegreesToRadians(80.0)) Q = FQuat::Slerp(FQuat::Identity, Q, FMath::DegreesToRadians(80.0) / Ang);
+	Q = FQuat::Slerp(Q, FQuat::Identity, FMath::Clamp(ThumbOff, 0.0, 1.0));
+	for (int32 J = 0; J < 3; ++J)
+		if (Finger[S][0][J] != INDEX_NONE) { D[Finger[S][0][J]] = Q * Hq; Set[Finger[S][0][J]] = true; }
+}
+
 void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 {
 	using namespace TorqueAvatarMath;
@@ -890,23 +1065,17 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 	for (int32 S = 0; S < 2; ++S)
 	{
 		const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
-		const FVector W0 = Bones[HandBone[S]].Rest, E0 = Bones[LowerArm[S]].Rest;
-		const int32 Knuckle = Finger[S][2][0], IndexK = Finger[S][1][0], PinkyK = Finger[S][4][0];
-		Aim0[S] = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
-		FVector Across0 = (IndexK != INDEX_NONE && PinkyK != INDEX_NONE) ? Bones[IndexK].Rest - Bones[PinkyK].Rest : Right * Side;
-		Across0 -= Aim0[S].GetSafeNormal() * FVector::DotProduct(Across0, Aim0[S].GetSafeNormal());
-		// Palm side: Aim x Across for the right hand, the other way for the left (mirrored).
-		Palm0[S] = (FVector::CrossProduct(Aim0[S], Across0) * Side).GetSafeNormal();
+		FVector Across0;
+		HandRest(S, Aim0[S], Across0, Palm0[S]);
 		const FVector Bar = ToC(Tg.Grip[S]);
 		const FVector Across1 = -Right * Side;   // the index towards the bike's middle
 		FVector Aim1 = Bar - ToC(Tg.Wrist[S]);
 		Aim1 -= Across1 * FVector::DotProduct(Aim1, Across1);
 		Aim1 = (Aim1.Size() > 2.0 ? Aim1.GetSafeNormal() : FVector::ZeroVector) + (Fwd * 0.8 - Up * 0.6) * 0.5;
 		Aim1 = (Aim1 - Across1 * FVector::DotProduct(Aim1, Across1)).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
-		HandQ[S] = Align(Aim0[S], Across0, Aim1, Across1);
-		const FVector Palm1 = HandQ[S].RotateVector(Palm0[S]);
-		const FVector KnuckleAt = Bar + Aim1 * 1.5 - Palm1 * 3.0;   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
-		WristAt[S] = FMath::Lerp(KnuckleAt - HandQ[S].RotateVector(Aim0[S]), ToC(Tg.Wrist[S]), Off);
+		FVector Palm1, GripWrist;
+		HandOnBar(S, Bar, Across1, Aim1, 1.5, 3.0, HandQ[S], GripWrist, Palm1);   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
+		WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off);
 		BarAt[S] = Bar;
 		BarAxis[S] = Across1.GetSafeNormal();
 		AimOn[S] = Aim1;
@@ -958,65 +1127,14 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
 				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], Off); Set[HandBone[S]] = true;
-				// The fingers wrapped round the bar: joint by joint, each bone turns (about the bar's
-				// line, towards the palm) until its far end touches the grip's surface, so they follow
-				// the bar whatever the hand's size. The index and middle lift onto a lever when they're
-				// on it. The thumb tucks under, round the other side to meet the fingertips.
-				const FQuat Hq = D[HandBone[S]];
+				// The fingers wrapped round the bar (WrapFingers). The index and middle lift onto a
+				// lever when they're on it.
 				const FVector WAct = E + D[LowerArm[S]].RotateVector(W0 - E0);   // where the wrist got to
-				const FVector Curl = Hq.RotateVector(FVector::CrossProduct(Aim0[S].GetSafeNormal(), Palm0[S]).GetSafeNormal());
-				const FVector Ax = BarAxis[S];
-				const double GripR = 2.6;   // the grip's radius plus half a finger
-				auto FromBar = [&](const FVector& X) { const FVector V = X - BarAt[S]; return (V - Ax * FVector::DotProduct(V, Ax)).Size(); };
 				const double Loose = 1.0 - Off * 0.7;
-				for (int32 F = 1; F < 5; ++F)
-				{
-					double K = Loose;
-					if (F == 1 || F == 2)
-					{
-						const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
-						K *= FMath::Lerp(1.0, 0.35 + 0.45 * Pull, On);
-					}
-					const int32 B0 = Finger[S][F][0];
-					if (B0 == INDEX_NONE) continue;
-					FQuat Par = Hq;
-					FVector Pj = WAct + Hq.RotateVector(Bones[B0].Rest - W0);
-					for (int32 J = 0; J < 3; ++J)
-					{
-						const int32 B = Finger[S][F][J];
-						if (B == INDEX_NONE) break;
-						const int32 Bn = J < 2 ? Finger[S][F][J + 1] : INDEX_NONE;
-						const int32 Bp = J > 0 ? Finger[S][F][J - 1] : INDEX_NONE;
-						const FVector Seg0 = Bn != INDEX_NONE ? Bones[Bn].Rest - Bones[B].Rest
-							: (Bp != INDEX_NONE ? (Bones[B].Rest - Bones[Bp].Rest) * 0.8 : FVector::ZeroVector);
-						const FVector Seg = Par.RotateVector(Seg0);   // the bone as its parent has turned it
-						double Deg = J == 2 ? 70.0 : 90.0;   // as far as it bends when the bar's out of reach
-						for (double T = 0.0; T <= 110.0; T += 3.0)
-							if (FromBar(Pj + FQuat(Curl, FMath::DegreesToRadians(T)).RotateVector(Seg)) <= GripR) { Deg = T; break; }
-						const FQuat Q(Curl, FMath::DegreesToRadians(Deg * K));
-						D[B] = Q * Par; Set[B] = true;
-						Pj += Q.RotateVector(Seg);
-						Par = D[B];
-					}
-				}
-				// The thumb: round the inside of the bar from the wrist side, its tip under the bar.
-				{
-					const int32 T0 = Finger[S][0][0], T1 = Finger[S][0][1], T2 = Finger[S][0][2];
-					if (T0 != INDEX_NONE && T2 != INDEX_NONE)
-					{
-						const FVector P0 = WAct + Hq.RotateVector(Bones[T0].Rest - W0);
-						const FVector TipRest = Bones[T2].Rest + (Bones[T2].Rest - Bones[T1 != INDEX_NONE ? T1 : T0].Rest) * 0.8;
-						const FVector TipNow = Hq.RotateVector(TipRest - Bones[T0].Rest);
-						FVector Goal = BarAt[S] - AimOn[S] * (GripR * 0.7) + PalmOn[S] * (GripR * 0.7);
-						Goal += Ax * FVector::DotProduct(P0 - BarAt[S], Ax);   // where along the bar the thumb is
-						FQuat Q = FQuat::FindBetweenVectors(TipNow, Goal - P0);
-						const double Ang = Q.GetAngle();
-						if (Ang > FMath::DegreesToRadians(80.0)) Q = FQuat::Slerp(FQuat::Identity, Q, FMath::DegreesToRadians(80.0) / Ang);
-						Q = FQuat::Slerp(Q, FQuat::Identity, Off);
-						for (int32 J = 0; J < 3; ++J)
-							if (Finger[S][0][J] != INDEX_NONE) { D[Finger[S][0][J]] = Q * Hq; Set[Finger[S][0][J]] = true; }
-					}
-				}
+				double K[5] = {0.0, Loose, Loose, Loose, Loose};
+				const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
+				for (int32 F = 1; F <= 2; ++F) K[F] *= FMath::Lerp(1.0, 0.35 + 0.45 * Pull, On);
+				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, Off);   // the grip's radius plus half a finger
 			}
 			else if (I == Thigh[S])
 			{

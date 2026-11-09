@@ -64,6 +64,8 @@ const double BrushReach = 35.0;
 const double JetReach = 30.0;
 const double StandEye = 162.0 - 90.0;
 const double CrouchEye = 95.0 - 55.0;
+// [hands] How far behind the camera your own body stands, cm (the camera keeps to its eyes).
+const double BodyBack = 6.0;
 const float CrouchHalfHeight = 55.0f;
 
 const TCHAR* ToolName(ETorqueTool T)
@@ -314,6 +316,7 @@ void ATorqueWalker::BeginPlay()
 {
 	Super::BeginPlay();
 	if (FParse::Param(FCommandLine::Get(), TEXT("TorqueProfile"))) { bPerfShow = true; bPerfLog = true; }
+	if (GetNetMode() != NM_DedicatedServer) TorqueToolModels::Warm();   // [hands] the tools' meshes built now, not as you take one up
 	// The loose parts are drawn by one ATorqueShedItems; a level built before it existed has none.
 	if (UWorld* World = GetWorld())
 	{
@@ -363,10 +366,21 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 	Super::EndPlay(Reason);
 }
 
+FVector ATorqueWalker::EyeSpot() const
+{
+	// [hands] Your body's eyes (first person), else Torque Shed's eye height.
+	if (bFirstEye && IsLocallyControlled()) return FirstEye;
+	return FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
+}
+
 void ATorqueWalker::UpdateAvatar(float Dt)
 {
 	// A MetaHuman per player colour, when Data/Avatars/avatars.json lists some (Tools/ue_metahumans.py).
-	if (FTorqueAvatar::Count() == 0 || GetNetMode() == NM_DedicatedServer) return;
+	// [hands] Yours too, seen from inside it (unless -TorqueNoBody).
+	static const bool bNoBody = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoBody"));
+	const bool bMine = IsLocallyControlled();
+	if (bMine && bNoBody) { bFirstEye = false; return; }
+	if (FTorqueAvatar::Count() == 0 || GetNetMode() == NM_DedicatedServer) { bFirstEye = false; return; }
 	const ATorquePlayerState* PS = Cast<ATorquePlayerState>(GetPlayerState());
 	if (!PS) return;
 	// Who they are: their Profile page's choice (Shed/TorqueProfile.h), or the one for their colour.
@@ -384,20 +398,23 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 		}
 		if (!Avatar) Avatar = MakeUnique<FTorqueAvatar>();
 		const bool bMade = Avatar->Build(this, AvatarRoot, Want);
+		if (bMade) Avatar->SetOwnerView(bMine);   // [hands] your own face and hair out of your view
+		bFirstEye = false;
 		// The shape body goes while the MetaHuman stands in for it.
 		TArray<UStaticMeshComponent*> Shapes;
 		GetComponents(Shapes);
 		for (UStaticMeshComponent* C : Shapes)
 			if (C->GetName().StartsWith(TEXT("Body_"))) C->SetVisibility(!bMade);
 	}
-	if (!Avatar || !Avatar->IsValid()) return;
+	if (!Avatar || !Avatar->IsValid()) { bFirstEye = false; return; }
 	if (AvatarLook != PS->Profile)   // their height and face
 	{
 		AvatarLook = PS->Profile;
 		Avatar->SetLook(Look);
 	}
-	// Feet on the floor: the capsule's bottom (it shrinks and drops when crouched).
-	AvatarRoot->SetRelativeLocation(FVector(0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+	// Feet on the floor: the capsule's bottom (it shrinks and drops when crouched). [hands] Your own a
+	// few cm back, so looking down you see your chest and feet, not the inside of your collar.
+	AvatarRoot->SetRelativeLocation(FVector(bMine ? -TWI::BodyBack : 0.0, 0.0, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 	FTorqueAvatarInput In;
 	In.Velocity = GetVelocity();
 	In.Facing = GetActorRotation();
@@ -411,7 +428,53 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 	In.bToolInHand = !In.bCarrying && Tool != ETorqueTool::Hands && ToolHolder && ToolHolder->IsVisible();
 	if (In.bToolInHand) In.ToolGrip = ToolHolder->GetComponentLocation();
 	In.bWorking = Tool == ETorqueTool::Hands && WorkBlend > 0.2;
+	// [hands] The hands round the tool's handles (Data/Tools/tools.json grips), fingers on its
+	// trigger pulled as you work.
+	const FTransform HolderAt = ToolHolder ? ToolHolder->GetComponentTransform() : FTransform::Identity;
+	TorqueToolModels::FGrip Grips[2];
+	for (int32 S = 0; S < 2; ++S)
+	{
+		if (!In.bToolInHand || !TorqueToolModels::GripOf((int32)Tool, S, Grips[S])) continue;
+		FTorqueHandGrip& G = In.Grip[S];
+		G.bOn = true;
+		G.At = HolderAt.TransformPosition(Grips[S].At);
+		G.Axis = HolderAt.TransformVectorNoScale(Grips[S].Axis);
+		G.Aim = HolderAt.TransformVectorNoScale(Grips[S].Aim);
+		G.Radius = Grips[S].Radius * HolderAt.GetScale3D().X;
+		G.TriggerFingers = Grips[S].Trigger;
+		G.TriggerPull = WorkBlend;
+		G.bIndexTop = Grips[S].bIndexTop;
+	}
 	Avatar->Pose(In, Dt);
+	// The tool follows the right hand when the arm couldn't reach where the view holds it.
+	FVector Reached;
+	if (In.Grip[1].bOn && ToolHolder && Avatar->GripReached(1, Reached))
+	{
+		const FVector Short = Reached - In.Grip[1].At;
+		if (Short.SizeSquared() > 0.01) ToolHolder->SetWorldLocation(ToolHolder->GetComponentLocation() + Short);
+		// Once per tool, a second in: how far short of the view's hold the hand came (0 = in reach).
+		HandsHeldFor = (int32)Tool == HandsLogged ? HandsHeldFor : HandsHeldFor + Dt;
+		if (bMine && (int32)Tool != HandsLogged && HandsHeldFor > 1.0)
+		{
+			HandsLogged = (int32)Tool;
+			HandsHeldFor = 0.0;
+			FVector LeftAt;
+			const bool bLeft = In.Grip[0].bOn && Avatar->GripReached(0, LeftAt);
+			UE_LOG(LogTemp, Log, TEXT("Torque: hands on tool %d: right hand %.1f cm short of the hold%s, eye %s"), (int32)Tool, Short.Size(),
+				bLeft ? *FString::Printf(TEXT(", left hand %.1f cm short"), (LeftAt - In.Grip[0].At).Size()) : TEXT(""), *FirstEye.ToCompactString());
+		}
+	}
+	else HandsHeldFor = 0.0;
+	// Your camera at your body's eyes (from this pose, for the next frame), eased so a step's bob is soft.
+	FVector Eye;
+	if (bMine && Avatar->EyeWorld(Eye))
+	{
+		FVector EyeWant = GetCapsuleComponent()->GetComponentTransform().InverseTransformPosition(Eye) + FVector(TWI::BodyBack, 0.0, 0.0);
+		const double EyeBase = bIsCrouched ? TWI::CrouchEye : TWI::StandEye;
+		EyeWant = FVector(FMath::Clamp(EyeWant.X, -20.0, 25.0), FMath::Clamp(EyeWant.Y, -15.0, 15.0), FMath::Clamp(EyeWant.Z, EyeBase - 25.0, EyeBase + 20.0));
+		FirstEye = bFirstEye ? FMath::VInterpTo(FirstEye, EyeWant, (double)Dt, 14.0) : EyeWant;
+		bFirstEye = true;
+	}
 }
 
 void ATorqueWalker::Told(int32 Peer, const FString& Text, bool bOk)
@@ -441,9 +504,9 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	// tool in hand and moving as they work (FollowHands).
 	if (!IsLocallyControlled())
 	{
-		// (Their hands first: the avatar's right hand reaches for the tool where FollowHands put it.)
+		// (Their hands: FollowHands puts their tool in front of them, and the avatar's hands take
+		// it there, from UpdateToolView.)
 		FollowHands(DeltaSeconds);
-		UpdateAvatar(DeltaSeconds);
 		if (!Avatar || !Avatar->IsValid()) TorqueLook::Dress(this);
 		return;
 	}
@@ -465,7 +528,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		B->SetLocalPeer(GetPlayerState()->GetPlayerId());
 		bPeerSet = true;
 	}
-	Camera->SetRelativeLocation(FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye));
+	Camera->SetRelativeLocation(EyeSpot());   // [hands] at your body's eyes when it's there
 	UpdateRoomExposure(DeltaSeconds);
 	if (bRidingOut)
 	{
@@ -1646,6 +1709,7 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
 	Hold.AddToTranslation(Move);
 	ToolHolder->SetRelativeTransform(Hold);
+	UpdateAvatar(Dt);   // [hands] the body, its hands round the tool (the tool brought to the hand when it can't reach)
 	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && Tool == ETorqueTool::Repair);   // (the lance's water: UpdateWashFx)
 	UpdateSprayFx(Dt);   // the spray itself: the jet, the overspray, the footprint (TorqueWalkerSpray.cpp)
 	UpdateWashFx(Dt);    // the pressure washer's jet, its mist and splash (TorqueWalkerWash.cpp)
