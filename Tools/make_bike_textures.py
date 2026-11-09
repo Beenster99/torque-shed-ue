@@ -8,8 +8,9 @@ Tools/make_speedtwin.py pick a set each.
     python Tools/make_bike_textures.py
 
 Sets: flat, flake (metallic paint), brushed (streaks along V), machined (streaks along U: concentric
-on a disc), cast (sand-cast alloy), powder (powder coat), rubber, knurl (grips), leather (seat) and
-tyre (one tread repeat, bead to bead, wrapped 24 times round each tyre). Decals (decal_<name>_a.png:
+on a disc), cast (sand-cast alloy), powder (powder coat), rubber, knurl (grips), leather (seat),
+tyre (one tread repeat, bead to bead, wrapped 24 times round each tyre), and for the catalogue
+parts carbon (2x2 twill) and fabric (plain weave). Decals (decal_<name>_a.png:
 coverage, for a masked material) cover the side-view boxes in make_speedtwin.DECALS: the tank's
 "1200" and pinstripes, measured off the drone profile, and "SPEED TWIN" on the side panels.
 """
@@ -239,6 +240,29 @@ def main():
     rough = np.where(side, -0.12, 0.05) + dark * 0.1 + band_noise(H, W, 10, 40) * 0.03
     shade = np.where(side, 0.82, 1.0) - dark * 0.35 + 0.03 * band_noise(H, W, 40, 120)
     save("tyre", hgt, 1.6, rough, shade)
+
+    # Carbon fibre (the catalogue parts' carbon): 2x2 twill, 16 tows a tile each way; each tow a
+    # rounded bundle, the ones along u catching the light differently from those along v, under
+    # the lacquer. (Made after the rest, so their noise is as it was.)
+    T = 16
+    yy, xx = np.mgrid[0:s, 0:s] / s * T
+    i, j = np.floor(xx).astype(int), np.floor(yy).astype(int)
+    warp_up = ((i + j) % 4) < 2
+    fx, fy = xx - i, yy - j
+    bulge = np.where(warp_up, np.sin(np.pi * fx), np.sin(np.pi * fy)) ** 0.5
+    fibres = band_noise(s, s, 200, 256, sx=1.0, sy=8.0)
+    fibres = np.where(warp_up, fibres, fibres.T)
+    hgt = bulge + 0.05 * fibres
+    save("carbon", hgt - hgt.mean(), 0.5, np.where(warp_up, -0.03, 0.03) + 0.02 * fibres,
+         np.where(warp_up, 0.82, 1.0) * (0.92 + 0.08 * bulge))
+
+    # Fabric (luggage, tank bags): a plain weave of 64 threads a tile, a little fuzz.
+    T = 64
+    yy, xx = np.mgrid[0:s, 0:s] / s * T
+    over = ((np.floor(xx) + np.floor(yy)) % 2) == 0
+    wx, wy = np.sin(np.pi * (xx % 1.0)), np.sin(np.pi * (yy % 1.0))
+    hgt = np.where(over, wx, wy) * 0.8 + 0.2 * band_noise(s, s, 100, 250)
+    save("fabric", hgt - hgt.mean(), 0.8, 0.06 * band_noise(s, s, 20, 80), 0.9 + 0.1 * np.where(over, wx, wy))
     decals()
 
 
