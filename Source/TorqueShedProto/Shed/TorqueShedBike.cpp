@@ -8,7 +8,9 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
 #include "Shed/TorqueShedParts.h"
+#include "TorqueBikePawn.h"
 #include "Components/BoxComponent.h"
+#include "EngineUtils.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
@@ -382,6 +384,17 @@ void ATorqueShedBike::Follow(float Dt)
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (!B) return;
+	{
+		// [yard] Being ridden in the yard (Shed/TorqueYard.h): it's out there, so not in its bay too.
+		bool bRidden = false;
+		for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It && !bRidden; ++It)
+			bRidden = It->InYard() && It->GetRideBay() == Bay;
+		if (bRidden != IsHidden())
+		{
+			SetActorHiddenInGame(bRidden);
+			SetActorEnableCollision(!bRidden);
+		}
+	}
 	const bool bAway = B->IsAway(Bay);
 	if (bAway != bShownAway)
 	{

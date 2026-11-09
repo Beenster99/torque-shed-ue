@@ -53,8 +53,11 @@
 //   order:<part>|bike     order from the parts computer (delivered outside the roller door)
 //   newbike[:<style>][:<slot>=<part>]...[:order]  the parts computer's New bike aisle (the configurator):
 //                         that style's bike with those parts on, a colour of its own, ordered built into a free bay
-//   rideout               stand in the roller door and press F (loads Buttertubs with the bike as built)
-//   back                  on the road: back to the shed (as Backspace)
+//   rideout               stand in the roller door and set off on Buttertubs (the host's pause menu choice;
+//                         loads Buttertubs with the bike as built)
+//   yard                  stand in the roller door and press F: ride your bike out onto the yard's concrete
+//   back                  on the road: back to the shed (as Backspace); in the yard, as walkin
+//   walkin                in the yard: park the bike and walk back in through the door
 //   log                   log every bay's bike and the loose parts
 //   shot                  a screenshot (HighResShot 1, into Saved/Screenshots)
 //   shot:ui               a screenshot of the viewport with the HUD and menus (FScreenshotRequest)

@@ -9,6 +9,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
@@ -436,8 +437,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(FString::Printf(TEXT("working on bay %d"), TestBay + 1));
 		return true;
 	}
-	if (Verb == TEXT("back"))
+	if (Verb == TEXT("back") || Verb == TEXT("walkin"))
 	{
+		// [yard] On a bike in the shed's yard: park it and walk back in.
+		APlayerController* PC = World->GetFirstPlayerController();
+		const ATorqueBikePawn* YardBike = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
+		if (YardBike && YardBike->InYard())
+		{
+			TorqueYard::WalkBackIn(PC);
+			Said(TEXT("parked in the yard, walking back in"));
+			return true;
+		}
+		if (Verb == TEXT("walkin")) { Warn(TEXT("walkin: not riding in the yard")); return true; }
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("going back to the shed") : TEXT("refused (no shed map, or a client)"));
 		return true;
@@ -838,7 +849,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), 100.0));
 		return true;
 	}
-	if (Verb == TEXT("door") || Verb == TEXT("rideout"))
+	if (Verb == TEXT("door") || Verb == TEXT("rideout") || Verb == TEXT("yard"))
 	{
 		AActor* Door = nullptr;
 		for (TActorIterator<AActor> It(World); It; ++It)
@@ -847,7 +858,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// In the opening, looking out.
 		const FVector Out = Door->GetActorLocation() + FVector(0.0, 300.0, 120.0);
 		Said(TEXT("looking at ") + W->TestLookAt(Out, FVector(0.0, -1.0, 0.0), 300.0));
-		if (Verb == TEXT("rideout")) Said(W->TestInteract());
+		// F at the door rides out into the yard; Buttertubs is the host's menu choice (as the pause menu).
+		if (Verb == TEXT("yard")) Said(W->TestInteract());
+		if (Verb == TEXT("rideout"))
+		{
+			W->StartAdventure();
+			Said(W->IsRidingOut() ? TEXT("setting off on Buttertubs") : TEXT("not setting off (see the walker's note)"));
+		}
 		return true;
 	}
 	if (Verb == TEXT("look") && P.Num() >= 2)

@@ -84,6 +84,14 @@ public:
 
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
 	void PlaceForSlot(int32 Slot);
+	// [yard] Ridden in the shed's yard (the concrete pad outside the roller door, Tools/shed_yard.py)
+	// rather than on Buttertubs: the yard's route and walls, no finish, a crashed rider put back on
+	// where he fell, and Backspace parks it and walks back in (Shed/TorqueYard.h).
+	bool InYard() const { return bYard; }
+	// The shed bay whose bike this is (-1 the Speed Twin model). The yard's spawner sets it before
+	// BeginPlay (SpawnActorDeferred): on the host, a joined rider's bike isn't theirs to ask yet.
+	int32 GetRideBay() const { return RideBay; }
+	void SetYardBay(int32 Bay) { YardBay = Bay; }
 	// Back to the start of the road, the clock reset (Home, or the pause menu).
 	void RestartRide();
 
@@ -213,6 +221,10 @@ private:
 	bool bHornDown = false;
 	double EngineCatchIn = 0.0;
 	int32 RideBay = INDEX_NONE;   // the shed bay whose bike this is (BuildCatalogueModel): its engine sound
+	int32 YardBay = INDEX_NONE;   // [yard] SetYardBay's: the bay to draw, before anyone asks whose bike it is
+	bool bYard = false;           // [yard] InYard
+	FBox2D YardOpen = FBox2D(ForceInit);   // [yard] the open concrete (sim x, z) a fallen rider goes back on
+	void BackOnWheels();          // after a crash or Triangle: back on the road (the yard: where he fell)
 	TArray<float> SoundFloat;
 	TArray<int16> SoundPcm;
 	int32 LastGear = 1;
@@ -373,6 +385,7 @@ private:
 	bool BuildCatalogueModel();   // true if the bike is all catalogue parts and was drawn so
 	// SideM: metres to the right of the line (co-op start slots).
 	void Respawn(int32 LineIndex, double SideM = 0.0);
+	void PlaceOnGround(TorqueSim::V3 Pos, double Heading);   // Respawn's second half: upright there, on the ground
 	void Remount();                   // the thrown-off rider back on the bike
 	void ReadInput(float Dt);
 	void StepSim();

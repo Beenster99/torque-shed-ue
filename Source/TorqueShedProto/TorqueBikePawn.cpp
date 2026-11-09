@@ -10,6 +10,7 @@
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueFlow.h"
+#include "Shed/TorqueYard.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
 
@@ -233,6 +234,14 @@ void ATorqueBikePawn::BeginPlay()
 		}
 		return Out;
 	};
+	// [yard] In the shed's map the bike is ridden on the concrete outside its door: the yard's route
+	// and walls beside each other in Data/Shed/Yard (Tools/shed_yard.py), as the ride's are.
+	if (UWorld* World = GetWorld())
+	{
+		bYard = World->GetMapName().Contains(TEXT("Shed"));
+		for (TActorIterator<ATorqueShedBike> It(World); It && !bYard; ++It) bYard = true;
+		if (bYard) RouteFile = TEXT("Data/Shed/Yard/route.json");
+	}
 	LoadRoute();
 	LoadContacts();
 	BuildModel();
@@ -598,7 +607,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	if (!B) return false;
 	// Your bike, or (none in that bay) the shed's first bike from the part list.
-	int32 Bay = UTorqueBuildSubsystem::BikeFor(this);
+	int32 Bay = YardBay >= 0 ? YardBay : UTorqueBuildSubsystem::BikeFor(this);
 	TMap<FString, FString> Parts;
 	if (Bay < 0 || !B->LayoutParts(Bay, Parts))
 	{
@@ -883,6 +892,9 @@ void ATorqueBikePawn::LoadRoute()
 	double RoadHalf = 2.5;
 	Json->TryGetNumberField(TEXT("road_half_width_m"), RoadHalf);
 	Json->TryGetNumberField(TEXT("length_m"), RouteLengthM);
+	const TArray<TSharedPtr<FJsonValue>>* Open = nullptr;   // [yard]
+	if (Json->TryGetArrayField(TEXT("open_area_sim"), Open) && Open->Num() >= 4)
+		YardOpen = FBox2D(FVector2D((*Open)[0]->AsNumber(), (*Open)[1]->AsNumber()), FVector2D((*Open)[2]->AsNumber(), (*Open)[3]->AsNumber()));
 	const TArray<TSharedPtr<FJsonValue>>* Grids = nullptr;
 	Sim->Grids.clear();
 	if (Json->TryGetArrayField(TEXT("cattle_grids"), Grids) && Line.Num() >= 2)
@@ -913,6 +925,20 @@ void ATorqueBikePawn::LoadRoute()
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d cattle grids"), (int32)Sim->Grids.size());
 }
 
+void ATorqueBikePawn::BackOnWheels()
+{
+	// [yard] Out on the open concrete: back on the bike where he came off, facing the way it was
+	// going. (Against a wall, or round the back of the shed: back at the door.)
+	const V3 P = Sim->Position;
+	if (!bYard || !YardOpen.bIsValid || !YardOpen.IsInside(FVector2D(P.x, P.z)))
+	{
+		Respawn(bYard ? 0 : FMath::Max(Near - 2, 0));
+		return;
+	}
+	const V3 Fwd = Sim->Basis * V3(0.0, 0.0, -1.0);
+	PlaceOnGround(P, (Fwd.x * Fwd.x + Fwd.z * Fwd.z) > 1e-6 ? std::atan2(-Fwd.x, -Fwd.z) : 0.0);
+}
+
 void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
 {
 	V3 Pos(0, 0, 0);
@@ -931,6 +957,11 @@ void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
 			Pos = Pos + V3(-Fwd.Y * SideM, 0.0, Fwd.X * SideM);
 		}
 	}
+	PlaceOnGround(Pos, Heading);
+}
+
+void ATorqueBikePawn::PlaceOnGround(V3 Pos, double Heading)
+{
 	// Find the ground under the spawn point.
 	if (UWorld* World = GetWorld())
 	{
@@ -1189,7 +1220,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
 		SonyHit(ESonyButton::Triangle))
 	{
-		Respawn(FMath::Max(Near - 2, 0));
+		BackOnWheels();
 		Sim->StartGhost();
 	}
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
@@ -1218,7 +1249,16 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
 	// Backspace: back to the shed (when its map has been built).
-	if (FTorqueKeys::Just(PC, ETorqueKey::BackToShed) && TorqueFlow::BackToShed(this)) return;
+	// [yard] In the shed's yard: park it and walk back in (Shed/TorqueYard.h).
+	if (FTorqueKeys::Just(PC, ETorqueKey::BackToShed))
+	{
+		if (bYard)
+		{
+			TorqueYard::WalkBackIn(PC);
+			return;
+		}
+		if (TorqueFlow::BackToShed(this)) return;
+	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Weather) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
 	{
 		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
@@ -1719,7 +1759,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			CrashedFor += DeltaSeconds;
 			if (CrashedFor > 2.5)
 			{
-				Respawn(FMath::Max(Near - 2, 0));
+				BackOnWheels();
 				Sim->StartGhost();   // a ghost for 5 s: nothing knocks the rider off again straight away
 			}
 		}
@@ -2587,7 +2627,7 @@ void ATorqueBikePawn::UpdatePerf(float Dt)
 
 void ATorqueBikePawn::UpdateProgress()
 {
-	if (Line.Num() < 2) return;
+	if (Line.Num() < 2 || bYard) return;   // [yard] riding about: no way along, no finish
 	const V3 P = Sim->Position;
 	double Best = 1e18;
 	int32 BestI = Near;
@@ -2705,9 +2745,12 @@ void ATorqueBikePawn::DrawHud()
 	if (GearNoteFor > 0.0)
 		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
 			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
-	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
-		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
-	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
+	if (bYard)   // [yard]
+		Add(FString::Printf(TEXT("The yard   %s: park it and walk back in"), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
+	else
+		Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
+			bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
+	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	{
 		// The heat (BikeHeat): cold tyres grip less, an overheating engine loses power.
 		const FString Tyres = UTF8_TO_TCHAR(Sim->Heat.TyreState()), Engine = UTF8_TO_TCHAR(Sim->Heat.EngineState());
