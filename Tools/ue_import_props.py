@@ -71,6 +71,23 @@ def new_asset(name, folder, cls, factory):
     return asset_tools.create_asset(name, folder, cls, factory)
 
 
+def linear_white(white):
+    """A linear (sRGB off) copy of the engine's white square, the default for linear-colour samplers.
+    WhiteSquareTexture is sRGB, and a Linear Color sampler with an sRGB default fails to compile, so the
+    whole master falls back to the checker Default Material."""
+    path = MATS + "/T_PropLinearWhite"
+    if eal.does_asset_exist(path):
+        eal.delete_asset(path)
+    tex = eal.duplicate_asset("/Engine/EngineResources/WhiteSquareTexture", path)
+    if not tex:
+        warn("couldn't make %s: ScanRough keeps the sRGB white and M_PropMaster may not compile" % path)
+        return white
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
+    eal.save_loaded_asset(tex)
+    return tex
+
+
 def master():
     """M_PropMaster: Tint x (the scan's light and shade, by Detail), Rough x (the scan's roughness, by
     Detail), Metal, the scan's normal, Glow x Tint as light. UVs x Tile (the props' UVs are metres)."""
@@ -84,7 +101,7 @@ def master():
     grey = unreal.load_asset("/Engine/EngineResources/Black") or white
     flatn = unreal.load_asset("/Engine/EngineMaterials/FlatNormal") or unreal.load_asset("/Engine/EngineMaterials/DefaultNormal")
     col = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -1200, -300, parameter_name="ScanColor", texture=white)
-    rgh = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -1200, 200, parameter_name="ScanRough", texture=white,
+    rgh = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -1200, 200, parameter_name="ScanRough", texture=linear_white(white),
                sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     nrm = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -1200, 600, parameter_name="ScanNormal", texture=flatn,
                sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
