@@ -3,6 +3,7 @@
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
+#include "Coop/TorqueKeys.h"
 #include "Shed/TorqueProfile.h"
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorquePaintBayRoom.h"
@@ -506,10 +507,15 @@ void ATorqueWalker::ReadInput(float Dt)
 	const uint32 SonyDown = S.bConnected ? S.Buttons : 0;
 	const uint32 SonyHit = SonyDown & ~PrevPadButtons;
 	PrevPadButtons = SonyDown;
+	// Settings > Gameplay > Field of view (the walker's own is the setting).
+	if (Camera) Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(80.0f));
 	// The pause or settings menu is up (co-op, ATorquePlayerController): stand still, leave the keys to it.
 	if (ATorquePlayerController::MenuUp(PC)) return;
+	// Settings > Controller > Key bindings: the keyboard and mouse as the player bound them.
+	auto KeyDown = [PC](ETorqueKey A) { return FTorqueKeys::Down(PC, A); };
+	auto KeyJust = [PC](ETorqueKey A) { return FTorqueKeys::Just(PC, A); };
 	// F2: geometry mode on the bike looked at, or the nearest (main.gd's F2).
-	if (Just(EKeys::F2) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
+	if (KeyJust(ETorqueKey::GeometryMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{
 		FString Why;
 		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why) && !Why.IsEmpty()) Say(Why, false);
@@ -517,12 +523,12 @@ void ATorqueWalker::ReadInput(float Dt)
 	}
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
-	const bool bWorkJust = Just(EKeys::LeftMouseButton) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
-	const bool bAltJust = Just(EKeys::R) || Just(EKeys::RightMouseButton) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
-	const bool bF = Just(EKeys::F) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
-	const bool bNext = Just(EKeys::E) || Just(EKeys::MouseScrollDown) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
-	const bool bPrev = Just(EKeys::Q) || Just(EKeys::MouseScrollUp) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
-	const bool bBack = Just(EKeys::SpaceBar) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle);
+	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
+	const bool bAltJust = KeyJust(ETorqueKey::AltWork) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
+	const bool bF = KeyJust(ETorqueKey::Use) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
+	const bool bNext = KeyJust(ETorqueKey::NextTool) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
+	const bool bPrev = KeyJust(ETorqueKey::PrevTool) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
+	const bool bBack = KeyJust(ETorqueKey::Jump) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle);
 
 	if (bComputer)
 	{
@@ -581,13 +587,13 @@ void ATorqueWalker::ReadInput(float Dt)
 	}
 
 	// Walking: keys, then whichever stick is pushed further.
-	float Fwd = (Down(EKeys::W) ? 1.0f : 0.0f) - (Down(EKeys::S) ? 1.0f : 0.0f);
-	float Side = (Down(EKeys::D) ? 1.0f : 0.0f) - (Down(EKeys::A) ? 1.0f : 0.0f);
+	float Fwd = (KeyDown(ETorqueKey::WalkForward) ? 1.0f : 0.0f) - (KeyDown(ETorqueKey::WalkBack) ? 1.0f : 0.0f);
+	float Side = (KeyDown(ETorqueKey::WalkRight) ? 1.0f : 0.0f) - (KeyDown(ETorqueKey::WalkLeft) ? 1.0f : 0.0f);
 	const float PadFwd = S.bConnected ? Dead(S.LY) : Dead(Axis(EKeys::Gamepad_LeftY));
 	const float PadSide = S.bConnected ? Dead(S.LX) : Dead(Axis(EKeys::Gamepad_LeftX));
 	if (FMath::Abs(PadFwd) > FMath::Abs(Fwd)) Fwd = PadFwd;
 	if (FMath::Abs(PadSide) > FMath::Abs(Side)) Side = PadSide;
-	const bool bRun = Down(EKeys::LeftShift) || Down(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3);
+	const bool bRun = KeyDown(ETorqueKey::Run) || Down(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3);
 	GetCharacterMovement()->MaxWalkSpeed = bRun ? RunSpeed : WalkSpeed;
 	if (Wheeling() != INDEX_NONE) GetCharacterMovement()->MaxWalkSpeed = FMath::Min(GetCharacterMovement()->MaxWalkSpeed, 240.0f);   // a bike is heavy to wheel about
 	const FRotator Yaw(0.0, PC->GetControlRotation().Yaw, 0.0);
@@ -608,14 +614,15 @@ void ATorqueWalker::ReadInput(float Dt)
 	PC->SetControlRotation(R);
 
 	if (bBack) Jump();
-	if (Just(EKeys::C) || Just(EKeys::LeftControl) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3)) SetCrouched(!bCrouched);
+	if (KeyJust(ETorqueKey::Crouch) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3)) SetCrouched(!bCrouched);
 	// The tools: Q / E, the wheel, L1 / R1, or 1-7.
 	const int32 Tools = (int32)ETorqueTool::Count;
 	if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
 	if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
-	static const FKey Numbers[] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven};
+	static const ETorqueKey Numbers[] = {ETorqueKey::Tool1, ETorqueKey::Tool2, ETorqueKey::Tool3, ETorqueKey::Tool4, ETorqueKey::Tool5,
+		ETorqueKey::Tool6, ETorqueKey::Tool7};
 	for (int32 I = 0; I < Tools && I < (int32)UE_ARRAY_COUNT(Numbers); ++I)
-		if (Just(Numbers[I])) SetTool((ETorqueTool)I);
+		if (KeyJust(Numbers[I])) SetTool((ETorqueTool)I);
 	// The spray can: R / right mouse / Square the colour, T the finish. Otherwise those are the
 	// second button (lift a wheel off the tyre changer whole).
 	const UTorqueBuildSubsystem* TinShed = Shed();
@@ -635,7 +642,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	else if (TinShed && TinShed->PaintBay().TapeBy == TinShed->Me())
 	{
 		// The masking tape in your hands: R / Square picks the pattern, right mouse peels it off a part.
-		if (Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square))
+		if (KeyJust(ETorqueKey::AltWork) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square))
 			if (UTorqueBuildSubsystem* TapeShed = Shed())
 			{
 				FTorqueShedRequest Pick;
@@ -655,14 +662,14 @@ void ATorqueWalker::ReadInput(float Dt)
 	else
 	{
 		bAltPressed = bAltJust;
-		bAltHeld = Down(EKeys::R) || Down(EKeys::RightMouseButton) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
+		bAltHeld = KeyDown(ETorqueKey::AltWork) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
 	}
-	if (Just(EKeys::T) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight))
+	if (KeyJust(ETorqueKey::SprayFinish) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight))
 		if (TWI::Sprays(Tool)) SprayFinish = (SprayFinish + 1) % FMath::Max(1, TWI::Loads(Tool).Num());
 	bWorkPressed = bWorkJust;
-	bWorkHeld = Down(EKeys::LeftMouseButton) || Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
+	bWorkHeld = KeyDown(ETorqueKey::Work) || Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
 	// F: tap to use or ride, hold on a bike to wheel it (walker.gd HOLD_TO_PUSH); wheeling, F lets go.
-	const bool bFDown = Down(EKeys::F) || Down(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle);
+	const bool bFDown = KeyDown(ETorqueKey::Use) || Down(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle);
 	const UTorqueBuildSubsystem* FShed = Shed();
 	const int32 Pushing = Wheeling();
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
@@ -704,9 +711,9 @@ void ATorqueWalker::ReadInput(float Dt)
 			}
 		}
 	}
-	if (Just(EKeys::H)) bShowHelp = !bShowHelp;
-	if (Just(EKeys::P)) bPerfShow = !bPerfShow;
-	if (Just(EKeys::O))
+	if (KeyJust(ETorqueKey::Help)) bShowHelp = !bShowHelp;
+	if (KeyJust(ETorqueKey::Perf)) bPerfShow = !bPerfShow;
+	if (KeyJust(ETorqueKey::PerfLog))
 	{
 		bPerfLog = !bPerfLog;
 		if (!bPerfLog) PerfFile.Reset();

@@ -20,13 +20,42 @@ struct FTorqueSettings
 	int32 FrameCap = 0;         // frames per second, 0 for no cap
 	bool bVSync = false;
 	bool bMotionBlur = true;
+	// Torque Shed's Graphics tab, the rest of it (graphics_tab.gd), as Unreal does each.
+	int32 Monitor = -1;         // the screen the game is on, -1 wherever it opens
+	float Brightness = 1.0f;    // 0.5 .. 1.5 (the display gamma, 2.2 at 1)
+	float Sharpness = 0.0f;     // 0 .. 1 (Unreal's tonemapper sharpen)
+	int32 AntiAliasing = 0;     // 0 TSR, 1 TAA, 2 FXAA, 3 off (DLSS does its own when it's on)
+	// Unreal's scalability groups, each -1 for the quality preset's or 0 low .. 4 cinematic.
+	int32 Shadows = -1, Textures = -1, GlobalIllumination = -1, Reflections = -1, Effects = -1, Foliage = -1;
+	float DrawDistance = 1.0f;  // 0.5 .. 2, times the preset's
+	int32 Fog = -1;             // volumetric fog and light: -1 the preset's, 0 off, 1 low, 2 high
+	int32 Clouds = -1;          // -1 the preset's, 0 off, 1 low .. 4 ultra
+	bool bAmbientOcclusion = true;
+	float Bloom = 1.0f;         // glow and bloom: 0 off .. 2, times the level's own
+	bool bFpsCounter = false;   // the frame rate at the top of the screen
+	bool bAvatarShadows = true; // people on foot cast shadows
 
-	// Sound, 0 .. 1.
-	float Master = 1.0f, Engine = 1.0f, Ambience = 1.0f;
+	// Sound, 0 .. 1: everything, the sound effects (tools, knocks, the shed's machines), the engines,
+	// the world around (wind, birds, the shed's hum) and the shed radio.
+	float Master = 1.0f, Sfx = 1.0f, Engine = 1.0f, Ambience = 1.0f, Radio = 1.0f;
 
 	// Gameplay.
 	float Realism = 0.6f;       // riding realism: 0 full sim .. 1 easy (Torque Shed's slider)
 	bool bOpenRouter = true;    // hosting asks the router to open the port (UPnP), as Torque Shed always did
+	float Fov = 80.0f;          // field of view, degrees: on foot as it is, the bike's cameras moved by as much
+	bool bAutoShift = true;     // the gearbox changes itself (G / R3 while riding)
+	bool bTelemetry = false;    // live strips of what the bike is doing, while riding (F3)
+	bool bLookIntoCorner = true;    // the rider's head, and a first-person view, turn into a bend
+	bool bCameraRecentre = true;    // the chase camera swings back behind the bike after you look round
+	int32 Units = 1;            // 0 metric (km/h, km), 1 imperial (mph, miles)
+	// Time and weather (the host's rule in co-op; ATorqueGameState).
+	bool bDayNight = false;     // the clock runs
+	int32 DayLength = 120;      // real minutes for a whole day
+	float TimeOfDay = -1.0f;    // hours, -1 for the level's own light
+	int32 WeatherMode = 1;      // 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads
+	static const TArray<int32>& DayLengths();
+	FString SpeedText(double MetresPerSecond) const;   // "52 mph"
+	FString DistanceText(double Metres) const;         // "1.25 miles"
 	static FString RealismWord(float V);
 	static FString RealismText(float V);
 
@@ -34,6 +63,8 @@ struct FTorqueSettings
 	float MouseLook = 1.0f;     // times the default
 	float PadLook = 1.0f;
 	bool bInvertLook = false;
+	// The PlayStation pad's sticks' centres (Recalibrate, in Controller check): LX, LY, RX, RY.
+	float PadCentre[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	float StickDeadZone = 0.08f;   // the bike's lean stick (0.03 .. 0.25)
 	float Steering = 1.0f;      // how quickly a pushed stick leans the bike, times the default
 
@@ -50,6 +81,10 @@ struct FTorqueSettings
 	void Save();
 	// Puts the graphics and sound settings on the game (call after changing them).
 	void Apply(UWorld* World) const;
+	// The cameras' field of view for one the game set at Base degrees (the walker's 80 is the setting).
+	float FovFor(float Base) const { return FMath::Clamp(Base + (Fov - 80.0f), 40.0f, 140.0f); }
+	// Avatar shadows off: everyone on foot (and what they carry) stops casting shadows; on, back as they were.
+	void ApplyAvatarShadows(UWorld* World) const;
 
 	static const TArray<FColor>& Colours();
 	static const TArray<FString>& ColourNames();
@@ -64,6 +99,10 @@ struct FTorqueSettings
 	// Screen percentage for the upscaler mode.
 	static float ScreenPercent(int32 Mode);
 	static bool HasDlss();
+	// The screens (Torque Shed's Monitor row): how many, and one's name for the menu.
+	static int32 MonitorCount();
+	static FString MonitorName(int32 Index);
+	static void MoveToMonitor(int32 Index);
 
 private:
 	void Load();

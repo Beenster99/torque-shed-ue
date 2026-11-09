@@ -10,7 +10,9 @@
 #include "Coop/TorqueSession.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorquePlayerState.h"
+#include "Coop/TorqueSettings.h"
 #include "EngineUtils.h"
+#include "Misc/App.h"
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
 
@@ -36,6 +38,7 @@ void ATorqueHUD::DrawHUD()
 		return;
 	}
 	if (TPC) TPC->DrawNote(this, Canvas);
+	DrawFrameRate();
 	DrawRiderNames();
 	// Hosting: what to tell friends, for the first minute (then it's in the Esc menu).
 	if (const UTorqueSession* Session = UTorqueSession::Get(this); Session && Canvas && GEngine && GetWorld() &&
@@ -89,6 +92,7 @@ void ATorqueHUD::DrawHUD()
 		Walker->DrawBench(this, Canvas);
 		return;
 	}
+	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{
@@ -392,5 +396,90 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 		const float LY = BarY - 10.0f * S - L.Y - (bSprayTool ? 150.0f * S : 0.0f);
 		DrawRect(FLinearColor(0, 0, 0, 0.35f), CX - 0.5f * L.X - 8.0f * S, LY - 2.0f * S, L.X + 16.0f * S, L.Y + 4.0f * S);
 		Text(Line, CX - 0.5f * L.X, LY, Px(17.0f), Accent);
+	}
+}
+
+// Settings > Graphics > Show the frame rate: at the top of the screen, in the middle, averaged over
+// half a second so it can be read.
+void ATorqueHUD::DrawFrameRate()
+{
+	const UWorld* World = GetWorld();
+	if (!FTorqueSettings::Get().bFpsCounter || !Canvas || !GEngine || !World) return;
+	FpsTime += (float)FApp::GetDeltaTime();
+	++FpsFrames;
+	if (FpsTime >= 0.5f)
+	{
+		FpsShown = FpsFrames / FpsTime;
+		FpsTime = 0.0f;
+		FpsFrames = 0;
+	}
+	UFont* Font = GEngine->GetLargeFont();
+	const float Sc = Canvas->ClipY / 1080.0f;
+	const FString Text = FString::Printf(TEXT("%.0f fps"), FpsShown);
+	float W = 0, H = 0;
+	Canvas->StrLen(Font, Text, W, H);
+	const float FX = 0.5f * (Canvas->ClipX - W * Sc), FY = 8.0f * Sc;
+	DrawRect(FLinearColor(0, 0, 0, 0.45f), FX - 8.0f * Sc, FY - 2.0f * Sc, W * Sc + 16.0f * Sc, H * Sc + 4.0f * Sc);
+	Canvas->SetDrawColor(FpsShown >= 59.0f ? FColor(150, 255, 150) : FpsShown >= 40.0f ? FColor(255, 220, 120) : FColor(255, 130, 110));
+	Canvas->DrawText(Font, Text, FX, FY, Sc, Sc);
+}
+
+// Settings > Gameplay > Telemetry overlay (F3): Torque Shed's live strips of what the bike is doing,
+// down the right of the screen, the last twelve seconds of each.
+void ATorqueHUD::DrawTelemetry(const ATorqueBikePawn* Bike, float S)
+{
+	const TArray<FTorqueTelemetry>& Samples = Bike->GetTelemetry();
+	if (Samples.Num() < 2 || !Canvas || !GEngine) return;
+	UFont* Font = GEngine->GetSmallFont();
+	const FTorqueSettings& Set = FTorqueSettings::Get();
+	struct FStrip { const TCHAR* Name; float Lo, Hi; FLinearColor Colour; };
+	const float TopSpeed = Set.Units == 0 ? 220.0f / 3.6f : 140.0f / 2.23694f;
+	const FStrip Strips[] = {
+		{TEXT("Speed"), 0.0f, TopSpeed, FLinearColor(0.55f, 0.85f, 1.0f)},
+		{TEXT("Revs"), 0.0f, 10000.0f, FLinearColor(1.0f, 0.75f, 0.35f)},
+		{TEXT("Throttle"), 0.0f, 1.0f, FLinearColor(0.45f, 1.0f, 0.45f)},
+		{TEXT("Front brake"), 0.0f, 1.0f, FLinearColor(1.0f, 0.4f, 0.35f)},
+		{TEXT("Rear brake"), 0.0f, 1.0f, FLinearColor(1.0f, 0.6f, 0.6f)},
+		{TEXT("Lean"), -60.0f, 60.0f, FLinearColor(0.9f, 0.9f, 0.9f)},
+	};
+	const float W = 360.0f * S, H = 54.0f * S, Gap = 10.0f * S;
+	const float X0 = Canvas->ClipX - W - 40.0f * S;
+	float Y0 = 150.0f * S;
+	const FTorqueTelemetry& Now = Samples.Last();
+	for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Strips); ++I)
+	{
+		const FStrip& St = Strips[I];
+		DrawRect(FLinearColor(0, 0, 0, 0.45f), X0, Y0, W, H);
+		auto ValueOf = [I](const FTorqueTelemetry& T) -> float {
+			switch (I)
+			{
+			case 0: return T.Speed;
+			case 1: return T.Rpm;
+			case 2: return T.Throttle;
+			case 3: return T.FrontBrake;
+			case 4: return T.RearBrake;
+			default: return T.Lean;
+			}
+		};
+		if (St.Lo < 0.0f) DrawRect(FLinearColor(1, 1, 1, 0.2f), X0, Y0 + H * 0.5f, W, 1.0f * S);   // the middle: upright
+		const int32 N = Samples.Num();
+		for (int32 K = 1; K < N; ++K)
+		{
+			const float Xa = X0 + W * (K - 1) / 119.0f, Xb = X0 + W * K / 119.0f;
+			const float Ya = Y0 + H - H * FMath::Clamp((ValueOf(Samples[K - 1]) - St.Lo) / (St.Hi - St.Lo), 0.0f, 1.0f);
+			const float Yb = Y0 + H - H * FMath::Clamp((ValueOf(Samples[K]) - St.Lo) / (St.Hi - St.Lo), 0.0f, 1.0f);
+			Draw2DLine(FMath::RoundToInt(Xa), FMath::RoundToInt(Ya), FMath::RoundToInt(Xb), FMath::RoundToInt(Yb), St.Colour.ToFColor(true));
+		}
+		FString Value;
+		switch (I)
+		{
+		case 0: Value = Set.SpeedText(Now.Speed); break;
+		case 1: Value = FString::Printf(TEXT("%.0f rpm  gear %d"), Now.Rpm, Now.Gear); break;
+		case 5: Value = FString::Printf(TEXT("%+.0f deg"), Now.Lean); break;
+		default: Value = FString::Printf(TEXT("%.0f%%"), ValueOf(Now) * 100.0f); break;
+		}
+		Canvas->SetDrawColor(St.Colour.ToFColor(true));
+		Canvas->DrawText(Font, FString::Printf(TEXT("%s  %s"), St.Name, *Value), X0 + 6.0f * S, Y0 + 3.0f * S, S * 1.1f, S * 1.1f);
+		Y0 += H + Gap;
 	}
 }

@@ -243,8 +243,33 @@ FSonyPad::~FSonyPad()
 	delete Worker;
 }
 
-FSonyPadState FSonyPad::Get() const
+namespace
+{
+float GCentre[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+float Recentre(float V, float C)
+{
+	const float Off = V - C;
+	return FMath::Clamp(Off / FMath::Max(Off >= 0.0f ? 1.0f - C : 1.0f + C, 0.5f), -1.0f, 1.0f);
+}
+} // namespace
+
+void FSonyPad::SetCentre(const float Centre[4])
+{
+	for (int32 I = 0; I < 4; ++I) GCentre[I] = FMath::Clamp(Centre[I], -0.5f, 0.5f);
+}
+
+FSonyPadState FSonyPad::GetRaw() const
 {
 	FScopeLock L(&Worker->Lock);
 	return Worker->State;
+}
+
+FSonyPadState FSonyPad::Get() const
+{
+	FSonyPadState S = GetRaw();
+	S.LX = Recentre(S.LX, GCentre[0]);
+	S.LY = Recentre(S.LY, GCentre[1]);
+	S.RX = Recentre(S.RX, GCentre[2]);
+	S.RY = Recentre(S.RY, GCentre[3]);
+	return S;
 }

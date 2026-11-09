@@ -2,6 +2,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueToolModels.h"
+#include "Coop/TorqueSettings.h"
 #include "Components/AudioComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -243,6 +244,12 @@ void ATorqueShedRadio::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	Sync();
+	// Settings > Sound > Radio volume.
+	{
+		const float Vol = FMath::Clamp(FTorqueSettings::Get().Radio, 0.0f, 1.0f);
+		if (Speaker && !FMath::IsNearlyEqual(Speaker->VolumeMultiplier, 0.7f * Vol)) Speaker->SetVolumeMultiplier(0.7f * Vol);
+		if (Hiss && !FMath::IsNearlyEqual(Hiss->VolumeMultiplier, 0.12f * Vol)) Hiss->SetVolumeMultiplier(0.12f * Vol);
+	}
 	if (!bOn)
 	{
 		UpdateLooks();

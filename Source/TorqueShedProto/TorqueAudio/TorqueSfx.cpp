@@ -599,7 +599,7 @@ void UTorqueSfx::Tick(float Dt)
 	Super::Tick(Dt);
 	if (!Mixer || !GetWorld() || !GetWorld()->HasBegunPlay()) return;
 	EnsureSpeaker();
-	Mixer->SetVolume(1.0);
+	Mixer->SetVolume(FMath::Clamp(FTorqueSettings::Get().Sfx, 0.0f, 1.0f));   // Settings > Sound > Sound effects
 	TickListener(Dt);
 	// One-shots riding along on something, and the loops' places, walls and rooms.
 	for (int32 I = Follows.Num() - 1; I >= 0; --I)

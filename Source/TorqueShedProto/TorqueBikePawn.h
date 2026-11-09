@@ -48,6 +48,16 @@ struct FHudLine
 	uint8 Role = 0;
 };
 
+// What the bike was doing at one moment, for the telemetry overlay (Torque Shed's telemetry_overlay.gd).
+struct FTorqueTelemetry
+{
+	float Speed = 0.0f;      // m/s
+	float Rpm = 0.0f;
+	float Throttle = 0.0f, FrontBrake = 0.0f, RearBrake = 0.0f;   // 0 .. 1
+	float Lean = 0.0f;       // degrees, + right
+	int32 Gear = 0;
+};
+
 UCLASS()
 class ATorqueBikePawn : public APawn
 {
@@ -62,6 +72,8 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	const TArray<FHudLine>& GetHudLines() const { return HudLines; }
+	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
+	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
 
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
 	void PlaceForSlot(int32 Slot);
@@ -207,7 +219,11 @@ private:
 	bool bCamInit = false;
 	FVector HeadLocal = FVector(-9.0, 0.0, 128.0);   // the helmet's centre, pawn local cm (UpdateRider)
 	bool bHeadShown = true;
-	double LookYaw = 0.0, LookPitch = 0.0;   // right stick, degrees
+	double LookYaw = 0.0, LookPitch = 0.0;   // where the camera looks, degrees: the stick's and the mouse's
+	double StickYaw = 0.0, StickPitch = 0.0, MouseYaw = 0.0, MousePitch = 0.0, MouseStill = 0.0;
+	// Settings > Gameplay > Telemetry overlay: the last few seconds, ten times a second.
+	TArray<FTorqueTelemetry> Telemetry;
+	double TelemetryClock = 0.0;
 
 	// Model geometry (Unreal local cm), read from speedtwin.json.
 	bool bHaveModel = false;

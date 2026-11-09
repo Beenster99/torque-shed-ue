@@ -1,14 +1,24 @@
 #include "TorqueSettings.h"
 
 #include "TorquePlayerState.h"
+#include "SonyPad.h"
 #include "GameFramework/Pawn.h"
 
 #include "AudioDevice.h"
+#include "Components/ShapeComponent.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/PostProcessVolume.h"
+#include "EngineUtils.h"
+#include "GameFramework/Character.h"
+#include "GenericPlatform/GenericApplication.h"
+#include "Scalability.h"
+#include "Widgets/SWindow.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/GameUserSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Parse.h"
@@ -17,13 +27,25 @@ namespace
 {
 const TCHAR* Section = TEXT("TorqueSettings");
 
-void SetCVar(const TCHAR* Name, float Value)
+void SetCVar(const TCHAR* Name, float Value, EConsoleVariableFlags By = ECVF_SetByGameSetting)
 {
-	if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name)) V->Set(Value, ECVF_SetByGameSetting);
+	if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name)) V->Set(Value, By);
 }
-void SetCVar(const TCHAR* Name, int32 Value)
+void SetCVar(const TCHAR* Name, int32 Value, EConsoleVariableFlags By = ECVF_SetByGameSetting)
 {
-	if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name)) V->Set(Value, ECVF_SetByGameSetting);
+	if (IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name)) V->Set(Value, By);
+}
+// A setting that either changes a console variable or leaves it as the game started with it: the
+// starting value is kept the first time, to put back.
+void SetCVarDefault(const TCHAR* Name, bool bChange, const FString& Value)
+{
+	static TMap<FString, FString> Started;
+	IConsoleVariable* V = IConsoleManager::Get().FindConsoleVariable(Name);
+	if (!V) return;
+	const FString* Was = Started.Find(Name);
+	if (!Was) Was = &Started.Add(Name, V->GetString());
+	if (bChange) V->Set(*Value, ECVF_SetByGameSetting);
+	else if (V->GetString() != *Was) V->Set(**Was, ECVF_SetByGameSetting);
 }
 } // namespace
 
@@ -49,9 +71,39 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("FrameCap"), FrameCap, Ini);
 	GConfig->GetBool(Section, TEXT("VSync"), bVSync, Ini);
 	GConfig->GetBool(Section, TEXT("MotionBlur"), bMotionBlur, Ini);
+	GConfig->GetInt(Section, TEXT("Monitor"), Monitor, Ini);
+	GConfig->GetFloat(Section, TEXT("Brightness"), Brightness, Ini);
+	GConfig->GetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
+	GConfig->GetInt(Section, TEXT("AntiAliasing"), AntiAliasing, Ini);
+	GConfig->GetInt(Section, TEXT("Shadows"), Shadows, Ini);
+	GConfig->GetInt(Section, TEXT("Textures"), Textures, Ini);
+	GConfig->GetInt(Section, TEXT("GlobalIllumination"), GlobalIllumination, Ini);
+	GConfig->GetInt(Section, TEXT("Reflections"), Reflections, Ini);
+	GConfig->GetInt(Section, TEXT("Effects"), Effects, Ini);
+	GConfig->GetInt(Section, TEXT("Foliage"), Foliage, Ini);
+	GConfig->GetFloat(Section, TEXT("DrawDistance"), DrawDistance, Ini);
+	GConfig->GetInt(Section, TEXT("Fog"), Fog, Ini);
+	GConfig->GetInt(Section, TEXT("Clouds"), Clouds, Ini);
+	GConfig->GetBool(Section, TEXT("AmbientOcclusion"), bAmbientOcclusion, Ini);
+	GConfig->GetFloat(Section, TEXT("Bloom"), Bloom, Ini);
+	GConfig->GetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
+	GConfig->GetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
 	GConfig->GetFloat(Section, TEXT("Master"), Master, Ini);
+	GConfig->GetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->GetFloat(Section, TEXT("Engine"), Engine, Ini);
 	GConfig->GetFloat(Section, TEXT("Ambience"), Ambience, Ini);
+	GConfig->GetFloat(Section, TEXT("Radio"), Radio, Ini);
+	GConfig->GetFloat(Section, TEXT("Fov"), Fov, Ini);
+	GConfig->GetBool(Section, TEXT("AutoShift"), bAutoShift, Ini);
+	GConfig->GetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
+	GConfig->GetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
+	GConfig->GetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
+	GConfig->GetInt(Section, TEXT("Units"), Units, Ini);
+	GConfig->GetBool(Section, TEXT("DayNight"), bDayNight, Ini);
+	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
+	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
+	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
+	for (int32 I = 0; I < 4; ++I) GConfig->GetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->GetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
 	GConfig->GetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
@@ -72,6 +124,20 @@ void FTorqueSettings::Load()
 	}
 	FParse::Value(FCommandLine::Get(), TEXT("TorqueColour="), Colour);
 	Quality = FMath::Clamp(Quality, 0, 4);
+	Brightness = FMath::Clamp(Brightness, 0.5f, 1.5f);
+	Sharpness = FMath::Clamp(Sharpness, 0.0f, 1.0f);
+	AntiAliasing = FMath::Clamp(AntiAliasing, 0, 3);
+	for (int32* G : {&Shadows, &Textures, &GlobalIllumination, &Reflections, &Effects, &Foliage}) *G = FMath::Clamp(*G, -1, 4);
+	DrawDistance = FMath::Clamp(DrawDistance, 0.5f, 2.0f);
+	Fog = FMath::Clamp(Fog, -1, 2);
+	Clouds = FMath::Clamp(Clouds, -1, 4);
+	Bloom = FMath::Clamp(Bloom, 0.0f, 2.0f);
+	Fov = FMath::Clamp(Fov, 60.0f, 110.0f);
+	Units = FMath::Clamp(Units, 0, 1);
+	if (!DayLengths().Contains(DayLength)) DayLength = 120;
+	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
+	WeatherMode = FMath::Clamp(WeatherMode, 0, 3);
+	FSonyPad::SetCentre(PadCentre);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
 	UpscaleMode = FMath::Clamp(UpscaleMode, 0, 4);
 	Colour = FMath::Clamp(Colour, 0, Colours().Num() - 1);
@@ -94,9 +160,39 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("FrameCap"), FrameCap, Ini);
 	GConfig->SetBool(Section, TEXT("VSync"), bVSync, Ini);
 	GConfig->SetBool(Section, TEXT("MotionBlur"), bMotionBlur, Ini);
+	GConfig->SetInt(Section, TEXT("Monitor"), Monitor, Ini);
+	GConfig->SetFloat(Section, TEXT("Brightness"), Brightness, Ini);
+	GConfig->SetFloat(Section, TEXT("Sharpness"), Sharpness, Ini);
+	GConfig->SetInt(Section, TEXT("AntiAliasing"), AntiAliasing, Ini);
+	GConfig->SetInt(Section, TEXT("Shadows"), Shadows, Ini);
+	GConfig->SetInt(Section, TEXT("Textures"), Textures, Ini);
+	GConfig->SetInt(Section, TEXT("GlobalIllumination"), GlobalIllumination, Ini);
+	GConfig->SetInt(Section, TEXT("Reflections"), Reflections, Ini);
+	GConfig->SetInt(Section, TEXT("Effects"), Effects, Ini);
+	GConfig->SetInt(Section, TEXT("Foliage"), Foliage, Ini);
+	GConfig->SetFloat(Section, TEXT("DrawDistance"), DrawDistance, Ini);
+	GConfig->SetInt(Section, TEXT("Fog"), Fog, Ini);
+	GConfig->SetInt(Section, TEXT("Clouds"), Clouds, Ini);
+	GConfig->SetBool(Section, TEXT("AmbientOcclusion"), bAmbientOcclusion, Ini);
+	GConfig->SetFloat(Section, TEXT("Bloom"), Bloom, Ini);
+	GConfig->SetBool(Section, TEXT("FpsCounter"), bFpsCounter, Ini);
+	GConfig->SetBool(Section, TEXT("AvatarShadows"), bAvatarShadows, Ini);
 	GConfig->SetFloat(Section, TEXT("Master"), Master, Ini);
+	GConfig->SetFloat(Section, TEXT("Sfx"), Sfx, Ini);
 	GConfig->SetFloat(Section, TEXT("Engine"), Engine, Ini);
 	GConfig->SetFloat(Section, TEXT("Ambience"), Ambience, Ini);
+	GConfig->SetFloat(Section, TEXT("Radio"), Radio, Ini);
+	GConfig->SetFloat(Section, TEXT("Fov"), Fov, Ini);
+	GConfig->SetBool(Section, TEXT("AutoShift"), bAutoShift, Ini);
+	GConfig->SetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
+	GConfig->SetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
+	GConfig->SetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
+	GConfig->SetInt(Section, TEXT("Units"), Units, Ini);
+	GConfig->SetBool(Section, TEXT("DayNight"), bDayNight, Ini);
+	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
+	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
+	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
+	for (int32 I = 0; I < 4; ++I) GConfig->SetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->SetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
 	GConfig->SetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
@@ -126,26 +222,182 @@ void FTorqueSettings::Apply(UWorld* World) const
 {
 	if (UGameUserSettings* G = GEngine ? GEngine->GetGameUserSettings() : nullptr)
 	{
+		MoveToMonitor(Monitor);
 		G->SetOverallScalabilityLevel(Quality);
+		// Torque Shed's own quality rows: each Unreal scalability group the preset's, or its own.
+		G->SetShadowQuality(Shadows < 0 ? Quality : Shadows);
+		G->SetTextureQuality(Textures < 0 ? Quality : Textures);
+		G->SetGlobalIlluminationQuality(GlobalIllumination < 0 ? Quality : GlobalIllumination);
+		G->SetReflectionQuality(Reflections < 0 ? Quality : Reflections);
+		G->SetVisualEffectQuality(Effects < 0 ? Quality : Effects);
+		G->SetFoliageQuality(Foliage < 0 ? Quality : Foliage);
 		G->SetFullscreenMode(WindowMode == 0 ? EWindowMode::Fullscreen : WindowMode == 1 ? EWindowMode::WindowedFullscreen : EWindowMode::Windowed);
 		const FIntPoint Res = (Resolution.X > 0 && Resolution.Y > 0) ? Resolution : G->GetDesktopResolution();
 		G->SetScreenResolution(Res);
 		G->SetFrameRateLimit((float)FrameCap);
 		G->SetVSyncEnabled(bVSync);
 		G->ApplySettings(false);
+		// Every scalability setting put back as its group's level says (Unreal only sets the ones whose
+		// level changed), so the rows below start from the preset each time.
+		Scalability::SetQualityLevels(Scalability::GetQualityLevels(), true);
 	}
 	const bool bDlss = Upscaler == 1 && HasDlss();
-	SetCVar(TEXT("r.AntiAliasingMethod"), 4);   // TSR (DLSS takes over from it when on)
+	// TSR (DLSS takes over from it when on, and needs a temporal one under it), TAA, FXAA or none.
+	static const int32 AaMethods[4] = {4, 2, 1, 0};
+	SetCVar(TEXT("r.AntiAliasingMethod"), bDlss ? 4 : AaMethods[FMath::Clamp(AntiAliasing, 0, 3)]);
 	SetCVar(TEXT("r.ScreenPercentage"), ScreenPercent(UpscaleMode));
 	// NVIDIA's DLSS 4.5 plugin (UE 5.8, v8.9): on or off; its quality is the screen percentage set
 	// above (Quality 66.7, Balanced 58, Performance 50, Ultra performance 33, and 100 is DLAA).
 	if (HasDlss()) SetCVar(TEXT("r.NGX.DLSS.Enable"), bDlss ? 1 : 0);
 	SetCVar(TEXT("r.MotionBlurQuality"), bMotionBlur ? 4 : 0);
+	// Brightness: the display gamma (2.2 as it comes; higher is brighter).
+	if (GEngine) GEngine->DisplayGamma = 2.2f * FMath::Clamp(Brightness, 0.5f, 1.5f);
+	SetCVarDefault(TEXT("r.Tonemapper.Sharpen"), Sharpness > 0.001f, FString::SanitizeFloat(FMath::Clamp(Sharpness, 0.0f, 1.0f)));
+	// Draw distance: times the view distance the preset gives (Unreal's BaseScalability.ini).
+	{
+		static const float ByLevel[5] = {0.4f, 0.6f, 0.8f, 1.0f, 1.0f};
+		SetCVar(TEXT("r.ViewDistanceScale"), ByLevel[FMath::Clamp(Quality, 0, 4)] * FMath::Clamp(DrawDistance, 0.5f, 2.0f), ECVF_SetByScalability);
+	}
+	// Volumetric fog and light: the preset's, off, low (coarse) or high.
+	if (Fog >= 0)
+	{
+		SetCVar(TEXT("r.VolumetricFog"), Fog > 0 ? 1 : 0, ECVF_SetByScalability);
+		if (Fog > 0) SetCVar(TEXT("r.VolumetricFog.GridPixelSize"), Fog == 1 ? 16 : 8, ECVF_SetByScalability);
+	}
+	// The volumetric clouds: off, or how many steps each ray takes through them.
+	SetCVarDefault(TEXT("r.VolumetricCloud"), Clouds == 0, TEXT("0"));
+	{
+		static const TCHAR* Steps[5] = {TEXT("128"), TEXT("256"), TEXT("512"), TEXT("768"), TEXT("1024")};
+		SetCVarDefault(TEXT("r.VolumetricCloud.ViewRaySampleMaxCount"), Clouds > 0, Steps[FMath::Clamp(Clouds, 0, 4)]);
+	}
+	// Ambient occlusion: the screen-space one and Lumen's short-range one.
+	SetCVarDefault(TEXT("r.AmbientOcclusionLevels"), !bAmbientOcclusion, TEXT("0"));
+	SetCVarDefault(TEXT("r.Lumen.ScreenProbeGather.ShortRangeAO"), !bAmbientOcclusion, TEXT("0"));
+	// Glow and bloom: off, or the level's own strength times the setting.
+	SetCVarDefault(TEXT("r.BloomQuality"), Bloom < 0.005f, TEXT("0"));
 	if (World)
 	{
+		static TMap<TWeakObjectPtr<APostProcessVolume>, float> LevelBloom;
+		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+		{
+			APostProcessVolume* Ppv = *It;
+			const float* Own = LevelBloom.Find(Ppv);
+			const float Base = Own ? *Own : LevelBloom.Add(Ppv, Ppv->Settings.bOverride_BloomIntensity ? Ppv->Settings.BloomIntensity : 0.675f);
+			Ppv->Settings.bOverride_BloomIntensity = true;
+			Ppv->Settings.BloomIntensity = Base * FMath::Clamp(Bloom, 0.0f, 2.0f);
+		}
 		FAudioDeviceHandle Audio = World->GetAudioDevice();
 		if (Audio.IsValid()) Audio->SetTransientPrimaryVolume(FMath::Clamp(Master, 0.0f, 1.0f));
+		// People on foot casting shadows (and the ones who come later: ATorquePlayerController checks).
+		ApplyAvatarShadows(World);
 	}
+}
+
+namespace
+{
+// The parts Avatar shadows turned off, to turn back on (and only those: some never cast one).
+TArray<TWeakObjectPtr<UPrimitiveComponent>>& Darkened()
+{
+	static TArray<TWeakObjectPtr<UPrimitiveComponent>> D;
+	return D;
+}
+void Darken(AActor* Actor, int32 Depth)
+{
+	if (!Actor || Depth > 4) return;
+	TArray<UPrimitiveComponent*> Parts;
+	Actor->GetComponents<UPrimitiveComponent>(Parts);
+	for (UPrimitiveComponent* Part : Parts)
+		if (Part && Part->CastShadow && !Part->IsA<UShapeComponent>())
+		{
+			Part->SetCastShadow(false);
+			Darkened().Add(Part);
+		}
+	TArray<AActor*> Attached;
+	Actor->GetAttachedActors(Attached);
+	for (AActor* A : Attached) Darken(A, Depth + 1);
+}
+} // namespace
+
+void FTorqueSettings::ApplyAvatarShadows(UWorld* World) const
+{
+	if (bAvatarShadows)
+	{
+		for (const TWeakObjectPtr<UPrimitiveComponent>& Part : Darkened())
+			if (UPrimitiveComponent* P = Part.Get()) P->SetCastShadow(true);
+		Darkened().Reset();
+		return;
+	}
+	if (!World) return;
+	for (TActorIterator<ACharacter> It(World); It; ++It) Darken(*It, 0);
+}
+
+void FTorqueSettings::MoveToMonitor(int32 Index)
+{
+	// Torque Shed's Monitor row: the window to that screen (fullscreen follows the window's screen).
+	if (Index < 0 || !GEngine || !GEngine->GameViewport) return;
+	FDisplayMetrics Metrics;
+	FDisplayMetrics::RebuildDisplayMetrics(Metrics);
+	if (!Metrics.MonitorInfo.IsValidIndex(Index)) return;
+	TSharedPtr<SWindow> Window = GEngine->GameViewport->GetWindow();
+	if (!Window.IsValid()) return;
+	const FPlatformRect& Work = Metrics.MonitorInfo[Index].WorkArea;
+	const FVector2D Pos = Window->GetPositionInScreen();
+	if (Pos.X >= Work.Left && Pos.X < Work.Right && Pos.Y >= Work.Top && Pos.Y < Work.Bottom) return;   // there already
+	if (Window->GetWindowMode() != EWindowMode::Windowed) Window->SetWindowMode(EWindowMode::Windowed);
+	Window->MoveWindowTo(FVector2D(Work.Left + 40, Work.Top + 40));
+}
+
+namespace
+{
+// The screens' names for the menu, looked up again every few seconds (it's asked every frame).
+const TArray<FString>& Screens()
+{
+	static TArray<FString> Names;
+	static double At = -100.0;
+	const double Now = FPlatformTime::Seconds();
+	if (Now - At > 3.0)
+	{
+		At = Now;
+		Names.Reset();
+		FDisplayMetrics Metrics;
+		FDisplayMetrics::RebuildDisplayMetrics(Metrics);
+		for (int32 I = 0; I < Metrics.MonitorInfo.Num(); ++I)
+		{
+			const FMonitorInfo& M = Metrics.MonitorInfo[I];
+			Names.Add(FString::Printf(TEXT("Screen %d: %d x %d%s"), I + 1, M.NativeWidth, M.NativeHeight, M.bIsPrimary ? TEXT(" (main)") : TEXT("")));
+		}
+	}
+	return Names;
+}
+} // namespace
+
+FString FTorqueSettings::MonitorName(int32 Index)
+{
+	if (Index < 0) return TEXT("Where it opens");
+	return Screens().IsValidIndex(Index) ? Screens()[Index] : FString::Printf(TEXT("Screen %d"), Index + 1);
+}
+
+int32 FTorqueSettings::MonitorCount()
+{
+	return Screens().Num();
+}
+
+const TArray<int32>& FTorqueSettings::DayLengths()
+{
+	// As Torque Shed's Daylight.DAY_LENGTHS: real minutes for a day.
+	static const TArray<int32> L = {10, 20, 30, 60, 120, 240, 480, 1440};
+	return L;
+}
+
+FString FTorqueSettings::SpeedText(double MetresPerSecond) const
+{
+	const double V = FMath::Abs(MetresPerSecond);
+	return Units == 0 ? FString::Printf(TEXT("%.0f km/h"), V * 3.6) : FString::Printf(TEXT("%.0f mph"), V * 2.23694);
+}
+
+FString FTorqueSettings::DistanceText(double Metres) const
+{
+	return Units == 0 ? FString::Printf(TEXT("%.2f km"), Metres / 1000.0) : FString::Printf(TEXT("%.2f miles"), Metres / 1609.344);
 }
 
 const TArray<FColor>& FTorqueSettings::Colours()

@@ -2,6 +2,7 @@
 #include "TorqueAudio/TorqueSfx.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
+#include "Coop/TorqueKeys.h"
 #include "Coop/TorquePlayerState.h"
 #include "Shed/TorqueProfile.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -199,6 +200,8 @@ void ATorqueBikePawn::BeginPlay()
 	Super::BeginPlay();
 	// Settings > Gameplay > Riding realism, once the player has saved settings (test runs keep their own).
 	if (FTorqueSettings::Get().bSaved && !FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"))) Assist = FTorqueSettings::Get().Realism;
+	// Settings > Gameplay > Automatic gearbox: how each ride starts (G / R3 changes it while riding).
+	bManual = !FTorqueSettings::Get().bAutoShift;
 	Sim->Setup(BikeSpec::SpeedTwin1200());
 	Sim->Ray = [this](const V3& From, const V3& To) {
 		RayHit Out;
@@ -1035,25 +1038,52 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		return;
 	}
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
-	LookYaw = FMath::Lerp(LookYaw, LookX * 130.0, LookK);
-	LookPitch = FMath::Lerp(LookPitch, LookY * 25.0, LookK);
+	// Settings > Gameplay > Chase camera recentres: off, the view stays where the stick left it.
+	const bool bStickLooking = FMath::Abs(LookX) > 0.02 || FMath::Abs(LookY) > 0.02;
+	if (Set.bCameraRecentre || bStickLooking)
+	{
+		StickYaw = FMath::Lerp(StickYaw, LookX * 130.0, LookK);
+		StickPitch = FMath::Lerp(StickPitch, LookY * 25.0, LookK);
+	}
+	// The mouse swings the view round too (Settings > Controller > Mouse look speed), and it eases
+	// back behind the bike a moment after you stop moving it.
+	{
+		float Mx = 0.0f, My = 0.0f;
+		PC->GetInputMouseDelta(Mx, My);
+		if (FMath::Abs(Mx) + FMath::Abs(My) > 0.0f)
+		{
+			MouseYaw = FMath::Clamp(MouseYaw + Mx * 0.25 * Set.MouseLook, -170.0, 170.0);
+			MousePitch = FMath::Clamp(MousePitch + My * 0.25 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -25.0, 25.0);
+			MouseStill = 0.0;
+		}
+		else if ((MouseStill += Dt) > 1.0 && Set.bCameraRecentre)
+		{
+			const double Back = 1.0 - FMath::Exp(-2.5 * Dt);
+			MouseYaw = FMath::Lerp(MouseYaw, 0.0, Back);
+			MousePitch = FMath::Lerp(MousePitch, 0.0, Back);
+		}
+	}
+	// Reverse view: held, the camera looks back down the road.
+	const bool bBehind = FTorqueKeys::Down(PC, ETorqueKey::LookBack);
+	LookYaw = bBehind ? 180.0 : StickYaw + MouseYaw;
+	LookPitch = bBehind ? 0.0 : StickPitch + MousePitch;
 
-	const double KeyThrottle = FMath::Max(Down(EKeys::W), Down(EKeys::Up));
-	const double KeyBrake = FMath::Max(Down(EKeys::S), Down(EKeys::Down));
-	const double KeyLean = FMath::Clamp((FMath::Max(Down(EKeys::D), Down(EKeys::Right)) - FMath::Max(Down(EKeys::A), Down(EKeys::Left))) * Set.Steering, -1.0, 1.0);
-	const double KeyShift = Down(EKeys::E) - Down(EKeys::Q);
+	const double KeyThrottle = FTorqueKeys::Down(PC, ETorqueKey::Throttle) ? 1.0 : 0.0;
+	const double KeyBrake = FTorqueKeys::Down(PC, ETorqueKey::FrontBrake) ? 1.0 : 0.0;
+	const double KeyLean = FMath::Clamp(((FTorqueKeys::Down(PC, ETorqueKey::LeanRight) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::LeanLeft) ? 1.0 : 0.0)) * Set.Steering, -1.0, 1.0);
+	const double KeyShift = (FTorqueKeys::Down(PC, ETorqueKey::WeightForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WeightBack) ? 1.0 : 0.0);
 
 	// Keys are all or nothing, so ease them in (as Torque Shed does); the pad is used as it is.
 	Throttle = PadThrottle > 0.02 ? PadThrottle : Approach(Throttle, KeyThrottle, 2.5, 6.0, Dt);
 	FrontBrake = PadBrake > 0.02 ? PadBrake : Approach(FrontBrake, KeyBrake, 3.0, 8.0, Dt);
-	RearBrake = FMath::Max(Down(EKeys::SpaceBar), Down(EKeys::Gamepad_LeftShoulder));
+	RearBrake = FMath::Max(FTorqueKeys::Down(PC, ETorqueKey::RearBrake) ? 1.0 : 0.0, Down(EKeys::Gamepad_LeftShoulder));
 	if (SonyDown & ESonyButton::L1) RearBrake = 1.0;
 
 	// Gears: Cross/A up, Square/X down (X and Z, or Left Shift and Left Ctrl, on keys). The first
 	// change by hand turns the automatic box off; R3 or G turns it back on.
 	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
-	const bool bUp = SonyHit(ESonyButton::Cross) || Just(EKeys::Gamepad_FaceButton_Bottom) || Just(EKeys::X) || Just(EKeys::LeftShift);
-	const bool bDown = SonyHit(ESonyButton::Square) || Just(EKeys::Gamepad_FaceButton_Left) || Just(EKeys::Z) || Just(EKeys::LeftControl);
+	const bool bUp = SonyHit(ESonyButton::Cross) || Just(EKeys::Gamepad_FaceButton_Bottom) || FTorqueKeys::Just(PC, ETorqueKey::ShiftUp);
+	const bool bDown = SonyHit(ESonyButton::Square) || Just(EKeys::Gamepad_FaceButton_Left) || FTorqueKeys::Just(PC, ETorqueKey::ShiftDown);
 	if (bUp || bDown)
 	{
 		bManual = true;
@@ -1061,13 +1091,17 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (bUp) Sim->ShiftUp();
 		else Sim->ShiftDown();
 	}
-	if (SonyHit(ESonyButton::R3) || Just(EKeys::Gamepad_RightThumbstick) || Just(EKeys::G))
+	if (SonyHit(ESonyButton::R3) || Just(EKeys::Gamepad_RightThumbstick) || FTorqueKeys::Just(PC, ETorqueKey::AutoShift))
 	{
 		bManual = !bManual;
 		GearNoteFor = 2.0;
+		// As Torque Shed: the setting follows (kept once the player has saved settings).
+		FTorqueSettings& Keep = FTorqueSettings::Get();
+		Keep.bAutoShift = !bManual;
+		if (Keep.bSaved) Keep.Save();
 	}
 	// ABS: Circle/B or the B key. Off, the rear brake will lock the wheel.
-	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || Just(EKeys::B))
+	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || FTorqueKeys::Just(PC, ETorqueKey::Abs))
 	{
 		// Only on a bike that has it (as Torque Shed: the ECU's aid); none, it stays off.
 		bAbs = !bAbs && (bHasAbs[0] || bHasAbs[1]);
@@ -1078,12 +1112,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
-	if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
+	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top) ||
 		SonyHit(ESonyButton::Triangle))
 		Respawn(FMath::Max(Near - 2, 0));
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
-	if (PC->WasInputKeyJustPressed(EKeys::Home)) RestartRide();
-	if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
+	if (FTorqueKeys::Just(PC, ETorqueKey::Restart)) RestartRide();
+	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder) ||
 		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::R1 | ESonyButton::Create))
 	{
 		CameraMode = (CameraMode + 1) % CameraModes;
@@ -1093,31 +1127,38 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (SonyHit(ESonyButton::DUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
-	if (PC->WasInputKeyJustPressed(EKeys::H)) bShowHelp = !bShowHelp;
+	if (FTorqueKeys::Just(PC, ETorqueKey::Help)) bShowHelp = !bShowHelp;
+	// Settings > Gameplay > Telemetry overlay (F3 while riding, as Torque Shed).
+	if (FTorqueKeys::Just(PC, ETorqueKey::Telemetry))
+	{
+		FTorqueSettings& Keep = FTorqueSettings::Get();
+		Keep.bTelemetry = !Keep.bTelemetry;
+		if (Keep.bSaved) Keep.Save();
+	}
 	// The horn while J or the d-pad's left is held (Torque Shed: H or L3, both taken here).
-	const bool bHorn = PC->IsInputKeyDown(EKeys::J) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left) || (SonyDown & ESonyButton::DLeft) != 0;
+	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left) || (SonyDown & ESonyButton::DLeft) != 0;
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
 	// Backspace: back to the shed (when its map has been built).
-	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && TorqueFlow::BackToShed(this)) return;
-	if (PC->WasInputKeyJustPressed(EKeys::V) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
+	if (FTorqueKeys::Just(PC, ETorqueKey::BackToShed) && TorqueFlow::BackToShed(this)) return;
+	if (FTorqueKeys::Just(PC, ETorqueKey::Weather) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
 	{
 		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
 		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 		if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
 		else if (GS) HostOnlyNoteFor = 3.0;
 	}
-	if (PC->WasInputKeyJustPressed(EKeys::P) || SonyHit(ESonyButton::L3) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftThumbstick))
+	if (FTorqueKeys::Just(PC, ETorqueKey::Perf) || SonyHit(ESonyButton::L3) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftThumbstick))
 		bPerfShow = !bPerfShow;
-	if (PC->WasInputKeyJustPressed(EKeys::O))
+	if (FTorqueKeys::Just(PC, ETorqueKey::PerfLog))
 	{
 		bPerfLog = !bPerfLog;
 		if (!bPerfLog) PerfFile.Reset();
 	}
 	// Esc, Options and Start open the pause menu (ATorquePlayerController), which has Quit.
-	if (PC->WasInputKeyJustPressed(EKeys::LeftBracket)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
-	if (PC->WasInputKeyJustPressed(EKeys::RightBracket)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+	if (FTorqueKeys::Just(PC, ETorqueKey::RealismDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
+	if (FTorqueKeys::Just(PC, ETorqueKey::RealismUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 }
 
 void ATorqueBikePawn::RestartRide()
@@ -1166,6 +1207,21 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	else
 	{
 		ReadInput(DeltaSeconds);
+		// The telemetry overlay's strips: the last 12 seconds, ten samples a second.
+		if ((TelemetryClock += DeltaSeconds) >= 0.1)
+		{
+			TelemetryClock = 0.0;
+			FTorqueTelemetry Sample;
+			Sample.Speed = (float)FMath::Abs(Sim->Speed);
+			Sample.Rpm = (float)Sim->Rpm;
+			Sample.Throttle = (float)Throttle;
+			Sample.FrontBrake = (float)FrontBrake;
+			Sample.RearBrake = (float)RearBrake;
+			Sample.Lean = (float)FMath::RadiansToDegrees(Sim->LeanAngle);
+			Sample.Gear = Sim->Gear;
+			if (Telemetry.Num() >= 120) Telemetry.RemoveAt(0);
+			Telemetry.Add(Sample);
+		}
 
 		// Fixed 120 Hz steps, at most a tenth of a second's worth after a hitch.
 		Accum += FMath::Min((double)DeltaSeconds, 0.1);
@@ -1751,7 +1807,9 @@ void ATorqueBikePawn::UpdateRider()
 		// The head turns toward where the corner goes (the apex) and stays nearer level than the bike.
 		// Unreal: + yaw looks right, + roll drops the right side.
 		const double HeadLean = FMath::Clamp(BodyLean, -55.0, 55.0);
-		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + 0.45 * HeadLean, -0.45 * HeadLean);
+		// (Settings > Gameplay > Look into corners: off, the head stays square to the bike.)
+		const double IntoCorner = FTorqueSettings::Get().bLookIntoCorner ? 0.45 : 0.0;
+		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + IntoCorner * HeadLean, -0.45 * HeadLean);
 		// Right hand: the throttle, and the front brake lever under two fingers.
 		In.Throttle = Throttle;
 		if (bThrown)
@@ -2036,8 +2094,10 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * (bChin ? 0.55 : 0.6);
 		Rot.Yaw += LookYaw;
 		Rot.Pitch += LookPitch;
+		// Looking into corners: your view turns towards the inside of the bend, as the rider's head does.
+		if (FTorqueSettings::Get().bLookIntoCorner) Rot.Yaw += 0.25 * FMath::Clamp(BodyLean, -55.0, 55.0);
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
-		Camera->SetFieldOfView(bChin ? 100.0f : 108.0f);
+		Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(bChin ? 100.0f : 108.0f));   // Settings > Gameplay > Field of view
 		return;
 	}
 
@@ -2068,24 +2128,24 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	FRotator Rot = (CamLookAt - Pos).Rotation();
 	Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.25;
 	Camera->SetWorldLocationAndRotation(Pos, Rot);
-	Camera->SetFieldOfView(72.0f);
+	Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(72.0f));   // Settings > Gameplay > Field of view
 }
 
 void ATorqueBikePawn::DrawHud()
 {
-	const double Mph = Sim->Speed * 2.23694;
-	const double Done = Line.Num() > 1 ? RouteLengthM / 1000.0 * Near / (Line.Num() - 1) : 0.0;
+	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Gameplay > Units
+	const double DoneM = Line.Num() > 1 ? RouteLengthM * Near / (Line.Num() - 1) : 0.0;
 	const int32 Mins = (int32)(RideTime / 60.0);
 	const double Secs = RideTime - Mins * 60.0;
 	HudLines.Reset();
 	auto Add = [this](const FString& T, FColor C, float Size) { HudLines.Add({T, C, Size}); };
-	Add(FString::Printf(TEXT("%.0f mph   gear %d"), FMath::Abs(Mph), Sim->Gear), FColor::White, 2.0f);
+	Add(FString::Printf(TEXT("%s   gear %d"), *Set.SpeedText(Sim->Speed), Sim->Gear), FColor::White, 2.0f);
 	Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
 		!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")),
 		GearNoteFor > 0.0 ? FColor(255, 220, 120) : FColor(200, 200, 200), GearNoteFor > 0.0 ? 1.2f : 0.95f);
 	Add(FString::Printf(TEXT("%.0f rpm   lean %.0f deg"), Sim->Rpm, FMath::Abs(FMath::RadiansToDegrees(Sim->LeanAngle))),
 		FColor(220, 220, 220), 1.1f);
-	Add(FString::Printf(TEXT("Buttertubs  %.2f of %.2f km   %d:%05.2f%s"), Done, RouteLengthM / 1000.0, Mins, Secs,
+	Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 		bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	if (bPerfShow && !PerfText.IsEmpty())
@@ -2106,8 +2166,16 @@ void ATorqueBikePawn::DrawHud()
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
 		Add(TEXT("      R1 camera   Triangle back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.85f);
-		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
-		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   J horn   H help   Backspace shed   Esc menu"), Help, 0.85f);
+		// The keys as they're bound now (Settings > Controller > Key bindings).
+		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
+		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),
+			*K(ETorqueKey::Throttle), *K(ETorqueKey::FrontBrake), *K(ETorqueKey::RearBrake), *K(ETorqueKey::LeanLeft), *K(ETorqueKey::LeanRight),
+			*K(ETorqueKey::WeightBack), *K(ETorqueKey::WeightForward), *K(ETorqueKey::ShiftUp), *K(ETorqueKey::ShiftDown), *K(ETorqueKey::AutoShift)), Help, 0.85f);
+		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
+			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
+			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.85f);
+		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
+			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.85f);
 	}
 }
 

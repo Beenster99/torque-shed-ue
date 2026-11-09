@@ -5,6 +5,8 @@
 #include "TorquePlayerState.h"
 #include "TorqueSession.h"
 #include "TorqueSettings.h"
+#include "TorqueKeys.h"
+#include "TorqueGameState.h"
 #include "TorqueBikePawn.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
@@ -159,6 +161,7 @@ void ATorquePlayerController::Open(EPage P)
 	if (Page != EPage::None) Stack.Add(Page);
 	Page = P;
 	Selected = 0;
+	FirstRow = 0;
 }
 
 void ATorquePlayerController::Back()
@@ -167,6 +170,7 @@ void ATorquePlayerController::Back()
 	{
 		Page = Stack.Pop();
 		Selected = 0;
+		FirstRow = 0;
 		return;
 	}
 	CloseMenu();
@@ -268,12 +272,15 @@ void ATorquePlayerController::SwitchTab(int32 Dir)
 	if (Page == EPage::Character) Changed();   // leaving the name keeps it
 	Page = Tabs[Wrap(At + Dir, 5)];   // a tab, not a new page: Back still goes to where Settings was opened from
 	Selected = 0;
+	FirstRow = 0;
 }
 
 FString ATorquePlayerController::Title() const
 {
 	if (Page == EPage::Pause) return TEXT("PAUSED");
 	if (Page == EPage::Profile) return TEXT("PROFILE");   // [profile]
+	if (Page == EPage::Keys) return TEXT("KEY BINDINGS");
+	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
@@ -341,10 +348,10 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	}
 	case EPage::Settings:
 		// Torque Shed's Settings tabs (less its Debug tab).
-		Add(TEXT("Graphics"), FString(), TEXT("Quality preset, window mode, resolution, VSync, frame-rate cap, upscaling"), [this]() { Open(EPage::Graphics); });
-		Add(TEXT("Sound"), FString(), TEXT("Sound effects and engines volumes"), [this]() { Open(EPage::Sound); });
-		Add(TEXT("Gameplay"), FString(), TEXT("Riding realism"), [this]() { Open(EPage::Gameplay); });
-		Add(TEXT("Controller"), FString(), TEXT("Look speeds, invert, the lean stick, and every key and button"), [this]() { Open(EPage::Controller); });
+		Add(TEXT("Graphics"), FString(), TEXT("Quality, screen, upscaling, anti-aliasing, shadows, lighting, fog, clouds, bloom"), [this]() { Open(EPage::Graphics); });
+		Add(TEXT("Sound"), FString(), TEXT("Everything, sound effects, engines, the world around and the radio"), [this]() { Open(EPage::Sound); });
+		Add(TEXT("Gameplay"), FString(), TEXT("Riding, field of view, camera, units, time and weather"), [this]() { Open(EPage::Gameplay); });
+		Add(TEXT("Controller"), FString(), TEXT("Look speeds, invert, the lean stick, key bindings and a controller check"), [this]() { Open(EPage::Controller); });
 		Add(TEXT("Character"), FString(), TEXT("Your name, colour and riding style, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
@@ -354,8 +361,23 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		static const TCHAR* Modes[] = {TEXT("Fullscreen"), TEXT("Borderless window"), TEXT("Window")};
 		static const TCHAR* Scales[] = {TEXT("Native (100%)"), TEXT("Quality (67%)"), TEXT("Balanced (58%)"), TEXT("Performance (50%)"),
 			TEXT("Ultra performance (33%)")};
-		Setting(TEXT("Quality preset"), Qualities[S.Quality], TEXT("Unreal's scalability: shadows, Lumen, foliage, effects"),
-			[&S](int32 D) { S.Quality = FMath::Clamp(S.Quality + D, 0, 4); });
+		auto Heading = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
+		// One of Unreal's scalability groups: the preset's, or a level of its own (Torque Shed's own rows).
+		auto Level = [&Setting, &S](const FString& Label, int32& V, const FString& Hint) {
+			int32* Ptr = &V;
+			Setting(Label, V < 0 ? FString::Printf(TEXT("As the preset (%s)"), Qualities[S.Quality]) : FString(Qualities[FMath::Clamp(V, 0, 4)]), Hint,
+				[Ptr](int32 D) { *Ptr = FMath::Clamp(*Ptr + D, -1, 4); });
+		};
+		const bool bCustom = S.Shadows >= 0 || S.Textures >= 0 || S.GlobalIllumination >= 0 || S.Reflections >= 0 || S.Effects >= 0 ||
+							 S.Foliage >= 0 || S.Fog >= 0 || S.Clouds >= 0 || !FMath::IsNearlyEqual(S.DrawDistance, 1.0f);
+		Setting(TEXT("Quality preset"), FString(Qualities[S.Quality]) + (bCustom ? TEXT(" (custom)") : TEXT("")),
+			TEXT("Unreal's scalability. Picking one puts every quality row below back to it; changing a row makes it custom"),
+			[&S](int32 D) {
+				S.Quality = FMath::Clamp(S.Quality + D, 0, 4);
+				S.Shadows = S.Textures = S.GlobalIllumination = S.Reflections = S.Effects = S.Foliage = S.Fog = S.Clouds = -1;
+				S.DrawDistance = 1.0f;
+			});
+		Heading(TEXT("DISPLAY"));
 		Setting(TEXT("Window mode"), Modes[S.WindowMode], FString(), [&S](int32 D) { S.WindowMode = Wrap(S.WindowMode + D, 3); });
 		if (Resolutions.IsEmpty())
 		{
@@ -371,62 +393,249 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				const int32 Next = Wrap(ResAt + 1 + D, N) - 1;
 				S.Resolution = Next < 0 ? FIntPoint(0, 0) : Resolutions[Next];
 			});
-		const bool bDlss = FTorqueSettings::HasDlss();
-		Setting(TEXT("Upscaler"), S.Upscaler == 1 && bDlss ? FString(TEXT("NVIDIA DLSS")) : FString(TEXT("Unreal TSR")),
-			bDlss ? TEXT("DLSS on an RTX card: sharper for the same frame rate") : TEXT("DLSS needs NVIDIA's DLSS plugin in the build (on its way)"),
-			[&S, bDlss](int32 D) { S.Upscaler = bDlss ? Wrap(S.Upscaler + D, 2) : 0; });
-		const bool bDlssOn = S.Upscaler == 1 && FTorqueSettings::HasDlss();
-		Setting(TEXT("Render scale"), bDlssOn && S.UpscaleMode == 0 ? FString(TEXT("DLAA (100%)")) : FString(Scales[S.UpscaleMode]), TEXT("Lower draws fewer pixels and upscales: more frames"),
-			[&S](int32 D) { S.UpscaleMode = FMath::Clamp(S.UpscaleMode + D, 0, 4); });
+		{
+			const int32 Screens = FMath::Max(FTorqueSettings::MonitorCount(), 1);
+			Setting(TEXT("Monitor"), FTorqueSettings::MonitorName(S.Monitor), TEXT("Which screen the game is on"),
+				[&S, Screens](int32 D) { S.Monitor = Wrap(S.Monitor + 1 + D, Screens + 1) - 1; });
+		}
+		Setting(TEXT("VSync"), OnOff(S.bVSync), TEXT("No tearing, but frames wait for the screen"), [&S](int32) { S.bVSync = !S.bVSync; });
 		int32 CapAt = 0;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(FrameCaps); ++I)
 			if (FrameCaps[I] == S.FrameCap) CapAt = I;
 		Setting(TEXT("Frame-rate cap"), S.FrameCap == 0 ? FString(TEXT("Off")) : FString::Printf(TEXT("%d fps"), S.FrameCap), FString(),
 			[&S, CapAt](int32 D) { S.FrameCap = FrameCaps[Wrap(CapAt + D, (int32)UE_ARRAY_COUNT(FrameCaps))]; });
-		Setting(TEXT("VSync"), OnOff(S.bVSync), TEXT("No tearing, but frames wait for the screen"), [&S](int32) { S.bVSync = !S.bVSync; });
+		Setting(TEXT("Brightness"), Pct(S.Brightness), TEXT("50% to 150%"), [&S](int32 D) { S.Brightness = StepF(S.Brightness, D, 0.05f, 0.5f, 1.5f); });
+		Setting(TEXT("Show the frame rate"), OnOff(S.bFpsCounter), TEXT("At the top of the screen"), [&S](int32) { S.bFpsCounter = !S.bFpsCounter; });
+		Heading(TEXT("UPSCALING AND SMOOTH EDGES"));
+		const bool bDlss = FTorqueSettings::HasDlss();
+		Setting(TEXT("Upscaler"), S.Upscaler == 1 && bDlss ? FString(TEXT("NVIDIA DLSS")) : FString(TEXT("Unreal TSR")),
+			bDlss ? TEXT("DLSS on an RTX card: sharper for the same frame rate") : TEXT("DLSS needs NVIDIA's DLSS plugin in the build (on its way)"),
+			[&S, bDlss](int32 D) { S.Upscaler = bDlss ? Wrap(S.Upscaler + D, 2) : 0; });
+		const bool bDlssOn = S.Upscaler == 1 && bDlss;
+		Setting(TEXT("Render scale"), bDlssOn && S.UpscaleMode == 0 ? FString(TEXT("DLAA (100%)")) : FString(Scales[S.UpscaleMode]), TEXT("Lower draws fewer pixels and upscales: more frames"),
+			[&S](int32 D) { S.UpscaleMode = FMath::Clamp(S.UpscaleMode + D, 0, 4); });
+		Setting(TEXT("Sharpness"), S.Sharpness < 0.001f ? FString(TEXT("Off")) : Pct(S.Sharpness), TEXT("Sharpens the picture after upscaling"),
+			[&S](int32 D) { S.Sharpness = StepF(S.Sharpness, D, 0.05f, 0.0f, 1.0f); });
+		{
+			static const TCHAR* Aa[] = {TEXT("TSR (temporal, best looking)"), TEXT("TAA (temporal)"), TEXT("FXAA (fast)"), TEXT("Off")};
+			Setting(TEXT("Anti-aliasing"), bDlssOn ? FString(TEXT("DLSS does its own")) : FString(Aa[FMath::Clamp(S.AntiAliasing, 0, 3)]),
+				TEXT("Smooth edges (with DLSS on, DLSS smooths them)"), [&S](int32 D) { S.AntiAliasing = Wrap(S.AntiAliasing + D, 4); });
+		}
+		Heading(TEXT("QUALITY"));
+		Level(TEXT("Shadows"), S.Shadows, TEXT("Shadow detail and how far they reach"));
+		Level(TEXT("Detail (textures)"), S.Textures, TEXT("Texture detail and filtering"));
+		Setting(TEXT("Draw distance"), Pct(S.DrawDistance), TEXT("50% to 200% of the preset's: how far away small things are still drawn"),
+			[&S](int32 D) { S.DrawDistance = StepF(S.DrawDistance, D, 0.05f, 0.5f, 2.0f); });
+		Level(TEXT("Global illumination"), S.GlobalIllumination, TEXT("Lumen's bounce light"));
+		Level(TEXT("Reflections"), S.Reflections, TEXT("Lumen's reflections: paint, chrome, wet roads"));
+		Level(TEXT("Effects"), S.Effects, TEXT("Spray, dust and smoke"));
+		Level(TEXT("Grass and foliage"), S.Foliage, TEXT("How thick the grass and plants are, and how far"));
+		{
+			static const TCHAR* Fogs[] = {TEXT("Off"), TEXT("Low"), TEXT("High")};
+			Setting(TEXT("Volumetric fog and light"), S.Fog < 0 ? FString(TEXT("As the preset")) : FString(Fogs[S.Fog]), TEXT("Light shafts and haze you can see"),
+				[&S](int32 D) { S.Fog = FMath::Clamp(S.Fog + D, -1, 2); });
+			static const TCHAR* CloudLevels[] = {TEXT("Off"), TEXT("Low"), TEXT("Medium"), TEXT("High"), TEXT("Ultra")};
+			Setting(TEXT("Clouds"), S.Clouds < 0 ? FString(TEXT("As the preset")) : FString(CloudLevels[S.Clouds]), TEXT("The volumetric clouds: off, or finer the higher"),
+				[&S](int32 D) { S.Clouds = FMath::Clamp(S.Clouds + D, -1, 4); });
+		}
+		Setting(TEXT("Ambient occlusion"), OnOff(S.bAmbientOcclusion), TEXT("Soft shade in corners and under things"),
+			[&S](int32) { S.bAmbientOcclusion = !S.bAmbientOcclusion; });
+		Setting(TEXT("Glow and bloom"), S.Bloom < 0.005f ? FString(TEXT("Off")) : Pct(S.Bloom), TEXT("How strong the glow round bright things is: off, to twice the usual"),
+			[&S](int32 D) { S.Bloom = StepF(S.Bloom, D, 0.1f, 0.0f, 2.0f); });
 		Setting(TEXT("Motion blur"), OnOff(S.bMotionBlur), FString(), [&S](int32) { S.bMotionBlur = !S.bMotionBlur; });
+		Setting(TEXT("Avatar shadows"), OnOff(S.bAvatarShadows), TEXT("Players and people on foot cast shadows"),
+			[&S](int32) { S.bAvatarShadows = !S.bAvatarShadows; });
+		Add(TEXT("Graphics API"), TEXT("DirectX 12"), TEXT("Lumen, Nanite and the shadows need DirectX 12 here (Torque Shed's Vulkan choice has no Unreal match)"), nullptr);
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	}
 	case EPage::Sound:
-		Setting(TEXT("Sound effects volume"), Pct(S.Ambience), TEXT("Wind, birds and the world"),
-			[&S](int32 D) { S.Ambience = StepF(S.Ambience, D, 0.1f, 0.0f, 1.0f); });
+		Setting(TEXT("Master volume"), Pct(S.Master), TEXT("Everything"), [&S](int32 D) { S.Master = StepF(S.Master, D, 0.1f, 0.0f, 1.0f); });
+		Setting(TEXT("Sound effects volume"), Pct(S.Sfx), TEXT("Tools, knocks, dings, the washer, the shed's machines"),
+			[&S](int32 D) { S.Sfx = StepF(S.Sfx, D, 0.1f, 0.0f, 1.0f); });
 		Setting(TEXT("Engines volume"), Pct(S.Engine), TEXT("Your bike and everyone else's"), [&S](int32 D) { S.Engine = StepF(S.Engine, D, 0.1f, 0.0f, 1.0f); });
+		Setting(TEXT("World volume"), Pct(S.Ambience), TEXT("Wind, birds, sheep and the shed's hum"),
+			[&S](int32 D) { S.Ambience = StepF(S.Ambience, D, 0.1f, 0.0f, 1.0f); });
+		Setting(TEXT("Radio volume"), Pct(S.Radio), TEXT("The shed radio"), [&S](int32 D) { S.Radio = StepF(S.Radio, D, 0.1f, 0.0f, 1.0f); });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Gameplay:
+	{
+		auto Heading = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
+		Heading(TEXT("RIDING"));
 		Setting(TEXT("Riding realism"), FString::Printf(TEXT("%.2f  %s"), S.Realism, *FTorqueSettings::RealismWord(S.Realism)),
 			FTorqueSettings::RealismText(S.Realism) + TEXT("   (0 = full sim, 1 = easy; [ and ] while riding)"), [this, &S](int32 D) {
 				S.Realism = StepF(S.Realism, D, 0.05f, 0.0f, 1.0f);
 				if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn())) Bike->Assist = S.Realism;
 			});
+		Setting(TEXT("Automatic gearbox"), OnOff(S.bAutoShift), FString::Printf(TEXT("The gears change themselves (%s while riding)"), *FTorqueKeys::Text(ETorqueKey::AutoShift)),
+			[&S](int32) { S.bAutoShift = !S.bAutoShift; });
+		Setting(TEXT("Telemetry overlay"), OnOff(S.bTelemetry), FString::Printf(TEXT("Live strips of what the bike is doing, while riding (%s)"), *FTorqueKeys::Text(ETorqueKey::Telemetry)),
+			[&S](int32) { S.bTelemetry = !S.bTelemetry; });
+		Setting(TEXT("Look into corners"), OnOff(S.bLookIntoCorner), TEXT("Riders' heads turn towards the inside of a bend, and your view does in first person"),
+			[&S](int32) { S.bLookIntoCorner = !S.bLookIntoCorner; });
+		Heading(TEXT("CAMERA"));
+		Setting(TEXT("Field of view"), FString::Printf(TEXT("%d degrees"), FMath::RoundToInt(S.Fov)),
+			TEXT("60 to 110: on foot it's this; the bike's cameras widen or narrow by as much"),
+			[&S](int32 D) { S.Fov = StepF(S.Fov, D, 1.0f, 60.0f, 110.0f); });
+		Setting(TEXT("Chase camera recentres"), OnOff(S.bCameraRecentre), TEXT("The chase camera swings back behind the bike after you let go of the mouse or right stick"),
+			[&S](int32) { S.bCameraRecentre = !S.bCameraRecentre; });
+		Heading(TEXT("UNITS"));
+		Setting(TEXT("Units"), S.Units == 0 ? FString(TEXT("Metric (km/h, km)")) : FString(TEXT("Imperial (mph, miles)")), TEXT("Speeds and distances on the HUD"),
+			[&S](int32) { S.Units = 1 - S.Units; });
+		Heading(TEXT("TIME AND WEATHER"));
+		{
+			ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			const FString ByHost = bClient ? FString(TEXT("   (set by the host)")) : FString();
+			auto Host = [&Setting, bClient](const FString& Label, const FString& Value, const FString& Hint, TFunction<void(int32)> Step) {
+				Setting(Label, Value, Hint, bClient ? TFunction<void(int32)>([](int32) {}) : MoveTemp(Step));
+			};
+			Host(TEXT("Day/night cycle"), OnOff(S.bDayNight) + ByHost, TEXT("The clock runs, the sun crosses the sky and night falls"),
+				[&S](int32) { S.bDayNight = !S.bDayNight; });
+			{
+				const TArray<int32>& Lengths = FTorqueSettings::DayLengths();
+				const int32 At = FMath::Max(Lengths.IndexOfByKey(S.DayLength), 0);
+				const int32 M = Lengths[At];
+				const FString Text = M < 60 ? FString::Printf(TEXT("%d minutes"), M) : M == 60 ? FString(TEXT("1 hour")) : FString::Printf(TEXT("%d hours"), M / 60);
+				Host(TEXT("Day length"), Text + ByHost, TEXT("Real time for a whole day, with the cycle on"),
+					[&S, At](int32 D) { const TArray<int32>& L = FTorqueSettings::DayLengths(); S.DayLength = L[FMath::Clamp(At + D, 0, L.Num() - 1)]; });
+			}
+			{
+				const float Built = GS ? GS->BuiltHour() : 15.0f;
+				const float Now = GS ? GS->GetHour() : S.TimeOfDay;
+				const FString Text = Now < 0.0f ? FString::Printf(TEXT("The level's own light (about %s)"), *ATorqueGameState::ClockText(Built))
+												: ATorqueGameState::ClockText(Now);
+				Host(TEXT("Time of day"), Text + ByHost, TEXT("Half an hour a step"), [GS, &S, Built, Now](int32 D) {
+					const float From = Now < 0.0f ? FMath::RoundToFloat(Built * 2.0f) / 2.0f - 0.5f * D : FMath::RoundToFloat(Now * 2.0f) / 2.0f;
+					S.TimeOfDay = FMath::Fmod(From + 0.5f * D + 24.0f, 24.0f);
+					if (GS) GS->SetHour(S.TimeOfDay);
+				});
+				if (Now >= 0.0f && !bClient)
+					Add(TEXT("Back to the level's own light"), FString(), TEXT("The sun where the level was made with it (the clock stops)"), [this, GS, &S]() {
+						S.TimeOfDay = -1.0f;
+						S.bDayNight = false;
+						if (GS) GS->SetHour(-1.0f);
+						Changed();
+					});
+			}
+			{
+				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads")};
+				static const TCHAR* NowNames[] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
+				const FString NowText = GS ? FString::Printf(TEXT("   now: %s"), NowNames[FMath::Clamp(GS->GetWeather(), 0, 2)]) : FString();
+				Host(TEXT("Weather"), FString(Kinds[S.WeatherMode]) + NowText + ByHost, FString::Printf(TEXT("%s while riding changes it now"), *FTorqueKeys::Text(ETorqueKey::Weather)),
+					[GS, &S](int32 D) {
+						S.WeatherMode = Wrap(S.WeatherMode + D, 4);
+						if (GS && S.WeatherMode > 0) GS->SetWeather(S.WeatherMode - 1);
+					});
+			}
+		}
+		Heading(TEXT("CO-OP"));
 		Setting(TEXT("Open my router for internet friends"), OnOff(S.bOpenRouter),
 			TEXT("Hosting asks your router to open UDP port 7777 (UPnP), and closes it again after; off: forward it by hand"),
 			[&S](int32) { S.bOpenRouter = !S.bOpenRouter; });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
+	}
 	case EPage::Controller:
-		Setting(TEXT("Mouse look speed"), FString::Printf(TEXT("%.2fx"), S.MouseLook), TEXT("0.1x to 10x the default"),
+		Setting(TEXT("Mouse look speed"), FString::Printf(TEXT("%.2fx"), S.MouseLook), TEXT("0.1x to 10x the default, on foot and on the bike"),
 			[&S](int32 D) { S.MouseLook = StepList(S.MouseLook, D, MouseSpeeds, UE_ARRAY_COUNT(MouseSpeeds)); });
 		Setting(TEXT("Stick look speed"), FString::Printf(TEXT("%.2fx"), S.PadLook), TEXT("The right stick, on foot and on the bike"),
 			[&S](int32 D) { S.PadLook = StepF(S.PadLook, D, 0.25f, 0.25f, 3.0f); });
 		Setting(TEXT("Invert looking up and down"), OnOff(S.bInvertLook), FString(), [&S](int32) { S.bInvertLook = !S.bInvertLook; });
 		Setting(TEXT("Lean stick dead zone"), Pct(S.StickDeadZone), TEXT("How far the stick moves before the bike leans"),
 			[&S](int32 D) { S.StickDeadZone = StepF(S.StickDeadZone, D, 0.01f, 0.02f, 0.25f); });
-		Setting(TEXT("Lean response"), FString::Printf(TEXT("%.1fx"), S.Steering), TEXT("How much lean the stick and the A/D keys ask for"),
+		Setting(TEXT("Lean response"), FString::Printf(TEXT("%.1fx"), S.Steering), TEXT("How much lean the stick and the lean keys ask for"),
 			[&S](int32 D) { S.Steering = StepF(S.Steering, D, 0.1f, 0.5f, 2.0f); });
+		Add(TEXT("Key bindings"), FString(), TEXT("Every action and its keys: click one and press the new key"), [this]() { KeySlot = 0; Open(EPage::Keys); });
+		Add(TEXT("Controller check"), FString(), TEXT("The sticks and buttons as the game reads them, and Recalibrate"), [this]() { Open(EPage::PadCheck); });
 		{
-			// Every key and button (Torque Shed lists them on this tab too).
 			auto Info = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
-			Info(TEXT("On foot:  WASD walk, Shift run, mouse look, E or click use, Q / R pick, G wash, F ride out, Space hop"));
-			Info(TEXT("     Pad:  left stick walk, right stick look, Cross / A use, D-pad left / right pick, Square / X wash, Triangle / Y ride out"));
-			Info(TEXT("Riding:  W throttle, S front brake, Space rear brake, A / D lean, Q / E weight, X / Z gears, G auto / manual"));
-			Info(TEXT("     B ABS, C camera, R back on the road, Home restart, [ ] realism, V weather, Backspace back to the shed, H help"));
-			Info(TEXT("     Pad:  R2 throttle, L2 front brake, L1 rear brake, left stick lean and weight, Cross / Square gears, R1 camera"));
+			Info(TEXT("Pad, on foot:  left stick walk, right stick look, Cross / A use, D-pad left / right pick, Square / X wash, Triangle / Y ride out"));
+			Info(TEXT("Pad, riding:  R2 throttle, L2 front brake, L1 rear brake, left stick lean and weight, Cross / Square gears, R1 camera"));
 			Info(TEXT("Anywhere:  Esc, Options or Start opens the menu"));
 		}
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
+	case EPage::Keys:
+	{
+		// Torque Shed's Key bindings tab (keybind_tab.gd).
+		Add(TEXT("Reset to defaults"), FString(), TEXT("Every key back as it came"), [this]() {
+			FTorqueKeys::ResetAll();
+			ListenAction = -1;
+		});
+		uint8 Group = 0;
+		for (int32 I = 0; I < (int32)ETorqueKey::Count; ++I)
+		{
+			const ETorqueKey A = (ETorqueKey)I;
+			const FTorqueKeys::FAction& Act = FTorqueKeys::Action(A);
+			if (Act.Where != Group)
+			{
+				Group = Act.Where;
+				Add(Group == FTorqueKeys::Foot ? TEXT("ON FOOT") : Group == FTorqueKeys::Ride ? TEXT("RIDING") : TEXT("ON FOOT AND RIDING"), FString(), FString(), nullptr);
+			}
+			FString Value;
+			if (ListenAction == I)
+				Value = FString::Printf(TEXT("press the %s key or mouse button...   (Esc cancels, Delete clears it)"), ListenSlot == 0 ? TEXT("first") : TEXT("second"));
+			else
+			{
+				for (int32 Slot = 0; Slot < FTorqueKeys::Slots; ++Slot)
+				{
+					const FString Name = FTorqueKeys::KeyName(FTorqueKeys::Get(A, Slot));
+					const FString Shown = Name.IsEmpty() ? FString(TEXT("-")) : Name;
+					Value += (Slot > 0 ? TEXT("   ") : TEXT("")) + (Slot == KeySlot ? FString::Printf(TEXT("[%s]"), *Shown) : Shown);
+				}
+				const FString Clash = FTorqueKeys::Clash(A);
+				if (!Clash.IsEmpty()) Value += FString::Printf(TEXT("   CLASHES with %s"), *Clash);
+			}
+			Add(Act.Label, Value, TEXT("Click or Enter, then press the new key (Esc cancels, Delete clears it). < > picks the first or second key"),
+				[this, I]() {
+					ListenAction = I;
+					ListenSlot = KeySlot;
+					ListenFrame = GFrameCounter;
+				},
+				[this](int32 D) { KeySlot = Wrap(KeySlot + D, FTorqueKeys::Slots); });
+		}
+		Add(TEXT("The pad's buttons stay as they are; geometry mode has its own keys"), FString(), FString(), nullptr);
+		Add(TEXT("Back"), FString(), FString(), [this]() { ListenAction = -1; Back(); });
+		break;
+	}
+	case EPage::PadCheck:
+	{
+		// Torque Shed's Controller check: the numbers should follow the sticks; resting off centre, Recalibrate.
+		auto Info = [&Add](const FString& Text) { Add(Text, FString(), FString(), nullptr); };
+		Info(TEXT("Move the sticks and press buttons: the numbers should follow. If a stick shows a value while you're not touching it, let go and Recalibrate."));
+		const FSonyPadState Sony = Pad ? Pad->Get() : FSonyPadState();
+		const FSonyPadState Raw = Pad ? Pad->GetRaw() : FSonyPadState();
+		if (Sony.bConnected)
+		{
+			Info(FString::Printf(TEXT("PlayStation pad:  left stick %+.2f, %+.2f   right stick %+.2f, %+.2f   L2 %.2f   R2 %.2f"), Sony.LX, Sony.LY, Sony.RX, Sony.RY, Sony.L2, Sony.R2));
+			static const TCHAR* Names[] = {TEXT("Square"), TEXT("Cross"), TEXT("Circle"), TEXT("Triangle"), TEXT("L1"), TEXT("R1"), TEXT("Create"), TEXT("Options"),
+				TEXT("L3"), TEXT("R3"), TEXT("Up"), TEXT("Right"), TEXT("Down"), TEXT("Left"), TEXT("PS")};
+			TArray<FString> Held;
+			for (int32 B = 0; B < (int32)UE_ARRAY_COUNT(Names); ++B)
+				if (Sony.Buttons & (1u << B)) Held.Add(Names[B]);
+			Info(TEXT("     buttons held:  ") + (Held.IsEmpty() ? FString(TEXT("none")) : FString::Join(Held, TEXT(", "))));
+		}
+		else
+			Info(TEXT("PlayStation pad:  not found (plugged in? DSX or Steam can hide it)"));
+		Info(FString::Printf(TEXT("Xbox-style pad:  left stick %+.2f, %+.2f   right stick %+.2f, %+.2f   triggers %.2f, %.2f"),
+			GetInputAnalogKeyState(EKeys::Gamepad_LeftX), GetInputAnalogKeyState(EKeys::Gamepad_LeftY), GetInputAnalogKeyState(EKeys::Gamepad_RightX),
+			GetInputAnalogKeyState(EKeys::Gamepad_RightY), GetInputAnalogKeyState(EKeys::Gamepad_LeftTriggerAxis), GetInputAnalogKeyState(EKeys::Gamepad_RightTriggerAxis)));
+		Add(TEXT("Recalibrate (hands off the controller)"), FString(), TEXT("Where the PlayStation pad's sticks rest now becomes their centre"), [this, &S, Raw]() {
+			if (!Raw.bConnected) return;
+			const float Rest[4] = {Raw.LX, Raw.LY, Raw.RX, Raw.RY};
+			for (int32 I = 0; I < 4; ++I) S.PadCentre[I] = FMath::Clamp(Rest[I], -0.5f, 0.5f);
+			FSonyPad::SetCentre(S.PadCentre);
+			Changed();
+		});
+		Add(TEXT("Forget the calibration"), FString(), TEXT("The sticks' centres back to the pad's own"), [this, &S]() {
+			for (int32 I = 0; I < 4; ++I) S.PadCentre[I] = 0.0f;
+			FSonyPad::SetCentre(S.PadCentre);
+			Changed();
+		});
+		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
+		break;
+	}
 	case EPage::Character:
 	{
 		FRow Name;
@@ -533,6 +742,13 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 	Clock += DeltaTime;
 	NoteFor -= DeltaTime;
 	SyncPlayerState(DeltaTime);
+	// Settings > Graphics > Avatar shadows off: people who've come in since go without too.
+	if ((ShadowCheckIn -= DeltaTime) <= 0.0)
+	{
+		ShadowCheckIn = 1.0;
+		const FTorqueSettings& Set = FTorqueSettings::Get();
+		if (!Set.bAvatarShadows) Set.ApplyAvatarShadows(GetWorld());
+	}
 	UpdateCursor();
 	ReadMenuInput(DeltaTime);
 	UpdateProfilePreview();   // [profile]
@@ -592,6 +808,12 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	if (Page == EPage::None)
 	{
 		if (bMenuKey && WantsPause()) OpenPause();
+		return;
+	}
+	// Waiting for a key to bind (Settings > Controller > Key bindings): it has the keys to itself.
+	if (ListenAction >= 0)
+	{
+		ReadKeyToBind();
 		return;
 	}
 
@@ -720,6 +942,47 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	else if (bBack) Back();
 }
 
+void ATorquePlayerController::ReadKeyToBind()
+{
+	if (Page != EPage::Keys || ListenAction < 0 || ListenAction >= (int32)ETorqueKey::Count)
+	{
+		ListenAction = -1;
+		return;
+	}
+	if (GFrameCounter == ListenFrame) return;   // the click or Enter that started it
+	const FSonyPadState Sony = Pad ? Pad->Get() : FSonyPadState();
+	const bool bPadBack = (Sony.Buttons & ESonyButton::Circle) != 0 || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right);
+	if (WasInputKeyJustPressed(EKeys::Escape) || bPadBack)
+	{
+		ListenAction = -1;
+		ClosedFrame = GFrameCounter;   // (and Esc doesn't also close the page)
+		return;
+	}
+	const ETorqueKey A = (ETorqueKey)ListenAction;
+	if (WasInputKeyJustPressed(EKeys::Delete))
+	{
+		FTorqueKeys::Set(A, ListenSlot, FKey());
+		ListenAction = -1;
+		return;
+	}
+	static TArray<FKey> Candidates;
+	if (Candidates.IsEmpty())
+	{
+		TArray<FKey> All;
+		EKeys::GetAllKeys(All);
+		for (const FKey& K : All)
+			if (FTorqueKeys::Bindable(K)) Candidates.Add(K);
+	}
+	for (const FKey& K : Candidates)
+		if (WasInputKeyJustPressed(K))
+		{
+			FTorqueKeys::Set(A, ListenSlot, K);
+			UE_LOG(LogTemp, Log, TEXT("Torque: key binding: %s slot %d = %s"), FTorqueKeys::Action(A).Id, ListenSlot + 1, *K.ToString());
+			ListenAction = -1;
+			return;
+		}
+}
+
 void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 {
 	Hits.Reset();
@@ -783,8 +1046,39 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	}
 	Y += 24.0f * Sc;
 	const TArray<FRow> List = Rows();
-	for (int32 I = 0; I < List.Num(); ++I)
+	// A page longer than the screen scrolls: the rows from FirstRow, keeping the one picked in view.
+	float FontH = 0.0f, FontW = 0.0f;
+	Canvas->StrLen(Font, TEXT("Ag"), FontW, FontH);
+	auto RowHeight = [&](int32 I) {
+		if (List[I].Frac >= 0.0f) return 46.0f * Sc;
+		const bool bInfo = !List[I].Choose && !List[I].Step;
+		return FontH * Sc * (bInfo ? 1.0f : (I == Selected ? 1.4f : 1.25f)) + 14.0f * Sc;
+	};
+	const float RowsTop = Y, RowsBottom = Canvas->ClipY - 210.0f * Sc;
+	const float MoreH = FontH * Sc * 0.85f + 14.0f * Sc;   // a "more" line, above or below
+	if (List.Num() > 0)
 	{
+		const int32 Sel = FMath::Clamp(Selected, 0, List.Num() - 1);
+		FirstRow = FMath::Clamp(FirstRow, 0, List.Num() - 1);
+		if (Sel < FirstRow) FirstRow = Sel;
+		auto Span = [&](int32 From, int32 To) {
+			float H = From > 0 ? MoreH : 0.0f;
+			for (int32 I = From; I <= To; ++I) H += RowHeight(I);
+			return H + (To < List.Num() - 1 ? MoreH : 0.0f);
+		};
+		while (FirstRow < Sel && Span(FirstRow, Sel) > RowsBottom - RowsTop) ++FirstRow;
+		// (and no empty space at the bottom when it's scrolled down)
+		while (FirstRow > 0 && Span(FirstRow - 1, List.Num() - 1) <= RowsBottom - RowsTop) --FirstRow;
+	}
+	if (FirstRow > 0) Line(TEXT("    ... more above (scroll up)"), FColor(170, 170, 170), 0.85f, 0.0f);
+	int32 LastShown = List.Num() - 1;
+	for (int32 I = FirstRow; I < List.Num(); ++I)
+	{
+		if (Y + RowHeight(I) + (I < List.Num() - 1 ? MoreH : 0.0f) > RowsBottom && I > FirstRow && I > Selected)
+		{
+			LastShown = I - 1;
+			break;
+		}
 		if (List[I].Frac >= 0.0f)
 		{
 			// [profile] A slider row: the name, a track with the middle marked, filled from the middle
@@ -830,6 +1124,7 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 			Hits.Add(X + WM * K - 14.0f * Sc, Top - 6.0f * Sc, X + (WM + WA) * K + 14.0f * Sc, Bottom, I, FTorqueMenuHits::More);
 		}
 	}
+	if (LastShown < List.Num() - 1) Line(TEXT("    ... more below (scroll down)"), FColor(170, 170, 170), 0.85f, 0.0f);
 	Y += 16.0f * Sc;
 	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Line(List[Selected].Hint, FColor(190, 210, 240), 1.0f, 0.35f);
 	Y = Canvas->ClipY - 90.0f * Sc;

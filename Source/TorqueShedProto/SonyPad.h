@@ -31,6 +31,10 @@ public:
 	FSonyPad();
 	~FSonyPad();
 	FSonyPadState Get() const;
+	// Settings > Controller > Controller check > Recalibrate: where each stick (LX, LY, RX, RY) rests,
+	// taken off every reading (and the rest of the travel stretched to fill -1 .. 1). Raw: without it.
+	static void SetCentre(const float Centre[4]);
+	FSonyPadState GetRaw() const;
 
 private:
 	class FWorker;

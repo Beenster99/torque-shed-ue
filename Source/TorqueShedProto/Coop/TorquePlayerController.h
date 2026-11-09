@@ -61,7 +61,7 @@ public:
 	FString TestFace(const FString& Slider, float Value);
 
 private:
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck };
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -86,6 +86,15 @@ private:
 	int32 StickY = 0, StickX = 0;
 	double RepeatY = 0.0, RepeatX = 0.0;
 	TArray<FIntPoint> Resolutions;
+	// Settings > Controller > Key bindings: the action waiting for a key (-1 for none), into which of
+	// its two slots, and the frame it started (the click or Enter that started it isn't the key).
+	int32 ListenAction = -1, ListenSlot = 0, KeySlot = 0;
+	uint64 ListenFrame = 0;
+	void ReadKeyToBind();
+	// A long page scrolls: the first row drawn.
+	int32 FirstRow = 0;
+	// Settings > Graphics > Avatar shadows, for people who arrive later (checked now and then).
+	double ShadowCheckIn = 0.0;
 
 	void Open(EPage P);
 	void Back();
