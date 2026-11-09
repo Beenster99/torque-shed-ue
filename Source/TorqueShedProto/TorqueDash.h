@@ -31,7 +31,7 @@ struct FTorqueDash
 
 	// --- The ride now (Step).
 	double FuelLitres = 15.0;   // in the tank: full as it leaves the shed (the shed doesn't keep fluids yet)
-	double TripKm = 0.0;        // this ride
+	double TripKm = 0.0;        // this ride: the ground the bike has covered
 	double TripFuel = 0.0;      // litres burnt this ride
 	double TopKmh = 0.0;
 	double Speed = 0.0;         // m/s, as the sim has it
@@ -41,6 +41,11 @@ struct FTorqueDash
 	bool bCrashed = false;
 
 	bool Has(const TCHAR* Feature) const { return Features.Contains(Feature); }
+
+	// Where the bike was last frame (sim metres), for the trip: a move bigger than a bike makes in a
+	// frame is the bike put somewhere (back on the road, a restart) and isn't counted.
+	FVector TripFrom = FVector::ZeroVector;
+	bool bTripFrom = false;
 
 	// The dash, tank and engine parts the bike has (Godot slot -> catalogue id).
 	void Setup(const TMap<FString, FString>& Parts);

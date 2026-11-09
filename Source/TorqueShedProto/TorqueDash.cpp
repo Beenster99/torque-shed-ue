@@ -66,6 +66,7 @@ void FTorqueDash::Setup(const TMap<FString, FString>& Parts)
 	FrictionMult = (Head ? Head->Num("thirst", 1.0) : 1.0) * (1.0 + TDI::FrictionPerCylinder * ((Block ? Block->Num("cylinders", 2.0) : 2.0) - 2.0));
 	bInjected = Fuel && Fuel->Flag("injected", false);
 	TripKm = TripFuel = TopKmh = 0.0;
+	bTripFrom = false;
 }
 
 double FTorqueDash::FuelRate(const TorqueSim::BikeSpec& Spec, double Kw, double AtRpm) const
@@ -100,7 +101,16 @@ void FTorqueDash::Step(const TorqueSim::BikeSim& Sim, double Throttle, bool bRun
 	bEngineOn = bRunning;
 	bCrashed = Sim.IsCrashed;
 	TopKmh = FMath::Max(TopKmh, FMath::Abs(Speed) * 3.6);
-	TripKm += FMath::Abs(Speed) * Dt / 1000.0;   // main.gd: hud.trip_km
+	// main.gd's hud.trip_km: the distance covered. Measured from where the bike actually goes over
+	// the ground (the sim's metres), not speed x frame time, so it can't run ahead of the road.
+	const FVector Here(Sim.Position.x, Sim.Position.y, Sim.Position.z);
+	if (bTripFrom && Dt > 0.0)
+	{
+		const double Moved = FVector::Dist(Here, TripFrom);
+		if (Moved <= FMath::Max(1.0, 120.0 * Dt)) TripKm += Moved / 1000.0;   // (120 m/s: faster is a jump)
+	}
+	TripFrom = Here;
+	bTripFrom = true;
 	if (!bRunning || bCrashed || Dt <= 0.0) return;
 	// bike.gd: the petrol the engine burns making what it makes (the crank's share of the back
 	// wheel's drive), or on the overrun, the throttle shut in gear above tickover, what an injected
