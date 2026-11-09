@@ -352,6 +352,16 @@ void UTorqueSfx::JobDone(const FTorqueShedRequest& R, int32 HeldBefore, const FV
 	case ETorqueShedAct::PaintTinTake: PlayAt(TEXT("pickup"), At, -6.0f); return;
 	case ETorqueShedAct::TyreFit: PlayAt(TEXT("bead_pop"), At, -4.0f); return;
 	case ETorqueShedAct::Fabricate: PlayAt(TEXT("ting"), At, -2.0f); return;
+	case ETorqueShedAct::ScrapBike:
+	{
+		// The bike going for scrap (shed_state remove_bike, recovery_view's "scrap"): at its bay, the
+		// heap of metal crashing down, a heavy steel knock, and the frame hitting the floor after.
+		const FVector Heap = TorqueShedLayout::BayAt(R.Bay) + FVector(0.0, 0.0, 60.0);
+		PlayAt(TEXT("scrap"), Heap, 2.0f);
+		Impact(TEXT("metal"), TEXT("steel"), 1.0f, Heap);
+		Impact(TEXT("metal"), TEXT("concrete"), 0.9f, Heap - FVector(0.0, 0.0, 50.0));
+		return;
+	}
 	default: break;
 	}
 	const char* Done = DoneSound(S(Name));
