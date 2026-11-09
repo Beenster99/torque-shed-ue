@@ -1040,6 +1040,119 @@ def _cards_mesh(groom, lod):
     return _path(mesh), _path(mat)
 
 
+PLUGIN_COPIES = ROOT + "/Common/FromPlugin"   # copies of the MetaHuman plugin's content the avatars need
+
+
+def _deps_closure(pkg):
+    """Every package under /MetaHuman* that pkg needs, through hard references, following on
+    through those packages too (never through /Game, /Engine or /Script)."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    opts = unreal.AssetRegistryDependencyOptions(include_soft_package_references=False, include_hard_package_references=True,
+                                                 include_searchable_names=False, include_soft_management_references=False,
+                                                 include_hard_management_references=False)
+    seen, todo, out = set(), [pkg], []
+    while todo:
+        p = todo.pop()
+        for d in reg.get_dependencies(p, opts) or []:
+            d = str(d)
+            if d in seen or not d.startswith("/MetaHuman"):
+                continue
+            seen.add(d)
+            out.append(d)
+            todo.append(d)
+    return out
+
+
+def _swap_refs(value, mapping):
+    """value with every object reference whose package is in mapping swapped for its copy, walking
+    into arrays and structs. Returns (value, changed)."""
+    if isinstance(value, unreal.Object):
+        pkg = value.get_outermost().get_name()
+        if pkg in mapping:
+            new = unreal.load_asset(mapping[pkg])
+            if new is not None:
+                return new, True
+        return value, False
+    if isinstance(value, (unreal.Array, list, tuple)):
+        items, changed = [], False
+        for v in value:
+            nv, ch = _swap_refs(v, mapping)
+            items.append(nv)
+            changed = changed or ch
+        return (items if changed else value), changed
+    if isinstance(value, unreal.StructBase):
+        changed = False
+        for f in [m for m in dir(value) if not m.startswith("_")]:
+            try:
+                v = value.get_editor_property(f)
+            except Exception:
+                continue
+            nv, ch = _swap_refs(v, mapping)
+            if ch:
+                try:
+                    value.set_editor_property(f, nv)
+                    changed = True
+                except Exception as e:
+                    log("couldn't repoint %s.%s: %s" % (type(value).__name__, f, e))
+        return value, changed
+    return value, False
+
+
+def _repoint(obj, mapping):
+    """Swap obj's references to plugin content for the copies (each editable property); a material
+    instance's parent too. Returns the properties changed."""
+    done = []
+    for f in [m for m in dir(obj) if not m.startswith("_")]:
+        try:
+            v = obj.get_editor_property(f)
+        except Exception:
+            continue
+        nv, ch = _swap_refs(v, mapping)
+        if ch:
+            try:
+                obj.set_editor_property(f, nv)
+                done.append(f)
+            except Exception as e:
+                if f == "parent" and hasattr(unreal, "MaterialEditingLibrary"):
+                    try:
+                        unreal.MaterialEditingLibrary.set_material_instance_parent(obj, nv)
+                        done.append(f)
+                        continue
+                    except Exception as e2:
+                        e = e2
+                log("couldn't repoint %s.%s: %s" % (obj.get_name(), f, e))
+    if done:
+        unreal.EditorAssetLibrary.save_loaded_asset(obj, only_if_is_dirty=False)
+    return done
+
+
+def _own_plugin_content(asset, av):
+    """The MetaHuman plugin is editor-only, so nothing of its content reaches the game: a groom's
+    materials and card atlases from it draw as nothing. Copy what asset needs from it into
+    PLUGIN_COPIES (once, shared by the avatars) and point asset and the copies at the copies."""
+    pkg = asset.get_outermost().get_name()
+    deps = _deps_closure(pkg)
+    if not deps:
+        return
+    eal = unreal.EditorAssetLibrary
+    mapping = {}
+    for d in deps:
+        copy = PLUGIN_COPIES + d   # e.g. .../FromPlugin/MetaHumanCharacter/Materials/MI_Hair
+        if not eal.does_asset_exist(copy):
+            if not eal.duplicate_asset(d, copy):
+                unreal.log_warning("[Torque] %s: couldn't copy %s to %s" % (av, d, copy))
+                continue
+        mapping[d] = copy
+    changed = _repoint(asset, mapping)
+    for d, copy in mapping.items():
+        c = unreal.load_asset(copy)
+        if c is not None:
+            _repoint(c, mapping)
+    left = _editor_only_deps(pkg)
+    log("%s: %s: %d plugin assets copied to %s; repointed %s; still from the plugin: %s" % (av, pkg.rsplit("/", 1)[-1], len(mapping),
+        PLUGIN_COPIES, ", ".join(changed) or "nothing", ", ".join(sorted(left)[:8]) or "none"))
+
+
 def _hair_from_build(entry, av):
     """The hair the build made under /Game/MetaHumans/<Name>/, for when the Blueprint's groom
     components read empty (UE 5.8 fills them at run time): each GroomAsset with the GroomBindingAsset
@@ -1074,6 +1187,7 @@ def _hair_from_build(entry, av):
         ga = unreal.load_asset(g.split(".")[0])
         if ga is None:
             continue
+        _own_plugin_content(ga, av)
         bind = ""
         for b in bindings:
             ba = unreal.load_asset(b.split(".")[0])
