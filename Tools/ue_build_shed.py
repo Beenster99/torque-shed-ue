@@ -50,9 +50,9 @@ EXPOSURE_MIN = 5.0          # EV100 floor of the auto exposure: lower lets the i
 EXPOSURE_BIAS = 0.2         # was 0.6
 HIGHLIGHTS = 0.35           # local exposure: how much contrast the bright windows and doorway keep (1 = none taken out)
 EXPOSURE_MAX = 11.5
-VOLUMETRIC_FOG = True       # the faint dusty shaft of daylight through the roller door (the fog's volumetric)
+VOLUMETRIC_FOG = False      # the faint dusty shaft of daylight through the roller door (the fog's volumetric)
 SKY_LEAK = 0.02             # Lumen's skylight leaking: keeps the far corners off crushed black (0.04 flattened the AO)
-LOCAL_FOG = 0.15            # the dust in the hall's air (a local fog volume's height fog extinction): 0 for none
+LOCAL_FOG = 0.0             # the dust in the hall's air (a local fog volume's height fog extinction): 0 for none
 SUN_SCATTER = 3.0           # how strongly the sun lights that dust (the directional light's volumetric scattering)
 SUN_K, STRIP_K = 5000.0, 6000.0   # warm sun, cool daylight-white fluorescents (the white balance sits at 6300 K)
 LED_GLOW = 600.0            # the tubes' own glow: a real tube is ~200x a lit wall (6, then 45, read as white boxes)
@@ -1144,7 +1144,7 @@ def sky():
                  ("bloom_intensity", 0.35), ("vignette_intensity", 0.25), ("film_grain_intensity", 0.06),
                  ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.08, 1.08, 1.08, 1.0)),
                  # Finer GI: the sunlit floor patch bouncing warm onto the walls, the junctions occluded.
-                 ("lumen_final_gather_quality", 6.0), ("lumen_scene_lighting_quality", 3.0),
+                 ("lumen_final_gather_quality", 4.0), ("lumen_scene_lighting_quality", 3.0),
                  ("lumen_scene_detail", 4.0), ("lumen_reflection_quality", 2.0),
                  ("lumen_final_gather_lighting_update_speed", 2.0), ("indirect_lighting_intensity", 1.25),
                  ("lumen_skylight_leaking", SKY_LEAK),
