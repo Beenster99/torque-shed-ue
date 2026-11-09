@@ -8,6 +8,8 @@
 #include "Dom/JsonObject.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAsset.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/FileHelper.h"
@@ -52,7 +54,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
-struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth; TArray<FString> Materials; int32 Lod = -1; };
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone; TArray<FString> Materials; int32 Lod = -1; };
 struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
@@ -107,6 +109,8 @@ const TArray<FEntry>& Entries()
 				(*PO)->TryGetStringField(TEXT("binding"), P.Binding);
 				(*PO)->TryGetStringField(TEXT("attach"), P.AttachTo);
 				(*PO)->TryGetStringField(TEXT("cloth"), P.Cloth);
+				(*PO)->TryGetStringField(TEXT("static"), P.Static);
+				(*PO)->TryGetStringField(TEXT("bone"), P.Bone);
 				(*PO)->TryGetNumberField(TEXT("lod"), P.Lod);
 				P.Materials = Strings(*PO, TEXT("materials"));
 				E.Parts.Add(P);
@@ -172,7 +176,45 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s %s"), *E.Name, bFace ? TEXT("face") : TEXT("mesh"), *P.Mesh);
 		ByName.Add(P.Name, C);
+		Out.Add(C);
+	}
+	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
+	// bone's rest so it sits where it was made and turns with the head.
+	for (const FPart& P : E.Parts)
+	{
+		if (P.Static.IsEmpty()) continue;
+		UStaticMesh* SM = LoadObject<UStaticMesh>(nullptr, *P.Static);
+		if (!SM) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no static mesh %s"), *E.Name, *P.Static); continue; }
+		USceneComponent** To = ByName.Find(P.AttachTo);
+		USkinnedMeshComponent* On = To ? Cast<USkinnedMeshComponent>(*To) : nullptr;
+		if (!On) On = Driver;
+		const FName BoneName(*P.Bone);
+		FTransform Rest = FTransform::Identity;   // the bone in the mesh's space, at rest
+		bool bOnBone = false;
+		if (const USkinnedAsset* SA = On->GetSkinnedAsset())
+		{
+			const FReferenceSkeleton& Ref = SA->GetRefSkeleton();
+			int32 B = P.Bone.IsEmpty() ? INDEX_NONE : Ref.FindBoneIndex(BoneName);
+			bOnBone = B != INDEX_NONE;
+			while (B != INDEX_NONE)
+			{
+				Rest = Rest * Ref.GetRefBonePose()[B];
+				B = Ref.GetParentIndex(B);
+			}
+		}
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
+		C->SetStaticMesh(SM);
+		C->SetupAttachment(On, bOnBone ? BoneName : NAME_None);
+		C->SetRelativeTransform(bOnBone ? Rest.Inverse() : FTransform::Identity);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetCastShadow(true);
+		C->RegisterComponent();
+		ApplyMaterials(C, P.Materials);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards %s on %s%s"), *E.Name, *P.Static, *On->GetName(),
+			bOnBone ? *FString::Printf(TEXT(", bone %s"), *P.Bone) : TEXT(""));
 		Out.Add(C);
 	}
 	// Clothes kept as a Chaos outfit or cloth asset: a cloth component posed by the body, not simulated
@@ -211,6 +253,8 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		Out.Add(C);
 	}
 	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
+	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %d parts; hair module %s, cloth module %s"), *E.Name, E.Parts.Num(),
+		GroomClass ? TEXT("loaded") : TEXT("missing"), ClothClass ? TEXT("loaded") : TEXT("missing"));
 	for (const FPart& P : E.Parts)
 	{
 		if (P.Groom.IsEmpty()) continue;
@@ -456,7 +500,7 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 		ApplyMaterials(Driver, E.BodyMaterials);
 		AddParts(Owner, Driver, E, Parts, FaceMesh);
 		for (const TWeakObjectPtr<USceneComponent>& C : Parts)
-			if (C.IsValid() && C->GetClass()->GetName().Contains(TEXT("Groom"))) Hair.Add(C);
+			if (C.IsValid() && (C->GetClass()->GetName().Contains(TEXT("Groom")) || C->IsA<UStaticMeshComponent>())) Hair.Add(C);
 		if (FaceMesh) SetupFace();
 	}
 	// Its height: the top of its head (the face mesh's bounds, else the head bone and a crown), and
