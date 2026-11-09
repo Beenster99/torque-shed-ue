@@ -50,6 +50,8 @@ EXPOSURE_MIN = 5.0          # EV100 floor of the auto exposure: lower lets the i
 EXPOSURE_BIAS = 0.2         # was 0.6
 HIGHLIGHTS = 0.35           # local exposure: how much contrast the bright windows and doorway keep (1 = none taken out)
 EXPOSURE_MAX = 11.5
+VOLUMETRIC_FOG = True       # the faint dusty shaft of daylight through the roller door (the fog's volumetric)
+SKY_LEAK = 0.04             # Lumen's skylight leaking: keeps the shed's far corners from going crushed black
 
 # The shed (workshop.gd): interior half sizes, height, wall thickness.
 HALF_X, HALF_Y = 650.0, 550.0
@@ -1010,6 +1012,13 @@ def sky():
     for k, v in (("fog_density", 0.0018), ("fog_height_falloff", 0.15), ("start_distance", 1500.0),
                  ("fog_inscattering_luminance", unreal.LinearColor(0.45, 0.46, 0.47, 1.0))):
         try_set(fc, k, v)
+    if VOLUMETRIC_FOG:
+        # Dust in the air of a working shed: the sun through the door and the strips over the bays
+        # pick it out a little. Start at the eye (the height fog's 1500 cm start is for the haze outside).
+        for k, v in (("volumetric_fog", True), ("enable_volumetric_fog", True), ("volumetric_fog_scattering_distribution", 0.6),
+                     ("volumetric_fog_albedo", unreal.Color(235, 230, 220, 255)), ("volumetric_fog_extinction_scale", 1.0),
+                     ("volumetric_fog_start_distance", 0.0), ("volumetric_fog_distance", 6000.0)):
+            try_set(fc, k, v)
     try:
         actors.spawn_actor_from_class(unreal.VolumetricCloud, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
     except Exception as e:
@@ -1041,6 +1050,7 @@ def sky():
                  ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.08, 1.08, 1.08, 1.0)),
                  ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
                  ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
+                 ("lumen_skylight_leaking", SKY_LEAK),
                  ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
         if v is not None and try_set(pp, k, v):
             try_set(pp, "override_" + k, True)
