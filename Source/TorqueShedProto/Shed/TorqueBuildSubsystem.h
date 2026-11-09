@@ -259,6 +259,8 @@ public:
 	// The slot a new game goes in: the first free number.
 	static FString NewGameSlot();
 	static int32 GameNumber(const FString& Slot);
+	// "Shed", or "TitleTest" under -TorqueTitleTest= (its games are TitleTest, TitleTest_2...).
+	static FString SlotBase();
 	// Switches the shed to Slot: a new shed there (saved straight away, so it's listed), or the one
 	// saved in it. Changes still owed to the slot in use are saved there first.
 	void UseGame(const FString& Slot, bool bNew);

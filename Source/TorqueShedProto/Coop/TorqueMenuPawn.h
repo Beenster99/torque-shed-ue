@@ -71,6 +71,17 @@ private:
 	FString Note;              // "Game 3 deleted" and the like, under the menu
 	void ReadGames();
 
+	// The PC's hands-off check of the title pages: -TorqueTitleTest=solo,new or host,load:1 etc.
+	// Steps (1.5 s apart): solo, host, join, settings, back, new, load, load:N, delete:N (and yes),
+	// delete, yes, keep, address:TEXT, wipe (deletes every test game), quit. The test's games are
+	// their own slots (TitleTest, TitleTest_2...), never the player's. Each page it lands on, the
+	// games listed and the game started go to the log as "title: ...".
+	TArray<FString> TestSteps;
+	double TestClock = 0.0;
+	void RunTestStep(const FString& Step);
+	bool TestChoose(EItem Kind, const TCHAR* What);
+	void LogPage() const;
+
 	TUniquePtr<FSonyPad> Pad;
 	uint32 PrevButtons = 0;
 	int32 Selected = 0;

@@ -65,7 +65,8 @@ bool ATorqueGameMode::ShowsMenu() const
 	if (GetNetMode() != NM_Standalone) return false;
 	if (UGameplayStatics::HasOption(OptionsString, TEXT("play"))) return false;
 	const TCHAR* Cmd = FCommandLine::Get();
-	const bool bForce = FParse::Param(Cmd, TEXT("TorqueMenu"));
+	FString TitleSteps;
+	const bool bForce = FParse::Param(Cmd, TEXT("TorqueMenu")) || FParse::Value(Cmd, TEXT("TorqueTitleTest="), TitleSteps);
 	if (bForce) return true;
 	// Play-in-editor goes straight to riding, as before.
 	if (GetWorld() && GetWorld()->IsPlayInEditor()) return false;
