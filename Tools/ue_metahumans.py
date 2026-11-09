@@ -1020,7 +1020,7 @@ def _cards_mesh(groom, lod):
         tex = prop(d, "textures")
         names = []
         if tex is not None:
-            for f in [m for m in dir(tex) if not m.startswith("_")]:
+            for f in _fields(tex):
                 try:
                     v = tex.get_editor_property(f)
                 except Exception:
@@ -1063,6 +1063,19 @@ def _deps_closure(pkg):
     return out
 
 
+# Properties that hold the references, by name: Python's dir() doesn't list every editor property
+# of a groom or its structs, so these are tried as well as whatever dir() gives.
+REF_FIELDS = ("hair_groups_materials", "hair_groups_cards", "hair_groups_meshes", "hair_groups_rendering",
+              "hair_groups_lod", "hair_groups_physics", "hair_groups_interpolation", "hair_groups_info",
+              "material", "materials", "textures", "texture", "imported_mesh", "procedural_mesh", "mesh",
+              "parent", "texture_parameter_values", "parameter_value", "runtime_virtual_texture_parameter_values",
+              "layout", "cards", "meshes")
+
+
+def _fields(value):
+    return list(dict.fromkeys([m for m in dir(value) if not m.startswith("_")] + list(REF_FIELDS)))
+
+
 def _swap_refs(value, mapping):
     """value with every object reference whose package is in mapping swapped for its copy, walking
     into arrays and structs. Returns (value, changed)."""
@@ -1082,7 +1095,7 @@ def _swap_refs(value, mapping):
         return (items if changed else value), changed
     if isinstance(value, unreal.StructBase):
         changed = False
-        for f in [m for m in dir(value) if not m.startswith("_")]:
+        for f in _fields(value):
             try:
                 v = value.get_editor_property(f)
             except Exception:
@@ -1101,12 +1114,14 @@ def _swap_refs(value, mapping):
 def _repoint(obj, mapping):
     """Swap obj's references to plugin content for the copies (each editable property); a material
     instance's parent too. Returns the properties changed."""
-    done = []
-    for f in [m for m in dir(obj) if not m.startswith("_")]:
+    done, read = [], []
+    for f in _fields(obj):
         try:
             v = obj.get_editor_property(f)
         except Exception:
             continue
+        if f in REF_FIELDS:
+            read.append(f)
         nv, ch = _swap_refs(v, mapping)
         if ch:
             try:
@@ -1123,6 +1138,8 @@ def _repoint(obj, mapping):
                 log("couldn't repoint %s.%s: %s" % (obj.get_name(), f, e))
     if done:
         unreal.EditorAssetLibrary.save_loaded_asset(obj, only_if_is_dirty=False)
+    if isinstance(obj, unreal.Object) and "groom" in type(obj).__name__.lower():
+        log("%s: reference properties read: %s; repointed: %s" % (obj.get_name(), ", ".join(read) or "none", ", ".join(done) or "none"))
     return done
 
 
@@ -1133,7 +1150,7 @@ def _own_plugin_content(asset, av):
     pkg = asset.get_outermost().get_name()
     deps = _deps_closure(pkg)
     if not deps:
-        return
+        return {}
     eal = unreal.EditorAssetLibrary
     mapping = {}
     for d in deps:
@@ -1151,6 +1168,7 @@ def _own_plugin_content(asset, av):
     left = _editor_only_deps(pkg)
     log("%s: %s: %d plugin assets copied to %s; repointed %s; still from the plugin: %s" % (av, pkg.rsplit("/", 1)[-1], len(mapping),
         PLUGIN_COPIES, ", ".join(changed) or "nothing", ", ".join(sorted(left)[:8]) or "none"))
+    return mapping
 
 
 def _hair_from_build(entry, av):
@@ -1187,7 +1205,18 @@ def _hair_from_build(entry, av):
         ga = unreal.load_asset(g.split(".")[0])
         if ga is None:
             continue
-        _own_plugin_content(ga, av)
+        copies = _own_plugin_content(ga, av) or {}
+        # The groom's materials by slot, as the copies, for the game to put on the component too
+        # (in case the asset itself still points at the plugin's).
+        groom_mats = []
+        try:
+            for m in ga.get_editor_property("hair_groups_materials"):
+                mat = m.get_editor_property("material")
+                mp = mat.get_outermost().get_name() if mat is not None else ""
+                groom_mats.append(("%s.%s" % (copies[mp], mat.get_name())) if mp in copies else _path(mat))
+        except Exception as e:
+            log("%s: couldn't read %s's materials: %s" % (av, g, e))
+        log("%s: %s materials for the game: %s" % (av, g.rsplit(".", 1)[-1], groom_mats or "none"))
         bind = ""
         for b in bindings:
             ba = unreal.load_asset(b.split(".")[0])
@@ -1201,7 +1230,7 @@ def _hair_from_build(entry, av):
         name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
         lod = _cards_lod(ga)
         cards, cards_mat = _cards_mesh(ga, lod) if lod >= 0 else ("", "")
-        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": [],
+        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": groom_mats,
                                "cards_mesh": cards, "cards_materials": [cards_mat] if cards_mat else []})
         log("%s: groom %s from the build = %s (binding %s, cards from LOD %d)" % (av, name, g, bind or "none", lod))
         done.add(group(g))
