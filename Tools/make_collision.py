@@ -78,11 +78,14 @@ def main():
                         return True
         return False
 
+    # Kinds left out of the ride for now (Data/Buttertubs/props_off.json): no boxes for what isn't there.
+    off_path = os.path.join(RIDE, "props_off.json")
+    off = set(json.load(open(off_path)).get("kinds", [])) if os.path.exists(off_path) else set()
     boxes = []
     kinds = {}
     for name, insts in props["instances"].items():
         kind = name.split("_")[1]
-        if kind not in SOLID:
+        if kind not in SOLID or kind in off:
             continue
         path = os.path.join(RIDE, "Props", name + ".glb")
         if not os.path.exists(path):

@@ -2354,8 +2354,16 @@ def place_props(meshes, spec, materials, frame):
     sp = os.path.join(data_dir(), "prop_swaps.json")
     if os.path.exists(sp):
         swaps = json.load(open(sp))
+    # Kinds left out of the ride for now (Data/Buttertubs/props_off.json, e.g. the parked cars): not placed.
+    off = set()
+    op = os.path.join(data_dir(), "props_off.json")
+    if os.path.exists(op):
+        off = set(json.load(open(op)).get("kinds", []))
     n = 0
     for name, rows in sorted(spec["instances"].items()):
+        if name.split("_")[1:2] and name.split("_")[1] in off:
+            log("%s left out (props_off.json)" % name)
+            continue
         mesh = meshes.get(name)
         mat = materials.get(spec["meshes"].get(name, {}).get("material", "stone"))
         sw = swaps.get(name)
