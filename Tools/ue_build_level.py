@@ -1225,6 +1225,11 @@ def import_bike(frame, tex=None, roles=None):
     finishes = dict(info["finishes"])
     if os.path.isfile(fit_path):
         finishes.update(json.load(open(fit_path)).get("finishes", {}))   # the part pack's (speedtwin_pack.py)
+    cat_index = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Parts", "Blender", "index.json")
+    if os.path.isfile(cat_index):
+        # The catalogue parts' own (import_blender_parts.py CATALOGUE_FINISHES: cat_*), only adding.
+        for name, f in json.load(open(cat_index)).get("finishes", {}).items():
+            finishes.setdefault(name, f)
     finishes.update(RIDER_FINISHES)
     mats = bike_materials(finishes)
     check_bike(meshes, mats)

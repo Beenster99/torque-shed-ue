@@ -115,6 +115,18 @@ UMaterialInterface* MaterialFor(const FString& Tag, bool& bPaint, FString& OutFi
 		return *Found;
 	}
 	UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), *Name, *Name));
+	if (!M && Name.StartsWith(TEXT("cat_")))
+	{
+		// A catalogue finish the level script hasn't made yet (Tools/ue_build_level.py, from index.json's
+		// "finishes"): the Speed Twin's finish the tag had before.
+		static const TMap<FString, FString> Before = {{TEXT("cat_powder"), TEXT("black_satin")}, {TEXT("cat_polished_alloy"), TEXT("alu_brushed")},
+			{TEXT("cat_cast_alloy"), TEXT("alu_cast")}, {TEXT("cat_brushed_steel"), TEXT("steel_brushed")}, {TEXT("cat_raw_steel"), TEXT("steel_brushed")},
+			{TEXT("cat_black_metal"), TEXT("black_satin")}, {TEXT("cat_anodised"), TEXT("alu_brushed")}, {TEXT("cat_titanium"), TEXT("header")},
+			{TEXT("cat_carbon"), TEXT("black_gloss")}, {TEXT("cat_rubber"), TEXT("rubber")}, {TEXT("cat_plastic"), TEXT("black_satin")},
+			{TEXT("cat_fabric"), TEXT("leather")}};
+		if (const FString* Old = Before.Find(Name))
+			M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), **Old, **Old));
+	}
 	bOutFallback = M == nullptr;
 	if (!M)
 	{
@@ -155,8 +167,16 @@ FVector3f ToUe(const TorqueSim::V3& P) { return FVector3f((float)(P.x * 100.0), 
 // -(P1 - P0) x (P2 - P0), and the winding that agrees with most of the vertex normals is kept, so
 // a part comes out right whichever way its glb (or a code-drawn shell) was wound. bOutFlipped:
 // the glb's own order was turned round (as the axis swap needs).
+// The finishes' detail (normal and detail maps, Tools/make_bike_textures.py) is laid on by UV 0 in
+// metres, as on the Speed Twin. A catalogue surface's own UVs are its glb's, one flat projection
+// that stretches down the sides and isn't bent with the part, so bBoxUv lays them again as Torque
+// Shed's bike shader does (triplanar): each vertex mapped in metres on the plane its normal faces
+// most, the tangent along that plane's u so the detail's bumps light the right way. Decals keep
+// their own (their coverage map is laid out on them). UV 1's v is the road grime, as
+// make_speedtwin.py writes it: by how low the point sits on the bike (bWheel: an even coat, as
+// a spinning wheel takes it).
 UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterialInterface* Material, TArray<FVector>& OutPos,
-	TArray<int32>& OutTris, bool& bOutFlipped)
+	TArray<int32>& OutTris, bool& bOutFlipped, bool bBoxUv = false, bool bWheel = false)
 {
 	const int32 NumVerts = (int32)S.Pos.size();
 	if (NumVerts == 0 || S.Idx.size() < 3) return nullptr;
@@ -194,15 +214,27 @@ UStaticMesh* BuildMesh(AActor* Owner, const TorqueFit::PartSurface& S, UMaterial
 		FVector3f N = I < (int32)S.Nrm.size() ? FVector3f((float)S.Nrm[I].x, (float)S.Nrm[I].z, (float)S.Nrm[I].y) : FVector3f::UpVector;
 		N = N.GetSafeNormal(UE_SMALL_NUMBER, FVector3f::UpVector);
 		Normals[VI] = N;
-		// Any tangent across the normal (the parts' finishes have no tangent-space detail to line up).
-		const FVector3f Across = FMath::Abs(N.Z) < 0.9f ? FVector3f::UpVector : FVector3f::ForwardVector;
-		Tangents[VI] = FVector3f::CrossProduct(Across, N).GetSafeNormal();
-		Signs[VI] = 1.0f;
 		Colours[VI] = FVector4f(1.0f, 1.0f, 1.0f, 1.0f);
-		const float U = I < (int32)S.U.size() ? (float)S.U[I] : 0.0f;
-		const float Vv = I < (int32)S.V.size() ? (float)S.V[I] : 0.0f;
+		float U = I < (int32)S.U.size() ? (float)S.U[I] : 0.0f;
+		float Vv = I < (int32)S.V.size() ? (float)S.V[I] : 0.0f;
+		// (Unreal's frame, cm: the plane's u and v directions, for the tangent.)
+		FVector3f UDir = FMath::Abs(N.Z) < 0.9f ? FVector3f::CrossProduct(FVector3f::UpVector, N) : FVector3f::ForwardVector;
+		FVector3f VDir = FVector3f::CrossProduct(N, UDir);
+		if (bBoxUv)
+		{
+			const FVector3f AbsN(FMath::Abs(N.X), FMath::Abs(N.Y), FMath::Abs(N.Z));
+			const FVector3f M = P / 100.0f;   // metres
+			if (AbsN.Z >= AbsN.X && AbsN.Z >= AbsN.Y) { U = M.X; Vv = M.Y; UDir = FVector3f::ForwardVector; VDir = FVector3f::RightVector; }       // faces up or down
+			else if (AbsN.Y >= AbsN.X) { U = M.X; Vv = -M.Z; UDir = FVector3f::ForwardVector; VDir = -FVector3f::UpVector; }                  // faces the side
+			else { U = M.Y; Vv = -M.Z; UDir = FVector3f::RightVector; VDir = -FVector3f::UpVector; }                                            // faces ahead or back
+		}
+		const FVector3f T = (UDir - N * FVector3f::DotProduct(UDir, N)).GetSafeNormal(UE_SMALL_NUMBER, FVector3f::ForwardVector);
+		Tangents[VI] = T;
+		Signs[VI] = FVector3f::DotProduct(FVector3f::CrossProduct(N, T), VDir) >= 0.0f ? 1.0f : -1.0f;
 		UVs.Set(VI, 0, FVector2f(U, Vv));
-		UVs.Set(VI, 1, FVector2f(0.0f, 0.0f));
+		const float Height = P.Z / 100.0f;   // metres above the axles
+		const float Grime = bWheel ? 0.35f : FMath::Pow(FMath::Clamp((0.28f - Height) / 0.38f, 0.0f, 1.0f), 1.3f);
+		UVs.Set(VI, 1, FVector2f(0.0f, Grime));
 		Instances.Add(VI);
 	}
 	// Turned round (A, C, B), how many triangles face the way their vertex normals do.
@@ -432,7 +464,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			TArray<FVector> Pos;
 			TArray<int32> Tris;
 			bool bFlipped = false;
-			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped);
+			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal"));
+			const bool bWheel = P.Node == "front_wheel" || P.Node == "rear_wheel";
+			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
 			++(bFlipped ? Turned : Kept);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
@@ -504,7 +538,8 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 				TArray<FVector> Pos;
 				TArray<int32> Tris;
 				bool bFlipped = false;
-				M.Mesh = TSCI::BuildMesh(nullptr, S, M.Mat, Pos, Tris, bFlipped);
+				const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal"));
+				M.Mesh = TSCI::BuildMesh(nullptr, S, M.Mat, Pos, Tris, bFlipped, bBoxUv, P.Node == "front_wheel" || P.Node == "rear_wheel");
 				if (!M.Mesh) continue;
 				M.Mesh->AddToRoot();   // kept in the cache across map travel
 				TorqueShedPick::AddShape(M.Mesh, Pos, Tris);

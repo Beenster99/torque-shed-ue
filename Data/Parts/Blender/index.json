@@ -47,7 +47,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -99,7 +99,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -140,7 +140,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "raw_steel",
@@ -151,7 +151,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -203,7 +203,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -244,7 +244,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "raw_steel",
@@ -255,7 +255,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -307,7 +307,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -348,7 +348,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -389,7 +389,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -400,7 +400,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -441,7 +441,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "black_metal",
@@ -452,7 +452,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -493,7 +493,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -504,7 +504,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -545,7 +545,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {}
@@ -586,7 +586,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -597,7 +597,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -649,7 +649,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -690,7 +690,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -731,7 +731,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -742,7 +742,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -783,7 +783,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {}
@@ -824,7 +824,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -835,7 +835,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -846,7 +846,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -887,7 +887,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -898,7 +898,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "plastic",
@@ -909,7 +909,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "black_metal",
@@ -920,7 +920,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -961,7 +961,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {}
@@ -1013,7 +1013,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -1024,7 +1024,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -1065,7 +1065,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "rubber",
@@ -1076,7 +1076,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -1117,7 +1117,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "plastic_paint",
@@ -1139,7 +1139,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -1180,7 +1180,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -1243,7 +1243,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -1254,7 +1254,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "polished_alloy",
@@ -1265,7 +1265,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     }
    ],
    "mounts": {}
@@ -1317,7 +1317,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -1369,7 +1369,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -1432,7 +1432,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -1484,7 +1484,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -1536,7 +1536,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -1577,7 +1577,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -1588,7 +1588,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -1647,7 +1647,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -1706,7 +1706,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -1717,7 +1717,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -1728,7 +1728,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -1787,7 +1787,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -1846,7 +1846,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -1905,7 +1905,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -1964,7 +1964,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -1975,7 +1975,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -1986,7 +1986,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2045,7 +2045,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "anodised",
@@ -2056,7 +2056,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -2115,7 +2115,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "anodised",
@@ -2126,7 +2126,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -2185,7 +2185,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2244,7 +2244,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2303,7 +2303,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2373,7 +2373,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "plastic",
@@ -2384,7 +2384,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "raw_steel",
@@ -2395,7 +2395,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -2436,7 +2436,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2447,7 +2447,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2458,7 +2458,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2517,7 +2517,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2528,7 +2528,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2539,7 +2539,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2598,7 +2598,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2609,7 +2609,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2620,7 +2620,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2679,7 +2679,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2690,7 +2690,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2701,7 +2701,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2760,7 +2760,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2771,7 +2771,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2782,7 +2782,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2841,7 +2841,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2852,7 +2852,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2863,7 +2863,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -2922,7 +2922,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -2933,7 +2933,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -2944,7 +2944,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -3003,7 +3003,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3014,7 +3014,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3025,7 +3025,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -3084,7 +3084,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3095,7 +3095,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3106,7 +3106,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -3165,7 +3165,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3176,7 +3176,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3187,7 +3187,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -3246,7 +3246,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3257,7 +3257,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3268,7 +3268,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -3327,7 +3327,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3338,7 +3338,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3349,7 +3349,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -3408,7 +3408,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3419,7 +3419,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3430,7 +3430,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3441,7 +3441,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -3500,7 +3500,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3511,7 +3511,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3522,7 +3522,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3533,7 +3533,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -3592,7 +3592,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3603,7 +3603,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3614,7 +3614,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3625,7 +3625,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -3684,7 +3684,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3695,7 +3695,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3706,7 +3706,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3717,7 +3717,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -3776,7 +3776,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3787,7 +3787,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3798,7 +3798,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3809,7 +3809,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -3868,7 +3868,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3879,7 +3879,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3890,7 +3890,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3901,7 +3901,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -3960,7 +3960,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -3971,7 +3971,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -3982,7 +3982,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -3993,7 +3993,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -4052,7 +4052,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4063,7 +4063,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4074,7 +4074,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -4085,7 +4085,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -4144,7 +4144,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4155,7 +4155,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4166,7 +4166,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4225,7 +4225,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4236,7 +4236,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4247,7 +4247,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4306,7 +4306,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4317,7 +4317,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4328,7 +4328,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4387,7 +4387,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4398,7 +4398,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4409,7 +4409,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4468,7 +4468,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4479,7 +4479,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4490,7 +4490,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4549,7 +4549,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4560,7 +4560,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4571,7 +4571,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4630,7 +4630,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4641,7 +4641,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4652,7 +4652,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4711,7 +4711,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4722,7 +4722,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4733,7 +4733,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -4792,7 +4792,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4803,7 +4803,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4814,7 +4814,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -4825,7 +4825,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -4884,7 +4884,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4895,7 +4895,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4906,7 +4906,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -4917,7 +4917,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -4976,7 +4976,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -4987,7 +4987,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -4998,7 +4998,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -5009,7 +5009,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -5068,7 +5068,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5079,7 +5079,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5090,7 +5090,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5149,7 +5149,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5160,7 +5160,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5171,7 +5171,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5230,7 +5230,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5241,7 +5241,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5252,7 +5252,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5311,7 +5311,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5322,7 +5322,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5333,7 +5333,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5392,7 +5392,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5403,7 +5403,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5414,7 +5414,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5473,7 +5473,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5484,7 +5484,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5495,7 +5495,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5554,7 +5554,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5565,7 +5565,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5576,7 +5576,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5635,7 +5635,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5646,7 +5646,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5657,7 +5657,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -5716,7 +5716,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5727,7 +5727,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5738,7 +5738,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -5808,7 +5808,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5819,7 +5819,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5830,7 +5830,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -5900,7 +5900,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -5911,7 +5911,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -5922,7 +5922,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -5992,7 +5992,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6003,7 +6003,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6014,7 +6014,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6084,7 +6084,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6095,7 +6095,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6106,7 +6106,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6176,7 +6176,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6187,7 +6187,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6198,7 +6198,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6268,7 +6268,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6279,7 +6279,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6290,7 +6290,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6360,7 +6360,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6371,7 +6371,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6382,7 +6382,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6452,7 +6452,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6463,7 +6463,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6474,7 +6474,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6544,7 +6544,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6555,7 +6555,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6566,7 +6566,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6636,7 +6636,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6647,7 +6647,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6658,7 +6658,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6728,7 +6728,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6739,7 +6739,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6750,7 +6750,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6820,7 +6820,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6831,7 +6831,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6842,7 +6842,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -6912,7 +6912,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -6923,7 +6923,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -6934,7 +6934,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -7004,7 +7004,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -7015,7 +7015,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -7026,7 +7026,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -7096,7 +7096,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -7107,7 +7107,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -7118,7 +7118,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -7351,7 +7351,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "brushed_steel",
@@ -7362,7 +7362,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.28,
-     "finish": "steel_brushed"
+     "finish": "cat_brushed_steel"
     }
    ],
    "mounts": {
@@ -7449,7 +7449,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -7536,7 +7536,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -7623,7 +7623,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "brushed_steel",
@@ -7634,7 +7634,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.28,
-     "finish": "steel_brushed"
+     "finish": "cat_brushed_steel"
     }
    ],
    "mounts": {
@@ -7721,7 +7721,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -7808,7 +7808,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -7895,7 +7895,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "brushed_steel",
@@ -7906,7 +7906,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.28,
-     "finish": "steel_brushed"
+     "finish": "cat_brushed_steel"
     }
    ],
    "mounts": {
@@ -7993,7 +7993,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -8156,7 +8156,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -8243,7 +8243,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -8330,7 +8330,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -8482,7 +8482,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -8582,7 +8582,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.9,
-     "finish": "leather"
+     "finish": "cat_fabric"
     }
    ],
    "mounts": {}
@@ -8623,7 +8623,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.2,
-     "finish": "black_gloss"
+     "finish": "cat_carbon"
     }
    ],
    "mounts": {}
@@ -8746,7 +8746,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -8757,7 +8757,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -8798,7 +8798,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -8820,7 +8820,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -8872,7 +8872,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "glass",
@@ -8905,7 +8905,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -9102,7 +9102,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "black_metal",
@@ -9113,7 +9113,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "glass",
@@ -9332,7 +9332,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "black_metal",
@@ -9343,7 +9343,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "glass",
@@ -9365,7 +9365,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.2,
-     "finish": "black_gloss"
+     "finish": "cat_carbon"
     }
    ],
    "mounts": {},
@@ -9510,7 +9510,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "glass",
@@ -9554,7 +9554,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -9732,7 +9732,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "black_metal",
@@ -9743,7 +9743,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "glass",
@@ -9962,7 +9962,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "glass",
@@ -9995,7 +9995,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {
@@ -10203,7 +10203,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -10266,7 +10266,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -10318,7 +10318,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "paint_2",
@@ -10433,7 +10433,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -10496,7 +10496,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -10548,7 +10548,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "paint_2",
@@ -10663,7 +10663,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -10715,7 +10715,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -10767,7 +10767,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -10819,7 +10819,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -10871,7 +10871,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -10882,7 +10882,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -10934,7 +10934,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -10945,7 +10945,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -10997,7 +10997,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -11008,7 +11008,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -11060,7 +11060,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -11071,7 +11071,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -11123,7 +11123,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -11134,7 +11134,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -11197,7 +11197,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -11364,7 +11364,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -11405,7 +11405,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -11416,7 +11416,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -11497,7 +11497,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -11508,7 +11508,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -11549,7 +11549,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -11560,7 +11560,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -11571,7 +11571,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -11641,7 +11641,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -11652,7 +11652,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -11693,7 +11693,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -11704,7 +11704,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -11785,7 +11785,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -11796,7 +11796,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -11837,7 +11837,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -11848,7 +11848,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -11918,7 +11918,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -11940,7 +11940,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -11981,7 +11981,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -11992,7 +11992,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -12073,7 +12073,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -12084,7 +12084,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -12125,7 +12125,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -12136,7 +12136,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -12206,7 +12206,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -12217,7 +12217,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -12258,7 +12258,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -12328,7 +12328,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -12339,7 +12339,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -12391,7 +12391,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -12402,7 +12402,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -12483,7 +12483,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -12494,7 +12494,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -12535,7 +12535,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -12546,7 +12546,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -12616,7 +12616,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -12627,7 +12627,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -12668,7 +12668,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -12679,7 +12679,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -12749,7 +12749,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -12771,7 +12771,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -12782,7 +12782,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -12823,7 +12823,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -12834,7 +12834,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -12845,7 +12845,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -12915,7 +12915,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -12926,7 +12926,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -12967,7 +12967,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -12978,7 +12978,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13048,7 +13048,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -13070,7 +13070,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -13081,7 +13081,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -13122,7 +13122,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -13133,7 +13133,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13203,7 +13203,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -13225,7 +13225,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -13266,7 +13266,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -13277,7 +13277,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13347,7 +13347,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -13369,7 +13369,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -13410,7 +13410,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -13421,7 +13421,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13491,7 +13491,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -13502,7 +13502,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -13543,7 +13543,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13613,7 +13613,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -13624,7 +13624,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -13676,7 +13676,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -13687,7 +13687,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13757,7 +13757,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -13768,7 +13768,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -13809,7 +13809,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -13820,7 +13820,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -13890,7 +13890,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -13901,7 +13901,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -13942,7 +13942,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -13953,7 +13953,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -13964,7 +13964,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -14034,7 +14034,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14045,7 +14045,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14086,7 +14086,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14097,7 +14097,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -14167,7 +14167,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14178,7 +14178,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14219,7 +14219,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14230,7 +14230,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -14311,7 +14311,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14322,7 +14322,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14363,7 +14363,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14374,7 +14374,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -14444,7 +14444,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14455,7 +14455,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14496,7 +14496,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14507,7 +14507,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -14577,7 +14577,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14588,7 +14588,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14629,7 +14629,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14640,7 +14640,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -14710,7 +14710,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14721,7 +14721,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14762,7 +14762,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14773,7 +14773,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -14854,7 +14854,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14865,7 +14865,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -14906,7 +14906,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -14917,7 +14917,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -14987,7 +14987,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -14998,7 +14998,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15039,7 +15039,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15050,7 +15050,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -15131,7 +15131,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -15142,7 +15142,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15183,7 +15183,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15194,7 +15194,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -15205,7 +15205,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "paint",
@@ -15286,7 +15286,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -15297,7 +15297,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15338,7 +15338,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15349,7 +15349,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -15419,7 +15419,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -15430,7 +15430,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15471,7 +15471,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15482,7 +15482,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -15552,7 +15552,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -15574,7 +15574,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15615,7 +15615,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15626,7 +15626,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -15696,7 +15696,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -15707,7 +15707,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15748,7 +15748,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15759,7 +15759,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -15829,7 +15829,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -15840,7 +15840,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -15881,7 +15881,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -15892,7 +15892,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -15962,7 +15962,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -15973,7 +15973,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16014,7 +16014,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -16025,7 +16025,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -16095,7 +16095,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -16106,7 +16106,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16147,7 +16147,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -16158,7 +16158,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -16239,7 +16239,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -16250,7 +16250,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16291,7 +16291,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -16302,7 +16302,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -16372,7 +16372,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -16383,7 +16383,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16424,7 +16424,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -16435,7 +16435,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -16516,7 +16516,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -16527,7 +16527,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16568,7 +16568,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -16579,7 +16579,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -16649,7 +16649,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -16671,7 +16671,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16712,7 +16712,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -16723,7 +16723,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -16793,7 +16793,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -16804,7 +16804,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -16845,7 +16845,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "plastic",
@@ -16856,7 +16856,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "raw_steel",
@@ -16867,7 +16867,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -16878,7 +16878,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -16919,7 +16919,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -16960,7 +16960,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "rubber",
@@ -16971,7 +16971,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "raw_steel",
@@ -16982,7 +16982,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -17220,7 +17220,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "paint",
@@ -17242,7 +17242,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17253,7 +17253,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -17294,7 +17294,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -17316,7 +17316,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17327,7 +17327,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -17368,7 +17368,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -17390,7 +17390,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17401,7 +17401,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "plastic",
@@ -17412,7 +17412,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -17453,7 +17453,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -17475,7 +17475,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17486,7 +17486,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "plastic",
@@ -17497,7 +17497,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -17538,7 +17538,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17549,7 +17549,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -17560,7 +17560,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -17601,7 +17601,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -17612,7 +17612,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "anodised",
@@ -17623,7 +17623,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "chrome",
@@ -17686,7 +17686,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17697,7 +17697,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -17708,7 +17708,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -17760,7 +17760,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "polished_alloy",
@@ -17771,7 +17771,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "black_metal",
@@ -17782,7 +17782,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -17823,7 +17823,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -17834,7 +17834,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -17845,7 +17845,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "black_metal",
@@ -17856,7 +17856,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -17897,7 +17897,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -17919,7 +17919,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -17960,7 +17960,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -17982,7 +17982,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -18023,7 +18023,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -18034,7 +18034,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "anodised",
@@ -18045,7 +18045,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "rubber",
@@ -18056,7 +18056,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -18097,7 +18097,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "cast_alloy",
@@ -18108,7 +18108,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -18160,7 +18160,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -18171,7 +18171,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -18182,7 +18182,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -18234,7 +18234,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "polished_alloy",
@@ -18245,7 +18245,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "black_metal",
@@ -18256,7 +18256,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -18297,7 +18297,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -18308,7 +18308,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -18319,7 +18319,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "polished_alloy",
@@ -18330,7 +18330,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -18393,7 +18393,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -18434,7 +18434,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -18445,7 +18445,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -18456,7 +18456,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -18497,7 +18497,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "cast_alloy",
@@ -18508,7 +18508,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -18519,7 +18519,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "anodised",
@@ -18530,7 +18530,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "chrome",
@@ -18582,7 +18582,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -18593,7 +18593,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -18604,7 +18604,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -18656,7 +18656,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "cast_alloy",
@@ -18667,7 +18667,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -18700,7 +18700,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {}
@@ -18987,7 +18987,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "plastic",
@@ -18998,7 +18998,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "raw_steel",
@@ -19009,7 +19009,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -19061,7 +19061,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -19113,7 +19113,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -19124,7 +19124,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -19176,7 +19176,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -19218,7 +19218,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19229,7 +19229,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -19341,7 +19341,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19352,7 +19352,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -19464,7 +19464,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19475,7 +19475,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -19587,7 +19587,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19598,7 +19598,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -19710,7 +19710,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19721,7 +19721,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -19833,7 +19833,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19844,7 +19844,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     }
    ],
    "mounts": {
@@ -19956,7 +19956,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -19967,7 +19967,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -19978,7 +19978,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -19989,7 +19989,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20101,7 +20101,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20112,7 +20112,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -20123,7 +20123,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -20134,7 +20134,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20246,7 +20246,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20257,7 +20257,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -20268,7 +20268,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -20279,7 +20279,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20391,7 +20391,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20402,7 +20402,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -20413,7 +20413,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -20424,7 +20424,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20536,7 +20536,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20547,7 +20547,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -20569,7 +20569,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20681,7 +20681,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20692,7 +20692,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -20714,7 +20714,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20826,7 +20826,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20837,7 +20837,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -20848,7 +20848,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -20960,7 +20960,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -20971,7 +20971,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -20982,7 +20982,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -21094,7 +21094,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -21105,7 +21105,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -21116,7 +21116,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -21127,7 +21127,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -21239,7 +21239,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -21250,7 +21250,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -21261,7 +21261,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -21272,7 +21272,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -21384,7 +21384,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -21395,7 +21395,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -21406,7 +21406,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -21428,7 +21428,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -21540,7 +21540,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -21551,7 +21551,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -21562,7 +21562,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -21584,7 +21584,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -21696,7 +21696,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -21707,7 +21707,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -21718,7 +21718,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -21729,7 +21729,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -22045,7 +22045,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -22056,7 +22056,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -22067,7 +22067,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -22078,7 +22078,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -22394,7 +22394,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -22405,7 +22405,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -22427,7 +22427,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -22743,7 +22743,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -22754,7 +22754,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -22765,7 +22765,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -23081,7 +23081,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -23092,7 +23092,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -23103,7 +23103,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -23114,7 +23114,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -23430,7 +23430,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -23441,7 +23441,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -23452,7 +23452,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -23474,7 +23474,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -23790,7 +23790,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -23801,7 +23801,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -23812,7 +23812,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -23823,7 +23823,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -24003,7 +24003,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -24014,7 +24014,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -24025,7 +24025,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -24036,7 +24036,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -24216,7 +24216,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -24227,7 +24227,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -24249,7 +24249,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -24429,7 +24429,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -24440,7 +24440,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -24451,7 +24451,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -24631,7 +24631,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -24642,7 +24642,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -24653,7 +24653,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -24664,7 +24664,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -24844,7 +24844,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -24855,7 +24855,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -24866,7 +24866,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -24888,7 +24888,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -25068,7 +25068,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25079,7 +25079,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -25090,7 +25090,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -25101,7 +25101,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -25213,7 +25213,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25224,7 +25224,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -25235,7 +25235,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -25246,7 +25246,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -25358,7 +25358,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25369,7 +25369,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -25391,7 +25391,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -25503,7 +25503,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25514,7 +25514,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -25525,7 +25525,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -25637,7 +25637,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25648,7 +25648,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -25659,7 +25659,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -25670,7 +25670,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -25782,7 +25782,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25793,7 +25793,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -25804,7 +25804,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -25826,7 +25826,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -25938,7 +25938,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -25949,7 +25949,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -25960,7 +25960,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -25971,7 +25971,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -26219,7 +26219,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -26230,7 +26230,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -26241,7 +26241,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -26252,7 +26252,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -26500,7 +26500,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -26511,7 +26511,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -26533,7 +26533,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -26781,7 +26781,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -26792,7 +26792,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -26803,7 +26803,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -27051,7 +27051,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -27062,7 +27062,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -27073,7 +27073,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -27084,7 +27084,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -27332,7 +27332,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -27343,7 +27343,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -27354,7 +27354,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -27376,7 +27376,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -27624,7 +27624,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -27646,7 +27646,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -27657,7 +27657,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -27668,7 +27668,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -27848,7 +27848,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -27870,7 +27870,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -27881,7 +27881,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -27892,7 +27892,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -28072,7 +28072,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -28094,7 +28094,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -28116,7 +28116,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -28296,7 +28296,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -28318,7 +28318,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -28329,7 +28329,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -28509,7 +28509,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -28531,7 +28531,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -28542,7 +28542,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -28553,7 +28553,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -28733,7 +28733,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "chrome",
@@ -28755,7 +28755,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -28766,7 +28766,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -28777,7 +28777,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -28957,7 +28957,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -28968,7 +28968,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -28979,7 +28979,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -28990,7 +28990,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29102,7 +29102,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29113,7 +29113,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -29124,7 +29124,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -29135,7 +29135,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29247,7 +29247,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29258,7 +29258,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -29269,7 +29269,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -29280,7 +29280,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29392,7 +29392,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29403,7 +29403,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -29414,7 +29414,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "raw_steel",
@@ -29425,7 +29425,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29537,7 +29537,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29548,7 +29548,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -29570,7 +29570,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29682,7 +29682,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29693,7 +29693,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "paint",
@@ -29715,7 +29715,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29827,7 +29827,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29838,7 +29838,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -29849,7 +29849,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -29961,7 +29961,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -29972,7 +29972,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -29983,7 +29983,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -30095,7 +30095,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -30106,7 +30106,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -30117,7 +30117,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -30128,7 +30128,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -30240,7 +30240,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -30251,7 +30251,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "black_metal",
@@ -30262,7 +30262,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "anodised",
@@ -30273,7 +30273,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     }
    ],
    "mounts": {
@@ -30385,7 +30385,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -30396,7 +30396,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -30407,7 +30407,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -30429,7 +30429,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -30541,7 +30541,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "cast_alloy",
@@ -30552,7 +30552,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "polished_alloy",
@@ -30563,7 +30563,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -30585,7 +30585,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -30707,7 +30707,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -30907,7 +30907,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "black_metal",
@@ -30918,7 +30918,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31022,7 +31022,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_white",
@@ -31044,7 +31044,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31096,7 +31096,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "lens_white",
@@ -31118,7 +31118,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31170,7 +31170,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -31181,7 +31181,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "lens_white",
@@ -31318,7 +31318,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31359,7 +31359,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "rubber",
@@ -31370,7 +31370,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -31411,7 +31411,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31463,7 +31463,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31679,7 +31679,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_amber",
@@ -31731,7 +31731,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_amber",
@@ -31783,7 +31783,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_amber",
@@ -31920,7 +31920,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -31972,7 +31972,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32035,7 +32035,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32087,7 +32087,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32128,7 +32128,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "glass",
@@ -32191,7 +32191,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32243,7 +32243,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32295,7 +32295,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32336,7 +32336,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.9,
-     "finish": "leather"
+     "finish": "cat_fabric"
     },
     {
      "tag": "paint_2",
@@ -32462,7 +32462,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -32514,7 +32514,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -32577,7 +32577,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "raw_steel",
@@ -32588,7 +32588,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -32640,7 +32640,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -32692,7 +32692,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "raw_steel",
@@ -32703,7 +32703,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -32755,7 +32755,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -32837,7 +32837,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     }
    ],
    "mounts": {}
@@ -32878,7 +32878,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     }
    ],
    "mounts": {}
@@ -32919,7 +32919,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -32982,7 +32982,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -33034,7 +33034,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "raw_steel",
@@ -33045,7 +33045,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -33212,7 +33212,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -33275,7 +33275,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -33316,7 +33316,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -33409,7 +33409,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "paint",
@@ -33483,7 +33483,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     }
    ],
    "mounts": {}
@@ -33576,7 +33576,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -33751,7 +33751,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -33803,7 +33803,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -33855,7 +33855,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -33896,7 +33896,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -33959,7 +33959,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -34011,7 +34011,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -34063,7 +34063,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -34104,7 +34104,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -34208,7 +34208,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -34271,7 +34271,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "paint",
@@ -34293,7 +34293,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "raw_steel",
@@ -34304,7 +34304,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -34356,7 +34356,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -34456,7 +34456,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -34556,7 +34556,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -34656,7 +34656,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -34756,7 +34756,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -34856,7 +34856,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -34956,7 +34956,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -35056,7 +35056,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -35156,7 +35156,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -35256,7 +35256,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -35356,7 +35356,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -35456,7 +35456,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {},
@@ -35545,7 +35545,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -35556,7 +35556,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -35578,7 +35578,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "paint",
@@ -35665,7 +35665,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -35676,7 +35676,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -35698,7 +35698,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "paint",
@@ -35785,7 +35785,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -35796,7 +35796,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "chrome",
@@ -35818,7 +35818,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "paint",
@@ -35905,7 +35905,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -36003,7 +36003,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -36246,7 +36246,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -36339,7 +36339,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "raw_steel",
@@ -36350,7 +36350,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -36391,7 +36391,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "raw_steel",
@@ -36402,7 +36402,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -36443,7 +36443,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "plastic",
@@ -36454,7 +36454,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "rubber",
@@ -36465,7 +36465,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "raw_steel",
@@ -36476,7 +36476,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -36517,7 +36517,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "paint",
@@ -36621,7 +36621,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "black_metal",
@@ -36632,7 +36632,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     }
    ],
    "mounts": {}
@@ -36684,7 +36684,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -36695,7 +36695,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -37232,7 +37232,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -37284,7 +37284,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -37325,7 +37325,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_red",
@@ -37451,7 +37451,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -37492,7 +37492,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_red",
@@ -37596,7 +37596,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_red",
@@ -37670,7 +37670,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     }
    ],
    "mounts": {}
@@ -37774,7 +37774,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.6,
-     "finish": "black_satin"
+     "finish": "cat_plastic"
     },
     {
      "tag": "lens_red",
@@ -39312,7 +39312,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39353,7 +39353,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39394,7 +39394,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39435,7 +39435,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39476,7 +39476,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39517,7 +39517,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39558,7 +39558,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39599,7 +39599,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     },
     {
      "tag": "raw_steel",
@@ -39610,7 +39610,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {}
@@ -39651,7 +39651,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39692,7 +39692,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {}
@@ -39733,7 +39733,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -39755,7 +39755,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -39814,7 +39814,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -39836,7 +39836,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -39847,7 +39847,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -39906,7 +39906,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -39928,7 +39928,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -39987,7 +39987,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40009,7 +40009,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -40020,7 +40020,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40079,7 +40079,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40101,7 +40101,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40160,7 +40160,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40182,7 +40182,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -40193,7 +40193,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40252,7 +40252,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40274,7 +40274,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -40285,7 +40285,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40344,7 +40344,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40366,7 +40366,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40425,7 +40425,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "raw_steel",
@@ -40436,7 +40436,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "chrome",
@@ -40458,7 +40458,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40517,7 +40517,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.2,
-     "finish": "black_gloss"
+     "finish": "cat_carbon"
     },
     {
      "tag": "chrome",
@@ -40539,7 +40539,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40598,7 +40598,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40620,7 +40620,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40679,7 +40679,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40701,7 +40701,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40760,7 +40760,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40782,7 +40782,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40841,7 +40841,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40863,7 +40863,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -40922,7 +40922,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -40944,7 +40944,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41003,7 +41003,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41025,7 +41025,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41084,7 +41084,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41106,7 +41106,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41165,7 +41165,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41187,7 +41187,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41246,7 +41246,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41268,7 +41268,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41327,7 +41327,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41349,7 +41349,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41408,7 +41408,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41430,7 +41430,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41489,7 +41489,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41511,7 +41511,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41570,7 +41570,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41592,7 +41592,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41651,7 +41651,7 @@
      ],
      "metallic": 0.85,
      "roughness": 0.48,
-     "finish": "alu_cast"
+     "finish": "cat_cast_alloy"
     },
     {
      "tag": "raw_steel",
@@ -41662,7 +41662,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     }
    ],
    "mounts": {
@@ -41721,7 +41721,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41743,7 +41743,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41802,7 +41802,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41824,7 +41824,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41883,7 +41883,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "black_metal",
@@ -41894,7 +41894,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -41905,7 +41905,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -41964,7 +41964,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -41986,7 +41986,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -41997,7 +41997,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42056,7 +42056,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42078,7 +42078,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42137,7 +42137,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "paint_2",
@@ -42170,7 +42170,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42229,7 +42229,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42251,7 +42251,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42310,7 +42310,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42332,7 +42332,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -42343,7 +42343,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42402,7 +42402,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.2,
-     "finish": "black_gloss"
+     "finish": "cat_carbon"
     },
     {
      "tag": "chrome",
@@ -42424,7 +42424,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42483,7 +42483,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42505,7 +42505,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42564,7 +42564,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "paint_2",
@@ -42597,7 +42597,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42656,7 +42656,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42678,7 +42678,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42737,7 +42737,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "paint_2",
@@ -42770,7 +42770,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42829,7 +42829,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42851,7 +42851,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42910,7 +42910,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -42932,7 +42932,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -42991,7 +42991,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43013,7 +43013,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -43024,7 +43024,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43083,7 +43083,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43105,7 +43105,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -43116,7 +43116,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43175,7 +43175,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "anodised",
@@ -43186,7 +43186,7 @@
      ],
      "metallic": 0.9,
      "roughness": 0.3,
-     "finish": "alu_brushed"
+     "finish": "cat_anodised"
     },
     {
      "tag": "chrome",
@@ -43208,7 +43208,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43267,7 +43267,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43289,7 +43289,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43348,7 +43348,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43370,7 +43370,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -43381,7 +43381,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43440,7 +43440,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43462,7 +43462,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43521,7 +43521,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43543,7 +43543,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43602,7 +43602,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43624,7 +43624,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43683,7 +43683,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "paint_2",
@@ -43716,7 +43716,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43775,7 +43775,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "paint_2",
@@ -43808,7 +43808,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43867,7 +43867,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43889,7 +43889,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -43948,7 +43948,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -43970,7 +43970,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44029,7 +44029,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44051,7 +44051,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44110,7 +44110,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44132,7 +44132,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44191,7 +44191,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44213,7 +44213,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44272,7 +44272,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44294,7 +44294,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44353,7 +44353,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44375,7 +44375,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44434,7 +44434,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "black_metal",
@@ -44445,7 +44445,7 @@
      ],
      "metallic": 0.5,
      "roughness": 0.55,
-     "finish": "black_satin"
+     "finish": "cat_black_metal"
     },
     {
      "tag": "rubber",
@@ -44456,7 +44456,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44515,7 +44515,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44537,7 +44537,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.4,
-     "finish": "steel_brushed"
+     "finish": "cat_raw_steel"
     },
     {
      "tag": "rubber",
@@ -44548,7 +44548,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44607,7 +44607,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44629,7 +44629,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44688,7 +44688,7 @@
      ],
      "metallic": 1.0,
      "roughness": 0.12,
-     "finish": "alu_brushed"
+     "finish": "cat_polished_alloy"
     },
     {
      "tag": "chrome",
@@ -44710,7 +44710,7 @@
      ],
      "metallic": 0.0,
      "roughness": 0.85,
-     "finish": "rubber"
+     "finish": "cat_rubber"
     }
    ],
    "mounts": {
@@ -44743,27 +44743,317 @@
  "tag_finish": {
   "paint": "paint",
   "paint_2": "paint_2",
-  "powder": "black_satin",
+  "powder": "cat_powder",
   "chrome": "chrome",
-  "polished_alloy": "alu_brushed",
-  "cast_alloy": "alu_cast",
-  "brushed_steel": "steel_brushed",
-  "raw_steel": "steel_brushed",
-  "black_metal": "black_satin",
-  "anodised": "alu_brushed",
-  "titanium": "header",
-  "carbon": "black_gloss",
-  "rubber": "rubber",
-  "plastic": "black_satin",
+  "polished_alloy": "cat_polished_alloy",
+  "cast_alloy": "cat_cast_alloy",
+  "brushed_steel": "cat_brushed_steel",
+  "raw_steel": "cat_raw_steel",
+  "black_metal": "cat_black_metal",
+  "anodised": "cat_anodised",
+  "titanium": "cat_titanium",
+  "carbon": "cat_carbon",
+  "rubber": "cat_rubber",
+  "plastic": "cat_plastic",
   "plastic_paint": "paint",
   "leather": "leather",
-  "fabric": "leather",
+  "fabric": "cat_fabric",
   "glass": "glass_dark",
   "lens_white": "lens_clear",
   "lens_amber": "lens_amber",
   "lens_red": "lens_red",
   "dial": "dial_cream",
   "decal": "decal_white"
+ },
+ "finishes": {
+  "cat_powder": {
+   "shader": "base",
+   "color": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "metallic": 0.0,
+   "roughness": 0.55,
+   "color2": [
+    0.08,
+    0.08,
+    0.09
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.55,
+   "detail": "powder",
+   "uv_scale": 6.0,
+   "normal_strength": 0.35,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_polished_alloy": {
+   "shader": "base",
+   "color": [
+    0.88,
+    0.88,
+    0.86
+   ],
+   "metallic": 1.0,
+   "roughness": 0.12,
+   "color2": [
+    0.88,
+    0.88,
+    0.86
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.12,
+   "detail": "brushed",
+   "uv_scale": 10.0,
+   "normal_strength": 0.25,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_cast_alloy": {
+   "shader": "base",
+   "color": [
+    0.6,
+    0.6,
+    0.58
+   ],
+   "metallic": 0.85,
+   "roughness": 0.48,
+   "color2": [
+    0.6,
+    0.6,
+    0.58
+   ],
+   "metallic2": 0.85,
+   "roughness2": 0.48,
+   "detail": "cast",
+   "uv_scale": 8.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_brushed_steel": {
+   "shader": "base",
+   "color": [
+    0.75,
+    0.75,
+    0.74
+   ],
+   "metallic": 1.0,
+   "roughness": 0.28,
+   "color2": [
+    0.75,
+    0.75,
+    0.74
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.28,
+   "detail": "brushed",
+   "uv_scale": 5.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.35,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_raw_steel": {
+   "shader": "base",
+   "color": [
+    0.45,
+    0.45,
+    0.46
+   ],
+   "metallic": 1.0,
+   "roughness": 0.4,
+   "color2": [
+    0.45,
+    0.45,
+    0.46
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.4,
+   "detail": "cast",
+   "uv_scale": 12.0,
+   "normal_strength": 0.35,
+   "rough_var": 0.35,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_black_metal": {
+   "shader": "base",
+   "color": [
+    0.035,
+    0.035,
+    0.04
+   ],
+   "metallic": 0.5,
+   "roughness": 0.55,
+   "color2": [
+    0.035,
+    0.035,
+    0.04
+   ],
+   "metallic2": 0.5,
+   "roughness2": 0.55,
+   "detail": "powder",
+   "uv_scale": 6.0,
+   "normal_strength": 0.3,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_anodised": {
+   "shader": "base",
+   "color": [
+    0.1,
+    0.25,
+    0.7
+   ],
+   "metallic": 0.9,
+   "roughness": 0.3,
+   "color2": [
+    0.1,
+    0.25,
+    0.7
+   ],
+   "metallic2": 0.9,
+   "roughness2": 0.3,
+   "detail": "brushed",
+   "uv_scale": 10.0,
+   "normal_strength": 0.3,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_titanium": {
+   "shader": "base",
+   "color": [
+    0.55,
+    0.53,
+    0.5
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3,
+   "color2": [
+    0.55,
+    0.53,
+    0.5
+   ],
+   "metallic2": 1.0,
+   "roughness2": 0.3,
+   "detail": "brushed",
+   "uv_scale": 6.0,
+   "normal_strength": 0.4,
+   "rough_var": 0.3,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_carbon": {
+   "shader": "paint",
+   "color": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "metallic": 0.0,
+   "roughness": 0.2,
+   "color2": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.2,
+   "detail": "carbon",
+   "uv_scale": 21.0,
+   "normal_strength": 0.5,
+   "rough_var": 0.1,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.25
+  },
+  "cat_rubber": {
+   "shader": "base",
+   "color": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.85,
+   "color2": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.85,
+   "detail": "rubber",
+   "uv_scale": 12.0,
+   "normal_strength": 0.6,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_plastic": {
+   "shader": "base",
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6,
+   "color2": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.6,
+   "detail": "rubber",
+   "uv_scale": 25.0,
+   "normal_strength": 0.25,
+   "rough_var": 0.15,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  },
+  "cat_fabric": {
+   "shader": "base",
+   "color": [
+    0.12,
+    0.12,
+    0.12
+   ],
+   "metallic": 0.0,
+   "roughness": 0.9,
+   "color2": [
+    0.12,
+    0.12,
+    0.12
+   ],
+   "metallic2": 0.0,
+   "roughness2": 0.9,
+   "detail": "fabric",
+   "uv_scale": 20.0,
+   "normal_strength": 0.8,
+   "rough_var": 0.2,
+   "clearcoat_roughness": 0.03,
+   "emissive": 0.0,
+   "grime": 0.6
+  }
  },
  "lod_at_m": [
   30.0,

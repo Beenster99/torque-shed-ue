@@ -46,17 +46,47 @@ REDRAWN = os.path.join(REPO, "Data", "Parts", "Redrawn")
 # glTF to ours: ours = M @ g.
 M = np.array([[0.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
 
-# The surface tags (blender/lib/kit.py) and the finish each is drawn in here (speedtwin_pack /
-# make_speedtwin FINISHES). "paint" and "paint_2" take the bike's colours; the Blender colour rides
-# along in the index so a part keeps its own look until the shed paints it.
+# The surface tags (blender/lib/kit.py) and the finish each is drawn in here. "paint" and "paint_2"
+# take the bike's colours; the Blender colour rides along in the index so a part keeps its own look
+# until the shed paints it. The metals, plastics, rubber, carbon and fabric have catalogue finishes
+# of their own (CATALOGUE_FINISHES: kit.py's colour, metalness and roughness, which is how Torque
+# Shed draws them, with a detail set from Tools/make_bike_textures.py for the close-up surface);
+# chrome, leather, glass, lenses, dials and decals share the Speed Twin's (speedtwin_pack /
+# make_speedtwin FINISHES).
 TAG_FINISH = {
-    "paint": "paint", "paint_2": "paint_2", "powder": "black_satin", "chrome": "chrome",
-    "polished_alloy": "alu_brushed", "cast_alloy": "alu_cast", "brushed_steel": "steel_brushed",
-    "raw_steel": "steel_brushed", "black_metal": "black_satin", "anodised": "alu_brushed",
-    "titanium": "header", "carbon": "black_gloss", "rubber": "rubber", "plastic": "black_satin",
-    "plastic_paint": "paint", "leather": "leather", "fabric": "leather", "glass": "glass_dark",
+    "paint": "paint", "paint_2": "paint_2", "powder": "cat_powder", "chrome": "chrome",
+    "polished_alloy": "cat_polished_alloy", "cast_alloy": "cat_cast_alloy", "brushed_steel": "cat_brushed_steel",
+    "raw_steel": "cat_raw_steel", "black_metal": "cat_black_metal", "anodised": "cat_anodised",
+    "titanium": "cat_titanium", "carbon": "cat_carbon", "rubber": "cat_rubber", "plastic": "cat_plastic",
+    "plastic_paint": "paint", "leather": "leather", "fabric": "cat_fabric", "glass": "glass_dark",
     "lens_white": "lens_clear", "lens_amber": "lens_amber", "lens_red": "lens_red", "dial": "dial_cream",
     "decal": "decal_white",
+}
+
+
+def _cat(color, metallic, roughness, detail, uv_scale, normal_strength, rough_var, shader="base", grime=0.6):
+    """A catalogue finish in make_speedtwin's terms (the level script makes MI_<name> of each)."""
+    return {"shader": shader, "color": list(color), "metallic": metallic, "roughness": roughness,
+            "color2": list(color), "metallic2": metallic, "roughness2": roughness, "detail": detail,
+            "uv_scale": uv_scale, "normal_strength": normal_strength, "rough_var": rough_var,
+            "clearcoat_roughness": 0.03, "emissive": 0.0, "grime": grime}
+
+
+# Colour, metalness and roughness are kit.py's TAG_LOOK; the detail sets' scales are per metre (the
+# catalogue surfaces are box-mapped in metres, TorqueShedCatalogue BuildMesh).
+CATALOGUE_FINISHES = {
+    "cat_powder": _cat((0.08, 0.08, 0.09), 0.0, 0.55, "powder", 6.0, 0.35, 0.2),
+    "cat_polished_alloy": _cat((0.88, 0.88, 0.86), 1.0, 0.12, "brushed", 10.0, 0.25, 0.2),
+    "cat_cast_alloy": _cat((0.6, 0.6, 0.58), 0.85, 0.48, "cast", 8.0, 0.6, 0.3),
+    "cat_brushed_steel": _cat((0.75, 0.75, 0.74), 1.0, 0.28, "brushed", 5.0, 0.6, 0.35),
+    "cat_raw_steel": _cat((0.45, 0.45, 0.46), 1.0, 0.4, "cast", 12.0, 0.35, 0.35),
+    "cat_black_metal": _cat((0.035, 0.035, 0.04), 0.5, 0.55, "powder", 6.0, 0.3, 0.2),
+    "cat_anodised": _cat((0.1, 0.25, 0.7), 0.9, 0.3, "brushed", 10.0, 0.3, 0.2),
+    "cat_titanium": _cat((0.55, 0.53, 0.5), 1.0, 0.3, "brushed", 6.0, 0.4, 0.3),
+    "cat_carbon": _cat((0.03, 0.03, 0.03), 0.0, 0.2, "carbon", 21.0, 0.5, 0.1, shader="paint", grime=0.25),
+    "cat_rubber": _cat((0.02, 0.02, 0.02), 0.0, 0.85, "rubber", 12.0, 0.6, 0.2),
+    "cat_plastic": _cat((0.04, 0.04, 0.045), 0.0, 0.6, "rubber", 25.0, 0.25, 0.15),
+    "cat_fabric": _cat((0.12, 0.12, 0.12), 0.0, 0.9, "fabric", 20.0, 0.8, 0.2),
 }
 
 COMP = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
@@ -419,6 +449,7 @@ def main():
                            "Written by Tools/import_blender_parts.py; do not edit.",
                   "source": {"repo": "Beenster99/torque-shed", "commit": git_head(a.godot), "glbs_sha256": digest.hexdigest()},
                   "tag_finish": TAG_FINISH,
+                  "finishes": CATALOGUE_FINISHES,
                   "lod_at_m": [30.0, 120.0]})
     index["parts"] = dict(sorted(parts.items()))
     data = (json.dumps(index, indent=1, sort_keys=False) + "\n").encode()
