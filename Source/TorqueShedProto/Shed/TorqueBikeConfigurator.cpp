@@ -14,6 +14,8 @@
 #include "Engine/Font.h"
 #include "Engine/Texture.h"
 #include "GameFramework/HUD.h"
+#include "Misc/Parse.h"
+#include "RenderUtils.h"
 
 namespace TorqueBikeConfiguratorImpl
 {
@@ -91,8 +93,79 @@ TArray<FLinearColor>& Recent()
 	return L;
 }
 
-// The colour picker's square: how many cells across (saturation) and down (value), and the hue strip.
-constexpr int32 SvCols = 16, SvRows = 12, HueCells = 30;
+// The colour picker works on the colour as the screen shows it (sRGB), as Godot's ColorPicker does:
+// the bike's colours are linear (what the canvas and the paint take).
+float ToLinear(float C)
+{
+	C = FMath::Clamp(C, 0.0f, 1.0f);
+	return C <= 0.04045f ? C / 12.92f : FMath::Pow((C + 0.055f) / 1.055f, 2.4f);
+}
+float ToScreen(float C)
+{
+	C = FMath::Clamp(C, 0.0f, 1.0f);
+	return C <= 0.0031308f ? C * 12.92f : 1.055f * FMath::Pow(C, 1.0f / 2.4f) - 0.055f;
+}
+// Hue 0..360, saturation and value 0..1 (on the screen) -> the linear colour.
+FLinearColor FromHsv(float H, float Sat, float Val)
+{
+	const FLinearColor E = FLinearColor(FMath::Clamp(H, 0.0f, 359.99f), FMath::Clamp(Sat, 0.0f, 1.0f), FMath::Clamp(Val, 0.0f, 1.0f)).HSVToLinearRGB();
+	return FLinearColor(ToLinear(E.R), ToLinear(E.G), ToLinear(E.B), 1.0f);
+}
+// The colour as #RRGGBB's digits (on the screen, as paint charts and other games give them).
+int32 Byte255(float Linear) { return FMath::Clamp(FMath::RoundToInt(ToScreen(Linear) * 255.0f), 0, 255); }
+FString HexOf(const FLinearColor& C) { return FString::Printf(TEXT("%02X%02X%02X"), Byte255(C.R), Byte255(C.G), Byte255(C.B)); }
+// RRGGBB or RGB (no #) -> the linear colour.
+bool ParseHex(const FString& Digits, FLinearColor& Out)
+{
+	FString D = Digits;
+	if (D.Len() == 3) D = FString::Printf(TEXT("%c%c%c%c%c%c"), D[0], D[0], D[1], D[1], D[2], D[2]);
+	if (D.Len() != 6) return false;
+	float Ch[3];
+	for (int32 I = 0; I < 3; ++I)
+	{
+		const int32 Hi = FParse::HexDigit(D[I * 2]), Lo = FParse::HexDigit(D[I * 2 + 1]);
+		Ch[I] = ToLinear((Hi * 16 + Lo) / 255.0f);
+	}
+	Out = FLinearColor(Ch[0], Ch[1], Ch[2], 1.0f);
+	return true;
+}
+
+// A W x H patch shaded smoothly by ColourAt(U, V) (U across, V down, 0..1): a fine mesh of
+// triangles, each corner its own colour, so it reads as one continuous gradient, not squares.
+template <typename FColourAt>
+void Gradient(UCanvas* Canvas, float X, float Y, float W, float H, int32 Nx, int32 Ny, FColourAt&& ColourAt)
+{
+	if (!Canvas || W <= 0.0f || H <= 0.0f) return;
+	TArray<FCanvasUVTri> Tris;
+	Tris.Reserve(Nx * Ny * 2);
+	TArray<FLinearColor> Corner;
+	Corner.SetNum((Nx + 1) * (Ny + 1));
+	for (int32 J = 0; J <= Ny; ++J)
+		for (int32 I = 0; I <= Nx; ++I) Corner[J * (Nx + 1) + I] = ColourAt((float)I / Nx, (float)J / Ny);
+	for (int32 J = 0; J < Ny; ++J)
+		for (int32 I = 0; I < Nx; ++I)
+		{
+			const FVector2D P00(X + W * I / Nx, Y + H * J / Ny), P10(X + W * (I + 1) / Nx, Y + H * J / Ny);
+			const FVector2D P01(X + W * I / Nx, Y + H * (J + 1) / Ny), P11(X + W * (I + 1) / Nx, Y + H * (J + 1) / Ny);
+			const FLinearColor& C00 = Corner[J * (Nx + 1) + I];
+			const FLinearColor& C10 = Corner[J * (Nx + 1) + I + 1];
+			const FLinearColor& C01 = Corner[(J + 1) * (Nx + 1) + I];
+			const FLinearColor& C11 = Corner[(J + 1) * (Nx + 1) + I + 1];
+			FCanvasUVTri A;
+			A.V0_Pos = P00; A.V0_Color = C00;
+			A.V1_Pos = P10; A.V1_Color = C10;
+			A.V2_Pos = P11; A.V2_Color = C11;
+			Tris.Add(A);
+			FCanvasUVTri Bt;
+			Bt.V0_Pos = P00; Bt.V0_Color = C00;
+			Bt.V1_Pos = P11; Bt.V1_Color = C11;
+			Bt.V2_Pos = P01; Bt.V2_Color = C01;
+			Tris.Add(Bt);
+		}
+	FCanvasTriangleItem Item(Tris, GWhiteTexture);
+	Item.BlendMode = SE_BLEND_Opaque;
+	Canvas->DrawItem(Item);
+}
 } // namespace TorqueBikeConfiguratorImpl
 
 namespace TBCI = TorqueBikeConfiguratorImpl;
@@ -369,10 +442,10 @@ void FTorqueBikeConfigurator::OpenPopup(EPopup Kind, const FString& Key, const F
 	if (Kind == EPopup::Colour)
 	{
 		PopupStart = ColourOf(Key);
-		const FLinearColor Hsv = PopupStart.LinearRGBToHSV();
-		PopupHue = Hsv.R;
-		PopupSat = Hsv.G;
-		PopupVal = Hsv.B;
+		PickFrom(PopupStart);
+		DragPick = EPick::None;
+		bTypingHex = false;
+		HexEdit.Reset();
 	}
 	// A long list opens at the one on now.
 	if (Kind == EPopup::Part)
@@ -396,6 +469,51 @@ void FTorqueBikeConfigurator::ClosePopup()
 	}
 	Popup = EPopup::None;
 	PopupKey.Reset();
+	DragPick = EPick::None;
+	bTypingHex = false;
+}
+
+FLinearColor FTorqueBikeConfigurator::PickedColour() const
+{
+	return TBCI::FromHsv(PopupHue, PopupSat, PopupVal);
+}
+
+void FTorqueBikeConfigurator::PickFrom(const FLinearColor& C)
+{
+	// The picker on a colour (its hue kept for a grey or black, which have none).
+	const FLinearColor Hsv = FLinearColor(TBCI::ToScreen(C.R), TBCI::ToScreen(C.G), TBCI::ToScreen(C.B)).LinearRGBToHSV();
+	if (Hsv.G > 0.002f && Hsv.B > 0.002f) PopupHue = Hsv.R;
+	PopupSat = Hsv.G;
+	PopupVal = Hsv.B;
+}
+
+void FTorqueBikeConfigurator::PickAt(const FVector2D& Mouse, bool bPush)
+{
+	// The square: saturation across, value up; the strip: hue down. Off the edge holds at the edge.
+	const FVector2D Size = DragPickBox.GetSize();
+	const float U = FMath::Clamp((float)((Mouse.X - DragPickBox.Min.X) / FMath::Max(1.0, Size.X)), 0.0f, 1.0f);
+	const float V = FMath::Clamp((float)((Mouse.Y - DragPickBox.Min.Y) / FMath::Max(1.0, Size.Y)), 0.0f, 1.0f);
+	if (DragPick == EPick::Square)
+	{
+		PopupSat = U;
+		PopupVal = 1.0f - V;
+	}
+	else if (DragPick == EPick::Hue)
+	{
+		PopupHue = FMath::Min(V * 360.0f, 359.99f);
+		// (a grey or black picked: a hue means a colour)
+		if (PopupSat < 0.05f) PopupSat = 0.8f;
+		if (PopupVal < 0.05f) PopupVal = 0.8f;
+	}
+	else return;
+	// The bike's preview rebuilds on each new colour, so a drag puts it on a few times a second and
+	// when let go; the picker itself follows the mouse every frame.
+	const double Now = FPlatformTime::Seconds();
+	if (bPush || Now - PickPushed >= 0.12)
+	{
+		PickPushed = Now;
+		SetColour(PopupKey, PickedColour());
+	}
 }
 
 int32 FTorqueBikeConfigurator::PopupCount() const
@@ -432,6 +550,19 @@ void FTorqueBikeConfigurator::SetSlider(int32 Slider, double Value)
 
 void FTorqueBikeConfigurator::Hold(const FVector2D& Mouse, bool bLeftDown)
 {
+	// The colour picker's square or hue strip being dragged.
+	if (DragPick != EPick::None)
+	{
+		if (Popup != EPopup::Colour)
+			DragPick = EPick::None;
+		else if (!bLeftDown)
+		{
+			PickAt(Mouse, true);
+			DragPick = EPick::None;
+		}
+		else PickAt(Mouse, false);
+		return;
+	}
 	// A badge slider being dragged follows the mouse; anything else is the preview's (turning it).
 	if (DragSlider != INDEX_NONE)
 	{
@@ -450,8 +581,39 @@ void FTorqueBikeConfigurator::Hold(const FVector2D& Mouse, bool bLeftDown)
 	if (ATorqueShopPreview* P = Preview.Get()) P->Hold(Mouse, bLeftDown);
 }
 
+void FTorqueBikeConfigurator::StopTyping()
+{
+	// Enter on a short hex (RGB) puts it on too.
+	if (bTypingHex && Popup == EPopup::Colour)
+	{
+		FLinearColor C;
+		if (TBCI::ParseHex(HexEdit, C))
+		{
+			PickFrom(C);
+			SetColour(PopupKey, C);
+		}
+	}
+	bTypingHex = false;
+	bTyping = false;
+}
+
 void FTorqueBikeConfigurator::Typed()
 {
+	// The colour picker's hex: its digits only (a pasted #RRGGBB too), on as soon as all six are in.
+	if (bTypingHex)
+	{
+		FString Digits;
+		for (const TCHAR Ch : HexEdit)
+			if (FChar::IsHexDigit(Ch)) Digits.AppendChar(FChar::ToUpper(Ch));
+		HexEdit = Digits.Left(6);
+		FLinearColor C;
+		if (HexEdit.Len() == 6 && Popup == EPopup::Colour && TBCI::ParseHex(HexEdit, C))
+		{
+			PickFrom(C);
+			SetColour(PopupKey, C);
+		}
+		return;
+	}
 	// BikeShopTab.set_brand (the LineEdit's max_length: BRAND_MAX).
 	BrandEdit = BrandEdit.Left(TorqueFit::Shop::BrandMax);
 	B().Badge.Brand = TBCI::CfgStd(BrandEdit);
@@ -459,9 +621,10 @@ void FTorqueBikeConfigurator::Typed()
 
 bool FTorqueBikeConfigurator::Back()
 {
-	if (bTyping)
+	if (bTyping || bTypingHex)
 	{
 		bTyping = false;
+		bTypingHex = false;
 		return true;
 	}
 	if (Popup == EPopup::None) return false;
@@ -715,47 +878,82 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 	float PopY = PopupAnchor.Max.Y + 2.0f * S;
 	if (Popup == EPopup::Colour)
 	{
-		// ColourChoice's panel: the colour square for the hue, the hue strip beside it, the paint
-		// shop's colours, the colours picked lately and the shades of grey.
-		const float Cell = 15.0f * S, Pd = 10.0f * S;
-		const float SqW = TBCI::SvCols * Cell, SqH = TBCI::SvRows * Cell, HueW = 22.0f * S;
+		// ColourChoice's panel (Godot's ColorPicker): every colour, a smooth square of saturation
+		// across and value up for the hue, the hue strip beside it (click or drag either), the colour
+		// as #RRGGBB (click to type or paste one), what it was and is now, the paint shop's colours,
+		// the colours picked lately and the shades of grey.
+		const float Pd = 12.0f * S, PGap = 10.0f * S;
+		const float SqW = 256.0f * S, SqH = 192.0f * S, HueW = 22.0f * S;
 		const TArray<FLinearColor>& Paints = UTorqueBuildSubsystem::Paints();
-		const float Sw = 24.0f * S;
-		const float PW = Pd * 2.0f + SqW + 8.0f * S + HueW;
-		const float PH = Pd + 20.0f * S + SqH + 10.0f * S + 18.0f * S + 2.0f * (Sw + 4.0f * S) + 18.0f * S + (Sw + 4.0f * S) + Pd;
-		if (PopY + PH > Canvas->ClipY) PopY = PopupAnchor.Min.Y - PH - 2.0f * S;
+		const float Sw = 24.0f * S, HexH = 24.0f * S;
+		const float PW = Pd * 2.0f + SqW + PGap + HueW;
+		const float PH = Pd + 24.0f * S + SqH + PGap + HexH + PGap + 18.0f * S + 2.0f * (Sw + 4.0f * S) + 18.0f * S + (Sw + 4.0f * S) + Pd;
+		if (PopY + PH > Canvas->ClipY) PopY = FMath::Max(4.0f, PopupAnchor.Min.Y - PH - 2.0f * S);
 		const float PX = FMath::Clamp(PopX, 0.0f, Canvas->ClipX - PW);
 		Box(PX - 1.0f, PopY - 1.0f, PW + 2.0f, PH + 2.0f, FLinearColor(1, 1, 1, 0.14f));
 		Box(PX, PopY, PW, PH, TBCI::PopupBack);
 		AddHit(PX, PopY, PW, PH, EHit::None, 0);   // (a click on the panel's back keeps it open)
 		float CY = PopY + Pd;
-		const FLinearColor Now = ColourOf(PopupKey);
-		Pen.Draw(PX + Pd, CY, FString::Printf(TEXT("The %s's colour"), *TBCI::CfgSlotLabel(PopupKey).ToLower()), 13.0f * S, TBCI::Text);
-		Box(PX + PW - Pd - 40.0f * S, CY, 40.0f * S, 16.0f * S, FLinearColor(Now.R, Now.G, Now.B, 1.0f));
-		CY += 20.0f * S;
-		for (int32 Cx = 0; Cx < TBCI::SvCols; ++Cx)
-			for (int32 Cy = 0; Cy < TBCI::SvRows; ++Cy)
-			{
-				const float Sat = (Cx + 0.5f) / TBCI::SvCols, Val = 1.0f - (float)Cy / (TBCI::SvRows - 1);
-				const FLinearColor C = FLinearColor(PopupHue, Sat, Val).HSVToLinearRGB();
-				Box(PX + Pd + Cx * Cell, CY + Cy * Cell, Cell, Cell, FLinearColor(C.R, C.G, C.B, 1.0f));
-				AddHit(PX + Pd + Cx * Cell, CY + Cy * Cell, Cell, Cell, EHit::PopupSv, Cx * 100 + Cy);
-			}
-		const float HueX = PX + Pd + SqW + 8.0f * S, HueCell = SqH / TBCI::HueCells;
-		for (int32 Hc = 0; Hc < TBCI::HueCells; ++Hc)
+		const FLinearColor Now = PickedColour();
+		// The title, and the colour it was (click: back to it) beside the colour it is now.
+		const float PairW = 34.0f * S, PairH = 18.0f * S;
+		const float PairX = PX + PW - Pd - 2.0f * PairW;
+		Pen.Draw(PX + Pd, CY + 1.0f * S, Pen.Fit(FString::Printf(TEXT("The %s's colour"), *TBCI::CfgSlotLabel(PopupKey).ToLower()), 13.0f * S,
+			PairX - PX - Pd - 8.0f * S), 13.0f * S, TBCI::Text);
+		Box(PairX - 1.0f, CY - 1.0f, 2.0f * PairW + 2.0f, PairH + 2.0f, Over(PairX, CY, PairW, PairH) ? FLinearColor(1, 1, 1, 0.6f) : TBCI::Edge);
+		Box(PairX, CY, PairW, PairH, FLinearColor(PopupStart.R, PopupStart.G, PopupStart.B, 1.0f));
+		AddHit(PairX, CY, PairW, PairH, EHit::PopupSwatch, 300);
+		Box(PairX + PairW, CY, PairW, PairH, Now);
+		CY += 24.0f * S;
+		// The square: white top left, the hue top right, black along the bottom.
+		const float SqX = PX + Pd;
+		const float Hue = PopupHue;
+		TBCI::Gradient(Canvas, SqX, CY, SqW, SqH, 24, 24, [Hue](float U, float V) { return TBCI::FromHsv(Hue, U, 1.0f - V); });
+		TorqueUi::Frame(Canvas, SqX - 1.0f, CY - 1.0f, SqW + 2.0f, SqH + 2.0f, TBCI::Edge, 1.0f);
+		AddHit(SqX, CY, SqW, SqH, EHit::PopupSv, 0);
 		{
-			const FLinearColor C = FLinearColor(360.0f * Hc / TBCI::HueCells, 1.0f, 1.0f).HSVToLinearRGB();
-			Box(HueX, CY + Hc * HueCell, HueW, HueCell + 0.5f, FLinearColor(C.R, C.G, C.B, 1.0f));
-			AddHit(HueX, CY + Hc * HueCell, HueW, HueCell, EHit::PopupHue, Hc);
+			// Its ring where the colour is (dark on the light, light on the dark).
+			const float MX = SqX + PopupSat * SqW, MY = CY + (1.0f - PopupVal) * SqH, R = 6.0f * S;
+			TorqueUi::Frame(Canvas, MX - R - 1.0f * S, MY - R - 1.0f * S, 2.0f * R + 2.0f * S, 2.0f * R + 2.0f * S, FLinearColor(0, 0, 0, 0.7f), 1.0f * S);
+			TorqueUi::Frame(Canvas, MX - R, MY - R, 2.0f * R, 2.0f * R, FLinearColor::White, 2.0f * S);
 		}
-		Box(HueX - 2.0f * S, CY + PopupHue / 360.0f * SqH - 1.0f * S, HueW + 4.0f * S, 2.0f * S, FLinearColor::White);
-		CY += SqH + 10.0f * S;
+		// The hue strip, red round to red.
+		const float HueX = SqX + SqW + PGap;
+		TBCI::Gradient(Canvas, HueX, CY, HueW, SqH, 1, 72, [](float, float V) { return TBCI::FromHsv(V * 360.0f, 1.0f, 1.0f); });
+		TorqueUi::Frame(Canvas, HueX - 1.0f, CY - 1.0f, HueW + 2.0f, SqH + 2.0f, TBCI::Edge, 1.0f);
+		AddHit(HueX - 3.0f * S, CY, HueW + 6.0f * S, SqH, EHit::PopupHue, 0);
+		{
+			const float MY = CY + PopupHue / 360.0f * SqH;
+			TorqueUi::Frame(Canvas, HueX - 4.0f * S, MY - 4.0f * S, HueW + 8.0f * S, 8.0f * S, FLinearColor(0, 0, 0, 0.7f), 1.0f * S);
+			TorqueUi::Frame(Canvas, HueX - 3.0f * S, MY - 3.0f * S, HueW + 6.0f * S, 6.0f * S, FLinearColor::White, 2.0f * S);
+		}
+		CY += SqH + PGap;
+		// The hex field (typed into once clicked), and the colour's red, green and blue.
+		{
+			Pen.Draw(SqX, CY + (HexH - 13.0f * S * 1.2f) * 0.5f, TEXT("Hex #"), 13.0f * S, TBCI::Dim);
+			const float FX = SqX + Pen.Width(TEXT("Hex #"), 13.0f * S) + 6.0f * S, FW = 86.0f * S;
+			const bool bFieldOver = Over(FX, CY, FW, HexH);
+			Box(FX - 1.0f, CY - 1.0f, FW + 2.0f, HexH + 2.0f, bTypingHex ? FLinearColor(TBCI::Accent) : (bFieldOver ? FLinearColor(1, 1, 1, 0.5f) : TBCI::Edge));
+			Box(FX, CY, FW, HexH, TBCI::Field);
+			const bool bCaret = bTypingHex && FMath::Fmod(FPlatformTime::Seconds(), 1.0) < 0.55;
+			const FString Shown = bTypingHex ? HexEdit : TBCI::HexOf(Now);
+			const float TY = CY + (HexH - 14.0f * S * 1.2f) * 0.5f;
+			const float TW = Pen.Width(Shown, 14.0f * S);
+			Pen.Draw(FX + 7.0f * S, TY, Shown, 14.0f * S, TBCI::Text);
+			if (bTypingHex && HexEdit.IsEmpty()) Pen.Draw(FX + 9.0f * S, TY, TBCI::HexOf(Now), 14.0f * S, TBCI::Off);
+			if (bCaret) Box(FX + 7.0f * S + TW + 1.0f * S, TY + 2.0f * S, 2.0f * S, 14.0f * S, TBCI::Accent);
+			AddHit(FX, CY, FW, HexH, EHit::PopupHex, 0);
+			const FString Rgb = bTypingHex ? FString(TEXT("Enter puts it on")) :
+				FString::Printf(TEXT("R %d   G %d   B %d"), TBCI::Byte255(Now.R), TBCI::Byte255(Now.G), TBCI::Byte255(Now.B));
+			Pen.Draw(FX + FW + 12.0f * S, CY + (HexH - 12.0f * S * 1.2f) * 0.5f, Rgb, 12.0f * S, TBCI::Dim);
+		}
+		CY += HexH + PGap;
 		auto Swatches = [&](const TArray<FLinearColor>& L, int32 Base, int32 PerRow, float SY)
 		{
 			for (int32 I = 0; I < L.Num(); ++I)
 			{
 				const float SX = PX + Pd + (I % PerRow) * (Sw + 4.0f * S), SYY = SY + (I / PerRow) * (Sw + 4.0f * S);
-				const bool bOn = L[I].Equals(Now, 0.002f);
+				const bool bOn = TBCI::HexOf(L[I]) == TBCI::HexOf(Now);
 				Box(SX - 1.0f, SYY - 1.0f, Sw + 2.0f, Sw + 2.0f, bOn ? FLinearColor::White : (Over(SX, SYY, Sw, Sw) ? FLinearColor(1, 1, 1, 0.6f) : TBCI::Edge));
 				Box(SX, SYY, Sw, Sw, FLinearColor(L[I].R, L[I].G, L[I].B, 1.0f));
 				AddHit(SX, SYY, Sw, Sw, EHit::PopupSwatch, Base + I);
@@ -763,7 +961,7 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		};
 		Pen.Draw(PX + Pd, CY, TEXT("The paint shop's colours"), 12.0f * S, TBCI::Dim);
 		CY += 18.0f * S;
-		Swatches(Paints, 0, 8, CY);
+		Swatches(Paints, 0, 10, CY);
 		CY += 2.0f * (Sw + 4.0f * S);
 		Pen.Draw(PX + Pd, CY, TBCI::Recent().Num() > 0 ? TEXT("Picked lately") : TEXT("Shades"), 12.0f * S, TBCI::Dim);
 		CY += 18.0f * S;
@@ -771,8 +969,12 @@ void FTorqueBikeConfigurator::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuil
 		else
 		{
 			TArray<FLinearColor> Greys;
-			for (int32 G = 0; G < 8; ++G) Greys.Add(FLinearColor(G / 7.0f, G / 7.0f, G / 7.0f));
-			Swatches(Greys, 200, 8, CY);
+			for (int32 G = 0; G < 10; ++G)
+			{
+				const float L = TBCI::ToLinear(G / 9.0f);
+				Greys.Add(FLinearColor(L, L, L));
+			}
+			Swatches(Greys, 200, 10, CY);
 		}
 		return;
 	}
@@ -885,6 +1087,8 @@ bool FTorqueBikeConfigurator::ClickPopup(const FVector2D& Mouse)
 		return true;
 	}
 	const int32 Arg = H->Arg;
+	// A click anywhere but the hex field stops its typing.
+	if (bTypingHex && H->What != EHit::PopupHex) StopTyping();
 	switch (H->What)
 	{
 	case EHit::PopupRow:
@@ -926,27 +1130,31 @@ bool FTorqueBikeConfigurator::ClickPopup(const FVector2D& Mouse)
 		}
 		return true;
 	case EHit::PopupSv:
-		PopupSat = ((Arg / 100) + 0.5f) / TBCI::SvCols;
-		PopupVal = 1.0f - (float)(Arg % 100) / (TBCI::SvRows - 1);
-		SetColour(PopupKey, FLinearColor(PopupHue, PopupSat, PopupVal).HSVToLinearRGB());
-		return true;
 	case EHit::PopupHue:
-		PopupHue = 360.0f * Arg / TBCI::HueCells;
-		if (PopupSat < 0.05f) PopupSat = 0.8f;   // (a grey picked: a hue means a colour)
-		SetColour(PopupKey, FLinearColor(PopupHue, PopupSat, PopupVal).HSVToLinearRGB());
+		// Click or drag: Hold follows the mouse till it's let go.
+		DragPick = H->What == EHit::PopupSv ? EPick::Square : EPick::Hue;
+		DragPickBox = H->Box;
+		PickAt(Mouse, true);
+		return true;
+	case EHit::PopupHex:
+		if (!bTypingHex) HexEdit.Reset();
+		bTypingHex = true;
+		bTyping = false;
 		return true;
 	case EHit::PopupSwatch:
 	{
 		FLinearColor C;
 		if (Arg < 100) C = UTorqueBuildSubsystem::Paints().IsValidIndex(Arg) ? UTorqueBuildSubsystem::Paints()[Arg] : FLinearColor::White;
 		else if (Arg < 200) C = TBCI::Recent().IsValidIndex(Arg - 100) ? TBCI::Recent()[Arg - 100] : FLinearColor::White;
-		else C = FLinearColor((Arg - 200) / 7.0f, (Arg - 200) / 7.0f, (Arg - 200) / 7.0f);
+		else if (Arg < 300)
+		{
+			const float L = TBCI::ToLinear((Arg - 200) / 9.0f);
+			C = FLinearColor(L, L, L);
+		}
+		else C = PopupStart;   // (the colour it was)
 		C.A = 1.0f;
 		SetColour(PopupKey, C);
-		const FLinearColor Hsv = C.LinearRGBToHSV();
-		PopupHue = Hsv.R;
-		PopupSat = Hsv.G;
-		PopupVal = Hsv.B;
+		PickFrom(C);
 		return true;
 	}
 	default:
