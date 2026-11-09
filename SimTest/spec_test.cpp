@@ -6,6 +6,7 @@
 #include "BikeSim.h"
 #include "PartsDb.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -289,6 +290,32 @@ int main()
 		std::snprintf(Line, sizeof Line, "%s: drawn swing pivot %.3f, %.3f and rake %.2f, ride's %.3f, %.3f and %.2f", Style.c_str(), L.Pivot.x, L.Pivot.y, Rake,
 			-S.SwingPivot.z, S.SwingPivot.y, S.RakeDeg);
 		Expect(std::fabs(L.Pivot.x + S.SwingPivot.z) < 1e-4 && std::fabs(L.Pivot.y - S.SwingPivot.y) < 1e-4 && std::fabs(Rake - S.RakeDeg) < 0.01, Line);
+	}
+	// Every frame's bike fits the shed's lifts (TorqueShedLayout::LiftDeckLength, ATorqueBikeLift's
+	// vice): its front tyre in the vice with the stop inside the platform's front edge, and its back
+	// tyre on the platform. The bike stands with its wheelbase's middle on the lift's middle.
+	{
+		const double DeckHalf = 260.0 * 0.5, StopFace = 17.5, StopZ = 11.5, ViceMost = DeckHalf - StopFace - 4.5;
+		double Longest = 0.0;
+		std::string LongestId;
+		for (const std::string& Id : Db.Ids("frame"))
+			for (const std::string& Style : Lay.StylesOf(Id))
+			{
+				PartsMap P = Lay.ReferenceBuild(Style);
+				P["frame"] = Id;
+				const Layout L = Lay.Solve(P);
+				const double Mid = (L.FrontAxle.x + L.RearAxle.x) * 0.5;
+				const double Fx = (L.FrontAxle.x - Mid) * 100.0, Rx = (L.RearAxle.x - Mid) * 100.0;
+				const double Rf = L.Stats.FrontRadius * 100.0, Rr = L.Stats.RearRadius * 100.0;
+				const double Z = std::min(StopZ, Rf);
+				const double Vice = Fx + std::sqrt(std::max(Rf * Rf - (Rf - Z) * (Rf - Z), 0.0)) - StopFace;
+				if (Fx - Rx > Longest) { Longest = Fx - Rx; LongestId = Id; }
+				char Line[256];
+				std::snprintf(Line, sizeof Line, "%s (%s) fits the lift: vice at %.0f cm (most %.0f), back tyre to %.0f cm (platform %.0f)",
+					Id.c_str(), Style.c_str(), Vice, ViceMost, Rx - Rr, -DeckHalf);
+				Expect(Vice <= ViceMost && Rx - Rr >= -DeckHalf - 1.0, Line);
+			}
+		std::printf("The longest bike on the lift: %s, %.0f cm between its axles\n", LongestId.c_str(), Longest);
 	}
 	std::printf("\nEach style ridden on its own spec:\n");
 	if (const Json* G = Ref.Get("styles"))

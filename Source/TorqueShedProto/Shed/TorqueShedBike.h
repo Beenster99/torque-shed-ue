@@ -76,6 +76,11 @@ public:
 	// Which bay this is (0 .. UTorqueBuildSubsystem::Bays - 1): the bike in it is that bay's build.
 	UPROPERTY(EditAnywhere, Category = "Bike") int32 Bay = 0;
 
+	// Where its front wheel is as drawn (cm): the axle's x along the bike from its middle, and the
+	// tyre's radius. A bike lift's wheel vice slides to it (ATorqueBikeLift).
+	double FrontAxleX = 70.6;
+	double FrontRadius = 30.0;
+
 	// The slot a part of this bike belongs to ("frame" for the frame and what's part of it).
 	FName SlotOf(const UPrimitiveComponent* C) const;
 
