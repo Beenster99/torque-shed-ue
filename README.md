@@ -97,6 +97,19 @@ own machine; the others' bikes, riders and engines follow smoothly. The host set
 takes everyone between the shed and the road. Any `-Torque...` test switch skips the menu, as before.
 How it works, the one-PC test and the plan for EOS: [Docs/coop.md](Docs/coop.md).
 
+### Weather
+
+Settings > Gameplay > Time and weather > **Weather**: **Live** (the default), changes by itself,
+always sunny, always overcast or always wet roads. Live asks [Open-Meteo](https://open-meteo.com)
+(free for non-commercial use, no account; weather data CC BY 4.0) for the real weather at the
+route's place every 15 minutes, with MET Norway as the backup; with no internet it keeps the last
+weather it had (up to 3 hours old), then changes by itself. Every source fills one weather state
+(`Source/TorqueShedProto/Weather/WeatherModel.h`: cloud, rain, wind, gusts, air, visibility, road
+wetness); changes fade, and roads stay wet after rain and dry over hours. The bikes' grip still
+takes the nearest of the three kinds until the physics stages are done. Test switches:
+`-TorqueWeather=live|auto|sunny|overcast|wet`, `-TorqueWeatherAt=lat,lon` (anywhere on Earth);
+test runs stay sunny unless asked. `weather_test` checks the engine and both feeds' answers.
+
 ### DLSS on the 4090
 
 The project starts on Lumen with hardware ray tracing, virtual shadow maps and TSR. For DLSS, download

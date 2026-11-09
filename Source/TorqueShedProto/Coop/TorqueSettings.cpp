@@ -112,6 +112,11 @@ void FTorqueSettings::Load()
 	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
+	// Live weather became the default after these settings were saved: always sunny, the old default,
+	// moves to Live once (any other choice stays as it was).
+	bool bLiveOffered = false;
+	GConfig->GetBool(Section, TEXT("WeatherLiveOffered"), bLiveOffered, Ini);
+	if (!bLiveOffered && WeatherMode == 1) WeatherMode = WeatherLive;
 	for (int32 I = 0; I < 4; ++I) GConfig->GetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->GetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
@@ -150,7 +155,7 @@ void FTorqueSettings::Load()
 	Units = FMath::Clamp(Units, 0, 1);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
 	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
-	WeatherMode = FMath::Clamp(WeatherMode, 0, 3);
+	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherLive);
 	FSonyPad::SetCentre(PadCentre);
 	WindowMode = FMath::Clamp(WindowMode, 0, 2);
 	UpscaleMode = FMath::Clamp(UpscaleMode, 0, 4);
@@ -215,6 +220,7 @@ void FTorqueSettings::Save()
 	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
 	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
+	GConfig->SetBool(Section, TEXT("WeatherLiveOffered"), true, Ini);
 	for (int32 I = 0; I < 4; ++I) GConfig->SetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);
 	GConfig->SetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->SetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);

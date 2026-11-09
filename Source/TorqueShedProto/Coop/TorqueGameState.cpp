@@ -14,6 +14,13 @@
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
+#include "Fit/FitJson.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpResponse.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "TimerManager.h"
 #include "EngineUtils.h"
 #include "Kismet/KismetMaterialLibrary.h"
@@ -26,6 +33,7 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATorqueGameState, Weather);
+	DOREPLIFETIME(ATorqueGameState, Net);
 	DOREPLIFETIME(ATorqueGameState, Hour);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 }
@@ -33,15 +41,46 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 void ATorqueGameState::BeginPlay()
 {
 	Super::BeginPlay();
-	// -TorqueWeather=sunny|overcast|wet sets the start (the host's, in co-op); otherwise the host's
-	// Settings > Gameplay > Weather: held at one kind, or changing by itself from sunny.
+	// -TorqueWeather=sunny|overcast|wet|live|auto sets the start (the host's, in co-op); otherwise the
+	// host's Settings > Gameplay > Weather: live, held at one kind, or changing by itself from sunny.
+	// Test runs stay sunny unless they ask.
 	FString WeatherName;
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	const bool bTest = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
-	if (HasAuthority() && FParse::Value(FCommandLine::Get(), TEXT("TorqueWeather="), WeatherName))
-		Weather = WeatherName.StartsWith(TEXT("wet")) || WeatherName.StartsWith(TEXT("rain")) ? 2 : WeatherName.StartsWith(TEXT("over")) ? 1 : 0;
-	else if (HasAuthority() && !bTest && Set.WeatherMode > 0)
-		Weather = Set.WeatherMode - 1;
+	Mode = bTest ? 1 : Set.WeatherMode;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWeather="), WeatherName))
+		Mode = WeatherName.StartsWith(TEXT("live")) ? FTorqueSettings::WeatherLive : WeatherName.StartsWith(TEXT("auto")) ? 0
+			: WeatherName.StartsWith(TEXT("wet")) || WeatherName.StartsWith(TEXT("rain")) ? 3 : WeatherName.StartsWith(TEXT("over")) ? 2 : 1;
+	// -TorqueWeatherAt=lat,lon asks for the weather somewhere else on Earth; otherwise the route's own
+	// place (Data/Buttertubs/route.json's origin_geo), until the weather follows the rider (stage 5).
+	FString At;
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWeatherAt="), At))
+	{
+		FString LatText, LonText;
+		if (At.Split(TEXT(","), &LatText, &LonText))
+		{
+			LatitudeAt = FMath::Clamp(FCString::Atod(*LatText), -90.0, 90.0);
+			LongitudeAt = FMath::Clamp(FCString::Atod(*LonText), -180.0, 180.0);
+		}
+	}
+	else
+	{
+		FString Route;
+		TorqueFit::Json Root;
+		if (FFileHelper::LoadFileToString(Route, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Buttertubs/route.json")))
+			&& TorqueFit::Json::Parse(TCHAR_TO_UTF8(*Route), Root))
+			if (const TorqueFit::Json* Geo = Root.Get("origin_geo"); Geo && Geo->IsArray() && Geo->A.size() == 2)
+			{
+				LatitudeAt = Geo->A[0].N;
+				LongitudeAt = Geo->A[1].N;
+			}
+	}
+	if (HasAuthority())
+	{
+		Weather = Mode >= 1 && Mode <= 3 ? Mode - 1 : 0;
+		SetFromState(TorqueWeather::Preset(Weather));
+		GoToMode(0.0f);
+	}
 	WeatherChangeIn = FMath::FRandRange(300.0, 720.0);
 	// The clock where it was left (the level's own light until the player sets one).
 	if (HasAuthority() && !bTest) Hour = Set.TimeOfDay;
@@ -72,6 +111,12 @@ void ATorqueGameState::EndPlay(const EEndPlayReason::Type Reason)
 	{
 		Set.TimeOfDay = Hour;
 		Set.Save();
+	}
+	if (LiveRequest.IsValid())
+	{
+		LiveRequest->OnProcessRequestComplete().Unbind();
+		LiveRequest->CancelRequest();
+		LiveRequest.Reset();
 	}
 	if (UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this))
 	{
@@ -156,11 +201,19 @@ void ATorqueGameState::OnRep_Shed()
 	}
 }
 
-void ATorqueGameState::SetWeather(int32 NewWeather)
+void ATorqueGameState::SetWeather(int32 NewWeather, float FadeSeconds)
 {
 	if (!HasAuthority()) return;
-	Weather = ((NewWeather % 3) + 3) % 3;
-	ApplyWeather();   // here; the others get it through OnRep_Weather
+	const int32 Kind = ((NewWeather % 3) + 3) % 3;
+	Fade.FadeTo(TorqueWeather::Preset(Kind), FadeSeconds);
+	if (FadeSeconds <= 0.0f) Weather = Kind;   // (otherwise it changes as the fade passes halfway)
+	// (Live never reached keeps saying so while it changes by itself; the V key on a live day holds
+	// its kind until the next live answer.)
+	if (!(Mode == FTorqueSettings::WeatherLive && Net.Source == (uint8)ETorqueWeatherSource::LiveOffline))
+		Net.Source = (uint8)(Mode == 0 ? ETorqueWeatherSource::ByItself : ETorqueWeatherSource::Fixed);
+	AppliedAt = -1.0;
+	SendNet();           // the others get it through OnRep_Net
+	TickWeather(0.0f);   // and here
 }
 
 ATorqueGameState::ATorqueGameState()
@@ -171,16 +224,21 @@ ATorqueGameState::ATorqueGameState()
 void ATorqueGameState::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TickWeather(DeltaSeconds);
 	if (!HasAuthority()) return;
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	// The weather changing by itself (Torque Shed's "Changes by itself"): every few minutes, a step to
-	// the next kind along (sunny, overcast, wet roads), never straight from sun to rain.
-	if (Set.WeatherMode == 0 && (WeatherChangeIn -= DeltaSeconds) <= 0.0)
+	// the next kind along (sunny, overcast, wet roads), never straight from sun to rain, fading over a
+	// few minutes. Live does the same while it has never reached the weather service.
+	const bool bByItself = Mode == 0 || (Mode == FTorqueSettings::WeatherLive && Net.Source == (uint8)ETorqueWeatherSource::LiveOffline);
+	if (bByItself && (WeatherChangeIn -= DeltaSeconds) <= 0.0)
 	{
 		WeatherChangeIn = FMath::FRandRange(300.0, 720.0);
 		const int32 Next = Weather == 0 ? 1 : Weather == 2 ? 1 : (FMath::RandBool() ? 0 : 2);
-		SetWeather(Next);
+		SetWeather(Next, 180.0f);
 	}
+	// Live: asking again every 15 minutes (sooner after a failure).
+	if (Mode == FTorqueSettings::WeatherLive && !bFetching && (NextFetchIn -= DeltaSeconds) <= 0.0) FetchLive(0);
 	// The day going by: a whole day in Settings' Day length of real minutes.
 	if (Set.bDayNight)
 	{
@@ -293,26 +351,273 @@ void ATorqueGameState::ApplySun()
 
 void ATorqueGameState::OnRep_Weather()
 {
-	ApplyWeather();
+	// (The light follows Net; the bikes read the kind.)
 }
 
-// Weather: the level is built sunny; overcast dims and softens the sun, greys the sky and thickens the
-// haze; wet is overcast plus wet roads (the materials' Wetness, MPC_Weather). The bikes take the grip
-// from GetWeather.
+// --- The weather engine (stage 1): one State, fading; the host's sent to everyone -------------------
+
+void ATorqueGameState::SetFromState(const TorqueWeather::State& S)
+{
+	Fade.Set(S);
+	Weather = TorqueWeather::NearestKind(S);
+	AppliedAt = -1.0;
+}
+
+void ATorqueGameState::WeatherModeChanged(float FadeSeconds)
+{
+	if (!HasAuthority()) return;
+	Mode = FTorqueSettings::Get().WeatherMode;
+	GoToMode(FadeSeconds);
+}
+
+void ATorqueGameState::GoToMode(float FadeSeconds)
+{
+	if (Mode >= 1 && Mode <= 3)
+	{
+		SetWeather(Mode - 1, FadeSeconds);
+		return;
+	}
+	if (Mode == 0)
+	{
+		Net.Source = (uint8)ETorqueWeatherSource::ByItself;
+		WeatherChangeIn = FMath::FRandRange(300.0, 720.0);
+		SendNet();
+		return;
+	}
+	// Live: the last answer at once when it's recent (a start with no internet carries on with it), and ask now.
+	FString Saved;
+	FString SavedAt;
+	TorqueWeather::State Last;
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	const bool bHave = GConfig && GConfig->GetString(TEXT("TorqueWeather"), TEXT("Last"), Saved, GGameUserSettingsIni)
+		&& GConfig->GetString(TEXT("TorqueWeather"), TEXT("LastAt"), SavedAt, GGameUserSettingsIni)
+		&& TorqueWeather::Load(TCHAR_TO_UTF8(*Saved), Last);
+	const int64 Then = bHave ? FCString::Atoi64(*SavedAt) : 0;
+	if (bHave && Now - Then < 3 * 3600)
+	{
+		Fade.FadeTo(Last, FadeSeconds > 0.0f ? 30.0 : 0.0);
+		if (FadeSeconds <= 0.0f) Weather = TorqueWeather::NearestKind(Last);
+		Net.Source = (uint8)ETorqueWeatherSource::LiveLastKnown;
+		Net.FetchedAt = Then;
+	}
+	else
+		Net.Source = (uint8)ETorqueWeatherSource::LiveWaiting;
+	bLiveApplied = false;
+	LiveFailures = 0;
+	NextFetchIn = 0.0;
+	if (!bFetching) FetchLive(0);
+	AppliedAt = -1.0;
+	SendNet();
+}
+
+void ATorqueGameState::SendNet()
+{
+	if (!HasAuthority()) return;
+	const TorqueWeather::State& S = Fade.Now;
+	Net.Cloud = (float)S.Cloud;
+	Net.Rain = (float)S.Rain;
+	Net.Snow = (float)S.Snow;
+	Net.Wind = (float)S.Wind;
+	Net.WindFrom = (float)S.WindFrom;
+	Net.Gust = (float)S.Gust;
+	Net.Air = (float)S.Air;
+	Net.Visibility = (float)S.Visibility;
+	Net.RoadWet = (float)S.RoadWet;
+	Net.Code = S.Code;
+	if (const UWorld* World = GetWorld()) NetSentAt = World->GetRealTimeSeconds();
+	ForceNetUpdate();
+}
+
+void ATorqueGameState::OnRep_Net()
+{
+	if (HasAuthority()) return;
+	TorqueWeather::State S;
+	S.Cloud = Net.Cloud;
+	S.Rain = Net.Rain;
+	S.Snow = Net.Snow;
+	S.Wind = Net.Wind;
+	S.WindFrom = Net.WindFrom;
+	S.Gust = Net.Gust;
+	S.Air = Net.Air;
+	S.Visibility = Net.Visibility;
+	S.RoadWet = Net.RoadWet;
+	S.Code = Net.Code;
+	// The host sends a fade a couple of times a second: ease between, so it stays smooth here too.
+	if (AppliedAt < 0.0) Fade.Set(S);
+	else Fade.FadeTo(S, 0.6);
+}
+
+void ATorqueGameState::TickWeather(float DeltaSeconds)
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+	const bool bMoved = Fade.Tick(DeltaSeconds);
+	const double Now = World->GetRealTimeSeconds();
+	if (HasAuthority())
+	{
+		const int32 Kind = TorqueWeather::NearestKind(Fade.Now);
+		if (Kind != Weather) Weather = Kind;
+		// To everyone: twice a second while it fades, and as it ends.
+		if (bMoved && (!Fade.Fading() || NetSentAt < 0.0 || Now - NetSentAt >= 0.5)) SendNet();
+	}
+	// On the screen: ten times a second while it fades (the light moves slowly), and as it ends.
+	if (AppliedAt < 0.0 || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
+	{
+		AppliedAt = Now;
+		ApplyWeather();
+	}
+}
+
+FString ATorqueGameState::WeatherText(bool bImperial) const
+{
+	static const TCHAR* Kinds[] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
+	const FString Words = UTF8_TO_TCHAR(TorqueWeather::Describe(Fade.Now, bImperial).c_str());
+	const int64 Mins = Net.FetchedAt > 0 ? FMath::Max<int64>((FDateTime::UtcNow().ToUnixTimestamp() - Net.FetchedAt) / 60, 0) : -1;
+	const FString Ago = Mins < 0 ? FString() : Mins < 1 ? FString(TEXT("just now")) : Mins < 120 ? FString::Printf(TEXT("%lld min ago"), Mins)
+		: FString::Printf(TEXT("%lld hours ago"), Mins / 60);
+	switch ((ETorqueWeatherSource)Net.Source)
+	{
+	case ETorqueWeatherSource::Live: return FString::Printf(TEXT("Live: %s (updated %s)"), *Words, *Ago);
+	case ETorqueWeatherSource::LiveLastKnown: return FString::Printf(TEXT("Live, last known: %s (no connection; from %s)"), *Words, *Ago);
+	case ETorqueWeatherSource::LiveWaiting: return TEXT("Live: asking the weather service...");
+	case ETorqueWeatherSource::LiveOffline: return FString::Printf(TEXT("Live: no connection, changing by itself meanwhile (%s now)"), Kinds[FMath::Clamp(Weather, 0, 2)]);
+	default: return Kinds[FMath::Clamp(Weather, 0, 2)];
+	}
+}
+
+// --- Live (stage 2) -----------------------------------------------------------------------------------
+
+void ATorqueGameState::FetchLive(int32 Feed)
+{
+	if (!HasAuthority()) return;
+	const std::string Url = Feed == 0 ? TorqueWeather::OpenMeteoUrl(LatitudeAt, LongitudeAt) : TorqueWeather::MetNoUrl(LatitudeAt, LongitudeAt);
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(UTF8_TO_TCHAR(Url.c_str()));
+	Req->SetVerb(TEXT("GET"));
+	// (MET Norway asks every app to name itself.)
+	Req->SetHeader(TEXT("User-Agent"), TEXT("TorqueShedUE/0.1 (free hobby motorcycle game)"));
+	Req->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	Req->SetTimeout(15.0f);
+	TWeakObjectPtr<ATorqueGameState> Self(this);
+	Req->OnProcessRequestComplete().BindLambda([Self, Feed](FHttpRequestPtr, FHttpResponsePtr Resp, bool bConnected)
+	{
+		ATorqueGameState* GS = Self.Get();
+		if (!GS) return;
+		const bool bOk = bConnected && Resp.IsValid() && EHttpResponseCodes::IsOk(Resp->GetResponseCode());
+		const FString Body = Resp.IsValid() ? Resp->GetContentAsString() : FString();
+		if (!bOk && Resp.IsValid() && !Body.IsEmpty() && Feed == 0)
+		{
+			// (Open-Meteo says why in JSON.)
+			TorqueWeather::State Ignored;
+			std::string Why;
+			TorqueWeather::ParseOpenMeteo(TCHAR_TO_UTF8(*Body), Ignored, nullptr, &Why);
+			GS->LiveFailed(Feed, FString::Printf(TEXT("HTTP %d %s"), Resp->GetResponseCode(), UTF8_TO_TCHAR(Why.c_str())));
+			return;
+		}
+		if (!bOk)
+		{
+			GS->LiveFailed(Feed, Resp.IsValid() ? FString::Printf(TEXT("HTTP %d"), Resp->GetResponseCode()) : FString(TEXT("no connection")));
+			return;
+		}
+		GS->LiveAnswer(Feed, true, Body);
+	});
+	bFetching = true;
+	LiveRequest = Req;
+	UE_LOG(LogTemp, Log, TEXT("Torque weather: asking %s for %.4f, %.4f"), Feed == 0 ? TEXT("Open-Meteo") : TEXT("MET Norway"), LatitudeAt, LongitudeAt);
+	Req->ProcessRequest();
+}
+
+void ATorqueGameState::LiveAnswer(int32 Feed, bool, const FString& Body)
+{
+	bFetching = false;
+	LiveRequest.Reset();
+	TorqueWeather::State S;
+	long long When = 0;
+	std::string Why;
+	const std::string Text = TCHAR_TO_UTF8(*Body);
+	const bool bParsed = Feed == 0 ? TorqueWeather::ParseOpenMeteo(Text, S, &When, &Why) : TorqueWeather::ParseMetNo(Text, S, &When, &Why);
+	if (!bParsed)
+	{
+		LiveFailed(Feed, UTF8_TO_TCHAR(Why.c_str()));
+		return;
+	}
+	if (Mode != FTorqueSettings::WeatherLive) return;   // (switched off while it was asking)
+	LiveFailures = 0;
+	NextFetchIn = 15.0 * 60.0;
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	// The first answer of a ride shows at once if the ride has only just begun (you're still in the
+	// shed); otherwise new data eases in over four minutes, so nothing pops.
+	const UWorld* World = GetWorld();
+	const bool bStart = !bLiveApplied && Net.Source != (uint8)ETorqueWeatherSource::LiveLastKnown && World && World->GetTimeSeconds() < 20.0;
+	Fade.FadeTo(S, bStart ? 0.0 : !bLiveApplied ? 30.0 : 240.0);
+	if (bStart) Weather = TorqueWeather::NearestKind(S);
+	bLiveApplied = true;
+	Net.Source = (uint8)ETorqueWeatherSource::Live;
+	Net.FetchedAt = Now;
+	AppliedAt = -1.0;
+	SendNet();
+	if (GConfig)
+	{
+		GConfig->SetString(TEXT("TorqueWeather"), TEXT("Last"), UTF8_TO_TCHAR(TorqueWeather::Save(S).c_str()), GGameUserSettingsIni);
+		GConfig->SetString(TEXT("TorqueWeather"), TEXT("LastAt"), *FString::Printf(TEXT("%lld"), Now), GGameUserSettingsIni);
+		GConfig->SetString(TEXT("TorqueWeather"), TEXT("LastFrom"), Feed == 0 ? TEXT("Open-Meteo") : TEXT("MET Norway"), GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque weather: live from %s: %s (road wet %.2f, rain %.1f mm/h, cloud %.0f%%, visibility %.0f m, data time %lld)"),
+		Feed == 0 ? TEXT("Open-Meteo") : TEXT("MET Norway"), UTF8_TO_TCHAR(TorqueWeather::Describe(S, false).c_str()), S.RoadWet, S.Rain, S.Cloud * 100.0,
+		S.Visibility, (long long)When);
+}
+
+void ATorqueGameState::LiveFailed(int32 Feed, const FString& Why)
+{
+	bFetching = false;
+	LiveRequest.Reset();
+	UE_LOG(LogTemp, Warning, TEXT("Torque weather: %s failed: %s"), Feed == 0 ? TEXT("Open-Meteo") : TEXT("MET Norway"), *Why);
+	if (Mode != FTorqueSettings::WeatherLive) return;
+	// The backup service next, then a wait that grows: 2, 5, then 10 minutes.
+	if (Feed == 0)
+	{
+		FetchLive(1);
+		return;
+	}
+	++LiveFailures;
+	NextFetchIn = LiveFailures <= 1 ? 120.0 : LiveFailures == 2 ? 300.0 : 600.0;
+	// No internet: carry on with the last weather; never reached (or hours old): change by itself meanwhile.
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	if (Net.FetchedAt > 0 && Now - Net.FetchedAt < 3 * 3600)
+		Net.Source = (uint8)ETorqueWeatherSource::LiveLastKnown;
+	else if (Net.Source != (uint8)ETorqueWeatherSource::LiveOffline)
+	{
+		Net.Source = (uint8)ETorqueWeatherSource::LiveOffline;
+		WeatherChangeIn = FMath::FRandRange(300.0, 720.0);
+	}
+	SendNet();
+}
+
+// Weather: the level is built sunny. As the sky dulls (the State's cloud) the sun dims and softens,
+// the sky greys and the haze thickens; a wet day darkens a little more, and the roads take their
+// wetness (the materials' Wetness, MPC_Weather). Low visibility thickens the haze further. The
+// three presets give exactly the light the three kinds always had. The bikes take the grip from
+// GetWeather (the nearest kind) until stage 4.
 void ATorqueGameState::ApplyWeather()
 {
 	UWorld* W = GetWorld();
 	if (!W) return;
-	UDirectionalLightComponent* Sun = nullptr;
-	for (TActorIterator<ADirectionalLight> It(W); It && !Sun; ++It) Sun = Cast<UDirectionalLightComponent>(It->GetLightComponent());
-	USkyLightComponent* Sky = nullptr;
-	for (TActorIterator<ASkyLight> It(W); It && !Sky; ++It) Sky = It->GetLightComponent();
-	UExponentialHeightFogComponent* Fog = nullptr;
-	for (TActorIterator<AExponentialHeightFog> It(W); It && !Fog; ++It) Fog = It->GetComponent();
-	USkyAtmosphereComponent* Atmo = nullptr;
-	for (TActorIterator<AActor> It(W); It && !Atmo; ++It) Atmo = It->FindComponentByClass<USkyAtmosphereComponent>();
-	APostProcessVolume* Ppv = nullptr;
-	for (TActorIterator<APostProcessVolume> It(W); It && !Ppv; ++It) if (It->bUnbound) Ppv = *It;
+	if (!bLooked || !SunPtr.IsValid())
+	{
+		bLooked = true;
+		for (TActorIterator<ADirectionalLight> It(W); It && !SunPtr.IsValid(); ++It) SunPtr = Cast<UDirectionalLightComponent>(It->GetLightComponent());
+		for (TActorIterator<ASkyLight> It(W); It && !SkyPtr.IsValid(); ++It) SkyPtr = It->GetLightComponent();
+		for (TActorIterator<AExponentialHeightFog> It(W); It && !FogPtr.IsValid(); ++It) FogPtr = It->GetComponent();
+		for (TActorIterator<AActor> It(W); It && !AtmoPtr.IsValid(); ++It) AtmoPtr = It->FindComponentByClass<USkyAtmosphereComponent>();
+		for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It) if (It->bUnbound) PpvPtr = *It;
+		if (!WeatherMpc) WeatherMpc = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather"));
+	}
+	UDirectionalLightComponent* Sun = SunPtr.Get();
+	USkyLightComponent* Sky = SkyPtr.Get();
+	UExponentialHeightFogComponent* Fog = FogPtr.Get();
+	USkyAtmosphereComponent* Atmo = AtmoPtr.Get();
+	APostProcessVolume* Ppv = PpvPtr.Get();
 	if (!bCaptured)
 	{
 		bCaptured = true;
@@ -322,35 +627,38 @@ void ATorqueGameState::ApplyWeather()
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
 		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; }
 	}
-	const bool bDull = Weather >= 1;
-	const bool bWet = Weather == 2;
+	const TorqueWeather::State& St = Fade.Now;
+	const float Dull = (float)TorqueWeather::Dullness(St);    // 0 the sunny preset's sky .. 1 overcast's
+	const float WetL = (float)TorqueWeather::WetLook(St);     // 0 dry .. 1 the wet preset's
+	const float Haze = (float)TorqueWeather::FogBoost(St);    // 1, or more in poor visibility
 	if (Sun)
 	{
-		Sun->SetIntensity((bDull ? SunLux * (bWet ? 0.10f : 0.14f) : SunLux) * DayLight);
-		Sun->SetLightSourceAngle(bDull ? 40.0f : SunAngle);   // a sun behind cloud: next to no shadow
+		Sun->SetIntensity(SunLux * FMath::Lerp(1.0f, FMath::Lerp(0.14f, 0.10f, WetL), Dull) * DayLight);
+		Sun->SetLightSourceAngle(FMath::Lerp(SunAngle, 40.0f, Dull));   // a sun behind cloud: next to no shadow
 	}
-	if (Sky) Sky->SetIntensity(bDull ? SkyIntensity * 2.5f : SkyIntensity);
+	if (Sky) Sky->SetIntensity(SkyIntensity * FMath::Lerp(1.0f, 2.5f, Dull));
 	// A real camera opens up under cloud: the exposure follows (the level's histogram range was set for
 	// sun, so it clamped and overcast came out far too dark).
 	if (Ppv)
 	{
 		Ppv->Settings.bOverride_AutoExposureBias = true;
 		Ppv->Settings.bOverride_AutoExposureMinBrightness = true;
-		Ppv->Settings.AutoExposureBias = bDull ? ExposureBias + (bWet ? 1.9f : 1.6f) : ExposureBias;
+		Ppv->Settings.AutoExposureBias = ExposureBias + Dull * FMath::Lerp(1.6f, 1.9f, WetL);
 		// (and at night, by as much again: dark, but you can see the road in your lights).
-		Ppv->Settings.AutoExposureMinBrightness = (bDull ? ExposureMin - 3.0f : ExposureMin) - 5.0f * (1.0f - DayLight);
+		Ppv->Settings.AutoExposureMinBrightness = ExposureMin - 3.0f * Dull - 5.0f * (1.0f - DayLight);
 	}
-	if (Fog) Fog->SetFogDensity(bDull ? FogDensity * (bWet ? 3.0f : 2.0f) : FogDensity);
+	if (Fog) Fog->SetFogDensity(FogDensity * FMath::Lerp(1.0f, FMath::Lerp(2.0f, 3.0f, WetL), Dull) * Haze);
 	if (Atmo)
 	{
 		// A white-grey British overcast: almost no Rayleigh (the blue), thick Mie (the white haze).
-		Atmo->SetMieScatteringScale(bDull ? Mie * 12.0f : Mie);
-		Atmo->SetRayleighScatteringScale(bDull ? Rayleigh * 0.08f : Rayleigh);
+		Atmo->SetMieScatteringScale(Mie * FMath::Lerp(1.0f, 12.0f, Dull));
+		Atmo->SetRayleighScatteringScale(Rayleigh * FMath::Lerp(1.0f, 0.08f, Dull));
 	}
-	if (UMaterialParameterCollection* Mpc = LoadObject<UMaterialParameterCollection>(nullptr,
-		TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather")))
+	if (WeatherMpc) UKismetMaterialLibrary::SetScalarParameterValue(W, WeatherMpc, TEXT("Wetness"), (float)FMath::Clamp(St.RoadWet, 0.0, 1.0));
+	// The log: as the kind changes (the tests read it), not ten times a second.
+	if (Weather != LoggedKind)
 	{
-		UKismetMaterialLibrary::SetScalarParameterValue(W, Mpc, TEXT("Wetness"), bWet ? 1.0f : 0.0f);
+		LoggedKind = Weather;
+		UE_LOG(LogTemp, Log, TEXT("Torque: weather %d"), Weather);
 	}
-	UE_LOG(LogTemp, Log, TEXT("Torque: weather %d"), Weather);
 }
