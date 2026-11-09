@@ -40,6 +40,18 @@ FVector KindSize(FName Kind)
 
 const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
 
+// A drawn item's holder and everything on it (a delivery's labels and writing too):
+// DestroyComponent(true) would only promote them to the actor, left hanging where the box was.
+void DestroyHolder(USceneComponent* H)
+{
+	if (!H) return;
+	TArray<USceneComponent*> Kids;
+	H->GetChildrenComponents(true, Kids);
+	for (USceneComponent* K : Kids)
+		if (K) K->DestroyComponent();
+	H->DestroyComponent();
+}
+
 // --- Deliveries (the props thread's Data/Props/deliveries.json) -----------------------------------------
 // A boxed part comes in cardboard, or a wooden crate for the heavy kinds and anything long; the box
 // whose shape is nearest, scaled to the part's size; a made-up courier's label on the lid (and the
@@ -149,7 +161,10 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 	auto Label = [&](const FVector& At, const FRotator& Rot, const FRotator& TextRot, const FVector& StripOffset)
 	{
 		if (UStaticMeshComponent* L = Prop(Owner, Parent, LabelMesh, At, Rot, FVector::OneVector))
+		{
+			Made.Add(L);   // moves, hides and is aimed at with the box
 			if (UMaterialInstanceDynamic* M = L->CreateDynamicMaterialInstance(0)) M->SetScalarParameterValue(TEXT("Courier"), (float)Courier);
+		}
 		// The contents and tracking number over the label's blank strip (its lower quarter).
 		Words(Owner, Parent, LabelText, At + StripOffset, TextRot, 0.9f, Ink);
 	};
@@ -177,7 +192,10 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 		const FQuat Tilt(FVector(0.0, 1.0, 0.0), FMath::DegreesToRadians(Skew));
 		const FRotator Rot = Tilt.Rotator();
 		if (UStaticMeshComponent* N = Prop(Owner, Parent, NoteMesh, At, Rot, FVector::OneVector))
+		{
+			Made.Add(N);
 			if (UMaterialInstanceDynamic* M = N->CreateDynamicMaterialInstance(0)) M->SetVectorParameterValue(TEXT("Tint"), It.OrderedTint);
+		}
 		FString Who = It.OrderedBy;
 		if (Who.IsEmpty())
 			if (const UWorld* World = Owner->GetWorld())
@@ -279,7 +297,7 @@ void ATorqueShedItems::MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>&
 void ATorqueShedItems::Rebuild()
 {
 	for (FDrawn& D : Drawn)
-		if (USceneComponent* H = D.Holder.Get()) H->DestroyComponent(true);
+		TSI::DestroyHolder(D.Holder.Get());
 	for (UStaticMeshComponent* C : Meshes)
 		if (C) C->DestroyComponent();
 	Drawn.Reset();
@@ -394,7 +412,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	}
 	if (!Box.IsValid)
 	{
-		Holder->DestroyComponent();
+		TSI::DestroyHolder(Holder);
 		return;
 	}
 	FDrawn D;
