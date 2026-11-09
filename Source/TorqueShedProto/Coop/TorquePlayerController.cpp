@@ -35,6 +35,16 @@ float StepF(float V, int32 Dir, float Step, float Lo, float Hi)
 	return FMath::Clamp(FMath::RoundToFloat((V + Dir * Step) / Step) * Step, Lo, Hi);
 }
 const int32 FrameCaps[] = {0, 30, 60, 90, 120, 144, 165, 240};
+// Mouse look speeds, times the default: finer steps low down, bigger ones up high (to 10x).
+const float MouseSpeeds[] = {0.1f, 0.15f, 0.25f, 0.35f, 0.5f, 0.65f, 0.8f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 3.5f, 4.0f,
+	5.0f, 6.0f, 7.0f, 8.0f, 10.0f};
+float StepList(float V, int32 Dir, const float* List, int32 Num)
+{
+	int32 Near = 0;
+	for (int32 I = 1; I < Num; ++I)
+		if (FMath::Abs(List[I] - V) < FMath::Abs(List[Near] - V)) Near = I;
+	return List[FMath::Clamp(Near + Dir, 0, Num - 1)];
+}
 } // namespace
 
 ATorquePlayerController::ATorquePlayerController()
@@ -396,8 +406,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Controller:
-		Setting(TEXT("Mouse look speed"), FString::Printf(TEXT("%.2fx"), S.MouseLook), FString(),
-			[&S](int32 D) { S.MouseLook = StepF(S.MouseLook, D, 0.25f, 0.25f, 3.0f); });
+		Setting(TEXT("Mouse look speed"), FString::Printf(TEXT("%.2fx"), S.MouseLook), TEXT("0.1x to 10x the default"),
+			[&S](int32 D) { S.MouseLook = StepList(S.MouseLook, D, MouseSpeeds, UE_ARRAY_COUNT(MouseSpeeds)); });
 		Setting(TEXT("Stick look speed"), FString::Printf(TEXT("%.2fx"), S.PadLook), TEXT("The right stick, on foot and on the bike"),
 			[&S](int32 D) { S.PadLook = StepF(S.PadLook, D, 0.25f, 0.25f, 3.0f); });
 		Setting(TEXT("Invert looking up and down"), OnOff(S.bInvertLook), FString(), [&S](int32) { S.bInvertLook = !S.bInvertLook; });

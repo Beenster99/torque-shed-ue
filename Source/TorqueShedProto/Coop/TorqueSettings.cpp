@@ -55,6 +55,7 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("Realism"), Realism, Ini);
 	GConfig->GetBool(Section, TEXT("OpenRouter"), bOpenRouter, Ini);
 	GConfig->GetFloat(Section, TEXT("MouseLook"), MouseLook, Ini);
+	MouseLook = FMath::Clamp(MouseLook, 0.1f, 10.0f);
 	GConfig->GetFloat(Section, TEXT("PadLook"), PadLook, Ini);
 	GConfig->GetBool(Section, TEXT("InvertLook"), bInvertLook, Ini);
 	GConfig->GetFloat(Section, TEXT("StickDeadZone"), StickDeadZone, Ini);
