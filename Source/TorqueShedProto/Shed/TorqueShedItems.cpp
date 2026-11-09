@@ -44,14 +44,22 @@ const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
 // A boxed part comes in cardboard, or a wooden crate for the heavy kinds and anything long; the box
 // whose shape is nearest, scaled to the part's size; a made-up courier's label on the lid (and the
 // front of a crate) with the part and a tracking number; a sticky note saying who it's for.
-struct FBoxVariant { const TCHAR* Id; FVector Size; };
+// Each with its native size and the exact spots on its surface (deliveries.json "anchors", in its own
+// frame, cm: x right, y front, z up, from its floor centre) for the lid label, a crate's front label
+// and the sticky note: clear of a crate's battens and a box's tape.
+struct FBoxVariant { const TCHAR* Id; FVector Size, Lid, Front, Note; };
 const FBoxVariant CardboardBoxes[] = {
-	{TEXT("box_cardboard"), FVector(45, 40, 35)}, {TEXT("box_cardboard_long"), FVector(95, 32, 30)}, {TEXT("box_cardboard_flat"), FVector(70, 60, 25)}};
+	{TEXT("box_cardboard"), FVector(45, 40, 35), FVector(10.5, 11.0, 34.8), FVector::ZeroVector, FVector(-11.25, 20.0, 28.0)},
+	{TEXT("box_cardboard_long"), FVector(95, 32, 30), FVector(35.5, 8.0, 29.8), FVector::ZeroVector, FVector(-23.75, 16.0, 23.0)},
+	{TEXT("box_cardboard_flat"), FVector(70, 60, 25), FVector(23.0, 21.0, 24.8), FVector::ZeroVector, FVector(-17.5, 30.0, 18.0)}};
 const FBoxVariant Crates[] = {
-	{TEXT("crate_wood"), FVector(75, 65, 65)}, {TEXT("crate_wood_long"), FVector(150, 60, 55)}, {TEXT("crate_wood_flat"), FVector(100, 85, 45)}};
+	{TEXT("crate_wood"), FVector(75, 65, 65), FVector(20.5, 23.5, 65.0), FVector(20.5, 32.5, 22.0), FVector(-24.7, 32.5, 52.5)},
+	{TEXT("crate_wood_long"), FVector(150, 60, 55), FVector(58.0, 21.0, 55.0), FVector(58.0, 30.0, 22.0), FVector(-62.2, 30.0, 42.5)},
+	{TEXT("crate_wood_flat"), FVector(100, 85, 45), FVector(33.0, 33.5, 45.0), FVector(33.0, 42.5, 22.0), FVector(-37.2, 42.5, 32.5)}};
+constexpr double Proud = 0.05;   // how far the label and note stand off the surface
 const TCHAR* const CrateKinds[] = {TEXT("frame"), TEXT("engine"), TEXT("gearbox"), TEXT("head"), TEXT("wheel"), TEXT("tyre"), TEXT("fork"),
 	TEXT("swingarm"), TEXT("exhaust"), TEXT("fairing"), TEXT("tank")};
-constexpr double CrateOverCm = 75.0, LabelInset = 4.0;
+constexpr double CrateOverCm = 75.0;
 const FVector2D LabelSize(16.0, 10.0), NoteSize(7.6, 7.6);
 constexpr int32 Couriers = 8;
 
@@ -147,23 +155,24 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 	};
 	if (LabelMesh)
 	{
-		const FVector Lid(Size.X * 0.5 - LabelInset - LabelSize.X * 0.5, Size.Y * 0.5 - LabelInset - LabelSize.Y * 0.5, Size.Z + 0.15);
+		// At the model's own spots, moved with its scale; the labels stay their real size.
+		const FVector Lid = Best->Lid * Scale + FVector(0.0, 0.0, Proud);
 		// Flat, read from the front (+y): its top away from you.
 		Label(Lid, FRotator::ZeroRotator, Facing(FVector::UpVector, FVector(0.0, -1.0, 0.0)), FVector(0.0, LabelSize.Y * 0.36, 0.05));
 		if (bCrate)
 		{
-			// On the front, standing up, right of the middle.
-			const FVector Front(Size.X * 0.2, Size.Y * 0.5 + 0.15, Size.Z * 0.55);
+			// On the front, standing up, its top up.
+			const FVector Front = Best->Front * Scale + FVector(0.0, Proud, 0.0);
 			Label(Front, Facing(FVector::ForwardVector, FVector(0.0, 1.0, 0.0)), Facing(FVector(0.0, 1.0, 0.0), FVector::UpVector),
 				FVector(0.0, 0.05, -LabelSize.Y * 0.36));
 		}
 	}
-	// The sticky note: the front face's upper left (as you face it), a few degrees off square, in the
+	// The sticky note: at its spot on the front face, a few degrees off square, in the
 	// colour of whoever ordered it, with their name.
 	if (UStaticMesh* NoteMesh = PropMesh(TEXT("sticky_note")))
 	{
 		// (The note's model stands up already, facing +y like the box's front, its back on its y 0.)
-		const FVector At(Size.X * 0.25, Size.Y * 0.5 + 0.1, Size.Z * 0.72);
+		const FVector At = Best->Note * Scale + FVector(0.0, Proud, 0.0);
 		const float Skew = (float)((int32)(Seed(It.Id, 0x5717u) % 9u) - 4);
 		const FQuat Tilt(FVector(0.0, 1.0, 0.0), FMath::DegreesToRadians(Skew));
 		const FRotator Rot = Tilt.Rotator();
@@ -174,7 +183,7 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 			if (const UWorld* World = Owner->GetWorld())
 				if (const APlayerController* PC = World->GetFirstPlayerController(); PC && PC->PlayerState) Who = PC->PlayerState->GetPlayerName();
 		const FRotator TextRot = (Tilt * Facing(FVector(0.0, 1.0, 0.0), FVector::UpVector).Quaternion()).Rotator();
-		Words(Owner, Parent, TEXT("For ") + Who, At + FVector(0.0, 0.25, 0.0), TextRot, 1.1f, FColor(25, 25, 30));
+		Words(Owner, Parent, TEXT("For ") + Who, At + FVector(0.0, 0.15, 0.0), TextRot, 1.1f, FColor(25, 25, 30));
 	}
 	return true;
 }
