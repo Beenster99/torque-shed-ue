@@ -41,6 +41,11 @@ struct FTorqueAvatarInput
 struct FTorqueRideTargets
 {
 	FVector Hip = FVector::ZeroVector, Neck = FVector::ZeroVector;
+	// The seat's top under the rider's hips (the hips are then sat on it by this body's own hip joints),
+	// and the tank's back edge along x (the crotch kept behind it); both in the parent's space.
+	FVector Seat = FVector::ZeroVector;
+	bool bSeat = false;
+	double TankRearX = 1.0e9;
 	FVector Wrist[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector Grip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector Ankle[2] = {FVector::ZeroVector, FVector::ZeroVector};

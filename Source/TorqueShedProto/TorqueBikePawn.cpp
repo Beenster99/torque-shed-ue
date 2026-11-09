@@ -116,6 +116,12 @@ bool GroundTrace(UWorld* World, const FVector& From, const FVector& To, const FC
 }
 } // namespace
 
+namespace TorqueRiderSeat
+{
+// The Speed Twin's seat top under the rider's hips, as Tools/make_rider.py sat the rider on it.
+const FVector TwinSeat(-34.0, 0.0, 52.4);
+} // namespace TorqueRiderSeat
+
 ATorqueBikePawn::ATorqueBikePawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -658,6 +664,14 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			// No drawn grips (a style whose bars don't take them): the layout's.
 			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
 			RiderGrip[0] = GripBox[0].IsValid ? GripBox[0].GetCenter() : FVector(RiderGrip[1].X, -RiderGrip[1].Y, RiderGrip[1].Z);
+			// The tank's back edge as drawn (the rider's crotch is kept behind it).
+			static const FName TankTag(TEXT("Slot:tank"));
+			FBox TankBox(ForceInit);
+			for (UStaticMeshComponent* C : ModelParts)
+				if (C && C->GetStaticMesh() && C->ComponentHasTag(TankTag))
+					TankBox += C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
+			RiderTankRearX = TankBox.IsValid ? TankBox.Min.X : 1.0e9;
+			UE_LOG(LogTemp, Log, TEXT("Torque: rider seat %s, tank's back edge x %.1f"), *RiderSeat.ToCompactString(), TankBox.IsValid ? TankBox.Min.X : 0.0);
 			bRiderLaidBack = Frame.bLaidBack;
 			bRiderOnLayout = true;
 			bRiderFitted = false;
@@ -1743,6 +1757,11 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	const FRiderPoseOut& R = RiderRig.Last;
 	FTorqueRideTargets T;
 	T.Hip = R.Hip;
+	// The seat's top under the hips: the rider rig's pelvis less its height over the seat it was made
+	// sat on (the Speed Twin's), so the MetaHuman sits by its own hips; and the tank's back edge.
+	T.Seat = R.Hip + (TorqueRiderSeat::TwinSeat - RiderRig.PelvisRest());
+	T.bSeat = true;
+	T.TankRearX = RiderTankRearX;
 	T.Neck = R.Neck;
 	T.Look = R.Look;
 	T.Limp = R.Limp;
@@ -1850,7 +1869,7 @@ void ATorqueBikePawn::FitRiderToBike()
 	bRiderFitted = true;
 	if (!bRiderOnLayout || !RiderRig.IsValid()) return;
 	// The Speed Twin's, as make_rider.py sat the rider: the seat's top under the hips, the pegs.
-	static const FVector TwinSeat(-34.0, 0.0, 52.4);
+	const FVector TwinSeat = TorqueRiderSeat::TwinSeat;
 	static const FVector TwinPeg[2] = {FVector(-22.0, -17.0, 4.0), FVector(-22.0, 17.0, 4.0)};
 	FVector Neck0, Shoulder0[2], Wrist0[2], Ankle0[2];
 	const FVector Pelvis0 = RiderRig.PelvisRest();

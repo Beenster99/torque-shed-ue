@@ -876,10 +876,26 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 	auto ToCQ = [&RelQ](const FQuat& Q) { return RelQ.Inverse() * Q * RelQ; };
 
 	// The back from the hips towards the rider's neck, shared up the spine as the rider rig does.
-	const FVector Hip = ToC(Tg.Hip);
-	FQuat Back = FQuat::FindBetweenVectors(Bones[Neck != INDEX_NONE ? Neck : Head].Rest - Bones[Pelvis].Rest, ToC(Tg.Neck) - Hip);
+	FVector Hip = ToC(Tg.Hip);
+	const FVector Spine0 = Bones[Neck != INDEX_NONE ? Neck : Head].Rest - Bones[Pelvis].Rest;
+	FQuat Back = FQuat::FindBetweenVectors(Spine0, ToC(Tg.Neck) - Hip);
 	const FQuat LookC = ToCQ(Tg.Look);
 	const double Off = FMath::Clamp(Tg.Limp, 0.0, 1.0);
+	// Sat on the seat by this body's own hips, not the rider rig's pelvis (a MetaHuman's pelvis bone
+	// sits higher above its seat bones than the kit rider's): the hip joints 9 cm above the seat's top,
+	// right over the rig's seat point; then moved back if that leaves the crotch (9 cm ahead of the
+	// hip joints) within 2 cm of the tank's back edge. The back then leans from where the hips are.
+	if (Tg.bSeat && Thigh[0] != INDEX_NONE && Thigh[1] != INDEX_NONE)
+	{
+		const FVector HipJoints0 = (Bones[Thigh[0]].Rest + Bones[Thigh[1]].Rest) * 0.5 - Bones[Pelvis].Rest;
+		const FQuat PelvisQ = FQuat::Slerp(FQuat::Identity, Back, 0.15);
+		FVector Sat = ToC(Tg.Seat) + Up * 9.0 - PelvisQ.RotateVector(HipJoints0);
+		const FVector Crotch = Rel.TransformPosition(Sat + PelvisQ.RotateVector(HipJoints0) + Fwd * 9.0);
+		const double Over = Crotch.X - (Tg.TankRearX - 2.0);
+		if (Over > 0.0) Sat -= Rel.InverseTransformVector(FVector(Over, 0.0, 0.0));
+		Hip = FMath::Lerp(Sat, Hip, Off);
+		Back = FQuat::FindBetweenVectors(Spine0, ToC(Tg.Neck) - Hip);
+	}
 
 	// The hands round the grips: each hand's frame from its own bones (wrist to middle knuckle, and
 	// across the knuckles from pinky to index, which lies along the bar), turned so the fingers point
