@@ -28,7 +28,9 @@ MetaHuman Creator is built into the editor from UE 5.6 and is free. Rigging and 
    - sign in to your Epic account, then run `py Tools/ue_metahumans.py make rig`. That auto-rigs each one in Epic's cloud (Joints Only), then builds it;
    - if a build still fails, the script exports the preview body mesh instead, and the game poses that body on its own.
 
-   It registers whatever it made at the end.
+   It registers whatever it made at the end. `make rig nowardrobe` does the same with the hair, beard and clothes taken off, which gives whole bodies.
+
+   **Hair and clothes in the game:** `register` lists each groom of the Blueprint (except peach fuzz) with its binding, what it's attached to, and `lod`, which is the first LOD drawn as cards. The game forces that LOD, so no strands are drawn. The Blueprint has no component for the clothes, so `register` takes them from the build folder: skeletal meshes that aren't the body or face, otherwise the Chaos outfit or cloth assets. The game poses them from the body, with cloth simulation off. This needs the `HairStrands`, `ChaosClothAsset` and `ChaosOutfitAsset` plugins, which are on in the `.uproject`. The log lines are `Torque: avatar X: groom ...` and `Torque: avatar X: clothes ...`.
 4. **Or make them by hand.** Four people is enough for a 4-player crew. For each one:
    - In the Content Browser, go to `/Game/MetaHumanSources/<Name>/` (sources live there and are never cooked; `register` moves any it finds under `/Game/MetaHumans`), right-click and choose **MetaHuman > MetaHuman Character**. Name it after the person and open it.
    - **Presets:** pick a different face for each person, a mix of ages and looks.

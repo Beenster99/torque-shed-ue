@@ -7,6 +7,7 @@
 #include "UObject/UnrealType.h"
 #include "Dom/JsonObject.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkinnedAsset.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "Misc/FileHelper.h"
@@ -51,7 +52,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
-struct FPart { FString Name, Mesh, Groom, Binding, AttachTo; TArray<FString> Materials; };
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth; TArray<FString> Materials; int32 Lod = -1; };
 struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
@@ -105,6 +106,8 @@ const TArray<FEntry>& Entries()
 				(*PO)->TryGetStringField(TEXT("groom"), P.Groom);
 				(*PO)->TryGetStringField(TEXT("binding"), P.Binding);
 				(*PO)->TryGetStringField(TEXT("attach"), P.AttachTo);
+				(*PO)->TryGetStringField(TEXT("cloth"), P.Cloth);
+				(*PO)->TryGetNumberField(TEXT("lod"), P.Lod);
 				P.Materials = Strings(*PO, TEXT("materials"));
 				E.Parts.Add(P);
 			}
@@ -113,6 +116,26 @@ const TArray<FEntry>& Entries()
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d MetaHuman avatars listed"), List.Num());
 	return List;
 }
+// Call O's Blueprint function Fn with one argument, set by Set on its first parameter (by name, so
+// the game needn't link the hair or cloth modules). False when there's no such function.
+bool CallWithOne(UObject* O, const TCHAR* Fn, TFunctionRef<void(FProperty*, void*)> Set)
+{
+	UFunction* F = O ? O->FindFunction(FName(Fn)) : nullptr;
+	if (!F) return false;
+	TArray<uint8> Buf;
+	Buf.SetNumZeroed(FMath::Max<int32>(F->ParmsSize, 1));
+	F->InitializeStruct(Buf.GetData());
+	for (TFieldIterator<FProperty> It(F); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		if (!It->HasAnyPropertyFlags(CPF_ReturnParm | CPF_OutParm))
+		{
+			Set(*It, It->ContainerPtrToValuePtr<void>(Buf.GetData()));
+			break;
+		}
+	O->ProcessEvent(F, Buf.GetData());
+	F->DestroyStruct(Buf.GetData());
+	return true;
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -152,6 +175,41 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		ByName.Add(P.Name, C);
 		Out.Add(C);
 	}
+	// Clothes kept as a Chaos outfit or cloth asset: a cloth component posed by the body, not simulated
+	// (cheaper, and steady on the bike).
+	UClass* ClothClass = FindObject<UClass>(nullptr, TEXT("/Script/ChaosClothAssetEngine.ChaosClothComponent"));
+	for (const FPart& P : E.Parts)
+	{
+		if (P.Cloth.IsEmpty()) continue;
+		if (!ClothClass || !ClothClass->IsChildOf(USkinnedMeshComponent::StaticClass()))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no Chaos cloth module in this build, %s skipped"), *E.Name, *P.Name);
+			break;
+		}
+		UObject* A = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Cloth);
+		if (!A) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no clothes %s"), *E.Name, *P.Cloth); continue; }
+		USkinnedMeshComponent* C = NewObject<USkinnedMeshComponent>(Owner, ClothClass);
+		const bool bSet = CallWithOne(C, TEXT("SetAsset"), [A](FProperty* Pr, void* V)
+		{
+			if (FObjectPropertyBase* OP = CastField<FObjectPropertyBase>(Pr))
+				if (A->IsA(OP->PropertyClass)) OP->SetObjectPropertyValue(V, A);
+		});
+		if (!bSet)
+			if (USkinnedAsset* SA = Cast<USkinnedAsset>(A)) C->SetSkinnedAssetAndUpdate(SA);
+		CallWithOne(C, TEXT("SetEnableSimulation"), [](FProperty* Pr, void* V)
+		{
+			if (FBoolProperty* B = CastField<FBoolProperty>(Pr)) B->SetPropertyValue(V, false);
+		});
+		C->SetupAttachment(Driver);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->RegisterComponent();
+		C->SetLeaderPoseComponent(Driver, true);
+		ApplyMaterials(C, P.Materials);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: clothes %s (%s)"), *E.Name, *P.Cloth, C->GetSkinnedAsset() ? TEXT("shown") : TEXT("asset not taken"));
+		ByName.Add(P.Name, C);
+		Out.Add(C);
+	}
 	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
 	for (const FPart& P : E.Parts)
 	{
@@ -170,7 +228,17 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		SetObj(TEXT("GroomAsset"), G);
 		if (!P.Binding.IsEmpty()) SetObj(TEXT("BindingAsset"), StaticLoadObject(UObject::StaticClass(), nullptr, *P.Binding));
 		C->RegisterComponent();
+		// Cards, not strands, where the groom has them: strands are the GPU cost.
+		if (P.Lod >= 0)
+		{
+			const int32 Lod = P.Lod;
+			CallWithOne(C, TEXT("SetForcedLOD"), [Lod](FProperty* Pr, void* V)
+			{
+				if (FIntProperty* I = CastField<FIntProperty>(Pr)) I->SetPropertyValue(V, Lod);
+			});
+		}
 		if (UMeshComponent* MC = Cast<UMeshComponent>(C)) ApplyMaterials(MC, P.Materials);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s, LOD %d"), *E.Name, *P.Name, To ? *(*To)->GetName() : TEXT("the body"), P.Lod);
 		Out.Add(C);
 	}
 }
