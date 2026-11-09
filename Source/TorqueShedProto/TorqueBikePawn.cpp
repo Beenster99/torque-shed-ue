@@ -7,9 +7,11 @@
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueShedPower.h"
 
 #include "BikeSim.h"
 #include "TorqueFit.h"
+#include "BikeRideSpec.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
@@ -491,11 +493,74 @@ void ATorqueBikePawn::ApplyRideFit(const TArray<FName>& PartSlots, const TArray<
 		Moves.Num(), Moved, RideFit.Num());
 }
 
+namespace
+{
+std::string PawnStd(const FString& S) { return std::string(TCHAR_TO_UTF8(*S)); }
+
+// A catalogue bike's riding spec, as Torque Shed's BikeBuild works it out (Fit/BikeRideSpec, checked
+// against the Godot game by SimTest/spec_test): the frame's wheelbase, rake and centre of mass, the
+// fork's offset and the wheels' size giving the trail, suspension, tyres, brakes, gearbox and aids
+// from their parts, the mass from every part, each part's wear, rust and dirt taking off what Torque
+// Shed takes off; and the engine's torque curve with every engine part's multiplier, as the shed
+// works it out for the dyno (TorqueShedPower). False if the parts or the engine won't do.
+bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FString, FString>& Parts, BikeSpec& Out, FString& OutText)
+{
+	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
+	if (!Lay) return false;
+	TorqueFit::RideSpecInput In;
+	for (const TPair<FString, FString>& KV : Parts)
+	{
+		const std::string Slot = PawnStd(KV.Key);
+		In.Parts[Slot] = PawnStd(KV.Value);
+		if (const FTorqueItem* It = B.Item(B.ItemOn(Bay, FName(*KV.Key))))
+			In.Health[Slot] = TorqueFit::PartHealth(It->Wear, It->Rust, It->Dirt);
+	}
+	std::vector<std::string> Notes;
+	BikeSpec S;
+	if (!TorqueFit::RideSpec(*Lay, In, S, &Notes)) return false;
+	const FTorqueEngineNumbers E = TorqueShedPower::Numbers(B, Bay);
+	if (!E.bValid) return false;
+	S.IdleRpm = E.IdleRpm;
+	S.Redline = E.Redline;
+	S.PeakTorque = E.PeakTorque;
+	S.PeakTorqueRpm = E.PeakTorqueRpm;
+	S.TorqueRpm.clear();
+	S.TorqueNm.clear();
+	for (int32 I = 0; I < 25; ++I)
+	{
+		const double Rpm = FMath::Lerp((double)E.IdleRpm, (double)E.Redline, I / 24.0);
+		S.TorqueRpm.push_back(Rpm);
+		S.TorqueNm.push_back(TorqueShedPower::EngineTorque(E, (float)Rpm));
+	}
+	// (Not BikeSpec::Finish: that works the trail, fork path, swingarm and inertia out the Speed
+	// Twin's way, and BikeBuild has given them already.)
+	Out = S;
+	FString Ratios;
+	for (const double R : S.GearRatios) Ratios += FString::Printf(TEXT("%s%.2f"), Ratios.IsEmpty() ? TEXT("") : TEXT(" "), R);
+	OutText = FString::Printf(
+		TEXT("wheelbase %.3f m, rake %.1f deg, trail %.0f mm (offset %.0f mm), wheels %.0f / %.0f mm, bike %.1f kg (%.1f with the rider), ")
+		TEXT("CoM %.3f m up, seat %.0f mm; travel %.0f / %.0f mm, springs %.0f / %.0f N/m; brakes %.0f / %.0f N m, ABS %s / %s, TC %s; ")
+		TEXT("engine idle %.0f, peak %.1f N m at %.0f, redline %.0f rpm; primary %.3f, gears %s, final %.3f, drive %.2f; ")
+		TEXT("tyres %s %.2f / %s %.2f grip; steer rate %.2f, lean clearance %.1f deg, CdA %.3f"),
+		S.Wheelbase, S.RakeDeg, S.Trail * 1000.0, S.ForkOffset * 1000.0, S.FrontRadius * 1000.0, S.RearRadius * 1000.0, S.BikeMass, S.TotalMass,
+		S.ComHeight, S.SeatHeight * 1000.0, S.FrontTravel * 1000.0, S.RearTravel * 1000.0, S.FrontSpring, S.RearSpring,
+		S.FrontBrakeTorque, S.RearBrakeTorque, S.AbsFront ? TEXT("on") : TEXT("off"), S.AbsRear ? TEXT("on") : TEXT("off"),
+		S.TractionControl ? *FString::Printf(TEXT("%.2f"), S.TractionStrength) : TEXT("off"),
+		S.IdleRpm, S.PeakTorque, S.PeakTorqueRpm, S.Redline, S.Primary, *Ratios, S.FinalDrive, S.DrivetrainEfficiency,
+		UTF8_TO_TCHAR(S.TyreFront.Construction.c_str()), S.TyreFront.GripTarmac, UTF8_TO_TCHAR(S.TyreRear.Construction.c_str()), S.TyreRear.GripTarmac,
+		S.SteerRate, S.LeanClearance, S.CdA);
+	for (const std::string& N : Notes) OutText += TEXT("; ") + FString(UTF8_TO_TCHAR(N.c_str()));
+	return true;
+}
+} // namespace
+
 // A bike of catalogue parts (any of Torque Shed's styles, built in the shed) rides out drawn as
-// the shed draws it (TorqueShedCatalogue::MakeBike), not as the Speed Twin. It's drawn whole on the
-// body for now: its wheels don't spin or steer (bHaveModel stays false, so the rider and the
-// wheels keep the shapes' pivots), and it rides on the Speed Twin's physics. -TorqueBuild= on the
-// command line always means the Speed Twin.
+// the shed draws it (TorqueShedCatalogue::MakeBike), not as the Speed Twin, and on its own riding
+// spec (CatalogueRideSpec). Its parts go on the Speed Twin model's groups by what fitting says each
+// moves with (FittedPart.Node): the wheels, tyres and discs spin on the axles, the bars, top yoke,
+// lamp and fork tubes turn about the steering axis, the fork lowers ride the front axle and the
+// swingarm swings about its pivot, the layout giving where those are. -TorqueBuild= on the command
+// line always means the Speed Twin.
 bool ATorqueBikePawn::BuildCatalogueModel()
 {
 	if (FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) != nullptr) return false;
@@ -505,8 +570,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	if (Bay < 0) return false;
 	TMap<FString, FString> Parts;
 	if (!B->LayoutParts(Bay, Parts)) return false;
-	// The catalogue bike's origin is at its own rear axle's height; the Speed Twin's (which the
-	// physics and the body here are set up for) is at 31 cm. Lift or drop it to sit on the ground.
+	// Its own physics, or if that won't work out, the Speed Twin's (on which the drawn bike's origin,
+	// at its own rear axle's height, is lifted or dropped to the Speed Twin's 31 cm).
+	BikeSpec Spec;
+	const bool bOwnSpec = CatalogueRideSpec(*B, Bay, Parts, Spec, CatalogueSpec);
 	static constexpr double SpeedTwinAxleCm = 31.0;
 	USceneComponent* Holder = NewObject<USceneComponent>(this, TEXT("CatalogueRoot"));
 	Holder->SetupAttachment(Root);
@@ -515,14 +582,15 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	// With its fit from geometry mode, as the shed draws it: the rig's handles lay it out, and each
 	// slot's offset moves its parts (FTorqueBikeFitView).
 	const FString& Geo = B->Bike(Bay).Geo;
-	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo);
+	TArray<FName> Nodes;
+	TorqueShedCatalogue::FBikeFrame Frame;
+	const int32 Drawn = TorqueShedCatalogue::MakeBike(this, Holder, Parts, ModelParts, AxleHeight, Geo, &Nodes, &Frame);
 	if (Drawn <= 0)
 	{
 		Holder->DestroyComponent();
 		UE_LOG(LogTemp, Warning, TEXT("Torque: bay %d's catalogue bike drew nothing; riding the Speed Twin"), Bay + 1);
 		return false;
 	}
-	Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
 	if (!Geo.IsEmpty())
 	{
 		FTorqueBikeFitView Fit;
@@ -531,11 +599,79 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	}
 	TorqueShedModel::ApplyLooks(this, ModelParts);
 	for (UStaticMeshComponent* Shape : {Body, Tank, Rider, FrontWheel, RearWheel}) Shape->SetVisibility(false);
+	if (bOwnSpec && Frame.bValid && Nodes.Num() == ModelParts.Num())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s; physics spec SpeedTwin1200"),
+		// The sim's body frame is the drawn bike's (the origin at axle height midway between the
+		// axles, a wheelbase apart: SimTest/spec_test checks the layout and the spec agree).
+		Sim->Setup(Spec);
+		SteerPoint = Frame.SteerPoint;
+		SteerDir = Frame.SteerDir;
+		SwingPivot = Frame.SwingPivot;
+		RearRest = Frame.RearAxle;
+		// Each group as UpdateVisuals has it standing still, straight ahead: a part drawn at T in the
+		// bike goes on its group at T * GroupRest^-1.
+		static const FName SteerNode(TEXT("steer")), FrontHubNode(TEXT("front_hub")), FrontWheelNode(TEXT("front_wheel"));
+		static const FName RearHubNode(TEXT("rear_hub")), RearWheelNode(TEXT("rear_wheel")), SwingNode(TEXT("swingarm"));
+		int32 Count[6] = {0, 0, 0, 0, 0, 0};
+		for (int32 I = 0; I < ModelParts.Num(); ++I)
+		{
+			UStaticMeshComponent* C = ModelParts[I];
+			if (!C) continue;
+			const FName N = Nodes[I];
+			USceneComponent* Group = Holder;
+			FTransform GroupRest = FTransform::Identity;
+			int32 Which = 0;
+			if (N == SteerNode) { Group = SteerGroup; Which = 1; }
+			else if (N == FrontHubNode) { Group = FrontHub; GroupRest = FTransform(Frame.FrontAxle); Which = 2; }
+			else if (N == FrontWheelNode) { Group = FrontPivot; GroupRest = FTransform(Frame.FrontAxle); Which = 3; }
+			else if (N == RearHubNode || N == SwingNode) { Group = SwingGroup; GroupRest = FTransform(Frame.SwingPivot); Which = 4; }
+			else if (N == RearWheelNode) { Group = RearPivot; GroupRest = FTransform(Frame.RearAxle); Which = 5; }
+			++Count[Which];
+			if (Group == Holder) continue;
+			const FTransform InBike = C->GetRelativeTransform();
+			C->AttachToComponent(Group, FAttachmentTransformRules::KeepRelativeTransform);
+			C->SetRelativeTransform(InBike * GroupRest.Inverse());
+		}
+		bCatalogueModel = true;
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's parts on the bike %d, the steering %d, the fork lowers %d, the front wheel %d, the swingarm %d, the rear wheel %d"),
+			Count[0], Count[1], Count[2], Count[3], Count[4], Count[5]);
+	}
+	else
+	{
+		Holder->SetRelativeLocation(FVector(0.0, 0.0, AxleHeight - SpeedTwinAxleCm));
+		CatalogueSpec = TEXT("SpeedTwin1200 (its own spec didn't work out)");
+	}
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike %s (bay %d), %d surfaces, axle %.1f cm%s"),
 			*B->Bike(Bay).Name, Bay + 1, Drawn, AxleHeight, Geo.IsEmpty() ? TEXT("") : TEXT(", with its fit from geometry mode"));
+		UE_LOG(LogTemp, Log, TEXT("Torque: catalogue bike's riding spec: %s"), *CatalogueSpec);
 	}
 	return true;
+}
+
+FString ATorqueBikePawn::TestRideLog() const
+{
+	const Wheel& F = Sim->Wheels[0];
+	const Wheel& R = Sim->Wheels[1];
+	const FVector Start = Line.IsValidIndex(StartIndex) ? Line[StartIndex] : FVector::ZeroVector;
+	const double FromStart = FMath::Sqrt(FMath::Square(Sim->Position.x - Start.X) + FMath::Square(Sim->Position.z - Start.Z));
+	FString Out = FString::Printf(TEXT("%s; spec: %s\n"), bCatalogueModel ? TEXT("catalogue bike, its own spec") : bHaveModel ? TEXT("Speed Twin model") : TEXT("shapes"),
+		CatalogueSpec.IsEmpty() ? TEXT("SpeedTwin1200") : *CatalogueSpec);
+	Out += FString::Printf(TEXT("now: %.1f km/h, %.0f m from the start, gear %d, %.0f rpm, lean %.1f deg, steer %.2f deg, front spin %.0f deg, rear %.0f deg, ")
+		TEXT("suspension %.0f / %.0f mm%s%s"),
+		Sim->Speed * 3.6, FromStart, Sim->Gear, Sim->Rpm, FMath::RadiansToDegrees(Sim->LeanAngle), FMath::RadiansToDegrees(Sim->Steer),
+		FMath::RadiansToDegrees(F.Spin), FMath::RadiansToDegrees(R.Spin), F.Compression * 1000.0, R.Compression * 1000.0,
+		Sim->IsCrashed ? TEXT(", crashed") : TEXT(""), bTestAutoRide ? TEXT(", the robot riding") : TEXT(""));
+	if (bCatalogueModel)
+	{
+		// The drawn groups, as UpdateVisuals left them: the bars turned, the front wheel's pivot and
+		// the swingarm.
+		Out += FString::Printf(TEXT("\ndrawn: bars turned %.2f deg, front wheel at %s, rear at %s, swingarm %.2f deg"),
+			FMath::RadiansToDegrees(SteerGroup->GetRelativeRotation().Quaternion().GetAngle()),
+			*FrontPivot->GetRelativeLocation().ToString(), *RearPivot->GetRelativeLocation().ToString(),
+			FMath::RadiansToDegrees(SwingGroup->GetRelativeRotation().Quaternion().GetAngle()));
+	}
+	return Out;
 }
 
 void ATorqueBikePawn::LoadRoute()
@@ -683,7 +819,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// -TorqueAutoRide (with -TorqueNoInput): a simple robot rides the route at -TorqueAutoMph (default
 	// 36), the same pure-pursuit rider as SimTest, for checking pop-in and frame time in motion.
 	static const bool bAuto = FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide"));
-	if (bAuto && Line.Num() > 2 && !Sim->IsCrashed)
+	if ((bAuto || bTestAutoRide) && Line.Num() > 2 && !Sim->IsCrashed)
 	{
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
@@ -981,13 +1117,14 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	// Wheels roll about their axle (local y); forward rolling turns the top forward, a negative pitch.
 	const double Rake = FMath::DegreesToRadians(Sim->Build.RakeDeg);
 	const FVector SteerAxis(-FMath::Sin(Rake), 0.0, FMath::Cos(Rake));   // tilted back by the rake
-	const FQuat SteerQ(bHaveModel ? SteerDir : SteerAxis, Sim->Steer);
+	const bool bGroups = bHaveModel || bCatalogueModel;   // the model's parts are on the groups
+	const FQuat SteerQ(bGroups ? SteerDir : SteerAxis, Sim->Steer);
 	// A turn about +y by a positive angle carries the top of the wheel forwards: rolling ahead.
 	FrontPivot->SetRelativeLocation(BodyToLocal(F.Centre));
 	FrontPivot->SetRelativeRotation(SteerQ * FQuat(FVector::RightVector, F.Spin));
 	RearPivot->SetRelativeLocation(BodyToLocal(R.Centre));
 	RearPivot->SetRelativeRotation(FQuat(FVector::RightVector, R.Spin));
-	if (!bHaveModel) return;
+	if (!bGroups) return;
 
 	// Bars, yokes and lamp turn about the steering axis; the fork lowers follow the axle.
 	const FQuat Turn(SteerDir, Sim->Steer);
@@ -1275,8 +1412,8 @@ void ATorqueBikePawn::UpdateRider()
 		In.ChestShift = FVector(7.0 * Fwd + 9.0 * Braking - 4.0 * Pulling, Hang * 6.0 + 9.0 * LeanN,
 			-4.0 * FMath::Max(Fwd, 0.0) - 3.0 * Braking);
 		In.HipShift = Hang * 2.0 + 2.5 * LeanN;
-		In.BarPivot = bHaveModel ? SteerPoint : FVector(68.0, 0.0, -1.0);
-		const FVector Axis = bHaveModel ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
+		In.BarPivot = (bHaveModel || bCatalogueModel) ? SteerPoint : FVector(68.0, 0.0, -1.0);
+		const FVector Axis = (bHaveModel || bCatalogueModel) ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
 			FMath::Cos(FMath::DegreesToRadians(Sim->Build.RakeDeg)));
 		In.BarTurn = FQuat(Axis, Sim->Steer);
 		// Feet go down as the bike stops: ankles a little forward of the pegs and out, on the road.
@@ -1341,9 +1478,9 @@ void ATorqueBikePawn::UpdateRider()
 	HeadLocal = Head;
 
 	// Grips turn with the bars about the steering axis.
-	const FVector Axis = bHaveModel ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
+	const FVector Axis = (bHaveModel || bCatalogueModel) ? SteerDir : FVector(-FMath::Sin(FMath::DegreesToRadians(Sim->Build.RakeDeg)), 0.0,
 		FMath::Cos(FMath::DegreesToRadians(Sim->Build.RakeDeg)));
-	const FVector Pivot = bHaveModel ? SteerPoint : FVector(68.0, 0.0, -1.0);
+	const FVector Pivot = (bHaveModel || bCatalogueModel) ? SteerPoint : FVector(68.0, 0.0, -1.0);
 	const FQuat Turn(Axis, Sim->Steer);
 	// Feet go down as the bike stops.
 	const double Down = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 1.8, 0.0, 1.0);

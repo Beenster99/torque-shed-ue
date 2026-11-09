@@ -63,3 +63,12 @@ if(MSVC)
 else()
   target_compile_options(geo_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# How a bike of catalogue parts rides (BikeBuild): checked against the real game's numbers.
+add_executable(spec_test spec_test.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(spec_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(spec_test PRIVATE /W4)
+else()
+  target_compile_options(spec_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

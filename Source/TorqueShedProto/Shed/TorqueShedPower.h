@@ -3,7 +3,7 @@
 // every engine part's multiplier (head, fuel system, air filter, plugs, oil filter, exhaust, ECU)
 // and how worn each is, the drivetrain's losses and the bike's mass from its parts (parts.json).
 // The numbers are Torque Shed's, for the bay screens (power, torque, weight) and the dyno room's
-// runs; the riding physics keeps its own Speed Twin spec for now.
+// runs, and a catalogue bike's torque curve on the road (its riding spec is Fit/BikeRideSpec's).
 //
 // Not ported yet: tuning (map, ignition, limiter), fluids (petrol and oil levels and age) and
 // engine heat against the cooling, which Torque Shed adds on top.

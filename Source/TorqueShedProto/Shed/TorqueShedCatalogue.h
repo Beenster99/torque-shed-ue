@@ -32,8 +32,19 @@ const TorqueFit::BikeLayout* Layout();
 // wheelbase). OutAxleHeight: how high the origin is off the ground (cm). Returns the meshes made.
 // Geo: the bike's fit from geometry mode (Fit/BikeGeometry text): its rig's range handles lay the
 // bike out (the slots' free offsets are the caller's, FTorqueBikeFitView).
+// OutNodes: for each mesh made, what it moves with as the bike rides (FittedPart.Node: None the
+// bike itself, steer, front_hub, front_wheel, rear_hub, rear_wheel, swingarm). OutFrame: where the
+// laid-out bike's axles, steering head and swingarm pivot are, in the same frame.
+struct FBikeFrame
+{
+	bool bValid = false;
+	FVector FrontAxle = FVector::ZeroVector, RearAxle = FVector::ZeroVector;
+	FVector SteerPoint = FVector::ZeroVector, SteerDir = FVector::UpVector;   // a point on the steering axis, and up it
+	FVector SwingPivot = FVector::ZeroVector;
+};
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
-	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo = FString());
+	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo = FString(),
+	TArray<FName>* OutNodes = nullptr, FBikeFrame* OutFrame = nullptr);
 
 // The same bike's parts as fitting has them, not drawn: each part placed and its mesh bent onto the
 // bike (fitting's frame, metres), what's hidden left out. For geometry mode's gaps. False if the

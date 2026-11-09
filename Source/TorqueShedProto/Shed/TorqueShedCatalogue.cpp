@@ -369,7 +369,7 @@ bool DrawnParts(const TMap<FString, FString>& Parts, const FString& Geo, std::ve
 }
 
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
-	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo)
+	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo, TArray<FName>* OutNodes, FBikeFrame* OutFrame)
 {
 	OutAxleHeight = 31.0;
 	const TorqueFit::BikeLayout* Lay = Layout();
@@ -381,6 +381,16 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 	if (!Geo.IsEmpty()) TorqueFit::Geo::FromText(TSCI::Std(Geo), Fitted);
 	const TorqueFit::Layout L = Lay->Solve(Map, Fitted.Rig);
 	OutAxleHeight = L.Stats.RearRadius * 100.0;
+	if (OutFrame)
+	{
+		OutFrame->bValid = true;
+		OutFrame->FrontAxle = FVector(TSCI::ToUe(L.FrontAxle));
+		OutFrame->RearAxle = FVector(TSCI::ToUe(L.RearAxle));
+		OutFrame->SteerPoint = FVector(TSCI::ToUe(L.Head));
+		FVector Dir = FVector(TSCI::ToUe(L.SteerAxis)).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+		OutFrame->SteerDir = Dir.Z < 0.0 ? -Dir : Dir;
+		OutFrame->SwingPivot = FVector(TSCI::ToUe(L.Pivot));
+	}
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
 	int32 Made = 0;
@@ -418,6 +428,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
 			Out.Add(C);
+			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
 			++Made;
 		}
 	}

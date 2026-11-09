@@ -65,6 +65,12 @@
 //   geo:save, geo:exit    "Save to this bike"; leave geometry mode (discarding what isn't saved)
 //   geo:check             whether the bay's saved fit is the one geo:save sent, and how far its
 //                         moved parts are drawn from where they'd be without it
+//   ride                  a scratch-built bike ridden: a steel backbone set up in bay 3 and finished as a cafe
+//                         racer, ridden out on its own physics, its spec logged, the robot rider taking it
+//                         10 s down the road, logged again (speed, gear, wheel spin, bars, suspension), and
+//                         back (alone, it quits at the end)
+//   ridelog               on the road: our bike's riding spec and what it's doing now
+//   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again
 //   quit

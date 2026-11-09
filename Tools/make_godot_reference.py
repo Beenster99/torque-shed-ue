@@ -11,6 +11,10 @@ trimmed, to SimTest/data/godot_reference.json. SimTest/layout_test compares the 
 With --geo it runs Tools/godot_reference/dump_geo.tscn instead: geometry mode's maths (GeoGizmo's
 drags and offsets, sanitize, BikeRig.clean_adjust) on a fixed set of inputs, written to
 SimTest/data/godot_geo.json for SimTest/geo_test.
+
+With --spec it runs Tools/godot_reference/dump_spec.tscn: BikeBuild's riding numbers (chassis,
+wheels, tyres, suspension, brakes, gearbox, mass spread, aids, engine torque) for every style's
+reference bike and a sweep of swaps, written to SimTest/data/godot_spec.json for SimTest/spec_test.
 """
 import argparse
 import json
@@ -23,6 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 OUT = os.path.join(REPO, "SimTest", "data", "godot_reference.json")
 GEO_OUT = os.path.join(REPO, "SimTest", "data", "godot_geo.json")
+SPEC_OUT = os.path.join(REPO, "SimTest", "data", "godot_spec.json")
 
 
 def main():
@@ -32,6 +37,7 @@ def main():
     ap.add_argument("--keep-raw", help="also keep Godot's untrimmed dump here")
     ap.add_argument("--from-raw", help="trim a kept dump again instead of running Godot")
     ap.add_argument("--geo", action="store_true", help="dump geometry mode's maths (godot_geo.json) instead")
+    ap.add_argument("--spec", action="store_true", help="dump BikeBuild's riding numbers (godot_spec.json) instead")
     a = ap.parse_args()
     if a.from_raw:
         data = json.load(open(a.from_raw))
@@ -47,6 +53,26 @@ def main():
         shutil.copytree(os.path.join(HERE, "godot_reference"), os.path.join(proj, "dump"))
         subprocess.run([a.bin, "--headless", "--path", proj, "--import"], check=True, capture_output=True)
         raw = os.path.join(tmp, "ref.json")
+        if a.spec:
+            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_spec.tscn", "--", "--out=" + raw],
+                           check=True, capture_output=True, timeout=900)
+            data = json.load(open(raw))
+            def r(v):
+                # Six significant figures is far finer than the checks need, and keeps the file small.
+                if isinstance(v, float):
+                    return float("%.6g" % v)
+                if isinstance(v, list):
+                    return [r(x) for x in v]
+                if isinstance(v, dict):
+                    return {k: r(x) for k, x in v.items()}
+                return v
+            commit = subprocess.run(["git", "-C", a.godot, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+            data = {"about": "The original Torque Shed's BikeBuild riding numbers (new parts, no tune). Written by "
+                             "Tools/make_godot_reference.py --spec; do not edit.",
+                    "source": {"repo": "Beenster99/torque-shed", "commit": commit, "godot": "4.6.2-stable"}, **r(data)}
+            json.dump(data, open(SPEC_OUT, "w"), separators=(",", ":"), sort_keys=True)
+            print("wrote %s" % SPEC_OUT)
+            return
         if a.geo:
             subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_geo.tscn", "--", "--out=" + raw],
                            check=True, capture_output=True, timeout=600)

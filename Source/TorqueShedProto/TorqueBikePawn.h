@@ -64,6 +64,12 @@ public:
 	// Back to the start of the road, the clock reset (Home, or the pause menu).
 	void RestartRide();
 
+	// For TorqueShedTest: the bike's riding spec and what it's doing now (speed, distance from the
+	// start, gear, revs, lean, steering, the wheels' spin and the suspension), one line each; and
+	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
+	FString TestRideLog() const;
+	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+
 	// Riding realism: 0 full sim .. 1 easy (as Torque Shed's slider). [ and ] change it in game.
 	UPROPERTY(EditAnywhere, Category = "Ride", meta = (ClampMin = "0", ClampMax = "1"))
 	float Assist = 0.6f;
@@ -177,6 +183,12 @@ private:
 	bool bHaveModel = false;
 	FVector SteerPoint = FVector::ZeroVector, SteerDir = FVector::UpVector, SwingPivot = FVector::ZeroVector;
 	FVector RearRest = FVector::ZeroVector;
+	// A catalogue bike (any of Torque Shed's styles, BuildCatalogueModel): its parts on the same
+	// groups as the Speed Twin model's (wheels spinning, bars and fork steering, the fork lowers and
+	// the swingarm on the suspension), its geometry above from the layout, and its own riding spec.
+	bool bCatalogueModel = false;
+	FString CatalogueSpec;             // the spec, as logged
+	bool bTestAutoRide = false;
 	FTransform PartFix;                // the importer's turn of the model's frame
 	FVector LeverPivot[2] = {FVector::ZeroVector, FVector::ZeroVector}, LeverAxis[2] = {FVector::UpVector, FVector::UpVector};
 	FTransform LeverBase[2];           // each lever's rest placement (the importer's fix, then where its socket put it)

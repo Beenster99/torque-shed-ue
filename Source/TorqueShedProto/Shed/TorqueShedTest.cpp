@@ -12,6 +12,7 @@
 #include "Shed/TorqueShedPick.h"
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
+#include "TorqueBikePawn.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -116,6 +117,15 @@ const TCHAR* const GeoTwinSteps =
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,geo:exit,look:bike,shot,geo:check,")
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,geo:check");
 
+// A scratch-built bike ridden: a steel backbone set up in the empty bay 3 and finished as a cafe
+// racer (a test shortcut), ridden out on its own physics; its spec logged at the start, then the
+// robot rider (-TorqueAutoRide's) takes it 10 s down the road, logged again (speed, gear, the
+// wheels' spin, the bars' turn, the suspension), and back to the shed.
+const TCHAR* const RideSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,")
+	TEXT("place:bay_2,act,finish:cafe,log,look:bike,shot,")
+	TEXT("tool:hands,rideout,wait:6,ridelog,robot:on,wait:10,ridelog,shot,robot:off,back,wait:6,log");
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -143,6 +153,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
 	}
@@ -282,6 +293,33 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		const bool bOk = TorqueFlow::BackToShed(World);
 		Said(bOk ? TEXT("going back to the shed") : TEXT("refused (no shed map, or a client)"));
+		return true;
+	}
+
+	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
+	if (Verb == TEXT("ridelog") || Verb == TEXT("robot"))
+	{
+		ATorqueBikePawn* Bike = nullptr;
+		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+			if (It->IsLocallyControlled()) { Bike = *It; break; }
+		if (!Bike)
+		{
+			if (++Tries < 20) return false;
+			Warn(TEXT("skipped: no bike of ours (not on the road?)"));
+			Tries = 0;
+			return true;
+		}
+		Tries = 0;
+		if (Verb == TEXT("robot"))
+		{
+			const bool bOn = P.Num() < 2 || P[1] != TEXT("off");
+			Bike->TestAutoRide(bOn);
+			Said(bOn ? TEXT("the robot rides") : TEXT("the robot's off"));
+			return true;
+		}
+		TArray<FString> Lines;
+		Bike->TestRideLog().ParseIntoArray(Lines, TEXT("\n"), true);
+		for (const FString& L : Lines) Said(L);
 		return true;
 	}
 
