@@ -87,11 +87,13 @@
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
 //   robot[:off]           on the road: the hands-off robot rider (-TorqueAutoRide's) rides our bike, or stops
-//   brakestop[:<mph>]     on the road: the robot holds mph (60) on a straight, then brakes as a road test does
-//                         (front full, rear 0.6) to a stop; logs the distance, time, average g and nose dive
-//   lean:max[:<mph>]      on the road: the robot holds mph (45) on a straight, then the steer input is held full
-//                         for 6 s (the ground taken as tarmac off the road); logs the lean and sideways g it
-//                         settles at, the peaks, and whether it slid or stood up; then back where the bend began.
+//   brakestop[:<mph>][:flat]  on the road: the robot holds mph (60) on a straight, then brakes as a road test
+//                         does (front full, rear 0.6, realism 0.5) to a stop; logs the distance, time, average g,
+//                         nose dive, the road's grade and the level stop from 60 it comes to, and the brakes and
+//                         tyres. :flat stops on a level test pad (SimTest's flat ground) instead of the road
+//   lean:max[:<mph>]      on the road: the robot holds mph (45) on a level straight, then on the test pad the
+//                         steer input is held full for 6 s; logs the lean and sideways g it settles at, the
+//                         peaks, and whether it slid or stood up; then back on the road where it began.
 //                         Both wait until done (up to about two minutes); the bike's own log says the same
 //   georeload             (a test shortcut) the shed saved to its slot, forgotten and loaded back from
 //                         it, then the shed map opened again

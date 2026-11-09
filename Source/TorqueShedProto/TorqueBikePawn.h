@@ -98,9 +98,11 @@ public:
 	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
 	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
 	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at
-	// that speed for 6 s (the ground taken as tarmac, as the bike leaves the road) and comes back to
-	// where the bend began. TestMoveBusy until it's done, then TestMoveResult says what it measured.
-	void TestStartMove(int32 Kind, double Mph);
+	// that speed for 6 s on a level test pad (the road's edge, banks and ditches are no part of it) and
+	// comes back to where the bend began. bFlat puts a brake stop on the pad too (else it's on the
+	// road, its grade allowed for in the log). Riding realism is the road tests' 0.5 while measuring.
+	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
+	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
 	const FString& TestMoveResult() const { return TestMoveText; }
 	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
@@ -264,6 +266,10 @@ private:
 	double TestNose = 0.0, TestLeanSum = 0.0, TestGSum = 0.0, TestLeanPeak = 0.0, TestGPeak = 0.0, TestSlide = 0.0, TestLateLean = 0.0;
 	int32 TestSamples = 0, TestLateSamples = 0;
 	bool bTestRobotWas = false, bTestTarmac = false;
+	// The test pad: while set, the wheels see a level tarmac plane at TestPadY (sim metres) and nothing
+	// else, so a manoeuvre measures the bike as SimTest/realism_test's flat ground does.
+	bool bTestFlat = false, bTestWantFlat = false;
+	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
 	FString TestMoveText;
 	void TestMoveStep();
 	// Where its rider sits (pawn local cm): the seat's surface under the hips, the pegs (0 left, 1
