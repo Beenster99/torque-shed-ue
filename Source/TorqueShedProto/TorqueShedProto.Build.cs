@@ -15,7 +15,7 @@ public class TorqueShedProto : ModuleRules
 			// The shed draws catalogue bikes as static meshes built at run time (Shed/TorqueShedCatalogue).
 			"MeshDescription", "StaticMeshDescription",
 			// The shed radio streams internet radio through the engine's media player (Shed/TorqueShedRadio).
-			"MediaAssets" });
+			"MediaAssets", "AudioMixer" });   // AudioMixer: USynthComponent (the shed radio)
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
 		// Shed/ and other subfolders include each other as "Shed/X.h" from the module root.
 		PrivateIncludePaths.Add(ModuleDirectory);
