@@ -529,6 +529,16 @@
    ],
    "rough": 0.95,
    "tile": 4.0
+  },
+  "filter_media": {
+   "base": "fabric",
+   "tint": [
+    0.82,
+    0.8,
+    0.72
+   ],
+   "rough": 0.95,
+   "tile": 6.0
   }
  }
 }

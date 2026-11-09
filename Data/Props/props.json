@@ -287,8 +287,7 @@
   "booth_shop": {
    "name": "booth_shop",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_booth",
-   "source": "todo",
-   "plan": "waiting on the shed thread's hanger rework; shell and grate to their sizes"
+   "source": "blender"
   },
   "dyno_rig": {
    "name": "Rolling road (plate, drum, clamp, posts)",
