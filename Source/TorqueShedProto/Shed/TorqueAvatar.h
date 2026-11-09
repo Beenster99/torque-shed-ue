@@ -20,6 +20,19 @@ class UPoseableMeshComponent;
 class USkeletalMesh;
 struct FTorqueProfile;
 
+// [hands] A hand round a tool's handle (world): the bar through the fist from the little finger to
+// the index (Axis), the way the knuckles point (Aim), the bar's radius (cm); fingers on a trigger
+// (TriggerFingers from the index, pulled by TriggerPull 0..1); bIndexTop: the index up on a spray head.
+struct FTorqueHandGrip
+{
+	bool bOn = false;
+	FVector At = FVector::ZeroVector, Axis = FVector::UpVector, Aim = FVector::ForwardVector;
+	double Radius = 1.5;
+	int32 TriggerFingers = 0;
+	double TriggerPull = 0.0;
+	bool bIndexTop = false;
+};
+
 struct FTorqueAvatarInput
 {
 	FVector Velocity = FVector::ZeroVector;   // world cm/s
@@ -33,6 +46,9 @@ struct FTorqueAvatarInput
 	// reaching to hold it there.
 	bool bToolInHand = false;
 	FVector ToolGrip = FVector::ZeroVector;
+	// [hands] The hands round the tool's handles (0 left, 1 right), fingers wrapped; for the right
+	// hand it takes over from ToolGrip.
+	FTorqueHandGrip Grip[2];
 };
 
 // What a MetaHuman riding a bike reaches for (the parent's space, cm): the joints the bike's rider
@@ -72,6 +88,14 @@ public:
 	// own first-person view, hides some.
 	void SetShown(bool bBody, bool bHead, bool bHair);
 	double StandingHeight() const;   // cm, about: the head bone's height plus the crown, at its scale
+	// [hands] Where a gripped bar ended up after the last Pose (world): the target, or as near as
+	// the arm reached; false when that hand wasn't gripping.
+	bool GripReached(int32 Hand, FVector& At) const;
+	// [hands] Between the eyes, as last posed (world): the first-person camera's spot.
+	bool EyeWorld(FVector& At) const;
+	// [hands] Your own body seen from inside it: the face and hair hidden from you (the owner), still
+	// seen by the others and still casting their shadows.
+	void SetOwnerView(bool bFirstPerson);
 	void Destroy();
 	bool IsValid() const { return Driver != nullptr; }
 	FString Name;
@@ -108,4 +132,19 @@ private:
 	double PosedFor = 0.0;
 	bool bPoseLogged = false;
 	double Phase = 0.0, Walk = 0.0, Hands = 0.0, Lean = 0.0, Gripping = 0.0;   // smoothed
+	// [hands] Holding a bar: each hand's weight on it (smoothed), where the bar came to, the eyes.
+	double GripW[2] = {0.0, 0.0};
+	FVector GripAt[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	bool bGripReached[2] = {false, false};
+	FVector EyeRest = FVector::ZeroVector;   // the eyes from the head joint at rest (component space)
+	FVector HeadAtC = FVector::ZeroVector;   // the head joint and its turn as last posed (component space)
+	FQuat HeadTurnC = FQuat::Identity;
+	bool bPosed = false;
+	// A hand's frame on a bar (component space): its turn, its wrist, the palm's way (the riding grips
+	// and the tools share it), and its fingers and thumb wrapped round the bar, joint by joint.
+	void HandRest(int32 S, FVector& Aim0, FVector& Across0, FVector& Palm0) const;
+	void HandOnBar(int32 S, const FVector& Bar, const FVector& Across1, const FVector& Aim1, double AimOff, double PalmOff,
+		FQuat& HandQ, FVector& WristAt, FVector& Palm1) const;
+	void WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, const FQuat& Hq, const FVector& WAct, const FVector& Bar,
+		const FVector& Axis, const FVector& Aim1, const FVector& Palm1, double GripR, const double FingerK[5], double ThumbOff) const;
 };

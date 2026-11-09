@@ -531,4 +531,11 @@ private:
 	TArray<uint8> AvatarLook;         // the profile (height, face) put on it
 	bool bAvatarDemo = false;
 	void UpdateAvatar(float Dt);
+	// [hands] Your own body in first person: your avatar under the camera, its hands round the
+	// tool (the tool goes where the hand can reach), the camera at its eyes. Off with -TorqueNoBody.
+	FVector FirstEye = FVector::ZeroVector;   // the camera's spot (capsule frame) from the body's eyes
+	bool bFirstEye = false;
+	int32 HandsLogged = -1;                    // the tool whose grip was last logged
+	double HandsHeldFor = 0.0;
+	FVector EyeSpot() const;                  // where the camera goes: FirstEye, else Torque Shed's eye height
 };
