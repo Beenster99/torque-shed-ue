@@ -299,16 +299,40 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		USceneComponent** To = ByName.Find(P.AttachTo);
 		USkinnedMeshComponent* On = To ? Cast<USkinnedMeshComponent>(*To) : nullptr;
 		if (!On) On = Driver;
+		// Bound (the default when there's a binding): the groom is made for MetaHuman's template head,
+		// and its binding fits it onto this character's own head, which can be bigger (unbound, the
+		// cards sit inside the scalp: the bald avatars of rounds 104-121). -TorqueHairRigid keeps it
+		// rigid on the head bone instead. -TorqueHairScale=S scales a rigid groom about the head.
+		UObject* BindingObj = P.Binding.IsEmpty() ? nullptr : StaticLoadObject(UObject::StaticClass(), nullptr, *P.Binding);
+		const bool bBind = BindingObj && !FParse::Param(FCommandLine::Get(), TEXT("TorqueHairRigid"));
 		FTransform Rest;
-		const bool bOnBone = BoneRest(On, FName(TEXT("head")), Rest);
+		const bool bOnBone = !bBind && BoneRest(On, FName(TEXT("head")), Rest);
+		double HairScale = 1.0;
+		FParse::Value(FCommandLine::Get(), TEXT("TorqueHairScale="), HairScale);
 		USceneComponent* C = NewObject<USceneComponent>(Owner, GroomClass);
 		C->SetupAttachment(On, bOnBone ? FName(TEXT("head")) : NAME_None);
-		C->SetRelativeTransform(bOnBone ? Rest.Inverse() : FTransform::Identity);
+		// Rigid: offset by the bone's rest, then scaled about the head bone.
+		C->SetRelativeTransform(bOnBone ? Rest.Inverse() * FTransform(FQuat::Identity, FVector::ZeroVector, FVector(HairScale)) : FTransform::Identity);
 		const bool bSet = CallWithOne(C, TEXT("SetGroomAsset"), [G](FProperty* Pr, void* V)
 		{
 			if (FObjectPropertyBase* OP = CastField<FObjectPropertyBase>(Pr))
 				if (G->IsA(OP->PropertyClass)) OP->SetObjectPropertyValue(V, G);
 		});
+		bool bBound = false;
+		if (bBind)
+		{
+			bBound = CallWithOne(C, TEXT("SetBindingAsset"), [BindingObj](FProperty* Pr, void* V)
+			{
+				if (FObjectPropertyBase* OP = CastField<FObjectPropertyBase>(Pr))
+					if (BindingObj->IsA(OP->PropertyClass)) OP->SetObjectPropertyValue(V, BindingObj);
+			});
+			if (!bBound)
+				if (FObjectPropertyBase* BP = FindFProperty<FObjectPropertyBase>(C->GetClass(), TEXT("BindingAsset")))
+				{
+					BP->SetObjectPropertyValue_InContainer(C, BindingObj);
+					bBound = true;
+				}
+		}
 		if (!bSet)
 			if (FObjectPropertyBase* Pr = FindFProperty<FObjectPropertyBase>(C->GetClass(), TEXT("GroomAsset")))
 				Pr->SetObjectPropertyValue_InContainer(C, G);
@@ -345,6 +369,14 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		}
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
+		if (LodWanted >= 0)
+		{
+			const int32 LodAgain = LodWanted;   // again once registered, in case registering reset it
+			CallWithOne(C, TEXT("SetForcedLOD"), [LodAgain](FProperty* Pr, void* V)
+			{
+				if (FIntProperty* I = CastField<FIntProperty>(Pr)) I->SetPropertyValue(V, LodAgain);
+			});
+		}
 		UMaterialInterface* GroomMat = nullptr;
 		FBoxSphereBounds GroomBounds;
 		if (UPrimitiveComponent* GP = Cast<UPrimitiveComponent>(C))
@@ -352,7 +384,8 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 			GroomMat = GP->GetNumMaterials() > 0 ? GP->GetMaterial(0) : nullptr;
 			GroomBounds = GP->Bounds;
 		}
-		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s on %s%s, LOD %d (asset %s); bounds %s r %.0f cm (head at %s); material %s"), *E.Name, *P.Name, *On->GetName(),
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s %s on %s%s, LOD %d (asset %s); bounds %s r %.0f cm (head at %s); material %s"), *E.Name, *P.Name,
+			bBound ? TEXT("bound") : (bBind ? TEXT("NOT bound") : TEXT("rigid")), *On->GetName(),
 			bOnBone ? TEXT(", bone head") : TEXT(""), LodWanted, bSet ? TEXT("set") : TEXT("by property"), *GroomBounds.Origin.ToCompactString(),
 			GroomBounds.SphereRadius, *On->GetSocketLocation(FName(TEXT("head"))).ToCompactString(), GroomMat ? *GroomMat->GetPathName() : TEXT("none"));
 		Out.Add(C);
