@@ -24,6 +24,7 @@
 #include "TorqueBikePawn.h"   // FHudLine
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueLookOutline.h"
+#include "Shed/TorqueDynoDesk.h"
 #include "Shed/TorquePartsComputer.h"
 #include "Shed/TorquePaintBenchPanel.h"
 #include "Shed/TorqueSprayJob.h"
@@ -102,6 +103,11 @@ public:
 	// The New bike aisle: Style's bike (as it starts) with Swaps (slot=part) on, a colour of its own, ordered.
 	FString TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder);
 	void TestCloseComputer() { CloseComputer(); }
+	// The dyno desk's page as it'd be worked (opened where you stand if it isn't up): What "open",
+	// "tab" (Key: its name), "set" (Key to Value), "stock" (Key back to stock), "run", "close",
+	// "log". Says what the page shows after.
+	FString TestDesk(const FString& What, const FString& Key, float Value);
+	bool AtDesk() const { return bComputer && bDesk; }
 	// For the HUD at the mixing bench: the colour in the tin on the scale (as it'd spray), and the
 	// colour to match, if there's one. False when not at the bench or there's no tin.
 	bool AtBench() const { return bBench; }
@@ -320,6 +326,12 @@ private:
 	void CloseComputer();
 	void ComputerDo(const FTorqueComputerAction& A);
 	FString Order(FName Part);
+	// The dyno desk (tuning_computer.gd; TorqueDynoDesk): a page like the parts computer's, so it
+	// rides on bComputer (the walker stands still, the mouse is out), with bDesk saying which.
+	bool bDesk = false;
+	mutable FTorqueDynoDesk Desk;     // (mutable: drawing it notes where its buttons went)
+	void OpenDesk();
+	void DeskDo(const FTorqueDeskOut& Out);
 
 	// --- The paint mixing bench (paint_bench.gd; TorqueWalkerBench.cpp) ---------------------------------
 	// Its pages: Mix (a tin on the scale, pour, stir, test, save), Recipes (cards from the swatch

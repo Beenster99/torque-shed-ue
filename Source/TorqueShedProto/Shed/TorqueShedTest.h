@@ -17,7 +17,9 @@
 //                         is given) with those slots changed, and everything bolted up
 //   fabricate             the repair tool on the frame once for each job the bike owes
 //   dyno                  the dyno room on bay 1's bike: wheel it onto the rig, strap it at the four posts,
-//                         a run with the fan on and one with it off, the big screen mid-run and after,
+//                         a run with the fan on, the dyno desk's page (the map and ignition tuned and run
+//                         again, the pressures, gearing, clickers and Weight tabs), one with the fan off,
+//                         the big screen mid-run and after,
 //                         the straps undone and the bike wheeled home (alone, it quits at the end)
 //   booth                 the paint shop's spray bay on bay 1's bike: its exhaust restored, hung on a hook and
 //                         sprayed with the gun (primer, gloss red, clear lacquer), the gun refused on the
@@ -26,7 +28,13 @@
 //   wheel:rig|home        take hold of the bay's bike, walk it onto the dyno's rig or back to its bay, let go
 //   strap:<0-3>           the work button at that strap post on the rig (does it up, or undoes it)
 //   fan:on|off, lights:on|off, switch:fan|lights   the dyno room's switches by the door (F)
-//   dynorun[:mid]         F at the dyno desk and wait out the run (mid: about 60% of it, for a shot)
+//   dynorun[:mid]         F at the dyno desk, Run the dyno on its page, and wait out the run (mid: about 60%
+//                         of it, for a shot); the page closes again unless it was up already
+//   desk[:open|close|log], desk:tab:<name>   the dyno desk's page (TorqueDynoDesk): opened, walked away from,
+//                         logged (the tab's settings and what the bike makes), or a tab picked (Engine,
+//                         Suspension, Tyres & chain, Gearing, Rider aids, Weight)
+//   tune:<key>:<value|stock>   a setting on the desk moved (map 0.25, psi_r 1.6, sprocket_r 48, aid_traction 2)
+//                         or put back to stock, as its slider would
 //   shedlights:on|off, rollerdoor:up|down   the switch boxes right of the roller door (F)
 //   extinguisher:take|spray|stop|put        the fire extinguisher: F takes it, the work button sprays, F puts it back
 //   standmove:<x>:<y>[:<yaw>]               wheel the engine stand there (world cm) and let go

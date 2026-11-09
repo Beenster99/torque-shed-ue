@@ -75,6 +75,8 @@ const TCHAR* const DynoSteps =
 	TEXT("wheel:rig,wait:2,bikelog,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,look:dynoroom,shot,")
 	TEXT("fan:on,dynorun,dynolog,look:dyno,shot,")
+	TEXT("desk:tab:engine,tune:map:0.25,tune:ignition:0.25,shot:ui,dynorun,dynolog,desk:tab:Tyres & chain,tune:psi_r:1.6,")
+	TEXT("desk:tab:Gearing,tune:sprocket_r:48,shot:ui,desk:tab:Suspension,desk:log,desk:tab:Weight,shot:ui,desk:close,")
 	TEXT("fan:off,dynorun:mid,look:dyno,shot,dynolog,look:dyno,shot,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,wheel:home,wait:2,bikelog,log");
 
@@ -1281,12 +1283,33 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (W->TestTargetPlace() != FName(TEXT("dyno_desk"))) { Warn(TEXT("couldn't get a look at the desk: saw ") + Seen); return true; }
 		const int32 Bay = B->DynoBay();
 		const int32 Before = Bay != INDEX_NONE && B->HasDynoRun(Bay) ? B->DynoRunOf(Bay).N : 0;
-		Said(W->TestInteract());
+		// F opens the desk's page (tuning_computer.gd); its Run the dyno starts the run.
+		const bool bWasUp = W->AtDesk();
+		if (!bWasUp) Said(W->TestInteract());
+		Said(W->TestDesk(TEXT("run"), FString(), 0.0f));
+		if (!bWasUp) W->TestDesk(TEXT("close"), FString(), 0.0f);
 		if (Bay == INDEX_NONE || !B->HasDynoRun(Bay) || B->DynoRunOf(Bay).N == Before) { Warn(TEXT("no run started")); return true; }
 		const float Length = TorqueShedPower::RunTime(B->DynoRunOf(Bay));
 		const bool bMid = P.Num() >= 2 && P[1] == TEXT("mid");
 		Wait = bMid ? Length * 0.6 : Length + 1.0;
 		Said(FString::Printf(TEXT("run %d started, %.1f s long"), B->DynoRunOf(Bay).N, Length));
+		return true;
+	}
+	if (Verb == TEXT("desk") || Verb == TEXT("tune"))
+	{
+		// The dyno desk's page: desk[:open|close|log], desk:tab:<name>, tune:<key>:<value|stock>.
+		FString What = P.Num() >= 2 ? P[1] : FString(TEXT("log"));
+		FString Key;
+		float Value = 0.0f;
+		if (Verb == TEXT("desk") && What == TEXT("tab")) Key = P.Num() >= 3 ? P[2] : FString();
+		if (Verb == TEXT("tune"))
+		{
+			if (P.Num() < 3) { Warn(TEXT("tune:<key>:<value|stock>")); return true; }
+			Key = P[1];
+			What = P[2] == TEXT("stock") ? TEXT("stock") : TEXT("set");
+			Value = FCString::Atof(*P[2]);
+		}
+		Said(W->TestDesk(What, Key, Value));
 		return true;
 	}
 	if (Verb == TEXT("dynolog"))

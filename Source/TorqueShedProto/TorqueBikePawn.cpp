@@ -533,7 +533,8 @@ std::string PawnStd(const FString& S) { return std::string(TCHAR_TO_UTF8(*S)); }
 // fork's offset and the wheels' size giving the trail, suspension, tyres, brakes, gearbox and aids
 // from their parts, the mass from every part, each part's wear, rust and dirt taking off what Torque
 // Shed takes off; and the engine's torque curve with every engine part's multiplier, as the shed
-// works it out for the dyno (TorqueShedPower). False if the parts or the engine won't do.
+// works it out for the dyno (TorqueShedPower), all with the dyno desk's tune. False if the parts or
+// the engine won't do.
 bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FString, FString>& Parts, BikeSpec& Out, FString& OutText)
 {
 	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
@@ -546,6 +547,11 @@ bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FSt
 		if (const FTorqueItem* It = B.Item(B.ItemOn(Bay, FName(*KV.Key))))
 			In.Health[Slot] = TorqueFit::PartHealth(It->Wear, It->Rust, It->Dirt);
 	}
+	// The dyno desk's tune (pressures, sprockets, clickers, ratio spacing, rider aids, steering
+	// damper), the chain's slack and the parts drilled and trimmed for lightness.
+	for (const TPair<FName, float>& KV : B.TuneOf(Bay)) In.Tune[PawnStd(KV.Key.ToString())] = KV.Value;
+	In.ChainSlack = B.ChainSlackOf(Bay);
+	for (const FName& Slot : B.LightenedOf(Bay)) In.Lightened.push_back(PawnStd(Slot.ToString()));
 	std::vector<std::string> Notes;
 	BikeSpec S;
 	if (!TorqueFit::RideSpec(*Lay, In, S, &Notes)) return false;

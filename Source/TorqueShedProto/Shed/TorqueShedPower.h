@@ -5,8 +5,11 @@
 // The numbers are Torque Shed's, for the bay screens (power, torque, weight) and the dyno room's
 // runs, and a catalogue bike's torque curve on the road (its riding spec is Fit/BikeRideSpec's).
 //
-// Not ported yet: tuning (map, ignition, limiter), fluids (petrol and oil levels and age) and
-// engine heat against the cooling, which Torque Shed adds on top.
+// With the dyno desk's tune (BikeBuild._tune_engine: the fuel map and ignition on the torque below
+// and above the peak, the rev limiter moved) and parts drilled and trimmed for lightness.
+//
+// The engine's heat against its cooling is in (a lean map runs it hotter). Not ported yet: fluids
+// (petrol and oil levels and age), which Torque Shed adds on top.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -18,6 +21,9 @@ struct FTorqueEngineNumbers
 	bool bValid = false;            // an engine is fitted
 	float PeakTorque = 0.0f;        // N m at the crank, after every multiplier
 	float PeakTorqueRpm = 4000.0f, Redline = 8000.0f, IdleRpm = 1000.0f;
+	float StockRedline = 8000.0f;   // the limiter as it came, before the desk moved it
+	float TuneLow = 0.0f, TuneHigh = 0.0f;   // the tune's torque below and above the peak (BikeBuild tune_low / tune_high)
+	float Stress = 1.0f;            // how hard the tune works the engine (engine_stress)
 	float Drivetrain = 0.92f;       // to the rear wheel
 	float TorqueMult = 1.0f;
 	float Mass = 0.0f;              // kg, the bike with its fluids
