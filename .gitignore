@@ -20,3 +20,6 @@ Data/Textures/*/
 Plugins/DLSS*/
 Plugins/StreamlineNGXCommon/
 SimTest/sfx_test.wav
+
+# SimTest outputs written at the repo root
+/*_test.wav
