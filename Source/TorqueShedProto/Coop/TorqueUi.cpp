@@ -3,6 +3,8 @@
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Engine/Canvas.h"
+#include "Engine/Engine.h"
+#include "Engine/Font.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/SlateRenderer.h"
@@ -19,9 +21,15 @@ float Scale(const UCanvas* Canvas)
 
 FSlateFontInfo Font(float Px, bool bBold)
 {
-	FSlateFontInfo F = FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", 10);
 	// Slate's sizes are points at 96 dpi: a point is 4/3 of a pixel.
-	F.Size = (decltype(F.Size))FMath::Max(Px * 0.75f, 4.0f);
+	const float Pt = FMath::Max(Px * 0.75f, 4.0f);
+	// The engine's Roboto font object (cooked with the game, runtime cached), not Slate's own default
+	// composite font: in a packaged game a canvas text item with the latter measures but draws nothing.
+	const UFont* Roboto = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (Roboto && Roboto->FontCacheType == EFontCacheType::Runtime)
+		return FSlateFontInfo(Roboto, (decltype(FSlateFontInfo::Size))Pt, bBold ? FName("Bold") : FName("Regular"));
+	FSlateFontInfo F = FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", 10);
+	F.Size = (decltype(F.Size))Pt;
 	return F;
 }
 
@@ -45,6 +53,7 @@ float Text(UCanvas* Canvas, const FString& Str, float X, float Y, float Px, cons
 	if (Align == EAlign::Centre) At -= 0.5f * (float)Size.X;
 	else if (Align == EAlign::Right) At -= (float)Size.X;
 	FCanvasTextItem Item(FVector2D(FMath::RoundToFloat(At), FMath::RoundToFloat(Y)), FText::FromString(Str), Font(Px, bBold), Colour);
+	Item.BlendMode = SE_BLEND_Translucent;   // (as the spray HUD, which draws in the packaged game)
 	if (bShadow)
 	{
 		const float Off = FMath::Max(1.0f, FMath::RoundToFloat(Px / 22.0f));
