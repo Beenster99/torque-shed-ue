@@ -592,6 +592,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			if (B->LayoutParts(I, Parts)) Bay = I;
 		if (Bay < 0) return false;
 	}
+	RideBay = Bay;
 	// Its own physics, or if that won't work out, the Speed Twin's (on which the drawn bike's origin,
 	// at its own rear axle's height, is lifted or dropped to the Speed Twin's 31 cm).
 	BikeSpec Spec;
@@ -1950,11 +1951,32 @@ void ATorqueBikePawn::StartSound()
 	SoundAudio->SetupAttachment(Root);
 	SoundAudio->RegisterComponent();
 	SoundAudio->SetSound(SoundWave);
+	// The bike's own engine, as Torque Shed makes it from its engine, head, exhaust, air filter,
+	// gearbox and plugs (EngineSynth), in place of the made 270 twin: every bike from the part list.
+	std::shared_ptr<TorqueEngine::FBank> Engine = RideBay >= 0 ? UTorqueSfx::BikeEngine(this, RideBay) : nullptr;
+	if (Engine)
+	{
+		Sound->SetEngine(Engine);
+		UE_LOG(LogTemp, Log, TEXT("Torque: riding with Torque Shed's engine sound %s"), UTF8_TO_TCHAR(Engine->Sig.c_str()));
+	}
 	UpdateSound(0.0f);   // a little queued before it starts
-	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), then it catches.
+	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), or it's kicked
+	// over (made for the engine), then it catches.
 	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
-	if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f)) EngineCatchIn = 1.1;
-	else SoundAudio->Play();
+	if (Sfx && Engine && Engine->Spec.Kick)
+	{
+		Sfx->PlayMadeOn(TorqueEngine::RenderStarter(Engine->Spec, true, 1.0, FMath::RandRange(1, 3)), TorqueEngine::Rate, Root, FVector(0.0, 0.0, 45.0));
+		EngineCatchIn = 0.5;
+	}
+	else if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f))
+	{
+		EngineCatchIn = 1.1;
+	}
+	else
+	{
+		SoundAudio->Play();
+		Sound->Catch();
+	}
 	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
 }
 
@@ -1966,6 +1988,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 		EngineCatchIn -= Dt;
 		if (EngineCatchIn > 0.0) return;
 		SoundAudio->Play();   // it's caught: the engine from here
+		Sound->Catch();
 	}
 	TorqueSound::RideInputs In;
 	In.Rpm = Sim->Rpm;
