@@ -313,7 +313,7 @@ bool UTorqueShedTest::Step(float Dt)
 	if (!StepWas.IsEmpty())
 	{
 		const double Real = RealNow - StepRealAt;
-		if (Real > StepGame + 3.0 || Real > 12.0)
+		if (Real > StepGame + 3.0)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Torque test: slow step: '%s' took %.1f s real, %.1f s game, %d frames (%.0f fps)"), *StepWas, Real, StepGame, StepFrames,
 				StepFrames / FMath::Max(Real, 0.001));
@@ -324,15 +324,17 @@ bool UTorqueShedTest::Step(float Dt)
 	StepGame = 0.0;
 	StepFrames = 0;
 	StepWas.Reset();
-	if (Next >= Steps.Num())
+	// The run's time and its slowest steps: at the end, or before a "quit" ends it (a preset run alone).
+	const bool bEnd = Next >= Steps.Num();
+	if (bEnd || Steps[Next].TrimStartAndEnd() == TEXT("quit"))
 	{
 		SlowSteps.Sort([](const TPair<double, FString>& X, const TPair<double, FString>& Y) { return X.Key > Y.Key; });
 		FString Slowest;
 		for (int32 I = 0; I < SlowSteps.Num() && I < 5; ++I)
 			Slowest += FString::Printf(TEXT("%s'%s' %.1f s"), I == 0 ? TEXT("") : TEXT(", "), *SlowSteps[I].Value, SlowSteps[I].Key);
 		UE_LOG(LogTemp, Log, TEXT("Torque test: all shed steps done in %.0f s real; slowest: %s"), RealNow - RunRealAt, *Slowest);
-		return false;   // stop ticking
 	}
+	if (bEnd) return false;   // stop ticking
 	const FString S = Steps[Next].TrimStartAndEnd();
 	StepWas = S;
 	Wait = 2.0;
