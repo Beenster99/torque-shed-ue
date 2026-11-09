@@ -39,11 +39,13 @@ PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
 MAX_TEXTURE = 1024
 # Hair styles too short to build as a groom (a buzz cut or waves are painted on the scalp at
 # Optimized/Medium, so the avatar looks bald in game): never picked.
-HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble")
+# The short (_S_) styles' cards sit flush with the scalp and don't show in game either (round 116:
+# only the medium BobCurly did), so the avatars wear medium (_M_) styles.
+HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble", "_s_")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["_s_", "crew", "slick", "messy", "short"], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["_s_", "messy", "scrag", "wav", "short"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
-    {"name": "Avatar_C", "height": 182.0, "hair": ["_s_", "short", "side"], "outfit": ["overall", "work", "boot"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "outfit": ["work", "jacket", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
+    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "outfit": ["overall", "work", "boot"]},
     {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "outfit": ["shirt", "trouser", "pant", "boot"]},
 ]
 

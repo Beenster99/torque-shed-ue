@@ -203,6 +203,8 @@ struct FPartInfo
 	FString Name, Description, Material;
 	FLinearColor Colour = FLinearColor(0.5f, 0.5f, 0.5f);
 	TArray<FName> MountsOn;
+	TArray<FName> Styles;          // the bike types it suits (parts.json "styles"), empty: any bike
+	FName Pack;                    // the style pack it came in (parts.json "pack"), if any
 	TMap<FName, double> Numbers;   // every number field ("mass", "torque_mult"); an array's length as "<field>_count"
 };
 
@@ -247,6 +249,11 @@ FCatalogue& Catalogue()
 			const TArray<TSharedPtr<FJsonValue>>* On = nullptr;
 			if ((*P)->TryGetArrayField(TEXT("mounts_on"), On))
 				for (const TSharedPtr<FJsonValue>& V : *On) Info.MountsOn.Add(FName(*V->AsString()));
+			const TArray<TSharedPtr<FJsonValue>>* Styles = nullptr;
+			if ((*P)->TryGetArrayField(TEXT("styles"), Styles))
+				for (const TSharedPtr<FJsonValue>& V : *Styles) Info.Styles.AddUnique(FName(*V->AsString()));
+			FString Pack;
+			if ((*P)->TryGetStringField(TEXT("pack"), Pack) && !Pack.IsEmpty()) Info.Pack = FName(*Pack);
 			for (const auto& FieldKV : (*P)->Values)
 			{
 				if (!FieldKV.Value.IsValid()) continue;
@@ -411,6 +418,34 @@ FString PartDescription(FName Part)
 	if (IsStock(Part)) return TEXT("As it came on the Triumph Speed Twin 1200.");
 	const FPartInfo* P = Catalogue().Parts.Find(Part);
 	return P ? P->Description : FString();
+}
+
+TArray<FName> PartStyles(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	if (!P) return {};
+	TArray<FName> Out;
+	const FName Best = PreferredStyle(Part);
+	if (!Best.IsNone()) Out.Add(Best);
+	for (const FName& S : P->Styles) Out.AddUnique(S);
+	return Out;
+}
+
+FName PreferredStyle(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	if (!P) return NAME_None;
+	if (!P->Pack.IsNone()) return P->Pack;
+	return P->Styles.Num() > 0 ? P->Styles[0] : NAME_None;
+}
+
+bool SuitsStyle(FName Part, FName Style)
+{
+	if (Style.IsNone()) return true;
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	if (!P) return true;
+	if (P->Styles.Num() == 0 && P->Pack.IsNone()) return true;   // brakes, gearboxes, fluids...: any bike
+	return P->Pack == Style || P->Styles.Contains(Style);
 }
 
 FLinearColor DefaultColour(FName Part)

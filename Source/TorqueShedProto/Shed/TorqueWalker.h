@@ -100,6 +100,8 @@ public:
 	void DrawComputer(class AHUD* Hud, class UCanvas* Canvas) const;
 	// For the test steps: the computer's page as it'd be clicked (pick a kind and a model, order it).
 	FString TestComputer(FName Kind, FName Part, bool bOrder);
+	// The parts computer's bike type filter ("cafe", "all"...): what the page shows after.
+	FString TestComputerType(const FString& Type);
 	// The New bike aisle: Style's bike (as it starts) with Swaps (slot=part) on, a colour of its own, ordered.
 	FString TestNewBike(const FString& Style, const TArray<FString>& Swaps, bool bOrder);
 	// The New bike page's colour picker (FTorqueBikeConfigurator::TestColour's steps).

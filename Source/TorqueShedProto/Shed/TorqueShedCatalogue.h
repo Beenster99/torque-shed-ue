@@ -54,9 +54,12 @@ struct FDashGauge
 	int32 Mesh = INDEX_NONE;      // which of Out
 	FVector At = FVector::ZeroVector, Axis = FVector::UpVector, Up = FVector::ForwardVector;
 };
+// bOnlyFitted: leave out what the layout puts on for a slot that's empty ("none"), so a bare frame
+// in the shed is only the frame (no bars, tyres, sprockets...) until those are fitted.
 int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out, double& OutAxleHeight, const FString& Geo = FString(),
-	TArray<FName>* OutNodes = nullptr, FBikeFrame* OutFrame = nullptr, TArray<FDashGauge>* OutGauges = nullptr);
+	TArray<FName>* OutNodes = nullptr, FBikeFrame* OutFrame = nullptr, TArray<FDashGauge>* OutGauges = nullptr,
+	bool bOnlyFitted = false);
 
 // The same bike's parts as fitting has them, not drawn: each part placed and its mesh bent onto the
 // bike (fitting's frame, metres), what's hidden left out. For geometry mode's gaps. False if the

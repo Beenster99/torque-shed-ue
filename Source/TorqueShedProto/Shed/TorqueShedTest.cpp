@@ -1068,11 +1068,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("computer"))
 	{
 		// The parts computer's page: "computer" opens it, "computer:KIND[:PART[:order]]" picks a kind
-		// (bikes, paint:bases, paint:tints or a part kind) and a model and orders it, "computer:close".
+		// (bikes, paint:bases, paint:tints or a part kind) and a model and orders it, "computer:close",
+		// "computer:type:<style>" cuts the part lists to a bike type ("computer:type:all" for every type).
 		if (P.Num() >= 2 && P[1] == TEXT("close"))
 		{
 			Said(W->TestComputer(NAME_None, NAME_None, false) + TEXT(" (closing)"));
 			W->TestCloseComputer();
+			return true;
+		}
+		// "computer:type:<style>" (or "computer:type:all"): the part lists cut to a bike type.
+		if (P.Num() >= 3 && P[1] == TEXT("type"))
+		{
+			Said(W->TestComputerType(P[2]));
 			return true;
 		}
 		// (paint:bases has a colon in it: put it back together)

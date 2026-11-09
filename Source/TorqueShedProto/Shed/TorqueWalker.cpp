@@ -2136,25 +2136,19 @@ void ATorqueWalker::UpdateCues()
 			M->SetScalarParameterValue(TEXT("Opacity"), 0.35f);
 			GhostXRayMaterials.Add(M);
 		}
-	// The pieces, in the box's frame (its bottom centre, X ahead): the fill on the floor, a faint
-	// box, the twelve edges and the notch.
-	const double Bar = FMath::Clamp(FMath::Min(Size.X, Size.Y) * 0.04, 1.0, 2.0);
-	const double X = Size.X * 0.5, Y = Size.Y * 0.5, Z = Size.Z;
-	struct FPiece { FVector Size, Offset; int32 Kind; };   // 0 floor fill, 1 box, 2 edge
-	TArray<FPiece, TInlineAllocator<16>> Pieces;
-	Pieces.Add({FVector(Size.X, Size.Y, 0.3), FVector(0, 0, 0.35), 0});
-	Pieces.Add({FVector(Size.X, Size.Y, Z), FVector(0, 0, Z * 0.5 + 0.5), 1});
-	for (const double Up : {0.6, Z + 0.5})
-	{
-		Pieces.Add({FVector(Size.X + Bar, Bar, Bar), FVector(0, -Y, Up), 2});
-		Pieces.Add({FVector(Size.X + Bar, Bar, Bar), FVector(0, Y, Up), 2});
-		Pieces.Add({FVector(Bar, Size.Y + Bar, Bar), FVector(-X, 0, Up), 2});
-		Pieces.Add({FVector(Bar, Size.Y + Bar, Bar), FVector(X, 0, Up), 2});
-	}
-	for (const double SX : {-X, X})
-		for (const double SY : {-Y, Y})
-			Pieces.Add({FVector(Bar, Bar, Z), FVector(SX, SY, Z * 0.5 + 0.5), 2});
-	Pieces.Add({FVector(Bar * 3.0, FMath::Min(10.0, Size.Y * 0.5), Bar * 1.5), FVector(X, 0, 0.9), 2});   // the front
+	// The pieces, in the footprint's frame (its bottom centre, X ahead): only the floor the part will
+	// take up (beenster, Nov 9: "a thinner line, be orange and only show the floor space that the
+	// placed part will occupy"): a faint fill and a thin line round its edge, no box, no notch.
+	const double Bar = 0.6;
+	const double X = Size.X * 0.5, Y = Size.Y * 0.5;
+	struct FPiece { FVector Size, Offset; int32 Kind; };   // 0 floor fill, 2 edge
+	TArray<FPiece, TInlineAllocator<8>> Pieces;
+	Pieces.Add({FVector(Size.X, Size.Y, 0.2), FVector(0, 0, 0.25), 0});
+	const double Up = 0.45;
+	Pieces.Add({FVector(Size.X + Bar, Bar, Bar * 0.5), FVector(0, -Y, Up), 2});
+	Pieces.Add({FVector(Size.X + Bar, Bar, Bar * 0.5), FVector(0, Y, Up), 2});
+	Pieces.Add({FVector(Bar, Size.Y + Bar, Bar * 0.5), FVector(-X, 0, Up), 2});
+	Pieces.Add({FVector(Bar, Size.Y + Bar, Bar * 0.5), FVector(X, 0, Up), 2});
 	auto MakePart = [this](TArray<UStaticMeshComponent*>& Into)
 	{
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
@@ -2172,20 +2166,19 @@ void ATorqueWalker::UpdateCues()
 	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
 	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
 	const bool bOk = Plan.Blocked.IsEmpty();
-	// The edges breathe a little, so the eye finds them.
-	GhostClock += World->GetDeltaSeconds();
-	const float Pulse = 0.5f + 0.5f * FMath::Sin((float)GhostClock * 2.0f * PI * 1.2f);
+	// Orange where it can go (Torque Shed's highlight orange), red where it can't; steady, no pulse.
 	if (GhostMaterials.Num() >= 4)
 	{
 		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
-		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.85f, 1.0f) * 3.0f);
-		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.3f);
-		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.85f, 1.0f) * (5.0f + 3.0f * Pulse));
-		GhostMaterials[1]->SetScalarParameterValue(TEXT("Opacity"), 0.85f + 0.15f * Pulse);
-		GhostMaterials[2]->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.2f) * 3.0f);
-		GhostMaterials[2]->SetScalarParameterValue(TEXT("Opacity"), 0.3f);
-		GhostMaterials[3]->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.2f) * (5.0f + 3.0f * Pulse));
-		GhostMaterials[3]->SetScalarParameterValue(TEXT("Opacity"), 0.85f + 0.15f * Pulse);
+		const FLinearColor Can(1.0f, 0.45f, 0.08f), Cannot(1.0f, 0.15f, 0.1f);
+		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), Can * 3.0f);
+		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
+		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), Can * 6.0f);
+		GhostMaterials[1]->SetScalarParameterValue(TEXT("Opacity"), 0.95f);
+		GhostMaterials[2]->SetVectorParameterValue(TEXT("Color"), Cannot * 3.0f);
+		GhostMaterials[2]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
+		GhostMaterials[3]->SetVectorParameterValue(TEXT("Color"), Cannot * 6.0f);
+		GhostMaterials[3]->SetScalarParameterValue(TEXT("Opacity"), 0.95f);
 	}
 	auto Lay = [&](TArray<UStaticMeshComponent*>& Parts, bool bThrough)
 	{
@@ -2604,6 +2597,13 @@ FString ATorqueWalker::TestComputer(FName Kind, FName Part, bool bOrder)
 	return Out;
 }
 
+FString ATorqueWalker::TestComputerType(const FString& Type)
+{
+	if (!bComputer) OpenComputer();
+	if (!Computer.PickBikeType(Type)) return FString::Printf(TEXT("no bike type %s on the computer"), *Type);
+	return Computer.Describe();
+}
+
 FString ATorqueWalker::TestColour(const TArray<FString>& Args)
 {
 	if (!bComputer) OpenComputer();
@@ -2802,7 +2802,7 @@ void ATorqueWalker::UpdateHud()
 	if (AltPlan.bValid)
 		HudLines.Add({AltPlan.Blocked.IsEmpty() ? FString::Printf(TEXT("Right mouse / Square: %s"), *AltPlan.Verb)
 			: FString::Printf(TEXT("Can't %s: %s"), *AltPlan.Verb, *AltPlan.Blocked), AltPlan.Blocked.IsEmpty() ? Prompt : Blocked, 0.6f});
-	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out"), Prompt, 0.6f});
+	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out   Hold F / Triangle: wheel it"), Prompt, 0.6f});
 	const FPlan* Active = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
 	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3)
 		HudLines.Add({TWI::Bar(Progress / Active->Time), FColor::White, 0.6f});

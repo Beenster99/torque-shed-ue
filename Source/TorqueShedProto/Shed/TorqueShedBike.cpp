@@ -483,7 +483,7 @@ void ATorqueShedBike::Rebuild()
 	{
 		double AxleHeight = 31.0;
 		TorqueShedCatalogue::FBikeFrame Frame;
-		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight, Geo, nullptr, &Frame);
+		const int32 Drawn = TorqueShedCatalogue::MakeBike(this, BikeRoot, CatalogueParts, Parts, AxleHeight, Geo, nullptr, &Frame, nullptr, true);
 		if (Drawn > 0)
 		{
 			if (Frame.bValid)

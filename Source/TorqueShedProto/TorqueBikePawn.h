@@ -89,7 +89,8 @@ public:
 	// rider's), its stand down and the rider hidden.
 	bool IsOnFoot() const { return bOnFoot; }
 	void SetParkedLook(bool bParked);
-	// For TorqueShedTest: "off" or "on" as F does, "walk:<cm>" steps that far ahead (on foot).
+	// For TorqueShedTest: "off" or "on" as F does, "push" / "letgo" as holding F by it and F again,
+	// "walk:<cm>" steps that far ahead (on foot, the bike alongside if it's being wheeled).
 	FString TestFoot(const FString& What);
 
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
@@ -338,6 +339,12 @@ private:
 	void HoldParked();
 	void StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY);
 	void PoseStands(int32 Stand);
+	// Wheeling it on foot (hold F by it): it follows alongside, upright, the stand up; F lets go.
+	bool bPushing = false, bUseArmed = false;
+	double UseHeld = 0.0;
+	void TakeHoldOfBike();
+	void LetGoBike();
+	void FollowPusher();
 	FString CatalogueSpec;             // the spec, as logged
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
