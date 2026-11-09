@@ -162,10 +162,11 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 	// colour of whoever ordered it, with their name.
 	if (UStaticMesh* NoteMesh = PropMesh(TEXT("sticky_note")))
 	{
-		const FVector At(Size.X * 0.25, Size.Y * 0.5 + 0.2, Size.Z * 0.72);
+		// (The note's model stands up already, facing +y like the box's front, its back on its y 0.)
+		const FVector At(Size.X * 0.25, Size.Y * 0.5 + 0.1, Size.Z * 0.72);
 		const float Skew = (float)((int32)(Seed(It.Id, 0x5717u) % 9u) - 4);
 		const FQuat Tilt(FVector(0.0, 1.0, 0.0), FMath::DegreesToRadians(Skew));
-		const FRotator Rot = (Tilt * Facing(FVector::ForwardVector, FVector(0.0, 1.0, 0.0)).Quaternion()).Rotator();
+		const FRotator Rot = Tilt.Rotator();
 		if (UStaticMeshComponent* N = Prop(Owner, Parent, NoteMesh, At, Rot, FVector::OneVector))
 			if (UMaterialInstanceDynamic* M = N->CreateDynamicMaterialInstance(0)) M->SetVectorParameterValue(TEXT("Tint"), It.OrderedTint);
 		FString Who = It.OrderedBy;
@@ -173,7 +174,7 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 			if (const UWorld* World = Owner->GetWorld())
 				if (const APlayerController* PC = World->GetFirstPlayerController(); PC && PC->PlayerState) Who = PC->PlayerState->GetPlayerName();
 		const FRotator TextRot = (Tilt * Facing(FVector(0.0, 1.0, 0.0), FVector::UpVector).Quaternion()).Rotator();
-		Words(Owner, Parent, TEXT("For ") + Who, At + FVector(0.0, 0.1, 0.0), TextRot, 1.1f, FColor(25, 25, 30));
+		Words(Owner, Parent, TEXT("For ") + Who, At + FVector(0.0, 0.25, 0.0), TextRot, 1.1f, FColor(25, 25, 30));
 	}
 	return true;
 }
