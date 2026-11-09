@@ -8,7 +8,8 @@
 // are; caked muck takes longer than a film of dust. What's washed off shows on the bike there and
 // then, exactly where the jet went: the space round the bike is split into little cubes, each
 // holding how much has been washed off the surfaces in it facing each of six ways, sent up to the GPU
-// as two small atlases that M_WashDirt (an overlay on every part) reads to draw the muck still on it.
+// as two small atlases that the bike's own materials read (Tools/ue_bike_dirt.py: the same road dirt
+// they always draw, mud, dust and dead flies, gone where the jet's been, glossy wet for a while).
 // X lights up the muck still to do.
 //
 // The shed hears every moment how much of each part's muck has come off (a Wash request whose
@@ -103,7 +104,7 @@ struct FCue
 	FString Name;
 };
 
-// Whether a wash game is drawing bay Bay's muck itself (the parts' own grime is held off).
+// Whether a wash game is setting bay Bay's dirt itself (ApplyLooks leaves the parts' Grime to it).
 bool HidesGrime(const UObject* WorldContext, int32 Bay);
 // How hard muck as thick as Level (0..1) holds on: the jet's rate is divided by this.
 inline double Grip(double Level) { return 0.4 + Caked * Level; }
@@ -187,10 +188,10 @@ private:
 	int32 DirtyLo = MAX_int32, DirtyHi = -1;
 	double SinceUpload = 0.0;
 	TStrongObjectPtr<UTexture2D> TexA, TexB;
-	TArray<FShown> Shown;
-	bool bHolding = false;                        // HidesGrime says so (the overlay's on)
+	TArray<FShown> Shown;                         // the bike's meshes, each with its own material (the mask on it)
+	bool bHolding = false;                        // HidesGrime says so (the job sets the parts' dirt)
 	bool bScanOn = false;
-	double ScanAmt = 0.0, ScanT = 0.0;
+	double ScanAmt = 0.0, ScanT = 0.0, WetAmt = 0.0;
 	FVector Eye = FVector(TNumericLimits<double>::Max());
 	FVector Mid = FVector::ZeroVector;
 	mutable TorqueWash::FStats Cached;
@@ -210,5 +211,4 @@ private:
 	void Relook();
 	UMaterialInstanceDynamic* MidFor(UStaticMeshComponent* C, int32 Part);
 	void ApplyParams();
-	static UMaterialInterface* DirtMaterial();
 };

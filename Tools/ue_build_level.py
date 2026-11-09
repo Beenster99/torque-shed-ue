@@ -25,7 +25,12 @@ import json
 import math
 import os
 
+import sys
+
 import unreal
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ue_bike_dirt  # noqa: E402
 
 MAP = "/Game/Maps/Buttertubs"
 DEST = "/Game/Buttertubs"
@@ -761,22 +766,14 @@ def bike_master(name, tex, paint):
     roff = g.op(unreal.MaterialExpressionSubtract, dtex, a_out="R", const_b=0.5)
     roff = g.op(unreal.MaterialExpressionMultiply, roff, scalar("RoughVar", 0.0))
     rough = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd, rough, roff))
-    # Road grime: UV channel 1's v says how low (and so how dirty) each point sits on the bike;
-    # Grime scales it per finish, broken up by the detail map's roughness noise. Dust is matte and
-    # dulls metal. No extra texture samples.
-    gv = g.node(unreal.MaterialExpressionComponentMask, -1300, r=False, g=True, b=False, a=False)
-    g.link(uv1, gv)
-    brk = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, dtex, a_out="R", const_b=0.26),
-               g.const(2.5))
-    dirt = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, gv, scalar("Grime", 0.0)), brk)
-    dirt = g.op(unreal.MaterialExpressionSaturate, dirt)
-    shaded = g.lerp(shaded, g.const((0.105, 0.095, 0.08)), dirt)
-    met = g.lerp(met, g.const(0.0), g.op(unreal.MaterialExpressionMultiply, dirt, g.const(0.8)))
-    rough = g.lerp(rough, g.const(0.8), dirt)
+    # Road dirt (Torque Shed's look: mud low down, dust on top, flies up front) laid over the finish,
+    # washed off where the pressure washer's jet has been (Tools/ue_bike_dirt.py).
+    look, glow = ue_bike_dirt.add_dirt(m)
     emis = g.op(unreal.MaterialExpressionMultiply, col, scalar("Emissive", 0.0))
+    shaded, met, rough, emis, cover = ue_bike_dirt.lay_over(m, -500, 2400, look, glow, shaded, met, rough, emis)
     outs = [(shaded, "BaseColor", "MP_BASE_COLOR"), (met, "Metallic", "MP_METALLIC"), (rough, "Roughness", "MP_ROUGHNESS"),
             (nrm, "Normal", "MP_NORMAL"), (emis, "EmissiveColor", "MP_EMISSIVE_COLOR")]
-    coat = [(g.const(1.0), "ClearCoat", "MP_CUSTOM_DATA0"),
+    coat = [(g.op(unreal.MaterialExpressionOneMinus, cover), "ClearCoat", "MP_CUSTOM_DATA0"),   # no lacquer shine through the dirt
             (scalar("ClearCoatRoughness", 0.03), "ClearCoatRoughness", "MP_CUSTOM_DATA1")] if paint else []
     done = False
     if coat and not hasattr(unreal.MaterialProperty, "MP_CUSTOM_DATA0") and hasattr(unreal.MaterialProperty, "MP_MATERIAL_ATTRIBUTES"):

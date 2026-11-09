@@ -131,7 +131,8 @@ void Rows(const FTransform& ToModel, FLinearColor& R0, FLinearColor& R1, FLinear
 }
 
 // How much of a part's muck lies at a point (Dirt's usual pattern, roughly): road muck thick low down
-// and on the undersides, a film of dust on top. M_WashDirt works the same out per pixel (WASH_HLSL).
+// and on the undersides, a film of dust on top. The bike's materials work the same out per pixel
+// (Tools/ue_bike_dirt.py DIRT_HLSL).
 float Pattern(double H, const FVector& N)
 {
 	const double Hn = FMath::Clamp(H, 0.0, 1.0);
@@ -139,6 +140,14 @@ float Pattern(double H, const FVector& N)
 	if (N.Z < -0.5) P *= 1.45;                    // the undersides catch the spray off the tyres
 	else if (N.Z > 0.6) P *= 0.75;                // the tops: settled dust
 	return (float)P;
+}
+
+// Where dead flies lie (on a part that collects them, FlyGain): the forward faces, up off the ground
+// (Up, cm). DIRT_HLSL's flyw.
+double FlyWeight(const FVector& N, double Up)
+{
+	auto Smooth = [](double A, double B, double X) { const double T = FMath::Clamp((X - A) / (B - A), 0.0, 1.0); return T * T * (3.0 - 2.0 * T); };
+	return Smooth(0.45, 0.8, N.X) * Smooth(0.12, 0.4, Up * 0.01);
 }
 
 ATorqueShedBike* BikeOf(UWorld* World, int32 Bay)
@@ -198,24 +207,6 @@ FTorqueWashJob::FTorqueWashJob() = default;
 FTorqueWashJob::~FTorqueWashJob()
 {
 	Detach();
-}
-
-UMaterialInterface* FTorqueWashJob::DirtMaterial()
-{
-	// M_WashDirt comes from the shed's level script (Tools/ue_build_wash.py, run by ue_build_shed.py).
-	static UMaterialInterface* Mat = nullptr;
-	static bool bLooked = false;
-	if (!bLooked)
-	{
-		bLooked = true;
-		Mat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_WashDirt.M_WashDirt"));
-		if (Mat) Mat->AddToRoot();
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Torque wash: no M_WashDirt (run Tools/ue_build_shed.py): the muck won't wash off where the jet goes, only part by part"));
-		}
-	}
-	return Mat;
 }
 
 bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
@@ -279,6 +270,19 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	for (const FVector& P : RawP) Box += P;
 	ZLo = Box.Min.Z;
 	ZHi = FMath::Max(Box.Max.Z, ZLo + 10.0);
+	// The bike's height as its materials have it (TorqueShedModel::ApplyLooks), so the dirt here lies
+	// exactly as it's drawn.
+	for (UStaticMeshComponent* C : Meshes)
+		if (const UMaterialInstanceDynamic* Mid = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0)))
+		{
+			const FLinearColor Z = Mid->K2_GetVectorParameterValue(TEXT("ZRange"));
+			if (Z.G > Z.R + 1.0f)
+			{
+				ZLo = Z.R;
+				ZHi = Z.G;
+				break;
+			}
+		}
 	Vx = FMath::Max(TW::MinVoxel, Box.GetSize().GetMax() / (double)(TW::MaskMaxDim - 6));
 	Box = Box.ExpandBy(Vx * 2.0);
 	Origin = Box.Min;
@@ -327,15 +331,16 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	for (int32 I = 0; I < Points.Num(); ++I)
 	{
 		Vox[I] = IndexOf(Points[I]);
-		Pat[I] = TWJ::Pattern((Points[I].Z - ZLo) / (ZHi - ZLo), Normals[I]);
+		Pat[I] = FMath::Max(TWJ::Pattern((Points[I].Z - ZLo) / (ZHi - ZLo), Normals[I]),
+			(float)(TorqueShedModel::FlyGain(Slots[PointPart[I]]) * TWJ::FlyWeight(Normals[I], Points[I].Z - ZLo) * 1.6));
 		PartN[PointPart[I]] += 1;
 		PatMean[PointPart[I]] += Pat[I];
 		Sum += Points[I];
 	}
 	Mid = Sum / Points.Num();
 	for (int32 P = 0; P < Parts; ++P) PatMean[P] = PartN[P] > 0 ? PatMean[P] / PartN[P] : 1.0f;
-	// A part's points carry its muck in its pattern, averaging to the shed's figure.
-	for (int32 I = 0; I < Points.Num(); ++I) Pat[I] /= FMath::Max(PatMean[PointPart[I]], 0.05f);
+	// A part's points carry its muck in its pattern times the shed's figure, as its material draws it.
+	for (int32 I = 0; I < Points.Num(); ++I) Pat[I] = FMath::Min(Pat[I], 1.0f / FMath::Max(Start[PointPart[I]], 1e-3f));
 	Sent.Init(1.0f, Parts);
 	Flash.Init(0.0f, Parts);
 	Done.Init(false, Parts);
@@ -388,7 +393,7 @@ float FTorqueWashJob::WashedFacing(int32 I, const FVector& N) const
 	const float Wx = W[N.X > 0.0 ? 0 : 1], Wy = W[N.Y > 0.0 ? 2 : 3], Wz = W[N.Z > 0.0 ? 4 : 5];
 	// Each side weighted by how square on it faces; or a surface at a slant washed from one way it
 	// faces well enough counts in full (the jet that hits it square on is diagonal to the cubes).
-	// M_WashDirt works it out the same way.
+	// The bike's materials work it out the same way (Tools/ue_bike_dirt.py).
 	const float Blend = (float)(N.X * N.X * Wx + N.Y * N.Y * Wy + N.Z * N.Z * Wz);
 	auto Fair = [](double C) { return (float)FMath::Clamp((FMath::Abs(C) - TW::SlantLo) / (TW::SlantHi - TW::SlantLo), 0.0, 1.0); };
 	return FMath::Max(Blend, FMath::Max3(Wx * Fair(N.X), Wy * Fair(N.Y), Wz * Fair(N.Z)));
@@ -498,6 +503,7 @@ void FTorqueWashJob::Step(double Dt, const FVector& InEye, const FVector& Dir, b
 	Jet.Zone = Jet.bHit ? Shape.Zone : TW::EZone::Out;
 	Jet.Radius = Shape.Radius;
 	if (!bFiring || !bOnBike || Shape.Power <= 0.0) return;
+	WetAmt = 1.0;
 	const double HitLevel = Start[PointPart[Bi]] * Pat[Bi];
 	Wash(Model.InverseTransformPosition(Jet.At), D, Shape.Radius, Dt * TW::WashRate * Shape.Power / TW::Grip(HitLevel));
 }
@@ -721,24 +727,17 @@ bool FTorqueWashJob::Owns(const UStaticMeshComponent* C) const
 
 UMaterialInstanceDynamic* FTorqueWashJob::MidFor(UStaticMeshComponent* C, int32 Part)
 {
-	UMaterialInterface* Base = DirtMaterial();
-	if (!Base || !C) return nullptr;
-	UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, GetTransientPackage());
-	FLinearColor R0, R1, R2, Off;
-	TWJ::Rows(C->GetComponentTransform().GetRelativeTransform(Model), R0, R1, R2, Off);
-	M->SetVectorParameterValue(TEXT("Row0"), R0);
-	M->SetVectorParameterValue(TEXT("Row1"), R1);
-	M->SetVectorParameterValue(TEXT("Row2"), R2);
-	M->SetVectorParameterValue(TEXT("RowOffset"), Off);
+	// The part's own material (ApplyLooks made it dynamic): its road dirt, with the mask on it.
+	UMaterialInstanceDynamic* M = C ? Cast<UMaterialInstanceDynamic>(C->GetMaterial(0)) : nullptr;
+	if (!M && C) M = C->CreateDynamicMaterialInstance(0);
+	if (!M) return nullptr;
 	M->SetTextureParameterValue(TEXT("MaskA"), TexA.Get());
 	M->SetTextureParameterValue(TEXT("MaskB"), TexB.Get());
 	M->SetVectorParameterValue(TEXT("MaskOrigin"), FLinearColor((float)Origin.X, (float)Origin.Y, (float)Origin.Z, 0.0f));
 	M->SetVectorParameterValue(TEXT("MaskDims"), FLinearColor((float)Dims.X, (float)Dims.Y, (float)Dims.Z, (float)Grid));
 	M->SetVectorParameterValue(TEXT("AtlasSize"), FLinearColor((float)AtlasSize.X, (float)AtlasSize.Y, 0.0f, 0.0f));
 	M->SetScalarParameterValue(TEXT("Voxel"), (float)Vx);
-	M->SetVectorParameterValue(TEXT("ZRange"), FLinearColor((float)ZLo, (float)ZHi, 0.0f, 0.0f));
-	M->SetScalarParameterValue(TEXT("Grime"), Start.IsValidIndex(Part) && !Done[Part] ? Start[Part] : 0.0f);
-	M->SetScalarParameterValue(TEXT("PatScale"), PatMean.IsValidIndex(Part) ? 1.0f / FMath::Max(PatMean[Part], 0.05f) : 1.0f);
+	M->SetScalarParameterValue(TEXT("HasMask"), 1.0f);
 	return M;
 }
 
@@ -749,8 +748,10 @@ void FTorqueWashJob::ApplyParams()
 		if (!S.M.IsValid()) continue;
 		S.M->SetScalarParameterValue(TEXT("Scan"), (float)ScanAmt);
 		S.M->SetScalarParameterValue(TEXT("ScanT"), (float)ScanT);
+		S.M->SetScalarParameterValue(TEXT("Wet"), (float)WetAmt);
 		S.M->SetScalarParameterValue(TEXT("Flash"), Flash.IsValidIndex(S.Part) ? Flash[S.Part] : 0.0f);
-		if (Done.IsValidIndex(S.Part) && Done[S.Part]) S.M->SetScalarParameterValue(TEXT("Grime"), 0.0f);
+		// The dirt as it was when the wash began (the mask takes off what's been washed); none once done.
+		S.M->SetScalarParameterValue(TEXT("Grime"), Start.IsValidIndex(S.Part) && !Done[S.Part] ? Start[S.Part] : 0.0f);
 	}
 }
 
@@ -776,7 +777,7 @@ void FTorqueWashJob::Hold(bool bOn)
 				break;
 			}
 	}
-	Relook();   // the parts' own grime off (the overlay draws it) or back on
+	Relook();   // the parts' dirt left to the wash, or the shed's back on
 }
 
 bool FTorqueWashJob::Attach(UWorld* World)
@@ -788,15 +789,13 @@ bool FTorqueWashJob::Attach(UWorld* World)
 	if (Meshes.Num() == 0) return false;
 	Model = Bike->GetActorTransform();
 	Model.SetScale3D(FVector::OneVector);
-	if (!DirtMaterial()) return true;   // no overlay to draw it: the shed's dirt shows, part by part
 	bool bSame = Meshes.Num() == Shown.Num();
-	for (int32 I = 0; bSame && I < Meshes.Num(); ++I) bSame = Shown[I].C.Get() == Meshes[I];
+	for (int32 I = 0; bSame && I < Meshes.Num(); ++I)
+		bSame = Shown[I].C.Get() == Meshes[I] && (Shown[I].Part == INDEX_NONE || Meshes[I]->GetMaterial(0) == Shown[I].M.Get());
 	if (!bSame)
 	{
-		// Redrawn (the shed changed): the muck goes on the new meshes, as far as the wash has got.
-		for (const FShown& S : Shown)
-			if (UStaticMeshComponent* C = S.C.Get())
-				if (C->GetOverlayMaterial() == S.M.Get()) C->SetOverlayMaterial(nullptr);
+		// Redrawn (the shed changed) or given a new material (a new paint): the mask goes on the new
+		// ones, as far as the wash has got.
 		Shown.Reset();
 		for (UStaticMeshComponent* C : Meshes)
 		{
@@ -809,18 +808,19 @@ bool FTorqueWashJob::Attach(UWorld* World)
 		}
 		ApplyParams();
 	}
-	for (const FShown& S : Shown)
-		if (UStaticMeshComponent* C = S.C.Get())
-			if (S.M.IsValid() && C->GetOverlayMaterial() != S.M.Get()) C->SetOverlayMaterial(S.M.Get());
 	Hold(true);
 	return true;
 }
 
 void FTorqueWashJob::Detach()
 {
+	// The mask off the parts' materials: the shed's dirt shows again as it now stands.
 	for (const FShown& S : Shown)
-		if (UStaticMeshComponent* C = S.C.Get())
-			if (S.M.IsValid() && C->GetOverlayMaterial() == S.M.Get()) C->SetOverlayMaterial(nullptr);
+		if (S.M.IsValid() && S.C.IsValid() && S.C->GetMaterial(0) == S.M.Get())
+		{
+			S.M->SetScalarParameterValue(TEXT("HasMask"), 0.0f);
+			for (const TCHAR* Param : {TEXT("Scan"), TEXT("Flash"), TEXT("Wet")}) S.M->SetScalarParameterValue(Param, 0.0f);
+		}
 	Shown.Reset();
 	Hold(false);
 }
@@ -830,6 +830,7 @@ void FTorqueWashJob::Tick(double Dt)
 	const double Want = bScanOn ? 1.0 : 0.0;
 	ScanAmt = Want > ScanAmt ? FMath::Min(Want, ScanAmt + Dt * 3.0) : FMath::Max(Want, ScanAmt - Dt * 3.0);
 	ScanT += Dt;
+	WetAmt = FMath::Max(0.0, WetAmt - Dt * 0.05);   // just washed surfaces dry off (DirtLayer.WET_FADE)
 	for (float& F : Flash) F = FMath::Max(0.0f, F - (float)Dt * 1.2f);
 	ApplyParams();
 	SinceUpload += Dt;
