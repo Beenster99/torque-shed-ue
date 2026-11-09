@@ -46,6 +46,8 @@
 //   hold:<seconds>        hold the work button that long (the pressure washer's passes)
 //   f                     press F at what's looked at (unpack a box, the parts computer, ride out)
 //   order:<part>|bike     order from the parts computer (delivered outside the roller door)
+//   newbike[:<style>][:<slot>=<part>]...[:order]  the parts computer's New bike aisle (the configurator):
+//                         that style's bike with those parts on, a colour of its own, ordered built into a free bay
 //   rideout               stand in the roller door and press F (loads Buttertubs with the bike as built)
 //   back                  on the road: back to the shed (as Backspace)
 //   log                   log every bay's bike and the loose parts

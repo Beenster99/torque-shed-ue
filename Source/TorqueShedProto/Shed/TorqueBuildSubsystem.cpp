@@ -1,6 +1,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 
 #include "Fit/BikeLayout.h"
+#include "Fit/BikeShop.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
@@ -924,6 +925,15 @@ bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& 
 	const std::string Want = Style.IsEmpty() ? StyleIds[Rng.RandRange(0, (int32)StyleIds.size() - 1)] : TBI::Std(Style.ToLower());
 	const TorqueFit::PartsMap Ref = Lay->ReferenceBuild(Want);
 	if (Ref.empty()) return false;
+	TMap<FName, FName> Parts;
+	for (const auto& KV : Ref) Parts.Add(FName(*TBI::Ue(KV.first)), FName(*TBI::Ue(KV.second)));
+	FillBike(Bay, Parts, Age);
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s, a %s project bike, in bay %d"), *Bikes[Bay].Name, *TBI::Ue(Want), Bay + 1);
+	return true;
+}
+
+void UTorqueBuildSubsystem::FillBike(int32 Bay, const TMap<FName, FName>& Parts, float Age)
+{
 	{
 		FTorqueShedBike& B = Bikes[Bay];
 		B = FTorqueShedBike();
@@ -945,9 +955,11 @@ bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& 
 	for (const FName& S : Order)
 	{
 		if (ItemOn(Bay, S) != 0) continue;
-		const TorqueFit::PartsMap::const_iterator Found = Ref.find(TBI::Id(S));
-		if (Found == Ref.end() || Found->second.empty() || Found->second == "none") continue;
-		const FName Part(*TBI::Ue(Found->second));
+		const FName* Found = nullptr;
+		for (const TPair<FName, FName>& KV : Parts)
+			if (KV.Key.ToString().Equals(S.ToString(), ESearchCase::IgnoreCase)) Found = &KV.Value;
+		if (!Found || Found->IsNone() || *Found == FName(TEXT("none"))) continue;
+		const FName Part = *Found;
 		if (!TorqueShedParts::IsPart(Part) || !HostOf(Bay, S, 0).Slots) continue;
 		const int32 Id = AgedItem(Part, Age);
 		if (S == TBI::EngineKind())
@@ -961,8 +973,47 @@ bool UTorqueBuildSubsystem::NewProjectBike(int32 Bay, float Age, const FString& 
 		H.Slots->Add(S, Id);
 		H.Bolted->Add(S, true);
 	}
-	UE_LOG(LogTemp, Log, TEXT("Torque: %s, a %s project bike, in bay %d"), *Bikes[Bay].Name, *TBI::Ue(Want), Bay + 1);
-	return true;
+}
+
+FString UTorqueBuildSubsystem::NewOrderedBike(int32 Peer, int32 Bay, const FString& OrderText)
+{
+	// BikeCopy.order of a configured new bike, built (shed_state deliver_ready_bike): every part new,
+	// coloured and finished as ordered, the fabrication its parts take done by the works as they
+	// built it, and named after who ordered it ("Simon's cafe racer", owned_name).
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay) return TEXT("The bike can't be built: the part list's bike layout is missing.");
+	TorqueFit::Shop::Order O;
+	if (!TorqueFit::Shop::ParseOrder(*Lay, TBI::Std(OrderText), O)) return TEXT("That bike can't be built.");
+	if (!Bikes.IsValidIndex(Bay)) return TEXT("Every bay is full. Ride a bike out or strip one down first.");
+	TMap<FName, FName> Parts;
+	for (const auto& KV : O.Parts) Parts.Add(FName(*TBI::Ue(KV.first)), FName(*TBI::Ue(KV.second)));
+	FillBike(Bay, Parts, 0.0f);
+	for (const auto& KV : TorqueFit::Shop::OrderLooks(*Lay, O))
+	{
+		FTorqueItem* It = Items.Find(ItemOn(Bay, FName(*TBI::Ue(KV.first))));
+		if (!It) continue;
+		It->Colour = FLinearColor((float)KV.second.Colour[0], (float)KV.second.Colour[1], (float)KV.second.Colour[2]);
+		It->Finish = KV.second.Finish.empty() ? NAME_None : FName(*TBI::Ue(KV.second.Finish));
+	}
+	FTorqueShedBike& B = Bikes[Bay];
+	for (const std::string& What : Lay->Solve(O.Parts).Fit.Work) B.FabDone.Add(TBI::Ue(What));
+	FString By;
+	FLinearColor Tint;
+	OrdererOf(Peer, By, Tint);
+	const std::string Style = Lay->DetectStyle(O.Parts);
+	const FString Base = FString::Printf(TEXT("%s's %s"), By.IsEmpty() || By == TEXT("the workshop") ? TEXT("The garage") : *By,
+		Style.empty() ? TEXT("bike") : *TBI::Ue(TorqueFit::Shop::StyleNoun(*Lay, Style)));
+	FString Name = Base;
+	for (int32 N = 2;; ++N)
+	{
+		bool bTaken = false;
+		for (int32 I = 0; I < Bikes.Num(); ++I) bTaken = bTaken || (I != Bay && Bikes[I].bExists && Bikes[I].Name == Name);
+		if (!bTaken) break;
+		Name = FString::Printf(TEXT("%s %d"), *Base, N);
+	}
+	B.Name = Name;
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s, a new %s from the configurator, in bay %d"), *B.Name, *TBI::Ue(O.Style), Bay + 1);
+	return FString();
 }
 
 int32 UTorqueBuildSubsystem::DropSpeedTwins()
@@ -1941,6 +1992,13 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		return FString();
 	case ETorqueShedAct::OrderBike:
 		if (FreeBay() == INDEX_NONE) return TEXT("Every bay is full. Ride a bike out or strip one down first.");
+		if (!R.Text.IsEmpty())
+		{
+			// The configurator's order: one the host can read, of a style it knows.
+			const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+			TorqueFit::Shop::Order O;
+			if (!Lay || R.Text.Len() > 8000 || !TorqueFit::Shop::ParseOrder(*Lay, TBI::Std(R.Text), O)) return TEXT("That bike can't be built.");
+		}
 		return FString();
 	case ETorqueShedAct::Unpack:
 	{
@@ -2383,6 +2441,20 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	case ETorqueShedAct::OrderBike:
 	{
 		const int32 Bay = FreeBay();
+		if (!R.Text.IsEmpty())
+		{
+			// A new bike from the configurator, built and ready to ride.
+			const FString Why = NewOrderedBike(Peer, Bay, R.Text);
+			if (!Why.IsEmpty())
+			{
+				Text = Why;
+				break;
+			}
+			Text = FString::Printf(TEXT("%s is in bay %d, built new and ready to ride."), *Bikes[Bay].Name, Bay + 1);
+			PartsOf.Add(Bay);
+			LooksOf.Add(Bay);
+			break;
+		}
 		if (!NewProjectBike(Bay, Rng.FRandRange(0.35f, 0.9f)))
 		{
 			Text = TEXT("No project bike could be found (the part list's bike layout is missing).");
