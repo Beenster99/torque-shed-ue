@@ -13,6 +13,9 @@ them (Data/Props/swaps.json). Run in the editor, after Tools/fetch_props.py has 
     with the base's scanned maps (Poly Haven, materials.json 'scans') tiled over the props' UVs (laid
     out in metres) for the wear, grain and dents a flat colour hasn't got.
   * Poly Haven props (build/props/<id>/<id>.gltf): imported with their own scanned materials.
+  * Fab props (Data/Props/fab.json): beenster's own Fab downloads, read from the launcher's cache on
+    the PC (never committed), put in the props' frame and imported with their own materials. A swap
+    in swaps.json with a 'prefer' list uses them when they're in, else its own prop.
 Each lands at /Game/Shed/Props/<id>/SM_<id>, Nanite off (they're a few thousand triangles, and
 some have glass), no collision of their own: the shed's boxes keep doing the colliding.
 """
@@ -25,6 +28,8 @@ import unreal
 ROOT = os.path.abspath(unreal.Paths.project_dir())
 DATA = os.path.join(ROOT, "Data", "Props")
 FETCHED = os.path.join(ROOT, "build", "props")
+FAB_OUT = os.path.join(ROOT, "build", "fab")
+FAB_VAULT = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
 DEST = "/Game/Shed/Props"
 MATS = DEST + "/Materials"
 
@@ -410,6 +415,47 @@ def give_materials(mesh, mats):
     return done
 
 
+def fab_glb(pid):
+    """A Fab prop's corrected copy (build/fab/<id>.glb), written from the launcher's cache: its
+    scene put under one node with fab.json's 'matrix' (into the props' frame) and its materials'
+    alpha mode replaced. Pure glb surgery, so the PC needs no Blender. None when it isn't downloaded."""
+    import struct
+    spec = json.load(open(os.path.join(DATA, "fab.json")))["models"].get(pid)
+    if not spec:
+        warn("%s: not in fab.json" % pid)
+        return None
+    src = os.path.join(FAB_VAULT, *spec["vault"].split("/"))
+    if not os.path.exists(src):
+        log("%s: %s isn't downloaded (Fab: %s); our own model stays" % (pid, src, spec["listing"]))
+        return None
+    d = open(src, "rb").read()
+    if d[:4] != b"glTF":
+        warn("%s: %s isn't a glb" % (pid, src))
+        return None
+    n = struct.unpack("<I", d[12:16])[0]
+    g = json.loads(d[20:20 + n].decode("utf-8"))
+    rest = d[20 + n:]   # the BIN chunk, untouched
+    scene = g["scenes"][g.get("scene", 0)]
+    g["nodes"].append({"name": "TorqueFrame", "matrix": spec["matrix"], "children": scene["nodes"]})
+    scene["nodes"] = [len(g["nodes"]) - 1]
+    if spec.get("alpha"):
+        for m in g.get("materials", []):
+            m["alphaMode"] = spec["alpha"]
+            if spec["alpha"] == "MASK":
+                m["alphaCutoff"] = spec.get("alpha_cutoff", 0.5)
+            else:
+                m.pop("alphaCutoff", None)
+    j = json.dumps(g, separators=(",", ":")).encode("utf-8")
+    j += b" " * (-len(j) % 4)
+    if not os.path.isdir(FAB_OUT):
+        os.makedirs(FAB_OUT)
+    out = os.path.join(FAB_OUT, pid + ".glb")
+    with open(out, "wb") as f:
+        f.write(b"glTF" + struct.pack("<II", 2, 20 + len(j) + len(rest)) + struct.pack("<I", len(j)) + b"JSON" + j + rest)
+    log("%s: from Fab (%s)" % (pid, spec["listing"]))
+    return out
+
+
 def import_all(force=False):
     props = json.load(open(os.path.join(DATA, "props.json")))["props"]
     spec = json.load(open(os.path.join(DATA, "materials.json")))
@@ -420,6 +466,13 @@ def import_all(force=False):
             src = os.path.join(DATA, "Blender", pid + ".glb")
         elif p["source"] == "polyhaven":
             src = os.path.join(FETCHED, p["polyhaven"], p["polyhaven"] + ".gltf")
+        elif p["source"] == "fab":
+            if not force and eal.does_asset_exist(mesh_path(pid)):
+                got += 1
+                continue
+            src = fab_glb(pid)
+            if src is None:
+                continue   # not downloaded on this PC: not 'missing', the swap keeps our own model
         else:
             continue
         if not os.path.exists(src):
@@ -504,7 +557,14 @@ def dress():
         return a
 
     for s in spec["swaps"]:
-        if spawn(s, "Props") is None:
+        # 'prefer': the props to use instead, all at the swap's place, when every one is imported
+        # (a Fab model on our shelf); else the swap's own prop.
+        alt = s.get("prefer") or []
+        if alt and all(eal.does_asset_exist(mesh_path(p)) for p in alt):
+            for p in alt:
+                spawn(dict(s, prop=p), "Props")
+            log("%s: using %s" % (s["prop"], " + ".join(alt)))
+        elif spawn(s, "Props") is None:
             continue
         hidden = 0
         for a in level:

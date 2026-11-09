@@ -1,0 +1,14 @@
+{
+ "about": "Models from beenster's Fab library, used in place of our own where present. They are never committed (a Standard-licence Fab model may be used in the game but not handed out as files; each entry's 'licence' says which it is), so Tools/ue_import_props.py reads each from the Epic launcher's Fab cache on the PC (C:/ProgramData/Epic/EpicGamesLauncher/VaultCache/FabLibrary, or the folder in TORQUE_FAB_VAULT) at 'vault', writes a corrected copy to build/fab/<id>.glb and imports that with its own materials. 'matrix' (glTF, column-major) puts the model in Torque Shed's prop frame: metres, y up, its front +z, the origin where our model of the same thing has its own. 'alpha' replaces the materials' alpha mode (MASK: cut-outs stay holes, everything else is solid; Fab's converter marks whole models BLEND, which would make them all see-through). Without the file the shed keeps our own model.",
+ "models": {
+  "fab_radio": {
+   "listing": "PTish Radio, by Florian 5000 (fab.com, uid d8289022-da6a-48ed-b0ec-547db61811e7)",
+   "licence": "CC BY 4.0 (Fab, free): may be used, changed and shared with credit to Florian 5000. Kept out of the repo anyway, like every Fab model, so the repo stays small and the same route works for Standard-licence ones.",
+   "vault": "PTish_Radio-d8289022/glb/converted/ptish_radio.glb",
+   "note": "Modelled in cm, upside down and facing -z: scaled 0.01, turned 180 degrees about x, and moved 1.7 cm forward so its body (36 x 25.8 x 13.65 cm) sits where shed_radio's does on the shelf (centre z 0.02). Its dial window is x -0.165 .. 0.084, y 0.158 .. 0.242, face at z 0.084; the needle sweeps x -0.125 .. 0.03 (TorqueShedRadio.cpp).",
+   "matrix": [0.01, 0, 0, 0, 0, -0.01, 0, 0, 0, 0, -0.01, 0, 0, 0, 0.017, 1],
+   "alpha": "MASK",
+   "alpha_cutoff": 0.5
+  }
+ }
+}
