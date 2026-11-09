@@ -50,17 +50,23 @@ bool SpotIs(FName Spot, ETorquePlace Kind)
 }
 
 // How a sprayed coat came out (shed_state _job_word).
-FString JobWord(float Q)
+FString JobWord(float Q, float Overdone = 0.0f)
 {
-	return Q > 0.95f ? FString(TEXT("a perfect coat")) : (Q > 0.85f ? FString(TEXT("a good coat")) : (Q > 0.7f ? FString(TEXT("a bit patchy")) : FString(TEXT("patchy"))));
+	FString Word = Q > 0.95f ? FString(TEXT("a perfect coat")) : (Q > 0.85f ? FString(TEXT("a good coat")) : (Q > 0.7f ? FString(TEXT("a bit patchy")) : FString(TEXT("patchy"))));
+	if (Overdone > 0.15f) Word += TEXT(", with runs");
+	else if (Overdone > 0.04f) Word += TEXT(", a few runs");
+	return Word;
 }
 
-// How well a coat goes on this part: by hand for now (UTorqueBuildSubsystem::HandCoat), better on a
-// hook in the spray bay, where no dust settles in it.
-float SprayQ(const FTorqueItem& It)
+// How well a coat goes on this part: as the spray game scored it (the request's Amount, from
+// TorqueSprayJob: coverage less runs and dry spray), or a steady hand coat when none came with it
+// (UTorqueBuildSubsystem::HandCoat: a test's act); better on a hook in the spray bay, where no
+// dust settles in it.
+float SprayQ(const FTorqueItem& It, const FTorqueShedRequest& R)
 {
 	const bool bInBooth = It.At == ETorqueAt::Spot && SpotIs(It.Spot, ETorquePlace::Hook);
-	return FMath::Clamp(UTorqueBuildSubsystem::HandCoat + (bInBooth ? UTorqueBuildSubsystem::BoothFinish : 0.0f), 0.0f, 1.0f);
+	const float Hand = R.Amount > 0.0f ? FMath::Clamp(R.Amount, 0.0f, 1.0f) : UTorqueBuildSubsystem::HandCoat;
+	return FMath::Clamp(Hand + (bInBooth ? UTorqueBuildSubsystem::BoothFinish : 0.0f), 0.0f, 1.0f);
 }
 
 bool IsSpot(FName Spot)
@@ -2309,14 +2315,14 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		}
 		It.Coat = NAME_None;
 		It.CoatQ = 0.0f;
-		float Q = TBI::SprayQ(It);
+		float Q = TBI::SprayQ(It, R);
 		if (bPrimed) Q = FMath::Min(1.0f, Q + PrimerBonus * It.Primer);
 		It.bPrimerTop = false;
 		Q *= CoatsQ;
 		It.PaintQ = Q;
 		Text = FString::Printf(TEXT("Sprayed the %s %s"), *ItemTitle(R.Item), *What);
 		if (bPrimed) Text += TEXT(" over primer");
-		Text += TEXT(": ") + TBI::JobWord(Q);
+		Text += TEXT(": ") + TBI::JobWord(Q, R.Tilt);
 		Touch(R.Item);
 		break;
 	}
@@ -2324,13 +2330,13 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		// shed_state _apply "prime": grey primer, the colour that was on it kept underneath for now.
 		FTorqueItem& It = Items[R.Item];
-		const float Q = TBI::SprayQ(It);
+		const float Q = TBI::SprayQ(It, R);
 		It.Coat = NAME_None;
 		It.CoatQ = 0.0f;
 		It.Primer = Q;
 		It.bPrimerTop = true;
 		It.Mask = 0;
-		Text = FString::Printf(TEXT("Primed the %s: %s"), *ItemTitle(R.Item), *TBI::JobWord(Q));
+		Text = FString::Printf(TEXT("Primed the %s: %s"), *ItemTitle(R.Item), *TBI::JobWord(Q, R.Tilt));
 		Touch(R.Item);
 		break;
 	}
@@ -2338,7 +2344,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	{
 		// shed_state _coat_apply: clear lacquer over a paint job brings it up (once); an enamel paints it.
 		FTorqueItem& It = Items[R.Item];
-		const float Q = TBI::SprayQ(It);
+		const float Q = TBI::SprayQ(It, R);
 		if (IsLacquer(R.Finish))
 		{
 			if (It.PaintQ >= 0.0f && !IsLacquer(It.Coat)) It.PaintQ = FMath::Min(1.0f, It.PaintQ + LacquerBonus * Q);
@@ -2354,7 +2360,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		}
 		It.Coat = R.Finish;
 		It.CoatQ = Q;
-		Text = FString::Printf(TEXT("Gave the %s a coat of %s: %s"), *ItemTitle(R.Item).ToLower(), *CoatName(R.Finish).ToLower(), *TBI::JobWord(Q));
+		Text = FString::Printf(TEXT("Gave the %s a coat of %s: %s"), *ItemTitle(R.Item).ToLower(), *CoatName(R.Finish).ToLower(), *TBI::JobWord(Q, R.Tilt));
 		Touch(R.Item);
 		break;
 	}

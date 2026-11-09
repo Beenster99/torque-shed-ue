@@ -241,6 +241,9 @@ ATorqueWalker::ATorqueWalker()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Ball(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Block(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	CubeMesh = Block.Object;
+	// The spray's sprites are drawn on the engine's plane (held here so the packaged game has it).
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Flat(TEXT("/Engine/BasicShapes/Plane.Plane"));
+	PlaneMesh = Flat.Object;
 	struct FBit { const TCHAR* Name; int32 Shape; FVector At, Size; };   // capsule-centre cm; 0 cylinder, 1 sphere, 2 cube
 	const FBit Bits[] = {
 		{TEXT("Body_LegL"), 0, FVector(0, -10, -45), FVector(15, 15, 88)},
@@ -456,14 +459,16 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
 	if (!bNoInput) ReadInput(DeltaSeconds);
 	else bWorkHeld = bAltHeld = false;
+	TickSprays(DeltaSeconds);   // the coats going on (and drying off) follow their parts as they're redrawn
 	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
 	else if (!bComputer && !bBench)
 	{
 		FindTarget();
 		MakePlan();
-		Work(DeltaSeconds);
+		if (!SprayWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game
 		HookWork(DeltaSeconds);
 	}
+	UpdateSway(DeltaSeconds);
 	UpdateToolView(DeltaSeconds);
 	UpdateCues();
 	ShareHands(DeltaSeconds);   // [co-op]
@@ -589,6 +594,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	if (FMath::Abs(PadSide) > FMath::Abs(Side)) Side = PadSide;
 	const bool bRun = Down(EKeys::LeftShift) || Down(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3);
 	GetCharacterMovement()->MaxWalkSpeed = bRun ? RunSpeed : WalkSpeed;
+	if (SprayItem != 0) GetCharacterMovement()->MaxWalkSpeed *= (float)TorqueSpray::ModeWalk;   // careful steps with the spray controls up
 	if (Wheeling() != INDEX_NONE) GetCharacterMovement()->MaxWalkSpeed = FMath::Min(GetCharacterMovement()->MaxWalkSpeed, 240.0f);   // a bike is heavy to wheel about
 	const FRotator Yaw(0.0, PC->GetControlRotation().Yaw, 0.0);
 	AddMovementInput(FRotationMatrix(Yaw).GetUnitAxis(EAxis::X), Fwd);
@@ -601,8 +607,9 @@ void ATorqueWalker::ReadInput(float Dt)
 	const float LookY = S.bConnected ? Dead(S.RY) : Dead(Axis(EKeys::Gamepad_RightY));
 	FRotator R = PC->GetControlRotation();
 	const float Invert = Set.bInvertLook ? -1.0f : 1.0f;
-	R.Yaw += Mx * MouseDegPerPixel * Set.MouseLook + LookX * PadDegPerSecond * Set.PadLook * Dt;
-	R.Pitch = FMath::Clamp(FRotator::NormalizeAxis(R.Pitch + Invert * (My * MouseDegPerPixel * Set.MouseLook +
+	const float Steady = SprayItem != 0 ? (float)TorqueSpray::ModeLook : 1.0f;   // the spray controls: a slower, steadier look
+	R.Yaw += Steady * (Mx * MouseDegPerPixel * Set.MouseLook + LookX * PadDegPerSecond * Set.PadLook * Dt);
+	R.Pitch = FMath::Clamp(FRotator::NormalizeAxis(R.Pitch + Invert * Steady * (My * MouseDegPerPixel * Set.MouseLook +
 		LookY * PadDegPerSecond * Set.PadLook * 0.7f * Dt)), -85.0, 85.0);
 	R.Roll = 0.0;
 	PC->SetControlRotation(R);
@@ -650,7 +657,13 @@ void ATorqueWalker::ReadInput(float Dt)
 	}
 	else if (TWI::Sprays(Tool))
 	{
-		if (bAltJust) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
+		// With the spray controls up the right mouse (L2 / LT) holds your breath to steady your hand,
+		// so only R and Square change the colour then.
+		const bool bColour = SprayItem != 0 ? (Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square)) : bAltJust;
+		if (bColour) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
+		bSprayBreathHeld = SprayItem != 0 && (Down(EKeys::RightMouseButton) || Axis(EKeys::Gamepad_LeftTriggerAxis) > 0.5f || (S.bConnected && S.L2 > 0.5f));
+		// X (D-pad up): the scan lights up what's missed, thin, run or dry.
+		if (Just(EKeys::X) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) SetSprayScan(!bSprayScan);
 	}
 	else
 	{
@@ -667,7 +680,11 @@ void ATorqueWalker::ReadInput(float Dt)
 	const int32 Pushing = Wheeling();
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
-	if (Pushing != INDEX_NONE)
+	if (bF && SprayInteract())
+	{
+		// The can or gun on a part: F brings the spray controls up (or puts them down).
+	}
+	else if (Pushing != INDEX_NONE)
 	{
 		if (bF) LetGo(Pushing);
 	}
@@ -717,6 +734,7 @@ void ATorqueWalker::ReadInput(float Dt)
 void ATorqueWalker::SetTool(ETorqueTool T)
 {
 	if (T == Tool) return;
+	if (SprayItem != 0) LeaveSprayMode();   // putting the can or gun away
 	Tool = T;
 	Progress = 0.0;
 	ProgressKey.Reset();
@@ -948,6 +966,13 @@ void ATorqueWalker::MakePlan()
 	const UTorqueBuildSubsystem* B = Shed();
 	if (!B) return;
 	const int32 Me = B->Me();
+	if (SprayItem != 0)
+	{
+		// The spray controls are up: the can stays on that part, wherever you look.
+		if (TWI::Sprays(Tool) && B->Item(SprayItem)) Plan = SprayPlanFor(SprayItem, SprayBay);
+		if (Plan.bValid) Plan.Blocked = B->Check(Me, Plan.Request);
+		return;
+	}
 	const int32 Held = B->HeldBy(Me);
 	const FTorqueItem* HeldIt = B->Item(Held);
 	if (Target == ETorqueLook::None || Target == ETorqueLook::Door)
@@ -1228,41 +1253,7 @@ void ATorqueWalker::MakePlan()
 	}
 	case ETorqueTool::Spray:
 	case ETorqueTool::Gun:
-		if (TargetItem != 0)
-		{
-			// walker.gd _spray_plan: the colour, primer or a coat, as loaded.
-			const bool bGun = Tool == ETorqueTool::Gun;
-			const TArray<TWI::FLoad> L = TWI::Loads(Tool);
-			const TWI::FLoad Load = L.IsValidIndex(SprayFinish) ? L[SprayFinish] : L[0];
-			if (Load.Kind == TWI::FLoad::Primer)
-				Plan = MakeOne(ETorqueShedAct::Prime, 1.5, bGun ? FString(TEXT("prime it: grey primer, in steady passes")) : FString(TEXT("prime it: sweep grey primer over all of it")));
-			else if (Load.Kind == TWI::FLoad::Coat)
-			{
-				Plan = MakeOne(ETorqueShedAct::Coat, 1.5, UTorqueBuildSubsystem::IsLacquer(Load.Id)
-					? FString::Printf(TEXT("lacquer it: sweep %s over the paint"), *UTorqueBuildSubsystem::CoatName(Load.Id).ToLower())
-					: FString::Printf(TEXT("spray it with %s: sweep over all of it"), *UTorqueBuildSubsystem::CoatName(Load.Id).ToLower()));
-				Plan.Request.Finish = Load.Id;
-			}
-			else if (Load.Kind == TWI::FLoad::Cup)
-			{
-				// The gun's cup, filled from a tin from the mixing bay.
-				const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(Me);
-				const FString What = Cup ? Cup->Spec.Name : FString(TEXT("the cup"));
-				Plan = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("spray %s from the cup: go along the part in steady passes"), *What));
-				Plan.Request.Finish = UTorqueBuildSubsystem::CupFinish();
-			}
-			else
-			{
-				const FString What = FString::Printf(TEXT("%s %s"), *UTorqueBuildSubsystem::FinishName(Load.Id).ToLower(), *UTorqueBuildSubsystem::PaintName(SprayColour).ToLower());
-				Plan = MakeOne(ETorqueShedAct::Paint, 1.5, bGun ? FString::Printf(TEXT("spray %s: go along the part in steady passes"), *What)
-					: FString::Printf(TEXT("spray it %s: sweep over it evenly"), *What));
-				Plan.Request.Colour = SprayColour;
-				Plan.Request.Finish = Load.Id;
-			}
-			Plan.Request.Item = TargetItem;
-			Plan.Request.Bay = TargetBay;
-			Plan.Request.bGun = bGun;
-		}
+		if (TargetItem != 0) Plan = SprayPlanFor(TargetItem, TargetBay);
 		break;
 	case ETorqueTool::Lance:
 	{
@@ -1299,6 +1290,47 @@ void ATorqueWalker::MakePlan()
 	}
 	if (Plan.bValid && !Plan.bComputer) Plan.Blocked = B->Check(Me, Plan.Request);
 	if (AltPlan.bValid) AltPlan.Blocked = B->Check(Me, AltPlan.Request);
+}
+
+// walker.gd _spray_plan: what the can or gun does to Item (a bike part on bay Bay): its colour,
+// primer or a coat, as loaded.
+ATorqueWalker::FPlan ATorqueWalker::SprayPlanFor(int32 Item, int32 Bay) const
+{
+	FPlan P;
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!B || Item == 0 || !TWI::Sprays(Tool)) return P;
+	const bool bGun = Tool == ETorqueTool::Gun;
+	const TArray<TWI::FLoad> L = TWI::Loads(Tool);
+	const TWI::FLoad Load = L.IsValidIndex(SprayFinish) ? L[SprayFinish] : L[0];
+	if (Load.Kind == TWI::FLoad::Primer)
+		P = MakeOne(ETorqueShedAct::Prime, 1.5, bGun ? FString(TEXT("prime it: grey primer, in steady passes")) : FString(TEXT("prime it: sweep grey primer over all of it")));
+	else if (Load.Kind == TWI::FLoad::Coat)
+	{
+		P = MakeOne(ETorqueShedAct::Coat, 1.5, UTorqueBuildSubsystem::IsLacquer(Load.Id)
+			? FString::Printf(TEXT("lacquer it: sweep %s over the paint"), *UTorqueBuildSubsystem::CoatName(Load.Id).ToLower())
+			: FString::Printf(TEXT("spray it with %s: sweep over all of it"), *UTorqueBuildSubsystem::CoatName(Load.Id).ToLower()));
+		P.Request.Finish = Load.Id;
+	}
+	else if (Load.Kind == TWI::FLoad::Cup)
+	{
+		// The gun's cup, filled from a tin from the mixing bay.
+		const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(B->Me());
+		const FString What = Cup ? Cup->Spec.Name : FString(TEXT("the cup"));
+		P = MakeOne(ETorqueShedAct::Paint, 1.5, FString::Printf(TEXT("spray %s from the cup: go along the part in steady passes"), *What));
+		P.Request.Finish = UTorqueBuildSubsystem::CupFinish();
+	}
+	else
+	{
+		const FString What = FString::Printf(TEXT("%s %s"), *UTorqueBuildSubsystem::FinishName(Load.Id).ToLower(), *UTorqueBuildSubsystem::PaintName(SprayColour).ToLower());
+		P = MakeOne(ETorqueShedAct::Paint, 1.5, bGun ? FString::Printf(TEXT("spray %s: go along the part in steady passes"), *What)
+			: FString::Printf(TEXT("spray it %s: sweep over it evenly"), *What));
+		P.Request.Colour = SprayColour;
+		P.Request.Finish = Load.Id;
+	}
+	P.Request.Item = Item;
+	P.Request.Bay = Bay;
+	P.Request.bGun = bGun;
+	return P;
 }
 
 int32 ATorqueWalker::HookOf() const
@@ -1483,7 +1515,8 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
 	Hold.AddToTranslation(Move);
 	ToolHolder->SetRelativeTransform(Hold);
-	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && (Tool == ETorqueTool::Repair || TWI::Sprays(Tool) || Tool == ETorqueTool::Lance));
+	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && (Tool == ETorqueTool::Repair || Tool == ETorqueTool::Lance));
+	UpdateSprayFx(Dt);   // the spray itself: the jet, the overspray, the footprint (TorqueWalkerSpray.cpp)
 }
 
 void ATorqueWalker::UpdateFlying(float Dt, bool bEmit)
@@ -1598,9 +1631,25 @@ void ATorqueWalker::UpdateFlying(float Dt, bool bEmit)
 
 float ATorqueWalker::WorkFraction() const
 {
+	// Spraying: how much of the coat's on, to the mark where it counts.
+	if (Spray.IsValid() && Spray->bLive) return FMath::Clamp(Spray->Last.Covered / TorqueSpray::Done, 0.0f, 1.0f);
 	const FPlan& P = (bWorkHeld || ActHeldFor > 0.0) ? Plan : AltPlan;
 	if (Progress <= 0.0 || !P.bValid || P.Time <= 0.0) return 0.0f;
 	return (float)FMath::Clamp(Progress / P.Time, 0.0, 1.0);
+}
+
+FLinearColor ATorqueWalker::SprayMistColour(bool* bOutClear) const
+{
+	// What's loaded, as a request, for its mist (anyone's: another player's walker too).
+	const TArray<TWI::FLoad> L = TWI::Loads(Tool == ETorqueTool::Gun ? ETorqueTool::Gun : ETorqueTool::Spray);
+	const TWI::FLoad Load = L.IsValidIndex(SprayFinish) ? L[SprayFinish] : L[0];
+	FTorqueShedRequest R;
+	R.Kind = Load.Kind == TWI::FLoad::Primer ? ETorqueShedAct::Prime : (Load.Kind == TWI::FLoad::Coat ? ETorqueShedAct::Coat : ETorqueShedAct::Paint);
+	R.Finish = Load.Id;
+	R.Colour = SprayColour;
+	if (bOutClear) *bOutClear = R.Kind == ETorqueShedAct::Coat && UTorqueBuildSubsystem::IsLacquer(R.Finish);
+	const UTorqueBuildSubsystem* B = Shed();
+	return B ? TorqueSpray::MistColour(*B, PeerOf(), R) : ShownCan;
 }
 
 FString ATorqueWalker::SprayFinishText() const
@@ -1689,9 +1738,12 @@ void ATorqueWalker::UpdateCues()
 		for (const UStaticMeshComponent* C : Meshes) Now.Add(const_cast<UStaticMeshComponent*>(C));
 		NowMat = LitFaintMaterial;
 	}
+	// (A part being sprayed shows its wet coat instead: the glow leaves it be.)
+	if (SprayItem != 0) Now.Reset();
+	Now.RemoveAll([this](const UStaticMeshComponent* C) { return SprayOwns(C); });
 	for (const TWeakObjectPtr<UStaticMeshComponent>& W : Lit)
 		if (UStaticMeshComponent* C = W.Get())
-			if (!Now.Contains(C)) C->SetOverlayMaterial(nullptr);
+			if (!Now.Contains(C) && (C->GetOverlayMaterial() == LitMaterial || C->GetOverlayMaterial() == LitFaintMaterial)) C->SetOverlayMaterial(nullptr);
 	Lit.Reset();
 	for (UStaticMeshComponent* C : Now)
 	{

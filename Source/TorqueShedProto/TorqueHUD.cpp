@@ -94,8 +94,11 @@ void ATorqueHUD::DrawHUD()
 	{
 		DrawWalkerCues(Walker, S);
 	}
+	// The spray mini game's readout (spray_hud.gd): its card stands in for the side panel.
+	const bool bSprayCard = Walker && Walker->SprayHudUp();
+	if (bSprayCard) Walker->DrawSpray(this, Canvas);
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
-	if (Walker) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
+	if (Walker && !Walker->SprayControlsUp()) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role != 0) continue;
