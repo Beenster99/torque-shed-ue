@@ -77,6 +77,12 @@ void ATorqueHUD::DrawHUD()
 	const float S = Canvas->ClipY / 1080.0f;     // the same size on screen at 1080p, 1440p and 4K
 	float X = 40.0f * S, Y = 36.0f * S;
 
+	// At the parts computer: its page, worked with the mouse (parts_computer.gd), and nothing else.
+	if (Walker && Walker->AtComputer())
+	{
+		Walker->DrawComputer(this, Canvas);
+		return;
+	}
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{

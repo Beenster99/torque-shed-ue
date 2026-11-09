@@ -27,7 +27,7 @@ namespace TorqueShedTestImpl
 // Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the spray can, the
 // wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
 const TCHAR* const LoopSteps =
-	TEXT("bay:1,log,look:bike,shot,look:screen,shot,look:board,shot,look:bench,shot,look:computer,shot,look:monitor,shot,")
+	TEXT("bay:1,restyle:cafe,log,look:bike,shot,look:screen,shot,look:board,shot,look:bench,shot,look:computer,shot,look:monitor,shot,")
 	TEXT("tool:wrench,part:exhaust,act,")                    // unbolt the exhaust
 	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
 	TEXT("place:repair_0,act,")                              // onto the repair bench
@@ -37,7 +37,9 @@ const TCHAR* const LoopSteps =
 	TEXT("floor:-900:100,act,")                              // down in the wash bay
 	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
 	TEXT("tool:hands,item:exhaust,act,place:bench_0,act,")   // onto the workbench
+	TEXT("look:computer,f,computer:exhaust:slip_on,shot:ui,computer:paint:tints,shot:ui,computer:close,")   // the computer's page
 	TEXT("order:slip_on,item:slip_on,f,item:slip_on,act,")   // order a slip-on, unpack it, pick it up
+	TEXT("floor:300:700,act,item:slip_on,act,")               // put it down in the yard and pick it up again
 	TEXT("part:tank,act,")                                   // fit it to the bike
 	TEXT("tool:wrench,part:exhaust,act,log,")                // bolt it up
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,log");
@@ -62,7 +64,7 @@ const TCHAR* const FabSteps =
 // a run with the cooling fan on and one with it off (heat soaked, down on power), the big screen
 // part way through the second run and after it, then the straps undone and the bike wheeled home.
 const TCHAR* const DynoSteps =
-	TEXT("bay:1,tool:hands,wheel:floor,wait:2,bikelog,look:bikenow,shot,wheel:home,wait:2,bikelog,")
+	TEXT("bay:1,restyle:cafe,tool:hands,wheel:floor,wait:2,bikelog,look:bikenow,shot,wheel:home,wait:2,bikelog,")
 	TEXT("wheel:rig,wait:2,bikelog,look:dynoroom,shot,")
 	TEXT("strap:0,strap:1,strap:2,strap:3,look:dynoroom,shot,")
 	TEXT("fan:on,dynorun,dynolog,look:dyno,shot,")
@@ -75,7 +77,7 @@ const TCHAR* const DynoSteps =
 // on and the gun tried on it there (refused: it runs off the booth's air line) and the rattle can
 // (works anywhere; the exhaust's ground back, where the tank's too rusty for paint).
 const TCHAR* const BoothSteps =
-	TEXT("bay:1,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
+	TEXT("bay:1,restyle:cafe,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
 	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
 	TEXT("place:hook_0,act,look:booth,shot,look:boothceiling,shot,")
 	TEXT("tool:gun,spray:0:primer,item:exhaust,act,log,look:hook_0,shot,")
@@ -91,7 +93,7 @@ const TCHAR* const BoothSteps =
 // in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
 // the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
 const TCHAR* const MixSteps =
-	TEXT("bay:1,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,look:mixbench,shot,")
+	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,look:mixbench,shot,")
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
 	TEXT("bench:on,paint:recipe:0,paint:newtin:W,paint:pour:PB:38,paint:pour:LY:13,paint:stir:1,paint:save,paintlog,")
 	TEXT("paint:newtin:L,paint:pour:FL:100,paint:stir:1,paint:save:Satin clear,")
@@ -111,9 +113,10 @@ const TCHAR* const GeoSteps =
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,shot:ui,geo:exit,look:bike,shot,geo:check,")
 	TEXT("georeload,wait:8,log,geo:check,look:bike,shot");
 
-// The same on bay 1's Speed Twin (the model, no rig), then ridden out: Buttertubs shows the fit.
+// The same on bay 1's project bike (remade as a cafe racer first, so every run's the same bike), then
+// ridden out: Buttertubs shows the fit.
 const TCHAR* const GeoTwinSteps =
-	TEXT("bay:1,log,look:bike,shot,geo:open,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
+	TEXT("bay:1,restyle:cafe,log,look:bike,shot,geo:open,wait:3,geo:move:handlebars:0:2:0,geo:move:saddle:0:0:1,")
 	TEXT("geo:select:handlebars,shot:ui,geo:save,wait:3,geo:exit,look:bike,shot,geo:check,")
 	TEXT("tool:hands,rideout,wait:10,shot,back,wait:6,geo:check");
 
@@ -674,6 +677,27 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		Said(W->TestOrder(FName(*P[1])));
 		LogBuild(TEXT("after the order"));
+		return true;
+	}
+	if (Verb == TEXT("computer"))
+	{
+		// The parts computer's page: "computer" opens it, "computer:KIND[:PART[:order]]" picks a kind
+		// (bikes, paint:bases, paint:tints or a part kind) and a model and orders it, "computer:close".
+		if (P.Num() >= 2 && P[1] == TEXT("close"))
+		{
+			Said(W->TestComputer(NAME_None, NAME_None, false) + TEXT(" (closing)"));
+			W->TestCloseComputer();
+			return true;
+		}
+		// (paint:bases has a colon in it: put it back together)
+		FString KindText = P.Num() >= 2 ? P[1] : FString();
+		int32 Next2 = 2;
+		if (KindText == TEXT("paint") && P.Num() >= 3) { KindText += TEXT(":") + P[2]; Next2 = 3; }
+		const FName KindName = KindText.IsEmpty() ? NAME_None : FName(*KindText);
+		const FName PartName = P.Num() > Next2 ? FName(*P[Next2]) : NAME_None;
+		const bool bOrder = P.Num() > Next2 + 1 && P[Next2 + 1] == TEXT("order");
+		Said(W->TestComputer(KindName, PartName, bOrder));
+		if (bOrder) LogBuild(TEXT("after the order"));
 		return true;
 	}
 	if (Verb == TEXT("wheel") && P.Num() >= 2)
