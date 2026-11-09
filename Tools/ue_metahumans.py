@@ -816,6 +816,11 @@ def _parts_of_blueprint(pkg, name, av):
         unreal.log_warning("[Torque] %s: couldn't spawn %s in the editor world" % (av, pkg))
         return None
     try:
+        try:
+            log("%s: Blueprint components: %s" % (av, ", ".join("%s (%s)" % (c.get_name(), type(c).__name__)
+                                                              for c in actor.get_components_by_class(unreal.ActorComponent))))
+        except Exception:
+            pass
         skins = []
         for c in actor.get_components_by_class(unreal.SkeletalMeshComponent):
             try:
