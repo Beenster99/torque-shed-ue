@@ -1551,9 +1551,9 @@
     "disc/drilled_280_lod2.glb"
    ],
    "tris": [
-    3288,
-    600,
-    96
+    18216,
+    996,
+    128
    ],
    "bounds": {
     "min": [
@@ -1564,7 +1564,7 @@
     "max": [
      0.14,
      0.14,
-     0.007
+     0.005
     ]
    },
    "surfaces": [
@@ -1591,25 +1591,8 @@
      "finish": "cat_black_metal"
     }
    ],
-   "mounts": {
-    "axle": {
-     "at": [
-      0.0,
-      0.0,
-      0.0
-     ],
-     "x": [
-      1.0,
-      0.0,
-      0.0
-     ],
-     "y": [
-      0.0,
-      0.0,
-      1.0
-     ]
-    }
-   }
+   "mounts": {},
+   "redrawn": true
   },
   "disc/drum_4ls_230": {
    "kind": "disc",
@@ -2019,9 +2002,9 @@
     "disc/floating_310_lod2.glb"
    ],
    "tris": [
-    3472,
-    720,
-    96
+    18660,
+    1096,
+    128
    ],
    "bounds": {
     "min": [
@@ -2059,25 +2042,8 @@
      "finish": "cat_anodised"
     }
    ],
-   "mounts": {
-    "axle": {
-     "at": [
-      0.0,
-      0.0,
-      0.0
-     ],
-     "x": [
-      1.0,
-      0.0,
-      0.0
-     ],
-     "y": [
-      0.0,
-      0.0,
-      1.0
-     ]
-    }
-   }
+   "mounts": {},
+   "redrawn": true
   },
   "disc/floating_330_race": {
    "kind": "disc",
@@ -2089,9 +2055,9 @@
     "disc/floating_330_race_lod2.glb"
    ],
    "tris": [
-    3472,
-    720,
-    96
+    18660,
+    1096,
+    128
    ],
    "bounds": {
     "min": [
@@ -2129,25 +2095,8 @@
      "finish": "cat_anodised"
     }
    ],
-   "mounts": {
-    "axle": {
-     "at": [
-      0.0,
-      0.0,
-      0.0
-     ],
-     "x": [
-      1.0,
-      0.0,
-      0.0
-     ],
-     "y": [
-      0.0,
-      0.0,
-      1.0
-     ]
-    }
-   }
+   "mounts": {},
+   "redrawn": true
   },
   "disc/light_wave_260": {
    "kind": "disc",
@@ -2159,20 +2108,20 @@
     "disc/light_wave_260_lod2.glb"
    ],
    "tris": [
-    3020,
-    680,
-    96
+    18456,
+    1380,
+    128
    ],
    "bounds": {
     "min": [
-     -0.1264,
-     -0.1264,
+     -0.1268,
+     -0.1268,
      -0.003
     ],
     "max": [
-     0.1264,
-     0.1264,
-     0.007
+     0.1268,
+     0.1268,
+     0.005
     ]
    },
    "surfaces": [
@@ -2188,25 +2137,8 @@
      "finish": "cat_raw_steel"
     }
    ],
-   "mounts": {
-    "axle": {
-     "at": [
-      0.0,
-      0.0,
-      0.0
-     ],
-     "x": [
-      1.0,
-      0.0,
-      0.0
-     ],
-     "y": [
-      0.0,
-      0.0,
-      1.0
-     ]
-    }
-   }
+   "mounts": {},
+   "redrawn": true
   },
   "disc/solid_240": {
    "kind": "disc",
@@ -2277,20 +2209,20 @@
     "disc/wave_270_lod2.glb"
    ],
    "tris": [
-    3020,
-    680,
-    96
+    18456,
+    1380,
+    128
    ],
    "bounds": {
     "min": [
-     -0.1312,
-     -0.1312,
+     -0.1316,
+     -0.1316,
      -0.003
     ],
     "max": [
-     0.1312,
-     0.1312,
-     0.007
+     0.1316,
+     0.1316,
+     0.005
     ]
    },
    "surfaces": [
@@ -2306,25 +2238,8 @@
      "finish": "cat_raw_steel"
     }
    ],
-   "mounts": {
-    "axle": {
-     "at": [
-      0.0,
-      0.0,
-      0.0
-     ],
-     "x": [
-      1.0,
-      0.0,
-      0.0
-     ],
-     "y": [
-      0.0,
-      0.0,
-      1.0
-     ]
-    }
-   }
+   "mounts": {},
+   "redrawn": true
   },
   "ecu/box": {
    "kind": "ecu",
@@ -39286,19 +39201,19 @@
     "tyre/blocks_lod2.glb"
    ],
    "tris": [
-    148,
-    52,
+    478,
+    98,
     8
    ],
    "bounds": {
     "min": [
-     -1.125,
+     -1.0,
      0.0,
      -1.0
     ],
     "max": [
-     0.125,
-     1.0,
+     0.0,
+     1.0045,
      1.0
     ]
    },
@@ -39315,7 +39230,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/cruiser": {
    "kind": "tyre",
@@ -39327,8 +39243,8 @@
     "tyre/cruiser_lod2.glb"
    ],
    "tris": [
-    240,
-    32,
+    1984,
+    448,
     8
    ],
    "bounds": {
@@ -39356,7 +39272,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/knobs": {
    "kind": "tyre",
@@ -39368,20 +39285,20 @@
     "tyre/knobs_lod2.glb"
    ],
    "tris": [
-    148,
-    52,
+    478,
+    98,
     8
    ],
    "bounds": {
     "min": [
      -1.0,
      0.0,
-     -1.0
+     -1.0596
     ],
     "max": [
      0.0,
-     0.9868,
-     1.0
+     1.0011,
+     1.0596
     ]
    },
    "surfaces": [
@@ -39397,7 +39314,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/rib": {
    "kind": "tyre",
@@ -39409,8 +39327,8 @@
     "tyre/rib_lod2.glb"
    ],
    "tris": [
-    240,
-    32,
+    1984,
+    448,
     8
    ],
    "bounds": {
@@ -39421,7 +39339,7 @@
     ],
     "max": [
      0.0,
-     0.9977,
+     0.9952,
      1.0
     ]
    },
@@ -39438,7 +39356,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/sipes": {
    "kind": "tyre",
@@ -39450,8 +39369,8 @@
     "tyre/sipes_lod2.glb"
    ],
    "tris": [
-    216,
-    32,
+    1920,
+    416,
     8
    ],
    "bounds": {
@@ -39479,7 +39398,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/slick": {
    "kind": "tyre",
@@ -39532,8 +39452,8 @@
     "tyre/sport_lod2.glb"
    ],
    "tris": [
-    216,
-    32,
+    1920,
+    416,
     8
    ],
    "bounds": {
@@ -39561,7 +39481,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/studs": {
    "kind": "tyre",
@@ -39573,20 +39494,20 @@
     "tyre/studs_lod2.glb"
    ],
    "tris": [
-    228,
-    52,
+    590,
+    98,
     8
    ],
    "bounds": {
     "min": [
      -1.0,
      0.0,
-     -1.0
+     -1.0596
     ],
     "max": [
      0.0,
-     1.0168,
-     1.0
+     1.03,
+     1.0596
     ]
    },
    "surfaces": [
@@ -39613,7 +39534,8 @@
      "finish": "cat_raw_steel"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/touring": {
    "kind": "tyre",
@@ -39625,8 +39547,8 @@
     "tyre/touring_lod2.glb"
    ],
    "tris": [
-    216,
-    32,
+    1920,
+    416,
     8
    ],
    "bounds": {
@@ -39654,7 +39576,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "tyre/trail": {
    "kind": "tyre",
@@ -39666,8 +39589,8 @@
     "tyre/trail_lod2.glb"
    ],
    "tris": [
-    216,
-    32,
+    1920,
+    416,
     8
    ],
    "bounds": {
@@ -39695,7 +39618,8 @@
      "finish": "cat_rubber"
     }
    ],
-   "mounts": {}
+   "mounts": {},
+   "redrawn": true
   },
   "wheel/adv_17_cast": {
    "kind": "wheel",
@@ -48296,6 +48220,291 @@
      ]
     }
    },
+   "redrawn": true
+  },
+  "disc/drilled_220_rear": {
+   "kind": "disc",
+   "id": "drilled_220_rear",
+   "glb": "disc/drilled_220_rear.glb",
+   "lods": [
+    "disc/drilled_220_rear.glb",
+    "disc/drilled_220_rear_lod1.glb",
+    "disc/drilled_220_rear_lod2.glb"
+   ],
+   "tris": [
+    18440,
+    1380,
+    128
+   ],
+   "bounds": {
+    "min": [
+     -0.11,
+     -0.11,
+     -0.003
+    ],
+    "max": [
+     0.11,
+     0.11,
+     0.005
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "raw_steel",
+     "color": [
+      0.45,
+      0.45,
+      0.46
+     ],
+     "metallic": 1.0,
+     "roughness": 0.4,
+     "finish": "cat_raw_steel"
+    }
+   ],
+   "mounts": {},
+   "redrawn": true
+  },
+  "disc/drilled_245_rear": {
+   "kind": "disc",
+   "id": "drilled_245_rear",
+   "glb": "disc/drilled_245_rear.glb",
+   "lods": [
+    "disc/drilled_245_rear.glb",
+    "disc/drilled_245_rear_lod1.glb",
+    "disc/drilled_245_rear_lod2.glb"
+   ],
+   "tris": [
+    18392,
+    996,
+    128
+   ],
+   "bounds": {
+    "min": [
+     -0.1225,
+     -0.1225,
+     -0.004
+    ],
+    "max": [
+     0.1225,
+     0.1225,
+     0.005
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "raw_steel",
+     "color": [
+      0.45,
+      0.45,
+      0.46
+     ],
+     "metallic": 1.0,
+     "roughness": 0.4,
+     "finish": "cat_raw_steel"
+    },
+    {
+     "tag": "black_metal",
+     "color": [
+      0.035,
+      0.035,
+      0.04
+     ],
+     "metallic": 0.5,
+     "roughness": 0.55,
+     "finish": "cat_black_metal"
+    }
+   ],
+   "mounts": {},
+   "redrawn": true
+  },
+  "disc/drilled_260": {
+   "kind": "disc",
+   "id": "drilled_260",
+   "glb": "disc/drilled_260.glb",
+   "lods": [
+    "disc/drilled_260.glb",
+    "disc/drilled_260_lod1.glb",
+    "disc/drilled_260_lod2.glb"
+   ],
+   "tris": [
+    18408,
+    1380,
+    128
+   ],
+   "bounds": {
+    "min": [
+     -0.13,
+     -0.13,
+     -0.003
+    ],
+    "max": [
+     0.13,
+     0.13,
+     0.005
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "raw_steel",
+     "color": [
+      0.45,
+      0.45,
+      0.46
+     ],
+     "metallic": 1.0,
+     "roughness": 0.4,
+     "finish": "cat_raw_steel"
+    }
+   ],
+   "mounts": {},
+   "redrawn": true
+  },
+  "disc/drilled_floating_300": {
+   "kind": "disc",
+   "id": "drilled_floating_300",
+   "glb": "disc/drilled_floating_300.glb",
+   "lods": [
+    "disc/drilled_floating_300.glb",
+    "disc/drilled_floating_300_lod1.glb",
+    "disc/drilled_floating_300_lod2.glb"
+   ],
+   "tris": [
+    18628,
+    1096,
+    128
+   ],
+   "bounds": {
+    "min": [
+     -0.15,
+     -0.15,
+     -0.004
+    ],
+    "max": [
+     0.15,
+     0.15,
+     0.007
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "raw_steel",
+     "color": [
+      0.45,
+      0.45,
+      0.46
+     ],
+     "metallic": 1.0,
+     "roughness": 0.4,
+     "finish": "cat_raw_steel"
+    },
+    {
+     "tag": "black_metal",
+     "color": [
+      0.035,
+      0.035,
+      0.04
+     ],
+     "metallic": 0.5,
+     "roughness": 0.55,
+     "finish": "cat_black_metal"
+    }
+   ],
+   "mounts": {},
+   "redrawn": true
+  },
+  "disc/drilled_floating_320": {
+   "kind": "disc",
+   "id": "drilled_floating_320",
+   "glb": "disc/drilled_floating_320.glb",
+   "lods": [
+    "disc/drilled_floating_320.glb",
+    "disc/drilled_floating_320_lod1.glb",
+    "disc/drilled_floating_320_lod2.glb"
+   ],
+   "tris": [
+    18864,
+    1116,
+    128
+   ],
+   "bounds": {
+    "min": [
+     -0.16,
+     -0.16,
+     -0.004
+    ],
+    "max": [
+     0.16,
+     0.16,
+     0.007
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "raw_steel",
+     "color": [
+      0.45,
+      0.45,
+      0.46
+     ],
+     "metallic": 1.0,
+     "roughness": 0.4,
+     "finish": "cat_raw_steel"
+    },
+    {
+     "tag": "anodised",
+     "color": [
+      0.1,
+      0.25,
+      0.7
+     ],
+     "metallic": 0.9,
+     "roughness": 0.3,
+     "finish": "cat_anodised"
+    }
+   ],
+   "mounts": {},
+   "redrawn": true
+  },
+  "disc/drilled_wave_270": {
+   "kind": "disc",
+   "id": "drilled_wave_270",
+   "glb": "disc/drilled_wave_270.glb",
+   "lods": [
+    "disc/drilled_wave_270.glb",
+    "disc/drilled_wave_270_lod1.glb",
+    "disc/drilled_wave_270_lod2.glb"
+   ],
+   "tris": [
+    18456,
+    1380,
+    128
+   ],
+   "bounds": {
+    "min": [
+     -0.1316,
+     -0.1316,
+     -0.003
+    ],
+    "max": [
+     0.1316,
+     0.1316,
+     0.005
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "raw_steel",
+     "color": [
+      0.45,
+      0.45,
+      0.46
+     ],
+     "metallic": 1.0,
+     "roughness": 0.4,
+     "finish": "cat_raw_steel"
+    }
+   ],
+   "mounts": {},
    "redrawn": true
   }
  },

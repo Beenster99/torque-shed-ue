@@ -532,7 +532,8 @@ void ATorqueWalker::ReadInput(float Dt)
 	if (KeyJust(ETorqueKey::GeometryMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{
 		FString Why;
-		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why) && !Why.IsEmpty()) Say(Why, false);
+		if (!ATorqueGeometryMode::Open(this, Target == ETorqueLook::BikePart ? TargetBay : INDEX_NONE, Why))
+			Say(Why.IsEmpty() ? FString(TEXT("Geometry mode couldn't open here.")) : Why, false);
 		return;
 	}
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
@@ -2438,6 +2439,8 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({FString::Printf(TEXT("%s: %s   %s"), *TorqueShedParts::SlotName(TargetSlot), *B->ItemTitle(TargetItem),
 			B->IsBolted(TargetBay, TargetSlot) ? TEXT("bolted") : TEXT("loose")), FColor::White, 0.8f});
 		if (Thing) HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
+		if (B->Exists(TargetBay))
+			HudLines.Add({FString::Printf(TEXT("%s: geometry mode (fit this bike's parts)"), *FTorqueKeys::Text(ETorqueKey::GeometryMode)), Prompt, 0.55f});
 		const FString Fab = B->FabOwedText(TargetBay);
 		if (!Fab.IsEmpty()) HudLines.Add({TEXT("Needs fabrication: ") + Fab + TEXT(" (grinder and welder)"), Info, 0.55f});
 		break;
