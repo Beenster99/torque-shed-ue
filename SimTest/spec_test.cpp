@@ -243,12 +243,29 @@ int main()
 	const bool Have = ReadFile(R + "/SimTest/data/godot_spec.json", RefText) && Json::Parse(RefText, Ref, &Error);
 	Expect(Have, "the Godot riding numbers load (SimTest/data/godot_spec.json)");
 	if (!Loaded || !Have) return 1;
+	// Godot's numbers are for Godot's parts: the parts this repo's overlay took off sale
+	// (Data/Parts/Redrawn/godot_removed.json, Tools/parts_overlay.py) are put back for the comparisons.
+	PartsDb GDb;
+	BikeLayout GLay;
+	{
+		Json PartsJson, Removed;
+		std::string RemovedText, GPartsText = PartsText;
+		if (ReadFile(R + "/Data/Parts/Redrawn/godot_removed.json", RemovedText) && Json::Parse(RemovedText, Removed, &Error)
+			&& Json::Parse(PartsText, PartsJson, &Error))
+		{
+			for (const auto& [Kind, Parts] : Removed.O)
+				if (Json* Into = PartsJson.GetMutable(Kind))
+					for (const auto& [Id, P] : Parts.O) Into->Set(Id, P);
+			GPartsText = PartsJson.Dump(0);
+		}
+		Expect(GDb.LoadFromText(GPartsText, Error) && GLay.Load(LayoutText, GDb, Error), "Godot's parts load " + Error);
+	}
 	int Bikes = 0;
 	for (const char* Group : {"styles", "sweep"})
 		if (const Json* G = Ref.Get(Group))
 			for (const auto& [Name, Spec] : G->O)
 			{
-				Compare(Lay, std::string(Group) + "/" + Name, Spec);
+				Compare(GLay, std::string(Group) + "/" + Name, Spec);
 				++Bikes;
 			}
 	// The drawn bike (the layout solver's) sits on the wheels the ride uses: its axles a wheelbase
@@ -275,7 +292,7 @@ int main()
 	}
 	std::printf("\nEach style ridden on its own spec:\n");
 	if (const Json* G = Ref.Get("styles"))
-		for (const auto& [Name, Spec] : G->O) Ride(Lay, Name, Spec);
+		for (const auto& [Name, Spec] : G->O) Ride(GLay, Name, Spec);
 	std::printf("\nBikeBuild's riding numbers on %d bikes (14 styles and their swaps), against Godot:\n", Bikes);
 	for (const auto& [Name, F] : Fields)
 	{
