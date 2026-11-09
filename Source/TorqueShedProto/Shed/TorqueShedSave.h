@@ -41,6 +41,11 @@ struct FTorqueShedSaveItem
 	UPROPERTY() int32 MixCoats = 0;
 	UPROPERTY() FLinearColor MixUnder = FLinearColor(0.5f, 0.5f, 0.5f);
 	UPROPERTY() float Flat = 0.0f;
+	UPROPERTY() int32 Tape = 0;         // masking tape on it, and a masked pattern (FTorqueItem)
+	UPROPERTY() int32 Mask = 0;
+	UPROPERTY() FLinearColor MaskColour = FLinearColor::White;
+	UPROPERTY() float MaskMetal = 0.05f;
+	UPROPERTY() float MaskRough = 0.15f;
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.

@@ -45,6 +45,7 @@ private:
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> BoothCards;   // the test card in each of the booth's bays
 	UPROPERTY(Transient) TArray<USpotLightComponent*> BoothLights;
 	UPROPERTY(Transient) USceneComponent* Stick = nullptr;           // the stirring stick, in the tin on the scale
+	UPROPERTY(Transient) USceneComponent* TapeRoll = nullptr;        // the masking tape: on its hook, or in someone's hands
 	double StickAngle = 0.0;
 	float LastStir = -1.0f;
 	int32 LastStirTin = 0;

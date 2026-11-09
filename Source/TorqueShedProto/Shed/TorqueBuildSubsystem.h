@@ -71,6 +71,13 @@ struct FTorqueItem
 	int32 MixCoats = 0;
 	FLinearColor MixUnder = FLinearColor(0.5f, 0.5f, 0.5f);
 	float Flat = 0.0f;
+	// Masking tape (paint_bay.gd tape, mask): the pattern taped on it (0: none), and the pattern
+	// of the colour that was under the tape when the next colour went over it, with that colour's
+	// metal and roughness (0: none).
+	int32 Tape = 0;
+	int32 Mask = 0;
+	FLinearColor MaskColour = FLinearColor::White;
+	float MaskMetal = 0.05f, MaskRough = 0.15f;
 };
 
 // One bay's bike.
@@ -162,6 +169,14 @@ enum class ETorqueShedAct : uint8
 	PaintCup,                            // the gun's cup filled from it
 	PaintHook,                           // booth hook Item's tip set to Amount cm off the floor
 	Radio,                               // the shed radio on (Item 1) or off (Item 0), tuned to station Colour
+	// Masking tape (paint_bay.gd paint_tape_*): the roll off its hook by the mixing bay door, back
+	// on it, its pattern picked (Colour, 1 .. TorquePaintMix::TapePatterns), a part Item taped, the
+	// tape peeled off part Item.
+	PaintTapeTake,
+	PaintTapePut,
+	PaintTapePattern,
+	PaintTape,
+	PaintPeel,
 	Count
 };
 
@@ -292,11 +307,13 @@ public:
 	// faded old paint; primer is flat grey, and a lacquer's flattener takes the shine off. The colour
 	// as the finish shows it, its metal and roughness. False for a part as it came (the model's own).
 	static bool FinishLook(const FTorqueItem& It, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness);
-	// A part sprayed with an effect paint from the mixing bay (pearl, candy, flake, chameleon): its
-	// spec with the colour it shows and its finish's roughness (TorqueEffectPaint.h). False for any
-	// other paint, or under primer.
-	static bool EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintSpec& Out);
-	bool EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintSpec& Out) const;
+	// A part sprayed with an effect paint from the mixing bay (pearl, candy, flake, chameleon), or
+	// with a masked stripe or tape on it: how it's drawn (TorqueEffectPaint.h). False for anything
+	// else, which keeps the part's own material.
+	static bool EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintLook& Out);
+	// Sprayed over masking tape: the pattern of the paint under it kept as its mask (TorquePaintBay.cpp).
+	static void MaskUnderTape(FTorqueItem& It);
+	bool EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintLook& Out) const;
 	bool FinishOf(int32 Bay, FName Slot, FLinearColor& OutColour, float& OutMetallic, float& OutRoughness) const;
 	static constexpr float RideDirt = 0.3f;    // added by each ride (shed_state ROAD_DIRT)
 	static constexpr float JetClean = 0.07f;   // the pressure washer, each pass (JET_CLEAN)

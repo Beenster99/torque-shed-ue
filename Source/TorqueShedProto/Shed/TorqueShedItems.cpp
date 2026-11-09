@@ -39,11 +39,12 @@ FVector KindSize(FName Kind)
 const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
 const TCHAR* const ItemPrefix = TEXT("Item:");
 
-void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour, const FTorqueItem* Finished = nullptr)
+void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour, const FTorqueItem* Finished = nullptr,
+	const FTransform& ToPart = FTransform::Identity)
 {
-	// Sprayed with a pearl, candy, flake or chameleon from the mixing bay: the effect paint.
-	TorquePaintMix::FPaintSpec Effect;
-	if (Colour && Finished && UTorqueBuildSubsystem::EffectLook(*Finished, Effect) && TorqueEffectPaint::Apply(C, Effect, Dirt)) return;
+	// Sprayed with a pearl, candy, flake or chameleon from the mixing bay, or masked: the effect paint.
+	TorquePaintMix::FPaintLook Effect;
+	if (Colour && Finished && UTorqueBuildSubsystem::EffectLook(*Finished, Effect) && TorqueEffectPaint::Apply(C, Effect, Dirt, ToPart)) return;
 	TorqueEffectPaint::Restore(C);
 	UMaterialInstanceDynamic* M = C ? C->CreateDynamicMaterialInstance(0) : nullptr;
 	if (!M) return;
@@ -204,20 +205,30 @@ void ATorqueShedItems::Draw(int32 Id)
 		const bool bTint = UTorqueBuildSubsystem::Repainted(*It) || (!TorqueShedParts::IsStock(It->Part) && !bOption);
 		if (Made.Num() == 0) Block(TSI::KindSize(It->Kind), UTorqueBuildSubsystem::ShownColour(*It));
 		else
+		{
+			// The parts on an engine or the tyre on a wheel look as they are.
+			auto OwnOf = [&](UStaticMeshComponent* C) -> const FTorqueItem*
+			{
+				const FName Slot = TorqueShedModel::SlotTag(C);
+				if (Slot == Home) return It;
+				const int32 SubId = Slot == TorqueShedParts::TyreOf(Home) ? It->Tyre : It->Slots.FindRef(Slot);
+				const FTorqueItem* Sub = B->Item(SubId);
+				return Sub ? Sub : It;
+			};
+			// Each part's box in the holder's frame (the bike's: x forward, z up), for a masked stripe.
+			const FTransform Frame = Holder->GetComponentTransform();
+			TMap<const FTorqueItem*, FBox> Boxes;
+			for (UStaticMeshComponent* C : Made) Boxes.FindOrAdd(OwnOf(C), FBox(ForceInit)) += TorqueEffectPaint::BoxIn(C, Frame);
 			for (UStaticMeshComponent* C : Made)
 			{
-				// The parts on an engine or the tyre on a wheel look as they are.
-				const FTorqueItem* Own = It;
-				const FName Slot = TorqueShedModel::SlotTag(C);
-				if (Slot != Home)
-				{
-					const int32 SubId = Slot == TorqueShedParts::TyreOf(Home) ? It->Tyre : It->Slots.FindRef(Slot);
-					if (const FTorqueItem* Sub = B->Item(SubId)) Own = Sub;
-				}
+				const FTorqueItem* Own = OwnOf(C);
 				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
 				const FLinearColor OwnShown = UTorqueBuildSubsystem::ShownColour(*Own);   // grey while it's in primer
-				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr, UTorqueBuildSubsystem::Repainted(*Own) ? Own : nullptr);
+				const FBox Box = Boxes.FindRef(Own);
+				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr, UTorqueBuildSubsystem::Repainted(*Own) ? Own : nullptr,
+					TorqueEffectPaint::PartFrame(C, Frame, Box.IsValid ? Box.GetCenter() : FVector::ZeroVector));
 			}
+		}
 	}
 	FBox Box(ForceInit);
 	for (UStaticMeshComponent* C : Made)

@@ -102,6 +102,14 @@ void ApplyLooks(const UObject* WorldContext, const TArray<UStaticMeshComponent*>
 void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMeshComponent*>& Parts)
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(WorldContext);
+	// Each part's box in the bike's frame (its actor: x forward, y right, z up), for a masked stripe.
+	TMap<FName, FBox> Boxes;
+	for (UStaticMeshComponent* C : Parts)
+	{
+		if (!C || !C->GetOwner() || PartTag(C).IsNone()) continue;
+		const FName Slot = SlotTag(C);
+		Boxes.FindOrAdd(Slot.IsNone() ? PartTag(C) : Slot, FBox(ForceInit)) += TorqueEffectPaint::BoxIn(C, C->GetOwner()->GetActorTransform());
+	}
 	for (UStaticMeshComponent* C : Parts)
 	{
 		if (!C) continue;
@@ -109,12 +117,15 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		if (Part.IsNone()) continue;
 		const FName Slot = SlotTag(C);
 		const FName Which = Slot.IsNone() ? Part : Slot;
-		// Sprayed with a pearl, candy, flake or chameleon from the mixing bay: the effect paint
-		// (TorqueEffectPaint.h) in place of the part's own material; any other paint, its own.
-		TorquePaintMix::FPaintSpec Effect;
-		if (B && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B->EffectOf(Bike, Which, Effect)
-			&& TorqueEffectPaint::Apply(C, Effect, B->DirtOf(Bike, Which)))
-			continue;
+		// Sprayed with a pearl, candy, flake or chameleon from the mixing bay, or masked: the effect
+		// paint (TorqueEffectPaint.h) in place of the part's own material; any other paint, its own.
+		TorquePaintMix::FPaintLook Effect;
+		if (B && C->GetOwner() && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B->EffectOf(Bike, Which, Effect))
+		{
+			const FBox Box = Boxes.FindRef(Which);
+			const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
+			if (TorqueEffectPaint::Apply(C, Effect, B->DirtOf(Bike, Which), ToPart)) continue;
+		}
 		TorqueEffectPaint::Restore(C);
 		UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0);
 		if (!M) continue;

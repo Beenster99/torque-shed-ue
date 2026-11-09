@@ -84,6 +84,10 @@ struct FTorquePaintBay
 	// Each player's cup and the tin in their hands.
 	TMap<int32, FTorquePaintCup> Cups;
 	TMap<int32, int32> Held;
+	// The masking tape roll (paint_bay.gd held "tape"): who has it off its hook by the door (0: it's
+	// on the hook), and the pattern it's masking (TorquePaintMix::PatternName).
+	int32 TapeBy = 0;
+	int32 TapePattern = 1;
 	// The spray booth's hooks: how high each one's tip is set (cm off the floor; empty or short:
 	// TorqueShedLayout::HookTip). Kept with the bay so it goes in the save and to everyone.
 	TArray<float> HookTips;
@@ -164,5 +168,6 @@ inline FVector SwatchAt(int32 I)                     // a swatch card on the wal
 	const int32 Col = I % 8, Row = I / 8;
 	return FVector(1433.0, -360.0 + 78.0 * Col, 235.0 - 46.0 * Row);
 }
+const FVector TapeAt(1436.0, 395.0, 130.0);           // the masking tape roll on its hook (its middle)
 inline bool InRoom(const FVector& At) { return At.X > 1420.0 && At.X < 1710.0 && At.Y > -530.0 && At.Y < 530.0; }
 }

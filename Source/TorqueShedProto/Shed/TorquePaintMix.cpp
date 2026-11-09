@@ -424,6 +424,19 @@ float CoatsFactor(const FPaintSpec& S, int32 Coats)
 	return Coats >= Need ? 1.0f : 0.75f + 0.25f * float(Coats) / float(Need);
 }
 
+const TCHAR* PatternName(int32 Pattern)
+{
+	static const TCHAR* const Names[] = {TEXT("None"), TEXT("Centre stripe"), TEXT("Twin stripes"), TEXT("Pinstripe"), TEXT("Two-tone (top)")};
+	return Pattern >= 0 && Pattern <= TapePatterns ? Names[Pattern] : Names[0];
+}
+
+FLinearColor TapeColourOn(const FLinearColor& Under)
+{
+	const FLinearColor Blue(0.18f, 0.42f, 0.85f), Cream(0.86f, 0.79f, 0.58f);
+	const float D = FVector(Under.R - Blue.R, Under.G - Blue.G, Under.B - Blue.B).Size();
+	return D < 0.4f ? Cream : Blue;
+}
+
 FName FinishOf(const FPaintSpec& S)
 {
 	// The finishes a part's drawn with: the effect itself is kept as its MixEffect.

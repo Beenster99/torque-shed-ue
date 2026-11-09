@@ -142,6 +142,26 @@ float CoatsFactor(const FPaintSpec& S, int32 Coats);
 // The finish word kept as a part's Finish for a sprayed spec ("gloss" for solid).
 FName FinishOf(const FPaintSpec& S);
 
+// Masking tape (paint_mix.gd PATTERNS, TAPE_PATTERNS): what a strip of tape on a painted part
+// keeps of the colour under it when the next colour's sprayed over. 1 a centre stripe (6 cm), 2
+// twin stripes, 3 a pinstripe round it, 4 two-tone (the top half). 0: none.
+constexpr int32 TapePatterns = 4;
+const TCHAR* PatternName(int32 Pattern);
+// The tape that shows on paint Under: blue, or cream on a part too near the blue for that to show.
+FLinearColor TapeColourOn(const FLinearColor& Under);
+
+// How a painted part is drawn when it needs more than its own material (TorqueEffectPaint.h): an
+// effect paint's spec, and a masked pattern of the colour under it, or the tape still on it.
+struct FPaintLook
+{
+	FPaintSpec Spec;              // its colour, metal and roughness, and its effects (all 0 for a plain paint)
+	int32 Pattern = 0;            // the masked pattern (or the taped one, before it's sprayed over)
+	FLinearColor MaskColour = FLinearColor::White;
+	float MaskMetal = 0.05f, MaskRough = 0.15f;
+	bool bTape = false;           // the tape's still on
+	FLinearColor TapeColour = FLinearColor(0.18f, 0.42f, 0.85f);
+};
+
 // How far apart two colours look (CIE76 delta E), and how close Have is to Want, 0 .. 1 (less for
 // the wrong effect), and "93.4%".
 float DeltaE(const FLinearColor& A, const FLinearColor& B);

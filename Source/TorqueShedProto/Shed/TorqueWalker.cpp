@@ -164,6 +164,7 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 			TorqueShedPower::DynoTemp(B ? B->DynoRoom().Heat : 0.0f));
 	case ETorquePlace::Hook: return FString::Printf(TEXT("Spray bay hook %d"), P.Index + 1);
 	case ETorquePlace::Radio: return TEXT("Shed radio (everyone hears it)");
+	case ETorquePlace::Tape: return TEXT("Masking tape");
 	case ETorquePlace::PaintBench:
 		if (B && B->PaintBay().BenchBy != 0 && B->PaintBay().BenchBy != B->Me()) return TEXT("Mixing bench (someone's at it)");
 		return TEXT("Mixing bench");
@@ -631,6 +632,22 @@ void ATorqueWalker::ReadInput(float Dt)
 				if (!CupShed->Request(Cup, WhyNot)) Say(WhyNot, false);
 		}
 	}
+	else if (TinShed && TinShed->PaintBay().TapeBy == TinShed->Me())
+	{
+		// The masking tape in your hands: R / Square picks the pattern, right mouse peels it off a part.
+		if (Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square))
+			if (UTorqueBuildSubsystem* TapeShed = Shed())
+			{
+				FTorqueShedRequest Pick;
+				Pick.Kind = ETorqueShedAct::PaintTapePattern;
+				Pick.Colour = TapeShed->PaintBay().TapePattern % TorquePaintMix::TapePatterns + 1;
+				FString WhyNot;
+				if (!TapeShed->Request(Pick, WhyNot)) Say(WhyNot, false);
+				else Say(FString::Printf(TEXT("Masking tape: %s"), *FString(TorquePaintMix::PatternName(Pick.Colour)).ToLower()), true);
+			}
+		bAltPressed = Just(EKeys::RightMouseButton);
+		bAltHeld = Down(EKeys::RightMouseButton);
+	}
 	else if (TWI::Sprays(Tool))
 	{
 		if (bAltJust) SprayColour = (SprayColour + 1) % UTorqueBuildSubsystem::Paints().Num();
@@ -1009,6 +1026,34 @@ void ATorqueWalker::MakePlan()
 		Plan.Blocked = B->Check(Me, Plan.Request);
 		return;
 	}
+	// Masking tape (walker.gd _paint_plan "tape"): off its hook or back on it, and in your hands, on a
+	// painted part to mask it off (R picks the pattern), right mouse peeling it off again.
+	const bool bTape = B->PaintBay().TapeBy == Me;
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tape)
+	{
+		Plan = bTape ? MakeOne(ETorqueShedAct::PaintTapePut, 0.3, TEXT("hang the tape back on its hook"))
+			: MakeOne(ETorqueShedAct::PaintTapeTake, 0.3, TEXT("take the masking tape"));
+		Plan.Blocked = B->Check(Me, Plan.Request);
+		return;
+	}
+	if (bTape)
+	{
+		if (TargetItem != 0)
+		{
+			Plan = MakeOne(ETorqueShedAct::PaintTape, 2.5, FString::Printf(TEXT("mask it off: %s (R picks)"),
+				*FString(TorquePaintMix::PatternName(B->PaintBay().TapePattern)).ToLower()));
+			Plan.Request.Item = TargetItem;
+			Plan.Blocked = B->Check(Me, Plan.Request);
+			const FTorqueItem* Taped = B->Item(TargetItem);
+			if (Taped && Taped->Tape != 0)
+			{
+				AltPlan = MakeOne(ETorqueShedAct::PaintPeel, 1.2, TEXT("peel the masking tape off"));
+				AltPlan.Request.Item = TargetItem;
+				AltPlan.Blocked = B->Check(Me, AltPlan.Request);
+			}
+		}
+		return;   // the tape in your hands: nothing else until it's hung back up
+	}
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::PaintBench || TargetPlace->Kind == ETorquePlace::PaintShelf)) return;   // F, as the tins go
 	if (B->PaintBay().HeldTin(Me)) return;   // a tin in your hands: nothing else until it's put down
 	// A part in your hands: your hands are full, whatever tool was last picked (the scroll wheel
@@ -1234,6 +1279,13 @@ void ATorqueWalker::MakePlan()
 	default:
 		break;
 	}
+	// Hands free on a part with masking tape on it: right mouse peels it off (walker.gd _part_alt).
+	if (!AltPlan.bValid && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me) && TargetItem != 0)
+		if (const FTorqueItem* Taped = B->Item(TargetItem); Taped && Taped->Tape != 0)
+		{
+			AltPlan = MakeOne(ETorqueShedAct::PaintPeel, 1.2, TEXT("peel the masking tape off"));
+			AltPlan.Request.Item = TargetItem;
+		}
 	// Hands free at a spray booth hook (or the part on it): right mouse winds it up or down.
 	const int32 Hook = HookOf();
 	if (!AltPlan.bValid && Hook != INDEX_NONE && Tool == ETorqueTool::Hands && !HeldIt && !B->PaintBay().HeldTin(Me))
@@ -1811,6 +1863,15 @@ void ATorqueWalker::Interact()
 		return;
 	}
 	if (TinInteract()) return;   // the mixing bay's bench, its tin shelf, a tin into a bin
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tape)
+	{
+		// The masking tape's hook (walker.gd interact "tape"): take it, or hang it back.
+		FTorqueShedRequest R;
+		R.Kind = B->PaintBay().TapeBy == B->Me() ? ETorqueShedAct::PaintTapePut : ETorqueShedAct::PaintTapeTake;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		return;
+	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Computer)
 	{
 		OpenComputer();
@@ -2036,6 +2097,11 @@ void ATorqueWalker::UpdateHud()
 	{
 		HudLines.Add({TEXT("Holding a tin: ") + B->PaintBay().TinText(*Tin), Info, 0.6f});
 		HudLines.Add({TEXT("R / Square: fill the spray gun's cup from it   F: onto the tin shelf, the bench's scale, or into a bin"), Prompt, 0.6f});
+	}
+	if (B->PaintBay().TapeBy == B->Me())
+	{
+		HudLines.Add({FString::Printf(TEXT("Holding the masking tape: %s"), *FString(TorquePaintMix::PatternName(B->PaintBay().TapePattern)).ToLower()), Info, 0.6f});
+		HudLines.Add({TEXT("R / Square: the pattern   Hold the work button on a painted part: tape it   F on its hook: hang it back"), Prompt, 0.6f});
 	}
 	if (Tool == ETorqueTool::Gun)
 		if (const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(B->Me()))

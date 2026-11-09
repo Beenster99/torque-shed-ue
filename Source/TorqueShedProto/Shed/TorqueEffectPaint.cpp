@@ -43,18 +43,19 @@ namespace TEPI = TorqueEffectPaintImpl;
 
 namespace TorqueEffectPaint
 {
-bool Apply(UMeshComponent* C, const TorquePaintMix::FPaintSpec& S, float Grime)
+bool Apply(UMeshComponent* C, const TorquePaintMix::FPaintLook& L, float Grime, const FTransform& LocalToPart)
 {
-	UMaterialInterface* Base = TEPI::Base();
-	if (!C || !Base) return false;
+	UMaterialInterface* Mat = TEPI::Base();
+	if (!C || !Mat) return false;
 	UMaterialInstanceDynamic* M = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0));
-	if (!M || M->Parent != Base)
+	if (!M || M->Parent != Mat)
 	{
 		TEPI::Tidy();
 		if (!TEPI::Kept().Contains(C)) TEPI::Kept().Add(C, MakeShared<TStrongObjectPtr<UMaterialInterface>>(C->GetMaterial(0)));
-		M = UMaterialInstanceDynamic::Create(Base, C);
+		M = UMaterialInstanceDynamic::Create(Mat, C);
 		C->SetMaterial(0, M);
 	}
+	const TorquePaintMix::FPaintSpec& S = L.Spec;
 	M->SetVectorParameterValue(TEXT("Color"), S.Colour);
 	M->SetScalarParameterValue(TEXT("Metallic"), S.Metal);
 	M->SetScalarParameterValue(TEXT("Roughness"), S.Rough);
@@ -67,6 +68,19 @@ bool Apply(UMeshComponent* C, const TorquePaintMix::FPaintSpec& S, float Grime)
 	M->SetScalarParameterValue(TEXT("Flake"), S.Flake);
 	M->SetVectorParameterValue(TEXT("FlakeColour"), S.FlakeColour);
 	M->SetScalarParameterValue(TEXT("Grime"), Grime);
+	// The mask: the pattern in the part's frame (paint_mix.gd masked()), its colour, and the tape.
+	M->SetScalarParameterValue(TEXT("Pattern"), (float)L.Pattern);
+	M->SetVectorParameterValue(TEXT("MaskColor"), L.MaskColour);
+	M->SetScalarParameterValue(TEXT("MaskMetal"), L.MaskMetal);
+	M->SetScalarParameterValue(TEXT("MaskRough"), L.MaskRough);
+	M->SetScalarParameterValue(TEXT("Tape"), L.bTape ? 1.0f : 0.0f);
+	M->SetVectorParameterValue(TEXT("TapeColor"), L.TapeColour);
+	const FVector X = LocalToPart.TransformVector(FVector::XAxisVector), Y = LocalToPart.TransformVector(FVector::YAxisVector),
+		Z = LocalToPart.TransformVector(FVector::ZAxisVector), T = LocalToPart.GetLocation();
+	M->SetVectorParameterValue(TEXT("PartRow0"), FLinearColor((float)X.X, (float)Y.X, (float)Z.X, 0.0f));
+	M->SetVectorParameterValue(TEXT("PartRow1"), FLinearColor((float)X.Y, (float)Y.Y, (float)Z.Y, 0.0f));
+	M->SetVectorParameterValue(TEXT("PartRow2"), FLinearColor((float)X.Z, (float)Y.Z, (float)Z.Z, 0.0f));
+	M->SetVectorParameterValue(TEXT("PartOffset"), FLinearColor((float)T.X, (float)T.Y, (float)T.Z, 0.0f));
 	return true;
 }
 
@@ -76,5 +90,17 @@ void Restore(UMeshComponent* C)
 	TSharedPtr<TStrongObjectPtr<UMaterialInterface>> Was;
 	if (!TEPI::Kept().RemoveAndCopyValue(C, Was) || !Was.IsValid()) return;
 	C->SetMaterial(0, Was->Get());
+}
+
+FBox BoxIn(const UMeshComponent* C, const FTransform& Frame)
+{
+	if (!C) return FBox(ForceInit);
+	return C->CalcBounds(C->GetComponentTransform().GetRelativeTransform(Frame)).GetBox();
+}
+
+FTransform PartFrame(const UMeshComponent* C, const FTransform& Frame, const FVector& Middle)
+{
+	if (!C) return FTransform::Identity;
+	return C->GetComponentTransform().GetRelativeTransform(Frame) * FTransform(-Middle);
 }
 }
