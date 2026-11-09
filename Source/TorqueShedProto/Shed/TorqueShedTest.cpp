@@ -92,6 +92,17 @@ const TCHAR* const BoothSteps =
 	TEXT("tool:gun,spray:3:gloss,part:exhaust,act,")
 	TEXT("tool:spray,spray:1:gloss,part:exhaust,act,look:bike,shot,log");
 
+// The spray mini game (TorqueSprayJob, TorqueWalkerSpray.cpp) on the exhaust hung in the booth: the
+// gun's primer put on in passes all round, then red: one pass (thin, wet, with the scan on it), the
+// rest, and lacquer held too far off (dry) and too close (runs), a shot after each.
+const TCHAR* const SprayGameSteps =
+	TEXT("bay:1,restyle:cafe,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
+	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
+	TEXT("place:hook_0,act,tool:gun,spray:0:primer,item:exhaust,spraypass:6:80,wait:3,look:hook_0,shot,")
+	TEXT("spray:0:gloss,item:exhaust,spraypass:1:80,look:hook_0,shot,sprayscan:1,wait:1,shot,sprayscan:0,")
+	TEXT("item:exhaust,spraypass:6:80,wait:3,look:hook_0,shot,")
+	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,look:hook_0,shot,item:exhaust,spraypass:3:35,look:hook_0,shot,log");
+
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
 // test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
 // the Settings. The face isn't saved, so your own comes back next time.
@@ -182,6 +193,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("fab")) FString(TSTI::FabSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -417,6 +429,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const FName Finish = P.Num() > 2 ? FName(*P[2].ToLower()) : FName(TEXT("gloss"));
 		W->TestSpray(Colour, Finish);
 		Said(FString::Printf(TEXT("loaded: %s, colour %s"), *W->SprayFinishText(), *UTorqueBuildSubsystem::PaintName(Colour)));
+		return true;
+	}
+	if (Verb == TEXT("spraypass"))
+	{
+		// spraypass:PASSES:CM: steady passes of the spray game's controls over the item looked at,
+		// from CM off; the coverage and its faults after.
+		const int32 Passes = P.Num() > 1 ? FMath::Max(FCString::Atoi(*P[1]), 1) : 5;
+		const double Distance = P.Num() > 2 ? FMath::Clamp(FCString::Atod(*P[2]), 10.0, 300.0) : 80.0;
+		Said(W->TestSprayPasses(Passes, Distance));
+		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("sprayscan"))
+	{
+		const bool bOn = P.Num() < 2 || P[1] != TEXT("0");
+		W->TestSprayScan(bOn);
+		Said(bOn ? TEXT("scan on") : TEXT("scan off"));
 		return true;
 	}
 	if (Verb == TEXT("part") && P.Num() >= 2)

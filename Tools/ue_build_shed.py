@@ -524,6 +524,13 @@ def materials():
     grass = megascans("Wet_Grass_Ground_sjzkdjba", "grass")
     tarmac = megascans("Asphalt_Road_tigkfb3o", "asphalt")
     scans = shed_scans()   # the photoreal pass: scanned surfaces in Torque Shed's colours
+    # The spray mini game's coat, mist and footprint (TorqueSprayJob.cpp, TorqueSprayFx.cpp).
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import ue_build_spray
+        ue_build_spray.build()
+    except Exception as e:
+        unreal.log_error("[Torque] spray materials: %s" % e)
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
