@@ -163,7 +163,7 @@ void Tube(FGeo& G, const TArray<FVector>& Points, double Radius, int32 Sides = 1
 		const FVector Dir = (End == 0 ? Points[0] - Points[1] : Points[NP - 1] - Points[NP - 2]).GetSafeNormal();
 		const int32 Mid = G.Add(Points[I], Dir, FVector2f(0.5f, 0.5f));
 		const int32 First = G.P.Num();
-		for (int32 K = 0; K < Sides; ++K) G.Add(G.P[Base + I * Row + K], Dir, FVector2f(0.0f, 0.0f));
+		for (int32 K = 0; K < Sides; ++K) { const FVector V = G.P[Base + I * Row + K]; G.Add(V, Dir, FVector2f(0.0f, 0.0f)); }   // copy first: Add grows G.P
 		for (int32 K = 0; K < Sides; ++K) G.Tri(Mid, First + K, First + (K + 1) % Sides);
 	}
 }
