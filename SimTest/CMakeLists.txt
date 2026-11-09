@@ -129,3 +129,13 @@ if(MSVC)
 else()
   target_compile_options(realism_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# The weather engine (live weather): presets, fades, roads that remember rain, and the live feeds' answers.
+set(WEATHER ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Weather)
+add_executable(weather_test weather_test.cpp ${WEATHER}/WeatherModel.cpp ${FIT}/FitJson.cpp)
+target_include_directories(weather_test PRIVATE ${WEATHER} ${FIT})
+if(MSVC)
+  target_compile_options(weather_test PRIVATE /W4)
+else()
+  target_compile_options(weather_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

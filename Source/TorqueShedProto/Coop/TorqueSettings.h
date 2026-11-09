@@ -60,7 +60,10 @@ struct FTorqueSettings
 	bool bDayNight = false;     // the clock runs
 	int32 DayLength = 120;      // real minutes for a whole day
 	float TimeOfDay = -1.0f;    // hours, -1 for the level's own light
-	int32 WeatherMode = 1;      // 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads
+	// 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads, 4 live (the real
+	// weather where you ride; the default, as beenster chose: the host can switch it off any time).
+	int32 WeatherMode = 4;
+	static constexpr int32 WeatherLive = 4;
 	static const TArray<int32>& DayLengths();
 	FString SpeedText(double MetresPerSecond) const;   // "52 mph"
 	FString DistanceText(double Metres) const;         // "1.25 miles"

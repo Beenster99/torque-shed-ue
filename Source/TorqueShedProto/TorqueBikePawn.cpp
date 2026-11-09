@@ -3231,8 +3231,10 @@ void ATorqueBikePawn::DrawHud()
 		Add(PerfText + (bPerfLog ? TEXT("   [logging to CSV]") : TEXT("")), FColor(140, 255, 160), 1.0f);
 	const bool bSony = Pad && Pad->Get().bConnected;
 	static const TCHAR* WeatherNames[3] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
+	const ATorqueGameState* WeatherGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	const FString WeatherNow = WeatherGs ? WeatherGs->WeatherText(FTorqueSettings::Get().Units == 1) : FString(WeatherNames[FMath::Clamp(Weather, 0, 2)]);
 	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s"), Assist,
-		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), WeatherNames[FMath::Clamp(Weather, 0, 2)]), FColor(170, 200, 170), 0.9f);
+		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), *WeatherNow), FColor(170, 200, 170), 0.9f);
 	if (HostOnlyNoteFor > 0.0) Add(TEXT("The host sets the weather"), FColor(255, 220, 120), 1.1f);
 	if (NetBike)
 	{
