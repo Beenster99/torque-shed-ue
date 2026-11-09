@@ -1,4 +1,4 @@
 {
- "about": "Prop kinds left out of the ride for now (beenster, 2026-11-09: the parked cars may come back very late). A kind is the second word of a prop mesh's name (SM_Car_1_Paint is a Car). Tools/ue_build_level.py doesn't place them and Tools/make_collision.py gives them no boxes. To bring them back, take the kind out of this list, then rerun python Tools/make_collision.py and the level build.",
- "kinds": ["Car"]
+ "about": "Prop kinds left out of the ride for now (empty: beenster kept the parked cars, 2026-11-09). A kind is the second word of a prop mesh's name (SM_Car_1_Paint is a Car). Tools/ue_build_level.py doesn't place them and Tools/make_collision.py gives them no boxes. To bring them back, take the kind out of this list, then rerun python Tools/make_collision.py and the level build.",
+ "kinds": []
 }
