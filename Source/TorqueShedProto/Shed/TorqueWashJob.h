@@ -139,6 +139,10 @@ public:
 	void SetScan(bool bOn) { bScanOn = bOn; }
 	bool Owns(const UStaticMeshComponent* C) const;
 	FVector Middle() const;                       // the bike's middle (world)
+	// For the tests: sweep the jet over the bike in rows from each side (and from above, and from
+	// below when it's raised), Distance cm off, as a player would, Passes times. Returns the steps
+	// that landed on the bike.
+	int32 TestSweep(int32 Passes, double Distance, bool bUnder);
 
 private:
 	struct FShown

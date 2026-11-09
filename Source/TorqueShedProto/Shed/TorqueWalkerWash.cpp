@@ -3,6 +3,7 @@
 // mist ATorqueWashMist.
 #include "Shed/TorqueWalker.h"
 
+#include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueWashFx.h"
@@ -258,6 +259,25 @@ FString ATorqueWalker::TestWashState() const
 		Worst += FString::Printf(TEXT("%s%s %d%%"), I ? TEXT(", ") : TEXT(""), *S.Parts[I].Name, TWWI::Pct(S.Parts[I].Clean, S.Parts[I].bDone));
 	return FString::Printf(TEXT("washing bay %d: %d%% clean, %d of %d parts done (dirtiest: %s), jet %s at %.0f cm"), WashJob->Bay + 1,
 		TWWI::Pct(S.Clean, WashJob->bBikeDone), DoneN, S.Parts.Num(), *Worst, WashJob->Jet.bBike ? TEXT("on the bike") : TEXT("off it"), WashJob->Jet.Dist);
+}
+
+FString ATorqueWalker::TestWashPasses(int32 Passes, double Distance)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	UWorld* World = GetWorld();
+	if (!B || !World) return TEXT("no shed");
+	if (!WashJob.IsValid())
+	{
+		const int32 Bay = WashBayOf();
+		if (Bay == INDEX_NONE) return TEXT("no bike in the wash bay");
+		TSharedPtr<FTorqueWashJob> Job = MakeShared<FTorqueWashJob>();
+		if (!Job->Setup(World, Bay)) return TEXT("nothing of the bike drawn to wash");
+		WashJob = Job;
+	}
+	const bool bUnder = ATorqueBikeLift::HeightAt(this, B->BikeTransform(WashJob->Bay).GetLocation()) > 50.0;
+	const int32 Landed = WashJob->TestSweep(FMath::Max(Passes, 1), Distance, bUnder);
+	SendWash();
+	return FString::Printf(TEXT("%d steps of the jet on the bike%s; %s"), Landed, bUnder ? TEXT(" (underneath too)") : TEXT(""), *TestWashState());
 }
 
 // --- The readout (wash_hud.gd) ----------------------------------------------------------------------

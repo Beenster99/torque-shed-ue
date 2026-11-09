@@ -122,6 +122,9 @@ public:
 	bool WashJetting() const;
 	// For the tests: how the wash on the bike in the wash bay is going ("" with none).
 	FString TestWashState() const;
+	// For the tests: sweep the lance over the wash bay's bike from every side, Passes times at Distance cm
+	// (from underneath too if it's raised), the shed told; says how it went.
+	FString TestWashPasses(int32 Passes, double Distance);
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 

@@ -150,8 +150,8 @@ const TCHAR* const LiftSteps =
 // and its underside washed crouched, then home.   [wash]
 const TCHAR* const WashGameSteps =
 	TEXT("bay:1,tool:hands,wheel:wash,wait:2,bikelog,tool:lance,look:washbay,shot,washstate,")
-	TEXT("part:tank,hold:3,washstate,shot,part:engine,hold:3,washstate,shot,part:front_wheel,hold:3,washstate,shot,log,")
-	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,shot,crouch:0,")
+	TEXT("part:tank,hold:3,washstate,shot,part:engine,hold:3,washstate,shot,washpass:1:60,shot,washpass:1:60,look:washbay,shot,log,")
+	TEXT("tool:hands,place:lift_wash,f,wait:5,lifts,tool:lance,crouch:1,part:engine,hold:3,washstate,washpass:1:60,shot,crouch:0,look:washbay,shot,")
 	TEXT("tool:hands,place:lift_wash,f,wait:5,wheel:home,wait:2,bikelog,log");
 
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
@@ -523,6 +523,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const double Distance = P.Num() > 2 ? FMath::Clamp(FCString::Atod(*P[2]), 10.0, 300.0) : 80.0;
 		Said(W->TestSprayPasses(Passes, Distance));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("washpass"))   // [wash] washpass:PASSES:CM sweeps the lance over the whole bike
+	{
+		Said(W->TestWashPasses(P.Num() > 1 ? FCString::Atoi(*P[1]) : 1, P.Num() > 2 ? FCString::Atod(*P[2]) : 60.0));
 		return true;
 	}
 	if (Verb == TEXT("washstate"))   // [wash] how the wash game on the wash bay's bike is going

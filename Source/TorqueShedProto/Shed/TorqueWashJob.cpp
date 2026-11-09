@@ -805,3 +805,39 @@ void FTorqueWashJob::Tick(double Dt)
 	SinceUpload += Dt;
 	if (DirtyHi >= DirtyLo && SinceUpload >= 1.0 / 30.0) Upload(false);
 }
+
+int32 FTorqueWashJob::TestSweep(int32 Passes, double Distance, bool bUnder)
+{
+	if (Points.Num() == 0) return 0;
+	FBox Box(ForceInit);
+	for (const FVector& P : Points) Box += P;
+	const FVector C = Box.GetCenter(), Ext = Box.GetExtent();
+	// The sides looked from (model axes: x along the bike, y across, z up).
+	TArray<FVector> Sides = {FVector(0, 1, 0), FVector(0, -1, 0), FVector(1, 0, 0), FVector(-1, 0, 0), FVector(0.3, 0, 1).GetSafeNormal()};
+	if (bUnder) Sides.Add(FVector(0.2, 0, -1).GetSafeNormal());
+	const double RowStep = TW::JetAt(Distance).Radius;   // rows half overlapping
+	const double Dt = 1.0 / 60.0;
+	int32 Landed = 0;
+	for (int32 Pass = 0; Pass < Passes; ++Pass)
+		for (const FVector& S : Sides)
+		{
+			FVector U, V;
+			S.FindBestAxisVectors(U, V);
+			const double Ru = FMath::Abs(FVector::DotProduct(Ext, U.GetAbs())) + RowStep, Rv = FMath::Abs(FVector::DotProduct(Ext, V.GetAbs())) + RowStep;
+			const double Reach = FMath::Abs(FVector::DotProduct(Ext, S.GetAbs()));
+			for (double B = -Rv; B <= Rv; B += RowStep)
+				for (double A = -Ru; A <= Ru; A += RowStep * 0.5)   // a steady sweep along the row
+				{
+					const FVector Target = C + U * A + V * B;
+					const FVector EyeM = Target + S * (Reach + Distance);
+					const FVector EyeW = Model.TransformPosition(EyeM);
+					const FVector DirW = Model.TransformVectorNoScale(-S);
+					for (int32 K = 0; K < 2; ++K)
+					{
+						Step(Dt, EyeW, DirW, true, false, FVector::ZeroVector, FVector::UpVector);
+						Landed += Jet.bBike ? 1 : 0;
+					}
+				}
+		}
+	return Landed;
+}
