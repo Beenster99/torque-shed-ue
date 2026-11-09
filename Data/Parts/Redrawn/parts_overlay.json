@@ -769,6 +769,86 @@
     },
     "pack": "naked"
    }
+  },
+  "disc": {
+   "drilled_260": {
+    "name": "260 mm drilled disc",
+    "description": "One-piece rotor, cross-drilled all round. A classic upgrade.",
+    "mass": 1.0,
+    "type": "Drilled",
+    "diameter": 260,
+    "style": "drilled",
+    "color": [
+     0.7,
+     0.71,
+     0.73
+    ]
+   },
+   "drilled_floating_300": {
+    "name": "300 mm drilled floating disc",
+    "description": "Drilled steel rotor floating on a black carrier. What most road bikes wear now.",
+    "mass": 1.2,
+    "type": "Floating, drilled",
+    "diameter": 300,
+    "style": "floating",
+    "color": [
+     0.7,
+     0.71,
+     0.73
+    ]
+   },
+   "drilled_floating_320": {
+    "name": "320 mm drilled floating disc",
+    "description": "Big drilled rotor on an anodised carrier, for sport and race bikes.",
+    "mass": 1.35,
+    "type": "Floating, drilled",
+    "diameter": 320,
+    "style": "floating",
+    "color": [
+     0.7,
+     0.71,
+     0.73
+    ]
+   },
+   "drilled_wave_270": {
+    "name": "270 mm drilled wave disc",
+    "description": "Petal edge and drilled face: sheds mud and water, runs cool.",
+    "mass": 0.9,
+    "type": "Wave, drilled",
+    "diameter": 270,
+    "style": "wave",
+    "color": [
+     0.7,
+     0.71,
+     0.73
+    ]
+   },
+   "drilled_220_rear": {
+    "name": "220 mm drilled rear disc",
+    "description": "Light drilled rear rotor.",
+    "mass": 0.7,
+    "type": "Drilled",
+    "diameter": 220,
+    "style": "drilled",
+    "color": [
+     0.7,
+     0.71,
+     0.73
+    ]
+   },
+   "drilled_245_rear": {
+    "name": "245 mm drilled rear disc",
+    "description": "Drilled rear rotor on a black carrier.",
+    "mass": 0.85,
+    "type": "Drilled",
+    "diameter": 245,
+    "style": "drilled",
+    "color": [
+     0.7,
+     0.71,
+     0.73
+    ]
+   }
   }
  },
  "remove": {
@@ -817,16 +897,39 @@
  },
  "reference": {
   "adventure": {
-   "tank": "adventure_1"
+   "tank": "adventure_1",
+   "rear_disc": "drilled_245_rear"
   },
   "tourer": {
-   "tank": "sports_tourer_1"
+   "tank": "sports_tourer_1",
+   "rear_disc": "drilled_245_rear"
   },
   "chopper": {
    "tank": "chopper_1"
   },
   "cruiser": {
    "tank": "cruiser_1"
+  },
+  "roader": {
+   "rear_disc": "drilled_245_rear"
+  },
+  "sport": {
+   "rear_disc": "drilled_220_rear"
+  },
+  "race": {
+   "rear_disc": "drilled_220_rear"
+  },
+  "naked": {
+   "rear_disc": "drilled_220_rear"
+  },
+  "supermoto": {
+   "rear_disc": "drilled_220_rear"
+  },
+  "scrambler": {
+   "rear_disc": "drilled_220_rear"
+  },
+  "mx": {
+   "rear_disc": "drilled_220_rear"
   }
  }
 }
