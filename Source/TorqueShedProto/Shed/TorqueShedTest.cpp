@@ -845,6 +845,38 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Away = FVector(0.6, 1.0, 0.0).GetSafeNormal();
 			Distance = 300.0;
 		}
+		else if (What == TEXT("wheel") || What == TEXT("tyre"))
+		{
+			// look:wheel[:front|rear]: a close-up of the bay's bike's tyre, from the side open to the
+			// floor and a little ahead, aimed at the crown on top so the tread shows (crouch:1 first for side on).
+			const bool bRearTyre = P.Num() >= 3 && P[2] == TEXT("rear");
+			const FName TyreSlot(bRearTyre ? TEXT("rear_tyre") : TEXT("front_tyre"));
+			const FName RimSlot(bRearTyre ? TEXT("rear_wheel") : TEXT("front_wheel"));
+			FBox TyreBox(ForceInit), RimBox(ForceInit);
+			const ATorqueShedBike* TyreBike = nullptr;
+			for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			{
+				if (It->Bay != TestBay) continue;
+				TyreBike = *It;
+				for (const UStaticMeshComponent* C : It->Parts)
+				{
+					if (!C || !C->IsVisible()) continue;
+					const FName CSlot = TorqueShedModel::SlotTag(C);
+					if (CSlot == TyreSlot) TyreBox += C->Bounds.GetBox();
+					else if (CSlot == RimSlot) RimBox += C->Bounds.GetBox();
+				}
+			}
+			const FBox& WheelBox = TyreBox.IsValid ? TyreBox : RimBox;
+			if (!TyreBike || !WheelBox.IsValid) { Warn(FString::Printf(TEXT("bay %d's bike has no %s drawn"), TestBay + 1, *TyreSlot.ToString())); return true; }
+			const FVector Ahead = TSTI::Flat(TyreBike->GetActorForwardVector()).GetSafeNormal() * (bRearTyre ? -1.0 : 1.0);   // away from the bike
+			FVector Right = TSTI::Flat(TyreBike->GetActorRightVector()).GetSafeNormal();
+			if ((Right | TSTI::TowardsMiddle(WheelBox.GetCenter())) < 0.0) Right = -Right;   // the side open to the floor
+			const double Radius = WheelBox.GetExtent().Z;
+			At = WheelBox.GetCenter() + Ahead * (Radius * 0.35) + FVector(0.0, 0.0, Radius * 0.9);
+			Away = (Right + Ahead * 0.6).GetSafeNormal();
+			Distance = 75.0;
+			Said(FString::Printf(TEXT("%s: %.0f cm across"), *TyreSlot.ToString(), Radius * 2.0));
+		}
 		else if (What == TEXT("screen"))
 		{
 			// The bay's screen on the back wall, whole (ATorqueShedScreens), from the middle of the shed.
@@ -867,7 +899,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);

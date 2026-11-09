@@ -45,6 +45,8 @@
 //                         changer, stand, bins, bike, screen, board, monitor, dyno (the big
 //                         screen), dynoroom (the whole room), booth (the spray bay), deliveries, washbay,
 //                         or any place name; player: 3 m back from the nearest other player, facing them
+//                         wheel[:front|rear] (or tyre): a close-up of the bay's bike's tyre tread, from the
+//                         side open to the floor and ahead, aimed at the crown (crouch:1 first for more side on)
 //   act[:alt]             what the work button (or the second button) does to what's looked at, at once
 //   hold:<seconds>        hold the work button that long (the pressure washer's passes)
 //   f                     press F at what's looked at (unpack a box, the parts computer, ride out)
