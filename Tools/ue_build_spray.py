@@ -80,6 +80,13 @@ def custom(m, x, y, code, inputs, out=None):
         ins.append(ci)
     try_set(c, "inputs", ins)
     for n, e, pin in inputs:
+        if pin == "RGBA" and not mel.connect_material_expressions(e, "RGBA", c, n):
+            # No RGBA pin on this engine: rebuild the four channels as RGB appended with A.
+            ap = expr(m, unreal.MaterialExpressionAppendVector, x - 150, y)
+            mel.connect_material_expressions(e, "", ap, "A")
+            mel.connect_material_expressions(e, "A", ap, "B")
+            mel.connect_material_expressions(ap, "", c, n)
+            continue
         mel.connect_material_expressions(e, pin, c, n)
     return c
 
@@ -284,12 +291,12 @@ def coat_material():
         ("R0", vec("Row0", -1800, 250, (1, 0, 0, 0)), ""), ("R1", vec("Row1", -1800, 350, (0, 1, 0, 0)), ""),
         ("R2", vec("Row2", -1800, 450, (0, 0, 1, 0)), ""), ("Off", vec("RowOffset", -1800, 550, (0, 0, 0, 0)), ""),
         ("MaskA", tex("MaskA", -1800, 650), ""), ("MaskB", tex("MaskB", -1800, 800), ""),
-        ("Origin", vec("MaskOrigin", -1800, 950, (0, 0, 0, 0)), ""), ("Dims", vec("MaskDims", -1800, 1050, (1, 1, 1, 1)), ""),
+        ("Origin", vec("MaskOrigin", -1800, 950, (0, 0, 0, 0)), ""), ("Dims", vec("MaskDims", -1800, 1050, (1, 1, 1, 1)), "RGBA"),
         ("AtlasSize", vec("AtlasSize", -1800, 1150, (1, 1, 0, 0)), ""), ("Voxel", num("Voxel", -1800, 1250, 2.0), ""),
         ("RunLevel", num("RunLevel", -1800, 1350, 4.0), ""), ("CoatColor", vec("CoatColor", -1800, 1450, (0.8, 0.1, 0.1, 1)), ""),
         ("CoatRough", num("CoatRough", -1800, 1550, 0.15), ""), ("CoatMetal", num("CoatMetal", -1800, 1650, 0.0), ""),
         ("ClearLayer", num("ClearLayer", -1800, 1750, 0.0), ""), ("KeepUnder", num("KeepUnder", -1800, 1850, 0.0), ""),
-        ("UnderColor", vec("UnderColor", -1800, 1950, (0.5, 0.5, 0.5, 0)), ""), ("UnderRough", num("UnderRough", -1800, 2050, 0.85), ""),
+        ("UnderColor", vec("UnderColor", -1800, 1950, (0.5, 0.5, 0.5, 0)), "RGBA"), ("UnderRough", num("UnderRough", -1800, 2050, 0.85), ""),
         ("UpInModel", vec("UpInModel", -1800, 2150, (0, 0, 1, 0)), ""), ("Wet", num("Wet", -1800, 2250, 1.0), ""),
         ("Scan", num("Scan", -1800, 2350, 0.0), ""), ("ScanT", num("ScanT", -1800, 2450, 0.0), ""),
         ("Flash", num("Flash", -1800, 2550, 0.0), ""), ("Begun", num("Begun", -1800, 2650, 0.0), ""),
