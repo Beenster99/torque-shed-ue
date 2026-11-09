@@ -75,5 +75,9 @@ private:
 	// The body's own axes in its component space (found from the rest pose), and sizes.
 	FVector Up = FVector::UpVector, Fwd = FVector::ForwardVector, Right = FVector::RightVector;
 	double ArmLen = 55.0, LegLen = 85.0;
+	double RestHeight = 175.0;        // cm, as built
+	double BaseScale = 1.0;           // to avatars.json's height_cm
+	double PosedFor = 0.0;
+	bool bPoseLogged = false;
 	double Phase = 0.0, Walk = 0.0, Hands = 0.0, Lean = 0.0, Gripping = 0.0;   // smoothed
 };
