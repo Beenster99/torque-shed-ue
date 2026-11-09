@@ -145,6 +145,16 @@ void ATorquePaintBayRoom::BeginPlay()
 	Stick->SetVisibility(false, true);
 	BuildBooth(Root);
 	BuildEffectsRack(Root);
+	// The masking tape (paint_bay.gd TAPE_AT): a roll of cream tape on a peg by the door, its axis
+	// across the wall so its face looks into the room.
+	Piece(Root, CylinderMesh, TorquePaintBayLayout::TapeAt + FVector(-3.0, 0.0, 2.5), FVector(1.2, 1.2, 8.0), FRotator(90.0, 0.0, 0.0),
+		FLinearColor(0.2f, 0.2f, 0.22f), 0.8f, 0.4f);
+	TapeRoll = NewObject<USceneComponent>(this);
+	TapeRoll->SetupAttachment(Root);
+	TapeRoll->RegisterComponent();
+	Piece(TapeRoll, CylinderMesh, FVector::ZeroVector, FVector(11.0, 11.0, 5.0), FRotator(90.0, 0.0, 0.0), FLinearColor(0.86f, 0.79f, 0.58f), 0.0f, 0.75f);
+	Piece(TapeRoll, CylinderMesh, FVector::ZeroVector, FVector(7.6, 7.6, 5.2), FRotator(90.0, 0.0, 0.0), FLinearColor(0.55f, 0.42f, 0.28f), 0.0f, 0.9f);
+	TapeRoll->SetRelativeLocation(TorquePaintBayLayout::TapeAt);
 	// The swatch wall's cards, facing into the room (+x), and the test card on the stand.
 	for (int32 I = 0; I < FTorquePaintBay::MaxSwatches; ++I)
 	{
@@ -279,6 +289,17 @@ void ATorquePaintBayRoom::Tick(float DeltaSeconds)
 	if (!B) return;
 	const FTorquePaintBay& P = B->PaintBay();
 	ShakeClock += DeltaSeconds;
+	// The masking tape: on its hook, or in the hands of whoever took it.
+	if (TapeRoll)
+	{
+		if (P.TapeBy != 0)
+		{
+			FRotator HeldRot;
+			const FVector In = HeldAt(P.TapeBy, HeldRot);
+			TapeRoll->SetRelativeLocationAndRotation(In + FVector(0.0, 0.0, 6.0), HeldRot);
+		}
+		else TapeRoll->SetRelativeLocationAndRotation(TorquePaintBayLayout::TapeAt, FRotator::ZeroRotator);
+	}
 	// The scale.
 	if (ScaleText)
 	{

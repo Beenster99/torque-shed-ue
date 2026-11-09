@@ -308,6 +308,11 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MixCoats = It.MixCoats;
 		To.MixUnder = It.MixUnder;
 		To.Flat = It.Flat;
+		To.Tape = It.Tape;
+		To.Mask = It.Mask;
+		To.MaskColour = It.MaskColour;
+		To.MaskMetal = It.MaskMetal;
+		To.MaskRough = It.MaskRough;
 		S.Items.Add(To);
 	}
 }
@@ -387,6 +392,11 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MixCoats = From.MixCoats;
 		It.MixUnder = From.MixUnder;
 		It.Flat = From.Flat;
+		It.Tape = FMath::Clamp(From.Tape, 0, TorquePaintMix::TapePatterns);
+		It.Mask = FMath::Clamp(From.Mask, 0, TorquePaintMix::TapePatterns);
+		It.MaskColour = From.MaskColour;
+		It.MaskMetal = From.MaskMetal;
+		It.MaskRough = From.MaskRough;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -440,7 +450,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 9;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack)
+constexpr int32 BytesLayout = 10;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape)
 
 struct FNameTable
 {
@@ -572,6 +582,11 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		uint8 MixCoats = (uint8)FMath::Clamp(It.MixCoats, 0, 255), Flat = TBI::Quant(It.Flat);
 		FColor MixUnder = It.MixUnder.QuantizeRound();
 		Ar << MixCode << MixName << MixEffect << MixCoats << MixUnder << Flat;
+		// Masking tape on it, and a masked pattern.
+		uint8 Tape = (uint8)It.Tape, Mask = (uint8)It.Mask, MaskMetal = TBI::Quant(It.MaskMetal), MaskRough = TBI::Quant(It.MaskRough);
+		FColor MaskColour = It.MaskColour.QuantizeRound();
+		Ar << Tape << Mask;
+		if (Mask != 0) Ar << MaskColour << MaskMetal << MaskRough;
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -675,7 +690,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		It.Rust = TBI::Unquant(Rust);
 		It.Dirt = TBI::Unquant(Dirt);
 		It.Wear = TBI::Unquant(Wear);
-		It.Colour = FLinearColor::FromSRGBColor(Colour);
+		It.Colour = Colour.ReinterpretAsLinear();   // (QuantizeRound wrote it as the numbers are: no sRGB step)
 		It.bBoxed = bBoxed != 0;
 		It.At = (ETorqueAt)FMath::Min<uint8>(At, (uint8)ETorqueAt::Wheel);
 		if (It.At == ETorqueAt::Floor)
@@ -700,8 +715,21 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 			Ar << It.MixCode << It.MixName << MixEffect << MixCoats << MixUnder << Flat;
 			It.MixEffect = NameAt(MixEffect);
 			It.MixCoats = MixCoats;
-			It.MixUnder = FLinearColor::FromSRGBColor(MixUnder);
+			It.MixUnder = MixUnder.ReinterpretAsLinear();
 			It.Flat = TBI::Unquant(Flat);
+			uint8 Tape = 0, Mask = 0;
+			Ar << Tape << Mask;
+			It.Tape = FMath::Min<int32>(Tape, TorquePaintMix::TapePatterns);
+			It.Mask = FMath::Min<int32>(Mask, TorquePaintMix::TapePatterns);
+			if (Mask != 0)
+			{
+				uint8 MaskMetal = 0, MaskRough = 0;
+				FColor MaskColour;
+				Ar << MaskColour << MaskMetal << MaskRough;
+				It.MaskColour = MaskColour.ReinterpretAsLinear();
+				It.MaskMetal = TBI::Unquant(MaskMetal);
+				It.MaskRough = TBI::Unquant(MaskRough);
+			}
 		}
 		Ar << bEngine;
 		if (bEngine && !TBI::ReadSlots(Ar, It.Slots, It.Bolted, false)) return false;
@@ -1418,6 +1446,8 @@ FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 		if (It.Primer > 0.0f) Text += TEXT(", over primer");
 		if (IsLacquer(It.Coat)) Text += TEXT(", lacquered");
 		if (It.Flat >= 0.08f) Text += TEXT(", ") + TorquePaintMix::SheenName(It.Flat) + TEXT(" lacquer");
+		if (It.Mask != 0) Text += TEXT(", masked ") + FString(TorquePaintMix::PatternName(It.Mask)).ToLower();
+		if (It.Tape != 0) Text += TEXT(", taped for a ") + FString(TorquePaintMix::PatternName(It.Tape)).ToLower() + TEXT(" (right mouse peels it)");
 	}
 	if (!It.Coat.IsNone())
 	{
@@ -1518,24 +1548,64 @@ bool UTorqueBuildSubsystem::FinishLook(const FTorqueItem& It, FLinearColor& OutC
 	return true;
 }
 
-bool UTorqueBuildSubsystem::EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintSpec& Out)
+bool UTorqueBuildSubsystem::EffectLook(const FTorqueItem& It, TorquePaintMix::FPaintLook& Out)
 {
 	namespace TPM = TorquePaintMix;
-	if (!Repainted(It) || It.bPrimerTop || It.MixCode.IsEmpty()) return false;
+	if (!Repainted(It)) return false;
+	Out = TPM::FPaintLook();
+	// An effect paint from the mixing bay (pearl, candy, flake, chameleon): its spec.
 	static const FName Effects[] = {FName(TEXT("pearl")), FName(TEXT("candy")), FName(TEXT("flake")), FName(TEXT("chameleon"))};
 	bool bEffect = false;
 	for (const FName& E : Effects) bEffect = bEffect || It.MixEffect == E;
 	TPM::FTinMix Mix;
-	if (!bEffect || !TPM::ParseCode(It.MixCode, Mix)) return false;
-	Out = TPM::Spec(Mix, It.MixName);
-	Out.Colour = It.Colour;   // as sprayed (a candy's coats deepen it), not lightened as a plain metallic is
-	Out.Colour.A = 1.0f;
-	// A satin or matt clear over it takes the shine off, as it does a plain paint.
-	if (It.Flat > 0.0f) Out.Rough = FMath::Lerp(Out.Rough, 0.8f, FMath::Clamp(It.Flat / 0.4f, 0.0f, 1.0f));
+	bEffect = bEffect && !It.bPrimerTop && !It.MixCode.IsEmpty() && TPM::ParseCode(It.MixCode, Mix);
+	const bool bMasked = It.Mask != 0 && !It.bPrimerTop;
+	const bool bTaped = It.Tape != 0;
+	if (!bEffect && !bMasked && !bTaped) return false;
+	if (bEffect)
+	{
+		Out.Spec = TPM::Spec(Mix, It.MixName);
+		Out.Spec.Colour = It.Colour;   // as sprayed (a candy's coats deepen it), not lightened as a plain metallic is
+		// A satin or matt clear over it takes the shine off, as it does a plain paint.
+		if (It.Flat > 0.0f) Out.Spec.Rough = FMath::Lerp(Out.Spec.Rough, 0.8f, FMath::Clamp(It.Flat / 0.4f, 0.0f, 1.0f));
+	}
+	else
+	{
+		// A plain paint under a stripe or tape: as its finish draws it, no effects.
+		FLinearColor Shown = ShownColour(It);
+		float Metallic = 0.05f, Roughness = 0.12f;
+		FinishLook(It, Shown, Metallic, Roughness);
+		Out.Spec.Colour = Shown;
+		Out.Spec.Metal = Metallic;
+		Out.Spec.Rough = Roughness;
+		Out.Spec.Flake = 0.0f;
+	}
+	Out.Spec.Colour.A = 1.0f;
+	// paint_mix.gd fx_pass: the masked colour, or (taped, not sprayed over yet) the tape where the
+	// stripe will be.
+	if (bMasked)
+	{
+		Out.Pattern = It.Mask;
+		Out.MaskColour = It.MaskColour;
+		Out.MaskMetal = It.MaskMetal;
+		Out.MaskRough = It.MaskRough;
+	}
+	if (bTaped)
+	{
+		if (Out.Pattern == 0)
+		{
+			Out.Pattern = It.Tape;
+			Out.MaskColour = Out.Spec.Colour;
+			Out.MaskMetal = Out.Spec.Metal;
+			Out.MaskRough = Out.Spec.Rough;
+		}
+		Out.bTape = true;
+		Out.TapeColour = TPM::TapeColourOn(Out.Spec.Colour);
+	}
 	return true;
 }
 
-bool UTorqueBuildSubsystem::EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintSpec& Out) const
+bool UTorqueBuildSubsystem::EffectOf(int32 Bay, FName Slot, TorquePaintMix::FPaintLook& Out) const
 {
 	const FTorqueItem* It = Items.Find(ItemOn(Bay, TBI::AsSlot(Slot)));
 	return It && EffectLook(*It, Out);
@@ -1672,6 +1742,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	// A tin of paint in your hands is a full pair of hands.
 	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike) && Paint.Held.Contains(Peer))
 		return TEXT("Put the tin of paint down first.");
+	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike) && Paint.TapeBy == Peer)
+		return TEXT("Hang the masking tape back on its hook first.");
 	const bool bSlotWork = A == ETorqueShedAct::Unbolt || A == ETorqueShedAct::Bolt || A == ETorqueShedAct::Remove;
 	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched)
 		return TEXT("Crouch down to reach it (C).");
@@ -1923,6 +1995,33 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	case ETorqueShedAct::DynoFan:
 	case ETorqueShedAct::DynoLights:
 		return FString();
+	case ETorqueShedAct::PaintTapeTake:
+		if (Held != 0 || Paint.Held.Contains(Peer)) return TEXT("Your hands are full.");
+		if (Paint.TapeBy == Peer) return TEXT("You've got the masking tape.");
+		if (Paint.TapeBy != 0) return TEXT("Someone else has the masking tape.");
+		return FString();
+	case ETorqueShedAct::PaintTapePut:
+		return Paint.TapeBy == Peer ? FString() : FString(TEXT("You're not holding the tape."));
+	case ETorqueShedAct::PaintTapePattern:
+		if (Paint.TapeBy != Peer) return TEXT("You're not holding the tape.");
+		if (R.Colour < 1 || R.Colour > TorquePaintMix::TapePatterns) return TEXT("There's no pattern like that.");
+		return FString();
+	case ETorqueShedAct::PaintTape:
+	{
+		// paint_bay.gd paint_tape: on a painted part, put down (or on a bike), not taped already.
+		if (Paint.TapeBy != Peer) return TEXT("Take the masking tape off its hook by the mixing bay door.");
+		const FTorqueItem* It = Items.Find(R.Item);
+		if (!It) return TEXT("That part has gone.");
+		if (It->At == ETorqueAt::Held || It->bBoxed) return TEXT("Put it down (and unpack it) first.");
+		if (It->PaintQ < 0.0f || It->bPrimerTop || It->Finish.IsNone()) return TEXT("Paint it first: the tape keeps its colour where the stripe goes.");
+		if (It->Tape != 0) return TEXT("It's taped already. Spray it, or peel the tape off.");
+		return FString();
+	}
+	case ETorqueShedAct::PaintPeel:
+	{
+		const FTorqueItem* It = Items.Find(R.Item);
+		return It && It->Tape != 0 ? FString() : FString(TEXT("There's no tape on it."));
+	}
 	case ETorqueShedAct::Radio:
 		if (TorqueShedRadio::Stations().Num() == 0) return TEXT("The radio has no stations.");
 		if (!TorqueShedRadio::Stations().IsValidIndex(R.Colour)) return TEXT("No such station.");
@@ -2157,6 +2256,9 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		else
 		{
 			const int32 Idx = FMath::Clamp(R.Colour, 0, Paints().Num() - 1);
+			// Over masking tape the colour under it stays where the stripe goes (shed_state "paint").
+			if (It.Tape != 0 && !It.bPrimerTop) MaskUnderTape(It);
+			else It.Mask = 0;
 			It.Colour = Paints()[Idx];
 			It.Finish = Finishes().Contains(R.Finish) ? R.Finish : FName(TEXT("gloss"));
 			It.MixCode.Reset();
@@ -2188,6 +2290,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		It.CoatQ = 0.0f;
 		It.Primer = Q;
 		It.bPrimerTop = true;
+		It.Mask = 0;
 		Text = FString::Printf(TEXT("Primed the %s: %s"), *ItemTitle(R.Item), *TBI::JobWord(Q));
 		Touch(R.Item);
 		break;
@@ -2363,6 +2466,37 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Dyno.bLights = !Dyno.bLights;
 		Text = Dyno.bLights ? TEXT("Dyno room lights on") : TEXT("Dyno room lights off");
 		break;
+	case ETorqueShedAct::PaintTapeTake:
+		Paint.TapeBy = Peer;
+		Text = FString::Printf(TEXT("Masking tape: %s. R picks the pattern; hold the work button on a painted part to tape it."),
+			*FString(TorquePaintMix::PatternName(Paint.TapePattern)).ToLower());
+		bItems = true;
+		break;
+	case ETorqueShedAct::PaintTapePut:
+		Paint.TapeBy = 0;
+		bItems = true;
+		break;
+	case ETorqueShedAct::PaintTapePattern:
+		Paint.TapePattern = R.Colour;
+		Text = FString::Printf(TEXT("Masking tape: %s"), *FString(TorquePaintMix::PatternName(R.Colour)).ToLower());
+		break;
+	case ETorqueShedAct::PaintTape:
+	{
+		FTorqueItem& It = Items[R.Item];
+		It.Tape = Paint.TapePattern;
+		Text = FString::Printf(TEXT("Taped a %s on the %s. Now spray the second colour over it."),
+			*FString(TorquePaintMix::PatternName(It.Tape)).ToLower(), *ItemTitle(R.Item));
+		Touch(R.Item);
+		break;
+	}
+	case ETorqueShedAct::PaintPeel:
+	{
+		FTorqueItem& It = Items[R.Item];
+		It.Tape = 0;
+		Text = It.Mask != 0 ? FString(TEXT("Peeled the tape off: a crisp line.")) : FString(TEXT("Peeled the tape off: nothing sprayed over it."));
+		Touch(R.Item);
+		break;
+	}
 	case ETorqueShedAct::Radio:
 		bRadioOn = R.Item != 0;
 		RadioTuned = R.Colour;

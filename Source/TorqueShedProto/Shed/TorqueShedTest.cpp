@@ -104,6 +104,7 @@ const TCHAR* const MenuSteps =
 // that card on the bench and mixed again to it as Mix 2; a satin lacquer (10% flattener); a silver with ultramarine
 // in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
 // the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
+// Then twin stripes masked off with tape, Mix 3 (the silver) sprayed over, and the tape peeled.
 const TCHAR* const MixSteps =
 	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,shot:ui,look:mixbench,shot,")
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
@@ -114,7 +115,10 @@ const TCHAR* const MixSteps =
 	TEXT("tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,place:repair_0,act,tool:repair,item:exhaust,act,")
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
-	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot");
+	TEXT("tool:hands,paint:take:2,paint:cup,paint:put:2,tool:gun,spray:0:cup,item:exhaust,act,log,paintlog,look:hook_0,shot,")
+	TEXT("tool:hands,paint:tapetake,paint:pattern:2,item:exhaust,act,log,look:hook_0,shot,paint:tapeput,")   // masking tape: twin stripes
+	TEXT("paint:take:3,paint:cup,paint:put:3,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
+	TEXT("tool:hands,item:exhaust,act:alt,log,look:hook_0,shot");
 
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
@@ -816,6 +820,9 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("tobench")) R.Kind = ETorqueShedAct::PaintTinBench;
 		else if (What == TEXT("bin")) R.Kind = ETorqueShedAct::PaintTinBin;
 		else if (What == TEXT("cup")) R.Kind = ETorqueShedAct::PaintCup;
+		else if (What == TEXT("tapetake")) R.Kind = ETorqueShedAct::PaintTapeTake;
+		else if (What == TEXT("tapeput")) R.Kind = ETorqueShedAct::PaintTapePut;
+		else if (What == TEXT("pattern") && P.Num() >= 3) { R.Kind = ETorqueShedAct::PaintTapePattern; R.Colour = FCString::Atoi(*P[2]); }
 		else if (What == TEXT("hook") && P.Num() >= 4)
 		{
 			// paint:hook:N:CM: spray booth hook N (1 .. 10) wound to CM off the floor.
@@ -823,7 +830,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			R.Item = FCString::Atoi(*P[2]) - 1;
 			R.Amount = FCString::Atof(*P[3]);
 		}
-		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM")); return true; }
+		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM, tapetake, pattern:N, tapeput")); return true; }
 		Said(W->TestPaint(R));
 		return true;
 	}

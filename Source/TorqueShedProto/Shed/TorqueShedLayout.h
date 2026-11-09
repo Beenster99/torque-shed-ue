@@ -26,6 +26,7 @@ enum class ETorquePlace : uint8
 	PaintBench,// the paint mixing bay's bench (F: step up to it, or put the tin in your hands on the scale)
 	PaintShelf,// a place on the mixing bay's tin shelf (Index 0 .. 11): F takes a tin or puts one down
 	Radio,     // the shed radio over the workbench: F switches it on or off, the work button retunes it
+	Tape,      // the masking tape roll's hook inside the mixing bay door: take it, hang it back
 };
 
 struct FTorquePlace
@@ -113,6 +114,9 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::DynoDesk, TEXT("dyno_desk"), FVector(215.0, -1145.0, 65.0), FVector(365.0, -1070.0, 145.0), FVector(290.0, -1110.0, 84.0), 0);
 	// The radio on its shelf over the workbench's back end (TorqueShedRadio::At).
 	Add(ETorquePlace::Radio, TEXT("radio"), FVector(-648.0, -170.0, 160.0), FVector(-628.0, -120.0, 190.0), FVector(-638.0, -145.0, 161.5), 0);
+	// The masking tape's hook (paint_bay.gd TAPE_AT, by the door): on the mixing bay's west wall just
+	// inside its door (y 418 .. 502), the roll drawn by ATorquePaintBayRoom (TorquePaintBayLayout::TapeAt).
+	Add(ETorquePlace::Tape, TEXT("tape"), FVector(1430.0, 380.0, 112.0), FVector(1450.0, 410.0, 148.0), FVector(1438.0, 395.0, 130.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_lights"), FVector(-145.0, -590.0, 122.0), FVector(-125.0, -578.0, 148.0), FVector(-135.0, -585.0, 135.0), 0);
 	Add(ETorquePlace::DynoSwitch, TEXT("dyno_fan"), FVector(-169.0, -590.0, 122.0), FVector(-149.0, -578.0, 148.0), FVector(-159.0, -585.0, 135.0), 1);
 	// The paint shop's downdraft spray bay (workshop.gd BOOTH_XF, equipment.gd booth_shop): 8 m along

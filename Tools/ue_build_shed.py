@@ -181,9 +181,24 @@ def screen_page_material():
     return finish(m)
 
 
+# The masked pattern, in the part's frame in cm (paint_mix.gd masked(), its metres x 100): 1 a centre
+# stripe 6 cm wide, 2 twin stripes, 3 a pinstripe round its middle, 4 the top half (two-tone).
+MASK_HLSL = """
+float3 q = float3(dot(R0, P), dot(R1, P), dot(R2, P)) + Offset;
+float aa = 0.15;
+float x = abs(q.y);
+float y = q.z;
+if (Pattern < 0.5) return 0.0;
+if (Pattern < 1.5) return 1.0 - smoothstep(3.0 - aa, 3.0 + aa, x);
+if (Pattern < 2.5) return (1.0 - smoothstep(4.5 - aa, 4.5 + aa, x)) * smoothstep(2.2 - aa, 2.2 + aa, x);
+if (Pattern < 3.5) return 1.0 - smoothstep(0.4 - aa * 0.5, 0.4 + aa * 0.5, abs(y));
+return smoothstep(-aa, aa, y);
+"""
+
+
 def effect_paint_material():
     """M_ShedEffectPaint, for the game (C++, TorqueEffectPaint.cpp) to put on a part sprayed with an
-    effect paint from the mixing bay (paint_mix.gd's spec): a clear-coated paint whose colour flips
+    effect paint from the mixing bay (paint_mix.gd's spec), or masked with tape: a clear-coated paint whose colour flips
     with the angle for a chameleon (Color to FlipA to FlipB, by Flip), takes a pearl's sheen at the
     edges (PearlTint, by Pearl), deepens towards the edges for a candy (Depth), and sparkles with
     flakes stuck to the part (FlakeColour, by Flake). Opaque, a handful of maths nodes and one
@@ -244,14 +259,39 @@ def effect_paint_material():
     speck = sat(-900, 1150, op(unreal.MaterialExpressionMultiply, -1000, 1150,
                                op(unreal.MaterialExpressionSubtract, -1100, 1150, noise, cut), const_b=12.0))
     c5 = lerp(-600, 0, c4, vec("FlakeColour", -800, 1300, (0.85, 0.85, 0.88)), op(unreal.MaterialExpressionMultiply, -700, 1150, speck, const_b=0.8))
+    # Masking (paint_mix.gd masked()): the colour kept under the tape in a pattern across the part's
+    # own frame (x forward, y right, z up, from its middle; the game sets PartRow0..2 and PartOffset
+    # per mesh), and the tape itself while it's still on.
+    mask = expr(m, unreal.MaterialExpressionCustom, -900, 1800)
+    try_set(mask, "code", MASK_HLSL)
+    try_set(mask, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    ins = []
+    for n in ("P", "R0", "R1", "R2", "Offset", "Pattern"):
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(mask, "inputs", ins)
+    mel.connect_material_expressions(expr(m, unreal.MaterialExpressionLocalPosition, -1200, 1750), "", mask, "P")
+    mel.connect_material_expressions(vec("PartRow0", -1200, 1850, (1.0, 0.0, 0.0)), "", mask, "R0")
+    mel.connect_material_expressions(vec("PartRow1", -1200, 1950, (0.0, 1.0, 0.0)), "", mask, "R1")
+    mel.connect_material_expressions(vec("PartRow2", -1200, 2050, (0.0, 0.0, 1.0)), "", mask, "R2")
+    mel.connect_material_expressions(vec("PartOffset", -1200, 2150, (0.0, 0.0, 0.0)), "", mask, "Offset")
+    mel.connect_material_expressions(num("Pattern", -1200, 2250, 0.0), "", mask, "Pattern")
+    tape = op(unreal.MaterialExpressionMultiply, -700, 1900, mask, num("Tape", -900, 2000, 0.0))
+    masked = lerp(-500, 0, c5, vec("MaskColor", -700, 1700, (1.0, 1.0, 1.0)), mask)
+    taped = lerp(-450, 0, masked, vec("TapeColor", -700, 2100, (0.18, 0.42, 0.85)), tape)
     # Grime dulls it.
     grime = num("Grime", -600, 1500, 0.0)
     dirt = op(unreal.MaterialExpressionMultiply, -500, 1500, grime, const_b=0.5)
-    base = lerp(-300, 0, c5, expr(m, unreal.MaterialExpressionConstant3Vector, -500, 1400, constant=unreal.LinearColor(0.18, 0.15, 0.12, 1.0)), dirt)
+    base = lerp(-300, 0, taped, expr(m, unreal.MaterialExpressionConstant3Vector, -500, 1400, constant=unreal.LinearColor(0.18, 0.15, 0.12, 1.0)), dirt)
     mel.connect_material_property(base, "", M.MP_BASE_COLOR)
     metal = lerp(-300, 300, num("Metallic", -600, 300, 0.0), expr(m, unreal.MaterialExpressionConstant, -600, 380, r=1.0), speck)
+    metal = lerp(-250, 300, metal, num("MaskMetal", -500, 330, 0.05), mask)
+    metal = lerp(-200, 300, metal, expr(m, unreal.MaterialExpressionConstant, -400, 380, r=0.0), tape)
     mel.connect_material_property(metal, "", M.MP_METALLIC)
     rough = lerp(-300, 500, num("Roughness", -600, 500, 0.15), expr(m, unreal.MaterialExpressionConstant, -600, 580, r=0.08), speck)
+    rough = lerp(-250, 500, rough, num("MaskRough", -500, 530, 0.15), mask)
+    rough = lerp(-200, 500, rough, expr(m, unreal.MaterialExpressionConstant, -400, 580, r=0.85), tape)
     rough = op(unreal.MaterialExpressionAdd, -150, 500, rough, op(unreal.MaterialExpressionMultiply, -300, 650, grime, const_b=0.3))
     mel.connect_material_property(rough, "", M.MP_ROUGHNESS)
     mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -300, 800, r=1.0), "", M.MP_CUSTOM_DATA0)   # clear coat

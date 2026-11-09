@@ -241,6 +241,12 @@ bool FTorquePaintBay::Serialize(FArchive& Ar, bool bNet)
 		if (HookTips.Num() > 32) return false;
 		for (float& T : HookTips) T = FMath::Clamp(T, HookLow, HookHigh);
 	}
+	// The masking tape in someone's hands (only while playing: a save has it on its hook).
+	if (bNet)
+	{
+		Ar << TapeBy << TapePattern;
+		TapePattern = FMath::Clamp(TapePattern, 1, TorquePaintMix::TapePatterns);
+	}
 	return !Ar.IsError();
 }
 
@@ -254,6 +260,7 @@ void FTorquePaintBay::AfterLoad()
 	BenchBy = 0;
 	PourTint = INDEX_NONE;
 	Tilt = 0.0f;
+	TapeBy = 0;
 	// The stock always has a line for every base and tint (a garage from before one was added).
 	Stock.SetNumZeroed(TorquePaintMix::Bases().Num() + TorquePaintMix::Tints().Num());
 	TArray<int32> Ids;
@@ -284,6 +291,7 @@ void FTorquePaintBay::PutBack(int32 Peer)
 		}
 	}
 	Held.Remove(Peer);
+	if (TapeBy == Peer) TapeBy = 0;   // the tape back on its hook
 	if (BenchBy == Peer)
 	{
 		BenchBy = 0;
@@ -352,7 +360,7 @@ FString UTorqueBuildSubsystem::CheckPaintBay(int32 Peer, const FTorqueShedReques
 	const FTorquePaintBay& P = Paint;
 	const FTorqueTin* Tin = P.BenchTinPtr();
 	const bool bAtBench = P.BenchBy == Peer;
-	const bool bHandsFull = HeldBy(Peer) != 0 || P.Held.Contains(Peer);
+	const bool bHandsFull = HeldBy(Peer) != 0 || P.Held.Contains(Peer) || P.TapeBy == Peer;
 	switch (R.Kind)
 	{
 	case ETorqueShedAct::PaintBench:
@@ -700,6 +708,18 @@ FString UTorqueBuildSubsystem::CheckCup(int32 Peer, const FTorqueItem& It) const
 	return FString();
 }
 
+void UTorqueBuildSubsystem::MaskUnderTape(FTorqueItem& It)
+{
+	// paint_bay.gd spray_spec: the mask keeps the pattern and the paint that was there, as it looked.
+	FLinearColor Shown = ShownColour(It);
+	float Metallic = 0.05f, Roughness = 0.15f;
+	FinishLook(It, Shown, Metallic, Roughness);
+	It.Mask = It.Tape;
+	It.MaskColour = Shown;
+	It.MaskMetal = Metallic;
+	It.MaskRough = Roughness;
+}
+
 float UTorqueBuildSubsystem::SprayFromCup(int32 Peer, FTorqueItem& It)
 {
 	namespace TPM = TorquePaintMix;
@@ -715,7 +735,14 @@ float UTorqueBuildSubsystem::SprayFromCup(int32 Peer, FTorqueItem& It)
 	}
 	const bool bSame = !It.MixCode.IsEmpty() && It.MixCode == S.Code && It.MixName == S.Name && !It.bPrimerTop;
 	const int32 Coats = bSame ? It.MixCoats + 1 : 1;
-	if (!bSame) It.MixUnder = ShownColour(It);
+	if (!bSame)
+	{
+		It.MixUnder = ShownColour(It);
+		// Sprayed over masking tape: the colour under it stays where the stripe goes. Otherwise a
+		// new colour covers any stripe there was.
+		if (It.Tape != 0) MaskUnderTape(It);
+		else if (!It.bPrimerTop) It.Mask = 0;
+	}
 	It.MixCode = S.Code;
 	It.MixName = S.Name;
 	It.MixEffect = S.Effect;
