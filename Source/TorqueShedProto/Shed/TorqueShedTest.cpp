@@ -594,6 +594,34 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(TEXT("looking at ") + W->TestLookAt(At, TSTI::TowardsMiddle(At), Place->Kind == ETorquePlace::Bay ? 120.0 : 90.0));
 		return true;
 	}
+	// Carrying a part (the wheel and R): carry:reach:<cm>, carry:wheel:<+-clicks>, carry:turn:<deg>,
+	// carry:turntap:<quarters>, carry:aim:<place> or carry:aim:<x>:<y> (stand 2.2 m back facing it,
+	// so the wheel pushes the drop box towards it), carry:show (say where the box is). Each says
+	// the plan, the drop and the box (blue, red or hidden).
+	if (Verb == TEXT("carry") && P.Num() >= 2)
+	{
+		if (P[1] == TEXT("aim") && P.Num() >= 3)
+		{
+			FVector At;
+			if (P.Num() >= 4) At = FVector(FCString::Atod(*P[2]), FCString::Atod(*P[3]), 0.0);
+			else
+			{
+				const FTorquePlace* Place = TorqueShedLayout::FindPlace(FName(*P[2]));
+				if (!Place) { Warn(TEXT("no such place")); return true; }
+				At = Place->Box.GetCenter();
+				At.Z = 0.0;
+			}
+			Said(TEXT("facing ") + W->TestLookAt(At + FVector(0.0, 0.0, 60.0), TSTI::TowardsMiddle(At), 220.0));
+			bAimLost = false;
+			Said(W->TestCarry(TEXT("show"), 0.0));
+			return true;
+		}
+		const double Value = P.Num() >= 3 ? FCString::Atod(*P[2]) : 0.0;
+		const FString Out = W->TestCarry(P[1].ToLower(), Value);
+		if (Out.StartsWith(TEXT("not "))) Warn(Out);
+		else Said(Out);
+		return true;
+	}
 	if (Verb == TEXT("floor") && P.Num() >= 3)
 	{
 		const FVector At(FCString::Atod(*P[1]), FCString::Atod(*P[2]), 0.0);
