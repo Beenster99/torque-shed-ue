@@ -82,3 +82,12 @@ if(MSVC)
 else()
   target_compile_options(sfx_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
 endif()
+
+# The New bike configurator (the Godot game's BikeShop): checked against the real game's answers.
+add_executable(shop_test shop_test.cpp ${FIT}/BikeShop.cpp ${FIT}/BikeRideSpec.cpp ${SIM}/BikeSim.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(shop_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(shop_test PRIVATE /W4)
+else()
+  target_compile_options(shop_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
