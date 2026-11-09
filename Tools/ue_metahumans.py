@@ -25,7 +25,8 @@ import sys
 
 import unreal
 
-ROOT = "/Game/MetaHumans"
+ROOT = "/Game/MetaHumans"            # what the game uses: the built Blueprints and meshes (cooked once avatars exist)
+SOURCES = "/Game/MetaHumanSources"   # the MetaHuman Character assets they're built from: never cooked
 AVATARS = [   # the people made by `make`: a name each and the preset to start from (the first that exists)
     {"name": "Avatar_A"}, {"name": "Avatar_B"}, {"name": "Avatar_C"}, {"name": "Avatar_D"},
 ]
@@ -140,12 +141,19 @@ def make(rig=False):
     sub = unreal.get_editor_subsystem(sub_cls)
     for i, av in enumerate(AVATARS):
         name = av["name"]
-        folder = ROOT + "/" + name
-        path = folder + "/" + name
-        ch = unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
+        folder = ROOT + "/" + name                 # build output
+        src_folder = SOURCES + "/" + name
+        path = src_folder + "/" + name
+        old = folder + "/" + name                  # where earlier runs made the character
+        eal = unreal.EditorAssetLibrary
+        if not eal.does_asset_exist(path) and eal.does_asset_exist(old):
+            log("%s: moving the character source %s -> %s (sources aren't cooked)" % (name, old, path))
+            if not eal.rename_asset(old, path):
+                unreal.log_warning("[Torque] couldn't move %s to %s" % (old, path))
+        ch = unreal.load_asset(path) if eal.does_asset_exist(path) else None
         if ch is None:
             try:
-                ch = tools.create_asset(name, folder, cls, factory() if factory else None)
+                ch = tools.create_asset(name, src_folder, cls, factory() if factory else None)
             except Exception as e:
                 unreal.log_warning("[Torque] couldn't create %s: %s" % (path, e))
                 continue
@@ -214,13 +222,18 @@ def make(rig=False):
                     log("%s: export_geometry to %s (folder via %s) = %s" % (name, folder, used, r))
                 except Exception as e:
                     unreal.log_warning("[Torque] %s: export_geometry failed: %s" % (name, e))
-        unreal.EditorAssetLibrary.save_directory(folder, only_if_is_dirty=True, recursive=True)
+        for d in (src_folder, folder):
+            if unreal.EditorAssetLibrary.does_directory_exist(d):
+                unreal.EditorAssetLibrary.save_directory(d, only_if_is_dirty=True, recursive=True)
     log("make finished: see the can_build_meta_human lines above for whether a cloud rig (Epic sign-in) is needed")
 
 
 INI = ("Config", "DefaultGame.ini")
+# /Game/MetaHumans is in here too: until avatars are assembled it only holds unbuilt
+# MetaHumanCharacter sources, which reference the never-cooked plugin and fail the cook
+# ("Content is missing from cook"). NeverCook wins over its DirectoriesToAlwaysCook line.
 NEVER_COOK = ["/MetaHumanCharacter", "/MetaHumanCoreTech", "/MetaHumanSDK", "/MetaHumanCoreTechLib",
-              "/MetaHumanDefaultPipeline"]
+              "/MetaHumanDefaultPipeline", "/Game/MetaHumans"]
 
 
 def plugin_mounts():
@@ -271,6 +284,19 @@ def register():
             blueprints.append((pkg, name))
         elif cls == "SkeletalMesh":
             meshes.append((pkg, name))
+        elif cls == "MetaHumanCharacter":
+            # A character source made by hand in here: move it to SOURCES, which is never cooked
+            # (it references the plugin's build pipeline, so cooking it fails or bloats the package).
+            dest = SOURCES + pkg[len(ROOT):]
+            ok = unreal.EditorAssetLibrary.rename_asset(pkg, dest)
+            log("character source %s %s %s" % (pkg, "moved to" if ok else "COULDN'T be moved to", dest))
+    # Clear redirectors the moves left behind (a cooked redirector would pull in the source).
+    redirs = [unreal.load_asset(str(a.package_name)) for a in reg.get_assets_by_path(ROOT, recursive=True)
+              if (str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)) == "ObjectRedirector"]
+    redirs = [r for r in redirs if r is not None]
+    if redirs:
+        unreal.AssetToolsHelpers.get_asset_tools().fixup_referencers(redirs)
+        log("fixed up %d redirectors under %s" % (len(redirs), ROOT))
     out = []
     bp_folders = set(pkg.rsplit("/", 1)[0] for pkg, _ in blueprints)
     for pkg, name in sorted(meshes):   # a body mesh with no Blueprint beside it (export_geometry)
