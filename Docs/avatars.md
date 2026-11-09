@@ -54,3 +54,5 @@ and looking up and down throughout. The log shows `Torque: N MetaHuman avatars l
 ## Cost
 
 Each avatar is a MetaHuman at Medium (the face and body together are about 60-100k triangles) plus its hair. Only other players get one; you never see your own.
+
+On disk, the first four built at the default quality added about 1.76 GB to the package. `make` now builds UE Optimized at Medium, with card hair, and caps every texture under `/Game/MetaHumans` at 1024 (`PIPELINE_QUALITY` and `MAX_TEXTURE` at the top of `Tools/ue_metahumans.py`). It also clears an avatar's old build before rebuilding, because `/Game/MetaHumans` is always cooked.

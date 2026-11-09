@@ -12,6 +12,7 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make         make the avatars below by script and build them without the
                                            cloud (logs can_build_meta_human's reason if a rig is needed)
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
+    py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
 Or without opening the editor:
     UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="G:/Dev/torque-shed-ue/Tools/ue_metahumans.py discover" -unattended
@@ -26,7 +27,13 @@ import sys
 import unreal
 
 ROOT = "/Game/MetaHumans"            # what the game uses: the built Blueprints and meshes (cooked once avatars exist)
-SOURCES = "/Game/MetaHumanSources"   # the MetaHuman Character assets they're built from: never cooked
+SOURCES = "/Game/MetaHumanSources"
+# How the avatars are built: shed walkers seen at 2-10 m. UE Optimized at Medium keeps a face that
+# holds up at 2 m, with card hair (strands only come at High/Cinematic); try "LOW" if size matters
+# more. Every texture under /Game/MetaHumans is then capped at MAX_TEXTURE (`py ... slim` redoes it).
+PIPELINE_TYPE = "OPTIMIZED"    # the pipeline_type member whose name has this
+PIPELINE_QUALITY = "MEDIUM"    # the pipeline_quality member whose name has this
+MAX_TEXTURE = 1024   # the MetaHuman Character assets they're built from: never cooked
 AVATARS = [   # the people made by `make`: a name each and the preset to start from (the first that exists)
     {"name": "Avatar_A"}, {"name": "Avatar_B"}, {"name": "Avatar_C"}, {"name": "Avatar_D"},
 ]
@@ -227,6 +234,48 @@ def _export_materials(lib, ch, name, folder):
         unreal.log_warning("[Torque] %s: export_materials failed: %s" % (name, e))
 
 
+def _set_enum(obj, field, word):
+    """Set an enum field to its member whose name contains word (logging the choices)."""
+    try:
+        cur = obj.get_editor_property(field)
+    except Exception:
+        log("no %s in %s" % (field, type(obj).__name__))
+        return
+    members = [n for n in dir(type(cur)) if n.isupper()]
+    pick = next((n for n in members if word in n), None)
+    log("%s: %s of %s -> %s" % (field, cur, ", ".join(members), pick))
+    if pick:
+        obj.set_editor_property(field, getattr(type(cur), pick))
+
+
+def slim():
+    """Cap every texture under /Game/MetaHumans at MAX_TEXTURE (what's cooked is the cap, the
+    source stays), and list the grooms (strand hair is the big one; cards are fine)."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    if not unreal.EditorAssetLibrary.does_directory_exist(ROOT):
+        return
+    capped = 0
+    for a in reg.get_assets_by_path(ROOT, recursive=True):
+        cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
+        pkg = str(a.package_name)
+        if cls in ("Texture2D", "VirtualTexture2D"):
+            t = unreal.load_asset(pkg)
+            if t is None:
+                continue
+            try:
+                w = t.blueprint_get_size_x()
+                cur = t.get_editor_property("max_texture_size")
+                if w > MAX_TEXTURE and (cur == 0 or cur > MAX_TEXTURE):
+                    t.set_editor_property("max_texture_size", MAX_TEXTURE)
+                    unreal.EditorAssetLibrary.save_loaded_asset(t, only_if_is_dirty=False)
+                    capped += 1
+            except Exception as e:
+                unreal.log_warning("[Torque] couldn't cap %s: %s" % (pkg, e))
+        elif cls in ("GroomAsset", "GroomBindingAsset"):
+            log("groom: %s %s" % (cls, pkg))
+    log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
+
+
 def make(rig=False):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
@@ -293,6 +342,13 @@ def make(rig=False):
             used = _set_first(bp, folder, "absolute_build_path", "build_path", "output_folder", "output_path")
             _set_first(bp, name, "name_override", "name", "asset_name")
             log("%s: build path set via %s" % (name, used))
+            _set_enum(bp, "pipeline_type", PIPELINE_TYPE)
+            _set_enum(bp, "pipeline_quality", PIPELINE_QUALITY)
+            # A rebuild at another quality leaves the old build's files behind, and /Game/MetaHumans
+            # is always cooked, so clear this avatar's old build first.
+            if unreal.EditorAssetLibrary.does_directory_exist(folder):
+                log("%s: clearing the old build in %s" % (name, folder))
+                unreal.EditorAssetLibrary.delete_directory(folder)
             try:
                 sub.build_meta_human(ch, bp)
                 built = True
@@ -335,6 +391,7 @@ def make(rig=False):
         for d in (src_folder, folder):
             if unreal.EditorAssetLibrary.does_directory_exist(d):
                 unreal.EditorAssetLibrary.save_directory(d, only_if_is_dirty=True, recursive=True)
+    slim()
     log("make finished: see the can_build_meta_human lines above for whether a cloud rig (Epic sign-in) is needed")
 
 
@@ -521,6 +578,8 @@ def main(args):
     mode = args[0] if args else "register"
     if mode == "discover":
         discover()
+    elif mode == "slim":
+        slim()
     elif mode == "make":
         make(rig=len(args) > 1 and args[1] == "rig")
         register()
