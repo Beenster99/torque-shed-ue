@@ -173,6 +173,13 @@ public:
 private:
 	friend class UTorqueNetBikeComponent;   // reads our bike to send it, or sets someone else's
 	TUniquePtr<TorqueSim::BikeSim> Sim;
+	// What the bike bumps into besides the ground (Sim/BikeContacts.h): the ride's walls, buildings,
+	// gates and props from Data/Buttertubs/collision.json (Tools/make_collision.py), and the other
+	// riders' bikes, gathered each frame. HitsHeard: the sim's knock count already sounded.
+	TUniquePtr<TorqueSim::ContactWorld> Contacts;
+	int32 HitsHeard = 0;
+	void LoadContacts();
+	void GatherOtherBikes();
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it

@@ -9,6 +9,7 @@
 // machine and can be tested without the engine; the world is seen only through ray casts.
 #pragma once
 
+#include "BikeContacts.h"
 #include "BikeSpec.h"
 #include <functional>
 #include <vector>
@@ -66,6 +67,9 @@ public:
 	BikeSpec Build;
 	RayFn Ray;
 	std::vector<CattleGrid> Grids;
+	// Walls, props and other riders' bikes (BikeContacts.h), set by the game; none, the bike only meets
+	// the ground. The bike's probe spheres (frame, wheel bumpers, rider) are kept out of them.
+	const ContactWorld* Contacts = nullptr;
 
 	// Rider inputs.
 	double Throttle = 0.0;
@@ -88,6 +92,12 @@ public:
 	double Speed = 0.0, LeanAngle = 0.0, LeanRate = 0.0, PitchAngle = 0.0, RoadPitch = 0.0;
 	double TrailNow = 0.1, TrailSeen = 0.1, RakeNow = 0.4, Dive = 0.0, TrailSprings = 0.1, Wobble = 0.0;
 	bool IsCrashed = false;
+	// The last knock (for sound, the HUD and the tests): how hard (m/s into what was hit), whether it
+	// was another bike, and a count that goes up with each new one. KnockedOff: the last crash was a
+	// hit (the rider struck something, or the bike went into something hard), not a fall.
+	double LastHitSpeed = 0.0;
+	bool LastHitBike = false, KnockedOff = false;
+	int HitCount = 0;
 	// How far the bike's lowest part (tyres, bars, pegs, covers...) is above the ground, m; negative
 	// is into it. For tests and checks.
 	double GroundGap();
@@ -103,6 +113,10 @@ public:
 	bool ShiftDown() { if (Gear <= 1) return false; Select(Gear - 1); return true; }
 
 	V3 BodyToWorld(const V3& P) const { return Position + Basis * P; }
+	// This bike as other riders' bikes meet it (ContactWorld::Capsules): the bike low, rear tyre to
+	// front, and the rider from the saddle to the shoulders, moving with it. A fallen bike lies along
+	// the ground, so the same capsules follow it down.
+	void AsCapsules(std::vector<ContactCapsule>& Out) const;
 	V3 WorldToBody(const V3& P) const { return Basis.Transposed() * (P - Position); }
 
 private:
@@ -148,6 +162,16 @@ private:
 	void ApplyFeet();
 	void CheckCrash();
 	void StepCrashed(double Delta);   // off: falls, slides and tumbles on the ground
+	struct Probe
+	{
+		V3 Local;
+		double Radius = 0.2;
+		bool Rider = false;
+	};
+	std::vector<Probe> Probes;
+	std::vector<ContactHit> Hits;
+	double SinceHit = 1.0;
+	void ResolveContacts(double Delta);
 	std::vector<V3> CrashPts;
 	std::vector<RayHit> CrashGround;
 	double Steadiness() const { return Lerp(0.45, 1.0, Assist); }

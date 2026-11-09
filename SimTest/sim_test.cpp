@@ -551,12 +551,155 @@ static void GridTests()
 	}
 }
 
+
+// Walls and other bikes (BikeContacts): the bike rolling at a speed, heading -z (Place's heading 0),
+// held there by the throttle and steered by nobody.
+static void Roll(BikeSim& S, double V)
+{
+	S.Setup(BikeSpec::SpeedTwin1200());
+	S.Ray = FlatRay;
+	S.Place(V3(0, 0, 0), 0.0);
+	for (int i = 0; i < 240; ++i) S.Step(1.0 / 120.0);
+	S.LinearVelocity = V3(0.0, 0.0, -V);
+	S.Wheels[0].Omega = V / S.Build.FrontRadius;
+	S.Wheels[1].Omega = V / S.Build.RearRadius;
+	S.Gear = V > 15.0 ? 4 : V > 8.0 ? 2 : 1;
+}
+
+static void ContactTests()
+{
+	std::printf("Walls and other bikes\n");
+	const double Dt = 1.0 / 120.0;
+	// A drystone wall across the road 20 m ahead (as Tools/make_collision.py's wall module: 1.2 m
+	// high, 0.9 m thick), 6 m wide.
+	ContactWorld World;
+	ContactBox Wall;
+	Wall.Cx = 0.0; Wall.Cz = -20.0; Wall.Ux = 1.0; Wall.Uz = 0.0; Wall.Hu = 3.0; Wall.Hv = 0.45; Wall.Y0 = -0.2; Wall.Y1 = 1.2;
+	World.SetBoxes({Wall});
+	for (const double V : {4.0, 15.0})
+	{
+		BikeSim S;
+		Roll(S, V);
+		S.Contacts = &World;
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			// (Rolling on until it meets the wall, then off the throttle, as a rider would.)
+			S.Throttle = S.IsCrashed || S.HitCount > 0 ? 0.0 : Clamp(0.1 + (V - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		// Nothing of the bike gets through: its middle stays short of the wall's far face (z = -20.45),
+		// and, still on, its front tyre stops at the near face (z = -19.55).
+		char What[96];
+		std::snprintf(What, sizeof What, "into a wall at %.0f m/s: the bike stays this side of it (furthest z, m)", V);
+		Check(Furthest > -20.45, What, Furthest);
+		if (!S.IsCrashed)
+		{
+			const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
+			Check(Nose > -19.55 - 0.25, "  the front tyre stops at its face (m past it)", -19.55 - Nose);
+		}
+		std::snprintf(What, sizeof What, "  %s (m/s into it)", V > 6.0 ? "knocked off" : "stays on");
+		Check(V > 6.0 ? (S.IsCrashed && S.KnockedOff) : !S.IsCrashed, What, S.LastHitSpeed);
+		Check(S.HitCount >= 1, "  and the knock is counted", S.HitCount);
+	}
+	// A wall alongside, the bike drifting into it at a shallow angle: it scrapes along, stays on.
+	{
+		ContactWorld Side;
+		ContactBox Along;
+		Along.Cx = 1.1; Along.Cz = -50.0; Along.Ux = 0.0; Along.Uz = 1.0; Along.Hu = 60.0; Along.Hv = 0.45; Along.Y0 = -0.2; Along.Y1 = 1.2;
+		Side.SetBoxes({Along});
+		BikeSim S;
+		Roll(S, 12.0);
+		S.LinearVelocity = V3(0.6, 0.0, -12.0);
+		S.Contacts = &Side;
+		double MostRight = 0.0;
+		for (int i = 0; i < 120 * 4; ++i)
+		{
+			S.Throttle = Clamp(0.1 + (12.0 - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			MostRight = std::max(MostRight, S.Position.x);
+		}
+		Check(MostRight < 1.1 - 0.45, "a glancing wall keeps the bike out of it (furthest x, m)", MostRight);
+		Check(!S.IsCrashed && S.Speed > 6.0, "  scraping along it at 0.6 m/s in, the rider stays on and rides on (m/s)", S.Speed);
+	}
+	// Another bike stopped across the road: a slow nudge pushes off it; at speed the rider comes off.
+	for (const double V : {2.0, 8.0})
+	{
+		ContactWorld Others;
+		Others.SetBoxes({});
+		ContactCapsule Low, High;
+		Low.A = V3(-0.7, 0.35, -10.0); Low.B = V3(0.7, 0.35, -10.0); Low.Radius = 0.35;
+		High.A = V3(0.0, 0.9, -10.0); High.B = V3(0.0, 1.4, -10.0); High.Radius = 0.25; High.Rider = true;
+		Others.Capsules = {Low, High};
+		BikeSim S;
+		Roll(S, V);
+		S.Contacts = &Others;
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			S.Throttle = S.IsCrashed || S.HitCount > 0 ? 0.0 : Clamp(0.1 + (V - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
+		char What[96];
+		std::snprintf(What, sizeof What, "into a stopped bike at %.0f m/s: doesn't pass through it (m past its side)", V);
+		Check(Nose > -10.0 + 0.35 - 0.3, What, (-10.0 + 0.35) - Nose);
+		std::snprintf(What, sizeof What, "  %s", V > 5.0 ? "and the rider comes off" : "and the rider stays on");
+		Check(V > 5.0 ? S.IsCrashed : !S.IsCrashed, What, S.LastHitSpeed);
+		Check(S.LastHitBike, "  the knock was another bike", S.LastHitBike ? 1.0 : 0.0);
+	}
+	// Two of our own bikes: one stood across the road (its own capsules, BikeSim::AsCapsules, as the
+	// game gathers them from the other riders), the other riding into it at a walk.
+	{
+		BikeSim Parked;
+		Parked.Setup(BikeSpec::SpeedTwin1200());
+		Parked.Ray = FlatRay;
+		Parked.Place(V3(0.0, 0.0, -10.0), 1.5708);
+		for (int i = 0; i < 60; ++i) Parked.Step(Dt);
+		ContactWorld Others;
+		Others.SetBoxes({});
+		Parked.AsCapsules(Others.Capsules);
+		Check(Others.Capsules.size() == 2 && std::fabs(Others.Capsules[0].A.z - Others.Capsules[0].B.z) < 0.2,
+			"a bike's own capsules lie along it (across the road here: z spread, m)", std::fabs(Others.Capsules[0].A.z - Others.Capsules[0].B.z));
+		BikeSim S;
+		Roll(S, 3.0);
+		S.Contacts = &Others;
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 5; ++i)
+		{
+			S.Throttle = S.IsCrashed || S.HitCount > 0 ? 0.0 : Clamp(0.1 + (3.0 - S.Speed) * 0.4, 0.0, 1.0);
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		const double Nose = Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius;
+		Check(Nose > -10.0 - 0.3 && S.HitCount >= 1 && !S.IsCrashed, "  riding into it at 3 m/s: stops against it, stays on (m past its middle)", -10.0 - Nose);
+	}
+	// A bike going down slides into a wall and stops against it, not through it.
+	{
+		BikeSim S;
+		Roll(S, 14.0);
+		S.Contacts = &World;
+		S.IsCrashed = true;
+		S.AngularVelocity = V3(0.0, 0.0, 2.5);
+		double Furthest = 0.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			S.Step(Dt);
+			Furthest = std::min(Furthest, S.Position.z);
+		}
+		Check(Furthest - S.Build.Wheelbase * 0.5 - S.Build.FrontRadius > -19.55 - 0.3, "a sliding, fallen bike stops at the wall (furthest z, m)", Furthest);
+	}
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
 	WheelieTests();
 	CrashTests();
 	GridTests();
+	ContactTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

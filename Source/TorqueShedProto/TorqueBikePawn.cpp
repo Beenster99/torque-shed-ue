@@ -232,6 +232,7 @@ void ATorqueBikePawn::BeginPlay()
 		return Out;
 	};
 	LoadRoute();
+	LoadContacts();
 	BuildModel();
 	{
 		// The rider's kit, made by the level script beside the bike's finishes.
@@ -802,6 +803,54 @@ FString ATorqueBikePawn::TestRideLog() const
 		for (const UPrimitiveComponent* C : Seen) Out += Describe(C);
 	}
 	return Out;
+}
+
+void ATorqueBikePawn::LoadContacts()
+{
+	// Beside the route: Data/Buttertubs/collision.json, boxes as [cx, cz, ux, uz, hu, hv, y0, y1].
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(), FPaths::GetPath(RouteFile), TEXT("collision.json"));
+	FString Text;
+	TSharedPtr<FJsonObject> Json;
+	const TArray<TSharedPtr<FJsonValue>>* Rows = nullptr;
+	if (!FFileHelper::LoadFileToString(Text, *Path) || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Json)
+		|| !Json.IsValid() || !Json->TryGetArrayField(TEXT("boxes"), Rows))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: no collision boxes at %s (run Tools/make_collision.py); the bike rides through walls"), *Path);
+		return;
+	}
+	std::vector<ContactBox> Boxes;
+	Boxes.reserve(Rows->Num());
+	for (const TSharedPtr<FJsonValue>& V : *Rows)
+	{
+		const TArray<TSharedPtr<FJsonValue>>& R = V->AsArray();
+		if (R.Num() < 8) continue;
+		ContactBox Box;
+		Box.Cx = R[0]->AsNumber();
+		Box.Cz = R[1]->AsNumber();
+		Box.Ux = R[2]->AsNumber();
+		Box.Uz = R[3]->AsNumber();
+		Box.Hu = R[4]->AsNumber();
+		Box.Hv = R[5]->AsNumber();
+		Box.Y0 = R[6]->AsNumber();
+		Box.Y1 = R[7]->AsNumber();
+		Boxes.push_back(Box);
+	}
+	Contacts = MakeUnique<ContactWorld>();
+	Contacts->SetBoxes(Boxes);
+	Sim->Contacts = Contacts.Get();
+	UE_LOG(LogTemp, Log, TEXT("Torque: %d collision boxes"), Contacts->BoxCount());
+}
+
+void ATorqueBikePawn::GatherOtherBikes()
+{
+	if (!Contacts) return;
+	Contacts->Capsules.clear();
+	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
+	{
+		const ATorqueBikePawn* Other = *It;
+		if (Other == this || !Other->Sim || Other->IsHidden()) continue;
+		Other->Sim->AsCapsules(Contacts->Capsules);
+	}
 }
 
 void ATorqueBikePawn::LoadRoute()
@@ -1416,12 +1465,23 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			Telemetry.Add(Sample);
 		}
 
+		// Walls and the other riders' bikes (off on the test pad, which runs wide of the road).
+		GatherOtherBikes();
+		Sim->Contacts = bTestFlat ? nullptr : Contacts.Get();
 		// Fixed 120 Hz steps, at most a tenth of a second's worth after a hitch.
 		Accum += FMath::Min((double)DeltaSeconds, 0.1);
 		while (Accum >= SimDt)
 		{
 			StepSim();
 			Accum -= SimDt;
+		}
+		if (Sim->HitCount != HitsHeard)
+		{
+			// A knock: the bike's metal on stone (a wall) or steel (another bike), as hard as it went in.
+			HitsHeard = Sim->HitCount;
+			const float Strength = (float)FMath::Clamp(Sim->LastHitSpeed / 8.0, 0.15, 1.0);
+			if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->Impact(TEXT("metal"), Sim->LastHitBike ? TEXT("steel") : TEXT("concrete"), Strength, GetActorLocation());
+			UE_LOG(LogTemp, Log, TEXT("Torque: hit %s at %.1f m/s%s"), Sim->LastHitBike ? TEXT("a bike") : TEXT("a wall"), Sim->LastHitSpeed, Sim->KnockedOff ? TEXT(", knocked off") : TEXT(""));
 		}
 
 		if (Sim->IsCrashed)

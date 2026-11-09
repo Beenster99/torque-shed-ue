@@ -201,6 +201,12 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	BikeSim& Sim = *B->Sim;
 	Sim.Position = V3(Out.Pos[0] / 100.0, Out.Pos[2] / 100.0, Out.Pos[1] / 100.0);
 	Sim.LinearVelocity = V3(Out.Vel[0] / 100.0, Out.Vel[2] / 100.0, Out.Vel[1] / 100.0);
+	{
+		// Its attitude too, so the others' bikes meet it where it's drawn (BikeSim::AsCapsules).
+		const FQuat Q = B->CurRot;
+		const FVector Fx = Q.GetAxisX(), Fy = Q.GetAxisY(), Fz = Q.GetAxisZ();
+		Sim.Basis = M3(V3(Fy.X, Fy.Z, Fy.Y), V3(Fz.X, Fz.Z, Fz.Y), V3(-Fx.X, -Fx.Z, -Fx.Y));
+	}
 	Sim.Steer = Out.Val[NV_Steer];
 	Sim.Speed = Out.Val[NV_Speed];
 	Sim.LeanAngle = Out.Val[NV_Lean];
