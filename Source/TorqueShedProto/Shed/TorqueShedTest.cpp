@@ -1,5 +1,6 @@
 #include "Shed/TorqueShedTest.h"
 #include "Shed/TorqueShedRadio.h"
+#include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBoothHooks.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
@@ -132,6 +133,15 @@ const TCHAR* const MixSteps =
 	TEXT("paint:take:3,paint:cup,paint:put:3,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("tool:hands,item:exhaust,act:alt,log,look:hook_0,shot");
 
+// The bike lifts on bay 1's bike: its post, raised (the bike rides up), wheeling it off refused,
+// a part off it standing (no crouching), lowered, wheeled out, onto the wash bay's lift and up on
+// that, down and home.
+const TCHAR* const LiftSteps =
+	TEXT("bay:1,restyle:cafe,tool:hands,lifts,look:lift_0,shot,place:lift_0,f,wait:4,lifts,look:bike,shot,")
+	TEXT("wheel:floor,lifts,tool:wrench,part:exhaust,act,log,")
+	TEXT("place:lift_0,f,wait:4,lifts,tool:hands,wheel:floor,wait:2,bikelog,wheel:wash,wait:2,bikelog,")
+	TEXT("place:lift_wash,f,wait:5,lifts,look:washbay,shot,place:lift_wash,f,wait:5,lifts,wheel:home,wait:2,bikelog,lifts,log");
+
 // Geometry mode on a catalogue bike: a steel backbone set up in the empty bay 3 and finished as a cafe
 // racer (a test shortcut), a rig handle slid, the bars up 2 cm and the seat back 1 cm, saved; then
 // the shed saved, forgotten and loaded back, the map opened again, and the fit checked on the bike.
@@ -196,6 +206,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -836,6 +847,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		int32 Where = 0;
 		if (P[1] == TEXT("rig")) Where = 1;
 		else if (P[1] == TEXT("floor")) Where = 2;
+		else if (P[1] == TEXT("wash")) Where = 3;
 		Said(W->TestWheel(TestBay, Where));
 		LogBuild(TEXT("after it"));
 		return true;
@@ -929,6 +941,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// What the shed radio's playing (its station and song, or why not).
 		Said(ATorqueShedRadio::NowPlaying(World).Replace(TEXT("\n"), TEXT(" / ")));
+		return true;
+	}
+	if (Verb == TEXT("lifts"))
+	{
+		// Each lift: up or down as the shed has it, how high it's got, and the test bay's bike's height.
+		FString Line;
+		for (int32 L = 0; L <= UTorqueBuildSubsystem::WashLift; ++L)
+		{
+			if (!UTorqueBuildSubsystem::IsLift(L)) continue;
+			const ATorqueBikeLift* Lift = ATorqueBikeLift::Find(World, L);
+			Line += FString::Printf(TEXT("%s%s %s %.0f cm"), Line.IsEmpty() ? TEXT("") : TEXT("; "), *UTorqueBuildSubsystem::LiftName(L),
+				B->LiftUp(L) ? TEXT("up") : TEXT("down"), Lift ? Lift->Height() : -1.0);
+		}
+		for (TActorIterator<ATorqueShedBike> It(World); It; ++It)
+			if (It->Bay == TestBay)
+				Line += FString::Printf(TEXT("; bay %d's bike at z %.1f (on lift %d)"), TestBay + 1, It->GetActorLocation().Z, B->LiftOf(TestBay));
+		Said(Line);
 		return true;
 	}
 	if (Verb == TEXT("bikelog"))

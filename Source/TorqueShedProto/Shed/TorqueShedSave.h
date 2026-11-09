@@ -118,6 +118,7 @@ public:
 	// The shed radio (added to version 3 too: an older save's is off).
 	UPROPERTY() bool bRadioOn = false;
 	UPROPERTY() int32 RadioStation = 0;
+	UPROPERTY() int32 LiftsUp = 0;   // the bike lifts that are up (a bit per lift id)
 	// The paint mixing bay (FTorquePaintBay::Serialize's bytes; none: a new garage's bay).
 	UPROPERTY() TArray<uint8> PaintBay;
 };
