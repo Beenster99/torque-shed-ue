@@ -1522,23 +1522,23 @@ void ATorqueBikePawn::FitRiderToBike()
 	}
 	RiderArm = (Elbow0[1] - Shoulder0[1]).Size() + (Wrist0[1] - Elbow0[1]).Size();
 	RiderLeg = (Knee0[1] - Thigh0[1]).Size() + (Ankle0[1] - Knee0[1]).Size();
-	auto Reach = [&](double Deg, double& Near, double& Far) {
-		Near = TNumericLimits<double>::Max();
-		Far = 0.0;
+	auto Reach = [&](double Deg, double& MinReach, double& MaxReach) {
+		MinReach = TNumericLimits<double>::Max();
+		MaxReach = 0.0;
 		for (int32 S = 0; S < 2; ++S)
 		{
 			RiderReach[S] = (PoseWrist[S] - (PoseHip + Tilt(Shoulder0[S] - Pelvis0, Deg))).Size();
-			Near = FMath::Min(Near, RiderReach[S]);
-			Far = FMath::Max(Far, RiderReach[S]);
+			MinReach = FMath::Min(MinReach, RiderReach[S]);
+			MaxReach = FMath::Max(MaxReach, RiderReach[S]);
 		}
 	};
-	double Deg = StyleLean - RestLean, Near = 0.0, Far = 0.0;
-	Reach(Deg, Near, Far);
-	while (Far > 0.95 * RiderArm && Deg + RestLean < 60.0) Reach(Deg += 0.25, Near, Far);
-	while (Near < 0.6 * RiderArm && Far < 0.95 * RiderArm && Deg + RestLean > 0.0)
+	double Deg = StyleLean - RestLean, MinReach = 0.0, MaxReach = 0.0;
+	Reach(Deg, MinReach, MaxReach);
+	while (MaxReach > 0.95 * RiderArm && Deg + RestLean < 60.0) Reach(Deg += 0.25, MinReach, MaxReach);
+	while (MinReach < 0.6 * RiderArm && MaxReach < 0.95 * RiderArm && Deg + RestLean > 0.0)
 	{
-		Reach(Deg - 0.25, Near, Far);
-		if (Far > 0.95 * RiderArm) { Reach(Deg, Near, Far); break; }
+		Reach(Deg - 0.25, MinReach, MaxReach);
+		if (MaxReach > 0.95 * RiderArm) { Reach(Deg, MinReach, MaxReach); break; }
 		Deg -= 0.25;
 	}
 	RiderBackDeg = Deg + RestLean;   // forward of upright, as the log says it
