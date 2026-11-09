@@ -397,7 +397,7 @@ def dress():
         hidden = 0
         for a in level:
             label = a.get_actor_label()
-            if any(label.startswith(h) for h in s["hide"]):
+            if any(label.startswith(h[:-1]) if h.endswith("*") else label == h for h in s["hide"]):
                 a.set_actor_hidden_in_game(True)
                 try:
                     a.set_is_temporarily_hidden_in_editor(True)

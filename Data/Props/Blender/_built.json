@@ -1,62 +1,54 @@
 {
- "bin_general": {
+ "blaster_cabinet": {
   "bounds_min": [
-   -0.294,
+   -1.28,
    0.0,
-   -0.38
+   -1.07
   ],
   "bounds_max": [
-   0.294,
-   0.895,
-   0.32
+   0.885,
+   2.47,
+   1.06
   ],
-  "tris": 3044,
+  "tris": 9260,
   "materials": [
-   "paint_bin_black",
    "steel",
+   "steel_dark",
+   "paint_blue",
+   "chrome",
+   "glass",
+   "paint_black",
+   "led_white",
    "rubber",
-   "plastic_grey",
-   "label_white"
+   "plastic_black",
+   "paint_red",
+   "plastic_yellow"
   ]
  },
- "bin_metal": {
+ "blaster_pro": {
   "bounds_min": [
-   -0.294,
+   -1.43,
    0.0,
-   -0.38
+   -1.195
   ],
   "bounds_max": [
-   0.294,
-   0.895,
-   0.32
+   1.035,
+   2.57,
+   1.185
   ],
-  "tris": 3044,
+  "tris": 9260,
   "materials": [
-   "paint_bin_green",
    "steel",
+   "steel_dark",
+   "paint_red",
+   "chrome",
+   "glass",
+   "paint_black",
+   "led_white",
    "rubber",
-   "plastic_grey",
-   "label_white"
-  ]
- },
- "bin_plastic": {
-  "bounds_min": [
-   -0.294,
-   0.0,
-   -0.38
-  ],
-  "bounds_max": [
-   0.294,
-   0.895,
-   0.32
-  ],
-  "tris": 3044,
-  "materials": [
-   "paint_bin_blue",
-   "steel",
-   "rubber",
-   "plastic_grey",
-   "label_white"
+   "plastic_black",
+   "paint_blue",
+   "plastic_yellow"
   ]
  }
 }

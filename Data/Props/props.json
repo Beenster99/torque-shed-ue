@@ -62,8 +62,7 @@
   "pressure_washer": {
    "name": "Pressure washer and hose reel",
    "torque_shed": "workshop.gd _build_wash_bay",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "petrol_pump": {
    "name": "Petrol pump cabinet and nozzle",
@@ -261,14 +260,12 @@
   "blaster_cabinet": {
    "name": "blaster_cabinet",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_blaster",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "blaster_pro": {
    "name": "blaster_pro",
    "torque_shed": "Equipment.MODELS, equipment_view.gd _build_blaster",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "booth_compact": {
    "name": "booth_compact",
@@ -297,32 +294,29 @@
   "dyno_rig": {
    "name": "Rolling road (plate, drum, clamp, posts)",
    "torque_shed": "dyno_room.gd",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "dyno_fan": {
    "name": "Cooling fan",
    "torque_shed": "dyno_room.gd",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "dyno_desk": {
    "name": "Dyno desk and PC",
    "torque_shed": "dyno_room.gd",
-   "source": "todo",
-   "plan": "blender, round 2"
+   "source": "blender"
   },
   "dyno_hose": {
    "name": "Extraction hose, duct and extractor",
    "torque_shed": "dyno_room.gd",
    "source": "todo",
-   "plan": "blender, round 2"
+   "plan": "the game draws the moving hose; duct and extractor in Blender, round 3"
   },
   "ear_defenders": {
    "name": "Ear defenders on hook",
    "torque_shed": "dyno_room.gd",
    "source": "todo",
-   "plan": "blender, round 2"
+   "plan": "blender, round 3"
   },
   "trinket_bobblehead": {
    "name": "Bobblehead racer",
