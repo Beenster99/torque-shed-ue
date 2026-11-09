@@ -249,6 +249,37 @@ def _key_for(coll, slot, item, r):
 UNDRESS_SLOTS = ("hair", "beard", "mustache", "outfit", "garment", "cloth", "top", "bottom", "shoe", "feet")
 
 
+def _drop_slot_selections(inst, slot, name):
+    """Take slot's entries out of the instance's own selection list (the property that
+    get_slot_selection_data reads), written back whole. Logs what it saw."""
+    out = []
+    try:
+        log("%s: %s selection data before: %s" % (name, slot, inst.get_slot_selection_data()))
+    except Exception as e:
+        log("%s: get_slot_selection_data failed: %s" % (name, e))
+    for prop in ("slot_selections", "slot_selection_data", "selections", "pipeline_slot_selections"):
+        try:
+            sels = list(inst.get_editor_property(prop))
+        except Exception:
+            continue
+        keep = [x for x in sels if slot.lower() not in str(x).lower()]
+        if len(keep) == len(sels):
+            out.append("%s: %d entries, none for %s" % (prop, len(sels), slot))
+            continue
+        try:
+            inst.set_editor_property(prop, keep)
+            out.append("%s: %d -> %d entries" % (prop, len(sels), len(keep)))
+        except Exception as e:
+            log("%s: writing %s failed: %s" % (name, prop, e))
+    if not out:
+        log("%s: instance properties: %s" % (name, _props(inst)[:600]))
+    try:
+        log("%s: %s selection data after: %s" % (name, slot, inst.get_slot_selection_data()))
+    except Exception:
+        pass
+    return out
+
+
 def _undress(sub, ch, name):
     """`nowardrobe`: take the hair and clothes off again (brows and lashes stay), so the build gives
     the whole body. The selection on each collection's default instance is cleared, then the slot's
@@ -290,13 +321,21 @@ def _undress(sub, ch, name):
                         except Exception as e:
                             log("%s: %s(%s) failed: %s" % (name, m, slot, e))
                 if not done and hasattr(inst, "set_single_slot_selection"):
-                    for none in (unreal.Name("None"), None):
+                    # Selecting nothing: an empty palette item key (the parameter is a key struct).
+                    empties = []
+                    kcls = getattr(unreal, "MetaHumanPaletteItemKey", None)
+                    if kcls is not None:
+                        empties.append(kcls())
+                    empties += [unreal.Name("None"), None]
+                    for none in empties:
                         try:
-                            inst.set_single_slot_selection(sn, none)
-                            done.append("set_single_slot_selection(%r)" % (none,))
+                            r = inst.set_single_slot_selection(sn, none)
+                            done.append("set_single_slot_selection(%r)=%r" % (none, r))
                             break
                         except Exception as e:
                             log("%s: set_single_slot_selection(%s, %r) failed: %s" % (name, slot, none, e))
+                if inst is not None:
+                    done += _drop_slot_selections(inst, slot, name)
             for k in keys:
                 for m in ("remove_item", "try_remove_item", "remove_item_by_key"):
                     if hasattr(coll, m):
@@ -310,7 +349,7 @@ def _undress(sub, ch, name):
                 left = ", ".join(str(k) for k in coll.get_item_keys_for_slot(sn))
             except Exception:
                 left = "?"
-            log("%s: undressed %s in collection %d: %s; left: %s" % (name, slot, ci, "; ".join(done) or "nothing worked", left or "none"))
+            log("%s: undressed %s in collection %d: %s; items still in the collection (not selected): %s" % (name, slot, ci, "; ".join(done) or "nothing worked", left or "none"))
     try:
         unreal.EditorAssetLibrary.save_loaded_asset(ch, only_if_is_dirty=False)
     except Exception:
