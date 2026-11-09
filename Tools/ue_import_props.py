@@ -140,6 +140,26 @@ def master():
     return m
 
 
+def plain_master():
+    """M_PropPlain: Tint, Rough, Metal, Glow x Tint. No textures at all, for a prop whose scan isn't
+    downloaded yet (a texture parameter with nothing behind it shows UE's checkerboard)."""
+    m = new_asset("M_PropPlain", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    tint = expr(m, unreal.MaterialExpressionVectorParameter, -500, -100, parameter_name="Tint", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0))
+    mel.connect_material_property(tint, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    rough = expr(m, unreal.MaterialExpressionScalarParameter, -500, 100, parameter_name="Rough", default_value=0.5)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    metal = expr(m, unreal.MaterialExpressionScalarParameter, -500, 250, parameter_name="Metal", default_value=0.0)
+    mel.connect_material_property(metal, "", unreal.MaterialProperty.MP_METALLIC)
+    glow = expr(m, unreal.MaterialExpressionScalarParameter, -500, 400, parameter_name="Glow", default_value=0.0)
+    em = expr(m, unreal.MaterialExpressionMultiply, -250, 400)
+    link(tint, "", em, "A")
+    link(glow, "", em, "B")
+    mel.connect_material_property(em, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(m)
+    eal.save_loaded_asset(m)
+    return m
+
+
 def glass_master():
     m = new_asset("M_PropGlass", MATS, unreal.Material, unreal.MaterialFactoryNew())
     try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
@@ -233,6 +253,7 @@ def scan_textures(spec):
 def materials(spec):
     """MI_Prop_<key> for every key in materials.json."""
     m_master = master()
+    m_plain = plain_master()
     m_glass = glass_master()
     m_printed = printed_master()
     scans = scan_textures(spec)
@@ -253,7 +274,11 @@ def materials(spec):
             eal.save_loaded_asset(mi)
             out[key] = mi
             continue
-        mi.set_editor_property("parent", m_glass if glass else m_master)
+        sid = spec["scans"].get(s["base"])
+        maps = {} if glass or s["base"] == "emissive" else scans.get(sid, {})
+        # Scanned only when all three maps are in: an empty texture slot renders as a checkerboard.
+        scanned = all(maps.get(n) for n in ("color", "rough", "normal"))
+        mi.set_editor_property("parent", m_glass if glass else (m_master if scanned else m_plain))
         c = s.get("tint", [0.5, 0.5, 0.5])
         mel.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(c[0], c[1], c[2], 1.0))
         mel.set_material_instance_scalar_parameter_value(mi, "Rough", s.get("rough", 0.5))
@@ -264,18 +289,12 @@ def materials(spec):
             mel.set_material_instance_scalar_parameter_value(mi, "Tile", s.get("tile", 1.0))
             if s.get("emissive"):
                 mel.set_material_instance_scalar_parameter_value(mi, "Glow", s["emissive"])
-            sid = spec["scans"].get(s["base"])
-            maps = scans.get(sid, {})
-            for name, param in (("color", "ScanColor"), ("rough", "ScanRough"), ("normal", "ScanNormal")):
-                if maps.get(name):
+            if scanned:
+                for name, param in (("color", "ScanColor"), ("rough", "ScanRough"), ("normal", "ScanNormal")):
                     mel.set_material_instance_texture_parameter_value(mi, param, maps[name])
-            if not maps:
-                mel.set_material_instance_scalar_parameter_value(mi, "Detail", 0.0)
-            elif s["base"] == "emissive":
-                mel.set_material_instance_scalar_parameter_value(mi, "Detail", 0.0)
         eal.save_loaded_asset(mi)
         out[key] = mi
-    log("%d prop materials (%d scans)" % (len(out), len(scans)))
+    log("%d prop materials (%d scans; without one a prop is plain colour until Tools/fetch_props.py runs)" % (len(out), len(scans)))
     return out
 
 
