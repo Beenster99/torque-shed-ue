@@ -3056,6 +3056,8 @@ FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 	if (Where == 1) To = UTorqueBuildSubsystem::RigTransform();
 	else if (Where == 2) To.AddToTranslation(FVector(0.0, 250.0, 0.0));
 	else if (Where == 3) To = TorqueShedLayout::WashLiftXf();
+	// [fluids] Out by the petrol pump on the front wall, its filler cap within the hose's reach.
+	else if (Where == 4) To = FTransform(FRotator(0.0, 180.0, 0.0), UTorqueBuildSubsystem::PumpAt().TransformPosition(FVector(170.0, 140.0, 0.0)));
 	const FRotator Heading(0.0, To.Rotator().Yaw, 0.0);
 	const FVector Ahead = Heading.Vector(), Right = FRotationMatrix(Heading).GetUnitAxis(EAxis::Y);
 	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
@@ -3070,10 +3072,12 @@ FString ATorqueWalker::TestWheel(int32 Bay, int32 Where)
 	if (Where == 0) bThere = !B->IsAway(Bay);
 	else if (Where == 1) bThere = B->DynoBay() == Bay;
 	else if (Where == 3) bThere = B->LiftOf(Bay) == UTorqueBuildSubsystem::WashLift;
+	else if (Where == 4) bThere = B->IsAway(Bay) && B->Bike(Bay).Pusher == 0 && B->PumpReaches(Bay);
 	FString WhereText = TEXT("home");
 	if (Where == 1) WhereText = TEXT("onto the rig");
 	else if (Where == 2) WhereText = TEXT("mid-floor");
 	else if (Where == 3) WhereText = TEXT("onto the wash bay lift");
+	else if (Where == 4) WhereText = TEXT("up to the petrol pump");
 	FString Result = TEXT("it didn't park there");
 	if (bThere) Result = Note.IsEmpty() ? FString(TEXT("there")) : Note;
 	return FString::Printf(TEXT("wheeled bay %d's bike %s: %s"), Bay + 1, *WhereText, *Result);

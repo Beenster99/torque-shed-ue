@@ -43,6 +43,9 @@ public:
 	void MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>& Out) const;
 	// An item's size as it sits (its own frame, not turned: X its length ahead, Y across, Z up), if drawn.
 	bool SizeOf(int32 Item, FVector& Out) const;
+	// [fluids] A drawn can's fluid as it stands (the level shown, the surface's tilt and how fast it's
+	// swinging), for the tests; Kick (surface slope per second) sets it sloshing. False if it isn't drawn.
+	bool TestSlosh(int32 Item, const FVector2D& Kick, FString& Out);
 	// Hides what everyone holds (TorqueShedTest's stand-back shots).
 	bool bHideHeld = false;
 
