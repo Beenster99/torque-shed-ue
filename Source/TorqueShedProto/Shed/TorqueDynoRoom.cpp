@@ -130,8 +130,9 @@ void ATorqueDynoRoom::BeginPlay()
 		Lights.Add(L);
 	}
 	// The rockers on the switches by the door (_build_switches): the lights white, the fan red.
-	LightsRocker = Piece(Root, CubeMesh, FVector(-135.0, -586.0, 135.0), FVector(5.0, 1.5, 8.0), FRotator::ZeroRotator, FLinearColor(0.92f, 0.92f, 0.9f), 0.0f, 0.5f);
-	FanRocker = Piece(Root, CubeMesh, FVector(-159.0, -586.0, 135.0), FVector(5.0, 1.5, 8.0), FRotator::ZeroRotator, FLinearColor(0.7f, 0.08f, 0.06f), 0.0f, 0.5f);
+	// Proud of the switch plates' faces (y -586), so a tipped rocker shows both ends.
+	LightsRocker = Piece(Root, CubeMesh, FVector(-135.0, -586.6, 135.0), FVector(5.0, 1.5, 8.0), FRotator::ZeroRotator, FLinearColor(0.92f, 0.92f, 0.9f), 0.0f, 0.5f);
+	FanRocker = Piece(Root, CubeMesh, FVector(-159.0, -586.6, 135.0), FVector(5.0, 1.5, 8.0), FRotator::ZeroRotator, FLinearColor(0.7f, 0.08f, 0.06f), 0.0f, 0.5f);
 	{
 		UE_LOG(LogTemp, Log, TEXT("Torque: dyno room kit: drum, fan, %d straps, %d lights"), Straps.Num(), Lights.Num());
 	}
@@ -171,8 +172,10 @@ void ATorqueDynoRoom::Tick(float DeltaSeconds)
 	FanSpeed = FMath::FInterpConstantTo(FanSpeed, Kit.bFan ? 25.0f : 0.0f, DeltaSeconds, Kit.bFan ? 12.0f : 5.0f);
 	FanAngle = FMath::Fmod(FanAngle + FanSpeed * (1.0 + 0.5 * Push) * DeltaSeconds, UE_TWO_PI);
 	if (Fan) Fan->SetRelativeRotation(FRotator(0.0, 0.0, FMath::RadiansToDegrees(FanAngle)));
-	if (FanRocker) FanRocker->SetRelativeRotation(FRotator(Kit.bFan ? 15.0 : -15.0, 0.0, 0.0));
-	if (LightsRocker) LightsRocker->SetRelativeRotation(FRotator(Kit.bLights ? 15.0 : -15.0, 0.0, 0.0));
+	// A rocker tips about the wall's horizontal axis (x): top in or bottom in. Pitch (about y, the
+	// wall's normal) turned it in the wall's own plane, which looked crooked rather than switched.
+	if (FanRocker) FanRocker->SetRelativeRotation(FRotator(0.0, 0.0, Kit.bFan ? 12.0 : -12.0));
+	if (LightsRocker) LightsRocker->SetRelativeRotation(FRotator(0.0, 0.0, Kit.bLights ? 12.0 : -12.0));
 	if (Kit.bLights != bLightsShown)
 	{
 		bLightsShown = Kit.bLights;

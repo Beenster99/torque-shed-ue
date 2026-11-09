@@ -236,6 +236,12 @@ void UTorqueBuildSubsystem::StartFresh()
 	Paint = FTorquePaintBay::Starter();
 	bRadioOn = false;
 	RadioTuned = 0;
+	bShedLights = true;   // [kit]
+	bDoorUp = true;
+	StandXf = StandHome();
+	StandPusher = 0;
+	ExtinguisherBy = 0;
+	bFoaming = false;
 	NextId = 1;
 	Mine = 0;
 	bHostCopy = false;
@@ -278,6 +284,11 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.DynoHeat = Dyno.Heat;
 	S.bRadioOn = bRadioOn;
 	S.RadioStation = RadioTuned;
+	S.bShedLights = bShedLights;   // [kit]
+	S.bDoorUp = bDoorUp;
+	S.bStandMoved = true;
+	S.StandAt = StandXf.GetLocation();
+	S.StandYaw = (float)StandXf.Rotator().Yaw;
 	{
 		// The paint mixing bay, as bytes (FTorquePaintBay::Serialize).
 		S.PaintBay.Reset();
@@ -360,6 +371,12 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	Dyno.Heat = S.DynoHeat;
 	bRadioOn = S.bRadioOn;
 	RadioTuned = FMath::Clamp(S.RadioStation, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
+	bShedLights = S.bShedLights;   // [kit]
+	bDoorUp = S.bDoorUp;
+	StandXf = S.bStandMoved && TorqueShedLayout::OnSite(S.StandAt) ? FTransform(FRotator(0.0, S.StandYaw, 0.0), FVector(S.StandAt.X, S.StandAt.Y, 0.0)) : StandHome();
+	StandPusher = 0;
+	ExtinguisherBy = 0;
+	bFoaming = false;
 	Paint = FTorquePaintBay::Starter();
 	if (S.PaintBay.Num() > 0)
 	{
@@ -464,7 +481,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 12;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge)
+constexpr int32 BytesLayout = 14;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher)
 
 struct FNameTable
 {
@@ -626,6 +643,14 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 	uint8 bRadioB = bRadioOn ? 1 : 0;
 	int32 RadioOut = RadioTuned;
 	Ar << bRadioB << RadioOut;
+	{
+		// [kit] The main lights, the roller door, the engine stand, the fire extinguisher.
+		uint8 bLightsB = bShedLights ? 1 : 0, bDoorB = bDoorUp ? 1 : 0, bFoamB = bFoaming ? 1 : 0;
+		FVector StandAt = StandXf.GetLocation();
+		double StandYaw = StandXf.Rotator().Yaw;
+		int32 Pusher = StandPusher, ExtBy = ExtinguisherBy;
+		Ar << bLightsB << bDoorB << StandAt << StandYaw << Pusher << ExtBy << bFoamB;
+	}
 
 	Out.Reset();
 	FMemoryWriter Head(Out);
@@ -784,6 +809,11 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	uint8 bRadioB = 0;
 	int32 RadioIn = 0;
 	Ar << bRadioB << RadioIn;
+	uint8 bLightsB = 1, bDoorB = 1, bFoamB = 0;   // [kit]
+	FVector StandAtIn = StandHome().GetLocation();
+	double StandYawIn = 0.0;
+	int32 PusherIn = 0, ExtByIn = 0;
+	Ar << bLightsB << bDoorB << StandAtIn << StandYawIn << PusherIn << ExtByIn << bFoamB;
 	if (Ar.IsError() || !bPaintRead)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
@@ -800,6 +830,12 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Paint = MoveTemp(NewPaint);
 	bRadioOn = bRadioB != 0;
 	RadioTuned = FMath::Clamp(RadioIn, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
+	bShedLights = bLightsB != 0;   // [kit]
+	bDoorUp = bDoorB != 0;
+	StandXf = FTransform(FRotator(0.0, StandYawIn, 0.0), StandAtIn);
+	StandPusher = PusherIn;
+	ExtinguisherBy = ExtByIn;
+	bFoaming = bFoamB != 0;
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -1845,6 +1881,14 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		return TEXT("Put the tin of paint down first.");
 	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike) && Paint.TapeBy == Peer)
 		return TEXT("Hang the masking tape back on its hook first.");
+	// [kit] The extinguisher or the engine stand in your hands is a full pair of hands too.
+	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike || A == ETorqueShedAct::GrabStand
+		|| A == ETorqueShedAct::PaintTapeTake) && ExtinguisherBy == Peer)
+		return TEXT("Put the fire extinguisher back first (F).");
+	if ((A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike || A == ETorqueShedAct::Extinguisher)
+		&& StandPusher == Peer && A != ETorqueShedAct::ReleaseStand)
+		return TEXT("Let go of the engine stand first (F).");
+	if (IsKitAct(A)) return CheckKit(Peer, R);
 	const bool bSlotWork = A == ETorqueShedAct::Unbolt || A == ETorqueShedAct::Bolt || A == ETorqueShedAct::Remove;
 	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched)
 		return TEXT("Crouch down to reach it (C).");
@@ -2217,6 +2261,15 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		if (On == INDEX_NONE) bItems = true;
 		else LooksOf.Add(On);
 	};
+	if (IsKitAct(R.Kind))
+	{
+		// [kit] The shed's lights, roller door, engine stand and extinguisher (TorqueShedKit.cpp).
+		Text = ApplyKit(Peer, R);
+		if (R.Kind == ETorqueShedAct::ReleaseStand) OnItems.Broadcast();   // an engine on it sits where it stopped
+		if (R.Kind != ETorqueShedAct::ExtinguisherSpray) MarkSave();
+		OnHostChange.Broadcast();
+		return Text;
+	}
 	if (IsPaintBayAct(R.Kind))
 	{
 		// The mixing bay (TorquePaintBay.cpp): its tins, bench, shaker and cups.
@@ -2690,6 +2743,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 void UTorqueBuildSubsystem::DropHeldBy(int32 Peer, const FVector& At)
 {
 	if (IsClient()) return;
+	DropKitOf(Peer);   // [kit]
 	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.Cups.Contains(Peer))
 	{
 		// The mixing bay: their tin back on the shelf, away from the bench, the cup put away.

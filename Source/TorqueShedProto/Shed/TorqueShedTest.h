@@ -27,6 +27,9 @@
 //   strap:<0-3>           the work button at that strap post on the rig (does it up, or undoes it)
 //   fan:on|off, lights:on|off, switch:fan|lights   the dyno room's switches by the door (F)
 //   dynorun[:mid]         F at the dyno desk and wait out the run (mid: about 60% of it, for a shot)
+//   shedlights:on|off, rollerdoor:up|down   the switch boxes right of the roller door (F)
+//   extinguisher:take|spray|stop|put        the fire extinguisher: F takes it, the work button sprays, F puts it back
+//   standmove:<x>:<y>[:<yaw>]               wheel the engine stand there (world cm) and let go
 //   dynolog               log every run on the rig's bike (peak hp and Nm, limiter, temperature, fan)
 //   tool:<tool>           hands, wrench, brush, repair, spray, lance or gun (the spray gun)
 //   crouch:<0|1>          crouch (C) or stand

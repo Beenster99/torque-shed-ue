@@ -18,6 +18,7 @@
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
+#include "Shed/TorqueShedKit.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPick.h"
@@ -151,6 +152,11 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 	case ETorquePlace::Washer: return TEXT("Parts washer");
 	case ETorquePlace::Changer: return TEXT("Tyre changer");
 	case ETorquePlace::Stand: return TEXT("Engine stand");
+	case ETorquePlace::ShedSwitch:   // [kit]
+		if (P.Index == 0) return (B && B->ShedLightsOn()) ? TEXT("Shed lights (on)") : TEXT("Shed lights (off)");
+		return (B && B->DoorUp()) ? TEXT("Roller door (up)") : TEXT("Roller door (down)");
+	case ETorquePlace::Extinguisher:
+		return (B && B->ExtinguisherHeldBy() != 0) ? TEXT("Fire extinguisher's place (someone has it)") : TEXT("Fire extinguisher");
 	case ETorquePlace::Bin: return TorqueShedParts::BinName(P.Name);
 	case ETorquePlace::Computer: return TEXT("Parts computer");
 	case ETorquePlace::DynoStrap:
@@ -327,6 +333,10 @@ void ATorqueWalker::BeginPlay()
 		bool bRadio = false;
 		for (TActorIterator<ATorqueShedRadio> It(World); It; ++It) bRadio = true;
 		if (!bRadio) World->SpawnActor<ATorqueShedRadio>(TorqueShedRadio::At, FRotator::ZeroRotator);
+		// [kit] And the roller door, the main lights, the rolling engine stand and the extinguisher.
+		bool bKit = false;
+		for (TActorIterator<ATorqueShedKit> It(World); It; ++It) bKit = true;
+		if (!bKit) World->SpawnActor<ATorqueShedKit>(FVector::ZeroVector, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -735,7 +745,12 @@ void ATorqueWalker::ReadInput(float Dt)
 	const int32 Pushing = Wheeling();
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
-	if (bF && SprayInteract())
+	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
+	const bool bKitF = KitInput(Dt, bF, bFDown);
+	if (bKitF)
+	{
+	}
+	else if (bF && SprayInteract())
 	{
 		// The can or gun on a part: F brings the spray controls up (or puts them down).
 	}
@@ -1071,6 +1086,9 @@ void ATorqueWalker::MakePlan()
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
+	// [kit] F works the switch boxes and takes the extinguisher; holding it, the work button sprays it.
+	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher)) return;
+	if (B->ExtinguisherHeldBy() == Me || B->StandPushedBy() == Me) return;
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
 	{
 		// The radio (walker.gd _make_plan): on, then round the stations; F switches it off.
@@ -2165,6 +2183,26 @@ void ATorqueWalker::Interact()
 		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 		return;
 	}
+	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher))
+	{
+		// [kit] The light switch or the roller door's box right of the door (up if it's down, down if
+		// it's up); the fire extinguisher off its place (the work button sprays it, F puts it back).
+		FTorqueShedRequest R;
+		if (TargetPlace->Kind == ETorquePlace::ShedSwitch)
+		{
+			R.Kind = TargetPlace->Index == 0 ? ETorqueShedAct::ShedLights : ETorqueShedAct::Door;
+			R.Item = TargetPlace->Index == 0 ? (B->ShedLightsOn() ? 0 : 1) : (B->DoorUp() ? 0 : 1);
+		}
+		else
+		{
+			R.Kind = ETorqueShedAct::Extinguisher;
+			R.Item = 1;
+		}
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		else if (R.Kind == ETorqueShedAct::Extinguisher) Doing(TEXT("holding the fire extinguisher"), 6.0);
+		return;
+	}
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::DynoSwitch || TargetPlace->Kind == ETorquePlace::DynoDesk))
 	{
 		// The dyno room: the switches by the door, and the desk (F runs the bike on the rig).
@@ -2192,6 +2230,11 @@ void ATorqueWalker::StartRideOut(int32 Bay)
 	if (!B->Exists(Bay))
 	{
 		Say(FString::Printf(TEXT("Bay %d is empty: press F at a bike to ride it"), Bay + 1), false, 2.5);
+		return;
+	}
+	if (!B->DoorUp())   // [kit]
+	{
+		Say(TEXT("The roller door's down: open it at the yellow box right of the door (F)."), false, 3.0);
 		return;
 	}
 	// A bike rides only with everything on it and bolted up (shed_state ride check).
@@ -2460,6 +2503,13 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({TWI::PlaceName(*TargetPlace, B), FColor::White, 0.8f});
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::ShedSwitch)   // [kit]
+				HudLines.Add({TargetPlace->Index == 0 ? FString(TEXT("F / Triangle: flick the lights"))
+					: FString(B->DoorUp() ? TEXT("F / Triangle: roller door down") : TEXT("F / Triangle: roller door up")), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Extinguisher && B->ExtinguisherHeldBy() == 0)
+				HudLines.Add({TEXT("F / Triangle: take the fire extinguisher"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0)
+				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Radio)
 			{
 				// What's on (walker.gd: the station, then the song), and its switch.

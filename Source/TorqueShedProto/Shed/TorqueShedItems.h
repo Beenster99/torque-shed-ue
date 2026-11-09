@@ -59,6 +59,7 @@ private:
 		int32 Hook = INDEX_NONE;                // the spray booth hook it hangs on: it swings with it (Tick)
 		double Height = 0.0;                    // how tall it is, to hang its top at the hook's tip
 		FVector Size = FVector::ZeroVector;     // its box's size in the holder's frame
+		bool bOnStand = false;                  // [kit] on the engine stand: it rolls with it (Tick)
 	};
 	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
 	FTransform HungAt(int32 Hook, double Height) const;

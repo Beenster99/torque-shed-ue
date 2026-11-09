@@ -576,6 +576,13 @@ def importer_frame():
     return -alpha, mirror
 
 
+def tag(actor, name):
+    tags = list(actor.get_editor_property("tags") or [])
+    if unreal.Name(name) not in tags:
+        tags.append(unreal.Name(name))
+        actor.set_editor_property("tags", tags)
+
+
 def dress():
     """Swaps the shed's grey boxes for the real models (Data/Props/swaps.json) and adds the dressing.
     The boxes stay as invisible colliders. Returns how many models went in."""
@@ -596,6 +603,9 @@ def dress():
             a.set_actor_scale3d(unreal.Vector(-1.0, 1.0, 1.0))
         a.set_actor_label("Prop_" + entry["prop"])
         a.set_folder_path(folder)
+        # The game finds a prop it moves or hides by this (ATorqueShedKit: the engine stand, the
+        # fire extinguisher): labels don't reach a packaged game, tags do.
+        tag(a, "Prop:" + entry["prop"])
         c = a.get_component_by_class(unreal.StaticMeshComponent)
         c.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
         c.set_collision_profile_name("NoCollision")
@@ -617,6 +627,7 @@ def dress():
             label = a.get_actor_label()
             if any(label.startswith(h[:-1]) if h.endswith("*") else label == h for h in s["hide"]):
                 a.set_actor_hidden_in_game(True)
+                tag(a, "Hidden:" + s["prop"])   # its collider, for the game to move or drop with the prop
                 try:
                     a.set_is_temporarily_hidden_in_editor(True)
                 except Exception:

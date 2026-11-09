@@ -184,6 +184,17 @@ enum class ETorqueShedAct : uint8
 	PaintTapePattern,
 	PaintTape,
 	PaintPeel,
+	// [kit] The shed's own kit (ATorqueShedKit). The switch boxes right of the roller door
+	// (workshop.gd _build_door_and_switches): the main lights on (Item 1) or off (Item 0), the roller
+	// door up (Item 1) or down (Item 0). The engine stand on its castors: taken hold of (hold F),
+	// let go of at Place. The fire extinguisher by the workbench: taken (Item 1) or hung back
+	// (Item 0); sprayed (Item 1) or not (Item 0), its foam seen by everyone.
+	ShedLights,
+	Door,
+	GrabStand,
+	ReleaseStand,
+	Extinguisher,
+	ExtinguisherSpray,
 	Count
 };
 
@@ -285,6 +296,16 @@ public:
 	// The shed radio everyone hears (shed_state.gd radio): on or off, and its station
 	// (TorqueShedRadio::Stations). Each player's game streams it itself (ATorqueShedRadio).
 	bool RadioOn() const { return bRadioOn; }
+	// [kit] The main shed's lights and roller door, the engine stand (where it stands, who's
+	// pushing it, 0: no one) and the fire extinguisher (who has it, and whether it's spraying).
+	bool ShedLightsOn() const { return bShedLights; }
+	bool DoorUp() const { return bDoorUp; }
+	const FTransform& StandTransform() const { return StandXf; }
+	int32 StandPushedBy() const { return StandPusher; }
+	int32 ExtinguisherHeldBy() const { return ExtinguisherBy; }
+	bool ExtinguisherSpraying() const { return ExtinguisherBy != 0 && bFoaming; }
+	// Where the engine stand starts (ue_build_shed.py / swaps.json engine_stand: at 560, -40, facing +y).
+	static FTransform StandHome() { return FTransform(FVector(560.0, -40.0, 0.0)); }
 	int32 RadioStation() const { return RadioTuned; }
 	bool HasDynoRun(int32 Bay) const { return Exists(Bay) && Bikes[Bay].DynoRuns.Num() > 0; }
 	const FTorqueDynoRun& DynoRunOf(int32 Bay) const;
@@ -363,6 +384,8 @@ public:
 	// How high booth hook n's tip is set (cm off the floor), as everyone sees it.
 	float HookTipOf(int32 Hook) const;
 	static bool IsPaintBayAct(ETorqueShedAct A);
+	// [kit] The shed's lights, roller door, engine stand and extinguisher (TorqueShedKit.cpp).
+	static bool IsKitAct(ETorqueShedAct A);
 
 	// --- Requests ----------------------------------------------------------------------------
 	// This machine's player (a PlayerState's player id; 1 until the walker says).
@@ -429,6 +452,13 @@ private:
 	FTorqueDynoRoom Dyno;
 	bool bRadioOn = false;
 	int32 RadioTuned = 0;
+	// [kit]
+	bool bShedLights = true;
+	bool bDoorUp = true;
+	FTransform StandXf = FTransform(FVector(560.0, -40.0, 0.0));
+	int32 StandPusher = 0;
+	int32 ExtinguisherBy = 0;
+	bool bFoaming = false;
 	FTorquePaintBay Paint;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;
@@ -491,6 +521,9 @@ private:
 	int32 FreeDelivery() const;
 	FString DoApply(int32 Peer, const FTorqueShedRequest& R);
 	// The mixing bay's requests and the gun's cup (TorquePaintBay.cpp).
+	FString CheckKit(int32 Peer, const FTorqueShedRequest& R) const;   // [kit] TorqueShedKit.cpp
+	FString ApplyKit(int32 Peer, const FTorqueShedRequest& R);
+	void DropKitOf(int32 Peer);   // someone's left: the stand let go, the extinguisher back in its place
 	FString CheckPaintBay(int32 Peer, const FTorqueShedRequest& R) const;
 	FString ApplyPaintBay(int32 Peer, const FTorqueShedRequest& R);
 	FString CheckCup(int32 Peer, const FTorqueItem& It) const;

@@ -1235,10 +1235,14 @@ def lights(m):
     # strips down the middle and over the door.
     spots = [(x, BAY_Y) for x in BAY_X] + [(-420.0, 150.0), (420.0, 150.0), (0.0, 350.0)]
     for i, (x, y) in enumerate(spots):
-        box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        strip = box("Strip_%d" % i, x - 10, x + 10, y - 65, y + 65, HEIGHT - 37.5, HEIGHT - 32.5, m["led"], folder="Lights", collide=False)
+        if strip is not None:
+            strip.set_editor_property("tags", [unreal.Name("ShedLightStrip")])   # its glow goes off with the lights
         light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(x, y, HEIGHT - 39), unreal.Rotator(0.0, -90.0, 0.0))
         light.set_actor_label("StripLight_%d" % i)
         light.set_folder_path("Lights")
+        # The main lights the switch by the roller door works (ATorqueShedKit finds them by tag).
+        light.set_editor_property("tags", [unreal.Name("ShedLight")])
         lc = light.get_component_by_class(unreal.RectLightComponent)
         lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
         units = getattr(unreal, "LightUnits", None)

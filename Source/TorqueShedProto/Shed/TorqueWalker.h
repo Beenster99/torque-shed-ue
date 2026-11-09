@@ -415,6 +415,12 @@ private:
 	void PushBike(float Dt);
 	void LetGo(int32 Bay);
 	class ATorqueShedBike* BikeActor(int32 Bay) const;
+	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
+	// (TorqueWalkerKit.cpp): true when F went to one of them.
+	bool KitInput(float Dt, bool bF, bool bFDown);
+	bool bStandArmed = false;
+	double StandFHeld = 0.0;
+	bool bSprayAsked = false;
 
 	// Performance, as on the bike: P shows it, O (or -TorqueProfile) logs it each second to
 	// Saved/Profiling/torque_shed_perf_<time>.csv.

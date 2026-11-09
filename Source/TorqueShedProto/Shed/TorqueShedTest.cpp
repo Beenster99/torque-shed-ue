@@ -974,6 +974,59 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(bAfter ? TEXT("now on") : TEXT("now off"));
 		return true;
 	}
+	if (Verb == TEXT("shedlights") || Verb == TEXT("rollerdoor") || Verb == TEXT("extinguisher"))
+	{
+		// [kit] shedlights:on|off, rollerdoor:up|down: F at the switch boxes right of the roller door
+		// (if it isn't so already); extinguisher:take|spray|stop|put: F at it, the work button held
+		// or let go, F to put it back.
+		const FString Arg = P.Num() >= 2 ? P[1] : FString();
+		if (Verb == TEXT("extinguisher") && (Arg == TEXT("spray") || Arg == TEXT("stop")))
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::ExtinguisherSpray;
+			R.Item = Arg == TEXT("spray") ? 1 : 0;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Warn(WhyNot);
+			else Said(Arg == TEXT("spray") ? TEXT("spraying") : TEXT("stopped"));
+			return true;
+		}
+		if (Verb == TEXT("extinguisher") && Arg == TEXT("put"))
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::Extinguisher;
+			R.Item = 0;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Warn(WhyNot);
+			else Said(TEXT("put back"));
+			return true;
+		}
+		const bool bLights = Verb == TEXT("shedlights");
+		if (!bLights && Verb == TEXT("rollerdoor") && (Arg == TEXT("up")) == B->DoorUp()) { Said(TEXT("already so")); return true; }
+		if (bLights && (Arg == TEXT("on")) == B->ShedLightsOn()) { Said(TEXT("already so")); return true; }
+		const FName Name = Verb == TEXT("extinguisher") ? FName(TEXT("extinguisher")) : (bLights ? FName(TEXT("shed_lights")) : FName(TEXT("door_button")));
+		const FTorquePlace* Place = TorqueShedLayout::FindPlace(Name);
+		if (!Place) { Warn(TEXT("no such place")); return true; }
+		const FVector Away = Verb == TEXT("extinguisher") ? FVector(1.0, 0.0, 0.0) : FVector(0.0, -1.0, 0.0);
+		const FString Seen = W->TestLookAt(Place->Box.GetCenter(), Away, 80.0);
+		if (W->TestTargetPlace() != Name) { Warn(TEXT("couldn't get a look at it: saw ") + Seen); return true; }
+		Said(W->TestInteract());
+		Said(FString::Printf(TEXT("lights %s, door %s, extinguisher held by %d"), B->ShedLightsOn() ? TEXT("on") : TEXT("off"),
+			B->DoorUp() ? TEXT("up") : TEXT("down"), B->ExtinguisherHeldBy()));
+		return true;
+	}
+	if (Verb == TEXT("standmove") && P.Num() >= 3)
+	{
+		// [kit] standmove:<x>:<y>[:<yaw>]: take hold of the engine stand and let go of it there.
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::GrabStand;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) { Warn(WhyNot); return true; }
+		R.Kind = ETorqueShedAct::ReleaseStand;
+		R.Place = FTransform(FRotator(0.0, P.Num() >= 4 ? FCString::Atod(*P[3]) : 0.0, 0.0), FVector(FCString::Atod(*P[1]), FCString::Atod(*P[2]), 0.0));
+		if (!B->Request(R, WhyNot)) { Warn(WhyNot); return true; }
+		Said(FString::Printf(TEXT("engine stand at (%.0f, %.0f)"), B->StandTransform().GetLocation().X, B->StandTransform().GetLocation().Y));
+		return true;
+	}
 	if (Verb == TEXT("dynorun"))
 	{
 		// F at the dyno desk, then wait out the run (dynorun:mid stops about 60% of the way in, for a
