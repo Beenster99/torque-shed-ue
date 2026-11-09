@@ -12,6 +12,7 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make         make the avatars below by script and build them without the
                                            cloud (logs can_build_meta_human's reason if a rig is needed)
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
+    py Tools/ue_metahumans.py make rig nowardrobe   the same with no hair or clothes (whole bodies)
     py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
@@ -245,6 +246,77 @@ def _key_for(coll, slot, item, r):
     return keys[-1] if keys else None
 
 
+UNDRESS_SLOTS = ("hair", "beard", "mustache", "outfit", "garment", "cloth", "top", "bottom", "shoe", "feet")
+
+
+def _undress(sub, ch, name):
+    """`nowardrobe`: take the hair and clothes off again (brows and lashes stay), so the build gives
+    the whole body. The selection on each collection's default instance is cleared, then the slot's
+    items are removed from the collection; every attempt is logged."""
+    colls = _collections(sub, ch)
+    if not colls:
+        log("%s: no collection to undress" % name)
+        return
+    try:
+        slots = [str(n) for n in colls[0].get_slot_names()]
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: get_slot_names failed: %s" % (name, e))
+        return
+    for ci, coll in enumerate(colls):
+        try:
+            inst = coll.get_editor_property("default_instance")
+        except Exception:
+            inst = getattr(coll, "default_instance", None)
+        if ci == 0:
+            log("collection methods: " + ", ".join(m for m in dir(coll) if not m.startswith("_")))
+            if inst is not None:
+                log("instance methods: " + ", ".join(m for m in dir(inst) if not m.startswith("_")))
+        for slot in slots:
+            if not any(w in slot.lower() for w in UNDRESS_SLOTS):
+                continue
+            sn = unreal.Name(slot)
+            try:
+                keys = list(coll.get_item_keys_for_slot(sn))
+            except Exception:
+                keys = []
+            done = []
+            if inst is not None:
+                for m in ("clear_slot_selection", "clear_slot_selections", "clear_selection_for_slot", "remove_slot_selection"):
+                    if hasattr(inst, m):
+                        try:
+                            getattr(inst, m)(sn)
+                            done.append(m)
+                            break
+                        except Exception as e:
+                            log("%s: %s(%s) failed: %s" % (name, m, slot, e))
+                if not done and hasattr(inst, "set_single_slot_selection"):
+                    for none in (unreal.Name("None"), None):
+                        try:
+                            inst.set_single_slot_selection(sn, none)
+                            done.append("set_single_slot_selection(%r)" % (none,))
+                            break
+                        except Exception as e:
+                            log("%s: set_single_slot_selection(%s, %r) failed: %s" % (name, slot, none, e))
+            for k in keys:
+                for m in ("remove_item", "try_remove_item", "remove_item_by_key"):
+                    if hasattr(coll, m):
+                        try:
+                            r = getattr(coll, m)(k)
+                            done.append("%s(%s)=%r" % (m, k, r))
+                            break
+                        except Exception as e:
+                            log("%s: %s(%s) failed: %s" % (name, m, k, e))
+            try:
+                left = ", ".join(str(k) for k in coll.get_item_keys_for_slot(sn))
+            except Exception:
+                left = "?"
+            log("%s: undressed %s in collection %d: %s; left: %s" % (name, slot, ci, "; ".join(done) or "nothing worked", left or "none"))
+    try:
+        unreal.EditorAssetLibrary.save_loaded_asset(ch, only_if_is_dirty=False)
+    except Exception:
+        pass
+
+
 def _dress(sub, ch, av):
     """Hair and workshop clothes from the wardrobe: for each of the character's slots, the item whose
     name best matches the avatar's keywords (hair slots: av["hair"]; outfit slots: av["outfit"]),
@@ -474,12 +546,13 @@ def slim():
     log("capped %d textures under %s at %d" % (capped, ROOT, MAX_TEXTURE))
 
 
-def make(rig=False):
+def make(rig=False, wardrobe=True):
     """Make a MetaHuman Character asset per avatar with the UE 5.8 editor API and build it.
 
     Without `rig`, nothing goes to Epic's cloud: the build uses whatever rig the character has, and
     can_build_meta_human logs why when it needs one. With `rig` (`make rig`), each character is first
-    auto-rigged in the cloud (Joints Only, blocking), which needs the Epic account sign-in."""
+    auto-rigged in the cloud (Joints Only, blocking), which needs the Epic account sign-in. With
+    wardrobe False (`make nowardrobe`), the hair and clothes are taken off instead of put on."""
     discover()
     cls = getattr(unreal, "MetaHumanCharacter", None)
     sub_cls = getattr(unreal, "MetaHumanCharacterEditorSubsystem", None)
@@ -516,7 +589,10 @@ def make(rig=False):
             unreal.log_warning("[Torque] %s: try_add_object_to_edit refused it" % name)
             continue
         _vary_body(sub, ch, i)
-        _dress(sub, ch, AVATARS[i % len(AVATARS)])
+        if wardrobe:
+            _dress(sub, ch, AVATARS[i % len(AVATARS)])
+        else:
+            _undress(sub, ch, name)
         if rig:
             if _is_rigged(sub, ch) is not True:
                 _auto_rig(sub, ch, name)
@@ -547,11 +623,19 @@ def make(rig=False):
                 except Exception:
                     continue
                 log("  build param %s = %r" % (f, v))
-                if isinstance(v, bool) and not v and any(w in f.lower() for w in ("groom", "hair", "cloth", "outfit", "wardrobe", "garment")):
+                if wardrobe and isinstance(v, bool) and not v and any(w in f.lower() for w in ("groom", "hair", "cloth", "outfit", "wardrobe", "garment")):
                     bp.set_editor_property(f, True)
                     log("  build param %s -> True" % f)
             _set_enum(bp, "pipeline_type", PIPELINE_TYPE)
             _set_enum(bp, "pipeline_quality", PIPELINE_QUALITY)
+            for f, want in (("pipeline_type", PIPELINE_TYPE), ("pipeline_quality", PIPELINE_QUALITY)):
+                try:
+                    got = str(bp.get_editor_property(f))
+                except Exception:
+                    got = "?"
+                if want not in got.upper():
+                    unreal.log_warning("[Torque] %s: %s reads back %s, not %s" % (name, f, got, want))
+                log("%s: building with %s = %s" % (name, f, got))
             # A rebuild at another quality leaves the old build's files behind, and /Game/MetaHumans
             # is always cooked, so clear this avatar's old build first.
             if unreal.EditorAssetLibrary.does_directory_exist(folder):
@@ -972,7 +1056,7 @@ def main(args):
     elif mode == "slim":
         slim()
     elif mode == "make":
-        make(rig=len(args) > 1 and args[1] == "rig")
+        make(rig="rig" in args[1:], wardrobe="nowardrobe" not in args[1:])
         register()
     else:
         register()
