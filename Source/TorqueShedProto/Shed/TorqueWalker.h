@@ -25,6 +25,7 @@
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorquePartsComputer.h"
 #include "Shed/TorquePaintBenchPanel.h"
+#include "Shed/TorqueSprayJob.h"
 #include "TorqueWalker.generated.h"
 
 class UCameraComponent;
@@ -32,6 +33,7 @@ class UStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UStaticMesh;
 class USceneComponent;
+class UTorqueSprayFx;
 struct FTorquePlace;
 struct FSonyPadState;
 
@@ -79,6 +81,9 @@ public:
 	int32 SprayLoadIndex() const { return SprayFinish; }
 	bool SprayIsPaint() const;   // a colour (R picks it), not primer or a coat
 	FString CarryingText() const;
+	// How far the part in your hands is turned from the way you face, in degrees (R turns it, as
+	// walker.gd's hold_turn): the items actor turns it in your hands, and it goes down that way.
+	double HeldTurn() const { return HoldTurn; }
 	// For the parts computer's monitor (ATorqueShedScreens): whether this player is at it, the
 	// category (NAME_None: project bikes) and its rows, and the one picked.
 	bool AtComputer() const { return bComputer; }
@@ -98,6 +103,12 @@ public:
 	bool BenchSwatches(FLinearColor& OutMix, bool& bOutTarget, FLinearColor& OutTarget) const;
 	// The mixing bench's card (TorquePaintBenchPanel), on the HUD's canvas.
 	void DrawBench(class AHUD* Hud, class UCanvas* Canvas) const;
+
+	// The spray mini game (Torque Shed's spray_job.gd, spray_hud.gd; TorqueWalkerSpray.cpp): its
+	// readout's up (a coat going on, the spray controls up, or a cue showing), drawn over the view.
+	bool SprayHudUp() const;
+	void DrawSpray(class AHUD* Hud, class UCanvas* Canvas) const;
+	bool SprayControlsUp() const { return SprayItem != 0; }
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -152,6 +163,12 @@ public:
 	FString TestBench(bool bOn);
 	FString TestPaint(const FTorqueShedRequest& R);
 	FString TestPour(const FString& Code, float Grams);
+	// The spray game: F with the can or gun on what's looked at (the spray controls), then Passes
+	// sweeps across it at Distance cm, held on the trigger as a player would; let go. Says how the
+	// coat went (coverage, evenness, runs, dry) and what the shed made of it.
+	FString TestSprayPasses(int32 Passes, double Distance);
+	// X's scan over the coats going on.
+	void TestSprayScan(bool bOn) { SetSprayScan(bOn); }
 
 	// After walker.gd: eye 1.62 m (0.95 crouched), walk 3.2 m/s, hurry 5.5, crouched 1.5, reach 2.6 m.
 	UPROPERTY(EditAnywhere, Category = "Walker") float WalkSpeed = 320.0f;
@@ -198,6 +215,7 @@ private:
 	FPlan Plan, AltPlan;
 	void MakePlan();
 	FPlan MakeOne(ETorqueShedAct Kind, double Time, const FString& Verb) const;
+	FPlan SprayPlanFor(int32 Item, int32 Bay) const;   // the can or gun on Item, as loaded
 	double Progress = 0.0;
 	FString ProgressKey;
 	bool bWorkHeld = false, bAltHeld = false, bWorkPressed = false, bAltPressed = false;
@@ -248,7 +266,24 @@ private:
 	UPROPERTY(Transient) UMaterialInstanceDynamic* LitFaintMaterial = nullptr;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostParts;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostMaterials;   // fill, edge; blocked fill, edge
+	// The same edges again, seen through whatever's in the way (the part in your hands, a bench):
+	// M_ShedGhostXRay draws without the depth test. Empty when the level script hasn't made it.
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostXRayParts;
+	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostXRayMaterials;   // edge; blocked edge
+	double GhostClock = 0.0;
 	void UpdateCues();
+	// Carrying a part (walker.gd carry_reach, hold_turn): the mouse wheel (Q / E, L1 / R1) puts where
+	// it goes down a step further out or nearer, and R (Square) turns it, a quarter a tap or freely
+	// while held. Both start again with each part you pick up.
+	double CarryReach = 0.0;          // cm further out than arm's length (TWI::CarryMin..CarryMax)
+	double HoldTurn = 0.0;            // degrees from the way you face
+	double TurnKeyFor = 0.0;          // how long R has been held (-1: not held)
+	int32 TurnSign = 1;               // Shift+R turns the other way
+	int32 CarryFor = 0;               // the part these were set for
+	void CarryInput(float Dt, bool bOut, bool bIn, bool bTurnDown, bool bTurnBack);
+	// Where the part in your hands goes down on the floor: arm's length plus CarryReach ahead (short
+	// of a wall), turned by HoldTurn (walker.gd _push_transform, for a part).
+	FTransform CarryDrop() const;
 	int32 SprayColour = 0;
 	int32 SprayFinish = 0;
 	bool bCrouched = false;
@@ -294,6 +329,51 @@ private:
 	// Holding a tin from the mixing bay: F on the bench, the shelf or a bin puts it there, R fills the
 	// spray gun's cup from it.
 	bool TinInteract();
+
+	// --- Spraying (Torque Shed's spray mini game; TorqueWalkerSpray.cpp) --------------------------------
+	// Hold the work button with the can or gun on a part and the coat goes on where you aim, as wide
+	// and heavy as the distance makes it (TorqueSprayJob); let go once it's on (90%) to finish it, or
+	// it finishes itself at 99.5%. F brings up the spray controls, locked on that part: a moment to get
+	// set, then slower, careful passes, the look and walk slowed, a slight hand sway that holding your
+	// breath (right mouse / L2) steadies; X (D-pad up) scans it for what's missed, thin, run or dry.
+	// With the gun on a booth hook, a pass coats every part hanging there that it crosses.
+	int32 SprayItem = 0;               // the spray controls are up, locked on this item (0: not)
+	int32 SprayBay = INDEX_NONE;       // ... a bike part's bay and slot
+	FName SpraySlot;
+	double SpraySettle = 0.0;          // seconds still to get set
+	double SprayBreath = 1.0;          // breath left to hold (0 .. 1)
+	bool bSprayBreathHeld = false, bSpraySteady = false;
+	bool bSprayScan = false;
+	bool bSprayNeedRelease = false;    // let go of the trigger before it sprays again
+	bool bSprayFiring = false;         // paint went on this frame
+	FRotator SwayNow = FRotator::ZeroRotator;
+	double SwayClock = 0.0;
+	TMap<FString, TSharedPtr<FTorqueSprayJob>> SprayJobs;   // every coat started and not finished, by key
+	TSharedPtr<FTorqueSprayJob> Spray;                      // the one under the trigger (or aimed at)
+	TArray<TSharedPtr<FTorqueSprayJob>> SprayDrying;        // finished coats, flashing and drying off
+	TSharedPtr<FTorqueSprayJob> SprayShown;                 // the readout's (it lingers a moment after)
+	double SprayLinger = 0.0, SprayFlash = 0.0;
+	TorqueSpray::FCue SprayCue;
+	double SprayCueAge = 100.0;
+	UPROPERTY(Transient) UTorqueSprayFx* SprayFx = nullptr;
+	UPROPERTY() UStaticMesh* PlaneMesh = nullptr;
+	bool SprayWork(float Dt);          // the work button with the can or gun: true when the spray game has it
+	bool SprayInteract();              // F with the can or gun: the spray controls up or down
+	void EnterSprayMode();
+	void LeaveSprayMode();
+	void UpdateSway(float Dt);
+	void UpdateSprayFx(float Dt);
+	void TickSprays(float Dt);
+	void SprayLetGo(bool bFinishReady);
+	void FinishSpray(const TSharedPtr<FTorqueSprayJob>& Job);
+	void SetSprayScan(bool bOn);
+	FString SprayKey(const FTorqueShedRequest& R) const;
+	TSharedPtr<FTorqueSprayJob> SprayJobFor(int32 Item, const FTorqueShedRequest& R, int32 Bay, FName Slot);
+	bool SprayOwns(const UStaticMeshComponent* C) const;
+	bool IsSprayPlan(const FPlan& P) const;
+	FLinearColor SprayMistColour(bool* bOutClear = nullptr) const;   // the mist of what's loaded, for anyone's spray
+	TSet<FString> SprayNoGo;           // coats that couldn't start (nothing drawn to paint): the timed hold does those
+	FString SprayControlsText() const;
 
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();

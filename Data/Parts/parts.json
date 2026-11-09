@@ -6640,8 +6640,7 @@
 				"badge": "wing"
 			},
 			"styles": [
-				"cruiser",
-				"tourer"
+				"cruiser"
 			],
 			"pack": "cruiser"
 		},
@@ -6711,7 +6710,6 @@
 				"badge": "oval"
 			},
 			"styles": [
-				"tourer",
 				"roader"
 			],
 			"pack": "tourer"
@@ -6758,7 +6756,6 @@
 				"badge": "none"
 			},
 			"styles": [
-				"tourer",
 				"roader",
 				"naked"
 			],
@@ -6923,10 +6920,10 @@
 			"pack": "bobber"
 		},
 		"adventure_1": {
-			"name": "Adventure tank 1, 34 L",
+			"name": "Adventure tank 1, 39 L",
 			"description": "Tall rally tank with sharp creased shoulders and side vents, running back in a low tail under the seat.",
-			"mass": 6.8,
-			"capacity": 34,
+			"mass": 7.8,
+			"capacity": 39,
 			"style": "touring",
 			"color": [
 				0.85,
@@ -6939,9 +6936,9 @@
 				"cap": "flush",
 				"badge": "none",
 				"scale": [
-					0.956,
-					0.763,
-					0.763
+					0.947,
+					0.73,
+					0.73
 				]
 			},
 			"styles": [
@@ -7056,6 +7053,141 @@
 				"adventure"
 			],
 			"pack": "adventure"
+		},
+		"sports_tourer_1": {
+			"name": "Sports tourer tank 1, 32 L",
+			"description": "Broad sports tourer tank with a stepped beak, a raised centre panel and crisp chamfered creases.",
+			"mass": 7.7,
+			"capacity": 32,
+			"style": "angular",
+			"color": [
+				0.55,
+				0.56,
+				0.58
+			],
+			"price": 340,
+			"look": {
+				"shape": "sports_tourer_1",
+				"cap": "flush",
+				"badge": "none",
+				"scale": [
+					0.959,
+					0.779,
+					0.779
+				]
+			},
+			"styles": [
+				"tourer"
+			],
+			"pack": "tourer"
+		},
+		"sports_tourer_2": {
+			"name": "Sports tourer tank 2, 30 L",
+			"description": "Sports tourer tank with long chamfer bands down its flanks and a flush centre panel.",
+			"mass": 7.3,
+			"capacity": 30,
+			"style": "angular",
+			"color": [
+				0.55,
+				0.56,
+				0.58
+			],
+			"price": 340,
+			"look": {
+				"shape": "sports_tourer_2",
+				"cap": "flush",
+				"badge": "none",
+				"scale": [
+					0.963,
+					0.796,
+					0.796
+				]
+			},
+			"styles": [
+				"tourer"
+			],
+			"pack": "tourer"
+		},
+		"sports_tourer_3": {
+			"name": "Sports tourer tank 3, 28 L",
+			"description": "Rounded sports tourer tank with soft shoulders, a flush centre panel and a stepped beak.",
+			"mass": 6.8,
+			"capacity": 28,
+			"style": "angular",
+			"color": [
+				0.55,
+				0.56,
+				0.58
+			],
+			"price": 340,
+			"look": {
+				"shape": "sports_tourer_3",
+				"cap": "flush",
+				"badge": "none",
+				"scale": [
+					0.967,
+					0.814,
+					0.814
+				]
+			},
+			"styles": [
+				"tourer"
+			],
+			"pack": "tourer"
+		},
+		"sports_tourer_4": {
+			"name": "Sports tourer tank 4, 30 L",
+			"description": "Sharply faceted sports tourer tank with a wavy crease along its flank.",
+			"mass": 7.3,
+			"capacity": 30,
+			"style": "angular",
+			"color": [
+				0.55,
+				0.56,
+				0.58
+			],
+			"price": 340,
+			"look": {
+				"shape": "sports_tourer_4",
+				"cap": "flush",
+				"badge": "none",
+				"scale": [
+					0.963,
+					0.796,
+					0.796
+				]
+			},
+			"styles": [
+				"tourer"
+			],
+			"pack": "tourer"
+		},
+		"sports_tourer_5": {
+			"name": "Sports tourer tank 5, 28 L",
+			"description": "Sports tourer tank with a recessed panel low on each flank and creased shoulders.",
+			"mass": 6.8,
+			"capacity": 28,
+			"style": "angular",
+			"color": [
+				0.55,
+				0.56,
+				0.58
+			],
+			"price": 340,
+			"look": {
+				"shape": "sports_tourer_5",
+				"cap": "flush",
+				"badge": "none",
+				"scale": [
+					0.967,
+					0.814,
+					0.814
+				]
+			},
+			"styles": [
+				"tourer"
+			],
+			"pack": "tourer"
 		}
 	},
 	"saddle": {

@@ -19,6 +19,9 @@ struct FShape
 	FVector Origin = FVector::ZeroVector;
 	FBox Box = FBox(ForceInit);
 	TSet<FIntVector> Cells;
+	// The triangles themselves (mesh-local cm), for the spray's coverage (TorqueSprayJob).
+	TArray<FVector> Pos;
+	TArray<int32> Tris;
 
 	FIntVector CellOf(const FVector& P) const
 	{
@@ -157,6 +160,8 @@ void Fill(FShape& S, const TArray<FVector>& Pos, const TArray<int32>& Tris)
 			}
 	}
 	S.bValid = S.Cells.Num() > 0;
+	S.Pos = Pos;
+	S.Tris = Tris;
 }
 
 // Shapes of meshes built at run time, by the mesh (gone meshes are dropped as new ones come).
@@ -254,6 +259,15 @@ EHit Trace(const UStaticMeshComponent* C, const FVector& Start, const FVector& E
 		}
 	}
 	return EHit::Miss;
+}
+
+bool Triangles(const UStaticMeshComponent* C, const TArray<FVector>*& OutPos, const TArray<int32>*& OutTris)
+{
+	const TSPI::FShape* S = TSPI::ShapeOf(C);
+	if (!S || S->Tris.Num() < 3) return false;
+	OutPos = &S->Pos;
+	OutTris = &S->Tris;
+	return true;
 }
 
 bool SurfacePoint(const UStaticMeshComponent* C, const FVector& Side, FVector& Out)

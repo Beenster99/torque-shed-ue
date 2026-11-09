@@ -346,8 +346,8 @@ public:
 	static constexpr float PrimerBonus = 0.08f;
 	static constexpr float LacquerBonus = 0.06f;
 	static constexpr float BoothFinish = 0.12f;
-	// How well a coat goes on by hand until the spray job's coverage game is ported (SprayJob): a
-	// steady hold lays a decent coat, the booth makes it a good one.
+	// How well a coat goes on when no score comes with it (a test's act: the spray game sends its
+	// own, TorqueSprayJob, as the request's Amount and its runs as Tilt); the booth makes it better.
 	static constexpr float HandCoat = 0.82f;
 	// Paint mixed in the mixing bay: Paint with this Finish and bGun sprays from the gun's cup.
 	static FName CupFinish() { return FName(TEXT("cup")); }

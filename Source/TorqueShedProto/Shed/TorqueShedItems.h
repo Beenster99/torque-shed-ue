@@ -30,12 +30,18 @@ public:
 
 	// The item a mesh shows (0 for none).
 	static int32 ItemOf(const UActorComponent* C);
+	// A new part as it comes out of its box (the shop's 3D preview, ATorqueShopPreview): drawn as
+	// Draw draws an unboxed part with nothing on it, under Holder, in the catalogue's colour. Cube is
+	// the block for a part with no model yet. Returns the meshes made.
+	static int32 MakeNewPart(AActor* Outer, USceneComponent* Holder, FName Part, UStaticMesh* Cube, TArray<UStaticMeshComponent*>& Made);
 	// All the meshes, for the walker's look test.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Meshes;
 	// Where an item is drawn now (its box's centre), if it's drawn.
 	bool WhereIs(int32 Item, FVector& Out) const;
 	// The meshes an item is drawn with.
 	void MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>& Out) const;
+	// An item's size as it sits (its own frame, not turned: X its length ahead, Y across, Z up), if drawn.
+	bool SizeOf(int32 Item, FVector& Out) const;
 	// Hides what everyone holds (TorqueShedTest's stand-back shots).
 	bool bHideHeld = false;
 
@@ -52,6 +58,7 @@ private:
 		int32 HeldBy = 0;                       // a peer, if it's in someone's hands
 		int32 Hook = INDEX_NONE;                // the spray booth hook it hangs on: it swings with it (Tick)
 		double Height = 0.0;                    // how tall it is, to hang its top at the hook's tip
+		FVector Size = FVector::ZeroVector;     // its box's size in the holder's frame
 	};
 	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
 	FTransform HungAt(int32 Hook, double Height) const;

@@ -27,6 +27,10 @@ EHit Trace(const UStaticMeshComponent* C, const FVector& Start, const FVector& E
 // own cm: pointed at by that shape. Forgotten when the mesh goes.
 void AddShape(const UStaticMesh* Mesh, const TArray<FVector>& Pos, const TArray<int32>& Tris);
 
+// The part's own triangles (mesh-local cm), as its shape was made from them: for the spray's
+// coverage of its surface (TorqueSprayJob). False without a shape. Valid while the mesh is.
+bool Triangles(const UStaticMeshComponent* C, const TArray<FVector>*& OutPos, const TArray<int32>*& OutTris);
+
 // A point on the part's surface (world), the one furthest along Side: something to look at from
 // that side (for tests). False without a shape.
 bool SurfacePoint(const UStaticMeshComponent* C, const FVector& Side, FVector& Out);

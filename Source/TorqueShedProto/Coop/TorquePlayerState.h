@@ -22,6 +22,7 @@ struct FTorqueHandsNet
 	UPROPERTY() int32 Item = 0;        // a loose part
 	UPROPERTY() FName Place;           // a place (bench_3, the booth, the dyno...)
 	UPROPERTY() bool bAway = false;    // at the parts computer: tool put away
+	UPROPERTY() uint8 Turn = 0;        // how far the part in their hands is turned (R), 256ths of a turn
 };
 
 UCLASS()

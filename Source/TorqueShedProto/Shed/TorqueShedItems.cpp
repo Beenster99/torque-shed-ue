@@ -40,6 +40,18 @@ FVector KindSize(FName Kind)
 
 const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
 
+// A drawn item's holder and everything on it (a delivery's labels and writing too):
+// DestroyComponent(true) would only promote them to the actor, left hanging where the box was.
+void DestroyHolder(USceneComponent* H)
+{
+	if (!H) return;
+	TArray<USceneComponent*> Kids;
+	H->GetChildrenComponents(true, Kids);
+	for (USceneComponent* K : Kids)
+		if (K) K->DestroyComponent();
+	H->DestroyComponent();
+}
+
 // --- Deliveries (the props thread's Data/Props/deliveries.json) -----------------------------------------
 // A boxed part comes in cardboard, or a wooden crate for the heavy kinds and anything long; the box
 // whose shape is nearest, scaled to the part's size; a made-up courier's label on the lid (and the
@@ -149,7 +161,10 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 	auto Label = [&](const FVector& At, const FRotator& Rot, const FRotator& TextRot, const FVector& StripOffset)
 	{
 		if (UStaticMeshComponent* L = Prop(Owner, Parent, LabelMesh, At, Rot, FVector::OneVector))
+		{
+			Made.Add(L);   // moves, hides and is aimed at with the box
 			if (UMaterialInstanceDynamic* M = L->CreateDynamicMaterialInstance(0)) M->SetScalarParameterValue(TEXT("Courier"), (float)Courier);
+		}
 		// The contents and tracking number over the label's blank strip (its lower quarter).
 		Words(Owner, Parent, LabelText, At + StripOffset, TextRot, 0.9f, Ink);
 	};
@@ -177,7 +192,10 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 		const FQuat Tilt(FVector(0.0, 1.0, 0.0), FMath::DegreesToRadians(Skew));
 		const FRotator Rot = Tilt.Rotator();
 		if (UStaticMeshComponent* N = Prop(Owner, Parent, NoteMesh, At, Rot, FVector::OneVector))
+		{
+			Made.Add(N);
 			if (UMaterialInstanceDynamic* M = N->CreateDynamicMaterialInstance(0)) M->SetVectorParameterValue(TEXT("Tint"), It.OrderedTint);
+		}
 		FString Who = It.OrderedBy;
 		if (Who.IsEmpty())
 			if (const UWorld* World = Owner->GetWorld())
@@ -259,12 +277,76 @@ int32 ATorqueShedItems::ItemOf(const UActorComponent* C)
 	return 0;
 }
 
+int32 ATorqueShedItems::MakeNewPart(AActor* Outer, USceneComponent* Holder, FName Part, UStaticMesh* Cube, TArray<UStaticMeshComponent*>& Made)
+{
+	// Draw's unboxed path for a part fresh from the shop: its home slot, the catalogue's Blender part
+	// (or the stock part of that kind), tinted the catalogue's colour.
+	const int32 Before = Made.Num();
+	if (!Outer || !Holder || !TorqueShedParts::IsPart(Part)) return 0;
+	const FName Kind = TorqueShedParts::PartKind(Part);
+	const TArray<FName> KindSlots = TorqueShedParts::SlotsForKind(Kind);
+	const FName Home = TorqueShedParts::IsStock(Part) ? TorqueShedParts::StockSlot(Part) : (KindSlots.Num() > 0 ? KindSlots[0] : NAME_None);
+	const bool bCatalogue = !TorqueShedParts::IsStock(Part);
+	if (bCatalogue && !Home.IsNone())
+	{
+		TMap<FString, FString> Parts;
+		Parts.Add(Home.ToString().ToLower(), Part.ToString().ToLower());
+		TorqueShedCatalogue::MakePart(Outer, Holder, Home.ToString().ToLower(), Parts, Made);
+	}
+	FName FitSlot, Option;
+	const bool bOption = !bCatalogue && TorqueShedParts::ModelOption(Part, Kind, FitSlot, Option);
+	if (Made.Num() == Before)
+	{
+		FTorqueBuild Build;
+		Build.Bike = FName(TorqueShedParts::StockModel);
+		if (bOption) Build.Fitted.Add(FitSlot, Option);
+		TorqueShedModel::MakePartsWhere(Outer, Holder, Build,
+			[Home](const FTorqueResolvedPart& P) { return TorqueShedParts::SlotOfModelPart(P) == Home; }, Made);
+	}
+	const FLinearColor Colour = TorqueShedParts::DefaultColour(Part);
+	if (Made.Num() == Before)
+	{
+		if (!Cube) return 0;
+		// No shape for it yet: a block the size of its kind, as the shed draws it.
+		const FVector Size = TSI::KindSize(Kind);
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Outer);
+		C->SetStaticMesh(Cube);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetupAttachment(Holder);
+		C->SetRelativeLocation(FVector(0.0, 0.0, Size.Z * 0.5));
+		C->SetRelativeScale3D(Size / 100.0);
+		C->RegisterComponent();
+		TSI::SetLooks(C, 0.0f, 0.0f, &Colour);
+		Made.Add(C);
+		return Made.Num() - Before;
+	}
+	const bool bTint = bCatalogue;   // (as Draw: a catalogue part shows the catalogue's colour)
+	for (int32 I = Before; I < Made.Num(); ++I)
+	{
+		UStaticMeshComponent* C = Made[I];
+		const bool bPaint = bTint && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+		TSI::SetLooks(C, 0.0f, 0.0f, bPaint ? &Colour : nullptr);
+	}
+	return Made.Num() - Before;
+}
+
 bool ATorqueShedItems::WhereIs(int32 Item, FVector& Out) const
 {
 	for (const FDrawn& D : Drawn)
 		if (D.Item == Item && D.Holder.IsValid())
 		{
 			Out = D.Holder->GetComponentTransform().TransformPosition(D.Centre);
+			return true;
+		}
+	return false;
+}
+
+bool ATorqueShedItems::SizeOf(int32 Item, FVector& Out) const
+{
+	for (const FDrawn& D : Drawn)
+		if (D.Item == Item && !D.Size.IsNearlyZero())
+		{
+			Out = D.Size;
 			return true;
 		}
 	return false;
@@ -279,7 +361,7 @@ void ATorqueShedItems::MeshesOf(int32 Item, TArray<const UStaticMeshComponent*>&
 void ATorqueShedItems::Rebuild()
 {
 	for (FDrawn& D : Drawn)
-		if (USceneComponent* H = D.Holder.Get()) H->DestroyComponent(true);
+		TSI::DestroyHolder(D.Holder.Get());
 	for (UStaticMeshComponent* C : Meshes)
 		if (C) C->DestroyComponent();
 	Drawn.Reset();
@@ -394,7 +476,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	}
 	if (!Box.IsValid)
 	{
-		Holder->DestroyComponent();
+		TSI::DestroyHolder(Holder);
 		return;
 	}
 	FDrawn D;
@@ -402,6 +484,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	D.Holder = Holder;
 	D.Centre = Box.GetCenter();
 	D.Offset = FVector(D.Centre.X, D.Centre.Y, Box.Min.Z);
+	D.Size = Box.GetSize();   // (the holder is at the origin, unturned, while it's made)
 	if (It->At == ETorqueAt::Held) D.HeldBy = It->Ref;
 	if (It->At == ETorqueAt::Spot)
 		if (const FTorquePlace* HookP = TorqueShedLayout::FindPlace(It->Spot); HookP && HookP->Kind == ETorquePlace::Hook)
@@ -435,10 +518,11 @@ bool ATorqueShedItems::HandOf(int32 Peer, FTransform& Out) const
 	{
 		const APlayerState* PS = W->GetPlayerState();
 		if (!PS || PS->GetPlayerId() != Peer) continue;
-		// Out in front at chest height, a little to the right: in view, not in the way.
+		// Out in front at chest height, a little to the right: in view, not in the way. Turned as
+		// R has turned it (walker.gd hold_turn), the way it'll go down.
 		const FRotator Aim = W->GetBaseAimRotation();
 		const FRotator Yaw(0.0, Aim.Yaw, 0.0);
-		Out = FTransform(Yaw, W->GetPawnViewLocation() + Yaw.RotateVector(FVector(60.0, 18.0, -45.0)));
+		Out = FTransform(FRotator(0.0, Aim.Yaw + W->HeldTurn(), 0.0), W->GetPawnViewLocation() + Yaw.RotateVector(FVector(60.0, 18.0, -45.0)));
 		return true;
 	}
 	return false;

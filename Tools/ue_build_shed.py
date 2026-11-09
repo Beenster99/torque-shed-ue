@@ -164,6 +164,21 @@ def highlight_material():
     return finish(m)
 
 
+def ghost_xray_material():
+    """M_ShedGhostXRay: the edges of where a held part goes down, seen through whatever is in the way
+    (the part in your hands, a bench): M_ShedHighlight drawn without the depth test. Color, Opacity."""
+    m = new_material("M_ShedGhostXRay")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    try_set(m, "disable_depth_test", True)
+    col = expr(m, unreal.MaterialExpressionVectorParameter, -600, 0, parameter_name="Color",
+               default_value=unreal.LinearColor(0.7, 1.7, 2.0, 1.0))
+    mel.connect_material_property(col, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    op = expr(m, unreal.MaterialExpressionScalarParameter, -600, 200, parameter_name="Opacity", default_value=0.35)
+    mel.connect_material_property(op, "", unreal.MaterialProperty.MP_OPACITY)
+    return finish(m)
+
+
 def screen_page_material():
     """M_ShedScreenPage: a screen showing a page the game draws (C++ canvas render targets: the bay
     screens, Torque Shed's TVs). Unlit, the page's texture as its glow (parameter Page), Brightness."""
@@ -509,6 +524,13 @@ def materials():
     grass = megascans("Wet_Grass_Ground_sjzkdjba", "grass")
     tarmac = megascans("Asphalt_Road_tigkfb3o", "asphalt")
     scans = shed_scans()   # the photoreal pass: scanned surfaces in Torque Shed's colours
+    # The spray mini game's coat, mist and footprint (TorqueSprayJob.cpp, TorqueSprayFx.cpp).
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import ue_build_spray
+        ue_build_spray.build()
+    except Exception as e:
+        unreal.log_error("[Torque] spray materials: %s" % e)
     return {
         # Torque Shed's shed (workshop.gd _make_materials): steel cladding, plaster over a dark
         # band inside, an epoxy floor, steel trusses, timber bench tops, hazard yellow.
@@ -528,6 +550,7 @@ def materials():
         "pad": flat("M_ShedWashPad", (0.42, 0.44, 0.45), 0.25, grain=0.1),
         "screen": flat("M_ShedScreen", (0.10, 0.30, 0.50), 0.3, emissive=1.4),
         "highlight": highlight_material(),     # for the game: what's looked at, where a part goes down
+        "ghost_xray": ghost_xray_material(),   # for the game: where a part goes down, seen through things
         "screen_page": screen_page_material(),   # for the game: the screens' pages
         "effect_paint": effect_paint_material(),   # for the game: parts sprayed with pearl, candy, flake, chameleon
         "led": flat("M_ShedLed", (0.9, 0.92, 0.95), 0.5, emissive=LED_GLOW),

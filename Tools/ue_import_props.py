@@ -300,8 +300,39 @@ def materials(spec):
 
 # --- Meshes -----------------------------------------------------------------------------------------
 
+def unskinned(path):
+    """A glTF whose meshes are skinned (Poly Haven rigs a vice's moving jaw) imports as skeletal
+    meshes, with no static mesh to place. Props don't move, so write a copy beside it with the
+    skin, the joint weights and any animation taken out: the meshes in their rest pose, which the
+    importer brings in as static. Anything else is returned unchanged."""
+    if not path.lower().endswith(".gltf"):
+        return path
+    with open(path) as f:
+        g = json.load(f)
+    if not g.get("skins"):
+        return path
+    g.pop("skins", None)
+    g.pop("animations", None)
+    for n in g.get("nodes", []):
+        n.pop("skin", None)
+    for m in g.get("meshes", []):
+        for prim in m.get("primitives", []):
+            attrs = prim.get("attributes", {})
+            for k in [k for k in attrs if k.startswith("JOINTS_") or k.startswith("WEIGHTS_")]:
+                del attrs[k]
+    out = path[:-5] + "_static.gltf"   # beside the original, so its .bin and textures still resolve
+    with open(out, "w") as f:
+        json.dump(g, f)
+    log("%s: skinned, importing a static copy" % os.path.basename(path))
+    return out
+
+
 def import_mesh(path, pid):
     dest = "%s/%s" % (DEST, pid)
+    static = unskinned(path)
+    if static != path and eal.does_directory_exist(dest):
+        eal.delete_directory(dest)   # an earlier skeletal import's leftovers would clash by name
+    path = static
     t = unreal.AssetImportTask()
     t.set_editor_property("filename", path)
     t.set_editor_property("destination_path", dest)
