@@ -2,6 +2,7 @@
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueBoothHooks.h"
 #include "Coop/TorquePlayerController.h"
+#include "Coop/TorqueSettings.h"
 
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -312,6 +313,22 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("quit"));
 		return true;
 	}
+	if (Verb == TEXT("set") || Verb == TEXT("key"))
+	{
+		// [settings] "set:FIELD:VALUE" (set:fov:100, set:timeofday:19.5, set:telemetry:on, set:units:metric)
+		// changes a setting for the run; "key:F3" is the telemetry key (keys don't reach a test run).
+		ATorquePlayerController* PC = Cast<ATorquePlayerController>(World->GetFirstPlayerController());
+		if (!PC) { Warn(TEXT("no player controller")); return true; }
+		if (Verb == TEXT("key"))
+		{
+			if (P.Num() > 1 && P[1].Equals(TEXT("F3"), ESearchCase::IgnoreCase))
+				Said(PC->TestSet(TEXT("telemetry"), FTorqueSettings::Get().bTelemetry ? TEXT("off") : TEXT("on")));
+			else Warn(TEXT("key what? key:F3"));
+		}
+		else if (P.Num() >= 3) Said(PC->TestSet(P[1], P[2].ToLower()));
+		else Warn(TEXT("set what? set:fov:100, set:timeofday:19.5, set:telemetry:on"));
+		return true;
+	}
 	if (Verb == TEXT("menu") || Verb == TEXT("face"))
 	{
 		// The Esc menu's pages for a screenshot (key presses don't reach the game in a test run):
@@ -319,7 +336,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// slider on your profile (its name's first word: jaw, chin, nose, ...; or height, avatar).
 		ATorquePlayerController* PC = Cast<ATorquePlayerController>(World->GetFirstPlayerController());
 		if (!PC) { Warn(TEXT("no player controller")); return true; }
-		if (Verb == TEXT("menu")) Said(PC->TestMenu(P.Num() > 1 ? P[1].ToLower() : FString(TEXT("pause"))));
+		if (Verb == TEXT("menu")) Said(PC->TestMenu(P.Num() > 2 ? (P[1] + TEXT(":") + P[2]).ToLower() : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("pause"))));
 		else if (P.Num() >= 3) Said(PC->TestFace(P[1].ToLower(), FCString::Atof(*P[2])));
 		else Warn(TEXT("face what? face:jaw:0.8, face:height:-0.5, face:avatar:2"));
 		return true;

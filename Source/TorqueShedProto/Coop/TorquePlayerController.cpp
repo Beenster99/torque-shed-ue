@@ -7,6 +7,10 @@
 #include "TorqueSettings.h"
 #include "TorqueKeys.h"
 #include "TorqueGameState.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/LightComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "EngineUtils.h"
 #include "TorqueBikePawn.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
@@ -209,10 +213,83 @@ FString ATorquePlayerController::TestMenu(const FString& Which)
 	Page = EPage::None;
 	if (Which == TEXT("close")) { CloseMenu(); return TEXT("menu closed"); }
 	Open(EPage::Pause);
-	if (Which == TEXT("profile")) Open(EPage::Profile);
-	else if (Which == TEXT("settings")) Open(EPage::Graphics);
-	else if (Which != TEXT("pause")) return TEXT("menu what? pause, profile, settings or close (opened the pause menu)");
-	return FString::Printf(TEXT("menu: %s"), *Which);
+	FString Tab;
+	const FString Base = Which.Split(TEXT(":"), nullptr, &Tab) ? Which.Left(Which.Find(TEXT(":"))) : Which;
+	if (Base == TEXT("profile")) Open(EPage::Profile);
+	else if (Base == TEXT("settings"))
+	{
+		// "settings:<tab>": graphics, sound, gameplay, controller, character, or keys / padcheck.
+		static const TCHAR* Names[] = {TEXT("graphics"), TEXT("sound"), TEXT("gameplay"), TEXT("controller"), TEXT("character")};
+		static const EPage Pages[] = {EPage::Graphics, EPage::Sound, EPage::Gameplay, EPage::Controller, EPage::Character};
+		EPage Want = EPage::Graphics;
+		for (int32 I = 0; I < 5; ++I)
+			if (Tab == Names[I]) Want = Pages[I];
+		if (Tab == TEXT("keys") || Tab == TEXT("padcheck"))
+		{
+			Open(EPage::Controller);
+			Want = Tab == TEXT("keys") ? EPage::Keys : EPage::PadCheck;
+		}
+		Open(Want);
+	}
+	else if (Base == TEXT("keys")) { Open(EPage::Controller); Open(EPage::Keys); }
+	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, settings[:graphics|sound|gameplay|controller|character|keys|padcheck], keys or close (opened the pause menu)");
+	return FString::Printf(TEXT("menu: %s (page shows %d rows)"), *Which, Rows().Num());
+}
+
+// [settings test] A setting changed for the test run (not saved), put on the game, and what it is now.
+FString ATorquePlayerController::TestSet(const FString& Field, const FString& Value)
+{
+	FTorqueSettings& S = FTorqueSettings::Get();
+	const float V = FCString::Atof(*Value);
+	const int32 N = FCString::Atoi(*Value);
+	const bool bOn = Value == TEXT("on") || Value == TEXT("1") || Value == TEXT("true");
+	ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	const FString F = Field.ToLower();
+	if (F == TEXT("fov")) S.Fov = FMath::Clamp(V, 60.0f, 110.0f);
+	else if (F == TEXT("timeofday") || F == TEXT("time"))
+	{
+		S.TimeOfDay = V < 0.0f ? -1.0f : FMath::Fmod(V, 24.0f);
+		if (GS) GS->SetHour(S.TimeOfDay);
+	}
+	else if (F == TEXT("daynight")) S.bDayNight = bOn;
+	else if (F == TEXT("daylength")) S.DayLength = N;
+	else if (F == TEXT("weather"))
+	{
+		S.WeatherMode = FMath::Clamp(N, 0, 3);
+		if (GS && S.WeatherMode > 0) GS->SetWeather(S.WeatherMode - 1);
+	}
+	else if (F == TEXT("units")) S.Units = Value == TEXT("metric") || Value == TEXT("0") ? 0 : 1;
+	else if (F == TEXT("telemetry")) S.bTelemetry = bOn;
+	else if (F == TEXT("fps")) S.bFpsCounter = bOn;
+	else if (F == TEXT("autoshift")) S.bAutoShift = bOn;
+	else if (F == TEXT("recentre")) S.bCameraRecentre = bOn;
+	else if (F == TEXT("lookintocorner")) S.bLookIntoCorner = bOn;
+	else if (F == TEXT("brightness")) S.Brightness = FMath::Clamp(V, 0.5f, 1.5f);
+	else if (F == TEXT("sharpness")) S.Sharpness = FMath::Clamp(V, 0.0f, 1.0f);
+	else if (F == TEXT("bloom")) S.Bloom = FMath::Clamp(V, 0.0f, 2.0f);
+	else if (F == TEXT("quality")) S.Quality = FMath::Clamp(N, 0, 4);
+	else if (F == TEXT("shadows")) S.Shadows = FMath::Clamp(N, -1, 4);
+	else if (F == TEXT("drawdistance")) S.DrawDistance = FMath::Clamp(V, 0.5f, 2.0f);
+	else if (F == TEXT("fog")) S.Fog = FMath::Clamp(N, -1, 2);
+	else if (F == TEXT("clouds")) S.Clouds = FMath::Clamp(N, -1, 4);
+	else if (F == TEXT("ao")) S.bAmbientOcclusion = bOn;
+	else if (F == TEXT("avatarshadows")) S.bAvatarShadows = bOn;
+	else if (F == TEXT("aa")) S.AntiAliasing = FMath::Clamp(N, 0, 3);
+	else
+		return FString::Printf(TEXT("set what? fov, timeofday, daynight, daylength, weather (0 auto .. 3 wet), units, telemetry, fps, autoshift, recentre, ")
+			TEXT("lookintocorner, brightness, sharpness, bloom, quality, shadows, drawdistance, fog, clouds, ao, avatarshadows, aa (not %s)"), *Field);
+	S.Apply(GetWorld());
+	FString Sun;
+	for (TActorIterator<ADirectionalLight> It(GetWorld()); It; ++It)
+	{
+		Sun = FString::Printf(TEXT(", sun pitch %.1f yaw %.1f intensity %.0f"), It->GetActorRotation().Pitch, It->GetActorRotation().Yaw,
+			It->GetLightComponent() ? It->GetLightComponent()->Intensity : 0.0f);
+		break;
+	}
+	const APlayerCameraManager* Cam = PlayerCameraManager;
+	const FString Clock = !GS ? FString(TEXT("-")) : GS->GetHour() < 0.0f ? FString(TEXT("level's own")) : ATorqueGameState::ClockText(GS->GetHour());
+	return FString::Printf(TEXT("set %s = %s: fov %.0f (camera now %.1f), clock %s, weather %d, telemetry %d, units %s%s"), *Field, *Value, S.Fov,
+		Cam ? Cam->GetFOVAngle() : 0.0f, *Clock, GS ? GS->GetWeather() : -1, S.bTelemetry ? 1 : 0, S.Units == 0 ? TEXT("metric") : TEXT("imperial"), *Sun);
 }
 
 FString ATorquePlayerController::TestFace(const FString& Slider, float Value)

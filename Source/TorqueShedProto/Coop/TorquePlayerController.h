@@ -59,6 +59,8 @@ public:
 	// profile slider set by its name's first word ("jaw", "chin", ... or "height", "avatar").
 	FString TestMenu(const FString& Which);
 	FString TestFace(const FString& Slider, float Value);
+	// [settings test] "set:<field>:<value>" (fov, timeofday, telemetry, ...): changed for the run, not saved.
+	FString TestSet(const FString& Field, const FString& Value);
 
 private:
 	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck };
