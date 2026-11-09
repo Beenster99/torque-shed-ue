@@ -96,6 +96,7 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 	{
 		bLookSent = true;
 		PS->ServerSetLook(FTorqueSettings::Get().Name, (uint8)FTorqueSettings::Get().Colour);
+		PS->ServerSetRiderStyle((uint8)FTorqueSettings::Get().RiderStyle);
 	}
 	if (B->Activity() != SentActivity)
 	{
@@ -227,7 +228,11 @@ void ATorquePlayerController::Changed()
 	FTorqueSettings& S = FTorqueSettings::Get();
 	S.Save();
 	S.Apply(GetWorld());
-	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->ServerSetLook(S.Name, (uint8)S.Colour);
+	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>())
+	{
+		PS->ServerSetLook(S.Name, (uint8)S.Colour);
+		PS->ServerSetRiderStyle((uint8)S.RiderStyle);
+	}
 }
 
 TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
@@ -284,7 +289,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Sound"), FString(), TEXT("Sound effects and engines volumes"), [this]() { Open(EPage::Sound); });
 		Add(TEXT("Gameplay"), FString(), TEXT("Riding realism"), [this]() { Open(EPage::Gameplay); });
 		Add(TEXT("Controller"), FString(), TEXT("Look speeds, invert, the lean stick, and every key and button"), [this]() { Open(EPage::Controller); });
-		Add(TEXT("Character"), FString(), TEXT("Your name and colour, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
+		Add(TEXT("Character"), FString(), TEXT("Your name, colour and riding style, as everyone in co-op sees them"), [this]() { Open(EPage::Character); });
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	case EPage::Graphics:
@@ -378,6 +383,11 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		R.Add(MoveTemp(Name));
 		Setting(TEXT("Colour"), FTorqueSettings::ColourNames()[S.Colour], TEXT("Your jacket, and your name over you"),
 			[&S](int32 D) { S.Colour = Wrap(S.Colour + D, FTorqueSettings::Colours().Num()); });
+		{
+			const FTorqueSettings::FRiderStyle& St = FTorqueSettings::RiderStyles()[FMath::Clamp(S.RiderStyle, 0, FTorqueSettings::RiderStyles().Num() - 1)];
+			Setting(TEXT("Riding style"), St.Name, FString(St.Desc) + TEXT(" Only looks: the bike rides the same."),
+				[&S](int32 D) { S.RiderStyle = Wrap(S.RiderStyle + D, FTorqueSettings::RiderStyles().Num()); });
+		}
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	}
