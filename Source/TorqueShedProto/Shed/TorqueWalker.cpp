@@ -7,6 +7,7 @@
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorquePaintBayRoom.h"
 #include "Shed/TorqueBoothHooks.h"
+#include "Shed/TorqueShedRadio.h"
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
@@ -162,6 +163,7 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 		return FString::Printf(TEXT("Cooling fan (%s, engine at %.0f C)"), (B && B->DynoRoom().bFan) ? TEXT("on") : TEXT("off"),
 			TorqueShedPower::DynoTemp(B ? B->DynoRoom().Heat : 0.0f));
 	case ETorquePlace::Hook: return FString::Printf(TEXT("Spray bay hook %d"), P.Index + 1);
+	case ETorquePlace::Radio: return TEXT("Shed radio (everyone hears it)");
 	case ETorquePlace::PaintBench:
 		if (B && B->PaintBay().BenchBy != 0 && B->PaintBay().BenchBy != B->Me()) return TEXT("Mixing bench (someone's at it)");
 		return TEXT("Mixing bench");
@@ -308,6 +310,10 @@ void ATorqueWalker::BeginPlay()
 		bool bHooks = false;
 		for (TActorIterator<ATorqueBoothHooks> It(World); It; ++It) bHooks = true;
 		if (!bHooks) World->SpawnActor<ATorqueBoothHooks>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// And the radio on its shelf over the workbench.
+		bool bRadio = false;
+		for (TActorIterator<ATorqueShedRadio> It(World); It; ++It) bRadio = true;
+		if (!bRadio) World->SpawnActor<ATorqueShedRadio>(TorqueShedRadio::At, FRotator::ZeroRotator);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -972,6 +978,23 @@ void ATorqueWalker::MakePlan()
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
+	{
+		// The radio (walker.gd _make_plan): on, then round the stations; F switches it off.
+		const int32 Num = TorqueShedRadio::Stations().Num();
+		if (Num == 0) return;
+		if (!B->RadioOn()) Plan = MakeOne(ETorqueShedAct::Radio, 0.2, TEXT("switch the radio on"));
+		else
+		{
+			const int32 Next = (B->RadioStation() + 1) % Num;
+			Plan = MakeOne(ETorqueShedAct::Radio, 0.2, FString::Printf(TEXT("tune to %s"), *TorqueShedRadio::Stations()[Next].Name));
+			Plan.Request.Colour = Next;
+		}
+		if (!B->RadioOn()) Plan.Request.Colour = B->RadioStation();
+		Plan.Request.Item = 1;
+		Plan.Blocked = B->Check(Me, Plan.Request);
+		return;
+	}
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::PaintBench || TargetPlace->Kind == ETorquePlace::PaintShelf)) return;   // F, as the tins go
 	if (B->PaintBay().HeldTin(Me)) return;   // a tin in your hands: nothing else until it's put down
 	// A part in your hands: your hands are full, whatever tool was last picked (the scroll wheel
@@ -1779,6 +1802,17 @@ void ATorqueWalker::Interact()
 		OpenComputer();
 		return;
 	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Radio)
+	{
+		// The radio's switch (walker.gd: interact at the radio).
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::Radio;
+		R.Item = B->RadioOn() ? 0 : 1;
+		R.Colour = B->RadioStation();
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		return;
+	}
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::DynoSwitch || TargetPlace->Kind == ETorquePlace::DynoDesk))
 	{
 		// The dyno room: the switches by the door, and the desk (F runs the bike on the rig).
@@ -2030,6 +2064,14 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({TWI::PlaceName(*TargetPlace, B), FColor::White, 0.8f});
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Radio)
+			{
+				// What's on (walker.gd: the station, then the song), and its switch.
+				TArray<FString> Playing;
+				ATorqueShedRadio::NowPlaying(this).ParseIntoArray(Playing, TEXT("\n"));
+				for (const FString& L : Playing) HudLines.Add({L, Info, 0.6f});
+				HudLines.Add({B->RadioOn() ? TEXT("F / Triangle: switch it off") : TEXT("F / Triangle: switch it on"), Prompt, 0.65f});
+			}
 			if (TargetPlace->Kind == ETorquePlace::PaintBench)
 				HudLines.Add({B->PaintBay().HeldTin(B->Me()) ? TEXT("F / Triangle: put the tin on the scale and step up to the bench")
 					: TEXT("F / Triangle: step up to the mixing bench"), Prompt, 0.65f});

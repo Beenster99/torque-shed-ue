@@ -107,6 +107,9 @@ public:
 	UPROPERTY() bool bDynoFan = false;
 	UPROPERTY() bool bDynoLights = true;
 	UPROPERTY() float DynoHeat = 0.0f;
+	// The shed radio (added to version 3 too: an older save's is off).
+	UPROPERTY() bool bRadioOn = false;
+	UPROPERTY() int32 RadioStation = 0;
 	// The paint mixing bay (FTorquePaintBay::Serialize's bytes; none: a new garage's bay).
 	UPROPERTY() TArray<uint8> PaintBay;
 };

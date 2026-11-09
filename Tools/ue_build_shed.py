@@ -612,10 +612,10 @@ def workbench(m):
     for i in range(3):   # red drawer fronts along its face
         box("Bench_Drawers_%d" % i, BENCH_X + 45, BENCH_X + 47, y0 + 10, y1 - 10, 15 + i * 25, 35 + i * 25, m["red"], folder="Bench", collide=False)
     label_text("Bench_Poster", "WORKBENCH", (-HALF_X + 2, BENCH_Y1 - 40, 132), 0.0, 14.0, (30, 30, 30), "Bench")
-    # The radio on its shelf over the bench's back end, and the crew board on the wall above.
+    # The radio's shelf over the bench's back end, and the crew board on the wall above.
     ry = BENCH_Y0 + 60 - 25
     box("Radio_Shelf", -HALF_X, -HALF_X + 34, ry - 30, ry + 30, 158.5, 161.5, m["wood"], folder="Bench", collide=False)
-    box("Radio", -HALF_X + 6, -HALF_X + 30, ry - 18, ry + 18, 161.5, 178, m["dark"], folder="Bench", collide=False)
+    # (The radio on it is ATorqueShedRadio: it plays, its dial glows, the song shows over it.)
     box("CrewBoard", -HALF_X, -HALF_X + 6, 60 - 150, 60 + 150, 255 - 84, 255 + 84, m["dark"], folder="Bench", collide=False)
     box("CrewBoard_Glass", -HALF_X + 6, -HALF_X + 7, 60 - 144, 60 + 144, 255 - 78, 255 + 78, m["screen"], folder="Bench", collide=False)
     # The tyre changer, against the west wall just past the bench's end.

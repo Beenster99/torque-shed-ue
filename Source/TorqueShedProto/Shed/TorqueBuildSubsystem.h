@@ -161,6 +161,7 @@ enum class ETorqueShedAct : uint8
 	PaintTinBin,                         // ... into the bin
 	PaintCup,                            // the gun's cup filled from it
 	PaintHook,                           // booth hook Item's tip set to Amount cm off the floor
+	Radio,                               // the shed radio on (Item 1) or off (Item 0), tuned to station Colour
 	Count
 };
 
@@ -258,6 +259,10 @@ public:
 	int32 DynoBay() const;   // the bike on the rig (not being wheeled), or INDEX_NONE
 	bool Strapped() const { return DynoBay() != INDEX_NONE && Dyno.StrapsDone() == 4; }
 	const FTorqueDynoRoom& DynoRoom() const { return Dyno; }
+	// The shed radio everyone hears (shed_state.gd radio): on or off, and its station
+	// (TorqueShedRadio::Stations). Each player's game streams it itself (ATorqueShedRadio).
+	bool RadioOn() const { return bRadioOn; }
+	int32 RadioStation() const { return RadioTuned; }
 	bool HasDynoRun(int32 Bay) const { return Exists(Bay) && Bikes[Bay].DynoRuns.Num() > 0; }
 	const FTorqueDynoRun& DynoRunOf(int32 Bay) const;
 	// The game's clock everyone shares (the server's world time), that runs are played back by.
@@ -385,6 +390,8 @@ public:
 private:
 	TArray<FTorqueShedBike> Bikes;
 	FTorqueDynoRoom Dyno;
+	bool bRadioOn = false;
+	int32 RadioTuned = 0;
 	FTorquePaintBay Paint;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;

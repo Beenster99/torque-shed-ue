@@ -4,6 +4,7 @@
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
+#include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedSave.h"
 #include "Engine/GameInstance.h"
@@ -225,6 +226,8 @@ void UTorqueBuildSubsystem::StartFresh()
 	Bikes.SetNum(Bays);
 	Items.Reset();
 	Paint = FTorquePaintBay::Starter();
+	bRadioOn = false;
+	RadioTuned = 0;
 	NextId = 1;
 	Mine = 0;
 	bHostCopy = false;
@@ -265,6 +268,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.bDynoFan = Dyno.bFan;
 	S.bDynoLights = Dyno.bLights;
 	S.DynoHeat = Dyno.Heat;
+	S.bRadioOn = bRadioOn;
+	S.RadioStation = RadioTuned;
 	{
 		// The paint mixing bay, as bytes (FTorquePaintBay::Serialize).
 		S.PaintBay.Reset();
@@ -337,6 +342,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	Dyno.bFan = S.bDynoFan;
 	Dyno.bLights = S.bDynoLights;
 	Dyno.Heat = S.DynoHeat;
+	bRadioOn = S.bRadioOn;
+	RadioTuned = FMath::Clamp(S.RadioStation, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
 	Paint = FTorquePaintBay::Starter();
 	if (S.PaintBay.Num() > 0)
 	{
@@ -433,7 +440,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 7;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights)
+constexpr int32 BytesLayout = 8;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio)
 
 struct FNameTable
 {
@@ -572,6 +579,9 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 	int32 NextIdOut = NextId;
 	Ar << NextIdOut;
 	const_cast<FTorquePaintBay&>(Paint).Serialize(Ar, true);
+	uint8 bRadioB = bRadioOn ? 1 : 0;
+	int32 RadioOut = RadioTuned;
+	Ar << bRadioB << RadioOut;
 
 	Out.Reset();
 	FMemoryWriter Head(Out);
@@ -701,6 +711,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Ar << HostNextId;
 	FTorquePaintBay NewPaint;
 	const bool bPaintRead = NewPaint.Serialize(Ar, true);
+	uint8 bRadioB = 0;
+	int32 RadioIn = 0;
+	Ar << bRadioB << RadioIn;
 	if (Ar.IsError() || !bPaintRead)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
@@ -715,6 +728,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Items = MoveTemp(NewItems);
 	Dyno = NewDyno;
 	Paint = MoveTemp(NewPaint);
+	bRadioOn = bRadioB != 0;
+	RadioTuned = FMath::Clamp(RadioIn, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -1885,6 +1900,10 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	case ETorqueShedAct::DynoFan:
 	case ETorqueShedAct::DynoLights:
 		return FString();
+	case ETorqueShedAct::Radio:
+		if (TorqueShedRadio::Stations().Num() == 0) return TEXT("The radio has no stations.");
+		if (!TorqueShedRadio::Stations().IsValidIndex(R.Colour)) return TEXT("No such station.");
+		return FString();
 	case ETorqueShedAct::DynoRun:
 	{
 		if (!Exists(R.Bay) || !OnDyno(R.Bay)) return TEXT("Wheel a bike onto the dyno first.");
@@ -2320,6 +2339,11 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	case ETorqueShedAct::DynoLights:
 		Dyno.bLights = !Dyno.bLights;
 		Text = Dyno.bLights ? TEXT("Dyno room lights on") : TEXT("Dyno room lights off");
+		break;
+	case ETorqueShedAct::Radio:
+		bRadioOn = R.Item != 0;
+		RadioTuned = R.Colour;
+		Text = bRadioOn ? FString::Printf(TEXT("Radio: %s"), *TorqueShedRadio::Stations()[RadioTuned].Name) : FString(TEXT("Radio off"));
 		break;
 	case ETorqueShedAct::DynoRun:
 	{
