@@ -2172,7 +2172,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!TorqueShedLayout::OnSite(R.Place.GetLocation())) return TEXT("You can't put it there.");
 		if (A == ETorqueShedAct::ReleaseBike)
 			for (int32 L = 0; L <= WashLift; ++L)
-				if (LiftUp(L) && FVector::Dist2D(R.Place.GetLocation(), TorqueShedLayout::LiftXf(L).GetLocation()) < 90.0)
+				if (IsLift(L) && LiftUp(L) && TorqueShedLayout::OntoLift(L, R.Place.GetLocation()))
 					return L == WashLift ? FString(TEXT("The wash bay lift is up. Lower it first, then wheel the bike on."))
 						: FString::Printf(TEXT("Bay %d's lift is up. Lower it first, then wheel the bike on."), L + 1);
 		return FString();
@@ -2693,7 +2693,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		const FVector At(R.Place.GetLocation().X, R.Place.GetLocation().Y, 0.0);
 		B.Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), At);
 		const int32 OnRig = DynoBay();
-		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0)
+		// Wheeled onto a lift (its own bay's, another empty bay's, the wash bay's): square on it,
+		// its front tyre in the lift's wheel vice (ATorqueBikeLift slides the vice to it).
+		int32 Onto = INDEX_NONE;
+		for (int32 L = 0; L <= WashLift && Onto == INDEX_NONE; ++L)
+			if (IsLift(L) && TorqueShedLayout::OntoLift(L, At) && (L == R.Bay || BikeOnLift(L, R.Bay) == INDEX_NONE)) Onto = L;
+		if (FVector::Dist2D(At, HomeOf(R.Bay).GetLocation()) < 90.0 || Onto == R.Bay)
 		{
 			B.bAway = false;
 			B.Xf = HomeOf(R.Bay);
@@ -2705,11 +2710,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 			for (bool& Strap : Dyno.Straps) Strap = false;
 			Text = FString::Printf(TEXT("%s is on the dyno. Strap it down at the four posts (hold the work button), then run it at the desk."), *B.Name);
 		}
-		else if (FVector::Dist2D(At, TorqueShedLayout::WashLiftXf().GetLocation()) < 90.0 && BikeOnLift(WashLift, R.Bay) == INDEX_NONE)
+		else if (Onto != INDEX_NONE)
 		{
-			// wash.gd LIFT_SNAP: wheeled onto the wash bay's lift, square on it in its wheel chock.
-			B.Xf = TorqueShedLayout::WashLiftXf();
-			Text = FString::Printf(TEXT("%s is on the wash bay lift. F on the button post raises it."), *B.Name);
+			// wash.gd LIFT_SNAP: square on the lift, locked in its wheel vice.
+			B.Xf = TorqueShedLayout::LiftXf(Onto);
+			Text = FString::Printf(TEXT("%s is locked onto %s. F on the button post raises it."), *B.Name,
+				Onto == WashLift ? TEXT("the wash bay lift") : *FString::Printf(TEXT("bay %d's lift"), Onto + 1));
 		}
 		else Text = FString::Printf(TEXT("%s is on its stand."), *B.Name);
 		break;
