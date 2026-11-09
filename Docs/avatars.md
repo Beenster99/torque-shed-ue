@@ -64,8 +64,18 @@ This works as in Torque Shed: the profile picture at the top right of the Esc me
 - **Character:** which MetaHuman you are. The default is the one that goes with your colour.
 - **Height:** up to 6% shorter or taller than that MetaHuman.
 - **Face:** eleven sliders: head size, brow, eye spacing, nose length, width and bridge, cheekbones, lips, jaw width, chin and ears. Each one moves a group of the MetaHuman face's own joints (`FACIAL_*`) from rest. **Reset the face** puts them all back.
-- **View:** the live picture on the right shows your face or your whole figure.
+- The sliders are drawn as tracks with knobs. Drag one with the mouse, or use Left / Right. The live picture on the right zooms to your face while a face slider is picked, and shows your whole figure for Who and Height. Letting go saves the change and sends it to the others.
 
 The picture is a scene capture of your avatar, posed high above the level, so it doesn't show up in the world. Your choice is saved in `GameUserSettings.ini` under `[TorqueProfile]`. It's sent to everyone in co-op as about 13 bytes (`ATorquePlayerState::Profile`), so the others see your height and face on your avatar.
 
 This doesn't edit the MetaHuman itself: skin, hair and clothes come from the avatars made on the PC. The face sliders are a runtime layer on top. If a slider seems to do nothing, that MetaHuman's face probably has no joints with those names at its quality level.
+
+## On the bike
+
+When avatars exist, you ride as your MetaHuman. The rider rig (`RiderRig`) is still posed for the bike's own seat, bars and pegs, including other bike styles, fitted bars, and geometry-mode seat and peg moves. The MetaHuman then reaches for the same points with its own limbs (`FTorqueAvatar::PoseRiding`):
+
+- its hips where the rig's are, and its back leaning the same way;
+- its wrists on the grips, hands turned palm down, and fingers wrapped round the grips, with two fingers over the clutch or brake lever when the rig's are;
+- its ankles on the pegs, or down on the road when stopped.
+
+A taller or shorter MetaHuman bends its knees and elbows more or less to fit. The kit body is hidden, and the helmet sits on the MetaHuman's head, with its hair hidden underneath. In first person you look out from that helmet. Start with `-TorqueKitRider` to ride as the old kit rider instead.

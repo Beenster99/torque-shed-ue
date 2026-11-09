@@ -320,6 +320,10 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				const FVector Wt = In.GripFit[S].TransformPosition(Hd.Grip + Twist.RotateVector(W0 - Hd.Grip));
 				const double Off = FMath::Clamp(In.Limp, 0.0, 1.0);
 				const FVector W = FMath::Lerp(In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot), In.HandsOff[S], Off);
+				const FVector GripNow = In.BarPivot + In.BarTurn.RotateVector(In.GripFit[S].TransformPosition(Hd.Grip) - In.BarPivot);
+				const FVector WristOnBar = In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot);
+				Last.Wrist[S] = W;
+				Last.Grip[S] = FMath::Lerp(GripNow, In.HandsOff[S] + (GripNow - WristOnBar), Off);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector E = RigMidJoint(P[I], W, Lu, Lf, ElbowPole[S]);
 				const FVector Hinge0 = FVector::CrossProduct(E0 - S0, W0 - E0), Hinge = FVector::CrossProduct(E - P[I], W - E);
@@ -341,6 +345,7 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				const FVector A0 = Bones[Foot[S]].Rest, K0 = Bones[Calf[S]].Rest, H0 = Bones[I].Rest;
 				const FVector Down = S == 0 ? In.FootDownL : In.FootDownR;
 				const FVector A = FMath::Lerp(In.PegFit[S].TransformPosition(A0), Down, FMath::Clamp(In.FeetDown, 0.0, 1.0));
+				Last.Ankle[S] = A;
 				const double Lt = (K0 - H0).Size(), Ls = (A0 - K0).Size();
 				const FVector Pole = (KneePole[S] + FVector(0.0, 0.0, 0.6) * In.FeetDown).GetSafeNormal();
 				const FVector K = RigMidJoint(P[I], A, Lt, Ls, Pole);
@@ -352,6 +357,12 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 		}
 	}
 
+	Last.Hip = P[Pelvis];
+	Last.Neck = P[Neck];
+	Last.Look = Look;
+	Last.Limp = FMath::Clamp(In.Limp, 0.0, 1.0);
+	for (int32 S = 0; S < 2; ++S) { Last.LeverFingers[S] = In.LeverFingers[S]; Last.LeverPull[S] = In.LeverPull[S]; }
+	Last.bValid = true;
 	PosedSpineDeg = FMath::RadiansToDegrees(FMath::Atan2(P[Neck].X - P[Pelvis].X, P[Neck].Z - P[Pelvis].Z));
 
 	// Hand the pose to the mesh, parents first.

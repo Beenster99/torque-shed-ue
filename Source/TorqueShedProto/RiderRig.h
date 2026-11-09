@@ -42,6 +42,21 @@ struct FRiderPoseInput
 	FTransform PegFit[2] = {FTransform::Identity, FTransform::Identity};
 };
 
+// Where the last Pose put the rider's joints and hands (pawn local cm): what a MetaHuman riding in
+// this rider's place reaches for (FTorqueAvatar::PoseRiding), so it sits on the same seat, holds the
+// same grips and stands on the same pegs on any bike.
+struct FRiderPoseOut
+{
+	FVector Hip = FVector::ZeroVector, Neck = FVector::ZeroVector;
+	FVector Wrist[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector Grip[2] = {FVector::ZeroVector, FVector::ZeroVector};    // the grip centres the hands hold
+	FVector Ankle[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FQuat Look = FQuat::Identity;
+	double LeverFingers[2] = {0.0, 0.0}, LeverPull[2] = {0.0, 0.0};
+	double Limp = 0.0;
+	bool bValid = false;
+};
+
 class FRiderRig
 {
 public:
@@ -63,8 +78,13 @@ public:
 	double SetSpineDeg() const;
 	double DrawnSpineDeg() const;
 
+	FRiderPoseOut Last;   // the joints the last Pose put the rider's at
+
 	UPoseableMeshComponent* Body = nullptr;
 	UStaticMeshComponent* Helmet = nullptr;
+	// The helmet's place relative to the head joint (pawn local, unturned): for a MetaHuman's head.
+	FTransform HelmetOnHead() const { return Head != INDEX_NONE ? HelmetRest * FTransform(-Bones[Head].Rest) : HelmetRest; }
+	FVector HelmetCentreOnHead() const { return Head != INDEX_NONE ? HelmetCentreRest - Bones[Head].Rest : FVector::ZeroVector; }
 	FVector HelmetCentre = FVector::ZeroVector;   // now, pawn local cm (the first-person eye is by it)
 
 private:

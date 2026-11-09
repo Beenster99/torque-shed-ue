@@ -203,6 +203,8 @@ void FTorqueAvatar::Destroy()
 	for (TWeakObjectPtr<USceneComponent>& P : Parts)
 		if (USceneComponent* C = P.Get()) C->DestroyComponent();
 	Parts.Reset();
+	Hair.Reset();
+	bRode = false;
 	FaceMesh = nullptr;
 	FaceFromDriver.Reset();
 	FaceLocal.Reset();
@@ -292,6 +294,18 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 			FBone B; B.Name = FName(W); B.Index = I; B.Rest = RefCS[I].GetLocation(); B.RestQ = RefCS[I].GetRotation();
 			Bones.Add(B);
 		}
+	// The fingers (riding: wrapped round the grips, two over a lever), when the mesh has them.
+	static const TCHAR* FingerNames[5] = {TEXT("thumb"), TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky")};
+	for (int32 S = 0; S < 2; ++S)
+		for (int32 F = 0; F < 5; ++F)
+			for (int32 J = 0; J < 3; ++J)
+			{
+				const FName FN(*FString::Printf(TEXT("%s_%02d_%s"), FingerNames[F], J + 1, S == 0 ? TEXT("l") : TEXT("r")));
+				const int32 I = Ref.FindBoneIndex(FN);
+				if (I == INDEX_NONE) continue;
+				FBone B; B.Name = FN; B.Index = I; B.Rest = RefCS[I].GetLocation(); B.RestQ = RefCS[I].GetRotation();
+				Bones.Add(B);
+			}
 	// Parents among the driven bones: the nearest driven ancestor.
 	Bones.Sort([](const FBone& A, const FBone& B) { return A.Index < B.Index; });   // the ref skeleton lists parents first
 	for (FBone& B : Bones)
@@ -324,6 +338,10 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 			return false;
 		}
 	if (Pelvis == INDEX_NONE || Head == INDEX_NONE) { Destroy(); return false; }
+	for (int32 S = 0; S < 2; ++S)
+		for (int32 F = 0; F < 5; ++F)
+			for (int32 J = 0; J < 3; ++J)
+				Finger[S][F][J] = Find(*FString::Printf(TEXT("%s_%02d_%s"), FingerNames[F], J + 1, S == 0 ? TEXT("l") : TEXT("r")));
 
 	// Its own axes: up the back, forward the way the toes point, right from the left hip to the right.
 	Up = (Bones[Head].Rest - Bones[Pelvis].Rest).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
@@ -369,6 +387,8 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	{
 		ApplyMaterials(Driver, E.BodyMaterials);
 		AddParts(Owner, Driver, E, Parts, FaceMesh);
+		for (const TWeakObjectPtr<USceneComponent>& C : Parts)
+			if (C.IsValid() && C->GetClass()->GetName().Contains(TEXT("Groom"))) Hair.Add(C);
 		if (FaceMesh) SetupFace();
 	}
 	// Its height: the top of its head (the face mesh's bounds, else the head bone and a crown), and
@@ -632,3 +652,132 @@ double FTorqueAvatar::StandingHeight() const
 	if (!Driver || Head == INDEX_NONE) return 0.0;
 	return RestHeight * Driver->GetRelativeScale3D().Z;
 }
+
+void FTorqueAvatar::SetShown(bool bBody, bool bHead, bool bHair)
+{
+	if (!Driver) return;
+	Driver->SetVisibility(bBody, false);
+	for (const TWeakObjectPtr<USceneComponent>& P : Parts)
+	{
+		USceneComponent* C = P.Get();
+		if (!C) continue;
+		const bool bIsHair = Hair.Contains(P);
+		C->SetVisibility(bIsHair ? (bHead && bHair) : (C == FaceMesh ? bHead : bBody), false);
+	}
+}
+
+bool FTorqueAvatar::HeadInParent(FVector& At, FQuat& Turn) const
+{
+	if (!Driver || !bRode) return false;
+	At = RideHead;
+	Turn = RideHeadTurn;
+	return true;
+}
+
+void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
+{
+	using namespace TorqueAvatarMath;
+	if (!Driver) return;
+	const int32 N = Bones.Num();
+	TArray<FQuat> D;
+	TArray<FVector> P;
+	TArray<bool> Set;
+	D.Init(FQuat::Identity, N);
+	P.SetNumZeroed(N);
+	Set.Init(false, N);
+	auto Fk = [&](int32 I) {
+		const int32 Par = Bones[I].Parent;
+		if (Par == INDEX_NONE) { if (!Set[I]) P[I] = Bones[I].Rest; return; }
+		P[I] = P[Par] + D[Par].RotateVector(Bones[I].Rest - Bones[Par].Rest);
+		if (!Set[I]) D[I] = D[Par];
+	};
+	// The parent's space to this mesh's component space (its turn to face +x, and its scale).
+	const FTransform Rel = Driver->GetRelativeTransform();
+	const FQuat RelQ = Rel.GetRotation();
+	auto ToC = [&Rel](const FVector& V) { return Rel.InverseTransformPosition(V); };
+	auto ToCQ = [&RelQ](const FQuat& Q) { return RelQ.Inverse() * Q * RelQ; };
+
+	// The back from the hips towards the rider's neck, shared up the spine as the rider rig does.
+	const FVector Hip = ToC(Tg.Hip);
+	const FQuat Back = FQuat::FindBetweenVectors(Bones[Neck != INDEX_NONE ? Neck : Head].Rest - Bones[Pelvis].Rest, ToC(Tg.Neck) - Hip);
+	const FQuat LookC = ToCQ(Tg.Look);
+	const double Off = FMath::Clamp(Tg.Limp, 0.0, 1.0);
+	for (int32 I = 0; I < N; ++I)
+	{
+		if (I == Pelvis) { P[I] = Hip; D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.15); Set[I] = true; continue; }
+		if (I == Spine[0]) { D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.4); Set[I] = true; }
+		else if (I == Spine[1]) { D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.75); Set[I] = true; }
+		else if (I == Spine[2] || I == Neck) { D[I] = Back; Set[I] = true; }
+		else if (I == Head) { D[I] = LookC * FQuat::Slerp(FQuat::Identity, Back, 0.3); Set[I] = true; }
+		Fk(I);
+		for (int32 S = 0; S < 2; ++S)
+		{
+			const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
+			if (I == UpperArm[S])
+			{
+				// The wrist where the rider's is; the hand aimed into the grip, palm down; elbows out
+				// and down. Too short an arm reaches as far as it can.
+				const FVector S0 = Bones[I].Rest, E0 = Bones[LowerArm[S]].Rest, W0 = Bones[HandBone[S]].Rest;
+				const FVector W = ToC(Tg.Wrist[S]);
+				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
+				const FVector Pole = (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
+				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
+				const FVector Hinge0 = FVector::CrossProduct(W0 - S0, -Fwd);
+				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
+				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
+				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
+				// The hand: its rest aim (wrist to middle knuckle) and palm (towards the body in the
+				// A-pose) turned to the grip's aim and palm down.
+				const int32 Knuckle = Finger[S][2][0];
+				const FVector Aim0 = Knuckle != INDEX_NONE ? Bones[Knuckle].Rest - W0 : W0 - E0;
+				const FVector Palm0 = -Right * Side;
+				FVector Aim1 = ToC(Tg.Grip[S]) - W;
+				if (Aim1.Size() < 2.0) Aim1 = W - E;
+				const FVector Palm1 = (-Up - Aim1.GetSafeNormal() * FVector::DotProduct(-Up, Aim1.GetSafeNormal())).GetSafeNormal(UE_SMALL_NUMBER, -Up);
+				D[HandBone[S]] = FQuat::Slerp(Align(Aim0, Palm0, Aim1, Palm1), D[LowerArm[S]], Off); Set[HandBone[S]] = true;
+				// The fingers round the grip; the index and middle over a lever when they're on it.
+				const FVector Curl0 = FVector::CrossProduct(Aim0, Palm0).GetSafeNormal();
+				const FVector Curl = D[HandBone[S]].RotateVector(Curl0);
+				static const double WrapDeg[3] = {55.0, 80.0, 45.0};
+				for (int32 F = 0; F < 5; ++F)
+				{
+					double K = 1.0 - Off * 0.7;
+					if (F == 1 || F == 2)
+					{
+						const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
+						K *= FMath::Lerp(1.0, 0.35 + 0.45 * Pull, On);
+					}
+					double Sum = 0.0;
+					for (int32 J = 0; J < 3; ++J)
+					{
+						const int32 B = Finger[S][F][J];
+						if (B == INDEX_NONE) continue;
+						Sum += (F == 0 ? 0.45 : 1.0) * WrapDeg[J] * K;
+						D[B] = FQuat(Curl, FMath::DegreesToRadians(Sum)) * D[HandBone[S]]; Set[B] = true;
+					}
+				}
+			}
+			else if (I == Thigh[S])
+			{
+				// Ankles where the rider's are (on the pegs, or down at a stop); knees forward and a little out.
+				const FVector H0 = Bones[I].Rest, K0 = Bones[Calf[S]].Rest, A0 = Bones[FootBone[S]].Rest;
+				const FVector A = ToC(Tg.Ankle[S]);
+				const double Lt = (K0 - H0).Size(), Ls = (A0 - K0).Size();
+				const FVector Pole = (Fwd + Right * (Side * 0.25) + Up * 0.2).GetSafeNormal();
+				const FVector K = MidJoint(P[I], A, Lt, Ls, Pole);
+				const FVector Hinge0 = FVector::CrossProduct(A0 - H0, Fwd);
+				const FVector Hinge = FVector::CrossProduct(A - P[I], Pole);
+				D[I] = Align(K0 - H0, Hinge0, K - P[I], Hinge); Set[I] = true;
+				D[Calf[S]] = Align(A0 - K0, Hinge0, A - K, Hinge); Set[Calf[S]] = true;
+				D[FootBone[S]] = FQuat::Identity; Set[FootBone[S]] = true;   // level on the peg
+			}
+		}
+	}
+	for (int32 I = 0; I < N; ++I)
+		Driver->SetBoneTransformByName(Bones[I].Name, FTransform(D[I] * Bones[I].RestQ, P[I]), EBoneSpaces::ComponentSpace);
+	PoseFace();
+	RideHead = Rel.TransformPosition(P[Head]);
+	RideHeadTurn = RelQ * D[Head] * RelQ.Inverse();
+	bRode = true;
+}
+

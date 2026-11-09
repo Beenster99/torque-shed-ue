@@ -35,6 +35,20 @@ struct FTorqueAvatarInput
 	FVector ToolGrip = FVector::ZeroVector;
 };
 
+// What a MetaHuman riding a bike reaches for (the parent's space, cm): the joints the bike's rider
+// rig was posed to for that bike's seat, bars and pegs (FRiderRig::Last), so the avatar sits, holds
+// and stands where any rider of that bike would, with its own arms and legs.
+struct FTorqueRideTargets
+{
+	FVector Hip = FVector::ZeroVector, Neck = FVector::ZeroVector;
+	FVector Wrist[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector Grip[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector Ankle[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FQuat Look = FQuat::Identity;            // the head's turn, in the parent's space
+	double LeverFingers[2] = {0.0, 0.0}, LeverPull[2] = {0.0, 0.0};
+	double Limp = 0.0;                       // off the bike: hands loose
+};
+
 class FTorqueAvatar
 {
 public:
@@ -48,6 +62,13 @@ public:
 	// The player's profile on it: height, and the face sliders on its face's joints (TorqueProfile.h).
 	void SetLook(const FTorqueProfile& Look);
 	FVector HeadWorld() const;
+	// On a bike: seated, hands on the grips, feet on the pegs (FTorqueRideTargets).
+	void PoseRiding(const FTorqueRideTargets& T);
+	// The head joint's place and its turn from rest in the parent's space, as last posed (riding).
+	bool HeadInParent(FVector& At, FQuat& Turn) const;
+	// Showing the body (and clothes), the head (face) and the hair: a helmet over it, or the rider's
+	// own first-person view, hides some.
+	void SetShown(bool bBody, bool bHead, bool bHair);
 	double StandingHeight() const;   // cm, about: the head bone's height plus the crown, at its scale
 	void Destroy();
 	bool IsValid() const { return Driver != nullptr; }
@@ -57,6 +78,10 @@ private:
 	UPoseableMeshComponent* Driver = nullptr;
 	TWeakObjectPtr<AActor> Spawned;   // the MetaHuman Blueprint, when one is listed (older avatars.json)
 	TArray<TWeakObjectPtr<USceneComponent>> Parts;   // its face, clothes and grooms, when listed as parts
+	TArray<TWeakObjectPtr<USceneComponent>> Hair;    // the grooms among them
+	FVector RideHead = FVector::ZeroVector;
+	FQuat RideHeadTurn = FQuat::Identity;
+	bool bRode = false;
 	// The face, posed too: the body's bones it shares copied over each frame, its own (FACIAL_*)
 	// at rest moved by the profile's face sliders (SetLook).
 	UPoseableMeshComponent* FaceMesh = nullptr;
@@ -72,6 +97,7 @@ private:
 	int32 Pelvis = INDEX_NONE, Spine[3] = {INDEX_NONE, INDEX_NONE, INDEX_NONE}, Neck = INDEX_NONE, Head = INDEX_NONE;
 	int32 UpperArm[2] = {INDEX_NONE, INDEX_NONE}, LowerArm[2] = {INDEX_NONE, INDEX_NONE}, HandBone[2] = {INDEX_NONE, INDEX_NONE};
 	int32 Thigh[2] = {INDEX_NONE, INDEX_NONE}, Calf[2] = {INDEX_NONE, INDEX_NONE}, FootBone[2] = {INDEX_NONE, INDEX_NONE};
+	int32 Finger[2][5][3];   // thumb, index, middle, ring, pinky; 01..03 (INDEX_NONE without)
 	// The body's own axes in its component space (found from the rest pose), and sizes.
 	FVector Up = FVector::UpVector, Fwd = FVector::ForwardVector, Right = FVector::RightVector;
 	double ArmLen = 55.0, LegLen = 85.0;
