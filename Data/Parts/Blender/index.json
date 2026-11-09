@@ -46457,6 +46457,581 @@
    ],
    "morph": "tank/sports_tourer_5.morph.bin",
    "redrawn": true
+  },
+  "tank/chopper_1": {
+   "kind": "tank",
+   "id": "chopper_1",
+   "glb": "tank/chopper_1.glb",
+   "lods": [
+    "tank/chopper_1.glb",
+    "tank/chopper_1_lod1.glb",
+    "tank/chopper_1_lod2.glb"
+   ],
+   "tris": [
+    24360,
+    6048,
+    1814
+   ],
+   "bounds": {
+    "min": [
+     -0.9964,
+     -0.032,
+     -0.0908
+    ],
+    "max": [
+     0.0684,
+     0.1707,
+     0.0908
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12824,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12812,
+       "offset": 359072
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12566,
+       "offset": 717808
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12639,
+       "offset": 1069656
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12486,
+       "offset": 1423548
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12486,
+       "offset": 1773156
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12486,
+       "offset": 2122764
+      }
+     ]
+    }
+   ],
+   "morph": "tank/chopper_1.morph.bin",
+   "redrawn": true
+  },
+  "tank/chopper_2": {
+   "kind": "tank",
+   "id": "chopper_2",
+   "glb": "tank/chopper_2.glb",
+   "lods": [
+    "tank/chopper_2.glb",
+    "tank/chopper_2_lod1.glb",
+    "tank/chopper_2_lod2.glb"
+   ],
+   "tris": [
+    24360,
+    6048,
+    1814
+   ],
+   "bounds": {
+    "min": [
+     -0.9964,
+     -0.0596,
+     -0.1092
+    ],
+    "max": [
+     0.0684,
+     0.1399,
+     0.1092
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12647,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12640,
+       "offset": 354116
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12369,
+       "offset": 708036
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12431,
+       "offset": 1054368
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12298,
+       "offset": 1402436
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12298,
+       "offset": 1746780
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12298,
+       "offset": 2091124
+      }
+     ]
+    }
+   ],
+   "morph": "tank/chopper_2.morph.bin",
+   "redrawn": true
+  },
+  "tank/chopper_3": {
+   "kind": "tank",
+   "id": "chopper_3",
+   "glb": "tank/chopper_3.glb",
+   "lods": [
+    "tank/chopper_3.glb",
+    "tank/chopper_3_lod1.glb",
+    "tank/chopper_3_lod2.glb"
+   ],
+   "tris": [
+    24360,
+    6048,
+    1814
+   ],
+   "bounds": {
+    "min": [
+     -0.9964,
+     -0.0264,
+     -0.0839
+    ],
+    "max": [
+     0.0684,
+     0.1151,
+     0.0839
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12582,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12581,
+       "offset": 352296
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12375,
+       "offset": 704564
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12414,
+       "offset": 1051064
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12273,
+       "offset": 1398656
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12273,
+       "offset": 1742300
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12273,
+       "offset": 2085944
+      }
+     ]
+    }
+   ],
+   "morph": "tank/chopper_3.morph.bin",
+   "redrawn": true
+  },
+  "tank/chopper_4": {
+   "kind": "tank",
+   "id": "chopper_4",
+   "glb": "tank/chopper_4.glb",
+   "lods": [
+    "tank/chopper_4.glb",
+    "tank/chopper_4_lod1.glb",
+    "tank/chopper_4_lod2.glb"
+   ],
+   "tris": [
+    24360,
+    6048,
+    1814
+   ],
+   "bounds": {
+    "min": [
+     -0.9964,
+     -0.0276,
+     -0.1049
+    ],
+    "max": [
+     0.0684,
+     0.1541,
+     0.1049
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12521,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12515,
+       "offset": 350588
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12240,
+       "offset": 701008
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12308,
+       "offset": 1043728
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12176,
+       "offset": 1388352
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12176,
+       "offset": 1729280
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12176,
+       "offset": 2070208
+      }
+     ]
+    }
+   ],
+   "morph": "tank/chopper_4.morph.bin",
+   "redrawn": true
+  },
+  "tank/chopper_5": {
+   "kind": "tank",
+   "id": "chopper_5",
+   "glb": "tank/chopper_5.glb",
+   "lods": [
+    "tank/chopper_5.glb",
+    "tank/chopper_5_lod1.glb",
+    "tank/chopper_5_lod2.glb"
+   ],
+   "tris": [
+    24360,
+    6048,
+    1814
+   ],
+   "bounds": {
+    "min": [
+     -0.9964,
+     -0.0477,
+     -0.0875
+    ],
+    "max": [
+     0.0684,
+     0.1286,
+     0.0875
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12668,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12668,
+       "offset": 354704
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12404,
+       "offset": 709408
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12486,
+       "offset": 1056720
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12318,
+       "offset": 1406328
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12318,
+       "offset": 1751232
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 12318,
+       "offset": 2096136
+      }
+     ]
+    }
+   ],
+   "morph": "tank/chopper_5.morph.bin",
+   "redrawn": true
   }
  },
  "about": "The Godot game's Blender bike parts in our frame (x forward, y up, z right; metres). Written by Tools/import_blender_parts.py; do not edit.",

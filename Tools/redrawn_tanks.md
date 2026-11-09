@@ -100,3 +100,24 @@ beenster's five sports tourer tank drawings (Nov 2026) replace the tourer's tank
   step bracket sits at the plan's rear tabs, and tank 5's flank loop is a 2 mm pocket. Lugs, cap and pocket
   are in the model files, not the game mesh (body only, as every tank).
 - Models, renders and scripts are in the project files under `tourer_tanks/`.
+
+# New chopper tanks
+
+beenster's five chopper tank drawings (Nov 2026) replace the chopper's tanks:
+
+| Drawing | Part and shape | Capacity |
+|---|---|---|
+| Tank 1 | `chopper_1` (the chopper reference bike's tank) | 7 L |
+| Tank 2 | `chopper_2` | 9 L |
+| Tank 3 | `chopper_3` | 4 L |
+| Tank 4 | `chopper_4` | 7 L |
+| Tank 5 | `chopper_5` | 5 L |
+
+- `peanut_9` and `coffin_10` are no longer offered for choppers (they stay for bobbers and cruisers).
+  `godot_removed.json` keeps Godot's own entry of every part the overlay removes or takes a style off,
+  so the Godot comparisons use Godot's parts.
+- The tanks are `like` the `coffin` shape and drawn whole at its length (0.5 m): they taper to the tail
+  with no separate tail. Each section is the front view's round outline scaled to the station, over a
+  round-roofed tunnel the whole length; tank 1's side line is a crease, and tank 2's double outline is its
+  rounded edge (no crease).
+- Models, renders and scripts are in the project files under `chopper_tanks/`.

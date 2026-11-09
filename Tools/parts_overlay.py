@@ -22,8 +22,8 @@ REPO = os.path.dirname(HERE)
 PATH = os.path.join(REPO, "Data", "Parts", "Redrawn", "parts_overlay.json")
 PARTS = os.path.join(REPO, "Data", "Parts", "parts.json")
 LAYOUT = os.path.join(REPO, "Data", "Fitment", "layout.json")
-# The Godot parts the overlay removes, kept as Godot has them, so SimTest/layout_test can still lay out and
-# draw Godot's own reference bikes to compare against.
+# Godot's own entries for the parts the overlay removes or changes (drop_styles), so SimTest/layout_test and
+# spec_test can still lay out, draw and ride Godot's own bikes to compare against.
 REMOVED = os.path.join(REPO, "Data", "Parts", "Redrawn", "godot_removed.json")
 
 
@@ -40,15 +40,17 @@ def apply_catalogue(cat, ov=None):
             p = cat.get(kind, {}).pop(pid, None)
             if p is not None:
                 removed.setdefault(kind, {})[pid] = p
-    if json.dumps(removed, sort_keys=True) != before:
-        open(REMOVED, "w", encoding="utf-8").write(json.dumps(removed, indent="\t", ensure_ascii=False) + "\n")
     for kind, m in ov.get("drop_styles", {}).items():
         for pid, styles in m.items():
             p = cat.get(kind, {}).get(pid)
             if p is not None:
+                if any(s in p.get("styles", []) for s in styles) and pid not in removed.get(kind, {}):
+                    removed.setdefault(kind, {})[pid] = json.loads(json.dumps(p))   # (Godot's, the first time)
                 p["styles"] = [s for s in p.get("styles", []) if s not in styles]
     for kind, parts in ov.get("add", {}).items():
         cat.setdefault(kind, {}).update(parts)
+    if json.dumps(removed, sort_keys=True) != before:
+        open(REMOVED, "w", encoding="utf-8").write(json.dumps(removed, indent="\t", ensure_ascii=False) + "\n")
     return cat
 
 

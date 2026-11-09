@@ -23,6 +23,149 @@
 				"tourer"
 			],
 			"pack": "adventure"
+		},
+		"enduro_12": {
+			"name": "Enduro tank, 12 L",
+			"description": "Narrow plastic tank with radiator shrouds down the sides.",
+			"mass": 2.0,
+			"capacity": 12,
+			"style": "enduro",
+			"color": [
+				0.95,
+				0.95,
+				0.95
+			],
+			"price": 200,
+			"material": "plastic",
+			"look": {
+				"shape": "enduro",
+				"badge": "none"
+			},
+			"styles": [
+				"mx",
+				"supermoto",
+				"scrambler",
+				"adventure"
+			],
+			"pack": "mx"
+		},
+		"angular_gt_19": {
+			"name": "Angular sports-tourer tank, 19 L",
+			"description": "Folded from flat panels with sharp creases: a high front shoulder sloping down to the seat, flat sides and deep knee cut-outs. Modern big-tourer looks with the range to match.",
+			"mass": 4.6,
+			"capacity": 19,
+			"style": "angular",
+			"color": [
+				0.55,
+				0.56,
+				0.58
+			],
+			"price": 340,
+			"look": {
+				"shape": "gt",
+				"cap": "flush",
+				"badge": "none"
+			},
+			"styles": [
+				"tourer",
+				"roader",
+				"naked"
+			],
+			"pack": "tourer"
+		},
+		"touring_23": {
+			"name": "Touring tank, 23 L",
+			"description": "Broad and deep with knee recesses. Goes forever between fills.",
+			"mass": 5.5,
+			"capacity": 23,
+			"style": "touring",
+			"color": [
+				0.2,
+				0.2,
+				0.22
+			],
+			"price": 300,
+			"look": {
+				"shape": "touring",
+				"badge": "oval"
+			},
+			"styles": [
+				"tourer",
+				"roader"
+			],
+			"pack": "tourer"
+		},
+		"fatbob_23": {
+			"name": "Fat bob tank, 23 L",
+			"description": "The big split cruiser tank: twin caps and a chrome console down the middle with the speedo in it.",
+			"mass": 5.5,
+			"capacity": 23,
+			"style": "touring",
+			"color": [
+				0.04,
+				0.04,
+				0.045
+			],
+			"price": 340,
+			"look": {
+				"shape": "fatbob",
+				"cap": "twin",
+				"console": true,
+				"badge": "wing"
+			},
+			"styles": [
+				"cruiser",
+				"tourer"
+			],
+			"pack": "cruiser"
+		},
+		"peanut_9": {
+			"name": "Peanut tank, 9 L",
+			"description": "Slim and tiny, perched high on the frame. Very bobber.",
+			"mass": 2.5,
+			"capacity": 9,
+			"style": "peanut",
+			"color": [
+				0.42,
+				0.05,
+				0.05
+			],
+			"price": 180,
+			"look": {
+				"shape": "peanut",
+				"badge": "oval",
+				"pads": false
+			},
+			"styles": [
+				"bobber",
+				"chopper",
+				"cruiser"
+			],
+			"pack": "bobber"
+		},
+		"coffin_10": {
+			"name": "Coffin tank, 10 L",
+			"description": "Square-edged with a flat top and a flush aircraft cap.",
+			"mass": 3.0,
+			"capacity": 10,
+			"style": "peanut",
+			"color": [
+				0.08,
+				0.08,
+				0.085
+			],
+			"price": 220,
+			"look": {
+				"shape": "coffin",
+				"cap": "flush",
+				"badge": "none",
+				"pads": false
+			},
+			"styles": [
+				"chopper",
+				"bobber"
+			],
+			"pack": "chopper"
 		}
 	}
 }

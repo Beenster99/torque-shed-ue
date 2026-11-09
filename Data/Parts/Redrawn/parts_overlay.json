@@ -381,6 +381,146 @@
      "tourer"
     ],
     "pack": "tourer"
+   },
+   "chopper_1": {
+    "name": "Chopper tank 1, 7 L",
+    "description": "Teardrop chopper tank with a crisp crease sweeping from the nose to its tail.",
+    "mass": 2.1,
+    "capacity": 7,
+    "style": "peanut",
+    "color": [
+     0.08,
+     0.08,
+     0.085
+    ],
+    "price": 220,
+    "look": {
+     "shape": "chopper_1",
+     "cap": "flush",
+     "badge": "none",
+     "pads": false,
+     "scale": [
+      1.035,
+      1.286,
+      1.286
+     ]
+    },
+    "styles": [
+     "chopper"
+    ],
+    "pack": "chopper"
+   },
+   "chopper_2": {
+    "name": "Chopper tank 2, 9 L",
+    "description": "Round-nosed chopper tank with a rounded edge band all round.",
+    "mass": 2.7,
+    "capacity": 9,
+    "style": "peanut",
+    "color": [
+     0.08,
+     0.08,
+     0.085
+    ],
+    "price": 220,
+    "look": {
+     "shape": "chopper_2",
+     "cap": "flush",
+     "badge": "none",
+     "pads": false,
+     "scale": [
+      1.024,
+      1.184,
+      1.184
+     ]
+    },
+    "styles": [
+     "chopper"
+    ],
+    "pack": "chopper"
+   },
+   "chopper_3": {
+    "name": "Chopper tank 3, 4 L",
+    "description": "Low, slim chopper tank with a spine ridge and a low filler plinth.",
+    "mass": 1.2,
+    "capacity": 4,
+    "style": "peanut",
+    "color": [
+     0.08,
+     0.08,
+     0.085
+    ],
+    "price": 220,
+    "look": {
+     "shape": "chopper_3",
+     "cap": "flush",
+     "badge": "none",
+     "pads": false,
+     "scale": [
+      1.056,
+      1.547,
+      1.547
+     ]
+    },
+    "styles": [
+     "chopper"
+    ],
+    "pack": "chopper"
+   },
+   "chopper_4": {
+    "name": "Chopper tank 4, 7 L",
+    "description": "Chopper tank with an upswept tail and a flush panel on top.",
+    "mass": 2.1,
+    "capacity": 7,
+    "style": "peanut",
+    "color": [
+     0.08,
+     0.08,
+     0.085
+    ],
+    "price": 220,
+    "look": {
+     "shape": "chopper_4",
+     "cap": "flush",
+     "badge": "none",
+     "pads": false,
+     "scale": [
+      1.035,
+      1.286,
+      1.286
+     ]
+    },
+    "styles": [
+     "chopper"
+    ],
+    "pack": "chopper"
+   },
+   "chopper_5": {
+    "name": "Chopper tank 5, 5 L",
+    "description": "Plain teardrop chopper tank.",
+    "mass": 1.5,
+    "capacity": 5,
+    "style": "peanut",
+    "color": [
+     0.08,
+     0.08,
+     0.085
+    ],
+    "price": 220,
+    "look": {
+     "shape": "chopper_5",
+     "cap": "flush",
+     "badge": "none",
+     "pads": false,
+     "scale": [
+      1.048,
+      1.437,
+      1.437
+     ]
+    },
+    "styles": [
+     "chopper"
+    ],
+    "pack": "chopper"
    }
   }
  },
@@ -402,6 +542,12 @@
    ],
    "fatbob_23": [
     "tourer"
+   ],
+   "peanut_9": [
+    "chopper"
+   ],
+   "coffin_10": [
+    "chopper"
    ]
   }
  },
@@ -414,6 +560,9 @@
   },
   "tourer": {
    "tank": "sports_tourer_1"
+  },
+  "chopper": {
+   "tank": "chopper_1"
   }
  }
 }
