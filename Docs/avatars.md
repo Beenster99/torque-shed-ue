@@ -24,13 +24,13 @@ MetaHuman Creator is built into the editor from UE 5.6 and is free. Rigging and 
    `UnrealEditor-Cmd.exe TorqueShedProto.uproject -ExecutePythonScript="G:/Dev/torque-shed-ue/Tools/ue_metahumans.py discover" -unattended`.
    Use forward slashes in that path: UE escape-processes backslashes, so `\t` would become a tab.
    It writes `Saved/metahuman_api.txt`. Send that file back, so the making can be fully scripted next time.
-3. **Make them by script:** run `py Tools/ue_metahumans.py make`. It creates `Avatar_A` to `Avatar_D` under `/Game/MetaHumans`, each with a different height, and tries to build each one without the cloud. The log line `can_build_meta_human = False`, with the reason above it, means the build needs a rig. In that case:
+3. **Make them by script:** run `py Tools/ue_metahumans.py make`. It creates `Avatar_A` to `Avatar_D` under `/Game/MetaHumanSources` (the built avatars go to `/Game/MetaHumans`), each with a different height, and tries to build each one without the cloud. The log line `can_build_meta_human = False`, with the reason above it, means the build needs a rig. In that case:
    - sign in to your Epic account, then run `py Tools/ue_metahumans.py make rig`. That auto-rigs each one in Epic's cloud (Joints Only), then builds it;
    - if a build still fails, the script exports the preview body mesh instead, and the game poses that body on its own.
 
    It registers whatever it made at the end.
 4. **Or make them by hand.** Four people is enough for a 4-player crew. For each one:
-   - In the Content Browser, go to `/Game/MetaHumans/<Name>/`, right-click and choose **MetaHuman > MetaHuman Character**. Name it after the person and open it.
+   - In the Content Browser, go to `/Game/MetaHumanSources/<Name>/` (sources live there and are never cooked; `register` moves any it finds under `/Game/MetaHumans`), right-click and choose **MetaHuman > MetaHuman Character**. Name it after the person and open it.
    - **Presets:** pick a different face for each person, a mix of ages and looks.
    - **Body:** parametric, a different height and build for each (for example 1.70, 1.76, 1.82 and 1.88 m).
    - **Hair:** short styles. Grooms cost GPU, so use the **card** hair LODs if you're offered a choice.
@@ -38,7 +38,7 @@ MetaHuman Creator is built into the editor from UE 5.6 and is free. Rigging and 
    - **Auto-Rig:** choose "Joints and Blend Shapes". Then **Download Texture Sources** at 2K.
    - **Assemble:** pipeline **UE Optimized**, quality **Medium**, output folder `/Game/MetaHumans/<Name>`. This makes `BP_<Name>`.
 5. **Register them:** run `py Tools/ue_metahumans.py`. It writes `Data/Avatars/avatars.json`, one line per `BP_*`. Commit that file.
-6. **Package:** `/Game/MetaHumans` is already in `DirectoriesToAlwaysCook`, because the game spawns the Blueprints by path. Until avatars exist, the MetaHuman plugins' own content is in `DirectoriesToNeverCook` (the `metahuman-never-cook` block in `Config/DefaultGame.ini`), because it adds about 557 MB to the package even when nothing uses it. When `register` lists avatars, it takes that block out, since their Blueprints may use plugin materials. When there are none, it puts the block back. Commit `DefaultGame.ini` when it changes.
+6. **Package:** `/Game/MetaHumans` is already in `DirectoriesToAlwaysCook`, because the game spawns the Blueprints by path. Until avatars exist, the MetaHuman plugins' own content is in `DirectoriesToNeverCook` (the `metahuman-never-cook` block in `Config/DefaultGame.ini`), because it adds about 557 MB to the package even when nothing uses it. When `register` lists avatars, it takes that block out, since their Blueprints may use plugin materials; the character sources stay out, in `/Game/MetaHumanSources`. When there are none, it puts the block back. Commit `DefaultGame.ini` when it changes.
 
 ## Checking without a co-op game
 
