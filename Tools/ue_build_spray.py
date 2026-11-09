@@ -186,9 +186,13 @@ float edge = saturate(B.a * 2.5);
 c *= edge;
 
 // A thin coat goes on in specks before it flows into a film; a full one (0.8 coats) hides what's under.
-float grain = F.Noise(m * 2.6) * 0.6 + F.Noise(m * 7.0) * 0.4;
-float cover = saturate((c / 0.8) * 1.35 - grain * 0.45 * (1.0 - saturate(c / 0.8)));
-cover = smoothstep(0.0, 1.0, cover);
+// Each droplet lands as a dot: a light pass leaves a scatter of them over the old surface, more
+// passes fill in between, and only near a full film (0.8 coats) does it close up solid.
+float thin = saturate(c / 0.8);
+float speck = F.Noise(m * 4.0) * 0.6 + F.Noise(m * 11.0) * 0.4;
+float cover = smoothstep(speck * 0.9, speck * 0.9 + 0.12, thin * 1.1);
+cover = max(cover, smoothstep(0.85, 1.0, thin));
+cover *= smoothstep(0.0, 0.04, thin);
 
 // Too much: it sags in curtains down the part, heavier at each curtain's lip.
 float3 up = UpInModel.xyz / max(length(UpInModel.xyz), 1e-4);

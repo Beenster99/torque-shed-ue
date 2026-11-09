@@ -208,11 +208,24 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 const TCHAR* const ItemPrefix = TEXT("Item:");
 
 void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColor* Colour, const FTorqueItem* Finished = nullptr,
-	const FTransform& ToPart = FTransform::Identity)
+	const FTransform& ToPart = FTransform::Identity, bool bOverBare = false)
 {
 	// Sprayed with a pearl, candy, flake or chameleon from the mixing bay, or masked: the effect paint.
 	TorquePaintMix::FPaintLook Effect;
 	if (Colour && Finished && UTorqueBuildSubsystem::EffectLook(*Finished, Effect) && TorqueEffectPaint::Apply(C, Effect, Dirt, ToPart)) return;
+	// A part with no painted surface of its own (a stainless exhaust, a chrome bar) sprayed all over:
+	// its metal's material has no colour to set, so it's drawn in the paint material, plain.
+	if (bOverBare && Colour && Finished)
+	{
+		TorquePaintMix::FPaintLook Plain;
+		FLinearColor Shown = *Colour;
+		float Metallic = 0.05f, Roughness = 0.15f;
+		if (!UTorqueBuildSubsystem::FinishLook(*Finished, Shown, Metallic, Roughness) && Finished->bPrimerTop) Roughness = 0.75f;
+		Plain.Spec.Colour = Shown;
+		Plain.Spec.Metal = Metallic;
+		Plain.Spec.Rough = Roughness;
+		if (TorqueEffectPaint::Apply(C, Plain, Dirt, ToPart)) return;
+	}
 	TorqueEffectPaint::Restore(C);
 	UMaterialInstanceDynamic* M = C ? C->CreateDynamicMaterialInstance(0) : nullptr;
 	if (!M) return;
@@ -455,14 +468,21 @@ void ATorqueShedItems::Draw(int32 Id)
 			const FTransform Frame = Holder->GetComponentTransform();
 			TMap<const FTorqueItem*, FBox> Boxes;
 			for (UStaticMeshComponent* C : Made) Boxes.FindOrAdd(OwnOf(C), FBox(ForceInit)) += TorqueEffectPaint::BoxIn(C, Frame);
+			// Which parts have a painted surface at all (else spraying them paints the lot, as the spray
+			// game does: TorqueSpray::MeshesOf).
+			TSet<const FTorqueItem*> HasPaint;
+			for (UStaticMeshComponent* C : Made)
+				if (!C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag))) HasPaint.Add(OwnOf(C));
 			for (UStaticMeshComponent* C : Made)
 			{
 				const FTorqueItem* Own = OwnOf(C);
-				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+				const bool bBare = C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+				const bool bOverBare = bBare && !HasPaint.Contains(Own) && UTorqueBuildSubsystem::Repainted(*Own);
+				const bool bOwnTint = (Own == It ? bTint : UTorqueBuildSubsystem::Repainted(*Own)) && (!bBare || bOverBare);
 				const FLinearColor OwnShown = UTorqueBuildSubsystem::ShownColour(*Own);   // grey while it's in primer
 				const FBox Box = Boxes.FindRef(Own);
 				TSI::SetLooks(C, Own->Dirt, Own->Rust, bOwnTint ? &OwnShown : nullptr, UTorqueBuildSubsystem::Repainted(*Own) ? Own : nullptr,
-					TorqueEffectPaint::PartFrame(C, Frame, Box.IsValid ? Box.GetCenter() : FVector::ZeroVector));
+					TorqueEffectPaint::PartFrame(C, Frame, Box.IsValid ? Box.GetCenter() : FVector::ZeroVector), bOverBare);
 			}
 		}
 	}

@@ -116,6 +116,12 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		const FName Slot = SlotTag(C);
 		Boxes.FindOrAdd(Slot.IsNone() ? PartTag(C) : Slot, FBox(ForceInit)) += TorqueEffectPaint::BoxIn(C, C->GetOwner()->GetActorTransform());
 	}
+	// The parts with a painted surface at all: one with none (a stainless exhaust, a chrome bar) that's
+	// been sprayed is painted all over, as the spray game paints it (TorqueSpray::MeshesOf).   [spray]
+	TSet<FName> HasPaint;
+	for (UStaticMeshComponent* C : Parts)
+		if (C && !PartTag(C).IsNone() && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)))
+			HasPaint.Add(SlotTag(C).IsNone() ? PartTag(C) : SlotTag(C));
 	for (UStaticMeshComponent* C : Parts)
 	{
 		if (!C) continue;
@@ -126,7 +132,27 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		// Sprayed with a pearl, candy, flake or chameleon from the mixing bay, or masked: the effect
 		// paint (TorqueEffectPaint.h) in place of the part's own material; any other paint, its own.
 		TorquePaintMix::FPaintLook Effect;
-		if (B && C->GetOwner() && !C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag)) && B->EffectOf(Bike, Which, Effect))
+		const bool bBare = C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag));
+		if (bBare && !HasPaint.Contains(Which) && B && C->GetOwner())
+		{
+			// Sprayed all over: its metal's material has no colour, so it's drawn in the paint material.
+			FLinearColor Shown;
+			float Metallic = 0.05f, Roughness = 0.15f;
+			if (B->FinishOf(Bike, Which, Shown, Metallic, Roughness))
+			{
+				TorquePaintMix::FPaintLook Plain;
+				if (!B->EffectOf(Bike, Which, Plain))
+				{
+					Plain.Spec.Colour = Shown;
+					Plain.Spec.Metal = Metallic;
+					Plain.Spec.Rough = Roughness;
+				}
+				const FBox Box = Boxes.FindRef(Which);
+				const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
+				if (TorqueEffectPaint::Apply(C, Plain, bWashing ? 0.0f : B->DirtOf(Bike, Which), ToPart)) continue;
+			}
+		}
+		if (B && C->GetOwner() && !bBare && B->EffectOf(Bike, Which, Effect))
 		{
 			const FBox Box = Boxes.FindRef(Which);
 			const FTransform ToPart = TorqueEffectPaint::PartFrame(C, C->GetOwner()->GetActorTransform(), Box.IsValid ? Box.GetCenter() : FVector::ZeroVector);
