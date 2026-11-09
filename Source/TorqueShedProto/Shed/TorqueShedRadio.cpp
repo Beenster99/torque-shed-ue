@@ -109,11 +109,14 @@ void ATorqueShedRadio::BeginPlay()
 		for (int32 I = 0; I < 5; ++I)
 			Piece(CubeMesh, FVector(8.7, 10.0, 6.0 + 3.5 * I), FVector(0.4, 20.0, 0.6), None, FLinearColor(0.8f, 0.78f, 0.72f), 1.0f, 0.25f);
 		Piece(CubeMesh, FVector(8.2, -12.0, 17.0), FVector(0.6, 17.0, 7.0), None, FLinearColor(0.95f, 0.85f, 0.55f), 0.0f, 0.4f);    // the dial
-		Needle = Piece(CubeMesh, FVector(8.6, -5.0, 17.0), FVector(0.4, 0.5, 6.0), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
 		for (double Y : {-7.0, -17.0})   // the knobs
 			Piece(CylinderMesh, FVector(9.0, Y, 8.0), FVector(4.8, 4.8, 2.5), FRotator(90.0, 0.0, 0.0), FLinearColor(0.1f, 0.08f, 0.07f), 0.2f, 0.4f);
 		Piece(CylinderMesh, FVector(-4.0, -20.0, 45.0), FVector(0.7, 0.7, 45.0), FRotator(0.0, 0.0, 20.0), FLinearColor(0.85f, 0.86f, 0.88f), 1.0f, 0.15f);   // the aerial
 	}
+	// The dial's glowing needle, along the dial window (the model's: just in front of its glass, as the
+	// props thread gave it; the drawn one's: on its dial).
+	NeedleX = bModel ? 15.7 : 8.6;
+	Needle = Piece(CubeMesh, FVector(NeedleX, -5.0, 17.0), FVector(0.4, 0.5, 6.0), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
 	// The station and the song over it.
 	Display = NewObject<UTextRenderComponent>(this);
 	Display->SetupAttachment(GetRootComponent());
@@ -295,7 +298,7 @@ void ATorqueShedRadio::UpdateLooks()
 	{
 		Needle->SetVisibility(bOn);
 		const double F = N > 1 ? (double)Station / (N - 1) : 0.0;
-		Needle->SetRelativeLocation(FVector(8.6, -(5.0 + 14.0 * F), 17.0));
+		Needle->SetRelativeLocation(FVector(NeedleX, -(5.0 + 14.0 * F), 17.0));
 	}
 	if (Display)
 	{

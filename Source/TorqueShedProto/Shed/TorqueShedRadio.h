@@ -76,6 +76,7 @@ private:
 	FString Status;            // "Tuning in...", "On air", "No signal"
 	FString Title;             // the song, as the station last said
 	FString Shown;             // what the display over it says
+	double NeedleX = 8.6;      // the dial's front, from the radio's base (cm)
 	double TunedAt = 0.0, RetryAt = 0.0, PeekAt = 0.0, PeekStarted = 0.0;
 	bool bLive = false;
 	uint32 HissSeed = 12345;
