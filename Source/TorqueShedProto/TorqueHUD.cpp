@@ -83,6 +83,12 @@ void ATorqueHUD::DrawHUD()
 		Walker->DrawComputer(this, Canvas);
 		return;
 	}
+	// At the mixing bench: its card down the right, worked with the mouse (paint_bench.gd).   [shed]
+	if (Walker && Walker->AtBench())
+	{
+		Walker->DrawBench(this, Canvas);
+		return;
+	}
 	// Big speed and gear, then smaller lines under them.
 	if (Walker && Walker->ShowsCrosshair())
 	{
@@ -100,24 +106,6 @@ void ATorqueHUD::DrawHUD()
 		Canvas->SetDrawColor(L.Colour);
 		Canvas->DrawText(Font, L.Text, X, Y, Scale, Scale);
 		Y += H * Scale + 12.0f * S;
-	}
-	// At the mixing bench: the mix as it'd spray, beside the colour to match (paint_bench.gd's swatches).
-	FLinearColor Mix, Want;
-	bool bWant = false;
-	if (Walker && Walker->BenchSwatches(Mix, bWant, Want))
-	{
-		auto AsShown = [](const FLinearColor& C) { return FLinearColor(FColor((uint8)(FMath::Clamp(C.R, 0.0f, 1.0f) * 255.0f),
-			(uint8)(FMath::Clamp(C.G, 0.0f, 1.0f) * 255.0f), (uint8)(FMath::Clamp(C.B, 0.0f, 1.0f) * 255.0f))); };
-		const float Sw = 150.0f * S, SX = Canvas->ClipX - 2.0f * Sw - 80.0f * S, SY = 60.0f * S;
-		DrawRect(FLinearColor(0.05f, 0.06f, 0.08f, 0.75f), SX - 14.0f * S, SY - 40.0f * S, 2.0f * Sw + 48.0f * S, Sw + 54.0f * S);
-		DrawRect(AsShown(Mix), SX, SY, Sw, Sw);
-		Canvas->SetDrawColor(FColor::White);
-		Canvas->DrawText(Font, TEXT("THE MIX"), SX, SY - 32.0f * S, 0.8f * S, 0.8f * S);
-		if (bWant)
-		{
-			DrawRect(AsShown(Want), SX + Sw + 20.0f * S, SY, Sw, Sw);
-			Canvas->DrawText(Font, TEXT("TO MATCH"), SX + Sw + 20.0f * S, SY - 32.0f * S, 0.8f * S, 0.8f * S);
-		}
 	}
 }
 

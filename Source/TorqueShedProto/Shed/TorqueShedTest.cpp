@@ -96,7 +96,7 @@ const TCHAR* const BoothSteps =
 // in the shaker. Then the bay's exhaust (off bay 1's bike, ground back on the repair bench) hung in
 // the spray bay and sprayed with Mix 1 from the gun's cup, two coats, then the satin lacquer over it.
 const TCHAR* const MixSteps =
-	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,look:mixbench,shot,")
+	TEXT("bay:1,restyle:cafe,look:paintbay,shot,bench:on,paint:newtin:W,paint:pour:PB:40,paint:pour:LY:12,paintlog,shot:ui,look:mixbench,shot,")
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
 	TEXT("bench:on,paint:recipe:0,paint:newtin:W,paint:pour:PB:38,paint:pour:LY:13,paint:stir:1,paint:save,paintlog,")
 	TEXT("paint:newtin:L,paint:pour:FL:100,paint:stir:1,paint:save:Satin clear,")

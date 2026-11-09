@@ -554,14 +554,28 @@ void ATorqueWalker::ReadInput(float Dt)
 	}
 	if (bBench)
 	{
-		// At the mixing bench: W / S (the D-pad) choose, Q / E (L1 / R1) the page, hold the work button
-		// on a tint to pour it, hold R (Square) to stir, F or Space (Circle / B) steps back.
+		// At the mixing bench (paint_bench.gd): the card down the right is worked with the mouse; hold
+		// the left mouse on a tint (or in the view, with one picked) to pour it, dragging down to tip the
+		// bottle further; hold the right mouse in the view and stir round. On a pad the D-pad goes down
+		// the card, L1 / R1 the pages, Cross pours or presses, Square stirs. F, Esc or Space (Circle / B)
+		// steps back. Naming a mix, the keys type its name.
+		if (bNaming)
+		{
+			BenchTyping(PC);
+			if (!Just(EKeys::LeftMouseButton)) return;
+			bNaming = false;   // a click elsewhere ends it (and does what it clicked)
+		}
 		int32 Step = 0;
 		if (Just(EKeys::W) || Just(EKeys::Up) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) Step = -1;
 		if (Just(EKeys::S) || Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) Step = 1;
-		const bool bWorkDown = Down(EKeys::LeftMouseButton) || Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
-		const bool bAltDown = Down(EKeys::R) || Down(EKeys::RightMouseButton) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
-		BenchInput(Dt, Step, bNext ? 1 : (bPrev ? -1 : 0), bWorkJust || Just(EKeys::Enter), bWorkDown, bAltDown, bF || bBack);
+		const bool bPadWork = Down(EKeys::Gamepad_FaceButton_Bottom) || (SonyDown & ESonyButton::Cross);
+		const bool bPadChoose = Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross) || Just(EKeys::Enter);
+		const bool bAltDown = Down(EKeys::R) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square);
+		const bool bPageNext = Just(EKeys::E) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
+		const bool bPagePrev = Just(EKeys::Q) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
+		BenchMouse(PC, Dt);
+		if (!bBench) return;
+		BenchInput(Dt, Step, bPageNext ? 1 : (bPagePrev ? -1 : 0), bPadChoose, bPadWork || bMousePour, bAltDown, bF || bBack || Just(EKeys::Escape));
 		return;
 	}
 
@@ -2004,11 +2018,7 @@ void ATorqueWalker::UpdateHud()
 		return;
 	}
 	if (bComputer) return;   // the parts computer's page instead (DrawComputer)
-	if (bBench)
-	{
-		BenchHud(B);
-		return;
-	}
+	if (bBench) return;   // the bench's card instead (DrawBench)
 	// The tool, and the spray can's paint.
 	FString ToolLine = FString::Printf(TEXT("%s (Q / E)"), TWI::ToolName(Tool));
 	if (TWI::Sprays(Tool))

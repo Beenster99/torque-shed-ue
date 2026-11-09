@@ -24,6 +24,7 @@
 #include "TorqueBikePawn.h"   // FHudLine
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorquePartsComputer.h"
+#include "Shed/TorquePaintBenchPanel.h"
 #include "TorqueWalker.generated.h"
 
 class UCameraComponent;
@@ -82,7 +83,7 @@ public:
 	// category (NAME_None: project bikes) and its rows, and the one picked.
 	bool AtComputer() const { return bComputer; }
 	// At the computer this frame or the last (Esc that closed it isn't also the pause menu's).
-	bool ComputerUpOrJustClosed() const { return bComputer || GFrameCounter <= ComputerClosedFrame + 1; }
+	bool ComputerUpOrJustClosed() const { return bComputer || bBench || GFrameCounter <= ComputerClosedFrame + 1; }   // (the mixing bench too: Esc closes it)
 	FName ComputerKind() const { return Computer.ScreenKind(); }
 	TArray<FName> ComputerRows() const { return Computer.ScreenRows(); }
 	int32 ComputerRow() const { return Computer.PickedRow(); }
@@ -95,6 +96,8 @@ public:
 	// colour to match, if there's one. False when not at the bench or there's no tin.
 	bool AtBench() const { return bBench; }
 	bool BenchSwatches(FLinearColor& OutMix, bool& bOutTarget, FLinearColor& OutTarget) const;
+	// The mixing bench's card (TorquePaintBenchPanel), on the HUD's canvas.
+	void DrawBench(class AHUD* Hud, class UCanvas* Canvas) const;
 
 	UPROPERTY(VisibleAnywhere, Category = "Walker") UCameraComponent* Camera;
 
@@ -248,13 +251,19 @@ private:
 	// Its pages: Mix (a tin on the scale, pour, stir, test, save), Recipes (cards from the swatch
 	// wall), Supplies (restock). Holding the work button on a tint pours it, the bottle tipping
 	// further the longer it's held; holding R stirs. Pours and stirs go to the host in flushes.
-	struct FBenchRow
-	{
-		ETorqueShedAct Kind = ETorqueShedAct::Count;   // what the work button does (PaintPour: hold it)
-		int32 Item = 0, Colour = 0;
-		FString Text;
-	};
+	using FBenchRow = FTorqueBenchRow;   // what the work button does (PaintPour: hold it)
 	bool bBench = false;
+	mutable FTorquePaintBenchPanel BenchPanel;   // (mutable: drawing it notes where its buttons went)
+	FString BenchName;                // the name the next save goes under ("" until it's typed)
+	bool bNaming = false;             // typing it
+	bool bMousePour = false;          // pouring with the left mouse held (on a tint or in the view)
+	float PourPressY = 0.0f;          // where the mouse was pressed: dragging down tips the bottle
+	float StirAngle = 0.0f;           // the mouse round the scale, stirring
+	float BenchDragTilt = 0.0f;       // how far the drag has tipped the bottle
+	bool bStirTrack = false;
+	void BenchMouse(class APlayerController* PC, float Dt);
+	void BenchTyping(class APlayerController* PC);
+	void DoBenchRow(const FBenchRow& Row, bool bByEye);
 	int32 BenchPage = 0, BenchRow = 0;
 	float BenchTilt = 0.0f, BenchPourHeld = 0.0f;
 	float PourUnsent = 0.0f, StirUnsent = 0.0f, BenchSendIn = 0.0f;

@@ -6,6 +6,8 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/HUD.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorquePaintBay.h"
 #include "Shed/TorquePaintMix.h"
@@ -47,6 +49,17 @@ void ATorqueWalker::OpenBench()
 	bBench = true;
 	BenchPage = 0;
 	BenchRow = 0;
+	BenchName.Reset();
+	bNaming = bMousePour = bStirTrack = false;
+	BenchDragTilt = 0.0f;
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		// The card's worked with the mouse (paint_bench.gd).
+		PC->bShowMouseCursor = true;
+		FInputModeGameAndUI Mode;
+		Mode.SetHideCursorDuringCapture(false);
+		PC->SetInputMode(Mode);
+	}
 	BenchTilt = BenchPourHeld = PourUnsent = StirUnsent = BenchSendIn = 0.0f;
 	PouringTint = INDEX_NONE;
 	Progress = 0.0;
@@ -65,6 +78,13 @@ void ATorqueWalker::CloseBench()
 	if (!bBench) return;
 	FlushBench(true);
 	bBench = false;
+	bNaming = bMousePour = bStirTrack = false;
+	ComputerClosedFrame = GFrameCounter;   // (Esc closing it doesn't open the pause menu too)
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+	}
 	if (UTorqueBuildSubsystem* B = Shed())
 	{
 		FTorqueShedRequest R;
@@ -179,6 +199,7 @@ void ATorqueWalker::BenchInput(float Dt, int32 RowStep, int32 PageStep, bool bCh
 	const TArray<FBenchRow> Rows = BenchRows();
 	if (Rows.Num() == 0) return;
 	if (PouringTint == INDEX_NONE) BenchRow = (FMath::Clamp(BenchRow, 0, Rows.Num() - 1) + RowStep + Rows.Num()) % Rows.Num();
+	if (RowStep != 0) BenchPanel.Show(BenchRow);
 	const FBenchRow& Picked = Rows[FMath::Clamp(BenchRow, 0, Rows.Num() - 1)];
 
 	// Pouring: hold the work button on a tint; the bottle tips further the longer it's held.
@@ -200,7 +221,7 @@ void ATorqueWalker::BenchInput(float Dt, int32 RowStep, int32 PageStep, bool bCh
 		if (PouringTint != INDEX_NONE)
 		{
 			BenchPourHeld += Dt;
-			BenchTilt = FMath::Clamp(0.15f + TWBI::TiltPerSecond * BenchPourHeld, 0.0f, 1.0f);
+			BenchTilt = FMath::Clamp(FMath::Max(0.15f + TWBI::TiltPerSecond * BenchPourHeld, BenchDragTilt), 0.0f, 1.0f);
 			const float Left = P.StockOf(FTorquePaintBay::TintStock(PouringTint)) - PourUnsent;
 			PourUnsent += FMath::Max(0.0f, FMath::Min(TPM::PourRate(BenchTilt) * Dt, Left));
 		}
@@ -210,30 +231,183 @@ void ATorqueWalker::BenchInput(float Dt, int32 RowStep, int32 PageStep, bool bCh
 		FlushBench(true);   // let go: the bottle back on the rack
 		BenchTilt = 0.0f;
 	}
-	else if (bChoose && Picked.Kind != ETorqueShedAct::PaintPour && Picked.Kind != ETorqueShedAct::Count)
-	{
-		FTorqueShedRequest R;
-		R.Kind = Picked.Kind;
-		R.Item = Picked.Item;
-		R.Colour = Picked.Colour;
-		if (R.Kind == ETorqueShedAct::PaintTinSave) R.Text = FString::Printf(TEXT("Mix %d"), P.Mixed + 1);
-		FlushBench(false);
-		if (BenchAsk(R) && R.Kind == ETorqueShedAct::PaintTinNew) BenchRow = 0;
-	}
+	else if (bChoose) DoBenchRow(Picked, false);
 	// Stirring: hold R (or the right mouse, Square) and the stick goes round.
 	if (bAltDown && P.BenchTinPtr() && BenchPage == 0) StirUnsent += TPM::StirPerTurn * TWBI::TurnsPerSecond * Dt;
 	else if (bAltDown && BenchPage == 1 && Picked.Kind == ETorqueShedAct::PaintRecipe && !bWaitRelease)
 	{
-		// On a card: match its colour by eye (no weights).
-		FTorqueShedRequest R;
-		R.Kind = ETorqueShedAct::PaintRecipe;
-		R.Item = Picked.Item;
-		R.Colour = 1;
-		BenchAsk(R);
+		DoBenchRow(Picked, true);   // on a card: match its colour by eye (no weights)
 		bWaitRelease = true;
 	}
 	BenchSendIn -= Dt;
 	if (BenchSendIn <= 0.0f) FlushBench(false);
+}
+
+void ATorqueWalker::DoBenchRow(const FBenchRow& Row, bool bByEye)
+{
+	// A line on the card pressed (a tint's poured by holding it instead).
+	if (Row.Kind == ETorqueShedAct::PaintPour || Row.Kind == ETorqueShedAct::Count) return;
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return;
+	FTorqueShedRequest R;
+	R.Kind = Row.Kind;
+	R.Item = Row.Item;
+	R.Colour = Row.Colour;
+	if (bByEye)
+	{
+		if (Row.Kind != ETorqueShedAct::PaintRecipe) return;
+		R.Colour = 1;
+	}
+	if (R.Kind == ETorqueShedAct::PaintTinSave)
+	{
+		R.Text = BenchName.TrimStartAndEnd();
+		if (R.Text.IsEmpty()) R.Text = FString::Printf(TEXT("Mix %d"), B->PaintBay().Mixed + 1);
+	}
+	FlushBench(false);
+	if (!BenchAsk(R)) return;
+	if (R.Kind == ETorqueShedAct::PaintTinNew) BenchRow = 0;
+	if (R.Kind == ETorqueShedAct::PaintTinSave) BenchName.Reset();
+}
+
+void ATorqueWalker::BenchMouse(APlayerController* PC, float)
+{
+	namespace TPM = TorquePaintMix;
+	float Mx = 0.0f, My = 0.0f;
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!PC || !B || !PC->GetMousePosition(Mx, My))
+	{
+		bMousePour = bStirTrack = false;
+		return;
+	}
+	const FVector2D Mouse(Mx, My);
+	int32 VW = 0, VH = 0;
+	PC->GetViewportSize(VW, VH);
+	const float Scale = FMath::Max(VH, 1) / 1080.0f;
+	const TArray<FBenchRow> Rows = BenchRows();
+	if (PC->WasInputKeyJustPressed(EKeys::MouseScrollDown)) BenchPanel.Scroll(Mouse, 1);
+	if (PC->WasInputKeyJustPressed(EKeys::MouseScrollUp)) BenchPanel.Scroll(Mouse, -1);
+	if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+	{
+		const FTorqueBenchClick C = BenchPanel.Click(Mouse);
+		switch (C.Kind)
+		{
+		case FTorqueBenchClick::EKind::Close:
+			CloseBench();
+			bWaitRelease = true;
+			return;
+		case FTorqueBenchClick::EKind::Page:
+			if (PouringTint == INDEX_NONE && BenchPage != C.Arg)
+			{
+				BenchPage = FMath::Clamp(C.Arg, 0, TWBI::Pages - 1);
+				BenchRow = 0;
+			}
+			break;
+		case FTorqueBenchClick::EKind::Name:
+			bNaming = true;
+			if (BenchName.IsEmpty()) BenchName = FString::Printf(TEXT("Mix %d"), B->PaintBay().Mixed + 1);
+			break;
+		case FTorqueBenchClick::EKind::Row:
+			if (Rows.IsValidIndex(C.Arg))
+			{
+				BenchRow = C.Arg;
+				if (Rows[C.Arg].Kind == ETorqueShedAct::PaintPour)
+				{
+					bMousePour = true;   // held on the tint: it pours
+					PourPressY = My;
+				}
+				else DoBenchRow(Rows[C.Arg], false);
+			}
+			break;
+		case FTorqueBenchClick::EKind::Eye:
+			if (Rows.IsValidIndex(C.Arg)) DoBenchRow(Rows[C.Arg], true);
+			break;
+		default:
+			// In the view: the tint picked, poured.
+			if (!BenchPanel.Over(Mouse) && Rows.IsValidIndex(BenchRow) && Rows[BenchRow].Kind == ETorqueShedAct::PaintPour)
+			{
+				bMousePour = true;
+				PourPressY = My;
+			}
+			break;
+		}
+	}
+	if (!PC->IsInputKeyDown(EKeys::LeftMouseButton)) bMousePour = false;
+	// paint_bench.gd TILT_DRAG: 260 px of drag (at 1080p) tips the bottle straight down.
+	BenchDragTilt = bMousePour ? FMath::Clamp((My - PourPressY) / (260.0f * Scale), 0.0f, 1.0f) : 0.0f;
+	// Stirring: the right mouse held in the view, going round the scale (a turn of the mouse is a turn
+	// of the stick).
+	const FTorquePaintBay& P = B->PaintBay();
+	if (PC->IsInputKeyDown(EKeys::RightMouseButton) && !BenchPanel.Over(Mouse) && P.BenchTinPtr() && BenchPage == 0)
+	{
+		FVector2D Centre(VW * 0.35f, VH * 0.5f);
+		FVector2D OnScreen;
+		if (PC->ProjectWorldLocationToScreen(TorquePaintBayLayout::ScaleAt, OnScreen)) Centre = OnScreen;
+		const FVector2D D = Mouse - Centre;
+		if (D.Size() > 10.0f * Scale)
+		{
+			const float A = FMath::Atan2(D.Y, D.X);
+			if (bStirTrack)
+			{
+				const float Turned = FMath::Min(FMath::Abs(FMath::FindDeltaAngleRadians(StirAngle, A)), 1.0f);
+				StirUnsent += TPM::StirPerTurn * Turned / (2.0f * PI);
+			}
+			StirAngle = A;
+			bStirTrack = true;
+		}
+	}
+	else bStirTrack = false;
+}
+
+void ATorqueWalker::BenchTyping(APlayerController* PC)
+{
+	// The mix's name, typed: letters (Shift for capitals), digits, space, hyphen; Backspace; Enter or
+	// Esc when it's done.
+	if (!PC) return;
+	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
+	if (Just(EKeys::Enter) || Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Bottom) || Just(EKeys::Gamepad_FaceButton_Right))
+	{
+		bNaming = false;
+		return;
+	}
+	if (Just(EKeys::BackSpace) && BenchName.Len() > 0) BenchName.LeftChopInline(1);
+	if (BenchName.Len() >= 28) return;
+	const bool bShift = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift);
+	static const TCHAR* const Letters = TEXT("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+	for (int32 I = 0; I < 26; ++I)
+	{
+		const TCHAR KeyName[2] = {Letters[I], 0};
+		if (Just(FKey(FName(KeyName)))) BenchName.AppendChar(bShift ? Letters[I] : FChar::ToLower(Letters[I]));
+	}
+	static const TCHAR* const Digits[] = {TEXT("Zero"), TEXT("One"), TEXT("Two"), TEXT("Three"), TEXT("Four"), TEXT("Five"), TEXT("Six"),
+		TEXT("Seven"), TEXT("Eight"), TEXT("Nine")};
+	for (int32 I = 0; I < 10; ++I)
+		if (Just(FKey(FName(Digits[I])))) BenchName.AppendChar((TCHAR)(TEXT('0') + I));
+	if (Just(EKeys::SpaceBar)) BenchName.AppendChar(TEXT(' '));
+	if (Just(EKeys::Hyphen)) BenchName.AppendChar(TEXT('-'));
+}
+
+void ATorqueWalker::DrawBench(AHUD* Hud, UCanvas* Canvas) const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	if (!B) return;
+	FVector2D Mouse(-1.0, -1.0);
+	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		float Mx = 0.0f, My = 0.0f;
+		if (PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+	}
+	FTorqueBenchState St;
+	St.Page = BenchPage;
+	St.Focus = BenchRow;
+	St.Pouring = PouringTint;
+	St.Tilt = BenchTilt;
+	St.PourUnsent = PourUnsent;
+	St.StirUnsent = StirUnsent;
+	St.Name = (BenchName.IsEmpty() && !bNaming) ? FString::Printf(TEXT("Mix %d"), B->PaintBay().Mixed + 1) : BenchName;
+	St.bNaming = bNaming;
+	if (NoteFor > 0.0) St.Note = Note;
+	St.bNoteOk = bNoteOk;
+	BenchPanel.Draw(Hud, Canvas, B, BenchRows(), St, Mouse);
 }
 
 void ATorqueWalker::FlushBench(bool bStopPour)
