@@ -2,6 +2,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedParts.h"
+#include "Fit/BikeTune.h"
 
 namespace TSPI
 {
@@ -68,8 +69,11 @@ FTorqueEngineNumbers Numbers(const UTorqueBuildSubsystem& B, int32 Bay)
 		const FTorqueItem* It = B.Item(B.ItemOn(Bay, Slot));
 		if (!It) continue;
 		const FName Kind = TorqueShedParts::KindOf(Slot);
-		E.Mass += TorqueShedParts::IsStock(It->Part) ? (float)TorqueShedParts::KindAverage(Kind, TEXT("mass"), 3.0)
+		float M = TorqueShedParts::IsStock(It->Part) ? (float)TorqueShedParts::KindAverage(Kind, TEXT("mass"), 3.0)
 			: (float)TorqueShedParts::PartNumber(FName(*It->Part.ToString().ToLower()), TEXT("mass"), TorqueShedParts::KindAverage(Kind, TEXT("mass"), 3.0));
+		if (It->bLightened && !TorqueShedParts::IsStock(It->Part))
+			B.WithTune(Bay, [&M, It](const TorqueFit::BikeTune& T) { M *= 1.0f - (float)T.LightenCut(TCHAR_TO_UTF8(*It->Part.ToString().ToLower())); });
+		E.Mass += M;
 	}
 	const FSlotPart Block = PartIn(B, Bay, TEXT("engine"));
 	if (Block.bThere) E.Mass += FluidMass;
@@ -111,6 +115,23 @@ FTorqueEngineNumbers Numbers(const UTorqueBuildSubsystem& B, int32 Bay)
 		Mult *= 0.9f;
 		E.Notes.Add(TEXT("No exhaust: loud and gutless."));
 	}
+	// The dyno desk's tune: the fuel map and ignition, the rev limiter; and the engine's heat against
+	// its cooling (bike_build.gd _compute_engine).
+	E.StockRedline = E.Redline;
+	const float CoolingHealth = PartIn(B, Bay, TEXT("cooling")).Health;
+	B.WithTune(Bay, [&E, &Mult, CoolingHealth](const TorqueFit::BikeTune& T) {
+		const TorqueFit::BikeTune::Engine Tn = T.EngineTune();
+		Mult *= (float)Tn.TorqueMult;
+		// Hot heads need cooling to match (a lean map runs it hotter).
+		std::string Hot;
+		Mult *= (float)T.CoolingMult(CoolingHealth, &Hot);
+		if (!Hot.empty()) E.Notes.Add(UTF8_TO_TCHAR(Hot.c_str()));
+		E.TuneLow = (float)Tn.Low;
+		E.TuneHigh = (float)Tn.High;
+		E.Stress = (float)Tn.Stress;
+		E.Redline += (float)Tn.Limiter;
+		for (const std::string& N : Tn.Notes) E.Notes.Add(UTF8_TO_TCHAR(N.c_str()));
+	});
 	E.TorqueMult = Mult;
 	E.PeakTorque *= Mult;
 	E.Drivetrain = Drivetrain * Lerp(0.8f, 1.0f, Gearbox.Health) * Lerp(0.88f, 1.0f, Final.Health);
@@ -124,7 +145,9 @@ float EngineTorque(const FTorqueEngineNumbers& E, float Rpm)
 	const float X = (Rpm - E.PeakTorqueRpm) / FMath::Max(1.0f, E.PeakTorqueRpm);
 	// Past its peak the torque fades faster than it builds, so power peaks a little short of the limiter.
 	const float Shape = 1.0f - (X < 0.0f ? 0.7f : TorqueFade) * X * X;
-	return E.PeakTorque * FMath::Clamp(Shape, 0.3f, 1.0f);
+	// The tune: a rich map fattens the torque below the peak, ignition advance sharpens the top end.
+	const float Tune = X < 0.0f ? 1.0f + E.TuneLow * FMath::Min(-X * 2.0f, 1.0f) : 1.0f + E.TuneHigh * FMath::Min(X * 2.0f, 1.0f);
+	return E.PeakTorque * FMath::Clamp(Shape, 0.3f, 1.0f) * Tune;
 }
 
 float PeakHp(const FTorqueEngineNumbers& E, float* OutRpm)

@@ -2,6 +2,8 @@
 
 #include "Fit/BikeLayout.h"
 #include "Fit/BikeShop.h"
+#include "Fit/BikeRideSpec.h"
+#include "Fit/BikeTune.h"
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
@@ -384,6 +386,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.DynoN = B.DynoN;
 		for (const FTorqueDynoRun& Run : B.DynoRuns) To.DynoRuns.Add(TBI::ToSaveRun(Run));
 		To.Geo = B.Geo;
+		To.Tune = B.Tune;
 		S.Bikes.Add(To);
 	}
 	S.DynoStraps.Reset();
@@ -445,6 +448,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.MaskMetal = It.MaskMetal;
 		To.MaskRough = It.MaskRough;
 		To.Badge = It.Badge;
+		To.Tune = It.Tune;
+		To.bLightened = It.bLightened;
 		S.Items.Add(To);
 	}
 }
@@ -473,6 +478,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		To.DynoN = From.DynoN;
 		for (const FTorqueShedSaveDynoRun& Run : From.DynoRuns) To.DynoRuns.Add(TBI::FromSaveRun(Run));
 		To.Geo = TorqueGeometryMode::Clean(From.Geo);
+		To.Tune = From.Tune;
 	}
 	Dyno = FTorqueDynoRoom();
 	for (int32 I = 0; I < 4 && I < S.DynoStraps.Num(); ++I) Dyno.Straps[I] = S.DynoStraps[I];
@@ -541,6 +547,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.MaskMetal = From.MaskMetal;
 		It.MaskRough = From.MaskRough;
 		It.Badge = From.Badge;
+		It.Tune = From.Tune;
+		It.bLightened = From.bLightened;
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -594,7 +602,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 14;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher)
+constexpr int32 BytesLayout = 15;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -610,6 +618,37 @@ struct FNameTable
 };
 
 uint8 Quant(float V) { return (uint8)FMath::Clamp(FMath::RoundToInt(V * 255.0f), 0, 255); }
+
+// The dyno desk's settings on a bike or a part: how many, then each name (from the table) and value.
+void WriteTune(FArchive& Ar, FNameTable& Table, const TMap<FName, float>& Tune)
+{
+	uint8 N = (uint8)FMath::Min(Tune.Num(), 255);
+	Ar << N;
+	int32 Done = 0;
+	for (const TPair<FName, float>& KV : Tune)
+	{
+		if (Done++ >= N) break;
+		uint16 Key = Table.Of(KV.Key);
+		float V = KV.Value;
+		Ar << Key << V;
+	}
+}
+
+bool ReadTune(FArchive& Ar, const TArray<FName>& Names, TMap<FName, float>& Tune)
+{
+	Tune.Reset();
+	uint8 N = 0;
+	Ar << N;
+	for (int32 I = 0; I < N && !Ar.IsError(); ++I)
+	{
+		uint16 Key = 0;
+		float V = 0.0f;
+		Ar << Key << V;
+		if (!Names.IsValidIndex(Key) || !FMath::IsFinite(V)) return false;
+		Tune.Add(Names[Key], V);
+	}
+	return !Ar.IsError();
+}
 float Unquant(uint8 V) { return V / 255.0f; }
 
 void WriteSlots(FArchive& Ar, const TMap<FName, int32>& Slots, const TMap<FName, bool>& Bolted)
@@ -689,6 +728,7 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		}
 		FString Geo = B.Geo;
 		Ar << Geo;
+		TBI::WriteTune(Ar, Table, B.Tune);
 	}
 	{
 		// The dyno room's kit.
@@ -746,6 +786,10 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 			FString Badge = It.Badge;
 			Ar << Badge;
 		}
+		// The dyno desk's settings kept on it, and whether it's been lightened.
+		TBI::WriteTune(Ar, Table, It.Tune);
+		uint8 bLightenedB = It.bLightened ? 1 : 0;
+		Ar << bLightenedB;
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -832,6 +876,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		}
 		Ar << B.Geo;
 		if (Ar.IsError() || B.Geo.Len() > TorqueGeometryMode::MaxText) return false;
+		if (!TBI::ReadTune(Ar, Names, B.Tune)) return false;
 		if (NewBikes.IsValidIndex(I)) NewBikes[I] = B;
 	}
 	FTorqueDynoRoom NewDyno;
@@ -912,6 +957,10 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 				Ar << It.Badge;
 				if (It.Badge.Len() > 2000) It.Badge.Reset();   // (not a badge)
 			}
+			if (!TBI::ReadTune(Ar, Names, It.Tune)) return false;
+			uint8 bLightenedB = 0;
+			Ar << bLightenedB;
+			It.bLightened = bLightenedB != 0;
 		}
 		Ar << bEngine;
 		if (bEngine && !TBI::ReadSlots(Ar, It.Slots, It.Bolted, false)) return false;
@@ -1401,6 +1450,57 @@ bool UTorqueBuildSubsystem::LayoutParts(int32 Bay, TMap<FString, FString>& Out) 
 		if (It && (TorqueShedParts::IsStock(It->Part) || !TorqueShedParts::IsPart(It->Part))) return false;
 		Out.Add(Slot, It ? It->Part.ToString().ToLower() : FString(TEXT("none")));
 	}
+	return true;
+}
+
+TMap<FName, float> UTorqueBuildSubsystem::TuneOf(int32 Bay) const
+{
+	TMap<FName, float> Out;
+	if (!Exists(Bay)) return Out;
+	for (const TorqueFit::TuneTab& Tab : TorqueFit::TuneTabs())
+		for (const TorqueFit::TuneRow& Row : Tab.Rows)
+		{
+			std::string Home, Field;
+			if (Row.Key == "chain" || !TorqueFit::TuneHome(Row.Key, Home, Field)) continue;
+			const TMap<FName, float>* Holder = nullptr;
+			if (Home == "bike") Holder = &Bikes[Bay].Tune;
+			else if (const FTorqueItem* It = Items.Find(ItemOn(Bay, FName(*TBI::Ue(Home))))) Holder = &It->Tune;
+			if (const float* V = Holder ? Holder->Find(FName(*TBI::Ue(Field))) : nullptr) Out.Add(FName(*TBI::Ue(Row.Key)), *V);
+		}
+	return Out;
+}
+
+float UTorqueBuildSubsystem::ChainSlackOf(int32 Bay) const
+{
+	const FTorqueItem* Chain = Items.Find(ItemOn(Bay, FName(TEXT("chain"))));
+	const float* Slack = Chain ? Chain->Tune.Find(FName(TEXT("slack"))) : nullptr;
+	return Slack ? *Slack : (float)TorqueFit::ChainSlackStock;
+}
+
+TArray<FName> UTorqueBuildSubsystem::LightenedOf(int32 Bay) const
+{
+	TArray<FName> Out;
+	if (!Exists(Bay)) return Out;
+	for (const TPair<FName, int32>& KV : Bikes[Bay].Slots)
+		if (const FTorqueItem* It = Items.Find(KV.Value))
+			if (It->bLightened) Out.Add(KV.Key);
+	return Out;
+}
+
+bool UTorqueBuildSubsystem::WithTune(int32 Bay, TFunctionRef<void(const TorqueFit::BikeTune&)> Fn) const
+{
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	TMap<FString, FString> Parts;
+	if (!Lay || !LayoutParts(Bay, Parts)) return false;
+	TorqueFit::PartsMap Map;
+	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
+	TorqueFit::TuneMap Tune;
+	for (const TPair<FName, float>& KV : TuneOf(Bay)) Tune[TBI::Id(KV.Key)] = KV.Value;
+	double EcuHealth = 1.0;
+	if (const FTorqueItem* Ecu = Items.Find(ItemOn(Bay, FName(TEXT("ecu")))))
+		EcuHealth = TorqueFit::PartHealth(Ecu->Wear, Ecu->Rust, Ecu->Dirt);
+	const TorqueFit::BikeTune T(*Lay, TorqueFit::RideParts(*Lay, Map), Tune, EcuHealth);
+	Fn(T);
 	return true;
 }
 
@@ -2355,6 +2455,36 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 	}
 	case ETorqueShedAct::GeoSave:
 		return TorqueGeometryMode::CheckSave(*this, R);
+	case ETorqueShedAct::Tune:
+	{
+		// shed_state check "tune": the bike, the setting, the part that keeps it, what its parts allow.
+		if (!Exists(R.Bay)) return TEXT("That bike has gone.");
+		const std::string Key = TBI::Std(R.Text);
+		std::string Home, Field;
+		if (!TorqueFit::TuneHome(Key, Home, Field)) return TEXT("There's nothing like that to adjust.");
+		if (Home != "bike" && ItemOn(R.Bay, FName(*TBI::Ue(Home))) == 0)
+			return FString::Printf(TEXT("There's no %s fitted."), *TorqueShedParts::SlotName(FName(*TBI::Ue(Home))).ToLower());
+		if (R.Item == 0 && !FMath::IsFinite(R.Amount)) return TEXT("Pick a setting.");
+		FString Why;
+		if (!WithTune(R.Bay, [&Why, &Key](const TorqueFit::BikeTune& T) { Why = TBI::Ue(T.Block(Key)); }))
+			return TEXT("The dyno desk can't read this bike's parts.");
+		return Why;
+	}
+	case ETorqueShedAct::Lighten:
+	{
+		const FTorqueItem* It = Items.Find(R.Item);
+		if (!It) return TEXT("That part has gone.");
+		if (It->bBoxed) return TEXT("Unpack it first.");
+		if (It->bLightened) return TEXT("It's already been drilled and trimmed.");
+		const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+		const std::string Id = TBI::Id(It->Part);
+		const TorqueFit::Json* P = Lay ? Lay->Part(Id) : nullptr;
+		if (!P) return TEXT("There's nothing to trim off that.");
+		if (P->Flag("lightweight")) return TEXT("It's already as light as it goes.");
+		const TorqueFit::BikeTune T(*Lay, TorqueFit::PartsMap(), TorqueFit::TuneMap());
+		if (T.LightenCut(Id) <= 0.0) return TEXT("There's nothing to trim off that.");
+		return FString();
+	}
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -2931,6 +3061,39 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = TorqueGeometryMode::ApplySave(Bikes[R.Bay], R.Text);
 		PartsOf.Add(R.Bay);
 		break;
+	case ETorqueShedAct::Tune:
+	{
+		// shed_state _apply "tune": kept where TUNE_HOME says, within what the parts allow; the
+		// chain's slack on the chain. Says nothing (the desk shows it).
+		const std::string Key = TBI::Std(R.Text);
+		std::string Home, Field;
+		TorqueFit::TuneHome(Key, Home, Field);
+		TMap<FName, float>* Holder = nullptr;
+		if (Home == "bike") Holder = &Bikes[R.Bay].Tune;
+		else if (FTorqueItem* It = Items.Find(ItemOn(R.Bay, FName(*TBI::Ue(Home))))) Holder = &It->Tune;
+		if (!Holder) break;
+		const FName FieldName(*TBI::Ue(Field));
+		double Lo = 0.0, Hi = 0.0;
+		if (Key == "chain") TorqueFit::TuneLimits(Key, Lo, Hi);
+		else WithTune(R.Bay, [&Lo, &Hi, &Key](const TorqueFit::BikeTune& T) { T.Range(Key, Lo, Hi); });
+		if (R.Item != 0) Holder->Remove(FieldName);
+		else Holder->Add(FieldName, (float)FMath::Clamp((double)R.Amount, Lo, Hi));
+		break;
+	}
+	case ETorqueShedAct::Lighten:
+	{
+		FTorqueItem& It = Items[R.Item];
+		const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+		const std::string Id = TBI::Id(It.Part);
+		const TorqueFit::BikeTune T(*Lay, TorqueFit::PartsMap(), TorqueFit::TuneMap());
+		const TorqueFit::Json* P = Lay->Part(Id);
+		const double Kg = (P ? P->Num("mass", 0.0) : 0.0) * T.LightenCut(Id);
+		It.bLightened = true;
+		It.Wear = FMath::Min(1.0f, It.Wear + (float)TorqueFit::LightenWear);
+		Text = FString::Printf(TEXT("Drilled and trimmed the %s: %.1f kg lighter, but a little weaker"), *ItemTitle(R.Item), Kg);
+		Touch(R.Item);
+		break;
+	}
 	default:
 		break;
 	}

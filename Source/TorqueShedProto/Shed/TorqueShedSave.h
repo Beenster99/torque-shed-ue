@@ -49,6 +49,8 @@ struct FTorqueShedSaveItem
 	UPROPERTY() float MaskMetal = 0.05f;
 	UPROPERTY() float MaskRough = 0.15f;
 	UPROPERTY() FString Badge;          // a tank's badge (FTorqueItem)
+	UPROPERTY() TMap<FName, float> Tune;   // the dyno desk's settings kept on the part (FTorqueItem)
+	UPROPERTY() bool bLightened = false;
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.
@@ -94,6 +96,7 @@ struct FTorqueShedSaveBike
 	UPROPERTY() int32 DynoN = 0;
 	// Its fit from geometry mode (Fit/BikeGeometry text; "" for none).
 	UPROPERTY() FString Geo;
+	UPROPERTY() TMap<FName, float> Tune;   // the dyno desk's settings kept on the bike
 };
 
 UCLASS()

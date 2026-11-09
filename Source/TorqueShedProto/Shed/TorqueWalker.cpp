@@ -565,6 +565,41 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bPrev = KeyJust(ETorqueKey::PrevTool) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
 	const bool bBack = KeyJust(ETorqueKey::Jump) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle);
 
+	if (bComputer && bDesk)
+	{
+		// At the dyno desk (tuning_computer.gd): the mouse drags its sliders and clicks its buttons,
+		// the wheel scrolls the settings. Keys and pad: Q / E (L1 / R1) the tabs, W / S (up / down) a
+		// setting, A / D (left / right) moves it, R (Square) resets it, Enter (Cross) runs the dyno.
+		// F, Esc or Circle / B walks away.
+		FVector2D Mouse(-1.0, -1.0);
+		float Mx = 0.0f, My = 0.0f;
+		if (PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+		if (bF || Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle))
+		{
+			CloseComputer();
+			return;
+		}
+		if (Just(EKeys::LeftMouseButton))
+		{
+			DeskDo(Desk.Click(Mouse));
+			if (!bComputer) return;
+		}
+		DeskDo(Desk.Hold(Mouse, Down(EKeys::LeftMouseButton)));
+		if (Just(EKeys::MouseScrollDown)) Desk.Scroll(1);
+		if (Just(EKeys::MouseScrollUp)) Desk.Scroll(-1);
+		int32 Step = 0, Move = 0;
+		if (Just(EKeys::W) || Just(EKeys::Up) || Just(EKeys::Gamepad_DPad_Up) || (SonyHit & ESonyButton::DUp)) Step = -1;
+		if (Just(EKeys::S) || Just(EKeys::Down) || Just(EKeys::Gamepad_DPad_Down) || (SonyHit & ESonyButton::DDown)) Step = 1;
+		if (Just(EKeys::A) || Just(EKeys::Left) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)) Move = -1;
+		if (Just(EKeys::D) || Just(EKeys::Right) || Just(EKeys::Gamepad_DPad_Right) || (SonyHit & ESonyButton::DRight)) Move = 1;
+		const bool bPadNext = Just(EKeys::E) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
+		const bool bPadPrev = Just(EKeys::Q) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
+		const bool bReset = Just(EKeys::R) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
+		const bool bRun = Just(EKeys::Enter) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
+		if (Step != 0 || Move != 0 || bPadNext || bPadPrev || bReset || bRun)
+			DeskDo(Desk.Pad(Step, Move, bPadNext ? 1 : (bPadPrev ? -1 : 0), bReset, bRun));
+		return;
+	}
 	if (bComputer)
 	{
 		// At the parts computer (parts_computer.gd): the mouse clicks its buttons and the wheel scrolls
@@ -1106,9 +1141,10 @@ void ATorqueWalker::MakePlan()
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoDesk)
 	{
-		Plan = MakeOne(ETorqueShedAct::DynoRun, 0.4, TEXT("run the dyno"));
+		// tuning_computer.gd: the desk's page (tune the bike, run the dyno).
+		Plan = MakeOne(ETorqueShedAct::DynoRun, 0.15, TEXT("use the dyno desk"));
 		Plan.Request.Bay = B->DynoBay();
-		Plan.Blocked = B->Check(Me, Plan.Request);
+		Plan.bComputer = true;
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
@@ -1512,7 +1548,8 @@ bool ATorqueWalker::Do(const FPlan& P)
 	if (!B) return false;
 	if (P.bComputer)
 	{
-		OpenComputer();
+		if (P.Request.Kind == ETorqueShedAct::DynoRun) OpenDesk();
+		else OpenComputer();
 		return true;
 	}
 	if (P.Request.Kind == ETorqueShedAct::PaintHook) return true;   // wound while it's held (HookWork)
@@ -2254,16 +2291,19 @@ void ATorqueWalker::Interact()
 		else if (R.Kind == ETorqueShedAct::Extinguisher) Doing(TEXT("holding the fire extinguisher"), 6.0);
 		return;
 	}
-	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::DynoSwitch || TargetPlace->Kind == ETorquePlace::DynoDesk))
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoDesk)
 	{
-		// The dyno room: the switches by the door, and the desk (F runs the bike on the rig).
+		OpenDesk();
+		return;
+	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch)
+	{
+		// The dyno room: the switches by the door.
 		FTorqueShedRequest R;
-		R.Kind = TargetPlace->Kind == ETorquePlace::DynoDesk ? ETorqueShedAct::DynoRun
-			: (TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan);
+		R.Kind = TargetPlace->Index == 0 ? ETorqueShedAct::DynoLights : ETorqueShedAct::DynoFan;
 		R.Bay = B->DynoBay();
 		FString WhyNot;
 		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
-		else if (R.Kind == ETorqueShedAct::DynoRun) Doing(FString::Printf(TEXT("running bay %d's bike on the dyno"), R.Bay + 1), 10.0);
 		return;
 	}
 	if (Target == ETorqueLook::BikePart || Target == ETorqueLook::Door || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay))
@@ -2361,6 +2401,13 @@ void ATorqueWalker::OpenComputer()
 void ATorqueWalker::CloseComputer()
 {
 	if (!bComputer) return;
+	if (bDesk)
+	{
+		bDesk = false;   // (first: DeskDo's close comes back here)
+		FTorqueDeskOut Out = Desk.Close();
+		Out.bClose = false;
+		DeskDo(Out);
+	}
 	bComputer = false;
 	bWaitRelease = true;
 	ComputerClosedFrame = GFrameCounter;
@@ -2414,12 +2461,44 @@ void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 	}
 }
 
+void ATorqueWalker::OpenDesk()
+{
+	// tuning_computer.gd open: the bike on the rig, or the nearest within reach.
+	OpenComputer();
+	bDesk = true;
+	Desk.Open(Shed(), GetActorLocation());
+	Doing(TEXT("at the dyno desk"), 6.0);
+}
+
+void ATorqueWalker::DeskDo(const FTorqueDeskOut& Out)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	for (const FTorqueShedRequest& R : Out.Requests)
+	{
+		if (!B) break;
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		else if (R.Kind == ETorqueShedAct::DynoRun)
+		{
+			B->SetMyBike(R.Bay);
+			Doing(FString::Printf(TEXT("running bay %d's bike on the dyno"), R.Bay + 1), 10.0);
+		}
+		else if (R.Kind == ETorqueShedAct::Tune) Doing(FString::Printf(TEXT("tuning bay %d's bike"), R.Bay + 1), 4.0);
+	}
+	if (Out.bClose) CloseComputer();
+}
+
 void ATorqueWalker::DrawComputer(AHUD* Hud, UCanvas* Canvas) const
 {
 	const APlayerController* PC = Cast<APlayerController>(GetController());
 	FVector2D Mouse(-1.0, -1.0);
 	float Mx = 0.0f, My = 0.0f;
 	if (PC && PC->GetMousePosition(Mx, My)) Mouse = FVector2D(Mx, My);
+	if (bDesk)
+	{
+		Desk.Draw(Hud, Canvas, Shed(), Mouse, NoteFor > 0.0 ? Note : FString(), bNoteOk);
+		return;
+	}
 	Computer.Draw(Hud, Canvas, Shed(), Mouse, NoteFor > 0.0 ? Note : FString(), bNoteOk);
 }
 
@@ -2603,7 +2682,7 @@ void ATorqueWalker::UpdateHud()
 			}
 			if (TargetPlace->Kind == ETorquePlace::DynoDesk)
 			{
-				HudLines.Add({TEXT("F / Triangle (or left mouse): run the bike on the rig"), Prompt, 0.65f});
+				HudLines.Add({TEXT("F / Triangle (or left mouse): tune the bike and run the dyno"), Prompt, 0.65f});
 				if (B->HasDynoRun(B->DynoBay()))
 				{
 					const FTorqueDynoRun& Last = B->DynoRunOf(B->DynoBay());
@@ -2797,7 +2876,28 @@ FString ATorqueWalker::TestInteract()
 	Note.Reset();
 	Interact();
 	UpdateHud();
-	return FString::Printf(TEXT("F on %s: %s"), *Seen, bRidingOut ? TEXT("riding out") : (Note.IsEmpty() ? (bComputer ? TEXT("the parts computer is up") : TEXT("nothing happened")) : *Note));
+	return FString::Printf(TEXT("F on %s: %s"), *Seen, bRidingOut ? TEXT("riding out") : (Note.IsEmpty() ? (bComputer ? (bDesk ? TEXT("the dyno desk is up") : TEXT("the parts computer is up")) : TEXT("nothing happened")) : *Note));
+}
+
+FString ATorqueWalker::TestDesk(const FString& What, const FString& Key, float Value)
+{
+	if (What == TEXT("close"))
+	{
+		CloseComputer();
+		return TEXT("walked away from the desk");
+	}
+	if (!(bComputer && bDesk))
+	{
+		if (bComputer) CloseComputer();
+		OpenDesk();
+	}
+	Note.Reset();
+	if (What == TEXT("tab") && !Desk.PickTab(Key)) return TEXT("no tab ") + Key;
+	if (What == TEXT("set") || What == TEXT("stock")) DeskDo(Desk.TestSet(Key, Value, What == TEXT("stock")));
+	if (What == TEXT("run")) DeskDo(Desk.Pad(0, 0, 0, false, true));
+	FString Out = Desk.Describe(Shed());
+	if (!Note.IsEmpty()) Out += TEXT(" [") + Note + TEXT("]");
+	return Out;
 }
 
 FName ATorqueWalker::TestTargetPlace() const

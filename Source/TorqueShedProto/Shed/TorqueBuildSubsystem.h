@@ -27,6 +27,7 @@
 
 class APawn;
 class UTorqueShedSave;
+namespace TorqueFit { class BikeTune; }
 
 // Where an item is (shed_state's "at"), and what Ref means there.
 enum class ETorqueAt : uint8
@@ -84,6 +85,13 @@ struct FTorqueItem
 	// A tank's badge (bike_badge.gd, chosen in the New bike configurator): its logo and brand name
 	// as Fit/BikeShop's badge text ("" for none). It goes wherever the tank goes.
 	FString Badge;
+	// The dyno desk's settings kept on the part they adjust (shed_state TUNE_HOME: a fork's or
+	// shock's preload / bump / rebound, a tyre's pressure, the sprockets' front / rear teeth, a
+	// cassette gearbox's spread, a steering damper's clicks, the chain's slack), so they go with it
+	// when it's swapped; a field missing is stock. And whether it's been drilled and trimmed for
+	// lightness (once: lighter, a little weaker).
+	TMap<FName, float> Tune;
+	bool bLightened = false;
 };
 
 // One bay's bike.
@@ -110,6 +118,9 @@ struct FTorqueShedBike
 	// Its fit from geometry mode (shed_state's bike "geo": Fit/BikeGeometry text, "" for none):
 	// the rig's range handles and each slot's free offset, how it's drawn. Looks only.
 	FString Geo;
+	// The dyno desk's settings kept on the bike (shed_state TUNE_HOME "bike": the fuel map, the
+	// ignition, the rev limiter and the ECU's rider aid levels); a setting missing is stock.
+	TMap<FName, float> Tune;
 };
 
 // The dyno room's kit (shed_state's dyno): the rig's four straps, the cooling fan, the lights,
@@ -201,6 +212,11 @@ enum class ETorqueShedAct : uint8
 	// Bay Bay's bike scrapped: it and every part on it gone for good, the bay free (shed_state.gd
 	// remove_bike; the UE shed has no money, so nothing is paid for it).
 	ScrapBike,
+	// The dyno desk (tuning_computer.gd's "tune" and "lighten"): bay Bay's setting Text (a
+	// TorqueFit::TuneLimits key) set to Amount, or back to stock (Item 1); part Item drilled and
+	// trimmed for lightness.
+	Tune,
+	Lighten,
 	Count
 };
 
@@ -357,6 +373,16 @@ public:
 	double SharedNow() const;
 	// The bike's numbers, as Torque Shed works them out (power, torque, mass).
 	FTorqueEngineNumbers NumbersOf(int32 Bay) const { return TorqueShedPower::Numbers(*this, Bay); }
+	// --- The dyno desk's tune (shed_state tune_of, TUNE_HOME) -------------------------------
+	// Bay Bay's tune gathered from where each setting is kept: setting -> value, those never
+	// touched left out (stock). The chain's slack isn't in it: ChainSlackOf.
+	TMap<FName, float> TuneOf(int32 Bay) const;
+	float ChainSlackOf(int32 Bay) const;
+	// The bike's slots whose parts were drilled and trimmed for lightness.
+	TArray<FName> LightenedOf(int32 Bay) const;
+	// Fn handed the bike's tune rules (Fit/BikeTune: its parts as Torque Shed sees them, with its
+	// tune); false (Fn not called) when it isn't a bike of catalogue parts.
+	bool WithTune(int32 Bay, TFunctionRef<void(const TorqueFit::BikeTune&)> Fn) const;
 
 	// --- The items ---------------------------------------------------------------------------
 	const FTorqueItem* Item(int32 Id) const { return Items.Find(Id); }

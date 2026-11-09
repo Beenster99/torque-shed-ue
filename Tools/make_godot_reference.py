@@ -23,6 +23,11 @@ SimTest/badge_test.
 With --spec it runs Tools/godot_reference/dump_spec.tscn: BikeBuild's riding numbers (chassis,
 wheels, tyres, suspension, brakes, gearbox, mass spread, aids, engine torque) for every style's
 reference bike and a sweep of swaps, written to SimTest/data/godot_spec.json for SimTest/spec_test.
+
+With --tune it runs Tools/godot_reference/dump_tune.tscn: the dyno desk's tune (BikeBuild's tune rules,
+the rider aids' levels, the engine's tune, what a tune does to the riding numbers, the desk's
+readings) for each style's reference bike and a few swaps, under a fixed set of tunes, written to
+SimTest/data/godot_tune.json for SimTest/tune_test.
 """
 import argparse
 import json
@@ -38,6 +43,7 @@ GEO_OUT = os.path.join(REPO, "SimTest", "data", "godot_geo.json")
 SPEC_OUT = os.path.join(REPO, "SimTest", "data", "godot_spec.json")
 SHOP_OUT = os.path.join(REPO, "SimTest", "data", "godot_shop.json")
 BADGE_OUT = os.path.join(REPO, "SimTest", "data", "godot_badge.json")
+TUNE_OUT = os.path.join(REPO, "SimTest", "data", "godot_tune.json")
 
 
 def main():
@@ -50,6 +56,7 @@ def main():
     ap.add_argument("--spec", action="store_true", help="dump BikeBuild's riding numbers (godot_spec.json) instead")
     ap.add_argument("--shop", action="store_true", help="dump the New bike configurator (godot_shop.json) instead")
     ap.add_argument("--badge", action="store_true", help="dump the tank badge (godot_badge.json) instead")
+    ap.add_argument("--tune", action="store_true", help="dump the dyno desk's tune (godot_tune.json) instead")
     a = ap.parse_args()
     if a.from_raw:
         data = json.load(open(a.from_raw))
@@ -65,8 +72,9 @@ def main():
         shutil.copytree(os.path.join(HERE, "godot_reference"), os.path.join(proj, "dump"))
         subprocess.run([a.bin, "--headless", "--path", proj, "--import"], check=True, capture_output=True)
         raw = os.path.join(tmp, "ref.json")
-        if a.spec:
-            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_spec.tscn", "--", "--out=" + raw],
+        if a.spec or a.tune:
+            scene = "dump_tune" if a.tune else "dump_spec"
+            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/%s.tscn" % scene, "--", "--out=" + raw],
                            check=True, capture_output=True, timeout=900)
             data = json.load(open(raw))
             def r(v):
@@ -79,11 +87,14 @@ def main():
                     return {k: r(x) for k, x in v.items()}
                 return v
             commit = subprocess.run(["git", "-C", a.godot, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-            data = {"about": "The original Torque Shed's BikeBuild riding numbers (new parts, no tune). Written by "
-                             "Tools/make_godot_reference.py --spec; do not edit.",
-                    "source": {"repo": "Beenster99/torque-shed", "commit": commit, "godot": "4.6.2-stable"}, **r(data)}
-            json.dump(data, open(SPEC_OUT, "w"), separators=(",", ":"), sort_keys=True)
-            print("wrote %s" % SPEC_OUT)
+            about = ("The original Torque Shed's dyno desk tune (BikeBuild's tune rules and what a tune does). Written by "
+                     "Tools/make_godot_reference.py --tune; do not edit.") if a.tune else \
+                ("The original Torque Shed's BikeBuild riding numbers (new parts, no tune). Written by "
+                 "Tools/make_godot_reference.py --spec; do not edit.")
+            data = {"about": about, "source": {"repo": "Beenster99/torque-shed", "commit": commit, "godot": "4.6.2-stable"}, **r(data)}
+            out = TUNE_OUT if a.tune else SPEC_OUT
+            json.dump(data, open(out, "w"), separators=(",", ":"), sort_keys=True)
+            print("wrote %s" % out)
             return
         if a.badge:
             subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_badge.tscn", "--", "--out=" + raw],

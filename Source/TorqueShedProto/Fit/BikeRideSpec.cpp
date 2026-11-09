@@ -19,6 +19,7 @@ constexpr double RsFuelDensity = 0.74, RsOilDensity = 0.87;
 constexpr double RsDrivetrain = 0.92;
 constexpr double RsRolling = 0.015;
 constexpr double RsPreloadStock = 0.008;
+constexpr double RsPreloadClick = 0.008;
 constexpr double RsChainPitch = 0.015875;
 constexpr double RsShortTrail = 0.06;
 constexpr double RsProperStyle = 0.7;   // PartsDB.PROPER_STYLE
@@ -94,6 +95,7 @@ struct RsBuild
 	PartsMap Parts;
 	const std::map<std::string, double>& HealthIn;
 	int Cylinders = 2;
+	std::map<std::string, double> Cut;   // a lightened slot: the share of its mass taken off
 
 	bool Has(const std::string& Slot) const
 	{
@@ -116,7 +118,8 @@ struct RsBuild
 	double Mass(const std::string& Slot) const
 	{
 		const Json& P = Part(Slot);
-		return P.Num("mass", P.Num("mass_per_cyl", 0.0) * Cylinders);
+		const auto C = Cut.find(Slot);
+		return P.Num("mass", P.Num("mass_per_cyl", 0.0) * Cylinders) * (C == Cut.end() ? 1.0 : 1.0 - C->second);
 	}
 	double Grip(const Json& Tyre, const std::string& Surf) const
 	{
@@ -179,7 +182,9 @@ double RsWidthGrip(double Width, bool Tarmac)
 }
 
 // TyreModel.params_of with STYLE_DEFAULTS, and the grip table.
-TorqueSim::TyreParams RsTyre(const Json& T, double Tarmac, double Dirt, double Grass)
+// tyre_params: a tyre at a pressure Dev off its best squirms soft (slips further before it peaks,
+// builds grip over a longer roll) and is twitchier hard.
+TorqueSim::TyreParams RsTyre(const Json& T, double Tarmac, double Dirt, double Grass, double Dev)
 {
 	const std::string Style = T.Str("style", "road");
 	std::string Construction = "radial";
@@ -188,8 +193,13 @@ TorqueSim::TyreParams RsTyre(const Json& T, double Tarmac, double Dirt, double G
 	else if (Style == "offroad") { Construction = "bias"; Profile = 1.05; Stiffness = 0.8; Slide = 0.86; }
 	const std::string C = T.Str("construction", Construction);
 	if (C == "radial" || C == "bias") Construction = C;
-	return TorqueSim::TyreModel::Make(Style, Construction, T.Num("profile", Profile), T.Num("stiffness", Stiffness), T.Num("slide", Slide),
-		T.Num("width", 140.0), Tarmac, Dirt, Grass);
+	TorqueSim::TyreParams P = TorqueSim::TyreModel::Make(Style, Construction, T.Num("profile", Profile), T.Num("stiffness", Stiffness),
+		T.Num("slide", Slide), T.Num("width", 140.0), Tarmac, Dirt, Grass);
+	const double Firm = RsClamp(1.0 + 0.35 * Dev, 0.75, 1.2);
+	P.KappaPeak /= Firm;
+	P.AlphaPeak /= Firm;
+	P.Relax /= Firm;
+	return P;
 }
 
 // _side_brake, new fluid: the torque a full squeeze asks for (N m).
@@ -244,7 +254,13 @@ PartsMap RideParts(const BikeLayout& Lay, const PartsMap& Parts)
 bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpec& Out, std::vector<std::string>* Notes)
 {
 	if (!Lay.Loaded()) return false;
-	RsBuild B{Lay, RideParts(Lay, In.Parts), In.Health};
+	RsBuild B{Lay, RideParts(Lay, In.Parts), In.Health, 2, {}};
+	const BikeTune Tn(Lay, B.Parts, In.Tune, B.Health("ecu"));
+	for (const std::string& Slot : In.Lightened)
+	{
+		const auto P = B.Parts.find(Slot);
+		if (P != B.Parts.end() && B.Has(Slot)) B.Cut[Slot] = Tn.LightenCut(P->second);
+	}
 	const Json& Frame = B.Part("frame");
 	const Json& Fork = B.Part("fork");
 	const Json& Shock = B.Part("shock");
@@ -293,8 +309,13 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 	S.RearSpring = Shock.Num("spring", 36000.0) * RsLerp(0.85, 1.0, B.Health("shock"));
 	S.RearBump = Shock.Num("bump", 2300.0) * RsLerp(0.45, 1.0, B.Health("shock"));
 	S.RearRebound = Shock.Num("rebound", 3500.0) * RsLerp(0.45, 1.0, B.Health("shock"));
-	S.FrontPreload = std::max(Fork.Num("preload", RsPreloadStock), 0.0);
-	S.RearPreload = std::max(Shock.Num("preload", RsPreloadStock), 0.0);
+	// The clickers: preload pre-squashes the spring (less sag, the same rate), bump and rebound the damping.
+	S.FrontPreload = std::max(Fork.Num("preload", RsPreloadStock) + RsPreloadClick * Tn.Value("f_preload"), 0.0);
+	S.FrontBump *= 1.0 + 0.45 * Tn.Value("f_bump");
+	S.FrontRebound *= 1.0 + 0.45 * Tn.Value("f_rebound");
+	S.RearPreload = std::max(Shock.Num("preload", RsPreloadStock) + RsPreloadClick * Tn.Value("r_preload"), 0.0);
+	S.RearBump *= 1.0 + 0.45 * Tn.Value("r_bump");
+	S.RearRebound *= 1.0 + 0.45 * Tn.Value("r_rebound");
 	const std::string ForkStyle = Fork.Str("style", "conventional");
 	S.FrontProgression = Fork.Num("progression", RsTable(RsForkStyles, RsForkProgression, ForkStyle, 0.2));
 	S.RearProgression = Shock.Num("progression", RsShockProgression(Shock.Str("type")));
@@ -319,7 +340,7 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 		S.SwingLength = (V3(0.0, 0.0, S.Wheelbase * 0.5) - S.SwingPivot).Length();
 	}
 
-	// Wheels and tyres (_compute_wheels), at their best pressures.
+	// Wheels and tyres (_compute_wheels), at the pressures they're set to.
 	const Json& Tf = B.Part("front_tyre");
 	const Json& Tr = B.Part("rear_tyre");
 	const Json& Wf = B.Part("front_wheel");
@@ -335,16 +356,19 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 		if (Notes)
 			for (const auto& [Fit, End] : {std::pair<int, const char*>{FitF, "front"}, std::pair<int, const char*>{FitR, "rear"}})
 				if (Fit != 0) Notes->push_back(std::string("The ") + End + " tyre doesn't suit its rim. Change it on the tyre changer.");
-		auto GripOf = [&](const Json& T, double Width, double Scale, int Fit, const char* Surf) {
+		// Off a tyre's best pressure it grips less on tarmac; a little soft finds more grip in the dirt.
+		const double DevF = Tn.PressureOffset(true), DevR = Tn.PressureOffset(false);
+		auto GripOf = [&](const Json& Ty, double Width, double Scale, int Fit, const char* Surf, double Dev) {
 			const bool Road = std::string(Surf) == "tarmac";
-			return B.Grip(T, Surf) * Scale * RsWidthGrip(Width, Road) * (Fit != 0 ? 0.9 : 1.0);
+			return B.Grip(Ty, Surf) * Scale * RsWidthGrip(Width, Road) * (Fit != 0 ? 0.9 : 1.0) * BikeTune::PressureGrip(Dev, Surf);
 		};
-		S.TyreFront = RsTyre(Tf, GripOf(Tf, FrontWidth, ScaleF, FitF, "tarmac"), GripOf(Tf, FrontWidth, ScaleF, FitF, "dirt"),
-			GripOf(Tf, FrontWidth, ScaleF, FitF, "grass"));
-		S.TyreRear = RsTyre(Tr, GripOf(Tr, RearWidth, ScaleR, FitR, "tarmac"), GripOf(Tr, RearWidth, ScaleR, FitR, "dirt"),
-			GripOf(Tr, RearWidth, ScaleR, FitR, "grass"));
+		S.TyreFront = RsTyre(Tf, GripOf(Tf, FrontWidth, ScaleF, FitF, "tarmac", DevF), GripOf(Tf, FrontWidth, ScaleF, FitF, "dirt", DevF),
+			GripOf(Tf, FrontWidth, ScaleF, FitF, "grass", DevF), DevF);
+		S.TyreRear = RsTyre(Tr, GripOf(Tr, RearWidth, ScaleR, FitR, "tarmac", DevR), GripOf(Tr, RearWidth, ScaleR, FitR, "dirt", DevR),
+			GripOf(Tr, RearWidth, ScaleR, FitR, "grass", DevR), DevR);
+		S.Rolling = RsRolling * (RsClamp(1.0 - 0.9 * DevF, 0.6, 2.5) + RsClamp(1.0 - 0.9 * DevR, 0.6, 2.5)) * 0.5;
+		if (Notes && std::min(DevF, DevR) < -0.3) Notes->push_back("The tyres are soft: they'll squirm, drag and wear out fast.");
 	}
-	S.Rolling = RsRolling;
 	const double MassF = B.Mass("front_wheel") + Tf.Num("mass", 0.0);
 	const double MassR = B.Mass("rear_wheel") + Tr.Num("mass", 0.0);
 	S.FrontInertia = 0.8 * MassF * S.FrontRadius * S.FrontRadius;
@@ -368,53 +392,55 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 	{
 		const Json& Damper = B.Part("steering_damper");
 		const double Dh = B.Health("steering_damper");
-		S.DamperDamping = Damper.Num("damping", 0.0) * RsLerp(0.4, 1.0, Dh);
-		S.DamperFriction = Damper.Num("friction", 0.0) * RsLerp(0.5, 1.0, Dh);
+		// Its clicker firms it up or softens it.
+		const double Click = 1.0 + 0.6 * Tn.Value("damper");
+		S.DamperDamping = Damper.Num("damping", 0.0) * RsLerp(0.4, 1.0, Dh) * Click;
+		S.DamperFriction = Damper.Num("friction", 0.0) * RsLerp(0.5, 1.0, Dh) * Click;
 	}
 
 	// Brakes.
 	S.FrontBrakeTorque = RsSideBrake(B, "front");
 	S.RearBrakeTorque = RsSideBrake(B, "rear") * 0.7;
 
-	// Rider aids from the ECU, at their factory levels (ABS on, the rest at level 3: strength 1x).
+	// Rider aids from the ECU, at the levels the dyno desk set (aid_strength: off, or the ECU's own
+	// firmness scaled by the level; ABS just on or off). No ride modes yet: the desk's levels (Custom).
 	{
-		const Json& Ecu = B.Part("ecu");
-		const double Aid = Ecu.Num("aid_level", 0.0) * RsLerp(0.5, 1.0, B.Health("ecu"));
-		bool bAbs = false, bTraction = false, bWheelie = false, bLean = false, bStab = false;
-		if (const Json* F = Ecu.Get("features"))
-			for (const Json& X : F->A)
-			{
-				bAbs = bAbs || X.S == "abs";
-				bTraction = bTraction || X.S == "traction";
-				bWheelie = bWheelie || X.S == "anti_wheelie";
-				bLean = bLean || X.S == "lean_traction";
-				bStab = bStab || X.S == "stability";
-			}
-		const double Firm = RsClamp(Aid, 0.0, 1.2);
-		S.AntiWheelie = bWheelie ? Firm : 0.0;
-		S.LeanTraction = bLean ? Firm : 0.0;
-		S.Stability = bStab ? Firm : 0.0;
-		S.AbsFront = S.AbsRear = bAbs && Aid > 0.0;
-		S.TractionControl = bTraction && Aid > 0.0;
-		S.TractionStrength = RsClamp(Aid, 0.0, 1.2);
+		S.AntiWheelie = Tn.AidStrength("anti_wheelie");
+		S.LeanTraction = Tn.AidStrength("lean_traction");
+		S.Stability = Tn.AidStrength("stability");
+		S.AbsFront = S.AbsRear = Tn.AidStrength("abs") > 0.0;
+		S.TractionStrength = Tn.AidStrength("traction");
+		S.TractionControl = S.TractionStrength > 0.0;
 	}
 
 	// Gearbox, sprockets and chain.
 	{
 		const Json& Gearbox = B.Part("gearbox");
-		const Json& Sprocket = B.Part("final_drive");
 		const Json& Chain = B.Part("chain");
 		S.Primary = Gearbox.Num("primary", 2.9);
 		S.GearRatios.clear();
 		if (const Json* R = Gearbox.Get("ratios"))
 			for (const Json& X : R->A) S.GearRatios.push_back(X.N);
 		if (S.GearRatios.empty()) S.GearRatios = {2.6, 1.95, 1.6, 1.36, 1.19, 1.06};
-		const double Front = Sprocket.Num("front", 15.0), Rear = Sprocket.Num("rear", 45.0);
+		S.GearRatios = BikeTune::Spread(S.GearRatios, Tn.Value("spread"));
+		const double Front = Tn.Value("sprocket_f"), Rear = Tn.Value("sprocket_r");
 		S.FinalDrive = Rear / Front;
 		S.ShiftTime = Gearbox.Num("shift_time", 0.12);
 		double Eff = RsDrivetrain * RsLerp(0.8, 1.0, B.Health("gearbox")) * RsLerp(0.88, 1.0, B.Health("final_drive"));
-		// _compute_chain with a new chain: 30 mm of slack, freshly lubed.
-		Eff *= (1.0 - Chain.Num("friction", 0.025)) * RsLerp(0.9, 1.0, B.Health("chain"));
+		// _compute_chain, freshly lubed: a slack or tight chain soaks up more.
+		const double Slack = RsClamp(In.ChainSlack, 5.0, 90.0);
+		double Loss = Chain.Num("friction", 0.025);
+		if (Slack > 40.0)
+		{
+			Loss += (Slack - 40.0) * 0.0012;
+			if (Notes) Notes->push_back(Slack < 65.0 ? "The chain is slapping about: tighten it." : "The chain is so slack it could jump off! Tighten it.");
+		}
+		else if (Slack < 20.0)
+		{
+			Loss += (20.0 - Slack) * 0.002;
+			if (Notes) Notes->push_back("The chain is too tight and will wear the sprockets. Slacken it off.");
+		}
+		Eff *= (1.0 - Loss) * RsLerp(0.9, 1.0, B.Health("chain"));
 		S.DrivetrainEfficiency = Eff;
 		S.SprocketRFront = RsChainPitch / (2.0 * std::sin(RsPi / std::max(Front, 8.0)));
 		S.SprocketRRear = RsChainPitch / (2.0 * std::sin(RsPi / std::max(Rear, 8.0)));
