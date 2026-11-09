@@ -244,7 +244,16 @@ bool FTorqueSettings::HdrAvailable()
 bool FTorqueSettings::HasDlss()
 {
 	// NVIDIA's DLSS plugin (free, from Fab) registers these when it's in the build and the GPU can.
-	return IConsoleManager::Get().FindConsoleVariable(TEXT("r.NGX.DLSS.Enable")) != nullptr;
+	// Asked every frame by the menus: keep the answer once it's yes, and look again at most every 2 s
+	// while it's no (the plugin registers its cvars late, at PostEngineInit).
+	static bool bFound = false;
+	static double NextLook = 0.0;
+	if (bFound) return true;
+	const double Now = FPlatformTime::Seconds();
+	if (Now < NextLook) return false;
+	NextLook = Now + 2.0;
+	bFound = IConsoleManager::Get().FindConsoleVariable(TEXT("r.NGX.DLSS.Enable")) != nullptr;
+	return bFound;
 }
 
 void FTorqueSettings::Apply(UWorld* World) const
