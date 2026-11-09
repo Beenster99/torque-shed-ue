@@ -1,0 +1,807 @@
+"""Builds the shed's own kit as glbs in Blender, one per prop, into Data/Props/Blender/<id>.glb.
+
+    blender -b --factory-startup -P Tools/props/make_props.py                 every Blender prop
+    blender -b --factory-startup -P Tools/props/make_props.py -- tyre_changer  just these
+    blender -b --factory-startup -P Tools/props/make_props.py -- --list        what there is
+
+These are the machines and fittings no free scan library has at Torque Shed's sizes (a tyre changer,
+parts washers, engine stands, repair benches, the shed's shelving whose boards the parts sit on).
+Each is drawn to its Torque Shed model's footprint (Equipment.MODELS size, workshop.gd's fixed kit)
+and work height, so the places parts go on it still line up; in Torque Shed's local frame (see
+kit.py), the numbers read straight across from equipment_view.gd. Deterministic: the same script
+always writes the same glbs, so they're committed and the PC never needs Blender.
+"""
+import json
+import math
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kit  # noqa: E402
+from kit import box, span, cyl, tube, bent, torus, prism, castor, label, sphere  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+OUT = os.path.join(ROOT, "Data", "Props", "Blender")
+MODELS = {}
+
+
+def model(pid, size):
+    """Registers a prop builder; `size` is Torque Shed's footprint (width x, height y, depth z), m."""
+    def wrap(fn):
+        MODELS[pid] = (fn, size)
+        return fn
+    return wrap
+
+
+# --- Pieces several props share ------------------------------------------------------------------------
+
+def drawer_bank(name, x0, x1, y0, y1, z, rows, mat, handle="chrome", cols=1):
+    """A front of drawers between x0..x1 and y0..y1 at depth z (the front face), each with its pull."""
+    gap = 0.006
+    h = (y1 - y0) / rows
+    w = (x1 - x0) / cols
+    for c in range(cols):
+        for r in range(rows):
+            cx = x0 + w * (c + 0.5)
+            cy = y0 + h * (r + 0.5)
+            box("%s_%d_%d" % (name, c, r), (cx, cy, z + 0.009), (w - gap, h - gap, 0.018), mat, bevel=0.003)
+            tube("%s_%d_%dP" % (name, c, r), bent([(cx - w * 0.3, cy + h * 0.28, z + 0.018), (cx - w * 0.3, cy + h * 0.28, z + 0.035),
+                                                   (cx + w * 0.3, cy + h * 0.28, z + 0.035), (cx + w * 0.3, cy + h * 0.28, z + 0.018)], 0.01),
+                 0.006, handle)
+
+
+def square_tube_frame(name, x0, x1, z0, z1, y0, y1, post, mat):
+    """Four legs and a top rail ring: a welded steel bench frame."""
+    for x in (x0 + post / 2, x1 - post / 2):
+        for z in (z0 + post / 2, z1 - post / 2):
+            box("%s_Leg%.2f%.2f" % (name, x, z), (x, (y0 + y1) / 2, z), (post, y1 - y0, post), mat, bevel=0.003)
+            box("%s_Foot%.2f%.2f" % (name, x, z), (x, 0.006, z), (post + 0.02, 0.012, post + 0.02), "rubber", bevel=0.002)
+    for z in (z0 + post / 2, z1 - post / 2):
+        box("%s_RailX%.2f" % (name, z), ((x0 + x1) / 2, y1 - post / 2, z), (x1 - x0, post, post), mat, bevel=0.003)
+    for x in (x0 + post / 2, x1 - post / 2):
+        box("%s_RailZ%.2f" % (name, x), (x, y1 - post / 2, (z0 + z1) / 2), (post, post, z1 - z0), mat, bevel=0.003)
+
+
+def wood_top(name, centre, size, mat="wood_top"):
+    """A laminated hardwood worktop: strips glued side by side, so it reads as butcher block."""
+    x, y, z = centre
+    w, h, d = size
+    n = max(3, int(d / 0.045))
+    for i in range(n):
+        zz = z - d / 2 + d * (i + 0.5) / n
+        box("%s_%d" % (name, i), (x, y, zz), (w, h, d / n - 0.0008), mat, bevel=0.0015)
+
+
+def vice(name, at, mat="paint_blue"):
+    """A bench vice on the top at `at` (its jaws facing +z)."""
+    x, y, z = at
+    box(name + "_Base", (x, y + 0.02, z - 0.04), (0.15, 0.04, 0.16), mat, bevel=0.006)
+    box(name + "_Body", (x, y + 0.08, z - 0.02), (0.1, 0.08, 0.2), mat, bevel=0.008)
+    box(name + "_JawFixed", (x, y + 0.14, z - 0.05), (0.15, 0.06, 0.04), mat, bevel=0.005)
+    box(name + "_JawMoving", (x, y + 0.14, z + 0.04), (0.15, 0.06, 0.04), mat, bevel=0.005)
+    for dz in (-0.03, 0.06):
+        box(name + "_Plate%.2f" % dz, (x, y + 0.155, z + dz - 0.0), (0.14, 0.03, 0.006), "steel_dark", bevel=0.001)
+    cyl(name + "_Screw", (x, y + 0.11, z + 0.12), 0.011, 0.12, "steel", axis="z")
+    cyl(name + "_Bar", (x, y + 0.11, z + 0.18), 0.006, 0.2, "chrome", axis="x")
+    for s in (-1, 1):
+        sphere(name + "_Knob%d" % s, (x + s * 0.1, y + 0.11, z + 0.18), 0.011, "chrome")
+
+
+def grinder(name, at, body="paint_black"):
+    """A bench grinder at `at` (its motor across x), wheels either end, guards and tool rests."""
+    x, y, z = at
+    box(name + "_Base", (x, y + 0.015, z), (0.16, 0.03, 0.14), body, bevel=0.005)
+    cyl(name + "_Motor", (x, y + 0.1, z), 0.065, 0.16, body, axis="x", bevel=0.01)
+    box(name + "_Switch", (x, y + 0.04, z + 0.07), (0.05, 0.02, 0.02), "paint_yellow", bevel=0.002)
+    for s in (-1, 1):
+        cyl(name + "_Shaft%d" % s, (x + s * 0.1, y + 0.1, z), 0.008, 0.04, "steel", axis="x")
+        cyl(name + "_Wheel%d" % s, (x + s * 0.135, y + 0.1, z), 0.075, 0.022, "cast_iron" if s < 0 else "paint_grey", axis="x", bevel=0.002)
+        cyl(name + "_Guard%d" % s, (x + s * 0.135, y + 0.1, z - 0.005), 0.085, 0.036, body, axis="x", bevel=0.004)
+        box(name + "_Rest%d" % s, (x + s * 0.135, y + 0.05, z + 0.085), (0.04, 0.006, 0.03), "steel_dark", bevel=0.001)
+        box(name + "_Shield%d" % s, (x + s * 0.135, y + 0.18, z + 0.07), (0.07, 0.05, 0.003), "glass", bevel=0.001)
+
+
+def hose(name, points, radius, mat="rubber"):
+    tube(name, bent(points, 0.06), radius, mat, sides=10)
+
+
+# --- The shed's own fixed kit (workshop.gd) ------------------------------------------------------------
+
+@model("shed_workbench", (0.95, 0.95, 4.8))
+def shed_workbench():
+    """workshop.gd _build_bench: the long bench down the west wall, its front (the drawers) to +x
+    in the shed, here +z (the swap turns it). A welded steel frame, three rows of red drawer banks
+    in bays, a lower shelf, a butcher-block top and a pegboard back with tools."""
+    L, D, top = 4.8, 0.9, 0.945
+    wood_top("Top", (0.0, 0.92, 0.0), (L + 0.05, 0.05, 0.95))
+    # Turned so its length runs along x here: width L, depth D (front +z).
+    for x in (-L / 2 + 0.03, -L / 6, L / 6, L / 2 - 0.03):
+        for z in (-D / 2 + 0.03, D / 2 - 0.03):
+            box("Leg%.2f%.2f" % (x, z), (x, 0.45, z), (0.05, 0.9, 0.05), "paint_grey", bevel=0.004)
+            box("Foot%.2f%.2f" % (x, z), (x, 0.006, z), (0.07, 0.012, 0.07), "rubber", bevel=0.002)
+    for z in (-D / 2 + 0.03, D / 2 - 0.03):
+        box("Rail%.2f" % z, (0.0, 0.87, z), (L, 0.05, 0.05), "paint_grey", bevel=0.004)
+    box("Shelf", (0.0, 0.16, 0.0), (L - 0.05, 0.025, D - 0.06), "paint_board", bevel=0.003)
+    box("Back", (0.0, 0.5, -D / 2 + 0.03), (L - 0.06, 0.7, 0.01), "paint_grey", bevel=0.002)
+    # Three cabinets of drawers along the front, red as Torque Shed's.
+    for i, cx in enumerate((-L / 3, 0.0, L / 3)):
+        w = L / 3 - 0.16
+        box("Cab%d" % i, (cx, 0.53, 0.02), (w, 0.66, D - 0.1), "paint_red", bevel=0.004)
+        drawer_bank("Drawer%d" % i, cx - w / 2 + 0.01, cx + w / 2 - 0.01, 0.21, 0.85, D / 2 - 0.03, 3, "paint_red", cols=2)
+    # Pegboard up the wall behind it, a few tools hung on it.
+    box("Peg", (0.0, 1.3, -D / 2 + 0.01), (L * 0.6, 0.6, 0.012), "pegboard", bevel=0.002)
+    for i in range(7):
+        x = -L * 0.27 + i * 0.22
+        box("Hook%d" % i, (x, 1.5, -D / 2 + 0.04), (0.004, 0.004, 0.05), "chrome", bevel=0.0)
+        box("Spanner%d" % i, (x, 1.4 - i * 0.012, -D / 2 + 0.03), (0.022, 0.18 + i * 0.02, 0.005), "chrome", bevel=0.002)
+    vice("Vice", (L / 2 - 0.35, 0.945, D / 2 - 0.15))
+
+
+@model("parts_computer", (0.8, 1.35, 1.35))
+def parts_computer():
+    """workshop.gd _build_computer: the desk with the monitor, keyboard and mouse, the tower under it.
+    Its front (where you stand) is +z here; Torque Shed's desk is 0.75 x 1.3 with the screen across it."""
+    W, D = 1.35, 0.8
+    box("DeskTop", (0.0, 0.755, 0.0), (W, 0.03, D), "plywood", bevel=0.003)
+    box("DeskEdge", (0.0, 0.755, D / 2 - 0.004), (W, 0.03, 0.008), "plastic_black", bevel=0.001)
+    for x in (-W / 2 + 0.04, W / 2 - 0.04):
+        box("Panel%.1f" % x, (x, 0.37, 0.0), (0.025, 0.74, D - 0.04), "paint_grey", bevel=0.003)
+    box("Modesty", (0.0, 0.5, -D / 2 + 0.05), (W - 0.1, 0.4, 0.018), "paint_grey", bevel=0.002)
+    # Monitor: a 27" panel on a stand.
+    box("MonBase", (0.0, 0.775, -0.1), (0.24, 0.012, 0.18), "plastic_black", bevel=0.004)
+    box("MonNeck", (0.0, 0.9, -0.14), (0.05, 0.25, 0.03), "aluminium", bevel=0.006)
+    box("MonBack", (0.0, 1.1, -0.12), (0.64, 0.38, 0.035), "plastic_black", bevel=0.008)
+    box("MonScreen", (0.0, 1.1, -0.101), (0.6, 0.34, 0.002), "screen", bevel=0.0)
+    box("Keyboard", (0.0, 0.775, 0.12), (0.44, 0.014, 0.14), "plastic_black", bevel=0.004)
+    for r in range(5):
+        box("Keys%d" % r, (0.0, 0.784, 0.07 + r * 0.025), (0.42, 0.005, 0.018), "plastic_grey", bevel=0.001)
+    box("Mouse", (0.3, 0.777, 0.12), (0.06, 0.02, 0.1), "plastic_black", bevel=0.009)
+    box("Pad", (0.3, 0.771, 0.12), (0.24, 0.003, 0.2), "foam_black", bevel=0.001)
+    # The tower on the floor under the desk.
+    box("Tower", (W / 2 - 0.2, 0.23, -0.05), (0.2, 0.45, 0.45), "plastic_black", bevel=0.006)
+    box("TowerFront", (W / 2 - 0.2, 0.23, 0.176), (0.19, 0.44, 0.003), "steel_dark", bevel=0.0)
+    box("TowerLed", (W / 2 - 0.2, 0.42, 0.178), (0.06, 0.004, 0.002), "display_green", bevel=0.0)
+
+
+def _wheelie_bin(name, body):
+    """Torque Shed's bin: BIN_SIZE 0.52 x 0.9 x 0.6; a tapering body, lid with the hinge and handle
+    at the back (+z here is the front, the label side), the wheels at the back."""
+    W, H, D = 0.52, 0.9, 0.6
+    outline = [(-D / 2 + 0.04, 0.05), (D / 2 - 0.05, 0.05), (D / 2, H - 0.05), (-D / 2, H - 0.05)]
+    prism(name + "_Body", outline, W - 0.02, body, axis="x", bevel=0.012)
+    box(name + "_Lid", (0.0, H - 0.025, 0.0), (W + 0.02, 0.04, D + 0.04), body, bevel=0.01)
+    box(name + "_LidLip", (0.0, H - 0.06, D / 2 + 0.01), (W, 0.04, 0.02), body, bevel=0.005)
+    box(name + "_Handle", (0.0, H - 0.07, -D / 2 - 0.035), (W - 0.06, 0.035, 0.035), body, bevel=0.008)
+    cyl(name + "_Axle", (0.0, 0.1, -D / 2 + 0.02), 0.012, W + 0.04, "steel", axis="x")
+    for s in (-1, 1):
+        cyl(name + "_Wheel%d" % s, (s * (W / 2 + 0.005), 0.1, -D / 2 + 0.02), 0.1, 0.05, "rubber", axis="x", bevel=0.01)
+        cyl(name + "_Hub%d" % s, (s * (W / 2 + 0.008), 0.1, -D / 2 + 0.02), 0.04, 0.052, "plastic_grey", axis="x")
+    box(name + "_Foot", (0.0, 0.03, D / 2 - 0.06), (W - 0.1, 0.06, 0.08), body, bevel=0.01)
+    box(name + "_Label", (0.0, 0.58, D / 2 - 0.012), (W - 0.1, 0.26, 0.004), "label_white", bevel=0.001)
+
+
+@model("bin_general", (0.52, 0.9, 0.6))
+def bin_general():
+    _wheelie_bin("Bin", "paint_bin_black")
+
+
+@model("bin_plastic", (0.52, 0.9, 0.6))
+def bin_plastic():
+    _wheelie_bin("Bin", "paint_bin_blue")
+
+
+@model("bin_metal", (0.52, 0.9, 0.6))
+def bin_metal():
+    _wheelie_bin("Bin", "paint_bin_green")
+
+
+@model("shed_radio", (0.6, 0.45, 0.34))
+def shed_radio():
+    """shed_radio.gd on its shelf (workshop.gd _build_radio): a 0.46 x 0.26 x 0.16 workshop radio,
+    grille cloth, tuning dial and knobs, a carry handle, on a wooden shelf with two brackets. The
+    shelf is 0.6 long (x here) and 0.34 deep, its top at 0.03 above the origin; the origin is at the
+    shelf's top centre at the wall (-z), like the radio's own."""
+    box("Shelf", (0.0, -0.015, 0.0), (0.6, 0.03, 0.34), "wood_top", bevel=0.003)
+    for x in (-0.22, 0.22):
+        prism("Bracket%.2f" % x, [(-0.17, -0.03), (-0.17, -0.18), (-0.15, -0.18), (0.1, -0.03)], 0.025, "steel_dark", axis="x", centre=x)
+    y0 = 0.0
+    box("Body", (0.0, y0 + 0.13, 0.02), (0.46, 0.26, 0.16), "plastic_red", bevel=0.02)
+    box("Grille", (-0.1, y0 + 0.13, 0.1), (0.2, 0.18, 0.004), "fabric_grille" if False else "paper", bevel=0.001)
+    for i in range(5):
+        box("Bar%d" % i, (-0.1, y0 + 0.06 + i * 0.035, 0.103), (0.2, 0.006, 0.004), "chrome", bevel=0.0)
+    box("Dial", (0.12, y0 + 0.17, 0.101), (0.17, 0.07, 0.004), "paint_cream", bevel=0.001)
+    box("DialGlass", (0.12, y0 + 0.17, 0.104), (0.165, 0.065, 0.002), "glass", bevel=0.0)
+    for x in (0.07, 0.17):
+        cyl("Knob%.2f" % x, (x, y0 + 0.08, 0.11), 0.018, 0.02, "plastic_black", axis="z", bevel=0.003)
+    tube("Handle", bent([(-0.18, y0 + 0.26, 0.02), (-0.18, y0 + 0.31, 0.02), (0.18, y0 + 0.31, 0.02), (0.18, y0 + 0.26, 0.02)], 0.03), 0.009, "plastic_black")
+    cyl("Aerial", (0.2, y0 + 0.4, -0.04), 0.003, 0.3, "chrome", rot=(0, 0, -15))
+
+
+@model("whiteboard", (2.47, 1.27, 0.05))
+def whiteboard():
+    """The crew whiteboard (Equipment 'whiteboard', 2.47 x 1.27): aluminium frame, a pen tray, the
+    origin at its middle on the wall (back face at -z 0)."""
+    W, H = 2.47, 1.27
+    box("Board", (0.0, 0.0, 0.012), (W - 0.04, H - 0.04, 0.012), "whiteboard", bevel=0.0)
+    box("Back", (0.0, 0.0, 0.004), (W, H, 0.008), "paint_grey", bevel=0.0)
+    for y in (-H / 2 + 0.012, H / 2 - 0.012):
+        box("FrameH%.1f" % y, (0.0, y, 0.016), (W, 0.024, 0.024), "aluminium", bevel=0.004)
+    for x in (-W / 2 + 0.012, W / 2 - 0.012):
+        box("FrameV%.1f" % x, (x, 0.0, 0.016), (0.024, H, 0.024), "aluminium", bevel=0.004)
+    for x in (-W / 2, W / 2):
+        box("Corner%.1f" % x, (x * 0.995, -H / 2 + 0.012, 0.018), (0.03, 0.03, 0.03), "plastic_grey", bevel=0.006)
+    prism("Tray", [(0.0, 0.0), (0.06, 0.0), (0.07, 0.025), (0.06, 0.012), (0.0, 0.012)], W * 0.5, "aluminium", axis="x", centre=0.0, bevel=0.002)
+    # (the tray's outline is (z, y) about the bottom edge: move it down)
+    tray = kit._pieces[-1]
+    tray.location.z -= H / 2 + 0.01
+    for i, c in enumerate(("plastic_black", "plastic_red", "paint_blue")):
+        cyl("Pen%d" % i, (-0.3 + i * 0.15, -H / 2 - 0.0, 0.05), 0.008, 0.13, c, axis="x", bevel=0.002)
+
+
+@model("light_switches", (0.14, 0.24, 0.03))
+def light_switches():
+    """The switch boxes by the roller door (workshop.gd _build_door_and_switches): a yellow
+    industrial box for the door with up and down buttons, and a light switch, on the wall."""
+    box("DoorBox", (0.0, 0.07, 0.02), (0.12, 0.13, 0.04), "plastic_yellow", bevel=0.006)
+    for y, c in ((0.1, "plastic_black"), (0.05, "plastic_black")):
+        cyl("Btn%.2f" % y, (0.0, y, 0.045), 0.014, 0.012, c, axis="z", bevel=0.002)
+    box("Arrow", (0.0, 0.1, 0.052), (0.01, 0.01, 0.002), "label_white", bevel=0.0)
+    box("LightPlate", (0.0, -0.06, 0.006), (0.086, 0.086, 0.012), "plastic_white", bevel=0.003)
+    box("Rocker", (0.0, -0.06, 0.014), (0.02, 0.035, 0.008), "plastic_white", bevel=0.002)
+    tube("Conduit", [(0.0, 0.135, 0.015), (0.0, 0.6, 0.015)], 0.01, "plastic_grey")
+
+
+# --- Floor equipment (Equipment.MODELS, drawn as equipment_view.gd) -----------------------------------
+
+def _engine_stand(folding):
+    """A red engine stand on castors (equipment_view.gd _build_stand): a T base, a column at x 0.25,
+    a turning head with a four-arm mounting plate that the block bolts to (the place at 0.72),
+    the crank handle on its gearbox and the grab handle."""
+    paint = "paint_blue" if folding else "paint_red"
+    reach = 0.25 if folding else 0.32
+    leg = 0.6 if folding else 0.8
+    box("BaseX", (0.0, 0.05, 0.0), (reach * 2.0, 0.06, 0.07), paint, bevel=0.005)
+    box("BaseZ", (0.25, 0.05, 0.0), (0.07, 0.06, leg), paint, bevel=0.005)
+    for p in ((-reach + 0.03, 0.0), (0.25, -leg / 2 + 0.04), (0.25, leg / 2 - 0.04)):
+        castor("Castor%.2f%.2f" % p, p, 0.03)
+    box("Column", (0.25, 0.32, 0.0), (0.08, 0.5, 0.08), paint, bevel=0.005)
+    box("Sleeve", (0.25, 0.56, 0.0), (0.095, 0.06, 0.095), paint, bevel=0.004)
+    cyl("Pin", (0.25, 0.56, 0.06), 0.008, 0.06, "chrome", axis="z")
+    box("Arm", (0.15, 0.62, 0.0), (0.22, 0.06, 0.06), paint, bevel=0.005)
+    cyl("Bearing", (0.04, 0.62, 0.0), 0.05, 0.04, "steel", axis="x", bevel=0.004)
+    cyl("Plate", (0.01, 0.62, 0.0), 0.06, 0.02, "steel", axis="x", bevel=0.003)
+    for i in range(4):
+        a = math.radians(45 + 90 * i)
+        box("MountArm%d" % i, (0.0, 0.62 + math.sin(a) * 0.08, math.cos(a) * 0.08), (0.02, 0.025, 0.17), "steel", bevel=0.003,
+            rot=(-math.degrees(a), 0, 0))
+    box("Gearbox", (0.25, 0.62, 0.07), (0.07, 0.07, 0.05), "steel_dark", bevel=0.005)
+    tube("Crank", bent([(0.25, 0.62, 0.095), (0.25, 0.62, 0.13), (0.25, 0.53, 0.13), (0.25, 0.53, 0.17)], 0.01), 0.007, "chrome")
+    # The steering handle: a post up out of the column top and a T bar across it.
+    tube("HandlePost", [(0.25, 0.59, -0.02), (0.25, 0.75, -0.02)], 0.012, paint, sides=10)
+    cyl("HandleBar", (0.25, 0.75, -0.02), 0.012, 0.42, "steel", axis="z")
+    for s in (-1, 1):
+        cyl("Grip%d" % s, (0.25, 0.75, -0.02 + s * 0.17), 0.017, 0.09, "rubber", axis="z", bevel=0.004)
+    box("Plate_Label", (0.25 + 0.041, 0.32, 0.0), (0.002, 0.08, 0.05), "label_white", bevel=0.0)
+
+
+@model("engine_stand", (0.7, 0.9, 0.8))
+def engine_stand():
+    _engine_stand(False)
+
+
+@model("engine_stand_folding", (0.5, 0.9, 0.6))
+def engine_stand_folding():
+    _engine_stand(True)
+
+
+def _shelving(W, H, D, levels, heavy):
+    """Boltless shelving (equipment_view.gd _build_shelf): slotted angle posts, boards at Torque
+    Shed's pitch ((H - 0.15) / levels, the first at 0.06), and the label plate on top. Heavy-duty
+    racking has orange beams and blue uprights, as pallet racking does."""
+    post = 0.06 if heavy else 0.04
+    frame = "paint_blue" if heavy else "paint_shelf"
+    beam = "paint_orange" if heavy else "paint_shelf"
+    pitch = (H - 0.15) / levels
+    for x in (-W / 2 + post / 2, W / 2 - post / 2):
+        for z in (-D / 2 + post / 2, D / 2 - post / 2):
+            # An angle (L section) post, not a solid bar, with its rows of slots.
+            sx = 1 if x < 0 else -1
+            sz = 1 if z < 0 else -1
+            box("PostA%.2f%.2f" % (x, z), (x - sx * post * 0.4, H / 2, z), (post * 0.2, H, post), frame, bevel=0.002)
+            box("PostB%.2f%.2f" % (x, z), (x, H / 2, z - sz * post * 0.4), (post, H, post * 0.2), frame, bevel=0.002)
+            box("PostFoot%.2f%.2f" % (x, z), (x, 0.004, z), (post + 0.01, 0.008, post + 0.01), "plastic_black", bevel=0.002)
+        # Diagonal bracing on the ends of tall/heavy units.
+        if heavy or H > 2.2:
+            for k in range(3):
+                y0, y1 = 0.2 + k * (H - 0.4) / 3, 0.2 + (k + 1) * (H - 0.4) / 3
+                tube("Brace%.2f%d" % (x, k), [(x, y0, -D / 2 + post), (x, y1, D / 2 - post)], 0.008, frame, sides=6)
+    for level in range(levels + 1):
+        y = min(0.06 + level * pitch, H - 0.02)
+        box("Board%d" % level, (0.0, y, 0.0), (W - 0.01, 0.018, D - 0.01), "plywood" if heavy else "paint_board", bevel=0.002)
+        for z in (-D / 2 + 0.015, D / 2 - 0.015):
+            box("Beam%d%.2f" % (level, z), (0.0, y - 0.03, z), (W - post * 0.5, 0.05 if heavy else 0.035, 0.03), beam, bevel=0.003)
+    box("Plate", (0.0, H - 0.12, D / 2 + 0.005), (0.7, 0.14, 0.008), "label_white", bevel=0.002)
+    for x in (-0.33, 0.33):
+        cyl("Rivet%.2f" % x, (x, H - 0.12, D / 2 + 0.01), 0.006, 0.004, "chrome", axis="z", verts=10)
+
+
+@model("shelf_compact", (0.8, 2.0, 0.45))
+def shelf_compact():
+    _shelving(0.8, 2.0, 0.45, 4, False)
+
+
+@model("shelf_standard", (1.2, 2.0, 0.5))
+def shelf_standard():
+    _shelving(1.2, 2.0, 0.5, 4, False)
+
+
+@model("shelf_tall", (1.2, 2.5, 0.5))
+def shelf_tall():
+    _shelving(1.2, 2.5, 0.5, 5, False)
+
+
+@model("shelf_wide", (1.8, 2.0, 0.55))
+def shelf_wide():
+    _shelving(1.8, 2.0, 0.55, 4, False)
+
+
+@model("shelf_staff", (1.8, 2.0, 0.55))
+def shelf_staff():
+    _shelving(1.8, 2.0, 0.55, 4, False)
+    pitch = (2.0 - 0.15) / 4
+    for level in range(4):
+        y = 0.06 + level * pitch + 0.018 - 0.045
+        box("BinStrip%d" % level, (0.0, y, 0.55 / 2 + 0.004), (0.62, 0.06, 0.006), "label_yellow", bevel=0.001)
+
+
+@model("shelf_racking", (2.4, 2.2, 0.6))
+def shelf_racking():
+    _shelving(2.4, 2.2, 0.6, 4, True)
+
+
+@model("shelf_delivery", (3.6, 2.2, 0.7))
+def shelf_delivery():
+    _shelving(3.6, 2.2, 0.7, 4, True)
+
+
+def _washer(pid):
+    """Parts washers (equipment_view.gd _build_washer): a solvent sink on a drum cabinet, its
+    lid hinged at the back, the splash back, the flexible tap and the brush. Work height 0.86."""
+    sizes = {"washer_compact": (0.7, 1.0, 0.6), "washer_standard": (1.3, 1.6, 0.9), "washer_ultrasonic": (0.9, 1.1, 0.7),
+             "washer_cabinet": (1.2, 1.7, 1.0), "washer_industrial": (1.9, 1.7, 1.0)}
+    paints = {"washer_compact": "paint_green", "washer_standard": "paint_blue", "washer_ultrasonic": "paint_white",
+              "washer_cabinet": "paint_red", "washer_industrial": "paint_grey"}
+    W, H, D = sizes[pid]
+    body = paints[pid]
+    top = 0.8 if pid == "washer_compact" else 0.86
+    if pid == "washer_compact":
+        for x in (-W * 0.4, W * 0.4):
+            for z in (-D * 0.4, D * 0.4):
+                box("Leg%.2f%.2f" % (x, z), (x, (top - 0.24) / 2, z), (0.035, top - 0.24, 0.035), "steel", bevel=0.003)
+        box("Tank", (0.0, top - 0.12, 0.0), (W, 0.24, D), body, bevel=0.008)
+    elif pid == "washer_cabinet":
+        # A closed cabinet: the drum, a lid hinged at the back with a window, the turntable inside.
+        box("Cabinet", (0.0, (top - 0.04) / 2, 0.0), (W, top - 0.04, D), body, bevel=0.01)
+        box("Plinth", (0.0, 0.03, 0.0), (W - 0.04, 0.06, D - 0.04), "steel_dark", bevel=0.004)
+        box("Lid", (0.0, top + 0.18, -0.05), (W, 0.36, D - 0.1), body, bevel=0.02)
+        box("Window", (0.0, top + 0.37, -0.05), (W * 0.6, 0.004, D * 0.5), "glass", bevel=0.0)
+        tube("LidHandle", bent([(-0.3, top + 0.2, D / 2 - 0.05), (-0.3, top + 0.2, D / 2 + 0.0), (0.3, top + 0.2, D / 2 + 0.0), (0.3, top + 0.2, D / 2 - 0.05)], 0.02), 0.012, "chrome")
+        box("Panel", (W / 2 - 0.15, top - 0.2, D / 2 + 0.003), (0.2, 0.14, 0.006), "plastic_black", bevel=0.002)
+        box("PanelTemp", (W / 2 - 0.15, top - 0.18, D / 2 + 0.007), (0.08, 0.03, 0.002), "display_red", bevel=0.0)
+    else:
+        # Cabinet below the sink.
+        box("Cabinet", (0.0, (top - 0.06) / 2 + 0.03, 0.0), (W - 0.04, top - 0.12, D - 0.04), body, bevel=0.008)
+        box("Plinth", (0.0, 0.03, 0.0), (W - 0.06, 0.06, D - 0.06), "steel_dark", bevel=0.004)
+        box("Door", (-W * 0.22, (top - 0.06) / 2 + 0.03, D / 2 - 0.01), (W * 0.4, top - 0.2, 0.012), body, bevel=0.003)
+        box("DoorHandle", (-W * 0.06, top * 0.55, D / 2 + 0.005), (0.015, 0.12, 0.02), "chrome", bevel=0.004)
+        # The sink: a steel tub with a rolled rim.
+        box("SinkFloor", (0.0, top - 0.18, 0.0), (W - 0.12, 0.01, D - 0.12), "steel", bevel=0.002)
+        for z in (-D / 2 + 0.03, D / 2 - 0.03):
+            box("SinkWallZ%.2f" % z, (0.0, top - 0.09, z), (W, 0.18, 0.04), "steel", bevel=0.01)
+        for x in (-W / 2 + 0.03, W / 2 - 0.03):
+            box("SinkWallX%.2f" % x, (x, top - 0.09, 0.0), (0.04, 0.18, D), "steel", bevel=0.01)
+        box("Solvent", (0.0, top - 0.14, 0.0), (W - 0.1, 0.004, D - 0.1), "solvent", bevel=0.0)
+        box("Grate", (0.0, top - 0.02, 0.0), (W - 0.12, 0.012, D - 0.12), "steel_dark", bevel=0.001)
+        for i in range(int((W - 0.12) / 0.05)):
+            box("GrateBar%d" % i, (-W / 2 + 0.085 + i * 0.05, top - 0.012, 0.0), (0.008, 0.012, D - 0.12), "steel", bevel=0.0)
+    if pid in ("washer_standard", "washer_industrial", "washer_cabinet"):
+        back = min(H - top, 1.1)
+        if pid != "washer_cabinet":
+            box("Splash", (0.0, top + back / 2, -D / 2 + 0.03), (W, back, 0.04), body, bevel=0.008)
+            for x in (-W / 2 + 0.02, W / 2 - 0.02):
+                prism("Wing%.2f" % x, [(-D / 2 + 0.05, top), (-D / 2 + 0.05, top + back * 0.6), (-D / 2 + 0.3, top)], 0.02, body, axis="x", centre=x)
+            # The lid hinged up against the splash back.
+            box("LidUp", (0.0, top + 0.3, -D / 2 + 0.08), (W - 0.04, 0.6, 0.02), body, bevel=0.006)
+            cyl("Fusible", (W * 0.3, top + 0.55, -D / 2 + 0.1), 0.012, 0.04, "brass", axis="z")
+            # The flexible tap.
+            hose("Tap", [(W * 0.25, top + 0.15, -D / 2 + 0.06), (W * 0.25, top + 0.45, -D / 2 + 0.2), (W * 0.2, top + 0.4, -D / 2 + 0.35), (W * 0.18, top + 0.2, -D / 2 + 0.38)], 0.012, "steel")
+            cyl("Nozzle", (W * 0.18, top + 0.17, -D / 2 + 0.38), 0.008, 0.06, "brass", axis="y")
+            # The brush resting on the grate.
+            box("BrushHandle", (-W * 0.2, top + 0.0, 0.05), (0.3, 0.025, 0.035), "plastic_red", bevel=0.008, rot=(0, 20, 0))
+            box("BrushHead", (-W * 0.2 - 0.17, top + 0.0, 0.0), (0.06, 0.04, 0.04), "plastic_yellow", bevel=0.004, rot=(0, 20, 0))
+        # The pump on the side.
+        cyl("Pump", (W / 2 + 0.06, 0.25, -D / 4), 0.06, 0.18, "paint_black", axis="y", bevel=0.01)
+        box("PumpBox", (W / 2 + 0.06, 0.38, -D / 4), (0.1, 0.08, 0.1), "plastic_black", bevel=0.006)
+        hose("PumpCable", [(W / 2 + 0.06, 0.42, -D / 4), (W / 2 + 0.04, 0.6, -D / 2 + 0.03), (W / 2 - 0.04, top - 0.1, -D / 2 + 0.03)], 0.006, "plastic_black")
+    if pid == "washer_ultrasonic":
+        box("Display", (W * 0.35, top - 0.2, D / 2 + 0.004), (0.12, 0.08, 0.004), "display_green", bevel=0.0)
+        for i in range(3):
+            cyl("UBtn%d" % i, (W * 0.35 - 0.05 + i * 0.05, top - 0.3, D / 2 + 0.006), 0.012, 0.008, "plastic_grey", axis="z", bevel=0.002)
+        box("Basket", (0.0, top - 0.06, 0.0), (W - 0.2, 0.1, D - 0.2), "steel", bevel=0.004)
+        box("ULid", (0.0, top + 0.015, 0.0), (W - 0.04, 0.03, D - 0.04), "plastic_grey", bevel=0.01)
+    box("NamePlate", (0.0, top - 0.25, D / 2 + 0.003 - (0.0 if pid != "washer_compact" else 0.0)), (min(0.5, W - 0.3), 0.07, 0.004), "label_white", bevel=0.001)
+
+
+for _pid, _size in (("washer_compact", (0.7, 1.0, 0.6)), ("washer_standard", (1.3, 1.6, 0.9)), ("washer_ultrasonic", (0.9, 1.1, 0.7)),
+                    ("washer_cabinet", (1.2, 1.7, 1.0)), ("washer_industrial", (1.9, 1.7, 1.0))):
+    MODELS[_pid] = ((lambda p: (lambda: _washer(p)))(_pid), _size)
+
+
+def _repair(pid):
+    """Repair machines (equipment_view.gd _build_repair): a steel bench (top 0.96) with the vice and
+    grinder every one has; a pedestal grinder stand; a bead blast cabinet; the pro benches with a
+    pegboard, drawers, a welder and a drill press."""
+    sizes = {"repair_compact": (0.8, 1.2, 0.6), "repair_standard": (1.8, 1.2, 0.9), "repair_blaster": (1.1, 1.6, 0.8),
+             "repair_pro": (2.2, 1.3, 1.0), "repair_workshop": (2.8, 1.4, 1.0)}
+    W, H, D = sizes[pid]
+    top = 0.96
+    if pid == "repair_compact":
+        # A pedestal: column, base plate bolted down, a small top with the grinder and vice.
+        cyl("Column", (0.0, top * 0.45, 0.0), 0.05, top * 0.9, "paint_grey", bevel=0.004)
+        box("Foot", (0.0, 0.015, 0.0), (0.45, 0.03, 0.45), "paint_grey", bevel=0.008)
+        for x in (-0.18, 0.18):
+            for z in (-0.18, 0.18):
+                cyl("Bolt%.2f%.2f" % (x, z), (x, 0.035, z), 0.01, 0.012, "steel", verts=6)
+        box("Top", (0.0, top - 0.015, 0.0), (W, 0.03, D * 0.8), "steel_dark", bevel=0.004)
+        grinder("Grinder", (0.12, top, -0.05))
+        vice("Vice", (-0.25, top, 0.08))
+        return
+    if pid == "repair_blaster":
+        # A bead blast cabinet: a hopper body on legs, a sloping window, two glove ports.
+        for x in (-W / 2 + 0.04, W / 2 - 0.04):
+            for z in (-D / 2 + 0.04, D / 2 - 0.04):
+                box("Leg%.2f%.2f" % (x, z), (x, 0.3, z), (0.04, 0.6, 0.04), "paint_green", bevel=0.003)
+        prism("Hopper", [(-D / 2, 0.6), (D / 2, 0.6), (0.1, 0.35), (-0.1, 0.35)], W - 0.02, "paint_green", axis="x")
+        box("Body", (0.0, top - 0.18, 0.0), (W, 0.72, D), "paint_green", bevel=0.01)
+        prism("Hood", [(-D / 2, top + 0.18), (D / 2 - 0.25, top + 0.18), (D / 2, top - 0.0), (D / 2, top + 0.0), (-D / 2, top + 0.0)], W, "paint_green", axis="x")
+        prism("Window", [(D / 2 - 0.26, top + 0.17), (D / 2 - 0.01, top + 0.01), (D / 2 - 0.0, top + 0.02), (D / 2 - 0.25, top + 0.185)], W * 0.7, "glass", axis="x", bevel=0.0)
+        for x in (-0.2, 0.2):
+            torus("Port%.1f" % x, (x, top - 0.18, D / 2 + 0.005), 0.075, 0.012, "rubber", axis="z")
+            cyl("Glove%.1f" % x, (x, top - 0.18, D / 2 - 0.06), 0.07, 0.12, "rubber", axis="z", bevel=0.02)
+        box("Dust", (W / 2 + 0.1, 0.4, -D / 4), (0.2, 0.8, 0.25), "paint_grey", bevel=0.01)
+        hose("Duct", [(W / 2 + 0.1, 0.8, -D / 4), (W / 2 + 0.1, top + 0.1, -D / 4), (W / 2 - 0.05, top + 0.12, -D / 4)], 0.04, "plastic_black")
+        box("Pedal", (0.0, 0.03, D / 2 - 0.05), (0.12, 0.04, 0.2), "steel_dark", bevel=0.005)
+        return
+    # The steel bench: a top plate on a frame, a shelf, the vice at one end and grinder at the other.
+    square_tube_frame("Frame", -W / 2, W / 2, -D / 2, D / 2, 0.0, top - 0.02, 0.05, "paint_grey")
+    box("Top", (0.0, top - 0.01, 0.0), (W + 0.05, 0.02, D + 0.05), "steel_dark", bevel=0.003)
+    box("Shelf", (0.0, 0.18, 0.0), (W - 0.1, 0.02, D - 0.1), "steel_dark", bevel=0.002)
+    vice("Vice", (-W / 2 + 0.15, top, D / 4))
+    grinder("Grinder", (W / 2 - 0.2, top, -D * 0.2))
+    if pid in ("repair_pro", "repair_workshop"):
+        box("Peg", (0.0, top + 0.5, -D / 2 + 0.02), (W, 0.8, 0.015), "pegboard", bevel=0.002)
+        for i in range(int(W / 0.2)):
+            x = -W / 2 + 0.15 + i * 0.2
+            box("PegTool%d" % i, (x, top + 0.55 - (i % 3) * 0.05, -D / 2 + 0.04), (0.025, 0.2 + (i % 4) * 0.03, 0.006), "chrome" if i % 2 else "plastic_red", bevel=0.003)
+        drawer_bank("Drawers", W / 2 - 0.45, W / 2 - 0.05, 0.24, top - 0.06, D / 2 - 0.02, 4, "paint_red")
+        box("DrawerCab", (W / 2 - 0.25, (top - 0.06 + 0.24) / 2, 0.0), (0.4, top - 0.3, D - 0.1), "paint_red", bevel=0.004)
+        # The welder: a MIG set on the shelf with its torch lead coiled on top.
+        box("Welder", (-W / 2 + 0.35, 0.38, 0.0), (0.3, 0.38, 0.55), "paint_blue", bevel=0.01)
+        box("WelderPanel", (-W / 2 + 0.35, 0.42, 0.276), (0.26, 0.2, 0.004), "plastic_black", bevel=0.0)
+        for i in range(2):
+            cyl("WKnob%d" % i, (-W / 2 + 0.28 + i * 0.12, 0.42, 0.285), 0.02, 0.02, "plastic_grey", axis="z", bevel=0.003)
+        torus("WeldLead", (-W / 2 + 0.35, 0.585, 0.0), 0.12, 0.012, "rubber", axis="y")
+    if pid == "repair_workshop":
+        # A bench drill press at the middle.
+        x = 0.1
+        box("DrillBase", (x, top + 0.015, -0.1), (0.25, 0.03, 0.35), "cast_iron", bevel=0.006)
+        cyl("DrillColumn", (x, top + 0.35, -0.22), 0.03, 0.66, "chrome")
+        box("DrillHead", (x, top + 0.6, -0.12), (0.18, 0.2, 0.32), "paint_green", bevel=0.02)
+        cyl("DrillMotor", (x, top + 0.62, -0.32), 0.07, 0.16, "paint_green", axis="z", bevel=0.01)
+        cyl("DrillQuill", (x, top + 0.45, -0.03), 0.02, 0.1, "chrome")
+        cyl("DrillChuck", (x, top + 0.38, -0.03), 0.018, 0.05, "steel", radius2=0.012)
+        box("DrillTable", (x, top + 0.25, -0.05), (0.2, 0.02, 0.2), "cast_iron", bevel=0.004)
+        for i in range(3):
+            a = math.radians(120 * i - 30)
+            tube("DrillLever%d" % i, [(x + 0.1, top + 0.55, -0.1), (x + 0.1 + math.cos(a) * 0.15, top + 0.55 + math.sin(a) * 0.15, -0.1)], 0.006, "chrome")
+    box("NamePlate", (0.0, top - 0.2, D / 2 + 0.03), (0.45, 0.07, 0.004), "label_white", bevel=0.001)
+
+
+for _pid, _size in (("repair_compact", (0.8, 1.2, 0.6)), ("repair_standard", (1.8, 1.2, 0.9)), ("repair_blaster", (1.1, 1.6, 0.8)),
+                    ("repair_pro", (2.2, 1.3, 1.0)), ("repair_workshop", (2.8, 1.4, 1.0))):
+    MODELS[_pid] = ((lambda p: (lambda: _repair(p)))(_pid), _size)
+
+
+@model("tyre_changer", (0.8, 1.2, 0.9))
+def tyre_changer():
+    """The tyre changer (equipment_view.gd _build_changer): a pedestal (work height 0.86) with the
+    clamping turntable (its place at (0, 0.86, 0.08)), the column at the back with the swing arm and
+    mount head, the bead breaker on the side and three pedals at the front."""
+    W, H, D = 0.8, 1.2, 0.9
+    top = 0.86
+    outline = [(-D / 2 + 0.1, 0.05), (D / 2 - 0.1, 0.05), (D / 2 - 0.14, top - 0.06), (-D / 2 + 0.1, top - 0.06)]
+    prism("Body", outline, W - 0.1, "paint_navy", axis="x", bevel=0.015)
+    box("Base", (0.0, 0.025, 0.0), (W, 0.05, D), "steel_dark", bevel=0.006)
+    box("TopPlate", (0.0, top - 0.05, 0.02), (W - 0.12, 0.02, D - 0.26), "steel_dark", bevel=0.004)
+    # The turntable and its four clamp jaws in their slots.
+    cyl("Turntable", (0.0, top - 0.025, 0.08), 0.3, 0.05, "steel", verts=48, bevel=0.004)
+    for i in range(4):
+        a = math.radians(90 * i + 45)
+        box("Slot%d" % i, (math.cos(a) * 0.17, top + 0.001, 0.08 + math.sin(a) * 0.17), (0.18, 0.003, 0.025), "steel_dark", bevel=0.0, rot=(0, -math.degrees(a), 0))
+        box("Jaw%d" % i, (math.cos(a) * 0.2, top + 0.015, 0.08 + math.sin(a) * 0.2), (0.07, 0.03, 0.035), "paint_red", bevel=0.004, rot=(0, -math.degrees(a), 0))
+    cyl("Post", (0.0, top + 0.08, 0.08), 0.018, 0.16, "chrome")
+    cyl("PostCone", (0.0, top + 0.03, 0.08), 0.04, 0.05, "steel", radius2=0.02)
+    # Column at the back, swing arm forward over the table, the mount head on its hex bar.
+    back = -D / 2 + 0.08
+    box("Column", (0.0, top + 0.2, back), (0.1, H - top + 0.4, 0.1), "paint_navy", bevel=0.008)
+    cyl("Pivot", (0.0, H + 0.05, back), 0.06, 0.06, "steel_dark", bevel=0.004)
+    box("Arm", (0.0, H + 0.05, back + 0.24), (0.08, 0.08, 0.48), "paint_navy", bevel=0.008)
+    box("ArmHead", (0.0, H + 0.05, back + 0.48), (0.1, 0.12, 0.1), "paint_navy", bevel=0.01)
+    cyl("Bar", (0.0, H - 0.2, back + 0.48), 0.022, 0.6, "chrome", verts=6)
+    box("MountHead", (0.0, H - 0.52, back + 0.48), (0.05, 0.06, 0.09), "plastic_black", bevel=0.008)
+    box("Lock", (0.07, H + 0.05, back + 0.48), (0.04, 0.03, 0.03), "paint_red", bevel=0.004)
+    # The bead breaker on the side: its arm, the shovel, the rubber pad on the body.
+    box("BreakerPost", (W / 2 - 0.04, top * 0.5, 0.0), (0.05, top * 0.6, 0.05), "paint_navy", bevel=0.004)
+    box("BreakerArm", (W / 2 + 0.02, top * 0.55, 0.12), (0.04, 0.04, 0.36), "steel", bevel=0.004, rot=(-23, 0, 0))
+    box("BreakerShovel", (W / 2 + 0.02, top * 0.4, 0.29), (0.1, 0.12, 0.012), "steel", bevel=0.003)
+    box("BreakerPad", (W / 2 - 0.045, top * 0.35, 0.0), (0.012, 0.2, 0.16), "rubber", bevel=0.004)
+    # The tyre lever hanging on the column and the air line.
+    box("Lever", (0.06, top + 0.25, back + 0.06), (0.02, 0.45, 0.02), "paint_red", bevel=0.005, rot=(0, 0, 9))
+    hose("AirLine", [(-0.06, top + 0.6, back - 0.05), (-0.25, top + 0.3, back - 0.05), (-0.3, 0.3, back + 0.0), (-0.3, 0.0, back - 0.1)], 0.007, "plastic_yellow")
+    box("Gauge", (-W / 2 + 0.1, top + 0.05, -D / 2 + 0.15), (0.06, 0.06, 0.04), "plastic_black", bevel=0.01)
+    cyl("GaugeFace", (-W / 2 + 0.1, top + 0.05, -D / 2 + 0.172), 0.025, 0.004, "paint_white", axis="z")
+    for i in range(3):
+        box("Pedal%d" % i, (-0.18 + i * 0.18, 0.08, D / 2 - 0.05), (0.1, 0.025, 0.14), "steel_dark", bevel=0.004, rot=(8, 0, 0))
+    box("NamePlate", (0.0, top - 0.2, D / 2 - 0.105), (0.32, 0.06, 0.004), "label_white", bevel=0.001)
+
+
+def _bench(pid):
+    """Workbenches (equipment_view.gd _build_bench): a top (work height size.y + 0.01) on folding
+    legs, a tool chest on castors, a steel frame, or the pro station with drawers and pegboard."""
+    sizes = {"bench_compact": (1.0, 0.9, 0.6), "bench_mobile": (1.2, 0.95, 0.6), "bench_standard": (1.8, 0.95, 0.75),
+             "bench_long": (2.4, 0.95, 0.75), "bench_pro": (2.4, 0.95, 0.8)}
+    W, H, D = sizes[pid]
+    top = H
+    if pid == "bench_pro":
+        box("Top", (0.0, top - 0.02, 0.0), (W, 0.04, D), "steel", bevel=0.004)
+    else:
+        wood_top("Top", (0.0, top - 0.025, 0.0), (W, 0.05, D))
+    if pid == "bench_compact":
+        for x in (-W * 0.4, W * 0.4):
+            for s in (-1, 1):
+                tube("Leg%.2f%d" % (x, s), [(x, top - 0.06, 0.0), (x, 0.02, s * D * 0.42)], 0.014, "steel")
+            tube("Foot%.2f" % x, [(x, 0.015, -D * 0.45), (x, 0.015, D * 0.45)], 0.015, "steel")
+            box("Hinge%.2f" % x, (x, top - 0.07, 0.0), (0.05, 0.04, 0.08), "steel_dark", bevel=0.004)
+        tube("Brace", [(-W * 0.4, 0.35, 0.0), (W * 0.4, 0.35, 0.0)], 0.01, "steel")
+        return
+    if pid == "bench_mobile":
+        box("Chest", (0.0, (top - 0.05 + 0.12) / 2, 0.0), (W - 0.04, top - 0.17, D - 0.04), "paint_red", bevel=0.006)
+        drawer_bank("Drawer", -W / 2 + 0.04, W / 2 - 0.04, 0.14, top - 0.07, D / 2 - 0.02, 5, "paint_red", cols=1)
+        for x in (-W / 2 + 0.08, W / 2 - 0.08):
+            for z in (-D / 2 + 0.08, D / 2 - 0.08):
+                castor("C%.2f%.2f" % (x, z), (x, z), 0.05)
+        tube("Handle", bent([(W / 2 - 0.02, top - 0.12, -D / 2 + 0.1), (W / 2 + 0.06, top - 0.12, -D / 2 + 0.1), (W / 2 + 0.06, top - 0.12, D / 2 - 0.1), (W / 2 - 0.02, top - 0.12, D / 2 - 0.1)], 0.03), 0.013, "chrome")
+        return
+    square_tube_frame("Frame", -W / 2, W / 2, -D / 2, D / 2, 0.0, top - 0.05, 0.05, "paint_grey")
+    box("Shelf", (0.0, 0.18, 0.0), (W - 0.1, 0.025, D - 0.1), "paint_board", bevel=0.003)
+    if pid == "bench_pro":
+        box("Cab", (W * 0.25, (top - 0.05) / 2, 0.0), (W * 0.45, top - 0.1, D - 0.06), "paint_black", bevel=0.005)
+        drawer_bank("Drawer", W * 0.25 - W * 0.22, W * 0.25 + W * 0.22, 0.1, top - 0.08, D / 2 - 0.03, 5, "paint_black", cols=2)
+        box("Board", (0.0, top + 0.5, -D / 2 + 0.02), (W, 0.85, 0.02), "paint_grey", bevel=0.003)
+        for i in range(10):
+            x = -W / 2 + 0.15 + i * (W - 0.3) / 9
+            box("PTool%d" % i, (x, top + 0.6 - (i % 2) * 0.08, -D / 2 + 0.045), (0.02, 0.18 + (i % 3) * 0.04, 0.006), "chrome", bevel=0.003)
+        box("LightBar", (0.0, top + 0.95, -D / 2 + 0.1), (W - 0.1, 0.03, 0.08), "aluminium", bevel=0.004)
+        box("LightTube", (0.0, top + 0.934, -D / 2 + 0.1), (W - 0.15, 0.004, 0.06), "led_white", bevel=0.0)
+    else:
+        vice("Vice", (-W / 2 + 0.2, top, D / 2 - 0.12))
+
+
+for _pid, _size in (("bench_compact", (1.0, 0.9, 0.6)), ("bench_mobile", (1.2, 0.95, 0.6)), ("bench_standard", (1.8, 0.95, 0.75)),
+                    ("bench_long", (2.4, 0.95, 0.75)), ("bench_pro", (2.4, 0.95, 0.8))):
+    MODELS[_pid] = ((lambda p: (lambda: _bench(p)))(_pid), _size)
+
+
+def _trolley(flatbed):
+    """Trolleys (equipment_view.gd _build_trolley): a lipped deck on four castors, the push handle at
+    the front (+z). The parts trolley has a second shelf; the flatbed is a low plywood platform."""
+    W, H, D = (0.9, 0.95, 1.6) if flatbed else (0.62, 0.95, 1.0)
+    top = 0.3 if flatbed else 0.78
+    frame = "paint_navy"
+    if flatbed:
+        box("Deck", (0.0, top - 0.02, 0.0), (W, 0.025, D), "plywood", bevel=0.003)
+        for x in (-W / 2 + 0.02, W / 2 - 0.02):
+            box("Chassis%.2f" % x, (x, top - 0.05, 0.0), (0.04, 0.04, D), frame, bevel=0.004)
+    else:
+        for y in (top - 0.02, 0.24):
+            box("Deck%.2f" % y, (0.0, y, 0.0), (W, 0.02, D), "paint_grey", bevel=0.003)
+            for s in (-1, 1):
+                box("LipX%.2f%d" % (y, s), (s * (W / 2 - 0.008), y + 0.02, 0.0), (0.016, 0.04, D), frame, bevel=0.003)
+                box("LipZ%.2f%d" % (y, s), (0.0, y + 0.02, s * (D / 2 - 0.008)), (W, 0.04, 0.016), frame, bevel=0.003)
+    wr = 0.06 if top > 0.5 else 0.07
+    for x in (-W / 2 + 0.06, W / 2 - 0.06):
+        for z in (-D / 2 + 0.08, D / 2 - 0.08):
+            if top - 0.04 - wr * 2 > 0.04:
+                tube("Leg%.2f%.2f" % (x, z), [(x, wr * 2 + 0.03, z), (x, top - 0.02, z)], 0.015, frame, sides=10)
+            castor("C%.2f%.2f" % (x, z), (x, z), wr, swivel=z > 0)
+    for s in (-1, 1):
+        tube("Upright%d" % s, [(s * (W / 2 - 0.03), top, D / 2 - 0.03), (s * (W / 2 - 0.03), H - 0.04, D / 2 - 0.03), (s * (W / 2 - 0.03), H, D / 2 + 0.01)], 0.014, frame, sides=10)
+    cyl("Grip", (0.0, H, D / 2 + 0.01), 0.018, W - 0.02, "rubber", axis="x", bevel=0.004)
+    box("NamePlate", (0.0, top - 0.02, D / 2 + 0.004), (0.25, 0.04, 0.004), "label_white", bevel=0.001)
+
+
+@model("trolley_parts", (0.62, 0.95, 1.0))
+def trolley_parts():
+    _trolley(False)
+
+
+@model("trolley_flatbed", (0.9, 0.95, 1.6))
+def trolley_flatbed():
+    _trolley(True)
+
+
+# --- Seats (Equipment seats, equipment_view.gd _build_seat) ---------------------------------------------
+
+@model("seat_stool", (0.45, 0.7, 0.45))
+def seat_stool():
+    """A swivel shop stool with a red vinyl top: five-star base on castors, gas column, foot ring."""
+    for i in range(5):
+        a = 2 * math.pi * i / 5
+        tube("Star%d" % i, [(0.0, 0.08, 0.0), (math.cos(a) * 0.2, 0.06, math.sin(a) * 0.2)], 0.016, "chrome", sides=10)
+        castor("C%d" % i, (math.cos(a) * 0.2, math.sin(a) * 0.2), 0.025)
+    cyl("Hub", (0.0, 0.08, 0.0), 0.04, 0.05, "plastic_black")
+    cyl("Column", (0.0, 0.3, 0.0), 0.025, 0.42, "chrome")
+    cyl("Gas", (0.0, 0.48, 0.0), 0.032, 0.18, "plastic_black")
+    torus("FootRing", (0.0, 0.3, 0.0), 0.17, 0.009, "chrome", axis="y")
+    for i in range(3):
+        a = 2 * math.pi * i / 3
+        tube("RingArm%d" % i, [(0.0, 0.3, 0.0), (math.cos(a) * 0.17, 0.3, math.sin(a) * 0.17)], 0.007, "chrome", sides=8)
+    cyl("SeatPan", (0.0, 0.6, 0.0), 0.17, 0.02, "steel_dark")
+    cyl("Cushion", (0.0, 0.645, 0.0), 0.19, 0.07, "vinyl_red", verts=40, bevel=0.025)
+
+
+@model("seat_creeper", (0.5, 0.5, 0.6))
+def seat_creeper():
+    """A creeper seat: a padded seat on a post over a tool tray, on four castors."""
+    box("Tray", (0.0, 0.12, 0.0), (0.44, 0.04, 0.54), "paint_red", bevel=0.006)
+    for s in (-1, 1):
+        box("TrayLip%d" % s, (s * 0.21, 0.15, 0.0), (0.02, 0.03, 0.54), "paint_red", bevel=0.004)
+    for x in (-0.18, 0.18):
+        for z in (-0.22, 0.22):
+            castor("C%.2f%.2f" % (x, z), (x, z), 0.04)
+    cyl("Post", (0.0, 0.3, 0.0), 0.03, 0.3, "chrome")
+    cyl("Seat", (0.0, 0.45, 0.0), 0.19, 0.07, "vinyl_red" if False else "plastic_black", verts=40, bevel=0.025)
+    for i in range(4):
+        box("Socket%d" % i, (-0.15 + i * 0.1, 0.16, 0.18), (0.06, 0.02, 0.06), "steel", bevel=0.004)
+
+
+@model("seat_chair", (0.5, 0.85, 0.5))
+def seat_chair():
+    """A canvas camp chair: crossed steel legs, a slung canvas seat and back, arm rests."""
+    for s in (-1, 1):
+        tube("LegA%d" % s, [(s * 0.22, 0.0, -0.22), (s * 0.22, 0.46, 0.22)], 0.011, "steel_dark", sides=8)
+        tube("LegB%d" % s, [(s * 0.22, 0.0, 0.22), (s * 0.22, 0.46, -0.22)], 0.011, "steel_dark", sides=8)
+        tube("Back%d" % s, [(s * 0.22, 0.46, -0.22), (s * 0.23, 0.85, -0.28)], 0.011, "steel_dark", sides=8)
+        tube("Arm%d" % s, [(s * 0.24, 0.62, -0.24), (s * 0.24, 0.62, 0.2)], 0.018, "canvas_green", sides=8)
+    prism("Sling", [(-0.22, 0.46), (0.22, 0.46), (0.2, 0.42), (-0.2, 0.42)], 0.44, "canvas_green", axis="x")
+    prism("BackSling", [(-0.24, 0.5), (-0.22, 0.48), (-0.28, 0.82), (-0.3, 0.84)], 0.44, "canvas_green", axis="x")
+
+
+@model("seat_bench", (1.4, 0.8, 0.5))
+def seat_bench():
+    """A wooden slat garage bench seat with a slatted back, on steel ends."""
+    for x in (-0.62, 0.62):
+        prism("End%.2f" % x, [(-0.22, 0.0), (-0.18, 0.0), (-0.18, 0.44), (0.2, 0.44), (0.2, 0.0), (0.24, 0.0), (0.24, 0.47), (-0.25, 0.8), (-0.29, 0.8), (-0.22, 0.47)], 0.04, "cast_iron", axis="x", centre=x)
+    for i in range(5):
+        z = -0.18 + i * 0.09
+        box("Slat%d" % i, (0.0, 0.46, z), (1.4, 0.03, 0.07), "wood_top", bevel=0.006)
+    for i in range(3):
+        y = 0.56 + i * 0.09
+        box("BackSlat%d" % i, (0.0, y, -0.23 - (y - 0.47) * 0.15), (1.4, 0.07, 0.025), "wood_top", bevel=0.006, rot=(-9, 0, 0))
+
+
+@model("seat_sofa", (1.8, 0.85, 0.85))
+def seat_sofa():
+    """An old saggy leather sofa: plinth, seat cushions, back cushions, rolled arms, feet."""
+    W, H, D = 1.8, 0.85, 0.85
+    box("Base", (0.0, 0.22, 0.0), (W - 0.04, 0.24, D - 0.04), "leather_brown", bevel=0.04)
+    for i in range(3):
+        x = -W / 2 + 0.2 + (W - 0.4) * (i + 0.5) / 3
+        box("Cushion%d" % i, (x, 0.42, 0.08), ((W - 0.42) / 3 - 0.01, 0.15, D - 0.25), "leather_brown", bevel=0.05)
+        box("BackCushion%d" % i, (x, 0.65, -D / 2 + 0.17), ((W - 0.42) / 3 - 0.01, 0.38, 0.18), "leather_brown", bevel=0.06, rot=(-8, 0, 0))
+    box("Back", (0.0, 0.55, -D / 2 + 0.07), (W, 0.6, 0.14), "leather_brown", bevel=0.05)
+    for s in (-1, 1):
+        box("Arm%d" % s, (s * (W / 2 - 0.1), 0.42, 0.0), (0.2, 0.4, D), "leather_brown", bevel=0.06)
+        cyl("ArmRoll%d" % s, (s * (W / 2 - 0.1), 0.62, 0.0), 0.12, D, "leather_brown", axis="z", bevel=0.04)
+    for x in (-W / 2 + 0.1, W / 2 - 0.1):
+        for z in (-D / 2 + 0.08, D / 2 - 0.08):
+            cyl("Foot%.1f%.1f" % (x, z), (x, 0.05, z), 0.03, 0.1, "wood_top", radius2=0.022)
+
+
+# --- Wall TVs and posters ----------------------------------------------------------------------------
+
+def _tv(width, height, depth):
+    """A wall TV: a thin bezel round the panel (the 'screen' slot the game draws its channel on),
+    a slim back box and the wall bracket. The origin is at its middle on the wall."""
+    box("Back", (0.0, 0.0, depth * 0.45), (width * 0.6, height * 0.6, depth * 0.5), "plastic_black", bevel=0.01)
+    box("Bezel", (0.0, 0.0, depth * 0.85), (width + 0.03, height + 0.03, depth * 0.3), "plastic_black", bevel=0.004)
+    box("Panel", (0.0, 0.0, depth + 0.0005), (width, height, 0.001), "screen", bevel=0.0)
+    box("Bracket", (0.0, 0.0, 0.01), (width * 0.3, height * 0.4, 0.02), "steel_dark", bevel=0.003)
+    box("Logo", (0.0, -height / 2 - 0.008, depth * 0.85 + depth * 0.15 + 0.001), (0.06, 0.006, 0.001), "aluminium", bevel=0.0)
+    box("Led", (width / 2 - 0.05, -height / 2 - 0.008, depth + 0.001), (0.006, 0.004, 0.001), "display_red", bevel=0.0)
+
+
+@model("tv_120", (2.66, 1.5, 0.09))
+def tv_120():
+    _tv(2.66, 1.5, 0.09)
+
+
+@model("tv_128", (2.83, 1.59, 0.09))
+def tv_128():
+    _tv(2.83, 1.59, 0.09)
+
+
+@model("tv_136", (3.01, 1.69, 0.1))
+def tv_136():
+    _tv(3.01, 1.69, 0.1)
+
+
+@model("bay_screen", (2.6, 1.46, 0.09))
+def bay_screen():
+    """The screens built in over the bays (workshop.gd BAY_SCREEN_INNER/OUTER: 2.6 m across)."""
+    _tv(2.6, 1.4625, 0.09)
+
+
+@model("poster_frame", (0.6, 0.85, 0.02))
+def poster_frame():
+    """A clip frame for an A1 poster (the art is the game's: the 'paper' slot is drawn over): a thin
+    aluminium edge, glass, the paper behind it. Scaled by the game for the other sizes."""
+    W, H = 0.6, 0.85
+    box("Backing", (0.0, 0.0, 0.004), (W, H, 0.006), "plywood", bevel=0.0)
+    box("Paper", (0.0, 0.0, 0.0075), (W - 0.01, H - 0.01, 0.001), "paper", bevel=0.0)
+    box("Glass", (0.0, 0.0, 0.0095), (W, H, 0.002), "glass", bevel=0.0)
+    for y in (-H / 2, H / 2):
+        box("EdgeH%.2f" % y, (0.0, y, 0.008), (W + 0.01, 0.01, 0.012), "aluminium", bevel=0.002)
+    for x in (-W / 2, W / 2):
+        box("EdgeV%.2f" % x, (x, 0.0, 0.008), (0.01, H + 0.01, 0.012), "aluminium", bevel=0.002)
+
+
+# --- Running it --------------------------------------------------------------------------------------
+
+def main():
+    import bpy
+    args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    if "--list" in args:
+        for pid, (_, size) in sorted(MODELS.items()):
+            print("%-24s %.2f x %.2f x %.2f" % ((pid,) + tuple(size)))
+        return
+    spec = json.load(open(os.path.join(ROOT, "Data", "Props", "materials.json")))
+    kit.set_materials(spec["materials"])
+    os.makedirs(OUT, exist_ok=True)
+    want = [a for a in args if not a.startswith("-")] or sorted(MODELS)
+    report = {}
+    for pid in want:
+        fn, size = MODELS[pid]
+        kit.reset()
+        for m in list(bpy.data.materials):
+            bpy.data.materials.remove(m)
+        fn()
+        obj = kit.finish("SM_" + pid)
+        lo, hi = kit.bounds(obj)
+        path = os.path.join(OUT, pid + ".glb")
+        kit.export(path)
+        tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+        report[pid] = {"bounds_min": [round(v, 4) for v in lo], "bounds_max": [round(v, 4) for v in hi], "tris": tris,
+                       "materials": [s.material.name for s in obj.material_slots]}
+        print("[props] %-22s %6d tris  %s .. %s" % (pid, tris, tuple(round(v, 3) for v in lo), tuple(round(v, 3) for v in hi)))
+    with open(os.path.join(OUT, "_built.json"), "w") as f:
+        old = {}
+        try:
+            old = json.load(open(os.path.join(OUT, "_built.json")))
+        except Exception:
+            pass
+        old.update(report)
+        json.dump(dict(sorted(old.items())), f, indent=1)
+
+
+main()
