@@ -979,7 +979,7 @@ void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
 {
 	if (bOnFoot)
 	{
-		bOnFoot = false;   // back on the bike (the pause menu's Restart, a test)
+		bOnFoot = bPushing = bUseArmed = false;   // back on the bike (the pause menu's Restart, a test)
 		SetParkedLook(false);
 	}
 	V3 Pos(0, 0, 0);
@@ -1189,7 +1189,25 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
 		const double StickY = Stick(Either(Axis(EKeys::Gamepad_LeftY), Sony.LY), Set.StickDeadZone, 1.0);
 		StepFoot(PC, Dt, FMath::Abs(StickX) > FMath::Abs(KeyX) ? StickX : KeyX, FMath::Abs(StickY) > FMath::Abs(KeyY) ? StickY : KeyY);
-		if ((FTorqueKeys::Just(PC, ETorqueKey::Use) || bPadUse) && OnFootFor > 0.4) GetOn();
+		// F: a tap by the bike gets back on; held, takes hold of its bars to wheel it (as the shed's
+		// walker: walker.gd HOLD_TO_PUSH); wheeling, F lets go and it goes back on its stand there.
+		const bool bUseDown = FTorqueKeys::Down(PC, ETorqueKey::Use) || PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle);
+		const bool bUseJust = FTorqueKeys::Just(PC, ETorqueKey::Use) || bPadUse;
+		if (bPushing)
+		{
+			if (bUseJust) LetGoBike();
+		}
+		else if (bUseJust && OnFootFor > 0.4)
+		{
+			if (FVector::Dist2D(FootPos, GetActorLocation()) <= 250.0) { bUseArmed = true; UseHeld = 0.0; }
+			else GetOn();   // (says to walk back to it)
+		}
+		if (bUseArmed)
+		{
+			UseHeld += Dt;
+			if (!bUseDown) { bUseArmed = false; GetOn(); }
+			else if (UseHeld >= 0.35) { bUseArmed = false; TakeHoldOfBike(); }
+		}
 		if (FTorqueKeys::Just(PC, ETorqueKey::BackToShed))   // (as riding; [yard] in the yard, walk back in)
 		{
 			if (bYard) TorqueYard::WalkBackIn(PC);
@@ -1457,6 +1475,7 @@ bool ATorqueBikePawn::GetOff()
 bool ATorqueBikePawn::GetOn()
 {
 	if (!bOnFoot) return false;
+	if (bPushing) LetGoBike();
 	const FVector Bike = GetActorLocation();
 	if (FVector::Dist2D(FootPos, Bike) > 250.0 || FMath::Abs(FootPos.Z - Bike.Z) > 200.0)
 	{
@@ -1583,10 +1602,15 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	}
 	FVector2D In(MoveX, MoveY);
 	if (In.SizeSquared() > 1.0) In.Normalize();
-	if (In.SizeSquared() < 1e-4) return;
+	if (In.SizeSquared() < 1e-4)
+	{
+		if (bPushing) FollowPusher();   // (turning on the spot turns it too)
+		return;
+	}
 	const bool bRun = PC && FTorqueKeys::Down(PC, ETorqueKey::Run);
 	const FRotator Yaw(0.0, FootYaw, 0.0);
-	const FVector Walk = (Yaw.RotateVector(FVector::ForwardVector) * In.Y + Yaw.RotateVector(FVector::RightVector) * In.X) * (bRun ? 330.0 : 150.0) * Dt;
+	const double Pace = bPushing ? (bRun ? 240.0 : 130.0) : (bRun ? 330.0 : 150.0);   // a bike is heavy to wheel about
+	const FVector Walk = (Yaw.RotateVector(FVector::ForwardVector) * In.Y + Yaw.RotateVector(FVector::RightVector) * In.X) * Pace * Dt;
 	UWorld* World = GetWorld();
 	if (!World) return;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueFoot), true, this);
@@ -1607,12 +1631,51 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 		// Slide along it.
 		if (!TryMove(FVector(Walk.X, 0.0, 0.0))) TryMove(FVector(0.0, Walk.Y, 0.0));
 	}
+	if (bPushing) FollowPusher();
+}
+
+void ATorqueBikePawn::TakeHoldOfBike()
+{
+	if (!bOnFoot || bPushing) return;
+	bPushing = true;
+	PoseStands(0);   // the stand up, upright in your hands
+	FootNote = TEXT("Wheeling it. F to let go.");
+	FootNoteFor = 2.0;
+	FollowPusher();
+}
+
+void ATorqueBikePawn::LetGoBike()
+{
+	if (!bPushing) return;
+	bPushing = false;
+	ChooseStand();   // back on its stand where you let go
+	PoseStands(ParkStand);
+	FootNote = TEXT("On its stand.");
+	FootNoteFor = 1.5;
+}
+
+void ATorqueBikePawn::FollowPusher()
+{
+	// Alongside you, its bars in your hands (walker.gd: 0.75 m to your right, a little behind), facing
+	// your way, upright on its wheels on the ground there.
+	const FRotator Yaw(0.0, FootYaw, 0.0);
+	const FVector Ahead = Yaw.Vector(), Right = FRotationMatrix(Yaw).GetUnitAxis(EAxis::Y);
+	FVector At = FootPos + Right * 85.0 - Ahead * 25.0;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorquePush), true, this);
+	FHitResult Hit;
+	if (UWorld* World = GetWorld())
+		if (GroundTrace(World, At + FVector(0, 0, 150.0), At - FVector(0, 0, 300.0), Params, Hit)) At = Hit.ImpactPoint;
+	ParkGround = ToSim(At);
+	ParkHeading = std::atan2(-Ahead.X, -Ahead.Y);   // (sim: x east = UE X, z south = UE Y)
+	ParkLean = ParkLift = 0.0;
 }
 
 FString ATorqueBikePawn::TestFoot(const FString& What)
 {
 	if (What == TEXT("off")) GetOff();
 	else if (What == TEXT("on")) GetOn();
+	else if (What == TEXT("push")) TakeHoldOfBike();
+	else if (What == TEXT("letgo")) LetGoBike();
 	else if (What.StartsWith(TEXT("walk:")) && bOnFoot)
 	{
 		const double Cm = FCString::Atod(*What.Mid(5));
@@ -3114,10 +3177,15 @@ void ATorqueBikePawn::DrawHud()
 	if (bOnFoot)
 	{
 		const double Away = FVector::Dist2D(FootPos, GetActorLocation());
-		Add(FString::Printf(TEXT("On foot: %s to walk, %s %s   (the bike's on its %s, engine %s)"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
-			*FTorqueKeys::Text(ETorqueKey::Use), Away <= 250.0 ? TEXT("to get back on") : TEXT("by the bike to get back on"),
-			ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
-			FColor(200, 230, 200), 1.0f);
+		const FString Use = FTorqueKeys::Text(ETorqueKey::Use);
+		if (bPushing)
+			Add(FString::Printf(TEXT("Wheeling the bike: %s to walk, %s to let go (it goes on its stand), engine %s"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
+				*Use, Sim->EngineOn ? TEXT("ticking over") : TEXT("off")), FColor(200, 230, 200), 1.0f);
+		else
+			Add(FString::Printf(TEXT("On foot: %s to walk, %s %s   (the bike's on its %s, engine %s)"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
+				*Use, Away <= 250.0 ? *FString::Printf(TEXT("to get back on, hold %s to wheel it"), *Use) : TEXT("by the bike to get back on"),
+				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
+				FColor(200, 230, 200), 1.0f);
 	}
 	else if (!Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
 		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);

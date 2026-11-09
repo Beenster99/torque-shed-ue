@@ -2809,7 +2809,7 @@ void ATorqueWalker::UpdateHud()
 	if (AltPlan.bValid)
 		HudLines.Add({AltPlan.Blocked.IsEmpty() ? FString::Printf(TEXT("Right mouse / Square: %s"), *AltPlan.Verb)
 			: FString::Printf(TEXT("Can't %s: %s"), *AltPlan.Verb, *AltPlan.Blocked), AltPlan.Blocked.IsEmpty() ? Prompt : Blocked, 0.6f});
-	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out"), Prompt, 0.6f});
+	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out   Hold F / Triangle: wheel it"), Prompt, 0.6f});
 	const FPlan* Active = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
 	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3)
 		HudLines.Add({TWI::Bar(Progress / Active->Time), FColor::White, 0.6f});
