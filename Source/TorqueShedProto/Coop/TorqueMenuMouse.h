@@ -9,7 +9,7 @@
 
 struct FTorqueMenuHits
 {
-	enum EKind : uint8 { Row, Less, More, Tab };
+	enum EKind : uint8 { Row, Less, More, Tab, Badge };   // Badge: the profile picture, top right [profile]
 	struct FHit
 	{
 		FBox2f Box;

@@ -20,6 +20,7 @@
 
 class AHUD;
 class UCanvas;
+class ATorqueProfilePreview;
 
 UCLASS()
 class ATorquePlayerController : public APlayerController
@@ -54,7 +55,7 @@ public:
 	UFUNCTION(Server, Reliable) void ServerPlace(FVector At, FRotator View);
 
 private:
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile };
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -112,4 +113,13 @@ private:
 	bool bLookSent = false;
 	FString Note;
 	double NoteFor = 0.0;
+
+	// [profile] Torque Shed's profile picture, top right of the Esc menu: it opens the Profile page
+	// (your MetaHuman, height and face; Shed/TorqueProfile.h), which shows you beside its sliders.
+	TWeakObjectPtr<ATorqueProfilePreview> Preview;
+	bool bProfileFace = true;   // the Profile page's picture: the face, or the whole figure
+	bool bProfileSent = false;
+	void ProfileChanged();
+	void UpdateProfilePreview();
+	void DrawProfile(AHUD* Hud, UCanvas* Canvas);
 };

@@ -9,6 +9,9 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueWalker.h"
+#include "Shed/TorqueAvatar.h"
+#include "Shed/TorqueProfile.h"
+#include "Shed/TorqueProfilePreview.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -97,6 +100,11 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 		bLookSent = true;
 		PS->ServerSetLook(FTorqueSettings::Get().Name, (uint8)FTorqueSettings::Get().Colour);
 		PS->ServerSetRiderStyle((uint8)FTorqueSettings::Get().RiderStyle);
+	}
+	if (!bProfileSent)   // [profile]
+	{
+		bProfileSent = true;
+		PS->ServerSetProfile(FTorqueProfile::Mine().Pack());
 	}
 	if (B->Activity() != SentActivity)
 	{
@@ -221,6 +229,7 @@ void ATorquePlayerController::SwitchTab(int32 Dir)
 FString ATorquePlayerController::Title() const
 {
 	if (Page == EPage::Pause) return TEXT("PAUSED");
+	if (Page == EPage::Profile) return TEXT("PROFILE");   // [profile]
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
@@ -264,6 +273,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 	{
 		Add(TEXT("Continue"), FString(), FString(), [this]() { CloseMenu(); });
 		Add(TEXT("Settings"), FString(), TEXT("Graphics, Sound, Gameplay, Controller, Character"), [this]() { Open(EPage::Graphics); });
+		// [profile] (also the picture top right)
+		Add(TEXT("Profile"), FString(), TEXT("Your character: which MetaHuman you are, your height and your face"), [this]() { Open(EPage::Profile); });
 		if (ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn()))
 		{
 			Add(TEXT("Restart the ride"), FString(), TEXT("Back to the start of the road (Home)"), [this, Bike]() {
@@ -389,6 +400,46 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			Setting(TEXT("Riding style"), St.Name, FString(St.Desc) + TEXT(" Only looks: the bike rides the same."),
 				[&S](int32 D) { S.RiderStyle = Wrap(S.RiderStyle + D, FTorqueSettings::RiderStyles().Num()); });
 		}
+		Add(TEXT("Profile"), FString(), TEXT("Your MetaHuman, height and face (also the picture top right of the Esc menu)"),
+			[this]() { Changed(); Open(EPage::Profile); });   // [profile]
+		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
+		break;
+	}
+	case EPage::Profile:   // [profile] Torque Shed's profile panel, with the MetaHuman's face
+	{
+		FTorqueProfile& Me = FTorqueProfile::Mine();
+		const int32 NumAv = FTorqueAvatar::Count();
+		auto Prof = [this, &Add](const FString& Label, const FString& Value, const FString& Hint, TFunction<void(int32)> Step) {
+			Add(Label, Value, Hint, [this, Step]() { Step(1); ProfileChanged(); }, [this, Step](int32 Dir) { Step(Dir); ProfileChanged(); });
+		};
+		auto Bar = [](float V) {
+			// -1 .. 1 as a slider: eleven marks, the knob where it is.
+			FString B;
+			const int32 At = FMath::RoundToInt((FMath::Clamp(V, -1.0f, 1.0f) + 1.0f) * 5.0f);
+			for (int32 I = 0; I <= 10; ++I) B.AppendChar(I == At ? TEXT('O') : (I == 5 ? TEXT('|') : TEXT('-')));
+			return FString::Printf(TEXT("%s  %+.1f"), *B, V);
+		};
+		if (NumAv == 0)
+		{
+			Add(TEXT("No MetaHuman avatars in this build yet: in co-op you show as the shape body, in your colour."), FString(), FString(), nullptr);
+		}
+		else
+		{
+			const ATorqueProfilePreview* Pv = Preview.Get();
+			const FString Own = FTorqueAvatar::NameOf(Me.AvatarFor(S.Colour));
+			Prof(TEXT("Character"), Me.Avatar < 0 ? FString::Printf(TEXT("Goes with my colour (%s)"), *Own) : Own,
+				TEXT("Which MetaHuman you are in the shed: everyone in co-op sees you as them"),
+				[&Me, NumAv](int32 D) { Me.Avatar = Wrap(Me.Avatar + 1 + D, NumAv + 1) - 1; });
+			Prof(TEXT("Height"), Pv && Pv->Height() > 0.0 ? FString::Printf(TEXT("about %.2f m   %s"), Pv->Height() / 100.0, *Bar(Me.Height)) : Bar(Me.Height),
+				TEXT("Shorter or taller than the MetaHuman's own height, by up to 6%"),
+				[&Me](int32 D) { Me.Height = StepF(Me.Height, D, 0.1f, -1.0f, 1.0f); });
+			Add(TEXT("View"), bProfileFace ? FString(TEXT("Face")) : FString(TEXT("Whole figure")), TEXT("What the picture shows"),
+				[this]() { bProfileFace = !bProfileFace; }, [this](int32) { bProfileFace = !bProfileFace; });
+			for (int32 F = 0; F < FTorqueProfile::NumFace; ++F)
+				Prof(FTorqueProfile::Sliders[F].Name, Bar(Me.Face[F]), FTorqueProfile::Sliders[F].Hint,
+					[&Me, F](int32 D) { Me.Face[F] = StepF(Me.Face[F], D, 0.1f, -1.0f, 1.0f); });
+			Add(TEXT("Reset the face"), FString(), TEXT("Back to the MetaHuman's own face"), [this, &Me]() { Me.ResetFace(); ProfileChanged(); });
+		}
 		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	}
@@ -435,6 +486,7 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 	SyncPlayerState(DeltaTime);
 	UpdateCursor();
 	ReadMenuInput(DeltaTime);
+	UpdateProfilePreview();   // [profile]
 }
 
 void ATorquePlayerController::UpdateCursor()
@@ -546,7 +598,7 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 		FVector2D Mouse;
 		const bool bMoved = MouseMoved(this, LastMouse, Mouse);
 		const FTorqueMenuHits::FHit* Over = Hits.At(Mouse);
-		if (bMoved && Over && Over->Kind != FTorqueMenuHits::Tab && List.IsValidIndex(Over->Index) && Over->Index != Selected)
+		if (bMoved && Over && Over->Kind != FTorqueMenuHits::Tab && Over->Kind != FTorqueMenuHits::Badge && List.IsValidIndex(Over->Index) && Over->Index != Selected)
 		{
 			if (bTyping) Changed();   // leaving the name keeps it
 			Selected = Over->Index;
@@ -555,6 +607,13 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 		if (Just(EKeys::MouseScrollDown)) MoveY = 1;
 		if (Just(EKeys::LeftMouseButton) && Over)
 		{
+			if (Over->Kind == FTorqueMenuHits::Badge)   // [profile] the picture top right: your profile, or back from it
+			{
+				if (bTyping) Changed();
+				if (Page == EPage::Profile) Back();
+				else Open(EPage::Profile);
+				return;
+			}
 			if (Over->Kind == FTorqueMenuHits::Tab)
 			{
 				if (Over->Index != TabIndex()) SwitchTab(Over->Index - TabIndex());
@@ -683,6 +742,57 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Line(List[Selected].Hint, FColor(190, 210, 240), 1.0f, 0.35f);
 	Y = Canvas->ClipY - 90.0f * Sc;
 	Line(TEXT("Mouse: click to choose, < > to change, right-click back   Keys: Up/Down, Left/Right, Enter, Esc   Pad: Cross or A, Circle or B"), FColor(200, 200, 200), 0.9f, 0.35f);
+	DrawProfile(Hud, Canvas);   // [profile]
+}
+
+// [profile]
+void ATorquePlayerController::ProfileChanged()
+{
+	const FTorqueProfile& Me = FTorqueProfile::Mine();
+	Me.Save();
+	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->ServerSetProfile(Me.Pack());
+}
+
+void ATorquePlayerController::UpdateProfilePreview()
+{
+	// Filmed while the pause menu (its badge) or the Profile page is up.
+	if (Page != EPage::Pause && Page != EPage::Profile) return;
+	if (!Preview.IsValid()) Preview = ATorqueProfilePreview::For(this);
+	if (ATorqueProfilePreview* Pv = Preview.Get()) Pv->Want(Page == EPage::Pause || bProfileFace, FTorqueSettings::Get().Colour);
+}
+
+void ATorquePlayerController::DrawProfile(AHUD* Hud, UCanvas* Canvas)
+{
+	if (Page != EPage::Pause && Page != EPage::Profile) return;
+	UFont* Font = GEngine->GetLargeFont();
+	const float Sc = Canvas->ClipY / 1080.0f;
+	const ATorqueProfilePreview* Pv = Preview.Get();
+	// The badge, top right: your picture, your name, and which MetaHuman you are.
+	const float BW = 400.0f * Sc, BH = 88.0f * Sc, BX = Canvas->ClipX - BW - 28.0f * Sc, BY = 28.0f * Sc, Pic = BH - 16.0f * Sc;
+	Hud->DrawRect(Page == EPage::Profile ? FLinearColor(0.85f, 0.65f, 0.25f, 0.85f) : FLinearColor(0, 0, 0, 0.6f), BX, BY, BW, BH);
+	if (Pv && Pv->HasAvatar())
+		Pv->Draw(Canvas, BX + 8.0f * Sc, BY + 8.0f * Sc, Pic, Pic, true);
+	else
+		Hud->DrawRect(FLinearColor(FTorqueSettings::Get().RiderColour()), BX + 8.0f * Sc, BY + 8.0f * Sc, Pic, Pic);
+	const FTorqueSettings& S = FTorqueSettings::Get();
+	UTorqueSession* Session = UTorqueSession::Get(this);
+	const FString Who = !S.Name.IsEmpty() ? S.Name : (Session ? Session->PlayerName() : FString(TEXT("You")));
+	const FString What = Pv && Pv->HasAvatar() ? FString::Printf(TEXT("%s, about %.2f m"), *Pv->AvatarName(), Pv->Height() / 100.0)
+											   : FString(TEXT("Your profile and character"));
+	const FColor Ink = Page == EPage::Profile ? FColor(20, 20, 20) : FColor::White;
+	Canvas->SetDrawColor(Ink);
+	Canvas->DrawText(Font, Who, BX + Pic + 22.0f * Sc, BY + 12.0f * Sc, 1.3f * Sc, 1.3f * Sc);
+	Canvas->SetDrawColor(Page == EPage::Profile ? FColor(40, 40, 40) : FColor(200, 200, 200));
+	Canvas->DrawText(Font, What, BX + Pic + 22.0f * Sc, BY + 50.0f * Sc, 0.95f * Sc, 0.95f * Sc);
+	Hits.Add(BX, BY, BX + BW, BY + BH, 0, FTorqueMenuHits::Badge);
+	// The Profile page: you, big, beside the sliders.
+	if (Page == EPage::Profile && Pv && Pv->HasAvatar())
+	{
+		const float H = Canvas->ClipY - BY - BH - 160.0f * Sc, W = H * 0.75f;
+		const float X = Canvas->ClipX - W - 60.0f * Sc, Y = BY + BH + 30.0f * Sc;
+		Hud->DrawRect(FLinearColor(0, 0, 0, 0.6f), X - 6.0f * Sc, Y - 6.0f * Sc, W + 12.0f * Sc, H + 12.0f * Sc);
+		Pv->Draw(Canvas, X, Y, W, H, false);
+	}
 }
 
 void ATorquePlayerController::DrawNote(AHUD* Hud, UCanvas* Canvas)
