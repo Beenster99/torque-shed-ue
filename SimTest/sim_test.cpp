@@ -784,6 +784,48 @@ static void EngineTests()
 		}
 		Check(S.Gear >= 1 && S.Speed > 3.0, "auto-shift in neutral: opening up pulls away in gear (m/s)", S.Speed);
 	}
+	{
+		// A burnout: stopped in first, front brake on, a handful: the back tyre spins, the bike stays
+		// put; leaning swings it round (a donut). Then walking it backwards on the front brake.
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		double Moved = 0.0;
+		for (int i = 0; i < 240; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Throttle = 0.8;
+			S.Step(Dt);
+			Moved = std::max(Moved, std::hypot(S.Position.x, S.Position.z));
+		}
+		Check(S.Burnout > 0.4 && S.Wheels[1].Omega * S.Build.RearRadius > 8.0, "burnout: the back tyre lights up (burnout 0..1)", S.Burnout);
+		Check(Moved < 0.6 && !S.IsCrashed, "  held on the spot by the front brake (m moved)", Moved);
+		for (int i = 0; i < 360; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Throttle = 0.8;
+			S.LeanInput = 1.0;
+			S.Step(Dt);
+		}
+		Check(std::fabs(S.DonutTurn) > 1.5 && !S.IsCrashed, "  leaning, it swings round in a donut (rad turned)", S.DonutTurn);
+		Check(S.BurnoutTime > 2.0, "  and the tyre's burnout seconds are counted (s)", S.BurnoutTime);
+		S.LeanInput = 0.0;
+		S.Throttle = 0.0;
+		for (int i = 0; i < 360; ++i)
+		{
+			S.FrontBrake = 0.0;
+			S.Step(Dt);
+		}
+		Check(S.Burnout <= 0.0, "  throttle shut: it goes out", S.Burnout);
+		for (int i = 0; i < 300; ++i)
+		{
+			S.FrontBrake = 1.0;
+			S.Step(Dt);
+		}
+		Check(S.Paddling && S.Speed < -0.6 && !S.IsCrashed, "front brake held at a standstill: the rider walks it backwards (m/s)", S.Speed);
+	}
 	for (const bool Aid : {false, true})
 	{
 		// Weight back, full throttle in first, Riding realism 0: anti-wheelie keeps the front skimming.

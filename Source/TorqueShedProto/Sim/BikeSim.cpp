@@ -71,6 +71,12 @@ const double NEUTRAL_FIND_SPEED = 2.0;
 const double FREE_REV_LOAD = 0.12;
 // Seconds on the starter before it fires, and how much longer a struggling start cranks.
 const double START_TIME = 0.7;
+// Paddling backwards (walking pace, after holding the front brake this long at a standstill), a
+// burnout (below this speed, front brake and throttle) and how fast a full-lock one swings round.
+const double PADDLE_SPEED = 1.1;
+const double PADDLE_HOLD = 0.45;
+const double BURNOUT_SPEED = 2.5;
+const double DONUT_RATE = 2.2;
 // Lean-angle traction control tightens to its leaned-over allowance by this lean (50 degrees), and
 // stability control damps the lean rate's departures from itself smoothed over STAB_SETTLE s.
 const double LEAN_TC_FULL = 0.873;
@@ -261,11 +267,13 @@ void BikeSim::Step(double Delta)
 	Hang = MoveToward(Hang, HangTo, Delta * 0.4);
 	CenterOfMass = BaseCom + V3(Hang * Build.RiderMass / Build.TotalMass, 0.0, -Shift);
 
+	UpdateFeet(Delta);
 	UpdateSteering(Delta);
 	UpdateEngine(Delta);
 	// Stopped with the throttle shut, the rider puts a foot down and holds the brakes (Torque Shed's
-	// feet down, reduced to this), so the bike neither rolls back down a hill nor topples.
-	const bool Parked = std::fabs(Speed) < 1.0 && Throttle < 0.05;
+	// feet down, reduced to this), so the bike neither rolls back down a hill nor topples. Not while
+	// they're walking it backwards.
+	const bool Parked = std::fabs(Speed) < 1.0 && Throttle < 0.05 && !Paddling;
 	double RearGrip = Parked ? std::max(RearBrake, 1.0) : RearBrake;
 	if (!Wheels[0].Contact && Wheels[1].Contact && PitchAngle > DegToRad(1.5))
 	{
@@ -281,14 +289,16 @@ void BikeSim::Step(double Delta)
 		const double Falling = -AngularVelocity.Dot(Basis.X);
 		FrontGrip *= Clamp(1.0 - (Over * 5.0 + Falling * 0.8) * Steadiness(), 0.0, 1.0);
 	}
+	if (Paddling) FrontGrip = 0.0;
 	Wheels[0].BrakeTorque = FrontGrip * Build.FrontBrakeTorque;
-	Wheels[1].BrakeTorque = RearGrip * Build.RearBrakeTorque;
+	Wheels[1].BrakeTorque = Burnout > 0.0 ? 0.0 : RearGrip * Build.RearBrakeTorque;
 	for (Wheel& W : Wheels) WheelForces(W, Delta);
 	MeasureGeometry(Delta);
 	ApplyWheelGyro();
 	ApplyAero();
 	ApplyRiderBalance(Delta);
 	ApplyFeet();
+	ApplyDonut(Delta);
 	CheckCrash();
 	Integrate(Delta);
 	ResolveContacts(Delta);
@@ -777,8 +787,9 @@ void BikeSim::UpdateEngine(double Delta)
 	}
 	else if (EngineOn)
 	{
-		// Slipping clutch: the engine holds launch revs while the wheel catches up.
-		const double Launch = Lerp(IdleRpm, Build.PeakTorqueRpm * 0.75, ThrottleEff);
+		// Slipping clutch: the engine holds launch revs while the wheel catches up. Lighting up a
+		// burnout the rider lets it rev on into the power, the clutch slipping, to break the tyre loose.
+		const double Launch = Lerp(IdleRpm, Burnout > 0.0 ? Build.Redline * 0.8 : Build.PeakTorqueRpm * 0.75, ThrottleEff);
 		Rpm = Lerp(Rpm, std::max(Launch, WheelRpm), 1.0 - std::exp(-10.0 * Delta));
 	}
 
@@ -863,6 +874,9 @@ void BikeSim::UpdateEngine(double Delta)
 	}
 	EngineKw = Made * Rpm * TAU / 60.0 / 1000.0;
 	Overrun = EngineOn && Engaged && !Shifting && ThrottleEff < 0.02 && Rpm > IdleRpm * 1.3;
+	// Lighting a burnout the rider dumps the clutch on high revs: the flywheel's spin kicks the back
+	// tyre loose, where the engine's steady pull alone barely beats its grip.
+	if (Burnout > 0.0 && Rear.Omega * Build.RearRadius - Speed < 6.0) EngineNm *= 2.0;
 	Rear.DriveTorque = EngineNm * Ratio * Build.DrivetrainEfficiency;
 	Rpm = Clamp(Rpm, EngineOn ? IdleRpm * 0.9 : 0.0, Build.Redline * 1.02);
 
@@ -1255,8 +1269,75 @@ void BikeSim::ApplyAero()
 	ApplyCentralForce(V * (-0.5 * AIR_DENSITY * Build.CdA * V.Length()));
 }
 
+void BikeSim::UpdateFeet(double Delta)
+{
+	// Burnouts and paddling (bike.gd _update_feet). Front brake and throttle at a standstill spin the
+	// back tyre up in a cloud of smoke; holding the front brake at a standstill with the throttle
+	// shut lets the rider walk the bike backwards with their feet, steering with the bars.
+	const bool Still = std::fabs(Speed) < 0.4;
+	const bool OnGround = Wheels[0].Contact && Wheels[1].Contact;
+	if (Paddling)
+	{
+		if (FrontBrake < 0.3 || Throttle > 0.1 || !OnGround) Paddling = false;
+	}
+	else if (Still && OnGround && FrontBrake > 0.5 && Throttle < 0.05)
+	{
+		StoppedBrake += Delta;
+		if (StoppedBrake >= PADDLE_HOLD) Paddling = true;
+	}
+	else StoppedBrake = 0.0;
+	if (Paddling) StoppedBrake = 0.0;
+	const bool Lit = EngineOn && Gear != NEUTRAL && Clutch < 0.5 && OnGround && FrontBrake > 0.5 && Throttle > 0.35
+		&& std::fabs(Speed) < BURNOUT_SPEED && PitchAngle - RoadPitch < DegToRad(8.0);
+	const double SpinV = Wheels[1].Omega * Build.RearRadius - Speed;
+	const double Target = Lit ? Clamp(SpinV / 12.0, 0.0, 1.0) * Throttle : 0.0;
+	Burnout = MoveToward(Burnout, Target, Delta * 3.0);
+	if (Lit && Burnout <= 0.0) BurnoutAt = Position;   // where the rider's feet are planted
+	if (Lit && Burnout < 0.05) Burnout = 0.05;   // it has to start somewhere
+}
+
+void BikeSim::ApplyDonut(double Delta)
+{
+	// Circle burnouts: lit up, the rider pivots the bike round the braked front wheel and the
+	// spinning back tyre slides round in a circle of smoke; lean input swings it round.
+	if (Burnout <= 0.0)
+	{
+		DonutTurn = 0.0;
+		return;
+	}
+	BurnoutTime += Burnout * Delta;
+	const M3& B = Basis;
+	const double YawRate = AngularVelocity.Dot(B.Y);
+	DonutTurn += YawRate * Delta;
+	if (!(Wheels[0].Contact && Wheels[1].Contact)) return;
+	const double Want = -LeanInput * DONUT_RATE * Clamp(Burnout * 1.5, 0.0, 1.0);
+	const double Wb = Build.Wheelbase;
+	const double IFront = Build.Inertia.y + Build.TotalMass * Wb * Wb * 0.25;
+	const double Grip = Build.TyreGrip(false, Wheels[1].Surf) * Wheels[1].Load;
+	const double Push = Clamp((Want - YawRate) * IFront * 8.0 / Wb, -Grip, Grip);
+	ApplyForce(B.X * Push, Wheels[1].ContactPos - Position);
+}
+
 void BikeSim::ApplyFeet()
 {
+	{
+		const V3 Fwd = -Basis.Z;
+		V3 Flat(Fwd.x, 0.0, Fwd.z);
+		if (Flat.Length() > 0.01 && (Burnout > 0.0 || Paddling))
+		{
+			Flat = Flat.Normalized();
+			const double V = LinearVelocity.Dot(Flat);
+			// The front brake and the rider's legs hold it on the spot while the back tyre spins; or
+			// they walk it backwards at a walking pace.
+			// (Both feet planted and braced where it lit up: Godot's damping alone, 6/s, let the drive
+			// walk the bike forward at 1-1.5 m/s on the locked front without the back ever breaking
+			// loose. Braced against the locked front, they hold up to about 1 g.)
+			const double Off = (Position - BurnoutAt).Dot(Flat);
+			if (Burnout > 0.0)
+				ApplyCentralForce(Flat * Clamp(-(Off * 200.0 + V * 40.0) * Build.TotalMass, -G * Build.TotalMass, G * Build.TotalMass));
+			else ApplyCentralForce(Flat * ((-PADDLE_SPEED - V) * Build.TotalMass * 2.5));
+		}
+	}
 	// Below walking pace the rider's feet hold the bike up: a stiff, damped roll spring that fades
 	// out by 2.5 m/s, where steering balances it again.
 	if (!(Wheels[0].Contact || Wheels[1].Contact)) return;
@@ -1309,7 +1390,7 @@ void BikeSim::ApplyRiderBalance(double Delta)
 	const double PitchRate = AngularVelocity.Dot(Right);
 	if (!AnyContact)
 	{
-		const double Revs = Throttle - 0.33;
+		const double Revs = EngineOn ? Throttle - 0.33 : -0.2;
 		PitchTau += (Revs - RearBrake * 0.6) * AIR_REV_PITCH * Build.Inertia.x;
 	}
 	else if (Wheels[0].Contact != Wheels[1].Contact)

@@ -92,8 +92,11 @@ public:
 	double FuelLitres = 15.0;
 	double EngineKw = 0.0;
 	bool Overrun = false;
-	// 0..1, how hard the back tyre's spinning on the spot (a burnout).
-	double Burnout = 0.0;
+	// 0..1, how hard the back tyre's spinning on the spot (a burnout); seconds of full burnout since
+	// the game last took them (they wear the back tyre); how far it has spun the bike round (rad,
+	// + left). Paddling: walking the bike backwards with the rider's feet.
+	double Burnout = 0.0, BurnoutTime = 0.0, DonutTurn = 0.0;
+	bool Paddling = false;
 
 	// Rigid body state (world: +Y up). Position is the body origin (axle height, mid wheelbase).
 	V3 Position;
@@ -186,6 +189,8 @@ private:
 	double BrakeCare(bool IsFront) const;
 	void ApplyAero();
 	void ApplyRiderBalance(double Delta);
+	void UpdateFeet(double Delta);
+	void ApplyDonut(double Delta);
 	void ApplyFeet();
 	void CheckCrash();
 	void StepCrashed(double Delta);   // off: falls, slides and tumbles on the ground
@@ -209,7 +214,8 @@ private:
 	V3 PrevW, PrevV;
 	bool HavePrev = false;
 	double Seen[4] = {0, 0, 0, 0};
-	double Starting = 0.0;
+	double Starting = 0.0, StoppedBrake = 0.0;
+	V3 BurnoutAt;
 	double ShiftTimer = 0.0, SinceShift = 0.0, Traction = 1.0, ShiftFromRpm = 0.0, ThrottleEff = 0.0, ShiftLoad = 0.0;
 };
 } // namespace TorqueSim
