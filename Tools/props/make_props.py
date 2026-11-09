@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kit  # noqa: E402
+import delivery_layout  # noqa: E402
 from kit import box, span, cyl, tube, bent, torus, prism, castor, label, sphere  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1236,8 +1237,9 @@ def _cardboard(W, H, D):
         prism("Arrow%d" % k, [(k * 0.02 - 0.012, 0.0), (k * 0.02 + 0.012, 0.0), (k * 0.02 + 0.012, 0.035), (k * 0.02 + 0.022, 0.035),
                               (k * 0.02, 0.06), (k * 0.02 - 0.022, 0.035), (k * 0.02 - 0.012, 0.035)], 0.001, "ink_black", axis="z",
               centre=D / 2 + 0.0006, bevel=0.0)
-        kit._pieces[-1].location.x += W / 2 - 0.08
-        kit._pieces[-1].location.z += H - 0.11
+        ax, ay, _ = delivery_layout.cardboard(W, H, D)["arrows"]
+        kit._pieces[-1].location.x += ax
+        kit._pieces[-1].location.z += ay
 
 
 @model("box_cardboard", (0.45, 0.35, 0.4))
@@ -1294,12 +1296,16 @@ def _crate(W, H, D):
         for x in (-W / 2 + bw / 2, W / 2 - bw / 2):
             for y in (y0 + bw / 2, H - bw / 2):
                 cyl("Nail%d%.2f%.2f" % (s, x, y), (x, y, s * (D / 2 + bt + 0.0005)), 0.004, 0.002, "steel_dark", axis="z", verts=8, bevel=0.0)
-    box("Stencil", (-W * 0.2, y0 + h * 0.3, D / 2 + bt + 0.0006), (min(0.3, W * 0.35), 0.04, 0.001), "ink_black", bevel=0.0)
+    # Printing goes on the boards (flush), in the spots delivery_layout keeps clear of the brace.
+    lay = delivery_layout.crate(W, H, D)
+    sx, sy, _ = lay["stencil"]
+    box("Stencil", (sx, sy, D / 2 + 0.0006), (lay["stencil_w"], 0.04, 0.001), "ink_black", bevel=0.0)
+    ax, ay, _ = lay["arrows"]
     for k in range(2):
         prism("Up%d" % k, [(-0.01, 0.0), (0.01, 0.0), (0.01, 0.03), (0.02, 0.03), (0.0, 0.05), (-0.02, 0.03), (-0.01, 0.03)], 0.001, "ink_black",
-              axis="z", centre=D / 2 + bt + 0.0006, bevel=0.0)
-        kit._pieces[-1].location.x += W * 0.25 + k * 0.05
-        kit._pieces[-1].location.z += y0 + h * 0.25
+              axis="z", centre=D / 2 + 0.0006, bevel=0.0)
+        kit._pieces[-1].location.x += ax + k * 0.05
+        kit._pieces[-1].location.z += ay
 
 
 @model("crate_wood", (0.75, 0.65, 0.65))
