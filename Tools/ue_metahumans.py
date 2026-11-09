@@ -947,6 +947,75 @@ def _cards_lod(groom):
     return -1
 
 
+HAIR_WORDS = ("hair", "brow", "lash", "beard", "mustache", "moustache")
+
+
+def _hair_from_build(entry, av):
+    """The hair the build made under /Game/MetaHumans/<Name>/, for when the Blueprint's groom
+    components read empty (UE 5.8 fills them at run time): each GroomAsset with the GroomBindingAsset
+    made for it, on the face; and when there's no groom for a group, its hair-card static mesh,
+    which the game puts on the head bone. Every groom, binding and static mesh found is logged."""
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    folder = ROOT + "/" + av
+    if not unreal.EditorAssetLibrary.does_directory_exist(folder):
+        return
+    grooms, bindings, statics = [], [], []
+    for a in reg.get_assets_by_path(folder, recursive=True):
+        cls, obj = _cls_name(a), "%s.%s" % (a.package_name, a.asset_name)
+        if cls == "GroomAsset":
+            grooms.append(obj)
+        elif cls == "GroomBindingAsset":
+            bindings.append(obj)
+        elif cls == "StaticMesh":
+            statics.append(obj)
+    log("%s: in the build: grooms %s; bindings %s; static meshes %s" % (av, grooms or "none", bindings or "none", statics or "none"))
+
+    def group(path):
+        low = path.lower()
+        for w in HAIR_WORDS:
+            if w in low:
+                return {"moustache": "mustache"}.get(w, w)
+        return None
+
+    done = set()
+    for g in grooms:
+        if "fuzz" in g.lower():
+            continue
+        ga = unreal.load_asset(g.split(".")[0])
+        if ga is None:
+            continue
+        bind = ""
+        for b in bindings:
+            ba = unreal.load_asset(b.split(".")[0])
+            target = _get_any(ba, "groom", "groom_asset") if ba is not None else None
+            if target is not None and _path(target) == _path(ga):
+                bind = b
+                break
+        if not bind:
+            stem = g.rsplit(".", 1)[-1].lower()
+            bind = next((b for b in bindings if stem.replace("groom_", "") in b.lower()), "")
+        name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
+        lod = _cards_lod(ga)
+        entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": []})
+        log("%s: groom %s from the build = %s (binding %s, cards from LOD %d)" % (av, name, g, bind or "none", lod))
+        done.add(group(g))
+    # Hair cards as static meshes, one per group not covered by a groom: the lowest LOD of each.
+    by_group = {}
+    for m in sorted(statics):
+        grp = group(m)
+        if grp is None or grp in done or "fuzz" in m.lower():
+            continue
+        by_group.setdefault(grp, []).append(m)
+    for grp, ms in by_group.items():
+        cards = [m for m in ms if "card" in m.lower()] or ms
+        pick = cards[0]
+        entry["parts"].append({"name": grp.capitalize() + "Cards", "static": pick, "attach": "Face", "bone": "head", "materials": []})
+        log("%s: %s as a static mesh %s (of %s)" % (av, grp, pick, ", ".join(ms)))
+        bad = _editor_only_deps(pick.split(".")[0])
+        if bad:
+            unreal.log_warning("[Torque] %s: %s pulls in editor-only content: %s" % (av, pick, ", ".join(bad[:5])))
+
+
 def _add_clothes(entry, av, skins):
     """The clothes the build made under /Game/MetaHumans/<Name>/: skeletal meshes that aren't the
     body or face (posed by the body), else the Chaos outfit or cloth assets (a cloth component posed
@@ -1064,6 +1133,8 @@ def _parts_of_blueprint(pkg, name, av):
             bad = _editor_only_deps(groom.get_outermost().get_name())
             if bad:
                 unreal.log_warning("[Torque] %s: groom %s pulls in editor-only content: %s" % (av, _path(groom), ", ".join(bad[:5])))
+        if not any(p.get("groom") for p in entry["parts"]):
+            _hair_from_build(entry, av)
         _add_clothes(entry, av, skins)
         log("avatar %s: body %s, parts %s" % (av, entry["body"], ", ".join(p["name"] for p in entry["parts"])))
         return entry
