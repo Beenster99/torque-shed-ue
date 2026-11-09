@@ -12,6 +12,7 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make         make the avatars below by script and build them without the
                                            cloud (logs can_build_meta_human's reason if a rig is needed)
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
+    py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
 Or without opening the editor:
@@ -145,28 +146,73 @@ def _vary_body(sub, ch, i):
 _WARDROBE = None
 
 
+WEAR_CLASSES = ("wardrobe", "groom", "outfit", "clothing", "garment")
+
+
 def _wardrobe():
-    """Every wardrobe item this editor has (hair, brows, beards, clothes): any asset whose class has
-    Wardrobe in its name, in the MetaHuman plugins' content (incl. Optional Content) or the project."""
+    """Everything that could dress a MetaHuman: wardrobe items, and the hair grooms, outfits and
+    garments they wrap, in any content mount whose path or class mentions MetaHuman, grooms or
+    outfits (Optional Content lands in a mount of its own). The whole inventory, by mount and
+    class, goes to Saved/metahuman_content.txt."""
     global _WARDROBE
     if _WARDROBE is not None:
         return _WARDROBE
     reg = unreal.AssetRegistryHelpers.get_asset_registry()
-    found = []
-    for root in ("/MetaHumanCharacter", "/MetaHumanCoreTech", "/MetaHumanSDK", "/MetaHumanDefaultPipeline", "/Game"):
-        try:
-            assets = reg.get_assets_by_path(root, recursive=True)
-        except Exception:
-            continue
-        for a in assets:
-            cls = _cls_name(a)
-            if "wardrobe" in cls.lower():
-                found.append((str(a.package_name), str(a.asset_name), cls))
+    try:
+        assets = reg.get_all_assets(True)
+    except Exception:
+        assets = []
+        for root in ("/MetaHumanCharacter", "/MetaHumanCoreTech", "/MetaHumanSDK", "/MetaHumanDefaultPipeline", "/Game"):
+            try:
+                assets += list(reg.get_assets_by_path(root, recursive=True))
+            except Exception:
+                pass
+    found, counts = [], {}
+    for a in assets:
+        pkg = str(a.package_name)
+        cls = _cls_name(a)
+        mount = "/" + pkg.split("/")[1] if pkg.count("/") > 1 else pkg
+        low_cls, low_pkg = cls.lower(), pkg.lower()
+        if "metahuman" in low_pkg or any(w in low_cls for w in WEAR_CLASSES):
+            counts[(mount, cls)] = counts.get((mount, cls), 0) + 1
+        if any(w in low_cls for w in WEAR_CLASSES) and "binding" not in low_cls and "cache" not in low_cls:
+            found.append((pkg, str(a.asset_name), cls))
+    path = os.path.join(project_dir(), "Saved", "metahuman_content.txt")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            for (mount, cls), n in sorted(counts.items()):
+                f.write("%-40s %-40s %d\n" % (mount, cls, n))
+            f.write("\n")
+            for pkg, name, cls in sorted(found):
+                f.write("%s  (%s)\n" % (pkg, cls))
+    except Exception:
+        pass
     _WARDROBE = found
-    log("wardrobe items found: %d" % len(found))
-    for pkg, name, cls in found:
-        log("  wardrobe %s (%s)" % (pkg, cls))
+    log("wardrobe candidates found: %d (inventory in %s)" % (len(found), path))
+    for (mount, cls), n in sorted(counts.items()):
+        if any(w in cls.lower() for w in WEAR_CLASSES):
+            log("  %s: %d %s" % (mount, n, cls))
     return found
+
+
+def _as_wardrobe_item(obj):
+    """obj itself if it's a wardrobe item, else a new transient wardrobe item wrapping it (a groom,
+    an outfit or a garment mesh) as its principal asset; None when this API can't."""
+    if obj is None:
+        return None
+    if "wardrobe" in type(obj).__name__.lower():
+        return obj
+    cls = _find_class("metahuman", "wardrobe", "item")
+    if cls is None:
+        return None
+    try:
+        item = unreal.new_object(cls)
+    except Exception as e:
+        log("couldn't make a %s: %s" % (cls.__name__, e))
+        return None
+    used = _set_first(item, obj, "principal_asset", "asset", "item_asset", "source_asset")
+    log("wrapped %s in a %s (via %s; fields %s)" % (obj.get_path_name(), cls.__name__, used, _props(item)))
+    return item if used else None
 
 
 def _dress(sub, ch, av):
@@ -202,15 +248,25 @@ def _dress(sub, ch, av):
         best, score = None, 0
         for pkg, name, cls in items:
             n = name.lower() + " " + pkg.lower()
-            if hair_slot != ("hair" in n and "eyebrow" not in n and "beard" not in n and "mustache" not in n):
+            is_hair = ("hair" in n or "groom" in cls.lower()) and not any(w in n for w in ("brow", "beard", "mustache", "lash", "fuzz"))
+            if hair_slot != is_hair:
                 continue
-            sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words)
+            if not hair_slot and "groom" in cls.lower():
+                continue
+            if "top" in low and any(w in n for w in ("pant", "trouser", "jean", "short", "boot", "shoe")):
+                continue
+            if "bottom" in low and any(w in n for w in ("shirt", "jacket", "hoodie", "top", "tee")):
+                continue
+            sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words) + 1   # any fits the slot
             if sc > score:
                 best, score = (pkg, name), sc
         if best is None:
             log("%s: nothing in the wardrobe for slot %s (%s)" % (av["name"], slot, ", ".join(words)))
             continue
-        item = unreal.load_asset(best[0])
+        item = _as_wardrobe_item(unreal.load_asset(best[0]))
+        if item is None:
+            log("%s: %s isn't a wardrobe item and couldn't be wrapped in one" % (av["name"], best[0]))
+            continue
         try:
             r = coll.try_add_item_from_wardrobe_item(unreal.Name(slot), item)
             key = r[-1] if isinstance(r, tuple) else r
@@ -660,8 +716,8 @@ def _game_safe_mesh(mesh, av):
                 mesh.set_editor_property("skeleton", new)
                 changed = True
                 log("%s: %s: skeleton %s -> %s" % (av, pkg, sk.get_path_name(), copy))
-    except Exception as e:
-        log("%s: couldn't swap the skeleton of %s: %s" % (av, pkg, e))
+    except Exception:
+        pass   # the skeleton is read-only from Python; the cook takes the plugin's (it's fine)
     if changed:
         unreal.EditorAssetLibrary.save_loaded_asset(mesh, only_if_is_dirty=False)
     # The clothes' and hair's colour parameters, for tinting them to the player's colour later.
@@ -846,6 +902,8 @@ def main(args):
     mode = args[0] if args else "register"
     if mode == "discover":
         discover()
+    elif mode == "wardrobe":
+        _wardrobe()
     elif mode == "slim":
         slim()
     elif mode == "make":
