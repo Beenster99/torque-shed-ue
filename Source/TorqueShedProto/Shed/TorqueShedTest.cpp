@@ -70,19 +70,19 @@ const TCHAR* const DynoSteps =
 
 // The paint shop's spray bay on bay 1's bike: take the exhaust off, grind its rust off on the
 // repair bench (too rusty to paint otherwise), hang it on the first hook and spray it with the gun
-// in the booth: grey primer, gloss red, then clear lacquer, a shot after each; then the gun tried on
-// the tank on the bike (refused: it runs off the booth's air line) and the rattle can on it (works
-// anywhere), and the exhaust back on.
+// in the booth: grey primer, gloss red, then clear lacquer, a shot after each; then the exhaust back
+// on and the gun tried on it there (refused: it runs off the booth's air line) and the rattle can
+// (works anywhere; the exhaust's ground back, where the tank's too rusty for paint).
 const TCHAR* const BoothSteps =
 	TEXT("bay:1,tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,")
 	TEXT("place:repair_0,act,tool:repair,item:exhaust,act,tool:hands,item:exhaust,act,")
-	TEXT("place:hook_0,act,look:booth,shot,")
+	TEXT("place:hook_0,act,look:booth,shot,look:boothceiling,shot,")
 	TEXT("tool:gun,spray:0:primer,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("spray:0:gloss,item:exhaust,act,look:hook_0,shot,")
 	TEXT("spray:0:clear,item:exhaust,act,log,look:hook_0,shot,look:booth,shot,")
-	TEXT("spray:3:gloss,part:tank,act,")
-	TEXT("tool:spray,spray:1:gloss,part:tank,act,look:bike,shot,")
-	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,log");
+	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,")
+	TEXT("tool:gun,spray:3:gloss,part:exhaust,act,")
+	TEXT("tool:spray,spray:1:gloss,part:exhaust,act,look:bike,shot,log");
 
 // The paint mixing bay (paint_bay.gd): at the bench a litre of white with phthalo blue and lemon
 // yellow poured in (a green), stirred, a test card, saved as Mix 1 (its card on the swatch wall);
@@ -560,12 +560,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else if (What == TEXT("board")) { At = FVector(-643.0, 60.0, 255.0); Away = FVector(1.0, 0.0, 0.0); Distance = 300.0; }
 		else if (What == TEXT("monitor")) { At = FVector(613.5, 190.0, 110.0); Away = FVector(-1.0, 0.0, 0.0); Distance = 110.0; }
-		else if (What == TEXT("booth")) { At = FVector(1160.0, 0.0, 110.0); Away = FVector(-1.0, 0.25, 0.0).GetSafeNormal(); Distance = 560.0; }
+		else if (What == TEXT("booth")) { At = FVector(1160.0, 0.0, 110.0); Away = FVector(-1.0, 0.25, 0.0).GetSafeNormal(); Distance = 430.0; }
+		// The hex LED ceiling over the spray bay, looking up from inside the paint shop's door.
+		else if (What == TEXT("boothceiling")) { At = FVector(1080.0, -40.0, 335.0); Away = FVector(-1.0, 0.35, 0.0).GetSafeNormal(); Distance = 330.0; }
 		else if (What == TEXT("dyno")) { At = FVector(0.0, -1290.0, 225.0); Away = FVector(0.35, 1.0, 0.0).GetSafeNormal(); Distance = 250.0; }
 		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, deliveries, washbay, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, deliveries, washbay, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);

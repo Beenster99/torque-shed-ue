@@ -293,6 +293,12 @@ private:
 	FString PerfText, PerfFile;
 	void UpdatePerf(float Dt);
 
+	// The eye in the white rooms (the paint shop's booth, the mixing bay): the auto exposure sees a
+	// room of white walls and would make them mid grey, so the camera opens up a little there, as a
+	// photographer does in snow. 0 out in the shed, 1 in a white room, eased in and out.
+	double WhiteRoom = 0.0;
+	void UpdateRoomExposure(float Dt);
+
 	// --- Co-op (Coop/TorquePlayerState.h FTorqueHandsNet) ---------------------------------------------
 	// This player's hands for the others: offered each frame (sent when it's worth it).
 	void ShareHands(float Dt);

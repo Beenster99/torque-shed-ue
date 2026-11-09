@@ -395,7 +395,7 @@ def materials():
         "paint_wall": scanned(scans, "shed_paint_wall", "M_PaintShopWall", (0.90, 0.91, 0.92), 0.35, grain=0.0),
         "paint_ceiling": flat("M_PaintShopCeiling", (0.08, 0.08, 0.09), 0.6, metallic=0.2),
         "hex_led": flat("M_PaintShopHexLed", (0.97, 0.99, 1.0), 0.4, emissive=8.0),
-        "booth_panel": flat("M_BoothPanel", (0.88, 0.89, 0.90), 0.55, metallic=0.1),
+        "booth_panel": flat("M_BoothPanel", (0.94, 0.95, 0.96), 0.5, metallic=0.05),   # white enamel (0.88 read light grey)
         "booth_filter": flat("M_BoothFilter", (0.95, 0.60, 0.35), 0.95, grain=0.1),
         "booth_grate": flat("M_BoothGrate", (0.20, 0.21, 0.23), 0.4, metallic=0.8),
         "chrome": flat("M_ShedChrome", (0.88, 0.89, 0.92), 0.15, metallic=0.95),
@@ -812,8 +812,8 @@ def paint_shop(m):
         units = getattr(unreal, "LightUnits", None)
         if units is not None:
             try_set(lc, "intensity_units", units.LUMENS)
-        for k, v in (("intensity", 3200.0), ("outer_cone_angle", 70.0), ("inner_cone_angle", 30.0), ("attenuation_radius", 600.0),
-                     ("temperature", 6200.0), ("use_temperature", True)):
+        for k, v in (("intensity", 5200.0), ("outer_cone_angle", 75.0), ("inner_cone_angle", 35.0), ("attenuation_radius", 650.0),
+                     ("temperature", 6200.0), ("use_temperature", True), ("contact_shadow_length", 0.05)):
             try_set(lc, k, v)
     # The spray bay (equipment_view.gd _build_booth): back and side panels, steel posts at the open
     # front, the filter wall at the back with its extractor grille, the downdraft grate.
@@ -936,13 +936,31 @@ def lights(m):
             try_set(lc, "intensity_units", units.LUMENS)
         for k, v in (("intensity", LED_LUMENS * (1.3 if i < len(BAY_X) else 1.0)), ("source_width", 130.0), ("source_height", 20.0),
                      ("attenuation_radius", 1200.0), ("barn_door_angle", 70.0),
-                     ("temperature", 4800.0), ("use_temperature", True)):
+                     ("temperature", 4800.0), ("use_temperature", True), ("contact_shadow_length", 0.05)):
             try_set(lc, k, v)
-    # The wash bay's own strip.
-    light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(-930.0, 100.0, 290.0), unreal.Rotator(0.0, -90.0, 0.0))
-    light.set_actor_label("WashBayLight")
-    light.set_folder_path("WashBay")
+    # The wash bay's own strip, and one down the middle of the storage room (it had none).
+    strip_light("WashBayLight", (-930.0, 100.0, 290.0), 1400.0, 160.0, 15.0, 700.0, "WashBay")
     box("WashBay_Strip", -937.5, -922.5, 20, 180, 292, 296, m["led"], folder="WashBay", collide=False)
+    strip_light("StorageLight", (-1090.0, -690.0, ROOM_HEIGHT - 9.0), 1600.0, 130.0, 20.0, 900.0, "Storage")
+    box("Storage_Strip", -1100.0, -1080.0, -755.0, -625.0, ROOM_HEIGHT - 7.5, ROOM_HEIGHT - 2.5, m["led"], folder="Storage", collide=False)
+
+
+def strip_light(label, at, lumens, width, height, radius, folder, kelvin=4800.0):
+    # An LED batten's light, pointing down: a rect light the batten's size, a little contact shadow
+    # so things sit on the bench and floor under it.
+    light = actors.spawn_actor_from_class(unreal.RectLight, unreal.Vector(*at), unreal.Rotator(0.0, -90.0, 0.0))
+    light.set_actor_label(label)
+    light.set_folder_path(folder)
+    lc = light.get_component_by_class(unreal.RectLightComponent)
+    lc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    units = getattr(unreal, "LightUnits", None)
+    if units is not None:
+        try_set(lc, "intensity_units", units.LUMENS)
+    for k, v in (("intensity", lumens), ("source_width", width), ("source_height", height),
+                 ("attenuation_radius", radius), ("barn_door_angle", 70.0),
+                 ("temperature", kelvin), ("use_temperature", True), ("contact_shadow_length", 0.05)):
+        try_set(lc, k, v)
+    return lc
 
 
 def outside(m):

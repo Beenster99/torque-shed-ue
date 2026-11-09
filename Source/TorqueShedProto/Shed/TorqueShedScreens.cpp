@@ -39,8 +39,11 @@ const FLinearColor Bg() { return Srgb(0.03f, 0.05f, 0.07f); }
 const FLinearColor Good() { return Srgb(0.35f, 0.9f, 0.45f); }
 const FLinearColor Bad() { return Srgb(1.0f, 0.35f, 0.25f); }
 const FLinearColor Dim() { return Srgb(1.0f, 1.0f, 1.0f, 0.72f); }
-// The page's glow (M_ShedScreenPage's Brightness): 1.6 read dim against the shed's exposure.
+// The page's glow (M_ShedScreenPage's Brightness): 1.6 read dim against the shed's exposure. The
+// dyno room is darker, so the eye opens up and its screen reads bright at 4.5; out in the shed, by
+// the daylight from the door, the bay screens and the board want more to look the same.
 constexpr float PageBrightness = 4.5f;
+constexpr float ShedPageBrightness = 9.0f;
 const FLinearColor Orange() { return Srgb(1.0f, 0.55f, 0.15f, 0.9f); }
 const FLinearColor Amber() { return Srgb(1.0f, 0.78f, 0.3f); }
 const FLinearColor Ink() { return Srgb(0.05f, 0.05f, 0.05f); }
@@ -421,7 +424,8 @@ void ATorqueShedScreens::BeginPlay()
 		if (RT && M)
 		{
 			M->SetTextureParameterValue(TEXT("Page"), RT);
-			M->SetScalarParameterValue(TEXT("Brightness"), TSSI::PageBrightness);   // bright enough to read in the lit shed
+			// Bright enough to read in the lit shed: the bay screens and the board (0 .. 4) out in the shed.
+			M->SetScalarParameterValue(TEXT("Brightness"), I <= 4 ? TSSI::ShedPageBrightness : TSSI::PageBrightness);
 		}
 		UStaticMesh* Mesh = TSSI::Quad(S.Centre, S.Facing, S.Right, S.W, S.H, M);
 		if (!RT || !M || !Mesh) continue;

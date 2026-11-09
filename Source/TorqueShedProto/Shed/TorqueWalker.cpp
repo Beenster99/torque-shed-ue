@@ -408,6 +408,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 		bPeerSet = true;
 	}
 	Camera->SetRelativeLocation(FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye));
+	UpdateRoomExposure(DeltaSeconds);
 	if (bRidingOut)
 	{
 		RideOutIn -= DeltaSeconds;
@@ -1963,6 +1964,22 @@ FString ATorqueWalker::Describe() const
 
 // --- Tests --------------------------------------------------------------------------------------------
 
+void ATorqueWalker::UpdateRoomExposure(float Dt)
+{
+	// The paint shop (x 680 .. 1400, y -520 .. 520, as ue_build_shed.py rooms) and the mixing bay.
+	const FVector At = GetActorLocation();
+	const bool bPaintShop = At.X > 680.0 && At.X < 1400.0 && At.Y > -520.0 && At.Y < 520.0;
+	const double Want = (bPaintShop || TorquePaintBayLayout::InRoom(At)) ? 1.0 : 0.0;
+	WhiteRoom = FMath::FInterpConstantTo(WhiteRoom, Want, (double)Dt, 0.8);
+	// The level's own exposure bias (ue_build_shed.py EXPOSURE_BIAS; keep in step) plus the white
+	// room's, blended in by the camera's weight so the shed's volume rules elsewhere.
+	constexpr float LevelBias = 0.2f, WhiteBias = 0.9f;
+	FPostProcessSettings& PP = Camera->PostProcessSettings;
+	PP.bOverride_AutoExposureBias = true;
+	PP.AutoExposureBias = LevelBias + WhiteBias;
+	Camera->PostProcessBlendWeight = (float)WhiteRoom;
+}
+
 FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, double Distance)
 {
 	FVector Side = FVector(Away.X, Away.Y, 0.0).GetSafeNormal();
@@ -1970,8 +1987,23 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 	bComputer = false;
 	// Standing on the floor under the spot (the floor is z 0 in the shed and the yard).
 	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	const FVector Stand(Point.X + Side.X * Distance, Point.Y + Side.Y * Distance, Half + 2.0);
+	FVector Stand(Point.X + Side.X * Distance, Point.Y + Side.Y * Distance, Half + 2.0);
+	// Not behind a wall: from the spot out to where we'd stand at eye height, and if a wall's in the
+	// way, stand this side of it (else the shot is of the wall's back).
+	if (UWorld* World = GetWorld())
+	{
+		const double EyeZ = Half + 2.0 + TWI::StandEye;
+		const FVector From(Point.X, Point.Y, EyeZ), To(Stand.X, Stand.Y, EyeZ);
+		FCollisionQueryParams Query(SCENE_QUERY_STAT(TorqueLookStand), false, this);
+		FHitResult Hit;
+		if (World->LineTraceSingleByObjectType(Hit, From, To, FCollisionObjectQueryParams(ECC_WorldStatic), Query) && Hit.Distance > 80.0)
+		{
+			const FVector Back = Hit.Location - Side * 45.0;
+			Stand = FVector(Back.X, Back.Y, Half + 2.0);
+		}
+	}
 	SetActorLocation(Stand, false, nullptr, ETeleportType::TeleportPhysics);
+	UpdateRoomExposure(10.0f);   // there now, not easing in
 	const FVector Eye = GetActorLocation() + FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
 	const FRotator View = (Point - Eye).Rotation();
 	if (AController* C = GetController()) C->SetControlRotation(View);
