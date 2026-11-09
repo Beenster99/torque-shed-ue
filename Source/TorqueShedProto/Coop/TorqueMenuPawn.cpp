@@ -1,5 +1,7 @@
 #include "TorqueMenuPawn.h"
 
+#include "TorqueUi.h"
+
 #include "TorqueSession.h"
 #include "TorquePlayerController.h"
 #include "TorqueSettings.h"
@@ -332,50 +334,54 @@ namespace
 
 void ATorqueMenuPawn::DrawMenu(AHUD* Hud, UCanvas* Canvas) const
 {
+	namespace Ui = TorqueUi;
 	Hits.Reset();
-	if (!Hud || !Canvas || !GEngine) return;
-	UFont* Font = GEngine->GetLargeFont();
-	const float Sc = Canvas->ClipY / 1080.0f;
-	const float X = 120.0f * Sc;
+	if (!Hud || !Canvas) return;
+	const float Sc = Ui::Scale(Canvas);
+	const float X = 140.0f * Sc;
+	// The left side darkened (more at the edge) so the words read over the shed behind.
+	{
+		const int32 Bands = 16;
+		const float Edge = FMath::Max(860.0f * Sc, Canvas->ClipX * 0.42f);
+		for (int32 I = 0; I < Bands; ++I) Ui::Rect(Canvas, 0, 0, Edge * (float)(Bands - I) / Bands, Canvas->ClipY, FLinearColor(0, 0, 0, 0.075f));
+	}
 	float Y = 150.0f * Sc;
-	auto Line = [&](const FString& Text, const FColor& Colour, float Size, float Box) {
-		float W = 0, H = 0;
-		Canvas->StrLen(Font, Text, W, H);
-		const float K = Sc * Size;
-		if (Box > 0.0f) Hud->DrawRect(FLinearColor(0, 0, 0, Box), X - 16.0f * Sc, Y - 6.0f * Sc, W * K + 32.0f * Sc, H * K + 12.0f * Sc);
-		Canvas->SetDrawColor(Colour);
-		Canvas->DrawText(Font, Text, X, Y, K, K);
-		Y += H * K + 14.0f * Sc;
-	};
-	Line(TEXT("TORQUE SHED"), FColor::White, 3.2f, 0.45f);
-	Line(TEXT("Strip it. Clean it. Fix it. Ride it."), FColor(210, 210, 210), 1.1f, 0.35f);
-	Y += 30.0f * Sc;
+	Ui::Rect(Canvas, X, Y, 64.0f * Sc, 4.0f * Sc, Ui::Accent);
+	Ui::Text(Canvas, TEXT("TORQUE SHED"), X, Y + 18.0f * Sc, 84.0f * Sc, Ui::Ink, true);
+	Ui::Text(Canvas, TEXT("Strip it. Clean it. Fix it. Ride it."), X + 4.0f * Sc, Y + 126.0f * Sc, 22.0f * Sc, Ui::Dim);
+	Y += 220.0f * Sc;
 	const TArray<FEntry> List = Entries();
-	const UTorqueSession* S = UTorqueSession::Get(this);
+	const UTorqueSession* Ses = UTorqueSession::Get(this);
+	float MX = -1.f, MY = -1.f;
+	if (APlayerController* PC = Cast<APlayerController>(GetController())) PC->GetMousePosition(MX, MY);
+	const float RowH = 50.0f * Sc, RowW = 620.0f * Sc;
 	for (int32 I = 0; I < List.Num(); ++I)
 	{
 		const bool bSel = I == Selected;
-		const float Top = Y;
-		Line((bSel ? TEXT(">  ") : TEXT("    ")) + List[I].Text, bSel ? FColor(255, 220, 120) : FColor(235, 235, 235), bSel ? 1.6f : 1.4f,
-			bSel ? 0.6f : 0.35f);
-		Hits.Add(X - 16.0f * Sc, Top - 6.0f * Sc, X + 900.0f * Sc, Y - 8.0f * Sc, I, FTorqueMenuHits::Row);   // for the mouse
+		const bool bHot = MX >= X - 20.0f * Sc && MX < X + RowW && MY >= Y && MY < Y + RowH;
+		if (bSel)
+		{
+			Ui::Rect(Canvas, X - 20.0f * Sc, Y + 3.0f * Sc, RowW, RowH - 6.0f * Sc, FLinearColor(1, 1, 1, 0.07f));
+			Ui::Rect(Canvas, X - 20.0f * Sc, Y + 3.0f * Sc, 4.0f * Sc, RowH - 6.0f * Sc, Ui::Accent);
+		}
+		const float Px = 26.0f * Sc;
+		Ui::TextFit(Canvas, List[I].Text, X + (bSel ? 8.0f * Sc : 0.0f), Y + 0.5f * (RowH - Px * 1.2f), Px, RowW - 40.0f * Sc,
+			bSel ? Ui::Ink : (bHot ? FLinearColor(0.85f, 0.85f, 0.83f, 1.0f) : Ui::Dim), true);
+		Hits.Add(X - 20.0f * Sc, Y, X + RowW, Y + RowH, I, FTorqueMenuHits::Row);   // for the mouse
+		Y += RowH;
 	}
-	Y += 20.0f * Sc;
-	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Line(List[Selected].Hint, FColor(190, 210, 240), 1.0f, 0.35f);
-	if (!Busy.IsEmpty()) Line(Busy, FColor(170, 255, 170), 1.2f, 0.45f);
-	else if (S && !S->Status.IsEmpty()) Line(S->Status, FColor(255, 170, 90), 1.2f, 0.45f);
-	Y = Canvas->ClipY - 90.0f * Sc;
-	Line(TEXT("Click to choose (the wheel scrolls)   Up/Down, D-pad or left stick to pick   Enter, Cross or A to choose"), FColor(200, 200, 200), 0.9f, 0.35f);
+	Y += 24.0f * Sc;
+	if (List.IsValidIndex(Selected) && !List[Selected].Hint.IsEmpty()) Y += Ui::TextWrap(Canvas, List[Selected].Hint, X, Y, 19.0f * Sc, RowW, Ui::Dim) + 12.0f * Sc;
+	if (!Busy.IsEmpty()) Ui::TextWrap(Canvas, Busy, X, Y, 21.0f * Sc, RowW, Ui::Accent);
+	else if (Ses && !Ses->Status.IsEmpty()) Ui::TextWrap(Canvas, Ses->Status, X, Y, 21.0f * Sc, RowW, Ui::Warn);
+	// The keys along the bottom.
 	{
-		// The build number, bottom right, on every build (beenster, 9 Nov).
-		const FString& Stamp = BuildStamp();
-		float W = 0, H = 0;
-		Canvas->StrLen(Font, Stamp, W, H);
-		const float K = 1.1f * Sc;
-		const float BX = Canvas->ClipX - W * K - 40.0f * Sc;
-		const float BY = Canvas->ClipY - H * K - 30.0f * Sc;
-		Hud->DrawRect(FLinearColor(0, 0, 0, 0.45f), BX - 14.0f * Sc, BY - 6.0f * Sc, W * K + 28.0f * Sc, H * K + 12.0f * Sc);
-		Canvas->SetDrawColor(FColor(255, 220, 120));
-		Canvas->DrawText(Font, Stamp, BX, BY, K, K);
+		const float FY = Canvas->ClipY - 70.0f * Sc;
+		float FX = X;
+		FX += Ui::KeyHint(Canvas, TEXT("Enter"), TEXT("Select"), FX, FY, Sc) + 30.0f * Sc;
+		FX += Ui::KeyHint(Canvas, TEXT("\u2191 \u2193"), TEXT("Move"), FX, FY, Sc) + 30.0f * Sc;
+		Ui::Text(Canvas, TEXT("Pad:  Cross / A select"), FX, FY + 4.0f * Sc, 16.0f * Sc, Ui::Faint);
 	}
+	// The build number, bottom right, on every build (beenster, 9 Nov).
+	Ui::Text(Canvas, BuildStamp(), Canvas->ClipX - 40.0f * Sc, Canvas->ClipY - 66.0f * Sc, 17.0f * Sc, Ui::Dim, false, Ui::EAlign::Right);
 }

@@ -74,6 +74,15 @@ private:
 		float Frac = -1.0f;
 		TFunction<void(float)> SetFrac;
 		bool bFace = false;                 // the Profile picture shows the face for this row
+		bool bCentred = false;              // [profile] the slider fills out from its middle
+		TFunction<void()> Commit;           // a slider let go: saved and put on the game
+		bool bToggle = false, bOn = false;  // an on / off switch, and which
+		bool bDisabled = false;             // shown but not changeable here (the host's, in co-op)
+		// Key bindings: the keys in each slot, the slot picked, and what else uses one of them.
+		TArray<FString> Caps;
+		int32 CapOn = -1;
+		FString Warning;
+		bool Works() const { return Choose || Step; }
 	};
 
 	EPage Page = EPage::None;

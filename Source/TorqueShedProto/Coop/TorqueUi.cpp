@@ -1,0 +1,169 @@
+#include "TorqueUi.h"
+
+#include "CanvasItem.h"
+#include "CanvasTypes.h"
+#include "Engine/Canvas.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
+#include "Styling/CoreStyle.h"
+
+namespace TorqueUi
+{
+float Scale(const UCanvas* Canvas)
+{
+	if (!Canvas || Canvas->ClipY <= 0.0f) return 1.0f;
+	// The smaller of the two, so a narrow window still fits the 1920 x 1080 layout.
+	return FMath::Max(FMath::Min(Canvas->ClipX / 1920.0f, Canvas->ClipY / 1080.0f), 0.3f);
+}
+
+FSlateFontInfo Font(float Px, bool bBold)
+{
+	FSlateFontInfo F = FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", 10);
+	// Slate's sizes are points at 96 dpi: a point is 4/3 of a pixel.
+	F.Size = (decltype(F.Size))FMath::Max(Px * 0.75f, 4.0f);
+	return F;
+}
+
+FVector2D Measure(const FString& Str, float Px, bool bBold)
+{
+	if (Str.IsEmpty()) return FVector2D(0.0, Px * 1.2);
+	if (FSlateApplication::IsInitialized())
+		if (FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer())
+		{
+			const FVector2D Size = Renderer->GetFontMeasureService()->Measure(Str, Font(Px, bBold), 1.0f);
+			return Size;
+		}
+	return FVector2D(Str.Len() * Px * 0.52, Px * 1.2);   // (no Slate: a guess)
+}
+
+float Text(UCanvas* Canvas, const FString& Str, float X, float Y, float Px, const FLinearColor& Colour, bool bBold, EAlign Align, bool bShadow)
+{
+	if (!Canvas || Str.IsEmpty()) return 0.0f;
+	const FVector2D Size = Measure(Str, Px, bBold);
+	float At = X;
+	if (Align == EAlign::Centre) At -= 0.5f * (float)Size.X;
+	else if (Align == EAlign::Right) At -= (float)Size.X;
+	FCanvasTextItem Item(FVector2D(FMath::RoundToFloat(At), FMath::RoundToFloat(Y)), FText::FromString(Str), Font(Px, bBold), Colour);
+	if (bShadow)
+	{
+		const float Off = FMath::Max(1.0f, FMath::RoundToFloat(Px / 22.0f));
+		Item.EnableShadow(FLinearColor(0.0f, 0.0f, 0.0f, 0.55f * Colour.A), FVector2D(Off, Off));
+	}
+	Canvas->DrawItem(Item);
+	return (float)Size.X;
+}
+
+float TextFit(UCanvas* Canvas, const FString& Str, float X, float Y, float Px, float MaxW, const FLinearColor& Colour, bool bBold, EAlign Align)
+{
+	if (Str.IsEmpty() || MaxW <= 0.0f) return 0.0f;
+	float W = (float)Measure(Str, Px, bBold).X;
+	if (W <= MaxW) return Text(Canvas, Str, X, Y, Px, Colour, bBold, Align);
+	// Smaller first (kept on the same middle line), then cut.
+	const float Smaller = FMath::Max(Px * MaxW / W, Px * 0.7f);
+	const float Y2 = Y + 0.5f * (Px - Smaller);
+	FString Cut = Str;
+	while (Cut.Len() > 1 && (float)Measure(Cut + (Cut.Len() < Str.Len() ? TEXT("...") : TEXT("")), Smaller, bBold).X > MaxW) Cut.LeftChopInline(1);
+	if (Cut.Len() < Str.Len()) Cut = Cut.TrimEnd() + TEXT("...");
+	return Text(Canvas, Cut, X, Y2, Smaller, Colour, bBold, Align);
+}
+
+TArray<FString> WrapLines(const FString& Str, float Px, float MaxW, bool bBold)
+{
+	TArray<FString> Lines, Words;
+	Str.ParseIntoArray(Words, TEXT(" "), true);
+	FString Cur;
+	for (const FString& Word : Words)
+	{
+		const FString Next = Cur.IsEmpty() ? Word : Cur + TEXT(" ") + Word;
+		if (!Cur.IsEmpty() && (float)Measure(Next, Px, bBold).X > MaxW)
+		{
+			Lines.Add(Cur);
+			Cur = Word;
+		}
+		else
+			Cur = Next;
+	}
+	if (!Cur.IsEmpty()) Lines.Add(Cur);
+	return Lines;
+}
+
+float TextWrap(UCanvas* Canvas, const FString& Str, float X, float Y, float Px, float MaxW, const FLinearColor& Colour, float LineGap)
+{
+	float At = Y;
+	for (const FString& One : WrapLines(Str, Px, MaxW))
+	{
+		Text(Canvas, One, X, At, Px, Colour);
+		At += Px * LineGap;
+	}
+	return At - Y;
+}
+
+void Rect(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour)
+{
+	if (!Canvas || W <= 0.0f || H <= 0.0f || Colour.A <= 0.0f) return;
+	FCanvasTileItem Item(FVector2D(X, Y), FVector2D(W, H), Colour);
+	Item.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Item);
+}
+
+void Frame(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour, float T)
+{
+	Rect(Canvas, X, Y, W, T, Colour);
+	Rect(Canvas, X, Y + H - T, W, T, Colour);
+	Rect(Canvas, X, Y + T, T, H - 2.0f * T, Colour);
+	Rect(Canvas, X + W - T, Y + T, T, H - 2.0f * T, Colour);
+}
+
+void Backdrop(UCanvas* Canvas, float Alpha)
+{
+	if (!Canvas) return;
+	const float W = Canvas->ClipX, H = Canvas->ClipY;
+	Rect(Canvas, 0, 0, W, H, FLinearColor(0.0f, 0.0f, 0.0f, Alpha * 0.75f));
+	// A soft vignette: bands darker towards each side.
+	const int32 Bands = 12;
+	const float Edge = W * 0.22f;
+	for (int32 I = 0; I < Bands; ++I)
+	{
+		const float A = Alpha * 0.06f;
+		const float BW = Edge * (float)(Bands - I) / Bands;
+		Rect(Canvas, 0, 0, BW, H, FLinearColor(0, 0, 0, A));
+		Rect(Canvas, W - BW, 0, BW, H, FLinearColor(0, 0, 0, A));
+	}
+}
+
+float KeyHint(UCanvas* Canvas, const FString& Key, const FString& What, float X, float Y, float S)
+{
+	const float Px = 16.0f * S, Pad = 8.0f * S, H = 26.0f * S;
+	const float KW = FMath::Max((float)Measure(Key, Px, true).X + 2.0f * Pad, H);
+	Rect(Canvas, X, Y, KW, H, FLinearColor(1, 1, 1, 0.10f));
+	Frame(Canvas, X, Y, KW, H, FLinearColor(1, 1, 1, 0.28f), FMath::Max(1.0f, S));
+	Text(Canvas, Key, X + 0.5f * KW, Y + 0.5f * (H - Px * 1.2f), Px, Ink, true, EAlign::Centre, false);
+	const float TW = Text(Canvas, What, X + KW + 10.0f * S, Y + 0.5f * (H - 17.0f * S * 1.2f), 17.0f * S, Dim);
+	return KW + 10.0f * S + TW;
+}
+
+void Switch(UCanvas* Canvas, float X, float Y, float W, float H, bool bOn, bool bHot)
+{
+	const float T = FMath::Max(1.0f, H / 14.0f);
+	Rect(Canvas, X, Y, W, H, bOn ? FLinearColor(Accent.R, Accent.G, Accent.B, bHot ? 0.95f : 0.75f) : FLinearColor(1, 1, 1, bHot ? 0.12f : 0.07f));
+	if (!bOn) Frame(Canvas, X, Y, W, H, FLinearColor(1, 1, 1, bHot ? 0.45f : 0.25f), T);
+	const float K = H - 6.0f * T;
+	const float KX = bOn ? X + W - K - 3.0f * T : X + 3.0f * T;
+	Rect(Canvas, KX, Y + 3.0f * T, K, K, bOn ? FLinearColor(0.06f, 0.05f, 0.04f, 1.0f) : (bHot ? Ink : Dim));
+}
+
+void Slider(UCanvas* Canvas, float X, float Y, float W, float Frac, bool bCentred, bool bHot, float S)
+{
+	const float F = FMath::Clamp(Frac, 0.0f, 1.0f);
+	const float TH = 4.0f * S, TY = Y - 0.5f * TH;
+	Rect(Canvas, X, TY, W, TH, FLinearColor(1, 1, 1, 0.14f));
+	const float Knob = X + W * F;
+	const float From = bCentred ? X + 0.5f * W : X;
+	const FLinearColor Fill(Accent.R, Accent.G, Accent.B, bHot ? 1.0f : 0.7f);
+	Rect(Canvas, FMath::Min(From, Knob), TY, FMath::Abs(Knob - From), TH, Fill);
+	if (bCentred) Rect(Canvas, X + 0.5f * W - 1.0f * S, Y - 8.0f * S, 2.0f * S, 16.0f * S, FLinearColor(1, 1, 1, 0.35f));
+	const float KW = 10.0f * S, KH = 22.0f * S;
+	Rect(Canvas, Knob - 0.5f * KW, Y - 0.5f * KH, KW, KH, bHot ? Ink : FLinearColor(0.8f, 0.8f, 0.8f, 1.0f));
+}
+} // namespace TorqueUi
