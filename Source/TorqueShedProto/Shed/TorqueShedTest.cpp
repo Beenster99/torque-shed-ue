@@ -94,7 +94,7 @@ const TCHAR* const MixSteps =
 	TEXT("paint:stir:1,paint:test,paint:save,paintlog,look:swatches,shot,look:teststand,shot,")
 	TEXT("bench:on,paint:recipe:0,paint:newtin:W,paint:pour:PB:38,paint:pour:LY:13,paint:stir:1,paint:save,paintlog,")
 	TEXT("paint:newtin:L,paint:pour:FL:100,paint:stir:1,paint:save:Satin clear,")
-	TEXT("paint:newtin:S,paint:pour:UB:20,paint:shake,wait:21,paintlog,paint:save,bench:off,paintlog,look:mixbench,shot,")
+	TEXT("paint:newtin:S,paint:pour:UB:20,paint:shake,wait:22,paintlog,paint:save,bench:off,paintlog,look:mixbench,shot,")
 	TEXT("tool:wrench,part:exhaust,act,tool:hands,part:exhaust,act,place:repair_0,act,tool:repair,item:exhaust,act,")
 	TEXT("tool:hands,item:exhaust,act,place:hook_0,act,")
 	TEXT("paint:take:0,paint:cup,paint:put:0,paintlog,tool:gun,spray:0:cup,item:exhaust,act,item:exhaust,act,log,look:hook_0,shot,")
@@ -539,8 +539,10 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Distance = 300.0;
 		}
 		else if (What == TEXT("paintbay")) { At = FVector(1565.0, 0.0, 120.0); Away = FVector(-0.35, -1.0, 0.0).GetSafeNormal(); Distance = 420.0; }
-		else if (What == TEXT("mixbench")) { At = FVector(1662.0, -40.0, 100.0); Away = FVector(-1.0, -0.3, 0.0).GetSafeNormal(); Distance = 120.0; }
-		else if (What == TEXT("swatches")) { At = FVector(1433.0, -90.0, 190.0); Away = FVector(1.0, 0.0, 0.0); Distance = 230.0; }
+		// The scale and its read-out on the bench's front edge, from where you'd stand at the bench.
+		else if (What == TEXT("mixbench")) { At = FVector(1645.0, -40.0, 90.0); Away = FVector(-1.0, -0.15, 0.0).GetSafeNormal(); Distance = 95.0; }
+		// The swatch wall's first cards (the newest top left, SwatchAt), from across the room.
+		else if (What == TEXT("swatches")) { At = FVector(1433.0, -250.0, 195.0); Away = FVector(1.0, 0.25, 0.0).GetSafeNormal(); Distance = 240.0; }
 		else if (What == TEXT("teststand")) { At = TorquePaintBayLayout::TestCardAt; Away = FVector(0.6, 0.6, 0.0).GetSafeNormal(); Distance = 110.0; }
 		else if (What == TEXT("bikenow"))
 		{

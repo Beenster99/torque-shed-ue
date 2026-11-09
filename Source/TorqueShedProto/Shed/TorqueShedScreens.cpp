@@ -44,7 +44,9 @@ const FLinearColor Dim() { return Srgb(1.0f, 1.0f, 1.0f, 0.72f); }
 // the daylight from the door, the bay screens and the board want more to look the same.
 constexpr float PageBrightness = 4.5f;
 constexpr float ShedPageBrightness = 9.0f;
-const FLinearColor Orange() { return Srgb(1.0f, 0.55f, 0.15f, 0.9f); }
+// The title band, dashboard.gd's orange (1, 0.55, 0.15). Given as it is, not through Srgb(): the
+// canvas writes into the page's sRGB target as given, so Srgb()'s linear value came out a dark red.
+const FLinearColor Orange() { return FLinearColor(1.0f, 0.55f, 0.15f, 1.0f); }
 const FLinearColor Amber() { return Srgb(1.0f, 0.78f, 0.3f); }
 const FLinearColor Ink() { return Srgb(0.05f, 0.05f, 0.05f); }
 const FLinearColor Panel() { return Srgb(1.0f, 1.0f, 1.0f, 0.05f); }

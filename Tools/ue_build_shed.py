@@ -873,7 +873,8 @@ def paint_bay(m):
     # The scale (SCALE_AT): its base, a chrome pan, the read-out on the front (the room draws the grams).
     box("MixBay_ScaleBase", 1647.0, 1677.0, -55.0, -25.0, 92, 94, m["dark"], folder=f, collide=False)
     shape(CYLINDER, "MixBay_ScalePan", (1662.0, -40.0, 94.5), (18.0, 18.0, 1.0), m["chrome"], folder=f, collide=False)
-    box("MixBay_ScaleDisplay", 1636.0, 1638.0, -50.0, -30.0, 92, 100, m["dark"], folder=f, collide=False)
+    # (The read-out hangs on the bench's front edge under the pan, big enough to read from the bench.)
+    box("MixBay_ScaleDisplay", 1632.0, 1635.0, -64.0, -16.0, 77, 92, m["dark"], folder=f, collide=False)
     # The shaker (SHAKER_AT): a base plate the tin sits on at 100 and a cage round it.
     box("MixBay_ShakerBase", 1645.0, 1680.0, 105.0, 145.0, 92, 100, m["dark"], folder=f, collide=False)
     for i, (sx, sy) in enumerate(((1646.0, 106.0), (1679.0, 106.0), (1646.0, 144.0), (1679.0, 144.0))):
@@ -965,16 +966,17 @@ def strip_light(label, at, lumens, width, height, radius, folder, kelvin=4800.0)
 
 def outside(m):
     # Concrete apron in front of the door, the lane off it to the south, the field all round.
-    box("Forecourt", -1200, 1500, HALF_Y + WALL, HALF_Y + WALL + 900, -10, 0, m["concrete"], folder="Outside")
-    box("Yard", -1600, 1500, -1400, HALF_Y + WALL, -11, -1, m["concrete"], folder="Outside")
+    # (The yard reaches past the paint mixing bay, x 1430 .. 1700, its east wall clear of it.)
+    box("Forecourt", -1200, 1840, HALF_Y + WALL, HALF_Y + WALL + 900, -10, 0, m["concrete"], folder="Outside")
+    box("Yard", -1600, 1840, -1400, HALF_Y + WALL, -11, -1, m["concrete"], folder="Outside")
     box("Lane", -200, 200, HALF_Y + WALL + 900, 30000, -12, -2, m["tarmac"], folder="Outside")
     box("Field", -40000, 40000, -40000, 40000, -30, -8, m["grass"], folder="Outside")
     # Drystone walls round the yard and along the lane.
     def dry(label, x0, x1, y0, y1):
         box(label, x0, x1, y0, y1, -8, 130, m["drystone"], folder="Outside")
     dry("Wall_YardW", -1700, -1640, -1500, HALF_Y + WALL + 900)
-    dry("Wall_YardE", 1540, 1600, -1500, HALF_Y + WALL + 900)
-    dry("Wall_Back", -1700, 1600, -1560, -1500)
+    dry("Wall_YardE", 1840, 1900, -1500, HALF_Y + WALL + 900)
+    dry("Wall_Back", -1700, 1900, -1560, -1500)
     dry("Wall_LaneW", -280, -220, HALF_Y + WALL + 900, 12000)
     dry("Wall_LaneE", 220, 280, HALF_Y + WALL + 900, 12000)
     dry("Wall_Field1", -9000, -230, 4000, 4060)

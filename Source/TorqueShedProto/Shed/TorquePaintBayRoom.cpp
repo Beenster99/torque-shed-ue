@@ -114,11 +114,13 @@ void ATorquePaintBayRoom::BeginPlay()
 	ScaleText = NewObject<UTextRenderComponent>(this);
 	ScaleText->SetupAttachment(Root);
 	ScaleText->RegisterComponent();
-	ScaleText->SetRelativeLocationAndRotation(TorquePaintBayLayout::ScaleAt + FVector(-27.5, 0.0, 4.0), FRotator(0.0, 180.0, 0.0));
+	// On the read-out on the bench's front edge (ue_build_shed.py MixBay_ScaleDisplay: x 1632, z 77 .. 92).
+	ScaleText->SetRelativeLocationAndRotation(FVector(1631.5, -40.0, 84.5), FRotator(0.0, 180.0, 0.0));
 	ScaleText->SetHorizontalAlignment(EHTA_Center);
 	ScaleText->SetVerticalAlignment(EVRTA_TextCenter);
-	ScaleText->SetWorldSize(4.0f);
-	ScaleText->SetTextRenderColor(FColor(120, 255, 140));
+	ScaleText->SetWorldSize(9.0f);
+	ScaleText->SetTextRenderColor(FColor(150, 255, 160));
+	ScaleText->SetCastShadow(false);   // (the engine's text material is unlit: it glows like the LCD)
 	ScaleText->SetText(FText::FromString(TEXT("0 g")));
 }
 

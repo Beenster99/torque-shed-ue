@@ -393,6 +393,7 @@ private:
 	bool bSaveDue = false;
 	double SaveIn = 0.0;
 	FTSTicker::FDelegateHandle Ticker;
+	double LastTickAt = 0.0;   // FPlatformTime::Seconds when TickSave last ran
 	bool IsClient() const { return Forward.IsBound(); }
 	void StartFresh();
 	void Load();

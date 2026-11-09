@@ -202,7 +202,9 @@ FString CodeOf(const FTinMix& Tin)
 {
 	TArray<FString> Parts;
 	Parts.Add(Bases()[Bases().IsValidIndex(Tin.Base) ? Tin.Base : 0].Code);
-	if (FMath::Abs(Tin.BaseGrams - TinGrams) > 0.05f) Parts.Add(TEXT("+") + GramsText(Tin.BaseGrams - TinGrams));
+	// Base added ("+250"), or taken by a test card ("~15": not "+-15", which the "-" between parts splits).
+	if (Tin.BaseGrams - TinGrams > 0.05f) Parts.Add(TEXT("+") + GramsText(Tin.BaseGrams - TinGrams));
+	else if (TinGrams - Tin.BaseGrams > 0.05f) Parts.Add(TEXT("~") + GramsText(TinGrams - Tin.BaseGrams));
 	// The tints in the rack's order.
 	for (int32 I = 0; I < Tints().Num(); ++I)
 	{
@@ -261,11 +263,12 @@ bool ParseCode(const FString& Code, FTinMix& Out)
 	for (int32 I = 1; I < Parts.Num(); ++I)
 	{
 		const FString& P = Parts[I];
-		if (P.StartsWith(TEXT("+")))
+		if (P.StartsWith(TEXT("+")) || P.StartsWith(TEXT("~")))
 		{
 			const FString Num = P.Mid(1);
 			if (!Num.IsNumeric()) return false;
-			Tin.BaseGrams = FMath::Clamp(TinGrams + FCString::Atof(*Num), 1.0f, MaxTinGrams);
+			const float Sign = P.StartsWith(TEXT("~")) ? -1.0f : 1.0f;
+			Tin.BaseGrams = FMath::Clamp(TinGrams + Sign * FCString::Atof(*Num), 1.0f, MaxTinGrams);
 			continue;
 		}
 		const int32 Tint = TintIndex(P.Left(2));

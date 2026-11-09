@@ -199,8 +199,13 @@ void UTorqueBuildSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-bool UTorqueBuildSubsystem::TickSave(float Dt)
+bool UTorqueBuildSubsystem::TickSave(float FrameDt)
 {
+	// The time since this last ran, by the clock: a ticker on a delay is handed the frame's time,
+	// not the half second between its runs, so the shaker took many times its 20 s.
+	const double Now = FPlatformTime::Seconds();
+	const float Dt = LastTickAt > 0.0 ? (float)FMath::Clamp(Now - LastTickAt, 0.0, 2.0) : FrameDt;
+	LastTickAt = Now;
 	// The host's clock for the mixing bay's shaker.
 	if (!IsClient() && Paint.Tick(Dt))
 	{
