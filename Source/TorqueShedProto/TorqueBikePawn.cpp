@@ -1302,6 +1302,8 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 	TestContacts.Capsules.clear();
 	TestParked.Reset();
 	TestAfterHit = -1.0;
+	TestFirstHit = TestPreHit = 0.0;
+	TestFirstBike = false;
 	TestPhase = 0;
 	TestMps = FMath::Max(Mph, 5.0) / 2.23694;
 	TestClock = TestSteady = TestDist = TestV0 = 0.0;
@@ -1374,6 +1376,17 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 
 // One 120 Hz step of TestStartMove's manoeuvre, after ReadInput (the robot's inputs) and before the
 // sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
+void ATorqueBikePawn::HoldTestSpeed(double V)
+{
+	// Throttle by the gap (less of a base at a walking pace), and the back brake once it runs over: in
+	// first on tickover a bike pulls along faster than a slow target.
+	const double Gap = TestMps - V;
+	Throttle = FMath::Clamp(0.25 * FMath::Min(TestMps / 13.0, 1.0) + Gap * 0.4, 0.0, 1.0);
+	FrontBrake = 0.0;
+	RearBrake = FMath::Clamp(-Gap * 0.35 - 0.05, 0.0, 0.6);
+	if (RearBrake > 0.0) Throttle = 0.0;
+}
+
 void ATorqueBikePawn::TestMoveStep()
 {
 	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TestMove == 3 ? TEXT("crash:bike") : TEXT("launch");
@@ -1410,9 +1423,9 @@ void ATorqueBikePawn::TestMoveStep()
 		// fairly level one, under 4%, for the test pad, so the bike doesn't land on it pitched).
 		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1;
 		TestSteady = bSteady ? TestSteady + SimDt : 0.0;
-		// Held by the robot's throttle alone (its brakes are for bends, and this is a straight).
-		FrontBrake = RearBrake = 0.0;
-		Throttle = FMath::Clamp(0.25 + (TestMps - V) * 0.4, 0.0, 1.0);
+		// Held by the robot's throttle, and at a slow target (the bike pulls faster than it on tickover
+		// in first) the back brake too.
+		HoldTestSpeed(V);
 		Shift = 0.0;
 		if (TestSteady < 1.5)
 		{
@@ -1524,8 +1537,19 @@ void ATorqueBikePawn::TestMoveStep()
 		Lean = 0.0;
 		Shift = 0.0;
 		FrontBrake = RearBrake = 0.0;
-		Throttle = bHit || Sim->IsCrashed ? 0.0 : FMath::Clamp(0.25 + (TestMps - V) * 0.4, 0.0, 1.0);
-		if (TestAfterHit < 0.0 && bHit) TestAfterHit = 0.0;
+		if (bHit || Sim->IsCrashed) Throttle = 0.0;
+		else
+		{
+			HoldTestSpeed(V);
+			TestPreHit = V;   // the speed the step before it struck
+		}
+		if (TestAfterHit < 0.0 && bHit)
+		{
+			// The first knock's own speed (later scrapes and nudges overwrite LastHitSpeed).
+			TestAfterHit = 0.0;
+			TestFirstHit = Sim->LastHitSpeed;
+			TestFirstBike = Sim->LastHitBike;
+		}
 		if (TestAfterHit >= 0.0) TestAfterHit += SimDt;
 #if ENABLE_DRAW_DEBUG
 		if (UWorld* W = GetWorld())
@@ -1548,10 +1572,10 @@ void ATorqueBikePawn::TestMoveStep()
 			if (TestAfterHit < 0.0)
 				Finish(FString::Printf(TEXT("never hit %s %.0f m ahead (%.1f m along, %.1f mph)"), What, TestFace, Along, V * 2.23694));
 			else
-				Finish(FString::Printf(TEXT("hit %s at %.1f m/s (%.0f mph) from %.1f mph; %s; front tyre %.2f m %s its face, %.1f mph a little after; the knock was %s"),
-					What, Sim->LastHitSpeed, Sim->LastHitSpeed * 2.23694, TestV0 * 2.23694,
+				Finish(FString::Printf(TEXT("hit %s at %.1f m/s (%.0f mph) into it, riding at %.1f mph just before, from %.1f mph; %s; front tyre %.2f m %s its face, %.1f mph a little after; the knock was %s"),
+					What, TestFirstHit, TestFirstHit * 2.23694, TestPreHit * 2.23694, TestV0 * 2.23694,
 					Sim->IsCrashed ? (Sim->KnockedOff ? TEXT("the rider was knocked off") : TEXT("the rider came off")) : TEXT("the rider stayed on"),
-					FMath::Abs(Nose - TestFace), Nose > TestFace ? TEXT("past") : TEXT("short of"), V * 2.23694, Sim->LastHitBike ? TEXT("a bike") : TEXT("a wall")));
+					FMath::Abs(Nose - TestFace), Nose > TestFace ? TEXT("past") : TEXT("short of"), V * 2.23694, TestFirstBike ? TEXT("a bike") : TEXT("a wall")));
 		}
 		return;
 	}

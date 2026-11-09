@@ -306,6 +306,9 @@ private:
 	double TestPadY = 0.0, TestY0 = 0.0, TestAssistWas = 0.6;
 	FString TestMoveText;
 	void TestMoveStep();
+	void HoldTestSpeed(double V);   // the robot's throttle and back brake holding TestMps
+	double TestFirstHit = 0.0, TestPreHit = 0.0;   // the first knock's speed into it, and the speed the step before
+	bool TestFirstBike = false;
 	// Kind 2 and 3's wall or stopped bike (only these, on the pad), the hits before it, and where it is.
 	TorqueSim::ContactWorld TestContacts;
 	TUniquePtr<TorqueSim::BikeSim> TestParked;
