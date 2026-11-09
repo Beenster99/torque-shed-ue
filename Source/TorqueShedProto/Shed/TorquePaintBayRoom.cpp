@@ -5,6 +5,7 @@
 #include "Shed/TorquePaintMix.h"
 #include "Shed/TorqueToolModels.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -23,6 +24,18 @@ const FVector SwatchSize(1.0, 62.0, 38.0);
 const FVector CardSize(1.0, 30.0, 40.0);
 constexpr double PanHeight = 3.0;     // the scale's pan over the bench top
 const FLinearColor TinSteel(0.62f, 0.63f, 0.65f);
+// The light booth (paint_bay_room.gd BOOTH, BOOTH_Y, BOOTH_LIGHTS): three bays across the daylight
+// canopy's corner, x 1460 .. 1680, their backs on the north wall (y -518), open to the room at -458,
+// 92 to 190 cm up over a cabinet.
+constexpr double BoothX0 = 1460.0, BoothX1 = 1680.0, BoothBack = -518.0, BoothFront = -458.0, BoothLow = 92.0, BoothHigh = 190.0;
+struct FBoothLight { const TCHAR* Name; FLinearColor Colour; float Lumens; };
+const FBoothLight BoothLamps[] = {
+	{TEXT("DAYLIGHT"), FLinearColor(0.97f, 0.98f, 1.0f), 520.0f},
+	{TEXT("SHOP LIGHT"), FLinearColor(0.86f, 1.0f, 0.9f), 430.0f},
+	{TEXT("SUNSET"), FLinearColor(1.0f, 0.55f, 0.28f), 560.0f},
+};
+const FLinearColor Neutral(0.42f, 0.42f, 0.43f);   // a viewing booth's mid grey
+const FLinearColor StickWood(0.72f, 0.58f, 0.4f);
 }
 
 namespace TPBRI = TorquePaintBayRoomImpl;
@@ -101,6 +114,14 @@ void ATorquePaintBayRoom::BeginPlay()
 		T->SetVisibility(false, true);
 		TinRoots.Add(T);
 	}
+	// The stirring stick: leaning in the tin on the scale, going round while it's stirred.
+	Stick = NewObject<USceneComponent>(this);
+	Stick->SetupAttachment(Root);
+	Stick->RegisterComponent();
+	Stick->SetRelativeLocation(TorquePaintBayLayout::ScaleAt + FVector(0.0, 0.0, TPBRI::PanHeight + 1.0));
+	Piece(Stick, CubeMesh, FVector(2.2, 0.0, 13.0), FVector(0.6, 2.0, 28.0), FRotator(-14.0, 0.0, 0.0), TPBRI::StickWood, 0.0f, 0.7f);
+	Stick->SetVisibility(false, true);
+	BuildBooth(Root);
 	// The swatch wall's cards, facing into the room (+x), and the test card on the stand.
 	for (int32 I = 0; I < FTorquePaintBay::MaxSwatches; ++I)
 	{
@@ -122,6 +143,64 @@ void ATorquePaintBayRoom::BeginPlay()
 	ScaleText->SetTextRenderColor(FColor(150, 255, 160));
 	ScaleText->SetCastShadow(false);   // (the engine's text material is unlit: it glows like the LCD)
 	ScaleText->SetText(FText::FromString(TEXT("0 g")));
+}
+
+void ATorquePaintBayRoom::BuildBooth(USceneComponent* Root)
+{
+	using namespace TorquePaintBayRoomImpl;
+	const double CX = (BoothX0 + BoothX1) * 0.5, CY = (BoothBack + BoothFront) * 0.5, W = BoothX1 - BoothX0, D = BoothFront - BoothBack;
+	const double MidZ = (BoothLow + BoothHigh) * 0.5, H = BoothHigh - BoothLow;
+	// The cabinet under it (solid: it's walked up to), the bays' floor, back, top and dividers.
+	if (UStaticMeshComponent* Cab = Piece(Root, CubeMesh, FVector(CX, CY, BoothLow * 0.5), FVector(W, D, BoothLow), FRotator::ZeroRotator,
+		FLinearColor(0.2f, 0.21f, 0.23f), 0.2f, 0.5f))
+	{
+		Cab->SetCollisionProfileName(TEXT("BlockAll"));
+		Cab->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+	Piece(Root, CubeMesh, FVector(CX, CY, BoothLow + 1.0), FVector(W, D, 2.0), FRotator::ZeroRotator, Neutral, 0.0f, 0.85f);
+	Piece(Root, CubeMesh, FVector(CX, BoothBack + 1.0, MidZ), FVector(W, 2.0, H), FRotator::ZeroRotator, Neutral, 0.0f, 0.85f);
+	Piece(Root, CubeMesh, FVector(CX, CY, BoothHigh + 1.0), FVector(W, D, 2.0), FRotator::ZeroRotator, Neutral, 0.0f, 0.85f);
+	for (int32 I = 0; I <= 3; ++I)
+		Piece(Root, CubeMesh, FVector(BoothX0 + I * W / 3.0, CY, MidZ), FVector(2.0, D, H), FRotator::ZeroRotator, Neutral, 0.0f, 0.85f);
+	for (int32 I = 0; I < 3; ++I)
+	{
+		const FBoothLight& Spec = BoothLamps[I];
+		const double BX = BoothX0 + (I + 0.5) * W / 3.0;
+		// The lamp under the top's front edge, glowing its colour, and its light on the back.
+		if (UStaticMeshComponent* Lamp = Piece(Root, CubeMesh, FVector(BX, BoothFront - 8.0, BoothHigh - 1.0), FVector(W / 3.0 * 0.6, 4.0, 1.2),
+			FRotator::ZeroRotator, Spec.Colour, 0.0f, 0.4f))
+			Lamp->SetMaterial(0, TorqueToolModels::Finish(this, Spec.Colour, 0.0f, 0.4f, 3.0f));
+		USpotLightComponent* L = NewObject<USpotLightComponent>(this);
+		L->SetupAttachment(Root);
+		const FVector From(BX, BoothFront - 10.0, BoothHigh - 3.0), To(BX, BoothBack + 4.0, MidZ);
+		L->SetRelativeLocationAndRotation(From, (To - From).Rotation());
+		L->SetIntensityUnits(ELightUnits::Lumens);
+		L->SetIntensity(Spec.Lumens);
+		L->SetLightColor(Spec.Colour);
+		L->SetAttenuationRadius(140.0f);
+		L->SetInnerConeAngle(18.0f);
+		L->SetOuterConeAngle(42.0f);
+		L->SetCastShadows(false);
+		L->RegisterComponent();
+		BoothLights.Add(L);
+		// The test card, clipped to the back of the bay, facing the room.
+		UStaticMeshComponent* Card = Piece(Root, CubeMesh, FVector(BX, BoothBack + 4.0, MidZ), FVector(1.0, 22.0, 32.0), FRotator(0.0, 90.0, 0.0),
+			FLinearColor::White, 0.0f, 0.3f);
+		if (Card) Card->SetVisibility(false);
+		BoothCards.Add(Card);
+		// Its name over it.
+		UTextRenderComponent* Name = NewObject<UTextRenderComponent>(this);
+		Name->SetupAttachment(Root);
+		Name->RegisterComponent();
+		Name->SetRelativeLocationAndRotation(FVector(BX, BoothFront + 0.5, BoothHigh + 6.0), FRotator(0.0, 90.0, 0.0));
+		Name->SetHorizontalAlignment(EHTA_Center);
+		Name->SetVerticalAlignment(EVRTA_TextCenter);
+		Name->SetWorldSize(5.0f);
+		Name->SetTextRenderColor(FColor(235, 235, 240));
+		Name->SetCastShadow(false);
+		Name->SetText(FText::FromString(Spec.Name));
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque: mixing bay light booth: %d bays"), BoothCards.Num());
 }
 
 FVector ATorquePaintBayRoom::HeldAt(int32 Peer, FRotator& OutRot) const
@@ -183,6 +262,21 @@ void ATorquePaintBayRoom::Tick(float DeltaSeconds)
 			Tint(PourStream, TPM::Tints()[FMath::Clamp(P.PourTint, 0, TPM::Tints().Num() - 1)].Colour, 0.0f, 0.1f);
 		}
 	}
+	// The stirring stick in the tin on the scale: round while it's being stirred (the tin's stir goes up).
+	if (Stick)
+	{
+		const FTorqueTin* OnScale = P.BenchTinPtr();
+		Stick->SetVisibility(OnScale != nullptr, true);
+		if (OnScale)
+		{
+			if (OnScale->Id == LastStirTin && OnScale->Mix.Stir > LastStir + 0.0001f) StirringFor = 0.35;
+			LastStirTin = OnScale->Id;
+			LastStir = OnScale->Mix.Stir;
+			StirringFor = FMath::Max(StirringFor - DeltaSeconds, 0.0);
+			if (StirringFor > 0.0) StickAngle = FMath::Fmod(StickAngle + 540.0 * DeltaSeconds, 360.0);
+			Stick->SetRelativeRotation(FRotator(0.0, StickAngle, 0.0));
+		}
+	}
 	// The tins, where each is (the shaker's jiggles), the paint at the top its colour.
 	int32 Used = 0;
 	for (const TPair<int32, FTorqueTin>& KV : P.Tins)
@@ -235,5 +329,11 @@ void ATorquePaintBayRoom::Tick(float DeltaSeconds)
 	{
 		TestCard->SetVisibility(P.bTest);
 		if (P.bTest) Tint(TestCard, P.Test.Colour, P.Test.Metal, P.Test.Rough);
+	}
+	for (UStaticMeshComponent* Card : BoothCards)
+	{
+		if (!Card) continue;
+		Card->SetVisibility(P.bTest);
+		if (P.bTest) Tint(Card, P.Test.Colour, P.Test.Metal, P.Test.Rough);
 	}
 }
