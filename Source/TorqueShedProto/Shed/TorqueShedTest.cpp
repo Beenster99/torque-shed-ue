@@ -1,4 +1,5 @@
 #include "Shed/TorqueShedTest.h"
+#include "Shed/TorqueShedRadio.h"
 
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -28,6 +29,7 @@ namespace TorqueShedTestImpl
 // wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
 const TCHAR* const LoopSteps =
 	TEXT("bay:1,restyle:cafe,log,look:bike,shot,look:screen,shot,look:board,shot,look:bench,shot,look:computer,shot,look:monitor,shot,")
+	TEXT("place:radio,act,wait:8,radio,shot:ui,act,wait:6,radio,f,radio,")   // the radio: on, retuned, off
 	TEXT("tool:wrench,part:exhaust,act,")                    // unbolt the exhaust
 	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
 	TEXT("place:repair_0,act,")                              // onto the repair bench
@@ -790,6 +792,12 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM")); return true; }
 		Said(W->TestPaint(R));
+		return true;
+	}
+	if (Verb == TEXT("radio"))
+	{
+		// What the shed radio's playing (its station and song, or why not).
+		Said(ATorqueShedRadio::NowPlaying(World).Replace(TEXT("\n"), TEXT(" / ")));
 		return true;
 	}
 	if (Verb == TEXT("bikelog"))

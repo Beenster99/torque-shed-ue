@@ -13,7 +13,9 @@ public class TorqueShedProto : ModuleRules
 			// pasting an address into the menu, and asking the router to open the port (UPnP over HTTP).
 			"OnlineSubsystem", "OnlineSubsystemUtils", "Sockets", "Networking", "ApplicationCore", "HTTP",
 			// The shed draws catalogue bikes as static meshes built at run time (Shed/TorqueShedCatalogue).
-			"MeshDescription", "StaticMeshDescription" });
+			"MeshDescription", "StaticMeshDescription",
+			// The shed radio streams internet radio through the engine's media player (Shed/TorqueShedRadio).
+			"MediaAssets" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
 		// Shed/ and other subfolders include each other as "Shed/X.h" from the module root.
 		PrivateIncludePaths.Add(ModuleDirectory);
