@@ -45882,6 +45882,581 @@
    ],
    "morph": "tank/adventure_5.morph.bin",
    "redrawn": true
+  },
+  "tank/sports_tourer_1": {
+   "kind": "tank",
+   "id": "sports_tourer_1",
+   "glb": "tank/sports_tourer_1.glb",
+   "lods": [
+    "tank/sports_tourer_1.glb",
+    "tank/sports_tourer_1_lod1.glb",
+    "tank/sports_tourer_1_lod2.glb"
+   ],
+   "tris": [
+    26536,
+    6718,
+    2014
+   ],
+   "bounds": {
+    "min": [
+     -1.2629,
+     -0.0625,
+     -0.2266
+    ],
+    "max": [
+     0.0675,
+     0.2366,
+     0.2266
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14586,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14586,
+       "offset": 408408
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14266,
+       "offset": 816816
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14152,
+       "offset": 1216264
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14150,
+       "offset": 1612520
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14150,
+       "offset": 2008720
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14150,
+       "offset": 2404920
+      }
+     ]
+    }
+   ],
+   "morph": "tank/sports_tourer_1.morph.bin",
+   "redrawn": true
+  },
+  "tank/sports_tourer_2": {
+   "kind": "tank",
+   "id": "sports_tourer_2",
+   "glb": "tank/sports_tourer_2.glb",
+   "lods": [
+    "tank/sports_tourer_2.glb",
+    "tank/sports_tourer_2_lod1.glb",
+    "tank/sports_tourer_2_lod2.glb"
+   ],
+   "tris": [
+    26478,
+    6718,
+    2014
+   ],
+   "bounds": {
+    "min": [
+     -1.2175,
+     -0.0558,
+     -0.211
+    ],
+    "max": [
+     0.0677,
+     0.2291,
+     0.211
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14670,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14664,
+       "offset": 410760
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14371,
+       "offset": 821352
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14198,
+       "offset": 1223740
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14198,
+       "offset": 1621284
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14198,
+       "offset": 2018828
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14198,
+       "offset": 2416372
+      }
+     ]
+    }
+   ],
+   "morph": "tank/sports_tourer_2.morph.bin",
+   "redrawn": true
+  },
+  "tank/sports_tourer_3": {
+   "kind": "tank",
+   "id": "sports_tourer_3",
+   "glb": "tank/sports_tourer_3.glb",
+   "lods": [
+    "tank/sports_tourer_3.glb",
+    "tank/sports_tourer_3_lod1.glb",
+    "tank/sports_tourer_3_lod2.glb"
+   ],
+   "tris": [
+    26680,
+    6754,
+    2026
+   ],
+   "bounds": {
+    "min": [
+     -1.2175,
+     -0.0592,
+     -0.2089
+    ],
+    "max": [
+     0.0677,
+     0.2079,
+     0.2089
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14879,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14869,
+       "offset": 416612
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14515,
+       "offset": 832944
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14370,
+       "offset": 1239364
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14368,
+       "offset": 1641724
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14368,
+       "offset": 2044028
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14368,
+       "offset": 2446332
+      }
+     ]
+    }
+   ],
+   "morph": "tank/sports_tourer_3.morph.bin",
+   "redrawn": true
+  },
+  "tank/sports_tourer_4": {
+   "kind": "tank",
+   "id": "sports_tourer_4",
+   "glb": "tank/sports_tourer_4.glb",
+   "lods": [
+    "tank/sports_tourer_4.glb",
+    "tank/sports_tourer_4_lod1.glb",
+    "tank/sports_tourer_4_lod2.glb"
+   ],
+   "tris": [
+    26589,
+    6722,
+    2016
+   ],
+   "bounds": {
+    "min": [
+     -1.2175,
+     -0.056,
+     -0.2201
+    ],
+    "max": [
+     0.0677,
+     0.2222,
+     0.2201
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14814,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14796,
+       "offset": 414792
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14462,
+       "offset": 829080
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14338,
+       "offset": 1234016
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14337,
+       "offset": 1635480
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14337,
+       "offset": 2036916
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14337,
+       "offset": 2438352
+      }
+     ]
+    }
+   ],
+   "morph": "tank/sports_tourer_4.morph.bin",
+   "redrawn": true
+  },
+  "tank/sports_tourer_5": {
+   "kind": "tank",
+   "id": "sports_tourer_5",
+   "glb": "tank/sports_tourer_5.glb",
+   "lods": [
+    "tank/sports_tourer_5.glb",
+    "tank/sports_tourer_5_lod1.glb",
+    "tank/sports_tourer_5_lod2.glb"
+   ],
+   "tris": [
+    26632,
+    6750,
+    2024
+   ],
+   "bounds": {
+    "min": [
+     -1.2175,
+     -0.0578,
+     -0.2149
+    ],
+    "max": [
+     0.0677,
+     0.2187,
+     0.2149
+    ]
+   },
+   "surfaces": [
+    {
+     "tag": "paint",
+     "color": [
+      0.5,
+      0.06,
+      0.05
+     ],
+     "metallic": 0.0,
+     "roughness": 0.3,
+     "finish": "paint"
+    }
+   ],
+   "mounts": {},
+   "shape_keys": [
+    {
+     "name": "tunnel_height",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14977,
+       "offset": 0
+      }
+     ]
+    },
+    {
+     "name": "flank_depth",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14964,
+       "offset": 419356
+      }
+     ]
+    },
+    {
+     "name": "tunnel_width",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14588,
+       "offset": 838348
+      }
+     ]
+    },
+    {
+     "name": "tunnel_close",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14442,
+       "offset": 1246812
+      }
+     ]
+    },
+    {
+     "name": "nose_reach",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14442,
+       "offset": 1651188
+      }
+     ]
+    },
+    {
+     "name": "knee_fore",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14442,
+       "offset": 2055564
+      }
+     ]
+    },
+    {
+     "name": "knee_aft",
+     "surfaces": [
+      {
+       "surface": 0,
+       "count": 14442,
+       "offset": 2459940
+      }
+     ]
+    }
+   ],
+   "morph": "tank/sports_tourer_5.morph.bin",
+   "redrawn": true
   }
  },
  "about": "The Godot game's Blender bike parts in our frame (x forward, y up, z right; metres). Written by Tools/import_blender_parts.py; do not edit.",
