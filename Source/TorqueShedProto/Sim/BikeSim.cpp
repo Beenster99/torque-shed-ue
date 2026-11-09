@@ -71,6 +71,10 @@ const double NEUTRAL_FIND_SPEED = 2.0;
 const double FREE_REV_LOAD = 0.12;
 // Seconds on the starter before it fires, and how much longer a struggling start cranks.
 const double START_TIME = 0.7;
+// Lean-angle traction control tightens to its leaned-over allowance by this lean (50 degrees), and
+// stability control damps the lean rate's departures from itself smoothed over STAB_SETTLE s.
+const double LEAN_TC_FULL = 0.873;
+const double STAB_SETTLE = 0.08;
 const double STRUGGLE_FROM = 0.35;
 const double STRUGGLE_CRANK = 1.8;
 // How near the tyre's peak slip a hard stop works (the rider, or ABS). Godot's 0.55 stopped every road
@@ -787,13 +791,28 @@ void BikeSim::UpdateEngine(double Delta)
 	const double SpinRatio = (Rear.Omega * Rear.REff - VGround) / VGround;
 	double TcTarget = 1.0;
 	const double AidStrength = Build.TractionControl ? Build.TractionStrength : 0.0;
-	const double Tc = std::max(std::min(1.0, Assist), AidStrength);
+	double Tc = std::max(std::min(1.0, Assist), AidStrength);
 	double TcFrom = 0.12, TcGain = 4.0;
 	if (Build.TractionControl) TcFrom = Lerp(0.1, 0.06, Clamp(AidStrength, 0.0, 1.0));
 	else
 	{
 		TcFrom = Build.TyreRear.KappaPeak * RIDER_SPIN_FROM;
 		TcGain = RIDER_SPIN_FEEL / Build.TyreRear.KappaPeak;
+	}
+	if (Build.LeanTraction > 0.0)
+	{
+		// Lean-angle traction control: the further over the bike is, the less spin it allows before it
+		// cuts the power, as a slide at full lean is the one that throws you off (bike_build.gd
+		// lean_slip_allowance).
+		const double Firm = Clamp(Build.LeanTraction, 0.0, 1.0);
+		const double T = Clamp(std::fabs(LeanAngle) / LEAN_TC_FULL, 0.0, 1.0);
+		const double LeanFrom = Lerp(Lerp(0.14, 0.09, Firm), Lerp(0.06, 0.02, Firm), T);
+		if (LeanFrom < TcFrom)
+		{
+			TcFrom = LeanFrom;
+			TcGain = std::max(TcGain, 4.0);
+		}
+		Tc = std::max(Tc, Build.LeanTraction);
 	}
 	if (Tc > 0.05 && SpinRatio > TcFrom && Rear.Contact && Burnout <= 0.0)
 		TcTarget = Clamp(1.0 - (SpinRatio - TcFrom) * TcGain * Tc, 0.15, 1.0);
@@ -803,6 +822,15 @@ void BikeSim::UpdateEngine(double Delta)
 		const double Rising = AngularVelocity.Dot(Basis.X);
 		const double Ahead = Over + std::max(Rising, 0.0) * 0.45;
 		if (Ahead > 0.0) TcTarget = std::min(TcTarget, Clamp(1.0 - Ahead * 8.0 * Steadiness(), 0.0, 1.0));
+	}
+	const double PitchOverRoad = PitchAngle - RoadPitch;
+	if (Build.AntiWheelie > 0.0 && PitchOverRoad > DegToRad(2.0))
+	{
+		// The ECU's anti-wheelie trims the power to keep the front wheel skimming the road (a gentle
+		// level lets it come up further), by the bike's pitch against the road, not the horizon:
+		// climbing a steep hill isn't a wheelie.
+		const double Cap = DegToRad(Lerp(20.0, 4.0, std::min(Build.AntiWheelie, 1.0)));
+		TcTarget = std::min(TcTarget, Clamp(1.0 - (PitchOverRoad - Cap) * 12.0, 0.05, 1.0));
 	}
 	Traction = Lerp(Traction, TcTarget, 1.0 - std::exp(-25.0 * Delta));
 	double EngineNm = Build.EngineTorque(Rpm) * ThrottleEff * Traction;
@@ -932,6 +960,7 @@ double BikeSim::WheelieTarget() const
 	// off and cover the rear brake.
 	double T = 0.0;
 	if (BodyShift <= -0.6) T = Lerp(DegToRad(78.0), DegToRad(46.0), Clamp(Assist, 0.0, 1.0));
+	if (Build.AntiWheelie > 0.0) T = std::min(T, DegToRad(Lerp(20.0, 4.0, std::min(Build.AntiWheelie, 1.0))));
 	return T;
 }
 
@@ -1262,6 +1291,16 @@ void BikeSim::ApplyRiderBalance(double Delta)
 	// The rider's body sways on their hips and soaks up a quick rocking of the bike (a weave).
 	RateSlow = Lerp(RateSlow, LeanRate, 1.0 - std::exp(-Delta / 0.5));
 	if (AnyContact && !IsCrashed) Tau -= BODY_SWAY * Mass * (LeanRate - RateSlow);
+	RateQuick = Lerp(RateQuick, LeanRate, 1.0 - std::exp(-Delta / STAB_SETTLE));
+	if (Build.Stability > 0.0 && AnyContact && !IsCrashed)
+	{
+		// Stability control calms a tank-slapper or a twitchy slide, as firmly as it's set: a quick
+		// rocking of the bike, and the bike yawing faster or slower than its lean turns it. It leaves
+		// alone the rider rolling the bike into a turn and the turn itself.
+		Tau -= (LeanRate - RateQuick) * Mass * 3.0 * Build.Stability;
+		const double Turning = -G * std::tan(Clamp(LeanAngle, -1.0, 1.0)) / std::max(std::fabs(Speed), 3.0);
+		ApplyTorque(UP * (-(AngularVelocity.y - Turning) * Mass * 0.8 * Build.Stability));
+	}
 	if (!AnyContact) Tau *= 0.4;
 	ApplyTorque(FwdFlat * Tau);
 	// Pitch control by shifting body weight, mostly useful in the air.

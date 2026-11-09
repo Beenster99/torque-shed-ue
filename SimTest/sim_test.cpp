@@ -784,6 +784,29 @@ static void EngineTests()
 		}
 		Check(S.Gear >= 1 && S.Speed > 3.0, "auto-shift in neutral: opening up pulls away in gear (m/s)", S.Speed);
 	}
+	for (const bool Aid : {false, true})
+	{
+		// Weight back, full throttle in first, Riding realism 0: anti-wheelie keeps the front skimming.
+		BikeSim S;
+		BikeSpec Spec = BikeSpec::SpeedTwin1200();
+		Spec.AntiWheelie = Aid ? 1.0 : 0.0;
+		S.Setup(Spec);
+		S.Ray = FlatRay;
+		S.Place(V3(0, 0, 0), 0.0);
+		S.Assist = 0.0;
+		S.AutoShift = false;
+		for (int i = 0; i < 120; ++i) S.Step(Dt);
+		double Most = 0.0;
+		for (int i = 0; i < 120 * 3 && !S.IsCrashed; ++i)
+		{
+			S.Throttle = 1.0;
+			S.BodyShift = -1.0;
+			S.Step(Dt);
+			Most = std::max(Most, S.PitchAngle * 57.2958);
+		}
+		if (Aid) Check(Most < 8.0 && !S.IsCrashed, "anti-wheelie on: weight back, full throttle, the front stays near the road (deg)", Most);
+		else Check(Most > 15.0, "anti-wheelie off: the same comes up (deg)", Most);
+	}
 }
 
 int main(int Argc, char** Argv)

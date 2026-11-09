@@ -379,13 +379,20 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 	{
 		const Json& Ecu = B.Part("ecu");
 		const double Aid = Ecu.Num("aid_level", 0.0) * RsLerp(0.5, 1.0, B.Health("ecu"));
-		bool bAbs = false, bTraction = false;
+		bool bAbs = false, bTraction = false, bWheelie = false, bLean = false, bStab = false;
 		if (const Json* F = Ecu.Get("features"))
 			for (const Json& X : F->A)
 			{
 				bAbs = bAbs || X.S == "abs";
 				bTraction = bTraction || X.S == "traction";
+				bWheelie = bWheelie || X.S == "anti_wheelie";
+				bLean = bLean || X.S == "lean_traction";
+				bStab = bStab || X.S == "stability";
 			}
+		const double Firm = RsClamp(Aid, 0.0, 1.2);
+		S.AntiWheelie = bWheelie ? Firm : 0.0;
+		S.LeanTraction = bLean ? Firm : 0.0;
+		S.Stability = bStab ? Firm : 0.0;
 		S.AbsFront = S.AbsRear = bAbs && Aid > 0.0;
 		S.TractionControl = bTraction && Aid > 0.0;
 		S.TractionStrength = RsClamp(Aid, 0.0, 1.2);

@@ -205,7 +205,7 @@ private:
 
 	V3 BaseCom;
 	V3 SteerAxis{0, 1, 0}, SteerPivot, OffsetArm;
-	double SteerAim = 0.0, SteerSlow = 0.0, LeanI = 0.0, Hang = 0.0, RateSlow = 0.0, Trim = 0.0;
+	double SteerAim = 0.0, SteerSlow = 0.0, LeanI = 0.0, Hang = 0.0, RateSlow = 0.0, RateQuick = 0.0, Trim = 0.0;
 	V3 PrevW, PrevV;
 	bool HavePrev = false;
 	double Seen[4] = {0, 0, 0, 0};

@@ -59,6 +59,9 @@ struct BikeSpec
 	bool AbsFront = true, AbsRear = true;
 	bool TractionControl = true;
 	double TractionStrength = 1.0;
+	// The ECU's other rider aids, at how firmly they step in (0: not fitted, or off; 1 the factory
+	// level): anti-wheelie, lean-angle traction control and stability control.
+	double AntiWheelie = 0.0, LeanTraction = 0.0, Stability = 0.0;
 
 	// Engine and gearbox.
 	std::vector<double> TorqueRpm;    // full-throttle crank torque curve, rpm ...
