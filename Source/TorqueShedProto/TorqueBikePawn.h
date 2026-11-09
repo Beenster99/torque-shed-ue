@@ -213,6 +213,7 @@ private:
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's
 	double RiderBackDeg = 0.0;                  // and the back's lean for it, forward of upright
+	double RiderStyleDeg = 0.0;                 // the style's own lean, before the reach moved it
 	bool bRiderLaidBack = false;                // cruiser or chopper seating (feet forward)
 	FString RiderStyle;                         // Torque Shed's riding style (situp, scratcher...)
 	double RiderReach[2] = {0.0, 0.0}, RiderArm = 0.0;        // shoulder to wrist, and the arm's length
