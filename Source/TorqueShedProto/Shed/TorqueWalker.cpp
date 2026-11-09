@@ -1963,13 +1963,16 @@ void ATorqueWalker::UpdateCues()
 		if (C->GetOverlayMaterial() != NowMat) C->SetOverlayMaterial(NowMat);
 		Lit.Add(C);
 	}
-	// The same, with a thin soft line round it (TorqueLookOutline); with empty hands, a place's own
-	// machine, bin, hook or computer too.
+	// The same, with a thin soft line round it (TorqueLookOutline). Only bike parts and things that
+	// move (beenster, Nov 9: "Only bike parts and objects which can be moved need highlighting"): with
+	// empty hands, the engine stand, the extinguisher, the tape roll or a paint tin too, never the
+	// fixed kit (benches, machines, bins, the computer, hooks, switches, the radio).
 	if (LookOutline.Attach(this))
 	{
 		TArray<UPrimitiveComponent*> Lined;
 		for (UStaticMeshComponent* C : Now) Lined.Add(C);
-		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0)
+		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0
+			&& FTorqueLookOutline::Movable(TargetPlace->Kind))
 			Lined.Append(LookOutline.PlaceMeshes(World, TargetPlace));
 		LookOutline.Show(Lined);
 	}
