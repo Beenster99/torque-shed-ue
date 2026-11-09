@@ -348,7 +348,7 @@ FString UTorqueBuildSubsystem::CheckPaintBay(int32 Peer, const FTorqueShedReques
 		const FString Why = TPM::PourProblem(Tin->Mix, R.Colour);
 		if (!Why.IsEmpty()) return Why;
 		if (P.StockOf(FTorquePaintBay::TintStock(R.Colour)) <= 0.001f)
-			return FString::Printf(TEXT("The %s bottle's empty. Restock it on the bench's Supplies page."), *TPM::Tints()[R.Colour].Name);
+			return FString::Printf(TEXT("The %s bottle's empty. Restock it on the bench's Supplies page."), TPM::Tints()[R.Colour].Name);
 		if (!(R.Amount > 0.0f)) return TEXT("Nothing poured.");
 		return FString();
 	}

@@ -1229,16 +1229,16 @@ FString UTorqueBuildSubsystem::ConditionText(int32 Id) const
 	const FTorqueItem* It = Items.Find(Id);
 	if (!It) return FString();
 	if (It->bBoxed) return TEXT("Brand new, still in its box");
-	FString Paint = TEXT("factory finish");
-	if (It->bPrimerTop) Paint = TEXT("grey primer");
+	FString PaintText = TEXT("factory finish");
+	if (It->bPrimerTop) PaintText = TEXT("grey primer");
 	else if (!It->Finish.IsNone())
 	{
 		const FLinearColor Colour = It->Colour;
 		const int32 Idx = Paints().IndexOfByPredicate([Colour](const FLinearColor& C) { return C.Equals(Colour, 0.01f); });
-		Paint = FString::Printf(TEXT("%s %s"), *FinishName(It->Finish), *PaintName(Idx).ToLower());
+		PaintText = FString::Printf(TEXT("%s %s"), *FinishName(It->Finish), *PaintName(Idx).ToLower());
 	}
 	FString Text = FString::Printf(TEXT("Condition %d%%   Rust %d%%   Dirt %d%%   Wear %d%%   %s"), FMath::RoundToInt(Health(*It) * 100.0f),
-		FMath::RoundToInt(It->Rust * 100.0f), FMath::RoundToInt(It->Dirt * 100.0f), FMath::RoundToInt(It->Wear * 100.0f), *Paint);
+		FMath::RoundToInt(It->Rust * 100.0f), FMath::RoundToInt(It->Dirt * 100.0f), FMath::RoundToInt(It->Wear * 100.0f), *PaintText);
 	const FString Job = PaintJobText(*It);
 	if (!Job.IsEmpty()) Text += TEXT("   ") + Job;
 	return Text;
