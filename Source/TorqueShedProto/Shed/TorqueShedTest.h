@@ -120,6 +120,12 @@ private:
 	int32 Tries = 0;
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	double Wait = 0.0;
+	// How long each step (and the wait after it) took, real and game time, and in how many frames:
+	// a slow one is logged ("Torque test: slow step"), and the slowest at the end.
+	double StepRealAt = 0.0, StepGame = 0.0, RunRealAt = 0.0;
+	int32 StepFrames = 0;
+	FString StepWas;
+	TArray<TPair<double, FString>> SlowSteps;
 	TWeakObjectPtr<UWorld> SeenWorld;
 	FTSTicker::FDelegateHandle Ticker;
 };
