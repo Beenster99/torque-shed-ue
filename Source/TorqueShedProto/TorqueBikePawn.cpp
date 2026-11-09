@@ -1293,8 +1293,11 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 {
 	bTestWantFlat = bFlat || Kind == 1;
 	bTestFlat = false;
-	TestMove = FMath::Clamp(Kind, 0, 3);
+	TestMove = FMath::Clamp(Kind, 0, 4);
 	bTestWantFlat = bTestWantFlat || TestMove >= 2;
+	TestT30 = TestT60 = TestT100k = -1.0;
+	TestStill = 0.0;
+	bTestManualWas = bManual;
 	TestContacts.SetBoxes({});
 	TestContacts.Capsules.clear();
 	TestParked.Reset();
@@ -1373,7 +1376,7 @@ void ATorqueBikePawn::TestStartMove(int32 Kind, double Mph, bool bFlat)
 // sim steps: it takes over what it needs, measures, and when it's done says so and hands back.
 void ATorqueBikePawn::TestMoveStep()
 {
-	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TEXT("crash:bike");
+	const TCHAR* Name = TestMove == 0 ? TEXT("brakestop") : TestMove == 1 ? TEXT("lean") : TestMove == 2 ? TEXT("crash:wall") : TestMove == 3 ? TEXT("crash:bike") : TEXT("launch");
 	const double Mph = TestMps * 2.23694;
 	auto Finish = [&](const FString& Text) {
 		TestMoveText = Text;
@@ -1381,6 +1384,7 @@ void ATorqueBikePawn::TestMoveStep()
 		bTestTarmac = false;
 		bTestAutoRide = bTestRobotWas;
 		Assist = TestAssistWas;
+		bManual = bTestManualWas;
 		const bool bWasFlat = bTestFlat;
 		bTestFlat = false;
 		TestContacts.SetBoxes({});
@@ -1395,7 +1399,7 @@ void ATorqueBikePawn::TestMoveStep()
 	};
 	TestClock += SimDt;
 	const double V = Sim->Speed;
-	if (Sim->IsCrashed && !(TestMove >= 2 && TestPhase == 1))
+	if (Sim->IsCrashed && !((TestMove == 2 || TestMove == 3) && TestPhase == 1))
 	{
 		Finish(FString::Printf(TEXT("crashed (%s, %.1f s in, %.1f m)"), TestPhase == 0 ? TEXT("getting up to speed") : TEXT("measuring"), TestClock, TestDist));
 		return;
@@ -1423,7 +1427,7 @@ void ATorqueBikePawn::TestMoveStep()
 		TestFromNear = Near;
 		TestSide = Lean < 0.0 ? -1.0 : 1.0;
 		TestY0 = Sim->Position.y;
-		if (TestMove >= 2)
+		if (TestMove == 2 || TestMove == 3)
 		{
 			// What it's to hit: 12 m ahead, square across its path, standing on the pad.
 			const V3 Fwd = Sim->Basis.Z * -1.0;
@@ -1474,6 +1478,45 @@ void ATorqueBikePawn::TestMoveStep()
 		}
 	}
 	TestDist += FMath::Abs(V) * SimDt;
+	if (TestMove == 4)
+	{
+		// The launch: straight ahead, stopped, then flat out on the automatic box (realism_test's).
+		Lean = 0.0;
+		bManual = false;
+		if (TestPhase == 1)
+		{
+			Throttle = 0.0;
+			Shift = 0.0;
+			FrontBrake = 0.7;
+			RearBrake = 0.5;
+			TestStill = FMath::Abs(V) < 0.05 ? TestStill + SimDt : 0.0;
+			if (TestStill > 1.0)
+			{
+				TestPhase = 2;
+				TestClock = TestDist = 0.0;
+			}
+			else if (TestClock > 15.0) Finish(FString::Printf(TEXT("never stood still (%.1f mph)"), V * 2.23694));
+			return;
+		}
+		Throttle = 1.0;
+		Shift = 0.6;
+		FrontBrake = RearBrake = 0.0;
+		TestNose = FMath::Max(TestNose, Sim->PitchAngle);   // (here the front's height: the most wheelie)
+		if (TestT30 < 0.0 && V >= 13.4112) TestT30 = TestClock;
+		if (TestT100k < 0.0 && V >= 27.7778) TestT100k = TestClock;
+		if (TestT60 < 0.0 && V >= 26.8224) TestT60 = TestClock;
+		if (TestClock >= 10.0)
+		{
+			const BikeSpec& B = Sim->Build;
+			auto T = [](double X) { return X < 0.0 ? FString(TEXT("not reached")) : FString::Printf(TEXT("%.2f s"), X); };
+			Finish(FString::Printf(TEXT("0-30 mph %s, 0-60 mph %s, 0-100 km/h %s on the test pad; %.1f mph and %.0f m after 10 s in gear %d, front up %.1f deg at most; ")
+				TEXT("peak %.0f N m at %.0f, redline %.0f rpm, %.0f kg with the rider, TC %s, rear tyre %.2f grip"),
+				*T(TestT30), *T(TestT60), *T(TestT100k), V * 2.23694, TestDist, Sim->Gear, FMath::RadiansToDegrees(TestNose),
+				B.PeakTorque, B.PeakTorqueRpm, B.Redline, B.TotalMass, B.TractionControl ? *FString::Printf(TEXT("%.2f"), B.TractionStrength) : TEXT("off"),
+				B.TyreRear.GripTarmac));
+		}
+		return;
+	}
 	if (TestMove >= 2)
 	{
 		// Straight on into it, holding the speed until the first knock, then off the throttle.

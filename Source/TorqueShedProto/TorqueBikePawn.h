@@ -109,6 +109,9 @@ public:
 	// its path 12 m ahead (as collision.json's wall boxes), Kind 3 into a stand-in bike of the same
 	// build stopped across it (seen as a debug outline only), the robot holding the line and the speed
 	// until it hits. The log has the hit's speed and whether the rider came off.
+	// Kind 4 is a launch on the test pad, as SimTest/realism_test's: rolling at Mph (10) it stops, stands
+	// a second, then full throttle with the weight forward on the automatic box for 10 s; the log has
+	// 0-60 mph (and 0-30, 0-100 km/h) and the quarter of the way's speed.
 	// TestMoveBusy until it's done, then TestMoveResult says what it measured.
 	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
@@ -295,7 +298,8 @@ private:
 	double TestMps = 0.0, TestClock = 0.0, TestSteady = 0.0, TestDist = 0.0, TestV0 = 0.0, TestSide = 1.0;
 	double TestNose = 0.0, TestLeanSum = 0.0, TestGSum = 0.0, TestLeanPeak = 0.0, TestGPeak = 0.0, TestSlide = 0.0, TestLateLean = 0.0;
 	int32 TestSamples = 0, TestLateSamples = 0;
-	bool bTestRobotWas = false, bTestTarmac = false;
+	bool bTestRobotWas = false, bTestTarmac = false, bTestManualWas = false;
+	double TestT30 = -1.0, TestT60 = -1.0, TestT100k = -1.0, TestStill = 0.0;
 	// The test pad: while set, the wheels see a level tarmac plane at TestPadY (sim metres) and nothing
 	// else, so a manoeuvre measures the bike as SimTest/realism_test's flat ground does.
 	bool bTestFlat = false, bTestWantFlat = false;

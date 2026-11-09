@@ -79,6 +79,9 @@
 //   rides                 the rider sat on four styles in turn: the ride test's scratch bike remade as a cafe
 //                         racer, chopper, sport bike and MX bike, each ridden out and logged with a shot
 //                         at the start and after 10 s of the robot, plus a side-on shot (alone, it quits at the end)
+//   physics               physics stage 4: the ride test's scratch bike remade as each of the 14 styles' reference
+//                         bikes in turn, each ridden out for a launch, a stop from 60 on the test pad and a
+//                         full-lean bend at 45 (launch, brakestop:60:flat, lean:max), and back (alone, it quits)
 //   restyle:<style>       (a test shortcut) every part of the bay's catalogue bike that isn't that style's
 //                         reference part (the frame too) thrown away, and the bike finished as that style
 //   ridelog               on the road: our bike's riding spec, what it's doing now, its drawn groups and
@@ -102,6 +105,9 @@
 //                         straight into a drystone wall (or a stopped bike of the same build, drawn as a debug
 //                         outline) 12 m ahead; logs the hit's speed, whether the rider came off, and where the
 //                         front tyre stopped; then back on the road where it began
+//   launch[:<mph>]        on the road: the robot rolls at mph (10) onto the test pad, stops, stands a second, then
+//                         goes flat out (weight forward, automatic box) for 10 s; logs 0-30 and 0-60 mph and
+//                         0-100 km/h, as SimTest/realism_test's launch; then back on the road where it began
 //   lean:max[:<mph>]      on the road: the robot holds mph (45) on a level straight, then on the test pad the
 //                         steer input is held full for 6 s; logs the lean and sideways g it settles at, the
 //                         peaks, and whether it slid or stood up; then back on the road where it began.
