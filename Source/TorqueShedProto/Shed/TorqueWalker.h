@@ -23,6 +23,7 @@
 #include "Shed/TorqueBuildSubsystem.h"   // FTorqueShedRequest
 #include "TorqueBikePawn.h"   // FHudLine
 #include "Shed/TorqueAvatar.h"
+#include "Shed/TorqueLookOutline.h"
 #include "Shed/TorquePartsComputer.h"
 #include "Shed/TorquePaintBenchPanel.h"
 #include "Shed/TorqueSprayJob.h"
@@ -273,6 +274,8 @@ private:
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GhostXRayParts;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> GhostXRayMaterials;   // edge; blocked edge
 	double GhostClock = 0.0;
+	// A thin soft line round what's looked at, and round a place's own machine (TorqueLookOutline.h).
+	FTorqueLookOutline LookOutline;
 	void UpdateCues();
 	// Carrying a part (walker.gd carry_reach, hold_turn): the mouse wheel (Q / E, L1 / R1) puts where
 	// it goes down a step further out or nearer, and R (Square) turns it, a quarter a tap or freely
