@@ -54,6 +54,12 @@ public:
 	static void PlaceOnHost(APawn* Pawn, const FVector& At, const FRotator& View);
 	UFUNCTION(Server, Reliable) void ServerPlace(FVector At, FRotator View);
 
+	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
+	// "pause", "profile", "settings" or "close" (the world isn't paused, so the test runs on), and a
+	// profile slider set by its name's first word ("jaw", "chin", ... or "height", "avatar").
+	FString TestMenu(const FString& Which);
+	FString TestFace(const FString& Slider, float Value);
+
 private:
 	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile };
 	struct FRow

@@ -1,5 +1,7 @@
 #include "Shed/TorqueShedTest.h"
 #include "Shed/TorqueShedRadio.h"
+#include "Shed/TorqueBoothHooks.h"
+#include "Coop/TorquePlayerController.h"
 
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -85,10 +87,17 @@ const TCHAR* const BoothSteps =
 	TEXT("tool:gun,spray:0:primer,item:exhaust,act,log,look:hook_0,shot,")
 	TEXT("spray:0:gloss,item:exhaust,act,look:hook_0,shot,")
 	TEXT("spray:0:clear,item:exhaust,act,log,look:hook_0,shot,look:booth,shot,")
-	TEXT("paint:hook:1:185,look:hook_0,shot,paint:hook:1:138,")
+	TEXT("paint:hook:1:185,wait:2,look:hook:1,shot,paint:hook:1:138,wait:2,look:hook:1,shot,")
 	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,")
 	TEXT("tool:gun,spray:3:gloss,part:exhaust,act,")
 	TEXT("tool:spray,spray:1:gloss,part:exhaust,act,look:bike,shot,log");
+
+// The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
+// test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
+// the Settings. The face isn't saved, so your own comes back next time.
+const TCHAR* const MenuSteps =
+	TEXT("menu:pause,wait:1,shot:ui,menu:profile,wait:2,shot:ui,face:jaw:0.8,face:chin:-0.6,face:height:0.8,wait:2,shot:ui,")
+	TEXT("face:jaw:0,face:chin:0,face:height:0,menu:settings,wait:1,shot:ui,menu:close");
 
 // The paint mixing bay (paint_bay.gd): at the bench a litre of white with phthalo blue and lemon
 // yellow poured in (a green), stirred, a test card, saved as Mix 1 (its card on the swatch wall);
@@ -170,6 +179,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("menus")) FString(TSTI::MenuSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geo")) FString(TSTI::GeoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -284,6 +294,18 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		Said(TEXT("quitting"));
 		if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(TEXT("quit"));
+		return true;
+	}
+	if (Verb == TEXT("menu") || Verb == TEXT("face"))
+	{
+		// The Esc menu's pages for a screenshot (key presses don't reach the game in a test run):
+		// "menu:pause", "menu:profile", "menu:settings", "menu:close"; "face:SLIDER:V" sets a face
+		// slider on your profile (its name's first word: jaw, chin, nose, ...; or height, avatar).
+		ATorquePlayerController* PC = Cast<ATorquePlayerController>(World->GetFirstPlayerController());
+		if (!PC) { Warn(TEXT("no player controller")); return true; }
+		if (Verb == TEXT("menu")) Said(PC->TestMenu(P.Num() > 1 ? P[1].ToLower() : FString(TEXT("pause"))));
+		else if (P.Num() >= 3) Said(PC->TestFace(P[1].ToLower(), FCString::Atof(*P[2])));
+		else Warn(TEXT("face what? face:jaw:0.8, face:height:-0.5, face:avatar:2"));
 		return true;
 	}
 	if (Verb == TEXT("shot"))
@@ -597,6 +619,16 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("washer")) PlaceName = TEXT("washer_0");
 		else if (What == TEXT("repair")) PlaceName = TEXT("repair_1");
 		else if (What == TEXT("bins")) PlaceName = TEXT("plastic");
+		else if (What == TEXT("hook") && P.Num() >= 3)
+		{
+			// look:hook:N: the part hung on spray booth hook N (1 .. 10), wherever it's wound to.
+			const int32 Hook = FCString::Atoi(*P[2]) - 1;
+			const FVector Pivot = ATorqueBoothHooks::PivotOf(Hook);
+			At = FVector(Pivot.X, Pivot.Y, FMath::Max(B ? B->HookTipOf(Hook) - 25.0 : 120.0, 40.0));
+			Away = TSTI::TowardsMiddle(At);
+			Distance = 170.0;
+			Said(FString::Printf(TEXT("hook %d's tip at %.0f cm"), Hook + 1, B ? B->HookTipOf(Hook) : 0.0f));
+		}
 		else if (TorqueShedLayout::FindPlace(FName(*What))) PlaceName = FName(*What);
 		if (!PlaceName.IsNone())
 		{

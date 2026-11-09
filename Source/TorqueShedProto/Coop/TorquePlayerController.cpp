@@ -188,6 +188,40 @@ void ATorquePlayerController::CloseMenu()
 	}
 }
 
+// [shed test]
+FString ATorquePlayerController::TestMenu(const FString& Which)
+{
+	Stack.Reset();
+	Page = EPage::None;
+	if (Which == TEXT("close")) { CloseMenu(); return TEXT("menu closed"); }
+	Open(EPage::Pause);
+	if (Which == TEXT("profile")) Open(EPage::Profile);
+	else if (Which == TEXT("settings")) Open(EPage::Graphics);
+	else if (Which != TEXT("pause")) return TEXT("menu what? pause, profile, settings or close (opened the pause menu)");
+	return FString::Printf(TEXT("menu: %s"), *Which);
+}
+
+FString ATorquePlayerController::TestFace(const FString& Slider, float Value)
+{
+	FTorqueProfile& Me = FTorqueProfile::Mine();
+	const float V = FMath::Clamp(Value, -1.0f, 1.0f);
+	FString Set;
+	if (Slider == TEXT("height")) { Me.Height = V; Set = TEXT("Height"); }
+	else if (Slider == TEXT("avatar")) { Me.Avatar = FMath::Max(FMath::RoundToInt(Value), -1); Set = TEXT("Avatar"); }
+	else
+		for (int32 I = 0; I < FTorqueProfile::NumFace; ++I)
+			if (FString(FTorqueProfile::Sliders[I].Name).ToLower().StartsWith(Slider))
+			{
+				Me.Face[I] = V;
+				Set = FTorqueProfile::Sliders[I].Name;
+				break;
+			}
+	if (Set.IsEmpty()) return FString::Printf(TEXT("no face slider like %s"), *Slider);
+	// Shown and sent like a change on the page, but not saved: a test run leaves your own face alone.
+	if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->ServerSetProfile(Me.Pack());
+	return FString::Printf(TEXT("profile: %s set to %.2f"), *Set, Set == TEXT("Avatar") ? (float)Me.Avatar : V);
+}
+
 bool ATorquePlayerController::WantsPause()
 {
 	// On the bike or on foot; the start menu has its own Esc, and so has geometry mode.
