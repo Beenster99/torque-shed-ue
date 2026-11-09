@@ -437,8 +437,16 @@ bool FTorqueSprayJob::Setup(UWorld* World, int32 InItem, const FString& InKey, c
 		Sum += Points[I];
 	}
 	Middle = Sum / Points.Num();
-	UE_LOG(LogTemp, Log, TEXT("Torque spray: %s on item %d: %d points (%d out of reach), mask %dx%dx%d of %.1f cm"),
-		*Key, Item, Points.Num(), Dropped, Dims.X, Dims.Y, Dims.Z, Vx);
+	int32 Boxed = 0;
+	for (const UStaticMeshComponent* C : Parts)
+	{
+		const TArray<FVector>* Pos = nullptr;
+		const TArray<int32>* Tris = nullptr;
+		if (!TorqueShedPick::Triangles(C, Pos, Tris)) ++Boxed;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque spray: %s on item %d: %d meshes (%d by their box, no shape), %d points (%d out of reach), mask %dx%dx%d of %.1f cm, atlas %dx%d, coat material %s"),
+		*Key, Item, Parts.Num(), Boxed, Points.Num(), Dropped, Dims.X, Dims.Y, Dims.Z, Vx, AtlasSize.X, AtlasSize.Y,
+		CoatMaterial() ? *CoatMaterial()->GetName() : TEXT("MISSING"));
 	Attach(World);
 	return true;
 }

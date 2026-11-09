@@ -17,6 +17,10 @@
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
+#include "CanvasItem.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/HUD.h"
@@ -434,6 +438,61 @@ void ATorqueWalker::SetSprayScan(bool bOn)
 	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("switch"), Camera->GetComponentLocation(), -6.0f);
 }
 
+int32 ATorqueWalker::SprayHook() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueItem* It = B && SprayItem != 0 ? B->Item(SprayItem) : nullptr;
+	if (!It || It->At != ETorqueAt::Spot) return INDEX_NONE;
+	const FTorquePlace* P = TorqueShedLayout::FindPlace(It->Spot);
+	return P && P->Kind == ETorquePlace::Hook ? P->Index : INDEX_NONE;
+}
+
+void ATorqueWalker::SprayWind(float Dt, int32 Step, int32 Held)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	const int32 Hook = SprayHook();
+	if (!B || Hook == INDEX_NONE)
+	{
+		SprayHookSet = -1.0f;
+		SprayHookHeld = 0.0;
+		return;
+	}
+	if (Step == 0 && Held == 0)
+	{
+		// Let go: where it was wound to goes to the shed if the last step hadn't yet.
+		if (SprayHookSet >= 0.0f && FMath::Abs(SprayHookSet - B->HookTipOf(Hook)) >= 0.5f)
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::PaintHook;
+			R.Item = Hook;
+			R.Amount = SprayHookSet;
+			FString WhyNot;
+			B->Request(R, WhyNot);
+		}
+		SprayHookSet = -1.0f;
+		SprayHookHeld = 0.0;
+		return;
+	}
+	if (SprayHookSet < 0.0f) SprayHookSet = B->HookTipOf(Hook);
+	const float Was = SprayHookSet;
+	// A click moves it 8 cm; held past a moment it winds on at the hook's own pace.
+	if (Step != 0) SprayHookSet += 8.0f * Step;
+	SprayHookHeld = Held != 0 ? SprayHookHeld + Dt : 0.0;
+	if (Held != 0 && SprayHookHeld > 0.3) SprayHookSet += 45.0f * Held * Dt;
+	SprayHookSet = FMath::Clamp(SprayHookSet, FTorquePaintBay::HookLow, FTorquePaintBay::HookHigh);
+	SprayHookSend -= Dt;
+	if (SprayHookSend > 0.0 && Step == 0) return;
+	if (FMath::Abs(SprayHookSet - B->HookTipOf(Hook)) < 0.5f && Was == SprayHookSet) return;
+	SprayHookSend = 0.15;
+	FTorqueShedRequest R;
+	R.Kind = ETorqueShedAct::PaintHook;
+	R.Item = Hook;
+	R.Amount = SprayHookSet;
+	FString WhyNot;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+	else Doing(FString::Printf(TEXT("hook %d at %d cm"), Hook + 1, FMath::RoundToInt(SprayHookSet)), 1.0);
+}
+
 void ATorqueWalker::UpdateSway(float Dt)
 {
 	// The slight sway of your hand with the spray controls up: more as you move, much less while you
@@ -532,8 +591,9 @@ void ATorqueWalker::UpdateSprayFx(float Dt)
 
 FString ATorqueWalker::SprayControlsText() const
 {
-	return TEXT("Hold left mouse (Cross) and sweep in steady, overlapping passes; go round it for the far side and crouch for underneath   ")
-		TEXT("Hold right mouse (L2) to steady your hand   X (D-pad up): show what's missed   F (Triangle): step back");
+	return SprayHook() != INDEX_NONE
+		? FString(TEXT("Hold left mouse (Cross): sweep in steady passes   Right mouse (L2): steady your hand   Q / E or wheel (L1 / R1): hook down / up   X (D-pad up): what's missed   F (Triangle): step back"))
+		: FString(TEXT("Hold left mouse (Cross): sweep in steady passes; go round it and crouch for underneath   Right mouse (L2): steady your hand   X (D-pad up): what's missed   F (Triangle): step back"));
 }
 
 // --- The readout (spray_hud.gd) ---------------------------------------------------------------------
@@ -558,27 +618,47 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		Rect(C, X, Y, T, H);
 		Rect(C, X + W - T, Y, T, H);
 	};
-	auto Measure = [Canvas, Font](const FString& T, float Scale)
+	// The lettering drawn at its real size from the engine's font (not a small bitmap scaled up, which
+	// goes soft), with a thin dark outline where it sits over the view.
+	auto FontFor = [Font](float Size, bool bOutline)
 	{
+		FSlateFontInfo Info(Font, FMath::Max(1, FMath::RoundToInt((float)FMath::Max(Font->LegacyFontSize, 8) * Size * 0.75f)));
+		if (bOutline)
+		{
+			Info.OutlineSettings.OutlineSize = FMath::Max(1, FMath::RoundToInt(Size * 1.6f));
+			Info.OutlineSettings.OutlineColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.85f);
+		}
+		return Info;
+	};
+	// (An offline, bitmap font can't be drawn that way: then it's scaled as before.)
+	const bool bCrisp = Font->FontCacheType == EFontCacheType::Runtime && FSlateApplication::IsInitialized();
+	auto Measure = [&FontFor, Canvas, Font, bCrisp](const FString& T, float Scale) -> FVector2D
+	{
+		if (bCrisp)
+		{
+			const FVector2D M(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(T, FontFor(Scale, false)));
+			return M;
+		}
 		float W = 0.0f, H = 0.0f;
 		Canvas->StrLen(Font, T, W, H);
 		return FVector2D(W * Scale, H * Scale);
 	};
 	// Text by its top left; Align 0 left, 1 centred in Width, 2 right-aligned to X + Width.
-	auto Text = [Canvas, Font, &Measure](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
+	auto Text = [Canvas, Font, bCrisp, &FontFor, &Measure](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
 	{
 		const FVector2D M = Measure(T, Size);
 		float TX = X;
-		if (Align == 1) TX = X + (Width - M.X) * 0.5f;
-		else if (Align == 2) TX = X + Width - M.X;
-		if (bShadow)
+		if (Align == 1) TX = X + (Width - (float)M.X) * 0.5f;
+		else if (Align == 2) TX = X + Width - (float)M.X;
+		if (!bCrisp)
 		{
-			Canvas->SetDrawColor(FColor(0, 0, 0, (uint8)(C.A * 200.0f)));
-			for (const FVector2D& O : {FVector2D(-2.0, 0.0), FVector2D(2.0, 0.0), FVector2D(0.0, -2.0), FVector2D(0.0, 2.0)})
-				Canvas->DrawText(Font, T, TX + O.X * Size, Y + O.Y * Size, Size, Size);
+			Canvas->SetDrawColor(C.ToFColor(true));
+			Canvas->DrawText(Font, T, TX, Y, Size, Size);
+			return;
 		}
-		Canvas->SetDrawColor(C.ToFColor(true));
-		Canvas->DrawText(Font, T, TX, Y, Size, Size);
+		FCanvasTextItem Item(FVector2D(FMath::RoundToFloat(TX), FMath::RoundToFloat(Y)), FText::FromString(T), FontFor(Size, bShadow), C);
+		Item.BlendMode = SE_BLEND_Translucent;
+		Canvas->DrawItem(Item);
 	};
 	const float CW = Canvas->ClipX, CH = Canvas->ClipY;
 	// The flash when a coat's on, and when it's done.
