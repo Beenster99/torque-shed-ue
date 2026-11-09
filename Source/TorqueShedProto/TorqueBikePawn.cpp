@@ -719,11 +719,11 @@ FString ATorqueBikePawn::TestRideLog() const
 		// grip; the ankle 11.5 cm behind and above the peg, the ball of the foot on it: as on the
 		// Speed Twin the rig was made on.)
 		Out += FString::Printf(TEXT("\nrider (%s%s): seat %s, pegs %s / %s, grips %s / %s; pose hips %s, wrists %s / %s, ankles %s / %s, ")
-			TEXT("back %.1f deg forward of upright; reach %.1f / %.1f cm of a %.1f cm arm (%s), hip to ankle %.1f / %.1f of a %.1f cm leg%s"),
+			TEXT("back %.1f deg forward of upright (spine posed %.1f, drawn %.1f); reach %.1f / %.1f cm of a %.1f cm arm (%s), hip to ankle %.1f / %.1f of a %.1f cm leg%s"),
 			*RiderStyle, bRiderLaidBack ? TEXT(", laid back") : TEXT(""),
 			*RiderSeat.ToString(), *RiderPeg[0].ToString(), *RiderPeg[1].ToString(), *RiderGrip[0].ToString(), *RiderGrip[1].ToString(),
 			*PoseHip.ToString(), *PoseWrist[0].ToString(), *PoseWrist[1].ToString(), *PoseAnkle[0].ToString(), *PoseAnkle[1].ToString(),
-			RiderBackDeg, RiderReach[0], RiderReach[1], RiderArm,
+			RiderBackDeg, RiderRig.PosedSpineDeg, RiderRig.DrawnSpineDeg(), RiderReach[0], RiderReach[1], RiderArm,
 			FMath::Max(RiderReach[0], RiderReach[1]) > RiderArm ? *FString::Printf(TEXT("hands %.1f cm short of the grips"), FMath::Max(RiderReach[0], RiderReach[1]) - RiderArm) : TEXT("hands on the grips"),
 			RiderLegReach[0], RiderLegReach[1], RiderLeg, bRiderFitted && RiderRig.IsValid() ? TEXT("") : TEXT(" (not fitted: no rig)"));
 	}
@@ -1542,7 +1542,34 @@ void ATorqueBikePawn::FitRiderToBike()
 		Deg -= 0.25;
 	}
 	RiderBackDeg = Deg + RestLean;   // forward of upright, as the log says it
-	RiderChest = PoseHip + Tilt(Neck0 - Pelvis0, Deg) - Neck0;
+	// The rig turns the back up its spine by shares (RiderRig::Pose: the pelvis 0.15 of the turn,
+	// then 0.4, 0.75, and the top of the spine and the neck all of it), so the line from the hips to
+	// the neck turns only about two thirds as far as the chest is told. Tell it further, so the
+	// back as drawn leans as far as the style says (found by halving on the same chain of bones).
+	double TurnDeg = Deg;
+	{
+		FVector Chain[5] = {Pelvis0, Pelvis0, Pelvis0, Pelvis0, Neck0};
+		const TCHAR* Names[3] = {TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03")};
+		bool bChain = true;
+		for (int32 K = 0; K < 3; ++K) bChain = RiderRig.BoneRest(Names[K], Chain[K + 1]) && bChain;
+		if (bChain)
+		{
+			const double Share[4] = {0.15, 0.4, 0.75, 1.0};
+			auto DrawnLean = [&](double Turn) {
+				FVector At = Chain[0];
+				for (int32 K = 0; K < 4; ++K) At += Tilt(Chain[K + 1] - Chain[K], Turn * Share[K]);
+				return FMath::RadiansToDegrees(FMath::Atan2(At.X - Chain[0].X, At.Z - Chain[0].Z));
+			};
+			double Lo = -90.0, Hi = 90.0;
+			for (int32 It = 0; It < 40; ++It)
+			{
+				const double Mid = 0.5 * (Lo + Hi);
+				(DrawnLean(Mid) < RiderBackDeg ? Lo : Hi) = Mid;
+			}
+			TurnDeg = 0.5 * (Lo + Hi);
+		}
+	}
+	RiderChest = PoseHip + Tilt(Neck0 - Pelvis0, TurnDeg) - Neck0;
 	for (int32 S = 0; S < 2; ++S) RiderLegReach[S] = (PoseAnkle[S] - (PoseHip + (Thigh0[S] - Pelvis0))).Size();
 	UE_LOG(LogTemp, Log, TEXT("Torque: the rider sat on the catalogue bike (%s%s): hips %s, wrists %s / %s, ankles %s / %s, back %.1f deg forward of upright; ")
 		TEXT("reach %.1f / %.1f cm of a %.1f cm arm, hip to ankle %.1f / %.1f of a %.1f cm leg"),

@@ -56,6 +56,10 @@ public:
 	// if the mesh has no such bone), and the grip centre each hand holds at rest (0 left, 1 right).
 	bool BoneRest(const TCHAR* Name, FVector& Out) const;
 	FVector GripRest(int32 Side) const { return Hands[FMath::Clamp(Side, 0, 1)].Grip; }
+	// The back's lean forward of upright (degrees, pelvis to neck seen from the side): as the last
+	// Pose put it, and as the mesh's bones have it now (what's drawn), for the test log.
+	double PosedSpineDeg = 0.0;
+	double DrawnSpineDeg() const;
 
 	UPoseableMeshComponent* Body = nullptr;
 	UStaticMeshComponent* Helmet = nullptr;
