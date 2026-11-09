@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "TorqueBikePawn.h"   // FHudLine
 #include "TorqueHUD.generated.h"
 
 UCLASS()
@@ -17,5 +18,7 @@ private:
 	void DrawRiderNames();
 	// On foot in the shed: Torque Shed's crosshair and work ring, tool bar, spray picker and carrying line.
 	void DrawWalkerCues(const class ATorqueWalker* Walker, float S);
+	// [shed] On foot: hud.gd's look panel (roles 1-3 of the lines) and the message across the top (4).
+	void DrawLookPanel(const TArray<FHudLine>& Lines, float S);
 	float NameLogClock = 2.0f;
 };

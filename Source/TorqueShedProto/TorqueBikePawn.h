@@ -42,6 +42,9 @@ struct FHudLine
 	FString Text;
 	FColor Colour = FColor::White;
 	float Size = 1.0f;   // times the large font at 1080p
+	// [shed] Where the walker's HUD puts it (hud.gd): 0 the corner, 1 the look panel's title, 2 its
+	// lines, 3 its prompts, 4 the message across the top.
+	uint8 Role = 0;
 };
 
 UCLASS()

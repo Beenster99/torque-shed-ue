@@ -89,8 +89,10 @@ void ATorqueHUD::DrawHUD()
 		DrawWalkerCues(Walker, S);
 	}
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
+	if (Walker) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
 	for (const FHudLine& L : Lines)
 	{
+		if (L.Role != 0) continue;
 		const float Scale = S * L.Size;
 		float W = 0, H = 0;
 		Canvas->StrLen(Font, L.Text, W, H);
@@ -118,6 +120,79 @@ void ATorqueHUD::DrawHUD()
 		}
 	}
 }
+
+void ATorqueHUD::DrawLookPanel(const TArray<FHudLine>& Lines, float S)
+{
+	// hud.gd: what you're looking at goes in a panel at the right, out of the way of the crosshair
+	// (a dark box, an accent edge on its left): its title, what it is, then what the buttons do. A
+	// message (what just happened, or why not) across the top.
+	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (!Font || !Canvas) return;
+	float LW = 0.0f, LH = 0.0f;
+	Canvas->StrLen(Font, TEXT("Hg"), LW, LH);
+	auto Wrap = [this, Font](const FString& Text, float Scale, float MaxW)
+	{
+		TArray<FString> Out, Words;
+		Text.ParseIntoArray(Words, TEXT(" "), true);
+		FString Line;
+		for (const FString& Word : Words)
+		{
+			const FString Try = Line.IsEmpty() ? Word : Line + TEXT(" ") + Word;
+			float TW = 0.0f, TH = 0.0f;
+			Canvas->StrLen(Font, Try, TW, TH);
+			if (!Line.IsEmpty() && TW * Scale > MaxW) { Out.Add(Line); Line = Word; }
+			else Line = Try;
+		}
+		if (!Line.IsEmpty()) Out.Add(Line);
+		return Out;
+	};
+	// The panel: 406 px wide at 1080p, 24 px in from the right, about the screen's middle.
+	const float PW = 406.0f * S, Margin = 14.0f * S, TextW = PW - 2.0f * Margin - 3.0f * S;
+	struct FDrawn { FString Text; FColor Colour; float Scale; float Gap; };
+	TArray<FDrawn> Panel;
+	for (const FHudLine& L : Lines)
+	{
+		if (L.Role < 1 || L.Role > 3) continue;
+		const float Scale = S * (L.Role == 1 ? 0.85f : (L.Role == 2 ? 0.6f : 0.68f));
+		const FColor Colour = L.Role == 2 ? FColor(220, 220, 220) : L.Colour;
+		for (const FString& W : Wrap(L.Text, Scale, TextW)) Panel.Add({W, Colour, Scale, 0.0f});
+		if (Panel.Num() > 0) Panel.Last().Gap = 6.0f * S;
+	}
+	if (Panel.Num() > 0)
+	{
+		float H = 2.0f * Margin;
+		for (const FDrawn& D : Panel) H += LH * D.Scale + 2.0f * S + D.Gap;
+		const float X = Canvas->ClipX - 24.0f * S - PW, Y = FMath::Max(80.0f * S, Canvas->ClipY * 0.5f - 170.0f * S);
+		DrawRect(FLinearColor(0.04f, 0.05f, 0.07f, 0.72f), X, Y, PW, H);
+		DrawRect(FLinearColor(1.0f, 0.75f, 0.35f, 0.5f), X, Y, 3.0f * S, H);
+		float TY = Y + Margin;
+		for (const FDrawn& D : Panel)
+		{
+			Canvas->SetDrawColor(D.Colour);
+			Canvas->DrawText(Font, D.Text, X + 3.0f * S + Margin, TY, D.Scale, D.Scale);
+			TY += LH * D.Scale + 2.0f * S + D.Gap;
+		}
+	}
+	for (const FHudLine& L : Lines)
+	{
+		if (L.Role != 4) continue;
+		const float Scale = S * 0.95f;
+		float Y = 40.0f * S;
+		for (const FString& W : Wrap(L.Text, Scale, 1000.0f * S))
+		{
+			float TW = 0.0f, TH = 0.0f;
+			Canvas->StrLen(Font, W, TW, TH);
+			const float X = (Canvas->ClipX - TW * Scale) * 0.5f;
+			Canvas->SetDrawColor(FColor(0, 0, 0, 200));   // hud.gd's outline: a shadow round it
+			for (const FVector2D& O : {FVector2D(2, 2), FVector2D(-2, 2), FVector2D(2, -2), FVector2D(-2, -2)})
+				Canvas->DrawText(Font, W, X + O.X * S, Y + O.Y * S, Scale, Scale);
+			Canvas->SetDrawColor(L.Colour);
+			Canvas->DrawText(Font, W, X, Y, Scale, Scale);
+			Y += TH * Scale + 4.0f * S;
+		}
+	}
+}
+
 
 void ATorqueHUD::DrawRiderNames()
 {

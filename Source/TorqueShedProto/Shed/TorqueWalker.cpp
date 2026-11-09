@@ -1923,7 +1923,8 @@ void ATorqueWalker::UpdateHud()
 	if (Tool == ETorqueTool::Gun)
 		if (const FTorquePaintCup* Cup = B->PaintBay().Cups.Find(B->Me()))
 			HudLines.Add({FString::Printf(TEXT("Gun's cup: %s, %.2f l (load Cup with T)"), *Cup->Spec.Name, Cup->Litres), Info, 0.55f});
-	// What's looked at.
+	// What's looked at: hud.gd's panel at the side (the title, its lines, then the prompts).
+	const int32 LookFrom = HudLines.Num();
 	const FTorqueItem* Thing = B->Item(TargetItem);
 	switch (Target)
 	{
@@ -1998,7 +1999,21 @@ void ATorqueWalker::UpdateHud()
 	const FPlan* Active = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
 	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3)
 		HudLines.Add({TWI::Bar(Progress / Active->Time), FColor::White, 0.6f});
-	if (NoteFor > 0.0) HudLines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
+	{
+		bool bTitled = false;
+		for (int32 I = LookFrom; I < HudLines.Num(); ++I)
+		{
+			FHudLine& L = HudLines[I];
+			if (L.Colour == Prompt || L.Colour == Blocked) L.Role = 3;
+			else if (!bTitled && L.Text.Len() < 90) { L.Role = 1; bTitled = true; }
+			else L.Role = 2;
+		}
+	}
+	if (NoteFor > 0.0)
+	{
+		HudLines.Add({Note, bNoteOk ? FColor(255, 217, 178) : FColor(255, 140, 115), 0.8f});
+		HudLines.Last().Role = 4;   // hud.gd flash: across the top
+	}
 	if (bPerfShow && !PerfText.IsEmpty()) HudLines.Add({PerfText, FColor(255, 255, 160), 0.55f});
 	if (bShowHelp)
 	{
