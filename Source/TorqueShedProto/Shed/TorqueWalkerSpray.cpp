@@ -3,6 +3,8 @@
 // TorqueSprayFx.
 #include "Shed/TorqueWalker.h"
 
+#include "Coop/TorqueUi.h"
+
 #include "Shed/TorqueBoothHooks.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
@@ -17,10 +19,6 @@
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
-#include "CanvasItem.h"
-#include "Fonts/FontMeasure.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Rendering/SlateRenderer.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/HUD.h"
@@ -54,7 +52,7 @@ const FLinearColor Bad(1.0f, 0.45f, 0.35f);
 const FLinearColor Warn(1.0f, 0.75f, 0.3f);
 const FLinearColor Cool(0.45f, 0.7f, 1.0f);
 const FLinearColor Dim(1.0f, 1.0f, 1.0f, 0.6f);
-const FLinearColor Accent(1.0f, 0.62f, 0.2f);   // the shed HUD's (TorqueHudCues::Accent)
+const FLinearColor Accent = TorqueUi::Accent;   // the game's UI kit
 constexpr double CueLife = 1.8;
 constexpr double Linger = 2.2;
 
@@ -618,47 +616,15 @@ void ATorqueWalker::DrawSpray(AHUD* Hud, UCanvas* Canvas) const
 		Rect(C, X, Y, T, H);
 		Rect(C, X + W - T, Y, T, H);
 	};
-	// The lettering drawn at its real size from the engine's font (not a small bitmap scaled up, which
-	// goes soft), with a thin dark outline where it sits over the view.
-	auto FontFor = [Font](float Size, bool bOutline)
-	{
-		FSlateFontInfo Info(Font, FMath::Max(1, FMath::RoundToInt((float)FMath::Max(Font->LegacyFontSize, 8) * Size * 0.75f)));
-		if (bOutline)
-		{
-			Info.OutlineSettings.OutlineSize = FMath::Max(1, FMath::RoundToInt(Size * 1.6f));
-			Info.OutlineSettings.OutlineColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.85f);
-		}
-		return Info;
-	};
-	// (An offline, bitmap font can't be drawn that way: then it's scaled as before.)
-	const bool bCrisp = Font->FontCacheType == EFontCacheType::Runtime && FSlateApplication::IsInitialized();
-	auto Measure = [&FontFor, Canvas, Font, bCrisp](const FString& T, float Scale) -> FVector2D
-	{
-		if (bCrisp)
-		{
-			const FVector2D M(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(T, FontFor(Scale, false)));
-			return M;
-		}
-		float W = 0.0f, H = 0.0f;
-		Canvas->StrLen(Font, T, W, H);
-		return FVector2D(W * Scale, H * Scale);
-	};
+	// The lettering in the game's UI kit (Coop/TorqueUi.h: crisp Slate text at its real size), sized as
+	// the engine's large font scaled by Size.
+	const float Em = (float)FMath::Max(Font->LegacyFontSize, 8);
 	// Text by its top left; Align 0 left, 1 centred in Width, 2 right-aligned to X + Width.
-	auto Text = [Canvas, Font, bCrisp, &FontFor, &Measure](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
+	auto Text = [Canvas, Em](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
 	{
-		const FVector2D M = Measure(T, Size);
-		float TX = X;
-		if (Align == 1) TX = X + (Width - (float)M.X) * 0.5f;
-		else if (Align == 2) TX = X + Width - (float)M.X;
-		if (!bCrisp)
-		{
-			Canvas->SetDrawColor(C.ToFColor(true));
-			Canvas->DrawText(Font, T, TX, Y, Size, Size);
-			return;
-		}
-		FCanvasTextItem Item(FVector2D(FMath::RoundToFloat(TX), FMath::RoundToFloat(Y)), FText::FromString(T), FontFor(Size, bShadow), C);
-		Item.BlendMode = SE_BLEND_Translucent;
-		Canvas->DrawItem(Item);
+		const TorqueUi::EAlign A = Align == 1 ? TorqueUi::EAlign::Centre : (Align == 2 ? TorqueUi::EAlign::Right : TorqueUi::EAlign::Left);
+		const float AX = Align == 1 ? X + Width * 0.5f : (Align == 2 ? X + Width : X);
+		TorqueUi::Text(Canvas, T, AX, Y, Em * Size, C, false, A, bShadow);
 	};
 	const float CW = Canvas->ClipX, CH = Canvas->ClipY;
 	// The flash when a coat's on, and when it's done.
