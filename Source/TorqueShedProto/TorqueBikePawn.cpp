@@ -11,6 +11,7 @@
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueFlow.h"
 #include "Shed/TorqueYard.h"
+#include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
 
@@ -873,6 +874,9 @@ void ATorqueBikePawn::LoadContacts()
 	}
 	Contacts = MakeUnique<ContactWorld>();
 	Contacts->SetBoxes(Boxes);
+	BaseBoxes.Reset();   // [furniture]
+	for (const ContactBox& Box : Boxes) BaseBoxes.Add(Box);
+	FurnitureSeen = 0;
 	Sim->Contacts = Contacts.Get();
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d collision boxes"), Contacts->BoxCount());
 }
@@ -880,6 +884,14 @@ void ATorqueBikePawn::LoadContacts()
 void ATorqueBikePawn::GatherOtherBikes()
 {
 	if (!Contacts) return;
+	// [furniture] In the shed's yard, the solid yard kit (walls, fences, the old car and buses) too.
+	if (bYard && FurnitureSeen != TorqueFurniture::ContactVersion())
+	{
+		FurnitureSeen = TorqueFurniture::ContactVersion();
+		std::vector<ContactBox> Boxes(BaseBoxes.GetData(), BaseBoxes.GetData() + BaseBoxes.Num());
+		TorqueFurniture::ContactBoxes(this, Boxes);
+		Contacts->SetBoxes(Boxes);
+	}
 	Contacts->Capsules.clear();
 	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
 	{

@@ -217,6 +217,10 @@ private:
 	int32 HitsHeard = 0;
 	void LoadContacts();
 	void GatherOtherBikes();
+	// [furniture] The ride's own boxes, and the yard's solid kit added to them (TorqueFurniture.h):
+	// rebuilt whenever the kit's moved (its ContactVersion changes).
+	TArray<TorqueSim::ContactBox> BaseBoxes;
+	int32 FurnitureSeen = 0;
 	TUniquePtr<FSonyPad> Pad;          // a PlayStation pad read directly (Unreal reads Xbox pads itself)
 	FRiderRig RiderRig;                // the skinned rider, when the level script has imported it
 	// The rider as their MetaHuman (Profile page; Shed/TorqueAvatar.h), in the rider rig's place: it

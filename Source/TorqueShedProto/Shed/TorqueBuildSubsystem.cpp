@@ -353,6 +353,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	StandPusher = 0;
 	ExtinguisherBy = 0;
 	bFoaming = false;
+	FurnishFresh();   // [furniture]
 	NextId = 1;
 	Mine = 0;
 	bHostCopy = false;
@@ -402,6 +403,15 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.bStandMoved = true;
 	S.StandAt = StandXf.GetLocation();
 	S.StandYaw = (float)StandXf.Rotator().Yaw;
+	{
+		// [furniture] The movable shed and yard kit, as bytes.
+		S.Furniture.Reset();
+		FMemoryWriter FurnAr(S.Furniture);
+		TArray<FTorqueFurniture> List = Furnishings;
+		int32 FurnNext = FurnitureNextId;
+		SerializeFurniture(FurnAr, false, List, FurnNext);
+		S.bFurnished = bFurnished;
+	}
 	{
 		// The paint mixing bay, as bytes (FTorquePaintBay::Serialize).
 		S.PaintBay.Reset();
@@ -496,6 +506,24 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	StandPusher = 0;
 	ExtinguisherBy = 0;
 	bFoaming = false;
+	{
+		// [furniture] An older save (or one that won't read) gets the starting kit.
+		bool bRead = false;
+		if (S.bFurnished && S.Furniture.Num() > 0)
+		{
+			FMemoryReader FurnAr(S.Furniture);
+			TArray<FTorqueFurniture> List;
+			int32 FurnNext = 1;
+			SerializeFurniture(FurnAr, false, List, FurnNext);
+			if (!FurnAr.IsError())
+			{
+				Furnishings = MoveTemp(List);
+				FurnitureNextId = FurnNext;
+				bFurnished = bRead = true;
+			}
+		}
+		if (!bRead) FurnishFresh();
+	}
 	Paint = FTorquePaintBay::Starter();
 	if (S.PaintBay.Num() > 0)
 	{
@@ -602,7 +630,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 15;   // bumped when the layout below changes (2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 16;   // bumped when the layout below changes (16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -810,6 +838,12 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		int32 Pusher = StandPusher, ExtBy = ExtinguisherBy;
 		Ar << bLightsB << bDoorB << StandAt << StandYaw << Pusher << ExtBy << bFoamB;
 	}
+	{
+		// [furniture] The movable shed and yard kit.
+		TArray<FTorqueFurniture> List = Furnishings;
+		int32 FurnNext = FurnitureNextId;
+		SerializeFurniture(Ar, true, List, FurnNext);
+	}
 
 	Out.Reset();
 	FMemoryWriter Head(Out);
@@ -980,6 +1014,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	double StandYawIn = 0.0;
 	int32 PusherIn = 0, ExtByIn = 0;
 	Ar << bLightsB << bDoorB << StandAtIn << StandYawIn << PusherIn << ExtByIn << bFoamB;
+	TArray<FTorqueFurniture> FurnIn;   // [furniture]
+	int32 FurnNextIn = 1;
+	SerializeFurniture(Ar, true, FurnIn, FurnNextIn);
 	if (Ar.IsError() || !bPaintRead)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
@@ -1003,6 +1040,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	StandPusher = PusherIn;
 	ExtinguisherBy = ExtByIn;
 	bFoaming = bFoamB != 0;
+	Furnishings = MoveTemp(FurnIn);   // [furniture]
+	FurnitureNextId = FurnNextIn;
+	bFurnished = true;
 	NextId = HostNextId;
 	bHostCopy = true;
 	for (int32 I = 0; I < Bays; ++I)
@@ -2131,6 +2171,12 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		&& StandPusher == Peer && A != ETorqueShedAct::ReleaseStand)
 		return TEXT("Let go of the engine stand first (F).");
 	if (IsKitAct(A)) return CheckKit(Peer, R);
+	// [furniture] Moving a piece of kit: your hands are full of it.
+	if (IsFurnitureAct(A)) return CheckFurniture(Peer, R);
+	if (const int32 Moving = FurnitureMovedBy(Peer))
+		if (A == ETorqueShedAct::Take || A == ETorqueShedAct::Remove || A == ETorqueShedAct::GrabBike || A == ETorqueShedAct::GrabStand
+			|| A == ETorqueShedAct::Extinguisher || A == ETorqueShedAct::PaintTapeTake || A == ETorqueShedAct::PaintTinTake)
+			return TEXT("Put down what you're moving first (F).");
 	const bool bSlotWork = A == ETorqueShedAct::Unbolt || A == ETorqueShedAct::Bolt || A == ETorqueShedAct::Remove;
 	// (Not with the bike up on a lift: then the low parts are at chest height.)
 	if (bSlotWork && R.Engine == 0 && TorqueShedParts::IsLowSlot(R.Slot) && !R.bCrouched && !LiftRaised(R.Bay))
@@ -2560,6 +2606,14 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Text = ApplyKit(Peer, R);
 		if (R.Kind == ETorqueShedAct::ReleaseStand) OnItems.Broadcast();   // an engine on it sits where it stopped
 		if (R.Kind != ETorqueShedAct::ExtinguisherSpray) MarkSave();
+		OnHostChange.Broadcast();
+		return Text;
+	}
+	if (IsFurnitureAct(R.Kind))
+	{
+		// [furniture] The movable shed and yard kit (TorqueFurniture.cpp).
+		Text = ApplyFurniture(Peer, R);
+		if (R.Kind != ETorqueShedAct::TurnFurniture) MarkSave();
 		OnHostChange.Broadcast();
 		return Text;
 	}
@@ -3114,6 +3168,7 @@ void UTorqueBuildSubsystem::DropHeldBy(int32 Peer, const FVector& At)
 {
 	if (IsClient()) return;
 	DropKitOf(Peer);   // [kit]
+	DropFurnitureOf(Peer);   // [furniture]
 	if (Paint.Held.Contains(Peer) || Paint.BenchBy == Peer || Paint.Cups.Contains(Peer))
 	{
 		// The mixing bay: their tin back on the shelf, away from the bench, the cup put away.

@@ -607,6 +607,210 @@
    "name": "Sticky note (tinted per orderer)",
    "torque_shed": "TorqueShedItems.cpp boxed delivery (Godot COURIERS); Data/Props/deliveries.json",
    "source": "blender"
+  },
+  "ramp_small": {
+   "name": "Small wooden ramp",
+   "torque_shed": "Equipment.MODELS ramp_small (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "ramp_kicker": {
+   "name": "Steep kicker ramp",
+   "torque_shed": "Equipment.MODELS ramp_kicker (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "ramp_medium": {
+   "name": "Medium jump ramp",
+   "torque_shed": "Equipment.MODELS ramp_medium (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "ramp_landing": {
+   "name": "Landing ramp",
+   "torque_shed": "Equipment.MODELS ramp_landing (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "ramp_large": {
+   "name": "Large jump ramp",
+   "torque_shed": "Equipment.MODELS ramp_large (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "ramp_xl": {
+   "name": "Big launch ramp",
+   "torque_shed": "Equipment.MODELS ramp_xl (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "ramp_huge": {
+   "name": "Huge launch ramp",
+   "torque_shed": "Equipment.MODELS ramp_huge (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "landing_xl": {
+   "name": "Big landing ramp",
+   "torque_shed": "Equipment.MODELS landing_xl (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "landing_huge": {
+   "name": "Huge landing ramp",
+   "torque_shed": "Equipment.MODELS landing_huge (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "tabletop": {
+   "name": "Dirt tabletop",
+   "torque_shed": "Equipment.MODELS tabletop (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "barrels": {
+   "name": "Row of oil drums",
+   "torque_shed": "Equipment.MODELS barrels (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "log": {
+   "name": "Log",
+   "torque_shed": "Equipment.MODELS log (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "tyre_stack": {
+   "name": "Tyre stack",
+   "torque_shed": "Equipment.MODELS tyre_stack (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "hay_bales": {
+   "name": "Hay bales",
+   "torque_shed": "Equipment.MODELS hay_bales (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "car_wreck": {
+   "name": "Old car",
+   "torque_shed": "Equipment.MODELS car_wreck (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "bus": {
+   "name": "Old bus",
+   "torque_shed": "Equipment.MODELS bus (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "bus_row": {
+   "name": "Row of old buses",
+   "torque_shed": "Equipment.MODELS bus_row (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "wall_concrete": {
+   "name": "Concrete barrier",
+   "torque_shed": "Equipment.MODELS wall_concrete (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "wall_brick": {
+   "name": "Brick wall section",
+   "torque_shed": "Equipment.MODELS wall_brick (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "fence_wood": {
+   "name": "Wooden fence panel",
+   "torque_shed": "Equipment.MODELS fence_wood (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "fence_mesh": {
+   "name": "Mesh fence panel",
+   "torque_shed": "Equipment.MODELS fence_mesh (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "cone": {
+   "name": "Traffic cone",
+   "torque_shed": "Equipment.MODELS cone (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "post": {
+   "name": "Marker post",
+   "torque_shed": "Equipment.MODELS post (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "flag_red": {
+   "name": "Red course flag",
+   "torque_shed": "Equipment.MODELS flag_red (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "flag_blue": {
+   "name": "Blue course flag",
+   "torque_shed": "Equipment.MODELS flag_blue (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "flag_chequered": {
+   "name": "Chequered flag",
+   "torque_shed": "Equipment.MODELS flag_chequered (yard kit)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_hump": {
+   "name": "Speed hump",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_whoop": {
+   "name": "Whoop",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_bunting": {
+   "name": "Bunting",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_board_0": {
+   "name": "0 m board",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_board_10": {
+   "name": "10 m board",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_board_20": {
+   "name": "20 m board",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_board_30": {
+   "name": "30 m board",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
+  },
+  "yard_board_40": {
+   "name": "40 m board",
+   "torque_shed": "world_yard.gd (the yard's own)",
+   "source": "blender",
+   "script": "Tools/props/make_yard.py"
   }
  }
 }

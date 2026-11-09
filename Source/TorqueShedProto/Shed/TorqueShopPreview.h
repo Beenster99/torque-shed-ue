@@ -48,6 +48,7 @@ public:
 	// What to show. Each only rebuilds when it changes, so call it every frame it's drawn.
 	void ShowPart(FName Part);           // a catalogue part as it comes out of its box
 	void ShowPaint(int32 Stock);         // a tin of base or a bottle of tint (FTorquePaintBay stock index)
+	void ShowKit(FName Model);           // a piece of shed or yard kit (TorqueFurniture's model)
 	// A whole bike: slot -> catalogue part id (TorqueShedCatalogue::MakeBike's map), each slot's paint,
 	// and the badge on its tank (Fit/BikeShop's badge text; a new badge is stamped on the bike that's
 	// there, not a new bike built).

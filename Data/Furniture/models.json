@@ -1,0 +1,1221 @@
+{
+ "about": "Every piece of shed equipment, trinket and yard kit Torque Shed has (equipment.gd MODELS, trinkets.gd MODELS, world_yard.gd fixtures), for the UE port's movable kit (Source/TorqueShedProto/Shed/TorqueFurniture). size: width, height, depth in metres (Torque Shed's footprint, +z the front). yard: outside kit. wall: hangs on a wall. ride: the bike rides on it (tagged Road). solid: the bike bumps into it (a contact box). pass: ride straight through it. sold: ordered from the parts computer's Shed aisle (free in the UE port). The model is Data/Props' prop of the same id (/Game/Shed/Props/<id>/SM_<id>).",
+ "kinds": [
+  [
+   "stand",
+   "Engine stands"
+  ],
+  [
+   "shelf",
+   "Shelving"
+  ],
+  [
+   "washer",
+   "Parts washers"
+  ],
+  [
+   "repair",
+   "Repair machines"
+  ],
+  [
+   "blaster",
+   "Sandblasting cabinets"
+  ],
+  [
+   "bench",
+   "Workbenches"
+  ],
+  [
+   "trolley",
+   "Trolleys"
+  ],
+  [
+   "booth",
+   "Paint booths"
+  ],
+  [
+   "changer",
+   "Tyre changers"
+  ],
+  [
+   "poster",
+   "Wall posters"
+  ],
+  [
+   "seat",
+   "Seats"
+  ],
+  [
+   "tv",
+   "Wall TVs"
+  ],
+  [
+   "trinket",
+   "Trinkets"
+  ],
+  [
+   "ramp",
+   "Jump ramps"
+  ],
+  [
+   "obstacle",
+   "Things to jump"
+  ],
+  [
+   "barrier",
+   "Walls and fences"
+  ],
+  [
+   "marker",
+   "Cones, posts and flags"
+  ],
+  [
+   "fixture",
+   "Yard fixtures"
+  ]
+ ],
+ "models": {
+  "engine_stand": {
+   "kind": "stand",
+   "name": "Engine stand",
+   "desc": "A wheeled stand to strip and build an engine on. Get more than one and you can build engines while the bikes are being worked on.",
+   "size": [
+    0.7,
+    0.9,
+    0.8
+   ],
+   "sold": true
+  },
+  "engine_stand_folding": {
+   "kind": "stand",
+   "name": "Folding engine stand",
+   "desc": "Folds flat against a wall when it's not in use. Takes up less floor than the full-size stand.",
+   "size": [
+    0.5,
+    0.9,
+    0.6
+   ],
+   "sold": true
+  },
+  "shelf_compact": {
+   "kind": "shelf",
+   "name": "Compact shelving",
+   "desc": "Narrow four-shelf unit that fits in the gaps.",
+   "size": [
+    0.8,
+    2.0,
+    0.45
+   ],
+   "sold": true
+  },
+  "shelf_standard": {
+   "kind": "shelf",
+   "name": "Shelving unit",
+   "desc": "Steel shelving for parts and boxed stock, with a label plate on top so everyone knows what goes where.",
+   "size": [
+    1.2,
+    2.0,
+    0.5
+   ],
+   "sold": true
+  },
+  "shelf_tall": {
+   "kind": "shelf",
+   "name": "Tall shelving",
+   "desc": "Five shelves up to the rafters. Same floor space as the standard unit, more shelf space.",
+   "size": [
+    1.2,
+    2.5,
+    0.5
+   ],
+   "sold": true
+  },
+  "shelf_wide": {
+   "kind": "shelf",
+   "name": "Wide shelving",
+   "desc": "Long boltless shelving for a whole bike's worth of parts.",
+   "size": [
+    1.8,
+    2.0,
+    0.55
+   ],
+   "sold": true
+  },
+  "shelf_racking": {
+   "kind": "shelf",
+   "name": "Heavy-duty racking",
+   "desc": "Warehouse pallet racking cut down for the shed. Holds engines and frames without bowing.",
+   "size": [
+    2.4,
+    2.2,
+    0.6
+   ],
+   "sold": true
+  },
+  "shelf_staff": {
+   "kind": "shelf",
+   "name": "Staff parts rack",
+   "desc": "The staff's own rack: the parts they've bought for a job and what's left over, a labelled board for each trade.",
+   "size": [
+    1.8,
+    2.0,
+    0.55
+   ],
+   "sold": false
+  },
+  "shelf_delivery": {
+   "kind": "shelf",
+   "name": "Delivery racking",
+   "desc": "Racking in the delivery area: deliveries go on it when the floor's full.",
+   "size": [
+    3.6,
+    2.2,
+    0.7
+   ],
+   "sold": false
+  },
+  "washer_compact": {
+   "kind": "washer",
+   "name": "Benchtop parts washer",
+   "desc": "A small solvent tank on legs. One part at a time.",
+   "size": [
+    0.7,
+    1.0,
+    0.6
+   ],
+   "sold": true
+  },
+  "washer_standard": {
+   "kind": "washer",
+   "name": "Parts washer",
+   "desc": "The classic solvent sink with a pump and brush. Two parts at once.",
+   "size": [
+    1.3,
+    1.6,
+    0.9
+   ],
+   "sold": true
+  },
+  "washer_ultrasonic": {
+   "kind": "washer",
+   "name": "Ultrasonic cleaner",
+   "desc": "Shakes the grime off with sound. Small, quick and quiet.",
+   "size": [
+    0.9,
+    1.1,
+    0.7
+   ],
+   "sold": true
+  },
+  "washer_cabinet": {
+   "kind": "washer",
+   "name": "Spray wash cabinet",
+   "desc": "Hot jets in a closed cabinet. Three parts on the turntable.",
+   "size": [
+    1.2,
+    1.7,
+    1.0
+   ],
+   "sold": true
+  },
+  "washer_industrial": {
+   "kind": "washer",
+   "name": "Industrial parts washer",
+   "desc": "A big heated tank that takes a full engine's worth of parts.",
+   "size": [
+    1.9,
+    1.7,
+    1.0
+   ],
+   "sold": true
+  },
+  "blaster_cabinet": {
+   "kind": "blaster",
+   "name": "Sandblasting cabinet",
+   "desc": "A glass-topped blast cabinet for engines. Put an engine in, hands in the gloves, and blast it back to bare metal.",
+   "size": [
+    1.7,
+    2.35,
+    1.7
+   ],
+   "sold": true
+  },
+  "blaster_pro": {
+   "kind": "blaster",
+   "name": "Industrial blast cabinet",
+   "desc": "A bigger cabinet with a bigger compressor: a wider, harder jet that strips an engine quicker. Easier to overdo, too.",
+   "size": [
+    2.0,
+    2.45,
+    1.95
+   ],
+   "sold": true
+  },
+  "repair_compact": {
+   "kind": "repair",
+   "name": "Grinder stand",
+   "desc": "A pedestal grinder and a small vice. One part at a time.",
+   "size": [
+    0.8,
+    1.2,
+    0.6
+   ],
+   "sold": true
+  },
+  "repair_standard": {
+   "kind": "repair",
+   "name": "Repair bench",
+   "desc": "Vice, grinder and welder on a steel bench. Two parts restored at once.",
+   "size": [
+    1.8,
+    1.2,
+    0.9
+   ],
+   "sold": true
+  },
+  "repair_blaster": {
+   "kind": "repair",
+   "name": "Bead blast cabinet",
+   "desc": "Blasts rust off in a sealed cabinet. Small and fast.",
+   "size": [
+    1.1,
+    1.6,
+    0.8
+   ],
+   "sold": true
+  },
+  "repair_pro": {
+   "kind": "repair",
+   "name": "Restoration station",
+   "desc": "Welder, grinder, lathe and press. Three parts at once.",
+   "size": [
+    2.2,
+    1.3,
+    1.0
+   ],
+   "sold": true
+  },
+  "repair_workshop": {
+   "kind": "repair",
+   "name": "Machine shop bench",
+   "desc": "Everything a machinist needs. Four parts at once, and quick.",
+   "size": [
+    2.8,
+    1.4,
+    1.0
+   ],
+   "sold": true
+  },
+  "bench_compact": {
+   "kind": "bench",
+   "name": "Folding workbench",
+   "desc": "A sturdy fold-up bench. Two places.",
+   "size": [
+    1.0,
+    0.9,
+    0.6
+   ],
+   "sold": true
+  },
+  "bench_mobile": {
+   "kind": "bench",
+   "name": "Mobile tool bench",
+   "desc": "Tool chest on castors with a wooden top. Two places, and it goes where you need it.",
+   "size": [
+    1.2,
+    0.95,
+    0.6
+   ],
+   "sold": true
+  },
+  "bench_standard": {
+   "kind": "bench",
+   "name": "Workbench",
+   "desc": "A plain steel bench with a hardwood top. Three places.",
+   "size": [
+    1.8,
+    0.95,
+    0.75
+   ],
+   "sold": true
+  },
+  "bench_long": {
+   "kind": "bench",
+   "name": "Long workbench",
+   "desc": "Room to lay out a whole top end. Four places.",
+   "size": [
+    2.4,
+    0.95,
+    0.75
+   ],
+   "sold": true
+  },
+  "bench_pro": {
+   "kind": "bench",
+   "name": "Pro workstation",
+   "desc": "Drawers, pegboard and a stainless top. Four places, and it looks the business.",
+   "size": [
+    2.4,
+    0.95,
+    0.8
+   ],
+   "sold": true
+  },
+  "trolley_parts": {
+   "kind": "trolley",
+   "name": "Parts trolley",
+   "desc": "A steel shop trolley on castors with a lipped deck. Load it up with parts and boxes and wheel them where they're needed.",
+   "size": [
+    0.62,
+    0.95,
+    1.0
+   ],
+   "sold": true
+  },
+  "trolley_flatbed": {
+   "kind": "trolley",
+   "name": "Flatbed trolley",
+   "desc": "A long, low platform truck for the heavy stuff: a whole delivery of boxes, an engine or a frame in one trip.",
+   "size": [
+    0.9,
+    0.95,
+    1.6
+   ],
+   "sold": true
+  },
+  "booth_compact": {
+   "kind": "booth",
+   "name": "Pop-up spray tent",
+   "desc": "A folding tent with an extractor fan. Two hooks: room for a tank and a mudguard.",
+   "size": [
+    1.6,
+    2.2,
+    1.4
+   ],
+   "sold": false
+  },
+  "booth_standard": {
+   "kind": "booth",
+   "name": "Paint booth",
+   "desc": "Lit, filtered spray booth with four hooks on a rail. Hang the parts and go along them with the spray gun.",
+   "size": [
+    2.6,
+    2.4,
+    1.8
+   ],
+   "sold": false
+  },
+  "booth_pro": {
+   "kind": "booth",
+   "name": "Downdraft spray booth",
+   "desc": "Pro booth: air pulled down through a floor grate so no dust lands in the paint. Six hooks.",
+   "size": [
+    3.4,
+    2.5,
+    2.2
+   ],
+   "sold": false
+  },
+  "booth_shop": {
+   "kind": "booth",
+   "name": "Downdraft spray bay",
+   "desc": "The paint shop's spray bay: a floor grate pulls the air down, ten hooks on two rails with room to walk round each part.",
+   "size": [
+    8.0,
+    2.7,
+    4.7
+   ],
+   "sold": false
+  },
+  "tyre_changer": {
+   "kind": "changer",
+   "name": "Tyre changer",
+   "desc": "A pedestal tyre machine with a clamping turntable, a bead breaker and a mount head. Put a wheel on it to change its tyre.",
+   "size": [
+    0.8,
+    1.2,
+    0.9
+   ],
+   "sold": false
+  },
+  "poster_tt": {
+   "kind": "poster",
+   "name": "Island TT 1967 poster",
+   "desc": "Faded race poster from the golden age of road racing.",
+   "size": [
+    0.6,
+    0.85,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "poster_cafe": {
+   "kind": "poster",
+   "name": "Caf\u00e9 racer club poster",
+   "desc": "Black and gold club poster. Ton-up or bust.",
+   "size": [
+    0.6,
+    0.85,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "poster_mx": {
+   "kind": "poster",
+   "name": "Motocross nationals poster",
+   "desc": "Loud orange flyer for a muddy Sunday.",
+   "size": [
+    0.6,
+    0.85,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "poster_oil": {
+   "kind": "poster",
+   "name": "Gold Seal motor oil sign",
+   "desc": "Old enamel-look advert for an oil nobody makes any more.",
+   "size": [
+    0.9,
+    0.6,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "poster_salt": {
+   "kind": "poster",
+   "name": "Salt flats speed record poster",
+   "desc": "Streamliners on the salt, chasing the record.",
+   "size": [
+    0.6,
+    0.85,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "poster_shed": {
+   "kind": "poster",
+   "name": "Torque Shed racing banner",
+   "desc": "The crew's own banner.",
+   "size": [
+    1.4,
+    0.5,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "poster_board": {
+   "kind": "poster",
+   "name": "Whiteboard poster",
+   "desc": "The crew's own whiteboard drawing, printed and framed.",
+   "size": [
+    1.0,
+    0.5,
+    0.01
+   ],
+   "wall": true,
+   "sold": false
+  },
+  "seat_stool": {
+   "kind": "seat",
+   "name": "Shop stool",
+   "desc": "Swivel stool with a red vinyl top.",
+   "size": [
+    0.45,
+    0.7,
+    0.45
+   ],
+   "sold": true
+  },
+  "seat_creeper": {
+   "kind": "seat",
+   "name": "Creeper seat",
+   "desc": "Low roller seat with a tray underneath, for working on wheels and brakes.",
+   "size": [
+    0.5,
+    0.5,
+    0.6
+   ],
+   "sold": true
+  },
+  "seat_chair": {
+   "kind": "seat",
+   "name": "Folding chair",
+   "desc": "Canvas camp chair. For watching someone else do the work.",
+   "size": [
+    0.5,
+    0.85,
+    0.5
+   ],
+   "sold": true
+  },
+  "seat_bench": {
+   "kind": "seat",
+   "name": "Garage bench seat",
+   "desc": "Wooden slat bench for the whole crew.",
+   "size": [
+    1.4,
+    0.8,
+    0.5
+   ],
+   "sold": true
+  },
+  "seat_sofa": {
+   "kind": "seat",
+   "name": "Old leather sofa",
+   "desc": "Saggy, cracked and the comfiest thing in the shed.",
+   "size": [
+    1.8,
+    0.85,
+    0.85
+   ],
+   "sold": true
+  },
+  "tv_120": {
+   "kind": "tv",
+   "name": "120\\",
+   "desc": "As big as the screens over the bays. Live riding, the crew board, XP goals and more: R changes the channel.",
+   "size": [
+    2.66,
+    1.5,
+    0.09
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "tv_128": {
+   "kind": "tv",
+   "name": "128\\",
+   "desc": "Proper cinema size. Watch the crew ride from across the shed.",
+   "size": [
+    2.83,
+    1.59,
+    0.09
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "tv_136": {
+   "kind": "tv",
+   "name": "136\\",
+   "desc": "A whole wall of screen, as big as the crew board. Needs a clear stretch of wall.",
+   "size": [
+    3.01,
+    1.69,
+    0.1
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "ramp_small": {
+   "kind": "ramp",
+   "name": "Small wooden ramp",
+   "desc": "A low plywood ramp. Hop a foot or two in the air.",
+   "size": [
+    1.6,
+    0.45,
+    2.0
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "ramp_kicker": {
+   "kind": "ramp",
+   "name": "Steep kicker ramp",
+   "desc": "Short and steep, curved all the way up to a lip of over 35 degrees. It throws you up more than along.",
+   "size": [
+    1.4,
+    0.6,
+    1.6
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "ramp_medium": {
+   "kind": "ramp",
+   "name": "Medium jump ramp",
+   "desc": "Proper air. Steady throttle up the face and keep your weight central.",
+   "size": [
+    2.0,
+    0.9,
+    3.2
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "ramp_large": {
+   "kind": "ramp",
+   "name": "Large jump ramp",
+   "desc": "Steel-framed launch ramp. Bring speed, and a landing.",
+   "size": [
+    2.6,
+    1.6,
+    4.8
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "ramp_xl": {
+   "kind": "ramp",
+   "name": "Big launch ramp",
+   "desc": "A stunt-show ramp on a braced steel frame. Clears a car or a bus with the big landing ramp beyond.",
+   "size": [
+    2.8,
+    2.2,
+    7.0
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "ramp_huge": {
+   "kind": "ramp",
+   "name": "Huge launch ramp",
+   "desc": "Bus height at the lip. Line it up with the row of buses and the huge landing ramp, and come in fast.",
+   "size": [
+    3.0,
+    3.0,
+    9.0
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "ramp_landing": {
+   "kind": "ramp",
+   "name": "Landing ramp",
+   "desc": "Long gentle slope to land on. Turn it to face a jump ramp, a bike's length or three away.",
+   "size": [
+    2.8,
+    1.5,
+    7.0
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "landing_xl": {
+   "kind": "ramp",
+   "name": "Big landing ramp",
+   "desc": "A flat top to clear and a long steel slope down. Face it to the big launch ramp.",
+   "size": [
+    3.0,
+    2.2,
+    9.5
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "landing_huge": {
+   "kind": "ramp",
+   "name": "Huge landing ramp",
+   "desc": "Its flat top is bus height: butt it up against the far side of the buses and come down the long slope.",
+   "size": [
+    3.2,
+    3.0,
+    13.0
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "tabletop": {
+   "kind": "obstacle",
+   "name": "Dirt tabletop",
+   "desc": "Up, across the flat top, and down the far side. Clear the top for the big landing.",
+   "size": [
+    3.2,
+    1.2,
+    9.0
+   ],
+   "yard": true,
+   "ride": true,
+   "sold": true
+  },
+  "barrels": {
+   "kind": "obstacle",
+   "name": "Row of oil drums",
+   "desc": "Three drums on their sides. The classic stunt-show jump.",
+   "size": [
+    1.9,
+    0.62,
+    0.9
+   ],
+   "yard": true,
+   "ride": true,
+   "sold": true
+  },
+  "log": {
+   "kind": "obstacle",
+   "name": "Log",
+   "desc": "Trials practice: wheelie the front over and let the back follow.",
+   "size": [
+    2.4,
+    0.45,
+    0.45
+   ],
+   "yard": true,
+   "ride": true,
+   "sold": true
+  },
+  "tyre_stack": {
+   "kind": "obstacle",
+   "name": "Tyre stack",
+   "desc": "Old car tyres piled up. A marker you can lean on, or a target to miss.",
+   "size": [
+    0.75,
+    0.9,
+    0.75
+   ],
+   "yard": true,
+   "solid": true,
+   "sold": true
+  },
+  "hay_bales": {
+   "kind": "obstacle",
+   "name": "Hay bales",
+   "desc": "Two bales side by side. Soft-ish.",
+   "size": [
+    2.2,
+    0.5,
+    1.0
+   ],
+   "yard": true,
+   "ride": true,
+   "sold": true
+  },
+  "car_wreck": {
+   "kind": "obstacle",
+   "name": "Old car",
+   "desc": "A rusty saloon with no engine. Jump it, if you dare.",
+   "size": [
+    1.75,
+    1.35,
+    4.0
+   ],
+   "yard": true,
+   "ride": true,
+   "solid": true,
+   "sold": true
+  },
+  "bus": {
+   "kind": "obstacle",
+   "name": "Old bus",
+   "desc": "A retired single-decker, parked broadside on. Solid to the roof, so you can land on it too.",
+   "size": [
+    10.0,
+    3.0,
+    2.5
+   ],
+   "yard": true,
+   "ride": true,
+   "solid": true,
+   "sold": true
+  },
+  "bus_row": {
+   "kind": "obstacle",
+   "name": "Row of old buses",
+   "desc": "Five old buses parked side by side, stunt-show style: the huge launch ramp one side, the huge landing ramp the other.",
+   "size": [
+    10.0,
+    3.0,
+    12.5
+   ],
+   "yard": true,
+   "ride": true,
+   "solid": true,
+   "sold": true
+  },
+  "wall_concrete": {
+   "kind": "barrier",
+   "name": "Concrete barrier",
+   "desc": "Road-works barrier. Builds a track edge that stays put.",
+   "size": [
+    2.0,
+    0.8,
+    0.6
+   ],
+   "yard": true,
+   "solid": true,
+   "sold": true
+  },
+  "wall_brick": {
+   "kind": "barrier",
+   "name": "Brick wall section",
+   "desc": "A short run of brick wall on a frame.",
+   "size": [
+    2.4,
+    1.2,
+    0.3
+   ],
+   "yard": true,
+   "solid": true,
+   "sold": true
+  },
+  "fence_wood": {
+   "kind": "barrier",
+   "name": "Wooden fence panel",
+   "desc": "Post and rail fence for marking out a paddock.",
+   "size": [
+    2.4,
+    1.1,
+    0.12
+   ],
+   "yard": true,
+   "solid": true,
+   "sold": true
+  },
+  "fence_mesh": {
+   "kind": "barrier",
+   "name": "Mesh fence panel",
+   "desc": "Site fencing on concrete feet. Keeps spectators back.",
+   "size": [
+    3.0,
+    2.0,
+    0.15
+   ],
+   "yard": true,
+   "solid": true,
+   "sold": true
+  },
+  "cone": {
+   "kind": "marker",
+   "name": "Traffic cone",
+   "desc": "Orange cone for slaloms and braking markers. Ride through it, it won't hurt.",
+   "size": [
+    0.36,
+    0.5,
+    0.36
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "post": {
+   "kind": "marker",
+   "name": "Marker post",
+   "desc": "Black and yellow bollard post.",
+   "size": [
+    0.15,
+    1.0,
+    0.15
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "flag_red": {
+   "kind": "marker",
+   "name": "Red course flag",
+   "desc": "A flag on a pole to mark a turn.",
+   "size": [
+    0.6,
+    2.2,
+    0.1
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "flag_blue": {
+   "kind": "marker",
+   "name": "Blue course flag",
+   "desc": "A flag on a pole to mark the other side of a gate.",
+   "size": [
+    0.6,
+    2.2,
+    0.1
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "flag_chequered": {
+   "kind": "marker",
+   "name": "Chequered flag",
+   "desc": "Start, finish, or just showing off.",
+   "size": [
+    0.6,
+    2.2,
+    0.1
+   ],
+   "yard": true,
+   "pass": true,
+   "sold": true
+  },
+  "trinket_bobblehead": {
+   "kind": "trinket",
+   "name": "Bobblehead racer",
+   "desc": "A little racer with a big nodding helmet. Put it on the bench and it nods along while you work.",
+   "size": [
+    0.12,
+    0.22,
+    0.12
+   ],
+   "sold": true
+  },
+  "trinket_gnome": {
+   "kind": "trinket",
+   "name": "Biker gnome",
+   "desc": "A garden gnome in a leather jacket and an open-face lid. Guards the door.",
+   "size": [
+    0.22,
+    0.4,
+    0.22
+   ],
+   "sold": true
+  },
+  "trinket_plant": {
+   "kind": "trinket",
+   "name": "Potted plant",
+   "desc": "A big leafy plant in a terracotta pot. Somebody has to water it.",
+   "size": [
+    0.45,
+    0.95,
+    0.45
+   ],
+   "sold": true
+  },
+  "trinket_photo": {
+   "kind": "trinket",
+   "name": "Framed photo",
+   "desc": "A framed photo of a bike on a mountain road at sunset. Hangs on a wall.",
+   "size": [
+    0.46,
+    0.36,
+    0.03
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "trinket_lava": {
+   "kind": "trinket",
+   "name": "Lava lamp",
+   "desc": "Orange goo rising and falling in a glowing lamp. Very seventies.",
+   "size": [
+    0.14,
+    0.42,
+    0.14
+   ],
+   "sold": true
+  },
+  "trinket_clock": {
+   "kind": "trinket",
+   "name": "Workshop wall clock",
+   "desc": "A big station clock that keeps the shed's time, hour, minute and second hands and all. Hangs on a wall.",
+   "size": [
+    0.42,
+    0.42,
+    0.06
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "trinket_clock_digital": {
+   "kind": "trinket",
+   "name": "Digital wall clock",
+   "desc": "A red LED wall clock showing the shed's time, the colon blinking. Hangs on a wall.",
+   "size": [
+    0.52,
+    0.2,
+    0.05
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "trinket_clock_desk": {
+   "kind": "trinket",
+   "name": "Digital desk clock",
+   "desc": "A little alarm clock with a green display showing the shed's time. Sits on a bench.",
+   "size": [
+    0.18,
+    0.09,
+    0.07
+   ],
+   "sold": true
+  },
+  "trinket_trophy": {
+   "kind": "trinket",
+   "name": "Gold race trophy",
+   "desc": "A gold cup on a wooden plinth. Nobody remembers what it was for.",
+   "size": [
+    0.2,
+    0.4,
+    0.2
+   ],
+   "sold": true
+  },
+  "trinket_rug": {
+   "kind": "trinket",
+   "name": "Chequered flag rug",
+   "desc": "A chequered flag rug for the floor. Lie on it to work under a bike.",
+   "size": [
+    1.6,
+    0.012,
+    1.0
+   ],
+   "sold": true
+  },
+  "trinket_radio": {
+   "kind": "trinket",
+   "name": "Toolbox radio",
+   "desc": "A yellow site radio in a roll cage, built to be dropped off a scaffold.",
+   "size": [
+    0.4,
+    0.28,
+    0.2
+   ],
+   "sold": true
+  },
+  "trinket_bike_model": {
+   "kind": "trinket",
+   "name": "Mini bike model",
+   "desc": "A die-cast model of a caf\u00e9 racer on a little display stand.",
+   "size": [
+    0.36,
+    0.22,
+    0.12
+   ],
+   "sold": false
+  },
+  "trinket_neon": {
+   "kind": "trinket",
+   "name": "Neon shed sign",
+   "desc": "A pink neon sign that says TORQUE SHED. Glows in the dark. Hangs on a wall.",
+   "size": [
+    0.9,
+    0.36,
+    0.06
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "trinket_adventure_photo": {
+   "kind": "trinket",
+   "name": "Adventure photo",
+   "desc": "The crew at the end of an adventure ride, framed. Hangs on a wall.",
+   "size": [
+    0.62,
+    0.5,
+    0.04
+   ],
+   "wall": true,
+   "sold": true
+  },
+  "yard_hump": {
+   "kind": "fixture",
+   "name": "Speed hump",
+   "desc": "",
+   "size": [
+    3.4,
+    0.08,
+    1.4
+   ],
+   "yard": true,
+   "sold": false,
+   "ride": true
+  },
+  "yard_whoop": {
+   "kind": "fixture",
+   "name": "Whoop",
+   "desc": "",
+   "size": [
+    4.0,
+    0.5,
+    3.2
+   ],
+   "yard": true,
+   "sold": false,
+   "ride": true
+  },
+  "yard_bunting": {
+   "kind": "fixture",
+   "name": "Bunting",
+   "desc": "",
+   "size": [
+    7.0,
+    5.0,
+    0.12
+   ],
+   "yard": true,
+   "sold": false,
+   "pass": true
+  },
+  "yard_board_0": {
+   "kind": "fixture",
+   "name": "0 m board",
+   "desc": "",
+   "size": [
+    0.8,
+    1.3,
+    0.06
+   ],
+   "yard": true,
+   "sold": false,
+   "pass": true
+  },
+  "yard_board_10": {
+   "kind": "fixture",
+   "name": "10 m board",
+   "desc": "",
+   "size": [
+    0.8,
+    1.3,
+    0.06
+   ],
+   "yard": true,
+   "sold": false,
+   "pass": true
+  },
+  "yard_board_20": {
+   "kind": "fixture",
+   "name": "20 m board",
+   "desc": "",
+   "size": [
+    0.8,
+    1.3,
+    0.06
+   ],
+   "yard": true,
+   "sold": false,
+   "pass": true
+  },
+  "yard_board_30": {
+   "kind": "fixture",
+   "name": "30 m board",
+   "desc": "",
+   "size": [
+    0.8,
+    1.3,
+    0.06
+   ],
+   "yard": true,
+   "sold": false,
+   "pass": true
+  },
+  "yard_board_40": {
+   "kind": "fixture",
+   "name": "40 m board",
+   "desc": "",
+   "size": [
+    0.8,
+    1.3,
+    0.06
+   ],
+   "yard": true,
+   "sold": false,
+   "pass": true
+  }
+ }
+}

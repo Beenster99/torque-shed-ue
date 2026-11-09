@@ -477,6 +477,16 @@ private:
 	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
 	// (TorqueWalkerKit.cpp): true when F went to one of them.
 	bool KitInput(float Dt, bool bF, bool bFDown);
+	// [furniture] The movable shed and yard kit (TorqueWalkerFurniture.cpp): the piece looked at (it
+	// wins over what FindTarget found when it's nearer), hold F on it to take hold of it, R turns it,
+	// F puts it down; its HUD lines and outline.
+	int32 TargetFurniture = 0;
+	bool bFurnArmed = false;
+	double FurnFHeld = 0.0;
+	void FindFurniture();
+	bool FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust);
+	bool FurnitureHud(TArray<FHudLine>& Lines) const;   // true: moving one, nothing else to show
+	void FurnitureOutline(TArray<UPrimitiveComponent*>& Lined) const;
 	bool bStandArmed = false;
 	double StandFHeld = 0.0;
 	bool bSprayAsked = false;

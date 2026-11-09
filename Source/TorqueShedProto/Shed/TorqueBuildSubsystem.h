@@ -23,6 +23,7 @@
 #include "Shed/TorqueFitApi.h"
 #include "Shed/TorquePaintBay.h"
 #include "Shed/TorqueShedPower.h"
+#include "Shed/TorqueFurniture.h"
 #include "TorqueBuildSubsystem.generated.h"
 
 class APawn;
@@ -217,6 +218,13 @@ enum class ETorqueShedAct : uint8
 	// trimmed for lightness.
 	Tune,
 	Lighten,
+	// [furniture] The shed's and the yard's movable kit (TorqueFurniture.h): piece Item taken hold of
+	// (hold F), turned by Amount degrees while it's moved (R), put down at Place (F); a new piece of
+	// model Part ordered from the parts computer (free: it's left by the door or in the yard's drop-off).
+	GrabFurniture,
+	TurnFurniture,
+	ReleaseFurniture,
+	OrderFurniture,
 	Count
 };
 
@@ -351,6 +359,12 @@ public:
 	int32 StandPushedBy() const { return StandPusher; }
 	int32 ExtinguisherHeldBy() const { return ExtinguisherBy; }
 	bool ExtinguisherSpraying() const { return ExtinguisherBy != 0 && bFoaming; }
+	// [furniture] The movable shed and yard kit (TorqueFurniture.h): every piece, one by id, and the
+	// piece Peer is moving (0: none).
+	const TArray<FTorqueFurniture>& Furniture() const { return Furnishings; }
+	const FTorqueFurniture* FurnitureById(int32 Id) const;
+	int32 FurnitureMovedBy(int32 Peer) const;
+	static bool IsFurnitureAct(ETorqueShedAct A);
 	// Where the engine stand starts (ue_build_shed.py / swaps.json engine_stand: at 560, -40, facing +y).
 	static FTransform StandHome() { return FTransform(FVector(560.0, -40.0, 0.0)); }
 	int32 RadioStation() const { return RadioTuned; }
@@ -530,6 +544,16 @@ private:
 	int32 StandPusher = 0;
 	int32 ExtinguisherBy = 0;
 	bool bFoaming = false;
+	// [furniture] (TorqueFurniture.cpp)
+	TArray<FTorqueFurniture> Furnishings;
+	int32 FurnitureNextId = 1;
+	bool bFurnished = false;   // the starting kit's been put out (an older save gets it when it loads)
+	void FurnishFresh();
+	FVector FurnitureDropAt(const TorqueFurniture::FModel& M) const;
+	FString CheckFurniture(int32 Peer, const FTorqueShedRequest& R) const;
+	FString ApplyFurniture(int32 Peer, const FTorqueShedRequest& R);
+	void DropFurnitureOf(int32 Peer);
+	static void SerializeFurniture(FArchive& Ar, bool bNet, TArray<FTorqueFurniture>& List, int32& NextIdIo);
 	FTorquePaintBay Paint;
 	double DynoBusyUntil = 0.0;      // the host's: no new run until this one is done (SharedNow)
 	TMap<int32, FTorqueItem> Items;

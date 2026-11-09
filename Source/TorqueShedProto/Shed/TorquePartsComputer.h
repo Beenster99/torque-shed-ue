@@ -20,7 +20,7 @@ class UTorqueBuildSubsystem;
 // What a click (or the pad) asks for.
 struct FTorqueComputerAction
 {
-	enum class EKind : uint8 { None, Close, OrderBike, OrderPart, BuyPaint, OrderNewBike };
+	enum class EKind : uint8 { None, Close, OrderBike, OrderPart, BuyPaint, OrderNewBike, OrderKit };
 	EKind Kind = EKind::None;
 	FName Part;                 // OrderPart
 	int32 Stock = INDEX_NONE;   // BuyPaint: the bay's stock index (FTorquePaintBay::BaseStock / TintStock)

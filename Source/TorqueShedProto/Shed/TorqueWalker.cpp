@@ -1,4 +1,6 @@
 #include "Shed/TorqueWalker.h"
+#include "Misc/ScopeExit.h"
+#include "Shed/TorqueFurniture.h"
 
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
@@ -344,6 +346,8 @@ void ATorqueWalker::BeginPlay()
 		bool bKit = false;
 		for (TActorIterator<ATorqueShedKit> It(World); It; ++It) bKit = true;
 		if (!bKit) World->SpawnActor<ATorqueShedKit>(FVector::ZeroVector, FRotator::ZeroRotator);
+		// [furniture] And the movable shed and yard kit, the yard's built-in pieces and its markings.
+		ATorqueFurnishings::SpawnMissing(World);
 	}
 	if (UTorqueBuildSubsystem* B = Shed()) TellHandle = B->OnTell.AddUObject(this, &ATorqueWalker::Told);
 }
@@ -807,7 +811,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
-	const bool bKitF = KitInput(Dt, bF, bFDown);
+	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown);   // [furniture] first
 	if (bKitF)
 	{
 	}
@@ -893,6 +897,7 @@ void ATorqueWalker::TestSpray(int32 Colour, FName Finish)
 
 void ATorqueWalker::FindTarget()
 {
+	ON_SCOPE_EXIT { FindFurniture(); };   // [furniture] a piece of kit nearer than what's found here wins
 	Target = ETorqueLook::None;
 	TargetBay = INDEX_NONE;
 	TargetSlot = NAME_None;
@@ -2012,6 +2017,7 @@ void ATorqueWalker::UpdateCues()
 		if (bShow && Now.Num() == 0 && Held == 0 && Target == ETorqueLook::Place && TargetPlace && SprayItem == 0
 			&& FTorqueLookOutline::Movable(TargetPlace->Kind))
 			Lined.Append(LookOutline.PlaceMeshes(World, TargetPlace));
+		if (bShow && Held == 0 && SprayItem == 0) FurnitureOutline(Lined);   // [furniture]
 		LookOutline.Show(Lined);
 	}
 	// A part in your hands: where it will go down (the floor, a bench, a machine), as a box its size
@@ -2445,6 +2451,18 @@ void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 			else Doing(TEXT("ordering a new bike"));
 		}
 		break;
+	case FTorqueComputerAction::EKind::OrderKit:
+		if (UTorqueBuildSubsystem* B = Shed())
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::OrderFurniture;
+			R.Part = A.Part;
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+			else if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(A.Part))
+				Say(FString::Printf(TEXT("%s ordered: it's %s."), *M->Name, M->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("outside, left of the roller door")), true, 4.0);
+		}
+		break;
 	case FTorqueComputerAction::EKind::BuyPaint:
 		if (UTorqueBuildSubsystem* B = Shed())
 		{
@@ -2594,6 +2612,7 @@ void ATorqueWalker::UpdateHud()
 	}
 	if (bComputer) return;   // the parts computer's page instead (DrawComputer)
 	if (bBench) return;   // the bench's card instead (DrawBench)
+	if (FurnitureHud(HudLines)) return;   // [furniture] moving a piece of kit
 	// The tool, and the spray can's paint.
 	FString ToolLine = FString::Printf(TEXT("%s (Q / E)"), TWI::ToolName(Tool));
 	if (TWI::Sprays(Tool))

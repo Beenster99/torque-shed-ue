@@ -131,4 +131,8 @@ public:
 	UPROPERTY() float StandYaw = 0.0f;
 	// The paint mixing bay (FTorquePaintBay::Serialize's bytes; none: a new garage's bay).
 	UPROPERTY() TArray<uint8> PaintBay;
+	// [furniture] The movable shed and yard kit (UTorqueBuildSubsystem::SerializeFurniture's bytes),
+	// and whether it's been put out (an older save hasn't: it gets the starting kit).
+	UPROPERTY() TArray<uint8> Furniture;
+	UPROPERTY() bool bFurnished = false;
 };

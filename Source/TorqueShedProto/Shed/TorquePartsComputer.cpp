@@ -1,6 +1,7 @@
 #include "Shed/TorquePartsComputer.h"
 
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueFurniture.h"
 #include "Shed/TorquePaintBay.h"
 #include "Shed/TorquePaintMix.h"
 #include "Shed/TorqueShedParts.h"
@@ -83,8 +84,21 @@ struct FPen
 	}
 };
 
+// The shed's kit and the yard's are under kinds named "kit:<kind>" (TorqueFurniture's kinds).
+const TCHAR* KitPrefix = TEXT("kit:");
+bool IsKit(FName K) { return K.ToString().StartsWith(KitPrefix); }
+FName KitKind(FName K) { return FName(*K.ToString().RightChop(4)); }
+FName KitOf(FName Kind) { return FName(*(FString(KitPrefix) + Kind.ToString())); }
+
 FString KindTitle(FName K)
 {
+	if (IsKit(K))
+	{
+		const FName Kind = KitKind(K);
+		for (const TPair<FName, FString>& KV : TorqueFurniture::Kinds())
+			if (KV.Key == Kind) return KV.Value;
+		return Kind.ToString();
+	}
 	if (K == Bikes) return TEXT("Project bikes");
 	if (K == PaintBases) return TEXT("Paint bases");
 	if (K == PaintTints) return TEXT("Tints");
@@ -169,6 +183,23 @@ void FTorquePartsComputer::Relist()
 		KindRows.Add({NAME_None, TEXT("Paint mixing bay")});
 		KindRows.Add({TPCI::PaintBases, FString()});
 		KindRows.Add({TPCI::PaintTints, FString()});
+		// The shed's kit, its trinkets and the yard's kit (equipment.gd's catalogue, trinkets.gd).
+		const TCHAR* Headings[] = {TEXT("Shed equipment"), TEXT("Trinkets"), TEXT("Yard kit")};
+		for (int32 H = 0; H < 3; ++H)
+		{
+			bool bHeaded = false;
+			for (const TPair<FName, FString>& KV : TorqueFurniture::Kinds())
+			{
+				TArray<FName> Sold = TorqueFurniture::SoldOfKind(KV.Key);
+				if (Sold.Num() == 0) continue;
+				const TorqueFurniture::FModel* M = TorqueFurniture::Find(Sold[0]);
+				const int32 Group = !M ? 0 : (M->bYard ? 2 : (M->Kind == FName(TEXT("trinket")) ? 1 : 0));
+				if (Group != H) continue;
+				if (!bHeaded) KindRows.Add({NAME_None, Headings[H]});
+				bHeaded = true;
+				KindRows.Add({TPCI::KitOf(KV.Key), FString()});
+			}
+		}
 	}
 	bool bKnown = false;
 	for (const FKindRow& K : KindRows) bKnown = bKnown || (!K.Kind.IsNone() && K.Kind == Kind);
@@ -182,6 +213,8 @@ void FTorquePartsComputer::Relist()
 		for (int32 I = 0; I < TorquePaintMix::Bases().Num(); ++I) Rows.Add({NAME_None, FTorquePaintBay::BaseStock(I)});
 	else if (Kind == TPCI::PaintTints)
 		for (int32 I = 0; I < TorquePaintMix::Tints().Num(); ++I) Rows.Add({NAME_None, FTorquePaintBay::TintStock(I)});
+	else if (TPCI::IsKit(Kind))
+		for (const FName& M : TorqueFurniture::SoldOfKind(TPCI::KitKind(Kind))) Rows.Add({M});
 	else
 		for (const FName& P : TorqueShedParts::PartsOfKind(Kind)) Rows.Add({P});
 	Row = Rows.Num() > 0 ? FMath::Clamp(Row, 0, Rows.Num() - 1) : 0;
@@ -246,7 +279,7 @@ FString FTorquePartsComputer::Describe() const
 
 FName FTorquePartsComputer::ScreenKind() const
 {
-	return (Kind == TPCI::Bikes || Kind == TPCI::PaintBases || Kind == TPCI::PaintTints) ? NAME_None : Kind;
+	return (Kind == TPCI::Bikes || Kind == TPCI::PaintBases || Kind == TPCI::PaintTints || TPCI::IsKit(Kind)) ? NAME_None : Kind;
 }
 
 TArray<FName> FTorquePartsComputer::ScreenRows() const
@@ -268,6 +301,11 @@ FTorqueComputerAction FTorquePartsComputer::OrderPicked() const
 		A.Stock = R.Stock;
 	}
 	else if (R.Part == FName(TEXT("bike"))) A.Kind = FTorqueComputerAction::EKind::OrderBike;
+	else if (TPCI::IsKit(Kind))
+	{
+		A.Kind = FTorqueComputerAction::EKind::OrderKit;
+		A.Part = R.Part;
+	}
 	else
 	{
 		A.Kind = FTorqueComputerAction::EKind::OrderPart;
@@ -389,6 +427,7 @@ void FTorquePartsComputer::ShowPicked(AHUD* Hud)
 			P->ShowBike(StyleParts);
 		}
 	}
+	else if (TPCI::IsKit(Kind)) P->ShowKit(R.Part);
 	else P->ShowPart(R.Part);
 }
 
@@ -528,6 +567,11 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			Name = TEXT("A project bike");
 			Sub = TEXT("Tired, rusty and complete: into a free bay");
 		}
+		else if (const TorqueFurniture::FModel* M = TPCI::IsKit(Kind) ? TorqueFurniture::Find(R.Part) : nullptr)
+		{
+			Name = M->Name;
+			Sub = M->Desc;
+		}
 		else
 		{
 			Name = TorqueShedParts::PartName(R.Part);
@@ -562,6 +606,18 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			Desc = TEXT("A tired, rusty bike, complete, put in the first free bay. Strip it down, clean it up, rebuild it and ride it out of the door.")
 				TEXT("\n\nIt comes in any of the styles: the one above is shown clean, as it was built.");
 			OrderText = TEXT("Order a project bike");
+		}
+		else if (const TorqueFurniture::FModel* M = TPCI::IsKit(Kind) ? TorqueFurniture::Find(R.Part) : nullptr)
+		{
+			Title = M->Name;
+			Spec = FString::Printf(TEXT("Size: %.1f m wide, %.1f m high, %.1f m deep"), M->Size.X / 100.0, M->Size.Y / 100.0, M->Size.Z / 100.0);
+			if (M->bRide) Spec += TEXT("\nThe bike rides on it");
+			else if (M->bSolid) Spec += TEXT("\nSolid: the bike bumps into it");
+			Desc = M->Desc;
+			Desc += M->bYard ? TEXT("\n\nArrives in the yard kit drop-off out on the pad. Hold F on it to take hold of it, walk to push it about, R to turn it, F to put it down.")
+				: (M->bWall ? TEXT("\n\nArrives outside, left of the roller door. Hold F on it to take hold of it, look at a wall and press F to hang it there.")
+				: TEXT("\n\nArrives outside, left of the roller door. Hold F on it to take hold of it, R to turn it, F to put it down."));
+			OrderText = TEXT("Order it");
 		}
 		else
 		{
