@@ -97,17 +97,23 @@ void ATorqueShedRadio::BeginPlay()
 {
 	Super::BeginPlay();
 	SetActorLocationAndRotation(TorqueShedRadio::At, FRotator::ZeroRotator);
-	// shed_radio.gd _ready, in cm: its front faces +x, its width along y (Torque Shed's x is our -y).
+	// The garage props' radio model (Tools/ue_import_props.py dresses the level with it, over the
+	// shelf, when it's been made): then it's that, and this only plays it and shows what's on.
+	const bool bModel = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Shed/Props/shed_radio/SM_shed_radio.SM_shed_radio"), nullptr, LOAD_NoWarn | LOAD_Quiet) != nullptr;
+	// Else shed_radio.gd _ready, in cm: its front faces +x, its width along y (Torque Shed's x is our -y).
 	const FRotator None = FRotator::ZeroRotator;
-	Piece(CubeMesh, FVector(0.0, 0.0, 13.0), FVector(16.0, 46.0, 26.0), None, FLinearColor(0.42f, 0.12f, 0.08f), 0.1f, 0.45f);   // the cabinet
-	Piece(CubeMesh, FVector(8.1, 10.0, 13.0), FVector(1.0, 20.0, 18.0), None, FLinearColor(0.75f, 0.68f, 0.52f), 0.0f, 0.9f);    // the grille cloth
-	for (int32 I = 0; I < 5; ++I)
-		Piece(CubeMesh, FVector(8.7, 10.0, 6.0 + 3.5 * I), FVector(0.4, 20.0, 0.6), None, FLinearColor(0.8f, 0.78f, 0.72f), 1.0f, 0.25f);
-	Piece(CubeMesh, FVector(8.2, -12.0, 17.0), FVector(0.6, 17.0, 7.0), None, FLinearColor(0.95f, 0.85f, 0.55f), 0.0f, 0.4f);    // the dial
-	Needle = Piece(CubeMesh, FVector(8.6, -5.0, 17.0), FVector(0.4, 0.5, 6.0), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
-	for (double Y : {-7.0, -17.0})   // the knobs
-		Piece(CylinderMesh, FVector(9.0, Y, 8.0), FVector(4.8, 4.8, 2.5), FRotator(90.0, 0.0, 0.0), FLinearColor(0.1f, 0.08f, 0.07f), 0.2f, 0.4f);
-	Piece(CylinderMesh, FVector(-4.0, -20.0, 45.0), FVector(0.7, 0.7, 45.0), FRotator(0.0, 0.0, 20.0), FLinearColor(0.85f, 0.86f, 0.88f), 1.0f, 0.15f);   // the aerial
+	if (!bModel)
+	{
+		Piece(CubeMesh, FVector(0.0, 0.0, 13.0), FVector(16.0, 46.0, 26.0), None, FLinearColor(0.42f, 0.12f, 0.08f), 0.1f, 0.45f);   // the cabinet
+		Piece(CubeMesh, FVector(8.1, 10.0, 13.0), FVector(1.0, 20.0, 18.0), None, FLinearColor(0.75f, 0.68f, 0.52f), 0.0f, 0.9f);    // the grille cloth
+		for (int32 I = 0; I < 5; ++I)
+			Piece(CubeMesh, FVector(8.7, 10.0, 6.0 + 3.5 * I), FVector(0.4, 20.0, 0.6), None, FLinearColor(0.8f, 0.78f, 0.72f), 1.0f, 0.25f);
+		Piece(CubeMesh, FVector(8.2, -12.0, 17.0), FVector(0.6, 17.0, 7.0), None, FLinearColor(0.95f, 0.85f, 0.55f), 0.0f, 0.4f);    // the dial
+		Needle = Piece(CubeMesh, FVector(8.6, -5.0, 17.0), FVector(0.4, 0.5, 6.0), None, FLinearColor(1.0f, 0.6f, 0.2f), 0.0f, 0.5f, 4.0f);
+		for (double Y : {-7.0, -17.0})   // the knobs
+			Piece(CylinderMesh, FVector(9.0, Y, 8.0), FVector(4.8, 4.8, 2.5), FRotator(90.0, 0.0, 0.0), FLinearColor(0.1f, 0.08f, 0.07f), 0.2f, 0.4f);
+		Piece(CylinderMesh, FVector(-4.0, -20.0, 45.0), FVector(0.7, 0.7, 45.0), FRotator(0.0, 0.0, 20.0), FLinearColor(0.85f, 0.86f, 0.88f), 1.0f, 0.15f);   // the aerial
+	}
 	// The station and the song over it.
 	Display = NewObject<UTextRenderComponent>(this);
 	Display->SetupAttachment(GetRootComponent());
