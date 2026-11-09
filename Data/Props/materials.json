@@ -1,61 +1,534 @@
 {
-  "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same.",
-  "scans": {
-    "painted": "metal_plate",
-    "metal": "metal_plate_02",
-    "wood": "wood_table_worn",
-    "plywood": "plywood",
-    "leather": "brown_leather",
-    "vinyl": "leather_red_02",
-    "fabric": "hessian_230",
-    "rubber": "rubber_tiles",
-    "concrete": "concrete_floor_worn_001"
+ "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same.",
+ "scans": {
+  "painted": "metal_plate",
+  "metal": "metal_plate_02",
+  "wood": "wood_table_worn",
+  "plywood": "plywood",
+  "leather": "brown_leather",
+  "vinyl": "leather_red_02",
+  "fabric": "hessian_230",
+  "rubber": "rubber_tiles",
+  "concrete": "concrete_floor_worn_001"
+ },
+ "materials": {
+  "paint_red": {
+   "base": "painted",
+   "tint": [
+    0.62,
+    0.07,
+    0.05
+   ],
+   "rough": 0.42,
+   "metal": 0.15,
+   "tile": 1.0
   },
-  "materials": {
-    "paint_red":       {"base": "painted", "tint": [0.62, 0.07, 0.05], "rough": 0.42, "metal": 0.15, "tile": 1.0},
-    "paint_blue":      {"base": "painted", "tint": [0.10, 0.30, 0.65], "rough": 0.42, "metal": 0.15, "tile": 1.0},
-    "paint_navy":      {"base": "painted", "tint": [0.12, 0.35, 0.62], "rough": 0.45, "metal": 0.15, "tile": 1.0},
-    "paint_shelf":     {"base": "painted", "tint": [0.20, 0.32, 0.50], "rough": 0.5, "metal": 0.2, "tile": 1.0},
-    "paint_orange":    {"base": "painted", "tint": [0.90, 0.45, 0.05], "rough": 0.45, "metal": 0.15, "tile": 1.0},
-    "paint_green":     {"base": "painted", "tint": [0.15, 0.45, 0.25], "rough": 0.45, "metal": 0.15, "tile": 1.0},
-    "paint_bin_green": {"base": "plastic", "tint": [0.06, 0.28, 0.10], "rough": 0.6, "tile": 2.0},
-    "paint_bin_blue":  {"base": "plastic", "tint": [0.05, 0.16, 0.42], "rough": 0.6, "tile": 2.0},
-    "paint_bin_black": {"base": "plastic", "tint": [0.03, 0.03, 0.035], "rough": 0.65, "tile": 2.0},
-    "paint_yellow":    {"base": "painted", "tint": [0.85, 0.62, 0.04], "rough": 0.45, "metal": 0.1, "tile": 1.0},
-    "paint_black":     {"base": "painted", "tint": [0.025, 0.025, 0.028], "rough": 0.5, "metal": 0.2, "tile": 1.0},
-    "paint_grey":      {"base": "painted", "tint": [0.25, 0.28, 0.30], "rough": 0.5, "metal": 0.2, "tile": 1.0},
-    "paint_board":     {"base": "painted", "tint": [0.62, 0.60, 0.56], "rough": 0.55, "metal": 0.2, "tile": 1.0},
-    "paint_cream":     {"base": "painted", "tint": [0.80, 0.76, 0.64], "rough": 0.5, "metal": 0.05, "tile": 1.0},
-    "paint_white":     {"base": "painted", "tint": [0.80, 0.80, 0.78], "rough": 0.45, "metal": 0.05, "tile": 1.0},
-    "steel":           {"base": "metal", "tint": [0.62, 0.62, 0.62], "rough": 0.38, "metal": 1.0, "tile": 2.0},
-    "steel_dark":      {"base": "metal", "tint": [0.18, 0.18, 0.19], "rough": 0.45, "metal": 1.0, "tile": 2.0},
-    "cast_iron":       {"base": "metal", "tint": [0.22, 0.22, 0.22], "rough": 0.6, "metal": 0.9, "tile": 3.0},
-    "chrome":          {"base": "metal", "tint": [0.90, 0.90, 0.90], "rough": 0.08, "metal": 1.0, "tile": 4.0},
-    "aluminium":       {"base": "metal", "tint": [0.80, 0.80, 0.80], "rough": 0.3, "metal": 1.0, "tile": 2.0},
-    "brass":           {"base": "metal", "tint": [0.78, 0.58, 0.25], "rough": 0.3, "metal": 1.0, "tile": 4.0},
-    "rubber":          {"base": "rubber", "tint": [0.025, 0.025, 0.025], "rough": 0.85, "tile": 6.0},
-    "plastic_black":   {"base": "plastic", "tint": [0.02, 0.02, 0.022], "rough": 0.45, "tile": 4.0},
-    "plastic_grey":    {"base": "plastic", "tint": [0.30, 0.31, 0.32], "rough": 0.5, "tile": 4.0},
-    "plastic_white":   {"base": "plastic", "tint": [0.78, 0.78, 0.76], "rough": 0.4, "tile": 4.0},
-    "plastic_red":     {"base": "plastic", "tint": [0.60, 0.04, 0.03], "rough": 0.4, "tile": 4.0},
-    "plastic_yellow":  {"base": "plastic", "tint": [0.85, 0.60, 0.03], "rough": 0.4, "tile": 4.0},
-    "wood_top":        {"base": "wood", "tint": [0.55, 0.36, 0.20], "rough": 0.55, "tile": 0.8},
-    "plywood":         {"base": "plywood", "tint": [0.72, 0.58, 0.40], "rough": 0.7, "tile": 0.8},
-    "pegboard":        {"base": "plywood", "tint": [0.55, 0.42, 0.28], "rough": 0.75, "tile": 0.8},
-    "vinyl_red":       {"base": "vinyl", "tint": [0.62, 0.06, 0.05], "rough": 0.35, "tile": 3.0},
-    "leather_brown":   {"base": "leather", "tint": [0.30, 0.13, 0.06], "rough": 0.5, "tile": 2.0},
-    "canvas_green":    {"base": "fabric", "tint": [0.13, 0.25, 0.13], "rough": 0.85, "tile": 3.0},
-    "glass":           {"base": "glass", "tint": [0.85, 0.9, 0.9], "rough": 0.03, "opacity": 0.25},
-    "screen":          {"base": "emissive", "tint": [0.01, 0.012, 0.015], "rough": 0.08, "emissive": 0.0},
-    "display_green":   {"base": "emissive", "tint": [0.10, 0.80, 0.40], "rough": 0.2, "emissive": 3.0},
-    "display_red":     {"base": "emissive", "tint": [0.90, 0.10, 0.05], "rough": 0.2, "emissive": 3.0},
-    "led_white":       {"base": "emissive", "tint": [1.0, 0.96, 0.9], "rough": 0.2, "emissive": 8.0},
-    "label_white":     {"base": "paper", "tint": [0.85, 0.84, 0.80], "rough": 0.6, "tile": 1.0},
-    "label_yellow":    {"base": "paper", "tint": [0.90, 0.75, 0.12], "rough": 0.6, "tile": 1.0},
-    "paper":           {"base": "paper", "tint": [0.92, 0.88, 0.78], "rough": 0.8, "tile": 1.0},
-    "cardboard":       {"base": "paper", "tint": [0.50, 0.36, 0.20], "rough": 0.85, "tile": 1.0},
-    "whiteboard":      {"base": "plastic", "tint": [0.90, 0.91, 0.91], "rough": 0.12, "tile": 1.0},
-    "foam_black":      {"base": "rubber", "tint": [0.03, 0.03, 0.03], "rough": 0.95, "tile": 4.0},
-    "solvent":         {"base": "glass", "tint": [0.35, 0.30, 0.12], "rough": 0.05, "opacity": 0.7}
+  "paint_blue": {
+   "base": "painted",
+   "tint": [
+    0.1,
+    0.3,
+    0.65
+   ],
+   "rough": 0.42,
+   "metal": 0.15,
+   "tile": 1.0
+  },
+  "paint_navy": {
+   "base": "painted",
+   "tint": [
+    0.12,
+    0.35,
+    0.62
+   ],
+   "rough": 0.45,
+   "metal": 0.15,
+   "tile": 1.0
+  },
+  "paint_shelf": {
+   "base": "painted",
+   "tint": [
+    0.2,
+    0.32,
+    0.5
+   ],
+   "rough": 0.5,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "paint_orange": {
+   "base": "painted",
+   "tint": [
+    0.9,
+    0.45,
+    0.05
+   ],
+   "rough": 0.45,
+   "metal": 0.15,
+   "tile": 1.0
+  },
+  "paint_green": {
+   "base": "painted",
+   "tint": [
+    0.15,
+    0.45,
+    0.25
+   ],
+   "rough": 0.45,
+   "metal": 0.15,
+   "tile": 1.0
+  },
+  "paint_bin_green": {
+   "base": "plastic",
+   "tint": [
+    0.06,
+    0.28,
+    0.1
+   ],
+   "rough": 0.6,
+   "tile": 2.0
+  },
+  "paint_bin_blue": {
+   "base": "plastic",
+   "tint": [
+    0.05,
+    0.16,
+    0.42
+   ],
+   "rough": 0.6,
+   "tile": 2.0
+  },
+  "paint_bin_black": {
+   "base": "plastic",
+   "tint": [
+    0.03,
+    0.03,
+    0.035
+   ],
+   "rough": 0.65,
+   "tile": 2.0
+  },
+  "paint_yellow": {
+   "base": "painted",
+   "tint": [
+    0.85,
+    0.62,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.1,
+   "tile": 1.0
+  },
+  "paint_black": {
+   "base": "painted",
+   "tint": [
+    0.025,
+    0.025,
+    0.028
+   ],
+   "rough": 0.5,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "paint_grey": {
+   "base": "painted",
+   "tint": [
+    0.25,
+    0.28,
+    0.3
+   ],
+   "rough": 0.5,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "paint_board": {
+   "base": "painted",
+   "tint": [
+    0.62,
+    0.6,
+    0.56
+   ],
+   "rough": 0.55,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "paint_cream": {
+   "base": "painted",
+   "tint": [
+    0.8,
+    0.76,
+    0.64
+   ],
+   "rough": 0.5,
+   "metal": 0.05,
+   "tile": 1.0
+  },
+  "paint_white": {
+   "base": "painted",
+   "tint": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "rough": 0.45,
+   "metal": 0.05,
+   "tile": 1.0
+  },
+  "steel": {
+   "base": "metal",
+   "tint": [
+    0.62,
+    0.62,
+    0.62
+   ],
+   "rough": 0.38,
+   "metal": 1.0,
+   "tile": 2.0
+  },
+  "steel_dark": {
+   "base": "metal",
+   "tint": [
+    0.18,
+    0.18,
+    0.19
+   ],
+   "rough": 0.45,
+   "metal": 1.0,
+   "tile": 2.0
+  },
+  "cast_iron": {
+   "base": "metal",
+   "tint": [
+    0.22,
+    0.22,
+    0.22
+   ],
+   "rough": 0.6,
+   "metal": 0.9,
+   "tile": 3.0
+  },
+  "chrome": {
+   "base": "metal",
+   "tint": [
+    0.9,
+    0.9,
+    0.9
+   ],
+   "rough": 0.08,
+   "metal": 1.0,
+   "tile": 4.0
+  },
+  "aluminium": {
+   "base": "metal",
+   "tint": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "rough": 0.3,
+   "metal": 1.0,
+   "tile": 2.0
+  },
+  "brass": {
+   "base": "metal",
+   "tint": [
+    0.78,
+    0.58,
+    0.25
+   ],
+   "rough": 0.3,
+   "metal": 1.0,
+   "tile": 4.0
+  },
+  "rubber": {
+   "base": "rubber",
+   "tint": [
+    0.025,
+    0.025,
+    0.025
+   ],
+   "rough": 0.85,
+   "tile": 6.0
+  },
+  "plastic_black": {
+   "base": "plastic",
+   "tint": [
+    0.02,
+    0.02,
+    0.022
+   ],
+   "rough": 0.45,
+   "tile": 4.0
+  },
+  "plastic_grey": {
+   "base": "plastic",
+   "tint": [
+    0.3,
+    0.31,
+    0.32
+   ],
+   "rough": 0.5,
+   "tile": 4.0
+  },
+  "plastic_white": {
+   "base": "plastic",
+   "tint": [
+    0.78,
+    0.78,
+    0.76
+   ],
+   "rough": 0.4,
+   "tile": 4.0
+  },
+  "plastic_red": {
+   "base": "plastic",
+   "tint": [
+    0.6,
+    0.04,
+    0.03
+   ],
+   "rough": 0.4,
+   "tile": 4.0
+  },
+  "plastic_yellow": {
+   "base": "plastic",
+   "tint": [
+    0.85,
+    0.6,
+    0.03
+   ],
+   "rough": 0.4,
+   "tile": 4.0
+  },
+  "wood_top": {
+   "base": "wood",
+   "tint": [
+    0.55,
+    0.36,
+    0.2
+   ],
+   "rough": 0.55,
+   "tile": 0.8
+  },
+  "plywood": {
+   "base": "plywood",
+   "tint": [
+    0.72,
+    0.58,
+    0.4
+   ],
+   "rough": 0.7,
+   "tile": 0.8
+  },
+  "pegboard": {
+   "base": "plywood",
+   "tint": [
+    0.55,
+    0.42,
+    0.28
+   ],
+   "rough": 0.75,
+   "tile": 0.8
+  },
+  "vinyl_red": {
+   "base": "vinyl",
+   "tint": [
+    0.62,
+    0.06,
+    0.05
+   ],
+   "rough": 0.35,
+   "tile": 3.0
+  },
+  "leather_brown": {
+   "base": "leather",
+   "tint": [
+    0.3,
+    0.13,
+    0.06
+   ],
+   "rough": 0.5,
+   "tile": 2.0
+  },
+  "canvas_green": {
+   "base": "fabric",
+   "tint": [
+    0.13,
+    0.25,
+    0.13
+   ],
+   "rough": 0.85,
+   "tile": 3.0
+  },
+  "glass": {
+   "base": "glass",
+   "tint": [
+    0.85,
+    0.9,
+    0.9
+   ],
+   "rough": 0.03,
+   "opacity": 0.25
+  },
+  "screen": {
+   "base": "emissive",
+   "tint": [
+    0.01,
+    0.012,
+    0.015
+   ],
+   "rough": 0.08,
+   "emissive": 0.0
+  },
+  "display_green": {
+   "base": "emissive",
+   "tint": [
+    0.1,
+    0.8,
+    0.4
+   ],
+   "rough": 0.2,
+   "emissive": 3.0
+  },
+  "display_red": {
+   "base": "emissive",
+   "tint": [
+    0.9,
+    0.1,
+    0.05
+   ],
+   "rough": 0.2,
+   "emissive": 3.0
+  },
+  "led_white": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.96,
+    0.9
+   ],
+   "rough": 0.2,
+   "emissive": 8.0
+  },
+  "label_white": {
+   "base": "paper",
+   "tint": [
+    0.85,
+    0.84,
+    0.8
+   ],
+   "rough": 0.6,
+   "tile": 1.0
+  },
+  "label_yellow": {
+   "base": "paper",
+   "tint": [
+    0.9,
+    0.75,
+    0.12
+   ],
+   "rough": 0.6,
+   "tile": 1.0
+  },
+  "paper": {
+   "base": "paper",
+   "tint": [
+    0.92,
+    0.88,
+    0.78
+   ],
+   "rough": 0.8,
+   "tile": 1.0
+  },
+  "cardboard": {
+   "base": "paper",
+   "tint": [
+    0.5,
+    0.36,
+    0.2
+   ],
+   "rough": 0.85,
+   "tile": 1.0
+  },
+  "whiteboard": {
+   "base": "plastic",
+   "tint": [
+    0.9,
+    0.91,
+    0.91
+   ],
+   "rough": 0.12,
+   "tile": 1.0
+  },
+  "foam_black": {
+   "base": "rubber",
+   "tint": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "rough": 0.95,
+   "tile": 4.0
+  },
+  "solvent": {
+   "base": "glass",
+   "tint": [
+    0.35,
+    0.3,
+    0.12
+   ],
+   "rough": 0.05,
+   "opacity": 0.7
+  },
+  "lava_glow": {
+   "base": "emissive",
+   "tint": [
+    0.9,
+    0.35,
+    0.05
+   ],
+   "rough": 0.1,
+   "emissive": 2.0
+  },
+  "lava_blob": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.55,
+    0.1
+   ],
+   "rough": 0.3,
+   "emissive": 4.0
+  },
+  "neon_pink": {
+   "base": "emissive",
+   "tint": [
+    1.0,
+    0.1,
+    0.55
+   ],
+   "rough": 0.2,
+   "emissive": 12.0
+  },
+  "rug_white": {
+   "base": "fabric",
+   "tint": [
+    0.75,
+    0.74,
+    0.7
+   ],
+   "rough": 0.95,
+   "tile": 4.0
+  },
+  "rug_black": {
+   "base": "fabric",
+   "tint": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "rough": 0.95,
+   "tile": 4.0
   }
+ }
 }
