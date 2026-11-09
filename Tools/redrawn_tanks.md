@@ -157,6 +157,10 @@ list naked; the naked reference bike still has no fairing.
 - Clean edges: the surface is a 3 px grid over the front view, but its outline points, the lamp, lamp
   housing and vent edges, and the drawn creases are snapped onto smooth curves (the zero level of each
   mask's smoothed signed distance), so no edge follows the pixel grid. The stays' outlines are snapped the same way.
+- Jaggy-free finish: the built shells (back faces offset along the surface normal) are rebuilt as one even
+  voxel surface (1.2 mm), smoothed, and decimated to about 90k triangles; each face takes the finish of the
+  nearest built face (lamp and vent finishes only on faces turned to the front), lone faces take their
+  neighbours' finish, and the points on each finish border are moved onto that border's smooth edge.
 - Shells: cowl 3 mm, separate smoked screen 4 mm (`glass`), lamps drawn in the fairing (`lens_white`,
   6 mm back, in a dark `plastic` housing 3 mm back); the fitted bike's own headlight is hidden. Hatched
   vents are 5 mm `plastic` recesses. The stays are 6 mm `black_metal` plates where the side view draws them,
