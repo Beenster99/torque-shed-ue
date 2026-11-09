@@ -88,22 +88,42 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	// The Godot game's own tank shapes, for the comparisons against it. A redrawn tank
-	// (Data/Parts/Redrawn, Tools/import_blender_parts.py --redrawn) carries loft keys measured off its
-	// new mesh in "keys" and the Godot shape's in "godot_keys".
+	// The Godot game's own tank shapes, parts and reference bikes, for the comparisons against it. A
+	// redrawn tank (Data/Parts/Redrawn, Tools/import_blender_parts.py --redrawn) carries loft keys measured
+	// off its new mesh in "keys" and the Godot shape's in "godot_keys"; the Godot parts the overlay took off
+	// sale are kept in Data/Parts/Redrawn/godot_removed.json; and Godot's reference bikes are the ones it
+	// dumped (SimTest/data/godot_reference.json), where the overlay gave a style a new reference part.
+	PartsDb GDb;
 	BikeLayout GLay;
 	{
+		Json PartsJson, Removed, GRef;
+		std::string RemovedText, GRefText, GPartsText = PartsText;
+		if (ReadFile(R + "/Data/Parts/Redrawn/godot_removed.json", RemovedText) && Json::Parse(RemovedText, Removed, &Error)
+			&& Json::Parse(PartsText, PartsJson, &Error))
+		{
+			for (const auto& [Kind, Parts] : Removed.O)
+				if (Json* Into = PartsJson.GetMutable(Kind))
+					for (const auto& [Id, P] : Parts.O) Into->Set(Id, P);
+			GPartsText = PartsJson.Dump(0);
+		}
 		Json LayJson;
 		std::string GodotText = LayoutText;
 		if (Json::Parse(LayoutText, LayJson, &Error))
+		{
 			if (Json* Shapes = LayJson.GetMutable("tank_shapes"))
-			{
 				for (auto& Member : Shapes->O)
 					if (const Json* Gk = Member.second.Get("godot_keys"))
 						*Member.second.GetMutable("keys") = Json(*Gk);
-				GodotText = LayJson.Dump(0);
-			}
-		if (!GLay.Load(GodotText, Db, Error))
+			if (ReadFile(R + "/SimTest/data/godot_reference.json", GRefText) && Json::Parse(GRefText, GRef, &Error) && GRef.Get("styles"))
+				if (Json* Builds = LayJson.GetMutable("reference_builds"))
+					for (const auto& [St, G] : GRef.Get("styles")->O)
+						if (Json* Bd = Builds->GetMutable(St))
+							if (const Json* Gp = G.Get("parts"))
+								for (const auto& [Slot, Id] : Gp->O)
+									if (Bd->Get(Slot)) Bd->Set(Slot, Id);
+			GodotText = LayJson.Dump(0);
+		}
+		if (!GDb.LoadFromText(GPartsText, Error) || !GLay.Load(GodotText, GDb, Error))
 		{
 			std::printf("FAIL %s\n", Error.c_str());
 			return 1;
