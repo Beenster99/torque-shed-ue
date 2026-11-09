@@ -1,0 +1,7 @@
+Sound: temple_bell.ogg, the Zenkō-ji temple bell, Nagano
+Source: https://archive.org/details/aporee_35163_40403
+Author: Felicity Ford, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY-SA 3.0 https://creativecommons.org/licenses/by-sa/3.0/
+Changes: 40 s cut from 108 s in, made mono, loudness levelled, faded out, Ogg Vorbis.
+Original description: Zenkō-ji Temple Bell, Motoyoshichō Nagano, Nagano-shi, Nagano-ken 381-0000, Japan - Zenkō-ji Temple Bell. This is a recording made of the special bell at the Zenkō-ji Temple in Nagano being struck to signal the hour. This bell is listed on the '100 soundscapes of Japan' list - https://en.wikipedia.org/wiki/100_Soundscapes_of_Japan - a fact that is also stated on a sign in front of the bell. The be
+Inputs: efe9fefa45cb

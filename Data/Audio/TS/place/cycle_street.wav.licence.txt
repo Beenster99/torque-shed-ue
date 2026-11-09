@@ -1,0 +1,7 @@
+Sound: cycle_street.ogg, street traffic by the Prinsengracht, Amsterdam
+Source: https://archive.org/details/aporee_7214_8930
+Author: Frank Schulte, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY-SA 3.0 https://creativecommons.org/licenses/by-sa/3.0/
+Changes: 40 s cut from 26 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: amsterdam, prinsengracht, street traffic. street traffic in the morning at a small one way street nearby the channel. bicycles, motorbikes, cars, lorries and passengerscity scapes international - social ambiences and topographic field recordings
+Inputs: 26191d5dba16

@@ -1,0 +1,7 @@
+Sound: stream.ogg, a river in the Pyrenees National Park
+Source: https://archive.org/details/aporee_24328_28237
+Author: Chloé Despax, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 30 s cut from 88 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Parc National des Pyrénées, France - River. 
+Inputs: ec268ae9e1d0

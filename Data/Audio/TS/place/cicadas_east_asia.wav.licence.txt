@@ -1,0 +1,7 @@
+Sound: cicadas_east_asia.ogg, Japanese cicadas, Yasu, Shiga
+Source: https://archive.org/details/aporee_37158_42563
+Author: Greg Peterson, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 30 s cut from 237 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Omifuji, Yasu City, Shiga Prefecture, Japan - Cicada. A lone cicada singing in a Japanese cherry tree along a path beside a small river. The high-frequency sound of the cicada can be heard over the rumble of a waterfall and some human sounds. (WLD 2017)
+Inputs: 94b5068ac72e

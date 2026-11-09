@@ -1,0 +1,7 @@
+Sound: birds_east_asia.ogg, a Japanese bush warbler (uguisu), Shiga
+Source: https://archive.org/details/aporee_37018_42418
+Author: Greg Peterson, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 40 s cut from 17 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Ichimiyake Yasu-shi, Shiga-ken, Japan - Japanese bush warbler. Japanese bush warbler (uguisu, 鶯), pheasant (kiji, キジ), crow (karasu, カラス), and traffic sounds recorded on a Sunday afternoon with a Sony PCM-M10 recorder and Micbooster Clippy EM172 stereo mics attached to a bicycle handlebar bag.
+Inputs: 044eb5fb357e

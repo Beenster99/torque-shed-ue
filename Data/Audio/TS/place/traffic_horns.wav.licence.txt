@@ -1,0 +1,7 @@
+Sound: traffic_horns.ogg, traffic in Alappuzha, Kerala
+Source: https://archive.org/details/aporee_63708_73349
+Author: stuartfisher60, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 40 s cut from 192 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Alappuzha, Kerala 688001, India - Alleppey Traffic. Traffic recorded in the 'rush hour' period along a main road
+Inputs: eeed5026716c

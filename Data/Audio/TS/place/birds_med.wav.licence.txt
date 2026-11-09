@@ -1,0 +1,7 @@
+Sound: birds_med.ogg, sparrows and cicadas at Dadia, Greece
+Source: https://archive.org/details/aporee_7097_8803
+Author: Veljo Runnel, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY-SA 3.0 https://creativecommons.org/licenses/by-sa/3.0/
+Changes: 40 s cut from 5 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Dadia, Greece, cicadas and sparrows. 
+Inputs: 4c41220dc3ca

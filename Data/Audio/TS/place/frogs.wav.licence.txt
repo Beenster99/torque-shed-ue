@@ -1,0 +1,7 @@
+Sound: frogs.ogg, frogs at a Taipei lake
+Source: https://archive.org/details/aporee_22892_26587
+Author: Wu,Tsan-Cheng, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 30 s cut from 83 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: 碧湖公園,Taipei City - Frogs sound. Frogs soundBinaural recordings ,Best with Headphone, Proposal to turn up the volume ,Sony PCM D100+ Soundman OKM II ( SoundMap20140504-5) , recorded by Wu,Tsan-Cheng 吳燦政
+Inputs: 2124c8ae6ee2

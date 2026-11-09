@@ -19,3 +19,4 @@ Data/Textures/*/
 # NVIDIA DLSS plugin: installed locally on the PC, not committed (1+ GB of binaries)
 Plugins/DLSS*/
 Plugins/StreamlineNGXCommon/
+SimTest/sfx_test.wav

@@ -1,0 +1,7 @@
+Sound: birds_temperate.ogg, a dawn chorus in a Slovak national park's woods
+Source: https://archive.org/details/aporee_48022_54624
+Author: Rastislav Gulasa, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY 3.0 https://creativecommons.org/licenses/by/3.0/
+Changes: 40 s cut from 1453 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Unnamed Road, Šumiac, Slovakia - Dawn Chorus in National Park Muránska Planina, Slovakia. Dawn chorus at Trsteník valley in National Park Muránska Planina.
+Inputs: 057ff7479f79

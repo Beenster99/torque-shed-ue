@@ -1,4 +1,5 @@
 #include "TorqueBikePawn.h"
+#include "TorqueAudio/TorqueSfx.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorquePlayerState.h"
@@ -1093,6 +1094,11 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
 	if (PC->WasInputKeyJustPressed(EKeys::H)) bShowHelp = !bShowHelp;
+	// The horn while J or the d-pad's left is held (Torque Shed: H or L3, both taken here).
+	const bool bHorn = PC->IsInputKeyDown(EKeys::J) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left) || (SonyDown & ESonyButton::DLeft) != 0;
+	if (bHorn != bHornDown && HornId)
+		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
+	bHornDown = bHorn;
 	// Backspace: back to the shed (when its map has been built).
 	if (PC->WasInputKeyJustPressed(EKeys::BackSpace) && TorqueFlow::BackToShed(this)) return;
 	if (PC->WasInputKeyJustPressed(EKeys::V) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
@@ -1887,12 +1893,22 @@ void ATorqueBikePawn::StartSound()
 	SoundAudio->RegisterComponent();
 	SoundAudio->SetSound(SoundWave);
 	UpdateSound(0.0f);   // a little queued before it starts
-	SoundAudio->Play();
+	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), then it catches.
+	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
+	if (Sfx && Sfx->PlayOn(TEXT("starter"), Root, FVector(0.0, 0.0, 45.0), 0.0f, 1.3f)) EngineCatchIn = 1.1;
+	else SoundAudio->Play();
+	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
 }
 
 void ATorqueBikePawn::UpdateSound(float Dt)
 {
 	if (!Sound || !SoundWave) return;
+	if (EngineCatchIn > 0.0)
+	{
+		EngineCatchIn -= Dt;
+		if (EngineCatchIn > 0.0) return;
+		SoundAudio->Play();   // it's caught: the engine from here
+	}
 	TorqueSound::RideInputs In;
 	In.Rpm = Sim->Rpm;
 	In.Throttle = Throttle;
@@ -2089,9 +2105,9 @@ void ATorqueBikePawn::DrawHud()
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
-		Add(TEXT("      R1 camera   Triangle back on road   D-pad up/down realism, right weather   Options menu"), Help, 0.85f);
+		Add(TEXT("      R1 camera   Triangle back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.85f);
 		Add(TEXT("Keys: W throttle   S brake   Space rear brake   A/D lean   Q/E weight   X/Z gear up/down   G auto/manual"), Help, 0.85f);
-		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   H help   Backspace shed   Esc menu"), Help, 0.85f);
+		Add(TEXT("      B ABS   C camera   R back on road   Home restart   [ ] realism   V weather   P performance   O log it   J horn   H help   Backspace shed   Esc menu"), Help, 0.85f);
 	}
 }
 

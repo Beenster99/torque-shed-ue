@@ -123,6 +123,17 @@ public:
 	FString TestOrder(FName Part);
 	FString Describe() const;
 	bool IsRidingOut() const { return bRidingOut; }
+	// For the shed's sounds (TorqueAudio/TorqueSfx): the tool in hand, whether it's at work (another
+	// player's too, from their hands), and the job the work button's on now (false: none).
+	ETorqueTool SoundTool() const { return Tool; }
+	bool SoundWorking() const { return Progress > 0.0; }
+	bool SoundJob(FTorqueShedRequest& Out) const
+	{
+		const FPlan* P = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
+		if (!P || !P->bValid || !P->Blocked.IsEmpty() || Progress <= 0.0 || P->bComputer) return false;
+		Out = P->Request;
+		return true;
+	}
 	FName TestTargetSlot() const { return TargetSlot; }
 	// Everything the last look went into, nearest first (for a test whose aim missed).
 	FString TestCandidates() const;

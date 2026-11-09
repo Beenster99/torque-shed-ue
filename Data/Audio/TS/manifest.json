@@ -1,0 +1,2005 @@
+{
+ "about": "Torque Shed's sounds for the Unreal port (TorqueSfx). Written by Tools/import_ts_sounds.py; do not edit.",
+ "recordings": {
+  "engines": [
+   "engines/2stroke_1/ex_off_12900.wav",
+   "engines/2stroke_1/ex_off_1530.wav",
+   "engines/2stroke_1/ex_off_2100.wav",
+   "engines/2stroke_1/ex_off_2820.wav",
+   "engines/2stroke_1/ex_off_5760.wav",
+   "engines/2stroke_1/ex_off_7500.wav",
+   "engines/2stroke_1/ex_off_9960.wav",
+   "engines/2stroke_1/ex_on_12900.wav",
+   "engines/2stroke_1/ex_on_5760.wav",
+   "engines/2stroke_1/ex_on_7500.wav",
+   "engines/2stroke_1/ex_on_9960.wav",
+   "engines/idle/boxer_1154.wav",
+   "engines/idle/inline_1304.wav",
+   "engines/idle/parallel_270_1319.wav",
+   "engines/idle/triple_1702.wav",
+   "engines/idle/twin_360_1290.wav",
+   "engines/idle/vtwin_45v_720.wav",
+   "engines/idle/vtwin_60v_1472.wav",
+   "engines/idle/vtwin_90v_1352.wav",
+   "engines/idle/vtwin_90v_full_1514.wav"
+  ],
+  "place": [
+   "birds_alpine",
+   "birds_arid",
+   "birds_east_asia",
+   "birds_med",
+   "birds_moor",
+   "birds_nz",
+   "birds_temperate",
+   "birds_tropical",
+   "birds_wetland",
+   "call_to_prayer",
+   "church_bells",
+   "cicadas",
+   "cicadas_east_asia",
+   "cowbells",
+   "cycle_street",
+   "frogs",
+   "goatbells",
+   "market",
+   "market_east_asia",
+   "market_latin",
+   "market_maghreb",
+   "scooters",
+   "sheep",
+   "stream",
+   "surf",
+   "temple_bell",
+   "traffic_horns"
+  ],
+  "sfx": [
+   "airhorn10",
+   "airhorn11",
+   "airhorn12",
+   "airhorn9",
+   "doorbellchime",
+   "dynofan1",
+   "dynofan2",
+   "dynofan3",
+   "dynofanbuild1",
+   "dynofanbuild2",
+   "dynofanbuild3",
+   "gearclick1",
+   "gearclick2",
+   "gearclick3",
+   "gearclick4",
+   "gearclunk1",
+   "gearclunk2",
+   "gearclunk3",
+   "gearclunk4",
+   "gearclunk5",
+   "gearclunk6",
+   "gearclunk7",
+   "gearclunk8",
+   "gearslick1",
+   "gearslick2",
+   "gearslick3",
+   "gearslick4",
+   "horn1",
+   "horn2",
+   "horn3",
+   "horn4",
+   "horn5",
+   "horn6",
+   "horn7",
+   "horn8",
+   "lightswitch1a",
+   "lightswitch1b",
+   "lightswitch2",
+   "lightswitch3",
+   "policehorn17",
+   "policehorn18",
+   "policehorn19",
+   "policehorn20",
+   "rollerdoor",
+   "sandblaster1",
+   "sandblaster2",
+   "sandblaster3",
+   "sandblaster4",
+   "shiphorn13",
+   "shiphorn14",
+   "shiphorn15",
+   "shiphorn16",
+   "starter1",
+   "starter2",
+   "starter3",
+   "starter4",
+   "starterstruggle1",
+   "starterstruggle2",
+   "starterstruggle3",
+   "starterstruggle4",
+   "telephone1",
+   "telephone2",
+   "telephone3",
+   "wrench1",
+   "wrench2",
+   "wrench3",
+   "wrench4"
+  ]
+ },
+ "sounds": {
+  "amb_out": {
+   "files": [
+    "synth/amb_out_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "amb_town": {
+   "files": [
+    "synth/amb_town_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "bead_pop": {
+   "files": [
+    "synth/bead_pop_0.wav",
+    "synth/bead_pop_1.wav",
+    "synth/bead_pop_2.wav",
+    "synth/bead_pop_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "beep": {
+   "files": [
+    "synth/beep_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "bell": {
+   "files": [
+    "synth/bell_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "bell_chime": {
+   "files": [
+    "sfx/doorbellchime.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "birds": {
+   "files": [
+    "synth/birds_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "blast": {
+   "files": [
+    "sfx/sandblaster1.wav",
+    "sfx/sandblaster2.wav",
+    "sfx/sandblaster3.wav",
+    "sfx/sandblaster4.wav"
+   ],
+   "from": "recording",
+   "loop": true
+  },
+  "blast_off": {
+   "files": [
+    "synth/blast_off_0.wav",
+    "synth/blast_off_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "blast_on": {
+   "files": [
+    "synth/blast_on_0.wav",
+    "synth/blast_on_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "changer": {
+   "files": [
+    "synth/changer_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "chirp": {
+   "files": [
+    "synth/chirp_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "clink": {
+   "files": [
+    "synth/clink_0.wav",
+    "synth/clink_1.wav",
+    "synth/clink_2.wav",
+    "synth/clink_3.wav",
+    "synth/clink_4.wav",
+    "synth/clink_5.wav",
+    "synth/clink_6.wav",
+    "synth/clink_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "clunk": {
+   "files": [
+    "synth/clunk_0.wav",
+    "synth/clunk_1.wav",
+    "synth/clunk_2.wav",
+    "synth/clunk_3.wav",
+    "synth/clunk_4.wav",
+    "synth/clunk_5.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "comp_off": {
+   "files": [
+    "synth/comp_off_0.wav",
+    "synth/comp_off_1.wav",
+    "synth/comp_off_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "comp_on": {
+   "files": [
+    "synth/comp_on_0.wav",
+    "synth/comp_on_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "compressor": {
+   "files": [
+    "synth/compressor_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "creak": {
+   "files": [
+    "synth/creak_0.wav",
+    "synth/creak_1.wav",
+    "synth/creak_2.wav",
+    "synth/creak_3.wav",
+    "synth/creak_4.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "crickets": {
+   "files": [
+    "synth/crickets_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "desk_bell": {
+   "files": [
+    "synth/desk_bell_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "door": {
+   "files": [
+    "sfx/rollerdoor.wav"
+   ],
+   "from": "recording",
+   "loop": true
+  },
+  "door_start": {
+   "files": [
+    "synth/door_start_0.wav",
+    "synth/door_start_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "door_stop": {
+   "files": [
+    "synth/door_stop_0.wav",
+    "synth/door_stop_1.wav",
+    "synth/door_stop_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "dyno_roller": {
+   "files": [
+    "synth/dyno_roller_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "fan": {
+   "files": [
+    "sfx/dynofan1.wav",
+    "sfx/dynofan2.wav",
+    "sfx/dynofan3.wav"
+   ],
+   "from": "recording",
+   "loop": true
+  },
+  "fan_build": {
+   "files": [
+    "sfx/dynofanbuild1.wav",
+    "sfx/dynofanbuild2.wav",
+    "sfx/dynofanbuild3.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "gear": {
+   "files": [
+    "synth/gear_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "grinder": {
+   "files": [
+    "synth/grinder_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "grinder_down": {
+   "files": [
+    "synth/grinder_down_0.wav",
+    "synth/grinder_down_1.wav",
+    "synth/grinder_down_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "grinder_up": {
+   "files": [
+    "synth/grinder_up_0.wav",
+    "synth/grinder_up_1.wav",
+    "synth/grinder_up_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "gun_off": {
+   "files": [
+    "synth/gun_off_0.wav",
+    "synth/gun_off_1.wav",
+    "synth/gun_off_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "gun_on": {
+   "files": [
+    "synth/gun_on_0.wav",
+    "synth/gun_on_1.wav",
+    "synth/gun_on_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "horn_air": {
+   "files": [
+    "sfx/airhorn10.wav",
+    "sfx/airhorn12.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_disc": {
+   "files": [
+    "sfx/horn2.wav",
+    "sfx/horn4.wav",
+    "sfx/horn7.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_high": {
+   "files": [
+    "sfx/horn6.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_low": {
+   "files": [
+    "sfx/horn1.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_pip": {
+   "files": [
+    "sfx/horn8.wav"
+   ],
+   "from": "recording",
+   "horn": "once",
+   "loop": false
+  },
+  "horn_police": {
+   "files": [
+    "sfx/policehorn17.wav",
+    "sfx/policehorn18.wav",
+    "sfx/policehorn19.wav",
+    "sfx/policehorn20.wav"
+   ],
+   "from": "recording",
+   "horn": "repeat",
+   "loop": false
+  },
+  "horn_ship": {
+   "files": [
+    "sfx/shiphorn13.wav",
+    "sfx/shiphorn15.wav",
+    "sfx/shiphorn16.wav"
+   ],
+   "from": "recording",
+   "horn": "once",
+   "loop": false
+  },
+  "horn_snail": {
+   "files": [
+    "sfx/horn3.wav",
+    "sfx/horn5.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_train": {
+   "files": [
+    "sfx/airhorn11.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_truck": {
+   "files": [
+    "sfx/airhorn9.wav"
+   ],
+   "from": "recording",
+   "horn": "hold",
+   "loop": false,
+   "loop_from": 0.25
+  },
+  "horn_tug": {
+   "files": [
+    "sfx/shiphorn14.wav"
+   ],
+   "from": "recording",
+   "horn": "once",
+   "loop": false
+  },
+  "hum_fluoro": {
+   "files": [
+    "synth/hum_fluoro_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "hum_led": {
+   "files": [
+    "synth/hum_led_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "impact_cardboard_concrete": {
+   "files": [
+    "synth/impact_cardboard_concrete_0.wav",
+    "synth/impact_cardboard_concrete_1.wav",
+    "synth/impact_cardboard_concrete_2.wav",
+    "synth/impact_cardboard_concrete_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_cardboard_ground": {
+   "files": [
+    "synth/impact_cardboard_ground_0.wav",
+    "synth/impact_cardboard_ground_1.wav",
+    "synth/impact_cardboard_ground_2.wav",
+    "synth/impact_cardboard_ground_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_cardboard_steel": {
+   "files": [
+    "synth/impact_cardboard_steel_0.wav",
+    "synth/impact_cardboard_steel_1.wav",
+    "synth/impact_cardboard_steel_2.wav",
+    "synth/impact_cardboard_steel_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_cardboard_wood": {
+   "files": [
+    "synth/impact_cardboard_wood_0.wav",
+    "synth/impact_cardboard_wood_1.wav",
+    "synth/impact_cardboard_wood_2.wav",
+    "synth/impact_cardboard_wood_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_metal_concrete": {
+   "files": [
+    "synth/impact_metal_concrete_0.wav",
+    "synth/impact_metal_concrete_1.wav",
+    "synth/impact_metal_concrete_2.wav",
+    "synth/impact_metal_concrete_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_metal_ground": {
+   "files": [
+    "synth/impact_metal_ground_0.wav",
+    "synth/impact_metal_ground_1.wav",
+    "synth/impact_metal_ground_2.wav",
+    "synth/impact_metal_ground_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_metal_steel": {
+   "files": [
+    "synth/impact_metal_steel_0.wav",
+    "synth/impact_metal_steel_1.wav",
+    "synth/impact_metal_steel_2.wav",
+    "synth/impact_metal_steel_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_metal_wood": {
+   "files": [
+    "synth/impact_metal_wood_0.wav",
+    "synth/impact_metal_wood_1.wav",
+    "synth/impact_metal_wood_2.wav",
+    "synth/impact_metal_wood_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_plastic_concrete": {
+   "files": [
+    "synth/impact_plastic_concrete_0.wav",
+    "synth/impact_plastic_concrete_1.wav",
+    "synth/impact_plastic_concrete_2.wav",
+    "synth/impact_plastic_concrete_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_plastic_ground": {
+   "files": [
+    "synth/impact_plastic_ground_0.wav",
+    "synth/impact_plastic_ground_1.wav",
+    "synth/impact_plastic_ground_2.wav",
+    "synth/impact_plastic_ground_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_plastic_steel": {
+   "files": [
+    "synth/impact_plastic_steel_0.wav",
+    "synth/impact_plastic_steel_1.wav",
+    "synth/impact_plastic_steel_2.wav",
+    "synth/impact_plastic_steel_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_plastic_wood": {
+   "files": [
+    "synth/impact_plastic_wood_0.wav",
+    "synth/impact_plastic_wood_1.wav",
+    "synth/impact_plastic_wood_2.wav",
+    "synth/impact_plastic_wood_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_rubber_concrete": {
+   "files": [
+    "synth/impact_rubber_concrete_0.wav",
+    "synth/impact_rubber_concrete_1.wav",
+    "synth/impact_rubber_concrete_2.wav",
+    "synth/impact_rubber_concrete_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_rubber_ground": {
+   "files": [
+    "synth/impact_rubber_ground_0.wav",
+    "synth/impact_rubber_ground_1.wav",
+    "synth/impact_rubber_ground_2.wav",
+    "synth/impact_rubber_ground_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_rubber_steel": {
+   "files": [
+    "synth/impact_rubber_steel_0.wav",
+    "synth/impact_rubber_steel_1.wav",
+    "synth/impact_rubber_steel_2.wav",
+    "synth/impact_rubber_steel_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_rubber_wood": {
+   "files": [
+    "synth/impact_rubber_wood_0.wav",
+    "synth/impact_rubber_wood_1.wav",
+    "synth/impact_rubber_wood_2.wav",
+    "synth/impact_rubber_wood_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_soft_concrete": {
+   "files": [
+    "synth/impact_soft_concrete_0.wav",
+    "synth/impact_soft_concrete_1.wav",
+    "synth/impact_soft_concrete_2.wav",
+    "synth/impact_soft_concrete_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_soft_ground": {
+   "files": [
+    "synth/impact_soft_ground_0.wav",
+    "synth/impact_soft_ground_1.wav",
+    "synth/impact_soft_ground_2.wav",
+    "synth/impact_soft_ground_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_soft_steel": {
+   "files": [
+    "synth/impact_soft_steel_0.wav",
+    "synth/impact_soft_steel_1.wav",
+    "synth/impact_soft_steel_2.wav",
+    "synth/impact_soft_steel_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "impact_soft_wood": {
+   "files": [
+    "synth/impact_soft_wood_0.wav",
+    "synth/impact_soft_wood_1.wav",
+    "synth/impact_soft_wood_2.wav",
+    "synth/impact_soft_wood_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "jet": {
+   "files": [
+    "synth/jet_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "jet_off": {
+   "files": [
+    "synth/jet_off_0.wav",
+    "synth/jet_off_1.wav",
+    "synth/jet_off_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "jet_on": {
+   "files": [
+    "synth/jet_on_0.wav",
+    "synth/jet_on_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "levelup": {
+   "files": [
+    "synth/levelup_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "light_switch": {
+   "files": [
+    "sfx/lightswitch1a.wav",
+    "sfx/lightswitch1b.wav",
+    "sfx/lightswitch2.wav",
+    "sfx/lightswitch3.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "phone_ring": {
+   "files": [
+    "sfx/telephone1.wav",
+    "sfx/telephone2.wav",
+    "sfx/telephone3.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "pickup": {
+   "files": [
+    "synth/pickup_0.wav",
+    "synth/pickup_1.wav",
+    "synth/pickup_2.wav",
+    "synth/pickup_3.wav",
+    "synth/pickup_4.wav",
+    "synth/pickup_5.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "ping": {
+   "files": [
+    "synth/ping_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "polisher": {
+   "files": [
+    "synth/polisher_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "pour": {
+   "files": [
+    "synth/pour_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "pump_off": {
+   "files": [
+    "synth/pump_off_0.wav",
+    "synth/pump_off_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "pump_on": {
+   "files": [
+    "synth/pump_on_0.wav",
+    "synth/pump_on_1.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "rain": {
+   "files": [
+    "synth/rain_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "rain_roof": {
+   "files": [
+    "synth/rain_roof_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "ratchet": {
+   "files": [
+    "sfx/wrench1.wav",
+    "sfx/wrench2.wav",
+    "sfx/wrench3.wav",
+    "sfx/wrench4.wav"
+   ],
+   "from": "recording",
+   "loop": true
+  },
+  "rattle": {
+   "files": [
+    "synth/rattle_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "sale_offer": {
+   "files": [
+    "synth/sale_offer_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "scrap": {
+   "files": [
+    "synth/scrap_0.wav",
+    "synth/scrap_1.wav",
+    "synth/scrap_2.wav",
+    "synth/scrap_3.wav",
+    "synth/scrap_4.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "screech": {
+   "files": [
+    "synth/screech_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "scrub": {
+   "files": [
+    "synth/scrub_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "shaker": {
+   "files": [
+    "synth/shaker_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "shift_click": {
+   "files": [
+    "sfx/gearclick1.wav",
+    "sfx/gearclick2.wav",
+    "sfx/gearclick3.wav",
+    "sfx/gearclick4.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "shift_clunk": {
+   "files": [
+    "sfx/gearclunk1.wav",
+    "sfx/gearclunk2.wav",
+    "sfx/gearclunk3.wav",
+    "sfx/gearclunk4.wav",
+    "sfx/gearclunk5.wav",
+    "sfx/gearclunk6.wav",
+    "sfx/gearclunk7.wav",
+    "sfx/gearclunk8.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "shift_slick": {
+   "files": [
+    "sfx/gearslick1.wav",
+    "sfx/gearslick2.wav",
+    "sfx/gearslick3.wav",
+    "sfx/gearslick4.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "slide_close": {
+   "files": [
+    "synth/slide_close_0.wav",
+    "synth/slide_close_1.wav",
+    "synth/slide_close_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "slide_open": {
+   "files": [
+    "synth/slide_open_0.wav",
+    "synth/slide_open_1.wav",
+    "synth/slide_open_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "slide_shut": {
+   "files": [
+    "synth/slide_shut_0.wav",
+    "synth/slide_shut_1.wav",
+    "synth/slide_shut_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "spray": {
+   "files": [
+    "synth/spray_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "spray_gun": {
+   "files": [
+    "synth/spray_gun_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "starter": {
+   "files": [
+    "sfx/starter1.wav",
+    "sfx/starter2.wav",
+    "sfx/starter3.wav",
+    "sfx/starter4.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "starter_struggle": {
+   "files": [
+    "sfx/starterstruggle1.wav",
+    "sfx/starterstruggle2.wav",
+    "sfx/starterstruggle3.wav",
+    "sfx/starterstruggle4.wav"
+   ],
+   "from": "recording",
+   "loop": false
+  },
+  "static": {
+   "files": [
+    "synth/static_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "step": {
+   "files": [
+    "synth/step_0.wav",
+    "synth/step_1.wav",
+    "synth/step_2.wav",
+    "synth/step_3.wav",
+    "synth/step_4.wav",
+    "synth/step_5.wav",
+    "synth/step_6.wav",
+    "synth/step_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_carpet": {
+   "files": [
+    "synth/step_carpet_0.wav",
+    "synth/step_carpet_1.wav",
+    "synth/step_carpet_2.wav",
+    "synth/step_carpet_3.wav",
+    "synth/step_carpet_4.wav",
+    "synth/step_carpet_5.wav",
+    "synth/step_carpet_6.wav",
+    "synth/step_carpet_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_concrete": {
+   "files": [
+    "synth/step_concrete_0.wav",
+    "synth/step_concrete_1.wav",
+    "synth/step_concrete_2.wav",
+    "synth/step_concrete_3.wav",
+    "synth/step_concrete_4.wav",
+    "synth/step_concrete_5.wav",
+    "synth/step_concrete_6.wav",
+    "synth/step_concrete_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_epoxy": {
+   "files": [
+    "synth/step_epoxy_0.wav",
+    "synth/step_epoxy_1.wav",
+    "synth/step_epoxy_2.wav",
+    "synth/step_epoxy_3.wav",
+    "synth/step_epoxy_4.wav",
+    "synth/step_epoxy_5.wav",
+    "synth/step_epoxy_6.wav",
+    "synth/step_epoxy_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_grass": {
+   "files": [
+    "synth/step_grass_0.wav",
+    "synth/step_grass_1.wav",
+    "synth/step_grass_2.wav",
+    "synth/step_grass_3.wav",
+    "synth/step_grass_4.wav",
+    "synth/step_grass_5.wav",
+    "synth/step_grass_6.wav",
+    "synth/step_grass_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_gravel": {
+   "files": [
+    "synth/step_gravel_0.wav",
+    "synth/step_gravel_1.wav",
+    "synth/step_gravel_2.wav",
+    "synth/step_gravel_3.wav",
+    "synth/step_gravel_4.wav",
+    "synth/step_gravel_5.wav",
+    "synth/step_gravel_6.wav",
+    "synth/step_gravel_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_metal": {
+   "files": [
+    "synth/step_metal_0.wav",
+    "synth/step_metal_1.wav",
+    "synth/step_metal_2.wav",
+    "synth/step_metal_3.wav",
+    "synth/step_metal_4.wav",
+    "synth/step_metal_5.wav",
+    "synth/step_metal_6.wav",
+    "synth/step_metal_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_puddle": {
+   "files": [
+    "synth/step_puddle_0.wav",
+    "synth/step_puddle_1.wav",
+    "synth/step_puddle_2.wav",
+    "synth/step_puddle_3.wav",
+    "synth/step_puddle_4.wav",
+    "synth/step_puddle_5.wav",
+    "synth/step_puddle_6.wav",
+    "synth/step_puddle_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_tarmac": {
+   "files": [
+    "synth/step_tarmac_0.wav",
+    "synth/step_tarmac_1.wav",
+    "synth/step_tarmac_2.wav",
+    "synth/step_tarmac_3.wav",
+    "synth/step_tarmac_4.wav",
+    "synth/step_tarmac_5.wav",
+    "synth/step_tarmac_6.wav",
+    "synth/step_tarmac_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_tile": {
+   "files": [
+    "synth/step_tile_0.wav",
+    "synth/step_tile_1.wav",
+    "synth/step_tile_2.wav",
+    "synth/step_tile_3.wav",
+    "synth/step_tile_4.wav",
+    "synth/step_tile_5.wav",
+    "synth/step_tile_6.wav",
+    "synth/step_tile_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "step_wood": {
+   "files": [
+    "synth/step_wood_0.wav",
+    "synth/step_wood_1.wav",
+    "synth/step_wood_2.wav",
+    "synth/step_wood_3.wav",
+    "synth/step_wood_4.wav",
+    "synth/step_wood_5.wav",
+    "synth/step_wood_6.wav",
+    "synth/step_wood_7.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "switch": {
+   "files": [
+    "synth/switch_0.wav",
+    "synth/switch_1.wav",
+    "synth/switch_2.wav",
+    "synth/switch_3.wav",
+    "synth/switch_4.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "ting": {
+   "files": [
+    "synth/ting_0.wav",
+    "synth/ting_1.wav",
+    "synth/ting_2.wav",
+    "synth/ting_3.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "tone_sales": {
+   "files": [
+    "synth/tone_sales_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "tone_shed": {
+   "files": [
+    "synth/tone_shed_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  },
+  "tube_start": {
+   "files": [
+    "synth/tube_start_0.wav",
+    "synth/tube_start_1.wav",
+    "synth/tube_start_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "wash_clean": {
+   "files": [
+    "synth/wash_clean_0.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "wash_ding": {
+   "files": [
+    "synth/wash_ding_0.wav",
+    "synth/wash_ding_1.wav",
+    "synth/wash_ding_2.wav"
+   ],
+   "from": "synth",
+   "loop": false
+  },
+  "washer": {
+   "files": [
+    "synth/washer_0.wav"
+   ],
+   "from": "synth",
+   "loop": true
+  }
+ },
+ "source": {
+  "commit": "0c4e6e7b6885b70b6185079e83df231efe9df882",
+  "godot": "4.7.2-stable (official)",
+  "repo": "Beenster99/torque-shed"
+ },
+ "synth": {
+  "amb_out": {
+   "files": [
+    "synth/amb_out_0.wav"
+   ],
+   "loop": true
+  },
+  "amb_town": {
+   "files": [
+    "synth/amb_town_0.wav"
+   ],
+   "loop": true
+  },
+  "bead_pop": {
+   "files": [
+    "synth/bead_pop_0.wav",
+    "synth/bead_pop_1.wav",
+    "synth/bead_pop_2.wav",
+    "synth/bead_pop_3.wav"
+   ],
+   "loop": false
+  },
+  "beep": {
+   "files": [
+    "synth/beep_0.wav"
+   ],
+   "loop": false
+  },
+  "bell": {
+   "files": [
+    "synth/bell_0.wav"
+   ],
+   "loop": false
+  },
+  "bell_chime": {
+   "files": [
+    "synth/bell_chime_0.wav"
+   ],
+   "loop": false
+  },
+  "birds": {
+   "files": [
+    "synth/birds_0.wav"
+   ],
+   "loop": true
+  },
+  "blast": {
+   "files": [
+    "synth/blast_0.wav"
+   ],
+   "loop": true
+  },
+  "blast_off": {
+   "files": [
+    "synth/blast_off_0.wav",
+    "synth/blast_off_1.wav"
+   ],
+   "loop": false
+  },
+  "blast_on": {
+   "files": [
+    "synth/blast_on_0.wav",
+    "synth/blast_on_1.wav"
+   ],
+   "loop": false
+  },
+  "changer": {
+   "files": [
+    "synth/changer_0.wav"
+   ],
+   "loop": true
+  },
+  "chirp": {
+   "files": [
+    "synth/chirp_0.wav"
+   ],
+   "loop": false
+  },
+  "clink": {
+   "files": [
+    "synth/clink_0.wav",
+    "synth/clink_1.wav",
+    "synth/clink_2.wav",
+    "synth/clink_3.wav",
+    "synth/clink_4.wav",
+    "synth/clink_5.wav",
+    "synth/clink_6.wav",
+    "synth/clink_7.wav"
+   ],
+   "loop": false
+  },
+  "clunk": {
+   "files": [
+    "synth/clunk_0.wav",
+    "synth/clunk_1.wav",
+    "synth/clunk_2.wav",
+    "synth/clunk_3.wav",
+    "synth/clunk_4.wav",
+    "synth/clunk_5.wav"
+   ],
+   "loop": false
+  },
+  "comp_off": {
+   "files": [
+    "synth/comp_off_0.wav",
+    "synth/comp_off_1.wav",
+    "synth/comp_off_2.wav"
+   ],
+   "loop": false
+  },
+  "comp_on": {
+   "files": [
+    "synth/comp_on_0.wav",
+    "synth/comp_on_1.wav"
+   ],
+   "loop": false
+  },
+  "compressor": {
+   "files": [
+    "synth/compressor_0.wav"
+   ],
+   "loop": true
+  },
+  "creak": {
+   "files": [
+    "synth/creak_0.wav",
+    "synth/creak_1.wav",
+    "synth/creak_2.wav",
+    "synth/creak_3.wav",
+    "synth/creak_4.wav"
+   ],
+   "loop": false
+  },
+  "crickets": {
+   "files": [
+    "synth/crickets_0.wav"
+   ],
+   "loop": true
+  },
+  "desk_bell": {
+   "files": [
+    "synth/desk_bell_0.wav"
+   ],
+   "loop": false
+  },
+  "door": {
+   "files": [
+    "synth/door_0.wav"
+   ],
+   "loop": true
+  },
+  "door_start": {
+   "files": [
+    "synth/door_start_0.wav",
+    "synth/door_start_1.wav"
+   ],
+   "loop": false
+  },
+  "door_stop": {
+   "files": [
+    "synth/door_stop_0.wav",
+    "synth/door_stop_1.wav",
+    "synth/door_stop_2.wav"
+   ],
+   "loop": false
+  },
+  "dyno_roller": {
+   "files": [
+    "synth/dyno_roller_0.wav"
+   ],
+   "loop": true
+  },
+  "fan": {
+   "files": [
+    "synth/fan_0.wav"
+   ],
+   "loop": true
+  },
+  "gear": {
+   "files": [
+    "synth/gear_0.wav"
+   ],
+   "loop": false
+  },
+  "grinder": {
+   "files": [
+    "synth/grinder_0.wav"
+   ],
+   "loop": true
+  },
+  "grinder_down": {
+   "files": [
+    "synth/grinder_down_0.wav",
+    "synth/grinder_down_1.wav",
+    "synth/grinder_down_2.wav"
+   ],
+   "loop": false
+  },
+  "grinder_up": {
+   "files": [
+    "synth/grinder_up_0.wav",
+    "synth/grinder_up_1.wav",
+    "synth/grinder_up_2.wav"
+   ],
+   "loop": false
+  },
+  "gun_off": {
+   "files": [
+    "synth/gun_off_0.wav",
+    "synth/gun_off_1.wav",
+    "synth/gun_off_2.wav"
+   ],
+   "loop": false
+  },
+  "gun_on": {
+   "files": [
+    "synth/gun_on_0.wav",
+    "synth/gun_on_1.wav",
+    "synth/gun_on_2.wav"
+   ],
+   "loop": false
+  },
+  "hum_fluoro": {
+   "files": [
+    "synth/hum_fluoro_0.wav"
+   ],
+   "loop": true
+  },
+  "hum_led": {
+   "files": [
+    "synth/hum_led_0.wav"
+   ],
+   "loop": true
+  },
+  "impact_cardboard_concrete": {
+   "files": [
+    "synth/impact_cardboard_concrete_0.wav",
+    "synth/impact_cardboard_concrete_1.wav",
+    "synth/impact_cardboard_concrete_2.wav",
+    "synth/impact_cardboard_concrete_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_cardboard_ground": {
+   "files": [
+    "synth/impact_cardboard_ground_0.wav",
+    "synth/impact_cardboard_ground_1.wav",
+    "synth/impact_cardboard_ground_2.wav",
+    "synth/impact_cardboard_ground_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_cardboard_steel": {
+   "files": [
+    "synth/impact_cardboard_steel_0.wav",
+    "synth/impact_cardboard_steel_1.wav",
+    "synth/impact_cardboard_steel_2.wav",
+    "synth/impact_cardboard_steel_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_cardboard_wood": {
+   "files": [
+    "synth/impact_cardboard_wood_0.wav",
+    "synth/impact_cardboard_wood_1.wav",
+    "synth/impact_cardboard_wood_2.wav",
+    "synth/impact_cardboard_wood_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_metal_concrete": {
+   "files": [
+    "synth/impact_metal_concrete_0.wav",
+    "synth/impact_metal_concrete_1.wav",
+    "synth/impact_metal_concrete_2.wav",
+    "synth/impact_metal_concrete_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_metal_ground": {
+   "files": [
+    "synth/impact_metal_ground_0.wav",
+    "synth/impact_metal_ground_1.wav",
+    "synth/impact_metal_ground_2.wav",
+    "synth/impact_metal_ground_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_metal_steel": {
+   "files": [
+    "synth/impact_metal_steel_0.wav",
+    "synth/impact_metal_steel_1.wav",
+    "synth/impact_metal_steel_2.wav",
+    "synth/impact_metal_steel_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_metal_wood": {
+   "files": [
+    "synth/impact_metal_wood_0.wav",
+    "synth/impact_metal_wood_1.wav",
+    "synth/impact_metal_wood_2.wav",
+    "synth/impact_metal_wood_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_plastic_concrete": {
+   "files": [
+    "synth/impact_plastic_concrete_0.wav",
+    "synth/impact_plastic_concrete_1.wav",
+    "synth/impact_plastic_concrete_2.wav",
+    "synth/impact_plastic_concrete_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_plastic_ground": {
+   "files": [
+    "synth/impact_plastic_ground_0.wav",
+    "synth/impact_plastic_ground_1.wav",
+    "synth/impact_plastic_ground_2.wav",
+    "synth/impact_plastic_ground_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_plastic_steel": {
+   "files": [
+    "synth/impact_plastic_steel_0.wav",
+    "synth/impact_plastic_steel_1.wav",
+    "synth/impact_plastic_steel_2.wav",
+    "synth/impact_plastic_steel_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_plastic_wood": {
+   "files": [
+    "synth/impact_plastic_wood_0.wav",
+    "synth/impact_plastic_wood_1.wav",
+    "synth/impact_plastic_wood_2.wav",
+    "synth/impact_plastic_wood_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_rubber_concrete": {
+   "files": [
+    "synth/impact_rubber_concrete_0.wav",
+    "synth/impact_rubber_concrete_1.wav",
+    "synth/impact_rubber_concrete_2.wav",
+    "synth/impact_rubber_concrete_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_rubber_ground": {
+   "files": [
+    "synth/impact_rubber_ground_0.wav",
+    "synth/impact_rubber_ground_1.wav",
+    "synth/impact_rubber_ground_2.wav",
+    "synth/impact_rubber_ground_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_rubber_steel": {
+   "files": [
+    "synth/impact_rubber_steel_0.wav",
+    "synth/impact_rubber_steel_1.wav",
+    "synth/impact_rubber_steel_2.wav",
+    "synth/impact_rubber_steel_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_rubber_wood": {
+   "files": [
+    "synth/impact_rubber_wood_0.wav",
+    "synth/impact_rubber_wood_1.wav",
+    "synth/impact_rubber_wood_2.wav",
+    "synth/impact_rubber_wood_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_soft_concrete": {
+   "files": [
+    "synth/impact_soft_concrete_0.wav",
+    "synth/impact_soft_concrete_1.wav",
+    "synth/impact_soft_concrete_2.wav",
+    "synth/impact_soft_concrete_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_soft_ground": {
+   "files": [
+    "synth/impact_soft_ground_0.wav",
+    "synth/impact_soft_ground_1.wav",
+    "synth/impact_soft_ground_2.wav",
+    "synth/impact_soft_ground_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_soft_steel": {
+   "files": [
+    "synth/impact_soft_steel_0.wav",
+    "synth/impact_soft_steel_1.wav",
+    "synth/impact_soft_steel_2.wav",
+    "synth/impact_soft_steel_3.wav"
+   ],
+   "loop": false
+  },
+  "impact_soft_wood": {
+   "files": [
+    "synth/impact_soft_wood_0.wav",
+    "synth/impact_soft_wood_1.wav",
+    "synth/impact_soft_wood_2.wav",
+    "synth/impact_soft_wood_3.wav"
+   ],
+   "loop": false
+  },
+  "jet": {
+   "files": [
+    "synth/jet_0.wav"
+   ],
+   "loop": true
+  },
+  "jet_off": {
+   "files": [
+    "synth/jet_off_0.wav",
+    "synth/jet_off_1.wav",
+    "synth/jet_off_2.wav"
+   ],
+   "loop": false
+  },
+  "jet_on": {
+   "files": [
+    "synth/jet_on_0.wav",
+    "synth/jet_on_1.wav"
+   ],
+   "loop": false
+  },
+  "levelup": {
+   "files": [
+    "synth/levelup_0.wav"
+   ],
+   "loop": false
+  },
+  "pickup": {
+   "files": [
+    "synth/pickup_0.wav",
+    "synth/pickup_1.wav",
+    "synth/pickup_2.wav",
+    "synth/pickup_3.wav",
+    "synth/pickup_4.wav",
+    "synth/pickup_5.wav"
+   ],
+   "loop": false
+  },
+  "ping": {
+   "files": [
+    "synth/ping_0.wav"
+   ],
+   "loop": false
+  },
+  "polisher": {
+   "files": [
+    "synth/polisher_0.wav"
+   ],
+   "loop": true
+  },
+  "pour": {
+   "files": [
+    "synth/pour_0.wav"
+   ],
+   "loop": true
+  },
+  "pump_off": {
+   "files": [
+    "synth/pump_off_0.wav",
+    "synth/pump_off_1.wav"
+   ],
+   "loop": false
+  },
+  "pump_on": {
+   "files": [
+    "synth/pump_on_0.wav",
+    "synth/pump_on_1.wav"
+   ],
+   "loop": false
+  },
+  "rain": {
+   "files": [
+    "synth/rain_0.wav"
+   ],
+   "loop": true
+  },
+  "rain_roof": {
+   "files": [
+    "synth/rain_roof_0.wav"
+   ],
+   "loop": true
+  },
+  "ratchet": {
+   "files": [
+    "synth/ratchet_0.wav"
+   ],
+   "loop": true
+  },
+  "rattle": {
+   "files": [
+    "synth/rattle_0.wav"
+   ],
+   "loop": true
+  },
+  "sale_offer": {
+   "files": [
+    "synth/sale_offer_0.wav"
+   ],
+   "loop": false
+  },
+  "scrap": {
+   "files": [
+    "synth/scrap_0.wav",
+    "synth/scrap_1.wav",
+    "synth/scrap_2.wav",
+    "synth/scrap_3.wav",
+    "synth/scrap_4.wav"
+   ],
+   "loop": false
+  },
+  "screech": {
+   "files": [
+    "synth/screech_0.wav"
+   ],
+   "loop": true
+  },
+  "scrub": {
+   "files": [
+    "synth/scrub_0.wav"
+   ],
+   "loop": true
+  },
+  "shaker": {
+   "files": [
+    "synth/shaker_0.wav"
+   ],
+   "loop": true
+  },
+  "slide_close": {
+   "files": [
+    "synth/slide_close_0.wav",
+    "synth/slide_close_1.wav",
+    "synth/slide_close_2.wav"
+   ],
+   "loop": false
+  },
+  "slide_open": {
+   "files": [
+    "synth/slide_open_0.wav",
+    "synth/slide_open_1.wav",
+    "synth/slide_open_2.wav"
+   ],
+   "loop": false
+  },
+  "slide_shut": {
+   "files": [
+    "synth/slide_shut_0.wav",
+    "synth/slide_shut_1.wav",
+    "synth/slide_shut_2.wav"
+   ],
+   "loop": false
+  },
+  "spray": {
+   "files": [
+    "synth/spray_0.wav"
+   ],
+   "loop": true
+  },
+  "spray_gun": {
+   "files": [
+    "synth/spray_gun_0.wav"
+   ],
+   "loop": true
+  },
+  "starter": {
+   "files": [
+    "synth/starter_0.wav"
+   ],
+   "loop": false
+  },
+  "static": {
+   "files": [
+    "synth/static_0.wav"
+   ],
+   "loop": true
+  },
+  "step": {
+   "files": [
+    "synth/step_0.wav",
+    "synth/step_1.wav",
+    "synth/step_2.wav",
+    "synth/step_3.wav",
+    "synth/step_4.wav",
+    "synth/step_5.wav",
+    "synth/step_6.wav",
+    "synth/step_7.wav"
+   ],
+   "loop": false
+  },
+  "step_carpet": {
+   "files": [
+    "synth/step_carpet_0.wav",
+    "synth/step_carpet_1.wav",
+    "synth/step_carpet_2.wav",
+    "synth/step_carpet_3.wav",
+    "synth/step_carpet_4.wav",
+    "synth/step_carpet_5.wav",
+    "synth/step_carpet_6.wav",
+    "synth/step_carpet_7.wav"
+   ],
+   "loop": false
+  },
+  "step_concrete": {
+   "files": [
+    "synth/step_concrete_0.wav",
+    "synth/step_concrete_1.wav",
+    "synth/step_concrete_2.wav",
+    "synth/step_concrete_3.wav",
+    "synth/step_concrete_4.wav",
+    "synth/step_concrete_5.wav",
+    "synth/step_concrete_6.wav",
+    "synth/step_concrete_7.wav"
+   ],
+   "loop": false
+  },
+  "step_epoxy": {
+   "files": [
+    "synth/step_epoxy_0.wav",
+    "synth/step_epoxy_1.wav",
+    "synth/step_epoxy_2.wav",
+    "synth/step_epoxy_3.wav",
+    "synth/step_epoxy_4.wav",
+    "synth/step_epoxy_5.wav",
+    "synth/step_epoxy_6.wav",
+    "synth/step_epoxy_7.wav"
+   ],
+   "loop": false
+  },
+  "step_grass": {
+   "files": [
+    "synth/step_grass_0.wav",
+    "synth/step_grass_1.wav",
+    "synth/step_grass_2.wav",
+    "synth/step_grass_3.wav",
+    "synth/step_grass_4.wav",
+    "synth/step_grass_5.wav",
+    "synth/step_grass_6.wav",
+    "synth/step_grass_7.wav"
+   ],
+   "loop": false
+  },
+  "step_gravel": {
+   "files": [
+    "synth/step_gravel_0.wav",
+    "synth/step_gravel_1.wav",
+    "synth/step_gravel_2.wav",
+    "synth/step_gravel_3.wav",
+    "synth/step_gravel_4.wav",
+    "synth/step_gravel_5.wav",
+    "synth/step_gravel_6.wav",
+    "synth/step_gravel_7.wav"
+   ],
+   "loop": false
+  },
+  "step_metal": {
+   "files": [
+    "synth/step_metal_0.wav",
+    "synth/step_metal_1.wav",
+    "synth/step_metal_2.wav",
+    "synth/step_metal_3.wav",
+    "synth/step_metal_4.wav",
+    "synth/step_metal_5.wav",
+    "synth/step_metal_6.wav",
+    "synth/step_metal_7.wav"
+   ],
+   "loop": false
+  },
+  "step_puddle": {
+   "files": [
+    "synth/step_puddle_0.wav",
+    "synth/step_puddle_1.wav",
+    "synth/step_puddle_2.wav",
+    "synth/step_puddle_3.wav",
+    "synth/step_puddle_4.wav",
+    "synth/step_puddle_5.wav",
+    "synth/step_puddle_6.wav",
+    "synth/step_puddle_7.wav"
+   ],
+   "loop": false
+  },
+  "step_tarmac": {
+   "files": [
+    "synth/step_tarmac_0.wav",
+    "synth/step_tarmac_1.wav",
+    "synth/step_tarmac_2.wav",
+    "synth/step_tarmac_3.wav",
+    "synth/step_tarmac_4.wav",
+    "synth/step_tarmac_5.wav",
+    "synth/step_tarmac_6.wav",
+    "synth/step_tarmac_7.wav"
+   ],
+   "loop": false
+  },
+  "step_tile": {
+   "files": [
+    "synth/step_tile_0.wav",
+    "synth/step_tile_1.wav",
+    "synth/step_tile_2.wav",
+    "synth/step_tile_3.wav",
+    "synth/step_tile_4.wav",
+    "synth/step_tile_5.wav",
+    "synth/step_tile_6.wav",
+    "synth/step_tile_7.wav"
+   ],
+   "loop": false
+  },
+  "step_wood": {
+   "files": [
+    "synth/step_wood_0.wav",
+    "synth/step_wood_1.wav",
+    "synth/step_wood_2.wav",
+    "synth/step_wood_3.wav",
+    "synth/step_wood_4.wav",
+    "synth/step_wood_5.wav",
+    "synth/step_wood_6.wav",
+    "synth/step_wood_7.wav"
+   ],
+   "loop": false
+  },
+  "switch": {
+   "files": [
+    "synth/switch_0.wav",
+    "synth/switch_1.wav",
+    "synth/switch_2.wav",
+    "synth/switch_3.wav",
+    "synth/switch_4.wav"
+   ],
+   "loop": false
+  },
+  "ting": {
+   "files": [
+    "synth/ting_0.wav",
+    "synth/ting_1.wav",
+    "synth/ting_2.wav",
+    "synth/ting_3.wav"
+   ],
+   "loop": false
+  },
+  "tone_sales": {
+   "files": [
+    "synth/tone_sales_0.wav"
+   ],
+   "loop": true
+  },
+  "tone_shed": {
+   "files": [
+    "synth/tone_shed_0.wav"
+   ],
+   "loop": true
+  },
+  "tube_start": {
+   "files": [
+    "synth/tube_start_0.wav",
+    "synth/tube_start_1.wav",
+    "synth/tube_start_2.wav"
+   ],
+   "loop": false
+  },
+  "wash_clean": {
+   "files": [
+    "synth/wash_clean_0.wav"
+   ],
+   "loop": false
+  },
+  "wash_ding": {
+   "files": [
+    "synth/wash_ding_0.wav",
+    "synth/wash_ding_1.wav",
+    "synth/wash_ding_2.wav"
+   ],
+   "loop": false
+  },
+  "washer": {
+   "files": [
+    "synth/washer_0.wav"
+   ],
+   "loop": true
+  }
+ },
+ "traffic": {
+  "diesel": "traffic/diesel.wav",
+  "petrol": "traffic/petrol.wav"
+ }
+}

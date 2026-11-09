@@ -1,0 +1,7 @@
+Sound: birds_arid.ogg, birds in the trees, Marrakesh
+Source: https://archive.org/details/aporee_65938_76445
+Author: Flavien Gillié, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: Public Domain Mark 1.0 https://creativecommons.org/publicdomain/mark/1.0/
+Changes: 40 s cut from 163 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: 96 Derb Sidi Massoud, Marrakesh 40000, Maroc - Birds in the trees. Recorded from a rooftop.A fly, distant traffic.Oiseaux dans les arbres enregistrés depuis une terrasse, battement d'ailes.Une mouche, circulation automobile dans le lointain.Tech Note : DPA 4060 (AB position) -> Zoom F3.
+Inputs: 00658b634a8a

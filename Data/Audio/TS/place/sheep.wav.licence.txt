@@ -1,0 +1,7 @@
+Sound: sheep.ogg, Rough Fell sheep at Kentmere, Cumbria
+Source: https://archive.org/details/aporee_16840_19588
+Author: Felicity Ford, on radio aporee ::: maps (https://aporee.org/maps/)
+Licence: CC BY-SA 3.0 https://creativecommons.org/licenses/by-sa/3.0/
+Changes: 40 s cut from 8 s in, made mono, loudness levelled, looped, Ogg Vorbis.
+Original description: Kentmere, Cumbria, UK - Amy Black's Rough Fell sheep. This is a recording of Amy Black's Rough Fell sheep. These are just the yowes; the recording was made in Winter, when the tups (rams) are separated from the yowes, (ewes) to make sure that lambing doesn't go on late into the summer. These Rough Fell sheep are a prize-winning flock and so very friendly and used to having a lot of human handling.
+Inputs: eb7600433eba
