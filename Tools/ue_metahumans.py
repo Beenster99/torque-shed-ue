@@ -219,8 +219,11 @@ def make(rig=False):
 
 
 INI = ("Config", "DefaultGame.ini")
+# /Game/MetaHumans is in here too: until avatars are assembled it only holds unbuilt
+# MetaHumanCharacter sources, which reference the never-cooked plugin and fail the cook
+# ("Content is missing from cook"). NeverCook wins over its DirectoriesToAlwaysCook line.
 NEVER_COOK = ["/MetaHumanCharacter", "/MetaHumanCoreTech", "/MetaHumanSDK", "/MetaHumanCoreTechLib",
-              "/MetaHumanDefaultPipeline"]
+              "/MetaHumanDefaultPipeline", "/Game/MetaHumans"]
 
 
 def plugin_mounts():
