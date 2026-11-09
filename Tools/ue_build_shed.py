@@ -926,14 +926,16 @@ def shell(m):
         for end in (-1.0, 1.0):
             yy = y + end * (SIDE_DOOR_HALF + 4.5)
             box("DoorFrame_%s_%d" % (name, end > 0), x - w / 2 - 3, x + w / 2 + 3, yy - 5.5, yy + 5.5, 0, SIDE_DOOR_TOP, m["yellow"], folder="Walls", collide=False)
+        # (Its underside 1 cm below the lintel's and the lining's, not in their plane: z-fighting.)
         box("DoorFrame_%s_Top" % name, x - w / 2 - 3, x + w / 2 + 3, y - SIDE_DOOR_HALF - 10, y + SIDE_DOOR_HALF + 10,
-            SIDE_DOOR_TOP, SIDE_DOOR_TOP + 11, m["yellow"], folder="Walls", collide=False)
+            SIDE_DOOR_TOP - 1, SIDE_DOOR_TOP + 11, m["yellow"], folder="Walls", collide=False)
         sx = -hx + 3 if x < 0 else hx - 3
         label_text("DoorSign_" + name, "STORAGE" if x < 0 else "PAINT SHOP", (sx, y, SIDE_DOOR_TOP + 35), 0.0 if x < 0 else 180.0,
                    22.0, (20, 20, 20), "Walls")
     for side in (-1.0, 1.0):
         px = side * (DOOR_HALF + 7.5)
-        box("DoorPost_%d" % (side > 0), px - 8.5, px + 8.5, hy - 2, hy + w + 6, 0, DOOR_TOP, m["yellow"], folder="Door", collide=False)
+        # (1 cm proud of the 2 cm lining, so their faces aren't one plane.)
+        box("DoorPost_%d" % (side > 0), px - 8.5, px + 8.5, hy - 3, hy + w + 6, 0, DOOR_TOP, m["yellow"], folder="Door", collide=False)
     # Roof: a flat steel roof on five trusses.
     box("Roof", -hx - 50, hx + 50, -hy - 50, hy + 50, h, h + 30, m["roof"], folder="Roof")
     for i in range(5):
@@ -1026,7 +1028,8 @@ def machines(m):
     box("RepairBench_Top", rx - 90, rx + 90, ry - 45, ry + 45, 90, 94, m["dark"], folder="Machines", collide=False)
     box("RepairBench_Grinder", rx + 40, rx + 70, ry - 10, ry + 20, 94, 120, m["red"], folder="Machines", collide=False)
     # The bins left of the roller door: general waste, plastic and metal recycling.
-    for name, x, col in (("General", -275.0, "dark"), ("Plastic", -333.0, "blue"), ("Metal", -391.0, "green")):
+    # 60 cm apart: the bins' wheel hubs stand 59 cm across (TorqueShedLayout.h BinX, swaps.json).
+    for name, x, col in (("General", -277.0, "dark"), ("Plastic", -337.0, "blue"), ("Metal", -397.0, "green")):
         y = hy - 33
         box("Bin_" + name, x - 26, x + 26, y - 30, y + 30, 0, 88, m[col], folder="Bins")
         box("Bin_%s_Lid" % name, x - 28, x + 28, y - 34, y + 32, 88, 92, m[col], folder="Bins", collide=False)
@@ -1041,7 +1044,8 @@ def wash_bay(m):
     box("WashBay_Pad", cx - hx, cx + hx, cy - hy, cy + hy, -12, 0.6, m["pad"], folder="WashBay")
     box("WashBay_Back", cx - hx - 20, cx + hx, cy - hy - 20, cy - hy, 0, h, m["cladding"], folder="WashBay")
     box("WashBay_Outer", cx - hx - 20, cx - hx, cy - hy, cy + hy + 20, 0, h, m["cladding"], folder="WashBay")
-    box("WashBay_Roof", cx - hx - 40, cx + hx, cy - hy - 40, cy + hy + 40, h, h + 12, m["roof"], folder="WashBay")
+    # (Its back end inside the storage room's wall, not in the wall's face: z-fighting.)
+    box("WashBay_Roof", cx - hx - 40, cx + hx, cy - hy - 30, cy + hy + 40, h, h + 12, m["roof"], folder="WashBay")
     box("WashBay_Post", cx - hx + 4, cx - hx + 16, cy + hy - 16, cy + hy - 4, 0, h, m["yellow"], folder="WashBay")
     box("WashBay_Fascia", cx - hx, cx + hx, cy + hy - 10, cy + hy, h - 20, h, m["yellow"], folder="WashBay", collide=False)
     label_text("WashBay_Sign", "WASH BAY", (cx, cy + hy + 2, h - 10), 90.0, 22.0, (20, 20, 20), "WashBay")

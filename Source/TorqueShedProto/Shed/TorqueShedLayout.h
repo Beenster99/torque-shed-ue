@@ -134,7 +134,7 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::Stand, TEXT("stand"), FVector(-25.0 + 560.0, -55.0, 55.0), FVector(565.0 + 20.0, -25.0, 90.0), FVector(560.0, -40.0, 82.0), 0);
 	// The bins left of the roller door, y 487 .. 547, 92 high.
 	static const TCHAR* const BinNames[] = {TEXT("general"), TEXT("plastic"), TEXT("metal")};
-	static const double BinX[] = {-275.0, -333.0, -391.0};
+	static const double BinX[] = {-277.0, -337.0, -397.0};   // 60 cm apart: the wheel hubs are 59 cm across
 	for (int32 I = 0; I < 3; ++I)
 		Add(ETorquePlace::Bin, BinNames[I], FVector(BinX[I] - 28.0, 483.0, 0.0), FVector(BinX[I] + 28.0, 549.0, 92.0),
 			FVector(BinX[I], 517.0, 92.0), I);
