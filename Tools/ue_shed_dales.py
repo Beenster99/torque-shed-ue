@@ -129,12 +129,12 @@ def place(tarmac):
         raise RuntimeError("the dale's land didn't import (no %s); see the Output Log" % probe)
     sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     for name, mesh in meshes.items():
-        # Distance fields (Lumen's) for kilometre-wide tiles are big and buy little out there: a
-        # coarse one near the pad, none further off.
+        # No distance fields (Lumen's) for the land: on tiles hundreds of metres across they are so
+        # coarse that Lumen's traces hit them as a black shadow along the pad's edge (round 131).
         try:
             bs = sme.get_lod_build_settings(mesh, 0)
             bs.set_editor_property("distance_field_resolution_scale",
-                                   0.5 if name.startswith("land_n") else 0.0 if name.startswith("land_") else 1.0)
+                                   0.0 if name.startswith("land_") else 1.0)
             sme.set_lod_build_settings(mesh, 0, bs)
         except Exception as e:
             unreal.log_warning("[Torque] dales: %s distance field left as it was (%s)" % (name, e))
@@ -160,6 +160,11 @@ def place(tarmac):
         comp.set_editor_property("can_ever_affect_navigation", False)
         if name == "beck":
             comp.set_editor_property("cast_shadow", False)
+        if name.startswith("land_"):
+            try:
+                comp.set_editor_property("affect_distance_field_lighting", False)
+            except Exception as e:
+                unreal.log_warning("[Torque] dales: %s still in the distance fields (%s)" % (name, e))
     log("land: %d meshes" % len(meshes))
 
     # Walls, scars, rocks, barns, sheep.
