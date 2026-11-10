@@ -128,6 +128,14 @@ public:
 	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
 	FString TestRideLog() const;
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+	// The test's stop: brakes on while the robot steers (bOn), then the robot off, the brakes left on.
+	void TestStop(bool bOn)
+	{
+		bTestStopping = bOn;
+		bTestAutoRide = bOn;
+		if (!bOn) { Throttle = 0.0; FrontBrake = 0.8; RearBrake = 0.4; }
+	}
+	double TestSpeedMph() const;
 	// Hold a lever for a check of the rider's fingers on it: Side 0 the clutch, 1 the front brake;
 	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
 	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
@@ -402,6 +410,7 @@ private:
 	FString CatalogueSpec;             // the spec, as logged
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
+	bool bTestStopping = false;   // TestStop: the robot brakes instead of holding its speed
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
 	bool bTestClutch = false;   // TestControl's clutch, held
 	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
