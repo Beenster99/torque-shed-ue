@@ -12,6 +12,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
@@ -536,6 +537,7 @@ struct FFabLook
 	FString Mesh;
 	FVector Box = FVector(100.0);
 	TArray<FVector> Copies;   // x, y (cm, the piece's frame), yaw (degrees)
+	TArray<FString> Paint;    // our MI_Prop_<key> over its body paint, one a copy in turn
 };
 
 const TMap<FName, FFabLook>& FabLooks()
@@ -564,6 +566,9 @@ const TMap<FName, FFabLook>& FabLooks()
 				L.Copies.Add(FVector(Num(R, 0), Num(R, 1), Num(R, 2)));
 			}
 		if (L.Copies.Num() == 0) L.Copies.Add(FVector::ZeroVector);
+		const TArray<TSharedPtr<FJsonValue>>* PaintA = nullptr;
+		if (O->TryGetArrayField(TEXT("paint"), PaintA))
+			for (const TSharedPtr<FJsonValue>& V : *PaintA) L.Paint.Add(V->AsString());
 		if (!L.Mesh.IsEmpty()) Looks.Add(FName(*KV.Key), L);
 	}
 	return Looks;
@@ -607,6 +612,24 @@ void DressFab(UStaticMeshComponent* Piece, FName Model)
 		Shell->ComponentTags.Add(TEXT("FabLook"));
 		Shell->SetupAttachment(Piece);
 		Shell->SetRelativeTransform(FTransform(Rot, Offset, FVector(Scale)));
+		// Its body paint: City Sample's car paint takes its colour from the Blueprint (custom
+		// primitive data), so on its own it's black (build 131's black bus roofs). Our own paint
+		// goes over any slot whose material is a car paint.
+		if (Look->Paint.Num() > 0)
+		{
+			const FString& Key = Look->Paint[I % Look->Paint.Num()];
+			UMaterialInterface* Ours = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Shed/Props/Materials/MI_Prop_%s.MI_Prop_%s"), *Key, *Key));
+			for (int32 Slot = 0; Slot < Shell->GetNumMaterials(); ++Slot)
+			{
+				UMaterialInterface* Theirs = Shell->GetMaterial(Slot);
+				const UMaterial* Base = Theirs ? Theirs->GetBaseMaterial() : nullptr;
+				const FString BaseName = Base ? Base->GetName() : FString();
+				if (I == 0)
+					UE_LOG(LogTemp, Log, TEXT("Torque furniture: %s Fab look slot %d: %s (base %s)"), *Model.ToString(), Slot,
+						Theirs ? *Theirs->GetName() : TEXT("none"), *BaseName);
+				if (Ours && BaseName.Contains(TEXT("Paint"))) Shell->SetMaterial(Slot, Ours);
+			}
+		}
 		Shell->RegisterComponent();
 	}
 	Piece->SetRenderInMainPass(false);

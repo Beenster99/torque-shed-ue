@@ -1,20 +1,83 @@
 {
- "about": "Yard kit pieces drawn with a Fab model instead of our own (beenster, Nov 10: 'cant you pick the vehicles from the fab packs we downloaded?'). Source/TorqueShedProto/Shed/TorqueFurniture.cpp DressFab: the piece's own mesh still collides, is looked at and outlined, but isn't drawn; each copy of the Fab mesh is turned so its long side lies along the box's, scaled (uniformly) to the box's length, centred on [x, y] (cm, the piece's frame: x across, y to its front), stood on the ground and turned by yaw. A Fab mesh that isn't in the project (or isn't cooked) leaves our own model drawn. The packs live in /Content (never committed): City Sample Vehicles and Vehicle Variety Pack vol 1, both in beenster's Fab library. No brand names or logos in either.",
+ "about": "Yard kit pieces drawn with a Fab model instead of our own (beenster, Nov 10: 'cant you pick the vehicles from the fab packs we downloaded?'). Source/TorqueShedProto/Shed/TorqueFurniture.cpp DressFab: the piece's own mesh still collides, is looked at and outlined, but isn't drawn; each copy of the Fab mesh is turned so its long side lies along the box's, scaled (uniformly) to the box's length, centred on [x, y] (cm, the piece's frame: x across, y to its front), stood on the ground and turned by yaw. A Fab mesh that isn't in the project (or isn't cooked) leaves our own model drawn. The packs live in /Content (never committed): City Sample Vehicles and Vehicle Variety Pack vol 1, both in beenster's Fab library. No brand names or logos in either. paint: our MI_Prop_<key> (materials.json) put over every slot whose base material's name has 'Paint' in it (City Sample's car paint is black without its Blueprint), one key a copy in turn; each slot is logged once.",
  "looks": {
   "bus": {
    "mesh": "/Game/CitySampleVehicles/vehicle10_Bus/Mesh/SM_vehBus_vehicle10_LOD.SM_vehBus_vehicle10_LOD",
-   "box": [1000, 250, 300],
-   "copies": [[0, 0, 0]]
+   "box": [
+    1000,
+    250,
+    300
+   ],
+   "copies": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "paint": [
+    "bus_red"
+   ]
   },
   "bus_row": {
    "mesh": "/Game/CitySampleVehicles/vehicle10_Bus/Mesh/SM_vehBus_vehicle10_LOD.SM_vehBus_vehicle10_LOD",
-   "box": [1000, 250, 300],
-   "copies": [[0, -500, 0], [0, -250, 180], [0, 0, 0], [0, 250, 180], [0, 500, 0]]
+   "box": [
+    1000,
+    250,
+    300
+   ],
+   "copies": [
+    [
+     0,
+     -500,
+     0
+    ],
+    [
+     0,
+     -250,
+     180
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     250,
+     180
+    ],
+    [
+     0,
+     500,
+     0
+    ]
+   ],
+   "paint": [
+    "bus_red",
+    "bus_green",
+    "bus_blue",
+    "bus_cream",
+    "bus_orange"
+   ]
   },
   "car_wreck": {
    "mesh": "/Game/VehicleVarietyPack/Meshes/SM_Hatchback.SM_Hatchback",
-   "box": [175, 400, 135],
-   "copies": [[0, 0, 0]]
+   "box": [
+    175,
+    400,
+    135
+   ],
+   "copies": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "paint": [
+    "car_paint"
+   ]
   }
  }
 }
