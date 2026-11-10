@@ -143,7 +143,7 @@ public:
 	void TestStartMove(int32 Kind, double Mph, bool bFlat = false);
 	bool TestMoveBusy() const { return TestMove >= 0; }
 	const FString& TestMoveResult() const { return TestMoveText; }
-	// And the camera: 0 chase, 1 first person, 2 chin, 3 the showroom orbit held at Yaw degrees round
+	// And the camera: 0 chase, 1 first person, 2 chin, 4 drive-by, 3 the showroom orbit held at Yaw degrees round
 	// from straight ahead (90: side on from the bike's right).
 	// Dist and Fov: the orbit's distance (cm) and field of view (degrees), 0 for the showroom's own.
 	// Rise: the orbit's height above what it looks at (cm; 0 for the showroom's own, below 0 looks up
@@ -299,8 +299,28 @@ private:
 	bool bGhostHidden = false;   // the respawn ghost's blink: the bike and rider hidden this frame
 
 	// Camera.
-	int32 CameraMode = 0;             // 0 chase, 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit
-	static constexpr int32 CameraModes = 4;
+	// 0 third person (chase), 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit, 4 drive-by.
+	// The Camera key cycles first person, third person, drive-by (beenster); 2 and 3 are the tests'
+	// (-TorqueCamera=, TestCamera). Falling off switches to drive-by till you're back on (bCrashCam).
+	int32 CameraMode = 0;
+	static constexpr int32 CameraModes = 5;
+	static constexpr int32 CamChase = 0, CamFirst = 1, CamDriveBy = 4;
+	void NextCamera();
+	bool bCrashCam = false;           // drive-by because you fell off: back to CrashCamFrom when you're on again
+	int32 CrashCamFrom = 0;
+	// Third person, set by the player (FTorqueProfile::ChaseDist/Height/Tilt, saved with the character).
+	// Pad: R1 held with the right stick (up / down height, left / right distance) and the D-pad (tilt).
+	bool AdjustChase(const APlayerController* PC, float Dt, double PadX, double PadY, bool bPadHeld, int32 PadTilt);
+	double ChaseSaveIn = -1.0;        // seconds till the changed camera is saved (-1: nothing to save)
+	double CamNoteFor = 0.0;          // the view's name on screen after a change
+	FString CamNote;
+	// Drive-by: a camera standing at the roadside ahead, turning to watch you go past, then moving on
+	// down the road ahead of you (or, falling off, watching where you're sliding to).
+	void PlaceDriveBy(bool bCrash);
+	void UpdateDriveBy(float Dt);
+	bool bDriveByPlaced = false;
+	FVector DriveByPos = FVector::ZeroVector, DriveByLook = FVector::ZeroVector;
+	double DriveByFov = 40.0, DriveByBlocked = 0.0, DriveBySide = 1.0;
 	double OrbitYaw = 40.0;           // showroom: degrees round from straight ahead, to the right
 	double OrbitDist = 270.0, OrbitFov = 40.0, OrbitRise = 0.0;
 	int32 OrbitAt = 0;   // TestCamera's: 0 the bike, 1 the left hand, 2 the right   // the showroom's distance (cm) and field of view

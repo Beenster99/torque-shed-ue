@@ -66,8 +66,21 @@ FTorqueProfile& FTorqueProfile::Mine()
 		GConfig->GetFloat(Section, TEXT("Height"), P.Height, GGameUserSettingsIni);
 		for (int32 I = 0; I < NumFace; ++I)
 			GConfig->GetFloat(Section, *FString::Printf(TEXT("Face%d"), I), P.Face[I], GGameUserSettingsIni);
+		GConfig->GetFloat(Section, TEXT("ChaseDist"), P.ChaseDist, GGameUserSettingsIni);
+		GConfig->GetFloat(Section, TEXT("ChaseHeight"), P.ChaseHeight, GGameUserSettingsIni);
+		GConfig->GetFloat(Section, TEXT("ChaseTilt"), P.ChaseTilt, GGameUserSettingsIni);
+		GConfig->GetInt(Section, TEXT("RideView"), P.RideView, GGameUserSettingsIni);
+		P.ClampChase();
 	}
 	return P;
+}
+
+void FTorqueProfile::ClampChase()
+{
+	ChaseDist = FMath::Clamp(ChaseDist, ChaseDistMin, ChaseDistMax);
+	ChaseHeight = FMath::Clamp(ChaseHeight, ChaseHeightMin, ChaseHeightMax);
+	ChaseTilt = FMath::Clamp(ChaseTilt, ChaseTiltMin, ChaseTiltMax);
+	if (RideView != 0 && RideView != 1 && RideView != 4) RideView = 0;
 }
 
 void FTorqueProfile::Save() const
@@ -78,5 +91,9 @@ void FTorqueProfile::Save() const
 	GConfig->SetFloat(Section, TEXT("Height"), Height, GGameUserSettingsIni);
 	for (int32 I = 0; I < NumFace; ++I)
 		GConfig->SetFloat(Section, *FString::Printf(TEXT("Face%d"), I), Face[I], GGameUserSettingsIni);
+	GConfig->SetFloat(Section, TEXT("ChaseDist"), ChaseDist, GGameUserSettingsIni);
+	GConfig->SetFloat(Section, TEXT("ChaseHeight"), ChaseHeight, GGameUserSettingsIni);
+	GConfig->SetFloat(Section, TEXT("ChaseTilt"), ChaseTilt, GGameUserSettingsIni);
+	GConfig->SetInt(Section, TEXT("RideView"), RideView, GGameUserSettingsIni);
 	GConfig->Flush(false, GGameUserSettingsIni);
 }
