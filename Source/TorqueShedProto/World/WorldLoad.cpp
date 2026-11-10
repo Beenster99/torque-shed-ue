@@ -3,6 +3,7 @@
 #include "WorldSha256.h"
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 
 namespace TorqueWorld
@@ -89,5 +90,41 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 	Out.FeaturesHash = Hashes.empty() ? std::string() : Sha1Hex(Joined).substr(0, 12);
 	if (Out.Land->HasTrees()) Out.Roads.Credits.push_back("Tree heights: Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0).");
 	return true;
+}
+int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, const std::function<void(int, int)>& Progress)
+{
+	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	for (const CellId& C : Ride.CellsUnderRide())
+	{
+		if (Heights.SeaIn(C) >= 0) continue;
+		Json File;
+		// (a guessed profile only knows the sea where the game has the cell: the sea stays as it was)
+		if (Store.Kept(CellStore::EKind::Profiles, C.Name(), *Idx, File) && !File.Flag("guessed", true)) Heights.KnowSea(C, File.Num("sea") > 0.0 || File.Flag("coast"));
+	}
+	return Heights.Fetch(Ride.UsedKeys(), Store.Get, 6, Progress);
+}
+
+std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along)
+{
+	std::vector<P2> Out;
+	if (Along != nullptr) Along->clear();
+	double Run = 0.0;
+	for (size_t I = 0; I < Line.size(); ++I)
+	{
+		if (I > 0)
+		{
+			const double Len = Line[I].DistanceTo(Line[I - 1]);
+			const int Parts = Step > 0.0 ? int(std::ceil(Len / Step)) : 1;
+			for (int K = 1; K < Parts; ++K)
+			{
+				Out.push_back(Line[I - 1] + (Line[I] - Line[I - 1]) * (double(K) / Parts));
+				if (Along != nullptr) Along->push_back(Run + Len * K / Parts);
+			}
+			Run += Len;
+		}
+		Out.push_back(Line[I]);
+		if (Along != nullptr) Along->push_back(Run);
+	}
+	return Out;
 }
 } // namespace TorqueWorld

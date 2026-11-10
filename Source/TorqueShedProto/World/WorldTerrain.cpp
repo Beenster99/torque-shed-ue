@@ -116,6 +116,15 @@ std::vector<TileKey> Terrain::UsedKeys() const
 	return Out;
 }
 
+std::vector<CellId> Terrain::CellsUnderRide() const
+{
+	std::set<CellId> Found;
+	for (size_t L = 0; L < Uses.size() && L < 2; ++L)
+		for (const TileKey& K : Uses[L])
+			for (const CellId& C : CellsUnder(K)) Found.insert(C);
+	return std::vector<CellId>(Found.begin(), Found.end());
+}
+
 // A level's height at (Lat, Lon), eased into the next level's where its tiles end (when Ease), else the next's.
 double Terrain::LiveLevel(int Level, double Lat, double Lon, bool Ease) const
 {

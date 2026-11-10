@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <queue>
 #include <unordered_map>
 
 namespace TorqueWorld
@@ -574,5 +575,70 @@ int Region::NearestConnected(double X, double Z, double Within, int MinNodes) co
 			}
 		}
 	return Best >= 0 ? Best : Fallback;
+}
+std::vector<int> Region::ShortestPath(int From, int To) const
+{
+	std::vector<int> Out;
+	if (From < 0 || To < 0 || From >= int(Nodes.size()) || To >= int(Nodes.size()) || From == To) return Out;
+	// Over (edge arrived by, at its far node), so a banned turn can be refused: 2 states an edge.
+	const size_t States = Edges.size() * 2;
+	std::vector<double> Dist(States, 1e300);
+	std::vector<int> Prev(States, -1);
+	using Item = std::pair<double, int>;
+	std::priority_queue<Item, std::vector<Item>, std::greater<Item>> Open;
+	auto Arrive = [&](int Edge, int AtNode) { return Edge * 2 + (Edges[size_t(Edge)].B == AtNode ? 1 : 0); };
+	for (int Ei : Adjacent[size_t(From)])
+	{
+		if (!Passable(Ei, From) || Edges[size_t(Ei)].A == Edges[size_t(Ei)].B) continue;
+		const int S = Arrive(Ei, OtherEnd(Ei, From));
+		if (Edges[size_t(Ei)].Length < Dist[size_t(S)])
+		{
+			Dist[size_t(S)] = Edges[size_t(Ei)].Length;
+			Open.push({Dist[size_t(S)], S});
+		}
+	}
+	int End = -1;
+	while (!Open.empty())
+	{
+		const Item Top = Open.top();
+		Open.pop();
+		const int S = Top.second;
+		if (Top.first > Dist[size_t(S)]) continue;
+		const int Came = S / 2;
+		const int Node = (S & 1) ? Edges[size_t(Came)].B : Edges[size_t(Came)].A;
+		if (Node == To)
+		{
+			End = S;
+			break;
+		}
+		for (int Ei : Adjacent[size_t(Node)])
+		{
+			if (Ei == Came || !Passable(Ei, Node) || TurnBanned(Came, Node, Ei) || Edges[size_t(Ei)].A == Edges[size_t(Ei)].B) continue;
+			const int N = Arrive(Ei, OtherEnd(Ei, Node));
+			const double D = Top.first + Edges[size_t(Ei)].Length;
+			if (D < Dist[size_t(N)])
+			{
+				Dist[size_t(N)] = D;
+				Prev[size_t(N)] = S;
+				Open.push({D, N});
+			}
+		}
+	}
+	for (int S = End; S >= 0; S = Prev[size_t(S)]) Out.push_back(S / 2);
+	std::reverse(Out.begin(), Out.end());
+	return Out;
+}
+
+std::vector<P2> Region::PathLine(int From, const std::vector<int>& Path) const
+{
+	std::vector<P2> Out;
+	int Node = From;
+	for (int Ei : Path)
+	{
+		const std::vector<P2> Line = LineFrom(Ei, Node);
+		Out.insert(Out.end(), Line.begin() + (Out.empty() ? 0 : 1), Line.end());
+		Node = OtherEnd(Ei, Node);
+	}
+	return Out;
 }
 } // namespace TorqueWorld

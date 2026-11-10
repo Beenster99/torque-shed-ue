@@ -67,6 +67,8 @@ public:
 	// own view, which uses whatever is on disk.
 	std::vector<TileKey> UsedKeys() const;
 	bool IsRide() const { return !Uses.empty(); }
+	// The cells under the ride's fine and middle tiles: those whose place profiles say where the sea is.
+	std::vector<CellId> CellsUnderRide() const;
 
 	// What covers the ground. The ids are the baker's: grass, forest, crop, shrub, barren, urban,
 	// sand, wetland, water (rivers and lakes; the sea is in the heights), rock.

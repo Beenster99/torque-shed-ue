@@ -9,6 +9,7 @@
 #include "WorldRegion.h"
 #include "WorldTerrain.h"
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -28,6 +29,13 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 	std::string* Why = nullptr);
 // The same, with its frame at the middle of the first cell (a journey's own).
 bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, LoadedArea& Out, std::string* Why = nullptr);
+// Fetches the ground a ride needs before it starts: first the place profiles of the cells under its
+// fine and middle tiles (so the sea is known before a tile is read), then every tile it uses that
+// isn't on disk. Returns how many tiles it couldn't get. Blocks: a worker's job.
+int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, const std::function<void(int, int)>& Progress = nullptr);
+// A road's points no further apart than Step metres (a ride's road, for Terrain::ForRoad), with how
+// far along the road each is.
+std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along = nullptr);
 // The region id of an area of listed cells: "area:@ROW_COL,ROW_COL".
 std::string CellsAreaId(const std::vector<CellId>& Cells);
 } // namespace TorqueWorld

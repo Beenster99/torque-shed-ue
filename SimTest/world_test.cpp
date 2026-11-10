@@ -372,8 +372,12 @@ int main()
 		// (the test's own server: the store's files as SimTest keeps them, data/world/store)
 		const CellStore::Fetcher Serve = [&](const std::string& Url, std::string& Body) {
 			++Asked;
-			const std::string Scheme = "store://";
-			if (Down || Url.compare(0, Scheme.size(), Scheme) != 0) return 0;
+			const std::string Scheme = "store://", Tiles = "https://tiles.mapterhorn.com/", Aws = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/";
+			if (Down) return 0;
+			// (and the two tile servers: Mapterhorn has the fixtures' tiles, AWS one coarse tile only)
+			if (Url.compare(0, Tiles.size(), Tiles) == 0) return Files::Read(Files::Join(Files::Join(Data, "heights"), Url.substr(Tiles.size())), Body) ? 200 : 404;
+			if (Url.compare(0, Aws.size(), Aws) == 0) return Url.substr(Aws.size()) == "9/1/1.png" && Files::Read(Files::Join(Data, "png/rgb.png"), Body) ? 200 : 404;
+			if (Url.compare(0, Scheme.size(), Scheme) != 0) return 0;
 			std::string Rel = Url.substr(Scheme.size());
 			if (Swap && Rel == "cells/c577_712.zip") Rel = "cells/c577_711.zip";   // (the wrong cell's zip)
 			return Files::Read(Files::Join(Files::Join(Data, "store"), Rel), Body) ? 200 : 404;
@@ -493,6 +497,67 @@ int main()
 			Check(std::string(Terrain::CoverName(Terrain::CoverWater)) == "water" && Area.Land->Cover(9e6, 0.0) == -1 && Area.Land->TreesAt(9e6, 0.0) == -1, "off the cells there is no cover and no trees");
 			Check(Store.SeaIn(B) == 0 && Area.FeaturesHash.size() == 12 && Near(Area.Land->Height(-2422.0, -4363.0), Land.Height(-2422.0, -4363.0), 1e-9),
 				"the cells' profiles say they have no sea; the scenery has its own hash; the ground is the same ground");
+		}
+		// A ride by road, and the ground fetched for it.
+		if (Loaded)
+		{
+			const Region& G = Area.Roads;
+			const int From = G.NearestConnected(-2422.0, -4363.0), To = G.NearestConnected(7187.0, -4599.0);
+			const std::vector<int> Path = G.ShortestPath(From, To);
+			const std::vector<P2> Line = G.PathLine(From, Path);
+			double Len = 0.0;
+			bool Joined = !Path.empty(), Legal = true;
+			int Node = From;
+			for (size_t I = 0; I < Path.size(); ++I)
+			{
+				Len += G.Edges[size_t(Path[I])].Length;
+				Joined = Joined && (G.Edges[size_t(Path[I])].A == Node || G.Edges[size_t(Path[I])].B == Node);
+				Legal = Legal && G.Passable(Path[I], Node) && (I == 0 || !G.TurnBanned(Path[I - 1], Node, Path[I]));
+				Node = G.OtherEnd(Path[I], Node);
+			}
+			const double Straight = G.Nodes[size_t(From)].DistanceTo(G.Nodes[size_t(To)]);
+			std::printf("      Gunnerside to Grinton by road: %.1f km over %d roads (%.1f km as the crow flies)\n", Len / 1000.0, int(Path.size()), Straight / 1000.0);
+			Check(Joined && Legal && Node == To && Len > Straight && Len < Straight * 1.6, "the shortest way by road from Gunnerside to Grinton joins up, keeps to the road rules and is a sensible length");
+			std::vector<double> Along;
+			const std::vector<P2> Road = Resample(Line, 30.0, &Along);
+			bool Even = !Road.empty() && Near(Along.back(), Len, 1.0) && Line.front().X == G.Nodes[size_t(From)].X && Line.back().Z == G.Nodes[size_t(To)].Z;
+			for (size_t I = 1; I < Road.size(); ++I) Even = Even && Road[I].DistanceTo(Road[I - 1]) <= 30.0 + 1e-6;
+			Check(Even && G.ShortestPath(From, From).empty() && G.ShortestPath(-1, To).empty(), "its line runs junction to junction, with a point at least every 30 m");
+			// The ground for it, fetched into an empty store.
+			const std::string TileDir = Files::Join(TORQUE_WORLD_TMP, "world_test_tiles");
+			Files::RemoveTree(TileDir);
+			HeightStore Net;
+			Net.Disk = TileDir;
+			Terrain NetLand(Net, 54.34, -2.04);
+			NetLand.SetBuildings(G.Buildings);
+			const std::shared_ptr<Terrain> NetRide = NetLand.ForRoad(Road);
+			const std::shared_ptr<Terrain> FixRide = Area.Land->ForRoad(Road);
+			const size_t Keys = NetRide->UsedKeys().size();
+			int Said = 0;
+			const int BeforeTiles = Asked;
+			const int Failed = FetchGround(Cells, Net, *NetRide, [&](int Done, int Total) { if (Done >= 1 && Done <= Total && Total == int(Keys)) ++Said; });
+			Check(Failed == 0 && Said == int(Keys) && Asked - BeforeTiles >= int(Keys) && NetRide->Ready(NetRide->KeyBox(NetRide->UsedKeys()[0]), 0),
+				"the ride's tiles are all fetched (six at a time) before it starts, each said as it comes");
+			Check(Net.SeaIn(A) == 0 && !NetRide->CellsUnderRide().empty(), "and the profiles of the cells under it were read first, for their sea");
+			int Same = 0, Finite = 0;
+			double Low = 1e9, High = -1e9;
+			for (const P2& P : Road)
+			{
+				const double H = NetRide->Height(P.X, P.Z), H2 = FixRide->Height(P.X, P.Z);
+				if (!std::isnan(H)) { ++Finite; Low = std::fmin(Low, H); High = std::fmax(High, H); }
+				if (H == H2) ++Same;
+			}
+			std::printf("      the road's ground: %d points, %.0f m to %.0f m above the sea\n", int(Road.size()), Low, High);
+			Check(Finite == int(Road.size()) && Same == Finite && Low > 150.0 && High < 400.0, "the road has ground all the way, the same from fetched tiles as from the game's own");
+			const int BeforeAgain = Asked;
+			Check(FetchGround(Cells, Net, *NetRide) == 0 && Asked == BeforeAgain, "nothing is fetched twice");
+			// What the servers haven't got.
+			const TileKey NoFine{14, 5, 5}, FromAws{9, 1, 1}, NoCoarse{11, 7, 7};
+			Check(Net.Fetch({NoFine, FromAws, NoCoarse}, Cells.Get, 2) == 1 && Net.IsNone(NoFine) && Net.Has(NoFine) && Net.Tile(NoFine) == nullptr && Net.Tile(FromAws) != nullptr
+				&& Net.Tile(FromAws)->Size == 64 && !Net.Has(NoCoarse) && Files::Exists(Files::Join(TileDir, "9/1/1.png")),
+				"a fine tile Mapterhorn has none of is marked none; a coarse one comes from AWS instead; one neither has is a failure");
+			Check(Net.Fetch({NoFine}, nullptr) == 0 && Net.Fetch({NoCoarse}, nullptr) == 1, "with no network, only what is missing counts as not got");
+			Files::RemoveTree(TileDir);
 		}
 		// Offline, the next run still has what was fetched.
 		CellStore Later;

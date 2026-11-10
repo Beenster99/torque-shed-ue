@@ -149,6 +149,12 @@ public:
 	// a stray bit of road), else just the nearest; -1 when there is none.
 	int NearestConnected(double X, double Z, double Within = 500.0, int MinNodes = 200) const;
 	Frame FrameOf() const { return Frame(FrameLat, FrameLon); }
+	// The shortest way by road from one junction to another, as the edges to take in order (one-way
+	// streets and banned turns kept to); empty when there is none. A plain shortest path: the crew's
+	// route planner (which weighs the kind of road) comes with the Route TV.
+	std::vector<int> ShortestPath(int From, int To) const;
+	// The line of a path from its first junction, every point once.
+	std::vector<P2> PathLine(int From, const std::vector<int>& Path) const;
 
 	// Spans [[kind, lat0, lon0, lat1, lon1] in 1e-5 degrees] into the region's frame.
 	void AddSpans(const TorqueFit::Json& Rows);

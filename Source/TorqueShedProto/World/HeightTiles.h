@@ -12,6 +12,7 @@
 #include "WorldGeo.h"
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -69,6 +70,13 @@ public:
 	// A tile from its file's bytes; null when they are no good. With Despike the source's pits are
 	// filled. Key places it, for which cells have sea (null: unplaced, sea wherever the ground is).
 	std::shared_ptr<HeightTile> Decode(const std::string& Bytes, const TileKey* Key, bool Despike) const;
+
+	// GETs a URL: the HTTP code (0 for no answer) and the body. Blocks; called from several threads at once.
+	using Fetcher = std::function<int(const std::string& Url, std::string& Body)>;
+	// Fetches those of Keys that aren't on disk yet, AtOnce at a time, and waits for them: Mapterhorn's,
+	// else AWS's at AwsTop and coarser; finer, a tile Mapterhorn has none of is marked none. Returns how
+	// many it couldn't get. Blocks: a worker's job. Progress(done, total) is called as they come.
+	int Fetch(const std::vector<TileKey>& Keys, const Fetcher& Get, int AtOnce = 6, const std::function<void(int, int)>& Progress = nullptr);
 
 	// Says whether a cell has sea, from its place profile. Tiles over it read before are read again.
 	void KnowSea(CellId Cell, bool HasSea);
