@@ -56,7 +56,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
-struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh; TArray<FString> Materials, CardsMaterials; int32 Lod = -1; };
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh, FitMesh; TArray<FString> Materials, CardsMaterials; int32 Lod = -1; };
 struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
@@ -114,6 +114,7 @@ const TArray<FEntry>& Entries()
 				(*PO)->TryGetStringField(TEXT("static"), P.Static);
 				(*PO)->TryGetStringField(TEXT("bone"), P.Bone);
 				(*PO)->TryGetStringField(TEXT("cards_mesh"), P.CardsMesh);
+				(*PO)->TryGetStringField(TEXT("fit_mesh"), P.FitMesh);
 				P.CardsMaterials = Strings(*PO, TEXT("cards_materials"));
 				(*PO)->TryGetNumberField(TEXT("lod"), P.Lod);
 				P.Materials = Strings(*PO, TEXT("materials"));
@@ -145,10 +146,14 @@ bool CallWithOne(UObject* O, const TCHAR* Fn, TFunctionRef<void(FProperty*, void
 }
 
 // Where Bone sits at rest in On's mesh space (false when it has no such bone).
+bool BoneRestOf(const USkinnedAsset* SA, FName BoneName, FTransform& Rest);
 bool BoneRest(const USkinnedMeshComponent* On, FName BoneName, FTransform& Rest)
 {
+	return BoneRestOf(On ? On->GetSkinnedAsset() : nullptr, BoneName, Rest);
+}
+bool BoneRestOf(const USkinnedAsset* SA, FName BoneName, FTransform& Rest)
+{
 	Rest = FTransform::Identity;
-	const USkinnedAsset* SA = On ? On->GetSkinnedAsset() : nullptr;
 	if (!SA || BoneName.IsNone()) return false;
 	const FReferenceSkeleton& Ref = SA->GetRefSkeleton();
 	int32 B = Ref.FindBoneIndex(BoneName);
@@ -304,9 +309,13 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		// cards sit inside the scalp: the bald avatars of rounds 104-121). -TorqueHairRigid keeps it
 		// rigid on the head bone instead. -TorqueHairScale=S scales a rigid groom about the head.
 		UObject* BindingObj = P.Binding.IsEmpty() ? nullptr : StaticLoadObject(UObject::StaticClass(), nullptr, *P.Binding);
-		const bool bBind = BindingObj && !FParse::Param(FCommandLine::Get(), TEXT("TorqueHairRigid"));
+		const bool bBind = BindingObj && P.FitMesh.IsEmpty() && !FParse::Param(FCommandLine::Get(), TEXT("TorqueHairRigid"));
+		// Another avatar's groom (FitMesh, its face): placed by that face's head rest, so it sits on
+		// this head as it does on its own.
+		const USkinnedAsset* FitFace = P.FitMesh.IsEmpty() ? nullptr : LoadObject<USkeletalMesh>(nullptr, *P.FitMesh);
 		FTransform Rest;
-		const bool bOnBone = !bBind && BoneRest(On, FName(TEXT("head")), Rest);
+		bool bOnBone = !bBind && BoneRest(On, FName(TEXT("head")), Rest);   // this head has the bone
+		if (bOnBone && FitFace) bOnBone = BoneRestOf(FitFace, FName(TEXT("head")), Rest);   // placed as on its own face
 		double HairScale = 1.0;
 		FParse::Value(FCommandLine::Get(), TEXT("TorqueHairScale="), HairScale);
 		USceneComponent* C = NewObject<USceneComponent>(Owner, GroomClass);
