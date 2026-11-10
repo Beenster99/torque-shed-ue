@@ -3,6 +3,7 @@
 // mist ATorqueWashMist.
 #include "Shed/TorqueWalker.h"
 
+#include "Coop/TorqueUi.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedLayout.h"
@@ -302,26 +303,15 @@ void ATorqueWalker::DrawWash(AHUD* Hud, UCanvas* Canvas) const
 		Rect(C, X, Y, T, H);
 		Rect(C, X + W - T, Y, T, H);
 	};
-	auto Measure = [Canvas, Font](const FString& T, float Scale)
+	// Crisp lettering (Coop/TorqueUi.h), sized as the engine's large font scaled by Size: the scaled
+	// bitmap font with four shadow copies drew it blurred (beenster, Nov 10: "text at the top centre
+	// which is blurred").
+	const float Em = (float)FMath::Max(Font->LegacyFontSize, 8);
+	auto Text = [Canvas, Em](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
 	{
-		float W = 0.0f, H = 0.0f;
-		Canvas->StrLen(Font, T, W, H);
-		return FVector2D(W * Scale, H * Scale);
-	};
-	auto Text = [Canvas, Font, &Measure](const FString& T, float X, float Y, float Size, const FLinearColor& C, int32 Align = 0, float Width = 0.0f, bool bShadow = false)
-	{
-		const FVector2D M = Measure(T, Size);
-		float TX = X;
-		if (Align == 1) TX = X + (Width - M.X) * 0.5f;
-		else if (Align == 2) TX = X + Width - M.X;
-		if (bShadow)
-		{
-			Canvas->SetDrawColor(FColor(0, 0, 0, (uint8)(C.A * 200.0f)));
-			for (const FVector2D& O : {FVector2D(-2.0, 0.0), FVector2D(2.0, 0.0), FVector2D(0.0, -2.0), FVector2D(0.0, 2.0)})
-				Canvas->DrawText(Font, T, TX + O.X * Size, Y + O.Y * Size, Size, Size);
-		}
-		Canvas->SetDrawColor(C.ToFColor(true));
-		Canvas->DrawText(Font, T, TX, Y, Size, Size);
+		const TorqueUi::EAlign A = Align == 1 ? TorqueUi::EAlign::Centre : (Align == 2 ? TorqueUi::EAlign::Right : TorqueUi::EAlign::Left);
+		const float AX = Align == 1 ? X + Width * 0.5f : (Align == 2 ? X + Width : X);
+		TorqueUi::Text(Canvas, T, AX, Y, Em * Size, C, false, A, bShadow);
 	};
 	const float CW = Canvas->ClipX, CH = Canvas->ClipY;
 	if (WashFlash > 0.0) Rect(FLinearColor(0.9f, 0.97f, 1.0f, (float)WashFlash * 0.5f), 0.0f, 0.0f, CW, CH);
