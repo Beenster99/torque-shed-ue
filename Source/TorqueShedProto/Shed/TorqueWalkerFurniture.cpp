@@ -430,8 +430,8 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		const int32 Piece = TargetFurniture;
 		if (Piece == 0) return TEXT("not sitting: no kit piece looked at (") + Describe() + TEXT(")");
 		if (!Sit(Piece)) return TEXT("not sitting: ") + Note;
-		return FString::Printf(TEXT("sitting on piece %d, at %.0f, %.0f, eyes %.0f cm up"), Piece, GetActorLocation().X, GetActorLocation().Y,
-			GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + SeatEye.Z);
+		return FString::Printf(TEXT("sitting on piece %d, at %.0f, %.0f, eyes %.0f cm off the floor"), Piece, GetActorLocation().X, GetActorLocation().Y,
+			GetActorLocation().Z + SeatEye.Z);   // (the eyes over the floor: the walker's middle plus the seat's eye)
 	}
 	if (What == TEXT("stand"))
 	{
