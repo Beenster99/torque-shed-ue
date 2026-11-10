@@ -2454,8 +2454,10 @@ void ATorqueWalker::StartRideOut(int32 Bay, bool bAdventure, bool bAtBike)
 		Say(FString::Printf(TEXT("Bay %d is empty: press F at a bike to ride it"), Bay + 1), false, 2.5);
 		return;
 	}
-	// (A bike parked out on the yard's pad doesn't need the door: it's out already.)
-	if (!B->DoorUp() && !(bAtBike && B->BikeTransform(Bay).GetLocation().Y > 600.0))   // [kit]
+	// (A bike parked out on the yard's pad, or in the wash bay, open to the yard, doesn't need the
+	// door: it's out already.)
+	const FVector Stands = B->BikeTransform(Bay).GetLocation();
+	if (!B->DoorUp() && !(bAtBike && (Stands.Y > 600.0 || TorqueShedLayout::InWashBay(Stands))))   // [kit]
 	{
 		Say(TEXT("The roller door's down: open it at the yellow box right of the door (F)."), false, 3.0);
 		return;

@@ -14,6 +14,7 @@
 #include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
+#include "Shed/TorqueShedLayout.h"
 
 #include "BikeSim.h"
 #include "TorqueFit.h"
@@ -106,7 +107,9 @@ double Approach(double From, double To, double RateUp, double RateDown, double D
 }
 
 // The ground under the wheels: the first hit on the land or the road (tagged Land and Road by
-// Tools/ue_build_level.py), never walls, grass, sheep or anything else in the way.
+// Tools/ue_build_level.py), never walls, grass, sheep or anything else in the way. A part
+// tagged Road counts too: a bike lift's platform and ramp while it's down (ATorqueBikeLift),
+// so a bike ridden into the wash bay rolls up onto its lift.
 bool GroundTrace(UWorld* World, const FVector& From, const FVector& To, const FCollisionQueryParams& Params, FHitResult& Out)
 {
 	FCollisionQueryParams P = Params;
@@ -115,8 +118,13 @@ bool GroundTrace(UWorld* World, const FVector& From, const FVector& To, const FC
 		if (!World->LineTraceSingleByChannel(Out, From, To, ECC_Visibility, P)) return false;
 		const AActor* A = Out.GetActor();
 		if (A && (A->ActorHasTag(TEXT("Land")) || A->ActorHasTag(TEXT("Road")))) return true;
+		const UPrimitiveComponent* Part = Out.GetComponent();
+		if (Part && Part->ComponentHasTag(TEXT("Road"))) return true;
 		if (!A) return false;
-		P.AddIgnoredActor(A);
+		// (An actor some of whose parts are ground, tagged RoadParts: only this part is passed, as another
+		// of its parts under it may be the ground. Anything else is passed whole, as before.)
+		if (Part && A->ActorHasTag(TEXT("RoadParts"))) P.AddIgnoredComponent(Part);
+		else P.AddIgnoredActor(A);
 	}
 	return false;
 }
@@ -248,7 +256,8 @@ void ATorqueBikePawn::BeginPlay()
 			Out.Position = ToSim(Hit.ImpactPoint);
 			Out.Normal = DirToSim(Hit.ImpactNormal).Normalized();
 			const AActor* A = Hit.GetActor();
-			Out.Surface = (A && A->ActorHasTag(TEXT("Road"))) ? SURF_TARMAC : SURF_GRASS;
+			const UPrimitiveComponent* Part = Hit.GetComponent();
+			Out.Surface = ((A && A->ActorHasTag(TEXT("Road"))) || (Part && Part->ComponentHasTag(TEXT("Road")))) ? SURF_TARMAC : SURF_GRASS;
 		}
 		return Out;
 	};
@@ -1757,6 +1766,32 @@ FString ATorqueBikePawn::TestFoot(const FString& What)
 	return FString::Printf(TEXT("%s; bike %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you, at (%.0f, %.0f) cm"),
 		bOnFoot ? TEXT("on foot") : TEXT("riding"), Stood, Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"), Sim->Rpm,
 		bOnFoot ? FVector::Dist2D(FootPos, BikeAt) : 0.0, BikeAt.X, BikeAt.Y);
+}
+
+FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace)
+{
+	if (bPlace)
+	{
+		const FVector Ahead = FRotator(0.0, Yaw, 0.0).Vector();
+		PlaceOnGround(ToSim(FVector(X, Y, 0.0)), std::atan2(-Ahead.X, -Ahead.Y));
+	}
+	// What's under each wheel: the ground trace the wheels use, from 60 cm up to 40 cm down.
+	FString Under;
+	UWorld* World = GetWorld();
+	const FVector Mid = ToUE(Sim->Position);
+	const FVector Along = GetActorRotation().Vector().GetSafeNormal2D();
+	for (const double Off : {70.0, -70.0})
+	{
+		const FVector Wheel = Mid + Along * Off;
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueTestPlace), true, this);
+		const bool bHit = World && GroundTrace(World, Wheel + FVector(0.0, 0.0, 60.0), Wheel - FVector(0.0, 0.0, 40.0), Params, Hit);
+		Under += FString::Printf(TEXT("%s%s wheel on %s.%s at z %.1f"), Under.IsEmpty() ? TEXT("") : TEXT(", "), Off > 0.0 ? TEXT("front") : TEXT("rear"),
+			bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("nothing"), bHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("-"),
+			bHit ? Hit.ImpactPoint.Z : 0.0);
+	}
+	return FString::Printf(TEXT("bike at (%.0f, %.0f, %.1f) cm, yaw %.0f, %.1f mph, %s; %s"), Mid.X, Mid.Y, Mid.Z, GetActorRotation().Yaw,
+		Sim->Speed * 2.23694, TorqueShedLayout::InWashBay(Mid) ? TEXT("in the wash bay") : TEXT("outside the wash bay"), *Under);
 }
 
 void ATorqueBikePawn::PressIgnition()

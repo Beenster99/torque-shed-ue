@@ -93,6 +93,9 @@ public:
 	// For TorqueShedTest: "off" or "on" as F does, "push" / "letgo" as holding F by it and F again,
 	// "walk:<cm>" steps that far ahead (on foot, the bike alongside if it's being wheeled).
 	FString TestFoot(const FString& What);
+	// [washride] For TorqueShedTest: put the bike at (X, Y) world cm facing Yaw, stopped, on the ground there
+	// (bPlace false: left where it is); says where it is and what its wheels stand on.
+	FString TestPlaceAt(double X, double Y, double Yaw, bool bPlace = true);
 
 	// Co-op: to start slot Slot (0 the front, then two abreast, a row every 7 m back).
 	void PlaceForSlot(int32 Slot);

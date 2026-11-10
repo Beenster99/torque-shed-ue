@@ -1073,10 +1073,12 @@ def machines(m):
 
 
 def wash_bay(m):
-    # The lean-to on the west wall, open to the yard at the front (+y): back and outer walls,
+    # The lean-to on the west wall, open to the yard at the front (+y), ridden into: back and outer walls,
     # tiles to 2 m, a roof, a yellow post and fascia, and the pressure washer on the back wall.
     cx, cy, hx, hy, h = -930.0, 100.0, 240.0, 340.0, 300.0
-    box("WashBay_Pad", cx - hx, cx + hx, cy - hy, cy + hy, -12, 0.6, m["pad"], folder="WashBay")
+    # Tagged Road: a bike is ridden in off the yard (beenster, Nov 10), and its wheels stand on it
+    # (ATorqueBikePawn's ground trace). The walls the bike meets are in Tools/shed_yard.py BUILDINGS.
+    box("WashBay_Pad", cx - hx, cx + hx, cy - hy, cy + hy, -12, 0.6, m["pad"], folder="WashBay").set_editor_property("tags", [unreal.Name("Road")])
     box("WashBay_Back", cx - hx - 20, cx + hx, cy - hy - 20, cy - hy, 0, h, m["cladding"], folder="WashBay")
     box("WashBay_Outer", cx - hx - 20, cx - hx, cy - hy, cy + hy + 20, 0, h, m["cladding"], folder="WashBay")
     # (Its back end inside the storage room's wall, not in the wall's face: z-fighting.)

@@ -71,6 +71,8 @@ private:
 	UPROPERTY(Transient) UStaticMeshComponent* RamRod = nullptr;
 	UPROPERTY(Transient) UStaticMeshComponent* Ramp = nullptr;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Jaws;
+	// The platform's top, its wings and the ramp: ground to a ridden bike while the lift is down (Pose).
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> GroundParts;
 	// The wheel vice (its jaws' middle; the stop is in front of it), sliding along the platform to
 	// meet the front tyre of the bike on it.
 	UPROPERTY(Transient) USceneComponent* Vice = nullptr;
