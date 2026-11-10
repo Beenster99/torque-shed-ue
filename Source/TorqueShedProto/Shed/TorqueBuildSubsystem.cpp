@@ -499,7 +499,9 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	}
 	Dyno = FTorqueDynoRoom();
 	for (int32 I = 0; I < 4 && I < S.DynoStraps.Num(); ++I) Dyno.Straps[I] = S.DynoStraps[I];
-	Dyno.bFan = S.bDynoFan;
+	// The cooling fan is off when the shed opens: nobody leaves it running between sessions (Torque
+	// Shed kept the switch, so a save made with it on came back with the fan blowing in an empty room).
+	Dyno.bFan = false;
 	Dyno.bLights = S.bDynoLights;
 	Dyno.Heat = S.DynoHeat;
 	bRadioOn = S.bRadioOn;
