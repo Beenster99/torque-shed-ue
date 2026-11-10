@@ -1214,13 +1214,41 @@ def import_rider(tex=None, roles=None):
     fab = fab_helmet(helmet) if helmet else None
     if fab:
         out["helmet"], out["helmet_fit"] = fab
+        FAB_HELMET_USED[:] = [fab[0]]
     return out
 
 
+def place_fab_helmet_anchor():
+    """The Fab helmet is loaded by path at run time and lives outside the always-cooked folders, so a
+    hidden actor in the ride's map holds it to get it (and only it, with its materials) cooked."""
+    for path in FAB_HELMET_USED:
+        m = unreal.load_asset(path)
+        if isinstance(m, unreal.StaticMesh):
+            a = actors.spawn_actor_from_object(m, unreal.Vector(0, 0, -100000), unreal.Rotator(0, 0, 0))
+        elif isinstance(m, unreal.SkeletalMesh):
+            a = actors.spawn_actor_from_class(unreal.SkeletalMeshActor, unreal.Vector(0, 0, -100000))
+            a.get_component_by_class(unreal.SkeletalMeshComponent).set_skeletal_mesh_asset(m)
+        else:
+            unreal.log_warning("[Torque] fab helmet: no mesh at %s to anchor" % path)
+            continue
+        a.set_actor_label("CookAnchor_FabHelmet")
+        a.set_folder_path("CookAnchors")
+        a.set_actor_hidden_in_game(True)
+        a.set_actor_enable_collision(False)
+        log("fab helmet: cook anchor for %s in the ride's map" % path)
+
+
 FAB_HELMET_DEST = "/Game/Fab/RiderHelmet"
+# Where a .mhpkg helmet goes: outside every DirectoriesToAlwaysCook folder, because the package brings in a
+# MetaHumanWardrobeItem (editor-only), which fails the cook (round 133). Only the helmet mesh the rider
+# wears is cooked, through a hidden anchor in the ride's map (place_fab_helmet_anchor). The round 133
+# copy in /Game/Fab/RiderHelmetPkg is in DirectoriesToNeverCook.
+FAB_HELMET_PKG = "/Game/RiderHelmetPkg"
+FAB_HELMET_USED = []   # the Fab helmet mesh the rider wears this build (for the anchor)
 
 
-HELMET_SKIP_PATHS = ("/Game/MetaHumans/Avatar_", "/Game/MetaHumanSources", RIDER_DEST + "/", FAB_HELMET_DEST + "/")
+HELMET_SKIP_PATHS = ("/Game/MetaHumans/Avatar_", "/Game/MetaHumanSources", RIDER_DEST + "/", FAB_HELMET_DEST + "/",
+                     "/Game/Fab/RiderHelmetPkg/")   # round 133's import, never cooked
 
 
 def _helmet_assets(words, skip):
@@ -1243,7 +1271,7 @@ def _import_mhpkg(path):
     through the MetaHuman plugin's own factory. Logs everything it brought in."""
     t = unreal.AssetImportTask()
     t.set_editor_property("filename", path)
-    t.set_editor_property("destination_path", "/Game/Fab/RiderHelmetPkg")
+    t.set_editor_property("destination_path", FAB_HELMET_PKG)
     t.set_editor_property("automated", True)
     t.set_editor_property("replace_existing", True)
     t.set_editor_property("save", True)
@@ -1271,6 +1299,14 @@ def _import_mhpkg(path):
     return got
 
 
+def _best_helmet(found):
+    """Static before skeletal, then the full-detail mesh (LOD0, or no LOD in its name) before LOD1/LOD2."""
+    def key(f):
+        n = f[0].rsplit("/", 1)[-1]
+        return (f[1] != "StaticMesh", "LOD" in n and "LOD0" not in n, len(f[0]), f[0])
+    return sorted(found, key=key)[0][0]
+
+
 def _fab_helmet_source(spec):
     """beenster's Fab helmet: a static or skeletal mesh already in the project, else a file in the Fab
     cache (a MetaHuman package is imported first, then looked for again)."""
@@ -1279,7 +1315,7 @@ def _fab_helmet_source(spec):
     found = _helmet_assets(words, skip)
     log("fab helmet: in the project: %s" % (", ".join("%s (%s)" % f for f in found) or "none"))
     if found:
-        return "asset", sorted(found, key=lambda f: (f[1] != "StaticMesh", len(f[0])))[0][0]
+        return "asset", _best_helmet(found)
     vault = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
     roots = [vault, os.path.dirname(vault)]
     if spec.get("vault"):
@@ -1311,13 +1347,14 @@ def _fab_helmet_source(spec):
             found = _helmet_assets(words, skip)
             if not found:   # named for what it is rather than 'helmet': anything the package brought in
                 reg = unreal.AssetRegistryHelpers.get_asset_registry()
-                for a in reg.get_assets_by_path("/Game/Fab/RiderHelmetPkg", recursive=True):
+                for a in reg.get_assets_by_path(FAB_HELMET_PKG, recursive=True):
                     cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
                     if cls in ("StaticMesh", "SkeletalMesh"):
                         found.append(("%s.%s" % (a.package_name, a.asset_name), cls))
             log("fab helmet: after the package: %s" % (", ".join("%s (%s)" % f for f in found) or "none"))
             if found:
-                return "asset", sorted(found, key=lambda f: (f[1] != "StaticMesh", len(f[0])))[0][0]
+                # The full-detail mesh: LOD0 (or no LOD in its name) before LOD1/LOD2.
+                return "asset", _best_helmet(found)
     return None, None
 
 
@@ -2860,6 +2897,7 @@ def build():
         a.set_editor_property("tags", [unreal.Name("Road" if name == "road" else "Land")])
         a.set_folder_path("Terrain" if name != "road" else "Road")
 
+    place_fab_helmet_anchor()
     if prop_meshes:
         place_props(prop_meshes, prop_spec, prop_mats, (yaw, mirror, scale))
     stone = prop_mats.get("stone") or stone_material(tex, roles)

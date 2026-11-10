@@ -1,25 +1,94 @@
 {
  "about": "Thwaite's parked cars drawn with plain Fab models (beenster, Nov 10: 'Yes, 8 models, mixed colours'). Tools/ue_build_level.py place_fab_cars: each props.json SM_Car_N_Paint instance becomes one model, in turn, at its native size, its wheels on the ground, nose the way the generated car's was (+X). 'yaw' (degrees) turns a model whose own front isn't +X. Paint: every slot whose slot, material or base material name has 'Paint' in it (or a slot listed in 'paint_slots') wears MI_FabCarPaint_<n> in the next colour, since City Sample's car paint is black without its Blueprint. A model that isn't in the project is skipped and its car keeps the next model; with none found the old generated cars are drawn. The packs (City Sample Vehicles, Vehicle Variety Pack vol 1) live in /Content and are never committed. No brand names or logos in either; the taxi, police car and sports coupe are left out.",
  "models": [
-  {"mesh": "/Game/VehicleVarietyPack/Meshes/SM_Hatchback", "yaw": 0},
-  {"mesh": "/Game/CitySampleVehicles/vehicle02_Car/Mesh/SM_vehCar_vehicle02_LOD", "yaw": 0},
-  {"mesh": "/Game/VehicleVarietyPack/Meshes/SM_SUV", "yaw": 0},
-  {"mesh": "/Game/CitySampleVehicles/vehicle03_Car/Mesh/SM_vehCar_vehicle03_LOD", "yaw": 0},
-  {"mesh": "/Game/VehicleVarietyPack/Meshes/SM_Pickup", "yaw": 0},
-  {"mesh": "/Game/CitySampleVehicles/vehicle01_Van/Mesh/SM_vehVan_vehicle01_LOD", "yaw": 0},
-  {"mesh": "/Game/CitySampleVehicles/vehicle05_Car/Mesh/SM_vehCar_vehicle05_LOD", "yaw": 0},
-  {"mesh": "/Game/CitySampleVehicles/vehicle09_Van/Mesh/SM_vehVan_vehicle09_LOD", "yaw": 0}
+  {
+   "mesh": "/Game/VehicleVarietyPack/Meshes/SM_Hatchback",
+   "yaw": 0,
+   "paint_slots": [
+    "M_Hatchback_BODY"
+   ]
+  },
+  {
+   "mesh": "/Game/CitySampleVehicles/vehicle02_Car/Mesh/SM_vehCar_vehicle02_LOD",
+   "yaw": 0
+  },
+  {
+   "mesh": "/Game/VehicleVarietyPack/Meshes/SM_SUV",
+   "yaw": 0,
+   "paint_slots": [
+    "M_Main"
+   ]
+  },
+  {
+   "mesh": "/Game/CitySampleVehicles/vehicle03_Car/Mesh/SM_vehCar_vehicle03_LOD",
+   "yaw": 0
+  },
+  {
+   "mesh": "/Game/VehicleVarietyPack/Meshes/SM_Pickup",
+   "yaw": 0,
+   "paint_slots": [
+    "Pickup_Body"
+   ]
+  },
+  {
+   "mesh": "/Game/CitySampleVehicles/vehicle01_Van/Mesh/SM_vehVan_vehicle01_LOD",
+   "yaw": 0
+  },
+  {
+   "mesh": "/Game/CitySampleVehicles/vehicle05_Car/Mesh/SM_vehCar_vehicle05_LOD",
+   "yaw": 0
+  },
+  {
+   "mesh": "/Game/CitySampleVehicles/vehicle09_Van/Mesh/SM_vehVan_vehicle09_LOD",
+   "yaw": 0
+  }
  ],
  "colours": [
-  [0.55, 0.56, 0.57],
-  [0.012, 0.03, 0.09],
-  [0.80, 0.80, 0.78],
-  [0.20, 0.012, 0.012],
-  [0.08, 0.08, 0.085],
-  [0.015, 0.07, 0.03],
-  [0.32, 0.28, 0.20],
-  [0.18, 0.30, 0.45],
-  [0.006, 0.006, 0.007]
+  [
+   0.55,
+   0.56,
+   0.57
+  ],
+  [
+   0.012,
+   0.03,
+   0.09
+  ],
+  [
+   0.8,
+   0.8,
+   0.78
+  ],
+  [
+   0.2,
+   0.012,
+   0.012
+  ],
+  [
+   0.08,
+   0.08,
+   0.085
+  ],
+  [
+   0.015,
+   0.07,
+   0.03
+  ],
+  [
+   0.32,
+   0.28,
+   0.2
+  ],
+  [
+   0.18,
+   0.3,
+   0.45
+  ],
+  [
+   0.006,
+   0.006,
+   0.007
+  ]
  ],
  "metallic": 0.6,
  "roughness": 0.32
