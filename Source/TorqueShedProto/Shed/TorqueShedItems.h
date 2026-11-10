@@ -64,7 +64,12 @@ private:
 		double Height = 0.0;                    // how tall it is, to hang its top at the hook's tip
 		FVector Size = FVector::ZeroVector;     // its box's size in the holder's frame
 		bool bOnStand = false;                  // [kit] on the engine stand: it rolls with it (Tick)
+		bool bOnChanger = false;                // [tyre] a wheel on the tyre changer: it lies flat and turns (Tick)
 	};
+	// [tyre] A wheel lying flat on the tyre changer's turntable, turned Spin radians about the
+	// upright (workshop.gd: it turns while someone works a tyre on or off, ATorqueWalker::TurningChanger).
+	FTransform OnChanger(const FDrawn& D, double Spin) const;
+	double ChangerSpin = 0.0;
 	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
 	FTransform HungAt(int32 Hook, double Height) const;
 	TArray<FDrawn> Drawn;

@@ -587,6 +587,9 @@ bool CatalogueRideSpec(const UTorqueBuildSubsystem& B, int32 Bay, const TMap<FSt
 	if (B.FuelCapacityOf(Bay) > 0.0f) In.FuelLitres = B.FuelOf(Bay);
 	if (const FTorqueItem* Sump = B.Item(B.ItemOn(Bay, FName(TEXT("engine"))))) In.OilLitres = Sump->Litres;
 	for (const FName& Slot : B.LightenedOf(Bay)) In.Lightened.push_back(PawnStd(Slot.ToString()));
+	// [tyre] How well each tyre's bead was seated on the tyre changer.
+	In.BeadFront = B.BeadOf(Bay, true);
+	In.BeadRear = B.BeadOf(Bay, false);
 	std::vector<std::string> Notes;
 	BikeSpec S;
 	if (!TorqueFit::RideSpec(*Lay, In, S, &Notes)) return false;

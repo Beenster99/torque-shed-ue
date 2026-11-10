@@ -102,6 +102,10 @@ struct FTorqueItem
 	float FluidAge = 0.0f;
 	float Lube = 1.0f;
 	FName LubeType;
+	// [tyre] A tyre fitted on the tyre changer: how well its bead was seated in the tyre fitting game
+	// (shed_state's tyre "bead", 0..1; -1: never fitted there, seated as it came). Below
+	// UTorqueBuildSubsystem::BeadOk it grips less (BikeBuild.bead_grip).
+	float Bead = -1.0f;
 };
 
 // One bay's bike.
@@ -161,7 +165,7 @@ enum class ETorqueShedAct : uint8
 	                                     // from the configurator instead, Fit/BikeShop's order text)
 	Unpack,                              // Item: a box opened where it is
 	StartBuild,                          // the frame in your hands onto bay Bay's stand
-	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer")
+	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer"); TyreFit's Amount: how well the bead went on, 0..1 (TorqueTyreGame)
 	RodeOut,                             // bay Bay's bike was ridden out
 	Fabricate,                           // the grinder and welder make bay Bay's next owed job
 	GrabBike,                            // take hold of bay Bay's bike to wheel it about (hold F)
@@ -539,6 +543,14 @@ public:
 	// the chain) set to Level (0 .. 1 of what it holds), on the host. Says what it did.
 	FString TestSetFluid(int32 Bay, const FString& Kind, float Level);
 	static constexpr float LubeUse = 0.03f;      // litres of chain lube a full coat takes (LUBE_USE)
+	// [tyre] The tyre changer (shed_state bead_text, BikeBuild.BEAD_OK): a bead seated at least this
+	// well holds and grips fully; "Bead seated well (88%)" for a tyre fitted there ("" otherwise).
+	static constexpr float BeadOk = 0.6f;
+	static FString BeadText(const FTorqueItem& It);
+	// PartsDB.tyre_fit_reason: why Tyre won't go on Wheel's rim ("" when it will).
+	static FString TyreFitReason(FName Tyre, FName Wheel);
+	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
+	float BeadOf(int32 Bay, bool bFront) const;
 
 	// --- Requests ----------------------------------------------------------------------------
 	// This machine's player (a PlayerState's player id; 1 until the walker says).
