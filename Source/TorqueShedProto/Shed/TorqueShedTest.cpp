@@ -279,7 +279,10 @@ const TCHAR* const KitSteps =
 	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
 	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,")
 	TEXT("furn:look:seat_chair,furn:sit,shot,furn:stand,furn:look:seat_stool,furn:sit,shot,furn:stand,")
-	TEXT("furn:look:shelf_standard,furn:label:Engine:spares,shot,furn:log");
+	TEXT("furn:look:shelf_standard,furn:label:Engine:spares,shot,")
+	// The walkway past the workbench's end to the storage room (beenster, Nov 10): from the middle of the
+	// shed, between the bench's end and bay 1's bike, along the west wall and through the door.
+	TEXT("floor:-300:0,walkto:-500:-160:-590:-220:-600:-420:-760:-450,shot,furn:log");
 
 // The look outline must draw (beenster, Nov 10: "I dont want any regression with this"): bike parts
 // looked at from beside the bike, the screen read with the line and without it each time. Any
@@ -1251,6 +1254,16 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("f"))
 	{
 		Said(W->TestInteract());
+		return true;
+	}
+	if (Verb == TEXT("walkto") && P.Num() >= 3)
+	{
+		// walkto:<x>:<y>[:<x>:<y>...]: walk (not put) through those points, world cm; the walker logs
+		// each it reaches, or where it got stuck.
+		TArray<FVector> Points;
+		for (int32 I = 1; I + 1 < P.Num(); I += 2) Points.Add(FVector(FCString::Atod(*P[I]), FCString::Atod(*P[I + 1]), 0.0));
+		Wait = W->TestWalkTo(Points);
+		Said(FString::Printf(TEXT("walking %d point(s) from %.0f, %.0f (about %.0f s)"), Points.Num(), W->GetActorLocation().X, W->GetActorLocation().Y, Wait));
 		return true;
 	}
 	if (Verb == TEXT("furn") && P.Num() >= 2)

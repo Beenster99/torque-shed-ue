@@ -508,3 +508,53 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 	}
 	return TEXT("not furniture: look, grab, turn, walk, drop, order, sit, stand, label or log");
 }
+
+// --- The test runner's walkto ------------------------------------------------------------------------
+
+double ATorqueWalker::TestWalkTo(const TArray<FVector>& Points)
+{
+	StandUp();
+	bTestAim = false;
+	TestWalkPath = Points;
+	TestWalkTook = TestWalkStill = 0.0;
+	TestWalkLast = GetActorLocation();
+	double Length = 0.0;
+	FVector From = GetActorLocation();
+	for (const FVector& P : Points)
+	{
+		Length += FVector::Dist2D(From, P);
+		From = P;
+	}
+	TestWalkFor = Length / FMath::Max((double)WalkSpeed, 50.0) * 2.0 + 5.0;
+	return Length / FMath::Max((double)WalkSpeed, 50.0) + 3.0;
+}
+
+void ATorqueWalker::TickTestWalk(float Dt)
+{
+	if (TestWalkPath.Num() == 0) return;
+	TestWalkTook += Dt;
+	const FVector At = GetActorLocation();
+	const FVector Goal = TestWalkPath[0];
+	const FVector To = FVector(Goal.X - At.X, Goal.Y - At.Y, 0.0);
+	if (To.Size() < 35.0)
+	{
+		TestWalkPath.RemoveAt(0);
+		UE_LOG(LogTemp, Log, TEXT("Torque test: walkto: reached %.0f, %.0f after %.1f s%s"), Goal.X, Goal.Y, TestWalkTook,
+			TestWalkPath.Num() == 0 ? TEXT(" (arrived)") : TEXT(""));
+		return;
+	}
+	// Not getting anywhere for two seconds, or out of time: stuck there.
+	TestWalkStill = FVector::Dist2D(At, TestWalkLast) < 1.0 ? TestWalkStill + Dt : 0.0;
+	TestWalkLast = At;
+	if (TestWalkStill > 2.0 || TestWalkTook > TestWalkFor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque test: walkto: stuck at %.0f, %.0f, %.0f cm short of %.0f, %.0f after %.1f s"), At.X, At.Y, To.Size(),
+			Goal.X, Goal.Y, TestWalkTook);
+		TestWalkPath.Reset();
+		return;
+	}
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	const FRotator Face(0.0, To.Rotation().Yaw, 0.0);
+	if (AController* C = GetController()) C->SetControlRotation(Face);
+	AddMovementInput(To.GetSafeNormal(), 1.0f);
+}
