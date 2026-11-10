@@ -84,16 +84,20 @@ void ATorqueDynoRoom::BeginPlay()
 		Piece(Drum, CubeMesh, FVector(0.0, FMath::Cos(A), FMath::Sin(A)) * TDRI::DrumRadius, FVector(55.0, 3.0, 2.0),
 			FRotator(0.0, 0.0, FMath::RadiansToDegrees(A)), Dark, 0.4f, 0.6f);
 	}
-	// The fan's blades (_build_fan), turning about its axle towards the bike.
+	// The fan's blades (_build_fan), turning about its axle towards the bike. The axle runs along y
+	// (Torque Shed's z), so the blades lie across the housing's face (x and z, 12 wide, 40 long,
+	// 1.5 thick along the axle), each twisted 17 degrees about its own length, spaced about y.
 	Fan = NewObject<USceneComponent>(this);
 	Fan->SetupAttachment(Root);
 	Fan->SetRelativeLocation(TDRI::Rig + FVector(0.0, -TDRI::FanAhead + 12.0, 95.0));
 	Fan->RegisterComponent();
 	for (int32 I = 0; I < 5; ++I)
 	{
-		const double A = 360.0 * I / 5.0;
-		const FRotator Spoke(0.0, 0.0, A);
-		Piece(Fan, CubeMesh, Spoke.RotateVector(FVector(0.0, 0.0, 20.0)), FVector(1.5, 12.0, 40.0), FRotator(0.0, 17.0, 0.0) + Spoke, Steel, 0.85f, 0.35f);
+		const FQuat Spoke(FVector::YAxisVector, UE_TWO_PI * I / 5.0);
+		const FQuat Twist(FVector::ZAxisVector, FMath::DegreesToRadians(17.0));
+		UStaticMeshComponent* Blade = Piece(Fan, CubeMesh, Spoke.RotateVector(FVector(0.0, 0.0, 20.0)), FVector(12.0, 1.5, 40.0),
+			FRotator::ZeroRotator, Steel, 0.85f, 0.35f);
+		if (Blade) Blade->SetRelativeRotation(Spoke * Twist);
 	}
 	Piece(Fan, CylinderMesh, FVector::ZeroVector, FVector(14.0, 14.0, 8.0), FRotator(0.0, 0.0, 90.0), Steel, 0.85f, 0.35f);
 	// The straps (_strap): from each post's ratchet to where it hooks on the bike, drawn once done up.
@@ -171,7 +175,7 @@ void ATorqueDynoRoom::Tick(float DeltaSeconds)
 	const float Push = FMath::Clamp((float)(FMath::Abs(WheelOmega) * TDRI::RearRadius / 100.0 / 45.0), 0.0f, 1.0f);
 	FanSpeed = FMath::FInterpConstantTo(FanSpeed, Kit.bFan ? 25.0f : 0.0f, DeltaSeconds, Kit.bFan ? 12.0f : 5.0f);
 	FanAngle = FMath::Fmod(FanAngle + FanSpeed * (1.0 + 0.5 * Push) * DeltaSeconds, UE_TWO_PI);
-	if (Fan) Fan->SetRelativeRotation(FRotator(0.0, 0.0, FMath::RadiansToDegrees(FanAngle)));
+	if (Fan) Fan->SetRelativeRotation(FQuat(FVector::YAxisVector, FanAngle));   // about the axle (y)
 	// A rocker tips about the wall's horizontal axis (x): top in or bottom in. Pitch (about y, the
 	// wall's normal) turned it in the wall's own plane, which looked crooked rather than switched.
 	if (FanRocker) FanRocker->SetRelativeRotation(FRotator(0.0, 0.0, Kit.bFan ? 12.0 : -12.0));
