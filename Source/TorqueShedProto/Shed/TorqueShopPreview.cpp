@@ -44,8 +44,15 @@ constexpr double SpinRate = 24.0;            // degrees a second
 constexpr double StartYaw = -145.0;          // a three-quarter view from the front left
 constexpr double StartPitch = 12.0;          // looking down a little
 constexpr double MinZoom = 0.6, MaxZoom = 3.5;
-// The backdrop's glow (M_ShedScreenPage's Brightness): the gradient's top a little under the lit part.
-constexpr float BackdropBrightness = 14.0f;
+// The studio's own fixed exposure (manual, EV100 0 and this compensation: a picture's value is a
+// surface's nits x 2^Bias / 1.2). The key gives ~19 lux at the item whatever its size (see Tick), so
+// a white part (albedo 0.8) in it is ~4.9 nits and lands just under 1.0 before the tone curve.
+// (Auto exposure metered the dim backdrop and the level's sky light lit the item as well: the
+// washed-out, cream and orange look of build 125.)
+constexpr float ExposureBias = -2.0f;
+// The backdrop's glow (M_ShedScreenPage's Brightness, nits for a white page): the gradient's top
+// ~0.15 and the pool behind the item ~0.3 after exposure, well under the lit part.
+constexpr float BackdropBrightness = 3.5f;
 
 // The backdrop's picture: a light grey at the top falling to a dark grey at the floor, a soft
 // pool of light behind the middle of the item, and the corners shaded off.
@@ -206,10 +213,35 @@ ATorqueShopPreview::ATorqueShopPreview()
 	Capture->ShowFlags.SetVolumetricFog(false);
 	Capture->ShowFlags.SetAtmosphere(false);
 	Capture->ShowFlags.SetMotionBlur(false);
+	// Only the studio's lights: not the level's sky light (it isn't held to lighting channels, and
+	// up here it lit the item from the whole sky and the ground) nor bounce light from the level.
+	Capture->ShowFlags.SetSkyLighting(false);
+	Capture->ShowFlags.SetLensFlares(false);
+	{
+		FPostProcessSettings& PP = Capture->PostProcessSettings;
+		PP.bOverride_AutoExposureMethod = true;
+		PP.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+		PP.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+		PP.AutoExposureApplyPhysicalCameraExposure = 0;
+		PP.bOverride_AutoExposureBias = true;
+		PP.AutoExposureBias = TorqueShopPreviewImpl::ExposureBias;
+		PP.bOverride_DynamicGlobalIlluminationMethod = true;
+		PP.DynamicGlobalIlluminationMethod = EDynamicGlobalIlluminationMethod::None;
+		PP.bOverride_ReflectionMethod = true;
+		PP.ReflectionMethod = EReflectionMethod::ScreenSpace;
+		PP.bOverride_BloomIntensity = true;
+		PP.BloomIntensity = 0.15f;
+		PP.bOverride_VignetteIntensity = true;
+		PP.VignetteIntensity = 0.0f;
+		PP.bOverride_LensFlareIntensity = true;
+		PP.LensFlareIntensity = 0.0f;
+		Capture->PostProcessBlendWeight = 1.0f;
+	}
 	KeyLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Key"));
 	FillLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Fill"));
 	RimLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Rim"));
-	for (UPointLightComponent* L : {KeyLight, FillLight, RimLight})
+	BounceLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Bounce"));
+	for (UPointLightComponent* L : {KeyLight, FillLight, RimLight, BounceLight})
 	{
 		L->SetupAttachment(Root);
 		L->SetIntensityUnits(ELightUnits::Candelas);
@@ -222,6 +254,7 @@ ATorqueShopPreview::ATorqueShopPreview()
 	KeyLight->SetLightColor(FLinearColor(1.0f, 0.95f, 0.88f));
 	FillLight->SetLightColor(FLinearColor(0.80f, 0.88f, 1.0f));
 	RimLight->SetLightColor(FLinearColor(0.95f, 0.97f, 1.0f));
+	BounceLight->SetLightColor(FLinearColor(1.0f, 0.98f, 0.95f));   // a neutral floor bounce (no sky light now)
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	Cube = CubeMesh.Object;
@@ -521,10 +554,12 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 		Light->SetWorldLocation(Centre + Dir.GetSafeNormal() * L);
 		Light->SetIntensity((float)(Candelas * Gain));
 		Light->SetAttenuationRadius((float)(L * 4.0));
+		Light->SetSourceRadius((float)(L * 0.08));   // soft boxes: broad highlights on paint and chrome
 	};
 	Place(KeyLight, -Fwd * 0.8 - Right * 0.75 + Up * 0.85, 120.0);
 	Place(FillLight, -Fwd * 0.9 + Right * 0.85 - Up * 0.1, 45.0);
 	Place(RimLight, Fwd * 0.9 + Right * 0.35 + Up * 0.95, 100.0);
+	Place(BounceLight, -Fwd * 0.6 - Up * 0.8, 22.0);
 }
 
 void ATorqueShopPreview::Draw(AHUD* Hud, UCanvas* Canvas, const FBox2D& Box, const FVector2D& Mouse)
