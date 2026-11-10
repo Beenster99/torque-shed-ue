@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <queue>
 #include <unordered_map>
 
 namespace TorqueWorld
@@ -350,11 +352,150 @@ bool Region::Stitch(const std::string& InId, const std::string& InTitle, const s
 	std::string Joined;
 	for (size_t I = 0; I < Hashes.size(); ++I) Joined += (I > 0 ? "|" : "") + Hashes[I];
 	Out.Hash = Sha256Hex(Joined).substr(0, 16);
+	// (every cell of the world's store has its place profile: its credit goes with them)
+	static const char* ProfileCredit = "Place: Natural Earth; K\xc3\xb6ppen-Geiger zones, Beck, H.E. et al. (2023) (CC BY 4.0); land cover and ground "
+		"colour, \xc2\xa9 ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA "
+		"WorldCover consortium (CC BY 4.0); climate, CRU TS 4.09, University of East Anglia and Met Office (Open Government Licence).";
+	if (std::find(Out.Credits.begin(), Out.Credits.end(), std::string(ProfileCredit)) == Out.Credits.end()) Out.Credits.push_back(ProfileCredit);
 	Out.Theme = Out.Sea ? "coastal" : "hills";
 	Out.FrameLat = Lat0;
 	Out.FrameLon = Lon0;
 	Out.Finish();
 	return true;
+}
+
+namespace
+{
+const double NoNumber = std::numeric_limits<double>::quiet_NaN();
+inline double NumOr(const Json& V) { return V.IsNumber() ? V.N : NoNumber; }
+inline std::string Word(const Json* List, const Json& Index)
+{
+	const int I = int(Index.N);
+	return List != nullptr && I >= 0 && I < int(List->A.size()) ? List->A[size_t(I)].S : std::string();
+}
+// A line of points written as a first (lat, lon) and then steps, in 1e-5 degrees, from Row[First].
+std::vector<P2> Steps(const Frame& F, const Json& Row, size_t First)
+{
+	std::vector<P2> Out;
+	long long Lat = static_cast<long long>(Row.A[First].N), Lon = static_cast<long long>(Row.A[First + 1].N);
+	Out.push_back(F.FromGeo(double(Lat) * 1e-5, double(Lon) * 1e-5));
+	for (size_t K = First + 2; K + 1 < Row.A.size(); K += 2)
+	{
+		Lat += static_cast<long long>(Row.A[K].N);
+		Lon += static_cast<long long>(Row.A[K + 1].N);
+		Out.push_back(F.FromGeo(double(Lat) * 1e-5, double(Lon) * 1e-5));
+	}
+	return Out;
+}
+} // namespace
+
+void Region::AddSpans(const Json& Rows)
+{
+	const Frame F = FrameOf();
+	for (const Json& Row : Rows.A)
+	{
+		if (Row.Size() < 5) continue;
+		Span S;
+		S.Kind = int(Row.A[0].N);
+		S.A = F.FromGeo(Row.A[1].N * 1e-5, Row.A[2].N * 1e-5);
+		S.B = F.FromGeo(Row.A[3].N * 1e-5, Row.A[4].N * 1e-5);
+		Spans.push_back(S);
+	}
+}
+
+void Region::AddStreams(const Json& Rows)
+{
+	const Frame F = FrameOf();
+	for (const Json& Row : Rows.A)
+	{
+		if (Row.Size() < 5) continue;
+		Stream S;
+		S.Kind = int(Row.A[0].N);
+		S.Line = Steps(F, Row, 1);
+		Streams.push_back(std::move(S));
+	}
+}
+
+void Region::AddFeatures(const Json& File)
+{
+	if (!File.IsObject() || int(File.Num("format")) != FeaturesFormat) return;
+	const Frame F = FrameOf();
+	const Json* Kinds = File.Get("kinds");
+	const Json* FileNames = File.Get("names");
+	const Json* Words = File.Get("words");
+	const int KindCount = Kinds != nullptr ? int(Kinds->A.size()) : 0;
+	if (const Json* Rows = File.Get("points"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 8 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			FeaturePoint P;
+			P.Kind = Word(Kinds, Row.A[0]);
+			P.At = F.FromGeo(Row.A[1].N * 1e-5, Row.A[2].N * 1e-5);
+			P.Height = NumOr(Row.A[3]);
+			P.Elevation = NumOr(Row.A[4]);
+			P.Heading = NumOr(Row.A[5]);
+			P.Name = Word(FileNames, Row.A[6]);
+			P.Id = Row.A[7].S;
+			Scenery.Points.push_back(std::move(P));
+		}
+	if (const Json* Rows = File.Get("lines"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 10 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			FeatureLine L;
+			L.Kind = Word(Kinds, Row.A[0]);
+			L.Height = NumOr(Row.A[1]);
+			L.Width = NumOr(Row.A[2]);
+			L.Flags = int(Row.A[3].N);
+			L.Name = Word(FileNames, Row.A[4]);
+			L.Id = Row.A[5].S;
+			L.Line = Steps(F, Row, 6);
+			Scenery.Lines.push_back(std::move(L));
+		}
+	if (const Json* Rows = File.Get("areas"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 9 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			FeatureArea A;
+			A.Kind = Word(Kinds, Row.A[0]);
+			A.Height = NumOr(Row.A[1]);
+			A.Elevation = NumOr(Row.A[2]);
+			A.Name = Word(FileNames, Row.A[3]);
+			A.Id = Row.A[4].S;
+			A.Ring = Steps(F, Row, 5);
+			Scenery.Areas.push_back(std::move(A));
+		}
+	// What the map says its buildings look like: [lat step, lon step, six words' numbers].
+	if (const Json* Rows = File.Get("buildings"))
+	{
+		long long Lat = 0, Lon = 0;
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 8) continue;
+			Lat += static_cast<long long>(Row.A[0].N);
+			Lon += static_cast<long long>(Row.A[1].N);
+			BuildingLook B;
+			B.At = F.FromGeo(double(Lat) * 1e-5, double(Lon) * 1e-5);
+			for (size_t K = 0; K < 6; ++K) B.Words[K] = Word(Words, Row.A[K + 2]);
+			Scenery.Buildings.push_back(std::move(B));
+		}
+	}
+	// The towers (tall and big buildings, a tall one's parts) as areas of kind "tower", or "skyscraper".
+	if (const Json* Rows = File.Get("towers"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 17) continue;
+			FeatureArea A;
+			A.Height = NumOr(Row.A[0]);
+			A.Elevation = NumOr(Row.A[1]);
+			A.Kind = Row.A[0].IsNumber() && Row.A[0].N >= Skyscraper ? "skyscraper" : "tower";
+			A.Name = Word(FileNames, Row.A[2]);
+			A.Id = Row.A[3].S;
+			A.Group = Row.A[4].S;
+			for (size_t K = 5; K < 11; ++K) A.Look.push_back(Word(Words, Row.A[K]));
+			A.Ring = Steps(F, Row, 11);
+			Scenery.Areas.push_back(std::move(A));
+		}
 }
 
 bool Region::Passable(int Edge, int Node) const
@@ -434,5 +575,70 @@ int Region::NearestConnected(double X, double Z, double Within, int MinNodes) co
 			}
 		}
 	return Best >= 0 ? Best : Fallback;
+}
+std::vector<int> Region::ShortestPath(int From, int To) const
+{
+	std::vector<int> Out;
+	if (From < 0 || To < 0 || From >= int(Nodes.size()) || To >= int(Nodes.size()) || From == To) return Out;
+	// Over (edge arrived by, at its far node), so a banned turn can be refused: 2 states an edge.
+	const size_t States = Edges.size() * 2;
+	std::vector<double> Dist(States, 1e300);
+	std::vector<int> Prev(States, -1);
+	using Item = std::pair<double, int>;
+	std::priority_queue<Item, std::vector<Item>, std::greater<Item>> Open;
+	auto Arrive = [&](int Edge, int AtNode) { return Edge * 2 + (Edges[size_t(Edge)].B == AtNode ? 1 : 0); };
+	for (int Ei : Adjacent[size_t(From)])
+	{
+		if (!Passable(Ei, From) || Edges[size_t(Ei)].A == Edges[size_t(Ei)].B) continue;
+		const int S = Arrive(Ei, OtherEnd(Ei, From));
+		if (Edges[size_t(Ei)].Length < Dist[size_t(S)])
+		{
+			Dist[size_t(S)] = Edges[size_t(Ei)].Length;
+			Open.push({Dist[size_t(S)], S});
+		}
+	}
+	int End = -1;
+	while (!Open.empty())
+	{
+		const Item Top = Open.top();
+		Open.pop();
+		const int S = Top.second;
+		if (Top.first > Dist[size_t(S)]) continue;
+		const int Came = S / 2;
+		const int Node = (S & 1) ? Edges[size_t(Came)].B : Edges[size_t(Came)].A;
+		if (Node == To)
+		{
+			End = S;
+			break;
+		}
+		for (int Ei : Adjacent[size_t(Node)])
+		{
+			if (Ei == Came || !Passable(Ei, Node) || TurnBanned(Came, Node, Ei) || Edges[size_t(Ei)].A == Edges[size_t(Ei)].B) continue;
+			const int N = Arrive(Ei, OtherEnd(Ei, Node));
+			const double D = Top.first + Edges[size_t(Ei)].Length;
+			if (D < Dist[size_t(N)])
+			{
+				Dist[size_t(N)] = D;
+				Prev[size_t(N)] = S;
+				Open.push({D, N});
+			}
+		}
+	}
+	for (int S = End; S >= 0; S = Prev[size_t(S)]) Out.push_back(S / 2);
+	std::reverse(Out.begin(), Out.end());
+	return Out;
+}
+
+std::vector<P2> Region::PathLine(int From, const std::vector<int>& Path) const
+{
+	std::vector<P2> Out;
+	int Node = From;
+	for (int Ei : Path)
+	{
+		const std::vector<P2> Line = LineFrom(Ei, Node);
+		Out.insert(Out.end(), Line.begin() + (Out.empty() ? 0 : 1), Line.end());
+		Node = OtherEnd(Ei, Node);
+	}
+	return Out;
 }
 } // namespace TorqueWorld

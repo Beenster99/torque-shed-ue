@@ -105,6 +105,8 @@ def main():
             print("wrote %s" % out)
             return
         if a.world:
+            # (the store's own files for the two cells, as SimTest keeps them: see SimTest/data/world/store/index.json)
+            shutil.copytree(os.path.join(WORLD_DIR, "store"), os.path.join(proj, "dump", "store"))
             subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_world.tscn", "--", "--out=" + raw],
                            check=True, capture_output=True, timeout=900)
             os.makedirs(WORLD_DIR, exist_ok=True)

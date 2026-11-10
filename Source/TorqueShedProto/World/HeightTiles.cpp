@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <atomic>
 #include <ctime>
+#include <thread>
 
 namespace TorqueWorld
 {
@@ -352,6 +354,54 @@ std::vector<uint8_t> HeightStore::SeaAllowed(int Size, const TileKey& Key) const
 	for (int J = 0; J < Size; ++J)
 		for (int I = 0; I < Size; ++I) Out[size_t(J) * size_t(Size) + size_t(I)] = May(Rows[size_t(J)], Cols[size_t(I)]) ? 1 : 0;
 	return Out;
+}
+
+int HeightStore::Fetch(const std::vector<TileKey>& Keys, const Fetcher& Get, int AtOnce, const std::function<void(int, int)>& Progress)
+{
+	std::vector<TileKey> Todo;
+	for (const TileKey& K : Keys)
+		if (!Has(K)) Todo.push_back(K);
+	if (Todo.empty()) return 0;
+	if (!Get || Disk.empty()) return int(Todo.size());
+	std::atomic<size_t> Next(0);
+	std::atomic<int> Failed(0), Done(0);
+	std::mutex Said;
+	const int Total = int(Todo.size());
+	auto Work = [&]() {
+		for (;;)
+		{
+			const size_t I = Next.fetch_add(1);
+			if (I >= Todo.size()) return;
+			const TileKey& K = Todo[I];
+			std::string Body;
+			int Code = Get(Url(K, false), Body);
+			bool Ok = Code == 200 && Store(K, Body, false);
+			if (!Ok && K.Zoom > AwsTop)
+			{
+				// (Mapterhorn hasn't it and AWS's isn't wanted: the coarser zoom is the ground there)
+				if (Code == 404) { MarkNone(K); Ok = true; }
+			}
+			else if (!Ok)
+			{
+				Body.clear();
+				Code = Get(Url(K, true), Body);   // Mapterhorn didn't have it: AWS's
+				Ok = Code == 200 && Store(K, Body, true);
+			}
+			if (!Ok) ++Failed;
+			const int Now = ++Done;
+			if (Progress)
+			{
+				std::lock_guard<std::mutex> G(Said);
+				Progress(Now, Total);
+			}
+		}
+	};
+	const int Threads = std::max(1, std::min(AtOnce, Total));
+	std::vector<std::thread> Pool;
+	for (int T = 1; T < Threads; ++T) Pool.emplace_back(Work);
+	Work();
+	for (std::thread& T : Pool) T.join();
+	return Failed.load();
 }
 
 void HeightStore::KnowSea(CellId Cell, bool HasSea)

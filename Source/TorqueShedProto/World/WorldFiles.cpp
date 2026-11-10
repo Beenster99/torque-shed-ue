@@ -117,6 +117,25 @@ bool Remove(const std::string& Path)
 	return fs::remove(PathOf(Path), Ec);
 }
 
+bool IsDir(const std::string& Path)
+{
+	std::error_code Ec;
+	return fs::is_directory(PathOf(Path), Ec);
+}
+
+void RemoveTree(const std::string& Dir)
+{
+	std::error_code Ec;
+	if (fs::is_directory(PathOf(Dir), Ec)) fs::remove_all(PathOf(Dir), Ec);
+}
+
+bool Rename(const std::string& From, const std::string& To)
+{
+	std::error_code Ec;
+	fs::rename(PathOf(From), PathOf(To), Ec);
+	return !Ec;
+}
+
 long long ModifiedUnix(const std::string& Path)
 {
 	std::error_code Ec;

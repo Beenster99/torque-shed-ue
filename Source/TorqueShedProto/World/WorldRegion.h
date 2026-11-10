@@ -39,6 +39,59 @@ struct Building
 	std::vector<double> More;  // the rest of its row as the baker wrote it (its kind and so on)
 };
 
+// A bridge or a tunnel, end to end.
+struct Span
+{
+	int Kind = 0;   // 0 a bridge, 1 a tunnel
+	P2 A, B;
+};
+
+// A river or stream the land cover's water doesn't hold, as a line near the roads.
+struct Stream
+{
+	int Kind = 0;   // 0 a river, 1 a stream, 2 a canal
+	std::vector<P2> Line;
+};
+
+// Things worth stopping for and what stands in the land (the baker's feature files: 141 kinds, from
+// a post box to a viaduct). A number the map says nothing of is NaN.
+struct FeaturePoint
+{
+	std::string Kind, Name, Id;
+	P2 At;
+	double Height = 0.0, Elevation = 0.0, Heading = 0.0;
+};
+struct FeatureLine
+{
+	std::string Kind, Name, Id;
+	std::vector<P2> Line;
+	double Height = 0.0, Width = 0.0;
+	int Flags = 0;
+};
+struct FeatureArea
+{
+	std::string Kind, Name, Id;
+	std::vector<P2> Ring;        // the outer ring
+	double Height = 0.0, Elevation = 0.0;
+	// A tower or skyscraper only: its building's id, and what the map says it looks like.
+	std::string Group;
+	std::vector<std::string> Look;
+};
+// What the map says a building looks like: its class, roof shape, roof colour, roof material, wall
+// material and wall colour, "" where it says nothing.
+struct BuildingLook
+{
+	P2 At;
+	std::string Words[6];
+};
+struct Features
+{
+	std::vector<FeaturePoint> Points;
+	std::vector<FeatureLine> Lines;
+	std::vector<FeatureArea> Areas;
+	std::vector<BuildingLook> Buildings;
+};
+
 class Region
 {
 public:
@@ -60,6 +113,11 @@ public:
 	std::vector<TorqueFit::Json> Pois, Landmarks, Places;   // {kind, name, x, z, ...} as the baker wrote them
 	// For each node the connected piece of road it is in, and how many junctions each piece has.
 	std::vector<int> Component, ComponentSize;
+	// Its bridges and tunnels, rivers and streams, and scenery, where the store has them (AddSpans,
+	// AddStreams, AddFeatures: WorldLoad fills them from each cell's own files).
+	std::vector<Span> Spans;
+	std::vector<Stream> Streams;
+	Features Scenery;
 	// The cells it was stitched from: their folders and each one's region.json (for cover and more).
 	std::vector<std::pair<std::string, TorqueFit::Json>> CellMetas;
 
@@ -91,6 +149,23 @@ public:
 	// a stray bit of road), else just the nearest; -1 when there is none.
 	int NearestConnected(double X, double Z, double Within = 500.0, int MinNodes = 200) const;
 	Frame FrameOf() const { return Frame(FrameLat, FrameLon); }
+	// The shortest way by road from one junction to another, as the edges to take in order (one-way
+	// streets and banned turns kept to); empty when there is none. A plain shortest path: the crew's
+	// route planner (which weighs the kind of road) comes with the Route TV.
+	std::vector<int> ShortestPath(int From, int To) const;
+	// The line of a path from its first junction, every point once.
+	std::vector<P2> PathLine(int From, const std::vector<int>& Path) const;
+
+	// Spans [[kind, lat0, lon0, lat1, lon1] in 1e-5 degrees] into the region's frame.
+	void AddSpans(const TorqueFit::Json& Rows);
+	// Streams [[kind, lat, lon, dlat, dlon, ...] in 1e-5 degrees] into the region's frame.
+	void AddStreams(const TorqueFit::Json& Rows);
+	// A features file (a cell's) into the region's frame. One of another format is left out.
+	void AddFeatures(const TorqueFit::Json& File);
+	// The features files this game reads.
+	static constexpr int FeaturesFormat = 1;
+	// A tower this tall (m) is a skyscraper, seen from miles off.
+	static constexpr double Skyscraper = 100.0;
 
 private:
 	void Finish();

@@ -154,10 +154,20 @@ twice. Stage 1 is the readers, in plain C++ under `Source/TorqueShedProto/World/
   levelled under each building. A ride uses only the tiles within reach of its own road, so
   everyone who plans the same road gets the same ground.
 
-`world_test` checks all of it against the original's answers on the original's own test files (two
-Dales cells and 73 height tiles): the tiles' pixels and sea beds bit for bit, the stitched graph
-junction for junction, and the ground at 6,279 points to within 2 mm (it is in fact the same to the
-last bit). `Tools/make_godot_reference.py --world` records those answers again.
+- `CellStore`, `WorldZip`: the store itself. Its index names every cell's download and hash; a cell
+  is fetched as a zip, checked against that hash and kept on disk (the 400 used most recently), with
+  each cell's streams, trees, scenery and place profile as small files of their own. The game hands
+  it a function that fetches a URL, so the same code runs in the tests with no network.
+- `WorldLoad`: an area put together to ride: its cells fetched if need be and stitched, with their
+  bridges and tunnels, rivers and streams, scenery (141 kinds of thing, from a post box to a
+  viaduct), land cover and trees.
+
+`world_test` checks all of it against the original's answers on the original's own test files and
+the real store's files for two Dales cells: the 73 height tiles' pixels and sea beds bit for bit, the
+stitched graph junction for junction, the ground at 6,279 points (the same to the last bit), the
+cells' zips against the store's hashes, and the bridges, streams, scenery, cover and trees place for
+place. `Tools/make_godot_reference.py --world` records those answers again. Nothing in the game
+calls any of this yet: fetching inside the game and the first streamed ride come next.
 
 ### DLSS on the 4090
 
