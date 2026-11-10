@@ -629,10 +629,10 @@ bool UTorqueShedTest::RunStep(const FString& S)
 				return false;
 			}
 			const double Mph = Bike->TestSpeedMph();
-			if (Mph > 0.5 && ++StopTries < 40) return false;
+			if (Mph > 0.5 && ++StopTries < 40) return false;   // (a crawl under 2 mph after that still lets foot:off get off: F does to 4.5)
 			bMoveStarted = false;
 			Bike->TestStop(false);
-			if (Mph > 0.5) Warn(FString::Printf(TEXT("stop: still rolling at %.1f mph after 40 s"), Mph));
+			if (Mph > 2.0) Warn(FString::Printf(TEXT("stop: still rolling at %.1f mph after 40 s"), Mph));
 			else Said(FString::Printf(TEXT("stopped (%.1f mph), the robot's off"), Mph));
 			return true;
 		}
