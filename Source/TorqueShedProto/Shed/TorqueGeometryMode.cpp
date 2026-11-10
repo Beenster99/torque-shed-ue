@@ -1247,16 +1247,20 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 	Y += 32.0f * Sc;
 	if (B && B->Exists(S.Bay)) D.Text(B->Bike(S.Bay).Name, X, Y, 17.0f, FLinearColor::White);
 	Y += 26.0f * Sc;
-	Y += D.Wrapped(TEXT("Slide the rig handles and the bike re-forms round them. With Expert on, click a part of the bike (or pick it in the list on the left) to "
+	Y += D.Wrapped(TEXT("Tick Expert for the rig handles (the bike re-forms round them). With Expert on, click a part of the bike (or pick it in the list on the left) to "
 		"select it, then drag the handles. W move, E rotate, R scale (the middle box sizes it all over). Hold Ctrl to snap, Z undo, Backspace resets the part. "
 		"Right-drag to orbit, middle-drag to pan, wheel to zoom. Only this bike changes."), X, Y, IW, 14.0f, TGMI::Dim) + 8.0f * Sc;
 	// The rig's range handles (catalogue bikes only).
 	const bool bRig = HasRig();
 	if (bRig)
 	{
-		D.Text(TEXT("RIG HANDLES: the bike re-forms round them"), X, Y, 14.0f, TGMI::Accent);
-		Y += 24.0f * Sc;
-		const std::vector<TorqueFit::AdjustRange> Ranges = TorqueFit::BikeLayout::AdjustRanges();
+		// The rig handles (tank mounts, pegs, seat hoop) only show in Expert (beenster, Nov 10).
+		const std::vector<TorqueFit::AdjustRange> Ranges = GExpert ? TorqueFit::BikeLayout::AdjustRanges() : std::vector<TorqueFit::AdjustRange>();
+		if (GExpert)
+		{
+			D.Text(TEXT("RIG HANDLES: the bike re-forms round them"), X, Y, 14.0f, TGMI::Accent);
+			Y += 24.0f * Sc;
+		}
 		for (int32 K = 0; K < (int32)Ranges.size() && K < 4; ++K)
 		{
 			const TorqueFit::AdjustRange& R = Ranges[K];
