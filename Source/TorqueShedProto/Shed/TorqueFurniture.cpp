@@ -527,6 +527,105 @@ void UTorqueBuildSubsystem::SerializeFurniture(FArchive& Ar, bool bNet, TArray<F
 
 // --- Drawing it -------------------------------------------------------------------------------------------
 
+namespace TorqueFurnitureImpl
+{
+// Data/Furniture/fab_looks.json: pieces drawn with a Fab model over our own (see its "about").
+struct FFabLook
+{
+	FString Mesh;
+	FVector Box = FVector(100.0);
+	TArray<FVector> Copies;   // x, y (cm, the piece's frame), yaw (degrees)
+};
+
+const TMap<FName, FFabLook>& FabLooks()
+{
+	static TMap<FName, FFabLook> Looks;
+	static bool bRead = false;
+	if (bRead) return Looks;
+	bRead = true;
+	TSharedPtr<FJsonObject> J;
+	if (!LoadJson(TEXT("Data/Furniture/fab_looks.json"), J)) return Looks;
+	const TSharedPtr<FJsonObject>* All = nullptr;
+	if (!J->TryGetObjectField(TEXT("looks"), All)) return Looks;
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : (*All)->Values)
+	{
+		const TSharedPtr<FJsonObject> O = KV.Value->AsObject();
+		if (!O.IsValid()) continue;
+		FFabLook L;
+		O->TryGetStringField(TEXT("mesh"), L.Mesh);
+		const TArray<TSharedPtr<FJsonValue>>* BoxA = nullptr;
+		if (O->TryGetArrayField(TEXT("box"), BoxA)) L.Box = FVector(Num(*BoxA, 0, 100.0), Num(*BoxA, 1, 100.0), Num(*BoxA, 2, 100.0));
+		const TArray<TSharedPtr<FJsonValue>>* CopiesA = nullptr;
+		if (O->TryGetArrayField(TEXT("copies"), CopiesA))
+			for (const TSharedPtr<FJsonValue>& V : *CopiesA)
+			{
+				const TArray<TSharedPtr<FJsonValue>>& R = V->AsArray();
+				L.Copies.Add(FVector(Num(R, 0), Num(R, 1), Num(R, 2)));
+			}
+		if (L.Copies.Num() == 0) L.Copies.Add(FVector::ZeroVector);
+		if (!L.Mesh.IsEmpty()) Looks.Add(FName(*KV.Key), L);
+	}
+	return Looks;
+}
+
+// Draws Piece's Fab look over it, when it has one that's in the project: the piece keeps its own
+// mesh for colliding, being looked at and the outline (custom depth), but that mesh isn't drawn.
+void DressFab(UStaticMeshComponent* Piece, FName Model)
+{
+	const FFabLook* Look = FabLooks().Find(Model);
+	if (!Piece || !Look) return;
+	static TMap<FString, TWeakObjectPtr<UStaticMesh>> Loaded;
+	UStaticMesh* Fab = nullptr;
+	if (const TWeakObjectPtr<UStaticMesh>* Was = Loaded.Find(Look->Mesh)) Fab = Was->Get();
+	if (!Fab)
+	{
+		Fab = LoadObject<UStaticMesh>(nullptr, *Look->Mesh);
+		Loaded.Add(Look->Mesh, Fab);
+		if (!Fab) UE_LOG(LogTemp, Warning, TEXT("Torque furniture: %s's Fab look %s isn't in the project: our own model is drawn"), *Model.ToString(), *Look->Mesh);
+	}
+	if (!Fab) return;
+	const FBox FabBox = Fab->GetBoundingBox();
+	const FVector FabSize = FabBox.GetSize();
+	if (FabSize.X < 1.0 || FabSize.Y < 1.0) return;
+	// Its long side along the box's, then as long as the box (one scale: never squashed).
+	const bool bFabAlongX = FabSize.X >= FabSize.Y;
+	const bool bBoxAlongX = Look->Box.X >= Look->Box.Y;
+	const double Turn = bFabAlongX == bBoxAlongX ? 0.0 : 90.0;
+	const double Scale = FMath::Max(Look->Box.X, Look->Box.Y) / FMath::Max(FabSize.X, FabSize.Y);
+	for (int32 I = 0; I < Look->Copies.Num(); ++I)
+	{
+		const FVector& Copy = Look->Copies[I];
+		const FQuat Rot = FRotator(0.0, Turn + Copy.Z, 0.0).Quaternion();
+		const FVector Centre = Rot.RotateVector(FabBox.GetCenter() * Scale);
+		const FVector Offset(Copy.X - Centre.X, Copy.Y - Centre.Y, -FabBox.Min.Z * Scale);
+		UStaticMeshComponent* Shell = NewObject<UStaticMeshComponent>(Piece->GetOwner());
+		Shell->SetStaticMesh(Fab);
+		Shell->SetMobility(EComponentMobility::Movable);
+		Shell->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Shell->SetGenerateOverlapEvents(false);
+		Shell->ComponentTags.Add(TEXT("FabLook"));
+		Shell->SetupAttachment(Piece);
+		Shell->SetRelativeTransform(FTransform(Rot, Offset, FVector(Scale)));
+		Shell->RegisterComponent();
+	}
+	Piece->SetRenderInMainPass(false);
+	Piece->SetCastShadow(false);
+	Piece->SetVisibleInRayTracing(false);
+	Piece->SetAffectDistanceFieldLighting(false);
+}
+
+// A piece's mesh goes, and its Fab look with it.
+void Unmake(UStaticMeshComponent* Piece)
+{
+	if (!Piece) return;
+	const TArray<TObjectPtr<USceneComponent>> Kids = Piece->GetAttachChildren();
+	for (USceneComponent* Kid : Kids)
+		if (Kid && Kid->ComponentHasTag(TEXT("FabLook"))) Kid->DestroyComponent();
+	Piece->DestroyComponent();
+}
+} // namespace TorqueFurnitureImpl
+
+
 ATorqueFurnishings::ATorqueFurnishings()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -567,6 +666,7 @@ UStaticMeshComponent* ATorqueFurnishings::Make(FName Model, const FTransform& Xf
 	C->RegisterComponent();
 	C->SetWorldTransform(FTransform(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0)) * Xf);
 	if (!bMovable) C->ComponentTags.Add(TEXT("FixedKit"));
+	TFI::DressFab(C, Model);
 	return C;
 }
 
@@ -672,7 +772,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		UStaticMeshComponent** Have = Drawn.Find(F.Id);
 		if (Have && DrawnModel.FindRef(F.Id) != F.Model)
 		{
-			(*Have)->DestroyComponent();
+			TFI::Unmake(*Have);
 			Drawn.Remove(F.Id);
 			Have = nullptr;
 		}
@@ -698,7 +798,7 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 	for (auto It = Drawn.CreateIterator(); It; ++It)
 		if (!Seen.Contains(It.Key()))
 		{
-			if (It.Value()) It.Value()->DestroyComponent();
+			TFI::Unmake(It.Value());
 			DrawnModel.Remove(It.Key());
 			It.RemoveCurrent();
 		}
