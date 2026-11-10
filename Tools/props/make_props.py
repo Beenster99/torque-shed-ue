@@ -73,19 +73,26 @@ def wood_top(name, centre, size, mat="wood_top"):
         box("%s_%d" % (name, i), (x, y, zz), (w, h, d / n - 0.0008), mat, bevel=0.0015)
 
 
-def vice(name, at, mat="paint_blue"):
-    """A bench vice on the top at `at` (its jaws facing +z)."""
+def vice(name, at, mat="vice_steel"):
+    """A bench vice bolted at the front edge of a top: `at` is the edge's middle under it (x along the
+    edge, y the top's surface, z the edge's front face, the jaws facing +z). Plain steel, as a vice is
+    (beenster, Nov 10): its base on the top, the fixed jaw just over the edge so a long part hangs
+    clear of the bench, the slide, screw and bar out in front."""
     x, y, z = at
-    box(name + "_Base", (x, y + 0.02, z - 0.04), (0.15, 0.04, 0.16), mat, bevel=0.006)
-    box(name + "_Body", (x, y + 0.08, z - 0.02), (0.1, 0.08, 0.2), mat, bevel=0.008)
-    box(name + "_JawFixed", (x, y + 0.14, z - 0.05), (0.15, 0.06, 0.04), mat, bevel=0.005)
-    box(name + "_JawMoving", (x, y + 0.14, z + 0.04), (0.15, 0.06, 0.04), mat, bevel=0.005)
-    for dz in (-0.03, 0.06):
-        box(name + "_Plate%.2f" % dz, (x, y + 0.155, z + dz - 0.0), (0.14, 0.03, 0.006), "steel_dark", bevel=0.001)
-    cyl(name + "_Screw", (x, y + 0.11, z + 0.12), 0.011, 0.12, "steel", axis="z")
-    cyl(name + "_Bar", (x, y + 0.11, z + 0.18), 0.006, 0.2, "chrome", axis="x")
+    box(name + "_Base", (x, y + 0.012, z - 0.09), (0.17, 0.024, 0.15), mat, bevel=0.005)
     for s in (-1, 1):
-        sphere(name + "_Knob%d" % s, (x + s * 0.1, y + 0.11, z + 0.18), 0.011, "chrome")
+        cyl(name + "_Bolt%d" % s, (x + s * 0.065, y + 0.028, z - 0.12), 0.009, 0.01, "vice_steel_dark", verts=6)
+    cyl(name + "_Swivel", (x, y + 0.035, z - 0.08), 0.07, 0.022, mat, bevel=0.003)
+    box(name + "_Body", (x, y + 0.085, z - 0.06), (0.1, 0.08, 0.16), mat, bevel=0.008)
+    box(name + "_JawFixed", (x, y + 0.15, z - 0.005), (0.16, 0.065, 0.04), mat, bevel=0.005)
+    box(name + "_Slide", (x, y + 0.085, z + 0.07), (0.07, 0.05, 0.16), mat, bevel=0.006)
+    box(name + "_JawMoving", (x, y + 0.15, z + 0.07), (0.16, 0.065, 0.04), mat, bevel=0.005)
+    for dz in (0.018, 0.047):
+        box(name + "_Plate%.3f" % dz, (x, y + 0.165, z + dz), (0.15, 0.032, 0.006), "vice_steel_dark", bevel=0.001)
+    cyl(name + "_Screw", (x, y + 0.115, z + 0.16), 0.011, 0.12, "steel", axis="z")
+    cyl(name + "_Bar", (x, y + 0.115, z + 0.22), 0.006, 0.2, "chrome", axis="x")
+    for s in (-1, 1):
+        sphere(name + "_Knob%d" % s, (x + s * 0.1, y + 0.115, z + 0.22), 0.011, "chrome")
 
 
 def grinder(name, at, body="paint_black"):
@@ -132,7 +139,7 @@ def shed_workbench():
     # Pegboard up the wall behind it. Its tools are their own prop, pegboard_tools
     # (Tools/props/make_pegboard_tools.py), placed with the bench.
     box("Peg", (0.0, 1.3, -D / 2 + 0.01), (L * 0.6, 0.6, 0.012), "pegboard", bevel=0.002)
-    vice("Vice", (L / 2 - 0.35, 0.945, D / 2 - 0.15))
+    vice("Vice", (L / 2 - 0.35, 0.945, 0.475))
 
 
 @model("parts_computer", (0.8, 1.35, 1.35))
@@ -470,7 +477,7 @@ def _repair(pid):
                 cyl("Bolt%.2f%.2f" % (x, z), (x, 0.035, z), 0.01, 0.012, "steel", verts=6)
         box("Top", (0.0, top - 0.015, 0.0), (W, 0.03, D * 0.8), "steel_dark", bevel=0.004)
         grinder("Grinder", (0.12, top, -0.05))
-        vice("Vice", (-0.25, top, 0.08))
+        vice("Vice", (-0.25, top, D * 0.4))
         return
     if pid == "repair_blaster":
         # A bead blast cabinet: a hopper body on legs, a sloping window, two glove ports.
@@ -492,7 +499,7 @@ def _repair(pid):
     square_tube_frame("Frame", -W / 2, W / 2, -D / 2, D / 2, 0.0, top - 0.02, 0.05, "paint_grey")
     box("Top", (0.0, top - 0.01, 0.0), (W + 0.05, 0.02, D + 0.05), "steel_dark", bevel=0.003)
     box("Shelf", (0.0, 0.18, 0.0), (W - 0.1, 0.02, D - 0.1), "steel_dark", bevel=0.002)
-    vice("Vice", (-W / 2 + 0.15, top, D / 4))
+    vice("Vice", (-W / 2 + 0.15, top, D / 2 + 0.025))
     grinder("Grinder", (W / 2 - 0.2, top, -D * 0.2))
     if pid in ("repair_pro", "repair_workshop"):
         box("Peg", (0.0, top + 0.5, -D / 2 + 0.02), (W, 0.8, 0.015), "pegboard", bevel=0.002)
@@ -610,7 +617,7 @@ def _bench(pid):
         box("LightBar", (0.0, top + 0.95, -D / 2 + 0.1), (W - 0.1, 0.03, 0.08), "aluminium", bevel=0.004)
         box("LightTube", (0.0, top + 0.934, -D / 2 + 0.1), (W - 0.15, 0.004, 0.06), "led_white", bevel=0.0)
     else:
-        vice("Vice", (-W / 2 + 0.2, top, D / 2 - 0.12))
+        vice("Vice", (-W / 2 + 0.2, top, D / 2))
 
 
 for _pid, _size in (("bench_compact", (1.0, 0.9, 0.6)), ("bench_mobile", (1.2, 0.95, 0.6)), ("bench_standard", (1.8, 0.95, 0.75)),
@@ -974,6 +981,38 @@ def _blaster(pid):
 
 for _pid, _size in (("blaster_cabinet", (1.7, 2.35, 1.7)), ("blaster_pro", (2.0, 2.45, 1.95))):
     MODELS[_pid] = ((lambda p: (lambda: _blaster(p)))(_pid), _size)
+
+
+# --- Dressing ------------------------------------------------------------------------------------------
+
+def spray_can(name, x, z, body, cap=None):
+    """A 400 ml aerosol (66 mm across, 19 cm to the top of its cap) standing at (x, z): a plain body in its
+    colour, a printed band (no brand), the domed shoulder, the nozzle and a cap in its colour or clear."""
+    r, h = 0.033, 0.155
+    cyl(name + "_Body", (x, h / 2, z), r, h, body, bevel=0.003)
+    cyl(name + "_Band", (x, 0.07, z), r + 0.0006, 0.06, "can_label", bevel=0.0)
+    cyl(name + "_Stripe", (x, 0.07, z), r + 0.0009, 0.012, body, bevel=0.0)
+    cyl(name + "_Shoulder", (x, h + 0.008, z), r, 0.016, "can_silver", radius2=r * 0.8, bevel=0.002)
+    cyl(name + "_Cap", (x, h + 0.025, z), r * 0.88, 0.035, cap or body, bevel=0.004)
+
+
+@model("spray_can_row", (0.66, 0.2, 0.08))
+def spray_can_row():
+    """beenster (Nov 10): more spray cans, lined up along the back of the workbench. Eight cans in a row,
+    8.2 cm apart, along x (the origin under the middle of the row)."""
+    looks = [("can_black", None), ("can_red", "can_cap"), ("can_white", None), ("can_blue", "can_cap"),
+             ("can_silver", None), ("can_yellow", "can_cap"), ("can_grey", None), ("can_green", "can_cap")]
+    for i, (body, cap) in enumerate(looks):
+        spray_can("Can%d" % i, -0.287 + i * 0.082, 0.004 * ((i * 5) % 3 - 1), body, cap)
+
+
+@model("spray_can_row_b", (0.66, 0.2, 0.08))
+def spray_can_row_b():
+    """The second row: other colours and primer, so the two don't read as copies."""
+    looks = [("can_grey", "can_cap"), ("can_orange", None), ("can_white", "can_cap"), ("can_red", None),
+             ("can_black", "can_cap"), ("can_silver", "can_cap"), ("can_blue", None), ("can_white", None)]
+    for i, (body, cap) in enumerate(looks):
+        spray_can("Can%d" % i, -0.287 + i * 0.082, 0.004 * ((i * 7) % 3 - 1), body, cap)
 
 
 # --- Trinkets (trinkets.gd): standing on a surface (origin under them) or on a wall (origin on it) -----

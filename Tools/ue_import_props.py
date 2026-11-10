@@ -256,7 +256,9 @@ def scan_textures(spec):
     """{scan id: {color, rough, normal}} for the 'scans' Tools/fetch_props.py has downloaded."""
     out = {}
     for sid in sorted(set(spec["scans"].values())):
-        folder = os.path.join(FETCHED, "_scans", sid)
+        # One drawn here and kept in git (Data/Props/Scans/<id>/) before one fetched into build/props.
+        kept = os.path.join(ROOT, "Data", "Props", "Scans", sid)
+        folder = kept if os.path.isdir(kept) else os.path.join(FETCHED, "_scans", sid)
         dest = MATS + "/Scans/" + sid
         maps = {}
         for name in ("color", "rough", "normal"):

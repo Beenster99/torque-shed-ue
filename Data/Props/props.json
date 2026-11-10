@@ -793,6 +793,16 @@
    "torque_shed": "world_yard.gd (the yard's own)",
    "source": "blender",
    "script": "Tools/props/make_yard.py"
+  },
+  "spray_can_row": {
+   "name": "Spray cans, a row of eight",
+   "torque_shed": "dressing (beenster, Nov 10: more spray cans at the back of the workbench)",
+   "source": "blender"
+  },
+  "spray_can_row_b": {
+   "name": "Spray cans, another row of eight",
+   "torque_shed": "dressing (beenster, Nov 10: more spray cans at the back of the workbench)",
+   "source": "blender"
   }
  }
 }

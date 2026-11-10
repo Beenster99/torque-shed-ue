@@ -483,7 +483,8 @@
     0.7,
     0.45
    ],
-   "sold": true
+   "sold": true,
+   "sit": 0.68
   },
   "seat_creeper": {
    "kind": "seat",
@@ -494,7 +495,8 @@
     0.5,
     0.6
    ],
-   "sold": true
+   "sold": true,
+   "sit": 0.38
   },
   "seat_chair": {
    "kind": "seat",
@@ -505,7 +507,8 @@
     0.85,
     0.5
    ],
-   "sold": true
+   "sold": true,
+   "sit": 0.45
   },
   "seat_bench": {
    "kind": "seat",
@@ -516,7 +519,8 @@
     0.8,
     0.5
    ],
-   "sold": true
+   "sold": true,
+   "sit": 0.45
   },
   "seat_sofa": {
    "kind": "seat",
@@ -527,7 +531,8 @@
     0.85,
     0.85
    ],
-   "sold": true
+   "sold": true,
+   "sit": 0.44
   },
   "tv_120": {
    "kind": "tv",

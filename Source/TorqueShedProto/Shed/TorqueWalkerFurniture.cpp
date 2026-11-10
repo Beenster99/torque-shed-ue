@@ -10,7 +10,9 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Coop/TorquePlayerController.h"
 
 namespace TorqueWalkerFurnitureImpl
 {
@@ -122,8 +124,11 @@ bool ATorqueWalker::FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust
 		FurnFHeld += Dt;
 		if (!bFDown)
 		{
+			// A tap: sit on it when it's a seat (Torque Shed's seats), else how to move it.
 			bFurnArmed = false;
-			Say(TEXT("Hold F to take hold of it."), true, 2.0);
+			const FTorqueFurniture* F = B->FurnitureById(TargetFurniture);
+			const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+			if (!(M && M->Sit > 0.0 && Sit(TargetFurniture))) Say(TEXT("Hold F to take hold of it."), true, 2.0);
 			return true;
 		}
 		if (FurnFHeld >= TWFI::HoldToMove)
@@ -159,6 +164,15 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 		if (NoteFor > 0.0) Lines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
 		return true;
 	}
+	if (SeatId != 0)
+	{
+		const FTorqueFurniture* Seat = B->FurnitureById(SeatId);
+		const TorqueFurniture::FModel* SM = Seat ? TorqueFurniture::Find(Seat->Model) : nullptr;
+		Lines.Add({FString::Printf(TEXT("Sitting on the %s"), SM ? *SM->Name.ToLower() : TEXT("seat")), FColor::White, 0.8f});
+		Lines.Add({TEXT("F / Triangle, Space / Circle or a step: get up"), Prompt, 0.65f});
+		if (NoteFor > 0.0) Lines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
+		return true;
+	}
 	if (TargetFurniture == 0 || bComputer || bBench) return false;
 	const FTorqueFurniture* F = B->FurnitureById(TargetFurniture);
 	const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
@@ -169,6 +183,7 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 	Lines.Add({Heading, Title, 0.6f});
 	Lines.Add({M->Name, FColor::White, 0.8f});
 	if (!M->Desc.IsEmpty()) Lines.Add({M->Desc, Info, 0.55f});
+	if (M->Sit > 0.0) Lines.Add({TEXT("F / Triangle: sit on it"), Prompt, 0.65f});
 	if (B->HeldBy(B->Me()) == 0) Lines.Add({TEXT("Hold F / Triangle: move it"), Prompt, 0.65f});
 	return false;
 }
@@ -181,6 +196,63 @@ void ATorqueWalker::FurnitureOutline(TArray<UPrimitiveComponent*>& Lined) const
 	for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
 		if (UStaticMeshComponent* const* C = It->Pieces().Find(TargetFurniture))
 			if (*C) Lined.Add(*C);
+}
+
+// --- Sitting ------------------------------------------------------------------------------------------
+
+bool ATorqueWalker::Sit(int32 Piece)
+{
+	UTorqueBuildSubsystem* B = Shed();
+	const FTorqueFurniture* F = B ? B->FurnitureById(Piece) : nullptr;
+	const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+	if (!M || M->Sit <= 0.0 || !Camera) return false;
+	if (F->Mover != 0)
+	{
+		Say(TEXT("Someone's moving it."), false);
+		return false;
+	}
+	if (bIsCrouched) SetCrouched(false);
+	// On it, a little back from its middle, facing out of its front (+y at yaw 0), and still: the
+	// look goes round, the walk gets you up (ReadInput).
+	const FVector Front = F->Xf.GetRotation().RotateVector(FVector(0.0, 1.0, 0.0)).GetSafeNormal2D();
+	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Under = F->Xf.GetLocation() - Front * (M->Size.Z * 0.12);
+	const FVector At(Under.X, Under.Y, F->Xf.GetLocation().Z + Half + 2.0);
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
+	const FRotator View(-8.0, Front.Rotation().Yaw, 0.0);
+	if (AController* C = GetController()) C->SetControlRotation(View);
+	ATorquePlayerController::PlaceOnHost(this, At, View);   // [co-op] a joined copy: the host too
+	// Sat, the eyes are about 72 cm over the seat.
+	SeatEye = FVector(0.0, 0.0, F->Xf.GetLocation().Z + M->Sit + 72.0 - At.Z);
+	SeatId = Piece;
+	Camera->SetRelativeLocation(SeatEye);
+	Target = ETorqueLook::None;
+	TargetFurniture = 0;
+	bTestAim = false;
+	Say(FString::Printf(TEXT("Sat on the %s. F or a step to get up."), *M->Name.ToLower()), true, 2.5);
+	return true;
+}
+
+void ATorqueWalker::StandUp()
+{
+	if (SeatId == 0) return;
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueFurniture* F = B ? B->FurnitureById(SeatId) : nullptr;
+	const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+	SeatId = 0;
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	if (!F || !M) return;
+	// Up and a step out of its front, on the floor.
+	const FVector Front = F->Xf.GetRotation().RotateVector(FVector(0.0, 1.0, 0.0)).GetSafeNormal2D();
+	const double Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Out = F->Xf.GetLocation() + Front * (FMath::Max(M->Size.Z, M->Size.X) * 0.5 + 40.0);
+	const FVector At(Out.X, Out.Y, Half + 2.0);
+	SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
+	const AController* C = GetController();
+	ATorquePlayerController::PlaceOnHost(this, At, C ? C->GetControlRotation() : GetActorRotation());
+	Camera->SetRelativeLocation(EyeSpot());
 }
 
 // --- Tests ------------------------------------------------------------------------------------------------
@@ -214,6 +286,7 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 	{
 		if (Args.Num() == 0) return TEXT("not furniture: look at what? a model or a piece id");
 		if (Moving != 0) return TEXT("not looking: you're moving a piece (furn:drop first)");
+		StandUp();
 		// A piece id, or the nearest piece of that model.
 		const FTorqueFurniture* Pick = Args[0].IsNumeric() ? B->FurnitureById(FCString::Atoi(*Args[0])) : nullptr;
 		if (!Pick)
@@ -249,6 +322,22 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		bTestAim = false;
 		const FTorqueFurniture* F = B->FurnitureById(R.Item);
 		return F && F->Mover == B->Me() ? TEXT("picked up ") + TWFI::Where(*F) : FString(TEXT("not grabbed: the host didn't give it"));
+	}
+	if (What == TEXT("sit"))
+	{
+		ReAim();
+		FindTarget();
+		const int32 Piece = TargetFurniture;
+		if (Piece == 0) return TEXT("not sitting: no kit piece looked at (") + Describe() + TEXT(")");
+		if (!Sit(Piece)) return TEXT("not sitting: ") + Note;
+		return FString::Printf(TEXT("sitting on piece %d, at %.0f, %.0f, eyes %.0f cm up"), Piece, GetActorLocation().X, GetActorLocation().Y,
+			GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + SeatEye.Z);
+	}
+	if (What == TEXT("stand"))
+	{
+		if (SeatId == 0) return TEXT("not standing up: not sat down");
+		StandUp();
+		return FString::Printf(TEXT("stood up at %.0f, %.0f"), GetActorLocation().X, GetActorLocation().Y);
 	}
 	if (Moving == 0 && What != TEXT("order")) return TEXT("not furniture: not moving a piece (furn:grab first)");
 	if (What == TEXT("turn"))
@@ -303,5 +392,5 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 			if (F.Id > Before && F.Model == M->Id) return Out + TEXT("; landed: ") + TWFI::Where(F);
 		return Out + TEXT("; not ordered: no new piece");
 	}
-	return TEXT("not furniture: look, grab, turn, walk, drop, order or log");
+	return TEXT("not furniture: look, grab, turn, walk, drop, order, sit, stand or log");
 }

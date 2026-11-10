@@ -1,803 +1,279 @@
 {
- "barrels": {
+ "bench_compact": {
   "bounds_min": [
-   -0.95,
+   -0.5,
    0.0,
-   -0.43
+   -0.2996
   ],
   "bounds_max": [
-   0.95,
-   0.63,
-   0.43
-  ],
-  "tris": 10656,
-  "materials": [
-   "crate_wood_dark",
-   "drum_blue",
-   "steel",
-   "steel_dark",
-   "rust",
-   "drum_red",
-   "drum_green"
-  ]
- },
- "box_cardboard": {
-  "bounds_min": [
-   -0.227,
-   0.0005,
-   -0.2
-  ],
-  "bounds_max": [
-   0.227,
-   0.3515,
-   0.2011
-  ],
-  "tris": 216,
-  "materials": [
-   "cardboard",
-   "cardboard_dark",
-   "parcel_tape",
-   "ink_black"
-  ]
- },
- "box_cardboard_flat": {
-  "bounds_min": [
-   -0.352,
-   0.0005,
-   -0.3
-  ],
-  "bounds_max": [
-   0.352,
-   0.2515,
-   0.3011
-  ],
-  "tris": 216,
-  "materials": [
-   "cardboard",
-   "cardboard_dark",
-   "parcel_tape",
-   "ink_black"
-  ]
- },
- "box_cardboard_long": {
-  "bounds_min": [
-   -0.477,
-   0.0005,
-   -0.16
-  ],
-  "bounds_max": [
-   0.477,
-   0.3015,
-   0.1611
-  ],
-  "tris": 216,
-  "materials": [
-   "cardboard",
-   "cardboard_dark",
-   "parcel_tape",
-   "ink_black"
-  ]
- },
- "bus": {
-  "bounds_min": [
-   -5.09,
-   0.0,
-   -1.28
-  ],
-  "bounds_max": [
-   5.26,
-   3.0,
-   1.28
-  ],
-  "tris": 6896,
-  "materials": [
-   "bus_red",
-   "bus_roof",
-   "plastic_black",
-   "rubber",
-   "steel",
-   "steel_dark",
-   "bus_cream",
-   "glass",
-   "lamp_lens",
-   "chrome",
-   "amber_lens",
-   "red_lens",
-   "rust"
-  ]
- },
- "bus_row": {
-  "bounds_min": [
-   -5.09,
-   0.0,
-   -6.28
-  ],
-  "bounds_max": [
-   5.26,
-   3.0,
-   6.28
-  ],
-  "tris": 34480,
-  "materials": [
-   "bus_red",
-   "bus_roof",
-   "plastic_black",
-   "rubber",
-   "steel",
-   "steel_dark",
-   "bus_cream",
-   "glass",
-   "lamp_lens",
-   "chrome",
-   "amber_lens",
-   "red_lens",
-   "rust",
-   "bus_green",
-   "bus_blue",
-   "bus_silver",
-   "bus_maroon",
-   "bus_orange"
-  ]
- },
- "car_wreck": {
-  "bounds_min": [
-   -0.87,
-   -0.04,
-   -2.07
-  ],
-  "bounds_max": [
-   0.87,
-   1.33,
-   2.07
-  ],
-  "tris": 6408,
-  "materials": [
-   "car_paint",
-   "glass_dirty",
-   "glass",
-   "plastic_black",
-   "rubber",
-   "rust",
-   "chrome",
-   "red_lens",
-   "lamp_lens",
-   "amber_lens"
-  ]
- },
- "cone": {
-  "bounds_min": [
-   -0.18,
-   0.0,
-   -0.18
-  ],
-  "bounds_max": [
-   0.18,
    0.5,
-   0.18
+   0.9,
+   0.2996
   ],
-  "tris": 816,
-  "materials": [
-   "rubber",
-   "cone_orange",
-   "reflect_white"
-  ]
- },
- "crate_wood": {
-  "bounds_min": [
-   -0.397,
-   0.0,
-   -0.3485
-  ],
-  "bounds_max": [
-   0.397,
-   0.672,
-   0.3485
-  ],
-  "tris": 4388,
-  "materials": [
-   "crate_wood_dark",
-   "crate_wood",
-   "steel_dark",
-   "ink_black"
-  ]
- },
- "crate_wood_flat": {
-  "bounds_min": [
-   -0.522,
-   0.0,
-   -0.4485
-  ],
-  "bounds_max": [
-   0.522,
-   0.472,
-   0.4485
-  ],
-  "tris": 4280,
-  "materials": [
-   "crate_wood_dark",
-   "crate_wood",
-   "steel_dark",
-   "ink_black"
-  ]
- },
- "crate_wood_long": {
-  "bounds_min": [
-   -0.772,
-   0.0,
-   -0.3235
-  ],
-  "bounds_max": [
-   0.772,
-   0.572,
-   0.3235
-  ],
-  "tris": 4064,
-  "materials": [
-   "crate_wood_dark",
-   "crate_wood",
-   "steel_dark",
-   "ink_black"
-  ]
- },
- "fence_mesh": {
-  "bounds_min": [
-   -1.79,
-   0.0,
-   -0.075
-  ],
-  "bounds_max": [
-   1.79,
-   1.9928,
-   0.075
-  ],
-  "tris": 1304,
-  "materials": [
-   "galvanised",
-   "rubber"
-  ]
- },
- "fence_wood": {
-  "bounds_min": [
-   -1.3,
-   0.0,
-   -0.06
-  ],
-  "bounds_max": [
-   1.3,
-   1.1393,
-   0.079
-  ],
-  "tris": 1392,
-  "materials": [
-   "fence_wood",
-   "steel_dark"
-  ]
- },
- "flag_blue": {
-  "bounds_min": [
-   -0.22,
-   0.0,
-   -0.22
-  ],
-  "bounds_max": [
-   0.6,
-   2.215,
-   0.22
-  ],
-  "tris": 1240,
-  "materials": [
-   "rubber",
-   "aluminium",
-   "plastic_black",
-   "cloth_blue"
-  ]
- },
- "flag_chequered": {
-  "bounds_min": [
-   -0.22,
-   0.0,
-   -0.22
-  ],
-  "bounds_max": [
-   0.6,
-   2.215,
-   0.22
-  ],
-  "tris": 1240,
-  "materials": [
-   "rubber",
-   "aluminium",
-   "plastic_black",
-   "cloth_black",
-   "cloth_white"
-  ]
- },
- "flag_red": {
-  "bounds_min": [
-   -0.22,
-   0.0,
-   -0.22
-  ],
-  "bounds_max": [
-   0.6,
-   2.215,
-   0.22
-  ],
-  "tris": 1240,
-  "materials": [
-   "rubber",
-   "aluminium",
-   "plastic_black",
-   "cloth_red"
-  ]
- },
- "hay_bales": {
-  "bounds_min": [
-   -1.0869,
-   -0.0025,
-   -0.5691
-  ],
-  "bounds_max": [
-   1.0869,
-   0.5025,
-   0.5698
-  ],
-  "tris": 1240,
-  "materials": [
-   "hay",
-   "twine"
-  ]
- },
- "landing_huge": {
-  "bounds_min": [
-   -1.64,
-   -0.152,
-   -6.5
-  ],
-  "bounds_max": [
-   1.64,
-   3.02,
-   6.5
-  ],
-  "tris": 11560,
-  "materials": [
-   "steel_dark",
-   "steel",
-   "paint_red"
-  ]
- },
- "landing_xl": {
-  "bounds_min": [
-   -1.54,
-   -0.152,
-   -4.75
-  ],
-  "bounds_max": [
-   1.54,
-   2.22,
-   4.75
-  ],
-  "tris": 8344,
-  "materials": [
-   "steel_dark",
-   "steel",
-   "paint_blue"
-  ]
- },
- "log": {
-  "bounds_min": [
-   -1.205,
-   -0.0217,
-   -0.2658
-  ],
-  "bounds_max": [
-   1.205,
-   0.5373,
-   0.2658
-  ],
-  "tris": 1468,
-  "materials": [
-   "bark",
-   "log_end",
-   "crate_wood_dark"
-  ]
- },
- "post": {
-  "bounds_min": [
-   -0.075,
-   0.0,
-   -0.075
-  ],
-  "bounds_max": [
-   0.075,
-   1.0,
-   0.075
-  ],
-  "tris": 944,
-  "materials": [
-   "rubber",
-   "paint_yellow",
-   "paint_black",
-   "reflect_red"
-  ]
- },
- "radio_shelf": {
-  "bounds_min": [
-   -0.3,
-   -0.18,
-   -0.17
-  ],
-  "bounds_max": [
-   0.3,
-   0.0,
-   0.17
-  ],
-  "tris": 292,
+  "tris": 1928,
   "materials": [
    "wood_top",
+   "steel",
    "steel_dark"
   ]
  },
- "ramp_huge": {
-  "bounds_min": [
-   -1.54,
-   -0.152,
-   -4.5511
-  ],
-  "bounds_max": [
-   1.54,
-   3.02,
-   4.5
-  ],
-  "tris": 8296,
-  "materials": [
-   "steel_dark",
-   "steel",
-   "paint_red",
-   "paint_yellow",
-   "paint_black"
-  ]
- },
- "ramp_kicker": {
-  "bounds_min": [
-   -0.724,
-   -0.018,
-   -0.823
-  ],
-  "bounds_max": [
-   0.724,
-   0.6032,
-   0.8001
-  ],
-  "tris": 1252,
-  "materials": [
-   "plywood",
-   "steel_dark",
-   "steel",
-   "paint_yellow",
-   "crate_wood_dark"
-  ]
- },
- "ramp_landing": {
-  "bounds_min": [
-   -1.424,
-   -0.018,
-   -3.523
-  ],
-  "bounds_max": [
-   1.424,
-   1.5,
-   3.5
-  ],
-  "tris": 4776,
-  "materials": [
-   "plywood",
-   "steel_dark",
-   "paint_yellow",
-   "crate_wood_dark"
-  ]
- },
- "ramp_large": {
-  "bounds_min": [
-   -1.34,
-   -0.152,
-   -2.4511
-  ],
-  "bounds_max": [
-   1.34,
-   1.62,
-   2.4
-  ],
-  "tris": 4576,
-  "materials": [
-   "steel_dark",
-   "steel",
-   "paint_grey",
-   "paint_yellow",
-   "paint_black"
-  ]
- },
- "ramp_medium": {
-  "bounds_min": [
-   -1.024,
-   -0.018,
-   -1.623
-  ],
-  "bounds_max": [
-   1.024,
-   0.9038,
-   1.6
-  ],
-  "tris": 2444,
-  "materials": [
-   "plywood",
-   "steel_dark",
-   "steel",
-   "paint_yellow",
-   "crate_wood_dark"
-  ]
- },
- "ramp_small": {
-  "bounds_min": [
-   -0.824,
-   -0.018,
-   -1.023
-  ],
-  "bounds_max": [
-   0.824,
-   0.4539,
-   1.0001
-  ],
-  "tris": 1608,
-  "materials": [
-   "plywood",
-   "steel_dark",
-   "steel",
-   "paint_yellow",
-   "crate_wood_dark"
-  ]
- },
- "ramp_xl": {
-  "bounds_min": [
-   -1.44,
-   -0.152,
-   -3.5486
-  ],
-  "bounds_max": [
-   1.44,
-   2.22,
-   3.5
-  ],
-  "tris": 6192,
-  "materials": [
-   "steel_dark",
-   "steel",
-   "paint_blue",
-   "paint_yellow",
-   "paint_black"
-  ]
- },
- "tabletop": {
-  "bounds_min": [
-   -1.6,
-   -0.28,
-   -4.5
-  ],
-  "bounds_max": [
-   1.6,
-   1.21,
-   4.5
-  ],
-  "tris": 13072,
-  "materials": [
-   "dirt",
-   "dirt_dark",
-   "rubber",
-   "stone"
-  ]
- },
- "tyre_stack": {
-  "bounds_min": [
-   -0.3923,
-   0.003,
-   -0.3947
-  ],
-  "bounds_max": [
-   0.3921,
-   0.907,
-   0.395
-  ],
-  "tris": 17500,
-  "materials": [
-   "rubber",
-   "rust"
-  ]
- },
- "wall_brick": {
+ "bench_long": {
   "bounds_min": [
    -1.21,
    0.0,
-   -0.25
+   -0.385
   ],
   "bounds_max": [
    1.21,
-   1.2,
-   0.25
+   1.1325,
+   0.606
   ],
-  "tris": 33788,
+  "tris": 6412,
+  "materials": [
+   "wood_top",
+   "paint_grey",
+   "rubber",
+   "paint_board",
+   "vice_steel",
+   "vice_steel_dark",
+   "steel",
+   "chrome"
+  ]
+ },
+ "bench_mobile": {
+  "bounds_min": [
+   -0.6,
+   0.0,
+   -0.2996
+  ],
+  "bounds_max": [
+   0.673,
+   0.95,
+   0.321
+  ],
+  "tris": 10412,
+  "materials": [
+   "wood_top",
+   "paint_red",
+   "chrome",
+   "rubber",
+   "steel"
+  ]
+ },
+ "bench_standard": {
+  "bounds_min": [
+   -0.91,
+   0.0,
+   -0.385
+  ],
+  "bounds_max": [
+   0.91,
+   1.1325,
+   0.606
+  ],
+  "tris": 6412,
+  "materials": [
+   "wood_top",
+   "paint_grey",
+   "rubber",
+   "paint_board",
+   "vice_steel",
+   "vice_steel_dark",
+   "steel",
+   "chrome"
+  ]
+ },
+ "repair_compact": {
+  "bounds_min": [
+   -0.4,
+   0.0,
+   -0.24
+  ],
+  "bounds_max": [
+   0.4,
+   1.165,
+   0.471
+  ],
+  "tris": 7968,
   "materials": [
    "paint_grey",
-   "mortar",
-   "brick",
-   "brick_dark",
-   "concrete"
+   "steel",
+   "steel_dark",
+   "paint_black",
+   "paint_yellow",
+   "cast_iron",
+   "glass",
+   "vice_steel",
+   "vice_steel_dark",
+   "chrome"
   ]
  },
- "wall_concrete": {
+ "repair_pro": {
   "bounds_min": [
-   -1.0,
+   -1.125,
    0.0,
-   -0.305
+   -0.525
   ],
   "bounds_max": [
-   1.0,
-   0.868,
-   0.305
+   1.125,
+   1.86,
+   0.756
   ],
-  "tris": 1268,
+  "tris": 13228,
   "materials": [
-   "concrete",
-   "reflect_red",
-   "reflect_white",
-   "concrete_dark",
-   "steel_dark"
-  ]
- },
- "yard_board_0": {
-  "bounds_min": [
-   -0.41,
-   0.0,
-   -0.034
-  ],
-  "bounds_max": [
-   0.41,
-   1.31,
-   0.034
-  ],
-  "tris": 468,
-  "materials": [
-   "paint_white",
+   "paint_grey",
+   "rubber",
+   "steel_dark",
+   "vice_steel",
+   "vice_steel_dark",
+   "steel",
+   "chrome",
+   "paint_black",
+   "paint_yellow",
+   "cast_iron",
+   "glass",
+   "pegboard",
+   "plastic_red",
    "paint_red",
-   "paint_black"
+   "paint_blue",
+   "plastic_black",
+   "plastic_grey",
+   "label_white"
   ]
  },
- "yard_board_10": {
+ "repair_standard": {
   "bounds_min": [
-   -0.41,
+   -0.925,
    0.0,
-   -0.034
+   -0.475
   ],
   "bounds_max": [
-   0.41,
-   1.31,
-   0.034
+   0.925,
+   1.165,
+   0.706
   ],
-  "tris": 516,
+  "tris": 8336,
   "materials": [
-   "paint_white",
+   "paint_grey",
+   "rubber",
+   "steel_dark",
+   "vice_steel",
+   "vice_steel_dark",
+   "steel",
+   "chrome",
+   "paint_black",
+   "paint_yellow",
+   "cast_iron",
+   "glass",
+   "label_white"
+  ]
+ },
+ "repair_workshop": {
+  "bounds_min": [
+   -1.425,
+   0.0,
+   -0.525
+  ],
+  "bounds_max": [
+   1.425,
+   1.86,
+   0.756
+  ],
+  "tris": 15628,
+  "materials": [
+   "paint_grey",
+   "rubber",
+   "steel_dark",
+   "vice_steel",
+   "vice_steel_dark",
+   "steel",
+   "chrome",
+   "paint_black",
+   "paint_yellow",
+   "cast_iron",
+   "glass",
+   "pegboard",
+   "plastic_red",
    "paint_red",
-   "paint_black"
+   "paint_blue",
+   "plastic_black",
+   "plastic_grey",
+   "paint_green",
+   "label_white"
   ]
  },
- "yard_board_20": {
+ "shed_workbench": {
   "bounds_min": [
-   -0.41,
+   -2.425,
    0.0,
-   -0.034
+   -0.4746
   ],
   "bounds_max": [
-   0.41,
-   1.31,
-   0.034
+   2.425,
+   1.6,
+   0.706
   ],
-  "tris": 588,
+  "tris": 16060,
   "materials": [
-   "paint_white",
+   "wood_top",
+   "paint_grey",
+   "rubber",
+   "paint_board",
    "paint_red",
-   "paint_black"
+   "chrome",
+   "pegboard",
+   "vice_steel",
+   "vice_steel_dark",
+   "steel"
   ]
  },
- "yard_board_30": {
+ "spray_can_row": {
   "bounds_min": [
-   -0.41,
+   -0.3209,
    0.0,
-   -0.034
+   -0.0379
   ],
   "bounds_max": [
-   0.41,
-   1.31,
-   0.034
+   0.3209,
+   0.1975,
+   0.0379
   ],
-  "tris": 588,
+  "tris": 11104,
   "materials": [
-   "paint_white",
-   "paint_red",
-   "paint_black"
+   "can_black",
+   "can_label",
+   "can_silver",
+   "can_red",
+   "can_cap",
+   "can_white",
+   "can_blue",
+   "can_yellow",
+   "can_grey",
+   "can_green"
   ]
  },
- "yard_board_40": {
+ "spray_can_row_b": {
   "bounds_min": [
-   -0.41,
+   -0.3209,
    0.0,
-   -0.034
+   -0.0379
   ],
   "bounds_max": [
-   0.41,
-   1.31,
-   0.034
+   0.3209,
+   0.1975,
+   0.0379
   ],
-  "tris": 564,
+  "tris": 11104,
   "materials": [
-   "paint_white",
-   "paint_red",
-   "paint_black"
-  ]
- },
- "yard_bunting": {
-  "bounds_min": [
-   -0.16,
-   0.0,
-   -0.16
-  ],
-  "bounds_max": [
-   7.0008,
-   5.0,
-   0.16
-  ],
-  "tris": 616,
-  "materials": [
-   "paint_white",
-   "concrete",
-   "twine",
-   "cloth_red",
-   "cloth_yellow",
-   "cloth_blue",
-   "cloth_white",
-   "cloth_green",
-   "cloth_orange"
-  ]
- },
- "yard_hump": {
-  "bounds_min": [
-   -1.7,
-   0.0,
-   -0.7
-  ],
-  "bounds_max": [
-   1.7,
-   0.084,
-   0.7
-  ],
-  "tris": 128,
-  "materials": [
-   "rubber_hump",
-   "paint_yellow"
-  ]
- },
- "yard_whoop": {
-  "bounds_min": [
-   -2.0,
-   0.0,
-   -1.6
-  ],
-  "bounds_max": [
-   2.0,
-   0.5,
-   1.6
-  ],
-  "tris": 188,
-  "materials": [
-   "dirt"
+   "can_grey",
+   "can_label",
+   "can_silver",
+   "can_cap",
+   "can_orange",
+   "can_white",
+   "can_red",
+   "can_black",
+   "can_blue"
   ]
  }
 }

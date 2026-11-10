@@ -77,16 +77,15 @@ const TCHAR* ToolName(ETorqueTool T)
 	case ETorqueTool::Wrench: return TEXT("Wrench");
 	case ETorqueTool::Brush: return TEXT("Brush");
 	case ETorqueTool::Repair: return TEXT("Grinder and welder");
-	case ETorqueTool::Spray: return TEXT("Spray can");
 	case ETorqueTool::Lance: return TEXT("Pressure washer");
 	case ETorqueTool::Gun: return TEXT("Spray gun");
 	default: return TEXT("Hands");
 	}
 }
 
-// What the spray can or spray gun can be loaded with (walker.gd spray_loads): each paint finish
-// (in the colour picked with R), then for the gun its protective coats and grey primer; the can
-// has primer and clear lacquer.
+// What the spray gun can be loaded with (walker.gd spray_loads): each paint finish (in the colour
+// picked with R), then its protective coats, grey primer and the mixing bay's cup. (The spray can,
+// now gone, had only primer and clear lacquer.)
 struct FLoad
 {
 	enum EKind : uint8 { Paint, Coat, Primer, Cup };
@@ -98,21 +97,14 @@ TArray<FLoad> Loads(ETorqueTool T)
 {
 	TArray<FLoad> Out;
 	for (const FName& F : UTorqueBuildSubsystem::Finishes()) Out.Add({FLoad::Paint, F});
-	if (T == ETorqueTool::Gun)
-	{
-		for (const FName& C : UTorqueBuildSubsystem::Coats()) Out.Add({FLoad::Coat, C});
-		Out.Add({FLoad::Primer, FName(TEXT("primer"))});
-		Out.Add({FLoad::Cup, UTorqueBuildSubsystem::CupFinish()});   // paint mixed in the mixing bay
-	}
-	else
-	{
-		Out.Add({FLoad::Primer, FName(TEXT("primer"))});
-		Out.Add({FLoad::Coat, FName(TEXT("clear"))});
-	}
+	(void)T;   // only the spray gun sprays now
+	for (const FName& C : UTorqueBuildSubsystem::Coats()) Out.Add({FLoad::Coat, C});
+	Out.Add({FLoad::Primer, FName(TEXT("primer"))});
+	Out.Add({FLoad::Cup, UTorqueBuildSubsystem::CupFinish()});   // paint mixed in the mixing bay
 	return Out;
 }
 
-bool Sprays(ETorqueTool T) { return T == ETorqueTool::Spray || T == ETorqueTool::Gun; }
+bool Sprays(ETorqueTool T) { return T == ETorqueTool::Gun; }
 
 // Where a line from Start to End first enters a mesh's box (0..1 along it), in the mesh's own
 // frame so the box turns with it. The bike's meshes have no collision; their boxes are close
@@ -375,7 +367,8 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 
 FVector ATorqueWalker::EyeSpot() const
 {
-	// [hands] Your body's eyes (first person), else Torque Shed's eye height.
+	// [hands] Your body's eyes (first person), else Torque Shed's eye height; sat down, the seat's.
+	if (SeatId != 0) return SeatEye;
 	if (bFirstEye && IsLocallyControlled()) return FirstEye;
 	return FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
 }
@@ -565,6 +558,12 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	TickSprays(DeltaSeconds);   // the coats going on (and drying off) follow their parts as they're redrawn
 	TickWash(DeltaSeconds);     // the wash game's muck follows its bike (TorqueWalkerWash.cpp)
 	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
+	else if (SeatId != 0)
+	{
+		// Sat down: up again when the seat's taken hold of or gone.
+		const FTorqueFurniture* Seat = B ? B->FurnitureById(SeatId) : nullptr;
+		if (!Seat || Seat->Mover != 0) StandUp();
+	}
 	else if (!bComputer && !bBench)
 	{
 		FindTarget();
@@ -757,6 +756,16 @@ void ATorqueWalker::ReadInput(float Dt)
 	const float PadSide = S.bConnected ? Dead(S.LX) : Dead(Axis(EKeys::Gamepad_LeftX));
 	if (FMath::Abs(PadFwd) > FMath::Abs(Fwd)) Fwd = PadFwd;
 	if (FMath::Abs(PadSide) > FMath::Abs(Side)) Side = PadSide;
+	if (SeatId != 0)
+	{
+		// Sat down: F, Space (Circle) or a step gets you up; the look still goes round.
+		if (bF || bBack || FMath::Abs(Fwd) > 0.5f || FMath::Abs(Side) > 0.5f)
+		{
+			StandUp();
+			return;
+		}
+		Fwd = Side = 0.0f;
+	}
 	const bool bRun = KeyDown(ETorqueKey::Run) || Down(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3);
 	GetCharacterMovement()->MaxWalkSpeed = bRun ? RunSpeed : WalkSpeed;
 	if (SprayItem != 0) GetCharacterMovement()->MaxWalkSpeed *= (float)TorqueSpray::ModeWalk;   // careful steps with the spray controls up
@@ -789,10 +798,10 @@ void ATorqueWalker::ReadInput(float Dt)
 	}
 
 	if (bBack) Jump();
-	if (KeyJust(ETorqueKey::Crouch) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3)) SetCrouched(!bCrouched);
-	// The tools: Q / E, the wheel, L1 / R1, or 1-7. Carrying a part, your hands are full: the wheel
+	if (SeatId == 0 && (KeyJust(ETorqueKey::Crouch) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3))) SetCrouched(!bCrouched);
+	// The tools: Q / E, the wheel, L1 / R1, or 1-6 (along the tool bar). Carrying a part, your hands are full: the wheel
 	// (Q / E, L1 / R1) moves where it goes down out or in, and R / Square turns it (CarryInput).
-	const int32 Tools = (int32)ETorqueTool::Count;
+	const int32 Tools = TorqueToolBarCount;
 	const UTorqueBuildSubsystem* CarryShed = Shed();
 	const bool bCarryPart = CarryShed && CarryShed->HeldBy(CarryShed->Me()) != 0 && !CarryShed->PaintBay().HeldTin(CarryShed->Me())
 		&& CarryShed->PaintBay().TapeBy != CarryShed->Me();
@@ -816,15 +825,16 @@ void ATorqueWalker::ReadInput(float Dt)
 		else
 		{
 			SprayWind(Dt, 0, 0);
-			if (bNext) SetTool((ETorqueTool)(((int32)Tool + 1) % Tools));
-			if (bPrev) SetTool((ETorqueTool)(((int32)Tool + Tools - 1) % Tools));
+			const int32 BarSlot = FMath::Max(ToolSlot(), 0);
+			if (bNext) SetTool(TorqueToolBar[(BarSlot + 1) % Tools]);
+			if (bPrev) SetTool(TorqueToolBar[(BarSlot + Tools - 1) % Tools]);
 		}
 	}
 	static const ETorqueKey Numbers[] = {ETorqueKey::Tool1, ETorqueKey::Tool2, ETorqueKey::Tool3, ETorqueKey::Tool4, ETorqueKey::Tool5,
-		ETorqueKey::Tool6, ETorqueKey::Tool7};
+		ETorqueKey::Tool6};
 	for (int32 I = 0; I < Tools && I < (int32)UE_ARRAY_COUNT(Numbers); ++I)
-		if (KeyJust(Numbers[I])) SetTool((ETorqueTool)I);
-	// The spray can: R / right mouse / Square the colour, T the finish. Otherwise those are the
+		if (KeyJust(Numbers[I])) SetTool(TorqueToolBar[I]);
+	// The spray gun: R / right mouse / Square the colour, T the finish. Otherwise those are the
 	// second button (lift a wheel off the tyre changer whole).
 	const UTorqueBuildSubsystem* TinShed = Shed();
 	if (TinShed && TinShed->PaintBay().HeldTin(TinShed->Me()))
@@ -945,10 +955,18 @@ void ATorqueWalker::ReadInput(float Dt)
 	// Esc, Options and Start open the pause menu (ATorquePlayerController), which has Quit.
 }
 
+int32 ATorqueWalker::ToolSlot() const
+{
+	for (int32 I = 0; I < TorqueToolBarCount; ++I)
+		if (TorqueToolBar[I] == Tool) return I;
+	return INDEX_NONE;
+}
+
 void ATorqueWalker::SetTool(ETorqueTool T)
 {
+	if (T == ETorqueTool::Spray) T = ETorqueTool::Gun;   // the spray can is gone: the gun paints
 	if (T == Tool) return;
-	if (SprayItem != 0) LeaveSprayMode();   // putting the can or gun away
+	if (SprayItem != 0) LeaveSprayMode();   // putting the gun away
 	Tool = T;
 	Progress = 0.0;
 	ProgressKey.Reset();
@@ -967,8 +985,8 @@ void ATorqueWalker::SetCrouched(bool bOn)
 void ATorqueWalker::TestSpray(int32 Colour, FName Finish)
 {
 	SprayColour = FMath::Clamp(Colour, 0, UTorqueBuildSubsystem::Paints().Num() - 1);
-	// A finish, a coat or "primer", among what the tool in hand (the can unless the gun is) takes.
-	const TArray<TWI::FLoad> L = TWI::Loads(Tool == ETorqueTool::Gun ? ETorqueTool::Gun : ETorqueTool::Spray);
+	// A finish, a coat or "primer", among what the spray gun takes.
+	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
 	SprayFinish = FMath::Max(L.IndexOfByPredicate([Finish](const TWI::FLoad& X) { return X.Id == Finish; }), 0);
 }
 
@@ -1868,7 +1886,7 @@ float ATorqueWalker::WorkFraction() const
 FLinearColor ATorqueWalker::SprayMistColour(bool* bOutClear) const
 {
 	// What's loaded, as a request, for its mist (anyone's: another player's walker too).
-	const TArray<TWI::FLoad> L = TWI::Loads(Tool == ETorqueTool::Gun ? ETorqueTool::Gun : ETorqueTool::Spray);
+	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
 	const TWI::FLoad Load = L.IsValidIndex(SprayFinish) ? L[SprayFinish] : L[0];
 	FTorqueShedRequest R;
 	R.Kind = Load.Kind == TWI::FLoad::Primer ? ETorqueShedAct::Prime : (Load.Kind == TWI::FLoad::Coat ? ETorqueShedAct::Coat : ETorqueShedAct::Paint);
@@ -1888,7 +1906,7 @@ FString ATorqueWalker::SprayFinishText() const
 TArray<FString> ATorqueWalker::SprayLoadNames() const
 {
 	TArray<FString> Out;
-	for (const TWI::FLoad& L : TWI::Loads(Tool == ETorqueTool::Gun ? ETorqueTool::Gun : ETorqueTool::Spray))
+	for (const TWI::FLoad& L : TWI::Loads(ETorqueTool::Gun))
 	{
 		if (L.Kind == TWI::FLoad::Paint) Out.Add(UTorqueBuildSubsystem::FinishName(L.Id));
 		else if (L.Kind == TWI::FLoad::Coat) Out.Add(UTorqueBuildSubsystem::CoatName(L.Id));
@@ -1900,7 +1918,7 @@ TArray<FString> ATorqueWalker::SprayLoadNames() const
 
 bool ATorqueWalker::SprayIsPaint() const
 {
-	const TArray<TWI::FLoad> L = TWI::Loads(Tool == ETorqueTool::Gun ? ETorqueTool::Gun : ETorqueTool::Spray);
+	const TArray<TWI::FLoad> L = TWI::Loads(ETorqueTool::Gun);
 	return !L.IsValidIndex(SprayFinish) || L[SprayFinish].Kind == TWI::FLoad::Paint;
 }
 
@@ -2706,7 +2724,7 @@ void ATorqueWalker::UpdateHud()
 	if (bComputer) return;   // the parts computer's page instead (DrawComputer)
 	if (bBench) return;   // the bench's card instead (DrawBench)
 	if (FurnitureHud(HudLines)) return;   // [furniture] moving a piece of kit
-	// The tool, and the spray can's paint.
+	// The tool, and the spray gun's paint.
 	FString ToolLine = FString::Printf(TEXT("%s (Q / E)"), TWI::ToolName(Tool));
 	if (TWI::Sprays(Tool))
 	{
@@ -3179,6 +3197,7 @@ void ATorqueWalker::FollowHands(float Dt)
 	if (!PS) return;
 	const FTorqueHandsNet& H = PS->Hands;
 	Tool = (ETorqueTool)FMath::Clamp<int32>(H.Tool, 0, (int32)ETorqueTool::Count - 1);
+	if (Tool == ETorqueTool::Spray) Tool = ETorqueTool::Gun;   // an older game's spray can
 	SprayColour = H.Colour;
 	SprayFinish = H.Finish;
 	bComputer = H.bAway;

@@ -1,5 +1,5 @@
 {
- "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same.",
+ "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same. A scan kept in Data/Props/Scans/<id>/ (drawn by a tool there, as brushed_metal by Tools/props/make_brushed_scan.py) is used from git instead of fetched.",
  "scans": {
   "painted": "metal_plate",
   "metal": "metal_plate_02",
@@ -9,7 +9,8 @@
   "vinyl": "leather_red_02",
   "fabric": "hessian_230",
   "rubber": "rubber_tiles",
-  "concrete": "concrete_floor_worn_001"
+  "concrete": "concrete_floor_worn_001",
+  "brushed": "brushed_metal"
  },
  "materials": {
   "paint_red": {
@@ -21,17 +22,17 @@
    ],
    "rough": 0.42,
    "metal": 0.15,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_blue": {
-   "base": "painted",
+   "base": "brushed",
    "tint": [
     0.1,
     0.3,
     0.65
    ],
-   "rough": 0.42,
-   "metal": 0.15,
+   "rough": 0.35,
+   "metal": 0.6,
    "tile": 1.0
   },
   "paint_navy": {
@@ -43,7 +44,7 @@
    ],
    "rough": 0.45,
    "metal": 0.15,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_shelf": {
    "base": "painted",
@@ -54,7 +55,7 @@
    ],
    "rough": 0.5,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_orange": {
    "base": "painted",
@@ -65,7 +66,7 @@
    ],
    "rough": 0.45,
    "metal": 0.15,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_green": {
    "base": "painted",
@@ -76,7 +77,7 @@
    ],
    "rough": 0.45,
    "metal": 0.15,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_bin_green": {
    "base": "plastic",
@@ -117,7 +118,7 @@
    ],
    "rough": 0.45,
    "metal": 0.1,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_black": {
    "base": "painted",
@@ -128,7 +129,7 @@
    ],
    "rough": 0.5,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_grey": {
    "base": "painted",
@@ -139,7 +140,7 @@
    ],
    "rough": 0.5,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_board": {
    "base": "painted",
@@ -150,7 +151,7 @@
    ],
    "rough": 0.55,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_cream": {
    "base": "painted",
@@ -161,7 +162,7 @@
    ],
    "rough": 0.5,
    "metal": 0.05,
-   "tile": 1.0
+   "tile": 4.0
   },
   "paint_white": {
    "base": "painted",
@@ -172,7 +173,7 @@
    ],
    "rough": 0.45,
    "metal": 0.05,
-   "tile": 1.0
+   "tile": 4.0
   },
   "steel": {
    "base": "metal",
@@ -1082,6 +1083,149 @@
    ],
    "rough": 0.85,
    "tile": 4.0
+  },
+  "vice_steel": {
+   "base": "brushed",
+   "tint": [
+    0.5,
+    0.51,
+    0.52
+   ],
+   "rough": 0.34,
+   "metal": 1.0,
+   "tile": 3.0
+  },
+  "vice_steel_dark": {
+   "base": "plain",
+   "tint": [
+    0.16,
+    0.16,
+    0.17
+   ],
+   "rough": 0.5,
+   "metal": 1.0,
+   "tile": 1.0
+  },
+  "can_red": {
+   "base": "plain",
+   "tint": [
+    0.6,
+    0.04,
+    0.03
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_blue": {
+   "base": "plain",
+   "tint": [
+    0.03,
+    0.12,
+    0.5
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_yellow": {
+   "base": "plain",
+   "tint": [
+    0.85,
+    0.6,
+    0.02
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_green": {
+   "base": "plain",
+   "tint": [
+    0.04,
+    0.32,
+    0.08
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_black": {
+   "base": "plain",
+   "tint": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_white": {
+   "base": "plain",
+   "tint": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_orange": {
+   "base": "plain",
+   "tint": [
+    0.85,
+    0.22,
+    0.02
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_silver": {
+   "base": "plain",
+   "tint": [
+    0.6,
+    0.6,
+    0.62
+   ],
+   "rough": 0.3,
+   "metal": 0.6,
+   "tile": 1.0
+  },
+  "can_grey": {
+   "base": "plain",
+   "tint": [
+    0.22,
+    0.23,
+    0.24
+   ],
+   "rough": 0.3,
+   "metal": 0.25,
+   "tile": 1.0
+  },
+  "can_cap": {
+   "base": "plain",
+   "tint": [
+    0.75,
+    0.75,
+    0.75
+   ],
+   "rough": 0.4,
+   "metal": 0.0,
+   "tile": 1.0
+  },
+  "can_label": {
+   "base": "plain",
+   "tint": [
+    0.85,
+    0.84,
+    0.8
+   ],
+   "rough": 0.6,
+   "metal": 0.0,
+   "tile": 1.0
   }
  }
 }
