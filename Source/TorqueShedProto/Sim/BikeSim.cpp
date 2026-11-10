@@ -241,10 +241,11 @@ void BikeSim::Integrate(double Delta)
 
 double BikeSim::GhostLook() const
 {
+	// Steady: full on, then a smooth fade over the last GHOST_FADE seconds. No flicker (beenster,
+	// Nov 10: the old blink was too intense).
 	if (GhostLeft <= 0.0) return 0.0;
-	double T = 0.6 * Clamp(GhostLeft / 1.5, 0.0, 1.0);
-	if (GhostLeft < 1.0) T *= 0.55 + 0.45 * (0.5 + 0.5 * std::cos(GhostLeft * TAU * 4.0));
-	return T;
+	const double F = Clamp(GhostLeft / GHOST_FADE, 0.0, 1.0);
+	return F * F * (3.0 - 2.0 * F);
 }
 
 void BikeSim::Step(double Delta)

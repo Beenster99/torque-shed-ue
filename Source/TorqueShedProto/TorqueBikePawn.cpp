@@ -29,6 +29,8 @@
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Components/MeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
@@ -2292,18 +2294,8 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 {
 	// Draw between the last two steps so the bike moves smoothly at any frame rate.
 	SetActorLocationAndRotation(FMath::Lerp(PrevPos, CurPos, Alpha), FQuat::Slerp(PrevRot, CurRot, Alpha));
-	// The respawn ghost (BikeGhost): Torque Shed drew it see-through; here it blinks, hidden for a
-	// share of each eighth of a second that follows how faint Torque Shed's would be.
-	{
-		const double Look = Sim->GhostLook();
-		const double Phase = FMath::Frac(GetWorld() ? GetWorld()->GetTimeSeconds() * 8.0 : 0.0);
-		const bool bHide = Look > 0.0 && Phase < Look * 0.7;
-		if (bHide != bGhostHidden)
-		{
-			bGhostHidden = bHide;
-			Root->SetHiddenInGame(bHide, true);
-		}
-	}
+	// The respawn ghost (BikeGhost): a steady green "matrix" copy of the bike and rider, no blink.
+	UpdateGhostLook();
 
 	const Wheel& F = Sim->Wheels[0];
 	const Wheel& R = Sim->Wheels[1];
@@ -2335,6 +2327,63 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 		const FTransform X = Fit.Spin->GetRelativeTransform() * Fit.Carrier->GetRelativeTransform().Inverse();
 		C->SetRelativeTransform(Fit.Rest * X * Fit.Move * X.Inverse());
 	}
+}
+
+void ATorqueBikePawn::UpdateGhostLook()
+{
+	const double Look = Sim ? Sim->GhostLook() : 0.0;
+	if (Look <= 0.0)
+	{
+		if (bGhostShown)
+		{
+			bGhostShown = false;
+			TInlineComponentArray<UMeshComponent*> Meshes(this);
+			for (UMeshComponent* C : Meshes)
+				if (C && C->GetOverlayMaterial() == GhostMid) C->SetOverlayMaterial(nullptr);
+		}
+		return;
+	}
+	if (!GhostMid && !bGhostTried)
+	{
+		bGhostTried = true;
+		if (UMaterialInterface* Matrix = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_RideGhostMatrix.M_RideGhostMatrix")))
+		{
+			GhostMid = UMaterialInstanceDynamic::Create(Matrix, this);
+			bGhostMatrix = GhostMid != nullptr;
+		}
+		else if (UMaterialInterface* Tint = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight")))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_RideGhostMatrix (run Tools/ue_build_ghost.py): the respawn ghost is a plain green tint"));
+			GhostMid = UMaterialInstanceDynamic::Create(Tint, this);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_RideGhostMatrix or M_ShedHighlight: the respawn ghost isn't drawn"));
+		}
+	}
+	if (!GhostMid) return;
+	if (bGhostMatrix)
+	{
+		// The pattern is worked out in the bike's own frame, so it rides with the bike.
+		const FTransform& X = GetActorTransform();
+		auto AsColour = [](const FVector& V) { return FLinearColor((float)V.X, (float)V.Y, (float)V.Z, 1.0f); };
+		GhostMid->SetScalarParameterValue(TEXT("Amount"), (float)Look);
+		GhostMid->SetVectorParameterValue(TEXT("Origin"), AsColour(X.GetLocation()));
+		GhostMid->SetVectorParameterValue(TEXT("AxisX"), AsColour(X.GetUnitAxis(EAxis::X)));
+		GhostMid->SetVectorParameterValue(TEXT("AxisY"), AsColour(X.GetUnitAxis(EAxis::Y)));
+		GhostMid->SetVectorParameterValue(TEXT("AxisZ"), AsColour(X.GetUnitAxis(EAxis::Z)));
+	}
+	else
+	{
+		GhostMid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.2f, 1.6f, 0.45f));
+		GhostMid->SetScalarParameterValue(TEXT("Opacity"), (float)(0.35 * Look));
+	}
+	// Every mesh of the bike and rider, including any added since (the rider's MetaHuman is built late);
+	// one already wearing another overlay keeps it.
+	TInlineComponentArray<UMeshComponent*> Meshes(this);
+	for (UMeshComponent* C : Meshes)
+		if (C && !C->GetOverlayMaterial()) C->SetOverlayMaterial(GhostMid);
+	bGhostShown = true;
 }
 
 namespace
