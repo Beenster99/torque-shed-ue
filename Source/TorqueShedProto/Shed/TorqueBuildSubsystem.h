@@ -256,6 +256,9 @@ enum class ETorqueShedAct : uint8
 	// [tv] Wall TV Item (TorqueShedTv: 0 .. 3 on the back wall over the bays, 4 the big one over the
 	// workbench) turned to channel Colour (TorqueShedTv::EChannel), for everyone in the shed.
 	TvChannel,
+	// [label] Shelving unit Item's label plate written as Text (an empty Text wipes it): label_dialog.gd
+	// and shed_state.gd "label".
+	LabelFurniture,
 	Count
 };
 

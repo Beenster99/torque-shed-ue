@@ -41,6 +41,7 @@ struct FTorqueFurniture
 	FTransform Xf;        // where it stands: on the floor (or the wall, or a bench top), turned
 	int32 Mover = 0;      // the peer moving it, 0: no one
 	float Turn = 0.0f;    // while it's moved, how far it's turned from square on to its mover (deg)
+	FString Label;        // a shelving unit's label plate ("Brakes", "Barn find"): shed_state.gd's "label"
 };
 
 namespace TorqueFurniture
@@ -94,6 +95,15 @@ const FYard& Yard();
 // The few pieces a new shed has indoors beside its own fixed kit.
 const TArray<FPlaced>& ShedStart();
 
+// [label] A shelving unit's label plate (equipment.gd _build_shelf: 0.7 x 0.14 m, 12 cm under its
+// top, on its front): the longest label (LabelMax letters, as label_dialog.gd), whether a model has
+// one, what the piece is called with it ("Shelving unit: Brakes", shed_state.gd furniture_name) and
+// a label cleaned up as the host keeps it.
+constexpr int32 LabelMax = 24;
+bool HasLabel(const FModel& M);
+FString NameOf(const FTorqueFurniture& F);
+FString CleanLabel(const FString& Text);
+
 // The model's mesh (null when it isn't imported: the hub's PC runs Tools/ue_import_props.py).
 UStaticMesh* Mesh(FName Model);
 // How the glTF importer laid the props down (ue_import_props.py importer_frame): the engine stand's
@@ -137,6 +147,9 @@ private:
 	UPROPERTY(Transient) TMap<int32, UStaticMeshComponent*> Drawn;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> FixedDrawn;
 	UPROPERTY(Transient) TArray<UTextRenderComponent*> WordsDrawn;
+	// [label] The words on each labelled shelving unit's plate, by piece id.
+	UPROPERTY(Transient) TMap<int32, UTextRenderComponent*> LabelsDrawn;
+	TMap<int32, FString> LabelsText;   // what each says
 	UPROPERTY() UStaticMesh* CubeMesh = nullptr;
 	// The pieces the bike rides on are drawn by an actor of their own, tagged Road (the bike's ground
 	// trace only stands its wheels on what's tagged Road or Land).
@@ -145,4 +158,5 @@ private:
 	TSet<FName> Missing;   // models not imported, warned about once
 	UStaticMeshComponent* Make(FName Model, const FTransform& Xf, bool bMovable);
 	void Paint();
+	void DrawLabels();
 };

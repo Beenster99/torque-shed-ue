@@ -13,6 +13,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Coop/TorquePlayerController.h"
+#include "Coop/TorqueKeys.h"
+#include "Coop/TorqueUi.h"
+#include "Engine/Canvas.h"
+#include "SonyPad.h"
 
 namespace TorqueWalkerFurnitureImpl
 {
@@ -181,10 +185,14 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 	for (const TPair<FName, FString>& K : TorqueFurniture::Kinds())
 		if (K.Key == M->Kind) Heading = K.Value;
 	Lines.Add({Heading, Title, 0.6f});
-	Lines.Add({M->Name, FColor::White, 0.8f});
-	if (!M->Desc.IsEmpty()) Lines.Add({M->Desc, Info, 0.55f});
+	Lines.Add({TorqueFurniture::NameOf(*F), FColor::White, 0.8f});
+	// (Not its shop description: that tooltip text stays on the parts computer. beenster, Nov 10.)
 	if (M->Sit > 0.0) Lines.Add({TEXT("F / Triangle: sit on it"), Prompt, 0.65f});
 	if (B->HeldBy(B->Me()) == 0) Lines.Add({TEXT("Hold F / Triangle: move it"), Prompt, 0.65f});
+	// [label] (walker.gd: "write a label for these shelves")
+	if (TorqueFurniture::HasLabel(*M))
+		Lines.Add({FString::Printf(TEXT("%s: %s"), *FTorqueKeys::Text(ETorqueKey::LabelShelf),
+			F->Label.IsEmpty() ? TEXT("write a label for these shelves") : TEXT("change the label on these shelves")), Prompt, 0.65f});
 	return false;
 }
 
@@ -253,6 +261,98 @@ void ATorqueWalker::StandUp()
 	const AController* C = GetController();
 	ATorquePlayerController::PlaceOnHost(this, At, C ? C->GetControlRotation() : GetActorRotation());
 	Camera->SetRelativeLocation(EyeSpot());
+}
+
+// --- The shelf label box (label_dialog.gd) ---------------------------------------------------------------
+
+bool ATorqueWalker::OpenLabel(int32 Piece)
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueFurniture* F = B ? B->FurnitureById(Piece) : nullptr;
+	const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+	if (!M || !TorqueFurniture::HasLabel(*M)) return false;
+	if (F->Mover != 0)
+	{
+		Say(TEXT("Someone's moving it."), false);
+		return true;
+	}
+	LabelPiece = Piece;
+	LabelEdit = F->Label;
+	bFurnArmed = false;
+	return true;
+}
+
+void ATorqueWalker::CloseLabel(bool bSave)
+{
+	const int32 Piece = LabelPiece;
+	LabelPiece = 0;
+	ComputerClosedFrame = GFrameCounter;   // (the Esc that closed it isn't also the pause menu's)
+	if (!bSave || Piece == 0) return;
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return;
+	FTorqueShedRequest R;
+	R.Kind = ETorqueShedAct::LabelFurniture;
+	R.Item = Piece;
+	R.Text = TorqueFurniture::CleanLabel(LabelEdit);
+	FString WhyNot;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+}
+
+void ATorqueWalker::LabelInput(APlayerController* PC, uint32 SonyHit)
+{
+	// Typed: letters (Shift for capitals), digits, space, hyphen; Backspace, Delete clears it, Ctrl+V
+	// pastes. Enter (Cross) writes it on, Esc (Circle) leaves it as it was.
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueFurniture* F = B ? B->FurnitureById(LabelPiece) : nullptr;
+	if (!PC || !F || F->Mover != 0)
+	{
+		CloseLabel(false);   // gone, or someone's taken hold of it
+		return;
+	}
+	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
+	if (Just(EKeys::Enter) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross))
+	{
+		CloseLabel(true);
+		return;
+	}
+	if (Just(EKeys::Escape) || Just(EKeys::Gamepad_FaceButton_Right) || (SonyHit & ESonyButton::Circle))
+	{
+		CloseLabel(false);
+		return;
+	}
+	ATorquePlayerController::TypeText(PC, LabelEdit, TorqueFurniture::LabelMax);
+}
+
+void ATorqueWalker::DrawLabelBox(UCanvas* Canvas) const
+{
+	// label_dialog.gd: a small box in the middle, SHELF LABEL over a line to type in, Save and Cancel.
+	if (!Canvas || LabelPiece == 0) return;
+	namespace UI = TorqueUi;
+	const float S = UI::Scale(Canvas);
+	UI::Backdrop(Canvas, 0.35f);
+	const float W = 520.0f * S, H = 196.0f * S;
+	const float X = 0.5f * (Canvas->ClipX - W), Y = 0.5f * (Canvas->ClipY - H);
+	UI::Rect(Canvas, X, Y, W, H, UI::Panel);
+	UI::Rect(Canvas, X, Y, 3.0f * S, H, UI::Accent);
+	const float Margin = 26.0f * S;
+	UI::Text(Canvas, TEXT("SHELF LABEL"), X + Margin, Y + 20.0f * S, 24.0f * S, UI::Accent, true);
+	// The line to type on, with its caret; the hint in it while it's empty.
+	const float FX = X + Margin, FY = Y + 66.0f * S, FW = W - 2.0f * Margin, FH = 46.0f * S;
+	UI::Rect(Canvas, FX, FY, FW, FH, UI::PanelLight);
+	UI::Frame(Canvas, FX, FY, FW, FH, UI::Accent, FMath::Max(1.0f, 1.5f * S));
+	const float Px = 22.0f * S, TY = FY + 0.5f * (FH - Px * 1.2f);
+	float Typed = 0.0f;
+	if (LabelEdit.IsEmpty()) UI::Text(Canvas, TEXT("Brakes, engine spares, Barn find..."), FX + 12.0f * S, TY, Px, UI::Faint, false, UI::EAlign::Left, false);
+	else Typed = UI::Text(Canvas, LabelEdit, FX + 12.0f * S, TY, Px, UI::Ink);
+	if (FMath::Fmod(FPlatformTime::Seconds(), 1.0) < 0.6)
+		UI::Rect(Canvas, FX + 12.0f * S + Typed + 2.0f * S, FY + 9.0f * S, FMath::Max(1.0f, 2.0f * S), FH - 18.0f * S, UI::Accent);
+	UI::Text(Canvas, FString::Printf(TEXT("%d / %d"), LabelEdit.Len(), TorqueFurniture::LabelMax), FX + FW, FY + FH + 8.0f * S, 14.0f * S, UI::Dim,
+		false, UI::EAlign::Right, false);
+	float HX = FX;
+	const float HY = Y + H - 44.0f * S;
+	HX += UI::KeyHint(Canvas, TEXT("Enter"), TEXT("Save"), HX, HY, S) + 22.0f * S;
+	HX += UI::KeyHint(Canvas, TEXT("Esc"), TEXT("Cancel"), HX, HY, S) + 22.0f * S;
+	UI::KeyHint(Canvas, TEXT("Delete"), TEXT("Clear"), HX, HY, S);
 }
 
 // --- Tests ------------------------------------------------------------------------------------------------
@@ -339,6 +439,20 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		StandUp();
 		return FString::Printf(TEXT("stood up at %.0f, %.0f"), GetActorLocation().X, GetActorLocation().Y);
 	}
+	if (What == TEXT("label"))
+	{
+		// [label] Write label:<words> (none: wipe it) on the shelving unit looked at, as the box does.
+		ReAim();
+		FindTarget();
+		if (TargetFurniture == 0) return TEXT("not labelled: no kit piece looked at (") + Describe() + TEXT(")");
+		const int32 Piece = TargetFurniture;
+		if (!OpenLabel(Piece) || LabelPiece != Piece) return TEXT("not labelled: ") + (NoteFor > 0.0 ? Note : FString(TEXT("that isn't shelving")));
+		LabelEdit = FString::Join(Args, TEXT(" "));
+		CloseLabel(true);
+		bTestAim = false;
+		const FTorqueFurniture* F = B->FurnitureById(Piece);
+		return F ? FString::Printf(TEXT("labelled piece %d \"%s\" (%s)"), Piece, *F->Label, *TorqueFurniture::NameOf(*F)) : FString(TEXT("not labelled: gone"));
+	}
 	if (Moving == 0 && What != TEXT("order")) return TEXT("not furniture: not moving a piece (furn:grab first)");
 	if (What == TEXT("turn"))
 	{
@@ -392,5 +506,5 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 			if (F.Id > Before && F.Model == M->Id) return Out + TEXT("; landed: ") + TWFI::Where(F);
 		return Out + TEXT("; not ordered: no new piece");
 	}
-	return TEXT("not furniture: look, grab, turn, walk, drop, order, sit, stand or log");
+	return TEXT("not furniture: look, grab, turn, walk, drop, order, sit, stand, label or log");
 }

@@ -90,6 +90,12 @@ void ATorqueHUD::DrawHUD()
 		Walker->DrawBench(this, Canvas);
 		return;
 	}
+	// [label] Writing on a shelving unit's label (label_dialog.gd): its box over the view.
+	if (Walker && Walker->LabelBoxUp())
+	{
+		Walker->DrawLabelBox(Canvas);
+		return;
+	}
 	if (Bike && FTorqueSettings::Get().bTelemetry) DrawTelemetry(Bike, S);
 	if (Bike) DrawSpeedo(Bike);
 	// Big speed and gear, then smaller lines under them.
@@ -124,70 +130,49 @@ void ATorqueHUD::DrawLookPanel(const TArray<FHudLine>& Lines, float S)
 {
 	// hud.gd: what you're looking at goes in a panel at the right, out of the way of the crosshair
 	// (a dark box, an accent edge on its left): its title, what it is, then what the buttons do. A
-	// message (what just happened, or why not) across the top.
-	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
-	if (!Font || !Canvas) return;
-	float LW = 0.0f, LH = 0.0f;
-	Canvas->StrLen(Font, TEXT("Hg"), LW, LH);
-	auto Wrap = [this, Font](const FString& Text, float Scale, float MaxW)
-	{
-		TArray<FString> Out, Words;
-		Text.ParseIntoArray(Words, TEXT(" "), true);
-		FString Line;
-		for (const FString& Word : Words)
-		{
-			const FString Try = Line.IsEmpty() ? Word : Line + TEXT(" ") + Word;
-			float TW = 0.0f, TH = 0.0f;
-			Canvas->StrLen(Font, Try, TW, TH);
-			if (!Line.IsEmpty() && TW * Scale > MaxW) { Out.Add(Line); Line = Word; }
-			else Line = Try;
-		}
-		if (!Line.IsEmpty()) Out.Add(Line);
-		return Out;
-	};
+	// message (what just happened, or why not) across the top. Crisp text (TorqueUi), not the large
+	// bitmap font scaled up, which drew it soft and fuzzy (beenster, Nov 10: "remove any fuzzy tooltip
+	// help which has been ported over from torque shed").
+	if (!Canvas) return;
 	// The panel: 406 px wide at 1080p, 24 px in from the right, about the screen's middle.
 	const float PW = 406.0f * S, Margin = 14.0f * S, TextW = PW - 2.0f * Margin - 3.0f * S;
-	struct FDrawn { FString Text; FColor Colour; float Scale; float Gap; };
+	struct FDrawn { FString Text; FLinearColor Colour; float Px; bool bBold; float Gap; };
 	TArray<FDrawn> Panel;
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role < 1 || L.Role > 3) continue;
-		const float Scale = S * (L.Role == 1 ? 0.85f : (L.Role == 2 ? 0.6f : 0.68f));
-		const FColor Colour = L.Role == 2 ? FColor(220, 220, 220) : L.Colour;
-		for (const FString& W : Wrap(L.Text, Scale, TextW)) Panel.Add({W, Colour, Scale, 0.0f});
+		const float Px = S * (L.Role == 1 ? 19.0f : (L.Role == 2 ? (L.Size >= 0.8f ? 17.0f : 14.0f) : 15.0f));
+		const bool bBold = L.Role == 1 || (L.Role == 2 && L.Size >= 0.8f);
+		const FLinearColor Colour = L.Role == 2 && L.Size < 0.8f ? TorqueUi::Dim : FLinearColor(L.Colour);
+		for (const FString& W : TorqueUi::WrapLines(L.Text, Px, TextW, bBold)) Panel.Add({W, Colour, Px, bBold, 0.0f});
 		if (Panel.Num() > 0) Panel.Last().Gap = 6.0f * S;
 	}
 	if (Panel.Num() > 0)
 	{
 		float H = 2.0f * Margin;
-		for (const FDrawn& D : Panel) H += LH * D.Scale + 2.0f * S + D.Gap;
+		for (const FDrawn& D : Panel) H += D.Px * 1.25f + D.Gap;
 		const float X = Canvas->ClipX - 24.0f * S - PW, Y = FMath::Max(80.0f * S, Canvas->ClipY * 0.5f - 170.0f * S);
-		DrawRect(FLinearColor(0.04f, 0.05f, 0.07f, 0.72f), X, Y, PW, H);
-		DrawRect(FLinearColor(1.0f, 0.75f, 0.35f, 0.5f), X, Y, 3.0f * S, H);
+		TorqueUi::Rect(Canvas, X, Y, PW, H, TorqueUi::Panel);
+		TorqueUi::Rect(Canvas, X, Y, 3.0f * S, H, TorqueUi::Accent);
 		float TY = Y + Margin;
 		for (const FDrawn& D : Panel)
 		{
-			Canvas->SetDrawColor(D.Colour);
-			Canvas->DrawText(Font, D.Text, X + 3.0f * S + Margin, TY, D.Scale, D.Scale);
-			TY += LH * D.Scale + 2.0f * S + D.Gap;
+			TorqueUi::Text(Canvas, D.Text, X + 3.0f * S + Margin, TY, D.Px, D.Colour, D.bBold);
+			TY += D.Px * 1.25f + D.Gap;
 		}
 	}
 	for (const FHudLine& L : Lines)
 	{
 		if (L.Role != 4) continue;
-		const float Scale = S * 0.95f;
+		const float Px = 21.0f * S;
 		float Y = 40.0f * S;
-		for (const FString& W : Wrap(L.Text, Scale, 1000.0f * S))
+		for (const FString& W : TorqueUi::WrapLines(L.Text, Px, 1000.0f * S, true))
 		{
-			float TW = 0.0f, TH = 0.0f;
-			Canvas->StrLen(Font, W, TW, TH);
-			const float X = (Canvas->ClipX - TW * Scale) * 0.5f;
-			Canvas->SetDrawColor(FColor(0, 0, 0, 200));   // hud.gd's outline: a shadow round it
-			for (const FVector2D& O : {FVector2D(2, 2), FVector2D(-2, 2), FVector2D(2, -2), FVector2D(-2, -2)})
-				Canvas->DrawText(Font, W, X + O.X * S, Y + O.Y * S, Scale, Scale);
-			Canvas->SetDrawColor(L.Colour);
-			Canvas->DrawText(Font, W, X, Y, Scale, Scale);
-			Y += TH * Scale + 4.0f * S;
+			const float TW = (float)TorqueUi::Measure(W, Px, true).X;
+			const float X = (Canvas->ClipX - TW) * 0.5f;
+			TorqueUi::Rect(Canvas, X - 12.0f * S, Y - 4.0f * S, TW + 24.0f * S, Px * 1.2f + 8.0f * S, FLinearColor(0.035f, 0.04f, 0.045f, 0.62f));
+			TorqueUi::Text(Canvas, W, X, Y, Px, FLinearColor(L.Colour), true);
+			Y += Px * 1.2f + 12.0f * S;
 		}
 	}
 }
@@ -276,20 +261,17 @@ const FLinearColor Accent(1.0f, 0.62f, 0.2f);
 void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 {
 	// Torque Shed's hud.gd, sized from its 1080p pixels: the large font is about 20 px high there.
-	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
-	if (!Walker || !Canvas || !Font) return;
+	// (Crisp text, TorqueUi, at the same sizes: the scaled bitmap font drew it fuzzy.)
+	if (!Walker || !Canvas) return;
 	const FLinearColor Accent = TorqueHudCues::Accent;
 	auto Px = [S](float Size) { return S * Size / 20.0f; };
-	auto Text = [this, Font](const FString& T, float X, float Y, float Scale, const FLinearColor& C)
+	auto Text = [this](const FString& T, float X, float Y, float Scale, const FLinearColor& C)
 	{
-		Canvas->SetDrawColor(C.ToFColor(true));
-		Canvas->DrawText(Font, T, X, Y, Scale, Scale);
+		TorqueUi::Text(Canvas, T, X, Y, Scale * 20.0f, C);
 	};
-	auto Measure = [this, Font](const FString& T, float Scale)
+	auto Measure = [](const FString& T, float Scale)
 	{
-		float W = 0, H = 0;
-		Canvas->StrLen(Font, T, W, H);
-		return FVector2D(W * Scale, H * Scale);
+		return TorqueUi::Measure(T, Scale * 20.0f);
 	};
 	auto Frame = [this](float X, float Y, float W, float H, const FLinearColor& C, float T)
 	{

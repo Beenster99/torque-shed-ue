@@ -160,6 +160,24 @@ static const FData& Data()
 	return D;
 }
 
+bool HasLabel(const FModel& M) { return M.Kind == FName(TEXT("shelf")); }
+
+FString NameOf(const FTorqueFurniture& F)
+{
+	const FModel* M = Find(F.Model);
+	const FString Name = M ? M->Name : FString(TEXT("Equipment"));
+	return M && HasLabel(*M) && !F.Label.IsEmpty() ? FString::Printf(TEXT("%s: %s"), *Name, *F.Label) : Name;
+}
+
+FString CleanLabel(const FString& Text)
+{
+	// What can be written on: printable letters only, trimmed, LabelMax long (shed_state.gd "label").
+	FString Out;
+	for (const TCHAR C : Text)
+		if (C >= 32 && C != 127) Out.AppendChar(C);
+	return Out.TrimStartAndEnd().Left(LabelMax).TrimEnd();
+}
+
 const TMap<FName, FModel>& Models() { return Data().Models; }
 const FModel* Find(FName Model) { return Data().Models.Find(Model); }
 const TArray<TPair<FName, FString>>& Kinds() { return Data().Kinds; }
@@ -299,7 +317,7 @@ void ContactBoxes(const UObject* WorldContext, std::vector<TorqueSim::ContactBox
 bool UTorqueBuildSubsystem::IsFurnitureAct(ETorqueShedAct A)
 {
 	return A == ETorqueShedAct::GrabFurniture || A == ETorqueShedAct::TurnFurniture || A == ETorqueShedAct::ReleaseFurniture
-		|| A == ETorqueShedAct::OrderFurniture;
+		|| A == ETorqueShedAct::OrderFurniture || A == ETorqueShedAct::LabelFurniture;
 }
 
 const FTorqueFurniture* UTorqueBuildSubsystem::FurnitureById(int32 Id) const
@@ -374,6 +392,11 @@ FString UTorqueBuildSubsystem::CheckFurniture(int32 Peer, const FTorqueShedReque
 		if (Furnishings.Num() >= 400) return TEXT("The shed and the yard are full of kit: that's plenty.");
 		return FString();
 	}
+	case ETorqueShedAct::LabelFurniture:   // [label] shed_state.gd check "label"
+		if (!F || !M) return TEXT("That's gone.");
+		if (!TorqueFurniture::HasLabel(*M)) return TEXT("Only shelves take labels.");
+		if (F->Mover != 0 && F->Mover != Peer) return TEXT("Someone's moving it.");
+		return FString();
 	default:
 		return TEXT("The shed doesn't know how to do that.");
 	}
@@ -411,6 +434,13 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 		const FVector At = FurnitureDropAt(*O);
 		Furnishings.Add({FurnitureNextId++, R.Part, FTransform(FRotator(0.0, 180.0, 0.0), At), 0, 0.0f});
 		return FString::Printf(TEXT("%s ordered: it's %s."), *O->Name, O->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("outside, left of the roller door"));
+	}
+	case ETorqueShedAct::LabelFurniture:   // [label] shed_state.gd apply "label"
+	{
+		if (!F) return FString();
+		F->Label = TorqueFurniture::CleanLabel(R.Text);
+		return F->Label.IsEmpty() ? FString(TEXT("Wiped the label off the shelves."))
+			: FString::Printf(TEXT("Labelled the shelves \"%s\"."), *F->Label);
 	}
 	default:
 		return FString();
@@ -457,7 +487,7 @@ void UTorqueBuildSubsystem::SerializeFurniture(FArchive& Ar, bool bNet, TArray<F
 		FVector At = F.Xf.GetLocation();
 		double Yaw = F.Xf.Rotator().Yaw;
 		Ar << F.Id << Model << At << Yaw;
-		if (bNet) Ar << F.Mover << F.Turn;
+		if (bNet) Ar << F.Mover << F.Turn << F.Label;   // [label] (BytesLayout 20)
 		if (Ar.IsLoading())
 		{
 			F.Model = FName(*Model);
@@ -466,8 +496,28 @@ void UTorqueBuildSubsystem::SerializeFurniture(FArchive& Ar, bool bNet, TArray<F
 			if (Ar.IsError()) return;
 		}
 	}
+	if (!bNet)
+	{
+		// [label] The shelves' labels, after the list (a save from before them ends here: none).
+		constexpr int32 LabelsTag = 0x4C424C53;   // "SLBL"
+		if (Ar.IsSaving())
+		{
+			int32 Tag = LabelsTag;
+			Ar << Tag;
+			for (FTorqueFurniture& F : List) Ar << F.Label;
+		}
+		else if (!Ar.AtEnd())
+		{
+			int32 Tag = 0;
+			Ar << Tag;
+			if (Tag == LabelsTag)
+				for (FTorqueFurniture& F : List) Ar << F.Label;
+			if (Ar.IsError()) return;
+		}
+	}
 	if (Ar.IsLoading())
 	{
+		for (FTorqueFurniture& F : List) F.Label = TorqueFurniture::CleanLabel(F.Label);
 		// Models that aren't in this game any more go.
 		List.RemoveAll([](const FTorqueFurniture& F) { return TorqueFurniture::Find(F.Model) == nullptr; });
 		TorqueFurniture::Touch();
@@ -636,6 +686,60 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		{
 			if (It.Value()) It.Value()->DestroyComponent();
 			DrawnModel.Remove(It.Key());
+			It.RemoveCurrent();
+		}
+	DrawLabels();
+}
+
+void ATorqueFurnishings::DrawLabels()
+{
+	// [label] Each labelled shelving unit's words on its label plate (equipment_view.gd's Label3D:
+	// dark on the white plate, 12 cm under the top, just proud of its front), riding along with the
+	// piece's mesh wherever it's moved.
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	TSet<int32> Want;
+	if (B)
+		for (const FTorqueFurniture& F : B->Furniture())
+		{
+			const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model);
+			UStaticMeshComponent* const* Mesh = Drawn.Find(F.Id);
+			if (!M || !TorqueFurniture::HasLabel(*M) || F.Label.IsEmpty() || !Mesh || !*Mesh) continue;
+			Want.Add(F.Id);
+			UTextRenderComponent* T = LabelsDrawn.FindRef(F.Id);
+			if (T && T->GetAttachParent() != *Mesh)
+			{
+				T->DestroyComponent();   // its piece was drawn afresh
+				T = nullptr;
+				LabelsText.Remove(F.Id);
+			}
+			if (!T)
+			{
+				T = NewObject<UTextRenderComponent>((*Mesh)->GetOwner());
+				T->SetHorizontalAlignment(EHTA_Center);
+				T->SetVerticalAlignment(EVRTA_TextCenter);
+				T->SetTextRenderColor(FColor(31, 26, 26));
+				T->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				T->SetCastShadow(false);
+				T->SetMobility(EComponentMobility::Movable);
+				T->SetupAttachment(*Mesh);
+				// Facing out of the front (+y at yaw 0): the text's own face is its +x.
+				T->SetRelativeLocationAndRotation(FVector(0.0, M->Size.Z * 0.5 + 1.1, M->Size.Y - 12.0), FRotator(0.0, 90.0, 0.0));
+				T->RegisterComponent();
+				LabelsDrawn.Add(F.Id, T);
+			}
+			if (LabelsText.FindRef(F.Id) != F.Label)
+			{
+				LabelsText.Add(F.Id, F.Label);
+				T->SetText(FText::FromString(F.Label));
+				// As big as fits the 70 cm plate: 7.5 cm letters for a short label, smaller for a long one.
+				T->SetWorldSize((float)FMath::Clamp(62.0 / (F.Label.Len() * 0.58), 3.0, 7.5));
+			}
+		}
+	for (auto It = LabelsDrawn.CreateIterator(); It; ++It)
+		if (!Want.Contains(It.Key()))
+		{
+			if (It.Value()) It.Value()->DestroyComponent();
+			LabelsText.Remove(It.Key());
 			It.RemoveCurrent();
 		}
 }

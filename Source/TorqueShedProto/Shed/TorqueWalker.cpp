@@ -623,6 +623,15 @@ void ATorqueWalker::ReadInput(float Dt)
 	// Settings > Controller > Key bindings: the keyboard and mouse as the player bound them.
 	auto KeyDown = [PC](ETorqueKey A) { return FTorqueKeys::Down(PC, A); };
 	auto KeyJust = [PC](ETorqueKey A) { return FTorqueKeys::Just(PC, A); };
+	// [label] The shelf label box is up: the keys type its label till Enter or Esc.
+	if (LabelPiece != 0)
+	{
+		LabelInput(PC, SonyHit);
+		return;
+	}
+	// N on a shelving unit: write on its label plate (Torque Shed's label_dialog.gd).
+	if (KeyJust(ETorqueKey::LabelShelf) && TargetFurniture != 0 && !bComputer && !bBench && Wheeling() == INDEX_NONE && OpenLabel(TargetFurniture))
+		return;
 	// F2: geometry mode on the bike looked at, or the nearest (main.gd's F2).
 	if (KeyJust(ETorqueKey::GeometryMode) && !bComputer && !bBench && Wheeling() == INDEX_NONE)
 	{

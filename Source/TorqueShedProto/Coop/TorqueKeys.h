@@ -16,7 +16,7 @@ enum class ETorqueKey : uint8
 {
 	// On foot.
 	WalkForward, WalkBack, WalkLeft, WalkRight, Run, Crouch, Jump,
-	Work, AltWork, Use, NextTool, PrevTool, Tool1, Tool2, Tool3, Tool4, Tool5, Tool6, SprayFinish, GeometryMode,
+	Work, AltWork, Use, NextTool, PrevTool, Tool1, Tool2, Tool3, Tool4, Tool5, Tool6, SprayFinish, GeometryMode, LabelShelf,
 	// Riding.
 	Throttle, FrontBrake, RearBrake, LeanLeft, LeanRight, WeightBack, WeightForward, ShiftUp, ShiftDown, AutoShift, Abs, Clutch, Ignition,
 	Camera, CamCloser, CamFarther, CamHigher, CamLower, CamTiltUp, CamTiltDown, LookBack, BackOnRoad, Restart, RealismDown, RealismUp, Weather, Horn, BackToShed, Telemetry,
