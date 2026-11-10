@@ -148,10 +148,11 @@ static const FData& Data()
 		if (J->TryGetArrayField(TEXT("drop"), A) && A->Num() >= 4)
 			D.Yard.Drop = FBox2D(FVector2D(TFI::Num(*A, 0), TFI::Num(*A, 1)), FVector2D(TFI::Num(*A, 2), TFI::Num(*A, 3)));
 	}
-	// Indoors: a stool by the workbench, a camp chair, and a shelving unit against the east wall by
+	// Indoors: a stool by the workbench, a camp chair against the east wall just left of the parts
+	// computer's desk (beenster, Nov 10), and a shelving unit against the east wall by
 	// bay 4 (clear of the stand, the computer and the lift's post), as Torque Shed's new shed has.
 	for (const FPlaced& P : {FPlaced{FName(TEXT("seat_stool")), FTransform(FRotator(0.0, -90.0, 0.0), FVector(-500.0, 330.0, 0.0))},
-		FPlaced{FName(TEXT("seat_chair")), FTransform(FRotator(0.0, 200.0, 0.0), FVector(420.0, 300.0, 0.0))},
+		FPlaced{FName(TEXT("seat_chair")), FTransform(FRotator(0.0, 90.0, 0.0), FVector(595.0, 75.0, 0.0))},
 		FPlaced{FName(TEXT("shelf_standard")), FTransform(FRotator(0.0, 90.0, 0.0), FVector(615.0, -220.0, 0.0))}})
 		if (D.Models.Contains(P.Model)) D.ShedStart.Add(P);
 	UE_LOG(LogTemp, Log, TEXT("Torque furniture: %d models, yard %d to start, %d fixed, %d marks, %d words"), D.Models.Num(),
