@@ -189,7 +189,16 @@ def new_material(name, folder=MAT_DIR):
     return asset_tools.create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
 
 
-WEATHER_MPC = MAT_DIR + "/MPC_Weather"   # TorqueBikePawn sets Wetness (0 dry .. 1 wet) at run time
+WEATHER_MPC = MAT_DIR + "/MPC_Weather"   # ATorqueGameState sets these at run time (Weather/WeatherModel.h)
+# Each with the look the level was made with as its default, so a level without the game running looks as before.
+WEATHER_PARAMS = (
+    ("Wetness", 0.0),        # the roads, land and walls: 0 dry .. 1 wet
+    ("Wind", 1.0),           # the grass and trees' sway: 1 the moor's usual breeze, 0.15 calm .. 2.5 a gale
+    ("WindX", 0.78),         # the way the wind blows (towards; x east, y south): north east by default
+    ("WindY", -0.62),
+    ("CloudShadow", 0.6),    # where the cloud shadows' noise turns to shade: 1 none (clear) .. 0.45 most of the ground
+    ("Rain", 0.0),           # how hard it's raining for the eye, 0 .. 1
+)
 _weather_mpc = None
 
 
@@ -207,10 +216,13 @@ def weather_mpc():
             folder, name = WEATHER_MPC.rsplit("/", 1)
             mpc = asset_tools.create_asset(name, folder, unreal.MaterialParameterCollection,
                                            unreal.MaterialParameterCollectionFactoryNew())
-        p = unreal.CollectionScalarParameter()
-        p.set_editor_property("parameter_name", "Wetness")
-        p.set_editor_property("default_value", 0.0)
-        mpc.set_editor_property("scalar_parameters", [p])
+        params = []
+        for name, default in WEATHER_PARAMS:
+            p = unreal.CollectionScalarParameter()
+            p.set_editor_property("parameter_name", name)
+            p.set_editor_property("default_value", default)
+            params.append(p)
+        mpc.set_editor_property("scalar_parameters", params)
         unreal.EditorAssetLibrary.save_loaded_asset(mpc)
         _weather_mpc = mpc
         log("weather parameter collection made")
@@ -220,12 +232,23 @@ def weather_mpc():
     return _weather_mpc or None
 
 
-def wetness(g):
-    """The Wetness scalar in a material (0 when the collection couldn't be made)."""
+def weather_param(g, name):
+    """One of the weather's scalars in a material (its default when the collection couldn't be made)."""
     mpc = weather_mpc()
     if mpc is None:
-        return g.const(0.0)
-    return g.node(unreal.MaterialExpressionCollectionParameter, collection=mpc, parameter_name="Wetness")
+        return g.const(dict(WEATHER_PARAMS)[name])
+    return g.node(unreal.MaterialExpressionCollectionParameter, collection=mpc, parameter_name=name)
+
+
+def wetness(g):
+    """The Wetness scalar in a material (0 when the collection couldn't be made)."""
+    return weather_param(g, "Wetness")
+
+
+def wind_dir(g, dip):
+    """The way the wind blows as a vector (WindX, WindY, dip), for a plant's lean."""
+    xy = g.op(unreal.MaterialExpressionAppendVector, weather_param(g, "WindX"), weather_param(g, "WindY"))
+    return g.op(unreal.MaterialExpressionAppendVector, xy, g.const(dip))
 
 
 def const3(mat, rgb, x, y):
@@ -1273,7 +1296,8 @@ def foliage_wind(g, h, pir):
     gs = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(gph, gs)
     gust = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, gs, const_b=0.4), const_b=0.75)
     mag = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, amp, sway), gust)
-    return g.op(unreal.MaterialExpressionMultiply, g.const((0.78, -0.62, -0.08)), mag)   # towards the north east, dipping a little
+    mag = g.op(unreal.MaterialExpressionMultiply, mag, weather_param(g, "Wind"))   # the real wind's strength
+    return g.op(unreal.MaterialExpressionMultiply, wind_dir(g, -0.08), mag)        # downwind (north east by default), dipping a little
 
 
 def foliage_flags(m, masked=False):
@@ -1803,13 +1827,15 @@ def tree_wind(g, w, leaf):
     sway = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, s1, const_b=0.5), const_b=0.6)
     amp = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, w, w), const_b=22.0)   # cm at the tips
     mag = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, amp, sway), gust)
-    limb = g.op(unreal.MaterialExpressionMultiply, g.const((0.78, -0.62, -0.05)), mag)
+    wind = weather_param(g, "Wind")
+    mag = g.op(unreal.MaterialExpressionMultiply, mag, wind)                        # the real wind's strength
+    limb = g.op(unreal.MaterialExpressionMultiply, wind_dir(g, -0.05), mag)
     # Flutter: fast, small, out of step from leaf to leaf (by world position), leaves only.
     fph = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, t, const_b=3.1),
                g.op(unreal.MaterialExpressionDotProduct, wp, g.const((0.031, 0.027, 0.043))))
     fs = g.node(unreal.MaterialExpressionSine, period=1.0); g.link(fph, fs)
     fl = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, fs, leaf),
-              g.op(unreal.MaterialExpressionMultiply, gust, const_b=1.6))
+              g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, gust, const_b=1.6), wind))
     nrm = g.node(unreal.MaterialExpressionVertexNormalWS)
     flutter = g.op(unreal.MaterialExpressionMultiply, nrm, fl)
     return g.op(unreal.MaterialExpressionAdd, limb, flutter)
@@ -1896,7 +1922,8 @@ def tree_material(tex=None, roles=None):
 def cloud_shadow_material():
     """Cloud shadows sweeping over the fells, a Dales day's signature: a light function on the sun,
     the broad noise in patches a kilometre or two across, drifting north east at about 9 m/s (the
-    prevailing south westerly), the shade let through at 45% (thin summer cumulus, not storm cloud)."""
+    prevailing south westerly), the shade let through at 45% (thin summer cumulus, not storm cloud).
+    How much of the ground is in shade follows the weather (MPC_Weather's CloudShadow)."""
     nt = noise_texture()
     if nt is None:
         return None
@@ -1911,8 +1938,9 @@ def cloud_shadow_material():
     b = g.sample(nt, uv2, "linear")
     n = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, a, const_b=0.7, a_out="G"),
              g.op(unreal.MaterialExpressionMultiply, b, const_b=0.3, a_out="G"))
+    # Where the noise turns to shade follows the real cloud (CloudShadow: 0.6 as made, 1 a clear sky).
     cloud = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
-                 g.op(unreal.MaterialExpressionSubtract, n, const_b=0.6), const_b=7.0))
+                 g.op(unreal.MaterialExpressionSubtract, n, weather_param(g, "CloudShadow")), const_b=7.0))
     light = g.lerp(g.const(1.0), g.const(0.3), cloud)
     mel.connect_material_property(light, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.recompile_material(g.m)

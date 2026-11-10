@@ -18,13 +18,15 @@ struct State
 	double Cloud = 0.1;          // cloud cover, 0 clear .. 1 overcast
 	double Rain = 0.0;           // rain (and, until Phase 2's snow, anything falling), mm per hour
 	double Snow = 0.0;           // snowfall, cm per hour (shown from Phase 2; counted as wet until then)
-	double Wind = 3.0;           // mean wind at 10 m, metres per second
+	double Wind = 5.5;           // mean wind at 10 m, metres per second (the moor's breeze the plants were made swaying in)
 	double WindFrom = 225.0;     // where the wind comes from: degrees from north, clockwise
-	double Gust = 6.0;           // gusts at 10 m, metres per second
+	double Gust = 9.0;           // gusts at 10 m, metres per second
 	double Air = 14.0;           // air temperature, degrees C
 	double Visibility = 40000.0; // metres
 	double RoadWet = 0.0;        // how wet the road is, 0 dry .. 1 soaked (roads remember: see RoadWetAfter)
 	int Code = 1;                // the WMO weather code, for the words ("light rain")
+	double LowCloud = 0.0;       // low cloud cover (below about 2 km), 0 .. 1
+	double CloudBase = 5000.0;   // the low cloud's base, metres above sea level (from the air's dryness)
 };
 
 enum EKind { Sunny = 0, Overcast = 1, Wet = 2 };
@@ -43,6 +45,22 @@ double Dullness(const State& S);
 double WetLook(const State& S);
 // How much thicker the haze is than the presets', from the visibility: 1 down to 8 km, more in fog.
 double FogBoost(const State& S);
+// How far into the low cloud a point this high (metres above sea level) is: 0 below its base .. 1
+// well inside it. On a day of low cloud the pass top sits in it while the dale below stays clear.
+double InCloud(const State& S, double HeightAsl);
+// The haze for a viewer this high: FogBoost, or the cloud's own when they're up in it.
+double HazeAt(const State& S, double HeightAsl);
+// The cloud base from the air and its dew point (about 125 m for each degree between them), above
+// ground at Elevation.
+double CloudBaseFrom(double Elevation, double Air, double DewPoint);
+// The dew point from the air and its relative humidity, %.
+double DewPointFrom(double Air, double Humidity);
+
+// How heavily it's raining for the eye, 0 dry .. 1 a downpour (light rain about 0.35).
+double RainShow(const State& S);
+// The real wind as a share of the moor's usual breeze (6 m/s) for the grass and trees' sway: calm
+// 0.15, a breeze 1, a gale 2.5.
+double SwayFromWind(const State& S);
 
 // Roads remember. A road's film of water, mm: rain adds to it, drying takes it away (faster when
 // warm, windy or clear), and past about 1 mm it runs off. How wet it looks follows the film.

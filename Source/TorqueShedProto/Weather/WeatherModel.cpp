@@ -25,10 +25,12 @@ State Preset(int Kind)
 	switch (Kind)
 	{
 	case Overcast:
-		S.Cloud = 1.0; S.Rain = 0.0; S.Wind = 5.0; S.Gust = 9.0; S.Air = 11.0; S.Visibility = 20000.0; S.RoadWet = 0.0; S.Code = 3;
+		S.Cloud = 1.0; S.Rain = 0.0; S.Wind = 6.0; S.Gust = 10.0; S.Air = 11.0; S.Visibility = 20000.0; S.RoadWet = 0.0; S.Code = 3;
+		S.LowCloud = 0.6; S.CloudBase = 1500.0;
 		break;
 	case Wet:
-		S.Cloud = 1.0; S.Rain = 1.0; S.Wind = 6.0; S.Gust = 11.0; S.Air = 10.0; S.Visibility = 10000.0; S.RoadWet = 1.0; S.Code = 61;
+		S.Cloud = 1.0; S.Rain = 1.0; S.Wind = 7.0; S.Gust = 11.0; S.Air = 10.0; S.Visibility = 10000.0; S.RoadWet = 1.0; S.Code = 61;
+		S.LowCloud = 0.9; S.CloudBase = 900.0;
 		break;
 	default:
 		break;   // sunny: the State's own defaults
@@ -57,6 +59,8 @@ State Blend(const State& A, const State& B, double T)
 	// Visibility eases in steps that look even (fog thickens as fast at 500 m as at 20 km).
 	S.Visibility = std::exp(Lerp(std::log(std::max(A.Visibility, 10.0)), std::log(std::max(B.Visibility, 10.0)), T));
 	S.RoadWet = Lerp(A.RoadWet, B.RoadWet, T);
+	S.LowCloud = Lerp(A.LowCloud, B.LowCloud, T);
+	S.CloudBase = Lerp(A.CloudBase, B.CloudBase, T);
 	S.Code = T < 0.5 ? A.Code : B.Code;
 	return S;
 }
@@ -69,6 +73,37 @@ double FogBoost(const State& S)
 {
 	const double Vis = std::max(S.Visibility, 50.0);
 	return Vis >= 8000.0 ? 1.0 : std::min(8000.0 / Vis, 12.0);
+}
+
+double InCloud(const State& S, double HeightAsl)
+{
+	// Only a real low deck (most of the sky): a few scraps of low cloud don't swallow the road.
+	const double Deck = Smooth((S.LowCloud - 0.55) / 0.3);
+	return Deck * Smooth((HeightAsl - (S.CloudBase - 40.0)) / 80.0);
+}
+
+double HazeAt(const State& S, double HeightAsl) { return std::max(FogBoost(S), Lerp(1.0, 12.0, InCloud(S, HeightAsl))); }
+
+double CloudBaseFrom(double Elevation, double Air, double DewPoint) { return Elevation + 125.0 * std::max(Air - DewPoint, 0.0); }
+
+double DewPointFrom(double Air, double Humidity)
+{
+	// Magnus.
+	const double Rh = std::min(std::max(Humidity, 1.0), 100.0) / 100.0;
+	const double G = std::log(Rh) + 17.62 * Air / (243.12 + Air);
+	return 243.12 * G / (17.62 - G);
+}
+
+double RainShow(const State& S)
+{
+	const double R = std::max(S.Rain, 0.0);
+	return R < 0.05 ? 0.0 : std::min(std::sqrt(R / 8.0), 1.0);
+}
+
+double SwayFromWind(const State& S)
+{
+	const double W = std::max(S.Wind * 0.7 + S.Gust * 0.3, 0.0);
+	return std::min(std::max(0.15 + 0.85 * std::pow(W / 7.0, 1.3), 0.15), 2.5);
 }
 
 double RoadWaterStep(double WaterMm, double RainMmPerHour, double Air, double Wind, double Cloud, double Seconds)
@@ -212,7 +247,7 @@ long long ParseIsoUtc(const std::string& Iso)
 std::string OpenMeteoUrl(double Lat, double Lon)
 {
 	return "https://api.open-meteo.com/v1/forecast?" + LatLon("latitude", Lat, "longitude", Lon) +
-		"&current=temperature_2m,precipitation,snowfall,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
+		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
 		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime";
 }
 
@@ -250,6 +285,8 @@ bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::s
 	const bool bFog = S.Code == 45 || S.Code == 48;
 	S.Visibility = Cur->Get("visibility") && Cur->Get("visibility")->IsNumber() ? std::max(Cur->Num("visibility"), 20.0) : (bFog ? 400.0 : 30000.0);
 	const long long Now = static_cast<long long>(Cur->Num("time", 0.0));
+	S.LowCloud = Clamp01(Cur->Num("cloud_cover_low", S.Cloud * 60.0) / 100.0);
+	S.CloudBase = Cur->Get("dew_point_2m") ? CloudBaseFrom(Root.Num("elevation", 0.0), S.Air, Cur->Num("dew_point_2m")) : 5000.0;
 
 	// The road: the rain of the last few hours (each hour's value is the hour before it), then this
 	// quarter hour's.
@@ -328,6 +365,14 @@ bool ParseMetNo(const std::string& Body, State& Out, long long* Time, std::strin
 	S.Gust = std::max(Details->Num("wind_speed_of_gust", S.Wind * 1.6), S.Wind);
 	S.Rain = 0.0;
 	S.Code = S.Cloud > 0.85 ? 3 : S.Cloud > 0.4 ? 2 : S.Cloud > 0.1 ? 1 : 0;
+	S.LowCloud = Clamp01(Details->Num("cloud_area_fraction_low", S.Cloud * 60.0) / 100.0);
+	if (Details->Get("relative_humidity"))
+	{
+		double Elev = 0.0;
+		if (const Json* Geometry = Root.Get("geometry"))
+			if (const Json* Coords = Geometry->Get("coordinates"); Coords && Coords->IsArray() && Coords->A.size() >= 3) Elev = Coords->A[2].N;
+		S.CloudBase = CloudBaseFrom(Elev, S.Air, DewPointFrom(S.Air, Details->Num("relative_humidity")));
+	}
 	if (const Json* Next = Data->Get("next_1_hours"))
 	{
 		if (const Json* Sum = Next->Get("summary")) S.Code = MetNoSymbolCode(Sum->Str("symbol_code", "cloudy"));
@@ -345,8 +390,8 @@ bool ParseMetNo(const std::string& Body, State& Out, long long* Time, std::strin
 std::string Save(const State& S)
 {
 	char Buf[256];
-	std::snprintf(Buf, sizeof(Buf), "w1 %.3f %.3f %.3f %.3f %.1f %.3f %.2f %.0f %.3f %d", S.Cloud, S.Rain, S.Snow, S.Wind, S.WindFrom, S.Gust, S.Air,
-		S.Visibility, S.RoadWet, S.Code);
+	std::snprintf(Buf, sizeof(Buf), "w1 %.3f %.3f %.3f %.3f %.1f %.3f %.2f %.0f %.3f %d %.3f %.0f", S.Cloud, S.Rain, S.Snow, S.Wind, S.WindFrom, S.Gust,
+		S.Air, S.Visibility, S.RoadWet, S.Code, S.LowCloud, S.CloudBase);
 	return Buf;
 }
 
@@ -357,6 +402,8 @@ bool Load(const std::string& Text, State& Out)
 	State S;
 	if (!(In >> Tag) || Tag != "w1") return false;
 	if (!(In >> S.Cloud >> S.Rain >> S.Snow >> S.Wind >> S.WindFrom >> S.Gust >> S.Air >> S.Visibility >> S.RoadWet >> S.Code)) return false;
+	In >> S.LowCloud >> S.CloudBase;   // (an older save without them keeps the defaults)
+	if (In.fail()) { S.LowCloud = 0.0; S.CloudBase = 5000.0; }
 	Out = S;
 	return true;
 }

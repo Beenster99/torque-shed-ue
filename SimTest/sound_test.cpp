@@ -130,6 +130,29 @@ int main(int Argc, char** Argv)
 		}
 	}
 
+	// The weather (stopped, engine off): a gusty wind and rain are heard; a calm dry day is near silent.
+	{
+		auto Level = [](double Wind, double Gust, double Rain, double Inside) {
+			RideSound T;
+			RideInputs I; I.Rpm = 0; I.EngineOn = false; I.Speed = 0; I.AirWind = Wind; I.Gust = Gust; I.Rain = Rain; I.Inside = Inside; T.Set(I);
+			std::vector<float> Buf(RideSound::Rate * 5);
+			T.Render(Buf.data(), (int)Buf.size());
+			double Sum = 0.0;
+			for (size_t K = Buf.size() * 3 / 5; K < Buf.size(); ++K)
+			{
+				if (!std::isfinite(Buf[K])) return -1.0;
+				Sum += Buf[K] * Buf[K];
+			}
+			return std::sqrt(Sum / (Buf.size() * 2 / 5));
+		};
+		const double Calm = Level(0, 0, 0, 1), Windy = Level(12, 20, 0, 1), Wet = Level(0, 0, 0.6, 1), WetOut = Level(0, 0, 0.6, 0);
+		std::printf("  stopped: calm %.4f, gusty 12 m/s %.4f, rain in the helmet %.4f, rain heard from behind %.4f\n", Calm, Windy, Wet, WetOut);
+		if (Calm < 0.0 || Windy < 0.0 || Wet < 0.0) { std::printf("    NaN in the weather\n"); ++Fails; }
+		if (Windy < Calm * 3.0 + 0.003) { std::printf("    the wind can't be heard standing still\n"); ++Fails; }
+		if (Wet < Calm * 3.0 + 0.003 || WetOut >= Wet) { std::printf("    the rain can't be heard (or isn't louder in the helmet)\n"); ++Fails; }
+		if (Windy > 0.2 || Wet > 0.2) { std::printf("    the weather's too loud\n"); ++Fails; }
+	}
+
 	// The pipe warms up with riding.
 	{
 		RideSound T;

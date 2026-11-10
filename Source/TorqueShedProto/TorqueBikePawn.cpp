@@ -3045,6 +3045,15 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.Airborne = !F.Contact && !R.Contact;
 	In.Inside = (CameraMode == 0 || CameraMode == 3) ? 0.0 : 1.0;
 	In.EngineOn = Sim->EngineOn;
+	// The weather round you: its wind and rain heard (Weather/WeatherModel.h).
+	if (const ATorqueGameState* WeatherGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
+	{
+		const TorqueWeather::State& Air = WeatherGs->GetWeatherState();
+		const double Open = WeatherGs->WeatherOpen();   // (under a roof, out of most of it)
+		In.AirWind = Air.Wind * FMath::Lerp(0.3, 1.0, Open);
+		In.Gust = Air.Gust * FMath::Lerp(0.3, 1.0, Open);
+		In.Rain = TorqueWeather::RainShow(Air) * Open;
+	}
 	Sound->Set(In);
 
 	// Keep about 80 ms queued: enough for a slow frame, little enough that it answers the throttle.

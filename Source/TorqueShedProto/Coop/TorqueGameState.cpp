@@ -15,6 +15,9 @@
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "Fit/FitJson.h"
+#include "Weather/TorqueWeatherFx.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/ConfigCacheIni.h"
@@ -53,6 +56,22 @@ void ATorqueGameState::BeginPlay()
 			: WeatherName.StartsWith(TEXT("wet")) || WeatherName.StartsWith(TEXT("rain")) ? 3 : WeatherName.StartsWith(TEXT("over")) ? 2 : 1;
 	// -TorqueWeatherAt=lat,lon asks for the weather somewhere else on Earth; otherwise the route's own
 	// place (Data/Buttertubs/route.json's origin_geo), until the weather follows the rider (stage 5).
+	// The route also gives the level's height above sea level at its origin (origin_region_m[1]).
+	{
+		FString Route;
+		TorqueFit::Json Root;
+		if (FFileHelper::LoadFileToString(Route, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Buttertubs/route.json")))
+			&& TorqueFit::Json::Parse(TCHAR_TO_UTF8(*Route), Root))
+		{
+			if (const TorqueFit::Json* Geo = Root.Get("origin_geo"); Geo && Geo->IsArray() && Geo->A.size() == 2)
+			{
+				LatitudeAt = Geo->A[0].N;
+				LongitudeAt = Geo->A[1].N;
+			}
+			if (const TorqueFit::Json* Origin = Root.Get("origin_region_m"); Origin && Origin->IsArray() && Origin->A.size() == 3)
+				OriginAsl = Origin->A[1].N;
+		}
+	}
 	FString At;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWeatherAt="), At))
 	{
@@ -63,17 +82,13 @@ void ATorqueGameState::BeginPlay()
 			LongitudeAt = FMath::Clamp(FCString::Atod(*LonText), -180.0, 180.0);
 		}
 	}
-	else
+	// Rain, splashes and tyre spray, drawn on each machine around its own camera.
+	if (GetNetMode() != NM_DedicatedServer)
 	{
-		FString Route;
-		TorqueFit::Json Root;
-		if (FFileHelper::LoadFileToString(Route, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Buttertubs/route.json")))
-			&& TorqueFit::Json::Parse(TCHAR_TO_UTF8(*Route), Root))
-			if (const TorqueFit::Json* Geo = Root.Get("origin_geo"); Geo && Geo->IsArray() && Geo->A.size() == 2)
-			{
-				LatitudeAt = Geo->A[0].N;
-				LongitudeAt = Geo->A[1].N;
-			}
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Params.ObjectFlags |= RF_Transient;
+		Fx = GetWorld()->SpawnActor<ATorqueWeatherFx>(Params);
 	}
 	if (HasAuthority())
 	{
@@ -424,6 +439,8 @@ void ATorqueGameState::SendNet()
 	Net.Visibility = (float)S.Visibility;
 	Net.RoadWet = (float)S.RoadWet;
 	Net.Code = S.Code;
+	Net.LowCloud = (float)S.LowCloud;
+	Net.CloudBase = (float)S.CloudBase;
 	if (const UWorld* World = GetWorld()) NetSentAt = World->GetRealTimeSeconds();
 	ForceNetUpdate();
 }
@@ -442,6 +459,8 @@ void ATorqueGameState::OnRep_Net()
 	S.Visibility = Net.Visibility;
 	S.RoadWet = Net.RoadWet;
 	S.Code = Net.Code;
+	S.LowCloud = Net.LowCloud;
+	S.CloudBase = Net.CloudBase;
 	// The host sends a fade a couple of times a second: ease between, so it stays smooth here too.
 	if (AppliedAt < 0.0) Fade.Set(S);
 	else Fade.FadeTo(S, 0.6);
@@ -460,8 +479,16 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 		// To everyone: twice a second while it fades, and as it ends.
 		if (bMoved && (!Fade.Fading() || NetSentAt < 0.0 || Now - NetSentAt >= 0.5)) SendNet();
 	}
+	// Riding up into low cloud (or out of it): the haze follows the camera's height, checked four
+	// times a second.
+	bool bHazeMoved = false;
+	if (Now - HazeCheckAt >= 0.25)
+	{
+		HazeCheckAt = Now;
+		bHazeMoved = FMath::Abs(HazeNow() - AppliedHaze) > 0.05f * FMath::Max(AppliedHaze, 1.0f);
+	}
 	// On the screen: ten times a second while it fades (the light moves slowly), and as it ends.
-	if (AppliedAt < 0.0 || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
+	if (AppliedAt < 0.0 || bHazeMoved || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
 	{
 		AppliedAt = Now;
 		ApplyWeather();
@@ -594,6 +621,21 @@ void ATorqueGameState::LiveFailed(int32 Feed, const FString& Why)
 	SendNet();
 }
 
+float ATorqueGameState::WeatherOpen() const
+{
+	return Fx ? Fx->OpenToSky() : 1.0f;
+}
+
+float ATorqueGameState::HazeNow() const
+{
+	// The viewer's height: this machine's camera, metres above sea level.
+	double Asl = OriginAsl;
+	if (const UWorld* W = GetWorld())
+		if (const APlayerController* PC = W->GetFirstPlayerController(); PC && PC->PlayerCameraManager)
+			Asl = OriginAsl + PC->PlayerCameraManager->GetCameraLocation().Z / 100.0;
+	return (float)TorqueWeather::HazeAt(Fade.Now, Asl);
+}
+
 // Weather: the level is built sunny. As the sky dulls (the State's cloud) the sun dims and softens,
 // the sky greys and the haze thickens; a wet day darkens a little more, and the roads take their
 // wetness (the materials' Wetness, MPC_Weather). Low visibility thickens the haze further. The
@@ -630,7 +672,8 @@ void ATorqueGameState::ApplyWeather()
 	const TorqueWeather::State& St = Fade.Now;
 	const float Dull = (float)TorqueWeather::Dullness(St);    // 0 the sunny preset's sky .. 1 overcast's
 	const float WetL = (float)TorqueWeather::WetLook(St);     // 0 dry .. 1 the wet preset's
-	const float Haze = (float)TorqueWeather::FogBoost(St);    // 1, or more in poor visibility
+	const float Haze = HazeNow();                              // 1, or more in poor visibility or up in low cloud
+	AppliedHaze = Haze;
 	if (Sun)
 	{
 		Sun->SetIntensity(SunLux * FMath::Lerp(1.0f, FMath::Lerp(0.14f, 0.10f, WetL), Dull) * DayLight);
@@ -654,7 +697,24 @@ void ATorqueGameState::ApplyWeather()
 		Atmo->SetMieScatteringScale(Mie * FMath::Lerp(1.0f, 12.0f, Dull));
 		Atmo->SetRayleighScatteringScale(Rayleigh * FMath::Lerp(1.0f, 0.08f, Dull));
 	}
-	if (WeatherMpc) UKismetMaterialLibrary::SetScalarParameterValue(W, WeatherMpc, TEXT("Wetness"), (float)FMath::Clamp(St.RoadWet, 0.0, 1.0));
+	if (WeatherMpc)
+	{
+		// (Only those the collection has: the level's build adds the wind and cloud ones.)
+		auto SetMpc = [this, W](const TCHAR* Name, float Value) {
+			if (WeatherMpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, WeatherMpc, FName(Name), Value);
+		};
+		SetMpc(TEXT("Wetness"), (float)FMath::Clamp(St.RoadWet, 0.0, 1.0));
+		// The grass and trees sway with the real wind (1 is the breeze they were made with), leaning the
+		// way it blows: x east, y south, so wind from the south west blows towards +x, -y.
+		const double To = FMath::DegreesToRadians(St.WindFrom + 180.0);
+		SetMpc(TEXT("Wind"), (float)TorqueWeather::SwayFromWind(St));
+		SetMpc(TEXT("WindX"), (float)FMath::Sin(To));
+		SetMpc(TEXT("WindY"), (float)-FMath::Cos(To));
+		// Cloud shadows over the fells: the made look (0.6) on the sunny preset's fair day (a tenth of the
+		// sky), none on a clear one, more of the ground in shade as the cloud builds.
+		SetMpc(TEXT("CloudShadow"), (float)(St.Cloud <= 0.1 ? FMath::Lerp(1.0, 0.6, St.Cloud / 0.1) : FMath::Lerp(0.6, 0.45, FMath::Clamp((St.Cloud - 0.1) / 0.5, 0.0, 1.0))));
+		SetMpc(TEXT("Rain"), (float)TorqueWeather::RainShow(St));
+	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)
 	{

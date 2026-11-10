@@ -27,13 +27,15 @@ struct FTorqueWeatherNet
 	UPROPERTY() float Cloud = 0.1f;
 	UPROPERTY() float Rain = 0.0f;
 	UPROPERTY() float Snow = 0.0f;
-	UPROPERTY() float Wind = 3.0f;
+	UPROPERTY() float Wind = 5.5f;
 	UPROPERTY() float WindFrom = 225.0f;
-	UPROPERTY() float Gust = 6.0f;
+	UPROPERTY() float Gust = 9.0f;
 	UPROPERTY() float Air = 14.0f;
 	UPROPERTY() float Visibility = 40000.0f;
 	UPROPERTY() float RoadWet = 0.0f;
 	UPROPERTY() int32 Code = 1;
+	UPROPERTY() float LowCloud = 0.0f;
+	UPROPERTY() float CloudBase = 5000.0f;
 	// ETorqueWeatherSource, and when the live weather was fetched (seconds since 1970, 0 for never).
 	UPROPERTY() uint8 Source = 0;
 	UPROPERTY() int64 FetchedAt = 0;
@@ -67,6 +69,8 @@ public:
 	// The weather as it is now (fading), on every machine.
 	const TorqueWeather::State& GetWeatherState() const { return Fade.Now; }
 	ETorqueWeatherSource GetWeatherSource() const { return (ETorqueWeatherSource)Net.Source; }
+	// How open to the sky this machine's camera is: 0 under a roof .. 1 out in it (the rain's).
+	float WeatherOpen() const;
 	// "Live: 9 °C, light rain, wind SW 18 mph", or "sunny", for the menu and the HUD.
 	FString WeatherText(bool bImperial) const;
 	// The host only (ignored elsewhere): change it for everyone, fading over FadeSeconds (0: at once).
@@ -100,6 +104,11 @@ private:
 	void LiveAnswer(int32 Feed, bool bOk, const FString& Body);
 	void LiveFailed(int32 Feed, const FString& Why);
 	double LatitudeAt = 54.3535, LongitudeAt = -2.2058;
+	// The level's height above sea level at its origin (route.json's origin_region_m[1]), for low cloud.
+	double OriginAsl = 515.0;
+	float AppliedHaze = 1.0f;
+	double HazeCheckAt = 0.0;
+	float HazeNow() const;
 	double NextFetchIn = 0.0;
 	int32 LiveFailures = 0;
 	bool bFetching = false, bLiveApplied = false;
@@ -145,6 +154,8 @@ private:
 	TWeakObjectPtr<class USkyAtmosphereComponent> AtmoPtr;
 	TWeakObjectPtr<class APostProcessVolume> PpvPtr;
 	UPROPERTY(Transient) TObjectPtr<UMaterialParameterCollection> WeatherMpc;
+	// The weather effects you see around you (rain, splashes, tyre spray): one per machine.
+	UPROPERTY(Transient) TObjectPtr<class ATorqueWeatherFx> Fx;
 	bool bLooked = false;
 	int32 LoggedKind = -1;
 };

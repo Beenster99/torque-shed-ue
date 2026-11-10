@@ -158,8 +158,11 @@ void RideSound::Retune()
 	Intake.BandPass(520.0 + Now.Rpm * 0.05, 1.1);
 	Crackle.BandPass(1700.0, 1.2);
 	PopBody.LowPass(320.0, 0.8);
-	WindLp.LowPass(180.0 + Now.Speed * 22.0, 0.6);
-	WindBp.BandPass(500.0 + Now.Speed * 15.0, 0.7);
+	const double Air = std::sqrt(Now.Speed * Now.Speed + 0.5 * Now.AirWind * Now.AirWind);   // the air going past
+	WindLp.LowPass(180.0 + Air * 22.0, 0.6);
+	WindBp.BandPass(500.0 + Air * 15.0, 0.7);
+	RainHiss.BandPass(2600.0, 0.6);
+	RainTick.BandPass(4200.0, 2.0);
 	Squeal.BandPass(1150.0, 6.0);
 	Scrub.LowPass(450.0, 0.7);
 	GridThud.LowPass(260.0, 0.9);
@@ -209,6 +212,9 @@ void RideSound::Render(float* Out, int N)
 		Now.SideSlide += (Target.SideSlide - Now.SideSlide) * Ks;
 		Now.Inside += (Target.Inside - Now.Inside) * Ks;
 		Now.Grid += (Target.Grid - Now.Grid) * Kt;
+		Now.AirWind += (Target.AirWind - Now.AirWind) * Ks * 0.05;   // (the weather changes over seconds)
+		Now.Gust += (Target.Gust - Now.Gust) * Ks * 0.05;
+		Now.Rain += (Target.Rain - Now.Rain) * Ks * 0.05;
 		Now.OnTarmac = Target.OnTarmac;
 		Now.Airborne = Target.Airborne;
 		Running += ((Target.EngineOn ? 1.0 : 0.0) - Running) * Kt;
@@ -299,8 +305,25 @@ void RideSound::Render(float* Out, int N)
 
 		// Wind: rushing at speed, louder in the helmet.
 		const double V = Now.Speed;
-		const double WindAmp = std::min(std::pow(V / 35.0, 2.0), 1.6) * Lerp(0.12, 0.32, Now.Inside) * WindLevel;
+		// The weather's wind adds to it (a share of it, since it's rarely dead ahead), swelling in its gusts,
+		// and is heard standing still too.
+		GustPhase += 1.0 / Rate;
+		const double Swell = std::sin(GustPhase * 0.83) * 0.6 + std::sin(GustPhase * 0.29 + 1.3) * 0.4;   // -1 .. 1, slow
+		const double Gusty = Now.AirWind > 0.1 ? Clamp01((Now.Gust - Now.AirWind) / std::max(Now.AirWind, 2.0)) : 0.0;
+		const double Blow = Now.AirWind * (1.0 + 0.5 * Gusty * Swell);
+		const double Air = std::sqrt(V * V + 0.5 * Blow * Blow);
+		const double Breeze = std::min(std::pow(Blow / 14.0, 1.5), 1.0) * 0.16;
+		const double WindAmp = (std::min(std::pow(Air / 35.0, 2.0), 1.6) * Lerp(0.12, 0.32, Now.Inside) + Breeze) * WindLevel;
 		const double Wind = (WindLp.Run(Noise()) * 0.8 + WindBp.Run(Noise()) * 0.25) * WindAmp;
+		// Rain: a hiss all round, and in the helmet the drops ticking on the visor.
+		double RainSound = 0.0;
+		if (Now.Rain > 0.001)
+		{
+			RainSound = RainHiss.Run(Noise()) * Now.Rain * Lerp(0.07, 0.14, Now.Inside) * WindLevel;
+			if (Now.Inside > 0.0 && Uniform() < Now.Rain * 260.0 / Rate) TickEnv = 0.5 + 0.5 * Uniform();
+			TickEnv *= 0.993;
+			RainSound += RainTick.Run(Noise() * TickEnv) * 0.18 * Now.Inside * Now.Rain;
+		}
 
 		// Tyres: a squeal when one slides on tarmac, a scrub and rumble on grass.
 		const double Roll = Clamp01(V / 4.0);
@@ -371,7 +394,7 @@ void RideSound::Render(float* Out, int N)
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
 
-		double Mix = (EngineHeard * EngineLevel + (Wind + Bg) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
+		double Mix = (EngineHeard * EngineLevel + (Wind + Bg + RainSound) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
 		// DC block, then a soft limit.
 		const double Hpo = Mix - HpIn + 0.995 * Hp;
 		HpIn = Mix;
