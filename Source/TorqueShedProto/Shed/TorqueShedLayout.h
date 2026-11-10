@@ -32,7 +32,7 @@ enum class ETorquePlace : uint8
 	ShedSwitch,   // the switch boxes right of the roller door (Index 0 the main lights, 1 the door's up / down)
 	Extinguisher, // the fire extinguisher by the workbench: F takes it, F hangs it back
 	// [fluids] (ATorqueShedPump)
-	Pump,         // the petrol pump on the front wall outside: F lifts the nozzle off it, F hangs it back
+	Pump,         // the petrol pump on the front wall outside: right mouse lifts the nozzle off it and hangs it back
 	// [tv] (ATorqueShedScreens)
 	Tv,           // a big wall TV (Index: TorqueShedTv, 0 .. 3 the back wall's, 4 over the workbench): F changes its channel
 };
@@ -164,10 +164,11 @@ inline const TArray<FTorquePlace>& Places()
 	Add(ETorquePlace::ShedSwitch, TEXT("shed_lights"), FVector(277.0, 536.0, 114.0), FVector(293.0, 550.0, 129.0), FVector(285.0, 547.0, 122.0), 0);
 	Add(ETorquePlace::ShedSwitch, TEXT("door_button"), FVector(277.0, 536.0, 129.0), FVector(293.0, 550.0, 146.0), FVector(285.0, 546.0, 136.0), 1);
 	Add(ETorquePlace::Extinguisher, TEXT("extinguisher"), FVector(-652.0, 418.0, 0.0), FVector(-608.0, 462.0, 70.0), FVector(-630.0, 440.0, 0.0), 0);
-	// [fluids] The petrol pump's cabinet on the front wall outside, west of the roller door
-	// (UTorqueBuildSubsystem::PumpAt: -360, 580; the props' petrol_pump, 46 cm wide, its case 60 .. 150
-	// up and 24 deep), the box out past its face and holster so the look finds it before the wall.
-	Add(ETorquePlace::Pump, TEXT("petrol_pump"), FVector(-386.0, 578.0, 55.0), FVector(-322.0, 612.0, 158.0), FVector(-332.0, 597.0, 100.0), 0);
+	// [fluids] The petrol pump against the front wall outside, west of the roller door
+	// (UTorqueBuildSubsystem::PumpAt: -360, 580; the props' petrol_pump dispenser, 50 cm wide, 41 deep,
+	// its head 90 .. 183 up, the nozzle boot on its right), the box out past its face and boot so the
+	// look finds it before the wall.
+	Add(ETorquePlace::Pump, TEXT("petrol_pump"), FVector(-388.0, 578.0, 10.0), FVector(-324.0, 626.0, 183.0), FVector(-331.0, 605.0, 105.0), 0);
 	// [tv] The big wall TVs (swaps.json bay_screen / tv_136; ue_build_shed.py BayScreen_n, CrewBoard):
 	// over each bay on the back wall, 2.6 m x 1.46 m about 245 up, and over the workbench on the
 	// west wall, 3.0 m x 1.69 m about 255 up. Each box runs from the wall to past the glass (9 to

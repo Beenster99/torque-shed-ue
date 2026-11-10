@@ -874,7 +874,7 @@ void ATorqueWalker::ReadInput(float Dt)
 		bAltPressed = Just(EKeys::RightMouseButton);
 		bAltHeld = Down(EKeys::RightMouseButton);
 	}
-	else if (TWI::Sprays(Tool))
+	else if (TWI::Sprays(Tool) && !(TinShed && TinShed->PumpHeldBy() == TinShed->Me()))   // [fluids] the nozzle's right mouse wins
 	{
 		// With the spray controls up the right mouse (L2 / LT) holds your breath to steady your hand,
 		// so only R and Square change the colour then.
@@ -902,7 +902,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
-	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bF);   // [furniture] first; [fluids] the pump
+	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bAltJust);   // [furniture] first; [fluids] the pump (right mouse)
 	if (bKitF)
 	{
 	}
@@ -2373,6 +2373,12 @@ void ATorqueWalker::Interact()
 		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 		return;
 	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump)
+	{
+		// [fluids] The pump's on right mouse now (FluidInput); F just says so.
+		Say(TEXT("Right mouse (R / Square) lifts the nozzle off the pump."), true);
+		return;
+	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Lift)
 	{
 		// A bike lift's button post (walker.gd interact "lift"): up if it's down, down if it's up.
@@ -2819,8 +2825,8 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Extinguisher && B->ExtinguisherHeldBy() == 0)
 				HudLines.Add({TEXT("F / Triangle: take the fire extinguisher"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Pump)   // [fluids]
-				HudLines.Add({B->PumpHeldBy() == B->Me() ? TEXT("F / Triangle: hang the nozzle back up")
-					: (B->PumpHeldBy() == 0 ? TEXT("F / Triangle: lift the nozzle off the pump") : TEXT("Someone has the nozzle")), Prompt, 0.65f});
+				HudLines.Add({B->PumpHeldBy() == B->Me() ? TEXT("Right mouse / Square: hang the nozzle back up")
+					: (B->PumpHeldBy() == 0 ? TEXT("Right mouse / Square: lift the nozzle off the pump") : TEXT("Someone has the nozzle")), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0)
 				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Radio)
@@ -2870,11 +2876,18 @@ void ATorqueWalker::UpdateHud()
 		else HudLines.Add({FString::Printf(TEXT("%s left mouse / Cross: %s"), Plan.Time > 0.3 ? TEXT("Hold") : TEXT("Press"), *Plan.Verb), Prompt, 0.65f});
 	}
 	if (AltPlan.bValid)
-		HudLines.Add({AltPlan.Blocked.IsEmpty() ? FString::Printf(TEXT("Right mouse / Square: %s"), *AltPlan.Verb)
+		HudLines.Add({AltPlan.Blocked.IsEmpty() ? FString::Printf(TEXT("%s: %s"),
+				AltPlan.Request.Kind == ETorqueShedAct::PumpFill ? TEXT("Hold right mouse / Square") : TEXT("Right mouse / Square"), *AltPlan.Verb)
 			: FString::Printf(TEXT("Can't %s: %s"), *AltPlan.Verb, *AltPlan.Blocked), AltPlan.Blocked.IsEmpty() ? Prompt : Blocked, 0.6f});
+	// [fluids] The nozzle in your hand, away from the pump and not filling: the same button hangs it up.
+	const bool bPumpFill = AltPlan.bValid && AltPlan.Request.Kind == ETorqueShedAct::PumpFill;
+	if (B->PumpHeldBy() == B->Me() && (!bPumpFill || !AltPlan.Blocked.IsEmpty()) && !(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
+		HudLines.Add({TEXT("Right mouse / Square: hang the nozzle back on the pump"), Prompt, 0.6f});
 	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out   Hold F / Triangle: wheel it"), Prompt, 0.6f});
 	const FPlan* Active = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
-	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3)
+	// (Not while pumping petrol: it squirts round and round, so the bar told nothing; the pump's own
+	// display counts the litres and it dings when the tank's full. beenster, Nov 10.)
+	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3 && Active->Request.Kind != ETorqueShedAct::PumpFill)
 		HudLines.Add({TWI::Bar(Progress / Active->Time), FColor::White, 0.6f});
 	{
 		bool bTitled = false;

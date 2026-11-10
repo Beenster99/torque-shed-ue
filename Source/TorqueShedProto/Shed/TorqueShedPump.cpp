@@ -3,6 +3,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedKit.h"
 #include "Shed/TorqueToolModels.h"
+#include "TorqueAudio/TorqueSfx.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
@@ -15,7 +16,7 @@
 namespace TorqueShedPumpImpl
 {
 const TCHAR* const CabinetMesh = TEXT("/Game/Shed/Props/petrol_pump/SM_petrol_pump.SM_petrol_pump");
-constexpr int32 HoseBits = 18;
+constexpr int32 HoseBits = 28;
 constexpr double HoseRadius = 1.4;
 // The nozzle's own frame: x along the spout (out of the front), z up; the hose goes in at the back
 // of the handle.
@@ -93,24 +94,29 @@ void ATorqueShedPump::BeginPlay()
 			Cabinet->SetRelativeScale3D(FVector(0.46, 0.24, 0.9));
 		}
 	}
-	// The display: the sale's litres on the top line, the grade under it (the green digit strips).
-	auto Text = [this](double Z, float Size)
+	// The display (petrol_pump's backlit LCD): the sale's litres in dark segments; the grade on the
+	// green strip under it, and on the lit header.
+	auto Text = [this](double Y, double Z, float Size, const FColor& Colour)
 	{
 		UTextRenderComponent* T = NewObject<UTextRenderComponent>(this);
 		T->SetupAttachment(GetRootComponent());
-		T->SetRelativeLocationAndRotation(FVector(3.0, 26.0, Z), FRotator(0.0, 90.0, 0.0));
+		T->SetRelativeLocationAndRotation(FVector(0.0, Y, Z), FRotator(0.0, 90.0, 0.0));
 		T->SetHorizontalAlignment(EHTA_Center);
 		T->SetVerticalAlignment(EVRTA_TextCenter);
 		T->SetWorldSize(Size);
-		T->SetTextRenderColor(FColor(120, 255, 140));
+		T->SetTextRenderColor(Colour);
 		T->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		T->RegisterComponent();
 		return T;
 	};
-	Litres = Text(133.0, 3.6f);
-	Grade = Text(127.0, 2.4f);
+	Litres = Text(42.3, 133.0, 8.0f, FColor(16, 22, 18));
+	Grade = Text(41.9, 112.0, 3.0f, FColor(235, 245, 235));
 	Grade->SetText(FText::FromString(TEXT("UNLEADED  95")));
 	Litres->SetText(FText::FromString(TEXT("0.00 L")));
+	if (UTextRenderComponent* Header = Text(43.8, 168.0, 7.5f, FColor(10, 70, 30)))
+		Header->SetText(FText::FromString(TEXT("UNLEADED")));
+	if (UTextRenderComponent* Label = Text(42.3, 142.5, 1.8f, FColor(40, 48, 42)))
+		Label->SetText(FText::FromString(TEXT("LITRES")));
 
 	// The nozzle: a black handle and guard, the alloy body and its spout, a dark trigger.
 	Nozzle = NewObject<USceneComponent>(this);
@@ -158,6 +164,7 @@ void ATorqueShedPump::Tick(float DeltaSeconds)
 	// (low and to the right of their view), or in the filler of the bike they're filling.
 	FTransform Want(FRotator(-80.0, 90.0, 0.0), UTorqueBuildSubsystem::PumpHolster() + FVector(0.0, 0.0, 14.0));
 	const int32 By = B->PumpHeldBy();
+	int32 FillBay = INDEX_NONE;   // the bike the nozzle's in, pumping
 	bool bSnap = false;
 	if (By != 0)
 	{
@@ -178,6 +185,7 @@ void ATorqueShedPump::Tick(float DeltaSeconds)
 					const double D = FVector::Dist(B->FillerOf(Bay), P->GetActorLocation());
 					if (D < BestD) { BestD = D; Best = Bay; }
 				}
+				FillBay = Best;
 				if (Best != INDEX_NONE)
 				{
 					const FRotator Into(-45.0, Aim.Yaw, 0.0);
@@ -201,18 +209,36 @@ void ATorqueShedPump::Tick(float DeltaSeconds)
 	}
 	Nozzle->SetWorldTransform(NozzleAt);
 
+	// The ding when the tank's brimmed (beenster, Nov 10): the nozzle's just clicked off on a bike
+	// that's now full. Every player's game hears it, from the filler.
+	if (By == 0) bDinged = false;
+	else if (Pumping < 0.7 && FillBay != INDEX_NONE && B->Exists(FillBay))
+	{
+		const bool bFull = B->FuelSpace(FillBay) < 0.01f;
+		if (bFull && !bDinged)
+		{
+			if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("wash_ding"), B->FillerOf(FillBay), 0.0f);
+			UE_LOG(LogTemp, Log, TEXT("Torque pump: ding, bay %d full"), FillBay + 1);
+		}
+		bDinged = bFull;
+	}
+
 	// The hose: a sagging curve from the cabinet to the nozzle, as long as it is, lying on the ground
 	// where it reaches it.
 	const FVector From = UTorqueBuildSubsystem::PumpHoseRoot();
 	const FVector To = NozzleAt.TransformPosition(TSPI::HoseIn);
 	const double Span = FVector::Dist(From, To);
 	const double L = UTorqueBuildSubsystem::PumpHose;
-	const double Sag = 0.5 * FMath::Sqrt(FMath::Max(0.0, L * L - Span * Span));
+	double Sag = 0.5 * FMath::Sqrt(FMath::Max(0.0, L * L - Span * Span));
+	// Hung up, the hose loops down beside the dispenser (its retractor keeps it off the ground).
+	if (By == 0) Sag = FMath::Min(Sag, FMath::Max(0.0, 0.5 * (From.Z + To.Z) - 35.0));
 	const int32 N = Hose.Num();
 	if (N == 0) return;
+	// Hung up, the loop swings out clear of the dispenser's side, not doubled back on itself.
+	const FVector Out = By == 0 ? UTorqueBuildSubsystem::PumpAt().TransformVector(FVector(16.0, 6.0, 0.0)) : FVector::ZeroVector;
 	auto At = [&](double T)
 	{
-		FVector Pt = FMath::Lerp(From, To, T);
+		FVector Pt = FMath::Lerp(From, To, T) + Out * (4.0 * T * (1.0 - T));
 		// Hanging straight down out of the cabinet first, then the sag.
 		Pt.Z -= Sag * 4.0 * T * (1.0 - T);
 		Pt.Z = FMath::Max(Pt.Z, TSPI::HoseRadius + 0.5);
