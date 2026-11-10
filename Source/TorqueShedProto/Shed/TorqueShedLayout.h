@@ -34,7 +34,7 @@ enum class ETorquePlace : uint8
 	// [fluids] (ATorqueShedPump)
 	Pump,         // the petrol pump on the front wall outside: right mouse lifts the nozzle off it and hangs it back
 	// [tv] (ATorqueShedScreens)
-	Tv,           // a big wall TV (Index: TorqueShedTv, 0 .. 3 the back wall's, 4 over the workbench): F changes its channel
+	Tv,           // a big wall TV (Index: TorqueShedTv, 0 .. 3 the back wall's, 4 over the workbench): right mouse changes its channel
 };
 
 struct FTorquePlace

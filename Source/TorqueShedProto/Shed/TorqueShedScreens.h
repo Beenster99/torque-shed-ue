@@ -1,7 +1,7 @@
 // The shed's screens, as Torque Shed's TVs draw them (dashboard.gd, tv_channels.gd).
 //
 // [tv] The five big wall TVs (four on the back wall over the bays, one over the workbench) each
-// show one channel (UTorqueBuildSubsystem::TvChannel, shared by everyone in the shed; F at a TV
+// show one channel (UTorqueBuildSubsystem::TvChannel, shared by everyone in the shed; right mouse at a TV
 // changes it):
 //   Shed cam: a live camera over each player's shoulder (up to four, in a grid), their name in
 //     their colour and what they're doing.

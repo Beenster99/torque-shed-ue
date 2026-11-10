@@ -1423,7 +1423,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	if (Verb == TEXT("tv"))
 	{
-		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as F at it.
+		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as right mouse at it.
 		if (P.Num() >= 2)
 		{
 			FTorqueShedRequest R;

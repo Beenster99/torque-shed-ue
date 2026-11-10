@@ -278,7 +278,7 @@ enum EChannel : uint8
 // workbench's on the players.
 constexpr uint8 Default[Tvs] = {Rider, Rider, Bikes, Bikes, Players};
 inline bool Valid(int32 Tv, int32 Channel) { return Tv >= 0 && Tv < Tvs && Channel >= 0 && Channel < (Tv < 4 ? Channels : BayPage); }
-// The channel after Channel on TV Tv (F at a TV).
+// The channel after Channel on TV Tv (right mouse at a TV).
 inline int32 Next(int32 Tv, int32 Channel) { return (Channel + 1) % (Tv < 4 ? (int32)Channels : (int32)BayPage); }
 const TCHAR* Name(int32 Channel);
 }

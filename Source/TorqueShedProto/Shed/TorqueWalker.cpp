@@ -643,7 +643,11 @@ void ATorqueWalker::ReadInput(float Dt)
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
-	const bool bAltJust = KeyJust(ETorqueKey::AltWork) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
+	const bool bAltRaw = KeyJust(ETorqueKey::AltWork) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
+	// [tv] Right mouse (R, Square) at a wall TV changes its channel, and does nothing else.
+	const bool bTvClick = bAltRaw && Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Tv;
+	if (bTvClick) NextTvChannel();
+	const bool bAltJust = bAltRaw && !bTvClick;
 	const bool bF = KeyJust(ETorqueKey::Use) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
 	const bool bNext = KeyJust(ETorqueKey::NextTool) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
 	const bool bPrev = KeyJust(ETorqueKey::PrevTool) || Just(EKeys::Gamepad_LeftShoulder) || (SonyHit & ESonyButton::L1);
@@ -1263,7 +1267,7 @@ void ATorqueWalker::MakePlan()
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
 	// [kit] F works the switch boxes and takes the extinguisher; holding it, the work button sprays it.
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher)) return;
-	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv) return;   // [tv] F changes the channel
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv) return;   // [tv] right mouse changes the channel
 	if (B->ExtinguisherHeldBy() == Me || B->StandPushedBy() == Me) return;
 	// [fluids] The pump's nozzle in your hand: the work button fills the bike you're at (TorqueWalkerFluids.cpp).
 	if (B->PumpHeldBy() == Me || (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
@@ -2341,6 +2345,19 @@ void ATorqueWalker::LetGo(int32 Bay)
 
 // --- F -------------------------------------------------------------------------------------------
 
+// [tv] The wall TV looked at on to its next channel, for everyone (Torque Shed's tv_channels.gd).
+void ATorqueWalker::NextTvChannel()
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B || !TargetPlace || TargetPlace->Kind != ETorquePlace::Tv) return;
+	FTorqueShedRequest R;
+	R.Kind = ETorqueShedAct::TvChannel;
+	R.Item = TargetPlace->Index;
+	R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
+	FString WhyNot;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+}
+
 void ATorqueWalker::Interact()
 {
 	UTorqueBuildSubsystem* B = Shed();
@@ -2369,17 +2386,6 @@ void ATorqueWalker::Interact()
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Computer)
 	{
 		OpenComputer();
-		return;
-	}
-	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv)
-	{
-		// [tv] A wall TV (Torque Shed's tv_channels.gd): on to the next channel, for everyone.
-		FTorqueShedRequest R;
-		R.Kind = ETorqueShedAct::TvChannel;
-		R.Item = TargetPlace->Index;
-		R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
-		FString WhyNot;
-		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump)
@@ -2824,7 +2830,7 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
-				HudLines.Add({FString::Printf(TEXT("F / Triangle: change channel (next: %s)"),
+				HudLines.Add({FString::Printf(TEXT("Right mouse / Square: change channel (next: %s)"),
 					TorqueShedTv::Name(TorqueShedTv::Next(TargetPlace->Index, B->TvChannel(TargetPlace->Index)))), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Lift)
 				HudLines.Add({B->LiftUp(TargetPlace->Index) ? TEXT("F / Triangle: lower it") : TEXT("F / Triangle: raise it"), Prompt, 0.65f});
