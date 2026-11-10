@@ -96,14 +96,26 @@ float3 m = float3(dot(R0.xyz, P), dot(R1.xyz, P), dot(R2.xyz, P)) + Off.xyz;
 float3 n = float3(dot(R0.xyz, N), dot(R1.xyz, N), dot(R2.xyz, N));
 n = n / max(length(n), 1e-4);
 
+// A part that turns with a wheel (Spin: the axle's x and z, on): its muck lies evenly round it, as
+// it would on a wheel that's been ridden, not caked on whichever side was at the bottom when it was
+// drawn. It's taken as lying at the height half way down from the axle to where the point is round
+// the wheel, and facing neither up nor down (TorqueWashJob SpunAt works it out the same way).
+float3 mw = m, nw = n;
+if (Spin.z > 0.5)
+{
+    mw.z = Spin.y - 0.5 * length(float2(m.x - Spin.x, m.z - Spin.y));
+    nw.z = 0.0;
+    nw = nw / max(length(nw), 1e-4);
+}
+
 // How much is on it here (TorqueWashJob Pattern and FlyWeight work it out the same way): muck thick
 // low down and underneath, a film of dust on top, flies on the forward faces of the parts up front.
-float h = saturate((m.z - ZRange.x) / max(ZRange.y - ZRange.x, 1.0));
+float h = saturate((mw.z - ZRange.x) / max(ZRange.y - ZRange.x, 1.0));
 float pat = lerp(1.35, 0.4, smoothstep(0.0, 1.0, h));
-if (n.z < -0.5) pat *= 1.45;
-else if (n.z > 0.6) pat *= 0.75;
-float up = (m.z - ZRange.x) * 0.01;              // metres off the ground
-float flyw = FlyGain > 0.0 ? smoothstep(0.45, 0.8, n.x) * smoothstep(0.12, 0.4, up) : 0.0;
+if (nw.z < -0.5) pat *= 1.45;
+else if (nw.z > 0.6) pat *= 0.75;
+float up = (mw.z - ZRange.x) * 0.01;             // metres off the ground
+float flyw = FlyGain > 0.0 ? smoothstep(0.45, 0.8, nw.x) * smoothstep(0.12, 0.4, up) : 0.0;
 float lvl = min(Grime * max(pat, FlyGain * flyw * 1.6), 1.0);
 
 // Washed off by the jet (a crisp edge where it went).
@@ -122,9 +134,9 @@ float s = lvl * (1.0 - smoothstep(0.55, 0.98, washed)) * (1.0 - 0.45 * washed);
 
 // Torque Shed's axes from here (metres: x across, y up, z back), so its dirt reads the same.
 float3 mp0 = float3(m.y, m.z - ZRange.x, -m.x) * 0.01;
-float3 tn = float3(n.y, n.z, -n.x);
+float3 tn = float3(nw.y, nw.z, -nw.x);
 float fly = flyw;
-float mudw = saturate((1.0 - smoothstep(-0.12, 0.35, mp0.y)) + smoothstep(0.2, 0.9, -tn.y) * 0.6) * (1.0 - fly);
+float mudw = saturate((1.0 - smoothstep(-0.12, 0.35, (mw.z - ZRange.x) * 0.01)) + smoothstep(0.2, 0.9, -tn.y) * 0.6) * (1.0 - fly);
 float dustw = max(0.0, 1.0 - mudw - fly);
 float alpha = 0.0, rough = 0.0;
 float3 col = float3(0, 0, 0);
@@ -267,6 +279,7 @@ def add_dirt(m, x=-2600, y=2400):
         ("AtlasSize", vec("AtlasSize", 1300, (1, 1, 0, 0)), ""), ("Voxel", num("Voxel", 1400, 3.0), ""),
         ("Wet", num("Wet", 1500, 0.0), ""), ("Scan", num("Scan", 1600, 0.0), ""),
         ("ScanT", num("ScanT", 1700, 0.0), ""), ("Flash", num("Flash", 1800, 0.0), ""),
+        ("Spin", vec("Spin", 1850, (0, 0, 0, 0)), ""),
     ]
     outs = []
     for mode in range(2):

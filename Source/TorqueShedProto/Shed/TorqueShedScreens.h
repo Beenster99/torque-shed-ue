@@ -6,7 +6,7 @@
 //   Shed cam: a live camera over each player's shoulder (up to four, in a grid), their name in
 //     their colour and what they're doing.
 //   Rider cam: a live third-person chase camera on another rider out on their bike in the same
-//     world (a different one every 20 s); with no one out, the shed cam with a note saying so.
+//     world (a different one every 20 s); the TV is off while no mate is out riding.
 //   Bikes in the shed: a card per bay: the bike, how it stands, the build, condition and muck,
 //     its paint and who's on it.
 //   This bay's bike (the back wall's TVs): the bay's bike part by part, Torque Shed's dashboard
@@ -76,7 +76,8 @@ private:
 	// The live cameras: one per player in the shed, and the rider cam.
 	USceneCaptureComponent2D* MakeCam(UTextureRenderTarget2D*& OutRT);
 	void UpdatePlayerCams(float Dt);
-	void UpdateRiderCam(float Dt);
+	void UpdateRiderCam(float Dt, bool bCapture);
+	bool bRiderShown = false;   // whether the rider cam's TVs were last drawn with a rider out
 	UPROPERTY(Transient) TArray<USceneCaptureComponent2D*> PlayerCams;
 	UPROPERTY(Transient) TArray<UTextureRenderTarget2D*> PlayerCamRTs;
 	TArray<FVector> PlayerCamAt;

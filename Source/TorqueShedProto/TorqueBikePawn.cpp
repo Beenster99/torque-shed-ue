@@ -1249,7 +1249,11 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		const double KeyY = (FTorqueKeys::Down(PC, ETorqueKey::WalkForward) ? 1.0 : 0.0) - (FTorqueKeys::Down(PC, ETorqueKey::WalkBack) ? 1.0 : 0.0);
 		const double StickX = Stick(Either(Axis(EKeys::Gamepad_LeftX), Sony.LX), Set.StickDeadZone, 1.0);
 		const double StickY = Stick(Either(Axis(EKeys::Gamepad_LeftY), Sony.LY), Set.StickDeadZone, 1.0);
-		StepFoot(PC, Dt, FMath::Abs(StickX) > FMath::Abs(KeyX) ? StickX : KeyX, FMath::Abs(StickY) > FMath::Abs(KeyY) ? StickY : KeyY);
+		// The controller as the shed's walker has it: left stick walks, L3 hurries, right stick looks (the
+		// DualSense too, read over HID, which the engine's own gamepad axes never see).
+		const bool bPadRun = PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0;
+		StepFoot(PC, Dt, FMath::Abs(StickX) > FMath::Abs(KeyX) ? StickX : KeyX, FMath::Abs(StickY) > FMath::Abs(KeyY) ? StickY : KeyY,
+			LookX, LookY, bPadRun);
 		// F: a tap by the bike gets back on; held, takes hold of its bars to wheel it (as the shed's
 		// walker: walker.gd HOLD_TO_PUSH); wheeling, F lets go and it goes back on its stand there.
 		const bool bUseDown = FTorqueKeys::Down(PC, ETorqueKey::Use) || PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle);
@@ -1678,7 +1682,7 @@ void ATorqueBikePawn::PoseStands(int32 Stand)
 		Stand == 1 ? TEXT("side") : TEXT("centre"), FMath::RadiansToDegrees(Swing.GetAngle()), Pivot.X, Pivot.Y, Pivot.Z, SwingPivot.X);
 }
 
-void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY)
+void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY, double PadLookX, double PadLookY, bool bPadRun)
 {
 	// Walking about: WASD or the left stick, Shift to hurry; the mouse or right stick looks.
 	OnFootFor += Dt;
@@ -1687,11 +1691,9 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	if (PC) PC->GetInputMouseDelta(Mx, My);
 	FootYaw += Mx * 0.25 * Set.MouseLook;
 	FootPitch = FMath::Clamp(FootPitch + My * 0.25 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -80.0, 80.0);
-	if (PC)
-	{
-		FootYaw += PC->GetInputAnalogKeyState(EKeys::Gamepad_RightX) * 120.0 * Dt * Set.PadLook;
-		FootPitch = FMath::Clamp(FootPitch + PC->GetInputAnalogKeyState(EKeys::Gamepad_RightY) * 90.0 * Dt * Set.PadLook, -80.0, 80.0);
-	}
+	// (PadLookX/Y come with the look speed and Invert look already in them.)
+	FootYaw += PadLookX * 120.0 * Dt;
+	FootPitch = FMath::Clamp(FootPitch + PadLookY * 90.0 * Dt, -80.0, 80.0);
 	FVector2D In(MoveX, MoveY);
 	if (In.SizeSquared() > 1.0) In.Normalize();
 	if (In.SizeSquared() < 1e-4)
@@ -1699,7 +1701,7 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 		if (bPushing) FollowPusher();   // (turning on the spot turns it too)
 		return;
 	}
-	const bool bRun = PC && FTorqueKeys::Down(PC, ETorqueKey::Run);
+	const bool bRun = bPadRun || (PC && FTorqueKeys::Down(PC, ETorqueKey::Run));
 	const FRotator Yaw(0.0, FootYaw, 0.0);
 	const double Pace = bPushing ? (bRun ? 240.0 : 130.0) : (bRun ? 330.0 : 150.0);   // a bike is heavy to wheel about
 	const FVector Walk = (Yaw.RotateVector(FVector::ForwardVector) * In.Y + Yaw.RotateVector(FVector::RightVector) * In.X) * Pace * Dt;
@@ -1709,13 +1711,34 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	auto TryMove = [&](const FVector& D) {
 		const FVector To = FootPos + D;
 		// Walls and banks at waist height stop you; the ground under you follows, up steps of 45 cm.
+		// (Not the ground itself, a bank you're walking up, nor what you're already in: on the Buttertubs
+		// ride you step off into the verge's grass and walls, and nothing let you walk out of them.)
 		FHitResult Hit;
 		if (World->SweepSingleByChannel(Hit, FootPos + FVector(0, 0, 90.0), To + FVector(0, 0, 90.0), FQuat::Identity, ECC_Visibility,
-			FCollisionShape::MakeSphere(30.0f), Params))
-			return false;
-		if (!GroundTrace(World, To + FVector(0, 0, 120.0), To - FVector(0, 0, 400.0), Params, Hit)) return false;
-		if (Hit.ImpactPoint.Z - FootPos.Z > 45.0 || Hit.ImpactNormal.Z < 0.6) return false;
-		FootPos = Hit.ImpactPoint;
+			FCollisionShape::MakeSphere(30.0f), Params) && !Hit.bStartPenetrating)
+		{
+			const AActor* A = Hit.GetActor();
+			const UPrimitiveComponent* Part = Hit.GetComponent();
+			const bool bGround = (A && (A->ActorHasTag(TEXT("Land")) || A->ActorHasTag(TEXT("Road")))) || (Part && Part->ComponentHasTag(TEXT("Road")));
+			if (!bGround) return false;
+		}
+		FVector Ground;
+		double Up = 1.0;
+		if (GroundTrace(World, To + FVector(0, 0, 120.0), To - FVector(0, 0, 400.0), Params, Hit))
+		{
+			Ground = Hit.ImpactPoint;
+			Up = Hit.ImpactNormal.Z;
+		}
+		else
+		{
+			// The ride's own ground (the sim's), where the world has none to trace.
+			const RayHit Sr = Sim->Ray(ToSim(To + FVector(0, 0, 120.0)), ToSim(To - FVector(0, 0, 400.0)));
+			if (!Sr.Hit) return false;
+			Ground = ToUE(Sr.Position);
+			Up = Sr.Normal.y;
+		}
+		if (Ground.Z - FootPos.Z > 45.0 || Up < 0.6) return false;
+		FootPos = Ground;
 		return true;
 	};
 	if (!TryMove(Walk))
@@ -1988,15 +2011,16 @@ void ATorqueBikePawn::TestMoveStep()
 	{
 		// The robot rides (slowing for bends) until it's held the speed on a straight for 1.5 s (a
 		// fairly level one, under 4%, for the test pad, so the bike doesn't land on it pitched).
+		// On the test pad, straight on, the road's bends nothing to it: the robot's steering for them
+		// kept a race bike from settling at 45 mph (round 128). (Before the steadiness check, which
+		// asks for the steering centred: round 131 zeroed it after, and nothing settled.)
+		if (bTestFlat) Lean = 0.0;
 		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1;
 		TestSteady = bSteady ? TestSteady + SimDt : 0.0;
 		// Held by the robot's throttle, and at a slow target (the bike pulls faster than it on tickover
 		// in first) the back brake too.
 		HoldTestSpeed(V);
 		Shift = 0.0;
-		// On the test pad, straight on, the road's bends nothing to it: the robot's steering for them
-		// kept a race bike from settling at 45 mph (round 128).
-		if (bTestFlat) Lean = 0.0;
 		if (TestSteady < 1.5)
 		{
 			if (TestClock > 15.0)
@@ -2552,7 +2576,25 @@ bool ATorqueBikePawn::BuildRiderRig()
 		Mirror = (*Frame)->GetNumberField(TEXT("mirror"));
 		Scale = (*Frame)->GetNumberField(TEXT("scale"));
 	}
-	const FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+	FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+	// beenster's Fab helmet, when the level script found one (Data/Rider/fab_helmet.json): fitted
+	// over our helmet's place by its bounding box (turn, scale, then offset, in our helmet's frame).
+	const TSharedPtr<FJsonObject>* HelmetFit = nullptr;
+	if ((*Rig)->TryGetObjectField(TEXT("helmet_fit"), HelmetFit))
+	{
+		auto Three = [&HelmetFit](const TCHAR* Field)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+			return (*HelmetFit)->TryGetArrayField(Field, A) && A->Num() >= 3 ? FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber()) : FVector::ZeroVector;
+		};
+		const FVector Turn = Three(TEXT("rotate")), Offset = Three(TEXT("offset"));
+		double FitScale = 1.0;
+		(*HelmetFit)->TryGetNumberField(TEXT("scale"), FitScale);
+		const FTransform Fit(FRotator(Turn.X, Turn.Y, Turn.Z), Offset, FVector(FitScale));
+		Fix = Fit * Fix;
+		UE_LOG(LogTemp, Log, TEXT("Torque: rider wears the Fab helmet %s (turn %s, scale %.4f, offset %s)"),
+			*(*Rig)->GetStringField(TEXT("helmet")), *Turn.ToCompactString(), FitScale, *Offset.ToCompactString());
+	}
 	TMap<FString, UMaterialInterface*> Mats;
 	const TSharedPtr<FJsonObject>* MatObj = nullptr;
 	if ((*Rig)->TryGetObjectField(TEXT("materials"), MatObj))
@@ -3636,7 +3678,7 @@ void ATorqueBikePawn::DrawHud()
 			Add(FString::Printf(TEXT("Wheeling the bike: %s to walk, %s to let go (it goes on its stand), engine %s"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
 				*Use, Sim->EngineOn ? TEXT("ticking over") : TEXT("off")), FColor(200, 230, 200), 1.0f);
 		else
-			Add(FString::Printf(TEXT("On foot: %s to walk, %s %s   (the bike's on its %s, engine %s)"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
+			Add(FString::Printf(TEXT("On foot: %s or the left stick to walk (Shift / L3 hurries), %s %s   (the bike's on its %s, engine %s)"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
 				*Use, Away <= 250.0 ? *FString::Printf(TEXT("to get back on, hold %s to wheel it"), *Use) : TEXT("by the bike to get back on"),
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);

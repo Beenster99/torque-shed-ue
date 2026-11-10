@@ -539,21 +539,32 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	const float Now = (float)World->GetRealTimeSeconds();
 	// [tv] The live channels: their cameras move and take a picture, then the page is drawn round it,
 	// 10 times a second, but only for a TV someone can see.
-	bool bWantPlayers = false, bWantRider = false;
+	// A TV on the rider cam is only on while a mate is out riding (beenster, build 131): it's
+	// looked for every tick, and the TV switches on or off as they go out or come back.
+	bool bWantPlayers = false, bAnyRider = false, bSeeRider = false;
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
 	{
+		if (ChannelOf(Tv) == TorqueShedTv::Rider) bAnyRider = true;
 		if (!Quads[Tv] || !Quads[Tv]->IsVisible() || !Quads[Tv]->WasRecentlyRendered(0.5f) || !IsLive(Tv)) continue;
-		if (ChannelOf(Tv) == TorqueShedTv::Rider) bWantRider = true;
-		bWantPlayers = true;   // (the rider cam shows the shed when no one's out)
+		if (ChannelOf(Tv) == TorqueShedTv::Rider) bSeeRider = true;
+		else bWantPlayers = true;
 	}
 	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)   // [tv] and the bought ones
 	{
 		const int32 Ch = PieceChannel(KV.Key);
+		if (Ch == TorqueShedTv::Rider) bAnyRider = true;
 		if (!KV.Value || !KV.Value->WasRecentlyRendered(0.5f) || (Ch != TorqueShedTv::Players && Ch != TorqueShedTv::Rider)) continue;
-		if (Ch == TorqueShedTv::Rider) bWantRider = true;
-		bWantPlayers = true;
+		if (Ch == TorqueShedTv::Rider) bSeeRider = true;
+		else bWantPlayers = true;
 	}
-	if (bWantRider) UpdateRiderCam(DeltaSeconds);
+	if (bAnyRider) UpdateRiderCam(DeltaSeconds, bSeeRider);
+	else Filmed = nullptr;
+	if (Filmed.IsValid() != bRiderShown)
+	{
+		bRiderShown = Filmed.IsValid();
+		Redraw();
+		return;
+	}
 	if (bWantPlayers) UpdatePlayerCams(DeltaSeconds);
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
 		if (Quads[Tv] && Quads[Tv]->WasRecentlyRendered(0.5f) && IsLive(Tv)) DrawPage(Tv, Now);
@@ -680,6 +691,15 @@ void ATorqueShedScreens::DrawPiece(int32 Id, int32 Channel, float Now)
 	UTextureRenderTarget2D* RT = PiecePages.FindRef(Id);
 	if (!RT) return;
 	PieceShown.Add(Id, Channel);
+	UStaticMeshComponent* Q = PieceQuads.FindRef(Id);
+	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())
+	{
+		// No mate out riding: the TV's off, as the wall's.
+		if (Q) Q->SetVisibility(false);
+		UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, FLinearColor::Black);
+		return;
+	}
+	if (Q) Q->SetVisibility(true);
 	const bool bLive = Channel == TorqueShedTv::Players || Channel == TorqueShedTv::Rider;
 	UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, bLive ? FLinearColor::Black : TSSI::Bg());
 	UCanvas* C = nullptr;
@@ -738,7 +758,7 @@ void ATorqueShedScreens::UpdatePlayerCams(float Dt)
 	}
 }
 
-void ATorqueShedScreens::UpdateRiderCam(float Dt)
+void ATorqueShedScreens::UpdateRiderCam(float Dt, bool bCapture)
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -777,7 +797,7 @@ void ATorqueShedScreens::UpdateRiderCam(float Dt)
 	RiderCamAt = RiderCamAt.IsZero() ? Want : FMath::VInterpTo(RiderCamAt, Want, Dt, 5.0f);
 	const FVector LookAt = Body + RiderFwd * 250.0 - FVector(0.0, 0.0, 30.0);
 	RiderCam->SetWorldLocationAndRotation(RiderCamAt, (LookAt - RiderCamAt).Rotation());
-	RiderCam->CaptureScene();
+	if (bCapture) RiderCam->CaptureScene();
 }
 
 // --- The pages -----------------------------------------------------------------------------------
@@ -788,6 +808,13 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 	if (!RT) return;
 	const int32 Channel = Index < TorqueShedTv::Tvs ? ChannelOf(Index) : -1;
 	if (Index < TorqueShedTv::Tvs) ShownChannel[Index] = Channel;
+	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())
+	{
+		// No mate out riding: the TV's off.
+		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(false);
+		UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, FLinearColor::Black);
+		return;
+	}
 	if (Channel == TorqueShedTv::BayPage)
 	{
 		// The bay's own page is on while its bike stands in the bay, and goes blank, off, when it's
@@ -863,12 +890,7 @@ void ATorqueShedScreens::DrawRider(UCanvas* C, float Now) const
 	using namespace TSSI;
 	const float W = (float)PageW, H = (float)PageH;
 	const ATorqueBikePawn* Pick = Filmed.Get();
-	if (!Pick || !RiderCamRT)
-	{
-		// No one out on the road: the shed's own cameras, with the rider cam's bug saying so.
-		DrawPlayers(C, TEXT("NO ONE OUT RIDING"));
-		return;
-	}
+	if (!Pick || !RiderCamRT) return;   // (DrawPage switches the TV off then)
 	Picture(C, RiderCamRT, 0.0f, 0.0f, W, H);
 	const APlayerState* PS = Pick->GetPlayerState();
 	FLinearColor Colour = TorqueUi::Accent;
