@@ -374,7 +374,8 @@ void ATorqueWalker::EndPlay(const EEndPlayReason::Type Reason)
 
 FVector ATorqueWalker::EyeSpot() const
 {
-	// [hands] Your body's eyes (first person), else Torque Shed's eye height.
+	// [hands] Your body's eyes (first person), else Torque Shed's eye height; sat down, the seat's.
+	if (SeatId != 0) return SeatEye;
 	if (bFirstEye && IsLocallyControlled()) return FirstEye;
 	return FVector(0.0, 0.0, bIsCrouched ? TWI::CrouchEye : TWI::StandEye);
 }
@@ -564,6 +565,12 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	TickSprays(DeltaSeconds);   // the coats going on (and drying off) follow their parts as they're redrawn
 	TickWash(DeltaSeconds);     // the wash game's muck follows its bike (TorqueWalkerWash.cpp)
 	if (Wheeling() != INDEX_NONE) PushBike(DeltaSeconds);
+	else if (SeatId != 0)
+	{
+		// Sat down: up again when the seat's taken hold of or gone.
+		const FTorqueFurniture* Seat = B ? B->FurnitureById(SeatId) : nullptr;
+		if (!Seat || Seat->Mover != 0) StandUp();
+	}
 	else if (!bComputer && !bBench)
 	{
 		FindTarget();
@@ -756,6 +763,16 @@ void ATorqueWalker::ReadInput(float Dt)
 	const float PadSide = S.bConnected ? Dead(S.LX) : Dead(Axis(EKeys::Gamepad_LeftX));
 	if (FMath::Abs(PadFwd) > FMath::Abs(Fwd)) Fwd = PadFwd;
 	if (FMath::Abs(PadSide) > FMath::Abs(Side)) Side = PadSide;
+	if (SeatId != 0)
+	{
+		// Sat down: F, Space (Circle) or a step gets you up; the look still goes round.
+		if (bF || bBack || FMath::Abs(Fwd) > 0.5f || FMath::Abs(Side) > 0.5f)
+		{
+			StandUp();
+			return;
+		}
+		Fwd = Side = 0.0f;
+	}
 	const bool bRun = KeyDown(ETorqueKey::Run) || Down(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3);
 	GetCharacterMovement()->MaxWalkSpeed = bRun ? RunSpeed : WalkSpeed;
 	if (SprayItem != 0) GetCharacterMovement()->MaxWalkSpeed *= (float)TorqueSpray::ModeWalk;   // careful steps with the spray controls up
@@ -779,7 +796,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	PC->SetControlRotation(R);
 
 	if (bBack) Jump();
-	if (KeyJust(ETorqueKey::Crouch) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3)) SetCrouched(!bCrouched);
+	if (SeatId == 0 && (KeyJust(ETorqueKey::Crouch) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3))) SetCrouched(!bCrouched);
 	// The tools: Q / E, the wheel, L1 / R1, or 1-7. Carrying a part, your hands are full: the wheel
 	// (Q / E, L1 / R1) moves where it goes down out or in, and R / Square turns it (CarryInput).
 	const int32 Tools = (int32)ETorqueTool::Count;

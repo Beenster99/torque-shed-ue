@@ -507,6 +507,12 @@ private:
 	bool FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust);
 	bool FurnitureHud(TArray<FHudLine>& Lines) const;   // true: moving one, nothing else to show
 	void FurnitureOutline(TArray<UPrimitiveComponent*>& Lined) const;
+	// Sitting on a seat (F on one; F, Space or a step gets up): the piece sat on, the eye's height
+	// over the walker's middle while sat.
+	int32 SeatId = 0;
+	FVector SeatEye = FVector::ZeroVector;
+	bool Sit(int32 Piece);
+	void StandUp();
 	bool bStandArmed = false;
 	double StandFHeld = 0.0;
 	bool bSprayAsked = false;

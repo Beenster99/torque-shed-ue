@@ -56,6 +56,7 @@ struct FModel
 	bool bRide = false;    // the bike rides on it
 	bool bSolid = false;   // the bike bumps into it
 	bool bSold = false;    // on the parts computer's Shed aisle
+	double Sit = 0.0;      // a seat: how high you sit on it, cm (0: not one)
 	bool Small() const { return FMath::Max3(Size.X, Size.Y, Size.Z) < 70.0; }   // carried in your hands
 };
 const TMap<FName, FModel>& Models();

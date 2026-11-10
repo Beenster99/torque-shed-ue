@@ -95,7 +95,7 @@
 //                         full-lean bend at 45 (launch, brakestop:60:flat, lean:max), and back (alone, it quits)
 //   kit                   the movable shed and yard kit: the test area, a cone taken hold of, turned, carried
 //                         and put down, a ramp and a stool ordered and moved (alone, it quits at the end)
-//   furn:look:<model|id>, furn:grab, furn:turn:<deg>, furn:walk:<x>:<y>, furn:drop, furn:order:<model>, furn:log
+//   furn:look:<model|id>, furn:grab, furn:turn:<deg>, furn:walk:<x>:<y>, furn:drop, furn:order:<model>, furn:sit, furn:stand, furn:log
 //                         the movable kit (TorqueFurniture): stand back from the nearest one and look at it, take
 //                         hold of it, turn it, carry it there, put it down, order it from the Shed aisle; each logs
 //                         where the piece is (look:testarea, look:dropoff, look:kitdrop frame the yard)

@@ -25,6 +25,8 @@
     {"prop": "dress_lubricant_spray", "at": [-570, 255, 94.5], "yaw": 30},
     {"prop": "dress_oil_tin", "at": [-620, 270, 94.5], "yaw": 0},
     {"prop": "dress_spray_paint_bottles", "at": [-625, 200, 94.5], "yaw": 80},
+    {"prop": "spray_can_row", "at": [-636, 0, 94.5], "yaw": -90},
+    {"prop": "spray_can_row_b", "at": [-636, 90, 94.5], "yaw": -90},
     {"prop": "dress_multi_cleaner_5_litre", "at": [330, 510, 96], "yaw": 160},
     {"prop": "dress_metal_jerrycan_green", "at": [455, 530, 0], "yaw": 180},
     {"prop": "dress_korean_fire_extinguisher_01", "at": [-630, 440, 0], "yaw": -90},

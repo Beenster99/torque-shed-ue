@@ -231,7 +231,8 @@ const TCHAR* const FluidSteps =
 const TCHAR* const KitSteps =
 	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
 	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
-	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,furn:log");
+	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,")
+	TEXT("furn:look:seat_chair,furn:sit,shot,furn:stand,furn:look:seat_stool,furn:sit,shot,furn:stand,furn:log");
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
