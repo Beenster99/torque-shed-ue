@@ -4,6 +4,7 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueDynoRoom.h"
+#include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueUi.h"
@@ -441,6 +442,7 @@ void ATorqueShedScreens::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("Torque: no M_ShedScreenPage (run Tools/ue_build_shed.py): the shed's screens stay blank"));
 		return;
 	}
+	PageBase = Base;   // [tv] the bought TVs' pages too
 	struct FScreen { FVector Centre, Facing, Right; float W, H; };
 	TArray<FScreen> Screens;
 	const float Inset = 2.0f * TSSI::TvBezel;
@@ -519,6 +521,15 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	// [tv] A TV turned to another channel (by anyone in the shed) redraws straight away.
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs; ++Tv)
 		if (ShownChannel[Tv] != ChannelOf(Tv)) bDirty = true;
+	SyncPieces();
+	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
+	auto PieceChannel = [Sub](int32 Id) -> int32
+	{
+		const FTorqueFurniture* F = Sub ? Sub->FurnitureById(Id) : nullptr;
+		return F ? (int32)F->Channel : -1;
+	};
+	for (const TPair<int32, int32>& KV : PieceShown)
+		if (KV.Value != PieceChannel(KV.Key)) bDirty = true;
 	Clock -= DeltaSeconds;
 	if (bDirty || Clock <= 0.0f)
 	{
@@ -535,10 +546,22 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 		if (ChannelOf(Tv) == TorqueShedTv::Rider) bWantRider = true;
 		bWantPlayers = true;   // (the rider cam shows the shed when no one's out)
 	}
+	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)   // [tv] and the bought ones
+	{
+		const int32 Ch = PieceChannel(KV.Key);
+		if (!KV.Value || !KV.Value->WasRecentlyRendered(0.5f) || (Ch != TorqueShedTv::Players && Ch != TorqueShedTv::Rider)) continue;
+		if (Ch == TorqueShedTv::Rider) bWantRider = true;
+		bWantPlayers = true;
+	}
 	if (bWantRider) UpdateRiderCam(DeltaSeconds);
 	if (bWantPlayers) UpdatePlayerCams(DeltaSeconds);
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
 		if (Quads[Tv] && Quads[Tv]->WasRecentlyRendered(0.5f) && IsLive(Tv)) DrawPage(Tv, Now);
+	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)
+	{
+		const int32 Ch = PieceChannel(KV.Key);
+		if (KV.Value && KV.Value->WasRecentlyRendered(0.5f) && (Ch == TorqueShedTv::Players || Ch == TorqueShedTv::Rider)) DrawPiece(KV.Key, Ch, Now);
+	}
 	// Someone here at the parts computer: its monitor follows what they pick.
 	for (TActorIterator<ATorqueWalker> It(World); It; ++It)
 		if (It->IsLocallyControlled() && It->AtComputer())
@@ -564,6 +587,112 @@ void ATorqueShedScreens::Redraw()
 	if (!World) return;
 	const float Now = (float)World->GetRealTimeSeconds();
 	for (int32 I = 0; I < Pages.Num(); ++I) DrawPage(I, Now);
+	// [tv] The bought TVs.
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)
+	{
+		const FTorqueFurniture* F = B ? B->FurnitureById(KV.Key) : nullptr;
+		if (F) DrawPiece(KV.Key, F->Channel, Now);
+	}
+}
+
+// --- [tv] The bought TVs -------------------------------------------------------------------------
+
+void ATorqueShedScreens::SyncPieces()
+{
+	UWorld* World = GetWorld();
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!World || !B || !PageBase) return;
+	const ATorqueFurnishings* Furn = nullptr;
+	for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
+	{
+		Furn = *It;
+		break;
+	}
+	TSet<int32> Want;
+	if (Furn)
+		for (const FTorqueFurniture& F : B->Furniture())
+		{
+			const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model);
+			UStaticMeshComponent* const* Mesh = Furn->Pieces().Find(F.Id);
+			if (!M || !TorqueFurniture::IsTv(*M) || !Mesh || !*Mesh) continue;
+			Want.Add(F.Id);
+			UStaticMeshComponent* Q = PieceQuads.FindRef(F.Id);
+			if (Q && Q->GetAttachParent() == *Mesh) continue;
+			if (Q) Q->DestroyComponent();   // its piece was drawn afresh
+			// The page fills the glass inside the frame, just in front of it: the model's origin is
+			// its middle on the wall, the glass its depth out, its front +y (make_props.py _tv).
+			UStaticMesh*& QM = PieceQuadMeshes.FindOrAdd(F.Model);
+			if (!QM)
+			{
+				const float Inset = 2.0f * TSSI::TvBezel;
+				QM = TSSI::Quad(FVector(0.0, M->Size.Z + 0.3, 0.0), FVector(0, 1, 0), FVector(1, 0, 0),
+					(float)M->Size.X - Inset, (float)M->Size.Y - Inset, PageBase);
+			}
+			UTextureRenderTarget2D* RT = PiecePages.FindRef(F.Id);
+			if (!RT)
+			{
+				RT = UKismetRenderingLibrary::CreateRenderTarget2D(this, PageW, PageH, RTF_RGBA8_SRGB, TSSI::Bg());
+				if (RT) PiecePages.Add(F.Id, RT);
+			}
+			UMaterialInstanceDynamic* MID = PieceMaterials.FindRef(F.Id);
+			if (!MID && RT)
+			{
+				MID = UMaterialInstanceDynamic::Create(PageBase, this);
+				if (MID)
+				{
+					MID->SetTextureParameterValue(TEXT("Page"), RT);
+					MID->SetScalarParameterValue(TEXT("Brightness"), TSSI::ShedPageBrightness);
+					PieceMaterials.Add(F.Id, MID);
+				}
+			}
+			if (!QM || !RT || !MID)
+			{
+				PieceQuads.Remove(F.Id);
+				continue;
+			}
+			Q = NewObject<UStaticMeshComponent>((*Mesh)->GetOwner());
+			Q->SetStaticMesh(QM);
+			Q->SetMaterial(0, MID);
+			Q->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Q->SetGenerateOverlapEvents(false);
+			Q->SetCastShadow(false);
+			Q->SetMobility(EComponentMobility::Movable);
+			Q->SetupAttachment(*Mesh);
+			Q->RegisterComponent();
+			PieceQuads.Add(F.Id, Q);
+			PieceShown.Add(F.Id, -1);
+			bDirty = true;
+		}
+	for (auto It = PieceQuads.CreateIterator(); It; ++It)
+		if (!Want.Contains(It.Key()))
+		{
+			if (It.Value()) It.Value()->DestroyComponent();
+			PiecePages.Remove(It.Key());
+			PieceMaterials.Remove(It.Key());
+			PieceShown.Remove(It.Key());
+			It.RemoveCurrent();
+		}
+}
+
+void ATorqueShedScreens::DrawPiece(int32 Id, int32 Channel, float Now)
+{
+	UTextureRenderTarget2D* RT = PiecePages.FindRef(Id);
+	if (!RT) return;
+	PieceShown.Add(Id, Channel);
+	const bool bLive = Channel == TorqueShedTv::Players || Channel == TorqueShedTv::Rider;
+	UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, bLive ? FLinearColor::Black : TSSI::Bg());
+	UCanvas* C = nullptr;
+	FVector2D Size;
+	FDrawToRenderTargetContext Context;
+	UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, RT, C, Size, Context);
+	if (C)
+	{
+		if (Channel == TorqueShedTv::Bikes) DrawBikes(C);
+		else if (Channel == TorqueShedTv::Rider) DrawRider(C, Now);
+		else DrawPlayers(C, FString());
+	}
+	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
 }
 
 // --- [tv] The live cameras -----------------------------------------------------------------------

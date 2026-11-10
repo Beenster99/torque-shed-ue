@@ -536,8 +536,8 @@
   },
   "tv_120": {
    "kind": "tv",
-   "name": "120\\",
-   "desc": "As big as the screens over the bays. Live riding, the crew board, XP goals and more: R changes the channel.",
+   "name": "120\" TV",
+   "desc": "As big as the screens over the bays. Live riding, the crew board, XP goals and more: right mouse changes the channel.",
    "size": [
     2.66,
     1.5,
@@ -548,7 +548,7 @@
   },
   "tv_128": {
    "kind": "tv",
-   "name": "128\\",
+   "name": "128\" TV",
    "desc": "Proper cinema size. Watch the crew ride from across the shed.",
    "size": [
     2.83,
@@ -560,7 +560,7 @@
   },
   "tv_136": {
    "kind": "tv",
-   "name": "136\\",
+   "name": "136\" TV",
    "desc": "A whole wall of screen, as big as the crew board. Needs a clear stretch of wall.",
    "size": [
     3.01,

@@ -260,6 +260,29 @@ inline FVector DeliveryAt(int32 Index)
 	return FVector(345.0 + 110.0 * Col, 810.0 + 100.0 * Row, 60.0 * Layer);
 }
 
+// A part's size as it's handled (cm: x long, y wide, z high), and boxed as it's delivered (8 cm of
+// box round it): the drawn box (TorqueShedItems) and the delivery area's packing (the host) agree.
+inline FVector PartBoxSize(FName Kind)
+{
+	struct FSize { const TCHAR* Kind; double X, Y, Z; };
+	static const FSize Sizes[] = {
+		{TEXT("frame"), 140, 40, 60}, {TEXT("engine"), 60, 50, 50}, {TEXT("wheel"), 70, 20, 70}, {TEXT("tyre"), 70, 20, 70},
+		{TEXT("fork"), 80, 25, 25}, {TEXT("swingarm"), 70, 30, 20}, {TEXT("exhaust"), 90, 25, 25}, {TEXT("tank"), 60, 35, 30},
+		{TEXT("fairing"), 60, 60, 50}, {TEXT("panniers"), 50, 30, 40}, {TEXT("top_box"), 45, 40, 35}, {TEXT("tail"), 60, 30, 25},
+		{TEXT("saddle"), 60, 30, 15}, {TEXT("handlebars"), 80, 15, 15}, {TEXT("shock"), 40, 15, 15}, {TEXT("gearbox"), 35, 30, 25},
+		{TEXT("head"), 35, 30, 20}, {TEXT("cooling"), 40, 10, 30}, {TEXT("front_mudguard"), 50, 20, 15}, {TEXT("side_panels"), 35, 10, 30},
+	};
+	const FString K = Kind.ToString();
+	for (const FSize& S : Sizes)
+		if (K == S.Kind) return FVector(S.X, S.Y, S.Z);
+	return FVector(30, 25, 20);
+}
+inline FVector DeliverySize(FName Kind) { return PartBoxSize(Kind) + FVector(8.0); }
+// The delivery area's floor (Shed.DELIVERY_AREA): boxes, crates and the shed kit ordered come here.
+inline FBox2D DeliveryArea() { return FBox2D(FVector2D(290.0, 750.0), FVector2D(1070.0, 1255.0)); }
+// The most a pile of boxes stands (cm), so the top one can still be lifted off.
+constexpr double DeliveryPileTop = 170.0;
+
 inline bool InDeliveries(const FVector& At) { return At.X > 280.0 && At.X < 1080.0 && At.Y > 740.0 && At.Y < 1260.0; }
 
 // The wash bay (Workshop.WASH_CENTER, WASH_HALF and the apron in front): the pressure washer's

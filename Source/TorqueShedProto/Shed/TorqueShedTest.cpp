@@ -281,6 +281,8 @@ const TCHAR* const KitSteps =
 	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,")
 	TEXT("furn:look:seat_chair,furn:sit,shot,furn:stand,furn:look:seat_stool,furn:sit,shot,furn:stand,")
 	TEXT("furn:look:shelf_standard,furn:label:Engine:spares,shot,")
+	// A bought TV (beenster, Nov 10: "purchased TV should act like the others"): delivered, then its channels.
+	TEXT("furn:order:tv_120,look:kitdrop,shot,furn:look:tv_120,furn:channel,shot,furn:channel,furn:channel,shot,")
 	// The walkway past the workbench's end to the storage room (beenster, Nov 10): from the middle of the
 	// shed, between the bench's end and bay 1's bike, along the west wall and through the door.
 	TEXT("floor:-300:0,walkto:-500:-160:-590:-220:-600:-420:-760:-450,shot,furn:log");
@@ -1243,7 +1245,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("testarea")) { At = FVector(9000.0, 8000.0, 100.0); Away = FVector(-1.0, -0.35, 0.0).GetSafeNormal(); Distance = 1800.0; }
 		else if (What == TEXT("dropoff")) { At = FVector(19600.0, 7780.0, 60.0); Away = FVector(-1.0, -0.5, 0.0).GetSafeNormal(); Distance = 700.0; }
-		else if (What == TEXT("kitdrop")) { At = FVector(-900.0, 1100.0, 60.0); Away = FVector(0.3, -1.0, 0.0).GetSafeNormal(); Distance = 500.0; }
+		else if (What == TEXT("kitdrop")) { At = FVector(680.0, 1000.0, 40.0); Away = FVector(-0.45, -1.0, 0.0).GetSafeNormal(); Distance = 520.0; }   // the delivery area
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
 		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynofan, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, testarea, dropoff, kitdrop, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).

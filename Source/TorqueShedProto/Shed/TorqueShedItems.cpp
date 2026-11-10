@@ -22,21 +22,7 @@ namespace TorqueShedItemsImpl
 {
 // The size of a part's box (cm: long, wide, high) by its kind, for a boxed part and for a part the
 // model has no shape for.
-FVector KindSize(FName Kind)
-{
-	struct FSize { const TCHAR* Kind; double X, Y, Z; };
-	static const FSize Sizes[] = {
-		{TEXT("frame"), 140, 40, 60}, {TEXT("engine"), 60, 50, 50}, {TEXT("wheel"), 70, 20, 70}, {TEXT("tyre"), 70, 20, 70},
-		{TEXT("fork"), 80, 25, 25}, {TEXT("swingarm"), 70, 30, 20}, {TEXT("exhaust"), 90, 25, 25}, {TEXT("tank"), 60, 35, 30},
-		{TEXT("fairing"), 60, 60, 50}, {TEXT("panniers"), 50, 30, 40}, {TEXT("top_box"), 45, 40, 35}, {TEXT("tail"), 60, 30, 25},
-		{TEXT("saddle"), 60, 30, 15}, {TEXT("handlebars"), 80, 15, 15}, {TEXT("shock"), 40, 15, 15}, {TEXT("gearbox"), 35, 30, 25},
-		{TEXT("head"), 35, 30, 20}, {TEXT("cooling"), 40, 10, 30}, {TEXT("front_mudguard"), 50, 20, 15}, {TEXT("side_panels"), 35, 10, 30},
-	};
-	const FString K = Kind.ToString();
-	for (const FSize& S : Sizes)
-		if (K == S.Kind) return FVector(S.X, S.Y, S.Z);
-	return FVector(30, 25, 20);
-}
+FVector KindSize(FName Kind) { return TorqueShedLayout::PartBoxSize(Kind); }   // (the host packs deliveries by it too)
 
 const FLinearColor Cardboard(0.52f, 0.37f, 0.22f);
 
@@ -420,7 +406,7 @@ void ATorqueShedItems::Draw(int32 Id)
 	if (It->bBoxed)
 	{
 		// As delivered: the props' box or crate, labelled, or a plain cardboard block until they're in.
-		const FVector BoxSize = TSI::KindSize(It->Kind) + FVector(8.0);
+		const FVector BoxSize = TorqueShedLayout::DeliverySize(It->Kind);
 		if (!TSI::MakeDelivery(this, Holder, *It, BoxSize, Made)) Block(BoxSize, TSI::Cardboard);
 	}
 	else if (TorqueShedParts::IsFluid(It->Part) && TorqueFluidModels::Make(this, Holder, It->Part, Made, Vessel))

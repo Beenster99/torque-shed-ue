@@ -41,7 +41,9 @@ struct FTorqueFurniture
 	FTransform Xf;        // where it stands: on the floor (or the wall, or a bench top), turned
 	int32 Mover = 0;      // the peer moving it, 0: no one
 	float Turn = 0.0f;    // while it's moved, how far it's turned from square on to its mover (deg)
+	float Reach = 0.0f;   // and how much further out than at arm's length (cm: the wheel, Q / E)
 	FString Label;        // a shelving unit's label plate ("Brakes", "Barn find"): shed_state.gd's "label"
+	uint8 Channel = 0;    // [tv] a TV's channel (TorqueShedTv::EChannel: a bought TV shows them as the wall's do)
 };
 
 namespace TorqueFurniture
@@ -101,6 +103,8 @@ const TArray<FPlaced>& ShedStart();
 // a label cleaned up as the host keeps it.
 constexpr int32 LabelMax = 24;
 bool HasLabel(const FModel& M);
+// [tv] A TV (equipment.gd's "tv" kind): it shows a channel, right mouse at it changes it, as the wall's.
+bool IsTv(const FModel& M);
 FString NameOf(const FTorqueFurniture& F);
 FString CleanLabel(const FString& Text);
 
@@ -113,11 +117,17 @@ constexpr double ImportYaw = 0.0;
 // Where a piece is while Pawn moves it: a big one on the floor in front of them, its front (the end
 // you push from) towards them, turned by Turn; a small one in their hands at chest height; a wall one
 // held up in front of them.
-FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn);
+FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn, double Reach = 0.0);
 // Where it goes down when Pawn lets go of it (the client works it out, the host checks it): a wall
 // one against the wall they face, a small one on whatever they look at (a bench, a shelf, the
 // floor), a big one where it is. False with why not.
-bool PutDownXf(const APawn* Pawn, const FModel& M, double Turn, FTransform& Out, FString& WhyNot);
+bool PutDownXf(const APawn* Pawn, const FModel& M, double Turn, FTransform& Out, FString& WhyNot, double Reach = 0.0, int32 Self = 0);
+// How far out a moved piece can be pushed past arm's length, and in (cm), and a step of the wheel.
+constexpr double ReachMin = -30.0, ReachMax = 220.0, ReachStep = 25.0;
+// A big piece on the floor snapped as it's placed (beenster, Nov 10): square to the walls when it's
+// near square, then flush against a wall (or a bench or machine) it's within a hand of, and butted up
+// and lined up with another piece of kit that's square too. Self: its own id (not snapped to itself).
+FTransform Snapped(const UWorld* World, const FModel& M, const FTransform& Xf, int32 Self);
 
 // The ridden bike's contact boxes for the solid pieces (sim frame: Sim/BikeContacts.h), and a
 // number that changes whenever they might have (the bike rebuilds its boxes then).
@@ -142,6 +152,7 @@ public:
 	int32 PieceOf(const UPrimitiveComponent* C) const;
 	// Every movable piece's mesh, by piece id.
 	const TMap<int32, UStaticMeshComponent*>& Pieces() const { return Drawn; }
+	AActor* Rides() const { return RideHolder; }   // the Road-tagged holder of the ridden pieces
 
 private:
 	UPROPERTY(Transient) TMap<int32, UStaticMeshComponent*> Drawn;
