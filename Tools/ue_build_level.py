@@ -1151,7 +1151,116 @@ def import_rider(tex=None, roles=None):
         unreal.EditorAssetLibrary.save_loaded_asset(helmet)
     mats = rider_materials(info["finishes"], tex, roles)
     log("rider: %s, helmet %s" % (body.get_path_name(), helmet.get_path_name() if helmet else "missing"))
-    return {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
+    out = {"mesh": body.get_path_name(), "helmet": helmet.get_path_name() if helmet else "", "materials": mats}
+    fab = fab_helmet(helmet) if helmet else None
+    if fab:
+        out["helmet"], out["helmet_fit"] = fab
+    return out
+
+
+FAB_HELMET_DEST = "/Game/Fab/RiderHelmet"
+
+
+def _fab_helmet_source(spec):
+    """beenster's Fab helmet: a static mesh already in the project, else a file in the Fab cache."""
+    words = spec.get("keywords") or ["helmet"]
+    skip = spec.get("skip_keywords") or []
+    reg = unreal.AssetRegistryHelpers.get_asset_registry()
+    found = []
+    for a in reg.get_assets_by_path("/Game", recursive=True):
+        cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
+        pkg, name = str(a.package_name), str(a.asset_name)
+        if cls != "StaticMesh" or not any(w in name for w in words) or any(k in pkg for k in skip):
+            continue
+        if pkg.startswith(RIDER_DEST + "/") or pkg.startswith(FAB_HELMET_DEST + "/") or pkg.startswith("/Game/MetaHuman"):
+            continue
+        found.append("%s.%s" % (pkg, name))
+    log("fab helmet: in the project: %s" % (", ".join(found) or "none"))
+    if found:
+        return "asset", sorted(found, key=len)[0]
+    vault = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
+    roots = [vault, os.path.dirname(vault)]
+    if spec.get("vault"):
+        f = os.path.join(vault, *spec["vault"].split("/"))
+        return ("file", f) if os.path.isfile(f) else (None, None)
+    dirs = []
+    for r in roots:
+        if not os.path.isdir(r):
+            log("fab helmet: no folder %s" % r)
+            continue
+        for d in os.listdir(r):
+            full = os.path.join(r, d)
+            if os.path.isdir(full) and any(w.lower() in d.lower() for w in words):
+                dirs.append(full)
+    log("fab helmet: in the Fab cache: %s" % (", ".join(dirs) or "none"))
+    for d in sorted(dirs, key=os.path.getmtime, reverse=True):
+        files = []
+        for root, _, names in os.walk(d):
+            for n in names:
+                files.append(os.path.join(root, n))
+        log("fab helmet: %s holds %s" % (d, ", ".join("%s (%d KB)" % (os.path.relpath(f, d), os.path.getsize(f) // 1024) for f in files[:40])))
+        for ext in (".glb", ".gltf", ".fbx", ".obj"):
+            pick = [f for f in files if f.lower().endswith(ext)]
+            if pick:
+                return "file", max(pick, key=os.path.getsize)
+    return None, None
+
+
+def fab_helmet(ours):
+    """beenster's Fab helmet (Data/Rider/fab_helmet.json) over our helmet: its mesh path and the fit
+    (rotate, scale, offset) the pawn puts it on with, or None to keep ours."""
+    path = os.path.join(os.path.abspath(unreal.Paths.project_dir()), "Data", "Rider", "fab_helmet.json")
+    if not os.path.isfile(path):
+        return None
+    spec = json.load(open(path))
+    kind, src = _fab_helmet_source(spec)
+    mesh = None
+    if kind == "asset":
+        mesh = unreal.load_asset(src)
+    elif kind == "file":
+        if unreal.EditorAssetLibrary.does_directory_exist(FAB_HELMET_DEST):
+            unreal.EditorAssetLibrary.delete_directory(FAB_HELMET_DEST)
+        t = unreal.AssetImportTask()
+        t.set_editor_property("filename", src)
+        t.set_editor_property("destination_path", FAB_HELMET_DEST)
+        t.set_editor_property("automated", True)
+        t.set_editor_property("replace_existing", True)
+        t.set_editor_property("save", True)
+        asset_tools.import_asset_tasks([t])
+        meshes = [a for a in (unreal.load_asset(p) for p in unreal.EditorAssetLibrary.list_assets(FAB_HELMET_DEST, recursive=True))
+                  if isinstance(a, unreal.StaticMesh)]
+        log("fab helmet: imported %s: static meshes %s" % (src, ", ".join(m.get_name() for m in meshes) or "NONE"))
+        if meshes:
+            def size(m):
+                b = m.get_bounding_box()
+                return (b.max - b.min).length()
+            mesh = max(meshes, key=size)
+            if len(meshes) > 1:
+                unreal.log_warning("[Torque] fab helmet: %d meshes imported (not combined); using the biggest, %s" % (len(meshes), mesh.get_name()))
+    if mesh is None:
+        log("fab helmet: not found; the rider keeps our own helmet")
+        return None
+    nanite_off(mesh)
+    unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    # Fit by bounding boxes: theirs turned by 'rotate', scaled to our helmet's largest size, centred on ours.
+    rot = [float(v) for v in spec.get("rotate", [0, 0, 0])]
+    q = unreal.Rotator(roll=rot[2], pitch=rot[0], yaw=rot[1]).quaternion()
+    b = mesh.get_bounding_box()
+    corners = [q.rotate_vector(unreal.Vector(x, y, z)) for x in (b.min.x, b.max.x) for y in (b.min.y, b.max.y) for z in (b.min.z, b.max.z)]
+    lo = unreal.Vector(min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners))
+    hi = unreal.Vector(max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners))
+    ob = ours.get_bounding_box()
+    ours_size, theirs_size = ob.max - ob.min, hi - lo
+    scale = float(spec.get("scale", 1.0)) * max(ours_size.x, ours_size.y, ours_size.z) / max(theirs_size.x, theirs_size.y, theirs_size.z, 1e-3)
+    oc, tc = (ob.max + ob.min) * 0.5, (hi + lo) * 0.5
+    off = [float(v) for v in spec.get("offset", [0, 0, 0])]
+    offset = [oc.x - tc.x * scale + off[0], oc.y - tc.y * scale + off[1], oc.z - tc.z * scale + off[2]]
+    log("fab helmet: %s; its box %s (turned %s) vs ours %s (%s); fit scale %.4f, offset %s; materials %s" % (
+        mesh.get_path_name(), [round(v, 1) for v in (theirs_size.x, theirs_size.y, theirs_size.z)], rot,
+        [round(v, 1) for v in (ours_size.x, ours_size.y, ours_size.z)], ours.get_path_name(), scale, [round(v, 1) for v in offset],
+        ", ".join("%s=%s" % (m.get_editor_property("material_slot_name"), m.get_editor_property("material_interface").get_path_name()
+                                  if m.get_editor_property("material_interface") else "none") for m in mesh.get_editor_property("static_materials"))))
+    return mesh.get_path_name(), {"rotate": rot, "scale": scale, "offset": offset}
 
 
 def check_bike(meshes, mats):

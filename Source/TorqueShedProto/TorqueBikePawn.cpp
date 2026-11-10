@@ -2345,7 +2345,25 @@ bool ATorqueBikePawn::BuildRiderRig()
 		Mirror = (*Frame)->GetNumberField(TEXT("mirror"));
 		Scale = (*Frame)->GetNumberField(TEXT("scale"));
 	}
-	const FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+	FTransform Fix(FRotator(0.0, Yaw, 0.0), FVector::ZeroVector, FVector(Scale, Scale * Mirror, Scale));
+	// beenster's Fab helmet, when the level script found one (Data/Rider/fab_helmet.json): fitted
+	// over our helmet's place by its bounding box (turn, scale, then offset, in our helmet's frame).
+	const TSharedPtr<FJsonObject>* HelmetFit = nullptr;
+	if ((*Rig)->TryGetObjectField(TEXT("helmet_fit"), HelmetFit))
+	{
+		auto Three = [&HelmetFit](const TCHAR* Field)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* A = nullptr;
+			return (*HelmetFit)->TryGetArrayField(Field, A) && A->Num() >= 3 ? FVector((*A)[0]->AsNumber(), (*A)[1]->AsNumber(), (*A)[2]->AsNumber()) : FVector::ZeroVector;
+		};
+		const FVector Turn = Three(TEXT("rotate")), Offset = Three(TEXT("offset"));
+		double FitScale = 1.0;
+		(*HelmetFit)->TryGetNumberField(TEXT("scale"), FitScale);
+		const FTransform Fit(FRotator(Turn.X, Turn.Y, Turn.Z), Offset, FVector(FitScale));
+		Fix = Fit * Fix;
+		UE_LOG(LogTemp, Log, TEXT("Torque: rider wears the Fab helmet %s (turn %s, scale %.4f, offset %s)"),
+			*(*Rig)->GetStringField(TEXT("helmet")), *Turn.ToCompactString(), FitScale, *Offset.ToCompactString());
+	}
 	TMap<FString, UMaterialInterface*> Mats;
 	const TSharedPtr<FJsonObject>* MatObj = nullptr;
 	if ((*Rig)->TryGetObjectField(TEXT("materials"), MatObj))
