@@ -230,7 +230,7 @@ FBay Read(const UTorqueBuildSubsystem* B, int32 Bay)
 	else if (Out.Dirt > 0.3f)
 	{
 		Out.Next = TEXT("It's filthy: wash it down in the wash bay, or scrub the parts.");
-		Out.NextTool = TEXT("6  Pressure wash");
+		Out.NextTool = TEXT("5  Pressure wash");
 	}
 	else
 	{
@@ -299,14 +299,14 @@ const TArray<FHowTo>& HowTo()
 			L(TEXT("WASD"), TEXT("walk  /  mouse: look  /  Shift: run  /  C: crouch")),
 			L(TEXT("1 - 6"), TEXT("pick a tool (Q / E or the wheel: next and last)")),
 			L(TEXT("Left mouse"), TEXT("hold to work")),
-			L(TEXT("Right mouse"), TEXT("the other job (the spray can: next colour)")),
+			L(TEXT("Right mouse"), TEXT("the other job (the spray gun: next colour)")),
 			L(TEXT("F"), TEXT("use the computer, unpack a box, ride out")),
-			L(TEXT("T"), TEXT("the spray can's finish  /  H: help"))}});
+			L(TEXT("T"), TEXT("the spray gun's finish  /  H: help"))}});
 		Pages.Add({TEXT("Restoring a bike"), {
 			L(TEXT("2  Wrench"), TEXT("unbolt the part, then take it off with your hands")),
 			L(TEXT("3  Brush"), TEXT("scrub off dirt, or leave it in the parts washer")),
 			L(TEXT("4  Grinder"), TEXT("rust and wear, on a repair machine")),
-			L(TEXT("5  Spray"), TEXT("paint a part: pick the colour and the finish")),
+			L(TEXT("6  Spray gun"), TEXT("hang the part in the spray booth, then paint it")),
 			L(TEXT("1  Fit"), TEXT("hold the part, look at the bike, then bolt it up"))}});
 		Pages.Add({TEXT("Building something new"), {
 			L(TEXT("Order"), TEXT("parts and project bikes at the parts computer")),

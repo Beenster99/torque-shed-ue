@@ -31,7 +31,7 @@
 
 namespace TorqueShedTestImpl
 {
-// Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the spray can, the
+// Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the
 // wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
 const TCHAR* const LoopSteps =
 	TEXT("bay:1,restyle:cafe,log,look:bike,shot,look:screen,shot,look:board,shot,look:bench,shot,look:computer,shot,look:monitor,shot,")
@@ -40,7 +40,6 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
 	TEXT("place:repair_0,act,")                              // onto the repair bench
 	TEXT("tool:repair,item:exhaust,act,")                    // grind off the rust
-	TEXT("tool:spray,spray:7:matte,item:exhaust,act,shot,")  // matte teal
 	TEXT("tool:hands,item:exhaust,act,")                     // pick it up
 	TEXT("floor:-900:100,act,")                              // down in the wash bay
 	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
@@ -96,7 +95,7 @@ const TCHAR* const BoothSteps =
 	TEXT("paint:hook:1:185,wait:2,look:hook:1,shot,paint:hook:1:138,wait:2,look:hook:1,shot,")
 	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,")
 	TEXT("tool:gun,spray:3:gloss,part:exhaust,act,")
-	TEXT("tool:spray,spray:1:gloss,part:exhaust,act,look:bike,shot,log");
+	TEXT("look:bike,shot,log");
 
 // The spray mini game (TorqueSprayJob, TorqueWalkerSpray.cpp) on the exhaust hung in the booth: the
 // gun's primer put on in passes all round, then red: one pass (thin, wet, with the scan on it), the
@@ -642,7 +641,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		int32 Index = INDEX_NONE;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Names); ++I)
 			if (P[1].Equals(Names[I], ESearchCase::IgnoreCase)) Index = I;
-		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, spray, lance, gun)")); return true; }
+		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, lance, gun)")); return true; }
+		if (Index == (int32)ETorqueTool::Spray) Index = (int32)ETorqueTool::Gun;   // the spray can is gone
 		W->TestTool((ETorqueTool)Index);
 		Said(TEXT("in hand"));
 		return true;

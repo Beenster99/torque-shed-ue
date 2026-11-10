@@ -39,10 +39,10 @@
 //   extinguisher:take|spray|stop|put        the fire extinguisher: F takes it, the work button sprays, F puts it back
 //   standmove:<x>:<y>[:<yaw>]               wheel the engine stand there (world cm) and let go
 //   dynolog               log every run on the rig's bike (peak hp and Nm, limiter, temperature, fan)
-//   tool:<tool>           hands, wrench, brush, repair, spray, lance or gun (the spray gun)
+//   tool:<tool>           hands, wrench, brush, repair, lance or gun (the spray gun; spray is taken as gun)
 //   crouch:<0|1>          crouch (C) or stand
-//   spray:<colour>[:<load>]  the spray can's or gun's paint: 0-15 or a name (Red, Teal...); gloss, matte, metallic, chrome,
-//                         patina, primer, or a coat: clear (the can too), satin_clear, enamel_black, enamel_silver (the gun)
+//   spray:<colour>[:<load>]  the spray gun's paint: 0-15 or a name (Red, Teal...); gloss, matte, metallic, chrome,
+//                         patina, primer, or a coat: clear, satin_clear, enamel_black, enamel_silver (the gun)
 //   part:<slot>           stand by the bay's bike and look at that slot's part (exhaust, tank, front_wheel...)
 //   item:<what>           look at the newest part off the bikes that is <what>: a part id, a kind or a slot
 //   place:<name>          look at a place: bench_0-7, repair_0-2, washer_0-1, changer, stand, general,

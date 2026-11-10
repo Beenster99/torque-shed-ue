@@ -2,7 +2,7 @@
 // the work button on what you look at: hands take a part off a bike (once it's unbolted), pick one
 // up, put it down on the workbench, a machine, the floor or in a bin, and fit what you hold to a
 // bike or the engine on the stand; the wrench unbolts and bolts up; the brush scrubs off dirt; the
-// grinder and welder restore the parts on the repair bench; the spray can paints; the pressure
+// grinder and welder restore the parts on the repair bench; the spray gun paints; the pressure
 // washer's lance blasts muck off in the wash bay. F unpacks a delivered box, uses the parts
 // computer (order parts and project bikes) and rides your bike out of the roller door once it's
 // complete. Every action is a request to the shed (UTorqueBuildSubsystem), checked first, so the
@@ -53,7 +53,14 @@ enum class ETorqueLook : uint8
 };
 
 // The walker's tools (walker.gd TOOLS, without the paint gun, the stopwatch and the polisher).
-enum class ETorqueTool : uint8 { Hands, Wrench, Brush, Repair, Spray, Lance, Gun, Count };   // Gun: the spray gun (key 7)
+// Spray was the spray can: it's gone from the game (beenster, Nov 10), but stays in the list so the
+// tool numbers sent in co-op and the hands' tool models keep their places. Nothing hands it out.
+enum class ETorqueTool : uint8 { Hands, Wrench, Brush, Repair, Spray, Lance, Gun, Count };
+
+// The tool bar, in order (keys 1-6, Q / E go along it): every tool but the old spray can.
+inline constexpr ETorqueTool TorqueToolBar[] = {ETorqueTool::Hands, ETorqueTool::Wrench, ETorqueTool::Brush,
+	ETorqueTool::Repair, ETorqueTool::Lance, ETorqueTool::Gun};
+inline constexpr int32 TorqueToolBarCount = UE_ARRAY_COUNT(TorqueToolBar);
 
 UCLASS()
 class ATorqueWalker : public ACharacter
@@ -77,9 +84,11 @@ public:
 	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
 	float WorkFraction() const;
 	int32 ToolIndex() const { return (int32)Tool; }
+	// Where the tool in hand sits on the tool bar (TorqueToolBar), or -1.
+	int32 ToolSlot() const;
 	int32 SprayColourIndex() const { return SprayColour; }
 	FString SprayFinishText() const;
-	// What the spray can or gun can be loaded with (walker.gd spray_loads), in the order T goes
+	// What the spray gun can be loaded with (walker.gd spray_loads), in the order T goes
 	// through them, and which is loaded.
 	TArray<FString> SprayLoadNames() const;
 	int32 SprayLoadIndex() const { return SprayFinish; }
