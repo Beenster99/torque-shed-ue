@@ -1434,14 +1434,33 @@ def outside(m):
     def ground(a, tag):
         a.set_editor_property("tags", [unreal.Name(tag)])
         return a
+
+    # The Dales round it all (Tools/make_shed_dales.py, placed by Tools/ue_shed_dales.py): fells, walled
+    # fields, barns, sheep, a beck, trees, the lane on down the dale. With it the field and the box
+    # walls below are only colliders, out of sight (the drystone walls drawn stone by stone over them);
+    # without it (TORQUE_DALES=off, or no Data/Shed/Dales) they show as before, with the far domes.
+    import ue_shed_dales
+    importlib.reload(ue_shed_dales)
+    dales = ue_shed_dales.wanted()
+
+    def unseen(a):
+        if dales:
+            c = a.get_component_by_class(unreal.StaticMeshComponent)
+            c.set_visibility(False)
+            c.set_editor_property("cast_shadow", False)
+            a.set_actor_hidden_in_game(True)   # (hidden, the box still collides)
+        return a
     ground(box("RidePad", sy.PAD_X0, sy.PAD_X1, sy.PAD_Y0, sy.PAD_Y1, -10, 0, m["concrete"], folder="Outside"), "Road")
     ground(box("Yard", sy.YARD_X0, sy.YARD_X1, sy.YARD_Y0, sy.YARD_Y1, -11, -1, m["concrete"], folder="Outside"), "Road")
-    ground(box("Field", -500000, 500000, -500000, 500000, -30, -8, m["grass"], folder="Outside"), "Land")
+    unseen(ground(box("Field", -500000, 500000, -500000, 500000, -30, -8, m["grass"], folder="Outside"), "Land"))
     # Drystone walls round the yard and the pad, and along the lane beyond it.
     def dry(label, x0, x1, y0, y1):
-        box(label, x0, x1, y0, y1, -8, sy.DRYSTONE_H, m["drystone"], folder="Outside")
+        return unseen(box(label, x0, x1, y0, y1, -8, sy.DRYSTONE_H, m["drystone"], folder="Outside"))
     for (label, x0, x1, y0, y1) in sy.WALLS:
         dry(label, x0, x1, y0, y1)
+    if dales:
+        ue_shed_dales.place(m["tarmac"])
+        return
     box("Lane", -sy.LANE_HALF, sy.LANE_HALF, sy.LANE_Y0, sy.LANE_Y1, -12, -2, m["tarmac"], folder="Outside")
     dry("Wall_LaneW", -sy.LANE_HALF - 80, -sy.LANE_HALF - 20, sy.LANE_Y0, sy.LANE_Y0 + 12000)
     dry("Wall_LaneE", sy.LANE_HALF + 20, sy.LANE_HALF + 80, sy.LANE_Y0, sy.LANE_Y0 + 12000)
