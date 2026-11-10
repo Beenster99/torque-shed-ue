@@ -158,7 +158,10 @@ def master():
     out_base = picked
     try:
         noise = expr(m, unreal.MaterialExpressionNoise, -350, -950, scale=0.004, levels=3, output_min=-1.0, output_max=1.0, quality=1)
-        link(wpos, "", noise, "Position")
+        # Unconnected, Noise samples the absolute world position, which is what it wants anyway
+        # (UE 5.8 refuses this pin by name: round 129's log).
+        if not mel.connect_material_expressions(wpos, "", noise, "Position"):
+            log("Macro noise on its default world position")
         macro = expr(m, unreal.MaterialExpressionScalarParameter, -350, -1050, parameter_name="Macro", default_value=0.0)
         nm = expr(m, unreal.MaterialExpressionMultiply, -150, -950)
         link(noise, "", nm, "A")
