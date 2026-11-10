@@ -1,5 +1,5 @@
 {
- "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same.",
+ "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same. A scan kept in Data/Props/Scans/<id>/ (drawn by a tool there, as brushed_metal by Tools/props/make_brushed_scan.py) is used from git instead of fetched.",
  "scans": {
   "painted": "metal_plate",
   "metal": "metal_plate_02",
@@ -9,7 +9,8 @@
   "vinyl": "leather_red_02",
   "fabric": "hessian_230",
   "rubber": "rubber_tiles",
-  "concrete": "concrete_floor_worn_001"
+  "concrete": "concrete_floor_worn_001",
+  "brushed": "brushed_metal"
  },
  "materials": {
   "paint_red": {
@@ -24,15 +25,15 @@
    "tile": 4.0
   },
   "paint_blue": {
-   "base": "painted",
+   "base": "brushed",
    "tint": [
     0.1,
     0.3,
     0.65
    ],
-   "rough": 0.42,
-   "metal": 0.15,
-   "tile": 4.0
+   "rough": 0.35,
+   "metal": 0.6,
+   "tile": 1.0
   },
   "paint_navy": {
    "base": "painted",
