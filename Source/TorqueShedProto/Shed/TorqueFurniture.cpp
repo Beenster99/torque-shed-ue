@@ -616,7 +616,7 @@ void UTorqueBuildSubsystem::SerializeFurniture(FArchive& Ar, bool bNet, TArray<F
 		for (FTorqueFurniture& F : List)
 		{
 			F.Label = TorqueFurniture::CleanLabel(F.Label);
-			if (F.Channel >= TorqueShedTv::BayPage) F.Channel = TorqueShedTv::Players;   // [tv] (no bay of its own)
+			if (!TorqueShedTv::Has(-1, F.Channel)) F.Channel = TorqueShedTv::Players;   // [tv] (no bay of its own)
 		}
 		// Models that aren't in this game any more go.
 		List.RemoveAll([](const FTorqueFurniture& F) { return TorqueFurniture::Find(F.Model) == nullptr; });

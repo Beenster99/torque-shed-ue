@@ -1509,8 +1509,17 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	if (Verb == TEXT("tv"))
 	{
-		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as right mouse at it.
-		if (P.Num() >= 2)
+		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as right mouse at it;
+		// tv:video:LINK: the YouTube video (a link or an id), as Ctrl+V at a TV.
+		if (P.Num() >= 3 && P[1] == TEXT("video"))
+		{
+			FTorqueShedRequest V;
+			V.Kind = ETorqueShedAct::TvVideo;
+			V.Text = TorqueShedTv::VideoId(P[2]);
+			FString WhyNot;
+			if (!B->Request(V, WhyNot)) { Warn(TEXT("tv: ") + WhyNot); return true; }
+		}
+		else if (P.Num() >= 2)
 		{
 			FTorqueShedRequest R;
 			R.Kind = ETorqueShedAct::TvChannel;
@@ -1522,6 +1531,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		FString Line;
 		for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)
 			Line += FString::Printf(TEXT("%sTV %d: %s"), T == 0 ? TEXT("") : TEXT("; "), T + 1, TorqueShedTv::Name(B->TvChannel(T)));
+		Line += FString::Printf(TEXT("; video %s"), B->TvVideo().IsEmpty() ? TEXT("none") : *B->TvVideo());
 		Said(Line);
 		return true;
 	}

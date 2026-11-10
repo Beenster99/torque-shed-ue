@@ -19,6 +19,7 @@
 		{ "Name": "DLSS", "Enabled": true, "Optional": true },
 		{ "Name": "MetaHumanCharacter", "Enabled": true, "TargetAllowList": [ "Editor" ] },
 		{ "Name": "LiveLink", "Enabled": true },
+		{ "Name": "WebBrowserWidget", "Enabled": true },
 		{ "Name": "HairStrands", "Enabled": true, "Optional": true },
 		{ "Name": "ChaosClothAsset", "Enabled": true, "Optional": true },
 		{ "Name": "ChaosOutfitAsset", "Enabled": true, "Optional": true },

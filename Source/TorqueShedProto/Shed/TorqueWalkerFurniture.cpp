@@ -199,7 +199,10 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 	if (!M->Desc.IsEmpty()) Lines.Add({M->Desc, Info, 0.55f});
 	if (M->Sit > 0.0) Lines.Add({TEXT("F / Triangle: sit on it"), Prompt, 0.65f});
 	if (TorqueFurniture::IsTv(*M))   // [tv] as the wall's
+	{
 		Lines.Add({FString::Printf(TEXT("Showing: %s   Right mouse / Square: change channel"), TorqueShedTv::Name(F->Channel)), Prompt, 0.65f});
+		if (F->Channel == TorqueShedTv::YouTube) Lines.Add({TEXT("Ctrl+V: play the YouTube link you've copied"), Prompt, 0.55f});
+	}
 	if (B->HeldBy(B->Me()) == 0) Lines.Add({TEXT("Hold F / Triangle: move it"), Prompt, 0.65f});
 	// [label] (walker.gd: "write a label for these shelves")
 	if (TorqueFurniture::HasLabel(*M))

@@ -11,6 +11,8 @@
 //     its paint and who's on it.
 //   This bay's bike (the back wall's TVs): the bay's bike part by part, Torque Shed's dashboard
 //     page; blank while the bike's wheeled out of its bay.
+//   YouTube: the link someone pasted (Ctrl+V at a TV), in YouTube's own embedded player, at the
+//     same point for everyone.
 // The cameras are scene captures taken 10 times a second, only while a TV showing them is seen.
 //
 // The parts computer's monitor: Torque Shed's parts computer, the kinds down the side, the parts of
@@ -30,6 +32,8 @@ class ATorqueBikePawn;
 class ATorqueWalker;
 class UCanvas;
 class USceneCaptureComponent2D;
+class SWebBrowser;
+class FWidgetRenderer;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UStaticMesh;
@@ -77,7 +81,24 @@ private:
 	USceneCaptureComponent2D* MakeCam(UTextureRenderTarget2D*& OutRT);
 	void UpdatePlayerCams(float Dt);
 	void UpdateRiderCam(float Dt, bool bCapture);
-	bool bRiderShown = false;   // whether the rider cam's TVs were last drawn with a rider out
+	bool bRiderShown = false;
+	// [tv] YouTube (TorqueShedTv::YouTube): one browser for every TV on it, YouTube's embedded
+	// player at the shared point of the pasted video, drawn into VideoRT every frame; the TVs on
+	// YouTube show VideoRT as their page. Its sound is the browser's own (not from the TV), turned
+	// down the further you are from one.
+	static constexpr int32 VideoW = 1280;
+	static constexpr int32 VideoH = 720;
+	TSharedPtr<SWebBrowser> Browser;
+	FWidgetRenderer* VideoRenderer = nullptr;
+	UPROPERTY(Transient) UTextureRenderTarget2D* VideoRT = nullptr;
+	FString LoadedVideo;
+	double LoadedAt = 0.0;
+	float VolumeIn = 0.0f;
+	float SlowDt = 0.0f;
+	bool bVideoWarned = false;
+	void VideoTick(float Dt);
+	void StopVideo();
+	void DrawYouTubeCard(UCanvas* C) const;   // whether the rider cam's TVs were last drawn with a rider out
 	UPROPERTY(Transient) TArray<USceneCaptureComponent2D*> PlayerCams;
 	UPROPERTY(Transient) TArray<UTextureRenderTarget2D*> PlayerCamRTs;
 	TArray<FVector> PlayerCamAt;

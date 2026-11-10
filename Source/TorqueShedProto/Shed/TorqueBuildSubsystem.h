@@ -253,6 +253,9 @@ enum class ETorqueShedAct : uint8
 	PumpNozzle,
 	PumpFill,
 	RideFuel,
+	// [tv] The shed's YouTube video (Text: its id, TorqueShedTv::VideoId; empty: none), started now
+	// for everyone (UTorqueBuildSubsystem::TvVideoStart).
+	TvVideo,
 	// [tv] Wall TV Item (TorqueShedTv: 0 .. 3 on the back wall over the bays, 4 the big one over the
 	// workbench) turned to channel Colour (TorqueShedTv::EChannel), for everyone in the shed.
 	TvChannel,
@@ -272,18 +275,34 @@ enum EChannel : uint8
 	Rider,     // a third-person chase camera on a rider out on their bike
 	Bikes,     // every bike in the shed at a glance
 	BayPage,   // the bay's own bike, part by part (the back wall's TVs only)
+	YouTube,   // the video pasted in (UTorqueBuildSubsystem::TvVideo), in YouTube's own embedded player
 	Channels
 };
 // What a new garage's TVs show: the back wall's two left on the rider, two right on the bikes, the
 // workbench's on the players.
 constexpr uint8 Default[Tvs] = {Rider, Rider, Bikes, Bikes, Players};
-inline bool Valid(int32 Tv, int32 Channel) { return Tv >= 0 && Tv < Tvs && Channel >= 0 && Channel < (Tv < 4 ? Channels : BayPage); }
+// Whether TV Tv has channel Channel: every TV has them all bar the bay's own page, which only the
+// back wall's (0 .. 3) have (Tv -1: a bought TV).
+inline bool Has(int32 Tv, int32 Channel) { return Channel >= 0 && Channel < Channels && (Channel != BayPage || (Tv >= 0 && Tv < 4)); }
+inline bool Valid(int32 Tv, int32 Channel) { return Tv >= 0 && Tv < Tvs && Has(Tv, Channel); }
 // The channel after Channel on TV Tv (right mouse at a TV).
-inline int32 Next(int32 Tv, int32 Channel) { return (Channel + 1) % (Tv < 4 ? (int32)Channels : (int32)BayPage); }
+inline int32 Next(int32 Tv, int32 Channel)
+{
+	int32 N = Channel;
+	for (int32 I = 0; I < Channels; ++I)
+	{
+		N = (N + 1) % (int32)Channels;
+		if (Has(Tv, N)) return N;
+	}
+	return Players;
+}
+// A YouTube video's id (11 letters, digits, - and _) from a pasted link (youtu.be/ID, watch?v=ID,
+// /shorts/ID, /embed/ID, /live/ID) or the id itself; empty if it isn't one.
+FString VideoId(const FString& Pasted);
 const TCHAR* Name(int32 Channel);
 // A bought TV (a piece of kit) is turned by a TvChannel request with this Spot, Item its piece id.
 inline const FName PieceSpot(TEXT("piece"));
-inline int32 NextPiece(int32 Channel) { return (Channel + 1) % (int32)BayPage; }
+inline int32 NextPiece(int32 Channel) { return Next(-1, Channel); }
 }
 
 struct FTorqueShedRequest
@@ -426,6 +445,10 @@ public:
 	// Where the engine stand starts (ue_build_shed.py / swaps.json engine_stand: at 560, -40, facing +y).
 	static FTransform StandHome() { return FTransform(FVector(560.0, -40.0, 0.0)); }
 	int32 RadioStation() const { return RadioTuned; }
+	// [tv] The video the TVs' YouTube channel plays (an id, empty: none pasted yet), and when it
+	// started on the shared clock (SharedNow), so everyone's is at the same point.
+	const FString& TvVideo() const { return TvVideoId; }
+	double TvVideoStart() const { return TvVideoAt; }
 	// [tv] The channel wall TV Tv is on (TorqueShedTv::EChannel).
 	int32 TvChannel(int32 Tv) const { return Tv >= 0 && Tv < TorqueShedTv::Tvs ? TvChannels[Tv] : 0; }
 	// The bike lifts (shed_state.gd lifts): one under each bay's paddock stand (its id the bay) and
@@ -649,6 +672,8 @@ private:
 	FTorqueDynoRoom Dyno;
 	bool bRadioOn = false;
 	int32 RadioTuned = 0;
+	FString TvVideoId;   // [tv]
+	double TvVideoAt = 0.0;
 	uint8 TvChannels[TorqueShedTv::Tvs] = {TorqueShedTv::Rider, TorqueShedTv::Rider, TorqueShedTv::Bikes, TorqueShedTv::Bikes, TorqueShedTv::Players};   // [tv]
 	int32 LiftsUp = 0;               // a bit per lift id that's up
 	// [kit]

@@ -17,7 +17,10 @@ public class TorqueShedProto : ModuleRules
 			// The shed radio streams internet radio through the engine's media player (Shed/TorqueShedRadio).
 			"MediaAssets", "AudioMixer",   // AudioMixer: USynthComponent (the shed radio)
 			// Settings > Graphics > Monitor: the game's window moved to a screen.
-			"Slate", "SlateCore" });
+			"Slate", "SlateCore",
+			// The shed TVs' YouTube channel: YouTube's embedded player in the engine's web browser
+			// (CEF), drawn into a texture (Shed/TorqueShedScreens).
+			"WebBrowser", "UMG" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
 		// Shed/ and other subfolders include each other as "Shed/X.h" from the module root.
 		PrivateIncludePaths.Add(ModuleDirectory);

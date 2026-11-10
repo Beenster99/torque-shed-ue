@@ -11,6 +11,7 @@
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorquePaintBayRoom.h"
 #include "Shed/TorqueBoothHooks.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Coop/TorqueLook.h"
@@ -640,6 +641,9 @@ void ATorqueWalker::ReadInput(float Dt)
 	// [tv] Right mouse (R, Square) at a wall TV changes its channel, and does nothing else.
 	const bool bTvClick = bAltRaw && ((Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Tv) || TvPiece() != nullptr);
 	if (bTvClick) NextTvChannel();
+	// [tv] Ctrl+V at a TV: the YouTube link copied puts it on YouTube with that video, for everyone.
+	const bool bAtTv = (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Tv) || TvPiece() != nullptr;
+	if (bAtTv && Just(EKeys::V) && (Down(EKeys::LeftControl) || Down(EKeys::RightControl))) PasteTvVideo();
 	const bool bAltJust = bAltRaw && !bTvClick;
 	const bool bF = KeyJust(ETorqueKey::Use) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
 	const bool bNext = KeyJust(ETorqueKey::NextTool) || Just(EKeys::Gamepad_RightShoulder) || (SonyHit & ESonyButton::R1);
@@ -2386,6 +2390,46 @@ void ATorqueWalker::LetGo(int32 Bay)
 // --- F -------------------------------------------------------------------------------------------
 
 // [tv] The wall TV looked at on to its next channel, for everyone (Torque Shed's tv_channels.gd).
+void ATorqueWalker::PasteTvVideo()
+{
+	UTorqueBuildSubsystem* B = Shed();
+	if (!B) return;
+	FString Clip;
+	FPlatformApplicationMisc::ClipboardPaste(Clip);
+	const FString Id = TorqueShedTv::VideoId(Clip);
+	if (Id.IsEmpty())
+	{
+		Say(TEXT("Copy a YouTube link first (from the browser's address bar or Share), then Ctrl+V at the TV."), false);
+		return;
+	}
+	FTorqueShedRequest V;
+	V.Kind = ETorqueShedAct::TvVideo;
+	V.Text = Id;
+	FString WhyNot;
+	if (!B->Request(V, WhyNot))
+	{
+		Say(WhyNot, false);
+		return;
+	}
+	// The TV looked at goes to YouTube (if it isn't on it already).
+	FTorqueShedRequest R;
+	R.Kind = ETorqueShedAct::TvChannel;
+	R.Colour = TorqueShedTv::YouTube;
+	if (const FTorqueFurniture* Piece = TvPiece())
+	{
+		if (Piece->Channel == TorqueShedTv::YouTube) return;
+		R.Spot = TorqueShedTv::PieceSpot;
+		R.Item = Piece->Id;
+	}
+	else if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv)
+	{
+		if (B->TvChannel(TargetPlace->Index) == TorqueShedTv::YouTube) return;
+		R.Item = TargetPlace->Index;
+	}
+	else return;
+	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+}
+
 void ATorqueWalker::NextTvChannel()
 {
 	UTorqueBuildSubsystem* B = Shed();
@@ -2883,6 +2927,8 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
 				HudLines.Add({FString::Printf(TEXT("Right mouse / Square: change channel (next: %s)"),
 					TorqueShedTv::Name(TorqueShedTv::Next(TargetPlace->Index, B->TvChannel(TargetPlace->Index)))), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Tv && B->TvChannel(TargetPlace->Index) == TorqueShedTv::YouTube)   // [tv]
+				HudLines.Add({TEXT("Ctrl+V: play the YouTube link you've copied"), Prompt, 0.55f});
 			if (TargetPlace->Kind == ETorquePlace::Lift)
 				HudLines.Add({B->LiftUp(TargetPlace->Index) ? TEXT("F / Triangle: lower it") : TEXT("F / Triangle: raise it"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::ShedSwitch)   // [kit]

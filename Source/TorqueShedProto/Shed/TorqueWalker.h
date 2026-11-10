@@ -503,6 +503,7 @@ private:
 	// bAtBike: got on where the bike stands (F at it), else just outside the door (F at the door).
 	void StartRideOut(int32 Bay, bool bAdventure = false, bool bAtBike = false);
 	void NextTvChannel();   // [tv] right mouse at a wall TV
+	void PasteTvVideo();    // [tv] Ctrl+V at a TV: the YouTube link copied
 	bool bRidingOut = false;
 	double RideOutIn = 0.0;
 

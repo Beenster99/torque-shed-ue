@@ -10,6 +10,11 @@
 #include "Coop/TorqueUi.h"
 #include "TorqueBikePawn.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Camera/PlayerCameraManager.h"
+#include "IWebBrowserModule.h"
+#include "SWebBrowser.h"
+#include "Slate/WidgetRenderer.h"
+#include "RenderingThread.h"
 #include "CanvasItem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Canvas.h"
@@ -405,14 +410,40 @@ const TCHAR* TorqueShedTv::Name(int32 Channel)
 	case Rider: return TEXT("Rider cam");
 	case Bikes: return TEXT("Bikes in the shed");
 	case BayPage: return TEXT("This bay's bike");
+	case YouTube: return TEXT("YouTube");
 	default: return TEXT("Off");
 	}
+}
+
+FString TorqueShedTv::VideoId(const FString& Pasted)
+{
+	auto IsIdChar = [](TCHAR Ch) { return FChar::IsAlnum(Ch) || Ch == TEXT('-') || Ch == TEXT('_'); };
+	auto IsId = [&IsIdChar](const FString& S)
+	{
+		if (S.Len() != 11) return false;
+		for (TCHAR Ch : S)
+			if (!IsIdChar(Ch)) return false;
+		return true;
+	};
+	const FString Text = Pasted.TrimStartAndEnd();
+	if (IsId(Text)) return Text;
+	// The id after one of these, up to the next character that can't be in one (?, &, /, #).
+	static const TCHAR* Marks[] = {TEXT("v="), TEXT("youtu.be/"), TEXT("/shorts/"), TEXT("/embed/"), TEXT("/live/")};
+	for (const TCHAR* Mark : Marks)
+	{
+		const int32 At = Text.Find(Mark, ESearchCase::IgnoreCase);
+		if (At == INDEX_NONE) continue;
+		FString Id;
+		for (int32 K = At + FCString::Strlen(Mark); K < Text.Len() && IsIdChar(Text[K]); ++K) Id.AppendChar(Text[K]);
+		if (IsId(Id)) return Id;
+	}
+	return FString();
 }
 
 ATorqueShedScreens::ATorqueShedScreens()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.TickInterval = 0.1f;
+	PrimaryActorTick.TickInterval = 0.0f;   // every frame for the YouTube video; the rest 10 times a second (Tick)
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
 }
 
@@ -492,6 +523,7 @@ void ATorqueShedScreens::BeginPlay()
 
 void ATorqueShedScreens::EndPlay(const EEndPlayReason::Type Reason)
 {
+	StopVideo();
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
 	{
 		B->OnChanged.Remove(ChangedHandle);
@@ -518,6 +550,12 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	UWorld* World = GetWorld();
 	if (!World) return;
+	// [tv] The YouTube video every frame; everything else 10 times a second.
+	VideoTick(DeltaSeconds);
+	SlowDt += DeltaSeconds;
+	if (SlowDt < 0.1f) return;
+	const float Dt = SlowDt;
+	SlowDt = 0.0f;
 	// [tv] A TV turned to another channel (by anyone in the shed) redraws straight away.
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs; ++Tv)
 		if (ShownChannel[Tv] != ChannelOf(Tv)) bDirty = true;
@@ -530,7 +568,7 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	};
 	for (const TPair<int32, int32>& KV : PieceShown)
 		if (KV.Value != PieceChannel(KV.Key)) bDirty = true;
-	Clock -= DeltaSeconds;
+	Clock -= Dt;
 	if (bDirty || Clock <= 0.0f)
 	{
 		Redraw();
@@ -557,7 +595,7 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 		if (Ch == TorqueShedTv::Rider) bSeeRider = true;
 		else bWantPlayers = true;
 	}
-	if (bAnyRider) UpdateRiderCam(DeltaSeconds, bSeeRider);
+	if (bAnyRider) UpdateRiderCam(Dt, bSeeRider);
 	else Filmed = nullptr;
 	if (Filmed.IsValid() != bRiderShown)
 	{
@@ -565,7 +603,7 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 		Redraw();
 		return;
 	}
-	if (bWantPlayers) UpdatePlayerCams(DeltaSeconds);
+	if (bWantPlayers) UpdatePlayerCams(Dt);
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
 		if (Quads[Tv] && Quads[Tv]->WasRecentlyRendered(0.5f) && IsLive(Tv)) DrawPage(Tv, Now);
 	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)
@@ -692,6 +730,14 @@ void ATorqueShedScreens::DrawPiece(int32 Id, int32 Channel, float Now)
 	if (!RT) return;
 	PieceShown.Add(Id, Channel);
 	UStaticMeshComponent* Q = PieceQuads.FindRef(Id);
+	UMaterialInstanceDynamic* PageM = PieceMaterials.FindRef(Id);
+	const bool bVideo = Channel == TorqueShedTv::YouTube && VideoRT && !LoadedVideo.IsEmpty();
+	if (PageM) PageM->SetTextureParameterValue(TEXT("Page"), bVideo ? (UTexture*)VideoRT : (UTexture*)RT);
+	if (bVideo)
+	{
+		if (Q) Q->SetVisibility(true);
+		return;
+	}
 	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())
 	{
 		// No mate out riding: the TV's off, as the wall's.
@@ -710,6 +756,7 @@ void ATorqueShedScreens::DrawPiece(int32 Id, int32 Channel, float Now)
 	{
 		if (Channel == TorqueShedTv::Bikes) DrawBikes(C);
 		else if (Channel == TorqueShedTv::Rider) DrawRider(C, Now);
+		else if (Channel == TorqueShedTv::YouTube) DrawYouTubeCard(C);
 		else DrawPlayers(C, FString());
 	}
 	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
@@ -808,6 +855,15 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 	if (!RT) return;
 	const int32 Channel = Index < TorqueShedTv::Tvs ? ChannelOf(Index) : -1;
 	if (Index < TorqueShedTv::Tvs) ShownChannel[Index] = Channel;
+	// [tv] YouTube: the TV shows the browser's picture itself while a video's on; else its page.
+	UMaterialInstanceDynamic* PageM = PageMaterials.IsValidIndex(Index) ? PageMaterials[Index] : nullptr;
+	const bool bVideo = Channel == TorqueShedTv::YouTube && VideoRT && !LoadedVideo.IsEmpty();
+	if (PageM) PageM->SetTextureParameterValue(TEXT("Page"), bVideo ? (UTexture*)VideoRT : (UTexture*)RT);
+	if (bVideo)
+	{
+		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(true);
+		return;
+	}
 	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())
 	{
 		// No mate out riding: the TV's off.
@@ -844,6 +900,7 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 		else if (Channel == TorqueShedTv::BayPage) DrawBay(C, Index);
 		else if (Channel == TorqueShedTv::Bikes) DrawBikes(C);
 		else if (Channel == TorqueShedTv::Rider) DrawRider(C, Now);
+		else if (Channel == TorqueShedTv::YouTube) DrawYouTubeCard(C);
 		else DrawPlayers(C, FString());
 	}
 	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
@@ -1451,4 +1508,115 @@ void ATorqueShedScreens::DrawDyno(UCanvas* C) const
 			Pen.Text(TX + TW - 140, TY + 96, DeltaText, 16, bBetter ? Good() : Bad(), 128.0f, 1);
 		}
 	}
+}
+
+// --- [tv] YouTube --------------------------------------------------------------------------------
+
+namespace TSSI
+{
+// The page the browser opens: YouTube's own embedded player (the IFrame API), the video at its
+// shared point, filling the TV. Loaded as a page of our own address (LoadString), so the player has
+// a page it's embedded in, as YouTube wants.
+FString VideoPage(const FString& Id, int32 StartSeconds)
+{
+	FString Html = TEXT("<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}")
+		TEXT("#p{position:absolute;left:0;top:0;width:100%;height:100%}#e{color:#ddd;font:30px sans-serif;position:absolute;inset:0;display:flex;")
+		TEXT("align-items:center;justify-content:center;text-align:center}</style></head><body><div id='p'></div>")
+		TEXT("<script>var player=null;function onYouTubeIframeAPIReady(){player=new YT.Player('p',{width:'100%',height:'100%',videoId:'{ID}',")
+		TEXT("playerVars:{autoplay:1,start:{START},controls:0,rel:0,playsinline:1,iv_load_policy:3,disablekb:1},")
+		TEXT("events:{onReady:function(e){e.target.setVolume(80);e.target.playVideo();},onError:function(e){document.body.innerHTML=")
+		TEXT("\"<div id='e'>This video won't play outside YouTube (error \"+e.data+\").<br>Copy another link and press Ctrl+V at the TV.</div>\";}}});}")
+		TEXT("</script><script src='https://www.youtube.com/iframe_api'></script></body></html>");
+	Html.ReplaceInline(TEXT("{ID}"), *Id);
+	Html.ReplaceInline(TEXT("{START}"), *FString::FromInt(FMath::Max(0, StartSeconds)));
+	return Html;
+}
+}
+
+void ATorqueShedScreens::VideoTick(float Dt)
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	UWorld* World = GetWorld();
+	// Where the TVs on YouTube are (for how loud it is where you stand).
+	TArray<FVector> On;
+	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
+		if (Quads[Tv] && ChannelOf(Tv) == TorqueShedTv::YouTube) On.Add(Quads[Tv]->Bounds.Origin);
+	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)
+	{
+		const FTorqueFurniture* F = B ? B->FurnitureById(KV.Key) : nullptr;
+		if (F && KV.Value && F->Channel == TorqueShedTv::YouTube) On.Add(KV.Value->Bounds.Origin);
+	}
+	const FString Id = B ? B->TvVideo() : FString();
+	if (On.Num() == 0 || Id.IsEmpty() || !World)
+	{
+		if (Browser.IsValid()) StopVideo();
+		return;
+	}
+	if (!Browser.IsValid())
+	{
+		if (!IWebBrowserModule::Get().IsWebModuleAvailable())
+		{
+			if (!bVideoWarned) UE_LOG(LogTemp, Warning, TEXT("Torque TV: the web browser (CEF) isn't available: no YouTube"));
+			bVideoWarned = true;
+			return;
+		}
+		Browser = SNew(SWebBrowser)
+			.InitialURL(TEXT("about:blank"))
+			.ShowControls(false)
+			.ShowAddressBar(false)
+			.ShowErrorMessage(false)
+			.SupportsTransparency(false)
+			.BackgroundColor(FColor::Black)
+			.BrowserFrameRate(30)
+			.ViewportSize(FVector2D(VideoW, VideoH));
+		VideoRenderer = new FWidgetRenderer(true);
+		VideoRT = FWidgetRenderer::CreateTargetFor(FVector2D(VideoW, VideoH), TF_Bilinear, true);
+		LoadedVideo.Reset();
+	}
+	// A new video (or the same one started again): open it at the shared point.
+	if (LoadedVideo != Id || LoadedAt != B->TvVideoStart())
+	{
+		LoadedVideo = Id;
+		LoadedAt = B->TvVideoStart();
+		const int32 Start = FMath::FloorToInt32(FMath::Max(0.0, B->SharedNow() - LoadedAt));
+		Browser->LoadString(TSSI::VideoPage(Id, Start), TEXT("https://torqueshed.game/tv"));
+		VolumeIn = 1.0f;
+		bDirty = true;   // the TVs on YouTube swap their page for the picture
+		UE_LOG(LogTemp, Log, TEXT("Torque TV: YouTube %s from %d s"), *Id, Start);
+	}
+	if (VideoRenderer && VideoRT) VideoRenderer->DrawWidget(VideoRT, Browser.ToSharedRef(), FVector2D(VideoW, VideoH), Dt);
+	// Louder the nearer you are to a TV that's on it: full within 3 m, gone past 25 m.
+	VolumeIn -= Dt;
+	if (VolumeIn <= 0.0f)
+	{
+		VolumeIn = 0.5f;
+		const APlayerController* PC = World->GetFirstPlayerController();
+		const FVector Ear = PC && PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraLocation() : FVector::ZeroVector;
+		double Near = TNumericLimits<double>::Max();
+		for (const FVector& P : On) Near = FMath::Min(Near, FVector::Dist(P, Ear));
+		const int32 Vol = FMath::RoundToInt32(80.0 * FMath::Clamp(1.0 - (Near - 300.0) / 2200.0, 0.0, 1.0));
+		Browser->ExecuteJavascript(FString::Printf(TEXT("if(player&&player.setVolume){player.setVolume(%d);}"), Vol));
+	}
+}
+
+void ATorqueShedScreens::StopVideo()
+{
+	Browser.Reset();
+	if (VideoRenderer)
+	{
+		BeginCleanup(VideoRenderer);
+		VideoRenderer = nullptr;
+	}
+	if (!LoadedVideo.IsEmpty()) bDirty = true;
+	LoadedVideo.Reset();
+}
+
+void ATorqueShedScreens::DrawYouTubeCard(UCanvas* C) const
+{
+	// No video yet (or the browser's still starting): how to put one on.
+	const float W = (float)PageW, H = (float)PageH;
+	TorqueUi::Rect(C, W * 0.5f - 60.0f, H * 0.5f - 120.0f, 120.0f, 84.0f, FLinearColor(0.8f, 0.05f, 0.05f, 1.0f));
+	TorqueUi::Text(C, TEXT(">"), W * 0.5f, H * 0.5f - 112.0f, 60.0f, FLinearColor::White, true, TorqueUi::EAlign::Centre, false);
+	TorqueUi::Text(C, TEXT("YouTube"), W * 0.5f, H * 0.5f - 10.0f, 44.0f, TorqueUi::Ink, true, TorqueUi::EAlign::Centre);
+	TorqueUi::Text(C, TEXT("Copy a YouTube link, look at this TV and press Ctrl+V"), W * 0.5f, H * 0.5f + 60.0f, 24.0f, TorqueUi::Dim, false, TorqueUi::EAlign::Centre);
 }

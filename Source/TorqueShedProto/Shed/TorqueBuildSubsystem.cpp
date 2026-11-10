@@ -347,6 +347,8 @@ void UTorqueBuildSubsystem::StartFresh()
 	bRadioOn = false;
 	RadioTuned = 0;
 	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) TvChannels[T] = TorqueShedTv::Default[T];   // [tv]
+	TvVideoId.Reset();
+	TvVideoAt = 0.0;
 	LiftsUp = 0;
 	bShedLights = true;   // [kit]
 	bDoorUp = true;
@@ -400,6 +402,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.RadioStation = RadioTuned;
 	S.TvChannels.Reset();   // [tv]
 	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) S.TvChannels.Add(TvChannels[T]);
+	S.TvVideo = TvVideoId;
 	S.LiftsUp = LiftsUp;
 	S.bShedLights = bShedLights;   // [kit]
 	S.bDoorUp = bDoorUp;
@@ -512,6 +515,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	RadioTuned = FMath::Clamp(S.RadioStation, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
 	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)   // [tv]
 		TvChannels[T] = S.TvChannels.IsValidIndex(T) && TorqueShedTv::Valid(T, S.TvChannels[T]) ? S.TvChannels[T] : TorqueShedTv::Default[T];
+	TvVideoId = TorqueShedTv::VideoId(S.TvVideo);
+	TvVideoAt = SharedNow();
 	LiftsUp = 0;
 	for (int32 L = 0; L < 31; ++L)
 		if (IsLift(L) && (S.LiftsUp & (1 << L)) != 0) LiftsUp |= 1 << L;
@@ -655,7 +660,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 21;   // bumped when the layout below changes (21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 22;   // bumped when the layout below changes (22: the TVs' YouTube video, 21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -903,6 +908,9 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 			Tv[T] = TvChannels[T];
 			Ar << Tv[T];
 		}
+		FString Video = TvVideoId;
+		double VideoAt = TvVideoAt;
+		Ar << Video << VideoAt;
 	}
 
 	Out.Reset();
@@ -1110,6 +1118,9 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 		TvIn[T] = TorqueShedTv::Default[T];
 		Ar << TvIn[T];
 	}
+	FString VideoIn;
+	double VideoAtIn = 0.0;
+	Ar << VideoIn << VideoAtIn;
 	if (Ar.IsError() || !bPaintRead || !FMath::IsFinite(PumpLitresIn))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
@@ -1127,6 +1138,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	bRadioOn = bRadioB != 0;
 	RadioTuned = FMath::Clamp(RadioIn, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
 	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) TvChannels[T] = TorqueShedTv::Valid(T, TvIn[T]) ? TvIn[T] : TorqueShedTv::Default[T];   // [tv]
+	TvVideoId = TorqueShedTv::VideoId(VideoIn);
+	TvVideoAt = VideoAtIn;
 	LiftsUp = LiftsIn;
 	bShedLights = bLightsB != 0;   // [kit]
 	bDoorUp = bDoorB != 0;
@@ -2739,6 +2752,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		const FTorqueItem* It = Items.Find(R.Item);
 		return It && It->Tape != 0 ? FString() : FString(TEXT("There's no tape on it."));
 	}
+	case ETorqueShedAct::TvVideo:   // [tv]
+		return R.Text.IsEmpty() || !TorqueShedTv::VideoId(R.Text).IsEmpty() ? FString() : FString(TEXT("That's not a YouTube link."));
 	case ETorqueShedAct::TvChannel:   // [tv]
 		if (R.Spot == TorqueShedTv::PieceSpot)
 		{
@@ -2746,7 +2761,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 			const FTorqueFurniture* F = FurnitureById(R.Item);
 			const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
 			if (!M || !TorqueFurniture::IsTv(*M)) return TEXT("That's not a TV.");
-			return R.Colour >= 0 && R.Colour < TorqueShedTv::BayPage ? FString() : FString(TEXT("No such channel."));
+			return TorqueShedTv::Has(-1, R.Colour) ? FString() : FString(TEXT("No such channel."));
 		}
 		return TorqueShedTv::Valid(R.Item, R.Colour) ? FString() : FString(TEXT("No such channel."));
 	case ETorqueShedAct::Radio:
@@ -3369,6 +3384,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Touch(R.Item);
 		break;
 	}
+	case ETorqueShedAct::TvVideo:   // [tv]
+		TvVideoId = TorqueShedTv::VideoId(R.Text);
+		TvVideoAt = SharedNow();
+		MarkSave();
+		Text = TvVideoId.IsEmpty() ? FString(TEXT("YouTube: off")) : FString(TEXT("YouTube: playing the pasted video"));
+		break;
 	case ETorqueShedAct::TvChannel:   // [tv]
 		if (R.Spot == TorqueShedTv::PieceSpot)
 		{
