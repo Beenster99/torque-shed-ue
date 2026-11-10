@@ -118,6 +118,8 @@
 //                         e.g. camera:3:60:35:40:-20:rhand, the right hand on its grip from below
 //   lever:clutch|brake[:<pull>]  on the road: hold that lever, the rider's fingers over it, pulled 0..1 (1);
 //                         lever:off lets both go back to the riding
+//   stop                  on the road: brakes on, the robot steering, until the bike stands still (up to 40 s),
+//                         then the robot's off; before foot:off after robot:on, which only stops the steering
 //   foot:off|on|walk:<cm> on the road: get off (as F, stopped; the bike on its stand, the engine left as it was),
 //                         back on (as F by the bike), or walk that far ahead on foot; logs where the bike stands
 //   gear:up|down, ignition, clutch:1|0, bikestate   on the road: a click of the gear lever (the box goes
@@ -173,6 +175,7 @@ private:
 	int32 Next = 0;
 	int32 TestBay = 0;
 	int32 Tries = 0;
+	int32 StopTries = 0;   // a stop step's seconds waited
 	bool bMoveStarted = false;   // a brakestop or lean step has started its manoeuvre and is waiting for it
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
 	// [outline test] 'outlinecheck': the screen read with the look outline on, then off.

@@ -578,7 +578,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
-		Verb == TEXT("ridepos"))
+		Verb == TEXT("ridepos") || Verb == TEXT("stop"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -597,6 +597,26 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			if (P.Num() >= 3) Said(Bike->TestPlaceAt(FCString::Atod(*P[1]), FCString::Atod(*P[2]), P.Num() > 3 ? FCString::Atod(*P[3]) : -90.0));
 			else Said(Bike->TestPlaceAt(0.0, 0.0, 0.0, false));
+			return true;
+		}
+		// stop: brakes on (the robot still steering along the road) until the bike stands still, up to
+		// 40 s; then the robot's off and the brakes stay on, ready for foot:off.
+		if (Verb == TEXT("stop"))
+		{
+			if (!bMoveStarted)
+			{
+				Bike->TestStop(true);
+				bMoveStarted = true;
+				StopTries = 0;
+				Said(FString::Printf(TEXT("braking to a stop from %.1f mph"), Bike->TestSpeedMph()));
+				return false;
+			}
+			const double Mph = Bike->TestSpeedMph();
+			if (Mph > 0.5 && ++StopTries < 40) return false;
+			bMoveStarted = false;
+			Bike->TestStop(false);
+			if (Mph > 0.5) Warn(FString::Printf(TEXT("stop: still rolling at %.1f mph after 40 s"), Mph));
+			else Said(FString::Printf(TEXT("stopped (%.1f mph), the robot's off"), Mph));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.

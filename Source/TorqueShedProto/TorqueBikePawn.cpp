@@ -1178,6 +1178,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Throttle = FMath::Clamp(Gap * 0.4, 0.0, 1.0);
 		FrontBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.8);
 		RearBrake = FrontBrake * 0.5;
+		if (bTestStopping)
+		{
+			Throttle = 0.0;
+			FrontBrake = 0.8;
+			RearBrake = 0.4;
+		}
 		Shift = 0.0;
 		bManual = false;
 		return;
@@ -1819,6 +1825,8 @@ void ATorqueBikePawn::FollowPusher()
 	ParkHeading = std::atan2(-Ahead.X, -Ahead.Y);   // (sim: x east = UE X, z south = UE Y)
 	ParkLean = ParkLift = 0.0;
 }
+
+double ATorqueBikePawn::TestSpeedMph() const { return FMath::Abs(Sim->Speed) * 2.23694; }
 
 FString ATorqueBikePawn::TestFoot(const FString& What)
 {
