@@ -217,10 +217,18 @@ def weather_mpc():
             folder, name = WEATHER_MPC.rsplit("/", 1)
             mpc = asset_tools.create_asset(name, folder, unreal.MaterialParameterCollection,
                                            unreal.MaterialParameterCollectionFactoryNew())
+        # Keep the parameters already there (their ids): materials find a parameter by its id, so
+        # remaking them all with new ids broke every material built against the old ones in another
+        # map (the shed's dale: "CollectionParameter has invalid parameter None").
+        have = {}
+        for p in mpc.get_editor_property("scalar_parameters") or []:
+            have[str(p.get_editor_property("parameter_name"))] = p
         params = []
         for name, default in WEATHER_PARAMS:
-            p = unreal.CollectionScalarParameter()
-            p.set_editor_property("parameter_name", name)
+            p = have.get(name)
+            if p is None:
+                p = unreal.CollectionScalarParameter()
+                p.set_editor_property("parameter_name", name)
             p.set_editor_property("default_value", default)
             params.append(p)
         mpc.set_editor_property("scalar_parameters", params)

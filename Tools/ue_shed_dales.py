@@ -70,6 +70,33 @@ def nanite_usage(L, m):
     unreal.EditorAssetLibrary.save_loaded_asset(m)
 
 
+def tree_meshes(folder, names):
+    """The ride's tree meshes by their glb names. The importer doesn't always name the asset after the
+    file (it can put it in a subfolder, or give it a prefix), so look through the folder as
+    ue_build_level.import_glbs does: an exact name first, else the shortest name that ends with it,
+    else the shortest that contains it."""
+    paths = unreal.EditorAssetLibrary.list_assets(folder, recursive=True, include_folder=False)
+    by = {}
+    for p in paths:
+        base = str(p).rsplit("/", 1)[-1].split(".")[0]
+        by.setdefault(base, []).append(str(p))
+    out = {}
+    for name in names:
+        cands = by.get(name) or sorted((p for b, ps in by.items() if b.endswith(name) for p in ps), key=len) \
+            or sorted((p for b, ps in by.items() if name in b and ("Far" in b) == ("Far" in name)
+                       and not b[b.index(name) + len(name):][:1].isdigit() for p in ps), key=len)
+        for p in cands:
+            a = unreal.load_asset(p)
+            if isinstance(a, unreal.StaticMesh):
+                out[name] = a
+                break
+    log("tree models: %d of %d found under %s (%d assets there)" % (len(out), len(names), folder, len(paths)))
+    if len(out) < len(names):
+        log("not found: %s; some there: %s" % (", ".join(n for n in names if n not in out)[:300],
+                                               ", ".join(sorted(by)[:12])))
+    return out
+
+
 def place(tarmac):
     """Build it all into the open level. tarmac: the shed's lane material, for the lane."""
     folder = data_dir()
@@ -100,7 +127,17 @@ def place(tarmac):
     probe = spec.get("frame_probe", "land_f_00_00")
     if probe not in meshes:
         raise RuntimeError("the dale's land didn't import (no %s); see the Output Log" % probe)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
     for name, mesh in meshes.items():
+        # Distance fields (Lumen's) for kilometre-wide tiles are big and buy little out there: a
+        # coarse one near the pad, none further off.
+        try:
+            bs = sme.get_lod_build_settings(mesh, 0)
+            bs.set_editor_property("distance_field_resolution_scale",
+                                   0.5 if name.startswith("land_n") else 0.0 if name.startswith("land_") else 1.0)
+            sme.set_lod_build_settings(mesh, 0, bs)
+        except Exception as e:
+            unreal.log_warning("[Torque] dales: %s distance field left as it was (%s)" % (name, e))
         if name.startswith("land_"):
             L.nanite_on(mesh)
         else:
@@ -137,9 +174,9 @@ def place(tarmac):
     # Trees: the ride's models.
     tspec = json.load(open(os.path.join(folder, "trees.json")))
     n = missing = 0
+    found = tree_meshes(L.TREE_DEST, list(tspec["instances"]))
     for name, rows in sorted(tspec["instances"].items()):
-        path = "%s/%s" % (L.TREE_DEST, name)
-        mesh = unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
+        mesh = found.get(name)
         if not isinstance(mesh, unreal.StaticMesh):
             missing += len(rows)
             continue
