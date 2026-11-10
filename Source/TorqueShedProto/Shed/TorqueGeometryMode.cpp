@@ -10,6 +10,8 @@
 #include "Shed/TorqueShedPick.h"
 #include "Shed/TorqueWalker.h"
 #include "SonyPad.h"
+#include "CanvasItem.h"
+#include "RenderUtils.h"
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Canvas.h"
@@ -1167,6 +1169,47 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 				Seg(Base - Ax[A] * Half, Base + Ax[A] * Half, 2.0f, Col);
 			}
 		};
+		// A solid little box, as Torque Shed's BoxMesh handles: its six faces filled, far ones first, shaded by
+		// axis so it reads as a box, then its edges outlined.
+		auto SolidBox = [&](const TGMI::GV3& At, const TGMI::GV3 Ax[3], double Half, const FLinearColor& Col) {
+			struct FBoxFace { double Dist = 0.0; FVector2D Pt[4]; float Shade = 1.0f; };
+			TArray<FBoxFace> BoxFaces;
+			for (int32 Fa = 0; Fa < 3; ++Fa)
+				for (int32 Sgn = -1; Sgn <= 1; Sgn += 2)
+				{
+					const int32 Fb = (Fa + 1) % 3, Fc = (Fa + 2) % 3;
+					const TGMI::GV3 Mid = At + Ax[Fa] * (Sgn * Half);
+					const TGMI::GV3 Corners[4] = {Mid - Ax[Fb] * Half - Ax[Fc] * Half, Mid + Ax[Fb] * Half - Ax[Fc] * Half,
+						Mid + Ax[Fb] * Half + Ax[Fc] * Half, Mid - Ax[Fb] * Half + Ax[Fc] * Half};
+					FBoxFace Face;
+					bool bOnScreen = true;
+					for (int32 K = 0; K < 4; ++K) bOnScreen = Scr(Corners[K], Face.Pt[K]) && bOnScreen;
+					if (!bOnScreen) continue;
+					Face.Dist = FVector::Dist(World(Mid), Eye);
+					Face.Shade = Fa == 0 ? 1.0f : (Fa == 1 ? 0.82f : 0.66f);
+					BoxFaces.Add(Face);
+				}
+			BoxFaces.Sort([](const FBoxFace& L, const FBoxFace& R) { return L.Dist > R.Dist; });
+			TArray<FCanvasUVTri> BoxTris;
+			for (const FBoxFace& Face : BoxFaces)
+			{
+				const FLinearColor Fill(Col.R * Face.Shade, Col.G * Face.Shade, Col.B * Face.Shade, 1.0f);
+				FCanvasUVTri T0, T1;
+				T0.V0_Pos = Face.Pt[0]; T0.V1_Pos = Face.Pt[1]; T0.V2_Pos = Face.Pt[2];
+				T1.V0_Pos = Face.Pt[0]; T1.V1_Pos = Face.Pt[2]; T1.V2_Pos = Face.Pt[3];
+				T0.V0_Color = T0.V1_Color = T0.V2_Color = Fill;
+				T1.V0_Color = T1.V1_Color = T1.V2_Color = Fill;
+				BoxTris.Add(T0);
+				BoxTris.Add(T1);
+			}
+			if (BoxTris.Num() > 0)
+			{
+				FCanvasTriangleItem Item(BoxTris, GWhiteTexture);
+				Item.BlendMode = SE_BLEND_Opaque;
+				Canvas->DrawItem(Item);
+			}
+			Cube(At, Ax, Half, FLinearColor(Col.R * 0.45f, Col.G * 0.45f, Col.B * 0.45f, 1.0f));
+		};
 		const int32 LitH = S.bDrag ? S.DragH : S.Hover;
 		for (int32 A = 0; A < 3; ++A)
 		{
@@ -1180,14 +1223,10 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 			{
 			case TorqueFit::GeoHandle::Move:
 			{
-				// An arrow along the axis: the shaft, and a cone at its tip.
-				Seg(Cg, Cg + Dir * (TGMI::Arm * 0.8 * Size), 3.0f, Col);
-				const TGMI::GV3 Tip = Cg + Dir * (TGMI::Arm * Size), Base = Cg + Dir * (TGMI::Arm * 0.78 * Size);
-				for (int32 K = 0; K < 10; ++K)
-				{
-					const double T = 2.0 * PI * K / 10.0;
-					Seg(Base + (Side * std::cos(T) + Side2 * std::sin(T)) * (0.07 * Size), Tip, 2.0f, Col);
-				}
+				// A shaft along the axis with a little box on its end (beenster: boxes, not arrow heads).
+				Seg(Cg, Cg + Dir * (TGMI::Arm * 0.85 * Size), 3.0f, Col);
+				const TGMI::GV3 BoxAx[3] = {Dir, Side, Side2};
+				SolidBox(Cg + Dir * (TGMI::Arm * 0.9 * Size), BoxAx, 0.065 * Size, Col);
 				break;
 			}
 			case TorqueFit::GeoHandle::Rotate:
@@ -1207,8 +1246,8 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 				// A stalk with a box on its end, along the part's own (turned) axis.
 				const TGMI::GV3 Ax[3] = {TorqueFit::Geo::PartAxis(O, 0), TorqueFit::Geo::PartAxis(O, 1), TorqueFit::Geo::PartAxis(O, 2)};
 				Seg(Cg, Cg + Ax[A] * (TGMI::Arm * 0.85 * Size), 2.5f, Col);
-				Cube(Cg + Ax[A] * (TGMI::Arm * 0.9 * Size), Ax, 0.065 * Size, Col);
-				if (A == 2) Cube(Cg, Ax, 0.08 * Size, LitH == TorqueFit::Geo::Uniform ? TGMI::HoverColour : TGMI::MiddleColour);
+				SolidBox(Cg + Ax[A] * (TGMI::Arm * 0.9 * Size), Ax, 0.065 * Size, Col);
+				if (A == 2) SolidBox(Cg, Ax, 0.08 * Size, LitH == TorqueFit::Geo::Uniform ? TGMI::HoverColour : TGMI::MiddleColour);
 				break;
 			}
 			}
