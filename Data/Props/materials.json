@@ -1257,6 +1257,81 @@
    "rough": 0.6,
    "metal": 0.0,
    "tile": 1.0
+  },
+  "pump_white": {
+   "base": "plain",
+   "tint": [
+    0.78,
+    0.79,
+    0.8
+   ],
+   "rough": 0.24,
+   "metal": 0.0,
+   "tile": 1.0
+  },
+  "pump_grey": {
+   "base": "plain",
+   "tint": [
+    0.09,
+    0.095,
+    0.1
+   ],
+   "rough": 0.38,
+   "metal": 0.2,
+   "tile": 1.0
+  },
+  "pump_green": {
+   "base": "plain",
+   "tint": [
+    0.02,
+    0.3,
+    0.09
+   ],
+   "rough": 0.28,
+   "metal": 0.0,
+   "tile": 1.0
+  },
+  "pump_steel": {
+   "base": "brushed",
+   "tint": [
+    0.64,
+    0.65,
+    0.66
+   ],
+   "rough": 0.3,
+   "metal": 1.0,
+   "tile": 2.0
+  },
+  "pump_chrome": {
+   "base": "plain",
+   "tint": [
+    0.85,
+    0.85,
+    0.86
+   ],
+   "rough": 0.1,
+   "metal": 1.0,
+   "tile": 1.0
+  },
+  "pump_lcd": {
+   "base": "emissive",
+   "tint": [
+    0.62,
+    0.7,
+    0.6
+   ],
+   "rough": 0.15,
+   "emissive": 0.8
+  },
+  "pump_header": {
+   "base": "emissive",
+   "tint": [
+    0.92,
+    0.94,
+    0.96
+   ],
+   "rough": 0.2,
+   "emissive": 1.6
   }
  }
 }

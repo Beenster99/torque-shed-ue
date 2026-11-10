@@ -153,13 +153,14 @@ FTransform UTorqueBuildSubsystem::PumpAt()
 
 FVector UTorqueBuildSubsystem::PumpHoseRoot()
 {
-	// Out of the bottom of the cabinet, on its left (petrol_pump's case runs 60 .. 150 cm up).
-	return PumpAt().TransformPosition(FVector(-15.0, 15.0, 60.0));
+	// The swivel high on the dispenser's right side (Tools/props/make_props.py petrol_pump HoseSwivel).
+	return PumpAt().TransformPosition(FVector(29.5, 22.0, 145.0));
 }
 
 FVector UTorqueBuildSubsystem::PumpHolster()
 {
-	return PumpAt().TransformPosition(FVector(28.0, 17.0, 100.0));
+	// The nozzle boot on the right of the head (petrol_pump Boot).
+	return PumpAt().TransformPosition(FVector(29.5, 25.0, 99.0));
 }
 
 FVector UTorqueBuildSubsystem::FillerOf(int32 Bay) const
@@ -449,7 +450,7 @@ FString UTorqueBuildSubsystem::ApplyFluid(int32 Peer, const FTorqueShedRequest& 
 			// A new sale: the display goes back to nought.
 			PumpBy = Peer;
 			PumpLitres = 0.0f;
-			return TEXT("Lifted the nozzle off the pump. Hold the work button on a bike's tank to fill it.");
+			return TEXT("Lifted the nozzle off the pump. Hold right mouse on a bike's tank to fill it.");
 		}
 		PumpBy = 0;
 		return PumpLitres < 0.05f ? FString(TEXT("Hung the nozzle back on the pump."))

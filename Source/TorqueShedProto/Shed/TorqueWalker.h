@@ -84,6 +84,8 @@ public:
 	// bar, the spray swatches and what you're carrying.
 	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
 	float WorkFraction() const;
+	// [fluids] Pumping petrol (no work ring: the squirts go round and round; the pump dings when full).
+	bool PumpFilling() const;
 	int32 ToolIndex() const { return (int32)Tool; }
 	// Where the tool in hand sits on the tool bar (TorqueToolBar), or -1.
 	int32 ToolSlot() const;
@@ -518,13 +520,14 @@ private:
 	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
 	// (TorqueWalkerKit.cpp): true when F went to one of them.
 	bool KitInput(float Dt, bool bF, bool bFDown);
-	// [fluids] (TorqueWalkerFluids.cpp) The petrol pump: F at it lifts the nozzle, F anywhere hangs it
-	// back (and walking off further than the hose goes pulls it out of your hand); with it in your
-	// hand the work button fills the bike you're at (PumpPlan). A can or bottle of fluid in your hands:
+	// [fluids] (TorqueWalkerFluids.cpp) The petrol pump, on right mouse (R, Square): at it, lifts the
+	// nozzle; away from a bike, hangs it back (and walking off further than the hose goes pulls it
+	// out of your hand); with it in your hand, holding it fills the bike you're at (PumpPlan).
+	// A can or bottle of fluid in your hands:
 	// the work button pours it into the tank, engine or brake looked at, the other button drains into
 	// it, it lubes a chain, and at the general waste it's tipped away (FluidPlan: false when it has no
 	// fluid job here, so it's put down like any part).
-	bool FluidInput(bool bF);
+	bool FluidInput(bool bRight);
 	void PumpPlan();
 	bool FluidPlan(int32 Held);
 	// [furniture] The movable shed and yard kit (TorqueWalkerFurniture.cpp): the piece looked at (it

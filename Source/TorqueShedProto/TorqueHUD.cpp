@@ -306,7 +306,7 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 	const FLinearColor Dot = Walker->HasTarget() ? Accent : FLinearColor(1, 1, 1, 0.8f);
 	DrawRect(Dot, CX - 0.5f * D, CY - 0.5f * D, D, D);
 	// The work ring: how far through the job you are, from the top round clockwise.
-	const float Done = Walker->WorkFraction();
+	const float Done = Walker->PumpFilling() ? 0.0f : Walker->WorkFraction();   // [fluids] no ring pumping petrol
 	if (Done > 0.0f)
 	{
 		const float R = 18.0f * S, Width = 5.0f * S;
