@@ -374,7 +374,7 @@ private:
 	bool GetOff();
 	bool GetOn();
 	void HoldParked();
-	void StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY);
+	void StepFoot(APlayerController* PC, double Dt, double MoveX, double MoveY, double PadLookX = 0.0, double PadLookY = 0.0, bool bPadRun = false);
 	void PoseStands(int32 Stand);
 	// Wheeling it on foot (hold F by it): it follows alongside, upright, the stand up; F lets go.
 	bool bPushing = false, bUseArmed = false;
