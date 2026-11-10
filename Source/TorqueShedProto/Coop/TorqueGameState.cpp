@@ -890,7 +890,7 @@ void ATorqueGameState::ApplyWeather()
 		bCaptured = true;
 		if (Sun) { SunLux = Sun->Intensity; SunAngle = Sun->LightSourceAngle; }
 		if (Sky) SkyIntensity = Sky->Intensity;
-		if (Fog) FogDensity = Fog->FogDensity;
+		if (Fog) { FogDensity = Fog->FogDensity; FogInscatter = Fog->FogInscatteringLuminance; FogSunInscatter = Fog->DirectionalInscatteringLuminance; }
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
 		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; }
 	}
@@ -915,7 +915,16 @@ void ATorqueGameState::ApplyWeather()
 		// (and at night, by as much again: dark, but you can see the road in your lights).
 		Ppv->Settings.AutoExposureMinBrightness = ExposureMin - 3.0f * Dull - 5.0f * (1.0f - DayLight);
 	}
-	if (Fog) Fog->SetFogDensity(FogDensity * FMath::Lerp(1.0f, FMath::Lerp(2.0f, 3.0f, WetL), Dull) * Haze);
+	if (Fog)
+	{
+		Fog->SetFogDensity(FogDensity * FMath::Lerp(1.0f, FMath::Lerp(2.0f, 3.0f, WetL), Dull) * Haze);
+		// The haze's own glow is a fixed colour (the level's daylight grey): it has to go down with the
+		// sun, or at night (exposure opened five stops) the far hills glow flat grey against a black sky
+		// (beenster, Nov 10). A trace of it stays for moonlight and the glow of distant towns.
+		const float Glow = FMath::Lerp(0.006f, 1.0f, DayLight);
+		Fog->SetFogInscatteringColor(FogInscatter * Glow);
+		Fog->SetDirectionalInscatteringColor(FogSunInscatter * DayLight);
+	}
 	if (Atmo)
 	{
 		// A white-grey British overcast: almost no Rayleigh (the blue), thick Mie (the white haze).
