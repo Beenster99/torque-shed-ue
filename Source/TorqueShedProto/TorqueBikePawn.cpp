@@ -2994,7 +2994,19 @@ void ATorqueBikePawn::StartSound()
 	// Torque Shed's start: the starter motor cranks it over (Simon's recordings), or it's kicked
 	// over (made for the engine), then it catches.
 	UTorqueSfx* Sfx = UTorqueSfx::Get(this);
-	if (Sfx && Engine && Engine->Spec.Kick)
+	// beenster: a ride starts with the engine off; LB + RB held (or I) starts it. Test runs keep the
+	// old start-on-arrival so their rides go as before.
+	static const bool bTestStart = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) ||
+		FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide")) || FCString::Strifind(FCommandLine::Get(), TEXT("TorqueShedAction=")) != nullptr;
+	if (!bTestStart)
+	{
+		SoundAudio->Play();
+		Sim->StopEngine();
+		bEngineWas = false;
+		EngineNote = TEXT("Engine off: hold LB + RB (or press I) to start it");
+		EngineNoteFor = 5.0;
+	}
+	else if (Sfx && Engine && Engine->Spec.Kick)
 	{
 		Sfx->PlayMadeOn(TorqueEngine::RenderStarter(Engine->Spec, true, 1.0, FMath::RandRange(1, 3)), TorqueEngine::Rate, Root, FVector(0.0, 0.0, 45.0));
 		EngineCatchIn = 0.5;
@@ -3295,19 +3307,19 @@ void ATorqueBikePawn::DrawHud()
 	if (bShowHelp)
 	{
 		const FColor Help(200, 200, 200);
-		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.85f);
-		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.85f);
-		Add(TEXT("      R1 camera   L1 + R1 held: start   Triangle get off (stopped) / back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.85f);
+		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.62f);
+		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.62f);
+		Add(TEXT("      R1 camera   L1 + R1 held: start   Triangle get off (stopped) / back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.62f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),
 			*K(ETorqueKey::Throttle), *K(ETorqueKey::FrontBrake), *K(ETorqueKey::RearBrake), *K(ETorqueKey::LeanLeft), *K(ETorqueKey::LeanRight),
-			*K(ETorqueKey::WeightBack), *K(ETorqueKey::WeightForward), *K(ETorqueKey::ShiftUp), *K(ETorqueKey::ShiftDown), *K(ETorqueKey::AutoShift)), Help, 0.85f);
+			*K(ETorqueKey::WeightBack), *K(ETorqueKey::WeightForward), *K(ETorqueKey::ShiftUp), *K(ETorqueKey::ShiftDown), *K(ETorqueKey::AutoShift)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
 			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
-			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.85f);
+			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
-			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.85f);
+			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.62f);
 	}
 }
 

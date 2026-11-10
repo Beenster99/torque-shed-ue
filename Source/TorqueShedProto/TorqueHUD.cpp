@@ -114,7 +114,7 @@ void ATorqueHUD::DrawHUD()
 		const float W = (float)TorqueUi::Measure(L.Text, Px, bBig).X, H = Px * 1.2f;
 		TorqueUi::Rect(Canvas, X - 12.0f * S, Y - 5.0f * S, W + 24.0f * S, H + 10.0f * S, FLinearColor(0.035f, 0.04f, 0.045f, 0.62f));
 		TorqueUi::Text(Canvas, L.Text, X, Y, Px, FLinearColor(L.Colour), bBig);
-		Y += H + 14.0f * S;
+		Y += H + (L.Size < 0.8f ? 7.0f : 14.0f) * S;   // the small help lines sit closer together
 	}
 }
 
