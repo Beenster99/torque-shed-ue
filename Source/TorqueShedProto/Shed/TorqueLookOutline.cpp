@@ -132,7 +132,8 @@ FString FTorqueLookOutline::Status(bool& bOk) const
 	if (!P) Bad.Add(TEXT("no outline post-process on the walker"));
 	else
 	{
-		if (P->BlendWeight < 0.99f || !P->bUnbound || !P->IsActive()) Bad.Add(FString::Printf(TEXT("post-process weight %.2f, unbound %d, active %d"), P->BlendWeight, P->bUnbound, P->IsActive()));
+		// bEnabled is what the renderer reads; IsActive() stays 0 on a component made at run time (it drew all the same in round 129).
+		if (P->BlendWeight < 0.99f || !P->bUnbound || !P->bEnabled) Bad.Add(FString::Printf(TEXT("post-process weight %.2f, unbound %d, enabled %d"), P->BlendWeight, (int32)P->bUnbound, (int32)P->bEnabled));
 		for (const FWeightedBlendable& W : P->Settings.WeightedBlendables.Array)
 			if (const UMaterialInterface* M = Cast<UMaterialInterface>(W.Object)) Line = M;
 		if (!Line) Bad.Add(TEXT("M_ShedOutline isn't on the post-process"));
