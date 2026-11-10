@@ -898,11 +898,18 @@
  "reference": {
   "adventure": {
    "tank": "adventure_1",
-   "rear_disc": "drilled_245_rear"
+   "rear_disc": "drilled_245_rear",
+   "engine": "vtwin_900",
+   "panniers": "none"
   },
   "tourer": {
    "tank": "sports_tourer_1",
-   "rear_disc": "drilled_245_rear"
+   "rear_disc": "drilled_245_rear",
+   "engine": "parallel_1200",
+   "head": "big_valve_ported",
+   "final_drive": "top_speed_16_40",
+   "fog_lights": "none",
+   "guards": "none"
   },
   "chopper": {
    "tank": "chopper_1",
@@ -912,13 +919,18 @@
   "cruiser": {
    "tank": "cruiser_1",
    "front_caliper": "twin_piston",
-   "front_pads": "organic"
+   "front_pads": "organic",
+   "engine": "vtwin60_1200",
+   "front_disc": "wave_270"
   },
   "roader": {
    "rear_disc": "drilled_245_rear"
   },
   "sport": {
-   "rear_disc": "drilled_220_rear"
+   "rear_disc": "drilled_220_rear",
+   "engine": "triple_660",
+   "head": "four_valve",
+   "final_drive": "tall_15_42"
   },
   "race": {
    "rear_disc": "drilled_220_rear"

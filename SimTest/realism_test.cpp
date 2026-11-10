@@ -106,6 +106,7 @@ TorqueSim::RayHit FlatGround(const V3& From, const V3& To)
 
 // Swaps for trying a change before it goes in the data: --swap cruiser:front_caliper=twin_piston,...
 std::map<std::string, std::map<std::string, std::string>> Swaps;
+const Json* Sweep = nullptr;   // Godot's swept builds (an engine's curve on another bike)
 
 bool SpecFor(const BikeLayout& Lay, const std::string& Style, const Json& G, BikeSpec& S)
 {
@@ -113,19 +114,49 @@ bool SpecFor(const BikeLayout& Lay, const std::string& Style, const Json& G, Bik
 	In.Parts = Lay.ReferenceBuild(Style);
 	for (const auto& [Slot, Id] : Swaps[Style]) In.Parts[Slot] = Id;
 	// The engine's curve is Godot's for the same engine (the shed works it out the same way).
+	// A swapped (or newly chosen) engine takes its curve from Godot's sweep build with that engine.
+	const Json* Curve = &G;
 	const Json* Engine = G.Get("parts") ? G.Get("parts")->Get("engine") : nullptr;
-	if (!Engine || In.Parts["engine"] != Engine->S) return false;
+	if (!Engine || In.Parts["engine"] != Engine->S)
+	{
+		Curve = Sweep ? Sweep->Get("engine/" + In.Parts["engine"]) : nullptr;
+		if (!Curve) return false;
+	}
+	const Json& Gc = *Curve;
 	if (!RideSpec(Lay, In, S)) return false;
-	S.IdleRpm = G.Num("idle_rpm", 1000.0);
-	S.Redline = G.Num("redline", 8000.0);
-	S.PeakTorque = G.Num("peak_torque", 100.0);
-	S.PeakTorqueRpm = G.Num("peak_torque_rpm", 5000.0);
+	S.IdleRpm = Gc.Num("idle_rpm", 1000.0);
+	S.Redline = Gc.Num("redline", 8000.0);
+	S.PeakTorque = Gc.Num("peak_torque", 100.0);
+	S.PeakTorqueRpm = Gc.Num("peak_torque_rpm", 5000.0);
 	S.TorqueRpm.clear();
 	S.TorqueNm.clear();
-	if (const Json* R = G.Get("torque_rpm"))
+	if (const Json* R = Gc.Get("torque_rpm"))
 		for (const Json& V : R->A) S.TorqueRpm.push_back(V.N);
-	if (const Json* N = G.Get("torque_nm"))
+	if (const Json* N = Gc.Get("torque_nm"))
 		for (const Json& V : N->A) S.TorqueNm.push_back(V.N);
+	if (Curve != &G && Gc.Get("parts"))
+	{
+		// The sweep build had its own head, exhaust and so on: take those out and put this bike's in, as
+		// the shed's engine numbers multiply them (TorqueShedPower Numbers).
+		const Json& Had = *Gc.Get("parts");
+		auto Num = [&Lay](const std::string& Id, const char* Key, double Def) { const Json* P = Lay.Part(Id); return P ? P->Num(Key, Def) : Def; };
+		auto Was = [&Had](const char* Slot) { const Json* V = Had.Get(Slot); return V ? V->S : std::string("none"); };
+		double Mult = 1.0, Shift = 1.0, RevAdd = 0.0;
+		for (const char* Slot : {"head", "exhaust", "fuel", "spark_plugs"})
+			Mult *= Num(In.Parts[Slot], "torque_mult", 1.0) / Num(Was(Slot), "torque_mult", 1.0);
+		Mult *= Num(In.Parts["air_filter"], "flow", 1.0) / Num(Was("air_filter"), "flow", 1.0);
+		Mult *= Num(In.Parts["ecu"], "power", 1.0) / Num(Was("ecu"), "power", 1.0);
+		for (const char* Slot : {"head", "fuel"})
+			Shift *= Num(In.Parts[Slot], "peak_shift", 1.0) / Num(Was(Slot), "peak_shift", 1.0);
+		RevAdd = Num(In.Parts["head"], "redline_add", 0.0) - Num(Was("head"), "redline_add", 0.0)
+			+ Num(In.Parts["ecu"], "rev_add", 0.0) - Num(Was("ecu"), "rev_add", 0.0);
+		const double Top = S.Redline, NewTop = Top + RevAdd;
+		for (double& Nm : S.TorqueNm) Nm *= Mult;
+		for (double& R : S.TorqueRpm) R = S.IdleRpm + (R - S.IdleRpm) * (NewTop - S.IdleRpm) / std::max(1.0, Top - S.IdleRpm);
+		S.PeakTorque *= Mult;
+		S.PeakTorqueRpm *= Shift;
+		S.Redline = NewTop;
+	}
 	return true;
 }
 
@@ -276,6 +307,7 @@ int main(int Argc, char** Argv)
 		return 1;
 	}
 	const Json* Styles = Ref.Get("styles");
+	Sweep = Ref.Get("sweep");
 	bool Calib = false;
 	for (int A = 1; A < Argc; ++A) Calib |= std::strcmp(Argv[A], "--calib") == 0;
 	if (Calib)
@@ -307,7 +339,8 @@ int main(int Argc, char** Argv)
 				}
 			}
 			// TorqueDash::CruiseEconomy at 25 m/s (56 mph), the reference parts' head and block.
-			const auto Parts = Lay.ReferenceBuild(Rl.Name);
+			auto Parts = Lay.ReferenceBuild(Rl.Name);
+			for (const auto& [Slot, Id] : Swaps[Rl.Name]) Parts[Slot] = Id;
 			auto PartJ = [&](const char* Slot) -> const Json* { auto It = Parts.find(Slot); return It == Parts.end() ? nullptr : Lay.Part(It->second); };
 			const Json* Block = PartJ("engine");
 			const Json* Head = PartJ("head");
