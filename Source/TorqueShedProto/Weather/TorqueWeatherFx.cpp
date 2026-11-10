@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/PackageName.h"
 
@@ -56,6 +57,13 @@ void ATorqueWeatherFx::Make()
 	// The rain's own (lit per pixel, crisper: Tools/ue_build_spray.py), or the spray game's mist before it's built.
 	UMaterialInterface* Mist = FPackageName::DoesPackageExist(TEXT("/Game/Shed/Materials/M_RainSprite"))
 		? LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_RainSprite.M_RainSprite")) : nullptr;
+	// (Built but failed to compile: the mist, not the default material.)
+	if (Mist && GetWorld())
+		if (UMaterial* Base = Mist->GetMaterial(); Base && Base->IsCompilingOrHadCompileError(GetWorld()->GetFeatureLevel()))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Torque weather: M_RainSprite didn't compile; the rain uses M_SprayMist"));
+			Mist = nullptr;
+		}
 	if (!Mist) Mist = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_SprayMist.M_SprayMist"));
 	UE_LOG(LogTemp, Log, TEXT("Torque weather: rain drawn with %s"), Mist ? *Mist->GetName() : TEXT("nothing"));
 	if (!Plane || !Mist)

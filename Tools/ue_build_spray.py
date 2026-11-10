@@ -18,7 +18,7 @@ Script... and pick this file). Safe to run again: each material is rebuilt from 
   M_RainSprite  the weather's rain streaks, splashes and tyre spray (Weather/TorqueWeatherFx): as
                 M_SprayMist's custom data, but lit per pixel (the mist's volume lighting speckled
                 over the road in shade), a crisper streak, a little light of its own so rain reads
-                against a dark hillside, and its motion written for TSR.
+                against a dark hillside.
 """
 
 import unreal
@@ -394,7 +394,7 @@ def rain_material():
     translucent(m, "surface")
     try_set(m, "two_sided", True)
     try_set(m, "used_with_instanced_static_meshes", True)
-    try_set(m, "output_translucent_velocity", True)
+    # (No "output velocity": it writes depth, and the DepthFade below reads it, so it won't compile.)
 
     def data(i, x, y, default):
         return expr(m, unreal.MaterialExpressionPerInstanceCustomData, x, y, data_index=i, const_default_value=default)
