@@ -46,10 +46,16 @@ constexpr double DefaultLumens = 1000.0;
 constexpr float HeadGlow = 300.0f, MainGlow = 600.0f, FogGlow = 300.0f;
 constexpr float TailGlow = 40.0f, StopGlowLens = 400.0f, IndicatorGlowLens = 500.0f;
 constexpr float NightGlow = 0.2f;
+// The indicators and the rear light are small lamps seen up close: at night (the eye opened right up)
+// they glow at a twentieth of their daytime strength, or they bloom into a big haze round the bike
+// (beenster, build 132 at night: "a huge diffuse light ... too much").
+constexpr float SignalNightGlow = 0.05f;
 // The little lamps: an indicator's amber glow round it, the stop lamp's red on the road behind (bike_model.gd
 // STOP_GLOW_RANGE 3 m). Candela.
-constexpr float IndicatorCd = 40.0f, IndicatorRange = 260.0f;
-constexpr float StopCd = 60.0f, StopRange = 320.0f;
+// (Build 132's 40 cd over 2.6 m and 60 cd over 3.2 m lit the whole road round the bike at night: a
+// real lamp's spill is a faint tint on the ground just under it.)
+constexpr float IndicatorCd = 2.0f, IndicatorRange = 70.0f;
+constexpr float StopCd = 5.0f, StopRange = 150.0f;
 
 const FName LensWhite(TEXT("Surf:lens_white")), LensAmber(TEXT("Surf:lens_amber")), LensRed(TEXT("Surf:lens_red"));
 const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights"));
@@ -383,13 +389,14 @@ void FTorqueLights::Show(float DayLight)
 	Shown = State;
 	ShownDay = Day;
 	const float Glow = FMath::Lerp(TLI::NightGlow, 1.0f, Day);
+	const float SignalGlow = FMath::Lerp(TLI::SignalNightGlow, 1.0f, Day * Day);   // (dark well into dusk)
 	for (FLens& L : HeadLenses) SetLens(L, bHead ? (bMain ? TLI::MainGlow : TLI::HeadGlow) * Glow : 0.0f);
 	for (FLens& L : FogLenses) SetLens(L, bFogOn ? TLI::FogGlow * Glow : 0.0f);
-	for (FLens& L : TailLenses) SetLens(L, bBraking ? TLI::StopGlowLens * Glow : bTail ? TLI::TailGlow * Glow : 0.0f);
+	for (FLens& L : TailLenses) SetLens(L, bBraking ? TLI::StopGlowLens * SignalGlow : bTail ? TLI::TailGlow * SignalGlow : 0.0f);
 	for (int32 I = 0; I < Indicators.Num(); ++I)
 	{
 		const bool bOn = IndicatorSide[I] < 0 ? bLeft : bRight;
-		SetLens(Indicators[I], bOn ? TLI::IndicatorGlowLens * Glow : 0.0f);
+		SetLens(Indicators[I], bOn ? TLI::IndicatorGlowLens * SignalGlow : 0.0f);
 		if (UPointLightComponent* P = IndicatorGlow.IsValidIndex(I) ? IndicatorGlow[I].Get() : nullptr) P->SetVisibility(bOn);
 	}
 	if (USpotLightComponent* B = Beam.Get())
