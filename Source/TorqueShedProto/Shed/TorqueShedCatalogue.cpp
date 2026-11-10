@@ -352,6 +352,7 @@ namespace TSCI = TorqueShedCatalogueImpl;
 namespace TorqueShedCatalogue
 {
 const TCHAR* const NoPaintTag = TEXT("NoPaint");
+const TCHAR* const SpinsTag = TEXT("Spins");
 
 const TorqueFit::BikeLayout* Layout()
 {
@@ -491,6 +492,7 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			++(bFlipped ? Turned : Kept);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
+			if (bWheel) C->ComponentTags.Add(FName(SpinsTag));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
 			if (OutGauges && !P.Gauge.empty())
@@ -532,6 +534,7 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 		UMaterialInterface* Mat = nullptr;
 		FString Slot, Glb;
 		bool bPaint = false;
+		bool bSpins = false;   // on a wheel (SpinsTag)
 	};
 	static TMap<FString, TArray<FSurfaceMade>> Cache;
 	TArray<FString> Keys;
@@ -576,6 +579,7 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 				TorqueShedPick::AddShape(M.Mesh, Pos, Tris);
 				M.Slot = Slot;
 				M.Glb = TSCI::Ue(P.Glb);
+				M.bSpins = P.Node == "front_wheel" || P.Node == "rear_wheel";
 				Made->Add(M);
 			}
 		}
@@ -584,7 +588,11 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 		}
 	}
 	for (const FSurfaceMade& M : *Made)
-		Out.Add(TSCI::AddSurface(Owner, Parent, M.Mesh, M.Mat, M.Slot, M.Glb, M.bPaint, Parts.FindRef(M.Slot)));
+	{
+		UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, M.Mesh, M.Mat, M.Slot, M.Glb, M.bPaint, Parts.FindRef(M.Slot));
+		if (C && M.bSpins) C->ComponentTags.Add(FName(SpinsTag));
+		Out.Add(C);
+	}
 	return Made->Num();
 }
 
