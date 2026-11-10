@@ -2145,7 +2145,7 @@ void ATorqueWalker::UpdateCues()
 		}
 	}
 	if (XRay && GhostXRayMaterials.Num() == 0)
-		for (const FLinearColor& C : {FLinearColor(0.35f, 0.85f, 1.0f), FLinearColor(1.0f, 0.3f, 0.2f)})
+		for (const FLinearColor& C : {FLinearColor(1.0f, 0.45f, 0.08f), FLinearColor(1.0f, 0.15f, 0.1f)})
 		{
 			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(XRay, this);
 			M->SetVectorParameterValue(TEXT("Color"), C * 2.0f);

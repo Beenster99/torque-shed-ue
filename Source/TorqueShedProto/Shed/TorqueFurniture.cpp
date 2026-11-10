@@ -564,9 +564,12 @@ void ATorqueFurnishings::Paint()
 		C->SetCastShadow(false);
 		C->SetMobility(EComponentMobility::Static);
 		C->SetupAttachment(GetRootComponent());
+		// The engine cube is 1 m: its x along the mark's length, y its width, a few mm thick. Placed
+		// before it's registered (this actor sits at the origin): a Static component can't be moved
+		// once play has begun, which left only the scale applied and every mark lying across the
+		// middle of the shed floor, flickering against it (beenster, build 125).
+		C->SetRelativeTransform(FTransform(FRotator(0.0, K.Yaw, 0.0), FVector(K.At, 0.4), FVector(K.Size.X / 100.0, K.Size.Y / 100.0, 0.006)));
 		C->RegisterComponent();
-		// The engine cube is 1 m: its x along the mark's length, y its width, a few mm thick.
-		C->SetWorldTransform(FTransform(FRotator(0.0, K.Yaw, 0.0), FVector(K.At, 0.4), FVector(K.Size.X / 100.0, K.Size.Y / 100.0, 0.006)));
 		FixedDrawn.Add(C);
 	}
 	for (const TorqueFurniture::FWord& W : Y.Words)
