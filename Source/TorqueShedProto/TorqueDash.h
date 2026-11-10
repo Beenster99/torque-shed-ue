@@ -14,7 +14,9 @@
 #include "Shed/TorqueShedCatalogue.h"   // FDashGauge
 
 class AActor;
+class UStaticMesh;
 class UStaticMeshComponent;
+class USceneComponent;
 class UTextRenderComponent;
 class UMaterialInstanceDynamic;
 namespace TorqueSim { class BikeSim; struct BikeSpec; }
@@ -63,10 +65,25 @@ struct FTorqueDash
 
 	// --- The bike's own clocks (catalogue bikes: the meshes TorqueShedCatalogue::MakeBike tagged).
 	// Call once the meshes are on their groups (their relative transforms are kept as their rest).
-	void HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges);
+	// TickMesh (a unit cube) draws the dials' scale; without it the dials keep their plain ticks.
+	void HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges,
+		UStaticMesh* TickMesh = nullptr);
 	// Every frame: the needles, the shift lights and the readout. Units: 0 metric, 1 imperial.
 	void UpdateClocks(int32 Units);
 	bool HasClocks() const { return Needles.Num() > 0 || Leds.Num() > 0 || Readout.IsValid(); }
+
+	// The dials' scales, matched to the bike: the speedo runs a little past what the bike can do
+	// (its gearing at the redline, or where its power meets the wind, whichever's lower), the rev
+	// counter to just past the redline, its top end in red. In the units shown (km/h or mph; rpm).
+	double TopSpeedMs = 0.0;        // the bike's top speed as its spec has it (0 until the ride starts)
+	double SpeedMax = 0.0, SpeedStep = 0.0, RevMax = 0.0, RevStep = 0.0;
+	// The speedo's full scale and number step for a top speed (m/s), in km/h or mph.
+	static void SpeedScale(double TopMs, bool bMetric, double& OutMax, double& OutStep);
+	// The rev counter's full scale and number step (rpm) for a redline.
+	static void RevScale(double AtRedline, double& OutMax, double& OutStep);
+	// The top speed a spec reaches on the flat: top gear at the redline, or where its peak power
+	// meets the drag and rolling, whichever's lower (m/s).
+	static double TopSpeedOf(const TorqueSim::BikeSpec& Spec);
 
 private:
 	struct FNeedle
@@ -74,6 +91,7 @@ private:
 		TWeakObjectPtr<UStaticMeshComponent> Mesh;
 		bool bRpm = false;
 		FVector At, Rest, Side;   // the pivot, and the needle at rest (mid-scale) and a quarter turn clockwise, mesh space
+		FVector Axis;             // out of the dial's face, towards the rider
 		FTransform Base;          // its relative transform at rest
 	};
 	struct FLed
@@ -84,6 +102,14 @@ private:
 		int32 Lit = -1;
 	};
 	TArray<FNeedle> Needles;
+	// The dials' plain ticks as drawn (hidden once the numbered scale's on), and the scale's pieces.
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> BakedTicks;
+	TArray<TWeakObjectPtr<USceneComponent>> ScaleParts;
+	TWeakObjectPtr<AActor> ClockOwner;
+	TWeakObjectPtr<UStaticMesh> ScaleTickMesh;
+	int32 ScaleUnits = -1;          // the units the scale's numbers are in (-1: not built)
+	double ScaleRedline = 0.0;
+	void BuildScale(int32 Units);
 	TArray<FLed> Leds;
 	TWeakObjectPtr<UTextRenderComponent> Readout;
 	bool bDials = false;   // the readout is the dial's little window (dark ink), not a screen

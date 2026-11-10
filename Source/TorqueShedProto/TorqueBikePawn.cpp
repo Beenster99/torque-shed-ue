@@ -764,7 +764,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	Dash.Setup(Parts);
 	// [fluids] The petrol it rides out with is what's in its tank in the shed (filled at the pump).
 	if (B->FuelCapacityOf(Bay) > 0.0f) Dash.FuelLitres = FMath::Clamp((double)B->FuelOf(Bay), 0.0, Dash.FuelCapacity);
-	Dash.HookClocks(this, ModelParts, Gauges);
+	Dash.HookClocks(this, ModelParts, Gauges, ShapeCube);
 	SideStandPart = Parts.FindRef(TEXT("side_stand"));
 	CentreStandPart = Parts.FindRef(TEXT("centre_stand"));
 	StandRest.Reset();
