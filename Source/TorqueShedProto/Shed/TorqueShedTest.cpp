@@ -5,6 +5,7 @@
 #include "Shed/TorqueBoothHooks.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
+#include "Coop/TorqueGameState.h"
 
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
@@ -495,6 +496,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else if (P.Num() >= 3) Said(PC->TestSet(P[1], P[2].ToLower()));
 		else Warn(TEXT("set what? set:fov:100, set:timeofday:19.5, set:telemetry:on"));
+		return true;
+	}
+	if (Verb == TEXT("weatherhere"))
+	{
+		// [weather] the weather where the camera is (the live grid made local), every number.
+		const ATorqueGameState* GS = World->GetGameState<ATorqueGameState>();
+		if (GS) Said(GS->WeatherHereText());
+		else Warn(TEXT("no game state"));
 		return true;
 	}
 	if (Verb == TEXT("menu") || Verb == TEXT("face"))
