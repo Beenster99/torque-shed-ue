@@ -168,6 +168,39 @@ bool BoneRestOf(const USkinnedAsset* SA, FName BoneName, FTransform& Rest)
 	return true;
 }
 
+// For the hair log: every int, float, bool or enum property and no-argument getter of O whose
+// name has one of Words, with its value ("Name=Value, ..."), read by reflection.
+FString DescribeByName(UObject* O, std::initializer_list<const TCHAR*> Words)
+{
+	if (!O) return TEXT("-");
+	auto Wanted = [&Words](const FString& N) { for (const TCHAR* W : Words) if (N.Contains(W)) return true; return false; };
+	TArray<FString> Out;
+	for (TFieldIterator<FProperty> It(O->GetClass()); It; ++It)
+	{
+		if (!Wanted(It->GetName())) continue;
+		FString V;
+		It->ExportTextItem_Direct(V, It->ContainerPtrToValuePtr<void>(O), nullptr, nullptr, PPF_None);
+		if (V.Len() > 300) V = V.Left(300) + TEXT("...");
+		Out.Add(It->GetName() + TEXT("=") + V);
+	}
+	for (TFieldIterator<UFunction> It(O->GetClass()); It; ++It)
+	{
+		UFunction* F = *It;
+		if (!Wanted(F->GetName()) || !(F->GetName().StartsWith(TEXT("Get")) || F->GetName().StartsWith(TEXT("Is"))) || F->NumParms != 1 || !F->GetReturnProperty()) continue;
+		FProperty* Ret = F->GetReturnProperty();
+		if (!CastField<FNumericProperty>(Ret) && !CastField<FBoolProperty>(Ret) && !CastField<FEnumProperty>(Ret)) continue;
+		TArray<uint8> Buf;
+		Buf.SetNumZeroed(FMath::Max<int32>(F->ParmsSize, 1));
+		F->InitializeStruct(Buf.GetData());
+		O->ProcessEvent(F, Buf.GetData());
+		FString V;
+		Ret->ExportTextItem_Direct(V, Ret->ContainerPtrToValuePtr<void>(Buf.GetData()), nullptr, nullptr, PPF_None);
+		F->DestroyStruct(Buf.GetData());
+		Out.Add(F->GetName() + TEXT("()=") + V);
+	}
+	return FString::Join(Out, TEXT(", "));
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -298,6 +331,18 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		bCardsSet = true;
 		IConsoleVariable* Cards = IConsoleManager::Get().FindConsoleVariable(TEXT("r.HairStrands.UseCardsInsteadOfStrands"));
 		if (Cards) Cards->Set(1, ECVF_SetByCode);
+		// The hair settings this build runs with, for the near/far question (round 127).
+		TArray<FString> HairVars;
+		IConsoleManager::Get().ForEachConsoleObjectThatStartsWith(FConsoleObjectVisitor::CreateLambda(
+			[&HairVars](const TCHAR* VarName, IConsoleObject* Obj)
+			{
+				const FString N(VarName);
+				if (IConsoleVariable* V = Obj ? Obj->AsVariable() : nullptr)
+					if (N.Contains(TEXT("LOD")) || N.Contains(TEXT("Cards")) || N.Contains(TEXT("Cull")) || N.Contains(TEXT("Strands.Enable")) || N.Contains(TEXT("Visibility")))
+						HairVars.Add(N + TEXT("=") + V->GetString());
+			}), TEXT("r.HairStrands."));
+		HairVars.Sort();
+		UE_LOG(LogTemp, Log, TEXT("Torque: hair settings: %s"), *FString::Join(HairVars, TEXT(", ")));
 		UE_LOG(LogTemp, Log, TEXT("Torque: hair as cards everywhere: %s"), Cards ? *FString::Printf(TEXT("r.HairStrands.UseCardsInsteadOfStrands = %d"), Cards->GetInt()) : TEXT("no such setting"));
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %d parts; hair module %s, cloth module %s"), *E.Name, E.Parts.Num(),
@@ -950,6 +995,12 @@ void FTorqueAvatar::TouchHair()
 				PC ? *PC->Bounds.Origin.ToCompactString() : TEXT("-"), PC ? PC->Bounds.SphereRadius : 0.0,
 				FaceMesh ? *FaceMesh->GetSocketLocation(FName(TEXT("head"))).ToCompactString() : TEXT("-"),
 				PC && PC->GetWorld() ? PC->GetWorld()->GetTimeSeconds() - PC->GetLastRenderTime() : -1.0);
+			// What it's drawing: its LOD settings and getters, and its asset's.
+			FObjectPropertyBase* AssetProp = FindFProperty<FObjectPropertyBase>(C->GetClass(), TEXT("GroomAsset"));
+			UObject* GA = AssetProp ? AssetProp->GetObjectPropertyValue_InContainer(C) : nullptr;
+			UE_LOG(LogTemp, Log, TEXT("Torque: hair %s %s LOD: %s; asset: %s"), *Name, *C->GetName(),
+				*TorqueAvatarMath::DescribeByName(C, {TEXT("LOD"), TEXT("Lod"), TEXT("Cards"), TEXT("Geometry")}),
+				*TorqueAvatarMath::DescribeByName(GA, {TEXT("LOD"), TEXT("Lod"), TEXT("Cards"), TEXT("Geometry"), TEXT("Strip")}));
 		}
 	}
 }
