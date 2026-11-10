@@ -1972,6 +1972,8 @@ void ATorqueBikePawn::TestMoveStep()
 		{
 			Respawn(TestFromNear);   // back on the road where it began
 			Throttle = FrontBrake = RearBrake = Lean = 0.0;
+			// After a crash test, back on as after any fall: a ghost for 5 s (so tests see its look too).
+			if (TestMove == 2 || TestMove == 3) Sim->StartGhost();
 		}
 		TestMove = -1;
 	};
