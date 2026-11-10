@@ -2488,7 +2488,7 @@ void ATorqueBikePawn::UpdateGhostLook()
 		}
 		else if (C->GetOverlayMaterial() != GhostMid) ++Kept;
 		UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(C);
-		if (SM && SM->GetOverlayMaterial() == GhostMid && SM->GetStaticMesh() && SM->GetStaticMesh()->IsNaniteEnabled() && !SM->bForceDisableNanite)
+		if (SM && SM->GetOverlayMaterial() == GhostMid && SM->GetStaticMesh() && SM->GetStaticMesh()->HasValidNaniteData() && !SM->bForceDisableNanite)
 		{
 			SM->SetForceDisableNanite(true);
 			GhostNaniteOff.Add(SM);
