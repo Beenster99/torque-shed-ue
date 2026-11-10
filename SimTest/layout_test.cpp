@@ -394,6 +394,86 @@ int main(int argc, char** argv)
 		Expect(Wrong.empty(), "the headlight hidden inside a full fairing (sport, race, adventure), shown on the rest" + Wrong);
 	}
 
+	std::printf("Perimeter frames (redrawn as real twin-spar frames):\n");
+	{
+		Json Index;
+		std::string IndexText;
+		ReadFile(R + "/Data/Parts/Blender/index.json", IndexText);
+		Json::Parse(IndexText, Index, &Error);
+		const Json* Known = Index.Get("parts");
+		BikeParts Placer(Lay, Known ? *Known : Index);
+		auto Load = [&](const std::string& Glb, PartMesh& M) {
+			std::string Bytes, MorphBytes, Err;
+			const Json* Ent = Known ? Known->Get(Glb.substr(0, Glb.size() - 4)) : nullptr;
+			if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + Glb, Bytes) || !M.LoadGlb(Bytes, Err)) return false;
+			return !Ent->Get("morph") || (ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) && M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Err));
+		};
+		Placer.SetMeshSource(Load);
+		std::vector<std::string> Frames;
+		for (const std::string& Id : Db.Ids("frame"))
+			if (Db.Text("frame", Id, "style") == "perimeter") Frames.push_back(Id);
+		Expect(Frames.size() >= 3, std::to_string(Frames.size()) + " perimeter frames in the catalogue");
+		for (const std::string& Base : {std::string("sport"), std::string("race")})
+			for (const std::string& Frame : Frames)
+				for (const bool Bare : {false, true})
+				{
+					PartsMap B = Lay.ReferenceBuild(Base);
+					B["frame"] = Frame;
+					if (Bare) B["fairing"] = "none";
+					const Layout L = Lay.Solve(B);
+					std::map<std::string, std::vector<V3>> Pts;   // each slot's drawn vertices (ours)
+					for (const FittedPart& P : Placer.Fit(B, L))
+					{
+						if (P.Slot != "frame" && P.Slot != "head" && P.Slot != "saddle" && P.Slot != "air_filter") continue;
+						PartMesh M;
+						if (!P.Made && !Load(P.Glb, M)) continue;
+						for (const PartSurface& S : BikeParts::Draw(M, P).Surfaces) Pts[P.Slot].insert(Pts[P.Slot].end(), S.Pos.begin(), S.Pos.end());
+					}
+					// (Half-width of a slot's vertices in a slice across the bike at X, above Y.)
+					auto HalfW = [&](const std::string& Slot, double X, double Y, double Slice) {
+						double W = 0.0;
+						for (const V3& V : Pts[Slot])
+							if (std::fabs(V.x - X) < Slice && V.y > Y) W = std::max(W, std::fabs(V.z));
+						return W;
+					};
+					double Widest = 0.0;
+					for (double X = L.Pivot.x; X < L.HeadBottom.x; X += 0.01) Widest = std::max(Widest, HalfW("frame", X, L.Pivot.y + 0.1, 0.005));
+					const double NearHead = HalfW("frame", L.HeadBottom.x - 0.1, L.Pivot.y + 0.1, 0.005);
+					// Into the top end or the airbox: frame vertices inside that slot's own slice, side to side
+					// and up and down.
+					auto Into = [&](const std::string& Slot) {
+						int N = 0;
+						for (const V3& V : Pts["frame"])
+						{
+							double Lo = 1e9, Hi = -1e9, Zlo = 1e9, Zhi = -1e9;
+							for (const V3& H : Pts[Slot])
+								if (std::fabs(H.x - V.x) < 0.005 && (H.z > 0.0) == (V.z > 0.0))
+								{
+									Lo = std::min(Lo, H.y); Hi = std::max(Hi, H.y);
+									Zlo = std::min(Zlo, H.z); Zhi = std::max(Zhi, H.z);
+								}
+							if (V.y > Lo + 0.005 && V.y < Hi - 0.005 && V.z > Zlo + 0.005 && V.z < Zhi - 0.005) ++N;
+						}
+						return N;
+					};
+					// (Inside a full race fairing the frame keeps Godot's slim width, which the fairing is shaped
+					// round, so only a bike without one is held to clearing its top end.)
+					const int IntoHead = Into("head"), IntoAirbox = Into("air_filter");
+					const bool Shown = Bare || !B.count("fairing") || Db.Text("fairing", B.at("fairing"), "style") != "race";
+					// The subframe's rails under the seat: no wider than the saddle once in behind the air filter (its
+					// struts up from the pivot plates may stand out).
+					const double SeatW = HalfW("saddle", L.SeatFront.x - 0.3, -1.0, 0.03);
+					const double RailW = HalfW("frame", L.SeatFront.x - 0.3, L.SeatFront.y - 0.06, 0.03);
+					char Buf[260];
+					std::snprintf(Buf, sizeof(Buf), " (%s, %s%s): widest %.0f mm, %.0f mm 100 mm behind the head stock, %d points into the head, %d into the airbox, rails %.0f mm under a %.0f mm seat",
+						Frame.c_str(), Base.c_str(), Bare ? ", no fairing" : "", Widest * 1000.0, NearHead * 1000.0, IntoHead, IntoAirbox, RailW * 1000.0, SeatW * 1000.0);
+					const double GodotW = std::max(0.15, L.Hard.CaseHalfW + 0.05) + 0.022;
+					Expect(NearHead <= Widest * 0.75 && Widest <= GodotW + 0.001, std::string("spars splay out gradually from the head stock, not round the bars, no wider than Godot's") + Buf);
+					if (Shown) Expect(IntoHead == 0 && IntoAirbox == 0, "spars pass outside the top end and the airbox" + std::string(Buf));
+					Expect(RailW > 0.0 && RailW <= SeatW + 0.015, "subframe tucked under the seat (to 15 mm of its edge)" + std::string(Buf));
+				}
+	}
+
 	std::printf("Against the original game (SimTest/data/godot_reference.json, dumped from Godot):\n");
 	{
 		Json Ref, Index;
@@ -419,8 +499,13 @@ int main(int argc, char** argv)
 		auto Off = [](const V3& A, const V3& B) { return std::max(std::fabs(A.x - B.x), std::max(std::fabs(A.y - B.y), std::fabs(A.z - B.z))); };
 		auto Collect = [&](const PartsMap& B, const Layout& L, std::map<std::string, Box>& Ours, std::map<std::string, std::map<std::string, Box>>& Tags) {
 			RedrawnSlots.clear();
+			// (A perimeter frame is redrawn for this game as a real twin-spar frame, so its slot sits these
+			// comparisons out too; "Perimeter frames" below holds it to the bike instead.)
+			const bool Perimeter = B.count("frame") && GDb.Find("frame", B.at("frame"))
+				&& GDb.Find("frame", B.at("frame"))->Str("style") == "perimeter";
 			for (const FittedPart& P : Placer.Fit(B, L))
 			{
+				if (Perimeter && P.Slot == "frame") { RedrawnSlots.insert("frame"); continue; }
 				PartMesh M;
 				std::string Bytes, MorphBytes;
 				const Json* Ent = Known ? Known->Get(P.Glb.substr(0, P.Glb.size() - 4)) : nullptr;

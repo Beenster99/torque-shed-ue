@@ -488,30 +488,86 @@ void BikeParts::Frame(const PartsMap& Parts, const Layout& L, std::vector<Fitted
 	}
 	else if (Style == "perimeter")
 	{
-		// (Its cast beams and pivot plates are code-drawn shells; the subframe's tubes are here.)
-		double Wide = std::max(0.15, BlockW * 0.5 + 0.05);
-		const double BeamW = RaceFairing ? std::min(Wide, 0.2) : Wide;
-		if (BeamW < Wide) Wide = std::min(Wide, 0.25);
-		// (Its pivot plates stand out to Wide + 0.002 each side: what a full fairing keeps outside.)
-		if (CodeHalfW) *CodeHalfW = Wide + 0.002;
+		// A twin-spar frame, as a real one is cast: each beam leaves the head stock as deep as it is,
+		// splays out gradually (clear of the fork legs on full lock) to pass just outside the engine's
+		// top end, runs straight back and down over the cylinders to the swingarm pivot plates, and
+		// the plates drop past the pivot. The beams and plates are code-drawn shells; the bolted-on
+		// subframe (rails under the seat from the beams' tops, struts up from the plates, cross
+		// braces) is tubes.
+		// (How wide it may go: Godot's width, from the cases, kept slimmer inside a full race fairing,
+		// which is shaped round it. The beams run up beside the top end, so they stand just outside the
+		// barrels, heads and cam covers; the pivot plates beside whatever of the cases and gearbox is
+		// level with them, and outside the swingarm's pivot.)
+		double MaxW = std::max(0.15, BlockW * 0.5 + 0.05);
+		const double MaxBeam = RaceFairing ? std::min(MaxW, 0.2) : MaxW;
+		if (RaceFairing) MaxW = std::min(MaxW, 0.25);
+		// (What a full fairing keeps outside each side: Godot's frame width, as it was.)
+		if (CodeHalfW) *CodeHalfW = MaxW + 0.002;
+		double TopHalf = 0.0, PlateNeed = 0.17;
+		for (const EngineCorner& C : EngineCorners())
+		{
+			if (C.P.y > E.y + 0.15 * S) TopHalf = std::max(TopHalf, C.Far);
+			if (C.P.z > Pivot.z - 0.1 && C.P.y > Pivot.y - 0.13 && C.P.y < Pivot.y + 0.17) PlateNeed = std::max(PlateNeed, C.Far + 0.025);
+		}
+		const double BeamW = TorqueSim::Clamp(TopHalf + 0.02, 0.15, MaxBeam);
+		// (Behind the top end the beams and plates stand outside the air filter, which reaches out to
+		// its side for its element to be got at: pods or a cone to 0.21, an airbox's housing and lid
+		// past its box, as BikeParts::Ancillaries puts them.)
+		const std::string AirId = PartIn(Parts, "air_filter");
+		const std::string AirStyle = PartStr(Lay.Part(AirId), "style", "airbox");
+		const double AirOut = AirStyle == "airbox" ? std::max(0.21, std::max(0.2, BlockW * 0.8) * 0.5 + 0.05) : 0.21;
+		const double AirNeed = (!AirId.empty() && AirId != "none") ? AirOut + 0.012 + 0.025 : 0.0;
+		const double RearW = TorqueSim::Clamp(std::max(BeamW, AirNeed), 0.15, MaxBeam);
+		const double PlateW = TorqueSim::Clamp(std::max(std::max(PlateNeed, RearW), BeamW - 0.02), 0.15, RaceFairing ? MaxW - 0.02 : MaxW);
+		const double HeadH = std::max(Head.y - Hb.y, 0.08);
+		const V3 HeadMid = MixV(Hb, Head, 0.45);
+		const V3 PlateTop = Pivot + V3(0.0, 0.11, -0.06);
+		constexpr double SubframeIn = 0.17;   // (how far back of its lugs the subframe's rails come in, behind the air filter)
+		auto Along = [&](double F) { return MixV(HeadMid, PlateTop, F); };
 		for (double Side : {-1.0, 1.0})
 		{
-			// Two big cast beams from the head stock round the engine to the pivot plates.
-			const std::vector<V3> Path = CodeShapes::Smooth({Hb + V3(0.045 * Side, 0.04, 0.03), MixV(Hb, Pivot, 0.25) + V3(BeamW * Side, 0.09, 0.0),
-				MixV(Hb, Pivot, 0.65) + V3(BeamW * Side, 0.1, 0.0), Pivot + V3((Wide - 0.02) * Side, 0.11, -0.06)}, 4);
+			const double PlateX = PlateW * Side;
+			// The beam's line: welded to the head stock's flank, splaying out over the top end by about
+			// 40% of the way back, then straight on (out past the air filter) to the top of the pivot plate.
+			const std::vector<V3> Path = CodeShapes::Smooth({HeadMid + V3(0.042 * Side, 0.0, 0.03), Along(0.16) + V3(BeamW * 0.52 * Side, 0.0, 0.0),
+				Along(0.4) + V3(BeamW * 0.96 * Side, 0.0, 0.0), Along(0.7) + V3(RearW * Side, 0.0, 0.0), Pivot + V3(PlateX, 0.11, -0.06)}, 5);
 			std::vector<CodeShapes::Sec> Secs;
 			for (size_t K = 0; K < Path.size(); ++K)
 			{
 				const double F = static_cast<double>(K) / static_cast<double>(Path.size() - 1);
-				const double Arc = std::sin(F * TorqueSim::Pi);
-				Secs.push_back({Path[K], 0.022 * Frig.Wide, TorqueSim::Lerp(0.05, 0.065, Arc) * Frig.Deep, TorqueSim::Lerp(0.04, 0.06, Arc) * Frig.Deep, 6.0});
+				// (Deepest at the head stock, where the casting wraps the whole stock, thinning to the plate.)
+				const double Deep = TorqueSim::Lerp(HeadH * 0.5 + 0.01, 0.052, FrameSmoothStep(0.0, 0.45, F)) * Frig.Deep;
+				const double Thick = TorqueSim::Lerp(0.024, 0.021, F) * Frig.Wide;
+				Secs.push_back({Path[K], Thick, Deep, Deep * 0.95, 6.0});
 			}
 			Shell("", Secs);
-			Shell("PivotPlate", {{Pivot + V3((Wide - 0.02) * Side, 0.12, -0.06), 0.022, 0.04, 0.04, 6.0}, {Pivot + V3((Wide - 0.03) * Side, 0.0, -0.02), 0.022, 0.05, 0.05, 6.0},
-				{Pivot + V3((Wide - 0.04) * Side, -0.12, 0.0), 0.02, 0.03, 0.03, 6.0}});
-			Bend({Pivot + V3((Wide - 0.04) * Side, 0.14, -0.04), SeatFront + V3(0.075 * Side, -0.02, 0.02), Tail + V3(0.05 * Side, -0.01, -0.02)}, 0.014 * G);
-			Tube(Pivot + V3((Wide - 0.04) * Side, 0.06, 0.0), Tail + V3(0.05 * Side, -0.05, -0.08), 0.012 * G);
+			// The pivot plate: from the beam's end down past the pivot, where the swingarm and the
+			// rearsets bolt on.
+			Shell("PivotPlate", {{Pivot + V3(PlateX, 0.12, -0.06), 0.022, 0.05, 0.05, 6.0}, {Pivot + V3(PlateX, 0.0, -0.02), 0.022, 0.05, 0.05, 6.0},
+				{Pivot + V3((PlateW - 0.015) * Side, -0.12, 0.0), 0.02, 0.03, 0.03, 6.0}});
+			// The subframe: a rail from a bolt-on lug at the top of the beam's rear, back outside the air
+			// filter, then in to the seat's width and on under it to the tail, and a strut up from the
+			// pivot plate to meet it.
+			const double RailX = 0.075 * Side;
+			const V3 Lug = Pivot + V3((PlateW - 0.012) * Side, 0.16, -0.03);
+			const V3 RailMid = MixV(SeatFront, Tail, 0.55) + V3(RailX, -0.03, 0.0);
+			const V3 RailEnd = Tail + V3(0.055 * Side, -0.03, -0.03);
+			const V3 Knee(RailX, TorqueSim::Lerp(Lug.y, RailMid.y, 0.3), std::max(Lug.z + SubframeIn, SeatFront.z + 0.05));
+			Bend({Lug, V3(Lug.x, TorqueSim::Lerp(Lug.y, Knee.y, 0.3), Lug.z + SubframeIn * 0.3), V3(MixV(Lug, Knee, 0.55).x, TorqueSim::Lerp(Lug.y, Knee.y, 0.65), Lug.z + SubframeIn * 0.65),
+				Knee, MixV(Knee, RailMid, 0.4), RailMid, RailEnd}, 0.014 * G);
+			const V3 StrutFoot = Pivot + V3((PlateW - 0.012) * Side, 0.05, 0.01);
+			const V3 StrutMid = MixV(StrutFoot, RailMid, 0.5);
+			Bend({StrutFoot, V3(TorqueSim::Lerp(StrutFoot.x, RailX, 0.65), StrutMid.y, StrutMid.z), RailMid + V3(0.0, -0.012, -0.02)}, 0.011 * G);
 		}
+		// The subframe's cross braces: where the rails meet under the seat, mid-way and the tail loop.
+		{
+			const V3 Lug = Pivot + V3(0.0, 0.16, -0.03);
+			const V3 RailMid = MixV(SeatFront, Tail, 0.55) + V3(0.0, -0.03, 0.0);
+			const V3 Knee(0.0, TorqueSim::Lerp(Lug.y, RailMid.y, 0.3), std::max(Lug.z + SubframeIn, SeatFront.z + 0.05));
+			Tube(Knee + V3(-0.075, 0.0, 0.0), Knee + V3(0.075, 0.0, 0.0), 0.011 * G);
+		}
+		Tube(MixV(SeatFront, Tail, 0.55) + V3(-0.075, -0.03, 0.0), MixV(SeatFront, Tail, 0.55) + V3(0.075, -0.03, 0.0), 0.011 * G);
+		Tube(Tail + V3(-0.055, -0.03, -0.03), Tail + V3(0.055, -0.03, -0.03), 0.011 * G);
 	}
 	else if (Style == "mx")
 	{
