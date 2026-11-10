@@ -16,6 +16,20 @@ struct FTorqueProfile
 	float Height = 0.0f;        // -1 .. 1: 94% .. 106% of the avatar's own height
 	float Face[NumFace] = {};   // each -1 .. 1, 0 the avatar's own face
 
+	// Riding cameras (kept with your character on this machine, not sent to the others): the
+	// third-person camera as you set it (Settings > Gameplay, or while riding: the mouse wheel,
+	// Page Up / Down and Insert / Delete, or R1 held with the right stick and D-pad), and the view
+	// you last rode in (ATorqueBikePawn's CameraMode: 0 third person, 1 first person, 4 drive-by).
+	float ChaseDist = 480.0f;   // cm behind the bike
+	float ChaseHeight = 70.0f;  // cm above the rider's shoulders
+	float ChaseTilt = 0.0f;     // degrees looking further down (below 0: up)
+	int32 RideView = 0;
+	static constexpr float ChaseDistMin = 250.0f, ChaseDistMax = 1200.0f;
+	static constexpr float ChaseHeightMin = -40.0f, ChaseHeightMax = 300.0f;
+	static constexpr float ChaseTiltMin = -10.0f, ChaseTiltMax = 25.0f;
+	void ClampChase();
+	void ResetChase() { ChaseDist = 480.0f; ChaseHeight = 70.0f; ChaseTilt = 0.0f; }
+
 	// A face slider: its name on the Profile page and the line under it.
 	struct FSlider { const TCHAR* Name; const TCHAR* Hint; };
 	static const FSlider Sliders[NumFace];

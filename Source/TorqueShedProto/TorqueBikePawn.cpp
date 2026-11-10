@@ -297,6 +297,10 @@ void ATorqueBikePawn::BeginPlay()
 	// -TorqueCamera=1 starts in first person (2: chin camera, 3: showroom orbit of the bike with the
 	// rider hidden), for checking the views. -TorqueOrbitYaw=N holds the orbit at N degrees from
 	// straight ahead (positive to the bike's right) instead of turning, for repeatable screenshots.
+	// Otherwise the view you last rode in (saved with your character).
+	// (Test runs that ride by themselves keep the chase camera they were written for.)
+	if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide")) && !FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")))
+		CameraMode = FTorqueProfile::Mine().RideView;
 	int32 StartCamera = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueCamera="), StartCamera)) CameraMode = FMath::Clamp(StartCamera, 0, CameraModes - 1);
 	float FixedYaw = 0.0f;
@@ -1046,6 +1050,13 @@ void ATorqueBikePawn::PlaceOnGround(V3 Pos, double Heading)
 	CrashedFor = 0.0;
 	BodyLean = LongAcc = LastSpeed = 0.0;
 	Remount();
+	if (bCrashCam)
+	{
+		// Off the drive-by the fall switched to, back to the view you were riding in.
+		bCrashCam = false;
+		CameraMode = CrashCamFrom;
+	}
+	bDriveByPlaced = false;
 	CurPos = PrevPos = ToUE(Sim->Position);
 	CurRot = PrevRot = BasisToUE(Sim->Basis);
 	Accum = 0.0;
@@ -1260,12 +1271,17 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		else if (GetOff()) return;
 	}
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
+	// R1 held in third person: the right stick and D-pad set the camera (AdjustChase), not the look.
+	const bool bPadR1 = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
+	const bool bPadL1 = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
+	const bool bPadSetsCam = bPadR1 && !bPadL1 && CameraMode == CamChase;
+	const double LookPadX = bPadSetsCam ? 0.0 : LookX, LookPadY = bPadSetsCam ? 0.0 : LookY;
 	// Settings > Gameplay > Chase camera recentres: off, the view stays where the stick left it.
-	const bool bStickLooking = FMath::Abs(LookX) > 0.02 || FMath::Abs(LookY) > 0.02;
+	const bool bStickLooking = FMath::Abs(LookPadX) > 0.02 || FMath::Abs(LookPadY) > 0.02;
 	if (Set.bCameraRecentre || bStickLooking)
 	{
-		StickYaw = FMath::Lerp(StickYaw, LookX * 130.0, LookK);
-		StickPitch = FMath::Lerp(StickPitch, LookY * 25.0, LookK);
+		StickYaw = FMath::Lerp(StickYaw, LookPadX * 130.0, LookK);
+		StickPitch = FMath::Lerp(StickPitch, LookPadY * 25.0, LookK);
 	}
 	// The mouse swings the view round too (Settings > Controller > Mouse look speed), and it eases
 	// back behind the bike a moment after you stop moving it.
@@ -1351,6 +1367,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	const bool bPadLB = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
 	const bool bPadRB = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
 	bool bCameraTap = false;
+	{
+		const int32 PadTilt = bPadSetsCam ? ((SonyDown & ESonyButton::DDown) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Down) ? 1 : 0) -
+			((SonyDown & ESonyButton::DUp) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Up) ? 1 : 0) : 0;
+		// Set with R1 held: letting R1 go then isn't a camera change.
+		if (AdjustChase(PC, Dt, LookX, LookY, bPadSetsCam, PadTilt) && bPadSetsCam) bPadComboUsed = true;
+	}
 	if (bPadRB)
 	{
 		if (bPadLB)
@@ -1374,13 +1396,15 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || bCameraTap ||
 		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::Create))
 	{
-		CameraMode = (CameraMode + 1) % CameraModes;
-		bCamInit = false;
+		NextCamera();
 	}
-	if (SonyHit(ESonyButton::DDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
-	if (SonyHit(ESonyButton::DUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
-	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
-	if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+	if (!bPadSetsCam)   // (with R1 held, the D-pad tilts the third-person camera)
+	{
+		if (SonyHit(ESonyButton::DDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
+		if (SonyHit(ESonyButton::DUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+		if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
+		if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Help)) bShowHelp = !bShowHelp;
 	// Settings > Gameplay > Telemetry overlay (F3 while riding, as Torque Shed).
 	if (FTorqueKeys::Just(PC, ETorqueKey::Telemetry))
@@ -2216,6 +2240,15 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 
 		if (Sim->IsCrashed)
 		{
+			if (CrashedFor == 0.0 && !bRemote && !bCrashCam && CameraMode != CamDriveBy && CameraMode != 3)
+			{
+				// Fallen off: the drive-by camera, stood just down the road, watches you slide (beenster).
+				bCrashCam = true;
+				CrashCamFrom = CameraMode;
+				CameraMode = CamDriveBy;
+				bDriveByPlaced = false;
+			}
+			else if (CrashedFor == 0.0 && CameraMode == CamDriveBy) bDriveByPlaced = false;   // (already drive-by: a fresh spot for the fall)
 			CrashedFor += DeltaSeconds;
 			if (CrashedFor > 2.5)
 			{
@@ -2278,6 +2311,8 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	else Dash.Step(*Sim, 0.0, true, 0.0);
 	EngineNoteFor = FMath::Max(EngineNoteFor - DeltaSeconds, 0.0);
 	FootNoteFor = FMath::Max(FootNoteFor - DeltaSeconds, 0.0);
+	CamNoteFor = FMath::Max(CamNoteFor - DeltaSeconds, 0.0);
+	if (ChaseSaveIn >= 0.0 && (ChaseSaveIn -= DeltaSeconds) < 0.0) FTorqueProfile::Mine().Save();   // the third-person camera, once it's settled
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	if (!bRemote)
 	{
@@ -3107,7 +3142,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.OnTarmac = Under == SURF_TARMAC || Under == SURF_GRID;
 	In.Grid = (F.Contact && F.Surf == SURF_GRID ? 1.0 : 0.0) + (R.Contact && R.Surf == SURF_GRID ? 1.0 : 0.0);
 	In.Airborne = !F.Contact && !R.Contact;
-	In.Inside = (CameraMode == 0 || CameraMode == 3) ? 0.0 : 1.0;
+	In.Inside = (CameraMode == 1 || CameraMode == 2) ? 1.0 : 0.0;
 	In.EngineOn = Sim->EngineOn;
 	// The weather round you: its wind and rain heard (Weather/WeatherModel.h).
 	if (const ATorqueGameState* WeatherGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
@@ -3199,8 +3234,13 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	FVector Flat(Fwd.X, Fwd.Y, 0.0);
 	Flat = Flat.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 
-	ShowHead(CameraMode == 0 || CameraMode == 3);
+	ShowHead(CameraMode != 1 && CameraMode != 2);
 	ShowRider(true);
+	if (CameraMode == CamDriveBy)
+	{
+		UpdateDriveBy(Dt);
+		return;
+	}
 	if (CameraMode == 3)
 	{
 		// Showroom: round the bike at a walking-round distance, eye height a little above the tank,
@@ -3255,7 +3295,9 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	// Chase: behind and above, following the road's direction, the horizon mostly level.
 	const FVector Target = BikePos + FVector(0, 0, 110.0);
 	const FVector Behind = FRotator(0.0, LookYaw, 0.0).RotateVector(-Flat);
-	const FVector Want = Target + Behind * 480.0 + FVector(0, 0, 70.0 - LookPitch * 6.0);
+	// How far back, how high and how far down it looks: the player's (FTorqueProfile, AdjustChase).
+	const FTorqueProfile& Prof = FTorqueProfile::Mine();
+	const FVector Want = Target + Behind * (double)Prof.ChaseDist + FVector(0, 0, (double)Prof.ChaseHeight - LookPitch * 6.0);
 	if (!bCamInit)
 	{
 		CamPos = Want;
@@ -3277,9 +3319,182 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 			Pos = Hit.Location;
 	}
 	FRotator Rot = (CamLookAt - Pos).Rotation();
+	Rot.Pitch -= Prof.ChaseTilt;
 	Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.25;
 	Camera->SetWorldLocationAndRotation(Pos, Rot);
 	Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(72.0f));   // Settings > Gameplay > Field of view
+}
+
+// The Camera key (C, R1, Create / View): first person, third person, drive-by, round again. A test
+// view (the chin camera, the showroom) goes on to first person. Your choice is kept with your
+// character, and the ride after starts in it.
+void ATorqueBikePawn::NextCamera()
+{
+	CameraMode = CameraMode == CamFirst ? CamChase : CameraMode == CamChase ? CamDriveBy : CamFirst;
+	bCrashCam = false;   // (changed by hand while you're off: it stays as you chose)
+	bCamInit = false;
+	bDriveByPlaced = false;
+	FTorqueProfile& Prof = FTorqueProfile::Mine();
+	Prof.RideView = CameraMode;
+	Prof.Save();
+	const auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
+	CamNote = CameraMode == CamFirst ? FString(TEXT("First person"))
+		: CameraMode == CamDriveBy ? FString(TEXT("Drive-by camera"))
+		: FString::Printf(TEXT("Third person   %s / %s distance   %s / %s height   %s / %s tilt   (pad: R1 held + right stick, D-pad)"),
+			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
+			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown));
+	CamNoteFor = CameraMode == CamChase ? 4.0 : 2.0;
+}
+
+// Third person, set while riding: the keys (Settings > Controller > Key bindings) step it or, held,
+// move it smoothly; the pad's R1 held moves it with the right stick (up / down: higher / lower, left /
+// right: closer / further) and the D-pad (up / down: tilt up / down). Saved with your character a
+// moment after you stop. True if it moved.
+bool ATorqueBikePawn::AdjustChase(const APlayerController* PC, float Dt, double PadX, double PadY, bool bPadHeld, int32 PadTilt)
+{
+	if (CameraMode != CamChase || !PC) return false;
+	FTorqueProfile& Prof = FTorqueProfile::Mine();
+	const FTorqueProfile Was = Prof;
+	// A key: a step when it's pressed (the mouse wheel's click), then steadily while it's held.
+	auto KeyAxis = [PC, Dt](ETorqueKey Plus, ETorqueKey Minus, double StepBy, double PerSecond) {
+		double Move = 0.0;
+		if (FTorqueKeys::Just(PC, Plus)) Move += StepBy;
+		else if (FTorqueKeys::Down(PC, Plus)) Move += PerSecond * Dt;
+		if (FTorqueKeys::Just(PC, Minus)) Move -= StepBy;
+		else if (FTorqueKeys::Down(PC, Minus)) Move -= PerSecond * Dt;
+		return Move;
+	};
+	double DistBy = KeyAxis(ETorqueKey::CamFarther, ETorqueKey::CamCloser, 30.0, 300.0);
+	double HeightBy = KeyAxis(ETorqueKey::CamHigher, ETorqueKey::CamLower, 15.0, 120.0);
+	double TiltBy = KeyAxis(ETorqueKey::CamTiltDown, ETorqueKey::CamTiltUp, 1.5, 15.0);
+	if (bPadHeld)
+	{
+		// (Up is +y on the look stick: pushed up raises the camera.)
+		DistBy += PadX * 300.0 * Dt;
+		HeightBy += PadY * 120.0 * Dt;
+		TiltBy += PadTilt * 15.0 * Dt;
+	}
+	if (DistBy == 0.0 && HeightBy == 0.0 && TiltBy == 0.0) return false;
+	Prof.ChaseDist += (float)DistBy;
+	Prof.ChaseHeight += (float)HeightBy;
+	Prof.ChaseTilt += (float)TiltBy;
+	Prof.ClampChase();
+	if (Prof.ChaseDist == Was.ChaseDist && Prof.ChaseHeight == Was.ChaseHeight && Prof.ChaseTilt == Was.ChaseTilt) return false;
+	ChaseSaveIn = 1.0;
+	CamNote = FString::Printf(TEXT("Third person: %.1f m back, %.1f m up, tilted %+.0f°"),
+		Prof.ChaseDist / 100.0f, (Prof.ChaseHeight + 110.0f) / 100.0f, Prof.ChaseTilt);
+	CamNoteFor = 1.5;
+	return true;
+}
+
+// Where the drive-by camera stands next: down the road ahead of you (the route on Buttertubs, the way
+// you're going in the yard), far enough that you ride up to it, at one side then the other, on the
+// ground at about head height, where it can see the road. Falling off, just beyond where you're
+// sliding to, so you slide towards it.
+void ATorqueBikePawn::PlaceDriveBy(bool bCrash)
+{
+	UWorld* World = GetWorld();
+	const FVector BikeAt = GetActorLocation();
+	FVector Going = DirToUE(Sim->LinearVelocity) * 100.0;   // cm/s
+	Going.Z = 0.0;
+	const double SpeedCm = Going.Size();
+	FVector Fwd2 = GetActorForwardVector();
+	Fwd2.Z = 0.0;
+	Fwd2 = Fwd2.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const FVector Heading2 = SpeedCm > 150.0 ? Going / SpeedCm : Fwd2;
+	// About four seconds ahead riding (20 to 80 m); a fall, a second's slide on (8 to 20 m).
+	const double AheadCm = bCrash ? FMath::Clamp(SpeedCm * 0.9, 800.0, 2000.0) : FMath::Clamp(SpeedCm * 4.0, 2000.0, 8000.0);
+	FVector Spot = BikeAt + Heading2 * AheadCm, Along = Heading2;
+	if (!bCrash && !bYard && Line.Num() > 1)
+	{
+		// Along the route from where you are, whichever way you're riding it.
+		const int32 From = FMath::Clamp(Near, 0, Line.Num() - 2);
+		const FVector Tangent = FVector(Line[From + 1].X - Line[From].X, Line[From + 1].Z - Line[From].Z, 0.0).GetSafeNormal();
+		const int32 Step = FVector::DotProduct(Tangent, Heading2) >= 0.0 ? 1 : -1;
+		double Run = 0.0;
+		int32 At = From;
+		while (Run * 100.0 < AheadCm && At + Step >= 0 && At + Step < Line.Num())
+		{
+			Run += FVector2D(Line[At + Step].X - Line[At].X, Line[At + Step].Z - Line[At].Z).Size();
+			At += Step;
+		}
+		const int32 Prev = FMath::Clamp(At - Step, 0, Line.Num() - 1);
+		const FVector RoadDir(Line[At].X - Line[Prev].X, Line[At].Z - Line[Prev].Z, 0.0);
+		if (At != From && !RoadDir.IsNearlyZero())
+		{
+			Spot = ToUE(TorqueSim::V3(Line[At].X, Line[At].Y, Line[At].Z));
+			Along = RoadDir.GetSafeNormal();
+		}
+	}
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Along).GetSafeNormal();
+	const FVector RoadEye = Spot + FVector(0.0, 0.0, 100.0);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueDriveBy), true, this);
+	bool bFound = false;
+	FVector Best = RoadEye + FVector(0.0, 0.0, 250.0);   // (nowhere clear: up above the road)
+	const double Offsets[] = {650.0, 420.0, 260.0};
+	for (int32 Pick = 0; Pick < 6 && !bFound && World; ++Pick)
+	{
+		const double SideSign = (Pick % 2 == 0) ? DriveBySide : -DriveBySide;
+		const FVector Foot = Spot + Right * (SideSign * Offsets[Pick / 2]);
+		FHitResult Ground;
+		FVector Cam = Foot + FVector(0.0, 0.0, 150.0);
+		if (World->LineTraceSingleByChannel(Ground, Foot + FVector(0.0, 0.0, 3000.0), Foot - FVector(0.0, 0.0, 5000.0), ECC_Visibility, Params))
+			Cam = Ground.ImpactPoint + FVector(0.0, 0.0, bCrash ? 170.0 : 120.0 + 40.0 * (Pick % 2));
+		FHitResult Block;
+		if (!World->LineTraceSingleByChannel(Block, Cam, RoadEye, ECC_Visibility, Params))
+		{
+			Best = Cam;
+			bFound = true;
+			DriveBySide = SideSign;
+		}
+	}
+	DriveBySide = -DriveBySide;   // the next one on the other side
+	DriveByPos = Best;
+	DriveByBlocked = 0.0;
+	bDriveByPlaced = true;
+	const FVector Subject = BikeAt + FVector(0.0, 0.0, 70.0);
+	DriveByLook = Subject;
+	DriveByFov = FMath::Clamp(FMath::RadiansToDegrees(2.0 * FMath::Atan(350.0 / FMath::Max(FVector::Dist(DriveByPos, Subject), 1.0))), 12.0, 70.0);
+}
+
+// Drive-by: standing still, it turns to follow you (and you and the bike apart, after a fall) and
+// zooms as a roadside camera would, so you're about the same size in the picture near or far. Once
+// you're well past it, too far away, or out of its sight for a moment, it moves on ahead.
+void ATorqueBikePawn::UpdateDriveBy(float Dt)
+{
+	const FVector BikeAt = GetActorLocation() + FVector(0.0, 0.0, 70.0);
+	FVector Subject = BikeAt;
+	double Span = 0.0;
+	if (bThrown && RiderRoot)
+	{
+		const FVector RiderAt = RiderRoot->GetComponentTransform().TransformPosition(HeadLocal - FVector(0.0, 0.0, 50.0));
+		Subject = (BikeAt + RiderAt) * 0.5;
+		Span = FVector::Dist(BikeAt, RiderAt);
+	}
+	if (!bDriveByPlaced) PlaceDriveBy(Sim->IsCrashed);
+	else
+	{
+		const double FarCm = FVector::Dist(DriveByPos, Subject);
+		FVector Gone = Subject - DriveByPos;
+		Gone.Z = 0.0;
+		FVector Going = DirToUE(Sim->LinearVelocity);
+		Going.Z = 0.0;
+		const bool bPast = !Sim->IsCrashed && FVector::DotProduct(Gone, Going) > 0.0 && FarCm > 2500.0;
+		if (bPast || FarCm > 12000.0 || (!Sim->IsCrashed && DriveByBlocked > 0.7)) PlaceDriveBy(Sim->IsCrashed);
+	}
+	if (UWorld* World = GetWorld())
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueDriveBySight), true, this);
+		FHitResult Block;
+		if (World->LineTraceSingleByChannel(Block, DriveByPos, Subject, ECC_Visibility, Params)) DriveByBlocked += Dt;
+		else DriveByBlocked = 0.0;
+	}
+	const double Away = FMath::Max(FVector::Dist(DriveByPos, Subject), 1.0);
+	DriveByLook = FMath::Lerp(DriveByLook, Subject, 1.0 - FMath::Exp(-10.0 * Dt));
+	const double WantFov = FMath::Clamp(FMath::RadiansToDegrees(2.0 * FMath::Atan((350.0 + Span * 0.7) / Away)), 12.0, 70.0);
+	DriveByFov = FMath::Lerp(DriveByFov, WantFov, 1.0 - FMath::Exp(-4.0 * Dt));
+	Camera->SetWorldLocationAndRotation(DriveByPos, (DriveByLook - DriveByPos).Rotation());
+	Camera->SetFieldOfView((float)DriveByFov);
 }
 
 // [dash] "Torque trip:" the dash's trip (the ground covered), speed x frame time, the route's
@@ -3316,6 +3531,7 @@ void ATorqueBikePawn::DrawHud()
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.
 	if (FootNoteFor > 0.0) Add(FootNote, FColor(255, 220, 120), 1.2f);
+	if (CamNoteFor > 0.0 && !bOnFoot) Add(CamNote, FColor(200, 220, 255), 1.1f);
 	if (bOnFoot)
 	{
 		const double Away = FVector::Dist2D(FootPos, GetActorLocation());
@@ -3361,7 +3577,8 @@ void ATorqueBikePawn::DrawHud()
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.62f);
 		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.62f);
-		Add(TEXT("      R1 camera   L1 + R1 held: start   Triangle get off (stopped) / back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.62f);
+		Add(TEXT("      R1 camera (first person, third person, drive-by; R1 held + right stick / D-pad: set the third-person camera)"), Help, 0.62f);
+		Add(TEXT("      L1 + R1 held: start   Triangle get off (stopped) / back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.62f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),
@@ -3372,6 +3589,9 @@ void ATorqueBikePawn::DrawHud()
 			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
 			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.62f);
+		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),
+			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
+			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown)), Help, 0.62f);
 	}
 }
 

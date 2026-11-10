@@ -662,6 +662,32 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		SettingF(TEXT("Field of view"), FString::Printf(TEXT("%d°"), FMath::RoundToInt(S.Fov)),
 			TEXT("60 to 110 degrees. On foot it's this; the bike's cameras widen or narrow by as much"), S.Fov, 60.0f, 110.0f, 1.0f);
 		Toggle(TEXT("Chase camera recentres"), S.bCameraRecentre, TEXT("The chase camera swings back behind the bike after you let go of the mouse or right stick"));
+		{
+			// [camera] The third-person riding camera, kept with your character (FTorqueProfile).
+			FTorqueProfile& Cam = FTorqueProfile::Mine();
+			auto ChaseSlide = [&R](const FString& Label, const FString& Value, const FString& Hint, float& V, float Lo, float Hi, float By) {
+				float* Ptr = &V;
+				FRow Row;
+				Row.Label = Label;
+				Row.Value = Value;
+				Row.Hint = Hint;
+				Row.Frac = FMath::Clamp((V - Lo) / (Hi - Lo), 0.0f, 1.0f);
+				Row.Step = [Ptr, Lo, Hi, By](int32 Dir) { *Ptr = StepF(*Ptr, Dir, By, Lo, Hi); FTorqueProfile::Mine().Save(); };
+				Row.SetFrac = [Ptr, Lo, Hi, By](float F) { *Ptr = FMath::Clamp(FMath::RoundToFloat(FMath::Lerp(Lo, Hi, F) / By) * By, Lo, Hi); };
+				Row.Commit = []() { FTorqueProfile::Mine().Save(); };
+				R.Add(MoveTemp(Row));
+			};
+			const FString Adjust = FString::Printf(TEXT(" (riding in third person: %s / %s, %s / %s, %s / %s, or R1 held with the right stick and D-pad)"),
+				*FTorqueKeys::Text(ETorqueKey::CamCloser), *FTorqueKeys::Text(ETorqueKey::CamFarther), *FTorqueKeys::Text(ETorqueKey::CamHigher),
+				*FTorqueKeys::Text(ETorqueKey::CamLower), *FTorqueKeys::Text(ETorqueKey::CamTiltUp), *FTorqueKeys::Text(ETorqueKey::CamTiltDown));
+			ChaseSlide(TEXT("Third person: distance"), FString::Printf(TEXT("%.1f m"), Cam.ChaseDist / 100.0f),
+				TEXT("How far behind the bike the camera rides") + Adjust, Cam.ChaseDist, FTorqueProfile::ChaseDistMin, FTorqueProfile::ChaseDistMax, 10.0f);
+			ChaseSlide(TEXT("Third person: height"), FString::Printf(TEXT("%.1f m"), (Cam.ChaseHeight + 110.0f) / 100.0f),
+				TEXT("How high above the road the camera rides"), Cam.ChaseHeight, FTorqueProfile::ChaseHeightMin, FTorqueProfile::ChaseHeightMax, 5.0f);
+			ChaseSlide(TEXT("Third person: tilt"), FString::Printf(TEXT("%+.0f°"), Cam.ChaseTilt),
+				TEXT("How far the camera looks down at the bike (below 0: up the road)"), Cam.ChaseTilt, FTorqueProfile::ChaseTiltMin, FTorqueProfile::ChaseTiltMax, 1.0f);
+			Add(TEXT("Third person: reset"), FString(), TEXT("Back to the usual distance, height and tilt"), []() { FTorqueProfile::Mine().ResetChase(); FTorqueProfile::Mine().Save(); });
+		}
 		Heading(TEXT("UNITS"));
 		Setting(TEXT("Units"), S.Units == 0 ? FString(TEXT("Metric (km/h, km)")) : FString(TEXT("Imperial (mph, miles)")), TEXT("Speeds and distances on the HUD"),
 			[&S](int32) { S.Units = 1 - S.Units; });
