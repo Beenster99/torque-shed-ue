@@ -333,7 +333,7 @@ int32 FTorqueLights::Step(double Dt, bool bEngineRunning, double FrontBrake, dou
 	bool bSelfCancel, float DayLight)
 {
 	bIgnition = bEngineRunning;
-	bBraking = bIgnition && (FrontBrake > TLI::BrakeOn || RearBrake > TLI::BrakeOn);
+	bBraking = bIgnition && (FrontBrake > TLI::BrakeOn || RearBrake > TLI::BrakeOn || bTestBrake);
 	int32 Heard = 0;
 	if (!bIgnition)
 	{
@@ -410,6 +410,44 @@ void FTorqueLights::Show(float DayLight)
 	for (TWeakObjectPtr<USpotLightComponent>& L : FogBeams)
 		if (L.IsValid()) L->SetVisibility(bFogOn);
 	if (USpotLightComponent* S = StopGlow.Get()) S->SetVisibility(bBraking);
+}
+
+FString FTorqueLights::Describe() const
+{
+	auto OnOff = [](bool b) { return b ? TEXT("on") : TEXT("off"); };
+	auto Glows = [](const TArray<FLens>& Lenses) {
+		TArray<FString> Bits;
+		for (const FLens& L : Lenses) Bits.Add(L.Mesh.IsValid() ? FString::Printf(TEXT("%.0f"), FMath::Max(L.Lit, 0.0f)) : FString(TEXT("gone")));
+		return Bits.Num() > 0 ? FString::Join(Bits, TEXT("/")) : FString(TEXT("none"));
+	};
+	auto Spot = [](const TWeakObjectPtr<USpotLightComponent>& W) {
+		const USpotLightComponent* L = W.Get();
+		if (!L) return FString(TEXT("none"));
+		return FString::Printf(TEXT("%s %.0f cd, cone %.0f, reach %.0f m, aim %.1f down"), L->IsVisible() ? TEXT("shining") : TEXT("dark"),
+			L->Intensity, L->OuterConeAngle, L->AttenuationRadius / 100.0f, -L->GetRelativeRotation().Pitch);
+	};
+	FString Out = FString::Printf(TEXT("lamps: ignition %s; switches headlight %s, main beam %s, fog %s, indicators %s, hazards %s; braking %s"),
+		OnOff(bIgnition), OnOff(bHeadlight), OnOff(bMainBeam), OnOff(bFog), Side < 0 ? TEXT("left") : Side > 0 ? TEXT("right") : TEXT("off"),
+		OnOff(bHazard), bBraking ? TEXT("yes") : TEXT("no"));
+	if (HeadLenses.Num() + FogLenses.Num() + TailLenses.Num() + Indicators.Num() == 0)
+		Out += TEXT("; NO LENSES FOUND (not a part-list bike, or MakeBike's Surf: tags missing)");
+	Out += FString::Printf(TEXT("; lens glow: headlight %s, fog %s, rear %s, indicators "), *Glows(HeadLenses), *Glows(FogLenses), *Glows(TailLenses));
+	TArray<FString> Ind;
+	for (int32 I = 0; I < Indicators.Num(); ++I)
+		Ind.Add(FString::Printf(TEXT("%s %.0f"), IndicatorSide[I] < 0 ? TEXT("L") : TEXT("R"), FMath::Max(Indicators[I].Lit, 0.0f)));
+	Out += Ind.Num() > 0 ? FString::Join(Ind, TEXT("/")) : FString(TEXT("none"));
+	int32 FogLit = 0, GlowLit = 0;
+	for (const TWeakObjectPtr<USpotLightComponent>& L : FogBeams) FogLit += L.IsValid() && L->IsVisible() ? 1 : 0;
+	for (const TWeakObjectPtr<UPointLightComponent>& L : IndicatorGlow) GlowLit += L.IsValid() && L->IsVisible() ? 1 : 0;
+	Out += FString::Printf(TEXT("; beam %s; flood %s; fog beams %d of %d shining; indicator glows %d of %d; stop glow %s"),
+		*Spot(Beam), *Spot(Flood), FogLit, FogBeams.Num(), GlowLit, IndicatorGlow.Num(), *Spot(StopGlow));
+	// The tell-tales (DrawTellTales): drawn while the headlight's on or the indicators are going.
+	TArray<FString> Tells;
+	if (HeadOn()) Tells.Add(MainOn() ? TEXT("main beam (blue)") : TEXT("dipped (green)"));
+	if (FogOn()) Tells.Add(TEXT("fog (green)"));
+	if (Indicating()) Tells.Add(FString::Printf(TEXT("arrows (left %s, right %s)"), LeftLit() ? TEXT("lit") : TEXT("dark"), RightLit() ? TEXT("lit") : TEXT("dark")));
+	Out += TEXT("; HUD tell-tales: ") + (Tells.Num() > 0 ? FString::Join(Tells, TEXT(", ")) : FString(TEXT("none")));
+	return Out;
 }
 
 uint8 FTorqueLights::NetBits() const

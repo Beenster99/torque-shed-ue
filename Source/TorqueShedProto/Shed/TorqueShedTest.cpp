@@ -578,7 +578,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
 		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
-		Verb == TEXT("ridepos"))
+		Verb == TEXT("ridepos") || Verb == TEXT("lights"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -597,6 +597,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		{
 			if (P.Num() >= 3) Said(Bike->TestPlaceAt(FCString::Atod(*P[1]), FCString::Atod(*P[2]), P.Num() > 3 ? FCString::Atod(*P[3]) : -90.0));
 			else Said(Bike->TestPlaceAt(0.0, 0.0, 0.0, false));
+			return true;
+		}
+		// [lights] lights[:state|dipped|main|fog|off|cycle|left|right|hazard|cancel|brake|nobrake|night|day]:
+		// set the lamps as the switches do, then everything about them in one line (lens glow, the lights,
+		// the HUD's tell-tales).
+		if (Verb == TEXT("lights"))
+		{
+			Said(Bike->TestLights(P.Num() > 1 ? P[1] : FString(TEXT("state"))));
 			return true;
 		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.

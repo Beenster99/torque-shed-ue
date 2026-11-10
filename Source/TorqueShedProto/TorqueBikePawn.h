@@ -134,6 +134,11 @@ public:
 	// X / Z: the box goes manual), "ignition" (as I), "clutch" (Arg 1 held, 0 let go, as Left Alt) or "state"
 	// (nothing). Says the gear, the engine, the clutch and the speed after it.
 	FString TestControl(const FString& What, int32 Arg);
+	// [lights] For TorqueShedTest: What "state" (just say), "dipped", "main", "fog", "off" (the headlight
+	// switches as the keys leave them), "cycle" (the pad's Triangle tap), "left", "right", "hazard",
+	// "cancel" (indicators off), "brake" / "nobrake" (the stop lamp held on), "night" / "day" (the clock
+	// at 23:00, or the level's own light: the host's), then the lamps shown at once and described.
+	FString TestLights(const FString& What);
 	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
 	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
 	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at

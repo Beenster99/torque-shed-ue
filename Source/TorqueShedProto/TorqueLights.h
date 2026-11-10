@@ -82,6 +82,13 @@ struct FTorqueLights
 	bool MainOn() const { return HeadOn() && bMainBeam; }
 	bool FogOn() const { return HeadOn() && bFog && HasFog(); }
 
+	// For TorqueShedTest's lights verb: the lamps shown now (not waiting for the next frame), and one
+	// line on everything: the switches, what's lit, each lens's glow, the lights and their strength,
+	// and the HUD's tell-tales as ATorqueHUD::DrawTellTales would draw them.
+	void ShowNow(float DayLight) { Shown = -1; Show(DayLight); }
+	FString Describe() const;
+	bool bTestBrake = false;   // the stop lamp held on for the test
+
 	// The switches for a snapshot (a byte), and someone's snapshot taken in.
 	uint8 NetBits() const;
 	void FromNet(uint8 Bits);

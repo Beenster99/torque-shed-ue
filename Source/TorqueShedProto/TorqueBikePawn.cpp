@@ -349,6 +349,7 @@ FVector ModelDirToLocal(const FVector& D) { return FVector(D.X, D.Z, D.Y).GetSaf
 void ATorqueBikePawn::BuildModel()
 {
 	if (BuildCatalogueModel()) return;
+	UE_LOG(LogTemp, Log, TEXT("Torque: the bike's lamps: none (not a part-list bike, so no lenses to light)"));   // [lights]
 	// Every bike is made from the part list: the Speed Twin model (beenster's own bike, the
 	// prototype's) only comes back for the fitting tests (-TorqueBuild=) or with -TorqueSpeedTwin.
 	if (FCString::Strifind(FCommandLine::Get(), TEXT("TorqueBuild=")) == nullptr && !FParse::Param(FCommandLine::Get(), TEXT("TorqueSpeedTwin")))
@@ -3299,6 +3300,45 @@ void ATorqueBikePawn::StepLights(float Dt, bool bRemote)
 	if (Heard != 0 && !bRemote)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this))
 			Sfx->PlayMadeOn(FTorqueLights::Click(Heard > 0), FTorqueLights::ClickRate, Root, FVector(60.0, 0.0, 100.0), -14.0f);
+}
+
+FString ATorqueBikePawn::TestLights(const FString& What)
+{
+	FString Said;
+	bool bOk = true;
+	const FString W = What.ToLower();
+	if (W == TEXT("dipped")) { Lights.bHeadlight = true; Lights.bMainBeam = false; Lights.bFog = false; }
+	else if (W == TEXT("main")) { Lights.bHeadlight = true; Lights.bMainBeam = true; }
+	else if (W == TEXT("fog")) { Said = Lights.ToggleFog(bOk); if (bOk && !Lights.bFog) Said = Lights.ToggleFog(bOk); }
+	else if (W == TEXT("off")) { Lights.bHeadlight = Lights.bMainBeam = Lights.bFog = false; }
+	else if (W == TEXT("cycle")) Said = Lights.CycleBeam(bOk);
+	else if (W == TEXT("left") || W == TEXT("right"))
+	{
+		if (Lights.Side != (W == TEXT("left") ? -1 : 1)) Said = Lights.Indicate(W == TEXT("left") ? -1 : 1, bOk);
+	}
+	else if (W == TEXT("hazard")) { if (!Lights.bHazard) Said = Lights.ToggleHazard(bOk); }
+	else if (W == TEXT("cancel"))
+	{
+		if (Lights.bHazard) Lights.ToggleHazard(bOk);
+		if (Lights.Side != 0) Lights.Indicate(Lights.Side, bOk);
+	}
+	else if (W == TEXT("brake") || W == TEXT("nobrake")) Lights.bTestBrake = W == TEXT("brake");
+	else if (W == TEXT("night") || W == TEXT("day"))
+	{
+		ATorqueGameState* Gs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+		if (Gs && HasAuthority()) Gs->SetHour(W == TEXT("night") ? 23.0f : -1.0f);
+		else Said = TEXT("(the clock is the host's)");
+	}
+	else if (W != TEXT("state") && !W.IsEmpty()) Said = TEXT("(unknown: ") + What + TEXT(")");
+	// Shown now, as the next frame would (the stop lamp needs Step for the brakes).
+	const ATorqueGameState* LightGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	const float Day = LightGs ? LightGs->GetDayLight() : 1.0f;
+	Lights.Step(0.0, Sim->EngineOn, FrontBrake, RearBrake, Sim->LeanAngle, 0.0, false, Day);
+	Lights.ShowNow(Day);
+	const FString Report = FString::Printf(TEXT("lights:%s%s%s -> engine %s, daylight %.2f; %s"), *W, Said.IsEmpty() ? TEXT("") : TEXT(" "), *Said,
+		Sim->EngineOn ? TEXT("running") : TEXT("off"), Day, *Lights.Describe());
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s"), *Report);
+	return Report;
 }
 
 void ATorqueBikePawn::LightsNote(const FString& Text, bool bOk)
