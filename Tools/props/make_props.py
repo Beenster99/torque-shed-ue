@@ -115,12 +115,13 @@ def hose(name, points, radius, mat="rubber"):
 
 # --- The shed's own fixed kit (workshop.gd) ------------------------------------------------------------
 
-@model("shed_workbench", (0.95, 0.95, 4.8))
+@model("shed_workbench", (0.95, 0.95, 4.3))
 def shed_workbench():
     """workshop.gd _build_bench: the long bench down the west wall, its front (the drawers) to +x
     in the shed, here +z (the swap turns it). A welded steel frame, three rows of red drawer banks
     in bays, a lower shelf, a butcher-block top and a pegboard back with tools."""
-    L, D, top = 4.8, 0.9, 0.945
+    # 4.3 m (Torque Shed's is 4.8): a walkway past its end to the storage room (beenster, Nov 10).
+    L, D, top = 4.3, 0.9, 0.945
     wood_top("Top", (0.0, 0.92, 0.0), (L + 0.05, 0.05, 0.95))
     # Turned so its length runs along x here: width L, depth D (front +z).
     for x in (-L / 2 + 0.03, -L / 6, L / 6, L / 2 - 0.03):
@@ -138,7 +139,7 @@ def shed_workbench():
         drawer_bank("Drawer%d" % i, cx - w / 2 + 0.01, cx + w / 2 - 0.01, 0.21, 0.85, D / 2 - 0.03, 3, "paint_red", cols=2)
     # Pegboard up the wall behind it. Its tools are their own prop, pegboard_tools
     # (Tools/props/make_pegboard_tools.py), placed with the bench.
-    box("Peg", (0.0, 1.3, -D / 2 + 0.01), (L * 0.6, 0.6, 0.012), "pegboard", bevel=0.002)
+    box("Peg", (0.0, 1.3, -D / 2 + 0.01), (2.88, 0.6, 0.012), "pegboard", bevel=0.002)   # (pegboard_tools: x -1.44 .. 1.44)
     vice("Vice", (L / 2 - 0.35, 0.945, 0.475))
 
 

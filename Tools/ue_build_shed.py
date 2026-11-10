@@ -82,7 +82,9 @@ BAY_Y = -350.0
 BAY_SCREEN_X = (-504.0, -232.0, 232.0, 504.0)        # their screens on the back wall, clear of the dyno doorway
 BIKE_AT = (0.0, BAY_Y)               # what the menu view and the player start look at
 # Workbench spots bench_0..3 run down the west wall at y -120, 0, 120, 240; the bench 0.6 m past each end.
-BENCH_X, BENCH_Y0, BENCH_Y1, BENCH_TOP = -600.0, -180.0, 300.0, 95.0
+# The bench stops at y -130 (4.3 m, not 4.8): beenster (Nov 10) couldn't get between bay 1's bike and its
+# end to the storage room. Keep in step with TorqueShedLayout.h, make_props.py shed_workbench, swaps.json.
+BENCH_X, BENCH_Y0, BENCH_Y1, BENCH_TOP = -600.0, -130.0, 300.0, 95.0
 
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
@@ -1029,7 +1031,7 @@ def workbench(m):
         box("Bench_Drawers_%d" % i, BENCH_X + 45, BENCH_X + 47, y0 + 10, y1 - 10, 15 + i * 25, 35 + i * 25, m["red"], folder="Bench", collide=False)
     label_text("Bench_Poster", "WORKBENCH", (-HALF_X + 2, BENCH_Y1 - 40, 132), 0.0, 14.0, (30, 30, 30), "Bench")
     # The radio's shelf over the bench's back end, and the crew board on the wall above.
-    ry = BENCH_Y0 + 60 - 25
+    ry = -145.0   # (where it always was: on the wall over the walkway past the bench's end, TorqueShedLayout.h radio)
     box("Radio_Shelf", -HALF_X, -HALF_X + 34, ry - 30, ry + 30, 158.5, 161.5, m["wood"], folder="Bench", collide=False)
     # (The radio on it is ATorqueShedRadio: it plays, its dial glows, the song shows over it.)
     box("CrewBoard", -HALF_X, -HALF_X + 6, 60 - 150, 60 + 150, 255 - 84, 255 + 84, m["dark"], folder="Bench", collide=False)

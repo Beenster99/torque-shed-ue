@@ -104,7 +104,7 @@ def main():
     fix("trolley_parts", trolley())
     # The workbench's flat chrome "spanners" and hook stubs on the pegboard go: pegboard_tools
     # hangs real ones there.
-    L, Dw = 4.8, 0.9
+    L, Dw = 4.3, 0.9
     fix("shed_workbench", [{"mat": "chrome", "near": (0.0, 1.4, -Dw / 2 + 0.035), "tol": (L * 0.3, 0.2, 0.02),
                             "drop": True, "count": (14, 0)}])   # 0: done already
 

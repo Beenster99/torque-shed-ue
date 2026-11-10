@@ -112,11 +112,12 @@ inline const TArray<FTorquePlace>& Places()
 		P.Index = Index;
 		L.Add(P);
 	};
-	// The workbench: x -647.5 .. -552.5, y -180 .. 300, top 95. Eight places along it.
+	// The workbench: x -647.5 .. -552.5, y -130 .. 300, top 95 (4.3 m: a walkway past its end to the
+	// storage room, between it and bay 1's bike; ue_build_shed.py BENCH_Y0). Eight places along it.
 	for (int32 I = 0; I < 8; ++I)
 	{
-		const double Y = -150.0 + 60.0 * I;
-		Add(ETorquePlace::Bench, FString::Printf(TEXT("bench_%d"), I), FVector(-647.5, Y - 30.0, 89.0), FVector(-552.5, Y + 30.0, 97.0),
+		const double Y = -103.0 + 53.75 * I;
+		Add(ETorquePlace::Bench, FString::Printf(TEXT("bench_%d"), I), FVector(-647.5, Y - 26.875, 89.0), FVector(-552.5, Y + 26.875, 97.0),
 			FVector(-595.0, Y, 95.0), I);
 	}
 	// The repair bench against the front wall: x 250 .. 430, y 445 .. 535, top 94. Three places.

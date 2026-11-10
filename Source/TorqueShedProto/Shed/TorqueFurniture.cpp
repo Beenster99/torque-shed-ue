@@ -12,6 +12,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Misc/FileHelper.h"
@@ -596,14 +597,27 @@ void ATorqueFurnishings::Paint()
 {
 	// The test area's markings: thin painted strips just proud of the concrete, no collision.
 	const TorqueFurniture::FYard& Y = TorqueFurniture::Yard();
+	// Road paint: the concrete's scan showing through the paint, laid by world position so it doesn't
+	// smear along a long line (MI_Prop_yard_line, Tools/ue_import_props.py), tinted per mark. Plain
+	// paint if the props' materials aren't imported yet.
+	UMaterialInterface* LinePaint = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Props/Materials/MI_Prop_yard_line.MI_Prop_yard_line"));
 	TMap<uint32, UMaterialInterface*> Looks;
-	auto Look = [this, &Looks](const FLinearColor& C) -> UMaterialInterface*
+	auto Look = [this, &Looks, LinePaint](const FLinearColor& C) -> UMaterialInterface*
 	{
 		const uint32 Key = GetTypeHash(C.ToFColor(false));
-		if (UMaterialInterface** M = Looks.Find(Key)) return *M;
-		UMaterialInterface* M = TorqueToolModels::Finish(this, C, 0.0f, 0.62f);
-		Looks.Add(Key, M);
-		return M;
+		if (UMaterialInterface** Found = Looks.Find(Key)) return *Found;
+		UMaterialInterface* Made = nullptr;
+		if (LinePaint)
+		{
+			if (UMaterialInstanceDynamic* D = UMaterialInstanceDynamic::Create(LinePaint, this))
+			{
+				D->SetVectorParameterValue(TEXT("Tint"), C);
+				Made = D;
+			}
+		}
+		if (!Made) Made = TorqueToolModels::Finish(this, C, 0.0f, 0.62f);
+		Looks.Add(Key, Made);
+		return Made;
 	};
 	for (const TorqueFurniture::FMark& K : Y.Marks)
 	{

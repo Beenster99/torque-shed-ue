@@ -101,7 +101,19 @@ def master():
     uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1600, 0)
     tile = expr(m, unreal.MaterialExpressionScalarParameter, -1600, 120, parameter_name="Tile", default_value=1.0)
     uvs = expr(m, unreal.MaterialExpressionMultiply, -1400, 0)
-    link(uv, "", uvs, "A")
+    # WorldUV 1 lays the scan by world position in metres (the yard's painted marks, which are the
+    # engine cube stretched: its own UVs would smear one scan down a 20 m line).
+    wpos = expr(m, unreal.MaterialExpressionWorldPosition, -2000, 250)
+    wxy = expr(m, unreal.MaterialExpressionComponentMask, -1850, 250, r=True, g=True, b=False, a=False)
+    link(wpos, "", wxy, "")
+    wm = expr(m, unreal.MaterialExpressionMultiply, -1700, 250, const_b=0.01)
+    link(wxy, "", wm, "A")
+    world_uv = expr(m, unreal.MaterialExpressionScalarParameter, -1700, 350, parameter_name="WorldUV", default_value=0.0)
+    uvw = expr(m, unreal.MaterialExpressionLinearInterpolate, -1500, 120)
+    link(uv, "", uvw, "A")
+    link(wm, "", uvw, "B")
+    link(world_uv, "", uvw, "Alpha")
+    link(uvw, "", uvs, "A")
     link(tile, "", uvs, "B")
     white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
     grey = unreal.load_asset("/Engine/EngineResources/Black") or white
@@ -130,7 +142,71 @@ def master():
     base = expr(m, unreal.MaterialExpressionMultiply, -350, -350)
     link(tint, "", base, "A")
     link(ld, "", base, "B")
-    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    # The yard kit's realistic pass, each off (0) by default so the shed's props are unchanged:
+    #   TrueColour  the scan's own colours x Tint (dirt, plywood, brick, rust look like the real thing)
+    #   Macro       a soft light/dark variation over a couple of metres, so a big surface doesn't
+    #               show the scan repeating
+    #   Grime       darker and browner towards the ground, over the bottom GrimeHeight cm of the piece
+    true_c = expr(m, unreal.MaterialExpressionMultiply, -350, -650)
+    link(tint, "", true_c, "A")
+    link(col, "RGB", true_c, "B")
+    true_amt = expr(m, unreal.MaterialExpressionScalarParameter, -350, -750, parameter_name="TrueColour", default_value=0.0)
+    picked = expr(m, unreal.MaterialExpressionLinearInterpolate, -150, -450)
+    link(base, "", picked, "A")
+    link(true_c, "", picked, "B")
+    link(true_amt, "", picked, "Alpha")
+    out_base = picked
+    try:
+        noise = expr(m, unreal.MaterialExpressionNoise, -350, -950, scale=0.004, levels=3, output_min=-1.0, output_max=1.0, quality=1)
+        link(wpos, "", noise, "Position")
+        macro = expr(m, unreal.MaterialExpressionScalarParameter, -350, -1050, parameter_name="Macro", default_value=0.0)
+        nm = expr(m, unreal.MaterialExpressionMultiply, -150, -950)
+        link(noise, "", nm, "A")
+        link(macro, "", nm, "B")
+        n1 = expr(m, unreal.MaterialExpressionAdd, 0, -950, const_b=1.0)
+        link(nm, "", n1, "A")
+        mac = expr(m, unreal.MaterialExpressionMultiply, 50, -450)
+        link(out_base, "", mac, "A")
+        link(n1, "", mac, "B")
+        out_base = mac
+    except Exception as e:
+        warn("no Macro variation in M_PropMaster (%s)" % e)
+    try:
+        opos = expr(m, unreal.MaterialExpressionObjectPositionWS, -2000, -1300)
+        wz = expr(m, unreal.MaterialExpressionComponentMask, -1850, -1200, r=False, g=False, b=True, a=False)
+        link(wpos, "", wz, "")
+        oz = expr(m, unreal.MaterialExpressionComponentMask, -1850, -1300, r=False, g=False, b=True, a=False)
+        link(opos, "", oz, "")
+        up = expr(m, unreal.MaterialExpressionSubtract, -1700, -1250)
+        link(wz, "", up, "A")
+        link(oz, "", up, "B")
+        gh = expr(m, unreal.MaterialExpressionScalarParameter, -1700, -1150, parameter_name="GrimeHeight", default_value=40.0)
+        frac = expr(m, unreal.MaterialExpressionDivide, -1550, -1250)
+        link(up, "", frac, "A")
+        link(gh, "", frac, "B")
+        sat = expr(m, unreal.MaterialExpressionSaturate, -1400, -1250)
+        link(frac, "", sat, "")
+        low = expr(m, unreal.MaterialExpressionOneMinus, -1250, -1250)
+        link(sat, "", low, "")
+        low2 = expr(m, unreal.MaterialExpressionMultiply, -1100, -1250)
+        link(low, "", low2, "A")
+        link(low, "", low2, "B")
+        grime = expr(m, unreal.MaterialExpressionScalarParameter, -1100, -1150, parameter_name="Grime", default_value=0.0)
+        ga = expr(m, unreal.MaterialExpressionMultiply, -950, -1250)
+        link(low2, "", ga, "A")
+        link(grime, "", ga, "B")
+        dirt = expr(m, unreal.MaterialExpressionConstant3Vector, -950, -1100, constant=unreal.LinearColor(0.5, 0.42, 0.33, 1.0))
+        dirty = expr(m, unreal.MaterialExpressionMultiply, -800, -1150)
+        link(out_base, "", dirty, "A")
+        link(dirt, "", dirty, "B")
+        gl = expr(m, unreal.MaterialExpressionLinearInterpolate, 150, -600)
+        link(out_base, "", gl, "A")
+        link(dirty, "", gl, "B")
+        link(ga, "", gl, "Alpha")
+        out_base = gl
+    except Exception as e:
+        warn("no Grime in M_PropMaster (%s)" % e)
+    mel.connect_material_property(out_base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     # Roughness: Rough x lerp(1, scan x 2, Detail), clamped.
     r2 = expr(m, unreal.MaterialExpressionMultiply, -900, 200, const_b=2.0)
     link(rgh, "R", r2, "A")
@@ -255,7 +331,8 @@ def import_texture(path, dest, name, normal=False, srgb=True):
 def scan_textures(spec):
     """{scan id: {color, rough, normal}} for the 'scans' Tools/fetch_props.py has downloaded."""
     out = {}
-    for sid in sorted(set(spec["scans"].values())):
+    wanted = set(spec["scans"].values()) | {m["scan"] for m in spec["materials"].values() if m.get("scan")}
+    for sid in sorted(wanted):
         # One drawn here and kept in git (Data/Props/Scans/<id>/) before one fetched into build/props.
         kept = os.path.join(ROOT, "Data", "Props", "Scans", sid)
         folder = kept if os.path.isdir(kept) else os.path.join(FETCHED, "_scans", sid)
@@ -299,7 +376,7 @@ def materials(spec):
             eal.save_loaded_asset(mi)
             out[key] = mi
             continue
-        sid = spec["scans"].get(s["base"])
+        sid = s.get("scan") or spec["scans"].get(s["base"])
         maps = {} if glass or s["base"] == "emissive" else scans.get(sid, {})
         # Scanned only when all three maps are in: an empty texture slot renders as a checkerboard.
         scanned = all(maps.get(n) for n in ("color", "rough", "normal"))
@@ -314,6 +391,13 @@ def materials(spec):
             mel.set_material_instance_scalar_parameter_value(mi, "Tile", s.get("tile", 1.0))
             if s.get("emissive"):
                 mel.set_material_instance_scalar_parameter_value(mi, "Glow", s["emissive"])
+            # The yard kit's realistic pass (M_PropMaster only; every one defaults to off, so the shed's
+            # props are as they were): the scan's own colours, how much of it shows, no visible
+            # repeat, grime towards the ground, world-laid UVs.
+            if scanned:
+                for key_, param in (("true", "TrueColour"), ("detail", "Detail"), ("macro", "Macro"), ("grime", "Grime"), ("world_uv", "WorldUV")):
+                    if key_ in s:
+                        mel.set_material_instance_scalar_parameter_value(mi, param, float(s[key_]))
             if scanned:
                 for name, param in (("color", "ScanColor"), ("rough", "ScanRough"), ("normal", "ScanNormal")):
                     mel.set_material_instance_texture_parameter_value(mi, param, maps[name])
