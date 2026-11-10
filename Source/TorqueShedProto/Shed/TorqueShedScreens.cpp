@@ -11,7 +11,7 @@
 #include "TorqueBikePawn.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Camera/PlayerCameraManager.h"
-#include "IWebBrowserModule.h"
+#include "WebBrowserModule.h"
 #include "SWebBrowser.h"
 #include "Slate/WidgetRenderer.h"
 #include "RenderingThread.h"
