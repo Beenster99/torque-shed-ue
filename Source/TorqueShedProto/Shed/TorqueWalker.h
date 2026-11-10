@@ -174,6 +174,14 @@ public:
 	// (it can be nudged off a bench's edge between steps, and the look slides off what it was on).
 	FVector TestAim = FVector::ZeroVector;
 	bool bTestAim = false;
+	// The test runner's walkto: walked (not put) through each point in turn, steering on the walk
+	// input as a player would, so a gap too narrow stops it ("stuck"). Logs each point reached.
+	TArray<FVector> TestWalkPath;
+	double TestWalkFor = 0.0, TestWalkTook = 0.0, TestWalkStill = 0.0;
+	FVector TestWalkLast = FVector::ZeroVector;
+	double TestWalkTo(const TArray<FVector>& Points);   // the seconds it should take
+	bool TestWalking() const { return TestWalkPath.Num() > 0; }
+	void TickTestWalk(float Dt);
 	void ReAim();
 	void TestTool(ETorqueTool T) { SetTool(T); }
 	void TestCrouch(bool bOn) { SetCrouched(bOn); }

@@ -556,6 +556,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	// Hands-off test runs (-TorqueNoInput) ignore the pad, keys and mouse, as on the bike.
 	static const bool bNoInput = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput"));
 	if (!bNoInput) ReadInput(DeltaSeconds);
+	TickTestWalk(DeltaSeconds);   // (the test runner's walkto)
 	else bWorkHeld = bAltHeld = false;
 	TickSprays(DeltaSeconds);   // the coats going on (and drying off) follow their parts as they're redrawn
 	TickWash(DeltaSeconds);     // the wash game's muck follows its bike (TorqueWalkerWash.cpp)

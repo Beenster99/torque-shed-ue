@@ -100,6 +100,8 @@
 //                         where it is and what its wheels stand on (alone: where it is now)
 //   kit                   the movable shed and yard kit: the test area, a cone taken hold of, turned, carried
 //                         and put down, a ramp and a stool ordered and moved (alone, it quits at the end)
+//   walkto:<x>:<y>[:<x>:<y>...]  walk (not put) through those points (world cm), steering as a player would;
+//                         logs each point reached, or "stuck at" where a gap or a wall stopped it
 //   furn:look:<model|id>, furn:grab, furn:turn:<deg>, furn:walk:<x>:<y>, furn:drop, furn:order:<model>, furn:sit, furn:stand, furn:log
 //                         the movable kit (TorqueFurniture): stand back from the nearest one and look at it, take
 //                         hold of it, turn it, carry it there, put it down, order it from the Shed aisle; each logs

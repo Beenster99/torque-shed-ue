@@ -114,6 +114,7 @@ static const FData& Data()
 				O->TryGetBoolField(TEXT("ride"), M.bRide);
 				O->TryGetBoolField(TEXT("solid"), M.bSolid);
 				O->TryGetBoolField(TEXT("sold"), M.bSold);
+				if (O->TryGetNumberField(TEXT("sit"), M.Sit)) M.Sit *= 100.0;   // a seat: how high you sit (m in the file)
 				D.Models.Add(M.Id, M);
 			}
 	}
