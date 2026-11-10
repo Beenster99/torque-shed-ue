@@ -159,6 +159,10 @@ void ApplyLooks(const UObject* WorldContext, int32 Bike, const TArray<UStaticMes
 		FTransform Frame = C->GetOwner()->GetActorTransform();
 		Frame.SetScale3D(FVector::OneVector);
 		SetDirtFrame(M, C->GetComponentTransform().GetRelativeTransform(Frame), ZRange);
+		// On a wheel: the muck evenly round it, about the axle (the middle of its slot's box).
+		const FBox* WheelBox = C->ComponentHasTag(FName(TorqueShedCatalogue::SpinsTag)) ? Boxes.Find(Which) : nullptr;
+		const FVector Axle = WheelBox && WheelBox->IsValid ? WheelBox->GetCenter() : FVector::ZeroVector;
+		M->SetVectorParameterValue(TEXT("Spin"), FLinearColor((float)Axle.X, (float)Axle.Z, WheelBox && WheelBox->IsValid ? 1.0f : 0.0f, 0.0f));
 		M->SetScalarParameterValue(TEXT("FlyGain"), FlyGain(Which));
 		if (!bWashing || M->K2_GetScalarParameterValue(TEXT("HasMask")) < 0.5f) M->SetScalarParameterValue(TEXT("Grime"), Grime);
 	};

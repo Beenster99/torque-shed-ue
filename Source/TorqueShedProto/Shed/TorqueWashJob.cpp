@@ -142,6 +142,17 @@ float Pattern(double H, const FVector& N)
 	return (float)P;
 }
 
+// A point on a part that turns with a wheel (Spin: the axle's x and z, on), where its muck is
+// worked out from: half way down from the axle to it, facing neither up nor down, so the muck lies
+// evenly round the wheel (DIRT_HLSL's mw and nw).
+void SpunAt(const FLinearColor& Spin, FVector& P, FVector& N)
+{
+	if (Spin.B < 0.5f) return;
+	P.Z = Spin.G - 0.5 * FVector2D(P.X - Spin.R, P.Z - Spin.G).Size();
+	N.Z = 0.0;
+	N = N.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+}
+
 // Where dead flies lie (on a part that collects them, FlyGain): the forward faces, up off the ground
 // (Up, cm). DIRT_HLSL's flyw.
 double FlyWeight(const FVector& N, double Up)
@@ -224,6 +235,7 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	// The parts: one for each slot that has an item in it.
 	TMap<FName, int32> PartOf;
 	TArray<int32> MeshPart;
+	TArray<FLinearColor> PartSpin;
 	for (UStaticMeshComponent* C : Meshes)
 	{
 		const FName Slot = TorqueShedModel::SlotTag(C);
@@ -241,6 +253,10 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 			Slots.Add(Slot);
 			Names.Add(TorqueShedModel::SlotLabel(Slot));
 			Start.Add(It->Dirt);
+			// (On a wheel: its axle, as ApplyLooks gives its material; DIRT_HLSL's Spin.)
+			UMaterialInstanceDynamic* SpinMid = Cast<UMaterialInstanceDynamic>(C->GetMaterial(0));
+			if (PartSpin.Num() <= NewPart) PartSpin.SetNumZeroed(NewPart + 1);
+			PartSpin[NewPart] = SpinMid ? SpinMid->K2_GetVectorParameterValue(TEXT("Spin")) : FLinearColor(0, 0, 0, 0);
 			Found = &PartOf.Add(Slot, NewPart);
 		}
 		MeshPart.Add(*Found);
@@ -331,8 +347,10 @@ bool FTorqueWashJob::Setup(UWorld* World, int32 InBay)
 	for (int32 I = 0; I < Points.Num(); ++I)
 	{
 		Vox[I] = IndexOf(Points[I]);
-		Pat[I] = FMath::Max(TWJ::Pattern((Points[I].Z - ZLo) / (ZHi - ZLo), Normals[I]),
-			(float)(TorqueShedModel::FlyGain(Slots[PointPart[I]]) * TWJ::FlyWeight(Normals[I], Points[I].Z - ZLo) * 1.6));
+		FVector PatAt = Points[I], PatN = Normals[I];
+		if (PartSpin.IsValidIndex(PointPart[I])) TWJ::SpunAt(PartSpin[PointPart[I]], PatAt, PatN);
+		Pat[I] = FMath::Max(TWJ::Pattern((PatAt.Z - ZLo) / (ZHi - ZLo), PatN),
+			(float)(TorqueShedModel::FlyGain(Slots[PointPart[I]]) * TWJ::FlyWeight(PatN, PatAt.Z - ZLo) * 1.6));
 		PartN[PointPart[I]] += 1;
 		PatMean[PointPart[I]] += Pat[I];
 		Sum += Points[I];

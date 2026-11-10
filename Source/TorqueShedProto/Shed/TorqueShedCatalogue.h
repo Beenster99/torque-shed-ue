@@ -81,4 +81,8 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 
 // Tagged on a surface that isn't paint (chrome, rubber...): ApplyLooks leaves its colour alone.
 extern const TCHAR* const NoPaintTag;
+
+// Tagged on a surface that turns with a wheel (the tyre, the rim, a disc): its road dirt lies evenly
+// round the wheel (ApplyLooks), not caked on whichever side was at the bottom when it was drawn.
+extern const TCHAR* const SpinsTag;
 }
