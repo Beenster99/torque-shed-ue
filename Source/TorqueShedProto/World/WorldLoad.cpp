@@ -127,4 +127,98 @@ std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<d
 	}
 	return Out;
 }
+
+RideCheck CheckRide(CellStore& Store, HeightStore& Heights, double LatA, double LonA, double LatB, double LonB, const std::function<void(const std::string&)>& Say)
+{
+	RideCheck R;
+	const auto Tell = [&Say](const std::string& Text) { if (Say) Say(Text); };
+	Tell("Reading the world's index");
+	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	if (!Idx || Idx->Empty()) { R.Why = "The world's index can't be had."; return R; }
+	// (a little past both ends, so a place at a cell's edge has its roads on both sides)
+	const double Pad = 0.03;
+	const std::vector<CellId> Want = CellsInBox(std::fmin(LatA, LatB) - Pad, std::fmin(LonA, LonB) - Pad, std::fmax(LatA, LatB) + Pad, std::fmax(LonA, LonB) + Pad);
+	std::vector<CellId> Cells;
+	for (const CellId& C : Want)
+	{
+		const CellStore::EState St = Store.StateOf(C, *Idx);
+		if (St == CellStore::EState::Here || St == CellStore::EState::Baked) Cells.push_back(C);
+	}
+	if (Cells.empty()) { R.Why = "Nobody has baked that part of the world yet."; return R; }
+	Tell("Fetching " + std::to_string(Cells.size()) + " cells of roads");
+	LoadedArea Area;
+	if (!LoadCells(Store, Heights, Cells, Area, &R.Why)) return R;
+	const Region& G = Area.Roads;
+	R.Cells = int(Area.Cells.size());
+	R.Junctions = int(G.Nodes.size());
+	R.Roads = int(G.Edges.size());
+	R.Credits = G.Credits;
+	const Frame F = G.FrameOf();
+	const P2 A = F.FromGeo(LatA, LonA), B = F.FromGeo(LatB, LonB);
+	R.From = G.NearestConnected(A.X, A.Z, 2000.0);
+	R.To = G.NearestConnected(B.X, B.Z, 2000.0);
+	if (R.From < 0 || R.To < 0) { R.Why = std::string("There is no road within 2 km of the ") + (R.From < 0 ? "start." : "end."); return R; }
+	Tell("Finding the way by road");
+	const std::vector<int> Path = G.ShortestPath(R.From, R.To);
+	if (Path.empty()) { R.Why = "There is no way by road between them."; return R; }
+	for (int E : Path)
+	{
+		R.Km += G.Edges[size_t(E)].Length / 1000.0;
+		const std::string Name = G.NameOf(E);
+		if (R.Names.empty() || R.Names.back() != Name) R.Names.push_back(Name);
+	}
+	R.CrowKm = G.Nodes[size_t(R.From)].DistanceTo(G.Nodes[size_t(R.To)]) / 1000.0;
+	const std::vector<P2> Road = Resample(G.PathLine(R.From, Path), 30.0);
+	const std::shared_ptr<Terrain> Ride = Area.Land->ForRoad(Road);
+	R.Tiles = int(Ride->UsedKeys().size());
+	Tell("Fetching the ground: " + std::to_string(R.Tiles) + " tiles");
+	R.TilesFailed = FetchGround(Store, Heights, *Ride);
+	R.Points = int(Road.size());
+	double Last = std::nan("");
+	for (size_t I = 0; I < Road.size(); ++I)
+	{
+		const double H = Ride->Height(Road[I].X, Road[I].Z);
+		if (std::isnan(H)) { Last = H; continue; }
+		R.Low = R.WithGround == 0 ? H : std::fmin(R.Low, H);
+		R.High = R.WithGround == 0 ? H : std::fmax(R.High, H);
+		++R.WithGround;
+		if (I > 0 && !std::isnan(Last))
+		{
+			const double Run = Road[I].DistanceTo(Road[I - 1]);
+			if (H > Last) R.Climb += H - Last;
+			// (a point a metre from the last says nothing of the slope)
+			if (Run > 10.0) R.Steepest = std::fmax(R.Steepest, std::fabs(H - Last) / Run);
+		}
+		Last = H;
+	}
+	if (R.TilesFailed > 0) R.Why = std::to_string(R.TilesFailed) + " of the ground's tiles couldn't be fetched.";
+	else if (R.WithGround != R.Points) R.Why = std::to_string(R.Points - R.WithGround) + " points of the road have no ground under them.";
+	else R.Ok = true;
+	return R;
+}
+
+std::string RideCheck::Dump() const
+{
+	Json J = Json::MakeObject();
+	const auto Set = [&J](const char* Key, Json V) { J.O.emplace_back(Key, std::move(V)); };
+	const auto List = [](const std::vector<std::string>& Rows) { Json L = Json::MakeArray(); for (const std::string& S : Rows) L.A.push_back(Json::MakeString(S)); return L; };
+	Set("ok", Json::MakeBool(Ok));
+	Set("why", Json::MakeString(Why));
+	Set("cells", Json::MakeNumber(Cells));
+	Set("junctions", Json::MakeNumber(Junctions));
+	Set("roads", Json::MakeNumber(Roads));
+	Set("km", Json::MakeNumber(Km));
+	Set("crow_km", Json::MakeNumber(CrowKm));
+	Set("points", Json::MakeNumber(Points));
+	Set("with_ground", Json::MakeNumber(WithGround));
+	Set("low_m", Json::MakeNumber(Low));
+	Set("high_m", Json::MakeNumber(High));
+	Set("climb_m", Json::MakeNumber(Climb));
+	Set("steepest", Json::MakeNumber(Steepest));
+	Set("tiles", Json::MakeNumber(Tiles));
+	Set("tiles_failed", Json::MakeNumber(TilesFailed));
+	Set("names", List(Names));
+	Set("credits", List(Credits));
+	return J.Dump();
+}
 } // namespace TorqueWorld

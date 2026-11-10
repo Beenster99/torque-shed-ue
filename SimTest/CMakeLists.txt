@@ -155,3 +155,12 @@ if(MSVC)
 else()
   target_compile_options(world_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+# The same check the game runs with -TorqueWorldTest, from a desk with the real network (it shells out to curl).
+if(NOT WIN32)
+  add_executable(world_ride world_ride.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
+    ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
+    ${WORLD}/WorldLoad.cpp ${FIT}/FitJson.cpp)
+  target_include_directories(world_ride PRIVATE ${WORLD} ${FIT})
+  target_link_libraries(world_ride PRIVATE Threads::Threads)
+  target_compile_options(world_ride PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
