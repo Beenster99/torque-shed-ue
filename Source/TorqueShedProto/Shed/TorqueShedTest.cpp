@@ -1246,6 +1246,24 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		Said(ATorqueShedRadio::NowPlaying(World).Replace(TEXT("\n"), TEXT(" / ")));
 		return true;
 	}
+	if (Verb == TEXT("tv"))
+	{
+		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as F at it.
+		if (P.Num() >= 2)
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::TvChannel;
+			R.Item = FCString::Atoi(*P[1]) - 1;
+			R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) { Warn(TEXT("tv: ") + WhyNot); return true; }
+		}
+		FString Line;
+		for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)
+			Line += FString::Printf(TEXT("%sTV %d: %s"), T == 0 ? TEXT("") : TEXT("; "), T + 1, TorqueShedTv::Name(B->TvChannel(T)));
+		Said(Line);
+		return true;
+	}
 	if (Verb == TEXT("lifts"))
 	{
 		// Each lift: up or down as the shed has it, how high it's got, and the test bay's bike's height.

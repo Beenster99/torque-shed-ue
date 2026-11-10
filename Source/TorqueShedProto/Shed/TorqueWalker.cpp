@@ -182,6 +182,8 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 			TorqueShedPower::DynoTemp(B ? B->DynoRoom().Heat : 0.0f));
 	case ETorquePlace::Hook: return FString::Printf(TEXT("Spray bay hook %d"), P.Index + 1);
 	case ETorquePlace::Radio: return TEXT("Shed radio (everyone hears it)");
+	case ETorquePlace::Tv:   // [tv]
+		return FString::Printf(TEXT("TV: %s"), TorqueShedTv::Name(B ? B->TvChannel(P.Index) : 0));
 	case ETorquePlace::Tape: return TEXT("Masking tape");
 	case ETorquePlace::Lift:
 		return FString::Printf(TEXT("%s (%s)"), *UTorqueBuildSubsystem::LiftName(P.Index), (B && B->LiftUp(P.Index)) ? TEXT("up") : TEXT("down"));
@@ -1224,6 +1226,7 @@ void ATorqueWalker::MakePlan()
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::DynoSwitch) return;   // F flicks them
 	// [kit] F works the switch boxes and takes the extinguisher; holding it, the work button sprays it.
 	if (TargetPlace && (TargetPlace->Kind == ETorquePlace::ShedSwitch || TargetPlace->Kind == ETorquePlace::Extinguisher)) return;
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv) return;   // [tv] F changes the channel
 	if (B->ExtinguisherHeldBy() == Me || B->StandPushedBy() == Me) return;
 	// [fluids] The pump's nozzle in your hand: the work button fills the bike you're at (TorqueWalkerFluids.cpp).
 	if (B->PumpHeldBy() == Me || (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
@@ -2327,6 +2330,17 @@ void ATorqueWalker::Interact()
 		OpenComputer();
 		return;
 	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv)
+	{
+		// [tv] A wall TV (Torque Shed's tv_channels.gd): on to the next channel, for everyone.
+		FTorqueShedRequest R;
+		R.Kind = ETorqueShedAct::TvChannel;
+		R.Item = TargetPlace->Index;
+		R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
+		FString WhyNot;
+		if (!B->Request(R, WhyNot)) Say(WhyNot, false);
+		return;
+	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Lift)
 	{
 		// A bike lift's button post (walker.gd interact "lift"): up if it's down, down if it's up.
@@ -2760,6 +2774,9 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({TWI::PlaceName(*TargetPlace, B), FColor::White, 0.8f});
 			if (TargetPlace->Kind == ETorquePlace::Computer) HudLines.Add({TEXT("F / Triangle (or left mouse): order parts and project bikes"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::DynoSwitch) HudLines.Add({TEXT("F / Triangle: flick the switch"), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
+				HudLines.Add({FString::Printf(TEXT("F / Triangle: change channel (next: %s)"),
+					TorqueShedTv::Name(TorqueShedTv::Next(TargetPlace->Index, B->TvChannel(TargetPlace->Index)))), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Lift)
 				HudLines.Add({B->LiftUp(TargetPlace->Index) ? TEXT("F / Triangle: lower it") : TEXT("F / Triangle: raise it"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::ShedSwitch)   // [kit]

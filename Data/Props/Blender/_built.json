@@ -21,6 +21,30 @@
    "drum_green"
   ]
  },
+ "bay_screen": {
+  "bounds_min": [
+   -1.3,
+   -0.7313,
+   -0.0
+  ],
+  "bounds_max": [
+   1.3,
+   0.7313,
+   0.0914
+  ],
+  "tris": 2060,
+  "materials": [
+   "tv_frame",
+   "screen",
+   "tv_back",
+   "tv_glass",
+   "display_red",
+   "plastic_black",
+   "steel_dark",
+   "steel",
+   "rubber"
+  ]
+ },
  "box_cardboard": {
   "bounds_min": [
    -0.227,
@@ -594,6 +618,78 @@
    "dirt_dark",
    "rubber",
    "stone"
+  ]
+ },
+ "tv_120": {
+  "bounds_min": [
+   -1.33,
+   -0.75,
+   -0.0
+  ],
+  "bounds_max": [
+   1.33,
+   0.75,
+   0.0914
+  ],
+  "tris": 2060,
+  "materials": [
+   "tv_frame",
+   "screen",
+   "tv_back",
+   "tv_glass",
+   "display_red",
+   "plastic_black",
+   "steel_dark",
+   "steel",
+   "rubber"
+  ]
+ },
+ "tv_128": {
+  "bounds_min": [
+   -1.415,
+   -0.795,
+   -0.0
+  ],
+  "bounds_max": [
+   1.415,
+   0.795,
+   0.0914
+  ],
+  "tris": 2060,
+  "materials": [
+   "tv_frame",
+   "screen",
+   "tv_back",
+   "tv_glass",
+   "display_red",
+   "plastic_black",
+   "steel_dark",
+   "steel",
+   "rubber"
+  ]
+ },
+ "tv_136": {
+  "bounds_min": [
+   -1.505,
+   -0.845,
+   -0.0
+  ],
+  "bounds_max": [
+   1.505,
+   0.845,
+   0.1014
+  ],
+  "tris": 2060,
+  "materials": [
+   "tv_frame",
+   "screen",
+   "tv_back",
+   "tv_glass",
+   "display_red",
+   "plastic_black",
+   "steel_dark",
+   "steel",
+   "rubber"
   ]
  },
  "tyre_stack": {

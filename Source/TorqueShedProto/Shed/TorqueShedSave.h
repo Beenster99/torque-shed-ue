@@ -127,6 +127,8 @@ public:
 	// The shed radio (added to version 3 too: an older save's is off).
 	UPROPERTY() bool bRadioOn = false;
 	UPROPERTY() int32 RadioStation = 0;
+	// [tv] Each wall TV's channel (TorqueShedTv; none: an older save, whose TVs start as a new garage's).
+	UPROPERTY() TArray<uint8> TvChannels;
 	UPROPERTY() int32 LiftsUp = 0;   // the bike lifts that are up (a bit per lift id)
 	// [kit] The main lights, the roller door and where the engine stand was left (added to version
 	// 3 too: an older save's lights are on, its door up, its stand at home).
