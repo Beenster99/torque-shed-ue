@@ -16,7 +16,12 @@
     {"prop": "dyno_rig", "at": [0, -940, 0], "yaw": 0, "hide": ["Dyno_Plate", "Dyno_Edge_*", "Dyno_Slot", "Dyno_Clamp_*", "Dyno_ClampBase", "Dyno_ClampStop", "Dyno_Post_*", "Dyno_PostCap_*"]},
     {"prop": "dyno_fan", "at": [0, -1135, 0], "yaw": 0, "hide": ["Dyno_FanBase", "Dyno_FanPost", "Dyno_FanHousing", "Dyno_FanBack", "Dyno_FanGrilleH", "Dyno_FanGrilleV"]},
     {"prop": "dyno_desk", "at": [290, -1110, 0], "yaw": 0, "hide": ["Dyno_Desk", "Dyno_DeskTop", "Dyno_DeskMonitor", "Dyno_DeskKeyboard", "Dyno_RunButton"]},
-    {"prop": "booth_shop", "at": [1160, 0, 0], "yaw": 90, "hide": ["Booth_Back", "Booth_Side_*", "Booth_Post_*", "Booth_Filter", "Booth_Grille_*", "Booth_Grate", "Booth_GrateBar_*"]}
+    {"prop": "booth_shop", "at": [1160, 0, 0], "yaw": 90, "hide": ["Booth_Back", "Booth_Side_*", "Booth_Post_*", "Booth_Filter", "Booth_Grille_*", "Booth_Grate", "Booth_GrateBar_*"]},
+    {"prop": "bay_screen", "at": [-504, -550, 245], "yaw": 0, "hide": ["BayScreen_1", "BayScreen_1_Glass"]},
+    {"prop": "bay_screen", "at": [-232, -550, 245], "yaw": 0, "hide": ["BayScreen_2", "BayScreen_2_Glass"]},
+    {"prop": "bay_screen", "at": [232, -550, 245], "yaw": 0, "hide": ["BayScreen_3", "BayScreen_3_Glass"]},
+    {"prop": "bay_screen", "at": [504, -550, 245], "yaw": 0, "hide": ["BayScreen_4", "BayScreen_4_Glass"]},
+    {"prop": "tv_136", "at": [-650, 60, 255], "yaw": -90, "hide": ["CrewBoard", "CrewBoard_Glass"]}
   ],
   "dress": [
     {"prop": "dress_barrel_02", "at": [-605, 505, 0], "yaw": 20},

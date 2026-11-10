@@ -743,15 +743,60 @@ def seat_sofa():
 
 # --- Wall TVs and posters ----------------------------------------------------------------------------
 
+# The frame round a TV's glass, m: the game's page fills the rest (TorqueShedScreens.cpp TvBezel).
+TV_BEZEL = 0.011
+
 def _tv(width, height, depth):
-    """A wall TV: a thin bezel round the panel (the 'screen' slot the game draws its channel on),
-    a slim back box and the wall bracket. The origin is at its middle on the wall."""
-    box("Back", (0.0, 0.0, depth * 0.45), (width * 0.6, height * 0.6, depth * 0.5), "plastic_black", bevel=0.01)
-    box("Bezel", (0.0, 0.0, depth * 0.85), (width + 0.03, height + 0.03, depth * 0.3), "plastic_black", bevel=0.004)
-    box("Panel", (0.0, 0.0, depth + 0.0005), (width, height, 0.001), "screen", bevel=0.0)
-    box("Bracket", (0.0, 0.0, 0.01), (width * 0.3, height * 0.4, 0.02), "steel_dark", bevel=0.003)
-    box("Logo", (0.0, -height / 2 - 0.008, depth * 0.85 + depth * 0.15 + 0.001), (0.06, 0.006, 0.001), "aluminium", bevel=0.0)
-    box("Led", (width / 2 - 0.05, -height / 2 - 0.008, depth + 0.001), (0.006, 0.004, 0.001), "display_red", bevel=0.0)
+    """A modern wall-mounted flat TV, its outside exactly width x height (so the shed's screens keep
+    their size) and depth from the wall to the glass. The origin is at its middle on the wall.
+
+    From the front: one sheet of black glass (the 'screen' slot the game draws its channel on, an
+    inset TV_BEZEL in from the edge) in a slim dark-metal frame whose edge is chamfered, a slightly
+    deeper chin along the bottom with the IR window and the standby light. Behind: the thin panel
+    (2.4 cm), the electronics hump over the lower two-thirds with its vent slots and the ports on its
+    left, the VESA plate and the tilt bracket's two arms back to a wall rail, so from the side it
+    stands off the wall the way a real one does."""
+    W, H, D = width, height, depth
+    b = TV_BEZEL
+    panel = 0.024                     # the panel's own thickness, glass to back sheet
+    zf = D                            # the glass's face
+    zb = D - panel                    # the panel's back sheet
+    # The frame: four chamfered aluminium-look bars round the edge, the glass set 1 mm inside them.
+    fd = panel                        # the frame runs the panel's whole thickness
+    box("FrameTop", (0.0, H / 2 - b / 2, zf - fd / 2), (W, b, fd), "tv_frame", bevel=0.0025)
+    box("FrameBottom", (0.0, -H / 2 + b / 2, zf - fd / 2), (W, b, fd), "tv_frame", bevel=0.0025)
+    for s in (-1, 1):
+        box("FrameSide%d" % s, (s * (W / 2 - b / 2), 0.0, zf - fd / 2), (b, H - 2 * b + 0.002, fd), "tv_frame", bevel=0.0025)
+    # The glass: black, glossy, a hair behind the frame's lip.
+    box("Panel", (0.0, 0.0, zf - 0.0012), (W - 2 * b + 0.002, H - 2 * b + 0.002, 0.002), "screen", bevel=0.0)
+    box("PanelBack", (0.0, 0.0, zb + 0.004), (W - 0.004, H - 0.004, 0.008), "tv_back", bevel=0.002)
+    # The chin's little bar under the glass: IR window in the middle, the standby light to its right.
+    box("IrWindow", (0.0, -H / 2 + b / 2, zf + 0.0006), (0.05, b * 0.45, 0.0012), "tv_glass", bevel=0.0)
+    box("Led", (0.035, -H / 2 + b / 2, zf + 0.0008), (0.004, 0.0025, 0.0012), "display_red", bevel=0.0)
+    # The back: the electronics hump over the lower two-thirds, rounded off, with vent slots across
+    # its top and bottom and a recessed bay of ports facing the left.
+    hw, hh = W * 0.62, H * 0.58
+    hy = -H / 2 + 0.1 + hh / 2
+    hump_d = zb - 0.03                # from the bracket's face to the panel's back
+    hz = 0.03 + hump_d / 2
+    box("Hump", (0.0, hy, hz), (hw, hh, hump_d), "tv_back", bevel=min(0.012, hump_d * 0.45))
+    for row, sy in enumerate((1, -1)):
+        for i in range(14):
+            x = -hw / 2 + 0.08 + (hw - 0.16) * i / 13.0
+            box("Vent%d_%d" % (row, i), (x, hy + sy * (hh / 2 + 0.0004), hz), (0.012, 0.002, hump_d * 0.6), "plastic_black", bevel=0.0)
+    box("Ports", (-hw / 2 + 0.002, hy, hz), (0.006, 0.14, hump_d * 0.55), "plastic_black", bevel=0.001)
+    for i in range(4):
+        box("Port%d" % i, (-hw / 2 - 0.0005, hy - 0.05 + i * 0.033, hz), (0.002, 0.012, 0.018), "steel_dark", bevel=0.0)
+    # The VESA plate on the hump's back and the bracket: two arms down to the wall rail.
+    box("Vesa", (0.0, hy, 0.03 - 0.003), (0.62 if W > 1.5 else W * 0.4, 0.42 if H > 1.0 else H * 0.3, 0.006), "steel_dark", bevel=0.002)
+    for s in (-1, 1):
+        ax = s * min(0.26, W * 0.17)
+        box("Arm%d" % s, (ax, hy, 0.015), (0.04, 0.5 if H > 1.0 else H * 0.36, 0.024), "steel_dark", bevel=0.004)
+    box("WallRail", (0.0, hy, 0.005), (min(0.7, W * 0.45), 0.08, 0.01), "steel_dark", bevel=0.003)
+    for s in (-1, 1):
+        cyl("WallBolt%d" % s, (s * min(0.3, W * 0.2), hy, 0.011), 0.008, 0.004, "steel", axis="z", verts=6, bevel=0.0005)
+    # A tidy cable dropping from the ports round the hump's edge to the wall.
+    tube("Cable", [(-hw / 2 - 0.01, hy - 0.02, hz), (-hw / 2 - 0.02, hy - 0.08, hz * 0.6), (-hw / 2 - 0.03, -H / 2 + 0.12, 0.004)], 0.004, "rubber", sides=8)
 
 
 @model("tv_120", (2.66, 1.5, 0.09))

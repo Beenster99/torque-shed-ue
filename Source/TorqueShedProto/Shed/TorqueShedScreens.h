@@ -1,31 +1,35 @@
-// The shed's screens, as Torque Shed's TVs draw them (dashboard.gd, tv_channels.gd): each bay's
-// screen on the back wall shows its bike's page, and the crew board over the workbench turns
-// between the crew and how to play.
+// The shed's screens, as Torque Shed's TVs draw them (dashboard.gd, tv_channels.gd).
 //
-// A bay's page is Torque Shed's: the orange header with the bike's name and how it stands (READY TO
-// RIDE, 3 PARTS MISSING, 2 PARTS LOOSE, NEEDS FABRICATION), and every part in two columns with a
-// condition bar, LOOSE or MISSING. Where Torque Shed's left side lists the bike's numbers (power,
-// weight; the shed doesn't work those out yet), this one shows the build: how far along it is,
-// fitted and bolted counts, condition, rust and dirt, the fabrication it owes, its paint, the next
-// thing to do and which tool does it, and who in the crew is on it right now.
+// [tv] The five big wall TVs (four on the back wall over the bays, one over the workbench) each
+// show one channel (UTorqueBuildSubsystem::TvChannel, shared by everyone in the shed; F at a TV
+// changes it):
+//   Shed cam: a live camera over each player's shoulder (up to four, in a grid), their name in
+//     their colour and what they're doing.
+//   Rider cam: a live third-person chase camera on another rider out on their bike in the same
+//     world (a different one every 20 s); with no one out, the shed cam with a note saying so.
+//   Bikes in the shed: a card per bay: the bike, how it stands, the build, condition and muck,
+//     its paint and who's on it.
+//   This bay's bike (the back wall's TVs): the bay's bike part by part, Torque Shed's dashboard
+//     page; blank while the bike's wheeled out of its bay.
+// The cameras are scene captures taken 10 times a second, only while a TV showing them is seen.
 //
 // The parts computer's monitor: Torque Shed's parts computer, the kinds down the side, the parts of
 // one with the picked one lit and its description; what the player at it is choosing, or, with
 // no one there, a different kind every few seconds, and how many deliveries are waiting.
 //
-// The crew board: everyone in the shed in their colour and what they're doing, each bay's bike and
-// how far along it is; then Torque Shed's how-to-play pages, a page every 9 s.
-//
 // Each page is a canvas drawn into a render target, shown by M_ShedScreenPage (Tools/ue_build_shed.py)
-// on a quad just in front of the level's screen glass. It redraws when the shed changes and once a
-// second (for the crew). One in the shed; the walker makes it.
+// on a quad just in front of the TV's glass (the props' bay_screen and tv_136 models, swaps.json).
+// One in the shed; the walker makes it.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "TorqueShedScreens.generated.h"
 
+class ATorqueBikePawn;
+class ATorqueWalker;
 class UCanvas;
+class USceneCaptureComponent2D;
 class UMaterialInstanceDynamic;
 class UStaticMeshComponent;
 class UTextureRenderTarget2D;
@@ -46,7 +50,7 @@ public:
 	static constexpr int32 PageH = 576;
 
 private:
-	// 0..3 the bays' screens, 4 the crew board, 5 the parts computer's monitor, 6 the dyno room's screen.
+	// 0..3 the back wall's TVs, 4 the TV over the workbench, 5 the parts computer's monitor, 6 the dyno room's screen.
 	UPROPERTY(Transient) TArray<UTextureRenderTarget2D*> Pages;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Quads;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> PageMaterials;
@@ -59,6 +63,26 @@ private:
 	void DrawDyno(UCanvas* C) const;
 	bool bDynoWasLive = false;
 	void DrawBay(UCanvas* C, int32 Bay) const;
-	void DrawCrew(UCanvas* C) const;
-	void DrawHowTo(UCanvas* C, int32 Page) const;
+
+	// [tv] The channels.
+	int32 ShownChannel[5] = {-1, -1, -1, -1, -1};   // what each TV's page was last drawn for
+	int32 ChannelOf(int32 Tv) const;
+	bool IsLive(int32 Tv) const;
+	void DrawPlayers(UCanvas* C, const FString& Note) const;
+	void DrawRider(UCanvas* C, float Now) const;
+	void DrawBikes(UCanvas* C) const;
+	// The live cameras: one per player in the shed, and the rider cam.
+	USceneCaptureComponent2D* MakeCam(UTextureRenderTarget2D*& OutRT);
+	void UpdatePlayerCams(float Dt);
+	void UpdateRiderCam(float Dt);
+	UPROPERTY(Transient) TArray<USceneCaptureComponent2D*> PlayerCams;
+	UPROPERTY(Transient) TArray<UTextureRenderTarget2D*> PlayerCamRTs;
+	TArray<FVector> PlayerCamAt;
+	TArray<TWeakObjectPtr<ATorqueWalker>> FilmedWalkers;
+	UPROPERTY(Transient) USceneCaptureComponent2D* RiderCam = nullptr;
+	UPROPERTY(Transient) UTextureRenderTarget2D* RiderCamRT = nullptr;
+	TWeakObjectPtr<ATorqueBikePawn> Filmed;
+	FVector RiderCamAt = FVector::ZeroVector;
+	FVector RiderFwd = FVector::ZeroVector;
+	float RiderSwap = 0.0f;
 };

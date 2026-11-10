@@ -346,6 +346,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	Paint = FTorquePaintBay::Starter();
 	bRadioOn = false;
 	RadioTuned = 0;
+	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) TvChannels[T] = TorqueShedTv::Default[T];   // [tv]
 	LiftsUp = 0;
 	bShedLights = true;   // [kit]
 	bDoorUp = true;
@@ -397,6 +398,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.DynoHeat = Dyno.Heat;
 	S.bRadioOn = bRadioOn;
 	S.RadioStation = RadioTuned;
+	S.TvChannels.Reset();   // [tv]
+	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) S.TvChannels.Add(TvChannels[T]);
 	S.LiftsUp = LiftsUp;
 	S.bShedLights = bShedLights;   // [kit]
 	S.bDoorUp = bDoorUp;
@@ -507,6 +510,8 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	Dyno.Heat = S.DynoHeat;
 	bRadioOn = S.bRadioOn;
 	RadioTuned = FMath::Clamp(S.RadioStation, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
+	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)   // [tv]
+		TvChannels[T] = S.TvChannels.IsValidIndex(T) && TorqueShedTv::Valid(T, S.TvChannels[T]) ? S.TvChannels[T] : TorqueShedTv::Default[T];
 	LiftsUp = 0;
 	for (int32 L = 0; L < 31; ++L)
 		if (IsLift(L) && (S.LiftsUp & (1 << L)) != 0) LiftsUp |= 1 << L;
@@ -650,7 +655,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 18;   // bumped when the layout below changes (18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 19;   // bumped when the layout below changes (19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -890,6 +895,15 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 		float Sale = PumpLitres;
 		Ar << By << Sale;
 	}
+	{
+		// [tv] The wall TVs' channels.
+		uint8 Tv[TorqueShedTv::Tvs];
+		for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)
+		{
+			Tv[T] = TvChannels[T];
+			Ar << Tv[T];
+		}
+	}
 
 	Out.Reset();
 	FMemoryWriter Head(Out);
@@ -1090,6 +1104,12 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	int32 PumpByIn = 0;   // [fluids]
 	float PumpLitresIn = 0.0f;
 	Ar << PumpByIn << PumpLitresIn;
+	uint8 TvIn[TorqueShedTv::Tvs];   // [tv]
+	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)
+	{
+		TvIn[T] = TorqueShedTv::Default[T];
+		Ar << TvIn[T];
+	}
 	if (Ar.IsError() || !bPaintRead || !FMath::IsFinite(PumpLitresIn))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque net: the host's shed couldn't be read (%d bytes)"), Data.Num());
@@ -1106,6 +1126,7 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	Paint = MoveTemp(NewPaint);
 	bRadioOn = bRadioB != 0;
 	RadioTuned = FMath::Clamp(RadioIn, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
+	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) TvChannels[T] = TorqueShedTv::Valid(T, TvIn[T]) ? TvIn[T] : TorqueShedTv::Default[T];   // [tv]
 	LiftsUp = LiftsIn;
 	bShedLights = bLightsB != 0;   // [kit]
 	bDoorUp = bDoorB != 0;
@@ -2635,6 +2656,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		const FTorqueItem* It = Items.Find(R.Item);
 		return It && It->Tape != 0 ? FString() : FString(TEXT("There's no tape on it."));
 	}
+	case ETorqueShedAct::TvChannel:   // [tv]
+		return TorqueShedTv::Valid(R.Item, R.Colour) ? FString() : FString(TEXT("No such channel."));
 	case ETorqueShedAct::Radio:
 		if (TorqueShedRadio::Stations().Num() == 0) return TEXT("The radio has no stations.");
 		if (!TorqueShedRadio::Stations().IsValidIndex(R.Colour)) return TEXT("No such station.");
@@ -3254,6 +3277,10 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Touch(R.Item);
 		break;
 	}
+	case ETorqueShedAct::TvChannel:   // [tv]
+		TvChannels[R.Item] = (uint8)R.Colour;
+		Text = FString::Printf(TEXT("TV: %s"), TorqueShedTv::Name(R.Colour));
+		break;
 	case ETorqueShedAct::Radio:
 		UE_LOG(LogTemp, Log, TEXT("Torque radio: request from player %d: %s, station %d"), Peer, R.Item != 0 ? TEXT("on") : TEXT("off"), R.Colour);
 		bRadioOn = R.Item != 0;
