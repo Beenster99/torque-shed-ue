@@ -1397,7 +1397,10 @@ def _share_hair(by_name):
     for name, e in by_name.items():
         if name == SHARE_HAIR_FROM:
             continue
-        e["parts"] = [p for p in e.get("parts", []) if not (p.get("groom") and p.get("name", "").lower() == "hair")]
+        for p in e.get("parts", []):
+            if p.get("groom") and p.get("name", "").lower() == "hair":
+                p["name"] = "OwnHair"
+                p["loose_only"] = True    # kept for the game's -TorqueHairAlone test only
         shared = dict(hair)
         shared["binding"] = ""          # D's binding is made for D's face
         shared["fit_mesh"] = face       # the groom sits as it does on D's head, moved onto this one's
