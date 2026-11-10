@@ -331,6 +331,12 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		bCardsSet = true;
 		IConsoleVariable* Cards = IConsoleManager::Get().FindConsoleVariable(TEXT("r.HairStrands.UseCardsInsteadOfStrands"));
 		if (Cards) Cards->Set(1, ECVF_SetByCode);
+		// Manual LOD (round 128: r.HairStrands.LODMode was 1, auto, so the forced cards LOD was
+		// ignored and close up the groom picked its strands LODs, which don't draw here).
+		// -TorqueHairAutoLod keeps auto, for comparison.
+		if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueHairAutoLod")))
+			if (IConsoleVariable* Mode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.HairStrands.LODMode")))
+				Mode->Set(0, ECVF_SetByCode);
 		// The hair settings this build runs with, for the near/far question (round 127).
 		TArray<FString> HairVars;
 		IConsoleManager::Get().ForEachConsoleObjectThatStartsWith(FConsoleObjectVisitor::CreateLambda(
@@ -414,6 +420,16 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 			CallWithOne(C, TEXT("SetForcedLOD"), [Lod](FProperty* Pr, void* V)
 			{
 				if (FIntProperty* I = CastField<FIntProperty>(Pr)) I->SetPropertyValue(V, Lod);
+			});
+		}
+		// Cards on this component too (round 128: bUseCards was False on every groom).
+		if (!FParse::Param(FCommandLine::Get(), TEXT("TorqueHairAutoLod")))
+		{
+			if (FBoolProperty* UC = FindFProperty<FBoolProperty>(C->GetClass(), TEXT("bUseCards")))
+				UC->SetPropertyValue_InContainer(C, true);
+			CallWithOne(C, TEXT("SetUseCards"), [](FProperty* Pr, void* V)
+			{
+				if (FBoolProperty* B = CastField<FBoolProperty>(Pr)) B->SetPropertyValue(V, true);
 			});
 		}
 		if (UPrimitiveComponent* PC = Cast<UPrimitiveComponent>(C))
