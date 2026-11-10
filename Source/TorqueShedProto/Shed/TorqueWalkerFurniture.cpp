@@ -414,7 +414,25 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 				if (D < Best) { Best = D; Pick = &F; }
 			}
 		}
-		if (!Pick) return TEXT("not furniture: no ") + Args[0] + TEXT(" out");
+		if (!Pick)
+		{
+			// One of the yard's fixed pieces (the bus row, the jump lines): only looked at, from
+			// furn:look:<model>:<cm> away (default 20 m); they're not kit, so never outlined.
+			const TorqueFurniture::FPlaced* Fixed = nullptr;
+			double Nearest = 1e30;
+			for (const TorqueFurniture::FPlaced& P : TorqueFurniture::Yard().Fixed)
+			{
+				if (P.Model != FName(*Args[0])) continue;
+				const double D = FVector::DistSquared(P.Xf.GetLocation(), GetActorLocation());
+				if (D < Nearest) { Nearest = D; Fixed = &P; }
+			}
+			if (!Fixed) return TEXT("not furniture: no ") + Args[0] + TEXT(" out");
+			const TorqueFurniture::FModel* FM = TorqueFurniture::Find(Fixed->Model);
+			const double Away = Args.Num() > 1 && Args[1].IsNumeric() ? FCString::Atod(*Args[1]) : 2000.0;
+			const FVector Side = Fixed->Xf.GetRotation().RotateVector(FVector(0.35, 1.0, 0.0)).GetSafeNormal2D();
+			const FVector Centre = Fixed->Xf.GetLocation() + FVector(0.0, 0.0, FM ? FM->Size.Y * 0.5 : 100.0);
+			return TestLookAt(Centre, Side, Away) + TEXT(" (a fixed yard piece: looked at, not outlined)");
+		}
 		const TorqueFurniture::FModel* M = TorqueFurniture::Find(Pick->Model);
 		const double Height = M ? M->Size.Y : 60.0;
 		const double Across = M ? FMath::Max(M->Size.X, M->Size.Z) * 0.5 : 50.0;
