@@ -120,6 +120,7 @@ private:
 	void ResetPart();
 	void ResetAll();
 	void UpdateCamera();
+	void HideWalker(bool bHide);
 	void UpdateHighlight();
 	void UpdateGaps();
 	void ReadInput(float Dt);
