@@ -12,14 +12,15 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/PackageName.h"
 
 namespace TorqueWeatherFxImpl
 {
 constexpr int32 DataFloats = 6;          // per sprite (M_SprayMist): colour (3), alpha, softness, seed
-constexpr double BoxHalf = 1800.0;       // the rain's box round the camera: 36 m across
-constexpr double BoxBelow = 400.0, BoxAbove = 1200.0;
+constexpr double BoxHalf = 1300.0;       // the rain's box round the camera: 26 m across
+constexpr double BoxBelow = 400.0, BoxAbove = 1000.0;
 constexpr int32 MaxBits = 900;           // splashes and spray in the air at once
-const FLinearColor Rain(0.70f, 0.74f, 0.80f);
+const FLinearColor Rain(0.52f, 0.56f, 0.62f);
 const FLinearColor Spray(0.80f, 0.82f, 0.86f);
 
 // How many streaks for Settings > Graphics > Effects (or the quality preset's).
@@ -52,7 +53,11 @@ void ATorqueWeatherFx::Make()
 {
 	bMade = true;
 	UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
-	UMaterialInterface* Mist = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_SprayMist.M_SprayMist"));
+	// The rain's own (lit per pixel, crisper: Tools/ue_build_spray.py), or the spray game's mist before it's built.
+	UMaterialInterface* Mist = FPackageName::DoesPackageExist(TEXT("/Game/Shed/Materials/M_RainSprite"))
+		? LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_RainSprite.M_RainSprite")) : nullptr;
+	if (!Mist) Mist = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_SprayMist.M_SprayMist"));
+	UE_LOG(LogTemp, Log, TEXT("Torque weather: rain drawn with %s"), Mist ? *Mist->GetName() : TEXT("nothing"));
 	if (!Plane || !Mist)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque weather: no %s: no rain or spray drawn"), Plane ? TEXT("M_SprayMist (run Tools/ue_build_shed.py)") : TEXT("plane mesh"));
@@ -98,8 +103,8 @@ void ATorqueWeatherFx::Make()
 		Data[0] = TWX::Rain.R;
 		Data[1] = TWX::Rain.G;
 		Data[2] = TWX::Rain.B;
-		Data[3] = FMath::Lerp(0.10f, 0.24f, D.Seed);
-		Data[4] = 0.15f;
+		Data[3] = FMath::Lerp(0.30f, 0.55f, D.Seed);
+		Data[4] = 0.05f;
 		Data[5] = D.Seed;
 		Streaks->SetCustomData(I, Data, false);
 	}
@@ -220,8 +225,8 @@ void ATorqueWeatherFx::TickRain(float Dt, double Show, const FVector& Wind)
 		FVector Along = Rv - ToEye * FVector::DotProduct(Rv, ToEye);
 		const double Moving = Along.Size();
 		Along = Moving > 1.0 ? Along / Moving : FVector::UpVector;
-		const double Len = FMath::Clamp(Moving * 0.025, 10.0, 140.0);
-		const double Width = 0.25 + Dist * 0.0011;
+		const double Len = FMath::Clamp(Moving * 0.04, 25.0, 180.0);
+		const double Width = 0.5 + Dist * 0.0022;   // (about two pixels at 1080p)
 		const FMatrix M = FRotationMatrix::MakeFromZX(ToEye, Along);
 		Xfs[I] = FTransform(M.ToQuat(), D.Pos, FVector(Len / 100.0, Width / 100.0, 1.0));
 	}
@@ -234,11 +239,11 @@ void ATorqueWeatherFx::TickSplashes(float Dt, double Show)
 {
 	if (Show <= 0.0) return;
 	// Little bursts on the ground round you, more the harder it rains, most of them near.
-	SplashDebt += Dt * Show * 260.0;
+	SplashDebt += Dt * Show * 420.0;
 	while (SplashDebt >= 1.0 && Bits.Num() < PuffPool)
 	{
 		SplashDebt -= 1.0;
-		const double R = 1000.0 * FMath::Sqrt(FMath::FRand()) + 80.0;
+		const double R = 700.0 * FMath::Sqrt(FMath::FRand()) + 60.0;
 		const double A = FMath::FRand() * UE_DOUBLE_TWO_PI;
 		FVector Ground;
 		if (!GroundBelow(Eye + FVector(FMath::Cos(A) * R, FMath::Sin(A) * R, 300.0), Ground)) continue;
@@ -246,9 +251,9 @@ void ATorqueWeatherFx::TickSplashes(float Dt, double Show)
 		B.Pos = Ground + FVector(0.0, 0.0, 1.5);
 		B.Vel = FVector(FMath::FRandRange(-30.0, 30.0), FMath::FRandRange(-30.0, 30.0), FMath::FRandRange(40.0, 110.0));
 		B.Life = FMath::FRandRange(0.16f, 0.3f);
-		B.Size0 = FMath::FRandRange(1.5f, 3.0f);
-		B.Size1 = FMath::FRandRange(6.0f, 11.0f);
-		B.Alpha = FMath::FRandRange(0.22f, 0.4f);
+		B.Size0 = FMath::FRandRange(3.0f, 5.0f);
+		B.Size1 = FMath::FRandRange(10.0f, 18.0f);
+		B.Alpha = FMath::FRandRange(0.4f, 0.65f);
 		B.Seed = FMath::FRand();
 		B.Gravity = 980.0f;
 		B.Drag = 0.0f;
@@ -275,7 +280,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 		if (Wet < 0.2 || Speed < 500.0 || Speed > 10000.0) continue;
 		double& Debt = SprayDebt.FindOrAdd(Key);
 		const double Pace = FMath::Clamp(Speed / 2500.0, 0.0, 1.6);
-		Debt += Dt * (Wet - 0.1) * Pace * 110.0;
+		Debt += Dt * (Wet - 0.1) * Pace * 60.0;
 		const FVector Fwd = FVector(Vel.X, Vel.Y, 0.0).GetSafeNormal();
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Fwd);
 		while (Debt >= 1.0 && Bits.Num() < PuffPool)
@@ -293,9 +298,9 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 			B.Vel = Vel * FMath::FRandRange(0.25, 0.45) + FVector(0.0, 0.0, Speed * FMath::FRandRange(0.06, 0.13) + FMath::FRandRange(0.0, 120.0))
 				+ Side * Speed * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.16 : 0.07);
 			B.Life = FMath::FRandRange(0.5f, 0.95f);
-			B.Size0 = FMath::FRandRange(6.0f, 12.0f);
-			B.Size1 = FMath::FRandRange(30.0f, 60.0f) * (float)FMath::Lerp(0.7, 1.2, Pace / 1.6);
-			B.Alpha = FMath::FRandRange(0.08f, 0.16f) * (float)FMath::Min(Wet * 1.3, 1.0);
+			B.Size0 = FMath::FRandRange(12.0f, 20.0f);
+			B.Size1 = FMath::FRandRange(55.0f, 95.0f) * (float)FMath::Lerp(0.7, 1.2, Pace / 1.6);
+			B.Alpha = FMath::FRandRange(0.10f, 0.18f) * (float)FMath::Min(Wet * 1.3, 1.0);
 			B.Seed = FMath::FRand();
 			B.Gravity = 380.0f;
 			B.Drag = 2.2f;
@@ -375,7 +380,7 @@ void ATorqueWeatherFx::DrawBits()
 		Data[1] = C.G;
 		Data[2] = C.B;
 		Data[3] = FMath::Clamp(B.Alpha * FMath::Sin(UE_PI * FMath::Min(1.0f, F * 1.1f + 0.05f)), 0.0f, 1.0f);
-		Data[4] = B.bSpray ? 0.85f : 0.35f;
+		Data[4] = B.bSpray ? 1.0f : 0.35f;
 		Data[5] = B.Seed;
 		Puffs->SetCustomData(Slot, Data, false);
 	}
