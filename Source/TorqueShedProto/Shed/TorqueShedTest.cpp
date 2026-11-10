@@ -1510,7 +1510,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	if (Verb == TEXT("tv"))
 	{
 		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as right mouse at it;
-		// tv:video:LINK: the YouTube video (a link or an id), as Ctrl+V at a TV.
+		// tv:video:ID[:N]: the YouTube video (an id), as Ctrl+V at a TV, and TV N (1 .. 5, default 1:
+		// the back wall's leftmost, over bay 1) put on YouTube.
 		if (P.Num() >= 3 && P[1] == TEXT("video"))
 		{
 			FTorqueShedRequest V;
@@ -1518,6 +1519,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			V.Text = TorqueShedTv::VideoId(P[2]);
 			FString WhyNot;
 			if (!B->Request(V, WhyNot)) { Warn(TEXT("tv: ") + WhyNot); return true; }
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::TvChannel;
+			R.Item = FMath::Clamp(P.Num() >= 4 ? FCString::Atoi(*P[3]) - 1 : 0, 0, TorqueShedTv::Tvs - 1);
+			R.Colour = TorqueShedTv::YouTube;
+			if (!B->Request(R, WhyNot)) { Warn(TEXT("tv: ") + WhyNot); return true; }
 		}
 		else if (P.Num() >= 2)
 		{
