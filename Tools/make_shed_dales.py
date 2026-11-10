@@ -62,7 +62,7 @@ TEST_AREA = (150.0, 80.0)                       # middle of the test area (Tools
 # tiles the finer one covers; tile edges line up.
 NEAR = ("n", 4.0, 480.0, -960.0, 960.0, -960.0, 1920.0)
 MID = ("m", 20.0, 960.0, -7680.0, 7680.0, -3840.0, 7680.0)
-FAR = ("f", 80.0, 3840.0, -19200.0, 19200.0, -19200.0, 23040.0)
+FAR = ("f", 60.0, 3840.0, -19200.0, 19200.0, -19200.0, 23040.0)
 ZONES = (NEAR, MID, FAR)
 
 # Where things stop: walls and barns within this box (so the wall count stays sensible).
@@ -80,8 +80,8 @@ MEADOW = (106, 120, 56)      # hay meadow, cut and grown back
 PASTURE = (80, 104, 46)      # grazed hard, deeper green
 ROUGH = (96, 102, 54)        # rushy, poorer field
 FIELDS = (GRASS, MEADOW, PASTURE, ROUGH, GRASS, PASTURE)
-MOOR = (116, 110, 74)        # bleached moor grass
-HEATHER = (78, 66, 52)       # heather out of flower
+MOOR = (122, 116, 76)        # bleached moor grass
+HEATHER = (92, 80, 60)       # heather out of flower
 BRACKEN = (116, 90, 56)      # dead bracken in November
 WET = (86, 94, 56)           # rush and flush by the becks
 ROCK = (128, 126, 120)
@@ -213,6 +213,11 @@ def lane_x(z):
     return t * (35.0 * np.sin((z - LANE_Z0) / 420.0) + 18.0 * np.sin((z - LANE_Z0) / 150.0 + 0.4) * smooth(2000, 2600, z))
 
 
+def far_relief(x, z, d):
+    k = smooth(1400.0, 4000.0, d)
+    return k * (70.0 * ridged(x / 1100.0, z / 1100.0, 3, 17) + 22.0 * ridged(x / 330.0, z / 330.0, 2, 19) - 42.0)
+
+
 def raw_height(x, z):
     """The land before the beck and the lane are cut into it."""
     x = np.asarray(x, np.float64); z = np.asarray(z, np.float64)
@@ -226,6 +231,9 @@ def raw_height(x, z):
     H = H - 0.004 * (np.clip(z, -2500.0, 9000.0) - 800.0) * smooth(15.0, 160.0, d)   # the dale falls south
     r = np.hypot(x - 0.0, (z - 1500.0) * 0.85)
     H = H + 560.0 * smooth(6000.0, 13000.0, r) * (0.35 + 0.65 * ridged(x / 4200.0, z / 4200.0, 4, 9))   # far ranges
+    # Crisp ridges and gullies on the tops and the far hills (beenster: the distant hills looked
+    # "a little muddy and blurred"), so they keep a shape at 5 to 15 km.
+    H = H + far_relief(x, z, d)
     m = smooth(0.0, 28.0, d)
     return -0.08 * (1.0 - m) + H * m
 
@@ -353,7 +361,7 @@ def cover(x, z, H, slope):
     f_col = f_col * (1.0 + 0.06 * fbm(x / 60.0, z / 60.0, 2, 61))[..., None]
     # The moor: rough grass, heather on the tops, bracken on the slopes just above the intake.
     hn = fbm(x / 260.0, z / 260.0, 4, 71)
-    heather = smooth(0.0, 0.25, hn) * smooth(intake(z) + 120.0, intake(z) + 220.0, up)
+    heather = 0.6 * smooth(0.0, 0.25, hn) * smooth(intake(z) + 120.0, intake(z) + 220.0, up)
     br = fbm(x / 140.0, z / 140.0, 3, 81)
     bracken = smooth(-0.1, 0.2, br) * smooth(intake(z) - 5.0, intake(z) + 15.0, up) * (1.0 - smooth(intake(z) + 90.0, intake(z) + 160.0, up))
     moor = np.repeat(lin(MOOR)[None, :], x.size, 0).reshape(n + (3,))
@@ -368,6 +376,11 @@ def cover(x, z, H, slope):
     col = col + (lin(FOREST) - col) * plantation_mask(x, z)[..., None]
     # Far away, M_Land leans on this colour: keep a broad, gentle variation in it.
     col = col * (1.0 + 0.07 * fbm(x / 1500.0, z / 1500.0, 3, 91))[..., None]
+    # Shade baked into the far hills' colour: darker down the gullies, lighter on the ridges, so their
+    # shape still reads through the haze.
+    k = smooth(1400.0, 4000.0, d)
+    rel = ridged(x / 1100.0, z / 1100.0, 3, 17) * 0.7 + ridged(x / 330.0, z / 330.0, 2, 19) * 0.3
+    col = col * (1.0 + k * (rel - 0.5) * 0.45)[..., None]
     # The lane's verge: alpha 0 at the tarmac's edge (M_Land lays gravel there), 255 in the open.
     a = 255.0 * smooth(LANE_HALF + 0.2, LANE_HALF + 2.6, lane_dist(x, z))
     a = np.where(d < 1.0, 255.0, a)
