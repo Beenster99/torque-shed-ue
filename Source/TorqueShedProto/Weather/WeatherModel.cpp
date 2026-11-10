@@ -108,6 +108,28 @@ double SwayFromWind(const State& S)
 	return std::min(std::max(0.15 + 0.85 * std::pow(W / 7.0, 1.3), 0.15), 2.5);
 }
 
+double WetGrip(const State& S)
+{
+	const double Standing = Clamp01((S.Puddles - 0.3) / 0.7);
+	return std::max(1.0 - 0.32 * Clamp01(S.RoadWet) - 0.06 * Standing * Standing, 0.6);
+}
+
+double GustShare(double T)
+{
+	// Three slow waves at unrelated rates; a gust where they line up, shaped to a peak.
+	const double Sum = 0.5 * std::sin(T * 0.37 + 1.3) + 0.3 * std::sin(T * 0.93 + 4.1) + 0.2 * std::sin(T * 2.11 + 0.7);
+	const double Up = Clamp01((Sum - 0.15) / 0.75);
+	return Up * Up * (3.0 - 2.0 * Up);
+}
+
+double WindAtRider(const State& S, double T, double Shelter, double& FromDegrees)
+{
+	const double Steady = std::max(S.Wind, 0.0), Gust = std::max(S.Gust, Steady);
+	const double At10 = Steady + (Gust - Steady) * GustShare(T);
+	FromDegrees = S.WindFrom + 12.0 * std::sin(T * 0.21 + 2.0) + 6.0 * std::sin(T * 0.77);
+	return At10 * 0.65 * (1.0 - 0.8 * Clamp01(Shelter));
+}
+
 double RoadWaterStep(double WaterMm, double RainMmPerHour, double Air, double Wind, double Cloud, double Seconds)
 {
 	// Drying, mm an hour: a British grey day takes three or four hours, a warm breezy bright one under two.

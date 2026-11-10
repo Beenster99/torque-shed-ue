@@ -1283,8 +1283,19 @@ double BikeSim::BrakeCare(bool IsFront) const
 
 void BikeSim::ApplyAero()
 {
-	const V3 V = LinearVelocity;
-	ApplyCentralForce(V * (-0.5 * AIR_DENSITY * Build.CdA * V.Length()));
+	const V3 Air = LinearVelocity - Wind;
+	ApplyCentralForce(Air * (-0.5 * AIR_DENSITY * Build.CdA * Air.Length()));
+	// The crosswind's extra push on the side of bike and rider (none in still air, so a calm day
+	// rides exactly as before): across the bike, the wind's own part of the air on its side.
+	WindForce = V3();
+	if (Wind.Dot(Wind) < 1e-6) return;
+	V3 Side = Basis.X;
+	Side.y = 0.0;
+	if (Side.Dot(Side) < 1e-6) return;
+	Side = Side.Normalized();
+	const double Across = Wind.Dot(Side);
+	WindForce = Side * (0.5 * AIR_DENSITY * Build.CdA * (SIDE_AREA - 1.0) * Across * std::fabs(Across));
+	ApplyCentralForce(WindForce);
 }
 
 void BikeSim::UpdateFeet(double Delta)

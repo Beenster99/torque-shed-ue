@@ -66,6 +66,18 @@ double RainShow(const State& S);
 // 0.15, a breeze 1, a gale 2.5.
 double SwayFromWind(const State& S);
 
+// What the weather does to the ride (stage 4).
+// The road's grip as a share of dry: a damp road takes a little, a soaked one about a third (the
+// wet-road figure the bike always had), and standing water a little more besides.
+double WetGrip(const State& S);
+// How far a gust has built at time T, seconds (0 the steady wind .. 1 the full gust): a few gusts a
+// minute, each building over a second or two and dying away, irregular, never periodic to the ear.
+double GustShare(double T);
+// The wind where the rider is, m/s, and the bearing it blows FROM, at time T: the steady wind plus
+// the gusts, slowed to rider height (the 10 m figure x 0.65 over open moor) and by Shelter (0 open
+// .. 1 walled in), its direction wandering a little.
+double WindAtRider(const State& S, double T, double Shelter, double& FromDegrees);
+
 // Roads remember. A road's film of water, mm: rain adds to it, drying takes it away (faster when
 // warm, windy or clear), and past about 1 mm it runs off. How wet it looks follows the film.
 double RoadWaterStep(double WaterMm, double RainMmPerHour, double Air, double Wind, double Cloud, double Seconds);

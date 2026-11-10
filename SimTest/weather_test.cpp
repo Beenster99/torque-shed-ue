@@ -161,6 +161,43 @@ int main()
 	Check(Load("w1 1 0 0 3 225 6 14 40000 0 3", Back) && Back.CloudBase == 5000.0 && Back.Puddles == 0.0, "an older save (no low cloud) still loads");
 	Check(Load(Save(Live), Back) && Near(Back.Puddles, Live.Puddles, 0.001), "puddles saved too");
 
+	// Stage 4: what it does to the ride.
+	Check(WetGrip(Preset(Sunny)) == 1.0 && WetGrip(Preset(Overcast)) == 1.0, "dry presets: full grip");
+	{
+		State Damp = Preset(Overcast);
+		Damp.RoadWet = 0.3;
+		State Drenched = Preset(Wet);
+		Drenched.Puddles = 0.0;
+		State Flooded = Drenched;
+		Flooded.Puddles = 1.0;
+		std::printf("  grip: damp %.2f, soaked %.2f, soaked with standing water %.2f\n", WetGrip(Damp), WetGrip(Drenched), WetGrip(Flooded));
+		Check(WetGrip(Damp) > 0.85 && WetGrip(Damp) < 0.95, "a damp road takes a little grip");
+		Check(Near(WetGrip(Drenched), 0.68, 0.005), "a soaked road grips as the old wet roads did (0.68)");
+		Check(WetGrip(Flooded) < WetGrip(Drenched) - 0.04 && WetGrip(Flooded) >= 0.6, "standing water takes a little more");
+	}
+	{
+		State Windy = Preset(Overcast);
+		Windy.Wind = 9.0; Windy.Gust = 18.0;
+		double Lo = 1e9, Hi = 0.0, Mean = 0.0, From = 0.0, FromLo = 1e9, FromHi = -1e9;
+		int Gusts = 0;
+		bool In = false;
+		for (int I = 0; I < 6000; ++I)   // ten minutes, every 0.1 s
+		{
+			const double Wr = WindAtRider(Windy, I * 0.1, 0.0, From);
+			Lo = std::min(Lo, Wr); Hi = std::max(Hi, Wr); Mean += Wr / 6000.0;
+			FromLo = std::min(FromLo, From); FromHi = std::max(FromHi, From);
+			const double G = GustShare(I * 0.1);
+			const bool Now = In ? G > 0.3 : G > 0.6;
+			if (Now && !In) ++Gusts;
+			In = Now;
+		}
+		std::printf("  gusty day (9 m/s, gusts 18): at the rider %.1f .. %.1f m/s, mean %.1f, %d gusts in 10 min, from %.0f .. %.0f deg\n", Lo, Hi, Mean, Gusts, FromLo, FromHi);
+		Check(Near(Lo, 9.0 * 0.65, 0.1) && Near(Hi, 18.0 * 0.65, 0.3), "rider-height wind runs from the steady wind to the gusts");
+		Check(Gusts >= 5 && Gusts <= 40, "a few gusts a minute at most");
+		Check(FromHi - FromLo < 40.0 && FromHi - FromLo > 10.0, "the direction wanders a little");
+		Check(WindAtRider(Windy, 3.0, 1.0, From) < WindAtRider(Windy, 3.0, 0.0, From) * 0.25, "shelter takes most of it");
+	}
+
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
 }
