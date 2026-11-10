@@ -1,9 +1,25 @@
 {
- "about": "beenster's own Fab motorbike helmet, worn by the rider in place of Data/Rider/helmet.glb when it's on the PC (Fab models are never committed). Tools/ue_build_level.py looks for it first as a static mesh already in the project (Fab plugin import, outside /Game/Rider and /Game/MetaHumans) whose name has one of 'keywords', then in the launcher's Fab cache (VaultCache/FabLibrary, or TORQUE_FAB_VAULT): 'vault' if set, else the newest folder whose name has a keyword, taking its .glb (or .gltf / .fbx). It imports it to /Game/Fab/RiderHelmet with its own materials and fits it over our helmet by their bounding boxes: turned by 'rotate' (pitch, yaw, roll, degrees, applied first), scaled by 'scale' times the size match, then centred plus 'offset' (cm, in our helmet's frame). Every step is logged ('[Torque] fab helmet: ...') so these can be corrected from the log.",
- "keywords": ["helmet", "Helmet", "HELMET"],
- "skip_keywords": ["MetaHuman", "Rider/helmet"],
+ "about": "beenster's own Fab motorbike helmet, worn by the rider in place of Data/Rider/helmet.glb when it's on the PC (Fab models are never committed). Tools/ue_build_level.py looks for it first as a static mesh already in the project (Fab plugin import, outside /Game/Rider and /Game/MetaHumans) whose name has one of 'keywords', then in the launcher's Fab cache (VaultCache/FabLibrary, or TORQUE_FAB_VAULT): 'vault' if set, else the newest folder whose name has a keyword, taking its .glb (or .gltf / .fbx). It imports it to /Game/Fab/RiderHelmet with its own materials and fits it over our helmet by their bounding boxes: turned by 'rotate' (pitch, yaw, roll, degrees, applied first), scaled by 'scale' times the size match, then centred plus 'offset' (cm, in our helmet's frame). Every step is logged ('[Torque] fab helmet: ...') so these can be corrected from the log. A MetaHuman package (.mhpkg, which is how Fab gives MetaHuman wardrobe items) is imported first through the MetaHuman plugin's MetaHumanPackageFactory into /Game/Fab/RiderHelmetPkg; a skeletal helmet is drawn in its rest pose.",
+ "keywords": [
+  "helmet",
+  "Helmet",
+  "HELMET"
+ ],
+ "skip_keywords": [
+  "Hair_",
+  "Groom",
+  "Rider/helmet"
+ ],
  "vault": "",
- "rotate": [0, 0, 0],
+ "rotate": [
+  0,
+  0,
+  0
+ ],
  "scale": 1.0,
- "offset": [0, 0, 0]
+ "offset": [
+  0,
+  0,
+  0
+ ]
 }

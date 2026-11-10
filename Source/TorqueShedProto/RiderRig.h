@@ -13,6 +13,7 @@ class AActor;
 class USceneComponent;
 class UPoseableMeshComponent;
 class UStaticMeshComponent;
+class UMeshComponent;
 class UMaterialInterface;
 
 struct FRiderPoseInput
@@ -81,7 +82,7 @@ public:
 	FRiderPoseOut Last;   // the joints the last Pose put the rider's at
 
 	UPoseableMeshComponent* Body = nullptr;
-	UStaticMeshComponent* Helmet = nullptr;
+	UMeshComponent* Helmet = nullptr;   // a static mesh, or a skeletal one (a MetaHuman wardrobe helmet) in its rest pose
 	// The helmet's place relative to the head joint (pawn local, unturned): for a MetaHuman's head.
 	FTransform HelmetOnHead() const { return Head != INDEX_NONE ? HelmetRest * FTransform(-Bones[Head].Rest) : HelmetRest; }
 	FVector HelmetCentreOnHead() const { return Head != INDEX_NONE ? HelmetCentreRest - Bones[Head].Rest : FVector::ZeroVector; }
