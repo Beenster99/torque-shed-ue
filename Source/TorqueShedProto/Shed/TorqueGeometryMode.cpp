@@ -212,6 +212,9 @@ struct ATorqueGeometryMode::FState
 	int32 SeenCount = -1;
 	uint32 PrevPad = 0;
 	double PadRepeat = 0.0;
+	// Your own walker (and what it carries) hidden from your view while it's open, so zooming out
+	// past it shows the bike, not your back. Yours only: the others still see you.
+	TArray<TWeakObjectPtr<AActor>> Hidden;
 };
 
 static bool GExpert = false;   // GeometryMode.expert: free move, for this session
@@ -311,6 +314,7 @@ void ATorqueGeometryMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, in
 		Mode.SetHideCursorDuringCapture(false);
 		PC->SetInputMode(Mode);
 	}
+	HideWalker(true);
 	{
 		const FSonyPadState Now = Walker->PadState();   // (buttons held as it opens don't count as pressed)
 		S.PrevPad = Now.bConnected ? Now.Buttons : 0;
@@ -331,6 +335,7 @@ void ATorqueGeometryMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, in
 void ATorqueGeometryMode::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->OnTell.Remove(TellHandle);
+	HideWalker(false);
 	Super::EndPlay(Reason);
 }
 
@@ -456,6 +461,7 @@ void ATorqueGeometryMode::Close()
 	Lit.Reset();
 	// The bike as its saved fit has it (drawn again if the draft's rig handles had it re-formed).
 	if (ATorqueShedBike* Bike = S.Bike.Get()) Bike->Preview(nullptr);
+	HideWalker(false);
 	if (APlayerController* PC = S.PC.Get())
 	{
 		if (ATorqueWalker* W = S.Walker.Get()) PC->SetViewTargetWithBlend(W, 0.25f);
@@ -466,6 +472,34 @@ void ATorqueGeometryMode::Close()
 	S.PC = nullptr;   // (no longer this player's: For() won't find it)
 	GGeoClosedFrame = GFrameCounter;
 	Destroy();
+}
+
+void ATorqueGeometryMode::HideWalker(bool bHide)
+{
+	// (APlayerController::HiddenActors: drawn for everyone but this player. The walker's body bits
+	// are owner-no-see, which only holds while the walker is the view target; here the camera is
+	// this actor, so they'd show, as would the avatar and the tool in its hand.)
+	FState& S = *St;
+	APlayerController* PC = S.PC.Get();
+	if (!bHide)
+	{
+		if (PC)
+			for (const TWeakObjectPtr<AActor>& A : S.Hidden)
+				if (AActor* Was = A.Get()) PC->HiddenActors.Remove(Was);
+		S.Hidden.Reset();
+		return;
+	}
+	ATorqueWalker* Walker = S.Walker.Get();
+	if (!PC || !Walker) return;
+	TArray<AActor*> Mine;
+	Walker->GetAttachedActors(Mine, true, true);   // the MetaHuman Blueprint, held tools
+	Mine.Add(Walker);
+	for (AActor* A : Mine)
+	{
+		if (!A || A == this || S.Hidden.Contains(A)) continue;
+		S.Hidden.Add(A);
+		PC->HiddenActors.AddUnique(A);
+	}
 }
 
 void ATorqueGeometryMode::UpdateCamera()
@@ -625,6 +659,7 @@ void ATorqueGeometryMode::Tick(float DeltaSeconds)
 		Close();
 		return;
 	}
+	HideWalker(true);   // (the avatar can be made again while it's open: hide the new one too)
 	// The shed draws a bike again when anything about it changes: keep the draft on the new one.
 	UStaticMeshComponent* First = Bike->Parts.Num() > 0 ? Bike->Parts[0] : nullptr;
 	if (First != S.SeenFirst || Bike->Parts.Num() != S.SeenCount)
