@@ -178,6 +178,15 @@ private:
 	// [outline test] 'outlinecheck': the screen read with the look outline on, then off.
 	int32 OutlinePhase = 0;
 	TArray<FColor> OutlineOn;
+	// The frame itself, as shot:ui gets it (UGameViewportClient's screenshot, taken at the end of a
+	// drawn frame): a game-thread ReadPixels of the viewport read the swap chain after it was shown,
+	// and saw no outline in rounds 129-130 while shot:ui of the same frames showed it.
+	TArray<FColor> OutlineShot;
+	bool bOutlineShot = false;
+	int32 OutlineShotWaits = 0;
+	FDelegateHandle OutlineShotHandle;
+	void OutlineShotAsk();
+	void OutlineShotDone();
 	int32 OutlineFails = 0, OutlineChecks = 0;
 	double Wait = 0.0;
 	// How long each step (and the wait after it) took, real and game time, and in how many frames:

@@ -32,6 +32,7 @@
 #include "UnrealClient.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 
 namespace TorqueShedTestImpl
 {
@@ -770,7 +771,6 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			}
 			return true;
 		}
-		FViewport* Viewport = GEngine && GEngine->GameViewport ? GEngine->GameViewport->Viewport : nullptr;
 		auto Fail = [&](const FString& Why)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Torque test: %s: OUTLINE CHECK FAILED: %s"), *S, *Why);
@@ -779,8 +779,9 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			W->bTestNoOutline = false;
 			OutlinePhase = 0;
 			OutlineOn.Reset();
+			OutlineShotDone();
 		};
-		if (!Viewport) { Fail(TEXT("no game viewport to read")); return true; }
+		if (!GEngine || !GEngine->GameViewport) { Fail(TEXT("no game viewport to read")); return true; }
 		if (OutlinePhase == 0)
 		{
 			bool bOk = false;
@@ -789,28 +790,47 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Said(Status);
 			W->bTestNoOutline = false;
 			OutlinePhase = 1;
-			return false;   // a second on (TSR settles), then read
+			return false;   // a second on (TSR settles), then a screenshot of it
 		}
-		TArray<FColor> Px;
-		if (!Viewport->ReadPixels(Px) || Px.Num() == 0) { Fail(TEXT("couldn't read the viewport")); return true; }
-		if (OutlinePhase == 1)
+		if (OutlinePhase == 1 || OutlinePhase == 3)
+		{
+			OutlineShotAsk();
+			++OutlinePhase;
+			return false;   // taken at the end of the next drawn frame
+		}
+		if (!bOutlineShot)
+		{
+			if (++OutlineShotWaits <= 5) return false;
+			Fail(TEXT("the screenshot of the frame never came"));
+			return true;
+		}
+		TArray<FColor> Px = MoveTemp(OutlineShot);
+		OutlineShotDone();
+		if (Px.Num() == 0) { Fail(TEXT("the screenshot of the frame was empty")); return true; }
+		if (OutlinePhase == 2)
 		{
 			OutlineOn = MoveTemp(Px);
 			W->bTestNoOutline = true;
-			OutlinePhase = 2;
-			return false;   // a second off, then read again
+			OutlinePhase = 3;
+			return false;   // a second off, then a screenshot again
 		}
 		W->bTestNoOutline = false;
 		OutlinePhase = 0;
-		int32 Turned = 0;
+		int32 Turned = 0, OrangeOn = 0, OrangeOff = 0;
 		const int32 N = FMath::Min(Px.Num(), OutlineOn.Num());
 		for (int32 I = 0; I < N; ++I)
-			if (TSTI::Orange(OutlineOn[I]) && !TSTI::Orange(Px[I])) ++Turned;
+		{
+			const bool bOn = TSTI::Orange(OutlineOn[I]), bOff = TSTI::Orange(Px[I]);
+			OrangeOn += bOn ? 1 : 0;
+			OrangeOff += bOff ? 1 : 0;
+			if (bOn && !bOff) ++Turned;
+		}
 		OutlineOn.Reset();
 		const int32 Need = FMath::Max(60, (int32)(N * 2.0e-5));
 		if (Turned < Need)
 		{
-			Fail(FString::Printf(TEXT("only %d pixel(s) turned orange with the outline on (need %d of %d): the line isn't drawing"), Turned, Need, N));
+			Fail(FString::Printf(TEXT("only %d pixel(s) turned orange with the outline on (need %d of %d; orange on %d, off %d): the line isn't drawing"),
+				Turned, Need, N, OrangeOn, OrangeOff));
 			return true;
 		}
 		++OutlineChecks;
@@ -1694,4 +1714,26 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	Warn(TEXT("unknown step (see TorqueShedTest.h)"));
 	return true;
+}
+
+void UTorqueShedTest::OutlineShotAsk()
+{
+	// [outline test] One screenshot of the next drawn frame, handed to us instead of saved.
+	OutlineShotDone();
+	OutlineShotHandle = UGameViewportClient::OnScreenshotCaptured().AddWeakLambda(this,
+		[this](int32 /*ShotW*/, int32 /*ShotH*/, const TArray<FColor>& Colours)
+		{
+			OutlineShot = Colours;
+			bOutlineShot = true;
+		});
+	FScreenshotRequest::RequestScreenshot(false);
+}
+
+void UTorqueShedTest::OutlineShotDone()
+{
+	// Unbound straight after, or every later shot:ui would come here instead of to a file.
+	if (OutlineShotHandle.IsValid()) UGameViewportClient::OnScreenshotCaptured().Remove(OutlineShotHandle);
+	OutlineShotHandle.Reset();
+	bOutlineShot = false;
+	OutlineShotWaits = 0;
 }
