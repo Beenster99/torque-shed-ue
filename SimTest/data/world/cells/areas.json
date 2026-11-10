@@ -1,0 +1,13 @@
+{
+ "swaledale": {
+  "title": "Swaledale",
+  "frame": {
+   "lat": 54.34,
+   "lon": -2.04
+  },
+  "south": 54.3,
+  "west": -2.15,
+  "north": 54.45,
+  "east": -1.85
+ }
+}

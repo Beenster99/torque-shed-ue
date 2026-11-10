@@ -1,0 +1,119 @@
+{
+ "format": 2,
+ "kind": "cell",
+ "name": "c577_712",
+ "title": "c577_712",
+ "frame": {
+  "lat": 54.375,
+  "lon": -1.875
+ },
+ "bounds": [
+  -8123.1,
+  -13914.0,
+  8123.1,
+  13914.0
+ ],
+ "geo": {
+  "south": 54.25,
+  "west": -2.0,
+  "north": 54.5,
+  "east": -1.75
+ },
+ "heights": "live",
+ "cell": [
+  577,
+  712
+ ],
+ "levels": [
+  {
+   "name": "fine",
+   "dir": "tiles",
+   "spacing": 4.0,
+   "n": 128,
+   "size_m": 512.0,
+   "min": -256.0,
+   "scale": 0.0625,
+   "cover": false
+  },
+  {
+   "name": "coarse",
+   "dir": "coarse",
+   "spacing": 32.0,
+   "n": 128,
+   "size_m": 4096.0,
+   "min": -256.0,
+   "scale": 0.125,
+   "cover": true
+  },
+  {
+   "name": "ridge",
+   "dir": "ridge",
+   "spacing": 128.0,
+   "n": 256,
+   "size_m": 32768.0,
+   "min": -256.0,
+   "scale": 0.25,
+   "cover": false
+  },
+  {
+   "name": "cover",
+   "dir": "cover",
+   "spacing": 16.0,
+   "n": 128,
+   "size_m": 2048.0,
+   "min": -256.0,
+   "scale": 0.25,
+   "cover": true
+  }
+ ],
+ "tile_counts": {
+  "fine": 2049,
+  "coarse": 60,
+  "ridge": 4,
+  "cover": 165
+ },
+ "cover": [
+  "grass",
+  "forest",
+  "crop",
+  "shrub",
+  "barren",
+  "urban",
+  "sand",
+  "wetland",
+  "water",
+  "rock"
+ ],
+ "building_kinds": [
+  "house",
+  "shed",
+  "barn",
+  "shop",
+  "block",
+  "industrial",
+  "worship",
+  "civic"
+ ],
+ "counts": {
+  "nodes": 4456,
+  "edges": 4687,
+  "buildings": 12703,
+  "pois": 240,
+  "landmarks": 109,
+  "places": 74,
+  "oneway": 56,
+  "bans": 8
+ },
+ "sea": false,
+ "theme": "hills",
+ "region": "uk",
+ "sources": {
+  "overture_release": "2026-10-21.0",
+  "elevation": "Mapterhorn, AWS Terrain Tiles fallback"
+ },
+ "credits": [
+  "Elevation: Mapterhorn (mapterhorn.com), built from national and global terrain models; sources and licences are listed at https://download.mapterhorn.com/attribution.json.",
+  "Roads, buildings, land cover and places: (c) OpenStreetMap contributors and others, Overture Maps Foundation (ODbL)."
+ ],
+ "hash": "011e6905d5a653a3"
+}

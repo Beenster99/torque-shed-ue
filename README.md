@@ -136,6 +136,29 @@ Gameplay > Time and weather > **Real time of day** (off by default): the clock f
 time where you ride (the place's UTC offset from Open-Meteo, this PC's until then) and the sun stands
 as it really does for the date and place (declination, equation of time, longitude).
 
+### Ride UK: reading the real world
+
+The next phase lets a crew pick any road in Britain (and later the world) and ride it. The original
+game already keeps the whole world as a store of 0.25 degree cells (roads, buildings, places, land
+cover) with heights read live from map tiles; this game reads the same store, so nothing is baked
+twice. Stage 1 is the readers, in plain C++ under `Source/TorqueShedProto/World/`:
+
+- `WorldGeo`: the flat frame a journey is laid out in, the cells' grid and the map tiles' maths.
+- `WorldImage`, `WorldInflate`, `WorldSha256`: the game's own readers for lossless WebP, PNG and
+  zlib, so every rider's machine turns the same file into the same ground, to the last bit.
+- `HeightTiles`: the height tiles on disk and in memory (Mapterhorn, AWS's below zoom 13), the
+  source's pits filled and the sea given a sloping bed.
+- `WorldRegion`: the cells an area covers stitched into one road graph (a road that crosses from one
+  cell to the next joined by its ids; buildings and places on the shared edge kept once).
+- `WorldTerrain`: the ground's height anywhere, from three levels of tiles eased into one another,
+  levelled under each building. A ride uses only the tiles within reach of its own road, so
+  everyone who plans the same road gets the same ground.
+
+`world_test` checks all of it against the original's answers on the original's own test files (two
+Dales cells and 73 height tiles): the tiles' pixels and sea beds bit for bit, the stitched graph
+junction for junction, and the ground at 6,279 points to within 2 mm (it is in fact the same to the
+last bit). `Tools/make_godot_reference.py --world` records those answers again.
+
 ### DLSS on the 4090
 
 The project starts on Lumen with hardware ray tracing, virtual shadow maps and TSR. For DLSS, download
