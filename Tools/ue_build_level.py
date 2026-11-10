@@ -1413,7 +1413,9 @@ def fab_helmet(ours):
     hi = unreal.Vector(max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners))
     ob = ours.get_bounding_box()
     ours_size, theirs_size = ob.max - ob.min, hi - lo
-    scale = float(spec.get("scale", 1.0)) * max(ours_size.x, ours_size.y, ours_size.z) / max(theirs_size.x, theirs_size.y, theirs_size.z, 1e-3)
+    scale = float(spec.get("scale", 1.0))
+    if spec.get("fit_size", True):   # sized to ours; false keeps its own size (a real-size MetaHuman helmet)
+        scale *= max(ours_size.x, ours_size.y, ours_size.z) / max(theirs_size.x, theirs_size.y, theirs_size.z, 1e-3)
     oc, tc = (ob.max + ob.min) * 0.5, (hi + lo) * 0.5
     off = [float(v) for v in spec.get("offset", [0, 0, 0])]
     offset = [oc.x - tc.x * scale + off[0], oc.y - tc.y * scale + off[1], oc.z - tc.z * scale + off[2]]

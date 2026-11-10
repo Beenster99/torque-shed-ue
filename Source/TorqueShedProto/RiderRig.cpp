@@ -64,6 +64,25 @@ FQuat FRiderRig::ToComp(const FQuat& LocalDelta) const
 	return M.ToQuat();
 }
 
+namespace TorqueHelmetLook
+{
+// A Fab helmet's slots that came without a real material (left on the importer's grid, an engine
+// default, or a MetaHuman plugin material, which is editor-only) take the kit's helmet paint.
+void PaintPlaceholders(UMeshComponent* C, const TMap<FString, UMaterialInterface*>& Mats)
+{
+	UMaterialInterface* const* Paint = Mats.Find(TEXT("helmet"));
+	for (int32 I = 0; I < C->GetNumMaterials(); ++I)
+	{
+		UMaterialInterface* M = C->GetMaterial(I);
+		const FString Path = M ? M->GetPathName() : FString();
+		const bool bPlaceholder = !M || Path.Contains(TEXT("WorldGridMaterial")) || Path.StartsWith(TEXT("/Engine/")) || Path.StartsWith(TEXT("/MetaHuman"));
+		if (bPlaceholder && Paint && *Paint) C->SetMaterial(I, *Paint);
+		UE_LOG(LogTemp, Log, TEXT("Torque: rider helmet slot %d: %s%s"), I, M ? *Path : TEXT("none"),
+			bPlaceholder ? (Paint && *Paint ? TEXT(" -> the kit's helmet paint") : TEXT(" (no kit paint to replace it)")) : TEXT(""));
+	}
+}
+}
+
 bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& BodyPath, const FString& HelmetPath,
 	const TMap<FString, UMaterialInterface*>& Mats, const FTransform& HelmetFix)
 {
@@ -234,6 +253,7 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 		SC->bCastHiddenShadow = true;
 		HelmetRest = HelmetFix;
 		SC->SetRelativeTransform(HelmetRest);
+		TorqueHelmetLook::PaintPlaceholders(SC, Mats);
 		SC->RegisterComponent();
 		Helmet = SC;
 		UE_LOG(LogTemp, Log, TEXT("Torque: rider helmet is the skeletal mesh %s"), *HelmetPath);
@@ -257,6 +277,7 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 			for (const TPair<FString, UMaterialInterface*>& M : Mats)
 				if (M.Value && Slot.Contains(M.Key)) Helmet->SetMaterial(I, M.Value);
 		}
+		if (bOwnLook) TorqueHelmetLook::PaintPlaceholders(Helmet, Mats);
 		Helmet->RegisterComponent();
 	}
 	return true;

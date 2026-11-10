@@ -13,7 +13,7 @@
  "vault": "",
  "rotate": [
   0,
-  0,
+  -90,
   0
  ],
  "scale": 1.0,
@@ -21,5 +21,7 @@
   0,
   0,
   0
- ]
+ ],
+ "fit_size": false,
+ "note": "Racing Helmet (Fab, MetaHuman package oa_racinghelmet.mhpkg): round 133's box was 28.3 x 38.3 x 30.7 cm against ours 31.9 x 30.9 x 28.0. It's front-to-back along Y, as MetaHuman assets face +Y, so it's turned -90 degrees in yaw to face +X like ours. It's kept at its own (real) size (fit_size false), only centred on ours. Any slot left on WorldGridMaterial, an /Engine default or a plugin material takes the kit's helmet paint."
 }
