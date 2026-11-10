@@ -186,7 +186,7 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 		if (K.Key == M->Kind) Heading = K.Value;
 	Lines.Add({Heading, Title, 0.6f});
 	Lines.Add({TorqueFurniture::NameOf(*F), FColor::White, 0.8f});
-	// (Not its shop description: that tooltip text stays on the parts computer. beenster, Nov 10.)
+	if (!M->Desc.IsEmpty()) Lines.Add({M->Desc, Info, 0.55f});
 	if (M->Sit > 0.0) Lines.Add({TEXT("F / Triangle: sit on it"), Prompt, 0.65f});
 	if (B->HeldBy(B->Me()) == 0) Lines.Add({TEXT("Hold F / Triangle: move it"), Prompt, 0.65f});
 	// [label] (walker.gd: "write a label for these shelves")

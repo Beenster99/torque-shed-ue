@@ -500,7 +500,7 @@ private:
 	TUniquePtr<FSonyPad> Pad;
 	uint32 PrevPadButtons = 0;
 	bool bInputReady = false;
-	bool bShowHelp = false;   // the help lines in the corner: H shows them (beenster, Nov 10: no help text on screen unasked)
+	bool bShowHelp = true;
 	FString Note;                     // a line under the prompt for a moment: what was done, or why not
 	double NoteFor = 0.0;
 	bool bNoteOk = true;
