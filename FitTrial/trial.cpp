@@ -833,6 +833,205 @@ static std::string FaultsJson(const std::vector<Fault>& Fs)
 	return O + "]";
 }
 
+
+// --- Shape: does it look like a bike of its type? (round 2) -------------------------------------
+// Clashes aren't the whole of it. These measure what an eye reads on a bike seen from the side: how
+// full the frame is of engine, whether the seat is carried by a subframe, how the tail and guards
+// sit to the seat and tyres, whether thin parts run through others, how a fairing meets the bike,
+// and the bike's proportions. Each type's own designed bike says what the numbers should be.
+
+struct Outline
+{
+	std::vector<int> Lo, Hi;            // per column along the bike: lowest and highest cell (or -1)
+	std::vector<unsigned char> On;      // Vx by Vy
+	Outline() : Lo(Grid::Vx, -1), Hi(Grid::Vx, -1), On(size_t(Grid::Vx) * Grid::Vy, 0) {}
+	bool Any = false;
+};
+
+static const Solid* SolidOf(const Fitted& F, const std::string& Slot)
+{
+	for (size_t I = 0; I < F.B.Slots.size() && I < F.C.Solids.size(); ++I) if (F.B.Slots[I].Slot == Slot) return &F.C.Solids[I];
+	return nullptr;
+}
+static const SlotMesh* MeshOf(const Fitted& F, const std::string& Slot)
+{
+	for (const SlotMesh& S : F.B.Slots) if (S.Slot == Slot) return &S;
+	return nullptr;
+}
+static int BitOf(const Fitted& F, const std::string& Slot)
+{
+	for (size_t I = 0; I < F.B.Slots.size() && I < 64; ++I) if (F.B.Slots[I].Slot == Slot) return int(I);
+	return -1;
+}
+static unsigned long long MaskOf(const Fitted& F, const std::vector<std::string>& Slots)
+{
+	unsigned long long M = 0;
+	for (const std::string& S : Slots) { const int B = BitOf(F, S); if (B >= 0) M |= 1ULL << B; }
+	return M;
+}
+
+static Outline OutlineOf(const Fitted& F, const std::vector<std::string>& Slots)
+{
+	Outline O;
+	for (const std::string& Sl : Slots)
+	{
+		const Solid* S = SolidOf(F, Sl);
+		if (!S) continue;
+		for (int Id : S->Vox)
+		{
+			const int X = Id % Grid::Vx, Y = (Id / Grid::Vx) % Grid::Vy;
+			O.On[size_t(Y) * Grid::Vx + X] = 1;
+			if (O.Lo[size_t(X)] < 0 || Y < O.Lo[size_t(X)]) O.Lo[size_t(X)] = Y;
+			if (Y > O.Hi[size_t(X)]) O.Hi[size_t(X)] = Y;
+			O.Any = true;
+		}
+	}
+	return O;
+}
+
+// How much of A's skin is inside B's solid (0..1).
+static double InsideFraction(const Solid* A, const Solid* B, double Deep = 0.004)
+{
+	if (!A || !B || A->Vox.empty() || B->Spans.empty()) return 0.0;
+	size_t In = 0;
+	for (int Id : A->Vox)
+	{
+		const int X = Id % Grid::Vx, Y = (Id / Grid::Vx) % Grid::Vy, Z = Id / (Grid::Vx * Grid::Vy);
+		const double Px = Grid::Ox + (X + 0.5) * Grid::Hv, Py = Grid::Oy + (Y + 0.5) * Grid::Hv, Pz = Grid::Oz + (Z + 0.5) * Grid::Hv;
+		const int Col = int((Py - Grid::Oy) / Grid::H) * Grid::Nx + int((Px - Grid::Ox) / Grid::H);
+		auto It = std::lower_bound(B->Spans.begin(), B->Spans.end(), Col, [](const Span& S, int C) { return S.Col < C; });
+		for (; It != B->Spans.end() && It->Col == Col; ++It)
+			if (Pz > It->Z0 + Deep && Pz < It->Z1 - Deep) { ++In; break; }
+	}
+	return double(In) / double(A->Vox.size());
+}
+
+static std::map<std::string, double> ShapeOf(Fitted& F, SkinGrid& Skin, const BikeLayout& Lay, std::vector<std::string>& Misfit)
+{
+	std::map<std::string, double> M;
+	const size_t Count = std::min<size_t>(F.B.Slots.size(), 64);
+	const Layout& L = F.B.Lay;
+	const double Wb = std::max(0.5, L.Stats.Wheelbase);
+	// 1. The engine in the frame: the room over it, and how much of its bay it fills.
+	{
+		const Outline G = OutlineOf(F, {"engine", "head", "fuel", "spark_plugs", "gearbox"});
+		const Outline C = OutlineOf(F, {"tank", "frame", "saddle"});
+		double Sum = 0.0, Worst = 0.0, Fill = 0.0, Bay = 0.0;
+		int N = 0;
+		for (int X = 0; X < Grid::Vx; ++X)
+		{
+			if (G.Hi[size_t(X)] < 0) continue;
+			int Y = G.Hi[size_t(X)] + 1;
+			const int Cap = std::min(Grid::Vy - 1, G.Hi[size_t(X)] + 25);
+			while (Y <= Cap && !C.On[size_t(Y) * Grid::Vx + X]) ++Y;
+			const double Gap = (Y - G.Hi[size_t(X)] - 1) * Grid::Hv;
+			Sum += Gap; Worst = std::max(Worst, Gap); ++N;
+			Fill += G.Hi[size_t(X)] - G.Lo[size_t(X)] + 1;
+			Bay += Y - G.Lo[size_t(X)];
+		}
+		if (N > 0) { M["engine_headroom"] = Sum / N; M["engine_headroom_max"] = Worst; M["engine_bay_fill"] = Fill / std::max(1.0, Bay); }
+	}
+	// 2. The seat on its subframe: how far under the seat the nearest structure is, and how much of its length is carried.
+	{
+		const Outline S = OutlineOf(F, {"saddle"});
+		const Outline U = OutlineOf(F, {"frame", "tail", "side_panels", "shock", "tank", "swingarm"});
+		double Sum = 0.0;
+		int N = 0, Held = 0;
+		for (int X = 0; X < Grid::Vx; ++X)
+		{
+			if (S.Lo[size_t(X)] < 0) continue;
+			int Y = std::min(Grid::Vy - 1, S.Lo[size_t(X)] + 2);
+			const int Floor = std::max(0, S.Lo[size_t(X)] - 25);
+			while (Y >= Floor && !U.On[size_t(Y) * Grid::Vx + X]) --Y;
+			const double Gap = std::max(0, S.Lo[size_t(X)] - Y) * Grid::Hv;
+			Sum += Gap; ++N;
+			if (Gap <= 0.045) ++Held;
+		}
+		if (N > 0) { M["seat_gap"] = Sum / N; M["seat_carried"] = double(Held) / N; }
+	}
+	for (size_t I = 0; I < Count; ++I) Skin.Put(F.C.Solids[I], int(I), true);
+	auto GapTo = [&](const std::string& A, const std::vector<std::string>& Others, const char* Name)
+	{
+		const int Bit = BitOf(F, A);
+		const unsigned long long Mask = MaskOf(F, Others);
+		if (Bit < 0 || !Mask) return;
+		M[Name] = Skin.Gap(F.C.Solids[size_t(Bit)], Bit, Mask, 0.12);
+	};
+	// 3. What hangs: the nearest each of these comes to what should carry it.
+	GapTo("tail", {"frame", "saddle", "swingarm", "shock", "side_panels"}, "tail_hang");
+	GapTo("saddle", {"frame", "tank", "tail", "shock"}, "seat_hang");
+	GapTo("fairing", {"frame", "fork", "handlebars", "headlight"}, "fairing_hang");
+	GapTo("fairing", {"tank"}, "fairing_to_tank");
+	GapTo("front_mudguard", {"fork"}, "front_guard_hang");
+	GapTo("headlight", {"fork", "fairing", "handlebars", "frame"}, "headlight_hang");
+	GapTo("exhaust", {"engine", "head"}, "exhaust_hang");
+	GapTo("tank", {"frame"}, "tank_hang");
+	for (size_t I = 0; I < Count; ++I) Skin.Put(F.C.Solids[I], int(I), false);
+	// 4. What runs through what: how much of one's skin is inside the other.
+	const std::vector<std::pair<const char*, const char*>> Through = {{"chain", "swingarm"}, {"final_drive", "swingarm"}, {"tail", "saddle"}, {"saddle", "tail"},
+		{"tail", "rear_tyre"}, {"saddle", "tank"}, {"saddle", "rear_tyre"}, {"fairing", "front_tyre"}, {"fairing", "fork"}, {"fairing", "tank"}, {"tank", "fairing"},
+		{"fairing", "engine"}, {"engine", "fairing"}, {"fairing", "frame"}, {"front_mudguard", "front_tyre"}, {"exhaust", "swingarm"}, {"exhaust", "rear_tyre"},
+		{"exhaust", "frame"}, {"tank", "engine"}, {"tank", "head"}, {"head", "tank"}, {"handlebars", "tank"}, {"handlebars", "fairing"}, {"panniers", "rear_tyre"},
+		{"shock", "rear_tyre"}, {"swingarm", "rear_tyre"}, {"chain", "rear_tyre"}, {"chain", "frame"}};
+	for (const auto& P : Through)
+	{
+		const Solid* A = SolidOf(F, P.first);
+		const Solid* B = SolidOf(F, P.second);
+		if (A && B) M[std::string(P.first) + "_in_" + P.second] = InsideFraction(A, B);
+	}
+	// 5. The guards over the tyres: how far off the tread they ride.
+	auto Guard = [&](const char* Slot, const V3& Axle, double Radius, const char* Name)
+	{
+		const Solid* S = SolidOf(F, Slot);
+		if (!S) return;
+		std::vector<double> Clear;
+		for (int Id : S->Vox)
+		{
+			const int X = Id % Grid::Vx, Y = (Id / Grid::Vx) % Grid::Vy, Z = Id / (Grid::Vx * Grid::Vy);
+			const double Px = Grid::Ox + (X + 0.5) * Grid::Hv, Py = Grid::Oy + (Y + 0.5) * Grid::Hv, Pz = Grid::Oz + (Z + 0.5) * Grid::Hv;
+			if (std::fabs(Pz) > 0.05) continue;
+			const double R = std::hypot(Px - Axle.x, Py - Axle.y);
+			if (R < Radius + 0.25 && Py > Axle.y - 0.05) Clear.push_back(R - Radius);
+		}
+		if (Clear.size() < 20) return;
+		std::sort(Clear.begin(), Clear.end());
+		M[std::string(Name) + "_min"] = Clear[Clear.size() / 20];
+		M[std::string(Name) + "_mid"] = Clear[Clear.size() / 2];
+	};
+	Guard("tail", L.RearAxle, L.Stats.RearRadius, "rear_guard_clear");
+	Guard("front_mudguard", L.FrontAxle, L.Stats.FrontRadius, "front_guard_clear");
+	// 6. Proportions, against the wheelbase.
+	M["wheelbase"] = Wb;
+	M["rake"] = L.Stats.RakeDeg;
+	M["seat_height"] = L.Stats.SeatHeight;
+	auto Span1 = [&](const char* Slot, const char* Name)
+	{
+		const SlotMesh* S = MeshOf(F, Slot);
+		if (!S || S->Tris.empty()) return;
+		M[std::string(Name) + "_len"] = (S->Hi.x - S->Lo.x) / Wb;
+		M[std::string(Name) + "_top"] = (S->Hi.y - L.Ground()) / Wb;
+		M[std::string(Name) + "_rear"] = (S->Lo.x - L.RearAxle.x) / Wb;
+		M[std::string(Name) + "_front"] = (S->Hi.x - L.FrontAxle.x) / Wb;
+	};
+	Span1("tank", "tank"); Span1("saddle", "seat"); Span1("tail", "tail"); Span1("handlebars", "bars"); Span1("fairing", "fairing"); Span1("exhaust", "exhaust");
+	if (const SlotMesh* E = MeshOf(F, "engine")) if (const SlotMesh* Fr = MeshOf(F, "frame"))
+	{
+		M["engine_width_vs_frame"] = (E->Hi.z - E->Lo.z) / std::max(0.05, Fr->Hi.z - Fr->Lo.z);
+		M["engine_len"] = (E->Hi.x - E->Lo.x) / Wb;
+		M["engine_low"] = (E->Lo.y - L.Ground()) / Wb;
+	}
+	// 7. Parts the catalogue says don't suit this type of bike.
+	for (const char* Slot : {"frame", "fork", "engine", "tank", "saddle", "tail", "handlebars", "exhaust", "fairing", "swingarm", "front_wheel", "rear_wheel",
+		"front_tyre", "rear_tyre", "headlight", "front_mudguard", "shock"})
+	{
+		auto It = F.B.Parts.find(Slot);
+		if (It == F.B.Parts.end() || It->second == "none") continue;
+		const std::vector<std::string> St = Lay.StylesOf(It->second);
+		if (!St.empty() && std::find(St.begin(), St.end(), L.Style) == St.end()) Misfit.push_back(Slot);
+	}
+	return M;
+}
+
 int main(int Argc, char** Argv)
 {
 	if (Argc < 3) { std::printf("usage: fit_trial <repo root> one <style> <out.ppm>\n"); return 2; }
@@ -903,6 +1102,20 @@ int main(int Argc, char** Argv)
 		View Vw = View::Side();
 		Vw.Centre = V3(0.0, 0.40, 0.0);
 		Vw.Scale = 172.0;
+		// (from above: the front to the right, as the side view, the bike's right side at the bottom)
+		View Tv = View::Top();
+		Tv.Up = V3(0, 0, -1);
+		Tv.Centre = V3(0.0, 0.30, 0.0);
+		Tv.Scale = 172.0;
+		// A side view over a top view, as one picture.
+		auto Both = [&](const Bike& Bk, const std::map<std::string, Rgb>& Tint, const std::vector<V3>& Marks, const std::string& Path)
+		{
+			const Image Sd = Render(Bk, Vw, 480, 300, Tint, Marks), Tp = Render(Bk, Tv, 480, 180, Tint, Marks);
+			Image Out(480, 480);
+			std::copy(Sd.Px.begin(), Sd.Px.end(), Out.Px.begin());
+			std::copy(Tp.Px.begin(), Tp.Px.end(), Out.Px.begin() + long(Sd.Px.size()));
+			Out.Save(Path);
+		};
 		std::ofstream Res(OutDir + "/results_" + std::to_string(First) + ".jsonl");
 		for (size_t I = First; I < Builds.size() && I < Last; I += Stride)
 		{
@@ -920,7 +1133,7 @@ int main(int Argc, char** Argv)
 				std::vector<V3> Marks;
 				std::map<std::string, Rgb> Tint;
 				MarksOf(F, Marks, Tint);
-				Render(F.B, Vw, 480, 300, Tint, Marks).Save(OutDir + "/" + Name + "_a.ppm");
+				Both(F.B, Tint, Marks, OutDir + "/" + Name + "_a.ppm");
 			}
 			Solved Sv;
 			if (!Before.empty())
@@ -929,7 +1142,7 @@ int main(int Argc, char** Argv)
 				std::vector<V3> Marks;
 				std::map<std::string, Rgb> Tint;
 				MarksOf(F, Marks, Tint);
-				Render(F.B, Vw, 480, 300, Tint, Marks).Save(OutDir + "/" + Name + "_b.ppm");
+				Both(F.B, Tint, Marks, OutDir + "/" + Name + "_b.ppm");
 			}
 			std::string Words = "[";
 			for (size_t K = 0; K < Sv.Words.size(); ++K) Words += std::string(K ? "," : "") + "\"" + Esc(Sv.Words[K]) + "\"";
@@ -940,6 +1153,33 @@ int main(int Argc, char** Argv)
 			Res.flush();
 			std::printf("%s %s: %.0f -> %.0f (%d tries, %.1f s)\n", Name, Bd.Str("id").c_str(), WrongBefore, F.Wrong, Sv.Tries, Now() - T0);
 			std::fflush(stdout);
+		}
+	}
+	if (Mode == "shape" && Argc >= 5)
+	{
+		// fit_trial <root> shape <builds.json> <out folder> [first] [stride]: each build's shape numbers, as built.
+		std::string Text;
+		Json Doc;
+		if (!ReadFile(Argv[3], Text) || !Json::Parse(Text, Doc, &Error)) { std::printf("can't read %s\n", Argv[3]); return 1; }
+		const std::vector<Json>& Builds = Doc.Get("builds")->A;
+		const size_t First = Argc > 5 ? size_t(std::atoi(Argv[5])) : 0, Stride = Argc > 6 ? size_t(std::atoi(Argv[6])) : 1;
+		SkinGrid Skin;
+		Norms N;
+		std::ofstream Res(std::string(Argv[4]) + "/shape_" + std::to_string(First) + ".jsonl");
+		for (size_t I = First; I < Builds.size(); I += Stride)
+		{
+			PartsMap Parts;
+			for (const auto& Kv : Builds[I].Get("parts")->O) Parts[Kv.first] = Kv.second.S;
+			Fitted F = Measure(Wd, Parts, BikeGeo(), N, Skin);
+			std::vector<std::string> Misfit;
+			const std::map<std::string, double> M = ShapeOf(F, Skin, Wd.Lay, Misfit);
+			Res << "{\"n\":" << I << ",\"style\":\"" << F.B.Lay.Style << "\",\"tier\":\"" << F.B.Lay.Fit.Tier << "\",\"m\":{";
+			bool Sep = false;
+			for (const auto& Kv : M) { char Buf[96]; std::snprintf(Buf, sizeof(Buf), "%s\"%s\":%.4f", Sep ? "," : "", Kv.first.c_str(), Kv.second); Res << Buf; Sep = true; }
+			Res << "},\"misfit\":[";
+			for (size_t K = 0; K < Misfit.size(); ++K) Res << (K ? "," : "") << "\"" << Misfit[K] << "\"";
+			Res << "]}\n";
+			Res.flush();
 		}
 	}
 	return 0;

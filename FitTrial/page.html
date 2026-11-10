@@ -41,7 +41,7 @@ p { margin: 0; max-width: 68ch; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 10px; }
 .card { all: unset; cursor: pointer; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; box-sizing: border-box; min-width: 0; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); }
-.tile { aspect-ratio: 8 / 5; background-color: #ececec; background-repeat: no-repeat; max-width: 100%; }
+.tile { aspect-ratio: 1 / 1; background-color: #ececec; background-repeat: no-repeat; max-width: 100%; }
 .tile.same { opacity: .45; }
 .meta { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0; }
 .meta .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
@@ -64,7 +64,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 <div class="wrap">
   <div class="brief">
     <h1>Bike Fitting Trial</h1>
-    <p>Every bike here was built by a separate program from the game's own parts. Nothing in the game has changed. Each card shows one build twice: as the game puts it together today on the left, and after the trial solver on the right.</p>
+    <p>Every bike here was built by a separate program from the game's own parts. Nothing in the game has changed. Each card shows one build twice: as the game puts it together today on the left, and after the trial solver on the right, each from the side and from above.</p>
     <p class="soft">The one question is whether the bikes on the right look good to you. Each card has a number; tell me the numbers that look wrong and what is wrong with them.</p>
     <div class="key"><span style="--c: var(--clash)">Red: two parts passing through each other</span><span style="--c: var(--float)">Amber part: floating, touching nothing</span><span style="--c: var(--fine)">Faded right picture: the solver had nothing to do</span></div>
   </div>

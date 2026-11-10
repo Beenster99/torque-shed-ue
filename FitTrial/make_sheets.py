@@ -21,7 +21,7 @@ for path in glob.glob(os.path.join(src, "results_*.jsonl")):
                 continue
             results[r["n"]] = r
 
-TW, TH, COLS = 360, 225, 8
+TW, TH, COLS = 330, 330, 8
 TITLES = {"0_designed": "The 14 designed bikes", "1_engine": "Engine swaps", "2_tank": "Tank swaps", "3_frame": "Frame swaps", "4_fork": "Fork swaps",
           "5_bars": "Handlebar swaps", "6_seat": "Seat swaps", "7_tail": "Tail swaps", "8_exhaust": "Exhaust swaps", "9_fairing": "Fairing swaps",
           "10_swingarm": "Swingarm swaps", "11_engine_x_tank_chopper": "Engine and tank on the chopper", "11_engine_x_tank_cafe": "Engine and tank on the cafe racer",
@@ -62,7 +62,7 @@ for si, sw in enumerate(sweeps):
                 continue
             sheet.paste(im, ((i % COLS) * TW, (i // COLS) * TH))
         name = "sheet_%02d_%d.jpg" % (si, part // 240)
-        sheet.save(os.path.join(out, name), quality=74, optimize=True)
+        sheet.save(os.path.join(out, name), quality=70, optimize=True)
         sw["sheets"].append({"file": name, "rows": rows})
 json.dump({"cols": COLS, "per": 240, "sweeps": sweeps, "total": len(builds), "done": len(results)}, open(os.path.join(out, "data.json"), "w"), separators=(",", ":"))
 tot = {}
