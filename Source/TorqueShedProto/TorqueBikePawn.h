@@ -298,12 +298,12 @@ private:
 	double Throttle = 0, FrontBrake = 0, RearBrake = 0, Lean = 0, Shift = 0;
 	double CrashedFor = 0.0;
 	// The respawn ghost's look (beenster, Nov 10: "a matrix of me for 5 seconds rather than flashing"):
-	// M_RideGhostMatrix (Tools/ue_build_ghost.py) laid as the overlay over every mesh of the bike and
-	// rider while the ghost lasts, fading out over its last second. Steady: nothing is hidden or blinks.
+	// then "a mesh of polygons from the model, less intrusive": M_RideGhostMatrix (Tools/ue_build_ghost.py),
+	// a faint wireframe, laid as the overlay over every mesh of the bike and rider while the ghost lasts, fading out over its last second. Steady: nothing is hidden or blinks.
 	// Only meshes with no overlay of their own get it, and only it is taken off again.
 	UPROPERTY(Transient) UMaterialInstanceDynamic* GhostMid = nullptr;
 	bool bGhostTried = false;    // looked for the material (once)
-	bool bGhostMatrix = false;   // GhostMid is the matrix look (false: the plain green fallback tint)
+	bool bGhostMatrix = false;   // GhostMid is the wireframe (false: the faint fallback tint)
 	bool bGhostShown = false;    // GhostMid is on the meshes now
 	void UpdateGhostLook();
 
