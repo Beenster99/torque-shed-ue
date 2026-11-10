@@ -729,7 +729,10 @@ void DressFab(UStaticMeshComponent* Piece, FName Model)
 		}
 		Shell->RegisterComponent();
 	}
+	// Out of the depth pass too: drawn only there it fills its shape with an unlit black that hides
+	// the Fab model inside it (build 131-132's black bus row and black wreck).
 	Piece->SetRenderInMainPass(false);
+	Piece->SetRenderInDepthPass(false);
 	Piece->SetCastShadow(false);
 	Piece->SetVisibleInRayTracing(false);
 	Piece->SetAffectDistanceFieldLighting(false);
