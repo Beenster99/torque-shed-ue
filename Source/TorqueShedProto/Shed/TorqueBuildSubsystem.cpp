@@ -2813,7 +2813,7 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		Move(Held, ETorqueAt::Spot, 0, R.Spot);
 		if (TBI::SpotIs(R.Spot, ETorquePlace::Stand)) Text = TEXT("Engine on the stand. Strip it down or build it up.");
 		else if (TBI::SpotIs(R.Spot, ETorquePlace::Washer)) Text = TEXT("Into the parts washer");
-		else if (TBI::SpotIs(R.Spot, ETorquePlace::Hook)) Text = TEXT("Hung in the spray bay. Spray it with the spray gun (7): primer, colour, then lacquer.");
+		else if (TBI::SpotIs(R.Spot, ETorquePlace::Hook)) Text = TEXT("Hung in the spray bay. Spray it with the spray gun (6): primer, colour, then lacquer.");
 		else if (TBI::SpotIs(R.Spot, ETorquePlace::Changer))
 			Text = Items[Held].Tyre != 0 ? TEXT("Wheel clamped on the tyre changer. Lever the old tyre off, or lift the wheel off again.")
 				: TEXT("Wheel clamped on the tyre changer. Hold a tyre that fits it and work it on.");
