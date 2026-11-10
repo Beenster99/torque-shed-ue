@@ -557,6 +557,21 @@ int main()
 				&& Net.Tile(FromAws)->Size == 64 && !Net.Has(NoCoarse) && Files::Exists(Files::Join(TileDir, "9/1/1.png")),
 				"a fine tile Mapterhorn has none of is marked none; a coarse one comes from AWS instead; one neither has is a failure");
 			Check(Net.Fetch({NoFine}, nullptr) == 0 && Net.Fetch({NoCoarse}, nullptr) == 1, "with no network, only what is missing counts as not got");
+			// The whole of it in one go, as the game's own check does it (-TorqueWorldTest).
+			{
+				HeightStore Net2;
+				Net2.Disk = TileDir;
+				const Geo GA = G.FrameOf().ToGeo(G.Nodes[size_t(From)].X, G.Nodes[size_t(From)].Z), GB = G.FrameOf().ToGeo(G.Nodes[size_t(To)].X, G.Nodes[size_t(To)].Z);
+				int Said2 = 0;
+				const RideCheck Rc = CheckRide(Cells, Net2, GA.Lat, GA.Lon, GB.Lat, GB.Lon, [&Said2](const std::string&) { ++Said2; });
+				Json Back;
+				Check(Rc.Ok && Rc.Why.empty() && Rc.Cells == 2 && Near(Rc.Km, Len / 1000.0, 0.01) && Rc.Points == Rc.WithGround && Rc.Points == int(Road.size()) && Rc.TilesFailed == 0
+					&& Rc.Low > 150.0 && Rc.High < 400.0 && Rc.Climb > 20.0 && Rc.Steepest < 0.5 && Said2 == 4 && !Rc.Names.empty() && Rc.Credits.size() >= 3
+					&& Json::Parse(Rc.Dump(), Back) && Back.Flag("ok") && Near(Back.Num("km"), Rc.Km, 1e-3),
+					"the ride check does all of it from two places on the map: cells, the way by road, its ground, the road's heights");
+				const RideCheck AtSea = CheckRide(Cells, Net2, 10.0, -30.0, 10.1, -30.0);
+				Check(!AtSea.Ok && !AtSea.Why.empty(), "and says why not for a ride in the middle of the sea");
+			}
 			Files::RemoveTree(TileDir);
 		}
 		// Offline, the next run still has what was fetched.

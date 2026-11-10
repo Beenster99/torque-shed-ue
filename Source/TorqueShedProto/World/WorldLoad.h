@@ -36,6 +36,28 @@ int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, con
 // A road's points no further apart than Step metres (a ride's road, for Terrain::ForRoad), with how
 // far along the road each is.
 std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along = nullptr);
+// A ride checked from end to end without a bike (the stage 1 gate): the cells between two places
+// fetched and stitched, the shortest way by road between them, its ground fetched, and the road's
+// height read all the way along.
+struct RideCheck
+{
+	bool Ok = false;
+	std::string Why;                    // when not Ok
+	int Cells = 0, Junctions = 0, Roads = 0;
+	int From = -1, To = -1;             // the junctions nearest each end
+	double Km = 0.0, CrowKm = 0.0;
+	int Points = 0, WithGround = 0;     // along the road every 30 m, and those with ground under them
+	double Low = 0.0, High = 0.0;       // the road's ground, metres above the sea
+	double Climb = 0.0;                 // every rise along it added up, metres
+	double Steepest = 0.0;              // the steepest 30 m of it, as a fraction (0.25: 1 in 4)
+	int Tiles = 0, TilesFailed = 0;
+	std::vector<std::string> Names;     // the roads taken, each once, in order
+	std::vector<std::string> Credits;
+	std::string Dump() const;           // as JSON
+};
+// Blocks (a worker's job); Say hears each step as it starts. A place may be up to 2 km from a road.
+RideCheck CheckRide(CellStore& Store, HeightStore& Heights, double LatA, double LonA, double LatB, double LonB,
+	const std::function<void(const std::string&)>& Say = nullptr);
 // The region id of an area of listed cells: "area:@ROW_COL,ROW_COL".
 std::string CellsAreaId(const std::vector<CellId>& Cells);
 } // namespace TorqueWorld

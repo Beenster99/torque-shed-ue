@@ -166,8 +166,18 @@ twice. Stage 1 is the readers, in plain C++ under `Source/TorqueShedProto/World/
 the real store's files for two Dales cells: the 73 height tiles' pixels and sea beds bit for bit, the
 stitched graph junction for junction, the ground at 6,279 points (the same to the last bit), the
 cells' zips against the store's hashes, and the bridges, streams, scenery, cover and trees place for
-place. `Tools/make_godot_reference.py --world` records those answers again. Nothing in the game
-calls any of this yet: fetching inside the game and the first streamed ride come next.
+place. `Tools/make_godot_reference.py --world` records those answers again.
+
+Inside the game, `World/TorqueWorldSubsystem` gives the readers the game's disk (what is fetched is
+kept under `Saved/World`, which a new build never wipes) and its network (each fetch is sent by the
+game thread and waited for on a worker). The stage's check is a ride with no bike: the cells between
+two places fetched and stitched, the shortest way by road found, its ground fetched, and the road's
+height read every 30 m. Start the game with `-TorqueWorldTest=hawes` (or four numbers: `latA,lonA,
+latB,lonB`) and it logs `Torque world test: PASS` or `FAIL: why` and writes
+`Saved/World/world_test.json`; add `-TorqueWorldTestQuit` to close the game afterwards. From a desk,
+`world_ride <folder>` (SimTest, needs `curl`) runs the same check: Hawes to Leyburn is 26.5 km by
+road over 2 cells and 68 tiles, 105 m to 255 m above the sea, fetched in about 14 seconds. Nothing
+is drawn from any of this yet: the first streamed ride comes next.
 
 ### DLSS on the 4090
 
