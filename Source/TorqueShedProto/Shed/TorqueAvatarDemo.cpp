@@ -2,6 +2,8 @@
 
 #include "Shed/TorqueAvatar.h"
 #include "Components/SceneComponent.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 ATorqueAvatarDemo::ATorqueAvatarDemo()
 {
@@ -28,6 +30,10 @@ void ATorqueAvatarDemo::BeginPlay()
 		Pup.Clock = -1.0 * I;
 		Pup.Body = MakeUnique<FTorqueAvatar>();
 		if (!Pup.Body->Build(this, Pup.Root, I)) continue;
+		// -TorqueHairAlone: each avatar's grooms also on their own, standing where the puppet starts
+		// (in the groom's own space: the hair floats at head height), to see which assets draw.
+		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueHairAlone")))
+			FTorqueAvatar::SpawnLooseHair(this, RootComponent, I, Pup.Start);
 		Puppets.Add(MoveTemp(Pup));
 	}
 }

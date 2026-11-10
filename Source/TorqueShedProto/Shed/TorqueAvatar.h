@@ -76,7 +76,10 @@ public:
 	~FTorqueAvatar();
 	// Avatars listed in Data/Avatars/avatars.json (0 when none: keep the shape body).
 	static int32 Count();
-	static FString NameOf(int32 Index);   // its name in avatars.json (wrapped to the list), "" when none
+	static FString NameOf(int32 Index);
+	// A test (-TorqueHairAlone): avatar Index's grooms on their own, on no head, at At on Parent (the
+	// groom's own space, so the hair floats where that head would be), to see if the asset draws.
+	static void SpawnLooseHair(AActor* Owner, USceneComponent* Parent, int32 Index, const FVector& At);   // its name in avatars.json (wrapped to the list), "" when none
 	// Make avatar Index (wrapped to the list) for Owner, its feet at Parent's origin, facing Parent's +x.
 	bool Build(AActor* Owner, USceneComponent* Parent, int32 Index);
 	void Pose(const FTorqueAvatarInput& In, double Dt);

@@ -56,7 +56,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
-struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh, FitMesh; TArray<FString> Materials, CardsMaterials; int32 Lod = -1; };
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh, FitMesh; TArray<FString> Materials, CardsMaterials; int32 Lod = -1; bool bLooseOnly = false; };
 struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
@@ -115,6 +115,7 @@ const TArray<FEntry>& Entries()
 				(*PO)->TryGetStringField(TEXT("bone"), P.Bone);
 				(*PO)->TryGetStringField(TEXT("cards_mesh"), P.CardsMesh);
 				(*PO)->TryGetStringField(TEXT("fit_mesh"), P.FitMesh);
+				(*PO)->TryGetBoolField(TEXT("loose_only"), P.bLooseOnly);
 				P.CardsMaterials = Strings(*PO, TEXT("cards_materials"));
 				(*PO)->TryGetNumberField(TEXT("lod"), P.Lod);
 				P.Materials = Strings(*PO, TEXT("materials"));
@@ -216,7 +217,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 	for (const FPart& P : E.Parts)
 	{
 		if (!P.Static.IsEmpty()) Statics.Add(P);
-		else if (bHairMesh && !P.Groom.IsEmpty() && !P.CardsMesh.IsEmpty())
+		else if (bHairMesh && !P.bLooseOnly && !P.Groom.IsEmpty() && !P.CardsMesh.IsEmpty())
 		{
 			FPart Q = P;
 			Q.Static = P.CardsMesh;
@@ -292,7 +293,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		GroomClass ? TEXT("loaded") : TEXT("missing"), ClothClass ? TEXT("loaded") : TEXT("missing"));
 	for (const FPart& P : E.Parts)
 	{
-		if (P.Groom.IsEmpty() || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
+		if (P.Groom.IsEmpty() || P.bLooseOnly || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
 		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueNoGroom"))) { UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s left off (-TorqueNoGroom)"), *E.Name, *P.Name); continue; }
 		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
 		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
@@ -407,6 +408,41 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 FTorqueAvatar::~FTorqueAvatar() = default;
 
 int32 FTorqueAvatar::Count() { return TorqueAvatarMath::Entries().Num(); }
+
+void FTorqueAvatar::SpawnLooseHair(AActor* Owner, USceneComponent* Parent, int32 Index, const FVector& At)
+{
+	using namespace TorqueAvatarMath;
+	const TArray<FEntry>& List = Entries();
+	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
+	if (!Owner || !Parent || List.Num() == 0 || !GroomClass) return;
+	const FEntry& E = List[((Index % List.Num()) + List.Num()) % List.Num()];
+	static UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
+	for (const FPart& P : E.Parts)
+	{
+		if (P.Groom.IsEmpty()) continue;
+		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
+		if (!G) continue;
+		USceneComponent* C = NewObject<USceneComponent>(Owner, GroomClass);
+		C->SetupAttachment(Parent);
+		C->SetRelativeLocation(At);
+		CallWithOne(C, TEXT("SetGroomAsset"), [G](FProperty* Pr, void* V)
+		{
+			if (FObjectPropertyBase* OP = CastField<FObjectPropertyBase>(Pr))
+				if (G->IsA(OP->PropertyClass)) OP->SetObjectPropertyValue(V, G);
+		});
+		if (UMeshComponent* MC = Cast<UMeshComponent>(C))
+			for (int32 Slot = 0; Slot < FMath::Max(MC->GetNumMaterials(), 1); ++Slot)
+			{
+				UMaterialInterface* M = MC->GetMaterial(Slot);
+				if (HairDefault && (!M || M->GetPathName().StartsWith(TEXT("/MetaHuman")))) MC->SetMaterial(Slot, HairDefault);
+			}
+		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();
+		C->RegisterComponent();
+		const FBoxSphereBounds B = C->Bounds;
+		UE_LOG(LogTemp, Log, TEXT("Torque: loose hair %s %s at %s: bounds %s r %.0f cm"), *E.Name, *P.Groom, *C->GetComponentLocation().ToCompactString(),
+			*B.Origin.ToCompactString(), B.SphereRadius);
+	}
+}
 
 FString FTorqueAvatar::NameOf(int32 Index)
 {
