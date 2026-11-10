@@ -49,6 +49,12 @@ p { margin: 0; max-width: 68ch; }
 .pill { font-size: 11.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--c); white-space: nowrap; }
 .pill::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 5px; }
 .did { color: var(--soft); overflow-wrap: anywhere; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font-size: 13.5px; min-width: 520px; }
+th, td { text-align: left; padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--soft); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.broke { color: var(--stuck); font-size: 12.5px; }
 .num { color: var(--soft); font-variant-numeric: tabular-nums; font-size: 12px; }
 dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 0; width: min(1240px, calc(100vw - 32px)); max-height: calc(100vh - 40px); }
 dialog::backdrop { background: rgba(0, 0, 0, .55); }
@@ -69,6 +75,11 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
     <div class="key"><span style="--c: var(--clash)">Red: two parts passing through each other</span><span style="--c: var(--float)">Amber part: floating, touching nothing</span><span style="--c: var(--fine)">Faded right picture: the solver had nothing to do</span></div>
   </div>
   <div class="tally" id="tally"></div>
+  <div class="row" id="rulesBox" hidden>
+    <h2>Realism rules, as the game builds each bike</h2>
+    <p class="soft">Round 2 measures what an eye reads, not only clashes. The limits come from real bikes. Several of the 14 designed bikes break them too, so the faults sit in how the game places parts, before any solver.</p>
+    <div class="scroll"><table id="rules"></table></div>
+  </div>
   <div class="tabs" id="tabs"></div>
   <div class="row"><h2 id="sweepTitle">Loading the builds</h2><p class="soft" id="sweepNote"></p><div class="bar" id="bar"></div></div>
   <div id="rows" class="row"></div>
@@ -107,6 +118,7 @@ function open(b, sw) {
   const cols = el("div", "cols");
   const list = (title, items, none) => { const c = el("div"); c.append(el("div", "cap", title)); if (!items.length) c.append(el("div", "soft", none)); else { const u = el("ul"); items.forEach(x => u.append(el("li", "", x))); c.append(u); } return c; };
   cols.append(list("Wrong before", b.before.map(faultText), "Nothing found"), list("What the solver did", b.did, "Nothing"), list("Still wrong after", b.after.map(faultText), "Nothing found"));
+  if (b.rules) cols.append(list("Realism rules broken, as built", b.rules.map(r => DATA.rules[r[0]] + ": " + r[1]), "None"));
   body.append(head, pair, cols, el("div", "soft", "The game's own verdict on engine and frame: " + b.tier + "."));
   $("dlg").showModal();
 }
@@ -116,6 +128,17 @@ function draw() {
   const mk = (key, name, n, c) => { const b = el("button"); b.id = "tally-" + key; b.setAttribute("aria-pressed", filter === key); if (c) b.style.setProperty("--c", "var(" + c + ")"); b.append(el("b", "", n.toLocaleString()), el("small", "", name)); b.onclick = () => { filter = filter === key ? "all" : key; draw(); }; return b; };
   tally.append(mk("all", DATA.done < DATA.total ? "builds so far, of " + DATA.total.toLocaleString() : "builds", all.length));
   for (const k in STATUS) tally.append(mk(k, STATUS[k][0], all.filter(b => b.status === k).length, STATUS[k][1]));
+  if (DATA.rules && all.some(b => b.rules)) {
+    $("rulesBox").hidden = false;
+    const t = $("rules"); t.replaceChildren();
+    const hr = el("tr"); ["Rule", "Designed bikes breaking it", "All builds breaking it"].forEach(h => hr.append(el("th", "", h))); t.append(hr);
+    const refs = DATA.sweeps[0].builds, measured = all.filter(b => b.rules);
+    DATA.rules.forEach((name, i) => {
+      const tr = el("tr"), bad = refs.filter(b => b.rules && b.rules.some(r => r[0] === i));
+      tr.append(el("td", "", name), el("td", "", bad.length + " of " + refs.length + (bad.length ? " (" + bad.map(b => b.row).join(", ") + ")" : "")), el("td", "n", measured.filter(b => b.rules.some(r => r[0] === i)).length.toLocaleString() + " of " + measured.length.toLocaleString()));
+      t.append(tr);
+    });
+  }
   const tabs = $("tabs"); tabs.replaceChildren();
   DATA.sweeps.forEach((s, i) => { if (!s.builds.length) return; const b = el("button", "", s.title); b.id = "tab-" + i; b.setAttribute("aria-pressed", i === sweep); b.append(el("i", "", s.builds.length)); b.onclick = () => { sweep = i; draw(); }; tabs.append(b); });
   const sw = DATA.sweeps[sweep];
@@ -139,6 +162,7 @@ function draw() {
       meta.append(top);
       if (b.did.length) meta.append(el("div", "did", b.did.join("; ")));
       else if (b.before.length) meta.append(el("div", "did", "No move it is allowed helps: " + b.before.map(faultText).join("; ")));
+      if (b.rules && b.rules.length) meta.append(el("div", "broke", "Breaks " + b.rules.length + " realism rule" + (b.rules.length > 1 ? "s" : "") + ": " + b.rules.map(r => DATA.rules[r[0]].toLowerCase()).join("; ")));
       meta.append(el("div", "num", "#" + b.n));
       c.append(pair, meta); cards.append(c);
     });

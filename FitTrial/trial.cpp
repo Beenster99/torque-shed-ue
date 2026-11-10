@@ -1182,5 +1182,18 @@ int main(int Argc, char** Argv)
 			Res.flush();
 		}
 	}
+	if (Mode == "look" && Argc >= 9)
+	{
+		// fit_trial <root> look <style> <out.ppm> <top|side> <cx> <cy-or-cz> <scale> [slot to tint red] [slot to tint blue]
+		Bike B = Wd.Build(Wd.Lay.ReferenceBuild(Argv[3]));
+		View V = std::string(Argv[5]) == "top" ? View::Top() : View::Side();
+		if (std::string(Argv[5]) == "top") { V.Up = V3(0, 0, -1); V.Centre = V3(std::atof(Argv[6]), 0.0, std::atof(Argv[7])); }
+		else V.Centre = V3(std::atof(Argv[6]), std::atof(Argv[7]), 0.0);
+		V.Scale = std::atof(Argv[8]);
+		std::map<std::string, Rgb> Tint;
+		if (Argc > 9) Tint[Argv[9]] = Rgb{1.0f, 0.1f, 0.1f};
+		if (Argc > 10) Tint[Argv[10]] = Rgb{0.1f, 0.3f, 1.0f};
+		Render(B, V, 900, 500, Tint).Save(Argv[4]);
+	}
 	return 0;
 }
