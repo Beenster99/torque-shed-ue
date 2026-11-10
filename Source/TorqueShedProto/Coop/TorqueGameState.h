@@ -197,6 +197,7 @@ private:
 	void ApplyWeather();
 	bool bCaptured = false;
 	float SunLux = 0.f, SunAngle = 0.f, SkyIntensity = 1.f, FogDensity = 0.f, Mie = 0.f, Rayleigh = 0.f;
+	FLinearColor FogInscatter = FLinearColor::Black, FogSunInscatter = FLinearColor::Black;   // the height fog's own glow, as built (by day)
 	float ExposureBias = 0.f, ExposureMin = 0.f;
 	TWeakObjectPtr<class UDirectionalLightComponent> SunPtr;
 	TWeakObjectPtr<class USkyLightComponent> SkyPtr;
