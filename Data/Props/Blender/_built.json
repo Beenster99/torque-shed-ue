@@ -1,4 +1,26 @@
 {
+ "barrels": {
+  "bounds_min": [
+   -0.95,
+   0.0,
+   -0.43
+  ],
+  "bounds_max": [
+   0.95,
+   0.63,
+   0.43
+  ],
+  "tris": 10656,
+  "materials": [
+   "yard_batten",
+   "drum_blue",
+   "steel",
+   "yard_steel_dark",
+   "yard_rust",
+   "drum_red",
+   "drum_green"
+  ]
+ },
  "bay_screen": {
   "bounds_min": [
    -1.3,
@@ -105,6 +127,437 @@
    "vice_steel_dark",
    "steel",
    "chrome"
+  ]
+ },
+ "bus": {
+  "bounds_min": [
+   -5.09,
+   0.0,
+   -1.28
+  ],
+  "bounds_max": [
+   5.26,
+   3.0,
+   1.28
+  ],
+  "tris": 12128,
+  "materials": [
+   "bus_red",
+   "bus_roof",
+   "plastic_black",
+   "yard_rubber",
+   "yard_paint_grey",
+   "steel",
+   "yard_steel_dark",
+   "chrome",
+   "bus_cream",
+   "yard_window",
+   "lamp_lens",
+   "amber_lens",
+   "red_lens",
+   "yard_rust"
+  ]
+ },
+ "bus_row": {
+  "bounds_min": [
+   -5.09,
+   0.0,
+   -6.28
+  ],
+  "bounds_max": [
+   5.26,
+   3.0,
+   6.28
+  ],
+  "tris": 60640,
+  "materials": [
+   "bus_red",
+   "bus_roof",
+   "plastic_black",
+   "yard_rubber",
+   "yard_paint_grey",
+   "steel",
+   "yard_steel_dark",
+   "chrome",
+   "bus_cream",
+   "yard_window",
+   "lamp_lens",
+   "amber_lens",
+   "red_lens",
+   "yard_rust",
+   "bus_green",
+   "bus_blue",
+   "bus_silver",
+   "bus_maroon",
+   "bus_orange"
+  ]
+ },
+ "car_wreck": {
+  "bounds_min": [
+   -0.87,
+   -0.04,
+   -2.07
+  ],
+  "bounds_max": [
+   0.87,
+   1.33,
+   2.07
+  ],
+  "tris": 6408,
+  "materials": [
+   "car_paint",
+   "yard_window",
+   "plastic_black",
+   "yard_rubber",
+   "yard_rust",
+   "chrome",
+   "red_lens",
+   "lamp_lens",
+   "amber_lens"
+  ]
+ },
+ "cone": {
+  "bounds_min": [
+   -0.18,
+   0.0,
+   -0.18
+  ],
+  "bounds_max": [
+   0.18,
+   0.5,
+   0.18
+  ],
+  "tris": 816,
+  "materials": [
+   "yard_rubber",
+   "cone_orange",
+   "reflect_white"
+  ]
+ },
+ "fence_mesh": {
+  "bounds_min": [
+   -1.79,
+   0.0,
+   -0.075
+  ],
+  "bounds_max": [
+   1.79,
+   1.9928,
+   0.075
+  ],
+  "tris": 1304,
+  "materials": [
+   "galvanised",
+   "yard_rubber"
+  ]
+ },
+ "fence_wood": {
+  "bounds_min": [
+   -1.3,
+   0.0,
+   -0.06
+  ],
+  "bounds_max": [
+   1.3,
+   1.1393,
+   0.079
+  ],
+  "tris": 1392,
+  "materials": [
+   "fence_wood",
+   "yard_steel_dark"
+  ]
+ },
+ "flag_blue": {
+  "bounds_min": [
+   -0.22,
+   0.0,
+   -0.22
+  ],
+  "bounds_max": [
+   0.6,
+   2.215,
+   0.22
+  ],
+  "tris": 1240,
+  "materials": [
+   "yard_rubber",
+   "aluminium",
+   "plastic_black",
+   "cloth_blue"
+  ]
+ },
+ "flag_chequered": {
+  "bounds_min": [
+   -0.22,
+   0.0,
+   -0.22
+  ],
+  "bounds_max": [
+   0.6,
+   2.215,
+   0.22
+  ],
+  "tris": 1240,
+  "materials": [
+   "yard_rubber",
+   "aluminium",
+   "plastic_black",
+   "cloth_black",
+   "cloth_white"
+  ]
+ },
+ "flag_red": {
+  "bounds_min": [
+   -0.22,
+   0.0,
+   -0.22
+  ],
+  "bounds_max": [
+   0.6,
+   2.215,
+   0.22
+  ],
+  "tris": 1240,
+  "materials": [
+   "yard_rubber",
+   "aluminium",
+   "plastic_black",
+   "cloth_red"
+  ]
+ },
+ "hay_bales": {
+  "bounds_min": [
+   -1.0869,
+   -0.0025,
+   -0.5691
+  ],
+  "bounds_max": [
+   1.0869,
+   0.5025,
+   0.5698
+  ],
+  "tris": 1240,
+  "materials": [
+   "yard_hay",
+   "twine"
+  ]
+ },
+ "landing_huge": {
+  "bounds_min": [
+   -1.64,
+   -0.152,
+   -6.5
+  ],
+  "bounds_max": [
+   1.64,
+   3.02,
+   6.5
+  ],
+  "tris": 11560,
+  "materials": [
+   "yard_tread",
+   "steel",
+   "yard_paint_red",
+   "yard_steel_dark"
+  ]
+ },
+ "landing_xl": {
+  "bounds_min": [
+   -1.54,
+   -0.152,
+   -4.75
+  ],
+  "bounds_max": [
+   1.54,
+   2.22,
+   4.75
+  ],
+  "tris": 8344,
+  "materials": [
+   "yard_tread",
+   "steel",
+   "yard_paint_blue",
+   "yard_steel_dark"
+  ]
+ },
+ "log": {
+  "bounds_min": [
+   -1.205,
+   -0.0217,
+   -0.2658
+  ],
+  "bounds_max": [
+   1.205,
+   0.5373,
+   0.2658
+  ],
+  "tris": 1468,
+  "materials": [
+   "bark",
+   "log_end",
+   "yard_batten"
+  ]
+ },
+ "post": {
+  "bounds_min": [
+   -0.075,
+   0.0,
+   -0.075
+  ],
+  "bounds_max": [
+   0.075,
+   1.0,
+   0.075
+  ],
+  "tris": 944,
+  "materials": [
+   "yard_rubber",
+   "yard_paint_yellow",
+   "yard_paint_black",
+   "reflect_red"
+  ]
+ },
+ "ramp_huge": {
+  "bounds_min": [
+   -1.54,
+   -0.152,
+   -4.5511
+  ],
+  "bounds_max": [
+   1.54,
+   3.02,
+   4.5
+  ],
+  "tris": 8296,
+  "materials": [
+   "yard_tread",
+   "steel",
+   "yard_paint_red",
+   "yard_steel_dark",
+   "yard_paint_yellow",
+   "yard_paint_black"
+  ]
+ },
+ "ramp_kicker": {
+  "bounds_min": [
+   -0.724,
+   -0.018,
+   -0.823
+  ],
+  "bounds_max": [
+   0.724,
+   0.6032,
+   0.8001
+  ],
+  "tris": 1252,
+  "materials": [
+   "yard_ply",
+   "yard_tread",
+   "steel",
+   "yard_paint_yellow",
+   "yard_batten"
+  ]
+ },
+ "ramp_landing": {
+  "bounds_min": [
+   -1.424,
+   -0.018,
+   -3.523
+  ],
+  "bounds_max": [
+   1.424,
+   1.5,
+   3.5
+  ],
+  "tris": 4776,
+  "materials": [
+   "yard_ply",
+   "yard_tread",
+   "yard_paint_yellow",
+   "yard_batten"
+  ]
+ },
+ "ramp_large": {
+  "bounds_min": [
+   -1.34,
+   -0.152,
+   -2.4511
+  ],
+  "bounds_max": [
+   1.34,
+   1.62,
+   2.4
+  ],
+  "tris": 4576,
+  "materials": [
+   "yard_tread",
+   "steel",
+   "yard_paint_grey",
+   "yard_steel_dark",
+   "yard_paint_yellow",
+   "yard_paint_black"
+  ]
+ },
+ "ramp_medium": {
+  "bounds_min": [
+   -1.024,
+   -0.018,
+   -1.623
+  ],
+  "bounds_max": [
+   1.024,
+   0.9038,
+   1.6
+  ],
+  "tris": 2444,
+  "materials": [
+   "yard_ply",
+   "yard_tread",
+   "steel",
+   "yard_paint_yellow",
+   "yard_batten"
+  ]
+ },
+ "ramp_small": {
+  "bounds_min": [
+   -0.824,
+   -0.018,
+   -1.023
+  ],
+  "bounds_max": [
+   0.824,
+   0.4539,
+   1.0001
+  ],
+  "tris": 1608,
+  "materials": [
+   "yard_ply",
+   "yard_tread",
+   "steel",
+   "yard_paint_yellow",
+   "yard_batten"
+  ]
+ },
+ "ramp_xl": {
+  "bounds_min": [
+   -1.44,
+   -0.152,
+   -3.5486
+  ],
+  "bounds_max": [
+   1.44,
+   2.22,
+   3.5
+  ],
+  "tris": 6192,
+  "materials": [
+   "yard_tread",
+   "steel",
+   "yard_paint_blue",
+   "yard_steel_dark",
+   "yard_paint_yellow",
+   "yard_paint_black"
   ]
  },
  "repair_compact": {
@@ -300,6 +753,25 @@
    "can_blue"
   ]
  },
+ "tabletop": {
+  "bounds_min": [
+   -1.6,
+   -0.28,
+   -4.5
+  ],
+  "bounds_max": [
+   1.6,
+   1.21,
+   4.5
+  ],
+  "tris": 13072,
+  "materials": [
+   "yard_dirt",
+   "yard_rut",
+   "yard_rubber",
+   "stone"
+  ]
+ },
  "tv_120": {
   "bounds_min": [
    -1.33,
@@ -370,6 +842,209 @@
    "steel_dark",
    "steel",
    "rubber"
+  ]
+ },
+ "tyre_stack": {
+  "bounds_min": [
+   -0.3923,
+   0.003,
+   -0.3947
+  ],
+  "bounds_max": [
+   0.3921,
+   0.907,
+   0.395
+  ],
+  "tris": 17500,
+  "materials": [
+   "yard_rubber",
+   "yard_rust"
+  ]
+ },
+ "wall_brick": {
+  "bounds_min": [
+   -1.22,
+   0.0,
+   -0.25
+  ],
+  "bounds_max": [
+   1.22,
+   1.2,
+   0.25
+  ],
+  "tris": 644,
+  "materials": [
+   "yard_paint_grey",
+   "yard_brick",
+   "yard_concrete",
+   "yard_concrete_dark"
+  ]
+ },
+ "wall_concrete": {
+  "bounds_min": [
+   -1.0,
+   0.0,
+   -0.305
+  ],
+  "bounds_max": [
+   1.0,
+   0.868,
+   0.305
+  ],
+  "tris": 1268,
+  "materials": [
+   "yard_concrete",
+   "reflect_red",
+   "reflect_white",
+   "yard_concrete_dark",
+   "yard_steel_dark"
+  ]
+ },
+ "yard_board_0": {
+  "bounds_min": [
+   -0.41,
+   0.0,
+   -0.034
+  ],
+  "bounds_max": [
+   0.41,
+   1.31,
+   0.034
+  ],
+  "tris": 468,
+  "materials": [
+   "yard_paint_white",
+   "yard_paint_red",
+   "yard_paint_black"
+  ]
+ },
+ "yard_board_10": {
+  "bounds_min": [
+   -0.41,
+   0.0,
+   -0.034
+  ],
+  "bounds_max": [
+   0.41,
+   1.31,
+   0.034
+  ],
+  "tris": 516,
+  "materials": [
+   "yard_paint_white",
+   "yard_paint_red",
+   "yard_paint_black"
+  ]
+ },
+ "yard_board_20": {
+  "bounds_min": [
+   -0.41,
+   0.0,
+   -0.034
+  ],
+  "bounds_max": [
+   0.41,
+   1.31,
+   0.034
+  ],
+  "tris": 588,
+  "materials": [
+   "yard_paint_white",
+   "yard_paint_red",
+   "yard_paint_black"
+  ]
+ },
+ "yard_board_30": {
+  "bounds_min": [
+   -0.41,
+   0.0,
+   -0.034
+  ],
+  "bounds_max": [
+   0.41,
+   1.31,
+   0.034
+  ],
+  "tris": 588,
+  "materials": [
+   "yard_paint_white",
+   "yard_paint_red",
+   "yard_paint_black"
+  ]
+ },
+ "yard_board_40": {
+  "bounds_min": [
+   -0.41,
+   0.0,
+   -0.034
+  ],
+  "bounds_max": [
+   0.41,
+   1.31,
+   0.034
+  ],
+  "tris": 564,
+  "materials": [
+   "yard_paint_white",
+   "yard_paint_red",
+   "yard_paint_black"
+  ]
+ },
+ "yard_bunting": {
+  "bounds_min": [
+   -0.16,
+   0.0,
+   -0.16
+  ],
+  "bounds_max": [
+   7.0008,
+   5.0,
+   0.16
+  ],
+  "tris": 616,
+  "materials": [
+   "yard_paint_white",
+   "yard_concrete",
+   "twine",
+   "cloth_red",
+   "cloth_yellow",
+   "cloth_blue",
+   "cloth_white",
+   "cloth_green",
+   "cloth_orange"
+  ]
+ },
+ "yard_hump": {
+  "bounds_min": [
+   -1.7,
+   0.0,
+   -0.7
+  ],
+  "bounds_max": [
+   1.7,
+   0.084,
+   0.7
+  ],
+  "tris": 128,
+  "materials": [
+   "rubber_hump",
+   "yard_paint_yellow"
+  ]
+ },
+ "yard_whoop": {
+  "bounds_min": [
+   -2.0,
+   0.0,
+   -1.6
+  ],
+  "bounds_max": [
+   2.0,
+   0.5,
+   1.6
+  ],
+  "tris": 188,
+  "materials": [
+   "yard_dirt"
   ]
  }
 }

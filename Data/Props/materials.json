@@ -1,5 +1,5 @@
 {
- "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same. A scan kept in Data/Props/Scans/<id>/ (drawn by a tool there, as brushed_metal by Tools/props/make_brushed_scan.py) is used from git instead of fetched.",
+ "about": "The materials the shed props are made of. A Blender prop's material slots are named by these keys (Tools/props/make_props.py); Tools/ue_import_props.py makes one UE material instance per key from its base ('painted', 'metal', 'plastic', 'rubber', 'wood', 'fabric', 'glass', 'emissive', 'paper') with the tint, roughness and metalness here, and the base's scanned maps (Poly Haven CC0, the 'scans' block, fetched by Tools/fetch_props.py) tiled at 'tile' repeats a metre. Colours are linear, taken from Torque Shed's own (equipment_view.gd, workshop.gd) so the shed reads the same. A scan kept in Data/Props/Scans/<id>/ (drawn by a tool there, as brushed_metal by Tools/props/make_brushed_scan.py) is used from git instead of fetched. Optional per key, for the yard kit's realistic pass (Tools/props/make_yard.py): 'scan' names its own Poly Haven scan instead of the base's; 'true' 1 shows the scan's real colours (x tint) instead of the tint shaded by the scan's light and dark; 'detail' how much of the scan shows (default 0.6); 'macro' a large soft light/dark variation so a big surface doesn't show the scan repeating; 'grime' darkens the bottom 40 cm towards the ground; 'world_uv' 1 lays the scan by world position (the yard's painted marks).",
  "scans": {
   "painted": "metal_plate",
   "metal": "metal_plate_02",
@@ -720,7 +720,11 @@
    ],
    "rough": 0.5,
    "metal": 0.3,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.35,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "drum_red": {
    "base": "painted",
@@ -731,7 +735,11 @@
    ],
    "rough": 0.5,
    "metal": 0.3,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.35,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "drum_green": {
    "base": "painted",
@@ -742,7 +750,11 @@
    ],
    "rough": 0.5,
    "metal": 0.3,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.35,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "rust": {
    "base": "metal",
@@ -758,12 +770,16 @@
   "bark": {
    "base": "wood",
    "tint": [
-    0.2,
-    0.14,
-    0.09
+    0.85,
+    0.85,
+    0.85
    ],
    "rough": 0.95,
-   "tile": 1.5
+   "tile": 0.5,
+   "scan": "pine_bark",
+   "true": 1.0,
+   "detail": 1.0,
+   "grime": 0.4
   },
   "log_end": {
    "base": "wood",
@@ -804,7 +820,11 @@
    ],
    "rough": 0.65,
    "metal": 0.25,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "glass_dirty": {
    "base": "glass",
@@ -855,7 +875,11 @@
    ],
    "rough": 0.45,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_green": {
    "base": "painted",
@@ -866,7 +890,11 @@
    ],
    "rough": 0.45,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_blue": {
    "base": "painted",
@@ -877,7 +905,11 @@
    ],
    "rough": 0.45,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_cream": {
    "base": "painted",
@@ -888,7 +920,11 @@
    ],
    "rough": 0.45,
    "metal": 0.1,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_maroon": {
    "base": "painted",
@@ -899,7 +935,11 @@
    ],
    "rough": 0.45,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_orange": {
    "base": "painted",
@@ -910,7 +950,11 @@
    ],
    "rough": 0.45,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_silver": {
    "base": "painted",
@@ -921,7 +965,11 @@
    ],
    "rough": 0.4,
    "metal": 0.4,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "bus_roof": {
    "base": "painted",
@@ -932,7 +980,11 @@
    ],
    "rough": 0.7,
    "metal": 0.2,
-   "tile": 1.0
+   "tile": 0.33,
+   "scan": "concrete_floor_worn_001",
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.8
   },
   "concrete": {
    "base": "concrete",
@@ -1007,12 +1059,16 @@
   "fence_wood": {
    "base": "wood",
    "tint": [
-    0.45,
-    0.36,
-    0.24
+    0.9,
+    0.9,
+    0.9
    ],
    "rough": 0.85,
-   "tile": 1.0
+   "tile": 0.55,
+   "grime": 0.5,
+   "scan": "weathered_brown_planks",
+   "true": 1.0,
+   "detail": 1.0
   },
   "galvanised": {
    "base": "metal",
@@ -1023,7 +1079,8 @@
    ],
    "rough": 0.45,
    "metal": 1.0,
-   "tile": 2.0
+   "tile": 2.0,
+   "grime": 0.5
   },
   "cone_orange": {
    "base": "plastic",
@@ -1033,7 +1090,8 @@
     0.03
    ],
    "rough": 0.4,
-   "tile": 4.0
+   "tile": 4.0,
+   "grime": 0.5
   },
   "rubber_hump": {
    "base": "rubber",
@@ -1043,7 +1101,8 @@
     0.05
    ],
    "rough": 0.85,
-   "tile": 2.0
+   "tile": 2.0,
+   "grime": 0.5
   },
   "cloth_red": {
    "base": "fabric",
@@ -1257,6 +1316,294 @@
    "rough": 0.6,
    "metal": 0.0,
    "tile": 1.0
+  },
+  "yard_ply": {
+   "base": "plywood",
+   "scan": "plywood",
+   "true": 1.0,
+   "tint": [
+    0.95,
+    0.9,
+    0.85
+   ],
+   "rough": 0.72,
+   "tile": 2.0,
+   "detail": 1.0,
+   "macro": 0.15,
+   "grime": 0.8
+  },
+  "yard_batten": {
+   "base": "plywood",
+   "scan": "plywood",
+   "true": 1.0,
+   "tint": [
+    0.55,
+    0.46,
+    0.38
+   ],
+   "rough": 0.8,
+   "tile": 2.0,
+   "detail": 1.0,
+   "macro": 0.1,
+   "grime": 0.8
+  },
+  "yard_tread": {
+   "base": "metal",
+   "scan": "metal_plate",
+   "true": 1.0,
+   "tint": [
+    1.15,
+    1.15,
+    1.15
+   ],
+   "rough": 0.75,
+   "metal": 0.85,
+   "tile": 2.0,
+   "detail": 1.0,
+   "macro": 0.12,
+   "grime": 0.5
+  },
+  "yard_steel_dark": {
+   "base": "metal",
+   "tint": [
+    0.2,
+    0.2,
+    0.21
+   ],
+   "rough": 0.5,
+   "metal": 0.9,
+   "tile": 1.0,
+   "detail": 0.6,
+   "macro": 0.1,
+   "grime": 0.7
+  },
+  "yard_dirt": {
+   "base": "concrete",
+   "scan": "dirt",
+   "true": 1.0,
+   "tint": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "rough": 0.95,
+   "tile": 0.5,
+   "detail": 1.0,
+   "macro": 0.2
+  },
+  "yard_rut": {
+   "base": "concrete",
+   "scan": "brown_mud_02",
+   "true": 1.0,
+   "tint": [
+    0.9,
+    0.9,
+    0.9
+   ],
+   "rough": 0.95,
+   "tile": 0.77,
+   "detail": 1.0,
+   "macro": 0.15
+  },
+  "yard_rubber": {
+   "base": "rubber",
+   "scan": "rubberized_track",
+   "tint": [
+    0.03,
+    0.03,
+    0.03
+   ],
+   "rough": 0.85,
+   "tile": 0.5,
+   "detail": 0.35,
+   "grime": 0.5
+  },
+  "yard_hay": {
+   "base": "fabric",
+   "scan": "thatch_roof_angled",
+   "tint": [
+    0.75,
+    0.62,
+    0.32
+   ],
+   "rough": 0.95,
+   "tile": 1.85,
+   "detail": 0.85,
+   "macro": 0.15,
+   "grime": 0.4
+  },
+  "yard_concrete": {
+   "base": "concrete",
+   "scan": "concrete_wall_008",
+   "true": 1.0,
+   "tint": [
+    0.95,
+    0.95,
+    0.95
+   ],
+   "rough": 0.85,
+   "tile": 0.37,
+   "detail": 1.0,
+   "macro": 0.12,
+   "grime": 0.8
+  },
+  "yard_concrete_dark": {
+   "base": "concrete",
+   "scan": "concrete_wall_008",
+   "true": 1.0,
+   "tint": [
+    0.45,
+    0.45,
+    0.45
+   ],
+   "rough": 0.9,
+   "tile": 0.37,
+   "detail": 1.0,
+   "grime": 0.8
+  },
+  "yard_brick": {
+   "base": "concrete",
+   "scan": "red_brick",
+   "true": 1.0,
+   "tint": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "rough": 0.88,
+   "tile": 0.714,
+   "detail": 1.0,
+   "macro": 0.1,
+   "grime": 0.8
+  },
+  "yard_rust": {
+   "base": "metal",
+   "scan": "rust_coarse_01",
+   "true": 1.0,
+   "tint": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "rough": 0.85,
+   "metal": 0.4,
+   "tile": 0.45,
+   "detail": 1.0
+  },
+  "yard_window": {
+   "base": "painted",
+   "tint": [
+    0.012,
+    0.014,
+    0.016
+   ],
+   "rough": 0.06,
+   "metal": 0.0,
+   "tile": 1.0,
+   "detail": 0.0
+  },
+  "yard_line": {
+   "base": "concrete",
+   "tint": [
+    0.9,
+    0.9,
+    0.88
+   ],
+   "rough": 0.65,
+   "tile": 0.33,
+   "detail": 0.75,
+   "macro": 0.15,
+   "world_uv": 1.0
+  },
+  "yard_paint_grey": {
+   "base": "painted",
+   "scan": "concrete_floor_worn_001",
+   "tint": [
+    0.25,
+    0.28,
+    0.3
+   ],
+   "rough": 0.5,
+   "metal": 0.2,
+   "tile": 0.33,
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.7
+  },
+  "yard_paint_red": {
+   "base": "painted",
+   "scan": "concrete_floor_worn_001",
+   "tint": [
+    0.62,
+    0.07,
+    0.05
+   ],
+   "rough": 0.42,
+   "metal": 0.15,
+   "tile": 0.33,
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.7
+  },
+  "yard_paint_blue": {
+   "base": "painted",
+   "scan": "concrete_floor_worn_001",
+   "tint": [
+    0.1,
+    0.3,
+    0.65
+   ],
+   "rough": 0.4,
+   "metal": 0.3,
+   "tile": 0.33,
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.7
+  },
+  "yard_paint_yellow": {
+   "base": "painted",
+   "scan": "concrete_floor_worn_001",
+   "tint": [
+    0.85,
+    0.62,
+    0.04
+   ],
+   "rough": 0.45,
+   "metal": 0.1,
+   "tile": 0.33,
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.7
+  },
+  "yard_paint_black": {
+   "base": "painted",
+   "scan": "concrete_floor_worn_001",
+   "tint": [
+    0.025,
+    0.025,
+    0.028
+   ],
+   "rough": 0.5,
+   "metal": 0.2,
+   "tile": 0.33,
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.7
+  },
+  "yard_paint_white": {
+   "base": "painted",
+   "scan": "concrete_floor_worn_001",
+   "tint": [
+    0.8,
+    0.8,
+    0.78
+   ],
+   "rough": 0.45,
+   "metal": 0.05,
+   "tile": 0.33,
+   "detail": 0.25,
+   "macro": 0.12,
+   "grime": 0.5
   }
  }
 }

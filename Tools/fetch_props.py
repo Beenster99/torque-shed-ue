@@ -70,7 +70,9 @@ def main():
     mats = json.load(open(os.path.join(ROOT, "Data", "Props", "materials.json")))
     models = sorted({p["polyhaven"] for p in props["props"].values() if "polyhaven" in p})
     # Scans kept in git (Data/Props/Scans/<id>/, drawn by a tool: brushed_metal) aren't Poly Haven's.
-    scans = sorted(s for s in set(mats["scans"].values()) if not os.path.isdir(os.path.join(ROOT, "Data", "Props", "Scans", s)))
+    # The bases' scans and any a material names for itself (the yard kit's: materials.json 'scan').
+    wanted = set(mats["scans"].values()) | {m["scan"] for m in mats["materials"].values() if m.get("scan")}
+    scans = sorted(s for s in wanted if not os.path.isdir(os.path.join(ROOT, "Data", "Props", "Scans", s)))
     total, got, failed = 0, 0, []
     for kind, assets, planner in (("model", models, model_plan), ("scan", scans, scan_plan)):
         for a in assets:

@@ -25,6 +25,23 @@ import kit  # noqa: E402
 from kit import box, cyl, tube, torus, prism, sphere  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# The realistic pass (beenster, Nov 10: "all of the objects in the test area seem very low res"): the
+# yard kit's surfaces get their own scanned materials (materials.json yard_*: the real dirt, plywood,
+# brick, concrete and rust in their own colours, no visible repeat, grime towards the ground) instead
+# of the shed's flat tints, which stay as they are for the shed's own props. Painted steel and the
+# vehicles' paint get a quiet scan and grime; glass on the old cars and buses is dark tinted glass you
+# can't see a painted box through.
+YARD_LOOK = {
+    "plywood": "yard_ply", "crate_wood_dark": "yard_batten", "steel_dark": "yard_steel_dark",
+    "dirt": "yard_dirt", "dirt_dark": "yard_rut", "rubber": "yard_rubber", "hay": "yard_hay",
+    "concrete": "yard_concrete", "concrete_dark": "yard_concrete_dark", "rust": "yard_rust",
+    "glass": "yard_window", "glass_dirty": "yard_window",
+    "paint_grey": "yard_paint_grey", "paint_red": "yard_paint_red", "paint_blue": "yard_paint_blue",
+    "paint_yellow": "yard_paint_yellow", "paint_black": "yard_paint_black", "paint_white": "yard_paint_white",
+}
+_kit_material = kit.material
+kit.material = lambda key: _kit_material(YARD_LOOK.get(key, key))
 OUT = os.path.join(ROOT, "Data", "Props", "Blender")
 MODELS = {}
 
@@ -160,7 +177,7 @@ def wood_ramp(W, H, L, kind):
             sheet += 1
             start = i
     toe = [p for p in deck if p[0] >= L * 0.5 - 0.16]
-    slab("ToePlate", toe, -hw + 0.02, hw - 0.02, 0.004, "steel_dark", lift=0.004)
+    slab("ToePlate", toe, -hw + 0.02, hw - 0.02, 0.004, "yard_tread", lift=0.004)
     if kind != "landing":
         lip = [p for p in deck if p[0] <= -L * 0.5 + 0.12]
         slab("LipPlate", lip, -hw + 0.02, hw - 0.02, 0.004, "steel", lift=0.004)
@@ -195,7 +212,7 @@ def steel_ramp(W, H, L, kind, paint):
     deck = thin(pts, 0.08)
     hw = W * 0.5
     # A chequer plate deck in sections, the grip plate's rows as thin raised strips every 25 cm.
-    slab("Deck", deck, -hw, hw, 0.012, "steel_dark")
+    slab("Deck", deck, -hw, hw, 0.012, "yard_tread")
     run = 0.0
     for i, (a, b) in enumerate(zip(deck, deck[1:])):
         seg = math.hypot(a[0] - b[0], a[1] - b[1])
@@ -458,9 +475,16 @@ def bus(n, off_z=0.0, flip=False):
         bb("Well%.1f" % ax, (ax, 0.75, 0.0), (arch * 2.0, 0.7, hw * 2.0 - 0.7), "plastic_black")
         for s in (-1, 1):
             z = off_z + sz * s * (hw - 0.17)
-            cyl(p + "Tyre%.1f%d" % (ax, s), (ax, 0.5, z), 0.5, 0.3, "rubber", axis="z", verts=28, bevel=0.03)
-            cyl(p + "Wheel%.1f%d" % (ax, s), (ax, 0.5, z + sz * s * 0.152), 0.3, 0.01, "steel", axis="z", verts=20)
-            cyl(p + "Nut%.1f%d" % (ax, s), (ax, 0.5, z + sz * s * 0.165), 0.09, 0.03, "steel_dark", axis="z", verts=8)
+            # A rounded tyre (sidewalls bulging past the tread), a dished steel wheel, the hub and its nuts.
+            torus(p + "Tyre%.1f%d" % (ax, s), (ax, 0.5, z), 0.355, 0.145, "rubber", axis="z", verts=40)
+            cyl(p + "TyreCore%.1f%d" % (ax, s), (ax, 0.5, z), 0.36, 0.26, "rubber", axis="z", verts=40, bevel=0.0)
+            cyl(p + "Wheel%.1f%d" % (ax, s), (ax, 0.5, z + sz * s * 0.11), 0.3, 0.05, "paint_grey", axis="z", verts=32, bevel=0.012)
+            cyl(p + "Dish%.1f%d" % (ax, s), (ax, 0.5, z + sz * s * 0.138), 0.2, 0.02, "steel", axis="z", verts=24, bevel=0.006)
+            cyl(p + "Nut%.1f%d" % (ax, s), (ax, 0.5, z + sz * s * 0.15), 0.09, 0.03, "steel_dark", axis="z", verts=12, bevel=0.004)
+            for k in range(8):
+                a = 2 * math.pi * k / 8
+                cyl(p + "Stud%.1f%d%d" % (ax, s, k), (ax + math.cos(a) * 0.13, 0.5 + math.sin(a) * 0.13, z + sz * s * 0.152), 0.014, 0.025,
+                    "chrome", axis="z", verts=6, bevel=0.0)
             bb("ArchTrim%.1f%d" % (ax, s), (ax, 1.03, s * (hw + 0.004)), (arch * 2.0 + 0.06, 0.05, 0.01), "plastic_black")
             for e in (-1, 1):
                 bb("ArchSide%.1f%d%d" % (ax, s, e), (ax + e * (arch + 0.015), 0.69, s * (hw + 0.004)), (0.05, 0.68, 0.01), "plastic_black")
@@ -539,27 +563,17 @@ def wall_concrete():
 
 @model("wall_brick", (2.4, 1.2, 0.3))
 def wall_brick():
-    # A steel channel the wall stands on (so it can be moved), then stretcher bond in two skins.
+    """A one-brick wall on a steel channel (so it can be moved): the brickwork is a scanned real wall
+    (Poly Haven red_brick, 1.4 m a repeat, laid in metres so the bricks are brick sized) on both faces
+    and the ends, a concrete coping on top."""
     box("Channel", (0.0, 0.03, 0.0), (2.4, 0.06, 0.3), "paint_grey", bevel=0.005)
     for s in (-1, 1):
         box("Foot%d" % s, (s * 1.12, 0.008, 0.0), (0.16, 0.016, 0.5), "paint_grey", bevel=0.003)
-    box("Mortar", (0.0, 0.63, 0.0), (2.38, 1.12, 0.23), "mortar", bevel=0.0)
-    rng = random.Random(42)
-    course_h, brick_l, brick_h, joint = 0.075, 0.215, 0.065, 0.01
-    courses = int(1.08 / course_h)
-    for c in range(courses):
-        y = 0.07 + c * course_h + brick_h * 0.5
-        off = (brick_l + joint) * 0.5 if c % 2 else 0.0
-        x = -1.2 + off - (brick_l + joint) * 0.5
-        while x < 1.2:
-            x0, x1 = max(x - brick_l * 0.5, -1.195), min(x + brick_l * 0.5, 1.195)
-            if x1 - x0 > 0.04:
-                for sk in (-1, 1):
-                    tone = "brick" if rng.random() > 0.25 else "brick_dark"
-                    box("Brick%d_%.3f_%d" % (c, x, sk), ((x0 + x1) * 0.5, y, sk * 0.0725), (x1 - x0, brick_h, 0.1025 + rng.uniform(-0.003, 0.003)),
-                        tone, bevel=0.004)
-            x += brick_l + joint
-    box("Coping", (0.0, 1.2 - 0.04, 0.0), (2.42, 0.08, 0.32), "concrete", bevel=0.01)
+    box("Brickwork", (0.0, 0.06 + 1.06 * 0.5, 0.0), (2.38, 1.06, 0.215), "yard_brick", bevel=0.006)
+    box("Coping", (0.0, 1.2 - 0.04, 0.0), (2.44, 0.08, 0.3), "concrete", bevel=0.012)
+    # A drip groove under the coping's overhang, both sides.
+    for s in (-1, 1):
+        box("Drip%d" % s, (0.0, 1.118, s * 0.13), (2.4, 0.006, 0.012), "concrete_dark", bevel=0.0)
 
 
 @model("fence_wood", (2.4, 1.1, 0.12))
