@@ -1709,13 +1709,34 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	auto TryMove = [&](const FVector& D) {
 		const FVector To = FootPos + D;
 		// Walls and banks at waist height stop you; the ground under you follows, up steps of 45 cm.
+		// (Not the ground itself, a bank you're walking up, nor what you're already in: on the Buttertubs
+		// ride you step off into the verge's grass and walls, and nothing let you walk out of them.)
 		FHitResult Hit;
 		if (World->SweepSingleByChannel(Hit, FootPos + FVector(0, 0, 90.0), To + FVector(0, 0, 90.0), FQuat::Identity, ECC_Visibility,
-			FCollisionShape::MakeSphere(30.0f), Params))
-			return false;
-		if (!GroundTrace(World, To + FVector(0, 0, 120.0), To - FVector(0, 0, 400.0), Params, Hit)) return false;
-		if (Hit.ImpactPoint.Z - FootPos.Z > 45.0 || Hit.ImpactNormal.Z < 0.6) return false;
-		FootPos = Hit.ImpactPoint;
+			FCollisionShape::MakeSphere(30.0f), Params) && !Hit.bStartPenetrating)
+		{
+			const AActor* A = Hit.GetActor();
+			const UPrimitiveComponent* Part = Hit.GetComponent();
+			const bool bGround = (A && (A->ActorHasTag(TEXT("Land")) || A->ActorHasTag(TEXT("Road")))) || (Part && Part->ComponentHasTag(TEXT("Road")));
+			if (!bGround) return false;
+		}
+		FVector Ground;
+		double Up = 1.0;
+		if (GroundTrace(World, To + FVector(0, 0, 120.0), To - FVector(0, 0, 400.0), Params, Hit))
+		{
+			Ground = Hit.ImpactPoint;
+			Up = Hit.ImpactNormal.Z;
+		}
+		else
+		{
+			// The ride's own ground (the sim's), where the world has none to trace.
+			const RayHit Sr = Sim->Ray(ToSim(To + FVector(0, 0, 120.0)), ToSim(To - FVector(0, 0, 400.0)));
+			if (!Sr.Hit) return false;
+			Ground = ToUE(Sr.Position);
+			Up = Sr.Normal.y;
+		}
+		if (Ground.Z - FootPos.Z > 45.0 || Up < 0.6) return false;
+		FootPos = Ground;
 		return true;
 	};
 	if (!TryMove(Walk))
