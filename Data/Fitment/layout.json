@@ -1272,13 +1272,18 @@
     "5_rider": {
      "peg_mm": [
       120,
+      490
+     ],
+     "godot_peg_mm": [
+      120,
       440
      ],
      "grip_mm": [
       550,
       260
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 45
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1332,13 +1337,18 @@
     "5_rider": {
      "peg_mm": [
       -40,
+      440
+     ],
+     "godot_peg_mm": [
+      -40,
       400
      ],
      "grip_mm": [
       580,
       120
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 35
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1392,13 +1402,18 @@
     "5_rider": {
      "peg_mm": [
       320,
+      420
+     ],
+     "godot_peg_mm": [
+      320,
       380
      ],
      "grip_mm": [
       560,
       420
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 40
     },
     "6_drive": {
      "countershaft_ahead_mm": 90,
@@ -1452,13 +1467,18 @@
     "5_rider": {
      "peg_mm": [
       560,
+      400
+     ],
+     "godot_peg_mm": [
+      560,
       360
      ],
      "grip_mm": [
       620,
       330
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 40
     },
     "6_drive": {
      "countershaft_ahead_mm": 90,
@@ -1632,13 +1652,18 @@
     "5_rider": {
      "peg_mm": [
       60,
+      550
+     ],
+     "godot_peg_mm": [
+      60,
       500
      ],
      "grip_mm": [
       560,
       360
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 45
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1692,13 +1717,18 @@
     "5_rider": {
      "peg_mm": [
       40,
+      505
+     ],
+     "godot_peg_mm": [
+      40,
       460
      ],
      "grip_mm": [
       560,
       300
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 45
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1752,13 +1782,18 @@
     "5_rider": {
      "peg_mm": [
       100,
+      500
+     ],
+     "godot_peg_mm": [
+      100,
       450
      ],
      "grip_mm": [
       560,
       270
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 45
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,

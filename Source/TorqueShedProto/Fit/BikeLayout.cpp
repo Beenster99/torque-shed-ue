@@ -733,6 +733,9 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	Peg.z = std::max(Peg.z, Crank.z - 0.17 * S - 0.2);
 	Peg.z += Adj.PegsMm / 1000.0;
 	const V3 Grip(0.31, SeatY + Item(GripMm, 1, 260.0) / 1000.0, Hip.z - Item(GripMm, 0, 550.0) / 1000.0);
+	// [rider pose] The rider sat further back on the seat than Torque Shed has it, the pegs and bars
+	// where they were ("hip_back_mm", beenster's call for the upright styles: the knees bent less).
+	Hip.z += Num(T5, "hip_back_mm", 0.0) / 1000.0;
 	const V3 KneeP = Knee(Hip + V3(0.0, 0.1, 0.0), Peg);
 
 	// The backbone: from the neck under the tank's floor, then down to the seat.

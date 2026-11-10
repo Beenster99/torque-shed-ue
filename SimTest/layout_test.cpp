@@ -110,6 +110,19 @@ int main(int argc, char** argv)
 		std::string GodotText = LayoutText;
 		if (Json::Parse(LayoutText, LayJson, &Error))
 		{
+			// The rider's lines as Torque Shed has them (the port sits some styles further back, pegs lower).
+			if (Json* Lines = LayJson.GetMutable("lines"))
+				for (auto& Member : Lines->O)
+					if (Json* Rider = Member.second.GetMutable("lines") ? Member.second.GetMutable("lines")->GetMutable("5_rider") : nullptr)
+					{
+						if (const Json* Gp = Rider->Get("godot_peg_mm")) Rider->Set("peg_mm", Json(*Gp));
+						if (Rider->Get("hip_back_mm"))
+						{
+							Json NoBack;
+							NoBack.Kind = Json::Number;
+							Rider->Set("hip_back_mm", NoBack);
+						}
+					}
 			if (Json* Shapes = LayJson.GetMutable("tank_shapes"))
 				for (auto& Member : Shapes->O)
 					if (const Json* Gk = Member.second.Get("godot_keys"))
@@ -160,7 +173,8 @@ int main(int argc, char** argv)
 		// As the Godot game's bike_rig_tests: the rider on the seat line, the sump at the ground line,
 		// and every part of the stock bike bolting on (and off, where it can come off).
 		const double HipU = (L.Stats.Wheelbase * 0.5 - L.Hip.x) / L.Stats.Wheelbase;
-		const double RiderU = Lay.LineNumber(St, "4_seat", "rider_u", 0.66);
+		// (plus the port's own move back along the seat, "hip_back_mm")
+		const double RiderU = Lay.LineNumber(St, "4_seat", "rider_u", 0.66) + Lay.LineNumber(St, "5_rider", "hip_back_mm", 0.0) / 1000.0 / L.Stats.Wheelbase;
 		const double Behind = (L.Family == "cradle" || L.Family == "softail" || L.Family == "chopper" || L.Family == "cruiser") ? 0.14 : 0.08;
 		char Buf[64];
 		std::snprintf(Buf, sizeof(Buf), "%.2f (line %.2f)", HipU, RiderU);
