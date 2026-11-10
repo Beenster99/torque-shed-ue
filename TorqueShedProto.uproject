@@ -11,16 +11,60 @@
 		}
 	],
 	"Plugins": [
-		{ "Name": "PythonScriptPlugin", "Enabled": true },
-		{ "Name": "EditorScriptingUtilities", "Enabled": true },
-		{ "Name": "OnlineSubsystem", "Enabled": true },
-		{ "Name": "OnlineSubsystemNull", "Enabled": true },
-		{ "Name": "OnlineSubsystemUtils", "Enabled": true },
-		{ "Name": "DLSS", "Enabled": true, "Optional": true },
-		{ "Name": "MetaHumanCharacter", "Enabled": true, "TargetAllowList": [ "Editor" ] },
-		{ "Name": "LiveLink", "Enabled": true },
-		{ "Name": "HairStrands", "Enabled": true, "Optional": true },
-		{ "Name": "ChaosClothAsset", "Enabled": true, "Optional": true },
-		{ "Name": "ChaosOutfitAsset", "Enabled": true, "Optional": true }
+		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true
+		},
+		{
+			"Name": "EditorScriptingUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystem",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystemNull",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystemUtils",
+			"Enabled": true
+		},
+		{
+			"Name": "DLSS",
+			"Enabled": true,
+			"Optional": true
+		},
+		{
+			"Name": "MetaHumanCharacter",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "LiveLink",
+			"Enabled": true
+		},
+		{
+			"Name": "HairStrands",
+			"Enabled": true,
+			"Optional": true
+		},
+		{
+			"Name": "ChaosClothAsset",
+			"Enabled": true,
+			"Optional": true
+		},
+		{
+			"Name": "ChaosOutfitAsset",
+			"Enabled": true,
+			"Optional": true
+		},
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		}
 	]
 }
