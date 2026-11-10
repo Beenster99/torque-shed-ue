@@ -536,7 +536,9 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 		bHazeMoved = FMath::Abs(HazeNow() - AppliedHaze) > 0.05f * FMath::Max(AppliedHaze, 1.0f);
 	}
 	// On the screen: ten times a second while it fades (the light moves slowly), and as it ends.
-	if (AppliedAt < 0.0 || bHazeMoved || bHereMoved || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
+	// At night the exposure follows the camera in and out of the shed.
+	const bool bOpenMoved = DayLight < 0.99f && FMath::Abs(WeatherOpen() - AppliedOpen) > 0.05f && Now - AppliedAt >= 0.1;
+	if (AppliedAt < 0.0 || bHazeMoved || bHereMoved || bOpenMoved || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
 	{
 		AppliedAt = Now;
 		HereApplied = Here;
@@ -892,7 +894,7 @@ void ATorqueGameState::ApplyWeather()
 		if (Sky) SkyIntensity = Sky->Intensity;
 		if (Fog) { FogDensity = Fog->FogDensity; FogInscatter = Fog->FogInscatteringLuminance; FogSunInscatter = Fog->DirectionalInscatteringLuminance; }
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
-		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; }
+		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; ExposureMax = Ppv->Settings.AutoExposureMaxBrightness; }
 	}
 	const TorqueWeather::State& St = Here;
 	const float Dull = (float)TorqueWeather::Dullness(St);    // 0 the sunny preset's sky .. 1 overcast's
@@ -911,9 +913,19 @@ void ATorqueGameState::ApplyWeather()
 	{
 		Ppv->Settings.bOverride_AutoExposureBias = true;
 		Ppv->Settings.bOverride_AutoExposureMinBrightness = true;
+		Ppv->Settings.bOverride_AutoExposureMaxBrightness = true;
 		Ppv->Settings.AutoExposureBias = ExposureBias + Dull * FMath::Lerp(1.6f, 1.9f, WetL);
-		// (and at night, by as much again: dark, but you can see the road in your lights).
-		Ppv->Settings.AutoExposureMinBrightness = ExposureMin - 3.0f * Dull - 5.0f * (1.0f - DayLight);
+		// At night: indoors, open up (the shed under its lights); out under the sky, the exposure is held
+		// in a narrow band a little open, so the road shows in your lights but the night stays night. With
+		// the old wide range the camera kept opening for ten seconds after riding out, until the dark
+		// looked like day (beenster, Nov 10).
+		const float Night = 1.0f - DayLight;
+		const float Out = FMath::Clamp(WeatherOpen(), 0.0f, 1.0f);
+		AppliedOpen = Out;
+		const float Lo = FMath::Lerp(ExposureMin - 3.0f * Dull, ExposureMin - FMath::Lerp(5.0f, 3.0f, Out), Night);
+		const float Hi = FMath::Lerp(ExposureMax, ExposureMin - 2.0f, Night * Out);
+		Ppv->Settings.AutoExposureMinBrightness = Lo;
+		Ppv->Settings.AutoExposureMaxBrightness = FMath::Max(Hi, Lo + 0.5f);
 	}
 	if (Fog)
 	{
