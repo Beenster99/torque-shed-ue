@@ -385,6 +385,7 @@ private:
 	bool bOnFoot = false, bParkedLook = false;
 	FVector FootPos = FVector::ZeroVector;
 	double FootYaw = 0.0, FootPitch = 0.0, OnFootFor = 0.0, FootNoteFor = 0.0;
+	double FootBlockLogAt = -10.0;   // OnFootFor when a stopped step was last logged
 	FString FootNote;
 	TorqueSim::V3 ParkGround;
 	double ParkHeading = 0.0, ParkLean = 0.0, ParkLift = 0.0;

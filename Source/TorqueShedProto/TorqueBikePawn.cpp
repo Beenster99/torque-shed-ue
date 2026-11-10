@@ -1566,8 +1566,16 @@ bool ATorqueBikePawn::GetOff()
 	ParkGround = Sim->Position - V3(0.0, Sim->Build.RearRadius, 0.0);
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueGetOff), true, this);
 	FHitResult Hit;
-	if (UWorld* World = GetWorld())
-		if (GroundTrace(World, ToUE(Sim->Position + V3(0.0, 1.0, 0.0)), ToUE(Sim->Position - V3(0.0, 3.0, 0.0)), Params, Hit)) ParkGround = ToSim(Hit.ImpactPoint);
+	// The road the tyres are on now (the sim's own contacts), between the two. A trace from a metre up
+	// found the moor's collision over the road first in a cutting on Buttertubs, and the bike stood on
+	// its stand in the air (beenster, build 132).
+	const TorqueSim::Wheel& TyreF = Sim->Wheels[0];
+	const TorqueSim::Wheel& TyreR = Sim->Wheels[1];
+	if (TyreF.Contact && TyreR.Contact) ParkGround = (TyreF.ContactPos + TyreR.ContactPos) * 0.5;
+	else if (TyreR.Contact) ParkGround = TyreR.ContactPos;
+	else if (TyreF.Contact) ParkGround = TyreF.ContactPos;
+	else if (UWorld* World = GetWorld())
+		if (GroundTrace(World, ToUE(Sim->Position + V3(0.0, 0.3, 0.0)), ToUE(Sim->Position - V3(0.0, 3.0, 0.0)), Params, Hit)) ParkGround = ToSim(Hit.ImpactPoint);
 	ChooseStand();
 	// The rider steps off to the left (the side stand's side), facing the way the bike points.
 	const FVector Ahead = DirToUE(V3(Fwd.x, 0.0, Fwd.z)).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
@@ -1627,7 +1635,10 @@ void ATorqueBikePawn::HoldParked()
 	// or lifted (centre stand). No riding physics; the engine ticks over (or winds down, off).
 	const M3 Heading = M3::AxisAngle(V3(0.0, 1.0, 0.0), ParkHeading);
 	Sim->Basis = Heading * M3::AxisAngle(V3(0.0, 0.0, 1.0), ParkLean);   // + about the back axis: the top to the left
-	Sim->Position = ParkGround + Sim->Basis * V3(0.0, Sim->Build.RearRadius + ParkLift, 0.0);
+	// The wheels are drawn where the suspension left them (Centre, body space, up by its compression),
+	// so the body stands that much lower to keep the tyres on the road, not a sag's height above it.
+	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
+	Sim->Position = ParkGround + Sim->Basis * V3(0.0, AxleUp + ParkLift, 0.0);
 	Sim->LinearVelocity = Sim->AngularVelocity = V3();
 	Sim->Speed = 0.0;
 	Sim->Throttle = Sim->FrontBrake = Sim->RearBrake = Sim->LeanInput = Sim->BodyShift = 0.0;
@@ -1731,8 +1742,9 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	float Mx = 0.0f, My = 0.0f;
 	if (PC) PC->GetInputMouseDelta(Mx, My);
-	FootYaw += Mx * 0.25 * Set.MouseLook;
-	FootPitch = FMath::Clamp(FootPitch + My * 0.25 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -80.0, 80.0);
+	// (The shed walker's rate: 0.143 degrees a count, Settings > Controller > Mouse look speed on top.)
+	FootYaw += Mx * 0.143 * Set.MouseLook;
+	FootPitch = FMath::Clamp(FootPitch + My * 0.143 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -80.0, 80.0);
 	// (PadLookX/Y come with the look speed and Invert look already in them.)
 	FootYaw += PadLookX * 120.0 * Dt;
 	FootPitch = FMath::Clamp(FootPitch + PadLookY * 90.0 * Dt, -80.0, 80.0);
@@ -1750,6 +1762,7 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	UWorld* World = GetWorld();
 	if (!World) return;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueFoot), true, this);
+	FString Why;   // what stopped the last try (the log, when every try is stopped)
 	auto TryMove = [&](const FVector& D) {
 		const FVector To = FootPos + D;
 		// Walls and banks at waist height stop you; the ground under you follows, up steps of 45 cm.
@@ -1762,7 +1775,11 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 			const AActor* A = Hit.GetActor();
 			const UPrimitiveComponent* Part = Hit.GetComponent();
 			const bool bGround = (A && (A->ActorHasTag(TEXT("Land")) || A->ActorHasTag(TEXT("Road")))) || (Part && Part->ComponentHasTag(TEXT("Road")));
-			if (!bGround) return false;
+			if (!bGround)
+			{
+				Why = FString::Printf(TEXT("waist-high %s"), A ? *A->GetName() : TEXT("something"));
+				return false;
+			}
 		}
 		FVector Ground;
 		double Up = 1.0;
@@ -1775,18 +1792,30 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 		{
 			// The ride's own ground (the sim's), where the world has none to trace.
 			const RayHit Sr = Sim->Ray(ToSim(To + FVector(0, 0, 120.0)), ToSim(To - FVector(0, 0, 400.0)));
-			if (!Sr.Hit) return false;
+			if (!Sr.Hit)
+			{
+				Why = TEXT("no ground under the step");
+				return false;
+			}
 			Ground = ToUE(Sr.Position);
 			Up = Sr.Normal.y;
 		}
-		if (Ground.Z - FootPos.Z > 45.0 || Up < 0.6) return false;
+		if (Ground.Z - FootPos.Z > 45.0 || Up < 0.6)
+		{
+			Why = FString::Printf(TEXT("ground %.0f cm up, %.0f deg steep"), Ground.Z - FootPos.Z, FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(Up, -1.0, 1.0))));
+			return false;
+		}
 		FootPos = Ground;
 		return true;
 	};
 	if (!TryMove(Walk))
 	{
 		// Slide along it.
-		if (!TryMove(FVector(Walk.X, 0.0, 0.0))) TryMove(FVector(0.0, Walk.Y, 0.0));
+		if (!TryMove(FVector(Walk.X, 0.0, 0.0)) && !TryMove(FVector(0.0, Walk.Y, 0.0)) && OnFootFor - FootBlockLogAt > 1.0)
+		{
+			FootBlockLogAt = OnFootFor;
+			UE_LOG(LogTemp, Log, TEXT("Torque: on foot, a step stopped at (%.0f, %.0f, %.0f): %s"), FootPos.X, FootPos.Y, FootPos.Z, *Why);
+		}
 	}
 	if (bPushing) FollowPusher();
 }
@@ -1820,8 +1849,11 @@ void ATorqueBikePawn::FollowPusher()
 	FVector At = FootPos + Right * 85.0 - Ahead * 25.0;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(TorquePush), true, this);
 	FHitResult Hit;
+	// (From just above your feet first: from higher, a cutting's moor collision over the road is found first.)
 	if (UWorld* World = GetWorld())
-		if (GroundTrace(World, At + FVector(0, 0, 150.0), At - FVector(0, 0, 300.0), Params, Hit)) At = Hit.ImpactPoint;
+		if (GroundTrace(World, At + FVector(0, 0, 60.0), At - FVector(0, 0, 300.0), Params, Hit) ||
+			GroundTrace(World, At + FVector(0, 0, 150.0), At - FVector(0, 0, 300.0), Params, Hit))
+			At = Hit.ImpactPoint;
 	ParkGround = ToSim(At);
 	ParkHeading = std::atan2(-Ahead.X, -Ahead.Y);   // (sim: x east = UE X, z south = UE Y)
 	ParkLean = ParkLift = 0.0;
@@ -3470,7 +3502,8 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	if (bOnFoot)
 	{
 		// On foot, in first person at eye height (the shed walker's view).
-		Camera->SetWorldLocationAndRotation(FootPos + FVector(0.0, 0.0, 165.0), FRotator(-FootPitch, FootYaw, 0.0));
+		// (FootPitch up is looking up: the mouse or stick pushed away, unless Invert look is on.)
+		Camera->SetWorldLocationAndRotation(FootPos + FVector(0.0, 0.0, 165.0), FRotator(FootPitch, FootYaw, 0.0));
 		Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(80.0f));
 		return;
 	}
