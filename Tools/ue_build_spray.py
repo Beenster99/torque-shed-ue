@@ -15,6 +15,10 @@ Script... and pick this file). Safe to run again: each material is rebuilt from 
   M_SprayMist   the spray's particles: soft camera-facing sprites on one instanced mesh, lit by the room,
                 their colour, opacity, softness and a seed in each instance's custom data (0..5).
   M_SprayRing   the fan's footprint on the surface: a ring, unlit and over everything (Color, Opacity).
+  M_RainSprite  the weather's rain streaks, splashes and tyre spray (Weather/TorqueWeatherFx): as
+                M_SprayMist's custom data, but lit per pixel (the mist's volume lighting speckled
+                over the road in shade), a crisper streak, a little light of its own so rain reads
+                against a dark hillside, and its motion written for TSR.
 """
 
 import unreal
@@ -373,6 +377,54 @@ def mist_material():
     return finish(m)
 
 
+# --- M_RainSprite --------------------------------------------------------------------------------
+
+# Soft 0: a crisp streak or droplet (stretched along U by the game); 1: a soft puff.
+RAIN_HLSL = """
+float2 q = UV * 2.0 - 1.0;
+float d = length(q);
+float crisp = 1.0 - smoothstep(0.55, 1.0, d);
+float soft = pow(saturate(1.0 - d), 1.6);
+return lerp(crisp, soft, Soft);
+"""
+
+
+def rain_material():
+    m = new_material("M_RainSprite")
+    translucent(m, "surface")
+    try_set(m, "two_sided", True)
+    try_set(m, "used_with_instanced_static_meshes", True)
+    try_set(m, "output_translucent_velocity", True)
+
+    def data(i, x, y, default):
+        return expr(m, unreal.MaterialExpressionPerInstanceCustomData, x, y, data_index=i, const_default_value=default)
+
+    r, g, b = data(0, -1400, 0, 0.7), data(1, -1400, 100, 0.74), data(2, -1400, 200, 0.8)
+    alpha, soft = data(3, -1400, 300, 0.3), data(4, -1400, 400, 0.2)
+    rg = expr(m, unreal.MaterialExpressionAppendVector, -1200, 50)
+    mel.connect_material_expressions(r, "", rg, "A")
+    mel.connect_material_expressions(g, "", rg, "B")
+    rgb = expr(m, unreal.MaterialExpressionAppendVector, -1000, 100)
+    mel.connect_material_expressions(rg, "", rgb, "A")
+    mel.connect_material_expressions(b, "", rgb, "B")
+    mel.connect_material_property(rgb, "", M.MP_BASE_COLOR)
+    em = expr(m, unreal.MaterialExpressionMultiply, -700, 200, const_b=0.18)
+    mel.connect_material_expressions(rgb, "", em, "A")
+    mel.connect_material_property(em, "", M.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -700, 300, r=0.15), "", M.MP_ROUGHNESS)
+    mel.connect_material_property(expr(m, unreal.MaterialExpressionConstant, -700, 380, r=0.9), "", M.MP_SPECULAR)
+    uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1400, 650)
+    shape = custom(m, -1100, 600, RAIN_HLSL, [("UV", uv, ""), ("Soft", soft, "")], out=unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    op = expr(m, unreal.MaterialExpressionMultiply, -800, 500)
+    mel.connect_material_expressions(shape, "", op, "A")
+    mel.connect_material_expressions(alpha, "", op, "B")
+    fade = expr(m, unreal.MaterialExpressionDepthFade, -550, 500)
+    try_set(fade, "fade_distance_default", 4.0)
+    mel.connect_material_expressions(op, "", fade, "Opacity")
+    mel.connect_material_property(fade, "", M.MP_OPACITY)
+    return finish(m)
+
+
 # --- M_SprayRing ----------------------------------------------------------------------------------
 
 RING_HLSL = """
@@ -407,7 +459,7 @@ def ring_material():
 
 def build():
     out = {}
-    for name, fn in (("coat", coat_material), ("mist", mist_material), ("ring", ring_material)):
+    for name, fn in (("coat", coat_material), ("mist", mist_material), ("ring", ring_material), ("rain", rain_material)):
         try:
             out[name] = fn()
         except Exception as e:

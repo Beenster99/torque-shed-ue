@@ -56,7 +56,7 @@ double CloudBaseFrom(double Elevation, double Air, double DewPoint);
 // The dew point from the air and its relative humidity, %.
 double DewPointFrom(double Air, double Humidity);
 
-// How heavily it's raining for the eye, 0 dry .. 1 a downpour (light rain about 0.35).
+// How heavily it's raining for the eye, 0 dry .. 1 a downpour (light rain, 1 mm an hour, about 0.45).
 double RainShow(const State& S);
 // The real wind as a share of the moor's usual breeze (6 m/s) for the grass and trees' sway: calm
 // 0.15, a breeze 1, a gale 2.5.

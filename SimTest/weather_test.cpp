@@ -126,7 +126,7 @@ int main()
 	Check(Near(DewPointFrom(10.0, 100.0), 10.0, 0.01) && Near(DewPointFrom(20.0, 50.0), 9.3, 0.2), "dew point from humidity");
 
 	// Rain to see, wind to sway.
-	Check(RainShow(Preset(Sunny)) == 0.0 && RainShow(Preset(Wet)) > 0.3 && RainShow(Preset(Wet)) < 0.4, "light rain shows about a third of a downpour");
+	Check(RainShow(Preset(Sunny)) == 0.0 && RainShow(Preset(Wet)) > 0.4 && RainShow(Preset(Wet)) < 0.5, "light rain shows nearly half a downpour");
 	State Pour = Preset(Wet);
 	Pour.Rain = 12.0;
 	Check(RainShow(Pour) == 1.0, "a downpour is the most");

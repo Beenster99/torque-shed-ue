@@ -97,7 +97,7 @@ double DewPointFrom(double Air, double Humidity)
 double RainShow(const State& S)
 {
 	const double R = std::max(S.Rain, 0.0);
-	return R < 0.05 ? 0.0 : std::min(std::sqrt(R / 8.0), 1.0);
+	return R < 0.05 ? 0.0 : std::min(std::sqrt(R / 5.0), 1.0);
 }
 
 double SwayFromWind(const State& S)
