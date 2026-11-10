@@ -271,7 +271,7 @@ const TCHAR* const FluidSteps =
 // and walked back in.
 const TCHAR* const WashRideSteps =
 	TEXT("yard,wait:3,ridepos,ridepos:3000:6000:180,wait:1,ridepos:-930:700:-90,wait:1,shot,ridepos:-930:420:-90,wait:1,ridepos,")
-	TEXT("ridepos:-930:255:-90,wait:1,ridepos,ridepos:-930:120:-90,wait:2,ridepos,shot,foot:off,wait:2,log,look:washbay,shot,")
+	TEXT("ridepos:-930:255:-90,wait:1,ridepos,ridepos:-930:120:-90,wait:2,ridepos,shot,yardoff,wait:2,log,look:washbay,shot,")
 	TEXT("tool:lance,part:tank,hold:3,washstate,tool:hands,part:tank,f,wait:3,ridepos,shot,walkin,wait:2,log");
 
 const TCHAR* const KitSteps =
@@ -539,6 +539,17 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		TestBay = FMath::Clamp(FCString::Atoi(*P[1]) - 1, 0, UTorqueBuildSubsystem::Bays - 1);
 		Said(FString::Printf(TEXT("working on bay %d"), TestBay + 1));
+		return true;
+	}
+	if (Verb == TEXT("yardoff"))
+	{
+		// [washride] On a bike in the shed's yard, stopped: F, off it, parked where it stands (onto a lift
+		// it's over) and on foot beside it, as the key does (TorqueYard::GetOff; foot:off is the road's).
+		APlayerController* PC = World->GetFirstPlayerController();
+		const ATorqueBikePawn* YardBike = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
+		if (!YardBike || !YardBike->InYard()) { Warn(TEXT("yardoff: not riding in the yard")); return true; }
+		TorqueYard::GetOff(PC);
+		Said(TEXT("off the bike, parked where it stands"));
 		return true;
 	}
 	if (Verb == TEXT("back") || Verb == TEXT("walkin"))
