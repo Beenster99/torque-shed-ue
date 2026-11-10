@@ -535,6 +535,9 @@ public:
 	// The bike pawn: the petrol its own dash says is left (sent each quarter litre burnt, and as the
 	// ride ends), kept in the shed's tank.
 	void ReportRideFuel(int32 Bay, float Litres);
+	// For the tests (fluid:set): a bay's bike's Kind ("petrol", "oil", "brake" both masters, "lube"
+	// the chain) set to Level (0 .. 1 of what it holds), on the host. Says what it did.
+	FString TestSetFluid(int32 Bay, const FString& Kind, float Level);
 	static constexpr float LubeUse = 0.03f;      // litres of chain lube a full coat takes (LUBE_USE)
 
 	// --- Requests ----------------------------------------------------------------------------

@@ -221,9 +221,12 @@ const TCHAR* const PhysicsSteps =
 // and sloshed, oil poured in and drained into the pan, the chain lubed, the levels on the bay TV.
 const TCHAR* const FluidSteps =
 	TEXT("fluid:log,look:pump,shot,wheel:pump,pump:burn:8,pump:lift,pump:state,pump:fill:20,pump:state,shot,pump:hang,pump:state,wheel:home,")
-	TEXT("fluid:carry:drain_pan,crouch:1,part:engine,act,fluid:log,crouch:0,fluid:drop,")
-	TEXT("fluid:carry:oil,fluid:slosh,fluid:slosh:3,wait:0.4,fluid:slosh,shot,wait:4,fluid:slosh,part:engine,act,fluid:log,fluid:drop,")
-	TEXT("fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,look:screen,shot,fluid:log");
+	TEXT("fluid:carry:drain_pan,crouch:1,part:chain,act,fluid:log,crouch:0,fluid:drop,")
+	TEXT("fluid:carry:oil,fluid:slosh,fluid:slosh:3,wait:0.4,fluid:slosh,shot,wait:4,fluid:slosh,part:chain,act,fluid:log,fluid:drop,")
+	TEXT("fluid:carry:bleed_bottle,part:front_wheel,act,fluid:log,fluid:drop,")
+	TEXT("fluid:carry:brake,part:front_wheel,act,fluid:log,fluid:drop,")
+	TEXT("fluid:set:lube:0.3,fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,")
+	TEXT("fluid:set:petrol:0.2,fluid:set:oil:0.5,look:screen,shot,fluid:log");
 
 const TCHAR* const KitSteps =
 	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
@@ -1132,7 +1135,7 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	if (Verb == TEXT("pump") || Verb == TEXT("fluid"))
 	{
-		// [fluids] pump:lift|fill[:seconds]|hang|burn[:litres]|state, fluid:carry:<kind or part>|log|slosh[:kick]
+		// [fluids] pump:lift|fill[:seconds]|hang|burn[:litres]|state, fluid:carry:<kind or part>|set:<kind>:<0..1>|drop|log|slosh[:kick]
 		// (ATorqueWalker::TestFluid); each logs the litres, the nozzle and the can's slosh.
 		TArray<FString> Args;
 		for (int32 I = 1; I < P.Num(); ++I) Args.Add(P[I].ToLower());

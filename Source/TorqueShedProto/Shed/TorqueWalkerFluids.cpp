@@ -322,6 +322,12 @@ FString ATorqueWalker::TestFluid(const FString& Verb, const TArray<FString>& Arg
 		if (!B->Request(R, WhyNot)) return TEXT("can't take it: ") + WhyNot;
 		return Ordered + FString::Printf(TEXT("took item %d (%s); "), Id, *It->Part.ToString()) + FluidLog();
 	}
+	if (What == TEXT("set"))
+	{
+		// A test shortcut: fluid:set:<petrol|oil|brake|lube>:<0 .. 1> on the test bay's bike.
+		if (Args.Num() < 3) return TEXT("not said what: fluid:set:<petrol|oil|brake|lube>:<level 0 .. 1>");
+		return B->TestSetFluid(Bay, Args[1], (float)FCString::Atod(*Args[2])) + TEXT("; ") + FluidLog();
+	}
 	if (What == TEXT("drop"))
 	{
 		if (B->HeldBy(Me) == 0) return TEXT("nothing in hand");

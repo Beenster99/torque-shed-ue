@@ -487,3 +487,28 @@ void UTorqueBuildSubsystem::DropFluidOf(int32 Peer)
 	MarkSave();
 	OnHostChange.Broadcast();
 }
+
+FString UTorqueBuildSubsystem::TestSetFluid(int32 Bay, const FString& Kind, float Level)
+{
+	if (!Exists(Bay)) return TEXT("no bike in that bay");
+	const float L = FMath::Clamp(Level, 0.0f, 1.0f);
+	TArray<FName> Slots;
+	if (Kind == TEXT("petrol") || Kind == TEXT("fuel")) Slots = {TSFI::Tank, TSFI::AuxTank};
+	else if (Kind == TEXT("oil")) Slots = {TSFI::Engine};
+	else if (Kind == TEXT("brake") || Kind == TEXT("brake_fluid")) Slots = {TSFI::FrontMaster, TSFI::RearMaster};
+	else if (Kind == TEXT("lube") || Kind == TEXT("chain_lube") || Kind == TEXT("chain")) Slots = {TSFI::Chain};
+	else return TEXT("not a fluid: ") + Kind;
+	int32 Set = 0;
+	for (const FName& Slot : Slots)
+		if (FTorqueItem* It = Items.Find(ItemOn(Bay, Slot)))
+		{
+			if (Slot == TSFI::Chain) It->Lube = L;
+			else It->Litres = TorqueShedParts::FluidCapacity(It->Part) * L;
+			++Set;
+		}
+	if (Set == 0) return FString::Printf(TEXT("bay %d's bike has nothing that holds %s"), Bay + 1, *Kind);
+	OnLooks.Broadcast(Bay);
+	MarkSave();
+	OnHostChange.Broadcast();
+	return FString::Printf(TEXT("set bay %d's %s to %.0f%% (%d part%s)"), Bay + 1, *Kind, L * 100.0f, Set, Set == 1 ? TEXT("") : TEXT("s"));
+}
