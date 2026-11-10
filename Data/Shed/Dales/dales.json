@@ -323,7 +323,11 @@
    "intake_fell": 14554,
    "lane": 3997
   },
-  "gates": 0,
+  "gates": {
+   "pad": 1,
+   "fields": 73,
+   "lane": 0
+  },
   "wall_heads": 4,
   "gap_stoops": 0,
   "scar_m": 16439,

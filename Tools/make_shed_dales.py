@@ -650,9 +650,9 @@ def make_props(counts, rng):
     # The pad's walls: one line round, a field gate (shut) where the lane leaves it.
     BD.place_walls(props, {"roadside": [perimeter()], "roadside_gates": [(0.0, PAD[3] + PAD_WALL)]}, [],
                    ground, lambda x, z, pad=0.0: np.ones(np.shape(x), bool) if np.ndim(x) else True, no_road, LANE_HALF, rng, counts)
-    pad_m = counts["wall_m"]
+    pad_m = counts["wall_m"]; gates = {"pad": counts["gates"]}
     BD.place_walls(props, {"wall": field_walls()}, [], ground, near_field, road, LANE_HALF, rng, counts)
-    field_m = counts["wall_m"]
+    field_m = counts["wall_m"]; gates["fields"] = counts["gates"]
     BD.place_walls(props, {"wall": intake_walls() + fell_walls()}, [], ground,
                    lambda x, z, pad=0.0: near_any(x, z, pad) & (beck_dist(np.asarray(x, np.float64), np.asarray(z, np.float64)) > 3.4),
                    road, LANE_HALF, rng, counts)
@@ -667,6 +667,7 @@ def make_props(counts, rng):
     BD.place_walls(props, {"roadside": rl, "roadside_gates": []}, [], ground,
                    lambda x, z, pad=0.0: near_any(x, z, pad) & (beck_dist(np.asarray(x, np.float64), np.asarray(z, np.float64)) > 3.4),
                    lambda x, z: np.maximum(road(x, z), LANE_HALF + 1.6), LANE_HALF, rng, counts)
+    gates["lane"] = counts["gates"]; counts["gates"] = gates
     counts["wall_m"] = {"pad": pad_m, "fields": field_m, "intake_fell": fell_m, "lane": counts["wall_m"]}
     BD.place_scars(props, scar_lines(), ground, near_any, road, LANE_HALF, rng, counts)
     barns = place_barns(props, ground, rng, counts)
