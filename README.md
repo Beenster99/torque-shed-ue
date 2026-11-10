@@ -110,6 +110,15 @@ takes the nearest of the three kinds until the physics stages are done. Test swi
 `-TorqueWeather=live|auto|sunny|overcast|wet`, `-TorqueWeatherAt=lat,lon` (anywhere on Earth);
 test runs stay sunny unless asked. `weather_test` checks the engine and both feeds' answers.
 
+What the weather shows (stage 3, `Weather/TorqueWeatherFx`): falling rain round the camera (streaking
+past as you ride, slanting with the wind, gone under a roof), splashes on the ground, and spray off
+wet roads behind every bike's tyres, all as sprites with the spray game's `M_SprayMist`, as many as
+Settings > Graphics > Effects allows. The grass and trees sway with the real wind's strength and
+direction, and the cloud shadows follow the real cloud: both read `MPC_Weather` (Wind, WindX, WindY,
+CloudShadow), which `Tools/ue_build_level.py` makes. Low cloud: on a day with a low deck the haze
+closes in as you ride up into it on the pass top (the cloud base from the air's dew point). The
+ride's sound has the real wind (heard standing still too, swelling in its gusts) and the rain.
+
 ### DLSS on the 4090
 
 The project starts on Lumen with hardware ray tracing, virtual shadow maps and TSR. For DLSS, download

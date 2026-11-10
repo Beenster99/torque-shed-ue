@@ -31,6 +31,10 @@ struct RideInputs
 	bool Airborne = false;
 	double Inside = 0.0;        // 0 heard from behind the bike .. 1 in the rider's helmet
 	bool EngineOn = true;       // switched off (or cranking): the engine fades out, the rest plays on
+	// The weather (Weather/WeatherModel.h), out in the open: the real wind and its gusts (m/s) blow
+	// round you even standing still and add to the rush at speed; rain hisses, and patters on the helmet.
+	double AirWind = 0.0, Gust = 0.0;
+	double Rain = 0.0;          // 0 dry .. 1 a downpour (RainShow)
 };
 
 class RideSound
@@ -124,6 +128,10 @@ private:
 
 	// Wind and tyres.
 	Biquad WindLp, WindBp, Squeal, Scrub;
+	// The weather's: gusts swelling and dying, rain's hiss and the drops on the helmet.
+	double GustPhase = 0.0;
+	Biquad RainHiss, RainTick;
+	double TickEnv = 0.0;
 	// A cattle grid: each bar a knock (the tyre's thud and the steel's ring), as many a second as
 	// the speed passes bars.
 	Biquad GridThud, GridRing, GridRing2;

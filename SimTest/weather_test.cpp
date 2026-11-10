@@ -81,7 +81,7 @@ int main()
 	// Open-Meteo's answer (the shape its docs give, with timeformat=unixtime).
 	const std::string Om = R"({"latitude":54.35,"longitude":-2.2,"elevation":420,"utc_offset_seconds":0,"timezone":"GMT",
 		"current_units":{"time":"unixtime","interval":"seconds"},
-		"current":{"time":1794265200,"interval":900,"temperature_2m":7.4,"precipitation":0.3,"snowfall":0.0,"cloud_cover":100,
+		"current":{"time":1794265200,"interval":900,"temperature_2m":7.4,"dew_point_2m":6.6,"cloud_cover_low":95,"precipitation":0.3,"snowfall":0.0,"cloud_cover":100,
 			"wind_speed_10m":6.1,"wind_direction_10m":238,"wind_gusts_10m":14.2,"weather_code":63,"visibility":4200},
 		"hourly":{"time":[1794243600,1794247200,1794250800,1794254400,1794258000,1794261600,1794265200],
 			"precipitation":[0.0,0.0,0.4,1.1,0.8,0.6,0.5]}})";
@@ -112,10 +112,38 @@ int main()
 	Check(MetNoSymbolCode("heavyrain") == 65 && MetNoSymbolCode("clearsky_day") == 0 && MetNoSymbolCode("fog") == 45 && MetNoSymbolCode("rainandthunder") == 95,
 		"MET Norway's symbols");
 
+	// Low cloud on the pass top: a deck based at 450 m swallows the summit (526 m) and not Thwaite (300 m).
+	Check(Near(Live.CloudBase, 420.0 + 125.0 * (7.4 - 6.6), 0.5) && Near(Live.LowCloud, 0.95, 1e-9), "the cloud base from the dew point, above the grid's height");
+	State Low = Preset(Overcast);
+	Low.LowCloud = 0.95;
+	Low.CloudBase = 450.0;
+	std::printf("      in cloud at Thwaite %.2f, at the summit %.2f; haze %.1fx and %.1fx\n", InCloud(Low, 300.0), InCloud(Low, 526.0), HazeAt(Low, 300.0), HazeAt(Low, 526.0));
+	Check(InCloud(Low, 300.0) == 0.0 && InCloud(Low, 526.0) > 0.9, "low cloud: the summit is in it, the dale is clear");
+	Check(HazeAt(Low, 526.0) > 10.0 && HazeAt(Low, 300.0) == 1.0, "in the cloud the haze closes in");
+	Check(InCloud(Preset(Overcast), 526.0) == 0.0 && InCloud(Preset(Wet), 526.0) == 0.0, "the presets keep the summit out of cloud (as before)");
+	Low.LowCloud = 0.3;
+	Check(InCloud(Low, 600.0) == 0.0, "a few scraps of low cloud don't swallow the road");
+	Check(Near(DewPointFrom(10.0, 100.0), 10.0, 0.01) && Near(DewPointFrom(20.0, 50.0), 9.3, 0.2), "dew point from humidity");
+
+	// Rain to see, wind to sway.
+	Check(RainShow(Preset(Sunny)) == 0.0 && RainShow(Preset(Wet)) > 0.3 && RainShow(Preset(Wet)) < 0.4, "light rain shows about a third of a downpour");
+	State Pour = Preset(Wet);
+	Pour.Rain = 12.0;
+	Check(RainShow(Pour) == 1.0, "a downpour is the most");
+	State Calm = Preset(Sunny), Breeze = Preset(Sunny), Gale = Preset(Sunny);
+	Calm.Wind = 0.0; Calm.Gust = 0.0;
+	Breeze.Wind = 6.0; Breeze.Gust = 9.0;
+	Gale.Wind = 20.0; Gale.Gust = 30.0;
+	std::printf("      sway: calm %.2f, breeze %.2f, gale %.2f\n", SwayFromWind(Calm), SwayFromWind(Breeze), SwayFromWind(Gale));
+	Check(SwayFromWind(Preset(Sunny)) > 0.85 && SwayFromWind(Preset(Sunny)) < 1.15, "the sunny preset sways as the plants were made");
+	Check(SwayFromWind(Calm) == 0.15 && Near(SwayFromWind(Breeze), 1.0, 0.1) && SwayFromWind(Gale) == 2.5, "sway: calm, the usual breeze, a gale");
+
 	// Saved and loaded (the last live weather, for a start with no internet).
 	State Back;
 	Check(Load(Save(Live), Back) && Back.Code == Live.Code && Near(Back.Air, Live.Air, 0.01) && Near(Back.RoadWet, Live.RoadWet, 0.001), "saved weather loads back");
 	Check(!Load("nonsense", Back), "a broken save is refused");
+	Check(Back.LowCloud == Live.LowCloud || Near(Back.CloudBase, Live.CloudBase, 1.0), "low cloud saved too");
+	Check(Load("w1 1 0 0 3 225 6 14 40000 0 3", Back) && Back.CloudBase == 5000.0, "an older save (no low cloud) still loads");
 
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
