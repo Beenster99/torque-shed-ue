@@ -93,6 +93,11 @@
 //   physics               physics stage 4: the ride test's scratch bike remade as each of the 14 styles' reference
 //                         bikes in turn, each ridden out for a launch, a stop from 60 on the test pad and a
 //                         full-lean bend at 45 (launch, brakestop:60:flat, lean:max), and back (alone, it quits)
+//   washride              ridden from the yard into the wash bay: out of the door, put on the pad, at the wash bay's
+//                         mouth, on its lift's ramp and platform (logging the ground under the wheels), off (parked
+//                         onto the wash lift), washed with the lance, back on (turned round at its mouth), walked in
+//   ridepos[:<x>:<y>[:<yaw>]]  in the yard: our bike put there (world cm, facing yaw, -90 by default), stopped; logs
+//                         where it is and what its wheels stand on (alone: where it is now)
 //   kit                   the movable shed and yard kit: the test area, a cone taken hold of, turned, carried
 //                         and put down, a ramp and a stool ordered and moved (alone, it quits at the end)
 //   furn:look:<model|id>, furn:grab, furn:turn:<deg>, furn:walk:<x>:<y>, furn:drop, furn:order:<model>, furn:sit, furn:stand, furn:log

@@ -241,6 +241,16 @@ const TCHAR* const FluidSteps =
 	TEXT("fluid:set:lube:0.3,fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,")
 	TEXT("fluid:set:petrol:0.2,fluid:set:oil:0.5,look:screen,shot,fluid:log");
 
+// [washride] Ridden from the yard into the wash bay (beenster, Nov 10): out of the door onto the pad,
+// put by the test area's west end, then at the wash bay's mouth facing in, on its lift's ramp and on
+// its platform (each logs the ground under the wheels: the lift's parts while it's down), off the bike
+// (parked onto the wash lift), washed there with the lance, back on (turned round at the bay's mouth)
+// and walked back in.
+const TCHAR* const WashRideSteps =
+	TEXT("yard,wait:3,ridepos,ridepos:3000:6000:180,wait:1,ridepos:-930:700:-90,wait:1,shot,ridepos:-930:420:-90,wait:1,ridepos,")
+	TEXT("ridepos:-930:255:-90,wait:1,ridepos,ridepos:-930:120:-90,wait:2,ridepos,shot,foot:off,wait:2,log,look:washbay,shot,")
+	TEXT("tool:lance,part:tank,hold:3,washstate,tool:hands,part:tank,f,wait:3,ridepos,shot,walkin,wait:2,log");
+
 const TCHAR* const KitSteps =
 	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
 	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
@@ -298,6 +308,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("fluids")) FString(TSTI::FluidSteps).ParseIntoArray(Preset, TEXT(","), true);   // [fluids]
 		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("washride")) FString(TSTI::WashRideSteps).ParseIntoArray(Preset, TEXT(","), true);   // [washride]
 		else if (T == TEXT("outline")) FString(TSTI::OutlineSteps).ParseIntoArray(Preset, TEXT(","), true);   // [outline test]
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
@@ -509,7 +520,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
-		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
+		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
+		Verb == TEXT("ridepos"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -522,6 +534,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		// [washride] ridepos[:<x>:<y>[:<yaw>]]: our bike put there (world cm, facing yaw), stopped, and
+		// what its wheels stand on.
+		if (Verb == TEXT("ridepos"))
+		{
+			if (P.Num() >= 3) Said(Bike->TestPlaceAt(FCString::Atod(*P[1]), FCString::Atod(*P[2]), P.Num() > 3 ? FCString::Atod(*P[3]) : -90.0));
+			else Said(Bike->TestPlaceAt(0.0, 0.0, 0.0, false));
+			return true;
+		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
 		if (Verb == TEXT("foot"))
 		{
