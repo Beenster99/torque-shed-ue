@@ -60,6 +60,7 @@ struct FTorqueSettings
 	bool bDayNight = false;     // the clock runs
 	int32 DayLength = 120;      // real minutes for a whole day
 	float TimeOfDay = -1.0f;    // hours, -1 for the level's own light
+	bool bRealClock = false;    // the clock and sun follow the real time and date where you ride (weather plan stage 5)
 	// 0 changes by itself, 1 always sunny, 2 always overcast, 3 always wet roads, 4 live (the real
 	// weather where you ride; the default, as beenster chose: the host can switch it off any time).
 	int32 WeatherMode = 4;

@@ -82,6 +82,14 @@ public:
 	double Assist = 0.5;        // Riding realism: 0 full sim .. 1 easy
 	bool AutoShift = true;
 
+	// The air the bike rides through: the wind's velocity, m/s in world axes (the game sets it from
+	// the weather, gusts and all; still air by default). The drag works on the bike's speed through
+	// that air, so a headwind holds it back and a tailwind helps, and a crosswind leans on the bike
+	// and rider's side, which catches about half as much again as their front (SIDE_AREA).
+	V3 Wind;
+	static constexpr double SIDE_AREA = 1.5;
+	V3 WindForce;   // the crosswind's extra push on the side this step, N (tests, telemetry)
+
 	// The engine and the clutch. Gear 0 is neutral (NEUTRAL). ClutchIn: the rider holding the lever
 	// (the engine spins free of the box in any gear); Clutch how far it's in now, 0..1. EngineOn off
 	// lets it roll with no drive and the revs fall to nothing. FuelLitres: the petrol in the tank

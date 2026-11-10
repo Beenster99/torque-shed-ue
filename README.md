@@ -119,6 +119,23 @@ CloudShadow), which `Tools/ue_build_level.py` makes. Low cloud: on a day with a 
 closes in as you ride up into it on the pass top (the cloud base from the air's dew point). The
 ride's sound has the real wind (heard standing still too, swelling in its gusts) and the rain.
 
+What the weather does to the ride (stage 4): grip follows how wet the road is (`WetGrip`: a damp
+road about 0.9 of dry, soaked 0.68, standing water a little less), the tyres and engine warm in the
+real air (Live) on a road the sun has or hasn't warmed, and the wind pushes the bike: drag works on
+its speed through the moving air (headwinds hold it back) and a crosswind leans on its side, in
+gusts a few times a minute (`WindAtRider`, the 10 m wind slowed to rider height and by shelter).
+Test runs (`-TorqueNoInput`) ride in still air unless they pass `-TorqueWeather=`. `sim_test`'s
+Wind and `weather_test` check it.
+
+Weather across distance (stage 5): Live asks Open-Meteo for a 5 x 5 grid of points 2.5 km apart
+round where the host is (one call; again every 15 minutes, or sooner after riding out towards its
+edge), and every machine works out the weather where its own camera is (`TorqueWeather::GridAt`):
+between the points, the showers drifting on the wind since the fetch, and the air 0.65 C colder per
+100 m above the ground. The host sends the grid to everyone (`FTorqueWeatherGridNet`). Settings >
+Gameplay > Time and weather > **Real time of day** (off by default): the clock follows the real local
+time where you ride (the place's UTC offset from Open-Meteo, this PC's until then) and the sun stands
+as it really does for the date and place (declination, equation of time, longitude).
+
 ### DLSS on the 4090
 
 The project starts on Lumen with hardware ray tracing, virtual shadow maps and TSR. For DLSS, download

@@ -254,6 +254,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 		if (GS) GS->SetHour(S.TimeOfDay);
 	}
 	else if (F == TEXT("daynight")) S.bDayNight = bOn;
+	else if (F == TEXT("realclock")) S.bRealClock = bOn;
 	else if (F == TEXT("daylength")) S.DayLength = N;
 	else if (F == TEXT("weather"))
 	{
@@ -704,8 +705,21 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				Last.bDisabled = true;
 				Last.Hint += TEXT(" (set by the host)");
 			};
+			Toggle(TEXT("Real time of day"), S.bRealClock, TEXT("The clock and the sun follow the real time and date where you ride (night falls when it really does)"));
+			HostOnly();
+			// With the real clock on, the made clock's rows are shown, not changed.
+			auto RealClockOnly = [&R, &S]() {
+				if (!S.bRealClock) return;
+				FRow& Last = R.Last();
+				Last.Choose = nullptr;
+				Last.Step = nullptr;
+				Last.bToggle = false;
+				Last.bDisabled = true;
+				Last.Hint += TEXT(" (off while Real time of day is on)");
+			};
 			Toggle(TEXT("Day/night cycle"), S.bDayNight, TEXT("The clock runs, the sun crosses the sky and night falls"));
 			HostOnly();
+			RealClockOnly();
 			{
 				const TArray<int32>& Lengths = FTorqueSettings::DayLengths();
 				const int32 At = FMath::Max(Lengths.IndexOfByKey(S.DayLength), 0);
@@ -714,6 +728,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				Setting(TEXT("Day length"), Len, TEXT("Real time for a whole day, with the cycle on"),
 					[&S, At](int32 D) { const TArray<int32>& L = FTorqueSettings::DayLengths(); S.DayLength = L[FMath::Clamp(At + D, 0, L.Num() - 1)]; });
 				HostOnly();
+				RealClockOnly();
 			}
 			{
 				const float Built = GS ? GS->BuiltHour() : 15.0f;
@@ -725,7 +740,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					if (GS) GS->SetHour(S.TimeOfDay);
 				});
 				HostOnly();
-				if (Now >= 0.0f && !bClient)
+				RealClockOnly();
+				if (Now >= 0.0f && !bClient && !S.bRealClock)
 					Add(TEXT("Back to the level's own light"), FString(), TEXT("The sun where the level was made with it (the clock stops)"), [this, GS, &S]() {
 						S.TimeOfDay = -1.0f;
 						S.bDayNight = false;

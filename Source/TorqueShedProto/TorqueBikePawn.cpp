@@ -3734,12 +3734,15 @@ void ATorqueBikePawn::DrawHud()
 }
 
 
-// Weather: ATorqueGameState lights the world for it (the host's weather, in co-op); the bike takes
-// a third less grip on wet roads.
+// Weather: ATorqueGameState lights the world for it (the host's weather, in co-op). What it does
+// to the ride follows the weather as it is now, not just its kind: the grip from how wet the road
+// is (TorqueWeather::WetGrip), the tyres and engine from the real air (Live) and the road's
+// warmth, and the wind with its gusts pushing on the bike (BikeSim::Wind).
 void ATorqueBikePawn::ApplyWeather()
 {
-	if (Sim) Sim->Build.WetGrip = Weather == 2 ? 0.68 : 1.0;
-	UE_LOG(LogTemp, Log, TEXT("Torque: bike in weather %d"), Weather);
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (Sim) Sim->Build.WetGrip = GS ? TorqueWeather::WetGrip(GS->GetWeatherState()) : Weather == 2 ? 0.68 : 1.0;
+	UE_LOG(LogTemp, Log, TEXT("Torque: bike in weather %d (grip %.2f)"), Weather, Sim ? Sim->Build.WetGrip : 1.0);
 }
 
 void ATorqueBikePawn::WeatherHeat(bool bSoak)
@@ -3747,16 +3750,32 @@ void ATorqueBikePawn::WeatherHeat(bool bSoak)
 	if (!Sim) return;
 	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 	const double Hour = GS && GS->GetHour() >= 0.0f ? GS->GetHour() : 13.0;
-	// Sunny, overcast, wet roads: how much cloud, and how wet.
-	const int32 W = FMath::Clamp(Weather, 0, 2);
-	const double Cover = W == 0 ? 0.1 : W == 1 ? 0.7 : 0.9;
-	const double Wet = W == 2 ? 0.8 : 0.0;
+	const TorqueWeather::State St = GS ? GS->GetWeatherState() : TorqueWeather::Preset(FMath::Clamp(Weather, 0, 2));
+	const ETorqueWeatherSource Src = GS ? GS->GetWeatherSource() : ETorqueWeatherSource::Fixed;
+	const bool bReal = Src == ETorqueWeatherSource::Live || Src == ETorqueWeatherSource::LiveLastKnown;
+	const double Cover = FMath::Clamp(St.Cloud, 0.0, 1.0);
+	const double Wet = FMath::Clamp(St.RoadWet, 0.0, 1.0) * 0.8;   // (0.8 the soaked road the heat was tuned on)
+	Sim->Build.WetGrip = TorqueWeather::WetGrip(St);
+	// The air: the real temperature when live; otherwise the made day's, warmest mid afternoon.
 	const double Swing = 7.0 * (1.0 - 0.6 * Cover);
-	const double Air = 12.0 + Swing * FMath::Cos((Hour - 15.0) / 24.0 * UE_DOUBLE_TWO_PI) - 3.0 * Wet;
+	const double Air = bReal ? St.Air : 12.0 + Swing * FMath::Cos((Hour - 15.0) / 24.0 * UE_DOUBLE_TWO_PI) - 3.0 * Wet;
 	const double Sun = FMath::Abs(Hour - 13.0) < 7.5 ? FMath::Max(FMath::Cos((Hour - 13.0) / 24.0 * UE_DOUBLE_TWO_PI * 1.6), 0.0) : 0.0;
 	Sim->Heat.Air = Air;
 	Sim->Heat.Road = Air + 10.0 * Sun * (1.0 - Cover) * (1.0 - Wet);
 	Sim->Heat.Wetness = Wet;
+	// The wind at the rider, gusts and all, less where walls or a roof shelter it. Test runs (no
+	// input) ride in still air unless they ask for weather, so the physics checks match SimTest.
+	static const bool bStill = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) && !FCString::Strifind(FCommandLine::Get(), TEXT("TorqueWeather="));
+	if (bStill || !GS) Sim->Wind = TorqueSim::V3();
+	else
+	{
+		double From = St.WindFrom;
+		const double Shelter = 1.0 - FMath::Clamp((double)GS->WeatherOpen(), 0.0, 1.0);
+		const double Speed = TorqueWeather::WindAtRider(St, GetWorld()->GetTimeSeconds(), Shelter, From);
+		// Levels have x east and y south; the sim's x is the level's x and its z the level's y.
+		const double To = FMath::DegreesToRadians(From + 180.0);
+		Sim->Wind = TorqueSim::V3(FMath::Sin(To), 0.0, -FMath::Cos(To)) * Speed;
+	}
 	// The shed is out of the wind and a little warmer than outside.
 	if (bSoak) Sim->Heat.Soak(Air + 3.0);
 }

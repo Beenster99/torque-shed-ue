@@ -111,6 +111,7 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("DayNight"), bDayNight, Ini);
 	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
+	GConfig->GetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->GetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	// Live weather became the default after these settings were saved: always sunny, the old default,
 	// moves to Live once (any other choice stays as it was).
@@ -219,6 +220,7 @@ void FTorqueSettings::Save()
 	GConfig->SetBool(Section, TEXT("DayNight"), bDayNight, Ini);
 	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
+	GConfig->SetBool(Section, TEXT("RealClock"), bRealClock, Ini);
 	GConfig->SetInt(Section, TEXT("WeatherMode"), WeatherMode, Ini);
 	GConfig->SetBool(Section, TEXT("WeatherLiveOffered"), true, Ini);
 	for (int32 I = 0; I < 4; ++I) GConfig->SetFloat(Section, *FString::Printf(TEXT("PadCentre%d"), I), PadCentre[I], Ini);

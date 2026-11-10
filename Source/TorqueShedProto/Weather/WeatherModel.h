@@ -66,6 +66,18 @@ double RainShow(const State& S);
 // 0.15, a breeze 1, a gale 2.5.
 double SwayFromWind(const State& S);
 
+// What the weather does to the ride (stage 4).
+// The road's grip as a share of dry: a damp road takes a little, a soaked one about a third (the
+// wet-road figure the bike always had), and standing water a little more besides.
+double WetGrip(const State& S);
+// How far a gust has built at time T, seconds (0 the steady wind .. 1 the full gust): a few gusts a
+// minute, each building over a second or two and dying away, irregular, never periodic to the ear.
+double GustShare(double T);
+// The wind where the rider is, m/s, and the bearing it blows FROM, at time T: the steady wind plus
+// the gusts, slowed to rider height (the 10 m figure x 0.65 over open moor) and by Shelter (0 open
+// .. 1 walled in), its direction wandering a little.
+double WindAtRider(const State& S, double T, double Shelter, double& FromDegrees);
+
 // Roads remember. A road's film of water, mm: rain adds to it, drying takes it away (faster when
 // warm, windy or clear), and past about 1 mm it runs off. How wet it looks follows the film.
 double RoadWaterStep(double WaterMm, double RainMmPerHour, double Air, double Wind, double Cloud, double Seconds);
@@ -99,6 +111,44 @@ std::string Describe(const State& S, bool bImperial);
 std::string OpenMeteoUrl(double Lat, double Lon);
 // The State from its answer; false (with why) when the answer isn't one. Time is its seconds since 1970.
 bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time = nullptr, std::string* Error = nullptr);
+
+// Weather across distance (stage 5): a square of N x N points StepM apart round a centre, asked for
+// in one call, so the weather changes along a ride (valley to pass top, a shower over one fell). Each
+// point carries its own State and the ground height the service gave it.
+struct Grid
+{
+	int N = 0;                     // points a side; 0 none
+	double Lat = 0.0, Lon = 0.0;   // the centre
+	double StepM = 2500.0;
+	std::vector<State> Points;     // row by row from the north west: Points[Row * N + Col], Row 0 the north
+	std::vector<double> Elevation; // metres above sea level, each point's
+	bool Valid() const { return N >= 2 && (int)Points.size() == N * N && (int)Elevation.size() == N * N; }
+	const State& Centre() const { return Points[(N / 2) * N + N / 2]; }
+};
+// Metres east and north of (Lat, Lon) as a latitude and longitude (flat-earth: fine over tens of km).
+void Offset(double Lat, double Lon, double East, double North, double& OutLat, double& OutLon);
+void MetresBetween(double FromLat, double FromLon, double ToLat, double ToLon, double& East, double& North);
+// The centre the grid snaps to for a rider at (Lat, Lon): a fixed lattice StepM apart, so riding a
+// little doesn't ask again.
+void SnapCentre(double Lat, double Lon, double StepM, double& OutLat, double& OutLon);
+// Open-Meteo for all the points at once (its answer is a list, one per point, in this order), and the
+// grid from that answer. UtcOffset: the centre's clock, seconds ahead of UTC (for the real time of day).
+std::string OpenMeteoGridUrl(double Lat, double Lon, int N, double StepM);
+bool ParseOpenMeteoGrid(const std::string& Body, double Lat, double Lon, int N, double StepM, Grid& Out,
+	long long* Time = nullptr, int* UtcOffset = nullptr, std::string* Error = nullptr);
+// The weather at (Lat, Lon), AslM metres up, DriftSeconds after the grid was fetched: between the
+// points (bilinear), carried along on the wind since (showers drift through, up to half the grid's
+// width), and the air colder by 0.65 C per 100 m above the ground the points stand on.
+State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSeconds);
+// Base with how the weather Here differs from Ref added on, W of it (0 none .. 1 all), kept in range:
+// the shared weather (fading as it always did) made local.
+State AddDifference(const State& Base, const State& Here, const State& Ref, double W);
+
+// The real time of day (stage 5): the sun's height for the date and place. Declination, degrees, for
+// a day of the year (1 .. 366), and the equation of time, minutes (sundial ahead of the clock).
+double SunDeclination(int DayOfYear);
+double EquationOfTime(int DayOfYear);
+
 // MET Norway's locationforecast (free) is the backup: no past rain, so the road is judged from now.
 std::string MetNoUrl(double Lat, double Lon);
 bool ParseMetNo(const std::string& Body, State& Out, long long* Time = nullptr, std::string* Error = nullptr);

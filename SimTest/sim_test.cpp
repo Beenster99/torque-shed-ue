@@ -937,6 +937,51 @@ static void HeatTests()
 	Check(S.Heat.Grip[1] > 0.99 && S.Heat.Idle < 1.02, "warmed through: full grip and a normal idle (grip)", S.Heat.Grip[1]);
 }
 
+// Wind (BikeSim::Wind, the weather's): a headwind holds the bike back, a tailwind helps, and a gusty
+// crosswind pushes it sideways off its line without throwing it down. Still air is as before.
+static double HeldSpeed(const V3& Wind, double Seconds)
+{
+	BikeSim S;
+	Roll(S, 25.0);
+	S.Wind = Wind;
+	S.Throttle = 1.0;
+	for (int i = 0; i < (int)(120 * Seconds) && !S.IsCrashed; ++i) S.Step(1.0 / 120.0);
+	return S.IsCrashed ? -1.0 : S.Speed;
+}
+
+static void WindTests()
+{
+	std::printf("Wind\n");
+	const double Dt = 1.0 / 120.0;
+	const double Calm = HeldSpeed(V3(), 25.0), Head = HeldSpeed(V3(0, 0, 10.0), 25.0), Tail = HeldSpeed(V3(0, 0, -10.0), 25.0);
+	std::printf("  flat out after 25 s: calm %.1f, 10 m/s headwind %.1f, tailwind %.1f m/s\n", Calm, Head, Tail);
+	Check(Head > 0.0 && Head < Calm - 3.0, "a 10 m/s headwind takes speed off (m/s down)", Calm - Head);
+	Check(Tail > Calm + 1.0, "a tailwind adds some (m/s up)", Tail - Calm);
+	// 20 m/s with nobody steering, then a 14 m/s (31 mph) gust from the left for two seconds.
+	for (const double Gust : {0.0, 14.0})
+	{
+		BikeSim S;
+		Roll(S, 20.0);
+		double Peak = 0.0;
+		for (int i = 0; i < 120 * 4 && !S.IsCrashed; ++i)
+		{
+			S.Wind = i >= 120 && i < 360 ? V3(Gust, 0, 0) : V3();
+			S.Throttle = Clamp(0.3 + (20.0 - S.Speed) * 0.3, 0.0, 1.0);
+			S.Step(Dt);
+			Peak = std::max(Peak, std::fabs(S.WindForce.x));
+		}
+		if (Gust == 0.0)
+		{
+			Check(!S.IsCrashed && std::fabs(S.Position.x) < 0.5, "still air: runs straight (m off line)", S.Position.x);
+			continue;
+		}
+		std::printf("  31 mph gust from the left: %.2f m downwind after 4 s, side push %.0f N\n", S.Position.x, Peak);
+		Check(!S.IsCrashed, "  a gust doesn't throw it down", 0.0);
+		Check(S.Position.x > 0.2 && S.Position.x < 4.0, "  it's pushed downwind off its line (m)", S.Position.x);
+		Check(Peak > 30.0 && Peak < 200.0, "  the side push is a shove, not a wall (N)", Peak);
+	}
+}
+
 int main(int Argc, char** Argv)
 {
 	FlatTests();
@@ -946,6 +991,7 @@ int main(int Argc, char** Argv)
 	ContactTests();
 	EngineTests();
 	HeatTests();
+	WindTests();
 	if (Argc > 1) ButtertubsTest(Argv[1]);
 	std::printf(Failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", Failures);
 	return Failures ? 1 : 0;

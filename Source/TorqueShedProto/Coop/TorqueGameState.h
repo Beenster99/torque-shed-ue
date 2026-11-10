@@ -42,6 +42,21 @@ struct FTorqueWeatherNet
 	UPROPERTY() int64 FetchedAt = 0;
 };
 
+// The host's weather grid (stage 5), sent to everyone: N x N points round a centre, so each machine
+// works out the weather where its own rider is.
+USTRUCT()
+struct FTorqueWeatherGridNet
+{
+	GENERATED_BODY()
+	UPROPERTY() int32 N = 0;   // 0: no grid (one place's weather for all)
+	UPROPERTY() double Lat = 0.0;
+	UPROPERTY() double Lon = 0.0;
+	UPROPERTY() float StepM = 2500.0f;
+	UPROPERTY() TArray<FTorqueWeatherNet> Points;
+	UPROPERTY() TArray<float> Elevation;
+	UPROPERTY() int64 FetchedAt = 0;   // seconds since 1970: how long its showers have drifted
+};
+
 // Where the weather now comes from.
 enum class ETorqueWeatherSource : uint8
 {
@@ -67,8 +82,9 @@ public:
 
 	// The kind the weather is nearest: 0 sunny, 1 overcast, 2 wet roads (the bike's grip until stage 4).
 	int32 GetWeather() const { return Weather; }
-	// The weather as it is now (fading), on every machine.
-	const TorqueWeather::State& GetWeatherState() const { return Fade.Now; }
+	// The weather as it is now (fading) where this machine's camera is: the shared weather, made
+	// local from the host's grid (live), on every machine.
+	const TorqueWeather::State& GetWeatherState() const { return Here; }
 	ETorqueWeatherSource GetWeatherSource() const { return (ETorqueWeatherSource)Net.Source; }
 	// How open to the sky this machine's camera is: 0 under a roof .. 1 out in it (the rain's).
 	float WeatherOpen() const;
@@ -116,6 +132,32 @@ private:
 	TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> LiveRequest;
 	UPROPERTY(ReplicatedUsing = OnRep_Hour) float Hour = -1.0f;
 	UFUNCTION() void OnRep_Hour();
+	// The real time of day (Settings' Real time of day): the sun for the date and the place. The sun
+	// stands where solar time Hour + SunShift puts it, at latitude SunLat on a day of declination
+	// SunDec (the made days: 0, Swaledale, late spring).
+	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunShift = 0.0f;
+	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunDec = 15.0f;
+	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunLat = 54.35f;
+	void TickRealClock();
+	int32 UtcOffset = 0;      // the weather's place's clock, seconds ahead of UTC (from Open-Meteo)
+	bool bUtcKnown = false;
+	double ClockSentAt = -100.0;
+	// Weather across distance (stage 5): the host's grid, the one before it (fading out), and the
+	// weather here worked out from them four times a second.
+	UPROPERTY(ReplicatedUsing = OnRep_Grid) FTorqueWeatherGridNet GridNet;
+	UFUNCTION() void OnRep_Grid();
+	void SetGrid(const TorqueWeather::Grid& G, int64 FetchedAt, double FadeSeconds);
+	void SendGrid();
+	void UpdateHere();
+	void ViewGeo(double& Lat, double& Lon, double& Asl) const;
+	TorqueWeather::Grid GridNow, GridBefore;
+	double GridFadeFrom = 0.0, GridFadeSeconds = 0.0;   // (real seconds)
+	int64 GridFetchedNow = 0, GridFetchedBefore = 0;
+	TorqueWeather::State Here, HereApplied;
+	double HereAt = -1.0;
+	double FetchLat = 0.0, FetchLon = 0.0, LastFetchAt = -1000.0;
+	static constexpr int32 GRID_N = 5;
+	static constexpr double GRID_STEP_M = 2500.0;
 	double WeatherChangeIn = 0.0;   // the host, weather changing by itself: seconds to the next change
 	double HourSentAt = 0.0;
 	float BuiltAt = 15.0f;
