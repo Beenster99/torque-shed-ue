@@ -43,10 +43,10 @@ MAX_TEXTURE = 1024
 # only the medium BobCurly did), so the avatars wear medium (_M_) styles.
 HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble", "_s_")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
-    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "outfit": ["overall", "work", "boot"]},
-    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "outfit": ["shirt", "trouser", "pant", "boot"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["work", "jacket", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
+    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["overall", "work", "boot"]},
+    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "trouser", "pant", "boot"]},
 ]
 
 
@@ -1018,6 +1018,7 @@ def _cards_mesh(groom, lod):
     if mat is None and mats:
         mat = prop(mats[0], "material")
     # The cards' textures (coverage, tangent, depth...): without them the cards draw nothing.
+    atlas, atlas_any = None, None
     for d in (prop(groom, "hair_groups_cards") or []):
         tex = prop(d, "textures")
         names = []
@@ -1030,6 +1031,9 @@ def _cards_mesh(groom, lod):
                 for t in (v if isinstance(v, (list, tuple, unreal.Array)) else [v]):
                     if isinstance(t, unreal.Texture):
                         names.append("%s=%s" % (f, _path(t)))
+                        atlas_any = atlas_any or t
+                        if "attribute" in _path(t).lower() and (atlas is None or (prop(d, "group_index") == 0 and prop(d, "lod_index") == lod)):
+                            atlas = t
                     elif t is not None and not isinstance(t, (bool, int, float, str)):
                         names.append("%s=%s" % (f, t))
         log("groom %s: cards group %s lod %s textures: %s" % (_path(groom).rsplit(".", 1)[-1], prop(d, "group_index"), prop(d, "lod_index"),
@@ -1039,7 +1043,69 @@ def _cards_mesh(groom, lod):
         log("groom %s pulls in plugin content: %s" % (_path(groom).rsplit(".", 1)[-1], ", ".join(sorted(bad)[:12])))
     log("groom %s: cards at LOD %d = %s, slot %s, material %s (materials: %s)" % (_path(groom).rsplit(".", 1)[-1], lod, _path(mesh),
         slot, _path(mat), ", ".join("%s=%s" % (prop(m, "slot_name"), _path(prop(m, "material"))) for m in mats)))
-    return _path(mesh), _path(mat)
+    return _path(mesh), _path(mat), _path(atlas or atlas_any)
+
+
+HAIR_CARDS_MATERIAL = ROOT + "/Common/M_HairCards"   # the game's own card hair material (the plugin's is editor-only)
+_hair_cards_made = {}   # made once per run
+
+
+
+
+def _hair_cards_material(atlas_path):
+    """M_HairCards: masked, two-sided, its opacity one channel of a cards atlas (parameter Atlas,
+    channel picked by the vector parameter Mask, default G), its colour the parameter Colour. The
+    game draws each groom's cards mesh with it, instead of the groom (round 129: grooms are bald close up)."""
+    if "path" in _hair_cards_made:
+        return _hair_cards_made["path"]
+    atlas = unreal.load_asset(atlas_path) if atlas_path else None
+    if atlas is None:
+        log("hair cards material: no atlas texture; not made")
+        return ""
+    mel = unreal.MaterialEditingLibrary
+    folder, name = HAIR_CARDS_MATERIAL.rsplit("/", 1)
+    if unreal.EditorAssetLibrary.does_asset_exist(HAIR_CARDS_MATERIAL):
+        unreal.EditorAssetLibrary.delete_asset(HAIR_CARDS_MATERIAL)
+    m = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    m.set_editor_property("two_sided", True)
+    m.set_editor_property("opacity_mask_clip_value", 0.33)
+    tex = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -800, 0)
+    tex.set_editor_property("parameter_name", "Atlas")
+    tex.set_editor_property("texture", atlas)
+    comp = str(atlas.get_editor_property("compression_settings")).upper()
+    srgb = bool(atlas.get_editor_property("srgb"))
+    st = unreal.MaterialSamplerType
+    sampler = (st.SAMPLERTYPE_MASKS if "MASK" in comp else st.SAMPLERTYPE_NORMAL if "NORMAL" in comp
+               else (st.SAMPLERTYPE_GRAYSCALE if srgb else st.SAMPLERTYPE_LINEAR_GRAYSCALE) if "GRAYSCALE" in comp
+               else st.SAMPLERTYPE_COLOR if srgb else st.SAMPLERTYPE_LINEAR_COLOR)
+    tex.set_editor_property("sampler_type", sampler)
+    mask = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -800, 300)
+    mask.set_editor_property("parameter_name", "Mask")
+    mask.set_editor_property("default_value", unreal.LinearColor(0.0, 1.0, 0.0, 0.0))
+    ta = mel.create_material_expression(m, unreal.MaterialExpressionAppendVector, -500, 0)
+    ma = mel.create_material_expression(m, unreal.MaterialExpressionAppendVector, -500, 300)
+    dot = mel.create_material_expression(m, unreal.MaterialExpressionDotProduct, -300, 100)
+    colour = mel.create_material_expression(m, unreal.MaterialExpressionVectorParameter, -500, -300)
+    colour.set_editor_property("parameter_name", "Colour")
+    colour.set_editor_property("default_value", unreal.LinearColor(0.045, 0.028, 0.016, 1.0))
+    rough = mel.create_material_expression(m, unreal.MaterialExpressionConstant, -300, -150)
+    rough.set_editor_property("r", 0.55)
+    spec = mel.create_material_expression(m, unreal.MaterialExpressionConstant, -300, -100)
+    spec.set_editor_property("r", 0.3)
+    ok = [mel.connect_material_expressions(tex, "RGB", ta, "A"), mel.connect_material_expressions(tex, "A", ta, "B"),
+          mel.connect_material_expressions(mask, "", ma, "A"), mel.connect_material_expressions(mask, "A", ma, "B"),
+          mel.connect_material_expressions(ta, "", dot, "A"), mel.connect_material_expressions(ma, "", dot, "B"),
+          mel.connect_material_property(dot, "", unreal.MaterialProperty.MP_OPACITY_MASK),
+          mel.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR),
+          mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS),
+          mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)]
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    log("hair cards material %s: atlas %s (compression %s, sRGB %s, sampler %s); links %s" % (HAIR_CARDS_MATERIAL, atlas_path, comp, srgb,
+        sampler, "all made" if all(ok) else "FAILED at %s" % [i for i, v in enumerate(ok) if not v]))
+    _hair_cards_made["path"] = _path(m)
+    return _path(m)
 
 
 PLUGIN_COPIES = ROOT + "/Common/FromPlugin"   # copies of the MetaHuman plugin's content the avatars need
@@ -1231,9 +1297,13 @@ def _hair_from_build(entry, av):
             bind = next((b for b in bindings if stem.replace("groom_", "") in b.lower()), "")
         name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
         lod = _cards_lod(ga)
-        cards, cards_mat = _cards_mesh(ga, lod) if lod >= 0 else ("", "")
+        cards, cards_mat, atlas = _cards_mesh(ga, lod) if lod >= 0 else ("", "", "")
+        # The game draws the cards mesh with its own M_HairCards (the plugin's MI_Hair is editor-only).
+        hair_mat = _hair_cards_material(atlas) if cards and atlas else ""
+        colour = next((a.get("hair_colour") for a in AVATARS if a["name"] == av), None) or [0.045, 0.028, 0.016]
         entry["parts"].append({"name": name, "groom": g, "binding": bind, "attach": "Face", "lod": lod, "materials": groom_mats,
-                               "cards_mesh": cards, "cards_materials": [cards_mat] if cards_mat else []})
+                               "cards_mesh": cards, "cards_materials": [hair_mat] if hair_mat else ([cards_mat] if cards_mat else []),
+                               "cards_texture": atlas, "hair_colour": colour})
         log("%s: groom %s from the build = %s (binding %s, cards from LOD %d)" % (av, name, g, bind or "none", lod))
         done.add(group(g))
     # Hair cards as static meshes, one per group not covered by a groom: the lowest LOD of each.
@@ -1404,6 +1474,7 @@ def _share_hair(by_name):
         shared = dict(hair)
         shared["binding"] = ""          # D's binding is made for D's face
         shared["fit_mesh"] = face       # the groom sits as it does on D's head, moved onto this one's
+        shared["hair_colour"] = next((a.get("hair_colour") for a in AVATARS if a["name"] == name), None) or hair.get("hair_colour")
         e["parts"].append(shared)
         log("hair sharing: %s wears %s's %s (stopgap)" % (name, SHARE_HAIR_FROM, hair["groom"]))
 
