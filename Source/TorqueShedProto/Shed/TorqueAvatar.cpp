@@ -4,6 +4,8 @@
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 #include "UObject/UnrealType.h"
 #include "Dom/JsonObject.h"
 #include "Engine/SkeletalMesh.h"
@@ -57,7 +59,7 @@ FQuat Toward(const FVector& From, const FVector& To, double Frac)
 // One more mesh of the MetaHuman (face, clothes) following the body, or a groom (hair, brows,
 // beard) bound to one of them. Materials are the Blueprint component's overrides, by slot ("" keeps
 // the mesh's own).
-struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh, FitMesh; TArray<FString> Materials, CardsMaterials; int32 Lod = -1; bool bLooseOnly = false; };
+struct FPart { FString Name, Mesh, Groom, Binding, AttachTo, Cloth, Static, Bone, CardsMesh, FitMesh, CardsTexture; TArray<FString> Materials, CardsMaterials; FLinearColor HairColour = FLinearColor(0.045f, 0.028f, 0.016f); bool bHairColour = false; int32 Lod = -1; bool bLooseOnly = false; };
 struct FEntry { FString Name, Blueprint, BodyMesh; TArray<FString> BodyMaterials; TArray<FPart> Parts; double HeightCm = 0.0; };
 
 TArray<FString> Strings(const TSharedPtr<FJsonObject>& O, const TCHAR* Field)
@@ -116,6 +118,13 @@ const TArray<FEntry>& Entries()
 				(*PO)->TryGetStringField(TEXT("bone"), P.Bone);
 				(*PO)->TryGetStringField(TEXT("cards_mesh"), P.CardsMesh);
 				(*PO)->TryGetStringField(TEXT("fit_mesh"), P.FitMesh);
+				(*PO)->TryGetStringField(TEXT("cards_texture"), P.CardsTexture);
+				const TArray<TSharedPtr<FJsonValue>>* Rgb = nullptr;
+				if ((*PO)->TryGetArrayField(TEXT("hair_colour"), Rgb) && Rgb->Num() >= 3)
+				{
+					P.HairColour = FLinearColor((float)(*Rgb)[0]->AsNumber(), (float)(*Rgb)[1]->AsNumber(), (float)(*Rgb)[2]->AsNumber(), 1.0f);
+					P.bHairColour = true;
+				}
 				(*PO)->TryGetBoolField(TEXT("loose_only"), P.bLooseOnly);
 				P.CardsMaterials = Strings(*PO, TEXT("cards_materials"));
 				(*PO)->TryGetNumberField(TEXT("lod"), P.Lod);
@@ -243,9 +252,10 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		Out.Add(C);
 	}
 	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
-	// bone's rest so it sits where it was made and turns with the head. With -TorqueHairMesh (or no
-	// hair module), each groom is drawn this way too, from its cards LOD's own mesh and material.
-	const bool bHairMesh = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairMesh"))
+	// bone's rest so it sits where it was made and turns with the head. Each groom with a cards mesh
+	// is drawn this way too, with the game's M_HairCards (round 129: grooms drew only far away,
+	// bald close up, whatever their LOD). -TorqueGroomHair draws the grooms instead, to compare.
+	const bool bHairMesh = !FParse::Param(FCommandLine::Get(), TEXT("TorqueGroomHair"))
 		|| !FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
 	TArray<FPart> Statics;
 	for (const FPart& P : E.Parts)
@@ -270,7 +280,14 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!On) On = Driver;
 		const FName BoneName(*P.Bone);
 		FTransform Rest;
-		const bool bOnBone = BoneRest(On, BoneName, Rest);
+		bool bOnBone = BoneRest(On, BoneName, Rest);
+		// Hair made for another avatar's head (shared): placed by that head's rest, as it was made.
+		if (bOnBone && !P.FitMesh.IsEmpty())
+			if (const USkinnedAsset* Fit = LoadObject<USkinnedAsset>(nullptr, *P.FitMesh))
+			{
+				FTransform FitRest;
+				if (BoneRestOf(Fit, BoneName, FitRest)) Rest = FitRest;
+			}
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
 		C->SetStaticMesh(SM);
 		C->SetupAttachment(On, bOnBone ? BoneName : NAME_None);
@@ -281,6 +298,21 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
+		// The card atlas (its opacity channel: -TorqueHairMask=R|G|B|A, default G) and the hair colour.
+		if (!P.CardsTexture.IsEmpty() && C->GetNumMaterials() > 0 && C->GetMaterial(0))
+		{
+			UTexture* Atlas = LoadObject<UTexture>(nullptr, *P.CardsTexture);
+			FString MaskName(TEXT("G"));
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueHairMask="), MaskName);
+			const FLinearColor Mask(MaskName == TEXT("R") ? 1.f : 0.f, MaskName == TEXT("G") ? 1.f : 0.f, MaskName == TEXT("B") ? 1.f : 0.f, MaskName == TEXT("A") ? 1.f : 0.f);
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(C->GetMaterial(0), C);
+			if (Atlas) MID->SetTextureParameterValue(FName(TEXT("Atlas")), Atlas);
+			MID->SetVectorParameterValue(FName(TEXT("Mask")), Mask);
+			if (P.bHairColour) MID->SetVectorParameterValue(FName(TEXT("Colour")), P.HairColour);
+			for (int32 Slot = 0; Slot < C->GetNumMaterials(); ++Slot) C->SetMaterial(Slot, MID);
+			UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards atlas %s%s, mask %s, colour %s"), *E.Name, *P.CardsTexture,
+				Atlas ? TEXT("") : TEXT(" (NOT FOUND)"), *MaskName, *P.HairColour.ToString());
+		}
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: hair cards %s on %s%s; bounds %s r %.0f cm; material %s"), *E.Name, *P.Static, *On->GetName(),
 			bOnBone ? *FString::Printf(TEXT(", bone %s"), *P.Bone) : TEXT(""), *C->Bounds.Origin.ToCompactString(), C->Bounds.SphereRadius,
 			C->GetNumMaterials() > 0 && C->GetMaterial(0) ? *C->GetMaterial(0)->GetPathName() : TEXT("none"));
