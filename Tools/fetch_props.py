@@ -69,7 +69,8 @@ def main():
     props = json.load(open(os.path.join(ROOT, "Data", "Props", "props.json")))
     mats = json.load(open(os.path.join(ROOT, "Data", "Props", "materials.json")))
     models = sorted({p["polyhaven"] for p in props["props"].values() if "polyhaven" in p})
-    scans = sorted(set(mats["scans"].values()))
+    # Scans kept in git (Data/Props/Scans/<id>/, drawn by a tool: brushed_metal) aren't Poly Haven's.
+    scans = sorted(s for s in set(mats["scans"].values()) if not os.path.isdir(os.path.join(ROOT, "Data", "Props", "Scans", s)))
     total, got, failed = 0, 0, []
     for kind, assets, planner in (("model", models, model_plan), ("scan", scans, scan_plan)):
         for a in assets:
