@@ -1243,7 +1243,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Lean = Approach(Lean, 0.0, 2.2, 4.0, Dt);
 		return;
 	}
-	// [foot] F (or Triangle / Y, stopped) gets off; on foot, F by the bike gets back on.
+	// [foot] F (or Triangle / Y held, stopped) gets off; on foot, F by the bike gets back on.
 	const bool bPadUse = SonyHit(ESonyButton::Triangle) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top);
 	if (bOnFoot)
 	{
@@ -1283,7 +1283,20 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		return;
 	}
-	if (FTorqueKeys::Just(PC, ETorqueKey::Use) || (bPadUse && !Sim->IsCrashed && FMath::Abs(Sim->Speed) <= 2.0))
+	// [lights] Riding, Triangle / Y: a tap steps the lights, held 0.4 s gets off (stopped) or back on the
+	// road (moving); crashed, a tap is back on the road straight away.
+	bool bPadHoldUse = false, bPadTapLights = false;
+	{
+		const bool bTriDown = PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle) != 0;
+		if (bPadUse && !Sim->IsCrashed) { bPadUseRideArmed = true; PadUseRideHeld = 0.0; }
+		if (bPadUseRideArmed)
+		{
+			PadUseRideHeld += Dt;
+			if (!bTriDown) { bPadUseRideArmed = false; bPadTapLights = true; }
+			else if (PadUseRideHeld >= 0.4) { bPadUseRideArmed = false; bPadHoldUse = true; }
+		}
+	}
+	if (FTorqueKeys::Just(PC, ETorqueKey::Use) || (bPadHoldUse && !Sim->IsCrashed && FMath::Abs(Sim->Speed) <= 2.0))
 	{
 		// [yard] In the shed's yard or the shed itself: getting off parks the bike where it stands (in
 		// its bay if that's where it is) and you're on your feet in the shed's own way (TorqueYard).
@@ -1386,7 +1399,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	Lean = FMath::Abs(PadLean) > 0.08 ? PadLean : Approach(Lean, KeyLean, 2.2, 4.0, Dt);
 	Shift = FMath::Abs(PadShift) > 0.15 ? PadShift : Approach(Shift, KeyShift, 3.0, 3.0, Dt);
 
-	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || (bPadUse && (Sim->IsCrashed || FMath::Abs(Sim->Speed) > 2.0)))
+	if (FTorqueKeys::Just(PC, ETorqueKey::BackOnRoad) || (bPadUse && Sim->IsCrashed) || (bPadHoldUse && FMath::Abs(Sim->Speed) > 2.0))
 	{
 		BackOnWheels();
 		Sim->StartGhost();
@@ -1445,24 +1458,24 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Keep.bTelemetry = !Keep.bTelemetry;
 		if (Keep.bSaved) Keep.Save();
 	}
-	// The horn while J or the d-pad's left is held (Torque Shed: H or L3, both taken here).
-	// ([lights] With R1 held the d-pad's left and right are the indicators, not the horn and the weather.)
-	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || (!bPadRB && (PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left) || (SonyDown & ESonyButton::DLeft) != 0));
+	// The horn while J or L3 is held (Torque Shed's pad horn; the d-pad's left and right are the indicators).
+	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0;
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
 	// [lights] The lamps' switches (TorqueLights.h): L headlight, K main beam, N fog lights, , and .
-	// the indicators (again to cancel), / the hazards; on the pad, R1 held + the d-pad's left or right
-	// the indicators, R1 + both (one then the other) the hazards.
+	// the indicators (again to cancel), / the hazards. On the pad (beenster): the d-pad's left and right
+	// the indicators, both (one then the other) the hazards, and a tap of Triangle / Y steps the lights
+	// round dipped, main beam, fog lights (when fitted), off.
 	{
 		bool bOk = false;
+		if (bPadTapLights) LightsNote(Lights.CycleBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.ToggleHeadlight(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Hazards)) LightsNote(Lights.ToggleHazard(bOk), bOk);
-		const bool bPadLeft = bPadRB && (SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left));
-		const bool bPadRight = bPadRB && (SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right));
-		if (bPadLeft || bPadRight) bPadComboUsed = true;   // (letting R1 go then isn't a camera change)
+		const bool bPadLeft = SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left);
+		const bool bPadRight = SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right);
 		const bool bPadOther = bPadLeft ? ((SonyDown & ESonyButton::DRight) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Right))
 			: bPadRight && ((SonyDown & ESonyButton::DLeft) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left));
 		if (bPadOther) LightsNote(Lights.ToggleHazard(bOk), bOk);
@@ -1480,14 +1493,14 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		if (TorqueFlow::BackToShed(this)) return;
 	}
-	if (FTorqueKeys::Just(PC, ETorqueKey::Weather) || (!bPadRB && PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right)))
+	if (FTorqueKeys::Just(PC, ETorqueKey::Weather))   // (the pad's d-pad right is the right indicator now; Settings has the weather)
 	{
 		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
 		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 		if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
 		else if (GS) HostOnlyNoteFor = 3.0;
 	}
-	if (FTorqueKeys::Just(PC, ETorqueKey::Perf) || SonyHit(ESonyButton::L3) || PC->WasInputKeyJustPressed(EKeys::Gamepad_LeftThumbstick))
+	if (FTorqueKeys::Just(PC, ETorqueKey::Perf))   // (L3 is the horn now)
 		bPerfShow = !bPerfShow;
 	if (FTorqueKeys::Just(PC, ETorqueKey::PerfLog))
 	{
@@ -3761,9 +3774,9 @@ void ATorqueBikePawn::DrawHud()
 	{
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.62f);
-		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 performance"), Help, 0.62f);
+		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 horn"), Help, 0.62f);
 		Add(TEXT("      R1 camera (first person, third person, drive-by; R1 held + right stick / D-pad: set the third-person camera)"), Help, 0.62f);
-		Add(TEXT("      L1 + R1 held: start   Triangle get off (stopped) / back on road   D-pad up/down realism, right weather, left horn   Options menu"), Help, 0.62f);
+		Add(TEXT("      L1 + R1 held: start   Triangle tap: lights (dipped, main, fog, off), hold: get off (stopped) / back on road   D-pad left/right indicators, up/down realism   Options menu"), Help, 0.62f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),
@@ -3772,7 +3785,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
 			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
 			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   (pad: R1 held + D-pad left / right indicates)"),
+		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   (pad: D-pad left / right, Triangle / Y lights)"),
 			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
 			*K(ETorqueKey::Hazards)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),

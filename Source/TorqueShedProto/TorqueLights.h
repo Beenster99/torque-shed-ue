@@ -61,6 +61,9 @@ struct FTorqueLights
 	FString ToggleFog(bool& bOk);
 	FString Indicate(int32 Which, bool& bOk);   // -1 left, 1 right
 	FString ToggleHazard(bool& bOk);
+	// The pad's one lights button (beenster): round dipped, main beam, fog lights (with dipped beam,
+	// on a bike that has them), off, and dipped again.
+	FString CycleBeam(bool& bOk);
 
 	// One frame: the ignition, the brakes (0..1 each), the lean (radians, + right) and the turn
 	// (rad/s, + turning right) for the self-cancel, then the lamps shown. bSelfCancel false for someone

@@ -386,6 +386,10 @@ private:
 	// Wheeling it on foot (hold F by it): it follows alongside, upright, the stand up; F lets go.
 	bool bPushing = false, bUseArmed = false;
 	double UseHeld = 0.0;
+	// [lights] Riding, Triangle / Y: a tap steps the lights (dipped, main, fog, off), held a moment gets
+	// off (stopped) or back on the road (moving); crashed, a tap is back on the road at once.
+	bool bPadUseRideArmed = false;
+	double PadUseRideHeld = 0.0;
 	void TakeHoldOfBike();
 	void LetGoBike();
 	void FollowPusher();

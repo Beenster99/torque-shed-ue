@@ -262,6 +262,32 @@ FString FTorqueLights::ToggleFog(bool& bOk)
 	return bFog ? TEXT("Fog lights on") : TEXT("Fog lights off");
 }
 
+FString FTorqueLights::CycleBeam(bool& bOk)
+{
+	bOk = HasHeadlight();
+	if (!bOk) return TEXT("No headlight on this bike");
+	if (!bHeadlight)
+	{
+		bHeadlight = true;
+		bMainBeam = bFog = false;
+		return TEXT("Lights: dipped beam");
+	}
+	if (!bMainBeam && !bFog)
+	{
+		bMainBeam = true;
+		return TEXT("Lights: main beam");
+	}
+	if (bMainBeam && HasFog())
+	{
+		// Fog lamps go with the dipped beam (main beam in fog dazzles back off it).
+		bMainBeam = false;
+		bFog = true;
+		return TEXT("Lights: fog lights and dipped beam");
+	}
+	bHeadlight = bMainBeam = bFog = false;
+	return TEXT("Lights: off");
+}
+
 FString FTorqueLights::Indicate(int32 Which, bool& bOk)
 {
 	bOk = HasIndicators() && bIgnition;

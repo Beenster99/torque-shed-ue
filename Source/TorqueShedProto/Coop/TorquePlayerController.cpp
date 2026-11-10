@@ -794,7 +794,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Controller check"), FString(), TEXT("The sticks and buttons as the game reads them, and Recalibrate"), [this]() { Open(EPage::PadCheck); });
 		Heading(TEXT("PAD"));
 		Heading(TEXT("On foot: left stick walks, right stick looks, Cross / A uses, D-pad left / right picks a tool, Square / X washes, Triangle / Y rides out."));
-		Heading(TEXT("Riding: R2 throttle, L2 front brake, L1 rear brake, left stick lean and weight, Cross / Square gears, R1 camera."));
+		Heading(TEXT("Riding: R2 throttle, L2 front brake, L1 rear brake, left stick lean and weight, Cross / Square gears, R1 camera, D-pad left / right indicators, Triangle / Y lights (hold: get off), L3 horn."));
 		Heading(TEXT("Anywhere: Esc, Options or Start opens the menu."));
 		break;
 	}
