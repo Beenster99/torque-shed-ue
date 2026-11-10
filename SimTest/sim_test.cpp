@@ -709,6 +709,19 @@ static void ContactTests()
 		Check(!W.IsCrashed, "  and nothing knocks the rider off", W.LastHitSpeed);
 		for (int i = 0; i < 120 * 3; ++i) W.Step(Dt);
 		Check(!W.IsGhost() && W.GhostLook() == 0.0, "  after 5 s it's solid again", W.GhostLeft);
+		// The look is steady (no blink): full for its first 4 s, then only ever fading, to 0 at the end.
+		BikeSim L;
+		L.StartGhost();
+		double Prev = L.GhostLook(), Rise = 0.0, FirstFour = 1.0;
+		for (int i = 0; i < 120 * 6; ++i)
+		{
+			L.GhostLeft = std::max(0.0, L.GhostLeft - Dt);
+			const double Now = L.GhostLook();
+			Rise = std::max(Rise, Now - Prev);
+			if (L.GhostLeft >= BikeSim::GHOST_FADE) FirstFour = std::min(FirstFour, Now);
+			Prev = Now;
+		}
+		Check(Rise <= 0.0 && FirstFour >= 1.0 && Prev == 0.0, "  its look is steady: full, then only fading (largest rise)", Rise);
 	}
 	// A bike going down slides into a wall and stops against it, not through it.
 	{

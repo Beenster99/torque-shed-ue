@@ -718,6 +718,12 @@ def materials():
         ue_build_fluids.build()
     except Exception as e:
         unreal.log_error("[Torque] fluid materials: %s" % e)
+    # The respawn ghost's "matrix" look over the bike and rider (TorqueBikePawn::UpdateGhostLook).
+    try:
+        import ue_build_ghost
+        ue_build_ghost.build()
+    except Exception as e:
+        unreal.log_error("[Torque] ghost material: %s" % e)
     # (The wash mini game draws no muck of its own: the bike's materials carry the road dirt and its
     # wash mask, Tools/ue_bike_dirt.py.)
     return {
