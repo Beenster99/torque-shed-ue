@@ -666,10 +666,13 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	// Its own axes: up the back, forward the way the toes point, right from the left hip to the right.
 	Up = (Bones[Head].Rest - Bones[Pelvis].Rest).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
 	FVector Toes = FVector::ZeroVector;
-	for (const TCHAR* W : {TEXT("ball_l"), TEXT("ball_r")})
+	for (int32 S = 0; S < 2; ++S)
 	{
-		const int32 I = Ref.FindBoneIndex(FName(W));
-		if (I != INDEX_NONE) Toes += RefCS[I].GetLocation() - (Bones[FootBone[0]].Rest + Bones[FootBone[1]].Rest) * 0.5;
+		const int32 I = Ref.FindBoneIndex(FName(S == 0 ? TEXT("ball_l") : TEXT("ball_r")));
+		bBall[S] = I != INDEX_NONE;
+		if (!bBall[S]) continue;
+		BallRest[S] = RefCS[I].GetLocation();
+		Toes += BallRest[S] - (Bones[FootBone[0]].Rest + Bones[FootBone[1]].Rest) * 0.5;
 	}
 	Fwd = (Toes - Up * FVector::DotProduct(Toes, Up)).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 	Right = Bones[Thigh[1]].Rest - Bones[Thigh[0]].Rest;
@@ -1214,10 +1217,13 @@ void FTorqueAvatar::WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, co
 		if (Finger[S][0][J] != INDEX_NONE) { D[Finger[S][0][J]] = Q * Hq; Set[Finger[S][0][J]] = true; }
 }
 
+bool FTorqueAvatar::bOldRidePose = false;
+
 void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 {
 	using namespace TorqueAvatarMath;
 	if (!Driver) return;
+	const bool bFit = !bOldRidePose;   // [rider pose] the fit per bike (riderpose:old turns it off for a test's before picture)
 	const int32 N = Bones.Num();
 	TArray<FQuat> D;
 	TArray<FVector> P;
@@ -1285,27 +1291,83 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 		PalmOn[S] = Palm1;
 	}
 	const FQuat BackRig = Back;   // the head keeps the rider rig's gaze, however far the back leans
-	// Low, far bars (clip-ons): lean the back further forward, from the hips, until the shoulders are
-	// near enough for both hands to reach (at most 35 degrees more). Shoulders estimated as turned
-	// with the whole back, which the upper spine nearly is.
+	const FVector Pitch = FVector::CrossProduct(Right, Up).GetSafeNormal();   // turning about Right takes Up towards this
+	const double PitchSign = FVector::DotProduct(Pitch, Fwd) >= 0.0 ? 1.0 : -1.0;
+	double ArmReach[2];
+	for (int32 S = 0; S < 2; ++S)
+		ArmReach[S] = (Bones[LowerArm[S]].Rest - Bones[UpperArm[S]].Rest).Size() + (Bones[HandBone[S]].Rest - Bones[LowerArm[S]].Rest).Size();
+	if (!bFit)
 	{
-		const FVector Pitch = FVector::CrossProduct(Right, Up).GetSafeNormal();   // turning about Right takes Up towards this
-		const double Sign = FVector::DotProduct(Pitch, Fwd) >= 0.0 ? 1.0 : -1.0;
+		// (Before the fit per bike.) Low, far bars (clip-ons): lean the back further forward, from the
+		// hips, until the shoulders are near enough for both hands to reach (at most 35 degrees more).
+		// Shoulders estimated as turned with the whole back.
 		const FVector Pelvis0 = Bones[Pelvis].Rest;
 		for (int32 Step = 0; Step < 12; ++Step)
 		{
 			double Short = 0.0;
 			for (int32 S = 0; S < 2; ++S)
 			{
-				const FVector S0 = Bones[UpperArm[S]].Rest;
-				const double Reach = ((Bones[LowerArm[S]].Rest - S0).Size() + (Bones[HandBone[S]].Rest - Bones[LowerArm[S]].Rest).Size()) * 0.97;
-				const FVector Sh = Hip + Back.RotateVector(S0 - Pelvis0);
-				Short = FMath::Max(Short, (WristAt[S] - Sh).Size() - Reach);
+				const FVector Sh = Hip + Back.RotateVector(Bones[UpperArm[S]].Rest - Pelvis0);
+				Short = FMath::Max(Short, (WristAt[S] - Sh).Size() - ArmReach[S] * 0.97);
 			}
 			if (Short <= 0.0 || Off > 0.5) break;
-			Back = FQuat(Right, Sign * FMath::DegreesToRadians(3.0)) * Back;
+			Back = FQuat(Right, PitchSign * FMath::DegreesToRadians(3.0)) * Back;
 		}
 	}
+	else if (Off <= 0.5)
+	{
+		// [rider pose] The back leant about the hips, as little as it takes from the rider rig's lean
+		// (the riding style's, braking and accelerating), until both hands reach their grips with the
+		// elbows a little bent (the wrist at most 0.88 of the arm away from the shoulder, 0.95 on a
+		// cruiser's or chopper's bars, which the arms reach out to) and not cramped (at least 0.6, or it
+		// sits up). The shoulders are found as the spine's shares carry them (the pelvis 0.15 of the
+		// turn, then 0.4, 0.75 and the top of the spine all of it), which lean less than the turn.
+		const bool bChain = Spine[0] != INDEX_NONE && Spine[1] != INDEX_NONE && Spine[2] != INDEX_NONE;
+		auto ShoulderOf = [&](const FQuat& Bk, int32 Sd) {
+			if (!bChain) return Hip + Bk.RotateVector(Bones[UpperArm[Sd]].Rest - Bones[Pelvis].Rest);
+			FVector At = Hip + FQuat::Slerp(FQuat::Identity, Bk, 0.15).RotateVector(Bones[Spine[0]].Rest - Bones[Pelvis].Rest);
+			At += FQuat::Slerp(FQuat::Identity, Bk, 0.4).RotateVector(Bones[Spine[1]].Rest - Bones[Spine[0]].Rest);
+			At += FQuat::Slerp(FQuat::Identity, Bk, 0.75).RotateVector(Bones[Spine[2]].Rest - Bones[Spine[1]].Rest);
+			return At + Bk.RotateVector(Bones[UpperArm[Sd]].Rest - Bones[Spine[2]].Rest);
+		};
+		const double MaxR = Tg.bLaidBack ? 0.95 : 0.88, MinR = 0.6;
+		FQuat Best = Back;
+		double BestCost = TNumericLimits<double>::Max();
+		for (int32 K = 0; K <= 75 && BestCost > 0.0; ++K)
+			for (int32 Way = 0; Way < (K == 0 ? 1 : 2) && BestCost > 0.0; ++Way)
+			{
+				const double TurnDeg = (Way == 0 ? 1.0 : -1.0) * K;
+				const FQuat Q = FQuat(Right, PitchSign * FMath::DegreesToRadians(TurnDeg)) * Back;
+				// No further than 65 degrees forward of upright, nor 20 back (hips to neck).
+				const FVector Spine1 = Q.RotateVector(Spine0);
+				const double LeanDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::DotProduct(Spine1, Fwd), FVector::DotProduct(Spine1, Up)));
+				if (LeanDeg > 65.0 || LeanDeg < -20.0) continue;
+				double Far = 0.0, Near = 10.0;
+				for (int32 S = 0; S < 2; ++S)
+				{
+					const double Ratio = (WristAt[S] - ShoulderOf(Q, S)).Size() / FMath::Max(ArmReach[S], 1.0);
+					Far = FMath::Max(Far, Ratio);
+					Near = FMath::Min(Near, Ratio);
+				}
+				const double Cost = (Far <= MaxR && Near >= MinR) ? 0.0 : FMath::Max(Far - MaxR, 0.0) * 10.0 + FMath::Max(MinR - Near, 0.0) + K * 0.001;
+				if (Cost < BestCost) { BestCost = Cost; Best = Q; }
+			}
+		Back = Best;
+	}
+
+	// [rider pose] The tank's half-width at x along it (parent's space; 0 off its ends).
+	auto TankHalfAt = [&Tg](double X) {
+		const TArray<FVector2D>& W = Tg.TankHalfW;
+		if (W.Num() < 2 || X > W[0].X || X < W.Last().X) return 0.0;
+		for (int32 J = 1; J < W.Num(); ++J)
+			if (X >= W[J].X)
+			{
+				const double Span = W[J - 1].X - W[J].X;
+				return Span > UE_SMALL_NUMBER ? FMath::Lerp(W[J].Y, W[J - 1].Y, (X - W[J].X) / Span) : W[J].Y;
+			}
+		return 0.0;
+	};
+	FVector KneeGoal[2] = {FVector::ZeroVector, FVector::ZeroVector}, AnkleAim[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	for (int32 I = 0; I < N; ++I)
 	{
 		if (I == Pelvis) { P[I] = Hip; D[I] = FQuat::Slerp(FQuat::Identity, Back, 0.15); Set[I] = true; continue; }
@@ -1319,11 +1381,13 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
 			if (I == UpperArm[S])
 			{
-				// The arm reaches the wrist the hand needs on the bar (as far as it can).
+				// The arm reaches the wrist the hand needs on the bar (as far as it can); the elbows
+				// bend down and out.
 				const FVector S0 = Bones[I].Rest, E0 = Bones[LowerArm[S]].Rest, W0 = Bones[HandBone[S]].Rest;
 				const FVector W = WristAt[S];
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
-				const FVector Pole = (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
+				const FVector Pole = bFit ? (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal()
+					: (-Fwd * 0.3 + Right * (Side * 0.7) - Up * 0.6).GetSafeNormal();
 				const FVector E = MidJoint(P[I], W, Lu, Lf, Pole);
 				const FVector Hinge0 = FVector::CrossProduct(W0 - S0, -Fwd);
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
@@ -1341,17 +1405,72 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			}
 			else if (I == Thigh[S])
 			{
-				// Ankles where the rider's are (on the pegs, or down at a stop); knees forward and a little out.
 				const FVector H0 = Bones[I].Rest, K0 = Bones[Calf[S]].Rest, A0 = Bones[FootBone[S]].Rest;
-				const FVector A = ToC(Tg.Ankle[S]);
 				const double Lt = (K0 - H0).Size(), Ls = (A0 - K0).Size();
-				const FVector Pole = (Fwd + Right * (Side * 0.25) + Up * 0.2).GetSafeNormal();
-				const FVector K = MidJoint(P[I], A, Lt, Ls, Pole);
 				const FVector Hinge0 = FVector::CrossProduct(A0 - H0, Fwd);
-				const FVector Hinge = FVector::CrossProduct(A - P[I], Pole);
+				FVector A = ToC(Tg.Ankle[S]);
+				FQuat FootQ = FQuat::Identity;
+				FVector K, Hinge;
+				if (!bFit)
+				{
+					// (Before the fit per bike.) Ankles where the rider rig's are; knees forward and a little out.
+					const FVector Pole = (Fwd + Right * (Side * 0.25) + Up * 0.2).GetSafeNormal();
+					K = MidJoint(P[I], A, Lt, Ls, Pole);
+					Hinge = FVector::CrossProduct(A - P[I], Pole);
+				}
+				else
+				{
+					// [rider pose] On a catalogue bike, the ball of the foot on the peg (the rider rig's
+					// ankle is its kit rider's, whose feet aren't this body's): toes down on rearsets behind
+					// the hips, level under them, up a little on forward controls, and turned out a little.
+					// Down at a stop, the rig's ankle (on the road) and the foot level.
+					const double Down = FMath::Clamp(Tg.FeetDown, 0.0, 1.0);
+					if (Tg.bOnLayout && bBall[S] && Down < 1.0)
+					{
+						const double PitchDeg = FMath::Clamp(8.0 + 1.2 * (Tg.Seat.X - Tg.Peg[S].X), -12.0, 30.0);
+						const double Pr = FMath::DegreesToRadians(PitchDeg), Yr = FMath::DegreesToRadians(8.0);
+						const FQuat ToesDown = FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(Pr) - Up * FMath::Sin(Pr));
+						const FQuat ToesOut = FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(Yr) + Right * (Side * FMath::Sin(Yr)));
+						const FQuat OnPeg = ToesOut * ToesDown;
+						// The ball joint's height over the sole at rest, the boot's sole on the peg's top.
+						const double Sole = FMath::Clamp(FVector::DotProduct(BallRest[S], Up), 0.5, 5.0);
+						const FVector BallAt = ToC(Tg.Peg[S] + FVector(0.0, Side * 1.5, 1.2)) + Up * Sole;
+						const FVector AnkleOnPeg = BallAt - OnPeg.RotateVector(BallRest[S] - A0);
+						A = FMath::Lerp(AnkleOnPeg, A, Down);
+						FootQ = FQuat::Slerp(OnPeg, FQuat::Identity, Down);
+					}
+					// The knee on the circle the thigh and shin allow, as near as it comes to the bike's
+					// knee point (the tank's knee pads; without one, forward of the hip and a little out),
+					// and outside the tank's flank.
+					KneeGoal[S] = Tg.bOnLayout ? ToC(Tg.Knee[S]) : P[I] + Fwd * (Lt * 0.92) - Up * (Lt * 0.3) + Right * (Side * 6.0);
+					FVector Dir = A - P[I];
+					const double Len = FMath::Clamp(Dir.Size(), FMath::Abs(Lt - Ls) + 0.1, (Lt + Ls) * 0.999);
+					Dir = Dir.GetSafeNormal(UE_SMALL_NUMBER, -Up);
+					const double Along = (Lt * Lt - Ls * Ls + Len * Len) / (2.0 * Len);
+					const double Out = FMath::Sqrt(FMath::Max(Lt * Lt - Along * Along, 0.0));
+					const FVector Centre = P[I] + Dir * Along;
+					const FVector E1 = FVector::CrossProduct(Dir, Right).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
+					const FVector E2 = FVector::CrossProduct(Dir, E1);
+					const FVector MidLine = Rel.TransformPosition(P[Pelvis]);
+					double BestKnee = TNumericLimits<double>::Max();
+					K = Centre + E1 * Out;
+					for (int32 J = 0; J < 72; ++J)
+					{
+						const double Ang = J * (2.0 * PI / 72.0);
+						const FVector Kj = Centre + (E1 * FMath::Cos(Ang) + E2 * FMath::Sin(Ang)) * Out;
+						const FVector Kp = Rel.TransformPosition(Kj);
+						if ((Kp.Y - MidLine.Y) * Side < 0.0) continue;   // never across the bike's middle
+						const double Half = TankHalfAt(Kp.X);
+						const double Inside = Half > 0.0 ? FMath::Max(Half + 5.0 - FMath::Abs(Kp.Y), 0.0) : 0.0;   // a knee's half-thickness off the flank
+						const double Cost = (Kj - KneeGoal[S]).SizeSquared() + 40.0 * Inside * Inside;
+						if (Cost < BestKnee) { BestKnee = Cost; K = Kj; }
+					}
+					Hinge = FVector::CrossProduct(A - P[I], K - Centre);
+				}
+				AnkleAim[S] = A;
 				D[I] = Align(K0 - H0, Hinge0, K - P[I], Hinge); Set[I] = true;
 				D[Calf[S]] = Align(A0 - K0, Hinge0, A - K, Hinge); Set[Calf[S]] = true;
-				D[FootBone[S]] = FQuat::Identity; Set[FootBone[S]] = true;   // level on the peg
+				D[FootBone[S]] = FootQ; Set[FootBone[S]] = true;   // level, or on the peg
 			}
 		}
 	}
@@ -1361,5 +1480,23 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 	RideHead = Rel.TransformPosition(P[Head]);
 	RideHeadTurn = RelQ * D[Head] * RelQ.Inverse();
 	bRode = true;
-}
 
+	// What it came to, for the test log.
+	{
+		auto AngleAt = [&P](int32 A, int32 B, int32 C) {
+			const FVector U = (P[A] - P[B]).GetSafeNormal(), V = (P[C] - P[B]).GetSafeNormal();
+			return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(U, V), -1.0, 1.0)));
+		};
+		const double Scale = Rel.GetScale3D().Z;
+		const FVector Spine1 = Neck != INDEX_NONE ? P[Neck] - P[Pelvis] : Spine0;
+		RideReport.BackDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::DotProduct(Spine1, Fwd), FVector::DotProduct(Spine1, Up)));
+		for (int32 S = 0; S < 2; ++S)
+		{
+			RideReport.KneeDeg[S] = AngleAt(Thigh[S], Calf[S], FootBone[S]);
+			RideReport.ElbowDeg[S] = AngleAt(UpperArm[S], LowerArm[S], HandBone[S]);
+			RideReport.HandShort[S] = (P[HandBone[S]] - WristAt[S]).Size() * Scale;
+			RideReport.AnkleShort[S] = (P[FootBone[S]] - AnkleAim[S]).Size() * Scale;
+			RideReport.KneeOut[S] = FMath::Abs(Rel.TransformPosition(P[Calf[S]]).Y);
+		}
+	}
+}

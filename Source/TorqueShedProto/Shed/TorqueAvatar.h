@@ -68,6 +68,16 @@ struct FTorqueRideTargets
 	FQuat Look = FQuat::Identity;            // the head's turn, in the parent's space
 	double LeverFingers[2] = {0.0, 0.0}, LeverPull[2] = {0.0, 0.0};
 	double Limp = 0.0;                       // off the bike: hands loose
+	// [rider pose] On a catalogue bike: its knees (BikeRig's, where the tank's knee pads are), pegs and
+	// tank's half-width along x ((x, half-width), parent's space), and how far the feet are down off
+	// the pegs (0 on them, 1 on the road, as the rider rig's ankles). Without them (bOnLayout false)
+	// the knees go forward of the hips, outside the hips' width.
+	bool bOnLayout = false;
+	FVector Knee[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector Peg[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	TArray<FVector2D> TankHalfW;
+	double FeetDown = 0.0;
+	bool bLaidBack = false;                  // feet forward (a cruiser's or chopper's): arms may reach further
 };
 
 class FTorqueAvatar
@@ -90,6 +100,13 @@ public:
 	FVector BoneWorld(FName BoneName) const;
 	// On a bike: seated, hands on the grips, feet on the pegs (FTorqueRideTargets).
 	void PoseRiding(const FTorqueRideTargets& T);
+	// [rider pose] A test's switch back to the riding pose as it was before the fit per bike
+	// (riderpose:old), for before and after pictures from the same run.
+	static bool bOldRidePose;
+	// What the last PoseRiding came to, for the test log: the back's lean forward of upright, each
+	// knee's and elbow's angle, how far each hand and ankle fell short, and each knee's distance out.
+	struct FRideReport { double BackDeg = 0.0, KneeDeg[2] = {0.0, 0.0}, ElbowDeg[2] = {0.0, 0.0}, HandShort[2] = {0.0, 0.0}, AnkleShort[2] = {0.0, 0.0}, KneeOut[2] = {0.0, 0.0}; };
+	FRideReport RideReport;
 	// The head joint's place and its turn from rest in the parent's space, as last posed (riding).
 	bool HeadInParent(FVector& At, FQuat& Turn) const;
 	// Showing the body (and clothes), the head (face) and the hair: a helmet over it, or the rider's
@@ -133,6 +150,8 @@ private:
 	int32 Pelvis = INDEX_NONE, Spine[3] = {INDEX_NONE, INDEX_NONE, INDEX_NONE}, Neck = INDEX_NONE, Head = INDEX_NONE;
 	int32 UpperArm[2] = {INDEX_NONE, INDEX_NONE}, LowerArm[2] = {INDEX_NONE, INDEX_NONE}, HandBone[2] = {INDEX_NONE, INDEX_NONE};
 	int32 Thigh[2] = {INDEX_NONE, INDEX_NONE}, Calf[2] = {INDEX_NONE, INDEX_NONE}, FootBone[2] = {INDEX_NONE, INDEX_NONE};
+	FVector BallRest[2] = {FVector::ZeroVector, FVector::ZeroVector};   // the balls of the feet at rest (component space)
+	bool bBall[2] = {false, false};
 	int32 Finger[2][5][3];   // thumb, index, middle, ring, pinky; 01..03 (INDEX_NONE without)
 	// The body's own axes in its component space (found from the rest pose), and sizes.
 	FVector Up = FVector::UpVector, Fwd = FVector::ForwardVector, Right = FVector::RightVector;

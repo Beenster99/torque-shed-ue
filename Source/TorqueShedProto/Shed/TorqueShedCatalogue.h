@@ -45,6 +45,11 @@ struct FBikeFrame
 	FVector Peg = FVector::ZeroVector;    // the right footpeg (BikeRig's peg; the left is its mirror)
 	FVector Grip = FVector::ZeroVector;   // the right grip as BikeRig has it (the drawn bars' may differ)
 	bool bLaidBack = false;               // cruiser or chopper seating (bike_model.gd _laid_back)
+	// [rider pose] The right knee as BikeRig places it (the tank's knee pads are drawn there; the
+	// left is its mirror), and the tank's half-width along it: (x, half-width) pairs, front to back,
+	// pawn cm, so a rider's knees stay outside its flanks.
+	FVector Knee = FVector::ZeroVector;
+	TArray<FVector2D> TankHalfW;
 };
 // [dash] OutGauges: the clocks' working pieces among the meshes made (FittedPart::Gauge), for the
 // ridden bike to drive: in the meshes' own space (the bike's frame, cm), as the meshes are made.
