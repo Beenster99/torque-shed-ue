@@ -1213,13 +1213,16 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		// The hex LED ceiling over the spray bay, looking up from inside the paint shop's door.
 		else if (What == TEXT("boothceiling")) { At = FVector(1080.0, -40.0, 335.0); Away = FVector(-1.0, 0.35, 0.0).GetSafeNormal(); Distance = 330.0; }
 		else if (What == TEXT("dyno")) { At = FVector(0.0, -1290.0, 225.0); Away = FVector(0.35, 1.0, 0.0).GetSafeNormal(); Distance = 250.0; }
+		// The rig from beside it, desk side: the cooling fan's housing and blades, the wheel clamp,
+		// the posts and the desk, for their finishes and the blades' set.
+		else if (What == TEXT("dynofan")) { At = FVector(0.0, -1100.0, 70.0); Away = FVector(0.6, 1.0, 0.0).GetSafeNormal(); Distance = 300.0; }
 		else if (What == TEXT("dynoroom")) { At = FVector(0.0, -980.0, 80.0); Away = FVector(-0.45, 1.0, 0.0).GetSafeNormal(); Distance = 360.0; }
 		else if (What == TEXT("deliveries")) { At = TorqueShedLayout::DeliveryAt(0) + FVector(110.0, 50.0, 30.0); Away = FVector(-0.5, -1.0, 0.0).GetSafeNormal(); Distance = 350.0; }
 		else if (What == TEXT("testarea")) { At = FVector(9000.0, 8000.0, 100.0); Away = FVector(-1.0, -0.35, 0.0).GetSafeNormal(); Distance = 1800.0; }
 		else if (What == TEXT("dropoff")) { At = FVector(19600.0, 7780.0, 60.0); Away = FVector(-1.0, -0.5, 0.0).GetSafeNormal(); Distance = 700.0; }
 		else if (What == TEXT("kitdrop")) { At = FVector(-900.0, 1100.0, 60.0); Away = FVector(0.3, -1.0, 0.0).GetSafeNormal(); Distance = 500.0; }
 		else if (What == TEXT("washbay")) { At = FVector(-930.0, 150.0, 60.0); Away = FVector(1.0, 0.4, 0.0).GetSafeNormal(); Distance = 300.0; }
-		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, testarea, dropoff, kitdrop, or a place name")); return true; }
+		else { Warn(TEXT("look at what? player, wheel[:front|rear], bench, washer, repair, computer, changer, stand, bins, bike, screen, board, monitor, dyno, dynofan, dynoroom, booth, boothceiling, hall, corner, deliveries, washbay, testarea, dropoff, kitdrop, or a place name")); return true; }
 		// A view for a shot: what the crosshair lands on doesn't matter (a screen or the bike's middle).
 		const FString Seen = W->TestLookAt(At, Away, Distance);
 		Said(Seen.Contains(TEXT("nothing")) ? FString::Printf(TEXT("framing the %s"), *What) : TEXT("looking at ") + Seen);
