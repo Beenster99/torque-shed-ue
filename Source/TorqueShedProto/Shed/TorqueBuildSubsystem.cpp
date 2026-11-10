@@ -467,6 +467,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 		To.FluidAge = It.FluidAge;
 		To.Lube = It.Lube;
 		To.LubeType = It.LubeType;
+		To.Bead = It.Bead;   // [tyre]
 		S.Items.Add(To);
 	}
 }
@@ -591,6 +592,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 		It.FluidAge = FMath::Clamp(From.FluidAge, 0.0f, 1.0f);
 		It.Lube = FMath::Clamp(From.Lube, 0.0f, 1.0f);
 		It.LubeType = From.LubeType;
+		It.Bead = From.Bead < 0.0f ? -1.0f : FMath::Clamp(From.Bead, 0.0f, 1.0f);   // [tyre]
 		Items.Add(It.Id, It);
 	}
 	NextId = FMath::Max(S.NextId, 1);
@@ -648,7 +650,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 17;   // bumped when the layout below changes (17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 18;   // bumped when the layout below changes (18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -850,6 +852,12 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 			uint16 LubeType = Table.Of(It.LubeType);
 			Ar << Lube << LubeType;
 		}
+		if (It.Kind == FName(TEXT("tyre")))
+		{
+			// [tyre] How well its bead was seated on the changer (0: as it came, else 1 + 254 x bead).
+			uint8 Bead = It.Bead < 0.0f ? 0 : (uint8)(1 + FMath::RoundToInt(FMath::Clamp(It.Bead, 0.0f, 1.0f) * 254.0f));
+			Ar << Bead;
+		}
 		uint8 bEngine = It.Kind == TBI::EngineKind() ? 1 : 0;
 		Ar << bEngine;
 		if (bEngine) TBI::WriteSlots(Ar, It.Slots, It.Bolted);
@@ -1050,6 +1058,12 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 				Ar << Lube << LubeType;
 				It.Lube = TBI::Unquant(Lube);
 				It.LubeType = NameAt(LubeType);
+			}
+			if (It.Kind == FName(TEXT("tyre")))
+			{
+				uint8 Bead = 0;   // [tyre]
+				Ar << Bead;
+				It.Bead = Bead == 0 ? -1.0f : (Bead - 1) / 254.0f;
 			}
 		}
 		Ar << bEngine;
@@ -1906,7 +1920,61 @@ FString UTorqueBuildSubsystem::ConditionText(int32 Id) const
 	if (!Job.IsEmpty()) Text += TEXT("   ") + Job;
 	const FString Fluid = FluidText(*It);   // [fluids] a tank's petrol, an engine's oil, a chain's lube
 	if (!Fluid.IsEmpty()) Text += TEXT("   ") + Fluid;
+	const FString Bead = BeadText(*It);   // [tyre] how well it went on at the tyre changer
+	if (!Bead.IsEmpty()) Text += TEXT("   ") + Bead;
 	return Text;
+}
+
+FString UTorqueBuildSubsystem::BeadText(const FTorqueItem& It)
+{
+	// shed_state bead_text.
+	if (It.Bead < 0.0f) return FString();
+	const int32 Pc = FMath::RoundToInt(It.Bead * 100.0f);
+	if (It.Bead >= 0.95f) return FString::Printf(TEXT("Bead seated perfectly (%d%%)"), Pc);
+	if (It.Bead >= BeadOk) return FString::Printf(TEXT("Bead seated well (%d%%)"), Pc);
+	return FString::Printf(TEXT("Bead badly seated (%d%%): it grips less. Refit it on the tyre changer."), Pc);
+}
+
+float UTorqueBuildSubsystem::BeadOf(int32 Bay, bool bFront) const
+{
+	const FTorqueItem* It = Items.Find(ItemOn(Bay, FName(bFront ? TEXT("front_tyre") : TEXT("rear_tyre"))));
+	return It && It->Bead >= 0.0f ? It->Bead : 1.0f;
+}
+
+FString UTorqueBuildSubsystem::TyreFitReason(FName Tyre, FName Wheel)
+{
+	// PartsDB.tyre_fit_reason, on fitting's catalogue (TorqueFit::Shop::TyreFit).
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay) return FString();
+	const std::string T = TBI::Std(Tyre.ToString()), W = TBI::Std(Wheel.ToString());
+	const int Fit = TorqueFit::Shop::TyreFit(*Lay, T, W);
+	if (Fit == 0) return FString();
+	const TorqueFit::Json* Tp = Lay->Part(T);
+	const TorqueFit::Json* Wp = Lay->Part(W);
+	if (!Tp || !Wp) return FString();
+	auto Inch = [](double D) { return FMath::IsNearlyEqual(D, FMath::RoundToDouble(D)) ? FString::Printf(TEXT("%d\""), (int32)FMath::RoundToDouble(D)) : FString::Printf(TEXT("%.1f\""), D); };
+	if (Fit == 2)
+	{
+		FString Rims;
+		if (const TorqueFit::Json* R = Tp->Get("rims"); R && R->IsArray())
+			for (const TorqueFit::Json& D : R->A) Rims += (Rims.IsEmpty() ? FString() : FString(TEXT(" or "))) + Inch(D.N);
+		return FString::Printf(TEXT("That tyre is made for %s rims, not this %s wheel."), *Rims, *Inch(Wp->Num("diameter", 17.0)));
+	}
+	int32 Lo = 0, Hi = 0;
+	const TorqueFit::Json* Range = Wp->Get("tyres");
+	if (Range && Range->IsArray() && Range->A.size() == 2)
+	{
+		Lo = (int32)Range->A[0].N;
+		Hi = (int32)Range->A[1].N;
+	}
+	else
+	{
+		const double Rim = Wp->Num("rim_width", 3.5);
+		Lo = FMath::RoundToInt(Rim * 24.0);
+		Hi = FMath::RoundToInt(Rim * 62.0);
+	}
+	return FString::Printf(TEXT("A %d mm tyre is too %s for this %.2f\" rim: it takes %d-%d mm."), (int32)Tp->Num("width", 0.0),
+		Fit == 1 ? TEXT("wide") : TEXT("narrow"), Wp->Num("rim_width", 0.0), Lo, Hi);
 }
 
 FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
@@ -2471,6 +2539,8 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 			if (!HeldIt || HeldIt->Kind != FName(TEXT("tyre"))) return TEXT("Hold a tyre to fit it.");
 			if (HeldIt->bBoxed) return TEXT("Unpack it first.");
 			if (Wheel->Tyre != 0) return TEXT("There's already a tyre on that wheel. Lever it off first.");
+			const FString Why = TyreFitReason(HeldIt->Part, Wheel->Part);   // [tyre] shed_state's check
+			if (!Why.IsEmpty()) return Why;
 		}
 		else
 		{
@@ -3029,10 +3099,13 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 	}
 	case ETorqueShedAct::TyreFit:
 	{
+		// [tyre] How well the bead went on in the tyre fitting game (TorqueTyreGame) goes with the tyre.
 		const int32 Wheel = ItemAtSpot(R.Spot);
 		Items[Wheel].Tyre = Held;
 		Move(Held, ETorqueAt::Wheel, Wheel);
-		Text = TEXT("Tyre on. Lift the wheel off and fit it to a bike.");
+		Items[Held].Bead = FMath::Clamp(FMath::IsFinite(R.Amount) ? R.Amount : 1.0f, 0.0f, 1.0f);
+		Text = FString::Printf(TEXT("Fitted the %s to the %s. %s"), *ItemTitle(Held), *ItemTitle(Wheel), *BeadText(Items[Held]));
+		if (Items[Held].Bead >= BeadOk) Text += TEXT(" Lift the wheel off and fit it to a bike.");
 		bItems = true;
 		break;
 	}
@@ -3041,8 +3114,9 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		const int32 Wheel = ItemAtSpot(R.Spot);
 		const int32 Tyre = Items[Wheel].Tyre;
 		Items[Wheel].Tyre = 0;
+		if (FTorqueItem* Off = Items.Find(Tyre)) Off->Bead = -1.0f;   // [tyre] it's seated afresh when it goes back on
 		Move(Tyre, ETorqueAt::Held, Peer);
-		Text = TEXT("Broke the bead and levered the tyre off");
+		Text = FString::Printf(TEXT("Broke the bead and levered the %s off the %s"), *ItemTitle(Tyre), *ItemTitle(Wheel));
 		bItems = true;
 		break;
 	}

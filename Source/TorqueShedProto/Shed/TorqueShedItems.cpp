@@ -527,6 +527,9 @@ void ATorqueShedItems::Draw(int32 Id)
 	if (It->At == ETorqueAt::Spot)
 		if (const FTorquePlace* StandP = TorqueShedLayout::FindPlace(It->Spot); StandP && StandP->Kind == ETorquePlace::Stand)
 			D.bOnStand = true;   // [kit]
+	if (It->At == ETorqueAt::Spot)
+		if (const FTorquePlace* ChangerP = TorqueShedLayout::FindPlace(It->Spot); ChangerP && ChangerP->Kind == ETorquePlace::Changer)
+			D.bOnChanger = true;   // [tyre]
 	Drawn.Add(D);
 	if (bVessel)
 	{
@@ -553,6 +556,13 @@ void ATorqueShedItems::Draw(int32 Id)
 		if (P && P->Kind == ETorquePlace::Hook) Rest = HungAt(D.Hook, D.Height);
 		// [kit] On the engine stand: turned as the stand is.
 		if (P && P->Kind == ETorquePlace::Stand) Rest.SetRotation(TorqueShedLayout::StandNow().GetRotation());
+		// [tyre] On the tyre changer: flat on its turntable (the holder's placed below, as Tick does).
+		if (D.bOnChanger)
+		{
+			const FTransform Flat = OnChanger(D, ChangerSpin);
+			Holder->SetWorldLocationAndRotation(Flat.GetLocation(), Flat.GetRotation());
+			return;
+		}
 	}
 	else if (It->At == ETorqueAt::Floor)
 		Rest = It->Place;
@@ -590,13 +600,49 @@ FTransform ATorqueShedItems::HungAt(int32 Hook, double Height) const
 	return FTransform(Turn * FRotator(0.0, 90.0, 0.0).Quaternion(), Pivot + Turn.RotateVector(Still - Pivot));
 }
 
+FTransform ATorqueShedItems::OnChanger(const FDrawn& D, double Spin) const
+{
+	// workshop.gd: a wheel lies flat on the tyre changer's turntable. Its axle is its box's thinnest
+	// side: turned upright, then about the upright by Spin, the box's middle over the place and its
+	// underside on it.
+	const FTorquePlace* P = TorqueShedLayout::FindPlace(FName(TEXT("changer")));
+	const FVector Put = P ? P->Put : TorqueShedLayout::DropAt();
+	FQuat Lay = FQuat::Identity;
+	double Thick = D.Size.Z;
+	if (D.Size.Y <= D.Size.X && D.Size.Y < D.Size.Z)
+	{
+		Lay = FRotator(0.0, 0.0, 90.0).Quaternion();
+		Thick = D.Size.Y;
+	}
+	else if (D.Size.X < D.Size.Y && D.Size.X < D.Size.Z)
+	{
+		Lay = FRotator(90.0, 0.0, 0.0).Quaternion();
+		Thick = D.Size.X;
+	}
+	const FQuat Turn = FQuat(FVector::UpVector, Spin) * Lay;
+	return FTransform(Turn, Put + FVector(0.0, 0.0, Thick * 0.5) - Turn.RotateVector(D.Centre));
+}
+
 void ATorqueShedItems::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickVessels(DeltaSeconds);
+	// [tyre] The tyre changer's turntable turns while anyone works a tyre on or off (2.2 rad/s, workshop.gd).
+	bool bTurning = false;
+	for (TActorIterator<ATorqueWalker> W(GetWorld()); W && !bTurning; ++W) bTurning = W->TurningChanger();
+	if (bTurning) ChangerSpin = FMath::Fmod(ChangerSpin + DeltaSeconds * 2.2, UE_DOUBLE_TWO_PI);
 	for (const FDrawn& D : Drawn)
 	{
 		USceneComponent* H = D.Holder.Get();
+		if (H && D.HeldBy == 0 && D.bOnChanger)
+		{
+			if (bTurning)
+			{
+				const FTransform Flat = OnChanger(D, ChangerSpin);
+				H->SetWorldLocationAndRotation(Flat.GetLocation(), Flat.GetRotation());
+			}
+			continue;
+		}
 		if (H && D.HeldBy == 0 && D.Hook != INDEX_NONE)
 		{
 			// On a booth hook: at its height, swinging with it.

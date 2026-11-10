@@ -31,6 +31,7 @@
 #include "Shed/TorqueShedScreens.h"
 #include "Shed/TorqueToolModels.h"
 #include "Shed/TorqueWashJob.h"
+#include "Shed/TorqueTyreGame.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -567,7 +568,7 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 	{
 		FindTarget();
 		MakePlan();
-		if (!SprayWork(DeltaSeconds) && !WashWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game; the lance at a bike: the wash game
+		if (!SprayWork(DeltaSeconds) && !WashWork(DeltaSeconds) && !TyreWork(DeltaSeconds)) Work(DeltaSeconds);   // the can or gun on a part: the spray game; the lance at a bike: the wash game; a tyre on the changer: the tyre game
 		HookWork(DeltaSeconds);
 	}
 	UpdateSway(DeltaSeconds);
@@ -778,14 +779,23 @@ void ATorqueWalker::ReadInput(float Dt)
 	PC->GetInputMouseDelta(Mx, My);
 	const float LookX = S.bConnected ? Dead(S.RX) : Dead(Axis(EKeys::Gamepad_RightX));
 	const float LookY = S.bConnected ? Dead(S.RY) : Dead(Axis(EKeys::Gamepad_RightY));
-	FRotator R = PC->GetControlRotation();
-	const float Invert = Set.bInvertLook ? -1.0f : 1.0f;
-	const float Steady = SprayItem != 0 ? (float)TorqueSpray::ModeLook : 1.0f;   // the spray controls: a slower, steadier look
-	R.Yaw += Steady * (Mx * MouseDegPerPixel * Set.MouseLook + LookX * PadDegPerSecond * Set.PadLook * Dt);
-	R.Pitch = FMath::Clamp(FRotator::NormalizeAxis(R.Pitch + Invert * Steady * (My * MouseDegPerPixel * Set.MouseLook +
-		LookY * PadDegPerSecond * Set.PadLook * 0.7f * Dt)), -85.0, 85.0);
-	R.Roll = 0.0;
-	PC->SetControlRotation(R);
+	if (TyreGame.IsValid())
+	{
+		// [tyre] The tyre game: the mouse and the right stick work the tyre lever, not the look.
+		TyreGame->Move(FVector2D(Mx, -My) * Set.MouseLook);
+		TyreGame->Aim(FVector2D(LookX, -LookY), Dt);
+	}
+	else
+	{
+		FRotator R = PC->GetControlRotation();
+		const float Invert = Set.bInvertLook ? -1.0f : 1.0f;
+		const float Steady = SprayItem != 0 ? (float)TorqueSpray::ModeLook : 1.0f;   // the spray controls: a slower, steadier look
+		R.Yaw += Steady * (Mx * MouseDegPerPixel * Set.MouseLook + LookX * PadDegPerSecond * Set.PadLook * Dt);
+		R.Pitch = FMath::Clamp(FRotator::NormalizeAxis(R.Pitch + Invert * Steady * (My * MouseDegPerPixel * Set.MouseLook +
+			LookY * PadDegPerSecond * Set.PadLook * 0.7f * Dt)), -85.0, 85.0);
+		R.Roll = 0.0;
+		PC->SetControlRotation(R);
+	}
 
 	if (bBack) Jump();
 	if (SeatId == 0 && (KeyJust(ETorqueKey::Crouch) || Just(EKeys::Gamepad_RightThumbstick) || (SonyHit & ESonyButton::R3))) SetCrouched(!bCrouched);
@@ -1328,8 +1338,11 @@ void ATorqueWalker::MakePlan()
 				const FTorqueItem* On = B->Item(OnSpot);
 				if (TargetPlace->Kind == ETorquePlace::Changer && On && HeldIt->Kind == FName(TEXT("tyre")))
 				{
-					Plan = MakeOne(ETorqueShedAct::TyreFit, 3.0, TEXT("work the tyre on round the rim"));
+					// Work the tyre on round the rim: a skill game (TorqueWalkerTyre.cpp, TorqueTyreGame).
+					Plan = MakeOne(ETorqueShedAct::TyreFit, FTorqueTyreGame::Grace + FTorqueTyreGame::Duration,
+						TEXT("work the tyre on: keep the lever on the marker round the rim"));
 					Plan.Request.Spot = Spot;
+					Plan.Request.Amount = 1.0f;   // the bead (the game sets it; a test's act seats it fully)
 				}
 				else if (TargetPlace->Kind == ETorquePlace::Stand && On && On->Kind == Engine && HeldIt->Kind != Engine)
 				{

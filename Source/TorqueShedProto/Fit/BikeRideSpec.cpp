@@ -251,6 +251,11 @@ PartsMap RideParts(const BikeLayout& Lay, const PartsMap& Parts)
 	return Out;
 }
 
+double BeadGrip(double Bead)
+{
+	return RsLerp(0.92, 1.0, RsClamp(Bead / BeadOk, 0.0, 1.0));
+}
+
 bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpec& Out, std::vector<std::string>* Notes)
 {
 	if (!Lay.Loaded()) return false;
@@ -356,16 +361,22 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 		if (Notes)
 			for (const auto& [Fit, End] : {std::pair<int, const char*>{FitF, "front"}, std::pair<int, const char*>{FitR, "rear"}})
 				if (Fit != 0) Notes->push_back(std::string("The ") + End + " tyre doesn't suit its rim. Change it on the tyre changer.");
+		// A bead that wasn't seated properly on the tyre changer lets the tyre squirm on the rim.
+		if (Notes)
+			for (const auto& [Bead, End] : {std::pair<double, const char*>{In.BeadFront, "front"}, std::pair<double, const char*>{In.BeadRear, "rear"}})
+				if (Bead < BeadOk)
+					Notes->push_back(std::string("The ") + End + " tyre's bead isn't seated right: it grips less. Refit it on the tyre changer.");
 		// Off a tyre's best pressure it grips less on tarmac; a little soft finds more grip in the dirt.
 		const double DevF = Tn.PressureOffset(true), DevR = Tn.PressureOffset(false);
-		auto GripOf = [&](const Json& Ty, double Width, double Scale, int Fit, const char* Surf, double Dev) {
+		const double BeadF = BeadGrip(In.BeadFront), BeadR = BeadGrip(In.BeadRear);
+		auto GripOf = [&](const Json& Ty, double Width, double Scale, int Fit, const char* Surf, double Dev, double BeadK) {
 			const bool Road = std::string(Surf) == "tarmac";
-			return B.Grip(Ty, Surf) * Scale * RsWidthGrip(Width, Road) * (Fit != 0 ? 0.9 : 1.0) * BikeTune::PressureGrip(Dev, Surf);
+			return B.Grip(Ty, Surf) * Scale * RsWidthGrip(Width, Road) * (Fit != 0 ? 0.9 : 1.0) * BikeTune::PressureGrip(Dev, Surf) * BeadK;
 		};
-		S.TyreFront = RsTyre(Tf, GripOf(Tf, FrontWidth, ScaleF, FitF, "tarmac", DevF), GripOf(Tf, FrontWidth, ScaleF, FitF, "dirt", DevF),
-			GripOf(Tf, FrontWidth, ScaleF, FitF, "grass", DevF), DevF);
-		S.TyreRear = RsTyre(Tr, GripOf(Tr, RearWidth, ScaleR, FitR, "tarmac", DevR), GripOf(Tr, RearWidth, ScaleR, FitR, "dirt", DevR),
-			GripOf(Tr, RearWidth, ScaleR, FitR, "grass", DevR), DevR);
+		S.TyreFront = RsTyre(Tf, GripOf(Tf, FrontWidth, ScaleF, FitF, "tarmac", DevF, BeadF), GripOf(Tf, FrontWidth, ScaleF, FitF, "dirt", DevF, BeadF),
+			GripOf(Tf, FrontWidth, ScaleF, FitF, "grass", DevF, BeadF), DevF);
+		S.TyreRear = RsTyre(Tr, GripOf(Tr, RearWidth, ScaleR, FitR, "tarmac", DevR, BeadR), GripOf(Tr, RearWidth, ScaleR, FitR, "dirt", DevR, BeadR),
+			GripOf(Tr, RearWidth, ScaleR, FitR, "grass", DevR, BeadR), DevR);
 		S.Rolling = RsRolling * (RsClamp(1.0 - 0.9 * DevF, 0.6, 2.5) + RsClamp(1.0 - 0.9 * DevR, 0.6, 2.5)) * 0.5;
 		if (Notes && std::min(DevF, DevR) < -0.3) Notes->push_back("The tyres are soft: they'll squirm, drag and wear out fast.");
 	}

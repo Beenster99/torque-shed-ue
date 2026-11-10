@@ -57,6 +57,7 @@ struct FTorqueShedSaveItem
 	UPROPERTY() float FluidAge = 0.0f;
 	UPROPERTY() float Lube = 1.0f;
 	UPROPERTY() FName LubeType;
+	UPROPERTY() float Bead = -1.0f;     // [tyre] how well a tyre's bead was seated on the changer (FTorqueItem)
 };
 
 // A dyno run (FTorqueDynoRun), the bike's last two kept.

@@ -120,6 +120,8 @@ FString Summary(const UTorqueBuildSubsystem* B, int32 Bay, TArray<FString>& OutN
 			for (const TPair<FName, float>& KV : B->TuneOf(Bay)) In.Tune[Std(KV.Key.ToString())] = KV.Value;
 			In.ChainSlack = B->ChainSlackOf(Bay);
 			for (const FName& Slot : B->LightenedOf(Bay)) In.Lightened.push_back(Std(Slot.ToString()));
+			In.BeadFront = B->BeadOf(Bay, true);   // [tyre] how well the tyres went on at the changer
+			In.BeadRear = B->BeadOf(Bay, false);
 			TorqueSim::BikeSpec S;
 			std::vector<std::string> Notes;
 			if (TorqueFit::RideSpec(*Lay, In, S, &Notes) && !S.GearRatios.empty())

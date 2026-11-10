@@ -38,6 +38,7 @@ class USceneComponent;
 class UTorqueSprayFx;
 class UTorqueWashFx;
 class FTorqueWashJob;
+class FTorqueTyreGame;
 struct FTorquePlace;
 struct FSonyPadState;
 
@@ -141,6 +142,15 @@ public:
 	bool WashJetting() const;
 	// For the tests: how the wash on the bike in the wash bay is going ("" with none).
 	FString TestWashState() const;
+	// The tyre fitting game on the tyre changer (Torque Shed's tyre_game.gd; TorqueWalkerTyre.cpp):
+	// its ring's up (a tyre being worked on), drawn over the view; and whether this walker (anyone's:
+	// from their hands) is working a tyre on or off at the changer, so its wheel turns.
+	bool TyreHudUp() const;
+	void DrawTyre(class AHUD* Hud, class UCanvas* Canvas) const;
+	bool TurningChanger() const;
+	// For the tests: the tyre fitting game played through at once on the tyre held at the changer,
+	// the lever trailing the marker by (1 - Skill) x 1.2 radians (Skill 1: right on it). Says the bead.
+	FString TestTyreGame(double Skill);
 	// For the tests: sweep the lance over the wash bay's bike from every side, Passes times at Distance cm
 	// (from underneath too if it's raised), the shed told; says how it went.
 	FString TestWashPasses(int32 Passes, double Distance);
@@ -462,6 +472,14 @@ private:
 	void SendWash();
 	bool WashOwns(const UStaticMeshComponent* C) const;
 	FString WashControlsText() const;
+
+	// --- The tyre fitting game (TorqueWalkerTyre.cpp) ---------------------------------------------------
+	// Holding the work button on the tyre changer's wheel with a tyre in your hands: the marker goes
+	// round the rim and the mouse (or right stick) works the lever instead of looking about. Letting
+	// go, or looking away, before it's round lets the bead slip back off.
+	TSharedPtr<FTorqueTyreGame> TyreGame;
+	FString TyreKey;
+	bool TyreWork(float Dt);           // true when the tyre game has the work button
 
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();

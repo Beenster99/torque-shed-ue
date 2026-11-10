@@ -112,6 +112,18 @@ const TCHAR* const SprayGameSteps =
 	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,item:exhaust,shot,item:exhaust,spraypass:3:35,item:exhaust,shot,")
 	TEXT("item:exhaust,spraypass:12:80,wait:3,item:exhaust,shot,log");
 
+// The tyre fitting game (TorqueTyreGame, TorqueWalkerTyre.cpp) on the tyre changer: a new 19" wire
+// wheel ordered, unpacked and clamped on the changer; a 160 mm tyre refused (too wide for the rim)
+// and put down; a 100 mm one worked on a little behind the marker (bead seated well), levered off
+// again and worked on right on the marker (perfectly); then off once more and the work button just
+// held with the lever left where it starts (badly seated).   [tyre]
+const TCHAR* const TyreGameSteps =
+	TEXT("tool:hands,order:wire_19_chrome,item:wire_19_chrome,f,item:wire_19_chrome,act,place:changer,act,look:changer,shot,")
+	TEXT("order:touring_road,item:touring_road,f,item:touring_road,act,place:changer,tyregame:1,place:bench_0,act,")
+	TEXT("order:vintage_ribbed_100,item:vintage_ribbed_100,f,item:vintage_ribbed_100,act,place:changer,tyregame:0.7,tyrelog,look:changer,shot,")
+	TEXT("item:wire_19_chrome,act,place:changer,tyregame:1,tyrelog,")
+	TEXT("item:wire_19_chrome,act,place:changer,hold:7,tyrelog,look:changer,shot,log");
+
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
 // test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
 // the Settings. The face isn't saved, so your own comes back next time.
@@ -274,6 +286,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("tyregame")) FString(TSTI::TyreGameSteps).ParseIntoArray(Preset, TEXT(","), true);   // [tyre]
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("scrap")) FString(TSTI::ScrapSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -755,6 +768,25 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const double Distance = P.Num() > 2 ? FMath::Clamp(FCString::Atod(*P[2]), 10.0, 300.0) : 80.0;
 		Said(W->TestSprayPasses(Passes, Distance));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("tyregame"))   // [tyre] tyregame:SKILL, the tyre game played at once (1: lever right on the marker)
+	{
+		if (bAimLost)
+		{
+			Warn(TEXT("skipped: the look before it missed"));
+			bAimLost = false;
+			return true;
+		}
+		Said(W->TestTyreGame(P.Num() > 1 ? FCString::Atod(*P[1]) : 1.0));
+		return true;
+	}
+	if (Verb == TEXT("tyrelog"))   // [tyre] every tyre: where it is and how well its bead was seated
+	{
+		for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+			if (KV.Value.Kind == FName(TEXT("tyre")))
+				UE_LOG(LogTemp, Log, TEXT("Torque test:   tyre %d %s at %d (ref %d): bead %.2f %s"), KV.Key, *KV.Value.Part.ToString(), (int32)KV.Value.At,
+					KV.Value.Ref, KV.Value.Bead, *UTorqueBuildSubsystem::BeadText(KV.Value));
 		return true;
 	}
 	if (Verb == TEXT("washpass"))   // [wash] washpass:PASSES:CM sweeps the lance over the whole bike
