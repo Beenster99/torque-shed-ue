@@ -394,7 +394,12 @@ def rain_material():
     translucent(m, "surface")
     try_set(m, "two_sided", True)
     try_set(m, "used_with_instanced_static_meshes", True)
-    # (No "output velocity": it writes depth, and the DepthFade below reads it, so it won't compile.)
+    # Output velocity off, explicitly (5.8 turns it on for new translucent materials, it seems): it writes
+    # depth, and the DepthFade below reads depth, so with it on the material won't compile. If it can't
+    # be turned off, the DepthFade is left out instead.
+    velocity_off = try_set(m, "output_translucent_velocity", False)
+    log("M_RainSprite: output velocity %s" % (
+        "off" if velocity_off else "couldn't be set, so no depth fade"))
 
     def data(i, x, y, default):
         return expr(m, unreal.MaterialExpressionPerInstanceCustomData, x, y, data_index=i, const_default_value=default)
@@ -418,11 +423,19 @@ def rain_material():
     op = expr(m, unreal.MaterialExpressionMultiply, -800, 500)
     mel.connect_material_expressions(shape, "", op, "A")
     mel.connect_material_expressions(alpha, "", op, "B")
-    fade = expr(m, unreal.MaterialExpressionDepthFade, -550, 500)
-    try_set(fade, "fade_distance_default", 4.0)
-    mel.connect_material_expressions(op, "", fade, "Opacity")
-    mel.connect_material_property(fade, "", M.MP_OPACITY)
-    return finish(m)
+    if velocity_off:
+        fade = expr(m, unreal.MaterialExpressionDepthFade, -550, 500)
+        try_set(fade, "fade_distance_default", 4.0)
+        mel.connect_material_expressions(op, "", fade, "Opacity")
+        mel.connect_material_property(fade, "", M.MP_OPACITY)
+    else:
+        mel.connect_material_property(op, "", M.MP_OPACITY)
+    m = finish(m)
+    try:
+        log("M_RainSprite: built (output velocity now %s)" % m.get_editor_property("output_translucent_velocity"))
+    except Exception:
+        pass
+    return m
 
 
 # --- M_SprayRing ----------------------------------------------------------------------------------
