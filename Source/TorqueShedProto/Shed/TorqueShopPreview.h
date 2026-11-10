@@ -11,6 +11,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Shed/TorqueFluidModels.h"
 #include "TorqueShopPreview.generated.h"
 
 class AHUD;
@@ -86,6 +87,10 @@ private:
 	UPROPERTY() UStaticMesh* Cylinder = nullptr;
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Shown;
 
+	// A fluid's can or bottle: its fluid's level (TorqueFluidModels), kept up each Tick.
+	TorqueFluidModels::FVessel Vessel;
+	FName VesselPart;
+	bool bVessel = false;
 	FString Key;                // what's built
 	double Radius = 50.0;       // its bounding sphere (cm)
 	double Yaw = 0.0, Pitch = 0.0, Zoom = 1.0;

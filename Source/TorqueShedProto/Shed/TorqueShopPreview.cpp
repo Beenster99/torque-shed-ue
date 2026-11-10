@@ -1,6 +1,7 @@
 #include "Shed/TorqueShopPreview.h"
 #include "Shed/TorqueBikeBadge.h"
 #include "Shed/TorqueFurniture.h"
+#include "Shed/TorqueFluidModels.h"
 
 #include "Fit/BikeLayout.h"
 #include "Shed/TorquePaintBay.h"
@@ -166,6 +167,18 @@ void Paint(UStaticMeshComponent* C, const FLinearColor& Colour, float Metallic, 
 		for (const TCHAR* P : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(P, Metallic);
 	if (Roughness >= 0.0f)
 		for (const TCHAR* P : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(P, Roughness);
+}
+
+// Shown clean, as built: the catalogue's finishes carry a road grime of their own (Tools/
+// import_blender_parts.py, make_speedtwin.py) that the shed sets per bike, so here it's taken off,
+// with the rust and the flies.
+void Clean(UStaticMeshComponent* C)
+{
+	UMaterialInstanceDynamic* M = C ? C->CreateDynamicMaterialInstance(0) : nullptr;
+	if (!M) return;
+	M->SetScalarParameterValue(TEXT("Grime"), 0.0f);
+	M->SetScalarParameterValue(TEXT("Rust"), 0.0f);
+	M->SetScalarParameterValue(TEXT("FlyGain"), 0.0f);
 }
 
 // How a tint's bottle looks (as the mixing bay's rack: ATorquePaintBayRoom's BottleLook).
@@ -345,6 +358,9 @@ void ATorqueShopPreview::Clear()
 		if (C) C->DestroyComponent();
 	Shown.Reset();
 	Holder->SetRelativeLocation(FVector::ZeroVector);
+	bVessel = false;
+	Vessel = TorqueFluidModels::FVessel();
+	VesselPart = NAME_None;
 }
 
 void ATorqueShopPreview::Rebuild(const FString& NewKey, TFunctionRef<void()> Make)
@@ -396,6 +412,15 @@ void ATorqueShopPreview::ShowPart(FName Part)
 	Rebuild(TEXT("part:") + Part.ToString(), [this, Part]
 	{
 		TArray<UStaticMeshComponent*> Made;
+		// A fluid: its can or bottle as the shed draws it, see-through with the fluid in it (Tick keeps
+		// its level), full as it's sold (empty for the drain pan and the bleed bottle).
+		if (TorqueShedParts::IsFluid(Part) && TorqueFluidModels::Make(this, Holder, Part, Made, Vessel))
+		{
+			bVessel = true;
+			VesselPart = Part;
+			Shown.Append(Made);
+			return;
+		}
 		ATorqueShedItems::MakeNewPart(this, Holder, Part, Cube, Made);
 		Shown.Append(Made);
 	});
@@ -479,6 +504,7 @@ void ATorqueShopPreview::ShowBike(const TMap<FString, FString>& Parts, const TMa
 		{
 			if (!C) continue;
 			Shown.Add(C);
+			TSPI::Clean(C);
 			if (C->ComponentHasTag(FName(TorqueShedCatalogue::NoPaintTag))) continue;
 			const FName Slot = TorqueShedModel::SlotTag(C);
 			if (const FTorqueShopFinish* F = Finishes.Find(Slot))
@@ -521,6 +547,12 @@ void ATorqueShopPreview::Tick(float DeltaSeconds)
 
 	if (bSpin && !bDrag) Yaw = FMath::Fmod(Yaw + TSPI::SpinRate * DeltaSeconds, 360.0);
 	Pivot->SetRelativeRotation(FRotator(0.0, Yaw, 0.0));
+	if (bVessel)
+	{
+		const float Fill = TorqueShedParts::ComesEmpty(VesselPart) ? 0.0f : 1.0f;
+		const FLinearColor Liquid = TorqueFluidModels::AgedColour(TorqueShedParts::PartKind(VesselPart), TorqueShedParts::LiquidColour(VesselPart), 0.0f);
+		TorqueFluidModels::Update(Vessel, Fill, Liquid, 0.0f, DeltaSeconds);
+	}
 
 	// The camera looks at the pivot from far enough to fit the item's sphere in the picture's height.
 	const double Aspect = FMath::Max((double)Target->SizeX / FMath::Max((double)Target->SizeY, 1.0), 0.2);
