@@ -1455,10 +1455,17 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 						A = FMath::Lerp(AnkleOnPeg, A, Down);
 						FootQ = FQuat::Slerp(OnPeg, FQuat::Identity, Down);
 					}
-					// The knee on the circle the thigh and shin allow, as near as it comes to the bike's
-					// knee point (the tank's knee pads; without one, forward of the hip and a little out),
-					// and outside the tank's flank.
-					KneeGoal[S] = Tg.bOnLayout ? ToC(Tg.Knee[S]) : P[I] + Fwd * (Lt * 0.92) - Up * (Lt * 0.3) + Right * (Side * 6.0);
+					// The knee on the circle the thigh and shin allow, as near as it comes to a nearly
+					// level thigh (12 degrees down from the hip joint, as people sit a bike: beenster), as
+					// far out as the bike's knee point (the tank's knee pads; without one, 6 cm out from
+					// the hip), and outside the tank's flank.
+					{
+						const double Dn = FMath::DegreesToRadians(12.0);
+						FVector Goal = Rel.TransformPosition(P[I] + Fwd * (Lt * FMath::Cos(Dn)) - Up * (Lt * FMath::Sin(Dn)));
+						if (Tg.bOnLayout) Goal.Y = Tg.Knee[S].Y;
+						else Goal = Rel.TransformPosition(ToC(Goal) + Right * (Side * 6.0));
+						KneeGoal[S] = ToC(Goal);
+					}
 					FVector Dir = A - P[I];
 					const double Len = FMath::Clamp(Dir.Size(), FMath::Abs(Lt - Ls) + 0.1, (Lt + Ls) * 0.999);
 					Dir = Dir.GetSafeNormal(UE_SMALL_NUMBER, -Up);
