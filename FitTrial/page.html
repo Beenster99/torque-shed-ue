@@ -77,7 +77,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
   <div class="tally" id="tally"></div>
   <div class="row" id="rulesBox" hidden>
     <h2>Realism rules, as the game builds each bike</h2>
-    <p class="soft">Round 2 measures what an eye reads, not only clashes. The limits come from real bikes. Several of the 14 designed bikes break them too, so the faults sit in how the game places parts, before any solver.</p>
+    <p class="soft">A first draft, not yet a verdict. Round 2 tries to measure what an eye reads, with limits taken from real bikes. These scores are unchecked and some will be wrong: tell me where a card is flagged and looks right, or looks wrong and is not flagged. The same rules flag several of the 14 designed bikes.</p>
     <div class="scroll"><table id="rules"></table></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -162,7 +162,7 @@ function draw() {
       meta.append(top);
       if (b.did.length) meta.append(el("div", "did", b.did.join("; ")));
       else if (b.before.length) meta.append(el("div", "did", "No move it is allowed helps: " + b.before.map(faultText).join("; ")));
-      if (b.rules && b.rules.length) meta.append(el("div", "broke", "Breaks " + b.rules.length + " realism rule" + (b.rules.length > 1 ? "s" : "") + ": " + b.rules.map(r => DATA.rules[r[0]].toLowerCase()).join("; ")));
+      if (b.rules && b.rules.length) meta.append(el("div", "broke", "Draft rule flags: " + b.rules.map(r => DATA.rules[r[0]].toLowerCase()).join("; ")));
       meta.append(el("div", "num", "#" + b.n));
       c.append(pair, meta); cards.append(c);
     });
