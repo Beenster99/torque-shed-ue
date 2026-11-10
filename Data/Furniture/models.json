@@ -1,5 +1,5 @@
 {
- "about": "Every piece of shed equipment, trinket and yard kit Torque Shed has (equipment.gd MODELS, trinkets.gd MODELS, world_yard.gd fixtures), for the UE port's movable kit (Source/TorqueShedProto/Shed/TorqueFurniture). size: width, height, depth in metres (Torque Shed's footprint, +z the front). yard: outside kit. wall: hangs on a wall. ride: the bike rides on it (tagged Road). solid: the bike bumps into it (a contact box). pass: ride straight through it. sold: ordered from the parts computer's Shed aisle (free in the UE port). The model is Data/Props' prop of the same id (/Game/Shed/Props/<id>/SM_<id>).",
+ "about": "Every piece of shed equipment, trinket and yard kit Torque Shed has (equipment.gd MODELS, trinkets.gd MODELS, world_yard.gd fixtures), for the UE port's movable kit (Source/TorqueShedProto/Shed/TorqueFurniture). size: width, height, depth in metres (Torque Shed's footprint, +z the front). yard: outside kit. wall: hangs on a wall. ride: the bike rides on it (tagged Road). solid: the bike bumps into it (a contact box). pass: no contact box (ramps: ridden up and over via ride, never a wall the bike stops on). sold: ordered from the parts computer's Shed aisle (free in the UE port). The model is Data/Props' prop of the same id (/Game/Shed/Props/<id>/SM_<id>).",
  "kinds": [
   [
    "stand",
@@ -580,6 +580,7 @@
     2.0
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -593,6 +594,7 @@
     1.6
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -606,6 +608,7 @@
     3.2
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -619,6 +622,7 @@
     4.8
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -632,6 +636,7 @@
     7.0
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -645,6 +650,7 @@
     9.0
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -658,6 +664,7 @@
     7.0
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -671,6 +678,7 @@
     9.5
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
@@ -684,6 +692,7 @@
     13.0
    ],
    "yard": true,
+   "ride": true,
    "pass": true,
    "sold": true
   },
