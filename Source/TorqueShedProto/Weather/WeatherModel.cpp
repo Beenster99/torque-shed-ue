@@ -284,6 +284,11 @@ std::string OpenMeteoUrl(double Lat, double Lon)
 		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime";
 }
 
+namespace
+{
+bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Time, std::string* Error);
+}
+
 bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::string* Error)
 {
 	using TorqueFit::Json;
@@ -294,6 +299,14 @@ bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::s
 		if (Error) *Error = "not JSON: " + Why;
 		return false;
 	}
+	return ParseOpenMeteoPoint(Root, Out, Time, Error);
+}
+
+namespace
+{
+bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Time, std::string* Error)
+{
+	using TorqueFit::Json;
 	if (Root.Flag("error"))
 	{
 		if (Error) *Error = "the service said: " + Root.Str("reason");
@@ -339,6 +352,197 @@ bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::s
 	Out = S;
 	if (Time) *Time = Now;
 	return true;
+}
+} // namespace
+
+// --- Weather across distance (stage 5) ----------------------------------------------------------------
+
+namespace
+{
+constexpr double MetresPerDegree = 111320.0;
+constexpr double DegToRad = 3.14159265358979323846 / 180.0;
+double Lerp1(double A, double B, double T) { return A + (B - A) * T; }
+}
+
+void Offset(double Lat, double Lon, double East, double North, double& OutLat, double& OutLon)
+{
+	OutLat = Lat + North / MetresPerDegree;
+	OutLon = Lon + East / (MetresPerDegree * std::max(std::cos(Lat * DegToRad), 0.05));
+}
+
+void MetresBetween(double FromLat, double FromLon, double ToLat, double ToLon, double& East, double& North)
+{
+	North = (ToLat - FromLat) * MetresPerDegree;
+	East = (ToLon - FromLon) * MetresPerDegree * std::max(std::cos(FromLat * DegToRad), 0.05);
+}
+
+void SnapCentre(double Lat, double Lon, double StepM, double& OutLat, double& OutLon)
+{
+	const double DLat = StepM / MetresPerDegree;
+	OutLat = std::round(Lat / DLat) * DLat;
+	const double DLon = StepM / (MetresPerDegree * std::max(std::cos(OutLat * DegToRad), 0.05));
+	OutLon = std::round(Lon / DLon) * DLon;
+}
+
+std::string OpenMeteoGridUrl(double Lat, double Lon, int N, double StepM)
+{
+	std::string Lats, Lons;
+	char Buf[32];
+	const double Half = (N - 1) * 0.5;
+	for (int Row = 0; Row < N; ++Row)
+		for (int Col = 0; Col < N; ++Col)
+		{
+			double PLat = 0.0, PLon = 0.0;
+			Offset(Lat, Lon, (Col - Half) * StepM, (Half - Row) * StepM, PLat, PLon);
+			std::snprintf(Buf, sizeof(Buf), "%s%.4f", Lats.empty() ? "" : ",", PLat);
+			Lats += Buf;
+			std::snprintf(Buf, sizeof(Buf), "%s%.4f", Lons.empty() ? "" : ",", PLon);
+			Lons += Buf;
+		}
+	return "https://api.open-meteo.com/v1/forecast?latitude=" + Lats + "&longitude=" + Lons +
+		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
+		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime&timezone=auto";
+}
+
+bool ParseOpenMeteoGrid(const std::string& Body, double Lat, double Lon, int N, double StepM, Grid& Out,
+	long long* Time, int* UtcOffset, std::string* Error)
+{
+	using TorqueFit::Json;
+	Json Root;
+	std::string Why;
+	if (!Json::Parse(Body, Root, &Why))
+	{
+		if (Error) *Error = "not JSON: " + Why;
+		return false;
+	}
+	if (Root.IsObject())
+	{
+		// (One point asked for, or the service's error.)
+		if (Root.Flag("error"))
+		{
+			if (Error) *Error = "the service said: " + Root.Str("reason");
+			return false;
+		}
+		if (N != 1)
+		{
+			if (Error) *Error = "one point in the answer, not a grid";
+			return false;
+		}
+	}
+	const size_t Want = static_cast<size_t>(N) * static_cast<size_t>(N);
+	if (Root.IsArray() && Root.A.size() != Want)
+	{
+		if (Error) *Error = "the answer has " + std::to_string(Root.A.size()) + " points, not " + std::to_string(Want);
+		return false;
+	}
+	Grid G;
+	G.N = N;
+	G.Lat = Lat;
+	G.Lon = Lon;
+	G.StepM = StepM;
+	long long Latest = 0;
+	for (size_t I = 0; I < Want; ++I)
+	{
+		const Json& P = Root.IsArray() ? Root.A[I] : Root;
+		State S;
+		long long When = 0;
+		if (!ParseOpenMeteoPoint(P, S, &When, Error)) return false;
+		G.Points.push_back(S);
+		G.Elevation.push_back(P.Num("elevation", 0.0));
+		Latest = std::max(Latest, When);
+		if (I == Want / 2 && UtcOffset) *UtcOffset = static_cast<int>(P.Num("utc_offset_seconds", 0.0));
+	}
+	Out = G;
+	if (Time) *Time = Latest;
+	return true;
+}
+
+State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSeconds)
+{
+	if (!G.Valid()) return State();
+	// Carried on the wind (the grid's mean): what is here now was upwind when it was fetched.
+	double Ex = 0.0, Ny = 0.0;
+	for (const State& P : G.Points)
+	{
+		const double To = (P.WindFrom + 180.0) * DegToRad;
+		Ex += std::sin(To) * P.Wind;
+		Ny += std::cos(To) * P.Wind;
+	}
+	Ex /= static_cast<double>(G.Points.size());
+	Ny /= static_cast<double>(G.Points.size());
+	const double Half = (G.N - 1) * 0.5;
+	double DriftE = Ex * std::max(DriftSeconds, 0.0), DriftN = Ny * std::max(DriftSeconds, 0.0);
+	const double Most = Half * G.StepM, Len = std::sqrt(DriftE * DriftE + DriftN * DriftN);
+	if (Len > Most) { DriftE *= Most / Len; DriftN *= Most / Len; }
+	double East = 0.0, North = 0.0;
+	MetresBetween(G.Lat, G.Lon, Lat, Lon, East, North);
+	const double Col = std::min(std::max((East - DriftE) / G.StepM + Half, 0.0), (double)(G.N - 1));
+	const double Row = std::min(std::max(Half - (North - DriftN) / G.StepM, 0.0), (double)(G.N - 1));
+	const int C0 = std::min((int)Col, G.N - 2), R0 = std::min((int)Row, G.N - 2);
+	const double Tx = Col - C0, Ty = Row - R0;
+	auto At = [&G](int R, int C) -> const State& { return G.Points[R * G.N + C]; };
+	const State& A = At(R0, C0);
+	const State& B = At(R0, C0 + 1);
+	const State& C = At(R0 + 1, C0);
+	const State& D = At(R0 + 1, C0 + 1);
+	auto Mix = [Tx, Ty](double a, double b, double c, double d) { return Lerp1(Lerp1(a, b, Tx), Lerp1(c, d, Tx), Ty); };
+	State S;
+	S.Cloud = Mix(A.Cloud, B.Cloud, C.Cloud, D.Cloud);
+	S.Rain = Mix(A.Rain, B.Rain, C.Rain, D.Rain);
+	S.Snow = Mix(A.Snow, B.Snow, C.Snow, D.Snow);
+	S.Wind = Mix(A.Wind, B.Wind, C.Wind, D.Wind);
+	S.Gust = Mix(A.Gust, B.Gust, C.Gust, D.Gust);
+	S.Air = Mix(A.Air, B.Air, C.Air, D.Air);
+	S.Visibility = std::exp(Mix(std::log(std::max(A.Visibility, 1.0)), std::log(std::max(B.Visibility, 1.0)),
+		std::log(std::max(C.Visibility, 1.0)), std::log(std::max(D.Visibility, 1.0))));
+	S.RoadWet = Mix(A.RoadWet, B.RoadWet, C.RoadWet, D.RoadWet);
+	S.LowCloud = Mix(A.LowCloud, B.LowCloud, C.LowCloud, D.LowCloud);
+	S.CloudBase = Mix(A.CloudBase, B.CloudBase, C.CloudBase, D.CloudBase);
+	S.Puddles = Mix(A.Puddles, B.Puddles, C.Puddles, D.Puddles);
+	{
+		auto X = [](const State& P) { return std::sin(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
+		auto Y = [](const State& P) { return std::cos(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
+		const double Wx = Mix(X(A), X(B), X(C), X(D)), Wy = Mix(Y(A), Y(B), Y(C), Y(D));
+		S.WindFrom = std::fmod(std::atan2(Wx, Wy) / DegToRad + 360.0, 360.0);
+	}
+	S.Code = At(R0 + (Ty >= 0.5 ? 1 : 0), C0 + (Tx >= 0.5 ? 1 : 0)).Code;
+	const double Ground = Mix(G.Elevation[R0 * G.N + C0], G.Elevation[R0 * G.N + C0 + 1], G.Elevation[(R0 + 1) * G.N + C0], G.Elevation[(R0 + 1) * G.N + C0 + 1]);
+	if (AslM > -1000.0) S.Air -= 0.0065 * (AslM - Ground);
+	return S;
+}
+
+State AddDifference(const State& Base, const State& Here, const State& Ref, double W)
+{
+	W = Clamp01(W);
+	State S = Base;
+	if (W <= 0.0) return S;
+	auto Add = [W](double B, double H, double R) { return B + (H - R) * W; };
+	S.Cloud = Clamp01(Add(Base.Cloud, Here.Cloud, Ref.Cloud));
+	S.Rain = std::max(Add(Base.Rain, Here.Rain, Ref.Rain), 0.0);
+	S.Snow = std::max(Add(Base.Snow, Here.Snow, Ref.Snow), 0.0);
+	S.Wind = std::max(Add(Base.Wind, Here.Wind, Ref.Wind), 0.0);
+	S.Gust = std::max(Add(Base.Gust, Here.Gust, Ref.Gust), S.Wind);
+	S.Air = Add(Base.Air, Here.Air, Ref.Air);
+	S.Visibility = std::max(Base.Visibility * std::pow(std::max(Here.Visibility, 1.0) / std::max(Ref.Visibility, 1.0), W), 20.0);
+	S.RoadWet = Clamp01(Add(Base.RoadWet, Here.RoadWet, Ref.RoadWet));
+	S.LowCloud = Clamp01(Add(Base.LowCloud, Here.LowCloud, Ref.LowCloud));
+	S.CloudBase = std::max(Add(Base.CloudBase, Here.CloudBase, Ref.CloudBase), 0.0);
+	S.Puddles = Clamp01(Add(Base.Puddles, Here.Puddles, Ref.Puddles));
+	double D = std::fmod(Here.WindFrom - Ref.WindFrom + 540.0, 360.0) - 180.0;
+	S.WindFrom = std::fmod(Base.WindFrom + D * W + 360.0, 360.0);
+	if (W >= 0.5 && Here.Code != Ref.Code) S.Code = Here.Code;
+	return S;
+}
+
+double SunDeclination(int DayOfYear)
+{
+	return 23.44 * std::sin(2.0 * 3.14159265358979323846 * (284 + DayOfYear) / 365.0);
+}
+
+double EquationOfTime(int DayOfYear)
+{
+	const double B = 2.0 * 3.14159265358979323846 * (DayOfYear - 81) / 364.0;
+	return 9.87 * std::sin(2.0 * B) - 7.53 * std::cos(B) - 1.5 * std::sin(B);
 }
 
 std::string MetNoUrl(double Lat, double Lon)

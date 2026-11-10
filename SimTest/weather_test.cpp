@@ -198,6 +198,62 @@ int main()
 		Check(WindAtRider(Windy, 3.0, 1.0, From) < WindAtRider(Windy, 3.0, 0.0, From) * 0.25, "shelter takes most of it");
 	}
 
+	// Stage 5: weather across distance.
+	{
+		const int N = 3;
+		const double Step = 2500.0;
+		const std::string Url = OpenMeteoGridUrl(54.35, -2.2, N, Step);
+		size_t Commas = 0;
+		for (char Ch : Url.substr(0, Url.find("&longitude"))) Commas += Ch == ',';
+		Check(Commas == 8 && Url.find("timezone=auto") != std::string::npos, "the grid is asked for in one call (9 points)");
+		// A shower over the western column, dry elsewhere; a 10 m/s westerly; the ground 300 m, the
+		// eastern points 500 m.
+		std::string Body = "[";
+		for (int I = 0; I < N * N; ++I)
+		{
+			const int Col = I % N;
+			char Point[900];
+			std::snprintf(Point, sizeof Point,
+				R"(%s{"latitude":54.35,"longitude":-2.2,"elevation":%d,"utc_offset_seconds":3600,"current":{"time":1794265200,"interval":900,"temperature_2m":10.0,"dew_point_2m":8.0,"cloud_cover_low":50,"precipitation":%s,"snowfall":0.0,"cloud_cover":%d,"wind_speed_10m":10.0,"wind_direction_10m":270,"wind_gusts_10m":15.0,"weather_code":%d,"visibility":20000},"hourly":{"time":[1794261600],"precipitation":[0.0]}})",
+				I ? "," : "", Col == 2 ? 500 : 300, Col == 0 ? "1.0" : "0.0", Col == 0 ? 100 : 40, Col == 0 ? 63 : 2);
+			Body += Point;
+		}
+		Body += "]";
+		Grid G;
+		int Utc = 0;
+		std::string Why;
+		Check(ParseOpenMeteoGrid(Body, 54.35, -2.2, N, Step, G, nullptr, &Utc, &Why) && G.Valid(), "the grid's answer reads");
+		Check(Utc == 3600, "  with the clock's offset from UTC");
+		Check(!ParseOpenMeteoGrid(Body, 54.35, -2.2, 5, Step, G, nullptr, nullptr, &Why), "  a grid of the wrong size is refused");
+		ParseOpenMeteoGrid(Body, 54.35, -2.2, N, Step, G);
+		double WestLat = 0.0, WestLon = 0.0, MidLat = 0.0, MidLon = 0.0;
+		Offset(54.35, -2.2, -2500.0, 0.0, WestLat, WestLon);
+		Offset(54.35, -2.2, -1250.0, 0.0, MidLat, MidLon);
+		const State Centre = GridAt(G, 54.35, -2.2, -2000.0, 0.0);
+		const State West = GridAt(G, WestLat, WestLon, -2000.0, 0.0);
+		const State Between = GridAt(G, MidLat, MidLon, -2000.0, 0.0);
+		std::printf("  rain: centre %.1f, half way west %.1f, west %.1f mm/h\n", Centre.Rain, Between.Rain, West.Rain);
+		Check(Centre.Rain == 0.0 && Near(West.Rain, 4.0, 0.01) && Near(Between.Rain, 2.0, 0.01), "the shower is where it is, blending between points");
+		const State Drifted = GridAt(G, 54.35, -2.2, -2000.0, 250.0);
+		std::printf("  250 s later on the westerly: centre %.1f mm/h\n", Drifted.Rain);
+		Check(Near(Drifted.Rain, 4.0, 0.05), "  it drifts east on the wind (2.5 km in 250 s at 10 m/s)");
+		Check(Near(GridAt(G, 54.35, -2.2, -2000.0, 1e6).Rain, 4.0, 0.05), "  no further than half the grid");
+		const State Up = GridAt(G, 54.35, -2.2, 800.0, 0.0);
+		Check(Near(Up.Air, 10.0 - 0.0065 * 500.0, 0.01), "the air is colder higher up (0.65 C per 100 m)");
+		Check(Near(Up.WindFrom, 270.0, 0.5), "the wind's direction comes through");
+		double A1 = 0.0, B1 = 0.0, A2 = 0.0, B2 = 0.0;
+		SnapCentre(54.3500, -2.2000, Step, A1, B1);
+		SnapCentre(54.3501, -2.2003, Step, A2, B2);
+		Check(A1 == A2 && B1 == B2, "a little riding keeps the same grid centre");
+		const State Base = Preset(Overcast);
+		const State Local = AddDifference(Base, West, Centre, 1.0);
+		Check(Near(Local.Rain, Base.Rain + 4.0, 0.01) && Local.Cloud == 1.0 && Local.Code == 63, "the shared weather made local");
+		Check(AddDifference(Base, West, Centre, 0.0).Rain == Base.Rain, "  and none of it at 0");
+		std::printf("  sun: declination 21 Jun %.1f, 21 Dec %.1f; equation of time 3 Nov %+.1f min\n", SunDeclination(172), SunDeclination(355), EquationOfTime(307));
+		Check(Near(SunDeclination(172), 23.4, 0.3) && Near(SunDeclination(355), -23.4, 0.3), "the sun's height follows the date");
+		Check(Near(EquationOfTime(307), 16.4, 1.0), "the sundial runs ahead in early November");
+	}
+
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
 }

@@ -38,6 +38,10 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, Weather);
 	DOREPLIFETIME(ATorqueGameState, Net);
 	DOREPLIFETIME(ATorqueGameState, Hour);
+	DOREPLIFETIME(ATorqueGameState, SunShift);
+	DOREPLIFETIME(ATorqueGameState, SunDec);
+	DOREPLIFETIME(ATorqueGameState, SunLat);
+	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 }
 
@@ -97,6 +101,14 @@ void ATorqueGameState::BeginPlay()
 		GoToMode(0.0f);
 	}
 	WeatherChangeIn = FMath::FRandRange(300.0, 720.0);
+	Here = HereApplied = Fade.Now;
+	FetchLat = LatitudeAt;
+	FetchLon = LongitudeAt;
+	if (GConfig)
+	{
+		int32 Saved = 0;
+		if (GConfig->GetInt(TEXT("TorqueWeather"), TEXT("UtcOffset"), Saved, GGameUserSettingsIni)) { UtcOffset = Saved; bUtcKnown = true; }
+	}
 	// The clock where it was left (the level's own light until the player sets one).
 	if (HasAuthority() && !bTest) Hour = Set.TimeOfDay;
 	ApplySun();   // (and the weather's light)
@@ -252,10 +264,29 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 		const int32 Next = Weather == 0 ? 1 : Weather == 2 ? 1 : (FMath::RandBool() ? 0 : 2);
 		SetWeather(Next, 180.0f);
 	}
-	// Live: asking again every 15 minutes (sooner after a failure).
+	// Live: asking again every 15 minutes (sooner after a failure), and when the host has ridden out
+	// towards the grid's edge (no more than every two minutes).
+	if (Mode == FTorqueSettings::WeatherLive && !bFetching && GridNow.Valid())
+	{
+		double VLat = 0.0, VLon = 0.0, VAsl = 0.0, East = 0.0, North = 0.0;
+		ViewGeo(VLat, VLon, VAsl);
+		TorqueWeather::MetresBetween(GridNow.Lat, GridNow.Lon, VLat, VLon, East, North);
+		if (FMath::Max(FMath::Abs(East), FMath::Abs(North)) > 0.75 * GridNow.StepM && GetWorld()->GetTimeSeconds() - LastFetchAt > 120.0)
+			NextFetchIn = 0.0;
+	}
 	if (Mode == FTorqueSettings::WeatherLive && !bFetching && (NextFetchIn -= DeltaSeconds) <= 0.0) FetchLive(0);
-	// The day going by: a whole day in Settings' Day length of real minutes.
-	if (Set.bDayNight)
+	// The real time of day, or the day going by: a whole day in Settings' Day length of real minutes.
+	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
+	if (Set.bRealClock && !bTestRun) TickRealClock();
+	else if (SunShift != 0.0f || SunDec != 15.0f || SunLat != 54.35f)
+	{
+		SunShift = 0.0f;
+		SunDec = 15.0f;
+		SunLat = 54.35f;
+		ApplySun();
+		ForceNetUpdate();
+	}
+	if (Set.bDayNight && !(Set.bRealClock && !bTestRun))
 	{
 		if (Hour < 0.0f) Hour = BuiltAt;
 		Hour = FMath::Fmod(Hour + DeltaSeconds * 24.0f / (60.0f * (float)FMath::Max(Set.DayLength, 1)), 24.0f);
@@ -292,9 +323,9 @@ namespace
 {
 // The sun over Swaledale (54.35 N) in late spring (declination 15 degrees), by solar time: its height
 // and its bearing from north, clockwise, in degrees.
-void SunAt(double Hours, double& Elevation, double& Bearing)
+void SunAt(double Hours, double& Elevation, double& Bearing, double LatDeg = 54.35, double DecDeg = 15.0)
 {
-	const double Lat = FMath::DegreesToRadians(54.35), Dec = FMath::DegreesToRadians(15.0);
+	const double Lat = FMath::DegreesToRadians(LatDeg), Dec = FMath::DegreesToRadians(DecDeg);
 	const double H = FMath::DegreesToRadians(15.0 * (Hours - 12.0));
 	const double SinE = FMath::Sin(Lat) * FMath::Sin(Dec) + FMath::Cos(Lat) * FMath::Cos(Dec) * FMath::Cos(H);
 	Elevation = FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(SinE, -1.0, 1.0)));
@@ -351,7 +382,7 @@ void ATorqueGameState::ApplySun()
 	else
 	{
 		double E = 0.0, B = 0.0;
-		SunAt(Hour, E, B);
+		SunAt(FMath::Fmod(Hour + SunShift + 48.0, 24.0), E, B, SunLat, SunDec);
 		// Below the horizon the light goes out (and stays pointing down, so nothing is lit from under).
 		SunActor->SetActorRotation(FRotator(-FMath::Max(E, 2.0), LightYaw(B) + SunYawOffset, BuiltSun.Roll));
 		DayLight = FMath::SmoothStep(-4.0f, 6.0f, (float)E);
@@ -387,6 +418,12 @@ void ATorqueGameState::WeatherModeChanged(float FadeSeconds)
 
 void ATorqueGameState::GoToMode(float FadeSeconds)
 {
+	if (Mode != FTorqueSettings::WeatherLive && (GridNow.Valid() || GridBefore.Valid()))
+	{
+		// (Not live: one weather for everyone again, the local differences fading out with the change.)
+		SetGrid(TorqueWeather::Grid(), 0, FadeSeconds);
+		SendGrid();
+	}
 	if (Mode >= 1 && Mode <= 3)
 	{
 		SetWeather(Mode - 1, FadeSeconds);
@@ -474,6 +511,14 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 	if (!World) return;
 	const bool bMoved = Fade.Tick(DeltaSeconds);
 	const double Now = World->GetRealTimeSeconds();
+	// The weather here: the shared weather made local from the grid (every frame: it's cheap), shown
+	// when it has changed enough to see.
+	UpdateHere();
+	const bool bHereMoved = HereAt >= 0.0 && Now - AppliedAt >= 0.1 && (FMath::Abs(Here.Cloud - HereApplied.Cloud) > 0.01
+		|| FMath::Abs(Here.Rain - HereApplied.Rain) > 0.03 || FMath::Abs(Here.RoadWet - HereApplied.RoadWet) > 0.01
+		|| FMath::Abs(Here.Puddles - HereApplied.Puddles) > 0.01 || FMath::Abs(Here.Air - HereApplied.Air) > 0.2
+		|| FMath::Abs(Here.Wind - HereApplied.Wind) > 0.2 || FMath::Abs(Here.LowCloud - HereApplied.LowCloud) > 0.01
+		|| FMath::Abs(Here.Visibility - HereApplied.Visibility) > 0.03 * HereApplied.Visibility);
 	if (HasAuthority())
 	{
 		const int32 Kind = TorqueWeather::NearestKind(Fade.Now);
@@ -490,9 +535,10 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 		bHazeMoved = FMath::Abs(HazeNow() - AppliedHaze) > 0.05f * FMath::Max(AppliedHaze, 1.0f);
 	}
 	// On the screen: ten times a second while it fades (the light moves slowly), and as it ends.
-	if (AppliedAt < 0.0 || bHazeMoved || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
+	if (AppliedAt < 0.0 || bHazeMoved || bHereMoved || (bMoved && (!Fade.Fading() || Now - AppliedAt >= 0.1)))
 	{
 		AppliedAt = Now;
+		HereApplied = Here;
 		ApplyWeather();
 	}
 }
@@ -500,7 +546,7 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 FString ATorqueGameState::WeatherText(bool bImperial) const
 {
 	static const TCHAR* Kinds[] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
-	const FString Words = UTF8_TO_TCHAR(TorqueWeather::Describe(Fade.Now, bImperial).c_str());
+	const FString Words = UTF8_TO_TCHAR(TorqueWeather::Describe(Here, bImperial).c_str());
 	const int64 Mins = Net.FetchedAt > 0 ? FMath::Max<int64>((FDateTime::UtcNow().ToUnixTimestamp() - Net.FetchedAt) / 60, 0) : -1;
 	const FString Ago = Mins < 0 ? FString() : Mins < 1 ? FString(TEXT("just now")) : Mins < 120 ? FString::Printf(TEXT("%lld min ago"), Mins)
 		: FString::Printf(TEXT("%lld hours ago"), Mins / 60);
@@ -519,7 +565,13 @@ FString ATorqueGameState::WeatherText(bool bImperial) const
 void ATorqueGameState::FetchLive(int32 Feed)
 {
 	if (!HasAuthority()) return;
-	const std::string Url = Feed == 0 ? TorqueWeather::OpenMeteoUrl(LatitudeAt, LongitudeAt) : TorqueWeather::MetNoUrl(LatitudeAt, LongitudeAt);
+	// Open-Meteo: the grid round where the host is now (snapped, so riding about doesn't move it);
+	// MET Norway, the backup, one place.
+	double VLat = LatitudeAt, VLon = LongitudeAt, VAsl = 0.0;
+	ViewGeo(VLat, VLon, VAsl);
+	TorqueWeather::SnapCentre(VLat, VLon, GRID_STEP_M, FetchLat, FetchLon);
+	if (const UWorld* World = GetWorld()) LastFetchAt = World->GetTimeSeconds();
+	const std::string Url = Feed == 0 ? TorqueWeather::OpenMeteoGridUrl(FetchLat, FetchLon, GRID_N, GRID_STEP_M) : TorqueWeather::MetNoUrl(VLat, VLon);
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
 	Req->SetURL(UTF8_TO_TCHAR(Url.c_str()));
 	Req->SetVerb(TEXT("GET"));
@@ -552,7 +604,8 @@ void ATorqueGameState::FetchLive(int32 Feed)
 	});
 	bFetching = true;
 	LiveRequest = Req;
-	UE_LOG(LogTemp, Log, TEXT("Torque weather: asking %s for %.4f, %.4f"), Feed == 0 ? TEXT("Open-Meteo") : TEXT("MET Norway"), LatitudeAt, LongitudeAt);
+	UE_LOG(LogTemp, Log, TEXT("Torque weather: asking %s for %.4f, %.4f%s"), Feed == 0 ? TEXT("Open-Meteo") : TEXT("MET Norway"),
+		Feed == 0 ? FetchLat : VLat, Feed == 0 ? FetchLon : VLon, Feed == 0 ? *FString::Printf(TEXT(" (%dx%d points %.1f km apart)"), GRID_N, GRID_N, GRID_STEP_M / 1000.0) : TEXT(""));
 	Req->ProcessRequest();
 }
 
@@ -561,10 +614,14 @@ void ATorqueGameState::LiveAnswer(int32 Feed, bool, const FString& Body)
 	bFetching = false;
 	LiveRequest.Reset();
 	TorqueWeather::State S;
+	TorqueWeather::Grid G;
 	long long When = 0;
+	int32 UtcGiven = 0;
 	std::string Why;
 	const std::string Text = TCHAR_TO_UTF8(*Body);
-	const bool bParsed = Feed == 0 ? TorqueWeather::ParseOpenMeteo(Text, S, &When, &Why) : TorqueWeather::ParseMetNo(Text, S, &When, &Why);
+	const bool bParsed = Feed == 0 ? TorqueWeather::ParseOpenMeteoGrid(Text, FetchLat, FetchLon, GRID_N, GRID_STEP_M, G, &When, &UtcGiven, &Why)
+		: TorqueWeather::ParseMetNo(Text, S, &When, &Why);
+	if (bParsed && Feed == 0) S = G.Centre();
 	if (!bParsed)
 	{
 		LiveFailed(Feed, UTF8_TO_TCHAR(Why.c_str()));
@@ -578,7 +635,17 @@ void ATorqueGameState::LiveAnswer(int32 Feed, bool, const FString& Body)
 	// shed); otherwise new data eases in over four minutes, so nothing pops.
 	const UWorld* World = GetWorld();
 	const bool bStart = !bLiveApplied && Net.Source != (uint8)ETorqueWeatherSource::LiveLastKnown && World && World->GetTimeSeconds() < 20.0;
-	Fade.FadeTo(S, bStart ? 0.0 : !bLiveApplied ? 30.0 : 240.0);
+	const double FadeFor = bStart ? 0.0 : !bLiveApplied ? 30.0 : 240.0;
+	Fade.FadeTo(S, FadeFor);
+	// The weather here from the grid (none from the backup, which gives one place).
+	SetGrid(G, Now, FadeFor);
+	SendGrid();
+	if (Feed == 0)
+	{
+		UtcOffset = UtcGiven;
+		bUtcKnown = true;
+		if (GConfig) GConfig->SetInt(TEXT("TorqueWeather"), TEXT("UtcOffset"), UtcGiven, GGameUserSettingsIni);
+	}
 	if (bStart) Weather = TorqueWeather::NearestKind(S);
 	bLiveApplied = true;
 	Net.Source = (uint8)ETorqueWeatherSource::Live;
@@ -623,6 +690,142 @@ void ATorqueGameState::LiveFailed(int32 Feed, const FString& Why)
 	SendNet();
 }
 
+// --- Weather across distance and the real time of day (stage 5) -----------------------------------
+
+namespace
+{
+FTorqueWeatherNet NetOf(const TorqueWeather::State& S)
+{
+	FTorqueWeatherNet N;
+	N.Cloud = (float)S.Cloud; N.Rain = (float)S.Rain; N.Snow = (float)S.Snow; N.Wind = (float)S.Wind;
+	N.WindFrom = (float)S.WindFrom; N.Gust = (float)S.Gust; N.Air = (float)S.Air; N.Visibility = (float)S.Visibility;
+	N.RoadWet = (float)S.RoadWet; N.Code = S.Code; N.LowCloud = (float)S.LowCloud; N.CloudBase = (float)S.CloudBase;
+	N.Puddles = (float)S.Puddles;
+	return N;
+}
+
+TorqueWeather::State StateOf(const FTorqueWeatherNet& N)
+{
+	TorqueWeather::State S;
+	S.Cloud = N.Cloud; S.Rain = N.Rain; S.Snow = N.Snow; S.Wind = N.Wind; S.WindFrom = N.WindFrom; S.Gust = N.Gust;
+	S.Air = N.Air; S.Visibility = N.Visibility; S.RoadWet = N.RoadWet; S.Code = N.Code; S.LowCloud = N.LowCloud;
+	S.CloudBase = N.CloudBase; S.Puddles = N.Puddles;
+	return S;
+}
+} // namespace
+
+void ATorqueGameState::ViewGeo(double& Lat, double& Lon, double& Asl) const
+{
+	// This machine's camera (the levels: cm, x east, y south, z up, the origin at the route's
+	// origin_geo), as a place on Earth.
+	FVector At = FVector::ZeroVector;
+	if (const UWorld* W = GetWorld())
+		if (const APlayerController* PC = W->GetFirstPlayerController(); PC && PC->PlayerCameraManager)
+			At = PC->PlayerCameraManager->GetCameraLocation();
+	TorqueWeather::Offset(LatitudeAt, LongitudeAt, At.X / 100.0, -At.Y / 100.0, Lat, Lon);
+	Asl = OriginAsl + At.Z / 100.0;
+}
+
+void ATorqueGameState::SetGrid(const TorqueWeather::Grid& G, int64 FetchedAt, double FadeSeconds)
+{
+	// The grid before fades out as this one fades in (both over the shared weather's own fade).
+	GridBefore = GridNow;
+	GridFetchedBefore = GridFetchedNow;
+	GridNow = G;
+	GridFetchedNow = FetchedAt;
+	GridFadeFrom = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0;
+	GridFadeSeconds = FadeSeconds;
+	if (FadeSeconds <= 0.0) GridBefore = TorqueWeather::Grid();
+	UpdateHere();
+}
+
+void ATorqueGameState::SendGrid()
+{
+	if (!HasAuthority()) return;
+	GridNet.N = GridNow.Valid() ? GridNow.N : 0;
+	GridNet.Lat = GridNow.Lat;
+	GridNet.Lon = GridNow.Lon;
+	GridNet.StepM = (float)GridNow.StepM;
+	GridNet.Points.Reset();
+	GridNet.Elevation.Reset();
+	if (GridNow.Valid())
+		for (int32 I = 0; I < GridNow.N * GridNow.N; ++I)
+		{
+			GridNet.Points.Add(NetOf(GridNow.Points[I]));
+			GridNet.Elevation.Add((float)GridNow.Elevation[I]);
+		}
+	GridNet.FetchedAt = GridFetchedNow;
+	ForceNetUpdate();
+}
+
+void ATorqueGameState::OnRep_Grid()
+{
+	if (HasAuthority()) return;
+	TorqueWeather::Grid G;
+	if (GridNet.N >= 2 && GridNet.Points.Num() == GridNet.N * GridNet.N && GridNet.Elevation.Num() == GridNet.Points.Num())
+	{
+		G.N = GridNet.N;
+		G.Lat = GridNet.Lat;
+		G.Lon = GridNet.Lon;
+		G.StepM = GridNet.StepM;
+		for (int32 I = 0; I < GridNet.Points.Num(); ++I)
+		{
+			G.Points.push_back(StateOf(GridNet.Points[I]));
+			G.Elevation.push_back(GridNet.Elevation[I]);
+		}
+	}
+	// (Joining: at once. Later: eased in, as the host's shared weather is.)
+	SetGrid(G, GridNet.FetchedAt, HereAt < 0.0 ? 0.0 : 240.0);
+}
+
+void ATorqueGameState::UpdateHere()
+{
+	const UWorld* World = GetWorld();
+	if (!World) return;
+	if (!GridNow.Valid() && !GridBefore.Valid())
+	{
+		Here = Fade.Now;
+		HereAt = World->GetRealTimeSeconds();
+		return;
+	}
+	const double Now = World->GetRealTimeSeconds();
+	const double Unix = (double)FDateTime::UtcNow().ToUnixTimestamp();
+	const double W = GridFadeSeconds <= 0.0 ? 1.0 : FMath::SmoothStep(0.0, 1.0, FMath::Clamp((Now - GridFadeFrom) / GridFadeSeconds, 0.0, 1.0));
+	if (W >= 1.0) GridBefore = TorqueWeather::Grid();
+	double Lat = 0.0, Lon = 0.0, Asl = 0.0;
+	ViewGeo(Lat, Lon, Asl);
+	TorqueWeather::State S = Fade.Now;
+	if (GridBefore.Valid())
+		S = TorqueWeather::AddDifference(S, TorqueWeather::GridAt(GridBefore, Lat, Lon, Asl, Unix - (double)GridFetchedBefore), GridBefore.Centre(), 1.0 - W);
+	if (GridNow.Valid())
+		S = TorqueWeather::AddDifference(S, TorqueWeather::GridAt(GridNow, Lat, Lon, Asl, Unix - (double)GridFetchedNow), GridNow.Centre(), W);
+	Here = S;
+	HereAt = Now;
+}
+
+void ATorqueGameState::TickRealClock()
+{
+	// The host's clock follows the real local time where the weather is from (Open-Meteo's offset
+	// for the place; this PC's own until it has one), and the sun stands as it really does there today.
+	const FDateTime Utc = FDateTime::UtcNow();
+	const int32 Off = bUtcKnown ? UtcOffset : FMath::RoundToInt((FDateTime::Now() - Utc).GetTotalSeconds() / 900.0) * 900;
+	const double UtcHours = Utc.GetHour() + Utc.GetMinute() / 60.0 + Utc.GetSecond() / 3600.0;
+	const int32 Day = Utc.GetDayOfYear();
+	const float Clock = (float)FMath::Fmod(UtcHours + Off / 3600.0 + 48.0, 24.0);
+	SunDec = (float)TorqueWeather::SunDeclination(Day);
+	SunLat = (float)LatitudeAt;
+	SunShift = (float)(LongitudeAt / 15.0 + TorqueWeather::EquationOfTime(Day) / 60.0 - Off / 3600.0);
+	if (FMath::Abs(Clock - Hour) < 1.0f / 3600.0f) return;
+	Hour = Clock;
+	ApplySun();
+	// To the others every few seconds (the sun hardly moves between).
+	if (const UWorld* World = GetWorld(); World && World->GetTimeSeconds() - ClockSentAt > 5.0)
+	{
+		ClockSentAt = World->GetTimeSeconds();
+		ForceNetUpdate();
+	}
+}
+
 float ATorqueGameState::WeatherOpen() const
 {
 	return Fx ? Fx->OpenToSky() : 1.0f;
@@ -635,7 +838,7 @@ float ATorqueGameState::HazeNow() const
 	if (const UWorld* W = GetWorld())
 		if (const APlayerController* PC = W->GetFirstPlayerController(); PC && PC->PlayerCameraManager)
 			Asl = OriginAsl + PC->PlayerCameraManager->GetCameraLocation().Z / 100.0;
-	return (float)TorqueWeather::HazeAt(Fade.Now, Asl);
+	return (float)TorqueWeather::HazeAt(Here, Asl);
 }
 
 // Weather: the level is built sunny. As the sky dulls (the State's cloud) the sun dims and softens,
@@ -671,7 +874,7 @@ void ATorqueGameState::ApplyWeather()
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
 		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; }
 	}
-	const TorqueWeather::State& St = Fade.Now;
+	const TorqueWeather::State& St = Here;
 	const float Dull = (float)TorqueWeather::Dullness(St);    // 0 the sunny preset's sky .. 1 overcast's
 	const float WetL = (float)TorqueWeather::WetLook(St);     // 0 dry .. 1 the wet preset's
 	const float Haze = HazeNow();                              // 1, or more in poor visibility or up in low cloud
