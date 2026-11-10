@@ -139,3 +139,18 @@ if(MSVC)
 else()
   target_compile_options(weather_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# Reading the real world (Ride UK stage 1): the grid, the height tiles, cells stitched into a road
+# graph and the ground's height, against the Godot game's answers on the same files.
+set(WORLD ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/World)
+add_executable(world_test world_test.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
+  ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${FIT}/FitJson.cpp)
+target_include_directories(world_test PRIVATE ${WORLD} ${FIT})
+target_compile_definitions(world_test PRIVATE TORQUE_WORLD_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/world" TORQUE_WORLD_TMP="${CMAKE_CURRENT_BINARY_DIR}")
+find_package(Threads REQUIRED)
+target_link_libraries(world_test PRIVATE Threads::Threads)
+if(MSVC)
+  target_compile_options(world_test PRIVATE /W4)
+else()
+  target_compile_options(world_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()

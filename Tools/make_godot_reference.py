@@ -28,6 +28,12 @@ With --tune it runs Tools/godot_reference/dump_tune.tscn: the dyno desk's tune (
 the rider aids' levels, the engine's tune, what a tune does to the riding numbers, the desk's
 readings) for each style's reference bike and a few swaps, under a fixed set of tunes, written to
 SimTest/data/godot_tune.json for SimTest/tune_test.
+
+With --world it runs Tools/godot_reference/dump_world.tscn: the real world as the original reads it
+(the grid and map-tile maths, every test height tile decoded, two Dales cells stitched into one road
+graph, the ground's height along a ride), written to SimTest/data/world/godot_world.json for
+SimTest/world_test, and copies the original's own test cells and height tiles (tests/fixtures) beside
+it, so both games are checked on the same files.
 """
 import argparse
 import json
@@ -44,6 +50,7 @@ SPEC_OUT = os.path.join(REPO, "SimTest", "data", "godot_spec.json")
 SHOP_OUT = os.path.join(REPO, "SimTest", "data", "godot_shop.json")
 BADGE_OUT = os.path.join(REPO, "SimTest", "data", "godot_badge.json")
 TUNE_OUT = os.path.join(REPO, "SimTest", "data", "godot_tune.json")
+WORLD_DIR = os.path.join(REPO, "SimTest", "data", "world")
 
 
 def main():
@@ -57,6 +64,7 @@ def main():
     ap.add_argument("--shop", action="store_true", help="dump the New bike configurator (godot_shop.json) instead")
     ap.add_argument("--badge", action="store_true", help="dump the tank badge (godot_badge.json) instead")
     ap.add_argument("--tune", action="store_true", help="dump the dyno desk's tune (godot_tune.json) instead")
+    ap.add_argument("--world", action="store_true", help="dump the real world's readers (world/godot_world.json) instead")
     a = ap.parse_args()
     if a.from_raw:
         data = json.load(open(a.from_raw))
@@ -95,6 +103,17 @@ def main():
             out = TUNE_OUT if a.tune else SPEC_OUT
             json.dump(data, open(out, "w"), separators=(",", ":"), sort_keys=True)
             print("wrote %s" % out)
+            return
+        if a.world:
+            subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_world.tscn", "--", "--out=" + raw],
+                           check=True, capture_output=True, timeout=900)
+            os.makedirs(WORLD_DIR, exist_ok=True)
+            for part in ("cells", "heights"):
+                shutil.rmtree(os.path.join(WORLD_DIR, part), ignore_errors=True)
+                shutil.copytree(os.path.join(a.godot, "tests", "fixtures", part), os.path.join(WORLD_DIR, part),
+                                ignore=shutil.ignore_patterns(".gdignore"))
+            shutil.copyfile(raw, os.path.join(WORLD_DIR, "godot_world.json"))
+            print("wrote %s" % os.path.join(WORLD_DIR, "godot_world.json"))
             return
         if a.badge:
             subprocess.run([a.bin, "--headless", "--path", proj, "res://dump/dump_badge.tscn", "--", "--out=" + raw],

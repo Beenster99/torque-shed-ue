@@ -1,0 +1,26 @@
+[
+ {
+  "file": "rgb.png",
+  "width": 64,
+  "height": 64,
+  "rgb": "9595ba471667d8c4a767937efe4951ff4c05960516dc6314932ae2118a0c7264"
+ },
+ {
+  "file": "rgba.png",
+  "width": 64,
+  "height": 64,
+  "rgb": "9595ba471667d8c4a767937efe4951ff4c05960516dc6314932ae2118a0c7264"
+ },
+ {
+  "file": "grey.png",
+  "width": 64,
+  "height": 64,
+  "rgb": "7994e6027aef2e5c8a64dee0a1432f154704f4efe59af4e4d4a29ff14f279a8f"
+ },
+ {
+  "file": "palette.png",
+  "width": 64,
+  "height": 64,
+  "rgb": "ae07919b4d165fa3e58fc9aea0a8bcbdfba181ffbc734a5764d453252fdaf0f6"
+ }
+]
