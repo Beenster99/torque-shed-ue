@@ -715,12 +715,21 @@ def road_material_scanned(tex, roles):
                      const_b=1.8), const_b=0.5))                                                          # outside 0 .. straight 0.5 .. inside 1
     pud = weather_param(g, "Puddles")
     fill = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, pud, const_b=2.5))
+    # Build 131 (beenster): fewer puddles, but now and then a bigger one. A slow noise picks the odd
+    # stretch of road (tens of metres) where a big puddle sits; there it reaches further in from the edge.
+    big = g.mask_noise(0.0009, -3.0, 1.4)
+    wide = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                g.op(unreal.MaterialExpressionSubtract, vc_p, a_out="R", const_b=0.25), const_b=1.6))     # 0 inside 0.25 .. 1 by 0.88
+    edge = g.lerp(edge, wide, big)
     where = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, edge, g.op(unreal.MaterialExpressionMultiply, side, const_b=1.6)), fill)
     centre = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
                   g.op(unreal.MaterialExpressionSubtract, pud, const_b=0.6), const_b=2.5))
     where = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax, where, centre))
-    # In patches along it (longer and closer together at the edges than the old scattered ones).
-    patches = g.mask_noise(0.006, -3.5, 2.0)
+    # In patches along it: small ones few and far between (most of the edge stays dry), and larger,
+    # longer pools only where the slow noise says so.
+    small = g.mask_noise(0.006, -7.0, 2.0)
+    large = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.0022, -2.5, 2.2), big)
+    patches = g.op(unreal.MaterialExpressionMax, small, large)
     puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, patches, where), wet)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.const(0.5), wet))
     road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
