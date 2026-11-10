@@ -101,7 +101,7 @@ std::string Sha1Hex(const std::string& Bytes)
 {
 	uint32_t H[5] = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0};
 	std::string Msg = Bytes;
-	Msg.push_back(char(0x80));
+	Msg.push_back(static_cast<char>(static_cast<unsigned char>(0x80)));
 	while (Msg.size() % 64 != 56) Msg.push_back(char(0));
 	const uint64_t Bits = uint64_t(Bytes.size()) * 8;
 	for (int I = 7; I >= 0; --I) Msg.push_back(char(uint8_t(Bits >> (8 * I))));
