@@ -26,3 +26,6 @@ SimTest/sfx_test.wav
 
 # Written by the PC packaging step (round, commit, time) and staged with the build; not tracked
 /Data/build.json
+
+# Unreal content is built on the PC by the Tools scripts or added from Fab; none of it is tracked.
+/Content/
