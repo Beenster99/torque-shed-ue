@@ -25,7 +25,8 @@ enum ENetVal
 	NV_FrontKappa, NV_RearKappa, NV_FrontSlip, NV_RearSlip, NV_Count
 };
 static_assert(NV_Count <= TorqueNet::MaxVals, "more values than a snapshot holds");
-enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf };
+enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Count };
+static_assert(NI_Count <= TorqueNet::MaxInts, "more stepped values than a snapshot holds");
 
 constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16;
 
@@ -125,6 +126,7 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	S.Flags = (Sim.IsCrashed ? FlagCrashed : 0) | (F.Contact ? FlagFrontDown : 0) | (R.Contact ? FlagRearDown : 0) | (Sim.IsGhost() ? FlagGhost : 0) | (B->IsOnFoot() ? FlagParked : 0);
 	S.FrontSurf = (uint8)FMath::Clamp(F.Surf, 0, 255);
 	S.RearSurf = (uint8)FMath::Clamp(R.Surf, 0, 255);
+	S.Lamps = B->Lights.NetBits();   // [lights]
 }
 
 void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
@@ -159,6 +161,7 @@ void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 	N.Ints[NI_Flags] = S.Flags;
 	N.Ints[NI_FrontSurf] = S.FrontSurf;
 	N.Ints[NI_RearSurf] = S.RearSurf;
+	N.Ints[NI_Lamps] = S.Lamps;
 	Smooth.Push(N, FPlatformTime::Seconds());
 }
 
@@ -243,6 +246,7 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	R.Contact = (Out.Ints[NI_Flags] & FlagRearDown) != 0;
 	F.Surf = Out.Ints[NI_FrontSurf];
 	R.Surf = Out.Ints[NI_RearSurf];
+	B->Lights.FromNet((uint8)Out.Ints[NI_Lamps]);   // [lights] the switches; the flash keeps its own time here
 }
 
 void UTorqueNetBikeComponent::SetUpSound(bool bRemote)

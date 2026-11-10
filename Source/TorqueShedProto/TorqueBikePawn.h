@@ -15,6 +15,7 @@
 #include "SonyPad.h"
 #include "TorqueAudio/RideSound.h"   // the full type, as for the sim
 #include "TorqueDash.h"   // the dashboard: a member below
+#include "TorqueLights.h"   // [lights] the lamps: a member below
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
@@ -78,6 +79,9 @@ public:
 	// computer and the petrol, for the HUD's speedo (hud.gd _draw_speedo); and how far the petrol goes.
 	const FTorqueDash& GetDash() const { return Dash; }
 	double DashRangeKm() const { return Sim ? Dash.RangeKm(Sim->Build) : 0.0; }
+	// [lights] The headlight, main beam, fog lights, indicators and stop lamp (TorqueLights.h), for the
+	// HUD's tell-tales and the co-op snapshot.
+	const FTorqueLights& GetLights() const { return Lights; }
 	// The engine still being started (the starter cranking it over), for the speedo's "Starting...".
 	bool IsStarting() const { return EngineCatchIn > 0.0; }
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
@@ -272,6 +276,9 @@ private:
 	void UpdatePerf(float Dt);
 	TArray<FHudLine> HudLines;
 	FTorqueDash Dash;   // [dash]
+	FTorqueLights Lights;   // [lights]
+	void StepLights(float Dt, bool bRemote);
+	void LightsNote(const FString& Text, bool bOk);
 	// [dash] The trip check: every 10 s of riding, a log line with the dash's trip next to speed x
 	// time, the route's progress and how far the clock says (TripLog).
 	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;

@@ -26,6 +26,10 @@ private:
 	void DrawTelemetry(const ATorqueBikePawn* Bike, float S);
 	// [dash] Riding: Torque Shed's speedo in the bottom right corner (hud.gd _draw_speedo).
 	void DrawSpeedo(const ATorqueBikePawn* Bike);
+	// [lights] Over the speedo's top right corner, the dash's tell-tales: green dipped beam, blue main
+	// beam, green fog lights and the indicators' green arrows flashing with them (hud.gd
+	// _draw_indicator_lamp). RX, RY the speedo's corner and G screen pixels per Godot pixel, as DrawSpeedo.
+	void DrawTellTales(const ATorqueBikePawn* Bike, float RX, float RY, float G);
 	float FpsTime = 0.0f, FpsShown = 0.0f;
 	int32 FpsFrames = 0;
 };

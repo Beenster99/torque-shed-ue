@@ -52,6 +52,7 @@ struct FTorqueBikeNetState
 	UPROPERTY() uint8 Flags = 0;                // 1 crashed, 2 front on the ground, 4 rear on the ground, 8 a ghost, 16 parked (rider off)
 	UPROPERTY() uint8 FrontSurf = 0;
 	UPROPERTY() uint8 RearSurf = 0;
+	UPROPERTY() uint8 Lamps = 0;                // [lights] FTorqueLights::NetBits: headlight, main beam, fog, indicators, hazards, ignition
 	UPROPERTY() int32 Seq = 0;
 };
 

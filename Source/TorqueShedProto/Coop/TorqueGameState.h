@@ -88,6 +88,8 @@ public:
 	ETorqueWeatherSource GetWeatherSource() const { return (ETorqueWeatherSource)Net.Source; }
 	// How open to the sky this machine's camera is: 0 under a roof .. 1 out in it (the rain's).
 	float WeatherOpen() const;
+	// [lights] 0 at night .. 1 by day, as the sun and the exposure have it (the bike's lamps glow by it).
+	float GetDayLight() const { return DayLight; }
 	// "Live: 9 °C, light rain, wind SW 18 mph", or "sunny", for the menu and the HUD.
 	FString WeatherText(bool bImperial) const;
 	// The host only (ignored elsewhere): change it for everyone, fading over FadeSeconds (0: at once).

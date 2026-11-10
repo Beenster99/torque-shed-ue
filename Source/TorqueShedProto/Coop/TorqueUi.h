@@ -46,6 +46,11 @@ TArray<FString> WrapLines(const FString& Str, float Px, float MaxW, bool bBold =
 float TextWrap(UCanvas* Canvas, const FString& Str, float X, float Y, float Px, float MaxW, const FLinearColor& Colour, float LineGap = 1.35f);
 
 void Rect(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour);
+// A filled shape: Points round its edge, every one of them in sight of the first (a convex shape, or
+// an arrow from its tip), drawn as a fan of triangles from the first.
+void Polygon(UCanvas* Canvas, const TArray<FVector2D>& Points, const FLinearColor& Colour);
+// A filled disc (Segments round).
+void Disc(UCanvas* Canvas, float CX, float CY, float R, const FLinearColor& Colour, int32 Segments = 24);
 // A rectangle's outline, T thick.
 void Frame(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour, float T);
 // A smooth left-to-right fade of Colour over X..X+W: AlphaAt(t), t 0 at the left edge to 1 at the
