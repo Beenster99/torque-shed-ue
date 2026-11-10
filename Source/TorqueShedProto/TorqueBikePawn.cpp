@@ -2009,15 +2009,16 @@ void ATorqueBikePawn::TestMoveStep()
 	{
 		// The robot rides (slowing for bends) until it's held the speed on a straight for 1.5 s (a
 		// fairly level one, under 4%, for the test pad, so the bike doesn't land on it pitched).
+		// On the test pad, straight on, the road's bends nothing to it: the robot's steering for them
+		// kept a race bike from settling at 45 mph (round 128). (Before the steadiness check, which
+		// asks for the steering centred: round 131 zeroed it after, and nothing settled.)
+		if (bTestFlat) Lean = 0.0;
 		const bool bSteady = FMath::Abs(V - TestMps) < 0.5 && FMath::Abs(Lean) < 0.15 && FMath::Abs(Sim->LeanAngle) < 0.1;
 		TestSteady = bSteady ? TestSteady + SimDt : 0.0;
 		// Held by the robot's throttle, and at a slow target (the bike pulls faster than it on tickover
 		// in first) the back brake too.
 		HoldTestSpeed(V);
 		Shift = 0.0;
-		// On the test pad, straight on, the road's bends nothing to it: the robot's steering for them
-		// kept a race bike from settling at 45 mph (round 128).
-		if (bTestFlat) Lean = 0.0;
 		if (TestSteady < 1.5)
 		{
 			if (TestClock > 15.0)
