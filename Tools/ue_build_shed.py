@@ -181,30 +181,33 @@ def ghost_xray_material():
 
 
 def outline_material():
-    """M_ShedOutline: a thin, soft line round what you look at, for the game (C++, TorqueLookOutline)
-    to put on the walker's camera as a post-process. The game marks what's looked at with custom
-    depth and stencil (r.CustomDepth=3); this draws a line just outside that shape: two rings of
-    stencil samples (a crisp inner one, a fainter outer one for softness), drawn fainter where
-    something in front hides the part's edge, and blended before depth of field (so TSR steadies it):
-    orange over dark things, deeper orange over light ones.
-    The part itself is tinted too (Fill), where it's in view.
-    Parameters: Color, DarkColor, Opacity, Fill, Width (pixels at 1080p, scaled with the screen),
-    Hidden (how much of the line shows through things in front)."""
+    """M_ShedOutline: the thin orange line round the outside of what you look at (beenster, Nov 10:
+    "A thin orange line around the outside of the object that my mouse is focussing on"; "I dont
+    want any regression with this"). The game (TorqueLookOutline) marks what's looked at with custom
+    depth and stencil (r.CustomDepth=3) and puts this on its own unbound post-process.
+
+    KEEP IT AFTER TONEMAPPING. Twice it went before depth of field (to steady a shimmer) and both
+    times it vanished in play: TSR runs after that point and smooths a 1-2 px line, jittered every
+    frame, down to nothing, while the hub's HighResShot screenshots (no TSR history) still showed it.
+    The shimmer is handled here instead: the line is a soft coverage (the share of 24 stencil samples
+    round the pixel that are on the part) rather than a hard any-sample-hit, so the render jitter
+    only nudges its strength a little. Tools/ue_build_shed.py fails if it can't set this location;
+    the game's test 'outline' (-TorqueShedTest=outline, TorqueShedTest.cpp) reads the screen and fails a
+    build whose line doesn't draw.
+
+    Drawn fainter where something in front hides the part's edge; orange over dark things, a deeper
+    orange over light ones. Parameters: Color, DarkColor, Opacity, Width (pixels at 1080p, scaled with
+    the screen), Hidden (how much of the line shows through things in front)."""
     m = new_material("M_ShedOutline")
     if not try_set(m, "material_domain", unreal.MaterialDomain.MD_POST_PROCESS):
         raise RuntimeError("M_ShedOutline: can't make a post-process material")
-    # Before depth of field, so before TSR (beenster, Nov 9: "highlighter should not shimmer"). After
-    # tonemapping it ran on the upscaled frame but read custom depth/stencil at render size, jittered
-    # a sub-pixel each frame: the 1-2 px line crawled. Here TSR averages the jitter into a steady,
-    # anti-aliased line. The scene colour here is pre-exposed HDR, so Color ~1 still reads the same
-    # whatever the shed's exposure.
     loc = None
-    for name in ("BL_SCENE_COLOR_BEFORE_DOF", "BL_BEFORE_TRANSLUCENCY"):
+    for name in ("BL_SCENE_COLOR_AFTER_TONEMAPPING", "BL_AFTER_TONEMAPPING"):
         loc = getattr(unreal.BlendableLocation, name, None)
         if loc is not None:
             break
     if loc is None or not try_set(m, "blendable_location", loc):
-        raise RuntimeError("M_ShedOutline: can't put it before depth of field (it would shimmer)")
+        raise RuntimeError("M_ShedOutline: can't put it after tonemapping (before it, TSR erases the line)")
     M = unreal.MaterialProperty
 
     def link(a, b, pin, out=""):
@@ -252,34 +255,49 @@ def outline_material():
     link(view, vw, "")
     vh = expr(m, unreal.MaterialExpressionComponentMask, -2800, 250, r=False, g=True, b=False, a=False)
     link(view, vh, "")
-    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 2.6), const(-2800, 420, 1080.0))
+    width = op(unreal.MaterialExpressionDivide, -2600, 350, num("Width", -2800, 350, 1.4), const(-2800, 420, 1080.0))
     step_x = op(unreal.MaterialExpressionMultiply, -2400, 200, op(unreal.MaterialExpressionDivide, -2600, 200, vh, vw), width)
     step = op(unreal.MaterialExpressionAppendVector, -2200, 250, step_x, width)
 
+    def stencil_at(dx, dy, y):
+        off = op(unreal.MaterialExpressionMultiply, -2000, y, step,
+                 expr(m, unreal.MaterialExpressionConstant2Vector, -2200, y + 60, r=dx, g=dy))
+        uv = op(unreal.MaterialExpressionAdd, -1800, y, screen, off)
+        mark = expr(m, unreal.MaterialExpressionSaturate, -1300, y)
+        link(scene(T.PPI_CUSTOM_STENCIL, -1700, y, uv), mark, "")
+        return mark, uv
+
+    def mean(items, x, y):
+        total = items[0]
+        for i, e in enumerate(items[1:]):
+            total = op(unreal.MaterialExpressionAdd, x, y + i * 20, total, e)
+        return op(unreal.MaterialExpressionMultiply, x + 200, y, total, const(x + 100, y + 60, 1.0 / len(items)))
+
+    # Coverage round the pixel: 8 directions at 0.7, 1.4 and 2.1 steps (24 samples).
     dirs = [(1, 0), (-1, 0), (0, 1), (0, -1), (0.7071, 0.7071), (-0.7071, 0.7071), (0.7071, -0.7071), (-0.7071, -0.7071)]
-    rings = []
-    depth_min = None
+    outer, depth_min = [], None
     y = 0
-    for r in (1.0, 2.2):
-        ring = None
+    for r in (0.7, 1.4, 2.1):
         for i, (dx, dy) in enumerate(dirs):
-            off = op(unreal.MaterialExpressionMultiply, -2000, y, step,
-                     expr(m, unreal.MaterialExpressionConstant2Vector, -2200, y + 60, r=dx * r, g=dy * r))
-            uv = op(unreal.MaterialExpressionAdd, -1800, y, screen, off)
-            mark = expr(m, unreal.MaterialExpressionSaturate, -1300, y)
-            link(scene(T.PPI_CUSTOM_STENCIL, -1700, y, uv), mark, "")
-            ring = mark if ring is None else op(unreal.MaterialExpressionMax, -1100, y, ring, mark)
-            if i < 4:   # the part's nearest depth beside this pixel
+            mark, uv = stencil_at(dx * r, dy * r, y)
+            outer.append(mark)
+            if r == 0.7 and i < 4:   # the part's nearest depth beside this pixel
                 d = scene(T.PPI_CUSTOM_DEPTH, -1700, y + 80, uv)
                 depth_min = d if depth_min is None else op(unreal.MaterialExpressionMin, -1100, y + 80, depth_min, d)
-            y += 180
-        rings.append(ring)
+            y += 160
+    # Inside: the pixel itself and four close samples (a soft inner edge, so it doesn't flick either).
+    inner = [stencil_at(dx * 0.35, dy * 0.35, y + k * 160)[0] for k, (dx, dy) in enumerate(dirs[:4])]
+    y += 4 * 160
     centre = expr(m, unreal.MaterialExpressionSaturate, -1300, y)
     link(scene(T.PPI_CUSTOM_STENCIL, -1700, y), centre, "")
-    outside = op(unreal.MaterialExpressionSubtract, -900, y, const(-1100, y + 60, 1.0), centre)
-    soft = op(unreal.MaterialExpressionMax, -900, y - 200, rings[0],
-              op(unreal.MaterialExpressionMultiply, -1000, y - 140, rings[1], const(-1200, y - 100, 0.45)))
-    edge = op(unreal.MaterialExpressionMultiply, -700, y - 100, soft, outside)
+    inner.append(centre)
+    cover = mean(outer, -900, 0)
+    inside = mean(inner, -900, y - 600)
+    # On where a quarter or more of the ring is on the part, fading below that.
+    ring = expr(m, unreal.MaterialExpressionSaturate, -500, 0)
+    link(op(unreal.MaterialExpressionMultiply, -650, 0, cover, const(-800, 60, 4.0)), ring, "")
+    outside = op(unreal.MaterialExpressionSubtract, -500, y - 600, const(-650, y - 540, 1.0), inside)
+    edge = op(unreal.MaterialExpressionMultiply, -350, y - 300, ring, outside)
     # Hidden: this pixel is nearer than the part's edge beside it (something in front of the part).
     here = scene(T.PPI_SCENE_DEPTH, -1700, y + 200)
     gap = op(unreal.MaterialExpressionDivide, -900, y + 200, op(unreal.MaterialExpressionSubtract, -1000, y + 200, here, depth_min), const(-1100, y + 260, 4.0))
@@ -289,43 +307,34 @@ def outline_material():
     link(num("Hidden", -650, y + 100, 0.3), show, "A")
     link(const(-650, y + 120, 1.0), show, "B")
     link(seen, show, "Alpha")
-    line = op(unreal.MaterialExpressionMultiply, -300, y, op(unreal.MaterialExpressionMultiply, -450, y, edge, show),
-              num("Opacity", -500, y + 300, 0.9))
-    # The part itself, softly tinted where it's in view (Torque Shed's soft orange glow over the part,
-    # bike_model.gd highlight; beenster, Nov 9: "where has highlighting of bike parts gone?"): the
-    # overlay glow alone barely shows in the lit shed. In view: the scene here is no nearer than the
-    # part's own depth here.
-    own = scene(T.PPI_CUSTOM_DEPTH, -1700, y + 400)
-    vis = expr(m, unreal.MaterialExpressionSaturate, -600, y + 400)
-    link(op(unreal.MaterialExpressionAdd, -750, y + 400,
-            op(unreal.MaterialExpressionDivide, -900, y + 400, op(unreal.MaterialExpressionSubtract, -1000, y + 400, here, own),
-               const(-1100, y + 460, 2.0)), const(-900, y + 460, 1.0)), vis, "")
-    fill = op(unreal.MaterialExpressionMultiply, -450, y + 400, op(unreal.MaterialExpressionMultiply, -600, y + 500, centre, vis),
-              num("Fill", -700, y + 560, 0.2))
-    alpha = op(unreal.MaterialExpressionMax, -200, y + 100, line, fill)
+    alpha = op(unreal.MaterialExpressionMultiply, -300, y, op(unreal.MaterialExpressionMultiply, -450, y, edge, show),
+               num("Opacity", -500, y + 300, 0.9))
     base = expr(m, unreal.MaterialExpressionSceneTexture, -700, y - 450, scene_texture_id=T.PPI_POST_PROCESS_INPUT0)
     rgb = expr(m, unreal.MaterialExpressionComponentMask, -450, y - 450, r=True, g=True, b=True, a=False)
     link(base, rgb, "")
     # Orange (beenster, Nov 9): Torque Shed's highlight orange over dark things, a deeper orange over
-    # light ones (the white walls, a silver tank), so it reads against either. Linear colours now (it
-    # blends before the tonemapper): the same oranges as before once tonemapped.
+    # light ones (the white walls, a silver tank), so it reads against either. Display colours: it
+    # blends after the tonemapper.
     lum = op(unreal.MaterialExpressionDotProduct, -300, y - 600, rgb,
              expr(m, unreal.MaterialExpressionConstant3Vector, -450, y - 600, constant=unreal.LinearColor(0.3, 0.59, 0.11, 1.0)))
     bright = expr(m, unreal.MaterialExpressionSaturate, -100, y - 600)
     link(op(unreal.MaterialExpressionMultiply, -200, y - 600,
-            op(unreal.MaterialExpressionSubtract, -250, y - 650, lum, const(-400, y - 650, 0.3)), const(-400, y - 700, 2.5)), bright, "")
+            op(unreal.MaterialExpressionSubtract, -250, y - 650, lum, const(-400, y - 650, 0.4)), const(-400, y - 700, 3.0)), bright, "")
     colour = expr(m, unreal.MaterialExpressionLinearInterpolate, -300, y - 300)
     link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 350, parameter_name="Color",
-              default_value=unreal.LinearColor(1.2, 0.3, 0.02, 1.0)), colour, "A")
+              default_value=unreal.LinearColor(1.0, 0.55, 0.12, 1.0)), colour, "A")
     link(expr(m, unreal.MaterialExpressionVectorParameter, -500, y - 250, parameter_name="DarkColor",
-              default_value=unreal.LinearColor(0.85, 0.1, 0.0, 1.0)), colour, "B")
+              default_value=unreal.LinearColor(0.85, 0.32, 0.0, 1.0)), colour, "B")
     link(bright, colour, "Alpha")
     out = expr(m, unreal.MaterialExpressionLinearInterpolate, -150, y - 200)
     link(rgb, out, "A")
     link(colour, out, "B")
     link(alpha, out, "Alpha")
     mel.connect_material_property(out, "", M.MP_EMISSIVE_COLOR)
-    return finish(m)
+    m = finish(m)
+    # Say where it ended up (the game's outline test checks the same).
+    log("M_ShedOutline: blendable location %s" % m.get_editor_property("blendable_location"))
+    return m
 
 
 def screen_page_material():

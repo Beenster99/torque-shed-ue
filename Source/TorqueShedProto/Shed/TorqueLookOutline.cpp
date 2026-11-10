@@ -6,7 +6,9 @@
 #include "HAL/IConsoleManager.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
+#include "UObject/UnrealType.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedLayout.h"
@@ -119,4 +121,50 @@ const TArray<UPrimitiveComponent*>& FTorqueLookOutline::PlaceMeshes(UWorld* Worl
 	for (const TWeakObjectPtr<UPrimitiveComponent>& W : CachedMeshes)
 		if (UPrimitiveComponent* C = W.Get()) PlaceOut.Add(C);
 	return PlaceOut;
+}
+
+FString FTorqueLookOutline::Status(bool& bOk) const
+{
+	bOk = true;
+	TArray<FString> Bad;
+	const UPostProcessComponent* P = Post.Get();
+	const UMaterialInterface* Line = nullptr;
+	if (!P) Bad.Add(TEXT("no outline post-process on the walker"));
+	else
+	{
+		if (P->BlendWeight < 0.99f || !P->bUnbound || !P->IsActive()) Bad.Add(FString::Printf(TEXT("post-process weight %.2f, unbound %d, active %d"), P->BlendWeight, P->bUnbound, P->IsActive()));
+		for (const FWeightedBlendable& W : P->Settings.WeightedBlendables.Array)
+			if (const UMaterialInterface* M = Cast<UMaterialInterface>(W.Object)) Line = M;
+		if (!Line) Bad.Add(TEXT("M_ShedOutline isn't on the post-process"));
+	}
+	// Where it blends, read by name (it must be after tonemapping: before it, TSR erases the line).
+	FString Where = TEXT("?");
+	if (const UMaterial* Base = Line ? Line->GetMaterial() : nullptr)
+	{
+		const FProperty* Prop = UMaterial::StaticClass()->FindPropertyByName(TEXT("BlendableLocation"));
+		const void* Value = Prop ? Prop->ContainerPtrToValuePtr<void>(Base) : nullptr;
+		if (const FByteProperty* Byte = CastField<FByteProperty>(Prop))
+		{
+			const int64 V = Byte->GetPropertyValue(Value);
+			Where = Byte->Enum ? Byte->Enum->GetNameStringByValue(V) : FString::Printf(TEXT("%lld"), V);
+		}
+		else if (const FEnumProperty* En = CastField<FEnumProperty>(Prop))
+		{
+			const int64 V = En->GetUnderlyingProperty()->GetSignedIntPropertyValue(Value);
+			Where = En->GetEnum() ? En->GetEnum()->GetNameStringByValue(V) : FString::Printf(TEXT("%lld"), V);
+		}
+		if (Where != TEXT("?") && !Where.Contains(TEXT("AfterTonemapping")))
+			Bad.Add(FString::Printf(TEXT("M_ShedOutline blends at %s, not after tonemapping (rebuild with Tools/ue_build_shed.py)"), *Where));
+	}
+	static const IConsoleVariable* Depth = IConsoleManager::Get().FindConsoleVariable(TEXT("r.CustomDepth"));
+	const int32 DepthMode = Depth ? Depth->GetInt() : -1;
+	if (DepthMode != 3) Bad.Add(FString::Printf(TEXT("r.CustomDepth is %d, not 3 (stencil off)"), DepthMode));
+	int32 Marked = 0;
+	for (const TWeakObjectPtr<UPrimitiveComponent>& W : Shown)
+		if (const UPrimitiveComponent* C = W.Get())
+			if (C->bRenderCustomDepth && C->CustomDepthStencilValue == Stencil) ++Marked;
+	if (Marked == 0) Bad.Add(TEXT("nothing marked for the outline (look at a part first)"));
+	bOk = Bad.Num() == 0;
+	return FString::Printf(TEXT("material %s at %s, %d mesh(es) marked, r.CustomDepth=%d%s%s"), *GetNameSafe(Line), *Where, Marked, DepthMode,
+		bOk ? TEXT("") : TEXT("; WRONG: "), *FString::Join(Bad, TEXT("; ")));
 }

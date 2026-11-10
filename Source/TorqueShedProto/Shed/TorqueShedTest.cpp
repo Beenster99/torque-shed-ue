@@ -28,6 +28,8 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "UnrealClient.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 
 namespace TorqueShedTestImpl
 {
@@ -234,6 +236,20 @@ const TCHAR* const KitSteps =
 	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,")
 	TEXT("furn:look:seat_chair,furn:sit,shot,furn:stand,furn:look:seat_stool,furn:sit,shot,furn:stand,furn:log");
 
+// The look outline must draw (beenster, Nov 10: "I dont want any regression with this"): bike parts
+// looked at from beside the bike, the screen read with the line and without it each time. Any
+// "OUTLINE CHECK FAILED" line fails the build: don't promote it. Run alone with
+// -TorqueShedAction=outline (it quits after), or the steps folded into a round's smoke.
+const TCHAR* const OutlineSteps =
+	TEXT("bay:1,restyle:cafe,tool:hands,part:tank,wait:2,outlinecheck,shot:ui,part:exhaust,wait:2,outlinecheck,")
+	TEXT("part:front_wheel,wait:2,outlinecheck,outlinecheck:summary");
+
+// The look outline's orange (M_ShedOutline Color / DarkColor, after tonemapping) over anything.
+bool Orange(const FColor& C)
+{
+	return C.R >= 150 && (int32)C.R - (int32)C.B >= 80 && (int32)C.R - (int32)C.G >= 40;
+}
+
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
 // Away from a point towards the middle of the shed: where to stand to look at it.
@@ -270,6 +286,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("fluids")) FString(TSTI::FluidSteps).ParseIntoArray(Preset, TEXT(","), true);   // [fluids]
 		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("outline")) FString(TSTI::OutlineSteps).ParseIntoArray(Preset, TEXT(","), true);   // [outline test]
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
@@ -646,6 +663,71 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, spray, lance, gun)")); return true; }
 		W->TestTool((ETorqueTool)Index);
 		Said(TEXT("in hand"));
+		return true;
+	}
+	if (Verb == TEXT("outlinecheck"))
+	{
+		// [outline test] Does the look outline draw on screen? Its set-up first (the material after
+		// tonemapping, the post-process, r.CustomDepth, the marks), then the live viewport (what the
+		// player sees, TSR and all; HighResShot isn't proof: it showed the line when play didn't) read
+		// with the outline on and a second later with it off: enough pixels must turn orange.
+		if (P.Num() > 1 && P[1] == TEXT("summary"))
+		{
+			if (OutlineFails > 0 || OutlineChecks == 0)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Torque test: OUTLINE CHECK FAILED: %d of %d looks drew no outline: do not promote this build"), OutlineFails, OutlineChecks);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("Torque test: OUTLINE CHECK PASSED: all %d looks drew the outline"), OutlineChecks);
+			}
+			return true;
+		}
+		FViewport* Viewport = GEngine && GEngine->GameViewport ? GEngine->GameViewport->Viewport : nullptr;
+		auto Fail = [&](const FString& Why)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Torque test: %s: OUTLINE CHECK FAILED: %s"), *S, *Why);
+			++OutlineFails;
+			++OutlineChecks;
+			W->bTestNoOutline = false;
+			OutlinePhase = 0;
+			OutlineOn.Reset();
+		};
+		if (!Viewport) { Fail(TEXT("no game viewport to read")); return true; }
+		if (OutlinePhase == 0)
+		{
+			bool bOk = false;
+			const FString Status = W->TestOutlineStatus(bOk);
+			if (!bOk) { Fail(Status); return true; }
+			Said(Status);
+			W->bTestNoOutline = false;
+			OutlinePhase = 1;
+			return false;   // a second on (TSR settles), then read
+		}
+		TArray<FColor> Px;
+		if (!Viewport->ReadPixels(Px) || Px.Num() == 0) { Fail(TEXT("couldn't read the viewport")); return true; }
+		if (OutlinePhase == 1)
+		{
+			OutlineOn = MoveTemp(Px);
+			W->bTestNoOutline = true;
+			OutlinePhase = 2;
+			return false;   // a second off, then read again
+		}
+		W->bTestNoOutline = false;
+		OutlinePhase = 0;
+		int32 Turned = 0;
+		const int32 N = FMath::Min(Px.Num(), OutlineOn.Num());
+		for (int32 I = 0; I < N; ++I)
+			if (TSTI::Orange(OutlineOn[I]) && !TSTI::Orange(Px[I])) ++Turned;
+		OutlineOn.Reset();
+		const int32 Need = FMath::Max(60, (int32)(N * 2.0e-5));
+		if (Turned < Need)
+		{
+			Fail(FString::Printf(TEXT("only %d pixel(s) turned orange with the outline on (need %d of %d): the line isn't drawing"), Turned, Need, N));
+			return true;
+		}
+		++OutlineChecks;
+		Said(FString::Printf(TEXT("outline draws: %d pixel(s) orange with it on, not off (need %d)"), Turned, Need));
 		return true;
 	}
 	if (Verb == TEXT("crouch"))

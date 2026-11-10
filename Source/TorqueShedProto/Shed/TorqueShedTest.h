@@ -167,6 +167,10 @@ private:
 	int32 Tries = 0;
 	bool bMoveStarted = false;   // a brakestop or lean step has started its manoeuvre and is waiting for it
 	bool bAimLost = false;   // the last look missed what it was after: the next act is skipped
+	// [outline test] 'outlinecheck': the screen read with the look outline on, then off.
+	int32 OutlinePhase = 0;
+	TArray<FColor> OutlineOn;
+	int32 OutlineFails = 0, OutlineChecks = 0;
 	double Wait = 0.0;
 	// How long each step (and the wait after it) took, real and game time, and in how many frames:
 	// a slow one is logged ("Torque test: slow step"), and the slowest at the end.
