@@ -1,0 +1,149 @@
+<title>Bike Fitting Trial</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: a workshop inspection sheet. A short brief, a tally, then one sweep at a time as rows of before/after pairs. */
+:root {
+  --bg: #f3f4f2; --panel: #ffffff; --ink: #1c2123; --soft: #5c6669; --line: #d9dddb; --accent: #0b6e8a;
+  --fine: #7b8588; --mended: #1f8a4c; --partly: #b97a00; --stuck: #c23b2e; --worse: #8e1f6b; --clash: #d92b1f; --float: #f09a00;
+  --display: "Space Grotesk", "Inter", system-ui, sans-serif; --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15191a; --panel: #1e2425; --ink: #e8eceb; --soft: #9aa5a7; --line: #333c3e; --accent: #5cc3df;
+  --fine: #8b9698; --mended: #4cc27f; --partly: #e3a92e; --stuck: #f0695b; --worse: #d86fb8; --clash: #ff5a4d; --float: #ffb11f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15191a; --panel: #1e2425; --ink: #e8eceb; --soft: #9aa5a7; --line: #333c3e; --accent: #5cc3df;
+  --fine: #8b9698; --mended: #4cc27f; --partly: #e3a92e; --stuck: #f0695b; --worse: #d86fb8; --clash: #ff5a4d; --float: #ffb11f; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1500px; margin: 0 auto; padding-block: 28px 60px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+h1 { font-family: var(--display); font-size: 30px; font-weight: 600; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 19px; font-weight: 600; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+.brief { display: flex; flex-direction: column; gap: 10px; }
+.brief .soft, .soft { color: var(--soft); }
+.key { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13.5px; color: var(--soft); }
+.key span::before { content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+.tally { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tally button { all: unset; cursor: pointer; background: var(--panel); padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box; }
+.tally button:focus-visible, .tabs button:focus-visible, .card:focus-visible, dialog button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tally button[aria-pressed="true"] { box-shadow: inset 0 -3px 0 var(--c, var(--accent)); }
+.tally b { font-family: var(--display); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--c, var(--ink)); }
+.tally small { font-size: 12.5px; color: var(--soft); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs button { all: unset; cursor: pointer; padding: 6px 11px; border: 1px solid var(--line); border-radius: 4px; font-size: 13.5px; background: var(--panel); }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tabs button i { font-style: normal; color: var(--soft); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.tabs button[aria-pressed="true"] i { color: inherit; opacity: .7; }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); max-width: 520px; }
+.bar div { background: var(--c); }
+.row { display: flex; flex-direction: column; gap: 8px; }
+.row h3 { font-family: var(--display); font-size: 15px; font-weight: 600; margin: 6px 0 0; text-transform: capitalize; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 10px; }
+.card { all: unset; cursor: pointer; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; box-sizing: border-box; min-width: 0; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); }
+.tile { aspect-ratio: 8 / 5; background-color: #ececec; background-repeat: no-repeat; max-width: 100%; }
+.tile.same { opacity: .45; }
+.meta { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0; }
+.meta .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.meta .name { font-weight: 600; overflow-wrap: anywhere; }
+.pill { font-size: 11.5px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--c); white-space: nowrap; }
+.pill::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-right: 5px; }
+.did { color: var(--soft); overflow-wrap: anywhere; }
+.num { color: var(--soft); font-variant-numeric: tabular-nums; font-size: 12px; }
+dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); padding: 0; width: min(1240px, calc(100vw - 32px)); max-height: calc(100vh - 40px); }
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+.dlg { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.dlg .pair { gap: 8px; background: none; }
+.dlg .cap { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin-bottom: 4px; }
+.dlg .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; font-size: 13.5px; }
+.dlg ul { margin: 4px 0 0; padding-left: 18px; }
+.dlg .head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.dlg button { all: unset; cursor: pointer; border: 1px solid var(--line); border-radius: 4px; padding: 5px 12px; font-size: 13.5px; }
+@media (max-width: 640px) { .dlg .pair { grid-template-columns: 1fr; } h1 { font-size: 24px; } }
+</style>
+<div class="wrap">
+  <div class="brief">
+    <h1>Bike Fitting Trial</h1>
+    <p>Every bike here was built by a separate program from the game's own parts. Nothing in the game has changed. Each card shows one build twice: as the game puts it together today on the left, and after the trial solver on the right.</p>
+    <p class="soft">The one question is whether the bikes on the right look good to you. Each card has a number; tell me the numbers that look wrong and what is wrong with them.</p>
+    <div class="key"><span style="--c: var(--clash)">Red: two parts passing through each other</span><span style="--c: var(--float)">Amber part: floating, touching nothing</span><span style="--c: var(--fine)">Faded right picture: the solver had nothing to do</span></div>
+  </div>
+  <div class="tally" id="tally"></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="row"><h2 id="sweepTitle">Loading the builds</h2><p class="soft" id="sweepNote"></p><div class="bar" id="bar"></div></div>
+  <div id="rows" class="row"></div>
+</div>
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<script>
+const STATUS = { fine: ["Fine as built", "--fine"], mended: ["Mended", "--mended"], partly: ["Improved", "--partly"], stuck: ["Not mended", "--stuck"], worse: ["Made worse", "--worse"] };
+const NOTES = { "0_designed": "One per style, exactly as designed. The solver should leave every one alone.",
+  "1_engine": "Each designed bike with the smallest and the biggest engine of every layout.", "2_tank": "Each designed bike with every tank shape.",
+  "3_frame": "Each designed bike's parts on every type of frame.", "12_top_half": "The tank, seat, tail, bars, fairing, lights and exhaust of one style on the frame, forks, wheels and engine of another.",
+  "13_random": "Every slot drawn freely from the catalogue. Most of these would never be built on purpose." };
+let DATA = null, sweep = 0, filter = "all";
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+function tile(sw, index, cls) {
+  const d = el("div", "tile" + (cls ? " " + cls : ""));
+  const sheet = sw.sheets[Math.floor(index / DATA.per)], i = index % DATA.per, cols = DATA.cols;
+  d.style.backgroundImage = "url(" + sheet.file + ")";
+  d.style.backgroundSize = (cols * 100) + "% " + (sheet.rows * 100) + "%";
+  d.style.backgroundPosition = ((i % cols) / (cols - 1) * 100) + "% " + (sheet.rows > 1 ? Math.floor(i / cols) / (sheet.rows - 1) * 100 : 0) + "%";
+  return d;
+}
+function faultText(f) { return f[1] ? f[0].replace(/_/g, " ") + " through " + f[1].replace(/_/g, " ") + " (" + f[2] + " cm³)" : f[0].replace(/_/g, " ") + " floating, " + f[2] + " mm clear"; }
+function label(b, sw) { return sw.key === "0_designed" ? b.row : sw.key.startsWith("11_") ? b.row.replace(/_/g, " ") + " + " + b.col.replace(/_/g, " ") : b.col.replace(/_/g, " "); }
+function open(b, sw) {
+  const body = $("dlgBody"); body.replaceChildren();
+  const head = el("div", "head"), t = el("div");
+  t.append(el("h2", "", "#" + b.n + "  " + b.row + " / " + b.col.replace(/_/g, " ")));
+  const pill = el("span", "pill", STATUS[b.status][0]); pill.style.setProperty("--c", "var(" + STATUS[b.status][1] + ")"); t.append(pill);
+  const close = el("button", "", "Close"); close.onclick = () => $("dlg").close();
+  head.append(t, close);
+  const pair = el("div", "pair"), l = el("div"), r = el("div");
+  l.append(el("div", "cap", "As the game builds it"), tile(sw, b.a));
+  r.append(el("div", "cap", b.b == null ? "Solver: nothing to do" : "After the trial solver"), tile(sw, b.b == null ? b.a : b.b));
+  pair.append(l, r);
+  const cols = el("div", "cols");
+  const list = (title, items, none) => { const c = el("div"); c.append(el("div", "cap", title)); if (!items.length) c.append(el("div", "soft", none)); else { const u = el("ul"); items.forEach(x => u.append(el("li", "", x))); c.append(u); } return c; };
+  cols.append(list("Wrong before", b.before.map(faultText), "Nothing found"), list("What the solver did", b.did, "Nothing"), list("Still wrong after", b.after.map(faultText), "Nothing found"));
+  body.append(head, pair, cols, el("div", "soft", "The game's own verdict on engine and frame: " + b.tier + "."));
+  $("dlg").showModal();
+}
+function draw() {
+  const all = DATA.sweeps.flatMap(s => s.builds);
+  const tally = $("tally"); tally.replaceChildren();
+  const mk = (key, name, n, c) => { const b = el("button"); b.id = "tally-" + key; b.setAttribute("aria-pressed", filter === key); if (c) b.style.setProperty("--c", "var(" + c + ")"); b.append(el("b", "", n.toLocaleString()), el("small", "", name)); b.onclick = () => { filter = filter === key ? "all" : key; draw(); }; return b; };
+  tally.append(mk("all", DATA.done < DATA.total ? "builds so far, of " + DATA.total.toLocaleString() : "builds", all.length));
+  for (const k in STATUS) tally.append(mk(k, STATUS[k][0], all.filter(b => b.status === k).length, STATUS[k][1]));
+  const tabs = $("tabs"); tabs.replaceChildren();
+  DATA.sweeps.forEach((s, i) => { if (!s.builds.length) return; const b = el("button", "", s.title); b.id = "tab-" + i; b.setAttribute("aria-pressed", i === sweep); b.append(el("i", "", s.builds.length)); b.onclick = () => { sweep = i; draw(); }; tabs.append(b); });
+  const sw = DATA.sweeps[sweep];
+  $("sweepTitle").textContent = sw.title;
+  $("sweepNote").textContent = NOTES[sw.key] || "";
+  const bar = $("bar"); bar.replaceChildren();
+  for (const k in STATUS) { const n = sw.builds.filter(b => b.status === k).length; if (!n) continue; const d = el("div"); d.style.flex = n; d.style.setProperty("--c", "var(" + STATUS[k][1] + ")"); d.title = STATUS[k][0] + ": " + n; bar.append(d); }
+  const rows = $("rows"); rows.replaceChildren();
+  const groups = new Map();
+  sw.builds.filter(b => filter === "all" || b.status === filter).forEach(b => { const g = sw.key === "0_designed" ? "" : b.row; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(b); });
+  if (!groups.size) rows.append(el("p", "soft", "No builds of that kind in this sweep."));
+  groups.forEach((list, name) => {
+    if (name) rows.append(el("h3", "", name.replace(/_/g, " ")));
+    const cards = el("div", "cards");
+    list.forEach(b => {
+      const c = el("button", "card"); c.onclick = () => open(b, sw);
+      const pair = el("div", "pair"); pair.append(tile(sw, b.a), tile(sw, b.b == null ? b.a : b.b, b.b == null ? "same" : ""));
+      const meta = el("div", "meta"), top = el("div", "top");
+      const pill = el("span", "pill", STATUS[b.status][0]); pill.style.setProperty("--c", "var(" + STATUS[b.status][1] + ")");
+      top.append(el("span", "name", label(b, sw)), pill);
+      meta.append(top);
+      if (b.did.length) meta.append(el("div", "did", b.did.join("; ")));
+      else if (b.before.length) meta.append(el("div", "did", "No move it is allowed helps: " + b.before.map(faultText).join("; ")));
+      meta.append(el("div", "num", "#" + b.n));
+      c.append(pair, meta); cards.append(c);
+    });
+    rows.append(cards);
+  });
+}
+fetch("data.json").then(r => r.json()).then(d => { DATA = d; sweep = DATA.sweeps.findIndex(s => s.builds.length); draw(); }).catch(() => { $("sweepTitle").textContent = "The builds could not be loaded"; });
+</script>
