@@ -7,6 +7,7 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/Actor.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
@@ -67,6 +68,7 @@ void FTorqueDash::Setup(const TMap<FString, FString>& Parts)
 	bInjected = Fuel && Fuel->Flag("injected", false);
 	TripKm = TripFuel = TopKmh = 0.0;
 	bTripFrom = false;
+	TopSpeedMs = 0.0;   // worked out from the spec on the ride's first step
 }
 
 double FTorqueDash::FuelRate(const TorqueSim::BikeSpec& Spec, double Kw, double AtRpm) const
@@ -98,6 +100,7 @@ void FTorqueDash::Step(const TorqueSim::BikeSim& Sim, double Throttle, bool bRun
 	Rpm = Sim.Rpm;
 	Redline = Sim.Build.Redline;
 	Gear = Sim.Gear;
+	if (TopSpeedMs <= 0.0) TopSpeedMs = TopSpeedOf(Sim.Build);
 	bEngineOn = bRunning;
 	bCrashed = Sim.IsCrashed;
 	TopKmh = FMath::Max(TopKmh, FMath::Abs(Speed) * 3.6);
@@ -137,10 +140,18 @@ double FTorqueDash::RangeKm(const TorqueSim::BikeSpec& Spec) const
 	return FMath::Max(FuelLitres, 0.0) * Econ;
 }
 
-void FTorqueDash::HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges)
+void FTorqueDash::HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>& Meshes, const TArray<TorqueShedCatalogue::FDashGauge>& Gauges,
+	UStaticMesh* TickMesh)
 {
 	Needles.Reset();
 	Leds.Reset();
+	BakedTicks.Reset();
+	for (const TWeakObjectPtr<USceneComponent>& Part : ScaleParts)
+		if (USceneComponent* Old = Part.Get()) Old->DestroyComponent();
+	ScaleParts.Reset();
+	ScaleUnits = -1;
+	ClockOwner = Owner;
+	ScaleTickMesh = TickMesh;
 	bDials = Style == TEXT("analog") || Style == TEXT("twin");
 	// bike_model.gd _add_leds: green, green, amber, amber, red, red from the left.
 	static const FLinearColor LedColours[6] = {
@@ -158,6 +169,7 @@ void FTorqueDash::HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>&
 			N.bRpm = What == TEXT("rpm");
 			N.At = G.At;
 			N.Rest = G.Up;
+			N.Axis = G.Axis;
 			// A quarter turn clockwise, as the rider sees the dial, from straight up it is the left.
 			N.Side = FVector::CrossProduct(G.Axis, G.Up).GetSafeNormal();
 			if (N.Side.Y > 0.0) N.Side = -N.Side;
@@ -166,6 +178,10 @@ void FTorqueDash::HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>&
 			if (UMaterialInstanceDynamic* Glow = TorqueToolModels::Finish(Owner, FLinearColor(1.0f, 0.25f, 0.1f), 0.0f, 0.4f, 2.5f))
 				M->SetMaterial(0, Glow);
 			Needles.Add(N);
+		}
+		else if (What == TEXT("tick"))
+		{
+			BakedTicks.Add(M);
 		}
 		else if (What.StartsWith(TEXT("led")))
 		{
@@ -200,18 +216,23 @@ void FTorqueDash::HookClocks(AActor* Owner, const TArray<UStaticMeshComponent*>&
 
 void FTorqueDash::UpdateClocks(int32 Units)
 {
-	// main.gd _update_dash and bike_model.gd set_gauges: the needles' full scale is 200 km/h or 120
-	// mph, the revs' a tenth past the redline.
+	// main.gd _update_dash and bike_model.gd set_gauges had the needles' full scale at 200 km/h or
+	// 120 mph and the revs' a tenth past the redline. Ours is the bike's own numbered scale, once
+	// the ride's spec is known (and again if the units change).
 	const bool bMetric = Units == 0;
+	if (bDials && Needles.Num() > 0 && TopSpeedMs > 0.0 && (ScaleUnits != Units || ScaleRedline != Redline))
+		BuildScale(Units);
+	const bool bScaled = ScaleUnits == Units && SpeedMax > 0.0 && RevMax > 0.0;
 	const double SpeedShown = FMath::Abs(Speed) * (bMetric ? 3.6 : 2.23694);
-	const double SpeedFrac = FMath::Clamp(SpeedShown / (bMetric ? 200.0 : 120.0), 0.0, 1.0);
-	const double RpmFrac = Rpm / FMath::Max(Redline * 1.1, 1000.0);
+	const double SpeedFrac = FMath::Clamp(SpeedShown / (bScaled ? SpeedMax : (bMetric ? 200.0 : 120.0)), 0.0, 1.0);
+	const double RpmFrac = Rpm / FMath::Max(Redline * 1.1, 1000.0);   // (the shift lights)
+	const double NeedleRpmFrac = bScaled ? Rpm / RevMax : RpmFrac;
 	for (const FNeedle& N : Needles)
 	{
 		UStaticMeshComponent* M = N.Mesh.Get();
 		if (!M) continue;
 		// From bottom left (empty) round through the top to bottom right (full scale): 2.35 rad each way.
-		const double A = FMath::Lerp(2.35, -2.35, FMath::Clamp(N.bRpm ? RpmFrac : SpeedFrac, 0.0, 1.0));
+		const double A = FMath::Lerp(2.35, -2.35, FMath::Clamp(N.bRpm ? NeedleRpmFrac : SpeedFrac, 0.0, 1.0));
 		const FVector Dir = N.Rest * FMath::Cos(A) + N.Side * FMath::Sin(A);
 		const FQuat Turn = FQuat::FindBetweenNormals(N.Rest, Dir.GetSafeNormal());
 		M->SetRelativeTransform(FTransform(-N.At) * FTransform(Turn) * FTransform(N.At) * N.Base);
@@ -272,4 +293,164 @@ void FTorqueDash::UpdateClocks(int32 Units)
 		ReadoutColour = Colour;
 		T->SetTextRenderColor(Colour);
 	}
+}
+
+double FTorqueDash::TopSpeedOf(const TorqueSim::BikeSpec& Spec)
+{
+	const int32 Top = Spec.GearCount();
+	if (Top <= 0) return 30.0;
+	// Top gear at the redline.
+	const double Geared = Spec.Redline * TDI::Tau / 60.0 / FMath::Max(Spec.OverallRatio(Top), 0.1) * Spec.RearRadius;
+	// The engine's peak power at the back wheel...
+	double PeakW = 0.0;
+	for (double R = FMath::Max(Spec.IdleRpm, 500.0); R <= Spec.Redline; R += 100.0)
+		PeakW = FMath::Max(PeakW, Spec.EngineTorque(R) * R * TDI::Tau / 60.0);
+	PeakW *= Spec.DrivetrainEfficiency;
+	// ... against the wind and the tyres rolling.
+	double Lo = 1.0, Hi = 150.0;
+	for (int32 I = 0; I < 50; ++I)
+	{
+		const double V = 0.5 * (Lo + Hi);
+		const double Need = 0.5 * TDI::AirDensity * Spec.CdA * V * V * V + Spec.Rolling * Spec.TotalMass * 9.81 * V;
+		(Need > PeakW ? Hi : Lo) = V;
+	}
+	return FMath::Max(FMath::Min(Geared, Lo), 5.0);
+}
+
+void FTorqueDash::SpeedScale(double TopMs, bool bMetric, double& OutMax, double& OutStep)
+{
+	// A little past the top speed (as real clocks are), never under 100 km/h or 60 mph, numbered
+	// in round steps with at most ten gaps so the numbers fit the dial.
+	const double Want = FMath::Max(TopMs * (bMetric ? 3.6 : 2.23694) * 1.08, bMetric ? 100.0 : 60.0);
+	static const double Steps[] = {10.0, 20.0, 40.0, 50.0, 60.0, 80.0, 100.0};
+	OutMax = 0.0;
+	OutStep = 10.0;
+	for (const double Each : Steps)
+	{
+		const double Gaps = FMath::CeilToDouble(Want / Each - 1e-6);
+		if (Gaps > 10.0) continue;
+		const double Full = Gaps * Each;
+		if (OutMax <= 0.0 || Full < OutMax - 1e-6)
+		{
+			OutMax = Full;
+			OutStep = Each;
+		}
+	}
+	if (OutMax <= 0.0)
+	{
+		OutStep = 100.0;
+		OutMax = FMath::CeilToDouble(Want / OutStep) * OutStep;
+	}
+}
+
+void FTorqueDash::RevScale(double AtRedline, double& OutMax, double& OutStep)
+{
+	// To the next thousand past a tenth over the redline, numbered every thousand (every two on a
+	// screamer whose dial would run past 12).
+	const double Thousands = FMath::Max(FMath::CeilToDouble(AtRedline * 1.1 / 1000.0 - 1e-6), 4.0);
+	if (Thousands > 12.0)
+	{
+		OutStep = 2000.0;
+		OutMax = FMath::CeilToDouble(Thousands / 2.0) * 2000.0;
+	}
+	else
+	{
+		OutStep = 1000.0;
+		OutMax = Thousands * 1000.0;
+	}
+}
+
+void FTorqueDash::BuildScale(int32 Units)
+{
+	for (const TWeakObjectPtr<USceneComponent>& Part : ScaleParts)
+		if (USceneComponent* Old = Part.Get()) Old->DestroyComponent();
+	ScaleParts.Reset();
+	const bool bMetric = Units == 0;
+	SpeedScale(TopSpeedMs, bMetric, SpeedMax, SpeedStep);
+	RevScale(Redline, RevMax, RevStep);
+	ScaleUnits = Units;
+	ScaleRedline = Redline;
+	AActor* Owner = ClockOwner.Get();
+	UStaticMesh* Cube = ScaleTickMesh.Get();
+	if (!Owner || !Cube) return;   // (the plain ticks stay; the needles still read the bike's scale)
+
+	// The dial is 4.3 cm across the face's radius: the ticks run in from 4 cm, the numbers inside
+	// them, all a hair proud of the face and under the needle. (Cm, the needle mesh's own space.)
+	const FColor Ink(22, 22, 22), Red(200, 24, 12);
+	UMaterialInstanceDynamic* InkMat = TorqueToolModels::Finish(Owner, FLinearColor(0.02f, 0.02f, 0.02f), 0.0f, 0.5f);
+	UMaterialInstanceDynamic* RedMat = TorqueToolModels::Finish(Owner, FLinearColor(0.75f, 0.03f, 0.02f), 0.0f, 0.5f, 0.4f);
+	int32 Numbers = 0;
+	for (const FNeedle& N : Needles)
+	{
+		UStaticMeshComponent* NeedleMesh = N.Mesh.Get();
+		USceneComponent* Parent = NeedleMesh ? NeedleMesh->GetAttachParent() : nullptr;
+		if (!Parent) continue;
+		const double Full = N.bRpm ? RevMax : SpeedMax;
+		const double Every = N.bRpm ? RevStep : SpeedStep;
+		if (Full <= 0.0 || Every <= 0.0) continue;
+		auto DirAt = [&N](double Frac) {
+			const double A = FMath::Lerp(2.35, -2.35, FMath::Clamp(Frac, 0.0, 1.0));
+			return (N.Rest * FMath::Cos(A) + N.Side * FMath::Sin(A)).GetSafeNormal();
+		};
+		const int32 Halves = FMath::RoundToInt(Full / Every) * 2;
+		for (int32 I = 0; I <= Halves; ++I)
+		{
+			const double Value = Every * 0.5 * I;
+			const double Frac = Value / Full;
+			const bool bMajor = I % 2 == 0;
+			const bool bRedZone = N.bRpm && Value >= Redline - 1.0;
+			const FVector Out = DirAt(Frac);
+			// A tick: a thin block along the radius, its outer end at 4 cm.
+			const double Len = bMajor ? 0.7 : 0.4, Wide = bMajor ? 0.22 : 0.14;
+			UStaticMeshComponent* T = NewObject<UStaticMeshComponent>(Owner);
+			T->SetStaticMesh(Cube);
+			T->SetMobility(EComponentMobility::Movable);
+			T->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			T->SetCastShadow(false);
+			T->SetupAttachment(Parent);
+			T->RegisterComponent();
+			if (UMaterialInstanceDynamic* Mat = bRedZone ? RedMat : InkMat) T->SetMaterial(0, Mat);
+			const FVector TickAt = N.At + Out * (4.0 - Len * 0.5) - N.Axis * 0.15;
+			const FTransform TickLocal(FRotationMatrix::MakeFromXZ(N.Axis, Out).ToQuat(), TickAt, FVector(0.1, Wide, Len) / 100.0);
+			T->SetRelativeTransform(TickLocal * N.Base);
+			ScaleParts.Add(T);
+			if (!bMajor) continue;
+			// Its number, upright as the rider reads it: thousands on the rev counter.
+			const int32 Shown = FMath::RoundToInt(N.bRpm ? Value / 1000.0 : Value);
+			const FString Label = FString::FromInt(Shown);
+			UTextRenderComponent* L = NewObject<UTextRenderComponent>(Owner);
+			L->SetMobility(EComponentMobility::Movable);
+			L->SetupAttachment(Parent);
+			L->RegisterComponent();
+			L->SetHorizontalAlignment(EHTA_Center);
+			L->SetVerticalAlignment(EVRTA_TextCenter);
+			L->SetWorldSize(Label.Len() >= 3 ? 0.5f : 0.62f);
+			L->SetCastShadow(false);
+			L->SetTextRenderColor(bRedZone ? Red : Ink);
+			L->SetText(FText::FromString(Label));
+			const FTransform LabelLocal(FRotationMatrix::MakeFromXZ(N.Axis, N.Rest).ToQuat(), N.At + Out * (Label.Len() >= 3 ? 2.45 : 2.6) - N.Axis * 0.1);
+			L->SetRelativeTransform(LabelLocal * N.Base);
+			ScaleParts.Add(L);
+			++Numbers;
+		}
+		// What the numbers are in, small, above the pivot.
+		UTextRenderComponent* Unit = NewObject<UTextRenderComponent>(Owner);
+		Unit->SetMobility(EComponentMobility::Movable);
+		Unit->SetupAttachment(Parent);
+		Unit->RegisterComponent();
+		Unit->SetHorizontalAlignment(EHTA_Center);
+		Unit->SetVerticalAlignment(EVRTA_TextCenter);
+		Unit->SetWorldSize(0.36f);
+		Unit->SetCastShadow(false);
+		Unit->SetTextRenderColor(Ink);
+		Unit->SetText(FText::FromString(N.bRpm ? FString(TEXT("x1000 r/min")) : FString(bMetric ? TEXT("km/h") : TEXT("mph"))));
+		const FTransform UnitLocal(FRotationMatrix::MakeFromXZ(N.Axis, N.Rest).ToQuat(), N.At + N.Rest * 1.25 - N.Axis * 0.1);
+		Unit->SetRelativeTransform(UnitLocal * N.Base);
+		ScaleParts.Add(Unit);
+	}
+	// The plain ticks give way to the numbered scale.
+	for (const TWeakObjectPtr<UStaticMeshComponent>& Baked : BakedTicks)
+		if (UStaticMeshComponent* M = Baked.Get()) M->SetVisibility(false);
+	UE_LOG(LogTemp, Log, TEXT("Torque: the dials' scales: speedo 0-%.0f %s in %.0fs (top speed %.0f), revs 0-%.0f in %.0fs (redline %.0f), %d numbers"),
+		SpeedMax, bMetric ? TEXT("km/h") : TEXT("mph"), SpeedStep, TopSpeedMs * (bMetric ? 3.6 : 2.23694), RevMax, RevStep, Redline, Numbers);
 }

@@ -1789,8 +1789,10 @@ double BikeParts::Dashboard(const PartsMap& Parts, const Layout& L, const Bars& 
 			for (int I = 0; I < 9; ++I)
 			{
 				const double A = -2.35 + 4.7 * I / 8.0;
-				Code(CodeShapes::Box(V3(0.003, 0.002, 0.008)), Tilt * GAffine::Rotation(GodotUp, -A),
-					C + Tilt.Y * 0.029 + Tilt.Apply(V3(std::sin(A) * 0.036, 0.0, -std::cos(A) * 0.036)), "black_metal");
+				const V3 TickAt = C + Tilt.Y * 0.029 + Tilt.Apply(V3(std::sin(A) * 0.036, 0.0, -std::cos(A) * 0.036));
+				Code(CodeShapes::Box(V3(0.003, 0.002, 0.008)), Tilt * GAffine::Rotation(GodotUp, -A), TickAt, "black_metal");
+				// (The ridden bike lays its own numbered scale over these, matched to the bike, and hides them.)
+				Works("tick", TickAt, Tilt.Y, Tilt.Z * -1.0);
 			}
 			// The needle on its pivot (at rest: the game turns it with the speed or revs; the twin's
 			// left dial the speed, its right the revs).
