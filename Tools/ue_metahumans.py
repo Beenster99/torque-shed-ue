@@ -1451,8 +1451,8 @@ def _parts_of_blueprint(pkg, name, av):
 
 # Stopgap (round 123): only Avatar_D's groom draws in game, whatever the others' LOD, material or
 # binding, so the others wear D's hair, rigid on their head, until theirs are sorted. Set to None to
-# give each its own again.
-SHARE_HAIR_FROM = "Avatar_D"
+# give each its own again. Round 131: hair drawn as cards meshes works on all four, so each wears its own.
+SHARE_HAIR_FROM = None
 
 
 def _share_hair(by_name):
