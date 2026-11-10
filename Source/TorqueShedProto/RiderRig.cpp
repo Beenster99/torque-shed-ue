@@ -230,7 +230,9 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 		Helmet->bCastHiddenShadow = true;   // still throws its shadow when the camera's inside it
 		HelmetRest = HelmetFix;
 		Helmet->SetRelativeTransform(HelmetRest);
-		for (int32 I = 0; I < HM->GetStaticMaterials().Num(); ++I)
+		// A Fab helmet keeps its own materials; ours takes the kit's paint and visor.
+		const bool bOwnLook = HelmetPath.StartsWith(TEXT("/Game/Fab/")) || !HelmetPath.StartsWith(TEXT("/Game/Rider/"));
+		for (int32 I = 0; I < (bOwnLook ? 0 : HM->GetStaticMaterials().Num()); ++I)
 		{
 			const FString Slot = HM->GetStaticMaterials()[I].MaterialSlotName.ToString();
 			for (const TPair<FString, UMaterialInterface*>& M : Mats)
