@@ -923,6 +923,37 @@ void FTorqueAvatar::SetOwnerView(bool bFirstPerson)
 	}
 }
 
+void FTorqueAvatar::TouchHair()
+{
+	// Round 126: the hair drew only where each groom was first made (a mass floating at the line-up's
+	// start, puppets "growing" hair as they walked through it). A groom placed on a moving head, not
+	// bound to the skin, isn't sent its new place by the head's bones moving: send it every frame.
+	// -TorqueHairRecreate rebuilds its render state every frame instead (a heavier test);
+	// -TorqueHairLog logs each groom every 2 s.
+	static const bool bRecreate = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairRecreate"));
+	static const bool bLog = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairLog"));
+	const double Now = FPlatformTime::Seconds();
+	const bool bLogNow = bLog && Now - HairLogAt > 2.0;
+	if (bLogNow) HairLogAt = Now;
+	for (const TWeakObjectPtr<USceneComponent>& P : Hair)
+	{
+		USceneComponent* C = P.Get();
+		if (!C || !C->IsRegistered()) continue;
+		C->UpdateComponentToWorld();
+		if (bRecreate) C->MarkRenderStateDirty();
+		else C->MarkRenderTransformDirty();
+		if (bLogNow)
+		{
+			const UPrimitiveComponent* PC = Cast<UPrimitiveComponent>(C);
+			UE_LOG(LogTemp, Log, TEXT("Torque: hair %s %s: visible %d, render state %d, at %s, bounds %s r %.0f, head %s, last rendered %.1f s ago"),
+				*Name, *C->GetName(), C->IsVisible() ? 1 : 0, C->IsRenderStateCreated() ? 1 : 0, *C->GetComponentLocation().ToCompactString(),
+				PC ? *PC->Bounds.Origin.ToCompactString() : TEXT("-"), PC ? PC->Bounds.SphereRadius : 0.0,
+				FaceMesh ? *FaceMesh->GetSocketLocation(FName(TEXT("head"))).ToCompactString() : TEXT("-"),
+				PC && PC->GetWorld() ? PC->GetWorld()->GetTimeSeconds() - PC->GetLastRenderTime() : -1.0);
+		}
+	}
+}
+
 void FTorqueAvatar::PoseFace()
 {
 	if (!FaceMesh || !Driver || FaceMesh->BoneSpaceTransforms.Num() != FaceLocal.Num()) return;
@@ -935,6 +966,7 @@ void FTorqueAvatar::PoseFace()
 		FaceMesh->BoneSpaceTransforms[I] = T;
 	}
 	FaceMesh->MarkRefreshTransformDirty();
+	TouchHair();
 }
 
 namespace TorqueAvatarMath

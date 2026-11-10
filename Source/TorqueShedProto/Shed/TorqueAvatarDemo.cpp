@@ -18,8 +18,12 @@ void ATorqueAvatarDemo::BeginPlay()
 	Super::BeginPlay();
 	const int32 Count = FTorqueAvatar::Count();
 	UE_LOG(LogTemp, Log, TEXT("Torque: avatar demo with %d avatars"), Count);
+	// -TorqueAvatarOnly=N: just that one (0 is A), for a test with one avatar on its own.
+	int32 Only = -1;
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueAvatarOnly="), Only);
 	for (int32 I = 0; I < Count; ++I)
 	{
+		if (Only >= 0 && I != Only) continue;
 		FPuppet Pup;
 		Pup.Root = NewObject<USceneComponent>(this, *FString::Printf(TEXT("Puppet%d"), I));
 		Pup.Root->SetupAttachment(RootComponent);
