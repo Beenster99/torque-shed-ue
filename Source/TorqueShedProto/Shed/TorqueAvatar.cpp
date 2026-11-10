@@ -12,6 +12,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/FileHelper.h"
@@ -289,11 +290,23 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		Out.Add(C);
 	}
 	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
+	// Cards at every distance (also in DefaultEngine.ini): close up a groom switches to strands,
+	// which these MetaHumans don't have, so the hair vanished near the camera (round 125).
+	static bool bCardsSet = false;
+	if (!bCardsSet && GroomClass)
+	{
+		bCardsSet = true;
+		IConsoleVariable* Cards = IConsoleManager::Get().FindConsoleVariable(TEXT("r.HairStrands.UseCardsInsteadOfStrands"));
+		if (Cards) Cards->Set(1, ECVF_SetByCode);
+		UE_LOG(LogTemp, Log, TEXT("Torque: hair as cards everywhere: %s"), Cards ? *FString::Printf(TEXT("r.HairStrands.UseCardsInsteadOfStrands = %d"), Cards->GetInt()) : TEXT("no such setting"));
+	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %d parts; hair module %s, cloth module %s"), *E.Name, E.Parts.Num(),
 		GroomClass ? TEXT("loaded") : TEXT("missing"), ClothClass ? TEXT("loaded") : TEXT("missing"));
 	for (const FPart& P : E.Parts)
 	{
-		if (P.Groom.IsEmpty() || P.bLooseOnly || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
+		// -TorqueOwnHair: each avatar's own groom instead of the shared stopgap one.
+		static const bool bOwnHair = FParse::Param(FCommandLine::Get(), TEXT("TorqueOwnHair"));
+		if (P.Groom.IsEmpty() || (bOwnHair ? !P.FitMesh.IsEmpty() : P.bLooseOnly) || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
 		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueNoGroom"))) { UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s left off (-TorqueNoGroom)"), *E.Name, *P.Name); continue; }
 		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
 		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
