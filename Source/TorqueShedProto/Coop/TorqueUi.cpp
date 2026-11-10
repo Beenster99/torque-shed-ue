@@ -117,6 +117,36 @@ void Rect(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColo
 	Canvas->DrawItem(Item);
 }
 
+void Polygon(UCanvas* Canvas, const TArray<FVector2D>& Points, const FLinearColor& Colour)
+{
+	if (!Canvas || Points.Num() < 3 || Colour.A <= 0.0f) return;
+	TArray<FCanvasUVTri> Tris;
+	Tris.Reserve(Points.Num() - 2);
+	for (int32 I = 1; I + 1 < Points.Num(); ++I)
+	{
+		FCanvasUVTri T;
+		T.V0_Pos = Points[0];     T.V0_Color = Colour; T.V0_UV = FVector2D(0, 0);
+		T.V1_Pos = Points[I];     T.V1_Color = Colour; T.V1_UV = FVector2D(1, 0);
+		T.V2_Pos = Points[I + 1]; T.V2_Color = Colour; T.V2_UV = FVector2D(1, 1);
+		Tris.Add(T);
+	}
+	FCanvasTriangleItem Item(Tris, GWhiteTexture);
+	Item.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Item);
+}
+
+void Disc(UCanvas* Canvas, float CX, float CY, float R, const FLinearColor& Colour, int32 Segments)
+{
+	TArray<FVector2D> Points;
+	Segments = FMath::Clamp(Segments, 6, 96);
+	for (int32 I = 0; I < Segments; ++I)
+	{
+		const float A = 2.0f * UE_PI * I / Segments;
+		Points.Add(FVector2D(CX + R * FMath::Cos(A), CY + R * FMath::Sin(A)));
+	}
+	Polygon(Canvas, Points, Colour);
+}
+
 void Frame(UCanvas* Canvas, float X, float Y, float W, float H, const FLinearColor& Colour, float T)
 {
 	Rect(Canvas, X, Y, W, T, Colour);

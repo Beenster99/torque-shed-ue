@@ -19,7 +19,8 @@ enum class ETorqueKey : uint8
 	Work, AltWork, Use, NextTool, PrevTool, Tool1, Tool2, Tool3, Tool4, Tool5, Tool6, SprayFinish, GeometryMode, LabelShelf,
 	// Riding.
 	Throttle, FrontBrake, RearBrake, LeanLeft, LeanRight, WeightBack, WeightForward, ShiftUp, ShiftDown, AutoShift, Abs, Clutch, Ignition,
-	Camera, CamCloser, CamFarther, CamHigher, CamLower, CamTiltUp, CamTiltDown, LookBack, BackOnRoad, Restart, RealismDown, RealismUp, Weather, Horn, BackToShed, Telemetry,
+	Camera, CamCloser, CamFarther, CamHigher, CamLower, CamTiltUp, CamTiltDown, LookBack, BackOnRoad, Restart, RealismDown, RealismUp, Weather, Horn,
+	Headlight, MainBeam, FogLights, IndicateLeft, IndicateRight, Hazards, BackToShed, Telemetry,
 	// Both.
 	Help, Perf, PerfLog,
 	Count

@@ -491,6 +491,8 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			++(bFlipped ? Turned : Kept);
 			TorqueShedPick::AddShape(Mesh, Pos, Tris);
 			UStaticMeshComponent* C = TSCI::AddSurface(Owner, Parent, Mesh, Mat, Slot, TSCI::Ue(P.Glb), bPaint, Parts.FindRef(Slot));
+			// [lights] The surface's tag, so the ridden bike can find its lenses (FTorqueLights::Hook).
+			C->ComponentTags.Add(FName(*(TEXT("Surf:") + Tag)));
 			Out.Add(C);
 			if (OutNodes) OutNodes->Add(P.Node.empty() ? NAME_None : FName(*TSCI::Ue(P.Node)));
 			if (OutGauges && !P.Gauge.empty())

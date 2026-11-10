@@ -787,6 +787,9 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	// [fluids] The petrol it rides out with is what's in its tank in the shed (filled at the pump).
 	if (B->FuelCapacityOf(Bay) > 0.0f) Dash.FuelLitres = FMath::Clamp((double)B->FuelOf(Bay), 0.0, Dash.FuelCapacity);
 	Dash.HookClocks(this, ModelParts, Gauges, ShapeCube);
+	// [lights] Its lamps: the headlight, fog lights, indicators and rear light on their lenses.
+	Lights.Setup(Parts);
+	Lights.Hook(this, ModelParts, true);
 	SideStandPart = Parts.FindRef(TEXT("side_stand"));
 	CentreStandPart = Parts.FindRef(TEXT("centre_stand"));
 	StandRest.Reset();
@@ -1439,10 +1442,29 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (Keep.bSaved) Keep.Save();
 	}
 	// The horn while J or the d-pad's left is held (Torque Shed: H or L3, both taken here).
-	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left) || (SonyDown & ESonyButton::DLeft) != 0;
+	// ([lights] With R1 held the d-pad's left and right are the indicators, not the horn and the weather.)
+	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || (!bPadRB && (PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left) || (SonyDown & ESonyButton::DLeft) != 0));
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
+	// [lights] The lamps' switches (TorqueLights.h): L headlight, K main beam, N fog lights, , and .
+	// the indicators (again to cancel), / the hazards; on the pad, R1 held + the d-pad's left or right
+	// the indicators, R1 + both (one then the other) the hazards.
+	{
+		bool bOk = false;
+		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.ToggleHeadlight(bOk), bOk);
+		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
+		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
+		if (FTorqueKeys::Just(PC, ETorqueKey::Hazards)) LightsNote(Lights.ToggleHazard(bOk), bOk);
+		const bool bPadLeft = bPadRB && (SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left));
+		const bool bPadRight = bPadRB && (SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right));
+		if (bPadLeft || bPadRight) bPadComboUsed = true;   // (letting R1 go then isn't a camera change)
+		const bool bPadOther = bPadLeft ? ((SonyDown & ESonyButton::DRight) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Right))
+			: bPadRight && ((SonyDown & ESonyButton::DLeft) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left));
+		if (bPadOther) LightsNote(Lights.ToggleHazard(bOk), bOk);
+		else if (FTorqueKeys::Just(PC, ETorqueKey::IndicateLeft) || bPadLeft) LightsNote(Lights.Indicate(-1, bOk), bOk);
+		else if (FTorqueKeys::Just(PC, ETorqueKey::IndicateRight) || bPadRight) LightsNote(Lights.Indicate(1, bOk), bOk);
+	}
 	// Backspace: back to the shed (when its map has been built).
 	// [yard] In the shed's yard: park it and walk back in (Shed/TorqueYard.h).
 	if (FTorqueKeys::Just(PC, ETorqueKey::BackToShed))
@@ -1454,7 +1476,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		if (TorqueFlow::BackToShed(this)) return;
 	}
-	if (FTorqueKeys::Just(PC, ETorqueKey::Weather) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right))
+	if (FTorqueKeys::Just(PC, ETorqueKey::Weather) || (!bPadRB && PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right)))
 	{
 		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
 		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
@@ -2375,6 +2397,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	CamNoteFor = FMath::Max(CamNoteFor - DeltaSeconds, 0.0);
 	if (ChaseSaveIn >= 0.0 && (ChaseSaveIn -= DeltaSeconds) < 0.0) FTorqueProfile::Mine().Save();   // the third-person camera, once it's settled
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
+	StepLights(DeltaSeconds, bRemote);   // [lights]
 	if (!bRemote)
 	{
 		UpdateProgress();
@@ -3208,6 +3231,30 @@ void ATorqueBikePawn::StartSound()
 	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
 }
 
+// [lights] The lamps each frame: on our own bike from the ignition, the brakes as the rider holds
+// them and the lean and turn for the indicators' self-cancel, with the relay ticking behind the
+// clocks; on someone else's from their snapshot (the switches) and the brakes it carries.
+void ATorqueBikePawn::StepLights(float Dt, bool bRemote)
+{
+	const ATorqueGameState* LightGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	const float Day = LightGs ? LightGs->GetDayLight() : 1.0f;
+	const bool bRunning = bRemote ? Lights.bIgnition : Sim->EngineOn;
+	const double TurnRate = -Sim->AngularVelocity.y;   // (sim y is up: + turning right, as bike_lamps.gd)
+	const int32 Heard = Lights.Step(Dt, bRunning, FrontBrake, RearBrake, Sim->LeanAngle, TurnRate, !bRemote, Day);
+	if (Heard != 0 && !bRemote)
+		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this))
+			Sfx->PlayMadeOn(FTorqueLights::Click(Heard > 0), FTorqueLights::ClickRate, Root, FVector(60.0, 0.0, 100.0), -14.0f);
+}
+
+void ATorqueBikePawn::LightsNote(const FString& Text, bool bOk)
+{
+	// What the switch did (or why it couldn't), a moment on the HUD, and its click.
+	EngineNote = Text;
+	EngineNoteFor = bOk ? 1.2 : 2.0;
+	if (bOk)
+		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("switch"), GetActorLocation() + FVector(0.0, 0.0, 100.0), -10.0f);
+}
+
 void ATorqueBikePawn::UpdateSound(float Dt)
 {
 	if (!Sound || !SoundWave) return;
@@ -3683,6 +3730,9 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
 			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
 			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
+		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   (pad: R1 held + D-pad left / right indicates)"),
+			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
+			*K(ETorqueKey::Hazards)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
 			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),

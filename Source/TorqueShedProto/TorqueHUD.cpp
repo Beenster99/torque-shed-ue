@@ -542,6 +542,7 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 	// The low fuel light, blinking.
 	if (Fuel < 0.15 && ((int32)(FPlatformTime::Seconds() * 2.0)) % 2 == 0)
 		Say(TEXT("LOW FUEL"), RX + 140.0f, RY + 106.0f, 13.0f, FLinearColor(1.0f, 0.65f, 0.1f));
+	DrawTellTales(Bike, RX, RY, G);   // [lights]
 	// What to press, along the bottom: starting, or stopped.
 	FString Hint;
 	if (Bike->IsStarting()) Hint = TEXT("Starting...");
@@ -549,4 +550,63 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 		Hint = FString::Printf(TEXT("%s: %s   \u00B7   Esc: menu"), *FTorqueKeys::Text(ETorqueKey::BackToShed),
 			Bike->InYard() ? TEXT("park and walk back in") : TEXT("back to the shed"));   // [yard]
 	if (!Hint.IsEmpty()) Say(Hint, W * 0.5f, H - 40.0f, 16.0f, Dim(0.75f), TorqueUi::EAlign::Centre);
+}
+
+void ATorqueHUD::DrawTellTales(const ATorqueBikePawn* Bike, float RX, float RY, float G)
+{
+	const FTorqueLights& L = Bike->GetLights();
+	const bool bHead = L.HeadOn(), bMain = L.MainOn(), bFogOn = L.FogOn(), bInd = L.Indicating();
+	if (!bHead && !bInd) return;
+	const FLinearColor Green(0.3f, 1.0f, 0.4f), DarkGreen(0.3f, 1.0f, 0.4f, 0.15f), Blue(0.3f, 0.55f, 1.0f);
+	// Godot pixels to the screen's.
+	auto P = [G](float X, float Y) { return FVector2D(X * G, Y * G); };
+	// A ray: a bar T thick from (X0, Y0) to (X1, Y1).
+	auto Ray = [this, &P](float X0, float Y0, float X1, float Y1, float T, const FLinearColor& C) {
+		TorqueUi::Polygon(Canvas, {P(X0, Y0 - T), P(X1, Y1 - T), P(X1, Y1 + T), P(X0, Y0 + T)}, C);
+	};
+	// The headlamp symbol: the lamp's D (its flat face to the left) and its beams out of that face,
+	// level for main beam, dipped down for dipped; the fog lamp's with a wavy line through its beams.
+	auto Lamp = [this, &P, &Ray](float CX, float CY, bool bLevel, bool bFogLamp, const FLinearColor& C) {
+		TArray<FVector2D> D;
+		D.Add(P(CX - 1.0f, CY));
+		for (int32 I = 0; I <= 12; ++I)
+		{
+			const float A = UE_PI * (-0.5f + I / 12.0f);
+			D.Add(P(CX - 1.0f + 7.5f * FMath::Cos(A), CY + 8.0f * FMath::Sin(A)));
+		}
+		TorqueUi::Polygon(Canvas, D, C);
+		for (int32 I = 0; I < 4; ++I)
+		{
+			const float RayY = CY - 6.0f + 4.0f * I;
+			Ray(CX - 4.0f, RayY, CX - 14.0f, bLevel ? RayY : RayY + 3.5f, 0.9f, C);
+		}
+		if (bFogLamp)
+			for (int32 I = 0; I < 4; ++I)
+				Ray(CX - 9.0f + (I % 2 ? 1.5f : -1.5f), CY - 8.0f + 4.0f * I, CX - 9.0f + (I % 2 ? -1.5f : 1.5f), CY - 4.0f + 4.0f * I, 0.8f, C);
+	};
+	// What's lit, right to left from over the speedo's right edge.
+	const float Y = RY - 16.0f;
+	float X = RX + 226.0f;
+	const float Pad = 6.0f;
+	const float W = (bInd ? 80.0f : 0.0f) + (bHead ? 34.0f : 0.0f) + (bFogOn ? 34.0f : 0.0f);
+	TorqueUi::Rect(Canvas, (X - W - Pad) * G, (Y - 13.0f) * G, (W + Pad) * G, 26.0f * G, FLinearColor(0.03f, 0.03f, 0.04f, 0.6f));
+	if (bInd)
+	{
+		// hud.gd _draw_indicator_lamp: an arrow each way, the side indicating flashing with the lamps.
+		const float MidX = X - 43.0f;
+		for (int32 Sd : {-1, 1})
+		{
+			const float Tx = MidX + 28.0f * Sd;
+			TorqueUi::Polygon(Canvas, {P(Tx, Y), P(Tx - 11.0f * Sd, Y - 9.0f), P(Tx - 11.0f * Sd, Y - 3.5f), P(Tx - 22.0f * Sd, Y - 3.5f),
+				P(Tx - 22.0f * Sd, Y + 3.5f), P(Tx - 11.0f * Sd, Y + 3.5f), P(Tx - 11.0f * Sd, Y + 9.0f)},
+				(Sd < 0 ? L.LeftLit() : L.RightLit()) ? Green : DarkGreen);
+		}
+		X -= 80.0f;
+	}
+	if (bFogOn)
+	{
+		Lamp(X - 12.0f, Y, false, true, Green);
+		X -= 34.0f;
+	}
+	if (bHead) Lamp(X - 12.0f, Y, bMain, false, bMain ? Blue : Green);
 }
