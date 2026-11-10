@@ -1,4 +1,5 @@
 #include "Shed/TorqueShedTest.h"
+#include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBoothHooks.h"
@@ -27,6 +28,7 @@
 #include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "UnrealClient.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
@@ -227,6 +229,27 @@ const TCHAR* const PhysicsSteps =
 	TEXT("log");
 #undef TORQUE_PHYSICS_STYLE
 
+// [rider pose] The MetaHuman sat on every style's reference bike (the scratch bike above remade as
+// each), the robot riding it down the road, pictured side on from its right, from the front on the
+// left and from behind on the right, first as the pose was before the fit per bike
+// (riderpose:old) and then fitted (riderpose:new), the same moment of the same ride, logged both
+// ways. The pictures go to Saved/Screenshots/RiderPose as <style>_<old|new>_<side|front|rear>.png.
+#define TORQUE_RIDER_VIEWS(S, W) TEXT("riderpose:") TEXT(W) TEXT(",wait:1,") \
+	TEXT("camera:3:90:330:40:15,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_side,") \
+	TEXT("camera:3:-40:340:40:35,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_front,") \
+	TEXT("camera:3:150:340:40:60,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_rear,ridelog,")
+#define TORQUE_RIDER_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,robot:on,wait:8,") \
+	TORQUE_RIDER_VIEWS(S, "old") TORQUE_RIDER_VIEWS(S, "new") TEXT("camera:0,robot:off,back,wait:6,")
+const TCHAR* const RiderPoseSteps =
+	TEXT("bay:3,order:steel_backbone,item:steel_backbone,f,item:steel_backbone,act,place:bay_2,act,finish:cafe,")
+	TORQUE_RIDER_STYLE("classic") TORQUE_RIDER_STYLE("cafe") TORQUE_RIDER_STYLE("scrambler") TORQUE_RIDER_STYLE("tourer")
+	TORQUE_RIDER_STYLE("roader") TORQUE_RIDER_STYLE("naked") TORQUE_RIDER_STYLE("sport") TORQUE_RIDER_STYLE("race")
+	TORQUE_RIDER_STYLE("bobber") TORQUE_RIDER_STYLE("chopper") TORQUE_RIDER_STYLE("cruiser") TORQUE_RIDER_STYLE("adventure")
+	TORQUE_RIDER_STYLE("supermoto") TORQUE_RIDER_STYLE("mx")
+	TEXT("riderpose:new,log");
+#undef TORQUE_RIDER_STYLE
+#undef TORQUE_RIDER_VIEWS
+
 // The movable kit: the yard's test area, a cone looked at, taken hold of, turned both ways, carried
 // and put down; a ramp ordered from the Shed aisle into the drop-off and a stool into the shed's;
 // the shed saved and the kit logged.
@@ -307,6 +330,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("geotwin")) FString(TSTI::GeoTwinSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("ride")) FString(TSTI::RideSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("riderposes")) FString(TSTI::RiderPoseSteps).ParseIntoArray(Preset, TEXT(","), true);   // [rider pose]
 		else if (T == TEXT("fluids")) FString(TSTI::FluidSteps).ParseIntoArray(Preset, TEXT(","), true);   // [fluids]
 		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("washride")) FString(TSTI::WashRideSteps).ParseIntoArray(Preset, TEXT(","), true);   // [washride]
@@ -483,6 +507,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// "shot:ui": the viewport as the player sees it, HUD and menus included (HighResShot
 		// leaves them out).
+		// "shot:as:<name>": the same, saved as Saved/Screenshots/RiderPose/<name>.png.   [rider pose]
+		if (P.Num() > 2 && P[1] == TEXT("as"))
+		{
+			const FString File = FPaths::ConvertRelativePathToFull(FPaths::ScreenShotDir() / TEXT("RiderPose") / (P[2] + TEXT(".png")));
+			Said(TEXT("screenshot ") + File);
+			if (APlayerController* PC = World->GetFirstPlayerController()) PC->ConsoleCommand(FString::Printf(TEXT("HighResShot 1 filename=\"%s\""), *File));
+			return true;
+		}
 		if (P.Num() > 1 && P[1] == TEXT("ui"))
 		{
 			Said(TEXT("screenshot with the HUD (Saved/Screenshots)"));
@@ -496,6 +528,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		return true;
 	}
 	if (Verb == TEXT("log")) { LogBuild(*S); return true; }
+	// [rider pose] riderpose:old|new: the MetaHuman rider sat as before the fit per bike, or fitted.
+	if (Verb == TEXT("riderpose"))
+	{
+		FTorqueAvatar::bOldRidePose = P.Num() > 1 && P[1].ToLower() == TEXT("old");
+		Said(FTorqueAvatar::bOldRidePose ? TEXT("rider posed as before the fit per bike") : TEXT("rider fitted to each bike"));
+		return true;
+	}
 	if (Verb == TEXT("bay") && P.Num() >= 2)
 	{
 		TestBay = FMath::Clamp(FCString::Atoi(*P[1]) - 1, 0, UTorqueBuildSubsystem::Bays - 1);

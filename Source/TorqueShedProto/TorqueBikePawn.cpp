@@ -707,6 +707,10 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 				return FTransform::Identity;
 			};
 			RiderSeat = MoveOf(SaddleTag).TransformPosition(Frame.Seat);
+			// [rider pose] The knees move with the saddle (they sit by the tank's back, over the hips).
+			RiderKnee[1] = MoveOf(SaddleTag).TransformPosition(Frame.Knee);
+			RiderKnee[0] = MoveOf(SaddleTag).TransformPosition(FVector(Frame.Knee.X, -Frame.Knee.Y, Frame.Knee.Z));
+			RiderTankHalfW = Frame.TankHalfW;
 			const FTransform PegMove = MoveOf(RearsetsTag);
 			RiderPeg[1] = PegMove.TransformPosition(Frame.Peg);
 			RiderPeg[0] = PegMove.TransformPosition(FVector(Frame.Peg.X, -Frame.Peg.Y, Frame.Peg.Z));
@@ -844,6 +848,18 @@ FString ATorqueBikePawn::TestRideLog() const
 			RiderLegReach[0], RiderLegReach[1], RiderLeg, bRiderFitted && RiderRig.IsValid() ? TEXT("") : TEXT(" (not fitted: no rig)"));
 		if (RiderRig.Helmet)
 			Out += FString::Printf(TEXT("\nrider helmet at %s (pawn local)"), *RiderRig.Helmet->GetRelativeLocation().ToString());
+		// [rider pose] The MetaHuman as it sat: its back, knees and elbows, how far its hands and ankles
+		// fell short of their marks, and its knees' distance out from the bike's middle.
+		if (RiderAvatar.IsValid())
+		{
+			const FTorqueAvatar::FRideReport& Rp = RiderAvatar.RideReport;
+			double TankWidest = 0.0;
+			for (const FVector2D& TankAt : RiderTankHalfW) TankWidest = FMath::Max(TankWidest, 2.0 * TankAt.Y);
+			Out += FString::Printf(TEXT("\nrider avatar %s (%s pose): back %.1f deg forward of upright, knees %.0f / %.0f deg, elbows %.0f / %.0f deg, ")
+				TEXT("hands %.1f / %.1f cm short, ankles %.1f / %.1f cm short, knees %.1f / %.1f cm out (pads at %.1f, tank %.1f wide at most)"),
+				*RiderAvatar.Name, FTorqueAvatar::bOldRidePose ? TEXT("old") : TEXT("fitted"), Rp.BackDeg, Rp.KneeDeg[0], Rp.KneeDeg[1], Rp.ElbowDeg[0], Rp.ElbowDeg[1],
+				Rp.HandShort[0], Rp.HandShort[1], Rp.AnkleShort[0], Rp.AnkleShort[1], Rp.KneeOut[0], Rp.KneeOut[1], FMath::Abs(RiderKnee[1].Y), TankWidest);
+		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
 	// rider root, and any skinned mesh in the world within 3 m (another player's or a walker's).
@@ -2694,6 +2710,20 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	T.Seat = R.Hip + (TorqueRiderSeat::TwinSeat - RiderRig.PelvisRest());
 	T.bSeat = true;
 	T.TankRearX = RiderTankRearX;
+	// [rider pose] On a catalogue bike, its own knees, pegs and tank: the MetaHuman's knees go by the
+	// tank's knee pads, the balls of its feet on the pegs.
+	T.bOnLayout = bRiderOnLayout;
+	T.FeetDown = RiderFeetDown;
+	T.bLaidBack = bRiderLaidBack;
+	if (bRiderOnLayout)
+	{
+		T.TankHalfW = RiderTankHalfW;
+		for (int32 S = 0; S < 2; ++S)
+		{
+			T.Knee[S] = RiderKnee[S];
+			T.Peg[S] = RiderPeg[S];
+		}
+	}
 	T.Neck = R.Neck;
 	T.Look = R.Look;
 	T.Limp = R.Limp;
@@ -3015,6 +3045,7 @@ void ATorqueBikePawn::UpdateRider()
 		}
 		RiderRig.Pose(In);
 		HeadLocal = RiderRig.HelmetCentre;
+		RiderFeetDown = FMath::Clamp(In.FeetDown, 0.0, 1.0);
 		UpdateRiderAvatar();
 		return;
 	}

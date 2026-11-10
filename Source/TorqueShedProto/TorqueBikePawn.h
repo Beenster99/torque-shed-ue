@@ -421,6 +421,11 @@ private:
 	bool bRiderOnLayout = false, bRiderFitted = false;
 	FVector RiderSeat = FVector::ZeroVector, RiderPeg[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	double RiderTankRearX = 1.0e9;   // the drawn tank's back edge along x (pawn cm), for the MetaHuman's seat
+	// [rider pose] Where the knees go (BikeRig's knee, 0 left, 1 right), the tank's half-width along
+	// x (FBikeFrame::TankHalfW), and how far the feet are down off the pegs (the last pose's).
+	FVector RiderKnee[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	TArray<FVector2D> RiderTankHalfW;
+	double RiderFeetDown = 0.0;
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's
 	double RiderBackDeg = 0.0;                  // and the back's lean for it, forward of upright

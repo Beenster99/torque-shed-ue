@@ -1,5 +1,6 @@
 #include "Shed/TorqueShedCatalogue.h"
 
+#include "Fit/BikeBody.h"
 #include "Fit/BikeGeometry.h"
 #include "Fit/BikeLayout.h"
 #include "Fit/BikeParts.h"
@@ -433,6 +434,18 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		const TorqueFit::Json* FramePart = Frm != Map.end() ? Lay->Part(Frm->second) : nullptr;
 		const std::string FrameStyle = FramePart ? FramePart->Str("style") : std::string();
 		OutFrame->bLaidBack = L.Peg.x > L.Pivot.x + 0.2 || FrameStyle == "chopper" || FrameStyle == "cruiser";
+		// [rider pose] The knee and the tank's width along the rider's legs.
+		const FVector Knee(TSCI::ToUe(L.KneeR));
+		OutFrame->Knee = FVector(Knee.X, FMath::Abs(Knee.Y), Knee.Z);
+		OutFrame->TankHalfW.Reset();
+		const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
+		for (const TorqueFit::LoftSection& Sec : Work.TankSecs)
+		{
+			// The loft's sections are in Godot's frame (z back), metres.
+			const FVector At(TSCI::ToUe(TorqueFit::FromGodot(Sec.C)));
+			OutFrame->TankHalfW.Add(FVector2D(At.X, Sec.W * 100.0));
+		}
+		OutFrame->TankHalfW.Sort([](const FVector2D& A, const FVector2D& B) { return A.X > B.X; });
 	}
 	TorqueFit::BikeParts Placer(*Lay, *Idx->Get("parts"));
 	Placer.SetMeshSource([](const std::string& Glb, TorqueFit::PartMesh& M) { return TSCI::LoadPart(Glb, M); });
