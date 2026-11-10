@@ -2620,4 +2620,8 @@ def build():
     log("built %s with %d meshes; press Play to ride" % (MAP, len(meshes)))
 
 
-build()
+
+# Tools/ue_shed_dales.py borrows the materials and helpers above for the dale round the shed: it sets
+# this flag and imports the file as a module, so the ride isn't built then.
+if not getattr(sys, "torque_build_level_as_library", False):
+    build()
