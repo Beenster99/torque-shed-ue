@@ -28,7 +28,10 @@ float PourRate(FName Kind)
 
 FString Litres(float L, float Cap)
 {
-	return Cap < 1.0f ? FString::Printf(TEXT("%.2f of %.2f L"), L, Cap) : FString::Printf(TEXT("%.1f of %.0f L"), L, Cap);
+	if (Cap < 1.0f) return FString::Printf(TEXT("%.2f of %.2f L"), L, Cap);
+	// A sump of 2.5 L reads 2.5, a tank of 17 L reads 17.
+	const FString CapText = FMath::IsNearlyEqual(Cap, FMath::RoundToFloat(Cap), 0.05f) ? FString::Printf(TEXT("%.0f"), Cap) : FString::Printf(TEXT("%.1f"), Cap);
+	return FString::Printf(TEXT("%.1f of %s L"), L, *CapText);
 }
 
 FString Lower(const FString& S) { return S.ToLower(); }

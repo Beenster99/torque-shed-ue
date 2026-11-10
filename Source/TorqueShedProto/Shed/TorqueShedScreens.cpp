@@ -602,12 +602,26 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	}
 	// What's holding the engine back (Torque Shed's notes).
 	Y += 10.0f;
-	for (int32 I = 0; I < E.Notes.Num() && I < 6 && Y < H - 120.0f; ++I)
+	// [fluids] Then what it's low on: petrol, oil, brake fluid, a dry chain.
+	TArray<FString> Notes = E.Notes;
+	if (Shed)
 	{
-		Pen.Text(24, Y, Left(E.Notes[I], 46), 17, Srgb(1.0f, 0.75f, 0.3f));
+		const UTorqueBuildSubsystem::FFluidLevels Lv = Shed->FluidsOf(Bay);
+		const float FuelFrac = Lv.FuelCapacity > 0.0f ? Lv.FuelLitres / Lv.FuelCapacity : 0.0f;
+		if (Lv.bTank && Lv.FuelLitres < 0.05f) Notes.Add(TEXT("No petrol in the tank. Fill it at the pump."));
+		else if (Lv.bTank && FuelFrac < 0.25f) Notes.Add(FString::Printf(TEXT("Low on petrol (%.1f L)."), Lv.FuelLitres));
+		if (Lv.bEngine && Lv.Oil < 0.6f) Notes.Add(FString::Printf(TEXT("Oil low (%.0f%%): top it up."), Lv.Oil * 100.0f));
+		else if (Lv.bEngine && Lv.OilAge > 0.6f) Notes.Add(TEXT("The oil's old: change it."));
+		if (Lv.bFrontBrake && Lv.FrontBrake < 0.5f) Notes.Add(FString::Printf(TEXT("Front brake fluid low (%.0f%%)."), Lv.FrontBrake * 100.0f));
+		if (Lv.bRearBrake && Lv.RearBrake < 0.5f) Notes.Add(FString::Printf(TEXT("Rear brake fluid low (%.0f%%)."), Lv.RearBrake * 100.0f));
+		if (Lv.bChain && Lv.Lube < 0.4f) Notes.Add(TEXT("The chain's dry: lube it."));
+	}
+	for (int32 I = 0; I < Notes.Num() && I < 6 && Y < H - 120.0f; ++I)
+	{
+		Pen.Text(24, Y, Left(Notes[I], 46), 17, Srgb(1.0f, 0.75f, 0.3f));
 		Y += 26.0f;
 	}
-	if (E.Notes.Num() == 0 && E.bValid) Pen.Text(24, Y, TEXT("Running sweet."), 17, Good());
+	if (Notes.Num() == 0 && E.bValid) Pen.Text(24, Y, TEXT("Running sweet."), 17, Good());
 	}
 	else
 	{

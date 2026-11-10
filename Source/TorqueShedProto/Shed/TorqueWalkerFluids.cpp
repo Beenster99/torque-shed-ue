@@ -142,7 +142,7 @@ bool ATorqueWalker::FluidPlan(int32 Held)
 	const FName Kind = TorqueShedParts::FluidKind(IntoIt->Part);
 	const FString What = TorqueShedParts::FluidName(Kind).ToLower();
 	const float Cap = TorqueShedParts::FluidCapacity(IntoIt->Part);
-	const FString Level = FString::Printf(TEXT("%s of %s"), *FluidLitresText(IntoIt->Litres), *FluidLitresText(Cap));
+	const FString Level = FString::Printf(TEXT("it has %s of %s"), *FluidLitresText(IntoIt->Litres), *FluidLitresText(Cap));
 	FString Where = TEXT("it");
 	if (Kind == FName(TEXT("petrol"))) Where = TEXT("the tank");
 	else if (Kind == FName(TEXT("oil"))) Where = TEXT("the engine");

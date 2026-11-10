@@ -224,7 +224,7 @@ const TCHAR* const FluidSteps =
 	TEXT("fluid:carry:drain_pan,crouch:1,part:chain,act,fluid:log,crouch:0,fluid:drop,")
 	TEXT("fluid:carry:oil,fluid:slosh,fluid:slosh:3,wait:0.4,fluid:slosh,shot,wait:4,fluid:slosh,part:chain,act,fluid:log,fluid:drop,")
 	TEXT("fluid:carry:bleed_bottle,part:front_wheel,act,fluid:log,fluid:drop,")
-	TEXT("fluid:carry:brake,part:front_wheel,act,fluid:log,fluid:drop,")
+	TEXT("fluid:carry:brake,part:fork,act,fluid:log,fluid:drop,")
 	TEXT("fluid:set:lube:0.3,fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,")
 	TEXT("fluid:set:petrol:0.2,fluid:set:oil:0.5,look:screen,shot,fluid:log");
 
