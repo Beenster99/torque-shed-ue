@@ -48,6 +48,104 @@ double SprocketRadius(int Teeth)
 {
 	return ChainPitch / (2.0 * std::sin(TorqueSim::Pi / std::max(static_cast<double>(Teeth), 6.0))) + 0.003;
 }
+
+// The tank as it is drawn on the bike (its glb with its keys and warp), Godot frame, so the
+// filler cap and the knee pads sit on its real surface and not on the loft's rough sections (a
+// redrawn tank's surface can stand well off them).
+struct TankSurface
+{
+	struct Tri { V3 A, B, C, Na, Nb, Nc; };
+	std::vector<Tri> Tris;
+	bool Empty() const { return Tris.empty(); }
+	// Just the triangles touching a box (Lo..Hi), to cast many rays at one place.
+	TankSurface Near(const V3& Lo, const V3& Hi) const
+	{
+		TankSurface Part;
+		for (const Tri& T : Tris)
+		{
+			const V3 Mn(std::min({T.A.x, T.B.x, T.C.x}), std::min({T.A.y, T.B.y, T.C.y}), std::min({T.A.z, T.B.z, T.C.z}));
+			const V3 Mx(std::max({T.A.x, T.B.x, T.C.x}), std::max({T.A.y, T.B.y, T.C.y}), std::max({T.A.z, T.B.z, T.C.z}));
+			if (Mx.x >= Lo.x && Mn.x <= Hi.x && Mx.y >= Lo.y && Mn.y <= Hi.y && Mx.z >= Lo.z && Mn.z <= Hi.z) Part.Tris.push_back(T);
+		}
+		return Part;
+	}
+	// The first point a ray from From along Dir (unit) meets, and the smooth normal there turned to
+	// face back along the ray. False when it misses.
+	bool Hit(const V3& From, const V3& Dir, V3& OutAt, V3& OutNrm) const
+	{
+		double Best = 1e9;
+		for (const Tri& T : Tris)
+		{
+			const V3 E1 = T.B - T.A, E2 = T.C - T.A;
+			const V3 Pv = Dir.Cross(E2);
+			const double Det = E1.Dot(Pv);
+			if (std::fabs(Det) < 1e-12) continue;
+			const V3 Tv = From - T.A;
+			const double Bu = Tv.Dot(Pv) / Det;
+			if (Bu < 0.0 || Bu > 1.0) continue;
+			const V3 Qv = Tv.Cross(E1);
+			const double Bv = Dir.Dot(Qv) / Det;
+			if (Bv < 0.0 || Bu + Bv > 1.0) continue;
+			const double Along = E2.Dot(Qv) / Det;
+			if (Along <= 0.0 || Along >= Best) continue;
+			Best = Along;
+			OutAt = From + Dir * Along;
+			V3 Smooth = T.Na * (1.0 - Bu - Bv) + T.Nb * Bu + T.Nc * Bv;
+			if (Smooth.Length() < 1e-9) Smooth = E1.Cross(E2);
+			Smooth = Smooth.Normalized();
+			OutNrm = Smooth.Dot(Dir) > 0.0 ? Smooth * -1.0 : Smooth;
+		}
+		return Best < 1e9;
+	}
+};
+
+// A tank surface's triangles binned by where they lie across one axis (Along: 0 for rays along x, 1
+// for rays along y), so a ray along that axis only tries the triangles in its cell.
+struct BinnedSurface
+{
+	int Along = 0;
+	double Cell = 0.01, Lo0 = 0.0, Lo1 = 0.0;
+	int N0 = 0, N1 = 0;
+	std::vector<TankSurface> Bins;
+	BinnedSurface(const TankSurface& From, int InAlong, double InCell = 0.01) : Along(InAlong), Cell(InCell)
+	{
+		auto Axes = [this](const V3& P) { return Along == 0 ? std::make_pair(P.y, P.z) : std::make_pair(P.x, P.z); };
+		double Hi0 = -1e9, Hi1 = -1e9;
+		Lo0 = Lo1 = 1e9;
+		for (const TankSurface::Tri& T : From.Tris)
+			for (const V3* P : {&T.A, &T.B, &T.C})
+			{
+				const auto [U, W] = Axes(*P);
+				Lo0 = std::min(Lo0, U); Hi0 = std::max(Hi0, U);
+				Lo1 = std::min(Lo1, W); Hi1 = std::max(Hi1, W);
+			}
+		if (From.Tris.empty()) return;
+		N0 = std::max(1, static_cast<int>((Hi0 - Lo0) / Cell) + 1);
+		N1 = std::max(1, static_cast<int>((Hi1 - Lo1) / Cell) + 1);
+		Bins.resize(static_cast<size_t>(N0) * static_cast<size_t>(N1));
+		for (const TankSurface::Tri& T : From.Tris)
+		{
+			double A0 = 1e9, B0 = -1e9, A1 = 1e9, B1 = -1e9;
+			for (const V3* P : {&T.A, &T.B, &T.C})
+			{
+				const auto [U, W] = Axes(*P);
+				A0 = std::min(A0, U); B0 = std::max(B0, U);
+				A1 = std::min(A1, W); B1 = std::max(B1, W);
+			}
+			for (int I = Index(A0, Lo0, N0); I <= Index(B0, Lo0, N0); ++I)
+				for (int J = Index(A1, Lo1, N1); J <= Index(B1, Lo1, N1); ++J)
+					Bins[static_cast<size_t>(I) * static_cast<size_t>(N1) + static_cast<size_t>(J)].Tris.push_back(T);
+		}
+	}
+	int Index(double V, double Lo, int Count) const { return std::max(0, std::min(Count - 1, static_cast<int>((V - Lo) / Cell))); }
+	bool Hit(const V3& From, const V3& Dir, V3& OutAt, V3& OutNrm) const
+	{
+		if (Bins.empty()) return false;
+		const double U = Along == 0 ? From.y : From.x, W = From.z;
+		if (U < Lo0 - Cell || W < Lo1 - Cell || U > Lo0 + (N0 + 1) * Cell || W > Lo1 + (N1 + 1) * Cell) return false;
+		return Bins[static_cast<size_t>(Index(U, Lo0, N0)) * static_cast<size_t>(N1) + static_cast<size_t>(Index(W, Lo1, N1))].Hit(From, Dir, OutAt, OutNrm);
+	}
+};
 } // namespace
 
 GAffine GAffine::Rotation(const V3& Axis, double Angle)
@@ -1163,7 +1261,7 @@ void BikeParts::Ancillaries(const PartsMap& Parts, const Layout& L, const Bodywo
 	}
 }
 
-void BikeParts::TankTrim(const PartsMap& Parts, const Bodywork& Body, std::vector<FittedPart>& Out) const
+void BikeParts::TankTrim(const PartsMap& Parts, const Layout& L, const Bodywork& Body, std::vector<FittedPart>& Out) const
 {
 	// The code-drawn pieces of BikeModel._draw_tank on the Blender tank's sections: an adventure
 	// tank's knee panels, the filler cap, a cruiser's console, accent stripes, the side badges,
@@ -1178,8 +1276,8 @@ void BikeParts::TankTrim(const PartsMap& Parts, const Bodywork& Body, std::vecto
 		if (F.Slot == "tank") Stand = F.Glb;
 	const int Steps = static_cast<int>(Body.TankSecs.size()) - 1;
 	auto At = [&](double F) { return Body.TankSecs[static_cast<size_t>(std::round(Steps * F))]; };
-	auto SecOf = [&](const LoftSection& L, double By) {
-		CodeShapes::Sec S{L.C, L.W * By + (By != 1.0 ? 0.001 : 0.0), L.Up * By + (By != 1.0 ? 0.001 : 0.0), L.Down * By + (By != 1.0 ? 0.001 : 0.0), Body.TankN};
+	auto SecOf = [&](const LoftSection& Ls, double By) {
+		CodeShapes::Sec S{Ls.C, Ls.W * By + (By != 1.0 ? 0.001 : 0.0), Ls.Up * By + (By != 1.0 ? 0.001 : 0.0), Ls.Down * By + (By != 1.0 ? 0.001 : 0.0), Body.TankN};
 		S.Bw = Body.TankBw;
 		return S;
 	};
@@ -1209,19 +1307,134 @@ void BikeParts::TankTrim(const PartsMap& Parts, const Bodywork& Body, std::vecto
 		Code("TankPanel", CodeShapes::Loft(Grown(1.012, From, Steps - 1), 28, true, -0.85, 0.05), GAffine(), "plastic");
 		Code("TankPanel", CodeShapes::Loft(Grown(1.012, From, Steps - 1), 28, true, Pi - 0.05, Pi + 0.85), GAffine(), "plastic");
 	}
+	// The tank as drawn, for laying the cap and the pads on its real surface.
+	TankSurface Skin;
+	if (Meshes)
+		for (const FittedPart& F : Body.Parts)
+		{
+			PartMesh M;
+			if (F.Slot != "tank" || !Meshes(F.Glb, M)) continue;
+			// Its points only (keys mixed, then warped): Draw's normals take seven warps a point, and the
+			// faces' own are plenty here.
+			PartMesh Shell = F.Copies.empty() ? M.Deformed(F.Weights, nullptr) : Draw(M, F);
+			for (PartSurface& Sf : Shell.Surfaces)
+			{
+				if (F.Copies.empty() && F.Warp)
+					for (V3& Pt : Sf.Pos) Pt = F.Warp(Pt);
+				std::vector<V3> Smooth(Sf.Pos.size(), V3());
+				for (size_t K = 0; K + 2 < Sf.Idx.size(); K += 3)
+				{
+					const unsigned Ia = Sf.Idx[K], Ib = Sf.Idx[K + 1], Ic = Sf.Idx[K + 2];
+					const V3 Face = (Sf.Pos[Ib] - Sf.Pos[Ia]).Cross(Sf.Pos[Ic] - Sf.Pos[Ia]);
+					Smooth[Ia] = Smooth[Ia] + Face;
+					Smooth[Ib] = Smooth[Ib] + Face;
+					Smooth[Ic] = Smooth[Ic] + Face;
+				}
+				for (size_t K = 0; K + 2 < Sf.Idx.size(); K += 3)
+				{
+					const unsigned Ia = Sf.Idx[K], Ib = Sf.Idx[K + 1], Ic = Sf.Idx[K + 2];
+					Skin.Tris.push_back({ToGodot(Sf.Pos[Ia]), ToGodot(Sf.Pos[Ib]), ToGodot(Sf.Pos[Ic]),
+						ToGodot(Smooth[Ia]), ToGodot(Smooth[Ib]), ToGodot(Smooth[Ic])});
+				}
+			}
+		}
+	double TankTop = -1e9;
+	for (const LoftSection& Sec : Body.TankSecs) TankTop = std::max(TankTop, Sec.C.y + Sec.Up);
 	// The filler cap a third of the way back: plain, a raised Monza flip cap, a flush aircraft cap or a pair.
+	// Each stands on the tank's real top, square to its surface and proud of it all the way round its rim
+	// (the tank can curve or slope away under it), with its foot sunk a little into the paint so no gap shows.
 	const LoftSection CapS = At(0.3);
-	const V3 Cap = CapS.C + V3(0.0, CapS.Up - 0.004, 0.0);
 	const std::string CapKind = PartStr(Look, "cap", "stock");
+	struct CapPlace { GAffine Basis; V3 Foot, Nrm; double Bottom = 0.0, Top = 0.0; };
+	auto FillerCap = [&](double Across, double Radius, double Proud) {
+		V3 Foot = CapS.C + V3(Across, CapS.Up - 0.004, 0.0), Nrm(0.0, 1.0, 0.0);
+		double Lo = 0.0, Hi = 0.0;
+		const TankSurface There = Skin.Near(V3(CapS.C.x + Across - Radius - 0.02, -1e9, CapS.C.z - Radius - 0.02),
+			V3(CapS.C.x + Across + Radius + 0.02, 1e9, CapS.C.z + Radius + 0.02));
+		if (!There.Empty())
+		{
+			V3 Hit, HitN;
+			if (There.Hit(V3(CapS.C.x + Across, TankTop + 0.5, CapS.C.z), V3(0.0, -1.0, 0.0), Hit, HitN))
+			{
+				Foot = Hit;
+				// The tank's lie under the cap: a plane fitted through where its rim comes down on the paint
+				// (steadier on a creased or rippled top than the normal at one point).
+				std::vector<V3> Ring;
+				for (int I = 0; I < 16; ++I)
+				{
+					const double Ang = I * Pi / 8.0;
+					V3 RimHit, RimN;
+					if (There.Hit(V3(Foot.x + std::sin(Ang) * Radius, TankTop + 0.5, Foot.z + std::cos(Ang) * Radius), V3(0.0, -1.0, 0.0), RimHit, RimN))
+						Ring.push_back(RimHit - Foot);
+				}
+				if (Ring.size() >= 8)
+				{
+					double Sxx = 0.0, Sxz = 0.0, Szz = 0.0, Sxy = 0.0, Szy = 0.0;
+					for (const V3& D : Ring)
+					{
+						Sxx += D.x * D.x; Sxz += D.x * D.z; Szz += D.z * D.z;
+						Sxy += D.x * D.y; Szy += D.z * D.y;
+					}
+					const double Det = Sxx * Szz - Sxz * Sxz;
+					if (std::fabs(Det) > 1e-12)
+					{
+						const double Gx = (Sxy * Szz - Szy * Sxz) / Det, Gz = (Szy * Sxx - Sxy * Sxz) / Det;
+						Nrm = V3(-Gx, 1.0, -Gz).Normalized();
+					}
+					for (const V3& D : Ring)
+					{
+						const double H = D.Dot(Nrm);
+						Lo = std::min(Lo, H);
+						Hi = std::max(Hi, H);
+					}
+				}
+			}
+		}
+		CapPlace Out1;
+		Out1.Basis = BasisUp(Nrm);
+		Out1.Foot = Foot;
+		Out1.Nrm = Nrm;
+		Out1.Bottom = Lo - 0.003;
+		Out1.Top = Hi + Proud;
+		return Out1;
+	};
+	auto Puck = [&](const GAffine& Basis, const V3& Base, const V3& Nrm, double From, double To, double Radius, double TopR, const std::string& Tag) {
+		const double Tall = std::max(To - From, 0.002);
+		Code("", CodeShapes::Cylinder(Radius, Tall, TopR, 32), AtWith(Basis, Base + Nrm * ((From + To) * 0.5)), Tag);
+	};
 	if (CapKind == "monza")
 	{
-		Code("", CodeShapes::Cylinder(0.045, 0.03, 0.04), GAffine::At(Cap + V3(0.0, 0.01, 0.0)), "chrome");
-		Code("", CodeShapes::Box(V3(0.03, 0.012, 0.03)), GAffine::At(Cap + V3(0.0, 0.03, 0.03)), "chrome");
+		// A raised flip cap: a tapered chrome body and its hinged lid's lever towards the back.
+		const auto C = FillerCap(0.0, 0.045, 0.03);
+		Puck(C.Basis, C.Foot, C.Nrm, C.Bottom, C.Top, 0.045, 0.04, "chrome");
+		Code("", CodeShapes::Box(V3(0.03, 0.012, 0.03)), AtWith(C.Basis, C.Foot + C.Nrm * (C.Top - 0.002) + C.Basis.Apply(V3(0.0, 0.0, 0.03))), "chrome");
 	}
-	else if (CapKind == "flush") Code("", CodeShapes::Cylinder(0.04, 0.006), GAffine::At(Cap + V3(0.0, 0.002, 0.0)), "chrome");
+	else if (CapKind == "flush")
+	{
+		// An aircraft cap: a chrome bezel ring a few millimetres proud with the lid inset in it, a hinge tab
+		// at the front and the bezel's screws.
+		const auto C = FillerCap(0.0, 0.045, 0.004);
+		Puck(C.Basis, C.Foot, C.Nrm, C.Bottom, C.Top, 0.045, 0.043, "chrome");
+		Puck(C.Basis, C.Foot, C.Nrm, C.Top - 0.002, C.Top + 0.0015, 0.033, 0.032, "chrome");
+		Puck(C.Basis, C.Foot, C.Nrm, C.Top - 0.001, C.Top + 0.002, 0.026, 0.026, "black_metal");
+		Code("", CodeShapes::Box(V3(0.018, 0.004, 0.01)), AtWith(C.Basis, C.Foot + C.Nrm * (C.Top + 0.001) + C.Basis.Apply(V3(0.0, 0.0, -0.034))), "chrome");
+		for (int I = 0; I < 6; ++I)
+		{
+			const double Ang = (I + 0.5) * Pi / 3.0;
+			Code("", CodeShapes::Cylinder(0.0032, 0.0024, 0.0026, 10), AtWith(C.Basis, C.Foot + C.Nrm * (C.Top + 0.0008) + C.Basis.Apply(V3(std::sin(Ang), 0.0, std::cos(Ang)) * 0.0395)), "chrome");
+		}
+	}
 	else if (CapKind == "twin")
-		for (double X : {-0.05, 0.05}) Code("", CodeShapes::Cylinder(0.03, 0.02), GAffine::At(Cap + V3(X, -0.004, 0.0)), "chrome");
-	else Code("", CodeShapes::Cylinder(0.035, 0.02), GAffine::At(Cap), "chrome");
+		for (double X : {-0.05, 0.05})
+		{
+			const auto C = FillerCap(X, 0.03, 0.016);
+			Puck(C.Basis, C.Foot, C.Nrm, C.Bottom, C.Top, 0.03, 0.028, "chrome");
+		}
+	else
+	{
+		const auto C = FillerCap(0.0, 0.035, 0.016);
+		Puck(C.Basis, C.Foot, C.Nrm, C.Bottom, C.Top, 0.035, 0.033, "chrome");
+	}
 	const bool Console = Look && Look->Flag("console");
 	if (Console)
 	{
@@ -1248,15 +1461,87 @@ void BikeParts::TankTrim(const PartsMap& Parts, const Bodywork& Body, std::vecto
 			const V3 Scale = Badge == "wing" ? V3(0.1, 0.35, 2.6) : V3(0.15, 0.55, 1.1);
 			Code("", CodeShapes::Sphere(0.03), AtWith(GAffine::Scale(Scale), B.C + V3(B.W * 0.97 * Sd, B.Up * 0.05, 0.0)), "chrome");
 		}
-	const bool Pads = Look && Look->Get("pads") ? Look->Flag("pads") : ((Style == "cafe" || Style == "peanut") && !P->Flag("lightweight"));
-	if (Pads)
+	// Knee pads where real tanks have them, on the flanks where the rider's knees grip: a classic tank's
+	// ribbed rubber knee pads, and a sports tank's grip pads (on a sports tank they used to be one rubber
+	// slab over the top at the seat end, which no real bike has). Each pad is laid on the tank's real
+	// surface a few millimetres thick, with a rounded edge.
+	const bool Classic = Look && Look->Get("pads") ? Look->Flag("pads") : ((Style == "cafe" || Style == "peanut") && !P->Flag("lightweight"));
+	const bool Grips = Style == "sport" && !(Look && Look->Flag("no_pad"));
+	if (Classic || Grips)
 	{
-		const LoftSection PadS = At(0.72);
+		// Along the tank: where the knee comes (as the bodywork sets the knee recesses), kept on the tank's back half.
+		const double Front = Body.TankSecs.front().C.z, Length = Body.TankSecs.back().C.z - Front;
+		const double Tk = Length > 0.01 ? TorqueSim::Clamp((ToGodot(L.KneeR).z - Front) / Length, 0.55, 0.8) : 0.72;
+		const LoftSection PadS = At(Tk);
+		const double HalfLong = Grips ? 0.085 : 0.065, HalfTall = Grips ? 0.065 : 0.045;
+		const double Thick = Grips ? 0.003 : 0.004, Power = Grips ? 3.0 : 2.4;
+		const double Mid = PadS.C.y + (Grips ? 0.0 : -PadS.Down * 0.1);
 		for (double Sd : {-1.0, 1.0})
-			Code("", CodeShapes::Sphere(0.05), AtWith(GAffine::Scale(V3(0.18, 0.75, 1.3)), PadS.C + V3(PadS.W * 0.93 * Sd, -PadS.Down * 0.1, 0.0)), "rubber");
+		{
+			CodeShapes::GMesh M;
+			const int Rings = 12, Round = 64;
+			const BinnedSurface Flank(Skin.Near(V3(Sd > 0.0 ? 0.0 : -1e9, Mid - HalfTall - 0.02, PadS.C.z - HalfLong - 0.02),
+				V3(Sd > 0.0 ? 1e9 : 0.0, Mid + HalfTall + 0.02, PadS.C.z + HalfLong + 0.02)), 0);
+			std::vector<unsigned> Ids;
+			bool Whole = false;
+			// The whole pad must lie on the flank (not round onto the top or off the edge into the frame's
+			// tunnel), so a tank with a small flank there gets a smaller pad.
+			for (double Size : {1.0, 0.85, 0.72, 0.6})
+			{
+				M = CodeShapes::GMesh();
+				Ids.clear();
+				Whole = true;
+				// Rings out from the middle (0) to the edge (Rings), the last one down at the paint for the edge.
+				for (int J = 0; J <= Rings + 1 && Whole; ++J)
+					for (int I = 0; I < Round; ++I)
+					{
+						const double R = std::min(static_cast<double>(J), static_cast<double>(Rings)) / Rings;
+						const double Ang = I * 2.0 * Pi / Round;
+						const double Ca = std::cos(Ang), Sa = std::sin(Ang);
+						// (A superellipse outline: rounded-square for the grips, near oval for the classic pads.)
+						const double Ex = (Ca < 0.0 ? -1.0 : 1.0) * std::pow(std::fabs(Ca), 2.0 / Power);
+						const double Ey = (Sa < 0.0 ? -1.0 : 1.0) * std::pow(std::fabs(Sa), 2.0 / Power);
+						const double Zs = PadS.C.z + Ex * HalfLong * Size * R, Ys = Mid + Ey * HalfTall * Size * R;
+						V3 Hit(Sd * PadS.W, Ys, Zs), HitN(Sd, 0.0, 0.0);
+						if (!Skin.Empty() && (!Flank.Hit(V3(Sd * (PadS.W + 0.4), Ys, Zs), V3(-Sd, 0.0, 0.0), Hit, HitN) || HitN.x * Sd < 0.3))
+						{
+							Whole = false;
+							break;
+						}
+						// Its thickness: full over the face, rounding off over the outer fifth, and on the face fine
+						// ribs (the classic pad's along the tank, the grip's a diagonal tread).
+						const double Edge = TorqueSim::Clamp((1.0 - R) / 0.2, 0.0, 1.0);
+						double Lift = J > Rings ? -0.001 : Thick * (0.35 + 0.65 * std::sqrt(Edge * (2.0 - Edge)));
+						if (J <= Rings && Edge >= 1.0)
+						{
+							const double Rib = Grips ? std::sin((Zs + Ys) * 2.0 * Pi / 0.009) : std::sin(Ys * 2.0 * Pi / 0.008);
+							Lift += 0.0007 * std::max(Rib, 0.0);
+						}
+						Ids.push_back(M.Add(Hit + HitN * Lift, HitN, R * Ex * 0.5 + 0.5, R * Ey * 0.5 + 0.5));
+					}
+				if (Whole) break;
+			}
+			if (!Whole) continue;
+			for (int J = 1; J <= Rings + 1; ++J)
+				for (int I = 0; I < Round; ++I)
+				{
+					const int Nx = (I + 1) % Round;
+					const unsigned A = Ids[static_cast<size_t>((J - 1) * Round + I)], B = Ids[static_cast<size_t>((J - 1) * Round + Nx)];
+					const unsigned C = Ids[static_cast<size_t>(J * Round + I)], D = Ids[static_cast<size_t>(J * Round + Nx)];
+					M.Quad(A, B, C, D);
+				}
+			// Smooth normals off the pad's own faces (the ribs and the rounded edge catch the light).
+			std::vector<V3> Acc(M.P.size(), V3());
+			for (size_t K = 0; K + 2 < M.Idx.size(); K += 3)
+			{
+				const V3 Face = (M.P[M.Idx[K + 1]] - M.P[M.Idx[K]]).Cross(M.P[M.Idx[K + 2]] - M.P[M.Idx[K]]);
+				for (size_t Q = 0; Q < 3; ++Q) Acc[M.Idx[K + Q]] = Acc[M.Idx[K + Q]] + Face;
+			}
+			for (size_t K = static_cast<size_t>(Round); K < M.N.size(); ++K)   // (the middle keeps the tank's normal)
+				if (Acc[K].Length() > 1e-12) M.N[K] = Acc[K].Normalized() * (Acc[K].Dot(M.N[K]) < 0.0 ? -1.0 : 1.0);
+			Code(Grips ? "TankPad" : "", M, GAffine(), "rubber");
+		}
 	}
-	if (Style == "sport" && !(Look && Look->Flag("no_pad")))
-		Code("TankPad", CodeShapes::Loft(Grown(1.01, static_cast<int>(std::round(Steps * 0.62)), Steps - 1), 28, true, Pi * 0.5 - 0.55, Pi * 0.5 + 0.55), GAffine(), "rubber");
 	if (Style == "enduro")
 		for (double Sd : {-1.0, 1.0})
 		{
@@ -3998,7 +4283,7 @@ std::vector<FittedPart> BikeParts::Fit(const PartsMap& Parts, const Layout& L) c
 	Frame(Parts, L, Out, &CodeHalfW);
 	Engine(Parts, L, Out);
 	Ancillaries(Parts, L, Body, Out);
-	TankTrim(Parts, Body, Out);
+	TankTrim(Parts, L, Body, Out);
 	SaddleTrim(Parts, L, Body, Out);
 	Exhaust(Parts, L, Out);
 	Swingarm(Parts, L, Out);
