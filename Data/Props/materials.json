@@ -1085,7 +1085,7 @@
    "tile": 4.0
   },
   "vice_steel": {
-   "base": "plain",
+   "base": "brushed",
    "tint": [
     0.5,
     0.51,
@@ -1093,7 +1093,7 @@
    ],
    "rough": 0.34,
    "metal": 1.0,
-   "tile": 1.0
+   "tile": 3.0
   },
   "vice_steel_dark": {
    "base": "plain",
