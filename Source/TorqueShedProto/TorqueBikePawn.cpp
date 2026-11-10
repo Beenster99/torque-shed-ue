@@ -2383,7 +2383,7 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 {
 	// Draw between the last two steps so the bike moves smoothly at any frame rate.
 	SetActorLocationAndRotation(FMath::Lerp(PrevPos, CurPos, Alpha), FQuat::Slerp(PrevRot, CurRot, Alpha));
-	// The respawn ghost (BikeGhost): a steady green "matrix" copy of the bike and rider, no blink.
+	// The respawn ghost (BikeGhost): a faint, steady wireframe of the bike and rider's polygons, no blink.
 	UpdateGhostLook();
 
 	const Wheel& F = Sim->Wheels[0];
@@ -2442,7 +2442,7 @@ void ATorqueBikePawn::UpdateGhostLook()
 		}
 		else if (UMaterialInterface* Tint = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight")))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_RideGhostMatrix (run Tools/ue_build_ghost.py): the respawn ghost is a plain green tint"));
+			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_RideGhostMatrix (run Tools/ue_build_ghost.py): the respawn ghost is a faint tint, not a wireframe"));
 			GhostMid = UMaterialInstanceDynamic::Create(Tint, this);
 		}
 		else
@@ -2453,19 +2453,12 @@ void ATorqueBikePawn::UpdateGhostLook()
 	if (!GhostMid) return;
 	if (bGhostMatrix)
 	{
-		// The pattern is worked out in the bike's own frame, so it rides with the bike.
-		const FTransform& X = GetActorTransform();
-		auto AsColour = [](const FVector& V) { return FLinearColor((float)V.X, (float)V.Y, (float)V.Z, 1.0f); };
 		GhostMid->SetScalarParameterValue(TEXT("Amount"), (float)Look);
-		GhostMid->SetVectorParameterValue(TEXT("Origin"), AsColour(X.GetLocation()));
-		GhostMid->SetVectorParameterValue(TEXT("AxisX"), AsColour(X.GetUnitAxis(EAxis::X)));
-		GhostMid->SetVectorParameterValue(TEXT("AxisY"), AsColour(X.GetUnitAxis(EAxis::Y)));
-		GhostMid->SetVectorParameterValue(TEXT("AxisZ"), AsColour(X.GetUnitAxis(EAxis::Z)));
 	}
 	else
 	{
-		GhostMid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.2f, 1.6f, 0.45f));
-		GhostMid->SetScalarParameterValue(TEXT("Opacity"), (float)(0.35 * Look));
+		GhostMid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.45f, 1.1f, 0.95f));
+		GhostMid->SetScalarParameterValue(TEXT("Opacity"), (float)(0.12 * Look));
 	}
 	// Every mesh of the bike and rider, including any added since (the rider's MetaHuman is built late);
 	// one already wearing another overlay keeps it.
