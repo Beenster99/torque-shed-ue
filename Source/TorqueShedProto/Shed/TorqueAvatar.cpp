@@ -304,7 +304,9 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		GroomClass ? TEXT("loaded") : TEXT("missing"), ClothClass ? TEXT("loaded") : TEXT("missing"));
 	for (const FPart& P : E.Parts)
 	{
-		if (P.Groom.IsEmpty() || P.bLooseOnly || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
+		// -TorqueOwnHair: each avatar's own groom instead of the shared stopgap one.
+		static const bool bOwnHair = FParse::Param(FCommandLine::Get(), TEXT("TorqueOwnHair"));
+		if (P.Groom.IsEmpty() || (bOwnHair ? !P.FitMesh.IsEmpty() : P.bLooseOnly) || (bHairMesh && !P.CardsMesh.IsEmpty())) continue;
 		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueNoGroom"))) { UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: groom %s left off (-TorqueNoGroom)"), *E.Name, *P.Name); continue; }
 		if (!GroomClass) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no hair module in this build, %s skipped"), *E.Name, *P.Name); break; }
 		UObject* G = StaticLoadObject(UObject::StaticClass(), nullptr, *P.Groom);
