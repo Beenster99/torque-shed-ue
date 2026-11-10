@@ -16,6 +16,11 @@ bool Read(const std::string& Path, std::string& Out);
 // Writes the file (making its folders); false when it can't.
 bool Write(const std::string& Path, const std::string& Bytes);
 bool Remove(const std::string& Path);
+bool IsDir(const std::string& Path);
+// Deletes a folder and all in it.
+void RemoveTree(const std::string& Dir);
+// Renames a file or folder; false when it can't.
+bool Rename(const std::string& From, const std::string& To);
 // When the file was last written (unix seconds), or -1.
 long long ModifiedUnix(const std::string& Path);
 // The names of the folders (or files) straight under a folder, sorted.

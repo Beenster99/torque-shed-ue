@@ -42,25 +42,93 @@ void Block(uint32_t H[8], const uint8_t* P)
 }
 } // namespace
 
-std::string Sha256Hex(const uint8_t* Data, size_t Size)
+Sha256::Sha256()
 {
-	uint32_t H[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+	static const uint32_t Start[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
+	std::memcpy(H, Start, sizeof(H));
+}
+
+void Sha256::Update(const uint8_t* Data, size_t Size)
+{
+	Total += Size;
 	size_t At = 0;
+	if (Held > 0)
+	{
+		const size_t Take = Size < 64 - Held ? Size : 64 - Held;
+		std::memcpy(Buf + Held, Data, Take);
+		Held += Take;
+		At = Take;
+		if (Held < 64) return;
+		Block(H, Buf);
+		Held = 0;
+	}
 	for (; At + 64 <= Size; At += 64) Block(H, Data + At);
+	if (At < Size)
+	{
+		Held = Size - At;
+		std::memcpy(Buf, Data + At, Held);
+	}
+}
+
+std::string Sha256::FinishHex()
+{
 	uint8_t Tail[128];
-	const size_t Left = Size - At;
-	if (Left > 0) std::memcpy(Tail, Data + At, Left);
+	const size_t Left = Held;
+	if (Left > 0) std::memcpy(Tail, Buf, Left);
 	Tail[Left] = 0x80;
-	const size_t Total = Left + 1 + 8 <= 64 ? 64 : 128;
-	std::memset(Tail + Left + 1, 0, Total - Left - 1);
-	const uint64_t Bits = uint64_t(Size) * 8;
-	for (int I = 0; I < 8; ++I) Tail[Total - 1 - size_t(I)] = uint8_t(Bits >> (8 * I));
+	const size_t Whole = Left + 1 + 8 <= 64 ? 64 : 128;
+	std::memset(Tail + Left + 1, 0, Whole - Left - 1);
+	const uint64_t Bits = Total * 8;
+	for (int I = 0; I < 8; ++I) Tail[Whole - 1 - size_t(I)] = uint8_t(Bits >> (8 * I));
 	Block(H, Tail);
-	if (Total == 128) Block(H, Tail + 64);
+	if (Whole == 128) Block(H, Tail + 64);
 	static const char* Hex = "0123456789abcdef";
 	std::string Out;
 	Out.reserve(64);
 	for (int I = 0; I < 8; ++I)
+		for (int S = 28; S >= 0; S -= 4) Out.push_back(Hex[(H[I] >> S) & 15]);
+	return Out;
+}
+
+std::string Sha256Hex(const uint8_t* Data, size_t Size)
+{
+	Sha256 Ctx;
+	Ctx.Update(Data, Size);
+	return Ctx.FinishHex();
+}
+
+std::string Sha1Hex(const std::string& Bytes)
+{
+	uint32_t H[5] = {0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0};
+	std::string Msg = Bytes;
+	Msg.push_back(char(0x80));
+	while (Msg.size() % 64 != 56) Msg.push_back(char(0));
+	const uint64_t Bits = uint64_t(Bytes.size()) * 8;
+	for (int I = 7; I >= 0; --I) Msg.push_back(char(uint8_t(Bits >> (8 * I))));
+	for (size_t At = 0; At < Msg.size(); At += 64)
+	{
+		const uint8_t* P = reinterpret_cast<const uint8_t*>(Msg.data()) + At;
+		uint32_t W[80];
+		for (int I = 0; I < 16; ++I)
+			W[I] = (uint32_t(P[I * 4]) << 24) | (uint32_t(P[I * 4 + 1]) << 16) | (uint32_t(P[I * 4 + 2]) << 8) | uint32_t(P[I * 4 + 3]);
+		for (int I = 16; I < 80; ++I)
+		{
+			const uint32_t V = W[I - 3] ^ W[I - 8] ^ W[I - 14] ^ W[I - 16];
+			W[I] = (V << 1) | (V >> 31);
+		}
+		uint32_t A = H[0], B = H[1], C = H[2], D = H[3], E = H[4];
+		for (int I = 0; I < 80; ++I)
+		{
+			const uint32_t F = I < 20 ? ((B & C) | (~B & D)) : (I < 40 ? (B ^ C ^ D) : (I < 60 ? ((B & C) | (B & D) | (C & D)) : (B ^ C ^ D)));
+			const uint32_t Kk = I < 20 ? 0x5a827999u : (I < 40 ? 0x6ed9eba1u : (I < 60 ? 0x8f1bbcdcu : 0xca62c1d6u));
+			const uint32_t T = ((A << 5) | (A >> 27)) + F + E + Kk + W[I];
+			E = D; D = C; C = (B << 30) | (B >> 2); B = A; A = T;
+		}
+		H[0] += A; H[1] += B; H[2] += C; H[3] += D; H[4] += E;
+	}
+	static const char* Hex = "0123456789abcdef";
+	std::string Out;
+	for (int I = 0; I < 5; ++I)
 		for (int S = 28; S >= 0; S -= 4) Out.push_back(Hex[(H[I] >> S) & 15]);
 	return Out;
 }

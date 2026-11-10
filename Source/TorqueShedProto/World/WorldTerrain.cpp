@@ -1,5 +1,8 @@
 #include "WorldTerrain.h"
 
+#include "WorldFiles.h"
+#include "WorldInflate.h"
+
 #include <algorithm>
 
 namespace TorqueWorld
@@ -19,7 +22,7 @@ inline int Clamp(int V, int Lo, int Hi) { return V < Lo ? Lo : (V > Hi ? Hi : V)
 } // namespace
 
 
-Terrain::Terrain(HeightStore& InStore, double Lat0, double Lon0) : Store(InStore), F(Lat0, Lon0)
+Terrain::Terrain(HeightStore& InStore, double Lat0, double Lon0) : Store(InStore), F(Lat0, Lon0), Land(std::make_shared<Ground>())
 {
 	for (int L = 0; L < LevelCount; ++L) Zooms[L] = ZoomFor(Lat0, LiveSpacing[L]);
 }
@@ -96,6 +99,7 @@ void Terrain::SetBuildings(const std::vector<Building>& Rows)
 std::shared_ptr<Terrain> Terrain::ForRoad(const std::vector<P2>& Road) const
 {
 	std::shared_ptr<Terrain> T = std::make_shared<Terrain>(Store, F.Lat0, F.Lon0);
+	T->Land = Land;   // (cover and trees are the land's own, the same for every ride)
 	T->Pads = Pads;   // (each ride works out its own pads' ground: it depends on the tiles the ride uses)
 	for (int L = 0; L < LevelCount; ++L)
 	{
@@ -222,5 +226,141 @@ double Terrain::PadGround(int Index) const
 	std::lock_guard<std::mutex> G(Lock);
 	PadLevel[Index] = Level;   // (two threads may both work it out: they get the same answer)
 	return Level;
+}
+// ---------------------------------------------------------------------------- cover and trees
+
+namespace
+{
+// Base64 to bytes (the trees are zlib'd bytes written as text); junk is skipped.
+std::string FromBase64(const std::string& Text)
+{
+	std::string Out;
+	unsigned Acc = 0;
+	int Bits = 0;
+	for (const char Ch : Text)
+	{
+		int V = -1;
+		if (Ch >= 'A' && Ch <= 'Z') V = Ch - 'A';
+		else if (Ch >= 'a' && Ch <= 'z') V = Ch - 'a' + 26;
+		else if (Ch >= '0' && Ch <= '9') V = Ch - '0' + 52;
+		else if (Ch == '+' || Ch == '-') V = 62;
+		else if (Ch == '/' || Ch == '_') V = 63;
+		if (V < 0) continue;
+		Acc = (Acc << 6) | unsigned(V);
+		Bits += 6;
+		if (Bits >= 8)
+		{
+			Bits -= 8;
+			Out.push_back(char((Acc >> Bits) & 0xff));
+		}
+	}
+	return Out;
+}
+} // namespace
+
+const char* Terrain::CoverName(int Id)
+{
+	static const char* Names[10] = {"grass", "forest", "crop", "shrub", "barren", "urban", "sand", "wetland", "water", "rock"};
+	return Id >= 0 && Id < 10 ? Names[Id] : "";
+}
+
+void Terrain::AddCoverCell(const std::string& CellDir, const TorqueFit::Json& Meta)
+{
+	const TorqueFit::Json* Geo = Meta.Get("geo");
+	const TorqueFit::Json* Fr = Meta.Get("frame");
+	const TorqueFit::Json* Levels = Meta.Get("levels");
+	if (Geo == nullptr || Fr == nullptr || Levels == nullptr) return;
+	CoverCell C;
+	for (const TorqueFit::Json& Lm : Levels->A)
+	{
+		if (!Lm.Flag("cover")) continue;
+		CoverLevel Lv;
+		Lv.Base = CellDir;
+		Lv.Folder = Lm.Str("dir");
+		Lv.Spacing = Lm.Num("spacing", 16.0);
+		Lv.Cells = int(Lm.Num("n", 128));
+		if (Lv.Cells > 0 && Lv.Spacing > 0.0) C.Levels.push_back(Lv);
+	}
+	std::stable_sort(C.Levels.begin(), C.Levels.end(), [](const CoverLevel& A, const CoverLevel& B) { return A.Spacing < B.Spacing; });   // (the finest that has a point answers)
+	C.Lat = Fr->Num("lat");
+	C.Lon = Fr->Num("lon");
+	C.M = MetresPerDegree(C.Lat);
+	C.South = Geo->Num("south");
+	C.West = Geo->Num("west");
+	C.North = Geo->Num("north");
+	C.East = Geo->Num("east");
+	std::lock_guard<std::mutex> G(Land->Lock);
+	Land->CoverCells.push_back(std::move(C));
+}
+
+std::shared_ptr<const std::string> Terrain::CoverTile(const CoverLevel& Lv, int Tx, int Tz) const
+{
+	const std::string Path = Files::Join(Files::Join(Lv.Base, Lv.Folder), std::to_string(Tx) + "_" + std::to_string(Tz) + ".covz");
+	std::lock_guard<std::mutex> G(Land->Lock);
+	auto It = Land->CoverTiles.find(Path);
+	if (It != Land->CoverTiles.end()) return It->second;
+	std::shared_ptr<std::string> Out = std::make_shared<std::string>();
+	std::string Packed;
+	const size_t Want = size_t(Lv.Cells) * size_t(Lv.Cells);
+	if (Files::Read(Path, Packed) && (!ZlibInflate(reinterpret_cast<const uint8_t*>(Packed.data()), Packed.size(), *Out, Want) || Out->size() != Want)) Out->clear();
+	Land->CoverTiles[Path] = Out;
+	return Out;
+}
+
+int Terrain::Cover(double X, double Z) const
+{
+	const Geo G = F.ToGeo(X, Z);
+	// (the cells are added before the land is asked: read here without the lock)
+	for (const CoverCell& C : Land->CoverCells)
+	{
+		if (!(G.Lat >= C.South && G.Lat < C.North && G.Lon >= C.West && G.Lon < C.East)) continue;
+		const double Cx = (G.Lon - C.Lon) * C.M.Lon, Cz = -(G.Lat - C.Lat) * C.M.Lat;
+		for (const CoverLevel& Lv : C.Levels)
+		{
+			const int Ix = int(std::lround(Cx / Lv.Spacing)), Iz = int(std::lround(Cz / Lv.Spacing));
+			const std::shared_ptr<const std::string> T = CoverTile(Lv, FloorInt(double(Ix) / Lv.Cells), FloorInt(double(Iz) / Lv.Cells));
+			if (!T->empty()) return uint8_t((*T)[size_t(PosMod(Iz, Lv.Cells)) * size_t(Lv.Cells) + size_t(PosMod(Ix, Lv.Cells))]);
+		}
+		return -1;
+	}
+	return -1;
+}
+
+bool Terrain::AddTrees(const TorqueFit::Json& Row)
+{
+	CellId Cell;
+	const int Rows = int(Row.Num("rows")), Cols = int(Row.Num("cols"));
+	if (!ParseCell(Row.Str("cell"), Cell) || Rows <= 0 || Cols <= 0) return false;
+	const size_t Want = size_t(Rows) * size_t(Cols);
+	TreeCell T;
+	const std::string PackedTrees = FromBase64(Row.Str("trees")), PackedLeaf = FromBase64(Row.Str("leaf"));
+	if (!ZlibInflate(reinterpret_cast<const uint8_t*>(PackedTrees.data()), PackedTrees.size(), T.Trees, Want) || T.Trees.size() != Want) return false;
+	if (!ZlibInflate(reinterpret_cast<const uint8_t*>(PackedLeaf.data()), PackedLeaf.size(), T.Leaf, Want) || T.Leaf.size() != Want) T.Leaf.clear();
+	T.South = Cell.Row * CellDeg - 90.0;
+	T.West = Cell.Col * CellDeg - 180.0;
+	T.Rows = Rows;
+	T.Cols = Cols;
+	std::lock_guard<std::mutex> G(Land->Lock);
+	Land->TreeCells.push_back(std::move(T));
+	return true;
+}
+
+bool Terrain::HasTrees() const
+{
+	return !Land->TreeCells.empty();
+}
+
+int Terrain::TreesAt(double X, double Z) const
+{
+	const Geo G = F.ToGeo(X, Z);
+	for (const TreeCell& C : Land->TreeCells)
+	{
+		const double North = C.South + CellDeg, East = C.West + CellDeg;
+		if (!(G.Lat >= C.South && G.Lat < North && G.Lon >= C.West && G.Lon < East)) continue;
+		const int R = Clamp(int((North - G.Lat) / CellDeg * C.Rows), 0, C.Rows - 1);
+		const size_t K = size_t(R) * size_t(C.Cols) + size_t(Clamp(int((G.Lon - C.West) / CellDeg * C.Cols), 0, C.Cols - 1));
+		return int(uint8_t(C.Trees[K])) + (C.Leaf.empty() ? 0 : int(uint8_t(C.Leaf[K])) * 256);
+	}
+	return -1;
 }
 } // namespace TorqueWorld

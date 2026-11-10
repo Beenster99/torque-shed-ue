@@ -1,0 +1,59 @@
+{
+ "about": "A cut of the world store's index for SimTest/world_test: the two Dales cells as the store serves them (their zips, streams, trees, features and profiles unchanged), one sea cell, one cell baked but not here, and block 28_35's sketch cut down to the two cells. The urls are the test's own.",
+ "format": 1,
+ "release": "2026-10-21.0",
+ "cells": {
+  "577_711": {
+   "hash": "a3e8c61cc7b8cb72",
+   "bytes": 415902,
+   "url": "store://cells/c577_711.zip",
+   "tools": "66308c4"
+  },
+  "577_712": {
+   "hash": "011e6905d5a653a3",
+   "bytes": 637015,
+   "url": "store://cells/c577_712.zip",
+   "tools": "66308c4"
+  },
+  "577_713": {
+   "hash": "0000000000000000",
+   "bytes": 1,
+   "url": "store://cells/c577_713.zip"
+  },
+  "570_700": {
+   "empty": true
+  }
+ },
+ "sketches": {
+  "28_35": "771b964ba943"
+ },
+ "streams": {
+  "577_711": "aab6662be51e",
+  "577_712": "8531191d4fb5"
+ },
+ "trees": {
+  "577_711": "ac68f5e2ba14",
+  "577_712": "42d5aced486b"
+ },
+ "features": {
+  "577_711": "9bc1ec03c365",
+  "577_712": "70abb03d8d10"
+ },
+ "profiles": {
+  "577_711": "e9d4b675cc61",
+  "577_712": "728441a518c6"
+ },
+ "areas": {
+  "swaledale": {
+   "title": "Swaledale",
+   "frame": {
+    "lat": 54.34,
+    "lon": -2.04
+   },
+   "south": 54.3,
+   "west": -2.15,
+   "north": 54.45,
+   "east": -1.85
+  }
+ }
+}

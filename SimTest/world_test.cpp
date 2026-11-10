@@ -2,15 +2,18 @@
 // (WebP lossless and PNG, read by the game's own code), two cells of the world store stitched into
 // one road graph, and the ground's height, each checked against what the Godot game answers on the
 // same files (data/world/godot_world.json, written by Tools/make_godot_reference.py --world).
+#include "CellStore.h"
 #include "FitJson.h"
 #include "HeightTiles.h"
 #include "WorldFiles.h"
 #include "WorldGeo.h"
 #include "WorldImage.h"
 #include "WorldInflate.h"
+#include "WorldLoad.h"
 #include "WorldRegion.h"
 #include "WorldSha256.h"
 #include "WorldTerrain.h"
+#include "WorldZip.h"
 
 #include <chrono>
 #include <cmath>
@@ -111,6 +114,15 @@ int main()
 		Check(All, "PNGs of each kind (colour, with alpha, grey, palette; every row filter) read to the right pixels");
 		Check(Sha256Hex(std::string("abc")) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 			&& Sha256Hex(std::string()) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "SHA-256 gives the standard answers");
+		Sha256 Parts;
+		Parts.Update(std::string(100, 'a'));
+		Parts.Update(std::string(29, 'a'));
+		Parts.Update(std::string());
+		Parts.Update(std::string(71, 'a'));
+		Check(Parts.FinishHex() == Sha256Hex(std::string(200, 'a')), "and the same fed in pieces");
+		Check(Sha1Hex("abc") == "a9993e364706816aba3e25717850c26c9cd0d89d" && Sha1Hex(std::string()) == "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+			&& CellStore::TextHash("abc\n") == "a9993e364706", "SHA-1 gives the standard answers, and a small file's name hash leaves its last newline out");
+		Check(Crc32(reinterpret_cast<const uint8_t*>("123456789"), 9) == 0xcbf43926u, "CRC-32 gives the standard answer");
 	}
 
 	// ------------------------------------------------------------------ every fixture tile, pixel for pixel
@@ -168,8 +180,8 @@ int main()
 			&& int(R.Places.size()) == int(S.Num("places")), "its buildings, stops, landmarks and places count as Godot's (those on the shared edge kept once)");
 		const Json& Bd = *S.Get("bounds");
 		Check(Near(R.Bounds.X0, Num(Bd, 0), 0.01) && Near(R.Bounds.Z0, Num(Bd, 1), 0.01) && Near(R.Bounds.X1, Num(Bd, 2), 0.01) && Near(R.Bounds.Z1, Num(Bd, 3), 0.01), "its bounds are Godot's");
-		Check(R.Classes.size() == S.Get("classes")->Size() && R.Surfaces.size() == 2 && R.Credits.size() + 1 == S.Get("credits")->Size(),
-			"its classes, surfaces and credits are the cells' (Godot adds the place profiles' credit, which stage 1's second half brings)");
+		Check(R.Classes.size() == S.Get("classes")->Size() && R.Surfaces.size() == 2 && R.Credits.size() == S.Get("credits")->Size()
+			&& R.Credits.back() == S.Get("credits")->A.back().S, "its classes, surfaces and credits are Godot's");
 		double Sx = 0.0, Sz = 0.0, Sl = 0.0;
 		for (const P2& P : R.Nodes) { Sx += P.X; Sz += P.Z; }
 		for (const RoadEdge& E : R.Edges) Sl += E.Length;
@@ -349,6 +361,160 @@ int main()
 		Files::Remove(Files::Join(Tmp, Fine.Rel() + ".webp"));
 		Files::Remove(Files::Join(Tmp, Gone.Rel() + ".none"));
 		Files::Remove(Files::Join(Tmp, Coarse.Rel() + ".none"));
+	}
+
+	// ------------------------------------------------------------------ the world's store: index, downloads, a cell's own files
+	{
+		const std::string Kept = Files::Join(TORQUE_WORLD_TMP, "world_test_cells");
+		Files::RemoveTree(Kept);
+		int Asked = 0;
+		bool Swap = false, Down = false;
+		// (the test's own server: the store's files as SimTest keeps them, data/world/store)
+		const CellStore::Fetcher Serve = [&](const std::string& Url, std::string& Body) {
+			++Asked;
+			const std::string Scheme = "store://";
+			if (Down || Url.compare(0, Scheme.size(), Scheme) != 0) return 0;
+			std::string Rel = Url.substr(Scheme.size());
+			if (Swap && Rel == "cells/c577_712.zip") Rel = "cells/c577_711.zip";   // (the wrong cell's zip)
+			return Files::Read(Files::Join(Files::Join(Data, "store"), Rel), Body) ? 200 : 404;
+		};
+		CellStore Cells;
+		Cells.Dir = Kept;
+		Cells.IndexUrl = "store://index.json";
+		Cells.Get = Serve;
+		const std::shared_ptr<const WorldIndex> Idx = Cells.Index();
+		const CellId A{577, 711}, B{577, 712}, NotYet{577, 713}, Sea{570, 700}, Nowhere{10, 10};
+		Check(Idx->Cells.size() == 4 && Idx->Format == 1 && Idx->Cell(A) != nullptr && Idx->Cell(A)->Hash == "a3e8c61cc7b8cb72" && Idx->Cell(A)->Bytes == 415902
+			&& Idx->Streams.count("577_711") == 1 && Idx->Sketches.count("28_35") == 1, "the store's index reads: its cells, their hashes and their own files' hashes");
+		Check(Cells.StateOf(A, *Idx) == CellStore::EState::Baked && Cells.StateOf(Sea, *Idx) == CellStore::EState::Sea
+			&& Cells.StateOf(Nowhere, *Idx) == CellStore::EState::Unknown, "a cell is baked (to fetch), sea, or not baked yet");
+		Check(Cells.Finishing({A, B, NotYet, Sea}, *Idx) == std::vector<CellId>{NotYet}, "a cell baked minutes ago, its profile still on its way, counts as being finished");
+		const int Before = Asked;
+		Check(Cells.Index() == Idx && Asked == Before, "the index isn't asked for again within a quarter of an hour");
+		Check(Files::Exists(Files::Join(Kept, "index.json")) && Files::Exists(Files::Join(Kept, "areas.json")), "it is kept on disk, with the named areas");
+		// Fetching cells.
+		Swap = true;
+		Why = Cells.FetchCells({B});
+		Check(!Why.empty() && Why.find("isn't the region the index names") != std::string::npos && Cells.StateOf(B, *Idx) == CellStore::EState::Baked
+			&& !Files::IsDir(Files::Join(Kept, "c577_712.part")), "a download that isn't the cell the index names is refused, and nothing of it is left");
+		Swap = false;
+		int Steps = 0;
+		Why = Cells.FetchCells({A, B, Sea, Nowhere}, [&](int Done, int Total) { Steps += Done == Steps + 1 && Total == 2 ? 1 : 100; });
+		Check(Why.empty() && Steps == 2 && Cells.StateOf(A, *Idx) == CellStore::EState::Here && Cells.StateOf(B, *Idx) == CellStore::EState::Here,
+			"the two Dales cells are fetched from their zips (the real store's own), checked against their hashes and put in place");
+		const Json& Ex = *Ref.Get("extras");
+		Check(CellStore::HashOfDir(Files::Join(Kept, "c577_711")) == Ex.Get("hash_of_dir")->A[0].S && CellStore::HashOfDir(Files::Join(Data, "cells/c577_712")) == Ex.Get("hash_of_dir")->A[1].S
+			&& Ex.Get("hash_of_dir")->A[1].S == Idx->Cell(B)->Hash, "a cell's folder hashes as Godot hashes it, which is what the store's index says");
+		const int AfterCells = Asked;
+		Check(Cells.FetchCells({A, B}).empty() && Asked == AfterCells, "cells already here aren't fetched again");
+		Why = Cells.FetchCells({NotYet});
+		Check(Why.find("HTTP 404") != std::string::npos, "a cell the store can't send says why");
+		Check(CellStore::InstallZip("not a zip", "c1_1", "", Kept) == "The download isn't a region zip." && !Files::IsDir(Files::Join(Kept, "c1_1")), "junk is no zip");
+		// A cell's own files.
+		Json File;
+		const int BeforeKept = Asked;
+		Check(Cells.Kept(CellStore::EKind::Streams, "577_711", *Idx, File) && File.Get("streams") != nullptr && Asked == BeforeKept + 1 && Cells.Kept(CellStore::EKind::Streams, "577_711", *Idx, File)
+			&& Asked == BeforeKept + 1, "a cell's streams are fetched once, then read from disk");
+		Files::Write(Files::Join(Kept, "stream/c577_711.json"), "{\"streams\":[]}");
+		Check(Cells.Kept(CellStore::EKind::Streams, "577_711", *Idx, File) && File.Get("streams")->Size() > 100 && Asked == BeforeKept + 2,
+			"a kept file that isn't the one the index names is fetched again");
+		Check(!Cells.Kept(CellStore::EKind::Trees, "577_713", *Idx, File) && !Cells.Kept(CellStore::EKind::Sketches, "1_1", *Idx, File), "a file the index doesn't name isn't asked for");
+		// The whole area, put together to ride.
+		LoadedArea Area;
+		const bool Loaded = LoadArea(Cells, Store, {A, B}, 54.34, -2.04, "Swaledale", Area, &Why);
+		Check(Loaded && Area.Roads.Hash == R.Hash && Area.Roads.Nodes.size() == R.Nodes.size() && Area.Roads.Edges.size() == R.Edges.size() && Area.Roads.Id == "area:@577_711,577_712"
+			&& Area.Cells.size() == 2, "the area loads from the fetched cells: the same roads as from the fixtures");
+		if (Loaded)
+		{
+			const Region& G = Area.Roads;
+			const double Tol = 0.05;   // (Godot places these from a frame held in floats, a couple of centimetres out here)
+			bool Ok = int(G.Spans.size()) == int(Ex.Num("spans"));
+			for (const Json& Sp : Ex.Get("some_spans")->A)
+			{
+				const Span& Mine = G.Spans[size_t(Num(Sp, 0))];
+				Ok = Ok && Mine.Kind == int(Num(Sp, 1)) && Near(Mine.A.X, Num(Sp, 2), Tol) && Near(Mine.A.Z, Num(Sp, 3), Tol) && Near(Mine.B.X, Num(Sp, 4), Tol) && Near(Mine.B.Z, Num(Sp, 5), Tol);
+			}
+			Check(Ok, "its 189 bridges and tunnels are where Godot has them");
+			size_t StreamPoints = 0;
+			for (const Stream& St : G.Streams) StreamPoints += St.Line.size();
+			Ok = int(G.Streams.size()) == int(Ex.Num("streams")) && int(StreamPoints) == int(Ex.Num("stream_points"));
+			for (const Json& St : Ex.Get("some_streams")->A)
+			{
+				const Stream& Mine = G.Streams[size_t(Num(St, 0))];
+				Ok = Ok && Mine.Kind == int(Num(St, 1)) && int(Mine.Line.size()) == int(Num(St, 2)) && Near(Mine.Line.front().X, Num(St, 3), Tol) && Near(Mine.Line.front().Z, Num(St, 4), Tol)
+					&& Near(Mine.Line.back().X, Num(St, 5), Tol) && Near(Mine.Line.back().Z, Num(St, 6), Tol);
+			}
+			Check(Ok, "its 3,779 rivers and streams (33,512 points) are Godot's");
+			auto SameNum = [](const Json& Want, double Got) { return Want.IsNull() ? std::isnan(Got) : Want.N == Got; };
+			Ok = int(G.Scenery.Points.size()) == int(Ex.Num("points")) && int(G.Scenery.Lines.size()) == int(Ex.Num("lines")) && int(G.Scenery.Areas.size()) == int(Ex.Num("areas"))
+				&& int(G.Scenery.Buildings.size()) == int(Ex.Num("looks"));
+			Check(Ok, "its scenery counts as Godot's: 7,323 points, 12,198 lines, 718 areas, 156 buildings' looks");
+			Ok = true;
+			for (const Json& P : Ex.Get("some_points")->A)
+			{
+				const FeaturePoint& Mine = G.Scenery.Points[size_t(Num(P, 0))];
+				Ok = Ok && Mine.Kind == P.A[1].S && Near(Mine.At.X, Num(P, 2), Tol) && Near(Mine.At.Z, Num(P, 3), Tol) && SameNum(P.A[4], Mine.Height) && SameNum(P.A[5], Mine.Elevation)
+					&& SameNum(P.A[6], Mine.Heading) && Mine.Name == P.A[7].S && Mine.Id == P.A[8].S;
+			}
+			for (const Json& L : Ex.Get("some_lines")->A)
+			{
+				const FeatureLine& Mine = G.Scenery.Lines[size_t(Num(L, 0))];
+				Ok = Ok && Mine.Kind == L.A[1].S && int(Mine.Line.size()) == int(Num(L, 2)) && Near(Mine.Line.front().X, Num(L, 3), Tol) && Near(Mine.Line.front().Z, Num(L, 4), Tol)
+					&& Near(Mine.Line.back().X, Num(L, 5), Tol) && Near(Mine.Line.back().Z, Num(L, 6), Tol) && SameNum(L.A[7], Mine.Height) && SameNum(L.A[8], Mine.Width)
+					&& Mine.Flags == int(Num(L, 9)) && Mine.Name == L.A[10].S && Mine.Id == L.A[11].S;
+			}
+			int Towers = 0;
+			for (const Json& Ar : Ex.Get("some_areas")->A)
+			{
+				const FeatureArea& Mine = G.Scenery.Areas[size_t(Num(Ar, 0))];
+				Ok = Ok && Mine.Kind == Ar.A[1].S && int(Mine.Ring.size()) == int(Num(Ar, 2)) && Near(Mine.Ring.front().X, Num(Ar, 3), Tol) && Near(Mine.Ring.front().Z, Num(Ar, 4), Tol)
+					&& Near(Mine.Ring.back().X, Num(Ar, 5), Tol) && Near(Mine.Ring.back().Z, Num(Ar, 6), Tol) && SameNum(Ar.A[7], Mine.Height) && SameNum(Ar.A[8], Mine.Elevation)
+					&& Mine.Name == Ar.A[9].S && Mine.Id == Ar.A[10].S && Mine.Group == Ar.A[11].S;
+				if (Mine.Kind == "tower") ++Towers;
+			}
+			for (const Json& B2 : Ex.Get("some_looks")->A)
+			{
+				const BuildingLook& Mine = G.Scenery.Buildings[size_t(Num(B2, 0))];
+				Ok = Ok && Near(Mine.At.X, Num(B2, 1), Tol) && Near(Mine.At.Z, Num(B2, 2), Tol);
+				for (size_t K = 0; K < 6; ++K) Ok = Ok && Mine.Words[K] == B2.A[3 + K].S;
+			}
+			Check(Ok && Towers > 0, "sampled points, lines, areas, towers and buildings' looks are Godot's: kind, place, name, id and numbers");
+			int CoverOk = 0, TreesOk = 0, Total = 0, Wooded = 0;
+			for (const Json& L : Ex.Get("land")->A)
+			{
+				++Total;
+				if (Area.Land->Cover(Num(L, 0), Num(L, 1)) == int(Num(L, 2))) ++CoverOk;
+				const int Trees = Area.Land->TreesAt(Num(L, 0), Num(L, 1));
+				if (Trees == int(Num(L, 3))) ++TreesOk;
+				if (Trees > 0) ++Wooded;
+			}
+			Check(Total == 2500 && CoverOk == Total, "what covers the ground at 2,500 points (moor, grass, wood, water...) is Godot's");
+			Check(TreesOk == Total && Wooded > 100 && Area.Land->HasTrees(), "the trees there (canopy height, how much of the square, leaf) are Godot's");
+			Check(std::string(Terrain::CoverName(Terrain::CoverWater)) == "water" && Area.Land->Cover(9e6, 0.0) == -1 && Area.Land->TreesAt(9e6, 0.0) == -1, "off the cells there is no cover and no trees");
+			Check(Store.SeaIn(B) == 0 && Area.FeaturesHash.size() == 12 && Near(Area.Land->Height(-2422.0, -4363.0), Land.Height(-2422.0, -4363.0), 1e-9),
+				"the cells' profiles say they have no sea; the scenery has its own hash; the ground is the same ground");
+		}
+		// Offline, the next run still has what was fetched.
+		CellStore Later;
+		Later.Dir = Kept;
+		Later.IndexUrl = "store://index.json";
+		Later.Offline = true;
+		Later.Get = Serve;
+		const int BeforeLater = Asked;
+		const std::shared_ptr<const WorldIndex> Saved = Later.Index();
+		Check(Saved->Cells.size() == 4 && Later.StateOf(A, *Saved) == CellStore::EState::Here && Later.Kept(CellStore::EKind::Streams, "577_711", *Saved, File)
+			&& !Later.FetchCells({NotYet}).empty() && Asked == BeforeLater, "offline, the next run has the index, the cells and their files as they were kept, and asks for nothing");
+		// The disk is kept within bounds: the cell used longest ago goes, never one used this run.
+		Later.Keep = 1;
+		Check(Later.Prune() == 1 && (Files::IsDir(Files::Join(Kept, "c577_711")) != Files::IsDir(Files::Join(Kept, "c577_712"))), "past the limit the cell used longest ago is deleted");
+		Cells.Keep = 0;
+		Check(Cells.Prune() == 0, "but never a cell this run has used");
+		Down = true;
+		CellStore Cold;
+		Cold.Dir = Files::Join(TORQUE_WORLD_TMP, "world_test_none");
+		Cold.Get = Serve;
+		Check(Cold.Index()->Empty() && Cold.FetchCells({A}).empty(), "with no network and nothing kept there is no index, and nothing to fetch");
+		Files::RemoveTree(Kept);
 	}
 
 	std::printf("\n%s\n", Fails == 0 ? "world_test: all passed" : "world_test: FAILED");

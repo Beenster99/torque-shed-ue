@@ -14,6 +14,8 @@
 #include "WorldGeo.h"
 #include "WorldRegion.h"
 
+#include "FitJson.h"
+
 #include <cmath>
 #include <limits>
 #include <map>
@@ -66,7 +68,52 @@ public:
 	std::vector<TileKey> UsedKeys() const;
 	bool IsRide() const { return !Uses.empty(); }
 
+	// What covers the ground. The ids are the baker's: grass, forest, crop, shrub, barren, urban,
+	// sand, wetland, water (rivers and lakes; the sea is in the heights), rock.
+	static constexpr int CoverWater = 8;
+	static const char* CoverName(int Id);
+	// Reads cover from a cell's folder, wherever its box is (its region.json: frame, geo box, levels).
+	void AddCoverCell(const std::string& CellDir, const TorqueFit::Json& Meta);
+	// What covers the ground at (X, Z): the sample nearest, from the finest level that has it, or -1.
+	int Cover(double X, double Z) const;
+	// Takes in a cell's trees ({cell: "ROW_COL", rows, cols, trees, leaf}, the last two base64 of
+	// zlib'd bytes); false for one that won't read.
+	bool AddTrees(const TorqueFit::Json& Row);
+	bool HasTrees() const;
+	// The trees at (X, Z): the canopy's height in TreeHeightStep in its low 5 bits, how much of the
+	// square is under trees in eighths in its next 3, and the leaf's id times 256 (0 unknown, 1
+	// broadleaved, 2 needleleaved, 3 mixed); -1 where no cell's trees have the point.
+	int TreesAt(double X, double Z) const;
+
 private:
+	struct CoverLevel
+	{
+		std::string Base, Folder;
+		double Spacing = 16.0;
+		int Cells = 128;
+	};
+	struct CoverCell
+	{
+		std::vector<CoverLevel> Levels;   // finest first
+		double Lat = 0.0, Lon = 0.0;      // the cell's own frame
+		MetresPerDeg M;
+		double South = 0.0, West = 0.0, North = 0.0, East = 0.0;
+	};
+	struct TreeCell
+	{
+		double South = 0.0, West = 0.0;
+		int Rows = 0, Cols = 0;
+		std::string Trees, Leaf;   // Rows x Cols bytes, from the north-west corner
+	};
+	// What every ride over the same land shares: the cells' cover and trees.
+	struct Ground
+	{
+		std::vector<CoverCell> CoverCells;
+		std::vector<TreeCell> TreeCells;
+		std::mutex Lock;
+		std::map<std::string, std::shared_ptr<const std::string>> CoverTiles;   // by path; an empty one where there is no file
+	};
+	std::shared_ptr<const std::string> CoverTile(const CoverLevel& Lv, int Tx, int Tz) const;
 	struct PadSet
 	{
 		std::vector<Building> Rows;
@@ -86,6 +133,7 @@ private:
 	int Zooms[LevelCount];
 	std::vector<std::set<TileKey>> Uses;   // per level; empty: any tile on disk (the map's own view)
 	std::shared_ptr<const PadSet> Pads;
+	std::shared_ptr<Ground> Land;
 	mutable std::mutex Lock;
 	mutable std::unordered_map<int, double> PadLevel;   // building -> its ground, once worked out
 };

@@ -144,7 +144,8 @@ endif()
 # graph and the ground's height, against the Godot game's answers on the same files.
 set(WORLD ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/World)
 add_executable(world_test world_test.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
-  ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${FIT}/FitJson.cpp)
+  ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
+  ${WORLD}/WorldLoad.cpp ${FIT}/FitJson.cpp)
 target_include_directories(world_test PRIVATE ${WORLD} ${FIT})
 target_compile_definitions(world_test PRIVATE TORQUE_WORLD_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/world" TORQUE_WORLD_TMP="${CMAKE_CURRENT_BINARY_DIR}")
 find_package(Threads REQUIRED)

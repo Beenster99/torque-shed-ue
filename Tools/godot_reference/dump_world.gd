@@ -161,6 +161,65 @@ func _ready() -> void:
 		(ride_out["ready"] as Array).append([x, z, w, ride.ready(Rect2(x, z, w, w), 0), ride.ready(Rect2(x, z, w, w), 1), ride.ready(Rect2(x, z, w, w), 2)])
 	out["ride"] = ride_out
 
+	# The rest of what the store holds for the two cells (the store's own files, res://dump/store, copied in by
+	# Tools/make_godot_reference.py): their hash as the baker makes it, bridges and tunnels, streams, scenery, trees
+	# and cover.
+	var store := "res://dump/store"
+	var extras := {"hash_of_dir": [RegionStore.hash_of_dir(CELLS.path_join("c577_711")), RegionStore.hash_of_dir(CELLS.path_join("c577_712"))]}
+	var frame := Vector2(r.frame_lat, r.frame_lon)
+	var feats := {"points": [], "lines": [], "areas": []}
+	var spans: Array = []
+	var streams: Array = []
+	var sketch: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(store + "/sketch/b28_35.json"))
+	for c: String in ["577_711", "577_712"]:
+		spans.append_array(RealRegion._spans_in(sketch["spans"][c], frame))
+		streams.append_array(RealRegion._streams_in(JSON.parse_string(FileAccess.get_file_as_string(store + "/stream/c%s.json" % c))["streams"], frame))
+		RealRegion.add_features(feats, JSON.parse_string(FileAccess.get_file_as_string(store + "/feature/c%s.json" % c)), frame)
+		terrain.add_trees(JSON.parse_string(FileAccess.get_file_as_string(store + "/tree/c%s.json" % c)))
+	extras["spans"] = spans.size()
+	extras["some_spans"] = []
+	for i in range(0, spans.size(), 7):
+		(extras["some_spans"] as Array).append([i] + (spans[i] as Array))
+	extras["streams"] = streams.size()
+	extras["some_streams"] = []
+	var stream_points := 0
+	for i in streams.size():
+		var pts: PackedVector2Array = streams[i][1]
+		stream_points += pts.size()
+		if i % 53 == 0:
+			(extras["some_streams"] as Array).append([i, streams[i][0], pts.size(), pts[0].x, pts[0].y, pts[pts.size() - 1].x, pts[pts.size() - 1].y])
+	extras["stream_points"] = stream_points
+	extras["points"] = (feats["points"] as Array).size()
+	extras["lines"] = (feats["lines"] as Array).size()
+	extras["areas"] = (feats["areas"] as Array).size()
+	extras["looks"] = (feats.get("buildings", []) as Array).size()
+	extras["some_points"] = []
+	for i in range(0, (feats["points"] as Array).size(), 211):
+		(extras["some_points"] as Array).append([i] + (feats["points"][i] as Array))
+	extras["some_lines"] = []
+	for i in range(0, (feats["lines"] as Array).size(), 397):
+		var l: Array = feats["lines"][i]
+		var pts: PackedVector2Array = l[1]
+		(extras["some_lines"] as Array).append([i, l[0], pts.size(), pts[0].x, pts[0].y, pts[pts.size() - 1].x, pts[pts.size() - 1].y, l[2], l[3], l[4], l[5], l[6]])
+	extras["some_areas"] = []
+	for i in (feats["areas"] as Array).size():
+		var a: Array = feats["areas"][i]
+		if i % 37 != 0 and a.size() < 7:
+			continue
+		var pts: PackedVector2Array = a[1]
+		(extras["some_areas"] as Array).append([i, a[0], pts.size(), pts[0].x, pts[0].y, pts[pts.size() - 1].x, pts[pts.size() - 1].y, a[2], a[3], a[4], a[5],
+			str(a[6]["group"]) if a.size() > 6 else ""])
+	extras["some_looks"] = []
+	for i in range(0, (feats.get("buildings", []) as Array).size(), 9):
+		(extras["some_looks"] as Array).append([i] + (feats["buildings"][i] as Array))
+	var land: Array = []
+	for i in 2500:
+		var x := lerpf(r.bounds.position.x, r.bounds.end.x, rnd())
+		var z := lerpf(r.bounds.position.y, r.bounds.end.y, rnd())
+		land.append([x, z, terrain.cover(x, z), terrain.trees_at(x, z)])
+	extras["land"] = land
+	out["extras"] = extras
+
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "", false, true))
 	f.close()
