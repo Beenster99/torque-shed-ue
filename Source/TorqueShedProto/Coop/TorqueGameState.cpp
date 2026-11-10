@@ -441,6 +441,7 @@ void ATorqueGameState::SendNet()
 	Net.Code = S.Code;
 	Net.LowCloud = (float)S.LowCloud;
 	Net.CloudBase = (float)S.CloudBase;
+	Net.Puddles = (float)S.Puddles;
 	if (const UWorld* World = GetWorld()) NetSentAt = World->GetRealTimeSeconds();
 	ForceNetUpdate();
 }
@@ -461,6 +462,7 @@ void ATorqueGameState::OnRep_Net()
 	S.Code = Net.Code;
 	S.LowCloud = Net.LowCloud;
 	S.CloudBase = Net.CloudBase;
+	S.Puddles = Net.Puddles;
 	// The host sends a fade a couple of times a second: ease between, so it stays smooth here too.
 	if (AppliedAt < 0.0) Fade.Set(S);
 	else Fade.FadeTo(S, 0.6);
@@ -714,6 +716,8 @@ void ATorqueGameState::ApplyWeather()
 		// sky), none on a clear one, more of the ground in shade as the cloud builds.
 		SetMpc(TEXT("CloudShadow"), (float)(St.Cloud <= 0.1 ? FMath::Lerp(1.0, 0.6, St.Cloud / 0.1) : FMath::Lerp(0.6, 0.45, FMath::Clamp((St.Cloud - 0.1) / 0.5, 0.0, 1.0))));
 		SetMpc(TEXT("Rain"), (float)TorqueWeather::RainShow(St));
+		// Standing water: the road's edges first (inside of bends most), the middle after hours of rain.
+		SetMpc(TEXT("Puddles"), (float)FMath::Clamp(St.Puddles, 0.0, 1.0));
 	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)

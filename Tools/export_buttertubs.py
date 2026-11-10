@@ -575,10 +575,14 @@ def main():
         nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
         rc = np.zeros((len(pos), 4), np.uint8)
         rc[:, 0] = np.repeat((np.abs(across) * 255).astype(np.uint8)[None, :], len(line), 0).ravel()  # R: 0 centre .. 255 edge
-        rc[:, 1] = 0; rc[:, 2] = 0; rc[:, 3] = 255
+        rc[:, 1] = 128; rc[:, 2] = 0; rc[:, 3] = 255   # (G: bends, written below)
         # UV: U across (0 left edge .. 1 right edge), V along in units of 20 m (full precision UVs in UE).
         ruv = np.stack([np.tile((across + 1) / 2, len(line)), np.repeat(s / 20.0, 5)], -1)
         write_glb(os.path.join(args.out, "road.glb"), pos, tris, nrm, rc, "road", ruv)
+        # G: which edge is a bend's inside, for where the puddles gather (Tools/road_puddle_sides.py).
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import road_puddle_sides
+        road_puddle_sides.patch(os.path.join(args.out, "road.glb"))
 
         # Walls, fences, barns, rocks, grass and sheep along the ride.
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

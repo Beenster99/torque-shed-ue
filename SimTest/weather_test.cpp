@@ -125,6 +125,21 @@ int main()
 	Check(InCloud(Low, 600.0) == 0.0, "a few scraps of low cloud don't swallow the road");
 	Check(Near(DewPointFrom(10.0, 100.0), 10.0, 0.01) && Near(DewPointFrom(20.0, 50.0), 9.3, 0.2), "dew point from humidity");
 
+	// Puddles: the edges after a few millimetres, the middle only after hours of heavy rain, and they drain.
+	{
+		const double Shower = PuddlesAfter({0, 0, 0, 0, 0, 0, 0.5, 0.5}, 10);
+		const double Afternoon = PuddlesAfter({0, 0, 0, 0, 1, 1.5, 1, 1}, 10);
+		const double Soaking = PuddlesAfter({2, 3, 3, 4, 3, 3, 2, 3}, 10);
+		const double After = PuddlesAfter({2, 3, 3, 4, 0, 0, 0, 0}, 10);
+		std::printf("      puddles: shower %.2f, an afternoon's rain %.2f, a soaking day %.2f, four dry hours after it %.2f\n", Shower, Afternoon, Soaking, After);
+		Check(Shower < 0.25, "a short shower: hardly any standing water");
+		Check(Afternoon >= 0.35 && Afternoon < 0.6, "a few hours of rain: the edges fill, not the middle");
+		Check(Soaking > 0.75, "a soaking day: puddles reach across the road");
+		Check(After < Soaking * 0.6, "they drain once it stops");
+		Check(Preset(Wet).Puddles == 0.4 && Preset(Sunny).Puddles == 0.0, "the wet preset has edge puddles, as before");
+		Check(Live.Puddles > 0.25, "the live afternoon of rain has edge puddles");
+	}
+
 	// Rain to see, wind to sway.
 	Check(RainShow(Preset(Sunny)) == 0.0 && RainShow(Preset(Wet)) > 0.4 && RainShow(Preset(Wet)) < 0.5, "light rain shows nearly half a downpour");
 	State Pour = Preset(Wet);
@@ -143,7 +158,8 @@ int main()
 	Check(Load(Save(Live), Back) && Back.Code == Live.Code && Near(Back.Air, Live.Air, 0.01) && Near(Back.RoadWet, Live.RoadWet, 0.001), "saved weather loads back");
 	Check(!Load("nonsense", Back), "a broken save is refused");
 	Check(Back.LowCloud == Live.LowCloud || Near(Back.CloudBase, Live.CloudBase, 1.0), "low cloud saved too");
-	Check(Load("w1 1 0 0 3 225 6 14 40000 0 3", Back) && Back.CloudBase == 5000.0, "an older save (no low cloud) still loads");
+	Check(Load("w1 1 0 0 3 225 6 14 40000 0 3", Back) && Back.CloudBase == 5000.0 && Back.Puddles == 0.0, "an older save (no low cloud) still loads");
+	Check(Load(Save(Live), Back) && Near(Back.Puddles, Live.Puddles, 0.001), "puddles saved too");
 
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;

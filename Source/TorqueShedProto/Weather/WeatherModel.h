@@ -27,6 +27,10 @@ struct State
 	int Code = 1;                // the WMO weather code, for the words ("light rain")
 	double LowCloud = 0.0;       // low cloud cover (below about 2 km), 0 .. 1
 	double CloudBase = 5000.0;   // the low cloud's base, metres above sea level (from the air's dryness)
+	// Standing water, 0 none .. 1 after hours of heavy rain. Puddles first gather at the road's
+	// edges (its camber drains them there), most on the inside of bends where the road leans in; only
+	// past about 0.6 do they reach across the middle. Builds with the rain of the last hours, drains slowly.
+	double Puddles = 0.0;
 };
 
 enum EKind { Sunny = 0, Overcast = 1, Wet = 2 };
@@ -68,6 +72,9 @@ double RoadWaterStep(double WaterMm, double RainMmPerHour, double Air, double Wi
 double RoadWetFromWater(double WaterMm);
 // The road now, from the rain of the last few hours (oldest first, mm in each hour) and the air.
 double RoadWaterAfter(const std::vector<double>& RainPerHour, double Air, double Wind, double Cloud);
+// The standing water from the rain of the last hours (oldest first, mm in each hour): about 4 mm in
+// the last few hours fills the edges, 15 mm or more reaches the middle.
+double PuddlesAfter(const std::vector<double>& RainPerHour, double Air);
 
 // Moves from one State to another over a set time, smoothly (ease in and out).
 struct Fader

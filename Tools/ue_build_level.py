@@ -198,6 +198,7 @@ WEATHER_PARAMS = (
     ("WindY", -0.62),
     ("CloudShadow", 0.6),    # where the cloud shadows' noise turns to shade: 1 none (clear) .. 0.45 most of the ground
     ("Rain", 0.0),           # how hard it's raining for the eye, 0 .. 1
+    ("Puddles", 0.4),        # standing water: up to 0.4 the road's edges fill, past 0.6 the middle too
 )
 _weather_mpc = None
 
@@ -694,7 +695,25 @@ def road_material_scanned(tex, roles):
     r_src = road[2]
     r_out = "R" if r_src.get_class().get_name() == "MaterialExpressionTextureSample" else ""
     rough = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.6), g.const(0.12), wet), a_out=r_out)
-    puddle = g.op(unreal.MaterialExpressionMultiply, g.mask_noise(0.004, -9.0, 1.0), wet)   # a few puddles metres across, not setts
+    # Standing water (beenster): the camber drains it to the edges, most on the inside of a bend where
+    # the road leans in and little on the outside; only after hours of rain does it reach across the
+    # middle. The road's vertex colour: R 0 centre .. 1 edge, G 0.5 a straight, 1 a bend's inside
+    # edge, 0 its outside (Tools/road_puddle_sides.py). MPC_Weather's Puddles says how much water stands.
+    vc_p = g.node(unreal.MaterialExpressionVertexColor)
+    edge = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                g.op(unreal.MaterialExpressionSubtract, vc_p, a_out="R", const_b=0.5), const_b=2.6))      # 0 inside 0.5 .. 1 by 0.88
+    side = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionAdd,
+                g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, vc_p, a_out="G", const_b=0.5),
+                     const_b=1.8), const_b=0.5))                                                          # outside 0 .. straight 0.5 .. inside 1
+    pud = weather_param(g, "Puddles")
+    fill = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, pud, const_b=2.5))
+    where = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, edge, g.op(unreal.MaterialExpressionMultiply, side, const_b=1.6)), fill)
+    centre = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                  g.op(unreal.MaterialExpressionSubtract, pud, const_b=0.6), const_b=2.5))
+    where = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMax, where, centre))
+    # In patches along it (longer and closer together at the edges than the old scattered ones).
+    patches = g.mask_noise(0.006, -3.5, 2.0)
+    puddle = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, patches, where), wet)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.const(0.5), wet))
     road[0] = g.lerp(road[0], g.op(unreal.MaterialExpressionMultiply, road[0], const_b=0.6), puddle)
     road[2] = g.lerp(rough, g.const(0.03), puddle)

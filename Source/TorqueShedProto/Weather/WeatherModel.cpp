@@ -30,6 +30,7 @@ State Preset(int Kind)
 		break;
 	case Wet:
 		S.Cloud = 1.0; S.Rain = 1.0; S.Wind = 7.0; S.Gust = 11.0; S.Air = 10.0; S.Visibility = 10000.0; S.RoadWet = 1.0; S.Code = 61;
+		S.Puddles = 0.4;   // (the edges, as the wet roads always had puddles)
 		S.LowCloud = 0.9; S.CloudBase = 900.0;
 		break;
 	default:
@@ -61,6 +62,7 @@ State Blend(const State& A, const State& B, double T)
 	S.RoadWet = Lerp(A.RoadWet, B.RoadWet, T);
 	S.LowCloud = Lerp(A.LowCloud, B.LowCloud, T);
 	S.CloudBase = Lerp(A.CloudBase, B.CloudBase, T);
+	S.Puddles = Lerp(A.Puddles, B.Puddles, T);
 	S.Code = T < 0.5 ? A.Code : B.Code;
 	return S;
 }
@@ -124,6 +126,15 @@ double RoadWaterAfter(const std::vector<double>& RainPerHour, double Air, double
 	for (double R : RainPerHour)
 		for (int I = 0; I < 4; ++I) W = RoadWaterStep(W, R, Air, Wind, Cloud, 900.0);
 	return W;
+}
+
+double PuddlesAfter(const std::vector<double>& RainPerHour, double Air)
+{
+	// A store that the rain fills and that drains and dries over a few hours (faster when warm).
+	double Store = 0.0;
+	const double Drain = 0.16 + 0.01 * std::max(Air, 0.0);   // share lost an hour
+	for (double R : RainPerHour) Store = Store * (1.0 - Drain) + std::max(R, 0.0);
+	return Smooth(Store / 18.0) * 0.55 + Clamp01(Store / 4.0) * 0.45;
 }
 
 void Fader::FadeTo(const State& S, double OverSeconds)
@@ -300,6 +311,7 @@ bool ParseOpenMeteo(const std::string& Body, State& Out, long long* Time, std::s
 				if (Now == 0 || static_cast<long long>(Times->A[I].N) <= Now) Hours.push_back(Rain->A[I].IsNumber() ? std::max(Rain->A[I].N, 0.0) : 0.0);
 	}
 	double Water = RoadWaterAfter(Hours, S.Air, S.Wind, S.Cloud);
+	S.Puddles = PuddlesAfter(Hours, S.Air);
 	Water = RoadWaterStep(Water, S.Rain, S.Air, S.Wind, S.Cloud, Interval);
 	S.RoadWet = RoadWetFromWater(Water);
 	Out = S;
@@ -382,6 +394,7 @@ bool ParseMetNo(const std::string& Body, State& Out, long long* Time, std::strin
 	S.Visibility = S.Code == 45 ? 400.0 : 30000.0;
 	// No past rain here: the road as if this hour's rain had been falling for the last hour.
 	S.RoadWet = RoadWetFromWater(RoadWaterAfter({S.Rain}, S.Air, S.Wind, S.Cloud));
+	S.Puddles = PuddlesAfter({S.Rain}, S.Air);
 	Out = S;
 	if (Time) *Time = ParseIsoUtc(First.Str("time"));
 	return true;
@@ -390,8 +403,8 @@ bool ParseMetNo(const std::string& Body, State& Out, long long* Time, std::strin
 std::string Save(const State& S)
 {
 	char Buf[256];
-	std::snprintf(Buf, sizeof(Buf), "w1 %.3f %.3f %.3f %.3f %.1f %.3f %.2f %.0f %.3f %d %.3f %.0f", S.Cloud, S.Rain, S.Snow, S.Wind, S.WindFrom, S.Gust,
-		S.Air, S.Visibility, S.RoadWet, S.Code, S.LowCloud, S.CloudBase);
+	std::snprintf(Buf, sizeof(Buf), "w1 %.3f %.3f %.3f %.3f %.1f %.3f %.2f %.0f %.3f %d %.3f %.0f %.3f", S.Cloud, S.Rain, S.Snow, S.Wind, S.WindFrom, S.Gust,
+		S.Air, S.Visibility, S.RoadWet, S.Code, S.LowCloud, S.CloudBase, S.Puddles);
 	return Buf;
 }
 
@@ -404,6 +417,7 @@ bool Load(const std::string& Text, State& Out)
 	if (!(In >> S.Cloud >> S.Rain >> S.Snow >> S.Wind >> S.WindFrom >> S.Gust >> S.Air >> S.Visibility >> S.RoadWet >> S.Code)) return false;
 	In >> S.LowCloud >> S.CloudBase;   // (an older save without them keeps the defaults)
 	if (In.fail()) { S.LowCloud = 0.0; S.CloudBase = 5000.0; }
+	else if (!(In >> S.Puddles)) S.Puddles = 0.0;
 	Out = S;
 	return true;
 }
