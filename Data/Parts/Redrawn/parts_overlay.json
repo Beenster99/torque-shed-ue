@@ -945,7 +945,14 @@
    "rear_disc": "drilled_220_rear"
   },
   "mx": {
-   "rear_disc": "drilled_220_rear"
+   "rear_disc": "drilled_220_rear",
+   "swingarm": "braced_mx_alloy",
+   "chain": "light_428",
+   "front_disc": "light_wave_260",
+   "front_caliper": "twin_piston",
+   "horn": "none",
+   "indicators": "none",
+   "dashboard": "none"
   },
   "bobber": {
    "front_caliper": "twin_piston",
