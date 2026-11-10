@@ -759,7 +759,31 @@ def dress():
         if spawn(d, "Props/Dressing") is not None:
             placed += 1
     log("dressed the shed: %d models%s" % (placed, "; not imported yet: " + ", ".join(sorted(set(skipped))) if skipped else ""))
+    fab_look_anchors(actors)
     return placed
+
+
+def fab_look_anchors(actors):
+    """The Fab meshes the yard kit wears (Data/Furniture/fab_looks.json) are loaded by path at run time,
+    so the package needs them cooked: one hidden actor per mesh in the shed map does that, cooking
+    just those meshes and what they use (cooking their whole pack folders added ~830 MB)."""
+    looks = json.load(open(os.path.join(ROOT, "Data", "Furniture", "fab_looks.json")))["looks"]
+    for i, path in enumerate(sorted({l["mesh"].split(".")[0] for l in looks.values()})):
+        mesh = unreal.load_asset(path) if eal.does_asset_exist(path) else None
+        if mesh is None:
+            warn("Fab look %s isn't in the project: the yard keeps our own model" % path)
+            continue
+        a = actors.spawn_actor_from_object(mesh, unreal.Vector(-50000.0 - 2000.0 * i, -50000.0, -20000.0), unreal.Rotator(0.0, 0.0, 0.0))
+        a.set_actor_label("FabLookCook_%s" % path.rsplit("/", 1)[-1])
+        a.set_folder_path("Props/FabLookCook")
+        a.set_actor_hidden_in_game(True)
+        c = a.get_component_by_class(unreal.StaticMeshComponent)
+        if c:
+            c.set_collision_profile_name("NoCollision")
+            c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+            c.set_editor_property("visible", False)
+            c.set_editor_property("cast_shadow", False)
+        log("Fab look %s: anchored in the shed map so it's cooked" % path)
 
 
 if __name__ == "__main__":
