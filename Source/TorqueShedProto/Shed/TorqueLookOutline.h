@@ -30,6 +30,10 @@ struct FTorqueLookOutline
 	void Show(const TArray<UPrimitiveComponent*>& Now);
 	void Clear() { Show(TArray<UPrimitiveComponent*>()); }
 	int32 Count() const { return Shown.Num(); }
+	// For the outline test (TorqueShedTest 'outline'): what's in place for the line to draw (the
+	// material and where it blends, the post-process, r.CustomDepth, the marks), and whether all of
+	// it is as it must be (bOk).
+	FString Status(bool& bOk) const;
 	// Places whose own meshes are things that move (the engine stand, the extinguisher, the tape
 	// roll, a paint tin): the only places outlined. Fixed kit isn't.
 	static bool Movable(ETorquePlace Kind);

@@ -151,6 +151,9 @@ public:
 	// --- For hands-off tests (UTorqueShedTest, -TorqueShedAction=) --------------------------------
 	// Stand Distance cm from a point, on the side Away points to, and look at it; say what's seen.
 	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
+	// [outline test] The look outline left off (to read the screen without it), and what's in place for it.
+	bool bTestNoOutline = false;
+	FString TestOutlineStatus(bool& bOk) const;
 	// The tests' last look: the act after it aims there again from wherever the walker's settled
 	// (it can be nudged off a bench's edge between steps, and the look slides off what it was on).
 	FVector TestAim = FVector::ZeroVector;

@@ -2116,6 +2116,7 @@ void ATorqueWalker::UpdateCues()
 			&& FTorqueLookOutline::Movable(TargetPlace->Kind))
 			Lined.Append(LookOutline.PlaceMeshes(World, TargetPlace));
 		if (bShow && Held == 0 && SprayItem == 0) FurnitureOutline(Lined);   // [furniture]
+		if (bTestNoOutline) Lined.Reset();   // [outline test] the screen without it
 		LookOutline.Show(Lined);
 	}
 	// A part in your hands: where it will go down (the floor, a bench, a machine), as a box its size
@@ -2947,6 +2948,11 @@ FString ATorqueWalker::TestLookAt(const FVector& Point, const FVector& Away, dou
 	UE_LOG(LogTemp, Log, TEXT("Torque test: look outline round %d mesh(es)"), LookOutline.Count());
 	UpdateHud();
 	return Describe();
+}
+
+FString ATorqueWalker::TestOutlineStatus(bool& bOk) const
+{
+	return LookOutline.Status(bOk);
 }
 
 void ATorqueWalker::ReAim()
