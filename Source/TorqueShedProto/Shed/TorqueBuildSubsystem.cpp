@@ -655,7 +655,7 @@ void UTorqueBuildSubsystem::Save()
 // a shed full of parts). Names go in a table once; dirt, rust and wear are a byte each.
 namespace TorqueBuildImpl
 {
-constexpr int32 BytesLayout = 20;   // bumped when the layout below changes (20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
+constexpr int32 BytesLayout = 21;   // bumped when the layout below changes (21: moved kit's reach and bought TVs' channels, 20: shelving units' labels, 19: the wall TVs' channels, 18: a tyre's bead from the tyre changer, 17: fluids and the petrol pump, 16: the movable shed and yard kit, 2: fabrication, 3: wheeling and the dyno, 4: the fit, 5: paint jobs, 6: the mixing bay, 7: booth hook heights, 8: the radio, 9: the effects rack, 10: masking tape, 11: who a delivery's for, 12: a tank's badge, 13: the bay lifts, 14: the shed's lights, roller door, engine stand and extinguisher, 15: the dyno desk's tune and lightened parts)
 
 struct FNameTable
 {
@@ -1453,17 +1453,82 @@ int32 UTorqueBuildSubsystem::FreeBay() const
 	return INDEX_NONE;
 }
 
-int32 UTorqueBuildSubsystem::FreeDelivery() const
+bool UTorqueBuildSubsystem::FreeDeliverySpot(const FVector& Size, bool bFarFirst, bool bStack, FVector& Out) const
 {
-	for (int32 I = 0; I < 42; ++I)
+	// What's in the area already: every part or box on the floor there and every piece of kit, as
+	// boxes (their turned footprints squared up), and which are boxes a delivery can go on top of.
+	struct FTaken { FBox Box; bool bTop; };
+	TArray<FTaken> Taken;
+	const FBox2D Area = TorqueShedLayout::DeliveryArea();
+	const FBox2D Near(Area.Min - FVector2D(150.0), Area.Max + FVector2D(150.0));
+	auto Footprint = [](const FTransform& Xf, const FVector& S, double Z0)
 	{
-		const FVector At = TorqueShedLayout::DeliveryAt(I);
-		bool bTaken = false;
-		for (const TPair<int32, FTorqueItem>& KV : Items)
-			if (KV.Value.At == ETorqueAt::Floor && FVector::Dist(KV.Value.Place.GetLocation(), At) < 40.0) { bTaken = true; break; }
-		if (!bTaken) return I;
+		const double Yaw = FMath::DegreesToRadians(Xf.Rotator().Yaw);
+		const double C = FMath::Abs(FMath::Cos(Yaw)), Sn = FMath::Abs(FMath::Sin(Yaw));
+		const FVector Half(C * S.X * 0.5 + Sn * S.Y * 0.5, Sn * S.X * 0.5 + C * S.Y * 0.5, 0.0);
+		const FVector At = Xf.GetLocation();
+		return FBox(FVector(At.X - Half.X, At.Y - Half.Y, Z0), FVector(At.X + Half.X, At.Y + Half.Y, Z0 + S.Z));
+	};
+	for (const TPair<int32, FTorqueItem>& KV : Items)
+	{
+		const FTorqueItem& It = KV.Value;
+		if (It.At != ETorqueAt::Floor || !Near.IsInside(FVector2D(It.Place.GetLocation()))) continue;
+		const FVector S = It.bBoxed ? TorqueShedLayout::DeliverySize(It.Kind) : TorqueShedLayout::PartBoxSize(It.Kind);
+		Taken.Add({Footprint(It.Place, S, It.Place.GetLocation().Z), It.bBoxed});
 	}
-	return INDEX_NONE;
+	for (const FTorqueFurniture& F : Furnishings)
+	{
+		const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model);
+		if (!M || F.Mover != 0 || !Near.IsInside(FVector2D(F.Xf.GetLocation()))) continue;
+		// (A model's size is width x, height, depth: its footprint x by depth, and up its height.)
+		Taken.Add({Footprint(F.Xf, FVector(M->Size.X, M->Size.Z, M->Size.Y), F.Xf.GetLocation().Z), false});
+	}
+	static constexpr double Gap = 8.0, Step = 10.0;
+	auto Clear = [&Taken](const FBox& B)
+	{
+		const FBox Wide = B.ExpandBy(FVector(Gap, Gap, -0.5));
+		for (const FTaken& T : Taken)
+			if (T.Box.Intersect(Wide)) return false;
+		return true;
+	};
+	// On the floor: rows across the area, the nearest the door first (or the far corner first).
+	const double X0 = Area.Min.X + Size.X * 0.5 + Gap, X1 = Area.Max.X - Size.X * 0.5 - Gap;
+	const double Y0 = Area.Min.Y + Size.Y * 0.5 + Gap, Y1 = Area.Max.Y - Size.Y * 0.5 - Gap;
+	if (X1 >= X0 && Y1 >= Y0)
+		for (int32 Row = 0; Row <= FMath::FloorToInt((Y1 - Y0) / Step); ++Row)
+			for (int32 Col = 0; Col <= FMath::FloorToInt((X1 - X0) / Step); ++Col)
+			{
+				const double X = bFarFirst ? X1 - Col * Step : X0 + Col * Step;
+				const double Y = bFarFirst ? Y1 - Row * Step : Y0 + Row * Step;
+				const FBox B(FVector(X - Size.X * 0.5, Y - Size.Y * 0.5, 0.0), FVector(X + Size.X * 0.5, Y + Size.Y * 0.5, Size.Z));
+				if (!Clear(B)) continue;
+				Out = FVector(X, Y, 0.0);
+				return true;
+			}
+	if (!bStack) return false;
+	// Else on top of a box it fits on (no wider than it, give or take), clear above it.
+	for (const FTaken& T : Taken)
+	{
+		if (!T.bTop || !Area.IsInside(FVector2D(T.Box.GetCenter()))) continue;
+		const FVector Under = T.Box.GetSize();
+		if (Size.X > Under.X + 10.0 || Size.Y > Under.Y + 10.0 || T.Box.Max.Z + Size.Z > TorqueShedLayout::DeliveryPileTop) continue;
+		const FVector C = T.Box.GetCenter();
+		const FBox B(FVector(C.X - Size.X * 0.5, C.Y - Size.Y * 0.5, T.Box.Max.Z), FVector(C.X + Size.X * 0.5, C.Y + Size.Y * 0.5, T.Box.Max.Z + Size.Z));
+		bool bFree = true;
+		for (const FTaken& O : Taken)
+			if (&O != &T && O.Box.Intersect(B.ExpandBy(FVector(2.0, 2.0, -0.5)))) { bFree = false; break; }
+		if (!bFree) continue;
+		Out = FVector(C.X, C.Y, T.Box.Max.Z);
+		return true;
+	}
+	return false;
+}
+
+bool UTorqueBuildSubsystem::FreeDelivery(FName Part, FVector& Out) const
+{
+	const FName Kind = TorqueShedParts::PartKind(Part);
+	const FVector Size = TorqueShedParts::IsFluid(Part) ? TorqueShedLayout::PartBoxSize(Kind) : TorqueShedLayout::DeliverySize(Kind);
+	return FreeDeliverySpot(Size, false, !TorqueShedParts::IsFluid(Part), Out);
 }
 
 // --- Reads ---------------------------------------------------------------------------------------
@@ -2405,6 +2470,21 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		{
 			const FTorqueItem* It = Items.Find(R.Item);
 			if (!It || It->At != ETorqueAt::Floor) return TEXT("Nothing there.");
+			// A box with another stacked on it: the top one first.
+			if (It->bBoxed)
+			{
+				const FVector S = TorqueShedLayout::DeliverySize(It->Kind);
+				const FVector Base = It->Place.GetLocation();
+				for (const TPair<int32, FTorqueItem>& KV : Items)
+				{
+					const FTorqueItem& On = KV.Value;
+					if (KV.Key == R.Item || On.At != ETorqueAt::Floor) continue;
+					const FVector Local = It->Place.InverseTransformPosition(On.Place.GetLocation());
+					if (FMath::Abs(Local.Z - S.Z) < 4.0 && FMath::Abs(Local.X) < S.X * 0.5 && FMath::Abs(Local.Y) < S.Y * 0.5
+						&& On.Place.GetLocation().Z > Base.Z + 1.0)
+						return TEXT("There's a box on top of it: lift that one off first.");
+				}
+			}
 		}
 		else if (ItemAtSpot(R.Spot) == 0)
 			return TEXT("Nothing there.");
@@ -2524,7 +2604,10 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!TorqueShedParts::IsPart(R.Part) || TorqueShedParts::IsStock(R.Part)) return TEXT("Unknown part.");
 		if (TorqueShedParts::SlotsForKind(TorqueShedParts::PartKind(R.Part)).Num() == 0 && !TorqueShedParts::IsFluid(R.Part))
 			return TEXT("That's not sold here yet.");
-		if (FreeDelivery() == INDEX_NONE) return TEXT("The delivery area outside is full. Bring some boxes in first.");
+		{
+			FVector Spot;
+			if (!FreeDelivery(R.Part, Spot)) return TEXT("The delivery area outside is full. Bring some boxes in first.");
+		}
 		return FString();
 	case ETorqueShedAct::OrderBike:
 		if (FreeBay() == INDEX_NONE) return TEXT("Every bay is full. Ride a bike out or strip one down first.");
@@ -2657,6 +2740,14 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		return It && It->Tape != 0 ? FString() : FString(TEXT("There's no tape on it."));
 	}
 	case ETorqueShedAct::TvChannel:   // [tv]
+		if (R.Spot == TorqueShedTv::PieceSpot)
+		{
+			// A bought TV (a piece of kit, Item its id): the wall's channels, bar the bay's own page.
+			const FTorqueFurniture* F = FurnitureById(R.Item);
+			const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+			if (!M || !TorqueFurniture::IsTv(*M)) return TEXT("That's not a TV.");
+			return R.Colour >= 0 && R.Colour < TorqueShedTv::BayPage ? FString() : FString(TEXT("No such channel."));
+		}
 		return TorqueShedTv::Valid(R.Item, R.Colour) ? FString() : FString(TEXT("No such channel."));
 	case ETorqueShedAct::Radio:
 		if (TorqueShedRadio::Stations().Num() == 0) return TEXT("The radio has no stations.");
@@ -3053,11 +3144,12 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		break;
 	case ETorqueShedAct::OrderPart:
 	{
-		const int32 Cell = FreeDelivery();
+		FVector Spot = TorqueShedLayout::DeliveryAt(0);
+		FreeDelivery(R.Part, Spot);   // (Check found it room)
 		const int32 Id = NewItem(R.Part, 0.0f, 0.0f, 0.0f);
 		Items[Id].bBoxed = !TorqueShedParts::IsFluid(R.Part);   // [fluids] cans and bottles come as they are
 		Items[Id].At = ETorqueAt::Floor;
-		Items[Id].Place = FTransform(FRotator(0.0, Rng.FRandRange(-8.0f, 8.0f), 0.0), TorqueShedLayout::DeliveryAt(Cell));
+		Items[Id].Place = FTransform(FRotator(0.0, Rng.FRandRange(-1.5f, 1.5f), 0.0), Spot);   // (square on: packed side by side)
 		OrdererOf(Peer, Items[Id].OrderedBy, Items[Id].OrderedTint);
 		Text = TorqueShedParts::IsFluid(R.Part)
 			? FString::Printf(TEXT("Ordered %s. It's in the delivery area outside the roller door."), *TorqueShedParts::PartName(R.Part))
@@ -3278,7 +3370,13 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		break;
 	}
 	case ETorqueShedAct::TvChannel:   // [tv]
-		TvChannels[R.Item] = (uint8)R.Colour;
+		if (R.Spot == TorqueShedTv::PieceSpot)
+		{
+			if (FTorqueFurniture* F = Furnishings.FindByPredicate([&R](const FTorqueFurniture& X) { return X.Id == R.Item; }))
+				F->Channel = (uint8)R.Colour;
+			MarkSave();
+		}
+		else TvChannels[R.Item] = (uint8)R.Colour;
 		Text = FString::Printf(TEXT("TV: %s"), TorqueShedTv::Name(R.Colour));
 		break;
 	case ETorqueShedAct::Radio:

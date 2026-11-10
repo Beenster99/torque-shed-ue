@@ -749,8 +749,8 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			else if (M->bSolid) Spec += TEXT("\nSolid: the bike bumps into it");
 			Desc = M->Desc;
 			Desc += M->bYard ? TEXT("\n\nArrives in the yard kit drop-off out on the pad. Hold F on it to take hold of it, walk to push it about, R to turn it, F to put it down.")
-				: (M->bWall ? TEXT("\n\nArrives outside, left of the roller door. Hold F on it to take hold of it, look at a wall and press F to hang it there.")
-				: TEXT("\n\nArrives outside, left of the roller door. Hold F on it to take hold of it, R to turn it, F to put it down."));
+				: (M->bWall ? TEXT("\n\nArrives in the delivery area outside the roller door. Hold F on it to take hold of it, look at a wall and press F to hang it there.")
+				: TEXT("\n\nArrives in the delivery area outside the roller door. Hold F on it to take hold of it, R to turn it, F to put it down."));
 			OrderText = TEXT("Order it");
 		}
 		else

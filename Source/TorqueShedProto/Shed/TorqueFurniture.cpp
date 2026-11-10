@@ -164,6 +164,7 @@ static const FData& Data()
 }
 
 bool HasLabel(const FModel& M) { return M.Kind == FName(TEXT("shelf")); }
+bool IsTv(const FModel& M) { return M.Kind == FName(TEXT("tv")); }
 
 FString NameOf(const FTorqueFurniture& F)
 {
@@ -214,7 +215,7 @@ UStaticMesh* Mesh(FName Model)
 	return M;
 }
 
-FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn)
+FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn, double Reach)
 {
 	if (!Pawn) return FTransform::Identity;
 	const FRotator View = Pawn->GetBaseAimRotation();
@@ -222,25 +223,95 @@ FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn)
 	// Its front (+y at yaw 0) towards the mover: yaw = view + 90, then turned.
 	const FRotator Yaw(0.0, View.Yaw + 90.0 + Turn, 0.0);
 	const FVector Feet = Pawn->GetActorLocation() - FVector(0.0, 0.0, Pawn->GetSimpleCollisionHalfHeight());
+	const double Out = FMath::Clamp(Reach, ReachMin, ReachMax);
 	if (M.bWall)
 	{
-		const FVector At = Feet + Fwd * (TFI::Reach(M) + 10.0) + FVector(0.0, 0.0, 150.0 - M.Size.Y * 0.5);
+		// (A wall piece's origin is its middle, on the wall: make_props.py's TVs, posters, clocks.)
+		const FVector At = Feet + Fwd * (TFI::Reach(M) + 10.0 + Out) + FVector(0.0, 0.0, FMath::Max(150.0, M.Size.Y * 0.5 + 10.0));
 		return FTransform(Yaw, At);
 	}
 	if (M.Small())
 	{
-		const FVector At = Feet + Fwd * 55.0 + FVector(0.0, 0.0, 105.0 - M.Size.Y * 0.5);
+		const FVector At = Feet + Fwd * (55.0 + FMath::Max(Out, 0.0) * 0.4) + FVector(0.0, 0.0, 105.0 - M.Size.Y * 0.5);
 		return FTransform(Yaw, At);
 	}
-	return FTransform(Yaw, FVector(Feet.X, Feet.Y, 0.0) + Fwd * TFI::Reach(M));
+	return FTransform(Yaw, FVector(Feet.X, Feet.Y, 0.0) + Fwd * (TFI::Reach(M) + Out));
 }
 
-bool PutDownXf(const APawn* Pawn, const FModel& M, double Turn, FTransform& Out, FString& WhyNot)
+FTransform Snapped(const UWorld* World, const FModel& M, const FTransform& Xf, int32 Self)
 {
-	Out = MovedXf(Pawn, M, Turn);
+	if (!World || M.bWall || M.Small()) return Xf;
+	// Square: within 12 degrees of a wall's line, onto it.
+	double Yaw = Xf.Rotator().Yaw;
+	const double Square = 90.0 * FMath::RoundToDouble(Yaw / 90.0);
+	if (FMath::Abs(FMath::UnwindDegrees(Yaw - Square)) > 12.0) return Xf;
+	Yaw = FRotator::NormalizeAxis(Square);
+	const bool bAcross = FMath::Abs(FMath::Abs(Yaw) - 90.0) < 1.0;   // its width along y
+	const double Hx = (bAcross ? M.Size.Z : M.Size.X) * 0.5, Hy = (bAcross ? M.Size.X : M.Size.Z) * 0.5;
+	FVector At = Xf.GetLocation();
+	// Flush to what's static (walls, benches, machines) within 25 cm of a side, looked for low down.
+	FCollisionQueryParams P(SCENE_QUERY_STAT(TorqueFurnitureSnap), false);
+	for (TActorIterator<ATorqueFurnishings> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		P.AddIgnoredActor(*It);   // (the kit is snapped to below, as pieces, not by its shapes)
+		if (It->Rides()) P.AddIgnoredActor(It->Rides());
+	}
+	const FCollisionObjectQueryParams Static(ECC_WorldStatic);
+	const FVector Dirs[] = {FVector(1, 0, 0), FVector(-1, 0, 0), FVector(0, 1, 0), FVector(0, -1, 0)};
+	bool bSnappedX = false, bSnappedY = false;
+	for (const FVector& D : Dirs)
+	{
+		const double Half = D.X != 0.0 ? Hx : Hy;
+		if ((D.X != 0.0 && bSnappedX) || (D.Y != 0.0 && bSnappedY)) continue;
+		FHitResult Hit;
+		const FVector From = FVector(At.X, At.Y, 30.0);
+		if (!World->LineTraceSingleByObjectType(Hit, From, From + D * (Half + 25.0), Static, P)) continue;
+		if (FVector::DotProduct(Hit.ImpactNormal, -D) < 0.8 || Hit.Distance < Half - 30.0) continue;
+		At += D * (Hit.Distance - Half - 1.0);
+		(D.X != 0.0 ? bSnappedX : bSnappedY) = true;
+	}
+	// Butted up to and lined up with the kit near it that's square too.
+	if (const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(World))
+		for (const FTorqueFurniture& F : B->Furniture())
+		{
+			if (F.Id == Self || F.Mover != 0) continue;
+			const FModel* O = Find(F.Model);
+			if (!O || O->bWall || O->Small()) continue;
+			const double OYaw = F.Xf.Rotator().Yaw;
+			const double OSquare = 90.0 * FMath::RoundToDouble(OYaw / 90.0);
+			if (FMath::Abs(FMath::UnwindDegrees(OYaw - OSquare)) > 1.0) continue;
+			const bool bOAcross = FMath::Abs(FMath::Abs(FRotator::NormalizeAxis(OSquare)) - 90.0) < 1.0;
+			const double Ox = (bOAcross ? O->Size.Z : O->Size.X) * 0.5, Oy = (bOAcross ? O->Size.X : O->Size.Z) * 0.5;
+			const FVector C = F.Xf.GetLocation();
+			const double GapX = FMath::Abs(At.X - C.X) - Hx - Ox, GapY = FMath::Abs(At.Y - C.Y) - Hy - Oy;
+			// Side by side along x (overlapping in y): close the gap, and line up the fronts.
+			if (!bSnappedX && GapX > -6.0 && GapX < 18.0 && GapY < -10.0)
+			{
+				At.X += (At.X > C.X ? -1.0 : 1.0) * (GapX - 0.5);
+				bSnappedX = true;
+				if (!bSnappedY)
+					for (const double Edge : {(C.Y + Oy) - (At.Y + Hy), (C.Y - Oy) - (At.Y - Hy)})
+						if (FMath::Abs(Edge) < 12.0) { At.Y += Edge; bSnappedY = true; break; }
+			}
+			else if (!bSnappedY && GapY > -6.0 && GapY < 18.0 && GapX < -10.0)
+			{
+				At.Y += (At.Y > C.Y ? -1.0 : 1.0) * (GapY - 0.5);
+				bSnappedY = true;
+				if (!bSnappedX)
+					for (const double Edge : {(C.X + Ox) - (At.X + Hx), (C.X - Ox) - (At.X - Hx)})
+						if (FMath::Abs(Edge) < 12.0) { At.X += Edge; bSnappedX = true; break; }
+			}
+		}
+	return FTransform(FRotator(0.0, Yaw, 0.0), FVector(At.X, At.Y, Xf.GetLocation().Z));
+}
+
+bool PutDownXf(const APawn* Pawn, const FModel& M, double Turn, FTransform& Out, FString& WhyNot, double Reach, int32 Self)
+{
+	Out = MovedXf(Pawn, M, Turn, Reach);
 	if (!Pawn || !(M.bWall || M.Small()))
 	{
 		Out.SetLocation(FVector(Out.GetLocation().X, Out.GetLocation().Y, 0.0));
+		if (Pawn) Out = Snapped(Pawn->GetWorld(), M, Out, Self);   // (as it's drawn while it's moved)
 		return true;
 	}
 	UWorld* World = Pawn->GetWorld();
@@ -263,7 +334,8 @@ bool PutDownXf(const APawn* Pawn, const FModel& M, double Turn, FTransform& Out,
 		// Flat to the wall, its front (+y) out of it, its middle where you look (not on the floor).
 		const FVector N = FVector(Hit.ImpactNormal.X, Hit.ImpactNormal.Y, 0.0).GetSafeNormal();
 		const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(N.Y, N.X)) - 90.0;
-		const double Z = FMath::Clamp(Hit.ImpactPoint.Z - M.Size.Y * 0.5, 20.0, 300.0);
+		// Its middle where you look (its origin), its bottom clear of the floor.
+		const double Z = FMath::Clamp(Hit.ImpactPoint.Z, M.Size.Y * 0.5 + 20.0, FMath::Max(M.Size.Y * 0.5 + 20.0, 330.0 - M.Size.Y * 0.5));
 		Out = FTransform(FRotator(0.0, Yaw, 0.0), FVector(Hit.ImpactPoint.X, Hit.ImpactPoint.Y, Z) + N * 0.5);
 		return true;
 	}
@@ -347,10 +419,17 @@ void UTorqueBuildSubsystem::FurnishFresh()
 
 FVector UTorqueBuildSubsystem::FurnitureDropAt(const TorqueFurniture::FModel& M) const
 {
-	// Yard kit goes in the yard's drop-off box, shed kit on the yard outside the roller door, east of
-	// the deliveries (Shed.DELIVERY_AREA): a free spot on a grid, nearest first.
+	// Shed kit comes to the delivery area with the boxes (beenster, Nov 10: not in front of the wash
+	// bay), from its far corner so the boxes keep the end by the door, clear of them and of each other.
+	if (!M.bYard)
+	{
+		FVector At;
+		if (FreeDeliverySpot(FVector(M.Size.X, M.Size.Z, M.Size.Y), true, false, At)) return At;
+	}
+	// Yard kit goes in the yard's drop-off box (and shed kit, when the delivery area's full, on the yard
+	// just past it): a free spot on a grid, nearest first.
 	const FBox2D Box = M.bYard && TorqueFurniture::Yard().Drop.bIsValid ? TorqueFurniture::Yard().Drop
-		: FBox2D(FVector2D(-1500.0, 750.0), FVector2D(-300.0, 1500.0));
+		: FBox2D(FVector2D(290.0, 1330.0), FVector2D(1500.0, 1900.0));
 	const double Step = FMath::Max3(M.Size.X, M.Size.Z, 80.0) + 60.0;
 	for (double Y = Box.Min.Y + Step * 0.5; Y < Box.Max.Y; Y += Step)
 		for (double X = Box.Min.X + Step * 0.5; X < Box.Max.X; X += Step)
@@ -415,10 +494,12 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 	case ETorqueShedAct::GrabFurniture:
 		if (!F || !M) return FString();
 		F->Mover = Peer;
-		F->Turn = 0.0f;
-		return FString::Printf(TEXT("Moving the %s: R turns it, F puts it down."), *M->Name.ToLower());
+		F->Turn = F->Reach = 0.0f;
+		return FString::Printf(TEXT("Moving the %s: R turns it, the wheel (Q / E) pushes it out or in, F puts it down."), *M->Name.ToLower());
 	case ETorqueShedAct::TurnFurniture:
-		if (F) F->Turn = FMath::UnwindDegrees(F->Turn + R.Amount);
+		// (Spot "reach": the wheel pushing it out or bringing it in, Amount cm.)
+		if (F && R.Spot == FName(TEXT("reach"))) F->Reach = (float)FMath::Clamp((double)F->Reach + R.Amount, TorqueFurniture::ReachMin, TorqueFurniture::ReachMax);
+		else if (F) F->Turn = FMath::UnwindDegrees(F->Turn + R.Amount);
 		return FString();
 	case ETorqueShedAct::ReleaseFurniture:
 	{
@@ -427,16 +508,17 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 		const bool bLifted = M && (M->bWall || M->Small());
 		F->Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), FVector(At.X, At.Y, bLifted ? FMath::Clamp(At.Z, -10.0, 400.0) : 0.0));
 		F->Mover = 0;
-		F->Turn = 0.0f;
+		F->Turn = F->Reach = 0.0f;
 		return FString();
 	}
 	case ETorqueShedAct::OrderFurniture:
 	{
 		const TorqueFurniture::FModel* O = TorqueFurniture::Find(R.Part);
 		if (!O) return FString();
-		const FVector At = FurnitureDropAt(*O);
+		FVector At = FurnitureDropAt(*O);
+		if (O->bWall) At.Z += O->Size.Y * 0.5;   // stood on its bottom edge until it's hung (its origin's its middle)
 		Furnishings.Add({FurnitureNextId++, R.Part, FTransform(FRotator(0.0, 180.0, 0.0), At), 0, 0.0f});
-		return FString::Printf(TEXT("%s ordered: it's %s."), *O->Name, O->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("outside, left of the roller door"));
+		return FString::Printf(TEXT("%s ordered: it's %s."), *O->Name, O->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("in the delivery area outside the roller door"));
 	}
 	case ETorqueShedAct::LabelFurniture:   // [label] shed_state.gd apply "label"
 	{
@@ -460,11 +542,11 @@ void UTorqueBuildSubsystem::DropFurnitureOf(int32 Peer)
 			if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model))
 				if (const APawn* P = TorqueShedKit::PawnOf(this, Peer))
 				{
-					const FTransform Xf = TorqueFurniture::MovedXf(P, *M, F.Turn);
+					const FTransform Xf = TorqueFurniture::Snapped(P->GetWorld(), *M, TorqueFurniture::MovedXf(P, *M, F.Turn, F.Reach), F.Id);
 					F.Xf = FTransform(Xf.GetRotation(), FVector(Xf.GetLocation().X, Xf.GetLocation().Y, 0.0));
 				}
 			F.Mover = 0;
-			F.Turn = 0.0f;
+			F.Turn = F.Reach = 0.0f;
 			bChanged = true;
 		}
 	if (!bChanged) return;
@@ -490,7 +572,7 @@ void UTorqueBuildSubsystem::SerializeFurniture(FArchive& Ar, bool bNet, TArray<F
 		FVector At = F.Xf.GetLocation();
 		double Yaw = F.Xf.Rotator().Yaw;
 		Ar << F.Id << Model << At << Yaw;
-		if (bNet) Ar << F.Mover << F.Turn << F.Label;   // [label] (BytesLayout 20)
+		if (bNet) Ar << F.Mover << F.Turn << F.Reach << F.Label << F.Channel;   // [label] [tv] (BytesLayout 21)
 		if (Ar.IsLoading())
 		{
 			F.Model = FName(*Model);
@@ -503,24 +585,39 @@ void UTorqueBuildSubsystem::SerializeFurniture(FArchive& Ar, bool bNet, TArray<F
 	{
 		// [label] The shelves' labels, after the list (a save from before them ends here: none).
 		constexpr int32 LabelsTag = 0x4C424C53;   // "SLBL"
+		// [tv] Then the TVs' channels (a save from before them ends after the labels).
+		constexpr int32 ChannelsTag = 0x4C4E4843;   // "CHNL"
 		if (Ar.IsSaving())
 		{
 			int32 Tag = LabelsTag;
 			Ar << Tag;
 			for (FTorqueFurniture& F : List) Ar << F.Label;
-		}
-		else if (!Ar.AtEnd())
-		{
-			int32 Tag = 0;
+			Tag = ChannelsTag;
 			Ar << Tag;
-			if (Tag == LabelsTag)
-				for (FTorqueFurniture& F : List) Ar << F.Label;
+			for (FTorqueFurniture& F : List) Ar << F.Channel;
+		}
+		else
+		{
+			while (!Ar.AtEnd() && !Ar.IsError())
+			{
+				int32 Tag = 0;
+				Ar << Tag;
+				if (Tag == LabelsTag)
+					for (FTorqueFurniture& F : List) Ar << F.Label;
+				else if (Tag == ChannelsTag)
+					for (FTorqueFurniture& F : List) Ar << F.Channel;
+				else break;   // something from a later game: left as it was
+			}
 			if (Ar.IsError()) return;
 		}
 	}
 	if (Ar.IsLoading())
 	{
-		for (FTorqueFurniture& F : List) F.Label = TorqueFurniture::CleanLabel(F.Label);
+		for (FTorqueFurniture& F : List)
+		{
+			F.Label = TorqueFurniture::CleanLabel(F.Label);
+			if (F.Channel >= TorqueShedTv::BayPage) F.Channel = TorqueShedTv::Players;   // [tv] (no bay of its own)
+		}
 		// Models that aren't in this game any more go.
 		List.RemoveAll([](const FTorqueFurniture& F) { return TorqueFurniture::Find(F.Model) == nullptr; });
 		TorqueFurniture::Touch();
@@ -812,7 +909,8 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		FTransform Xf = F.Xf;
 		const APawn* Mover = F.Mover != 0 ? TorqueShedKit::PawnOf(this, F.Mover) : nullptr;
 		if (Mover)
-			if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model)) Xf = TorqueFurniture::MovedXf(Mover, *M, F.Turn);
+			if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model))
+				Xf = TorqueFurniture::Snapped(GetWorld(), *M, TorqueFurniture::MovedXf(Mover, *M, F.Turn, F.Reach), F.Id);   // (where it goes down)
 		// Moved, it doesn't shove its mover about (nor anyone it's pushed into).
 		const ECollisionEnabled::Type Want = Mover ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics;
 		if (C->GetCollisionEnabled() != Want) C->SetCollisionEnabled(Want);

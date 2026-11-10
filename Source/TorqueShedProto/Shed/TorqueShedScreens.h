@@ -31,6 +31,8 @@ class ATorqueWalker;
 class UCanvas;
 class USceneCaptureComponent2D;
 class UMaterialInstanceDynamic;
+class UMaterialInterface;
+class UStaticMesh;
 class UStaticMeshComponent;
 class UTextureRenderTarget2D;
 
@@ -86,4 +88,15 @@ private:
 	FVector RiderCamAt = FVector::ZeroVector;
 	FVector RiderFwd = FVector::ZeroVector;
 	float RiderSwap = 0.0f;
+
+	// [tv] The TVs bought from the parts computer (pieces of kit, FTorqueFurniture::Channel): a page
+	// each, on a quad riding on the piece's mesh wherever it hangs or is carried, the wall's channels.
+	UPROPERTY(Transient) UMaterialInterface* PageBase = nullptr;
+	UPROPERTY(Transient) TMap<int32, UTextureRenderTarget2D*> PiecePages;
+	UPROPERTY(Transient) TMap<int32, UStaticMeshComponent*> PieceQuads;
+	UPROPERTY(Transient) TMap<int32, UMaterialInstanceDynamic*> PieceMaterials;
+	UPROPERTY(Transient) TMap<FName, UStaticMesh*> PieceQuadMeshes;
+	TMap<int32, int32> PieceShown;   // the channel each was last drawn for
+	void SyncPieces();
+	void DrawPiece(int32 Id, int32 Channel, float Now);
 };

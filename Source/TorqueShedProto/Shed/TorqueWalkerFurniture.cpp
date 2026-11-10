@@ -112,7 +112,7 @@ bool ATorqueWalker::FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust
 		FTorqueShedRequest R;
 		R.Kind = ETorqueShedAct::ReleaseFurniture;
 		R.Item = Moving;
-		if (!TorqueFurniture::PutDownXf(this, *M, F->Turn, R.Place, WhyNot) || !B->Request(R, WhyNot)) Say(WhyNot, false);
+		if (!TorqueFurniture::PutDownXf(this, *M, F->Turn, R.Place, WhyNot, F->Reach, F->Id) || !B->Request(R, WhyNot)) Say(WhyNot, false);
 		else Doing(FString(), 0.0);
 		return true;
 	}
@@ -151,6 +151,14 @@ bool ATorqueWalker::FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust
 	return false;
 }
 
+const FTorqueFurniture* ATorqueWalker::TvPiece() const
+{
+	const UTorqueBuildSubsystem* B = Shed();
+	const FTorqueFurniture* F = B && TargetFurniture != 0 && !bComputer && !bBench ? B->FurnitureById(TargetFurniture) : nullptr;
+	const TorqueFurniture::FModel* M = F ? TorqueFurniture::Find(F->Model) : nullptr;
+	return M && TorqueFurniture::IsTv(*M) ? F : nullptr;
+}
+
 bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 {
 	const UTorqueBuildSubsystem* B = Shed();
@@ -164,7 +172,9 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 		Lines.Add({FString::Printf(TEXT("Moving the %s"), *M->Name.ToLower()), FColor::White, 0.8f});
 		Lines.Add({M->bWall ? TEXT("Look at a wall: F hangs it there.") : (M->Small() ? TEXT("Look where it goes (a bench, a shelf, the floor): F puts it down.")
 			: TEXT("Walk to push it about, back up to pull it.")), Info, 0.6f});
-		Lines.Add({FString::Printf(TEXT("R / Square: turn it (Shift+R the other way, %+.0f deg)   F / Triangle: put it down"), F->Turn), Prompt, 0.65f});
+		Lines.Add({FString::Printf(TEXT("R / Square: turn it (Shift+R the other way, %+.0f deg)   Wheel, Q / E: out or in (%+.0f cm)   F / Triangle: put it down"),
+			F->Turn, F->Reach), Prompt, 0.65f});
+		if (!M->bWall && !M->Small()) Lines.Add({TEXT("Square to a wall, it snaps flush to it and lines up with the kit beside it."), Info, 0.55f});
 		if (NoteFor > 0.0) Lines.Add({Note, bNoteOk ? FColor(170, 230, 170) : Blocked, 0.65f});
 		return true;
 	}
@@ -188,6 +198,8 @@ bool ATorqueWalker::FurnitureHud(TArray<FHudLine>& Lines) const
 	Lines.Add({TorqueFurniture::NameOf(*F), FColor::White, 0.8f});
 	if (!M->Desc.IsEmpty()) Lines.Add({M->Desc, Info, 0.55f});
 	if (M->Sit > 0.0) Lines.Add({TEXT("F / Triangle: sit on it"), Prompt, 0.65f});
+	if (TorqueFurniture::IsTv(*M))   // [tv] as the wall's
+		Lines.Add({FString::Printf(TEXT("Showing: %s   Right mouse / Square: change channel"), TorqueShedTv::Name(F->Channel)), Prompt, 0.65f});
 	if (B->HeldBy(B->Me()) == 0) Lines.Add({TEXT("Hold F / Triangle: move it"), Prompt, 0.65f});
 	// [label] (walker.gd: "write a label for these shelves")
 	if (TorqueFurniture::HasLabel(*M))
@@ -405,7 +417,8 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		const double Across = M ? FMath::Max(M->Size.X, M->Size.Z) * 0.5 : 50.0;
 		// From its front (+y at yaw 0), a little off to the side, close enough for the reach.
 		const FVector Front = Pick->Xf.GetRotation().RotateVector(FVector(0.25, 1.0, 0.0)).GetSafeNormal2D();
-		const FVector Mid = Pick->Xf.GetLocation() + FVector(0.0, 0.0, FMath::Min(Height * 0.6, 120.0));
+		// (A wall piece's origin is its middle already.)
+		const FVector Mid = Pick->Xf.GetLocation() + FVector(0.0, 0.0, M && M->bWall ? 0.0 : FMath::Min(Height * 0.6, 120.0));
 		const int32 Id = Pick->Id;
 		const FString Seen = TestLookAt(Mid, Front, FMath::Min(Across + 110.0, (double)Reach - 40.0));
 		return FString::Printf(TEXT("%s (wanted piece %d)%s"), *Seen, Id, TargetFurniture == Id ? TEXT("") : TEXT(": not the one looked at"));
@@ -453,6 +466,19 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		const FTorqueFurniture* F = B->FurnitureById(Piece);
 		return F ? FString::Printf(TEXT("labelled piece %d \"%s\" (%s)"), Piece, *F->Label, *TorqueFurniture::NameOf(*F)) : FString(TEXT("not labelled: gone"));
 	}
+	if (What == TEXT("channel"))
+	{
+		// [tv] The bought TV looked at on to its next channel, as right mouse at it.
+		ReAim();
+		FindTarget();
+		const FTorqueFurniture* Tv = TvPiece();
+		if (!Tv) return TEXT("not turned over: no bought TV looked at (") + Describe() + TEXT(")");
+		const int32 Piece = Tv->Id;
+		NextTvChannel();
+		bTestAim = false;
+		const FTorqueFurniture* After = B->FurnitureById(Piece);
+		return After ? FString::Printf(TEXT("TV piece %d on %s"), Piece, TorqueShedTv::Name(After->Channel)) : FString(TEXT("not turned over: gone"));
+	}
 	if (Moving == 0 && What != TEXT("order")) return TEXT("not furniture: not moving a piece (furn:grab first)");
 	if (What == TEXT("turn"))
 	{
@@ -479,7 +505,7 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		const FRotator View = FRotator(-10.0, (Dir.IsNearlyZero() ? FVector(1.0, 0.0, 0.0) : Dir).Rotation().Yaw, 0.0);
 		if (AController* C = GetController()) C->SetControlRotation(View);
 		Camera->SetWorldRotation(View);
-		const FTransform Xf = M ? TorqueFurniture::MovedXf(this, *M, F->Turn) : FTransform::Identity;
+		const FTransform Xf = M ? TorqueFurniture::MovedXf(this, *M, F->Turn, F->Reach) : FTransform::Identity;
 		return FString::Printf(TEXT("carried to %.0f, %.0f (it's at %.0f, %.0f)"), Stand.X, Stand.Y, Xf.GetLocation().X, Xf.GetLocation().Y);
 	}
 	if (What == TEXT("drop"))
@@ -490,7 +516,7 @@ FString ATorqueWalker::TestFurniture(const FString& What, const TArray<FString>&
 		FTorqueShedRequest R;
 		R.Kind = ETorqueShedAct::ReleaseFurniture;
 		R.Item = Moving;
-		if (!TorqueFurniture::PutDownXf(this, *M, F->Turn, R.Place, WhyNot) || !B->Request(R, WhyNot)) return TEXT("not dropped: ") + WhyNot;
+		if (!TorqueFurniture::PutDownXf(this, *M, F->Turn, R.Place, WhyNot, F->Reach, F->Id) || !B->Request(R, WhyNot)) return TEXT("not dropped: ") + WhyNot;
 		F = B->FurnitureById(Moving);
 		return F ? TEXT("dropped ") + TWFI::Where(*F) : FString(TEXT("dropped (gone?)"));
 	}

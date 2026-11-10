@@ -40,6 +40,7 @@ class UTorqueWashFx;
 class FTorqueWashJob;
 class FTorqueTyreGame;
 struct FTorquePlace;
+struct FTorqueFurniture;
 struct FSonyPadState;
 
 // What the walker is looking at.
@@ -551,6 +552,7 @@ private:
 	double FurnFHeld = 0.0;
 	void FindFurniture();
 	bool FurnitureInput(float Dt, bool bF, bool bFDown, bool bAltJust);
+	const FTorqueFurniture* TvPiece() const;   // [tv] the bought TV looked at, if it's one
 	bool FurnitureHud(TArray<FHudLine>& Lines) const;   // true: moving one, nothing else to show
 	void FurnitureOutline(TArray<UPrimitiveComponent*>& Lined) const;
 	// [label] The shelving unit whose label is being written (0: the box is down) and what's typed.

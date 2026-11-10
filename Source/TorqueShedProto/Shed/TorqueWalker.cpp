@@ -210,14 +210,6 @@ FString PutVerb(ETorquePlace K)
 
 FString Lower(const FString& S) { return S.ToLower(); }
 
-FString Bar(double Fraction)
-{
-	const int32 N = FMath::Clamp(FMath::RoundToInt(Fraction * 20.0), 0, 20);
-	FString S = TEXT("[");
-	for (int32 I = 0; I < 20; ++I) S += I < N ? TEXT("#") : TEXT("-");
-	return S + FString::Printf(TEXT("] %.0f%%"), 100.0 * FMath::Clamp(Fraction, 0.0, 1.0));
-}
-
 // "front wheel, rear brake caliper"
 FString SlotList(const TArray<FName>& Slots, int32 Most = 4)
 {
@@ -646,7 +638,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
 	const bool bAltRaw = KeyJust(ETorqueKey::AltWork) || Just(EKeys::Gamepad_FaceButton_Left) || (SonyHit & ESonyButton::Square);
 	// [tv] Right mouse (R, Square) at a wall TV changes its channel, and does nothing else.
-	const bool bTvClick = bAltRaw && Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Tv;
+	const bool bTvClick = bAltRaw && ((Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Tv) || TvPiece() != nullptr);
 	if (bTvClick) NextTvChannel();
 	const bool bAltJust = bAltRaw && !bTvClick;
 	const bool bF = KeyJust(ETorqueKey::Use) || Just(EKeys::Gamepad_FaceButton_Top) || (SonyHit & ESonyButton::Triangle);
@@ -821,7 +813,24 @@ void ATorqueWalker::ReadInput(float Dt)
 	const UTorqueBuildSubsystem* CarryShed = Shed();
 	const bool bCarryPart = CarryShed && CarryShed->HeldBy(CarryShed->Me()) != 0 && !CarryShed->PaintBay().HeldTin(CarryShed->Me())
 		&& CarryShed->PaintBay().TapeBy != CarryShed->Me();
-	if (bCarryPart)
+	const int32 MovingKit = CarryShed ? CarryShed->FurnitureMovedBy(CarryShed->Me()) : 0;
+	if (MovingKit != 0)
+	{
+		// [furniture] Moving a piece of kit: the wheel (Q / E, L1 / R1) pushes it out or brings it in,
+		// as a part in your hands (beenster, Nov 10).
+		if (bNext || bPrev)
+			if (UTorqueBuildSubsystem* KitShed = Shed())
+			{
+				FTorqueShedRequest ReachReq;
+				ReachReq.Kind = ETorqueShedAct::TurnFurniture;
+				ReachReq.Item = MovingKit;
+				ReachReq.Spot = FName(TEXT("reach"));
+				ReachReq.Amount = (float)(bNext ? TorqueFurniture::ReachStep : -TorqueFurniture::ReachStep);
+				FString WhyNot;
+				if (!KitShed->Request(ReachReq, WhyNot)) Say(WhyNot, false);
+			}
+	}
+	else if (bCarryPart)
 		CarryInput(Dt, bPrev, bNext, Down(EKeys::R) || Down(EKeys::Gamepad_FaceButton_Left) || (SonyDown & ESonyButton::Square),
 			Down(EKeys::LeftShift) || Down(EKeys::RightShift));
 	else
@@ -2063,7 +2072,37 @@ FTransform ATorqueWalker::CarryDrop() const
 	const FVector Top(At.X, At.Y, Feet.Z + 120.0);
 	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
 	else At.Z = Feet.Z;
-	return FTransform(FRotator(0.0, Yaw + HoldTurn, 0.0), At);
+	// A box or crate let go over another box on the floor goes on top of it (beenster, Nov 10: boxes
+	// and crates stack), squared up on it when it's about over the middle; the pile no higher than the
+	// delivery area's.
+	const FTorqueItem* HeldIt = B ? B->Item(Held) : nullptr;
+	double DropYaw = Yaw + HoldTurn;
+	if (B && HeldIt && HeldIt->bBoxed)
+	{
+		const FVector Mine = TorqueShedLayout::DeliverySize(HeldIt->Kind);
+		double Best = At.Z;
+		for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+		{
+			const FTorqueItem& Under = KV.Value;
+			if (KV.Key == Held || Under.At != ETorqueAt::Floor || !Under.bBoxed) continue;
+			const FVector S = TorqueShedLayout::DeliverySize(Under.Kind);
+			const FVector Local = Under.Place.InverseTransformPosition(FVector(At.X, At.Y, Under.Place.GetLocation().Z));
+			if (FMath::Abs(Local.X) > S.X * 0.5 || FMath::Abs(Local.Y) > S.Y * 0.5) continue;
+			const double TopZ = Under.Place.GetLocation().Z + S.Z;
+			if (TopZ <= Best || TopZ + Mine.Z > TorqueShedLayout::DeliveryPileTop + 5.0) continue;
+			Best = TopZ;
+			// Near its middle: squared up on it, the way you'd stack them.
+			if (FMath::Abs(Local.X) < S.X * 0.3 && FMath::Abs(Local.Y) < S.Y * 0.3)
+			{
+				At.X = Under.Place.GetLocation().X;
+				At.Y = Under.Place.GetLocation().Y;
+				const double UnderYaw = Under.Place.Rotator().Yaw;
+				DropYaw = UnderYaw + 90.0 * FMath::RoundToDouble(FRotator::NormalizeAxis(DropYaw - UnderYaw) / 90.0);
+			}
+		}
+		At.Z = Best;
+	}
+	return FTransform(FRotator(0.0, DropYaw, 0.0), At);
 }
 
 void ATorqueWalker::UpdateCues()
@@ -2350,11 +2389,22 @@ void ATorqueWalker::LetGo(int32 Bay)
 void ATorqueWalker::NextTvChannel()
 {
 	UTorqueBuildSubsystem* B = Shed();
-	if (!B || !TargetPlace || TargetPlace->Kind != ETorquePlace::Tv) return;
+	if (!B) return;
 	FTorqueShedRequest R;
 	R.Kind = ETorqueShedAct::TvChannel;
-	R.Item = TargetPlace->Index;
-	R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
+	if (const FTorqueFurniture* Piece = TvPiece())
+	{
+		// A bought TV: the same channels (bar the bay's own page), its own.
+		R.Spot = TorqueShedTv::PieceSpot;
+		R.Item = Piece->Id;
+		R.Colour = TorqueShedTv::NextPiece(Piece->Channel);
+	}
+	else if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv)
+	{
+		R.Item = TargetPlace->Index;
+		R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
+	}
+	else return;
 	FString WhyNot;
 	if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 }
@@ -2603,7 +2653,7 @@ void ATorqueWalker::ComputerDo(const FTorqueComputerAction& A)
 			FString WhyNot;
 			if (!B->Request(R, WhyNot)) Say(WhyNot, false);
 			else if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(A.Part))
-				Say(FString::Printf(TEXT("%s ordered: it's %s."), *M->Name, M->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("outside, left of the roller door")), true, 4.0);
+				Say(FString::Printf(TEXT("%s ordered: it's %s."), *M->Name, M->bYard ? TEXT("in the yard kit drop-off out on the pad") : TEXT("in the delivery area outside the roller door")), true, 4.0);
 		}
 		break;
 	case FTorqueComputerAction::EKind::BuyPaint:
@@ -2900,11 +2950,7 @@ void ATorqueWalker::UpdateHud()
 	if (B->PumpHeldBy() == B->Me() && (!bPumpFill || !AltPlan.Blocked.IsEmpty()) && !(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
 		HudLines.Add({TEXT("Right mouse / Square: hang the nozzle back on the pump"), Prompt, 0.6f});
 	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out   Hold F / Triangle: wheel it"), Prompt, 0.6f});
-	const FPlan* Active = (bWorkHeld || ActHeldFor > 0.0) ? &Plan : (bAltHeld ? &AltPlan : nullptr);
-	// (Not while pumping petrol: it squirts round and round, so the bar told nothing; the pump's own
-	// display counts the litres and it dings when the tank's full. beenster, Nov 10.)
-	if (Active && Active->bValid && Active->Blocked.IsEmpty() && Progress > 0.0 && Active->Time > 0.3 && Active->Request.Kind != ETorqueShedAct::PumpFill)
-		HudLines.Add({TWI::Bar(Progress / Active->Time), FColor::White, 0.6f});
+	// (No progress bar in the panel: the ring round the crosshair shows it, always: beenster, Nov 10.)
 	{
 		bool bTitled = false;
 		for (int32 I = LookFrom; I < HudLines.Num(); ++I)

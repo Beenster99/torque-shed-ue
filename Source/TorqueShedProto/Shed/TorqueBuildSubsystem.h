@@ -281,6 +281,9 @@ inline bool Valid(int32 Tv, int32 Channel) { return Tv >= 0 && Tv < Tvs && Chann
 // The channel after Channel on TV Tv (right mouse at a TV).
 inline int32 Next(int32 Tv, int32 Channel) { return (Channel + 1) % (Tv < 4 ? (int32)Channels : (int32)BayPage); }
 const TCHAR* Name(int32 Channel);
+// A bought TV (a piece of kit) is turned by a TvChannel request with this Spot, Item its piece id.
+inline const FName PieceSpot(TEXT("piece"));
+inline int32 NextPiece(int32 Channel) { return (Channel + 1) % (int32)BayPage; }
 }
 
 struct FTorqueShedRequest
@@ -737,7 +740,12 @@ private:
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
 	int32 FreeBay() const;
-	int32 FreeDelivery() const;
+	// Where a delivery of Size (cm) goes down in the delivery area: on the floor clear of every box,
+	// crate and piece of kit there (8 cm apart), the nearest the door first, else on top of a box
+	// it fits on (a pile no higher than DeliveryPileTop). bFarFirst: from the far corner (the shed kit,
+	// leaving the near end to the boxes); bStack false: the floor only. False: it's full.
+	bool FreeDeliverySpot(const FVector& Size, bool bFarFirst, bool bStack, FVector& Out) const;
+	bool FreeDelivery(FName Part, FVector& Out) const;
 	FString DoApply(int32 Peer, const FTorqueShedRequest& R);
 	// The mixing bay's requests and the gun's cup (TorquePaintBay.cpp).
 	FString CheckKit(int32 Peer, const FTorqueShedRequest& R) const;   // [kit] TorqueShedKit.cpp
