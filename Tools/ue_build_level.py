@@ -2519,6 +2519,127 @@ def instanced(label, mesh, rows, material, frame, shadow=True):
     return len(xf)
 
 
+def find_static_mesh(path):
+    """A static mesh by its path, or else by its name anywhere under /Game (a pack moved or renamed)."""
+    m = unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else None
+    if isinstance(m, unreal.StaticMesh):
+        return m
+    name = path.rsplit("/", 1)[-1].split(".")[0]
+    try:
+        reg = unreal.AssetRegistryHelpers.get_asset_registry()
+        flt = unreal.ARFilter(class_paths=[unreal.TopLevelAssetPath("/Script/Engine", "StaticMesh")],
+                              package_paths=["/Game"], recursive_paths=True)
+        for d in reg.get_assets(flt):
+            if str(d.asset_name) == name:
+                m = d.get_asset()
+                if isinstance(m, unreal.StaticMesh):
+                    log("car swaps: %s found at %s" % (name, d.package_name))
+                    return m
+    except Exception as e:
+        unreal.log_warning("[Torque] car swaps: searching for %s failed (%s)" % (name, e))
+    return None
+
+
+def fab_car_paint(i, c, metallic, roughness):
+    """MI_FabCarPaint_<i>: a car paint colour on M_FabCarPaint (made once per build)."""
+    master = MAT_DIR + "/M_FabCarPaint"
+    m = unreal.load_asset(master) if unreal.EditorAssetLibrary.does_asset_exist(master) else None
+    if m is None or not getattr(fab_car_paint, "made", False):
+        g = Graph(new_material("M_FabCarPaint"))
+        col = g.node(unreal.MaterialExpressionVectorParameter, -900, parameter_name="Color",
+                     default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0))
+        met = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Metallic", default_value=0.6)
+        rough = g.node(unreal.MaterialExpressionScalarParameter, -900, parameter_name="Roughness", default_value=0.32)
+        mel.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        mel.connect_material_property(met, "", unreal.MaterialProperty.MP_METALLIC)
+        mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+        mel.recompile_material(g.m)
+        unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+        m = g.m
+        fab_car_paint.made = True
+    name = "MI_FabCarPaint_%d" % i
+    path = MAT_DIR + "/" + name
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        unreal.EditorAssetLibrary.delete_asset(path)
+    mi = asset_tools.create_asset(name, MAT_DIR, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    mel.set_material_instance_parent(mi, m)
+    mel.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(c[0], c[1], c[2], 1.0))
+    mel.set_material_instance_scalar_parameter_value(mi, "Metallic", float(metallic))
+    mel.set_material_instance_scalar_parameter_value(mi, "Roughness", float(roughness))
+    unreal.EditorAssetLibrary.save_loaded_asset(mi)
+    return mi
+
+
+def place_fab_cars(spec, frame):
+    """Thwaite's parked cars as Fab models (Data/Buttertubs/car_swaps.json). Returns True when they were
+    placed, so place_props leaves out the generated SM_Car_* meshes; False (nothing found) keeps them."""
+    cp = os.path.join(data_dir(), "car_swaps.json")
+    if not os.path.exists(cp):
+        return False
+    cfg = json.load(open(cp))
+    models = []
+    for md in cfg.get("models", []):
+        m = find_static_mesh(md["mesh"])
+        if m is None:
+            unreal.log_warning("[Torque] car swaps: no static mesh at %s (left out)" % md["mesh"])
+            continue
+        models.append((m, md))
+    if not models:
+        unreal.log_warning("[Torque] car swaps: none of the Fab cars are in the project; the generated cars stay")
+        return False
+    rows = []
+    for name in sorted(spec["instances"]):
+        if name.startswith("SM_Car_") and name.endswith("_Paint"):
+            rows += [(name, r) for r in spec["instances"][name]]
+    colours = cfg.get("colours") or [[0.5, 0.5, 0.5]]
+    paints = {}
+    yaw0 = frame[0]
+    q_fix = unreal.Rotator(0.0, 0.0, float(yaw0)).quaternion()
+    for i, (name, r) in enumerate(rows):
+        mesh, md = models[i % len(models)]
+        q_inst = unreal.Rotator(roll=r[5], pitch=r[3], yaw=r[4]).quaternion()
+        fwd = q_inst.rotate_vector(q_fix.rotate_vector(unreal.Vector(1, 0, 0)))
+        up = q_inst.rotate_vector(q_fix.rotate_vector(unreal.Vector(0, 0, 1)))
+        world = unreal.MathLibrary.make_rot_from_xz(fwd, up)
+        rot = unreal.Transform(unreal.Vector(0, 0, 0), unreal.Rotator(0.0, 0.0, float(md.get("yaw", 0.0)))).multiply(
+            unreal.Transform(unreal.Vector(0, 0, 0), world)).rotation
+        # Its wheels on the ground and its middle on the old car's: the mesh's box bottom-centre to the row.
+        b = mesh.get_bounds()
+        o, e = b.origin, b.box_extent
+        lift = rot.rotate_vector(unreal.Vector(-o.x, -o.y, -(o.z - e.z)))
+        loc = unreal.Vector(r[0], r[1], r[2]) + lift
+        a = actors.spawn_actor_from_object(mesh, loc, rot.rotator())
+        a.set_actor_label("FabCar_%d" % i)
+        a.set_folder_path("Props/Cars")
+        c = a.get_component_by_class(unreal.StaticMeshComponent)
+        c.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
+        c.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        c.set_editor_property("can_ever_affect_navigation", False)
+        ci = i % len(colours)
+        if ci not in paints:
+            paints[ci] = fab_car_paint(ci, colours[ci], cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
+        listed = set(md.get("paint_slots", []))
+        painted = []
+        slots = []
+        for si, sm in enumerate(mesh.get_editor_property("static_materials")):
+            slot = str(sm.get_editor_property("material_slot_name"))
+            mat = sm.get_editor_property("material_interface")
+            base = mat.get_base_material() if mat else None
+            names = " ".join([slot, mat.get_name() if mat else "", base.get_name() if base else ""])
+            slots.append("%d %s: %s (base %s)" % (si, slot, mat.get_name() if mat else "none", base.get_name() if base else "none"))
+            if slot in listed or str(si) in listed or "paint" in names.lower():
+                c.set_material(si, paints[ci])
+                painted.append(si)
+        log("car swaps: %s #%d -> FabCar_%d %s, colour %d, at (%.0f, %.0f, %.0f) yaw %.1f, painted slots %s"
+            % (name, i, i, mesh.get_name(), ci, loc.x, loc.y, loc.z, rot.rotator().yaw, painted))
+        if not painted:
+            unreal.log_warning("[Torque] car swaps: %s has no paint slot; its slots: %s" % (mesh.get_name(), "; ".join(slots)))
+        elif i < len(models):
+            log("car swaps: %s slots: %s" % (mesh.get_name(), "; ".join(slots)))
+    log("car swaps: %d parked cars from %d Fab models" % (len(rows), len(models)))
+    return True
+
+
 def place_props(meshes, spec, materials, frame):
     """Instances from props.json. Data/Buttertubs/prop_swaps.json, if it's there, swaps a generated mesh
     for another asset already in the project, keeping its own materials: {"SM_Rock_03":
@@ -2532,8 +2653,11 @@ def place_props(meshes, spec, materials, frame):
     op = os.path.join(data_dir(), "props_off.json")
     if os.path.exists(op):
         off = set(json.load(open(op)).get("kinds", []))
+    fab_cars = "Car" not in off and place_fab_cars(spec, frame)
     n = 0
     for name, rows in sorted(spec["instances"].items()):
+        if fab_cars and name.startswith("SM_Car_"):
+            continue
         if name.split("_")[1:2] and name.split("_")[1] in off:
             log("%s left out (props_off.json)" % name)
             continue
