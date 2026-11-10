@@ -308,6 +308,7 @@ private:
 	bool bGhostTried = false;    // looked for the material (once)
 	bool bGhostMatrix = false;   // GhostMid is the wireframe (false: the faint fallback tint)
 	bool bGhostShown = false;    // GhostMid is on the meshes now
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> GhostNaniteOff;   // drawn without Nanite for the ghost (no overlays on Nanite)
 	void UpdateGhostLook();
 
 	// Camera.

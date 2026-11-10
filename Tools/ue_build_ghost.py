@@ -96,8 +96,8 @@ def matrix_material():
         try_set(m, flag, True)
 
     amount = num(m, "Amount", -900, 300, 1.0)
-    strength = num(m, "Opacity", -900, 400, 0.4)
-    col = vec(m, "Color", -900, 0, (0.45, 1.1, 0.95))
+    strength = num(m, "Opacity", -900, 400, 0.65)
+    col = vec(m, "Color", -900, 0, (0.7, 2.2, 1.8))
     glow = expr(m, unreal.MaterialExpressionMultiply, -500, 0)
     link(col, "", glow, "A")
     link(amount, "", glow, "B")

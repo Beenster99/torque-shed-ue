@@ -2437,6 +2437,10 @@ void ATorqueBikePawn::UpdateGhostLook()
 			TInlineComponentArray<UMeshComponent*> Meshes(this);
 			for (UMeshComponent* C : Meshes)
 				if (C && C->GetOverlayMaterial() == GhostMid) C->SetOverlayMaterial(nullptr);
+			for (const TWeakObjectPtr<UStaticMeshComponent>& N : GhostNaniteOff)
+				if (N.IsValid()) N->SetForceDisableNanite(false);
+			GhostNaniteOff.Reset();
+			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off"));
 		}
 		return;
 	}
@@ -2470,9 +2474,32 @@ void ATorqueBikePawn::UpdateGhostLook()
 	}
 	// Every mesh of the bike and rider, including any added since (the rider's MetaHuman is built late);
 	// one already wearing another overlay keeps it.
+	// A Nanite mesh draws no overlay (nor a wireframe): it's drawn from its plain fallback mesh while
+	// the ghost lasts (its polygons are the ones you see), and goes back to Nanite after.
 	TInlineComponentArray<UMeshComponent*> Meshes(this);
+	int32 Laid = 0, Kept = 0, Switched = 0;
 	for (UMeshComponent* C : Meshes)
-		if (C && !C->GetOverlayMaterial()) C->SetOverlayMaterial(GhostMid);
+	{
+		if (!C) continue;
+		if (!C->GetOverlayMaterial())
+		{
+			C->SetOverlayMaterial(GhostMid);
+			++Laid;
+		}
+		else if (C->GetOverlayMaterial() != GhostMid) ++Kept;
+		UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(C);
+		if (SM && SM->GetOverlayMaterial() == GhostMid && SM->GetStaticMesh() && SM->GetStaticMesh()->IsNaniteEnabled() && !SM->bForceDisableNanite)
+		{
+			SM->SetForceDisableNanite(true);
+			GhostNaniteOff.Add(SM);
+			++Switched;
+		}
+	}
+	if (!bGhostShown || Laid > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: ghost look on (%s, amount %.2f): %d meshes given it, %d kept their own overlay, %d taken off Nanite"),
+			bGhostMatrix ? TEXT("wireframe") : TEXT("tint"), Look, Laid, Kept, Switched);
+	}
 	bGhostShown = true;
 }
 
