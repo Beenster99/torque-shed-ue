@@ -1992,6 +1992,9 @@ void ATorqueBikePawn::TestMoveStep()
 		// in first) the back brake too.
 		HoldTestSpeed(V);
 		Shift = 0.0;
+		// On the test pad, straight on, the road's bends nothing to it: the robot's steering for them
+		// kept a race bike from settling at 45 mph (round 128).
+		if (bTestFlat) Lean = 0.0;
 		if (TestSteady < 1.5)
 		{
 			if (TestClock > 15.0)
@@ -2063,10 +2066,12 @@ void ATorqueBikePawn::TestMoveStep()
 		bManual = false;
 		if (TestPhase == 1)
 		{
+			// Held on the back brake: the front held hard at a standstill with the throttle shut is the
+			// rider paddling it backwards with their feet (UpdateFeet), as round 128's launches did.
 			Throttle = 0.0;
 			Shift = 0.0;
-			FrontBrake = 0.7;
-			RearBrake = 0.5;
+			FrontBrake = 0.3;
+			RearBrake = 0.8;
 			TestStill = FMath::Abs(V) < 0.05 ? TestStill + SimDt : 0.0;
 			if (TestStill > 1.0)
 			{
@@ -2146,7 +2151,10 @@ void ATorqueBikePawn::TestMoveStep()
 	}
 	if (TestMove == 0)
 	{
-		// As the road tests (and SimTest/realism_test): front full, rear 0.6, no weight forward.
+		// As the road tests (and SimTest/realism_test): front full, rear 0.6, no weight forward, and on
+		// the test pad no steering (the robot's for the road's bends tipped the bikes without ABS over
+		// with the front at its limit, round 128).
+		if (bTestFlat) Lean = 0.0;
 		Throttle = 0.0;
 		Shift = 0.0;
 		FrontBrake = 1.0;
