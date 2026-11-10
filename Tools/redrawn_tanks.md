@@ -179,3 +179,18 @@ list naked; the naked reference bike still has no fairing.
 - Left out, as agreed: N3's fork legs, N4's yoke and bar clamps, and the dashes.
 - Placed as the half set: nose about 0.35 m ahead of the head stock, lamps at -0.17 m (`mount_lamp`).
 - Models, renders and scripts are in the project files under `naked_fairings/`.
+
+# Filler caps and knee pads on the drawn surface
+
+The tank's code-drawn trim (`BikeParts::TankTrim`) used to sit on the loft's rough sections, so on a
+redrawn tank the filler cap sank into the paint and a sports tank's rubber "chest pad" was a slab over
+the top at the seat end. Now:
+
+- The tank as drawn (its glb with keys and warp) is ray-cast. The cap stands on its real top, square to a
+  plane fitted under its rim, proud of the paint all round (foot sunk 3 mm so no gap shows). Its place
+  along and across the tank is unchanged, so a cap drawn off-centre stays off-centre.
+- Knee pads lie on the flanks a few millimetres thick with a rounded edge and fine ribs: a classic tank's
+  rubber pads (look `pads`), and a sports tank's grip pads in place of the old slab (`no_pad` turns them
+  off). They sit where the rider's knee comes, and shrink if the flank there is small.
+- `layout_test` "Tank trim" checks every tank's cap stands at least 3 mm proud and pads lie on the flanks.
+  The tank slot's trim is left out of the Godot box comparison (Godot sets it on the loft).

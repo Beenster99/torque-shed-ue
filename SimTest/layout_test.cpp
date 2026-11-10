@@ -408,6 +408,115 @@ int main(int argc, char** argv)
 		Expect(Wrong.empty(), "the headlight hidden inside a full fairing (sport, race, adventure), shown on the rest" + Wrong);
 	}
 
+	std::printf("Tank trim (the filler cap and knee pads on the tank's real surface):\n");
+	{
+		Json Index;
+		std::string IndexText;
+		ReadFile(R + "/Data/Parts/Blender/index.json", IndexText);
+		Json::Parse(IndexText, Index, &Error);
+		const Json* Known = Index.Get("parts");
+		BikeParts Placer(Lay, Known ? *Known : Index);
+		auto Load = [&](const std::string& Glb, PartMesh& M) {
+			std::string Bytes, MorphBytes, Err;
+			const Json* Ent = Known ? Known->Get(Glb.substr(0, Glb.size() - 4)) : nullptr;
+			if (!Ent || !ReadFile(R + "/Data/Parts/Blender/" + Glb, Bytes) || !M.LoadGlb(Bytes, Err)) return false;
+			return !Ent->Get("morph") || (ReadFile(R + "/Data/Parts/Blender/" + Ent->Str("morph"), MorphBytes) && M.LoadMorph(MorphBytes, Ent->Get("shape_keys")->Dump(0), Err));
+		};
+		Placer.SetMeshSource(Load);
+		std::string Sunk, PadsWrong;
+		int Tanks = 0, WithPads = 0;
+		for (const std::string& Id : Db.Ids("tank"))
+		{
+			const Json* Part = Db.Find("tank", Id);
+			const Json* Styles = Part ? Part->Get("styles") : nullptr;
+			if (!Styles || Styles->A.empty()) continue;
+			PartsMap B = Lay.ReferenceBuild(Styles->A[0].S);
+			B["tank"] = Id;
+			const Layout L = Lay.Solve(B);
+			std::vector<V3> Shell;                    // the tank as drawn (ours: x forward, y up, z right)
+			std::vector<std::vector<V3>> Chrome, Rubber;
+			for (const FittedPart& P : Placer.Fit(B, L))
+			{
+				if (P.Slot != "tank") continue;
+				if (!P.Code)
+				{
+					PartMesh M;
+					if (!Load(P.Glb, M)) continue;
+					for (const PartSurface& S : BikeParts::Draw(M, P).Surfaces) Shell.insert(Shell.end(), S.Pos.begin(), S.Pos.end());
+					continue;
+				}
+				for (const PartSurface& S : P.Made->Surfaces)
+				{
+					if (S.Material == "rubber") Rubber.push_back(S.Pos);
+					else if (S.Material == "chrome") Chrome.push_back(S.Pos);
+				}
+			}
+			if (Shell.empty()) continue;
+			++Tanks;
+			double Top = -1e9, HalfW = 0.0;
+			for (const V3& V : Shell) { Top = std::max(Top, V.y); HalfW = std::max(HalfW, std::fabs(V.z)); }
+			// The cap: the chrome on the tank's top (not a badge on its side). Somewhere it must stand at least
+			// 3 mm over the tank's surface straight under it.
+			std::vector<V3> Near;   // (the shell round the piece being measured)
+			auto SurfaceUnder = [&](const V3& At) {
+				double Y = -1e9;
+				for (const V3& V : Near)
+					if (std::fabs(V.x - At.x) < 0.008 && std::fabs(V.z - At.z) < 0.008) Y = std::max(Y, V.y);
+				return Y;
+			};
+			bool Capped = false;
+			for (const std::vector<V3>& Piece : Chrome)
+			{
+				V3 Mid;
+				double Rad = 0.0;
+				for (const V3& V : Piece) Mid = Mid + V;
+				Mid = Mid * (1.0 / static_cast<double>(Piece.size()));
+				for (const V3& V : Piece) Rad = std::max(Rad, std::hypot(V.x - Mid.x, V.z - Mid.z));
+				if (Rad < 0.02) continue;   // (its screws and hinge tab)
+				double Local = 0.0;
+				for (const V3& V : Shell)
+					if (std::fabs(V.x - Mid.x) < 0.01) Local = std::max(Local, std::fabs(V.z));
+				if (std::fabs(Mid.z) > Local * 0.6) continue;   // a badge on the flank
+				Near.clear();
+				for (const V3& V : Shell)
+					if (std::hypot(V.x - Mid.x, V.z - Mid.z) < Rad + 0.02) Near.push_back(V);
+				double Proud = -1e9;
+				for (const V3& V : Piece)
+				{
+					const double Y = SurfaceUnder(V);
+					if (Y > -1e8) Proud = std::max(Proud, V.y - Y);
+				}
+				if (Proud < -1e8) continue;   // (off the tank: nothing under it)
+				Capped = true;
+				if (Proud < 0.003)
+				{
+					char W[96];
+					std::snprintf(W, sizeof(W), " %s(%.1fmm)", Id.c_str(), Proud * 1000.0);
+					Sunk += W;
+				}
+			}
+			if (!Capped) Sunk += " " + Id + "(no cap)";
+			// Knee pads: a pair, one on each flank, off the top and lying on the paint.
+			if (!Rubber.empty())
+			{
+				++WithPads;
+				if (Rubber.size() != 2) PadsWrong += " " + Id + "(" + std::to_string(Rubber.size()) + " pads)";
+				for (const std::vector<V3>& Piece : Rubber)
+				{
+					V3 Mid;
+					double Hi = -1e9;
+					for (const V3& V : Piece) { Mid = Mid + V; Hi = std::max(Hi, V.y); }
+					Mid = Mid * (1.0 / static_cast<double>(Piece.size()));
+					double Gap = 1e9;
+					for (const V3& V : Shell) Gap = std::min(Gap, (V - Mid).Length());
+					if (std::fabs(Mid.z) < HalfW * 0.6 || Hi > Top - 0.015 || Gap > 0.012) PadsWrong += " " + Id;
+				}
+			}
+		}
+		Expect(Tanks >= 30 && Sunk.empty(), std::to_string(Tanks) + " tanks' filler caps stand proud of the tank's real top" + Sunk);
+		Expect(WithPads >= 3 && PadsWrong.empty(), std::to_string(WithPads) + " tanks with knee pads, a pair on the flanks lying on the paint (none over the top)" + PadsWrong);
+	}
+
 	std::printf("Perimeter frames (redrawn as real twin-spar frames):\n");
 	{
 		Json Index;
@@ -650,7 +759,9 @@ int main(int argc, char** argv)
 		};
 		// Every slot is checked whole against Godot's (Blender and code meshes) but these, whose
 		// code-drawn pieces aren't all ported yet.
-		const std::set<std::string> NotWhole = {};
+		// The tank's trim is left out: its filler cap and knee pads are laid on the tank's drawn surface,
+		// standing proud of it ("Tank trim" below), where Godot sets them on the loft's sections.
+		const std::set<std::string> NotWhole = {"tank"};
 		auto IsWhole = [&](const std::string& Slot) { return NotWhole.count(Slot) == 0; };
 		// The shapes Godot draws in code: each one we name against Godot's mesh of that name in the slot,
 		// and with Whole the slot's whole box (Blender and code meshes) against Godot's. Returns what's off.
