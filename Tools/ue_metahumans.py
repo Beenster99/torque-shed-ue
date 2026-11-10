@@ -1379,6 +1379,32 @@ def _parts_of_blueprint(pkg, name, av):
         actors.destroy_actor(actor)
 
 
+# Stopgap (round 123): only Avatar_D's groom draws in game, whatever the others' LOD, material or
+# binding, so the others wear D's hair, rigid on their head, until theirs are sorted. Set to None to
+# give each its own again.
+SHARE_HAIR_FROM = "Avatar_D"
+
+
+def _share_hair(by_name):
+    src = by_name.get(SHARE_HAIR_FROM) if SHARE_HAIR_FROM else None
+    if not src:
+        return
+    face = next((p.get("mesh") for p in src.get("parts", []) if p.get("name") == "Face" and p.get("mesh")), "")
+    hair = next((p for p in src.get("parts", []) if p.get("groom") and p.get("name", "").lower() == "hair"), None)
+    if hair is None or not face:
+        log("hair sharing: %s has no Hair groom or Face mesh; nothing shared" % SHARE_HAIR_FROM)
+        return
+    for name, e in by_name.items():
+        if name == SHARE_HAIR_FROM:
+            continue
+        e["parts"] = [p for p in e.get("parts", []) if not (p.get("groom") and p.get("name", "").lower() == "hair")]
+        shared = dict(hair)
+        shared["binding"] = ""          # D's binding is made for D's face
+        shared["fit_mesh"] = face       # the groom sits as it does on D's head, moved onto this one's
+        e["parts"].append(shared)
+        log("hair sharing: %s wears %s's %s (stopgap)" % (name, SHARE_HAIR_FROM, hair["groom"]))
+
+
 def register():
     """Data/Avatars/avatars.json from the assembled MetaHumans under /Game/MetaHumans/<Name>/: each
     Blueprint named BP_* with its body mesh, or a complete body mesh on its own. The never-cook block
@@ -1451,6 +1477,7 @@ def register():
         by_name[av] = {"name": av, "blueprint": "", "body": "%s.%s" % (pkg, name),
                        "height_cm": next((a.get("height", 0.0) for a in AVATARS if a["name"] == av), 0.0)}
         log("avatar %s: body only %s" % (av, by_name[av]["body"]))
+    _share_hair(by_name)
     out = [by_name[k] for k in sorted(by_name)]
     path = os.path.join(project_dir(), "Data", "Avatars", "avatars.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
