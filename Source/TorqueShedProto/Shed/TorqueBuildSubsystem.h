@@ -102,6 +102,10 @@ struct FTorqueItem
 	float FluidAge = 0.0f;
 	float Lube = 1.0f;
 	FName LubeType;
+	// [tyre] A tyre fitted on the tyre changer: how well its bead was seated in the tyre fitting game
+	// (shed_state's tyre "bead", 0..1; -1: never fitted there, seated as it came). Below
+	// UTorqueBuildSubsystem::BeadOk it grips less (BikeBuild.bead_grip).
+	float Bead = -1.0f;
 };
 
 // One bay's bike.
@@ -161,7 +165,7 @@ enum class ETorqueShedAct : uint8
 	                                     // from the configurator instead, Fit/BikeShop's order text)
 	Unpack,                              // Item: a box opened where it is
 	StartBuild,                          // the frame in your hands onto bay Bay's stand
-	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer")
+	TyreFit, TyreRemove,                 // the tyre changer (Spot "changer"); TyreFit's Amount: how well the bead went on, 0..1 (TorqueTyreGame)
 	RodeOut,                             // bay Bay's bike was ridden out
 	Fabricate,                           // the grinder and welder make bay Bay's next owed job
 	GrabBike,                            // take hold of bay Bay's bike to wheel it about (hold F)
@@ -249,8 +253,32 @@ enum class ETorqueShedAct : uint8
 	PumpNozzle,
 	PumpFill,
 	RideFuel,
+	// [tv] Wall TV Item (TorqueShedTv: 0 .. 3 on the back wall over the bays, 4 the big one over the
+	// workbench) turned to channel Colour (TorqueShedTv::EChannel), for everyone in the shed.
+	TvChannel,
 	Count
 };
+
+// [tv] The shed's big wall TVs and their channels (ATorqueShedScreens draws them).
+namespace TorqueShedTv
+{
+constexpr int32 Tvs = 5;   // 0 .. 3 the back wall's, over bays 1 .. 4; 4 the one over the workbench
+enum EChannel : uint8
+{
+	Players,   // live cameras on everyone in the shed, and what each is doing
+	Rider,     // a third-person chase camera on a rider out on their bike
+	Bikes,     // every bike in the shed at a glance
+	BayPage,   // the bay's own bike, part by part (the back wall's TVs only)
+	Channels
+};
+// What a new garage's TVs show: the back wall's two left on the rider, two right on the bikes, the
+// workbench's on the players.
+constexpr uint8 Default[Tvs] = {Rider, Rider, Bikes, Bikes, Players};
+inline bool Valid(int32 Tv, int32 Channel) { return Tv >= 0 && Tv < Tvs && Channel >= 0 && Channel < (Tv < 4 ? Channels : BayPage); }
+// The channel after Channel on TV Tv (F at a TV).
+inline int32 Next(int32 Tv, int32 Channel) { return (Channel + 1) % (Tv < 4 ? (int32)Channels : (int32)BayPage); }
+const TCHAR* Name(int32 Channel);
+}
 
 struct FTorqueShedRequest
 {
@@ -392,6 +420,8 @@ public:
 	// Where the engine stand starts (ue_build_shed.py / swaps.json engine_stand: at 560, -40, facing +y).
 	static FTransform StandHome() { return FTransform(FVector(560.0, -40.0, 0.0)); }
 	int32 RadioStation() const { return RadioTuned; }
+	// [tv] The channel wall TV Tv is on (TorqueShedTv::EChannel).
+	int32 TvChannel(int32 Tv) const { return Tv >= 0 && Tv < TorqueShedTv::Tvs ? TvChannels[Tv] : 0; }
 	// The bike lifts (shed_state.gd lifts): one under each bay's paddock stand (its id the bay) and
 	// the wash bay's (WashLift), up or down; ATorqueBikeLift draws them and moves them on every
 	// player's game. A bike standing on one goes up with it, and can't be wheeled off or ridden
@@ -539,6 +569,14 @@ public:
 	// the chain) set to Level (0 .. 1 of what it holds), on the host. Says what it did.
 	FString TestSetFluid(int32 Bay, const FString& Kind, float Level);
 	static constexpr float LubeUse = 0.03f;      // litres of chain lube a full coat takes (LUBE_USE)
+	// [tyre] The tyre changer (shed_state bead_text, BikeBuild.BEAD_OK): a bead seated at least this
+	// well holds and grips fully; "Bead seated well (88%)" for a tyre fitted there ("" otherwise).
+	static constexpr float BeadOk = 0.6f;
+	static FString BeadText(const FTorqueItem& It);
+	// PartsDB.tyre_fit_reason: why Tyre won't go on Wheel's rim ("" when it will).
+	static FString TyreFitReason(FName Tyre, FName Wheel);
+	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
+	float BeadOf(int32 Bay, bool bFront) const;
 
 	// --- Requests ----------------------------------------------------------------------------
 	// This machine's player (a PlayerState's player id; 1 until the walker says).
@@ -605,6 +643,7 @@ private:
 	FTorqueDynoRoom Dyno;
 	bool bRadioOn = false;
 	int32 RadioTuned = 0;
+	uint8 TvChannels[TorqueShedTv::Tvs] = {TorqueShedTv::Rider, TorqueShedTv::Rider, TorqueShedTv::Bikes, TorqueShedTv::Bikes, TorqueShedTv::Players};   // [tv]
 	int32 LiftsUp = 0;               // a bit per lift id that's up
 	// [kit]
 	bool bShedLights = true;

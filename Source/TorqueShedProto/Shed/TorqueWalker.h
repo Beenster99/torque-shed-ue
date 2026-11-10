@@ -2,7 +2,7 @@
 // the work button on what you look at: hands take a part off a bike (once it's unbolted), pick one
 // up, put it down on the workbench, a machine, the floor or in a bin, and fit what you hold to a
 // bike or the engine on the stand; the wrench unbolts and bolts up; the brush scrubs off dirt; the
-// grinder and welder restore the parts on the repair bench; the spray can paints; the pressure
+// grinder and welder restore the parts on the repair bench; the spray gun paints; the pressure
 // washer's lance blasts muck off in the wash bay. F unpacks a delivered box, uses the parts
 // computer (order parts and project bikes) and rides your bike out of the roller door once it's
 // complete. Every action is a request to the shed (UTorqueBuildSubsystem), checked first, so the
@@ -38,6 +38,7 @@ class USceneComponent;
 class UTorqueSprayFx;
 class UTorqueWashFx;
 class FTorqueWashJob;
+class FTorqueTyreGame;
 struct FTorquePlace;
 struct FSonyPadState;
 
@@ -53,7 +54,14 @@ enum class ETorqueLook : uint8
 };
 
 // The walker's tools (walker.gd TOOLS, without the paint gun, the stopwatch and the polisher).
-enum class ETorqueTool : uint8 { Hands, Wrench, Brush, Repair, Spray, Lance, Gun, Count };   // Gun: the spray gun (key 7)
+// Spray was the spray can: it's gone from the game (beenster, Nov 10), but stays in the list so the
+// tool numbers sent in co-op and the hands' tool models keep their places. Nothing hands it out.
+enum class ETorqueTool : uint8 { Hands, Wrench, Brush, Repair, Spray, Lance, Gun, Count };
+
+// The tool bar, in order (keys 1-6, Q / E go along it): every tool but the old spray can.
+inline constexpr ETorqueTool TorqueToolBar[] = {ETorqueTool::Hands, ETorqueTool::Wrench, ETorqueTool::Brush,
+	ETorqueTool::Repair, ETorqueTool::Lance, ETorqueTool::Gun};
+inline constexpr int32 TorqueToolBarCount = UE_ARRAY_COUNT(TorqueToolBar);
 
 UCLASS()
 class ATorqueWalker : public ACharacter
@@ -76,10 +84,14 @@ public:
 	// bar, the spray swatches and what you're carrying.
 	bool HasTarget() const { return Target != ETorqueLook::None && Target != ETorqueLook::Floor; }
 	float WorkFraction() const;
+	// [fluids] Pumping petrol (no work ring: the squirts go round and round; the pump dings when full).
+	bool PumpFilling() const;
 	int32 ToolIndex() const { return (int32)Tool; }
+	// Where the tool in hand sits on the tool bar (TorqueToolBar), or -1.
+	int32 ToolSlot() const;
 	int32 SprayColourIndex() const { return SprayColour; }
 	FString SprayFinishText() const;
-	// What the spray can or gun can be loaded with (walker.gd spray_loads), in the order T goes
+	// What the spray gun can be loaded with (walker.gd spray_loads), in the order T goes
 	// through them, and which is loaded.
 	TArray<FString> SprayLoadNames() const;
 	int32 SprayLoadIndex() const { return SprayFinish; }
@@ -132,6 +144,15 @@ public:
 	bool WashJetting() const;
 	// For the tests: how the wash on the bike in the wash bay is going ("" with none).
 	FString TestWashState() const;
+	// The tyre fitting game on the tyre changer (Torque Shed's tyre_game.gd; TorqueWalkerTyre.cpp):
+	// its ring's up (a tyre being worked on), drawn over the view; and whether this walker (anyone's:
+	// from their hands) is working a tyre on or off at the changer, so its wheel turns.
+	bool TyreHudUp() const;
+	void DrawTyre(class AHUD* Hud, class UCanvas* Canvas) const;
+	bool TurningChanger() const;
+	// For the tests: the tyre fitting game played through at once on the tyre held at the changer,
+	// the lever trailing the marker by (1 - Skill) x 1.2 radians (Skill 1: right on it). Says the bead.
+	FString TestTyreGame(double Skill);
 	// For the tests: sweep the lance over the wash bay's bike from every side, Passes times at Distance cm
 	// (from underneath too if it's raised), the shed told; says how it went.
 	FString TestWashPasses(int32 Passes, double Distance);
@@ -142,6 +163,9 @@ public:
 	// --- For hands-off tests (UTorqueShedTest, -TorqueShedAction=) --------------------------------
 	// Stand Distance cm from a point, on the side Away points to, and look at it; say what's seen.
 	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
+	// [outline test] The look outline left off (to read the screen without it), and what's in place for it.
+	bool bTestNoOutline = false;
+	FString TestOutlineStatus(bool& bOk) const;
 	// The tests' last look: the act after it aims there again from wherever the walker's settled
 	// (it can be nudged off a bench's edge between steps, and the look slides off what it was on).
 	FVector TestAim = FVector::ZeroVector;
@@ -451,6 +475,14 @@ private:
 	bool WashOwns(const UStaticMeshComponent* C) const;
 	FString WashControlsText() const;
 
+	// --- The tyre fitting game (TorqueWalkerTyre.cpp) ---------------------------------------------------
+	// Holding the work button on the tyre changer's wheel with a tyre in your hands: the marker goes
+	// round the rim and the mouse (or right stick) works the lever instead of looking about. Letting
+	// go, or looking away, before it's round lets the bead slip back off.
+	TSharedPtr<FTorqueTyreGame> TyreGame;
+	FString TyreKey;
+	bool TyreWork(float Dt);           // true when the tyre game has the work button
+
 	// --- F ---------------------------------------------------------------------------------------------
 	void Interact();
 	// F at a bike or the roller door: ride it out into the yard (anyone). bAdventure: set off on
@@ -488,13 +520,14 @@ private:
 	// [kit] The switch boxes by the roller door, the engine stand and the fire extinguisher
 	// (TorqueWalkerKit.cpp): true when F went to one of them.
 	bool KitInput(float Dt, bool bF, bool bFDown);
-	// [fluids] (TorqueWalkerFluids.cpp) The petrol pump: F at it lifts the nozzle, F anywhere hangs it
-	// back (and walking off further than the hose goes pulls it out of your hand); with it in your
-	// hand the work button fills the bike you're at (PumpPlan). A can or bottle of fluid in your hands:
+	// [fluids] (TorqueWalkerFluids.cpp) The petrol pump, on right mouse (R, Square): at it, lifts the
+	// nozzle; away from a bike, hangs it back (and walking off further than the hose goes pulls it
+	// out of your hand); with it in your hand, holding it fills the bike you're at (PumpPlan).
+	// A can or bottle of fluid in your hands:
 	// the work button pours it into the tank, engine or brake looked at, the other button drains into
 	// it, it lubes a chain, and at the general waste it's tipped away (FluidPlan: false when it has no
 	// fluid job here, so it's put down like any part).
-	bool FluidInput(bool bF);
+	bool FluidInput(bool bRight);
 	void PumpPlan();
 	bool FluidPlan(int32 Held);
 	// [furniture] The movable shed and yard kit (TorqueWalkerFurniture.cpp): the piece looked at (it

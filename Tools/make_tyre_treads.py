@@ -14,14 +14,16 @@ widest halfway out; a sport-touring tyre's swept grooves with branching sipes; a
 blocks; an MX tyre's staggered knobs with split middle blocks and tie bars; a 50/50's big chunky
 blocks). A road tread's section is longer than Torque Shed's 1/32 of the way round (SECTIONS, the
 same numbers as BikeParts.cpp's TyreSectionsFor), so one groove sweeps from the middle to the
-shoulder. Grooves are 6 mm deep, on an even grid about 3 mm square, with the grid points along
-each groove's edge moved onto it so the edges run smooth. Reference only: no maker's pattern is
+shoulder. Grooves are 6 mm deep. At lod0 each groove is cut along its drawn outline with sharp lips
+and drafted walls (cut_tread: a constrained triangulation, so the edges follow the curve exactly and
+stay crisp up close); lod1 presses them into an even grid. Reference only: no maker's pattern is
 traced, and no names or logos go on the tyres. The slick stays Torque Shed's.
 
 Writes Data/Parts/Redrawn/tyre/<tread>.glb in the parts agreement (glTF frame: x across -1..1, y
 from the bead 0 to the crown 1, z 0..1 along 1/32 of the way round; nodes lod0..lod2; materials
 named for their surface tags), which Tools/import_blender_parts.py --redrawn turns into
 Data/Parts/Blender/tyre/<tread>*.glb and the index. Deterministic: run it again, same bytes.
+Needs numpy, shapely and triangle (pip install shapely triangle).
 """
 import json
 import math
@@ -235,8 +237,229 @@ def outward(tri_pts):
     return float(np.dot(n, np.array([m[0], m[1] - 0.3, 0.0]))) >= 0.0
 
 
+# --- the road treads at lod0: grooves cut with crisp edges --------------------------------------
+#
+# beenster, build 128: "the tread on the tyres looks really low res". Pressing the grooves into an
+# even grid (as lod1 still does) steps every groove edge along the grid and smooths each wall into a
+# slope a cell wide, which up close reads as a saw-toothed, blurry cut. So lod0 is cut properly: each
+# groove's outline is drawn as a polygon (the same lines and widths as edge_field), its floor is
+# that outline drawn in by the wall's draft, and the crown is triangulated with both outlines as
+# fixed edges (a constrained Delaunay triangulation), so the groove's lip and foot run exactly along
+# the drawn curve. The land and the groove floor are lit as the smooth carcass; each wall has its own
+# normals, so the lip is a clean, sharp edge.
+#
+# Needs shapely and triangle (pip install shapely triangle).
+
+XB = 0.96                  # the crown's cut region, across (the grooves stop at 0.88)
+DRAFT = 0.012              # how far a groove's floor is drawn in from its lip (half widths, about 1 mm)
+CROWN_STEP = 0.035         # the crown's sampling across along the section ends (half widths)
+ROW_STEP = 0.05            # the sidewalls' rows along the section (half widths)
+MAX_AREA = 0.0012          # the largest triangle on the land and the floors (square half widths)
+
+
+def groove_strokes(tread):
+    """Each groove's outline in (x across, s along in half widths) over the section and its
+    neighbours either side (so the cut runs on across the section's ends), with its depth."""
+    from shapely.geometry import LineString, Point, box
+    from shapely.ops import unary_union
+    along = along_of(tread)
+    out = []
+    if tread == "rib":
+        u = np.linspace(-1.0, 2.0, 49)        # (the zigzags' corners every 1/16)
+        for c in (0.0, 0.3, 0.58):
+            for sd in ((1.0,) if c == 0.0 else (1.0, -1.0)):
+                uu = u if sd > 0 else (u + 0.5) % 1.0
+                zig = 0.022 * (1.0 - np.abs((uu * 4.0) % 2.0 - 1.0) * 2.0) if c else 0.0 * u
+                line = LineString(np.stack([sd * (c + zig), u * along], 1))
+                out.append((line.buffer(0.045, cap_style="flat", join_style="mitre", quad_segs=16), 1.0))
+    else:
+        for side in (1.0, -1.0):
+            for points, widths, deep in GROOVES[tread]:
+                line, w = densify(points, [x * WIDEN.get(tread, 1.0) for x in widths], step=0.012)
+                for wrap in (-1.0, 0.0, 1.0):
+                    xs = side * line[:, 0]
+                    ss = (line[:, 1] + (0.0 if side > 0 else 0.5) + wrap) * along
+                    discs = [Point(x, s_).buffer(r, quad_segs=6) for x, s_, r in zip(xs, ss, w)]
+                    hulls = [discs[i].union(discs[i + 1]).convex_hull for i in range(len(discs) - 1)]
+                    out.append((unary_union(hulls), deep))
+    keep = box(-0.88, -along, 0.88, 2.0 * along)
+    return [(g.intersection(keep), d) for g, d in out]
+
+
+def crown_height(tread, x):
+    top = top_of(tread)
+    return BULGE + (top - BULGE) * np.sqrt(np.maximum(0.0, 1.0 - np.abs(x) ** 2.0))
+
+
+def crown_normal(tread, x):
+    """The smooth carcass's normal at x across (glb frame: x across, y up, z along)."""
+    h = 1e-4
+    slope = (crown_height(tread, x + h) - crown_height(tread, x - h)) / (2 * h)
+    n = np.stack([-slope, np.ones_like(slope), np.zeros_like(slope)], -1)
+    return n / np.linalg.norm(n, axis=-1, keepdims=True)
+
+
+def cut_tread(tread, mesh):
+    import shapely
+    import triangle
+    from shapely.geometry import LineString, MultiLineString, box
+    from shapely.ops import unary_union
+    along = along_of(tread)
+    strokes = groove_strokes(tread)
+    G_ext = unary_union([g for g, _ in strokes])
+    F_ext = G_ext.buffer(-DRAFT, quad_segs=6)
+    rect = box(-XB, 0.0, XB, along)
+    G = G_ext.intersection(rect)
+    Fl = F_ext.intersection(rect)
+    shapely.prepare(G_ext); shapely.prepare(F_ext)
+
+    def region(x, s):   # 2 floor, 1 wall, 0 land
+        f = shapely.contains_xy(F_ext, x, s)
+        g = shapely.contains_xy(G_ext, x, s)
+        return np.where(f, 2, np.where(g, 1, 0))
+
+    # The section's ends: crown samples across (none inside a wall, whose ends are its lip and foot),
+    # the same at both ends so the sections meet without cracks.
+    xs = np.linspace(-XB, XB, int(round(2 * XB / CROWN_STEP)) + 1)
+    on_end = [x for x in xs if region(np.array([x]), np.array([0.0]))[0] != 1 and region(np.array([x]), np.array([along]))[0] != 1]
+    rows = max(2, int(math.ceil(along / ROW_STEP)))
+    ss = np.linspace(0.0, along, rows + 1)
+    edge = LineString([(x, 0.0) for x in on_end] + [(XB, s_) for s_ in ss] + [(x, along) for x in reversed(on_end)]
+                      + [(-XB, s_) for s_ in reversed(ss)] + [(on_end[0], 0.0)])
+    lines = [edge]
+    for geom in (G, Fl):
+        for poly in getattr(geom, "geoms", [geom]):
+            if poly.is_empty or poly.geom_type != "Polygon":
+                continue
+            lines.append(poly.exterior)
+            lines += list(poly.interiors)
+    noded = unary_union(MultiLineString([list(l.coords) for l in lines]))
+    keys, verts, segs = {}, [], set()
+
+    def vid(p):
+        k = (round(p[0], 9), round(p[1], 9))
+        if k not in keys:
+            keys[k] = len(verts)
+            verts.append(k)
+        return keys[k]
+
+    for ln in getattr(noded, "geoms", [noded]):
+        c = list(ln.coords)
+        for a, b in zip(c[:-1], c[1:]):
+            i, j = vid(a), vid(b)
+            if i != j:
+                segs.add((min(i, j), max(i, j)))
+    # Both ends carry the same points across (a lip met at one end is met at the other).
+    V = np.array(verts)
+    end0 = sorted(V[np.abs(V[:, 1]) < 1e-9, 0])
+    end1 = sorted(V[np.abs(V[:, 1] - along) < 1e-9, 0])
+    if len(end0) != len(end1) or (end0 and np.max(np.abs(np.array(end0) - np.array(end1))) > 1e-4):
+        raise SystemExit("%s: the section's ends don't match (%d / %d points)" % (tread, len(end0), len(end1)))
+    # (A hair apart at most, from the arithmetic: the far end's points put exactly on the near end's.)
+    at1 = np.where(np.abs(V[:, 1] - along) < 1e-9)[0]
+    V[at1[np.argsort(V[at1, 0])], 0] = end0
+    t = triangle.triangulate({"vertices": V, "segments": np.array(sorted(segs))}, "pYYa%g" % MAX_AREA)
+    P2, T = t["vertices"], t["triangles"]
+    # Depths: the land none, a floor its groove's full depth, a wall from its lip (none) to its foot.
+    _, Fdeep = edge_field(tread, P2[:, 0], P2[:, 1] / along)
+    full = Fdeep * DEEP
+    pts2 = shapely.points(P2)
+    # (The outlines run on past the section's ends, so a point on an end is on a lip only if it is.)
+    dG = shapely.distance(G_ext.boundary, pts2)
+    dF = shapely.distance(F_ext.boundary, pts2) if not F_ext.is_empty else np.full(len(P2), 9.0)
+    wall_depth = np.where(dG < 1e-7, 0.0, np.where(dF < 1e-7, full, full * dG / np.maximum(dG + dF, 1e-12)))
+    # Each triangle's surface, from its corners where they say (a corner off both outlines is on the
+    # land, a floor or inside a wall), else from its middle: so no sliver by an outline is lifted
+    # to the wrong height and opens a crack.
+    lip, foot = dG < 1e-7, dF < 1e-7
+    inner = region(P2[:, 0], P2[:, 1])
+    cen = P2[T].mean(axis=1)
+    reg = region(cen[:, 0], cen[:, 1])
+    free = ~(lip | foot)
+    for r in (1, 2, 0):
+        reg = np.where((free[T] & (inner[T] == r)).any(axis=1), r, reg)
+    reg = np.where(reg == 0, np.where((foot[T]).any(axis=1) & ~(free[T] & (inner[T] == 0)).any(axis=1), np.where(lip[T].any(axis=1), 1, 2), 0), reg)
+    reg = np.where((reg == 2) & lip[T].any(axis=1) & ~(free[T] & (inner[T] == 2)).any(axis=1), 1, reg)
+
+    def lift(ids, depth):
+        x, s_ = P2[ids, 0], P2[ids, 1]
+        return np.stack([x, crown_height(tread, x) - depth, s_ / along], 1)
+
+    def seam_key(p):
+        return (round(p[0], 7), round(p[2] % 1.0, 7) if abs(p[2] - 1.0) < 1e-9 else round(p[2], 7))
+
+    for r in (0, 2, 1):
+        tris = T[reg == r]
+        if not len(tris):
+            continue
+        ids = np.unique(tris)
+        depth = np.zeros(len(ids)) if r == 0 else full[ids] if r == 2 else wall_depth[ids]
+        pos = lift(ids, depth)
+        local = {int(k): n for n, k in enumerate(ids)}
+        tl = np.vectorize(local.get)(tris)
+        # Face the triangles out of the tyre.
+        a, b, c = pos[tl[:, 0]], pos[tl[:, 1]], pos[tl[:, 2]]
+        fn = np.cross(b - a, c - a)
+        up = crown_normal(tread, (a[:, 0] + b[:, 0] + c[:, 0]) / 3.0)
+        flip = np.einsum("ij,ij->i", fn, up) < 0.0
+        tl[flip] = tl[flip][:, [0, 2, 1]]
+        fn[flip] = -fn[flip]
+        if r == 1:
+            # A wall's normals: its faces' (by area), joined across the section's ends.
+            nrm = np.zeros_like(pos)
+            for k in range(3):
+                np.add.at(nrm, tl[:, k], fn)
+            twins = {}
+            for n, p in enumerate(pos):
+                twins.setdefault(seam_key(p), []).append(n)
+            for group in twins.values():
+                if len(group) > 1:
+                    nrm[group] = nrm[group].sum(axis=0)
+            nrm /= np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-12)
+        else:
+            nrm = crown_normal(tread, pos[:, 0])
+        base = len(mesh.pos)
+        for p, n in zip(pos, nrm):
+            mesh.add(tuple(float(v) for v in p), tuple(float(v) for v in n), (float(p[0]) * 0.05, float(p[2]) * 0.07))
+        for tri in tl:
+            mesh.tri(*(base + int(k) for k in tri))
+    # The sidewalls: Torque Shed's walls from the bead up to the cut crown's edge, in rows.
+    pts, _ = road_profile(tread, 0)
+    for sd in (1.0, -1.0):
+        # (From the bead up: the wall's points, then the crown's outside the cut region.)
+        prof = [(x, y) for x, y in pts if x * sd > 0 and (y < BULGE or x * sd > XB + 1e-6)]
+        prof.sort(key=lambda p: p[1])
+        prof.append((sd * XB, float(crown_height(tread, XB))))
+        prof = np.array(prof)
+        nrm2 = []
+        for i in range(len(prof)):
+            if i == len(prof) - 1:
+                nrm2.append(crown_normal(tread, np.array(sd * XB)))
+                continue
+            tg = prof[min(i + 1, len(prof) - 1)] - prof[max(i - 1, 0)]
+            n = np.array([tg[1], -tg[0], 0.0]) * sd
+            if n[0] * sd < 0.0 and n[1] < 0.0:
+                n = -n
+            nrm2.append(n / np.linalg.norm(n))
+        base = len(mesh.pos)
+        for s_ in ss:
+            for (x, y), n in zip(prof, nrm2):
+                mesh.add((float(x), float(y), float(s_ / along)), tuple(float(v) for v in n), (float(x) * 0.05, float(s_ / along) * 0.07))
+        cols = len(prof)
+        for i in range(rows):
+            for j in range(cols - 1):
+                a, b, c, e = base + i * cols + j, base + (i + 1) * cols + j, base + (i + 1) * cols + j + 1, base + i * cols + j + 1
+                P = [np.array(mesh.pos[k]) for k in (a, b, c)]
+                if outward(P):
+                    mesh.tri(a, b, c); mesh.tri(a, c, e)
+                else:
+                    mesh.tri(a, c, b); mesh.tri(a, e, c)
+
+
 def carcass(tread, lod, mesh):
     road = tread not in OFFROAD
+    if road and lod == 0:
+        return cut_tread(tread, mesh)
     d = (ROAD_DETAIL if road else OFF_DETAIL)[lod]
     if road:
         pts, on_crown = road_profile(tread, lod)

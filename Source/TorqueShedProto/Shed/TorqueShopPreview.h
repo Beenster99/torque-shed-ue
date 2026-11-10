@@ -79,6 +79,7 @@ private:
 	UPROPERTY() UPointLightComponent* KeyLight = nullptr;
 	UPROPERTY() UPointLightComponent* FillLight = nullptr;
 	UPROPERTY() UPointLightComponent* RimLight = nullptr;
+	UPROPERTY() UPointLightComponent* BounceLight = nullptr;   // low and in front: lifts the shadows
 	UPROPERTY() UTextureRenderTarget2D* Target = nullptr;
 	UPROPERTY() UTexture2D* Gradient = nullptr;
 	UPROPERTY() UStaticMesh* Cube = nullptr;

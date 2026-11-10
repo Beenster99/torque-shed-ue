@@ -135,11 +135,12 @@ public:
 	// passes through other bikes and nothing it touches throws the rider off (it still rides the ground
 	// and stops at walls). Coming off by itself ends it.
 	static constexpr double GHOST_TIME = 5.0;
+	static constexpr double GHOST_FADE = 1.0;   // the look fades out over the ghost's last second
 	double GhostLeft = 0.0;
 	void StartGhost(double Seconds = GHOST_TIME) { GhostLeft = Seconds; }
 	bool IsGhost() const { return GhostLeft > 0.0; }
-	// How see-through a ghost is drawn now (BikeGhost.look: 0 solid, at most 0.6), fading back to solid
-	// over its last 1.5 s with a flicker in the last one.
+	// How strongly the ghost's "matrix" look shows now (0 solid, 1 full): full for the ghost's first
+	// GHOST_TIME - GHOST_FADE seconds, then fading smoothly back to solid. Never flickers.
 	double GhostLook() const;
 	Wheel Wheels[2];
 

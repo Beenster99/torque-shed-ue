@@ -43,6 +43,9 @@ ATorqueBikeLift::ATorqueBikeLift()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	CubeMesh = Cube.Object;
 	CylinderMesh = Cylinder.Object;
+	// Its platform and ramp are ground to a ridden bike while it's down (RoadParts, ATorqueBikePawn's
+	// ground trace): a bike is ridden up onto the wash bay's lift, or down off a bay's.
+	Tags.Add(FName(TEXT("RoadParts")));
 }
 
 ATorqueBikeLift* ATorqueBikeLift::Spawn(UWorld* World, int32 InLiftId, const FTransform& Xf, bool bInWash)
@@ -175,10 +178,11 @@ void ATorqueBikeLift::BeginPlay()
 			Piece(Deck, FVector(-L * 0.5 + 5.0 + I * (L - 10.0) / 22.0, 0.0, -1.5), FVector(2.0, W - 4.0, 3.0), TBLI::Grate, 0.9f, 0.5f);
 		UStaticMeshComponent* Floor = Piece(Deck, FVector(0.0, 0.0, -1.5), FVector(L, W, 3.0), TBLI::Grate, 0.9f, 0.5f, true);
 		if (Floor) Floor->SetVisibility(false);
+		GroundParts.Add(Floor);
 	}
 	else
 	{
-		Piece(Deck, FVector(0.0, 0.0, -1.5), FVector(L, W, 3.0), TBLI::Paint, 0.3f, 0.45f, true);
+		GroundParts.Add(Piece(Deck, FVector(0.0, 0.0, -1.5), FVector(L, W, 3.0), TBLI::Paint, 0.3f, 0.45f, true));
 		Piece(Deck, FVector(-5.0, 0.0, 0.25), FVector(L - 26.0, W - 10.0, 0.5), TBLI::Rubber, 0.0f, 0.85f);
 		// The rear wheel drop-out panel: its seams across the mat, and the two pins that hold it.
 		for (const double X : {-L * 0.5 + 18.0, -L * 0.5 + 58.0})
@@ -188,7 +192,7 @@ void ATorqueBikeLift::BeginPlay()
 		// Checker plate wings each side, on their brackets.
 		for (const double Side : {-1.0, 1.0})
 		{
-			Piece(Deck, FVector(-8.0, Side * (W * 0.5 + 11.0), -1.0), FVector(L - 70.0, 22.0, 2.0), TBLI::Alu, 1.0f, 0.38f, true);
+			GroundParts.Add(Piece(Deck, FVector(-8.0, Side * (W * 0.5 + 11.0), -1.0), FVector(L - 70.0, 22.0, 2.0), TBLI::Alu, 1.0f, 0.38f, true));
 			for (const double X : {-L * 0.5 + 45.0, L * 0.5 - 60.0})
 				Piece(Deck, FVector(X, Side * (W * 0.5 + 5.0), -4.0), FVector(4.0, 10.0, 4.0), TBLI::Paint, 0.3f, 0.45f);
 		}
@@ -220,6 +224,7 @@ void ATorqueBikeLift::BeginPlay()
 	// --- The ramp at the back, hinged on the table: down to the floor when it's down, folding up as
 	// a stop as it rises.
 	Ramp = Piece(Root, FVector::ZeroVector, FVector(TBLI::RampLength, W - 6.0, 2.5), bWash ? TBLI::Grate : TBLI::Alu, 1.0f, 0.38f, true);
+	GroundParts.Add(Ramp);
 
 	// --- The control box on its stand: up and down buttons and the emergency stop.
 	Piece(Root, PostLocal + FVector(0.0, 0.0, 0.75), FVector(24.0, 24.0, 1.5), TBLI::Base, 0.4f, 0.55f);
@@ -293,6 +298,16 @@ void ATorqueBikeLift::Pose()
 		const double Rad = FMath::DegreesToRadians(Angle);
 		const FVector Pivot(-DeckLength() * 0.5, 0.0, Hinge);
 		Ramp->SetRelativeLocationAndRotation(Pivot - FVector(FMath::Cos(Rad), 0.0, FMath::Sin(Rad)) * (TBLI::RampLength * 0.5), FRotator(Angle, 0.0, 0.0));
+	}
+	// Down, the platform and its ramp are ground a ridden bike rolls onto (tagged Road for its wheels'
+	// trace); on the way up they aren't (the ramp folds up into a stop, the platform rises past the
+	// wheels), so a bike ridden into a raised lift isn't hoisted onto it.
+	const bool bGround = H < LowTop() + 2.0;
+	for (UStaticMeshComponent* Part : GroundParts)
+	{
+		if (!Part) continue;
+		if (bGround) Part->ComponentTags.AddUnique(FName(TEXT("Road")));
+		else Part->ComponentTags.Remove(FName(TEXT("Road")));
 	}
 }
 

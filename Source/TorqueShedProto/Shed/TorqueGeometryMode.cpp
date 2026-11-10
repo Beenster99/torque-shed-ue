@@ -10,6 +10,8 @@
 #include "Shed/TorqueShedPick.h"
 #include "Shed/TorqueWalker.h"
 #include "SonyPad.h"
+#include "CanvasItem.h"
+#include "RenderUtils.h"
 #include "Camera/CameraComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Canvas.h"
@@ -210,6 +212,9 @@ struct ATorqueGeometryMode::FState
 	int32 SeenCount = -1;
 	uint32 PrevPad = 0;
 	double PadRepeat = 0.0;
+	// Your own walker (and what it carries) hidden from your view while it's open, so zooming out
+	// past it shows the bike, not your back. Yours only: the others still see you.
+	TArray<TWeakObjectPtr<AActor>> Hidden;
 };
 
 static bool GExpert = false;   // GeometryMode.expert: free move, for this session
@@ -309,6 +314,7 @@ void ATorqueGeometryMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, in
 		Mode.SetHideCursorDuringCapture(false);
 		PC->SetInputMode(Mode);
 	}
+	HideWalker(true);
 	{
 		const FSonyPadState Now = Walker->PadState();   // (buttons held as it opens don't count as pressed)
 		S.PrevPad = Now.bConnected ? Now.Buttons : 0;
@@ -329,6 +335,7 @@ void ATorqueGeometryMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, in
 void ATorqueGeometryMode::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) B->OnTell.Remove(TellHandle);
+	HideWalker(false);
 	Super::EndPlay(Reason);
 }
 
@@ -454,6 +461,7 @@ void ATorqueGeometryMode::Close()
 	Lit.Reset();
 	// The bike as its saved fit has it (drawn again if the draft's rig handles had it re-formed).
 	if (ATorqueShedBike* Bike = S.Bike.Get()) Bike->Preview(nullptr);
+	HideWalker(false);
 	if (APlayerController* PC = S.PC.Get())
 	{
 		if (ATorqueWalker* W = S.Walker.Get()) PC->SetViewTargetWithBlend(W, 0.25f);
@@ -464,6 +472,34 @@ void ATorqueGeometryMode::Close()
 	S.PC = nullptr;   // (no longer this player's: For() won't find it)
 	GGeoClosedFrame = GFrameCounter;
 	Destroy();
+}
+
+void ATorqueGeometryMode::HideWalker(bool bHide)
+{
+	// (APlayerController::HiddenActors: drawn for everyone but this player. The walker's body bits
+	// are owner-no-see, which only holds while the walker is the view target; here the camera is
+	// this actor, so they'd show, as would the avatar and the tool in its hand.)
+	FState& S = *St;
+	APlayerController* PC = S.PC.Get();
+	if (!bHide)
+	{
+		if (PC)
+			for (const TWeakObjectPtr<AActor>& A : S.Hidden)
+				if (AActor* Was = A.Get()) PC->HiddenActors.Remove(Was);
+		S.Hidden.Reset();
+		return;
+	}
+	ATorqueWalker* Walker = S.Walker.Get();
+	if (!PC || !Walker) return;
+	TArray<AActor*> Mine;
+	Walker->GetAttachedActors(Mine, true, true);   // the MetaHuman Blueprint, held tools
+	Mine.Add(Walker);
+	for (AActor* A : Mine)
+	{
+		if (!A || A == this || S.Hidden.Contains(A)) continue;
+		S.Hidden.Add(A);
+		PC->HiddenActors.AddUnique(A);
+	}
 }
 
 void ATorqueGeometryMode::UpdateCamera()
@@ -623,6 +659,7 @@ void ATorqueGeometryMode::Tick(float DeltaSeconds)
 		Close();
 		return;
 	}
+	HideWalker(true);   // (the avatar can be made again while it's open: hide the new one too)
 	// The shed draws a bike again when anything about it changes: keep the draft on the new one.
 	UStaticMeshComponent* First = Bike->Parts.Num() > 0 ? Bike->Parts[0] : nullptr;
 	if (First != S.SeenFirst || Bike->Parts.Num() != S.SeenCount)
@@ -1167,6 +1204,47 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 				Seg(Base - Ax[A] * Half, Base + Ax[A] * Half, 2.0f, Col);
 			}
 		};
+		// A solid little box, as Torque Shed's BoxMesh handles: its six faces filled, far ones first, shaded by
+		// axis so it reads as a box, then its edges outlined.
+		auto SolidBox = [&](const TGMI::GV3& At, const TGMI::GV3 Ax[3], double Half, const FLinearColor& Col) {
+			struct FBoxFace { double Dist = 0.0; FVector2D Pt[4]; float Shade = 1.0f; };
+			TArray<FBoxFace> BoxFaces;
+			for (int32 Fa = 0; Fa < 3; ++Fa)
+				for (int32 Sgn = -1; Sgn <= 1; Sgn += 2)
+				{
+					const int32 Fb = (Fa + 1) % 3, Fc = (Fa + 2) % 3;
+					const TGMI::GV3 Mid = At + Ax[Fa] * (Sgn * Half);
+					const TGMI::GV3 Corners[4] = {Mid - Ax[Fb] * Half - Ax[Fc] * Half, Mid + Ax[Fb] * Half - Ax[Fc] * Half,
+						Mid + Ax[Fb] * Half + Ax[Fc] * Half, Mid - Ax[Fb] * Half + Ax[Fc] * Half};
+					FBoxFace Face;
+					bool bOnScreen = true;
+					for (int32 K = 0; K < 4; ++K) bOnScreen = Scr(Corners[K], Face.Pt[K]) && bOnScreen;
+					if (!bOnScreen) continue;
+					Face.Dist = FVector::Dist(World(Mid), Eye);
+					Face.Shade = Fa == 0 ? 1.0f : (Fa == 1 ? 0.82f : 0.66f);
+					BoxFaces.Add(Face);
+				}
+			BoxFaces.Sort([](const FBoxFace& L, const FBoxFace& R) { return L.Dist > R.Dist; });
+			TArray<FCanvasUVTri> BoxTris;
+			for (const FBoxFace& Face : BoxFaces)
+			{
+				const FLinearColor Fill(Col.R * Face.Shade, Col.G * Face.Shade, Col.B * Face.Shade, 1.0f);
+				FCanvasUVTri T0, T1;
+				T0.V0_Pos = Face.Pt[0]; T0.V1_Pos = Face.Pt[1]; T0.V2_Pos = Face.Pt[2];
+				T1.V0_Pos = Face.Pt[0]; T1.V1_Pos = Face.Pt[2]; T1.V2_Pos = Face.Pt[3];
+				T0.V0_Color = T0.V1_Color = T0.V2_Color = Fill;
+				T1.V0_Color = T1.V1_Color = T1.V2_Color = Fill;
+				BoxTris.Add(T0);
+				BoxTris.Add(T1);
+			}
+			if (BoxTris.Num() > 0)
+			{
+				FCanvasTriangleItem Item(BoxTris, GWhiteTexture);
+				Item.BlendMode = SE_BLEND_Opaque;
+				Canvas->DrawItem(Item);
+			}
+			Cube(At, Ax, Half, FLinearColor(Col.R * 0.45f, Col.G * 0.45f, Col.B * 0.45f, 1.0f));
+		};
 		const int32 LitH = S.bDrag ? S.DragH : S.Hover;
 		for (int32 A = 0; A < 3; ++A)
 		{
@@ -1180,14 +1258,10 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 			{
 			case TorqueFit::GeoHandle::Move:
 			{
-				// An arrow along the axis: the shaft, and a cone at its tip.
-				Seg(Cg, Cg + Dir * (TGMI::Arm * 0.8 * Size), 3.0f, Col);
-				const TGMI::GV3 Tip = Cg + Dir * (TGMI::Arm * Size), Base = Cg + Dir * (TGMI::Arm * 0.78 * Size);
-				for (int32 K = 0; K < 10; ++K)
-				{
-					const double T = 2.0 * PI * K / 10.0;
-					Seg(Base + (Side * std::cos(T) + Side2 * std::sin(T)) * (0.07 * Size), Tip, 2.0f, Col);
-				}
+				// A shaft along the axis with a little box on its end (beenster: boxes, not arrow heads).
+				Seg(Cg, Cg + Dir * (TGMI::Arm * 0.85 * Size), 3.0f, Col);
+				const TGMI::GV3 BoxAx[3] = {Dir, Side, Side2};
+				SolidBox(Cg + Dir * (TGMI::Arm * 0.9 * Size), BoxAx, 0.065 * Size, Col);
 				break;
 			}
 			case TorqueFit::GeoHandle::Rotate:
@@ -1207,8 +1281,8 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 				// A stalk with a box on its end, along the part's own (turned) axis.
 				const TGMI::GV3 Ax[3] = {TorqueFit::Geo::PartAxis(O, 0), TorqueFit::Geo::PartAxis(O, 1), TorqueFit::Geo::PartAxis(O, 2)};
 				Seg(Cg, Cg + Ax[A] * (TGMI::Arm * 0.85 * Size), 2.5f, Col);
-				Cube(Cg + Ax[A] * (TGMI::Arm * 0.9 * Size), Ax, 0.065 * Size, Col);
-				if (A == 2) Cube(Cg, Ax, 0.08 * Size, LitH == TorqueFit::Geo::Uniform ? TGMI::HoverColour : TGMI::MiddleColour);
+				SolidBox(Cg + Ax[A] * (TGMI::Arm * 0.9 * Size), Ax, 0.065 * Size, Col);
+				if (A == 2) SolidBox(Cg, Ax, 0.08 * Size, LitH == TorqueFit::Geo::Uniform ? TGMI::HoverColour : TGMI::MiddleColour);
 				break;
 			}
 			}
@@ -1247,16 +1321,20 @@ void ATorqueGeometryMode::DrawPanel(AHUD* Hud, UCanvas* Canvas)
 	Y += 32.0f * Sc;
 	if (B && B->Exists(S.Bay)) D.Text(B->Bike(S.Bay).Name, X, Y, 17.0f, FLinearColor::White);
 	Y += 26.0f * Sc;
-	Y += D.Wrapped(TEXT("Slide the rig handles and the bike re-forms round them. With Expert on, click a part of the bike (or pick it in the list on the left) to "
+	Y += D.Wrapped(TEXT("Tick Expert for the rig handles (the bike re-forms round them). With Expert on, click a part of the bike (or pick it in the list on the left) to "
 		"select it, then drag the handles. W move, E rotate, R scale (the middle box sizes it all over). Hold Ctrl to snap, Z undo, Backspace resets the part. "
 		"Right-drag to orbit, middle-drag to pan, wheel to zoom. Only this bike changes."), X, Y, IW, 14.0f, TGMI::Dim) + 8.0f * Sc;
 	// The rig's range handles (catalogue bikes only).
 	const bool bRig = HasRig();
 	if (bRig)
 	{
-		D.Text(TEXT("RIG HANDLES: the bike re-forms round them"), X, Y, 14.0f, TGMI::Accent);
-		Y += 24.0f * Sc;
-		const std::vector<TorqueFit::AdjustRange> Ranges = TorqueFit::BikeLayout::AdjustRanges();
+		// The rig handles (tank mounts, pegs, seat hoop) only show in Expert (beenster, Nov 10).
+		const std::vector<TorqueFit::AdjustRange> Ranges = GExpert ? TorqueFit::BikeLayout::AdjustRanges() : std::vector<TorqueFit::AdjustRange>();
+		if (GExpert)
+		{
+			D.Text(TEXT("RIG HANDLES: the bike re-forms round them"), X, Y, 14.0f, TGMI::Accent);
+			Y += 24.0f * Sc;
+		}
 		for (int32 K = 0; K < (int32)Ranges.size() && K < 4; ++K)
 		{
 			const TorqueFit::AdjustRange& R = Ranges[K];

@@ -744,15 +744,60 @@ def seat_sofa():
 
 # --- Wall TVs and posters ----------------------------------------------------------------------------
 
+# The frame round a TV's glass, m: the game's page fills the rest (TorqueShedScreens.cpp TvBezel).
+TV_BEZEL = 0.011
+
 def _tv(width, height, depth):
-    """A wall TV: a thin bezel round the panel (the 'screen' slot the game draws its channel on),
-    a slim back box and the wall bracket. The origin is at its middle on the wall."""
-    box("Back", (0.0, 0.0, depth * 0.45), (width * 0.6, height * 0.6, depth * 0.5), "plastic_black", bevel=0.01)
-    box("Bezel", (0.0, 0.0, depth * 0.85), (width + 0.03, height + 0.03, depth * 0.3), "plastic_black", bevel=0.004)
-    box("Panel", (0.0, 0.0, depth + 0.0005), (width, height, 0.001), "screen", bevel=0.0)
-    box("Bracket", (0.0, 0.0, 0.01), (width * 0.3, height * 0.4, 0.02), "steel_dark", bevel=0.003)
-    box("Logo", (0.0, -height / 2 - 0.008, depth * 0.85 + depth * 0.15 + 0.001), (0.06, 0.006, 0.001), "aluminium", bevel=0.0)
-    box("Led", (width / 2 - 0.05, -height / 2 - 0.008, depth + 0.001), (0.006, 0.004, 0.001), "display_red", bevel=0.0)
+    """A modern wall-mounted flat TV, its outside exactly width x height (so the shed's screens keep
+    their size) and depth from the wall to the glass. The origin is at its middle on the wall.
+
+    From the front: one sheet of black glass (the 'screen' slot the game draws its channel on, an
+    inset TV_BEZEL in from the edge) in a slim dark-metal frame whose edge is chamfered, a slightly
+    deeper chin along the bottom with the IR window and the standby light. Behind: the thin panel
+    (2.4 cm), the electronics hump over the lower two-thirds with its vent slots and the ports on its
+    left, the VESA plate and the tilt bracket's two arms back to a wall rail, so from the side it
+    stands off the wall the way a real one does."""
+    W, H, D = width, height, depth
+    b = TV_BEZEL
+    panel = 0.024                     # the panel's own thickness, glass to back sheet
+    zf = D                            # the glass's face
+    zb = D - panel                    # the panel's back sheet
+    # The frame: four chamfered aluminium-look bars round the edge, the glass set 1 mm inside them.
+    fd = panel                        # the frame runs the panel's whole thickness
+    box("FrameTop", (0.0, H / 2 - b / 2, zf - fd / 2), (W, b, fd), "tv_frame", bevel=0.0025)
+    box("FrameBottom", (0.0, -H / 2 + b / 2, zf - fd / 2), (W, b, fd), "tv_frame", bevel=0.0025)
+    for s in (-1, 1):
+        box("FrameSide%d" % s, (s * (W / 2 - b / 2), 0.0, zf - fd / 2), (b, H - 2 * b + 0.002, fd), "tv_frame", bevel=0.0025)
+    # The glass: black, glossy, a hair behind the frame's lip.
+    box("Panel", (0.0, 0.0, zf - 0.0012), (W - 2 * b + 0.002, H - 2 * b + 0.002, 0.002), "screen", bevel=0.0)
+    box("PanelBack", (0.0, 0.0, zb + 0.004), (W - 0.004, H - 0.004, 0.008), "tv_back", bevel=0.002)
+    # The chin's little bar under the glass: IR window in the middle, the standby light to its right.
+    box("IrWindow", (0.0, -H / 2 + b / 2, zf + 0.0006), (0.05, b * 0.45, 0.0012), "tv_glass", bevel=0.0)
+    box("Led", (0.035, -H / 2 + b / 2, zf + 0.0008), (0.004, 0.0025, 0.0012), "display_red", bevel=0.0)
+    # The back: the electronics hump over the lower two-thirds, rounded off, with vent slots across
+    # its top and bottom and a recessed bay of ports facing the left.
+    hw, hh = W * 0.62, H * 0.58
+    hy = -H / 2 + 0.1 + hh / 2
+    hump_d = zb - 0.03                # from the bracket's face to the panel's back
+    hz = 0.03 + hump_d / 2
+    box("Hump", (0.0, hy, hz), (hw, hh, hump_d), "tv_back", bevel=min(0.012, hump_d * 0.45))
+    for row, sy in enumerate((1, -1)):
+        for i in range(14):
+            x = -hw / 2 + 0.08 + (hw - 0.16) * i / 13.0
+            box("Vent%d_%d" % (row, i), (x, hy + sy * (hh / 2 + 0.0004), hz), (0.012, 0.002, hump_d * 0.6), "plastic_black", bevel=0.0)
+    box("Ports", (-hw / 2 + 0.002, hy, hz), (0.006, 0.14, hump_d * 0.55), "plastic_black", bevel=0.001)
+    for i in range(4):
+        box("Port%d" % i, (-hw / 2 - 0.0005, hy - 0.05 + i * 0.033, hz), (0.002, 0.012, 0.018), "steel_dark", bevel=0.0)
+    # The VESA plate on the hump's back and the bracket: two arms down to the wall rail.
+    box("Vesa", (0.0, hy, 0.03 - 0.003), (0.62 if W > 1.5 else W * 0.4, 0.42 if H > 1.0 else H * 0.3, 0.006), "steel_dark", bevel=0.002)
+    for s in (-1, 1):
+        ax = s * min(0.26, W * 0.17)
+        box("Arm%d" % s, (ax, hy, 0.015), (0.04, 0.5 if H > 1.0 else H * 0.36, 0.024), "steel_dark", bevel=0.004)
+    box("WallRail", (0.0, hy, 0.005), (min(0.7, W * 0.45), 0.08, 0.01), "steel_dark", bevel=0.003)
+    for s in (-1, 1):
+        cyl("WallBolt%d" % s, (s * min(0.3, W * 0.2), hy, 0.011), 0.008, 0.004, "steel", axis="z", verts=6, bevel=0.0005)
+    # A tidy cable dropping from the ports round the hump's edge to the wall.
+    tube("Cable", [(-hw / 2 - 0.01, hy - 0.02, hz), (-hw / 2 - 0.02, hy - 0.08, hz * 0.6), (-hw / 2 - 0.03, -H / 2 + 0.12, 0.004)], 0.004, "rubber", sides=8)
 
 
 @model("tv_120", (2.66, 1.5, 0.09))
@@ -1125,24 +1170,57 @@ def ear_defenders():
         cyl("Pad%d" % s, (s * 0.044, -0.14, 0.06), 0.04, 0.015, "foam_black", axis="x", bevel=0.006)
 
 
-@model("petrol_pump", (0.55, 1.75, 0.45))
+@model("petrol_pump", (0.66, 1.84, 0.5))
 def petrol_pump():
-    """shed_pump_view.gd: a red wall-mounted pump cabinet with a cream face, the lit display up top,
-    the empty holster on the right, and the pipe from the tank up out of the ground. Origin on the
-    wall at the ground. The nozzle and its hose are the game's (Shed/TorqueShedPump.cpp draws them,
-    in the holster or in someone's hand), so they aren't in the model."""
-    box("WallPlate", (0.0, 1.05, 0.006), (0.5, 0.95, 0.012), "steel_dark", bevel=0.003)
-    box("Case", (0.0, 1.05, 0.13), (0.46, 0.9, 0.24), "paint_red", bevel=0.02)
-    box("Face", (0.0, 1.0, 0.252), (0.36, 0.55, 0.004), "paint_cream", bevel=0.002)
-    box("Display", (0.0, 1.3, 0.255), (0.3, 0.14, 0.004), "screen", bevel=0.0)
-    for k in range(2):
-        box("Digits%d" % k, (0.03, 1.33 - k * 0.06, 0.258), (0.2, 0.035, 0.001), "display_green", bevel=0.0)
-    box("Badge", (0.0, 0.85, 0.256), (0.16, 0.08, 0.002), "paint_red", bevel=0.0)
-    box("Top", (0.0, 1.52, 0.13), (0.48, 0.04, 0.26), "paint_white", bevel=0.01)
-    box("Holster", (0.28, 1.0, 0.15), (0.08, 0.2, 0.1), "plastic_black", bevel=0.01)
-    box("Bracket", (0.25, 1.0, 0.1), (0.04, 0.06, 0.06), "steel_dark", bevel=0.004)
-    tube("Pipe", [(-0.15, 0.0, 0.08), (-0.15, 0.6, 0.08)], 0.025, "steel")
-    cyl("PipeCollar", (-0.15, 0.02, 0.08), 0.045, 0.04, "steel_dark")
+    """A compact single-hose forecourt dispenser (beenster, Nov 10 2026: "more realistic, get rid of the
+    foot plate steel effect"), modelled on the slim modern dispensers on UK forecourts, with no maker's
+    name or logo: a concrete island with its yellow nosing, a brushed stainless hydraulics cabinet with
+    louvred doors, the white electronics head with its backlit LCD (the game writes the litres on it,
+    Shed/TorqueShedPump.cpp) and the green unleaded grade strip, the lit header, and the nozzle boot and
+    hose outlet on the right. Smooth paint and plain metals only: none of the scanned 'painted' or
+    'metal' bases, whose scan is tread plate. Origin on the wall at the ground. The nozzle and its hose
+    are the game's (drawn in the boot or in someone's hand), so they aren't in the model."""
+    # The island it stands on, its front nosing painted yellow.
+    span("Island", (-0.31, 0.0, 0.0), (0.33, 0.1, 0.48), "concrete", bevel=0.012)
+    box("Nosing", (0.01, 0.085, 0.481), (0.6, 0.026, 0.004), "can_yellow", bevel=0.001)
+    # The hydraulics cabinet: dark corner posts, brushed stainless doors with louvres and a lock.
+    span("Cabinet", (-0.24, 0.1, 0.04), (0.24, 0.86, 0.395), "pump_grey", bevel=0.008)
+    span("Door", (-0.215, 0.13, 0.395), (0.215, 0.835, 0.402), "pump_steel", bevel=0.003)
+    for k in range(7):
+        box("Louvre%d" % k, (0.0, 0.2 + k * 0.034, 0.403), (0.3, 0.012, 0.004), "pump_grey", bevel=0.001)
+    span("Warning", (-0.19, 0.72, 0.402), (-0.09, 0.8, 0.4035), "can_yellow", bevel=0.0)   # the blank safety notice
+    span("WarningEdge", (-0.185, 0.725, 0.4035), (-0.095, 0.733, 0.404), "plastic_black", bevel=0.0)
+    cyl("Lock", (0.175, 0.74, 0.405), 0.011, 0.008, "pump_chrome", axis="z", bevel=0.002)
+    box("LockSlot", (0.175, 0.74, 0.4095), (0.002, 0.012, 0.001), "plastic_black", bevel=0.0)
+    for sx in (-1, 1):
+        span("SideDoor%d" % sx, (sx * 0.24 - 0.0035, 0.13, 0.07), (sx * 0.24 + 0.0035, 0.835, 0.37), "pump_steel", bevel=0.002)
+        for k in range(5):
+            box("SideLouvre%d_%d" % (sx, k), (sx * 0.2445, 0.62 + k * 0.034, 0.22), (0.003, 0.012, 0.2), "pump_grey", bevel=0.0008)
+    # The meter band between the cabinet and the head.
+    span("Band", (-0.245, 0.86, 0.035), (0.245, 0.9, 0.405), "pump_grey", bevel=0.006)
+    # The electronics head: white, a green stripe down each side.
+    span("Head", (-0.25, 0.9, 0.03), (0.25, 1.55, 0.41), "pump_white", bevel=0.018)
+    for sx in (-1, 1):
+        span("SideStripe%d" % sx, (sx * 0.25 - 0.002, 0.93, 0.31), (sx * 0.25 + 0.002, 1.52, 0.36), "pump_green", bevel=0.0)
+    # The display: a dark bezel round the backlit LCD (the litres), a glass cover over both.
+    span("Bezel", (-0.19, 1.22, 0.405), (0.19, 1.48, 0.416), "pump_grey", bevel=0.006)
+    span("Lcd", (-0.165, 1.245, 0.416), (0.165, 1.455, 0.419), "pump_lcd", bevel=0.0)
+    # The grade strip under it (the game writes UNLEADED 95 on it) and its button.
+    span("Grade", (-0.15, 1.08, 0.408), (0.15, 1.16, 0.415), "pump_green", bevel=0.004)
+    cyl("GradeButton", (0.0, 1.035, 0.413), 0.016, 0.01, "pump_chrome", axis="z", bevel=0.003)
+    span("Plate", (-0.08, 0.95, 0.409), (0.08, 0.99, 0.412), "pump_grey", bevel=0.001)   # the blank rating plate
+    # The header: a lit panel in a white frame, a green stripe under it, a dark cap.
+    span("HeaderFrame", (-0.27, 1.55, 0.02), (0.27, 1.8, 0.43), "pump_white", bevel=0.012)
+    span("Header", (-0.245, 1.585, 0.43), (0.245, 1.77, 0.434), "pump_header", bevel=0.0)
+    span("HeaderStripe", (-0.271, 1.55, 0.02), (0.271, 1.575, 0.431), "pump_green", bevel=0.003)
+    span("Cap", (-0.28, 1.8, 0.01), (0.28, 1.83, 0.44), "pump_grey", bevel=0.008)
+    # The nozzle boot on the right of the head (the nozzle hangs in it, spout down) and its bracket.
+    box("BootBracket", (0.265, 1.0, 0.25), (0.03, 0.14, 0.07), "pump_grey", bevel=0.006)
+    box("Boot", (0.295, 0.99, 0.25), (0.065, 0.19, 0.095), "plastic_black", bevel=0.015)
+    box("BootLip", (0.295, 1.09, 0.25), (0.075, 0.018, 0.105), "pump_green", bevel=0.005)
+    # The hose outlet high on the right side: a swivel and its collar.
+    cyl("HoseCollar", (0.258, 1.45, 0.22), 0.03, 0.016, "pump_grey", axis="x", bevel=0.004)
+    cyl("HoseSwivel", (0.278, 1.45, 0.22), 0.018, 0.03, "pump_chrome", axis="x", bevel=0.003)
 
 
 # --- Hand tools (tool_models.gd): held, forward -z, up +y ------------------------------------------------

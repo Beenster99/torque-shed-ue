@@ -46,7 +46,7 @@ LANE_Y0, LANE_Y1 = PAD_Y1 + 60.0, PAD_Y1 + 30000.0
 
 # The buildings' footprints (outer faces), as the bike meets them: the shed's own four walls (the
 # bikes are ridden in and out through the roller door, x -230 .. 230, and about the hall: its floor is
-# ridable), the wash bay lean-to, the storage room, the dyno room and the paint shop with the mixing
+# ridable), the wash bay lean-to (open at its front: ridden into), the storage room, the dyno room and the paint shop with the mixing
 # bay. Keep in step with ue_build_shed.py's shell and rooms.
 DOOR_HALF = 230.0
 BUILDINGS = (
@@ -56,7 +56,14 @@ BUILDINGS = (
     ("Shed_WallFrontW", -680.0, -DOOR_HALF, 550.0, FRONT),
     ("Shed_WallFrontE", DOOR_HALF, 680.0, 550.0, FRONT),
     ("Shed_Workbench", -650.0, -555.0, -180.0, 300.0),
-    ("WashBay", -1190.0, -650.0, -260.0, 460.0),
+    # The wash bay lean-to is open to the yard at its front (y 440): a bike is ridden in off the pad
+    # (beenster, Nov 10: "ride the bike from the test area into the wash bay"), up the wash lift's
+    # ramp. So only its back and outer walls, the corner post and the pressure washer are in the way
+    # (its east side is the shed's west wall). Keep in step with ue_build_shed.py wash_bay().
+    ("WashBay_Back", -1190.0, -690.0, -260.0, -240.0),
+    ("WashBay_Outer", -1190.0, -1170.0, -240.0, 460.0),
+    ("WashBay_Post", -1170.0, -1150.0, 420.0, 440.0),
+    ("WashBay_Washer", -1155.0, -1105.0, -200.0, -160.0),
     ("Storage", -1530.0, -650.0, -1130.0, -250.0),
     ("Dyno", -480.0, 480.0, -1330.0, -550.0),
     ("PaintShop", 650.0, 1730.0, -550.0, 550.0),

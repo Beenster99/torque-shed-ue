@@ -1,4 +1,4 @@
-// The walker with the spray can or spray gun: Torque Shed's spray mini game (walker.gd's spray
+// The walker with the spray gun: Torque Shed's spray mini game (walker.gd's spray
 // mode, _spray_step and spray_hud.gd). The coat itself is TorqueSprayJob, the spray you see
 // TorqueSprayFx.
 #include "Shed/TorqueWalker.h"
@@ -28,7 +28,7 @@ namespace TorqueWalkerSprayImpl
 {
 using namespace TorqueSpray;
 
-bool Sprays(ETorqueTool T) { return T == ETorqueTool::Spray || T == ETorqueTool::Gun; }
+bool Sprays(ETorqueTool T) { return T == ETorqueTool::Gun; }
 
 bool OnHook(const FTorqueItem& It)
 {
@@ -838,7 +838,7 @@ FString ATorqueWalker::TestSprayPasses(int32 Passes, double Distance)
 	UTorqueBuildSubsystem* B = Shed();
 	UWorld* World = GetWorld();
 	if (!B || !World) return TEXT("no shed");
-	if (!TWSI::Sprays(Tool)) return TEXT("not holding the can or gun");
+	if (!TWSI::Sprays(Tool)) return TEXT("not holding the spray gun");
 	ReAim();
 	FindTarget();
 	MakePlan();

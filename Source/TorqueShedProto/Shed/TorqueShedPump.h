@@ -1,6 +1,6 @@
 // [fluids] The petrol pump on the shed's front wall outside (Torque Shed's shed_pump.gd and
 // shed_pump_view.gd): the red cabinet (Data/Props petrol_pump), its display showing the litres of
-// the sale going on, and the nozzle on its hose, drawn here: hung in its holster, in the hand of
+// the sale going on, a ding when the tank's full, and the nozzle on its hose, drawn here: hung in its holster, in the hand of
 // whoever's lifted it, or in a bike's filler while it's pumping. The state is the shed's
 // (UTorqueBuildSubsystem PumpHeldBy / PumpSale, the PumpNozzle and PumpFill requests), so every
 // player's game draws the same.
@@ -43,4 +43,5 @@ private:
 	double Pumping = 0.0;        // seconds since the sale last went up
 	FTransform NozzleAt;         // eased towards where it should be
 	bool bPlaced = false;
+	bool bDinged = false;        // the full-tank ding's gone for this fill
 };

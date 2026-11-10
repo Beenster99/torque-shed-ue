@@ -3,6 +3,7 @@
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorquePlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
 #include "EngineUtils.h"
@@ -22,18 +23,25 @@ FVector DoorPoint(UWorld* World)
 	return FVector(0.0, 580.0, 0.0);
 }
 // Where a bike can be ridden from or parked by its rider: the shed's hall (in through the roller
-// door) or out on the pad (Tools/shed_yard.py: the shed's walls, the pad from its front). Not the
-// rooms, the wash bay, the back yard or the dyno.
+// door), out on the pad (Tools/shed_yard.py: the shed's walls, the pad from its front), or the wash
+// bay, open to the yard at its front, and the strip of yard between it and the pad (beenster, Nov 10:
+// ridden in from the test area and washed there). Not the rooms, the rest of the back yard or the dyno.
 bool Ridable(const FVector& At)
 {
 	const bool bHall = FMath::Abs(At.X) < 630.0 && FMath::Abs(At.Y) < 530.0;
 	const bool bPad = FMath::Abs(At.X) < 29700.0 && At.Y > 620.0 && At.Y < 160280.0;
-	return bHall || bPad;
+	const bool bWashWay = At.X > -1580.0 && At.X < -690.0 && At.Y >= 440.0 && At.Y <= 620.0;
+	return bHall || bPad || TorqueShedLayout::InWashBay(At) || bWashWay;
 }
+// Got on in the wash bay (on its lift, nose to the back wall, or parked in there): wheeled round
+// first and on it on the apron at the bay's mouth, facing out to the yard, as there's no room to
+// turn a bike in there.
+const FVector YardWashMouth(-930.0, 360.0, 0.0);
 
 // Bay's bike, which PC was riding, left at Place as if wheeled there and let go (shed_state _park):
-// back in its bay if it's by its paddock stand, locked onto a lift it's over, else on its stand
-// right there. Anywhere a bike isn't kept (the back yard, against the wash bay): back in its bay.
+// back in its bay if it's by its paddock stand, locked onto a lift it's over (the wash bay's: ridden
+// in to be washed), else on its stand right there. Anywhere a bike isn't kept (the back yard round
+// the side, or onto the wash bay's lift while it's up): back in its bay.
 void Park(APlayerController* PC, int32 Bay, const FTransform& Place)
 {
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(PC);
@@ -150,10 +158,11 @@ void HostRideOut(APlayerController* PC, int32 Bay, bool bAtBike)
 	// Whose bike it is, for everyone's copy of it (they draw a ridden bike from its player's bay).
 	if (ATorquePlayerState* PS = PC->GetPlayerState<ATorquePlayerState>()) PS->Bay = Bay;
 	// Got on where the bike stands (in its bay, or parked in the hall or out on the pad): ridden from
-	// there, out of the door and back in. From the door, or a bike somewhere it can't be ridden from
-	// (the dyno, the wash bay): just out of the door, facing out, on the yard's line (and in co-op on
+	// there, out of the door and back in (from the wash bay: turned round at its mouth). From the door,
+	// or a bike somewhere it can't be ridden from (the dyno): just out of the door, facing out, on the yard's line (and in co-op on
 	// its start slot, two abreast, so riders coming out together aren't on top of each other).
-	const FTransform Stands = B->BikeTransform(Bay);
+	FTransform Stands = B->BikeTransform(Bay);
+	if (TorqueShedLayout::InWashBay(Stands.GetLocation())) Stands = FTransform(FRotator(0.0, 90.0, 0.0), YardWashMouth);
 	const bool bFromBike = bAtBike && !B->OnDyno(Bay) && Ridable(Stands.GetLocation());
 	const FTransform At = bFromBike ? FTransform(FRotator(0.0, Stands.Rotator().Yaw, 0.0), Stands.GetLocation() + FVector(0.0, 0.0, 40.0))
 		: FTransform(FRotator(0.0, 90.0, 0.0), DoorPoint(World) + FVector(0.0, 300.0, 40.0));

@@ -494,6 +494,9 @@ void ATorqueShedBike::Rebuild()
 				FrontRadius = FMath::Clamp(AxleHeight + Frame.FrontAxle.Z, 20.0, 45.0);
 			}
 			BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, AxleHeight + 1.5), FRotator(-2.0, 0.0, 0.0));
+			// The stand under its swingarm (the bike's pitched nose down a little: its back end is up).
+			const double RearX = Frame.bValid ? Frame.RearAxle.X : -70.6;
+			PoseStand(RearX, AxleHeight + 1.5 + FMath::Abs(RearX) * FMath::Sin(FMath::DegreesToRadians(2.0)));
 			FitView.Capture(Parts);
 			FitView.Show(Parts, Geo);
 			Relook();
@@ -504,6 +507,7 @@ void ATorqueShedBike::Rebuild()
 	BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 32.5), FRotator(-2.0, 0.0, 0.0));
 	FrontAxleX = 70.6;   // the Speed Twin's 1413 mm wheelbase
 	FrontRadius = 30.0;
+	PoseStand(-70.6, 32.5 + 70.6 * FMath::Sin(FMath::DegreesToRadians(2.0)));
 	const FTorqueBuild& Build = B ? B->Get(Bay) : UTorqueBuildSubsystem::BuildFor(this);
 	const int32 InBay = Bay;
 	const int32 Made = TorqueShedModel::MakePartsWhere(this, BikeRoot, Build,
@@ -548,29 +552,47 @@ void ATorqueShedBike::BuildGreyBox()
 
 void ATorqueShedBike::BuildStand()
 {
-	// A rear paddock stand: two uprights either side of the tyre with bobbin cups, a cross tube at
-	// the floor and a handle reaching back. Grey-box steel.
-	struct FTube { FVector At, Size; FRotator Rot; };
-	const double X = -66.0;   // just ahead of the rear axle, under the swingarm bobbins
-	const FTube Tubes[] = {
-		{FVector(X, -17, 14), FVector(3, 3, 28), FRotator::ZeroRotator},
-		{FVector(X, 17, 14), FVector(3, 3, 28), FRotator::ZeroRotator},
-		{FVector(X, 0, 2), FVector(3, 3, 40), FRotator(0, 0, 90)},
-		{FVector(X - 35, 0, 18), FVector(3, 3, 80), FRotator(60, 0, 0)},
-		{FVector(X, -17, 30), FVector(5, 5, 4), FRotator::ZeroRotator},
-		{FVector(X, 17, 30), FVector(5, 5, 4), FRotator::ZeroRotator},
-		{FVector(X, -17, 2), FVector(6, 6, 6), FRotator(0, 0, 90)},   // wheels
-		{FVector(X, 17, 2), FVector(6, 6, 6), FRotator(0, 0, 90)},
-	};
-	for (const FTube& T : Tubes)
+	// A rear paddock stand, as it stands holding a bike up: an upright each side of the tyre with a
+	// cup under the swingarm and a small wheel at its foot, a low arm back from each foot along the
+	// floor, and the cross tube joining them behind the tyre with a short grip turned up off it.
+	// No long handle (it's the lever that's pushed down to lift the bike, so it lies low). Painted
+	// steel; posed to the bike in PoseStand.
+	for (int32 I = 0; I < 10; ++I)
 	{
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 		C->SetStaticMesh(ShapeCylinder);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetupAttachment(Root);
-		C->SetRelativeLocationAndRotation(T.At, T.Rot);
-		C->SetRelativeScale3D(T.Size / 100.0);
 		C->RegisterComponent();
 		Stand.Add(C);
 	}
+	PoseStand(-70.6, 31.0);
+}
+
+void ATorqueShedBike::PoseStand(double RearX, double AxleZ)
+{
+	if (Stand.Num() < 10) return;
+	// The engine's cylinder: a metre tall along z and a metre across, centred.
+	auto Span = [](UStaticMeshComponent* C, const FVector& A, const FVector& B, double Diameter)
+	{
+		if (!C) return;
+		const FVector Along = B - A;
+		const double Length = FMath::Max(Along.Size(), 0.1);
+		C->SetRelativeLocationAndRotation((A + B) * 0.5, FRotationMatrix::MakeFromZ(Along / Length).Rotator());
+		C->SetRelativeScale3D(FVector(Diameter / 100.0, Diameter / 100.0, Length / 100.0));
+	};
+	const double Up = RearX + 8.0;                       // the uprights, under the swingarm's bobbins
+	const double Back = RearX - FMath::Max(AxleZ, 25.0) - 8.0;   // the cross tube, behind the tyre
+	const double Top = FMath::Clamp(AxleZ - 1.0, 18.0, 45.0);    // the cups' tops, under the swingarm
+	const double Y = 19.0, Low = 3.5;
+	int32 N = 0;
+	for (const double Side : {-1.0, 1.0})
+	{
+		Span(Stand[N++], FVector(Up, Side * Y, Low), FVector(Up, Side * Y, Top - 4.0), 3.2);                // upright
+		Span(Stand[N++], FVector(Up, Side * Y, Top - 4.0), FVector(Up, Side * Y, Top), 5.5);               // cup
+		Span(Stand[N++], FVector(Up, Side * Y, Low), FVector(Back, Side * Y, Low), 3.0);                   // arm along the floor
+		Span(Stand[N++], FVector(Up + 2.0, Side * (Y + 3.5), Low), FVector(Up + 2.0, Side * (Y + 5.5), Low), 7.0);   // wheel
+	}
+	Span(Stand[N++], FVector(Back, -Y - 1.5, Low), FVector(Back, Y + 1.5, Low), 3.2);                       // cross tube
+	Span(Stand[N++], FVector(Back, 0.0, Low), FVector(Back - 9.0, 0.0, Low + 9.0), 3.0);                    // short grip
 }

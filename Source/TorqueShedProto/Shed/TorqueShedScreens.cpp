@@ -6,6 +6,9 @@
 #include "Shed/TorqueDynoRoom.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorquePlayerState.h"
+#include "Coop/TorqueUi.h"
+#include "TorqueBikePawn.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "CanvasItem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Canvas.h"
@@ -230,7 +233,7 @@ FBay Read(const UTorqueBuildSubsystem* B, int32 Bay)
 	else if (Out.Dirt > 0.3f)
 	{
 		Out.Next = TEXT("It's filthy: wash it down in the wash bay, or scrub the parts.");
-		Out.NextTool = TEXT("6  Pressure wash");
+		Out.NextTool = TEXT("5  Pressure wash");
 	}
 	else
 	{
@@ -275,56 +278,6 @@ TArray<FCrewRow> Crew(const UWorld* World, const UTorqueBuildSubsystem* B)
 	}
 	return Out;
 }
-
-// Torque Shed's how-to-play pages (tv_channels.gd HOWTO), with this port's keys.
-struct FHowTo
-{
-	const TCHAR* Title;
-	TArray<TPair<FString, FString>> Lines;
-};
-
-const TArray<FHowTo>& HowTo()
-{
-	static TArray<FHowTo> Pages;
-	if (Pages.Num() == 0)
-	{
-		auto L = [](const TCHAR* Key, const TCHAR* What) { return TPair<FString, FString>(Key, What); };
-		Pages.Add({TEXT("The idea"), {
-			L(TEXT(""), TEXT("Strip rusty project bikes down, restore every part,")),
-			L(TEXT(""), TEXT("build them back up and ride them out of the roller door.")),
-			L(TEXT("Look"), TEXT("at anything: the panel says what it is")),
-			L(TEXT("Hold"), TEXT("the work button to do the job the panel shows")),
-			L(TEXT("Co-op"), TEXT("everyone works on the same bikes, live"))}});
-		Pages.Add({TEXT("On foot"), {
-			L(TEXT("WASD"), TEXT("walk  /  mouse: look  /  Shift: run  /  C: crouch")),
-			L(TEXT("1 - 6"), TEXT("pick a tool (Q / E or the wheel: next and last)")),
-			L(TEXT("Left mouse"), TEXT("hold to work")),
-			L(TEXT("Right mouse"), TEXT("the other job (the spray can: next colour)")),
-			L(TEXT("F"), TEXT("use the computer, unpack a box, ride out")),
-			L(TEXT("T"), TEXT("the spray can's finish  /  H: help"))}});
-		Pages.Add({TEXT("Restoring a bike"), {
-			L(TEXT("2  Wrench"), TEXT("unbolt the part, then take it off with your hands")),
-			L(TEXT("3  Brush"), TEXT("scrub off dirt, or leave it in the parts washer")),
-			L(TEXT("4  Grinder"), TEXT("rust and wear, on a repair machine")),
-			L(TEXT("5  Spray"), TEXT("paint a part: pick the colour and the finish")),
-			L(TEXT("1  Fit"), TEXT("hold the part, look at the bike, then bolt it up"))}});
-		Pages.Add({TEXT("Building something new"), {
-			L(TEXT("Order"), TEXT("parts and project bikes at the parts computer")),
-			L(TEXT("Unpack"), TEXT("deliveries come boxed: F opens one")),
-			L(TEXT("Frame"), TEXT("put one down in an empty bay to start a bike")),
-			L(TEXT("Swaps"), TEXT("a new frame, engine, tank or fork on a built bike")),
-			L(TEXT(""), TEXT("owes fabrication: the grinder at the bike makes it"))}});
-		Pages.Add({TEXT("Keep the shed tidy"), {
-			L(TEXT("General"), TEXT("the black bin takes anything, and old fluid")),
-			L(TEXT("Plastic"), TEXT("the blue bin: bottles, cases")),
-			L(TEXT("Metal"), TEXT("the green bin: frames, engines, wheels, cans")),
-			L(TEXT("Look"), TEXT("at a part: its info says which bin it goes in"))}});
-	}
-	return Pages;
-}
-
-constexpr float HowToPageTime = 9.0f;
-constexpr float CrewPageTime = 12.0f;
 
 // A screen's quad: Width x Height cm, centred on Centre, facing Facing, Right the page's +u.
 UStaticMesh* Quad(const FVector& Centre, const FVector& Facing, const FVector& Right, float Width, float Height, UMaterialInterface* Material)
@@ -388,9 +341,71 @@ UStaticMesh* Quad(const FVector& Centre, const FVector& Facing, const FVector& R
 	return Mesh;
 }
 
-// Where the level's screens are (Tools/ue_build_shed.py): each bay's glass on the back wall
-// (y -543, facing into the shed), the crew board's on the west wall (x -643).
+// Where the level's screens are (Tools/ue_build_shed.py, swaps.json): the TVs over the bays on the
+// back wall (y -550, facing into the shed; the bay_screen model's glass 9 cm out), the big one over
+// the workbench on the west wall (x -650; tv_136's glass 10 cm out). Each page fills its TV's glass
+// inside the frame (make_props.py TV_BEZEL, 1.1 cm).
 constexpr double BayScreenX[4] = {-504.0, -232.0, 232.0, 504.0};
+constexpr float TvBezel = 1.1f;
+
+// The live pictures: each camera's picture size, and how often they're taken (a TV's 10 a second).
+constexpr int32 CamW = 512;
+constexpr int32 CamH = 288;
+constexpr int32 MaxCams = 4;
+
+// A third-person camera's spot behind and above What (Eye: where it looks from, Aim: which way),
+// pulled in where a wall or a shelf is in the way.
+FVector ChaseSpot(const UWorld* World, const FVector& Eye, const FVector& Back, double Distance, double Up, const AActor* Ignore)
+{
+	FVector Want = Eye - Back * Distance + FVector(0.0, 0.0, Up);
+	FHitResult Hit;
+	FCollisionQueryParams P(SCENE_QUERY_STAT(TorqueTvCam), false, Ignore);
+	if (World && World->LineTraceSingleByChannel(Hit, Eye, Want, ECC_Camera, P))
+		Want = Eye + (Want - Eye) * FMath::Max(0.0, Hit.Time - 0.08);
+	return Want;
+}
+
+// Draws a camera's picture (its render target) into X, Y, W x H of a page.
+void Picture(UCanvas* C, UTextureRenderTarget2D* RT, float X, float Y, float W, float H)
+{
+	if (!C || !RT || !RT->GetResource()) return;
+	FCanvasTileItem T(FVector2D(X, Y), RT->GetResource(), FVector2D(W, H), FLinearColor::White);
+	T.BlendMode = SE_BLEND_Opaque;
+	C->DrawItem(T);
+}
+
+// The red LIVE tag and the time, top right, as a TV channel's bug.
+void LiveBug(UCanvas* C, float W, const FString& Label)
+{
+	const float Pad = 18.0f;
+	const float LW = (float)TorqueUi::Measure(Label, 20.0f, true).X + 26.0f;
+	TorqueUi::Rect(C, W - Pad - LW - 92.0f, Pad, LW + 92.0f, 34.0f, FLinearColor(0.0f, 0.0f, 0.0f, 0.55f));
+	TorqueUi::Rect(C, W - Pad - LW - 86.0f, Pad + 6.0f, 72.0f, 22.0f, FLinearColor(0.8f, 0.06f, 0.05f, 1.0f));
+	TorqueUi::Text(C, TEXT("LIVE"), W - Pad - LW - 50.0f, Pad + 7.0f, 17.0f, FLinearColor::White, true, TorqueUi::EAlign::Centre, false);
+	TorqueUi::Text(C, Label, W - Pad - 12.0f, Pad + 6.0f, 20.0f, TorqueUi::Ink, true, TorqueUi::EAlign::Right, false);
+}
+
+// A slim lower third over a picture: the colour stripe, a name, and a line under it.
+void LowerThird(UCanvas* C, float X, float Y, float W, float H, const FLinearColor& Colour, const FString& Name, const FString& Line, float Px)
+{
+	const float BH = Px * 2.6f;
+	TorqueUi::HGradient(C, X, Y + H - BH, W, BH, FLinearColor(0.0f, 0.0f, 0.0f, 0.78f), [](float T) { return 1.0f - 0.55f * T; });
+	TorqueUi::Rect(C, X, Y + H - BH, FMath::Max(4.0f, Px * 0.25f), BH, Colour);
+	TorqueUi::TextFit(C, Name, X + Px * 0.8f, Y + H - BH + Px * 0.2f, Px, W - Px * 1.6f, Colour, true);
+	TorqueUi::TextFit(C, Line, X + Px * 0.8f, Y + H - BH + Px * 1.35f, Px * 0.8f, W - Px * 1.6f, TorqueUi::Ink);
+}
+}
+
+const TCHAR* TorqueShedTv::Name(int32 Channel)
+{
+	switch (Channel)
+	{
+	case Players: return TEXT("Shed cam");
+	case Rider: return TEXT("Rider cam");
+	case Bikes: return TEXT("Bikes in the shed");
+	case BayPage: return TEXT("This bay's bike");
+	default: return TEXT("Off");
+	}
 }
 
 ATorqueShedScreens::ATorqueShedScreens()
@@ -398,6 +413,23 @@ ATorqueShedScreens::ATorqueShedScreens()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.TickInterval = 0.1f;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
+}
+
+USceneCaptureComponent2D* ATorqueShedScreens::MakeCam(UTextureRenderTarget2D*& OutRT)
+{
+	OutRT = UKismetRenderingLibrary::CreateRenderTarget2D(this, TSSI::CamW, TSSI::CamH, RTF_RGBA8, FLinearColor::Black);
+	if (!OutRT) return nullptr;
+	USceneCaptureComponent2D* Cam = NewObject<USceneCaptureComponent2D>(this);
+	Cam->TextureTarget = OutRT;
+	Cam->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+	Cam->bCaptureEveryFrame = false;
+	Cam->bCaptureOnMovement = false;
+	Cam->bAlwaysPersistRenderingState = true;   // Lumen and the eye's exposure carry over between pictures
+	Cam->FOVAngle = 70.0f;
+	Cam->ShowFlags.SetMotionBlur(false);
+	Cam->SetupAttachment(GetRootComponent());
+	Cam->RegisterComponent();
+	return Cam;
 }
 
 void ATorqueShedScreens::BeginPlay()
@@ -411,9 +443,10 @@ void ATorqueShedScreens::BeginPlay()
 	}
 	struct FScreen { FVector Centre, Facing, Right; float W, H; };
 	TArray<FScreen> Screens;
+	const float Inset = 2.0f * TSSI::TvBezel;
 	for (int32 I = 0; I < 4; ++I)
-		Screens.Add({FVector(TSSI::BayScreenX[I], -542.4, 245.0), FVector(0, 1, 0), FVector(1, 0, 0), 248.0f, 134.0f});
-	Screens.Add({FVector(-642.4, 60.0, 255.0), FVector(1, 0, 0), FVector(0, -1, 0), 288.0f, 156.0f});
+		Screens.Add({FVector(TSSI::BayScreenX[I], -550.0 + 9.0 + 0.3, 245.0), FVector(0, 1, 0), FVector(1, 0, 0), 260.0f - Inset, 146.25f - Inset});
+	Screens.Add({FVector(-650.0 + 10.0 + 0.3, 60.0, 255.0), FVector(1, 0, 0), FVector(0, -1, 0), 301.0f - Inset, 169.0f - Inset});
 	// The parts computer's monitor on the east wall (its glass at x 613.5, over the PARTS label).
 	Screens.Add({FVector(612.6, 190.0, 110.0), FVector(-1, 0, 0), FVector(0, 1, 0), 62.0f, 33.5f});
 	// The dyno room's big screen on its far wall (dyno_room.gd _build_screen: 3.2 m across, 2.25 m up).
@@ -426,7 +459,7 @@ void ATorqueShedScreens::BeginPlay()
 		if (RT && M)
 		{
 			M->SetTextureParameterValue(TEXT("Page"), RT);
-			// Bright enough to read in the lit shed: the bay screens and the board (0 .. 4) out in the shed.
+			// Bright enough to read in the lit shed: the wall TVs (0 .. 4) out in the shed.
 			M->SetScalarParameterValue(TEXT("Brightness"), I <= 4 ? TSSI::ShedPageBrightness : TSSI::PageBrightness);
 		}
 		UStaticMesh* Mesh = TSSI::Quad(S.Centre, S.Facing, S.Right, S.W, S.H, M);
@@ -466,51 +499,172 @@ void ATorqueShedScreens::EndPlay(const EEndPlayReason::Type Reason)
 	Super::EndPlay(Reason);
 }
 
+int32 ATorqueShedScreens::ChannelOf(int32 Tv) const
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	return B ? B->TvChannel(Tv) : (int32)TorqueShedTv::Default[FMath::Clamp(Tv, 0, TorqueShedTv::Tvs - 1)];
+}
+
+bool ATorqueShedScreens::IsLive(int32 Tv) const
+{
+	const int32 Ch = ChannelOf(Tv);
+	return Ch == TorqueShedTv::Players || Ch == TorqueShedTv::Rider;
+}
+
 void ATorqueShedScreens::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UWorld* World = GetWorld();
+	if (!World) return;
+	// [tv] A TV turned to another channel (by anyone in the shed) redraws straight away.
+	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs; ++Tv)
+		if (ShownChannel[Tv] != ChannelOf(Tv)) bDirty = true;
 	Clock -= DeltaSeconds;
-	if (bDirty || Clock <= 0.0f) Redraw();
-	else if (UWorld* World = GetWorld())
+	if (bDirty || Clock <= 0.0f)
 	{
-		// Someone here at the parts computer: its monitor follows what they pick.
-		for (TActorIterator<ATorqueWalker> It(World); It; ++It)
-			if (It->IsLocallyControlled() && It->AtComputer())
-			{
-				DrawPage(5, (float)World->GetRealTimeSeconds());
-				break;
-			}
-		// A dyno run playing: its graph grows as the sweep goes.
-		float Rpm = 0.0f, Progress = 0.0f;
-		int32 Gear = 0;
-		if (ATorqueDynoRoom::Live(this, Rpm, Gear, Progress) || bDynoWasLive)
+		Redraw();
+		return;
+	}
+	const float Now = (float)World->GetRealTimeSeconds();
+	// [tv] The live channels: their cameras move and take a picture, then the page is drawn round it,
+	// 10 times a second, but only for a TV someone can see.
+	bool bWantPlayers = false, bWantRider = false;
+	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
+	{
+		if (!Quads[Tv] || !Quads[Tv]->IsVisible() || !Quads[Tv]->WasRecentlyRendered(0.5f) || !IsLive(Tv)) continue;
+		if (ChannelOf(Tv) == TorqueShedTv::Rider) bWantRider = true;
+		bWantPlayers = true;   // (the rider cam shows the shed when no one's out)
+	}
+	if (bWantRider) UpdateRiderCam(DeltaSeconds);
+	if (bWantPlayers) UpdatePlayerCams(DeltaSeconds);
+	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs && Tv < Quads.Num(); ++Tv)
+		if (Quads[Tv] && Quads[Tv]->WasRecentlyRendered(0.5f) && IsLive(Tv)) DrawPage(Tv, Now);
+	// Someone here at the parts computer: its monitor follows what they pick.
+	for (TActorIterator<ATorqueWalker> It(World); It; ++It)
+		if (It->IsLocallyControlled() && It->AtComputer())
 		{
-			bDynoWasLive = ATorqueDynoRoom::Live(this, Rpm, Gear, Progress);
-			DrawPage(6, (float)World->GetRealTimeSeconds());
+			DrawPage(5, Now);
+			break;
 		}
+	// A dyno run playing: its graph grows as the sweep goes.
+	float Rpm = 0.0f, Progress = 0.0f;
+	int32 Gear = 0;
+	if (ATorqueDynoRoom::Live(this, Rpm, Gear, Progress) || bDynoWasLive)
+	{
+		bDynoWasLive = ATorqueDynoRoom::Live(this, Rpm, Gear, Progress);
+		DrawPage(6, Now);
 	}
 }
 
 void ATorqueShedScreens::Redraw()
 {
 	bDirty = false;
-	Clock = 1.0f;   // the crew's doings and the board's pages
+	Clock = 1.0f;   // the bikes' pages and who's on them
 	UWorld* World = GetWorld();
 	if (!World) return;
 	const float Now = (float)World->GetRealTimeSeconds();
 	for (int32 I = 0; I < Pages.Num(); ++I) DrawPage(I, Now);
 }
 
+// --- [tv] The live cameras -----------------------------------------------------------------------
+
+void ATorqueShedScreens::UpdatePlayerCams(float Dt)
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+	// Everyone in the shed, in the order they joined (the game state's list), up to MaxCams.
+	TArray<ATorqueWalker*> Walkers;
+	if (const AGameStateBase* GS = World->GetGameState())
+		for (const APlayerState* PS : GS->PlayerArray)
+			if (ATorqueWalker* Wk = PS ? Cast<ATorqueWalker>(PS->GetPawn()) : nullptr)
+				if (Walkers.Num() < TSSI::MaxCams) Walkers.Add(Wk);
+	if (Walkers.Num() == 0)
+		for (TActorIterator<ATorqueWalker> It(World); It && Walkers.Num() < TSSI::MaxCams; ++It) Walkers.Add(*It);
+	while (PlayerCams.Num() < Walkers.Num())
+	{
+		UTextureRenderTarget2D* RT = nullptr;
+		USceneCaptureComponent2D* Cam = MakeCam(RT);
+		if (!Cam) return;
+		PlayerCams.Add(Cam);
+		PlayerCamRTs.Add(RT);
+		PlayerCamAt.Add(FVector::ZeroVector);
+	}
+	FilmedWalkers.Reset();
+	for (int32 I = 0; I < Walkers.Num(); ++I)
+	{
+		ATorqueWalker* Wk = Walkers[I];
+		FilmedWalkers.Add(Wk);
+		// Over their shoulder and a little above: their hands, and what they're looking at.
+		const FVector Eye = Wk->GetPawnViewLocation();
+		const FRotator Aim = Wk->GetBaseAimRotation();
+		const FVector Flat = FRotator(0.0, Aim.Yaw, 0.0).Vector();
+		const FVector Side = FRotationMatrix(FRotator(0.0, Aim.Yaw, 0.0)).GetScaledAxis(EAxis::Y);
+		const FVector From = Eye + Side * 30.0;
+		const FVector Want = TSSI::ChaseSpot(World, From, Flat, 140.0, 40.0, Wk);
+		FVector& At = PlayerCamAt[I];
+		At = At.IsZero() ? Want : FMath::VInterpTo(At, Want, Dt, 6.0f);
+		const FVector LookAt = Eye + Aim.Vector() * 120.0 - FVector(0.0, 0.0, 25.0);
+		PlayerCams[I]->SetWorldLocationAndRotation(At, (LookAt - At).Rotation());
+		PlayerCams[I]->CaptureScene();
+	}
+}
+
+void ATorqueShedScreens::UpdateRiderCam(float Dt)
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+	// Riders out on their bikes in this world that aren't this player: a different one every 20 s.
+	TArray<ATorqueBikePawn*> Riders;
+	for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+		if (!It->IsLocallyControlled() && It->GetPlayerState()) Riders.Add(*It);
+	if (Riders.Num() == 0)
+	{
+		Filmed = nullptr;
+		return;
+	}
+	RiderSwap -= Dt;
+	ATorqueBikePawn* Pick = Filmed.Get();
+	if (!Pick || !Riders.Contains(Pick) || (RiderSwap <= 0.0f && Riders.Num() > 1))
+	{
+		const int32 Was = Pick ? Riders.IndexOfByKey(Pick) : INDEX_NONE;
+		Pick = Riders[(Was + 1) % Riders.Num()];
+		RiderSwap = 20.0f;
+		RiderCamAt = FVector::ZeroVector;
+	}
+	Filmed = Pick;
+	if (!RiderCam)
+	{
+		RiderCam = MakeCam(RiderCamRT);
+		if (!RiderCam) return;
+		RiderCam->FOVAngle = 62.0f;
+	}
+	// A chase camera: behind the bike the way it's going, up over the rider's head, looking a
+	// little ahead of it, as a TV bike race's.
+	const FVector Body = Pick->GetActorLocation() + FVector(0.0, 0.0, 90.0);
+	const FVector Vel = Pick->GetVelocity();
+	FVector Fwd = Vel.Size2D() > 300.0 ? FVector(Vel.X, Vel.Y, 0.0).GetSafeNormal() : FRotator(0.0, Pick->GetActorRotation().Yaw, 0.0).Vector();
+	RiderFwd = RiderFwd.IsNearlyZero() ? Fwd : FMath::VInterpNormalRotationTo(RiderFwd, Fwd, Dt, 120.0f);
+	const FVector Want = TSSI::ChaseSpot(World, Body, RiderFwd, 450.0, 110.0, Pick);
+	RiderCamAt = RiderCamAt.IsZero() ? Want : FMath::VInterpTo(RiderCamAt, Want, Dt, 5.0f);
+	const FVector LookAt = Body + RiderFwd * 250.0 - FVector(0.0, 0.0, 30.0);
+	RiderCam->SetWorldLocationAndRotation(RiderCamAt, (LookAt - RiderCamAt).Rotation());
+	RiderCam->CaptureScene();
+}
+
+// --- The pages -----------------------------------------------------------------------------------
+
 void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 {
 	UTextureRenderTarget2D* RT = Pages.IsValidIndex(Index) ? Pages[Index] : nullptr;
 	if (!RT) return;
-	if (Index < 4)
+	const int32 Channel = Index < TorqueShedTv::Tvs ? ChannelOf(Index) : -1;
+	if (Index < TorqueShedTv::Tvs) ShownChannel[Index] = Channel;
+	if (Channel == TorqueShedTv::BayPage)
 	{
-		// A bay's screen is on while there's a bike in the bay (wherever it's been wheeled), and goes
-		// blank, off, when it's scrapped or stripped to nothing.
+		// The bay's own page is on while its bike stands in the bay, and goes blank, off, when it's
+		// wheeled away (to the dyno, the wash bay...), scrapped or stripped to nothing.
 		const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-		const bool bOn = B && B->Exists(Index);
+		const bool bOn = B && B->Exists(Index) && !B->IsAway(Index) && B->Bike(Index).Pusher == 0;
 		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(bOn);
 		if (!bOn)
 		{
@@ -518,27 +672,163 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 			return;
 		}
 	}
-	UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, TSSI::Bg());
+	else if (Index < TorqueShedTv::Tvs && Quads.IsValidIndex(Index) && Quads[Index])
+	{
+		Quads[Index]->SetVisibility(true);
+	}
+	UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, Channel == TorqueShedTv::Players || Channel == TorqueShedTv::Rider ? FLinearColor::Black : TSSI::Bg());
 	UCanvas* C = nullptr;
 	FVector2D Size;
 	FDrawToRenderTargetContext Context;
 	UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, RT, C, Size, Context);
 	if (C)
 	{
-		if (Index < 4) DrawBay(C, Index);
-		else if (Index == 5) DrawComputer(C, Now);
+		if (Index == 5) DrawComputer(C, Now);
 		else if (Index == 6) DrawDyno(C);
-		else
-		{
-			// The crew board: the crew, then each how-to page in turn.
-			const int32 N = TSSI::HowTo().Num();
-			const float Cycle = TSSI::CrewPageTime + N * TSSI::HowToPageTime;
-			const float T = FMath::Fmod(Now, Cycle);
-			if (T < TSSI::CrewPageTime) DrawCrew(C);
-			else DrawHowTo(C, FMath::Clamp(int32((T - TSSI::CrewPageTime) / TSSI::HowToPageTime), 0, N - 1));
-		}
+		else if (Channel == TorqueShedTv::BayPage) DrawBay(C, Index);
+		else if (Channel == TorqueShedTv::Bikes) DrawBikes(C);
+		else if (Channel == TorqueShedTv::Rider) DrawRider(C, Now);
+		else DrawPlayers(C, FString());
 	}
 	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
+}
+
+void ATorqueShedScreens::DrawPlayers(UCanvas* C, const FString& Note) const
+{
+	using namespace TSSI;
+	const float W = (float)PageW, H = (float)PageH;
+	const TArray<FCrewRow> Rows = Crew(GetWorld(), UTorqueBuildSubsystem::Of(this));
+	const int32 N = FMath::Min(FilmedWalkers.Num(), PlayerCamRTs.Num());
+	if (N == 0)
+	{
+		TorqueUi::Text(C, TEXT("SHED CAM"), W * 0.5f, H * 0.5f - 24.0f, 40.0f, TorqueUi::Dim, true, TorqueUi::EAlign::Centre);
+		return;
+	}
+	// One picture fills the TV; two side by side; three or four in a 2 x 2 grid.
+	const int32 Cols = N == 1 ? 1 : 2;
+	const int32 RowsN = N <= 2 ? 1 : 2;
+	const float Gap = N == 1 ? 0.0f : 6.0f;
+	const float TW = (W - Gap * (Cols - 1)) / Cols;
+	const float TH = N == 2 ? TW * 9.0f / 16.0f : (H - Gap * (RowsN - 1)) / RowsN;
+	const float Top = N == 2 ? (H - TH) * 0.5f : 0.0f;
+	for (int32 I = 0; I < N; ++I)
+	{
+		const float X = (I % Cols) * (TW + Gap);
+		const float Y = Top + (I / Cols) * (TH + Gap);
+		Picture(C, PlayerCamRTs[I], X, Y, TW, TH);
+		// Who it is and what they're doing, from the crew list (matched by their player state).
+		const ATorqueWalker* Wk = FilmedWalkers[I].Get();
+		FCrewRow Row;
+		Row.Name = TEXT("In the shed");
+		if (const APlayerState* PS = Wk ? Wk->GetPlayerState() : nullptr)
+			for (const FCrewRow& R : Rows)
+				if (R.Name == PS->GetPlayerName()) Row = R;
+		const FString Line = Row.Doing.IsEmpty() ? FString(TEXT("in the shed")) : Row.Doing;
+		LowerThird(C, X, Y, TW, TH, Row.Colour, Row.Name + (Row.bMe ? TEXT("  (you)") : TEXT("")), Line, N == 1 ? 30.0f : 21.0f);
+	}
+	LiveBug(C, W, Note.IsEmpty() ? FString(TEXT("SHED CAM")) : Note);
+}
+
+void ATorqueShedScreens::DrawRider(UCanvas* C, float Now) const
+{
+	using namespace TSSI;
+	const float W = (float)PageW, H = (float)PageH;
+	const ATorqueBikePawn* Pick = Filmed.Get();
+	if (!Pick || !RiderCamRT)
+	{
+		// No one out on the road: the shed's own cameras, with the rider cam's bug saying so.
+		DrawPlayers(C, TEXT("NO ONE OUT RIDING"));
+		return;
+	}
+	Picture(C, RiderCamRT, 0.0f, 0.0f, W, H);
+	const APlayerState* PS = Pick->GetPlayerState();
+	FLinearColor Colour = TorqueUi::Accent;
+	if (const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS))
+	{
+		const FColor Cv = TPS->ColourValue();
+		if (Cv.R + Cv.G + Cv.B >= 200) Colour = FLinearColor(Cv);
+	}
+	const float Mph = (float)Pick->GetVelocity().Size() * 0.0223694f;   // cm/s to mph
+	LowerThird(C, 24.0f, 0.0f, 520.0f, H - 24.0f, Colour, PS ? PS->GetPlayerName() : FString(TEXT("Rider")),
+		FString::Printf(TEXT("%.0f mph"), Mph), 30.0f);
+	LiveBug(C, W, TEXT("RIDER CAM"));
+}
+
+void ATorqueShedScreens::DrawBikes(UCanvas* C) const
+{
+	using namespace TSSI;
+	const float W = (float)PageW, H = (float)PageH;
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	const TArray<FCrewRow> Rows = Crew(GetWorld(), B);
+	int32 Count = 0;
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+		if (B && B->Exists(Bay)) ++Count;
+	// The title: the shed's bikes, and how many are ready to ride.
+	int32 Ready = 0;
+	TArray<FBay> All;
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+	{
+		All.Add(Read(B, Bay));
+		if (All.Last().bExists && All.Last().Status == TEXT("READY TO RIDE")) ++Ready;
+	}
+	TorqueUi::Rect(C, 0.0f, 0.0f, W, 64.0f, FLinearColor(0.0f, 0.0f, 0.0f, 0.35f));
+	TorqueUi::Rect(C, 0.0f, 62.0f, W, 2.0f, TorqueUi::Accent);
+	TorqueUi::Text(C, TEXT("BIKES IN THE SHED"), 24.0f, 14.0f, 32.0f, TorqueUi::Ink, true);
+	TorqueUi::Text(C, FString::Printf(TEXT("%d of %d bays   -   %d ready to ride"), Count, UTorqueBuildSubsystem::Bays, Ready), W - 24.0f, 22.0f, 22.0f, TorqueUi::Dim, false, TorqueUi::EAlign::Right);
+	// A card per bay, 2 x 2.
+	const float Pad = 16.0f, CW = (W - 3.0f * Pad) * 0.5f, CH = (H - 64.0f - 3.0f * Pad) * 0.5f;
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+	{
+		const FBay& D = All[Bay];
+		const float X = Pad + (Bay % 2) * (CW + Pad);
+		const float Y = 64.0f + Pad + (Bay / 2) * (CH + Pad);
+		TorqueUi::Rect(C, X, Y, CW, CH, FLinearColor(1.0f, 1.0f, 1.0f, 0.05f));
+		TorqueUi::Rect(C, X, Y, 5.0f, CH, D.bExists ? D.StatusColour : TorqueUi::Faint);
+		TorqueUi::Text(C, FString::Printf(TEXT("BAY %d"), Bay + 1), X + 20.0f, Y + 12.0f, 17.0f, TorqueUi::Dim, true);
+		if (!D.bExists)
+		{
+			TorqueUi::Text(C, TEXT("Empty"), X + 20.0f, Y + 44.0f, 30.0f, TorqueUi::Faint, true);
+			continue;
+		}
+		TorqueUi::TextFit(C, D.Name, X + 92.0f, Y + 8.0f, 24.0f, CW - 112.0f, TorqueUi::Ink, true);
+		// How it stands, and where it is if it's out of its bay.
+		FString Where;
+		if (B->Bike(Bay).Pusher != 0) Where = TEXT("  -  being wheeled");
+		else if (B->OnDyno(Bay)) Where = TEXT("  -  on the dyno");
+		else if (B->IsAway(Bay)) Where = TEXT("  -  out of its bay");
+		TorqueUi::Text(C, D.Status + Where, X + 20.0f, Y + 46.0f, 20.0f, D.StatusColour, true);
+		// The build, then condition and muck, as bars.
+		auto BarRow = [C, X, CW](float RowY, const FString& Label, float Frac, const FString& Value, const FLinearColor& Fill)
+		{
+			TorqueUi::Text(C, Label, X + 20.0f, RowY - 3.0f, 17.0f, TorqueUi::Dim);
+			const float BX = X + 130.0f, BW = CW - 130.0f - 84.0f;
+			TorqueUi::Rect(C, BX, RowY + 3.0f, BW, 10.0f, FLinearColor(1.0f, 1.0f, 1.0f, 0.1f));
+			TorqueUi::Rect(C, BX, RowY + 3.0f, BW * FMath::Clamp(Frac, 0.0f, 1.0f), 10.0f, Fill);
+			TorqueUi::Text(C, Value, X + CW - 20.0f, RowY - 3.0f, 17.0f, TorqueUi::Ink, true, TorqueUi::EAlign::Right);
+		};
+		float RY = Y + 84.0f;
+		BarRow(RY, TEXT("Build"), D.Progress, FString::Printf(TEXT("%.0f%%"), D.Progress * 100.0f), D.StatusColour);
+		RY += 26.0f;
+		BarRow(RY, TEXT("Condition"), D.Health, FString::Printf(TEXT("%.0f%%"), D.Health * 100.0f), D.Health >= 0.95f ? Good() : FMath::Lerp(Bad(), Good(), D.Health));
+		RY += 26.0f;
+		const float Muck = FMath::Max(D.Rust, D.Dirt);
+		BarRow(RY, D.Rust >= D.Dirt ? TEXT("Rust") : TEXT("Dirt"), Muck, FString::Printf(TEXT("%.0f%%"), Muck * 100.0f), Srgb(0.75f, 0.45f, 0.2f));
+		// The paint, and who's on it now.
+		float PX = X + 20.0f;
+		const float PY = Y + CH - 32.0f;
+		if (D.bHasTankPaint) { TorqueUi::Rect(C, PX, PY, 22.0f, 18.0f, FLinearColor(D.TankPaint.R, D.TankPaint.G, D.TankPaint.B, 1.0f)); PX += 28.0f; }
+		if (D.bHasFramePaint) { TorqueUi::Rect(C, PX, PY, 22.0f, 18.0f, FLinearColor(D.FramePaint.R, D.FramePaint.G, D.FramePaint.B, 1.0f)); PX += 28.0f; }
+		const FString Tag = FString::Printf(TEXT("bay %d"), Bay + 1);
+		FString On;
+		FLinearColor OnColour = TorqueUi::Ink;
+		for (const FCrewRow& R : Rows)
+			if (R.WorkingBay == Bay || R.Doing.Contains(Tag))
+			{
+				On = On.IsEmpty() ? R.Name : On + TEXT(", ") + R.Name;
+				OnColour = R.Colour;
+			}
+		if (!On.IsEmpty()) TorqueUi::TextFit(C, TEXT("On it: ") + On, X + CW - 20.0f, PY - 2.0f, 17.0f, CW - (PX - X) - 30.0f, OnColour, true, TorqueUi::EAlign::Right);
+	}
 }
 
 void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
@@ -559,10 +849,6 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	if (!D.bExists)
 	{
 		Pen.Text(24, 50, TEXT("EMPTY BAY"), 40, Ink());
-		Pen.Text(24, 160, TEXT("Order a project bike at the parts computer,"), 28, Dim());
-		Pen.Text(24, 200, TEXT("or put a frame down here to start one."), 28, Dim());
-		Pen.Text(24, 270, TEXT("Then fit an engine, wheels, forks and the rest,"), 22, Dim());
-		Pen.Text(24, 302, TEXT("bolt everything up and ride it out of the door."), 22, Dim());
 		return;
 	}
 	Pen.Text(24, 50, Left(D.Name.ToUpper(), 26), 40, Ink());
@@ -671,18 +957,6 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 		}
 		Y += 30.0f;
 	}
-	// What to do next, and with which tool.
-	Y += 8.0f;
-	Pen.Rect(16, Y - 22, 512, 4, Panel());
-	Pen.Text(24, Y + 4, TEXT("NEXT"), 16, Amber());
-	Pen.Text(90, Y + 4, D.NextTool, 16, FLinearColor::White, 430.0f, 1);
-	Y += 30.0f;
-	for (const FString& L : Wrap(D.Next, 44))
-	{
-		if (Y > H - 124.0f) break;
-		Pen.Text(24, Y, L, 19, Amber());
-		Y += 25.0f;
-	}
 	// Who's on it now (the crew's doings naming this bay).
 	const FString Tag = FString::Printf(TEXT("bay %d"), Bay + 1);
 	TArray<TSSI::FCrewRow> On;
@@ -753,90 +1027,6 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 	}
 	if (D.Parts.Num() > 2 * RowsPerCol)
 		Pen.Text(560, H - 12, FString::Printf(TEXT("and %d more"), D.Parts.Num() - 2 * RowsPerCol), 12, Dim());
-}
-
-void ATorqueShedScreens::DrawCrew(UCanvas* C) const
-{
-	using namespace TSSI;
-	FPen Pen;
-	Pen.C = C;
-	Pen.Font = GEngine ? GEngine->GetLargeFont() : nullptr;
-	if (!Pen.Font) return;
-	float FW = 0.0f, FH = 0.0f;
-	C->StrLen(Pen.Font, TEXT("Hg"), FW, FH);
-	Pen.LineH = FH;
-	const float W = (float)PageW, H = (float)PageH;
-	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-	Pen.Rect(0, 0, W, 70, Orange());
-	Pen.Text(24, 50, TEXT("CREW BOARD"), 40, Ink());
-	const TArray<FCrewRow> Rows = Crew(GetWorld(), B);
-	Pen.Text(560, 56, Rows.Num() == 1 ? FString(TEXT("1 IN THE SHED")) : FString::Printf(TEXT("%d IN THE SHED"), Rows.Num()), 24, Ink(), W - 584.0f, 1);
-	// Left: everyone, in their colour, and what they're doing.
-	float Y = 116.0f;
-	for (int32 I = 0; I < Rows.Num() && I < 8; ++I)
-	{
-		const FCrewRow& R = Rows[I];
-		Pen.Rect(16, Y - 30, 500, 50, Panel());
-		Pen.Rect(16, Y - 30, 6, 50, R.Colour);
-		Pen.Text(34, Y - 4, R.Name + (R.bMe ? TEXT("  (you)") : TEXT("")), 24, R.Colour);
-		Pen.Text(34, Y + 16, R.Doing.IsEmpty() ? FString(TEXT("in the shed")) : Left(R.Doing, 50), 16, R.Doing.IsEmpty() ? Dim() : FLinearColor::White);
-		Y += 58.0f;
-	}
-	// Right: each bay's bike, how far along and how it stands.
-	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
-	{
-		const FBay D = Read(B, Bay);
-		const float BY = 90.0f + Bay * 112.0f;
-		Pen.Rect(548, BY, W - 572.0f, 100, Panel());
-		Pen.Text(564, BY + 28, FString::Printf(TEXT("BAY %d"), Bay + 1), 16, Dim());
-		if (!D.bExists)
-		{
-			Pen.Text(564, BY + 62, TEXT("Empty"), 24, Dim());
-			continue;
-		}
-		Pen.Text(640, BY + 30, Left(D.Name, 24), 22, FLinearColor::White);
-		Pen.Text(564, BY + 62, D.Status, 18, D.StatusColour);
-		Pen.Text(564, BY + 62, FString::Printf(TEXT("%.0f%%"), D.Progress * 100.0f), 18, FLinearColor::White, W - 604.0f, 1);
-		Pen.Bar(564, BY + 74, W - 604.0f, 12, D.Progress, D.StatusColour);
-	}
-	Pen.Text(24, H - 20, TEXT("Next: how to play"), 14, Dim());
-}
-
-void ATorqueShedScreens::DrawHowTo(UCanvas* C, int32 Page) const
-{
-	using namespace TSSI;
-	FPen Pen;
-	Pen.C = C;
-	Pen.Font = GEngine ? GEngine->GetLargeFont() : nullptr;
-	const TArray<FHowTo>& All = HowTo();
-	if (!Pen.Font || !All.IsValidIndex(Page)) return;
-	float FW = 0.0f, FH = 0.0f;
-	C->StrLen(Pen.Font, TEXT("Hg"), FW, FH);
-	Pen.LineH = FH;
-	const float W = (float)PageW, H = (float)PageH;
-	const FHowTo& P = All[Page];
-	Pen.Rect(0, 0, W, 70, Orange());
-	Pen.Text(24, 50, TEXT("HOW TO PLAY"), 40, Ink());
-	Pen.Text(560, 56, FString::Printf(TEXT("%d / %d"), Page + 1, All.Num()), 24, Ink(), W - 584.0f, 1);
-	Pen.Text(24, 130, P.Title, 34, Amber());
-	float Y = 196.0f;
-	for (const TPair<FString, FString>& L : P.Lines)
-	{
-		if (L.Key.IsEmpty())
-		{
-			Pen.Text(24, Y, L.Value, 24, FLinearColor::White);
-		}
-		else
-		{
-			Pen.Rect(16, Y - 28, 220, 40, Panel());
-			Pen.Text(28, Y, L.Key, 22, Amber());
-			Pen.Text(256, Y, L.Value, 24, FLinearColor::White);
-		}
-		Y += 56.0f;
-	}
-	// A dot for each page, the one showing lit.
-	for (int32 I = 0; I < All.Num(); ++I)
-		Pen.Rect(W * 0.5f - All.Num() * 12.0f + I * 24.0f, H - 28, 12, 12, I == Page ? Amber() : Dim());
 }
 
 void ATorqueShedScreens::DrawComputer(UCanvas* C, float Now) const

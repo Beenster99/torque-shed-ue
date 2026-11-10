@@ -103,6 +103,8 @@ void ATorqueHUD::DrawHUD()
 	// The wash game's readout (wash_hud.gd), the same way.   [wash]
 	const bool bWashCard = Walker && Walker->WashHudUp();
 	if (bWashCard) Walker->DrawWash(this, Canvas);
+	// The tyre fitting game's ring (hud.gd _draw_tyre_game), over the middle of the view.   [tyre]
+	if (Walker && Walker->TyreHudUp()) Walker->DrawTyre(this, Canvas);
 	const TArray<FHudLine>& Lines = Bike ? Bike->GetHudLines() : Walker->GetHudLines();
 	if (Walker && !Walker->SprayControlsUp() && !bWashCard) DrawLookPanel(Lines, S);   // [shed] hud.gd's panel at the side and the message across the top
 	for (const FHudLine& L : Lines)
@@ -114,7 +116,7 @@ void ATorqueHUD::DrawHUD()
 		const float W = (float)TorqueUi::Measure(L.Text, Px, bBig).X, H = Px * 1.2f;
 		TorqueUi::Rect(Canvas, X - 12.0f * S, Y - 5.0f * S, W + 24.0f * S, H + 10.0f * S, FLinearColor(0.035f, 0.04f, 0.045f, 0.62f));
 		TorqueUi::Text(Canvas, L.Text, X, Y, Px, FLinearColor(L.Colour), bBig);
-		Y += H + 14.0f * S;
+		Y += H + (L.Size < 0.8f ? 7.0f : 14.0f) * S;   // the small help lines sit closer together
 	}
 }
 
@@ -304,7 +306,7 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 	const FLinearColor Dot = Walker->HasTarget() ? Accent : FLinearColor(1, 1, 1, 0.8f);
 	DrawRect(Dot, CX - 0.5f * D, CY - 0.5f * D, D, D);
 	// The work ring: how far through the job you are, from the top round clockwise.
-	const float Done = Walker->WorkFraction();
+	const float Done = Walker->PumpFilling() ? 0.0f : Walker->WorkFraction();   // [fluids] no ring pumping petrol
 	if (Done > 0.0f)
 	{
 		const float R = 18.0f * S, Width = 5.0f * S;
@@ -324,7 +326,8 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 	}
 
 	// The tool bar along the bottom: a numbered box for each tool, the one in hand lit (_draw_toolbar).
-	static const TCHAR* Names[] = {TEXT("Hands"), TEXT("Wrench"), TEXT("Brush"), TEXT("Grinder"), TEXT("Spray can"), TEXT("Pressure wash"), TEXT("Spray gun")};
+	static const TCHAR* Names[] = {TEXT("Hands"), TEXT("Wrench"), TEXT("Brush"), TEXT("Grinder"), TEXT("Pressure wash"), TEXT("Spray gun")};
+	static_assert(UE_ARRAY_COUNT(Names) == TorqueToolBarCount, "a name for each tool on the bar (TorqueToolBar)");
 	const int32 N = UE_ARRAY_COUNT(Names);
 	const float Gap = 8.0f * S;
 	const float BW = FMath::Min(120.0f * S, (Canvas->ClipX - 40.0f * S) / N - Gap), BH = 46.0f * S;
@@ -332,7 +335,7 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 	const float BarY = Canvas->ClipY - 70.0f * S;
 	for (int32 I = 0; I < N; ++I)
 	{
-		const bool bOn = I == Walker->ToolIndex();
+		const bool bOn = I == Walker->ToolSlot();
 		const float BX = X0 + I * (BW + Gap);
 		DrawRect(FLinearColor(0.05f, 0.06f, 0.08f, bOn ? 0.75f : 0.45f), BX, BarY, BW, BH);
 		if (bOn) Frame(BX, BarY, BW, BH, Accent, 2.0f * S);
@@ -342,8 +345,8 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 		Text(Label, BX + 0.5f * (BW - L.X), BarY + BH - L.Y - 5.0f * S, Px(16.0f), bOn ? FLinearColor::White : FLinearColor(1, 1, 1, 0.65f));
 	}
 
-	// The spray can's or gun's colours and loads above the bar while it's in your hand (_draw_spray_picker).
-	const bool bSprayTool = Walker->ToolIndex() == 4 || Walker->ToolIndex() == 6;
+	// The spray gun's colours and loads above the bar while it's in your hand (_draw_spray_picker).
+	const bool bSprayTool = Walker->ToolIndex() == (int32)ETorqueTool::Gun;
 	if (bSprayTool)
 	{
 		const TArray<FLinearColor>& Paints = UTorqueBuildSubsystem::Paints();
@@ -353,7 +356,7 @@ void ATorqueHUD::DrawWalkerCues(const ATorqueWalker* Walker, float S)
 		const float PY = BarY - 120.0f * S;
 		DrawRect(FLinearColor(0.05f, 0.06f, 0.08f, 0.7f), PX0 - 14.0f * S, PY - 32.0f * S, Total + 28.0f * S, 140.0f * S);
 		const int32 Pick = Walker->SprayColourIndex();
-		FString Heading = Walker->ToolIndex() == 6 ? FString(TEXT("SPRAY GUN  -  ")) : FString(TEXT("SPRAY CAN  -  "));
+		FString Heading = TEXT("SPRAY GUN  -  ");
 		if (Walker->SprayIsPaint()) Heading += UTorqueBuildSubsystem::PaintName(Pick).ToUpper() + TEXT("  ");
 		Heading += Walker->SprayFinishText().ToUpper();
 		Text(Heading, PX0, PY - 28.0f * S, Px(15.0f), Accent);

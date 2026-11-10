@@ -35,7 +35,14 @@ struct RideSpecInput
 	TuneMap Tune;
 	double ChainSlack = ChainSlackStock;
 	std::vector<std::string> Lightened;
+	// How well each tyre's bead was seated on the tyre changer (0..1; 1 as it came): below BeadOk it
+	// grips less (BikeBuild.bead_grip).
+	double BeadFront = 1.0, BeadRear = 1.0;
 };
+
+// BikeBuild.BEAD_OK and bead_grip: a sloppy job on the tyre changer costs up to 8% grip.
+constexpr double BeadOk = 0.6;
+double BeadGrip(double Bead);
 
 // BikeBuild.part_health.
 double PartHealth(double Wear, double Rust, double Dirt);

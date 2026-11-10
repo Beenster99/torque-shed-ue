@@ -28,10 +28,12 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "UnrealClient.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 
 namespace TorqueShedTestImpl
 {
-// Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the spray can, the
+// Torque Shed's loop on bay 1's bike, end to end: every tool, the repair bench, the
 // wash bay, the workbench, the parts computer, a delivery, fitting and bolting, riding out and back.
 const TCHAR* const LoopSteps =
 	TEXT("bay:1,restyle:cafe,log,look:bike,shot,look:screen,shot,look:board,shot,look:bench,shot,look:computer,shot,look:monitor,shot,")
@@ -40,7 +42,6 @@ const TCHAR* const LoopSteps =
 	TEXT("tool:hands,part:exhaust,act,")                     // take it off: in your hands
 	TEXT("place:repair_0,act,")                              // onto the repair bench
 	TEXT("tool:repair,item:exhaust,act,")                    // grind off the rust
-	TEXT("tool:spray,spray:7:matte,item:exhaust,act,shot,")  // matte teal
 	TEXT("tool:hands,item:exhaust,act,")                     // pick it up
 	TEXT("floor:-900:100,act,")                              // down in the wash bay
 	TEXT("tool:lance,item:exhaust,hold:3,")                  // pressure wash it
@@ -96,7 +97,7 @@ const TCHAR* const BoothSteps =
 	TEXT("paint:hook:1:185,wait:2,look:hook:1,shot,paint:hook:1:138,wait:2,look:hook:1,shot,")
 	TEXT("tool:hands,item:exhaust,act,part:tank,act,tool:wrench,part:exhaust,act,")
 	TEXT("tool:gun,spray:3:gloss,part:exhaust,act,")
-	TEXT("tool:spray,spray:1:gloss,part:exhaust,act,look:bike,shot,log");
+	TEXT("look:bike,shot,log");
 
 // The spray mini game (TorqueSprayJob, TorqueWalkerSpray.cpp) on the exhaust hung in the booth: the
 // gun's primer put on in passes all round, then red: one pass (thin, wet, with the scan on it), the
@@ -110,6 +111,18 @@ const TCHAR* const SprayGameSteps =
 	TEXT("item:exhaust,spraypass:12:80,item:exhaust,shot,wait:3,item:exhaust,shot,")
 	TEXT("spray:0:clear,item:exhaust,spraypass:1:170,item:exhaust,shot,item:exhaust,spraypass:3:35,item:exhaust,shot,")
 	TEXT("item:exhaust,spraypass:12:80,wait:3,item:exhaust,shot,log");
+
+// The tyre fitting game (TorqueTyreGame, TorqueWalkerTyre.cpp) on the tyre changer: a new 19" wire
+// wheel ordered, unpacked and clamped on the changer; a 160 mm tyre refused (too wide for the rim)
+// and put down; a 100 mm one worked on a little behind the marker (bead seated well), levered off
+// again and worked on right on the marker (perfectly); then off once more and the work button just
+// held with the lever left where it starts (badly seated).   [tyre]
+const TCHAR* const TyreGameSteps =
+	TEXT("tool:hands,order:wire_19_chrome,item:wire_19_chrome,f,item:wire_19_chrome,act,place:changer,act,look:changer,shot,")
+	TEXT("order:touring_road,item:touring_road,f,item:touring_road,act,place:changer,tyregame:1,place:bench_0,act,")
+	TEXT("order:vintage_ribbed_100,item:vintage_ribbed_100,f,item:vintage_ribbed_100,act,place:changer,tyregame:0.7,tyrelog,look:changer,shot,")
+	TEXT("item:wire_19_chrome,act,place:changer,tyregame:1,tyrelog,")
+	TEXT("item:wire_19_chrome,act,place:changer,hold:7,tyrelog,look:changer,shot,log");
 
 // The Esc menu and your profile (the pages are put up for the shots: key presses don't reach a
 // test run): the pause menu, the Profile page with the jaw and chin moved and the figure taller, then
@@ -228,11 +241,35 @@ const TCHAR* const FluidSteps =
 	TEXT("fluid:set:lube:0.3,fluid:carry:chain_lube,crouch:1,part:chain,act,crouch:0,fluid:log,fluid:drop,")
 	TEXT("fluid:set:petrol:0.2,fluid:set:oil:0.5,look:screen,shot,fluid:log");
 
+// [washride] Ridden from the yard into the wash bay (beenster, Nov 10): out of the door onto the pad,
+// put by the test area's west end, then at the wash bay's mouth facing in, on its lift's ramp and on
+// its platform (each logs the ground under the wheels: the lift's parts while it's down), off the bike
+// (parked onto the wash lift), washed there with the lance, back on (turned round at the bay's mouth)
+// and walked back in.
+const TCHAR* const WashRideSteps =
+	TEXT("yard,wait:3,ridepos,ridepos:3000:6000:180,wait:1,ridepos:-930:700:-90,wait:1,shot,ridepos:-930:420:-90,wait:1,ridepos,")
+	TEXT("ridepos:-930:255:-90,wait:1,ridepos,ridepos:-930:120:-90,wait:2,ridepos,shot,foot:off,wait:2,log,look:washbay,shot,")
+	TEXT("tool:lance,part:tank,hold:3,washstate,tool:hands,part:tank,f,wait:3,ridepos,shot,walkin,wait:2,log");
+
 const TCHAR* const KitSteps =
 	TEXT("furn:log,look:testarea,shot,look:dropoff,shot,furn:look:cone,furn:grab,furn:turn:15,furn:turn:-30,furn:walk:20500:6200,furn:drop,")
 	TEXT("furn:look:cone,shot,furn:order:ramp_medium,look:dropoff,shot,furn:look:ramp_medium,furn:grab,furn:walk:21000:9500,furn:drop,")
 	TEXT("furn:order:seat_stool,look:kitdrop,shot,furn:look:seat_stool,furn:grab,furn:drop,")
 	TEXT("furn:look:seat_chair,furn:sit,shot,furn:stand,furn:look:seat_stool,furn:sit,shot,furn:stand,furn:log");
+
+// The look outline must draw (beenster, Nov 10: "I dont want any regression with this"): bike parts
+// looked at from beside the bike, the screen read with the line and without it each time. Any
+// "OUTLINE CHECK FAILED" line fails the build: don't promote it. Run alone with
+// -TorqueShedAction=outline (it quits after), or the steps folded into a round's smoke.
+const TCHAR* const OutlineSteps =
+	TEXT("bay:1,restyle:cafe,tool:hands,part:tank,wait:2,outlinecheck,shot:ui,part:exhaust,wait:2,outlinecheck,")
+	TEXT("part:front_wheel,wait:2,outlinecheck,outlinecheck:summary");
+
+// The look outline's orange (M_ShedOutline Color / DarkColor, after tonemapping) over anything.
+bool Orange(const FColor& C)
+{
+	return C.R >= 150 && (int32)C.R - (int32)C.B >= 80 && (int32)C.R - (int32)C.G >= 40;
+}
 
 FVector Flat(const FVector& V) { return FVector(V.X, V.Y, 0.0); }
 
@@ -259,6 +296,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("dyno")) FString(TSTI::DynoSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("booth")) FString(TSTI::BoothSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("spraygame")) FString(TSTI::SprayGameSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("tyregame")) FString(TSTI::TyreGameSteps).ParseIntoArray(Preset, TEXT(","), true);   // [tyre]
 		else if (T == TEXT("mix")) FString(TSTI::MixSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("lift")) FString(TSTI::LiftSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("scrap")) FString(TSTI::ScrapSteps).ParseIntoArray(Preset, TEXT(","), true);
@@ -270,6 +308,8 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("rides")) FString(TSTI::RidesSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("fluids")) FString(TSTI::FluidSteps).ParseIntoArray(Preset, TEXT(","), true);   // [fluids]
 		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
+		else if (T == TEXT("washride")) FString(TSTI::WashRideSteps).ParseIntoArray(Preset, TEXT(","), true);   // [washride]
+		else if (T == TEXT("outline")) FString(TSTI::OutlineSteps).ParseIntoArray(Preset, TEXT(","), true);   // [outline test]
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
@@ -480,7 +520,8 @@ bool UTorqueShedTest::RunStep(const FString& S)
 
 	// On the road: our own bike's spec and what it's doing ("ridelog"), and the robot rider on or off.
 	if (Verb == TEXT("ridelog") || Verb == TEXT("robot") || Verb == TEXT("camera") || Verb == TEXT("lever") || Verb == TEXT("brakestop") || Verb == TEXT("lean") || Verb == TEXT("crash") ||
-		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate"))
+		Verb == TEXT("launch") || Verb == TEXT("foot") || Verb == TEXT("gear") || Verb == TEXT("ignition") || Verb == TEXT("clutch") || Verb == TEXT("bikestate") ||
+		Verb == TEXT("ridepos"))
 	{
 		ATorqueBikePawn* Bike = nullptr;
 		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
@@ -493,6 +534,14 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			return true;
 		}
 		Tries = 0;
+		// [washride] ridepos[:<x>:<y>[:<yaw>]]: our bike put there (world cm, facing yaw), stopped, and
+		// what its wheels stand on.
+		if (Verb == TEXT("ridepos"))
+		{
+			if (P.Num() >= 3) Said(Bike->TestPlaceAt(FCString::Atod(*P[1]), FCString::Atod(*P[2]), P.Num() > 3 ? FCString::Atod(*P[3]) : -90.0));
+			else Said(Bike->TestPlaceAt(0.0, 0.0, 0.0, false));
+			return true;
+		}
 		// foot:off|on|walk:<cm>: get off (stopped), back on (by the bike), or walk that far ahead on foot.
 		if (Verb == TEXT("foot"))
 		{
@@ -643,9 +692,75 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		int32 Index = INDEX_NONE;
 		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Names); ++I)
 			if (P[1].Equals(Names[I], ESearchCase::IgnoreCase)) Index = I;
-		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, spray, lance, gun)")); return true; }
+		if (Index == INDEX_NONE) { Warn(TEXT("no such tool (hands, wrench, brush, repair, lance, gun)")); return true; }
+		if (Index == (int32)ETorqueTool::Spray) Index = (int32)ETorqueTool::Gun;   // the spray can is gone
 		W->TestTool((ETorqueTool)Index);
 		Said(TEXT("in hand"));
+		return true;
+	}
+	if (Verb == TEXT("outlinecheck"))
+	{
+		// [outline test] Does the look outline draw on screen? Its set-up first (the material after
+		// tonemapping, the post-process, r.CustomDepth, the marks), then the live viewport (what the
+		// player sees, TSR and all; HighResShot isn't proof: it showed the line when play didn't) read
+		// with the outline on and a second later with it off: enough pixels must turn orange.
+		if (P.Num() > 1 && P[1] == TEXT("summary"))
+		{
+			if (OutlineFails > 0 || OutlineChecks == 0)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Torque test: OUTLINE CHECK FAILED: %d of %d looks drew no outline: do not promote this build"), OutlineFails, OutlineChecks);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("Torque test: OUTLINE CHECK PASSED: all %d looks drew the outline"), OutlineChecks);
+			}
+			return true;
+		}
+		FViewport* Viewport = GEngine && GEngine->GameViewport ? GEngine->GameViewport->Viewport : nullptr;
+		auto Fail = [&](const FString& Why)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Torque test: %s: OUTLINE CHECK FAILED: %s"), *S, *Why);
+			++OutlineFails;
+			++OutlineChecks;
+			W->bTestNoOutline = false;
+			OutlinePhase = 0;
+			OutlineOn.Reset();
+		};
+		if (!Viewport) { Fail(TEXT("no game viewport to read")); return true; }
+		if (OutlinePhase == 0)
+		{
+			bool bOk = false;
+			const FString Status = W->TestOutlineStatus(bOk);
+			if (!bOk) { Fail(Status); return true; }
+			Said(Status);
+			W->bTestNoOutline = false;
+			OutlinePhase = 1;
+			return false;   // a second on (TSR settles), then read
+		}
+		TArray<FColor> Px;
+		if (!Viewport->ReadPixels(Px) || Px.Num() == 0) { Fail(TEXT("couldn't read the viewport")); return true; }
+		if (OutlinePhase == 1)
+		{
+			OutlineOn = MoveTemp(Px);
+			W->bTestNoOutline = true;
+			OutlinePhase = 2;
+			return false;   // a second off, then read again
+		}
+		W->bTestNoOutline = false;
+		OutlinePhase = 0;
+		int32 Turned = 0;
+		const int32 N = FMath::Min(Px.Num(), OutlineOn.Num());
+		for (int32 I = 0; I < N; ++I)
+			if (TSTI::Orange(OutlineOn[I]) && !TSTI::Orange(Px[I])) ++Turned;
+		OutlineOn.Reset();
+		const int32 Need = FMath::Max(60, (int32)(N * 2.0e-5));
+		if (Turned < Need)
+		{
+			Fail(FString::Printf(TEXT("only %d pixel(s) turned orange with the outline on (need %d of %d): the line isn't drawing"), Turned, Need, N));
+			return true;
+		}
+		++OutlineChecks;
+		Said(FString::Printf(TEXT("outline draws: %d pixel(s) orange with it on, not off (need %d)"), Turned, Need));
 		return true;
 	}
 	if (Verb == TEXT("crouch"))
@@ -673,6 +788,25 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const double Distance = P.Num() > 2 ? FMath::Clamp(FCString::Atod(*P[2]), 10.0, 300.0) : 80.0;
 		Said(W->TestSprayPasses(Passes, Distance));
 		LogBuild(TEXT("after it"));
+		return true;
+	}
+	if (Verb == TEXT("tyregame"))   // [tyre] tyregame:SKILL, the tyre game played at once (1: lever right on the marker)
+	{
+		if (bAimLost)
+		{
+			Warn(TEXT("skipped: the look before it missed"));
+			bAimLost = false;
+			return true;
+		}
+		Said(W->TestTyreGame(P.Num() > 1 ? FCString::Atod(*P[1]) : 1.0));
+		return true;
+	}
+	if (Verb == TEXT("tyrelog"))   // [tyre] every tyre: where it is and how well its bead was seated
+	{
+		for (const TPair<int32, FTorqueItem>& KV : B->AllItems())
+			if (KV.Value.Kind == FName(TEXT("tyre")))
+				UE_LOG(LogTemp, Log, TEXT("Torque test:   tyre %d %s at %d (ref %d): bead %.2f %s"), KV.Key, *KV.Value.Part.ToString(), (int32)KV.Value.At,
+					KV.Value.Ref, KV.Value.Bead, *UTorqueBuildSubsystem::BeadText(KV.Value));
 		return true;
 	}
 	if (Verb == TEXT("washpass"))   // [wash] washpass:PASSES:CM sweeps the lance over the whole bike
@@ -1245,6 +1379,24 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// What the shed radio's playing (its station and song, or why not).
 		Said(ATorqueShedRadio::NowPlaying(World).Replace(TEXT("\n"), TEXT(" / ")));
+		return true;
+	}
+	if (Verb == TEXT("tv"))
+	{
+		// [tv] tv: each wall TV's channel; tv:N: TV N (1 .. 5) on to its next channel, as F at it.
+		if (P.Num() >= 2)
+		{
+			FTorqueShedRequest R;
+			R.Kind = ETorqueShedAct::TvChannel;
+			R.Item = FCString::Atoi(*P[1]) - 1;
+			R.Colour = TorqueShedTv::Next(R.Item, B->TvChannel(R.Item));
+			FString WhyNot;
+			if (!B->Request(R, WhyNot)) { Warn(TEXT("tv: ") + WhyNot); return true; }
+		}
+		FString Line;
+		for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)
+			Line += FString::Printf(TEXT("%sTV %d: %s"), T == 0 ? TEXT("") : TEXT("; "), T + 1, TorqueShedTv::Name(B->TvChannel(T)));
+		Said(Line);
 		return true;
 	}
 	if (Verb == TEXT("lifts"))
