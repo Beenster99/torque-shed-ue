@@ -254,7 +254,12 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 		if (GS) GS->SetHour(S.TimeOfDay);
 	}
 	else if (F == TEXT("daynight")) S.bDayNight = bOn;
-	else if (F == TEXT("realclock")) S.bRealClock = bOn;
+	else if (F == TEXT("realclock"))
+	{
+		// (Test runs keep the made clock unless a step turns this on.)
+		S.bRealClock = bOn;
+		if (GS) GS->TestRealClock(bOn);
+	}
 	else if (F == TEXT("daylength")) S.DayLength = N;
 	else if (F == TEXT("weather"))
 	{
@@ -1490,6 +1495,9 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 				Says.Add(TEXT("Connected to a co-op shed."));
 			else
 				Says.Add(TEXT("Working solo."));
+			// The weather where you are (the live grid's, made local), to compare with outside.
+			if (const ATorqueGameState* WGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
+				Says.Add(TEXT("Weather: ") + WGs->WeatherText(FTorqueSettings::Get().Units == 1));
 			if (GetNetMode() != NM_Standalone)
 				if (const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr)
 				{

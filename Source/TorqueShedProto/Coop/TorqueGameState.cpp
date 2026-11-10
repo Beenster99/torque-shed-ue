@@ -277,7 +277,8 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	if (Mode == FTorqueSettings::WeatherLive && !bFetching && (NextFetchIn -= DeltaSeconds) <= 0.0) FetchLive(0);
 	// The real time of day, or the day going by: a whole day in Settings' Day length of real minutes.
 	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
-	if (Set.bRealClock && !bTestRun) TickRealClock();
+	const bool bRealClock = Set.bRealClock && (!bTestRun || bRealClockTest);
+	if (bRealClock) TickRealClock();
 	else if (SunShift != 0.0f || SunDec != 15.0f || SunLat != 54.35f)
 	{
 		SunShift = 0.0f;
@@ -286,7 +287,7 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 		ApplySun();
 		ForceNetUpdate();
 	}
-	if (Set.bDayNight && !(Set.bRealClock && !bTestRun))
+	if (Set.bDayNight && !bRealClock)
 	{
 		if (Hour < 0.0f) Hour = BuiltAt;
 		Hour = FMath::Fmod(Hour + DeltaSeconds * 24.0f / (60.0f * (float)FMath::Max(Set.DayLength, 1)), 24.0f);
@@ -824,6 +825,25 @@ void ATorqueGameState::TickRealClock()
 		ClockSentAt = World->GetTimeSeconds();
 		ForceNetUpdate();
 	}
+}
+
+FString ATorqueGameState::WeatherHereText() const
+{
+	double Lat = 0.0, Lon = 0.0, Asl = 0.0;
+	ViewGeo(Lat, Lon, Asl);
+	const TorqueWeather::State& H = Here;
+	const TorqueWeather::State& C = Fade.Now;
+	FString GridText = TEXT("no grid");
+	if (GridNow.Valid())
+	{
+		double East = 0.0, North = 0.0;
+		TorqueWeather::MetresBetween(GridNow.Lat, GridNow.Lon, Lat, Lon, East, North);
+		GridText = FString::Printf(TEXT("grid %dx%d round %.4f, %.4f (here %.0f m east, %.0f m north of its centre; drifted %lld s)"), GridNow.N, GridNow.N,
+			GridNow.Lat, GridNow.Lon, East, North, (long long)(FDateTime::UtcNow().ToUnixTimestamp() - GridFetchedNow));
+	}
+	return FString::Printf(TEXT("here %.4f, %.4f, %.0f m up: air %.1f C (shared %.1f), rain %.2f mm/h (shared %.2f), cloud %.0f%%, wind %.1f m/s from %.0f, gusts %.1f, road wet %.2f, puddles %.2f, visibility %.0f m, grip %.2f; %s; clock %s (sun shift %+.2f h, declination %.1f)"),
+		Lat, Lon, Asl, H.Air, C.Air, H.Rain, C.Rain, H.Cloud * 100.0, H.Wind, H.WindFrom, H.Gust, H.RoadWet, H.Puddles, H.Visibility,
+		TorqueWeather::WetGrip(H), *GridText, Hour < 0.0f ? TEXT("level's own") : *ClockText(Hour), SunShift, SunDec);
 }
 
 float ATorqueGameState::WeatherOpen() const
