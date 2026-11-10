@@ -19,6 +19,7 @@
 #include "TorqueBikePawn.generated.h"
 
 class UStaticMeshComponent;
+class UMeshComponent;
 class UPoseableMeshComponent;
 class UCameraComponent;
 class UStaticMesh;
@@ -200,7 +201,7 @@ public:
 	// The skinned rider and helmet hang off this: on the bike it sits on Root, and in a crash it's
 	// let go so the rider is thrown clear and slides along the road on his back.
 	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* RiderRoot = nullptr;
-	UPROPERTY(Transient) UStaticMeshComponent* RiderHelmet = nullptr;
+	UPROPERTY(Transient) UMeshComponent* RiderHelmet = nullptr;
 	// Until the level script has imported it, a rider made of simple shapes.
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> RiderParts;
 	// A dial and needles drawn over the clock: speed, and revs on a small dial below.

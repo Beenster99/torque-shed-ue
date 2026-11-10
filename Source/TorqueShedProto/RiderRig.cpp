@@ -2,6 +2,7 @@
 
 #include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
@@ -220,10 +221,28 @@ bool FRiderRig::Build(AActor* Owner, USceneComponent* Parent, const FString& Bod
 			if (M.Value && Slots[I].ToString().Contains(M.Key)) Body->SetMaterial(Body->GetMaterialIndex(Slots[I]), M.Value);
 	Body->RegisterComponent();
 
-	if (UStaticMesh* HM = LoadObject<UStaticMesh>(nullptr, *HelmetPath))
+	UStaticMesh* HM = HelmetPath.IsEmpty() ? nullptr : LoadObject<UStaticMesh>(nullptr, *HelmetPath);
+	USkeletalMesh* HSkel = HM || HelmetPath.IsEmpty() ? nullptr : LoadObject<USkeletalMesh>(nullptr, *HelmetPath);
+	if (HSkel)
 	{
-		Helmet = NewObject<UStaticMeshComponent>(Owner, TEXT("RiderHelmet"));
-		Helmet->SetStaticMesh(HM);
+		// A MetaHuman wardrobe helmet (Fab .mhpkg) is a skeletal mesh: drawn in its rest pose, rigid.
+		USkeletalMeshComponent* SC = NewObject<USkeletalMeshComponent>(Owner, TEXT("RiderHelmet"));
+		SC->SetSkeletalMesh(HSkel);
+		SC->SetupAttachment(Parent);
+		SC->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SC->SetGenerateOverlapEvents(false);
+		SC->bCastHiddenShadow = true;
+		HelmetRest = HelmetFix;
+		SC->SetRelativeTransform(HelmetRest);
+		SC->RegisterComponent();
+		Helmet = SC;
+		UE_LOG(LogTemp, Log, TEXT("Torque: rider helmet is the skeletal mesh %s"), *HelmetPath);
+	}
+	if (HM)
+	{
+		UStaticMeshComponent* StaticHelmet = NewObject<UStaticMeshComponent>(Owner, TEXT("RiderHelmet"));
+		Helmet = StaticHelmet;
+		StaticHelmet->SetStaticMesh(HM);
 		Helmet->SetupAttachment(Parent);
 		Helmet->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Helmet->SetGenerateOverlapEvents(false);

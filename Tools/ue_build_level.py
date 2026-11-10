@@ -1220,23 +1220,66 @@ def import_rider(tex=None, roles=None):
 FAB_HELMET_DEST = "/Game/Fab/RiderHelmet"
 
 
-def _fab_helmet_source(spec):
-    """beenster's Fab helmet: a static mesh already in the project, else a file in the Fab cache."""
-    words = spec.get("keywords") or ["helmet"]
-    skip = spec.get("skip_keywords") or []
+HELMET_SKIP_PATHS = ("/Game/MetaHumans/Avatar_", "/Game/MetaHumanSources", RIDER_DEST + "/", FAB_HELMET_DEST + "/")
+
+
+def _helmet_assets(words, skip):
+    """Static or skeletal meshes in the project whose name has one of words (not ours, not the avatars')."""
     reg = unreal.AssetRegistryHelpers.get_asset_registry()
     found = []
     for a in reg.get_assets_by_path("/Game", recursive=True):
         cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
         pkg, name = str(a.package_name), str(a.asset_name)
-        if cls != "StaticMesh" or not any(w in name for w in words) or any(k in pkg for k in skip):
+        if cls not in ("StaticMesh", "SkeletalMesh") or not any(w.lower() in name.lower() for w in words):
             continue
-        if pkg.startswith(RIDER_DEST + "/") or pkg.startswith(FAB_HELMET_DEST + "/") or pkg.startswith("/Game/MetaHuman"):
+        if any(k in pkg for k in skip) or any(pkg.startswith(k) for k in HELMET_SKIP_PATHS):
             continue
-        found.append("%s.%s" % (pkg, name))
-    log("fab helmet: in the project: %s" % (", ".join(found) or "none"))
+        found.append(("%s.%s" % (pkg, name), cls))
+    return found
+
+
+def _import_mhpkg(path):
+    """A MetaHuman package (.mhpkg, what Fab gives for MetaHuman wardrobe items) into the project,
+    through the MetaHuman plugin's own factory. Logs everything it brought in."""
+    t = unreal.AssetImportTask()
+    t.set_editor_property("filename", path)
+    t.set_editor_property("destination_path", "/Game/Fab/RiderHelmetPkg")
+    t.set_editor_property("automated", True)
+    t.set_editor_property("replace_existing", True)
+    t.set_editor_property("save", True)
+    factory = getattr(unreal, "MetaHumanPackageFactory", None)
+    if factory is not None:
+        try:
+            t.set_editor_property("factory", factory())
+        except Exception as e:
+            unreal.log_warning("[Torque] fab helmet: couldn't use MetaHumanPackageFactory: %s" % e)
+    log("fab helmet: importing the MetaHuman package %s (factory %s)" % (path, "MetaHumanPackageFactory" if factory else "MISSING, the importer picks"))
+    try:
+        asset_tools.import_asset_tasks([t])
+    except Exception as e:
+        unreal.log_warning("[Torque] fab helmet: package import failed: %s" % e)
+    got = list(t.get_editor_property("imported_object_paths") or [])
+    log("fab helmet: the package brought in %d: %s" % (len(got), ", ".join(str(g) for g in got[:40]) or "nothing"))
+    unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous(["/Game"], True)
+    if not got:
+        import zipfile
+        if zipfile.is_zipfile(path):
+            names = zipfile.ZipFile(path).namelist()
+            log("fab helmet: the package is a zip of %d: %s" % (len(names), ", ".join(names[:40])))
+        else:
+            log("fab helmet: the package isn't a zip; it starts %s" % open(path, "rb").read(16).hex())
+    return got
+
+
+def _fab_helmet_source(spec):
+    """beenster's Fab helmet: a static or skeletal mesh already in the project, else a file in the Fab
+    cache (a MetaHuman package is imported first, then looked for again)."""
+    words = spec.get("keywords") or ["helmet"]
+    skip = spec.get("skip_keywords") or []
+    found = _helmet_assets(words, skip)
+    log("fab helmet: in the project: %s" % (", ".join("%s (%s)" % f for f in found) or "none"))
     if found:
-        return "asset", sorted(found, key=len)[0]
+        return "asset", sorted(found, key=lambda f: (f[1] != "StaticMesh", len(f[0])))[0][0]
     vault = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
     roots = [vault, os.path.dirname(vault)]
     if spec.get("vault"):
@@ -1262,7 +1305,29 @@ def _fab_helmet_source(spec):
             pick = [f for f in files if f.lower().endswith(ext)]
             if pick:
                 return "file", max(pick, key=os.path.getsize)
+        pkgs = [f for f in files if f.lower().endswith(".mhpkg")]
+        if pkgs:
+            _import_mhpkg(max(pkgs, key=os.path.getsize))
+            found = _helmet_assets(words, skip)
+            if not found:   # named for what it is rather than 'helmet': anything the package brought in
+                reg = unreal.AssetRegistryHelpers.get_asset_registry()
+                for a in reg.get_assets_by_path("/Game/Fab/RiderHelmetPkg", recursive=True):
+                    cls = str(a.asset_class_path.asset_name) if hasattr(a, "asset_class_path") else str(a.asset_class)
+                    if cls in ("StaticMesh", "SkeletalMesh"):
+                        found.append(("%s.%s" % (a.package_name, a.asset_name), cls))
+            log("fab helmet: after the package: %s" % (", ".join("%s (%s)" % f for f in found) or "none"))
+            if found:
+                return "asset", sorted(found, key=lambda f: (f[1] != "StaticMesh", len(f[0])))[0][0]
     return None, None
+
+
+def _box(mesh):
+    """A static or skeletal mesh's local box, as (min, max)."""
+    if isinstance(mesh, unreal.StaticMesh):
+        b = mesh.get_bounding_box()
+        return b.min, b.max
+    bs = mesh.get_bounds() if hasattr(mesh, "get_bounds") else mesh.get_imported_bounds()
+    return bs.origin - bs.box_extent, bs.origin + bs.box_extent
 
 
 def fab_helmet(ours):
@@ -1291,21 +1356,22 @@ def fab_helmet(ours):
         log("fab helmet: imported %s: static meshes %s" % (src, ", ".join(m.get_name() for m in meshes) or "NONE"))
         if meshes:
             def size(m):
-                b = m.get_bounding_box()
-                return (b.max - b.min).length()
+                lo, hi = _box(m)
+                return (hi - lo).length()
             mesh = max(meshes, key=size)
             if len(meshes) > 1:
                 unreal.log_warning("[Torque] fab helmet: %d meshes imported (not combined); using the biggest, %s" % (len(meshes), mesh.get_name()))
     if mesh is None:
         log("fab helmet: not found; the rider keeps our own helmet")
         return None
-    nanite_off(mesh)
-    unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    if isinstance(mesh, unreal.StaticMesh):
+        nanite_off(mesh)
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
     # Fit by bounding boxes: theirs turned by 'rotate', scaled to our helmet's largest size, centred on ours.
     rot = [float(v) for v in spec.get("rotate", [0, 0, 0])]
     q = unreal.Rotator(roll=rot[2], pitch=rot[0], yaw=rot[1]).quaternion()
-    b = mesh.get_bounding_box()
-    corners = [q.rotate_vector(unreal.Vector(x, y, z)) for x in (b.min.x, b.max.x) for y in (b.min.y, b.max.y) for z in (b.min.z, b.max.z)]
+    bmin, bmax = _box(mesh)
+    corners = [q.rotate_vector(unreal.Vector(x, y, z)) for x in (bmin.x, bmax.x) for y in (bmin.y, bmax.y) for z in (bmin.z, bmax.z)]
     lo = unreal.Vector(min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners))
     hi = unreal.Vector(max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners))
     ob = ours.get_bounding_box()
@@ -1318,7 +1384,8 @@ def fab_helmet(ours):
         mesh.get_path_name(), [round(v, 1) for v in (theirs_size.x, theirs_size.y, theirs_size.z)], rot,
         [round(v, 1) for v in (ours_size.x, ours_size.y, ours_size.z)], ours.get_path_name(), scale, [round(v, 1) for v in offset],
         ", ".join("%s=%s" % (m.get_editor_property("material_slot_name"), m.get_editor_property("material_interface").get_path_name()
-                                  if m.get_editor_property("material_interface") else "none") for m in mesh.get_editor_property("static_materials"))))
+                                  if m.get_editor_property("material_interface") else "none")
+                  for m in mesh.get_editor_property("static_materials" if isinstance(mesh, unreal.StaticMesh) else "materials"))))
     return mesh.get_path_name(), {"rotate": rot, "scale": scale, "offset": offset}
 
 
