@@ -109,6 +109,9 @@ private:
 	void LooksChanged(int32 Bike) { if (Bike == Bay) Relook(); }
 	void BuildGreyBox();
 	void BuildStand();
+	// Puts the paddock stand under the swingarm of the bike as drawn: its rear axle RearX along the
+	// bike from its middle, AxleZ off the floor (cm).
+	void PoseStand(double RearX, double AxleZ);
 	FDelegateHandle Watch, WatchLooks;
 	// Wheeled out of its bay (UTorqueBuildSubsystem::BikeTransform): off the paddock stand, level on
 	// its wheels, gliding to where the shed says it is.
