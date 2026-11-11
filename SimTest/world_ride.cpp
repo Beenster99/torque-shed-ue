@@ -101,6 +101,27 @@ int main(int Argc, char** Argv)
 	const double Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
 	std::printf("The ride: %.1f km of road in %d points, steepest %.3f, sharpest crest %.3f m in 4 m, %.2f m off the land at most; a 256 m square of ground in %.1f ms\n",
 		Plan->Length / 1000.0, int(Plan->Road.size()), Steep, Crest, Off, Ms);
+	{
+		size_t SidePts = 0;
+		for (const RidePlan::SideRoad& Sd : Plan->Sides) SidePts += Sd.Pts.size();
+		std::printf("Beside it: %d roads in %d points\n", int(Plan->Sides.size()), int(SidePts));
+	}
+	if (std::getenv("WORLD_RIDE_DUMP") != nullptr)
+	{
+		// Every road's knots (x z height half), a road a line, for a picture.
+		std::string Text;
+		char Buf[96];
+		for (int W = 0; W < Plan->RoadCount(); ++W)
+		{
+			for (const RoadPoint& P : Plan->RoadOf(W))
+			{
+				std::snprintf(Buf, sizeof(Buf), "%.2f %.2f %.2f %.2f ", P.At.X, P.At.Z, P.Height, P.Half);
+				Text += Buf;
+			}
+			Text += "\n";
+		}
+		Files::Write(std::getenv("WORLD_RIDE_DUMP"), Text);
+	}
 	if (Argc == 2) Files::Write(Files::Join(Root, "route.json"), Plan->RouteJson());
 	return 0;
 }

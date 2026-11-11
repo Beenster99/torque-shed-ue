@@ -634,7 +634,7 @@ int main()
 						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->Ground(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]))));
 					}
 					Check(Sound && Up == Tris && Worst < 0.01, "a 256 m square of ground comes as a mesh with its skirt: every triangle facing up, every height the ground's");
-					Plan->RoadPiece(100, 164, Piece);
+					Plan->RoadPiece(0, 100, 164, Piece);
 					int RoadUp = 0, RoadTris = 0;
 					for (size_t T = 0; T + 2 < Piece.Idx.size(); T += 3)
 					{
@@ -657,6 +657,33 @@ int main()
 							const double Bd = RoadLine::Bend(Kx, Kz, I);
 							if (Bd > 1e-9) Tightest = std::fmin(Tightest, 1.0 / Bd);
 						}
+					}
+					// The roads that meet it.
+					{
+						int Meeting = 0, Level = 0, SidePts = 0;
+						double WorstStep = 0.0;
+						for (const RidePlan::SideRoad& Sd : Plan->Sides)
+						{
+							SidePts += int(Sd.Pts.size());
+							for (int End = 0; End < 2; ++End)
+							{
+								const RoadPoint& Tip = End == 0 ? Sd.Pts.front() : Sd.Pts.back();
+								double Dn2 = 0.0, Hn2 = 0.0, Half2 = 0.0;
+								if (!Plan->Nearest(Tip.At.X, Tip.At.Z, Dn2, Hn2, nullptr, &Half2, nullptr, true) || Dn2 > Half2) continue;
+								++Meeting;
+								if (std::fabs(Tip.Height - Hn2) < 0.02) ++Level;
+							}
+							for (size_t I = 1; I < Sd.Pts.size(); ++I)
+							{
+								const double D = Sd.Pts[I].At.DistanceTo(Sd.Pts[I - 1].At);
+								if (D > 0.5) WorstStep = std::fmax(WorstStep, std::fabs(Sd.Pts[I].Height - Sd.Pts[I - 1].Height) / D);
+							}
+						}
+						RideMesh SideMesh;
+						if (!Plan->Sides.empty()) Plan->RoadPiece(1, 0, 64, SideMesh);
+						std::printf("      %d roads beside it in %d points; %d ends meet the ride's road, %d of them level with it; steepest %.2f\n", int(Plan->Sides.size()), SidePts, Meeting, Level, WorstStep);
+						Check(Plan->Sides.size() > 20 && Meeting > 10 && Level == Meeting && WorstStep < 0.6 && SideMesh.Vertices() >= 12 && Plan->RoadCount() == 1 + int(Plan->Sides.size()),
+							"the roads near the ride are laid too, each level with the ride's road where it meets it");
 					}
 					std::printf("      its tightest bend: %.1f m radius\n", Tightest);
 					Check(Tightest > 9.0, "and no bend of it is tighter than 9 m, mapped corners and junctions rounded");

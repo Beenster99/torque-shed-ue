@@ -190,8 +190,10 @@ within 400 m, with collision; every 8 m to 1.5 km; every 64 m to 10 km) and the 
 made on workers and dropped behind. The road's line is made as the Godot game's route planner makes
 one (`World/WorldRoadLine`, a port of `route_planner.gd`'s smoothing): the quick way by class of road,
 every mapped corner rounded and faired so no bend is under 10 m, as wide as its class, graded to 15%,
-with shoulders that slope into the ground, edge lines and a dashed centre line. Still to come:
-junctions, camber, bridges, the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
+with shoulders that slope into the ground, edge lines and a dashed centre line. The other roads
+within about 300 m of the ride are laid too, junction to junction, level with the ride's road where
+they meet it (plain junctions: no kerb radii or give-way lines yet). Still to come: camber, bridges,
+the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
 `Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
 

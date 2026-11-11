@@ -11,7 +11,13 @@
 // by the road's class so no bend is tighter than a bike can take, as wide as its class, its height
 // the ground's along its middle, smoothed and no steeper than 15%. It has sloping shoulders that
 // run down into the ground, edge lines on the wider roads and a dashed centre line where there are
-// two lanes. Junctions, camber and bridges are still to come.
+// two lanes.
+//
+// The other roads near the ride are there too (Sides): every road within a few hundred metres of
+// it, each from junction to junction, smoothed and as wide as its class, its height the ground's
+// but the ride's own where it meets the ride's road, so a side road runs off the tarmac at a
+// junction. They are plain where they meet (no kerb radii or give-way lines yet). Camber and
+// bridges are still to come.
 #pragma once
 
 #include "WorldLoad.h"
@@ -20,6 +26,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace TorqueWorld
@@ -56,7 +63,17 @@ public:
 	std::string Title;                  // what the ride is called on the screen ("" for the roads' own names)
 	LoadedArea Area;
 	std::shared_ptr<Terrain> Land;      // the ride's own view of the ground
-	std::vector<RoadPoint> Road;        // every 4 m or closer
+	std::vector<RoadPoint> Road;        // the ride's own road, a point every 4 m or closer
+	struct SideRoad
+	{
+		std::vector<RoadPoint> Pts;
+		double Length = 0.0;
+	};
+	std::vector<SideRoad> Sides;        // the other roads near it, each from junction to junction
+	// Every road: 0 is the ride's own, then the sides.
+	int RoadCount() const { return 1 + int(Sides.size()); }
+	const std::vector<RoadPoint>& RoadOf(int Which) const { return Which <= 0 ? Road : Sides[size_t(Which) - 1].Pts; }
+	static constexpr double SideReach = 300.0;  // roads this near the ride's (about) are drawn
 	std::vector<std::string> Names;     // the roads taken, each once, in order
 	double Length = 0.0;
 	double LatA = 0.0, LonA = 0.0, LatB = 0.0, LonB = 0.0;
@@ -75,14 +92,16 @@ public:
 	double Ground(double X, double Z, double Coarse = 0.0) const;
 	// The road's surface at (X, Z) if it is on the road, else NaN.
 	double RoadHeight(double X, double Z) const;
-	// The nearest point of the road's middle within 40 m: how far, its height, which point. False if none.
-	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr) const;
+	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
+	// edge the point is): how far from its middle, its height, which point, its half width, which
+	// road. MainOnly looks at the ride's own road alone. False if none.
+	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr, int* Which = nullptr, bool MainOnly = false) const;
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack).
 	void LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const;
-	// The road from point First to Last (both included): its surface, its shoulders and its paint.
-	void RoadPiece(int First, int Last, RideMesh& Out) const;
+	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
+	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
 	// The route as the bike reads it (Data/Buttertubs/route.json's fields): line_sim, length_m,
 	// road_half_width_m, origin_geo, spawn, credits.
@@ -90,6 +109,7 @@ public:
 
 private:
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves);
-	std::unordered_map<long long, std::vector<int>> Near;   // road points by 16 m square
+	void LaySides(const std::vector<int>& Path);
+	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
 };
 } // namespace TorqueWorld

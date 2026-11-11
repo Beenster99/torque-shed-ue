@@ -230,26 +230,35 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 
 void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 {
-	const int32 Points = int32(Plan->Road.size());
-	const int32 Pieces = (Points - 1 + TRWI::PiecePoints - 1) / TRWI::PiecePoints;
-	for (int32 K = 0; K < Pieces; ++K)
+	// Every road (the ride's own, then those that meet it) in pieces of PiecePoints points; a piece's
+	// key is its road times 4096 and which piece of it.
+	const int32 Roads = Plan->RoadCount();
+	for (int32 Which = 0; Which < Roads; ++Which)
 	{
-		const int32 First = K * TRWI::PiecePoints, Last = FMath::Min(First + TRWI::PiecePoints, Points - 1);
-		const TorqueWorld::RoadPoint& Mid = Plan->Road[size_t((First + Last) / 2)];
-		const double HowFar = FVector2D::Distance(At, FVector2D(Mid.At.X, Mid.At.Z));
-		const bool bHave = RoadParts.Contains(K);
-		if (!bHave && HowFar < TRWI::RoadReach)
+		const std::vector<TorqueWorld::RoadPoint>& Pts = Plan->RoadOf(Which);
+		const int32 Points = int32(Pts.size());
+		if (Points < 2) continue;
+		const int32 Pieces = FMath::Min((Points - 1 + TRWI::PiecePoints - 1) / TRWI::PiecePoints, 4096);
+		for (int32 K = 0; K < Pieces; ++K)
 		{
-			TorqueWorld::RideMesh Mesh;
-			Plan->RoadPiece(First, Last, Mesh);
-			UProceduralMeshComponent* Part = MakePart(Mesh, RoadMaterial, true, bAtOnce, false);
-			if (Part) Part->ComponentTags.Add(TEXT("Road"));
-			RoadParts.Add(K, Part);
-		}
-		else if (bHave && HowFar > TRWI::RoadReach + 500.0)
-		{
-			if (UProceduralMeshComponent* Part = RoadParts[K]) Part->DestroyComponent();
-			RoadParts.Remove(K);
+			const int32 First = K * TRWI::PiecePoints, Last = FMath::Min(First + TRWI::PiecePoints, Points - 1);
+			const TorqueWorld::RoadPoint& Mid = Pts[size_t((First + Last) / 2)];
+			const double HowFar = FVector2D::Distance(At, FVector2D(Mid.At.X, Mid.At.Z));
+			const int32 Key = Which * 4096 + K;
+			const bool bHave = RoadParts.Contains(Key);
+			if (!bHave && HowFar < TRWI::RoadReach)
+			{
+				TorqueWorld::RideMesh Mesh;
+				Plan->RoadPiece(Which, First, Last, Mesh);
+				UProceduralMeshComponent* Part = MakePart(Mesh, RoadMaterial, true, bAtOnce, false);
+				if (Part) Part->ComponentTags.Add(TEXT("Road"));
+				RoadParts.Add(Key, Part);
+			}
+			else if (bHave && HowFar > TRWI::RoadReach + 500.0)
+			{
+				if (UProceduralMeshComponent* Part = RoadParts[Key]) Part->DestroyComponent();
+				RoadParts.Remove(Key);
+			}
 		}
 	}
 }
