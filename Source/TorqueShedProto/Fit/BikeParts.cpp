@@ -1690,7 +1690,12 @@ BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, st
 	const Json* Look = P ? P->Get("look") : nullptr;
 	const double Hw = PartNum(P, "width", 720.0) / 2000.0;
 	const double Rise = PartNum(P, "rise", 0.08);
-	const V3 H = ToGodot(L.Head);
+	// [rider pose] The bar itself is drawn on risers moved back and up by the style's bar_move_mm
+	// (BarMove): H is the bar's clamp while it's drawn, then the head again for the controls, and
+	// the bar's line handed on moved with it.
+	const V3 Head0 = ToGodot(L.Head);
+	const V3 BarMove(0.0, L.BarUpM, L.BarBackM);
+	V3 H = Head0 + BarMove;
 	const std::string Tube = "frame/tube/round.glb";
 	auto TubeAB = [&](const V3& A, const V3& B, double R) { Sweep(Out, "handlebars", Tube, {A + H, B + H}, {R}, "steer"); };
 	auto Bend = [&](std::vector<V3> Route, double R, const V3& At, const std::string& Node) {
@@ -1804,6 +1809,16 @@ BikeParts::Bars BikeParts::Handlebars(const PartsMap& Parts, const Layout& L, st
 		Bar.R = 0.012;
 	}
 	if (!HaveTip || (Tip.x == 0.0 && Tip.y == 0.0 && Tip.z == 0.0)) Tip = Line.back();
+	H = Head0;
+	if (BarMove.Length() > 1.0e-4)
+	{
+		for (V3& V : Line) V += BarMove;
+		Tip += BarMove;
+		if (Bar.HasPad) Bar.Pad += BarMove;
+		// The risers: from the top clamp back and up to where the bar is clamped now.
+		for (double Sd : {-1.0, 1.0}) TubeAB(V3(0.04 * Sd, -0.01, 0.0), V3(0.04 * Sd, 0.0, 0.0) + BarMove, 0.017);
+		TubeAB(V3(-0.055, -0.005, 0.0), V3(0.055, -0.005, 0.0), 0.012);
+	}
 	const V3 OutR = (Tip - Line[Line.size() - 2]).Normalized();
 	Bar.Line = Line;
 	Bar.Tip = Tip;

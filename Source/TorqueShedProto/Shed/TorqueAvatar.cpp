@@ -1492,8 +1492,19 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			}
 		Back = Best;
 		// [rider pose] Flat wrists (beenster): each hand turned round its grip until the knuckles
-		// carry on the forearm's line, the back of the hand in line with the forearm. A few passes,
-		// since where the wrist sits by the bar moves with the hand's turn.
+		// carry on the forearm's line, the back of the hand in line with the forearm, and then rolled
+		// on round it as far as the rider rig's hand rolls the throttle. A few passes, since where
+		// the wrist sits by the bar moves with the hand's turn.
+		double RollRad[2] = {0.0, 0.0};
+		for (int32 S = 0; S < 2; ++S)
+		{
+			FVector Was = BarAt[S] - ToC(Tg.WristUnrolled[S]), Now = BarAt[S] - ToC(Tg.Wrist[S]);
+			Was -= BarAxis[S] * FVector::DotProduct(Was, BarAxis[S]);
+			Now -= BarAxis[S] * FVector::DotProduct(Now, BarAxis[S]);
+			if (HandOffS[S] < 0.01 && !Tg.WristUnrolled[S].IsZero() && Was.Size() > 1.0 && Now.Size() > 1.0)
+				RollRad[S] = FMath::Atan2(FVector::DotProduct(FVector::CrossProduct(Was, Now), BarAxis[S]), FVector::DotProduct(Was, Now));
+			RideReport.GripRollDeg[S] = FMath::RadiansToDegrees(RollRad[S]);
+		}
 		for (int32 Pass = 0; Pass < 3; ++Pass)
 			for (int32 S = 0; S < 2; ++S)
 			{
@@ -1501,14 +1512,16 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const double Lu = (Bones[LowerArm[S]].Rest - Bones[UpperArm[S]].Rest).Size();
 				const double Lf = (Bones[HandBone[S]].Rest - Bones[LowerArm[S]].Rest).Size();
 				const FVector Pole = (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal();
-				const FVector Elbow = MidJoint(ShoulderOf(Back, S), WristAt[S], Lu, Lf, Pole);
-				FVector Along = WristAt[S] - Elbow;
+				const FVector Elbow = MidJoint(ShoulderOf(Back, S), WristFit[S], Lu, Lf, Pole);
+				FVector Along = WristFit[S] - Elbow;
 				Along -= BarAxis[S] * FVector::DotProduct(Along, BarAxis[S]);
 				if (Along.Size() < 1.0) continue;
+				Along = FQuat(BarAxis[S].GetSafeNormal(), RollRad[S]).RotateVector(Along.GetSafeNormal());
 				FVector Palm1, GripWrist;
-				HandOnBar(S, BarAt[S], BarAxis[S], Along.GetSafeNormal(), 1.5, 3.0, HandQ[S], GripWrist, Palm1);
-				WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off);
-				AimOn[S] = Along.GetSafeNormal();
+				HandOnBar(S, BarAt[S], BarAxis[S], Along, 1.5, 3.0, HandQ[S], GripWrist, Palm1);
+				WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), HandOffS[S]);
+				WristFit[S] = Tg.HandOff[S] > 0.0 ? FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off) : WristAt[S];
+				AimOn[S] = Along;
 				PalmOn[S] = Palm1;
 			}
 	}
@@ -1681,6 +1694,14 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			RideReport.HandShort[S] = (P[HandBone[S]] - WristAt[S]).Size() * Scale;
 			RideReport.AnkleShort[S] = (P[FootBone[S]] - AnkleAim[S]).Size() * Scale;
 			RideReport.KneeOut[S] = FMath::Abs(Rel.TransformPosition(P[Calf[S]]).Y);
+			// The index's and middle finger's curl from the hand (their 03 joints' turn from the hand's),
+			// to see the lever fingers lift and pull.
+			auto CurlOf = [&](int32 Fi) {
+				const int32 Tip = Finger[S][Fi][2] != INDEX_NONE ? Finger[S][Fi][2] : Finger[S][Fi][1];
+				return Tip != INDEX_NONE ? FMath::RadiansToDegrees((D[HandBone[S]].Inverse() * D[Tip]).GetAngle()) : -1.0;
+			};
+			RideReport.IndexCurlDeg[S] = CurlOf(1);
+			RideReport.MiddleCurlDeg[S] = CurlOf(2);
 		}
 	}
 }

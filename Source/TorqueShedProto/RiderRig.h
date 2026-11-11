@@ -53,6 +53,7 @@ struct FRiderPoseOut
 {
 	FVector Hip = FVector::ZeroVector, Neck = FVector::ZeroVector;
 	FVector Wrist[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector WristUnrolled[2] = {FVector::ZeroVector, FVector::ZeroVector};   // [rider pose] the wrist on its grip without the throttle's roll
 	FVector Grip[2] = {FVector::ZeroVector, FVector::ZeroVector};    // the grip centres the hands hold
 	FVector Ankle[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FQuat Look = FQuat::Identity;
