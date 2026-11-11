@@ -20,8 +20,14 @@
 //
 // Where the ride's road crosses one of the map's bridges (the region's spans, matched as the Godot
 // game matches them) it runs straight from one end to the other as a deck with parapets, and the
-// land under it is left as it lies. A tunnel's road is levelled the same way but is still an open
-// cutting.
+// land under it is left as it lies. The other roads' bridges are decks too, and where one crosses
+// over or under the ride's road each keeps its own height.
+//
+// Through a mapped tunnel the road is levelled the same way and runs in a tube as the Godot game's
+// does (tiled kerbs, concrete walls, a sooty arch: AdventureTunnels), with a headwall at each mouth.
+// The land's own mesh has the road's cutting through the hill as anywhere else; the road's piece
+// lays the hill back over it as a lid (the ground as it would lie with no tunnel there), so the
+// land's squares never have to stand upright at a mouth. No lamps yet: it is dark but for the bike's.
 //
 // The roads are crowned on the straight and banked in the bends by the UK's design rule
 // (RoadLine::BankOf: the Godot game's are flat across, so this is the UE port's own), the ground's
@@ -46,6 +52,7 @@ struct RoadPoint
 	double Height = 0.0;   // the road's own
 	double Half = 2.3;     // half the carriageway's width here
 	bool Bridge = false;   // on a bridge: the road is a deck over the land as it lies
+	bool Tunnel = false;   // in a tunnel: the road runs in a tube with the hill laid back over it
 	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
 };
 
@@ -96,11 +103,17 @@ public:
 	static constexpr double ShoulderDrop = 0.26;   // and this far down, into the ground
 	double WidestHalf = 2.3;                    // of the whole ride
 	int Bridges = 0, Tunnels = 0;               // those the ride's road crosses
+	int SideBridges = 0, SideTunnels = 0;       // and those on the roads beside it
+	// A tunnel's tube: its walls this far out past the road's edge, this high, and the arch over them.
+	static constexpr double TubeSide = 0.85, TubeWall = 4.2, TubeArch = 2.4;
+	static constexpr int TubeArchSegs = 6;
+	static constexpr double LidReach = 21.0;    // the hill's lid over a tunnel: this far out past the road's edge
 	static constexpr double BridgeReach = 10.0; // a span's ends are matched to the road within this
 
 	// The bare ground at (X, Z), the road's bench cut in; NaN where the world has none. Coarse is how
 	// far apart (m) the asker's points are: a mesh coarser than 4 m has the bench wider and a little
-	// deeper, so its straight edges between points never stand over the road.
+	// deeper, so its straight edges between points never stand over the road. (The coarsest, far-off
+	// meshes have no cutting over a tunnel: the hill as it lies.)
 	double Ground(double X, double Z, double Coarse = 0.0) const;
 	// The road's surface at (X, Z), crown and bank and all, if it is on a road, else NaN.
 	double RoadHeight(double X, double Z) const;
@@ -110,6 +123,23 @@ public:
 	// its middle's Height at the point (the edge's, past an edge). False if none.
 	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr, int* Which = nullptr, bool MainOnly = false, bool* OnBridge = nullptr,
 		double* Cross = nullptr) const;
+	// The same with more say in it and more said back.
+	struct NearOpts
+	{
+		bool MainOnly = false;   // the ride's own road alone
+		bool NoDecks = false;    // not the bits of road on a bridge
+		bool NoBores = false;    // nor those in a tunnel
+		int NotRoad = -1;        // nor any of this road
+	};
+	struct NearHit
+	{
+		double Dist = 0.0, Height = 0.0, Half = 0.0, Cross = 0.0;
+		int Index = -1, Which = 0;
+		bool Deck = false, Bore = false;
+	};
+	bool NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit) const;
+	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
+	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack).
@@ -125,6 +155,9 @@ private:
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds);
 	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...
 	std::vector<int> SpansAlong(const std::vector<P2>& Line, int Kind) const;
+	// Evens H out across each bridge and tunnel the line passes along (straight from one end to the
+	// other) and says what each knot is on: 0 the ground, 1 a bridge, 2 a tunnel. Counts them.
+	void LevelSpans(const std::vector<P2>& Line, std::vector<double>& H, std::vector<char>& Kind, int& BridgeCount, int& TunnelCount) const;
 	void LaySides(const std::vector<int>& Path);
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
 };

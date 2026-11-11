@@ -114,6 +114,24 @@ int main(int Argc, char** Argv)
 				std::printf("  a bridge at %.2f km, %.0f m long, %.1f m over the land at most\n", Plan->Road[I].Along / 1000.0, Plan->Road[J].Along - Plan->Road[I].Along, Deep);
 			}
 	}
+	{
+		// The other roads' bridges and tunnels, and where one goes over or under the ride's road.
+		std::printf("On the roads beside it: %d bridges and %d tunnels\n", Plan->SideBridges, Plan->SideTunnels);
+		int Shown = 0;
+		for (const RidePlan::SideRoad& Sd : Plan->Sides)
+			for (size_t I = 1; I < Sd.Pts.size(); ++I)
+			{
+				const RoadPoint& P = Sd.Pts[I];
+				RidePlan::NearOpts MainOnly;
+				MainOnly.MainOnly = true;
+				RidePlan::NearHit Hit;
+				if (!Plan->NearestOf(P.At.X, P.At.Z, MainOnly, Hit) || Hit.Dist > 2.0) continue;
+				if (!(P.Bridge || P.Tunnel || Hit.Deck || Hit.Bore)) continue;
+				if (++Shown <= 40)
+					std::printf("  at %.2f km a road %s the ride's: %.1f m %s it\n", Plan->Road[size_t(Hit.Index)].Along / 1000.0, P.Bridge || Hit.Bore ? "goes over" : "goes under",
+						std::fabs(P.Height - Hit.Height), P.Height > Hit.Height ? "above" : "below");
+			}
+	}
 	if (std::getenv("WORLD_RIDE_DUMP") != nullptr)
 	{
 		// Every road's knots (x z height half), a road a line, for a picture.
