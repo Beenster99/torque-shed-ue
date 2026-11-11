@@ -360,12 +360,23 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				const FQuat Twist(Hd.TwistAxis, FMath::DegreesToRadians(Hd.TwistDeg * FMath::Clamp(In.Throttle, 0.0, 1.0)));
 				const FVector W0 = Bones[Hand[S]].Rest, E0 = Bones[LowerArm[S]].Rest, S0 = Bones[I].Rest;
 				const FVector Wt = In.GripFit[S].TransformPosition(Hd.Grip + Twist.RotateVector(W0 - Hd.Grip));
-				const double Off = FMath::Clamp(In.Limp, 0.0, 1.0);
-				const FVector W = FMath::Lerp(In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot), In.HandsOff[S], Off);
+				const double Limp = FMath::Clamp(In.Limp, 0.0, 1.0);
+				FVector W = FMath::Lerp(In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot), In.HandsOff[S], Limp);
 				const FVector GripNow = In.BarPivot + In.BarTurn.RotateVector(In.GripFit[S].TransformPosition(Hd.Grip) - In.BarPivot);
 				const FVector WristOnBar = In.BarPivot + In.BarTurn.RotateVector(Wt - In.BarPivot);
+				Last.Grip[S] = FMath::Lerp(GripNow, In.HandsOff[S] + (GripNow - WristOnBar), Limp);
+				// [gestures] The wave: the left wrist out to the side of the shoulder, a little forward and
+				// up, the hand going to and fro twice a second. The grip stays where the bar is.
+				const double WaveK = S == 0 ? FMath::Clamp(In.Wave, 0.0, 1.0) * (1.0 - Limp) : 0.0;
+				if (WaveK > 0.0)
+				{
+					const double To = FMath::Sin(In.WaveTime * 2.0 * PI * 2.0);
+					const FVector WaveAt = P[I] + FVector(16.0 + 7.0 * To, -38.0, 14.0 + 2.0 * FMath::Abs(To));
+					W = FMath::Lerp(W, WaveAt, FMath::SmoothStep(0.0, 1.0, WaveK));
+				}
+				Last.HandOff[S] = WaveK;
+				const double Off = FMath::Max(Limp, WaveK);
 				Last.Wrist[S] = W;
-				Last.Grip[S] = FMath::Lerp(GripNow, In.HandsOff[S] + (GripNow - WristOnBar), Off);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector E = RigMidJoint(P[I], W, Lu, Lf, ElbowPole[S]);
 				const FVector Hinge0 = FVector::CrossProduct(E0 - S0, W0 - E0), Hinge = FVector::CrossProduct(E - P[I], W - E);

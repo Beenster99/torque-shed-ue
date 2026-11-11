@@ -28,7 +28,7 @@ static_assert(NV_Count <= TorqueNet::MaxVals, "more values than a snapshot holds
 enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Count };
 static_assert(NI_Count <= TorqueNet::MaxInts, "more stepped values than a snapshot holds");
 
-constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16;
+constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16, FlagNod = 32, FlagWave = 64;
 
 bool NetLogEverySecond()
 {
@@ -123,7 +123,8 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	S.FrontSlip = (float)F.Slip;
 	S.RearSlip = (float)R.Slip;
 	S.Gear = (uint8)FMath::Clamp(Sim.Gear, 0, 255);
-	S.Flags = (Sim.IsCrashed ? FlagCrashed : 0) | (F.Contact ? FlagFrontDown : 0) | (R.Contact ? FlagRearDown : 0) | (Sim.IsGhost() ? FlagGhost : 0) | (B->IsOnFoot() ? FlagParked : 0);
+	S.Flags = (Sim.IsCrashed ? FlagCrashed : 0) | (F.Contact ? FlagFrontDown : 0) | (R.Contact ? FlagRearDown : 0) | (Sim.IsGhost() ? FlagGhost : 0) | (B->IsOnFoot() ? FlagParked : 0) |
+		(B->IsNodding() ? FlagNod : 0) | (B->IsWaving() ? FlagWave : 0);   // [gestures]
 	S.FrontSurf = (uint8)FMath::Clamp(F.Surf, 0, 255);
 	S.RearSurf = (uint8)FMath::Clamp(R.Surf, 0, 255);
 	S.Lamps = B->Lights.NetBits();   // [lights]
@@ -220,6 +221,7 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	// A ghost (respawned): the others pass through it. The time left isn't sent: drawn at its faintest.
 	Sim.GhostLeft = (Out.Ints[NI_Flags] & FlagGhost) != 0 ? 2.0 : 0.0;
 	B->SetParkedLook((Out.Ints[NI_Flags] & FlagParked) != 0);   // its rider's off it, the stand down
+	B->SetNetGestures((Out.Ints[NI_Flags] & FlagNod) != 0, (Out.Ints[NI_Flags] & FlagWave) != 0);   // [gestures] a nod or a wave to us
 	B->Throttle = Out.Val[NV_Throttle];
 	B->FrontBrake = Out.Val[NV_FrontBrake];
 	B->RearBrake = Out.Val[NV_RearBrake];

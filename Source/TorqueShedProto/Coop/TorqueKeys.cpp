@@ -69,6 +69,8 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("Hazards"), TEXT("Hazard lights on / off"), R, {EKeys::Slash, FKey()}},
 	{TEXT("BackToShed"), TEXT("Back to the shed"), R, {EKeys::BackSpace, FKey()}},
 	{TEXT("Telemetry"), TEXT("Telemetry overlay on / off"), R, {EKeys::F3, FKey()}},
+	{TEXT("Nod"), TEXT("Nod to another rider"), R, {EKeys::Y, FKey()}},
+	{TEXT("Wave"), TEXT("Wave at another rider (hold)"), R, {EKeys::U, FKey()}},
 	{TEXT("Help"), TEXT("Help lines on / off"), FR, {EKeys::H, FKey()}},
 	{TEXT("Perf"), TEXT("Performance numbers on / off"), FR, {EKeys::P, FKey()}},
 	{TEXT("PerfLog"), TEXT("Performance: log to a file on / off"), FR, {EKeys::O, FKey()}},
