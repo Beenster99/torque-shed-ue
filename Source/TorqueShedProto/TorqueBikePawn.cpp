@@ -874,7 +874,7 @@ FString ATorqueBikePawn::TestRideLog() const
 			// The hands on the controls: the right grip's roll with the throttle, and the index and
 			// middle fingers' curl each side (they lift and pull with the levers).
 			Out += FString::Printf(TEXT("\nrider hands: throttle %.2f, grip roll %.1f / %.1f deg, index curl %.0f / %.0f deg, middle curl %.0f / %.0f deg, levers held %.2f / %.2f, pulled %.2f / %.2f"),
-				Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
+				TestGripThrottleHold >= 0.0 ? TestGripThrottleHold : Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
 				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
 		}
 	}
@@ -3357,7 +3357,7 @@ void ATorqueBikePawn::UpdateRider()
 		const double IntoCorner = FTorqueSettings::Get().bLookIntoCorner ? 0.45 : 0.0;
 		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + IntoCorner * HeadLean, -0.45 * HeadLean);
 		// Right hand: the throttle, and the front brake lever under two fingers.
-		In.Throttle = Throttle;
+		In.Throttle = TestGripThrottleHold >= 0.0 ? FMath::Clamp(TestGripThrottleHold, 0.0, 1.0) : Throttle;
 		if (bThrown)
 		{
 			// Off the bike: lying back, legs out along the road, arms out at his sides.

@@ -701,13 +701,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		if (Verb == TEXT("lever"))
 		{
-			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
+			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:throttle:1 rolls the
+			// right grip (pose only); lever:off lets all of them go.
 			const FString Which = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
 			if (Which == TEXT("off"))
 			{
 				Bike->TestLever(0, -1.0);
 				Bike->TestLever(1, -1.0);
+				Bike->TestGripThrottle(-1.0);
 				Said(TEXT("levers let go"));
+				return true;
+			}
+			if (Which == TEXT("throttle"))
+			{
+				// lever:throttle:0.8 rolls the rider's right grip that far (the pose only; the bike's throttle is its own).
+				const double Roll = P.Num() > 2 ? FCString::Atod(*P[2]) : 1.0;
+				Bike->TestGripThrottle(Roll);
+				Said(FString::Printf(TEXT("throttle grip rolled %.2f"), Roll));
 				return true;
 			}
 			const int32 LeverSide = Which == TEXT("clutch") ? 0 : 1;
