@@ -6,9 +6,12 @@
 // Plain C++ and the same on every machine: two riders who plan the same ride get the same road to
 // the last bit, since it is made from nothing but the cells and the height tiles.
 //
-// The road here is a first, plain one: a strip of one width along the route's line, its height the
-// ground's along its middle, smoothed. Torque Shed's own road builder (cambers, junctions, widths by
-// class, bridges) is stage 3's port.
+// The road is made as the Godot game's route planner makes one (stage 3; WorldRoadLine.h): the quick
+// way by road (main roads cost less a metre), its line with every mapped corner rounded and faired
+// by the road's class so no bend is tighter than a bike can take, as wide as its class, its height
+// the ground's along its middle, smoothed and no steeper than 15%. It has sloping shoulders that
+// run down into the ground, edge lines on the wider roads and a dashed centre line where there are
+// two lanes. Junctions, camber and bridges are still to come.
 #pragma once
 
 #include "WorldLoad.h"
@@ -26,6 +29,7 @@ struct RoadPoint
 	P2 At;
 	double Along = 0.0;    // metres from the start
 	double Height = 0.0;   // the road's own
+	double Half = 2.3;     // half the carriageway's width here
 };
 
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.
@@ -34,6 +38,7 @@ struct RideMesh
 	double OriginX = 0.0, OriginZ = 0.0;
 	std::vector<float> Pos, Nrm;   // x, y, z each
 	std::vector<float> Uv;         // u, v each: metres across the world over 8
+	std::vector<float> Col;        // r, g, b each (linear), or empty for a mesh of one colour
 	std::vector<uint32_t> Idx;     // triangles, wound to face up seen from above with x right and z towards you
 	size_t Vertices() const { return Pos.size() / 3; }
 };
@@ -57,22 +62,26 @@ public:
 	double LatA = 0.0, LonA = 0.0, LatB = 0.0, LonB = 0.0;
 	int TilesFailed = 0;
 
-	static constexpr double HalfWidth = 2.75;   // the road's
-	static constexpr double Bench = 4.0;        // level ground kept each side of it
+	static constexpr double Bench = 4.0;        // level ground kept each side of the road
 	static constexpr double Blend = 12.0;       // and the bank from there back to the land as it lies
-	static constexpr double Sink = 0.12;        // how far under the road's surface the ground under it lies
+	static constexpr double Sink = 0.05;        // how far under the road's surface the ground under it lies
+	static constexpr double Shoulder = 1.3;     // the road's sloping edge: this far out,
+	static constexpr double ShoulderDrop = 0.26;   // and this far down, into the ground
+	double WidestHalf = 2.3;                    // of the whole ride
 
-	// The bare ground at (X, Z), the road's bench cut in; NaN where the world has none.
-	double Ground(double X, double Z) const;
+	// The bare ground at (X, Z), the road's bench cut in; NaN where the world has none. Coarse is how
+	// far apart (m) the asker's points are: a mesh coarser than 4 m has the bench wider and a little
+	// deeper, so its straight edges between points never stand over the road.
+	double Ground(double X, double Z, double Coarse = 0.0) const;
 	// The road's surface at (X, Z) if it is on the road, else NaN.
 	double RoadHeight(double X, double Z) const;
 	// The nearest point of the road's middle within 40 m: how far, its height, which point. False if none.
-	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr) const;
+	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr) const;
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack).
 	void LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const;
-	// The road's strip from point First to Last (both included).
+	// The road from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int First, int Last, RideMesh& Out) const;
 
 	// The route as the bike reads it (Data/Buttertubs/route.json's fields): line_sim, length_m,
@@ -80,7 +89,7 @@ public:
 	std::string RouteJson() const;
 
 private:
-	void LayRoad(const std::vector<P2>& Line);
+	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves);
 	std::unordered_map<long long, std::vector<int>> Near;   // road points by 16 m square
 };
 } // namespace TorqueWorld

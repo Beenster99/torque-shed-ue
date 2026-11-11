@@ -75,6 +75,25 @@ int main(int Argc, char** Argv)
 		Crest = std::fmax(Crest, std::fabs(Plan->Road[I + 1].Height - 2.0 * P.Height + Plan->Road[I - 1].Height));
 		Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
 	}
+	// The bends: the radius through each three points 8 m apart; the tight ones said.
+	{
+		int Tight = 0;
+		double Least = 1e9;
+		for (size_t I = 2; I + 2 < Plan->Road.size(); ++I)
+		{
+			const P2 A = Plan->Road[I - 2].At, B = Plan->Road[I].At, C = Plan->Road[I + 2].At;
+			const double La = A.DistanceTo(B), Lb = B.DistanceTo(C), Lc = A.DistanceTo(C);
+			const double Cross = std::fabs((B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X));
+			const double Radius = Cross > 1e-9 ? La * Lb * Lc / (2.0 * Cross) : 1e9;
+			if (Radius < Least) Least = Radius;
+			if (Radius < 10.0)
+			{
+				++Tight;
+				if (Tight <= 40) std::printf("  a bend of %.1f m radius at %.2f km (%.0f, %.0f)\n", Radius, Plan->Road[I].Along / 1000.0, B.X, B.Z);
+			}
+		}
+		std::printf("The bends: tightest %.1f m radius; %d points tighter than 10 m\n", Least, Tight);
+	}
 	const auto T0 = std::chrono::steady_clock::now();
 	RideMesh Tile;
 	const double X0 = std::floor(Plan->Road[0].At.X / 256.0) * 256.0, Z0 = std::floor(Plan->Road[0].At.Z / 256.0) * 256.0;

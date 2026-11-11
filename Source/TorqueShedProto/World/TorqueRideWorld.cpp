@@ -187,6 +187,9 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TorqueWorld::RideMesh
 	TArray<FVector> Normals;
 	TArray<FVector2D> Uvs;
 	TArray<int32> Triangles;
+	TArray<FLinearColor> Colours;
+	const bool bColoured = Mesh.Col.size() == Mesh.Pos.size();
+	if (bColoured) Colours.Reserve(Count);
 	Points.Reserve(Count);
 	Normals.Reserve(Count);
 	Uvs.Reserve(Count);
@@ -197,6 +200,7 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TorqueWorld::RideMesh
 		Points.Add(FVector(double(Mesh.Pos[V]) * 100.0, double(Mesh.Pos[V + 2]) * 100.0, double(Mesh.Pos[V + 1]) * 100.0));
 		Normals.Add(FVector(double(Mesh.Nrm[V]), double(Mesh.Nrm[V + 2]), double(Mesh.Nrm[V + 1])));
 		Uvs.Add(FVector2D(double(Mesh.Uv[size_t(I) * 2]), double(Mesh.Uv[size_t(I) * 2 + 1])));
+		if (bColoured) Colours.Add(FLinearColor(Mesh.Col[V], Mesh.Col[V + 1], Mesh.Col[V + 2], 1.0f));
 	}
 	// (the plan winds its triangles anticlockwise seen from above, which is Unreal's front face too:
 	// the two frames name the same points)
@@ -209,7 +213,8 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TorqueWorld::RideMesh
 	Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
 	Part->SetCastShadow(bShadow);
 	Part->RegisterComponent();
-	Part->CreateMeshSection_LinearColor(0, Points, Triangles, Normals, Uvs, TArray<FLinearColor>(), TArray<FProcMeshTangent>(), bCollide);
+	// (the colours are kept as they are, linear: M_RideRoad reads the vertex colour as the road's own)
+	Part->CreateMeshSection_LinearColor(0, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
 	if (Material) Part->SetMaterial(0, Material);
 	return Part;
 }

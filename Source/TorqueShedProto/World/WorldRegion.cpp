@@ -576,7 +576,7 @@ int Region::NearestConnected(double X, double Z, double Within, int MinNodes) co
 		}
 	return Best >= 0 ? Best : Fallback;
 }
-std::vector<int> Region::ShortestPath(int From, int To) const
+std::vector<int> Region::ShortestPath(int From, int To, const std::vector<double>* ClassCost) const
 {
 	std::vector<int> Out;
 	if (From < 0 || To < 0 || From >= int(Nodes.size()) || To >= int(Nodes.size()) || From == To) return Out;
@@ -586,14 +586,19 @@ std::vector<int> Region::ShortestPath(int From, int To) const
 	std::vector<int> Prev(States, -1);
 	using Item = std::pair<double, int>;
 	std::priority_queue<Item, std::vector<Item>, std::greater<Item>> Open;
+	const auto Cost = [&](int Edge)
+	{
+		const RoadEdge& E = Edges[size_t(Edge)];
+		return ClassCost != nullptr && size_t(E.Class) < ClassCost->size() ? E.Length * (*ClassCost)[size_t(E.Class)] : E.Length;
+	};
 	auto Arrive = [&](int Edge, int AtNode) { return Edge * 2 + (Edges[size_t(Edge)].B == AtNode ? 1 : 0); };
 	for (int Ei : Adjacent[size_t(From)])
 	{
 		if (!Passable(Ei, From) || Edges[size_t(Ei)].A == Edges[size_t(Ei)].B) continue;
 		const int S = Arrive(Ei, OtherEnd(Ei, From));
-		if (Edges[size_t(Ei)].Length < Dist[size_t(S)])
+		if (Cost(Ei) < Dist[size_t(S)])
 		{
-			Dist[size_t(S)] = Edges[size_t(Ei)].Length;
+			Dist[size_t(S)] = Cost(Ei);
 			Open.push({Dist[size_t(S)], S});
 		}
 	}
@@ -615,7 +620,7 @@ std::vector<int> Region::ShortestPath(int From, int To) const
 		{
 			if (Ei == Came || !Passable(Ei, Node) || TurnBanned(Came, Node, Ei) || Edges[size_t(Ei)].A == Edges[size_t(Ei)].B) continue;
 			const int N = Arrive(Ei, OtherEnd(Ei, Node));
-			const double D = Top.first + Edges[size_t(Ei)].Length;
+			const double D = Top.first + Cost(Ei);
 			if (D < Dist[size_t(N)])
 			{
 				Dist[size_t(N)] = D;

@@ -9,6 +9,8 @@
 // bike's wheels need. A square goes only when those that take its place are there, so the ground
 // never has a hole; each hangs a skirt from its edge, so squares of different fineness show no crack.
 //
+// The road's pieces carry their own colours (tarmac, the verge's gravel, paint) in their vertices.
+//
 // The actor is tagged Land and the road's pieces Road, as the bike's ground trace wants them
 // (TorqueBikePawn's GroundTrace): the road is tarmac, the rest grass.
 #pragma once

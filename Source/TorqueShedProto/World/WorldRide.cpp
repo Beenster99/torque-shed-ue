@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldRoadLine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,24 +25,6 @@ double Smooth01(double T)
 	return T * T * (3.0 - 2.0 * T);
 }
 
-// Corners cut once (Chaikin), ends kept: the map's road lines turn at points, a road doesn't.
-std::vector<P2> Rounded(const std::vector<P2>& Line)
-{
-	if (Line.size() < 3) return Line;
-	std::vector<P2> Out;
-	Out.reserve(Line.size() * 2);
-	Out.push_back(Line.front());
-	for (size_t I = 0; I + 1 < Line.size(); ++I)
-	{
-		const P2 A = Line[I], B = Line[I + 1];
-		// (short bits are left alone: cutting them only makes them shorter)
-		if (A.DistanceTo(B) < 2.0) { if (I + 2 < Line.size()) Out.push_back(B); continue; }
-		if (I > 0) Out.push_back(A + (B - A) * 0.25);
-		if (I + 2 < Line.size()) Out.push_back(A + (B - A) * 0.75);
-	}
-	Out.push_back(Line.back());
-	return Out;
-}
 } // namespace
 
 std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights, double InLatA, double InLonA, double InLatB, double InLonB,
@@ -69,27 +52,79 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	const int From = G.NearestConnected(A.X, A.Z, 2000.0), To = G.NearestConnected(B.X, B.Z, 2000.0);
 	if (From < 0 || To < 0) { R->Why = std::string("There is no road within 2 km of the ") + (From < 0 ? "start." : "end."); return R; }
 	Tell("Finding the way by road");
-	const std::vector<int> Path = G.ShortestPath(From, To);
+	// The quick way: a metre of main road costs less than one of a back lane.
+	std::vector<double> Costs;
+	for (const std::string& Class : G.Classes) Costs.push_back(RoadLine::MainCostOf(Class));
+	const std::vector<int> Path = G.ShortestPath(From, To, &Costs);
 	if (Path.empty()) { R->Why = "There is no way by road between them."; return R; }
 	for (int E : Path)
 	{
 		const std::string Name = G.NameOf(E);
 		if (R->Names.empty() || R->Names.back() != Name) R->Names.push_back(Name);
 	}
-	const std::vector<P2> Line = Resample(Rounded(G.PathLine(From, Path)), 4.0);
+	// The road as the map drew it, and which road each of its points is on.
+	std::vector<P2> Raw;
+	std::vector<int> Owner;
+	{
+		int Node = From;
+		for (int E : Path)
+		{
+			const std::vector<P2> Piece = G.LineFrom(E, Node);
+			for (size_t I = Raw.empty() ? 0 : 1; I < Piece.size(); ++I)
+			{
+				Raw.push_back(Piece[I]);
+				Owner.push_back(E);
+			}
+			Node = G.OtherEnd(E, Node);
+		}
+	}
+	std::vector<double> Fair(Raw.size()), RawAlong(Raw.size(), 0.0);
+	for (size_t I = 0; I < Raw.size(); ++I)
+	{
+		Fair[I] = RoadLine::FairOf(G.ClassOf(Owner[I]));
+		if (I > 0) RawAlong[I] = RawAlong[I - 1] + Raw[I].DistanceTo(Raw[I - 1]);
+	}
+	Tell("Smoothing the road");
+	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair);
+	// Each knot as wide as the road it is on (by how far along it is), eased where the width changes.
+	std::vector<double> Halves(Line.size(), 2.3);
+	{
+		std::vector<double> KnotAlong(Line.size(), 0.0);
+		for (size_t I = 1; I < Line.size(); ++I) KnotAlong[I] = KnotAlong[I - 1] + Line[I].DistanceTo(Line[I - 1]);
+		const double Scale = !Line.empty() && KnotAlong.back() > 0.0 && !Raw.empty() ? RawAlong.back() / KnotAlong.back() : 1.0;
+		size_t J = 0;
+		for (size_t I = 0; I < Line.size(); ++I)
+		{
+			const double At = KnotAlong[I] * Scale;
+			while (J + 1 < Raw.size() && RawAlong[J + 1] < At) ++J;
+			Halves[I] = RoadLine::WidthOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)])) * 0.5;
+		}
+		for (int Pass = 0; Pass < 2; ++Pass)
+		{
+			std::vector<double> Eased = Halves;
+			for (size_t I = 0; I < Halves.size(); ++I)
+			{
+				double Sum = 0.0;
+				int Count = 0;
+				for (size_t K = I > 6 ? I - 6 : 0; K <= std::min(I + 6, Halves.size() - 1); ++K) { Sum += Halves[K]; ++Count; }
+				Eased[I] = Sum / Count;
+			}
+			Halves.swap(Eased);
+		}
+	}
 	// (the tiles are chosen by the road as the map has it, a point every 30 m, as every rider's are)
 	R->Land = R->Area.Land->ForRoad(Resample(G.PathLine(From, Path), 30.0));
 	Tell("Fetching the ground: " + std::to_string(R->Land->UsedKeys().size()) + " tiles");
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
 	if (R->TilesFailed > 0) { R->Why = std::to_string(R->TilesFailed) + " of the ground's tiles couldn't be fetched."; return R; }
 	Tell("Laying the road");
-	R->LayRoad(Line);
+	R->LayRoad(Line, Halves);
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	R->Ok = true;
 	return R;
 }
 
-void RidePlan::LayRoad(const std::vector<P2>& Line)
+void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves)
 {
 	Road.clear();
 	Near.clear();
@@ -100,7 +135,7 @@ void RidePlan::LayRoad(const std::vector<P2>& Line)
 	{
 		const double Y = Land->Height(Line[I].X, Line[I].Z);
 		if (!std::isnan(Y)) { Last = Y; Any = true; }
-		H[I] = std::isnan(Y) ? Last : Y;   // (a hole in the ground is bridged at the last height known)
+		H[I] = std::fmax(std::isnan(Y) ? Last : Y, 0.0);   // (a hole in the ground is bridged at the last height known; never under the sea)
 	}
 	if (!Any) return;
 	// The road's own height: the ground's along its middle, evened out over 75 m three times, so it neither
@@ -124,6 +159,10 @@ void RidePlan::LayRoad(const std::vector<P2>& Line)
 		}
 		H.swap(S);
 	}
+	// (the Godot game averages over 9 knots once; three wider passes leave no crest a bike takes off
+	// from at speed. The grade's limit is its own.)
+	H = RoadLine::GradeLimit(H);
+	WidestHalf = 0.0;
 	double Along = 0.0;
 	for (size_t I = 0; I < Line.size(); ++I)
 	{
@@ -132,15 +171,17 @@ void RidePlan::LayRoad(const std::vector<P2>& Line)
 		P.At = Line[I];
 		P.Along = Along;
 		P.Height = H[I];
+		P.Half = I < Halves.size() ? Halves[I] : 2.3;
+		WidestHalf = std::fmax(WidestHalf, P.Half);
 		Near[NearKey(P.At.X, P.At.Z)].push_back(int(Road.size()));
 		Road.push_back(P);
 	}
 	Length = Along;
 }
 
-bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* Index) const
+bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* Index, double* Half) const
 {
-	double Best = 1e18, BestH = 0.0;
+	double Best = 1e18, BestH = 0.0, BestHalf = 0.0;
 	int BestI = -1;
 	const long long Cx = static_cast<long long>(std::floor(X / NearCell)), Cz = static_cast<long long>(std::floor(Z / NearCell));
 	for (long long Dx = -3; Dx <= 3; ++Dx)
@@ -163,6 +204,7 @@ bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* In
 					{
 						Best = D2;
 						BestH = Road[size_t(S)].Height + (Road[size_t(S) + 1].Height - Road[size_t(S)].Height) * T;
+						BestHalf = Road[size_t(S)].Half + (Road[size_t(S) + 1].Half - Road[size_t(S)].Half) * T;
 						BestI = T < 0.5 ? S : S + 1;
 					}
 				}
@@ -172,25 +214,28 @@ bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* In
 	Dist = std::sqrt(Best);
 	Height = BestH;
 	if (Index != nullptr) *Index = BestI;
+	if (Half != nullptr) *Half = BestHalf;
 	return true;
 }
 
-double RidePlan::Ground(double X, double Z) const
+double RidePlan::Ground(double X, double Z, double Coarse) const
 {
 	const double Lie = Land ? Land->Height(X, Z) : std::nan("");
-	double Dist = 0.0, Height = 0.0;
-	if (!Nearest(X, Z, Dist, Height)) return Lie;
-	const double Flat = HalfWidth + Bench;
-	if (Dist <= Flat || std::isnan(Lie)) return Dist <= Flat + Blend ? Height - Sink : Lie;
+	double Dist = 0.0, Height = 0.0, Half = 0.0;
+	if (!Nearest(X, Z, Dist, Height, nullptr, &Half)) return Lie;
+	const double Wider = std::fmax(0.0, Coarse - 4.0);
+	const double Flat = Half + Bench + Wider;
+	const double Under = Height - Sink - std::fmin(0.45, Wider * 0.06);
+	if (Dist <= Flat || std::isnan(Lie)) return Dist <= Flat + Blend ? Under : Lie;
 	if (Dist >= Flat + Blend) return Lie;
 	const double T = Smooth01((Dist - Flat) / Blend);
-	return (Height - Sink) + (Lie - (Height - Sink)) * T;
+	return Under + (Lie - Under) * T;
 }
 
 double RidePlan::RoadHeight(double X, double Z) const
 {
-	double Dist = 0.0, Height = 0.0;
-	return Nearest(X, Z, Dist, Height) && Dist <= HalfWidth ? Height : std::nan("");
+	double Dist = 0.0, Height = 0.0, Half = 0.0;
+	return Nearest(X, Z, Dist, Height, nullptr, &Half) && Dist <= Half ? Height : std::nan("");
 }
 
 void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const
@@ -208,7 +253,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	for (int J = 0; J < M; ++J)
 		for (int I = 0; I < M; ++I)
 		{
-			const double Y = Ground(X0 + (I - 1) * Step, Z0 + (J - 1) * Step);
+			const double Y = Ground(X0 + (I - 1) * Step, Z0 + (J - 1) * Step, Step);
 			H[size_t(J) * M + I] = Y;
 			if (!std::isnan(Y) && !Any) { Fallback = Y; Any = true; }
 		}
@@ -269,30 +314,74 @@ void RidePlan::RoadPiece(int First, int Last, RideMesh& Out) const
 	if (Last <= First) return;
 	Out.OriginX = Road[size_t(First)].At.X;
 	Out.OriginZ = Road[size_t(First)].At.Z;
+	// (the Godot game's colours, linear: tarmac, the verge's gravel, paint)
+	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.119f, 0.107f, 0.078f}, Paint[3] = {0.83f, 0.83f, 0.75f};
+	const int Count = int(Road.size());
+	struct Row
+	{
+		P2 At, Left;
+		double Height = 0.0, Half = 0.0, Along = 0.0, Nx = 0.0, Ny = 1.0, Nz = 0.0;
+	};
+	std::vector<Row> Rows;
 	for (int I = First; I <= Last; ++I)
 	{
 		const RoadPoint& P = Road[size_t(I)];
-		const P2 Before = Road[size_t(std::max(0, I - 1))].At, After = Road[size_t(std::min(int(Road.size()) - 1, I + 1))].At;
-		P2 Dir = After - Before;
+		const RoadPoint& Before = Road[size_t(std::max(0, I - 1))];
+		const RoadPoint& After = Road[size_t(std::min(Count - 1, I + 1))];
+		P2 Dir = After.At - Before.At;
 		const double Len = Dir.Length();
 		Dir = Len > 1e-9 ? Dir * (1.0 / Len) : P2(0.0, -1.0);
-		// Its left as you ride it: with x east and z south, left of a heading (dx, dz) is (dz, -dx).
-		const P2 Left(Dir.Z, -Dir.X);
-		const double Rise = Len > 1e-9 ? (Road[size_t(std::min(int(Road.size()) - 1, I + 1))].Height - Road[size_t(std::max(0, I - 1))].Height) / Len : 0.0;
+		const double Rise = Len > 1e-9 ? (After.Height - Before.Height) / Len : 0.0;
 		const double Nl = std::sqrt(1.0 + Rise * Rise);
-		for (int Side = 0; Side < 2; ++Side)
-		{
-			const P2 At = P.At + Left * (Side == 0 ? HalfWidth : -HalfWidth);
-			Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(P.Height)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
-			Out.Nrm.push_back(float(-Dir.X * Rise / Nl)); Out.Nrm.push_back(float(1.0 / Nl)); Out.Nrm.push_back(float(-Dir.Z * Rise / Nl));
-			Out.Uv.push_back(Side == 0 ? 0.0f : 1.0f); Out.Uv.push_back(float(P.Along / (2.0 * HalfWidth)));
-		}
+		Row R;
+		R.At = P.At;
+		// Its left as you ride it: with x east and z south, left of a heading (dx, dz) is (dz, -dx).
+		R.Left = P2(Dir.Z, -Dir.X);
+		R.Height = P.Height;
+		R.Half = P.Half;
+		R.Along = P.Along;
+		R.Nx = -Dir.X * Rise / Nl;
+		R.Ny = 1.0 / Nl;
+		R.Nz = -Dir.Z * Rise / Nl;
+		Rows.push_back(R);
 	}
-	for (int I = 0; I < Last - First; ++I)
+	const auto Put = [&Out](const Row& R, double Off, double Lift, const float* Colour)
 	{
-		// (left, right) of this point, then of the next: up-facing whichever way the road runs.
-		const uint32_t L0 = uint32_t(I * 2), R0 = L0 + 1, L1 = L0 + 2, R1 = L0 + 3;
-		Out.Idx.insert(Out.Idx.end(), {L0, R0, L1, R0, R1, L1});
+		// (Off is to the left of the middle)
+		const P2 At = R.At + R.Left * Off;
+		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(R.Height + Lift)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
+		Out.Nrm.push_back(float(R.Nx)); Out.Nrm.push_back(float(R.Ny)); Out.Nrm.push_back(float(R.Nz));
+		Out.Uv.push_back(float(Off / 4.0)); Out.Uv.push_back(float(R.Along / 4.0));
+		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
+	};
+	// A strip between two rows from OffA to OffB (left to right: OffA the greater), up-facing.
+	const auto Strip = [&Out, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* Colour)
+	{
+		const uint32_t V = uint32_t(Out.Vertices());
+		Put(R0, A0, LiftA, Colour);
+		Put(R0, B0, LiftB, Colour);
+		Put(R1, A1, LiftA, Colour);
+		Put(R1, B1, LiftB, Colour);
+		Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
+	};
+	const double PaintLift = 0.015;
+	for (size_t K = 0; K + 1 < Rows.size(); ++K)
+	{
+		const Row& A = Rows[K];
+		const Row& B = Rows[K + 1];
+		// The left shoulder (from down in the ground up to the edge), the tarmac, the right shoulder.
+		Strip(A, B, A.Half + Shoulder, A.Half, B.Half + Shoulder, B.Half, -ShoulderDrop, 0.0, Verge);
+		Strip(A, B, A.Half, -A.Half, B.Half, -B.Half, 0.0, 0.0, Tarmac);
+		Strip(A, B, -A.Half, -A.Half - Shoulder, -B.Half, -B.Half - Shoulder, 0.0, -ShoulderDrop, Verge);
+		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
+		// 3 m dashes with 6 m gaps.
+		const double Half = std::fmin(A.Half, B.Half);
+		if (Half >= 2.95)
+		{
+			for (double Side : {1.0, -1.0})
+				Strip(A, B, Side * (A.Half - 0.3) + 0.065, Side * (A.Half - 0.3) - 0.065, Side * (B.Half - 0.3) + 0.065, Side * (B.Half - 0.3) - 0.065, PaintLift, PaintLift, Paint);
+		}
+		if (Half >= 2.5 && std::fmod(A.Along, 9.0) < 3.0) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
 	}
 }
 
@@ -305,7 +394,7 @@ std::string RidePlan::RouteJson() const
 	if (Called.empty()) Called = Names.empty() ? std::string("Ride UK") : "Ride UK: " + Names.front() + " to " + Names.back();
 	Set("name", Json::MakeString(Called));
 	Set("length_m", Json::MakeNumber(Length));
-	Set("road_half_width_m", Json::MakeNumber(HalfWidth));
+	Set("road_half_width_m", Json::MakeNumber(WidestHalf));
 	Json Geo = Json::MakeArray();
 	Geo.A.push_back(Json::MakeNumber(Area.Roads.FrameLat));
 	Geo.A.push_back(Json::MakeNumber(Area.Roads.FrameLon));

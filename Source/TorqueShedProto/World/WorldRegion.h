@@ -152,7 +152,9 @@ public:
 	// The shortest way by road from one junction to another, as the edges to take in order (one-way
 	// streets and banned turns kept to); empty when there is none. A plain shortest path: the crew's
 	// route planner (which weighs the kind of road) comes with the Route TV.
-	std::vector<int> ShortestPath(int From, int To) const;
+	// With ClassCost (what a metre of each of Classes costs), the cheapest way instead: the quick way
+	// keeps to main roads (RoadLine::MainCostOf).
+	std::vector<int> ShortestPath(int From, int To, const std::vector<double>* ClassCost = nullptr) const;
 	// The line of a path from its first junction, every point once.
 	std::vector<P2> PathLine(int From, const std::vector<int>& Path) const;
 
