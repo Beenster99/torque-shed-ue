@@ -342,6 +342,7 @@ private:
 	UPROPERTY(Transient) TArray<UMeshComponent*> GhostComps;
 	UPROPERTY(Transient) TArray<UMaterialInterface*> GhostSavedMats;
 	TArray<int32> GhostMatStart;
+	TArray<int32> GhostLodWas;   // each wired mesh's forced LOD before (the wire uses the coarsest)
 	TArray<TWeakObjectPtr<USceneComponent>> GhostHairHidden;
 	TArray<TWeakObjectPtr<UStaticMeshComponent>> GhostNaniteOff;   // drawn without Nanite for the ghost
 	void UpdateGhostLook();

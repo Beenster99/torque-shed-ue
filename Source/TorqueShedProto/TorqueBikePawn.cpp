@@ -24,6 +24,7 @@
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/SkinnedMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/StaticMeshComponent.h"
@@ -2609,7 +2610,14 @@ void ATorqueBikePawn::GhostRestore()
 		const int32 From = GhostMatStart[I];
 		const int32 To = GhostMatStart.IsValidIndex(I + 1) ? GhostMatStart[I + 1] : GhostSavedMats.Num();
 		for (int32 Slot = 0; Slot < To - From; ++Slot) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
+		const int32 LodWas = GhostLodWas.IsValidIndex(I) ? GhostLodWas[I] : -1;
+		if (LodWas >= 0)
+		{
+			if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C)) SMC->SetForcedLodModel(LodWas);
+			else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C)) SK->SetForcedLOD(LodWas);
+		}
 	}
+	GhostLodWas.Reset();
 	GhostComps.Reset();
 	GhostMatStart.Reset();
 	GhostSavedMats.Reset();
@@ -2660,7 +2668,7 @@ void ATorqueBikePawn::UpdateGhostLook()
 	if (GhostMid)
 	{
 		GhostMid->SetScalarParameterValue(TEXT("Amount"), 1.0f);
-		GhostMid->SetScalarParameterValue(TEXT("Opacity"), 0.85f);
+		GhostMid->SetScalarParameterValue(TEXT("Opacity"), 0.5f);
 	}
 	if (GhostFillMid)
 	{
@@ -2707,6 +2715,20 @@ void ATorqueBikePawn::UpdateGhostLook()
 				const int32 Slots = C->GetNumMaterials();
 				for (int32 Slot = 0; Slot < Slots; ++Slot) GhostSavedMats.Add(C->GetMaterial(Slot));
 				for (int32 Slot = 0; Slot < Slots; ++Slot) C->SetMaterial(Slot, WireMat);
+				// Its coarsest LOD while it's a wire: the full-detail polygons are so close together
+				// they fill in to a solid shape (build 135); the coarse ones read as a mesh.
+				int32 LodWas = -1;
+				if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C))
+				{
+					LodWas = SMC->ForcedLodModel;
+					if (SMC->GetStaticMesh()) SMC->SetForcedLodModel(SMC->GetStaticMesh()->GetNumLODs());
+				}
+				else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C))
+				{
+					LodWas = SK->GetForcedLOD();
+					SK->SetForcedLOD(SK->GetNumLODs());
+				}
+				GhostLodWas.Add(LodWas);
 				++Wired;
 			}
 		}
