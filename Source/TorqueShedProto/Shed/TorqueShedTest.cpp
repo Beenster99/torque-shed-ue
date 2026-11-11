@@ -25,6 +25,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/HUD.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
@@ -236,10 +237,10 @@ const TCHAR* const PhysicsSteps =
 // left and from behind on the right, first as the pose was before the fit per bike
 // (riderpose:old) and then fitted (riderpose:new), the same moment of the same ride, logged both
 // ways. The pictures go to Saved/Screenshots/RiderPose as <style>_<old|new>_<side|front|rear>.png.
-#define TORQUE_RIDER_VIEWS(S, W) TEXT("riderpose:") TEXT(W) TEXT(",wait:1,") \
-	TEXT("camera:3:90:330:40:15,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_side,") \
-	TEXT("camera:3:-40:340:40:35,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_front,") \
-	TEXT("camera:3:150:340:40:60,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_rear,ridelog,")
+#define TORQUE_RIDER_VIEWS(S, W) TEXT("riderpose:") TEXT(W) TEXT(",wait:1,hud:off,") \
+	TEXT("camera:3:90:520:40:20,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_side,") \
+	TEXT("camera:3:-40:480:40:40,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_front,") \
+	TEXT("camera:3:150:480:40:60,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_rear,hud:on,ridelog,")
 #define TORQUE_RIDER_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,robot:on,wait:8,") \
 	TORQUE_RIDER_VIEWS(S, "old") TORQUE_RIDER_VIEWS(S, "new") TEXT("camera:0,robot:off,back,wait:6,")
 const TCHAR* const RiderPoseSteps =
@@ -296,6 +297,12 @@ const TCHAR* const OutlineSteps =
 	TEXT("bay:1,restyle:cafe,tool:hands,part:tank,wait:2,outlinecheck,shot:ui,part:exhaust,wait:2,outlinecheck,")
 	TEXT("part:front_wheel,wait:2,outlinecheck,outlinecheck:summary");
 
+// [radio flip] The shed radio clicked quickly through its stations (build 134 froze beenster's PC
+// doing that: the engine's media player blocked the game thread as a station closed mid-start). The
+// radio now decodes its own stream; this wants no stalled frame and the last station on air. Any
+// "RADIO CHECK FAILED" line fails the build. Run alone with -TorqueShedAction=radioflip.
+const TCHAR* const RadioFlipSteps = TEXT("radio,radio:flip:30,wait:10,radio,radio:check");
+
 // The look outline's orange (M_ShedOutline Color / DarkColor, after tonemapping) over anything.
 bool Orange(const FColor& C)
 {
@@ -342,6 +349,7 @@ void UTorqueShedTest::Initialize(FSubsystemCollectionBase& Collection)
 		else if (T == TEXT("kit")) FString(TSTI::KitSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else if (T == TEXT("washride")) FString(TSTI::WashRideSteps).ParseIntoArray(Preset, TEXT(","), true);   // [washride]
 		else if (T == TEXT("outline")) FString(TSTI::OutlineSteps).ParseIntoArray(Preset, TEXT(","), true);   // [outline test]
+		else if (T == TEXT("radioflip")) FString(TSTI::RadioFlipSteps).ParseIntoArray(Preset, TEXT(","), true);   // [radio flip]
 		else if (T == TEXT("physics")) FString(TSTI::PhysicsSteps).ParseIntoArray(Preset, TEXT(","), true);
 		else Preset.Add(T);
 		Steps.Append(Preset);
@@ -423,6 +431,37 @@ bool UTorqueShedTest::Step(float Dt)
 	Wait -= Dt;
 	StepGame += Dt;
 	++StepFrames;
+	if (FlipLastReal > 0.0)
+	{
+		// [radio flip] Each frame's real length while the dial's clicked through, and the next click.
+		const double RealAt = FPlatformTime::Seconds();
+		FlipWorst = FMath::Max(FlipWorst, RealAt - FlipLastReal);
+		FlipLastReal = RealAt;
+		if (FlipLeft > 0)
+		{
+			if (RealAt >= FlipNextAt)
+			{
+				UTorqueBuildSubsystem* FB = UTorqueBuildSubsystem::Of(World);
+				FTorqueShedRequest Q;
+				Q.Kind = ETorqueShedAct::Radio;
+				Q.Item = 1;
+				FlipStation = (FlipStation + 1) % FMath::Max(1, TorqueShedRadio::Stations().Num());
+				Q.Colour = FlipStation;
+				FString WhyNot;
+				if (FB && FB->Request(Q, WhyNot)) ++FlipClicks;
+				--FlipLeft;
+				// Mostly quick clicks; every third a pause long enough for it to connect, so streams
+				// are dropped as they start too (where build 134 froze).
+				FlipNextAt = RealAt + (FlipLeft % 3 == 0 ? 0.9 : 0.12);
+			}
+			Wait = FMath::Max(Wait, 0.05);
+		}
+		else if (Wait <= 0.0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque test: radio flip: %d station changes, the longest frame %.0f ms"), FlipClicks, 1000.0 * FlipWorst);
+			FlipLastReal = 0.0;
+		}
+	}
 	if (Wait > 0.0) return true;
 	// The last step and the wait after it: real time against game time (the hub's run timed out
 	// once with every step fine: this says where the time went).
@@ -516,6 +555,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("menu")) Said(PC->TestMenu(P.Num() > 2 ? (P[1] + TEXT(":") + P[2]).ToLower() : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("pause"))));
 		else if (P.Num() >= 3) Said(PC->TestFace(P[1].ToLower(), FCString::Atof(*P[2])));
 		else Warn(TEXT("face what? face:jaw:0.8, face:height:-0.5, face:avatar:2"));
+		return true;
+	}
+	if (Verb == TEXT("hud"))
+	{
+		// [rider pose] "hud:off" / "hud:on": the riding HUD and its text hidden for clean pictures.
+		const bool bOn = P.Num() < 2 || P[1] != TEXT("off");
+		if (APlayerController* HudPC = World->GetFirstPlayerController())
+			if (AHUD* Hud = HudPC->GetHUD()) Hud->bShowHUD = bOn;
+		Said(bOn ? TEXT("HUD on") : TEXT("HUD off"));
 		return true;
 	}
 	if (Verb == TEXT("shot"))
@@ -1499,6 +1547,32 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		else { Warn(TEXT("paint what? newtin:W, pour:PB:40, stir, tare, addbase, test, shake, empty, save[:name], recipe:N[:eye], target, buy:CODE, take:N, put:N, tobench, bin, cup, hook:N:CM, tapetake, pattern:N, tapeput")); return true; }
 		Said(W->TestPaint(R));
+		return true;
+	}
+	if (Verb == TEXT("radio") && P.Num() >= 3 && P[1] == TEXT("flip"))
+	{
+		// [radio flip] radio:flip:N: N stations clicked through (on from wherever it's tuned).
+		FlipLeft = FMath::Clamp(FCString::Atoi(*P[2]), 1, 200);
+		FlipStation = B->RadioStation();
+		FlipClicks = 0;
+		FlipWorst = 0.0;
+		FlipLastReal = FlipNextAt = FPlatformTime::Seconds();
+		Said(FString::Printf(TEXT("clicking through %d stations"), FlipLeft));
+		return true;
+	}
+	if (Verb == TEXT("radio") && P.Num() >= 2 && P[1] == TEXT("check"))
+	{
+		// [radio flip] On air after the clicking, and no frame stuck while it went on.
+		const FString Now = ATorqueShedRadio::NowPlaying(World).Replace(TEXT("\n"), TEXT(" / "));
+		const bool bStuck = FlipWorst > 0.5;
+		const bool bOffAir = Now == TEXT("Off") || Now.Contains(TEXT("Tuning in")) || Now.Contains(TEXT("No signal"));
+		if (bStuck || bOffAir)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Torque test: %s: RADIO CHECK FAILED: %s (longest frame %.0f ms over %d changes; %s)"), *S,
+				bStuck ? TEXT("the game stalled while the station changed") : TEXT("not on air after the clicking (is the PC online?)"),
+				1000.0 * FlipWorst, FlipClicks, *Now);
+		}
+		else Said(FString::Printf(TEXT("ok: on air, longest frame %.0f ms over %d changes: %s"), 1000.0 * FlipWorst, FlipClicks, *Now));
 		return true;
 	}
 	if (Verb == TEXT("radio"))

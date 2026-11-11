@@ -2663,7 +2663,7 @@ def fab_car_paint(i, c, metallic, roughness):
         unreal.EditorAssetLibrary.save_loaded_asset(g.m)
         m = g.m
         fab_car_paint.made = True
-    name = "MI_FabCarPaint_%d" % i
+    name = "MI_FabCarPaint_%s" % i
     path = MAT_DIR + "/" + name
     if unreal.EditorAssetLibrary.does_asset_exist(path):
         unreal.EditorAssetLibrary.delete_asset(path)
@@ -2676,13 +2676,18 @@ def fab_car_paint(i, c, metallic, roughness):
     return mi
 
 
-def place_fab_cars(spec, frame):
-    """Thwaite's parked cars as Fab models (Data/Buttertubs/car_swaps.json). Returns True when they were
-    placed, so place_props leaves out the generated SM_Car_* meshes; False (nothing found) keeps them."""
+def place_fab_cars(spec, frame, kind="Car"):
+    """The dale's parked cars (kind Car) and the farms' 4x4s (kind Farm4x4, car_swaps.json "farm4x4") as
+    Fab models (Data/Buttertubs/car_swaps.json). Returns True when they were placed, so place_props leaves
+    out the generated SM_<kind>_* meshes; False (nothing found) keeps them."""
     cp = os.path.join(data_dir(), "car_swaps.json")
     if not os.path.exists(cp):
         return False
     cfg = json.load(open(cp))
+    if kind != "Car":
+        cfg = cfg.get(kind.lower())
+        if not cfg:
+            return False
     models = []
     for md in cfg.get("models", []):
         m = find_static_mesh(md["mesh"])
@@ -2695,7 +2700,7 @@ def place_fab_cars(spec, frame):
         return False
     rows = []
     for name in sorted(spec["instances"]):
-        if name.startswith("SM_Car_") and name.endswith("_Paint"):
+        if name.startswith("SM_%s_" % kind) and name.endswith("_Paint"):
             rows += [(name, r) for r in spec["instances"][name]]
     colours = cfg.get("colours") or [[0.5, 0.5, 0.5]]
     paints = {}
@@ -2715,7 +2720,7 @@ def place_fab_cars(spec, frame):
         lift = rot.rotate_vector(unreal.Vector(-o.x, -o.y, -(o.z - e.z)))
         loc = unreal.Vector(r[0], r[1], r[2]) + lift
         a = actors.spawn_actor_from_object(mesh, loc, rot.rotator())
-        a.set_actor_label("FabCar_%d" % i)
+        a.set_actor_label("Fab%s_%d" % (kind, i))
         a.set_folder_path("Props/Cars")
         c = a.get_component_by_class(unreal.StaticMeshComponent)
         c.set_editor_property("mobility", unreal.ComponentMobility.STATIC)
@@ -2723,7 +2728,8 @@ def place_fab_cars(spec, frame):
         c.set_editor_property("can_ever_affect_navigation", False)
         ci = i % len(colours)
         if ci not in paints:
-            paints[ci] = fab_car_paint(ci, colours[ci], cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
+            paints[ci] = fab_car_paint(ci if kind == "Car" else "%s_%d" % (kind, ci), colours[ci],
+                                       cfg.get("metallic", 0.6), cfg.get("roughness", 0.32))
         listed = set(md.get("paint_slots", []))
         painted = []
         slots = []
@@ -2736,13 +2742,13 @@ def place_fab_cars(spec, frame):
             if slot in listed or str(si) in listed or "paint" in names.lower():
                 c.set_material(si, paints[ci])
                 painted.append(si)
-        log("car swaps: %s #%d -> FabCar_%d %s, colour %d, at (%.0f, %.0f, %.0f) yaw %.1f, painted slots %s"
-            % (name, i, i, mesh.get_name(), ci, loc.x, loc.y, loc.z, rot.rotator().yaw, painted))
+        log(("car swaps: %s #%d -> Fab" + kind + "_%d %s, colour %d, at (%.0f, %.0f, %.0f) yaw %.1f, painted slots %s"
+            ) % (name, i, i, mesh.get_name(), ci, loc.x, loc.y, loc.z, rot.rotator().yaw, painted))
         if not painted:
             unreal.log_warning("[Torque] car swaps: %s has no paint slot; its slots: %s" % (mesh.get_name(), "; ".join(slots)))
         elif i < len(models):
             log("car swaps: %s slots: %s" % (mesh.get_name(), "; ".join(slots)))
-    log("car swaps: %d parked cars from %d Fab models" % (len(rows), len(models)))
+    log("car swaps: %d %s from %d Fab models" % (len(rows), "parked cars" if kind == "Car" else kind, len(models)))
     return True
 
 
@@ -2759,10 +2765,10 @@ def place_props(meshes, spec, materials, frame):
     op = os.path.join(data_dir(), "props_off.json")
     if os.path.exists(op):
         off = set(json.load(open(op)).get("kinds", []))
-    fab_cars = "Car" not in off and place_fab_cars(spec, frame)
+    fab_kinds = [k for k in ("Car", "Farm4x4") if k not in off and place_fab_cars(spec, frame, k)]
     n = 0
     for name, rows in sorted(spec["instances"].items()):
-        if fab_cars and name.startswith("SM_Car_"):
+        if any(name.startswith("SM_%s_" % k) for k in fab_kinds):
             continue
         if name.split("_")[1:2] and name.split("_")[1] in off:
             log("%s left out (props_off.json)" % name)

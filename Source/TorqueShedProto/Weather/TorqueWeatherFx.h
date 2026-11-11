@@ -48,7 +48,8 @@ private:
 	{
 		FVector Pos = FVector::ZeroVector, Vel = FVector::ZeroVector;
 		float Age = 0.0f, Life = 0.5f, Size0 = 5.0f, Size1 = 10.0f, Alpha = 0.2f, Seed = 0.0f, Drag = 1.0f, Gravity = 0.0f;
-		bool bSpray = false;
+		float Soft = 0.2f;     // 0 a crisp droplet .. 1 a soft puff of mist
+		bool bSpray = false;   // (the spray's whiter colour)
 	};
 	TArray<FBit> Bits;
 	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> Puffs = nullptr;

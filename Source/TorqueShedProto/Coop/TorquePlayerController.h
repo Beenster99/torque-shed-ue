@@ -16,6 +16,7 @@
 #include "SonyPad.h"
 #include "TorqueMenuMouse.h"
 #include "TorqueShedNet.h"
+#include "TorquePing.h"
 #include "TorquePlayerController.generated.h"
 
 class AHUD;
@@ -48,6 +49,14 @@ public:
 	// The shed in co-op: a joined player's actions, for the host to apply.
 	UFUNCTION(Server, Reliable) void ServerShed(const FTorqueShedRequestNet& Request);
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
+	// A note under the middle of the screen from this machine (a ping's "nothing there").
+	void ShowNote(const FString& Text, double Seconds);
+
+	// [ping] Torque Shed's ping (TorquePing.h): to the host, which names it and sends it to everyone,
+	// and on each player's machine, shown for TorquePing::Life seconds with its chime.
+	UFUNCTION(Server, Reliable) void ServerPing(const FTorquePingNet& NewPing);
+	UFUNCTION(Client, Reliable) void ClientPing(const FTorquePingNet& NewPing);
+	void DrawPings(UCanvas* Canvas);
 
 	// A walker put somewhere at once (stepping up to the paint bench, the tests' looks): on a joined
 	// copy a pawn moved there alone is snapped back by the host's movement, so the host moves it too.
@@ -69,7 +78,12 @@ public:
 	FString TestSet(const FString& Field, const FString& Value);
 
 private:
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck };
+	// [co-op] The bike picker for Buttertubs: a bay's name ("Bay 3: Simon's cruiser"), the other
+	// rider who has picked it (empty: free), and the next free bike from From in direction Dir.
+	FString RideBikeName(int32 Bay) const;
+	FString RideBikeTakenBy(int32 Bay) const;
+	int32 NextRideBike(int32 From, int32 Dir) const;
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike };
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -149,6 +163,7 @@ private:
 	bool bLookSent = false;
 	FString Note;
 	double NoteFor = 0.0;
+	TArray<TorquePing::FShown> Pings;   // [ping] showing on this machine
 
 	// [profile] Torque Shed's profile picture, top right of the Esc menu: it opens the Profile page
 	// (your MetaHuman, height and face; Shed/TorqueProfile.h), which shows you beside its sliders.

@@ -8,6 +8,9 @@
 #include "TorqueKeys.h"
 #include "TorqueGameState.h"
 #include "TorqueUi.h"
+#include "TorquePing.h"
+#include "TorqueAudio/TorqueSfx.h"
+#include "HAL/PlatformTime.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Camera/PlayerCameraManager.h"
@@ -105,6 +108,58 @@ void ATorquePlayerController::ClientNote_Implementation(const FString& Text)
 {
 	Note = Text.Left(200);
 	NoteFor = 4.0;
+}
+
+void ATorquePlayerController::ShowNote(const FString& Text, double Seconds)
+{
+	Note = Text.Left(200);
+	NoteFor = Seconds;
+}
+
+// [ping] The host: who pinged (their name and colour) goes on it, and it goes out to everyone
+// (shed_state.gd's "ping" action: it changes nothing in the shed).
+void ATorquePlayerController::ServerPing_Implementation(const FTorquePingNet& NewPing)
+{
+	FTorquePingNet Out = NewPing;
+	Out.What = Out.What.Left(60);
+	Out.Name = TEXT("Someone");
+	if (PlayerState)
+	{
+		Out.Name = PlayerState->GetPlayerName();
+		Out.PlayerId = PlayerState->GetPlayerId();
+	}
+	if (const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PlayerState)) Out.Colour = TPS->ColourValue();
+	// The dark colours wouldn't show at night: a warm amber instead (as the name tags go pale).
+	if ((int32)Out.Colour.R + Out.Colour.G + Out.Colour.B < 200) Out.Colour = FColor(255, 160, 50);
+	UWorld* World = GetWorld();
+	if (!World) return;
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		if (ATorquePlayerController* To = Cast<ATorquePlayerController>(It->Get())) To->ClientPing(Out);
+	UE_LOG(LogTemp, Log, TEXT("Torque ping: %s pinged %s at %s"), *Out.Name, *Out.What, *Out.At.ToCompactString());
+}
+
+void ATorquePlayerController::ClientPing_Implementation(const FTorquePingNet& NewPing)
+{
+	if (Pings.Num() >= 16) Pings.RemoveAt(0);
+	TorquePing::FShown Shown;
+	Shown.P = NewPing;
+	Shown.Born = FPlatformTime::Seconds();
+	Pings.Add(Shown);
+	// A bright two-note chime where it is (sfx_synth.gd's "ping", 2 dB up).
+	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("ping"), NewPing.At, 2.0f);
+	// Someone else's: "Sam pinged the workbench" for 2 s.
+	const bool bMine = PlayerState && NewPing.PlayerId == PlayerState->GetPlayerId();
+	if (!bMine) ShowNote(FString::Printf(TEXT("%s pinged %s"), *NewPing.Name, *NewPing.What.ToLower()), 2.0);
+}
+
+void ATorquePlayerController::DrawPings(UCanvas* Canvas)
+{
+	const double Now = FPlatformTime::Seconds();
+	Pings.RemoveAll([Now](const TorquePing::FShown& P) { return Now - P.Born >= TorquePing::Life; });
+	if (!Canvas || Pings.Num() == 0 || !PlayerCameraManager) return;
+	const FVector Eye = PlayerCameraManager->GetCameraLocation();
+	const FVector Ahead = PlayerCameraManager->GetCameraRotation().Vector();
+	TorquePing::Draw(Canvas, Pings, Now, Eye, Ahead);
 }
 
 void ATorquePlayerController::SyncPlayerState(float Dt)
@@ -374,9 +429,44 @@ void ATorquePlayerController::SwitchTab(int32 Dir)
 	FirstRow = 0;
 }
 
+FString ATorquePlayerController::RideBikeName(int32 Bay) const
+{
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (!Shed || !Shed->Exists(Bay)) return TEXT("none in the shed");
+	return FString::Printf(TEXT("Bay %d: %s"), Bay + 1, *Shed->Bike(Bay).Name);
+}
+
+FString ATorquePlayerController::RideBikeTakenBy(int32 Bay) const
+{
+	// Another rider's pick (their player state's bay), by name.
+	const AGameStateBase* GS = GetWorld() ? GetWorld()->GetGameState() : nullptr;
+	if (!GS || GetNetMode() == NM_Standalone) return FString();
+	for (const APlayerState* Other : GS->PlayerArray)
+	{
+		const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(Other);
+		if (TPS && TPS != GetPlayerState<APlayerState>() && TPS->Bay == Bay) return TPS->GetPlayerName();
+	}
+	return FString();
+}
+
+int32 ATorquePlayerController::NextRideBike(int32 From, int32 Dir) const
+{
+	// The next bike in the shed that no other rider has picked (From itself if there's none).
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (!Shed) return From;
+	const int32 N = UTorqueBuildSubsystem::Bays;
+	for (int32 Step = 1; Step <= N; ++Step)
+	{
+		const int32 Bay = ((From + Dir * Step) % N + N) % N;
+		if (Shed->Exists(Bay) && RideBikeTakenBy(Bay).IsEmpty()) return Bay;
+	}
+	return From;
+}
+
 FString ATorquePlayerController::Title() const
 {
 	if (Page == EPage::Pause) return TEXT("PAUSED");
+	if (Page == EPage::RideBike) return TEXT("WHICH BIKE?");
 	if (Page == EPage::Profile) return TEXT("PROFILE");   // [profile]
 	if (Page == EPage::Keys) return TEXT("KEY BINDINGS");
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
@@ -477,13 +567,18 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		{
 			// [yard] The adventure: the host's to choose, and everyone goes (riders in the yard and
 			// those still in the shed, each on the bike they last took out or worked on).
+			// [co-op] Which bike you take: the host picks theirs on the way out (RideBike), a joined
+			// rider here, before the host sets off. Everyone goes on the bike shown.
+			if (UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this))
+				if (bClient)
+				{
+					Add(TEXT("Your bike for Buttertubs"), RideBikeName(Shed->MyBike()), TEXT("Left / Right picks which of the shed's bikes you ride when the host sets off"),
+						[this, Shed]() { Shed->SetMyBike(NextRideBike(Shed->MyBike(), 1)); },
+						[this, Shed](int32 Dir) { Shed->SetMyBike(NextRideBike(Shed->MyBike(), Dir)); });
+				}
 			if (!bClient)
 				Add(bHost ? TEXT("Set off on Buttertubs (everyone)") : TEXT("Set off on Buttertubs"), FString(),
-					TEXT("The adventure: over the pass, from the top down to Keld"), [this, Bike, Walker]() {
-						CloseMenu();
-						if (Walker) Walker->StartAdventure();
-						else if (Bike) TorqueFlow::RideOut(this);
-					});
+					TEXT("The adventure: over the pass, from the top down to Keld. Pick your bike next"), [this]() { Open(EPage::RideBike); });
 			else
 			{
 				Add(TEXT("Set off on Buttertubs"), FString(), TEXT("The host chooses when everyone sets off"), nullptr);
@@ -521,6 +616,31 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				if (Session) Session->BackToTitle();
 			});
 		Add(TEXT("Exit game"), FString(), FString(), [this]() { ConsoleCommand(TEXT("quit")); });
+		break;
+	}
+	case EPage::RideBike:
+	{
+		// [co-op] Which bike to ride over Buttertubs: every bike in the shed (one another rider has
+		// picked is theirs). Choosing it sets off, everyone with their own bike.
+		ATorqueBikePawn* Bike = Cast<ATorqueBikePawn>(GetPawn());
+		ATorqueWalker* Walker = Cast<ATorqueWalker>(GetPawn());
+		UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+		if (Shed)
+			for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+			{
+				if (!Shed->Exists(Bay)) continue;
+				const FString Taken = RideBikeTakenBy(Bay);
+				Add(RideBikeName(Bay), Bay == Shed->MyBike() ? FString(TEXT("your bike")) : Taken,
+					Taken.IsEmpty() ? FString(TEXT("Set off on this one")) : FString::Printf(TEXT("%s rides this one"), *Taken),
+					[this, Shed, Bay, Bike, Walker]() {
+						Shed->SetMyBike(Bay);
+						CloseMenu();
+						if (Walker) Walker->StartAdventure();
+						else if (Bike) TorqueFlow::RideOut(this);
+					});
+				if (!Taken.IsEmpty()) R.Last().bDisabled = true;
+			}
+		Add(TEXT("Back"), FString(), FString(), [this]() { Back(); });
 		break;
 	}
 	case EPage::Settings:
@@ -814,7 +934,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Key bindings"), FString(), TEXT("Every action and its keys: pick one and press the new key"), [this]() { KeySlot = 0; Open(EPage::Keys); });
 		Add(TEXT("Controller check"), FString(), TEXT("The sticks and buttons as the game reads them, and Recalibrate"), [this]() { Open(EPage::PadCheck); });
 		Heading(TEXT("PAD"));
-		Heading(TEXT("On foot: left stick walks, right stick looks, Cross / A uses, D-pad left / right picks a tool, Square / X washes, Triangle / Y rides out."));
+		Heading(TEXT("On foot: left stick walks, right stick looks, Cross / A uses, L1 / R1 pick a tool, Square / X washes, Triangle / Y rides out, D-pad left pings."));
 		Heading(TEXT("Riding: R2 throttle, L2 front brake, Circle / B rear brake, left stick lean and weight, Cross / A up a gear, Square / X down, hold LB clutch, hold RB look behind."));
 		Heading(TEXT("Triangle / Y gets on and off, D-pad left / right indicators, up lights, down ABS, L3 horn, R3 nod (hold: wave), View camera. The bike starts in neutral."));
 		Heading(TEXT("Anywhere: Esc, Options or Start opens the menu."));

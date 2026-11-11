@@ -191,6 +191,11 @@ private:
 	void OutlineShotAsk();
 	void OutlineShotDone();
 	int32 OutlineFails = 0, OutlineChecks = 0;
+	// [radio flip] 'radio:flip:N': the shed radio's dial clicked through N stations quickly (build 134
+	// froze beenster's PC doing that), the longest frame watched meanwhile; 'radio:check' then wants it
+	// on air and no frame stuck. A "RADIO CHECK FAILED" line fails the build.
+	int32 FlipLeft = 0, FlipStation = 0, FlipClicks = 0;
+	double FlipNextAt = 0.0, FlipLastReal = 0.0, FlipWorst = 0.0;
 	double Wait = 0.0;
 	// How long each step (and the wait after it) took, real and game time, and in how many frames:
 	// a slow one is logged ("Torque test: slow step"), and the slowest at the end.

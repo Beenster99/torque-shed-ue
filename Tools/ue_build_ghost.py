@@ -91,6 +91,24 @@ WITH = ("used_with_skeletal_mesh", "used_with_morph_targets", "used_with_clothin
         "used_with_instanced_static_meshes", "used_with_spline_meshes")
 
 
+def on_screen(m, e, x, y):
+    """e as a brightness on the screen, whatever the exposure. Out on the road in daylight the
+    exposure is high, so a plain emissive of ~2 came out near black (build 135: a dark green-black
+    silhouette). EyeAdaptationInverse undoes the exposure; without it, a fixed daylight boost."""
+    cls = getattr(unreal, "MaterialExpressionEyeAdaptationInverse", None)
+    if cls is not None:
+        inv = expr(m, cls, x, y)
+        for pin in ("LightValueInput", "Light Value", ""):
+            if mel.connect_material_expressions(e, "", inv, pin):
+                log("brightness held against the exposure (EyeAdaptationInverse, pin %r)" % pin)
+                return inv
+        mel.delete_material_expression(m, inv)
+    boost = expr(m, unreal.MaterialExpressionMultiply, x, y, const_b=40.0)
+    link(e, "", boost, "A")
+    log("no EyeAdaptationInverse: emissive boosted x40 for daylight")
+    return boost
+
+
 def fill_material():
     """M_RideGhostFill: the fade back to solid. Laid over the bike and rider (the overlay) once their
     own materials are back, green and nearly opaque at first, brighter at the edges, clearing as the
@@ -109,7 +127,7 @@ def fill_material():
     glow = expr(m, unreal.MaterialExpressionMultiply, -500, 0)
     link(col, "", glow, "A")
     link(rim, "", glow, "B")
-    out(glow, "", M.MP_EMISSIVE_COLOR)
+    out(on_screen(m, glow, -300, 0), "", M.MP_EMISSIVE_COLOR)
     out(strength, "", M.MP_OPACITY)
     return finish(m)
 
@@ -119,7 +137,7 @@ def matrix_material():
     try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     # Draw only the triangles' edges: the model's own polygons.
-    if not try_set(m, "wireframe", True):
+    if not try_set(m, "wireframe", True) or not m.get_editor_property("wireframe"):
         raise RuntimeError("can't make a wireframe material")
     try_set(m, "used_with_static_lighting", False)
     # The rider's MetaHuman is skeletal (with morphs and cloth); the bike's parts are static meshes.
@@ -127,12 +145,12 @@ def matrix_material():
         try_set(m, flag, True)
 
     amount = num(m, "Amount", -900, 300, 1.0)
-    strength = num(m, "Opacity", -900, 400, 0.65)
-    col = vec(m, "Color", -900, 0, (0.7, 2.2, 1.8))
+    strength = num(m, "Opacity", -900, 400, 0.5)
+    col = vec(m, "Color", -900, 0, (0.35, 1.1, 0.8))
     glow = expr(m, unreal.MaterialExpressionMultiply, -500, 0)
     link(col, "", glow, "A")
     link(amount, "", glow, "B")
-    out(glow, "", M.MP_EMISSIVE_COLOR)
+    out(on_screen(m, glow, -300, 0), "", M.MP_EMISSIVE_COLOR)
     # Thinner with distance: full to 5 m, down to a third by 35 m (dense polygons far off would fill in).
     depth = expr(m, unreal.MaterialExpressionPixelDepth, -900, 550)
     far = expr(m, unreal.MaterialExpressionConstantBiasScale, -750, 550, bias=-500.0, scale=1.0 / 3000.0)

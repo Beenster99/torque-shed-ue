@@ -1,4 +1,5 @@
 #include "TorqueBikePawn.h"
+#include "Coop/TorquePing.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
@@ -24,6 +25,7 @@
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/SkinnedMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/StaticMeshComponent.h"
@@ -222,6 +224,7 @@ void ATorqueBikePawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(ATorqueBikePawn, bYardStart);   // [yard]
 	DOREPLIFETIME(ATorqueBikePawn, YardStartAt);
 	DOREPLIFETIME(ATorqueBikePawn, YardStartYaw);
+	DOREPLIFETIME(ATorqueBikePawn, YardBay);   // [co-op] whose bike it is, there before BeginPlay on every machine
 }
 
 void ATorqueBikePawn::BeginPlay()
@@ -323,6 +326,7 @@ void ATorqueBikePawn::BeginPlay()
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
 {
 	Pad.Reset();   // stops its reading thread
+	if (NetWalker) NetWalker->Destroy();   // [co-op, foot]
 	if (TripLogTime > 0.0) TripLog(TEXT("ride over"));   // [dash]
 	if (SoundAudio) SoundAudio->Stop();
 	Super::EndPlay(Reason);
@@ -715,7 +719,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			RiderKnee[1] = MoveOf(SaddleTag).TransformPosition(Frame.Knee);
 			RiderKnee[0] = MoveOf(SaddleTag).TransformPosition(FVector(Frame.Knee.X, -Frame.Knee.Y, Frame.Knee.Z));
 			RiderTankHalfW = Frame.TankHalfW;
-			RiderBackDeg = Frame.BackDeg;
+			RiderStyleBackDeg = Frame.BackDeg;
 			const FTransform PegMove = MoveOf(RearsetsTag);
 			RiderPeg[1] = PegMove.TransformPosition(Frame.Peg);
 			RiderPeg[0] = PegMove.TransformPosition(FVector(Frame.Peg.X, -Frame.Peg.Y, Frame.Peg.Z));
@@ -956,6 +960,10 @@ void ATorqueBikePawn::GatherOtherBikes()
 		Contacts->SetBoxes(Boxes);
 	}
 	Contacts->Capsules.clear();
+	// [co-op] Riders pass through each other (beenster, build 135: no clashing); -TorqueRiderCollide
+	// puts the other bikes back as solid, for checking the contacts.
+	static const bool bCollide = FParse::Param(FCommandLine::Get(), TEXT("TorqueRiderCollide"));
+	if (!bCollide) return;
 	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
 	{
 		const ATorqueBikePawn* Other = *It;
@@ -1323,6 +1331,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			if (bYard) TorqueYard::WalkBackIn(PC);
 			else TorqueFlow::BackToShed(this);
 		}
+		// [ping] Middle mouse, or the D-pad's left as in the shed: mark what's looked at for the crew.
+		if (FTorqueKeys::Just(PC, ETorqueKey::Ping) || SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left))
+			TorquePing::FromView(PC, this);
 		return;
 	}
 	// Riding, Triangle / Y (beenster's pad layout: it gets on and off): stopped, a tap gets off; moving,
@@ -1525,6 +1536,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
+	// [ping] Middle mouse: mark what's ahead (another rider, the spot on the road) for the whole crew
+	// (main.gd's "ride_ping"; Coop/TorquePing.h). No pad button: they're all taken riding.
+	if (FTorqueKeys::Just(PC, ETorqueKey::Ping)) TorquePing::FromView(PC, this);
 	// [lights] The lamps' switches (TorqueLights.h): L headlight, K main beam, N fog lights, , and .
 	// the indicators (again to cancel), / the hazards. On the pad (beenster): the d-pad's left and right
 	// the indicators, both (one then the other) the hazards, and the d-pad's up steps the lights
@@ -1830,6 +1844,11 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	float Mx = 0.0f, My = 0.0f;
 	if (PC) PC->GetInputMouseDelta(Mx, My);
+	if ((Mx != 0.0f || My != 0.0f) && OnFootFor - FootMouseLogAt > 1.0)
+	{
+		FootMouseLogAt = OnFootFor;
+		UE_LOG(LogTemp, Log, TEXT("Torque: on foot, the mouse moved (%.1f, %.1f): looking %.0f deg round, %.0f up"), Mx, My, FootYaw, FootPitch);
+	}
 	// (The shed walker's rate: 0.143 degrees a count, Settings > Controller > Mouse look speed on top.)
 	FootYaw += Mx * 0.143 * Set.MouseLook;
 	FootPitch = FMath::Clamp(FootPitch + My * 0.143 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -80.0, 80.0);
@@ -1966,9 +1985,9 @@ FString ATorqueBikePawn::TestFoot(const FString& What)
 	const FVector BikeAt = ToUE(Sim->Position);
 	const TCHAR* Stood = !bOnFoot ? TEXT("on its wheels") : bPushing ? TEXT("upright in your hands") : ParkStand == 1 ? TEXT("on its side stand")
 		: ParkStand == 2 ? TEXT("on its centre stand") : TEXT("on its wheels");
-	return FString::Printf(TEXT("%s; bike %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you, at (%.0f, %.0f) cm"),
+	return FString::Printf(TEXT("%s; bike %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you, at (%.0f, %.0f) cm; looking %.0f deg round, %.0f up"),
 		bOnFoot ? TEXT("on foot") : TEXT("riding"), Stood, Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"), Sim->Rpm,
-		bOnFoot ? FVector::Dist2D(FootPos, BikeAt) : 0.0, BikeAt.X, BikeAt.Y);
+		bOnFoot ? FVector::Dist2D(FootPos, BikeAt) : 0.0, BikeAt.X, BikeAt.Y, FootYaw, FootPitch);
 }
 
 FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace)
@@ -2628,7 +2647,14 @@ void ATorqueBikePawn::GhostRestore()
 		const int32 From = GhostMatStart[I];
 		const int32 To = GhostMatStart.IsValidIndex(I + 1) ? GhostMatStart[I + 1] : GhostSavedMats.Num();
 		for (int32 Slot = 0; Slot < To - From; ++Slot) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
+		const int32 LodWas = GhostLodWas.IsValidIndex(I) ? GhostLodWas[I] : -1;
+		if (LodWas >= 0)
+		{
+			if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C)) SMC->SetForcedLodModel(LodWas);
+			else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C)) SK->SetForcedLOD(LodWas);
+		}
 	}
+	GhostLodWas.Reset();
 	GhostComps.Reset();
 	GhostMatStart.Reset();
 	GhostSavedMats.Reset();
@@ -2679,7 +2705,7 @@ void ATorqueBikePawn::UpdateGhostLook()
 	if (GhostMid)
 	{
 		GhostMid->SetScalarParameterValue(TEXT("Amount"), 1.0f);
-		GhostMid->SetScalarParameterValue(TEXT("Opacity"), 0.85f);
+		GhostMid->SetScalarParameterValue(TEXT("Opacity"), 0.5f);
 	}
 	if (GhostFillMid)
 	{
@@ -2726,6 +2752,20 @@ void ATorqueBikePawn::UpdateGhostLook()
 				const int32 Slots = C->GetNumMaterials();
 				for (int32 Slot = 0; Slot < Slots; ++Slot) GhostSavedMats.Add(C->GetMaterial(Slot));
 				for (int32 Slot = 0; Slot < Slots; ++Slot) C->SetMaterial(Slot, WireMat);
+				// Its coarsest LOD while it's a wire: the full-detail polygons are so close together
+				// they fill in to a solid shape (build 135); the coarse ones read as a mesh.
+				int32 LodWas = -1;
+				if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C))
+				{
+					LodWas = SMC->ForcedLodModel;
+					if (SMC->GetStaticMesh()) SMC->SetForcedLodModel(SMC->GetStaticMesh()->GetNumLODs());
+				}
+				else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C))
+				{
+					LodWas = SK->GetForcedLOD();
+					SK->SetForcedLOD(SK->GetNumLODs());
+				}
+				GhostLodWas.Add(LodWas);
 				++Wired;
 			}
 		}
@@ -2956,6 +2996,51 @@ void ATorqueBikePawn::ShowRiderAvatar()
 	RiderAvatar.SetShown(bRiderShown, bRiderShown && bHeadShown, false);
 }
 
+void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt)
+{
+	if (!bOn)
+	{
+		if (bNetWalkerShown && NetWalker && NetWalker->IsValid()) NetWalker->SetShown(false, false, false);
+		bNetWalkerShown = false;
+		return;
+	}
+	if (!NetWalker && !bNetWalkerTried && FTorqueAvatar::Count() > 0)
+	{
+		// Made the first time they get off: the same MetaHuman, height and face as their rider.
+		bNetWalkerTried = true;
+		const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+		const FTorqueProfile Look = PS ? FTorqueProfile::Unpack(PS->Profile) : FTorqueProfile::Mine();
+		const int32 Colour = PS ? PS->Colour : FTorqueSettings::Get().Colour;
+		NetWalkerRoot = NewObject<USceneComponent>(this, TEXT("NetWalkerRoot"));
+		NetWalkerRoot->SetupAttachment(Root);
+		NetWalkerRoot->SetUsingAbsoluteLocation(true);
+		NetWalkerRoot->SetUsingAbsoluteRotation(true);
+		NetWalkerRoot->RegisterComponent();
+		NetWalkerRoot->SetWorldLocationAndRotation(Feet, FRotator(0.0, Yaw, 0.0));
+		NetWalker = MakeUnique<FTorqueAvatar>();
+		if (NetWalker->Build(this, NetWalkerRoot, Look.AvatarFor(Colour)))
+		{
+			NetWalker->SetLook(Look);
+			UE_LOG(LogTemp, Log, TEXT("Torque net: %s off their bike, walking as %s"), PS ? *PS->GetPlayerName() : TEXT("a rider"), *NetWalker->Name);
+		}
+		NetWalkerWas = Feet;
+	}
+	if (!NetWalker || !NetWalker->IsValid() || !NetWalkerRoot) return;
+	if (!bNetWalkerShown)
+	{
+		NetWalker->SetShown(true, true, true);
+		bNetWalkerShown = true;
+		NetWalkerWas = Feet;
+	}
+	NetWalkerRoot->SetWorldLocationAndRotation(Feet, FRotator(0.0, Yaw, 0.0));
+	FTorqueAvatarInput In;
+	In.Velocity = Dt > 1.0e-4f ? (Feet - NetWalkerWas) / Dt : FVector::ZeroVector;
+	In.Velocity.Z = 0.0;
+	In.Facing = FRotator(0.0, Yaw, 0.0);
+	NetWalker->Pose(In, Dt);
+	NetWalkerWas = Feet;
+}
+
 void ATorqueBikePawn::UpdateRiderAvatar()
 {
 	if (FTorqueAvatar::Count() == 0 || !RiderRig.IsValid() || !RiderRig.Last.bValid) return;
@@ -3012,7 +3097,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	if (bRiderOnLayout)
 	{
 		T.TankHalfW = RiderTankHalfW;
-		T.BackDeg = RiderBackDeg;
+		T.BackDeg = RiderStyleBackDeg;
 		for (int32 S = 0; S < 2; ++S)
 		{
 			T.Knee[S] = RiderKnee[S];
@@ -3484,7 +3569,7 @@ void ATorqueBikePawn::StartSound()
 		SoundAudio->Play();
 		Sound->Catch();
 	}
-	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
+	if (Sfx) HornId = Sfx->StartBikeHorn(Root, RideBay >= 0 ? RideBay : UTorqueBuildSubsystem::BikeFor(this));   // (the drawn bike's own horn)
 }
 
 // [lights] The lamps each frame: on our own bike from the ignition, the brakes as the rider holds

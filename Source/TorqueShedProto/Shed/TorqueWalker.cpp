@@ -17,6 +17,7 @@
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
+#include "Coop/TorquePing.h"
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
@@ -290,6 +291,12 @@ ATorqueWalker::ATorqueWalker()
 	UCharacterMovementComponent* Moves = GetCharacterMovement();
 	Moves->MaxWalkSpeed = WalkSpeed;
 	Moves->MaxWalkSpeedCrouched = CrouchSpeed;
+	// [co-op] Each player's own machine moves their walker, as it rides their bike: the host takes a
+	// joined player's place as their machine sends it, never pulling them back. (Running is a speed
+	// only their machine knows, and a bike lift's platform, made on each machine, can't be named over
+	// the net as what they stand on: the host corrected both, and a friend's run stuttered, build 135.)
+	Moves->bIgnoreClientMovementErrorChecksAndCorrection = true;
+	Moves->bServerAcceptClientAuthoritativePosition = true;
 	Moves->GetNavAgentPropertiesRef().bCanCrouch = true;
 	Moves->SetCrouchedHalfHeight(TWI::CrouchHalfHeight);
 	Moves->MaxAcceleration = 1800.0f;
@@ -634,6 +641,10 @@ void ATorqueWalker::ReadInput(float Dt)
 			Say(Why.IsEmpty() ? FString(TEXT("Geometry mode couldn't open here.")) : Why, false);
 		return;
 	}
+	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
+	// for the whole crew (walker.gd's "ping").
+	if (!bComputer && !bBench && (KeyJust(ETorqueKey::Ping) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)))
+		Ping();
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
@@ -1029,6 +1040,7 @@ void ATorqueWalker::FindTarget()
 	TargetSlot = NAME_None;
 	TargetItem = TargetEngine = 0;
 	TargetPlace = nullptr;
+	TargetMesh.Reset();
 	UWorld* World = GetWorld();
 	const UTorqueBuildSubsystem* B = Shed();
 	if (!World || !Camera || !B) return;
@@ -1118,6 +1130,7 @@ void ATorqueWalker::FindTarget()
 	{
 		Target = Pick->Kind;
 		TargetPoint = Start + Look * Reach * Pick->Time;
+		TargetMesh = Pick->C;
 		if (Target == ETorqueLook::BikePart)
 		{
 			const ATorqueShedBike* Bike = Cast<ATorqueShedBike>(Pick->C->GetOwner());
@@ -1166,6 +1179,83 @@ void ATorqueWalker::FindTarget()
 			Target = ETorqueLook::Door;
 			TargetBay = B->MyBike();
 		}
+}
+
+void ATorqueWalker::Ping()
+{
+	APlayerController* PC = Cast<APlayerController>(Controller);
+	UWorld* World = GetWorld();
+	if (!PC || !World || !Camera) return;
+	// What the look finds as far as a ping reaches (walker.gd PING_REACH): the walker's own look, with
+	// a longer arm, then put back as it was.
+	const float ArmReach = Reach;
+	Reach = (float)TorquePing::ReachCm;
+	FindTarget();
+	const ETorqueLook Kind = Target;
+	const int32 Bay = TargetBay, ItemId = TargetItem, EngineId = TargetEngine, Furn = TargetFurniture;
+	const FName Slot = TargetSlot;
+	const FTorquePlace* PlaceAt = TargetPlace;
+	const FVector Point = TargetPoint;
+	const UStaticMeshComponent* PickedMesh = TargetMesh.Get();
+	Reach = ArmReach;
+	FindTarget();
+
+	const FVector Start = Camera->GetComponentLocation();
+	const FVector Look = GetControlRotation().Vector();
+	const UTorqueBuildSubsystem* B = Shed();
+	FTorquePingNet P;
+	P.At = Point;
+	if (B && Furn != 0)
+	{
+		// A piece of kit (furniture.gd's name: "Shelving unit: Brakes").
+		if (const FTorqueFurniture* F = B->FurnitureById(Furn)) P.What = TorqueFurniture::NameOf(*F);
+		for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
+			if (const UStaticMeshComponent* const* C = It->Pieces().Find(Furn)) TorquePing::BoxOf(*C, P);
+	}
+	else if (B && Kind == ETorqueLook::BikePart && B->Exists(Bay))
+	{
+		// "Bay 2's bike: exhaust" (ping_marker.gd: the bike's name and the slot's).
+		P.What = FString::Printf(TEXT("%s: %s"), *B->Bike(Bay).Name, *TorqueShedParts::SlotName(Slot).ToLower());
+		TorquePing::BoxOf(PickedMesh, P);
+	}
+	else if (B && Kind == ETorqueLook::Item && ItemId != 0)
+	{
+		P.What = B->ItemTitle(ItemId);
+		if (EngineId != 0 && PickedMesh) TorquePing::BoxOf(PickedMesh, P);   // a part on an engine block: that part
+		else
+		{
+			// A loose part: all its meshes (a wheel and its tyre, an engine and what's on it).
+			FBox Box(ForceInit);
+			for (TActorIterator<ATorqueShedItems> It(World); It; ++It)
+				for (const UStaticMeshComponent* C : It->Meshes)
+					if (C && ATorqueShedItems::ItemOf(C) == ItemId) Box += C->Bounds.GetBox();
+			if (Box.IsValid) TorquePing::BoxOf(Box, P);
+			else TorquePing::BoxOf(PickedMesh, P);
+		}
+	}
+	else if (B && Kind == ETorqueLook::Place && PlaceAt)
+	{
+		P.What = TWI::PlaceName(*PlaceAt, B);
+		TorquePing::BoxOf(PlaceAt->Box, P);
+	}
+	if (P.What.IsEmpty() && Kind != ETorqueLook::None && Kind != ETorqueLook::Floor && Kind != ETorqueLook::Door) P.What = TEXT("Over here");
+
+	// Another player nearer than that: them.
+	const double ThingCm = P.What.IsEmpty() ? TorquePing::ReachCm : FVector::Dist(Start, Point);
+	FTorquePingNet Who;
+	double WhoCm = 0.0;
+	if (TorquePing::PlayerOnLine(this, Start, Look, ThingCm, Who, WhoCm))
+	{
+		TorquePing::Send(PC, Who);
+		return;
+	}
+	if (!P.What.IsEmpty())
+	{
+		TorquePing::Send(PC, P);
+		return;
+	}
+	// Nothing in the shed by name: the spot the look meets (the floor, a wall, the road), or nothing.
+	if (TorquePing::FromView(PC, this).IsEmpty()) Say(TEXT("Nothing there to ping."), false, 2.0);
 }
 
 TArray<int32> ATorqueWalker::ItemsNear(const FVector& At, double Radius) const
@@ -1349,9 +1439,13 @@ void ATorqueWalker::MakePlan()
 		if (HeldIt)
 		{
 			const FString Title = TWI::Lower(B->ItemTitle(Held));
-			if (TargetPlace && TargetPlace->Kind == ETorquePlace::Bay && HeldIt->Kind == FName(TEXT("frame")) && !B->Exists(TargetPlace->Index))
+			if (TargetPlace && TargetPlace->Kind == ETorquePlace::Bay && HeldIt->Kind == FName(TEXT("frame")) &&
+				(!B->Exists(TargetPlace->Index) || B->IsAway(TargetPlace->Index)))
 			{
-				// A bare frame on an empty bay's paddock stand starts a bike from scratch.
+				// A bare frame on an empty bay's paddock stand starts a bike from scratch. (A bay whose bike
+				// is parked elsewhere is empty to look at, so it's free too: that bike keeps another bay's
+				// place where it stands, or the prompt says why not, rather than the frame going down on
+				// the lift's platform.)
 				Plan = MakeOne(ETorqueShedAct::StartBuild, 1.5, FString::Printf(TEXT("set the frame up on the paddock stand in bay %d"), TargetPlace->Index + 1));
 				Plan.Request.Bay = TargetPlace->Index;
 			}
@@ -2116,16 +2210,24 @@ FTransform ATorqueWalker::CarryDrop() const
 			const FVector S = TorqueShedLayout::DeliverySize(Under.Kind);
 			const FVector Local = Under.Place.InverseTransformPosition(FVector(At.X, At.Y, Under.Place.GetLocation().Z));
 			if (FMath::Abs(Local.X) > S.X * 0.5 || FMath::Abs(Local.Y) > S.Y * 0.5) continue;
-			const double TopZ = Under.Place.GetLocation().Z + S.Z;
+			// Near its middle: squared up on it, the way you'd stack them.
+			const bool bSquare = FMath::Abs(Local.X) < S.X * 0.3 && FMath::Abs(Local.Y) < S.Y * 0.3;
+			const double UnderYaw = Under.Place.Rotator().Yaw;
+			const double SquareYaw = UnderYaw + 90.0 * FMath::RoundToDouble(FRotator::NormalizeAxis(DropYaw - UnderYaw) / 90.0);
+			// On a crate's lid boards, or on the battens across its ends when it reaches them.
+			const bool bAcross = bSquare && FMath::Abs(FRotator::NormalizeAxis(SquareYaw - UnderYaw)) > 45.0
+				&& FMath::Abs(FRotator::NormalizeAxis(SquareYaw - UnderYaw)) < 135.0;
+			const FVector2D OnHalf = bSquare ? FVector2D(bAcross ? Mine.Y : Mine.X, bAcross ? Mine.X : Mine.Y) * 0.5
+				: FVector2D(FMath::Max(Mine.X, Mine.Y) * 0.5);
+			const double TopZ = Under.Place.GetLocation().Z
+				+ TorqueShedDelivery::TopAt(Under.Kind, S, bSquare ? FVector2D::ZeroVector : FVector2D(Local.X, Local.Y), OnHalf);
 			if (TopZ <= Best || TopZ + Mine.Z > TorqueShedLayout::DeliveryPileTop + 5.0) continue;
 			Best = TopZ;
-			// Near its middle: squared up on it, the way you'd stack them.
-			if (FMath::Abs(Local.X) < S.X * 0.3 && FMath::Abs(Local.Y) < S.Y * 0.3)
+			if (bSquare)
 			{
 				At.X = Under.Place.GetLocation().X;
 				At.Y = Under.Place.GetLocation().Y;
-				const double UnderYaw = Under.Place.Rotator().Yaw;
-				DropYaw = UnderYaw + 90.0 * FMath::RoundToDouble(FRotator::NormalizeAxis(DropYaw - UnderYaw) / 90.0);
+				DropYaw = SquareYaw;
 			}
 		}
 		At.Z = Best;
@@ -2261,7 +2363,7 @@ void ATorqueWalker::UpdateCues()
 		}
 	}
 	if (XRay && GhostXRayMaterials.Num() == 0)
-		for (const FLinearColor& C : {FLinearColor(1.0f, 0.45f, 0.08f), FLinearColor(1.0f, 0.15f, 0.1f)})
+		for (const FLinearColor& C : {FLinearColor(1.0f, 0.82f, 0.05f), FLinearColor(1.0f, 0.15f, 0.1f)})
 		{
 			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(XRay, this);
 			M->SetVectorParameterValue(TEXT("Color"), C * 2.0f);
@@ -2298,11 +2400,12 @@ void ATorqueWalker::UpdateCues()
 	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
 	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
 	const bool bOk = Plan.Blocked.IsEmpty();
-	// Orange where it can go (Torque Shed's highlight orange), red where it can't; steady, no pulse.
+	// Yellow where it can go (beenster, build 135: yellow, so it isn't the look outline's orange), red
+	// where it can't; steady, no pulse.
 	if (GhostMaterials.Num() >= 4)
 	{
 		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
-		const FLinearColor Can(1.0f, 0.45f, 0.08f), Cannot(1.0f, 0.15f, 0.1f);
+		const FLinearColor Can(1.0f, 0.82f, 0.05f), Cannot(1.0f, 0.15f, 0.1f);
 		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), Can * 3.0f);
 		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
 		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), Can * 6.0f);

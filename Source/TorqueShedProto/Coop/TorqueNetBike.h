@@ -53,6 +53,9 @@ struct FTorqueBikeNetState
 	UPROPERTY() uint8 FrontSurf = 0;
 	UPROPERTY() uint8 RearSurf = 0;
 	UPROPERTY() uint8 Lamps = 0;                // [lights] FTorqueLights::NetBits: headlight, main beam, fog, indicators, hazards, ignition
+	UPROPERTY() uint8 Sounds = 0;               // 1 the engine running, 2 the horn held: heard on everyone's copy
+	UPROPERTY() FVector_NetQuantize10 FootPos;  // off the bike (Flags 16): where the rider stands, world cm (their feet)
+	UPROPERTY() float FootYaw = 0.f;            // and the way they face, degrees
 	UPROPERTY() int32 Seq = 0;
 };
 

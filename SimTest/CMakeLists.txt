@@ -164,3 +164,13 @@ if(NOT WIN32)
   target_link_libraries(world_ride PRIVATE Threads::Threads)
   target_compile_options(world_ride PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# The shed radio's stream decoder (Icecast MP3 + song titles, minimp3), and dropping stations quickly.
+add_executable(radio_test radio_test.cpp ${SOUND}/RadioStream.cpp)
+target_include_directories(radio_test PRIVATE ${SOUND})
+target_compile_definitions(radio_test PRIVATE TORQUE_SIMTEST="${CMAKE_CURRENT_SOURCE_DIR}")
+if(MSVC)
+  target_compile_options(radio_test PRIVATE /W4)
+else()
+  target_compile_options(radio_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
+endif()

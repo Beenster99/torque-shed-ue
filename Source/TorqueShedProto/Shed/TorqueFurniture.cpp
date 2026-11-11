@@ -635,6 +635,7 @@ struct FFabLook
 	FVector Box = FVector(100.0);
 	TArray<FVector> Copies;   // x, y (cm, the piece's frame), yaw (degrees)
 	TArray<FString> Paint;    // our MI_Prop_<key> over its body paint, one a copy in turn
+	bool bFillHeight = false; // stretched up to the box's height (its roof where the piece's collision is)
 };
 
 const TMap<FName, FFabLook>& FabLooks()
@@ -663,6 +664,7 @@ const TMap<FName, FFabLook>& FabLooks()
 				L.Copies.Add(FVector(Num(R, 0), Num(R, 1), Num(R, 2)));
 			}
 		if (L.Copies.Num() == 0) L.Copies.Add(FVector::ZeroVector);
+		O->TryGetBoolField(TEXT("fill_height"), L.bFillHeight);
 		const TArray<TSharedPtr<FJsonValue>>* PaintA = nullptr;
 		if (O->TryGetArrayField(TEXT("paint"), PaintA))
 			for (const TSharedPtr<FJsonValue>& V : *PaintA) L.Paint.Add(V->AsString());
@@ -700,7 +702,10 @@ void DressFab(UStaticMeshComponent* Piece, FName Model)
 		const FVector& Copy = Look->Copies[I];
 		const FQuat Rot = FRotator(0.0, Turn + Copy.Z, 0.0).Quaternion();
 		const FVector Centre = Rot.RotateVector(FabBox.GetCenter() * Scale);
-		const FVector Offset(Copy.X - Centre.X, Copy.Y - Centre.Y, -FabBox.Min.Z * Scale);
+		// Stood on top of a bus you stand on the piece's own (hidden) mesh: with fill_height the Fab
+		// roof is there too, not a hand's breadth under your feet (beenster, build 135).
+		const double ScaleZ = Look->bFillHeight && FabSize.Z > 1.0 ? Look->Box.Z / FabSize.Z : Scale;
+		const FVector Offset(Copy.X - Centre.X, Copy.Y - Centre.Y, -FabBox.Min.Z * ScaleZ);
 		UStaticMeshComponent* Shell = NewObject<UStaticMeshComponent>(Piece->GetOwner());
 		Shell->SetStaticMesh(Fab);
 		Shell->SetMobility(EComponentMobility::Movable);
@@ -708,7 +713,7 @@ void DressFab(UStaticMeshComponent* Piece, FName Model)
 		Shell->SetGenerateOverlapEvents(false);
 		Shell->ComponentTags.Add(TEXT("FabLook"));
 		Shell->SetupAttachment(Piece);
-		Shell->SetRelativeTransform(FTransform(Rot, Offset, FVector(Scale)));
+		Shell->SetRelativeTransform(FTransform(Rot, Offset, FVector(Scale, Scale, ScaleZ)));
 		// Its body paint: City Sample's car paint takes its colour from the Blueprint (custom
 		// primitive data), so on its own it's black (build 131's black bus roofs). Our own paint
 		// goes over any slot whose material is a car paint.

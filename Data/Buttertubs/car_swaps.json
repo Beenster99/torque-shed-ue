@@ -91,5 +91,53 @@
   ]
  ],
  "metallic": 0.6,
- "roughness": 0.32
+ "roughness": 0.32,
+ "farm4x4": {
+  "about": "The farms' utility 4x4s (SM_Farm4x4_*, 10 of them) as the plain Fab pickup and SUV in working colours (beenster, build 135: 'Some village cars were the old ones').",
+  "models": [
+   {
+    "mesh": "/Game/VehicleVarietyPack/Meshes/SM_Pickup",
+    "yaw": 0,
+    "paint_slots": [
+     "Pickup_Body"
+    ]
+   },
+   {
+    "mesh": "/Game/VehicleVarietyPack/Meshes/SM_SUV",
+    "yaw": 0,
+    "paint_slots": [
+     "M_Main"
+    ]
+   }
+  ],
+  "colours": [
+   [
+    0.03,
+    0.07,
+    0.03
+   ],
+   [
+    0.6,
+    0.6,
+    0.58
+   ],
+   [
+    0.04,
+    0.05,
+    0.09
+   ],
+   [
+    0.18,
+    0.02,
+    0.015
+   ],
+   [
+    0.25,
+    0.22,
+    0.16
+   ]
+  ],
+  "metallic": 0.2,
+  "roughness": 0.55
+ }
 }

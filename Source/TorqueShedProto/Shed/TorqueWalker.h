@@ -267,7 +267,11 @@ private:
 	int32 TargetEngine = 0;           // an engine block whose part is looked at
 	const FTorquePlace* TargetPlace = nullptr;   // the place looked at, or the one an item is on
 	FVector TargetPoint = FVector::ZeroVector;   // where the look meets it
+	TWeakObjectPtr<const UStaticMeshComponent> TargetMesh;   // the mesh the look picked (a part's), if any
 	void FindTarget();
+	// [ping] Middle mouse (D-pad left): what's in the middle of the view, up to 60 m, marked for the
+	// whole crew (Coop/TorquePing.h; walker.gd ping()).
+	void Ping();
 	struct FLookHit
 	{
 		ETorqueLook Kind = ETorqueLook::None;

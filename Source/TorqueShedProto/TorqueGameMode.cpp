@@ -6,6 +6,7 @@
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueSession.h"
+#include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueWalker.h"
 #include "World/TorqueRideWorld.h"
@@ -118,6 +119,33 @@ UClass* ATorqueGameMode::GetDefaultPawnClassForController_Implementation(AContro
 	if (ShowsMenu() && InController && InController->IsLocalController()) return ATorqueMenuPawn::StaticClass();
 	if (IsShed()) return ATorqueWalker::StaticClass();
 	return Super::GetDefaultPawnClassForController_Implementation(InController);
+}
+
+APawn* ATorqueGameMode::SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform)
+{
+	UClass* PawnClass = GetDefaultPawnClassForController(NewPlayer);
+	UWorld* World = GetWorld();
+	if (!World || !PawnClass || !PawnClass->IsChildOf(ATorqueBikePawn::StaticClass()))
+		return Super::SpawnDefaultPawnAtTransform_Implementation(NewPlayer, SpawnTransform);
+	// The bike is drawn in its BeginPlay, before it's possessed (so before it can ask whose it is):
+	// told here, and sent with it to the others. Our own: this machine's bike; a joined rider's:
+	// the bay their player state carries over from the shed (ATorquePlayerState::CopyProperties).
+	int32 Bay = INDEX_NONE;
+	if (NewPlayer && NewPlayer->IsLocalController())
+	{
+		if (const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) Bay = B->MyBike();
+	}
+	else if (const ATorquePlayerState* PS = NewPlayer ? NewPlayer->GetPlayerState<ATorquePlayerState>() : nullptr)
+	{
+		Bay = PS->Bay;
+	}
+	ATorqueBikePawn* Bike = World->SpawnActorDeferred<ATorqueBikePawn>(PawnClass, SpawnTransform, nullptr, GetInstigator());
+	if (!Bike) return nullptr;
+	if (Bay >= 0) Bike->SetYardBay(Bay);
+	Bike->FinishSpawning(SpawnTransform);
+	UE_LOG(LogTemp, Log, TEXT("Torque net: %s's bike on the road is bay %d's"),
+		NewPlayer && NewPlayer->PlayerState ? *NewPlayer->PlayerState->GetPlayerName() : TEXT("a rider"), Bay + 1);
+	return Bike;
 }
 
 FString ATorqueGameMode::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,

@@ -15,6 +15,15 @@
 #include "Shed/TorqueFluidModels.h"
 #include "TorqueShedItems.generated.h"
 
+namespace TorqueShedDelivery
+{
+// How high over its floor something put down on a delivered box or crate of Kind (Size across: x
+// long, y wide, z high, TorqueShedLayout::DeliverySize) stands, with its middle at Local in the box's
+// own frame and reaching Half either way along its x and y (cm): a crate's lid is between the
+// battens across its ends, a little lower than its top.
+double TopAt(FName Kind, const FVector& Size, const FVector2D& Local, const FVector2D& Half);
+}
+
 class UStaticMesh;
 class UStaticMeshComponent;
 

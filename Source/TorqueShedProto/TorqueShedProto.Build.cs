@@ -14,8 +14,9 @@ public class TorqueShedProto : ModuleRules
 			"OnlineSubsystem", "OnlineSubsystemUtils", "Sockets", "Networking", "ApplicationCore", "HTTP",
 			// The shed draws catalogue bikes as static meshes built at run time (Shed/TorqueShedCatalogue).
 			"MeshDescription", "StaticMeshDescription",
-			// The shed radio streams internet radio through the engine's media player (Shed/TorqueShedRadio).
-			"MediaAssets", "AudioMixer",   // AudioMixer: USynthComponent (the shed radio)
+			// AudioMixer: USynthComponent (TorqueAudio). The shed radio decodes its stream itself
+			// (TorqueAudio/RadioStream, minimp3), not through the media player, which froze the PC.
+			"AudioMixer",
 			// Settings > Graphics > Monitor: the game's window moved to a screen.
 			"Slate", "SlateCore",
 			// The shed TVs' YouTube channel: YouTube's embedded player in the engine's web browser

@@ -19,6 +19,9 @@ public:
 	// The start menu when the game is launched plainly; in the shed (the shed map, or an
 	// ATorqueShedBike in the level) on foot; on the road, the bike.
 	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+	// [co-op] A rider's bike on the road is spawned knowing whose it is (their player state's bay),
+	// so the host and every client draw that rider's own bike, not their own.
+	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform) override;
 	// Co-op riders' names (the TorqueName option the start menu puts on the address).
 	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
 		const FString& Options, const FString& Portal = TEXT("")) override;
