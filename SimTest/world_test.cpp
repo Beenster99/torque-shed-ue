@@ -10,6 +10,7 @@
 #include "WorldImage.h"
 #include "WorldInflate.h"
 #include "WorldLoad.h"
+#include "WorldRide.h"
 #include "WorldRegion.h"
 #include "WorldSha256.h"
 #include "WorldTerrain.h"
@@ -571,6 +572,85 @@ int main()
 					"the ride check does all of it from two places on the map: cells, the way by road, its ground, the road's heights");
 				const RideCheck AtSea = CheckRide(Cells, Net2, 10.0, -30.0, 10.1, -30.0);
 				Check(!AtSea.Ok && !AtSea.Why.empty(), "and says why not for a ride in the middle of the sea");
+				// The ride itself (stage 2): its road laid, the ground cut to it, both as meshes.
+				const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Net2, GA.Lat, GA.Lon, GB.Lat, GB.Lon);
+				Check(Plan->Ok && Plan->Why.empty() && Plan->Road.size() > 100 && Near(Plan->Length, Len, Len * 0.02) && Near(Plan->Road.back().Along, Plan->Length, 1e-9),
+					"a ride is planned between the same two places: a road of its own, as long as the map's to 2%");
+				if (Plan->Ok)
+				{
+					double Gap = 0.0, Step = 0.0, Off = 0.0, Under = 0.0, Kink = 0.0;
+					int OnRoad = 0;
+					for (size_t I = 0; I < Plan->Road.size(); ++I)
+					{
+						const RoadPoint& P = Plan->Road[I];
+						if (I > 0)
+						{
+							const double D = P.At.DistanceTo(Plan->Road[I - 1].At);
+							Gap = std::fmax(Gap, D);
+							if (D > 0.5) Step = std::fmax(Step, std::fabs(P.Height - Plan->Road[I - 1].Height) / D);
+						}
+						if (I > 0 && I + 1 < Plan->Road.size())
+							Kink = std::fmax(Kink, std::fabs(Plan->Road[I + 1].Height - 2.0 * P.Height + Plan->Road[I - 1].Height));
+						Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
+						const double Rh = Plan->RoadHeight(P.At.X, P.At.Z);
+						if (!std::isnan(Rh) && std::fabs(Rh - P.Height) < 0.05) ++OnRoad;
+						Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
+					}
+					std::printf("      the ride's road: %d points, %.2f m apart at most, steepest %.3f, sharpest crest %.3f m, %.2f m off the land at most\n",
+						int(Plan->Road.size()), Gap, Step, Kink, Off);
+					Check(Gap <= 4.0 + 1e-6 && Step < 0.35 && Kink < 0.08 && Off < 6.0, "its points are 4 m apart at most, its height smooth, and never far off the land");
+					Check(OnRoad == int(Plan->Road.size()) && Under < 0.02, "the road's height is read back along its middle, and the ground lies just under it");
+					// Away from the road the ground is the land's own; beside it, the road's bench.
+					const RoadPoint& Mid = Plan->Road[Plan->Road.size() / 2];
+					const RoadPoint& Nx = Plan->Road[Plan->Road.size() / 2 + 1];
+					P2 Dir = Nx.At - Mid.At;
+					Dir = Dir * (1.0 / Dir.Length());
+					const P2 Left(Dir.Z, -Dir.X);
+					const P2 Far = Mid.At + Left * 200.0, Beside = Mid.At + Left * 5.0, Edge = Mid.At + Left * 2.0, Verge = Mid.At + Left * 3.5;
+					double Dn = 0.0, Hn = 0.0;
+					const bool FarIsFar = !Plan->Nearest(Far.X, Far.Z, Dn, Hn);
+					Check((!FarIsFar || Plan->Ground(Far.X, Far.Z) == Plan->Land->Height(Far.X, Far.Z)) && std::fabs(Plan->Ground(Beside.X, Beside.Z) - (Mid.Height - RidePlan::Sink)) < 0.3
+						&& !std::isnan(Plan->RoadHeight(Edge.X, Edge.Z)) && std::isnan(Plan->RoadHeight(Verge.X, Verge.Z)),
+						"the bench beside the road is level with it, the road ends at its edge, and far from it the land lies as it did");
+					// A square of ground and a piece of road as meshes.
+					RideMesh Tile, Piece;
+					const double X0 = std::floor(Mid.At.X / 256.0) * 256.0, Z0 = std::floor(Mid.At.Z / 256.0) * 256.0;
+					Plan->LandTile(X0, Z0, 256.0, 64, Tile);
+					bool Sound = Tile.Vertices() == size_t(65 * 65 + 4 * 65) && Tile.Idx.size() == size_t(64 * 64 * 6 + 4 * 64 * 6) && Tile.Nrm.size() == Tile.Pos.size() && Tile.Uv.size() == Tile.Vertices() * 2;
+					int Up = 0, Tris = 0;
+					double Worst = 0.0;
+					for (size_t T = 0; T + 2 < Tile.Idx.size() && T < size_t(64 * 64 * 6); T += 3)
+					{
+						const float* A3 = &Tile.Pos[Tile.Idx[T] * 3], * B3 = &Tile.Pos[Tile.Idx[T + 1] * 3], * C3 = &Tile.Pos[Tile.Idx[T + 2] * 3];
+						// (the y of the cross product of its two edges: up for a triangle wound as said)
+						const double Ny = double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]);
+						++Tris;
+						if (Ny > 0.0) ++Up;
+					}
+					for (size_t V = 0; V < size_t(65 * 65); ++V)
+					{
+						Sound = Sound && Tile.Nrm[V * 3 + 1] > 0.3f;
+						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->Ground(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]))));
+					}
+					Check(Sound && Up == Tris && Worst < 0.01, "a 256 m square of ground comes as a mesh with its skirt: every triangle facing up, every height the ground's");
+					Plan->RoadPiece(100, 164, Piece);
+					int RoadUp = 0, RoadTris = 0;
+					double Wide = 0.0;
+					for (size_t T = 0; T + 2 < Piece.Idx.size(); T += 3)
+					{
+						const float* A3 = &Piece.Pos[Piece.Idx[T] * 3], * B3 = &Piece.Pos[Piece.Idx[T + 1] * 3], * C3 = &Piece.Pos[Piece.Idx[T + 2] * 3];
+						const double Ny = double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]);
+						++RoadTris;
+						if (Ny > 0.0) ++RoadUp;
+					}
+					for (size_t V = 0; V + 1 < Piece.Vertices(); V += 2)
+						Wide = std::fmax(Wide, std::fabs(std::hypot(double(Piece.Pos[V * 3] - Piece.Pos[V * 3 + 3]), double(Piece.Pos[V * 3 + 2] - Piece.Pos[V * 3 + 5])) - 2.0 * RidePlan::HalfWidth));
+					Check(Piece.Vertices() == 130 && RoadTris == 128 && RoadUp == RoadTris && Wide < 1e-3, "a piece of road comes as a strip 5.5 m wide, every triangle facing up");
+					Json Route;
+					Check(Json::Parse(Plan->RouteJson(), Route) && Near(Route.Num("length_m"), Plan->Length, 1e-3) && Route.Get("line_sim") != nullptr && Route.Get("line_sim")->A.size() > 30
+						&& Route.Get("spawn") != nullptr && Route.Get("spawn")->Get("sim") != nullptr && Near(Route.Get("spawn")->Get("sim")->A[1].N, Plan->Road[0].Height + 0.35, 1e-3),
+						"and the route is written as the bike reads the Buttertubs one, its start a little above the road");
+				}
 			}
 			Files::RemoveTree(TileDir);
 		}
