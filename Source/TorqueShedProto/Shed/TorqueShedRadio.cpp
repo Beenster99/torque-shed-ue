@@ -13,9 +13,8 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-#include "MediaPlayer.h"
-#include "MediaSoundComponent.h"
 #include "Misc/ScopeLock.h"
+#include "TorqueAudio/RadioStream.h"
 #include "Sound/SoundWaveProcedural.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -23,9 +22,11 @@ namespace TorqueShedRadioImpl
 {
 constexpr double Timeout = 12.0;      // seconds to tune in before it's no signal (radio_stream.gd TIMEOUT)
 constexpr double Retry = 15.0;        // before trying a dead station again (RETRY)
-constexpr double PeekEvery = 20.0;    // how often the song's looked up
-constexpr double PeekGiveUp = 15.0;
-constexpr int32 PeekMax = 256 * 1024;
+constexpr double Settle = 0.35;       // the dial left alone this long before it connects (clicking through doesn't open a stream per click)
+constexpr double Starved = 6.0;       // on air but nothing to play for this long: the stream's stopped
+constexpr double Lead = 2.0;          // seconds of sound kept queued ahead (rides out a slow frame)
+constexpr double StartWith = 0.5;     // queued before it starts playing
+constexpr int32 PipeMax = 4 * 1024 * 1024;   // undecoded bytes held at most (a stuck game, not a fast stream)
 constexpr int32 HissRate = 22050;
 const TCHAR* const Agent = TEXT("TorqueShed/1.0");
 // How it carries (shed_radio.gd: unit_size 7 m, max_distance 70 m).
@@ -144,19 +145,16 @@ void ATorqueShedRadio::BeginPlay()
 	Display->SetCastShadow(false);
 	Display->SetText(FText::GetEmpty());
 
-	// The speaker: the media player's sound, from the grille.
-	Player = NewObject<UMediaPlayer>(this);
-	Player->PlayOnOpen = true;
-	Speaker = NewObject<UMediaSoundComponent>(this);
+	// The speaker: the station's sound (MusicWave, made when a station's first sound decodes), from the grille.
+	Speaker = NewObject<UAudioComponent>(this);
+	Speaker->bAutoActivate = false;
 	Speaker->SetupAttachment(GetRootComponent());
 	Speaker->SetRelativeLocation(FVector(8.0, 10.0, 13.0));
 	Speaker->bAllowSpatialization = true;
 	Speaker->bOverrideAttenuation = true;
 	TSRI::Carry(Speaker->AttenuationOverrides);
 	Speaker->RegisterComponent();
-	Speaker->SetMediaPlayer(Player);
 	Speaker->SetVolumeMultiplier(0.7f);
-	Speaker->Start();
 	// The static between stations (or with no signal), made as it plays.
 	HissWave = NewObject<USoundWaveProcedural>(this);
 	HissWave->SetSampleRate(TSRI::HissRate);
@@ -179,8 +177,9 @@ void ATorqueShedRadio::BeginPlay()
 
 void ATorqueShedRadio::EndPlay(const EEndPlayReason::Type Why)
 {
-	StopPeek();
-	if (Player) Player->Close();
+	StopStream();
+	if (Speaker) Speaker->Stop();
+	if (Hiss) Hiss->Stop();
 	Super::EndPlay(Why);
 }
 
@@ -222,34 +221,178 @@ void ATorqueShedRadio::Sync()
 void ATorqueShedRadio::Tune()
 {
 	StopAll();
-	const TorqueShedRadio::FStation& S = TorqueShedRadio::Stations()[Station];
 	Status = TEXT("Tuning in...");
 	TunedAt = FPlatformTime::Seconds();
 	RetryAt = 0.0;
-	PeekAt = TunedAt + 3.0;
+	// Static while the dial turns; the station once it's been left on one for a moment.
+	ConnectAt = TunedAt + TSRI::Settle;
 	if (Hiss) Hiss->Play();
-	if (Player && !Player->OpenUrl(S.Url)) Fail(TEXT("this game can't play the station"));
+}
+
+void ATorqueShedRadio::Connect()
+{
+	ConnectAt = 0.0;
+	StopStream();
+	const TorqueShedRadio::FStation& S = TorqueShedRadio::Stations()[Station];
 	UE_LOG(LogTemp, Log, TEXT("Torque radio: tuning to %s (%s)"), *S.Name, *S.Url);
+	TunedAt = FPlatformTime::Seconds();
+	TSharedPtr<FTorqueRadioPipe, ESPMode::ThreadSafe> Box = MakeShared<FTorqueRadioPipe, ESPMode::ThreadSafe>();
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(S.Url);
+	Req->SetVerb(TEXT("GET"));
+	Req->SetHeader(TEXT("User-Agent"), TSRI::Agent);
+	Req->SetHeader(TEXT("Icy-MetaData"), TEXT("1"));
+	// Everything on the HTTP thread, so the headers (icy-metaint) are in before the first bytes.
+	// Only the mailbox is captured: a request dropped mid-stream can still call these safely.
+	Req->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+	Req->OnHeaderReceived().BindLambda([Box](FHttpRequestPtr, const FString& Name, const FString& Value)
+	{
+		if (!Name.Equals(TEXT("icy-metaint"), ESearchCase::IgnoreCase)) return;
+		FScopeLock Hold(&Box->Lock);
+		Box->MetaInt = FCString::Atoi(*Value);
+	});
+	Req->SetResponseBodyReceiveStreamDelegateV2(FHttpRequestStreamDelegateV2::CreateLambda([Box](void* Ptr, int64& Length)
+	{
+		FScopeLock Hold(&Box->Lock);
+		if (!Ptr || Length <= 0) return;
+		Box->Total += Length;
+		if (Box->Bytes.Num() + Length > TSRI::PipeMax) { Box->bOverflow = true; return; }
+		Box->Bytes.Append((const uint8*)Ptr, (int32)Length);
+	}));
+	Req->OnProcessRequestComplete().BindLambda([Box](FHttpRequestPtr, FHttpResponsePtr, bool)
+	{
+		FScopeLock Hold(&Box->Lock);
+		Box->bEnded = true;
+	});
+	Pipe = Box;
+	StreamRequest = Req;
+	Decoder = MakeShared<TorqueRadio::FIcyMp3Decoder>();
+	if (!Req->ProcessRequest()) Fail(TEXT("the download wouldn't start"));
+}
+
+void ATorqueShedRadio::Pump()
+{
+	// The stream's new bytes into the decoder, and enough decoded sound queued to play.
+	if (!Pipe.IsValid() || !Decoder.IsValid()) return;
+	TArray<uint8> Got;
+	int32 MetaInt = -1;
+	bool bEnded = false, bOverflow = false;
+	int64 Total = 0;
+	{
+		FScopeLock Hold(&Pipe->Lock);
+		MetaInt = Pipe->MetaInt;
+		Total = Pipe->Total;
+		bEnded = Pipe->bEnded;
+		bOverflow = Pipe->bOverflow;
+		// Held until the headers say whether there's metadata in it (they come first; 64 KB in, there's none).
+		if (MetaInt >= 0 || Total >= 65536 || bEnded) Got = MoveTemp(Pipe->Bytes);
+	}
+	if (bOverflow) { Fail(TEXT("the stream came faster than it played")); return; }
+	if (Got.Num() > 0)
+	{
+		if (!Decoder->Started()) Decoder->SetMetaInt(FMath::Max(0, MetaInt));
+		Decoder->Push(Got.GetData(), (size_t)Got.Num());
+	}
+	std::string Said;
+	if (Decoder->TakeTitle(Said))
+	{
+		Title = UTF8_TO_TCHAR(Said.c_str());
+		UE_LOG(LogTemp, Log, TEXT("Torque radio: now playing %s"), *Title);
+	}
+	// Decode up to the lead: a few frames per tick, never a wait.
+	const int32 Rate = MusicWave ? Decoder->SampleRate() : 0;
+	const int32 Queued = (MusicWave && Rate > 0) ? MusicWave->GetAvailableAudioByteCount() / (int32)(sizeof(int16) * Decoder->Channels()) : 0;
+	const int32 Room = Rate > 0 ? (int32)(TSRI::Lead * Rate) - Queued : 4608;
+	if (Room > 0)
+	{
+		std::vector<int16_t> Pcm;
+		const int32 Made = Decoder->Decode(Pcm, Room);
+		if (Made > 0)
+		{
+			if (!MusicWave)
+			{
+				MusicWave = NewObject<USoundWaveProcedural>(this);
+				MusicWave->SetSampleRate(Decoder->SampleRate());
+				MusicWave->NumChannels = Decoder->Channels();
+				MusicWave->Duration = INDEFINITELY_LOOPING_DURATION;
+				MusicWave->SoundGroup = SOUNDGROUP_Music;
+				MusicWave->bLooping = false;
+				UE_LOG(LogTemp, Log, TEXT("Torque radio: decoding %s at %d Hz, %d channel(s)"), *TorqueShedRadio::Stations()[Station].Name,
+					Decoder->SampleRate(), Decoder->Channels());
+			}
+			MusicWave->QueueAudio((const uint8*)Pcm.data(), (int32)(Pcm.size() * sizeof(int16)));
+		}
+	}
+	const double Now = FPlatformTime::Seconds();
+	const int32 Ahead = (MusicWave && Decoder->SampleRate() > 0) ? MusicWave->GetAvailableAudioByteCount() / (int32)(sizeof(int16) * Decoder->Channels()) : 0;
+	if (!bLive && MusicWave && Ahead >= (int32)(TSRI::StartWith * Decoder->SampleRate()))
+	{
+		bLive = true;
+		Status = TEXT("On air");
+		StarvedAt = 0.0;
+		if (Hiss) Hiss->Stop();
+		if (Speaker)
+		{
+			Speaker->SetSound(MusicWave);
+			Speaker->Play();
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque radio: on air: %s (%.1f s after tuning, %lld bytes in)"), *TorqueShedRadio::Stations()[Station].Name, Now - TunedAt, Total);
+	}
+	if (bLive)
+	{
+		// Running dry: fine for a moment (a slow frame), not for long.
+		if (Ahead > 0) StarvedAt = 0.0;
+		else if (StarvedAt == 0.0) StarvedAt = Now;
+		else if (bEnded && Now - TunedAt > 30.0)
+		{
+			// The server (or a timeout of the download's) ended a stream that had been playing a while:
+			// pick it straight up again, no waiting out a retry.
+			UE_LOG(LogTemp, Log, TEXT("Torque radio: %s's stream ended after %.0f s; reconnecting"), *TorqueShedRadio::Stations()[Station].Name, Now - TunedAt);
+			StopStream();
+			bLive = false;
+			Status = TEXT("Tuning in...");
+			StarvedAt = 0.0;
+			ConnectAt = Now;
+			if (Hiss) Hiss->Play();
+		}
+		else if (Now - StarvedAt > TSRI::Starved || bEnded) Fail(bEnded ? TEXT("the stream ended") : TEXT("the stream stopped"));
+	}
+	else if (bEnded && Decoder->Pending() < 1441) Fail(TEXT("the station hung up"));
+	else if (Now - TunedAt > TSRI::Timeout) Fail(Total > 0 ? TEXT("it couldn't make sense of the stream") : TEXT("nothing came"));
+}
+
+void ATorqueShedRadio::StopStream()
+{
+	// Drops the download without waiting for it (the HTTP thread finishes cancelling it in its own
+	// time). Its callbacks stay bound: they run on the HTTP thread and only touch the old mailbox.
+	if (StreamRequest.IsValid()) StreamRequest->CancelRequest();
+	StreamRequest.Reset();
+	Pipe.Reset();
+	Decoder.Reset();
+	if (Speaker) Speaker->Stop();
+	MusicWave = nullptr;
 }
 
 void ATorqueShedRadio::StopAll()
 {
-	StopPeek();
-	if (Player) Player->Close();
+	StopStream();
 	if (Hiss) Hiss->Stop();
 	bLive = false;
 	Title.Reset();
 	Status.Reset();
 	RetryAt = 0.0;
+	ConnectAt = 0.0;
+	StarvedAt = 0.0;
 }
 
 void ATorqueShedRadio::Fail(const TCHAR* Why)
 {
-	if (Player) Player->Close();
-	StopPeek();
+	StopStream();
 	bLive = false;
 	Status = TEXT("No signal");
 	RetryAt = FPlatformTime::Seconds() + TSRI::Retry;
+	ConnectAt = 0.0;
+	if (Hiss && !Hiss->IsPlaying()) Hiss->Play();
 	UE_LOG(LogTemp, Warning, TEXT("Torque radio: no signal from %s: %s"), *TorqueShedRadio::Stations()[Station].Name, Why);
 }
 
@@ -273,22 +416,11 @@ void ATorqueShedRadio::Tick(float DeltaSeconds)
 	{
 		if (Now >= RetryAt) Tune();
 	}
-	else if (Player)
+	else if (ConnectAt > 0.0)
 	{
-		const bool bWasLive = bLive;
-		bLive = Player->IsPlaying();
-		if (bLive && !bWasLive)
-		{
-			Status = TEXT("On air");
-			UE_LOG(LogTemp, Log, TEXT("Torque radio: on air: %s (%s)"), *TorqueShedRadio::Stations()[Station].Name, *Player->GetPlayerName().ToString());
-		}
-		if (Player->HasError()) Fail(TEXT("the player gave up"));
-		else if (!bLive && bWasLive) Fail(TEXT("the stream stopped"));
-		else if (!bLive && Now - TunedAt > TSRI::Timeout) Fail(TEXT("nothing came"));
+		if (Now >= ConnectAt) Connect();
 	}
-	// The song: looked up now and then.
-	if (bLive && !Peek.IsValid() && Now >= PeekAt) StartPeek();
-	if (Peek.IsValid()) ReadPeek();
+	else Pump();
 	FeedHiss(DeltaSeconds);
 	UpdateLooks();
 }
@@ -337,95 +469,4 @@ void ATorqueShedRadio::UpdateLooks()
 			Display->SetText(FText::FromString(Text));
 		}
 	}
-}
-
-// --- The song (radio_stream.gd reads the stream's metadata as it plays; the engine's player keeps
-// it to itself, so the start of the stream is fetched again now and then for it) ----------------------
-
-void ATorqueShedRadio::StartPeek()
-{
-	StopPeek();
-	const TorqueShedRadio::FStation& S = TorqueShedRadio::Stations()[Station];
-	TSharedPtr<FTorqueRadioPeek, ESPMode::ThreadSafe> Box = MakeShared<FTorqueRadioPeek, ESPMode::ThreadSafe>();
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
-	Req->SetURL(S.Url);
-	Req->SetVerb(TEXT("GET"));
-	Req->SetHeader(TEXT("User-Agent"), TSRI::Agent);
-	Req->SetHeader(TEXT("Icy-MetaData"), TEXT("1"));
-	Req->OnHeaderReceived().BindLambda([Box](FHttpRequestPtr, const FString& Name, const FString& Value)
-	{
-		if (!Name.Equals(TEXT("icy-metaint"), ESearchCase::IgnoreCase)) return;
-		FScopeLock Hold(&Box->Lock);
-		Box->MetaInt = FCString::Atoi(*Value);
-	});
-	Req->SetResponseBodyReceiveStreamDelegateV2(FHttpRequestStreamDelegateV2::CreateLambda([Box](void* Ptr, int64& Length)
-	{
-		FScopeLock Hold(&Box->Lock);
-		if (Box->Bytes.Num() < TSRI::PeekMax && Ptr && Length > 0)
-			Box->Bytes.Append((const uint8*)Ptr, (int32)FMath::Min<int64>(Length, TSRI::PeekMax - Box->Bytes.Num()));
-	}));
-	Req->OnProcessRequestComplete().BindLambda([Box](FHttpRequestPtr, FHttpResponsePtr, bool)
-	{
-		FScopeLock Hold(&Box->Lock);
-		Box->bEnded = true;
-	});
-	Peek = Box;
-	PeekRequest = Req;
-	PeekStarted = FPlatformTime::Seconds();
-	Req->ProcessRequest();
-}
-
-void ATorqueShedRadio::ReadPeek()
-{
-	FString Got;
-	bool bDone = false;
-	{
-		FScopeLock Hold(&Peek->Lock);
-		const TArray<uint8>& B = Peek->Bytes;
-		const int32 M = Peek->MetaInt;
-		if (M > 0 && B.Num() > M)
-		{
-			const int32 Len = B[M] * 16;
-			if (Len == 0) bDone = true;   // nothing said this time
-			else if (B.Num() >= M + 1 + Len)
-			{
-				// StreamTitle='Artist - Song';StreamUrl='...';
-				TArray<ANSICHAR> Text;
-				Text.Append((const ANSICHAR*)B.GetData() + M + 1, Len);
-				Text.Add(0);
-				const FString Meta = UTF8_TO_TCHAR(Text.GetData());
-				const FString Key = TEXT("StreamTitle='");
-				const int32 From = Meta.Find(Key);
-				if (From != INDEX_NONE)
-				{
-					const int32 Start = From + Key.Len();
-					int32 End = Meta.Find(TEXT("';"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Start);
-					if (End == INDEX_NONE) End = Meta.Find(TEXT("'"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Start);
-					if (End != INDEX_NONE) Got = Meta.Mid(Start, End - Start).TrimStartAndEnd();
-				}
-				bDone = true;
-			}
-		}
-		else if (Peek->bEnded || (M <= 0 && B.Num() >= TSRI::PeekMax)) bDone = true;
-	}
-	if (!bDone && FPlatformTime::Seconds() - PeekStarted < TSRI::PeekGiveUp) return;
-	if (!Got.IsEmpty() && Got != Title)
-	{
-		Title = Got;
-		UE_LOG(LogTemp, Log, TEXT("Torque radio: now playing %s"), *Title);
-	}
-	StopPeek();
-	PeekAt = FPlatformTime::Seconds() + TSRI::PeekEvery;
-}
-
-void ATorqueShedRadio::StopPeek()
-{
-	if (PeekRequest.IsValid())
-	{
-		PeekRequest->OnProcessRequestComplete().Unbind();
-		PeekRequest->OnHeaderReceived().Unbind();
-		PeekRequest->CancelRequest();
-	}
-	PeekRequest.Reset();
-	Peek.Reset();
 }
