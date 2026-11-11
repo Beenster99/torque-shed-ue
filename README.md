@@ -177,7 +177,20 @@ latB,lonB`) and it logs `Torque world test: PASS` or `FAIL: why` and writes
 `Saved/World/world_test.json`; add `-TorqueWorldTestQuit` to close the game afterwards. From a desk,
 `world_ride <folder>` (SimTest, needs `curl`) runs the same check: Hawes to Leyburn is 26.5 km by
 road over 2 cells and 68 tiles, 105 m to 255 m above the sea, fetched in about 14 seconds. Nothing
-is drawn from any of this yet: the first streamed ride comes next.
+(Stage 1 drew nothing from any of this; stage 2, below, is the first ride on it.)
+
+**Riding it (stage 2).** A ride between two places is planned by `World/WorldRide` (plain C++, checked
+by `world_test`): the way by road with its corners rounded and a smooth height of its own, the ground
+with the road's bench cut into it, and both as meshes a piece at a time. In the game,
+`UTorqueWorldSubsystem::StartRide` plans one on a worker, writes its route where the bike reads it
+(`Saved/World/ride_route.json`) and opens `/Game/Maps/RideUK`, a level with only the sky and lights,
+made once by `Tools/ue_build_rideuk.py` in the editor (after `Tools/ue_build_level.py`). There
+`ATorqueRideWorld` lays the ground out round the rider as a quadtree of squares (a point every 4 m
+within 400 m, with collision; every 8 m to 1.5 km; every 64 m to 10 km) and the road in 256 m pieces,
+made on workers and dropped behind. It is bare on purpose: no markings, cover, walls, trees or
+buildings yet, one road width, and solo only. Start it from the Options menu in the shed or yard
+(*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
+`Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
 
 ### DLSS on the 4090
 

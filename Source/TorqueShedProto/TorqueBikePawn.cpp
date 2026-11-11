@@ -15,6 +15,7 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedLayout.h"
+#include "World/TorqueWorldSubsystem.h"
 
 #include "BikeSim.h"
 #include "TorqueFit.h"
@@ -268,6 +269,8 @@ void ATorqueBikePawn::BeginPlay()
 		bYard = World->GetMapName().Contains(TEXT("Shed"));
 		for (TActorIterator<ATorqueShedBike> It(World); It && !bYard; ++It) bYard = true;
 		if (bYard) RouteFile = TEXT("Data/Shed/Yard/route.json");
+		// The real world's roads (Ride UK): the route the world subsystem wrote when it planned the ride.
+		if (!bYard && World->GetMapName().Contains(TEXT("RideUK"))) RouteFile = UTorqueWorldSubsystem::RideRouteFile();
 	}
 	LoadRoute();
 	LoadContacts();
@@ -904,6 +907,7 @@ FString ATorqueBikePawn::TestRideLog() const
 void ATorqueBikePawn::LoadContacts()
 {
 	// Beside the route: Data/Buttertubs/collision.json, boxes as [cx, cz, ux, uz, hu, hv, y0, y1].
+	if (!FPaths::IsRelative(RouteFile)) return;   // (a real-world ride has no walls yet: bare ground and road)
 	const FString Path = FPaths::Combine(FPaths::ProjectDir(), FPaths::GetPath(RouteFile), TEXT("collision.json"));
 	FString Text;
 	TSharedPtr<FJsonObject> Json;
@@ -962,7 +966,7 @@ void ATorqueBikePawn::GatherOtherBikes()
 
 void ATorqueBikePawn::LoadRoute()
 {
-	const FString Path = FPaths::Combine(FPaths::ProjectDir(), RouteFile);
+	const FString Path = FPaths::IsRelative(RouteFile) ? FPaths::Combine(FPaths::ProjectDir(), RouteFile) : RouteFile;
 	FString Text;
 	if (!FFileHelper::LoadFileToString(Text, *Path))
 	{
@@ -987,6 +991,7 @@ void ATorqueBikePawn::LoadRoute()
 	double RoadHalf = 2.5;
 	Json->TryGetNumberField(TEXT("road_half_width_m"), RoadHalf);
 	Json->TryGetNumberField(TEXT("length_m"), RouteLengthM);
+	if (!FPaths::IsRelative(RouteFile)) Json->TryGetStringField(TEXT("name"), RouteName);   // (a real-world ride says what it is)
 	const TArray<TSharedPtr<FJsonValue>>* Open = nullptr;   // [yard]
 	if (Json->TryGetArrayField(TEXT("open_area_sim"), Open) && Open->Num() >= 4)
 		YardOpen = FBox2D(FVector2D((*Open)[0]->AsNumber(), (*Open)[1]->AsNumber()), FVector2D((*Open)[2]->AsNumber(), (*Open)[3]->AsNumber()));
@@ -3980,7 +3985,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("The yard   stopped, %s: get off and park it here   %s: back to its bay and walk in"),
 			*FTorqueKeys::Text(ETorqueKey::Use), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
 	else
-		Add(FString::Printf(TEXT("Buttertubs  %s of %s   %d:%05.2f%s"), *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
+		Add(FString::Printf(TEXT("%s  %s of %s   %d:%05.2f%s"), *RouteName, *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 			bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.

@@ -8,8 +8,11 @@
 #include "HeightTiles.h"
 #include "WorldFiles.h"
 #include "WorldLoad.h"
+#include "WorldRide.h"
 
 #include <atomic>
+#include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -59,5 +62,26 @@ int main(int Argc, char** Argv)
 	const RideCheck R = CheckRide(Cells, Heights, At[0], At[1], At[2], At[3], [](const std::string& Text) { std::printf("  %s\n", Text.c_str()); std::fflush(stdout); });
 	std::printf("%s\n", R.Dump().c_str());
 	std::printf("%d fetches. %s\n", GAsked.load(), R.Ok ? "PASS" : ("FAIL: " + R.Why).c_str());
-	return R.Ok ? 0 : 1;
+	if (!R.Ok) return 1;
+	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
+	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
+	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
+	double Steep = 0.0, Crest = 0.0, Off = 0.0;
+	for (size_t I = 1; I + 1 < Plan->Road.size(); ++I)
+	{
+		const RoadPoint& P = Plan->Road[I];
+		const double D = P.At.DistanceTo(Plan->Road[I - 1].At);
+		if (D > 0.5) Steep = std::fmax(Steep, std::fabs(P.Height - Plan->Road[I - 1].Height) / D);
+		Crest = std::fmax(Crest, std::fabs(Plan->Road[I + 1].Height - 2.0 * P.Height + Plan->Road[I - 1].Height));
+		Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
+	}
+	const auto T0 = std::chrono::steady_clock::now();
+	RideMesh Tile;
+	const double X0 = std::floor(Plan->Road[0].At.X / 256.0) * 256.0, Z0 = std::floor(Plan->Road[0].At.Z / 256.0) * 256.0;
+	Plan->LandTile(X0, Z0, 256.0, 64, Tile);
+	const double Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
+	std::printf("The ride: %.1f km of road in %d points, steepest %.3f, sharpest crest %.3f m in 4 m, %.2f m off the land at most; a 256 m square of ground in %.1f ms\n",
+		Plan->Length / 1000.0, int(Plan->Road.size()), Steep, Crest, Off, Ms);
+	if (Argc == 2) Files::Write(Files::Join(Root, "route.json"), Plan->RouteJson());
+	return 0;
 }

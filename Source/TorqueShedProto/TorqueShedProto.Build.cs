@@ -21,7 +21,9 @@ public class TorqueShedProto : ModuleRules
 			"Slate", "SlateCore",
 			// The shed TVs' YouTube channel: YouTube's embedded player in the engine's web browser
 			// (CEF), drawn into a texture (Shed/TorqueShedScreens).
-			"WebBrowser", "UMG" });
+			"WebBrowser", "UMG",
+			// The real world's ground and road, made a piece at a time as you ride (World/TorqueRideWorld).
+			"ProceduralMeshComponent" });
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Sim"));
 		// Shed/ and other subfolders include each other as "Shed/X.h" from the module root.
 		PrivateIncludePaths.Add(ModuleDirectory);
