@@ -325,6 +325,11 @@ private:
 	FLinearColor ShownCan = FLinearColor::Black;
 	double ToolClock = 0.0, WorkBlend = 0.0;
 	void UpdateToolView(float Dt);
+	// The lance turned (about your grip, in the camera's frame) so its barrel points at where the
+	// water lands, eased so it doesn't snap as the aim jumps between near and far.
+	FQuat LanceTurn = FQuat::Identity;
+	bool bLanceTurnSet = false;
+	FVector LanceAimPoint() const;   // where the lance's water is going (world), TorqueWalkerWash.cpp
 	// Sparks, mist and spray: small bits flying off the tool's nozzle (world space).
 	struct FFlyBit
 	{

@@ -196,15 +196,18 @@ void ATorqueWalker::UpdateWashFx(float Dt)
 		WashFx->RegisterComponent();
 	}
 	FTorqueWashShot Shot;
-	Shot.Dir = Camera->GetForwardVector();
-	Shot.Nozzle = ToolHolder && ToolHolder->IsVisible() ? (FTransform(ToolNozzle) * ToolHolder->GetComponentTransform()).GetLocation()
-		: Camera->GetComponentLocation() + Shot.Dir * 60.0;
-	auto Trace = [this, &Shot]()
+	// Out of the lance's tip along its barrel (UpdateToolView points the barrel at where the water lands).
+	const FVector Look = Camera->GetForwardVector();
+	const bool bInHand = ToolHolder && ToolHolder->IsVisible();
+	Shot.Dir = bInHand ? ToolHolder->GetComponentTransform().TransformVectorNoScale(FVector::ForwardVector).GetSafeNormal() : Look;
+	Shot.Nozzle = bInHand ? (FTransform(ToolNozzle) * ToolHolder->GetComponentTransform()).GetLocation()
+		: Camera->GetComponentLocation() + Look * 60.0;
+	auto Trace = [this, &Shot, &Look]()
 	{
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueWashFxAim), false, this);
 		FHitResult Hit;
 		const FVector Eye = Camera->GetComponentLocation();
-		Shot.bHit = GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, Eye, Eye + Shot.Dir * TWWI::JetReach, ECC_Visibility, Params);
+		Shot.bHit = GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, Eye, Eye + Look * TWWI::JetReach, ECC_Visibility, Params);
 		if (!Shot.bHit) return;
 		Shot.At = Hit.ImpactPoint;
 		Shot.Normal = Hit.ImpactNormal;
@@ -241,6 +244,26 @@ void ATorqueWalker::UpdateWashFx(float Dt)
 		if (const APlayerController* Local = World->GetFirstPlayerController(); Local && Local->PlayerCameraManager)
 			Eye = Local->PlayerCameraManager->GetCameraLocation();
 	WashFx->Update(Dt, Shot, Eye);
+}
+
+FVector ATorqueWalker::LanceAimPoint() const
+{
+	// Where the water's going: the wash game's jet where it lands, else along your look to whatever's
+	// there (as the timed pass and the others' view trace it), else well out ahead. Never nearer than
+	// the lance can reach round to, so the barrel doesn't fold back at a surface under your nose.
+	const FVector Eye = Camera->GetComponentLocation();
+	const FVector Look = Camera->GetForwardVector();
+	FVector At = Eye + Look * TWWI::JetReach;
+	if (IsLocallyControlled() && WashJob.IsValid() && WashJob->Jet.bHit) At = WashJob->Jet.At;
+	else if (const UWorld* World = GetWorld())
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(TorqueLanceAim), false, this);
+		FHitResult Hit;
+		if (World->LineTraceSingleByChannel(Hit, Eye, At, ECC_Visibility, Params)) At = Hit.ImpactPoint;
+	}
+	const double Ahead = FVector::DotProduct(At - Eye, Look);
+	constexpr double Nearest = 110.0;
+	return Ahead < Nearest ? At + Look * (Nearest - Ahead) : At;
 }
 
 FString ATorqueWalker::WashControlsText() const

@@ -1775,7 +1775,8 @@ void ATorqueWalker::UpdateToolView(float Dt)
 		Turn.Pitch = 4.0 * W;
 		break;
 	case ETorqueTool::Lance:
-		// The kick of the jet.
+		// Held a little further right, so the barrel comes in across the view to the aim; the kick of the jet.
+		Move += FVector(0.0, 6.0, 0.0);
 		Move += FVector(FMath::Sin(T * 60.0) * 0.3, 0.0, FMath::Sin(T * 53.0) * 0.3) * W;
 		break;
 	default:
@@ -1785,6 +1786,29 @@ void ATorqueWalker::UpdateToolView(float Dt)
 	FTransform Hold = TorqueToolModels::HoldOf(ToolIndex);
 	Hold.SetRotation(Turn.Quaternion() * Hold.GetRotation());
 	Hold.AddToTranslation(Move);
+	if (Tool == ETorqueTool::Lance)
+	{
+		// The water comes straight out of the lance's tip along its barrel (the tool's +x in both
+		// models), so the lance is turned about your grip to point that barrel at where the water lands.
+		const FTransform CamXf = Camera->GetComponentTransform();
+		const FVector LTarget = CamXf.InverseTransformPositionNoScale(LanceAimPoint());
+		const FQuat LBase = Hold.GetRotation();
+		FQuat LRot = LBase;
+		for (int32 Pass = 0; Pass < 4; ++Pass)
+		{
+			const FVector LTip = Hold.GetLocation() + LRot.RotateVector(ToolNozzle);
+			const FVector LBarrel = LRot.RotateVector(FVector::ForwardVector);
+			const FVector LWant = (LTarget - LTip).GetSafeNormal();
+			if (LWant.IsNearlyZero()) break;
+			LRot = FQuat::FindBetweenNormals(LBarrel, LWant) * LRot;
+		}
+		const FQuat LWanted = LRot * LBase.Inverse();
+		LanceTurn = bLanceTurnSet ? FQuat::Slerp(LanceTurn, LWanted, FMath::Clamp((double)Dt * 14.0, 0.0, 1.0)) : LWanted;
+		LanceTurn.Normalize();
+		bLanceTurnSet = true;
+		Hold.SetRotation(LanceTurn * LBase);
+	}
+	else bLanceTurnSet = false;
 	ToolHolder->SetRelativeTransform(Hold);
 	UpdateAvatar(Dt);   // [hands] the body, its hands round the tool (the tool brought to the hand when it can't reach)
 	UpdateFlying(Dt, bWorking && WorkBlend > 0.5 && Tool == ETorqueTool::Repair);   // (the lance's water: UpdateWashFx)
