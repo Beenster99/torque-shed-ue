@@ -311,7 +311,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
-		if (P.Name.StartsWith(TEXT("Clothes_"))) SolidClothes(C, E.Name, P.Name);
+		if (!bFace) SolidClothes(C, E.Name, P.Name);   // every garment (Blueprint parts are named Torso, Legs, Feet...)
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s %s"), *E.Name, bFace ? TEXT("face") : TEXT("mesh"), *P.Mesh);
 		ByName.Add(P.Name, C);
