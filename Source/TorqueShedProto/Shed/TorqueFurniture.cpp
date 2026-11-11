@@ -850,7 +850,8 @@ void ATorqueFurnishings::Paint()
 		C->SetMaterial(0, Look(K.Colour));
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetCastShadow(false);
-		C->SetMobility(EComponentMobility::Static);
+		// Movable like the actor's root: a Static one won't attach to it ("AttachTo ... is not static").
+		C->SetMobility(EComponentMobility::Movable);
 		C->SetupAttachment(GetRootComponent());
 		// The engine cube is 1 m: its x along the mark's length, y its width, a few mm thick. Placed
 		// before it's registered (this actor sits at the origin): a Static component can't be moved
@@ -919,6 +920,15 @@ void ATorqueFurnishings::Tick(float DeltaSeconds)
 		if (C->GetCollisionEnabled() != Want) C->SetCollisionEnabled(Want);
 		const FTransform Draw = FTransform(FRotator(0.0, TorqueFurniture::ImportYaw, 0.0)) * Xf;
 		if (!C->GetComponentTransform().Equals(Draw, 0.01)) C->SetWorldTransform(Draw);
+		// A Fab look is outlined with its piece (the look outline marks the piece's own mesh, which
+		// isn't drawn: the Fab model in front of it would hide the outline's depth test).
+		for (USceneComponent* Kid : C->GetAttachChildren())
+			if (UPrimitiveComponent* Look = Cast<UPrimitiveComponent>(Kid))
+				if (Look->ComponentHasTag(TEXT("FabLook")))
+				{
+					if (Look->bRenderCustomDepth != C->bRenderCustomDepth) Look->SetRenderCustomDepth(C->bRenderCustomDepth);
+					if (Look->CustomDepthStencilValue != C->CustomDepthStencilValue) Look->SetCustomDepthStencilValue(C->CustomDepthStencilValue);
+				}
 	}
 	for (auto It = Drawn.CreateIterator(); It; ++It)
 		if (!Seen.Contains(It.Key()))

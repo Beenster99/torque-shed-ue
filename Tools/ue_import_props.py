@@ -98,6 +98,8 @@ def master():
     """M_PropMaster: Tint x (the scan's light and shade, by Detail), Rough x (the scan's roughness, by
     Detail), Metal, the scan's normal, Glow x Tint as light. UVs x Tile (the props' UVs are metres)."""
     m = new_asset("M_PropMaster", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    # Its instances also paint the Fab vehicles (Data/Furniture/fab_looks.json), which are Nanite.
+    try_set(m, "used_with_nanite", True)
     uv = expr(m, unreal.MaterialExpressionTextureCoordinate, -1600, 0)
     tile = expr(m, unreal.MaterialExpressionScalarParameter, -1600, 120, parameter_name="Tile", default_value=1.0)
     uvs = expr(m, unreal.MaterialExpressionMultiply, -1400, 0)
@@ -246,6 +248,8 @@ def plain_master():
     """M_PropPlain: Tint, Rough, Metal, Glow x Tint. No textures at all, for a prop whose scan isn't
     downloaded yet (a texture parameter with nothing behind it shows UE's checkerboard)."""
     m = new_asset("M_PropPlain", MATS, unreal.Material, unreal.MaterialFactoryNew())
+    # Its instances also paint the Fab vehicles (Data/Furniture/fab_looks.json), which are Nanite.
+    try_set(m, "used_with_nanite", True)
     tint = expr(m, unreal.MaterialExpressionVectorParameter, -500, -100, parameter_name="Tint", default_value=unreal.LinearColor(0.5, 0.5, 0.5, 1.0))
     mel.connect_material_property(tint, "", unreal.MaterialProperty.MP_BASE_COLOR)
     rough = expr(m, unreal.MaterialExpressionScalarParameter, -500, 100, parameter_name="Rough", default_value=0.5)
