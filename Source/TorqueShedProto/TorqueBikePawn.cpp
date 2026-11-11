@@ -712,6 +712,7 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 			RiderKnee[1] = MoveOf(SaddleTag).TransformPosition(Frame.Knee);
 			RiderKnee[0] = MoveOf(SaddleTag).TransformPosition(FVector(Frame.Knee.X, -Frame.Knee.Y, Frame.Knee.Z));
 			RiderTankHalfW = Frame.TankHalfW;
+			RiderBackDeg = Frame.BackDeg;
 			const FTransform PegMove = MoveOf(RearsetsTag);
 			RiderPeg[1] = PegMove.TransformPosition(Frame.Peg);
 			RiderPeg[0] = PegMove.TransformPosition(FVector(Frame.Peg.X, -Frame.Peg.Y, Frame.Peg.Z));
@@ -2867,6 +2868,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	if (bRiderOnLayout)
 	{
 		T.TankHalfW = RiderTankHalfW;
+		T.BackDeg = RiderBackDeg;
 		for (int32 S = 0; S < 2; ++S)
 		{
 			T.Knee[S] = RiderKnee[S];

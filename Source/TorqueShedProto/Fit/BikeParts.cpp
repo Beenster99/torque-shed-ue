@@ -3066,11 +3066,16 @@ void BikeParts::Rearsets(const PartsMap& Parts, const Layout& L, std::vector<Fit
 	for (double Side : {-1.0, 1.0})
 	{
 		const V3 Peg(Pg.x * Side, Pg.y, Pg.z);
-		const V3 Root(0.1 * Side, Pv.y - 0.02, Pv.z - 0.03);
+		// [rider pose] Mid-mounted pegs (well ahead of the swingarm pivot, beside the engine): their
+		// hangers bolt on just behind them, and a stub carries a peg set out past the cases.
+		const bool MidMount = Pg.z < Pv.z - 0.2;
+		const V3 Root = MidMount ? V3(0.1 * Side, Pg.y + 0.04, Pg.z + 0.05) : V3(0.1 * Side, Pv.y - 0.02, Pv.z - 0.03);
 		const GAffine Mirror = GAffine::Scale(V3(Side, 1.0, 1.0));
 		auto Plate = [&](const V3& At, const V3& Size) {
 			Put(Out, "rearsets", "controls/hanger.glb", AtWith(GAffine::Scale(V3(Side * Size.x / HangerT, Size.y, Size.z)), At), "");
 		};
+		if (MidMount && Style != "forward" && Style != "boards" && std::fabs(Pg.x) > 0.15)
+			TubeAB(V3(0.1 * Side, Pg.y + 0.01, Pg.z + 0.03), Peg + V3(-0.02 * Side, 0.0, 0.0), 0.011);
 		if (Style == "forward")
 		{
 			TubeAB(V3(0.08 * Side, Pg.y + 0.02, Pg.z + 0.08), Peg, 0.012);

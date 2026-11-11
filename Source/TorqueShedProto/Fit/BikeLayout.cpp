@@ -715,6 +715,9 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 	const Json* PegMm = Sub(T5, "peg_mm");
 	const Json* GripMm = Sub(T5, "grip_mm");
 	V3 Peg(0.17, SeatY - Item(PegMm, 1, 440.0) / 1000.0, Hip.z - Item(PegMm, 0, 120.0) / 1000.0);
+	// [rider pose] Torque Shed's own peg ("godot_peg_mm"), moved the same ways, for the tank's knee below.
+	const Json* GodotPegMm = Sub(T5, "godot_peg_mm");
+	V3 TankKneePeg = GodotPegMm ? V3(0.17, SeatY - Item(GodotPegMm, 1, 440.0) / 1000.0, Hip.z - Item(GodotPegMm, 0, 120.0) / 1000.0) : Peg;
 	const Json* Sets = Part(Get(Parts, "rearsets"));
 	const Json* SetsPeg = Sub(Sets, "peg");
 	if (SetsPeg && SetsPeg->IsArray())
@@ -728,15 +731,34 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 			Own1 = Item(StockPeg, 1, Own1);
 		}
 		Peg += V3(0.0, Item(SetsPeg, 0, 0.0) - Own0, Item(SetsPeg, 1, 0.0) - Own1);
+		TankKneePeg += V3(0.0, Item(SetsPeg, 0, 0.0) - Own0, Item(SetsPeg, 1, 0.0) - Own1);
 	}
-	Peg.y = std::max(Peg.y, Ground + ClearMin + 0.02);
-	Peg.z = std::max(Peg.z, Crank.z - 0.17 * S - 0.2);
-	Peg.z += Adj.PegsMm / 1000.0;
+	for (V3* Pg : {&Peg, &TankKneePeg})
+	{
+		Pg->y = std::max(Pg->y, Ground + ClearMin + 0.02);
+		Pg->z = std::max(Pg->z, Crank.z - 0.17 * S - 0.2);
+		Pg->z += Adj.PegsMm / 1000.0;
+	}
+	// [rider pose] Pegs beside the crankcases (beenster's marked poses put many feet there): the
+	// boot, from its heel to its toes, must clear the cases' side, so the peg goes out past them.
+	if (Num(T5, "peg_by_case", 0.0) > 0.0)
+	{
+		// (Toes down on rearsets, the peg close under the hip: they reach less far forward, and tuck
+		// in round the cases' rounded back.)
+		const bool ToesDown = Hip.z - Peg.z < 0.25;
+		const double FootFront = Peg.z - (ToesDown ? 0.03 : 0.07), FootBack = Peg.z + 0.15;
+		const double CaseBack = Crank.z + 0.17 * S - (ToesDown ? 0.02 : 0.0);
+		const bool Beside = FootFront < CaseBack && FootBack > Crank.z - 0.17 * S && Peg.y < Crank.y + 0.1 * S;
+		if (Beside) Peg.x = std::max(Peg.x, Hp.CaseHalfW + 0.06);
+	}
 	const V3 Grip(0.31, SeatY + Item(GripMm, 1, 260.0) / 1000.0, Hip.z - Item(GripMm, 0, 550.0) / 1000.0);
+	// [rider pose] The tank's knee (its knee recesses and pads) where Torque Shed has it, from its own
+	// hip and pegs: the port's riders sit further back with their feet forward (beenster's marked
+	// poses), but the tanks were drawn round Torque Shed's knee.
+	const V3 KneeP = Knee(Hip + V3(0.0, 0.1, 0.0), TankKneePeg);
 	// [rider pose] The rider sat further back on the seat than Torque Shed has it, the pegs and bars
 	// where they were ("hip_back_mm", beenster's call for the upright styles: the knees bent less).
 	Hip.z += Num(T5, "hip_back_mm", 0.0) / 1000.0;
-	const V3 KneeP = Knee(Hip + V3(0.0, 0.1, 0.0), Peg);
 
 	// The backbone: from the neck under the tank's floor, then down to the seat.
 	const V3 Neck = Head + V3(0.0, -0.01, 0.02);

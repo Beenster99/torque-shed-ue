@@ -430,14 +430,17 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 		OutFrame->Peg = FVector(Peg.X, FMath::Abs(Peg.Y), Peg.Z);
 		const FVector Grip(TSCI::ToUe(L.GripR));
 		OutFrame->Grip = FVector(Grip.X, FMath::Abs(Grip.Y), Grip.Z);
-		// Feet forward: the pegs 20 cm ahead of the swingarm pivot, or a cruiser's or chopper's frame.
+		// Feet forward: a cruiser's or chopper's frame, or the pegs far ahead of the hips.
 		const auto Frm = Map.find("frame");
 		const TorqueFit::Json* FramePart = Frm != Map.end() ? Lay->Part(Frm->second) : nullptr;
 		const std::string FrameStyle = FramePart ? FramePart->Str("style") : std::string();
-		OutFrame->bLaidBack = L.Peg.x > L.Pivot.x + 0.2 || FrameStyle == "chopper" || FrameStyle == "cruiser";
+		// [rider pose] Torque Shed asked for the pegs 20 cm ahead of the pivot; the port's pegs sit
+		// forward beside the engine on upright bikes too, so it's feet 60 cm ahead of the hips.
+		OutFrame->bLaidBack = L.Peg.x > L.Hip.x + 0.6 || FrameStyle == "chopper" || FrameStyle == "cruiser";
 		// [rider pose] The knee and the tank's width along the rider's legs.
 		const FVector Knee(TSCI::ToUe(L.KneeR));
 		OutFrame->Knee = FVector(Knee.X, FMath::Abs(Knee.Y), Knee.Z);
+		OutFrame->BackDeg = Lay->LineNumber(L.Style, "5_rider", "back_deg", -100.0);
 		OutFrame->TankHalfW.Reset();
 		const TorqueFit::Bodywork Work = TorqueFit::BikeBody(*Lay).Fit(Map, L);
 		for (const TorqueFit::LoftSection& Sec : Work.TankSecs)

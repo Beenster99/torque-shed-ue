@@ -454,6 +454,7 @@ private:
 	FVector RiderKnee[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	TArray<FVector2D> RiderTankHalfW;
 	double RiderFeetDown = 0.0;
+	double RiderBackDeg = -100.0;   // [rider pose] the style's back lean (FBikeFrame::BackDeg)
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's
 	double RiderBackDeg = 0.0;                  // and the back's lean for it, forward of upright
