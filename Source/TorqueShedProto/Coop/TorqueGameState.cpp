@@ -908,7 +908,13 @@ void ATorqueGameState::ApplyWeather()
 	if (Sun)
 	{
 		Sun->SetIntensity(SunLux * FMath::Lerp(1.0f, FMath::Lerp(0.14f, 0.10f, WetL), Dull) * DayLight);
-		Sun->SetLightSourceAngle(FMath::Lerp(SunAngle, 40.0f, Dull));   // a sun behind cloud: next to no shadow
+		// A sun behind cloud: next to no shadow, from a light as wide as the bright patch of cloud. The sky
+		// draws its sun disc as wide as the light, so under any cloud that softens the shadows the disc is
+		// put out (beenster, build 135: "the sun is massive" under a live overcast, a 40 degree disc).
+		const float Angle = FMath::Lerp(SunAngle, 40.0f, Dull);
+		Sun->SetLightSourceAngle(Angle);
+		const float Disc = FMath::Clamp(1.0f - (Angle - SunAngle) / 1.5f, 0.0f, 1.0f);
+		Sun->SetAtmosphereSunDiskColorScale(FLinearColor(Disc, Disc, Disc, 1.0f));
 	}
 	if (Sky) Sky->SetIntensity(SkyIntensity * FMath::Lerp(1.0f, 2.5f, Dull));
 	// A real camera opens up under cloud: the exposure follows (the level's histogram range was set for
