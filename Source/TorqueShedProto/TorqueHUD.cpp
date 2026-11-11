@@ -41,6 +41,7 @@ void ATorqueHUD::DrawHUD()
 		Geo->DrawPanel(this, Canvas);   // geometry mode's panel, parts list and gizmo
 		return;
 	}
+	if (TPC) TPC->DrawPings(Canvas);   // [ping] under everything else on the HUD, over the world
 	if (TPC) TPC->DrawNote(this, Canvas);
 	DrawFrameRate();
 	DrawRiderNames();

@@ -8,6 +8,9 @@
 #include "TorqueKeys.h"
 #include "TorqueGameState.h"
 #include "TorqueUi.h"
+#include "TorquePing.h"
+#include "TorqueAudio/TorqueSfx.h"
+#include "HAL/PlatformTime.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "Engine/GameInstance.h"
 #include "Camera/PlayerCameraManager.h"
@@ -105,6 +108,58 @@ void ATorquePlayerController::ClientNote_Implementation(const FString& Text)
 {
 	Note = Text.Left(200);
 	NoteFor = 4.0;
+}
+
+void ATorquePlayerController::ShowNote(const FString& Text, double Seconds)
+{
+	Note = Text.Left(200);
+	NoteFor = Seconds;
+}
+
+// [ping] The host: who pinged (their name and colour) goes on it, and it goes out to everyone
+// (shed_state.gd's "ping" action: it changes nothing in the shed).
+void ATorquePlayerController::ServerPing_Implementation(const FTorquePingNet& NewPing)
+{
+	FTorquePingNet Out = NewPing;
+	Out.What = Out.What.Left(60);
+	Out.Name = TEXT("Someone");
+	if (PlayerState)
+	{
+		Out.Name = PlayerState->GetPlayerName();
+		Out.PlayerId = PlayerState->GetPlayerId();
+	}
+	if (const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PlayerState)) Out.Colour = TPS->ColourValue();
+	// The dark colours wouldn't show at night: a warm amber instead (as the name tags go pale).
+	if ((int32)Out.Colour.R + Out.Colour.G + Out.Colour.B < 200) Out.Colour = FColor(255, 160, 50);
+	UWorld* World = GetWorld();
+	if (!World) return;
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		if (ATorquePlayerController* To = Cast<ATorquePlayerController>(It->Get())) To->ClientPing(Out);
+	UE_LOG(LogTemp, Log, TEXT("Torque ping: %s pinged %s at %s"), *Out.Name, *Out.What, *Out.At.ToCompactString());
+}
+
+void ATorquePlayerController::ClientPing_Implementation(const FTorquePingNet& NewPing)
+{
+	if (Pings.Num() >= 16) Pings.RemoveAt(0);
+	TorquePing::FShown Shown;
+	Shown.P = NewPing;
+	Shown.Born = FPlatformTime::Seconds();
+	Pings.Add(Shown);
+	// A bright two-note chime where it is (sfx_synth.gd's "ping", 2 dB up).
+	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("ping"), NewPing.At, 2.0f);
+	// Someone else's: "Sam pinged the workbench" for 2 s.
+	const bool bMine = PlayerState && NewPing.PlayerId == PlayerState->GetPlayerId();
+	if (!bMine) ShowNote(FString::Printf(TEXT("%s pinged %s"), *NewPing.Name, *NewPing.What.ToLower()), 2.0);
+}
+
+void ATorquePlayerController::DrawPings(UCanvas* Canvas)
+{
+	const double Now = FPlatformTime::Seconds();
+	Pings.RemoveAll([Now](const TorquePing::FShown& P) { return Now - P.Born >= TorquePing::Life; });
+	if (!Canvas || Pings.Num() == 0 || !PlayerCameraManager) return;
+	const FVector Eye = PlayerCameraManager->GetCameraLocation();
+	const FVector Ahead = PlayerCameraManager->GetCameraRotation().Vector();
+	TorquePing::Draw(Canvas, Pings, Now, Eye, Ahead);
 }
 
 void ATorquePlayerController::SyncPlayerState(float Dt)
@@ -879,7 +934,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		Add(TEXT("Key bindings"), FString(), TEXT("Every action and its keys: pick one and press the new key"), [this]() { KeySlot = 0; Open(EPage::Keys); });
 		Add(TEXT("Controller check"), FString(), TEXT("The sticks and buttons as the game reads them, and Recalibrate"), [this]() { Open(EPage::PadCheck); });
 		Heading(TEXT("PAD"));
-		Heading(TEXT("On foot: left stick walks, right stick looks, Cross / A uses, D-pad left / right picks a tool, Square / X washes, Triangle / Y rides out."));
+		Heading(TEXT("On foot: left stick walks, right stick looks, Cross / A uses, L1 / R1 pick a tool, Square / X washes, Triangle / Y rides out, D-pad left pings."));
 		Heading(TEXT("Riding: R2 throttle, L2 front brake, Circle / B rear brake, left stick lean and weight, Cross / A up a gear, Square / X down, hold LB clutch, hold RB look behind."));
 		Heading(TEXT("Triangle / Y gets on and off, D-pad left / right indicators, up lights, down ABS, L3 horn, R3 nod (hold: wave), View camera. The bike starts in neutral."));
 		Heading(TEXT("Anywhere: Esc, Options or Start opens the menu."));

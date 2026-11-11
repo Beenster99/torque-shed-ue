@@ -74,6 +74,7 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("Help"), TEXT("Help lines on / off"), FR, {EKeys::H, FKey()}},
 	{TEXT("Perf"), TEXT("Performance numbers on / off"), FR, {EKeys::P, FKey()}},
 	{TEXT("PerfLog"), TEXT("Performance: log to a file on / off"), FR, {EKeys::O, FKey()}},
+	{TEXT("Ping"), TEXT("Ping: mark what you're looking at for everyone"), FR, {EKeys::MiddleMouseButton, FKey()}},
 	};
 	static_assert(UE_ARRAY_COUNT(List) == (int32)ETorqueKey::Count, "one action per ETorqueKey");
 	return List;

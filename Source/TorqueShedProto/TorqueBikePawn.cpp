@@ -1,4 +1,5 @@
 #include "TorqueBikePawn.h"
+#include "Coop/TorquePing.h"
 #include "TorqueAudio/TorqueSfx.h"
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueSettings.h"
@@ -1311,6 +1312,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			if (bYard) TorqueYard::WalkBackIn(PC);
 			else TorqueFlow::BackToShed(this);
 		}
+		// [ping] Middle mouse, or the D-pad's left as in the shed: mark what's looked at for the crew.
+		if (FTorqueKeys::Just(PC, ETorqueKey::Ping) || SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left))
+			TorquePing::FromView(PC, this);
 		return;
 	}
 	// Riding, Triangle / Y (beenster's pad layout: it gets on and off): stopped, a tap gets off; moving,
@@ -1513,6 +1517,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
+	// [ping] Middle mouse: mark what's ahead (another rider, the spot on the road) for the whole crew
+	// (main.gd's "ride_ping"; Coop/TorquePing.h). No pad button: they're all taken riding.
+	if (FTorqueKeys::Just(PC, ETorqueKey::Ping)) TorquePing::FromView(PC, this);
 	// [lights] The lamps' switches (TorqueLights.h): L headlight, K main beam, N fog lights, , and .
 	// the indicators (again to cancel), / the hazards. On the pad (beenster): the d-pad's left and right
 	// the indicators, both (one then the other) the hazards, and the d-pad's up steps the lights

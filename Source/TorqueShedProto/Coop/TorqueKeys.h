@@ -22,7 +22,7 @@ enum class ETorqueKey : uint8
 	Camera, CamCloser, CamFarther, CamHigher, CamLower, CamTiltUp, CamTiltDown, LookBack, BackOnRoad, Restart, RealismDown, RealismUp, Weather, Horn,
 	Headlight, MainBeam, FogLights, IndicateLeft, IndicateRight, Hazards, BackToShed, Telemetry, Nod, Wave,
 	// Both.
-	Help, Perf, PerfLog,
+	Help, Perf, PerfLog, Ping,
 	Count
 };
 
