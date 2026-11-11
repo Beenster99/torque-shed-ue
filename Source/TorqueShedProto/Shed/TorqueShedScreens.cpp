@@ -12,7 +12,10 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Camera/PlayerCameraManager.h"
 #include "WebBrowserModule.h"
-#include "SWebBrowser.h"
+#include "IWebBrowserSingleton.h"
+#include "IWebBrowserWindow.h"
+#include "SWebBrowserView.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Slate/WidgetRenderer.h"
 #include "RenderingThread.h"
 #include "CanvasItem.h"
@@ -1522,12 +1525,15 @@ FString VideoPage(const FString& Id, int32 StartSeconds)
 	// Chromium only autoplays a muted video without a click, so it starts muted, then is unmuted once
 	// it's playing; if that stops it, it goes back to muted and plays on. A watchdog presses play
 	// whenever it's paused or cued (the thumbnail with the play button: build 134). Its state goes
-	// to the log (LogWebBrowser, "TorqueTV").
+	// to the log through the page title ("Torque TV page: TorqueTV ..."). The game clicks the tap layer
+	// (TapVideo) so Chromium lets it unmute.
 	FString Html = TEXT("<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}")
 		TEXT("#p{position:absolute;left:0;top:0;width:100%;height:100%}#e{color:#ddd;font:30px sans-serif;position:absolute;inset:0;display:flex;")
-		TEXT("align-items:center;justify-content:center;text-align:center}</style></head><body><div id='p'></div>")
+		TEXT("align-items:center;justify-content:center;text-align:center}#t{position:absolute;inset:0;z-index:10;background:transparent}")
+		TEXT("</style></head><body><div id='p'></div><div id='t' onmousedown='tap()'></div>")
 		TEXT("<script>var player=null,vol=80,tried=0,failed=0,last=-9;")
-		TEXT("function say(m){try{console.log('TorqueTV '+m);}catch(x){}}")
+		TEXT("function say(m){document.title='TorqueTV '+m;try{console.log('TorqueTV '+m);}catch(x){}}")
+		TEXT("function tap(){say('tap');if(player&&player.unMute){tried=1;failed=0;player.unMute();player.setVolume(vol);player.playVideo();setTimeout(function(){say('after tap: muted '+player.isMuted()+', state '+player.getPlayerState());},1000);}}")
 		TEXT("function onYouTubeIframeAPIReady(){player=new YT.Player('p',{width:'100%',height:'100%',videoId:'{ID}',")
 		TEXT("playerVars:{autoplay:1,mute:1,start:{START},controls:0,rel:0,playsinline:1,iv_load_policy:3,disablekb:1,origin:'https://torqueshed.game'},")
 		TEXT("events:{onReady:function(e){say('ready');e.target.mute();e.target.playVideo();},")
@@ -1573,15 +1579,22 @@ void ATorqueShedScreens::VideoTick(float Dt)
 			bVideoWarned = true;
 			return;
 		}
-		Browser = SNew(SWebBrowser)
-			.InitialURL(TEXT("about:blank"))
-			.ShowControls(false)
-			.ShowAddressBar(false)
-			.ShowErrorMessage(false)
-			.SupportsTransparency(false)
-			.BackgroundColor(FColor::Black)
-			.BrowserFrameRate(30)
-			.ViewportSize(FVector2D(VideoW, VideoH));
+		// The browser window itself (so the game can click in it: Chromium only lets a page play
+		// sound after a click), shown by a view drawn into VideoRT.
+		FCreateBrowserWindowSettings Settings;
+		Settings.InitialURL = TEXT("about:blank");
+		Settings.bUseTransparency = false;
+		Settings.BrowserFrameRate = 30;
+		Settings.BackgroundColor = FColor::Black;
+		IWebBrowserSingleton* Web = IWebBrowserModule::Get().GetSingleton();
+		BrowserWindow = Web ? Web->CreateBrowserWindow(Settings) : nullptr;
+		if (!BrowserWindow.IsValid())
+		{
+			if (!bVideoWarned) UE_LOG(LogTemp, Warning, TEXT("Torque TV: couldn't make a browser window: no YouTube"));
+			bVideoWarned = true;
+			return;
+		}
+		Browser = SNew(SWebBrowserView, BrowserWindow).ViewportSize(FVector2D(VideoW, VideoH));
 		VideoRenderer = new FWidgetRenderer(true);
 		VideoRT = FWidgetRenderer::CreateTargetFor(FVector2D(VideoW, VideoH), TF_Bilinear, true);
 		LoadedVideo.Reset();
@@ -1592,12 +1605,34 @@ void ATorqueShedScreens::VideoTick(float Dt)
 		LoadedVideo = Id;
 		LoadedAt = B->TvVideoStart();
 		const int32 Start = FMath::FloorToInt32(FMath::Max(0.0, B->SharedNow() - LoadedAt));
-		Browser->LoadString(TSSI::VideoPage(Id, Start), TEXT("https://torqueshed.game/tv"));
+		BrowserWindow->LoadString(TSSI::VideoPage(Id, Start), TEXT("https://torqueshed.game/tv"));
+		SinceLoad = 0.0f;
+		Taps = 0;
 		VolumeIn = 1.0f;
 		bDirty = true;   // the TVs on YouTube swap their page for the picture
 		UE_LOG(LogTemp, Log, TEXT("Torque TV: YouTube %s from %d s"), *Id, Start);
 	}
 	if (VideoRenderer && VideoRT) VideoRenderer->DrawWidget(VideoRT, Browser.ToSharedRef(), FVector2D(VideoW, VideoH), Dt);
+	// Two clicks in the page once the player's had time to load (3 s, 7 s): its tap layer unmutes
+	// and plays (beenster, build 135: the picture but no sound).
+	SinceLoad += Dt;
+	if ((Taps == 0 && SinceLoad > 3.0f) || (Taps == 1 && SinceLoad > 7.0f))
+	{
+		++Taps;
+		TapVideo();
+	}
+	// The page's state, as its title says it, into the log.
+	TitleIn -= Dt;
+	if (TitleIn <= 0.0f)
+	{
+		TitleIn = 0.5f;
+		const FString Title = BrowserWindow->GetTitle();
+		if (Title != PageTitle)
+		{
+			PageTitle = Title;
+			UE_LOG(LogTemp, Log, TEXT("Torque TV page: %s"), *Title);
+		}
+	}
 	// Louder the nearer you are to a TV that's on it: full within 3 m, gone past 25 m.
 	VolumeIn -= Dt;
 	if (VolumeIn <= 0.0f)
@@ -1608,13 +1643,31 @@ void ATorqueShedScreens::VideoTick(float Dt)
 		double Near = TNumericLimits<double>::Max();
 		for (const FVector& P : On) Near = FMath::Min(Near, FVector::Dist(P, Ear));
 		const int32 Vol = FMath::RoundToInt32(80.0 * FMath::Clamp(1.0 - (Near - 300.0) / 2200.0, 0.0, 1.0));
-		Browser->ExecuteJavascript(FString::Printf(TEXT("if(window.setVol){setVol(%d);}"), Vol));
+		BrowserWindow->ExecuteJavascript(FString::Printf(TEXT("if(window.setVol){setVol(%d);}"), Vol));
 	}
+}
+
+void ATorqueShedScreens::TapVideo()
+{
+	if (!BrowserWindow.IsValid()) return;
+	// A left click near the top left corner, on the page's tap layer (over the player, so the
+	// player itself never gets it and doesn't pause).
+	const FVector2D At(24.0, 24.0);
+	const FGeometry Geo = FGeometry::MakeRoot(FVector2D(VideoW, VideoH), FSlateLayoutTransform());
+	TSet<FKey> Held;
+	Held.Add(EKeys::LeftMouseButton);
+	const FPointerEvent Press(0, At, At, Held, EKeys::LeftMouseButton, 0.0f, FModifierKeysState());
+	const FPointerEvent Release(0, At, At, TSet<FKey>(), EKeys::LeftMouseButton, 0.0f, FModifierKeysState());
+	BrowserWindow->OnMouseButtonDown(Geo, Press, false);
+	BrowserWindow->OnMouseButtonUp(Geo, Release, false);
+	UE_LOG(LogTemp, Log, TEXT("Torque TV: tapped the video page (%d)"), Taps);
 }
 
 void ATorqueShedScreens::StopVideo()
 {
 	Browser.Reset();
+	BrowserWindow.Reset();
+	PageTitle.Reset();
 	if (VideoRenderer)
 	{
 		BeginCleanup(VideoRenderer);

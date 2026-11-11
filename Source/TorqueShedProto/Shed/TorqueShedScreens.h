@@ -32,7 +32,8 @@ class ATorqueBikePawn;
 class ATorqueWalker;
 class UCanvas;
 class USceneCaptureComponent2D;
-class SWebBrowser;
+class SWidget;
+class IWebBrowserWindow;
 class FWidgetRenderer;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
@@ -88,7 +89,13 @@ private:
 	// down the further you are from one.
 	static constexpr int32 VideoW = 1280;
 	static constexpr int32 VideoH = 720;
-	TSharedPtr<SWebBrowser> Browser;
+	TSharedPtr<IWebBrowserWindow> BrowserWindow;
+	TSharedPtr<SWidget> Browser;   // the browser's view, drawn into VideoRT
+	float SinceLoad = 0.0f;        // since the video page was opened (for the taps that unmute it)
+	int32 Taps = 0;
+	float TitleIn = 0.0f;
+	FString PageTitle;             // the page's state ("TorqueTV ..."), logged as it changes
+	void TapVideo();
 	FWidgetRenderer* VideoRenderer = nullptr;
 	UPROPERTY(Transient) UTextureRenderTarget2D* VideoRT = nullptr;
 	FString LoadedVideo;
