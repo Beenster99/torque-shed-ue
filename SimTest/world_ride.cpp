@@ -132,6 +132,60 @@ int main(int Argc, char** Argv)
 						std::fabs(P.Height - Hit.Height), P.Height > Hit.Height ? "above" : "below");
 			}
 	}
+	{
+		int Mouths = 0, GiveWays = 0;
+		for (const RidePlan::SideRoad& Sd : Plan->Sides)
+			for (const RidePlan::Mouth& M : Sd.Mouths) { if (M.Is) ++Mouths; if (M.Is && M.GiveWay) ++GiveWays; }
+		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines\n", Mouths, GiveWays);
+		int Shown = 0;
+		for (const RidePlan::SideRoad& Sd : Plan->Sides)
+			for (const RidePlan::Mouth& M : Sd.Mouths)
+				if (M.Is && ++Shown <= 12) std::printf("  a mouth at %.2f km%s\n", Plan->Road[size_t(M.MainIndex)].Along / 1000.0, M.GiveWay ? ", give way" : "");
+	}
+	if (std::getenv("WORLD_RIDE_MESH") != nullptr)
+	{
+		// Every road's triangles within 45 m of a place along the ride (WORLD_RIDE_MESH_KM, or the first
+		// give-way mouth): x z y r g b a corner, for a picture from above.
+		P2 Centre = Plan->Road[0].At;
+		bool Found = false;
+		if (std::getenv("WORLD_RIDE_MESH_KM") != nullptr)
+		{
+			const double Want = std::atof(std::getenv("WORLD_RIDE_MESH_KM")) * 1000.0;
+			for (const RoadPoint& P : Plan->Road) if (P.Along <= Want) Centre = P.At;
+		}
+		else
+			for (const RidePlan::SideRoad& Sd : Plan->Sides)
+				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
+		std::string Text;
+		char Buf[128];
+		for (int W = 0; W < Plan->RoadCount(); ++W)
+		{
+			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
+			for (int First = 0; First < int(Pts.size()) - 1; First += 64)
+			{
+				const int Last = std::min(First + 64, int(Pts.size()) - 1);
+				bool NearIt = false;
+				for (int I = First; I <= Last && !NearIt; ++I) NearIt = Pts[size_t(I)].At.DistanceTo(Centre) < 60.0;
+				if (!NearIt) continue;
+				RideMesh Mesh;
+				Plan->RoadPiece(W, First, Last, Mesh);
+				for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
+				{
+					bool In = false;
+					for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh.OriginX + Mesh.Pos[Mesh.Idx[T + C] * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[Mesh.Idx[T + C] * 3 + 2] - Centre.Z) < 45.0;
+					if (!In) continue;
+					for (int C = 0; C < 3; ++C)
+					{
+						const uint32_t V = Mesh.Idx[T + C];
+						std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh.OriginX + Mesh.Pos[V * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - Centre.Z, double(Mesh.Pos[V * 3 + 1]),
+							double(Mesh.Col[V * 3]), double(Mesh.Col[V * 3 + 1]), double(Mesh.Col[V * 3 + 2]));
+						Text += Buf;
+					}
+				}
+			}
+		}
+		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
+	}
 	if (std::getenv("WORLD_RIDE_DUMP") != nullptr)
 	{
 		// Every road's knots (x z height half), a road a line, for a picture.

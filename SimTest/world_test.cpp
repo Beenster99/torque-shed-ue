@@ -749,6 +749,52 @@ int main()
 							"a tunnel is a tube with an arched roof, the hill laid back over it clear of the arch and a headwall at each mouth; the far-off land has no cutting there");
 						for (size_t I = T0; I < T0 + 30; ++I) Plan->Road[I].Tunnel = false;
 					}
+					// Junction mouths: corners rounded, give-way lines across the lesser road, the edge line broken.
+					{
+						int Mouths = 0, GiveWays = 0, Painted = 0, Tested = 0, FacingUp = 0, Broken = 0, Wide = 0;
+						for (size_t W = 0; W < Plan->Sides.size(); ++W)
+						{
+							const RidePlan::SideRoad& Sd = Plan->Sides[W];
+							bool Decked = false;
+							for (const RoadPoint& P : Sd.Pts) Decked = Decked || P.Bridge || P.Tunnel;
+							for (int End = 0; End < 2; ++End)
+							{
+								const RidePlan::Mouth& M = Sd.Mouths[End];
+								if (!M.Is) continue;
+								++Mouths;
+								if (!M.GiveWay || Decked) continue;
+								++GiveWays;
+								RideMesh Mesh;
+								const int Count = int(Sd.Pts.size());
+								Plan->RoadPiece(int(W) + 1, End == 0 ? 0 : std::max(0, Count - 1 - 64), End == 0 ? std::min(64, Count - 1) : Count - 1, Mesh);
+								bool Marks = false, AllUp = true;
+								for (size_t V = 0; V < Mesh.Vertices(); ++V)
+									if (Mesh.Col[V * 3] > 0.8f && std::hypot(Mesh.OriginX + Mesh.Pos[V * 3] - M.At.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - M.At.Z) < Sd.Pts[0].Half * 2.5 + 1.0) Marks = true;
+								for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
+								{
+									const float* A3 = &Mesh.Pos[Mesh.Idx[T] * 3], * B3 = &Mesh.Pos[Mesh.Idx[T + 1] * 3], * C3 = &Mesh.Pos[Mesh.Idx[T + 2] * 3];
+									if (!(double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) >= -0.05)) AllUp = false;   // (but for a sliver where a road is cut off at the mouth)
+								}
+								++Tested;
+								if (Marks) ++Painted;
+								if (AllUp) ++FacingUp;
+								if (M.MainHalf < 2.95) continue;
+								// (the ride's road's edge line, 0.3 m in from its edge, is not there across the mouth)
+								++Wide;
+								RideMesh Main;
+								Plan->RoadPiece(0, M.MainIndex - 6, M.MainIndex + 6, Main);
+								const P2 OnLine = M.At - M.Across * 0.3;
+								bool Lined = false;
+								for (size_t V = 0; V < Main.Vertices(); ++V)
+									if (Main.Col[V * 3] > 0.8f && std::hypot(Main.OriginX + Main.Pos[V * 3] - OnLine.X, Main.OriginZ + Main.Pos[V * 3 + 2] - OnLine.Z) < 1.2) Lined = true;
+								if (!Lined) ++Broken;
+							}
+						}
+						std::printf("      %d junction mouths; %d give way (%d marked, %d all facing up); the edge line broken at %d of %d on a wide road\n", Mouths, Tested, Painted, FacingUp, Broken, Wide);
+						Check(Mouths > 10 && Tested > 3 && Painted == Tested && FacingUp == Tested && Broken == Wide,
+							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
+						(void)GiveWays;
+					}
 					// Bridges on the roads beside it.
 					{
 						int Decks = 0, Crossings = 0;
