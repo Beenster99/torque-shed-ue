@@ -245,9 +245,9 @@ UMaterialInterface* KitMaterialFor(const FString& Words)
 // material and blend mode; one that can't draw solid in the game (none, the MetaHuman plugin's,
 // editor-only, an engine default, a parent lost in the cook, or translucent / masked) takes the
 // rider kit's material for that garment instead. -TorqueOwnClothes keeps them all, to compare.
-void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garment)
+void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garment, bool bLogOnly = false)
 {
-	static const bool bKeep = FParse::Param(FCommandLine::Get(), TEXT("TorqueOwnClothes"));
+	const bool bKeep = bLogOnly || FParse::Param(FCommandLine::Get(), TEXT("TorqueOwnClothes"));
 	UMaterialInterface* const Default = UMaterial::GetDefaultMaterial(MD_Surface);
 	for (int32 Slot = 0; Slot < C->GetNumMaterials(); ++Slot)
 	{
@@ -827,6 +827,10 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	else
 	{
 		ApplyMaterials(Driver, E.BodyMaterials);
+		// The body's slots too, logged only (round 139: no garment lines; the build may bake the outfit into the body).
+		TorqueAvatarMath::SolidClothes(Driver, E.Name, TEXT("Body"), true);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %d parts listed (%s)"), *E.Name, E.Parts.Num(),
+			*FString::JoinBy(E.Parts, TEXT(", "), [](const FPart& P) { return P.Name + (P.Mesh.IsEmpty() ? P.Cloth.IsEmpty() ? TEXT("") : TEXT("=cloth") : TEXT("=mesh")); }));
 		AddParts(Owner, Driver, E, Parts, FaceMesh);
 		for (const TWeakObjectPtr<USceneComponent>& C : Parts)
 			if (C.IsValid() && (C->GetClass()->GetName().Contains(TEXT("Groom")) || C->IsA<UStaticMeshComponent>())) Hair.Add(C);
