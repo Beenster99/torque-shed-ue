@@ -952,7 +952,7 @@
    "front_caliper": "twin_piston",
    "horn": "none",
    "indicators": "none",
-   "dashboard": "none"
+   "dashboard": "twin_clocks"
   },
   "bobber": {
    "front_caliper": "twin_piston",
