@@ -20,7 +20,7 @@ namespace TorqueWeatherFxImpl
 constexpr int32 DataFloats = 6;          // per sprite (M_SprayMist): colour (3), alpha, softness, seed
 constexpr double BoxHalf = 1300.0;       // the rain's box round the camera: 26 m across
 constexpr double BoxBelow = 400.0, BoxAbove = 1000.0;
-constexpr int32 MaxBits = 900;           // splashes and spray in the air at once
+constexpr int32 MaxBits = 2400;          // splash droplets, spray droplets and mist in the air at once
 const FLinearColor Rain(0.52f, 0.56f, 0.62f);
 const FLinearColor Spray(0.80f, 0.82f, 0.86f);
 
@@ -112,7 +112,7 @@ void ATorqueWeatherFx::Make()
 		Data[1] = TWX::Rain.G;
 		Data[2] = TWX::Rain.B;
 		Data[3] = FMath::Lerp(0.30f, 0.55f, D.Seed);
-		Data[4] = 0.05f;
+		Data[4] = 2.0f;   // (M_RainSprite: a thin tapered streak)
 		Data[5] = D.Seed;
 		Streaks->SetCustomData(I, Data, false);
 	}
@@ -233,8 +233,10 @@ void ATorqueWeatherFx::TickRain(float Dt, double Show, const FVector& Wind)
 		FVector Along = Rv - ToEye * FVector::DotProduct(Rv, ToEye);
 		const double Moving = Along.Size();
 		Along = Moving > 1.0 ? Along / Moving : FVector::UpVector;
-		const double Len = FMath::Clamp(Moving * 0.04, 25.0, 180.0);
-		const double Width = 0.5 + Dist * 0.0022;   // (about two pixels at 1080p)
+		// (A drop is 1 to 3 mm across: its streak a hairline, about a pixel wide at 1080p wherever it is;
+		// build 135's were two pixels and read as thick rods, beenster.)
+		const double Len = FMath::Clamp(Moving * 0.035, 15.0, 150.0);
+		const double Width = 0.25 + Dist * 0.0012;
 		const FMatrix M = FRotationMatrix::MakeFromZX(ToEye, Along);
 		Xfs[I] = FTransform(M.ToQuat(), D.Pos, FVector(Len / 100.0, Width / 100.0, 1.0));
 	}
@@ -246,26 +248,35 @@ void ATorqueWeatherFx::TickRain(float Dt, double Show, const FVector& Wind)
 void ATorqueWeatherFx::TickSplashes(float Dt, double Show)
 {
 	if (Show <= 0.0) return;
-	// Little bursts on the ground round you, more the harder it rains, most of them near.
+	// Drops landing on the ground round you, more the harder it rains, most of them near. Each one a
+	// tiny crown: a few droplets of a millimetre or two jumping a few centimetres and falling back (build
+	// 135's were 10 to 18 cm puffs, far too big, beenster).
 	SplashDebt += Dt * Show * 420.0;
-	while (SplashDebt >= 1.0 && Bits.Num() < PuffPool)
+	while (SplashDebt >= 1.0 && Bits.Num() + 4 <= PuffPool)
 	{
 		SplashDebt -= 1.0;
 		const double R = 700.0 * FMath::Sqrt(FMath::FRand()) + 60.0;
 		const double A = FMath::FRand() * UE_DOUBLE_TWO_PI;
 		FVector Ground;
 		if (!GroundBelow(Eye + FVector(FMath::Cos(A) * R, FMath::Sin(A) * R, 300.0), Ground)) continue;
-		FBit B;
-		B.Pos = Ground + FVector(0.0, 0.0, 1.5);
-		B.Vel = FVector(FMath::FRandRange(-30.0, 30.0), FMath::FRandRange(-30.0, 30.0), FMath::FRandRange(40.0, 110.0));
-		B.Life = FMath::FRandRange(0.16f, 0.3f);
-		B.Size0 = FMath::FRandRange(3.0f, 5.0f);
-		B.Size1 = FMath::FRandRange(10.0f, 18.0f);
-		B.Alpha = FMath::FRandRange(0.4f, 0.65f);
-		B.Seed = FMath::FRand();
-		B.Gravity = 980.0f;
-		B.Drag = 0.0f;
-		Bits.Add(B);
+		const int32 Count = FMath::RandRange(2, 4);
+		for (int32 K = 0; K < Count; ++K)
+		{
+			FBit B;
+			const double Out = FMath::FRand() * UE_DOUBLE_TWO_PI;
+			const double Spread = FMath::FRandRange(25.0, 70.0);
+			B.Pos = Ground + FVector(0.0, 0.0, 0.5);
+			B.Vel = FVector(FMath::Cos(Out) * Spread, FMath::Sin(Out) * Spread, FMath::FRandRange(70.0, 150.0));
+			B.Life = FMath::FRandRange(0.12f, 0.24f);
+			B.Size0 = FMath::FRandRange(0.25f, 0.45f);
+			B.Size1 = B.Size0 * 0.8f;
+			B.Alpha = FMath::FRandRange(0.5f, 0.8f);
+			B.Seed = FMath::FRand();
+			B.Gravity = 980.0f;
+			B.Drag = 0.0f;
+			B.Soft = 0.1f;
+			Bits.Add(B);
+		}
 	}
 	SplashDebt = FMath::Min(SplashDebt, 4.0);
 }
@@ -284,37 +295,65 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 		const FVector Vel = Was && Dt > 0.0f ? (Rear - *Was) / Dt : FVector::ZeroVector;
 		LastWheels.Add(Key, Rear);
 		const double Speed = Vel.Size2D();
-		// Off a wet road, above a jogging pace, the tyres throw up a mist behind them that grows with speed.
+		// Off a wet road, above a jogging pace, the tyres throw the water up. As in beenster's reference
+		// (a rooster tail off a wet track): the tread picks the water up at the contact patch and flings
+		// it off as it comes round the back of the tyre, a fan of fine droplets rising steeply behind the
+		// bike, with a faint mist through it; the front tyre throws less, low and to the sides.
 		if (Wet < 0.2 || Speed < 500.0 || Speed > 10000.0) continue;
 		double& Debt = SprayDebt.FindOrAdd(Key);
 		const double Pace = FMath::Clamp(Speed / 2500.0, 0.0, 1.6);
-		Debt += Dt * (Wet - 0.1) * Pace * 60.0;
+		Debt += Dt * (Wet - 0.1) * Pace * 520.0;
 		const FVector Fwd = FVector(Vel.X, Vel.Y, 0.0).GetSafeNormal();
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Fwd);
 		while (Debt >= 1.0 && Bits.Num() < PuffPool)
 		{
 			Debt -= 1.0;
-			const bool bFront = FMath::FRand() < 0.3f;
+			const float Pick = FMath::FRand();
+			const bool bMist = Pick < 0.07f;
+			const bool bFront = !bMist && Pick > 0.85f;
 			const UStaticMeshComponent* Wheel = bFront ? Bike->FrontWheel : Bike->RearWheel;
 			const double Radius = FMath::Max(Wheel->Bounds.BoxExtent.Z, 20.0);
 			const FVector Axle = bFront ? Front : Rear;
 			FBit B;
 			B.bSpray = true;
-			B.Pos = Axle - FVector(0.0, 0.0, Radius * 0.85) - Fwd * Radius * 0.3 + Side * FMath::FRandRange(-8.0, 8.0);
-			// The water leaves the tyre slower than the bike goes (so it hangs behind), rising and fanning out;
-			// the front wheel's goes more to the sides.
-			B.Vel = Vel * FMath::FRandRange(0.25, 0.45) + FVector(0.0, 0.0, Speed * FMath::FRandRange(0.06, 0.13) + FMath::FRandRange(0.0, 120.0))
-				+ Side * Speed * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.16 : 0.07);
-			B.Life = FMath::FRandRange(0.5f, 0.95f);
-			B.Size0 = FMath::FRandRange(12.0f, 20.0f);
-			B.Size1 = FMath::FRandRange(55.0f, 95.0f) * (float)FMath::Lerp(0.7, 1.2, Pace / 1.6);
-			B.Alpha = FMath::FRandRange(0.10f, 0.18f) * (float)FMath::Min(Wet * 1.3, 1.0);
 			B.Seed = FMath::FRand();
-			B.Gravity = 380.0f;
-			B.Drag = 2.2f;
+			// Where it leaves the tread: Theta round from the bottom of the tyre towards the back. A point
+			// of the tread there moves (on the ground's frame) at the bike's speed times (1 - cos, sin):
+			// a little forward and mostly up, so the water rises behind the bike as it rides away from it.
+			const double Theta = FMath::DegreesToRadians(bFront ? FMath::FRandRange(5.0, 30.0) : FMath::FRandRange(8.0, 55.0));
+			const double Width = FMath::FRandRange(-1.0, 1.0) * (bFront ? 6.0 : 7.0);
+			B.Pos = Axle - FVector(0.0, 0.0, Radius * FMath::Cos(Theta)) - Fwd * Radius * FMath::Sin(Theta) + Side * Width;
+			// (The water slips on the tread and the air slows it fast: it leaves at a fraction of the tread's
+			// speed, so the tail stands a metre or so high at 50 mph, as in the reference.)
+			const double Fling = Speed * FMath::FRandRange(0.18, 0.42);
+			B.Vel = Fwd * Fling * (1.0 - FMath::Cos(Theta)) + FVector(0.0, 0.0, Fling * FMath::Sin(Theta))
+				+ Side * Fling * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.22 : 0.06);
+			if (bMist)
+			{
+				// The mist: a few soft, faint puffs that hang in the air behind.
+				B.Vel *= 0.35;
+				B.Life = FMath::FRandRange(0.6f, 1.1f);
+				B.Size0 = FMath::FRandRange(6.0f, 12.0f);
+				B.Size1 = FMath::FRandRange(35.0f, 60.0f) * (float)FMath::Lerp(0.7, 1.2, Pace / 1.6);
+				B.Alpha = FMath::FRandRange(0.04f, 0.08f) * (float)FMath::Min(Wet * 1.3, 1.0);
+				B.Gravity = 120.0f;
+				B.Drag = 2.5f;
+				B.Soft = 1.0f;
+			}
+			else
+			{
+				// A droplet: a millimetre or three, falling back under gravity, slowed a little by the air.
+				B.Life = FMath::FRandRange(0.35f, 0.75f);
+				B.Size0 = FMath::FRandRange(0.3f, 0.7f);
+				B.Size1 = B.Size0;
+				B.Alpha = FMath::FRandRange(0.45f, 0.8f) * (float)FMath::Min(Wet * 1.3, 1.0);
+				B.Gravity = 980.0f;
+				B.Drag = 1.5f;
+				B.Soft = 0.15f;
+			}
 			Bits.Add(B);
 		}
-		Debt = FMath::Min(Debt, 6.0);
+		Debt = FMath::Min(Debt, 40.0);
 	}
 	// Forget bikes that have gone.
 	for (auto It = LastWheels.CreateIterator(); It; ++It)
@@ -380,15 +419,25 @@ void ATorqueWeatherFx::DrawBits()
 		ToEye.FindBestAxisVectors(U, V);
 		const float Turn = B.Seed * 6.283f;
 		const FVector Along = U * FMath::Cos(Turn) + V * FMath::Sin(Turn);
-		const float Size = FMath::Lerp(B.Size0, B.Size1, B.bSpray ? FMath::Sqrt(F) : F);
+		float Size = FMath::Lerp(B.Size0, B.Size1, B.Soft > 0.5f ? FMath::Sqrt(F) : F);
+		// A droplet smaller than about a pixel is drawn a pixel wide and fainter, so it doesn't flicker
+		// in and out (the same light, spread wider).
+		float Fade = 1.0f;
+		const float Least = (float)FVector::Dist(Eye, B.Pos) * 0.0012f;
+		if (Size < Least)
+		{
+			Fade = FMath::Square(Size / Least);
+			Size = Least;
+		}
 		const FMatrix M = FRotationMatrix::MakeFromZX(ToEye, Along);
 		Xfs[Slot] = FTransform(M.ToQuat(), B.Pos, FVector(Size / 100.0f, Size / 100.0f, 1.0f));
 		const FLinearColor& C = B.bSpray ? TWX::Spray : TWX::Rain;
 		Data[0] = C.R;
 		Data[1] = C.G;
 		Data[2] = C.B;
-		Data[3] = FMath::Clamp(B.Alpha * FMath::Sin(UE_PI * FMath::Min(1.0f, F * 1.1f + 0.05f)), 0.0f, 1.0f);
-		Data[4] = B.bSpray ? 1.0f : 0.35f;
+		const float Strength = B.Soft > 0.5f ? FMath::Sin(UE_PI * FMath::Min(1.0f, F * 1.1f + 0.05f)) : 1.0f - FMath::Square(F);
+		Data[3] = FMath::Clamp(B.Alpha * Fade * Strength, 0.0f, 1.0f);
+		Data[4] = B.Soft;
 		Data[5] = B.Seed;
 		Puffs->SetCustomData(Slot, Data, false);
 	}

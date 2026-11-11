@@ -382,6 +382,14 @@ def mist_material():
 # Soft 0: a crisp streak or droplet (stretched along U by the game); 1: a soft puff.
 RAIN_HLSL = """
 float2 q = UV * 2.0 - 1.0;
+// Soft 2: a rain streak (the plane stretched along U): a thin line, soft across so it stays a clean
+// hairline at any width, tapering at both ends as a falling drop's blur does.
+if (Soft > 1.5)
+{
+    float across = exp(-6.0 * q.y * q.y);
+    float along = 1.0 - smoothstep(0.35, 1.0, abs(q.x));
+    return across * along;
+}
 float d = length(q);
 float crisp = 1.0 - smoothstep(0.55, 1.0, d);
 float soft = pow(saturate(1.0 - d), 1.6);
