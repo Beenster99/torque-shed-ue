@@ -700,6 +700,116 @@ int main()
 						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() > Plain.Vertices() && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
 							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
+					// A tunnel (the fixture's ride has none, so 30 knots of it are called one): a tube with the
+					// hill laid back over it and a headwall at each mouth.
+					{
+						size_t T0 = 0;
+						for (size_t I = 150; I + 40 < Plan->Road.size() && T0 == 0; ++I)
+						{
+							bool Clear = true;
+							for (size_t J = I - 12; J < I + 42 && Clear; ++J) Clear = !Plan->Road[J].Bridge;
+							// (and no other road near its middle, so the hill over it is the land's own)
+							RidePlan::NearOpts Others;
+							Others.NotRoad = 0;
+							RidePlan::NearHit Hit;
+							if (Clear && !Plan->NearestOf(Plan->Road[I + 15].At.X, Plan->Road[I + 15].At.Z, Others, Hit)) T0 = I;
+						}
+						RideMesh Open, Bore;
+						Plan->RoadPiece(0, int(T0) - 4, int(T0) + 34, Open);
+						for (size_t I = T0; I < T0 + 30; ++I) Plan->Road[I].Tunnel = true;
+						Plan->RoadPiece(0, int(T0) - 4, int(T0) + 34, Bore);
+						const RoadPoint& Pm = Plan->Road[T0 + 15];
+						const double Top = RidePlan::TubeWall + RidePlan::TubeArch;
+						double Roof = -1e9, LidLow = 1e9;
+						int Grass = 0, Wall = 0;
+						for (size_t V = 0; V < Bore.Vertices(); ++V)
+						{
+							const double X = Bore.OriginX + Bore.Pos[V * 3], Y = Bore.Pos[V * 3 + 1], Z = Bore.OriginZ + Bore.Pos[V * 3 + 2];
+							const bool Green = Bore.Col[V * 3 + 1] > Bore.Col[V * 3] * 1.15 && Bore.Col[V * 3 + 1] > Bore.Col[V * 3 + 2] * 1.5;
+							if (Green) ++Grass;
+							else if (Bore.Col[V * 3] > 0.3f && Bore.Col[V * 3] < 0.4f) ++Wall;
+							const double D = std::hypot(X - Pm.At.X, Z - Pm.At.Z);
+							if (!Green && D < 0.5) Roof = std::fmax(Roof, Y - Pm.Height);
+							if (Green && D < 0.5) LidLow = std::fmin(LidLow, Y - Pm.Height);
+						}
+						int LidTris = 0, LidUp = 0;
+						for (size_t T = 0; T + 2 < Bore.Idx.size(); T += 3)
+						{
+							const uint32_t Va = Bore.Idx[T], Vb = Bore.Idx[T + 1], Vc = Bore.Idx[T + 2];
+							if (!(Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3] * 1.15 && Bore.Col[Va * 3 + 1] > Bore.Col[Va * 3 + 2] * 1.5)) continue;
+							const float* A3 = &Bore.Pos[Va * 3], * B3 = &Bore.Pos[Vb * 3], * C3 = &Bore.Pos[Vc * 3];
+							++LidTris;
+							if (double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) > 0.0) ++LidUp;
+						}
+						const double Cut = Plan->Ground(Pm.At.X, Pm.At.Z), FarOff = Plan->Ground(Pm.At.X, Pm.At.Z, 64.0), Lie = Plan->Land->Height(Pm.At.X, Pm.At.Z);
+						std::printf("      a tunnel of 30 knots at %.2f km: its roof %.1f m over the road, the hill's lid %.1f m; %d more points than the open road\n",
+							Pm.Along / 1000.0, Roof, LidLow, int(Bore.Vertices()) - int(Open.Vertices()));
+						Check(T0 > 0 && Bore.Vertices() > Open.Vertices() + 29 * 4 * 20 && Bore.Vertices() % 4 == 0 && Near(Roof, Top, 0.01) && LidLow >= Top + 0.59 && Grass > 29 * 14 * 4 - 1 && Wall > 0 && LidTris == 29 * 14 * 2 && LidUp == LidTris
+							&& Near(Cut, Pm.Height + RoadLine::CrossHeight(0.0, Pm.Half, Pm.Bank) - RidePlan::Sink, 1e-6) && FarOff == Lie,
+							"a tunnel is a tube with an arched roof, the hill laid back over it clear of the arch and a headwall at each mouth; the far-off land has no cutting there");
+						for (size_t I = T0; I < T0 + 30; ++I) Plan->Road[I].Tunnel = false;
+					}
+					// Junction mouths: corners rounded, give-way lines across the lesser road, the edge line broken.
+					{
+						int Mouths = 0, GiveWays = 0, Painted = 0, Tested = 0, FacingUp = 0, Broken = 0, Wide = 0;
+						for (size_t W = 0; W < Plan->Sides.size(); ++W)
+						{
+							const RidePlan::SideRoad& Sd = Plan->Sides[W];
+							bool Decked = false;
+							for (const RoadPoint& P : Sd.Pts) Decked = Decked || P.Bridge || P.Tunnel;
+							for (int End = 0; End < 2; ++End)
+							{
+								const RidePlan::Mouth& M = Sd.Mouths[End];
+								if (!M.Is) continue;
+								++Mouths;
+								if (!M.GiveWay || Decked) continue;
+								++GiveWays;
+								RideMesh Mesh;
+								const int Count = int(Sd.Pts.size());
+								Plan->RoadPiece(int(W) + 1, End == 0 ? 0 : std::max(0, Count - 1 - 64), End == 0 ? std::min(64, Count - 1) : Count - 1, Mesh);
+								bool Marks = false, AllUp = true;
+								for (size_t V = 0; V < Mesh.Vertices(); ++V)
+									if (Mesh.Col[V * 3] > 0.8f && std::hypot(Mesh.OriginX + Mesh.Pos[V * 3] - M.At.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - M.At.Z) < Sd.Pts[0].Half * 2.5 + 1.0) Marks = true;
+								for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
+								{
+									const float* A3 = &Mesh.Pos[Mesh.Idx[T] * 3], * B3 = &Mesh.Pos[Mesh.Idx[T + 1] * 3], * C3 = &Mesh.Pos[Mesh.Idx[T + 2] * 3];
+									if (!(double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) >= -0.05)) AllUp = false;   // (but for a sliver where a road is cut off at the mouth)
+								}
+								++Tested;
+								if (Marks) ++Painted;
+								if (AllUp) ++FacingUp;
+								if (M.MainHalf < 2.95) continue;
+								// (the ride's road's edge line, 0.3 m in from its edge, is not there across the mouth)
+								++Wide;
+								RideMesh Main;
+								Plan->RoadPiece(0, M.MainIndex - 6, M.MainIndex + 6, Main);
+								const P2 OnLine = M.At - M.Across * 0.3;
+								bool Lined = false;
+								for (size_t V = 0; V < Main.Vertices(); ++V)
+									if (Main.Col[V * 3] > 0.8f && std::hypot(Main.OriginX + Main.Pos[V * 3] - OnLine.X, Main.OriginZ + Main.Pos[V * 3 + 2] - OnLine.Z) < 1.2) Lined = true;
+								if (!Lined) ++Broken;
+							}
+						}
+						std::printf("      %d junction mouths; %d give way (%d marked, %d all facing up); the edge line broken at %d of %d on a wide road\n", Mouths, Tested, Painted, FacingUp, Broken, Wide);
+						Check(Mouths > 10 && Tested > 3 && Painted == Tested && FacingUp == Tested && Broken == Wide,
+							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
+						(void)GiveWays;
+					}
+					// Bridges on the roads beside it.
+					{
+						int Decks = 0, Crossings = 0;
+						double Least = 1e9;
+						for (const RidePlan::SideRoad& Sd : Plan->Sides)
+							for (size_t I = 1; I < Sd.Pts.size(); ++I)
+							{
+								if (Sd.Pts[I].Bridge && !Sd.Pts[I - 1].Bridge) ++Decks;
+								if (!Sd.Pts[I].Bridge) continue;
+								double Dm = 0.0, Hm = 0.0, HalfM = 0.0;
+								if (Plan->Nearest(Sd.Pts[I].At.X, Sd.Pts[I].At.Z, Dm, Hm, nullptr, &HalfM, nullptr, true) && Dm < HalfM) { ++Crossings; Least = std::fmin(Least, std::fabs(Sd.Pts[I].Height - Hm)); }
+							}
+						std::printf("      %d bridges and %d tunnels on the roads beside it (%d decks begin; %d deck knots over the ride's road)\n", Plan->SideBridges, Plan->SideTunnels, Decks, Crossings);
+						Check(Plan->SideBridges >= Decks && (Plan->SideBridges == 0 || Decks > 0), "the roads beside it have their mapped bridges as decks too, but none at a junction with the ride's road");
+					}
 					// Its banking: the surface read back either side of the middle at the most banked knot.
 					{
 						size_t Most = 2;

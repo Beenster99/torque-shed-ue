@@ -192,11 +192,17 @@ one (`World/WorldRoadLine`, a port of `route_planner.gd`'s smoothing): the quick
 every mapped corner rounded and faired so no bend is under 10 m, as wide as its class, graded to 15%,
 with shoulders that slope into the ground, edge lines and a dashed centre line. The other roads
 within about 300 m of the ride are laid too, junction to junction, level with the ride's road where
-they meet it (plain junctions: no kerb radii or give-way lines yet). Where the ride's road crosses a
-mapped bridge it is a level deck with stone parapets over the land as it lies. The roads are
+they meet it. Each junction's mouth has its corners rounded with tarmac, the ride's road's edge line
+broken across it and, where the side road is the lesser, the UK's give-way marking (two broken lines)
+across its near lane; where two side roads meet is still plain. Where the ride's road crosses a
+mapped bridge it is a level deck with stone parapets over the land as it lies, and so are the other
+roads' bridges; where one road goes over another with no junction, each keeps its own height. Through
+a mapped tunnel the road runs in a tube (tiled kerbs, concrete walls, a sooty arch, as the Godot
+game's `AdventureTunnels`) with a headwall at each mouth and the hill laid back over it; no lamps
+yet. The roads are
 crowned on the straight (2.5% each side) and banked in the bends by the UK's design rule (V squared
 over 2.828 R per cent for the class's speed, 7% at most): the port's own, as the Godot game's roads
-are flat across. Still to come: tunnels, the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
+are flat across. Still to come: the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
 `Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
 
