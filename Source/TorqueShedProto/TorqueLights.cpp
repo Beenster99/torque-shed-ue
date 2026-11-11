@@ -30,7 +30,9 @@ constexpr double StraightRate = 0.2;
 constexpr double LowReach[2] = {58.0, 1.0 / 80.0};
 constexpr double HighReach[2] = {150.0, 1.0 / 15.0};
 constexpr double LowAim = 5.0, HighAim = 0.6;
-constexpr float LowCone = 32.0f, HighCone = 20.0f;
+// (Main beam was 20 degrees: too narrow, beenster after build 135. Now nearly as wide as dipped, with a
+// broad bright middle, so the verges and the bends are lit too, not just a tunnel up the road.)
+constexpr float LowCone = 32.0f, HighCone = 30.0f;
 constexpr double FloodReach = 16.0;
 constexpr float FloodCone = 58.0f, FloodShare = 0.18f;
 constexpr double FogReach[2] = {22.0, 1.0 / 40.0};
@@ -50,12 +52,15 @@ constexpr float NightGlow = 0.2f;
 // they glow at a twentieth of their daytime strength, or they bloom into a big haze round the bike
 // (beenster, build 132 at night: "a huge diffuse light ... too much").
 constexpr float SignalNightGlow = 0.05f;
+// ...but the brake light must stand out (build 135: "brakes should be brighter"), and the indicators
+// read clearly from behind: their own night levels, between build 132's haze and build 134's.
+constexpr float StopNightGlow = 0.2f, IndicatorNightGlow = 0.09f, TailNightGlow = 0.12f;
 // The little lamps: an indicator's amber glow round it, the stop lamp's red on the road behind (bike_model.gd
 // STOP_GLOW_RANGE 3 m). Candela.
 // (Build 132's 40 cd over 2.6 m and 60 cd over 3.2 m lit the whole road round the bike at night: a
 // real lamp's spill is a faint tint on the ground just under it.)
 constexpr float IndicatorCd = 2.0f, IndicatorRange = 70.0f;
-constexpr float StopCd = 5.0f, StopRange = 150.0f;
+constexpr float StopCd = 12.0f, StopRange = 200.0f;
 
 const FName LensWhite(TEXT("Surf:lens_white")), LensAmber(TEXT("Surf:lens_amber")), LensRed(TEXT("Surf:lens_red"));
 const FName DashSlot(TEXT("Slot:dashboard")), HeadSlot(TEXT("Slot:headlight")), FairingSlot(TEXT("Slot:fairing")), FogSlot(TEXT("Slot:fog_lights"));
@@ -389,14 +394,17 @@ void FTorqueLights::Show(float DayLight)
 	Shown = State;
 	ShownDay = Day;
 	const float Glow = FMath::Lerp(TLI::NightGlow, 1.0f, Day);
-	const float SignalGlow = FMath::Lerp(TLI::SignalNightGlow, 1.0f, Day * Day);   // (dark well into dusk)
+	// (Dark well into dusk: Day squared.)
+	const float StopLensK = FMath::Lerp(TLI::StopNightGlow, 1.0f, Day * Day);
+	const float TailLensK = FMath::Lerp(TLI::TailNightGlow, 1.0f, Day * Day);
+	const float IndicatorLensK = FMath::Lerp(TLI::IndicatorNightGlow, 1.0f, Day * Day);
 	for (FLens& L : HeadLenses) SetLens(L, bHead ? (bMain ? TLI::MainGlow : TLI::HeadGlow) * Glow : 0.0f);
 	for (FLens& L : FogLenses) SetLens(L, bFogOn ? TLI::FogGlow * Glow : 0.0f);
-	for (FLens& L : TailLenses) SetLens(L, bBraking ? TLI::StopGlowLens * SignalGlow : bTail ? TLI::TailGlow * SignalGlow : 0.0f);
+	for (FLens& L : TailLenses) SetLens(L, bBraking ? TLI::StopGlowLens * StopLensK : bTail ? TLI::TailGlow * TailLensK : 0.0f);
 	for (int32 I = 0; I < Indicators.Num(); ++I)
 	{
 		const bool bOn = IndicatorSide[I] < 0 ? bLeft : bRight;
-		SetLens(Indicators[I], bOn ? TLI::IndicatorGlowLens * SignalGlow : 0.0f);
+		SetLens(Indicators[I], bOn ? TLI::IndicatorGlowLens * IndicatorLensK : 0.0f);
 		if (UPointLightComponent* P = IndicatorGlow.IsValidIndex(I) ? IndicatorGlow[I].Get() : nullptr) P->SetVisibility(bOn);
 	}
 	if (USpotLightComponent* B = Beam.Get())
@@ -408,7 +416,7 @@ void FTorqueLights::Show(float DayLight)
 			const double* Reach = bMain ? TLI::HighReach : TLI::LowReach;
 			B->SetRelativeRotation(FRotator(-(bMain ? TLI::HighAim : TLI::LowAim), 0.0, 0.0));
 			B->SetOuterConeAngle(bMain ? TLI::HighCone : TLI::LowCone);
-			B->SetInnerConeAngle((bMain ? TLI::HighCone : TLI::LowCone) * 0.3f);
+			B->SetInnerConeAngle((bMain ? TLI::HighCone : TLI::LowCone) * (bMain ? 0.45f : 0.3f));
 			B->SetAttenuationRadius((float)((Reach[0] + HeadLumens * Reach[1]) * 100.0));
 			B->SetIntensity((float)(HeadLumens * (bMain ? TLI::HighCdPerLm : TLI::LowCdPerLm)));
 		}
