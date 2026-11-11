@@ -11,6 +11,9 @@
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedSave.h"
+#include "Shed/TorqueWashJob.h"
+#include "TorqueBikePawn.h"
+#include "EngineUtils.h"
 #include "Coop/TorquePlayerState.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -1467,6 +1470,41 @@ int32 UTorqueBuildSubsystem::FreeBay() const
 	return INDEX_NONE;
 }
 
+FString UTorqueBuildSubsystem::WhyBayNotFree(int32 Bay) const
+{
+	if (!Exists(Bay)) return FString();
+	const FTorqueShedBike& B = Bikes[Bay];
+	if (!B.bAway) return FString::Printf(TEXT("There's already a bike in bay %d."), Bay + 1);
+	const int32 To = FreeBay();
+	if (To == INDEX_NONE)
+		return FString::Printf(TEXT("Bay %d is %s's, parked out of it, and every other bay has a bike. Scrap or sell one first."), Bay + 1, *B.Name);
+	if (B.Pusher != 0) return FString::Printf(TEXT("Bay %d's bike is being wheeled about. Try bay %d."), Bay + 1, To + 1);
+	if (OnDyno(Bay)) return FString::Printf(TEXT("Bay %d's bike is on the dyno. Try bay %d."), Bay + 1, To + 1);
+	if (TorqueWash::HidesGrime(this, Bay)) return FString::Printf(TEXT("Bay %d's bike is being washed. Try bay %d."), Bay + 1, To + 1);
+	if (UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr)
+		for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+			if (It->GetRideBay() == Bay) return FString::Printf(TEXT("Bay %d's bike is out being ridden. Try bay %d."), Bay + 1, To + 1);
+	return FString();
+}
+
+void UTorqueBuildSubsystem::MoveAwayBike(int32 From, int32 To)
+{
+	if (From == To || !Bikes.IsValidIndex(From) || !Bikes.IsValidIndex(To) || Bikes[To].bExists) return;
+	// The bike, its parts and whose bike it is go with it; it stands where it was parked.
+	Bikes[To] = Bikes[From];
+	Bikes[From] = FTorqueShedBike();
+	for (TPair<int32, FTorqueItem>& KV : Items)
+		if (KV.Value.At == ETorqueAt::Bike && KV.Value.Ref == From) KV.Value.Ref = To;
+	if (Mine == From) Mine = To;
+	if (const UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr)
+		if (const AGameStateBase* GS = World->GetGameState())
+			for (APlayerState* PS : GS->PlayerArray)
+				if (ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS))
+					if (TPS->HasAuthority() && TPS->Bay == From) TPS->Bay = To;
+	RebuildBuild(From);
+	UE_LOG(LogTemp, Log, TEXT("Torque: %s (parked out of bay %d) is kept as bay %d's now, bay %d free for a frame"), *Bikes[To].Name, From + 1, To + 1, From + 1);
+}
+
 bool UTorqueBuildSubsystem::FreeDeliverySpot(const FVector& Size, bool bFarFirst, bool bStack, FVector& Out) const
 {
 	// What's in the area already: every part or box on the floor there and every piece of kit, as
@@ -2646,7 +2684,7 @@ FString UTorqueBuildSubsystem::Check(int32 Peer, const FTorqueShedRequest& R) co
 		if (!HeldIt || HeldIt->Kind != TBI::FrameSlot()) return TEXT("Hold a frame to start a bike from scratch.");
 		if (HeldIt->bBoxed) return TEXT("Unpack it first.");
 		if (R.Bay < 0 || R.Bay >= Bays) return TEXT("Take it to one of the bays.");
-		if (Exists(R.Bay)) return FString::Printf(TEXT("There's already a bike in bay %d."), R.Bay + 1);
+		if (Exists(R.Bay)) return WhyBayNotFree(R.Bay);
 		return FString();
 	case ETorqueShedAct::TyreFit:
 	case ETorqueShedAct::TyreRemove:
@@ -3208,6 +3246,13 @@ FString UTorqueBuildSubsystem::DoApply(int32 Peer, const FTorqueShedRequest& R)
 		break;
 	case ETorqueShedAct::StartBuild:
 	{
+		// [co-op] This bay's bike parked elsewhere (Check allowed it): kept in an empty bay's place.
+		if (Exists(R.Bay))
+		{
+			const int32 To = FreeBay();
+			MoveAwayBike(R.Bay, To);
+			PartsOf.Add(To);
+		}
 		int32 Number = 1;
 		for (const FTorqueShedBike& Other : Bikes)
 			if (Other.bExists && Other.Name.StartsWith(TEXT("Scratch build"))) ++Number;
