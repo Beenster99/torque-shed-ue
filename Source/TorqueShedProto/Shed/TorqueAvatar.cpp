@@ -227,7 +227,7 @@ UMaterialInterface* KitMaterialFor(const FString& Words)
 		if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Bike/SpeedTwin/ue_assets.json")))
 			&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) && Root.IsValid()
 			&& Root->TryGetObjectField(TEXT("rider_rig"), Rig) && (*Rig)->TryGetObjectField(TEXT("materials"), Mats))
-			for (const auto& KV : (*Mats)->Values) Paths.Add(KV.Key, KV.Value->AsString());
+			for (const auto& KV : (*Mats)->Values) Paths.Add(FString(KV.Key), KV.Value->AsString());
 	}
 	const FString W = Words.ToLower();
 	const TCHAR* Key = TEXT("jacket");
