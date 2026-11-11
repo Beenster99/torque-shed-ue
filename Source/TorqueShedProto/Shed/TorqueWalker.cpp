@@ -17,6 +17,7 @@
 #include "Coop/TorqueLook.h"
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorquePlayerController.h"
+#include "Coop/TorquePing.h"
 #include "Coop/TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueFlow.h"
@@ -634,6 +635,10 @@ void ATorqueWalker::ReadInput(float Dt)
 			Say(Why.IsEmpty() ? FString(TEXT("Geometry mode couldn't open here.")) : Why, false);
 		return;
 	}
+	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
+	// for the whole crew (walker.gd's "ping").
+	if (!bComputer && !bBench && (KeyJust(ETorqueKey::Ping) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)))
+		Ping();
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
@@ -1029,6 +1034,7 @@ void ATorqueWalker::FindTarget()
 	TargetSlot = NAME_None;
 	TargetItem = TargetEngine = 0;
 	TargetPlace = nullptr;
+	TargetMesh.Reset();
 	UWorld* World = GetWorld();
 	const UTorqueBuildSubsystem* B = Shed();
 	if (!World || !Camera || !B) return;
@@ -1118,6 +1124,7 @@ void ATorqueWalker::FindTarget()
 	{
 		Target = Pick->Kind;
 		TargetPoint = Start + Look * Reach * Pick->Time;
+		TargetMesh = Pick->C;
 		if (Target == ETorqueLook::BikePart)
 		{
 			const ATorqueShedBike* Bike = Cast<ATorqueShedBike>(Pick->C->GetOwner());
@@ -1166,6 +1173,83 @@ void ATorqueWalker::FindTarget()
 			Target = ETorqueLook::Door;
 			TargetBay = B->MyBike();
 		}
+}
+
+void ATorqueWalker::Ping()
+{
+	APlayerController* PC = Cast<APlayerController>(Controller);
+	UWorld* World = GetWorld();
+	if (!PC || !World || !Camera) return;
+	// What the look finds as far as a ping reaches (walker.gd PING_REACH): the walker's own look, with
+	// a longer arm, then put back as it was.
+	const float ArmReach = Reach;
+	Reach = (float)TorquePing::ReachCm;
+	FindTarget();
+	const ETorqueLook Kind = Target;
+	const int32 Bay = TargetBay, ItemId = TargetItem, EngineId = TargetEngine, Furn = TargetFurniture;
+	const FName Slot = TargetSlot;
+	const FTorquePlace* PlaceAt = TargetPlace;
+	const FVector Point = TargetPoint;
+	const UStaticMeshComponent* PickedMesh = TargetMesh.Get();
+	Reach = ArmReach;
+	FindTarget();
+
+	const FVector Start = Camera->GetComponentLocation();
+	const FVector Look = GetControlRotation().Vector();
+	const UTorqueBuildSubsystem* B = Shed();
+	FTorquePingNet P;
+	P.At = Point;
+	if (B && Furn != 0)
+	{
+		// A piece of kit (furniture.gd's name: "Shelving unit: Brakes").
+		if (const FTorqueFurniture* F = B->FurnitureById(Furn)) P.What = TorqueFurniture::NameOf(*F);
+		for (TActorIterator<ATorqueFurnishings> It(World); It; ++It)
+			if (const UStaticMeshComponent* const* C = It->Pieces().Find(Furn)) TorquePing::BoxOf(*C, P);
+	}
+	else if (B && Kind == ETorqueLook::BikePart && B->Exists(Bay))
+	{
+		// "Bay 2's bike: exhaust" (ping_marker.gd: the bike's name and the slot's).
+		P.What = FString::Printf(TEXT("%s: %s"), *B->Bike(Bay).Name, *TorqueShedParts::SlotName(Slot).ToLower());
+		TorquePing::BoxOf(PickedMesh, P);
+	}
+	else if (B && Kind == ETorqueLook::Item && ItemId != 0)
+	{
+		P.What = B->ItemTitle(ItemId);
+		if (EngineId != 0 && PickedMesh) TorquePing::BoxOf(PickedMesh, P);   // a part on an engine block: that part
+		else
+		{
+			// A loose part: all its meshes (a wheel and its tyre, an engine and what's on it).
+			FBox Box(ForceInit);
+			for (TActorIterator<ATorqueShedItems> It(World); It; ++It)
+				for (const UStaticMeshComponent* C : It->Meshes)
+					if (C && ATorqueShedItems::ItemOf(C) == ItemId) Box += C->Bounds.GetBox();
+			if (Box.IsValid) TorquePing::BoxOf(Box, P);
+			else TorquePing::BoxOf(PickedMesh, P);
+		}
+	}
+	else if (B && Kind == ETorqueLook::Place && PlaceAt)
+	{
+		P.What = TWI::PlaceName(*PlaceAt, B);
+		TorquePing::BoxOf(PlaceAt->Box, P);
+	}
+	if (P.What.IsEmpty() && Kind != ETorqueLook::None && Kind != ETorqueLook::Floor && Kind != ETorqueLook::Door) P.What = TEXT("Over here");
+
+	// Another player nearer than that: them.
+	const double ThingCm = P.What.IsEmpty() ? TorquePing::ReachCm : FVector::Dist(Start, Point);
+	FTorquePingNet Who;
+	double WhoCm = 0.0;
+	if (TorquePing::PlayerOnLine(this, Start, Look, ThingCm, Who, WhoCm))
+	{
+		TorquePing::Send(PC, Who);
+		return;
+	}
+	if (!P.What.IsEmpty())
+	{
+		TorquePing::Send(PC, P);
+		return;
+	}
+	// Nothing in the shed by name: the spot the look meets (the floor, a wall, the road), or nothing.
+	if (TorquePing::FromView(PC, this).IsEmpty()) Say(TEXT("Nothing there to ping."), false, 2.0);
 }
 
 TArray<int32> ATorqueWalker::ItemsNear(const FVector& At, double Radius) const
