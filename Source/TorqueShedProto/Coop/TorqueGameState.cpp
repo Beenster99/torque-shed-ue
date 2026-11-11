@@ -32,6 +32,9 @@
 #include "Misc/Parse.h"
 #include "Net/UnrealNetwork.h"
 
+bool ATorqueGameState::bRealClockTest = false;
+bool ATorqueGameState::bTestClockSet = false;
+
 void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -110,7 +113,8 @@ void ATorqueGameState::BeginPlay()
 		if (GConfig->GetInt(TEXT("TorqueWeather"), TEXT("UtcOffset"), Saved, GGameUserSettingsIni)) { UtcOffset = Saved; bUtcKnown = true; }
 	}
 	// The clock where it was left (the level's own light until the player sets one).
-	if (HasAuthority() && !bTest) Hour = Set.TimeOfDay;
+	// (A test run keeps the level's light unless one of its steps set the clock.)
+	if (HasAuthority() && (!bTest || bTestClockSet)) Hour = Set.TimeOfDay;
 	ApplySun();   // (and the weather's light)
 
 	UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);

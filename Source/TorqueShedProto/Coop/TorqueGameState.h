@@ -106,7 +106,11 @@ public:
 	// "15:30".
 	static FString ClockText(float Hours);
 	// [test] a test run's step turned Real time of day on or off (test runs otherwise keep the made clock).
-	void TestRealClock(bool bOn) { bRealClockTest = bOn; }
+	// (Both last the whole test run, through the move from the shed to the ride and back, as a player's
+	// settings do: a new map has a new game state.)
+	static void TestRealClock(bool bOn) { bRealClockTest = bOn; }
+	// [test] a test run's step set the clock (set:timeofday): the next map starts at it too.
+	static void TestClockSet() { bTestClockSet = true; }
 	// [test] the weather where this machine's camera is, every number, and where that is on Earth.
 	FString WeatherHereText() const;
 
@@ -145,7 +149,7 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunDec = 15.0f;
 	UPROPERTY(ReplicatedUsing = OnRep_Hour) float SunLat = 54.35f;
 	void TickRealClock();
-	bool bRealClockTest = false;
+	static bool bRealClockTest, bTestClockSet;
 	int32 UtcOffset = 0;      // the weather's place's clock, seconds ahead of UTC (from Open-Meteo)
 	bool bUtcKnown = false;
 	double ClockSentAt = -100.0;

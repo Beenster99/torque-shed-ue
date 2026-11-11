@@ -251,6 +251,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	else if (F == TEXT("timeofday") || F == TEXT("time"))
 	{
 		S.TimeOfDay = V < 0.0f ? -1.0f : FMath::Fmod(V, 24.0f);
+		ATorqueGameState::TestClockSet();
 		if (GS) GS->SetHour(S.TimeOfDay);
 	}
 	else if (F == TEXT("daynight")) S.bDayNight = bOn;
@@ -258,7 +259,7 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	{
 		// (Test runs keep the made clock unless a step turns this on.)
 		S.bRealClock = bOn;
-		if (GS) GS->TestRealClock(bOn);
+		ATorqueGameState::TestRealClock(bOn);
 	}
 	else if (F == TEXT("daylength")) S.DayLength = N;
 	else if (F == TEXT("weather"))
