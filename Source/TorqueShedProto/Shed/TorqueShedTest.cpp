@@ -25,6 +25,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/HUD.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
@@ -236,10 +237,10 @@ const TCHAR* const PhysicsSteps =
 // left and from behind on the right, first as the pose was before the fit per bike
 // (riderpose:old) and then fitted (riderpose:new), the same moment of the same ride, logged both
 // ways. The pictures go to Saved/Screenshots/RiderPose as <style>_<old|new>_<side|front|rear>.png.
-#define TORQUE_RIDER_VIEWS(S, W) TEXT("riderpose:") TEXT(W) TEXT(",wait:1,") \
-	TEXT("camera:3:90:330:40:15,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_side,") \
-	TEXT("camera:3:-40:340:40:35,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_front,") \
-	TEXT("camera:3:150:340:40:60,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_rear,ridelog,")
+#define TORQUE_RIDER_VIEWS(S, W) TEXT("riderpose:") TEXT(W) TEXT(",wait:1,hud:off,") \
+	TEXT("camera:3:90:520:40:20,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_side,") \
+	TEXT("camera:3:-40:480:40:40,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_front,") \
+	TEXT("camera:3:150:480:40:60,wait:1,shot:as:") TEXT(S) TEXT("_") TEXT(W) TEXT("_rear,hud:on,ridelog,")
 #define TORQUE_RIDER_STYLE(S) TEXT("restyle:") TEXT(S) TEXT(",tool:hands,rideout,wait:6,robot:on,wait:8,") \
 	TORQUE_RIDER_VIEWS(S, "old") TORQUE_RIDER_VIEWS(S, "new") TEXT("camera:0,robot:off,back,wait:6,")
 const TCHAR* const RiderPoseSteps =
@@ -554,6 +555,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("menu")) Said(PC->TestMenu(P.Num() > 2 ? (P[1] + TEXT(":") + P[2]).ToLower() : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("pause"))));
 		else if (P.Num() >= 3) Said(PC->TestFace(P[1].ToLower(), FCString::Atof(*P[2])));
 		else Warn(TEXT("face what? face:jaw:0.8, face:height:-0.5, face:avatar:2"));
+		return true;
+	}
+	if (Verb == TEXT("hud"))
+	{
+		// [rider pose] "hud:off" / "hud:on": the riding HUD and its text hidden for clean pictures.
+		const bool bOn = P.Num() < 2 || P[1] != TEXT("off");
+		if (APlayerController* HudPC = World->GetFirstPlayerController())
+			if (AHUD* Hud = HudPC->GetHUD()) Hud->bShowHUD = bOn;
+		Said(bOn ? TEXT("HUD on") : TEXT("HUD off"));
 		return true;
 	}
 	if (Verb == TEXT("shot"))
