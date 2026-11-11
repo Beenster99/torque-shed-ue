@@ -871,6 +871,11 @@ FString ATorqueBikePawn::TestRideLog() const
 				TEXT("hands %.1f / %.1f cm short, ankles %.1f / %.1f cm short, knees %.1f / %.1f cm out (pads at %.1f, tank %.1f wide at most)"),
 				*RiderAvatar.Name, FTorqueAvatar::bOldRidePose ? TEXT("old") : TEXT("fitted"), Rp.BackDeg, Rp.KneeDeg[0], Rp.KneeDeg[1], Rp.ElbowDeg[0], Rp.ElbowDeg[1],
 				Rp.HandShort[0], Rp.HandShort[1], Rp.AnkleShort[0], Rp.AnkleShort[1], Rp.KneeOut[0], Rp.KneeOut[1], FMath::Abs(RiderKnee[1].Y), TankWidest);
+			// The hands on the controls: the right grip's roll with the throttle, and the index and
+			// middle fingers' curl each side (they lift and pull with the levers).
+			Out += FString::Printf(TEXT("\nrider hands: throttle %.2f, grip roll %.1f / %.1f deg, index curl %.0f / %.0f deg, middle curl %.0f / %.0f deg, levers held %.2f / %.2f, pulled %.2f / %.2f"),
+				Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
+				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
 		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its

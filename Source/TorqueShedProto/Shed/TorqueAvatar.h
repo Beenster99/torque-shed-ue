@@ -108,7 +108,7 @@ public:
 	static bool bOldRidePose;
 	// What the last PoseRiding came to, for the test log: the back's lean forward of upright, each
 	// knee's and elbow's angle, how far each hand and ankle fell short, and each knee's distance out.
-	struct FRideReport { double BackDeg = 0.0, KneeDeg[2] = {0.0, 0.0}, ElbowDeg[2] = {0.0, 0.0}, HandShort[2] = {0.0, 0.0}, AnkleShort[2] = {0.0, 0.0}, KneeOut[2] = {0.0, 0.0}; };
+	struct FRideReport { double BackDeg = 0.0, KneeDeg[2] = {0.0, 0.0}, ElbowDeg[2] = {0.0, 0.0}, HandShort[2] = {0.0, 0.0}, AnkleShort[2] = {0.0, 0.0}, KneeOut[2] = {0.0, 0.0}, GripRollDeg[2] = {0.0, 0.0}, IndexCurlDeg[2] = {0.0, 0.0}, MiddleCurlDeg[2] = {0.0, 0.0}; };
 	FRideReport RideReport;
 	// The head joint's place and its turn from rest in the parent's space, as last posed (riding).
 	bool HeadInParent(FVector& At, FQuat& Turn) const;
