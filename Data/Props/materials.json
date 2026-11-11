@@ -1679,6 +1679,36 @@
    "detail": 0.25,
    "macro": 0.12,
    "grime": 0.5
+  },
+  "lift_grip": {
+   "base": "metal",
+   "scan": "metal_plate",
+   "true": 1.0,
+   "tint": [
+    0.95,
+    0.96,
+    0.98
+   ],
+   "rough": 0.62,
+   "metal": 0.9,
+   "tile": 2.0,
+   "detail": 1.0,
+   "macro": 0.1,
+   "grime": 0.35
+  },
+  "stand_steel": {
+   "base": "brushed",
+   "tint": [
+    0.52,
+    0.53,
+    0.55
+   ],
+   "rough": 0.34,
+   "metal": 1.0,
+   "tile": 1.0,
+   "detail": 0.8,
+   "macro": 0.08,
+   "grime": 0.4
   }
  }
 }

@@ -1,4 +1,5 @@
 #include "Shed/TorqueShedBike.h"
+#include "Shed/TorqueToolModels.h"
 #include "Shed/TorqueWashJob.h"
 
 #include "Shed/TorqueShedCatalogue.h"
@@ -561,10 +562,18 @@ void ATorqueShedBike::BuildStand()
 	// floor, and the cross tube joining them behind the tyre with a short grip turned up off it.
 	// No long handle (it's the lever that's pushed down to lift the bike, so it lies low). Painted
 	// steel; posed to the bike in PoseStand.
+	// Bare steel (beenster, Nov 11: "we need a steel texture for the paddock stand"), else a plain
+	// steel finish; the wheels dark.
+	UMaterialInterface* Steel = TorqueToolModels::PropMaterial(this, TEXT("stand_steel"));
+	if (!Steel) Steel = TorqueToolModels::Finish(this, FLinearColor(0.52f, 0.53f, 0.55f), 1.0f, 0.35f);
+	UMaterialInterface* Tyre = TorqueToolModels::Finish(this, FLinearColor(0.03f, 0.03f, 0.03f), 0.0f, 0.8f);
 	for (int32 I = 0; I < 10; ++I)
 	{
 		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
 		C->SetStaticMesh(ShapeCylinder);
+		// (PoseStand's order per side: upright, cup, arm, wheel; then the cross tube and grip.)
+		UMaterialInterface* Look = (I == 3 || I == 7) ? Tyre : Steel;
+		if (Look) C->SetMaterial(0, Look);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		C->SetupAttachment(Root);
 		C->RegisterComponent();
