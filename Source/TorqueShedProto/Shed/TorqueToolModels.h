@@ -53,4 +53,8 @@ bool HasModel(int32 Tool);
 // One of the bike's finishes as a plain colour (the bike master's parameters), for sparks and
 // spray: Emissive > 0 glows.
 UMaterialInstanceDynamic* Finish(UObject* Outer, const FLinearColor& Colour, float Metallic, float Roughness, float Emissive = 0.0f);
+// A shed prop material, MI_Prop_<Key> (Data/Props/materials.json, made by Tools/ue_import_props.py),
+// its scan tiled Tile times a metre; bWorldUV lays it by world position (an engine cube stretched
+// long: its own UVs would smear the scan). Null when that material hasn't been made on this PC.
+UMaterialInterface* PropMaterial(UObject* Outer, const TCHAR* Key, float Tile = 0.0f, bool bWorldUV = false);
 }

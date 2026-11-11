@@ -740,6 +740,34 @@ UMaterialInstanceDynamic* Finish(UObject* Outer, const FLinearColor& Colour, flo
 	return M;
 }
 
+UMaterialInterface* PropMaterial(UObject* Outer, const TCHAR* Key, float Tile, bool bWorldUV)
+{
+	static TMap<FString, TWeakObjectPtr<UMaterialInterface>> Found;
+	const FString K(Key);
+	UMaterialInterface* M = Found.FindRef(K).Get();
+	if (!M)
+	{
+		M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Shed/Props/Materials/MI_Prop_%s.MI_Prop_%s"), Key, Key),
+			nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!M)
+		{
+			static TSet<FString> Said;
+			if (!Said.Contains(K))
+			{
+				Said.Add(K);
+				UE_LOG(LogTemp, Warning, TEXT("Torque: no MI_Prop_%s (run Tools/ue_import_props.py): a plain finish instead"), Key);
+			}
+			return nullptr;
+		}
+		Found.Add(K, M);
+	}
+	if (Tile <= 0.0f && !bWorldUV) return M;
+	UMaterialInstanceDynamic* D = UMaterialInstanceDynamic::Create(M, Outer);
+	if (Tile > 0.0f) D->SetScalarParameterValue(TEXT("Tile"), Tile);
+	if (bWorldUV) D->SetScalarParameterValue(TEXT("WorldUV"), 1.0f);
+	return D;
+}
+
 int32 Make(AActor* Owner, USceneComponent* Parent, int32 Tool, const FLinearColor& CanColour,
 	TArray<UStaticMeshComponent*>& Out, FVector& OutNozzle)
 {

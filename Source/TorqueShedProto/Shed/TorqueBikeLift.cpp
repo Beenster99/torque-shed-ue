@@ -183,7 +183,11 @@ void ATorqueBikeLift::BeginPlay()
 	else
 	{
 		GroundParts.Add(Piece(Deck, FVector(0.0, 0.0, -1.5), FVector(L, W, 3.0), TBLI::Paint, 0.3f, 0.45f, true));
-		Piece(Deck, FVector(-5.0, 0.0, 0.25), FVector(L - 26.0, W - 10.0, 0.5), TBLI::Rubber, 0.0f, 0.85f);
+		// The deck: anti-slip steel tread plate (beenster, Nov 11: "a grip grate for the floor of the
+		// lift"), the scan laid by world position so its diamonds keep their size along the deck.
+		UStaticMeshComponent* Grip = Piece(Deck, FVector(-5.0, 0.0, 0.25), FVector(L - 26.0, W - 10.0, 0.5), TBLI::Grate, 0.9f, 0.6f);
+		if (Grip)
+			if (UMaterialInterface* Tread = TorqueToolModels::PropMaterial(Grip, TEXT("lift_grip"), 2.0f, true)) Grip->SetMaterial(0, Tread);
 		// The rear wheel drop-out panel: its seams across the mat, and the two pins that hold it.
 		for (const double X : {-L * 0.5 + 18.0, -L * 0.5 + 58.0})
 			Piece(Deck, FVector(X, 0.0, 0.55), FVector(0.8, W - 10.0, 0.2), TBLI::Black, 0.0f, 0.9f);
