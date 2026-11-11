@@ -1522,8 +1522,8 @@ namespace TSSI
 // a page it's embedded in, as YouTube wants.
 FString VideoPage(const FString& Id, int32 StartSeconds)
 {
-	// Chromium only autoplays a muted video without a click, so it starts muted, then is unmuted once
-	// it's playing; if that stops it, it goes back to muted and plays on. A watchdog presses play
+	// Chromium only autoplays a muted video without a click, so it starts muted and the game's click
+	// on the tap layer (TapVideo) unmutes it; if that stops it, it goes back to muted and plays on. A watchdog presses play
 	// whenever it's paused or cued (the thumbnail with the play button: build 134). Its state goes
 	// to the log through the page title ("Torque TV page: TorqueTV ..."). The game clicks the tap layer
 	// (TapVideo) so Chromium lets it unmute.
@@ -1533,12 +1533,12 @@ FString VideoPage(const FString& Id, int32 StartSeconds)
 		TEXT("</style></head><body><div id='p'></div><div id='t' onmousedown='tap()'></div>")
 		TEXT("<script>var player=null,vol=80,tried=0,failed=0,last=-9;")
 		TEXT("function say(m){document.title='TorqueTV '+m;try{console.log('TorqueTV '+m);}catch(x){}}")
-		TEXT("function tap(){say('tap');if(player&&player.unMute){tried=1;failed=0;player.unMute();player.setVolume(vol);player.playVideo();setTimeout(function(){say('after tap: muted '+player.isMuted()+', state '+player.getPlayerState());},1000);}}")
+		TEXT("function tap(){say('tap');if(player&&player.unMute){tried=1;failed=0;player.unMute();player.setVolume(vol);player.playVideo();setTimeout(function(){")
+		TEXT("var m=player.isMuted(),st=player.getPlayerState();say(!m&&st==1?'sound on':'still muted (muted '+m+', state '+st+')');},1200);}}")
 		TEXT("function onYouTubeIframeAPIReady(){player=new YT.Player('p',{width:'100%',height:'100%',videoId:'{ID}',")
 		TEXT("playerVars:{autoplay:1,mute:1,start:{START},controls:0,rel:0,playsinline:1,iv_load_policy:3,disablekb:1,origin:'https://torqueshed.game'},")
 		TEXT("events:{onReady:function(e){say('ready');e.target.mute();e.target.playVideo();},")
 		TEXT("onStateChange:function(e){if(e.data!=last){last=e.data;say('state '+e.data);}")
-		TEXT("if(e.data==1&&!tried){tried=1;e.target.unMute();e.target.setVolume(vol);say('unmuted');}")
 		TEXT("if(e.data==2&&tried==1&&!failed){failed=1;e.target.mute();e.target.playVideo();say('unmute stopped it: muted');}},")
 		TEXT("onError:function(e){say('error '+e.data);document.body.innerHTML=")
 		TEXT("\"<div id='e'>This video won't play outside YouTube (error \"+e.data+\").<br>Copy another link and press Ctrl+V at the TV.</div>\";}}});}")
@@ -1613,10 +1613,11 @@ void ATorqueShedScreens::VideoTick(float Dt)
 		UE_LOG(LogTemp, Log, TEXT("Torque TV: YouTube %s from %d s"), *Id, Start);
 	}
 	if (VideoRenderer && VideoRT) VideoRenderer->DrawWidget(VideoRT, Browser.ToSharedRef(), FVector2D(VideoW, VideoH), Dt);
-	// Two clicks in the page once the player's had time to load (3 s, 7 s): its tap layer unmutes
-	// and plays (beenster, build 135: the picture but no sound).
+	// A click in the page every 3 s (up to 8) until it says its sound is on: its tap layer unmutes and
+	// plays (beenster, build 135: the picture but no sound). Only a click unmutes it: unmuting on its
+	// own stopped the video in build 138.
 	SinceLoad += Dt;
-	if ((Taps == 0 && SinceLoad > 3.0f) || (Taps == 1 && SinceLoad > 7.0f))
+	if (Taps < 8 && SinceLoad > 3.0f * (Taps + 1) && !PageTitle.Contains(TEXT("sound on")))
 	{
 		++Taps;
 		TapVideo();
@@ -1660,7 +1661,7 @@ void ATorqueShedScreens::TapVideo()
 	const FPointerEvent Release(0, At, At, TSet<FKey>(), EKeys::LeftMouseButton, 0.0f, FModifierKeysState());
 	BrowserWindow->OnMouseButtonDown(Geo, Press, false);
 	BrowserWindow->OnMouseButtonUp(Geo, Release, false);
-	UE_LOG(LogTemp, Log, TEXT("Torque TV: tapped the video page (%d)"), Taps);
+	UE_LOG(LogTemp, Display, TEXT("Torque TV: tapped the video page (%d)"), Taps);
 }
 
 void ATorqueShedScreens::StopVideo()
