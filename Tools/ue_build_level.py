@@ -2742,8 +2742,8 @@ def place_fab_cars(spec, frame, kind="Car"):
             if slot in listed or str(si) in listed or "paint" in names.lower():
                 c.set_material(si, paints[ci])
                 painted.append(si)
-        log("car swaps: %s #%d -> Fab" + kind + "_%d %s, colour %d, at (%.0f, %.0f, %.0f) yaw %.1f, painted slots %s"
-            % (name, i, i, mesh.get_name(), ci, loc.x, loc.y, loc.z, rot.rotator().yaw, painted))
+        log(("car swaps: %s #%d -> Fab" + kind + "_%d %s, colour %d, at (%.0f, %.0f, %.0f) yaw %.1f, painted slots %s"
+            ) % (name, i, i, mesh.get_name(), ci, loc.x, loc.y, loc.z, rot.rotator().yaw, painted))
         if not painted:
             unreal.log_warning("[Torque] car swaps: %s has no paint slot; its slots: %s" % (mesh.get_name(), "; ".join(slots)))
         elif i < len(models):
