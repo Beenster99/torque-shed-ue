@@ -327,16 +327,24 @@ private:
 	// Smoothed rider inputs from keys, pad and wheel.
 	double Throttle = 0, FrontBrake = 0, RearBrake = 0, Lean = 0, Shift = 0;
 	double CrashedFor = 0.0;
-	// The respawn ghost's look (beenster, Nov 10: "a matrix of me for 5 seconds rather than flashing"):
-	// then "a mesh of polygons from the model, less intrusive": M_RideGhostMatrix (Tools/ue_build_ghost.py),
-	// a faint wireframe, laid as the overlay over every mesh of the bike and rider while the ghost lasts, fading out over its last second. Steady: nothing is hidden or blinks.
-	// Only meshes with no overlay of their own get it, and only it is taken off again.
-	UPROPERTY(Transient) UMaterialInstanceDynamic* GhostMid = nullptr;
-	bool bGhostTried = false;    // looked for the material (once)
-	bool bGhostMatrix = false;   // GhostMid is the wireframe (false: the faint fallback tint)
-	bool bGhostShown = false;    // GhostMid is on the meshes now
-	TArray<TWeakObjectPtr<UStaticMeshComponent>> GhostNaniteOff;   // drawn without Nanite for the ghost (no overlays on Nanite)
+	// The respawn ghost's look (beenster, Nov 11: "only show the green mesh and then fade to solid"):
+	// first the bike and rider drawn only as a green wireframe of their own polygons (M_RideGhostMatrix
+	// in place of every material; Tools/ue_build_ghost.py), then for the last GHOST_FADE s their own
+	// materials under a green fill (M_RideGhostFill, the overlay) clearing to solid. Never blinks.
+	// Only meshes with no overlay get the fill, and only it is taken off again.
+	UPROPERTY(Transient) UMaterialInstanceDynamic* GhostMid = nullptr;       // the wire
+	UPROPERTY(Transient) UMaterialInstanceDynamic* GhostFillMid = nullptr;   // the fade's fill
+	bool bGhostTried = false;    // looked for the materials (once)
+	int32 GhostMode = 0;         // 0 solid, 1 wire only, 2 fading to solid
+	// The meshes given the wire and their own materials (GhostSavedMats[GhostMatStart[i]..] for
+	// GhostComps[i]), held here so nothing frees them meanwhile.
+	UPROPERTY(Transient) TArray<UMeshComponent*> GhostComps;
+	UPROPERTY(Transient) TArray<UMaterialInterface*> GhostSavedMats;
+	TArray<int32> GhostMatStart;
+	TArray<TWeakObjectPtr<USceneComponent>> GhostHairHidden;
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> GhostNaniteOff;   // drawn without Nanite for the ghost
 	void UpdateGhostLook();
+	void GhostRestore();
 
 	// Camera.
 	// 0 third person (chase), 1 first person (rider's eyes), 2 chin camera, 3 showroom orbit, 4 drive-by.

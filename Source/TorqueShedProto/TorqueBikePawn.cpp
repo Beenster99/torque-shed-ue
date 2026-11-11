@@ -2593,81 +2593,137 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 	}
 }
 
+void ATorqueBikePawn::GhostRestore()
+{
+	// The meshes' own materials back, as they were before the wire.
+	for (int32 I = 0; I < GhostComps.Num(); ++I)
+	{
+		UMeshComponent* C = GhostComps[I];
+		if (!IsValid(C) || !GhostMatStart.IsValidIndex(I)) continue;
+		const int32 From = GhostMatStart[I];
+		const int32 To = GhostMatStart.IsValidIndex(I + 1) ? GhostMatStart[I + 1] : GhostSavedMats.Num();
+		for (int32 Slot = 0; Slot < To - From; ++Slot) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
+	}
+	GhostComps.Reset();
+	GhostMatStart.Reset();
+	GhostSavedMats.Reset();
+	for (const TWeakObjectPtr<USceneComponent>& H : GhostHairHidden)
+		if (H.IsValid()) H->SetHiddenInGame(false);
+	GhostHairHidden.Reset();
+}
+
 void ATorqueBikePawn::UpdateGhostLook()
 {
+	// beenster, Nov 11: "the ghost mode for respawned rider should only show the green mesh and then
+	// fade to solid". Mode 1 (the ghost's first GHOST_TIME - GHOST_FADE s): every mesh of the bike and
+	// rider drawn only as its green wireframe (M_RideGhostMatrix in place of all its materials; the
+	// hair hidden). Mode 2 (the last GHOST_FADE s): its own materials back under a green fill
+	// (M_RideGhostFill, the overlay) that clears to nothing, so it comes back solid.
 	const double Look = Sim ? Sim->GhostLook() : 0.0;
-	if (Look <= 0.0)
+	const int32 Want = Look <= 0.0 ? 0 : (Look >= 1.0 ? 1 : 2);
+	if (Want == 0)
 	{
-		if (bGhostShown)
+		if (GhostMode != 0)
 		{
-			bGhostShown = false;
+			GhostRestore();
 			TInlineComponentArray<UMeshComponent*> Meshes(this);
 			for (UMeshComponent* C : Meshes)
-				if (C && C->GetOverlayMaterial() == GhostMid) C->SetOverlayMaterial(nullptr);
+				if (C && GhostFillMid && C->GetOverlayMaterial() == GhostFillMid) C->SetOverlayMaterial(nullptr);
 			for (const TWeakObjectPtr<UStaticMeshComponent>& N : GhostNaniteOff)
 				if (N.IsValid()) N->SetForceDisableNanite(false);
 			GhostNaniteOff.Reset();
-			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off"));
+			GhostMode = 0;
+			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off: solid again"));
 		}
 		return;
 	}
-	if (!GhostMid && !bGhostTried)
+	if (!bGhostTried)
 	{
 		bGhostTried = true;
-		if (UMaterialInterface* Matrix = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_RideGhostMatrix.M_RideGhostMatrix")))
+		if (UMaterialInterface* Wire = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_RideGhostMatrix.M_RideGhostMatrix")))
+			GhostMid = UMaterialInstanceDynamic::Create(Wire, this);
+		UMaterialInterface* Fill = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_RideGhostFill.M_RideGhostFill"));
+		if (!Fill) Fill = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight"));
+		if (Fill) GhostFillMid = UMaterialInstanceDynamic::Create(Fill, this);
+		if (!GhostMid || !GhostFillMid)
 		{
-			GhostMid = UMaterialInstanceDynamic::Create(Matrix, this);
-			bGhostMatrix = GhostMid != nullptr;
-		}
-		else if (UMaterialInterface* Tint = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Shed/Materials/M_ShedHighlight.M_ShedHighlight")))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_RideGhostMatrix (run Tools/ue_build_ghost.py): the respawn ghost is a faint tint, not a wireframe"));
-			GhostMid = UMaterialInstanceDynamic::Create(Tint, this);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Torque: no M_RideGhostMatrix or M_ShedHighlight: the respawn ghost isn't drawn"));
+			UE_LOG(LogTemp, Warning, TEXT("Torque: ghost materials missing (wire %d, fill %d; run Tools/ue_build_ghost.py)"), GhostMid ? 1 : 0, GhostFillMid ? 1 : 0);
 		}
 	}
-	if (!GhostMid) return;
-	if (bGhostMatrix)
+	const FLinearColor Green(0.45f, 1.1f, 0.95f);
+	if (GhostMid)
 	{
-		GhostMid->SetScalarParameterValue(TEXT("Amount"), (float)Look);
+		GhostMid->SetScalarParameterValue(TEXT("Amount"), 1.0f);
+		GhostMid->SetScalarParameterValue(TEXT("Opacity"), 0.85f);
 	}
-	else
+	if (GhostFillMid)
 	{
-		GhostMid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.45f, 1.1f, 0.95f));
-		GhostMid->SetScalarParameterValue(TEXT("Opacity"), (float)(0.12 * Look));
+		GhostFillMid->SetVectorParameterValue(TEXT("Color"), Green);
+		GhostFillMid->SetScalarParameterValue(TEXT("Opacity"), (float)(Want == 2 ? 0.9 * Look : 0.9));
 	}
-	// Every mesh of the bike and rider, including any added since (the rider's MetaHuman is built late);
-	// one already wearing another overlay keeps it.
-	// A Nanite mesh draws no overlay (nor a wireframe): it's drawn from its plain fallback mesh while
-	// the ghost lasts (its polygons are the ones you see), and goes back to Nanite after.
-	TInlineComponentArray<UMeshComponent*> Meshes(this);
-	int32 Laid = 0, Kept = 0, Switched = 0;
-	for (UMeshComponent* C : Meshes)
+	// The wire is the wireframe, or (not made yet) the fill, see-through.
+	UMaterialInterface* WireMat = GhostMid ? (UMaterialInterface*)GhostMid : (UMaterialInterface*)GhostFillMid;
+	if (!WireMat) return;
+	if (Want == 2 && GhostMode == 1) GhostRestore();
+	if (Want == 1 && GhostMode == 2 && GhostFillMid)
 	{
+		// A fresh ghost while the last one was fading: the fill off again, only the wire.
+		TInlineComponentArray<UMeshComponent*> Faded(this);
+		for (UMeshComponent* C : Faded)
+			if (C && C->GetOverlayMaterial() == GhostFillMid) C->SetOverlayMaterial(nullptr);
+	}
+
+	TInlineComponentArray<USceneComponent*> All(this);
+	int32 Wired = 0, Filled = 0, Switched = 0, Hair = 0;
+	for (USceneComponent* S : All)
+	{
+		if (!S) continue;
+		const bool bHair = S->GetClass()->GetName().Contains(TEXT("Groom"));
+		if (bHair)
+		{
+			// Hair can't take a mesh material: hidden while only the wire shows, back for the fade.
+			if (Want == 1 && !GhostHairHidden.Contains(S))
+			{
+				S->SetHiddenInGame(true);
+				GhostHairHidden.Add(S);
+				++Hair;
+			}
+			continue;
+		}
+		UMeshComponent* C = Cast<UMeshComponent>(S);
 		if (!C) continue;
-		if (!C->GetOverlayMaterial())
+		if (Want == 1)
 		{
-			C->SetOverlayMaterial(GhostMid);
-			++Laid;
+			if (!GhostComps.Contains(C))
+			{
+				GhostComps.Add(C);
+				GhostMatStart.Add(GhostSavedMats.Num());
+				const int32 Slots = C->GetNumMaterials();
+				for (int32 Slot = 0; Slot < Slots; ++Slot) GhostSavedMats.Add(C->GetMaterial(Slot));
+				for (int32 Slot = 0; Slot < Slots; ++Slot) C->SetMaterial(Slot, WireMat);
+				++Wired;
+			}
 		}
-		else if (C->GetOverlayMaterial() != GhostMid) ++Kept;
+		else if (GhostFillMid && !C->GetOverlayMaterial())
+		{
+			C->SetOverlayMaterial(GhostFillMid);
+			++Filled;
+		}
+		// Nanite draws neither wireframes, see-through materials nor overlays: its fallback mesh instead.
 		UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(C);
-		if (SM && SM->GetOverlayMaterial() == GhostMid && SM->GetStaticMesh() && SM->GetStaticMesh()->HasValidNaniteData() && !SM->bForceDisableNanite)
+		if (SM && SM->GetStaticMesh() && SM->GetStaticMesh()->HasValidNaniteData() && !SM->bForceDisableNanite)
 		{
 			SM->SetForceDisableNanite(true);
 			GhostNaniteOff.Add(SM);
 			++Switched;
 		}
 	}
-	if (!bGhostShown || Laid > 0)
+	if (Want != GhostMode || Wired > 0 || Filled > 0)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Torque: ghost look on (%s, amount %.2f): %d meshes given it, %d kept their own overlay, %d taken off Nanite"),
-			bGhostMatrix ? TEXT("wireframe") : TEXT("tint"), Look, Laid, Kept, Switched);
+		UE_LOG(LogTemp, Log, TEXT("Torque: ghost look %s (amount %.2f): %d meshes wired, %d filled, %d hair hidden, %d taken off Nanite"),
+			Want == 1 ? TEXT("wire") : TEXT("fading to solid"), Look, Wired, Filled, Hair, Switched);
 	}
-	bGhostShown = true;
+	GhostMode = Want;
 }
 
 namespace

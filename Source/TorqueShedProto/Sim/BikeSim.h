@@ -143,7 +143,7 @@ public:
 	// passes through other bikes and nothing it touches throws the rider off (it still rides the ground
 	// and stops at walls). Coming off by itself ends it.
 	static constexpr double GHOST_TIME = 5.0;
-	static constexpr double GHOST_FADE = 1.0;   // the look fades out over the ghost's last second
+	static constexpr double GHOST_FADE = 1.5;   // the look fades back to solid over the ghost's last 1.5 s
 	double GhostLeft = 0.0;
 	void StartGhost(double Seconds = GHOST_TIME) { GhostLeft = Seconds; }
 	bool IsGhost() const { return GhostLeft > 0.0; }

@@ -2,18 +2,20 @@
 
 Run on its own (Tools > Execute Python Script... and pick this file, or start the editor with
 -ExecutePythonScript=Tools/ue_build_ghost.py); Tools/ue_build_shed.py runs it too with the shed's
-other materials. Safe to run again: the material is rebuilt from scratch. Quick: one material.
+other materials. Safe to run again: the materials are rebuilt from scratch. Quick: two materials.
 
-  M_RideGhostMatrix  laid over every mesh of the bike and rider (an overlay material) for the 5 s
-                     after a respawn, while nothing can knock you off: a faint wireframe of the
-                     model's own polygons drawn over it, so you read as a mesh for a moment. Quiet,
-                     steady, never blinking (beenster, Nov 10: "we are a mesh of polygons from the
-                     model - something LESS intrusive"; not the film's code rain).
-                     Amount (0 off .. 1 full: the game fades it over the ghost's last second),
-                     Color (the lines' colour), Opacity (how strongly the lines show close up; they
-                     thin out with distance so a far bike doesn't turn solid).
+  M_RideGhostMatrix  the green wireframe of the model's own polygons: the bike and rider drawn as
+                     only this for the ghost's first 3.5 s after a respawn, while nothing can knock
+                     you off. Steady, never blinking. Amount (0 off .. 1), Color (the lines'
+                     colour), Opacity (how strongly the lines show close up; they thin out with
+                     distance so a far bike doesn't turn solid).
 
-The game falls back to a faint steady tint (M_ShedHighlight) until this is made.
+  M_RideGhostFill    the fade back to solid (the last 1.5 s): over the bike's own materials, a green
+                     fill that clears to nothing (Color, Opacity).
+
+beenster, Nov 11: "only show the green mesh and then fade to solid": for the ghost's first 3.5 s the
+game puts M_RideGhostMatrix in place of all the bike's and rider's materials (only the wire shows),
+then gives them back under M_RideGhostFill. Without the wire the fill stands in, see-through.
 """
 
 import unreal
@@ -83,6 +85,35 @@ def finish(m):
     return m
 
 
+# It's put in place of every material of the bike and rider (and over them): the rider's MetaHuman
+# is skeletal (with morphs and cloth); the bike's parts are static meshes.
+WITH = ("used_with_skeletal_mesh", "used_with_morph_targets", "used_with_clothing",
+        "used_with_instanced_static_meshes", "used_with_spline_meshes")
+
+
+def fill_material():
+    """M_RideGhostFill: the fade back to solid. Laid over the bike and rider (the overlay) once their
+    own materials are back, green and nearly opaque at first, brighter at the edges, clearing as the
+    game takes Opacity down to 0. Color, Opacity."""
+    m = new_material("M_RideGhostFill")
+    try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    try_set(m, "used_with_static_lighting", False)
+    for flag in WITH:
+        try_set(m, flag, True)
+    col = vec(m, "Color", -900, 0, (0.45, 1.1, 0.95))
+    strength = num(m, "Opacity", -900, 300, 0.9)
+    fr = expr(m, unreal.MaterialExpressionFresnel, -900, 150, exponent=2.0, base_reflect_fraction=0.0)
+    rim = expr(m, unreal.MaterialExpressionConstantBiasScale, -750, 150, bias=0.6, scale=1.0)   # 0.6 facing you .. 1.6 edge-on
+    link(fr, "", rim, "")
+    glow = expr(m, unreal.MaterialExpressionMultiply, -500, 0)
+    link(col, "", glow, "A")
+    link(rim, "", glow, "B")
+    out(glow, "", M.MP_EMISSIVE_COLOR)
+    out(strength, "", M.MP_OPACITY)
+    return finish(m)
+
+
 def matrix_material():
     m = new_material("M_RideGhostMatrix")
     try_set(m, "blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
@@ -92,7 +123,7 @@ def matrix_material():
         raise RuntimeError("can't make a wireframe material")
     try_set(m, "used_with_static_lighting", False)
     # The rider's MetaHuman is skeletal (with morphs and cloth); the bike's parts are static meshes.
-    for flag in ("used_with_skeletal_mesh", "used_with_morph_targets", "used_with_clothing"):
+    for flag in WITH:
         try_set(m, flag, True)
 
     amount = num(m, "Amount", -900, 300, 1.0)
@@ -121,11 +152,11 @@ def matrix_material():
 
 
 def build():
-    try:
-        made = matrix_material().get_name()
-        log("made " + made)
-    except Exception as e:
-        unreal.log_error("[Torque] ghost: M_RideGhostMatrix failed: %s" % e)
+    for f in (matrix_material, fill_material):
+        try:
+            log("made " + f().get_name())
+        except Exception as e:
+            unreal.log_error("[Torque] ghost: %s failed: %s" % (f.__name__, e))
 
 
 if __name__ == "__main__":
