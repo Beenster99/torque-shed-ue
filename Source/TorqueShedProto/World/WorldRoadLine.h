@@ -38,6 +38,22 @@ constexpr int MaxRounds = 3000;
 double WidthOf(const std::string& Class);
 double FairOf(const std::string& Class);
 double MainCostOf(const std::string& Class);
+// The speed (km/h) such a road's bends are banked for.
+double DesignSpeedOf(const std::string& Class);
+
+// Banking (the Godot game's roads are flat across; this is the UE port's own, by the UK's road design
+// rule): a straight road has a crown, each half falling Crown to its edge; a bend is tilted towards
+// its inside by V squared / (2.828 R) per cent (V km/h, R metres), MaxBank at most, the fall on
+// the outside taken out first. Bank is + with the left side (as you ride) the higher: a bend to the
+// right.
+constexpr double Crown = 0.025;
+constexpr double MaxBank = 0.07;
+// The bank at each knot of a line with knots Step apart, for bends taken at Speed[i] km/h (one speed
+// if Speed has one entry), eased in and out over the knots either side.
+std::vector<double> BankOf(const std::vector<P2>& Line, const std::vector<double>& Speed);
+// How far above (+) or below the road's middle its surface is, Off metres to the left of the middle,
+// on a road Half wide each side banked Bank; past an edge, that edge's.
+double CrossHeight(double Off, double Half, double Bank);
 
 // A smooth road through Pts: knots Step apart, the ends kept. Fair is how far to fair at each of
 // Pts (empty: FairDefault all along).

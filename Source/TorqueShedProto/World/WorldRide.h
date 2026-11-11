@@ -21,7 +21,11 @@
 // Where the ride's road crosses one of the map's bridges (the region's spans, matched as the Godot
 // game matches them) it runs straight from one end to the other as a deck with parapets, and the
 // land under it is left as it lies. A tunnel's road is levelled the same way but is still an open
-// cutting. The road is flat across, as the Godot game's is: no camber.
+// cutting.
+//
+// The roads are crowned on the straight and banked in the bends by the UK's design rule
+// (RoadLine::BankOf: the Godot game's are flat across, so this is the UE port's own), the ground's
+// bench, the shoulders and a bridge's parapets following the tilted surface.
 #pragma once
 
 #include "WorldLoad.h"
@@ -42,6 +46,7 @@ struct RoadPoint
 	double Height = 0.0;   // the road's own
 	double Half = 2.3;     // half the carriageway's width here
 	bool Bridge = false;   // on a bridge: the road is a deck over the land as it lies
+	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
 };
 
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.
@@ -97,12 +102,14 @@ public:
 	// far apart (m) the asker's points are: a mesh coarser than 4 m has the bench wider and a little
 	// deeper, so its straight edges between points never stand over the road.
 	double Ground(double X, double Z, double Coarse = 0.0) const;
-	// The road's surface at (X, Z) if it is on the road, else NaN.
+	// The road's surface at (X, Z), crown and bank and all, if it is on a road, else NaN.
 	double RoadHeight(double X, double Z) const;
 	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
 	// edge the point is): how far from its middle, its height, which point, its half width, which
-	// road. MainOnly looks at the ride's own road alone. False if none.
-	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr, int* Which = nullptr, bool MainOnly = false, bool* OnBridge = nullptr) const;
+	// road. MainOnly looks at the ride's own road alone. Cross is how far the road's surface is above
+	// its middle's Height at the point (the edge's, past an edge). False if none.
+	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr, int* Which = nullptr, bool MainOnly = false, bool* OnBridge = nullptr,
+		double* Cross = nullptr) const;
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack).
@@ -115,7 +122,7 @@ public:
 	std::string RouteJson() const;
 
 private:
-	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves);
+	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds);
 	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...
 	std::vector<int> SpansAlong(const std::vector<P2>& Line, int Kind) const;
 	void LaySides(const std::vector<int>& Path);

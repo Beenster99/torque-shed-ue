@@ -17,13 +17,13 @@ constexpr double Inf = std::numeric_limits<double>::infinity();
 struct ClassRow
 {
 	const char* Name;
-	double Width, Fair, MainCost;
+	double Width, Fair, MainCost, Speed;
 };
 // (route_planner.gd's WIDTH, FAIR and CLASS_COST["main"])
 constexpr ClassRow ClassRows[] = {
-	{"motorway", 7.4, 18.0, 0.7}, {"trunk", 7.4, 16.0, 0.75}, {"primary", 7.4, 13.0, 0.8}, {"secondary", 6.0, 11.0, 0.9},
-	{"tertiary", 6.0, 9.0, 1.0}, {"unclassified", 4.6, 7.0, 1.15}, {"residential", 4.6, 5.0, 1.3}, {"living_street", 4.6, 4.0, 1.4},
-	{"track", 3.3, 6.0, 3.0}};
+	{"motorway", 7.4, 18.0, 0.7, 110.0}, {"trunk", 7.4, 16.0, 0.75, 100.0}, {"primary", 7.4, 13.0, 0.8, 95.0}, {"secondary", 6.0, 11.0, 0.9, 80.0},
+	{"tertiary", 6.0, 9.0, 1.0, 70.0}, {"unclassified", 4.6, 7.0, 1.15, 60.0}, {"residential", 4.6, 5.0, 1.3, 40.0}, {"living_street", 4.6, 4.0, 1.4, 30.0},
+	{"track", 3.3, 6.0, 3.0, 30.0}};
 
 const ClassRow* RowOf(const std::string& Class)
 {
@@ -351,6 +351,48 @@ double MainCostOf(const std::string& Class)
 {
 	const ClassRow* R = RowOf(Class);
 	return R ? R->MainCost : 1.0;
+}
+
+double DesignSpeedOf(const std::string& Class)
+{
+	const ClassRow* R = RowOf(Class);
+	return R ? R->Speed : 60.0;
+}
+
+std::vector<double> BankOf(const std::vector<P2>& Line, const std::vector<double>& Speed)
+{
+	const size_t N = Line.size();
+	Doubles Out(N, 0.0);
+	if (N < 5 || Speed.empty()) return Out;
+	for (size_t I = 2; I + 2 < N; ++I)
+	{
+		const P2 A = Line[I - 2], B = Line[I], C = Line[I + 2];
+		const double Ab = A.DistanceTo(B), Bc = B.DistanceTo(C), Ac = A.DistanceTo(C);
+		// (+ turning from east towards south: to the right, with x east and z south)
+		const double Cross = (B.X - A.X) * (C.Z - B.Z) - (B.Z - A.Z) * (C.X - B.X);
+		const double Curve = 2.0 * Cross / std::fmax(Ab * Bc * Ac, 1e-9);   // 1 / radius, signed
+		const double V = Speed.size() == N ? Speed[I] : Speed[0];
+		Out[I] = std::fmin(MaxBank, std::fmax(-MaxBank, V * V * Curve / 282.8));
+	}
+	// Eased in and out: twice averaged over 6 knots either side (about 25 m of transition).
+	std::vector<int> W(N);
+	for (size_t I = 0; I < N; ++I) W[I] = int(std::min<size_t>(6, std::min(I, N - 1 - I)));
+	BoxPass(Out, W);
+	BoxPass(Out, W);
+	Out.front() = 0.0;
+	Out.back() = 0.0;
+	return Out;
+}
+
+double CrossHeight(double Off, double Half, double Bank)
+{
+	const double Side = std::fmin(std::fmax(Off, -Half), Half);
+	// Each half's own slope outwards: the crown's fall, turned up to the bank on the outside of a bend
+	// (the fall taken out first) and steepened to it on the inside.
+	const double Tilt = Side >= 0.0 ? Bank : -Bank;   // + this half is the bend's outside
+	const double Share = std::fmin(std::fabs(Tilt) / Crown, 1.0);
+	const double Slope = Tilt >= 0.0 ? -Crown + (Tilt + Crown) * Share : -std::fmax(Crown, -Tilt);
+	return std::fabs(Side) * Slope;
 }
 
 void ResampleXz(const std::vector<double>& Xs, const std::vector<double>& Zs, double StepM, bool Exact, std::vector<double>& Ox, std::vector<double>& Oz, double& Total)

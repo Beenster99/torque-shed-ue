@@ -611,7 +611,7 @@ int main()
 					const P2 Far = Mid.At + Left * 200.0, Beside = Mid.At + Left * (Mid.Half + 2.0), Edge = Mid.At + Left * (Mid.Half - 0.5), Verge = Mid.At + Left * (Mid.Half + 0.6);
 					double Dn = 0.0, Hn = 0.0;
 					const bool FarIsFar = !Plan->Nearest(Far.X, Far.Z, Dn, Hn);
-					Check((!FarIsFar || Plan->Ground(Far.X, Far.Z) == Plan->Land->Height(Far.X, Far.Z)) && std::fabs(Plan->Ground(Beside.X, Beside.Z) - (Mid.Height - RidePlan::Sink)) < 0.3
+					Check((!FarIsFar || Plan->Ground(Far.X, Far.Z) == Plan->Land->Height(Far.X, Far.Z)) && std::fabs(Plan->Ground(Beside.X, Beside.Z) - (Mid.Height + RoadLine::CrossHeight(Mid.Half, Mid.Half, Mid.Bank) - RidePlan::Sink)) < 0.3
 						&& !std::isnan(Plan->RoadHeight(Edge.X, Edge.Z)) && std::isnan(Plan->RoadHeight(Verge.X, Verge.Z)),
 						"the bench beside the road is level with it, the road ends at its edge, and far from it the land lies as it did");
 					// A square of ground and a piece of road as meshes.
@@ -700,6 +700,22 @@ int main()
 						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() > Plain.Vertices() && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
 							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
+					// Its banking: the surface read back either side of the middle at the most banked knot.
+					{
+						size_t Most = 2;
+						for (size_t I = 2; I + 2 < Plan->Road.size(); ++I)
+							if (!Plan->Road[I].Bridge && std::fabs(Plan->Road[I].Bank) > std::fabs(Plan->Road[Most].Bank)) Most = I;
+						const RoadPoint& Pm = Plan->Road[Most];
+						P2 Dm = Plan->Road[Most + 1].At - Plan->Road[Most - 1].At;
+						Dm = Dm * (1.0 / Dm.Length());
+						const P2 Lm(Dm.Z, -Dm.X);
+						const double Out3 = Pm.Half - 0.3;
+						const double Hl = Plan->RoadHeight(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3), Hr = Plan->RoadHeight(Pm.At.X - Lm.X * Out3, Pm.At.Z - Lm.Z * Out3);
+						std::printf("      its most banked knot: %.1f%%, the left edge %.2f m and the right %.2f m off the middle's height\n", Pm.Bank * 100.0, Hl - Pm.Height, Hr - Pm.Height);
+						Check(std::fabs(Pm.Bank) > 0.03 && std::fabs(Pm.Bank) <= RoadLine::MaxBank + 1e-9 && Near(Hl - Hr, 2.0 * Out3 * Pm.Bank, 0.03)
+							&& std::fabs(Plan->Ground(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3) - (Hl - RidePlan::Sink)) < 0.03,
+							"its bends are banked: the surface is tilted across and the ground lies just under it both sides");
+					}
 					std::printf("      its tightest bend: %.1f m radius\n", Tightest);
 					Check(Tightest > 9.0, "and no bend of it is tighter than 9 m, mapped corners and junctions rounded");
 					Json Route;
@@ -770,6 +786,27 @@ int main()
 		Check(Tight(Back) >= 6.0 && Reached > 150.0, "an out-and-back gets a turning place, not a needle");
 		Check(RoadLine::WidthOf("primary") == 7.4 && RoadLine::WidthOf("track") == 3.3 && RoadLine::WidthOf("?") == 4.6 && RoadLine::MainCostOf("motorway") < RoadLine::MainCostOf("residential"),
 			"each class of road has the Godot game's width and cost");
+		// Banking: a crown on the straight, a bend tilted to its inside by the UK's rule.
+		{
+			std::vector<P2> RightBend, Straight;
+			for (int I = 0; I <= 100; ++I)
+			{
+				const double Ang = I * 4.0 / 500.0;   // a 500 m radius, turning from east towards south: right
+				RightBend.push_back(P2(500.0 * std::sin(Ang), 500.0 * (1.0 - std::cos(Ang))));
+				Straight.push_back(P2(I * 4.0, 0.0));
+			}
+			const std::vector<double> Banked = RoadLine::BankOf(RightBend, {95.0}), Flat = RoadLine::BankOf(Straight, {95.0}), Steep = RoadLine::BankOf(RightBend, {200.0});
+			double FlatMost = 0.0;
+			for (double B : Flat) FlatMost = std::fmax(FlatMost, std::fabs(B));
+			std::printf("      a 500 m bend at 95 km/h is banked %.1f%% (the rule says %.1f%%)\n", Banked[50] * 100.0, 95.0 * 95.0 / (2.828 * 500.0));
+			Check(Near(Banked[50], 95.0 * 95.0 / (282.8 * 500.0), 0.002) && Banked[50] > 0.0 && Banked.front() == 0.0 && Banked[3] < Banked[50] * 0.8 && FlatMost < 1e-9 && Near(Steep[50], RoadLine::MaxBank, 1e-9),
+				"a bend to the right is banked left side up by V squared over 2.828 R per cent, eased in from its ends, 7% at most; a straight not at all");
+			const double H = 3.0;
+			Check(Near(RoadLine::CrossHeight(H, H, 0.0), -H * 0.025, 1e-12) && Near(RoadLine::CrossHeight(-H, H, 0.0), -H * 0.025, 1e-12) && RoadLine::CrossHeight(0.0, H, 0.05) == 0.0
+				&& Near(RoadLine::CrossHeight(H, H, 0.05), H * 0.05, 1e-12) && Near(RoadLine::CrossHeight(-H, H, 0.05), -H * 0.05, 1e-12) && Near(RoadLine::CrossHeight(H + 5.0, H, 0.05), H * 0.05, 1e-12)
+				&& Near(RoadLine::CrossHeight(H, H, 0.0125), -H * 0.00625, 1e-12) && Near(RoadLine::CrossHeight(-H, H, 0.0125), -H * 0.025, 1e-12),
+				"across the road: a crown falling 2.5% each side on the straight, one plane tilted to the inside in a bend, the outside's fall taken out first");
+		}
 		const std::vector<double> Steps = {0, 0, 0, 5, 5, 5, 5};
 		const std::vector<double> Graded = RoadLine::GradeLimit(Steps);
 		double Steepest = 0.0;

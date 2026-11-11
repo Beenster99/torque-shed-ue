@@ -87,7 +87,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	Tell("Smoothing the road");
 	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair);
 	// Each knot as wide as the road it is on (by how far along it is), eased where the width changes.
-	std::vector<double> Halves(Line.size(), 2.3);
+	std::vector<double> Halves(Line.size(), 2.3), Speeds(Line.size(), 60.0);
 	{
 		std::vector<double> KnotAlong(Line.size(), 0.0);
 		for (size_t I = 1; I < Line.size(); ++I) KnotAlong[I] = KnotAlong[I - 1] + Line[I].DistanceTo(Line[I - 1]);
@@ -98,6 +98,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 			const double At = KnotAlong[I] * Scale;
 			while (J + 1 < Raw.size() && RawAlong[J + 1] < At) ++J;
 			Halves[I] = RoadLine::WidthOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)])) * 0.5;
+			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
 		}
 		for (int Pass = 0; Pass < 2; ++Pass)
 		{
@@ -118,7 +119,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
 	if (R->TilesFailed > 0) { R->Why = std::to_string(R->TilesFailed) + " of the ground's tiles couldn't be fetched."; return R; }
 	Tell("Laying the road");
-	R->LayRoad(Line, Halves);
+	R->LayRoad(Line, Halves, Speeds);
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
@@ -184,8 +185,9 @@ std::vector<int> RidePlan::SpansAlong(const std::vector<P2>& Line, int Kind) con
 	return Out;
 }
 
-void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves)
+void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds)
 {
+	const std::vector<double> Banks = RoadLine::BankOf(Line, Speeds);
 	Road.clear();
 	Near.clear();
 	std::vector<double> H(Line.size());
@@ -251,6 +253,7 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Height = H[I];
 		P.Half = I < Halves.size() ? Halves[I] : 2.3;
 		P.Bridge = OnDeck[I] != 0;
+		P.Bank = Banks[I];
 		WidestHalf = std::fmax(WidestHalf, P.Half);
 		Near[NearKey(P.At.X, P.At.Z)].push_back({0, int(Road.size())});
 		Road.push_back(P);
@@ -258,9 +261,10 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 	Length = Along;
 }
 
-bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* Index, double* Half, int* Which, bool MainOnly, bool* OnBridge) const
+bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* Index, double* Half, int* Which, bool MainOnly, bool* OnBridge, double* Cross) const
 {
 	bool BestDeck = false;
+	double BestCross = 0.0;
 	// (best by how far outside the road's edge the point is, so a point on a lane beside a main road
 	// is the lane's; the ride's own road wins a tie)
 	double Best = 1e18, BestD = 0.0, BestH = 0.0, BestHalf = 0.0;
@@ -299,6 +303,10 @@ bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* In
 						BestI = T < 0.5 ? S : S + 1;
 						BestRoad = Entry.first;
 						BestDeck = Pa.Bridge && Pb.Bridge;
+						// (how far to the left of the road's middle: left of a heading (dx, dz) is (dz, -dx))
+						const double Len = std::sqrt(L2);
+						const double Off = Len > 1e-9 ? ((X - Px) * Ab.Z - (Z - Pz) * Ab.X) / Len : 0.0;
+						BestCross = RoadLine::CrossHeight(Off, HalfHere, Pa.Bank + (Pb.Bank - Pa.Bank) * T);
 					}
 				}
 			}
@@ -310,6 +318,7 @@ bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* In
 	if (Half != nullptr) *Half = BestHalf;
 	if (Which != nullptr) *Which = BestRoad;
 	if (OnBridge != nullptr) *OnBridge = BestDeck;
+	if (Cross != nullptr) *Cross = BestCross;
 	return true;
 }
 
@@ -371,6 +380,7 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
 		SideRoad Side;
 		Side.Length = Along.back();
+		const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 		const double Half = RoadLine::WidthOf(Class) * 0.5;
 		for (size_t I = 0; I < Line.size(); ++I)
 		{
@@ -398,14 +408,20 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		for (size_t I = 0; I < Line.size(); ++I)
 		{
 			double Y = H[I];
-			double D = 0.0, MainH = 0.0, MainHalf = 0.0;
-			if (Nearest(Line[I].X, Line[I].Z, D, MainH, nullptr, &MainHalf, nullptr, true))
-				Y += (MainH - Y) * (1.0 - Smooth01((D - MainHalf - 2.0) / 30.0));
+			double D = 0.0, MainH = 0.0, MainHalf = 0.0, MainCross = 0.0, Meeting = 0.0;
+			if (Nearest(Line[I].X, Line[I].Z, D, MainH, nullptr, &MainHalf, nullptr, true, nullptr, &MainCross))
+			{
+				// (the ride's road's surface where this point is on it, tilt and all; its edge's beyond)
+				Meeting = 1.0 - Smooth01((D - MainHalf - 2.0) / 30.0);
+				Y += (MainH + MainCross - Y) * Meeting;
+			}
 			RoadPoint P;
 			P.At = Line[I];
 			P.Along = Along[I];
 			P.Height = Y;
 			P.Half = Half;
+			// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
+			P.Bank = Banks[I] * (1.0 - Meeting) * Smooth01(std::fmin(Along[I], Side.Length - Along[I]) / 20.0);
 			Side.Pts.push_back(P);
 		}
 		Sides.push_back(std::move(Side));
@@ -418,9 +434,10 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 double RidePlan::Ground(double X, double Z, double Coarse) const
 {
 	const double Lie = Land ? Land->Height(X, Z) : std::nan("");
-	double Dist = 0.0, Height = 0.0, Half = 0.0;
+	double Dist = 0.0, Height = 0.0, Half = 0.0, Cross = 0.0;
 	bool Deck = false;
-	if (!Nearest(X, Z, Dist, Height, nullptr, &Half, nullptr, false, &Deck)) return Lie;
+	if (!Nearest(X, Z, Dist, Height, nullptr, &Half, nullptr, false, &Deck, &Cross)) return Lie;
+	Height += Cross;   // (the bench lies under the road's surface as it is tilted, and level with its edge beyond)
 	// (under a bridge the land lies as it does: the river's banks, not a causeway)
 	if (Deck && !std::isnan(Lie)) return std::fmin(Lie, Height - 1.5);
 	const double Wider = std::fmax(0.0, Coarse - 4.0);
@@ -434,8 +451,8 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 
 double RidePlan::RoadHeight(double X, double Z) const
 {
-	double Dist = 0.0, Height = 0.0, Half = 0.0;
-	return Nearest(X, Z, Dist, Height, nullptr, &Half) && Dist <= Half ? Height : std::nan("");
+	double Dist = 0.0, Height = 0.0, Half = 0.0, Cross = 0.0;
+	return Nearest(X, Z, Dist, Height, nullptr, &Half, nullptr, false, nullptr, &Cross) && Dist <= Half ? Height + Cross : std::nan("");
 }
 
 void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const
@@ -527,6 +544,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		P2 At, Left;
 		double Height = 0.0, Half = 0.0, Along = 0.0, Nx = 0.0, Ny = 1.0, Nz = 0.0;
 		bool Deck = false;
+		double Bank = 0.0;
 	};
 	std::vector<Row> Rows;
 	for (int I = First; I <= Last; ++I)
@@ -547,6 +565,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Half = P.Half;
 		R.Along = P.Along;
 		R.Deck = P.Bridge;
+		R.Bank = P.Bank;
 		R.Nx = -Dir.X * Rise / Nl;
 		R.Ny = 1.0 / Nl;
 		R.Nz = -Dir.Z * Rise / Nl;
@@ -556,7 +575,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	{
 		// (Off is to the left of the middle)
 		const P2 At = R.At + R.Left * Off;
-		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(R.Height + Lift)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
+		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank) + Lift)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
 		Out.Nrm.push_back(float(R.Nx)); Out.Nrm.push_back(float(R.Ny)); Out.Nrm.push_back(float(R.Nz));
 		Out.Uv.push_back(float(Off / 4.0)); Out.Uv.push_back(float(R.Along / 4.0));
 		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
@@ -577,7 +596,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	{
 		const Row& A = Rows[K];
 		const Row& B = Rows[K + 1];
-		Strip(A, B, A.Half, -A.Half, B.Half, -B.Half, 0.0, 0.0, Tarmac);
+		// The tarmac, in two halves either side of the crown.
+		Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Tarmac);
+		Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Tarmac);
 		if (A.Deck && B.Deck)
 		{
 			// A bridge: a stone parapet each side (its top, and its faces down past the deck to the
