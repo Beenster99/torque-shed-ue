@@ -290,6 +290,12 @@ ATorqueWalker::ATorqueWalker()
 	UCharacterMovementComponent* Moves = GetCharacterMovement();
 	Moves->MaxWalkSpeed = WalkSpeed;
 	Moves->MaxWalkSpeedCrouched = CrouchSpeed;
+	// [co-op] Each player's own machine moves their walker, as it rides their bike: the host takes a
+	// joined player's place as their machine sends it, never pulling them back. (Running is a speed
+	// only their machine knows, and a bike lift's platform, made on each machine, can't be named over
+	// the net as what they stand on: the host corrected both, and a friend's run stuttered, build 135.)
+	Moves->bIgnoreClientMovementErrorChecksAndCorrection = true;
+	Moves->bServerAcceptClientAuthoritativePosition = true;
 	Moves->GetNavAgentPropertiesRef().bCanCrouch = true;
 	Moves->SetCrouchedHalfHeight(TWI::CrouchHalfHeight);
 	Moves->MaxAcceleration = 1800.0f;
@@ -1349,9 +1355,13 @@ void ATorqueWalker::MakePlan()
 		if (HeldIt)
 		{
 			const FString Title = TWI::Lower(B->ItemTitle(Held));
-			if (TargetPlace && TargetPlace->Kind == ETorquePlace::Bay && HeldIt->Kind == FName(TEXT("frame")) && !B->Exists(TargetPlace->Index))
+			if (TargetPlace && TargetPlace->Kind == ETorquePlace::Bay && HeldIt->Kind == FName(TEXT("frame")) &&
+				(!B->Exists(TargetPlace->Index) || B->IsAway(TargetPlace->Index)))
 			{
-				// A bare frame on an empty bay's paddock stand starts a bike from scratch.
+				// A bare frame on an empty bay's paddock stand starts a bike from scratch. (A bay whose bike
+				// is parked elsewhere is empty to look at, so it's free too: that bike keeps another bay's
+				// place where it stands, or the prompt says why not, rather than the frame going down on
+				// the lift's platform.)
 				Plan = MakeOne(ETorqueShedAct::StartBuild, 1.5, FString::Printf(TEXT("set the frame up on the paddock stand in bay %d"), TargetPlace->Index + 1));
 				Plan.Request.Bay = TargetPlace->Index;
 			}

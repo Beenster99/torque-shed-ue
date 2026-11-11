@@ -765,6 +765,11 @@ private:
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
 	int32 FreeBay() const;
+	// [co-op] A bay whose bike is parked away from it (wheeled out, in the wash bay) is free for a
+	// frame: that bike's record goes to an empty bay's place, standing where it is. Empty when it
+	// can, else why not (every bay has a bike, or that one's being wheeled, ridden or washed).
+	FString WhyBayNotFree(int32 Bay) const;
+	void MoveAwayBike(int32 From, int32 To);
 	// Where a delivery of Size (cm) goes down in the delivery area: on the floor clear of every box,
 	// crate and piece of kit there (8 cm apart), the nearest the door first, else on top of a box
 	// it fits on (a pile no higher than DeliveryPileTop). bFarFirst: from the far corner (the shed kit,

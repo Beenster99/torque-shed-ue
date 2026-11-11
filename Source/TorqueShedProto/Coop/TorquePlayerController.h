@@ -69,7 +69,12 @@ public:
 	FString TestSet(const FString& Field, const FString& Value);
 
 private:
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck };
+	// [co-op] The bike picker for Buttertubs: a bay's name ("Bay 3: Simon's cruiser"), the other
+	// rider who has picked it (empty: free), and the next free bike from From in direction Dir.
+	FString RideBikeName(int32 Bay) const;
+	FString RideBikeTakenBy(int32 Bay) const;
+	int32 NextRideBike(int32 From, int32 Dir) const;
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike };
 	struct FRow
 	{
 		FString Label, Value, Hint;

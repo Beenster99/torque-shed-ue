@@ -259,6 +259,13 @@ private:
 	FTorqueAvatar RiderAvatar;
 	int32 RiderAvatarFor = -2;
 	TArray<uint8> RiderAvatarLook;
+	// [co-op, foot] Someone else off their bike: their MetaHuman standing and walking where their
+	// snapshot says they are (NetBike), shown only while they're off it. Ours is first person.
+	TUniquePtr<FTorqueAvatar> NetWalker;
+	UPROPERTY(Transient) TObjectPtr<USceneComponent> NetWalkerRoot = nullptr;
+	FVector NetWalkerWas = FVector::ZeroVector;
+	bool bNetWalkerShown = false, bNetWalkerTried = false;
+	void ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt);
 	void UpdateRiderAvatar();
 	void ShowRiderAvatar();
 	uint32 PrevPadButtons = 0;
@@ -273,7 +280,10 @@ private:
 	bool bHornDown = false;
 	double EngineCatchIn = 0.0;
 	int32 RideBay = INDEX_NONE;   // the shed bay whose bike this is (BuildCatalogueModel): its engine sound
-	int32 YardBay = INDEX_NONE;   // [yard] SetYardBay's: the bay to draw, before anyone asks whose bike it is
+	// [yard, co-op] SetYardBay's: the bay to draw, before anyone asks whose bike it is. Set by the host
+	// before BeginPlay (the yard's spawner, and ATorqueGameMode on the road from the rider's player
+	// state) and sent with the bike, so every machine draws each rider's own bike from the start.
+	UPROPERTY(Replicated) int32 YardBay = INDEX_NONE;
 	bool bYard = false;           // [yard] InYard
 	FBox2D YardOpen = FBox2D(ForceInit);   // [yard] the open concrete (sim x, z) a fallen rider goes back on
 	void BackOnWheels();          // after a crash or Triangle: back on the road (the yard: where he fell)

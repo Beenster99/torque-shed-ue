@@ -2,6 +2,7 @@
 
 #include "TorqueSettings.h"
 #include "TorqueBikePawn.h"
+#include "TorqueAudio/TorqueSfx.h"
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -22,13 +23,14 @@ enum ENetVal
 {
 	NV_Steer, NV_Speed, NV_Lean, NV_Pitch, NV_Rpm, NV_Throttle, NV_FrontBrake, NV_RearBrake, NV_LeanIn, NV_ShiftIn,
 	NV_FrontOmega, NV_RearOmega, NV_FrontX, NV_FrontY, NV_FrontZ, NV_RearX, NV_RearY, NV_RearZ,
-	NV_FrontKappa, NV_RearKappa, NV_FrontSlip, NV_RearSlip, NV_Count
+	NV_FrontKappa, NV_RearKappa, NV_FrontSlip, NV_RearSlip, NV_FootX, NV_FootY, NV_FootZ, NV_FootYawSin, NV_FootYawCos, NV_Count
 };
 static_assert(NV_Count <= TorqueNet::MaxVals, "more values than a snapshot holds");
-enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Count };
+enum ENetInt { NI_Gear, NI_Flags, NI_FrontSurf, NI_RearSurf, NI_Lamps, NI_Sounds, NI_Count };
 static_assert(NI_Count <= TorqueNet::MaxInts, "more stepped values than a snapshot holds");
 
 constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16, FlagNod = 32, FlagWave = 64;
+constexpr uint8 SoundEngine = 1, SoundHorn = 2;   // FTorqueBikeNetState::Sounds
 
 bool NetLogEverySecond()
 {
@@ -128,6 +130,10 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 	S.FrontSurf = (uint8)FMath::Clamp(F.Surf, 0, 255);
 	S.RearSurf = (uint8)FMath::Clamp(R.Surf, 0, 255);
 	S.Lamps = B->Lights.NetBits();   // [lights]
+	S.Sounds = (Sim.EngineOn ? SoundEngine : 0) | (B->bHornDown ? SoundHorn : 0);
+	// [foot] Off the bike: where they walk (else the bike's place, so the walk starts beside it).
+	S.FootPos = B->IsOnFoot() ? B->FootPos : B->GetActorLocation();
+	S.FootYaw = B->IsOnFoot() ? (float)B->FootYaw : (float)B->GetActorRotation().Yaw;
 }
 
 void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
@@ -163,6 +169,10 @@ void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 	N.Ints[NI_FrontSurf] = S.FrontSurf;
 	N.Ints[NI_RearSurf] = S.RearSurf;
 	N.Ints[NI_Lamps] = S.Lamps;
+	N.Ints[NI_Sounds] = S.Sounds;
+	N.Val[NV_FootX] = S.FootPos.X; N.Val[NV_FootY] = S.FootPos.Y; N.Val[NV_FootZ] = S.FootPos.Z;
+	N.Val[NV_FootYawSin] = FMath::Sin(FMath::DegreesToRadians((double)S.FootYaw));
+	N.Val[NV_FootYawCos] = FMath::Cos(FMath::DegreesToRadians((double)S.FootYaw));
 	Smooth.Push(N, FPlatformTime::Seconds());
 }
 
@@ -249,6 +259,16 @@ void UTorqueNetBikeComponent::ApplyRemote(float DeltaSeconds)
 	F.Surf = Out.Ints[NI_FrontSurf];
 	R.Surf = Out.Ints[NI_RearSurf];
 	B->Lights.FromNet((uint8)Out.Ints[NI_Lamps]);   // [lights] the switches; the flash keeps its own time here
+	// Its engine heard running (the pawn's sound plays only a running engine; ours starts on our
+	// keys, theirs on their snapshot), and its horn while they hold it.
+	Sim.EngineOn = (Out.Ints[NI_Sounds] & SoundEngine) != 0;
+	const bool bHorn = (Out.Ints[NI_Sounds] & SoundHorn) != 0;
+	if (bHorn != B->bHornDown && B->HornId)
+		if (UTorqueSfx* Sfx = UTorqueSfx::Get(B)) Sfx->SetHorn(B->HornId, bHorn);
+	B->bHornDown = bHorn;
+	// [foot] Off their bike: their body walking about beside it, where they are.
+	B->ShowNetWalker((Out.Ints[NI_Flags] & FlagParked) != 0, FVector(Out.Val[NV_FootX], Out.Val[NV_FootY], Out.Val[NV_FootZ]),
+		FMath::RadiansToDegrees(FMath::Atan2(Out.Val[NV_FootYawSin], Out.Val[NV_FootYawCos])), DeltaSeconds);
 }
 
 void UTorqueNetBikeComponent::SetUpSound(bool bRemote)

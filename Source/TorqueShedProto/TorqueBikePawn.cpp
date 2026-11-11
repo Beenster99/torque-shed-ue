@@ -223,6 +223,7 @@ void ATorqueBikePawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(ATorqueBikePawn, bYardStart);   // [yard]
 	DOREPLIFETIME(ATorqueBikePawn, YardStartAt);
 	DOREPLIFETIME(ATorqueBikePawn, YardStartYaw);
+	DOREPLIFETIME(ATorqueBikePawn, YardBay);   // [co-op] whose bike it is, there before BeginPlay on every machine
 }
 
 void ATorqueBikePawn::BeginPlay()
@@ -324,6 +325,7 @@ void ATorqueBikePawn::BeginPlay()
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
 {
 	Pad.Reset();   // stops its reading thread
+	if (NetWalker) NetWalker->Destroy();   // [co-op, foot]
 	if (TripLogTime > 0.0) TripLog(TEXT("ride over"));   // [dash]
 	if (SoundAudio) SoundAudio->Stop();
 	Super::EndPlay(Reason);
@@ -957,6 +959,10 @@ void ATorqueBikePawn::GatherOtherBikes()
 		Contacts->SetBoxes(Boxes);
 	}
 	Contacts->Capsules.clear();
+	// [co-op] Riders pass through each other (beenster, build 135: no clashing); -TorqueRiderCollide
+	// puts the other bikes back as solid, for checking the contacts.
+	static const bool bCollide = FParse::Param(FCommandLine::Get(), TEXT("TorqueRiderCollide"));
+	if (!bCollide) return;
 	for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It; ++It)
 	{
 		const ATorqueBikePawn* Other = *It;
@@ -2964,6 +2970,51 @@ void ATorqueBikePawn::ShowRiderAvatar()
 	RiderAvatar.SetShown(bRiderShown, bRiderShown && bHeadShown, false);
 }
 
+void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt)
+{
+	if (!bOn)
+	{
+		if (bNetWalkerShown && NetWalker && NetWalker->IsValid()) NetWalker->SetShown(false, false, false);
+		bNetWalkerShown = false;
+		return;
+	}
+	if (!NetWalker && !bNetWalkerTried && FTorqueAvatar::Count() > 0)
+	{
+		// Made the first time they get off: the same MetaHuman, height and face as their rider.
+		bNetWalkerTried = true;
+		const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
+		const FTorqueProfile Look = PS ? FTorqueProfile::Unpack(PS->Profile) : FTorqueProfile::Mine();
+		const int32 Colour = PS ? PS->Colour : FTorqueSettings::Get().Colour;
+		NetWalkerRoot = NewObject<USceneComponent>(this, TEXT("NetWalkerRoot"));
+		NetWalkerRoot->SetupAttachment(Root);
+		NetWalkerRoot->SetUsingAbsoluteLocation(true);
+		NetWalkerRoot->SetUsingAbsoluteRotation(true);
+		NetWalkerRoot->RegisterComponent();
+		NetWalkerRoot->SetWorldLocationAndRotation(Feet, FRotator(0.0, Yaw, 0.0));
+		NetWalker = MakeUnique<FTorqueAvatar>();
+		if (NetWalker->Build(this, NetWalkerRoot, Look.AvatarFor(Colour)))
+		{
+			NetWalker->SetLook(Look);
+			UE_LOG(LogTemp, Log, TEXT("Torque net: %s off their bike, walking as %s"), PS ? *PS->GetPlayerName() : TEXT("a rider"), *NetWalker->Name);
+		}
+		NetWalkerWas = Feet;
+	}
+	if (!NetWalker || !NetWalker->IsValid() || !NetWalkerRoot) return;
+	if (!bNetWalkerShown)
+	{
+		NetWalker->SetShown(true, true, true);
+		bNetWalkerShown = true;
+		NetWalkerWas = Feet;
+	}
+	NetWalkerRoot->SetWorldLocationAndRotation(Feet, FRotator(0.0, Yaw, 0.0));
+	FTorqueAvatarInput In;
+	In.Velocity = Dt > 1.0e-4f ? (Feet - NetWalkerWas) / Dt : FVector::ZeroVector;
+	In.Velocity.Z = 0.0;
+	In.Facing = FRotator(0.0, Yaw, 0.0);
+	NetWalker->Pose(In, Dt);
+	NetWalkerWas = Feet;
+}
+
 void ATorqueBikePawn::UpdateRiderAvatar()
 {
 	if (FTorqueAvatar::Count() == 0 || !RiderRig.IsValid() || !RiderRig.Last.bValid) return;
@@ -3492,7 +3543,7 @@ void ATorqueBikePawn::StartSound()
 		SoundAudio->Play();
 		Sound->Catch();
 	}
-	if (Sfx) HornId = Sfx->StartBikeHorn(Root, UTorqueBuildSubsystem::BikeFor(this));
+	if (Sfx) HornId = Sfx->StartBikeHorn(Root, RideBay >= 0 ? RideBay : UTorqueBuildSubsystem::BikeFor(this));   // (the drawn bike's own horn)
 }
 
 // [lights] The lamps each frame: on our own bike from the ignition, the brakes as the rider holds
