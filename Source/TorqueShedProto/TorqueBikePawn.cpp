@@ -1250,6 +1250,14 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Lean = Approach(Lean, 0.0, 2.2, 4.0, Dt);
 		return;
 	}
+	// The game has the mouse while no menu is up, captured and hidden, as the shed's walker takes it:
+	// nothing took it on the ride, so its moves never reached the look on foot (beenster, build 134).
+	if (!bMouseTaken || PC->bShowMouseCursor)
+	{
+		bMouseTaken = true;
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
+	}
 	// [foot] F (or Triangle / Y held, stopped) gets off; on foot, F by the bike gets back on.
 	const bool bPadUse = SonyHit(ESonyButton::Triangle) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top);
 	if (bOnFoot)
