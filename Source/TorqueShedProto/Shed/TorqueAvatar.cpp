@@ -1384,11 +1384,27 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			At += FQuat::Slerp(FQuat::Identity, Bk, 0.75).RotateVector(Bones[Spine[2]].Rest - Bones[Spine[1]].Rest);
 			return At + Bk.RotateVector(Bones[UpperArm[Sd]].Rest - Bones[Spine[2]].Rest);
 		};
-		const double MaxR = Tg.bLaidBack ? 0.95 : 0.88, MinR = 0.6;
+		// With the style's own lean (beenster's marked poses, which sit up with the arms near straight)
+		// the back goes as near it as the hands allow, the wrists up to 0.97 of the arm away.
+		const bool bStyleLean = Tg.bOnLayout && Tg.BackDeg > -90.0;
+		// The back's lean as it's drawn (hips to neck, the spine's shares carrying the neck).
+		auto DrawnLean = [&](const FQuat& Bk) {
+			FVector At = Hip + Bk.RotateVector(Spine0);
+			if (bChain && Neck != INDEX_NONE)
+			{
+				At = Hip + FQuat::Slerp(FQuat::Identity, Bk, 0.15).RotateVector(Bones[Spine[0]].Rest - Bones[Pelvis].Rest);
+				At += FQuat::Slerp(FQuat::Identity, Bk, 0.4).RotateVector(Bones[Spine[1]].Rest - Bones[Spine[0]].Rest);
+				At += FQuat::Slerp(FQuat::Identity, Bk, 0.75).RotateVector(Bones[Spine[2]].Rest - Bones[Spine[1]].Rest);
+				At += Bk.RotateVector(Bones[Neck].Rest - Bones[Spine[2]].Rest);
+			}
+			const FVector V = At - Hip;
+			return FMath::RadiansToDegrees(FMath::Atan2(FVector::DotProduct(V, Fwd), FVector::DotProduct(V, Up)));
+		};
+		const double MaxR = bStyleLean ? 0.97 : (Tg.bLaidBack ? 0.95 : 0.88), MinR = 0.6;
 		FQuat Best = Back;
 		double BestCost = TNumericLimits<double>::Max();
-		for (int32 K = 0; K <= 75 && BestCost > 0.0; ++K)
-			for (int32 Way = 0; Way < (K == 0 ? 1 : 2) && BestCost > 0.0; ++Way)
+		for (int32 K = 0; K <= 75 && (BestCost > 0.0 || bStyleLean); ++K)
+			for (int32 Way = 0; Way < (K == 0 ? 1 : 2) && (BestCost > 0.0 || bStyleLean); ++Way)
 			{
 				const double TurnDeg = (Way == 0 ? 1.0 : -1.0) * K;
 				const FQuat Q = FQuat(Right, PitchSign * FMath::DegreesToRadians(TurnDeg)) * Back;
@@ -1403,10 +1419,31 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 					Far = FMath::Max(Far, Ratio);
 					Near = FMath::Min(Near, Ratio);
 				}
-				const double Cost = (Far <= MaxR && Near >= MinR) ? 0.0 : FMath::Max(Far - MaxR, 0.0) * 10.0 + FMath::Max(MinR - Near, 0.0) + K * 0.001;
+				const double Miss = (Far <= MaxR && Near >= MinR) ? 0.0 : FMath::Max(Far - MaxR, 0.0) * 10.0 + FMath::Max(MinR - Near, 0.0);
+				const double Cost = bStyleLean ? Miss * 100.0 + FMath::Abs(DrawnLean(Q) - Tg.BackDeg) * 0.01 : Miss + (Miss > 0.0 ? K * 0.001 : 0.0);
 				if (Cost < BestCost) { BestCost = Cost; Best = Q; }
 			}
 		Back = Best;
+		// [rider pose] Flat wrists (beenster): each hand turned round its grip until the knuckles
+		// carry on the forearm's line, the back of the hand in line with the forearm. A few passes,
+		// since where the wrist sits by the bar moves with the hand's turn.
+		for (int32 Pass = 0; Pass < 3; ++Pass)
+			for (int32 S = 0; S < 2; ++S)
+			{
+				const double Side = S == 0 ? -1.0 : 1.0;
+				const double Lu = (Bones[LowerArm[S]].Rest - Bones[UpperArm[S]].Rest).Size();
+				const double Lf = (Bones[HandBone[S]].Rest - Bones[LowerArm[S]].Rest).Size();
+				const FVector Pole = (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal();
+				const FVector Elbow = MidJoint(ShoulderOf(Back, S), WristAt[S], Lu, Lf, Pole);
+				FVector Along = WristAt[S] - Elbow;
+				Along -= BarAxis[S] * FVector::DotProduct(Along, BarAxis[S]);
+				if (Along.Size() < 1.0) continue;
+				FVector Palm1, GripWrist;
+				HandOnBar(S, BarAt[S], BarAxis[S], Along.GetSafeNormal(), 1.5, 3.0, HandQ[S], GripWrist, Palm1);
+				WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off);
+				AimOn[S] = Along.GetSafeNormal();
+				PalmOn[S] = Palm1;
+			}
 	}
 
 	// [rider pose] The tank's half-width at x along it (parent's space; 0 off its ends).
@@ -1481,15 +1518,34 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 					const double Down = FMath::Clamp(Tg.FeetDown, 0.0, 1.0);
 					if (Tg.bOnLayout && bBall[S] && Down < 1.0)
 					{
-						const double PitchDeg = FMath::Clamp(8.0 + 1.2 * (Tg.Seat.X - Tg.Peg[S].X), -12.0, 30.0);
-						const double Pr = FMath::DegreesToRadians(PitchDeg), Yr = FMath::DegreesToRadians(8.0);
-						const FQuat ToesDown = FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(Pr) - Up * FMath::Sin(Pr));
+						// The foot's pitch from the shin (beenster's marked poses): the sole about 86 degrees
+						// from the shin, toes down on rearsets and level under a near-upright shin, and
+						// 108 degrees on forward controls, the toes pointing on ahead. The shin moves with
+						// the pitch (the ball stays on the peg), so a few passes.
+						const double Yr = FMath::DegreesToRadians(8.0);
 						const FQuat ToesOut = FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(Yr) + Right * (Side * FMath::Sin(Yr)));
-						const FQuat OnPeg = ToesOut * ToesDown;
 						// The ball joint's height over the sole at rest, the boot's sole on the peg's top.
 						const double Sole = FMath::Clamp(FVector::DotProduct(BallRest[S], Up), 0.5, 5.0);
 						const FVector BallAt = ToC(Tg.Peg[S] + FVector(0.0, Side * 1.5, 1.2)) + Up * Sole;
-						const FVector AnkleOnPeg = BallAt - OnPeg.RotateVector(BallRest[S] - A0);
+						const double SoleToShin = Tg.bLaidBack ? 108.0 : 86.0;
+						double PitchDeg = 0.0;
+						FQuat OnPeg = ToesOut;
+						FVector AnkleOnPeg = BallAt - OnPeg.RotateVector(BallRest[S] - A0);
+						for (int32 Pass = 0; Pass < 4; ++Pass)
+						{
+							FVector Reach = AnkleOnPeg - P[I];
+							const double Span = FMath::Clamp(Reach.Size(), FMath::Abs(Lt - Ls) + 0.1, (Lt + Ls) * 0.999);
+							Reach = Reach.GetSafeNormal(UE_SMALL_NUMBER, -Up);
+							const double Mid = (Lt * Lt - Ls * Ls + Span * Span) / (2.0 * Span);
+							const FVector Bend = (Fwd - Reach * FVector::DotProduct(Fwd, Reach)).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
+							const FVector KneeSide = P[I] + Reach * Mid + Bend * FMath::Sqrt(FMath::Max(Lt * Lt - Mid * Mid, 0.0));
+							const FVector ShinUp = KneeSide - AnkleOnPeg;
+							const double ShinDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::DotProduct(ShinUp, Fwd), FVector::DotProduct(ShinUp, Up)));
+							PitchDeg = FMath::Clamp(ShinDeg + SoleToShin - 90.0, -45.0, 50.0);
+							const double Pr = FMath::DegreesToRadians(PitchDeg);
+							OnPeg = ToesOut * FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(Pr) - Up * FMath::Sin(Pr));
+							AnkleOnPeg = BallAt - OnPeg.RotateVector(BallRest[S] - A0);
+						}
 						A = FMath::Lerp(AnkleOnPeg, A, Down);
 						FootQ = FQuat::Slerp(OnPeg, FQuat::Identity, Down);
 					}

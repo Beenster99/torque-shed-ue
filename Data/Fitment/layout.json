@@ -1271,8 +1271,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      157,
-      520
+      367,
+      550
      ],
      "godot_peg_mm": [
       120,
@@ -1283,7 +1283,9 @@
       260
      ],
      "tol_mm": 50,
-     "hip_back_mm": 45
+     "hip_back_mm": 123,
+     "peg_by_case": 1,
+     "back_deg": 5
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1336,8 +1338,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      60,
-      470
+      375,
+      605
      ],
      "godot_peg_mm": [
       -40,
@@ -1348,7 +1350,9 @@
       120
      ],
      "tol_mm": 50,
-     "hip_back_mm": 35
+     "hip_back_mm": 55,
+     "peg_by_case": 1,
+     "back_deg": 23
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1401,8 +1405,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      320,
-      420
+      472,
+      410
      ],
      "godot_peg_mm": [
       320,
@@ -1413,7 +1417,9 @@
       420
      ],
      "tol_mm": 50,
-     "hip_back_mm": 40
+     "hip_back_mm": 28,
+     "peg_by_case": 1,
+     "back_deg": 0
     },
     "6_drive": {
      "countershaft_ahead_mm": 90,
@@ -1466,8 +1472,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      560,
-      400
+      699,
+      300
      ],
      "godot_peg_mm": [
       560,
@@ -1478,7 +1484,9 @@
       330
      ],
      "tol_mm": 50,
-     "hip_back_mm": 40
+     "hip_back_mm": 61,
+     "peg_by_case": 1,
+     "back_deg": 1
     },
     "6_drive": {
      "countershaft_ahead_mm": 90,
@@ -1531,14 +1539,21 @@
     },
     "5_rider": {
      "peg_mm": [
-      500,
-      400
+      714,
+      360
      ],
      "grip_mm": [
       600,
       300
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "godot_peg_mm": [
+      500,
+      400
+     ],
+     "hip_back_mm": 46,
+     "peg_by_case": 1,
+     "back_deg": 0
     },
     "6_drive": {
      "countershaft_ahead_mm": 80,
@@ -1591,14 +1606,21 @@
     },
     "5_rider": {
      "peg_mm": [
-      120,
-      470
+      275,
+      595
      ],
      "grip_mm": [
       560,
       330
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "godot_peg_mm": [
+      120,
+      470
+     ],
+     "hip_back_mm": 65,
+     "peg_by_case": 1,
+     "back_deg": 10
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1651,8 +1673,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      200,
-      580
+      300,
+      550
      ],
      "godot_peg_mm": [
       60,
@@ -1663,7 +1685,9 @@
       360
      ],
      "tol_mm": 50,
-     "hip_back_mm": 45
+     "hip_back_mm": 80,
+     "peg_by_case": 1,
+     "back_deg": 14
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1716,8 +1740,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      129,
-      535
+      359,
+      615
      ],
      "godot_peg_mm": [
       40,
@@ -1728,7 +1752,9 @@
       300
      ],
      "tol_mm": 50,
-     "hip_back_mm": 45
+     "hip_back_mm": 51,
+     "peg_by_case": 1,
+     "back_deg": 16
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1781,8 +1807,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      100,
-      500
+      274,
+      510
      ],
      "godot_peg_mm": [
       100,
@@ -1793,7 +1819,9 @@
       270
      ],
      "tol_mm": 50,
-     "hip_back_mm": 45
+     "hip_back_mm": 81,
+     "peg_by_case": 1,
+     "back_deg": 10
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1846,14 +1874,21 @@
     },
     "5_rider": {
      "peg_mm": [
-      -60,
-      370
+      83,
+      570
      ],
      "grip_mm": [
       560,
       110
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "godot_peg_mm": [
+      -60,
+      370
+     ],
+     "hip_back_mm": 62,
+     "peg_by_case": 1,
+     "back_deg": 31
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1906,8 +1941,8 @@
     },
     "5_rider": {
      "peg_mm": [
-      10,
-      360
+      162,
+      580
      ],
      "godot_peg_mm": [
       -90,
@@ -1917,7 +1952,10 @@
       540,
       70
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "hip_back_mm": 133,
+     "peg_by_case": 1,
+     "back_deg": 46
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1970,14 +2008,21 @@
     },
     "5_rider": {
      "peg_mm": [
-      20,
-      420
+      90,
+      560
      ],
      "grip_mm": [
       560,
       270
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "godot_peg_mm": [
+      20,
+      420
+     ],
+     "hip_back_mm": 40,
+     "peg_by_case": 1,
+     "back_deg": 33
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -2030,14 +2075,21 @@
     },
     "5_rider": {
      "peg_mm": [
-      60,
-      520
+      88,
+      590
      ],
      "grip_mm": [
       520,
       320
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "godot_peg_mm": [
+      60,
+      520
+     ],
+     "hip_back_mm": 147,
+     "peg_by_case": 1,
+     "back_deg": 26
     },
     "6_drive": {
      "countershaft_ahead_mm": 60,
@@ -2090,14 +2142,21 @@
     },
     "5_rider": {
      "peg_mm": [
-      60,
-      580
+      124,
+      640
      ],
      "grip_mm": [
       500,
       320
      ],
-     "tol_mm": 50
+     "tol_mm": 50,
+     "godot_peg_mm": [
+      60,
+      580
+     ],
+     "hip_back_mm": 246,
+     "peg_by_case": 1,
+     "back_deg": 4
     },
     "6_drive": {
      "countershaft_ahead_mm": 60,

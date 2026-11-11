@@ -79,6 +79,7 @@ struct FTorqueRideTargets
 	TArray<FVector2D> TankHalfW;
 	double FeetDown = 0.0;
 	bool bLaidBack = false;                  // feet forward (a cruiser's or chopper's): arms may reach further
+	double BackDeg = -100.0;                 // the style's back lean (FBikeFrame::BackDeg; < -90: none)
 };
 
 class FTorqueAvatar

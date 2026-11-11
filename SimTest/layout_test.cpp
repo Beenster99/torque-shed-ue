@@ -116,12 +116,13 @@ int main(int argc, char** argv)
 					if (Json* Rider = Member.second.GetMutable("lines") ? Member.second.GetMutable("lines")->GetMutable("5_rider") : nullptr)
 					{
 						if (const Json* Gp = Rider->Get("godot_peg_mm")) Rider->Set("peg_mm", Json(*Gp));
-						if (Rider->Get("hip_back_mm"))
-						{
-							Json NoBack;
-							NoBack.Kind = Json::Number;
-							Rider->Set("hip_back_mm", NoBack);
-						}
+						for (const char* Own : {"hip_back_mm", "peg_by_case"})
+							if (Rider->Get(Own))
+							{
+								Json Zero;
+								Zero.Kind = Json::Number;
+								Rider->Set(Own, Zero);
+							}
 					}
 			if (Json* Shapes = LayJson.GetMutable("tank_shapes"))
 				for (auto& Member : Shapes->O)

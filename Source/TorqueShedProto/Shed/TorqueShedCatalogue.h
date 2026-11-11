@@ -50,6 +50,7 @@ struct FBikeFrame
 	// pawn cm, so a rider's knees stay outside its flanks.
 	FVector Knee = FVector::ZeroVector;
 	TArray<FVector2D> TankHalfW;
+	double BackDeg = -100.0;              // [rider pose] the style's back lean, hips to neck, degrees forward of upright (beenster's marks; < -90: none)
 };
 // [dash] OutGauges: the clocks' working pieces among the meshes made (FittedPart::Gauge), for the
 // ridden bike to drive: in the meshes' own space (the bike's frame, cm), as the meshes are made.
