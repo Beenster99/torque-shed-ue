@@ -828,6 +828,16 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	Tries = 0;
 	if (Verb == TEXT("item") || Verb == TEXT("place") || Verb == TEXT("floor") || Verb == TEXT("door") || Verb == TEXT("look")) bAimLost = false;
 
+	// [ping test] "ping": the middle mouse ping from where the walker looks now (after look:..., floor,
+	// item:..., place:...). The marker shows for 6 s, so a shot straight after shows it.
+	if (Verb == TEXT("ping"))
+	{
+		const FString Pinged = W->TestPing();
+		if (Pinged.IsEmpty()) Warn(TEXT("ping: nothing there to ping"));
+		else Said(TEXT("pinged ") + Pinged);
+		return true;
+	}
+
 	if (Verb == TEXT("tool") && P.Num() >= 2)
 	{
 		static const TCHAR* const Names[] = {TEXT("hands"), TEXT("wrench"), TEXT("brush"), TEXT("repair"), TEXT("spray"), TEXT("lance"), TEXT("gun")};
