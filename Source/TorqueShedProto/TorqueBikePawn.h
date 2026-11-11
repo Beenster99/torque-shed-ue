@@ -359,6 +359,11 @@ private:
 	void PlaceDriveBy(bool bCrash);
 	void UpdateDriveBy(float Dt);
 	bool bDriveByPlaced = false;
+	// First person on any bike (beenster): how far down the view looks and how wide, set so the
+	// grips (and so the gloves on them) sit near the bottom of the picture whatever the bars' height.
+	void FirstPersonAim(const FVector& EyeLocal, double& OutPitch, double& OutFovAdd) const;
+	double FpPitch = -21.0, FpFovAdd = 0.0;
+	bool bFpAimInit = false;
 	FVector DriveByPos = FVector::ZeroVector, DriveByLook = FVector::ZeroVector;
 	double DriveByFov = 40.0, DriveByBlocked = 0.0, DriveBySide = 1.0;
 	double OrbitYaw = 40.0;           // showroom: degrees round from straight ahead, to the right

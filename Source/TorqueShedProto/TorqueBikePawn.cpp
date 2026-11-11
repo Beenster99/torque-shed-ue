@@ -3638,14 +3638,22 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		// (The clocks are about 50 degrees below the rider's eyes and the grips a little more, so the
 		// first-person view looks down 21 degrees through a wide lens: road ahead in the top half,
 		// clocks, bars, gloves and forearms along the bottom.)
-		Rot.Pitch = (bChin ? -12.0 : -21.0) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
+		// [first person] Per bike: aimed so the hands on the grips are in view, low in the picture
+		// (FirstPersonAim), eased so the head's sway doesn't shake it.
+		double AimPitch = -21.0, AimFovAdd = 0.0;
+		if (!bChin) FirstPersonAim(EyeLocal, AimPitch, AimFovAdd);
+		const double AimK = bFpAimInit ? 1.0 - FMath::Exp(-3.0 * Dt) : 1.0;
+		bFpAimInit = true;
+		FpPitch = FMath::Lerp(FpPitch, AimPitch, AimK);
+		FpFovAdd = FMath::Lerp(FpFovAdd, AimFovAdd, AimK);
+		Rot.Pitch = (bChin ? -12.0 : FpPitch) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
 		Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * (bChin ? 0.55 : 0.6);
 		Rot.Yaw += LookYaw;
 		Rot.Pitch += LookPitch;
 		// Looking into corners: your view turns towards the inside of the bend, as the rider's head does.
 		if (FTorqueSettings::Get().bLookIntoCorner) Rot.Yaw += 0.25 * FMath::Clamp(BodyLean, -55.0, 55.0);
 		Camera->SetWorldLocationAndRotation(Eye, Rot);
-		Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(bChin ? 100.0f : 108.0f));   // Settings > Gameplay > Field of view
+		Camera->SetFieldOfView(FMath::Min(FTorqueSettings::Get().FovFor(bChin ? 100.0f : 108.0f) + (bChin ? 0.0f : (float)FpFovAdd), 140.0f));   // Settings > Gameplay > Field of view
 		return;
 	}
 
@@ -3680,6 +3688,37 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 	Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * 0.25;
 	Camera->SetWorldLocationAndRotation(Pos, Rot);
 	Camera->SetFieldOfView(FTorqueSettings::Get().FovFor(72.0f));   // Settings > Gameplay > Field of view
+}
+
+// First person: the grips' middle (pawn local, as the rider is fitted to this bike: the layout's grips,
+// else the rig's own) seen from the eye. The view looks down far enough that it sits about three
+// quarters of the way from the middle of the picture to its bottom edge, so the bars, the gloves on
+// them and the clocks show on every bike, low clip-ons or high ape hangers, with the road above. Past
+// 40 degrees down the view stops tilting (you'd lose the road) and widens a little instead.
+void ATorqueBikePawn::FirstPersonAim(const FVector& EyeLocal, double& OutPitch, double& OutFovAdd) const
+{
+	OutPitch = -21.0;
+	OutFovAdd = 0.0;
+	FVector GripMid = FVector::ZeroVector;
+	if (!RiderGrip[0].IsZero() && !RiderGrip[1].IsZero()) GripMid = (RiderGrip[0] + RiderGrip[1]) * 0.5;
+	else if (RiderRig.IsValid()) GripMid = (RiderRig.GripRest(0) + RiderRig.GripRest(1)) * 0.5;
+	if (GripMid.IsZero()) return;
+	const double Ahead = GripMid.X - EyeLocal.X, Below = EyeLocal.Z - GripMid.Z;
+	if (Ahead < 5.0) return;   // (grips behind the eye: something's not fitted yet)
+	const double DownDeg = FMath::RadiansToDegrees(FMath::Atan2(Below, Ahead));
+	// Half the picture's height in degrees, from the lens and the screen's shape.
+	double Aspect = 16.0 / 9.0;
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+	{
+		const FIntPoint Px = GEngine->GameViewport->Viewport->GetSizeXY();
+		if (Px.X > 0 && Px.Y > 0) Aspect = (double)Px.X / Px.Y;
+	}
+	const double HFov = FTorqueSettings::Get().FovFor(108.0f);
+	const double HalfV = FMath::RadiansToDegrees(FMath::Atan(FMath::Tan(FMath::DegreesToRadians(HFov * 0.5)) / Aspect));
+	OutPitch = FMath::Clamp(-(DownDeg - 0.72 * HalfV), -40.0, -6.0);
+	// Still below the bottom tenth at 40 degrees down: widen the lens till they're in.
+	const double Short = DownDeg + OutPitch - 0.85 * HalfV;
+	if (Short > 0.0) OutFovAdd = FMath::Min(Short * 2.0 * Aspect, 20.0);
 }
 
 // The Camera key (C, R1, Create / View): first person, third person, drive-by, round again. A test
