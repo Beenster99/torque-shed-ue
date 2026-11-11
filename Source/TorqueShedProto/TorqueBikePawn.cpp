@@ -1187,6 +1187,25 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Throttle = FMath::Clamp(Gap * 0.4, 0.0, 1.0);
 		FrontBrake = FMath::Clamp(-Gap * 0.25, 0.0, 0.8);
 		RearBrake = FrontBrake * 0.5;
+		// A real-world ride's road ends where its route does (Buttertubs' runs on past the finish): the
+		// robot slows for the end, as for a corner, and stops there.
+		if (!FPaths::IsRelative(RouteFile) && Line.Num() > 1)
+		{
+			const double Left = RouteLengthM * (1.0 - double(Near) / double(Line.Num() - 1)) - 15.0;
+			const double EndGap = (Left > 0.0 ? FMath::Sqrt(2.0 * 3.0 * Left) : 0.0) - Sim->Speed;
+			if (bFinished || Left <= 0.0)
+			{
+				Throttle = 0.0;
+				FrontBrake = 0.8;
+				RearBrake = 0.4;
+			}
+			else if (EndGap < Gap)
+			{
+				Throttle = FMath::Clamp(EndGap * 0.4, 0.0, 1.0);
+				FrontBrake = FMath::Clamp(-EndGap * 0.25, 0.0, 0.8);
+				RearBrake = FrontBrake * 0.5;
+			}
+		}
 		if (bTestStopping)
 		{
 			Throttle = 0.0;
