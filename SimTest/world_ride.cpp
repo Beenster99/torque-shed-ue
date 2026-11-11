@@ -75,6 +75,25 @@ int main(int Argc, char** Argv)
 		Crest = std::fmax(Crest, std::fabs(Plan->Road[I + 1].Height - 2.0 * P.Height + Plan->Road[I - 1].Height));
 		Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
 	}
+	// The bends: the radius through each three points 8 m apart; the tight ones said.
+	{
+		int Tight = 0;
+		double Least = 1e9;
+		for (size_t I = 2; I + 2 < Plan->Road.size(); ++I)
+		{
+			const P2 A = Plan->Road[I - 2].At, B = Plan->Road[I].At, C = Plan->Road[I + 2].At;
+			const double La = A.DistanceTo(B), Lb = B.DistanceTo(C), Lc = A.DistanceTo(C);
+			const double Cross = std::fabs((B.X - A.X) * (C.Z - A.Z) - (B.Z - A.Z) * (C.X - A.X));
+			const double Radius = Cross > 1e-9 ? La * Lb * Lc / (2.0 * Cross) : 1e9;
+			if (Radius < Least) Least = Radius;
+			if (Radius < 10.0)
+			{
+				++Tight;
+				if (Tight <= 40) std::printf("  a bend of %.1f m radius at %.2f km (%.0f, %.0f)\n", Radius, Plan->Road[I].Along / 1000.0, B.X, B.Z);
+			}
+		}
+		std::printf("The bends: tightest %.1f m radius; %d points tighter than 10 m\n", Least, Tight);
+	}
 	const auto T0 = std::chrono::steady_clock::now();
 	RideMesh Tile;
 	const double X0 = std::floor(Plan->Road[0].At.X / 256.0) * 256.0, Z0 = std::floor(Plan->Road[0].At.Z / 256.0) * 256.0;
@@ -82,6 +101,35 @@ int main(int Argc, char** Argv)
 	const double Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T0).count();
 	std::printf("The ride: %.1f km of road in %d points, steepest %.3f, sharpest crest %.3f m in 4 m, %.2f m off the land at most; a 256 m square of ground in %.1f ms\n",
 		Plan->Length / 1000.0, int(Plan->Road.size()), Steep, Crest, Off, Ms);
+	{
+		size_t SidePts = 0;
+		for (const RidePlan::SideRoad& Sd : Plan->Sides) SidePts += Sd.Pts.size();
+		std::printf("Beside it: %d roads in %d points; %d bridges and %d tunnels on the way\n", int(Plan->Sides.size()), int(SidePts), Plan->Bridges, Plan->Tunnels);
+		for (size_t I = 1; I < Plan->Road.size(); ++I)
+			if (Plan->Road[I].Bridge && !Plan->Road[I - 1].Bridge)
+			{
+				size_t J = I;
+				double Deep = 0.0;
+				while (J + 1 < Plan->Road.size() && Plan->Road[J + 1].Bridge) { ++J; Deep = std::fmax(Deep, Plan->Road[J].Height - Plan->Land->Height(Plan->Road[J].At.X, Plan->Road[J].At.Z)); }
+				std::printf("  a bridge at %.2f km, %.0f m long, %.1f m over the land at most\n", Plan->Road[I].Along / 1000.0, Plan->Road[J].Along - Plan->Road[I].Along, Deep);
+			}
+	}
+	if (std::getenv("WORLD_RIDE_DUMP") != nullptr)
+	{
+		// Every road's knots (x z height half), a road a line, for a picture.
+		std::string Text;
+		char Buf[96];
+		for (int W = 0; W < Plan->RoadCount(); ++W)
+		{
+			for (const RoadPoint& P : Plan->RoadOf(W))
+			{
+				std::snprintf(Buf, sizeof(Buf), "%.2f %.2f %.2f %.2f ", P.At.X, P.At.Z, P.Height, P.Half);
+				Text += Buf;
+			}
+			Text += "\n";
+		}
+		Files::Write(std::getenv("WORLD_RIDE_DUMP"), Text);
+	}
 	if (Argc == 2) Files::Write(Files::Join(Root, "route.json"), Plan->RouteJson());
 	return 0;
 }

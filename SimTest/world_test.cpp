@@ -11,6 +11,7 @@
 #include "WorldInflate.h"
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRoadLine.h"
 #include "WorldRegion.h"
 #include "WorldSha256.h"
 #include "WorldTerrain.h"
@@ -574,8 +575,8 @@ int main()
 				Check(!AtSea.Ok && !AtSea.Why.empty(), "and says why not for a ride in the middle of the sea");
 				// The ride itself (stage 2): its road laid, the ground cut to it, both as meshes.
 				const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Net2, GA.Lat, GA.Lon, GB.Lat, GB.Lon);
-				Check(Plan->Ok && Plan->Why.empty() && Plan->Road.size() > 100 && Near(Plan->Length, Len, Len * 0.02) && Near(Plan->Road.back().Along, Plan->Length, 1e-9),
-					"a ride is planned between the same two places: a road of its own, as long as the map's to 2%");
+				Check(Plan->Ok && Plan->Why.empty() && Plan->Road.size() > 100 && Plan->Length > Len * 0.9 && Plan->Length < Len * 1.5 && Near(Plan->Road.back().Along, Plan->Length, 1e-9),
+					"a ride is planned between the same two places: a road of its own, the quick way, about as long as the shortest");
 				if (Plan->Ok)
 				{
 					double Gap = 0.0, Step = 0.0, Off = 0.0, Under = 0.0, Kink = 0.0;
@@ -594,7 +595,8 @@ int main()
 						Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
 						const double Rh = Plan->RoadHeight(P.At.X, P.At.Z);
 						if (!std::isnan(Rh) && std::fabs(Rh - P.Height) < 0.05) ++OnRoad;
-						Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
+						if (!P.Bridge) Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
+						else if (I > 0 && I + 1 < Plan->Road.size() && Plan->Road[I - 1].Bridge && Plan->Road[I + 1].Bridge && !(Plan->Ground(P.At.X, P.At.Z) <= Rh - 1.5 + 1e-9)) Under = 1e9;   // (under a deck the land is well clear of it)
 					}
 					std::printf("      the ride's road: %d points, %.2f m apart at most, steepest %.3f, sharpest crest %.3f m, %.2f m off the land at most\n",
 						int(Plan->Road.size()), Gap, Step, Kink, Off);
@@ -606,10 +608,10 @@ int main()
 					P2 Dir = Nx.At - Mid.At;
 					Dir = Dir * (1.0 / Dir.Length());
 					const P2 Left(Dir.Z, -Dir.X);
-					const P2 Far = Mid.At + Left * 200.0, Beside = Mid.At + Left * 5.0, Edge = Mid.At + Left * 2.0, Verge = Mid.At + Left * 3.5;
+					const P2 Far = Mid.At + Left * 200.0, Beside = Mid.At + Left * (Mid.Half + 2.0), Edge = Mid.At + Left * (Mid.Half - 0.5), Verge = Mid.At + Left * (Mid.Half + 0.6);
 					double Dn = 0.0, Hn = 0.0;
 					const bool FarIsFar = !Plan->Nearest(Far.X, Far.Z, Dn, Hn);
-					Check((!FarIsFar || Plan->Ground(Far.X, Far.Z) == Plan->Land->Height(Far.X, Far.Z)) && std::fabs(Plan->Ground(Beside.X, Beside.Z) - (Mid.Height - RidePlan::Sink)) < 0.3
+					Check((!FarIsFar || Plan->Ground(Far.X, Far.Z) == Plan->Land->Height(Far.X, Far.Z)) && std::fabs(Plan->Ground(Beside.X, Beside.Z) - (Mid.Height + RoadLine::CrossHeight(Mid.Half, Mid.Half, Mid.Bank) - RidePlan::Sink)) < 0.3
 						&& !std::isnan(Plan->RoadHeight(Edge.X, Edge.Z)) && std::isnan(Plan->RoadHeight(Verge.X, Verge.Z)),
 						"the bench beside the road is level with it, the road ends at its edge, and far from it the land lies as it did");
 					// A square of ground and a piece of road as meshes.
@@ -633,9 +635,8 @@ int main()
 						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->Ground(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]))));
 					}
 					Check(Sound && Up == Tris && Worst < 0.01, "a 256 m square of ground comes as a mesh with its skirt: every triangle facing up, every height the ground's");
-					Plan->RoadPiece(100, 164, Piece);
+					Plan->RoadPiece(0, 100, 164, Piece);
 					int RoadUp = 0, RoadTris = 0;
-					double Wide = 0.0;
 					for (size_t T = 0; T + 2 < Piece.Idx.size(); T += 3)
 					{
 						const float* A3 = &Piece.Pos[Piece.Idx[T] * 3], * B3 = &Piece.Pos[Piece.Idx[T + 1] * 3], * C3 = &Piece.Pos[Piece.Idx[T + 2] * 3];
@@ -643,9 +644,80 @@ int main()
 						++RoadTris;
 						if (Ny > 0.0) ++RoadUp;
 					}
-					for (size_t V = 0; V + 1 < Piece.Vertices(); V += 2)
-						Wide = std::fmax(Wide, std::fabs(std::hypot(double(Piece.Pos[V * 3] - Piece.Pos[V * 3 + 3]), double(Piece.Pos[V * 3 + 2] - Piece.Pos[V * 3 + 5])) - 2.0 * RidePlan::HalfWidth));
-					Check(Piece.Vertices() == 130 && RoadTris == 128 && RoadUp == RoadTris && Wide < 1e-3, "a piece of road comes as a strip 5.5 m wide, every triangle facing up");
+					// (three strips a step: two shoulders and the tarmac; then any paint)
+					Check(Piece.Vertices() >= 64 * 12 && Piece.Vertices() % 4 == 0 && RoadTris >= 64 * 6 && RoadUp == RoadTris && Piece.Col.size() == Piece.Pos.size()
+						&& Mid.Half >= 1.6 && Mid.Half <= 3.7 && Plan->WidestHalf >= Mid.Half,
+						"a piece of road comes as tarmac as wide as its class with a shoulder each side, coloured, every triangle facing up");
+					// The road's line: no bend tighter than a bike can take.
+					double Tightest = 1e9;
+					{
+						std::vector<double> Kx, Kz;
+						for (const RoadPoint& P : Plan->Road) { Kx.push_back(P.At.X); Kz.push_back(P.At.Z); }
+						for (size_t I = 2; I + 2 < Kx.size(); ++I)
+						{
+							const double Bd = RoadLine::Bend(Kx, Kz, I);
+							if (Bd > 1e-9) Tightest = std::fmin(Tightest, 1.0 / Bd);
+						}
+					}
+					// The roads that meet it.
+					{
+						int Meeting = 0, Level = 0, SidePts = 0;
+						double WorstStep = 0.0;
+						for (const RidePlan::SideRoad& Sd : Plan->Sides)
+						{
+							SidePts += int(Sd.Pts.size());
+							for (int End = 0; End < 2; ++End)
+							{
+								const RoadPoint& Tip = End == 0 ? Sd.Pts.front() : Sd.Pts.back();
+								double Dn2 = 0.0, Hn2 = 0.0, Half2 = 0.0;
+								if (!Plan->Nearest(Tip.At.X, Tip.At.Z, Dn2, Hn2, nullptr, &Half2, nullptr, true) || Dn2 > Half2) continue;
+								++Meeting;
+								if (std::fabs(Tip.Height - Hn2) < 0.02) ++Level;
+							}
+							for (size_t I = 1; I < Sd.Pts.size(); ++I)
+							{
+								const double D = Sd.Pts[I].At.DistanceTo(Sd.Pts[I - 1].At);
+								if (D > 0.5) WorstStep = std::fmax(WorstStep, std::fabs(Sd.Pts[I].Height - Sd.Pts[I - 1].Height) / D);
+							}
+						}
+						RideMesh SideMesh;
+						if (!Plan->Sides.empty()) Plan->RoadPiece(1, 0, 64, SideMesh);
+						std::printf("      %d roads beside it in %d points; %d ends meet the ride's road, %d of them level with it; steepest %.2f\n", int(Plan->Sides.size()), SidePts, Meeting, Level, WorstStep);
+						Check(Plan->Sides.size() > 20 && Meeting > 10 && Level == Meeting && WorstStep < 0.6 && SideMesh.Vertices() >= 12 && Plan->RoadCount() == 1 + int(Plan->Sides.size()),
+							"the roads near the ride are laid too, each level with the ride's road where it meets it");
+					}
+					// Its bridges: the fixture's spans it crosses, each a deck with parapets.
+					{
+						int First = -1, Last = -1;
+						for (size_t I = 0; I < Plan->Road.size(); ++I)
+							if (Plan->Road[I].Bridge) { if (First < 0) First = int(I); Last = int(I); if (I + 1 < Plan->Road.size() && !Plan->Road[I + 1].Bridge) break; }
+						RideMesh Deck, Plain;
+						if (First >= 0) Plan->RoadPiece(0, First, Last, Deck);
+						Plan->RoadPiece(0, 100, 100 + std::max(Last - First, 1), Plain);
+						float Highest = -1e9f, Lowest = 1e9f;
+						for (size_t V = 0; V < Deck.Vertices(); ++V) { Highest = std::fmax(Highest, Deck.Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Deck.Pos[V * 3 + 1]); }
+						std::printf("      %d bridges and %d tunnels on it; the first deck is %d knots\n", Plan->Bridges, Plan->Tunnels, First >= 0 ? Last - First + 1 : 0);
+						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() > Plain.Vertices() && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
+							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
+					}
+					// Its banking: the surface read back either side of the middle at the most banked knot.
+					{
+						size_t Most = 2;
+						for (size_t I = 2; I + 2 < Plan->Road.size(); ++I)
+							if (!Plan->Road[I].Bridge && std::fabs(Plan->Road[I].Bank) > std::fabs(Plan->Road[Most].Bank)) Most = I;
+						const RoadPoint& Pm = Plan->Road[Most];
+						P2 Dm = Plan->Road[Most + 1].At - Plan->Road[Most - 1].At;
+						Dm = Dm * (1.0 / Dm.Length());
+						const P2 Lm(Dm.Z, -Dm.X);
+						const double Out3 = Pm.Half - 0.3;
+						const double Hl = Plan->RoadHeight(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3), Hr = Plan->RoadHeight(Pm.At.X - Lm.X * Out3, Pm.At.Z - Lm.Z * Out3);
+						std::printf("      its most banked knot: %.1f%%, the left edge %.2f m and the right %.2f m off the middle's height\n", Pm.Bank * 100.0, Hl - Pm.Height, Hr - Pm.Height);
+						Check(std::fabs(Pm.Bank) > 0.03 && std::fabs(Pm.Bank) <= RoadLine::MaxBank + 1e-9 && Near(Hl - Hr, 2.0 * Out3 * Pm.Bank, 0.03)
+							&& std::fabs(Plan->Ground(Pm.At.X + Lm.X * Out3, Pm.At.Z + Lm.Z * Out3) - (Hl - RidePlan::Sink)) < 0.03,
+							"its bends are banked: the surface is tilted across and the ground lies just under it both sides");
+					}
+					std::printf("      its tightest bend: %.1f m radius\n", Tightest);
+					Check(Tightest > 9.0, "and no bend of it is tighter than 9 m, mapped corners and junctions rounded");
 					Json Route;
 					Check(Json::Parse(Plan->RouteJson(), Route) && Near(Route.Num("length_m"), Plan->Length, 1e-3) && Route.Get("line_sim") != nullptr && Route.Get("line_sim")->A.size() > 30
 						&& Route.Get("spawn") != nullptr && Route.Get("spawn")->Get("sim") != nullptr && Near(Route.Get("spawn")->Get("sim")->A[1].N, Plan->Road[0].Height + 0.35, 1e-3),
@@ -675,6 +747,71 @@ int main()
 		Cold.Get = Serve;
 		Check(Cold.Index()->Empty() && Cold.FetchCells({A}).empty(), "with no network and nothing kept there is no index, and nothing to fetch");
 		Files::RemoveTree(Kept);
+	}
+
+	{
+		// The road's line made ridable (WorldRoadLine): a right-angled corner of a lane, a kink, a dead end.
+		std::printf("\nThe road's line\n");
+		const auto Tight = [](const std::vector<P2>& L)
+		{
+			std::vector<double> Kx, Kz;
+			for (const P2& P : L) { Kx.push_back(P.X); Kz.push_back(P.Z); }
+			double Least = 1e9;
+			for (size_t I = 2; I + 2 < Kx.size(); ++I)
+			{
+				const double B = RoadLine::Bend(Kx, Kz, I);
+				if (B > 1e-9) Least = std::fmin(Least, 1.0 / B);
+			}
+			return Least;
+		};
+		const std::vector<P2> Corner = {P2(0, 0), P2(200, 0), P2(200, 200)};
+		const std::vector<P2> Round = RoadLine::SmoothLine(Corner);
+		double Gap = 0.0, Off = 0.0;
+		for (size_t I = 1; I < Round.size(); ++I) Gap = std::fmax(Gap, Round[I].DistanceTo(Round[I - 1]));
+		for (const P2& P : Round) Off = std::fmax(Off, std::fmin(std::fabs(P.Z), std::fabs(P.X - 200.0)));
+		std::printf("      a right angle: %d knots, tightest %.1f m, %.1f m off the map's line at most\n", int(Round.size()), Tight(Round), Off);
+		Check(Round.size() > 90 && Round.front().DistanceTo(Corner.front()) < 1e-9 && Round.back().DistanceTo(Corner.back()) < 4.0 && Gap < 4.0 + 1e-6 && Tight(Round) >= 9.5 && Off < 12.0,
+			"a right-angled corner becomes a bend of 10 m or more, knots 4 m apart, the ends kept, near the map's line");
+		const std::vector<double> Main(Corner.size(), RoadLine::FairOf("primary"));
+		Check(Tight(RoadLine::SmoothLine(Corner, RoadLine::MinRadius, Main)) > Tight(Round) + 3.0, "wider on a main road than a lane");
+		std::vector<P2> Zig;
+		for (int I = 0; I <= 40; ++I) Zig.push_back(P2(I * 15.0, (I % 2) * 6.0));
+		Check(Tight(RoadLine::SmoothLine(Zig)) >= 9.5, "a road drawn as a zigzag flows");
+		const std::vector<P2> There = {P2(0, 0), P2(300, 0), P2(0, 0.001), P2(-200, 0.001)};
+		const std::vector<P2> Back = RoadLine::SmoothLine(There);
+		double Reached = 0.0;
+		for (const P2& P : Back) Reached = std::fmax(Reached, P.X);
+		// (the turning place is drawn back down the road as it is pulled open, as in the Godot game: only a
+		// ride with a stop up a dead end has one)
+		Check(Tight(Back) >= 6.0 && Reached > 150.0, "an out-and-back gets a turning place, not a needle");
+		Check(RoadLine::WidthOf("primary") == 7.4 && RoadLine::WidthOf("track") == 3.3 && RoadLine::WidthOf("?") == 4.6 && RoadLine::MainCostOf("motorway") < RoadLine::MainCostOf("residential"),
+			"each class of road has the Godot game's width and cost");
+		// Banking: a crown on the straight, a bend tilted to its inside by the UK's rule.
+		{
+			std::vector<P2> RightBend, Straight;
+			for (int I = 0; I <= 100; ++I)
+			{
+				const double Ang = I * 4.0 / 500.0;   // a 500 m radius, turning from east towards south: right
+				RightBend.push_back(P2(500.0 * std::sin(Ang), 500.0 * (1.0 - std::cos(Ang))));
+				Straight.push_back(P2(I * 4.0, 0.0));
+			}
+			const std::vector<double> Banked = RoadLine::BankOf(RightBend, {95.0}), Flat = RoadLine::BankOf(Straight, {95.0}), Steep = RoadLine::BankOf(RightBend, {200.0});
+			double FlatMost = 0.0;
+			for (double B : Flat) FlatMost = std::fmax(FlatMost, std::fabs(B));
+			std::printf("      a 500 m bend at 95 km/h is banked %.1f%% (the rule says %.1f%%)\n", Banked[50] * 100.0, 95.0 * 95.0 / (2.828 * 500.0));
+			Check(Near(Banked[50], 95.0 * 95.0 / (282.8 * 500.0), 0.002) && Banked[50] > 0.0 && Banked.front() == 0.0 && Banked[3] < Banked[50] * 0.8 && FlatMost < 1e-9 && Near(Steep[50], RoadLine::MaxBank, 1e-9),
+				"a bend to the right is banked left side up by V squared over 2.828 R per cent, eased in from its ends, 7% at most; a straight not at all");
+			const double H = 3.0;
+			Check(Near(RoadLine::CrossHeight(H, H, 0.0), -H * 0.025, 1e-12) && Near(RoadLine::CrossHeight(-H, H, 0.0), -H * 0.025, 1e-12) && RoadLine::CrossHeight(0.0, H, 0.05) == 0.0
+				&& Near(RoadLine::CrossHeight(H, H, 0.05), H * 0.05, 1e-12) && Near(RoadLine::CrossHeight(-H, H, 0.05), -H * 0.05, 1e-12) && Near(RoadLine::CrossHeight(H + 5.0, H, 0.05), H * 0.05, 1e-12)
+				&& Near(RoadLine::CrossHeight(H, H, 0.0125), -H * 0.00625, 1e-12) && Near(RoadLine::CrossHeight(-H, H, 0.0125), -H * 0.025, 1e-12),
+				"across the road: a crown falling 2.5% each side on the straight, one plane tilted to the inside in a bend, the outside's fall taken out first");
+		}
+		const std::vector<double> Steps = {0, 0, 0, 5, 5, 5, 5};
+		const std::vector<double> Graded = RoadLine::GradeLimit(Steps);
+		double Steepest = 0.0;
+		for (size_t I = 1; I < Graded.size(); ++I) Steepest = std::fmax(Steepest, std::fabs(Graded[I] - Graded[I - 1]) / RoadLine::Step);
+		Check(Steepest <= RoadLine::MaxGrade + 1e-9, "a step in the ground is graded to 15% at most");
 	}
 
 	std::printf("\n%s\n", Fails == 0 ? "world_test: all passed" : "world_test: FAILED");

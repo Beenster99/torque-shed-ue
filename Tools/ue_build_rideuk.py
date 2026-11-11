@@ -8,8 +8,8 @@ that script's sun, sky, air and camera, and the ride's cloud shadows as they are
 The level has no ground of its own: only the sky, the lights and a player start. The game lays the
 ground and the road out round the rider as they go (World/TorqueRideWorld), from the ride the world
 subsystem planned, and draws them with the two plain materials made here, /Game/RideUK/Materials'
-M_RideLand (moor grass, mottled) and M_RideRoad (tarmac). Bare on purpose: the road's markings, the
-land's cover, walls, trees and buildings are later stages.
+M_RideLand (moor grass, mottled) and M_RideRoad (the road's vertex colours: tarmac, verge, paint).
+The land's cover, walls, trees and buildings are later stages.
 """
 import os
 import sys
@@ -67,13 +67,14 @@ def land_material(L):
 
 
 def road_material(L):
-    """Plain tarmac, a little uneven in tone. No lines yet."""
+    """The road's own colours from its vertices (tarmac, the verge's gravel, the paint: World/WorldRide's
+    RoadPiece), a little uneven in tone."""
     mel = L.mel
     m = L.new_material("M_RideRoad", MAT_DIR)
-    base = L.const3(m, (0.035, 0.035, 0.034), -900, 0)
-    n = L.noise(m, 0.05, 0.75, 1.25, -900, 200)
+    vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -900, 0)
+    n = L.noise(m, 0.05, 0.8, 1.2, -900, 200)
     mul = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -650, 100)
-    mel.connect_material_expressions(base, "", mul, "A")
+    mel.connect_material_expressions(vc, "", mul, "A")   # the unnamed output is RGB
     mel.connect_material_expressions(n, "", mul, "B")
     mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(L.const1(m, 0.8, -400, 300), "", unreal.MaterialProperty.MP_ROUGHNESS)
