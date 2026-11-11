@@ -1074,6 +1074,7 @@ void ATorqueBikePawn::PlaceOnGround(V3 Pos, double Heading)
 		if (GroundTrace(World, Top, Bottom, Params, Hit)) Pos = ToSim(Hit.ImpactPoint);
 	}
 	Sim->Place(Pos, Heading);
+	Sim->Gear = BikeSim::NEUTRAL;   // (beenster) every ride, and back on the road, starts in neutral
 	Sim->Assist = Assist;
 	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
 	CrashedFor = 0.0;
@@ -1090,7 +1091,7 @@ void ATorqueBikePawn::PlaceOnGround(V3 Pos, double Heading)
 	CurRot = PrevRot = BasisToUE(Sim->Basis);
 	Accum = 0.0;
 	bCamInit = false;
-	LastGear = Sim->Gear;   // no clunk for being put back in first
+	LastGear = Sim->Gear;   // no clunk for being put back in neutral
 	SetActorLocationAndRotation(CurPos, CurRot);
 }
 
@@ -1140,6 +1141,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	static const bool bAuto = FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide"));
 	if ((bAuto || bTestAutoRide) && Line.Num() > 2 && !Sim->IsCrashed)
 	{
+		if (Sim->Gear == BikeSim::NEUTRAL) Sim->Gear = 1;   // (a ride starts in neutral; the robot sets off in first)
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
 		(void)bMph;
@@ -1250,7 +1252,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Lean = Approach(Lean, 0.0, 2.2, 4.0, Dt);
 		return;
 	}
-	// [foot] F (or Triangle / Y held, stopped) gets off; on foot, F by the bike gets back on.
+	// [foot] F (or Triangle / Y, stopped) gets off; on foot, F or Triangle / Y by the bike gets back on.
 	const bool bPadUse = SonyHit(ESonyButton::Triangle) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top);
 	if (bOnFoot)
 	{
@@ -1290,20 +1292,31 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 		return;
 	}
-	// [lights] Riding, Triangle / Y: a tap steps the lights, held 0.4 s gets off (stopped) or back on the
-	// road (moving); crashed, a tap is back on the road straight away.
-	bool bPadHoldUse = false, bPadTapLights = false;
+	// Riding, Triangle / Y (beenster's pad layout: it gets on and off): stopped, a tap gets off; moving,
+	// held 0.4 s is back on the road; crashed, a tap is back on the road straight away. (The lights'
+	// cycle went to the D-pad's up.)
+	bool bPadHoldUse = false, bPadTapOff = false;
 	{
 		const bool bTriDown = PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Top) || (SonyDown & ESonyButton::Triangle) != 0;
-		if (bPadUse && !Sim->IsCrashed) { bPadUseRideArmed = true; PadUseRideHeld = 0.0; }
+		if (bPadUse && !Sim->IsCrashed)
+		{
+			if (FMath::Abs(Sim->Speed) <= 2.0) bPadTapOff = true;
+			else
+			{
+				bPadUseRideArmed = true;
+				PadUseRideHeld = 0.0;
+				FootNote = TEXT("Stop to get off (hold Triangle / Y: back on the road).");
+				FootNoteFor = 1.5;
+			}
+		}
 		if (bPadUseRideArmed)
 		{
 			PadUseRideHeld += Dt;
-			if (!bTriDown) { bPadUseRideArmed = false; bPadTapLights = true; }
+			if (!bTriDown) bPadUseRideArmed = false;
 			else if (PadUseRideHeld >= 0.4) { bPadUseRideArmed = false; bPadHoldUse = true; }
 		}
 	}
-	if (FTorqueKeys::Just(PC, ETorqueKey::Use) || (bPadHoldUse && !Sim->IsCrashed && FMath::Abs(Sim->Speed) <= 2.0))
+	if (FTorqueKeys::Just(PC, ETorqueKey::Use) || bPadTapOff)
 	{
 		// [yard] In the shed's yard or the shed itself: getting off parks the bike where it stands (in
 		// its bay if that's where it is) and you're on your feet in the shed's own way (TorqueYard).
@@ -1323,10 +1336,13 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		else if (GetOff()) return;
 	}
 	const double LookK = 1.0 - FMath::Exp(-8.0 * Dt);
-	// R1 held in third person: the right stick and D-pad set the camera (AdjustChase), not the look.
-	const bool bPadR1 = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
-	const bool bPadL1 = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
-	const bool bPadSetsCam = bPadR1 && !bPadL1 && CameraMode == CamChase;
+	// The bumpers (beenster's pad layout): LB held is the clutch, RB held looks behind; both held a
+	// moment with the engine off start it.
+	const bool bPadLB = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
+	const bool bPadRB = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
+	// View / Create held in third person: the right stick and D-pad set the camera (AdjustChase), not the look.
+	const bool bPadView = PC->IsInputKeyDown(EKeys::Gamepad_Special_Left) || (SonyDown & ESonyButton::Create) != 0;
+	const bool bPadSetsCam = bPadView && CameraMode == CamChase;
 	const double LookPadX = bPadSetsCam ? 0.0 : LookX, LookPadY = bPadSetsCam ? 0.0 : LookY;
 	// Settings > Gameplay > Chase camera recentres: off, the view stays where the stick left it.
 	const bool bStickLooking = FMath::Abs(LookPadX) > 0.02 || FMath::Abs(LookPadY) > 0.02;
@@ -1354,7 +1370,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		}
 	}
 	// Reverse view: held, the camera looks back down the road.
-	const bool bBehind = FTorqueKeys::Down(PC, ETorqueKey::LookBack);
+	const bool bBehind = FTorqueKeys::Down(PC, ETorqueKey::LookBack) || (bPadRB && !(bPadLB && !Sim->EngineOn));
 	LookYaw = bBehind ? 180.0 : StickYaw + MouseYaw;
 	LookPitch = bBehind ? 0.0 : StickPitch + MousePitch;
 
@@ -1366,11 +1382,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// Keys are all or nothing, so ease them in (as Torque Shed does); the pad is used as it is.
 	Throttle = PadThrottle > 0.02 ? PadThrottle : Approach(Throttle, KeyThrottle, 2.5, 6.0, Dt);
 	FrontBrake = PadBrake > 0.02 ? PadBrake : Approach(FrontBrake, KeyBrake, 3.0, 8.0, Dt);
-	RearBrake = FMath::Max(FTorqueKeys::Down(PC, ETorqueKey::RearBrake) ? 1.0 : 0.0, Down(EKeys::Gamepad_LeftShoulder));
-	if (SonyDown & ESonyButton::L1) RearBrake = 1.0;
+	// The rear brake on Circle / B held (LB is the clutch now).
+	RearBrake = FMath::Max(FTorqueKeys::Down(PC, ETorqueKey::RearBrake) ? 1.0 : 0.0, Down(EKeys::Gamepad_FaceButton_Right));
+	if (SonyDown & ESonyButton::Circle) RearBrake = 1.0;
 
 	// Gears: Cross/A up, Square/X down (X and Z, or Left Shift and Left Ctrl, on keys). The first
-	// change by hand turns the automatic box off; R3 or G turns it back on.
+	// change by hand turns the automatic box off; G (or Settings) turns it back on.
 	auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
 	const bool bUp = SonyHit(ESonyButton::Cross) || Just(EKeys::Gamepad_FaceButton_Bottom) || FTorqueKeys::Just(PC, ETorqueKey::ShiftUp);
 	const bool bDown = SonyHit(ESonyButton::Square) || Just(EKeys::Gamepad_FaceButton_Left) || FTorqueKeys::Just(PC, ETorqueKey::ShiftDown);
@@ -1381,7 +1398,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (bUp) Sim->ShiftUp();
 		else Sim->ShiftDown();
 	}
-	if (SonyHit(ESonyButton::R3) || Just(EKeys::Gamepad_RightThumbstick) || FTorqueKeys::Just(PC, ETorqueKey::AutoShift))
+	if (FTorqueKeys::Just(PC, ETorqueKey::AutoShift))
 	{
 		bManual = !bManual;
 		GearNoteFor = 2.0;
@@ -1390,12 +1407,14 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		Keep.bAutoShift = !bManual;
 		if (Keep.bSaved) Keep.Save();
 	}
-	// The clutch, held (Left Alt; F is get off): the engine spins free of the box in any gear. The key (I): the engine
-	// off, or the starter cranks it and it fires (not on an empty tank, or with the bike down).
-	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch;
+	// The clutch, held (Left Alt, or LB on the pad; F is get off): the engine spins free of the box in any
+	// gear, so it revs in gear and drives again as it's let out. The key (I): the engine off, or the
+	// starter cranks it and it fires (not on an empty tank, or with the bike down).
+	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch || bPadLB;
 	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition)) PressIgnition();
-	// ABS: Circle/B or the B key. Off, the rear brake will lock the wheel.
-	if (SonyHit(ESonyButton::Circle) || Just(EKeys::Gamepad_FaceButton_Right) || FTorqueKeys::Just(PC, ETorqueKey::Abs))
+	// ABS: the D-pad's down or the B key. Off, the rear brake will lock the wheel.
+	const bool bPadDDown = !bPadSetsCam && (SonyHit(ESonyButton::DDown) || Just(EKeys::Gamepad_DPad_Down));
+	if (bPadDDown || FTorqueKeys::Just(PC, ETorqueKey::Abs))
 	{
 		// Only on a bike that has it (as Torque Shed: the ECU's aid); none, it stays off.
 		bAbs = !bAbs && (bHasAbs[0] || bHasAbs[1]);
@@ -1413,49 +1432,52 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	}
 	// Options / Start open the pause menu now (ATorquePlayerController), which has Restart the ride.
 	if (FTorqueKeys::Just(PC, ETorqueKey::Restart)) RestartRide();
-	// The pad's starter (beenster): LB and RB held together for a moment start the engine. RB alone
-	// changes the camera, now as it's let go (so the start doesn't change it as well); LB alone is
-	// the rear brake as before.
-	const bool bPadLB = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
-	const bool bPadRB = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
+	// The pad's starter (beenster): LB and RB held together for a moment start the engine (LB is the
+	// clutch and RB looks behind, so with the engine off that's a start, not a look back).
 	bool bCameraTap = false;
 	{
 		const int32 PadTilt = bPadSetsCam ? ((SonyDown & ESonyButton::DDown) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Down) ? 1 : 0) -
 			((SonyDown & ESonyButton::DUp) || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Up) ? 1 : 0) : 0;
-		// Set with R1 held: letting R1 go then isn't a camera change.
-		if (AdjustChase(PC, Dt, LookX, LookY, bPadSetsCam, PadTilt) && bPadSetsCam) bPadComboUsed = true;
+		// Set with View / Create held: letting it go then isn't a camera change.
+		if (AdjustChase(PC, Dt, LookX, LookY, bPadSetsCam, PadTilt) && bPadSetsCam) bPadViewUsed = true;
 	}
-	if (bPadRB)
+	if (bPadView) bPadViewWas = true;
+	else
 	{
-		if (bPadLB)
+		if (bPadViewWas && !bPadViewUsed) bCameraTap = true;   // View / Create let go, nothing set: the camera
+		bPadViewWas = bPadViewUsed = false;
+	}
+	if (bPadRB && bPadLB)
+	{
+		PadStartHeld += Dt;
+		if (PadStartHeld >= 0.3 && !bPadStartDone)
 		{
-			PadStartHeld += Dt;
-			bPadComboUsed = true;
-			if (PadStartHeld >= 0.3 && !bPadStartDone)
-			{
-				bPadStartDone = true;
-				if (!Sim->EngineOn && !Sim->IsStarting()) PressIgnition();
-			}
+			bPadStartDone = true;
+			if (!Sim->EngineOn && !Sim->IsStarting()) PressIgnition();
 		}
-		bPadRBWas = true;
 	}
 	else
 	{
-		if (bPadRBWas && !bPadComboUsed) bCameraTap = true;   // RB let go, no start: the camera
-		bPadRBWas = bPadComboUsed = bPadStartDone = false;
+		bPadStartDone = false;
 		PadStartHeld = 0.0;
 	}
-	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || bCameraTap ||
-		PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Left) || SonyHit(ESonyButton::Create))
+	if (FTorqueKeys::Just(PC, ETorqueKey::Camera) || bCameraTap) NextCamera();
+	// [gestures] R3 (or the Y key): a tap nods to another rider; R3 held (or the U key held) waves, the left hand off the bar.
 	{
-		NextCamera();
-	}
-	if (!bPadSetsCam)   // (with R1 held, the D-pad tilts the third-person camera)
-	{
-		if (SonyHit(ESonyButton::DDown)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
-		if (SonyHit(ESonyButton::DUp)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
-		if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Down)) Assist = FMath::Clamp(Assist - 0.1f, 0.0f, 1.0f);
-		if (PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Up)) Assist = FMath::Clamp(Assist + 0.1f, 0.0f, 1.0f);
+		const bool bR3Down = PC->IsInputKeyDown(EKeys::Gamepad_RightThumbstick) || (SonyDown & ESonyButton::R3) != 0;
+		bool bPadWave = false;
+		if (bR3Down)
+		{
+			PadR3Held += Dt;
+			bPadWave = PadR3Held >= WaveHoldPad;
+		}
+		else
+		{
+			if (PadR3Held > 0.0 && PadR3Held < WaveHoldPad) StartNod();
+			PadR3Held = 0.0;
+		}
+		if (FTorqueKeys::Just(PC, ETorqueKey::Nod)) StartNod();
+		SetWaving(!Sim->IsCrashed && (bPadWave || FTorqueKeys::Down(PC, ETorqueKey::Wave)));
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Help)) bShowHelp = !bShowHelp;
 	// Settings > Gameplay > Telemetry overlay (F3 while riding, as Torque Shed).
@@ -1472,11 +1494,11 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	bHornDown = bHorn;
 	// [lights] The lamps' switches (TorqueLights.h): L headlight, K main beam, N fog lights, , and .
 	// the indicators (again to cancel), / the hazards. On the pad (beenster): the d-pad's left and right
-	// the indicators, both (one then the other) the hazards, and a tap of Triangle / Y steps the lights
+	// the indicators, both (one then the other) the hazards, and the d-pad's up steps the lights
 	// round dipped, main beam, fog lights (when fitted), off.
 	{
 		bool bOk = false;
-		if (bPadTapLights) LightsNote(Lights.CycleBeam(bOk), bOk);
+		if (!bPadSetsCam && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.ToggleHeadlight(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
@@ -1600,6 +1622,39 @@ bool ATorqueBikePawn::GetOff()
 	return true;
 }
 
+double ATorqueBikePawn::GestureNow() const
+{
+	const UWorld* World = GetWorld();
+	return World ? World->GetTimeSeconds() : 0.0;
+}
+
+bool ATorqueBikePawn::IsNodding() const
+{
+	return GestureNow() - NodAt < NodTime;
+}
+
+void ATorqueBikePawn::StartNod()
+{
+	if (!IsNodding() && !Sim->IsCrashed && !bOnFoot) NodAt = GestureNow();
+}
+
+void ATorqueBikePawn::SetWaving(bool bWave)
+{
+	if (bWave == bWaving) return;
+	// Eased from where it is now, so a quick let-go doesn't jump.
+	const double Now = GestureNow(), Was = FMath::Clamp((Now - WaveAt) / WaveEase, 0.0, 1.0);
+	const double Amount = bWaving ? Was : 1.0 - Was;   // how far out the hand is
+	bWaving = bWave;
+	WaveAt = Now - (bWave ? Amount : 1.0 - Amount) * WaveEase;
+}
+
+void ATorqueBikePawn::SetNetGestures(bool bNod, bool bWave)
+{
+	if (bNod && !bNetNodWas) StartNod();
+	bNetNodWas = bNod;
+	SetWaving(bWave);
+}
+
 bool ATorqueBikePawn::GetOn()
 {
 	if (!bOnFoot) return false;
@@ -1618,7 +1673,7 @@ bool ATorqueBikePawn::GetOn()
 	Sim->Place(ParkGround, ParkHeading);
 	Sim->EngineOn = bRunning;
 	Sim->Rpm = RpmWas;
-	Sim->Gear = bManual ? BikeSim::NEUTRAL : 1;
+	Sim->Gear = BikeSim::NEUTRAL;   // (beenster) always back on in neutral
 	PrevPos = CurPos = ToUE(Sim->Position);
 	PrevRot = CurRot = BasisToUE(Sim->Basis);
 	Accum = 0.0;
@@ -2174,6 +2229,7 @@ void ATorqueBikePawn::TestMoveStep()
 			Shift = 0.0;
 			FrontBrake = 0.3;
 			RearBrake = 0.8;
+			if (Sim->Gear == BikeSim::NEUTRAL) Sim->Gear = 1;   // (out of neutral, as the launches always began)
 			TestStill = FMath::Abs(V) < 0.05 ? TestStill + SimDt : 0.0;
 			if (TestStill > 1.0)
 			{
@@ -2878,6 +2934,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	T.Limp = R.Limp;
 	for (int32 S = 0; S < 2; ++S)
 	{
+		T.HandOff[S] = R.HandOff[S];
 		T.Wrist[S] = R.Wrist[S];
 		T.Grip[S] = R.Grip[S];
 		T.Ankle[S] = R.Ankle[S];
@@ -3154,6 +3211,17 @@ void ATorqueBikePawn::UpdateRider()
 			In.Look = FRotator::ZeroRotator;
 			In.Throttle = 0.0;
 		}
+		else
+		{
+			// [gestures] The nod: the head dips and comes back up over NodTime. The wave: the left hand
+			// eased off the bar and out (FRiderRig), back onto the bar as it's let go.
+			const double Now = GestureNow();
+			const double NodT = (Now - NodAt) / NodTime;
+			if (NodT >= 0.0 && NodT < 1.0) In.Look.Pitch -= 16.0 * FMath::Sin(NodT * PI);
+			const double WaveT = FMath::Clamp((Now - WaveAt) / WaveEase, 0.0, 1.0);
+			In.Wave = bWaving ? WaveT : 1.0 - WaveT;
+			In.WaveTime = Now - WaveAt;
+		}
 		In.LeverFingers[1] = BrakeFingers;
 		In.LeverPull[1] = FMath::Clamp(FrontBrake, 0.0, 1.0) * BrakeFingers;
 		// Left hand: the clutch, pulled for each gear change (fingers over, pull, let out), and held
@@ -3163,8 +3231,10 @@ void ATorqueBikePawn::UpdateRider()
 			const double FingersShift = T < 0.06 ? T / 0.06 : T < 0.30 ? 1.0 : T < 0.42 ? 1.0 - (T - 0.30) / 0.12 : 0.0;
 			const double PullShift = T < 0.03 ? 0.0 : T < 0.10 ? (T - 0.03) / 0.07 : T < 0.22 ? 1.0 : T < 0.34 ? 1.0 - (T - 0.22) / 0.12 : 0.0;
 			const double Held = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 2.5, 0.0, 1.0);
-			In.LeverFingers[0] = FMath::Max(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0));
-			In.LeverPull[0] = FMath::Max(PullShift, Held);
+			// The clutch held in (LB, or Left Alt): the lever pulled to the bar.
+			const double Lever = Sim->ClutchIn ? 1.0 : 0.0;
+			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), Lever);
+			In.LeverPull[0] = FMath::Max3(PullShift, Held, Lever);
 		}
 		for (int32 S = 0; S < 2; ++S)
 			if (TestLeverHold[S] >= 0.0)
@@ -3854,10 +3924,10 @@ void ATorqueBikePawn::DrawHud()
 	if (bShowHelp)
 	{
 		const FColor Help(200, 200, 200);
-		Add(TEXT("Pad:  R2 throttle   L2 front brake   L1 rear brake   left stick lean (push up/down: weight)"), Help, 0.62f);
-		Add(TEXT("      Cross gear up   Square gear down   R3 auto/manual   Circle ABS on/off   right stick look   L3 horn"), Help, 0.62f);
-		Add(TEXT("      R1 camera (first person, third person, drive-by; R1 held + right stick / D-pad: set the third-person camera)"), Help, 0.62f);
-		Add(TEXT("      L1 + R1 held: start   Triangle tap: lights (dipped, main, fog, off), hold: get off (stopped) / back on road   D-pad left/right indicators, up/down realism   Options menu"), Help, 0.62f);
+		Add(TEXT("Pad:  R2 throttle   L2 front brake   Circle / B rear brake   left stick lean (push up/down: weight)   right stick look"), Help, 0.62f);
+		Add(TEXT("      Cross / A gear up   Square / X gear down   hold L1 / LB clutch (rev it in gear)   hold R1 / RB look behind   L3 horn"), Help, 0.62f);
+		Add(TEXT("      Triangle / Y get off (stopped; held while moving: back on road)   D-pad left / right indicators, up lights, down ABS"), Help, 0.62f);
+		Add(TEXT("      R3 nod, hold R3 wave   L1 + R1 held: start   Create / View camera (held + right stick / D-pad: set the third-person camera)   Options menu"), Help, 0.62f);
 		// The keys as they're bound now (Settings > Controller > Key bindings).
 		auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
 		Add(FString::Printf(TEXT("Keys: %s throttle   %s brake   %s rear brake   %s / %s lean   %s / %s weight   %s / %s gear up/down   %s auto/manual"),
@@ -3866,9 +3936,9 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
 			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
 			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   (pad: D-pad left / right, Triangle / Y lights)"),
+		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
 			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
-			*K(ETorqueKey::Hazards)), Help, 0.62f);
+			*K(ETorqueKey::Hazards), *K(ETorqueKey::Clutch), *K(ETorqueKey::Nod), *K(ETorqueKey::Wave)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
 			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),

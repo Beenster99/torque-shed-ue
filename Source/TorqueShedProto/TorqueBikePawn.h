@@ -95,6 +95,12 @@ public:
 	// rider's), its stand down and the rider hidden.
 	bool IsOnFoot() const { return bOnFoot; }
 	void SetParkedLook(bool bParked);
+	// [gestures] The rider's nod (R3 or the Y key tapped) and wave (R3 or the U key held: the left hand off the bar):
+	// what they're doing now, and a co-op rider's as their snapshots say (TorqueNetBike), so the
+	// others see it. A nod starts on the bit's rising edge and runs its own course.
+	bool IsNodding() const;
+	bool IsWaving() const { return bWaving; }
+	void SetNetGestures(bool bNod, bool bWave);
 	// For TorqueShedTest: "off" or "on" as F does, "push" / "letgo" as holding F by it and F again,
 	// "walk:<cm>" steps that far ahead (on foot, the bike alongside if it's being wheeled).
 	FString TestFoot(const FString& What);
@@ -401,10 +407,20 @@ private:
 	// Wheeling it on foot (hold F by it): it follows alongside, upright, the stand up; F lets go.
 	bool bPushing = false, bUseArmed = false;
 	double UseHeld = 0.0;
-	// [lights] Riding, Triangle / Y: a tap steps the lights (dipped, main, fog, off), held a moment gets
-	// off (stopped) or back on the road (moving); crashed, a tap is back on the road at once.
+	// Riding, Triangle / Y (beenster's pad layout): stopped, a tap gets off; moving, held a moment is
+	// back on the road; crashed, a tap is back on the road at once.
 	bool bPadUseRideArmed = false;
 	double PadUseRideHeld = 0.0;
+	// [gestures] When the nod began and the wave last started or stopped (world seconds), and R3's hold.
+	static constexpr double NodTime = 0.7, WaveEase = 0.3, WaveHoldPad = 0.3;
+	double NodAt = -100.0, WaveAt = -100.0, PadR3Held = 0.0;
+	bool bWaving = false, bNetNodWas = false;
+	void StartNod();
+	void SetWaving(bool bWave);
+	double GestureNow() const;
+	// The View / Create button: tapped, the next camera; held with the right stick or D-pad up and
+	// down, the third-person camera's distance, height and tilt (whether it did, so the let-go isn't a tap).
+	bool bPadViewWas = false, bPadViewUsed = false;
 	void TakeHoldOfBike();
 	void LetGoBike();
 	void FollowPusher();
@@ -416,7 +432,7 @@ private:
 	bool bTestClutch = false;   // TestControl's clutch, held
 	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
 	double PadStartHeld = 0.0;
-	bool bPadRBWas = false, bPadComboUsed = false, bPadStartDone = false;
+	bool bPadStartDone = false;
 	void PressIgnition();   // the key (I): off, or the starter
 	// TestStartMove's manoeuvre: which (-1 none), its phase (0 getting up to speed, 1 measuring), the
 	// speed it's held at (m/s), and what it has measured so far.

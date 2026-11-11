@@ -34,6 +34,9 @@ struct FRiderPoseInput
 	// Off the bike (0..1): the hands let go of the grips and go to HandsOff (wrists, left and right).
 	double Limp = 0.0;
 	FVector HandsOff[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	// [gestures] A wave (0..1): the left hand off the bar, raised out to the side and waving to and fro
+	// (WaveTime, s, drives the to and fro). The nod is a dip of Look's pitch, set by the pawn.
+	double Wave = 0.0, WaveTime = 0.0;
 	// Where the fitted grips sit against the stock ones (pawn local cm, left and right), from the
 	// fitment system's grips_l / grips_r placement: the hands follow other bars.
 	FTransform GripFit[2] = {FTransform::Identity, FTransform::Identity};
@@ -55,6 +58,7 @@ struct FRiderPoseOut
 	FQuat Look = FQuat::Identity;
 	double LeverFingers[2] = {0.0, 0.0}, LeverPull[2] = {0.0, 0.0};
 	double Limp = 0.0;
+	double HandOff[2] = {0.0, 0.0};   // [gestures] a hand off its grip on its own (the wave), 0..1
 	bool bValid = false;
 };
 

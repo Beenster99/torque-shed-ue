@@ -1319,6 +1319,10 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 	// palm just short of the knuckles. Off the bike (Limp), the rider rig's wrist.
 	FQuat HandQ[2];
 	FVector Aim0[2], Palm0[2], WristAt[2], BarAt[2], BarAxis[2], AimOn[2], PalmOn[2];
+	// [gestures] Each hand's own let-go (the wave's), on top of Limp; the back is still fitted to the
+	// wrists on the bars (WristFit), so a wave doesn't sit the rider up.
+	double HandOffS[2];
+	FVector WristFit[2];
 	for (int32 S = 0; S < 2; ++S)
 	{
 		const double Side = S == 0 ? -1.0 : 1.0;   // the left side is -Right
@@ -1332,7 +1336,9 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 		Aim1 = (Aim1 - Across1 * FVector::DotProduct(Aim1, Across1)).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
 		FVector Palm1, GripWrist;
 		HandOnBar(S, Bar, Across1, Aim1, 1.5, 3.0, HandQ[S], GripWrist, Palm1);   // bar 1.5 cm short of the knuckles, 3 cm palm-side of the bones
-		WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off);
+		HandOffS[S] = FMath::Max(Off, FMath::Clamp(Tg.HandOff[S], 0.0, 1.0));
+		WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), HandOffS[S]);
+		WristFit[S] = Tg.HandOff[S] > 0.0 ? FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off) : WristAt[S];
 		BarAt[S] = Bar;
 		BarAxis[S] = Across1.GetSafeNormal();
 		AimOn[S] = Aim1;
@@ -1356,7 +1362,7 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			for (int32 S = 0; S < 2; ++S)
 			{
 				const FVector Sh = Hip + Back.RotateVector(Bones[UpperArm[S]].Rest - Pelvis0);
-				Short = FMath::Max(Short, (WristAt[S] - Sh).Size() - ArmReach[S] * 0.97);
+				Short = FMath::Max(Short, (WristFit[S] - Sh).Size() - ArmReach[S] * 0.97);
 			}
 			if (Short <= 0.0 || Off > 0.5) break;
 			Back = FQuat(Right, PitchSign * FMath::DegreesToRadians(3.0)) * Back;
@@ -1393,7 +1399,7 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				double Far = 0.0, Near = 10.0;
 				for (int32 S = 0; S < 2; ++S)
 				{
-					const double Ratio = (WristAt[S] - ShoulderOf(Q, S)).Size() / FMath::Max(ArmReach[S], 1.0);
+					const double Ratio = (WristFit[S] - ShoulderOf(Q, S)).Size() / FMath::Max(ArmReach[S], 1.0);
 					Far = FMath::Max(Far, Ratio);
 					Near = FMath::Min(Near, Ratio);
 				}
@@ -1441,15 +1447,15 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const FVector Hinge = FVector::CrossProduct(W - P[I], Pole);
 				D[I] = Align(E0 - S0, Hinge0, E - P[I], Hinge); Set[I] = true;
 				D[LowerArm[S]] = Align(W0 - E0, Hinge0, W - E, Hinge); Set[LowerArm[S]] = true;
-				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], Off); Set[HandBone[S]] = true;
+				D[HandBone[S]] = FQuat::Slerp(HandQ[S], D[LowerArm[S]], HandOffS[S]); Set[HandBone[S]] = true;
 				// The fingers wrapped round the bar (WrapFingers). The index and middle lift onto a
 				// lever when they're on it.
 				const FVector WAct = E + D[LowerArm[S]].RotateVector(W0 - E0);   // where the wrist got to
-				const double Loose = 1.0 - Off * 0.7;
+				const double Loose = 1.0 - HandOffS[S] * 0.7;
 				double K[5] = {0.0, Loose, Loose, Loose, Loose};
 				const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
 				for (int32 F = 1; F <= 2; ++F) K[F] *= FMath::Lerp(1.0, 0.35 + 0.45 * Pull, On);
-				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, Off);   // the grip's radius plus half a finger
+				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, HandOffS[S]);   // the grip's radius plus half a finger
 			}
 			else if (I == Thigh[S])
 			{
