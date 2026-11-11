@@ -4,10 +4,14 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/CommandLine.h"
+#include "Misc/PackageName.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
@@ -16,6 +20,7 @@
 #include "World/HeightTiles.h"
 #include "World/WorldFiles.h"
 #include "World/WorldLoad.h"
+#include "World/WorldRide.h"
 
 #include <atomic>
 
@@ -113,12 +118,15 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	};
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);
+	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueRideUK="), Spec, false)) StartRide(Spec);
 }
 
 void UTorqueWorldSubsystem::Deinitialize()
 {
 	if (Shared) Shared->bStop = true;
 	if (TestRun.IsValid()) TestRun.Wait();
+	if (RideRun.IsValid()) RideRun.Wait();
+	Plan.reset();
 	Shared.reset();
 	Super::Deinitialize();
 }
@@ -162,4 +170,82 @@ void UTorqueWorldSubsystem::StartTest(const FString& Spec)
 		else { UE_LOG(LogTemp, Error, TEXT("Torque world test: FAIL: %s"), UTF8_TO_TCHAR(R.Why.c_str())); }
 		if (bQuit) AsyncTask(ENamedThreads::GameThread, []() { FPlatformMisc::RequestExit(false, TEXT("TorqueWorldTest")); });
 	});
+}
+
+// --- The ride (stage 2) -----------------------------------------------------------------------------
+
+const TCHAR* UTorqueWorldSubsystem::RideMap = TEXT("/Game/Maps/RideUK");
+
+FString UTorqueWorldSubsystem::RideRouteFile()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World"), TEXT("ride_route.json")));
+}
+
+FString UTorqueWorldSubsystem::RideNote() const
+{
+	return Note;
+}
+
+bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
+{
+	if (bPlanning || !Shared) return false;
+	// Hawes market place to Leyburn market place, unless four numbers say otherwise.
+	double Ends[4] = {54.3040, -2.1965, 54.3103, -1.8290};
+	FString Title = TEXT("Hawes to Leyburn");
+	TArray<FString> Given;
+	Spec.ParseIntoArray(Given, TEXT(","), true);
+	if (Given.Num() == 4)
+	{
+		for (int32 I = 0; I < 4; ++I) Ends[I] = FCString::Atod(*Given[I].TrimStartAndEnd());
+		Title = TEXT("Ride UK");
+	}
+	bPlanning = true;
+	Note = TEXT("Ride UK: fetching the road...");
+	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s, from %.4f, %.4f to %.4f, %.4f"), *Title, Ends[0], Ends[1], Ends[2], Ends[3]);
+	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
+	const double LatA = Ends[0], LonA = Ends[1], LatB = Ends[2], LonB = Ends[3];
+	const std::string TitleStd = TWSI::ToStd(Title);
+	const std::string RoutePath = TWSI::ToStd(RideRouteFile());
+	TWeakObjectPtr<UTorqueWorldSubsystem> Self(this);
+	if (RideRun.IsValid()) RideRun.Wait();   // (the last one's worker has finished by now: bPlanning was false)
+	RideRun = Async(EAsyncExecution::Thread, [Held, Self, LatA, LonA, LatB, LonB, TitleStd, RoutePath]()
+	{
+		const double StartedAt = FPlatformTime::Seconds();
+		std::shared_ptr<TorqueWorld::RidePlan> Made = TorqueWorld::RidePlan::Make(Held->Cells, Held->Heights, LatA, LonA, LatB, LonB, [Self](const std::string& Step)
+		{
+			UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s"), UTF8_TO_TCHAR(Step.c_str()));
+			const FString Said = FString(TEXT("Ride UK: ")) + UTF8_TO_TCHAR(Step.c_str()) + TEXT("...");
+			AsyncTask(ENamedThreads::GameThread, [Self, Said]() { if (Self.IsValid()) Self->Note = Said; });
+		});
+		if (Held->bStop) return;   // (the game closed under it)
+		Made->Title = TitleStd;
+		if (Made->Ok) TorqueWorld::Files::Write(RoutePath, Made->RouteJson());
+		UE_LOG(LogTemp, Display, TEXT("Torque ride UK: planned in %.1f s"), FPlatformTime::Seconds() - StartedAt);
+		AsyncTask(ENamedThreads::GameThread, [Self, Made]() { if (Self.IsValid()) Self->RidePlanned(Made); });
+	});
+	return true;
+}
+
+void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made)
+{
+	bPlanning = false;
+	if (!Made || !Made->Ok)
+	{
+		Note = FString(TEXT("Ride UK: ")) + (Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no ride was planned."));
+		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: FAIL: %s"), Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan"));
+		return;
+	}
+	if (!FPackageName::DoesPackageExist(RideMap))
+	{
+		Note = TEXT("Ride UK: this build has no level for it.");
+		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: FAIL: no level %s (run Tools/ue_build_rideuk.py in the editor)"), RideMap);
+		return;
+	}
+	Plan = Made;
+	Note.Reset();
+	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %.1f km of road in %d points, %d roads; route at %s"), Plan->Length / 1000.0, int32(Plan->Road.size()), int32(Plan->Names.size()), *RideRouteFile());
+	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: PASS"));
+	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	if (!World || !GEngine) return;
+	GEngine->SetClientTravel(World, *(FString(RideMap) + TEXT("?play")), TRAVEL_Absolute);
 }

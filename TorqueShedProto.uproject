@@ -23,6 +23,7 @@
 		{ "Name": "HairStrands", "Enabled": true, "Optional": true },
 		{ "Name": "ChaosClothAsset", "Enabled": true, "Optional": true },
 		{ "Name": "ChaosOutfitAsset", "Enabled": true, "Optional": true },
+		{ "Name": "ProceduralMeshComponent", "Enabled": true },
 		{ "Name": "AndroidFileServer", "Enabled": false }
 	]
 }

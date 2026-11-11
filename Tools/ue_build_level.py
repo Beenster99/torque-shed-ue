@@ -2833,6 +2833,89 @@ def is_detail(name):
     return name.startswith("detail_") or name.startswith("far_")   # far_: walls and buildings beyond the near land
 
 
+def sky_and_camera(reuse_cloud_shadow=False):
+    """The sun, sky, air, clouds and the camera's grade, as every outdoor level has them (the ride on
+    Buttertubs, and Tools/ue_build_rideuk.py's level for the real world's roads)."""
+    # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
+    # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting
+    # clips above EV100 12; Lumen bouncing it off the hills, clouds that cast shadows, and the valley's haze.
+    sun = spawn(unreal.DirectionalLight, (0, 0, 50000), (0, -32, -45))   # shining towards the north west
+    sc = sun.get_component_by_class(unreal.DirectionalLightComponent)
+    sc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    for k, v in (("atmosphere_sun_light", True), ("intensity", 4700.0), ("light_source_angle", 0.53),
+                 ("cast_cloud_shadows", True), ("cast_shadows_on_clouds", True), ("cast_shadows_on_atmosphere", True),
+                 ("light_color", unreal.Color(255, 247, 235, 255))):
+        try_set(sc, k, v)
+    # (another level's script borrows the ride's cloud shadows as they are: making them afresh would
+    # delete the material this level's sun points at)
+    cs = unreal.load_asset(MAT_DIR + "/M_CloudShadow") if reuse_cloud_shadow else cloud_shadow_material()
+    if cs is not None:
+        ok = try_set(sc, "light_function_material", cs)
+        log("cloud shadows: light function %s" % ("set" if ok else "NOT set"))
+        try_set(sc, "light_function_fade_distance", 3000000.0)   # 30 km: the far fells get them too
+        try_set(sc, "disabled_brightness", 1.0)
+    # The planet's surface goes under the lowest land (the valley floors are 300 m below the start):
+    # by default it sits at the level's origin, and land below it got a broken, banded aerial
+    # perspective that read as a flat blue sea.
+    atm = spawn(unreal.SkyAtmosphere, (0, 0, -80000))
+    ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
+    mode = getattr(unreal, "SkyAtmosphereTransformMode", None)
+    if mode is not None:
+        try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
+    # British air: more haze than the default, so far fells go blue-grey.
+    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 0.6),   # sic: the engine spells it so,
+                 ("height_fog_contribution", 1.0)):
+        try_set(ac, k, v)
+    sky = spawn(unreal.SkyLight, (0, 0, 20000))
+    skc = sky.get_component_by_class(unreal.SkyLightComponent)
+    skc.set_editor_property("real_time_capture", True)
+    skc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    try_set(skc, "intensity", 1.0)
+    fog = spawn(unreal.ExponentialHeightFog, (0, 0, -40000))   # a thin haze, not a layer lying in the valley
+    fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
+    for k, v in (("fog_density", 0.0018), ("fog_height_falloff", 0.15), ("enable_volumetric_fog", True),
+                 ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
+                 ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
+                 ("fog_inscattering_luminance", unreal.LinearColor(0.45, 0.46, 0.47, 1.0))):
+        try_set(fc, k, v)
+    try:
+        cloud = spawn(unreal.VolumetricCloud)
+        cc = cloud.get_component_by_class(unreal.VolumetricCloudComponent)
+        for k, v in (("layer_bottom_altitude", 1.4), ("layer_height", 5.0), ("tracing_max_distance", 60.0),
+                     ("shadow_tracing_distance", 12.0)):
+            try_set(cc, k, v)
+    except Exception as e:
+        unreal.log_warning("[Torque] no volumetric cloud: %s" % e)
+    ppv = spawn(unreal.PostProcessVolume)
+    ppv.set_editor_property("unbound", True)
+    pp = ppv.get_editor_property("settings")
+    # A camera exposed for a bright day (EV100 13 to 15 in real terms, four stops lower here), a filmic grade
+    # nudged towards the cool, slightly muted greens of the Dales, and gentle lens touches.
+    def enum(path):
+        try:
+            v = unreal
+            for part in path.split("."):
+                v = getattr(v, part)
+            return v
+        except AttributeError:
+            unreal.log_warning("[Torque] no " + path)
+            return None
+    for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
+                 ("auto_exposure_min_brightness", 8.5), ("auto_exposure_max_brightness", 11.5),
+                 ("auto_exposure_bias", 0.9), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
+                 ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.7),
+                 ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
+                 ("motion_blur_amount", 0.12), ("motion_blur_max", 1.0),
+                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.12, 1.12, 1.12, 1.0)),
+                 ("color_contrast", unreal.Vector4(1.04, 1.04, 1.04, 1.0)), ("film_toe", 0.45),
+                 ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
+                 ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
+                 ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
+        if v is not None and try_set(pp, k, v):
+            try_set(pp, "override_" + k, True)
+    ppv.set_editor_property("settings", pp)
+
+
 def build():
     folder = data_dir()
     route = json.load(open(os.path.join(folder, "route.json")))
@@ -2906,82 +2989,7 @@ def build():
     place_far_rock((yaw, mirror, scale), land, stone)
     place_becks((yaw, mirror, scale), stone, prop_mats.get("masonry"))
 
-    # Sun, sky and air: a mid-afternoon Dales sun from the south west, at a sixteenth of its real
-    # 75,000 lux (and the camera exposed four stops brighter to match) because Lumen's cached lighting
-    # clips above EV100 12; Lumen bouncing it off the hills, clouds that cast shadows, and the valley's haze.
-    sun = spawn(unreal.DirectionalLight, (0, 0, 50000), (0, -32, -45))   # shining towards the north west
-    sc = sun.get_component_by_class(unreal.DirectionalLightComponent)
-    sc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
-    for k, v in (("atmosphere_sun_light", True), ("intensity", 4700.0), ("light_source_angle", 0.53),
-                 ("cast_cloud_shadows", True), ("cast_shadows_on_clouds", True), ("cast_shadows_on_atmosphere", True),
-                 ("light_color", unreal.Color(255, 247, 235, 255))):
-        try_set(sc, k, v)
-    cs = cloud_shadow_material()
-    if cs is not None:
-        ok = try_set(sc, "light_function_material", cs)
-        log("cloud shadows: light function %s" % ("set" if ok else "NOT set"))
-        try_set(sc, "light_function_fade_distance", 3000000.0)   # 30 km: the far fells get them too
-        try_set(sc, "disabled_brightness", 1.0)
-    # The planet's surface goes under the lowest land (the valley floors are 300 m below the start):
-    # by default it sits at the level's origin, and land below it got a broken, banded aerial
-    # perspective that read as a flat blue sea.
-    atm = spawn(unreal.SkyAtmosphere, (0, 0, -80000))
-    ac = atm.get_component_by_class(unreal.SkyAtmosphereComponent)
-    mode = getattr(unreal, "SkyAtmosphereTransformMode", None)
-    if mode is not None:
-        try_set(ac, "transform_mode", getattr(mode, "PLANET_TOP_AT_COMPONENT_TRANSFORM", None) or mode.PLANET_TOP_AT_COMPONENT_TRANSFORM)
-    # British air: more haze than the default, so far fells go blue-grey.
-    for k, v in (("mie_scattering_scale", 0.004), ("rayleigh_scattering_scale", 0.045), ("aerial_pespective_view_distance_scale", 0.6),   # sic: the engine spells it so,
-                 ("height_fog_contribution", 1.0)):
-        try_set(ac, k, v)
-    sky = spawn(unreal.SkyLight, (0, 0, 20000))
-    skc = sky.get_component_by_class(unreal.SkyLightComponent)
-    skc.set_editor_property("real_time_capture", True)
-    skc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
-    try_set(skc, "intensity", 1.0)
-    fog = spawn(unreal.ExponentialHeightFog, (0, 0, -40000))   # a thin haze, not a layer lying in the valley
-    fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
-    for k, v in (("fog_density", 0.0018), ("fog_height_falloff", 0.15), ("enable_volumetric_fog", True),
-                 ("volumetric_fog_scattering_distribution", 0.7), ("volumetric_fog_extinction_scale", 0.6),
-                 ("volumetric_fog_distance", 8000.0), ("start_distance", 1500.0),
-                 ("fog_inscattering_luminance", unreal.LinearColor(0.45, 0.46, 0.47, 1.0))):
-        try_set(fc, k, v)
-    try:
-        cloud = spawn(unreal.VolumetricCloud)
-        cc = cloud.get_component_by_class(unreal.VolumetricCloudComponent)
-        for k, v in (("layer_bottom_altitude", 1.4), ("layer_height", 5.0), ("tracing_max_distance", 60.0),
-                     ("shadow_tracing_distance", 12.0)):
-            try_set(cc, k, v)
-    except Exception as e:
-        unreal.log_warning("[Torque] no volumetric cloud: %s" % e)
-    ppv = spawn(unreal.PostProcessVolume)
-    ppv.set_editor_property("unbound", True)
-    pp = ppv.get_editor_property("settings")
-    # A camera exposed for a bright day (EV100 13 to 15 in real terms, four stops lower here), a filmic grade
-    # nudged towards the cool, slightly muted greens of the Dales, and gentle lens touches.
-    def enum(path):
-        try:
-            v = unreal
-            for part in path.split("."):
-                v = getattr(v, part)
-            return v
-        except AttributeError:
-            unreal.log_warning("[Torque] no " + path)
-            return None
-    for k, v in (("auto_exposure_method", enum("AutoExposureMethod.AEM_HISTOGRAM")),
-                 ("auto_exposure_min_brightness", 8.5), ("auto_exposure_max_brightness", 11.5),
-                 ("auto_exposure_bias", 0.9), ("auto_exposure_speed_up", 2.0), ("auto_exposure_speed_down", 1.5),
-                 ("local_exposure_highlight_contrast_scale", 0.75), ("local_exposure_shadow_contrast_scale", 0.7),
-                 ("bloom_intensity", 0.35), ("vignette_intensity", 0.3), ("film_grain_intensity", 0.08),
-                 ("motion_blur_amount", 0.12), ("motion_blur_max", 1.0),
-                 ("white_temp", 6300.0), ("color_saturation", unreal.Vector4(1.12, 1.12, 1.12, 1.0)),
-                 ("color_contrast", unreal.Vector4(1.04, 1.04, 1.04, 1.0)), ("film_toe", 0.45),
-                 ("lumen_final_gather_quality", 2.0), ("lumen_scene_lighting_quality", 2.0),
-                 ("lumen_scene_detail", 2.0), ("lumen_reflection_quality", 2.0),
-                 ("lumen_ray_lighting_mode", enum("LumenRayLightingModeOverride.HIT_LIGHTING_FOR_REFLECTIONS"))):
-        if v is not None and try_set(pp, k, v):
-            try_set(pp, "override_" + k, True)
-    ppv.set_editor_property("settings", pp)
+    sky_and_camera()
 
     place_foliage((yaw, mirror, scale))
     place_trees((yaw, mirror, scale), tex, roles)

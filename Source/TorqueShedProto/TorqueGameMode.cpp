@@ -8,8 +8,11 @@
 #include "Coop/TorqueSession.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueWalker.h"
+#include "World/TorqueRideWorld.h"
+#include "World/TorqueWorldSubsystem.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerController.h"
@@ -27,6 +30,20 @@ ATorqueGameMode::ATorqueGameMode()
 	PlayerStateClass = ATorquePlayerState::StaticClass();             // colour, activity, bay
 	// Co-op: the host moving between the shed and the road takes everyone with them, still connected.
 	bUseSeamlessTravel = true;
+}
+
+void ATorqueGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+	UWorld* World = GetWorld();
+	if (!World || !World->GetMapName().Contains(TEXT("RideUK"))) return;
+	UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+	if (!Real || !Real->Ride())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: the level was opened with no ride planned (start one with -TorqueRideUK=hawes or from the menu)"));
+		return;
+	}
+	if (ATorqueRideWorld* Ground = World->SpawnActor<ATorqueRideWorld>()) Ground->Begin(Real->Ride());
 }
 
 void ATorqueGameMode::BeginPlay()
@@ -48,6 +65,9 @@ void ATorqueGameMode::BeginPlay()
 		if (FParse::Param(Cmd, TEXT("TorqueAutoRide")) || FParse::Param(Cmd, TEXT("TorqueRide")) ||
 			FParse::Value(Cmd, TEXT("TorqueStartKm="), Ignored) || FParse::Value(Cmd, TEXT("TorqueCamera="), IgnoredInt))
 		{
+			// (-TorqueRideUK= rides the real world: the world subsystem opens its level once the ride is planned)
+			FString RideUk;
+			if (FParse::Value(Cmd, TEXT("TorqueRideUK="), RideUk, false)) return;
 			UE_LOG(LogTemp, Log, TEXT("Torque: a ride test: to %s"), UTorqueSession::RideMap);
 			GEngine->SetClientTravel(GetWorld(), *(FString(UTorqueSession::RideMap) + TEXT("?play")), TRAVEL_Absolute);
 			return;

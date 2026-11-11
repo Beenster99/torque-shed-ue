@@ -48,6 +48,7 @@ public:
 
 	bool Ok = false;
 	std::string Why;
+	std::string Title;                  // what the ride is called on the screen ("" for the roads' own names)
 	LoadedArea Area;
 	std::shared_ptr<Terrain> Land;      // the ride's own view of the ground
 	std::vector<RoadPoint> Road;        // every 4 m or closer

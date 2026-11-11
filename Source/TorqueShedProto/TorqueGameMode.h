@@ -12,6 +12,9 @@ class ATorqueGameMode : public AGameModeBase
 	GENERATED_BODY()
 public:
 	ATorqueGameMode();
+	// In the real world's level (/Game/Maps/RideUK) the ground and road are laid out round the ride's
+	// start before anyone is put down on it (World/TorqueRideWorld).
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void BeginPlay() override;
 	// The start menu when the game is launched plainly; in the shed (the shed map, or an
 	// ATorqueShedBike in the level) on foot; on the road, the bike.

@@ -8,6 +8,8 @@
 #include "TorqueKeys.h"
 #include "TorqueGameState.h"
 #include "TorqueUi.h"
+#include "World/TorqueWorldSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/LightComponent.h"
 #include "Engine/DirectionalLight.h"
@@ -486,6 +488,19 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			{
 				Add(TEXT("Set off on Buttertubs"), FString(), TEXT("The host chooses when everyone sets off"), nullptr);
 				R.Last().bDisabled = true;
+			}
+			// The real world's roads (Ride UK), alone for now: bare ground and road, planned and fetched
+			// when chosen, which takes a few seconds the first time.
+			UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+			if (Real && !bClient && !bHost)
+			{
+				const FString RealNote = Real->RideNote();
+				Add(TEXT("Ride UK: Hawes to Leyburn"), FString(),
+					RealNote.IsEmpty() ? FString(TEXT("A first look at the real world: 26 km of bare road and hills down Wensleydale")) : RealNote, [this, Real]() {
+						CloseMenu();
+						Real->StartRide(TEXT("hawes"));
+					});
+				if (Real->IsPlanningRide()) R.Last().bDisabled = true;
 			}
 		}
 		if (Bike && !Bike->InYard())

@@ -194,6 +194,7 @@ public:
 	// The route written by Tools/export_buttertubs.py, relative to the project folder.
 	UPROPERTY(EditAnywhere, Category = "Ride")
 	FString RouteFile = TEXT("Data/Buttertubs/route.json");
+	FString RouteName = TEXT("Buttertubs");   // on the ride's line of the HUD
 
 	UPROPERTY(VisibleAnywhere, Category = "Bike") USceneComponent* Root;
 	UPROPERTY(VisibleAnywhere, Category = "Bike") UStaticMeshComponent* Body;

@@ -301,9 +301,9 @@ std::string RidePlan::RouteJson() const
 	Json J = Json::MakeObject();
 	const auto Set = [&J](const char* Key, Json V) { J.O.emplace_back(Key, std::move(V)); };
 	const auto Triple = [](double A, double B, double C) { Json T = Json::MakeArray(); T.A.push_back(Json::MakeNumber(A)); T.A.push_back(Json::MakeNumber(B)); T.A.push_back(Json::MakeNumber(C)); return T; };
-	std::string Title = "Ride UK";
-	if (!Names.empty()) Title += ": " + Names.front() + " to " + Names.back();
-	Set("name", Json::MakeString(Title));
+	std::string Called = Title;
+	if (Called.empty()) Called = Names.empty() ? std::string("Ride UK") : "Ride UK: " + Names.front() + " to " + Names.back();
+	Set("name", Json::MakeString(Called));
 	Set("length_m", Json::MakeNumber(Length));
 	Set("road_half_width_m", Json::MakeNumber(HalfWidth));
 	Json Geo = Json::MakeArray();
