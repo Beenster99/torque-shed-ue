@@ -25,7 +25,6 @@
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/SkinnedMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/StaticMeshComponent.h"
@@ -2646,12 +2645,14 @@ void ATorqueBikePawn::GhostRestore()
 		if (!IsValid(C) || !GhostMatStart.IsValidIndex(I)) continue;
 		const int32 From = GhostMatStart[I];
 		const int32 To = GhostMatStart.IsValidIndex(I + 1) ? GhostMatStart[I + 1] : GhostSavedMats.Num();
-		for (int32 Slot = 0; Slot < To - From; ++Slot) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
+		// Only slots still wearing the wire: one the game changed meanwhile (the avatar dressing) keeps that.
+		UMaterialInterface* const Wire = GhostMid ? (UMaterialInterface*)GhostMid : (UMaterialInterface*)GhostFillMid;
+		for (int32 Slot = 0; Slot < To - From; ++Slot)
+			if (C->GetMaterial(Slot) == Wire) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
 		const int32 LodWas = GhostLodWas.IsValidIndex(I) ? GhostLodWas[I] : -1;
 		if (LodWas >= 0)
 		{
 			if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C)) SMC->SetForcedLodModel(LodWas);
-			else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C)) SK->SetForcedLOD(LodWas);
 		}
 	}
 	GhostLodWas.Reset();
@@ -2684,7 +2685,11 @@ void ATorqueBikePawn::UpdateGhostLook()
 				if (N.IsValid()) N->SetForceDisableNanite(false);
 			GhostNaniteOff.Reset();
 			GhostMode = 0;
-			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off: solid again"));
+			int32 StillWire = 0;
+			for (UMeshComponent* C : Meshes)
+				for (int32 Slot = 0; C && Slot < C->GetNumMaterials(); ++Slot)
+					if (C->GetMaterial(Slot) && (C->GetMaterial(Slot) == GhostMid || C->GetMaterial(Slot) == GhostFillMid)) ++StillWire;
+			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off: solid again (%d slots still on a ghost material)"), StillWire);
 		}
 		return;
 	}
@@ -2754,16 +2759,13 @@ void ATorqueBikePawn::UpdateGhostLook()
 				for (int32 Slot = 0; Slot < Slots; ++Slot) C->SetMaterial(Slot, WireMat);
 				// Its coarsest LOD while it's a wire: the full-detail polygons are so close together
 				// they fill in to a solid shape (build 135); the coarse ones read as a mesh.
+				// Only the bike's static meshes: the rider's skinned meshes keep their LOD (forcing the
+				// coarsest one on them lost the finger and wrist bones the levers and throttle drive).
 				int32 LodWas = -1;
 				if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C))
 				{
 					LodWas = SMC->ForcedLodModel;
 					if (SMC->GetStaticMesh()) SMC->SetForcedLodModel(SMC->GetStaticMesh()->GetNumLODs());
-				}
-				else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C))
-				{
-					LodWas = SK->GetForcedLOD();
-					SK->SetForcedLOD(SK->GetNumLODs());
 				}
 				GhostLodWas.Add(LodWas);
 				++Wired;
