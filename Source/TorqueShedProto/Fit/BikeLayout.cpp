@@ -751,7 +751,11 @@ Layout BikeLayout::Solve(const PartsMap& Parts, const LayoutAdjust& InAdjust) co
 		const bool Beside = FootFront < CaseBack && FootBack > Crank.z - 0.17 * S && Peg.y < Crank.y + 0.1 * S;
 		if (Beside) Peg.x = std::max(Peg.x, Hp.CaseHalfW + 0.06);
 	}
-	const V3 Grip(0.31, SeatY + Item(GripMm, 1, 260.0) / 1000.0, Hip.z - Item(GripMm, 0, 550.0) / 1000.0);
+	// [rider pose] The bars on risers with pullback, where the style's line asks ("bar_move_mm").
+	const Json* BarMoveMm = Sub(T5, "bar_move_mm");
+	R.BarBackM = Item(BarMoveMm, 0, 0.0) / 1000.0;
+	R.BarUpM = Item(BarMoveMm, 1, 0.0) / 1000.0;
+	const V3 Grip(0.31, SeatY + Item(GripMm, 1, 260.0) / 1000.0 + R.BarUpM, Hip.z - Item(GripMm, 0, 550.0) / 1000.0 + R.BarBackM);
 	// [rider pose] The tank's knee (its knee recesses and pads) where Torque Shed has it, from its own
 	// hip and pegs: the port's riders sit further back with their feet forward (beenster's marked
 	// poses), but the tanks were drawn round Torque Shed's knee.

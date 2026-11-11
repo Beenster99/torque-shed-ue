@@ -1285,7 +1285,11 @@
      "tol_mm": 50,
      "hip_back_mm": 123,
      "peg_by_case": 1,
-     "back_deg": 5
+     "back_deg": 5,
+     "bar_move_mm": [
+      100,
+      40
+     ]
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1352,7 +1356,11 @@
      "tol_mm": 50,
      "hip_back_mm": 55,
      "peg_by_case": 1,
-     "back_deg": 23
+     "back_deg": 23,
+     "bar_move_mm": [
+      20,
+      40
+     ]
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,
@@ -1419,7 +1427,11 @@
      "tol_mm": 50,
      "hip_back_mm": 28,
      "peg_by_case": 1,
-     "back_deg": 0
+     "back_deg": 0,
+     "bar_move_mm": [
+      200,
+      80
+     ]
     },
     "6_drive": {
      "countershaft_ahead_mm": 90,
@@ -1486,7 +1498,11 @@
      "tol_mm": 50,
      "hip_back_mm": 61,
      "peg_by_case": 1,
-     "back_deg": 1
+     "back_deg": 1,
+     "bar_move_mm": [
+      160,
+      0
+     ]
     },
     "6_drive": {
      "countershaft_ahead_mm": 90,
@@ -1553,7 +1569,11 @@
      ],
      "hip_back_mm": 46,
      "peg_by_case": 1,
-     "back_deg": 0
+     "back_deg": 0,
+     "bar_move_mm": [
+      260,
+      120
+     ]
     },
     "6_drive": {
      "countershaft_ahead_mm": 80,
@@ -1821,7 +1841,11 @@
      "tol_mm": 50,
      "hip_back_mm": 81,
      "peg_by_case": 1,
-     "back_deg": 10
+     "back_deg": 10,
+     "bar_move_mm": [
+      80,
+      60
+     ]
     },
     "6_drive": {
      "countershaft_ahead_mm": 70,

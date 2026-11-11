@@ -116,7 +116,7 @@ int main(int argc, char** argv)
 					if (Json* Rider = Member.second.GetMutable("lines") ? Member.second.GetMutable("lines")->GetMutable("5_rider") : nullptr)
 					{
 						if (const Json* Gp = Rider->Get("godot_peg_mm")) Rider->Set("peg_mm", Json(*Gp));
-						for (const char* Own : {"hip_back_mm", "peg_by_case"})
+						for (const char* Own : {"hip_back_mm", "peg_by_case", "bar_move_mm"})
 							if (Rider->Get(Own))
 							{
 								Json Zero;

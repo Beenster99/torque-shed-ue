@@ -108,6 +108,9 @@ struct Layout
 	FrameRig Frig;   // the frame's proportions ("frame_rig")
 	V3 KneeL, KneeR, SeatFront, Hip, Tail, Peg, GripR, StayHead, ScreenBase;
 	double TailTop = 0.0, RailHalfW = 0.075, BellyY = 0.0, RadiatorX = 0.0;
+	// [rider pose] The bars moved back toward the rider and up ("bar_move_mm" [back, up], beenster's
+	// marked upright backs), metres: they sit on risers with that pullback.
+	double BarBackM = 0.0, BarUpM = 0.0;
 	bool SeatOverlap = false, HasRadiator = false;
 	V3 SparFrom, SparTo;
 	V3 EngineMin, EngineMax;   // the engine's box
