@@ -59,6 +59,9 @@ public:
 	FString RideNote() const;
 	// The ride planned last (null before any): the game mode hands it to ATorqueRideWorld.
 	std::shared_ptr<TorqueWorld::RidePlan> Ride() const { return Plan; }
+	// Who made the world's data, a credit a line as its licence asks: the last ride's own (from its
+	// cells), or before any ride those of the UK's cells.
+	TArray<FString> Credits() const;
 	// Its route, as the bike reads one (an absolute path).
 	static FString RideRouteFile();
 

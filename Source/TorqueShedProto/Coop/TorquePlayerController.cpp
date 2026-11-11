@@ -470,6 +470,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::Profile) return TEXT("PROFILE");   // [profile]
 	if (Page == EPage::Keys) return TEXT("KEY BINDINGS");
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
+	if (Page == EPage::Credits) return TEXT("MAP DATA");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
@@ -610,12 +611,27 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					TorqueFlow::BackToShed(this);
 				});
 		}
+		// The makers of the real world's data (Ride UK), as their licences ask.
+		Add(TEXT("Map data credits"), FString(), TEXT("Where the real world's hills, roads and land cover come from"), [this]() { Open(EPage::Credits); });
 		Add(TEXT("Leave and return to title"), FString(),
 			bHost ? TEXT("Ends the co-op shed: everyone who joined goes back to their title") : FString(), [this, Session]() {
 				CloseMenu();
 				if (Session) Session->BackToTitle();
 			});
 		Add(TEXT("Exit game"), FString(), FString(), [this]() { ConsoleCommand(TEXT("quit")); });
+		break;
+	}
+	case EPage::Credits:
+	{
+		// One maker a row, named by what it gave; the whole credit is said beside the row chosen.
+		const UTorqueWorldSubsystem* Maps = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+		const TArray<FString> Credited = Maps ? Maps->Credits() : TArray<FString>();
+		for (const FString& Credit : Credited)
+		{
+			FString Source, Tail;
+			if (!Credit.Split(TEXT(":"), &Source, &Tail)) Source = TEXT("Map data");
+			Add(Source, FString(), Credit, []() {});
+		}
 		break;
 	}
 	case EPage::RideBike:

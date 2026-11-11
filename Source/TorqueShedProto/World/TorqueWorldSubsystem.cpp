@@ -186,6 +186,20 @@ FString UTorqueWorldSubsystem::RideNote() const
 	return Note;
 }
 
+TArray<FString> UTorqueWorldSubsystem::Credits() const
+{
+	TArray<FString> Out;
+	if (Plan)
+		for (const std::string& Credit : Plan->Area.Roads.Credits) Out.Add(FString(UTF8_TO_TCHAR(Credit.c_str())));
+	if (Out.Num() > 0) return Out;
+	// (as the UK's cells give them)
+	Out.Add(TEXT("Elevation: Mapterhorn (mapterhorn.com), built from national and global terrain models; sources and licences are listed at https://download.mapterhorn.com/attribution.json."));
+	Out.Add(TEXT("Roads, buildings, land cover and places: (c) OpenStreetMap contributors and others, Overture Maps Foundation (ODbL)."));
+	Out.Add(TEXT("Place: Natural Earth; K\u00f6ppen-Geiger zones, Beck, H.E. et al. (2023) (CC BY 4.0); land cover and ground colour, \u00a9 ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium (CC BY 4.0); climate, CRU TS 4.09, University of East Anglia and Met Office (Open Government Licence)."));
+	Out.Add(TEXT("Tree heights: Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0)."));
+	return Out;
+}
+
 bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
 {
 	if (bPlanning || !Shared) return false;
