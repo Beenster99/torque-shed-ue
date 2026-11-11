@@ -2116,16 +2116,24 @@ FTransform ATorqueWalker::CarryDrop() const
 			const FVector S = TorqueShedLayout::DeliverySize(Under.Kind);
 			const FVector Local = Under.Place.InverseTransformPosition(FVector(At.X, At.Y, Under.Place.GetLocation().Z));
 			if (FMath::Abs(Local.X) > S.X * 0.5 || FMath::Abs(Local.Y) > S.Y * 0.5) continue;
-			const double TopZ = Under.Place.GetLocation().Z + S.Z;
+			// Near its middle: squared up on it, the way you'd stack them.
+			const bool bSquare = FMath::Abs(Local.X) < S.X * 0.3 && FMath::Abs(Local.Y) < S.Y * 0.3;
+			const double UnderYaw = Under.Place.Rotator().Yaw;
+			const double SquareYaw = UnderYaw + 90.0 * FMath::RoundToDouble(FRotator::NormalizeAxis(DropYaw - UnderYaw) / 90.0);
+			// On a crate's lid boards, or on the battens across its ends when it reaches them.
+			const bool bAcross = bSquare && FMath::Abs(FRotator::NormalizeAxis(SquareYaw - UnderYaw)) > 45.0
+				&& FMath::Abs(FRotator::NormalizeAxis(SquareYaw - UnderYaw)) < 135.0;
+			const FVector2D OnHalf = bSquare ? FVector2D(bAcross ? Mine.Y : Mine.X, bAcross ? Mine.X : Mine.Y) * 0.5
+				: FVector2D(FMath::Max(Mine.X, Mine.Y) * 0.5);
+			const double TopZ = Under.Place.GetLocation().Z
+				+ TorqueShedDelivery::TopAt(Under.Kind, S, bSquare ? FVector2D::ZeroVector : FVector2D(Local.X, Local.Y), OnHalf);
 			if (TopZ <= Best || TopZ + Mine.Z > TorqueShedLayout::DeliveryPileTop + 5.0) continue;
 			Best = TopZ;
-			// Near its middle: squared up on it, the way you'd stack them.
-			if (FMath::Abs(Local.X) < S.X * 0.3 && FMath::Abs(Local.Y) < S.Y * 0.3)
+			if (bSquare)
 			{
 				At.X = Under.Place.GetLocation().X;
 				At.Y = Under.Place.GetLocation().Y;
-				const double UnderYaw = Under.Place.Rotator().Yaw;
-				DropYaw = UnderYaw + 90.0 * FMath::RoundToDouble(FRotator::NormalizeAxis(DropYaw - UnderYaw) / 90.0);
+				DropYaw = SquareYaw;
 			}
 		}
 		At.Z = Best;
@@ -2261,7 +2269,7 @@ void ATorqueWalker::UpdateCues()
 		}
 	}
 	if (XRay && GhostXRayMaterials.Num() == 0)
-		for (const FLinearColor& C : {FLinearColor(1.0f, 0.45f, 0.08f), FLinearColor(1.0f, 0.15f, 0.1f)})
+		for (const FLinearColor& C : {FLinearColor(1.0f, 0.82f, 0.05f), FLinearColor(1.0f, 0.15f, 0.1f)})
 		{
 			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(XRay, this);
 			M->SetVectorParameterValue(TEXT("Color"), C * 2.0f);
@@ -2298,11 +2306,12 @@ void ATorqueWalker::UpdateCues()
 	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
 	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
 	const bool bOk = Plan.Blocked.IsEmpty();
-	// Orange where it can go (Torque Shed's highlight orange), red where it can't; steady, no pulse.
+	// Yellow where it can go (beenster, build 135: yellow, so it isn't the look outline's orange), red
+	// where it can't; steady, no pulse.
 	if (GhostMaterials.Num() >= 4)
 	{
 		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
-		const FLinearColor Can(1.0f, 0.45f, 0.08f), Cannot(1.0f, 0.15f, 0.1f);
+		const FLinearColor Can(1.0f, 0.82f, 0.05f), Cannot(1.0f, 0.15f, 0.1f);
 		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), Can * 3.0f);
 		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
 		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), Can * 6.0f);

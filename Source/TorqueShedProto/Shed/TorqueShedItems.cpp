@@ -120,10 +120,11 @@ UStaticMeshComponent* Prop(AActor* Owner, USceneComponent* Parent, UStaticMesh* 
 
 // The delivery for It, Size across (cm, x long, y wide, z high), its floor in the middle of Parent.
 // False (nothing made) while the box models aren't in the project.
-bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It, const FVector& Size, TArray<UStaticMeshComponent*>& Made)
+// Which box or crate a delivery of Kind, Size across comes in, and whether it's a crate.
+const FBoxVariant* VariantFor(FName Kind, const FVector& Size, bool& bCrate)
 {
-	bool bCrate = Size.GetMax() > CrateOverCm;
-	for (const TCHAR* K : CrateKinds) bCrate = bCrate || It.Kind == FName(K);
+	bCrate = Size.GetMax() > CrateOverCm;
+	for (const TCHAR* K : CrateKinds) bCrate = bCrate || Kind == FName(K);
 	const FBoxVariant* Best = nullptr;
 	double BestGap = 1e30;
 	for (const FBoxVariant& V : bCrate ? MakeArrayView(Crates) : MakeArrayView(CardboardBoxes))
@@ -131,6 +132,13 @@ bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It,
 		const double Gap = ShapeGap(Size, V.Size);
 		if (Gap < BestGap) { BestGap = Gap; Best = &V; }
 	}
+	return Best;
+}
+
+bool MakeDelivery(AActor* Owner, USceneComponent* Parent, const FTorqueItem& It, const FVector& Size, TArray<UStaticMeshComponent*>& Made)
+{
+	bool bCrate = false;
+	const FBoxVariant* Best = VariantFor(It.Kind, Size, bCrate);
 	UStaticMesh* BoxMesh = Best ? PropMesh(Best->Id) : nullptr;
 	if (!BoxMesh) return false;
 	// Scaled to the part's box by the model's own size (its origin's its floor centre, its front +y).
@@ -233,6 +241,22 @@ void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColo
 } // namespace TorqueShedItemsImpl
 
 namespace TSI = TorqueShedItemsImpl;
+
+double TorqueShedDelivery::TopAt(FName Kind, const FVector& Size, const FVector2D& Local, const FVector2D& Half)
+{
+	bool bCrate = false;
+	const TSI::FBoxVariant* V = TSI::VariantFor(Kind, Size, bCrate);
+	if (!V || !bCrate) return Size.Z;
+	// make_props.py _crate: two battens across the lid's ends (7 cm wide) stand 2.2 cm proud of its
+	// boards, and the crate's scaled to Size by its bounding box, which takes them in (and the side
+	// battens, 2.2 cm out at each end). Between them, something sits on the boards (beenster, build
+	// 135: a small box on a crate hovered on the battens' height).
+	constexpr double Bt = 2.2, Bw = 7.0;
+	const double Sx = Size.X / (V->Size.X + 2.0 * Bt);
+	const double Sz = Size.Z / (V->Size.Z + Bt);
+	const double Inner = (V->Size.X * 0.5 - Bw) * Sx;
+	return FMath::Abs(Local.X) + Half.X > Inner ? Size.Z : V->Size.Z * Sz;
+}
 
 ATorqueShedItems::ATorqueShedItems()
 {
