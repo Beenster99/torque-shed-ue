@@ -4,6 +4,7 @@
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture.h"
 #include "UObject/UnrealType.h"
@@ -210,6 +211,70 @@ FString DescribeByName(UObject* O, std::initializer_list<const TCHAR*> Words)
 	return FString::Join(Out, TEXT(", "));
 }
 
+// The rider kit's material for a garment (Data/Bike/SpeedTwin/ue_assets.json rider_rig.materials:
+// jacket, jeans, boots, gloves), by words in its mesh or slot name.
+UMaterialInterface* KitMaterialFor(const FString& Words)
+{
+	static TMap<FString, FString> Paths;
+	static bool bRead = false;
+	if (!bRead)
+	{
+		bRead = true;
+		FString Text;
+		TSharedPtr<FJsonObject> Root;
+		const TSharedPtr<FJsonObject>* Rig = nullptr;
+		const TSharedPtr<FJsonObject>* Mats = nullptr;
+		if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Bike/SpeedTwin/ue_assets.json")))
+			&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) && Root.IsValid()
+			&& Root->TryGetObjectField(TEXT("rider_rig"), Rig) && (*Rig)->TryGetObjectField(TEXT("materials"), Mats))
+			for (const auto& KV : (*Mats)->Values) Paths.Add(KV.Key, KV.Value->AsString());
+	}
+	const FString W = Words.ToLower();
+	const TCHAR* Key = TEXT("jacket");
+	for (const TCHAR* Foot : {TEXT("shoe"), TEXT("boot"), TEXT("trainer"), TEXT("sneaker"), TEXT("foot"), TEXT("feet")})
+		if (W.Contains(Foot)) Key = TEXT("boots");
+	if (FCString::Strcmp(Key, TEXT("jacket")) == 0)
+		for (const TCHAR* Leg : {TEXT("pant"), TEXT("jean"), TEXT("trouser"), TEXT("short"), TEXT("leg"), TEXT("bottom"), TEXT("skirt")})
+			if (W.Contains(Leg)) Key = TEXT("jeans");
+	if (W.Contains(TEXT("glove"))) Key = TEXT("gloves");
+	const FString* Path = Paths.Find(Key);
+	return Path ? LoadObject<UMaterialInterface>(nullptr, **Path) : nullptr;
+}
+
+// Round 137: beenster's avatar's clothes were see-through. Every slot of a garment is logged with its
+// material and blend mode; one that can't draw solid in the game (none, the MetaHuman plugin's,
+// editor-only, an engine default, a parent lost in the cook, or translucent / masked) takes the
+// rider kit's material for that garment instead. -TorqueOwnClothes keeps them all, to compare.
+void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garment)
+{
+	static const bool bKeep = FParse::Param(FCommandLine::Get(), TEXT("TorqueOwnClothes"));
+	UMaterialInterface* const Default = UMaterial::GetDefaultMaterial(MD_Surface);
+	for (int32 Slot = 0; Slot < C->GetNumMaterials(); ++Slot)
+	{
+		UMaterialInterface* M = C->GetMaterial(Slot);
+		const FString Path = M ? M->GetPathName() : FString(TEXT("none"));
+		const UMaterial* Base = M ? M->GetMaterial() : nullptr;
+		const EBlendMode Blend = M ? M->GetBlendMode() : BLEND_Opaque;
+		FString Why;
+		if (!M) Why = TEXT("no material");
+		else if (Path.StartsWith(TEXT("/MetaHuman"))) Why = TEXT("plugin material");
+		else if (Path.StartsWith(TEXT("/Engine/")) || !Base || Base == Default) Why = TEXT("engine default or lost parent");
+		else if (Blend != BLEND_Opaque) Why = FString::Printf(TEXT("blend mode %d"), (int32)Blend);
+		const TArray<FName> SlotNames = C->GetMaterialSlotNames();
+		const FString Words = SlotNames.IsValidIndex(Slot) ? Garment + TEXT(" ") + SlotNames[Slot].ToString() : Garment;
+		UMaterialInterface* Kit = (Why.IsEmpty() || bKeep) ? nullptr : KitMaterialFor(Words);
+		if (Kit)
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Kit, C);
+			MID->SetScalarParameterValue(FName(TEXT("Occlusion")), 0.0f);   // the kit's occlusion is baked in its own mesh's vertex colours
+			C->SetMaterial(Slot, MID);
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s slot %d: %s (base %s, blend %d, two-sided %d)%s"), *Avatar, *Garment, Slot, *Path,
+			Base ? *Base->GetPathName() : TEXT("none"), (int32)Blend, M ? (int32)M->IsTwoSided() : 0,
+			Why.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" -> %s: %s"), *Why, Kit ? *FString::Printf(TEXT("kit %s"), *Kit->GetPathName()) : bKeep ? TEXT("kept (-TorqueOwnClothes)") : TEXT("NO kit material")));
+	}
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -246,6 +311,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
+		if (P.Name.StartsWith(TEXT("Clothes_"))) SolidClothes(C, E.Name, P.Name);
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s %s"), *E.Name, bFace ? TEXT("face") : TEXT("mesh"), *P.Mesh);
 		ByName.Add(P.Name, C);
@@ -350,6 +416,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->RegisterComponent();
 		C->SetLeaderPoseComponent(Driver, true);
 		ApplyMaterials(C, P.Materials);
+		SolidClothes(C, E.Name, P.Name);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: clothes %s (%s)"), *E.Name, *P.Cloth, C->GetSkinnedAsset() ? TEXT("shown") : TEXT("asset not taken"));
 		ByName.Add(P.Name, C);
 		Out.Add(C);
