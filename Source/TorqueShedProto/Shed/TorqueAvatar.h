@@ -63,6 +63,7 @@ struct FTorqueRideTargets
 	bool bSeat = false;
 	double TankRearX = 1.0e9;
 	FVector Wrist[2] = {FVector::ZeroVector, FVector::ZeroVector};
+	FVector WristUnrolled[2] = {FVector::ZeroVector, FVector::ZeroVector};   // [rider pose] the rider rig's wrist without the throttle's roll
 	FVector Grip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector Ankle[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FQuat Look = FQuat::Identity;            // the head's turn, in the parent's space

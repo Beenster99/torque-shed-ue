@@ -3092,6 +3092,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	{
 		T.HandOff[S] = R.HandOff[S];
 		T.Wrist[S] = R.Wrist[S];
+		T.WristUnrolled[S] = R.WristUnrolled[S];
 		T.Grip[S] = R.Grip[S];
 		T.Ankle[S] = R.Ankle[S];
 		T.LeverFingers[S] = R.LeverFingers[S];
