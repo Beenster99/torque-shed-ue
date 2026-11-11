@@ -7,6 +7,7 @@
 #include "Shed/TorqueGeometryMode.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
+#include "Shed/TorqueShedItems.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedSave.h"
@@ -1470,7 +1471,7 @@ bool UTorqueBuildSubsystem::FreeDeliverySpot(const FVector& Size, bool bFarFirst
 {
 	// What's in the area already: every part or box on the floor there and every piece of kit, as
 	// boxes (their turned footprints squared up), and which are boxes a delivery can go on top of.
-	struct FTaken { FBox Box; bool bTop; };
+	struct FTaken { FBox Box; bool bTop; FName Kind; FVector Size; };
 	TArray<FTaken> Taken;
 	const FBox2D Area = TorqueShedLayout::DeliveryArea();
 	const FBox2D Near(Area.Min - FVector2D(150.0), Area.Max + FVector2D(150.0));
@@ -1487,14 +1488,14 @@ bool UTorqueBuildSubsystem::FreeDeliverySpot(const FVector& Size, bool bFarFirst
 		const FTorqueItem& It = KV.Value;
 		if (It.At != ETorqueAt::Floor || !Near.IsInside(FVector2D(It.Place.GetLocation()))) continue;
 		const FVector S = It.bBoxed ? TorqueShedLayout::DeliverySize(It.Kind) : TorqueShedLayout::PartBoxSize(It.Kind);
-		Taken.Add({Footprint(It.Place, S, It.Place.GetLocation().Z), It.bBoxed});
+		Taken.Add({Footprint(It.Place, S, It.Place.GetLocation().Z), It.bBoxed, It.Kind, S});
 	}
 	for (const FTorqueFurniture& F : Furnishings)
 	{
 		const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model);
 		if (!M || F.Mover != 0 || !Near.IsInside(FVector2D(F.Xf.GetLocation()))) continue;
 		// (A model's size is width x, height, depth: its footprint x by depth, and up its height.)
-		Taken.Add({Footprint(F.Xf, FVector(M->Size.X, M->Size.Z, M->Size.Y), F.Xf.GetLocation().Z), false});
+		Taken.Add({Footprint(F.Xf, FVector(M->Size.X, M->Size.Z, M->Size.Y), F.Xf.GetLocation().Z), false, NAME_None, FVector::ZeroVector});
 	}
 	static constexpr double Gap = 8.0, Step = 10.0;
 	auto Clear = [&Taken](const FBox& B)
@@ -1526,12 +1527,14 @@ bool UTorqueBuildSubsystem::FreeDeliverySpot(const FVector& Size, bool bFarFirst
 		const FVector Under = T.Box.GetSize();
 		if (Size.X > Under.X + 10.0 || Size.Y > Under.Y + 10.0 || T.Box.Max.Z + Size.Z > TorqueShedLayout::DeliveryPileTop) continue;
 		const FVector C = T.Box.GetCenter();
-		const FBox B(FVector(C.X - Size.X * 0.5, C.Y - Size.Y * 0.5, T.Box.Max.Z), FVector(C.X + Size.X * 0.5, C.Y + Size.Y * 0.5, T.Box.Max.Z + Size.Z));
+		// On a crate's lid boards, between the battens across its ends (TorqueShedItems.h).
+		const double Z = T.Box.Min.Z + TorqueShedDelivery::TopAt(T.Kind, T.Size, FVector2D::ZeroVector, FVector2D(Size.X, Size.Y) * 0.5);
+		const FBox B(FVector(C.X - Size.X * 0.5, C.Y - Size.Y * 0.5, Z), FVector(C.X + Size.X * 0.5, C.Y + Size.Y * 0.5, Z + Size.Z));
 		bool bFree = true;
 		for (const FTaken& O : Taken)
 			if (&O != &T && O.Box.Intersect(B.ExpandBy(FVector(2.0, 2.0, -0.5)))) { bFree = false; break; }
 		if (!bFree) continue;
-		Out = FVector(C.X, C.Y, T.Box.Max.Z);
+		Out = FVector(C.X, C.Y, Z);
 		return true;
 	}
 	return false;
