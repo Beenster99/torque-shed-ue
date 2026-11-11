@@ -17,6 +17,7 @@ constexpr double SOFTEN = 0.75;          // how much of the effects Riding reali
 struct EngineTemps { double Warm, Hot, LossFrom, LossSpan, Running; };
 constexpr EngineTemps LIQUID{60.0, 108.0, 112.0, 23.0, 85.0};
 constexpr EngineTemps AIRC{70.0, 200.0, 210.0, 50.0, 120.0};
+constexpr double AIR_STILL = 0.3;        // an air-cooled engine's fins' share of their riding cooling with no wind
 constexpr double THERMOSTAT = 78.0, FAN_ON = 102.0, FAN_OFF = 96.0;
 constexpr double OIL_WARM = 60.0;        // °C the oil has to reach for full power
 constexpr double COLD_POWER = 0.9;       // share of the power a stone cold engine makes
@@ -132,7 +133,7 @@ void BikeHeat::EngineStep(double Dt, double V, double Rpm, double Kw, bool Runni
 	if (Running)
 	{
 		const double Spin = std::max(Rpm, 0.0) / std::max(Parts.IdleRpm, 500.0);
-		P = Parts.Head * (1.1 * Disp * std::pow(Spin, 0.6) + (Parts.Liquid ? 350.0 : 120.0) * std::max(Kw, 0.0));
+		P = Parts.Head * (1.1 * Disp * std::pow(Spin, 0.6) + (Parts.Liquid ? 350.0 : 100.0) * std::max(Kw, 0.0));
 	}
 	double Flow = 0.06 + std::min(V / 25.0, 2.6);
 	const double Cap = std::max(Parts.CoolingCapacity, 0.2);
@@ -149,8 +150,11 @@ void BikeHeat::EngineStep(double Dt, double V, double Rpm, double Kw, bool Runni
 	}
 	else
 	{
+		// The fins shed heat standing still too (the air they warm rising off them, and what they
+		// radiate): a ticking-over air-cooled head settles near 100-110 °C rather than baking on to
+		// 300, and ridden it runs 120-140 cruising, near 190 flat out (build 137's cafe read 210).
 		EngineC = 1500.0 + 3.0 * Disp;
-		Ua = Cap * (10.0 + 0.018 * Disp) * Flow + 1.5;
+		Ua = Cap * (10.0 + 0.018 * Disp) * (AIR_STILL + Flow) + 1.5;
 	}
 	Engine += (P - Ua * (Engine - Air)) * Dt / EngineC;
 	const double Target = Air + (Engine - Air) * Parts.OilFollow;
