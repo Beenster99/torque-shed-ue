@@ -874,6 +874,38 @@ def _editor_only_deps(pkg):
     return bad
 
 
+def _make_two_sided(mat, av, why):
+    """A garment's material drawn from both sides: in first person (shed walker, riding) the camera
+    looks at the clothes from inside the collar, where single-sided cloth draws nothing (beenster,
+    build 137: see-through clothes in the shed and on the bike)."""
+    if mat is None:
+        return
+    path = _path(mat)
+    if path.startswith("/MetaHuman"):
+        log("%s: %s: material %s is the plugin's; can't make it two-sided" % (av, why, path))
+        return
+    try:
+        if isinstance(mat, unreal.MaterialInstanceConstant):
+            ov = mat.get_editor_property("base_property_overrides")
+            if ov.get_editor_property("override_two_sided") and ov.get_editor_property("two_sided"):
+                return
+            ov.set_editor_property("override_two_sided", True)
+            ov.set_editor_property("two_sided", True)
+            mat.set_editor_property("base_property_overrides", ov)
+            unreal.MaterialEditingLibrary.update_material_instance(mat)
+        elif isinstance(mat, unreal.Material):
+            if mat.get_editor_property("two_sided"):
+                return
+            mat.set_editor_property("two_sided", True)
+            unreal.MaterialEditingLibrary.recompile_material(mat)
+        else:
+            return
+        unreal.EditorAssetLibrary.save_loaded_asset(mat, only_if_is_dirty=False)
+        log("%s: %s: material %s made two-sided" % (av, why, path))
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: %s: couldn't make %s two-sided: %s" % (av, why, path, e))
+
+
 def _game_safe_mesh(mesh, av):
     """Drop a skeletal mesh's post-process Anim Blueprint when it needs the MetaHuman plugin (the
     game poses the bones itself), then report anything else of the plugin it still pulls in."""
@@ -924,6 +956,13 @@ def _game_safe_mesh(mesh, av):
                         ", ".join(str(n) for n in mel.get_vector_parameter_names(m))))
         except Exception:
             pass
+    # Garments (not the body or face) drawn from both sides.
+    if "/face/" not in pkg.lower() and "/body/" not in pkg.lower():
+        try:
+            for slot in mesh.get_editor_property("materials"):
+                _make_two_sided(slot.get_editor_property("material_interface"), av, pkg.rsplit("/", 1)[-1])
+        except Exception as e:
+            log("%s: %s materials: %s" % (av, pkg, e))
     bad = _editor_only_deps(pkg)
     if bad:
         unreal.log_warning("[Torque] %s: %s still pulls in editor-only MetaHuman content: %s" % (av, pkg, ", ".join(sorted(bad)[:5])))
@@ -1417,6 +1456,10 @@ def _parts_of_blueprint(pkg, name, av):
                 continue
             entry["parts"].append({"name": c.get_name(), "mesh": _path(m), "materials": mats(c)})
             _game_safe_mesh(m, av)
+            if "face" not in c.get_name().lower():
+                for mp in entry["parts"][-1]["materials"]:
+                    if mp:
+                        _make_two_sided(unreal.load_asset(mp.split(".")[0]), av, c.get_name())
         # The grooms (hair, brows, lashes, beard): any component whose class says Groom. The
         # peach fuzz is strands only and too fine to see at shed distances, so it's left out.
         for g in actor.get_components_by_class(unreal.ActorComponent):
