@@ -192,8 +192,9 @@ one (`World/WorldRoadLine`, a port of `route_planner.gd`'s smoothing): the quick
 every mapped corner rounded and faired so no bend is under 10 m, as wide as its class, graded to 15%,
 with shoulders that slope into the ground, edge lines and a dashed centre line. The other roads
 within about 300 m of the ride are laid too, junction to junction, level with the ride's road where
-they meet it (plain junctions: no kerb radii or give-way lines yet). Still to come: camber, bridges,
-the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
+they meet it (plain junctions: no kerb radii or give-way lines yet). Where the ride's road crosses a
+mapped bridge it is a level deck with stone parapets over the land as it lies. Flat across, as the
+Godot game's roads are. Still to come: tunnels, the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
 `Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
 

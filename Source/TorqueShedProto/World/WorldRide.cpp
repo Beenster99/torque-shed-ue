@@ -126,6 +126,64 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	return R;
 }
 
+// (a port of route_planner.gd's spans_along)
+std::vector<int> RidePlan::SpansAlong(const std::vector<P2>& Line, int Kind) const
+{
+	std::vector<int> Out;
+	const Region& G = Area.Roads;
+	if (G.Spans.empty() || Line.size() < 2) return Out;
+	const double Cell = 32.0;
+	std::unordered_map<long long, std::vector<int>> Grid;
+	const auto Key = [Cell](double X, double Z) { return static_cast<long long>(std::floor(X / Cell)) * 4000037LL + static_cast<long long>(std::floor(Z / Cell)); };
+	for (size_t I = 0; I < Line.size(); ++I) Grid[Key(Line[I].X, Line[I].Z)].push_back(int(I));
+	const auto NearTo = [&](const P2& P)
+	{
+		std::vector<int> Found;
+		for (int Dz = -1; Dz <= 1; ++Dz)
+			for (int Dx = -1; Dx <= 1; ++Dx)
+			{
+				const auto It = Grid.find(Key(P.X + Dx * Cell, P.Z + Dz * Cell));
+				if (It == Grid.end()) continue;
+				for (int I : It->second)
+					if (Line[size_t(I)].DistanceTo(P) <= BridgeReach) Found.push_back(I);
+			}
+		return Found;
+	};
+	std::vector<std::pair<int, int>> Found;
+	for (const Span& Sp : G.Spans)
+	{
+		if (Sp.Kind != Kind) continue;
+		const std::vector<int> AtA = NearTo(Sp.A);
+		if (AtA.empty()) continue;
+		const std::vector<int> AtB = NearTo(Sp.B);
+		const double Long = Sp.A.DistanceTo(Sp.B);
+		std::pair<int, int> Best(-1, -1);
+		double BestOff = 1e18;
+		for (int Ia : AtA)
+			for (int Ib : AtB)
+			{
+				const double Along = std::abs(Ib - Ia) * RoadLine::Step;
+				// (the road passes both ends, but not across the bridge between them)
+				if (Along < Long * 0.5 - RoadLine::Step || Along > Long * 1.5 + RoadLine::Step * 2.0) continue;
+				const double Off = std::fabs(Along - Long);
+				if (Off < BestOff)
+				{
+					BestOff = Off;
+					Best = {std::min(Ia, Ib), std::max(Ia, Ib)};
+				}
+			}
+		if (Best.first >= 0 && Best.second > Best.first) Found.push_back(Best);
+	}
+	std::sort(Found.begin(), Found.end());
+	for (const std::pair<int, int>& F : Found)
+	{
+		// (overlapping, or end to end: one bridge)
+		if (Out.size() >= 2 && F.first <= Out.back() + 1) Out.back() = std::max(Out.back(), F.second);
+		else { Out.push_back(F.first); Out.push_back(F.second); }
+	}
+	return Out;
+}
+
 void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves)
 {
 	Road.clear();
@@ -140,6 +198,24 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		H[I] = std::fmax(std::isnan(Y) ? Last : Y, 0.0);   // (a hole in the ground is bridged at the last height known; never under the sea)
 	}
 	if (!Any) return;
+	// Over a bridge the road runs straight from one end to the other, not down into what it crosses;
+	// through a tunnel the same, not up over the hill.
+	const std::vector<int> BridgeKnots = SpansAlong(Line, 0), TunnelKnots = SpansAlong(Line, 1);
+	Bridges = int(BridgeKnots.size() / 2);
+	Tunnels = int(TunnelKnots.size() / 2);
+	std::vector<char> OnDeck(Line.size(), 0);
+	const auto Level = [&H](const std::vector<int>& Knots)
+	{
+		for (size_t K = 0; K + 1 < Knots.size(); K += 2)
+		{
+			const int I0 = Knots[K], I1 = std::min(Knots[K + 1], int(H.size()) - 1);
+			for (int I = I0 + 1; I < I1; ++I) H[size_t(I)] = H[size_t(I0)] + (H[size_t(I1)] - H[size_t(I0)]) * double(I - I0) / double(I1 - I0);
+		}
+	};
+	Level(BridgeKnots);
+	Level(TunnelKnots);
+	for (size_t K = 0; K + 1 < BridgeKnots.size(); K += 2)
+		for (int I = BridgeKnots[K]; I <= BridgeKnots[K + 1] && I < int(Line.size()); ++I) OnDeck[size_t(I)] = 1;
 	// The road's own height: the ground's along its middle, evened out over 75 m three times, so it neither
 	// follows every hummock nor leaves the land far.
 	for (int Pass = 0; Pass < 3; ++Pass)
@@ -174,6 +250,7 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Along = Along;
 		P.Height = H[I];
 		P.Half = I < Halves.size() ? Halves[I] : 2.3;
+		P.Bridge = OnDeck[I] != 0;
 		WidestHalf = std::fmax(WidestHalf, P.Half);
 		Near[NearKey(P.At.X, P.At.Z)].push_back({0, int(Road.size())});
 		Road.push_back(P);
@@ -181,8 +258,9 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 	Length = Along;
 }
 
-bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* Index, double* Half, int* Which, bool MainOnly) const
+bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* Index, double* Half, int* Which, bool MainOnly, bool* OnBridge) const
 {
+	bool BestDeck = false;
 	// (best by how far outside the road's edge the point is, so a point on a lane beside a main road
 	// is the lane's; the ride's own road wins a tie)
 	double Best = 1e18, BestD = 0.0, BestH = 0.0, BestHalf = 0.0;
@@ -220,6 +298,7 @@ bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* In
 						BestHalf = HalfHere;
 						BestI = T < 0.5 ? S : S + 1;
 						BestRoad = Entry.first;
+						BestDeck = Pa.Bridge && Pb.Bridge;
 					}
 				}
 			}
@@ -230,6 +309,7 @@ bool RidePlan::Nearest(double X, double Z, double& Dist, double& Height, int* In
 	if (Index != nullptr) *Index = BestI;
 	if (Half != nullptr) *Half = BestHalf;
 	if (Which != nullptr) *Which = BestRoad;
+	if (OnBridge != nullptr) *OnBridge = BestDeck;
 	return true;
 }
 
@@ -339,7 +419,10 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 {
 	const double Lie = Land ? Land->Height(X, Z) : std::nan("");
 	double Dist = 0.0, Height = 0.0, Half = 0.0;
-	if (!Nearest(X, Z, Dist, Height, nullptr, &Half)) return Lie;
+	bool Deck = false;
+	if (!Nearest(X, Z, Dist, Height, nullptr, &Half, nullptr, false, &Deck)) return Lie;
+	// (under a bridge the land lies as it does: the river's banks, not a causeway)
+	if (Deck && !std::isnan(Lie)) return std::fmin(Lie, Height - 1.5);
 	const double Wider = std::fmax(0.0, Coarse - 4.0);
 	const double Flat = Half + Bench + Wider;
 	const double Under = Height - Sink - std::fmin(0.45, Wider * 0.06);
@@ -436,12 +519,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	// (a side road's paint stops short of the junctions at its ends)
 	const double PaintFrom = Which == 0 ? -1.0 : 12.0, PaintTo = Which == 0 ? 1e18 : Sides[size_t(Which) - 1].Length - 12.0;
 	// (the Godot game's colours, linear: tarmac, the verge's gravel, paint)
-	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.119f, 0.107f, 0.078f}, Paint[3] = {0.83f, 0.83f, 0.75f};
+	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.119f, 0.107f, 0.078f}, Paint[3] = {0.83f, 0.83f, 0.75f},
+		Stone[3] = {0.2f, 0.19f, 0.17f};
 	const int Count = int(Pts.size());
 	struct Row
 	{
 		P2 At, Left;
 		double Height = 0.0, Half = 0.0, Along = 0.0, Nx = 0.0, Ny = 1.0, Nz = 0.0;
+		bool Deck = false;
 	};
 	std::vector<Row> Rows;
 	for (int I = First; I <= Last; ++I)
@@ -461,6 +546,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Height = P.Height;
 		R.Half = P.Half;
 		R.Along = P.Along;
+		R.Deck = P.Bridge;
 		R.Nx = -Dir.X * Rise / Nl;
 		R.Ny = 1.0 / Nl;
 		R.Nz = -Dir.Z * Rise / Nl;
@@ -476,7 +562,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
 	};
 	// A strip between two rows from OffA to OffB (left to right: OffA the greater), up-facing.
-	const auto Strip = [&Out, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* Colour)
+	const auto Strip = [&Out, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* Colour, bool BothSides = false)
 	{
 		const uint32_t V = uint32_t(Out.Vertices());
 		Put(R0, A0, LiftA, Colour);
@@ -484,16 +570,44 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		Put(R1, A1, LiftA, Colour);
 		Put(R1, B1, LiftB, Colour);
 		Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
+		if (BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V + 1, V + 2, V + 3});
 	};
 	const double PaintLift = 0.015;
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
 	{
 		const Row& A = Rows[K];
 		const Row& B = Rows[K + 1];
-		// The left shoulder (from down in the ground up to the edge), the tarmac, the right shoulder.
-		Strip(A, B, A.Half + Shoulder, A.Half, B.Half + Shoulder, B.Half, -ShoulderDrop, 0.0, Verge);
 		Strip(A, B, A.Half, -A.Half, B.Half, -B.Half, 0.0, 0.0, Tarmac);
-		Strip(A, B, -A.Half, -A.Half - Shoulder, -B.Half, -B.Half - Shoulder, 0.0, -ShoulderDrop, Verge);
+		if (A.Deck && B.Deck)
+		{
+			// A bridge: a stone parapet each side (its top, and its faces down past the deck to the
+			// deck's underside), and the underside. Faces that stand upright are drawn from both sides.
+			const double In = 0.15, Out2 = 0.55, Top = 1.0, Under = -1.2;
+			for (double Side : {1.0, -1.0})
+			{
+				const double A0 = A.Half + In, A1 = A.Half + Out2, B0 = B.Half + In, B1 = B.Half + Out2;
+				// (kerb strip, top, inner face, outer face)
+				if (Side > 0.0)
+				{
+					Strip(A, B, A0, A.Half, B0, B.Half, 0.0, 0.0, Stone);
+					Strip(A, B, A1, A0, B1, B0, Top, Top, Stone);
+				}
+				else
+				{
+					Strip(A, B, -A.Half, -A0, -B.Half, -B0, 0.0, 0.0, Stone);
+					Strip(A, B, -A0, -A1, -B0, -B1, Top, Top, Stone);
+				}
+				Strip(A, B, Side * A0, Side * A0, Side * B0, Side * B0, Top, 0.0, Stone, true);
+				Strip(A, B, Side * A1, Side * A1, Side * B1, Side * B1, Top, Under, Stone, true);
+			}
+			Strip(A, B, A.Half + Out2, -A.Half - Out2, B.Half + Out2, -B.Half - Out2, Under, Under, Stone, true);
+		}
+		else
+		{
+			// The left shoulder (from down in the ground up to the edge) and the right.
+			Strip(A, B, A.Half + Shoulder, A.Half, B.Half + Shoulder, B.Half, -ShoulderDrop, 0.0, Verge);
+			Strip(A, B, -A.Half, -A.Half - Shoulder, -B.Half, -B.Half - Shoulder, 0.0, -ShoulderDrop, Verge);
+		}
 		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
 		// 3 m dashes with 6 m gaps.
 		const double Half = std::fmin(A.Half, B.Half);

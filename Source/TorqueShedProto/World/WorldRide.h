@@ -16,8 +16,12 @@
 // The other roads near the ride are there too (Sides): every road within a few hundred metres of
 // it, each from junction to junction, smoothed and as wide as its class, its height the ground's
 // but the ride's own where it meets the ride's road, so a side road runs off the tarmac at a
-// junction. They are plain where they meet (no kerb radii or give-way lines yet). Camber and
-// bridges are still to come.
+// junction. They are plain where they meet (no kerb radii or give-way lines yet).
+//
+// Where the ride's road crosses one of the map's bridges (the region's spans, matched as the Godot
+// game matches them) it runs straight from one end to the other as a deck with parapets, and the
+// land under it is left as it lies. A tunnel's road is levelled the same way but is still an open
+// cutting. The road is flat across, as the Godot game's is: no camber.
 #pragma once
 
 #include "WorldLoad.h"
@@ -37,6 +41,7 @@ struct RoadPoint
 	double Along = 0.0;    // metres from the start
 	double Height = 0.0;   // the road's own
 	double Half = 2.3;     // half the carriageway's width here
+	bool Bridge = false;   // on a bridge: the road is a deck over the land as it lies
 };
 
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.
@@ -85,6 +90,8 @@ public:
 	static constexpr double Shoulder = 1.3;     // the road's sloping edge: this far out,
 	static constexpr double ShoulderDrop = 0.26;   // and this far down, into the ground
 	double WidestHalf = 2.3;                    // of the whole ride
+	int Bridges = 0, Tunnels = 0;               // those the ride's road crosses
+	static constexpr double BridgeReach = 10.0; // a span's ends are matched to the road within this
 
 	// The bare ground at (X, Z), the road's bench cut in; NaN where the world has none. Coarse is how
 	// far apart (m) the asker's points are: a mesh coarser than 4 m has the bench wider and a little
@@ -95,7 +102,7 @@ public:
 	// The road nearest (X, Z), any of them, within 40 m of its middle (nearest by how far outside its
 	// edge the point is): how far from its middle, its height, which point, its half width, which
 	// road. MainOnly looks at the ride's own road alone. False if none.
-	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr, int* Which = nullptr, bool MainOnly = false) const;
+	bool Nearest(double X, double Z, double& Dist, double& Height, int* Index = nullptr, double* Half = nullptr, int* Which = nullptr, bool MainOnly = false, bool* OnBridge = nullptr) const;
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
 	// piece beside a coarser one shows no crack).
@@ -109,6 +116,8 @@ public:
 
 private:
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves);
+	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...
+	std::vector<int> SpansAlong(const std::vector<P2>& Line, int Kind) const;
 	void LaySides(const std::vector<int>& Path);
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
 };

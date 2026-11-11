@@ -595,7 +595,8 @@ int main()
 						Off = std::fmax(Off, std::fabs(P.Height - Plan->Land->Height(P.At.X, P.At.Z)));
 						const double Rh = Plan->RoadHeight(P.At.X, P.At.Z);
 						if (!std::isnan(Rh) && std::fabs(Rh - P.Height) < 0.05) ++OnRoad;
-						Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
+						if (!P.Bridge) Under = std::fmax(Under, std::fabs(Plan->Ground(P.At.X, P.At.Z) - (Rh - RidePlan::Sink)));
+						else if (I > 0 && I + 1 < Plan->Road.size() && Plan->Road[I - 1].Bridge && Plan->Road[I + 1].Bridge && !(Plan->Ground(P.At.X, P.At.Z) <= Rh - 1.5 + 1e-9)) Under = 1e9;   // (under a deck the land is well clear of it)
 					}
 					std::printf("      the ride's road: %d points, %.2f m apart at most, steepest %.3f, sharpest crest %.3f m, %.2f m off the land at most\n",
 						int(Plan->Road.size()), Gap, Step, Kink, Off);
@@ -684,6 +685,20 @@ int main()
 						std::printf("      %d roads beside it in %d points; %d ends meet the ride's road, %d of them level with it; steepest %.2f\n", int(Plan->Sides.size()), SidePts, Meeting, Level, WorstStep);
 						Check(Plan->Sides.size() > 20 && Meeting > 10 && Level == Meeting && WorstStep < 0.6 && SideMesh.Vertices() >= 12 && Plan->RoadCount() == 1 + int(Plan->Sides.size()),
 							"the roads near the ride are laid too, each level with the ride's road where it meets it");
+					}
+					// Its bridges: the fixture's spans it crosses, each a deck with parapets.
+					{
+						int First = -1, Last = -1;
+						for (size_t I = 0; I < Plan->Road.size(); ++I)
+							if (Plan->Road[I].Bridge) { if (First < 0) First = int(I); Last = int(I); if (I + 1 < Plan->Road.size() && !Plan->Road[I + 1].Bridge) break; }
+						RideMesh Deck, Plain;
+						if (First >= 0) Plan->RoadPiece(0, First, Last, Deck);
+						Plan->RoadPiece(0, 100, 100 + std::max(Last - First, 1), Plain);
+						float Highest = -1e9f, Lowest = 1e9f;
+						for (size_t V = 0; V < Deck.Vertices(); ++V) { Highest = std::fmax(Highest, Deck.Pos[V * 3 + 1]); Lowest = std::fmin(Lowest, Deck.Pos[V * 3 + 1]); }
+						std::printf("      %d bridges and %d tunnels on it; the first deck is %d knots\n", Plan->Bridges, Plan->Tunnels, First >= 0 ? Last - First + 1 : 0);
+						Check(Plan->Bridges == 0 || (First >= 0 && Last > First && Deck.Vertices() > Plain.Vertices() && Highest - Lowest > 2.0 && Highest - Lowest < 2.2 + std::fabs(Plan->Road[size_t(Last)].Height - Plan->Road[size_t(First)].Height) + 0.5),
+							"where the road crosses a mapped bridge it is a deck with parapets a metre high, the land under it left alone");
 					}
 					std::printf("      its tightest bend: %.1f m radius\n", Tightest);
 					Check(Tightest > 9.0, "and no bend of it is tighter than 9 m, mapped corners and junctions rounded");

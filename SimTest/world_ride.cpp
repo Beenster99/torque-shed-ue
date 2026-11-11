@@ -104,7 +104,15 @@ int main(int Argc, char** Argv)
 	{
 		size_t SidePts = 0;
 		for (const RidePlan::SideRoad& Sd : Plan->Sides) SidePts += Sd.Pts.size();
-		std::printf("Beside it: %d roads in %d points\n", int(Plan->Sides.size()), int(SidePts));
+		std::printf("Beside it: %d roads in %d points; %d bridges and %d tunnels on the way\n", int(Plan->Sides.size()), int(SidePts), Plan->Bridges, Plan->Tunnels);
+		for (size_t I = 1; I < Plan->Road.size(); ++I)
+			if (Plan->Road[I].Bridge && !Plan->Road[I - 1].Bridge)
+			{
+				size_t J = I;
+				double Deep = 0.0;
+				while (J + 1 < Plan->Road.size() && Plan->Road[J + 1].Bridge) { ++J; Deep = std::fmax(Deep, Plan->Road[J].Height - Plan->Land->Height(Plan->Road[J].At.X, Plan->Road[J].At.Z)); }
+				std::printf("  a bridge at %.2f km, %.0f m long, %.1f m over the land at most\n", Plan->Road[I].Along / 1000.0, Plan->Road[J].Along - Plan->Road[I].Along, Deep);
+			}
 	}
 	if (std::getenv("WORLD_RIDE_DUMP") != nullptr)
 	{
