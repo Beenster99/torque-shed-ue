@@ -1811,6 +1811,11 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	float Mx = 0.0f, My = 0.0f;
 	if (PC) PC->GetInputMouseDelta(Mx, My);
+	if ((Mx != 0.0f || My != 0.0f) && OnFootFor - FootMouseLogAt > 1.0)
+	{
+		FootMouseLogAt = OnFootFor;
+		UE_LOG(LogTemp, Log, TEXT("Torque: on foot, the mouse moved (%.1f, %.1f): looking %.0f deg round, %.0f up"), Mx, My, FootYaw, FootPitch);
+	}
 	// (The shed walker's rate: 0.143 degrees a count, Settings > Controller > Mouse look speed on top.)
 	FootYaw += Mx * 0.143 * Set.MouseLook;
 	FootPitch = FMath::Clamp(FootPitch + My * 0.143 * Set.MouseLook * (Set.bInvertLook ? -1.0 : 1.0), -80.0, 80.0);
@@ -1947,9 +1952,9 @@ FString ATorqueBikePawn::TestFoot(const FString& What)
 	const FVector BikeAt = ToUE(Sim->Position);
 	const TCHAR* Stood = !bOnFoot ? TEXT("on its wheels") : bPushing ? TEXT("upright in your hands") : ParkStand == 1 ? TEXT("on its side stand")
 		: ParkStand == 2 ? TEXT("on its centre stand") : TEXT("on its wheels");
-	return FString::Printf(TEXT("%s; bike %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you, at (%.0f, %.0f) cm"),
+	return FString::Printf(TEXT("%s; bike %s at %.1f mph, engine %s (%.0f rpm), %.0f cm from you, at (%.0f, %.0f) cm; looking %.0f deg round, %.0f up"),
 		bOnFoot ? TEXT("on foot") : TEXT("riding"), Stood, Sim->Speed * 2.23694, Sim->EngineOn ? TEXT("running") : TEXT("off"), Sim->Rpm,
-		bOnFoot ? FVector::Dist2D(FootPos, BikeAt) : 0.0, BikeAt.X, BikeAt.Y);
+		bOnFoot ? FVector::Dist2D(FootPos, BikeAt) : 0.0, BikeAt.X, BikeAt.Y, FootYaw, FootPitch);
 }
 
 FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace)
