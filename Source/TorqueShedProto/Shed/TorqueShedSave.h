@@ -129,7 +129,7 @@ public:
 	UPROPERTY() bool bRadioOn = false;
 	UPROPERTY() int32 RadioStation = 0;
 	// [tv] Each wall TV's channel (TorqueShedTv; none: an older save, whose TVs start as a new garage's).
-	UPROPERTY() TArray<uint8> TvChannels;
+	UPROPERTY() TArray<uint8> TvChannels2;   // (2: the bay pages by default; an older save's channels are dropped)
 	UPROPERTY() FString TvVideo;   // [tv] the YouTube video pasted in (it starts again from the top)
 	UPROPERTY() int32 LiftsUp = 0;   // the bike lifts that are up (a bit per lift id)
 	// [kit] The main lights, the roller door and where the engine stand was left (added to version

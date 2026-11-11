@@ -1519,13 +1519,26 @@ namespace TSSI
 // a page it's embedded in, as YouTube wants.
 FString VideoPage(const FString& Id, int32 StartSeconds)
 {
+	// Chromium only autoplays a muted video without a click, so it starts muted, then is unmuted once
+	// it's playing; if that stops it, it goes back to muted and plays on. A watchdog presses play
+	// whenever it's paused or cued (the thumbnail with the play button: build 134). Its state goes
+	// to the log (LogWebBrowser, "TorqueTV").
 	FString Html = TEXT("<!doctype html><html><head><meta charset='utf-8'><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}")
 		TEXT("#p{position:absolute;left:0;top:0;width:100%;height:100%}#e{color:#ddd;font:30px sans-serif;position:absolute;inset:0;display:flex;")
 		TEXT("align-items:center;justify-content:center;text-align:center}</style></head><body><div id='p'></div>")
-		TEXT("<script>var player=null;function onYouTubeIframeAPIReady(){player=new YT.Player('p',{width:'100%',height:'100%',videoId:'{ID}',")
-		TEXT("playerVars:{autoplay:1,start:{START},controls:0,rel:0,playsinline:1,iv_load_policy:3,disablekb:1},")
-		TEXT("events:{onReady:function(e){e.target.setVolume(80);e.target.playVideo();},onError:function(e){document.body.innerHTML=")
+		TEXT("<script>var player=null,vol=80,tried=0,failed=0,last=-9;")
+		TEXT("function say(m){try{console.log('TorqueTV '+m);}catch(x){}}")
+		TEXT("function onYouTubeIframeAPIReady(){player=new YT.Player('p',{width:'100%',height:'100%',videoId:'{ID}',")
+		TEXT("playerVars:{autoplay:1,mute:1,start:{START},controls:0,rel:0,playsinline:1,iv_load_policy:3,disablekb:1,origin:'https://torqueshed.game'},")
+		TEXT("events:{onReady:function(e){say('ready');e.target.mute();e.target.playVideo();},")
+		TEXT("onStateChange:function(e){if(e.data!=last){last=e.data;say('state '+e.data);}")
+		TEXT("if(e.data==1&&!tried){tried=1;e.target.unMute();e.target.setVolume(vol);say('unmuted');}")
+		TEXT("if(e.data==2&&tried==1&&!failed){failed=1;e.target.mute();e.target.playVideo();say('unmute stopped it: muted');}},")
+		TEXT("onError:function(e){say('error '+e.data);document.body.innerHTML=")
 		TEXT("\"<div id='e'>This video won't play outside YouTube (error \"+e.data+\").<br>Copy another link and press Ctrl+V at the TV.</div>\";}}});}")
+		TEXT("function setVol(v){vol=v;if(player&&player.setVolume){player.setVolume(v);}}")
+		TEXT("setInterval(function(){if(!player||!player.getPlayerState)return;var s=player.getPlayerState();")
+		TEXT("if(s==-1||s==2||s==5){player.playVideo();}},1500);")
 		TEXT("</script><script src='https://www.youtube.com/iframe_api'></script></body></html>");
 	Html.ReplaceInline(TEXT("{ID}"), *Id);
 	Html.ReplaceInline(TEXT("{START}"), *FString::FromInt(FMath::Max(0, StartSeconds)));
@@ -1595,7 +1608,7 @@ void ATorqueShedScreens::VideoTick(float Dt)
 		double Near = TNumericLimits<double>::Max();
 		for (const FVector& P : On) Near = FMath::Min(Near, FVector::Dist(P, Ear));
 		const int32 Vol = FMath::RoundToInt32(80.0 * FMath::Clamp(1.0 - (Near - 300.0) / 2200.0, 0.0, 1.0));
-		Browser->ExecuteJavascript(FString::Printf(TEXT("if(player&&player.setVolume){player.setVolume(%d);}"), Vol));
+		Browser->ExecuteJavascript(FString::Printf(TEXT("if(window.setVol){setVol(%d);}"), Vol));
 	}
 }
 

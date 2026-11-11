@@ -400,8 +400,8 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.DynoHeat = Dyno.Heat;
 	S.bRadioOn = bRadioOn;
 	S.RadioStation = RadioTuned;
-	S.TvChannels.Reset();   // [tv]
-	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) S.TvChannels.Add(TvChannels[T]);
+	S.TvChannels2.Reset();   // [tv]
+	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T) S.TvChannels2.Add(TvChannels[T]);
 	S.TvVideo = TvVideoId;
 	S.LiftsUp = LiftsUp;
 	S.bShedLights = bShedLights;   // [kit]
@@ -514,7 +514,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	bRadioOn = S.bRadioOn;
 	RadioTuned = FMath::Clamp(S.RadioStation, 0, FMath::Max(0, TorqueShedRadio::Stations().Num() - 1));
 	for (int32 T = 0; T < TorqueShedTv::Tvs; ++T)   // [tv]
-		TvChannels[T] = S.TvChannels.IsValidIndex(T) && TorqueShedTv::Valid(T, S.TvChannels[T]) ? S.TvChannels[T] : TorqueShedTv::Default[T];
+		TvChannels[T] = S.TvChannels2.IsValidIndex(T) && TorqueShedTv::Valid(T, S.TvChannels2[T]) ? S.TvChannels2[T] : TorqueShedTv::Default[T];
 	TvVideoId = TorqueShedTv::VideoId(S.TvVideo);
 	TvVideoAt = SharedNow();
 	LiftsUp = 0;

@@ -278,9 +278,9 @@ enum EChannel : uint8
 	YouTube,   // the video pasted in (UTorqueBuildSubsystem::TvVideo), in YouTube's own embedded player
 	Channels
 };
-// What a new garage's TVs show: the back wall's two left on the rider, two right on the bikes, the
-// workbench's on the players.
-constexpr uint8 Default[Tvs] = {Rider, Rider, Bikes, Bikes, Players};
+// What a new garage's TVs show: each back wall TV its own bay's bike (on over a bike in its bay,
+// blank over an empty one: beenster, build 134), the workbench's the players.
+constexpr uint8 Default[Tvs] = {BayPage, BayPage, BayPage, BayPage, Players};
 // Whether TV Tv has channel Channel: every TV has them all bar the bay's own page, which only the
 // back wall's (0 .. 3) have (Tv -1: a bought TV).
 inline bool Has(int32 Tv, int32 Channel) { return Channel >= 0 && Channel < Channels && (Channel != BayPage || (Tv >= 0 && Tv < 4)); }
@@ -674,7 +674,7 @@ private:
 	int32 RadioTuned = 0;
 	FString TvVideoId;   // [tv]
 	double TvVideoAt = 0.0;
-	uint8 TvChannels[TorqueShedTv::Tvs] = {TorqueShedTv::Rider, TorqueShedTv::Rider, TorqueShedTv::Bikes, TorqueShedTv::Bikes, TorqueShedTv::Players};   // [tv]
+	uint8 TvChannels[TorqueShedTv::Tvs] = {TorqueShedTv::BayPage, TorqueShedTv::BayPage, TorqueShedTv::BayPage, TorqueShedTv::BayPage, TorqueShedTv::Players};   // [tv]
 	int32 LiftsUp = 0;               // a bit per lift id that's up
 	// [kit]
 	bool bShedLights = true;
