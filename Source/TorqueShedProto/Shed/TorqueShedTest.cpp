@@ -1557,9 +1557,11 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		const bool bStuck = FlipWorst > 0.5;
 		const bool bOffAir = Now == TEXT("Off") || Now.Contains(TEXT("Tuning in")) || Now.Contains(TEXT("No signal"));
 		if (bStuck || bOffAir)
+		{
 			UE_LOG(LogTemp, Error, TEXT("Torque test: %s: RADIO CHECK FAILED: %s (longest frame %.0f ms over %d changes; %s)"), *S,
 				bStuck ? TEXT("the game stalled while the station changed") : TEXT("not on air after the clicking (is the PC online?)"),
 				1000.0 * FlipWorst, FlipClicks, *Now);
+		}
 		else Said(FString::Printf(TEXT("ok: on air, longest frame %.0f ms over %d changes: %s"), 1000.0 * FlipWorst, FlipClicks, *Now));
 		return true;
 	}
