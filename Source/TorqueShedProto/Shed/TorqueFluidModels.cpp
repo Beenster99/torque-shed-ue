@@ -211,19 +211,55 @@ TArray<FRing> Footed(double A, double B, double Exp, double Bevel, const TArray<
 }
 
 // The same rings shrunk by a wall's thickness (the liquid inside them).
+// The ring of a lofted profile at height Z (between its rings, straight across; clamped at its ends).
+FRing RingAt(const TArray<FRing>& Rings, double Z)
+{
+	if (Z <= Rings[0].Z) { FRing R = Rings[0]; R.Z = Z; return R; }
+	for (int32 I = 0; I + 1 < Rings.Num(); ++I)
+	{
+		const FRing& Lo = Rings[I];
+		const FRing& Hi = Rings[I + 1];
+		if (Z > Hi.Z) continue;
+		const double T = Hi.Z - Lo.Z > 1e-6 ? (Z - Lo.Z) / (Hi.Z - Lo.Z) : 1.0;
+		FRing R = Lo;
+		R.Z = Z;
+		R.A = FMath::Lerp(Lo.A, Hi.A, T);
+		R.B = FMath::Lerp(Lo.B, Hi.B, T);
+		R.Exp = FMath::Lerp(Lo.Exp, Hi.Exp, T);
+		R.Off = FMath::Lerp(Lo.Off, Hi.Off, T);
+		return R;
+	}
+	FRing R = Rings.Last();
+	R.Z = Z;
+	return R;
+}
+
+// The inside of a lofted body, Wall in from it everywhere (on a rounded foot or shoulder too: each
+// ring is in from the narrowest of the body within Wall of its height), from Bottom up to Top.
+// Never touching the body, so the fluid and the plastic never fight for the same pixels.
 TArray<FRing> Inset(const TArray<FRing>& Rings, double Wall, double Bottom, double Top)
 {
 	TArray<FRing> Out;
+	if (Rings.Num() == 0 || Top <= Bottom) return Out;
+	TArray<double> Zs;
+	Zs.Add(Bottom);
 	for (const FRing& R0 : Rings)
+		if (R0.Z > Bottom + 0.05 && R0.Z < Top - 0.05) Zs.Add(R0.Z);
+	Zs.Add(Top);
+	for (const double Z : Zs)
 	{
-		if (R0.Z < Bottom - 0.01 || R0.Z > Top + 0.01) continue;
-		FRing R = R0;
-		R.A = FMath::Max(R.A - Wall, 0.2);
-		R.B = FMath::Max(R.B - Wall, 0.2);
+		FRing R = RingAt(Rings, Z);
+		double MinA = R.A, MinB = R.B;
+		for (const double Dz : {-Wall, -Wall * 0.5, Wall * 0.5, Wall})
+		{
+			const FRing Near = RingAt(Rings, Z + Dz);
+			MinA = FMath::Min(MinA, Near.A);
+			MinB = FMath::Min(MinB, Near.B);
+		}
+		R.A = FMath::Max(MinA - Wall, 0.2);
+		R.B = FMath::Max(MinB - Wall, 0.2);
 		Out.Add(R);
 	}
-	if (Out.Num() > 0 && Out[0].Z > Bottom + 0.01) { FRing R = Out[0]; R.Z = Bottom; Out.Insert(R, 0); }
-	if (Out.Num() > 0 && Out.Last().Z < Top - 0.01) { FRing R = Out.Last(); R.Z = Top; Out.Add(R); }
 	return Out;
 }
 
@@ -505,7 +541,9 @@ void DrainPan(double Litres, FGeo& Shell, FGeo& Liquid, TArray<FRing>& Inner)
 		Rim.Add(FVector(P.X, P.Y, Q.Z));
 	}
 	Tube(Shell, Rim, 0.55, 10);
-	Inner = Inset(Outside, Wall + 0.05, Wall + 0.05, H - 0.3);
+	// The oil a little in from the pan's walls and up off its floor (the floor's inside is at
+	// Outside's 0.5 cm ring): level with it, the oil's underside fought the floor for the same pixels.
+	Inner = Inset(Outside, Wall + 0.15, 0.5 + 0.2, H - 0.3);
 	Loft(Liquid, Inner, 64);
 }
 
