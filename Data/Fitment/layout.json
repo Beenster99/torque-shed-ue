@@ -1287,8 +1287,8 @@
      "peg_by_case": 1,
      "back_deg": 5,
      "bar_move_mm": [
-      100,
-      40
+      140,
+      20
      ]
     },
     "6_drive": {
@@ -1358,8 +1358,8 @@
      "peg_by_case": 1,
      "back_deg": 23,
      "bar_move_mm": [
-      20,
-      40
+      40,
+      60
      ]
     },
     "6_drive": {
@@ -1429,8 +1429,8 @@
      "peg_by_case": 1,
      "back_deg": 0,
      "bar_move_mm": [
-      200,
-      80
+      240,
+      60
      ]
     },
     "6_drive": {
@@ -1500,7 +1500,7 @@
      "peg_by_case": 1,
      "back_deg": 1,
      "bar_move_mm": [
-      160,
+      220,
       0
      ]
     },
@@ -1571,7 +1571,7 @@
      "peg_by_case": 1,
      "back_deg": 0,
      "bar_move_mm": [
-      260,
+      300,
       120
      ]
     },
@@ -1843,8 +1843,8 @@
      "peg_by_case": 1,
      "back_deg": 10,
      "bar_move_mm": [
-      80,
-      60
+      140,
+      80
      ]
     },
     "6_drive": {
