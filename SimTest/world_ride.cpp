@@ -281,6 +281,13 @@ int main(int Argc, char** Argv)
 					break;
 				}
 		}
+		else if (std::getenv("WORLD_RIDE_CHURCH") != nullptr)
+		{
+			// (or the nth church the map has, with its tower)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_CHURCH"));
+			for (size_t B = 0; B < Plan->BuildingRole.size(); ++B)
+				if (Plan->BuildingRole[B] == 1 && Nth-- == 0) { Centre = P2(Plan->Area.Roads.Buildings[B].X, Plan->Area.Roads.Buildings[B].Z); std::printf("church at %.0f, %.0f\n", Centre.X, Centre.Z); }
+		}
 		else if (std::getenv("WORLD_RIDE_RAIL") != nullptr)
 		{
 			// (or a railway: WORLD_RIDE_RAIL=p a station's platform, b a bridge, c a level crossing, then the nth)

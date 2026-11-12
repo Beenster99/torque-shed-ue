@@ -419,6 +419,76 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							Quad(Out, W0, W1, W2, W3, Outside(L0, L2), Door ? DoorWood : Glass);
 						}
 				}
+				if (size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1)
+				{
+					// A church: its tower at one end (the other if that one is over a road), square and a
+					// little narrower than the nave, its belfry's openings near the top, battlemented, or in
+					// the lowlands now and then a spire.
+					const double TowerHalf = std::fmin(HalfShort * 0.8, 3.2);
+					const double TowerTop = Eaves + Rise + 5.0 + 3.0 * Chance(B.X, B.Z, 53);
+					double End = -1.0;
+					for (double Try : {-1.0, 1.0})
+					{
+						bool Free = true;
+						for (double Su : {0.0, 2.0})
+							for (double Sv : {-1.0, 1.0})
+							{
+								const P3 Corner = Local(Try * (HalfLong + TowerHalf * Su - 0.2), Sv * TowerHalf, 0.0);
+								Free = Free && OffRoad(Corner.X, Corner.Z, 0.8);
+							}
+						if (Free) { End = Try; break; }
+						End = 0.0;
+					}
+					if (End != 0.0)
+					{
+						const double Mid = End * (HalfLong + TowerHalf - 0.2);
+						const P3 Axis = Local(Mid, 0.0, TowerTop * 0.5);
+						const auto Away = [&Axis](const P3& A, const P3& C) { return At3(Axis.X + ((A.X + C.X) * 0.5 - Axis.X) * 50.0, Axis.Y, Axis.Z + ((A.Z + C.Z) * 0.5 - Axis.Z) * 50.0); };
+						const double S4[5][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
+						const auto At4 = [&](int K, double Y) { return Local(Mid + S4[K][0] * TowerHalf, S4[K][1] * TowerHalf, Y); };
+						for (int K = 0; K < 4; ++K)
+						{
+							const P3 Q0 = At4(K, Sunk), Q1 = At4(K + 1, Sunk), Q2 = At4(K + 1, TowerTop), Q3 = At4(K, TowerTop);
+							WallQuad(Q0, Q1, Q2, Q3, Away(Q0, Q2), K % 2 == 0 ? 1.0 : 0.93);
+							if (Fine)
+							{
+								// (the belfry's opening, a dark louvre just proud of the face)
+								const P3 Pa = At4(K, 0.0), Pb = At4(K + 1, 0.0);
+								const double Fx = (Pa.X + Pb.X) * 0.5, Fz = (Pa.Z + Pb.Z) * 0.5, Ux = (Pb.X - Pa.X) / (TowerHalf * 2.0), Uz = (Pb.Z - Pa.Z) / (TowerHalf * 2.0);
+								const P3 Out3 = Away(Q0, Q2);
+								const double Nx = Out3.X - Axis.X, Nz = Out3.Z - Axis.Z, Nl = std::hypot(Nx, Nz);
+								const double Px = Fx + Nx / Nl * 0.04, Pz = Fz + Nz / Nl * 0.04;
+								Quad(Out, At3(Px - Ux * 0.45, TowerTop - 3.0, Pz - Uz * 0.45), At3(Px + Ux * 0.45, TowerTop - 3.0, Pz + Uz * 0.45), At3(Px + Ux * 0.45, TowerTop - 1.3, Pz + Uz * 0.45),
+									At3(Px - Ux * 0.45, TowerTop - 1.3, Pz - Uz * 0.45), Out3, Glass);
+							}
+						}
+						const bool Spire = Look.Boundary == LocalLook::HedgeBank || (Look.BrickShare > 0.3 && Chance(B.X, B.Z, 54) < 0.4);
+						if (Spire)
+						{
+							const P3 Tip = Local(Mid, 0.0, TowerTop + TowerHalf * 3.5);
+							for (int K = 0; K < 4; ++K)
+							{
+								const P3 Q0 = At4(K, TowerTop), Q1 = At4(K + 1, TowerTop);
+								Quad(Out, Q0, Q1, Tip, Q0, Away(Q0, Q1), Shade(Slate, K % 2 == 0 ? 1.0 : 0.85));
+							}
+						}
+						else
+						{
+							// (a flat lead roof and a battlemented parapet: merlons along each side)
+							Quad(Out, At4(0, TowerTop), At4(1, TowerTop), At4(2, TowerTop), At4(3, TowerTop), Sky, Shade(Slate, 1.3));
+							if (Fine)
+								for (int K = 0; K < 4; ++K)
+									for (int M = 0; M < 3; ++M)
+									{
+										const double T = (M + 0.5) / 3.0;
+										const P3 Pa = At4(K, TowerTop), Pb = At4(K + 1, TowerTop);
+										const double Mx = Pa.X + (Pb.X - Pa.X) * T, Mz = Pa.Z + (Pb.Z - Pa.Z) * T;
+										const double Lx = Pb.X - Pa.X, Lz = Pb.Z - Pa.Z, Ll = std::hypot(Lx, Lz);
+										Box(Out, Mx, Mz, P2(Lx / Ll, Lz / Ll), 0.35, 0.2, TowerTop - 0.05, TowerTop + 0.7, Shade(Stone, 0.9));
+									}
+						}
+					}
+				}
 			}
 		}
 
@@ -668,6 +738,105 @@ void RidePlan::IndexFurniture()
 			I = J;
 		}
 	}
+	// A red phone box half way through each built-up stretch of 250 m or more (most of them), on the left.
+	for (size_t I = 0; I < Road.size(); ++I)
+	{
+		if (!BuiltUp[I] || (I > 0 && BuiltUp[I - 1])) continue;
+		size_t J = I;
+		while (J + 1 < Road.size() && BuiltUp[J + 1]) ++J;
+		const size_t K = PointAt((Road[I].Along + Road[J].Along) * 0.5 + 20.0);
+		if (Road[J].Along - Road[I].Along >= 250.0 && Chance(Road[K].At.X, Road[K].At.Z, 51) < 0.75)
+		{
+			Furnish F;
+			F.Kind = PhoneBox;
+			F.At = Verge(K, 1.0, 1.5);
+			const P2 D = Dir(K);
+			F.Face = P2(-D.Z, D.X);   // (its door to the road)
+			F.Height = Ground(F.At.X, F.At.Z);
+			if (OffAll(F.At, 0.9)) Put(F);
+		}
+		I = J;
+	}
+	// The pubs (the map's pubs and inns that are surely one) with their signs out by the road, and the
+	// churches: the building nearest each, given its tower.
+	BuildingRole.assign(G.Buildings.size(), 0);
+	const auto NearestBuilding = [this, &G](double X, double Z, double Within)
+	{
+		int Best = -1;
+		double BestD = Within;
+		for (int Dz = -1; Dz <= 1; ++Dz)
+			for (int Dx = -1; Dx <= 1; ++Dx)
+			{
+				const auto It = Scene->Buildings.find(SceneKey(X + Dx * SceneCell, Z + Dz * SceneCell));
+				if (It == Scene->Buildings.end()) continue;
+				for (int B : It->second)
+				{
+					const double D = std::hypot(G.Buildings[size_t(B)].X - X, G.Buildings[size_t(B)].Z - Z);
+					if (D < BestD) { BestD = D; Best = B; }
+				}
+			}
+		return Best;
+	};
+	for (const TorqueFit::Json& Poi : G.Pois)
+	{
+		const std::string What = Poi.Str("kind");
+		if (What != "pub" && !(What == "inn" && Poi.Num("conf", 1.0) >= 0.75)) continue;
+		const std::string Called = Poi.Str("name");
+		const P2 At(Poi.Num("x"), Poi.Num("z"));
+		const int Home = NearestBuilding(At.X, At.Z, 30.0);
+		if (Home >= 0) BuildingRole[size_t(Home)] = 2;
+		if (Called.empty()) continue;
+		NearOpts Opts;
+		NearHit Hit;
+		if (!NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist > Hit.Half + 40.0 || Hit.Deck || Hit.Bore) continue;
+		const P2 Off = At - Hit.Foot;
+		const double Len = Off.Length();
+		if (Len < 1e-3) continue;
+		const P2 Toward = Off * (1.0 / Len);
+		Furnish F;
+		F.Kind = PubSign;
+		F.At = Hit.Foot + Toward * (Hit.Half + 1.3);
+		F.Face = P2(Toward.Z, -Toward.X);   // (the board hangs along the road, read from either way)
+		F.Text = Called;
+		F.Height = Ground(F.At.X, F.At.Z);
+		if (OffAll(F.At, 0.9)) Put(F);
+	}
+	for (const TorqueFit::Json& Mark : G.Landmarks)
+	{
+		if (Mark.Str("kind") != "worship") continue;
+		const int Home = NearestBuilding(Mark.Num("x"), Mark.Num("z"), 40.0);
+		if (Home >= 0 && G.Buildings[size_t(Home)].W * G.Buildings[size_t(Home)].D >= 60.0) BuildingRole[size_t(Home)] = 1;
+	}
+	// Level crossings: on each road's approach to a railway in use, a barrier (up: no trains run) and
+	// its lights, on the traffic's left.
+	for (const RailLine& Run : Rails)
+	{
+		if (Run.Disused) continue;
+		for (size_t I = 0; I < Run.At.size(); ++I)
+		{
+			if (Run.On[I] != 3 || (I > 0 && Run.On[I - 1] == 3)) continue;
+			size_t J = I;
+			while (J + 1 < Run.At.size() && Run.On[J + 1] == 3) ++J;
+			// (the rail's points just off the road each side, and the way across the line there)
+			for (int End = 0; End < 2; ++End)
+			{
+				const size_t K = End == 0 ? (I > 0 ? I - 1 : I) : std::min(Run.At.size() - 1, J + 1);
+				const size_t A = K > 0 ? K - 1 : K, B = std::min(Run.At.size() - 1, K + 1);
+				const P2 D = Run.At[B] - Run.At[A];
+				const double Len = D.Length();
+				if (Len < 1e-6) continue;
+				const P2 Left(D.Z / Len, -D.X / Len);
+				const double Sg = End == 0 ? 1.0 : -1.0;
+				Furnish F;
+				F.Kind = CrossingBarrier;
+				F.At = Run.At[K] + Left * (Sg * 3.2);
+				F.Face = Left * Sg;   // (towards the traffic coming to the line on this side)
+				F.Height = Ground(F.At.X, F.At.Z);
+				if (OffAll(F.At, 0.4)) Put(F);
+			}
+			I = J;
+		}
+	}
 	// What the map has: cattle grids on the road, and beside it poles, boxes, stops, benches, milestones and gates.
 	for (const FeaturePoint& P : G.Scenery.Points)
 	{
@@ -909,6 +1078,57 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 					Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.22, Y + 0.42, Y + 0.47, Wood);
 					Box(Out, F.At.X - Face.X * 0.2, F.At.Z - Face.Z * 0.2, Side, 0.8, 0.03, Y + 0.5, Y + 0.85, Wood);
 					for (double Su : {-0.7, 0.7}) Box(Out, F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Side, 0.04, 0.2, Y - 0.1, Y + 0.42, Steel);
+					break;
+				}
+				case PhoneBox:
+				{
+					// A red box with a domed top, its glazed sides, and TELEPHONE over the door.
+					Box(Out, F.At.X, F.At.Z, Face, 0.45, 0.45, Y - 0.1, Y + 2.3, Red);
+					Box(Out, F.At.X, F.At.Z, Face, 0.5, 0.5, Y + 2.3, Y + 2.45, Shade(Red, 0.85));
+					Box(Out, F.At.X, F.At.Z, Face, 0.36, 0.36, Y + 2.45, Y + 2.55, Shade(Red, 0.75));
+					for (int Way = 0; Way < 4; ++Way)
+					{
+						const P2 N = Way == 0 ? Face : Way == 1 ? Side : Way == 2 ? Face * -1.0 : Side * -1.0;
+						Board(At3(F.At.X, Y + 1.3, F.At.Z), N, 0.62, 1.4, Shade(Grey, 0.35), 0.455);
+						Board(At3(F.At.X, Y + 2.17, F.At.Z), N, 0.7, 0.13, White, 0.505);
+					}
+					Label(At3(F.At.X + Face.X * 0.52, Y + 2.17, F.At.Z + Face.Z * 0.52), Face, 0.09, "TELEPHONE", Black);
+					break;
+				}
+				case PubSign:
+				{
+					// A post, an arm out over the verge, and the board hanging from it with the pub's name both sides.
+					Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 3.4, Wood);
+					// (Side is towards the road: the arm reaches out over the verge; the board painted one of a pub's colours)
+					const P2 Arm = F.At + Side * 0.6;
+					Box(Out, (F.At.X + Arm.X) * 0.5, (F.At.Z + Arm.Z) * 0.5, Side, 0.65, 0.04, Y + 3.2, Y + 3.3, Wood);
+					static const Rgb Paints[4] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
+					const Rgb& Paint = Paints[std::min(3, int(Chance(F.At.X, F.At.Z, 52) * 4.0))];
+					const double W = std::fmax(0.8, std::fmin(1.3, 0.25 + 0.05 * double(F.Text.size())));
+					const P3 Mid = At3(Arm.X, Y + 2.55, Arm.Z);
+					Board(Mid, Face, W, 0.9, Shade(Wood, 1.4), 0.02);
+					Board(Mid, Face * -1.0, W, 0.9, Shade(Wood, 1.4), 0.02);
+					Board(Mid, Face, W - 0.1, 0.8, Paint, 0.03);
+					Board(Mid, Face * -1.0, W - 0.1, 0.8, Paint, 0.03);
+					for (int Back = 0; Back < 2; ++Back)
+					{
+						const P2 N = Back ? Face * -1.0 : Face;
+						Label(At3(Mid.X + N.X * 0.045, Mid.Y, Mid.Z + N.Z * 0.045), N, std::fmin(0.12, 0.9 * (W - 0.2) / std::fmax(1.0, double(F.Text.size()) * 0.55)), F.Text, Shade(White, 1.1));
+					}
+					break;
+				}
+				case CrossingBarrier:
+				{
+					// The post with its two red lights in a black board facing the traffic, and the red and
+					// white barrier arm raised.
+					Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 2.6, White);
+					const P3 Lights = At3(F.At.X, Y + 2.2, F.At.Z);
+					Board(Lights, Face, 1.0, 0.45, Black, 0.09);
+					for (double Su : {-0.3, 0.3})
+						Disc(Out, At3(Lights.X + Side.X * Su + Face.X * 0.1, Lights.Y, Lights.Z + Side.Z * Su + Face.Z * 0.1), Face, 0.11, Shade(Red, 1.3), 12);
+					Box(Out, F.At.X + Side.X * 0.3, F.At.Z + Side.Z * 0.3, Face, 0.18, 0.18, Y - 0.1, Y + 1.1, Shade(Grey, 0.6));
+					for (int K = 0; K < 6; ++K)
+						Box(Out, F.At.X + Side.X * 0.3, F.At.Z + Side.Z * 0.3, Face, 0.05, 0.05, Y + 1.1 + K * 0.6, Y + 1.7 + K * 0.6, K % 2 == 0 ? Red : White);
 					break;
 				}
 				case Milestone:

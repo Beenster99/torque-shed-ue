@@ -316,7 +316,9 @@ public:
 	// it leaves, chevrons round its sharp bends, street lamps through villages and towns, and from the
 	// map cattle grids across the road, telegraph poles, post boxes, bus stops, benches, milestones
 	// and field gates in their walls. Face is the way a sign faces (towards the traffic that reads it).
-	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, FurnishKinds };
+	// Then a red phone box in the bigger villages, a pub's hanging sign by the road with its name, and a
+	// level crossing's barrier and lights on each road approach to a railway in use.
+	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier, FurnishKinds };
 	struct Furnish
 	{
 		int Kind = 0;
@@ -329,6 +331,9 @@ public:
 	int FurnitureCount(int Kind) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
+	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
+	// with its tower, 2 a pub).
+	std::vector<unsigned char> BuildingRole;
 	// The local look (Ride UK stage 5: WorldRideStyle) at a place of the ride's frame.
 	const LocalLook& LookHere(double X, double Z) const;
 	// The railways near the ride (Ride UK stage 5), the map's railway lines joined end to end and a

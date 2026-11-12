@@ -689,6 +689,11 @@ int main()
 						Check(Built > 0 && Plan->FurnitureCount(RidePlan::NameSign) >= 2 && Plan->FurnitureCount(RidePlan::Limit30) >= 2 && Plan->FurnitureCount(RidePlan::LimitNational) >= 2
 								&& Plan->FurnitureCount(RidePlan::StreetLamp) > 3 && Plan->FurnitureCount(RidePlan::PowerPole) > 10 && Plan->FurnitureCount(RidePlan::FieldGate) > 10 && OnRoad == 0 && Labels == 1,
 							"the road's furniture: villages named and signed 30 coming in and national limit going out, lamps through them, poles, gates in the walls, none of it on a road");
+						int Churches = 0, Pubs = 0;
+						for (unsigned char Role : Plan->BuildingRole) { Churches += Role == 1 ? 1 : 0; Pubs += Role == 2 ? 1 : 0; }
+						std::printf("      and %d phone boxes, %d pub signs (%d pubs), %d churches with towers, %d level crossing barriers\n", Plan->FurnitureCount(RidePlan::PhoneBox),
+							Plan->FurnitureCount(RidePlan::PubSign), Pubs, Churches, Plan->FurnitureCount(RidePlan::CrossingBarrier));
+						Check(Plan->FurnitureCount(RidePlan::PhoneBox) > 0 && Plan->FurnitureCount(RidePlan::PubSign) > 0 && Churches > 0, "villages have their phone boxes, pubs their signs by the road, churches their towers");
 					}
 					// The railways (stage 5): joined into lines, eased along, flush with a road they cross, their
 					// cuttings and banks in the land, stations with their platforms and names.
