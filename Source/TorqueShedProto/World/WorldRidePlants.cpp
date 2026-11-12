@@ -15,12 +15,12 @@ namespace
 const char* const KindNames[RidePlan::PlantKinds] = {
 	"carpet_green", "carpet_moor", "carpet_far_green", "carpet_far_moor", "tuft_a", "tuft_b", "tussock_a", "tussock_b", "matgrass", "far_a", "far_b",
 	"rush_a", "rush_b", "heather_twig_a", "heather_twig_b", "heather_a", "heather_b", "bracken",
-	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce"};
+	"ash", "sycamore", "alder", "birch", "hawthorn", "spruce", "oak", "beech", "willow", "rowan", "pine", "hazel"};
 
 enum Kind : uint16_t
 {
 	CarpetGreen, CarpetMoor, CarpetFarGreen, CarpetFarMoor, TuftA, TuftB, TussockA, TussockB, MatGrass, FarA, FarB, RushA, RushB,
-	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce
+	TwigA, TwigB, HeatherA, HeatherB, Bracken, Ash, Sycamore, Alder, Birch, Hawthorn, Spruce, Oak, Beech, Willow, Rowan, Pine, Hazel
 };
 
 // The cover ids the baker writes (Terrain::Cover).
@@ -67,6 +67,20 @@ double Fbm(double X, double Z, double Scale, uint32_t Salt)
 const char* RidePlan::PlantName(int Kind)
 {
 	return Kind >= 0 && Kind < PlantKinds ? KindNames[Kind] : "";
+}
+
+int RidePlan::PlantStandIn(int Kind)
+{
+	switch (Kind)
+	{
+	case Oak: return Ash;
+	case Beech: return Sycamore;
+	case Willow: return Alder;
+	case Rowan: return Birch;
+	case Pine: return Spruce;
+	case Hazel: return Hawthorn;
+	default: return Kind;
+	}
 }
 
 void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const
@@ -351,13 +365,18 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				const double Roll = Hash(Gx, Gz, 14u);
 				uint16_t What = Ash;
 				const bool Needle = Leaf == 2 || (Leaf == 3 && Roll < 0.5);
-				if (Needle) What = Spruce;
-				else if (Tall < 6.5) What = Hawthorn;
+				// (a second roll for which broadleaf or which conifer, so the first's split stays as it was)
+				const double Which = Hash(Gx, Gz, 18u);
+				if (Needle) What = Which < 0.6 ? Spruce : Pine;   // (the plantations' spruce, Scots pine)
+				else if (Tall < 6.5) What = Which < 0.65 ? Hawthorn : Which < 0.9 ? Hazel : Rowan;
 				else
 				{
+					// A Dales wood: ash and sycamore, oak, some beech and birch, the odd rowan; alder and
+					// willow by the becks and in the wet.
 					const Here H = Look(X, Z);
 					const double Wet = H.Wet + (H.Cover == CWetland ? 0.3 : 0.0);
-					What = Roll < 0.1 + 0.4 * Smooth(0.45, 0.8, Wet) ? Alder : Roll < 0.55 ? Ash : Roll < 0.94 ? Sycamore : Birch;
+					if (Roll < 0.1 + 0.4 * Smooth(0.45, 0.8, Wet)) What = Which < 0.7 ? Alder : Willow;
+					else What = Which < 0.32 ? Ash : Which < 0.55 ? Sycamore : Which < 0.77 ? Oak : Which < 0.86 ? Beech : Which < 0.96 ? Birch : Rowan;
 				}
 				const double Height = Tall * (0.8 + 0.35 * Hash(Gx, Gz, 15u));
 				Put(What, X, Z, Hash(Gx, Gz, 17u) * Pi2, 1.0, 0.15, false, Height, Hash(Gx, Gz, 16u), !Fine);

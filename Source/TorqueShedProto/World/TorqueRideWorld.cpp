@@ -422,11 +422,17 @@ bool ATorqueRideWorld::FindKit()
 			}
 			Kit.Add(S);
 		}
-		// (a kind with near models but no far ones uses the near ones far off too, and the other way about)
+		// (a kind with near models but no far ones uses the near ones far off too, and the other way about;
+		// one with neither, the models of the kind that stands in for it: oak for ash and so on)
 		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
 		{
 			if (KindFar[K].Num() == 0) KindFar[K] = KindNear[K];
 			if (KindNear[K].Num() == 0) KindNear[K] = KindFar[K];
+		}
+		for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds; ++K)
+		{
+			const int32 Instead = TorqueWorld::RidePlan::PlantStandIn(K);
+			if (KindNear[K].Num() == 0 && Instead != K) { KindNear[K] = KindNear[Instead]; KindFar[K] = KindFar[Instead]; }
 		}
 	}
 	FString Missing;

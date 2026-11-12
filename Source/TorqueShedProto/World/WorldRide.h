@@ -209,9 +209,13 @@ public:
 	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
 	// plant stands on the surface drawn. The same every time for the same square.
 	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
-	static constexpr int PlantKinds = 24, FirstTree = 18;
+	static constexpr int PlantKinds = 30, FirstTree = 18;
 	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
-	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (its models SM_Tree_<kind>_N, SM_TreeFar_<kind>_N).
+	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
+	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
+	// ones only; the game draws one of the first six in their place until they are in: PlantStandIn).
+	// What a tree kind is drawn as when there are no models of it (itself for the first six).
+	static int PlantStandIn(int Kind);
 	static const char* PlantName(int Kind);
 	// Set before the ground is made: trees come as plants (PlantsTile) and not as stand-in shapes
 	// (SceneryTile); how many of the grass's plants are kept (0..1).

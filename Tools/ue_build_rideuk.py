@@ -14,6 +14,7 @@ names of their own (M_RideLandScan, M_RideStone, M_RideMasonry; the game uses th
 Its grass and trees are Buttertubs' own too: the plant kit (place_kit) copies the Buttertubs level's
 species, so run this after ue_build_level.py has built that level.
 """
+import json
 import os
 import sys
 
@@ -203,6 +204,44 @@ def grass_materials(L, kit):
     log("grass materials: M_RideFoliage%s, %d scanned instances" % (", M_RideFoliageScan" if master else "", len(copied)))
 
 
+def scanned_trees(L, kit):
+    """Scanned trees (Data/RideUK/scanned_trees.json: Quixel Megaplants once imported on the PC) in
+    the kit's "Trees" in place of Buttertubs' own models of the same kind, as species named
+    SM_Tree_<kind>_scan (native meshes with their own materials). Changes the kit in place."""
+    f = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "scanned_trees.json")
+    if not os.path.exists(f) or "Trees" not in kit:
+        return
+    spec = json.load(open(f))
+    norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
+    skip = [norm(w) for w in spec.get("skip", [])]
+    most = int(spec.get("most", 6))
+    meshes = []
+    for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
+        if str(a.asset_class_path.asset_name) != "StaticMesh":
+            continue
+        pkg = str(a.package_name)
+        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+            continue
+        meshes.append((norm(pkg), "%s.%s" % (pkg, a.asset_name)))
+    rows = kit["Trees"]["species"]
+    template = dict(rows[0]) if rows else {"cull_distance": 3000000.0, "cast_shadow": True}
+    found = {}
+    for kind, words in spec["kinds"].items():
+        keys = [norm(w) for w in words]
+        got = sorted(p for n, p in meshes if any(k in n for k in keys) and not any(w in n for w in skip))[:most]
+        if not got:
+            continue
+        found[kind] = got
+        # (ours of this kind go: the scanned ones take every tree of it, near and far)
+        rows[:] = [r for r in rows if not (r["name"].startswith("SM_Tree_%s_" % kind) or r["name"].startswith("SM_TreeFar_%s_" % kind))]
+        r = dict(template)
+        r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
+                  "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
+        rows.append(r)
+    log("scanned trees: %s" % (", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
+                               "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
+
+
 def place_kit(kit):
     """The ride's plant kit: two TorqueFoliage actors that plant nothing themselves (Density 0), tagged
     RideGrass and RideTrees, with Buttertubs' species; World/TorqueRideWorld lays them out as it goes."""
@@ -240,6 +279,7 @@ def build():
     scanned = scanned_materials(L)
     kit = read_kit(L)
     grass_materials(L, kit)
+    scanned_trees(L, kit)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)
