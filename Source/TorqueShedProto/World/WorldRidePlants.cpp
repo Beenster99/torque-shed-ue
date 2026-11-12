@@ -161,8 +161,66 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		return A + (B - A) * Tu + (C - A) * Tv + (A - B - C + D) * Tu * Tv;
 	};
 
+	// Where nothing grows: in a building (and 0.6 m round it) or a wall, hedge or fence's line; no tree
+	// within 3 m of a building's walls either. A metre grid over the square: bit 1 grass, bit 2 trees.
+	const int Mg = int(std::ceil(Size));
+	std::vector<unsigned char> Bare(size_t(Mg) * size_t(Mg), 0);
+	if (Scene)
+	{
+		const Region& Rg = Area.Roads;
+		const auto Mark = [&](double X, double Z, unsigned char Bits)
+		{
+			const int I = int(std::floor(X - X0)), J = int(std::floor(Z - Z0));
+			if (I >= 0 && J >= 0 && I < Mg && J < Mg) Bare[size_t(J) * Mg + I] |= Bits;
+		};
+		const int Cx0 = int(std::floor((X0 - 40.0) / 256.0)), Cx1 = int(std::floor((X0 + Size + 40.0) / 256.0));
+		const int Cz0 = int(std::floor((Z0 - 40.0) / 256.0)), Cz1 = int(std::floor((Z0 + Size + 40.0) / 256.0));
+		for (int Cz = Cz0; Cz <= Cz1; ++Cz)
+			for (int Cx = Cx0; Cx <= Cx1; ++Cx)
+			{
+				const long long Key = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
+				if (const auto It = Scene->Buildings.find(Key); It != Scene->Buildings.end())
+					for (int Index : It->second)
+					{
+						const Building& B = Rg.Buildings[size_t(Index)];
+						// (its own frame as SceneryTile draws it: x across W, z deep D, turned by Yaw)
+						const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw), Hw = B.W * 0.5 + 3.0, Hd = B.D * 0.5 + 3.0;
+						const double Span = std::sqrt(Hw * Hw + Hd * Hd);
+						if (B.X + Span < X0 || B.X - Span > X0 + Size || B.Z + Span < Z0 || B.Z - Span > Z0 + Size) continue;
+						for (double Z = std::floor(B.Z - Span) + 0.5; Z < B.Z + Span; Z += 1.0)
+							for (double X = std::floor(B.X - Span) + 0.5; X < B.X + Span; X += 1.0)
+							{
+								// (back into its frame: the inverse of x' = x cos + z sin, z' = -x sin + z cos)
+								const double Dx = X - B.X, Dz = Z - B.Z;
+								const double Lx = std::fabs(Dx * Cs - Dz * Sn), Lz = std::fabs(Dx * Sn + Dz * Cs);
+								if (Lx > Hw + 0.71 || Lz > Hd + 0.71) continue;
+								const bool Grass = Lx < B.W * 0.5 + 0.6 + 0.71 && Lz < B.D * 0.5 + 0.6 + 0.71;
+								Mark(X, Z, static_cast<unsigned char>(Grass ? 3 : 2));
+							}
+					}
+				if (const auto It = Scene->Lines.find(Key); It != Scene->Lines.end())
+					for (int L : It->second)
+					{
+						const FeatureLine& F = Rg.Scenery.Lines[size_t(L)];
+						for (size_t I = 0; I + 1 < F.Line.size(); ++I)
+						{
+							const P2 A = F.Line[I], B = F.Line[I + 1];
+							const double Len = A.DistanceTo(B);
+							for (double T = 0.0; T <= Len; T += 0.5)
+							{
+								const P2 P = A + (B - A) * (Len > 1e-9 ? T / Len : 0.0);
+								Mark(P.X, P.Z, 1);
+							}
+						}
+					}
+			}
+	}
 	const auto Put = [&](uint16_t What, double X, double Z, double Yaw, double Scale, double Down, bool Tilt, double Height, double Pick, bool Far)
 	{
+		{
+			const int Bi = int(std::floor(X - X0)), Bj = int(std::floor(Z - Z0));
+			if (Bi >= 0 && Bj >= 0 && Bi < Mg && Bj < Mg && (Bare[size_t(Bj) * Mg + Bi] & (Height > 0.0 ? 2 : 1)) != 0) return;
+		}
 		double Y = 0.0, Nx = 0.0, Nz = 0.0;
 		Surface(X, Z, Y, Nx, Nz);
 		RidePlant P;

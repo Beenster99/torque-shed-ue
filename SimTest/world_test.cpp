@@ -943,8 +943,31 @@ int main()
 					}
 					// The grass and trees on the land, for the game to draw with Buttertubs' own plants.
 					{
-						size_t Squares = 0, PlantOnRoad = 0, PlantAstray = 0, Total = 0, Trees = 0, Alike = 0, Kinds = 0;
+						size_t Squares = 0, PlantOnRoad = 0, PlantAstray = 0, Total = 0, Trees = 0, Alike = 0, Kinds = 0, InHouse = 0;
 						size_t PerKind[RidePlan::PlantKinds] = {0};
+						// (the buildings by 32 m square, to ask whether a plant stands in one)
+						std::unordered_map<long long, std::vector<const Building*>> Houses;
+						for (const Building& House : Plan->Area.Roads.Buildings)
+						{
+							const double Span = 0.5 * std::hypot(House.W, House.D);
+							for (double Z = House.Z - Span; Z <= House.Z + Span + 32.0; Z += 32.0)
+								for (double X = House.X - Span; X <= House.X + Span + 32.0; X += 32.0)
+								{
+									std::vector<const Building*>& Row = Houses[static_cast<long long>(std::floor(X / 32.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 32.0))];
+									if (Row.empty() || Row.back() != &House) Row.push_back(&House);
+								}
+						}
+						const auto InBuilding = [&Houses](double X, double Z)
+						{
+							const auto It = Houses.find(static_cast<long long>(std::floor(X / 32.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 32.0)));
+							if (It == Houses.end()) return false;
+							for (const Building* House : It->second)
+							{
+								const double Cs = std::cos(House->Yaw), Sn = std::sin(House->Yaw), Dx = X - House->X, Dz = Z - House->Z;
+								if (std::fabs(Dx * Cs - Dz * Sn) < House->W * 0.5 && std::fabs(Dx * Sn + Dz * Cs) < House->D * 0.5) return true;
+							}
+							return false;
+						};
 						double PlantWorst = 0.0, AllMs = 0.0;
 						for (size_t I = 0; I < Plan->Road.size() && Squares < 6; I += 200)
 						{
@@ -967,6 +990,7 @@ int main()
 								const double X = Sq.OriginX + P.X, Z = Sq.OriginZ + P.Z;
 								// (nothing grows on a road's tarmac)
 								if (!std::isnan(Plan->RoadHeight(X, Z))) ++PlantOnRoad;
+								if (InBuilding(X, Z)) ++InHouse;
 								// (and each stands on the ground drawn: no higher than it, no deeper than a slope's sinking)
 								const int Ci = std::min(63, std::max(0, int(P.X / 4.0f))), Cj = std::min(63, std::max(0, int(P.Z / 4.0f)));
 								float Lo = 1e9f, Hi = -1e9f;
@@ -989,7 +1013,7 @@ int main()
 							if (Plain.Extra) Without += Plain.Extra->Vertices();
 							Plan->LandTile(std::floor(Plan->Road[I].At.X / 256.0) * 256.0, std::floor(Plan->Road[I].At.Z / 256.0) * 256.0, 256.0, 64, Sq);
 							Plan->LandTile(std::floor(Plan->Road[I].At.X / 1024.0) * 1024.0, std::floor(Plan->Road[I].At.Z / 1024.0) * 1024.0, 1024.0, 128, Coarse);
-							for (const RidePlant& P : Sq.Plants) if (P.Kind >= RidePlan::FirstTree) { ++RealTrees; if (P.Height < 3.0f || P.Far) ++PlantAstray; }
+							for (const RidePlant& P : Sq.Plants) if (P.Kind >= RidePlan::FirstTree) { ++RealTrees; if (P.Height < 3.0f || P.Far) ++PlantAstray; if (InBuilding(Sq.OriginX + P.X, Sq.OriginZ + P.Z)) ++InHouse; }
 							for (const RidePlant& P : Coarse.Plants) if (P.Kind >= RidePlan::FirstTree) { ++FarTrees; if (!P.Far) ++PlantAstray; } else ++PlantAstray;   // (no grass on the coarser squares)
 							if (Sq.Extra) StandIns += Sq.Extra->Vertices();
 						}
@@ -998,8 +1022,8 @@ int main()
 							int(Squares), int(Total), int(Kinds), int(PerKind[0] + PerKind[1] + PerKind[2] + PerKind[3]), int(PerKind[4] + PerKind[5] + PerKind[6] + PerKind[7] + PerKind[8]),
 							int(PerKind[9] + PerKind[10]), int(PerKind[11] + PerKind[12]), int(PerKind[13] + PerKind[14] + PerKind[15] + PerKind[16]), int(PerKind[17]), AllMs / double(std::max<size_t>(1, Squares)),
 							int(PlantOnRoad), int(PlantAstray), PlantWorst);
-						std::printf("      real trees asked for: %d near and %d far along it; what stands on the squares %d points with them, %d with the stand-ins\n", int(RealTrees), int(FarTrees), int(StandIns), int(Without));
-						Check(Total > 20000 && Kinds >= 8 && Trees == 0 && PlantOnRoad == 0 && PlantAstray == 0 && Alike == Squares && RealTrees > 20 && FarTrees > 20 && StandIns < Without,
+						std::printf("      real trees asked for: %d near and %d far along it; what stands on the squares %d points with them, %d with the stand-ins; %d plants in a building\n", int(RealTrees), int(FarTrees), int(StandIns), int(Without), int(InHouse));
+						Check(Total > 20000 && Kinds >= 8 && Trees == 0 && PlantOnRoad == 0 && PlantAstray == 0 && InHouse == 0 && Alike == Squares && RealTrees > 20 && FarTrees > 20 && StandIns < Without,
 							"grass, rushes, heather and bracken lie on the finest squares near the roads and none on a road, each on the ground drawn, the same every time; real trees (near and far models) in place of the stand-ins when the game has them");
 					}
 					// Bridges on the roads beside it.
