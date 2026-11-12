@@ -1608,7 +1608,8 @@ def register():
         json.dump({"about": "Co-op avatars: assembled MetaHumans, one per player colour in this order "
                             "(Tools/ue_metahumans.py writes this; Source/TorqueShedProto/Shed/TorqueAvatar.* reads it).",
                    "avatars": out}, f, indent=1)
-    log("%d avatars written to %s" % (len(out), path))
+    log("%d avatars written to %s (%s). Commit it: it's tracked, so a reset or pull on the PC puts the old copy back"
+        % (len(out), path, "; ".join("%s: %d parts" % (e["name"], len(e.get("parts", []))) for e in out)))
     set_never_cook(False)
 
 

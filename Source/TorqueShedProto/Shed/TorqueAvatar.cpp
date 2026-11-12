@@ -829,6 +829,8 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 		ApplyMaterials(Driver, E.BodyMaterials);
 		// The body's slots too, logged only (round 139: no garment lines; the build may bake the outfit into the body).
 		TorqueAvatarMath::SolidClothes(Driver, E.Name, TEXT("Body"), true);
+		if (E.Parts.Num() <= 1)
+			UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: avatars.json lists no hair or clothes: it's the old committed copy, not register's (run py Tools/ue_metahumans.py and commit Data/Avatars/avatars.json)"), *E.Name);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %d parts listed (%s)"), *E.Name, E.Parts.Num(),
 			*FString::JoinBy(E.Parts, TEXT(", "), [](const FPart& P) { return P.Name + (P.Mesh.IsEmpty() ? P.Cloth.IsEmpty() ? TEXT("") : TEXT("=cloth") : TEXT("=mesh")); }));
 		AddParts(Owner, Driver, E, Parts, FaceMesh);
