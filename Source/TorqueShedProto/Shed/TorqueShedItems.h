@@ -82,6 +82,7 @@ private:
 	// Where a part hung on hook n sits now: its bottom centre at the hook's set height, swung with it.
 	FTransform HungAt(int32 Hook, double Height) const;
 	TArray<FDrawn> Drawn;
+	TSet<int32> Riding;   // [trolley] items drawn riding a trolley that's being moved (last frame)
 	// [fluids] The cans and bottles drawn see-through, their fluid sloshing (TorqueFluidModels), by item;
 	// kept across redraws so a pour eases the level and a slosh carries on.
 	TMap<int32, TorqueFluidModels::FVessel> Vessels;

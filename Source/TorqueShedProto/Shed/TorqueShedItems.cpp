@@ -3,6 +3,7 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
+#include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
@@ -641,9 +642,34 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 	bool bTurning = false;
 	for (TActorIterator<ATorqueWalker> W(GetWorld()); W && !bTurning; ++W) bTurning = W->TurningChanger();
 	if (bTurning) ChangerSpin = FMath::Fmod(ChangerSpin + DeltaSeconds * 2.2, UE_DOUBLE_TWO_PI);
+	// [trolley] Trolleys being wheeled about: what's on them rides along (put where it went on release).
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	struct FMovingTrolley { const TorqueFurniture::FModel* Model; FTransform Was, Now; };
+	TArray<FMovingTrolley, TInlineAllocator<4>> Moving;
+	if (Shed)
+		for (const FTorqueFurniture& F : Shed->Furniture())
+			if (F.Mover != 0)
+				if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model); M && TorqueFurniture::IsTrolley(*M))
+					Moving.Add({M, F.Xf, TorqueFurniture::DrawnXf(this, F)});
+	TSet<int32> RidingNow;
 	for (const FDrawn& D : Drawn)
 	{
 		USceneComponent* H = D.Holder.Get();
+		if (H && D.HeldBy == 0 && Shed && (Moving.Num() > 0 || Riding.Contains(D.Item)) && !D.bOnChanger && !D.bOnStand && D.Hook == INDEX_NONE)
+			if (const FTorqueItem* It = Shed->Item(D.Item); It && It->At == ETorqueAt::Floor)
+			{
+				FTransform Rest = It->Place;
+				for (const FMovingTrolley& T : Moving)
+					if (TorqueFurniture::OnTrolley(*T.Model, T.Was, Rest.GetLocation()))
+					{
+						Rest = Rest * T.Was.Inverse() * T.Now;
+						RidingNow.Add(D.Item);
+						break;
+					}
+				if (RidingNow.Contains(D.Item) || Riding.Contains(D.Item))
+					H->SetWorldLocationAndRotation(Rest.GetLocation() - Rest.GetRotation().RotateVector(D.Offset), Rest.GetRotation());
+				continue;
+			}
 		if (H && D.HeldBy == 0 && D.bOnChanger)
 		{
 			if (bTurning)
@@ -680,6 +706,7 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 		H->SetVisibility(true, true);
 		H->SetWorldLocationAndRotation(Hand.GetLocation() - Hand.GetRotation().RotateVector(D.Centre), Hand.GetRotation());
 	}
+	Riding = MoveTemp(RidingNow);
 }
 
 void ATorqueShedItems::TickVessels(float DeltaSeconds)
