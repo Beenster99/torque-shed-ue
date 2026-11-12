@@ -17,12 +17,18 @@
 // hand-built ride's scanned stone (M_RideStone, M_RideMasonry, made by Tools/ue_build_rideuk.py).
 // The ground is drawn in its scanned grass, moor and rock too (M_RideLandScan) when that was made.
 //
+// The grass and trees (RideMesh::Plants) are drawn with Buttertubs' own plant and tree models: the
+// RideUK level holds two ATorqueFoliage actors that plant nothing (Density 0), tagged RideGrass and
+// RideTrees, whose species Tools/ue_build_rideuk.py copied from the Buttertubs level. Without them
+// the ground has no grass and the trees stay stand-in shapes.
+//
 // The actor is tagged Land and the road's pieces Road, as the bike's ground trace wants them
 // (TorqueBikePawn's GroundTrace): the road is tarmac, the rest grass.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TorqueFoliage.h"
 
 #include <memory>
 
@@ -30,6 +36,7 @@
 
 class UMaterialInterface;
 class UProceduralMeshComponent;
+class UInstancedStaticMeshComponent;
 namespace TorqueWorld
 {
 class RidePlan;
@@ -62,6 +69,11 @@ private:
 	// and empty ones are left out); null if all are empty.
 	UProceduralMeshComponent* MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow);
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
+	// The level's plant kit (see above): true if it has any grass or trees.
+	bool FindKit();
+	// A square's grass and trees as instanced meshes, and taking them away again.
+	void PlacePlants(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
+	void DropPlants(const FIntVector& Key);
 
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
 	std::shared_ptr<FTorqueRideJobs> Jobs;
@@ -77,6 +89,16 @@ private:
 	// The hand-built ride's scanned stone, for dry stone walls and for stone houses (RideMesh::Stone, Masonry).
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MasonryMaterial;
+	// The kit: the grass's species and the trees', and which of them each of the plan's kinds uses
+	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
+	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;
+	TArray<TArray<int32>> KindNear, KindFar;
+	FVector GrassFrame = FVector(0.0, 1.0, 1.0), TreeFrame = FVector(0.0, 1.0, 1.0);   // yaw, mirror, scale
+	int32 KitTrees = 0;   // (where in Kit the trees start)
+	float CullScale = 1.0f;
+	// Each square's instanced plants (the components are the actor's own, so this needn't hold them).
+	TMap<FIntVector, TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>> TilePlants;
+	int32 PlantsShown = 0;
 	FVector2D LookedAt = FVector2D(1e12, 1e12);
 	double SinceLook = 0.0;
 	bool bSaidReady = false;

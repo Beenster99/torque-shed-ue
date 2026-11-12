@@ -669,6 +669,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();
 		SceneryTile(X0, Z0, Size, Step, *Stands);
 		if (Stands->Any()) Out.Extra = Stands;
+		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
 	}
 }
 

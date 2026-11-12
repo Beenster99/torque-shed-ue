@@ -329,7 +329,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 
 	// Trees, where the map's canopy says there are some: stand-in shapes on a scattered grid, as tall
 	// as the canopy, broadleaved (round) or needleleaved (pointed).
-	if (Land->HasTrees())
+	if (Land->HasTrees() && !RealTrees)
 	{
 		static const Rgb Bark = {0.06f, 0.045f, 0.03f}, Leaf = {0.045f, 0.085f, 0.025f}, Needle = {0.02f, 0.05f, 0.025f};
 		const double Grid = Fine ? 9.0 : 22.0;
