@@ -685,8 +685,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	Out.OriginZ = Pts[size_t(First)].At.Z;
 	// (a side road's paint stops short of the junctions at its ends)
 	const double PaintFrom = Which == 0 ? -1.0 : 12.0, PaintTo = Which == 0 ? 1e18 : Sides[size_t(Which) - 1].Length - 12.0;
-	// (the Godot game's colours, linear: tarmac, the verge's gravel, paint)
-	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.119f, 0.107f, 0.078f}, Paint[3] = {0.83f, 0.83f, 0.75f},
+	// (the Godot game's colours, linear: tarmac, the verge (worn grass and grit: the Godot gravel read as a pale
+	// band beside the road in build 140), paint)
+	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, Paint[3] = {0.83f, 0.83f, 0.75f},
 		Stone[3] = {0.2f, 0.19f, 0.17f}, Tile[3] = {0.51f, 0.49f, 0.43f}, Concrete[3] = {0.21f, 0.21f, 0.2f}, Soot[3] = {0.06f, 0.06f, 0.06f},
 		Portal[3] = {0.34f, 0.33f, 0.3f}, Grass[3] = {0.088f, 0.105f, 0.04f};
 	const int Count = int(Pts.size());
@@ -876,6 +877,28 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const unsigned char Both = MouthAt[size_t(First) + K] & MouthAt[size_t(First) + K + 1];
 			NoShoulder[0] = (Both & 4) != 0;
 			NoShoulder[1] = (Both & 8) != 0;
+		}
+		// Where a side road meets another side road or runs over one (build 140: pale patches and a
+		// bump at such junctions): none of its shoulder lies on another road's tarmac.
+		if (Which > 0 && !(RowA.Deck && RowB.Deck))
+		{
+			NearOpts Others;
+			Others.NotRoad = Which;
+			Others.NoDecks = true;
+			Others.NoBores = true;
+			const auto OnOther = [&](const P2& P, double OwnHeight)
+			{
+				NearHit Hit;
+				return NearestOf(P.X, P.Z, Others, Hit) && Hit.Dist < Hit.Half && std::fabs(Hit.Height - OwnHeight) < 1.5;
+			};
+			for (int Sd = 0; Sd < 2; ++Sd)
+			{
+				const double Sign = Sd == 0 ? 1.0 : -1.0;
+				const P2 Pa = RowA.At + RowA.Left * (Sign * (RowA.Half + Shoulder)), Pb = RowB.At + RowB.Left * (Sign * (RowB.Half + Shoulder));
+				const P2 Ia = RowA.At + RowA.Left * (Sign * (RowA.Half + ShoulderFlat * 0.5)), Ib = RowB.At + RowB.Left * (Sign * (RowB.Half + ShoulderFlat * 0.5));
+				if (OnOther(Pa, RowA.Height) || OnOther(Pb, RowB.Height) || OnOther(Ia, RowA.Height) || OnOther(Ib, RowB.Height))
+					NoShoulder[Sd] = true;
+			}
 		}
 		const Row& A = RowA;
 		const Row& B = RowB;
