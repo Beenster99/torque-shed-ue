@@ -92,6 +92,11 @@ FString ActName(ETorqueShedAct K)
 	case ETorqueShedAct::OrderPart: return TEXT("order_part");
 	case ETorqueShedAct::TyreFit: return TEXT("tyre_fit");
 	case ETorqueShedAct::TyreRemove: return TEXT("tyre_remove");
+	// Fluids (sfx.gd WORK_LOOPS): the can glugs while it pours, drains or tips; lube is a spray.
+	case ETorqueShedAct::Pour: return TEXT("pour");
+	case ETorqueShedAct::Drain: return TEXT("drain");
+	case ETorqueShedAct::Tip: return TEXT("tip");
+	case ETorqueShedAct::Lube: return TEXT("lube");
 	case ETorqueShedAct::StartBuild:
 	case ETorqueShedAct::ReleaseBike: return TEXT("set_stand");
 	default: return FString();
@@ -925,6 +930,9 @@ void UTorqueSfx::TickWalkers(float Dt)
 				const bool bPaint = R.Kind == ETorqueShedAct::Paint || R.Kind == ETorqueShedAct::Prime || R.Kind == ETorqueShedAct::Coat;
 				Want = bPaint && bGun ? FString(TEXT("spray_gun")) : FString(UTF8_TO_TCHAR(WorkLoop(S(ActName(R.Kind)))));
 			}
+			// The petrol pump's nozzle squeezed into a tank: the fuel glugging in.
+			else if (W->PumpFlowing())
+				Want = TEXT("pour");
 		}
 		else if (W->SoundWorking())
 			Want = UTF8_TO_TCHAR(ToolLoop(S(ToolName(W->SoundTool()))));

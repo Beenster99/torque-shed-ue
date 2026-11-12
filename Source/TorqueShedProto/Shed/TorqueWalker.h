@@ -87,6 +87,8 @@ public:
 	float WorkFraction() const;
 	// [fluids] Pumping petrol (no work ring: the squirts go round and round; the pump dings when full).
 	bool PumpFilling() const;
+	// The nozzle squeezed and fuel going in (not blocked: the tank's full, no fuel...).
+	bool PumpFlowing() const;
 	int32 ToolIndex() const { return (int32)Tool; }
 	// Where the tool in hand sits on the tool bar (TorqueToolBar), or -1.
 	int32 ToolSlot() const;
@@ -226,6 +228,13 @@ public:
 		if (!P || !P->bValid || !P->Blocked.IsEmpty() || Progress <= 0.0 || P->bComputer) return false;
 		Out = P->Request;
 		return true;
+	}
+	// [fluids] Pouring your can now (into a tank, an engine, the waste): ATorqueShedItems tips it over
+	// the crosshair and draws the stream.
+	bool PouringCan() const
+	{
+		FTorqueShedRequest R;
+		return SoundJob(R) && (R.Kind == ETorqueShedAct::Pour || R.Kind == ETorqueShedAct::Tip);
 	}
 	FName TestTargetSlot() const { return TargetSlot; }
 	// Everything the last look went into, nearest first (for a test whose aim missed).

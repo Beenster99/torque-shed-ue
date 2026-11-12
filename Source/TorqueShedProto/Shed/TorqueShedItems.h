@@ -26,6 +26,7 @@ double TopAt(FName Kind, const FVector& Size, const FVector2D& Local, const FVec
 
 class UStaticMesh;
 class UStaticMeshComponent;
+class UMaterialInstanceDynamic;
 
 UCLASS()
 class ATorqueShedItems : public AActor
@@ -90,5 +91,14 @@ private:
 	void Draw(int32 Item);
 	void TickVessels(float DeltaSeconds);
 	bool HandOf(int32 Peer, FTransform& Out) const;
+	// [fluids] Your can tipped over what it's pouring into (petrol into a tank, oil into an engine,
+	// anything into the waste), its spout over the crosshair, and the stream falling from it.
+	int32 PourItem = 0;               // the can being tipped (or easing back)
+	double PourBlend = 0.0;           // 0 in the hand .. 1 tipped and pouring
+	FVector PourAt = FVector::ZeroVector;
+	double PourYaw = 0.0, PourClock = 0.0;
+	UPROPERTY(Transient) UStaticMeshComponent* PourStream = nullptr;
+	UPROPERTY(Transient) UMaterialInstanceDynamic* PourStreamMat = nullptr;
+	void TickPour(float DeltaSeconds);
 	FDelegateHandle WatchItems, WatchBikes;
 };
