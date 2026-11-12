@@ -145,7 +145,7 @@ endif()
 set(WORLD ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/World)
 add_executable(world_test world_test.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
   ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-  ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
+  ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
 target_include_directories(world_test PRIVATE ${WORLD} ${FIT})
 target_compile_definitions(world_test PRIVATE TORQUE_WORLD_DATA="${CMAKE_CURRENT_SOURCE_DIR}/data/world" TORQUE_WORLD_TMP="${CMAKE_CURRENT_BINARY_DIR}")
 find_package(Threads REQUIRED)
@@ -159,7 +159,7 @@ endif()
 if(NOT WIN32)
   add_executable(world_ride world_ride.cpp ${WORLD}/WorldGeo.cpp ${WORLD}/WorldFiles.cpp ${WORLD}/WorldSha256.cpp ${WORLD}/WorldInflate.cpp
     ${WORLD}/WorldImage.cpp ${WORLD}/HeightTiles.cpp ${WORLD}/WorldRegion.cpp ${WORLD}/WorldTerrain.cpp ${WORLD}/WorldZip.cpp ${WORLD}/CellStore.cpp
-    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
+    ${WORLD}/WorldLoad.cpp ${WORLD}/WorldRide.cpp ${WORLD}/WorldRideScenery.cpp ${WORLD}/WorldRidePlants.cpp ${WORLD}/WorldRoadLine.cpp ${FIT}/FitJson.cpp)
   target_include_directories(world_ride PRIVATE ${WORLD} ${FIT})
   target_link_libraries(world_ride PRIVATE Threads::Threads)
   target_compile_options(world_ride PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)

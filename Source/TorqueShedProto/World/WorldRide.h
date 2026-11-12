@@ -59,17 +59,39 @@ struct RoadPoint
 	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
 };
 
+// One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
+// hand-built ride's own meshes: Kind is RidePlan::PlantName's, the place is about the square's origin
+// like its mesh's points, Normal the ground's tilt (x, z; 0, 0 upright), Height a tree's in metres
+// (0 for the grass, which keeps Scale), Pick which of the kind's models (0..1), Far a tree far enough
+// off for the far models.
+struct RidePlant
+{
+	uint16_t Kind = 0;
+	bool Far = false;
+	float X = 0.0f, Y = 0.0f, Z = 0.0f;
+	float Yaw = 0.0f, Scale = 1.0f, Nx = 0.0f, Nz = 0.0f, Height = 0.0f, Pick = 0.0f;
+};
+
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.
 struct RideMesh
 {
 	double OriginX = 0.0, OriginZ = 0.0;
 	std::vector<float> Pos, Nrm;   // x, y, z each
-	std::vector<float> Uv;         // u, v each: metres across the world over 8
+	std::vector<float> Uv;         // u, v each: the ground's metres across the world over 8; what stands on it, metres of its surface
 	std::vector<float> Col;        // r, g, b each (linear), or empty for a mesh of one colour
+	std::vector<float> Alpha;      // a each, or empty for 1 everywhere
 	std::vector<uint32_t> Idx;     // triangles, wound to face up seen from above with x right and z towards you
 	size_t Vertices() const { return Pos.size() / 3; }
 	// With a square of ground: what stands on it (walls, buildings, trees), coloured, or null for nothing.
 	std::shared_ptr<RideMesh> Extra;
+	// With what stands on a square: the parts drawn in the hand-built ride's scanned stone, their
+	// vertex colours its masks, not colours (R brightness, 0.5 the scan as it is; G which scan, 0
+	// lichened limestone, 1 bare; B lichen; Alpha moss) and their UVs metres of surface. Stone is the
+	// dry stone walls (M_Stone), Masonry the stone houses and barns (M_Masonry). Null for none.
+	std::shared_ptr<RideMesh> Stone, Masonry;
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0); }
+	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
+	std::vector<RidePlant> Plants;
 };
 
 class RidePlan
@@ -180,6 +202,25 @@ public:
 	// mapped lines, buildings on their footprints, stand-in trees under the mapped canopy. Coarse is how
 	// far apart the square's points are: past 4 m things are made more plainly.
 	void SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const;
+	// The grass, rushes, heather and bracken on a square of ground (the finest squares: Coarse 4 m or
+	// less) and its trees (squares of 8 m or less, the far models past 4 m), as Tools/make_foliage.py
+	// lays Buttertubs' out but from the cells' cover, slope and canopy: carpets of grass near every
+	// road, clumps among them, rushes where it is wet, heather on the moor, bracken on the drier
+	// slopes, nothing on a road. Mesh is the square's own ground (Cells by Cells from LandTile), so a
+	// plant stands on the surface drawn. The same every time for the same square.
+	void PlantsTile(double X0, double Z0, double Size, int Cells, const RideMesh& Mesh, std::vector<RidePlant>& Out) const;
+	static constexpr int PlantKinds = 30, FirstTree = 18;
+	// "carpet_green", ... "bracken" (the hand-built ride's foliage species), then the trees' kinds
+	// "ash", "sycamore", "alder", "birch", "hawthorn", "spruce" (Buttertubs' models SM_Tree_<kind>_N,
+	// SM_TreeFar_<kind>_N, or scanned ones), "oak", "beech", "willow", "rowan", "pine", "hazel" (scanned
+	// ones only; the game draws one of the first six in their place until they are in: PlantStandIn).
+	// What a tree kind is drawn as when there are no models of it (itself for the first six).
+	static int PlantStandIn(int Kind);
+	static const char* PlantName(int Kind);
+	// Set before the ground is made: trees come as plants (PlantsTile) and not as stand-in shapes
+	// (SceneryTile); how many of the grass's plants are kept (0..1).
+	bool RealTrees = false;
+	double GrassDensity = 1.0;
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
