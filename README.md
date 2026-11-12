@@ -203,7 +203,12 @@ yet. The roads are
 crowned on the straight (2.5% each side) and banked in the bends by the UK's design rule (V squared
 over 2.828 R per cent for the class's speed, 7% at most): the port's own, as the Godot game's roads
 are flat across. The pause menu's *Map data credits* names the makers of the world's data, as their
-licences ask. Still to come: the land's cover, walls, trees and buildings; solo only. Start it from the Options menu in the shed or yard
+licences ask. The ground is coloured by what covers it (pasture, moor, meadow, woods, rock,
+water) and each of its finer squares carries what stands on it (`World/WorldRideScenery`): dry stone
+walls, hedges and fences on their mapped lines, buildings on their mapped footprints under pitched
+roofs, and stand-in trees where the map's canopy has trees, all plain coloured meshes for now.
+Still to come: scanned materials and the satellite's tint, the grass carpet, scanned trees in the
+stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs
 `Torque ride UK: PASS` once planned or `FAIL: why`; add `-TorqueAutoRide` and the robot rides it.
 

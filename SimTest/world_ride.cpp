@@ -7,6 +7,7 @@
 #include "CellStore.h"
 #include "HeightTiles.h"
 #include "WorldFiles.h"
+#include <map>
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRoadLine.h"
@@ -176,6 +177,58 @@ int main(int Argc, char** Argv)
 		}
 		std::printf("The road's edges against the land's mesh: grass over the tarmac at %d of %d (%.3f m at most); over the shoulder's level part at %d; the shoulder's foot in the air at %d (%.3f m at most)\n", Over, Asked2, Worst, OverFlat, Air, WorstAir);
 	}
+	if (std::getenv("WORLD_RIDE_STATS") != nullptr)
+	{
+		// How much stands on the squares along the ride: the finest (256 m) and the middle (1 km) ones.
+		for (int Level = 0; Level < 2; ++Level)
+		{
+			const double Size = Level == 0 ? 256.0 : 1024.0;
+			const int Across = Level == 0 ? 64 : 128;
+			std::map<std::pair<long long, long long>, int> Seen;
+			size_t Most = 0, Sum = 0;
+			double AllMs = 0.0, WorstMs = 0.0;
+			for (size_t I = 0; I < Plan->Road.size(); I += 40)
+			{
+				const std::pair<long long, long long> Key(static_cast<long long>(std::floor(Plan->Road[I].At.X / Size)), static_cast<long long>(std::floor(Plan->Road[I].At.Z / Size)));
+				if (Seen.count(Key) != 0) continue;
+				Seen[Key] = 1;
+				const auto T1 = std::chrono::steady_clock::now();
+				RideMesh Land;
+				Plan->LandTile(double(Key.first) * Size, double(Key.second) * Size, Size, Across, Land);
+				const double Took = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T1).count();
+				AllMs += Took;
+				WorstMs = std::fmax(WorstMs, Took);
+				const size_t N = Land.Extra ? Land.Extra->Vertices() : 0;
+				Most = std::max(Most, N);
+				Sum += N;
+			}
+			std::printf("Squares of %.0f m along the ride: %d; what stands on one is %d points on average, %d at most; a square with it takes %.0f ms on average, %.0f at most\n", Size, int(Seen.size()),
+				int(Sum / std::max<size_t>(1, Seen.size())), int(Most), AllMs / double(std::max<size_t>(1, Seen.size())), WorstMs);
+		}
+
+		// What the cells hold round the ride: buildings, scenery by kind, cover and trees along the road.
+		const Region& G = Plan->Area.Roads;
+		std::map<std::string, int> Kinds;
+		for (const FeaturePoint& F : G.Scenery.Points) ++Kinds["point " + F.Kind];
+		for (const FeatureLine& F : G.Scenery.Lines) ++Kinds["line " + F.Kind];
+		for (const FeatureArea& F : G.Scenery.Areas) ++Kinds["area " + F.Kind];
+		std::printf("Buildings %d (looks %d), streams %d, pois %d, landmarks %d, places %d\n", int(G.Buildings.size()), int(G.Scenery.Buildings.size()), int(G.Streams.size()), int(G.Pois.size()), int(G.Landmarks.size()), int(G.Places.size()));
+		for (const auto& K : Kinds) std::printf("  %s: %d\n", K.first.c_str(), K.second);
+		int CoverN[11] = {0}, Treed = 0, Pts = 0;
+		for (size_t I = 0; I < Plan->Road.size(); I += 5)
+			for (double Aside : {-30.0, 30.0})
+			{
+				const RoadPoint& P = Plan->Road[I];
+				const int C = Plan->Land->Cover(P.At.X + Aside, P.At.Z + Aside);
+				++CoverN[C >= 0 && C < 10 ? C : 10];
+				const int T = Plan->Land->TreesAt(P.At.X + Aside, P.At.Z + Aside);
+				if (T > 0 && ((T >> 5) & 7) > 0) ++Treed;
+				++Pts;
+			}
+		for (int C = 0; C < 10; ++C) std::printf("  cover %s: %d\n", Terrain::CoverName(C), CoverN[C]);
+		std::printf("  no cover: %d; under trees: %d of %d\n", CoverN[10], Treed, Pts);
+		if (!G.Buildings.empty()) { const Building& B = G.Buildings[0]; std::printf("  a building: %.0f %.0f, %.1f x %.1f, yaw %.2f, height %.1f, %d more\n", B.X, B.Z, B.W, B.D, B.Yaw, B.Height, int(B.More.size())); }
+	}
 	if (std::getenv("WORLD_RIDE_MESH") != nullptr)
 	{
 		// Every road's triangles within 45 m of a place along the ride (WORLD_RIDE_MESH_KM, or the first
@@ -199,14 +252,15 @@ int main(int Argc, char** Argv)
 			{
 				const int Last = std::min(First + 64, int(Pts.size()) - 1);
 				bool NearIt = false;
-				for (int I = First; I <= Last && !NearIt; ++I) NearIt = Pts[size_t(I)].At.DistanceTo(Centre) < 60.0;
+				const double Reach2 = std::getenv("WORLD_RIDE_MESH_R") != nullptr ? std::atof(std::getenv("WORLD_RIDE_MESH_R")) : 45.0;
+				for (int I = First; I <= Last && !NearIt; ++I) NearIt = Pts[size_t(I)].At.DistanceTo(Centre) < Reach2 + 15.0;
 				if (!NearIt) continue;
 				RideMesh Mesh;
 				Plan->RoadPiece(W, First, Last, Mesh);
 				for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
 				{
 					bool In = false;
-					for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh.OriginX + Mesh.Pos[Mesh.Idx[T + C] * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[Mesh.Idx[T + C] * 3 + 2] - Centre.Z) < 45.0;
+					for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh.OriginX + Mesh.Pos[Mesh.Idx[T + C] * 3] - Centre.X, Mesh.OriginZ + Mesh.Pos[Mesh.Idx[T + C] * 3 + 2] - Centre.Z) < Reach2;
 					if (!In) continue;
 					for (int C = 0; C < 3; ++C)
 					{
@@ -217,6 +271,34 @@ int main(int Argc, char** Argv)
 					}
 				}
 			}
+		}
+		// With WORLD_RIDE_MESH_R (metres round the place): the ground's finest squares there and what stands on them.
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr)
+		{
+			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
+			for (double Tz = std::floor((Centre.Z - Round) / 256.0) * 256.0; Tz < Centre.Z + Round; Tz += 256.0)
+				for (double Tx = std::floor((Centre.X - Round) / 256.0) * 256.0; Tx < Centre.X + Round; Tx += 256.0)
+				{
+					RideMesh Land;
+					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), static_cast<const RideMesh*>(Land.Extra.get())})
+					{
+						if (Mesh == nullptr) continue;
+						for (size_t T = 0; T + 2 < Mesh->Idx.size(); T += 3)
+						{
+							bool In = false;
+							for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh->OriginX + Mesh->Pos[Mesh->Idx[T + C] * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[Mesh->Idx[T + C] * 3 + 2] - Centre.Z) < Round;
+							if (!In) continue;
+							for (int C = 0; C < 3; ++C)
+							{
+								const uint32_t V = Mesh->Idx[T + C];
+								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
+									double(Mesh->Col[V * 3]), double(Mesh->Col[V * 3 + 1]), double(Mesh->Col[V * 3 + 2]));
+								Text += Buf;
+							}
+						}
+					}
+				}
 		}
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 	}

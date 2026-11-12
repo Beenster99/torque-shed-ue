@@ -10,6 +10,9 @@
 // never has a hole; each hangs a skirt from its edge, so squares of different fineness show no crack.
 //
 // The road's pieces carry their own colours (tarmac, the verge's gravel, paint) in their vertices.
+// So does the ground (what covers it: pasture, moor, crops, woods, rock) and what stands on it: each
+// square of the two finer levels brings its dry stone walls, hedges, fences, buildings and stand-in
+// trees as a second mesh (RideMesh::Extra), drawn with the road's material and with no collision.
 //
 // The actor is tagged Land and the road's pieces Road, as the bike's ground trace wants them
 // (TorqueBikePawn's GroundTrace): the road is tarmac, the rest grass.
@@ -58,6 +61,8 @@ private:
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;
+	// What stands on a square (walls, buildings, trees), where anything does: it comes and goes with its square.
+	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> TileExtras;
 	TSet<FIntVector> Asked;      // being made on a worker
 	TArray<FIntVector> Want;     // as of the last look
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
