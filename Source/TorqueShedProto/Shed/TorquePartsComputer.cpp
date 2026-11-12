@@ -243,6 +243,20 @@ void FTorquePartsComputer::Relist()
 		for (int32 I = 0; I < TorquePaintMix::Tints().Num(); ++I) Rows.Add({NAME_None, FTorquePaintBay::TintStock(I)});
 	else if (TPCI::IsKit(Kind))
 		for (const FName& M : TorqueFurniture::SoldOfKind(TPCI::KitKind(Kind))) Rows.Add({M});
+	else if (Kind == FName(TEXT("engine")))
+	{
+		// Engines by their layout (beenster, Nov 12), not by bike type: singles, two-strokes, twins,
+		// parallel twins, V-twins, boxers, triples, fours; each lot smallest first.
+		TArray<FName> Engines = TorqueShedParts::PartsOfKind(Kind);
+		Engines.StableSort([](const FName& A, const FName& B) {
+			const int32 La = TorqueShedParts::EngineLayoutOrder(A), Lb = TorqueShedParts::EngineLayoutOrder(B);
+			if (La != Lb) return La < Lb;
+			const FString Ta = TorqueShedParts::EngineLayout(A), Tb = TorqueShedParts::EngineLayout(B);
+			if (Ta != Tb) return Ta < Tb;
+			return TorqueShedParts::PartNumber(A, TEXT("displacement"), 0.0) < TorqueShedParts::PartNumber(B, TEXT("displacement"), 0.0);
+		});
+		for (const FName& P : Engines) Rows.Add({P});
+	}
 	else if (TypeFilter.IsNone() || !Filtered())
 		for (const FName& P : TorqueShedParts::PartsOfKind(Kind)) Rows.Add({P});
 	else
@@ -289,7 +303,8 @@ bool FTorquePartsComputer::PickKind(FName K)
 
 bool FTorquePartsComputer::Filtered() const
 {
-	return Section == ESection::Bike && Kind != TPCI::Bikes && !TPCI::IsKit(Kind) && Kind != TPCI::PaintBases && Kind != TPCI::PaintTints;
+	return Section == ESection::Bike && Kind != TPCI::Bikes && !TPCI::IsKit(Kind) && Kind != TPCI::PaintBases && Kind != TPCI::PaintTints &&
+		Kind != FName(TEXT("engine"));   // (engines go by their layout, not the bike type)
 }
 
 void FTorquePartsComputer::StepType(int32 Dir)
@@ -696,8 +711,26 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			Name = TorqueShedParts::PartName(R.Part);
 			Sub = TorqueShedParts::PartDescription(R.Part);
 			const FName Best = TorqueShedParts::PreferredStyle(R.Part);
-			Tag = TPCI::TypeName(Best);
-			bTagMatch = !TypeFilter.IsNone() && Best == TypeFilter;
+			if (Kind == FName(TEXT("engine")))
+			{
+				// Engines: their layout (beenster, Nov 12), not a bike type.
+				Tag = TorqueShedParts::EngineLayout(R.Part);
+				bTagMatch = false;
+			}
+			else if (Kind == FName(TEXT("frame")))
+			{
+				// Frames: the bike types they're for (the one it's made for first).
+				TArray<FString> Names;
+				for (const FName& T : TorqueShedParts::PartStyles(R.Part))
+					if (Names.Num() < 3) Names.Add(TPCI::TypeName(T));
+				Tag = Names.Num() > 0 ? FString::Join(Names, TEXT(" \u00B7 ")) : TPCI::TypeName(Best);
+				bTagMatch = !TypeFilter.IsNone() && TorqueShedParts::SuitsStyle(R.Part, TypeFilter);
+			}
+			else
+			{
+				Tag = TPCI::TypeName(Best);
+				bTagMatch = !TypeFilter.IsNone() && Best == TypeFilter;
+			}
 		}
 		const float TW = RowW - 32.0f * S;
 		float NameW = TW;
@@ -763,6 +796,7 @@ void FTorquePartsComputer::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSu
 			if (Mass > 0.0) Spec += FString::Printf(TEXT("\nWeight: %.1f kg"), Mass);
 			// The bike types it suits: the one it's made for, and the others it looks right on.
 			const TArray<FName> Types = TorqueShedParts::PartStyles(R.Part);
+			if (Kind == FName(TEXT("engine"))) Spec += TEXT("\nLayout: ") + TorqueShedParts::EngineLayout(R.Part);
 			if (Types.Num() == 0) Spec += TEXT("\nPreferred bike type: any (it suits every bike)");
 			else
 			{
