@@ -56,8 +56,9 @@ Rgb Shade(const Rgb& C, double By)
 	return Out;
 }
 
-// Four points as a quad that faces Toward (or both ways), flat shaded.
-void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& Colour, bool BothSides = false)
+// Four points as a quad that faces Toward (or both ways), flat shaded. Its UVs are metres of its own
+// surface (across and up a wall, east and south on a flat top); Moss, 0 or more, is its vertex alpha.
+void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& Colour, bool BothSides = false, float Moss = -1.0f)
 {
 	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
 	double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
@@ -67,12 +68,18 @@ void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3,
 	const double Sign = (Flip ? -1.0 : 1.0) / Len;
 	Nx *= Sign; Ny *= Sign; Nz *= Sign;
 	const uint32_t V = uint32_t(Out.Vertices());
+	const bool Flat = std::fabs(Ny) > 0.7;
+	const double Hl = std::sqrt(Nx * Nx + Nz * Nz);
+	const double Tx = Hl > 1e-6 ? -Nz / Hl : 1.0, Tz = Hl > 1e-6 ? Nx / Hl : 0.0;   // (along a wall's face, level)
 	for (const P3* Q : {&Q0, &Q1, &Q2, &Q3})
 	{
 		Out.Pos.push_back(float(Q->X - Out.OriginX)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Q->Z - Out.OriginZ));
 		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
-		Out.Uv.push_back(float((Q->X + Q->Y) / 4.0)); Out.Uv.push_back(float((Q->Z + Q->Y) / 4.0));
+		// (kept small: a float's metres of UV stay sharp near the square, not 100 km from the cell's corner)
+		const double Lx = Q->X - Out.OriginX, Lz = Q->Z - Out.OriginZ;
+		Out.Uv.push_back(float(Flat ? Lx : Lx * Tx + Lz * Tz)); Out.Uv.push_back(float(Flat ? Lz : -Q->Y));
 		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
+		if (Moss >= 0.0f) Out.Alpha.push_back(Moss);
 	}
 	if (!Flip || BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
 	if (Flip || BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
@@ -158,6 +165,10 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 		return !NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + Spare;
 	};
 	const P3 Sky = At3(X0, 1e6, Z0);
+	// (the dry stone walls and the stone houses go in meshes of their own, in the scanned stone)
+	std::shared_ptr<RideMesh> Walls = std::make_shared<RideMesh>(), Houses = std::make_shared<RideMesh>();
+	Walls->OriginX = Houses->OriginX = X0;
+	Walls->OriginZ = Houses->OriginZ = Z0;
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
 
 	// Walls, hedges and fences: each mapped line, a bit at a time over the ground.
@@ -176,6 +187,13 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const double High = Hedge ? 1.7 : Fence ? 1.1 : (F.Kind == "retaining_wall" ? 1.0 : 1.3) * (0.92 + 0.16 * Chance(F.Line[0].X, F.Line[0].Z, 7));
 				const double Foot = Hedge ? 0.7 : Fence ? 0.05 : 0.33, Top = Hedge ? 0.55 : Fence ? 0.05 : 0.22;
 				const Rgb Colour = Shade(Hedge ? HedgeGreen : Fence ? Post : Limestone, 0.88 + 0.24 * Chance(F.Line[0].X, F.Line[0].Z, 3));
+				// (a wall's stone: how bright, which scan, how lichened, as the hand-built ride's walls are)
+				const bool IsWall = !Hedge && !Fence;
+				Rgb Mask;
+				Mask.R = float(0.42 + 0.16 * Chance(F.Line[0].X, F.Line[0].Z, 3));
+				Mask.G = Chance(F.Line[0].X, F.Line[0].Z, 8) < 0.5 ? 0.15f : 0.85f;
+				Mask.B = float(0.2 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 9));
+				RideMesh& Into = IsWall ? *Walls : Out;
 				for (size_t I = 0; I + 1 < F.Line.size(); ++I)
 				{
 					const P2 A = F.Line[I], B = F.Line[I + 1];
@@ -211,11 +229,12 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						for (double Sg : {1.0, -1.0})
 						{
 							const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
-							Quad(Out, At3(Pa.X + Side.X * Sg * Foot, Ga - 0.4, Pa.Z + Side.Z * Sg * Foot), At3(Pb.X + Side.X * Sg * Foot, Gb - 0.4, Pb.Z + Side.Z * Sg * Foot),
-								At3(Pb.X + Side.X * Sg * Top, Gb + High, Pb.Z + Side.Z * Sg * Top), At3(Pa.X + Side.X * Sg * Top, Ga + High, Pa.Z + Side.Z * Sg * Top), Far, Shade(Colour, Sg > 0.0 ? 1.0 : 0.9));
+							Quad(Into, At3(Pa.X + Side.X * Sg * Foot, Ga - 0.4, Pa.Z + Side.Z * Sg * Foot), At3(Pb.X + Side.X * Sg * Foot, Gb - 0.4, Pb.Z + Side.Z * Sg * Foot),
+								At3(Pb.X + Side.X * Sg * Top, Gb + High, Pb.Z + Side.Z * Sg * Top), At3(Pa.X + Side.X * Sg * Top, Ga + High, Pa.Z + Side.Z * Sg * Top), Far,
+								IsWall ? Mask : Shade(Colour, Sg > 0.0 ? 1.0 : 0.9), false, IsWall ? 0.22f : -1.0f);
 						}
-						Quad(Out, At3(Pa.X + Side.X * Top, Ga + High, Pa.Z + Side.Z * Top), At3(Pb.X + Side.X * Top, Gb + High, Pb.Z + Side.Z * Top),
-							At3(Pb.X - Side.X * Top, Gb + High, Pb.Z - Side.Z * Top), At3(Pa.X - Side.X * Top, Ga + High, Pa.Z - Side.Z * Top), Sky, Shade(Colour, 1.12));
+						Quad(Into, At3(Pa.X + Side.X * Top, Ga + High, Pa.Z + Side.Z * Top), At3(Pb.X + Side.X * Top, Gb + High, Pb.Z + Side.Z * Top),
+							At3(Pb.X - Side.X * Top, Gb + High, Pb.Z - Side.Z * Top), At3(Pa.X - Side.X * Top, Ga + High, Pa.Z - Side.Z * Top), Sky, IsWall ? Mask : Shade(Colour, 1.12), false, IsWall ? 0.45f : -1.0f);
 					}
 				}
 			}
@@ -249,7 +268,19 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const double Whole = B.Height > 2.0 ? B.Height : (Big ? 6.5 : 4.0 + 3.0 * Chance(B.X, B.Z, 1));
 				const double Eaves = std::fmax(2.3, Whole - Rise);
 				const double Pick = Chance(B.X, B.Z, 2);
-				const Rgb Wall = Shade(Pick < 0.14 && !Big ? Render : Stone, 0.85 + 0.3 * Chance(B.X, B.Z, 4));
+				const bool Rendered = Pick < 0.14 && !Big;
+				const Rgb Wall = Shade(Rendered ? Render : Stone, 0.85 + 0.3 * Chance(B.X, B.Z, 4));
+				// (a stone house's walls in the scanned masonry: brightness, mostly the bare scan, a little lichen)
+				Rgb Mask;
+				Mask.R = float(0.48 + 0.14 * Chance(B.X, B.Z, 4));
+				Mask.G = 0.8f;
+				Mask.B = 0.3f;
+				RideMesh& Walling = Rendered ? Out : *Houses;
+				const auto WallQuad = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, double By)
+				{
+					if (Rendered) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
+					else Quad(Walling, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
+				};
 				const Rgb Roof = Shade(Pick > 0.55 ? StoneSlate : Slate, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
 				const P3 Centre = Local(0.0, 0.0, Eaves * 0.5);
 				// (none of it over a road: the map's footprints and the road's own line don't always agree)
@@ -271,11 +302,11 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				{
 					// The long walls, and the ends with their gables.
 					const P3 L0 = Local(-HalfLong, Sg * HalfShort, Sunk), L1 = Local(HalfLong, Sg * HalfShort, Sunk), L2 = Local(HalfLong, Sg * HalfShort, Eaves), L3 = Local(-HalfLong, Sg * HalfShort, Eaves);
-					Quad(Out, L0, L1, L2, L3, Outside(L0, L2), Wall);
+					WallQuad(L0, L1, L2, L3, Outside(L0, L2), 1.0);
 					const P3 E0 = Local(Sg * HalfLong, -HalfShort, Sunk), E1 = Local(Sg * HalfLong, HalfShort, Sunk), E2 = Local(Sg * HalfLong, HalfShort, Eaves), E3 = Local(Sg * HalfLong, -HalfShort, Eaves);
-					Quad(Out, E0, E1, E2, E3, Outside(E0, E2), Shade(Wall, 0.93));
+					WallQuad(E0, E1, E2, E3, Outside(E0, E2), 0.93);
 					const P3 Peak = Local(Sg * HalfLong, 0.0, Eaves + Rise);
-					Quad(Out, E3, E2, Peak, E3, Outside(E0, E2), Shade(Wall, 0.93));
+					WallQuad(E3, E2, Peak, E3, Outside(E0, E2), 0.93);
 					// The roof's two slopes, a little over the walls.
 					const double Over = 0.3, Drop = Over * Rise / HalfShort;
 					Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Eaves - Drop), Local(HalfLong + Over, Sg * (HalfShort + Over), Eaves - Drop), Local(HalfLong + Over, 0.0, Eaves + Rise),
@@ -350,5 +381,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				}
 			}
 	}
+	if (Walls->Vertices() > 0) Out.Stone = Walls;
+	if (Houses->Vertices() > 0) Out.Masonry = Houses;
 }
 } // namespace TorqueWorld

@@ -797,8 +797,9 @@ int main()
 					}
 					// The ground's colour and what stands on it.
 					{
-						size_t Stands = 0, StoneGrey = 0, Squares = 0, Alike = 0, OnTarmac = 0;
-						bool Coloured = true;
+						size_t Stands = 0, StoneGrey = 0, Squares = 0, Alike = 0, OnTarmac = 0, InScan = 0;
+						bool Coloured = true, Masked = true;
+						const auto AlikeMesh = [](const RideMesh* Ma, const RideMesh* Mb) { return (!Ma && !Mb) || (Ma && Mb && Ma->Pos == Mb->Pos && Ma->Col == Mb->Col && Ma->Alpha == Mb->Alpha); };
 						for (size_t I = 0; I < Plan->Road.size() && Squares < 12; I += 120)
 						{
 							const double Tx = std::floor(Plan->Road[I].At.X / 256.0) * 256.0, Tz = std::floor(Plan->Road[I].At.Z / 256.0) * 256.0;
@@ -808,23 +809,36 @@ int main()
 							++Squares;
 							Coloured = Coloured && Sq.Col.size() == Sq.Pos.size() && !Sq.Col.empty();
 							if (!Sq.Extra) { if (!Again.Extra) ++Alike; continue; }
-							if (Again.Extra && Again.Extra->Pos == Sq.Extra->Pos && Again.Extra->Col == Sq.Extra->Col) ++Alike;
-							Stands += Sq.Extra->Vertices();
-							Coloured = Coloured && Sq.Extra->Col.size() == Sq.Extra->Pos.size() && Sq.Extra->Vertices() % 4 == 0;
-							for (size_t V = 0; V < Sq.Extra->Vertices(); ++V)
+							if (Again.Extra && AlikeMesh(Sq.Extra.get(), Again.Extra.get()) && AlikeMesh(Sq.Extra->Stone.get(), Again.Extra->Stone.get()) && AlikeMesh(Sq.Extra->Masonry.get(), Again.Extra->Masonry.get())) ++Alike;
+							for (const RideMesh* Part : {Sq.Extra.get(), Sq.Extra->Stone.get(), Sq.Extra->Masonry.get()})
 							{
-								const float* C = &Sq.Extra->Col[V * 3];
-								if (std::fabs(C[0] - C[1]) < 0.03f && C[0] > 0.15f) ++StoneGrey;
-								// (nothing stands on a road's tarmac)
-								const double Rh = Plan->RoadHeight(Sq.Extra->OriginX + Sq.Extra->Pos[V * 3], Sq.Extra->OriginZ + Sq.Extra->Pos[V * 3 + 2]);
-								if (!std::isnan(Rh) && Sq.Extra->Pos[V * 3 + 1] < Rh + 2.5) ++OnTarmac;   // (a tree's crown may reach over)
+								if (!Part) continue;
+								const bool Scanned = Part != Sq.Extra.get();
+								Stands += Part->Vertices();
+								Coloured = Coloured && Part->Col.size() == Part->Pos.size() && Part->Vertices() % 4 == 0 && Part->Uv.size() == Part->Vertices() * 2;
+								// (the scanned stone's masks: brightness about the scan's own, moss in the alpha, UVs metres of a square's walls)
+								if (Scanned) Masked = Masked && Part->Alpha.size() == Part->Vertices() && Part->OriginX == Sq.OriginX && Part->OriginZ == Sq.OriginZ;
+								for (size_t V = 0; V < Part->Vertices(); ++V)
+								{
+									const float* C = &Part->Col[V * 3];
+									if (Scanned)
+									{
+										++InScan;
+										Masked = Masked && C[0] > 0.3f && C[0] < 0.7f && C[1] >= 0.0f && C[1] <= 1.0f && Part->Alpha[V] >= 0.0f && Part->Alpha[V] <= 1.0f
+											&& std::fabs(Part->Uv[V * 2]) < 1000.0f && std::fabs(Part->Uv[V * 2 + 1]) < 2000.0f;
+									}
+									else if (std::fabs(C[0] - C[1]) < 0.03f && C[0] > 0.15f) ++StoneGrey;
+									// (nothing stands on a road's tarmac)
+									const double Rh = Plan->RoadHeight(Part->OriginX + Part->Pos[V * 3], Part->OriginZ + Part->Pos[V * 3 + 2]);
+									if (!std::isnan(Rh) && Part->Pos[V * 3 + 1] < Rh + 2.5) ++OnTarmac;   // (a tree's crown may reach over)
+								}
 							}
 						}
 						RideMesh FarSq;
 						Plan->LandTile(std::floor(Plan->Road[0].At.X / 4096.0) * 4096.0, std::floor(Plan->Road[0].At.Z / 4096.0) * 4096.0, 4096.0, 64, FarSq);
-						std::printf("      %d squares of ground along it: %d points of walls, buildings and trees stand on them, %d of them stone; %d on a road\n", int(Squares), int(Stands), int(StoneGrey), int(OnTarmac));
-						Check(Coloured && Stands > 2000 && StoneGrey > 500 && Alike == Squares && OnTarmac == 0 && !FarSq.Extra && FarSq.Col.size() == FarSq.Pos.size(),
-							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees: the same every time, none in a rider's way on a road, none on the far-off squares");
+						std::printf("      %d squares of ground along it: %d points of walls, buildings and trees stand on them, %d of them in the scanned stone and %d plain grey; %d on a road\n", int(Squares), int(Stands), int(InScan), int(StoneGrey), int(OnTarmac));
+						Check(Coloured && Masked && Stands > 2000 && InScan > 500 && Alike == Squares && OnTarmac == 0 && !FarSq.Extra && FarSq.Col.size() == FarSq.Pos.size(),
+							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees (walls and stone houses in the scanned stone's masks): the same every time, none in a rider's way on a road, none on the far-off squares");
 					}
 					// Bridges on the roads beside it.
 					{

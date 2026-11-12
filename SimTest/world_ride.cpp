@@ -198,7 +198,9 @@ int main(int Argc, char** Argv)
 				const double Took = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - T1).count();
 				AllMs += Took;
 				WorstMs = std::fmax(WorstMs, Took);
-				const size_t N = Land.Extra ? Land.Extra->Vertices() : 0;
+				size_t N = Land.Extra ? Land.Extra->Vertices() : 0;
+				if (Land.Extra && Land.Extra->Stone) N += Land.Extra->Stone->Vertices();
+				if (Land.Extra && Land.Extra->Masonry) N += Land.Extra->Masonry->Vertices();
 				Most = std::max(Most, N);
 				Sum += N;
 			}
@@ -281,9 +283,14 @@ int main(int Argc, char** Argv)
 				{
 					RideMesh Land;
 					Plan->LandTile(Tx, Tz, 256.0, 64, Land);
-					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), static_cast<const RideMesh*>(Land.Extra.get())})
+					const RideMesh* Extra = Land.Extra.get();
+					const RideMesh* Walls = Extra ? Extra->Stone.get() : nullptr;
+					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses})
 					{
 						if (Mesh == nullptr) continue;
+						// (the stone's vertex colours are the scanned material's masks: shown as limestone of that brightness, a little lighter where lichened)
+						const bool Masks = Mesh == Walls || Mesh == Houses;
 						for (size_t T = 0; T + 2 < Mesh->Idx.size(); T += 3)
 						{
 							bool In = false;
@@ -292,8 +299,14 @@ int main(int Argc, char** Argv)
 							for (int C = 0; C < 3; ++C)
 							{
 								const uint32_t V = Mesh->Idx[T + C];
+								double Cr = Mesh->Col[V * 3], Cg = Mesh->Col[V * 3 + 1], Cb = Mesh->Col[V * 3 + 2];
+								if (Masks)
+								{
+									const double Lit = Cr * 2.0 * (1.0 + 0.25 * Cb);
+									Cr = 0.235 * Lit; Cg = 0.225 * Lit; Cb = 0.205 * Lit;
+								}
 								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
-									double(Mesh->Col[V * 3]), double(Mesh->Col[V * 3 + 1]), double(Mesh->Col[V * 3 + 2]));
+									Cr, Cg, Cb);
 								Text += Buf;
 							}
 						}

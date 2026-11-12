@@ -12,7 +12,10 @@
 // The road's pieces carry their own colours (tarmac, the verge's gravel, paint) in their vertices.
 // So does the ground (what covers it: pasture, moor, crops, woods, rock) and what stands on it: each
 // square of the two finer levels brings its dry stone walls, hedges, fences, buildings and stand-in
-// trees as a second mesh (RideMesh::Extra), drawn with the road's material and with no collision.
+// trees as a second part (RideMesh::Extra) with no collision: hedges, fences, roofs and trees in the
+// road's material, and the dry stone walls and stone houses in sections of their own drawn in the
+// hand-built ride's scanned stone (M_RideStone, M_RideMasonry, made by Tools/ue_build_rideuk.py).
+// The ground is drawn in its scanned grass, moor and rock too (M_RideLandScan) when that was made.
 //
 // The actor is tagged Land and the road's pieces Road, as the bike's ground trace wants them
 // (TorqueBikePawn's GroundTrace): the road is tarmac, the rest grass.
@@ -55,6 +58,9 @@ private:
 	void Update(const FVector2D& At, bool bAtOnce);
 	void Place(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh, bool bAtOnce);
 	UProceduralMeshComponent* MakePart(const TorqueWorld::RideMesh& Mesh, UMaterialInterface* Material, bool bCollide, bool bAtOnce, bool bShadow);
+	// One part of several meshes over the same origin, a section each in its own material (null meshes
+	// and empty ones are left out); null if all are empty.
+	UProceduralMeshComponent* MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow);
 	void UpdateRoad(const FVector2D& At, bool bAtOnce);
 
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
@@ -68,6 +74,9 @@ private:
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LandMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RoadMaterial;
+	// The hand-built ride's scanned stone, for dry stone walls and for stone houses (RideMesh::Stone, Masonry).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MasonryMaterial;
 	FVector2D LookedAt = FVector2D(1e12, 1e12);
 	double SinceLook = 0.0;
 	bool bSaidReady = false;

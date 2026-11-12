@@ -72,12 +72,22 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	Plan = InPlan;
 	if (!Plan || !Plan->Ok || Plan->Road.size() < 2) return;
 	Jobs = std::make_shared<FTorqueRideJobs>();
-	LandMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLand.M_RideLand"));
+	// (the ground in the hand-built ride's scanned grass, moor and rock when Tools/ue_build_rideuk.py
+	// could make it from Buttertubs' textures; the plain mottled one otherwise)
+	LandMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLandScan.M_RideLandScan"));
+	const bool bScannedLand = LandMaterial != nullptr;
+	if (!LandMaterial) LandMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLand.M_RideLand"));
 	RoadMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRoad.M_RideRoad"));
+	StoneMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideStone.M_RideStone"));
+	MasonryMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideMasonry.M_RideMasonry"));
 	if (!LandMaterial || !RoadMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no materials in /Game/RideUK/Materials (run Tools/ue_build_rideuk.py); the ground is drawn plain"));
 	}
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: materials: ground %s, walls %s, houses %s"), bScannedLand ? TEXT("scanned") : TEXT("plain"),
+		StoneMaterial ? TEXT("scanned stone") : TEXT("plain"), MasonryMaterial ? TEXT("scanned masonry") : TEXT("plain"));
+	if (!StoneMaterial) StoneMaterial = RoadMaterial;
+	if (!MasonryMaterial) MasonryMaterial = StoneMaterial;
 	const FVector2D Start(Plan->Road[0].At.X, Plan->Road[0].At.Z);
 	const double T0 = FPlatformTime::Seconds();
 	Update(Start, true);
@@ -180,42 +190,61 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 
 UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TorqueWorld::RideMesh& Mesh, UMaterialInterface* Material, bool bCollide, bool bAtOnce, bool bShadow)
 {
-	const int32 Count = int32(Mesh.Vertices());
-	if (Count < 3 || Mesh.Idx.size() < 3) return nullptr;
-	// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
-	TArray<FVector> Points;
-	TArray<FVector> Normals;
-	TArray<FVector2D> Uvs;
-	TArray<int32> Triangles;
-	TArray<FLinearColor> Colours;
-	const bool bColoured = Mesh.Col.size() == Mesh.Pos.size();
-	if (bColoured) Colours.Reserve(Count);
-	Points.Reserve(Count);
-	Normals.Reserve(Count);
-	Uvs.Reserve(Count);
-	Triangles.Reserve(int32(Mesh.Idx.size()));
-	for (int32 I = 0; I < Count; ++I)
+	TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> One;
+	One.Emplace(&Mesh, Material);
+	return MakePart(One, bCollide, bAtOnce, bShadow);
+}
+
+UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>>& Sections, bool bCollide, bool bAtOnce, bool bShadow)
+{
+	UProceduralMeshComponent* Part = nullptr;
+	int32 Section = 0;
+	for (const TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>& Each : Sections)
 	{
-		const size_t V = size_t(I) * 3;
-		Points.Add(FVector(double(Mesh.Pos[V]) * 100.0, double(Mesh.Pos[V + 2]) * 100.0, double(Mesh.Pos[V + 1]) * 100.0));
-		Normals.Add(FVector(double(Mesh.Nrm[V]), double(Mesh.Nrm[V + 2]), double(Mesh.Nrm[V + 1])));
-		Uvs.Add(FVector2D(double(Mesh.Uv[size_t(I) * 2]), double(Mesh.Uv[size_t(I) * 2 + 1])));
-		if (bColoured) Colours.Add(FLinearColor(Mesh.Col[V], Mesh.Col[V + 1], Mesh.Col[V + 2], 1.0f));
+		const TorqueWorld::RideMesh* Mesh = Each.Key;
+		const int32 Count = Mesh ? int32(Mesh->Vertices()) : 0;
+		if (Count < 3 || Mesh->Idx.size() < 3) continue;
+		// The ride's frame is metres, x east, y up, z south; Unreal's centimetres, x east, y south, z up.
+		TArray<FVector> Points;
+		TArray<FVector> Normals;
+		TArray<FVector2D> Uvs;
+		TArray<int32> Triangles;
+		TArray<FLinearColor> Colours;
+		const bool bColoured = Mesh->Col.size() == Mesh->Pos.size();
+		const bool bAlpha = Mesh->Alpha.size() == size_t(Count);
+		if (bColoured) Colours.Reserve(Count);
+		Points.Reserve(Count);
+		Normals.Reserve(Count);
+		Uvs.Reserve(Count);
+		Triangles.Reserve(int32(Mesh->Idx.size()));
+		for (int32 I = 0; I < Count; ++I)
+		{
+			const size_t V = size_t(I) * 3;
+			Points.Add(FVector(double(Mesh->Pos[V]) * 100.0, double(Mesh->Pos[V + 2]) * 100.0, double(Mesh->Pos[V + 1]) * 100.0));
+			Normals.Add(FVector(double(Mesh->Nrm[V]), double(Mesh->Nrm[V + 2]), double(Mesh->Nrm[V + 1])));
+			Uvs.Add(FVector2D(double(Mesh->Uv[size_t(I) * 2]), double(Mesh->Uv[size_t(I) * 2 + 1])));
+			if (bColoured) Colours.Add(FLinearColor(Mesh->Col[V], Mesh->Col[V + 1], Mesh->Col[V + 2], bAlpha ? Mesh->Alpha[size_t(I)] : 1.0f));
+		}
+		// (the plan winds its triangles anticlockwise seen from above, which is Unreal's front face too:
+		// the two frames name the same points)
+		for (uint32 Index : Mesh->Idx) Triangles.Add(int32(Index));
+		if (!Part)
+		{
+			Part = NewObject<UProceduralMeshComponent>(this);
+			Part->bUseAsyncCooking = !bAtOnce;
+			Part->SetMobility(EComponentMobility::Movable);
+			Part->SetupAttachment(RootComponent);
+			Part->SetRelativeLocation(FVector(Mesh->OriginX * 100.0, Mesh->OriginZ * 100.0, 0.0));
+			Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
+			Part->SetCastShadow(bShadow);
+			Part->RegisterComponent();
+		}
+		// (the colours are kept as they are, linear: M_RideRoad reads the vertex colour as the road's own,
+		// M_RideStone and M_RideMasonry as their masks)
+		Part->CreateMeshSection_LinearColor(Section, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
+		if (Each.Value) Part->SetMaterial(Section, Each.Value);
+		++Section;
 	}
-	// (the plan winds its triangles anticlockwise seen from above, which is Unreal's front face too:
-	// the two frames name the same points)
-	for (uint32 Index : Mesh.Idx) Triangles.Add(int32(Index));
-	UProceduralMeshComponent* Part = NewObject<UProceduralMeshComponent>(this);
-	Part->bUseAsyncCooking = !bAtOnce;
-	Part->SetMobility(EComponentMobility::Movable);
-	Part->SetupAttachment(RootComponent);
-	Part->SetRelativeLocation(FVector(Mesh.OriginX * 100.0, Mesh.OriginZ * 100.0, 0.0));
-	Part->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
-	Part->SetCastShadow(bShadow);
-	Part->RegisterComponent();
-	// (the colours are kept as they are, linear: M_RideRoad reads the vertex colour as the road's own)
-	Part->CreateMeshSection_LinearColor(0, Points, Triangles, Normals, Uvs, Colours, TArray<FProcMeshTangent>(), bCollide, false);
-	if (Material) Part->SetMaterial(0, Material);
 	return Part;
 }
 
@@ -234,7 +263,11 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	if (Mesh.Extra)
 	{
 		// (what stands on it: only the nearest squares' cast shadows)
-		if (UProceduralMeshComponent* Stands = MakePart(*Mesh.Extra, RoadMaterial, false, bAtOnce, Key.X == 0)) TileExtras.Add(Key, Stands);
+		TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Kinds;
+		Kinds.Emplace(Mesh.Extra.get(), RoadMaterial.Get());
+		Kinds.Emplace(Mesh.Extra->Stone.get(), StoneMaterial.Get());
+		Kinds.Emplace(Mesh.Extra->Masonry.get(), MasonryMaterial.Get());
+		if (UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0)) TileExtras.Add(Key, Stands);
 	}
 }
 

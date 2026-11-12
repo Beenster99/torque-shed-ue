@@ -7,9 +7,10 @@ that script's sun, sky, air and camera, and the ride's cloud shadows as they are
 
 The level has no ground of its own: only the sky, the lights and a player start. The game lays the
 ground and the road out round the rider as they go (World/TorqueRideWorld), from the ride the world
-subsystem planned, and draws them with the two plain materials made here, /Game/RideUK/Materials'
-M_RideLand (moor grass, mottled) and M_RideRoad (the road's vertex colours: tarmac, verge, paint).
-The land's cover, walls, trees and buildings are later stages.
+subsystem planned, and draws them with the materials made here in /Game/RideUK/Materials: the plain
+M_RideLand (moor grass, mottled) and M_RideRoad (the road's vertex colours: tarmac, verge, paint, and
+hedges, roofs and stand-in trees), and Buttertubs' own scanned ground and stone made again under
+names of their own (M_RideLandScan, M_RideStone, M_RideMasonry; the game uses them when they are here).
 """
 import os
 import sys
@@ -82,16 +83,50 @@ def road_material(L):
     return m
 
 
+def scanned_materials(L):
+    """The hand-built ride's own scanned looks, made again here under /Game/RideUK/Materials so the
+    streamed world is drawn as Buttertubs is (Ride UK stage 3): M_RideLandScan (Buttertubs' M_Land:
+    grass, moor grass, peat, rock on steep ground, tinted by the vertex colour the ground's cover gives
+    it, World/WorldRide's LandColour, which matches that colour's meaning), M_RideStone (M_Stone, the
+    dry stone walls) and M_RideMasonry (M_Masonry, stone houses and barns). Their vertex colours are
+    the stone's masks (R brightness, G which scan, B lichen, A moss) and UV0 metres of surface, as
+    World/WorldRideScenery makes them. Built from the same textures as Buttertubs (Data/Textures)."""
+    tex, roles = L.import_textures()
+    made = []
+    original = L.new_material
+    try:
+        for want, make in (("M_RideLandScan", lambda: L.land_material_scanned(tex, roles) if "grass" in tex else None),
+                           ("M_RideStone", lambda: L.stone_material(tex, roles)),
+                           ("M_RideMasonry", lambda: L.stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False))):
+            # (the level script's makers name their own material in its own folder: put it here, under our name)
+            L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
+            try:
+                if make() is not None:
+                    made.append(want)
+            except Exception as e:
+                unreal.log_warning("[Torque] ride UK: couldn't make %s (%s); the game draws it plain" % (want, e))
+    finally:
+        L.new_material = original
+    if "grass" not in tex:
+        # (a stale scanned ground would otherwise be used with textures that are gone)
+        path = MAT_DIR + "/M_RideLandScan"
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            unreal.EditorAssetLibrary.delete_asset(path)
+        unreal.log_warning("[Torque] ride UK: no grass texture (python Tools/fetch_textures.py); the ground stays plain")
+    return made
+
+
 def build():
     L = level_lib()
     land_material(L)
     road_material(L)
+    scanned = scanned_materials(L)
     before = L.begin_fresh_level(MAP)
     L.sky_and_camera(reuse_cloud_shadow=True)
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)
     L.spawn(unreal.PlayerStart, (0, 0, 100000.0))
     L.save_fresh_level(MAP, before)
-    log("built %s and %s/M_RideLand, M_RideRoad" % (MAP, MAT_DIR))
+    log("built %s and %s/M_RideLand, M_RideRoad%s" % (MAP, MAT_DIR, "".join(", " + m for m in scanned)))
 
 
 build()

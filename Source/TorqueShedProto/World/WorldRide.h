@@ -64,12 +64,19 @@ struct RideMesh
 {
 	double OriginX = 0.0, OriginZ = 0.0;
 	std::vector<float> Pos, Nrm;   // x, y, z each
-	std::vector<float> Uv;         // u, v each: metres across the world over 8
+	std::vector<float> Uv;         // u, v each: the ground's metres across the world over 8; what stands on it, metres of its surface
 	std::vector<float> Col;        // r, g, b each (linear), or empty for a mesh of one colour
+	std::vector<float> Alpha;      // a each, or empty for 1 everywhere
 	std::vector<uint32_t> Idx;     // triangles, wound to face up seen from above with x right and z towards you
 	size_t Vertices() const { return Pos.size() / 3; }
 	// With a square of ground: what stands on it (walls, buildings, trees), coloured, or null for nothing.
 	std::shared_ptr<RideMesh> Extra;
+	// With what stands on a square: the parts drawn in the hand-built ride's scanned stone, their
+	// vertex colours its masks, not colours (R brightness, 0.5 the scan as it is; G which scan, 0
+	// lichened limestone, 1 bare; B lichen; Alpha moss) and their UVs metres of surface. Stone is the
+	// dry stone walls (M_Stone), Masonry the stone houses and barns (M_Masonry). Null for none.
+	std::shared_ptr<RideMesh> Stone, Masonry;
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0); }
 };
 
 class RidePlan
