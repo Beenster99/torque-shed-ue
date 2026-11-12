@@ -105,6 +105,8 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("Fov"), Fov, Ini);
 	GConfig->GetBool(Section, TEXT("AutoShift"), bAutoShift, Ini);
 	GConfig->GetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
+	GConfig->GetBool(Section, TEXT("InfoPanel"), bInfoPanel, Ini);
+	GConfig->GetBool(Section, TEXT("PlaceLookup"), bPlaceLookup, Ini);
 	GConfig->GetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
 	GConfig->GetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
 	GConfig->GetInt(Section, TEXT("Units"), Units, Ini);
@@ -216,6 +218,8 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("Fov"), Fov, Ini);
 	GConfig->SetBool(Section, TEXT("AutoShift"), bAutoShift, Ini);
 	GConfig->SetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
+	GConfig->SetBool(Section, TEXT("InfoPanel"), bInfoPanel, Ini);
+	GConfig->SetBool(Section, TEXT("PlaceLookup"), bPlaceLookup, Ini);
 	GConfig->SetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
 	GConfig->SetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
 	GConfig->SetInt(Section, TEXT("Units"), Units, Ini);

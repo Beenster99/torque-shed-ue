@@ -72,6 +72,7 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("RideHud"), TEXT("Riding info lines (top left) on / off"), R, {EKeys::F2, FKey()}},
 	{TEXT("Nod"), TEXT("Nod to another rider"), R, {EKeys::Y, FKey()}},
 	{TEXT("Wave"), TEXT("Wave at another rider (hold)"), R, {EKeys::U, FKey()}},
+	{TEXT("InfoPanel"), TEXT("Info panel (left) in / out"), R, {EKeys::F1, FKey()}},
 	{TEXT("Help"), TEXT("Help lines on / off"), FR, {EKeys::H, FKey()}},
 	{TEXT("Perf"), TEXT("Performance numbers on / off"), FR, {EKeys::P, FKey()}},
 	{TEXT("PerfLog"), TEXT("Performance: log to a file on / off"), FR, {EKeys::O, FKey()}},
