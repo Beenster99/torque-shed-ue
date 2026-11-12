@@ -224,6 +224,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->LaySides(Path);
 	R->LayKnots();
 	R->IndexScenery();
+	R->IndexRails();
 	R->IndexFurniture();
 	R->Ok = true;
 	return R;
@@ -931,7 +932,16 @@ double RidePlan::Ground(double X, double Z, double Coarse) const
 
 double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 {
-	const double Lie = Land ? Land->Height(X, Z) : std::nan("");
+	double Lie = Land ? Land->Height(X, Z) : std::nan("");
+	// A railway's cutting or bank (Ride UK stage 5): its bed level 5 m either side of it, the land
+	// sloping 2 in 3 from there to meet it (not under a railway bridge, nor over its tunnel).
+	double RailDist = 0.0, RailTop = 0.0;
+	int RailOn = 0;
+	if (!std::isnan(Lie) && NearRail(X, Z, RailDist, RailTop, RailOn) && (RailOn == 0 || RailOn == 3))
+	{
+		const double Bed = RailTop - 0.47, Rise = std::fmax(0.0, RailDist - 5.0) / 1.5;
+		Lie = std::fmin(std::fmax(Lie, Bed - Rise), Bed + Rise);
+	}
 	NearOpts Opts;
 	Opts.NoBores = NoBores;
 	NearHit Hit;
@@ -1042,6 +1052,11 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	Skirt(0, Cells, 1, 0, false);       // south
 	Skirt(0, 0, 0, 1, false);           // west
 	Skirt(Cells, 0, 0, 1, true);        // east
+	{
+		std::shared_ptr<RideMesh> Wet = std::make_shared<RideMesh>();
+		WaterTile(X0, Z0, Size, Cells, Out, *Wet);
+		if (Wet->Vertices() > 0) Out.Water = Wet;
+	}
 	if (Step <= 8.5 && Scene)
 	{
 		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();

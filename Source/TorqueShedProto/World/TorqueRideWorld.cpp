@@ -93,6 +93,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	MasonryMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideMasonry.M_RideMasonry"));
 	LampMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLamp.M_RideLamp"));
 	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
+	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
 	if (!LandMaterial || !RoadMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no materials in /Game/RideUK/Materials (run Tools/ue_build_rideuk.py); the ground is drawn plain"));
@@ -102,6 +103,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	if (!StoneMaterial) StoneMaterial = RoadMaterial;
 	if (!MasonryMaterial) MasonryMaterial = StoneMaterial;
 	if (!RenderMaterial) RenderMaterial = RoadMaterial;
+	if (!WaterMaterial) WaterMaterial = RoadMaterial;
 	// (before any square is made: whether its trees come as real ones, and how much grass)
 	const bool bKit = FindKit();
 	bool bTreeModels = false;
@@ -282,6 +284,15 @@ void ATorqueRideWorld::DropWords(const FIntVector& Key)
 	}
 }
 
+void ATorqueRideWorld::DropWater(const FIntVector& Key)
+{
+	if (TObjectPtr<UProceduralMeshComponent>* Wet = TileWater.Find(Key))
+	{
+		if (*Wet) (*Wet)->DestroyComponent();
+		TileWater.Remove(Key);
+	}
+}
+
 UMaterialInterface* ATorqueRideWorld::TintedOf(UMaterialInterface* Base, uint32 Which, const TorqueWorld::Tint& By)
 {
 	// (the stone as it is needs no instance; a material made before Tint was added just ignores it)
@@ -306,6 +317,12 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	DropPlants(Key);
 	PlacePlants(Key, Mesh);
 	DropWords(Key);
+	DropWater(Key);
+	// (its water: seen, not cast as shadow, not ridden on)
+	if (Mesh.Water && Mesh.Water->Vertices() > 0)
+	{
+		if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+	}
 	if (TObjectPtr<UProceduralMeshComponent>* OldExtra = TileExtras.Find(Key))
 	{
 		if (*OldExtra) (*OldExtra)->DestroyComponent();
@@ -450,6 +467,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		Tiles.Remove(Key);
 		DropPlants(Key);
 		DropWords(Key);
+		DropWater(Key);
 		if (TObjectPtr<UProceduralMeshComponent>* Stands = TileExtras.Find(Key))
 		{
 			if (*Stands) (*Stands)->DestroyComponent();

@@ -690,6 +690,63 @@ int main()
 								&& Plan->FurnitureCount(RidePlan::StreetLamp) > 3 && Plan->FurnitureCount(RidePlan::PowerPole) > 10 && Plan->FurnitureCount(RidePlan::FieldGate) > 10 && OnRoad == 0 && Labels == 1,
 							"the road's furniture: villages named and signed 30 coming in and national limit going out, lamps through them, poles, gates in the walls, none of it on a road");
 					}
+					// The railways (stage 5): joined into lines, eased along, flush with a road they cross, their
+					// cuttings and banks in the land, stations with their platforms and names.
+					{
+						int Active = 0, Crossings = 0, Flush = 0, BedOk = 0, BedN = 0;
+						double Steepest = 0.0;
+						for (const RidePlan::RailLine& Run : Plan->Rails)
+						{
+							Active += Run.Disused ? 0 : 1;
+							for (size_t I = 0; I < Run.At.size(); ++I)
+							{
+								if (I > 0 && Run.On[I] == 0 && Run.On[I - 1] == 0 && std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep > Steepest)
+								{
+									Steepest = std::fabs(Run.Top[I] - Run.Top[I - 1]) / RidePlan::RailStep;
+									if (std::getenv("RAIL_DEBUG")) std::printf("steep %.3f at %zu of %zu (%.0f, %.0f) disused %d\n", Steepest, I, Run.At.size(), Run.At[I].X, Run.At[I].Z, int(Run.Disused));
+								}
+								if (Run.On[I] == 3)
+								{
+									++Crossings;
+									const double Surface = Plan->RoadHeight(Run.At[I].X, Run.At[I].Z);
+									Flush += !std::isnan(Surface) && std::fabs(Run.Top[I] + 0.27 - Surface) < 0.08 ? 1 : 0;
+								}
+								// (the land 4 m to the side of a stretch on the ground, away from any road, is its bed)
+								if (Run.On[I] == 0 && I > 0 && I + 1 < Run.At.size() && Run.On[I - 1] == 0 && Run.On[I + 1] == 0 && I % 25 == 0)
+								{
+									const P2 D = Run.At[I + 1] - Run.At[I - 1];
+									const P2 Side = P2(D.Z, -D.X) * (4.0 / D.Length());
+									const P2 Q = Run.At[I] + Side;
+									double Dist = 0.0, Top = 0.0;
+									int On = 0;
+									if (std::isnan(Plan->RoadHeight(Q.X, Q.Z)) && std::isnan(Plan->Ground(Q.X, Q.Z)) == false && Plan->NearRail(Q.X, Q.Z, Dist, Top, On) && On == 0
+										&& std::isnan(Plan->RoadHeight(Run.At[I].X, Run.At[I].Z)))
+									{
+										RidePlan::NearOpts Opts;
+										RidePlan::NearHit Hit;
+										const bool ByRoad = Plan->NearestOf(Q.X, Q.Z, Opts, Hit) && Hit.Dist < Hit.Half + 25.0;
+										if (!ByRoad)
+										{
+											++BedN;
+											BedOk += std::fabs(Plan->Ground(Q.X, Q.Z) - (Top - 0.47)) < 0.05 ? 1 : 0;
+										}
+									}
+								}
+							}
+						}
+						int Named = 0;
+						for (const RidePlan::Platform& Pl : Plan->Platforms)
+						{
+							const P2 Middle = Plan->Rails[size_t(Pl.Line)].At[size_t((Pl.First + Pl.Last) / 2)];
+							RideMesh Stands;
+							Plan->SceneryTile(std::floor(Middle.X / 64.0) * 64.0, std::floor(Middle.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
+							for (const RideMesh::Label& L : Stands.Labels) Named += L.Text == Pl.Name ? 1 : 0;
+						}
+						std::printf("      railways: %d lines (%d in use), %d level crossing points (%d flush), steepest %.1f%%, bed beside the line %d of %d, %d platforms (%d named boards)\n",
+							int(Plan->Rails.size()), Active, Crossings, Flush, Steepest * 100.0, BedOk, BedN, int(Plan->Platforms.size()), Named);
+						Check(Active > 0 && Flush == Crossings && Steepest < 0.032 && BedN > 3 && BedOk == BedN && !Plan->Platforms.empty() && Named == int(Plan->Platforms.size()),
+							"the railways: eased to a railway's gradient, flush with the roads they cross, their beds cut and banked into the land, stations with platforms and named boards");
+					}
 				}
 				if (Plan->Ok)
 				{

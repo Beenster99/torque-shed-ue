@@ -68,6 +68,30 @@ int main(int Argc, char** Argv)
 	// Stage 2: the ride itself planned (all of it kept by now), its road laid and a first square of ground made.
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
+	{
+		// The railways near it (stage 5).
+		int Pts = 0, Kinds[4] = {0, 0, 0, 0}, Old = 0;
+		for (const RidePlan::RailLine& Run : Plan->Rails)
+		{
+			Pts += int(Run.At.size());
+			Old += Run.Disused ? 1 : 0;
+			for (unsigned char O : Run.On) ++Kinds[O & 3];
+		}
+		std::printf("  railways: %d lines (%d disused), %.1f km; %.1f km bridged, %.1f km in tunnels, %d level crossing points; %d platforms:", int(Plan->Rails.size()), Old,
+			Pts * RidePlan::RailStep / 1000.0, Kinds[1] * RidePlan::RailStep / 1000.0, Kinds[2] * RidePlan::RailStep / 1000.0, Kinds[3], int(Plan->Platforms.size()));
+		for (const RidePlan::Platform& Pl : Plan->Platforms) std::printf(" %s", Pl.Name.c_str());
+		std::printf("\n");
+		double Cut = 0.0, Bank = 0.0;
+		for (const RidePlan::RailLine& Run : Plan->Rails)
+			for (size_t I = 0; I < Run.At.size(); ++I)
+			{
+				if (Run.On[I] != 0) continue;
+				const double Lie = Plan->Land->Height(Run.At[I].X, Run.At[I].Z) - (Run.Top[I] - 0.47);
+				Cut = std::fmax(Cut, Lie);
+				Bank = std::fmax(Bank, -Lie);
+			}
+		std::printf("  railways: deepest cutting %.1f m, highest bank %.1f m\n", Cut, Bank);
+	}
 	double Steep = 0.0, Crest = 0.0, Off = 0.0;
 	for (size_t I = 1; I + 1 < Plan->Road.size(); ++I)
 	{
@@ -257,6 +281,29 @@ int main(int Argc, char** Argv)
 					break;
 				}
 		}
+		else if (std::getenv("WORLD_RIDE_RAIL") != nullptr)
+		{
+			// (or a railway: WORLD_RIDE_RAIL=p a station's platform, b a bridge, c a level crossing, then the nth)
+			char Want = 'p';
+			int Nth = 0;
+			std::sscanf(std::getenv("WORLD_RIDE_RAIL"), "%c,%d", &Want, &Nth);
+			if (Want == 'p')
+			{
+				if (size_t(Nth) < Plan->Platforms.size())
+				{
+					const RidePlan::Platform& Pl = Plan->Platforms[size_t(Nth)];
+					Centre = Plan->Rails[size_t(Pl.Line)].At[size_t((Pl.First + Pl.Last) / 2)];
+					std::printf("platform %s\n", Pl.Name.c_str());
+				}
+			}
+			else
+			{
+				const unsigned char Kind = Want == 'b' ? 1 : 3;
+				for (const RidePlan::RailLine& Run : Plan->Rails)
+					for (size_t I = 0; I < Run.At.size(); ++I)
+						if (Run.On[I] == Kind && (I == 0 || Run.On[I - 1] != Kind) && Nth-- == 0) { Centre = Run.At[I]; std::printf("rail %c at %.0f, %.0f\n", Want, Run.At[I].X, Run.At[I].Z); }
+			}
+		}
 		else if (std::getenv("WORLD_RIDE_KNOT") != nullptr)
 		{
 			// (or a junction off it: WORLD_RIDE_KNOT=n, the nth nearest the ride's start)
@@ -312,7 +359,8 @@ int main(int Argc, char** Argv)
 					const RideMesh* Walls = Extra ? Extra->Stone.get() : nullptr;
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
 					const RideMesh* Washed = Extra ? Extra->Render.get() : nullptr;
-					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed})
+					const RideMesh* Wet = Land.Water.get();
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet})
 					{
 						if (Mesh == nullptr) continue;
 						// (the stone's vertex colours are the scanned material's masks: shown as limestone of that brightness, a little lighter where lichened)

@@ -102,6 +102,36 @@ def lamp_material(L):
     return m
 
 
+def water_material(L):
+    """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
+    rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
+    with slow ripples drifting across it (UV0 is the world's metres over 8). Opaque: open water at a
+    distance shows the sky in it, not its bed."""
+    g = L.Graph(L.new_material("M_RideWater"))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    nt = L.noise_texture()
+    if nt is not None:
+        uv = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=0.9, v_tiling=0.9)
+        p1 = g.node(unreal.MaterialExpressionPanner, speed_x=0.012, speed_y=0.02); g.link(uv, p1, "Coordinate")
+        uv2 = g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=2.3, v_tiling=2.3)
+        p2 = g.node(unreal.MaterialExpressionPanner, speed_x=-0.025, speed_y=0.01); g.link(uv2, p2, "Coordinate")
+        n = g.op(unreal.MaterialExpressionAdd, g.sample(nt, p1, "linear"), g.sample(nt, p2, "linear"))
+        n = g.op(unreal.MaterialExpressionSubtract, n, const_b=1.0)
+        n = g.op(unreal.MaterialExpressionMultiply, n, g.const((0.35, 0.35, 0.0)))
+        normal = g.op(unreal.MaterialExpressionAdd, n, g.const((0.0, 0.0, 1.0)))
+    else:
+        normal = g.const((0.0, 0.0, 1.0))
+    base = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
+    mel = L.mel
+    mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(g.const(0.05), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.const(0.5), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
 def scanned_materials(L):
     """The hand-built ride's own scanned looks, made again here under /Game/RideUK/Materials so the
     streamed world is drawn as Buttertubs is (Ride UK stage 3): M_RideLandScan (Buttertubs' M_Land:
@@ -118,7 +148,9 @@ def scanned_materials(L):
                            ("M_RideStone", lambda: L.stone_material(tex, roles, tint_param=True)),
                            ("M_RideMasonry", lambda: L.stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False, tint_param=True)),
                            # (stage 5: rendered and limewashed houses, the vertex colour their wash)
-                           ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender"))):
+                           ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender")),
+                           # (stage 5: the sea, lakes and rivers)
+                           ("M_RideWater", lambda: water_material(L))):
             # (the level script's makers name their own material in its own folder: put it here, under our name)
             L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
             try:

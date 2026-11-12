@@ -192,6 +192,13 @@ void RidePlan::IndexScenery()
 		}
 	}
 	for (size_t B = 0; B < G.Buildings.size(); ++B) Scene->Buildings[SceneKey(G.Buildings[B].X, G.Buildings[B].Z)].push_back(int(B));
+	for (size_t S = 0; S < G.Streams.size(); ++S)
+		for (size_t I = 0; I + 1 < G.Streams[S].Line.size(); ++I)
+		{
+			const P2 Mid = (G.Streams[S].Line[I] + G.Streams[S].Line[I + 1]) * 0.5;
+			std::vector<int>& Row = Scene->Streams[SceneKey(Mid.X, Mid.Z)];
+			if (std::find(Row.begin(), Row.end(), int(S)) == Row.end()) Row.push_back(int(S));
+		}
 }
 
 void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const
@@ -211,6 +218,13 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 		return !NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + Spare;
 	};
 	const P3 Sky = At3(X0, 1e6, Z0);
+	// (how far from a railway's middle: a railway drawn, or a disused one's bed)
+	const auto RailClear = [this](double X, double Z)
+	{
+		double Dist = 0.0, Top = 0.0;
+		int On = 0;
+		return NearRail(X, Z, Dist, Top, On) && On != 2 ? Dist : 1e9;
+	};
 	// The local look: the walls' and houses' stone, the houses' walling and roofs (Ride UK stage 5).
 	const LocalLook& Look = LookHere(X0 + Size * 0.5, Z0 + Size * 0.5);
 	Out.StoneTint = Look.WallStone;
@@ -266,6 +280,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						const P2 Pa = A + (B - A) * (double(K) / Bits), Pb = A + (B - A) * (double(K + 1) / Bits);
 						const P2 Pm = (Pa + Pb) * 0.5;
 						if (InGap(Pm.X, Pm.Z)) continue;   // (a field gate stands here)
+						if (RailClear(Pm.X, Pm.Z) < 2.6) continue;   // (nor across a railway)
 						const double Spare = Hedge ? 1.6 : 1.0;
 						if (!OffRoad(Pm.X, Pm.Z, Spare) || !OffRoad(Pa.X, Pa.Z, Spare) || !OffRoad(Pb.X, Pb.Z, Spare)) continue;
 						const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
@@ -321,7 +336,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 			for (int Index : It->second)
 			{
 				const Building& B = G.Buildings[size_t(Index)];
-				if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || !OffRoad(B.X, B.Z, std::fmin(B.W, B.D) * 0.5)) continue;
+				if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || !OffRoad(B.X, B.Z, std::fmin(B.W, B.D) * 0.5) || RailClear(B.X, B.Z) < std::fmin(B.W, B.D) * 0.5 + 2.0) continue;
 				const double Base = Ground(B.X, B.Z);
 				if (std::isnan(Base)) continue;
 				// (local to the building: x across, z deep; the turn is the one the land's levelled pad uses)
@@ -423,7 +438,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const int Trees = Land->TreesAt(X, Z);
 				if (Trees <= 0) continue;
 				const double Tall = double(Trees & 31) * 2.0, Share = double((Trees >> 5) & 7) / 8.0;
-				if (Tall < 3.0 || Chance(Jx, Jz, 13) > Share * 1.2 || !OffRoad(X, Z, 3.0)) continue;
+				if (Tall < 3.0 || Chance(Jx, Jz, 13) > Share * 1.2 || !OffRoad(X, Z, 3.0) || RailClear(X, Z) < 5.0) continue;
 				const double Base = Ground(X, Z);
 				if (std::isnan(Base)) continue;
 				const bool Pointed = ((Trees >> 8) & 3) == 2 || (((Trees >> 8) & 3) == 3 && Chance(Jx, Jz, 14) < 0.5);
@@ -461,6 +476,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				}
 			}
 	}
+	RailTile(X0, Z0, Size, Fine, Out, *Walls);
 	FurnitureTile(X0, Z0, Size, Fine, Out);
 	if (Walls->Vertices() > 0) Out.Stone = Walls;
 	if (Houses->Vertices() > 0) Out.Masonry = Houses;
@@ -923,5 +939,616 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				}
 			}
 		}
+}
+
+// --- Water (stage 5) ----------------------------------------------------------------------------------
+
+namespace
+{
+const Rgb SeaWater = {0.022f, 0.048f, 0.062f}, LakeWater = {0.026f, 0.040f, 0.044f}, RiverWater = {0.034f, 0.044f, 0.038f};
+}
+
+void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const
+{
+	Out = RideMesh();
+	Out.OriginX = X0;
+	Out.OriginZ = Z0;
+	if (!Land || Cells < 1) return;
+	const int N = Cells + 1;
+	const double Step = Size / Cells;
+	if (Sheet.Vertices() < size_t(N) * N) return;
+	// Each point of the square: 0 dry, 1 a lake or a wide river (the land's cover), 2 the sea.
+	std::vector<unsigned char> Wet(size_t(N) * N, 0);
+	bool AnyWet = false;
+	for (int J = 0; J < N; ++J)
+		for (int I = 0; I < N; ++I)
+		{
+			const double X = X0 + I * Step, Z = Z0 + J * Step;
+			unsigned char W = Land->SeaAt(X, Z) ? 2 : Land->Cover(X, Z) == Terrain::CoverWater ? 1 : 0;
+			// (never on a road: a causeway or a road along a lake's edge stays dry)
+			if (W != 0)
+			{
+				NearOpts Opts;
+				Opts.NoDecks = true;
+				NearHit Hit;
+				if (NearestOf(X, Z, Opts, Hit) && Hit.Dist <= Hit.Half + 1.0) W = 0;
+			}
+			Wet[size_t(J) * N + I] = W;
+			AnyWet = AnyWet || W != 0;
+		}
+	const auto Put = [&Out](double X, double Y, double Z, const Rgb& C)
+	{
+		Out.Pos.push_back(float(X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z - Out.OriginZ));
+		Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
+		Out.Uv.push_back(float(X / 8.0)); Out.Uv.push_back(float(Z / 8.0));
+		Out.Col.push_back(C.R); Out.Col.push_back(C.G); Out.Col.push_back(C.B);
+	};
+	if (AnyWet)
+	{
+		// A quad of water over every cell with a wet corner: a wet corner at its own ground and a little
+		// over (the sea at its level), a dry one no higher than the lowest wet one, so the water runs
+		// under the bank and the land itself draws the shore.
+		for (int J = 0; J < Cells; ++J)
+			for (int I = 0; I < Cells; ++I)
+			{
+				const int Ci[4] = {I, I + 1, I, I + 1}, Cj[4] = {J, J, J + 1, J + 1};
+				double Level[4], Lowest = 1e9;
+				bool Sea = false, Any = false;
+				for (int K = 0; K < 4; ++K)
+				{
+					const size_t V = size_t(Cj[K]) * N + Ci[K];
+					Level[K] = std::nan("");
+					if (Wet[V] == 0) continue;
+					Any = true;
+					Sea = Sea || Wet[V] == 2;
+					Level[K] = Wet[V] == 2 ? 0.0 : double(Sheet.Pos[V * 3 + 1]) + 0.12;
+					Lowest = std::fmin(Lowest, Level[K]);
+				}
+				if (!Any) continue;
+				const uint32_t Base = uint32_t(Out.Vertices());
+				for (int K = 0; K < 4; ++K)
+				{
+					// (a dry corner a little under its own ground, so on flat land the shore runs between
+					// the points, not round the squares)
+					const double Y = std::isnan(Level[K]) ? std::fmin(Lowest, double(Sheet.Pos[(size_t(Cj[K]) * N + Ci[K]) * 3 + 1]) - 0.25) : Level[K];
+					Put(X0 + Ci[K] * Step, Y, Z0 + Cj[K] * Step, Sea ? SeaWater : LakeWater);
+				}
+				// (A B across the top, C D below: as LandTile's own quads, facing up)
+				Out.Idx.insert(Out.Idx.end(), {Base, Base + 2, Base + 1, Base + 1, Base + 2, Base + 3});
+			}
+	}
+	// The map's rivers, streams and canals the cover doesn't hold: a ribbon along each, on the finer squares.
+	if (Step > 8.5 || !Scene || Scene->Streams.empty()) return;
+	const Region& G = Area.Roads;
+	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
+	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
+		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
+		{
+			const long long Key = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
+			const auto It = Scene->Streams.find(Key);
+			if (It == Scene->Streams.end()) continue;
+			for (int S : It->second)
+			{
+				const Stream& Flow = G.Streams[size_t(S)];
+				const double Wide = Flow.Kind == 0 ? 7.0 : Flow.Kind == 2 ? 6.0 : 2.2;
+				for (size_t I = 0; I + 1 < Flow.Line.size(); ++I)
+				{
+					const P2 A = Flow.Line[I], B = Flow.Line[I + 1];
+					const P2 Mid = (A + B) * 0.5;
+					if (SceneKey(Mid.X, Mid.Z) != Key || !Inside(Mid)) continue;
+					const double Len = A.DistanceTo(B);
+					if (Len < 0.2) continue;
+					const P2 Dir = (B - A) * (1.0 / Len), Left(Dir.Z, -Dir.X);
+					const int Bits = std::max(1, int(std::ceil(Len / 3.0)));
+					// (each bit a little longer than its share, so the bends close)
+					for (int K = 0; K < Bits; ++K)
+					{
+						const P2 Pa = A + (B - A) * (double(K) / Bits) - Dir * 0.3, Pb = A + (B - A) * (double(K + 1) / Bits) + Dir * 0.3;
+						const P2 Pm = (Pa + Pb) * 0.5;
+						if (Land->Cover(Pm.X, Pm.Z) == Terrain::CoverWater || Land->SeaAt(Pm.X, Pm.Z)) continue;
+						NearOpts Opts;
+						NearHit Hit;
+						if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Wide * 0.5 + 1.5) continue;   // (under the road: a culvert)
+						double Lie = 1e9;
+						for (const P2& P : {Pa, Pb, Pa + Left * (Wide * 0.5), Pa - Left * (Wide * 0.5), Pb + Left * (Wide * 0.5), Pb - Left * (Wide * 0.5)})
+						{
+							const double Y = Ground(P.X, P.Z, Step);
+							if (!std::isnan(Y)) Lie = std::fmin(Lie, Y);
+						}
+						if (Lie > 1e8) continue;
+						const double Y = Flow.Kind == 2 ? Lie + 0.2 : Lie + 0.12;
+						const uint32_t Base = uint32_t(Out.Vertices());
+						const Rgb C = Flow.Kind == 2 ? LakeWater : RiverWater;
+						Put(Pa.X + Left.X * Wide * 0.5, Y, Pa.Z + Left.Z * Wide * 0.5, C);
+						Put(Pa.X - Left.X * Wide * 0.5, Y, Pa.Z - Left.Z * Wide * 0.5, C);
+						Put(Pb.X + Left.X * Wide * 0.5, Y, Pb.Z + Left.Z * Wide * 0.5, C);
+						Put(Pb.X - Left.X * Wide * 0.5, Y, Pb.Z - Left.Z * Wide * 0.5, C);
+						// (Left is the stream's left going down it, so these face up whichever way it runs)
+						Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
+					}
+				}
+			}
+		}
+}
+
+// --- Railways (stage 5) -------------------------------------------------------------------------------
+
+namespace
+{
+// How far P is from the segment A B, and how far along it (0..1) the nearest point is.
+double ToSegment(const P2& P, const P2& A, const P2& B, double& T)
+{
+	const P2 D = B - A;
+	const double L2 = D.X * D.X + D.Z * D.Z;
+	T = L2 > 1e-12 ? std::clamp(((P.X - A.X) * D.X + (P.Z - A.Z) * D.Z) / L2, 0.0, 1.0) : 0.0;
+	return P.DistanceTo(A + D * T);
+}
+
+long long RailNearKey(double X, double Z, double Cell)
+{
+	return static_cast<long long>(std::floor(X / Cell)) * 4000037LL + static_cast<long long>(std::floor(Z / Cell));
+}
+} // namespace
+
+bool RidePlan::NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused) const
+{
+	if (!Scene || Scene->RailNearBy.empty()) return false;
+	const auto It = Scene->RailNearBy.find(RailNearKey(X, Z, RailCell));
+	if (It == Scene->RailNearBy.end()) return false;
+	const P2 Here(X, Z);
+	double Best = 40.0;
+	bool Found = false;
+	for (const std::pair<int, int>& Bit : It->second)
+	{
+		const RailLine& Run = Rails[size_t(Bit.first)];
+		const size_t I = size_t(Bit.second);
+		double T = 0.0;
+		const double D = ToSegment(Here, Run.At[I], Run.At[I + 1], T);
+		if (D >= Best) continue;
+		Best = D;
+		Found = true;
+		Dist = D;
+		Top = Run.Top[I] + (Run.Top[I + 1] - Run.Top[I]) * T;
+		On = Run.On[T < 0.5 ? I : I + 1];
+		if (Disused) *Disused = Run.Disused;
+	}
+	return Found;
+}
+
+void RidePlan::IndexRails()
+{
+	Rails.clear();
+	Platforms.clear();
+	if (!Scene || !Land) return;
+	const Region& G = Area.Roads;
+	// The map's pieces of railway (not those still being built).
+	std::vector<int> Pieces;
+	for (size_t L = 0; L < G.Scenery.Lines.size(); ++L)
+	{
+		const FeatureLine& F = G.Scenery.Lines[L];
+		const bool Rail = F.Kind == "railway" || F.Kind == "narrow_gauge" || F.Kind == "preserved" || F.Kind == "light_rail";
+		if (Rail && F.Line.size() >= 2 && (F.Flags & 8) == 0) Pieces.push_back(int(L));
+	}
+	const auto OnOf = [](int Flags) { return static_cast<unsigned char>((Flags & 1) ? 1 : (Flags & 2) ? 2 : 0); };
+	std::vector<char> Used(Pieces.size(), 0);
+	for (size_t Seed = 0; Seed < Pieces.size(); ++Seed)
+	{
+		if (Used[Seed]) continue;
+		Used[Seed] = 1;
+		const FeatureLine& Start = G.Scenery.Lines[size_t(Pieces[Seed])];
+		const bool Gone = (Start.Flags & 4) != 0;
+		// Joined end to end with the pieces that meet it (a junction: the first found carries on), each
+		// point with what the stretch after it is on.
+		std::vector<P2> Pts(Start.Line.begin(), Start.Line.end());
+		std::vector<unsigned char> After(Pts.size(), OnOf(Start.Flags));
+		for (int End = 0; End < 2; ++End)
+			for (bool Grew = true; Grew;)
+			{
+				Grew = false;
+				const P2 Tip = End == 0 ? Pts.back() : Pts.front();
+				for (size_t K = 0; K < Pieces.size() && !Grew; ++K)
+				{
+					if (Used[K]) continue;
+					const FeatureLine& F = G.Scenery.Lines[size_t(Pieces[K])];
+					if (((F.Flags & 4) != 0) != Gone) continue;
+					const bool AtStart = F.Line.front().DistanceTo(Tip) < 0.5, AtEnd = F.Line.back().DistanceTo(Tip) < 0.5;
+					if (!AtStart && !AtEnd) continue;
+					std::vector<P2> More(F.Line.begin(), F.Line.end());
+					if (End == 0 ? !AtStart : !AtEnd) std::reverse(More.begin(), More.end());
+					const unsigned char On = OnOf(F.Flags);
+					if (End == 0)
+					{
+						After.back() = On;
+						Pts.insert(Pts.end(), More.begin() + 1, More.end());
+						After.insert(After.end(), More.size() - 1, On);
+					}
+					else
+					{
+						Pts.insert(Pts.begin(), More.begin(), More.end() - 1);
+						After.insert(After.begin(), More.size() - 1, On);
+					}
+					Used[K] = 1;
+					Grew = true;
+				}
+			}
+		// A point every RailStep metres along it.
+		std::vector<P2> At;
+		std::vector<unsigned char> On;
+		double Carry = 0.0;
+		for (size_t I = 0; I + 1 < Pts.size(); ++I)
+		{
+			const double Len = Pts[I].DistanceTo(Pts[I + 1]);
+			if (Len < 1e-6) continue;
+			double S = Carry;
+			for (; S < Len; S += RailStep)
+			{
+				At.push_back(Pts[I] + (Pts[I + 1] - Pts[I]) * (S / Len));
+				On.push_back(After[I]);
+			}
+			Carry = S - Len;
+		}
+		if (At.empty() || At.back().DistanceTo(Pts.back()) > 0.5)
+		{
+			At.push_back(Pts.back());
+			On.push_back(After[Pts.size() >= 2 ? Pts.size() - 2 : 0]);
+		}
+		// The ground under it, and the stretches where the ride's land has it (each a line of its own).
+		std::vector<double> Lie(At.size());
+		for (size_t I = 0; I < At.size(); ++I) Lie[I] = Land->Height(At[I].X, At[I].Z);
+		for (size_t From = 0; From < At.size();)
+		{
+			if (std::isnan(Lie[From])) { ++From; continue; }
+			size_t To = From;
+			while (To + 1 < At.size() && !std::isnan(Lie[To + 1])) ++To;
+			const size_t Count = To - From + 1;
+			if (Count >= 3)
+			{
+				RailLine Run;
+				Run.Disused = Gone;
+				Run.At.assign(At.begin() + long(From), At.begin() + long(To) + 1);
+				Run.On.assign(On.begin() + long(From), On.begin() + long(To) + 1);
+				std::vector<double> Y(Lie.begin() + long(From), Lie.begin() + long(To) + 1);
+				// Bridges and tunnels straight from one end to the other.
+				const auto Spans = [&Run, &Y]()
+				{
+					for (size_t A = 0; A < Y.size();)
+					{
+						if (Run.On[A] != 1 && Run.On[A] != 2) { ++A; continue; }
+						size_t B = A;
+						while (B + 1 < Y.size() && (Run.On[B + 1] == 1 || Run.On[B + 1] == 2)) ++B;
+						const size_t Lo = A > 0 ? A - 1 : A, Hi = B + 1 < Y.size() ? B + 1 : B;
+						if (Hi > Lo)
+							for (size_t K = Lo + 1; K < Hi; ++K) Y[K] = Y[Lo] + (Y[Hi] - Y[Lo]) * double(K - Lo) / double(Hi - Lo);
+						A = B + 1;
+					}
+				};
+				Spans();
+				// Eased along (a railway climbs gently: it cuts through the rises and banks over the dips),
+				// then no steeper anywhere than 1 in 40: halfway between the highest such line under the
+				// eased one and the lowest over it.
+				for (int Pass = 0; Pass < 3; ++Pass)
+				{
+					std::vector<double> Sum(Y.size() + 1, 0.0);
+					for (size_t K = 0; K < Y.size(); ++K) Sum[K + 1] = Sum[K] + Y[K];
+					std::vector<double> Eased(Y.size());
+					for (size_t K = 0; K < Y.size(); ++K)
+					{
+						const size_t A = K > 12 ? K - 12 : 0, B = std::min(Y.size() - 1, K + 12);
+						Eased[K] = (Sum[B + 1] - Sum[A]) / double(B - A + 1);
+					}
+					Y.swap(Eased);
+				}
+				const double Grade = RailStep / 40.0;
+				{
+					std::vector<double> Under = Y, Over = Y;
+					for (size_t K = 1; K < Y.size(); ++K) { Under[K] = std::fmin(Under[K], Under[K - 1] + Grade); Over[K] = std::fmax(Over[K], Over[K - 1] - Grade); }
+					for (size_t K = Y.size() - 1; K-- > 0;) { Under[K] = std::fmin(Under[K], Under[K + 1] + Grade); Over[K] = std::fmax(Over[K], Over[K + 1] - Grade); }
+					for (size_t K = 0; K < Y.size(); ++K) Y[K] = (Under[K] + Over[K]) * 0.5;
+				}
+				Spans();
+				// The roads it meets: level with one it crosses, over one it bridges, under one that bridges it.
+				std::vector<double> Floor(Y.size(), -1e9), Ceiling(Y.size(), 1e9);
+				for (size_t K = 0; K < Y.size(); ++K)
+				{
+					NearOpts Opts;
+					NearHit Hit;
+					if (Run.On[K] == 2 || !NearestOf(Run.At[K].X, Run.At[K].Z, Opts, Hit) || Hit.Dist > Hit.Half + 2.0 || Hit.Bore) continue;
+					const double Surface = Hit.Height + Hit.Cross;
+					if (Hit.Deck && Run.On[K] != 1) Ceiling[K] = Surface - 6.5;
+					else if (Run.On[K] == 1) Floor[K] = Surface + 6.0;
+					else if (!Hit.Deck && Hit.Dist <= Hit.Half + 0.6)
+					{
+						Floor[K] = Ceiling[K] = Surface - 0.27;   // (the rails' tops flush with the road)
+						Run.On[K] = 3;
+					}
+				}
+				// (a railway's ramp to and from them: 1 in 40 too)
+				const double Ramp = Grade;
+				for (size_t K = 1; K < Y.size(); ++K) { Floor[K] = std::fmax(Floor[K], Floor[K - 1] - Ramp); Ceiling[K] = std::fmin(Ceiling[K], Ceiling[K - 1] + Ramp); }
+				for (size_t K = Y.size() - 1; K-- > 0;) { Floor[K] = std::fmax(Floor[K], Floor[K + 1] - Ramp); Ceiling[K] = std::fmin(Ceiling[K], Ceiling[K + 1] + Ramp); }
+				for (size_t K = 0; K < Y.size(); ++K) Y[K] = std::fmax(std::fmin(Y[K], Ceiling[K]), Floor[K]);
+				Run.Top = Y;
+				Rails.push_back(std::move(Run));
+			}
+			From = To + 1;
+		}
+	}
+	// Filed by square: each bit by its middle's 256 m square, and by every RailCell square within 40 m.
+	for (size_t L = 0; L < Rails.size(); ++L)
+	{
+		const RailLine& Run = Rails[L];
+		for (size_t I = 0; I + 1 < Run.At.size(); ++I)
+		{
+			const P2 A = Run.At[I], B = Run.At[I + 1];
+			const P2 Mid = (A + B) * 0.5;
+			Scene->RailBits[SceneKey(Mid.X, Mid.Z)].emplace_back(int(L), int(I));
+			const int X0 = int(std::floor((std::fmin(A.X, B.X) - 40.0) / RailCell)), X1 = int(std::floor((std::fmax(A.X, B.X) + 40.0) / RailCell));
+			const int Z0 = int(std::floor((std::fmin(A.Z, B.Z) - 40.0) / RailCell)), Z1 = int(std::floor((std::fmax(A.Z, B.Z) + 40.0) / RailCell));
+			for (int Cz = Z0; Cz <= Z1; ++Cz)
+				for (int Cx = X0; Cx <= X1; ++Cx)
+					Scene->RailNearBy[static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz)].emplace_back(int(L), int(I));
+		}
+	}
+	// The stations' platforms, beside the line nearest each station on the map.
+	for (const FeaturePoint& P : G.Scenery.Points)
+	{
+		const bool Halt = P.Kind == "railway_halt";
+		if (!Halt && P.Kind != "railway_station") continue;
+		const auto It = Scene->RailNearBy.find(RailNearKey(P.At.X, P.At.Z, RailCell));
+		if (It == Scene->RailNearBy.end()) continue;
+		double Best = 40.0;
+		int BestLine = -1, BestAt = 0;
+		for (const std::pair<int, int>& Bit : It->second)
+		{
+			const RailLine& Run = Rails[size_t(Bit.first)];
+			double T = 0.0;
+			const double D = ToSegment(P.At, Run.At[size_t(Bit.second)], Run.At[size_t(Bit.second) + 1], T);
+			if (D < Best) { Best = D; BestLine = Bit.first; BestAt = Bit.second + (T < 0.5 ? 0 : 1); }
+		}
+		if (BestLine < 0) continue;
+		const RailLine& Run = Rails[size_t(BestLine)];
+		if (Run.On[size_t(BestAt)] != 0) continue;
+		Platform Made;
+		Made.Line = BestLine;
+		const int Reach = Halt ? 5 : 10;
+		Made.First = BestAt;
+		Made.Last = BestAt;
+		while (Made.First > 0 && BestAt - Made.First < Reach && Run.On[size_t(Made.First - 1)] == 0) --Made.First;
+		while (Made.Last + 1 < int(Run.At.size()) && Made.Last - BestAt < Reach && Run.On[size_t(Made.Last + 1)] == 0) ++Made.Last;
+		if (Made.Last - Made.First < 3) continue;
+		const size_t A = size_t(std::max(0, BestAt - 1)), B = std::min(Run.At.size() - 1, size_t(BestAt) + 1);
+		const P2 Dir = Run.At[B] - Run.At[A];
+		const P2 Off = P.At - Run.At[size_t(BestAt)];
+		Made.Side = Dir.Z * Off.X - Dir.X * Off.Z >= 0.0 ? 1.0 : -1.0;   // (left of the way along: (Dir.Z, -Dir.X))
+		Made.Name = P.Name;
+		Platforms.push_back(Made);
+	}
+}
+
+void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const
+{
+	if (!Scene || Scene->RailBits.empty()) return;
+	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
+	const P3 Sky = At3(X0, 1e6, Z0);
+	static const Rgb Ballast = {0.125f, 0.118f, 0.108f}, Trackbed = {0.07f, 0.075f, 0.04f}, Sleeper = {0.19f, 0.185f, 0.175f}, RailHead = {0.42f, 0.40f, 0.38f},
+		RailWeb = {0.10f, 0.065f, 0.04f}, Girder = {0.06f, 0.065f, 0.07f}, Asphalt = {0.085f, 0.085f, 0.09f}, Coping = {0.32f, 0.31f, 0.29f},
+		Warning = {0.55f, 0.42f, 0.02f}, Board = {0.008f, 0.04f, 0.22f}, PostGrey = {0.15f, 0.15f, 0.15f};
+	// (the viaducts' stone, as the walls' masks: a little lichened, mostly the bare scan)
+	Rgb Mask;
+	Mask.R = 0.46f;
+	Mask.G = 0.7f;
+	Mask.B = 0.35f;
+	// The way left (unit) across the line at a point, from its neighbours (so bends close).
+	const auto LeftAt = [](const RailLine& Run, size_t I)
+	{
+		const size_t A = I > 0 ? I - 1 : I, B = I + 1 < Run.At.size() ? I + 1 : I;
+		const P2 D = Run.At[B] - Run.At[A];
+		const double Len = D.Length();
+		return Len > 1e-9 ? P2(D.Z / Len, -D.X / Len) : P2(1.0, 0.0);
+	};
+	// A strip of the line from point I to I + 1, Off0 to Off1 across (+ left), Lift0 at the first
+	// offset and Lift1 at the second over its top there.
+	const auto Strip = [&](RideMesh& Into, const RailLine& Run, size_t I, double Off0, double Lift0, double Off1, double Lift1, const P3& Toward, const Rgb& C, float Moss)
+	{
+		const P2 La = LeftAt(Run, I), Lb = LeftAt(Run, I + 1);
+		const P2 A = Run.At[I], B = Run.At[I + 1];
+		const double Ya = Run.Top[I], Yb = Run.Top[I + 1];
+		Quad(Into, At3(A.X + La.X * Off0, Ya + Lift0, A.Z + La.Z * Off0), At3(B.X + Lb.X * Off0, Yb + Lift0, B.Z + Lb.Z * Off0), At3(B.X + Lb.X * Off1, Yb + Lift1, B.Z + Lb.Z * Off1),
+			At3(A.X + La.X * Off1, Ya + Lift1, A.Z + La.Z * Off1), Toward, C, false, Moss);
+	};
+	// A point out to one side of the line at I (for a face to face it).
+	const auto Beside = [&](const RailLine& Run, size_t I, double Off, double Lift)
+	{
+		const P2 L = LeftAt(Run, I);
+		return At3(Run.At[I].X + L.X * Off, Run.Top[I] + Lift, Run.At[I].Z + L.Z * Off);
+	};
+	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
+		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
+		{
+			const long long Key = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
+			const auto It = Scene->RailBits.find(Key);
+			if (It == Scene->RailBits.end()) continue;
+			for (const std::pair<int, int>& Bit : It->second)
+			{
+				const RailLine& Run = Rails[size_t(Bit.first)];
+				const size_t I = size_t(Bit.second);
+				const P2 A = Run.At[I], B = Run.At[I + 1];
+				if (!Inside((A + B) * 0.5) || A.DistanceTo(B) < 0.05) continue;
+				const unsigned char Oa = Run.On[I], Ob = Run.On[I + 1];
+				if (Oa == 2 || Ob == 2) continue;   // (in a tunnel)
+				const bool Bridge = Oa == 1 || Ob == 1, Crossing = Oa == 3 || Ob == 3;
+				const double Ya = Run.Top[I];
+				if (Bridge) [&]()
+				{
+					// The deck, 4.6 m wide and 1.2 m deep, its parapets stone.
+					Strip(Out, Run, I, -2.3, 0.0, 2.3, 0.0, Sky, Run.Disused ? Trackbed : Ballast, -1.0f);
+					for (double Sg : {1.0, -1.0})
+					{
+						const P3 Away = Beside(Run, I, Sg * 50.0, 0.0), Inward = Beside(Run, I, -Sg * 50.0, 0.5);
+						Strip(Stone, Run, I, Sg * 2.75, -1.2, Sg * 2.75, 1.0, Away, Mask, 0.3f);
+						Strip(Stone, Run, I, Sg * 2.3, 0.0, Sg * 2.3, 1.0, Inward, Mask, 0.3f);
+						Strip(Stone, Run, I, Sg * 2.3, 1.0, Sg * 2.75, 1.0, Sky, Mask, 0.5f);
+					}
+					// What holds it up: where it is high, stone piers every 16 m (arches between them on a
+					// viaduct), and a stone abutment at each end.
+					const double Under = Ground(A.X, A.Z);
+					if (std::isnan(Under)) return;
+					const double High = Ya - 1.2 - Under;
+					size_t First = I;
+					while (First > 0 && Run.On[First - 1] == 1) --First;
+					const bool Viaduct = High > 9.0;
+					const double Span = 4.0 * RailStep, Radius = Span * 0.5 - 1.0, Spring = Ya - 1.2 - 0.7 - Radius;
+					const auto ArchAt = [&](double S)
+					{
+						// (the arch's underside S metres from a pier's middle: the pier's top within a metre of it)
+						const double U = S - Span * 0.5;
+						return S < 1.0 || S > Span - 1.0 ? Spring : Spring + std::sqrt(std::fmax(0.0, Radius * Radius - U * U));
+					};
+					const P2 La = LeftAt(Run, I), Lb = LeftAt(Run, I + 1);
+					if (Viaduct)
+					{
+						// (four slices of the arch per bit: each a spandrel face each side down to the arch, and its soffit)
+						const double S0 = double((I - First) % 4) * RailStep;
+						for (int Slice = 0; Slice < 4; ++Slice)
+						{
+							const double T0 = Slice / 4.0, T1 = (Slice + 1) / 4.0;
+							const double Sa = S0 + T0 * RailStep, Sb = S0 + T1 * RailStep;
+							const P2 Pa = A + (B - A) * T0, Pb = A + (B - A) * T1;
+							const P2 Lx = La + (Lb - La) * ((T0 + T1) * 0.5);
+							const double Da = Ya + (Run.Top[I + 1] - Ya) * T0 - 1.2, Db = Ya + (Run.Top[I + 1] - Ya) * T1 - 1.2;
+							for (double Sg : {1.0, -1.0})
+							{
+								const P3 Away = At3(Pa.X + Lx.X * Sg * 50.0, Da, Pa.Z + Lx.Z * Sg * 50.0);
+								Quad(Stone, At3(Pa.X + Lx.X * Sg * 2.75, ArchAt(Sa), Pa.Z + Lx.Z * Sg * 2.75), At3(Pb.X + Lx.X * Sg * 2.75, ArchAt(Sb), Pb.Z + Lx.Z * Sg * 2.75),
+									At3(Pb.X + Lx.X * Sg * 2.75, Db, Pb.Z + Lx.Z * Sg * 2.75), At3(Pa.X + Lx.X * Sg * 2.75, Da, Pa.Z + Lx.Z * Sg * 2.75), Away, Mask, false, 0.35f);
+							}
+							Quad(Stone, At3(Pa.X + Lx.X * 2.75, ArchAt(Sa), Pa.Z + Lx.Z * 2.75), At3(Pb.X + Lx.X * 2.75, ArchAt(Sb), Pb.Z + Lx.Z * 2.75),
+								At3(Pb.X - Lx.X * 2.75, ArchAt(Sb), Pb.Z - Lx.Z * 2.75), At3(Pa.X - Lx.X * 2.75, ArchAt(Sa), Pa.Z - Lx.Z * 2.75), At3(Pa.X, -1e6, Pa.Z), Shade(Mask, 0.8), false, 0.5f);
+						}
+					}
+					else if (High > 0.5)
+					{
+						// (a plain deck's sides and underside)
+						for (double Sg : {1.0, -1.0}) Strip(Out, Run, I, Sg * 2.8, -1.25, Sg * 2.8, -0.2, Beside(Run, I, Sg * 50.0, 0.0), Girder, -1.0f);
+						Strip(Out, Run, I, -2.8, -1.25, 2.8, -1.25, Beside(Run, I, 0.0, -100.0), Girder, -1.0f);
+					}
+					// A pier (every 16 m from the bridge's start, not on a road) or an abutment (where it meets the ground).
+					const bool Abutment = Oa != 1 || Ob != 1;
+					const bool Pier = Oa == 1 && (I - First) % 4 == 0 && High > 2.5;
+					if (!Abutment && !Pier) return;
+					NearOpts Opts;
+					NearHit Hit;
+					if (!Abutment && NearestOf(A.X, A.Z, Opts, Hit) && Hit.Dist <= Hit.Half + 1.5) return;
+					const P2 Along = (B - A) * (1.0 / A.DistanceTo(B));
+					const double Thick = Abutment ? 0.9 : 1.0, Wide = Abutment ? 3.6 : 2.6;
+					const double TopY = Abutment ? Ya - 0.3 : Viaduct ? Spring + 0.01 : Ya - 1.2;
+					const P2 C = Oa != 1 ? B : A;   // (an abutment where the deck meets the ground)
+					const double Foot = Abutment ? Ground(C.X, C.Z) : Under;
+					if (std::isnan(Foot)) return;
+					const P3 Mid3 = At3(C.X, (Foot + TopY) * 0.5, C.Z);
+					const auto Corner = [&](double Su, double Sv, double Y) { return At3(C.X + Along.X * Su * Thick + La.X * Sv * Wide, Y, C.Z + Along.Z * Su * Thick + La.Z * Sv * Wide); };
+					const double S4[5][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
+					for (int K = 0; K < 4; ++K)
+					{
+						const P3 Q0 = Corner(S4[K][0], S4[K][1], Foot - 1.0), Q1 = Corner(S4[K + 1][0], S4[K + 1][1], Foot - 1.0), Q2 = Corner(S4[K + 1][0], S4[K + 1][1], TopY),
+							Q3 = Corner(S4[K][0], S4[K][1], TopY);
+						const P3 Away = At3(Mid3.X + ((Q0.X + Q2.X) * 0.5 - Mid3.X) * 50.0, Mid3.Y, Mid3.Z + ((Q0.Z + Q2.Z) * 0.5 - Mid3.Z) * 50.0);
+						Quad(Stone, Q0, Q1, Q2, Q3, Away, Mask, false, 0.3f);
+					}
+				}();
+				if (Run.Disused) continue;   // (an old line: its cuttings and banks in the land, no track)
+				if (!Crossing && !Bridge)
+				{
+					// The ballast: its top 3.2 m wide, its shoulders down to the cess.
+					Strip(Out, Run, I, -1.6, 0.0, 1.6, 0.0, Sky, Shade(Ballast, 0.9 + 0.2 * Chance(A.X, A.Z, 41)), -1.0f);
+					Strip(Out, Run, I, 1.6, 0.0, 2.25, -0.47, Sky, Shade(Ballast, 0.85), -1.0f);
+					Strip(Out, Run, I, -2.25, -0.47, -1.6, 0.0, Sky, Shade(Ballast, 0.85), -1.0f);
+				}
+				if (!Fine) continue;
+				const P2 La = LeftAt(Run, I), Lb = LeftAt(Run, I + 1);
+				const double Yb = Run.Top[I + 1];
+				const double Len = A.DistanceTo(B);
+				if (!Crossing)
+				{
+					// Concrete sleepers every 0.65 m.
+					const int Count = std::max(1, int(std::lround(Len / 0.65)));
+					const P2 Along = (B - A) * (1.0 / Len);
+					for (int K = 0; K < Count; ++K)
+					{
+						const double T = (K + 0.5) / Count;
+						const P2 P = A + (B - A) * T, L = La + (Lb - La) * T;
+						const double Y = Ya + (Yb - Ya) * T;
+						const P2 F = Along * 0.13;
+						const Rgb C = Shade(Sleeper, 0.9 + 0.2 * Chance(P.X, P.Z, 42));
+						const auto At2 = [&](double Across, double Fore, double Lift) { return At3(P.X + L.X * Across + F.X * Fore, Y + Lift, P.Z + L.Z * Across + F.Z * Fore); };
+						Quad(Out, At2(-1.3, -1.0, 0.12), At2(1.3, -1.0, 0.12), At2(1.3, 1.0, 0.12), At2(-1.3, 1.0, 0.12), Sky, C);
+						Quad(Out, At2(-1.3, 1.0, -0.02), At2(1.3, 1.0, -0.02), At2(1.3, 1.0, 0.12), At2(-1.3, 1.0, 0.12), At2(0.0, 30.0, 0.05), Shade(C, 0.8));
+						Quad(Out, At2(-1.3, -1.0, -0.02), At2(1.3, -1.0, -0.02), At2(1.3, -1.0, 0.12), At2(-1.3, -1.0, 0.12), At2(0.0, -30.0, 0.05), Shade(C, 0.8));
+					}
+				}
+				// The rails: a head and two sides each.
+				for (double Sg : {1.0, -1.0})
+				{
+					const double Mid = Sg * (RailGauge * 0.5 + 0.035);
+					Strip(Out, Run, I, Mid - 0.035, 0.27, Mid + 0.035, 0.27, Sky, RailHead, -1.0f);
+					Strip(Out, Run, I, Mid + 0.035, 0.12, Mid + 0.035, 0.27, Beside(Run, I, Mid + 30.0, 0.2), RailWeb, -1.0f);
+					Strip(Out, Run, I, Mid - 0.035, 0.12, Mid - 0.035, 0.27, Beside(Run, I, Mid - 30.0, 0.2), RailWeb, -1.0f);
+				}
+			}
+		}
+	// The stations: a platform beside the line, its coping and yellow line, and its name board.
+	for (const Platform& Plat : Platforms)
+	{
+		const RailLine& Run = Rails[size_t(Plat.Line)];
+		const int Middle = (Plat.First + Plat.Last) / 2;
+		if (!Inside(Run.At[size_t(Middle)])) continue;
+		const double S = Plat.Side, Edge = 1.6, Back = Edge + 4.0, Lift = 1.18;
+		for (int K = Plat.First; K < Plat.Last; ++K)
+		{
+			const size_t I = size_t(K);
+			Strip(Out, Run, I, S * Edge, -0.4, S * Edge, Lift, Beside(Run, I, 0.0, 0.5), Shade(Coping, 0.7), -1.0f);
+			Strip(Out, Run, I, S * Edge, Lift, S * (Edge + 0.6), Lift, Sky, Coping, -1.0f);
+			Strip(Out, Run, I, S * (Edge + 0.6), Lift, S * Back, Lift, Sky, Asphalt, -1.0f);
+			Strip(Out, Run, I, S * (Edge + 0.68), Lift + 0.006, S * (Edge + 0.78), Lift + 0.006, Sky, Warning, -1.0f);
+			Strip(Out, Run, I, S * Back, -1.5, S * Back, Lift, Beside(Run, I, S * 50.0, 0.0), Shade(Coping, 0.6), -1.0f);
+		}
+		// (the platform's two ends)
+		for (int End : {Plat.First, Plat.Last})
+		{
+			const size_t I = size_t(End);
+			const P3 Q0 = Beside(Run, I, S * Edge, -0.4), Q1 = Beside(Run, I, S * Back, -1.5), Q2 = Beside(Run, I, S * Back, Lift), Q3 = Beside(Run, I, S * Edge, Lift);
+			const size_t Other = End == Plat.First ? I + 1 : I - 1;
+			const P3 Out3 = At3(Run.At[I].X * 2.0 - Run.At[Other].X, Run.Top[I] + Lift, Run.At[I].Z * 2.0 - Run.At[Other].Z);
+			Quad(Out, Q0, Q1, Q2, Q3, Out3, Shade(Coping, 0.65));
+		}
+		if (Plat.Name.empty()) continue;
+		// The name board: white words on blue, on two posts at the back of the platform, facing the line.
+		const size_t I = size_t(Middle);
+		const P2 L = LeftAt(Run, I);
+		const P2 Face(-L.X * S, -L.Z * S);
+		const P2 Along(L.Z, -L.X);   // (along the line, against the way it runs)
+		const double Wide = 0.8 + 0.19 * double(Plat.Name.size()), Base = Run.Top[I] + Lift;
+		const P2 C = Run.At[I] + L * (S * (Back - 0.6));
+		for (double Sg : {1.0, -1.0}) Box(Out, C.X + Along.X * Sg * (Wide * 0.5 - 0.1), C.Z + Along.Z * Sg * (Wide * 0.5 - 0.1), Along, 0.04, 0.04, Base - 0.1, Base + 2.4, PostGrey);
+		const P2 Half = Along * (Wide * 0.5);
+		const P2 Proud = Face * 0.05;
+		const double Lo = Base + 1.75, Hi = Base + 2.35;
+		Quad(Out, At3(C.X - Half.X + Proud.X, Lo, C.Z - Half.Z + Proud.Z), At3(C.X + Half.X + Proud.X, Lo, C.Z + Half.Z + Proud.Z), At3(C.X + Half.X + Proud.X, Hi, C.Z + Half.Z + Proud.Z),
+			At3(C.X - Half.X + Proud.X, Hi, C.Z - Half.Z + Proud.Z), At3(C.X + Face.X * 50.0, (Lo + Hi) * 0.5, C.Z + Face.Z * 50.0), Board);
+		Quad(Out, At3(C.X - Half.X, Lo, C.Z - Half.Z), At3(C.X + Half.X, Lo, C.Z + Half.Z), At3(C.X + Half.X, Hi, C.Z + Half.Z), At3(C.X - Half.X, Hi, C.Z - Half.Z),
+			At3(C.X - Face.X * 50.0, (Lo + Hi) * 0.5, C.Z - Face.Z * 50.0), PostGrey);
+		RideMesh::Label Words;
+		Words.X = float(C.X + Face.X * 0.07 - Out.OriginX);
+		Words.Y = float((Lo + Hi) * 0.5);
+		Words.Z = float(C.Z + Face.Z * 0.07 - Out.OriginZ);
+		Words.Nx = float(Face.X);
+		Words.Nz = float(Face.Z);
+		Words.Size = 0.3f;
+		Words.R = Words.G = Words.B = 0.9f;
+		Words.Text = Plat.Name;
+		Out.Labels.push_back(Words);
+	}
 }
 } // namespace TorqueWorld

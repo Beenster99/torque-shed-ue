@@ -82,6 +82,10 @@ private:
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;
 	// What stands on a square (walls, buildings, trees), where anything does: it comes and goes with its square.
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> TileExtras;
+	// [stage 5] A square's water (RideMesh::Water: the sea, lakes, rivers), in M_RideWater, never collided with.
+	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> TileWater;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> WaterMaterial;
+	void DropWater(const FIntVector& Key);
 	// [stage 5] The words on a square's signs (RideMesh::Labels), let go with it.
 	TMap<FIntVector, TArray<TWeakObjectPtr<class UTextRenderComponent>>> TileWords;
 	void DropWords(const FIntVector& Key);

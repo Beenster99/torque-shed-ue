@@ -254,6 +254,11 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				if (X < X0 || X >= X0 + Size || Z < Z0 || Z >= Z0 + Size) continue;
 				double D = RoadEdge(X, Z);
 				if (D > Within) continue;
+				// (nothing on a railway's ballast)
+				double RailDist = 0.0, RailTop = 0.0;
+				int RailOn = 0;
+				bool Old = false;
+				if (NearRail(X, Z, RailDist, RailTop, RailOn, &Old) && !Old && RailOn != 2 && RailDist < 2.4) continue;
 				if (D < 1.5)
 				{
 					// (right by a road's edge the 4 m grid is too coarse a guide: how far from it exactly)

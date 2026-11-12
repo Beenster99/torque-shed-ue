@@ -96,6 +96,10 @@ struct RideMesh
 	// dirt at the foot), null for none.
 	Tint StoneTint, MasonryTint;
 	std::shared_ptr<RideMesh> Render;
+	// With a square of ground: its water (Ride UK stage 5: the sea at its level, lakes and wide rivers
+	// as the land's cover has them, the map's rivers, streams and canals as ribbons), coloured, never
+	// collided with (M_RideWater). Null for none.
+	std::shared_ptr<RideMesh> Water;
 	// Words on signs (a village's name, a speed limit): where (in the mesh's own origin, the middle of
 	// the words), which way they face (x, z), how tall a letter is (m), the words, and their colour.
 	struct Label
@@ -327,6 +331,33 @@ public:
 	std::vector<unsigned char> BuiltUp;
 	// The local look (Ride UK stage 5: WorldRideStyle) at a place of the ride's frame.
 	const LocalLook& LookHere(double X, double Z) const;
+	// The railways near the ride (Ride UK stage 5), the map's railway lines joined end to end and a
+	// point every RailStep metres along each: where, the top of its ballast (eased along so it climbs
+	// as a railway does, cut into the hills and banked over the dips, lifted over a road it bridges,
+	// level with a road it crosses), and what each point is on: 0 the ground, 1 a bridge, 2 in a tunnel
+	// (not drawn), 3 across a road (a level crossing: the rails alone, flush with the road). A disused
+	// line keeps its cuttings and banks and its bridges but has no track.
+	struct RailLine
+	{
+		std::vector<P2> At;
+		std::vector<double> Top;
+		std::vector<unsigned char> On;
+		bool Disused = false;
+	};
+	std::vector<RailLine> Rails;
+	static constexpr double RailStep = 4.0, RailGauge = 1.435;
+	// A station's platform: along line Line from point First to Last, on the Side (+1 the left going
+	// along, -1 the right), with its name board.
+	struct Platform
+	{
+		int Line = 0, First = 0, Last = 0;
+		double Side = 1.0;
+		std::string Name;
+	};
+	std::vector<Platform> Platforms;
+	// The nearest railway to (X, Z) within 40 m: how far, its ballast's top there, what it is on there
+	// (as RailLine::On), and whether it is disused. False with none that near.
+	bool NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused = nullptr) const;
 	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
 	// little under the limit, as a rider on a road they do not know).
 	RideSummary Summary(double Cap = 24.6) const;
@@ -352,7 +383,16 @@ private:
 		std::unordered_map<long long, std::vector<int>> Lines, Buildings;
 		std::unordered_map<long long, std::vector<int>> Furniture;   // into RidePlan::Furniture
 		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
+		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
+		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
+		// RailCell square within 40 m of them (for NearRail).
+		std::unordered_map<long long, std::vector<std::pair<int, int>>> RailBits, RailNearBy;
 	};
+	static constexpr double RailCell = 32.0;
+	void IndexRails();
+	void RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const;
+	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
+	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
 	void IndexFurniture();
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
