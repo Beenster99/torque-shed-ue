@@ -56,6 +56,10 @@ struct FTorqueSettings
 	bool bLookIntoCorner = true;    // the rider's head, and a first-person view, turn into a bend
 	bool bCameraRecentre = true;    // the chase camera swings back behind the bike after you look round
 	int32 Units = 1;            // 0 metric (km/h, km), 1 imperial (mph, miles)
+	// The shed's wall TVs' brightness (F / Triangle at one steps it): 0 dim, 1 low, 2 normal, 3 bright.
+	int32 ScreenBright = 2;
+	static float ScreenBrightTimes(int32 Step);
+	static const TCHAR* ScreenBrightName(int32 Step);
 	// Time and weather (the host's rule in co-op; ATorqueGameState).
 	bool bDayNight = false;     // the clock runs
 	int32 DayLength = 120;      // real minutes for a whole day

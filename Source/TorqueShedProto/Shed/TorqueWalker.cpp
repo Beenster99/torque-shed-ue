@@ -2642,6 +2642,16 @@ void ATorqueWalker::Interact()
 		OpenComputer();
 		return;
 	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv)
+	{
+		// [tv] F at a wall TV steps their brightness (dim, low, normal, bright, round again); yours,
+		// saved with your settings.
+		FTorqueSettings& Settings = FTorqueSettings::Get();
+		Settings.ScreenBright = (Settings.ScreenBright + 1) % 4;
+		Settings.Save();
+		Say(FString::Printf(TEXT("TV brightness: %s"), FTorqueSettings::ScreenBrightName(Settings.ScreenBright)), true);
+		return;
+	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump)
 	{
 		// [fluids] The pump's on right mouse now (FluidInput); F just says so.
@@ -3096,6 +3106,9 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
 				HudLines.Add({FString::Printf(TEXT("Right mouse / Square: change channel (next: %s)"),
 					TorqueShedTv::Name(TorqueShedTv::Next(TargetPlace->Index, B->TvChannel(TargetPlace->Index)))), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
+				HudLines.Add({FString::Printf(TEXT("F / Triangle: brightness (now %s)"),
+					FTorqueSettings::ScreenBrightName(FTorqueSettings::Get().ScreenBright)), Prompt, 0.6f});
 			if (TargetPlace->Kind == ETorquePlace::Tv && B->TvChannel(TargetPlace->Index) == TorqueShedTv::YouTube)   // [tv]
 				HudLines.Add({TEXT("Ctrl+V: play the YouTube link you've copied"), Prompt, 0.55f});
 			if (TargetPlace->Kind == ETorquePlace::Lift)

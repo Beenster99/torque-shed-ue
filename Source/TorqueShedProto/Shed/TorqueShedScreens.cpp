@@ -7,6 +7,7 @@
 #include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueWalker.h"
 #include "Coop/TorquePlayerState.h"
+#include "Coop/TorqueSettings.h"
 #include "Coop/TorqueUi.h"
 #include "TorqueBikePawn.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -548,6 +549,17 @@ bool ATorqueShedScreens::IsLive(int32 Tv) const
 	return Ch == TorqueShedTv::Players || Ch == TorqueShedTv::Rider;
 }
 
+void ATorqueShedScreens::ApplyBrightness()
+{
+	// The wall TVs (0 .. 4) and the bought ones, at the player's brightness (F at a TV steps it).
+	BrightShown = FTorqueSettings::Get().ScreenBright;
+	const float Times = FTorqueSettings::ScreenBrightTimes(BrightShown);
+	for (int32 I = 0; I < PageMaterials.Num() && I <= 4; ++I)
+		if (PageMaterials[I]) PageMaterials[I]->SetScalarParameterValue(TEXT("Brightness"), TSSI::ShedPageBrightness * Times);
+	for (const TPair<int32, UMaterialInstanceDynamic*>& KV : PieceMaterials)
+		if (KV.Value) KV.Value->SetScalarParameterValue(TEXT("Brightness"), TSSI::ShedPageBrightness * Times);
+}
+
 void ATorqueShedScreens::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -563,6 +575,7 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs; ++Tv)
 		if (ShownChannel[Tv] != ChannelOf(Tv)) bDirty = true;
 	SyncPieces();
+	if (BrightShown != FTorqueSettings::Get().ScreenBright) ApplyBrightness();
 	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
 	auto PieceChannel = [Sub](int32 Id) -> int32
 	{
@@ -694,7 +707,7 @@ void ATorqueShedScreens::SyncPieces()
 				if (MID)
 				{
 					MID->SetTextureParameterValue(TEXT("Page"), RT);
-					MID->SetScalarParameterValue(TEXT("Brightness"), TSSI::ShedPageBrightness);
+					MID->SetScalarParameterValue(TEXT("Brightness"), TSSI::ShedPageBrightness * FTorqueSettings::ScreenBrightTimes(FTorqueSettings::Get().ScreenBright));
 					PieceMaterials.Add(F.Id, MID);
 				}
 			}
@@ -1217,27 +1230,50 @@ void ATorqueShedScreens::DrawBay(UCanvas* C, int32 Bay) const
 		Gauge(4, TEXT("CHAIN LUBE"), F.bChain, F.Lube, 0.0f, FString::Printf(TEXT("%.0f%%"), F.Lube * 100.0f));
 	}
 
-	// Right: every part, in two columns, with its condition (dashboard.gd's part list).
-	const int32 RowsPerCol = 16;
-	for (int32 I = 0; I < D.Parts.Num() && I < 2 * RowsPerCol; ++I)
+	// Right: every part, all of it on the one page (beenster: to see what's loose), in two columns
+	// (three for a long list), the rows closing up to fit: each with its condition, LOOSE in amber
+	// where it isn't bolted up, MISSING in red (dashboard.gd's part list).
+	const int32 NumParts = D.Parts.Num();
+	if (NumParts > 0)
 	{
-		const TSSI::FPartRow& P = D.Parts[I];
-		const float PX = 560.0f + (I / RowsPerCol) * 252.0f;
-		const float PY = 84.0f + (I % RowsPerCol) * 30.0f;
-		Pen.Text(PX, PY + 14, Left(P.Name, 19), 14, P.bFitted ? FLinearColor::White : Bad());
-		if (P.bFitted)
+		const int32 Cols = NumParts > 48 ? 3 : 2;
+		const int32 RowsPerCol = FMath::Max(1, (NumParts + Cols - 1) / Cols);
+		const float ListTop = 80.0f, ListH = H - 22.0f - ListTop;
+		const float RowH = FMath::Min(30.0f, ListH / RowsPerCol);
+		const float ColW = (W - 560.0f - 8.0f) / Cols;
+		const float NameSize = FMath::Clamp(RowH * 0.52f, 9.0f, 14.0f);
+		const int32 NameChars = FMath::Max(8, FMath::FloorToInt(ColW * 0.6f / (NameSize * 0.56f)));
+		const float BarX = ColW * 0.63f, BarW = ColW * 0.32f;
+		int32 LooseCount = 0;
+		for (int32 I = 0; I < NumParts; ++I)
 		{
-			const FLinearColor Bc = P.Health < 0.95f ? FMath::Lerp(Bad(), Good(), P.Health) : Good();
-			Pen.Bar(PX + 160, PY + 3, 76, 12, P.Health, Bc);
-			if (!P.bBolted) Pen.Text(PX + 162, PY + 26, TEXT("LOOSE"), 11, Srgb(1.0f, 0.85f, 0.3f));
+			const TSSI::FPartRow& P = D.Parts[I];
+			const float PX = 560.0f + (I / RowsPerCol) * ColW;
+			const float PY = ListTop + (I % RowsPerCol) * RowH;
+			const bool bLoose = P.bFitted && !P.bBolted;
+			if (bLoose) ++LooseCount;
+			const FLinearColor NameColour = !P.bFitted ? Bad() : (bLoose ? Amber() : FLinearColor::White);
+			Pen.Text(PX, PY + NameSize, Left(P.Name, NameChars), NameSize, NameColour);
+			if (!P.bFitted)
+			{
+				Pen.Text(PX + BarX, PY + NameSize, TEXT("MISSING"), FMath::Min(NameSize, 12.0f), Bad());
+			}
+			else if (bLoose)
+			{
+				Pen.Text(PX + BarX, PY + NameSize, TEXT("LOOSE"), FMath::Min(NameSize, 12.0f), Srgb(1.0f, 0.85f, 0.3f));
+			}
+			else
+			{
+				const FLinearColor Bc = P.Health < 0.95f ? FMath::Lerp(Bad(), Good(), P.Health) : Good();
+				Pen.Bar(PX + BarX, PY + FMath::Max(2.0f, RowH * 0.2f), BarW, FMath::Clamp(RowH * 0.4f, 6.0f, 12.0f), P.Health, Bc);
+			}
 		}
-		else
-		{
-			Pen.Text(PX + 160, PY + 14, TEXT("MISSING"), 12, Bad());
-		}
+		// Underneath: how many are loose (or that it's all bolted up).
+		const int32 Absent = D.Needed - D.Fitted;
+		FString Sum = LooseCount > 0 ? FString::Printf(TEXT("%d LOOSE"), LooseCount) : FString(TEXT("ALL BOLTED UP"));
+		if (Absent > 0) Sum += FString::Printf(TEXT("   %d MISSING"), Absent);
+		Pen.Text(560, H - 8, Sum, 12, LooseCount > 0 || Absent > 0 ? Amber() : Good());
 	}
-	if (D.Parts.Num() > 2 * RowsPerCol)
-		Pen.Text(560, H - 12, FString::Printf(TEXT("and %d more"), D.Parts.Num() - 2 * RowsPerCol), 12, Dim());
 }
 
 void ATorqueShedScreens::DrawComputer(UCanvas* C, float Now) const
