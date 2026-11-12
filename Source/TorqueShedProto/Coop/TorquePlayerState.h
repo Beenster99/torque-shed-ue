@@ -43,6 +43,10 @@ public:
 	UPROPERTY(Replicated) TArray<uint8> Profile;
 	// The shed bay this player last worked on or claimed (-1 none): which bike they ride out on.
 	UPROPERTY(Replicated) int32 Bay = -1;
+	// [Ride UK] The journey code (the host's, ATorqueGameState::RideJourney) whose road this player's
+	// game has planned, ready to set off on it ("" for none).
+	UPROPERTY(Replicated) FString RideReadyFor;
+	UFUNCTION(Server, Reliable) void ServerSetRideReady(const FString& Code);
 	// The hands (the owner's own copy is set at once; the others get the host's).
 	UPROPERTY(ReplicatedUsing = OnRep_Hands) FTorqueHandsNet Hands;
 	UFUNCTION() void OnRep_Hands(const FTorqueHandsNet& Before);

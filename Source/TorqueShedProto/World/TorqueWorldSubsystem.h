@@ -23,8 +23,13 @@
 #include "Async/Future.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 
+#include "World/WorldRide.h"
+#include "World/WorldRoute.h"
+#include "World/WorldRouteMap.h"
+
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "TorqueWorldSubsystem.generated.h"
 
@@ -65,6 +70,34 @@ public:
 	// Its route, as the bike reads one (an absolute path).
 	static FString RideRouteFile();
 
+	// Stage 4, the Route planner's journeys. Plans one on a worker; with bRide its level opens once
+	// it is planned, else it is kept as the preview, to be summed up and drawn on the map, and
+	// RidePreview rides it without planning it again. False if one is being planned already.
+	bool StartJourney(const TorqueWorld::RouteRequest& Want, const FString& Title, bool bRide);
+	bool RidePreview();
+	// [co-op] A joined rider's game: the preview becomes the ride the host's journey will open
+	// (its route written for the bike), without travelling; the host takes everyone there.
+	bool AdoptPreview();
+	// The journey planned last without riding it (null before any, or once the request it was for
+	// has changed: ForgetPreview), what it is like, and a count that goes up with each new one.
+	std::shared_ptr<TorqueWorld::RidePlan> PreviewPlan() const { return Preview; }
+	const TorqueWorld::RideSummary& PreviewSummary() const { return PreviewSum; }
+	int32 PreviewCount() const { return PreviewSerial; }
+	void ForgetPreview() { Preview.reset(); PreviewSum = TorqueWorld::RideSummary(); }
+	// The UK's places to search and the famous roads, read the first time they are asked for.
+	const TorqueWorld::Route::Gazetteer& Places();
+	const std::vector<TorqueWorld::Route::FamousRoad>& FamousRoads();
+	// The planner's map: draws the relief under a view on a worker, from the tiles on disk at once
+	// and again once the missing ones are fetched. A newer view asked for while one is drawing is
+	// drawn next (those in between are skipped). TakeMap hands over a picture once, when there is a
+	// new one: its view and its pixels (B G R A).
+	void AskMap(const TorqueWorld::Route::MapView& View);
+	bool TakeMap(TorqueWorld::Route::MapView& View, TArray<uint8>& Bgra);
+	bool IsDrawingMap() const { return bMapBusy; }
+	// The journey last planned in the planner, kept between sessions (Saved/World/journey.json).
+	bool LastJourney(TorqueWorld::RouteRequest& Out, FString& Title) const;
+	void KeepJourney(const TorqueWorld::RouteRequest& Want, const FString& Title) const;
+
 private:
 	void StartTest(const FString& Spec);
 
@@ -75,5 +108,20 @@ private:
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
 	bool bPlanning = false;
 	FString Note;   // (game thread only)
-	void RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made);
+	void RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made, bool bRide);
+	bool TravelTo(std::shared_ptr<TorqueWorld::RidePlan> Made);
+
+	std::shared_ptr<TorqueWorld::RidePlan> Preview;
+	TorqueWorld::RideSummary PreviewSum;
+	int32 PreviewSerial = 0;
+	bool bPlacesRead = false, bFamousRead = false;
+	TorqueWorld::Route::Gazetteer PlaceList;
+	std::vector<TorqueWorld::Route::FamousRoad> Famous;
+
+	TFuture<void> MapRun;
+	bool bMapBusy = false, bMapWaiting = false, bMapNew = false;
+	TorqueWorld::Route::MapView MapNext, MapDrawn;
+	TArray<uint8> MapPixels;
+	void DrawMap(const TorqueWorld::Route::MapView& View);
+	void MapDone(const TorqueWorld::Route::MapView& View, TArray<uint8>&& Pixels, bool bFinal);
 };

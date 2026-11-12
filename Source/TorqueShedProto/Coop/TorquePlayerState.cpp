@@ -16,7 +16,13 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(ATorquePlayerState, RiderStyle);
 	DOREPLIFETIME(ATorquePlayerState, Profile);   // [profile]
 	DOREPLIFETIME(ATorquePlayerState, Bay);
+	DOREPLIFETIME(ATorquePlayerState, RideReadyFor);
 	DOREPLIFETIME_CONDITION(ATorquePlayerState, Hands, COND_SkipOwner);
+}
+
+void ATorquePlayerState::ServerSetRideReady_Implementation(const FString& Code)
+{
+	RideReadyFor = Code.Left(4096);
 }
 
 void ATorquePlayerState::CopyProperties(APlayerState* Into)

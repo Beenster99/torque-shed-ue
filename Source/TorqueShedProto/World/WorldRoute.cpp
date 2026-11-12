@@ -601,6 +601,20 @@ const Place* Gazetteer::Near(double Lat, double Lon, double Reach) const
 	return Nearest;
 }
 
+std::vector<const Place*> Gazetteer::InBox(double South, double West, double North, double East, const std::string& Kinds, size_t Limit) const
+{
+	std::vector<const Place*> Out;
+	const std::string Spaced = " " + Kinds + " ";
+	for (const Place& P : Rows)
+	{
+		if (Out.size() >= Limit) break;
+		if (P.Lat < South || P.Lat > North || P.Lon < West || P.Lon > East) continue;
+		if (Spaced.find(" " + P.Kind + " ") == std::string::npos) continue;
+		Out.push_back(&P);
+	}
+	return Out;
+}
+
 std::vector<RouteRequest> Loops(double Lat, double Lon, double Km, const std::string& Mode, int Count)
 {
 	std::vector<RouteRequest> Out;

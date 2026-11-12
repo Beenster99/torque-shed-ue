@@ -181,6 +181,13 @@ private:
 	float AppliedDayLight = -1.0f;
 	TWeakObjectPtr<class ADirectionalLight> SunActorPtr;
 
+public:
+	// [Ride UK] The host's journey in the Route planner: its code and its name on a line each ("" for
+	// none). Everyone's game plans the same road from it ahead of setting off (the cells and the
+	// ground are fetched on each machine), and says so (ATorquePlayerState::RideReadyFor).
+	UPROPERTY(Replicated) FString RideJourney;
+	void SetRideJourney(const FString& CodeAndName) { if (HasAuthority()) RideJourney = CodeAndName; }
+private:
 	// The shed: written by the host, read by everyone else.
 	UPROPERTY(ReplicatedUsing = OnRep_Shed) FTorqueShedBayNet Shed;
 	UFUNCTION() void OnRep_Shed();

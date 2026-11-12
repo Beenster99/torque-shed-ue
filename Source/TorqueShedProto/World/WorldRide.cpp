@@ -1613,4 +1613,69 @@ std::string RidePlan::RouteJson() const
 	Set("credits", std::move(Credits));
 	return J.Dump();
 }
+
+RideSummary RidePlan::Summary(double Cap) const
+{
+	const double Pi = 3.14159265358979323846;
+	RideSummary Out;
+	if (Road.size() < 2) return Out;
+	const double End = FinishM > 0.0 ? FinishM : Length;
+	const Frame F(Area.Roads.FrameLat, Area.Roads.FrameLon);
+	std::vector<P2> Flat;
+	// (the road's heights every 10 m or so, so a bump in the survey adds little to the climb)
+	double LastH = Road[0].Height, NextH = 10.0, NextLine = 0.0;
+	Out.Highest = Out.Lowest = Road[0].Height;
+	size_t Last = 0;
+	for (size_t I = 0; I < Road.size() && Road[I].Along <= End + 1e-6; ++I)
+	{
+		const RoadPoint& P = Road[I];
+		Last = I;
+		Flat.push_back(P.At);
+		Out.Highest = std::fmax(Out.Highest, P.Height);
+		Out.Lowest = std::fmin(Out.Lowest, P.Height);
+		if (P.Along >= NextH)
+		{
+			const double D = P.Height - LastH;
+			if (D > 0.0) Out.Climb += D; else Out.Descent -= D;
+			LastH = P.Height;
+			NextH = P.Along + 10.0;
+		}
+		if (P.Along >= NextLine)
+		{
+			Out.Line.push_back(F.ToGeo(P.At.X, P.At.Z));
+			NextLine = P.Along + 50.0;
+		}
+	}
+	Out.Line.push_back(F.ToGeo(Road[Last].At.X, Road[Last].At.Z));
+	Out.Metres = Road[Last].Along;
+	Out.Twist = Route::Twistiness(Flat);
+	// The pace: each bend at the speed that leans a rider about 11 degrees (2 m/s across), braking
+	// for it and pulling away from it at about 1.5 m/s^2, no faster than Cap anywhere.
+	const size_t N = Last + 1;
+	std::vector<double> Fast(N, Cap);
+	for (size_t I = 0; I < N; ++I)
+	{
+		size_t A = I, B = I;
+		while (A > 0 && Road[I].Along - Road[A].Along < 15.0) --A;
+		while (B + 1 < N && Road[B].Along - Road[I].Along < 15.0) ++B;
+		if (A == I || B == I) continue;
+		const P2 U = Road[I].At - Road[A].At, V = Road[B].At - Road[I].At;
+		double Turn = std::atan2(V.Z, V.X) - std::atan2(U.Z, U.X);
+		while (Turn > Pi) Turn -= 2.0 * Pi;
+		while (Turn < -Pi) Turn += 2.0 * Pi;
+		const double Arc = Road[B].Along - Road[A].Along;
+		if (std::fabs(Turn) < 1e-4) continue;
+		const double Radius = Arc / std::fabs(Turn);
+		Fast[I] = std::fmin(Cap, std::sqrt(2.0 * Radius));
+	}
+	Fast.front() = Fast.back() = std::fmin(Fast.front(), 3.0);
+	for (size_t I = 1; I < N; ++I)
+		Fast[I] = std::fmin(Fast[I], std::sqrt(Fast[I - 1] * Fast[I - 1] + 2.0 * 1.5 * (Road[I].Along - Road[I - 1].Along)));
+	for (size_t I = N - 1; I-- > 0;)
+		Fast[I] = std::fmin(Fast[I], std::sqrt(Fast[I + 1] * Fast[I + 1] + 2.0 * 1.5 * (Road[I + 1].Along - Road[I].Along)));
+	double Seconds = 0.0;
+	for (size_t I = 1; I < N; ++I) Seconds += (Road[I].Along - Road[I - 1].Along) / std::fmax(1.0, 0.5 * (Fast[I] + Fast[I - 1]));
+	Out.Minutes = Seconds / 60.0;
+	return Out;
+}
 } // namespace TorqueWorld

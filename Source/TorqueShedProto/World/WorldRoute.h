@@ -78,6 +78,9 @@ public:
 	std::vector<Place> Search(const std::string& Query, size_t Limit = 8) const;
 	// The biggest place within Reach metres of a point, else the nearest; null when there are none.
 	const Place* Near(double Lat, double Lon, double Reach = 3000.0) const;
+	// The biggest places of Kinds (a list like "city town") inside a box, at most Limit, the biggest
+	// first: the names a map shows.
+	std::vector<const Place*> InBox(double South, double West, double North, double East, const std::string& Kinds, size_t Limit) const;
 	static std::string Fold(const std::string& Text);
 
 private:

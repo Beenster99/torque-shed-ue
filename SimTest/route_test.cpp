@@ -99,6 +99,12 @@ int main()
 		Check(Route::Gazetteer::Fold("Ynys M\xc3\xb4n") == "ynys mon" && Route::Gazetteer::Fold("St Mary's Loch") == "st marys loch", "names are matched without their accents, case or apostrophes");
 		const Route::Place* At = Places.Near(54.3045, -2.1950);
 		Check(At != nullptr && At->Name == "Hawes", "and the place a pin is in is named");
+		const std::vector<const Route::Place*> Dales = Places.InBox(54.0, -2.6, 54.6, -1.5, "city town", 12);
+		bool InDales = !Dales.empty() && Dales.size() <= 12;
+		for (size_t I = 0; I < Dales.size(); ++I)
+			InDales = InDales && Dales[I]->Lat >= 54.0 && Dales[I]->Lat <= 54.6 && (Dales[I]->Kind == "town" || Dales[I]->Kind == "city") && (I == 0 || Dales[I]->Population <= Dales[I - 1]->Population);
+		std::printf("      towns in the Dales' box: %d, the biggest %s\n", int(Dales.size()), Dales.empty() ? "-" : Dales[0]->Name.c_str());
+		Check(InDales, "and a map's box has its biggest towns named, the biggest first");
 	}
 	// ------------------------------------------------------------------ round trips
 	{

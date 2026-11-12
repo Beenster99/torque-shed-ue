@@ -1,6 +1,9 @@
 #include "TorqueGameState.h"
 
 #include "TorquePlayerState.h"
+#include "Engine/GameInstance.h"
+#include "World/TorqueRideWorld.h"
+#include "World/TorqueWorldSubsystem.h"
 #include "TorqueSettings.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorquePaintBay.h"
@@ -49,11 +52,24 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SunLat);
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
+	DOREPLIFETIME(ATorqueGameState, RideJourney);
 }
 
 void ATorqueGameState::BeginPlay()
 {
 	Super::BeginPlay();
+	// [Ride UK] A joined rider's own ground and road: the host's game mode lays the host's, and
+	// every other machine lays its own from the road it planned from the host's journey.
+	if (GetNetMode() == NM_Client && GetWorld() && GetWorld()->GetMapName().Contains(TEXT("RideUK")))
+	{
+		UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+		if (Real && Real->Ride())
+		{
+			if (ATorqueRideWorld* Ground = GetWorld()->SpawnActor<ATorqueRideWorld>()) Ground->Begin(Real->Ride());
+		}
+		else
+			UE_LOG(LogTemp, Error, TEXT("Torque ride UK: joined the host's ride with no road planned here"));
+	}
 	// -TorqueWeather=sunny|overcast|wet|live|auto sets the start (the host's, in co-op); otherwise the
 	// host's Settings > Gameplay > Weather: live, held at one kind, or changing by itself from sunny.
 	// Test runs stay sunny unless they ask.

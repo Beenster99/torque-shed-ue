@@ -239,6 +239,88 @@ void ATorquePlayerController::Back()
 	CloseMenu();
 }
 
+void ATorquePlayerController::OpenPlanner()
+{
+	UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+	if (!Real) return;
+	if (!Planner)
+	{
+		Planner = MakeUnique<FTorqueRoutePlanner>();
+		// (the ride's level opens itself once the road is planned)
+		Planner->OnRide = [this]() { CloseMenu(); };
+	}
+	// In co-op the host's journey is everyone's: their games plan its road as it changes.
+	if (GetNetMode() == NM_ListenServer)
+	{
+		Planner->OnJourneyChanged = [this](const FString& Code, const FString& Name)
+		{
+			if (ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr) GS->SetRideJourney(Code + TEXT("\n") + Name);
+		};
+		Planner->WaitingFor = [this]() { return RideWaitingFor(); };
+	}
+	else
+	{
+		Planner->OnJourneyChanged = nullptr;
+		Planner->WaitingFor = nullptr;
+	}
+	Planner->Open(Real);
+	Open(EPage::Route);
+}
+
+FString ATorquePlayerController::RideWaitingFor() const
+{
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS) return FString();
+	FString Code;
+	if (!GS->RideJourney.Split(TEXT("\n"), &Code, nullptr)) Code = GS->RideJourney;
+	TArray<FString> Names;
+	for (const APlayerState* PS : GS->PlayerArray)
+	{
+		const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS);
+		if (!TPS || TPS == GetPlayerState<ATorquePlayerState>()) continue;
+		if (TPS->RideReadyFor != Code) Names.Add(TPS->GetPlayerName());
+	}
+	return FString::Join(Names, TEXT(", "));
+}
+
+void ATorquePlayerController::SyncRideJourney()
+{
+	if (GetNetMode() != NM_Client) return;
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	ATorquePlayerState* Mine = GetPlayerState<ATorquePlayerState>();
+	UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+	if (!GS || !Mine || !Real || GS->RideJourney.IsEmpty()) return;
+	FString Code, Name;
+	if (!GS->RideJourney.Split(TEXT("\n"), &Code, &Name)) Code = GS->RideJourney;
+	if (Code == RideReadySent)
+	{
+		// (said again now and then until the host has it: a new level's player state starts without it)
+		if (Mine->RideReadyFor != Code && FPlatformTime::Seconds() - RideReadyAt > 2.0)
+		{
+			RideReadyAt = FPlatformTime::Seconds();
+			Mine->ServerSetRideReady(Code);
+		}
+		return;
+	}
+	// Planned already (the preview is of this very code): it's the ride now, and the host is told.
+	const std::shared_ptr<TorqueWorld::RidePlan> Made = Real->PreviewPlan();
+	if (Made && Made->Ok && UTF8_TO_TCHAR(TorqueWorld::Route::CodeOf(Made->Request).c_str()) == Code && !Real->IsPlanningRide())
+	{
+		if (Real->AdoptPreview())
+		{
+			RideReadySent = Code;
+			RideReadyAt = FPlatformTime::Seconds();
+			Mine->ServerSetRideReady(Code);
+		}
+		return;
+	}
+	// Else planned here once (a failure isn't tried again until the journey changes).
+	if (Code == RidePlanningFor || Real->IsPlanningRide()) return;
+	TorqueWorld::RouteRequest Want;
+	if (!TorqueWorld::Route::FromCode(TCHAR_TO_UTF8(*Code), Want)) return;
+	if (Real->StartJourney(Want, Name, false)) RidePlanningFor = Code;
+}
+
 void ATorquePlayerController::OpenPause()
 {
 	Stack.Reset();
@@ -292,7 +374,21 @@ FString ATorquePlayerController::TestMenu(const FString& Which)
 	}
 	else if (Base == TEXT("keys")) { Open(EPage::Controller); Open(EPage::Keys); }
 	else if (Base == TEXT("credits")) { Open(EPage::Credits); }
-	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, settings[:graphics|sound|gameplay|controller|character|keys|padcheck], keys, credits or close (opened the pause menu)");
+	else if (Base == TEXT("route"))
+	{
+		// "route" or "route:<a famous road's name, or a word of it>" (the Route planner, Ride UK stage 4)
+		OpenPlanner();
+		UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+		if (Planner && Real && !Tab.IsEmpty())
+			for (const TorqueWorld::Route::FamousRoad& F : Real->FamousRoads())
+				if (FString(UTF8_TO_TCHAR(F.Name.c_str())).ToLower().Contains(Tab))
+				{
+					Planner->SetJourney(F.Journey, FString(UTF8_TO_TCHAR(F.Name.c_str())));
+					return FString::Printf(TEXT("menu: route planner on %s"), UTF8_TO_TCHAR(F.Name.c_str()));
+				}
+		return TEXT("menu: route planner");
+	}
+	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, settings[:graphics|sound|gameplay|controller|character|keys|padcheck], keys, credits, route[:<famous road>] or close (opened the pause menu)");
 	return FString::Printf(TEXT("menu: %s (page shows %d rows)"), *Which, Rows().Num());
 }
 
@@ -472,6 +568,7 @@ FString ATorquePlayerController::Title() const
 	if (Page == EPage::Keys) return TEXT("KEY BINDINGS");
 	if (Page == EPage::PadCheck) return TEXT("CONTROLLER CHECK");
 	if (Page == EPage::Credits) return TEXT("MAP DATA");
+	if (Page == EPage::Route) return TEXT("ROUTE PLANNER");
 	return TabIndex() >= 0 ? TEXT("SETTINGS") : FString();
 }
 
@@ -589,6 +686,23 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			// The real world's roads (Ride UK), alone for now: bare ground and road, planned and fetched
 			// when chosen, which takes a few seconds the first time.
 			UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+			if (Real && bHost)
+				Add(TEXT("Plan a ride (Ride UK, everyone)"), FString(),
+					TEXT("The Route planner: everyone's game plans the road as you pin it, and Ride it takes everyone once they're ready"), [this]() { OpenPlanner(); });
+			if (Real && bClient)
+			{
+				// The host's journey, as this game has got on with planning it.
+				const ATorqueGameState* RideGS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+				FString RideCode, RideName;
+				if (RideGS && !RideGS->RideJourney.Split(TEXT("\n"), &RideCode, &RideName)) RideCode = RideGS->RideJourney;
+				if (!RideCode.IsEmpty())
+				{
+					const FString State = RideCode == RideReadySent ? FString(TEXT("Planned here: ready when the host sets off"))
+						: Real->IsPlanningRide() ? Real->RideNote() : (Real->RideNote().IsEmpty() ? FString(TEXT("Waiting to plan it")) : Real->RideNote());
+					Add(FString(TEXT("Ride UK: ")) + (RideName.IsEmpty() ? FString(TEXT("the host's journey")) : RideName), FString(), State, nullptr);
+					R.Last().bDisabled = true;
+				}
+			}
 			if (Real && !bClient && !bHost)
 			{
 				const FString RealNote = Real->RideNote();
@@ -598,6 +712,8 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 						Real->StartRide(TEXT("hawes"));
 					});
 				if (Real->IsPlanningRide()) R.Last().bDisabled = true;
+				Add(TEXT("Plan a ride (Ride UK)"), FString(),
+					TEXT("The Route planner: pins on a map of the UK, famous roads, round trips, and journey codes to share"), [this]() { OpenPlanner(); });
 			}
 		}
 		if (Bike && !Bike->InYard())
@@ -1146,6 +1262,7 @@ void ATorquePlayerController::PlayerTick(float DeltaTime)
 		if (!Set.bAvatarShadows) Set.ApplyAvatarShadows(GetWorld());
 	}
 	UpdateCursor();
+	SyncRideJourney();
 	ReadMenuInput(DeltaTime);
 	UpdateProfilePreview();   // [profile]
 }
@@ -1204,6 +1321,12 @@ void ATorquePlayerController::ReadMenuInput(float Dt)
 	if (Page == EPage::None)
 	{
 		if (bMenuKey && WantsPause()) OpenPause();
+		return;
+	}
+	// The Route planner reads its own keys and mouse; Esc there goes back to the pause menu.
+	if (Page == EPage::Route)
+	{
+		if (!Planner || !Planner->Tick(this)) Back();
 		return;
 	}
 	// Waiting for a key to bind (Settings > Controller > Key bindings): it has the keys to itself.
@@ -1432,6 +1555,11 @@ void ATorquePlayerController::DrawMenu(AHUD* Hud, UCanvas* Canvas)
 	namespace Ui = TorqueUi;
 	Hits.Reset();
 	if (Page == EPage::None || !Hud || !Canvas) return;
+	if (Page == EPage::Route)
+	{
+		if (Planner) Planner->Draw(Canvas);
+		return;
+	}
 	const FMenuLayout L = MenuLayout(Canvas);
 	const float S = L.S;
 	const float Hair = FMath::Max(1.0f, FMath::RoundToFloat(S));

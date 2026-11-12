@@ -99,6 +99,18 @@ struct RideMesh
 	std::vector<float> Lights;
 };
 
+// What a planned ride is like, for the Route planner to show before it is ridden.
+struct RideSummary
+{
+	double Metres = 0.0;            // to the finish (the last pin)
+	double Climb = 0.0, Descent = 0.0;
+	double Highest = 0.0, Lowest = 0.0;
+	double Twist = 0.0;             // degrees of turning a km (Route::Twistiness)
+	double Minutes = 0.0;           // at a steady, legal pace: bends taken at a comfortable lean
+	std::vector<Geo> Line;          // the road, a point every 50 m or so, for the map
+	double Litres(double PerHundredKm) const { return Metres / 100000.0 * PerHundredKm; }
+};
+
 class RidePlan
 {
 public:
@@ -280,6 +292,9 @@ public:
 	// The route as the bike reads it (Data/Buttertubs/route.json's fields): line_sim, length_m,
 	// road_half_width_m, origin_geo, spawn, credits.
 	std::string RouteJson() const;
+	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
+	// little under the limit, as a rider on a road they do not know).
+	RideSummary Summary(double Cap = 24.6) const;
 
 private:
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds);

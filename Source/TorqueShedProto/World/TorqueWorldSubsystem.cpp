@@ -126,7 +126,9 @@ void UTorqueWorldSubsystem::Deinitialize()
 	if (Shared) Shared->bStop = true;
 	if (TestRun.IsValid()) TestRun.Wait();
 	if (RideRun.IsValid()) RideRun.Wait();
+	if (MapRun.IsValid()) MapRun.Wait();
 	Plan.reset();
+	Preview.reset();
 	Shared.reset();
 	Super::Deinitialize();
 }
@@ -207,7 +209,6 @@ TArray<FString> UTorqueWorldSubsystem::Credits() const
 
 bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
 {
-	if (bPlanning || !Shared) return false;
 	// Hawes market place to Leyburn market place, unless four numbers say otherwise.
 	double Ends[4] = {54.3040, -2.1965, 54.3103, -1.8290};
 	FString Title = TEXT("Hawes to Leyburn");
@@ -218,19 +219,34 @@ bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
 		for (int32 I = 0; I < 4; ++I) Ends[I] = FCString::Atod(*Given[I].TrimStartAndEnd());
 		Title = TEXT("Ride UK");
 	}
+	TorqueWorld::RouteRequest Want;
+	Want.Pins = {{Ends[0], Ends[1], ""}, {Ends[2], Ends[3], ""}};
+	// (a journey's code works as a spec too: -TorqueRideUK=TS1....)
+	TorqueWorld::RouteRequest Coded;
+	if (TorqueWorld::Route::FromCode(TWSI::ToStd(Spec), Coded))
+	{
+		Want = Coded;
+		Title = TEXT("Ride UK");
+	}
+	return StartJourney(Want, Title, true);
+}
+
+bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, const FString& Title, bool bRide)
+{
+	if (bPlanning || !Shared || Want.Pins.size() < 2) return false;
 	bPlanning = true;
 	Note = TEXT("Ride UK: fetching the road...");
-	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s, from %.4f, %.4f to %.4f, %.4f"), *Title, Ends[0], Ends[1], Ends[2], Ends[3]);
+	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s, %d pins, %s, from %.4f, %.4f to %.4f, %.4f (%s)"), *Title, int32(Want.Pins.size()), UTF8_TO_TCHAR(Want.Mode.c_str()),
+		Want.Pins.front().Lat, Want.Pins.front().Lon, Want.Pins.back().Lat, Want.Pins.back().Lon, bRide ? TEXT("to ride") : TEXT("to look at"));
 	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
-	const double LatA = Ends[0], LonA = Ends[1], LatB = Ends[2], LonB = Ends[3];
 	const std::string TitleStd = TWSI::ToStd(Title);
 	const std::string RoutePath = TWSI::ToStd(RideRouteFile());
 	TWeakObjectPtr<UTorqueWorldSubsystem> Self(this);
 	if (RideRun.IsValid()) RideRun.Wait();   // (the last one's worker has finished by now: bPlanning was false)
-	RideRun = Async(EAsyncExecution::Thread, [Held, Self, LatA, LonA, LatB, LonB, TitleStd, RoutePath]()
+	RideRun = Async(EAsyncExecution::Thread, [Held, Self, Want, TitleStd, RoutePath, bRide]()
 	{
 		const double StartedAt = FPlatformTime::Seconds();
-		std::shared_ptr<TorqueWorld::RidePlan> Made = TorqueWorld::RidePlan::Make(Held->Cells, Held->Heights, LatA, LonA, LatB, LonB, [Self](const std::string& Step)
+		std::shared_ptr<TorqueWorld::RidePlan> Made = TorqueWorld::RidePlan::Make(Held->Cells, Held->Heights, Want, [Self](const std::string& Step)
 		{
 			UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %s"), UTF8_TO_TCHAR(Step.c_str()));
 			const FString Said = FString(TEXT("Ride UK: ")) + UTF8_TO_TCHAR(Step.c_str()) + TEXT("...");
@@ -238,14 +254,14 @@ bool UTorqueWorldSubsystem::StartRide(const FString& Spec)
 		});
 		if (Held->bStop) return;   // (the game closed under it)
 		Made->Title = TitleStd;
-		if (Made->Ok) TorqueWorld::Files::Write(RoutePath, Made->RouteJson());
+		if (Made->Ok && bRide) TorqueWorld::Files::Write(RoutePath, Made->RouteJson());
 		UE_LOG(LogTemp, Display, TEXT("Torque ride UK: planned in %.1f s"), FPlatformTime::Seconds() - StartedAt);
-		AsyncTask(ENamedThreads::GameThread, [Self, Made]() { if (Self.IsValid()) Self->RidePlanned(Made); });
+		AsyncTask(ENamedThreads::GameThread, [Self, Made, bRide]() { if (Self.IsValid()) Self->RidePlanned(Made, bRide); });
 	});
 	return true;
 }
 
-void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made)
+void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made, bool bRide)
 {
 	bPlanning = false;
 	if (!Made || !Made->Ok)
@@ -254,17 +270,172 @@ void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> M
 		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: FAIL: %s"), Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan"));
 		return;
 	}
+	if (!bRide)
+	{
+		Preview = Made;
+		PreviewSum = Made->Summary();
+		++PreviewSerial;
+		Note.Reset();
+		UE_LOG(LogTemp, Display, TEXT("Torque ride UK: preview %.1f km to the finish, %.0f m of climbing, highest %.0f m, %.0f deg/km, about %.0f min"),
+			PreviewSum.Metres / 1000.0, PreviewSum.Climb, PreviewSum.Highest, PreviewSum.Twist, PreviewSum.Minutes);
+		return;
+	}
+	TravelTo(Made);
+}
+
+bool UTorqueWorldSubsystem::RidePreview()
+{
+	if (bPlanning || !Preview || !Preview->Ok) return false;
+	TorqueWorld::Files::Write(TWSI::ToStd(RideRouteFile()), Preview->RouteJson());
+	return TravelTo(Preview);
+}
+
+bool UTorqueWorldSubsystem::AdoptPreview()
+{
+	if (!Preview || !Preview->Ok) return false;
+	TorqueWorld::Files::Write(TWSI::ToStd(RideRouteFile()), Preview->RouteJson());
+	Plan = Preview;
+	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: the host's journey planned here too, %.1f km; ready to set off"), Plan->Length / 1000.0);
+	return true;
+}
+
+bool UTorqueWorldSubsystem::TravelTo(std::shared_ptr<TorqueWorld::RidePlan> Made)
+{
 	if (!FPackageName::DoesPackageExist(RideMap))
 	{
 		Note = TEXT("Ride UK: this build has no level for it.");
 		UE_LOG(LogTemp, Error, TEXT("Torque ride UK: FAIL: no level %s (run Tools/ue_build_rideuk.py in the editor)"), RideMap);
-		return;
+		return false;
 	}
 	Plan = Made;
 	Note.Reset();
 	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: %.1f km of road in %d points, %d roads; route at %s"), Plan->Length / 1000.0, int32(Plan->Road.size()), int32(Plan->Names.size()), *RideRouteFile());
 	UE_LOG(LogTemp, Display, TEXT("Torque ride UK: PASS"));
 	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
-	if (!World || !GEngine) return;
+	if (!World || !GEngine) return false;
+	// (a co-op host takes everyone, still connected: each of them planned the same road already)
+	if (World->GetNetMode() == NM_ListenServer)
+	{
+		World->ServerTravel(FString(RideMap) + TEXT("?listen?play"), false);
+		return true;
+	}
 	GEngine->SetClientTravel(World, *(FString(RideMap) + TEXT("?play")), TRAVEL_Absolute);
+	return true;
+}
+
+// --- The Route planner (stage 4) ------------------------------------------------------------------
+
+const TorqueWorld::Route::Gazetteer& UTorqueWorldSubsystem::Places()
+{
+	if (!bPlacesRead)
+	{
+		bPlacesRead = true;
+		std::string Text;
+		const std::string Path = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/World/uk_places.tsv")));
+		if (!TorqueWorld::Files::Read(Path, Text) || !PlaceList.Load(Text))
+			UE_LOG(LogTemp, Error, TEXT("Torque route: no places to search (%s)"), UTF8_TO_TCHAR(Path.c_str()));
+		else
+			UE_LOG(LogTemp, Display, TEXT("Torque route: %d places to search"), int32(PlaceList.Count()));
+	}
+	return PlaceList;
+}
+
+const std::vector<TorqueWorld::Route::FamousRoad>& UTorqueWorldSubsystem::FamousRoads()
+{
+	if (!bFamousRead)
+	{
+		bFamousRead = true;
+		std::string Text;
+		const std::string Path = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/famous_roads.json")));
+		if (!TorqueWorld::Files::Read(Path, Text) || !TorqueWorld::Route::ReadFamousRoads(Text, Famous))
+			UE_LOG(LogTemp, Error, TEXT("Torque route: no famous roads (%s)"), UTF8_TO_TCHAR(Path.c_str()));
+	}
+	return Famous;
+}
+
+void UTorqueWorldSubsystem::AskMap(const TorqueWorld::Route::MapView& View)
+{
+	if (!Shared) return;
+	if (bMapBusy)
+	{
+		MapNext = View;
+		bMapWaiting = true;
+		return;
+	}
+	DrawMap(View);
+}
+
+void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
+{
+	bMapBusy = true;
+	bMapWaiting = false;
+	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
+	TWeakObjectPtr<UTorqueWorldSubsystem> Self(this);
+	if (MapRun.IsValid()) MapRun.Wait();
+	MapRun = Async(EAsyncExecution::Thread, [Held, Self, View]()
+	{
+		const auto Draw = [&Held, &View]()
+		{
+			std::vector<uint8_t> Px;
+			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px);
+			TArray<uint8> Out;
+			Out.Append(Px.data(), int32(Px.size()));
+			return Out;
+		};
+		// What is on disk at once, then again with the tiles that weren't.
+		const std::vector<TorqueWorld::TileKey> Keys = View.Tiles();
+		bool bAll = true;
+		for (const TorqueWorld::TileKey& K : Keys) bAll = bAll && Held->Heights.Has(K);
+		TArray<uint8> First = Draw();
+		AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bAll]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bAll); });
+		if (bAll || Held->bStop) return;
+		Held->Heights.Fetch(Keys, Held->Cells.Get, 6);
+		if (Held->bStop) return;
+		TArray<uint8> Second = Draw();
+		AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
+	});
+}
+
+void UTorqueWorldSubsystem::MapDone(const TorqueWorld::Route::MapView& View, TArray<uint8>&& Pixels, bool bFinal)
+{
+	// (a picture of a view since moved on from is still shown while the newer one draws)
+	MapDrawn = View;
+	MapPixels = MoveTemp(Pixels);
+	bMapNew = true;
+	if (!bFinal) return;
+	bMapBusy = false;
+	if (bMapWaiting) DrawMap(MapNext);
+}
+
+bool UTorqueWorldSubsystem::TakeMap(TorqueWorld::Route::MapView& View, TArray<uint8>& Bgra)
+{
+	if (!bMapNew) return false;
+	bMapNew = false;
+	View = MapDrawn;
+	Bgra = MapPixels;
+	return true;
+}
+
+namespace TWSI
+{
+static FString JourneyFile()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World"), TEXT("journey.txt")));
+}
+} // namespace TWSI
+
+bool UTorqueWorldSubsystem::LastJourney(TorqueWorld::RouteRequest& Out, FString& Title) const
+{
+	// (two lines: the journey's code, and what it is called)
+	std::string Text;
+	if (!TorqueWorld::Files::Read(TWSI::ToStd(TWSI::JourneyFile()), Text)) return false;
+	const size_t Break = Text.find('\n');
+	if (!TorqueWorld::Route::FromCode(Text.substr(0, Break), Out)) return false;
+	Title = Break == std::string::npos ? FString() : FString(UTF8_TO_TCHAR(Text.substr(Break + 1).c_str())).TrimStartAndEnd();
+	return true;
+}
+
+void UTorqueWorldSubsystem::KeepJourney(const TorqueWorld::RouteRequest& Want, const FString& Title) const
+{
+	TorqueWorld::Files::Write(TWSI::ToStd(TWSI::JourneyFile()), TorqueWorld::Route::CodeOf(Want) + "\n" + TWSI::ToStd(Title) + "\n");
 }

@@ -17,6 +17,7 @@
 #include "TorqueMenuMouse.h"
 #include "TorqueShedNet.h"
 #include "TorquePing.h"
+#include "TorqueRoutePlanner.h"
 #include "TorquePlayerController.generated.h"
 
 class AHUD;
@@ -83,7 +84,7 @@ private:
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route };
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -107,6 +108,16 @@ private:
 
 	EPage Page = EPage::None;
 	TArray<EPage> Stack;
+	// Ride UK's Route planner (stage 4), a page of its own drawn full screen.
+	TUniquePtr<FTorqueRoutePlanner> Planner;
+	void OpenPlanner();
+	// [co-op] A joined rider's game plans the host's journey (ATorqueGameState::RideJourney) as it
+	// changes, and tells the host once it is ready to set off.
+	void SyncRideJourney();
+	FString RidePlanningFor, RideReadySent;
+	double RideReadyAt = 0.0;
+	// The host's: who hasn't planned the journey yet ("" for everyone has).
+	FString RideWaitingFor() const;
 	int32 Selected = 0;
 	uint64 ClosedFrame = 0;
 	bool bPausedGame = false;

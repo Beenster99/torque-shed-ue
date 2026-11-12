@@ -12,6 +12,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRoadLine.h"
+#include "WorldRouteMap.h"
 #include "WorldRegion.h"
 #include "WorldSha256.h"
 #include "WorldTerrain.h"
@@ -19,6 +20,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <string>
 
@@ -130,6 +132,47 @@ int main()
 	// ------------------------------------------------------------------ every fixture tile, pixel for pixel
 	HeightStore Store;
 	Store.Dirs.push_back(Files::Join(Data, "heights"));
+	// ------------------------------------------------------------------ the Route planner's map (stage 4)
+	{
+		Route::MapView V;
+		V.Lat = 54.30;
+		V.Lon = -2.10;
+		V.Zoom = 10.0;
+		V.W = 320;
+		V.H = 200;
+		const P2 Mid = V.PixelOf(54.30, -2.10);
+		const Geo Back = V.PlaceAt(37.0, 151.0);
+		const P2 Again = V.PixelOf(Back.Lat, Back.Lon);
+		const Route::MapView In = V.Zoomed(1.0, 40.0, 30.0);
+		const Geo Under = V.PlaceAt(40.0, 30.0);
+		const P2 Kept = In.PixelOf(Under.Lat, Under.Lon);
+		Check(Near(Mid.X, 160.0, 1e-6) && Near(Mid.Z, 100.0, 1e-6) && Near(Again.X, 37.0, 1e-6) && Near(Again.Z, 151.0, 1e-6) && Near(In.Zoom, 11.0, 1e-12) && Near(Kept.X, 40.0, 1e-6) && Near(Kept.Z, 30.0, 1e-6)
+				&& Near(V.MetresPerPixel(), 152.87 * std::cos(54.3 * 3.14159265358979 / 180.0), 0.05),
+			"the planner's map: a place's pixel and a pixel's place, and zooming keeps the place under the pointer put");
+		std::vector<uint8_t> Px;
+		const std::vector<TileKey> Need = V.Tiles();
+		const double Share = Route::DrawRelief(Store, V, Px);
+		// (a hill's sunny north-west face is lighter than its shaded south-east one, on average)
+		double Lit = 0.0, Dark = 0.0;
+		int NLit = 0, NDark = 0;
+		for (int J = 1; J + 1 < V.H; ++J)
+			for (int I = 1; I + 1 < V.W; ++I)
+			{
+				const auto Bright = [&](int Ii, int Jj) { const uint8_t* P = &Px[(size_t(Jj) * size_t(V.W) + size_t(Ii)) * 4]; return double(P[0]) + P[1] + P[2]; };
+				const double Here = Bright(I, J);
+				if (Here > 520.0) { Lit += Here; ++NLit; } else { Dark += Here; ++NDark; }
+			}
+		std::printf("      the map round Hawes at zoom 10: %d tiles at zoom %d, %.0f%% with ground, %d light and %d shaded pixels\n", int(Need.size()), V.TileZoom(), Share * 100.0, NLit, NDark);
+		Check(V.TileZoom() == 9 && Need.size() >= 1 && Share > 0.95 && NLit > 1000 && NDark > 1000 && Px.size() == size_t(V.W) * size_t(V.H) * 4,
+			"and the land under it drawn from the height tiles, hills shaded");
+		const char* Dump = std::getenv("WORLD_MAP_PPM");
+		if (Dump)
+		{
+			std::string Ppm = "P6\n" + std::to_string(V.W) + " " + std::to_string(V.H) + "\n255\n";
+			for (size_t K = 0; K < Px.size(); K += 4) { Ppm += char(Px[K + 2]); Ppm += char(Px[K + 1]); Ppm += char(Px[K]); }
+			Files::Write(Dump, Ppm);
+		}
+	}
 	{
 		int Same = 0, SameFilled = 0, SameAt = 0, SameSea = 0, Total = 0, Filled = 0, WithSea = 0;
 		const auto T0 = std::chrono::steady_clock::now();
@@ -611,6 +654,14 @@ int main()
 					}
 					std::printf("      by style: main %.1f km (%.0f deg/km), scenic %.1f km (%.0f), tracks %.1f km (%.0f), curvy %.1f km (%.0f)\n", Km[0], Twist[0], Km[1], Twist[1], Km[2], Twist[2], Km[3], Twist[3]);
 					Check(AllOk && Twist[3] >= Twist[0] * 0.95, "every style plans a ride between the same places, the curvy one no straighter than the quick way");
+					// What the planner shows of it before it is ridden.
+					const RideSummary Sum = Via->Summary();
+					const double Mph = Sum.Minutes > 0.0 ? Sum.Metres / 1609.344 / (Sum.Minutes / 60.0) : 0.0;
+					std::printf("      summary: %.1f km, climb %.0f m, highest %.0f m, %.0f deg/km, %.0f min (%.0f mph on average), %.2f l at 5 l/100 km, %d map points\n",
+						Sum.Metres / 1000.0, Sum.Climb, Sum.Highest, Sum.Twist, Sum.Minutes, Mph, Sum.Litres(5.0), int(Sum.Line.size()));
+					Check(Near(Sum.Metres, Via->FinishM, 5.0) && Sum.Climb > 10.0 && Sum.Highest > Sum.Lowest && Sum.Highest < 800.0 && Mph > 20.0 && Mph < 60.0
+							&& double(Sum.Line.size()) > Sum.Metres / 60.0 && Near(Sum.Line.front().Lat, GA.Lat, 0.01) && Near(Sum.Litres(5.0), Sum.Metres / 20000.0, 1e-9),
+						"a ride is summed up to its finish: how far, the climb, the highest point, how twisty, about how long, the fuel, and its line for the map");
 				}
 				if (Plan->Ok)
 				{
