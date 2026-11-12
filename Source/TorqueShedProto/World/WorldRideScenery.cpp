@@ -433,6 +433,14 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							const double Wide = Door ? 0.5 : 0.55, Lo = Door ? 0.0 : Y, Hi = Door ? 2.05 : Y + 1.2, Proud = Sg * (HalfShort + 0.04);
 							const P3 W0 = Local(U - Wide, Proud, Lo), W1 = Local(U + Wide, Proud, Lo), W2 = Local(U + Wide, Proud, Hi), W3 = Local(U - Wide, Proud, Hi);
 							Quad(Out, W0, W1, W2, W3, Outside(L0, L2), Door ? DoorWood : Glass);
+							// (after dark a share of the windows lit, warm, a hair proud of the glass)
+							if (!Door && Chance(B.X + U * 3.1, B.Z + Fl * 7.0 + Sg * 13.0, 61) < 0.4)
+							{
+								const double Glow = Sg * (HalfShort + 0.06);
+								static const Rgb Warm = {0.42f, 0.26f, 0.11f};
+								Quad(Out.NightOf(), Local(U - Wide + 0.05, Glow, Lo + 0.05), Local(U + Wide - 0.05, Glow, Lo + 0.05), Local(U + Wide - 0.05, Glow, Hi - 0.05),
+									Local(U - Wide + 0.05, Glow, Hi - 0.05), Outside(L0, L2), Warm, false, 0.0f);
+							}
 						}
 				}
 				if (size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1)
@@ -1038,6 +1046,17 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 					Box(Out, (F.At.X + Ax) * 0.5, (F.At.Z + Az) * 0.5, Face, 0.6, 0.03, Y + 5.85, Y + 5.95, Grey);
 					Box(Out, Ax, Az, Face, 0.25, 0.1, Y + 5.75, Y + 5.92, Grey);
 					Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
+					// (its light: the lamp's face glowing after dark, and a real light under it near the rider)
+					static const Rgb LampLight = {1.0f, 0.88f, 0.66f};
+					{
+						const P2 Crosswise(Face.Z, -Face.X);
+						const double Ly = Y + 5.735;
+						const auto Pt = [&](double Su, double Sv) { return At3(Ax + Face.X * Su * 0.18 + Crosswise.X * Sv * 0.07, Ly, Az + Face.Z * Su * 0.18 + Crosswise.Z * Sv * 0.07); };
+						Quad(Out.NightOf(), Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(Ax, Ly - 100.0, Az), LampLight, false, 0.0f);
+					}
+					Out.Lights.push_back(float(Ax - Out.OriginX));
+					Out.Lights.push_back(float(Y + 5.4));
+					Out.Lights.push_back(float(Az - Out.OriginZ));
 					break;
 				}
 				case CattleGrid:

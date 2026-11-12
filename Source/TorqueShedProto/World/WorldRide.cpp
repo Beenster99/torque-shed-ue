@@ -1166,26 +1166,30 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		Rows.push_back(R);
 	}
 	const auto Settle = [this, Which](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeight(Which, At, Y); };
-	const auto Put = [&Out, &Settle](const Row& R, double Off, double Lift, const float* Colour)
+	// (the mesh Put and Strip write to: the road's own, or its night glow for the cat's eyes)
+	RideMesh* Into = &Out;
+	const auto Put = [&Into, &Settle](const Row& R, double Off, double Lift, const float* Colour)
 	{
 		// (Off is to the left of the middle)
+		RideMesh& M = *Into;
 		const P2 At = R.At + R.Left * Off;
 		const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
-		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y + Lift)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
-		Out.Nrm.push_back(float(R.Nx)); Out.Nrm.push_back(float(R.Ny)); Out.Nrm.push_back(float(R.Nz));
-		Out.Uv.push_back(float(Off / 4.0)); Out.Uv.push_back(float(R.Along / 4.0));
-		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
+		M.Pos.push_back(float(At.X - M.OriginX)); M.Pos.push_back(float(Y + Lift)); M.Pos.push_back(float(At.Z - M.OriginZ));
+		M.Nrm.push_back(float(R.Nx)); M.Nrm.push_back(float(R.Ny)); M.Nrm.push_back(float(R.Nz));
+		M.Uv.push_back(float(Off / 4.0)); M.Uv.push_back(float(R.Along / 4.0));
+		M.Col.push_back(Colour[0]); M.Col.push_back(Colour[1]); M.Col.push_back(Colour[2]);
 	};
 	// A strip between two rows from OffA to OffB (left to right: OffA the greater), up-facing.
-	const auto Strip = [&Out, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* Colour, bool BothSides = false)
+	const auto Strip = [&Into, &Put](const Row& R0, const Row& R1, double A0, double B0, double A1, double B1, double LiftA, double LiftB, const float* Colour, bool BothSides = false)
 	{
-		const uint32_t V = uint32_t(Out.Vertices());
+		RideMesh& M = *Into;
+		const uint32_t V = uint32_t(M.Vertices());
 		Put(R0, A0, LiftA, Colour);
 		Put(R0, B0, LiftB, Colour);
 		Put(R1, A1, LiftA, Colour);
 		Put(R1, B1, LiftB, Colour);
-		Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
-		if (BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V + 1, V + 2, V + 3});
+		M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
+		if (BothSides) M.Idx.insert(M.Idx.end(), {V, V + 2, V + 1, V + 1, V + 2, V + 3});
 	};
 	// A tunnel's parts: any four points in the ride's frame, as a quad that faces Toward.
 	struct P3
@@ -1510,6 +1514,28 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			}
 		}
 		if (Half >= 2.5 && std::fmod(A.Along, 9.0) < 3.0) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
+		// Cat's eyes (stage 7): a stud every 18.3 m (60 ft) down the middle of a road with a centre line,
+		// red ones along its edges where it has edge lines, out of the towns (lit streets have none).
+		if (Half >= 2.5 && !A.Bore && B.Along > A.Along)
+		{
+			const bool Town = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
+			const double Stud = 18.288;
+			for (double S = std::ceil(A.Along / Stud) * Stud; S < B.Along && !Town; S += Stud)
+			{
+				const double T0 = (S - A.Along) / (B.Along - A.Along), T1 = std::min((S + 0.1 - A.Along) / (B.Along - A.Along), 1.0);
+				const Row Sa = Between(A, B, T0), Sb = Between(A, B, T1);
+				static constexpr float WhiteEye[3] = {1.0f, 1.0f, 0.9f}, RedEye[3] = {1.0f, 0.04f, 0.03f};
+				Into = &Out.NightOf();
+				Strip(Sa, Sb, 0.09, -0.09, 0.09, -0.09, PaintLift + 0.006, PaintLift + 0.006, WhiteEye);
+				if (Half >= 2.95)
+					for (double Side : {1.0, -1.0})
+					{
+						const double Edge = Side * (Sa.Half - 0.15);
+						Strip(Sa, Sb, Edge + 0.07, Edge - 0.07, Edge + 0.07, Edge - 0.07, PaintLift + 0.006, PaintLift + 0.006, RedEye);
+					}
+				Into = &Out;
+			}
+		}
 	}
 	// The junctions off the ride's road this road's ends are drawn with.
 	for (const Knot& K : Knots)

@@ -721,6 +721,25 @@ int main()
 							Check(Kinds[RidePlan::EweGraze] > 20 && Kinds[RidePlan::Lamb] > 5 && Spring > 0 && Winter < Spring && Trampled == 0,
 								"sheep in the fields with lambs in spring, cattle out in summer and mostly in for the winter, none on a road");
 						}
+						// After dark (stage 7): lit windows and street lamps in the town squares, cat's eyes on the road
+						// out of them.
+						{
+							size_t Glowing = 0, Lamps = 0, Eyes = 0;
+							for (size_t I = 0; I < Plan->Road.size(); I += 64)
+							{
+								RideMesh Sq;
+								Plan->LandTile(std::floor(Plan->Road[I].At.X / 256.0) * 256.0, std::floor(Plan->Road[I].At.Z / 256.0) * 256.0, 256.0, 64, Sq);
+								if (Sq.Extra && Sq.Extra->Night) { Glowing += Sq.Extra->Night->Vertices(); Lamps += Sq.Extra->Lights.size() / 3; }
+							}
+							for (size_t I = 0; I + 1 < Plan->Road.size(); I += 400)
+							{
+								RideMesh Piece;
+								Plan->RoadPiece(0, int(I), int(std::min(I + 400, Plan->Road.size() - 1)), Piece);
+								if (Piece.Night) Eyes += Piece.Night->Vertices() / 4;
+							}
+							std::printf("      after dark: %zu glowing points (windows, lamp heads), %zu street lamp lights, %zu cat's eyes\n", Glowing, Lamps, Eyes);
+							Check(Glowing > 100 && Lamps > 0 && Eyes > 100, "after dark the windows and street lamps light up and the cat's eyes line the road");
+						}
 						// The sat nav (stage 7): the turns along the ride and the stops by it.
 						{
 							std::string Spoken;

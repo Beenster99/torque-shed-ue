@@ -1014,6 +1014,8 @@ void ATorqueGameState::ApplyWeather()
 		// Standing water: the road's edges first (inside of bends most), the middle after hours of rain.
 		SetMpc(TEXT("Puddles"), (float)FMath::Clamp(St.Puddles, 0.0, 1.0));
 		SetMpc(TEXT("Snow"), (float)TorqueWeather::SnowCover(St));
+		// (Ride UK stage 7: lamps and lit windows come on, cat's eyes catch the headlight, as the light goes)
+		SetMpc(TEXT("Night"), 1.0f - DayLight);
 	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)

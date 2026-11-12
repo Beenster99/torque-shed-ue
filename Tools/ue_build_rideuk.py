@@ -102,6 +102,31 @@ def lamp_material(L):
     return m
 
 
+def night_material(L):
+    """What lights up after dark (Ride UK stage 7: RideMesh::Night): lit windows and street lamps' heads
+    (vertex alpha 0) and cat's eyes (alpha 1), their vertex colour the light's. By day dark glass, or a
+    pale stud; as MPC_Weather's Night rises they glow, the cat's eyes only near by (they shine back the
+    headlight, which reaches a couple of hundred metres)."""
+    g = L.Graph(L.new_material("M_RideNight", MAT_DIR))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    alpha = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0), a_out="A")   # (the vertex colour's A output)
+    rgb = vc                                                                        # (its unnamed output is RGB)
+    # (by day: glass 4% of its colour, a stud half)
+    base = g.op(unreal.MaterialExpressionMultiply, rgb, g.lerp(g.const(0.04), g.const(0.5), alpha))
+    night = L.weather_param(g, "Night")
+    # (a cat's eye fades out past 150 m; a lit window or lamp doesn't)
+    depth = g.node(unreal.MaterialExpressionPixelDepth)
+    near = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.4), g.op(unreal.MaterialExpressionDivide, depth, g.const(15000.0))))
+    fade = g.lerp(g.const(1.0), near, alpha)
+    glow = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, rgb, night), g.op(unreal.MaterialExpressionMultiply, fade, g.const(60.0)))
+    L.mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    L.mel.connect_material_property(g.const(0.25), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
 def water_material(L):
     """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
     rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
@@ -150,7 +175,9 @@ def scanned_materials(L):
                            # (stage 5: rendered and limewashed houses, the vertex colour their wash)
                            ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender")),
                            # (stage 5: the sea, lakes and rivers)
-                           ("M_RideWater", lambda: water_material(L))):
+                           ("M_RideWater", lambda: water_material(L)),
+                           # (stage 7: lit windows, street lamps and cat's eyes after dark)
+                           ("M_RideNight", lambda: night_material(L))):
             # (the level script's makers name their own material in its own folder: put it here, under our name)
             L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
             try:

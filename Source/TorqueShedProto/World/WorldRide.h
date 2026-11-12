@@ -116,6 +116,21 @@ struct RideMesh
 	// as the land's cover has them, the map's rivers, streams and canals as ribbons), coloured, never
 	// collided with (M_RideWater). Null for none.
 	std::shared_ptr<RideMesh> Water;
+	// What lights up after dark (Ride UK stage 7: M_RideNight, glowing as MPC_Weather's Night rises):
+	// lit windows and street lamps' heads (alpha 0: dark glass by day) with what stands on a square, cat's
+	// eyes with a piece of road (alpha 1: pale studs by day, catching the headlight near by at night).
+	// The vertex colour is the light's, brighter for more. Null for none.
+	std::shared_ptr<RideMesh> Night;
+	RideMesh& NightOf()
+	{
+		if (!Night)
+		{
+			Night = std::make_shared<RideMesh>();
+			Night->OriginX = OriginX;
+			Night->OriginZ = OriginZ;
+		}
+		return *Night;
+	}
 	// Words on signs (a village's name, a speed limit): where (in the mesh's own origin, the middle of
 	// the words), which way they face (x, z), how tall a letter is (m), the words, and their colour.
 	struct Label
@@ -125,13 +140,14 @@ struct RideMesh
 		std::string Text;
 	};
 	std::vector<Label> Labels;
-	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0); }
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Night && Night->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
 	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).
 	std::vector<RideAnimal> Animals;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
 	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
+	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
 	std::shared_ptr<RideMesh> Glow;
 	std::vector<float> Lights;
 };

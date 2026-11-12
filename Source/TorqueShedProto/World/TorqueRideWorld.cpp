@@ -1,6 +1,7 @@
 #include "World/TorqueRideWorld.h"
 #include "TorqueDash.h"
 #include "Coop/TorqueSettings.h"
+#include "Coop/TorqueGameState.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -94,6 +95,16 @@ bool ATorqueRideWorld::PlaceHeard(double& Sea, double& Water, double& Town, doub
 	return true;
 }
 
+void ATorqueRideWorld::DropStreetLights(const FIntVector& Key)
+{
+	if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lamps = StreetLights.Find(Key))
+	{
+		for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lamps)
+			if (Lamp.IsValid()) Lamp->DestroyComponent();
+		StreetLights.Remove(Key);
+	}
+}
+
 bool ATorqueRideWorld::SurfaceUnder(const FVector& At, int32& Kind, double& Lift)
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -161,6 +172,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	LampMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLamp.M_RideLamp"));
 	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
 	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
+	NightMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideNight.M_RideNight"));
 	if (!LandMaterial || !RoadMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no materials in /Game/RideUK/Materials (run Tools/ue_build_rideuk.py); the ground is drawn plain"));
@@ -171,6 +183,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	if (!MasonryMaterial) MasonryMaterial = StoneMaterial;
 	if (!RenderMaterial) RenderMaterial = RoadMaterial;
 	if (!WaterMaterial) WaterMaterial = RoadMaterial;
+	if (!NightMaterial) NightMaterial = RoadMaterial;   // (pale studs and glass, never lit)
 	// (before any square is made: whether its trees come as real ones, and how much grass)
 	const bool bKit = FindKit();
 	bool bTreeModels = false;
@@ -397,6 +410,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		if (*OldExtra) (*OldExtra)->DestroyComponent();
 		TileExtras.Remove(Key);
 	}
+	DropStreetLights(Key);
 	if (Mesh.Extra)
 	{
 		// (what stands on it: only the nearest squares' cast shadows)
@@ -405,7 +419,29 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		Kinds.Emplace(Mesh.Extra->Stone.get(), TintedOf(StoneMaterial.Get(), 0, Mesh.Extra->StoneTint));
 		Kinds.Emplace(Mesh.Extra->Masonry.get(), TintedOf(MasonryMaterial.Get(), 1, Mesh.Extra->MasonryTint));
 		Kinds.Emplace(Mesh.Extra->Render.get(), RenderMaterial.Get());
-		if (UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0)) TileExtras.Add(Key, Stands);
+		Kinds.Emplace(Mesh.Extra->Night.get(), NightMaterial.Get());
+		UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0);
+		if (Stands) TileExtras.Add(Key, Stands);
+		// [stage 7] The street lamps' lights, on the nearest squares only: warm, unshadowed, on after dark.
+		if (Stands && Key.X == 0 && Mesh.Extra->Lights.size() >= 3)
+		{
+			TArray<TWeakObjectPtr<UPointLightComponent>>& Lamps = StreetLights.FindOrAdd(Key);
+			for (size_t L = 0; L + 2 < Mesh.Extra->Lights.size(); L += 3)
+			{
+				UPointLightComponent* Lamp = NewObject<UPointLightComponent>(this);
+				Lamp->SetMobility(EComponentMobility::Movable);
+				Lamp->SetupAttachment(Stands);
+				Lamp->SetRelativeLocation(FVector(double(Mesh.Extra->Lights[L]) * 100.0, double(Mesh.Extra->Lights[L + 2]) * 100.0, double(Mesh.Extra->Lights[L + 1]) * 100.0));
+				Lamp->SetIntensityUnits(ELightUnits::Lumens);
+				Lamp->SetIntensity(4000.0f);
+				Lamp->SetAttenuationRadius(2200.0f);
+				Lamp->SetLightColor(FLinearColor(1.0f, 0.8f, 0.55f));
+				Lamp->SetCastShadows(false);
+				Lamp->SetVisibility(bStreetLightsOn);
+				Lamp->RegisterComponent();
+				Lamps.Add(Lamp);
+			}
+		}
 		// The words on its signs, as text standing just proud of each board.
 		TArray<TWeakObjectPtr<UTextRenderComponent>>& Words = TileWords.FindOrAdd(Key);
 		for (const TorqueWorld::RideMesh::Label& L : Mesh.Extra->Labels)
@@ -455,6 +491,7 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 				TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Sections;
 				Sections.Emplace(&Mesh, RoadMaterial.Get());
 				if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
+				if (Mesh.Night) Sections.Emplace(Mesh.Night.get(), NightMaterial.Get());   // [stage 7] cat's eyes
 				UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
 				if (Part)
 				{
@@ -510,6 +547,18 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		if (One.Value.IsValid()) Place(One.Key, *One.Value, false);
 	}
 	TickBirds(DeltaSeconds);
+	// [stage 7] The street lamps come on as the light goes, and off in the morning.
+	if (const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr)
+	{
+		const bool bOn = GS->GetDayLight() < (bStreetLightsOn ? 0.55f : 0.45f);
+		if (bOn != bStreetLightsOn)
+		{
+			bStreetLightsOn = bOn;
+			for (TPair<FIntVector, TArray<TWeakObjectPtr<UPointLightComponent>>>& Square : StreetLights)
+				for (const TWeakObjectPtr<UPointLightComponent>& Lamp : Square.Value)
+					if (Lamp.IsValid()) Lamp->SetVisibility(bOn);
+		}
+	}
 	// (the sound of the place, once a second: a fraction of a millisecond)
 	SinceHeard += DeltaSeconds;
 	if (SinceHeard >= 1.0 && BirdsLookedAt.X < 1e11)
@@ -553,6 +602,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			if (*Stands) (*Stands)->DestroyComponent();
 			TileExtras.Remove(Key);
 		}
+		DropStreetLights(Key);
 	}
 	if (bAll && !bSaidReady)
 	{

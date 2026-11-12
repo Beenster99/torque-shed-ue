@@ -200,6 +200,7 @@ WEATHER_PARAMS = (
     ("Rain", 0.0),           # how hard it's raining for the eye, 0 .. 1
     ("Puddles", 0.4),        # standing water: up to 0.4 the road's edges fill, past 0.6 the middle too
     ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
+    ("Night", 0.0),          # how dark it is (Ride UK stage 7): 0 day .. 1 night; street lamps, lit windows, cat's eyes
 )
 _weather_mpc = None
 

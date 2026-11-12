@@ -116,6 +116,12 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RoadMaterial;
 	// The hand-built ride's scanned stone, for dry stone walls and for stone houses (RideMesh::Stone, Masonry).
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LampMaterial;   // a tunnel lamp's glowing face (M_RideLamp)
+	// [stage 7] What lights up after dark (RideMesh::Night: lit windows, lamp heads, cat's eyes; M_RideNight),
+	// and the street lamps' real lights on the nearest squares, on only after dark.
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> NightMaterial;
+	TMap<FIntVector, TArray<TWeakObjectPtr<class UPointLightComponent>>> StreetLights;
+	void DropStreetLights(const FIntVector& Key);
+	bool bStreetLightsOn = false;
 	// A road piece's tunnel lights (by piece, as RoadParts), let go with it.
 	TMap<int32, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
