@@ -829,6 +829,43 @@ int main()
 						std::printf("      side roads' tarmac on the ride's road: %d points, %d over its surface (worst %.3f m); just past its edge %d, at most %.3f m off it\n", OnMain, Proud, WorstProud, Leaning, WorstLean);
 						Check(OnMain > 100 && Proud == 0 && WorstLean < 0.12, "a side road where it lies on the ride's road is just under its surface, and meets its edge level");
 					}
+					// Junctions off the ride's road (side roads meeting each other, the ride's own ends): a fan
+					// over all their roads, rounded between them, facing up, never under its roads' surfaces.
+					{
+						int Fans = 0, FansUp = 0, FansUnder = 0, Arms = 0;
+						for (const RidePlan::Knot& K : Plan->Knots)
+						{
+							RideMesh Mesh;
+							Mesh.OriginX = K.At.X;
+							Mesh.OriginZ = K.At.Z;
+							Plan->KnotPiece(K, Mesh);
+							if (Mesh.Idx.empty()) continue;
+							++Fans;
+							Arms += int(K.Arms.size());
+							bool AllUp = true, AllOver = true;
+							for (size_t T = 0; T + 2 < Mesh.Idx.size(); T += 3)
+							{
+								const float* A3 = &Mesh.Pos[Mesh.Idx[T] * 3], * B3 = &Mesh.Pos[Mesh.Idx[T + 1] * 3], * C3 = &Mesh.Pos[Mesh.Idx[T + 2] * 3];
+								if (double(B3[2] - A3[2]) * double(C3[0] - A3[0]) - double(B3[0] - A3[0]) * double(C3[2] - A3[2]) < 0.0) AllUp = false;
+							}
+							for (size_t V = 0; V < Mesh.Vertices(); ++V)
+							{
+								if (Mesh.Col[V * 3] > 0.05f) continue;   // (the tarmac: the shoulders go down into the ground)
+								const double X = Mesh.OriginX + Mesh.Pos[V * 3], Z = Mesh.OriginZ + Mesh.Pos[V * 3 + 2];
+								for (const RidePlan::KnotArm& Arm : K.Arms)
+								{
+									RidePlan::NearOpts Only;
+									Only.OnlyRoad = Arm.Which;
+									RidePlan::NearHit Hit;
+									if (Plan->NearestOf(X, Z, Only, Hit) && Hit.Dist < Hit.Half - 0.1 && Arm.Which == 0 && Mesh.Pos[V * 3 + 1] < Hit.Height + Hit.Cross - 0.005) AllOver = false;
+								}
+							}
+							if (AllUp) ++FansUp;
+							if (!AllOver) ++FansUnder;
+						}
+						std::printf("      %d junctions off the ride's road (%d roads' ends), %d all facing up, %d under the ride's road\n", Fans, Arms, FansUp, FansUnder);
+						Check(Fans >= 5 && FansUp == Fans && FansUnder == 0, "where side roads meet each other (or the ride's road ends among them) one fan of tarmac covers the junction, rounded, facing up, over the ride's road");
+					}
 					// The ground's colour and what stands on it.
 					{
 						size_t Stands = 0, StoneGrey = 0, Squares = 0, Alike = 0, OnTarmac = 0, InScan = 0;

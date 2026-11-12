@@ -128,6 +128,25 @@ public:
 		Mouth Mouths[2];       // at its first point's end and its last's
 	};
 	std::vector<SideRoad> Sides;        // the other roads near it, each from junction to junction
+	// A junction off the ride's road's sides: two or more road ends at one place (side roads meeting each
+	// other, or the ride's road's own start or end), none of them a mouth. Its tarmac is a fan over
+	// them all, with rounded corners between neighbouring roads and a round outside where a road bends.
+	struct KnotArm
+	{
+		int Which = 0, End = 0;   // the road and which end of it
+		P2 Away;                  // heading out along it from the junction
+		double Half = 0.0;
+	};
+	struct Knot
+	{
+		P2 At;
+		double Height = 0.0;
+		std::vector<KnotArm> Arms;   // round the junction, anticlockwise seen from above
+		int Owner = 0, OwnerEnd = 0; // drawn with this road's piece at this end
+	};
+	std::vector<Knot> Knots;
+	// A knot's fan, its corners' shoulders, into Out (in Out's own origin).
+	void KnotPiece(const Knot& K, RideMesh& Out) const;
 	// Every road: 0 is the ride's own, then the sides.
 	int RoadCount() const { return 1 + int(Sides.size()); }
 	const std::vector<RoadPoint>& RoadOf(int Which) const { return Which <= 0 ? Road : Sides[size_t(Which) - 1].Pts; }
@@ -241,6 +260,7 @@ private:
 	// other) and says what each knot is on: 0 the ground, 1 a bridge, 2 a tunnel. Counts them.
 	void LevelSpans(const std::vector<P2>& Line, std::vector<double>& H, std::vector<char>& Kind, int& BridgeCount, int& TunnelCount) const;
 	void LaySides(const std::vector<int>& Path);
+	void LayKnots();
 	// A mouth's corner on the side road's left (Sigma +1) or right (-1): the corner itself, the way
 	// along the ride's road's edge from it, and how far along each edge the rounding starts.
 	static void MouthCorner(const Mouth& M, const P2& MainAt, double Half, double Sigma, P2& Corner, P2& AlongMain, double& Reach);

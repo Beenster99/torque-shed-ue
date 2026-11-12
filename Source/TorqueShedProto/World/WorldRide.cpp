@@ -128,6 +128,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
+	R->LayKnots();
 	R->IndexScenery();
 	R->Ok = true;
 	return R;
@@ -204,11 +205,11 @@ void RidePlan::LevelSpans(const std::vector<P2>& Line, std::vector<double>& H, s
 	Kind.assign(Line.size(), 0);
 	for (int Sort = 0; Sort < 2; ++Sort)
 	{
-		const std::vector<int> Knots = SpansAlong(Line, Sort);
-		(Sort == 0 ? BridgeCount : TunnelCount) += int(Knots.size() / 2);
-		for (size_t K = 0; K + 1 < Knots.size(); K += 2)
+		const std::vector<int> Spans = SpansAlong(Line, Sort);
+		(Sort == 0 ? BridgeCount : TunnelCount) += int(Spans.size() / 2);
+		for (size_t K = 0; K + 1 < Spans.size(); K += 2)
 		{
-			const int I0 = Knots[K], I1 = std::min(Knots[K + 1], int(H.size()) - 1);
+			const int I0 = Spans[K], I1 = std::min(Spans[K + 1], int(H.size()) - 1);
 			for (int I = I0 + 1; I < I1; ++I) H[size_t(I)] = H[size_t(I0)] + (H[size_t(I1)] - H[size_t(I0)]) * double(I - I0) / double(I1 - I0);
 			for (int I = I0; I <= I1; ++I) Kind[size_t(I)] = static_cast<char>(Sort + 1);
 		}
@@ -539,6 +540,205 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 	// (filed once all are laid, so none was pulled to another side road's height)
 	for (size_t K = 0; K < Sides.size(); ++K)
 		for (size_t I = 0; I < Sides[K].Pts.size(); ++I) Near[NearKey(Sides[K].Pts[I].At.X, Sides[K].Pts[I].At.Z)].push_back({int(K) + 1, int(I)});
+}
+
+void RidePlan::LayKnots()
+{
+	Knots.clear();
+	struct EndOf
+	{
+		KnotArm Arm;
+		P2 At;
+		double Height = 0.0;
+		bool Used = false;
+	};
+	std::vector<EndOf> Ends;
+	for (int W = 0; W < RoadCount(); ++W)
+	{
+		const std::vector<RoadPoint>& Pts = RoadOf(W);
+		if (Pts.size() < 3) continue;
+		for (int End = 0; End < 2; ++End)
+		{
+			if (W > 0 && Sides[size_t(W) - 1].Mouths[End].Is) continue;
+			const size_t I0 = End == 0 ? 0 : Pts.size() - 1;
+			const RoadPoint& P = Pts[I0];
+			if (P.Bridge || P.Tunnel) continue;
+			// (its heading from a few metres in: the last step can be a stub)
+			size_t I1 = I0;
+			for (size_t Step = 1; Step < Pts.size(); ++Step)
+			{
+				I1 = End == 0 ? Step : Pts.size() - 1 - Step;
+				if (Pts[I1].At.DistanceTo(P.At) >= 3.0) break;
+			}
+			const P2 D = Pts[I1].At - P.At;
+			if (D.Length() < 1e-6) continue;
+			EndOf E;
+			E.Arm.Which = W;
+			E.Arm.End = End;
+			E.Arm.Away = D * (1.0 / D.Length());
+			E.Arm.Half = P.Half;
+			E.At = P.At;
+			E.Height = P.Height;
+			Ends.push_back(E);
+		}
+	}
+	for (size_t A = 0; A < Ends.size(); ++A)
+	{
+		if (Ends[A].Used) continue;
+		std::vector<size_t> Group = {A};
+		for (size_t B = A + 1; B < Ends.size(); ++B)
+			if (!Ends[B].Used && Ends[B].At.DistanceTo(Ends[A].At) < 1.5 && std::fabs(Ends[B].Height - Ends[A].Height) < 1.5) Group.push_back(B);
+		if (Group.size() < 2) continue;
+		Knot K;
+		K.Owner = 1 << 30;
+		bool Main = false, Side = false;
+		double Hmax = -1e18;
+		for (size_t G : Group)
+		{
+			Ends[G].Used = true;
+			K.Arms.push_back(Ends[G].Arm);
+			K.At = K.At + Ends[G].At * (1.0 / double(Group.size()));
+			Hmax = std::fmax(Hmax, Ends[G].Height);
+			if (Ends[G].Arm.Which == 0) { Main = true; K.Height = Ends[G].Height; K.At = Ends[G].At; }
+			else Side = true;
+			if (Ends[G].Arm.Which < K.Owner) { K.Owner = Ends[G].Arm.Which; K.OwnerEnd = Ends[G].Arm.End; }
+		}
+		if (!Side) continue;
+		if (Main)
+		{
+			for (size_t G : Group) if (Ends[G].Arm.Which == 0) K.At = Ends[G].At;
+		}
+		else K.Height = Hmax;
+		std::sort(K.Arms.begin(), K.Arms.end(), [](const KnotArm& X, const KnotArm& Y) { return std::atan2(X.Away.Z, X.Away.X) < std::atan2(Y.Away.Z, Y.Away.X); });
+		Knots.push_back(std::move(K));
+	}
+}
+
+void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
+{
+	const double Pi = 3.14159265358979323846;
+	const int Count = int(K.Arms.size());
+	if (Count < 2) return;
+	// The tarmac's height at a point: the surface of whichever of its roads it is on (or nearest the edge
+	// of), as drawn, a hair over it.
+	const auto Top = [this, &K](const P2& At)
+	{
+		double Best = 1e18, Y = K.Height;
+		for (const KnotArm& A : K.Arms)
+		{
+			NearOpts Opts;
+			Opts.OnlyRoad = A.Which;
+			NearHit Hit;
+			if (!NearestOf(At.X, At.Z, Opts, Hit)) continue;
+			// (on the ride's road, that road's surface whatever else it is on: the others lie under it there)
+			const double Score = A.Which == 0 && Hit.Dist < Hit.Half ? -1e9 : Hit.Dist - Hit.Half;
+			if (Score >= Best) continue;
+			Best = Score;
+			Y = A.Which == 0 ? Hit.Height + Hit.Cross : JoinedHeight(A.Which, At, Hit.Height + Hit.Cross);
+		}
+		return Y + 0.012;
+	};
+	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f};
+	const auto Vertex = [&Out](const P2& At, double Y, const float* Colour)
+	{
+		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
+		Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
+		Out.Uv.push_back(float(At.X / 4.0)); Out.Uv.push_back(float(At.Z / 4.0));
+		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
+		return uint32_t(Out.Vertices() - 1);
+	};
+	// (a triangle, made to face up whichever way round its points came)
+	const auto Tri = [&Out](uint32_t A, uint32_t B, uint32_t C)
+	{
+		const float* Pa = &Out.Pos[size_t(A) * 3], * Pb = &Out.Pos[size_t(B) * 3], * Pc = &Out.Pos[size_t(C) * 3];
+		const double Up = double(Pb[2] - Pa[2]) * double(Pc[0] - Pa[0]) - double(Pb[0] - Pa[0]) * double(Pc[2] - Pa[2]);
+		if (std::fabs(Up) < 1e-9) return;
+		if (Up > 0.0) Out.Idx.insert(Out.Idx.end(), {A, B, C});
+		else Out.Idx.insert(Out.Idx.end(), {A, C, B});
+	};
+	// Round the junction: between each road and the next anticlockwise, a rounded corner where the gap
+	// between them is less than a half turn, or a round outside (about the junction) where it is more.
+	std::vector<P2> Rim, Outward;
+	std::vector<char> Edged;   // (a corner or outside: a shoulder beyond it; across a road: none)
+	for (int I = 0; I < Count; ++I)
+	{
+		const KnotArm& A = K.Arms[size_t(I)];
+		const KnotArm& B = K.Arms[size_t((I + 1) % Count)];
+		const P2 Qa(-A.Away.Z, A.Away.X), Qb(-B.Away.Z, B.Away.X);   // (each one's anticlockwise side)
+		double Gap = std::atan2(B.Away.Z, B.Away.X) - std::atan2(A.Away.Z, A.Away.X);
+		while (Gap <= 0.0) Gap += 2.0 * Pi;
+		const P2 EdgeA = K.At + Qa * A.Half, EdgeB = K.At - Qb * B.Half;
+		bool Done = false;
+		if (Gap < Pi - 0.05)
+		{
+			// Where the two facing edges meet: EdgeA + t A.Away = EdgeB + s B.Away.
+			const double Det = A.Away.X * (-B.Away.Z) - A.Away.Z * (-B.Away.X);
+			if (std::fabs(Det) > 1e-6)
+			{
+				const P2 D = EdgeB - EdgeA;
+				const double T = (D.X * (-B.Away.Z) - D.Z * (-B.Away.X)) / Det;
+				const double S = (A.Away.X * D.Z - A.Away.Z * D.X) / Det;
+				if (T > -1.0 && S > -1.0 && T < 25.0 && S < 25.0)
+				{
+					const P2 X = EdgeA + A.Away * T;
+					const double Reach = std::fmin(9.0, std::fmax(2.0, 6.0 / std::fmax(0.05, std::tan(Gap * 0.5))));
+					const P2 Pa = X + A.Away * Reach, Pb = X + B.Away * Reach;
+					const int Segs = 6;
+					for (int Sg = 0; Sg <= Segs; ++Sg)
+					{
+						const double U = double(Sg) / Segs;
+						const P2 At = Pa * ((1.0 - U) * (1.0 - U)) + X * (2.0 * U * (1.0 - U)) + Pb * (U * U);
+						const P2 Tangent = (X - Pa) * (1.0 - U) + (Pb - X) * U;
+						P2 Normal(Tangent.Z, -Tangent.X);
+						if (Dot(Normal, X - K.At) < 0.0) Normal = Normal * -1.0;
+						const double Len = Normal.Length();
+						Rim.push_back(At);
+						Outward.push_back(Len > 1e-9 ? Normal * (1.0 / Len) : P2(0.0, 0.0));
+						Edged.push_back(Sg < Segs ? 1 : 0);
+					}
+					Done = true;
+				}
+			}
+		}
+		if (!Done)
+		{
+			// (the outside: round about the junction from one road's edge to the next's)
+			// (from the one's anticlockwise edge to the next's clockwise edge: the gap less a half turn)
+			const double From = std::atan2(Qa.Z, Qa.X);
+			const double Sweep = std::fmax(0.0, Gap - Pi);
+			const int Segs = std::max(1, int(std::ceil(Sweep / (Pi / 8.0))));
+			for (int Sg = 0; Sg <= Segs; ++Sg)
+			{
+				const double U = double(Sg) / Segs, Th = From + Sweep * U;
+				const double R = A.Half + (B.Half - A.Half) * U;
+				const P2 Dir(std::cos(Th), std::sin(Th));
+				Rim.push_back(K.At + Dir * R);
+				Outward.push_back(Dir);
+				Edged.push_back(Sg < Segs ? 1 : 0);
+			}
+		}
+	}
+	const size_t N = Rim.size();
+	if (N < 3) return;
+	const uint32_t Hub = Vertex(K.At, Top(K.At), Tarmac);
+	std::vector<uint32_t> RimV(N);
+	std::vector<double> RimH(N);
+	for (size_t I = 0; I < N; ++I)
+	{
+		RimH[I] = Top(Rim[I]);
+		RimV[I] = Vertex(Rim[I], RimH[I], Tarmac);
+	}
+	for (size_t I = 0; I < N; ++I) Tri(Hub, RimV[I], RimV[(I + 1) % N]);
+	// A shoulder round each corner and outside, as the roads' own: nearly level, then down into the ground.
+	for (size_t I = 0; I + 1 < N; ++I)
+	{
+		if (Edged[I] == 0) continue;
+		const size_t J = I + 1;
+		const uint32_t In0 = Vertex(Rim[I], RimH[I] - 0.012, Verge), In1 = Vertex(Rim[J], RimH[J] - 0.012, Verge);
+		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - 0.012 - ShoulderDip, Verge), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - 0.012 - ShoulderDip, Verge);
+		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - 0.012 - ShoulderDrop, Verge), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - 0.012 - ShoulderDrop, Verge);
+		Tri(In0, In1, Mid1); Tri(In0, Mid1, Mid0); Tri(Mid0, Mid1, Out1); Tri(Mid0, Out1, Out0);
+	}
 }
 
 void RidePlan::MouthCorner(const Mouth& M, const P2& MainAt, double Half, double Sigma, P2& Corner, P2& AlongMain, double& Reach)
@@ -1040,6 +1240,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		if (Half >= 2.5 && std::fmod(A.Along, 9.0) < 3.0) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
 	}
+	// The junctions off the ride's road this road's ends are drawn with.
+	for (const Knot& K : Knots)
+		if (K.Owner == Which && (K.OwnerEnd == 0 ? First == 0 : Last == Count - 1)) KnotPiece(K, Out);
 	// A side road's mouths on the ride's road, each with the piece its end is in.
 	for (int End = 0; End < 2 && Which > 0; ++End)
 	{

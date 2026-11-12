@@ -138,7 +138,9 @@ int main(int Argc, char** Argv)
 		int Mouths = 0, GiveWays = 0;
 		for (const RidePlan::SideRoad& Sd : Plan->Sides)
 			for (const RidePlan::Mouth& M : Sd.Mouths) { if (M.Is) ++Mouths; if (M.Is && M.GiveWay) ++GiveWays; }
-		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines\n", Mouths, GiveWays);
+		int AtStart = 0;
+		for (const RidePlan::Knot& K : Plan->Knots) if (K.Owner == 0) ++AtStart;
+		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines; %d junctions off it (%d at its ends)\n", Mouths, GiveWays, int(Plan->Knots.size()), AtStart);
 		int Shown = 0;
 		for (const RidePlan::SideRoad& Sd : Plan->Sides)
 			for (const RidePlan::Mouth& M : Sd.Mouths)
@@ -241,6 +243,16 @@ int main(int Argc, char** Argv)
 		{
 			const double Want = std::atof(std::getenv("WORLD_RIDE_MESH_KM")) * 1000.0;
 			for (const RoadPoint& P : Plan->Road) if (P.Along <= Want) Centre = P.At;
+		}
+		else if (std::getenv("WORLD_RIDE_KNOT") != nullptr)
+		{
+			// (or a junction off it: WORLD_RIDE_KNOT=n, the nth nearest the ride's start)
+			std::vector<P2> Spots;
+			for (const RidePlan::Knot& K : Plan->Knots) Spots.push_back(K.At);
+			const P2 Start = Plan->Road[0].At;
+			std::sort(Spots.begin(), Spots.end(), [&Start](const P2& A, const P2& B) { return A.DistanceTo(Start) < B.DistanceTo(Start); });
+			const size_t Want = size_t(std::atoi(std::getenv("WORLD_RIDE_KNOT")));
+			if (Want < Spots.size()) Centre = Spots[Want];
 		}
 		else
 			for (const RidePlan::SideRoad& Sd : Plan->Sides)
