@@ -40,16 +40,15 @@ def level_lib():
 
 
 def land_material(L):
-    """Moor grass: two greens in broad patches, mottled close up, matte."""
+    """The ground's own colour from its vertices (what covers it: World/WorldRide's LandColour), darker
+    and paler in broad patches, mottled close up, matte."""
     mel = L.mel
     m = L.new_material("M_RideLand", MAT_DIR)
-    dark = L.const3(m, (0.055, 0.075, 0.03), -900, 0)
-    pale = L.const3(m, (0.12, 0.135, 0.05), -900, 200)
-    patch = L.noise(m, 0.0006, 0.0, 1.0, -900, 400)
-    mix = mel.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -600, 100)
-    mel.connect_material_expressions(dark, "", mix, "A")
-    mel.connect_material_expressions(pale, "", mix, "B")
-    mel.connect_material_expressions(patch, "", mix, "Alpha")
+    vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -900, 0)
+    patch = L.noise(m, 0.0006, 0.72, 1.25, -900, 400)
+    mix = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -600, 100)
+    mel.connect_material_expressions(vc, "", mix, "A")   # the unnamed output is RGB
+    mel.connect_material_expressions(patch, "", mix, "B")
     mid = L.noise(m, 0.01, 0.8, 1.15, -900, 600)
     mul1 = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -400, 200)
     mel.connect_material_expressions(mix, "", mul1, "A")

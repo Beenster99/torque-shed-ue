@@ -68,6 +68,8 @@ struct RideMesh
 	std::vector<float> Col;        // r, g, b each (linear), or empty for a mesh of one colour
 	std::vector<uint32_t> Idx;     // triangles, wound to face up seen from above with x right and z towards you
 	size_t Vertices() const { return Pos.size() / 3; }
+	// With a square of ground: what stands on it (walls, buildings, trees), coloured, or null for nothing.
+	std::shared_ptr<RideMesh> Extra;
 };
 
 class RidePlan
@@ -168,8 +170,16 @@ public:
 	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
 
 	// A square of ground, Cells by Cells, from (X0, Z0), with a skirt hanging from its edge (so a finer
-	// piece beside a coarser one shows no crack).
+	// piece beside a coarser one shows no crack), coloured by what covers it. A square with points 8 m
+	// apart or closer has what stands on it too (Out.Extra: SceneryTile).
 	void LandTile(double X0, double Z0, double Size, int Cells, RideMesh& Out) const;
+	// The ground's colour at a point (r, g, b, linear): what covers it there and Spread metres off each
+	// way, bare stone where it is steep (Slope: its rise over its run).
+	void LandColour(double X, double Z, double Spread, double Slope, float* Out) const;
+	// What stands on a square of ground (WorldRideScenery.cpp): walls, hedges and fences on their
+	// mapped lines, buildings on their footprints, stand-in trees under the mapped canopy. Coarse is how
+	// far apart the square's points are: past 4 m things are made more plainly.
+	void SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const;
 	// Road Which from point First to Last (both included): its surface, its shoulders and its paint.
 	void RoadPiece(int Which, int First, int Last, RideMesh& Out) const;
 
@@ -191,6 +201,13 @@ private:
 	// By the ride's road's point: 1 a mouth or its corners on its left, 2 on its right (no edge line);
 	// 4 the mouth itself on its left, 8 on its right (no shoulder).
 	std::vector<unsigned char> MouthAt;
+	// The scenery's lines and buildings by 256 m square (a line under each square one of its bits' middles is in).
+	struct SceneIndex
+	{
+		std::unordered_map<long long, std::vector<int>> Lines, Buildings;
+	};
+	std::shared_ptr<SceneIndex> Scene;
+	void IndexScenery();
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
 };
 } // namespace TorqueWorld

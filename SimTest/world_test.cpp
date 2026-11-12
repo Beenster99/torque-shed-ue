@@ -795,6 +795,37 @@ int main()
 							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
 						(void)GiveWays;
 					}
+					// The ground's colour and what stands on it.
+					{
+						size_t Stands = 0, StoneGrey = 0, Squares = 0, Alike = 0, OnTarmac = 0;
+						bool Coloured = true;
+						for (size_t I = 0; I < Plan->Road.size() && Squares < 12; I += 120)
+						{
+							const double Tx = std::floor(Plan->Road[I].At.X / 256.0) * 256.0, Tz = std::floor(Plan->Road[I].At.Z / 256.0) * 256.0;
+							RideMesh Sq, Again;
+							Plan->LandTile(Tx, Tz, 256.0, 64, Sq);
+							Plan->LandTile(Tx, Tz, 256.0, 64, Again);
+							++Squares;
+							Coloured = Coloured && Sq.Col.size() == Sq.Pos.size() && !Sq.Col.empty();
+							if (!Sq.Extra) { if (!Again.Extra) ++Alike; continue; }
+							if (Again.Extra && Again.Extra->Pos == Sq.Extra->Pos && Again.Extra->Col == Sq.Extra->Col) ++Alike;
+							Stands += Sq.Extra->Vertices();
+							Coloured = Coloured && Sq.Extra->Col.size() == Sq.Extra->Pos.size() && Sq.Extra->Vertices() % 4 == 0;
+							for (size_t V = 0; V < Sq.Extra->Vertices(); ++V)
+							{
+								const float* C = &Sq.Extra->Col[V * 3];
+								if (std::fabs(C[0] - C[1]) < 0.03f && C[0] > 0.15f) ++StoneGrey;
+								// (nothing stands on a road's tarmac)
+								const double Rh = Plan->RoadHeight(Sq.Extra->OriginX + Sq.Extra->Pos[V * 3], Sq.Extra->OriginZ + Sq.Extra->Pos[V * 3 + 2]);
+								if (!std::isnan(Rh) && Sq.Extra->Pos[V * 3 + 1] < Rh + 2.5) ++OnTarmac;   // (a tree's crown may reach over)
+							}
+						}
+						RideMesh FarSq;
+						Plan->LandTile(std::floor(Plan->Road[0].At.X / 4096.0) * 4096.0, std::floor(Plan->Road[0].At.Z / 4096.0) * 4096.0, 4096.0, 64, FarSq);
+						std::printf("      %d squares of ground along it: %d points of walls, buildings and trees stand on them, %d of them stone; %d on a road\n", int(Squares), int(Stands), int(StoneGrey), int(OnTarmac));
+						Check(Coloured && Stands > 2000 && StoneGrey > 500 && Alike == Squares && OnTarmac == 0 && !FarSq.Extra && FarSq.Col.size() == FarSq.Pos.size(),
+							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees: the same every time, none in a rider's way on a road, none on the far-off squares");
+					}
 					// Bridges on the roads beside it.
 					{
 						int Decks = 0, Crossings = 0;

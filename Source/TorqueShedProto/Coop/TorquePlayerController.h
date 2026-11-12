@@ -70,7 +70,7 @@ public:
 	UFUNCTION(Server, Reliable) void ServerWalkBackIn();
 
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
-	// "pause", "profile", "settings" or "close" (the world isn't paused, so the test runs on), and a
+	// "pause", "profile", "settings", "credits" or "close" (the world isn't paused, so the test runs on), and a
 	// profile slider set by its name's first word ("jaw", "chin", ... or "height", "avatar").
 	FString TestMenu(const FString& Which);
 	FString TestFace(const FString& Slider, float Value);

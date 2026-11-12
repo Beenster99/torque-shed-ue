@@ -292,7 +292,8 @@ FString ATorquePlayerController::TestMenu(const FString& Which)
 		Open(Want);
 	}
 	else if (Base == TEXT("keys")) { Open(EPage::Controller); Open(EPage::Keys); }
-	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, settings[:graphics|sound|gameplay|controller|character|keys|padcheck], keys or close (opened the pause menu)");
+	else if (Base == TEXT("credits")) { Open(EPage::Credits); }
+	else if (Base != TEXT("pause")) return TEXT("menu what? pause, profile, settings[:graphics|sound|gameplay|controller|character|keys|padcheck], keys, credits or close (opened the pause menu)");
 	return FString::Printf(TEXT("menu: %s (page shows %d rows)"), *Which, Rows().Num());
 }
 

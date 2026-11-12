@@ -226,6 +226,16 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		if (*Old) (*Old)->DestroyComponent();
 	}
 	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::Levels - 1));
+	if (TObjectPtr<UProceduralMeshComponent>* OldExtra = TileExtras.Find(Key))
+	{
+		if (*OldExtra) (*OldExtra)->DestroyComponent();
+		TileExtras.Remove(Key);
+	}
+	if (Mesh.Extra)
+	{
+		// (what stands on it: only the nearest squares' cast shadows)
+		if (UProceduralMeshComponent* Stands = MakePart(*Mesh.Extra, RoadMaterial, false, bAtOnce, Key.X == 0)) TileExtras.Add(Key, Stands);
+	}
 }
 
 void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
@@ -305,6 +315,11 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	{
 		if (UProceduralMeshComponent* Part = Tiles[Key]) Part->DestroyComponent();
 		Tiles.Remove(Key);
+		if (TObjectPtr<UProceduralMeshComponent>* Stands = TileExtras.Find(Key))
+		{
+			if (*Stands) (*Stands)->DestroyComponent();
+			TileExtras.Remove(Key);
+		}
 	}
 	if (bAll && !bSaidReady)
 	{

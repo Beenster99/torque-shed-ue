@@ -128,6 +128,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
+	R->IndexScenery();
 	R->Ok = true;
 	return R;
 }
@@ -615,18 +616,21 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	if (!Any) return;   // (off the world's edge: nothing to draw)
 	for (double& Y : H) if (std::isnan(Y)) Y = Fallback;
 	const auto At = [&H, M](int I, int J) { return H[size_t(J + 1) * M + (I + 1)]; };
-	const auto Put = [&Out](double X, double Y, double Z, double Nx, double Ny, double Nz, double U, double V)
+	const auto Put = [&Out](double X, double Y, double Z, double Nx, double Ny, double Nz, double U, double V, const float* Colour)
 	{
 		Out.Pos.push_back(float(X)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z));
 		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
 		Out.Uv.push_back(float(U)); Out.Uv.push_back(float(V));
+		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
 	};
 	for (int J = 0; J < N; ++J)
 		for (int I = 0; I < N; ++I)
 		{
 			const double Sx = (At(I + 1, J) - At(I - 1, J)) / (2.0 * Step), Sz = (At(I, J + 1) - At(I, J - 1)) / (2.0 * Step);
 			const double Len = std::sqrt(Sx * Sx + 1.0 + Sz * Sz);
-			Put(I * Step, At(I, J), J * Step, -Sx / Len, 1.0 / Len, -Sz / Len, (X0 + I * Step) / 8.0, (Z0 + J * Step) / 8.0);
+			float Colour[3];
+			LandColour(X0 + I * Step, Z0 + J * Step, std::fmax(12.0, Step), std::sqrt(Sx * Sx + Sz * Sz), Colour);
+			Put(I * Step, At(I, J), J * Step, -Sx / Len, 1.0 / Len, -Sz / Len, (X0 + I * Step) / 8.0, (Z0 + J * Step) / 8.0, Colour);
 		}
 	const auto Quad = [&Out](uint32_t A, uint32_t B, uint32_t C, uint32_t D)
 	{
@@ -645,7 +649,8 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		{
 			const int I = I0 + Di * K, J = J0 + Dj * K;
 			const size_t V = size_t(J * N + I) * 3;
-			Put(I * Step, At(I, J) - Drop, J * Step, Out.Nrm[V], Out.Nrm[V + 1], Out.Nrm[V + 2], (X0 + I * Step) / 8.0, (Z0 + J * Step) / 8.0);
+			const float Colour[3] = {Out.Col[V], Out.Col[V + 1], Out.Col[V + 2]};
+			Put(I * Step, At(I, J) - Drop, J * Step, Out.Nrm[V], Out.Nrm[V + 1], Out.Nrm[V + 2], (X0 + I * Step) / 8.0, (Z0 + J * Step) / 8.0, Colour);
 		}
 		for (int K = 0; K + 1 < N; ++K)
 		{
@@ -659,6 +664,12 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	Skirt(0, Cells, 1, 0, false);       // south
 	Skirt(0, 0, 0, 1, false);           // west
 	Skirt(Cells, 0, 0, 1, true);        // east
+	if (Step <= 8.5 && Scene)
+	{
+		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();
+		SceneryTile(X0, Z0, Size, Step, *Stands);
+		if (Stands->Vertices() > 0) Out.Extra = Stands;
+	}
 }
 
 void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
