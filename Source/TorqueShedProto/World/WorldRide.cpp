@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <ctime>
 #include <functional>
 #include <set>
 
@@ -71,6 +72,16 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 {
 	std::shared_ptr<RidePlan> R = std::make_shared<RidePlan>();
 	R->Request = Want;
+	{
+		// (the month now, from the clock's days since 1970: Hinnant's civil-from-days)
+		const long long Days = static_cast<long long>(std::time(nullptr)) / 86400LL + 719468LL;
+		const long long Era = (Days >= 0 ? Days : Days - 146096LL) / 146097LL;
+		const long long Doe = Days - Era * 146097LL;
+		const long long Yoe = (Doe - Doe / 1460 + Doe / 36524 - Doe / 146096) / 365;
+		const long long Doy = Doe - (365 * Yoe + Yoe / 4 - Yoe / 100);
+		const long long Mp = (5 * Doy + 2) / 153;
+		R->Month = int(Mp < 10 ? Mp + 3 : Mp - 9);
+	}
 	if (!Route::IsStyle(R->Request.Mode)) R->Request.Mode = "main";
 	if (Want.Pins.size() >= 2)
 	{
@@ -1063,6 +1074,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		SceneryTile(X0, Z0, Size, Step, *Stands);
 		if (Stands->Any()) Out.Extra = Stands;
 		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
+		AnimalsTile(X0, Z0, Size, Out.Animals);
 	}
 }
 

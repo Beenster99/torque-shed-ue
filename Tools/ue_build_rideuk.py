@@ -322,6 +322,61 @@ def place_kit(kit):
         log("%s: %d species" % (tag, len(species)))
 
 
+ANIMAL_DEST = "/Game/RideUK/Animals"
+
+
+def animal_kit(L):
+    """The livestock (Ride UK stage 6): Data/RideUK/Animals/*.glb (Tools/make_ride_animals.py) imported
+    to /Game/RideUK/Animals, no collision, and listed in a TorqueFoliage actor tagged RideAnimals that
+    plants nothing itself; World/TorqueRideWorld puts them in the fields as it goes. The sheep wear
+    M_RideFleece (vertex colour, grazing heads nodding as Buttertubs' do), the cattle M_RideHide.
+    Returns a short note for the log."""
+    if not hasattr(unreal, "TorqueFoliage"):
+        return "no animals (TorqueFoliage isn't built)"
+    folder = os.path.join(os.path.dirname(L.data_dir()), "RideUK", "Animals")
+    if not os.path.isdir(folder) or not any(f.endswith(".glb") for f in os.listdir(folder)):
+        return "no animals (python Tools/make_ride_animals.py)"
+    meshes = L.import_glbs(folder, ANIMAL_DEST)
+    sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+    for mesh in meshes.values():
+        try:
+            sme.remove_collisions(mesh)
+        except Exception:
+            pass
+        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    original = L.new_material
+    try:
+        L.new_material = lambda name, folder=None: original(name, MAT_DIR)
+        fleece = L.flat_material("M_RideFleece", 0.95, fine=0.4, wpo=L.graze_wpo)
+        hide = L.flat_material("M_RideHide", 0.8, fine=0.25)
+    finally:
+        L.new_material = original
+    first = sorted(meshes)[0]
+    frame = L.find_frame(meshes[first], os.path.join(folder, first + ".glb"))
+    species = []
+    for name, mesh in sorted(meshes.items()):
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", name)
+        e.set_editor_property("mesh", mesh)
+        e.set_editor_property("material", fleece if ("_ewe_" in name or "_lamb_" in name) else hide)
+        for k, v in (("cast_shadow", True), ("scale_multiplier", 1.0), ("cull_distance", 40000.0)):
+            try:
+                e.set_editor_property(k, v)
+            except Exception:
+                pass
+        species.append(e)
+    a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
+    a.set_actor_label("RideAnimals")
+    a.set_editor_property("tags", [unreal.Name("RideAnimals")])
+    a.set_editor_property("instances_file", "")
+    a.set_editor_property("density", 0.0)
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    return "RideAnimals: %d models" % len(species)
+
+
 def build():
     L = level_lib()
     land_material(L)
@@ -336,6 +391,7 @@ def build():
     # (the bike is put down at the ride's start by the game; a level still wants a start of its own)
     L.spawn(unreal.PlayerStart, (0, 0, 100000.0))
     place_kit(kit)
+    log(animal_kit(L))
     L.save_fresh_level(MAP, before)
     log("built %s and %s/M_RideLand, M_RideRoad%s" % (MAP, MAT_DIR, "".join(", " + m for m in scanned)))
 

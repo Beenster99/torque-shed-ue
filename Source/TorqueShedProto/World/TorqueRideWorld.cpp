@@ -316,6 +316,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
 	DropPlants(Key);
 	PlacePlants(Key, Mesh);
+	PlaceAnimals(Key, Mesh);
 	DropWords(Key);
 	DropWater(Key);
 	// (its water: seen, not cast as shadow, not ridden on)
@@ -477,7 +478,53 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	if (bAll && !bSaidReady)
 	{
 		bSaidReady = true;
-		UE_LOG(LogTemp, Display, TEXT("Torque ride world: all the ground round the rider is in place (%d squares, %d pieces of road, %d plants and trees)"), Tiles.Num(), RoadParts.Num(), PlantsShown);
+		UE_LOG(LogTemp, Display, TEXT("Torque ride world: all the ground round the rider is in place (%d squares, %d pieces of road, %d plants, trees and animals; %d animals placed so far)"), Tiles.Num(), RoadParts.Num(), PlantsShown, AnimalsShown);
+	}
+}
+
+void ATorqueRideWorld::PlaceAnimals(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh)
+{
+	if (Mesh.Animals.empty() || AnimalKit.Num() == 0) return;
+	TMap<int32, TArray<FTransform>> Groups;   // by model
+	for (const TorqueWorld::RideAnimal& A : Mesh.Animals)
+	{
+		if (A.Kind >= TorqueWorld::RidePlan::AnimalKinds) continue;
+		const TArray<int32>& Choice = AnimalModels[A.Kind];
+		if (Choice.Num() == 0) continue;
+		const int32 Mi = Choice[FMath::Min(int32(A.Pick * Choice.Num()), Choice.Num() - 1)];
+		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
+		const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(A.Yaw)) + AnimalFrame.X));
+		const double Size = double(A.Scale) * AnimalKit[Mi].ScaleMultiplier;
+		const FVector Scale3(Size * AnimalFrame.Z, Size * AnimalFrame.Z * AnimalFrame.Y, Size * AnimalFrame.Z);
+		Groups.FindOrAdd(Mi).Add(FTransform(Rot, FVector(double(A.X) * 100.0, double(A.Z) * 100.0, double(A.Y) * 100.0), Scale3));
+	}
+	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
+	for (TPair<int32, TArray<FTransform>>& Group : Groups)
+	{
+		const FTorqueFoliageSpecies& S = AnimalKit[Group.Key];
+		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
+		Ism->SetMobility(EComponentMobility::Movable);
+		Ism->SetupAttachment(RootComponent);
+		Ism->SetRelativeLocation(FVector(Mesh.OriginX * 100.0, Mesh.OriginZ * 100.0, 0.0));
+		Ism->SetStaticMesh(S.Mesh);
+		if (S.Material) Ism->SetMaterial(0, S.Material);
+		Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Ism->SetCollisionProfileName(TEXT("NoCollision"));
+		Ism->SetCanEverAffectNavigation(false);
+		Ism->SetGenerateOverlapEvents(false);
+		Ism->SetCastShadow(true);
+		Ism->bReceivesDecals = false;
+		Ism->bVisibleInRayTracing = false;
+		Ism->WorldPositionOffsetDisableDistance = 6000;
+		const float Cull = FMath::Max(S.CullDistance, 20000.0f);
+		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
+		Ism->LDMaxDrawDistance = Cull * 1.05f;
+		Ism->RegisterComponent();
+		Ism->AddInstances(Group.Value, false, false);
+		AddInstanceComponent(Ism);
+		Parts.Add(Ism);
+		PlantsShown += Group.Value.Num();   // (let go with the plants, which count them off)
+		AnimalsShown += Group.Value.Num();
 	}
 }
 
@@ -537,6 +584,26 @@ bool ATorqueRideWorld::FindKit()
 			if (KindNear[K].Num() == 0 && Instead != K) { KindNear[K] = KindNear[Instead]; KindFar[K] = KindFar[Instead]; }
 		}
 	}
+	// [stage 6] The livestock's models, by the kind their name says (SM_Animal_<kind>_<n>).
+	AnimalKit.Reset();
+	AnimalModels.Reset();
+	AnimalModels.SetNum(TorqueWorld::RidePlan::AnimalKinds);
+	if (UWorld* World = GetWorld())
+		for (TActorIterator<ATorqueFoliage> It(World); It; ++It)
+		{
+			if (!It->ActorHasTag(TEXT("RideAnimals"))) continue;
+			AnimalFrame = FVector(It->FrameYaw, It->FrameMirror, It->FrameScale);
+			for (const FTorqueFoliageSpecies& S : It->Species)
+			{
+				if (!S.Mesh) continue;
+				const FString Name = S.Name.ToString();
+				for (int32 K = 0; K < TorqueWorld::RidePlan::AnimalKinds; ++K)
+					if (Name.StartsWith(FString(TEXT("SM_Animal_")) + UTF8_TO_TCHAR(TorqueWorld::RidePlan::AnimalName(K)) + TEXT("_"))) AnimalModels[K].Add(AnimalKit.Num());
+				AnimalKit.Add(S);
+			}
+		}
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: livestock: %d models%s"), AnimalKit.Num(),
+		AnimalKit.Num() ? TEXT("") : TEXT(" (no RideAnimals actor in the level: python Tools/make_ride_animals.py, then Tools/ue_build_rideuk.py)"));
 	FString Missing;
 	for (int32 K = 0; K < TorqueWorld::RidePlan::PlantKinds; ++K)
 		if (KindNear[K].Num() == 0) Missing += FString(TEXT(" ")) + UTF8_TO_TCHAR(TorqueWorld::RidePlan::PlantName(K));

@@ -74,6 +74,15 @@ struct RidePlant
 	float Yaw = 0.0f, Scale = 1.0f, Nx = 0.0f, Nz = 0.0f, Height = 0.0f, Pick = 0.0f;
 };
 
+// A farm animal in a field (Ride UK stage 6), in its square's own origin: its kind (RidePlan::
+// AnimalName), where its feet are, which way it faces (radians: its front along (cos, sin) with x east
+// and z south), its size, and which of its kind's models (0..1: a herd shares one, so one coat).
+struct RideAnimal
+{
+	uint16_t Kind = 0;
+	float X = 0.0f, Y = 0.0f, Z = 0.0f, Yaw = 0.0f, Scale = 1.0f, Pick = 0.0f;
+};
+
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.
 struct RideMesh
 {
@@ -112,6 +121,8 @@ struct RideMesh
 	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
+	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).
+	std::vector<RideAnimal> Animals;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
 	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
 	std::shared_ptr<RideMesh> Glow;
@@ -301,6 +312,17 @@ public:
 	// What a tree kind is drawn as when there are no models of it (itself for the first six).
 	static int PlantStandIn(int Kind);
 	static const char* PlantName(int Kind);
+	// The livestock in the fields of a square of ground (Ride UK stage 6: WorldRideLife.cpp): flocks of
+	// sheep on the pasture, and the moor in the uplands; herds of cattle, more in the lowlands, most of
+	// them in the sheds from November to March; lambs at foot from March to June; Highland cattle in
+	// the Highlands. None on a road, a railway, in a building, a wall, water or a wood. The same every
+	// time for the same square and month.
+	void AnimalsTile(double X0, double Z0, double Size, std::vector<RideAnimal>& Out) const;
+	enum EAnimal { EweGraze, EweLook, EweLie, Lamb, CowGraze, CowStand, CowLie, Highland, AnimalKinds };
+	// "ewe_graze", ... "highland": the models' names are SM_Animal_<name>_<n> (Tools/make_ride_animals.py).
+	static const char* AnimalName(int Kind);
+	// The month the ride is in (1..12; its seasons: the lambs, the cattle out, the heather in flower).
+	int Month = 6;
 	// Set before the ground is made: trees come as plants (PlantsTile) and not as stand-in shapes
 	// (SceneryTile); how many of the grass's plants are kept (0..1).
 	bool RealTrees = false;

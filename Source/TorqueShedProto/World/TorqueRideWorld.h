@@ -75,6 +75,9 @@ private:
 	// A square's grass and trees as instanced meshes, and taking them away again.
 	void PlacePlants(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 	void DropPlants(const FIntVector& Key);
+	// [stage 6] A square's sheep and cattle (RideMesh::Animals), as instances of the kit actor tagged
+	// RideAnimals' models (Tools/ue_build_rideuk.py), held with its plants (dropped with them).
+	void PlaceAnimals(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
 	std::shared_ptr<FTorqueRideJobs> Jobs;
@@ -109,6 +112,10 @@ private:
 	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;
 	TArray<TArray<int32>> KindNear, KindFar;
+	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> AnimalKit;
+	TArray<TArray<int32>> AnimalModels;   // by RidePlan::EAnimal: indices into AnimalKit
+	FVector AnimalFrame = FVector(0.0, 1.0, 1.0);
+	int32 AnimalsShown = 0;
 	FVector GrassFrame = FVector(0.0, 1.0, 1.0), TreeFrame = FVector(0.0, 1.0, 1.0);   // yaw, mirror, scale
 	int32 KitTrees = 0;   // (where in Kit the trees start)
 	float CullScale = 1.0f;

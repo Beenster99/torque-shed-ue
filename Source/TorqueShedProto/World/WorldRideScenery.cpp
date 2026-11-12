@@ -149,10 +149,26 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 	// What covers the ground here and a little way off each way, so one kind runs into the next.
 	double R = 0.0, G = 0.0, B = 0.0;
 	const double Offs[5][2] = {{0.0, 0.0}, {Spread, 0.0}, {-Spread, 0.0}, {0.0, Spread}, {0.0, -Spread}};
+	// The season (Ride UK stage 6): the heather in flower on the moor in August, the bracken and the
+	// pasture dull and straw-coloured over the winter, the crops ripening gold, then the stubble and
+	// the plough.
+	const double Bloom = Month == 8 ? 1.0 : Month == 9 ? 0.5 : Month == 7 ? 0.25 : 0.0;
+	const double Dead = Month >= 11 || Month <= 2 ? 1.0 : Month == 3 || Month == 10 ? 0.5 : 0.0;
+	const double Ripe = Month == 7 || Month == 8 ? 1.0 : Month == 6 ? 0.4 : 0.0, Stubble = Month >= 9 || Month <= 2 ? 1.0 : 0.0;
+	const bool Patch = Chance(std::floor(X / 24.0), std::floor(Z / 24.0), 91) < 0.6;
+	const auto Toward = [](Rgb C, const Rgb& To, double By)
+	{
+		C.R = float(C.R + (To.R - C.R) * By); C.G = float(C.G + (To.G - C.G) * By); C.B = float(C.B + (To.B - C.B) * By);
+		return C;
+	};
+	static const Rgb Heather = {0.13f, 0.045f, 0.11f}, Bracken = {0.15f, 0.075f, 0.03f}, Straw = {0.125f, 0.12f, 0.06f}, Gold = {0.26f, 0.2f, 0.07f}, Plough = {0.11f, 0.08f, 0.05f};
 	for (const double* Off : Offs)
 	{
 		const int Id = Land ? Land->Cover(X + Off[0], Z + Off[1]) : -1;
-		const Rgb& C = Id >= 0 && Id < 10 ? CoverColour[Id] : NoCover;
+		Rgb C = Id >= 0 && Id < 10 ? CoverColour[Id] : NoCover;
+		if (Id == 3) C = Toward(Toward(C, Heather, Patch ? 0.5 * Bloom : 0.0), Bracken, (Patch ? 0.15 : 0.4) * Dead);
+		else if (Id == 0) C = Toward(C, Straw, 0.3 * Dead);
+		else if (Id == 2) C = Toward(Toward(C, Gold, 0.5 * Ripe), Plough, 0.45 * Stubble);
 		const double W = Off[0] == 0.0 && Off[1] == 0.0 ? 2.0 : 1.0;
 		R += C.R * W; G += C.G * W; B += C.B * W;
 	}
