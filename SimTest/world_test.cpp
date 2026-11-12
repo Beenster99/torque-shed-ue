@@ -795,6 +795,40 @@ int main()
 							"a side road's mouth on the ride's road has rounded corners, give-way lines where it is the lesser road, and the ride's road's edge line broken across it");
 						(void)GiveWays;
 					}
+					// Where a side road lies on the ride's road it is just under that road's surface, never over
+					// it (two surfaces fought there and a flat side road on a slope stood proud: build 140's bump).
+					{
+						int OnMain = 0, Proud = 0, Leaning = 0;
+						double WorstProud = 0.0, WorstLean = 0.0;
+						RidePlan::NearOpts MainOnly;
+						MainOnly.MainOnly = true;
+						for (size_t W = 0; W < Plan->Sides.size(); ++W)
+						{
+							const int Count = int(Plan->Sides[W].Pts.size());
+							RideMesh Mesh;
+							Plan->RoadPiece(int(W) + 1, 0, Count - 1, Mesh);
+							for (size_t V = 0; V < Mesh.Vertices(); ++V)
+							{
+								const double X = Mesh.OriginX + Mesh.Pos[V * 3], Y = Mesh.Pos[V * 3 + 1], Z = Mesh.OriginZ + Mesh.Pos[V * 3 + 2];
+								RidePlan::NearHit Hit;
+								if (!Plan->NearestOf(X, Z, MainOnly, Hit) || Hit.Deck || Hit.Bore) continue;
+								const double Theirs = Hit.Height + Hit.Cross;
+								if (std::fabs(Y - Theirs) > 1.0 || Mesh.Col[V * 3] > 0.05f) continue;   // (over or under it on a bridge; paint and the shoulder aside)
+								if (Hit.Dist < Hit.Half - 0.05)
+								{
+									++OnMain;
+									if (Y > Theirs + 0.016) { ++Proud; WorstProud = std::fmax(WorstProud, Y - Theirs); }
+								}
+								else if (Hit.Dist < Hit.Half + 0.5)
+								{
+									++Leaning;
+									WorstLean = std::fmax(WorstLean, std::fabs(Y - Theirs));
+								}
+							}
+						}
+						std::printf("      side roads' tarmac on the ride's road: %d points, %d over its surface (worst %.3f m); just past its edge %d, at most %.3f m off it\n", OnMain, Proud, WorstProud, Leaning, WorstLean);
+						Check(OnMain > 100 && Proud == 0 && WorstLean < 0.12, "a side road where it lies on the ride's road is just under its surface, and meets its edge level");
+					}
 					// The ground's colour and what stands on it.
 					{
 						size_t Stands = 0, StoneGrey = 0, Squares = 0, Alike = 0, OnTarmac = 0, InScan = 0;

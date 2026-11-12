@@ -1,0 +1,4 @@
+{
+  "_about": "Ride UK's own trim on the exposure Buttertubs' camera uses (stops; read by ATorqueGameState at the start). Build 140 came out washed out: about a stop over. -TorqueExposure=<stops> overrides it for a test.",
+  "exposure_bias": -1.0
+}

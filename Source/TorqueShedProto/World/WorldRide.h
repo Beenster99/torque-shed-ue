@@ -144,6 +144,9 @@ public:
 	// ground), then steeply down into the ground by Shoulder. The grass meets it on the steep part, so
 	// the line between them stays put though the land's mesh is only a point every 4 m.
 	static constexpr double Shoulder = 1.3, ShoulderDrop = 0.4, ShoulderFlat = 0.8, ShoulderDip = 0.03;
+	// Where a side road joins a greater one: how far under its surface it sinks, and how far out from
+	// its edge it leans into it.
+	static constexpr double JoinSink = 0.02, JoinLean = 4.0;
 	// Past the edge on the side the road falls to, the ground goes on falling this far (then level):
 	// were it level from the edge, the land's mesh, straight between its points, would stand over the
 	// tarmac's edge on the low side of a banked bend.
@@ -188,6 +191,8 @@ public:
 		double Fall = 0.0;       // how steeply the road's surface falls outwards at its edge on the point's side (0 if it rises)
 	};
 	bool NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit) const;
+	// A side road's surface height Y at a point, settled onto a greater road it lies on or joins there.
+	double JoinedHeight(int Which, const P2& At, double Y) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.
 	double GroundOf(double X, double Z, double Coarse, bool NoBores) const;
 

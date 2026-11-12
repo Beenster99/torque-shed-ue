@@ -673,6 +673,33 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	}
 }
 
+double RidePlan::JoinedHeight(int Which, const P2& At, double Y) const
+{
+	// A side road where it lies on a greater road (the ride's, or a side road made before it) sinks just
+	// under that road's own surface, and for a few metres out from that road's edge leans into it: two
+	// surfaces at one place fought (the flicker at junctions in build 140), and a flat side road laid
+	// across a main road on a slope stood proud of it at one edge (the slight bump).
+	if (Which <= 0) return Y;
+	// (the ride's road first; then whichever side road made before it is nearest)
+	NearOpts Greater[2];
+	Greater[0].MainOnly = true;
+	Greater[1].NotRoad = Which;
+	for (NearOpts& O : Greater)
+	{
+		O.NoDecks = true;
+		O.NoBores = true;
+		NearHit Hit;
+		if (!NearestOf(At.X, At.Z, O, Hit) || Hit.Which > Which) continue;
+		const double Out2 = Hit.Dist - Hit.Half;
+		if (Out2 > JoinLean) continue;
+		const double Theirs = Hit.Height + Hit.Cross - JoinSink;
+		if (std::fabs(Theirs - Y) > 1.2) continue;   // (over or under it, not joining it)
+		const double T = Out2 <= 0.0 ? 0.0 : Smooth01(Out2 / JoinLean);
+		return Theirs + (Y - Theirs) * T;
+	}
+	return Y;
+}
+
 void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 {
 	Out = RideMesh();
@@ -730,11 +757,13 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Nz = -Dir.Z * Rise / Nl;
 		Rows.push_back(R);
 	}
-	const auto Put = [&Out](const Row& R, double Off, double Lift, const float* Colour)
+	const auto Settle = [this, Which](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeight(Which, At, Y); };
+	const auto Put = [&Out, &Settle](const Row& R, double Off, double Lift, const float* Colour)
 	{
 		// (Off is to the left of the middle)
 		const P2 At = R.At + R.Left * Off;
-		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank) + Lift)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
+		const double Y = Settle(R, At, R.Height + RoadLine::CrossHeight(Off, R.Half, R.Bank));
+		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y + Lift)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
 		Out.Nrm.push_back(float(R.Nx)); Out.Nrm.push_back(float(R.Ny)); Out.Nrm.push_back(float(R.Nz));
 		Out.Uv.push_back(float(Off / 4.0)); Out.Uv.push_back(float(R.Along / 4.0));
 		Out.Col.push_back(Colour[0]); Out.Col.push_back(Colour[1]); Out.Col.push_back(Colour[2]);
@@ -1025,7 +1054,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			NearOpts Opts;
 			Opts.OnlyRoad = Of;
 			NearHit Hit;
-			return NearestOf(At.X, At.Z, Opts, Hit) ? Hit.Height + Hit.Cross : Else;
+			if (!NearestOf(At.X, At.Z, Opts, Hit)) return Else;
+			// (a side road's as it is drawn: where it joins a greater road, settled onto it)
+			return Hit.Deck || Hit.Bore ? Hit.Height + Hit.Cross : JoinedHeight(Of, At, Hit.Height + Hit.Cross);
 		};
 		const double MouthH = Surface(0, M.At, Pts[size_t(End == 0 ? 0 : Count - 1)].Height);
 		const auto At3 = [](const P2& At, double Y)
@@ -1039,8 +1070,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// corner between the two roads' edges (about a 6 m radius), and across the side road between
 		// them, a hair over both roads' own tarmac and the ride's road's shoulder. A shoulder round each curve.
 		const P2 Hub = M.At - M.Across * 0.5;
-		// (no lower than the road's edge beside it, where the road is banked up towards this side)
-		const P3 Hub3 = At3(Hub, std::fmax(Surface(0, Hub, MouthH), MouthH) + 0.02);
+		// (a hair over the ride's road there: the side road itself now lies just under it, so the fan needs
+		// no more than that to show, and stands no higher for a wheel running along the edge)
+		const P3 Hub3 = At3(Hub, Surface(0, Hub, MouthH) + 0.012);
 		const int Segs = 6;
 		P2 Rim[2 * (Segs + 1)];
 		double RimH[2 * (Segs + 1)];
@@ -1068,7 +1100,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			{
 				const double U = double(S) / Segs;
 				CurveAt[S] = OnMain * ((1.0 - U) * (1.0 - U)) + Corner * (2.0 * U * (1.0 - U)) + OnSide * (U * U);
-				CurveH[S] = MainH + (SideH - MainH) * U;
+				// (the side road's surface as drawn, settled onto the ride's road near its edge, a hair over it)
+				CurveH[S] = Surface(Which, CurveAt[S], MainH + (SideH - MainH) * U) + 0.01 + JoinSink * (1.0 - U);
 				// (out from the corner, square to the curve)
 				const P2 Tangent = (Corner - OnMain) * (1.0 - U) + (OnSide - Corner) * U;
 				P2 Outward(Tangent.Z, -Tangent.X);
@@ -1111,7 +1144,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const P2 A0 = M.At + M.Along * U + M.Across * (Back - 0.1), A1 = M.At + M.Along * (U + 0.6) + M.Across * (Back - 0.1);
 				const P2 B0 = A0 + M.Across * 0.2, B1 = A1 + M.Across * 0.2;
 				// (on whichever is the higher there: the side road's surface or the threshold's)
-				const auto Top = [&Surface, Which, MouthH](const P2& At) { return std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.04; };
+				const auto Top = [&Surface, Which, MouthH](const P2& At) { return std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.025; };
 				Quad3(At3(A0, Top(A0)), At3(A1, Top(A1)), At3(B1, Top(B1)), At3(B0, Top(B0)), Sky, Paint, false);
 			}
 	}

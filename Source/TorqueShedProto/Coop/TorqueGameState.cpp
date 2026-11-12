@@ -30,6 +30,9 @@
 #include "Materials/MaterialParameterCollection.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Net/UnrealNetwork.h"
 
 bool ATorqueGameState::bRealClockTest = false;
@@ -899,6 +902,25 @@ void ATorqueGameState::ApplyWeather()
 		if (Fog) { FogDensity = Fog->FogDensity; FogInscatter = Fog->FogInscatteringLuminance; FogSunInscatter = Fog->DirectionalInscatteringLuminance; }
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
 		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; ExposureMax = Ppv->Settings.AutoExposureMaxBrightness; }
+		// A level's own trim on that exposure, kept as data so it can be tuned without a rebuild:
+		// Data/<map>/look.json {"exposure_bias": stops}, or -TorqueExposure=stops on the command line
+		// (beenster, build 140: the streamed Ride UK came out washed out next to Buttertubs).
+		if (Ppv)
+		{
+			const FString Map = UWorld::RemovePIEPrefix(W->GetMapName());
+			float Trim = 0.0f;
+			FString Text;
+			if (FFileHelper::LoadFileToString(Text, *(FPaths::ProjectDir() / TEXT("Data") / Map / TEXT("look.json"))))
+			{
+				TSharedPtr<FJsonObject> Look;
+				const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+				double Stops = 0.0;
+				if (FJsonSerializer::Deserialize(Reader, Look) && Look.IsValid() && Look->TryGetNumberField(TEXT("exposure_bias"), Stops)) Trim = float(Stops);
+			}
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueExposure="), Trim);
+			ExposureBias += Trim;
+			UE_LOG(LogTemp, Display, TEXT("Torque weather: %s exposure bias %.2f (trim %.2f), range %.1f to %.1f EV"), *Map, ExposureBias, Trim, ExposureMin, ExposureMax);
+		}
 	}
 	const TorqueWeather::State& St = Here;
 	const float Dull = (float)TorqueWeather::Dullness(St);    // 0 the sunny preset's sky .. 1 overcast's
