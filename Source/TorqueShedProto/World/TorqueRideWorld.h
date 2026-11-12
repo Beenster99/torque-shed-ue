@@ -40,6 +40,7 @@ class UInstancedStaticMeshComponent;
 namespace TorqueWorld
 {
 class RidePlan;
+struct DiaryRide;
 struct RideMesh;
 struct Tint;
 }
@@ -71,10 +72,19 @@ public:
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
+	// [stage 7] The ride diary: a photo (the screen as it is, without the HUD) pinned where the rider
+	// is, saved with the ride in Saved/RideDiary. What happened, for a note on the screen.
+	static FString TakePhoto();
+	// Where the diary keeps its rides and photos.
+	static FString DiaryFolder();
 
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;
 	double Heard[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+	// [stage 7] This ride's diary (World/WorldRideDiary), stepped as the rider goes, saved now and then.
+	std::shared_ptr<TorqueWorld::DiaryRide> Diary;
+	double SinceDiary = 0.0, SinceDiarySaved = 0.0;
+	void SaveDiary();
 	double SinceHeard = 1.0;
 	// Where the rider is, in the ride's frame (metres: x east, z south).
 	FVector2D RiderAt() const;

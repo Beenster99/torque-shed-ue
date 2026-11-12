@@ -11,6 +11,7 @@
 #include "WorldInflate.h"
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRideDiary.h"
 #include "WorldRoadLine.h"
 #include "WorldRouteMap.h"
 #include "WorldRegion.h"
@@ -739,6 +740,27 @@ int main()
 							}
 							std::printf("      after dark: %zu glowing points (windows, lamp heads), %zu street lamp lights, %zu cat's eyes\n", Glowing, Lamps, Eyes);
 							Check(Glowing > 100 && Lamps > 0 && Eyes > 100, "after dark the windows and street lamps light up and the cat's eyes line the road");
+						}
+						// The ride diary (stage 7): the road ridden kept, photos pinned, saved and read back.
+						{
+							DiaryRide Diary;
+							Diary.Id = DiaryRide::IdFor(1700000000);
+							Diary.Title = "Ride UK";
+							const Frame F = Plan->Area.Roads.FrameOf();
+							long long Clock = 1700000000;
+							for (size_t I = 0; I < Plan->Road.size(); I += 3)
+							{
+								const Geo Spot = F.ToGeo(Plan->Road[I].At.X, Plan->Road[I].At.Z);
+								Diary.Step(Spot.Lat, Spot.Lon, 20.0, 0.6, Clock++);
+								if (I == Plan->Road.size() / 2) Diary.AddPhoto("photo_1.png", Clock);
+							}
+							DiaryRide Again;
+							const bool Read = DiaryRide::FromJson(Diary.ToJson(), Again);
+							std::printf("      diary: %s, %.1f km of %.1f ridden, %d track points, %d photo at %.1f km; read back %s\n", Diary.Id.c_str(), Diary.Metres / 1000.0,
+								Plan->Length / 1000.0, int(Diary.Track.size()), int(Diary.Photos.size()), Diary.Photos.empty() ? 0.0 : Diary.Photos[0].Metres / 1000.0, Read ? "whole" : "FAILED");
+							Check(Diary.Id == "20231114-221320" && DiaryRide::IdFor(0) == "19700101-000000" && std::fabs(Diary.Metres - Plan->Length) < Plan->Length * 0.03 && Read
+									&& Again.Track.size() == Diary.Track.size() && Again.Photos.size() == 1 && Again.Photos[0].File == "photo_1.png" && std::fabs(Again.Metres - Diary.Metres) < 1.0,
+								"the ride diary keeps the road ridden and the photo where it was taken, and reads back whole");
 						}
 						// The sat nav (stage 7): the turns along the ride and the stops by it.
 						{

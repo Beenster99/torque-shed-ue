@@ -17,6 +17,7 @@
 #include "Engine/Texture2D.h"
 #include "UObject/StrongObjectPtr.h"
 
+#include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "World/WorldRouteMap.h"
 
@@ -70,6 +71,7 @@ private:
 	TorqueWorld::Geo ToPlace(const FVector2D& Screen) const;
 	bool OnMap(const FVector2D& Screen) const;
 	void FitTo(const std::vector<TorqueWorld::RoutePin>& Pins);
+	void FitBox(double South, double North, double West, double East);
 	// The names on the map (redone when the view moves).
 	std::vector<const TorqueWorld::Route::Place*> Labels;
 	double LabelLat = 0.0, LabelLon = 0.0, LabelZoom = -1.0;
@@ -88,7 +90,7 @@ private:
 	// The panel: the search (typed), its finds, which tab, the famous roads' scroll, round trips.
 	FString Search, Searched;
 	std::vector<TorqueWorld::Route::Place> Finds;
-	int32 Tab = 0;   // 0 the journey, 1 the famous roads
+	int32 Tab = 0;   // 0 the journey, 1 the famous roads, 2 the diary
 	int32 FamousFirst = 0;
 	double LoopKm = 60.0;
 	std::vector<TorqueWorld::RouteRequest> LoopWays;
@@ -97,6 +99,18 @@ private:
 	FString Said;
 	double SaidUntil = 0.0;
 	void Say(const FString& Text);
+
+	// [stage 7] The ride diary (World/WorldRideDiary): the rides kept in Saved/RideDiary, newest first;
+	// the one shown on the map (its road and its photos), and the photo open over the map.
+	std::vector<TorqueWorld::DiaryRide> Diaries;
+	int32 DiaryOn = -1, DiaryFirst = 0, PhotoOn = -1;
+	TStrongObjectPtr<UTexture2D> PhotoTex;
+	FString PhotoTexFile;
+	void LoadDiary();
+	void ShowDiary(int32 Index);
+	void ShowPhoto(int32 Index);
+	void DrawDiaryMap(UCanvas* Canvas, bool bPhoto);
+	float DrawDiaryPanel(UCanvas* Canvas, float X0, float Y, float PW, float BottomY);
 
 	void AddPin(double Lat, double Lon, const FString& Name);
 	void RemovePin(int32 Index);

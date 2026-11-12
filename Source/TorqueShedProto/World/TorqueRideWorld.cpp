@@ -23,6 +23,13 @@
 #include "ProceduralMeshComponent.h"
 
 #include "World/WorldRide.h"
+#include "World/WorldRideDiary.h"
+#include "World/WorldRoute.h"
+#include "HAL/FileManager.h"
+#include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "UnrealClient.h"
 
 #include <atomic>
 #include <cmath>
@@ -105,6 +112,35 @@ void ATorqueRideWorld::DropStreetLights(const FIntVector& Key)
 	}
 }
 
+FString ATorqueRideWorld::DiaryFolder()
+{
+	return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RideDiary"));
+}
+
+void ATorqueRideWorld::SaveDiary()
+{
+	// (a ride of a few hundred metres, a look round the start, isn't kept)
+	if (!Diary || (Diary->Metres < 300.0 && Diary->Photos.empty())) return;
+	const FString Path = FPaths::Combine(DiaryFolder(), UTF8_TO_TCHAR((Diary->Id + ".json").c_str()));
+	if (!FFileHelper::SaveStringToFile(UTF8_TO_TCHAR(Diary->ToJson().c_str()), *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+		UE_LOG(LogTemp, Warning, TEXT("Torque ride diary: couldn't write %s"), *Path);
+	SinceDiarySaved = 0.0;
+}
+
+FString ATorqueRideWorld::TakePhoto()
+{
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Diary) return TEXT("Photos are for the ride diary: take them on a Ride UK ride");
+	IFileManager::Get().MakeDirectory(*DiaryFolder(), true);
+	const std::string Name = Ride->Diary->Id + "_photo_" + std::to_string(Ride->Diary->Photos.size() + 1) + ".png";
+	const FString Path = FPaths::Combine(DiaryFolder(), UTF8_TO_TCHAR(Name.c_str()));
+	FScreenshotRequest::RequestScreenshot(Path, false, false);
+	Ride->Diary->AddPhoto(Name, FDateTime::UtcNow().ToUnixTimestamp());
+	Ride->SaveDiary();
+	UE_LOG(LogTemp, Display, TEXT("Torque ride diary: photo %d at %.1f km (%s)"), int32(Ride->Diary->Photos.size()), Ride->Diary->Metres / 1000.0, *Path);
+	return FString::Printf(TEXT("Photo %d taken: it's in the ride diary (Plan a ride > Diary)"), int32(Ride->Diary->Photos.size()));
+}
+
 bool ATorqueRideWorld::SurfaceUnder(const FVector& At, int32& Kind, double& Lift)
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -159,6 +195,14 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 {
 	Plan = InPlan;
 	Current = this;
+	if (Plan && Plan->Ok)
+	{
+		// [stage 7] This ride's page in the diary.
+		Diary = std::make_shared<TorqueWorld::DiaryRide>();
+		Diary->Id = TorqueWorld::DiaryRide::IdFor(FDateTime::UtcNow().ToUnixTimestamp());
+		Diary->Title = !Plan->Title.empty() ? Plan->Title : Plan->Names.empty() ? std::string("Ride UK") : "Ride UK: " + Plan->Names.front() + " to " + Plan->Names.back();
+		if (Plan->Request.Pins.size() >= 2) Diary->Code = TorqueWorld::Route::CodeOf(Plan->Request);
+	}
 	if (!Plan || !Plan->Ok || Plan->Road.size() < 2) return;
 	Jobs = std::make_shared<FTorqueRideJobs>();
 	// (the ground in the hand-built ride's scanned grass, moor and rock when Tools/ue_build_rideuk.py
@@ -204,6 +248,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 void ATorqueRideWorld::EndPlay(const EEndPlayReason::Type Reason)
 {
 	if (Current.Get() == this) Current.Reset();
+	SaveDiary();   // [stage 7]
 	if (Jobs)
 	{
 		// (a worker part way through a square reads the world's stores: let it finish before they can go)
@@ -558,6 +603,20 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 				for (const TWeakObjectPtr<UPointLightComponent>& Lamp : Square.Value)
 					if (Lamp.IsValid()) Lamp->SetVisibility(bOn);
 		}
+	}
+	// [stage 7] The diary: where the rider is, twice a second; written down every half minute.
+	SinceDiary += DeltaSeconds;
+	SinceDiarySaved += DeltaSeconds;
+	if (Diary && SinceDiary >= 0.5 && BirdsLookedAt.X < 1e11)
+	{
+		double Speed = 0.0;
+		if (const UWorld* World = GetWorld())
+			if (const APlayerController* PC = World->GetFirstPlayerController())
+				if (const APawn* Pawn = PC->GetPawn()) Speed = Pawn->GetVelocity().Size() / 100.0;
+		const TorqueWorld::Geo G = Plan->Area.Roads.FrameOf().ToGeo(BirdsLookedAt.X, BirdsLookedAt.Y);
+		Diary->Step(G.Lat, G.Lon, Speed, SinceDiary, FDateTime::UtcNow().ToUnixTimestamp());
+		SinceDiary = 0.0;
+		if (SinceDiarySaved > 30.0) SaveDiary();
 	}
 	// (the sound of the place, once a second: a fraction of a millisecond)
 	SinceHeard += DeltaSeconds;

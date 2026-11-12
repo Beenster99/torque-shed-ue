@@ -1543,6 +1543,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		SetWaving(!Sim->IsCrashed && (bPadWave || FTorqueKeys::Down(PC, ETorqueKey::Wave)));
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Help)) bShowHelp = !bShowHelp;
+	// [Ride UK stage 7] A photo for the ride diary, pinned where it was taken.
+	if (FTorqueKeys::Just(PC, ETorqueKey::Photo))
+	{
+		const FString Said = ATorqueRideWorld::TakePhoto();
+		if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC)) TPC->ShowNote(Said, 3.0);
+	}
 	// beenster (Nov 12): F2 the info lines top left (off to start with), F3 the telemetry.
 	if (FTorqueKeys::Just(PC, ETorqueKey::RideHud))
 	{
