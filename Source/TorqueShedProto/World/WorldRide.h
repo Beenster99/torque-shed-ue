@@ -115,9 +115,15 @@ public:
 
 	static constexpr double Bench = 4.0;        // level ground kept each side of the road
 	static constexpr double Blend = 12.0;       // and the bank from there back to the land as it lies
-	static constexpr double Sink = 0.05;        // how far under the road's surface the ground under it lies
-	static constexpr double Shoulder = 1.3;     // the road's sloping edge: this far out,
-	static constexpr double ShoulderDrop = 0.26;   // and this far down, into the ground
+	static constexpr double Sink = 0.1;         // how far under the road's surface the ground under it lies
+	// The road's shoulder: nearly level out to ShoulderFlat (ShoulderDip down, still clear of the
+	// ground), then steeply down into the ground by Shoulder. The grass meets it on the steep part, so
+	// the line between them stays put though the land's mesh is only a point every 4 m.
+	static constexpr double Shoulder = 1.3, ShoulderDrop = 0.4, ShoulderFlat = 0.8, ShoulderDip = 0.03;
+	// Past the edge on the side the road falls to, the ground goes on falling this far (then level):
+	// were it level from the edge, the land's mesh, straight between its points, would stand over the
+	// tarmac's edge on the low side of a banked bend.
+	static constexpr double FallOn = 2.0;
 	double WidestHalf = 2.3;                    // of the whole ride
 	int Bridges = 0, Tunnels = 0;               // those the ride's road crosses
 	int SideBridges = 0, SideTunnels = 0;       // and those on the roads beside it
@@ -155,6 +161,7 @@ public:
 		int Index = -1, Which = 0;
 		bool Deck = false, Bore = false;
 		P2 Foot;                 // the point of the road's middle nearest
+		double Fall = 0.0;       // how steeply the road's surface falls outwards at its edge on the point's side (0 if it rises)
 	};
 	bool NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit) const;
 	// The ground as Ground gives it, but with NoBores as if no road ran in a tunnel: the hill over one.

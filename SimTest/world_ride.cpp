@@ -9,6 +9,7 @@
 #include "WorldFiles.h"
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldRoadLine.h"
 
 #include <atomic>
 #include <chrono>
@@ -141,6 +142,39 @@ int main(int Argc, char** Argv)
 		for (const RidePlan::SideRoad& Sd : Plan->Sides)
 			for (const RidePlan::Mouth& M : Sd.Mouths)
 				if (M.Is && ++Shown <= 12) std::printf("  a mouth at %.2f km%s\n", Plan->Road[size_t(M.MainIndex)].Along / 1000.0, M.GiveWay ? ", give way" : "");
+	}
+	{
+		// The ground's 4 m mesh against the road's edge: where the land's squares, straight between their
+		// corners, stand over the tarmac just inside its edge, or leave the shoulder's foot in the air.
+		const auto Mesh4 = [&Plan](double X, double Z)
+		{
+			const double Gx = std::floor(X / 4.0) * 4.0, Gz = std::floor(Z / 4.0) * 4.0, U = (X - Gx) / 4.0, V = (Z - Gz) / 4.0;
+			const double H00 = Plan->Ground(Gx, Gz, 4.0), H10 = Plan->Ground(Gx + 4.0, Gz, 4.0), H01 = Plan->Ground(Gx, Gz + 4.0, 4.0), H11 = Plan->Ground(Gx + 4.0, Gz + 4.0, 4.0);
+			// (the land's squares are cut corner to corner: A C B, B C D)
+			return U + V <= 1.0 ? H00 + (H10 - H00) * U + (H01 - H00) * V : H11 + (H01 - H11) * (1.0 - U) + (H10 - H11) * (1.0 - V);
+		};
+		int Over = 0, Asked2 = 0, Air = 0, OverFlat = 0;
+		double Worst = 0.0, WorstAir = 0.0;
+		for (size_t I = 2; I + 2 < Plan->Road.size(); ++I)
+		{
+			const RoadPoint& P = Plan->Road[I];
+			if (P.Bridge || P.Tunnel) continue;
+			P2 D = Plan->Road[I + 1].At - Plan->Road[I - 1].At;
+			D = D * (1.0 / D.Length());
+			const P2 L(D.Z, -D.X);
+			for (double Side : {1.0, -1.0})
+			{
+				++Asked2;
+				const P2 In = P.At + L * (Side * (P.Half - 0.15)), Foot = P.At + L * (Side * (P.Half + RidePlan::Shoulder));
+				const double Up = Mesh4(In.X, In.Z) - (P.Height + RoadLine::CrossHeight(Side * (P.Half - 0.15), P.Half, P.Bank));
+				if (Up > 0.0) { ++Over; Worst = std::fmax(Worst, Up); }
+				const double Gap = (P.Height + RoadLine::CrossHeight(Side * P.Half, P.Half, P.Bank) - RidePlan::ShoulderDrop) - Mesh4(Foot.X, Foot.Z);
+				if (Gap > 0.0) { ++Air; WorstAir = std::fmax(WorstAir, Gap); }
+				const P2 OnFlat = P.At + L * (Side * (P.Half + RidePlan::ShoulderFlat * 0.75));
+				if (Mesh4(OnFlat.X, OnFlat.Z) > P.Height + RoadLine::CrossHeight(Side * P.Half, P.Half, P.Bank) - RidePlan::ShoulderDip) ++OverFlat;
+			}
+		}
+		std::printf("The road's edges against the land's mesh: grass over the tarmac at %d of %d (%.3f m at most); over the shoulder's level part at %d; the shoulder's foot in the air at %d (%.3f m at most)\n", Over, Asked2, Worst, OverFlat, Air, WorstAir);
 	}
 	if (std::getenv("WORLD_RIDE_MESH") != nullptr)
 	{

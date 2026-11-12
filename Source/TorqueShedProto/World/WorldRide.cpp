@@ -339,7 +339,9 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 				// (how far to the left of the road's middle: left of a heading (dx, dz) is (dz, -dx))
 				const double Len = std::sqrt(L2);
 				const double Off = Len > 1e-9 ? ((X - Px) * Ab.Z - (Z - Pz) * Ab.X) / Len : 0.0;
-				Hit.Cross = RoadLine::CrossHeight(Off, HalfHere, Pa.Bank + (Pb.Bank - Pa.Bank) * T);
+				const double BankHere = Pa.Bank + (Pb.Bank - Pa.Bank) * T;
+				Hit.Cross = RoadLine::CrossHeight(Off, HalfHere, BankHere);
+				Hit.Fall = HalfHere > 1e-6 ? std::fmax(0.0, -RoadLine::CrossHeight(Off >= 0.0 ? HalfHere : -HalfHere, HalfHere, BankHere) / HalfHere) : 0.0;
 			}
 		}
 	return Hit.Index >= 0;
@@ -575,7 +577,7 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 		if (!NearestOf(X, Z, Opts, Hit)) return std::fmin(Lie, Clear);
 	}
 	// (the bench lies under the road's surface as it is tilted, and level with its edge beyond)
-	const double Height = Hit.Height + Hit.Cross;
+	const double Height = Hit.Height + Hit.Cross - Hit.Fall * std::fmin(FallOn, std::fmax(0.0, Hit.Dist - Hit.Half));
 	const double Wider = std::fmax(0.0, Coarse - 4.0);
 	const double Flat = Hit.Half + Bench + Wider;
 	const double Under = Height - Sink - std::fmin(0.45, Wider * 0.06);
@@ -946,8 +948,16 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			{
 				if (NoShoulder[Sd] || ShoulderTo[Sd] <= ShoulderFrom[Sd]) continue;
 				const Row Sa = ShoulderFrom[Sd] > 0.0 ? Between(A, B, ShoulderFrom[Sd]) : A, Sb = ShoulderTo[Sd] < 1.0 ? Between(A, B, ShoulderTo[Sd]) : B;
-				if (Sd == 0) Strip(Sa, Sb, Sa.Half + Shoulder, Sa.Half, Sb.Half + Shoulder, Sb.Half, -ShoulderDrop, 0.0, Verge);
-				else Strip(Sa, Sb, -Sa.Half, -Sa.Half - Shoulder, -Sb.Half, -Sb.Half - Shoulder, 0.0, -ShoulderDrop, Verge);
+				if (Sd == 0)
+				{
+					Strip(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, Verge);
+					Strip(Sa, Sb, Sa.Half + Shoulder, Sa.Half + ShoulderFlat, Sb.Half + Shoulder, Sb.Half + ShoulderFlat, -ShoulderDrop, -ShoulderDip, Verge);
+				}
+				else
+				{
+					Strip(Sa, Sb, -Sa.Half, -Sa.Half - ShoulderFlat, -Sb.Half, -Sb.Half - ShoulderFlat, 0.0, -ShoulderDip, Verge);
+					Strip(Sa, Sb, -Sa.Half - ShoulderFlat, -Sa.Half - Shoulder, -Sb.Half - ShoulderFlat, -Sb.Half - Shoulder, -ShoulderDip, -ShoulderDrop, Verge);
+				}
 			}
 		}
 		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
@@ -1017,7 +1027,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			Corner = ToEdge(0, Corner);
 			const P2 OnMain = ToEdge(0, Corner + AlongMain * Reach), OnSide = ToEdge(Which, Corner + M.Away * Reach);
 			const double MainH = Surface(0, OnMain, MouthH) + 0.01, SideH = Surface(Which, OnSide, MouthH) + 0.01;
-			P2 CurveAt[Segs + 1], CurveOut[Segs + 1];
+			P2 CurveAt[Segs + 1], CurveOut[Segs + 1], CurveMid[Segs + 1];
 			double CurveH[Segs + 1];
 			for (int S = 0; S <= Segs; ++S)
 			{
@@ -1032,6 +1042,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				// (the shoulder's outer edge; on a tight curve it gathers to a point rather than cross itself)
 				CurveOut[S] = CurveAt[S] + (Len > 1e-9 ? Outward * (Shoulder / Len) : P2(0.0, 0.0));
 				if (S > 0 && Dot(CurveOut[S] - CurveOut[S - 1], CurveAt[S] - CurveAt[S - 1]) <= 0.0) CurveOut[S] = CurveOut[S - 1];
+				CurveMid[S] = CurveAt[S] + (CurveOut[S] - CurveAt[S]) * (ShoulderFlat / Shoulder);
 				// (round the rim: the left corner from the ride's road to the side road, then the right one back)
 				const int At4 = Sd == 0 ? S : 2 * Segs + 1 - S;
 				Rim[At4] = CurveAt[S];
@@ -1040,9 +1051,12 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			for (int S = 0; S < Segs; ++S)
 			{
 				// (as two triangles, each made to face up: on a tight curve the four points may not lie in order)
-				const P3 In0 = At3(CurveAt[S], CurveH[S]), In1 = At3(CurveAt[S + 1], CurveH[S + 1]), Out0 = At3(CurveOut[S], CurveH[S] - ShoulderDrop), Out1 = At3(CurveOut[S + 1], CurveH[S + 1] - ShoulderDrop);
-				Quad3(In0, In1, Out1, In0, Sky, Verge, false);
-				Quad3(In0, Out1, Out0, In0, Sky, Verge, false);
+				const P3 In0 = At3(CurveAt[S], CurveH[S]), In1 = At3(CurveAt[S + 1], CurveH[S + 1]), Mid0 = At3(CurveMid[S], CurveH[S] - ShoulderDip), Mid1 = At3(CurveMid[S + 1], CurveH[S + 1] - ShoulderDip),
+					Out0 = At3(CurveOut[S], CurveH[S] - ShoulderDrop), Out1 = At3(CurveOut[S + 1], CurveH[S + 1] - ShoulderDrop);
+				Quad3(In0, In1, Mid1, In0, Sky, Verge, false);
+				Quad3(In0, Mid1, Mid0, In0, Sky, Verge, false);
+				Quad3(Mid0, Mid1, Out1, Mid0, Sky, Verge, false);
+				Quad3(Mid0, Out1, Out0, Mid0, Sky, Verge, false);
 			}
 		}
 		for (int S = 0; S + 1 < 2 * (Segs + 1); ++S) Quad3(Hub3, At3(Rim[S], RimH[S]), At3(Rim[S + 1], RimH[S + 1]), Hub3, Sky, Tarmac, false);
