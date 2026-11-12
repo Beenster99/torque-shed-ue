@@ -33,4 +33,6 @@ struct LocalLook
 
 // The look of the place at a latitude and longitude.
 const LocalLook& LookAt(double Lat, double Lon);
+// [stage 8] The world's default look, away from Britain: rendered walls, tiled roofs, grey stone.
+const LocalLook& WorldLook();
 } // namespace TorqueWorld

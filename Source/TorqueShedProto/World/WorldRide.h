@@ -198,6 +198,11 @@ public:
 	std::string Why;
 	std::string Title;                  // what the ride is called on the screen ("" for the roads' own names)
 	LoadedArea Area;
+	// [stage 8] Whose rules the ride's roads are under: Britain's own kit (its signs, phone and post
+	// boxes, pub signs, cat's eyes, the looks of its regions) or the world's default; and which side
+	// the traffic keeps to (the left in Britain and Japan).
+	bool Britain() const { return Area.Roads.Country == "uk"; }
+	bool KeepLeft() const { return Area.Roads.Country == "uk" || Area.Roads.Country == "jp"; }
 	std::shared_ptr<Terrain> Land;      // the ride's own view of the ground
 	std::vector<RoadPoint> Road;        // the ride's own road, a point every 4 m or closer
 	// Where a side road's end runs out onto the ride's road: the junction's mouth.

@@ -1516,7 +1516,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (Half >= 2.5 && std::fmod(A.Along, 9.0) < 3.0) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
 		// Cat's eyes (stage 7): a stud every 18.3 m (60 ft) down the middle of a road with a centre line,
 		// red ones along its edges where it has edge lines, out of the towns (lit streets have none).
-		if (Half >= 2.5 && !A.Bore && B.Along > A.Along)
+		if (Half >= 2.5 && !A.Bore && B.Along > A.Along && Britain())   // [stage 8] (Britain's)
 		{
 			const bool Town = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
 			const double Stud = 18.288;
@@ -1636,7 +1636,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (std::fabs(Slant) < 0.3) continue;
 		// (along the ride's road's edge from the side road's middle: U to its left edge is Half / Slant)
 		const double ToLeft = Half / Slant;
-		const double U0 = Half >= 2.5 ? 0.0 : ToLeft, U1 = -ToLeft;   // (the lane coming up to the junction is on the right, looking away from it)
+		// (the lane coming up to the junction is on the right, looking away from it; on the left where
+		// the traffic keeps right)
+		const double U0 = Half >= 2.5 ? 0.0 : ToLeft, U1 = KeepLeft() || Half < 2.5 ? -ToLeft : ToLeft;
 		const double Lo = std::fmin(U0, U1) + 0.15, Hi = std::fmax(U0, U1) - 0.15;
 		for (double Back : {0.2, 0.7})
 			for (double U = Lo; U + 0.6 <= Hi + 1e-9; U += 0.9)

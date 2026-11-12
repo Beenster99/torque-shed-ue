@@ -176,11 +176,21 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 	// Steep ground is thin turf, then bare stone.
 	const double Bare = std::fmin(1.0, std::fmax(0.0, (Slope - 0.7) / 0.5));
 	R += (Scar.R - R) * Bare; G += (Scar.G - G) * Bare; B += (Scar.B - B) * Bare;
+	// [stage 8] High mountains (none in Britain): old snow and the glaciers' ice above about 2700 m,
+	// lying less on the steep, so the crags show through.
+	if (Land && !Britain())
+	{
+		const double High = Land->Height(X, Z);
+		const double Snow = std::fmin(1.0, std::fmax(0.0, (High - 2700.0) / 350.0)) * (1.0 - 0.7 * Bare);
+		static const Rgb Firn = {0.62f, 0.64f, 0.68f};
+		R += (Firn.R - R) * Snow; G += (Firn.G - G) * Snow; B += (Firn.B - B) * Snow;
+	}
 	Out[0] = float(R); Out[1] = float(G); Out[2] = float(B);
 }
 
 const LocalLook& RidePlan::LookHere(double X, double Z) const
 {
+	if (!Britain()) return WorldLook();   // [stage 8]
 	const Geo Here = Frame(Area.Roads.FrameLat, Area.Roads.FrameLon).ToGeo(X, Z);
 	return LookAt(Here.Lat, Here.Lon);
 }
@@ -663,7 +673,10 @@ void RidePlan::IndexFurniture()
 		return Road[I].At + L * (Side * (Road[I].Half + Out));
 	};
 	// Coming into each built-up stretch, each way: the place's name, then the 30 limit; leaving, the
-	// national limit. In Britain they stand on the left of the traffic that reads them.
+	// national limit. In Britain they stand on the left of the traffic that reads them. [stage 8]
+	// Elsewhere on the side the traffic keeps to: a 50 (km/h) coming in, and no national limit sign.
+	const double Keep = KeepLeft() ? 1.0 : -1.0;
+	const bool Uk = Britain();
 	for (size_t I = 0; I < Road.size(); ++I)
 	{
 		if (!BuiltUp[I] || (I > 0 && BuiltUp[I - 1])) continue;
@@ -681,7 +694,7 @@ void RidePlan::IndexFurniture()
 		for (int Way = 0; Way < 2; ++Way)
 		{
 			// (forwards it starts at I, backwards at J; its left is the forward left, then the right)
-			const double Side = Way == 0 ? 1.0 : -1.0;
+			const double Side = (Way == 0 ? 1.0 : -1.0) * Keep;
 			const double Start = Way == 0 ? Road[I].Along : Road[J].Along, Back = Way == 0 ? -1.0 : 1.0;
 			const auto Sign = [&](int Kind, double Along, const std::string& Words)
 			{
@@ -699,10 +712,10 @@ void RidePlan::IndexFurniture()
 				if (OffAll(F.At, 0.6) && OffAll(F.At + Across * (Wide * 0.5), 0.3) && OffAll(F.At - Across * (Wide * 0.5), 0.3)) Put(F);
 			};
 			if (!Called.empty()) Sign(NameSign, Start + Back * 10.0, Called);
-			Sign(Limit30, Start, "30");
+			Sign(Limit30, Start, Uk ? "30" : "50");
 			// (leaving at the other end, the way this traffic goes: its left there)
 			const double End = Way == 0 ? Road[J].Along : Road[I].Along;
-			Sign(LimitNational, End - Back * 5.0, "");
+			if (Uk) Sign(LimitNational, End - Back * 5.0, "");
 		}
 		// Street lamps through it, on its left every 36 m.
 		for (double Along = Road[I].Along + 12.0; Along < Road[J].Along - 6.0; Along += 36.0)
@@ -710,9 +723,9 @@ void RidePlan::IndexFurniture()
 			const size_t K = PointAt(Along);
 			Furnish F;
 			F.Kind = StreetLamp;
-			F.At = Verge(K, 1.0, 0.9);
+			F.At = Verge(K, Keep, 0.9);
 			const P2 D = Dir(K);
-			F.Face = P2(-D.Z, D.X);   // (its arm reaches out over the road)
+			F.Face = P2(-D.Z, D.X) * Keep;   // (its arm reaches out over the road)
 			F.Height = Ground(F.At.X, F.At.Z);
 			if (OffAll(F.At, 0.5)) Put(F);
 		}
@@ -769,7 +782,7 @@ void RidePlan::IndexFurniture()
 		size_t J = I;
 		while (J + 1 < Road.size() && BuiltUp[J + 1]) ++J;
 		const size_t K = PointAt((Road[I].Along + Road[J].Along) * 0.5 + 20.0);
-		if (Road[J].Along - Road[I].Along >= 250.0 && Chance(Road[K].At.X, Road[K].At.Z, 51) < 0.75)
+		if (Uk && Road[J].Along - Road[I].Along >= 250.0 && Chance(Road[K].At.X, Road[K].At.Z, 51) < 0.75)
 		{
 			Furnish F;
 			F.Kind = PhoneBox;
@@ -805,7 +818,7 @@ void RidePlan::IndexFurniture()
 	{
 		const std::string What = Poi.Str("kind");
 		if (What != "pub" && !(What == "inn" && Poi.Num("conf", 1.0) >= 0.75)) continue;
-		const std::string Called = Poi.Str("name");
+		const std::string Called = Uk ? Poi.Str("name") : std::string();   // (a pub sign hung out by the road is Britain's)
 		const P2 At(Poi.Num("x"), Poi.Num("z"));
 		const int Home = NearestBuilding(At.X, At.Z, 30.0);
 		if (Home >= 0) BuildingRole[size_t(Home)] = 2;
@@ -867,7 +880,7 @@ void RidePlan::IndexFurniture()
 		int Kind = -1;
 		if (P.Kind == "cattle_grid") Kind = CattleGrid;
 		else if (P.Kind == "power_pole") Kind = PowerPole;
-		else if (P.Kind == "post_box") Kind = PostBox;
+		else if (P.Kind == "post_box" && Uk) Kind = PostBox;   // (a red pillar box is Britain's)
 		else if (P.Kind == "bus_stop") Kind = BusStop;
 		else if (P.Kind == "bench") Kind = Seat;
 		else if (P.Kind == "milestone") Kind = Milestone;

@@ -129,11 +129,16 @@ int main()
 		std::string Text;
 		std::vector<Route::FamousRoad> Roads;
 		const bool Read = Files::Read(TORQUE_ROUTE_FAMOUS, Text) && Route::ReadFamousRoads(Text, Roads);
-		bool InUk = Read;
+		// (every pin in the UK, but for the one abroad the plan's stage 8 rides: the Stelvio)
+		bool InUk = Read, Stelvio = false;
 		for (const Route::FamousRoad& F : Roads)
-			for (const RoutePin& P : F.Journey.Pins) InUk = InUk && P.Lat > 49.8 && P.Lat < 61.0 && P.Lon > -8.7 && P.Lon < 2.0;
+		{
+			const bool Abroad = F.Name.find("Stelvio") != std::string::npos;
+			Stelvio = Stelvio || Abroad;
+			for (const RoutePin& P : F.Journey.Pins) InUk = InUk && (Abroad || (P.Lat > 49.8 && P.Lat < 61.0 && P.Lon > -8.7 && P.Lon < 2.0));
+		}
 		std::printf("      %d famous roads\n", int(Roads.size()));
-		Check(Read && Roads.size() >= 8 && InUk, "the famous roads are ready to ride, every pin of them in the UK");
+		Check(Read && Roads.size() >= 8 && InUk && Stelvio, "the famous roads are ready to ride, every pin of them in the UK but the Stelvio's");
 	}
 	// ------------------------------------------------------------------ the styles
 	{

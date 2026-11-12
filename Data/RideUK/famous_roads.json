@@ -34,5 +34,7 @@
   {"name": "The Lecht", "mode": "main", "about": "The A939 from Cock Bridge over the Lecht to Tomintoul.",
    "pins": [[57.16515, -3.23058, "Cock Bridge"], [57.25150, -3.37907, "Tomintoul"]]},
   {"name": "North Coast 500: Durness to Tongue", "mode": "main", "about": "A stretch of the North Coast 500 round Loch Eriboll on the A838.",
-   "pins": [[58.56829, -4.74632, "Durness"], [58.47629, -4.41719, "Tongue"]]}
+   "pins": [[58.56829, -4.74632, "Durness"], [58.47629, -4.41719, "Tongue"]]},
+  {"name": "Stelvio Pass (Italy)", "mode": "main", "about": "Abroad, with the world's default kit: Bormio up to 2757 m and down the 48 hairpins to Prato allo Stelvio. Traffic keeps right.",
+   "pins": [[46.46750, 10.37080, "Bormio"], [46.52860, 10.45330, "Passo dello Stelvio"], [46.55390, 10.51120, "Trafoi"], [46.61970, 10.59350, "Prato allo Stelvio"]]}
 ]

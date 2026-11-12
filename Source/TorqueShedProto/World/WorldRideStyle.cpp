@@ -83,4 +83,11 @@ const LocalLook& LookAt(double Lat, double Lon)
 	static const LocalLook Lowland = Make("lowland", LocalLook::Wall, Sandstone, Sandstone, 0.20f, 0.65f, 0.0f, 0.75f, 0.03f, Cream, RedBrick);
 	return Lowland;
 }
+
+const LocalLook& WorldLook()
+{
+	// (pale render on most houses, the rest grey stone; red-brown clay tiles; walls of field stone)
+	static const LocalLook World = Make("world", LocalLook::Wall, Gritstone, Granite, 0.70f, 0.05f, 0.10f, 0.70f, 0.0f, Cream, RedBrick, Pantile);
+	return World;
+}
 } // namespace TorqueWorld
