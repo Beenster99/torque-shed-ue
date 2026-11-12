@@ -4,6 +4,8 @@
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture.h"
@@ -79,6 +81,61 @@ void ApplyMaterials(UMeshComponent* C, const TArray<FString>& Paths)
 			if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *Paths[I])) C->SetMaterial(I, M);
 }
 
+// When avatars.json lists only the face (a stale copy: rounds 140-141, bald avatars with holes where
+// the build cut the body away under the clothes), its clothes and hair are found from the cooked
+// asset registry instead: every skeletal mesh in its folder but the body and face, and its hair's
+// cards mesh (the lowest cards LOD of group 0) with its cards atlas, drawn with M_HairCards.
+void DiscoverParts(FEntry& E, int32 Index)
+{
+	for (const FPart& P : E.Parts)
+		if (!P.Groom.IsEmpty() || !P.Static.IsEmpty() || !P.Cloth.IsEmpty() || (!P.Mesh.IsEmpty() && !P.Name.Contains(TEXT("Face"))))
+			return;   // it lists more than the face: trust it
+	IAssetRegistry& Reg = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> Found;
+	Reg.GetAssetsByPath(FName(*FString::Printf(TEXT("/Game/MetaHumans/%s"), *E.Name)), Found, true);
+	FString CardsMesh, Atlas;
+	int32 CardsLod = MAX_int32;
+	TArray<FString> Added;
+	for (const FAssetData& A : Found)
+	{
+		const FString Pkg = A.PackageName.ToString(), AssetName = A.AssetName.ToString(), Cls = A.AssetClassPath.GetAssetName().ToString();
+		const FString Obj = Pkg + TEXT(".") + AssetName;
+		const FString Low = Pkg.ToLower();
+		if (Cls == TEXT("SkeletalMesh") && !Low.Contains(TEXT("/face/")) && !Low.Contains(TEXT("/body/")) && Obj != E.BodyMesh)
+		{
+			FPart P;
+			P.Name = AssetName;
+			P.Mesh = Obj;
+			E.Parts.Add(P);
+			Added.Add(AssetName);
+		}
+		else if (Cls == TEXT("StaticMesh") && AssetName.StartsWith(TEXT("Hair_")) && AssetName.Contains(TEXT("CardsMesh_Group0_LOD")))
+		{
+			const int32 Lod = FCString::Atoi(*AssetName.RightChop(AssetName.Find(TEXT("_LOD")) + 4));
+			if (Lod < CardsLod) { CardsLod = Lod; CardsMesh = Obj; }
+		}
+		else if (Cls == TEXT("Texture2D") && AssetName.StartsWith(TEXT("Hair_")) && AssetName.Contains(TEXT("CardsAtlas_Attribute")))
+			Atlas = Obj;
+	}
+	if (!CardsMesh.IsEmpty())
+	{
+		static const FLinearColor Colours[] = {FLinearColor(0.045f, 0.028f, 0.016f), FLinearColor(0.11f, 0.065f, 0.035f), FLinearColor(0.25f, 0.17f, 0.09f), FLinearColor(0.02f, 0.015f, 0.012f)};
+		FPart P;
+		P.Name = TEXT("Hair");
+		P.Static = CardsMesh;
+		P.Bone = TEXT("head");
+		P.AttachTo = TEXT("Face");
+		P.CardsTexture = Atlas;
+		P.Materials.Add(TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
+		P.HairColour = Colours[FMath::Abs(Index) % 4];
+		P.bHairColour = true;
+		E.Parts.Add(P);
+		Added.Add(TEXT("Hair (") + CardsMesh + TEXT(", atlas ") + (Atlas.IsEmpty() ? FString(TEXT("none")) : Atlas) + TEXT(")"));
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: avatars.json lists only its face (a stale copy); found in the game's assets instead: %s"),
+		*E.Name, Added.Num() ? *FString::Join(Added, TEXT(", ")) : TEXT("nothing"));
+}
+
 const TArray<FEntry>& Entries()
 {
 	static TArray<FEntry> List;
@@ -132,6 +189,7 @@ const TArray<FEntry>& Entries()
 				P.Materials = Strings(*PO, TEXT("materials"));
 				E.Parts.Add(P);
 			}
+		if (E.Blueprint.IsEmpty() && !E.BodyMesh.IsEmpty()) DiscoverParts(E, List.Num());
 		if (!E.Blueprint.IsEmpty() || !E.BodyMesh.IsEmpty()) List.Add(E);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Torque: %d MetaHuman avatars listed"), List.Num());
