@@ -500,6 +500,10 @@ private:
 	FVector RiderKnee[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	TArray<FVector2D> RiderTankHalfW;
 	double RiderFeetDown = 0.0;
+	// [rider pose] Stopped on a bike too tall to reach the road from (beenster, MX): the bike leant over
+	// onto the left foot about its tyres' contact line, deg (left side down), the right foot on its peg.
+	double StopLeanDeg = 0.0;
+	double RiderKeepOnPeg[2] = {0.0, 0.0};
 	double RiderStyleBackDeg = -100.0;   // [rider pose] the style's back lean (FBikeFrame::BackDeg)
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's

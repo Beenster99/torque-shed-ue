@@ -25,6 +25,8 @@ struct FRiderPoseInput
 	FVector FootDownL = FVector::ZeroVector;   // ankles when stopped with the feet down
 	FVector FootDownR = FVector::ZeroVector;
 	double FeetDown = 0.0;                     // 0 on the pegs, 1 down on the road
+	// [rider pose] A foot kept on its peg while the other goes down (1), as on a tall bike leant onto one foot.
+	double KeepOnPeg[2] = {0.0, 0.0};
 	FRotator Look = FRotator::ZeroRotator;     // the head's turn, where you look
 	double Throttle = 0.0;                     // 0..1: the right hand rolls the grip back
 	// Fingers on a lever (0 on the grip, 1 hooked over the lever) and how far it's pulled (0..1):
