@@ -547,6 +547,13 @@ private:
 	void ShowHead(bool bShow);
 	void StartSound();
 	void UpdateSound(float Dt);
+	// [Ride UK stage 7] The road through the pad: a cattle grid's bars, the knock of an iron cover or a
+	// bridge's joint, grit and grass, a tyre sliding. A PlayStation pad over HID (FSonyPad), an Xbox
+	// pad through the engine's force feedback.
+	void UpdateRumble(float Dt);
+	float RumbleKnock = 0.0f;
+	int32 RumbleSurfWas[2] = {0, 0};
+	uint64 RumbleHandle[2] = {0, 0};
 	void LoadRoute();
 	void BuildModel();
 	bool BuildCatalogueModel();   // true if the bike is all catalogue parts and was drawn so

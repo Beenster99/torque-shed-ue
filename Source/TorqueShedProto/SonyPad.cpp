@@ -1,9 +1,12 @@
 #include "SonyPad.h"
 
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/ScopeLock.h"
+
+#include <atomic>
 
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
@@ -16,6 +19,23 @@
 
 namespace
 {
+// The rumble wanted (FSonyPad::SetRumble), as the motors take it: 0 .. 255 each, low << 8 | high.
+std::atomic<uint32> GRumble{0};
+
+// The CRC a Bluetooth output report ends with: over 0xA2 (the HID output header) and the report.
+uint32 Crc32(const uint8* Data, int32 Len)
+{
+	uint32 C = 0xFFFFFFFFu;
+	const auto Feed = [&C](uint8 B)
+	{
+		C ^= B;
+		for (int32 K = 0; K < 8; ++K) C = (C >> 1) ^ (0xEDB88320u & (0u - (C & 1u)));
+	};
+	Feed(0xA2);
+	for (int32 I = 0; I < Len; ++I) Feed(Data[I]);
+	return ~C;
+}
+
 constexpr uint16 SONY = 0x054C;
 bool IsDualSense(uint16 Pid) { return Pid == 0x0CE6 || Pid == 0x0DF2; }
 bool IsDualShock4(uint16 Pid) { return Pid == 0x05C4 || Pid == 0x09CC || Pid == 0x0BA0; }
@@ -121,6 +141,63 @@ private:
 	HANDLE Device = INVALID_HANDLE_VALUE;
 	bool bDualSense = true;
 	int32 ReportLen = 64;
+	uint32 RumbleSent = 0;
+	double RumbleAt = 0.0;
+	uint8 Seq = 0;
+
+	// Sends the rumble wanted when it changes (and every second while on, in case a report went
+	// astray): the DualSense's output report 0x02 over USB or 0x31 over Bluetooth, the DualShock 4's
+	// 0x05 or 0x11, the motors and nothing else (the light bar and the triggers keep what they had).
+	void SendRumble()
+	{
+		const uint32 Want = GRumble.load();
+		const double Now = FPlatformTime::Seconds();
+		if (Want == RumbleSent && (Want == 0 || Now - RumbleAt < 1.0)) return;
+		const uint8 Low = uint8(Want >> 8), High = uint8(Want & 0xFF);
+		const bool bBluetooth = ReportLen != 64;
+		uint8 Out[78] = {0};
+		int32 Len = 0;
+		if (bDualSense && !bBluetooth)
+		{
+			Len = 48;
+			Out[0] = 0x02; Out[1] = 0x03; Out[3] = High; Out[4] = Low;
+		}
+		else if (bDualSense)
+		{
+			Len = 78;
+			Out[0] = 0x31; Out[1] = uint8((Seq & 0x0F) << 4); Out[2] = 0x10;
+			Out[3] = 0x03; Out[5] = High; Out[6] = Low;
+		}
+		else if (!bBluetooth)
+		{
+			Len = 32;
+			Out[0] = 0x05; Out[1] = 0x01; Out[4] = High; Out[5] = Low;
+		}
+		else
+		{
+			Len = 78;
+			Out[0] = 0x11; Out[1] = 0xC0; Out[3] = 0x01; Out[6] = High; Out[7] = Low;
+		}
+		if (bBluetooth)
+		{
+			Seq = uint8(Seq + 1);
+			const uint32 Crc = Crc32(Out, Len - 4);
+			Out[Len - 4] = uint8(Crc); Out[Len - 3] = uint8(Crc >> 8); Out[Len - 2] = uint8(Crc >> 16); Out[Len - 1] = uint8(Crc >> 24);
+		}
+		OVERLAPPED Ov;
+		FMemory::Memzero(Ov);
+		Ov.hEvent = CreateEventW(nullptr, true, false, nullptr);
+		DWORD Put = 0;
+		bool bOk = WriteFile(Device, Out, (DWORD)Len, &Put, &Ov) != 0;
+		if (!bOk && GetLastError() == ERROR_IO_PENDING)
+		{
+			if (WaitForSingleObject(Ov.hEvent, 50) == WAIT_OBJECT_0) bOk = GetOverlappedResult(Device, &Ov, &Put, false) != 0;
+			else { CancelIo(Device); GetOverlappedResult(Device, &Ov, &Put, true); }
+		}
+		CloseHandle(Ov.hEvent);
+		RumbleSent = Want;
+		RumbleAt = Now;
+	}
 
 	bool Open()
 	{
@@ -189,6 +266,7 @@ private:
 		Ov.hEvent = CreateEventW(nullptr, true, false, nullptr);
 		while (!bStop)
 		{
+			SendRumble();
 			ResetEvent(Ov.hEvent);
 			DWORD Got = 0;
 			if (!ReadFile(Device, Buf.GetData(), ReportLen, &Got, &Ov))
@@ -252,6 +330,12 @@ float Recentre(float V, float C)
 	return FMath::Clamp(Off / FMath::Max(Off >= 0.0f ? 1.0f - C : 1.0f + C, 0.5f), -1.0f, 1.0f);
 }
 } // namespace
+
+void FSonyPad::SetRumble(float Low, float High)
+{
+	const uint32 L = uint32(FMath::Clamp(Low, 0.0f, 1.0f) * 255.0f + 0.5f), H = uint32(FMath::Clamp(High, 0.0f, 1.0f) * 255.0f + 0.5f);
+	GRumble.store(L << 8 | H);
+}
 
 void FSonyPad::SetCentre(const float Centre[4])
 {

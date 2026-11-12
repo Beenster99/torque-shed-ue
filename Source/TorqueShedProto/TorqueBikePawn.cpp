@@ -38,6 +38,7 @@
 #include "Components/MeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "InputCoreTypes.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
@@ -334,6 +335,7 @@ void ATorqueBikePawn::BeginPlay()
 
 void ATorqueBikePawn::EndPlay(const EEndPlayReason::Type Reason)
 {
+	if (IsLocallyControlled()) FSonyPad::SetRumble(0.0f, 0.0f);   // [Ride UK] (the pad still)
 	Pad.Reset();   // stops its reading thread
 	if (NetWalker) NetWalker->Destroy();   // [co-op, foot]
 	if (TripLogTime > 0.0) TripLog(TEXT("ride over"));   // [dash]
@@ -2603,6 +2605,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	UpdateSound(DeltaSeconds);
 	if (!bRemote)
 	{
+		UpdateRumble(DeltaSeconds);
 		UpdatePerf(DeltaSeconds);
 		DrawHud();
 	}
@@ -3644,6 +3647,53 @@ void ATorqueBikePawn::LightsNote(const FString& Text, bool bOk)
 	EngineNoteFor = bOk ? 1.2 : 2.0;
 	if (bOk)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("switch"), GetActorLocation() + FVector(0.0, 0.0, 100.0), -10.0f);
+}
+
+void ATorqueBikePawn::UpdateRumble(float Dt)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	float Low = 0.0f, High = 0.0f;
+	if (PC && Sim && Dt > 0.0f && !UGameplayStatics::IsGamePaused(this))
+	{
+		const double V = FMath::Abs(Sim->Speed);
+		const float Moving = (float)FMath::Clamp(V / 12.0, 0.0, 1.0);
+		float Grid = 0.0f, Rough = 0.0f;
+		for (int32 I = 0; I < 2; ++I)
+		{
+			const Wheel& W = Sim->Wheels[I];
+			const int32 Surf = W.Contact ? W.Surf : -1;
+			if (Surf == SURF_GRID) Grid += 0.5f;
+			if (Surf == SURF_GRAVEL || Surf == SURF_GRASS) Rough += 0.5f;
+			// (a knock as a tyre goes onto steel, a lighter one onto tar banding or paint)
+			if (Surf != RumbleSurfWas[I] && V > 1.0)
+			{
+				if (Surf == SURF_STEEL) RumbleKnock = FMath::Max(RumbleKnock, 0.55f);
+				else if (Surf == SURF_SLICK) RumbleKnock = FMath::Max(RumbleKnock, 0.18f);
+			}
+			RumbleSurfWas[I] = Surf;
+		}
+		RumbleKnock *= FMath::Exp(-Dt / 0.06f);
+		const float Slide = (float)FMath::Max(FMath::Max(FMath::Abs(Sim->Wheels[0].Slip), FMath::Abs(Sim->Wheels[1].Slip)) * 2.0 - 0.4, 0.0);
+		Low = Grid * (0.35f + 0.3f * Moving) + Rough * 0.3f * Moving + RumbleKnock * 0.7f;
+		High = Grid * 0.55f * Moving + Rough * 0.15f * Moving + RumbleKnock + FMath::Min(Slide, 1.0f) * 0.35f;
+	}
+	Low = FMath::Clamp(Low, 0.0f, 1.0f);
+	High = FMath::Clamp(High, 0.0f, 1.0f);
+	FSonyPad::SetRumble(Low, High);
+	if (!PC) return;
+	// (an Xbox pad: the big motor on the left, the small on the right)
+	for (int32 M = 0; M < 2; ++M)
+	{
+		const float Value = M == 0 ? Low : High;
+		uint64& Handle = RumbleHandle[M];
+		if (Value < 0.01f)
+		{
+			if (Handle != 0) PC->PlayDynamicForceFeedback(0.0f, 0.0f, M == 0, false, false, M == 1, EDynamicForceFeedbackAction::Stop, Handle);
+			Handle = 0;
+			continue;
+		}
+		Handle = PC->PlayDynamicForceFeedback(Value, -1.0f, M == 0, false, false, M == 1, Handle != 0 ? EDynamicForceFeedbackAction::Update : EDynamicForceFeedbackAction::Start, Handle);
+	}
 }
 
 void ATorqueBikePawn::UpdateSound(float Dt)

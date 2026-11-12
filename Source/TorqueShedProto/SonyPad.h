@@ -35,6 +35,9 @@ public:
 	// taken off every reading (and the rest of the travel stretched to fill -1 .. 1). Raw: without it.
 	static void SetCentre(const float Centre[4]);
 	FSonyPadState GetRaw() const;
+	// The pad's rumble, 0 .. 1 each: the big (low, left) motor and the small (high, right) one. Held
+	// until changed; every pad open gets it (Ride UK stage 7: the road through your hands).
+	static void SetRumble(float Low, float High);
 
 private:
 	class FWorker;
