@@ -814,6 +814,11 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 			if (!std::isnan(Y) && !Any) { Fallback = Y; Any = true; }
 		}
 	if (!Any) return;   // (off the world's edge: nothing to draw)
+	// (where the ride's heights end, far out past the skyline's reach, the square stops: no quad or
+	// skirt on a point with no height)
+	std::vector<char> Known(size_t(N) * N, 1);
+	for (int J = 0; J < N; ++J)
+		for (int I = 0; I < N; ++I) Known[size_t(J) * N + I] = std::isnan(H[size_t(J + 1) * M + (I + 1)]) ? 0 : 1;
 	for (double& Y : H) if (std::isnan(Y)) Y = Fallback;
 	const auto At = [&H, M](int I, int J) { return H[size_t(J + 1) * M + (I + 1)]; };
 	const auto Put = [&Out](double X, double Y, double Z, double Nx, double Ny, double Nz, double U, double V, const float* Colour)
@@ -839,7 +844,10 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	};
 	for (int J = 0; J < Cells; ++J)
 		for (int I = 0; I < Cells; ++I)
-			Quad(uint32_t(J * N + I), uint32_t(J * N + I + 1), uint32_t((J + 1) * N + I), uint32_t((J + 1) * N + I + 1));
+		{
+			const uint32_t A = uint32_t(J * N + I), B = A + 1, C = uint32_t((J + 1) * N + I), D = C + 1;
+			if (Known[A] && Known[B] && Known[C] && Known[D]) Quad(A, B, C, D);
+		}
 	// The skirt: each edge's points again, lower, joined to the edge.
 	const double Drop = std::fmax(2.0, Step * 1.5);
 	const auto Skirt = [&](int I0, int J0, int Di, int Dj, bool Flip)
@@ -856,6 +864,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		{
 			const uint32_t A = uint32_t((J0 + Dj * K) * N + I0 + Di * K), B = uint32_t((J0 + Dj * (K + 1)) * N + I0 + Di * (K + 1));
 			const uint32_t C = Base + uint32_t(K), D = Base + uint32_t(K) + 1;
+			if (!Known[A] || !Known[B]) continue;
 			if (Flip) Out.Idx.insert(Out.Idx.end(), {A, B, C, B, D, C});
 			else Out.Idx.insert(Out.Idx.end(), {A, C, B, B, C, D});
 		}

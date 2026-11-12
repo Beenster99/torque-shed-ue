@@ -635,6 +635,18 @@ int main()
 						Worst = std::fmax(Worst, std::fabs(double(Tile.Pos[V * 3 + 1]) - Plan->Ground(X0 + double(Tile.Pos[V * 3]), Z0 + double(Tile.Pos[V * 3 + 2]))));
 					}
 					Check(Sound && Up == Tris && Worst < 0.01, "a 256 m square of ground comes as a mesh with its skirt: every triangle facing up, every height the ground's");
+					{
+						// The far hills: a 16 km square (a point every 256 m) at the skyline heights' edge, 16 km
+						// off the ride's road, is drawn where it has heights and stops where they end.
+						RideMesh Far16;
+						const P2 Out16 = Mid.At + Left * 16000.0;
+						Plan->LandTile(std::floor(Out16.X / 16384.0) * 16384.0, std::floor(Out16.Z / 16384.0) * 16384.0, 16384.0, 64, Far16);
+						bool AllHeights = true;
+						for (size_t V = 0; V < Far16.Vertices(); ++V) AllHeights = AllHeights && !std::isnan(Far16.Pos[V * 3 + 1]);
+						const size_t Quads = Far16.Idx.size() / 6;
+						std::printf("      a 16 km square of the far hills 16 km off: %d of %d quads have heights\n", int(Quads), 64 * 64 + 4 * 64);
+						Check(Quads > 300 && AllHeights, "the far hills come in 16 km squares out to the skyline heights' reach, stopping where those end");
+					}
 					Plan->RoadPiece(0, 100, 164, Piece);
 					int RoadUp = 0, RoadTris = 0;
 					for (size_t T = 0; T + 2 < Piece.Idx.size(); T += 3)

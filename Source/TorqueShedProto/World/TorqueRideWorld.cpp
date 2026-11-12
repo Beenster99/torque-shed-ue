@@ -33,11 +33,14 @@ struct FTorqueRideJobs
 
 namespace TRWI
 {
-constexpr int32 Levels = 3;
+constexpr int32 Levels = 4;
 constexpr double Finest = 256.0;         // metres across a square of level 0; each level's are 4 times the last's
-constexpr int32 CellsOf[Levels] = {64, 128, 64};
-constexpr double SplitWithin[Levels] = {0.0, 400.0, 1500.0};   // a square of this level is split when the rider is this near it
-constexpr double Reach = 10000.0;        // the ground is laid out this far
+constexpr int32 CellsOf[Levels] = {64, 128, 64, 64};
+constexpr double SplitWithin[Levels] = {0.0, 400.0, 1500.0, 6000.0};   // a square of this level is split when the rider is this near it
+// The ground is laid out this far: the far hills, to the skyline heights' own reach from the road
+// (Terrain::LiveReach, 18 km). Beyond 6 km in 16 km squares, a point every 256 m.
+constexpr double Reach = 16000.0;
+constexpr int32 ShadowLevels = 2;        // the squares of these levels cast shadows (the far hills' are past the shadows' reach)
 constexpr int32 PiecePoints = 64;        // a piece of road: 256 m
 constexpr double RoadReach = 2500.0;
 constexpr int32 AtATime = 3;             // workers
@@ -271,7 +274,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	{
 		if (*Old) (*Old)->DestroyComponent();
 	}
-	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::Levels - 1));
+	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
 	DropPlants(Key);
 	PlacePlants(Key, Mesh);
 	if (TObjectPtr<UProceduralMeshComponent>* OldExtra = TileExtras.Find(Key))
