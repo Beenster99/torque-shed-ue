@@ -1,4 +1,6 @@
 #include "World/TorqueRideWorld.h"
+#include "TorqueDash.h"
+#include "Coop/TorqueSettings.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -111,6 +113,35 @@ bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
 		if (F.Kind == TorqueWorld::RidePlan::CattleGrid)
 			Out.Emplace(FVector(F.At.X, F.Height, F.At.Z), FVector(F.Face.X, F.Size, F.Face.Z));
 	return true;
+}
+
+void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	Dash.bNav = Ride && Ride->Plan && Ride->Plan->Ok && !Ride->Plan->Turns.empty();
+	Dash.bAtFuel = false;
+	if (!Dash.bNav) return;
+	using TorqueWorld::RidePlan;
+	const RidePlan::RideNav N = Ride->Plan->NavAt(At.X / 100.0, At.Y / 100.0, Was);
+	Was = N.Along;
+	Dash.bNavOff = N.OffRoute;
+	Dash.NavTurn = N.Turn;
+	Dash.NavTo = N.ToTurn;
+	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
+	Dash.NavLeft = N.ToFinish;
+	Dash.bAtFuel = N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0;
+	// (the next fuel and the next cafe, whichever's nearer; a viewpoint if it's close)
+	Dash.NavStop.Reset();
+	double Best = 1e18;
+	const bool bMetric = FTorqueSettings::Get().Units == 0;
+	for (int32 K : {int32(RidePlan::StopFuel), int32(RidePlan::StopCafe), int32(RidePlan::StopView)})
+	{
+		const double To = N.ToStop[K];
+		if (To < 0.0 || To > (K == RidePlan::StopView ? 3000.0 : 30000.0) || To >= Best) continue;
+		Best = To;
+		const FString Called = UTF8_TO_TCHAR(N.StopCalled[K].c_str());
+		Dash.NavStop = FString::Printf(TEXT("%s %s%s%s"), UTF8_TO_TCHAR(RidePlan::StopName(K)), *FTorqueDash::NavDistance(To, bMetric), Called.IsEmpty() ? TEXT("") : TEXT(": "), *Called);
+	}
 }
 
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)

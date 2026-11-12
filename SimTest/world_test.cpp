@@ -721,6 +721,30 @@ int main()
 							Check(Kinds[RidePlan::EweGraze] > 20 && Kinds[RidePlan::Lamb] > 5 && Spring > 0 && Winter < Spring && Trampled == 0,
 								"sheep in the fields with lambs in spring, cattle out in summer and mostly in for the winter, none on a road");
 						}
+						// The sat nav (stage 7): the turns along the ride and the stops by it.
+						{
+							std::string Spoken;
+							for (const RidePlan::RideTurn& T : Plan->Turns)
+							{
+								char Buf[160];
+								std::snprintf(Buf, sizeof Buf, "%s%.1f km %s%s", Spoken.empty() ? "" : "; ", T.Along / 1000.0,
+									T.Turn == RidePlan::Finish ? "finish" : T.Turn < 0 ? (T.Turn == -1 ? "bear left" : T.Turn == -2 ? "left" : "sharp left") : T.Turn > 0 ? (T.Turn == 1 ? "bear right" : T.Turn == 2 ? "right" : "sharp right") : "straight on",
+									T.Onto.empty() ? "" : (" onto " + T.Onto).c_str());
+								Spoken += Buf;
+							}
+							int Kinds[RidePlan::StopKinds] = {};
+							for (const RidePlan::RideStop& S : Plan->Stops) ++Kinds[S.Kind];
+							std::printf("      sat nav: %d turns (%s)\n      stops: %d fuel, %d cafes, %d pubs, %d viewpoints, %d lay-bys\n", int(Plan->Turns.size()) - 1, Spoken.c_str(),
+								Kinds[RidePlan::StopFuel], Kinds[RidePlan::StopCafe], Kinds[RidePlan::StopPub], Kinds[RidePlan::StopView], Kinds[RidePlan::StopLayby]);
+							const RidePlan::RideNav Start = Plan->NavAt(Plan->Road[2].At.X, Plan->Road[2].At.Z);
+							const RidePlan::RideNav Half = Plan->NavAt(Plan->Road[Plan->Road.size() / 2].At.X, Plan->Road[Plan->Road.size() / 2].At.Z, Plan->Road[Plan->Road.size() / 2].Along);
+							std::printf("      at the start: %.1f km to go, next turn in %.0f m; half way %.1f km to go, next cafe %.0f m\n", Start.ToFinish / 1000.0, Start.ToTurn,
+								Half.ToFinish / 1000.0, Half.ToStop[RidePlan::StopCafe]);
+							bool Ordered = !Plan->Turns.empty() && Plan->Turns.back().Turn == RidePlan::Finish;
+							for (size_t I = 1; I < Plan->Turns.size(); ++I) Ordered = Ordered && Plan->Turns[I].Along >= Plan->Turns[I - 1].Along;
+							Check(Ordered && !Start.OffRoute && std::fabs(Start.ToFinish + Start.Along - Plan->FinishM) < 1.0 && Kinds[RidePlan::StopCafe] + Kinds[RidePlan::StopPub] > 2,
+								"the sat nav: its turns in order to the finish, the stops by the road, the way left from the start");
+						}
 						// The road's surface (stage 7): patches, tar, grit, covers and paint under the wheels, along
 						// the ride's road and a side road, each where RoadMarks lays it.
 						{

@@ -44,6 +44,7 @@ struct RideMesh;
 struct Tint;
 }
 struct FTorqueRideJobs;
+struct FTorqueDash;
 
 UCLASS()
 class ATorqueRideWorld : public AActor
@@ -67,6 +68,9 @@ public:
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
 	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
 	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
+	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
+	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
+	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
 
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;

@@ -2595,6 +2595,12 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 	FootNoteFor = FMath::Max(FootNoteFor - DeltaSeconds, 0.0);
 	CamNoteFor = FMath::Max(CamNoteFor - DeltaSeconds, 0.0);
 	if (ChaseSaveIn >= 0.0 && (ChaseSaveIn -= DeltaSeconds) < 0.0) FTorqueProfile::Mine().Save();   // the third-person camera, once it's settled
+	if (!bRemote)
+	{
+		ATorqueRideWorld::NavFor(GetActorLocation(), Dash, NavWas);   // [Ride UK] the sat nav
+		// (stopped at the pumps: the tank fills, a litre every second or so)
+		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 0.9 * DeltaSeconds);
+	}
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
 	StepLights(DeltaSeconds, bRemote);   // [lights]
 	if (!bRemote)

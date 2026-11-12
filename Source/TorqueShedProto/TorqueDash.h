@@ -44,6 +44,22 @@ struct FTorqueDash
 
 	bool Has(const TCHAR* Feature) const { return Features.Contains(Feature); }
 
+	// --- [Ride UK stage 7] The sat nav, on the clocks and the speedo (ATorqueRideWorld::NavFor sets it).
+	bool bNav = false;
+	bool bNavOff = false;       // more than 40 m off the ride's road
+	int32 NavTurn = 9;          // RidePlan::RideTurn::Turn: -3 sharp left .. 3 sharp right, 9 the finish
+	double NavTo = 0.0;         // metres to it
+	FString NavOnto;            // the road it's onto (or where the ride finishes)
+	double NavLeft = 0.0;       // metres to the finish
+	FString NavStop;            // the next fuel or cafe ahead: "Cafe 2.1 mi: Penny Garth"
+	bool bAtFuel = false;       // at a filling station by the road: stopped there, the tank fills
+	// A distance as a sat nav says it: yards then miles, or metres then km.
+	static FString NavDistance(double Metres, bool bMetric);
+	// The turn as words ("Bear left", "Turn right", "Straight on", "Finish") and as a short mark for the
+	// clocks' readout ("<", "<<", "^", ">>", "F").
+	static FString NavWords(int32 Turn);
+	static FString NavMark(int32 Turn);
+
 	// Where the bike was last frame (sim metres), for the trip: a move bigger than a bike makes in a
 	// frame is the bike put somewhere (back on the road, a restart) and isn't counted.
 	FVector TripFrom = FVector::ZeroVector;

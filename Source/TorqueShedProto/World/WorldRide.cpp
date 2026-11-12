@@ -237,6 +237,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->IndexScenery();
 	R->IndexRails();
 	R->IndexFurniture();
+	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->Ok = true;
 	return R;
 }

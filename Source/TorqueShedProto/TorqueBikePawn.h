@@ -242,6 +242,7 @@ private:
 	TUniquePtr<TorqueSim::BikeSim> Sim;
 	// [Ride UK] the ride's cattle grids handed to the sim once its plan is there.
 	bool bRideGridsSet = false;
+	double NavWas = -1.0;   // [Ride UK] the sat nav's last place along the ride's road
 	// What the bike bumps into besides the ground (Sim/BikeContacts.h): the ride's walls, buildings,
 	// gates and props from Data/Buttertubs/collision.json (Tools/make_collision.py), and the other
 	// riders' bikes, gathered each frame. HitsHeard: the sim's knock count already sounded.

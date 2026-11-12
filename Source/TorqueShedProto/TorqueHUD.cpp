@@ -544,9 +544,51 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 	if (Fuel < 0.15 && ((int32)(FPlatformTime::Seconds() * 2.0)) % 2 == 0)
 		Say(TEXT("LOW FUEL"), RX + 140.0f, RY + 106.0f, 13.0f, FLinearColor(1.0f, 0.65f, 0.1f));
 	DrawTellTales(Bike, RX, RY, G);   // [lights]
+	// [Ride UK stage 7] The sat nav over the speedo: the next turn as an arrow, how far, onto what; the
+	// way left to the finish; the next fuel or cafe.
+	if (D.bNav)
+	{
+		const float NY = RY - 96.0f;
+		Box(RX, NY, 226.0f, 88.0f, FLinearColor(0.03f, 0.03f, 0.04f, 0.6f));
+		if (D.bNavOff)
+		{
+			Say(TEXT("OFF ROUTE"), RX + 12.0f, NY + 32.0f, 20.0f, Accent);
+			Say(TEXT("Back to the ride's road"), RX + 12.0f, NY + 54.0f, 13.0f, Dim(0.7f));
+		}
+		else
+		{
+			// (the arrow: up the stem, then off the way the road goes; a flag at the finish)
+			const FVector2D Base((RX + 30.0f) * G, (NY + 64.0f) * G), Elbow((RX + 30.0f) * G, (NY + 40.0f) * G);
+			const float Thick = 4.0f * G;
+			if (D.NavTurn == 9)
+			{
+				Canvas->K2_DrawLine(Base, FVector2D(Base.X, (NY + 14.0f) * G), Thick, FLinearColor::White);
+				Box(RX + 30.0f, NY + 14.0f, 18.0f, 12.0f, Accent);
+			}
+			else
+			{
+				const float Ang = FMath::DegreesToRadians(45.0f * (float)D.NavTurn);
+				const FVector2D Dir(FMath::Sin(Ang), -FMath::Cos(Ang));
+				const FVector2D Tip = Elbow + Dir * (22.0f * G);
+				Canvas->K2_DrawLine(Base, Elbow, Thick, FLinearColor::White);
+				Canvas->K2_DrawLine(Elbow, Tip, Thick, FLinearColor::White);
+				const FVector2D Side(-Dir.Y, Dir.X);
+				Canvas->K2_DrawLine(Tip, Tip - Dir * (9.0f * G) + Side * (8.0f * G), Thick, FLinearColor::White);
+				Canvas->K2_DrawLine(Tip, Tip - Dir * (9.0f * G) - Side * (8.0f * G), Thick, FLinearColor::White);
+			}
+			Say(FTorqueDash::NavDistance(D.NavTo, bMetric), RX + 62.0f, NY + 30.0f, 22.0f, FLinearColor::White);
+			const FString What = D.NavTurn == 9 ? (D.NavOnto.IsEmpty() ? FString(TEXT("Finish")) : TEXT("Finish: ") + D.NavOnto)
+				: FTorqueDash::NavWords(D.NavTurn) + (D.NavOnto.IsEmpty() ? FString() : TEXT(", ") + D.NavOnto);
+			Say(What.Left(30), RX + 62.0f, NY + 50.0f, 13.0f, Dim(0.8f));
+			Say(FString::Printf(TEXT("%s to go"), *FTorqueDash::NavDistance(D.NavLeft, bMetric)), RX + 62.0f, NY + 66.0f, 12.0f, Dim(0.6f));
+		}
+		if (!D.NavStop.IsEmpty()) Say(D.NavStop.Left(36), RX + 12.0f, NY + 82.0f, 12.0f, FLinearColor(0.75f, 0.9f, 1.0f, 0.85f));
+	}
 	// What to press, along the bottom: starting, or stopped.
 	FString Hint;
 	if (Bike->IsStarting()) Hint = TEXT("Starting...");
+	else if (D.bAtFuel && FMath::Abs(D.Speed) < 0.3)
+		Hint = D.FuelLitres >= D.FuelCapacity - 0.05 ? FString(TEXT("At the pumps: the tank's full")) : FString::Printf(TEXT("At the pumps: filling up (%.1f L)"), D.FuelLitres);
 	else if (FMath::Abs(D.Speed) < 2.0 && !D.bCrashed)
 		Hint = FString::Printf(TEXT("%s: %s   \u00B7   Esc: menu"), *FTorqueKeys::Text(ETorqueKey::BackToShed),
 			Bike->InYard() ? TEXT("park and walk back in") : TEXT("back to the shed"));   // [yard]

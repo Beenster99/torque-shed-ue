@@ -423,6 +423,45 @@ public:
 	};
 	enum ESurface { SurfTarmac, SurfSlick, SurfGrit, SurfSteel };
 	RideSurface SurfaceAt(double X, double Z) const;
+	// The sat nav (Ride UK stage 7: WorldRideNav.cpp). The turns along the ride's road: at each junction
+	// where it leaves the road ahead (or the road it is on bends away from the way on), how far along,
+	// which way (-3 sharp left, -2 left, -1 bear left, 0 straight on, 1 bear right, 2 right, 3 sharp
+	// right) and the road it is onto; the finish last (Turn Finish).
+	struct RideTurn
+	{
+		double Along = 0.0;
+		int Turn = 0;
+		std::string Onto;
+	};
+	static constexpr int Finish = 9;
+	std::vector<RideTurn> Turns;
+	// Places to stop along it from the map: fuel, cafes, pubs, viewpoints, lay-bys, within StopReach of
+	// the road; how far along, and which side (+ the left).
+	enum EStop { StopFuel, StopCafe, StopPub, StopView, StopLayby, StopKinds };
+	struct RideStop
+	{
+		double Along = 0.0, Off = 0.0;
+		int Kind = StopCafe;
+		std::string Name;
+	};
+	static constexpr double StopReach = 120.0;
+	std::vector<RideStop> Stops;
+	static const char* StopName(int Kind);   // "Fuel", "Cafe", "Pub", "Viewpoint", "Lay-by"
+	// What the sat nav says at (X, Z): how far along the ride's road the rider is (near Was, the last
+	// answer, where the road passes itself), the next turn and the distance to it, the next stop of
+	// each kind ahead, and how far to the finish; OffRoute when the rider is more than 40 m off it.
+	struct RideNav
+	{
+		double Along = 0.0, ToFinish = 0.0;
+		bool OffRoute = false;
+		int Turn = Finish;
+		double ToTurn = 0.0;
+		std::string Onto;
+		double ToStop[StopKinds] = {-1.0, -1.0, -1.0, -1.0, -1.0};   // -1: none ahead
+		std::string StopCalled[StopKinds];
+	};
+	RideNav NavAt(double X, double Z, double Was = -1.0) const;
+	void FindTurnsAndStops(int From, const std::vector<int>& Path, double RawLength);
 	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
 	// little under the limit, as a rider on a road they do not know).
 	RideSummary Summary(double Cap = 24.6) const;

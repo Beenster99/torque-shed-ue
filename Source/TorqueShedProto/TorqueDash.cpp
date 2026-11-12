@@ -258,9 +258,12 @@ void FTorqueDash::UpdateClocks(int32 Units)
 	const bool bLow = Fuel < TDI::LowFuel;
 	FString Text;
 	FColor Colour;
+	// (the sat nav's next turn, on a ride with one)
+	const FString Nav = bNav ? (bNavOff ? FString(TEXT("OFF ROUTE")) : NavMark(NavTurn) + TEXT(" ") + NavDistance(NavTo, bMetric)) : FString();
 	if (bDials)
 	{
 		Text = (bEngineOn ? GearText : FString(TEXT("OFF"))) + TEXT("\n") + BarsText;
+		if (bNav) Text += TEXT("\n") + Nav;
 		// (Godot colours are sRGB, as an FColor is.)
 		Colour = bLow ? FLinearColor(0.8f, 0.1f, 0.05f).ToFColor(false) : FLinearColor(0.1f, 0.1f, 0.1f).ToFColor(false);
 	}
@@ -280,6 +283,7 @@ void FTorqueDash::UpdateClocks(int32 Units)
 					FString::Printf(TEXT(" %d rpm"), FMath::RoundToInt(Rpm / 100.0) * 100);
 			}
 			Text = FString::Printf(TEXT("%d %s   %s%s\nF %s E"), FMath::RoundToInt(SpeedShown), *Unit, *GearText, *Revs, *BarsText);
+			if (bNav) Text += TEXT("\n") + Nav + (NavOnto.IsEmpty() || bNavOff ? FString() : TEXT(" ") + NavOnto.Left(14));
 		}
 		Colour = bLow ? FLinearColor(1.0f, 0.45f, 0.3f).ToFColor(false) : FLinearColor(0.75f, 1.0f, 0.85f).ToFColor(false);
 	}
@@ -293,6 +297,33 @@ void FTorqueDash::UpdateClocks(int32 Units)
 		ReadoutColour = Colour;
 		T->SetTextRenderColor(Colour);
 	}
+}
+
+FString FTorqueDash::NavDistance(double Metres, bool bMetric)
+{
+	if (bMetric) return Metres < 1000.0 ? FString::Printf(TEXT("%d m"), FMath::RoundToInt(Metres / 10.0) * 10) : FString::Printf(TEXT("%.1f km"), Metres / 1000.0);
+	const double Yards = Metres / 0.9144, Miles = Metres / 1609.344;
+	return Miles < 0.25 ? FString::Printf(TEXT("%d yd"), FMath::RoundToInt(Yards / 10.0) * 10) : FString::Printf(TEXT("%.1f mi"), Miles);
+}
+
+FString FTorqueDash::NavWords(int32 Turn)
+{
+	switch (Turn)
+	{
+	case -3: return TEXT("Sharp left");
+	case -2: return TEXT("Turn left");
+	case -1: return TEXT("Bear left");
+	case 0: return TEXT("Straight on");
+	case 1: return TEXT("Bear right");
+	case 2: return TEXT("Turn right");
+	case 3: return TEXT("Sharp right");
+	default: return TEXT("Finish");
+	}
+}
+
+FString FTorqueDash::NavMark(int32 Turn)
+{
+	return Turn == 9 ? FString(TEXT("F")) : Turn == 0 ? FString(TEXT("^")) : Turn < 0 ? FString::ChrN(FMath::Min(-Turn, 2), TEXT('<')) : FString::ChrN(FMath::Min(Turn, 2), TEXT('>'));
 }
 
 double FTorqueDash::TopSpeedOf(const TorqueSim::BikeSpec& Spec)
