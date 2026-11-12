@@ -122,13 +122,15 @@ void ATorquePlayerController::ServerPing_Implementation(const FTorquePingNet& Ne
 {
 	FTorquePingNet Out = NewPing;
 	Out.What = Out.What.Left(60);
-	Out.Name = TEXT("Someone");
+	// The pinger's profile name and colour come with it (TorquePing::Send); with no name chosen, the
+	// name the player joined under.
+	Out.Name = Out.Name.TrimStartAndEnd().Left(20);
 	if (PlayerState)
 	{
-		Out.Name = PlayerState->GetPlayerName();
+		if (Out.Name.IsEmpty()) Out.Name = PlayerState->GetPlayerName();
 		Out.PlayerId = PlayerState->GetPlayerId();
 	}
-	if (const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PlayerState)) Out.Colour = TPS->ColourValue();
+	if (Out.Name.IsEmpty()) Out.Name = TEXT("Someone");
 	// The dark colours wouldn't show at night: a warm amber instead (as the name tags go pale).
 	if ((int32)Out.Colour.R + Out.Colour.G + Out.Colour.B < 200) Out.Colour = FColor(255, 160, 50);
 	UWorld* World = GetWorld();
