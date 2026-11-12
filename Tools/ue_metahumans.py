@@ -15,6 +15,7 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make rig nowardrobe   the same with no hair or clothes (whole bodies)
     py Tools/ue_metahumans.py make rig A B          only Avatar_A and Avatar_B (the others kept)
     py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
+    py Tools/ue_metahumans.py fab          import beenster's Fab MetaHuman clothes (.mhpkg) for `make` (make does it too)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
 Or without opening the editor:
@@ -43,10 +44,10 @@ MAX_TEXTURE = 1024
 # only the medium BobCurly did), so the avatars wear medium (_M_) styles.
 HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble", "_s_")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
-    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["overall", "work", "boot"]},
-    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "trouser", "pant", "boot"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["jacket", "work", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jacket", "jean", "boot"]},
+    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["jacket", "shirt", "jean", "boot"]},
+    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "jacket", "jean", "boot"]},
 ]
 
 
@@ -154,6 +155,60 @@ _WARDROBE = None
 
 
 WEAR_CLASSES = ("wardrobe", "groom", "outfit", "cloth", "garment")
+
+
+FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; never cooked
+FAB_VAULT = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
+FAB_SKIP = ("helmet",)   # the helmet goes on the rider by Tools/ue_build_level.py
+
+
+def fab_wardrobe():
+    """Every MetaHuman package (.mhpkg) in the Fab cache but the helmet, imported through the MetaHuman
+    plugin's MetaHumanPackageFactory to /Game/MetaHumanWardrobe/<folder>, so `make` can dress the
+    avatars with its wardrobe items (beenster's MetaHuman Jeans and Boots, Nov 12). The build bakes
+    the garments into each avatar's own folder; these sources are never cooked (their wardrobe item
+    class is editor-only)."""
+    if not os.path.isdir(FAB_VAULT):
+        log("fab: no folder %s" % FAB_VAULT)
+        return
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    factory = getattr(unreal, "MetaHumanPackageFactory", None)
+    for d in sorted(os.listdir(FAB_VAULT)):
+        full = os.path.join(FAB_VAULT, d)
+        if not os.path.isdir(full) or any(w in d.lower() for w in FAB_SKIP):
+            continue
+        pkgs = []
+        for root, _, names in os.walk(full):
+            pkgs += [os.path.join(root, n) for n in names if n.lower().endswith(".mhpkg")]
+        if not pkgs:
+            others = []
+            for root, _, names in os.walk(full):
+                others += names
+            log("fab: %s has no MetaHuman package (%s); not wearable by the avatars" % (d, ", ".join(others[:8])))
+            continue
+        dest = FAB_WARDROBE + "/" + "".join(c if c.isalnum() else "_" for c in d.split("-")[0])
+        if unreal.EditorAssetLibrary.does_directory_exist(dest) and unreal.EditorAssetLibrary.list_assets(dest, recursive=True):
+            log("fab: %s already imported at %s" % (d, dest))
+            continue
+        src = max(pkgs, key=os.path.getsize)
+        t = unreal.AssetImportTask()
+        t.set_editor_property("filename", src)
+        t.set_editor_property("destination_path", dest)
+        t.set_editor_property("automated", True)
+        t.set_editor_property("replace_existing", True)
+        t.set_editor_property("save", True)
+        if factory is not None:
+            t.set_editor_property("factory", factory())
+        try:
+            tools.import_asset_tasks([t])
+        except Exception as e:
+            unreal.log_warning("[Torque] fab: importing %s failed: %s" % (src, e))
+            continue
+        got = [str(g) for g in (t.get_editor_property("imported_object_paths") or [])]
+        log("fab: %s -> %s: %d assets: %s" % (src, dest, len(got), ", ".join(got[:30])))
+    unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous(["/Game"], True)
+    global _WARDROBE
+    _WARDROBE = None
 
 
 def _wardrobe():
@@ -404,6 +459,8 @@ def _dress(sub, ch, av):
             sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words) + 1
             if "wardrobe" in cls.lower():
                 sc += 2
+            if pkg.startswith(FAB_WARDROBE + "/"):
+                sc += 4   # beenster's own Fab clothes beat the Creator's stock ones
             if sc > score:
                 best, score = (pkg, name), sc
         if best is None:
@@ -1621,8 +1678,12 @@ def main(args):
         _wardrobe()
     elif mode == "slim":
         slim()
+    elif mode == "fab":
+        fab_wardrobe()
+        _wardrobe()
     elif mode == "make":
         rest = args[1:]
+        fab_wardrobe()
         only = [a for a in rest if a not in ("rig", "nowardrobe")]   # e.g. `make rig A B`: just those
         make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()
