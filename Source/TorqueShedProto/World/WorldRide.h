@@ -285,6 +285,8 @@ public:
 		int Index = -1, Which = 0;
 		bool Deck = false, Bore = false;
 		P2 Foot;                 // the point of the road's middle nearest
+		double Along = 0.0;      // how far along its road that is (m)
+		double Off = 0.0;        // how far to the left of the road's middle the point is (m; - the right)
 		double Fall = 0.0;       // how steeply the road's surface falls outwards at its edge on the point's side (0 if it rises)
 	};
 	bool NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit) const;
@@ -395,6 +397,32 @@ public:
 	// The nearest railway to (X, Z) within 40 m: how far, its ballast's top there, what it is on there
 	// (as RailLine::On), and whether it is disused. False with none that near.
 	bool NearRail(double X, double Z, double& Dist, double& Top, int& On, bool* Disused = nullptr) const;
+	// What the road's surface is made of (Ride UK stage 7: WorldRideSurface.cpp), as the tyres feel it
+	// and RoadTile draws it: patches of newer or older tarmac in the wheel tracks, the black tar banding
+	// round them and along old seams (slick in the wet), grit down the middle of a single-track lane,
+	// iron covers in a town's road, the steel joints at a bridge's ends. Each mark lies From..To along
+	// road Which and Left..Right across it (m from its middle, + the left), Lift above or below it.
+	enum ERoadMark { MarkPatch, MarkTar, MarkGrit, MarkCover, MarkJoint };
+	struct RoadMark
+	{
+		int Kind = MarkPatch;
+		double From = 0.0, To = 0.0, Left = 0.0, Right = 0.0, Lift = 0.0;
+		float Colour[3] = {0.0f, 0.0f, 0.0f};
+	};
+	void RoadMarks(int Which, double From, double To, std::vector<RoadMark>& Out) const;
+	// How far over the road RoadTile lays a kind of mark (a hair, so it shows; the paint over them all).
+	static double MarkUp(int Kind);
+	// The surface under a wheel at (X, Z): Kind 0 tarmac, 1 slick (paint or tar banding: wet, they let
+	// go), 2 grit, 3 steel (a cover, a joint, a level crossing's rails); Lift how far it stands proud of
+	// the road (m, - sunk), eased in over a few centimetres. Tarmac and 0 off the road.
+	struct RideSurface
+	{
+		int Kind = 0;
+		double Lift = 0.0;
+		double Drawn = 0.0;   // how far over the road the mark there is drawn (MarkUp): a ray hits that
+	};
+	enum ESurface { SurfTarmac, SurfSlick, SurfGrit, SurfSteel };
+	RideSurface SurfaceAt(double X, double Z) const;
 	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
 	// little under the limit, as a rider on a road they do not know).
 	RideSummary Summary(double Cap = 24.6) const;

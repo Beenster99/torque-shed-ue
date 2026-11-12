@@ -111,5 +111,7 @@ struct BikeSpec
 };
 
 // What the ground under a tyre is. Matches the Godot game's surfaces that the prototype has.
-enum Surface : int { SURF_TARMAC = 0, SURF_GRAVEL = 1, SURF_GRASS = 2, SURF_GRID = 3 };   // grid: a cattle grid's steel bars
+// grid: a cattle grid's steel bars; steel: a cover, a bridge's joint, a crossing's rails, flush with the
+// road; slick: paint or tar banding on it (Ride UK stage 7: World/WorldRideSurface).
+enum Surface : int { SURF_TARMAC = 0, SURF_GRAVEL = 1, SURF_GRASS = 2, SURF_GRID = 3, SURF_STEEL = 4, SURF_SLICK = 5 };
 } // namespace TorqueSim

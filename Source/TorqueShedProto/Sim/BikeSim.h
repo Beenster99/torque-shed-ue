@@ -24,6 +24,7 @@ struct RayHit
 	V3 Position;
 	V3 Normal{0, 1, 0};
 	int Surface = SURF_GRASS;
+	double Lift = 0.0;   // how far the surface there stands proud of what the ray hit (m; - sunk): a patch, a cover
 };
 
 // Casts a ray in the simulation's world frame: from, to. Set by the game (Unreal line traces) or a test.

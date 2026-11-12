@@ -60,6 +60,13 @@ public:
 	// What the rider hears of the place round them (RidePlan::SoundsAt, each 0..1: the sea, running
 	// water, a town, sheep, cattle), from the ride being laid out now; false with no ride.
 	static bool PlaceHeard(double& Sea, double& Water, double& Town, double& Sheep, double& Cattle);
+	// The road's surface at a point of the ride's road (Unreal cm; RidePlan::SurfaceAt): Kind 0 tarmac,
+	// 1 slick (paint, tar), 2 grit, 3 steel, and how far it stands over the mark a ray hits there (m). False
+	// with no ride.
+	static bool SurfaceUnder(const FVector& At, int32& Kind, double& Lift);
+	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
+	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
+	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
 
 private:
 	static TWeakObjectPtr<ATorqueRideWorld> Current;

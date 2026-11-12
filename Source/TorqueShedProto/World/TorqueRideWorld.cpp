@@ -92,6 +92,27 @@ bool ATorqueRideWorld::PlaceHeard(double& Sea, double& Water, double& Town, doub
 	return true;
 }
 
+bool ATorqueRideWorld::SurfaceUnder(const FVector& At, int32& Kind, double& Lift)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan) return false;
+	const TorqueWorld::RidePlan::RideSurface S = Ride->Plan->SurfaceAt(At.X / 100.0, At.Y / 100.0);
+	Kind = S.Kind;
+	Lift = S.Lift - S.Drawn;   // (the ray hit the mark as drawn, a hair over the road)
+	return true;
+}
+
+bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
+{
+	Out.Reset();
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan) return false;
+	for (const TorqueWorld::RidePlan::Furnish& F : Ride->Plan->Furniture)
+		if (F.Kind == TorqueWorld::RidePlan::CattleGrid)
+			Out.Emplace(FVector(F.At.X, F.Height, F.At.Z), FVector(F.Face.X, F.Size, F.Face.Z));
+	return true;
+}
+
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 {
 	Plan = InPlan;

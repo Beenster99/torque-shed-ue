@@ -169,7 +169,7 @@ double BikeHeat::TempGrip(int I) const
 double BikeHeat::TyreGrip(int I, int Surf) const
 {
 	double G = TempGrip(I);
-	if (Surf != SURF_TARMAC && Surf != SURF_GRID) G = 1.0 - (1.0 - G) * OFF_ROAD_SHARE;
+	if (Surf != SURF_TARMAC && Surf != SURF_GRID && Surf != SURF_STEEL && Surf != SURF_SLICK) G = 1.0 - (1.0 - G) * OFF_ROAD_SHARE;
 	return G < 1.0 ? Lrp(G, 1.0, Soften) : G;
 }
 

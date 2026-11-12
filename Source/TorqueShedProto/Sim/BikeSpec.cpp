@@ -61,6 +61,8 @@ double BikeSpec::TyreGrip(bool Front, int Surf) const
 	case SURF_GRAVEL: return T.GripGravel * (0.5 + 0.5 * WetGrip);
 	case SURF_GRASS: return T.GripGrass * (0.3 + 0.7 * WetGrip);
 	case SURF_GRID: return T.GripTarmac * 0.75 * WetGrip * WetGrip;   // smooth steel bars, lethal wet
+	case SURF_STEEL: return T.GripTarmac * 0.8 * WetGrip * WetGrip;   // smooth iron or steel: much the same
+	case SURF_SLICK: return T.GripTarmac * WetGrip * (0.35 + 0.65 * WetGrip);   // paint and tar: fine dry, slippery wet
 	default: return T.GripTarmac * WetGrip;
 	}
 }

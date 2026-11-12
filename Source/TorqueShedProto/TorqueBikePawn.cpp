@@ -263,6 +263,14 @@ void ATorqueBikePawn::BeginPlay()
 			const AActor* A = Hit.GetActor();
 			const UPrimitiveComponent* Part = Hit.GetComponent();
 			Out.Surface = ((A && A->ActorHasTag(TEXT("Road"))) || (Part && Part->ComponentHasTag(TEXT("Road")))) ? SURF_TARMAC : SURF_GRASS;
+			// [Ride UK] what the road there is made of: paint and tar, grit, iron covers, a bridge's joints, rails.
+			int32 Kind = 0;
+			double Lift = 0.0;
+			if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
+			{
+				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;
+				Out.Lift = Lift;
+			}
 		}
 		return Out;
 	};
@@ -3665,7 +3673,7 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	In.FrontSlide = Lock(F);
 	In.SideSlide = FMath::Max(Side(F), Side(R));
 	const int32 Under = R.Contact ? R.Surf : F.Surf;
-	In.OnTarmac = Under == SURF_TARMAC || Under == SURF_GRID;
+	In.OnTarmac = Under == SURF_TARMAC || Under == SURF_GRID || Under == SURF_STEEL || Under == SURF_SLICK;
 	In.Grid = (F.Contact && F.Surf == SURF_GRID ? 1.0 : 0.0) + (R.Contact && R.Surf == SURF_GRID ? 1.0 : 0.0);
 	In.Airborne = !F.Contact && !R.Contact;
 	In.Inside = (CameraMode == 1 || CameraMode == 2) ? 1.0 : 0.0;
@@ -3681,6 +3689,23 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 	}
 	// On a ride, the place round you (World/TorqueRideWorld): the sea, a beck, a town, the sheep and cattle.
 	ATorqueRideWorld::PlaceHeard(In.Sea, In.Water, In.Town, In.Sheep, In.Cattle);
+	if (!bRideGridsSet)
+	{
+		TArray<TPair<FVector, FVector>> RideGrids;
+		if (ATorqueRideWorld::CattleGrids(RideGrids))
+		{
+			bRideGridsSet = true;
+			for (const TPair<FVector, FVector>& G : RideGrids)
+			{
+				CattleGrid Grid;
+				Grid.Centre = V3(G.Key.X, G.Key.Y, G.Key.Z);   // (the ride's frame is the sim's)
+				Grid.Along = V3(G.Value.X, 0.0, G.Value.Z).Normalized();
+				Grid.HalfWidth = G.Value.Y * 0.5;
+				Sim->Grids.push_back(Grid);
+			}
+			UE_LOG(LogTemp, Log, TEXT("Torque: Ride UK's %d cattle grids in the sim"), RideGrids.Num());
+		}
+	}
 	Sound->Set(In);
 
 	// Keep about 80 ms queued: enough for a slow frame, little enough that it answers the throttle.

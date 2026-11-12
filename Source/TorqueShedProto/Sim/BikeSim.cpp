@@ -1046,7 +1046,7 @@ void BikeSim::WheelForces(Wheel& W, double Delta)
 		Slide = std::max(PathW.Dot(N), 0.2);
 		const double HMount = (Mount - Hit.Position).Dot(N);
 		const double Extended = (HMount - Crown - (Radius - Crown) * CosCam) / Slide;
-		RawComp = Travel - Extended;
+		RawComp = Travel - Extended + Hit.Lift / Slide;
 		for (const CattleGrid& Gr : Grids)
 		{
 			const V3 D = Hit.Position - Gr.Centre;

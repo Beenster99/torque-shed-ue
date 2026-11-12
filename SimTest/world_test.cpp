@@ -721,6 +721,36 @@ int main()
 							Check(Kinds[RidePlan::EweGraze] > 20 && Kinds[RidePlan::Lamb] > 5 && Spring > 0 && Winter < Spring && Trampled == 0,
 								"sheep in the fields with lambs in spring, cattle out in summer and mostly in for the winter, none on a road");
 						}
+						// The road's surface (stage 7): patches, tar, grit, covers and paint under the wheels, along
+						// the ride's road and a side road, each where RoadMarks lays it.
+						{
+							int Kinds[4] = {}, Proud = 0, Sunk = 0, Samples = 0, Grit = 0, Covers = 0;
+							for (int Which = 0; Which < std::min(Plan->RoadCount(), 6); ++Which)
+							{
+								const std::vector<RoadPoint>& Pts = Plan->RoadOf(Which);
+								for (size_t I = 0; I + 1 < Pts.size(); ++I)
+								{
+									const P2 Dir = (Pts[I + 1].At - Pts[I].At) * (1.0 / std::max(Pts[I].At.DistanceTo(Pts[I + 1].At), 1e-6));
+									const P2 Left(Dir.Z, -Dir.X);
+									for (double Off = -Pts[I].Half + 0.1; Off < Pts[I].Half - 0.1; Off += 0.2)
+									{
+										const P2 At = Pts[I].At + Left * Off;
+										const RidePlan::RideSurface S = Plan->SurfaceAt(At.X, At.Z);
+										++Kinds[S.Kind];
+										++Samples;
+										Proud += S.Lift > 0.001 ? 1 : 0;
+										Sunk += S.Lift < -0.001 ? 1 : 0;
+									}
+								}
+								std::vector<RidePlan::RoadMark> Marks;
+								Plan->RoadMarks(Which, 0.0, Pts.back().Along, Marks);
+								for (const RidePlan::RoadMark& M : Marks) { Grit += M.Kind == RidePlan::MarkGrit ? 1 : 0; Covers += M.Kind == RidePlan::MarkCover ? 1 : 0; }
+							}
+							std::printf("      surface at %d points across the roads: tarmac %d, slick (paint, tar) %d, grit %d, steel %d; %d proud, %d sunk; %d grit stretches, %d covers\n",
+								Samples, Kinds[0], Kinds[1], Kinds[2], Kinds[3], Proud, Sunk, Grit, Covers);
+							Check(Kinds[1] > Samples / 200 && Kinds[1] < Samples / 8 && Kinds[3] > 0 && Proud > Samples / 100 && Sunk > 0 && Covers > 0 && Kinds[0] > Samples * 3 / 4,
+								"the road's surface: mostly tarmac, with paint and tar, patches standing proud, iron covers in the towns");
+						}
 						// The sound of the place (stage 6): along the ride, the most town, water and sheep heard.
 						{
 							RidePlace Most;

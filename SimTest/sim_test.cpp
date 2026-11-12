@@ -982,8 +982,36 @@ static void WindTests()
 	}
 }
 
+// Ride UK's road surface (stage 7): paint and tar grip as tarmac dry and let go in the wet; iron and
+// steel are poor wet; a patch standing proud lifts the wheel.
+static void SurfaceTests()
+{
+	std::printf("road surface\n");
+	BikeSpec B = BikeSpec::SpeedTwin1200();
+	B.WetGrip = 1.0;
+	const double Dry = B.TyreGrip(false, SURF_TARMAC), DrySlick = B.TyreGrip(false, SURF_SLICK);
+	B.WetGrip = 0.68;
+	const double Wet = B.TyreGrip(false, SURF_TARMAC), WetSlick = B.TyreGrip(false, SURF_SLICK), WetSteel = B.TyreGrip(false, SURF_STEEL);
+	Check(std::fabs(DrySlick - Dry) < 1e-9, "dry paint grips as tarmac", DrySlick / Dry);
+	Check(WetSlick < Wet * 0.85 && WetSlick > Wet * 0.6, "wet paint or tar: a good deal less than wet tarmac", WetSlick / Wet);
+	Check(WetSteel < Wet * 0.6, "a wet iron cover: much less", WetSteel / Wet);
+	// A bike standing on a patch 5 mm proud sits 5 mm higher than on the road.
+	const auto Rest = [](double Lift)
+	{
+		BikeSim S;
+		S.Setup(BikeSpec::SpeedTwin1200());
+		S.Ray = [Lift](const V3& From, const V3& To) { RayHit H = FlatRay(From, To); H.Lift = Lift; return H; };
+		S.Place(V3(0, 0, 0), 0.0);
+		for (int I = 0; I < 480; ++I) S.Step(1.0 / 120.0);
+		return S.Position.y;
+	};
+	const double Flat = Rest(0.0), Proud = Rest(0.005);
+	Check(std::fabs(Proud - Flat - 0.005) < 0.0015, "on a patch 5 mm proud the bike sits 5 mm up", (Proud - Flat) * 1000.0);
+}
+
 int main(int Argc, char** Argv)
 {
+	SurfaceTests();
 	FlatTests();
 	WheelieTests();
 	CrashTests();

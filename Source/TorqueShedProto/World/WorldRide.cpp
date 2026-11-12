@@ -519,9 +519,11 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 				Hit.Deck = SegDeck;
 				Hit.Bore = SegBore;
 				Hit.Foot = P2(Px, Pz);
+				Hit.Along = Pa.Along + (Pb.Along - Pa.Along) * T;
 				// (how far to the left of the road's middle: left of a heading (dx, dz) is (dz, -dx))
 				const double Len = std::sqrt(L2);
 				const double Off = Len > 1e-9 ? ((X - Px) * Ab.Z - (Z - Pz) * Ab.X) / Len : 0.0;
+				Hit.Off = Off;
 				const double BankHere = Pa.Bank + (Pb.Bank - Pa.Bank) * T;
 				Hit.Cross = RoadLine::CrossHeight(Off, HalfHere, BankHere);
 				Hit.Fall = HalfHere > 1e-6 ? std::fmax(0.0, -RoadLine::CrossHeight(Off >= 0.0 ? HalfHere : -HalfHere, HalfHere, BankHere) / HalfHere) : 0.0;
@@ -1261,6 +1263,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	const int LidArch = 4;   // (the lid's first point over the arch)
 	std::vector<P3> RingA, RingB, LidA, LidB;
 	const double PaintLift = 0.015;
+	std::vector<RoadMark> MarksHere;
 	for (size_t K = 0; K + 1 < Rows.size(); ++K)
 	{
 		Row RowA = Rows[K], RowB = Rows[K + 1];
@@ -1475,6 +1478,20 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 					Strip(Sa, Sb, -Sa.Half, -Sa.Half - ShoulderFlat, -Sb.Half, -Sb.Half - ShoulderFlat, 0.0, -ShoulderDip, Verge);
 					Strip(Sa, Sb, -Sa.Half - ShoulderFlat, -Sa.Half - Shoulder, -Sb.Half - ShoulderFlat, -Sb.Half - Shoulder, -ShoulderDip, -ShoulderDrop, Verge);
 				}
+			}
+		}
+		// The surface's marks (WorldRideSurface): patches, tar banding, grit, covers, joints, each cut to
+		// this bit of road and laid a hair over it (under the paint).
+		if (!A.Bore && B.Along > A.Along + 1e-6)
+		{
+			RoadMarks(Which, A.Along, B.Along, MarksHere);
+			for (const RoadMark& Mk : MarksHere)
+			{
+				const double Ta = std::clamp((Mk.From - A.Along) / (B.Along - A.Along), 0.0, 1.0), Tb = std::clamp((Mk.To - A.Along) / (B.Along - A.Along), 0.0, 1.0);
+				if (Tb - Ta < 1e-4) continue;
+				const Row Ma = Between(A, B, Ta), Mb = Between(A, B, Tb);
+				const double Up = MarkUp(Mk.Kind);
+				Strip(Ma, Mb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Up, Up, Mk.Colour);
 			}
 		}
 		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
