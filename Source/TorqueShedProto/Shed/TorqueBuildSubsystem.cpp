@@ -2117,6 +2117,38 @@ FString UTorqueBuildSubsystem::TyreFitReason(FName Tyre, FName Wheel)
 		Fit == 1 ? TEXT("wide") : TEXT("narrow"), Wp->Num("rim_width", 0.0), Lo, Hi);
 }
 
+FString UTorqueBuildSubsystem::TyresThatFit(FName Wheel)
+{
+	const TorqueFit::BikeLayout* Lay = TBI::FitLayout();
+	if (!Lay) return FString();
+	const std::string W = TBI::Std(Wheel.ToString());
+	const TorqueFit::Json* Wp = Lay->Part(W);
+	if (!Wp) return FString();
+	auto Inch = [](double D) { return FMath::IsNearlyEqual(D, FMath::RoundToDouble(D)) ? FString::Printf(TEXT("%d\""), (int32)FMath::RoundToDouble(D)) : FString::Printf(TEXT("%.1f\""), D); };
+	int32 Lo = 0, Hi = 0;
+	const TorqueFit::Json* Range = Wp->Get("tyres");
+	if (Range && Range->IsArray() && Range->A.size() == 2)
+	{
+		Lo = (int32)Range->A[0].N;
+		Hi = (int32)Range->A[1].N;
+	}
+	else
+	{
+		const double Rim = Wp->Num("rim_width", 3.5);
+		Lo = FMath::RoundToInt(Rim * 24.0);
+		Hi = FMath::RoundToInt(Rim * 62.0);
+	}
+	TArray<FString> Names;
+	for (const std::string& T : TorqueFit::Shop::TyresFor(*Lay, W)) Names.Add(TorqueShedParts::PartName(FName(UTF8_TO_TCHAR(T.c_str()))));
+	FString Text = FString::Printf(TEXT("Takes %s tyres %d-%d mm wide"), *Inch(Wp->Num("diameter", 17.0)), Lo, Hi);
+	if (Names.Num() == 0) return Text + TEXT(": none in the catalogue");
+	const int32 Shown = FMath::Min(Names.Num(), 5);
+	TArray<FString> First(Names.GetData(), Shown);
+	Text += TEXT(": ") + FString::Join(First, TEXT(", "));
+	if (Names.Num() > Shown) Text += FString::Printf(TEXT(" and %d more"), Names.Num() - Shown);
+	return Text;
+}
+
 FString UTorqueBuildSubsystem::PaintJobText(const FTorqueItem& It) const
 {
 	// shed_state finish_text and coat_text.

@@ -609,6 +609,9 @@ public:
 	static FString BeadText(const FTorqueItem& It);
 	// PartsDB.tyre_fit_reason: why Tyre won't go on Wheel's rim ("" when it will).
 	static FString TyreFitReason(FName Tyre, FName Wheel);
+	// The tyres that go on a wheel (beenster, Nov 12: "when you hover over a wheel rim, it should tell
+	// you what tyres fit it"): its rim and the widths it takes, then the catalogue's tyres for it.
+	static FString TyresThatFit(FName Wheel);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
 	float BeadOf(int32 Bay, bool bFront) const;
 

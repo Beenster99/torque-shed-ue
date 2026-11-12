@@ -3059,6 +3059,11 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({FString::Printf(TEXT("%s: %s   %s"), *TorqueShedParts::SlotName(TargetSlot), *B->ItemTitle(TargetItem),
 			B->IsBolted(TargetBay, TargetSlot) ? TEXT("bolted") : TEXT("loose")), FColor::White, 0.8f});
 		if (Thing) HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
+		if (Thing && Thing->Kind == FName(TEXT("wheel")))
+		{
+			const FString Fits = UTorqueBuildSubsystem::TyresThatFit(Thing->Part);
+			if (!Fits.IsEmpty()) HudLines.Add({Fits, Info, 0.55f});
+		}
 		if (B->Exists(TargetBay))
 			HudLines.Add({FString::Printf(TEXT("%s: geometry mode (fit this bike's parts)"), *FTorqueKeys::Text(ETorqueKey::GeometryMode)), Prompt, 0.55f});
 		const FString Fab = B->FabOwedText(TargetBay);
@@ -3074,6 +3079,11 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({B->ItemTitle(TargetItem) + Where, FColor::White, 0.8f});
 			HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
 			if (Thing->Tyre != 0) HudLines.Add({TEXT("Tyre: ") + B->ItemTitle(Thing->Tyre), Info, 0.55f});
+			if (Thing->Kind == FName(TEXT("wheel")) && !Thing->bBoxed)
+			{
+				const FString Fits = UTorqueBuildSubsystem::TyresThatFit(Thing->Part);
+				if (!Fits.IsEmpty()) HudLines.Add({Fits, Info, 0.55f});
+			}
 			if (Thing->bBoxed) HudLines.Add({TEXT("F / Triangle: unpack it"), Prompt, 0.65f});
 		}
 		break;
