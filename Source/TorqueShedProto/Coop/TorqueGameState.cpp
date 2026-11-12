@@ -134,6 +134,9 @@ void ATorqueGameState::BeginPlay()
 	// The clock where it was left (the level's own light until the player sets one).
 	// (A test run keeps the level's light unless one of its steps set the clock.)
 	if (HasAuthority() && (!bTest || bTestClockSet)) Hour = Set.TimeOfDay;
+	// (-TorqueHour=<0..24> sets it for a test: a night shot of Ride UK's lamps and windows)
+	if (float ForcedHour = -1.0f; HasAuthority() && FParse::Value(FCommandLine::Get(), TEXT("TorqueHour="), ForcedHour) && ForcedHour >= 0.0f)
+		Hour = FMath::Fmod(ForcedHour, 24.0f);
 	ApplySun();   // (and the weather's light)
 
 	UTorqueBuildSubsystem* Build = UTorqueBuildSubsystem::Of(this);
