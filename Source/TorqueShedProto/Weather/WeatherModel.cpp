@@ -52,6 +52,7 @@ State Blend(const State& A, const State& B, double T)
 	S.Cloud = Lerp(A.Cloud, B.Cloud, T);
 	S.Rain = Lerp(A.Rain, B.Rain, T);
 	S.Snow = Lerp(A.Snow, B.Snow, T);
+	S.SnowDepth = Lerp(A.SnowDepth, B.SnowDepth, T);
 	S.Wind = Lerp(A.Wind, B.Wind, T);
 	const double Turn = std::fmod(B.WindFrom - A.WindFrom + 540.0, 360.0) - 180.0;
 	S.WindFrom = std::fmod(A.WindFrom + Turn * T + 360.0, 360.0);
@@ -148,6 +149,13 @@ double RoadWaterAfter(const std::vector<double>& RainPerHour, double Air, double
 	for (double R : RainPerHour)
 		for (int I = 0; I < 4; ++I) W = RoadWaterStep(W, R, Air, Wind, Cloud, 900.0);
 	return W;
+}
+
+double SnowCover(const State& S)
+{
+	const double Lying = Clamp01((S.SnowDepth - 0.004) / 0.036);
+	const double Falling = S.Air < 1.5 ? Clamp01(S.Snow / 1.5) * Clamp01((1.5 - S.Air) / 2.0) * 0.6 : 0.0;
+	return std::max(Lying, Falling);
 }
 
 double PuddlesAfter(const std::vector<double>& RainPerHour, double Air)
@@ -280,7 +288,7 @@ long long ParseIsoUtc(const std::string& Iso)
 std::string OpenMeteoUrl(double Lat, double Lon)
 {
 	return "https://api.open-meteo.com/v1/forecast?" + LatLon("latitude", Lat, "longitude", Lon) +
-		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
+		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
 		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime";
 }
 
@@ -324,6 +332,7 @@ bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Tim
 	S.Cloud = Clamp01(Cur->Num("cloud_cover", 0.0) / 100.0);
 	S.Rain = std::max(Cur->Num("precipitation", 0.0), 0.0) * 3600.0 / Interval;
 	S.Snow = std::max(Cur->Num("snowfall", 0.0), 0.0) * 3600.0 / Interval;
+	S.SnowDepth = std::max(Cur->Num("snow_depth", 0.0), 0.0);
 	S.Wind = std::max(Cur->Num("wind_speed_10m", 0.0), 0.0);
 	S.WindFrom = Cur->Num("wind_direction_10m", S.WindFrom);
 	S.Gust = std::max(Cur->Num("wind_gusts_10m", S.Wind), S.Wind);
@@ -400,7 +409,7 @@ std::string OpenMeteoGridUrl(double Lat, double Lon, int N, double StepM)
 			Lons += Buf;
 		}
 	return "https://api.open-meteo.com/v1/forecast?latitude=" + Lats + "&longitude=" + Lons +
-		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
+		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
 		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime&timezone=auto";
 }
 
@@ -490,6 +499,7 @@ State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSec
 	S.Cloud = Mix(A.Cloud, B.Cloud, C.Cloud, D.Cloud);
 	S.Rain = Mix(A.Rain, B.Rain, C.Rain, D.Rain);
 	S.Snow = Mix(A.Snow, B.Snow, C.Snow, D.Snow);
+	S.SnowDepth = Mix(A.SnowDepth, B.SnowDepth, C.SnowDepth, D.SnowDepth);
 	S.Wind = Mix(A.Wind, B.Wind, C.Wind, D.Wind);
 	S.Gust = Mix(A.Gust, B.Gust, C.Gust, D.Gust);
 	S.Air = Mix(A.Air, B.Air, C.Air, D.Air);
@@ -520,6 +530,7 @@ State AddDifference(const State& Base, const State& Here, const State& Ref, doub
 	S.Cloud = Clamp01(Add(Base.Cloud, Here.Cloud, Ref.Cloud));
 	S.Rain = std::max(Add(Base.Rain, Here.Rain, Ref.Rain), 0.0);
 	S.Snow = std::max(Add(Base.Snow, Here.Snow, Ref.Snow), 0.0);
+	S.SnowDepth = std::max(Add(Base.SnowDepth, Here.SnowDepth, Ref.SnowDepth), 0.0);
 	S.Wind = std::max(Add(Base.Wind, Here.Wind, Ref.Wind), 0.0);
 	S.Gust = std::max(Add(Base.Gust, Here.Gust, Ref.Gust), S.Wind);
 	S.Air = Add(Base.Air, Here.Air, Ref.Air);
@@ -631,7 +642,13 @@ std::string Save(const State& S)
 	char Buf[256];
 	std::snprintf(Buf, sizeof(Buf), "w1 %.3f %.3f %.3f %.3f %.1f %.3f %.2f %.0f %.3f %d %.3f %.0f %.3f", S.Cloud, S.Rain, S.Snow, S.Wind, S.WindFrom, S.Gust,
 		S.Air, S.Visibility, S.RoadWet, S.Code, S.LowCloud, S.CloudBase, S.Puddles);
-	return Buf;
+	std::string Out = Buf;
+	if (S.SnowDepth > 0.0)
+	{
+		std::snprintf(Buf, sizeof(Buf), " %.3f", S.SnowDepth);
+		Out += Buf;
+	}
+	return Out;
 }
 
 bool Load(const std::string& Text, State& Out)
@@ -644,6 +661,7 @@ bool Load(const std::string& Text, State& Out)
 	In >> S.LowCloud >> S.CloudBase;   // (an older save without them keeps the defaults)
 	if (In.fail()) { S.LowCloud = 0.0; S.CloudBase = 5000.0; }
 	else if (!(In >> S.Puddles)) S.Puddles = 0.0;
+	else if (!(In >> S.SnowDepth)) S.SnowDepth = 0.0;
 	Out = S;
 	return true;
 }

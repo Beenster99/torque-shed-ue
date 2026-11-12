@@ -37,6 +37,7 @@ struct FTorqueWeatherNet
 	UPROPERTY() float LowCloud = 0.0f;
 	UPROPERTY() float CloudBase = 5000.0f;
 	UPROPERTY() float Puddles = 0.0f;
+	UPROPERTY() float SnowDepth = 0.0f;   // (lying snow, m)
 	// ETorqueWeatherSource, and when the live weather was fetched (seconds since 1970, 0 for never).
 	UPROPERTY() uint8 Source = 0;
 	UPROPERTY() int64 FetchedAt = 0;

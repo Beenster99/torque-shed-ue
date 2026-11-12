@@ -140,6 +140,25 @@ int main()
 		Check(Live.Puddles > 0.25, "the live afternoon of rain has edge puddles");
 	}
 
+	// Lying snow: none on a normal day, a white land once a few centimetres lie, and kept through a save.
+	{
+		State Deep = Preset(Overcast);
+		Deep.SnowDepth = 0.05;
+		Deep.Air = -2.0;
+		State Dust = Deep;
+		Dust.SnowDepth = 0.008;
+		State Falling = Preset(Overcast);
+		Falling.Snow = 2.0;
+		Falling.Air = -1.0;
+		State Back;
+		const bool Loaded = Load(Save(Deep), Back);
+		std::printf("      snow cover: deep %.2f, a dusting %.2f, falling on bare ground %.2f\n", SnowCover(Deep), SnowCover(Dust), SnowCover(Falling));
+		Check(SnowCover(Preset(Sunny)) == 0.0 && SnowCover(Preset(Wet)) == 0.0 && SnowCover(Live) == 0.0, "no snow on the presets or the live afternoon");
+		Check(SnowCover(Deep) == 1.0 && SnowCover(Dust) > 0.05 && SnowCover(Dust) < 0.3, "a few centimetres whiten the land, a dusting only a little");
+		Check(SnowCover(Falling) > 0.2 && SnowCover(Falling) <= 0.6, "snow falling in the cold starts to settle");
+		Check(Loaded && Near(Back.SnowDepth, 0.05, 1e-3), "the snow depth survives a save");
+	}
+
 	// Rain to see, wind to sway.
 	Check(RainShow(Preset(Sunny)) == 0.0 && RainShow(Preset(Wet)) > 0.4 && RainShow(Preset(Wet)) < 0.5, "light rain shows nearly half a downpour");
 	State Pour = Preset(Wet);

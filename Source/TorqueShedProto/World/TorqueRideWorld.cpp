@@ -441,10 +441,13 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		Asked.Remove(One.Key);
 		if (One.Value.IsValid()) Place(One.Key, *One.Value, false);
 	}
+	TickBirds(DeltaSeconds);
 	SinceLook += DeltaSeconds;
 	if (SinceLook < 0.2) return;
 	SinceLook = 0.0;
 	const FVector2D At = RiderAt();
+	if (BirdsLookedAt.X < 1e11 && FVector2D::Distance(At, BirdsLookedAt) > 0.5) BirdsGoing = (At - BirdsLookedAt).GetSafeNormal();
+	BirdsLookedAt = At;
 	Update(At, false);
 	UpdateRoad(At, false);
 	// A square no longer wanted goes once every wanted square over the same ground is in place.
@@ -479,6 +482,131 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	{
 		bSaidReady = true;
 		UE_LOG(LogTemp, Display, TEXT("Torque ride world: all the ground round the rider is in place (%d squares, %d pieces of road, %d plants, trees and animals; %d animals placed so far)"), Tiles.Num(), RoadParts.Num(), PlantsShown, AnimalsShown);
+	}
+}
+
+namespace TRWBirds
+{
+// A bird with its wings spread, facing +x in the ride's frame, wings along z: 0 a buzzard (broad
+// brown wings, a fanned tail), 1 a red kite (long, angled rufous wings, a forked tail), 2 a gull
+// (white, grey wings with black tips). Seen from both sides.
+TorqueWorld::RideMesh BirdMesh(int32 Kind)
+{
+	TorqueWorld::RideMesh M;
+	const float Span = Kind == 1 ? 0.8f : Kind == 2 ? 0.68f : 0.62f;   // (half the wingspan, m)
+	const float Body[3] = {Kind == 2 ? 0.55f : 0.09f, Kind == 2 ? 0.55f : 0.06f, Kind == 2 ? 0.55f : 0.04f};
+	const float Wing[3] = {Kind == 2 ? 0.32f : Kind == 1 ? 0.17f : 0.075f, Kind == 2 ? 0.33f : Kind == 1 ? 0.065f : 0.052f, Kind == 2 ? 0.35f : Kind == 1 ? 0.028f : 0.035f};
+	const float Tip[3] = {Kind == 2 ? 0.02f : 0.03f, Kind == 2 ? 0.02f : 0.025f, Kind == 2 ? 0.02f : 0.02f};
+	const auto Tri = [&M](const float* A, const float* B, const float* C, const float* Colour)
+	{
+		for (int Side = 0; Side < 2; ++Side)
+		{
+			const uint32 V = uint32(M.Vertices());
+			for (const float* P : {A, B, C})
+			{
+				M.Pos.insert(M.Pos.end(), {P[0], P[1], P[2]});
+				M.Nrm.insert(M.Nrm.end(), {0.0f, Side == 0 ? 1.0f : -1.0f, 0.0f});
+				M.Uv.insert(M.Uv.end(), {P[0], P[2]});
+				M.Col.insert(M.Col.end(), {Colour[0], Colour[1], Colour[2]});
+				M.Alpha.push_back(0.0f);
+			}
+			if (Side == 0) M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2});
+			else M.Idx.insert(M.Idx.end(), {V, V + 2, V + 1});
+		}
+	};
+	// The body: a long diamond, nose to tail.
+	const float Nose[3] = {0.28f, 0.0f, 0.0f}, Back[3] = {-0.25f, 0.0f, 0.0f}, L[3] = {0.0f, 0.02f, -0.07f}, R[3] = {0.0f, 0.02f, 0.07f};
+	Tri(Nose, L, Back, Body);
+	Tri(Nose, Back, R, Body);
+	// The wings, raised a little (a buzzard's shallow V), the kite's swept back at the wrist.
+	for (float S : {-1.0f, 1.0f})
+	{
+		const float Root0[3] = {0.12f, 0.0f, S * 0.05f}, Root1[3] = {-0.1f, 0.0f, S * 0.05f};
+		const float Wrist0[3] = {Kind == 1 ? 0.08f : 0.1f, Kind == 0 ? 0.06f : 0.03f, S * Span * 0.55f}, Wrist1[3] = {Kind == 1 ? -0.14f : -0.12f, Kind == 0 ? 0.06f : 0.03f, S * Span * 0.55f};
+		const float End0[3] = {Kind == 1 ? -0.05f : 0.02f, Kind == 0 ? 0.11f : 0.02f, S * Span}, End1[3] = {Kind == 1 ? -0.2f : -0.1f, Kind == 0 ? 0.11f : 0.02f, S * Span * 0.95f};
+		Tri(Root0, Wrist0, Root1, Wing);
+		Tri(Root1, Wrist0, Wrist1, Wing);
+		Tri(Wrist0, End0, Wrist1, Kind == 2 ? Tip : Wing);
+		Tri(Wrist1, End0, End1, Kind == 2 ? Tip : Wing);
+	}
+	// The tail: fanned, or forked on a kite.
+	if (Kind == 1)
+	{
+		const float A[3] = {-0.22f, 0.0f, -0.03f}, B[3] = {-0.22f, 0.0f, 0.03f}, C[3] = {-0.5f, 0.0f, -0.09f}, D[3] = {-0.5f, 0.0f, 0.09f}, E[3] = {-0.42f, 0.0f, 0.0f};
+		Tri(A, C, E, Wing);
+		Tri(B, E, D, Wing);
+		Tri(A, E, B, Wing);
+	}
+	else
+	{
+		const float A[3] = {-0.22f, 0.0f, -0.03f}, B[3] = {-0.22f, 0.0f, 0.03f}, C[3] = {-0.42f, 0.0f, -0.09f}, D[3] = {-0.42f, 0.0f, 0.09f};
+		Tri(A, C, D, Body);
+		Tri(A, D, B, Body);
+	}
+	return M;
+}
+
+double Unit(uint32 H)
+{
+	H ^= H >> 16; H *= 0x7feb352du; H ^= H >> 15; H *= 0x846ca68bu; H ^= H >> 16;
+	return double(H & 0xffffffu) / double(0x1000000);
+}
+} // namespace TRWBirds
+
+void ATorqueRideWorld::SendBird(FRideBird& Bird, const FVector2D& At, uint32 Salt)
+{
+	// Somewhere 150 to 450 m off, mostly ahead (the way the rider was last seen going), circling 35 to
+	// 110 m up (gulls lower and quicker), round 40 to 90 m.
+	const FVector2D Going = BirdsGoing;
+	const double Turn = (TRWBirds::Unit(Salt * 3u + 1u) - 0.5) * 2.4;
+	const double Far = 150.0 + 300.0 * TRWBirds::Unit(Salt * 3u + 2u);
+	const FVector2D Dir(Going.X * FMath::Cos(Turn) - Going.Y * FMath::Sin(Turn), Going.X * FMath::Sin(Turn) + Going.Y * FMath::Cos(Turn));
+	const FVector2D Where = At + Dir * Far;
+	// (which kind: gulls if the sea is within 4 km, red kites in a share of the places they live, else buzzards)
+	bool bSea = false;
+	if (Plan->Land)
+		for (int32 K = 0; K < 8 && !bSea; ++K)
+			for (double R : {1500.0, 4000.0})
+				bSea = bSea || Plan->Land->SeaAt(Where.X + FMath::Cos(K * PI / 4.0) * R, Where.Y + FMath::Sin(K * PI / 4.0) * R);
+	const FString Region = UTF8_TO_TCHAR(Plan->LookHere(Where.X, Where.Y).Name.c_str());
+	const bool bKites = Region == TEXT("wales") || Region == TEXT("lowland") || Region == TEXT("cotswolds") || Region == TEXT("dales") || Region == TEXT("highlands");
+	const double Pick = TRWBirds::Unit(Salt * 7u + 5u);
+	const int32 Kind = bSea && Pick < 0.7 ? 2 : bKites && Pick < 0.5 ? 1 : 0;
+	const double Ground = Plan->Ground(Where.X, Where.Y);
+	Bird.Centre = FVector(Where.X, (FMath::IsNaN(Ground) ? 300.0 : Ground) + (Kind == 2 ? 20.0 + 30.0 * Pick : 35.0 + 75.0 * Pick), Where.Y);
+	Bird.Radius = 40.0 + 50.0 * TRWBirds::Unit(Salt * 11u + 3u);
+	Bird.Speed = (Kind == 2 ? 11.0 : Kind == 1 ? 8.0 : 9.0) * (TRWBirds::Unit(Salt * 13u + 7u) < 0.5 ? -1.0 : 1.0);
+	Bird.Angle = TRWBirds::Unit(Salt * 17u + 9u) * 2.0 * PI;
+	Bird.Bank = FMath::Atan2(Bird.Speed * Bird.Speed, 9.81 * Bird.Radius);
+	Bird.Drift = 0.0;
+	if (!Bird.Part.IsValid() || Bird.Kind != Kind)
+	{
+		if (Bird.Part.IsValid()) Bird.Part->DestroyComponent();
+		const TorqueWorld::RideMesh Shape = TRWBirds::BirdMesh(Kind);
+		Bird.Part = MakePart(Shape, RenderMaterial, false, true, false);
+	}
+	Bird.Kind = Kind;
+}
+
+void ATorqueRideWorld::TickBirds(float DeltaSeconds)
+{
+	if (!Plan || BirdsLookedAt.X > 1e11) return;
+	if (Birds.Num() == 0) Birds.SetNum(3);
+	static uint32 Sent = 1;
+	for (FRideBird& Bird : Birds)
+	{
+		const FVector2D Off(Bird.Centre.X - BirdsLookedAt.X, Bird.Centre.Z - BirdsLookedAt.Y);
+		if (!Bird.Part.IsValid() || Off.Size() > 1600.0) SendBird(Bird, BirdsLookedAt, Sent++);
+		if (!Bird.Part.IsValid()) continue;
+		// Round its circle, the circle itself drifting slowly east as a thermal on the westerlies does.
+		Bird.Angle += double(DeltaSeconds) * Bird.Speed / Bird.Radius;
+		Bird.Drift += double(DeltaSeconds) * 1.2;
+		const double X = Bird.Centre.X + FMath::Cos(Bird.Angle) * Bird.Radius + Bird.Drift, Z = Bird.Centre.Z + FMath::Sin(Bird.Angle) * Bird.Radius;
+		const double Y = Bird.Centre.Y + 6.0 * FMath::Sin(Bird.Angle * 0.5);
+		// (its heading along the circle, banked into it; the frames share x and their z is Unreal's y)
+		const double Heading = Bird.Angle + (Bird.Speed > 0.0 ? 0.5 * PI : -0.5 * PI);
+		const double Roll = FMath::RadiansToDegrees(Bird.Bank) * (Bird.Speed > 0.0 ? 1.0 : -1.0);
+		Bird.Part->SetRelativeLocationAndRotation(FVector(X * 100.0, Z * 100.0, Y * 100.0), FRotator(0.0, FMath::RadiansToDegrees(Heading), Roll));
 	}
 }
 

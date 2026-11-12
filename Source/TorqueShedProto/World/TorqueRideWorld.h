@@ -112,6 +112,21 @@ private:
 	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;
 	TArray<TArray<int32>> KindNear, KindFar;
+	// [stage 6] A few birds overhead near the rider: buzzards circling, red kites where kites live,
+	// gulls by the sea. Each wheels round a point of its own until the rider is far past it, then
+	// another is found ahead.
+	struct FRideBird
+	{
+		TWeakObjectPtr<UProceduralMeshComponent> Part;
+		FVector Centre = FVector::ZeroVector;   // the ride's frame: x east, y up, z south (m)
+		double Radius = 60.0, Speed = 9.0, Angle = 0.0, Bank = 0.4, Drift = 0.0;
+		int32 Kind = 0;
+	};
+	TArray<FRideBird> Birds;
+	FVector2D BirdsLookedAt = FVector2D(1e12, 1e12);
+	FVector2D BirdsGoing = FVector2D(1.0, 0.0);   // (the way the rider is going, for where to send a bird)
+	void TickBirds(float DeltaSeconds);
+	void SendBird(FRideBird& Bird, const FVector2D& At, uint32 Salt);
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> AnimalKit;
 	TArray<TArray<int32>> AnimalModels;   // by RidePlan::EAnimal: indices into AnimalKit
 	FVector AnimalFrame = FVector(0.0, 1.0, 1.0);

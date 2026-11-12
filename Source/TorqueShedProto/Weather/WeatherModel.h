@@ -31,6 +31,9 @@ struct State
 	// edges (its camber drains them there), most on the inside of bends where the road leans in; only
 	// past about 0.6 do they reach across the middle. Builds with the rain of the last hours, drains slowly.
 	double Puddles = 0.0;
+	// Lying snow, metres deep (Open-Meteo's snow_depth; Ride UK stage 6): the land and the wall tops
+	// whiten from a centimetre or two (SnowCover).
+	double SnowDepth = 0.0;
 };
 
 enum EKind { Sunny = 0, Overcast = 1, Wet = 2 };
@@ -87,6 +90,10 @@ double RoadWaterAfter(const std::vector<double>& RainPerHour, double Air, double
 // The standing water from the rain of the last hours (oldest first, mm in each hour): about 4 mm in
 // the last few hours fills the edges, 15 mm or more reaches the middle.
 double PuddlesAfter(const std::vector<double>& RainPerHour, double Air);
+// How much of the ground lying snow covers, 0 .. 1, for the materials (MPC_Weather Snow): a dusting
+// from half a centimetre, a full cover from about 4 cm. Falling snow on frozen ground counts too,
+// so a fresh fall whitens the moor before the depth is measured.
+double SnowCover(const State& S);
 
 // Moves from one State to another over a set time, smoothly (ease in and out).
 struct Fader

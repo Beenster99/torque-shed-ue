@@ -503,6 +503,7 @@ void ATorqueGameState::SendNet()
 	Net.LowCloud = (float)S.LowCloud;
 	Net.CloudBase = (float)S.CloudBase;
 	Net.Puddles = (float)S.Puddles;
+	Net.SnowDepth = (float)S.SnowDepth;
 	if (const UWorld* World = GetWorld()) NetSentAt = World->GetRealTimeSeconds();
 	ForceNetUpdate();
 }
@@ -524,6 +525,7 @@ void ATorqueGameState::OnRep_Net()
 	S.LowCloud = Net.LowCloud;
 	S.CloudBase = Net.CloudBase;
 	S.Puddles = Net.Puddles;
+	S.SnowDepth = Net.SnowDepth;
 	// The host sends a fade a couple of times a second: ease between, so it stays smooth here too.
 	if (AppliedAt < 0.0) Fade.Set(S);
 	else Fade.FadeTo(S, 0.6);
@@ -540,7 +542,7 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 	UpdateHere();
 	const bool bHereMoved = HereAt >= 0.0 && Now - AppliedAt >= 0.1 && (FMath::Abs(Here.Cloud - HereApplied.Cloud) > 0.01
 		|| FMath::Abs(Here.Rain - HereApplied.Rain) > 0.03 || FMath::Abs(Here.RoadWet - HereApplied.RoadWet) > 0.01
-		|| FMath::Abs(Here.Puddles - HereApplied.Puddles) > 0.01 || FMath::Abs(Here.Air - HereApplied.Air) > 0.2
+		|| FMath::Abs(Here.Puddles - HereApplied.Puddles) > 0.01 || FMath::Abs(Here.SnowDepth - HereApplied.SnowDepth) > 0.002 || FMath::Abs(Here.Air - HereApplied.Air) > 0.2
 		|| FMath::Abs(Here.Wind - HereApplied.Wind) > 0.2 || FMath::Abs(Here.LowCloud - HereApplied.LowCloud) > 0.01
 		|| FMath::Abs(Here.Visibility - HereApplied.Visibility) > 0.03 * HereApplied.Visibility);
 	if (HasAuthority())
@@ -727,6 +729,7 @@ FTorqueWeatherNet NetOf(const TorqueWeather::State& S)
 	N.WindFrom = (float)S.WindFrom; N.Gust = (float)S.Gust; N.Air = (float)S.Air; N.Visibility = (float)S.Visibility;
 	N.RoadWet = (float)S.RoadWet; N.Code = S.Code; N.LowCloud = (float)S.LowCloud; N.CloudBase = (float)S.CloudBase;
 	N.Puddles = (float)S.Puddles;
+	N.SnowDepth = (float)S.SnowDepth;
 	return N;
 }
 
@@ -735,7 +738,7 @@ TorqueWeather::State StateOf(const FTorqueWeatherNet& N)
 	TorqueWeather::State S;
 	S.Cloud = N.Cloud; S.Rain = N.Rain; S.Snow = N.Snow; S.Wind = N.Wind; S.WindFrom = N.WindFrom; S.Gust = N.Gust;
 	S.Air = N.Air; S.Visibility = N.Visibility; S.RoadWet = N.RoadWet; S.Code = N.Code; S.LowCloud = N.LowCloud;
-	S.CloudBase = N.CloudBase; S.Puddles = N.Puddles;
+	S.CloudBase = N.CloudBase; S.Puddles = N.Puddles; S.SnowDepth = N.SnowDepth;
 	return S;
 }
 } // namespace
@@ -1010,6 +1013,7 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("Rain"), (float)TorqueWeather::RainShow(St));
 		// Standing water: the road's edges first (inside of bends most), the middle after hours of rain.
 		SetMpc(TEXT("Puddles"), (float)FMath::Clamp(St.Puddles, 0.0, 1.0));
+		SetMpc(TEXT("Snow"), (float)TorqueWeather::SnowCover(St));
 	}
 	// The log: as the kind changes (the tests read it), not ten times a second.
 	if (Weather != LoggedKind)

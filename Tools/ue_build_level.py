@@ -199,6 +199,7 @@ WEATHER_PARAMS = (
     ("CloudShadow", 0.6),    # where the cloud shadows' noise turns to shade: 1 none (clear) .. 0.45 most of the ground
     ("Rain", 0.0),           # how hard it's raining for the eye, 0 .. 1
     ("Puddles", 0.4),        # standing water: up to 0.4 the road's edges fill, past 0.6 the middle too
+    ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
 )
 _weather_mpc = None
 
@@ -252,6 +253,29 @@ def weather_param(g, name):
 def wetness(g):
     """The Wetness scalar in a material (0 when the collection couldn't be made)."""
     return weather_param(g, "Wetness")
+
+
+def snow_cover(g, layer, keep=0.0):
+    """Lying snow over a layer [colour, normal, roughness] (Ride UK stage 6), from MPC_Weather's Snow:
+    on faces that look up first, in drifts, a full cover at 1; keep (0..1) holds some of the surface
+    showing through (grass tufts, a wall's stones). Changes the layer in place."""
+    nz = g.node(unreal.MaterialExpressionVertexNormalWS)
+    up = g.node(unreal.MaterialExpressionComponentMask, r=False, g=False, b=True, a=False)
+    g.link(nz, up)
+    snow = weather_param(g, "Snow")
+    # (how much lies: the up-facing first, steeper faces only as it deepens; broken into drifts)
+    lie = g.op(unreal.MaterialExpressionSubtract, g.op(unreal.MaterialExpressionMultiply, snow, const_b=1.6),
+               g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, up), const_b=2.2))
+    drift = g.mask_noise(0.004, 0.5, 1.6)
+    lie = g.op(unreal.MaterialExpressionMultiply, lie, drift)
+    lie = g.op(unreal.MaterialExpressionSaturate, lie)
+    lie = g.op(unreal.MaterialExpressionMultiply, lie, const_b=1.0 - keep)
+    layer[0] = g.lerp(layer[0], g.const((0.78, 0.8, 0.84)), lie)
+    layer[1] = g.lerp(layer[1], g.const((0.0, 0.0, 1.0)), g.op(unreal.MaterialExpressionMultiply, lie, const_b=0.8))
+    r_src = layer[2]
+    r_out = "R" if r_src.get_class().get_name() == "MaterialExpressionTextureSample" else ""
+    layer[2] = g.lerp(r_src, g.const(0.65), lie, a_out=r_out)
+    return layer
 
 
 def wind_dir(g, dip):
@@ -604,6 +628,7 @@ def land_material_scanned(tex, roles):
     # beenster (8 Nov): still a sheen on the ground looking into the sun. Moorland is matte: a high
     # roughness floor and low specular when dry (rain still brings some shine back).
     land[2] = g.op(unreal.MaterialExpressionMax, r_src, g.lerp(g.const(0.92), g.const(0.55), wet), a_out=r_out)
+    snow_cover(g, land)
     return g.finish(land, specular=0.12)
 
 
@@ -2482,6 +2507,7 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
     moss = layer("moss", (70, 84, 38))
     st = g.mix(st, moss, m)
     st[0] = far_dull(g, st[0])
+    snow_cover(g, st, keep=0.15)
     return g.finish(st)
 
 
