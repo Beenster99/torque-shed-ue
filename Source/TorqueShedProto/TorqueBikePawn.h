@@ -103,6 +103,7 @@ public:
 	const FTorqueLights& GetLights() const { return Lights; }
 	// The engine still being started (the starter cranking it over), for the speedo's "Starting...".
 	bool IsStarting() const { return EngineCatchIn > 0.0; }
+	bool EngineRunning() const;   // on, or catching (left idling when you get off)
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
 

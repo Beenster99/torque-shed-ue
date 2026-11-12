@@ -136,6 +136,7 @@ void HostGetOff(APlayerController* PC)
 	ATorqueBikePawn* Bike = PC ? Cast<ATorqueBikePawn>(PC->GetPawn()) : nullptr;
 	if (!World || !Bike || !Bike->InYard()) return;
 	const int32 Bay = Bike->GetRideBay();
+	if (UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(PC)) Sub->SetIdling(Bay, Bike->EngineRunning());   // left ticking over
 	FVector At = Bike->GetActorLocation();
 	At.Z = 0.0;
 	const double Yaw = Bike->GetActorRotation().Yaw;

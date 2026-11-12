@@ -416,6 +416,11 @@ public:
 	static FTransform HomeOf(int32 Bay);
 	FTransform BikeTransform(int32 Bay) const;
 	bool IsAway(int32 Bay) const { return Exists(Bay) && Bikes[Bay].bAway; }
+	// Left ticking over by its rider (beenster, Nov 12: "bikes should remain on and idling when you
+	// get off"): heard idling where it stands (UTorqueSfx) until it's ridden again or switched off.
+	// Each machine's own (not saved, not sent): the rider's and the host's know.
+	void SetIdling(int32 Bay, bool bOn) { if (Bay >= 0 && Bay < 32) IdlingBays = bOn ? (IdlingBays | (1u << Bay)) : (IdlingBays & ~(1u << Bay)); }
+	bool IsIdling(int32 Bay) const { return Exists(Bay) && Bay < 32 && (IdlingBays & (1u << Bay)) != 0; }
 	// The bay whose bike Peer is wheeling, or INDEX_NONE.
 	int32 PushedBy(int32 Peer) const;
 	// The dyno rig (dyno_room.gd rig_transform: on the drum, nose to the far wall), its strap posts.
@@ -680,6 +685,7 @@ private:
 	bool bShedLights = true;
 	bool bDoorUp = true;
 	FTransform StandXf = FTransform(FVector(560.0, -40.0, 0.0));
+	uint32 IdlingBays = 0;   // SetIdling
 	int32 StandPusher = 0;
 	int32 ExtinguisherBy = 0;
 	bool bFoaming = false;

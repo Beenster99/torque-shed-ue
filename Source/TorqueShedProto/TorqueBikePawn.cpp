@@ -1377,6 +1377,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			}
 			else
 			{
+				// Left ticking over where it stands (beenster, Nov 12), heard from the shed's own sound.
+				if (UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this)) Sub->SetIdling(RideBay, EngineRunning());
 				TorqueYard::GetOff(PC);
 				return;
 			}
@@ -2024,6 +2026,11 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 	}
 	return FString::Printf(TEXT("bike at (%.0f, %.0f, %.1f) cm, yaw %.0f, %.1f mph, %s; %s"), Mid.X, Mid.Y, Mid.Z, GetActorRotation().Yaw,
 		Sim->Speed * 2.23694, TorqueShedLayout::InWashBay(Mid) ? TEXT("in the wash bay") : TEXT("outside the wash bay"), *Under);
+}
+
+bool ATorqueBikePawn::EngineRunning() const
+{
+	return Sim && (Sim->EngineOn || Sim->IsStarting() || EngineCatchIn > 0.0);
 }
 
 void ATorqueBikePawn::PressIgnition()
@@ -3592,7 +3599,20 @@ void ATorqueBikePawn::StartSound()
 	// old start-on-arrival so their rides go as before.
 	static const bool bTestStart = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) ||
 		FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide")) || FCString::Strifind(FCommandLine::Get(), TEXT("TorqueShedAction=")) != nullptr;
-	if (!bTestStart)
+	// [yard] Got back on a bike left idling in the shed: it's still running.
+	UTorqueBuildSubsystem* IdleShed = bYard && RideBay >= 0 ? UTorqueBuildSubsystem::Of(this) : nullptr;
+	const bool bWasIdling = IdleShed && IdleShed->IsIdling(RideBay);
+	if (IdleShed) IdleShed->SetIdling(RideBay, false);
+	if (bWasIdling)
+	{
+		SoundAudio->Play();
+		Sound->Catch();
+		Sim->EngineOn = true;
+		bEngineWas = true;
+		EngineNote = TEXT("Engine running");
+		EngineNoteFor = 2.0;
+	}
+	else if (!bTestStart)
 	{
 		SoundAudio->Play();
 		Sim->StopEngine();

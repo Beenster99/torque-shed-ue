@@ -25,6 +25,7 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueWalker.h"
+#include "TorqueBikePawn.h"
 
 #include <mutex>
 
@@ -787,6 +788,75 @@ void UTorqueSfx::Tick(float Dt)
 	{
 		TickAmbience(Dt);
 		TickKit(Dt);
+		TickIdlers();
+	}
+}
+
+void UTorqueSfx::TickIdlers()
+{
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (!Shed || !Mixer) return;
+	static_assert(UTorqueBuildSubsystem::Bays <= 4, "one idling engine per bay");
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+	{
+		bool bRidden = false;
+		for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It && !bRidden; ++It)
+			bRidden = It->InYard() && It->GetRideBay() == Bay;
+		const bool bOn = Shed->IsIdling(Bay) && !bRidden && !Shed->OnDyno(Bay);
+		const FVector EngineAt = Shed->BikeTransform(Bay).GetLocation() + FVector(0.0, 0.0, 45.0);
+		if (bOn && !IdleVoices[Bay])
+		{
+			std::shared_ptr<TorqueEngine::FBank> Bank = BikeEngine(this, Bay);
+			auto Gen = std::make_shared<FRideGen>();
+			Gen->Sound.Ambience = false;
+			Gen->Sound.WindLevel = 0.0;
+			Gen->Sound.EngineLevel = FMath::Clamp(FTorqueSettings::Get().Engine, 0.0f, 1.0f);
+			if (Bank)
+			{
+				Gen->Sound.SetEngine(Bank);
+				Gen->Sound.IdleRpm = Bank->Spec.Idle;
+			}
+			else
+			{
+				TArray<uint8> Bytes;
+				int WavRate = 0;
+				if (FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Audio/idle_parallel270.wav")), FILEREAD_Silent))
+				{
+					std::vector<float> Idle = TorqueSound::ReadWav(std::vector<uint8_t>(Bytes.GetData(), Bytes.GetData() + Bytes.Num()), WavRate);
+					if (!Idle.empty()) Gen->Sound.SetIdle(std::move(Idle), WavRate, 1319.0);
+				}
+			}
+			{
+				std::lock_guard<std::mutex> G(Gen->Lock);
+				Gen->In.Rpm = Gen->Sound.IdleRpm;
+				Gen->In.Throttle = 0.0;
+				Gen->In.Inside = 0.0;
+				Gen->In.EngineOn = true;
+			}
+			IdleEngines[Bay] = Gen;
+			FPlay P;
+			P.Gen = Gen;
+			P.At = V(EngineAt);
+			P.Unit = 500.0;
+			P.MaxDistance = 0.0;
+			P.Db = Occlusion(EngineAt) - 3.0;
+			P.Bus = BusFor(EngineAt);
+			P.FadeIn = 0.2;
+			IdleVoices[Bay] = Mixer->Play(P);
+			UE_LOG(LogTemp, Log, TEXT("Torque: bay %d's bike left idling (%s)"), Bay + 1, Bank ? TEXT("its own engine") : TEXT("recorded idle"));
+		}
+		if (IdleVoices[Bay] && bOn)
+		{
+			Mixer->SetAt(IdleVoices[Bay], V(EngineAt));
+			Mixer->SetBus(IdleVoices[Bay], BusFor(EngineAt));
+			Mixer->SetDb(IdleVoices[Bay], Occlusion(EngineAt) - 3.0);
+		}
+		else if (IdleVoices[Bay])
+		{
+			Mixer->Stop(IdleVoices[Bay], 0.6);
+			IdleVoices[Bay] = 0;
+			IdleEngines[Bay].reset();
+		}
 	}
 }
 

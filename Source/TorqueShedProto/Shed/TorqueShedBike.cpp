@@ -1,4 +1,6 @@
 #include "Shed/TorqueShedBike.h"
+#include "Fit/BikeLayout.h"
+#include "Fit/FitJson.h"
 #include "Shed/TorqueToolModels.h"
 #include "Shed/TorqueWashJob.h"
 
@@ -401,14 +403,10 @@ void ATorqueShedBike::Follow(float Dt)
 		}
 	}
 	const bool bAway = B->IsAway(Bay);
-	if (bAway != bShownAway)
-	{
-		// Off the paddock stand (hidden while it is away): level on its wheels, axle height 30.5 cm.
-		bShownAway = bAway;
-		for (UStaticMeshComponent* C : Stand)
-			if (C) C->SetVisibility(!bAway);
-		BikeRoot->SetRelativeLocationAndRotation(bAway ? FVector(0.0, 0.0, 30.5) : FVector(0.0, 0.0, 32.5), FRotator(bAway ? 0.0 : -2.0, 0.0, 0.0));
-	}
+	bShownAway = bAway;
+	// On its paddock stand in the bay; out of it, on its own stand (or upright while it's held).
+	const int32 Pose = WantedPose();
+	if (Pose != ShownPose) ApplyPose(Pose);
 	// Being wheeled: it mustn't shove the one wheeling it about.
 	const bool bPushed = B->Exists(Bay) && B->Bike(Bay).Pusher != 0;
 	if (bPushed != (Blocker->GetCollisionEnabled() == ECollisionEnabled::NoCollision))
@@ -473,6 +471,10 @@ void ATorqueShedBike::Rebuild()
 	for (UStaticMeshComponent* C : Parts)
 		if (C) C->DestroyComponent();
 	Parts.Reset();
+	StandRest.Reset();
+	SideStandId.Reset();
+	CentreStandId.Reset();
+	ShownPose = -1;   // posed again on the next Follow
 	FitView = FTorqueBikeFitView();
 	const FString Geo = FitText();
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
@@ -499,6 +501,14 @@ void ATorqueShedBike::Rebuild()
 				FrontRadius = FMath::Clamp(AxleHeight + Frame.FrontAxle.Z, 20.0, 45.0);
 			}
 			BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, AxleHeight + 1.5), FRotator(-2.0, 0.0, 0.0));
+			RearAxleZ = AxleHeight;
+			PaddockLoc = FVector(0.0, 0.0, AxleHeight + 1.5);
+			if (Frame.bValid) SwingPivotCm = Frame.SwingPivot;
+			if (const FString* Side = CatalogueParts.Find(TEXT("side_stand")); Side && !Side->IsEmpty() && *Side != TEXT("none")) SideStandId = *Side;
+			if (const FString* Centre = CatalogueParts.Find(TEXT("centre_stand")); Centre && !Centre->IsEmpty() && *Centre != TEXT("none")) CentreStandId = *Centre;
+			static const FName SideTag(TEXT("Slot:side_stand")), CentreTag(TEXT("Slot:centre_stand"));
+			for (UStaticMeshComponent* C : Parts)
+				if (C && (C->ComponentHasTag(SideTag) || C->ComponentHasTag(CentreTag))) StandRest.Add({C, C->GetRelativeTransform()});
 			// The stand under its swingarm (the bike's pitched nose down a little: its back end is up).
 			const double RearX = Frame.bValid ? Frame.RearAxle.X : -70.6;
 			PoseStand(RearX, AxleHeight + 1.5 + FMath::Abs(RearX) * FMath::Sin(FMath::DegreesToRadians(2.0)));
@@ -510,6 +520,8 @@ void ATorqueShedBike::Rebuild()
 		}
 	}
 	BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, 32.5), FRotator(-2.0, 0.0, 0.0));
+	RearAxleZ = 30.5;
+	PaddockLoc = FVector(0.0, 0.0, 32.5);
 	FrontAxleX = 70.6;   // the Speed Twin's 1413 mm wheelbase
 	FrontRadius = 30.0;
 	PoseStand(-70.6, 32.5 + 70.6 * FMath::Sin(FMath::DegreesToRadians(2.0)));
@@ -522,6 +534,87 @@ void ATorqueShedBike::Rebuild()
 	FitView.Show(Parts, Geo);
 	Relook();
 	UE_LOG(LogTemp, Log, TEXT("Torque: bay %d: %s drawn with %d parts"), Bay + 1, *Build.Bike.ToString(), Parts.Num());
+}
+
+int32 ATorqueShedBike::WantedPose() const
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	if (!B || !B->Exists(Bay) || !B->IsAway(Bay)) return 0;
+	// Held upright while it's wheeled, clamped in a lift's wheel vice, or strapped to the dyno.
+	if (B->Bike(Bay).Pusher != 0 || bPreview || bHeldLevel || B->LiftOf(Bay) != INDEX_NONE || B->OnDyno(Bay)) return 3;
+	if (!SideStandId.IsEmpty()) return 1;
+	if (!CentreStandId.IsEmpty()) return 2;
+	return 3;
+}
+
+void ATorqueShedBike::ApplyPose(int32 Pose)
+{
+	ShownPose = Pose;
+	for (UStaticMeshComponent* C : Stand)
+		if (C) C->SetVisibility(Pose == 0);
+	// Its own stands folded up first (as drawn), then the one it's on swung down.
+	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
+		if (KV.Key.IsValid()) KV.Key->SetRelativeTransform(KV.Value);
+	const TorqueFit::BikeLayout* Lay = TorqueShedCatalogue::Layout();
+	auto PartOf = [Lay](const FString& Id) -> const TorqueFit::Json* {
+		return Lay && !Id.IsEmpty() ? Lay->Part(std::string(TCHAR_TO_UTF8(*Id))) : nullptr;
+	};
+	if (Pose == 0)
+	{
+		BikeRoot->SetRelativeLocationAndRotation(PaddockLoc, FRotator(-2.0, 0.0, 0.0));
+		return;
+	}
+	if (Pose == 3)
+	{
+		// Level on its wheels: the origin is at the rear axle's height (the front tyre meets the floor too).
+		BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, RearAxleZ), FRotator::ZeroRotator);
+		return;
+	}
+	// As the ridden bike stands when you get off it (ATorqueBikePawn::HoldParked / PoseStands, from
+	// Torque Shed's customer.gd _set_parked and BikeModel._draw_side_stand / _draw_centre_stand).
+	auto Godot = [](double X, double Y, double Z) { return FVector(-Z, X, Y) * 100.0; };
+	const double Rr = RearAxleZ / 100.0;
+	FVector Pivot, Folded, Down;
+	FName Tag;
+	if (Pose == 1)
+	{
+		const TorqueFit::Json* P = PartOf(SideStandId);
+		const double Len = P ? P->Num("length", 0.3) : 0.3;
+		const double LeanDeg = P ? P->Num("lean", 12.0) : 12.0;
+		const double LeanS = FMath::DegreesToRadians(LeanDeg);
+		// Leaned to its left (the side stand's side) about the line its tyres touch the floor along.
+		const FQuat Lean = FRotator(0.0, 0.0, -LeanDeg).Quaternion();
+		BikeRoot->SetRelativeLocationAndRotation(Lean.RotateVector(FVector(0.0, 0.0, RearAxleZ)), Lean.Rotator());
+		const double Px = -0.12, Height = -0.04 + Rr;
+		double Best = 0.0, BestErr = 1e9;
+		for (int32 I = 0; I < 90; ++I)
+		{
+			const double A = FMath::DegreesToRadians((double)I);
+			const double Fx = Px - Len * FMath::Sin(A), Fy = Height - Len * FMath::Cos(A);
+			const double Err = FMath::Abs(Fy * FMath::Cos(LeanS) + Fx * FMath::Sin(LeanS));
+			if (Err < BestErr) { BestErr = Err; Best = A; }
+		}
+		Folded = Godot(-0.03, -0.04, Len * 0.95);
+		Down = Godot(-Len * FMath::Sin(Best), -Len * FMath::Cos(Best), -0.06);
+		Pivot = FVector(SwingPivotCm.X + 16.0, -12.0, -4.0);
+		Tag = FName(TEXT("Slot:side_stand"));
+	}
+	else
+	{
+		const TorqueFit::Json* P = PartOf(CentreStandId);
+		const double Lift = P ? P->Num("lift", 0.04) : 0.04;
+		BikeRoot->SetRelativeLocationAndRotation(FVector(0.0, 0.0, RearAxleZ + Lift * 100.0), FRotator::ZeroRotator);
+		const double Reach = Rr - 0.06 + Lift;
+		Folded = Godot(0.0, -0.08, Reach * 0.9);
+		Down = Godot(0.0, -Reach, -0.02);
+		Pivot = FVector(SwingPivotCm.X + 8.0, 0.0, -6.0);
+		Tag = FName(TEXT("Slot:centre_stand"));
+	}
+	const FQuat Swing = FQuat::FindBetweenVectors(Folded.GetSafeNormal(), Down.GetSafeNormal());
+	const FTransform About = FTransform(-Pivot) * FTransform(Swing) * FTransform(Pivot);
+	for (const TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>& KV : StandRest)
+		if (KV.Key.IsValid() && KV.Key->ComponentHasTag(Tag)) KV.Key->SetRelativeTransform(KV.Value * About);
+	UE_LOG(LogTemp, Log, TEXT("Torque: bay %d's bike stands on its %s stand"), Bay + 1, Pose == 1 ? TEXT("side") : TEXT("centre"));
 }
 
 void ATorqueShedBike::BuildGreyBox()
