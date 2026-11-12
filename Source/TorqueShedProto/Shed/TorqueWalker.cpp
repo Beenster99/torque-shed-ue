@@ -36,6 +36,7 @@
 #include "Shed/TorqueTyreGame.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -2203,6 +2204,24 @@ FTransform ATorqueWalker::CarryDrop() const
 		}
 	}
 	FVector At = Feet + Flat * Dist;
+	// beenster (Nov 12): where the crosshair points. Looking down at the floor (or a low surface)
+	// within reach, it goes down there; looking ahead or up, the wheel's reach as before.
+	if (World)
+		if (const APlayerController* AimPC = Cast<APlayerController>(GetController()); AimPC && AimPC->PlayerCameraManager)
+		{
+			const FVector Eye = AimPC->PlayerCameraManager->GetCameraLocation();
+			const FVector Look = AimPC->PlayerCameraManager->GetCameraRotation().Vector();
+			FHitResult Aim;
+			const double AimRange = 55.0 + Half + TWI::CarryMax + 150.0;
+			if (Look.Z < -0.05 && World->LineTraceSingleByChannel(Aim, Eye, Eye + Look * AimRange, ECC_Visibility, Params) &&
+				Aim.ImpactNormal.Z > 0.7 && Aim.ImpactPoint.Z < Feet.Z + 60.0)
+			{
+				const FVector2D Off(Aim.ImpactPoint.X - Feet.X, Aim.ImpactPoint.Y - Feet.Y);
+				const double Along = FMath::Clamp(Off.Size(), Base + TWI::CarryMin, Base + TWI::CarryMax);
+				const FVector2D Dir2 = Off.SizeSquared() > 1.0 ? Off.GetSafeNormal() : FVector2D(Flat.X, Flat.Y);
+				At = FVector(Feet.X + Dir2.X * Along, Feet.Y + Dir2.Y * Along, Feet.Z);
+			}
+		}
 	FHitResult Down;
 	const FVector Top(At.X, At.Y, Feet.Z + 120.0);
 	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
@@ -2376,7 +2395,7 @@ void ATorqueWalker::UpdateCues()
 		}
 	}
 	if (XRay && GhostXRayMaterials.Num() == 0)
-		for (const FLinearColor& C : {FLinearColor(1.0f, 0.82f, 0.05f), FLinearColor(1.0f, 0.15f, 0.1f)})
+		for (const FLinearColor& C : {FLinearColor(1.0f, 0.42f, 0.03f), FLinearColor(1.0f, 0.12f, 0.1f)})
 		{
 			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(XRay, this);
 			M->SetVectorParameterValue(TEXT("Color"), C * 2.0f);
@@ -2413,12 +2432,12 @@ void ATorqueWalker::UpdateCues()
 	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
 	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
 	const bool bOk = Plan.Blocked.IsEmpty();
-	// Yellow where it can go (beenster, build 135: yellow, so it isn't the look outline's orange), red
-	// where it can't; steady, no pulse.
+	// Orange where it can go (beenster, Nov 12: "where your mouse is pointing (and orange)"; it was
+	// yellow after build 135), red where it can't; steady, no pulse.
 	if (GhostMaterials.Num() >= 4)
 	{
 		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
-		const FLinearColor Can(1.0f, 0.82f, 0.05f), Cannot(1.0f, 0.15f, 0.1f);
+		const FLinearColor Can(1.0f, 0.42f, 0.03f), Cannot(1.0f, 0.12f, 0.1f);
 		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), Can * 3.0f);
 		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
 		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), Can * 6.0f);
