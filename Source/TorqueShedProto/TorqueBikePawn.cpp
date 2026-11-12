@@ -1536,6 +1536,13 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		bHudLines = !bHudLines;
 		if (bHudLines) bShowHelp = true;
 	}
+	// [info] F1 slides the info panel down the left in and out (beenster, Nov 12); remembered with your settings.
+	if (FTorqueKeys::Just(PC, ETorqueKey::InfoPanel))
+	{
+		FTorqueSettings& Keep = FTorqueSettings::Get();
+		Keep.bInfoPanel = !Keep.bInfoPanel;
+		if (Keep.bSaved) Keep.Save();
+	}
 	// Settings > Gameplay > Telemetry overlay (F3 while riding, as Torque Shed).
 	if (FTorqueKeys::Just(PC, ETorqueKey::Telemetry))
 	{
@@ -2031,6 +2038,17 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 bool ATorqueBikePawn::EngineRunning() const
 {
 	return Sim && (Sim->EngineOn || Sim->IsStarting() || EngineCatchIn > 0.0);
+}
+
+// [info] The info panel's riders list.
+double ATorqueBikePawn::SpeedMs() const
+{
+	return Sim ? FMath::Abs(Sim->Speed) : 0.0;
+}
+
+bool ATorqueBikePawn::RiderCrashed() const
+{
+	return Sim && Sim->IsCrashed;
 }
 
 void ATorqueBikePawn::PressIgnition()
@@ -4227,8 +4245,8 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s lights   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
 			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
 			*K(ETorqueKey::Hazards), *K(ETorqueKey::Clutch), *K(ETorqueKey::Nod), *K(ETorqueKey::Wave)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
-			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.62f);
+		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s info panel   %s shed   Esc menu"),
+			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::InfoPanel), *K(ETorqueKey::BackToShed)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),
 			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
 			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown)), Help, 0.62f);

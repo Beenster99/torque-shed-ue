@@ -30,6 +30,8 @@ private:
 	// beam, green fog lights and the indicators' green arrows flashing with them (hud.gd
 	// _draw_indicator_lamp). RX, RY the speedo's corner and G screen pixels per Godot pixel, as DrawSpeedo.
 	void DrawTellTales(const ATorqueBikePawn* Bike, float RX, float RY, float G);
+	// [info] The riding info panel down the left (F1 slides it in and out; TorqueInfoPanel.h).
+	TSharedPtr<class FTorqueInfoPanel> InfoPanel;
 	float FpsTime = 0.0f, FpsShown = 0.0f;
 	int32 FpsFrames = 0;
 };

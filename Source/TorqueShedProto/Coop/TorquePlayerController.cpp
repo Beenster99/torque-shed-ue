@@ -329,6 +329,8 @@ FString ATorquePlayerController::TestSet(const FString& Field, const FString& Va
 	}
 	else if (F == TEXT("units")) S.Units = Value == TEXT("metric") || Value == TEXT("0") ? 0 : 1;
 	else if (F == TEXT("telemetry")) S.bTelemetry = bOn;
+	else if (F == TEXT("infopanel")) S.bInfoPanel = bOn;   // [info]
+	else if (F == TEXT("placelookup")) S.bPlaceLookup = bOn;
 	else if (F == TEXT("fps")) S.bFpsCounter = bOn;
 	else if (F == TEXT("autoshift")) S.bAutoShift = bOn;
 	else if (F == TEXT("recentre")) S.bCameraRecentre = bOn;
@@ -817,6 +819,10 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		}
 		Toggle(TEXT("Automatic gearbox"), S.bAutoShift, FString::Printf(TEXT("The gears change themselves (%s while riding)"), *FTorqueKeys::Text(ETorqueKey::AutoShift)));
 		Toggle(TEXT("Telemetry overlay"), S.bTelemetry, FString::Printf(TEXT("Live strips of what the bike is doing, while riding (%s)"), *FTorqueKeys::Text(ETorqueKey::Telemetry)));
+		// [info]
+		Toggle(TEXT("Info panel"), S.bInfoPanel, FString::Printf(TEXT("Date and time, build, weather and forecast, where you are and who's riding, down the left while riding (%s slides it in and out)"),
+			*FTorqueKeys::Text(ETorqueKey::InfoPanel)));
+		Toggle(TEXT("Info panel: about this place"), S.bPlaceLookup, TEXT("The panel asks OpenStreetMap and Wikipedia about where you are (needs the internet; off asks nothing)"));
 		Toggle(TEXT("Look into corners"), S.bLookIntoCorner, TEXT("Riders' heads turn towards the inside of a bend, and your view does in first person"));
 		Heading(TEXT("CAMERA"));
 		SettingF(TEXT("Field of view"), FString::Printf(TEXT("%d°"), FMath::RoundToInt(S.Fov)),

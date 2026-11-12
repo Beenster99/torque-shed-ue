@@ -106,6 +106,10 @@ public:
 	bool EngineRunning() const;   // on, or catching (left idling when you get off)
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
+	// [info] For the info panel's riders: how fast it's going (m/s, our sim or a co-op rider's
+	// snapshots), and whether its rider is off.
+	double SpeedMs() const;
+	bool RiderCrashed() const;
 
 	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
 	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand

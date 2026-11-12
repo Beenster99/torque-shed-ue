@@ -19,6 +19,7 @@
 #include "Misc/App.h"
 #include "GameFramework/PlayerState.h"
 #include "Shed/TorqueBuildSubsystem.h"
+#include "TorqueInfoPanel.h"
 
 void ATorqueHUD::DrawHUD()
 {
@@ -124,6 +125,12 @@ void ATorqueHUD::DrawHUD()
 		TorqueUi::Rect(Canvas, X - 12.0f * S, Y - 5.0f * S, W + 24.0f * S, H + 10.0f * S, FLinearColor(0.035f, 0.04f, 0.045f, 0.62f));
 		TorqueUi::Text(Canvas, L.Text, X, Y, Px, FLinearColor(L.Colour), bBig);
 		Y += H + (L.Size < 0.8f ? 7.0f : 14.0f) * S;   // the small help lines sit closer together
+	}
+	// [info] Riding: the info panel down the left, under the corner lines (F1 slides it in and out).
+	if (Bike)
+	{
+		if (!InfoPanel.IsValid()) InfoPanel = MakeShared<FTorqueInfoPanel>();
+		InfoPanel->Draw(this, Canvas, Bike, Y + 8.0f * S, GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.016f);
 	}
 }
 

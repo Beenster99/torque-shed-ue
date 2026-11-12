@@ -53,6 +53,10 @@ struct FTorqueSettings
 	float Fov = 80.0f;          // field of view, degrees: on foot as it is, the bike's cameras moved by as much
 	bool bAutoShift = true;     // the gearbox changes itself (G / R3 while riding)
 	bool bTelemetry = false;    // live strips of what the bike is doing, while riding (F3)
+	// [info] The riding info panel down the left (F1 slides it in and out; beenster, Nov 12): the date
+	// and time, the build, the weather and its forecast, where you are, and who's riding.
+	bool bInfoPanel = true;
+	bool bPlaceLookup = true;   // it asks OpenStreetMap and Wikipedia about where you are (off: no internet asked)
 	bool bLookIntoCorner = true;    // the rider's head, and a first-person view, turn into a bend
 	bool bCameraRecentre = true;    // the chase camera swings back behind the bike after you look round
 	int32 Units = 1;            // 0 metric (km/h, km), 1 imperial (mph, miles)
