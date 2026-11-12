@@ -86,6 +86,22 @@ def road_material(L):
     return m
 
 
+def lamp_material(L):
+    """A tunnel lamp's glowing face (World/WorldRide's RoadPiece: RideMesh::Glow, its vertex colour the
+    light's): unlit, bright enough to read as a lamp under Ride UK's daytime exposure and at night."""
+    mel = L.mel
+    m = L.new_material("M_RideLamp", MAT_DIR)
+    L.try_set(m, "shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    vc = mel.create_material_expression(m, unreal.MaterialExpressionVertexColor, -600, 0)
+    mul = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -350, 0)
+    mel.connect_material_expressions(vc, "", mul, "A")   # the unnamed output is RGB
+    mel.connect_material_expressions(L.const1(m, 150.0, -600, 200), "", mul, "B")
+    mel.connect_material_property(mul, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(m)
+    unreal.EditorAssetLibrary.save_loaded_asset(m)
+    return m
+
+
 def scanned_materials(L):
     """The hand-built ride's own scanned looks, made again here under /Game/RideUK/Materials so the
     streamed world is drawn as Buttertubs is (Ride UK stage 3): M_RideLandScan (Buttertubs' M_Land:
@@ -276,6 +292,7 @@ def build():
     L = level_lib()
     land_material(L)
     road_material(L)
+    lamp_material(L)
     scanned = scanned_materials(L)
     kit = read_kit(L)
     grass_materials(L, kit)

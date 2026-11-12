@@ -87,6 +87,9 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LandMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RoadMaterial;
 	// The hand-built ride's scanned stone, for dry stone walls and for stone houses (RideMesh::Stone, Masonry).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LampMaterial;   // a tunnel lamp's glowing face (M_RideLamp)
+	// A road piece's tunnel lights (by piece, as RoadParts), let go with it.
+	TMap<int32, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MasonryMaterial;
 	// The kit: the grass's species and the trees', and which of them each of the plan's kinds uses

@@ -1172,6 +1172,54 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Quad3(RingA[Q], RingB[Q], RingB[Q + 1], RingA[Q + 1], Axis, Kerb ? Tile : Wall ? Concrete : Soot, true);
 			}
 			for (size_t Q = 0; Q + 1 < LidA.size(); ++Q) Quad3(LidA[Q], LidA[Q + 1], LidB[Q + 1], LidB[Q], Sky, Grass, false);
+			// Its lamps: where a step of LampStep falls in this bit, a pair of 1.2 m lamps high on the arch
+			// either side of the crown, facing in; every LightStep, a real light under the crown.
+			for (double Mark = std::ceil(A.Along / LampStep) * LampStep; Mark < B.Along; Mark += LampStep)
+			{
+				const double U = (Mark - A.Along) / std::fmax(1e-6, B.Along - A.Along);
+				Row L = A;
+				L.At = A.At + (B.At - A.At) * U;
+				L.Height = A.Height + (B.Height - A.Height) * U;
+				L.Along = Mark;
+				const P2 Fwd = (B.At - A.At) * (1.0 / std::fmax(1e-6, B.At.DistanceTo(A.At)));
+				if (!Out.Glow) Out.Glow = std::make_shared<RideMesh>();
+				RideMesh& G = *Out.Glow;
+				G.OriginX = Out.OriginX;
+				G.OriginZ = Out.OriginZ;
+				static constexpr float Warm[3] = {1.0f, 0.86f, 0.66f};
+				const double W = L.Half + TubeSide;
+				for (double Th : {Pi * 0.36, Pi * 0.64})
+				{
+					// (just in from the arch, square to it)
+					const double Off = W * std::cos(Th) * 0.97, Y = L.Height + TubeWall + TubeArch * std::sin(Th) * 0.97;
+					const P2 Mid = L.At + L.Left * Off;
+					const P2 Side = L.Left * (std::sin(Th) * 0.12);   // (the lamp's 0.25 m across, along the arch)
+					const double Rise = std::cos(Th) * 0.12;
+					P3 C[4];
+					for (int Corner = 0; Corner < 4; ++Corner)
+					{
+						const double Along2 = Corner < 2 ? -0.6 : 0.6, Across2 = Corner == 0 || Corner == 3 ? -1.0 : 1.0;
+						const P2 At = Mid + Fwd * Along2 + Side * Across2;
+						C[Corner].X = At.X; C[Corner].Z = At.Z; C[Corner].Y = Y - Rise * Across2;
+					}
+					const uint32_t V = uint32_t(G.Vertices());
+					const P2 In = L.Left * (-std::cos(Th));
+					for (const P3& Q : C)
+					{
+						G.Pos.push_back(float(Q.X - G.OriginX)); G.Pos.push_back(float(Q.Y)); G.Pos.push_back(float(Q.Z - G.OriginZ));
+						G.Nrm.push_back(float(In.X)); G.Nrm.push_back(float(-std::sin(Th))); G.Nrm.push_back(float(In.Z));
+						G.Uv.push_back(0.0f); G.Uv.push_back(0.0f);
+						G.Col.push_back(Warm[0]); G.Col.push_back(Warm[1]); G.Col.push_back(Warm[2]);
+					}
+					G.Idx.insert(G.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3, V, V + 2, V + 1, V, V + 3, V + 2});
+				}
+				if (std::fmod(Mark + 1e-6, LightStep) < LampStep * 0.5)
+				{
+					Out.Lights.push_back(float(L.At.X - Out.OriginX));
+					Out.Lights.push_back(float(L.Height + TubeWall + TubeArch - 0.6));
+					Out.Lights.push_back(float(L.At.Z - Out.OriginZ));
+				}
+			}
 			// A mouth: a headwall from the arch and the cutting's floor up to the lid.
 			for (const Row* M : {&A, &B})
 			{

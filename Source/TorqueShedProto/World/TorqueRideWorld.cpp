@@ -2,6 +2,7 @@
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
@@ -85,6 +86,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	RoadMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRoad.M_RideRoad"));
 	StoneMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideStone.M_RideStone"));
 	MasonryMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideMasonry.M_RideMasonry"));
+	LampMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLamp.M_RideLamp"));
 	if (!LandMaterial || !RoadMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no materials in /Game/RideUK/Materials (run Tools/ue_build_rideuk.py); the ground is drawn plain"));
@@ -310,14 +312,42 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			{
 				TorqueWorld::RideMesh Mesh;
 				Plan->RoadPiece(Which, First, Last, Mesh);
-				UProceduralMeshComponent* Part = MakePart(Mesh, RoadMaterial, true, bAtOnce, false);
-				if (Part) Part->ComponentTags.Add(TEXT("Road"));
+				// (a tunnel's lamps as a second section: they glow, and a few real lights under them)
+				TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Sections;
+				Sections.Emplace(&Mesh, RoadMaterial.Get());
+				if (Mesh.Glow) Sections.Emplace(Mesh.Glow.get(), LampMaterial ? LampMaterial.Get() : RoadMaterial.Get());
+				UProceduralMeshComponent* Part = MakePart(Sections, true, bAtOnce, false);
+				if (Part)
+				{
+					Part->ComponentTags.Add(TEXT("Road"));
+					TArray<TWeakObjectPtr<UPointLightComponent>> Lights;
+					for (size_t L = 0; L + 2 < Mesh.Lights.size(); L += 3)
+					{
+						UPointLightComponent* Lamp = NewObject<UPointLightComponent>(this);
+						Lamp->SetMobility(EComponentMobility::Movable);
+						Lamp->SetupAttachment(Part);
+						Lamp->SetRelativeLocation(FVector(double(Mesh.Lights[L]) * 100.0, double(Mesh.Lights[L + 2]) * 100.0, double(Mesh.Lights[L + 1]) * 100.0));
+						Lamp->SetIntensityUnits(ELightUnits::Lumens);
+						Lamp->SetIntensity(2500.0f);
+						Lamp->SetAttenuationRadius(1800.0f);
+						Lamp->SetLightColor(FLinearColor(1.0f, 0.86f, 0.66f));
+						Lamp->SetCastShadows(false);
+						Lamp->RegisterComponent();
+						Lights.Add(Lamp);
+					}
+					if (Lights.Num() > 0) RoadLights.Add(Key, Lights);
+				}
 				RoadParts.Add(Key, Part);
 			}
 			else if (bHave && HowFar > TRWI::RoadReach + 500.0)
 			{
 				if (UProceduralMeshComponent* Part = RoadParts[Key]) Part->DestroyComponent();
 				RoadParts.Remove(Key);
+				if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
+				{
+					for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
+					RoadLights.Remove(Key);
+				}
 			}
 		}
 	}

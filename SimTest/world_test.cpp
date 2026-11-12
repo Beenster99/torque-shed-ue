@@ -747,6 +747,24 @@ int main()
 						Check(T0 > 0 && Bore.Vertices() > Open.Vertices() + 29 * 4 * 20 && Bore.Vertices() % 4 == 0 && Near(Roof, Top, 0.01) && LidLow >= Top + 0.59 && Grass > 29 * 14 * 4 - 1 && Wall > 0 && LidTris == 29 * 14 * 2 && LidUp == LidTris
 							&& Near(Cut, Pm.Height + RoadLine::CrossHeight(0.0, Pm.Half, Pm.Bank) - RidePlan::Sink, 1e-6) && FarOff == Lie,
 							"a tunnel is a tube with an arched roof, the hill laid back over it clear of the arch and a headwall at each mouth; the far-off land has no cutting there");
+						{
+							// Its lamps: a pair every 10 m high on the arch, inside the tube, and a real light every 30 m.
+							const double Span = Plan->Road[T0 + 29].Along - Plan->Road[T0].Along;
+							const int Lamps = Bore.Glow ? int(Bore.Glow->Vertices() / 4) : 0;
+							bool Inside = Bore.Glow != nullptr;
+							if (Bore.Glow)
+								for (size_t V = 0; V < Bore.Glow->Vertices(); ++V)
+								{
+									double D = 0.0, H = 0.0;
+									const double X = Bore.Glow->OriginX + Bore.Glow->Pos[V * 3], Z = Bore.Glow->OriginZ + Bore.Glow->Pos[V * 3 + 2];
+									if (!Plan->Nearest(X, Z, D, H, nullptr, nullptr, nullptr, true)) { Inside = false; continue; }
+									const double LampUp = Bore.Glow->Pos[V * 3 + 1] - H;
+									if (LampUp < RidePlan::TubeWall || LampUp > RidePlan::TubeWall + RidePlan::TubeArch) Inside = false;
+								}
+							std::printf("      its lamps: %d along %.0f m, %d real lights\n", Lamps, Span, int(Bore.Lights.size() / 3));
+							Check(Lamps >= int(Span / RidePlan::LampStep) * 2 - 2 && Lamps <= int(Span / RidePlan::LampStep) * 2 + 4 && Inside && Bore.Lights.size() / 3 >= size_t(Span / RidePlan::LightStep) - 1 && Open.Glow == nullptr,
+								"and lamps along it, high on the arch inside, with a few real lights; none on the open road");
+						}
 						for (size_t I = T0; I < T0 + 30; ++I) Plan->Road[I].Tunnel = false;
 					}
 					// Junction mouths: corners rounded, give-way lines across the lesser road, the edge line broken.

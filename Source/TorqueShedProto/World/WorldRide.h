@@ -92,6 +92,10 @@ struct RideMesh
 	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
+	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
+	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
+	std::shared_ptr<RideMesh> Glow;
+	std::vector<float> Lights;
 };
 
 class RidePlan
@@ -176,6 +180,8 @@ public:
 	// A tunnel's tube: its walls this far out past the road's edge, this high, and the arch over them.
 	static constexpr double TubeSide = 0.85, TubeWall = 4.2, TubeArch = 2.4;
 	static constexpr int TubeArchSegs = 6;
+	// A tunnel's lamps: a pair high on the arch every LampStep metres, a real light every LightStep.
+	static constexpr double LampStep = 10.0, LightStep = 30.0;
 	static constexpr double LidReach = 21.0;    // the hill's lid over a tunnel: this far out past the road's edge
 	static constexpr double BridgeReach = 10.0; // a span's ends are matched to the road within this
 
