@@ -1,0 +1,13 @@
+{
+  "about": "The trial's envelopes by bike type, from the type's real reference bike. Only the types listed here have rules; the rest build as the game does.",
+  "naked": {
+    "reference": "Yamaha MT-09 (2021): wheelbase 1430 mm, overall length 2090 mm, seat 825 mm",
+    "rear_end": {
+      "tip_behind_axle_m": 0.28,
+      "tail_kick_deg": 10,
+      "tail_over_seat_m": 0.0,
+      "tail_min_len": 0.75,
+      "tail_max_len": 1.3
+    }
+  }
+}

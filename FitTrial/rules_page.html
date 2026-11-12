@@ -1,0 +1,104 @@
+<title>Naked Rear-End Rules</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a workshop job sheet. A short brief, the rule card, then every bike as a before and after pair. */
+:root {
+  --bg: #f3f4f2; --panel: #ffffff; --fg: #1d2124; --muted: #5d666c; --line: #d9dddb;
+  --accent: #c2410c; --ok: #1f7a4d; --ok-bg: #e3f3ea; --warn: #9a5b00; --warn-bg: #fbefd9; --idle: #5d666c; --idle-bg: #eceeed;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif; --body: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15181a; --panel: #1e2225; --fg: #e8eae8; --muted: #9aa3a8; --line: #30363a;
+  --accent: #fb8a4c; --ok: #6fd3a0; --ok-bg: #173327; --warn: #f2b45a; --warn-bg: #382a12; --idle: #9aa3a8; --idle-bg: #262b2e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15181a; --panel: #1e2225; --fg: #e8eae8; --muted: #9aa3a8; --line: #30363a;
+  --accent: #fb8a4c; --ok: #6fd3a0; --ok-bg: #173327; --warn: #f2b45a; --warn-bg: #382a12; --idle: #9aa3a8; --idle-bg: #262b2e; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1; }
+h2 { font-size: 26px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.brief { display: grid; gap: 12px; max-width: 70ch; }
+.brief p { margin: 0; }
+.muted { color: var(--muted); }
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rule { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 6px; min-width: 0; }
+.rule b { font-family: var(--display); font-size: 19px; font-weight: 600; }
+.rule .num { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.spec { font-family: var(--mono); font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; overflow-x: auto; }
+.spec table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.spec td { padding: 3px 18px 3px 0; white-space: nowrap; }
+.tally { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tally button { font: 500 14px var(--body); border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+.tally button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tally button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; display: grid; gap: 8px; min-width: 0; align-content: start; }
+.card header { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.card h3 { font-size: 18px; font-weight: 600; flex: 1 1 160px; min-width: 0; }
+.card .num { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { color: var(--ok); background: var(--ok-bg); } .pill.warn { color: var(--warn); background: var(--warn-bg); } .pill.idle { color: var(--idle); background: var(--idle-bg); }
+figure { margin: 0; display: grid; gap: 4px; }
+figure img { width: 100%; height: auto; border-radius: 4px; background: #eee; }
+figcaption { display: grid; grid-template-columns: 1fr 1fr; font-size: 12px; color: var(--muted); text-align: center; }
+.card ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .tally button { transition: border-color .15s; } }
+</style>
+
+<div class="wrap">
+  <section class="brief">
+    <div class="eyebrow">Bike fitting trial · round 2 · trial only, never in the game</div>
+    <h1>Naked rear-end rules</h1>
+    <p>Every bike in the trial grid that lays out as a naked bike, {{TOTAL}} in all, built twice: on the left exactly as the game builds it today, on the right by the first placement rules for the naked type. Each picture has a side view, a top view and a close-up of the rear end.</p>
+    <p class="muted">These rules only cover the rear end so far: the seat, the tail, the subframe under them and what hangs off them. The engine, tank, fairing and chain line are untouched. Nothing here goes into the game; the game's own code is not changed.</p>
+  </section>
+
+  <section style="display:grid;gap:12px">
+    <h2>What the naked rules ask for</h2>
+    <div class="rules">
+      <div class="rule"><span class="num">Rule 1</span><b>The tail joins the seat</b><span>The tail starts where the seat ends, its top flush with the seat's top, instead of starting under the seat or leaving a step.</span></div>
+      <div class="rule"><span class="num">Rule 2</span><b>Tail angle and length by type</b><span>The tail runs 10° above the seat's line and its tip ends 28 cm behind the rear axle, as on the MT-09. A tail is stretched or shortened by at most 15%. One that would need more than 130% or less than 75% of its length keeps its own shape, is only joined to the seat, and is marked as not suiting.</span></div>
+      <div class="rule"><span class="num">Rule 3</span><b>The subframe carries the tail</b><span>The subframe rails run on under the tail to near its tip with a loop across, instead of stopping 30 cm short and leaving the tail hanging.</span></div>
+      <div class="rule"><span class="num">Rule 4</span><b>The under-tray closes the tail</b><span>The tray lies along the tail's lower edge, and the number plate, its hanger and the lamp hang from the tray's end.</span></div>
+      <div class="rule"><span class="num">Rule 5</span><b>Pillion pegs bolt to the frame</b><span>The pillion peg hangers bend in to meet the nearest subframe rail instead of stopping in mid-air.</span></div>
+    </div>
+    <div class="spec"><table>
+      <tr><td>Type</td><td>naked</td></tr>
+      <tr><td>Reference</td><td>Yamaha MT-09 (2021): wheelbase 1430 mm, length 2090 mm, seat 825 mm</td></tr>
+      <tr><td>Tail tip behind rear axle</td><td>0.28 m</td></tr>
+      <tr><td>Tail above the seat's line</td><td>10°</td></tr>
+      <tr><td>Tail top at the joint</td><td>flush with the seat</td></tr>
+      <tr><td>Tail stretch allowed</td><td>85% to 110% (outside 75% to 130%: does not suit)</td></tr>
+    </table></div>
+  </section>
+
+  <section style="display:grid;gap:12px">
+    <h2>The bikes</h2>
+    <div class="tally" role="group" aria-label="Show bikes">
+      <button id="f-all" data-f="all" aria-pressed="true">All {{TOTAL}}</button>
+      <button id="f-acted" data-f="acted" aria-pressed="false">Rules applied {{ACTED}}</button>
+      <button id="f-suit" data-f="suit" aria-pressed="false">Does not suit {{SUIT}}</button>
+      <button id="f-none" data-f="none" aria-pressed="false">No rules for this tail yet {{NONE}}</button>
+    </div>
+    <div class="grid" id="grid">
+{{CARDS}}
+    </div>
+  </section>
+</div>
+<script>
+(function () {
+  var buttons = document.querySelectorAll('.tally button');
+  var cards = document.querySelectorAll('.card');
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = b.getAttribute('data-f');
+      buttons.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      cards.forEach(function (c) { c.hidden = !(f === 'all' || c.getAttribute('data-state') === f); });
+    });
+  });
+})();
+</script>

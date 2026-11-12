@@ -3,6 +3,7 @@
 #include "BikeGeometry.h"
 #include "BikeLayout.h"
 #include "BikeParts.h"
+#include "TrialRules.h"
 #include "PartMesh.h"
 #include "PartsDb.h"
 
@@ -78,6 +79,8 @@ struct World
 		if (!Db.LoadFromText(PartsText, Error) || !Lay.Load(LayoutText, Db, Error) || !Json::Parse(IndexText, Index, &Error)) return false;
 		Known = Index.Get("parts");
 		Placer = std::make_unique<BikeParts>(Lay, *Known);
+		std::string TypesText;
+		if (ReadFile(Root + "/FitTrial/rules/types.json", TypesText)) Json::Parse(TypesText, Types, &Error);
 		Placer->SetMeshSource([this](const std::string& Path, PartMesh& M) { const auto P = Glb(Path); if (!P) return false; M = *P; return true; });
 		return true;
 	}
@@ -114,11 +117,29 @@ struct World
 		return true;
 	}
 
+	// [trial rules] The types' envelopes (FitTrial/rules/types.json); UseRules picks before or after.
+	bool UseRules = false;
+	Json Types;
+	void ApplyRules(const std::string& Style)
+	{
+		Rules.On = UseRules;
+		Rules.Type = Style;
+		const Json* T = Types.Get(Style);
+		Rules.RearEnd = T && T->Get("rear_end");
+		if (!Rules.RearEnd) return;
+		const Json* R = T->Get("rear_end");
+		Rules.TipBehind = R->Num("tip_behind_axle_m", 0.28);
+		Rules.KickDeg = R->Num("tail_kick_deg", 10.0);
+		Rules.Flush = R->Num("tail_over_seat_m", 0.0);
+		Rules.MinKz = R->Num("tail_min_len", 0.6);
+		Rules.MaxKz = R->Num("tail_max_len", 1.25);
+	}
 	Bike Build(const PartsMap& Parts, const BikeGeo& Fit = BikeGeo())
 	{
 		Bike B;
 		B.Parts = Parts;
 		B.Lay = Lay.Solve(Parts, Fit.Rig);
+		ApplyRules(B.Lay.Style);
 		const std::vector<FittedPart> Placed = Placer->Fit(Parts, B.Lay);
 		std::vector<PartMesh> Drawn(Placed.size());
 		GeoPivots Pv;
@@ -1051,6 +1072,90 @@ int main(int Argc, char** Argv)
 		for (const SlotMesh& S : B.Slots) std::printf("  %-16s %-26s %7zu  x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f\n", S.Slot.c_str(), B.Parts.count(S.Slot) ? B.Parts[S.Slot].c_str() : "", S.Tris.size(), S.Lo.x, S.Hi.x, S.Lo.y, S.Hi.y, S.Lo.z, S.Hi.z);
 		std::printf("%s: %zu slots, %zu triangles; built in %.2f s, drawn in %.2f s; fit %s\n", Argv[3], B.Slots.size(), Tris, T1 - T0, Now() - T1, B.Lay.Fit.Tier.c_str());
 	}
+	if (Mode == "pts")
+	{
+		for (const std::string& St : Wd.Lay.Styles())
+		{
+			const Layout L = Wd.Lay.Solve(Wd.Lay.ReferenceBuild(St));
+			auto P = [](const char* N, const V3& V) { std::printf(" %s(%.3f,%.3f)", N, V.x, V.y); };
+			std::printf("%-10s wb %.3f R %.3f trav %.3f", St.c_str(), L.Stats.Wheelbase, L.Stats.RearRadius, L.Stats.RearTravel);
+			P("rax", L.RearAxle); P("piv", L.Pivot); P("sf", L.SeatFront); P("hip", L.Hip); P("tail", L.Tail); P("trear", L.TankRear);
+			std::printf(" ttop %.3f\n", L.TailTop);
+		}
+	}
+	if (Mode == "parts")
+	{
+		const PartsMap Parts = Wd.Lay.ReferenceBuild(Argv[3]);
+		const Layout L = Wd.Lay.Solve(Parts);
+		for (const FittedPart& F : Wd.Placer->Fit(Parts, L))
+		{
+			if (F.Hidden) continue;
+			PartMesh M;
+			if (F.Made) M = *F.Made; else { auto G = Wd.Glb(F.Glb); if (!G) continue; M = BikeParts::Draw(*G, F); }
+			V3 Lo(1e9, 1e9, 1e9), Hi(-1e9, -1e9, -1e9);
+			for (const PartSurface& S : M.Surfaces) for (const V3& P : S.Pos) { Lo = V3(std::min(Lo.x, P.x), std::min(Lo.y, P.y), std::min(Lo.z, P.z)); Hi = V3(std::max(Hi.x, P.x), std::max(Hi.y, P.y), std::max(Hi.z, P.z)); }
+			if (Argc > 4 && F.Slot != Argv[4]) continue;
+			std::printf("%-12s %-34s %-20s x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f\n", F.Slot.c_str(), F.Glb.c_str(), F.Name.c_str(), Lo.x, Hi.x, Lo.y, Hi.y, Lo.z, Hi.z);
+		}
+	}
+	if (Mode == "ba" && Argc >= 5)
+	{
+		// fit_trial <root> ba <style> <out.ppm>: the reference bike as the game builds it (top) and by the type's rules (below).
+		View Vw = View::Side(); Vw.Centre = V3(-0.1, 0.40, 0.0); Vw.Scale = 300.0;
+		Image Out(900, 1000);
+		for (int K = 0; K < 2; ++K)
+		{
+			Wd.UseRules = K == 1;
+			Bike B = Wd.Build(Wd.Lay.ReferenceBuild(Argv[3]));
+			const Image Im = Render(B, Vw, 900, 500);
+			std::copy(Im.Px.begin(), Im.Px.end(), Out.Px.begin() + long(Im.Px.size()) * K);
+			for (const std::string& N : Rules.Notes) std::printf("%s: %s\n", K ? "rules" : "game", N.c_str());
+		}
+		Out.Save(Argv[4]);
+	}
+	if (Mode == "rules" && Argc >= 5)
+	{
+		// fit_trial <root> rules <builds.json> <out folder> [first] [stride]: every build whose type has
+		// rules, as the game builds it (_a) and by the type's rules (_b), and what the rules did.
+		std::string Text;
+		Json Doc;
+		if (!ReadFile(Argv[3], Text) || !Json::Parse(Text, Doc, &Error)) { std::printf("can't read %s\n", Argv[3]); return 1; }
+		const std::string OutDir = Argv[4];
+		const std::vector<Json>& Builds = Doc.Get("builds")->A;
+		const size_t First = Argc > 5 ? size_t(std::atoi(Argv[5])) : 0, Stride = Argc > 6 ? size_t(std::atoi(Argv[6])) : 1;
+		View Vw = View::Side(); Vw.Centre = V3(0.0, 0.40, 0.0); Vw.Scale = 172.0;
+		View Tv = View::Top(); Tv.Up = V3(0, 0, -1); Tv.Centre = V3(0.0, 0.30, 0.0); Tv.Scale = 172.0;
+		View Rv = View::Side(); Rv.Centre = V3(-0.62, 0.42, 0.0); Rv.Scale = 420.0;
+		std::ofstream Res(OutDir + "/rules_" + std::to_string(First) + ".jsonl");
+		for (size_t I = First; I < Builds.size(); I += Stride)
+		{
+			PartsMap Parts;
+			for (const auto& Kv : Builds[I].Get("parts")->O) Parts[Kv.first] = Kv.second.S;
+			const std::string Style = Wd.Lay.Solve(Parts).Style;
+			if (!Wd.Types.Get(Style)) continue;
+			std::vector<std::string> Notes;
+			char Name[64];
+			for (int K = 0; K < 2; ++K)
+			{
+				Wd.UseRules = K == 1;
+				Bike B = Wd.Build(Parts);
+				const Image Sd = Render(B, Vw, 480, 300), Tp = Render(B, Tv, 480, 180), Rr = Render(B, Rv, 480, 300);
+				Image Out(480, 780);
+				std::copy(Sd.Px.begin(), Sd.Px.end(), Out.Px.begin());
+				std::copy(Tp.Px.begin(), Tp.Px.end(), Out.Px.begin() + long(Sd.Px.size()));
+				std::copy(Rr.Px.begin(), Rr.Px.end(), Out.Px.begin() + long(Sd.Px.size() + Tp.Px.size()));
+				std::snprintf(Name, sizeof(Name), "%05zu_%c.ppm", I, K ? 'b' : 'a');
+				Out.Save(OutDir + "/" + Name);
+				if (K) Notes = Rules.Notes;
+			}
+			Res << "{\"n\":" << I << ",\"style\":\"" << Style << "\",\"notes\":[";
+			for (size_t K = 0; K < Notes.size(); ++K) Res << (K ? "," : "") << "\"" << Esc(Notes[K]) << "\"";
+			Res << "]}\n";
+			Res.flush();
+			std::printf("%05zu %s: %zu notes\n", I, Builds[I].Str("id").c_str(), Notes.size());
+			std::fflush(stdout);
+		}
+	}
 	if (Mode == "refs")
 	{
 		// What the 14 designed bikes measure: how much each pair of slots overlaps and each slot's gap.
@@ -1185,6 +1290,7 @@ int main(int Argc, char** Argv)
 	if (Mode == "look" && Argc >= 9)
 	{
 		// fit_trial <root> look <style> <out.ppm> <top|side> <cx> <cy-or-cz> <scale> [slot to tint red] [slot to tint blue]
+		Wd.UseRules = std::getenv("TRIAL_RULES") != nullptr;
 		Bike B = Wd.Build(Wd.Lay.ReferenceBuild(Argv[3]));
 		View V = std::string(Argv[5]) == "top" ? View::Top() : View::Side();
 		if (std::string(Argv[5]) == "top") { V.Up = V3(0, 0, -1); V.Centre = V3(std::atof(Argv[6]), 0.0, std::atof(Argv[7])); }
