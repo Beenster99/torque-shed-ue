@@ -248,12 +248,12 @@ void FTorquePartsComputer::Relist()
 		// Engines by their layout (beenster, Nov 12), not by bike type: singles, two-strokes, twins,
 		// parallel twins, V-twins, boxers, triples, fours; each lot smallest first.
 		TArray<FName> Engines = TorqueShedParts::PartsOfKind(Kind);
-		Engines.StableSort([](const FName& A, const FName& B) {
-			const int32 La = TorqueShedParts::EngineLayoutOrder(A), Lb = TorqueShedParts::EngineLayoutOrder(B);
+		Engines.StableSort([](const FName& EngA, const FName& EngB) {
+			const int32 La = TorqueShedParts::EngineLayoutOrder(EngA), Lb = TorqueShedParts::EngineLayoutOrder(EngB);
 			if (La != Lb) return La < Lb;
-			const FString Ta = TorqueShedParts::EngineLayout(A), Tb = TorqueShedParts::EngineLayout(B);
+			const FString Ta = TorqueShedParts::EngineLayout(EngA), Tb = TorqueShedParts::EngineLayout(EngB);
 			if (Ta != Tb) return Ta < Tb;
-			return TorqueShedParts::PartNumber(A, TEXT("displacement"), 0.0) < TorqueShedParts::PartNumber(B, TEXT("displacement"), 0.0);
+			return TorqueShedParts::PartNumber(EngA, TEXT("displacement"), 0.0) < TorqueShedParts::PartNumber(EngB, TEXT("displacement"), 0.0);
 		});
 		for (const FName& P : Engines) Rows.Add({P});
 	}
