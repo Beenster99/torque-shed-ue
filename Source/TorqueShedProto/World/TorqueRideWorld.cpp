@@ -3,6 +3,7 @@
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
@@ -13,6 +14,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/ScopeLock.h"
 #include "ProceduralMeshComponent.h"
@@ -90,6 +92,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	StoneMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideStone.M_RideStone"));
 	MasonryMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideMasonry.M_RideMasonry"));
 	LampMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideLamp.M_RideLamp"));
+	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
 	if (!LandMaterial || !RoadMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no materials in /Game/RideUK/Materials (run Tools/ue_build_rideuk.py); the ground is drawn plain"));
@@ -98,6 +101,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		StoneMaterial ? TEXT("scanned stone") : TEXT("plain"), MasonryMaterial ? TEXT("scanned masonry") : TEXT("plain"));
 	if (!StoneMaterial) StoneMaterial = RoadMaterial;
 	if (!MasonryMaterial) MasonryMaterial = StoneMaterial;
+	if (!RenderMaterial) RenderMaterial = RoadMaterial;
 	// (before any square is made: whether its trees come as real ones, and how much grass)
 	const bool bKit = FindKit();
 	bool bTreeModels = false;
@@ -268,6 +272,30 @@ UProceduralMeshComponent* ATorqueRideWorld::MakePart(const TArray<TPair<const To
 	return Part;
 }
 
+void ATorqueRideWorld::DropWords(const FIntVector& Key)
+{
+	if (TArray<TWeakObjectPtr<UTextRenderComponent>>* Words = TileWords.Find(Key))
+	{
+		for (const TWeakObjectPtr<UTextRenderComponent>& W : *Words)
+			if (W.IsValid()) W->DestroyComponent();
+		TileWords.Remove(Key);
+	}
+}
+
+UMaterialInterface* ATorqueRideWorld::TintedOf(UMaterialInterface* Base, uint32 Which, const TorqueWorld::Tint& By)
+{
+	// (the stone as it is needs no instance; a material made before Tint was added just ignores it)
+	if (!Base || (By.R == 1.0f && By.G == 1.0f && By.B == 1.0f)) return Base;
+	const auto Q = [](float V) { return uint32(FMath::Clamp(FMath::RoundToInt32(V * 100.0f), 0, 255)); };
+	const uint32 Key = (Which << 24) | (Q(By.R) << 16) | (Q(By.G) << 8) | Q(By.B);
+	if (const TObjectPtr<UMaterialInterface>* Have = Tinted.Find(Key)) return Have->Get();
+	UMaterialInstanceDynamic* Made = UMaterialInstanceDynamic::Create(Base, this);
+	if (!Made) return Base;
+	Made->SetVectorParameterValue(TEXT("Tint"), FLinearColor(By.R, By.G, By.B, 1.0f));
+	Tinted.Add(Key, Made);
+	return Made;
+}
+
 void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh, bool bAtOnce)
 {
 	if (TObjectPtr<UProceduralMeshComponent>* Old = Tiles.Find(Key))
@@ -277,6 +305,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
 	DropPlants(Key);
 	PlacePlants(Key, Mesh);
+	DropWords(Key);
 	if (TObjectPtr<UProceduralMeshComponent>* OldExtra = TileExtras.Find(Key))
 	{
 		if (*OldExtra) (*OldExtra)->DestroyComponent();
@@ -287,9 +316,30 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		// (what stands on it: only the nearest squares' cast shadows)
 		TArray<TPair<const TorqueWorld::RideMesh*, UMaterialInterface*>> Kinds;
 		Kinds.Emplace(Mesh.Extra.get(), RoadMaterial.Get());
-		Kinds.Emplace(Mesh.Extra->Stone.get(), StoneMaterial.Get());
-		Kinds.Emplace(Mesh.Extra->Masonry.get(), MasonryMaterial.Get());
+		Kinds.Emplace(Mesh.Extra->Stone.get(), TintedOf(StoneMaterial.Get(), 0, Mesh.Extra->StoneTint));
+		Kinds.Emplace(Mesh.Extra->Masonry.get(), TintedOf(MasonryMaterial.Get(), 1, Mesh.Extra->MasonryTint));
+		Kinds.Emplace(Mesh.Extra->Render.get(), RenderMaterial.Get());
 		if (UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0)) TileExtras.Add(Key, Stands);
+		// The words on its signs, as text standing just proud of each board.
+		TArray<TWeakObjectPtr<UTextRenderComponent>>& Words = TileWords.FindOrAdd(Key);
+		for (const TorqueWorld::RideMesh::Label& L : Mesh.Extra->Labels)
+		{
+			UTextRenderComponent* Text = NewObject<UTextRenderComponent>(this);
+			if (!Text) continue;
+			Text->SetupAttachment(RootComponent);
+			// (the ride's frame: x east, y up, z south; Unreal's: x east, y south, z up)
+			Text->SetRelativeLocation(FVector((Mesh.Extra->OriginX + L.X) * 100.0, (Mesh.Extra->OriginZ + L.Z) * 100.0, L.Y * 100.0));
+			Text->SetRelativeRotation(FRotator(0.0, FMath::RadiansToDegrees(FMath::Atan2(double(L.Nz), double(L.Nx))), 0.0));
+			Text->SetText(FText::FromString(FString(UTF8_TO_TCHAR(L.Text.c_str()))));
+			Text->SetHorizontalAlignment(EHTA_Center);
+			Text->SetVerticalAlignment(EVRTA_TextCenter);
+			Text->SetWorldSize(L.Size * 100.0f);
+			Text->SetTextRenderColor(FLinearColor(L.R, L.G, L.B).ToFColor(true));
+			Text->SetCastShadow(false);
+			Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Text->RegisterComponent();
+			Words.Add(Text);
+		}
 	}
 }
 
@@ -399,6 +449,7 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		if (UProceduralMeshComponent* Part = Tiles[Key]) Part->DestroyComponent();
 		Tiles.Remove(Key);
 		DropPlants(Key);
+		DropWords(Key);
 		if (TObjectPtr<UProceduralMeshComponent>* Stands = TileExtras.Find(Key))
 		{
 			if (*Stands) (*Stands)->DestroyComponent();

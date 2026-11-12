@@ -244,6 +244,19 @@ int main(int Argc, char** Argv)
 			const double Want = std::atof(std::getenv("WORLD_RIDE_MESH_KM")) * 1000.0;
 			for (const RoadPoint& P : Plan->Road) if (P.Along <= Want) Centre = P.At;
 		}
+		else if (std::getenv("WORLD_RIDE_FURNISH") != nullptr)
+		{
+			// (or a piece of the road's furniture: WORLD_RIDE_FURNISH=kind,n, the nth of RidePlan::EFurnish's kind)
+			int Kind = 0, Nth = 0;
+			std::sscanf(std::getenv("WORLD_RIDE_FURNISH"), "%d,%d", &Kind, &Nth);
+			for (const RidePlan::Furnish& F : Plan->Furniture)
+				if (F.Kind == Kind && Nth-- == 0)
+				{
+					Centre = F.At;
+					std::printf("furnish %d at %.1f, %.1f facing %.2f, %.2f: %s\n", Kind, F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Text.c_str());
+					break;
+				}
+		}
 		else if (std::getenv("WORLD_RIDE_KNOT") != nullptr)
 		{
 			// (or a junction off it: WORLD_RIDE_KNOT=n, the nth nearest the ride's start)
@@ -298,7 +311,8 @@ int main(int Argc, char** Argv)
 					const RideMesh* Extra = Land.Extra.get();
 					const RideMesh* Walls = Extra ? Extra->Stone.get() : nullptr;
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
-					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses})
+					const RideMesh* Washed = Extra ? Extra->Render.get() : nullptr;
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed})
 					{
 						if (Mesh == nullptr) continue;
 						// (the stone's vertex colours are the scanned material's masks: shown as limestone of that brightness, a little lighter where lichened)

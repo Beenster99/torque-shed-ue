@@ -41,6 +41,7 @@ namespace TorqueWorld
 {
 class RidePlan;
 struct RideMesh;
+struct Tint;
 }
 struct FTorqueRideJobs;
 
@@ -81,6 +82,9 @@ private:
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;
 	// What stands on a square (walls, buildings, trees), where anything does: it comes and goes with its square.
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> TileExtras;
+	// [stage 5] The words on a square's signs (RideMesh::Labels), let go with it.
+	TMap<FIntVector, TArray<TWeakObjectPtr<class UTextRenderComponent>>> TileWords;
+	void DropWords(const FIntVector& Key);
 	TSet<FIntVector> Asked;      // being made on a worker
 	TArray<FIntVector> Want;     // as of the last look
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
@@ -92,6 +96,11 @@ private:
 	TMap<int32, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MasonryMaterial;
+	// [stage 5] Rendered and limewashed walls (M_RideRender), and the stone tinted to each part of the
+	// country's own (an instance of M_RideStone or M_RideMasonry per tint, made the first time it's needed).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RenderMaterial;
+	UPROPERTY(Transient) TMap<uint32, TObjectPtr<UMaterialInterface>> Tinted;
+	UMaterialInterface* TintedOf(UMaterialInterface* Base, uint32 Which, const TorqueWorld::Tint& By);
 	// The kit: the grass's species and the trees', and which of them each of the plan's kinds uses
 	// (RidePlan::PlantName: for a tree kind, its near models and its far ones).
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> Kit;

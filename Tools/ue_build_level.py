@@ -2411,10 +2411,11 @@ def far_dull(g, col, start_cm=30000.0, span_cm=150000.0, most=0.4):
     return g.lerp(col, g.op(unreal.MaterialExpressionMultiply, grey, const_b=0.75), far)
 
 
-def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare", broad_moss=True):
+def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bare", broad_moss=True, tint_param=False):
     """Stone from two scans (lichened limestone and bare, bedded limestone), chosen per stone by the
     vertex colour's green; red sets its brightness; blue whitens it with lichen in patches; alpha is
-    moss, thickest where the surface faces up. UV0 is metres of surface."""
+    moss, thickest where the surface faces up. UV0 is metres of surface. With tint_param, a "Tint"
+    vector parameter (1 as scanned) colours the stone: Ride UK's local stone (honey, slate, granite)."""
     g = Graph(new_material(name))
     if a_role not in tex:   # not fetched: fall back to another scan rather than flat grey
         a_role = b_role if b_role in tex else ("stone_bare" if "stone_bare" in tex else a_role)
@@ -2446,6 +2447,9 @@ def stone_material(tex, roles, name="M_Stone", a_role="stone", b_role="stone_bar
         st = stone
     bright = g.op(unreal.MaterialExpressionMultiply, vc, a_out="R", const_b=2.0)
     st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], bright)
+    if tint_param:
+        tp = g.node(unreal.MaterialExpressionVectorParameter, parameter_name="Tint", default_value=unreal.LinearColor(1, 1, 1, 1))
+        st[0] = g.op(unreal.MaterialExpressionMultiply, st[0], tp, b_out="")
     # Lichen: pale crusts in patches, on the stones the blue channel picks. The patches come from a
     # noise texture on each stone's own UVs (the Noise node costs too much on 10 km of wall).
     nt = noise_texture()

@@ -2,6 +2,7 @@
 // links, GPX files, the UK's places to search, round trips, the famous roads, and the styles' costs.
 #include "WorldRoute.h"
 #include "WorldFiles.h"
+#include "WorldRideStyle.h"
 
 #include <cmath>
 #include <cstdio>
@@ -148,6 +149,23 @@ int main()
 		const double S = Route::Twistiness(Straight), W = Route::Twistiness(Wiggly);
 		std::printf("      twistiness: straight %.0f, wiggly %.0f degrees a km\n", S, W);
 		Check(S < 1.0 && W > 200.0, "a road's twistiness is how much it turns a km");
+	}
+	// ------------------------------------------------------------------ the look of Britain (stage 5)
+	{
+		struct Where { double Lat, Lon; const char* Want; };
+		const Where Places[] = {{54.304, -2.196, "dales"}, {51.884, -1.758, "cotswolds"}, {54.43, -3.03, "lakes"}, {50.15, -5.07, "cornwall"}, {50.78, -3.78, "devon"},
+			{52.96, -3.92, "wales"}, {57.48, -4.22, "highlands"}, {52.58, 0.10, "fens"}, {52.48, -1.90, "lowland"}, {53.33, -1.78, "peak"}, {55.42, -1.70, "northumberland"},
+			{55.86, -4.25, "lowlands"}, {54.40, -0.70, "moors"}};
+		bool All = true;
+		for (const Where& W : Places)
+		{
+			const LocalLook& L = LookAt(W.Lat, W.Lon);
+			if (std::string(L.Name) != W.Want) { std::printf("      %.2f, %.2f is %s, not %s\n", W.Lat, W.Lon, L.Name, W.Want); All = false; }
+			All = All && L.RenderShare + L.BrickShare <= 1.0f && L.ThatchShare + L.TileShare + L.StoneSlateShare <= 1.0f;
+		}
+		Check(All, "each part of the country has its own look: Dales limestone, Cotswold honey stone, Lakeland slate, Cornish and Devon hedge banks, Welsh slate, Highland harl, Fenland brick...");
+		Check(LookAt(50.15, -5.07).Boundary == LocalLook::HedgeBank && LookAt(54.304, -2.196).Boundary == LocalLook::Wall && LookAt(51.884, -1.758).WallStone.R > 1.1f,
+			"the South West's walls are hedge banks, the Dales' dry stone; Cotswold stone is honey coloured");
 	}
 	std::printf("\nroute_test: %s\n", Failed == 0 ? "all passed" : "FAILED");
 	return Failed == 0 ? 0 : 1;

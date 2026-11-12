@@ -85,6 +85,46 @@ void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3,
 	if (Flip || BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
 }
 
+// A flat disc of a sign facing Face (level, unit), its middle at C.
+void Disc(RideMesh& Out, const P3& C, const P2& Face, double Radius, const Rgb& Colour, int Segments = 20)
+{
+	const uint32_t V = uint32_t(Out.Vertices());
+	const P2 U(Face.Z, -Face.X);
+	for (int K = -1; K < Segments; ++K)
+	{
+		const double A = 6.283185307179586 * K / Segments;
+		const double X = K < 0 ? C.X : C.X + U.X * std::cos(A) * Radius, Y = K < 0 ? C.Y : C.Y + std::sin(A) * Radius, Z = K < 0 ? C.Z : C.Z + U.Z * std::cos(A) * Radius;
+		Out.Pos.push_back(float(X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z - Out.OriginZ));
+		Out.Nrm.push_back(float(Face.X)); Out.Nrm.push_back(0.0f); Out.Nrm.push_back(float(Face.Z));
+		Out.Uv.push_back(float(X - Out.OriginX)); Out.Uv.push_back(float(-Y));
+		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
+		if (!Out.Alpha.empty()) Out.Alpha.push_back(0.0f);
+	}
+	// (wound as Quad's are, to face the way (B - A) x (C - A) points: U x up is Face)
+	for (int K = 0; K < Segments; ++K)
+	{
+		const uint32_t A = V + 1 + uint32_t(K), B = V + 1 + uint32_t((K + 1) % Segments);
+		Out.Idx.insert(Out.Idx.end(), {V, A, B});
+	}
+}
+
+// An upright box: its foot's middle at (X, Z), Along its length (unit), half Long by half Wide, from
+// Lo to Hi over Base; its top too.
+void Box(RideMesh& Out, double X, double Z, const P2& Along, double Long, double Wide, double Lo, double Hi, const Rgb& Colour)
+{
+	const P2 Across(Along.Z, -Along.X);
+	const auto Corner = [&](double Su, double Sv, double Y) { return At3(X + Along.X * Su * Long + Across.X * Sv * Wide, Y, Z + Along.Z * Su * Long + Across.Z * Sv * Wide); };
+	const P3 Mid = At3(X, (Lo + Hi) * 0.5, Z);
+	const auto Away = [&Mid](const P3& A, const P3& C) { return At3(Mid.X + ((A.X + C.X) * 0.5 - Mid.X) * 50.0, Mid.Y, Mid.Z + ((A.Z + C.Z) * 0.5 - Mid.Z) * 50.0); };
+	const double S[5][2] = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
+	for (int K = 0; K < 4; ++K)
+	{
+		const P3 A = Corner(S[K][0], S[K][1], Lo), B = Corner(S[K + 1][0], S[K + 1][1], Lo), C = Corner(S[K + 1][0], S[K + 1][1], Hi), D = Corner(S[K][0], S[K][1], Hi);
+		Quad(Out, A, B, C, D, Away(A, C), Shade(Colour, K % 2 == 0 ? 1.0 : 0.85));
+	}
+	Quad(Out, Corner(-1, -1, Hi), Corner(1, -1, Hi), Corner(1, 1, Hi), Corner(-1, 1, Hi), At3(X, Hi + 100.0, Z), Shade(Colour, 1.1));
+}
+
 // The ground's colours (linear), by the baker's cover ids: grass, forest, crop, shrub, barren, urban,
 // sand, wetland, water, rock. Pasture is the green of the Dales' valley floors and the moor (shrub)
 // the dun of their tops, as the hand-built ride has them.
@@ -121,6 +161,12 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 	const double Bare = std::fmin(1.0, std::fmax(0.0, (Slope - 0.7) / 0.5));
 	R += (Scar.R - R) * Bare; G += (Scar.G - G) * Bare; B += (Scar.B - B) * Bare;
 	Out[0] = float(R); Out[1] = float(G); Out[2] = float(B);
+}
+
+const LocalLook& RidePlan::LookHere(double X, double Z) const
+{
+	const Geo Here = Frame(Area.Roads.FrameLat, Area.Roads.FrameLon).ToGeo(X, Z);
+	return LookAt(Here.Lat, Here.Lon);
 }
 
 void RidePlan::IndexScenery()
@@ -165,6 +211,14 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 		return !NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + Spare;
 	};
 	const P3 Sky = At3(X0, 1e6, Z0);
+	// The local look: the walls' and houses' stone, the houses' walling and roofs (Ride UK stage 5).
+	const LocalLook& Look = LookHere(X0 + Size * 0.5, Z0 + Size * 0.5);
+	Out.StoneTint = Look.WallStone;
+	Out.MasonryTint = Look.HouseStone;
+	const bool Banks = Look.Boundary == LocalLook::HedgeBank;
+	std::shared_ptr<RideMesh> Washed = std::make_shared<RideMesh>();
+	Washed->OriginX = X0;
+	Washed->OriginZ = Z0;
 	// (the dry stone walls and the stone houses go in meshes of their own, in the scanned stone)
 	std::shared_ptr<RideMesh> Walls = std::make_shared<RideMesh>(), Houses = std::make_shared<RideMesh>();
 	Walls->OriginX = Houses->OriginX = X0;
@@ -172,7 +226,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
 
 	// Walls, hedges and fences: each mapped line, a bit at a time over the ground.
-	static const Rgb Limestone = {0.235f, 0.225f, 0.205f}, HedgeGreen = {0.035f, 0.065f, 0.02f}, Post = {0.11f, 0.085f, 0.06f};
+	static const Rgb Limestone = {0.235f, 0.225f, 0.205f}, HedgeGreen = {0.035f, 0.065f, 0.02f}, Post = {0.11f, 0.085f, 0.06f}, Turf = {0.07f, 0.095f, 0.035f};
 	const double Step = Fine ? 4.0 : 12.0;
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
@@ -183,12 +237,14 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 			{
 				const FeatureLine& F = G.Scenery.Lines[size_t(L)];
 				const bool Hedge = F.Kind == "hedge", Fence = F.Kind == "fence";
+				// (in the South West a mapped wall is a hedge bank: earth faced with turf, a hedge along its top)
+				const bool Bank = Banks && !Fence;
 				// (a dry stone wall: 1.3 m, wider at the foot; a hedge: taller and thick; a fence: posts and a rail)
 				const double High = Hedge ? 1.7 : Fence ? 1.1 : (F.Kind == "retaining_wall" ? 1.0 : 1.3) * (0.92 + 0.16 * Chance(F.Line[0].X, F.Line[0].Z, 7));
 				const double Foot = Hedge ? 0.7 : Fence ? 0.05 : 0.33, Top = Hedge ? 0.55 : Fence ? 0.05 : 0.22;
 				const Rgb Colour = Shade(Hedge ? HedgeGreen : Fence ? Post : Limestone, 0.88 + 0.24 * Chance(F.Line[0].X, F.Line[0].Z, 3));
 				// (a wall's stone: how bright, which scan, how lichened, as the hand-built ride's walls are)
-				const bool IsWall = !Hedge && !Fence;
+				const bool IsWall = !Hedge && !Fence && !Bank;
 				Rgb Mask;
 				Mask.R = float(0.42 + 0.16 * Chance(F.Line[0].X, F.Line[0].Z, 3));
 				Mask.G = Chance(F.Line[0].X, F.Line[0].Z, 8) < 0.5 ? 0.15f : 0.85f;
@@ -209,6 +265,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 					{
 						const P2 Pa = A + (B - A) * (double(K) / Bits), Pb = A + (B - A) * (double(K + 1) / Bits);
 						const P2 Pm = (Pa + Pb) * 0.5;
+						if (InGap(Pm.X, Pm.Z)) continue;   // (a field gate stands here)
 						const double Spare = Hedge ? 1.6 : 1.0;
 						if (!OffRoad(Pm.X, Pm.Z, Spare) || !OffRoad(Pa.X, Pa.Z, Spare) || !OffRoad(Pb.X, Pb.Z, Spare)) continue;
 						const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
@@ -226,22 +283,35 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 								Quad(Out, At3(Pa.X, Ga + High - 0.22, Pa.Z), At3(Pb.X, Gb + High - 0.22, Pb.Z), At3(Pb.X, Gb + High - 0.12, Pb.Z), At3(Pa.X, Ga + High - 0.12, Pa.Z), Out3, Colour, true);
 							continue;
 						}
-						for (double Sg : {1.0, -1.0})
+						// A length of it: two faces leaning in from Foot to Top, Lo to Hi over the ground, and its top.
+						const auto Stretch = [&](double FootW, double TopW, double Lo, double Hi, const Rgb& Col, bool Scanned)
 						{
-							const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
-							Quad(Into, At3(Pa.X + Side.X * Sg * Foot, Ga - 0.4, Pa.Z + Side.Z * Sg * Foot), At3(Pb.X + Side.X * Sg * Foot, Gb - 0.4, Pb.Z + Side.Z * Sg * Foot),
-								At3(Pb.X + Side.X * Sg * Top, Gb + High, Pb.Z + Side.Z * Sg * Top), At3(Pa.X + Side.X * Sg * Top, Ga + High, Pa.Z + Side.Z * Sg * Top), Far,
-								IsWall ? Mask : Shade(Colour, Sg > 0.0 ? 1.0 : 0.9), false, IsWall ? 0.22f : -1.0f);
+							for (double Sg : {1.0, -1.0})
+							{
+								const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
+								Quad(Into, At3(Pa.X + Side.X * Sg * FootW, Ga + Lo, Pa.Z + Side.Z * Sg * FootW), At3(Pb.X + Side.X * Sg * FootW, Gb + Lo, Pb.Z + Side.Z * Sg * FootW),
+									At3(Pb.X + Side.X * Sg * TopW, Gb + Hi, Pb.Z + Side.Z * Sg * TopW), At3(Pa.X + Side.X * Sg * TopW, Ga + Hi, Pa.Z + Side.Z * Sg * TopW), Far,
+									Scanned ? Mask : Shade(Col, Sg > 0.0 ? 1.0 : 0.9), false, Scanned ? 0.22f : -1.0f);
+							}
+							Quad(Into, At3(Pa.X + Side.X * TopW, Ga + Hi, Pa.Z + Side.Z * TopW), At3(Pb.X + Side.X * TopW, Gb + Hi, Pb.Z + Side.Z * TopW),
+								At3(Pb.X - Side.X * TopW, Gb + Hi, Pb.Z - Side.Z * TopW), At3(Pa.X - Side.X * TopW, Ga + Hi, Pa.Z - Side.Z * TopW), Sky, Scanned ? Mask : Shade(Col, 1.12), false, Scanned ? 0.45f : -1.0f);
+						};
+						if (Bank)
+						{
+							// (a bank about 1.4 m, a metre wide at its top, and the hedge on it)
+							const double BankHigh = 1.3 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 21);
+							Stretch(1.15, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
+							if (Fine) Stretch(0.5, 0.35, BankHigh - 0.1, BankHigh + 0.9 + 0.5 * Chance(Pa.X, Pa.Z, 23), Shade(HedgeGreen, 0.85 + 0.3 * Chance(Pa.X, Pa.Z, 24)), false);
+							continue;
 						}
-						Quad(Into, At3(Pa.X + Side.X * Top, Ga + High, Pa.Z + Side.Z * Top), At3(Pb.X + Side.X * Top, Gb + High, Pb.Z + Side.Z * Top),
-							At3(Pb.X - Side.X * Top, Gb + High, Pb.Z - Side.Z * Top), At3(Pa.X - Side.X * Top, Ga + High, Pa.Z - Side.Z * Top), Sky, IsWall ? Mask : Shade(Colour, 1.12), false, IsWall ? 0.45f : -1.0f);
+						Stretch(Foot, Top, -0.4, High, Colour, IsWall);
 					}
 				}
 			}
 		}
 
 	// Buildings: each on its mapped footprint, stone under a pitched roof, its ridge along its length.
-	static const Rgb Stone = {0.30f, 0.28f, 0.245f}, Render = {0.55f, 0.53f, 0.47f}, Slate = {0.085f, 0.085f, 0.095f}, StoneSlate = {0.17f, 0.155f, 0.13f}, Glass = {0.02f, 0.025f, 0.03f},
+	static const Rgb Stone = {0.30f, 0.28f, 0.245f}, Slate = {0.085f, 0.085f, 0.095f}, StoneSlate = {0.17f, 0.155f, 0.13f}, Glass = {0.02f, 0.025f, 0.03f},
 		DoorWood = {0.07f, 0.045f, 0.03f};
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
@@ -268,20 +338,30 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const double Whole = B.Height > 2.0 ? B.Height : (Big ? 6.5 : 4.0 + 3.0 * Chance(B.X, B.Z, 1));
 				const double Eaves = std::fmax(2.3, Whole - Rise);
 				const double Pick = Chance(B.X, B.Z, 2);
-				const bool Rendered = Pick < 0.14 && !Big;
-				const Rgb Wall = Shade(Rendered ? Render : Stone, 0.85 + 0.3 * Chance(B.X, B.Z, 4));
+				// (the local walling: render, brick, else stone; a barn stays stone, or brick where brick is the rule)
+				const bool Rendered = !Big && Pick < Look.RenderShare;
+				const bool Brick = !Rendered && (Big ? Pick < Look.BrickShare * 0.8 : Pick < Look.RenderShare + Look.BrickShare);
+				const Rgb Washes = {Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B}, Bricks = {Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
+				const Rgb Wall = Shade(Rendered ? Washes : Brick ? Bricks : Stone, (Rendered ? 0.92 : 0.85) + (Rendered ? 0.14 : 0.3) * Chance(B.X, B.Z, 4));
 				// (a stone house's walls in the scanned masonry: brightness, mostly the bare scan, a little lichen)
 				Rgb Mask;
 				Mask.R = float(0.48 + 0.14 * Chance(B.X, B.Z, 4));
 				Mask.G = 0.8f;
 				Mask.B = 0.3f;
-				RideMesh& Walling = Rendered ? Out : *Houses;
 				const auto WallQuad = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, double By)
 				{
-					if (Rendered) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
-					else Quad(Walling, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
+					if (Rendered) Quad(*Washed, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.08f);
+					else if (Brick) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
+					else Quad(*Houses, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
 				};
-				const Rgb Roof = Shade(Pick > 0.55 ? StoneSlate : Slate, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
+				// (the local roofs: thatch, clay tiles or pantiles, stone slates, else slate)
+				const double RoofPick = Chance(B.X, B.Z, 6);
+				const bool Thatch = !Big && RoofPick < Look.ThatchShare;
+				const bool Tiled = !Thatch && RoofPick < Look.ThatchShare + Look.TileShare;
+				const bool Flags = !Thatch && !Tiled && RoofPick < Look.ThatchShare + Look.TileShare + Look.StoneSlateShare;
+				static const Rgb Straw = {0.27f, 0.21f, 0.11f};
+				const Rgb Tiles = {Look.TileColour.R, Look.TileColour.G, Look.TileColour.B};
+				const Rgb Roof = Shade(Thatch ? Straw : Tiled ? Tiles : Flags ? StoneSlate : Slate, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
 				const P3 Centre = Local(0.0, 0.0, Eaves * 0.5);
 				// (none of it over a road: the map's footprints and the road's own line don't always agree)
 				bool Clear = true;
@@ -308,7 +388,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 					const P3 Peak = Local(Sg * HalfLong, 0.0, Eaves + Rise);
 					WallQuad(E3, E2, Peak, E3, Outside(E0, E2), 0.93);
 					// The roof's two slopes, a little over the walls.
-					const double Over = 0.3, Drop = Over * Rise / HalfShort;
+					const double Over = Thatch ? 0.55 : 0.3, Drop = Over * Rise / HalfShort;
 					Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Eaves - Drop), Local(HalfLong + Over, Sg * (HalfShort + Over), Eaves - Drop), Local(HalfLong + Over, 0.0, Eaves + Rise),
 						Local(-HalfLong - Over, 0.0, Eaves + Rise), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
 					if (!Fine || Big) continue;
@@ -381,7 +461,467 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				}
 			}
 	}
+	FurnitureTile(X0, Z0, Size, Fine, Out);
 	if (Walls->Vertices() > 0) Out.Stone = Walls;
 	if (Houses->Vertices() > 0) Out.Masonry = Houses;
+	if (Washed->Vertices() > 0) Out.Render = Washed;
+}
+
+// --- The road's furniture (stage 5) -----------------------------------------------------------------
+
+int RidePlan::FurnitureCount(int Kind) const
+{
+	int N = 0;
+	for (const Furnish& F : Furniture) N += F.Kind == Kind ? 1 : 0;
+	return N;
+}
+
+void RidePlan::IndexFurniture()
+{
+	Furniture.clear();
+	BuiltUp.assign(Road.size(), 0);
+	if (!Scene || Road.size() < 2) return;
+	const Region& G = Area.Roads;
+	const auto Put = [this](Furnish F)
+	{
+		if (std::isnan(F.Height)) return;
+		Scene->Furniture[SceneKey(F.At.X, F.At.Z)].push_back(int(Furniture.size()));
+		Furniture.push_back(std::move(F));
+	};
+	const auto Dir = [this](size_t I)
+	{
+		const size_t A = I > 0 ? I - 1 : 0, B = std::min(Road.size() - 1, I + 1);
+		const P2 D = Road[B].At - Road[A].At;
+		const double L = D.Length();
+		return L > 1e-9 ? D * (1.0 / L) : P2(1.0, 0.0);
+	};
+	const auto OffAll = [this](const P2& P, double Spare)
+	{
+		NearOpts Opts;
+		NearHit Hit;
+		return !NearestOf(P.X, P.Z, Opts, Hit) || Hit.Dist > Hit.Half + Spare;
+	};
+	// Built up: six buildings or more within 70 m of the road, gaps under 120 m closed, stretches
+	// under 150 m left out.
+	{
+		std::vector<unsigned char> Busy(Road.size(), 0);
+		for (size_t I = 0; I < Road.size(); ++I)
+		{
+			const P2 P = Road[I].At;
+			int Count = 0;
+			for (int Dz = -1; Dz <= 1 && Count < 6; ++Dz)
+				for (int Dx = -1; Dx <= 1 && Count < 6; ++Dx)
+				{
+					const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+					if (It == Scene->Buildings.end()) continue;
+					for (int B : It->second)
+						if (std::hypot(G.Buildings[size_t(B)].X - P.X, G.Buildings[size_t(B)].Z - P.Z) < 70.0 && ++Count >= 6) break;
+				}
+			Busy[I] = Count >= 6 ? 1 : 0;
+		}
+		const auto Runs = [](const std::vector<unsigned char>& Of, unsigned char Want)
+		{
+			std::vector<std::pair<size_t, size_t>> Out;
+			for (size_t I = 0; I < Of.size();)
+			{
+				if (Of[I] != Want) { ++I; continue; }
+				size_t J = I;
+				while (J + 1 < Of.size() && Of[J + 1] == Want) ++J;
+				Out.emplace_back(I, J);
+				I = J + 1;
+			}
+			return Out;
+		};
+		for (const auto& Gap : Runs(Busy, 0))
+			if (Gap.first > 0 && Gap.second + 1 < Busy.size() && Road[Gap.second].Along - Road[Gap.first].Along < 120.0)
+				for (size_t I = Gap.first; I <= Gap.second; ++I) Busy[I] = 1;
+		for (const auto& Run : Runs(Busy, 1))
+			if (Road[Run.second].Along - Road[Run.first].Along >= 150.0)
+				for (size_t I = Run.first; I <= Run.second; ++I) BuiltUp[I] = 1;
+	}
+	const auto PointAt = [this](double Along)
+	{
+		size_t I = 0;
+		while (I + 1 < Road.size() && Road[I + 1].Along <= Along) ++I;
+		return I;
+	};
+	const auto Verge = [&](size_t I, double Side, double Out)
+	{
+		// (Side +1 the left of the way the road runs, -1 its right; Out metres past the edge)
+		const P2 D = Dir(I);
+		const P2 L(D.Z, -D.X);
+		return Road[I].At + L * (Side * (Road[I].Half + Out));
+	};
+	// Coming into each built-up stretch, each way: the place's name, then the 30 limit; leaving, the
+	// national limit. In Britain they stand on the left of the traffic that reads them.
+	for (size_t I = 0; I < Road.size(); ++I)
+	{
+		if (!BuiltUp[I] || (I > 0 && BuiltUp[I - 1])) continue;
+		size_t J = I;
+		while (J + 1 < Road.size() && BuiltUp[J + 1]) ++J;
+		// (named by the nearest of the map's places to its middle)
+		const P2 Mid = Road[(I + J) / 2].At;
+		std::string Called;
+		double Best = 2500.0;
+		for (const TorqueFit::Json& Pl : G.Places)
+		{
+			const double D = std::hypot(Pl.Num("x") - Mid.X, Pl.Num("z") - Mid.Z);
+			if (D < Best) { Best = D; Called = Pl.Str("name"); }
+		}
+		for (int Way = 0; Way < 2; ++Way)
+		{
+			// (forwards it starts at I, backwards at J; its left is the forward left, then the right)
+			const double Side = Way == 0 ? 1.0 : -1.0;
+			const double Start = Way == 0 ? Road[I].Along : Road[J].Along, Back = Way == 0 ? -1.0 : 1.0;
+			const auto Sign = [&](int Kind, double Along, const std::string& Words)
+			{
+				if (Along < 0.0 || Along > Length) return;
+				const size_t K = PointAt(Along);
+				Furnish F;
+				F.Kind = Kind;
+				// (a board stands across the way, so its near edge, not its middle, is kept clear of the road)
+				const double Wide = Kind == NameSign ? 0.5 + 0.17 * double(Words.size()) : 0.8;
+				F.At = Verge(K, Side, 0.7 + Wide * 0.5);
+				F.Face = Dir(K) * Back;   // (towards the traffic coming in)
+				F.Text = Words;
+				F.Height = Ground(F.At.X, F.At.Z);
+				const P2 Across(F.Face.Z, -F.Face.X);
+				if (OffAll(F.At, 0.6) && OffAll(F.At + Across * (Wide * 0.5), 0.3) && OffAll(F.At - Across * (Wide * 0.5), 0.3)) Put(F);
+			};
+			if (!Called.empty()) Sign(NameSign, Start + Back * 10.0, Called);
+			Sign(Limit30, Start, "30");
+			// (leaving at the other end, the way this traffic goes: its left there)
+			const double End = Way == 0 ? Road[J].Along : Road[I].Along;
+			Sign(LimitNational, End - Back * 5.0, "");
+		}
+		// Street lamps through it, on its left every 36 m.
+		for (double Along = Road[I].Along + 12.0; Along < Road[J].Along - 6.0; Along += 36.0)
+		{
+			const size_t K = PointAt(Along);
+			Furnish F;
+			F.Kind = StreetLamp;
+			F.At = Verge(K, 1.0, 0.9);
+			const P2 D = Dir(K);
+			F.Face = P2(-D.Z, D.X);   // (its arm reaches out over the road)
+			F.Height = Ground(F.At.X, F.At.Z);
+			if (OffAll(F.At, 0.5)) Put(F);
+		}
+		I = J;
+	}
+	// Chevrons round the sharp bends: under 40 m round, turning 45 degrees or more, on the outside.
+	{
+		const double Pi = 3.14159265358979323846;
+		std::vector<double> Radius(Road.size(), 1e9), Turn(Road.size(), 0.0);
+		for (size_t I = 0; I < Road.size(); ++I)
+		{
+			size_t A = I, B = I;
+			while (A > 0 && Road[I].Along - Road[A].Along < 15.0) --A;
+			while (B + 1 < Road.size() && Road[B].Along - Road[I].Along < 15.0) ++B;
+			if (A == I || B == I) continue;
+			const P2 U = Road[I].At - Road[A].At, V = Road[B].At - Road[I].At;
+			double T = std::atan2(V.Z, V.X) - std::atan2(U.Z, U.X);
+			while (T > Pi) T -= 2.0 * Pi;
+			while (T < -Pi) T += 2.0 * Pi;
+			Turn[I] = T;
+			if (std::fabs(T) > 1e-4) Radius[I] = (Road[B].Along - Road[A].Along) / std::fabs(T);
+		}
+		for (size_t I = 0; I < Road.size(); ++I)
+		{
+			if (Radius[I] >= 40.0 || BuiltUp[I]) continue;
+			size_t J = I, Apex = I;
+			while (J + 1 < Road.size() && Radius[J + 1] < 40.0 && (Turn[J + 1] > 0.0) == (Turn[I] > 0.0))
+			{
+				++J;
+				if (Radius[J] < Radius[Apex]) Apex = J;
+			}
+			double Whole = 0.0;
+			for (size_t K = I; K <= J; ++K) Whole += Turn[K] * (K > I ? (Road[K].Along - Road[K - 1].Along) : 0.0) / 30.0;
+			if (std::fabs(Whole) >= 45.0 * Pi / 180.0 || Radius[Apex] < 20.0)
+				for (double Off : {-12.0, 0.0, 12.0})
+				{
+					const size_t K = PointAt(Road[Apex].Along + Off);
+					// (a right-hand bend, Turn > 0, has its outside on the left)
+					Furnish F;
+					F.Kind = Chevron;
+					F.At = Verge(K, Turn[Apex] > 0.0 ? 1.0 : -1.0, 1.6);
+					F.Face = Dir(K) * -1.0;
+					F.Size = Turn[Apex] > 0.0 ? -1.0 : 1.0;   // (+1: the arrows point left, as the forward rider reads them)
+					F.Height = Ground(F.At.X, F.At.Z);
+					if (OffAll(F.At, 0.8)) Put(F);
+				}
+			I = J;
+		}
+	}
+	// What the map has: cattle grids on the road, and beside it poles, boxes, stops, benches, milestones and gates.
+	for (const FeaturePoint& P : G.Scenery.Points)
+	{
+		int Kind = -1;
+		if (P.Kind == "cattle_grid") Kind = CattleGrid;
+		else if (P.Kind == "power_pole") Kind = PowerPole;
+		else if (P.Kind == "post_box") Kind = PostBox;
+		else if (P.Kind == "bus_stop") Kind = BusStop;
+		else if (P.Kind == "bench") Kind = Seat;
+		else if (P.Kind == "milestone") Kind = Milestone;
+		else if (P.Kind == "gate") Kind = FieldGate;
+		if (Kind < 0) continue;
+		NearOpts Opts;
+		NearHit Hit;
+		const bool Any = NearestOf(P.At.X, P.At.Z, Opts, Hit);
+		// (only near a road anyone sees: within 300 m of one)
+		if (!Any && Kind != PowerPole) continue;
+		Furnish F;
+		F.Kind = Kind;
+		F.At = P.At;
+		F.Face = P2(std::cos(P.Heading), std::sin(P.Heading));
+		if (std::isnan(F.Face.X) || std::isnan(F.Face.Z)) F.Face = P2(1.0, 0.0);
+		if (Kind == CattleGrid)
+		{
+			// (across the road it lies on, the road's own way)
+			if (!Any || Hit.Dist > Hit.Half) continue;
+			const std::vector<RoadPoint>& On = RoadOf(Hit.Which);
+			const size_t K = size_t(std::max(0, Hit.Index));
+			if (K + 1 >= On.size()) continue;
+			const P2 D = On[K + 1].At - On[K].At;
+			const double L = D.Length();
+			if (L < 1e-6) continue;
+			F.At = Hit.Foot;
+			F.Face = D * (1.0 / L);
+			F.Size = Hit.Half * 2.0 + 0.6;
+			F.Height = Hit.Height;
+			Put(F);
+			continue;
+		}
+		if (Any && Hit.Dist < Hit.Half + 0.5) continue;   // (a gate across a lane, a box on the tarmac: not here)
+		if (Kind == FieldGate)
+		{
+			// In the wall, hedge or fence it stands in, along it, and a gap left in the wall for it.
+			const auto It = Scene->Lines.find(SceneKey(P.At.X, P.At.Z));
+			if (It == Scene->Lines.end()) continue;
+			double BestD = 1.5;
+			P2 Along;
+			for (int L : It->second)
+			{
+				const FeatureLine& Line = G.Scenery.Lines[size_t(L)];
+				for (size_t K = 0; K + 1 < Line.Line.size(); ++K)
+				{
+					const P2 A = Line.Line[K], B = Line.Line[K + 1], AB = B - A;
+					const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
+					if (Len2 < 1e-6) continue;
+					const double T = std::fmax(0.0, std::fmin(1.0, ((P.At.X - A.X) * AB.X + (P.At.Z - A.Z) * AB.Z) / Len2));
+					const double D = (A + AB * T).DistanceTo(P.At);
+					if (D < BestD) { BestD = D; Along = AB * (1.0 / std::sqrt(Len2)); }
+				}
+			}
+			if (BestD >= 1.5) continue;
+			F.Face = Along;
+			F.Size = 3.6;
+			Scene->Gaps[SceneKey(P.At.X, P.At.Z)].push_back(P.At);
+		}
+		F.Height = Ground(F.At.X, F.At.Z);
+		Put(F);
+	}
+}
+
+bool RidePlan::InGap(double X, double Z) const
+{
+	if (!Scene) return false;
+	const auto It = Scene->Gaps.find(SceneKey(X, Z));
+	if (It == Scene->Gaps.end()) return false;
+	for (const P2& G : It->second)
+		if (std::hypot(G.X - X, G.Z - Z) < 1.9) return true;
+	return false;
+}
+
+void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const
+{
+	if (!Scene) return;
+	static const Rgb White = {0.75f, 0.75f, 0.74f}, Black = {0.012f, 0.012f, 0.012f}, Red = {0.45f, 0.012f, 0.01f}, Grey = {0.16f, 0.16f, 0.165f}, Steel = {0.24f, 0.25f, 0.26f},
+		Wood = {0.075f, 0.05f, 0.032f}, PoleWood = {0.05f, 0.04f, 0.03f}, Stone3 = {0.22f, 0.21f, 0.19f}, Lamp = {0.6f, 0.58f, 0.5f};
+	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	const auto Label = [&Out](const P3& At, const P2& Face, double Tall, const std::string& Words, const Rgb& Colour)
+	{
+		RideMesh::Label L;
+		L.X = float(At.X - Out.OriginX);
+		L.Y = float(At.Y);
+		L.Z = float(At.Z - Out.OriginZ);
+		L.Nx = float(Face.X);
+		L.Nz = float(Face.Z);
+		L.Size = float(Tall);
+		L.R = Colour.R; L.G = Colour.G; L.B = Colour.B;
+		L.Text = Words;
+		Out.Labels.push_back(L);
+	};
+	// A flat board facing Face (its back grey), its middle Mid, W by H.
+	const auto Board = [&Out](const P3& Mid, const P2& Face, double W, double H, const Rgb& Colour, double Proud)
+	{
+		const P2 U(Face.Z, -Face.X);
+		const P3 C = At3(Mid.X + Face.X * Proud, Mid.Y, Mid.Z + Face.Z * Proud);
+		const auto Pt = [&](double Su, double Sv) { return At3(C.X + U.X * Su * W * 0.5, C.Y + Sv * H * 0.5, C.Z + U.Z * Su * W * 0.5); };
+		Quad(Out, Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(C.X + Face.X * 50.0, C.Y, C.Z + Face.Z * 50.0), Colour);
+	};
+	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
+		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
+		{
+			const auto It = Scene->Furniture.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
+			if (It == Scene->Furniture.end()) continue;
+			for (int Index : It->second)
+			{
+				const Furnish& F = Furniture[size_t(Index)];
+				if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
+				if (!Fine && F.Kind != PowerPole && F.Kind != StreetLamp) continue;
+				const double Y = F.Height;
+				const P2 Face = F.Face;
+				const P2 Side(Face.Z, -Face.X);
+				switch (F.Kind)
+				{
+				case NameSign:
+				{
+					const double W = 0.5 + 0.17 * double(F.Text.size()), H = 0.5;
+					for (double Su : {-1.0, 1.0}) Box(Out, F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Face, 0.04, 0.04, Y - 0.3, Y + 1.95, Grey);
+					const P3 Mid = At3(F.At.X, Y + 1.55, F.At.Z);
+					Board(Mid, Face, W + 0.08, H + 0.08, Grey, -0.01);
+					Board(Mid, Face * -1.0, W + 0.08, H + 0.08, Grey, 0.03);
+					Board(Mid, Face, W + 0.04, H + 0.04, Black, 0.05);
+					Board(Mid, Face, W, H, White, 0.06);
+					Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.22, F.Text, Black);
+					break;
+				}
+				case Limit30:
+				case LimitNational:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.04, 0.04, Y - 0.3, Y + 1.9, Grey);
+					const P3 Mid = At3(F.At.X, Y + 1.75, F.At.Z);
+					Disc(Out, At3(Mid.X - Face.X * 0.05, Mid.Y, Mid.Z - Face.Z * 0.05), Face * -1.0, 0.38, Grey);
+					if (F.Kind == Limit30)
+					{
+						Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, Red);
+						Disc(Out, At3(Mid.X + Face.X * 0.06, Mid.Y, Mid.Z + Face.Z * 0.06), Face, 0.30, White);
+						Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.3, F.Text, Black);
+					}
+					else
+					{
+						// (white, crossed by a black bar from top right to bottom left)
+						Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, White);
+						const P2 U(Face.Z, -Face.X);
+						const double Px = Mid.X + Face.X * 0.065, Pz = Mid.Z + Face.Z * 0.065, R = 0.36, T = 0.05;
+						const auto Pt = [&](double Su, double Sv) { return At3(Px + U.X * Su, Mid.Y + Sv, Pz + U.Z * Su); };
+						const double C = R * 0.7071;
+						Quad(Out, Pt(-C - T, -C + T), Pt(-C + T, -C - T), Pt(C + T, C - T), Pt(C - T, C + T), At3(Px + Face.X * 50.0, Mid.Y, Pz + Face.Z * 50.0), Black, true);
+					}
+					break;
+				}
+				case Chevron:
+				{
+					for (double Su : {-0.3, 0.3}) Box(Out, F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Face, 0.035, 0.035, Y - 0.3, Y + 1.7, Grey);
+					const P3 Mid = At3(F.At.X, Y + 1.3, F.At.Z);
+					// (each face its arrows the way its own reader's bend turns: forwards F.Size, back the other)
+					for (int Back = 0; Back < 2; ++Back)
+					{
+						const P2 N = Back ? Face * -1.0 : Face;
+						const double Point = Back ? -F.Size : F.Size;   // +1: the tip to the reader's left
+						Board(Mid, N, 0.9, 0.7, Black, 0.03);
+						const P2 U(N.Z, -N.X);   // (the reader's left, as they face it)
+						const double Px = Mid.X + N.X * 0.04, Pz = Mid.Z + N.Z * 0.04;
+						const auto Pt = [&](double Su, double Sv) { return At3(Px - U.X * Su * Point, Mid.Y + Sv, Pz - U.Z * Su * Point); };
+						const P3 Toward = At3(Px + N.X * 50.0, Mid.Y, Pz + N.Z * 50.0);
+						for (double Sv : {1.0, -1.0})
+							Quad(Out, Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
+					}
+					break;
+				}
+				case StreetLamp:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.07, 0.07, Y - 0.3, Y + 6.0, Grey);
+					if (!Fine) break;
+					const double Ax = F.At.X + Face.X * 1.1, Az = F.At.Z + Face.Z * 1.1;
+					Box(Out, (F.At.X + Ax) * 0.5, (F.At.Z + Az) * 0.5, Face, 0.6, 0.03, Y + 5.85, Y + 5.95, Grey);
+					Box(Out, Ax, Az, Face, 0.25, 0.1, Y + 5.75, Y + 5.92, Grey);
+					Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
+					break;
+				}
+				case CattleGrid:
+				{
+					// Steel bars across the road, a little proud of it, and a short rail each side.
+					const P2 Across(Face.Z, -Face.X);
+					const double Half = F.Size * 0.5;
+					for (int K = -9; K <= 9; ++K)
+					{
+						const double Off = K * 0.13;
+						const P2 C = F.At + Face * Off;
+						const auto Top = [&](double Su)
+						{
+							const P2 Q = C + Across * (Su * Half);
+							const double H = RoadHeight(Q.X, Q.Z);
+							return std::isnan(H) ? Y : H;
+						};
+						const double Ya = Top(-1.0) + 0.012, Yb = Top(1.0) + 0.012;
+						const P2 A = C + Across * (-Half), B = C + Across * Half, T = Face * 0.025;
+						Quad(Out, At3(A.X - T.X, Ya, A.Z - T.Z), At3(B.X - T.X, Yb, B.Z - T.Z), At3(B.X + T.X, Yb, B.Z + T.Z), At3(A.X + T.X, Ya, A.Z + T.Z), At3(C.X, Y + 100.0, C.Z), Steel);
+					}
+					for (double Su : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Across * (Su * (Half + 0.3));
+						const double G0 = Ground(Q.X, Q.Z);
+						if (!std::isnan(G0)) Box(Out, Q.X, Q.Z, Face, 1.3, 0.05, G0 - 0.2, G0 + 0.9, Steel);
+					}
+					break;
+				}
+				case PowerPole:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.12, 0.12, Y - 0.5, Y + 8.5, PoleWood);
+					Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.05, Y + 7.9, Y + 8.05, PoleWood);
+					break;
+				}
+				case PostBox:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.25, 0.25, Y - 0.1, Y + 1.45, Red);
+					Box(Out, F.At.X, F.At.Z, Face, 0.28, 0.28, Y + 1.45, Y + 1.55, Shade(Red, 0.7));
+					Board(At3(F.At.X, Y + 1.15, F.At.Z), Face, 0.3, 0.04, Black, 0.26);
+					break;
+				}
+				case BusStop:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.04, 0.04, Y - 0.3, Y + 2.7, Grey);
+					const P3 Mid = At3(F.At.X + Side.X * 0.3, Y + 2.45, F.At.Z + Side.Z * 0.3);
+					for (int Back = 0; Back < 2; ++Back) Board(Mid, Back ? Face * -1.0 : Face, 0.5, 0.42, White, 0.01);
+					for (int Back = 0; Back < 2; ++Back)
+						Label(At3(Mid.X + (Back ? -Face.X : Face.X) * 0.03, Mid.Y, Mid.Z + (Back ? -Face.Z : Face.Z) * 0.03), Back ? Face * -1.0 : Face, 0.14, "BUS", Black);
+					break;
+				}
+				case Seat:
+				{
+					Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.22, Y + 0.42, Y + 0.47, Wood);
+					Box(Out, F.At.X - Face.X * 0.2, F.At.Z - Face.Z * 0.2, Side, 0.8, 0.03, Y + 0.5, Y + 0.85, Wood);
+					for (double Su : {-0.7, 0.7}) Box(Out, F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Side, 0.04, 0.2, Y - 0.1, Y + 0.42, Steel);
+					break;
+				}
+				case Milestone:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.18, 0.12, Y - 0.2, Y + 0.75, Stone3);
+					break;
+				}
+				case FieldGate:
+				{
+					// Five bars and a brace between two posts, in line with its wall, galvanised or wooden.
+					const Rgb Bar = Chance(F.At.X, F.At.Z, 31) < 0.6 ? Steel : Shade(Wood, 1.6);
+					const double Half = F.Size * 0.5;
+					for (double Su : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Face * (Su * (Half + 0.12));
+						Box(Out, Q.X, Q.Z, Face, 0.1, 0.1, Y - 0.3, Y + 1.35, Shade(Stone3, 1.1));
+					}
+					const P2 A = F.At + Face * -Half, B = F.At + Face * Half;
+					for (int K = 0; K < 5; ++K)
+					{
+						const double H = 0.25 + K * 0.22;
+						Quad(Out, At3(A.X, Y + H, A.Z), At3(B.X, Y + H, B.Z), At3(B.X, Y + H + 0.06, B.Z), At3(A.X, Y + H + 0.06, A.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
+					}
+					Quad(Out, At3(A.X, Y + 0.25, A.Z), At3(A.X, Y + 0.31, A.Z), At3(B.X, Y + 1.19, B.Z), At3(B.X, Y + 1.13, B.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
+					break;
+				}
+				default: break;
+				}
+			}
+		}
 }
 } // namespace TorqueWorld

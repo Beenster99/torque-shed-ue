@@ -115,8 +115,10 @@ def scanned_materials(L):
     original = L.new_material
     try:
         for want, make in (("M_RideLandScan", lambda: L.land_material_scanned(tex, roles) if "grass" in tex else None),
-                           ("M_RideStone", lambda: L.stone_material(tex, roles)),
-                           ("M_RideMasonry", lambda: L.stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False))):
+                           ("M_RideStone", lambda: L.stone_material(tex, roles, tint_param=True)),
+                           ("M_RideMasonry", lambda: L.stone_material(tex, roles, "M_Masonry", "masonry", "masonry", broad_moss=False, tint_param=True)),
+                           # (stage 5: rendered and limewashed houses, the vertex colour their wash)
+                           ("M_RideRender", lambda: L.render_material(tex, roles, "M_RideRender"))):
             # (the level script's makers name their own material in its own folder: put it here, under our name)
             L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
             try:

@@ -662,6 +662,34 @@ int main()
 					Check(Near(Sum.Metres, Via->FinishM, 5.0) && Sum.Climb > 10.0 && Sum.Highest > Sum.Lowest && Sum.Highest < 800.0 && Mph > 20.0 && Mph < 60.0
 							&& double(Sum.Line.size()) > Sum.Metres / 60.0 && Near(Sum.Line.front().Lat, GA.Lat, 0.01) && Near(Sum.Litres(5.0), Sum.Metres / 20000.0, 1e-9),
 						"a ride is summed up to its finish: how far, the climb, the highest point, how twisty, about how long, the fuel, and its line for the map");
+					// The road's furniture (stage 5).
+					{
+						int Built = 0;
+						for (unsigned char Bu : Plan->BuiltUp) Built += Bu;
+						int OnRoad = 0, Labels = 0;
+						for (const RidePlan::Furnish& F : Plan->Furniture)
+						{
+							if (F.Kind == RidePlan::CattleGrid || F.Kind == RidePlan::FieldGate) continue;
+							double H = Plan->RoadHeight(F.At.X, F.At.Z);
+							if (!std::isnan(H)) ++OnRoad;
+						}
+						// (a square of ground with signs on it has their words)
+						for (const RidePlan::Furnish& F : Plan->Furniture)
+							if (F.Kind == RidePlan::NameSign)
+							{
+								RideMesh Stands;
+								Plan->SceneryTile(std::floor(F.At.X / 64.0) * 64.0, std::floor(F.At.Z / 64.0) * 64.0, 64.0, 2.0, Stands);
+								for (const RideMesh::Label& L : Stands.Labels) Labels += L.Text == F.Text ? 1 : 0;
+								break;
+							}
+						std::printf("      furniture: %d of %d road points built up; %d name signs, %d 30s, %d national limits, %d chevrons, %d lamps, %d cattle grids, %d poles, %d gates, %d post boxes; %d on a road\n",
+							Built, int(Plan->Road.size()), Plan->FurnitureCount(RidePlan::NameSign), Plan->FurnitureCount(RidePlan::Limit30), Plan->FurnitureCount(RidePlan::LimitNational),
+							Plan->FurnitureCount(RidePlan::Chevron), Plan->FurnitureCount(RidePlan::StreetLamp), Plan->FurnitureCount(RidePlan::CattleGrid), Plan->FurnitureCount(RidePlan::PowerPole),
+							Plan->FurnitureCount(RidePlan::FieldGate), Plan->FurnitureCount(RidePlan::PostBox), OnRoad);
+						Check(Built > 0 && Plan->FurnitureCount(RidePlan::NameSign) >= 2 && Plan->FurnitureCount(RidePlan::Limit30) >= 2 && Plan->FurnitureCount(RidePlan::LimitNational) >= 2
+								&& Plan->FurnitureCount(RidePlan::StreetLamp) > 3 && Plan->FurnitureCount(RidePlan::PowerPole) > 10 && Plan->FurnitureCount(RidePlan::FieldGate) > 10 && OnRoad == 0 && Labels == 1,
+							"the road's furniture: villages named and signed 30 coming in and national limit going out, lamps through them, poles, gates in the walls, none of it on a road");
+					}
 				}
 				if (Plan->Ok)
 				{
@@ -1002,7 +1030,7 @@ int main()
 								if (!Part) continue;
 								const bool Scanned = Part != Sq.Extra.get();
 								Stands += Part->Vertices();
-								Coloured = Coloured && Part->Col.size() == Part->Pos.size() && Part->Vertices() % 4 == 0 && Part->Uv.size() == Part->Vertices() * 2;
+								Coloured = Coloured && Part->Col.size() == Part->Pos.size() && Part->Idx.size() % 3 == 0 && Part->Uv.size() == Part->Vertices() * 2;
 								// (the scanned stone's masks: brightness about the scan's own, moss in the alpha, UVs metres of a square's walls)
 								if (Scanned) Masked = Masked && Part->Alpha.size() == Part->Vertices() && Part->OriginX == Sq.OriginX && Part->OriginZ == Sq.OriginZ;
 								for (size_t V = 0; V < Part->Vertices(); ++V)
@@ -1017,7 +1045,11 @@ int main()
 									else if (std::fabs(C[0] - C[1]) < 0.03f && C[0] > 0.15f) ++StoneGrey;
 									// (nothing stands on a road's tarmac)
 									const double Rh = Plan->RoadHeight(Part->OriginX + Part->Pos[V * 3], Part->OriginZ + Part->Pos[V * 3 + 2]);
-									if (!std::isnan(Rh) && Part->Pos[V * 3 + 1] < Rh + 2.5) ++OnTarmac;   // (a tree's crown may reach over)
+									// (but for a cattle grid's bars, which lie across it)
+									bool Grid = false;
+									for (const RidePlan::Furnish& F : Plan->Furniture)
+										Grid = Grid || (F.Kind == RidePlan::CattleGrid && std::hypot(F.At.X - Part->OriginX - Part->Pos[V * 3], F.At.Z - Part->OriginZ - Part->Pos[V * 3 + 2]) < F.Size);
+									if (!std::isnan(Rh) && Part->Pos[V * 3 + 1] < Rh + 2.5 && !Grid) ++OnTarmac;   // (a tree's crown may reach over)
 								}
 							}
 						}

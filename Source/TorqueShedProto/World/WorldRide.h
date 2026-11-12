@@ -38,6 +38,7 @@
 #pragma once
 
 #include "WorldLoad.h"
+#include "WorldRideStyle.h"
 #include "WorldRoute.h"
 
 #include <cstdint>
@@ -90,7 +91,21 @@ struct RideMesh
 	// lichened limestone, 1 bare; B lichen; Alpha moss) and their UVs metres of surface. Stone is the
 	// dry stone walls (M_Stone), Masonry the stone houses and barns (M_Masonry). Null for none.
 	std::shared_ptr<RideMesh> Stone, Masonry;
-	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0); }
+	// The local stone's colour (WorldRideStyle's LocalLook), for the scanned stone and masonry to be
+	// tinted by; and rendered and limewashed walls (M_RideRender: the vertex colour the wash, its alpha
+	// dirt at the foot), null for none.
+	Tint StoneTint, MasonryTint;
+	std::shared_ptr<RideMesh> Render;
+	// Words on signs (a village's name, a speed limit): where (in the mesh's own origin, the middle of
+	// the words), which way they face (x, z), how tall a letter is (m), the words, and their colour.
+	struct Label
+	{
+		float X = 0.0f, Y = 0.0f, Z = 0.0f, Nx = 0.0f, Nz = 1.0f, Size = 0.2f;
+		float R = 0.0f, G = 0.0f, B = 0.0f;
+		std::string Text;
+	};
+	std::vector<Label> Labels;
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
@@ -292,6 +307,26 @@ public:
 	// The route as the bike reads it (Data/Buttertubs/route.json's fields): line_sim, length_m,
 	// road_half_width_m, origin_geo, spawn, credits.
 	std::string RouteJson() const;
+	// The road's furniture (Ride UK stage 5), drawn with what stands on the ground: the village's name
+	// and the 30 limit where the ride's road comes into a built-up place and the national limit where
+	// it leaves, chevrons round its sharp bends, street lamps through villages and towns, and from the
+	// map cattle grids across the road, telegraph poles, post boxes, bus stops, benches, milestones
+	// and field gates in their walls. Face is the way a sign faces (towards the traffic that reads it).
+	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, FurnishKinds };
+	struct Furnish
+	{
+		int Kind = 0;
+		P2 At, Face;
+		std::string Text;
+		double Size = 0.0;   // a grid's width, a gate's length, a chevron bend's turn (+ left)
+		double Height = 0.0; // the ground (or the road) under it
+	};
+	std::vector<Furnish> Furniture;
+	int FurnitureCount(int Kind) const;
+	// Where the ride's road is built up (a village or a town round it), by its points.
+	std::vector<unsigned char> BuiltUp;
+	// The local look (Ride UK stage 5: WorldRideStyle) at a place of the ride's frame.
+	const LocalLook& LookHere(double X, double Z) const;
 	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
 	// little under the limit, as a rider on a road they do not know).
 	RideSummary Summary(double Cap = 24.6) const;
@@ -315,7 +350,12 @@ private:
 	struct SceneIndex
 	{
 		std::unordered_map<long long, std::vector<int>> Lines, Buildings;
+		std::unordered_map<long long, std::vector<int>> Furniture;   // into RidePlan::Furniture
+		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
 	};
+	void IndexFurniture();
+	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
+	bool InGap(double X, double Z) const;
 	std::shared_ptr<SceneIndex> Scene;
 	void IndexScenery();
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square

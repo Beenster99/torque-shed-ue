@@ -224,6 +224,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->LaySides(Path);
 	R->LayKnots();
 	R->IndexScenery();
+	R->IndexFurniture();
 	R->Ok = true;
 	return R;
 }
