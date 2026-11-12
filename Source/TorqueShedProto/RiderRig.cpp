@@ -398,10 +398,11 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				// Feet on the pegs, or down on the road as the bike stops.
 				const FVector A0 = Bones[Foot[S]].Rest, K0 = Bones[Calf[S]].Rest, H0 = Bones[I].Rest;
 				const FVector Down = S == 0 ? In.FootDownL : In.FootDownR;
-				const FVector A = FMath::Lerp(In.PegFit[S].TransformPosition(A0), Down, FMath::Clamp(In.FeetDown, 0.0, 1.0));
+				const double DownS = FMath::Clamp(In.FeetDown, 0.0, 1.0) * (1.0 - FMath::Clamp(In.KeepOnPeg[S], 0.0, 1.0));
+				const FVector A = FMath::Lerp(In.PegFit[S].TransformPosition(A0), Down, DownS);
 				Last.Ankle[S] = A;
 				const double Lt = (K0 - H0).Size(), Ls = (A0 - K0).Size();
-				const FVector Pole = (KneePole[S] + FVector(0.0, 0.0, 0.6) * In.FeetDown).GetSafeNormal();
+				const FVector Pole = (KneePole[S] + FVector(0.0, 0.0, 0.6) * DownS).GetSafeNormal();
 				const FVector K = RigMidJoint(P[I], A, Lt, Ls, Pole);
 				const FVector Hinge0 = FVector::CrossProduct(K0 - H0, A0 - K0), Hinge = FVector::CrossProduct(K - P[I], A - K);
 				D[I] = AlignFrames(K0 - H0, Hinge0, K - P[I], Hinge); Set[I] = true;

@@ -1659,7 +1659,7 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 					// ankle is its kit rider's, whose feet aren't this body's): toes down on rearsets behind
 					// the hips, level under them, up a little on forward controls, and turned out a little.
 					// Down at a stop, the rig's ankle (on the road) and the foot level.
-					const double Down = FMath::Clamp(Tg.FeetDown, 0.0, 1.0);
+					const double Down = FMath::Clamp(Tg.FeetDown, 0.0, 1.0) * (1.0 - FMath::Clamp(Tg.KeepOnPeg[S], 0.0, 1.0));
 					if (Tg.bOnLayout && bBall[S] && Down < 1.0)
 					{
 						// The foot's pitch from the shin (beenster's marked poses): the sole about 86 degrees
@@ -1749,6 +1749,7 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(U, V), -1.0, 1.0)));
 		};
 		const double Scale = Rel.GetScale3D().Z;
+		RideReport.LegReach = LegLen * Scale;
 		const FVector Spine1 = Neck != INDEX_NONE ? P[Neck] - P[Pelvis] : Spine0;
 		RideReport.BackDeg = FMath::RadiansToDegrees(FMath::Atan2(FVector::DotProduct(Spine1, Fwd), FVector::DotProduct(Spine1, Up)));
 		for (int32 S = 0; S < 2; ++S)
@@ -1764,6 +1765,7 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const int32 Tip = Finger[S][Fi][2] != INDEX_NONE ? Finger[S][Fi][2] : Finger[S][Fi][1];
 				return Tip != INDEX_NONE ? FMath::RadiansToDegrees((D[HandBone[S]].Inverse() * D[Tip]).GetAngle()) : -1.0;
 			};
+			RideReport.HipJointAt[S] = Rel.TransformPosition(P[Thigh[S]]);
 			RideReport.IndexCurlDeg[S] = CurlOf(1);
 			RideReport.MiddleCurlDeg[S] = CurlOf(2);
 		}
