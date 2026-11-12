@@ -83,6 +83,13 @@ struct RideAnimal
 	float X = 0.0f, Y = 0.0f, Z = 0.0f, Yaw = 0.0f, Scale = 1.0f, Pick = 0.0f;
 };
 
+// What a place sounds like (Ride UK stage 6, RidePlan::SoundsAt), each 0 (none heard) to 1 (all round
+// you): the sea's waves, a river or a beck, a town's hum, and sheep and cattle in the fields near by.
+struct RidePlace
+{
+	double Sea = 0.0, Water = 0.0, Town = 0.0, Sheep = 0.0, Cattle = 0.0;
+};
+
 // A mesh in the ride's frame: positions about (OriginX, 0, OriginZ), so a float holds them finely.
 struct RideMesh
 {
@@ -321,6 +328,9 @@ public:
 	enum EAnimal { EweGraze, EweLook, EweLie, Lamb, CowGraze, CowStand, CowLie, Highland, AnimalKinds };
 	// "ewe_graze", ... "highland": the models' names are SM_Animal_<name>_<n> (Tools/make_ride_animals.py).
 	static const char* AnimalName(int Kind);
+	// What's heard at (X, Z): the sea within 400 m, running water within 80 m, the buildings within
+	// 150 m, the flocks and herds (AnimalsTile's) within 150 m. A few milliseconds: ask about once a second.
+	RidePlace SoundsAt(double X, double Z) const;
 	// The month the ride is in (1..12; its seasons: the lambs, the cattle out, the heather in flower).
 	int Month = 6;
 	// Set before the ground is made: trees come as plants (PlantsTile) and not as stand-in shapes

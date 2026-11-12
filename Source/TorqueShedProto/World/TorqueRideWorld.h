@@ -57,8 +57,14 @@ public:
 	void Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan);
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
+	// What the rider hears of the place round them (RidePlan::SoundsAt, each 0..1: the sea, running
+	// water, a town, sheep, cattle), from the ride being laid out now; false with no ride.
+	static bool PlaceHeard(double& Sea, double& Water, double& Town, double& Sheep, double& Cattle);
 
 private:
+	static TWeakObjectPtr<ATorqueRideWorld> Current;
+	double Heard[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+	double SinceHeard = 1.0;
 	// Where the rider is, in the ride's frame (metres: x east, z south).
 	FVector2D RiderAt() const;
 	// The squares wanted with the rider at At: (level, column, row).

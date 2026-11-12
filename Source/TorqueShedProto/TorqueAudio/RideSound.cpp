@@ -168,6 +168,106 @@ void RideSound::Retune()
 	GridThud.LowPass(260.0, 0.9);
 	GridRing.BandPass(740.0, 9.0);
 	GridRing2.BandPass(1310.0, 11.0);
+	SeaLow.LowPass(420.0, 0.6);
+	SeaHiss.BandPass(3200.0, 0.5);
+	BeckHi.BandPass(1500.0, 1.6);
+	BeckLo.BandPass(520.0, 1.2);
+	TownLow.LowPass(110.0, 0.7);
+	TownCar.LowPass(380.0, 0.8);
+	BleatF1.BandPass(850.0, 4.0);
+	BleatF2.BandPass(1500.0, 5.0);
+	MooF1.BandPass(330.0, 3.0);
+	MooF2.BandPass(720.0, 4.0);
+}
+
+double RideSound::PlaceSample()
+{
+	const double Dt = 1.0 / Rate;
+	double Out = 0.0;
+	// The sea: a wave every 7 to 11 s, its roar building to the break, then the hiss as it draws back.
+	if (Now.Sea > 0.002)
+	{
+		WavePhase += Dt / WavePeriod;
+		if (WavePhase >= 1.0)
+		{
+			WavePhase -= 1.0;
+			WavePeriod = 7.0 + 4.0 * Uniform();
+			WaveSize = 0.6 + 0.4 * Uniform();
+		}
+		const double Build = WavePhase < 0.7 ? std::pow(WavePhase / 0.7, 2.0) : std::exp(-(WavePhase - 0.7) * 9.0);
+		const double Draw = WavePhase > 0.68 ? std::sin(Pi * Clamp01((WavePhase - 0.68) / 0.32)) : 0.0;
+		Out += (SeaLow.Run(Noise()) * (0.3 + Build) * 0.7 + SeaHiss.Run(Noise()) * (0.05 + Draw) * 0.35) * WaveSize * Now.Sea * 0.25;
+	}
+	// A beck: water babbling over stones, its sound jumping every few hundredths of a second.
+	if (Now.Water > 0.002)
+	{
+		if (--GurgleIn <= 0)
+		{
+			GurgleTo = Uniform();
+			GurgleIn = int(Rate * (0.015 + 0.05 * Uniform()));
+		}
+		Gurgle += (GurgleTo - Gurgle) * 0.004;
+		Out += (BeckHi.Run(Noise()) * (0.3 + Gurgle) + BeckLo.Run(Noise()) * 0.45) * Now.Water * 0.06;
+	}
+	// A town: its low hum, and now and then a car going by a street or two off.
+	if (Now.Town > 0.002)
+	{
+		if (CarT < 0.0)
+		{
+			CarWait -= Dt;
+			if (CarWait <= 0.0) { CarT = 0.0; CarLen = 3.5 + 3.0 * Uniform(); }
+		}
+		double Car = 0.0;
+		if (CarT >= 0.0)
+		{
+			CarT += Dt;
+			Car = std::pow(std::sin(Pi * Clamp01(CarT / CarLen)), 2.0);
+			if (CarT >= CarLen) { CarT = -1.0; CarWait = (2.0 + 10.0 * Uniform()) / std::max(Now.Town, 0.2); }
+		}
+		Out += (TownLow.Run(Noise()) * 0.6 + TownCar.Run(Noise()) * Car * 1.1) * Now.Town * 0.1;
+	}
+	// Sheep: a bleat now and then (a lamb's higher), wavering as a sheep's does.
+	if (BleatT < 0.0 && Uniform() < Now.Sheep * 0.3 * Dt)
+	{
+		const bool Lamb = Uniform() < 0.35;
+		BleatT = 0.0;
+		BleatLen = (Lamb ? 0.4 : 0.55) + 0.5 * Uniform();
+		BleatF = (Lamb ? 560.0 : 330.0) + 160.0 * Uniform();
+		BleatAmp = 0.3 + 0.7 * Uniform();   // (some near, some across the field)
+	}
+	if (BleatT >= 0.0)
+	{
+		BleatT += Dt;
+		const double T = BleatT / BleatLen;
+		const double Env = Clamp01(BleatT / 0.05) * (T < 0.75 ? 1.0 : Clamp01((1.0 - T) / 0.25));
+		const double Trem = 0.55 + 0.45 * std::sin(2.0 * Pi * 8.0 * BleatT);
+		BleatPhase += BleatF * (1.0 + 0.03 * std::sin(2.0 * Pi * 8.0 * BleatT) - 0.06 * T) * Dt;
+		BleatPhase -= std::floor(BleatPhase);
+		const double Voice = 2.0 * BleatPhase - 1.0;
+		Out += (BleatF1.Run(Voice) * 1.2 + BleatF2.Run(Voice) * 0.8 + Voice * 0.05) * Env * Trem * BleatAmp * 0.1;
+		if (BleatT >= BleatLen) BleatT = -1.0;
+	}
+	// Cattle: a long low moo, falling at the end.
+	if (MooT < 0.0 && Uniform() < Now.Cattle * 0.08 * Dt)
+	{
+		MooT = 0.0;
+		MooLen = 1.2 + 1.0 * Uniform();
+		MooF = 95.0 + 35.0 * Uniform();
+		MooAmp = 0.3 + 0.7 * Uniform();
+	}
+	if (MooT >= 0.0)
+	{
+		MooT += Dt;
+		const double T = MooT / MooLen;
+		const double Env = Clamp01(MooT / 0.25) * (T < 0.7 ? 1.0 : Clamp01((1.0 - T) / 0.3));
+		MooPhase += MooF * (1.0 + 0.08 * Smooth(0.0, 0.3, T) - 0.2 * Smooth(0.6, 1.0, T)) * Dt;
+		MooPhase -= std::floor(MooPhase);
+		const double Voice = 2.0 * MooPhase - 1.0;
+		Out += (MooF1.Run(Voice) * 1.4 + MooF2.Run(Voice) * 0.6 + Voice * 0.08) * Env * MooAmp * 0.1;
+		if (MooT >= MooLen) MooT = -1.0;
+	}
+	// Fainter at speed, where the wind covers it anyway.
+	return Out * (1.0 - 0.7 * Clamp01(Now.Speed / 20.0));
 }
 
 void RideSound::SetEngine(std::shared_ptr<TorqueEngine::FBank> Bank)
@@ -215,6 +315,11 @@ void RideSound::Render(float* Out, int N)
 		Now.AirWind += (Target.AirWind - Now.AirWind) * Ks * 0.05;   // (the weather changes over seconds)
 		Now.Gust += (Target.Gust - Now.Gust) * Ks * 0.05;
 		Now.Rain += (Target.Rain - Now.Rain) * Ks * 0.05;
+		Now.Sea += (Target.Sea - Now.Sea) * Ks * 0.05;
+		Now.Water += (Target.Water - Now.Water) * Ks * 0.05;
+		Now.Town += (Target.Town - Now.Town) * Ks * 0.05;
+		Now.Sheep = Target.Sheep;
+		Now.Cattle = Target.Cattle;
 		Now.OnTarmac = Target.OnTarmac;
 		Now.Airborne = Target.Airborne;
 		Running += ((Target.EngineOn ? 1.0 : 0.0) - Running) * Kt;
@@ -394,7 +499,8 @@ void RideSound::Render(float* Out, int N)
 			if (AmbPos >= Amb.size()) AmbPos = 0.0;
 		}
 
-		double Mix = (EngineHeard * EngineLevel + (Wind + Bg + RainSound) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
+		const double Place = Ambience ? PlaceSample() : 0.0;
+		double Mix = (EngineHeard * EngineLevel + (Wind + Bg + RainSound + Place) * AmbienceLevel + Tyre + Grid + Lever) * Volume;
 		// DC block, then a soft limit.
 		const double Hpo = Mix - HpIn + 0.995 * Hp;
 		HpIn = Mix;

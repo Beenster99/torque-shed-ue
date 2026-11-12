@@ -721,6 +721,22 @@ int main()
 							Check(Kinds[RidePlan::EweGraze] > 20 && Kinds[RidePlan::Lamb] > 5 && Spring > 0 && Winter < Spring && Trampled == 0,
 								"sheep in the fields with lambs in spring, cattle out in summer and mostly in for the winter, none on a road");
 						}
+						// The sound of the place (stage 6): along the ride, the most town, water and sheep heard.
+						{
+							RidePlace Most;
+							int Heard = 0;
+							const auto Began = std::chrono::steady_clock::now();
+							for (size_t I = 0; I < Plan->Road.size(); I += 25)
+							{
+								const RidePlace P = Plan->SoundsAt(Plan->Road[I].At.X, Plan->Road[I].At.Z);
+								Most.Sea = std::max(Most.Sea, P.Sea); Most.Water = std::max(Most.Water, P.Water); Most.Town = std::max(Most.Town, P.Town);
+								Most.Sheep = std::max(Most.Sheep, P.Sheep); Most.Cattle = std::max(Most.Cattle, P.Cattle);
+								++Heard;
+							}
+							const double Each = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Began).count() / std::max(Heard, 1);
+							std::printf("      sounds at %d places along it (%.2f ms each), the most: sea %.2f, water %.2f, town %.2f, sheep %.2f, cattle %.2f\n", Heard, Each, Most.Sea, Most.Water, Most.Town, Most.Sheep, Most.Cattle);
+							Check(Most.Sea == 0.0 && Most.Water > 0.5 && Most.Town > 0.5 && Most.Sheep > 0.3, "the dale sounds of its becks, its towns and its sheep, not the sea");
+						}
 						Check(Plan->FurnitureCount(RidePlan::PhoneBox) > 0 && Plan->FurnitureCount(RidePlan::PubSign) > 0 && Churches > 0, "villages have their phone boxes, pubs their signs by the road, churches their towers");
 					}
 					// The railways (stage 5): joined into lines, eased along, flush with a road they cross, their

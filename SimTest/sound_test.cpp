@@ -4,8 +4,11 @@
 //   sound_test [path to Data/Audio]
 #include "RideSound.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -151,6 +154,44 @@ int main(int Argc, char** Argv)
 		if (Windy < Calm * 3.0 + 0.003) { std::printf("    the wind can't be heard standing still\n"); ++Fails; }
 		if (Wet < Calm * 3.0 + 0.003 || WetOut >= Wet) { std::printf("    the rain can't be heard (or isn't louder in the helmet)\n"); ++Fails; }
 		if (Windy > 0.2 || Wet > 0.2) { std::printf("    the weather's too loud\n"); ++Fails; }
+	}
+
+	// The sound of the place (stopped, engine off): the sea, a beck, a town, sheep and cattle each heard,
+	// none too loud, nothing when there's nothing there. SOUND_PLACE_WAV=file writes 5 s of each, in turn.
+	{
+		std::vector<float> Heard;
+		auto Level = [&Heard](double Sea, double Water, double Town, double Sheep, double Cattle) {
+			RideSound T;
+			RideInputs I; I.Rpm = 0; I.EngineOn = false; I.Speed = 0;
+			I.Sea = Sea; I.Water = Water; I.Town = Town; I.Sheep = Sheep; I.Cattle = Cattle; T.Set(I);
+			std::vector<float> Buf(RideSound::Rate * 20);
+			T.Render(Buf.data(), (int)Buf.size());
+			double Sum = 0.0;
+			for (size_t K = Buf.size() / 4; K < Buf.size(); ++K)
+			{
+				if (!std::isfinite(Buf[K])) return -1.0;
+				Sum += Buf[K] * Buf[K];
+			}
+			Heard.insert(Heard.end(), Buf.end() - RideSound::Rate * 5, Buf.end());
+			return std::sqrt(Sum / (Buf.size() * 3 / 4));
+		};
+		const double None = Level(0, 0, 0, 0, 0), Sea = Level(1, 0, 0, 0, 0), Beck = Level(0, 1, 0, 0, 0), Town = Level(0, 0, 1, 0, 0),
+			Sheep = Level(0, 0, 0, 1, 0), Cattle = Level(0, 0, 0, 0, 1);
+		std::printf("  the place, stopped: nothing %.4f, sea %.4f, beck %.4f, town %.4f, sheep %.4f, cattle %.4f\n", None, Sea, Beck, Town, Sheep, Cattle);
+		bool Ok = None >= 0.0 && None < 0.001;
+		for (double L : {Sea, Beck, Town, Sheep, Cattle}) Ok = Ok && L > 0.0015 && L < 0.05;
+		if (!Ok) { std::printf("    a place's sound is missing, too loud, or NaN\n"); ++Fails; }
+		if (const char* Path = std::getenv("SOUND_PLACE_WAV"))
+			if (FILE* F = std::fopen(Path, "wb"))
+			{
+				const uint32_t Rate = RideSound::Rate, Bytes = uint32_t(Heard.size() * 2), Riff = 36 + Bytes, Fmt = 16, ByteRate = Rate * 2;
+				const uint16_t Pcm = 1, Mono = 1, Align = 2, Bits = 16;
+				std::fwrite("RIFF", 1, 4, F); std::fwrite(&Riff, 4, 1, F); std::fwrite("WAVEfmt ", 1, 8, F); std::fwrite(&Fmt, 4, 1, F);
+				std::fwrite(&Pcm, 2, 1, F); std::fwrite(&Mono, 2, 1, F); std::fwrite(&Rate, 4, 1, F); std::fwrite(&ByteRate, 4, 1, F);
+				std::fwrite(&Align, 2, 1, F); std::fwrite(&Bits, 2, 1, F); std::fwrite("data", 1, 4, F); std::fwrite(&Bytes, 4, 1, F);
+				for (float V : Heard) { const int16_t Q = int16_t(std::max(-1.0f, std::min(1.0f, V * 4.0f)) * 32000.0f); std::fwrite(&Q, 2, 1, F); }
+				std::fclose(F);
+			}
 	}
 
 	// The pipe warms up with riding.

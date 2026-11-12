@@ -35,6 +35,9 @@ struct RideInputs
 	// round you even standing still and add to the rush at speed; rain hisses, and patters on the helmet.
 	double AirWind = 0.0, Gust = 0.0;
 	double Rain = 0.0;          // 0 dry .. 1 a downpour (RainShow)
+	// The place round you on a ride (World/WorldRide's RidePlace), each 0 .. 1: waves on the shore, a
+	// beck running, a town's hum and its traffic, sheep bleating and cattle lowing in the fields.
+	double Sea = 0.0, Water = 0.0, Town = 0.0, Sheep = 0.0, Cattle = 0.0;
 };
 
 class RideSound
@@ -136,6 +139,15 @@ private:
 	// the speed passes bars.
 	Biquad GridThud, GridRing, GridRing2;
 	double BarPhase = 0.0, BarEnv = 0.0, BarRingEnv = 0.0;
+	// The sound of the place (one sample of it).
+	double PlaceSample();
+	Biquad SeaLow, SeaHiss, BeckHi, BeckLo, TownLow, TownCar, BleatF1, BleatF2, MooF1, MooF2;
+	double WavePhase = 0.3, WavePeriod = 9.0, WaveSize = 0.8;
+	double Gurgle = 0.0, GurgleTo = 0.0;
+	int GurgleIn = 0;
+	double CarT = -1.0, CarLen = 5.0, CarWait = 4.0;
+	double BleatT = -1.0, BleatLen = 0.0, BleatF = 400.0, BleatAmp = 0.0, BleatPhase = 0.0;
+	double MooT = -1.0, MooLen = 0.0, MooF = 110.0, MooAmp = 0.0, MooPhase = 0.0;
 	double SquealPhase = 0.0;
 
 	std::unique_ptr<TorqueEngine::FVoice> EngineVoice;

@@ -78,9 +78,24 @@ ATorqueRideWorld::ATorqueRideWorld()
 	Tags.Add(TEXT("Land"));
 }
 
+TWeakObjectPtr<ATorqueRideWorld> ATorqueRideWorld::Current;
+
+bool ATorqueRideWorld::PlaceHeard(double& Sea, double& Water, double& Town, double& Sheep, double& Cattle)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan) return false;
+	Sea = Ride->Heard[0];
+	Water = Ride->Heard[1];
+	Town = Ride->Heard[2];
+	Sheep = Ride->Heard[3];
+	Cattle = Ride->Heard[4];
+	return true;
+}
+
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 {
 	Plan = InPlan;
+	Current = this;
 	if (!Plan || !Plan->Ok || Plan->Road.size() < 2) return;
 	Jobs = std::make_shared<FTorqueRideJobs>();
 	// (the ground in the hand-built ride's scanned grass, moor and rock when Tools/ue_build_rideuk.py
@@ -123,6 +138,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 
 void ATorqueRideWorld::EndPlay(const EEndPlayReason::Type Reason)
 {
+	if (Current.Get() == this) Current.Reset();
 	if (Jobs)
 	{
 		// (a worker part way through a square reads the world's stores: let it finish before they can go)
@@ -442,6 +458,14 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 		if (One.Value.IsValid()) Place(One.Key, *One.Value, false);
 	}
 	TickBirds(DeltaSeconds);
+	// (the sound of the place, once a second: a fraction of a millisecond)
+	SinceHeard += DeltaSeconds;
+	if (SinceHeard >= 1.0 && BirdsLookedAt.X < 1e11)
+	{
+		SinceHeard = 0.0;
+		const TorqueWorld::RidePlace Place = Plan->SoundsAt(BirdsLookedAt.X, BirdsLookedAt.Y);
+		Heard[0] = Place.Sea; Heard[1] = Place.Water; Heard[2] = Place.Town; Heard[3] = Place.Sheep; Heard[4] = Place.Cattle;
+	}
 	SinceLook += DeltaSeconds;
 	if (SinceLook < 0.2) return;
 	SinceLook = 0.0;

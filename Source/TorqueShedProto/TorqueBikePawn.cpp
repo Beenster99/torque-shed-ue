@@ -16,6 +16,7 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedLayout.h"
+#include "World/TorqueRideWorld.h"
 #include "World/TorqueWorldSubsystem.h"
 
 #include "BikeSim.h"
@@ -3678,6 +3679,8 @@ void ATorqueBikePawn::UpdateSound(float Dt)
 		In.Gust = Air.Gust * FMath::Lerp(0.3, 1.0, Open);
 		In.Rain = TorqueWeather::RainShow(Air) * Open;
 	}
+	// On a ride, the place round you (World/TorqueRideWorld): the sea, a beck, a town, the sheep and cattle.
+	ATorqueRideWorld::PlaceHeard(In.Sea, In.Water, In.Town, In.Sheep, In.Cattle);
 	Sound->Set(In);
 
 	// Keep about 80 ms queued: enough for a slow frame, little enough that it answers the throttle.

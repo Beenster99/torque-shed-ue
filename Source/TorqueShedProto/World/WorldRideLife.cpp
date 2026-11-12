@@ -151,4 +151,66 @@ void RidePlan::AnimalsTile(double X0, double Z0, double Size, std::vector<RideAn
 			}
 		}
 }
+RidePlace RidePlan::SoundsAt(double X, double Z) const
+{
+	using namespace RideLifeBits;
+	RidePlace P;
+	if (!Scene || !Land) return P;
+	const Region& G = Area.Roads;
+	// The sea: the nearest of 8 ways out at 30 to 400 m.
+	if (Land->SeaAt(X, Z)) P.Sea = 1.0;
+	else
+		for (double R : {30.0, 70.0, 130.0, 220.0, 400.0})
+		{
+			bool Found = false;
+			for (int K = 0; K < 8 && !Found; ++K) Found = Land->SeaAt(X + std::cos(K * 0.7853981633974483) * R, Z + std::sin(K * 0.7853981633974483) * R);
+			if (Found) { P.Sea = std::clamp(1.15 - R / 400.0, 0.15, 1.0); break; }
+		}
+	// Running water: the nearest river, beck or canal (a canal hardly runs), or a lake's edge.
+	double Closest = 1e9;
+	for (int Dz = -1; Dz <= 1; ++Dz)
+		for (int Dx = -1; Dx <= 1; ++Dx)
+		{
+			const auto It = Scene->Streams.find(KeyOf(X + Dx * Square, Z + Dz * Square));
+			if (It == Scene->Streams.end()) continue;
+			for (int S : It->second)
+			{
+				const Stream& Flow = G.Streams[size_t(S)];
+				const double Quiet = Flow.Kind == 2 ? 50.0 : 0.0;   // (a canal heard as if further off)
+				for (size_t I = 0; I + 1 < Flow.Line.size(); ++I)
+				{
+					const P2 A = Flow.Line[I], AB = Flow.Line[I + 1] - Flow.Line[I];
+					const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
+					const double T = Len2 > 1e-9 ? std::clamp(((X - A.X) * AB.X + (Z - A.Z) * AB.Z) / Len2, 0.0, 1.0) : 0.0;
+					Closest = std::min(Closest, std::hypot(A.X + AB.X * T - X, A.Z + AB.Z * T - Z) + Quiet);
+				}
+			}
+		}
+	P.Water = std::clamp(1.0 - (Closest - 8.0) / 72.0, 0.0, 1.0);
+	// A town: how many buildings stand within 150 m (40 or more is the middle of one).
+	int Built = 0;
+	for (int Dz = -1; Dz <= 1; ++Dz)
+		for (int Dx = -1; Dx <= 1; ++Dx)
+		{
+			const auto It = Scene->Buildings.find(KeyOf(X + Dx * Square, Z + Dz * Square));
+			if (It == Scene->Buildings.end()) continue;
+			for (int B : It->second)
+				if (std::hypot(G.Buildings[size_t(B)].X - X, G.Buildings[size_t(B)].Z - Z) < 150.0) ++Built;
+		}
+	P.Town = std::clamp((Built - 4) / 36.0, 0.0, 1.0);
+	// The flocks and herds: each animal near by counts, the nearer the more.
+	const double X0 = std::floor((X - 160.0) / 64.0) * 64.0, Z0 = std::floor((Z - 160.0) / 64.0) * 64.0;
+	std::vector<RideAnimal> Beasts;
+	AnimalsTile(X0, Z0, 384.0, Beasts);
+	for (const RideAnimal& A : Beasts)
+	{
+		const double D = std::hypot(X0 + A.X - X, Z0 + A.Z - Z);
+		if (D > 150.0) continue;
+		const double Heard = 1.0 / (1.0 + (D / 40.0) * (D / 40.0));
+		(A.Kind <= Lamb ? P.Sheep : P.Cattle) += Heard * 0.25;
+	}
+	P.Sheep = std::min(P.Sheep, 1.0);
+	P.Cattle = std::min(P.Cattle, 1.0);
+	return P;
+}
 } // namespace TorqueWorld
