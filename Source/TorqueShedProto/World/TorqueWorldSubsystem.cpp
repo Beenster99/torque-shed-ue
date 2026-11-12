@@ -18,7 +18,9 @@
 
 #include "World/CellStore.h"
 #include "World/HeightTiles.h"
+#include "World/WorldCache.h"
 #include "World/WorldFiles.h"
+#include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
 #include "World/WorldRide.h"
 
@@ -29,6 +31,7 @@ struct FTorqueWorldShared
 	TorqueWorld::CellStore Cells;
 	TorqueWorld::HeightStore Heights;
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
+	std::atomic<bool> bOffline{false};   // [stage 8] Settings' offline: nothing is fetched
 };
 
 namespace TWSI
@@ -114,17 +117,23 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Shared->Cells.Get = [Weak](const std::string& Url, std::string& Body)
 	{
 		const std::shared_ptr<FTorqueWorldShared> Held = Weak.lock();
-		return Held ? TWSI::BlockingGet(Held, Url, Body) : 0;
+		return Held && !Held->bOffline ? TWSI::BlockingGet(Held, Url, Body) : 0;
 	};
+	// [stage 8] Offline or not, before anything is asked for.
+	Shared->bOffline = FTorqueSettings::Get().bWorldOffline;
+	Shared->Cells.Offline = Shared->bOffline;
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueRideUK="), Spec, false)) StartRide(Spec);
+	// (and what is kept over the limit let go, on a worker, unless a ride or the test is already under way)
+	WorldSettingsChanged();
 }
 
 void UTorqueWorldSubsystem::Deinitialize()
 {
 	if (Shared) Shared->bStop = true;
 	if (TestRun.IsValid()) TestRun.Wait();
+	if (CacheRun.IsValid()) CacheRun.Wait();
 	if (RideRun.IsValid()) RideRun.Wait();
 	if (MapRun.IsValid()) MapRun.Wait();
 	Plan.reset();
@@ -438,4 +447,84 @@ bool UTorqueWorldSubsystem::LastJourney(TorqueWorld::RouteRequest& Out, FString&
 void UTorqueWorldSubsystem::KeepJourney(const TorqueWorld::RouteRequest& Want, const FString& Title) const
 {
 	TorqueWorld::Files::Write(TWSI::ToStd(TWSI::JourneyFile()), TorqueWorld::Route::CodeOf(Want) + "\n" + TWSI::ToStd(Title) + "\n");
+}
+
+// --- What is kept on disk (stage 8) ----------------------------------------------------------------
+
+bool UTorqueWorldSubsystem::IsOffline() const
+{
+	return Shared && Shared->bOffline;
+}
+
+void UTorqueWorldSubsystem::WorldSettingsChanged()
+{
+	if (!Shared) return;
+	const FTorqueSettings& Set = FTorqueSettings::Get();
+	const bool bWasOffline = Shared->bOffline;
+	Shared->bOffline = Set.bWorldOffline;
+	Shared->Cells.Offline = Set.bWorldOffline;
+	// (the store's own count is read on workers as they fetch: an int, written here between rides)
+	const long long Limit = (long long)FMath::Clamp(Set.WorldCacheGb, 1, 200) * 1000000000LL;
+	Shared->Cells.Keep = TorqueWorld::Cache::CellsToKeep(Limit);
+	if (bWasOffline != Shared->bOffline) UE_LOG(LogTemp, Display, TEXT("Torque world: %s"), Shared->bOffline ? TEXT("offline: only what is on disk") : TEXT("online"));
+	if (!bPlanning && !TestRun.IsValid()) TidyCache(false);
+}
+
+void UTorqueWorldSubsystem::WeighCache()
+{
+	if (!bPlanning) TidyCache(false);
+}
+
+bool UTorqueWorldSubsystem::ClearCache(FString& Why)
+{
+	const UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
+	const bool bRiding = World && World->GetMapName().Contains(TEXT("RideUK"));
+	if (bPlanning || bMapBusy || bCacheBusy || bRiding)
+	{
+		Why = bRiding ? TEXT("Not while riding the real world: clear it from the shed") : TEXT("Busy with the world just now: try again in a moment");
+		return false;
+	}
+	TidyCache(true);
+	Why = TEXT("Clearing what of the world is kept on this machine");
+	return true;
+}
+
+void UTorqueWorldSubsystem::TidyCache(bool bClear)
+{
+	if (!Shared || bCacheBusy) return;
+	bCacheBusy = true;
+	const std::shared_ptr<FTorqueWorldShared> Held = Shared;
+	TWeakObjectPtr<UTorqueWorldSubsystem> Self(this);
+	const long long Limit = (long long)FMath::Clamp(FTorqueSettings::Get().WorldCacheGb, 1, 200) * 1000000000LL;
+	if (CacheRun.IsValid()) CacheRun.Wait();
+	CacheRun = Async(EAsyncExecution::Thread, [Held, Self, Limit, bClear]()
+	{
+		if (bClear)
+		{
+			TorqueWorld::Cache::Clear(Held->Cells.Dir, Held->Heights.Disk);
+			Held->Heights.Reset();
+			Held->Cells.ForgetIndex();
+			UE_LOG(LogTemp, Display, TEXT("Torque world: cleared what was kept"));
+		}
+		else
+		{
+			const int CellsGone = Held->Cells.Prune();
+			const long long Freed = TorqueWorld::Cache::PruneHeights(Held->Heights.Disk, Limit);
+			// (tiles already read stay in memory: a plan being made alongside keeps its ground)
+			if (CellsGone > 0 || Freed > 0)
+			{
+				UE_LOG(LogTemp, Display, TEXT("Torque world: over the limit of %s, %d cells and %s of ground let go"), UTF8_TO_TCHAR(TorqueWorld::Cache::Words(Limit).c_str()), CellsGone,
+					UTF8_TO_TCHAR(TorqueWorld::Cache::Words(Freed).c_str()));
+			}
+		}
+		const TorqueWorld::Cache::Use U = TorqueWorld::Cache::Measure(Held->Cells.Dir, Held->Heights.Disk);
+		const FString Said = FString::Printf(TEXT("%s: %d places' roads, %d squares of ground"), UTF8_TO_TCHAR(TorqueWorld::Cache::Words(U.Total()).c_str()), U.Cells, U.Tiles);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: kept on disk %s"), *Said);
+		AsyncTask(ENamedThreads::GameThread, [Self, Said]()
+		{
+			if (!Self.IsValid()) return;
+			Self->CacheSaid = Said;
+			Self->bCacheBusy = false;
+		});
+	});
 }

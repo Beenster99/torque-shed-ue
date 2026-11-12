@@ -107,6 +107,9 @@ void FTorqueSettings::Load()
 	GConfig->GetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
 	GConfig->GetBool(Section, TEXT("InfoPanel"), bInfoPanel, Ini);
 	GConfig->GetBool(Section, TEXT("PlaceLookup"), bPlaceLookup, Ini);
+	GConfig->GetInt(Section, TEXT("WorldCacheGb"), WorldCacheGb, Ini);
+	GConfig->GetBool(Section, TEXT("WorldOffline"), bWorldOffline, Ini);
+	WorldCacheGb = FMath::Clamp(WorldCacheGb, 1, 200);
 	GConfig->GetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
 	GConfig->GetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
 	GConfig->GetInt(Section, TEXT("Units"), Units, Ini);
@@ -220,6 +223,8 @@ void FTorqueSettings::Save()
 	GConfig->SetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
 	GConfig->SetBool(Section, TEXT("InfoPanel"), bInfoPanel, Ini);
 	GConfig->SetBool(Section, TEXT("PlaceLookup"), bPlaceLookup, Ini);
+	GConfig->SetInt(Section, TEXT("WorldCacheGb"), WorldCacheGb, Ini);
+	GConfig->SetBool(Section, TEXT("WorldOffline"), bWorldOffline, Ini);
 	GConfig->SetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
 	GConfig->SetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
 	GConfig->SetInt(Section, TEXT("Units"), Units, Ini);

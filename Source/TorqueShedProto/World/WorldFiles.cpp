@@ -159,5 +159,27 @@ std::vector<std::string> List(const std::string& Dir, bool Folders)
 	std::sort(Out.begin(), Out.end());
 	return Out;
 }
+
+std::vector<FileFound> Walk(const std::string& Dir)
+{
+	std::vector<FileFound> Out;
+	std::error_code Ec;
+	if (!fs::is_directory(PathOf(Dir), Ec)) return Out;
+	const auto NowFile = fs::file_time_type::clock::now();
+	const auto NowUnix = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	for (fs::recursive_directory_iterator It(PathOf(Dir), Ec), End; !Ec && It != End; It.increment(Ec))
+	{
+		std::error_code Ec2;
+		if (!It->is_regular_file(Ec2)) continue;
+		FileFound F;
+		F.Path = NameOf(It->path());
+		const auto Size = It->file_size(Ec2);
+		F.Bytes = Ec2 ? 0 : static_cast<long long>(Size);
+		const fs::file_time_type T = It->last_write_time(Ec2);
+		F.Modified = Ec2 ? 0 : static_cast<long long>(NowUnix - std::chrono::duration_cast<std::chrono::seconds>(NowFile - T).count());
+		Out.push_back(std::move(F));
+	}
+	return Out;
+}
 } // namespace Files
 } // namespace TorqueWorld

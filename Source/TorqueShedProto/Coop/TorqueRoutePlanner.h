@@ -21,11 +21,16 @@
 #include "World/WorldRoute.h"
 #include "World/WorldRouteMap.h"
 
+#include <memory>
 #include <vector>
 
 class APlayerController;
 class UCanvas;
 class UTorqueWorldSubsystem;
+namespace TorqueWorld
+{
+struct WorldIndex;
+}
 
 class FTorqueRoutePlanner
 {
@@ -72,6 +77,19 @@ private:
 	bool OnMap(const FVector2D& Screen) const;
 	void FitTo(const std::vector<TorqueWorld::RoutePin>& Pins);
 	void FitBox(double South, double North, double West, double East);
+	// [stage 8] The world store's squares shaded on the map: those nobody has made yet (no roads to
+	// ride), and offline, those not on this machine. Redone when the view moves.
+	std::shared_ptr<const TorqueWorld::WorldIndex> StoreIndex;
+	double StoreIndexAt = -100.0;
+	struct FCellMark
+	{
+		int32 Row = 0, Col = 0;
+		uint8 Kind = 0;   // 1 not made yet, 2 not on this machine
+	};
+	TArray<FCellMark> CellMarks;
+	double MarksLat = 0.0, MarksLon = 0.0, MarksZoom = -1.0;
+	bool bMarksOffline = false, bMarksTooMany = false;
+	void MarkCells();
 	// The names on the map (redone when the view moves).
 	std::vector<const TorqueWorld::Route::Place*> Labels;
 	double LabelLat = 0.0, LabelLon = 0.0, LabelZoom = -1.0;

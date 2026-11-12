@@ -25,5 +25,14 @@ bool Rename(const std::string& From, const std::string& To);
 long long ModifiedUnix(const std::string& Path);
 // The names of the folders (or files) straight under a folder, sorted.
 std::vector<std::string> List(const std::string& Dir, bool Folders);
+// [Ride UK stage 8] Every file under a folder, however deep: its path, its size and when it was last
+// written (unix seconds). Unsorted.
+struct FileFound
+{
+	std::string Path;
+	long long Bytes = 0;
+	long long Modified = 0;
+};
+std::vector<FileFound> Walk(const std::string& Dir);
 } // namespace Files
 } // namespace TorqueWorld

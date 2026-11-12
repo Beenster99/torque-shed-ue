@@ -2,9 +2,11 @@
 
 #include "Coop/TorquePlayerController.h"
 #include "Coop/TorqueUi.h"
+#include "World/CellStore.h"
 #include "World/TorqueRideWorld.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/WorldFiles.h"
+#include "World/WorldRegion.h"
 
 #include "CanvasItem.h"
 #include "Engine/Canvas.h"
@@ -599,6 +601,16 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 				if (OnMap(P0) || OnMap(P1)) Canvas->K2_DrawLine(P0, P1, 2.5f * S, FLinearColor(0.1f, 0.08f, 0.05f, 0.85f));
 			}
 		}
+	// [stage 8] The squares of the world with no roads made yet, and offline, those not on this machine.
+	MarkCells();
+	for (const FCellMark& M : CellMarks)
+	{
+		const double S0 = M.Row * TorqueWorld::CellDeg - 90.0, W0 = M.Col * TorqueWorld::CellDeg - 180.0;
+		const FVector2D A = ToScreen(S0 + TorqueWorld::CellDeg, W0), B = ToScreen(S0, W0 + TorqueWorld::CellDeg);
+		const FVector2D Lo(FMath::Max(A.X, MapPos.X), FMath::Max(A.Y, MapPos.Y)), Hi(FMath::Min(B.X, MapPos.X + MapSize.X), FMath::Min(B.Y, MapPos.Y + MapSize.Y));
+		if (Hi.X <= Lo.X || Hi.Y <= Lo.Y) continue;
+		Ui::Rect(Canvas, float(Lo.X), float(Lo.Y), float(Hi.X - Lo.X), float(Hi.Y - Lo.Y), M.Kind == 1 ? FLinearColor(0.45f, 0.05f, 0.03f, 0.30f) : FLinearColor(0.0f, 0.0f, 0.0f, 0.45f));
+	}
 	// The names of the places, the biggest first, none over another.
 	if (View.Lat != LabelLat || View.Lon != LabelLon || View.Zoom != LabelZoom)
 	{
@@ -632,6 +644,16 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 			Ui::Text(Canvas, Name, float(At.X), float(At.Y - Size.Y) - 3.0f * S, Px, bLand ? FLinearColor(0.16f, 0.2f, 0.32f, 1.0f) : FLinearColor(0.08f, 0.08f, 0.08f, 1.0f), bBig, Ui::EAlign::Centre, false);
 		}
 	}
+	// [stage 8] Where the planned road's map data is thin: an amber mark.
+	if (bPlanned && !bDiaryMap)
+		for (const TorqueWorld::ThinSpot& T : W->PreviewSummary().Thin)
+		{
+			const FVector2D At = ToScreen(T.At.Lat, T.At.Lon);
+			if (!OnMap(At)) continue;
+			Ui::Disc(Canvas, float(At.X), float(At.Y), 10.0f * S, FLinearColor(0.05f, 0.04f, 0.02f, 0.9f), 16);
+			Ui::Disc(Canvas, float(At.X), float(At.Y), 8.0f * S, FLinearColor(0.98f, 0.72f, 0.12f, 1.0f), 16);
+			Ui::Text(Canvas, TEXT("!"), float(At.X), float(At.Y) - 8.0f * S, 13.0f * S, FLinearColor(0.05f, 0.05f, 0.05f, 1.0f), true, Ui::EAlign::Centre, false);
+		}
 	// The pins, numbered (or the diary's ride and its photos).
 	if (bDiaryMap) DrawDiaryMap(Canvas, false);
 	for (size_t I = 0; I < Want.Pins.size() && !bDiaryMap; ++I)
@@ -657,6 +679,13 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 		Ui::Rect(Canvas, BX, BY, BW, 3.0f * S, FLinearColor(0.1f, 0.1f, 0.1f, 1.0f));
 		Ui::Text(Canvas, Bar >= 1000.0 ? FString::Printf(TEXT("%.0f km"), Bar / 1000.0) : FString::Printf(TEXT("%.0f m"), Bar), BX, BY - 20.0f * S, 13.0f * S,
 			FLinearColor(0.1f, 0.1f, 0.1f, 1.0f), false, Ui::EAlign::Left, false);
+	}
+	// [stage 8] What the shaded squares are.
+	if (!bDiaryMap && (CellMarks.Num() > 0 || bMarksOffline))
+	{
+		const FString Key = bMarksOffline ? (bMarksTooMany ? FString(TEXT("Offline: zoom in to see which roads are on this machine")) : FString(TEXT("Offline: dark squares aren't on this machine; red, no roads made yet")))
+										  : FString(TEXT("Red squares: no roads made there yet"));
+		Ui::Text(Canvas, Key, float(MapPos.X + MapSize.X) - 12.0f * S, float(MapPos.Y + MapSize.Y) - 26.0f * S, 13.0f * S, FLinearColor(0.08f, 0.08f, 0.08f, 1.0f), true, Ui::EAlign::Right, false);
 	}
 	if (W->IsDrawingMap() && !bHaveTex)
 		Ui::Text(Canvas, TEXT("Drawing the map..."), float(MapPos.X + MapSize.X * 0.5), float(MapPos.Y + MapSize.Y * 0.5), 18.0f * S, Ui::Ink, false, Ui::EAlign::Centre);
@@ -851,6 +880,16 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 				const float CX = X0 + (I % 2) * (PW * 0.5f), CY = Y + (I / 2) * 44.0f * S;
 				Ui::Text(Canvas, Cells[I][0].ToUpper(), CX, CY, 11.5f * S, Ui::Dim, true);
 				Ui::TextFit(Canvas, Cells[I][1], CX, CY + 15.0f * S, 17.0f * S, PW * 0.5f - 8.0f * S, Ui::Ink);
+			}
+			// [stage 8] What of the map is thin on the way.
+			if (!Sum.Thin.empty())
+			{
+				const float TY = Y + 3.0f * 44.0f * S + 4.0f * S;
+				const TorqueWorld::ThinSpot& First = Sum.Thin.front();
+				const FString Line = Sum.Thin.size() == 1
+					? FString::Printf(TEXT("! %s (%.0f km in)"), *TRPI::ToF(First.Why), First.Along / 1000.0)
+					: FString::Printf(TEXT("! Thin map data in %d places, the first %.0f km in: %s"), int32(Sum.Thin.size()), First.Along / 1000.0, *TRPI::ToF(First.Why));
+				Ui::TextFit(Canvas, Line, X0, TY, 13.0f * S, PW, FLinearColor(0.98f, 0.72f, 0.12f, 1.0f));
 			}
 		}
 		else
@@ -1107,4 +1146,56 @@ float FTorqueRoutePlanner::DrawDiaryPanel(UCanvas* Canvas, float X0, float Y, fl
 		FPlatformProcess::ExploreFolder(*Folder);
 	}, 14.0f * S);
 	return Y + 40.0f * S;
+}
+
+// --- the world store's squares on the map [stage 8] -----------------------------------------------------
+
+void FTorqueRoutePlanner::MarkCells()
+{
+	UTorqueWorldSubsystem* W = World.Get();
+	if (!W) return;
+	const bool bOffline = W->IsOffline();
+	const double Now = FPlatformTime::Seconds();
+	// (the index as the game has it, looked for again now and then until there is one)
+	if (!StoreIndex && Now - StoreIndexAt > 5.0)
+	{
+		StoreIndexAt = Now;
+		StoreIndex = W->Cells().IndexNow();
+		if (StoreIndex && StoreIndex->Empty()) StoreIndex.reset();
+		MarksZoom = -1.0;
+	}
+	if (View.Lat == MarksLat && View.Lon == MarksLon && View.Zoom == MarksZoom && bOffline == bMarksOffline) return;
+	MarksLat = View.Lat;
+	MarksLon = View.Lon;
+	MarksZoom = View.Zoom;
+	bMarksOffline = bOffline;
+	CellMarks.Reset();
+	bMarksTooMany = false;
+	if (!StoreIndex || View.W <= 0) return;
+	const TorqueWorld::Geo NW = View.PlaceAt(0.0, 0.0), SE = View.PlaceAt(double(View.W), double(View.H));
+	const TorqueWorld::CellId A = TorqueWorld::CellOf(SE.Lat, NW.Lon), B = TorqueWorld::CellOf(NW.Lat, SE.Lon);
+	const int64 Count = int64(B.Row - A.Row + 1) * int64(B.Col - A.Col + 1);
+	if (Count <= 0 || Count > 12000) { bMarksTooMany = true; return; }
+	const std::vector<std::string> Roots = W->Cells().CellRoots();
+	int32 Looked = 0;
+	for (int32 Row = A.Row; Row <= B.Row; ++Row)
+		for (int32 Col = A.Col; Col <= B.Col; ++Col)
+		{
+			TorqueWorld::CellId C;
+			C.Row = Row;
+			C.Col = Col;
+			if (!C.Valid()) continue;
+			const TorqueWorld::CellEntry* E = StoreIndex->Cell(C);
+			FCellMark M;
+			M.Row = Row;
+			M.Col = Col;
+			if (E == nullptr) M.Kind = 1;
+			else if (bOffline && !E->Empty)
+			{
+				// (on disk or not: a look at the folder, so only for a view of a few hundred squares)
+				if (++Looked > 900) { bMarksTooMany = true; continue; }
+				if (TorqueWorld::Region::CellDir(Roots, C).empty()) M.Kind = 2;
+			}
+			if (M.Kind != 0) CellMarks.Add(M);
+		}
 }

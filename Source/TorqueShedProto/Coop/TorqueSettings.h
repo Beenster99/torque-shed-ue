@@ -57,6 +57,10 @@ struct FTorqueSettings
 	// and time, the build, the weather and its forecast, where you are, and who's riding.
 	bool bInfoPanel = true;
 	bool bPlaceLookup = true;   // it asks OpenStreetMap and Wikipedia about where you are (off: no internet asked)
+	// [Ride UK stage 8] The real world kept on disk (Saved/World): at most this many GB, and offline
+	// (nothing fetched: only roads ridden before can be ridden).
+	int32 WorldCacheGb = 10;
+	bool bWorldOffline = false;
 	bool bLookIntoCorner = true;    // the rider's head, and a first-person view, turn into a bend
 	bool bCameraRecentre = true;    // the chase camera swings back behind the bike after you look round
 	int32 Units = 1;            // 0 metric (km/h, km), 1 imperial (mph, miles)

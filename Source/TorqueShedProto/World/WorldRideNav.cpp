@@ -144,6 +144,70 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	std::sort(Stops.begin(), Stops.end(), [](const RideStop& A, const RideStop& B) { return A.Along < B.Along; });
 }
 
+void RidePlan::FindThinData()
+{
+	Thin.clear();
+	if (Road.size() < 2 || !Land) return;
+	const Region& G = Area.Roads;
+	const Frame F(G.FrameLat, G.FrameLon);
+	const double End = FinishM > 0.0 ? FinishM : Length;
+	if (!Land->HasTrees())
+	{
+		ThinSpot T;
+		T.At = F.ToGeo(Road[0].At.X, Road[0].At.Z);
+		T.Why = "No tree heights here: the trees are guessed from the land";
+		Thin.push_back(T);
+	}
+	// A town's ground with few buildings: in each kilometre, the land beside the road that the survey
+	// calls built on, against the buildings the map has within 120 m.
+	const auto Buildings = [this, &G](const P2& At)
+	{
+		int N = 0;
+		if (!Scene) return N;
+		const long long Cx = static_cast<long long>(std::floor(At.X / 256.0)), Cz = static_cast<long long>(std::floor(At.Z / 256.0));
+		for (long long Dz = -1; Dz <= 1; ++Dz)
+			for (long long Dx = -1; Dx <= 1; ++Dx)
+			{
+				const auto It = Scene->Buildings.find((Cx + Dx) * 4000037LL + (Cz + Dz));
+				if (It == Scene->Buildings.end()) continue;
+				for (int B : It->second)
+					if (std::hypot(G.Buildings[size_t(B)].X - At.X, G.Buildings[size_t(B)].Z - At.Z) < 120.0) ++N;
+			}
+		return N;
+	};
+	double ThinFrom = -1.0;
+	for (double From = 0.0; From < End; From += 1000.0)
+	{
+		int Urban = 0, Samples = 0, Built = 0;
+		size_t I = 0;
+		while (I + 1 < Road.size() && Road[I].Along < From) ++I;
+		for (; I < Road.size() && Road[I].Along < From + 1000.0; I += 12)   // (every 50 m or so)
+		{
+			const P2 P = Road[I].At;
+			for (double Off : {-60.0, 60.0})
+			{
+				const P2 Side(P.X + Off, P.Z);
+				++Samples;
+				if (Land->Cover(Side.X, Side.Z) == 5) ++Urban;
+			}
+			Built += Buildings(P);
+		}
+		const bool IsThin = Samples >= 8 && Urban * 10 >= Samples * 4 && Built * 2 < Samples;
+		if (IsThin && ThinFrom < 0.0) ThinFrom = From;
+		if ((!IsThin || From + 1000.0 >= End) && ThinFrom >= 0.0)
+		{
+			size_t K = 0;
+			while (K + 1 < Road.size() && Road[K].Along < ThinFrom + 500.0) ++K;
+			ThinSpot T;
+			T.Along = ThinFrom;
+			T.At = F.ToGeo(Road[K].At.X, Road[K].At.Z);
+			T.Why = "A town with few of its buildings on the map: it may look bare";
+			if (Thin.size() < 12) Thin.push_back(T);
+			ThinFrom = -1.0;
+		}
+	}
+}
+
 RidePlan::RideNav RidePlan::NavAt(double X, double Z, double Was) const
 {
 	RideNav N;

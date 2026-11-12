@@ -69,6 +69,12 @@ int main(int Argc, char** Argv)
 	const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Heights, At[0], At[1], At[2], At[3]);
 	if (!Plan->Ok) { std::printf("The ride: FAIL: %s\n", Plan->Why.c_str()); return 1; }
 	{
+		int Urban = 0, All = 0;
+		for (size_t I = 0; I < Plan->Road.size(); I += 12, ++All) Urban += Plan->Land->Cover(Plan->Road[I].At.X + 60.0, Plan->Road[I].At.Z) == 5 ? 1 : 0;
+		std::printf("Thin map data: %d spots (the land beside the road built on at %d of %d points)\n", int(Plan->Thin.size()), Urban, All);
+	}
+	for (const ThinSpot& T : Plan->Thin) std::printf("  at %.1f km (%.4f, %.4f): %s\n", T.Along / 1000.0, T.At.Lat, T.At.Lon, T.Why.c_str());
+	{
 		// The railways near it (stage 5).
 		int Pts = 0, Kinds[4] = {0, 0, 0, 0}, Old = 0;
 		for (const RidePlan::RailLine& Run : Plan->Rails)

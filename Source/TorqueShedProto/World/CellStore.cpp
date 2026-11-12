@@ -176,7 +176,7 @@ std::string CellStore::FetchCells(const std::vector<CellId>& Cells, const std::f
 	for (const CellId& C : Cells)
 		if (StateOf(C, *Idx) == EState::Baked) Want.push_back(C);
 	if (Want.empty()) return std::string();
-	if (Offline || !Get) return "This game doesn't have that part of the world, and it's offline.";
+	if (Offline || !Get) return "Offline, and this part of the world isn't on this machine: ride a road ridden before, or go online (Settings > Gameplay).";
 	int Done = 0;
 	for (const CellId& C : Want)
 	{

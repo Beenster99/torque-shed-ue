@@ -972,6 +972,42 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				TEXT("How far the camera looks down at the bike (below 0: up the road)"), Cam.ChaseTilt, FTorqueProfile::ChaseTiltMin, FTorqueProfile::ChaseTiltMax, 1.0f);
 			Add(TEXT("Third person: reset"), FString(), TEXT("Back to the usual distance, height and tilt"), []() { FTorqueProfile::Mine().ResetChase(); FTorqueProfile::Mine().Save(); });
 		}
+		// [Ride UK stage 8] The real world kept on this machine.
+		Heading(TEXT("RIDE UK: THE REAL WORLD"));
+		{
+			UTorqueWorldSubsystem* Wss = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
+			TWeakObjectPtr<UTorqueWorldSubsystem> WeakWss(Wss);
+			if (Wss && Wss->CacheWords().IsEmpty()) Wss->WeighCache();
+			static const int32 Limits[] = {2, 5, 10, 20, 50, 100};
+			int32 On = 2;
+			for (int32 I = 0; I < 6; ++I)
+				if (S.WorldCacheGb >= Limits[I]) On = I;
+			Setting(TEXT("Kept on disk"), FString::Printf(TEXT("Up to %d GB"), S.WorldCacheGb),
+				TEXT("Roads and ground fetched for rides are kept so they ride again offline; past this, those ridden longest ago go"),
+				[&S, On, WeakWss](int32 D) {
+					S.WorldCacheGb = Limits[FMath::Clamp(On + D, 0, 5)];
+					if (WeakWss.IsValid()) WeakWss->WorldSettingsChanged();
+				});
+			{
+				bool* Ptr = &S.bWorldOffline;
+				FRow Row;
+				Row.Label = TEXT("Offline");
+				Row.Value = OnOff(S.bWorldOffline);
+				Row.Hint = TEXT("Nothing is fetched: only roads ridden before can be ridden (the planner's map shows them)");
+				Row.bToggle = true;
+				Row.bOn = S.bWorldOffline;
+				Row.Choose = [this, Ptr, WeakWss]() { *Ptr = !*Ptr; Changed(); if (WeakWss.IsValid()) WeakWss->WorldSettingsChanged(); };
+				Row.Step = [this, Ptr, WeakWss](int32) { *Ptr = !*Ptr; Changed(); if (WeakWss.IsValid()) WeakWss->WorldSettingsChanged(); };
+				R.Add(MoveTemp(Row));
+			}
+			Add(TEXT("Clear what's kept"), Wss && !Wss->CacheWords().IsEmpty() ? Wss->CacheWords() : FString(TEXT("Weighing...")),
+				TEXT("Deletes every road and square of ground fetched (the next ride fetches what it needs again; the ride diary stays)"),
+				[this, WeakWss]() {
+					FString Why = TEXT("No world here");
+					if (WeakWss.IsValid()) WeakWss->ClearCache(Why);
+					ShowNote(Why, 3.0);
+				});
+		}
 		Heading(TEXT("UNITS"));
 		Setting(TEXT("Units"), S.Units == 0 ? FString(TEXT("Metric (km/h, km)")) : FString(TEXT("Imperial (mph, miles)")), TEXT("Speeds and distances on the HUD"),
 			[&S](int32) { S.Units = 1 - S.Units; });

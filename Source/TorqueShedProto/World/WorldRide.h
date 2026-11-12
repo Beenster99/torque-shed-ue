@@ -152,6 +152,14 @@ struct RideMesh
 	std::vector<float> Lights;
 };
 
+// [stage 8] A stretch of a ride where the map's data is thin: where it starts, and why.
+struct ThinSpot
+{
+	double Along = 0.0;
+	Geo At;
+	std::string Why;
+};
+
 // What a planned ride is like, for the Route planner to show before it is ridden.
 struct RideSummary
 {
@@ -161,6 +169,7 @@ struct RideSummary
 	double Twist = 0.0;             // degrees of turning a km (Route::Twistiness)
 	double Minutes = 0.0;           // at a steady, legal pace: bends taken at a comfortable lean
 	std::vector<Geo> Line;          // the road, a point every 50 m or so, for the map
+	std::vector<ThinSpot> Thin;     // [stage 8] where the map's data is thin, for a warning on the map
 	double Litres(double PerHundredKm) const { return Metres / 100000.0 * PerHundredKm; }
 };
 
@@ -483,6 +492,10 @@ public:
 	};
 	RideNav NavAt(double X, double Z, double Was = -1.0) const;
 	void FindTurnsAndStops(int From, const std::vector<int>& Path, double RawLength);
+	// [stage 8] Where the map is thin along the road (World/WorldRideNav.cpp): a town's ground with few
+	// of its buildings drawn, and no tree heights at all.
+	std::vector<ThinSpot> Thin;
+	void FindThinData();
 	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
 	// little under the limit, as a rider on a road they do not know).
 	RideSummary Summary(double Cap = 24.6) const;

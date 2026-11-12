@@ -225,7 +225,12 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->Land = R->Area.Land->ForRoad(Resample(G.PathLine(From, Path), 30.0));
 	Tell("Fetching the ground: " + std::to_string(R->Land->UsedKeys().size()) + " tiles");
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
-	if (R->TilesFailed > 0) { R->Why = std::to_string(R->TilesFailed) + " of the ground's tiles couldn't be fetched."; return R; }
+	if (R->TilesFailed > 0)
+	{
+		R->Why = Store.Offline ? "Offline, and the ground for this road isn't on this machine: ride a road ridden before, or go online (Settings > Gameplay)."
+							   : std::to_string(R->TilesFailed) + " of the ground's tiles couldn't be fetched.";
+		return R;
+	}
 	Tell("Laying the road");
 	R->LayRoad(Line, Halves, Speeds);
 	// (where the last pin is on the road as laid: the run-out is past it)
@@ -238,6 +243,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->IndexRails();
 	R->IndexFurniture();
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
+	R->FindThinData();
 	R->Ok = true;
 	return R;
 }
@@ -1692,6 +1698,7 @@ RideSummary RidePlan::Summary(double Cap) const
 {
 	const double Pi = 3.14159265358979323846;
 	RideSummary Out;
+	Out.Thin = Thin;
 	if (Road.size() < 2) return Out;
 	const double End = FinishM > 0.0 ? FinishM : Length;
 	const Frame F(Area.Roads.FrameLat, Area.Roads.FrameLon);

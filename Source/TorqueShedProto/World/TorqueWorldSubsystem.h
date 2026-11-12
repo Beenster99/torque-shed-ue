@@ -94,6 +94,15 @@ public:
 	void AskMap(const TorqueWorld::Route::MapView& View);
 	bool TakeMap(TorqueWorld::Route::MapView& View, TArray<uint8>& Bgra);
 	bool IsDrawingMap() const { return bMapBusy; }
+	// [stage 8] What of the world is kept on disk: Settings > Gameplay's limit and offline switch put
+	// on the stores (and the oldest let go past the limit, on a worker, now and at start), how much is
+	// kept as last weighed ("" before the first), and clearing it all (refused while a ride is being
+	// planned or ridden: Why says so).
+	void WorldSettingsChanged();
+	FString CacheWords() const { return CacheSaid; }
+	void WeighCache();
+	bool ClearCache(FString& Why);
+	bool IsOffline() const;
 	// The journey last planned in the planner, kept between sessions (Saved/World/journey.json).
 	bool LastJourney(TorqueWorld::RouteRequest& Out, FString& Title) const;
 	void KeepJourney(const TorqueWorld::RouteRequest& Want, const FString& Title) const;
@@ -117,6 +126,11 @@ private:
 	bool bPlacesRead = false, bFamousRead = false;
 	TorqueWorld::Route::Gazetteer PlaceList;
 	std::vector<TorqueWorld::Route::FamousRoad> Famous;
+
+	TFuture<void> CacheRun;
+	FString CacheSaid;
+	bool bCacheBusy = false;
+	void TidyCache(bool bClear);
 
 	TFuture<void> MapRun;
 	bool bMapBusy = false, bMapWaiting = false, bMapNew = false;

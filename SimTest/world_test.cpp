@@ -11,6 +11,7 @@
 #include "WorldInflate.h"
 #include "WorldLoad.h"
 #include "WorldRide.h"
+#include "WorldCache.h"
 #include "WorldRideDiary.h"
 #include "WorldRoadLine.h"
 #include "WorldRouteMap.h"
@@ -1472,6 +1473,27 @@ int main()
 		double Steepest = 0.0;
 		for (size_t I = 1; I < Graded.size(); ++I) Steepest = std::fmax(Steepest, std::fabs(Graded[I] - Graded[I - 1]) / RoadLine::Step);
 		Check(Steepest <= RoadLine::MaxGrade + 1e-9, "a step in the ground is graded to 15% at most");
+	}
+
+	// ------------------------------------------------------------------ what is kept on disk (stage 8)
+	{
+		const std::string Root = Files::Join(TORQUE_WORLD_TMP, "world_test_cache");
+		const std::string CellDir = Files::Join(Root, "cells"), HeightDir = Files::Join(Root, "heights");
+		Cache::Clear(CellDir, HeightDir);
+		Files::Write(Files::Join(CellDir, "c577_711/roads.json"), std::string(3000, 'r'));
+		Files::Write(Files::Join(CellDir, "index.json"), std::string(500, 'i'));
+		for (int I = 0; I < 10; ++I) Files::Write(Files::Join(HeightDir, "14/" + std::to_string(I) + ".webp"), std::string(1000, 'h'));
+		const Cache::Use Before = Cache::Measure(CellDir, HeightDir);
+		// (a limit of 10 kB keeps 6 kB of tiles: four of the ten go)
+		const long long Freed = Cache::PruneHeights(HeightDir, 10000);
+		const Cache::Use After = Cache::Measure(CellDir, HeightDir);
+		Cache::Clear(CellDir, HeightDir);
+		const Cache::Use Cleared = Cache::Measure(CellDir, HeightDir);
+		std::printf("      cache: %s in %d cell and %d tiles; pruned %lld bytes to %d tiles; cleared to %lld bytes\n", Cache::Words(Before.Total()).c_str(), Before.Cells, Before.Tiles,
+			Freed, After.Tiles, Cleared.Total());
+		Check(Before.CellBytes == 3500 && Before.HeightBytes == 10000 && Before.Cells == 1 && Before.Tiles == 10 && Freed == 4000 && After.Tiles == 6 && Cleared.Total() == 0
+			&& Cache::CellsToKeep(10000000000LL) == 1600 && Cache::CellsToKeep(0) == 24,
+			"what is kept on disk is weighed, its oldest ground let go to stay under the limit, and all of it cleared");
 	}
 
 	std::printf("\n%s\n", Fails == 0 ? "world_test: all passed" : "world_test: FAILED");
