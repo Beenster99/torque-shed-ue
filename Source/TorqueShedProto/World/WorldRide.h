@@ -539,6 +539,7 @@ private:
 	struct SceneIndex
 	{
 		std::unordered_map<long long, std::vector<int>> Lines, Buildings;
+		std::unordered_map<long long, std::vector<int>> Looks;       // into Region::Scenery.Buildings (the map's tags)
 		std::unordered_map<long long, std::vector<int>> Furniture;   // into RidePlan::Furniture
 		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams

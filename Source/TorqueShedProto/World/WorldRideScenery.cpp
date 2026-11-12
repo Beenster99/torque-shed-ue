@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace TorqueWorld
 {
@@ -54,6 +55,49 @@ Rgb Shade(const Rgb& C, double By)
 	Rgb Out;
 	Out.R = float(C.R * By); Out.G = float(C.G * By); Out.B = float(C.B * By);
 	return Out;
+}
+
+// A colour the map gives (OpenStreetMap's colour tags: "#rrggbb", "#rgb" or a plain name), as a
+// linear colour toned to what paint and weathered materials really look like: mappers' "#FF0000"
+// is a red brick or a red roof, not a postbox. False if it says nothing usable.
+bool BuildingTagColour(const std::string& Word, Rgb& Out)
+{
+	if (Word.empty()) return false;
+	double C[3] = {0.0, 0.0, 0.0};
+	const auto Hex = [](char Ch) { return Ch >= '0' && Ch <= '9' ? Ch - '0' : Ch >= 'a' && Ch <= 'f' ? Ch - 'a' + 10 : Ch >= 'A' && Ch <= 'F' ? Ch - 'A' + 10 : -1; };
+	if (Word[0] == '#' && (Word.size() == 7 || Word.size() == 4))
+	{
+		const bool Short = Word.size() == 4;
+		for (int K = 0; K < 3; ++K)
+		{
+			const int Hi = Hex(Word[size_t(Short ? 1 + K : 1 + K * 2)]), Lo = Hex(Word[size_t(Short ? 1 + K : 2 + K * 2)]);
+			if (Hi < 0 || Lo < 0) return false;
+			C[K] = (Hi * 16 + Lo) / 255.0;
+		}
+	}
+	else
+	{
+		struct Named { const char* Name; double R, G, B; };
+		static const Named Names[] = {{"white", 0.95, 0.94, 0.90}, {"black", 0.12, 0.12, 0.12}, {"grey", 0.55, 0.55, 0.55}, {"gray", 0.55, 0.55, 0.55},
+			{"red", 0.62, 0.25, 0.20}, {"brown", 0.45, 0.30, 0.22}, {"yellow", 0.85, 0.75, 0.45}, {"cream", 0.90, 0.85, 0.70}, {"beige", 0.82, 0.75, 0.62},
+			{"green", 0.35, 0.45, 0.32}, {"blue", 0.35, 0.42, 0.55}, {"orange", 0.75, 0.45, 0.25}, {"pink", 0.85, 0.65, 0.62}, {"silver", 0.70, 0.70, 0.70}};
+		std::string Low;
+		for (char Ch : Word) Low += char(Ch >= 'A' && Ch <= 'Z' ? Ch - 'A' + 'a' : Ch);
+		bool Found = false;
+		for (const Named& N : Names)
+			if (Low == N.Name)
+			{
+				C[0] = N.R; C[1] = N.G; C[2] = N.B;
+				Found = true;
+			}
+		if (!Found) return false;
+	}
+	// (to linear, then halfway to its own grey and no brighter than limewash: weathered, not printed)
+	for (double& V : C) V = V <= 0.04045 ? V / 12.92 : std::pow((V + 0.055) / 1.055, 2.4);
+	const double Grey = 0.2126 * C[0] + 0.7152 * C[1] + 0.0722 * C[2];
+	for (double& V : C) V = std::fmin(0.62, Grey + (V - Grey) * 0.5);
+	Out.R = float(C[0]); Out.G = float(C[1]); Out.B = float(C[2]);
+	return true;
 }
 
 // Four points as a quad that faces Toward (or both ways), flat shaded. Its UVs are metres of its own
@@ -218,6 +262,7 @@ void RidePlan::IndexScenery()
 		}
 	}
 	for (size_t B = 0; B < G.Buildings.size(); ++B) Scene->Buildings[SceneKey(G.Buildings[B].X, G.Buildings[B].Z)].push_back(int(B));
+	for (size_t B = 0; B < G.Scenery.Buildings.size(); ++B) Scene->Looks[SceneKey(G.Scenery.Buildings[B].At.X, G.Scenery.Buildings[B].At.Z)].push_back(int(B));
 	for (size_t S = 0; S < G.Streams.size(); ++S)
 		for (size_t I = 0; I + 1 < G.Streams[S].Line.size(); ++I)
 		{
@@ -374,16 +419,67 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 					const double Lx = LongX ? Along : Across, Lz = LongX ? Across : Along;
 					return At3(B.X + Lx * Cs + Lz * Sn, Base + Y, B.Z - Lx * Sn + Lz * Cs);
 				};
-				const bool Big = HalfShort > 6.0;   // (a barn or a shed: a low roof)
-				const double Rise = Big ? HalfShort * 0.35 : std::fmin(HalfShort * 0.85, 3.6);
+				// What the map says it looks like, where it says: the tags of the point that lies inside its
+				// footprint, nearest its middle. [OpenStreetMap: building, roof:shape, roof:colour,
+				// roof:material, building:material, building:colour]
+				const BuildingLook* Tags = nullptr;
+				{
+					double Best = 1e9;
+					const long long Key0 = SceneKey(B.X, B.Z);
+					for (long long Dk : {0LL, -1LL, 1LL, -4000037LL, 4000037LL})
+					{
+						const auto Lk = Scene->Looks.find(Key0 + Dk);
+						if (Lk == Scene->Looks.end()) continue;
+						for (int Li : Lk->second)
+						{
+							const BuildingLook& Lo = G.Scenery.Buildings[size_t(Li)];
+							const double Dx = Lo.At.X - B.X, Dz = Lo.At.Z - B.Z;
+							const double Ax = Dx * Cs - Dz * Sn, Az = Dx * Sn + Dz * Cs;   // (into its own frame)
+							if (std::fabs(Ax) > B.W * 0.5 + 0.5 || std::fabs(Az) > B.D * 0.5 + 0.5) continue;
+							const double Dist = std::hypot(Dx, Dz);
+							if (Dist < Best) { Best = Dist; Tags = &Lo; }
+						}
+					}
+				}
+				static const std::string NoWord;
+				const std::string& Kind = Tags ? Tags->Words[0] : NoWord;
+				const std::string& RoofShape = Tags ? Tags->Words[1] : NoWord;
+				const std::string& RoofMaterial = Tags ? Tags->Words[3] : NoWord;
+				const std::string& WallMaterial = Tags ? Tags->Words[4] : NoWord;
+				Rgb TaggedRoof, TaggedWall;
+				const bool HasRoofColour = Tags && BuildingTagColour(Tags->Words[2], TaggedRoof);
+				const bool HasWallColour = Tags && BuildingTagColour(Tags->Words[5], TaggedWall);
+				const bool GlassHouse = Kind == "greenhouse" || WallMaterial == "glass";
+				const bool Timber = Kind == "hut" || Kind == "cabin" || WallMaterial == "wood" || WallMaterial == "timber_framing";
+				const bool Works = Kind == "hangar" || Kind == "stadium" || Kind == "grandstand" || Kind == "industrial" || Kind == "warehouse" || Kind == "retail"
+					|| Kind == "commercial" || WallMaterial == "metal" || WallMaterial == "concrete" || WallMaterial == "cement_block";
+				const bool Big = HalfShort > 6.0 || Works;   // (a barn or a shed: a low roof)
+				// The roof's shape: the map's, else gabled; a flat-roofed block where the map has tar paper
+				// or concrete on top.
+				enum class ERoof { Gabled, Hipped, Flat, Skillion };
+				ERoof Shape = ERoof::Gabled;
+				if (RoofShape == "hipped" || RoofShape == "half_hipped" || RoofShape == "pyramidal" || RoofShape == "round" || RoofShape == "dome" || RoofShape == "mansard") Shape = ERoof::Hipped;
+				else if (RoofShape == "flat") Shape = ERoof::Flat;
+				else if (RoofShape == "skillion" || RoofShape == "lean_to") Shape = ERoof::Skillion;
+				else if (RoofShape.empty() && (RoofMaterial == "tar_paper" || RoofMaterial == "concrete")) Shape = ERoof::Flat;
+				const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
+					: Big ? HalfShort * 0.35 : std::fmin(HalfShort * 0.85, 3.6);
 				const double Whole = B.Height > 2.0 ? B.Height : (Big ? 6.5 : 4.0 + 3.0 * Chance(B.X, B.Z, 1));
 				const double Eaves = std::fmax(2.3, Whole - Rise);
 				const double Pick = Chance(B.X, B.Z, 2);
-				// (the local walling: render, brick, else stone; a barn stays stone, or brick where brick is the rule)
-				const bool Rendered = !Big && Pick < Look.RenderShare;
-				const bool Brick = !Rendered && (Big ? Pick < Look.BrickShare * 0.8 : Pick < Look.RenderShare + Look.BrickShare);
-				const Rgb Washes = {Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B}, Bricks = {Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
-				const Rgb Wall = Shade(Rendered ? Washes : Brick ? Bricks : Stone, (Rendered ? 0.92 : 0.85) + (Rendered ? 0.14 : 0.3) * Chance(B.X, B.Z, 4));
+				// (the walling: the map's material, else the local share of render, brick, else stone; a barn stays stone, or brick where brick is the rule)
+				const bool TaggedRender = WallMaterial == "plaster" || WallMaterial == "render" || WallMaterial == "stucco";
+				const bool TaggedBrick = WallMaterial == "brick", TaggedStone = WallMaterial == "stone" || WallMaterial == "sandstone" || WallMaterial == "limestone";
+				const bool Plain = GlassHouse || Timber || Works;   // (drawn in the map's or the material's own colour, no scan)
+				const bool Chosen = Plain || TaggedRender || TaggedBrick || TaggedStone;
+				const bool Rendered = !Plain && (TaggedRender || (!Chosen && !Big && Pick < Look.RenderShare));
+				const bool Brick = !Plain && !Rendered && (TaggedBrick || (!Chosen && (Big ? Pick < Look.BrickShare * 0.8 : Pick < Look.RenderShare + Look.BrickShare)));
+				const Rgb Washes = HasWallColour ? TaggedWall : Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B};
+				const Rgb Bricks = HasWallColour ? TaggedWall : Rgb{Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B};
+				static const Rgb GlassWall = {0.10f, 0.12f, 0.12f}, Planks = {0.16f, 0.11f, 0.07f}, Sheeting = {0.30f, 0.31f, 0.30f};
+				const Rgb PlainWall = HasWallColour && !GlassHouse ? TaggedWall : GlassHouse ? GlassWall : Timber ? Planks : Sheeting;
+				const Rgb Wall = Plain ? Shade(PlainWall, 0.92 + 0.12 * Chance(B.X, B.Z, 4))
+					: Shade(Rendered ? Washes : Brick ? Bricks : Stone, (Rendered ? 0.92 : 0.85) + (Rendered ? 0.14 : 0.3) * Chance(B.X, B.Z, 4));
 				// (a stone house's walls in the scanned masonry: brightness, mostly the bare scan, a little lichen)
 				Rgb Mask;
 				Mask.R = float(0.48 + 0.14 * Chance(B.X, B.Z, 4));
@@ -392,17 +488,23 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 				const auto WallQuad = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, double By)
 				{
 					if (Rendered) Quad(*Washed, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.08f);
-					else if (Brick) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
+					else if (Brick || Plain) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
 					else Quad(*Houses, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
 				};
-				// (the local roofs: thatch, clay tiles or pantiles, stone slates, else slate)
+				// (the roof: the map's material, else the local share of thatch, clay tiles or pantiles, stone slates, else slate)
 				const double RoofPick = Chance(B.X, B.Z, 6);
-				const bool Thatch = !Big && RoofPick < Look.ThatchShare;
-				const bool Tiled = !Thatch && RoofPick < Look.ThatchShare + Look.TileShare;
-				const bool Flags = !Thatch && !Tiled && RoofPick < Look.ThatchShare + Look.TileShare + Look.StoneSlateShare;
-				static const Rgb Straw = {0.27f, 0.21f, 0.11f};
+				const bool AnyRoofTag = !RoofMaterial.empty();
+				const bool Thatch = RoofMaterial == "thatch" || (!AnyRoofTag && !Big && !Plain && RoofPick < Look.ThatchShare);
+				const bool Tiled = !Thatch && (RoofMaterial == "roof_tiles" || RoofMaterial == "tiles" || (!AnyRoofTag && RoofPick < Look.ThatchShare + Look.TileShare));
+				const bool Flags = !Thatch && !Tiled && (RoofMaterial == "stone" || (!AnyRoofTag && !Plain && RoofPick < Look.ThatchShare + Look.TileShare + Look.StoneSlateShare));
+				const bool Sheet = RoofMaterial == "metal" || RoofMaterial == "eternit" || RoofMaterial == "copper" || (!AnyRoofTag && Works);
+				const bool Felt = RoofMaterial == "tar_paper" || RoofMaterial == "concrete" || (!AnyRoofTag && Shape == ERoof::Flat);
+				const bool GlassRoof = RoofMaterial == "glass" || (!AnyRoofTag && GlassHouse);
+				static const Rgb Straw = {0.27f, 0.21f, 0.11f}, RoofSheet = {0.20f, 0.21f, 0.21f}, RoofFelt = {0.06f, 0.06f, 0.065f}, Verdigris = {0.18f, 0.32f, 0.27f};
 				const Rgb Tiles = {Look.TileColour.R, Look.TileColour.G, Look.TileColour.B};
-				const Rgb Roof = Shade(Thatch ? Straw : Tiled ? Tiles : Flags ? StoneSlate : Slate, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
+				const Rgb RoofBase = HasRoofColour ? TaggedRoof : GlassRoof ? Glass : RoofMaterial == "copper" ? Verdigris : Sheet ? RoofSheet : Felt ? RoofFelt
+					: Thatch ? Straw : Tiled ? Tiles : Flags ? StoneSlate : Slate;
+				const Rgb Roof = Shade(RoofBase, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
 				const P3 Centre = Local(0.0, 0.0, Eaves * 0.5);
 				// (none of it over a road: the map's footprints and the road's own line don't always agree)
 				bool Clear = true;
@@ -419,22 +521,70 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 					return At3(Centre.X + ((A.X + C.X) * 0.5 - Centre.X) * 50.0, Centre.Y, Centre.Z + ((A.Z + C.Z) * 0.5 - Centre.Z) * 50.0);
 				};
 				const double Sunk = -1.0;
+				const double Over = Shape == ERoof::Flat ? 0.0 : Thatch ? 0.55 : 0.3, Drop = Rise > 0.0 ? Over * Rise / HalfShort : 0.0;
+				// (a hipped roof's ridge: shorter than the walls by the roof's depth each end, a point if it is square)
+				const double Ridge = std::fmax(0.0, HalfLong - HalfShort);
 				for (double Sg : {1.0, -1.0})
 				{
-					// The long walls, and the ends with their gables.
-					const P3 L0 = Local(-HalfLong, Sg * HalfShort, Sunk), L1 = Local(HalfLong, Sg * HalfShort, Sunk), L2 = Local(HalfLong, Sg * HalfShort, Eaves), L3 = Local(-HalfLong, Sg * HalfShort, Eaves);
+					// The long walls (a skillion's high side up to its top), and the ends.
+					const double LongTop = Shape == ERoof::Skillion && Sg < 0.0 ? Eaves + Rise : Eaves;
+					const P3 L0 = Local(-HalfLong, Sg * HalfShort, Sunk), L1 = Local(HalfLong, Sg * HalfShort, Sunk), L2 = Local(HalfLong, Sg * HalfShort, LongTop), L3 = Local(-HalfLong, Sg * HalfShort, LongTop);
 					WallQuad(L0, L1, L2, L3, Outside(L0, L2), 1.0);
 					const P3 E0 = Local(Sg * HalfLong, -HalfShort, Sunk), E1 = Local(Sg * HalfLong, HalfShort, Sunk), E2 = Local(Sg * HalfLong, HalfShort, Eaves), E3 = Local(Sg * HalfLong, -HalfShort, Eaves);
 					WallQuad(E0, E1, E2, E3, Outside(E0, E2), 0.93);
-					const P3 Peak = Local(Sg * HalfLong, 0.0, Eaves + Rise);
-					WallQuad(E3, E2, Peak, E3, Outside(E0, E2), 0.93);
-					// The roof's two slopes, a little over the walls.
-					const double Over = Thatch ? 0.55 : 0.3, Drop = Over * Rise / HalfShort;
-					Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Eaves - Drop), Local(HalfLong + Over, Sg * (HalfShort + Over), Eaves - Drop), Local(HalfLong + Over, 0.0, Eaves + Rise),
-						Local(-HalfLong - Over, 0.0, Eaves + Rise), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
-					if (!Fine || Big) continue;
-					// Windows along the long walls, and a door in the one that faces +.
-					const int Floors = Eaves > 4.8 ? 2 : 1, Along = std::max(1, int(HalfLong * 2.0 / 3.5));
+					// The roof, by its shape.
+					const double Low = Eaves - Drop, Top = Eaves + Rise;
+					switch (Shape)
+					{
+					case ERoof::Gabled:
+					{
+						const P3 Peak = Local(Sg * HalfLong, 0.0, Top);
+						WallQuad(E3, E2, Peak, E3, Outside(E0, E2), 0.93);
+						Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, 0.0, Top),
+							Local(-HalfLong - Over, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
+						break;
+					}
+					case ERoof::Hipped:
+					{
+						// (a slope down each long side, and a hip down each end to the ridge's end)
+						Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(Ridge, 0.0, Top),
+							Local(-Ridge, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
+						const P3 H0 = Local(Sg * (HalfLong + Over), -(HalfShort + Over), Low), H1 = Local(Sg * (HalfLong + Over), HalfShort + Over, Low), Tip = Local(Sg * Ridge, 0.0, Top);
+						Quad(Out, H0, H1, Tip, H0, Sky, Shade(Roof, 0.94));
+						break;
+					}
+					case ERoof::Flat:
+						// (one flat top, a hair over the walls, with a low parapet's coping round it on the finer squares)
+						if (Sg > 0.0)
+						{
+							Quad(Out, Local(-HalfLong, -HalfShort, Eaves + 0.02), Local(HalfLong, -HalfShort, Eaves + 0.02), Local(HalfLong, HalfShort, Eaves + 0.02),
+								Local(-HalfLong, HalfShort, Eaves + 0.02), Sky, Roof);
+							if (Fine)
+								for (int K = 0; K < 4; ++K)
+								{
+									const bool OnLong = K < 2;
+									const double S = K % 2 == 0 ? 1.0 : -1.0;
+									const P3 Mid = OnLong ? Local(0.0, S * (HalfShort - 0.1), 0.0) : Local(S * (HalfLong - 0.1), 0.0, 0.0);
+									const P3 Far = OnLong ? Local(1.0, S * (HalfShort - 0.1), 0.0) : Local(S * (HalfLong - 0.1), 1.0, 0.0);
+									const double Ux = Far.X - Mid.X, Uz = Far.Z - Mid.Z;
+									Box(Out, Mid.X, Mid.Z, P2(Ux, Uz), OnLong ? HalfLong : HalfShort, 0.12, Base + Eaves - 0.05, Base + Eaves + 0.45, Shade(Wall, 0.8));
+								}
+						}
+						break;
+					case ERoof::Skillion:
+					{
+						// (one slope, high on the - side; the ends' triangles up to it)
+						const P3 Up = Local(Sg * HalfLong, -HalfShort, Top);
+						WallQuad(E3, E2, Up, E3, Outside(E0, E2), 0.93);
+						if (Sg > 0.0)
+							Quad(Out, Local(-HalfLong - Over, -(HalfShort + Over), Top + Drop), Local(HalfLong + Over, -(HalfShort + Over), Top + Drop),
+								Local(HalfLong + Over, HalfShort + Over, Low), Local(-HalfLong - Over, HalfShort + Over, Low), Sky, Roof);
+						break;
+					}
+					}
+					if (!Fine || Big || GlassHouse) continue;
+					// Windows along the long walls, a row a floor, and a door in the one that faces +.
+					const int Floors = std::clamp(int((Eaves - 0.4) / 2.7), 1, 12), Along = std::max(1, int(HalfLong * 2.0 / 3.5));
 					for (int Fl = 0; Fl < Floors; ++Fl)
 						for (int Wn = 0; Wn < Along; ++Wn)
 						{
@@ -453,7 +603,8 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							}
 						}
 				}
-				if (size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1)
+				// (the map's own churches too, where it tags the building one and it is a church's size)
+				if ((size_t(Index) < BuildingRole.size() && BuildingRole[size_t(Index)] == 1) || (Kind == "church" && B.W * B.D >= 120.0 && !Plain))
 				{
 					// A church: its tower at one end (the other if that one is over a road), square and a
 					// little narrower than the nave, its belfry's openings near the top, battlemented, or in
@@ -518,7 +669,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 										const P3 Pa = At4(K, TowerTop), Pb = At4(K + 1, TowerTop);
 										const double Mx = Pa.X + (Pb.X - Pa.X) * T, Mz = Pa.Z + (Pb.Z - Pa.Z) * T;
 										const double Lx = Pb.X - Pa.X, Lz = Pb.Z - Pa.Z, Ll = std::hypot(Lx, Lz);
-										Box(Out, Mx, Mz, P2(Lx / Ll, Lz / Ll), 0.35, 0.2, TowerTop - 0.05, TowerTop + 0.7, Shade(Stone, 0.9));
+										Box(Out, Mx, Mz, P2(Lx / Ll, Lz / Ll), 0.35, 0.2, Base + TowerTop - 0.05, Base + TowerTop + 0.7, Shade(Stone, 0.9));
 									}
 						}
 					}
