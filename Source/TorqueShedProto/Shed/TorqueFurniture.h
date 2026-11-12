@@ -129,6 +129,14 @@ constexpr double ReachMin = -30.0, ReachMax = 220.0, ReachStep = 25.0;
 // and lined up with another piece of kit that's square too. Self: its own id (not snapped to itself).
 FTransform Snapped(const UWorld* World, const FModel& M, const FTransform& Xf, int32 Self);
 
+// [trolley] A trolley (equipment.gd's "trolley" kind: the parts trolley, the flatbed) carries what's
+// put on it (beenster, Nov 12: "the shed trolleys should carry boxes and stacked boxes"): something on
+// the floor whose bottom centre At is over its deck, off the floor, rides along when it's moved.
+bool IsTrolley(const FModel& M);
+bool OnTrolley(const FModel& M, const FTransform& TrolleyXf, const FVector& At);
+// Where a trolley being moved is drawn now (its mover's, snapped), or where it stands.
+FTransform DrawnXf(const UObject* WorldContext, const FTorqueFurniture& F);
+
 // The ridden bike's contact boxes for the solid pieces (sim frame: Sim/BikeContacts.h), and a
 // number that changes whenever they might have (the bike rebuilds its boxes then).
 int32 ContactVersion();

@@ -377,6 +377,7 @@ void FRiderRig::Pose(const FRiderPoseInput& In)
 				Last.HandOff[S] = WaveK;
 				const double Off = FMath::Max(Limp, WaveK);
 				Last.Wrist[S] = W;
+				Last.WristUnrolled[S] = In.BarPivot + In.BarTurn.RotateVector(In.GripFit[S].TransformPosition(W0) - In.BarPivot);
 				const double Lu = (E0 - S0).Size(), Lf = (W0 - E0).Size();
 				const FVector E = RigMidJoint(P[I], W, Lu, Lf, ElbowPole[S]);
 				const FVector Hinge0 = FVector::CrossProduct(E0 - S0, W0 - E0), Hinge = FVector::CrossProduct(E - P[I], W - E);

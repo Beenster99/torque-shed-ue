@@ -208,6 +208,7 @@ struct FPartInfo
 	TArray<FName> MountsOn;
 	TArray<FName> Styles;          // the bike types it suits (parts.json "styles"), empty: any bike
 	FName Pack;                    // the style pack it came in (parts.json "pack"), if any
+	FString Layout, TypeText;      // parts.json "layout" ("vtwin") and "type" ("45° V-twin"), engines and frames
 	TMap<FName, double> Numbers;   // every number field ("mass", "torque_mult"); an array's length as "<field>_count"
 	// [fluids] A can or bottle of fluid: what it is ("Jerry can"), the grade it holds ("grade": a big
 	// can of a fuel holds that fuel), whether it comes empty, and the colour of what's in it.
@@ -263,6 +264,8 @@ FCatalogue& Catalogue()
 				for (const TSharedPtr<FJsonValue>& V : *Styles) Info.Styles.AddUnique(FName(*V->AsString()));
 			FString Pack;
 			if ((*P)->TryGetStringField(TEXT("pack"), Pack) && !Pack.IsEmpty()) Info.Pack = FName(*Pack);
+			(*P)->TryGetStringField(TEXT("layout"), Info.Layout);
+			(*P)->TryGetStringField(TEXT("type"), Info.TypeText);
 			(*P)->TryGetStringField(TEXT("container"), Info.Container);
 			FString Grade;
 			if ((*P)->TryGetStringField(TEXT("grade"), Grade) && !Grade.IsEmpty()) Info.Grade = FName(*Grade);
@@ -453,6 +456,23 @@ FName PreferredStyle(FName Part)
 	if (!P) return NAME_None;
 	if (!P->Pack.IsNone()) return P->Pack;
 	return P->Styles.Num() > 0 ? P->Styles[0] : NAME_None;
+}
+
+FString EngineLayout(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	if (!P || P->Kind != FName(TEXT("engine"))) return FString();
+	return P->TypeText.IsEmpty() ? P->Layout : P->TypeText;
+}
+
+int32 EngineLayoutOrder(FName Part)
+{
+	const FPartInfo* P = Catalogue().Parts.Find(Part);
+	if (!P) return 99;
+	static const TCHAR* const Order[] = {TEXT("single"), TEXT("2stroke"), TEXT("twin"), TEXT("parallel"), TEXT("vtwin"), TEXT("boxer"), TEXT("triple"), TEXT("inline")};
+	for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Order); ++I)
+		if (P->Layout == Order[I]) return I;
+	return 50;
 }
 
 bool SuitsStyle(FName Part, FName Style)

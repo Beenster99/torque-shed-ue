@@ -26,7 +26,6 @@
 #include "Components/AudioComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/SkinnedMeshComponent.h"
 #include "Animation/AnimInstance.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/StaticMeshComponent.h"
@@ -882,6 +881,11 @@ FString ATorqueBikePawn::TestRideLog() const
 				TEXT("hands %.1f / %.1f cm short, ankles %.1f / %.1f cm short, knees %.1f / %.1f cm out (pads at %.1f, tank %.1f wide at most)"),
 				*RiderAvatar.Name, FTorqueAvatar::bOldRidePose ? TEXT("old") : TEXT("fitted"), Rp.BackDeg, Rp.KneeDeg[0], Rp.KneeDeg[1], Rp.ElbowDeg[0], Rp.ElbowDeg[1],
 				Rp.HandShort[0], Rp.HandShort[1], Rp.AnkleShort[0], Rp.AnkleShort[1], Rp.KneeOut[0], Rp.KneeOut[1], FMath::Abs(RiderKnee[1].Y), TankWidest);
+			// The hands on the controls: the right grip's roll with the throttle, and the index and
+			// middle fingers' curl each side (they lift and pull with the levers).
+			Out += FString::Printf(TEXT("\nrider hands: throttle %.2f, grip roll %.1f / %.1f deg, index curl %.0f / %.0f deg, middle curl %.0f / %.0f deg, levers held %.2f / %.2f, pulled %.2f / %.2f"),
+				TestGripThrottleHold >= 0.0 ? TestGripThrottleHold : Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
+				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
 		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
@@ -1386,6 +1390,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 			}
 			else
 			{
+				// Left ticking over where it stands (beenster, Nov 12), heard from the shed's own sound.
+				if (UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this)) Sub->SetIdling(RideBay, EngineRunning());
 				TorqueYard::GetOff(PC);
 				return;
 			}
@@ -1537,6 +1543,19 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		SetWaving(!Sim->IsCrashed && (bPadWave || FTorqueKeys::Down(PC, ETorqueKey::Wave)));
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Help)) bShowHelp = !bShowHelp;
+	// beenster (Nov 12): F2 the info lines top left (off to start with), F3 the telemetry.
+	if (FTorqueKeys::Just(PC, ETorqueKey::RideHud))
+	{
+		bHudLines = !bHudLines;
+		if (bHudLines) bShowHelp = true;
+	}
+	// [info] F1 slides the info panel down the left in and out (beenster, Nov 12); remembered with your settings.
+	if (FTorqueKeys::Just(PC, ETorqueKey::InfoPanel))
+	{
+		FTorqueSettings& Keep = FTorqueSettings::Get();
+		Keep.bInfoPanel = !Keep.bInfoPanel;
+		if (Keep.bSaved) Keep.Save();
+	}
 	// Settings > Gameplay > Telemetry overlay (F3 while riding, as Torque Shed).
 	if (FTorqueKeys::Just(PC, ETorqueKey::Telemetry))
 	{
@@ -1559,7 +1578,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	{
 		bool bOk = false;
 		if (!bPadSetsCam && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
-		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.ToggleHeadlight(bOk), bOk);
+		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.CycleBeam(bOk), bOk);   // L cycles: dipped, main, main + fog, off
 		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Hazards)) LightsNote(Lights.ToggleHazard(bOk), bOk);
@@ -2027,6 +2046,22 @@ FString ATorqueBikePawn::TestPlaceAt(double X, double Y, double Yaw, bool bPlace
 	}
 	return FString::Printf(TEXT("bike at (%.0f, %.0f, %.1f) cm, yaw %.0f, %.1f mph, %s; %s"), Mid.X, Mid.Y, Mid.Z, GetActorRotation().Yaw,
 		Sim->Speed * 2.23694, TorqueShedLayout::InWashBay(Mid) ? TEXT("in the wash bay") : TEXT("outside the wash bay"), *Under);
+}
+
+bool ATorqueBikePawn::EngineRunning() const
+{
+	return Sim && (Sim->EngineOn || Sim->IsStarting() || EngineCatchIn > 0.0);
+}
+
+// [info] The info panel's riders list.
+double ATorqueBikePawn::SpeedMs() const
+{
+	return Sim ? FMath::Abs(Sim->Speed) : 0.0;
+}
+
+bool ATorqueBikePawn::RiderCrashed() const
+{
+	return Sim && Sim->IsCrashed;
 }
 
 void ATorqueBikePawn::PressIgnition()
@@ -2497,6 +2532,39 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			Sample.RearBrake = (float)RearBrake;
 			Sample.Lean = (float)FMath::RadiansToDegrees(Sim->LeanAngle);
 			Sample.Gear = Sim->Gear;
+			Sample.Steer = (float)FMath::RadiansToDegrees(Sim->Steer);
+			for (int32 WI = 0; WI < 2; ++WI)
+			{
+				const TorqueSim::Wheel& Wh = Sim->Wheels[WI];
+				Sample.SlipRatio[WI] = (float)Wh.Kappa;
+				Sample.SlipAngle[WI] = (float)FMath::RadiansToDegrees(Wh.Alpha);
+				Sample.GripUsed[WI] = (float)Wh.GripUsed;
+				Sample.LoadN[WI] = (float)Wh.Load;
+				Sample.bContact[WI] = Wh.Contact;
+				Sample.SuspMm[WI] = (float)(Wh.Compression * 1000.0);
+				Sample.TravelMm[WI] = (float)(Wh.Travel * 1000.0);
+				Sample.bBottomed[WI] = Wh.Bottomed;
+				Sample.TyreSurface[WI] = (float)Sim->Heat.Surface[WI];
+				Sample.TyreCarcass[WI] = (float)Sim->Heat.Carcass[WI];
+				Sample.TyreC[WI] = (float)Sim->Heat.TyreTemp(WI);
+				Sample.TyreBand[WI] = (int8)Sim->Heat.TyreBand(WI);
+				Sample.DiscC[WI] = (float)Sim->Heat.Discs[WI];
+			}
+			Sample.EngineC = (float)Sim->Heat.Engine;
+			Sample.OilC = (float)Sim->Heat.Oil;
+			Sample.AirC = (float)Sim->Heat.Air;
+			Sample.RoadC = (float)Sim->Heat.Road;
+			{
+				const FString EngineBandText = UTF8_TO_TCHAR(Sim->Heat.EngineState());
+				Sample.EngineBand = EngineBandText == TEXT("hot") ? 1 : EngineBandText == TEXT("cold") ? -1 : 0;
+			}
+			Sample.bLiquid = Sim->Heat.Liquid();
+			Sample.bFan = Sim->Heat.Fan;
+			Sample.PowerMult = (float)Sim->Heat.Power;
+			Sample.PitchDeg = (float)FMath::RadiansToDegrees(Sim->Dive);
+			Sample.RakeDeg = (float)FMath::RadiansToDegrees(Sim->RakeNow);
+			Sample.TrailMm = (float)(Sim->TrailSprings * 1000.0);
+			Sample.TrailStandMm = (float)(Sim->Build.Trail * 1000.0);
 			if (Telemetry.Num() >= 120) Telemetry.RemoveAt(0);
 			Telemetry.Add(Sample);
 		}
@@ -2666,12 +2734,14 @@ void ATorqueBikePawn::GhostRestore()
 		if (!IsValid(C) || !GhostMatStart.IsValidIndex(I)) continue;
 		const int32 From = GhostMatStart[I];
 		const int32 To = GhostMatStart.IsValidIndex(I + 1) ? GhostMatStart[I + 1] : GhostSavedMats.Num();
-		for (int32 Slot = 0; Slot < To - From; ++Slot) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
+		// Only slots still wearing the wire: one the game changed meanwhile (the avatar dressing) keeps that.
+		UMaterialInterface* const Wire = GhostMid ? (UMaterialInterface*)GhostMid : (UMaterialInterface*)GhostFillMid;
+		for (int32 Slot = 0; Slot < To - From; ++Slot)
+			if (C->GetMaterial(Slot) == Wire) C->SetMaterial(Slot, GhostSavedMats[From + Slot]);
 		const int32 LodWas = GhostLodWas.IsValidIndex(I) ? GhostLodWas[I] : -1;
 		if (LodWas >= 0)
 		{
 			if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C)) SMC->SetForcedLodModel(LodWas);
-			else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C)) SK->SetForcedLOD(LodWas);
 		}
 	}
 	GhostLodWas.Reset();
@@ -2704,7 +2774,11 @@ void ATorqueBikePawn::UpdateGhostLook()
 				if (N.IsValid()) N->SetForceDisableNanite(false);
 			GhostNaniteOff.Reset();
 			GhostMode = 0;
-			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off: solid again"));
+			int32 StillWire = 0;
+			for (UMeshComponent* C : Meshes)
+				for (int32 Slot = 0; C && Slot < C->GetNumMaterials(); ++Slot)
+					if (C->GetMaterial(Slot) && (C->GetMaterial(Slot) == GhostMid || C->GetMaterial(Slot) == GhostFillMid)) ++StillWire;
+			UE_LOG(LogTemp, Log, TEXT("Torque: ghost look off: solid again (%d slots still on a ghost material)"), StillWire);
 		}
 		return;
 	}
@@ -2774,16 +2848,13 @@ void ATorqueBikePawn::UpdateGhostLook()
 				for (int32 Slot = 0; Slot < Slots; ++Slot) C->SetMaterial(Slot, WireMat);
 				// Its coarsest LOD while it's a wire: the full-detail polygons are so close together
 				// they fill in to a solid shape (build 135); the coarse ones read as a mesh.
+				// Only the bike's static meshes: the rider's skinned meshes keep their LOD (forcing the
+				// coarsest one on them lost the finger and wrist bones the levers and throttle drive).
 				int32 LodWas = -1;
 				if (UStaticMeshComponent* SMC = Cast<UStaticMeshComponent>(C))
 				{
 					LodWas = SMC->ForcedLodModel;
 					if (SMC->GetStaticMesh()) SMC->SetForcedLodModel(SMC->GetStaticMesh()->GetNumLODs());
-				}
-				else if (USkinnedMeshComponent* SK = Cast<USkinnedMeshComponent>(C))
-				{
-					LodWas = SK->GetForcedLOD();
-					SK->SetForcedLOD(SK->GetNumLODs());
 				}
 				GhostLodWas.Add(LodWas);
 				++Wired;
@@ -3131,6 +3202,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	{
 		T.HandOff[S] = R.HandOff[S];
 		T.Wrist[S] = R.Wrist[S];
+		T.WristUnrolled[S] = R.WristUnrolled[S];
 		T.Grip[S] = R.Grip[S];
 		T.Ankle[S] = R.Ankle[S];
 		T.LeverFingers[S] = R.LeverFingers[S];
@@ -3390,7 +3462,7 @@ void ATorqueBikePawn::UpdateRider()
 		const double IntoCorner = FTorqueSettings::Get().bLookIntoCorner ? 0.45 : 0.0;
 		In.Look = FRotator(LookPitch * -0.4 - 3.0 * Braking, LookYaw * 0.5 + IntoCorner * HeadLean, -0.45 * HeadLean);
 		// Right hand: the throttle, and the front brake lever under two fingers.
-		In.Throttle = Throttle;
+		In.Throttle = TestGripThrottleHold >= 0.0 ? FMath::Clamp(TestGripThrottleHold, 0.0, 1.0) : Throttle;
 		if (bThrown)
 		{
 			// Off the bike: lying back, legs out along the road, arms out at his sides.
@@ -3565,7 +3637,20 @@ void ATorqueBikePawn::StartSound()
 	// old start-on-arrival so their rides go as before.
 	static const bool bTestStart = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) ||
 		FParse::Param(FCommandLine::Get(), TEXT("TorqueAutoRide")) || FCString::Strifind(FCommandLine::Get(), TEXT("TorqueShedAction=")) != nullptr;
-	if (!bTestStart)
+	// [yard] Got back on a bike left idling in the shed: it's still running.
+	UTorqueBuildSubsystem* IdleShed = bYard && RideBay >= 0 ? UTorqueBuildSubsystem::Of(this) : nullptr;
+	const bool bWasIdling = IdleShed && IdleShed->IsIdling(RideBay);
+	if (IdleShed) IdleShed->SetIdling(RideBay, false);
+	if (bWasIdling)
+	{
+		SoundAudio->Play();
+		Sound->Catch();
+		Sim->EngineOn = true;
+		bEngineWas = true;
+		EngineNote = TEXT("Engine running");
+		EngineNoteFor = 2.0;
+	}
+	else if (!bTestStart)
 	{
 		SoundAudio->Play();
 		Sim->StopEngine();
@@ -4171,12 +4256,16 @@ void ATorqueBikePawn::DrawHud()
 	if (GearNoteFor > 0.0)
 		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
 			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
-	if (bYard)   // [yard]
+	// beenster (Nov 12): a clean screen by default. The lines that stay up (the route, the heat, the
+	// realism and weather, the help) only with F2; notes that come and go still show.
+	if (!bHudLines) {}
+	else if (bYard)   // [yard]
 		Add(FString::Printf(TEXT("The yard   stopped, %s: get off and park it here   %s: back to its bay and walk in"),
 			*FTorqueKeys::Text(ETorqueKey::Use), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
 	else
 		Add(FString::Printf(TEXT("%s  %s of %s   %d:%05.2f%s"), *RouteName, *Set.DistanceText(FMath::Min(DoneM, RouteFinishM)), *Set.DistanceText(RouteFinishM), Mins, Secs,
 			bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
+	if (!bHudLines && bFinished && !bYard) Add(TEXT("FINISHED - Home, or Restart in the Options menu, to ride again"), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.
 	if (FootNoteFor > 0.0) Add(FootNote, FColor(255, 220, 120), 1.2f);
@@ -4194,8 +4283,9 @@ void ATorqueBikePawn::DrawHud()
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
 	}
-	else if (!Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
+	else if (bHudLines && !Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
 		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);
+	if (bHudLines)
 	{
 		// The heat (BikeHeat): cold tyres grip less, an overheating engine loses power.
 		const FString Tyres = UTF8_TO_TCHAR(Sim->Heat.TyreState()), Engine = UTF8_TO_TCHAR(Sim->Heat.EngineState());
@@ -4213,15 +4303,17 @@ void ATorqueBikePawn::DrawHud()
 	static const TCHAR* WeatherNames[3] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
 	const ATorqueGameState* WeatherGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 	const FString WeatherNow = WeatherGs ? WeatherGs->WeatherText(FTorqueSettings::Get().Units == 1) : FString(WeatherNames[FMath::Clamp(Weather, 0, 2)]);
-	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s"), Assist,
-		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), *WeatherNow), FColor(170, 200, 170), 0.9f);
+	if (bHudLines)
+		Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s   (%s hides these lines, %s telemetry)"), Assist,
+			bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), *WeatherNow, *FTorqueKeys::Text(ETorqueKey::RideHud),
+			*FTorqueKeys::Text(ETorqueKey::Telemetry)), FColor(170, 200, 170), 0.9f);
 	if (HostOnlyNoteFor > 0.0) Add(TEXT("The host sets the weather"), FColor(255, 220, 120), 1.1f);
-	if (NetBike)
+	if (NetBike && bHudLines)
 	{
 		const FString NetLine = NetBike->StatusLine();
 		if (!NetLine.IsEmpty()) Add(NetLine, FColor(170, 210, 255), 0.9f);
 	}
-	if (bShowHelp)
+	if (bShowHelp && bHudLines)
 	{
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   Circle / B rear brake   left stick lean (push up/down: weight)   right stick look"), Help, 0.62f);
@@ -4236,11 +4328,11 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
 			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
 			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
+		Add(FString::Printf(TEXT("      %s lights   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
 			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
 			*K(ETorqueKey::Hazards), *K(ETorqueKey::Clutch), *K(ETorqueKey::Nod), *K(ETorqueKey::Wave)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),
-			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::BackToShed)), Help, 0.62f);
+		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s info panel   %s shed   Esc menu"),
+			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::InfoPanel), *K(ETorqueKey::BackToShed)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),
 			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
 			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown)), Help, 0.62f);

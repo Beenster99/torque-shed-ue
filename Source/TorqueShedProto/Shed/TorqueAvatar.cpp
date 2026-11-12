@@ -4,6 +4,7 @@
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture.h"
 #include "UObject/UnrealType.h"
@@ -210,6 +211,70 @@ FString DescribeByName(UObject* O, std::initializer_list<const TCHAR*> Words)
 	return FString::Join(Out, TEXT(", "));
 }
 
+// The rider kit's material for a garment (Data/Bike/SpeedTwin/ue_assets.json rider_rig.materials:
+// jacket, jeans, boots, gloves), by words in its mesh or slot name.
+UMaterialInterface* KitMaterialFor(const FString& Words)
+{
+	static TMap<FString, FString> Paths;
+	static bool bRead = false;
+	if (!bRead)
+	{
+		bRead = true;
+		FString Text;
+		TSharedPtr<FJsonObject> Root;
+		const TSharedPtr<FJsonObject>* Rig = nullptr;
+		const TSharedPtr<FJsonObject>* Mats = nullptr;
+		if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Bike/SpeedTwin/ue_assets.json")))
+			&& FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root) && Root.IsValid()
+			&& Root->TryGetObjectField(TEXT("rider_rig"), Rig) && (*Rig)->TryGetObjectField(TEXT("materials"), Mats))
+			for (const auto& KV : (*Mats)->Values) Paths.Add(FString(KV.Key), KV.Value->AsString());
+	}
+	const FString W = Words.ToLower();
+	const TCHAR* Key = TEXT("jacket");
+	for (const TCHAR* Foot : {TEXT("shoe"), TEXT("boot"), TEXT("trainer"), TEXT("sneaker"), TEXT("foot"), TEXT("feet")})
+		if (W.Contains(Foot)) Key = TEXT("boots");
+	if (FCString::Strcmp(Key, TEXT("jacket")) == 0)
+		for (const TCHAR* Leg : {TEXT("pant"), TEXT("jean"), TEXT("trouser"), TEXT("short"), TEXT("leg"), TEXT("bottom"), TEXT("skirt")})
+			if (W.Contains(Leg)) Key = TEXT("jeans");
+	if (W.Contains(TEXT("glove"))) Key = TEXT("gloves");
+	const FString* Path = Paths.Find(Key);
+	return Path ? LoadObject<UMaterialInterface>(nullptr, **Path) : nullptr;
+}
+
+// Round 137: beenster's avatar's clothes were see-through. Every slot of a garment is logged with its
+// material and blend mode; one that can't draw solid in the game (none, the MetaHuman plugin's,
+// editor-only, an engine default, a parent lost in the cook, or translucent / masked) takes the
+// rider kit's material for that garment instead. -TorqueOwnClothes keeps them all, to compare.
+void SolidClothes(UMeshComponent* C, const FString& Avatar, const FString& Garment, bool bLogOnly = false)
+{
+	const bool bKeep = bLogOnly || FParse::Param(FCommandLine::Get(), TEXT("TorqueOwnClothes"));
+	UMaterialInterface* const Default = UMaterial::GetDefaultMaterial(MD_Surface);
+	for (int32 Slot = 0; Slot < C->GetNumMaterials(); ++Slot)
+	{
+		UMaterialInterface* M = C->GetMaterial(Slot);
+		const FString Path = M ? M->GetPathName() : FString(TEXT("none"));
+		const UMaterial* Base = M ? M->GetMaterial() : nullptr;
+		const EBlendMode Blend = M ? M->GetBlendMode() : BLEND_Opaque;
+		FString Why;
+		if (!M) Why = TEXT("no material");
+		else if (Path.StartsWith(TEXT("/MetaHuman"))) Why = TEXT("plugin material");
+		else if (Path.StartsWith(TEXT("/Engine/")) || !Base || Base == Default) Why = TEXT("engine default or lost parent");
+		else if (Blend != BLEND_Opaque) Why = FString::Printf(TEXT("blend mode %d"), (int32)Blend);
+		const TArray<FName> SlotNames = C->GetMaterialSlotNames();
+		const FString Words = SlotNames.IsValidIndex(Slot) ? Garment + TEXT(" ") + SlotNames[Slot].ToString() : Garment;
+		UMaterialInterface* Kit = (Why.IsEmpty() || bKeep) ? nullptr : KitMaterialFor(Words);
+		if (Kit)
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Kit, C);
+			MID->SetScalarParameterValue(FName(TEXT("Occlusion")), 0.0f);   // the kit's occlusion is baked in its own mesh's vertex colours
+			C->SetMaterial(Slot, MID);
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s slot %d: %s (base %s, blend %d, two-sided %d)%s"), *Avatar, *Garment, Slot, *Path,
+			Base ? *Base->GetPathName() : TEXT("none"), (int32)Blend, M ? (int32)M->IsTwoSided() : 0,
+			Why.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" -> %s: %s"), *Why, Kit ? *FString::Printf(TEXT("kit %s"), *Kit->GetPathName()) : bKeep ? TEXT("kept (-TorqueOwnClothes)") : TEXT("NO kit material")));
+	}
+}
+
 // The MetaHuman's other meshes on Driver, following its pose, and its grooms bound to them. No
 // Blueprint: its Anim Blueprints come from the MetaHuman plugin, which is editor-only. Grooms are
 // made by class name, so the game needn't link the hair module (and skips them without it).
@@ -246,6 +311,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UPrimitiveComponent* PP = Cast<UPrimitiveComponent>(C)) PP->PrecachePSOs();   // made at run time: precache before the render state
 		C->RegisterComponent();
 		ApplyMaterials(C, P.Materials);
+		if (!bFace) SolidClothes(C, E.Name, P.Name);   // every garment (Blueprint parts are named Torso, Legs, Feet...)
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s %s"), *E.Name, bFace ? TEXT("face") : TEXT("mesh"), *P.Mesh);
 		ByName.Add(P.Name, C);
@@ -350,6 +416,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		C->RegisterComponent();
 		C->SetLeaderPoseComponent(Driver, true);
 		ApplyMaterials(C, P.Materials);
+		SolidClothes(C, E.Name, P.Name);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: clothes %s (%s)"), *E.Name, *P.Cloth, C->GetSkinnedAsset() ? TEXT("shown") : TEXT("asset not taken"));
 		ByName.Add(P.Name, C);
 		Out.Add(C);
@@ -760,6 +827,12 @@ bool FTorqueAvatar::Build(AActor* Owner, USceneComponent* Parent, int32 Index)
 	else
 	{
 		ApplyMaterials(Driver, E.BodyMaterials);
+		// The body's slots too, logged only (round 139: no garment lines; the build may bake the outfit into the body).
+		TorqueAvatarMath::SolidClothes(Driver, E.Name, TEXT("Body"), true);
+		if (E.Parts.Num() <= 1)
+			UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: avatars.json lists no hair or clothes: it's the old committed copy, not register's (run py Tools/ue_metahumans.py and commit Data/Avatars/avatars.json)"), *E.Name);
+		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %d parts listed (%s)"), *E.Name, E.Parts.Num(),
+			*FString::JoinBy(E.Parts, TEXT(", "), [](const FPart& P) { return P.Name + (P.Mesh.IsEmpty() ? P.Cloth.IsEmpty() ? TEXT("") : TEXT("=cloth") : TEXT("=mesh")); }));
 		AddParts(Owner, Driver, E, Parts, FaceMesh);
 		for (const TWeakObjectPtr<USceneComponent>& C : Parts)
 			if (C.IsValid() && (C->GetClass()->GetName().Contains(TEXT("Groom")) || C->IsA<UStaticMeshComponent>())) Hair.Add(C);
@@ -1425,8 +1498,19 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			}
 		Back = Best;
 		// [rider pose] Flat wrists (beenster): each hand turned round its grip until the knuckles
-		// carry on the forearm's line, the back of the hand in line with the forearm. A few passes,
-		// since where the wrist sits by the bar moves with the hand's turn.
+		// carry on the forearm's line, the back of the hand in line with the forearm, and then rolled
+		// on round it as far as the rider rig's hand rolls the throttle. A few passes, since where
+		// the wrist sits by the bar moves with the hand's turn.
+		double RollRad[2] = {0.0, 0.0};
+		for (int32 S = 0; S < 2; ++S)
+		{
+			FVector Was = BarAt[S] - ToC(Tg.WristUnrolled[S]), Now = BarAt[S] - ToC(Tg.Wrist[S]);
+			Was -= BarAxis[S] * FVector::DotProduct(Was, BarAxis[S]);
+			Now -= BarAxis[S] * FVector::DotProduct(Now, BarAxis[S]);
+			if (HandOffS[S] < 0.01 && !Tg.WristUnrolled[S].IsZero() && Was.Size() > 1.0 && Now.Size() > 1.0)
+				RollRad[S] = FMath::Atan2(FVector::DotProduct(FVector::CrossProduct(Was, Now), BarAxis[S]), FVector::DotProduct(Was, Now));
+			RideReport.GripRollDeg[S] = FMath::RadiansToDegrees(RollRad[S]);
+		}
 		for (int32 Pass = 0; Pass < 3; ++Pass)
 			for (int32 S = 0; S < 2; ++S)
 			{
@@ -1434,14 +1518,16 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const double Lu = (Bones[LowerArm[S]].Rest - Bones[UpperArm[S]].Rest).Size();
 				const double Lf = (Bones[HandBone[S]].Rest - Bones[LowerArm[S]].Rest).Size();
 				const FVector Pole = (-Fwd * 0.25 + Right * (Side * 0.6) - Up * 0.75).GetSafeNormal();
-				const FVector Elbow = MidJoint(ShoulderOf(Back, S), WristAt[S], Lu, Lf, Pole);
-				FVector Along = WristAt[S] - Elbow;
+				const FVector Elbow = MidJoint(ShoulderOf(Back, S), WristFit[S], Lu, Lf, Pole);
+				FVector Along = WristFit[S] - Elbow;
 				Along -= BarAxis[S] * FVector::DotProduct(Along, BarAxis[S]);
 				if (Along.Size() < 1.0) continue;
+				Along = FQuat(BarAxis[S].GetSafeNormal(), RollRad[S]).RotateVector(Along.GetSafeNormal());
 				FVector Palm1, GripWrist;
-				HandOnBar(S, BarAt[S], BarAxis[S], Along.GetSafeNormal(), 1.5, 3.0, HandQ[S], GripWrist, Palm1);
-				WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off);
-				AimOn[S] = Along.GetSafeNormal();
+				HandOnBar(S, BarAt[S], BarAxis[S], Along, 1.5, 3.0, HandQ[S], GripWrist, Palm1);
+				WristAt[S] = FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), HandOffS[S]);
+				WristFit[S] = Tg.HandOff[S] > 0.0 ? FMath::Lerp(GripWrist, ToC(Tg.Wrist[S]), Off) : WristAt[S];
+				AimOn[S] = Along;
 				PalmOn[S] = Palm1;
 			}
 	}
@@ -1614,6 +1700,14 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 			RideReport.HandShort[S] = (P[HandBone[S]] - WristAt[S]).Size() * Scale;
 			RideReport.AnkleShort[S] = (P[FootBone[S]] - AnkleAim[S]).Size() * Scale;
 			RideReport.KneeOut[S] = FMath::Abs(Rel.TransformPosition(P[Calf[S]]).Y);
+			// The index's and middle finger's curl from the hand (their 03 joints' turn from the hand's),
+			// to see the lever fingers lift and pull.
+			auto CurlOf = [&](int32 Fi) {
+				const int32 Tip = Finger[S][Fi][2] != INDEX_NONE ? Finger[S][Fi][2] : Finger[S][Fi][1];
+				return Tip != INDEX_NONE ? FMath::RadiansToDegrees((D[HandBone[S]].Inverse() * D[Tip]).GetAngle()) : -1.0;
+			};
+			RideReport.IndexCurlDeg[S] = CurlOf(1);
+			RideReport.MiddleCurlDeg[S] = CurlOf(2);
 		}
 	}
 }

@@ -275,6 +275,8 @@ FString FTorqueLights::ToggleFog(bool& bOk)
 
 FString FTorqueLights::CycleBeam(bool& bOk)
 {
+	// beenster (Nov 12): one switch steps round dipped beam, main beam, main beam with the fog lights
+	// (when fitted), then off.
 	bOk = HasHeadlight();
 	if (!bOk) return TEXT("No headlight on this bike");
 	if (!bHeadlight)
@@ -283,17 +285,16 @@ FString FTorqueLights::CycleBeam(bool& bOk)
 		bMainBeam = bFog = false;
 		return TEXT("Lights: dipped beam");
 	}
-	if (!bMainBeam && !bFog)
+	if (!bMainBeam)
 	{
 		bMainBeam = true;
+		bFog = false;
 		return TEXT("Lights: main beam");
 	}
-	if (bMainBeam && HasFog())
+	if (!bFog && HasFog())
 	{
-		// Fog lamps go with the dipped beam (main beam in fog dazzles back off it).
-		bMainBeam = false;
 		bFog = true;
-		return TEXT("Lights: fog lights and dipped beam");
+		return TEXT("Lights: main beam and fog lights");
 	}
 	bHeadlight = bMainBeam = bFog = false;
 	return TEXT("Lights: off");

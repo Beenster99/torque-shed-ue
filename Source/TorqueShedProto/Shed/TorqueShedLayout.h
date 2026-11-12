@@ -134,8 +134,12 @@ inline const TArray<FTorquePlace>& Places()
 		Add(ETorquePlace::Washer, FString::Printf(TEXT("washer_%d"), I), FVector(X - 30.0, 445.0, 85.0), FVector(X + 30.0, 515.0, 97.0),
 			FVector(X, 475.0, 80.0), I);
 	}
-	// The tyre changer's table past the bench's end, and the engine stand by the east bay.
-	Add(ETorquePlace::Changer, TEXT("changer"), FVector(-634.0, 325.0, 66.0), FVector(-574.0, 385.0, 80.0), FVector(-604.0, 355.0, 77.0), 0);
+	// The tyre changer's table past the bench's end, and the engine stand by the east bay. (The
+	// changer is the tyre_changer prop now, Data/Props/swaps.json: its turntable's top at 86 cm and
+	// the clamp jaws a wheel rests on at 89 (its middle 8 cm out from the stand, to +x), not the old
+	// grey-box table's 77 the wheels sank into:
+	// beenster, Nov 12.)
+	Add(ETorquePlace::Changer, TEXT("changer"), FVector(-626.0, 325.0, 78.0), FVector(-566.0, 385.0, 93.0), FVector(-596.0, 355.0, 89.0), 0);
 	Add(ETorquePlace::Stand, TEXT("stand"), FVector(-25.0 + 560.0, -55.0, 55.0), FVector(565.0 + 20.0, -25.0, 90.0), FVector(560.0, -40.0, 82.0), 0);
 	// The bins left of the roller door, y 487 .. 547, 92 high.
 	static const TCHAR* const BinNames[] = {TEXT("general"), TEXT("plastic"), TEXT("metal")};

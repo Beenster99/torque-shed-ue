@@ -99,6 +99,8 @@ public:
 	FTorqueBikeFitView FitView;
 	// Geometry mode's draft fit drawn in place of the saved one (null: back to the saved one).
 	void Preview(const FString* Geo);
+	// Geometry mode open on it: out of its bay it stands level on both wheels, not leaned on its stand.
+	bool bHeldLevel = false;
 
 private:
 	TOptional<FString> PreviewGeo;
@@ -119,4 +121,19 @@ private:
 	FTransform PreviewXf;
 	bool bShownAway = false;
 	void Follow(float Dt);
+	// How it stands (beenster, Nov 12: "bikes need to sit on their sidestands when you get off them,
+	// wherever you are"): 0 on the paddock stand in its bay, 1 leaned on its side stand, 2 up on its
+	// centre stand, 3 upright on its wheels (being wheeled, on a lift or the dyno, or no stand fitted).
+	// -1: not posed yet (Rebuild sets it back, so a rebuilt bike is posed again, not left pitched
+	// nose down off its paddock stand).
+	int32 ShownPose = -1;
+	int32 WantedPose() const;
+	void ApplyPose(int32 Pose);
+	// From the last Rebuild: the bike's origin height (its rear axle, cm), its swingarm pivot (model
+	// cm) and its stands (catalogue part ids, "" for none) with their surfaces as drawn (folded).
+	double RearAxleZ = 30.5;
+	FVector PaddockLoc = FVector(0.0, 0.0, 32.5);
+	FVector SwingPivotCm = FVector(-20.0, 0.0, 10.0);
+	FString SideStandId, CentreStandId;
+	TArray<TPair<TWeakObjectPtr<UStaticMeshComponent>, FTransform>> StandRest;
 };

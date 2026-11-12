@@ -291,6 +291,7 @@ void ATorqueGeometryMode::Begin(ATorqueWalker* Walker, ATorqueShedBike* Bike, in
 	S.Bike = Bike;
 	S.Bay = Bay;
 	S.OpenFrame = GFrameCounter;
+	if (Bike) Bike->bHeldLevel = true;   // out of its bay: upright on both wheels while it's fitted, not on its stand
 	UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
 	S.Saved = TGMI::TgmParse(B ? B->Bike(Bay).Geo : FString());
 	S.Draft = S.Saved;
@@ -460,7 +461,11 @@ void ATorqueGeometryMode::Close()
 		if (C.IsValid() && C->GetOverlayMaterial() == LitMaterial) C->SetOverlayMaterial(nullptr);
 	Lit.Reset();
 	// The bike as its saved fit has it (drawn again if the draft's rig handles had it re-formed).
-	if (ATorqueShedBike* Bike = S.Bike.Get()) Bike->Preview(nullptr);
+	if (ATorqueShedBike* Bike = S.Bike.Get())
+	{
+		Bike->Preview(nullptr);
+		Bike->bHeldLevel = false;
+	}
 	HideWalker(false);
 	if (APlayerController* PC = S.PC.Get())
 	{

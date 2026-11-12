@@ -53,6 +53,10 @@ FName PreferredStyle(FName Part);
 TArray<FName> PartStyles(FName Part);
 // It suits a bike of this type (true for a part made for any bike, or for Style none).
 bool SuitsStyle(FName Part, FName Style);
+// An engine's layout as the shop groups them (beenster, Nov 12): parts.json "type" ("45° V-twin"),
+// "" for anything not an engine; and the order the layouts are listed in (singles first, fours last).
+FString EngineLayout(FName Part);
+int32 EngineLayoutOrder(FName Part);
 // The catalogue's parts of a kind, in its order.
 TArray<FName> PartsOfKind(FName Kind);
 // Kinds that bolt on (no fluids), in the game's order.

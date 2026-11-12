@@ -30,7 +30,7 @@ class UPointLightComponent;
 struct FTorqueLights
 {
 	// --- The switches.
-	bool bHeadlight = true;   // dipped beam (Torque Shed's beam 1: a bike leaves the shed with it on)
+	bool bHeadlight = false;  // dipped beam (beenster, Nov 12: off when a bike is started; L / d-pad up cycles)
 	bool bMainBeam = false;   // main (high) beam
 	bool bFog = false;        // the fog lights
 	int32 Side = 0;           // the indicators: -1 left, 1 right, 0 off

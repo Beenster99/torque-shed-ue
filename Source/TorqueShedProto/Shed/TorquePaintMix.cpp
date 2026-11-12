@@ -285,6 +285,19 @@ FPaintSpec Look(const FTinMix& Tin)
 	else if (Effect == FName(TEXT("flake")) || Effect == FName(TEXT("pearl"))) Out.Rough = 0.18f;
 	else if (Effect == FName(TEXT("chrome"))) Out.Rough = 0.03f;
 	else Out.Rough = 0.1f;
+	if (Effect == FName(TEXT("chrome")))
+	{
+		// A mirror (beenster, Nov 12: black chrome sprayed on a black tank didn't show): all metal, and
+		// however much smoke is in it, it still reflects; black chrome is a dark mirror, not black paint.
+		Out.Metal = 1.0f;
+		const float Peak = FMath::Max3(Out.Colour.R, Out.Colour.G, Out.Colour.B);
+		if (Peak < 0.38f)
+		{
+			const float Lift = 0.38f / FMath::Max(Peak, 0.02f);
+			Out.Colour = Peak < 0.02f ? FLinearColor(0.38f, 0.38f, 0.39f, Out.Colour.A)
+				: FLinearColor(Out.Colour.R * Lift, Out.Colour.G * Lift, Out.Colour.B * Lift, Out.Colour.A);
+		}
+	}
 	Out.Need = (Effect == FName(TEXT("solid")) || Effect == FName(TEXT("metallic"))) ? 2 : 3;
 	return Out;
 }

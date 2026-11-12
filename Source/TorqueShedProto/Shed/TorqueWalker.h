@@ -87,6 +87,8 @@ public:
 	float WorkFraction() const;
 	// [fluids] Pumping petrol (no work ring: the squirts go round and round; the pump dings when full).
 	bool PumpFilling() const;
+	// The nozzle squeezed and fuel going in (not blocked: the tank's full, no fuel...).
+	bool PumpFlowing() const;
 	int32 ToolIndex() const { return (int32)Tool; }
 	// Where the tool in hand sits on the tool bar (TorqueToolBar), or -1.
 	int32 ToolSlot() const;
@@ -168,6 +170,8 @@ public:
 	// --- For hands-off tests (UTorqueShedTest, -TorqueShedAction=) --------------------------------
 	// Stand Distance cm from a point, on the side Away points to, and look at it; say what's seen.
 	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
+	// [ping test] The ping, as middle mouse does it, from where the walker looks now: what was pinged ("" nothing).
+	FString TestPing() { return Ping(); }
 	// [outline test] The look outline left off (to read the screen without it), and what's in place for it.
 	bool bTestNoOutline = false;
 	FString TestOutlineStatus(bool& bOk) const;
@@ -225,6 +229,13 @@ public:
 		Out = P->Request;
 		return true;
 	}
+	// [fluids] Pouring your can now (into a tank, an engine, the waste): ATorqueShedItems tips it over
+	// the crosshair and draws the stream.
+	bool PouringCan() const
+	{
+		FTorqueShedRequest R;
+		return SoundJob(R) && (R.Kind == ETorqueShedAct::Pour || R.Kind == ETorqueShedAct::Tip);
+	}
 	FName TestTargetSlot() const { return TargetSlot; }
 	// Everything the last look went into, nearest first (for a test whose aim missed).
 	FString TestCandidates() const;
@@ -271,7 +282,8 @@ private:
 	void FindTarget();
 	// [ping] Middle mouse (D-pad left): what's in the middle of the view, up to 60 m, marked for the
 	// whole crew (Coop/TorquePing.h; walker.gd ping()).
-	void Ping();
+	// Returns what was pinged (sent), "" for nothing.
+	FString Ping();
 	struct FLookHit
 	{
 		ETorqueLook Kind = ETorqueLook::None;

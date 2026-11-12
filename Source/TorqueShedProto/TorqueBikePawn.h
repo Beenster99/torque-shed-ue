@@ -60,6 +60,24 @@ struct FTorqueTelemetry
 	float Throttle = 0.0f, FrontBrake = 0.0f, RearBrake = 0.0f;   // 0 .. 1
 	float Lean = 0.0f;       // degrees, + right
 	int32 Gear = 0;
+	// Torque Shed's telemetry_overlay.gd (beenster, Nov 12: tyre and engine temperatures and more):
+	// per wheel [0 front, 1 rear].
+	float Steer = 0.0f;                          // degrees, + right
+	float SlipRatio[2] = {0.0f, 0.0f};           // kappa
+	float SlipAngle[2] = {0.0f, 0.0f};           // degrees
+	float GripUsed[2] = {0.0f, 0.0f};            // 1 = the limit
+	float LoadN[2] = {0.0f, 0.0f};
+	bool bContact[2] = {true, true};
+	float SuspMm[2] = {0.0f, 0.0f}, TravelMm[2] = {0.0f, 0.0f};
+	bool bBottomed[2] = {false, false};
+	float TyreSurface[2] = {20.0f, 20.0f}, TyreCarcass[2] = {20.0f, 20.0f}, TyreC[2] = {20.0f, 20.0f};
+	int8 TyreBand[2] = {0, 0};                   // -1 cold, 0 working, 1 overheated
+	float DiscC[2] = {20.0f, 20.0f};
+	float EngineC = 20.0f, OilC = 20.0f, AirC = 15.0f, RoadC = 15.0f;
+	int8 EngineBand = 0;                         // -1 cold, 0 warm, 1 hot
+	bool bLiquid = true, bFan = false;
+	float PitchDeg = 0.0f, RakeDeg = 0.0f, TrailMm = 0.0f, TrailStandMm = 0.0f;
+	float PowerMult = 1.0f;                      // what the heat leaves of the engine's power
 };
 
 UCLASS()
@@ -85,8 +103,13 @@ public:
 	const FTorqueLights& GetLights() const { return Lights; }
 	// The engine still being started (the starter cranking it over), for the speedo's "Starting...".
 	bool IsStarting() const { return EngineCatchIn > 0.0; }
+	bool EngineRunning() const;   // on, or catching (left idling when you get off)
 	// The telemetry overlay's samples, oldest first (ATorqueHUD draws them as strips).
 	const TArray<FTorqueTelemetry>& GetTelemetry() const { return Telemetry; }
+	// [info] For the info panel's riders: how fast it's going (m/s, our sim or a co-op rider's
+	// snapshots), and whether its rider is off.
+	double SpeedMs() const;
+	bool RiderCrashed() const;
 
 	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
 	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand
@@ -145,6 +168,8 @@ public:
 	// Hold a lever for a check of the rider's fingers on it: Side 0 the clutch, 1 the front brake;
 	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
 	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
+	// The rider's right hand rolled to this throttle (0..1) for the pose only, the bike's own throttle untouched (below 0: none).
+	void TestGripThrottle(double Roll) { TestGripThrottleHold = Roll; }
 	// The stage 3 controls for TorqueShedTest, as the keys work them: What "gear" (Arg +1 up, -1 down, as
 	// X / Z: the box goes manual), "ignition" (as I), "clutch" (Arg 1 held, 0 let go, as Left Alt) or "state"
 	// (nothing). Says the gear, the engine, the clutch and the speed after it.
@@ -318,6 +343,7 @@ private:
 	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;
 	void TripLog(const TCHAR* Why);
 	bool bShowHelp = true;
+	bool bHudLines = false;   // the riding info lines top left (F2); a clean screen to start with (beenster, Nov 12)
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
 	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.
 	int32 Weather = 0;
@@ -459,6 +485,7 @@ private:
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
 	bool bTestStopping = false;   // TestStop: the robot brakes instead of holding its speed
+	double TestGripThrottleHold = -1.0;   // TestGripThrottle's roll (below 0: none)
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
 	bool bTestClutch = false;   // TestControl's clutch, held
 	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.

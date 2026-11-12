@@ -701,13 +701,23 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 		if (Verb == TEXT("lever"))
 		{
-			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:off lets both go.
+			// lever:clutch:1 / lever:brake:0.5 hold it (fingers over, pulled that far); lever:throttle:1 rolls the
+			// right grip (pose only); lever:off lets all of them go.
 			const FString Which = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("off"));
 			if (Which == TEXT("off"))
 			{
 				Bike->TestLever(0, -1.0);
 				Bike->TestLever(1, -1.0);
+				Bike->TestGripThrottle(-1.0);
 				Said(TEXT("levers let go"));
+				return true;
+			}
+			if (Which == TEXT("throttle"))
+			{
+				// lever:throttle:0.8 rolls the rider's right grip that far (the pose only; the bike's throttle is its own).
+				const double Roll = P.Num() > 2 ? FCString::Atod(*P[2]) : 1.0;
+				Bike->TestGripThrottle(Roll);
+				Said(FString::Printf(TEXT("throttle grip rolled %.2f"), Roll));
 				return true;
 			}
 			const int32 LeverSide = Which == TEXT("clutch") ? 0 : 1;
@@ -827,6 +837,16 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	}
 	Tries = 0;
 	if (Verb == TEXT("item") || Verb == TEXT("place") || Verb == TEXT("floor") || Verb == TEXT("door") || Verb == TEXT("look")) bAimLost = false;
+
+	// [ping test] "ping": the middle mouse ping from where the walker looks now (after look:..., floor,
+	// item:..., place:...). The marker shows for 6 s, so a shot straight after shows it.
+	if (Verb == TEXT("ping"))
+	{
+		const FString Pinged = W->TestPing();
+		if (Pinged.IsEmpty()) Warn(TEXT("ping: nothing there to ping"));
+		else Said(TEXT("pinged ") + Pinged);
+		return true;
+	}
 
 	if (Verb == TEXT("tool") && P.Num() >= 2)
 	{

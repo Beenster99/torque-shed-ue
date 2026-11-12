@@ -171,6 +171,10 @@ private:
 	std::shared_ptr<TorqueSfxMix::FGenerator> DynoEngine;
 	int32 DynoVoice = 0;
 	int32 ShakerLoop = 0;
+	// Bikes left idling where their riders got off them (UTorqueBuildSubsystem::IsIdling), one per bay.
+	std::shared_ptr<TorqueSfxMix::FGenerator> IdleEngines[4];
+	int32 IdleVoices[4] = {0, 0, 0, 0};
+	void TickIdlers();
 	FDelegateHandle RequestHandle;
 
 	void EnsureSpeaker();

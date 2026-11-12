@@ -62,6 +62,8 @@ private:
 	UPROPERTY(Transient) TArray<UStaticMeshComponent*> Quads;
 	UPROPERTY(Transient) TArray<UMaterialInstanceDynamic*> PageMaterials;
 	bool bDirty = true;
+	int32 BrightShown = -1;   // the TVs' brightness step last set (Settings ScreenBright)
+	void ApplyBrightness();
 	float Clock = 0.0f;
 	FDelegateHandle ChangedHandle, LooksHandle, ItemsHandle;
 	void Redraw();

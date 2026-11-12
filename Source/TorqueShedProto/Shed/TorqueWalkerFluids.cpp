@@ -75,6 +75,11 @@ bool ATorqueWalker::PumpFilling() const
 	return bAltHeld && !bWorkHeld && AltPlan.bValid && AltPlan.Request.Kind == ETorqueShedAct::PumpFill;
 }
 
+bool ATorqueWalker::PumpFlowing() const
+{
+	return PumpFilling() && AltPlan.Blocked.IsEmpty();
+}
+
 void ATorqueWalker::PumpPlan()
 {
 	const UTorqueBuildSubsystem* B = Shed();

@@ -105,9 +105,12 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("Fov"), Fov, Ini);
 	GConfig->GetBool(Section, TEXT("AutoShift"), bAutoShift, Ini);
 	GConfig->GetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
+	GConfig->GetBool(Section, TEXT("InfoPanel"), bInfoPanel, Ini);
+	GConfig->GetBool(Section, TEXT("PlaceLookup"), bPlaceLookup, Ini);
 	GConfig->GetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
 	GConfig->GetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
 	GConfig->GetInt(Section, TEXT("Units"), Units, Ini);
+	GConfig->GetInt(Section, TEXT("ScreenBright"), ScreenBright, Ini);
 	GConfig->GetBool(Section, TEXT("DayNight"), bDayNight, Ini);
 	GConfig->GetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->GetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
@@ -154,6 +157,7 @@ void FTorqueSettings::Load()
 	Vignette = FMath::Clamp(Vignette, 0.0f, 2.0f);
 	Fov = FMath::Clamp(Fov, 60.0f, 110.0f);
 	Units = FMath::Clamp(Units, 0, 1);
+	ScreenBright = FMath::Clamp(ScreenBright, 0, 3);
 	if (!DayLengths().Contains(DayLength)) DayLength = 120;
 	TimeOfDay = TimeOfDay < 0.0f ? -1.0f : FMath::Fmod(TimeOfDay, 24.0f);
 	WeatherMode = FMath::Clamp(WeatherMode, 0, WeatherLive);
@@ -214,9 +218,12 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("Fov"), Fov, Ini);
 	GConfig->SetBool(Section, TEXT("AutoShift"), bAutoShift, Ini);
 	GConfig->SetBool(Section, TEXT("Telemetry"), bTelemetry, Ini);
+	GConfig->SetBool(Section, TEXT("InfoPanel"), bInfoPanel, Ini);
+	GConfig->SetBool(Section, TEXT("PlaceLookup"), bPlaceLookup, Ini);
 	GConfig->SetBool(Section, TEXT("LookIntoCorner"), bLookIntoCorner, Ini);
 	GConfig->SetBool(Section, TEXT("CameraRecentre"), bCameraRecentre, Ini);
 	GConfig->SetInt(Section, TEXT("Units"), Units, Ini);
+	GConfig->SetInt(Section, TEXT("ScreenBright"), ScreenBright, Ini);
 	GConfig->SetBool(Section, TEXT("DayNight"), bDayNight, Ini);
 	GConfig->SetInt(Section, TEXT("DayLength"), DayLength, Ini);
 	GConfig->SetFloat(Section, TEXT("TimeOfDay"), TimeOfDay, Ini);
@@ -539,4 +546,16 @@ FString FTorqueSettings::RiderStyleFor(const APawn* Pawn)
 	}
 	const ATorquePlayerState* PS = Pawn->GetPlayerState<ATorquePlayerState>();
 	return Styles[FMath::Clamp<int32>(PS ? PS->RiderStyle : 0, 0, Styles.Num() - 1)].Id;
+}
+
+float FTorqueSettings::ScreenBrightTimes(int32 Step)
+{
+	static const float Times[4] = {0.3f, 0.55f, 1.0f, 1.45f};
+	return Times[FMath::Clamp(Step, 0, 3)];
+}
+
+const TCHAR* FTorqueSettings::ScreenBrightName(int32 Step)
+{
+	static const TCHAR* const Names[4] = {TEXT("dim"), TEXT("low"), TEXT("normal"), TEXT("bright")};
+	return Names[FMath::Clamp(Step, 0, 3)];
 }

@@ -25,6 +25,7 @@
 #include "Shed/TorqueShedParts.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueWalker.h"
+#include "TorqueBikePawn.h"
 
 #include <mutex>
 
@@ -91,6 +92,11 @@ FString ActName(ETorqueShedAct K)
 	case ETorqueShedAct::OrderPart: return TEXT("order_part");
 	case ETorqueShedAct::TyreFit: return TEXT("tyre_fit");
 	case ETorqueShedAct::TyreRemove: return TEXT("tyre_remove");
+	// Fluids (sfx.gd WORK_LOOPS): the can glugs while it pours, drains or tips; lube is a spray.
+	case ETorqueShedAct::Pour: return TEXT("pour");
+	case ETorqueShedAct::Drain: return TEXT("drain");
+	case ETorqueShedAct::Tip: return TEXT("tip");
+	case ETorqueShedAct::Lube: return TEXT("lube");
 	case ETorqueShedAct::StartBuild:
 	case ETorqueShedAct::ReleaseBike: return TEXT("set_stand");
 	default: return FString();
@@ -787,6 +793,75 @@ void UTorqueSfx::Tick(float Dt)
 	{
 		TickAmbience(Dt);
 		TickKit(Dt);
+		TickIdlers();
+	}
+}
+
+void UTorqueSfx::TickIdlers()
+{
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	if (!Shed || !Mixer) return;
+	static_assert(UTorqueBuildSubsystem::Bays <= 4, "one idling engine per bay");
+	for (int32 Bay = 0; Bay < UTorqueBuildSubsystem::Bays; ++Bay)
+	{
+		bool bRidden = false;
+		for (TActorIterator<ATorqueBikePawn> It(GetWorld()); It && !bRidden; ++It)
+			bRidden = It->InYard() && It->GetRideBay() == Bay;
+		const bool bOn = Shed->IsIdling(Bay) && !bRidden && !Shed->OnDyno(Bay);
+		const FVector EngineAt = Shed->BikeTransform(Bay).GetLocation() + FVector(0.0, 0.0, 45.0);
+		if (bOn && !IdleVoices[Bay])
+		{
+			std::shared_ptr<TorqueEngine::FBank> Bank = BikeEngine(this, Bay);
+			auto Gen = std::make_shared<FRideGen>();
+			Gen->Sound.Ambience = false;
+			Gen->Sound.WindLevel = 0.0;
+			Gen->Sound.EngineLevel = FMath::Clamp(FTorqueSettings::Get().Engine, 0.0f, 1.0f);
+			if (Bank)
+			{
+				Gen->Sound.SetEngine(Bank);
+				Gen->Sound.IdleRpm = Bank->Spec.Idle;
+			}
+			else
+			{
+				TArray<uint8> Bytes;
+				int WavRate = 0;
+				if (FFileHelper::LoadFileToArray(Bytes, *FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Audio/idle_parallel270.wav")), FILEREAD_Silent))
+				{
+					std::vector<float> Idle = TorqueSound::ReadWav(std::vector<uint8_t>(Bytes.GetData(), Bytes.GetData() + Bytes.Num()), WavRate);
+					if (!Idle.empty()) Gen->Sound.SetIdle(std::move(Idle), WavRate, 1319.0);
+				}
+			}
+			{
+				std::lock_guard<std::mutex> G(Gen->Lock);
+				Gen->In.Rpm = Gen->Sound.IdleRpm;
+				Gen->In.Throttle = 0.0;
+				Gen->In.Inside = 0.0;
+				Gen->In.EngineOn = true;
+			}
+			IdleEngines[Bay] = Gen;
+			FPlay P;
+			P.Gen = Gen;
+			P.At = V(EngineAt);
+			P.Unit = 500.0;
+			P.MaxDistance = 0.0;
+			P.Db = Occlusion(EngineAt) - 3.0;
+			P.Bus = BusFor(EngineAt);
+			P.FadeIn = 0.2;
+			IdleVoices[Bay] = Mixer->Play(P);
+			UE_LOG(LogTemp, Log, TEXT("Torque: bay %d's bike left idling (%s)"), Bay + 1, Bank ? TEXT("its own engine") : TEXT("recorded idle"));
+		}
+		if (IdleVoices[Bay] && bOn)
+		{
+			Mixer->SetAt(IdleVoices[Bay], V(EngineAt));
+			Mixer->SetBus(IdleVoices[Bay], BusFor(EngineAt));
+			Mixer->SetDb(IdleVoices[Bay], Occlusion(EngineAt) - 3.0);
+		}
+		else if (IdleVoices[Bay])
+		{
+			Mixer->Stop(IdleVoices[Bay], 0.6);
+			IdleVoices[Bay] = 0;
+			IdleEngines[Bay].reset();
+		}
 	}
 }
 
@@ -855,6 +930,9 @@ void UTorqueSfx::TickWalkers(float Dt)
 				const bool bPaint = R.Kind == ETorqueShedAct::Paint || R.Kind == ETorqueShedAct::Prime || R.Kind == ETorqueShedAct::Coat;
 				Want = bPaint && bGun ? FString(TEXT("spray_gun")) : FString(UTF8_TO_TCHAR(WorkLoop(S(ActName(R.Kind)))));
 			}
+			// The petrol pump's nozzle squeezed into a tank: the fuel glugging in.
+			else if (W->PumpFlowing())
+				Want = TEXT("pour");
 		}
 		else if (W->SoundWorking())
 			Want = UTF8_TO_TCHAR(ToolLoop(S(ToolName(W->SoundTool()))));

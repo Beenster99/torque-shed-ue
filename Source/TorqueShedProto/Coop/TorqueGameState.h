@@ -114,6 +114,9 @@ public:
 	static void TestClockSet() { bTestClockSet = true; }
 	// [test] the weather where this machine's camera is, every number, and where that is on Earth.
 	FString WeatherHereText() const;
+	// [info] A point of the level (cm) as a place on Earth and its height above sea level, metres, by
+	// the route's origin (Buttertubs' origin_geo, or -TorqueWeatherAt=).
+	void GeoAt(const FVector& At, double& Lat, double& Lon, double& Asl) const;
 
 private:
 	UPROPERTY(ReplicatedUsing = OnRep_Weather) int32 Weather = 0;

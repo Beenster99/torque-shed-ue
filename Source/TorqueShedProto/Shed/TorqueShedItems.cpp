@@ -3,10 +3,12 @@
 
 #include "Shed/TorqueBuildSubsystem.h"
 #include "Shed/TorqueEffectPaint.h"
+#include "Shed/TorqueFurniture.h"
 #include "Shed/TorqueShedBike.h"
 #include "Shed/TorqueShedCatalogue.h"
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueShedParts.h"
+#include "Shed/TorqueToolModels.h"
 #include "Shed/TorqueWalker.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -237,6 +239,13 @@ void SetLooks(UStaticMeshComponent* C, float Dirt, float Rust, const FLinearColo
 		for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, Metallic);
 		for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, Roughness);
 	}
+}
+// [fluids] A can's fluid as it shows (its own colour, darkened as it ages).
+FLinearColor CanFluidColour(const FTorqueItem& Can)
+{
+	const FName Kind = TorqueShedParts::PartKind(Can.Part);
+	const FName Source = Can.FluidType.IsNone() ? Can.Part : Can.FluidType;
+	return TorqueFluidModels::AgedColour(Kind, TorqueShedParts::LiquidColour(Source), Can.FluidAge);
 }
 } // namespace TorqueShedItemsImpl
 
@@ -637,13 +646,39 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickVessels(DeltaSeconds);
+	TickPour(DeltaSeconds);
 	// [tyre] The tyre changer's turntable turns while anyone works a tyre on or off (2.2 rad/s, workshop.gd).
 	bool bTurning = false;
 	for (TActorIterator<ATorqueWalker> W(GetWorld()); W && !bTurning; ++W) bTurning = W->TurningChanger();
 	if (bTurning) ChangerSpin = FMath::Fmod(ChangerSpin + DeltaSeconds * 2.2, UE_DOUBLE_TWO_PI);
+	// [trolley] Trolleys being wheeled about: what's on them rides along (put where it went on release).
+	const UTorqueBuildSubsystem* Shed = UTorqueBuildSubsystem::Of(this);
+	struct FMovingTrolley { const TorqueFurniture::FModel* Model; FTransform Was, Now; };
+	TArray<FMovingTrolley, TInlineAllocator<4>> Moving;
+	if (Shed)
+		for (const FTorqueFurniture& F : Shed->Furniture())
+			if (F.Mover != 0)
+				if (const TorqueFurniture::FModel* M = TorqueFurniture::Find(F.Model); M && TorqueFurniture::IsTrolley(*M))
+					Moving.Add({M, F.Xf, TorqueFurniture::DrawnXf(this, F)});
+	TSet<int32> RidingNow;
 	for (const FDrawn& D : Drawn)
 	{
 		USceneComponent* H = D.Holder.Get();
+		if (H && D.HeldBy == 0 && Shed && (Moving.Num() > 0 || Riding.Contains(D.Item)) && !D.bOnChanger && !D.bOnStand && D.Hook == INDEX_NONE)
+			if (const FTorqueItem* It = Shed->Item(D.Item); It && It->At == ETorqueAt::Floor)
+			{
+				FTransform Rest = It->Place;
+				for (const FMovingTrolley& T : Moving)
+					if (TorqueFurniture::OnTrolley(*T.Model, T.Was, Rest.GetLocation()))
+					{
+						Rest = Rest * T.Was.Inverse() * T.Now;
+						RidingNow.Add(D.Item);
+						break;
+					}
+				if (RidingNow.Contains(D.Item) || Riding.Contains(D.Item))
+					H->SetWorldLocationAndRotation(Rest.GetLocation() - Rest.GetRotation().RotateVector(D.Offset), Rest.GetRotation());
+				continue;
+			}
 		if (H && D.HeldBy == 0 && D.bOnChanger)
 		{
 			if (bTurning)
@@ -678,7 +713,95 @@ void ATorqueShedItems::Tick(float DeltaSeconds)
 			continue;
 		}
 		H->SetVisibility(true, true);
-		H->SetWorldLocationAndRotation(Hand.GetLocation() - Hand.GetRotation().RotateVector(D.Centre), Hand.GetRotation());
+		FVector HeldLoc = Hand.GetLocation() - Hand.GetRotation().RotateVector(D.Centre);
+		FQuat HeldRot = Hand.GetRotation();
+		if (D.Item == PourItem && PourBlend > 0.0)
+		{
+			// [fluids] Tipped forward over the crosshair, the spout (its front top) a hand's width above
+			// where it's pouring, brought there from the hand as it tips.
+			const double Ease = FMath::InterpEaseInOut(0.0, 1.0, FMath::Clamp(PourBlend, 0.0, 1.0), 2.0);
+			const FQuat Tipped = FRotator(-72.0, PourYaw, 0.0).Quaternion();
+			const FVector Spout = D.Centre + FVector(D.Size.X * 0.32, 0.0, D.Size.Z * 0.5);
+			const FVector SpoutTo = PourAt + FVector(0.0, 0.0, 12.0) - FRotator(0.0, PourYaw, 0.0).Vector() * 3.0;
+			// Not out of reach: no further than an arm's length from where it's held.
+			const FVector HandSpout = HeldLoc + HeldRot.RotateVector(Spout);
+			const FVector Reach = HandSpout + (SpoutTo - HandSpout).GetClampedToMaxSize(70.0);
+			const FVector TippedLoc = Reach - Tipped.RotateVector(Spout);
+			HeldLoc = FMath::Lerp(HeldLoc, TippedLoc, Ease);
+			HeldRot = FQuat::Slerp(HeldRot, Tipped, Ease);
+			if (PourStream)
+			{
+				// The stream: from the spout straight down to whatever's under it, a little ripple in it.
+				const FVector From = HeldLoc + HeldRot.RotateVector(Spout);
+				FHitResult Under;
+				FCollisionQueryParams Q(SCENE_QUERY_STAT(TorquePourStream), false, this);
+				const double Fall = GetWorld() && GetWorld()->LineTraceSingleByChannel(Under, From, From - FVector(0.0, 0.0, 150.0), ECC_Visibility, Q)
+					? FMath::Max(1.0, Under.Distance) : 40.0;
+				const double Wide = (0.007 + 0.0018 * FMath::Sin(PourClock * 37.0)) * FMath::Clamp((PourBlend - 0.7) / 0.3, 0.0, 1.0);
+				PourStream->SetWorldLocationAndRotation(From - FVector(0.0, 0.0, Fall * 0.5), FQuat::Identity);
+				PourStream->SetWorldScale3D(FVector(Wide, Wide, Fall / 100.0));
+				PourStream->SetVisibility(Wide > 0.0005);
+			}
+		}
+		H->SetWorldLocationAndRotation(HeldLoc, HeldRot);
+	}
+	Riding = MoveTemp(RidingNow);
+}
+
+void ATorqueShedItems::TickPour(float DeltaSeconds)
+{
+	// [fluids] Is your can pouring (the work button held on a pour or a tip, the job under way)?
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	bool bPouring = false;
+	if (B && GetWorld())
+		for (TActorIterator<ATorqueWalker> W(GetWorld()); W; ++W)
+		{
+			if (!W->IsLocallyControlled() || !W->PouringCan()) continue;
+			const int32 Can = B->HeldBy(B->Me());
+			if (Can == 0) break;
+			// Where the crosshair is on what it's going into (not the can itself).
+			const FVector Eye = W->GetPawnViewLocation();
+			const FVector Look = W->GetBaseAimRotation().Vector();
+			FCollisionQueryParams Q(SCENE_QUERY_STAT(TorquePourAim), false, *W);
+			TArray<const UStaticMeshComponent*> CanMeshes;
+			MeshesOf(Can, CanMeshes);
+			for (const UStaticMeshComponent* M : CanMeshes) Q.AddIgnoredComponent(M);
+			if (PourStream) Q.AddIgnoredComponent(PourStream);
+			FHitResult Aim;
+			if (!GetWorld()->LineTraceSingleByChannel(Aim, Eye, Eye + Look * 350.0, ECC_Visibility, Q)) break;
+			if (PourItem != Can) PourBlend = 0.0;
+			PourItem = Can;
+			PourAt = Aim.ImpactPoint;
+			PourYaw = W->GetBaseAimRotation().Yaw;
+			bPouring = true;
+			break;
+		}
+	PourBlend = FMath::FInterpConstantTo(PourBlend, bPouring ? 1.0 : 0.0, (double)DeltaSeconds, bPouring ? 2.2 : 3.0);
+	PourClock += DeltaSeconds;
+	if (PourBlend <= 0.0 && !bPouring) PourItem = 0;
+	if (!PourStream && PourItem != 0 && ShapeCube)
+	{
+		PourStream = NewObject<UStaticMeshComponent>(this, TEXT("PourStream"));
+		PourStream->SetStaticMesh(ShapeCube);
+		PourStream->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		PourStream->SetCastShadow(false);
+		PourStream->SetupAttachment(RootComponent);
+		PourStream->RegisterComponent();
+		PourStreamMat = TorqueToolModels::Finish(this, FLinearColor::White, 0.0f, 0.08f);
+		if (PourStreamMat) PourStream->SetMaterial(0, PourStreamMat);
+	}
+	if (!PourStream) return;
+	const FTorqueItem* It = B ? B->Item(PourItem) : nullptr;
+	if (!It || PourBlend < 0.7)
+	{
+		PourStream->SetVisibility(false);
+		return;
+	}
+	if (PourStreamMat)
+	{
+		const FLinearColor Colour = TSI::CanFluidColour(*It);
+		PourStreamMat->SetVectorParameterValue(TEXT("Color"), Colour);
+		PourStreamMat->SetVectorParameterValue(TEXT("Color2"), Colour);
 	}
 }
 

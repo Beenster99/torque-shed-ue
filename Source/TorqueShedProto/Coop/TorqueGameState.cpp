@@ -755,6 +755,12 @@ void ATorqueGameState::ViewGeo(double& Lat, double& Lon, double& Asl) const
 	Asl = OriginAsl + At.Z / 100.0;
 }
 
+void ATorqueGameState::GeoAt(const FVector& At, double& Lat, double& Lon, double& Asl) const
+{
+	TorqueWeather::Offset(LatitudeAt, LongitudeAt, At.X / 100.0, -At.Y / 100.0, Lat, Lon);
+	Asl = OriginAsl + At.Z / 100.0;
+}
+
 void ATorqueGameState::SetGrid(const TorqueWeather::Grid& G, int64 FetchedAt, double FadeSeconds)
 {
 	// The grid before fades out as this one fades in (both over the shared weather's own fade).

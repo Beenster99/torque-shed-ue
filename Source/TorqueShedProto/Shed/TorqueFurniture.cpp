@@ -215,6 +215,27 @@ UStaticMesh* Mesh(FName Model)
 	return M;
 }
 
+bool IsTrolley(const FModel& M)
+{
+	return M.Kind == FName(TEXT("trolley"));
+}
+
+bool OnTrolley(const FModel& M, const FTransform& TrolleyXf, const FVector& At)
+{
+	if (!IsTrolley(M)) return false;
+	// The model's x is its width, its y its depth (front to back), up its height.
+	const FVector L = TrolleyXf.InverseTransformPosition(At);
+	return FMath::Abs(L.X) <= M.Size.X * 0.5 + 4.0 && FMath::Abs(L.Y) <= M.Size.Z * 0.5 + 4.0 && L.Z > 4.0 && L.Z < M.Size.Y + 250.0;
+}
+
+FTransform DrawnXf(const UObject* WorldContext, const FTorqueFurniture& F)
+{
+	const FModel* M = Find(F.Model);
+	const APawn* Mover = F.Mover != 0 ? TorqueShedKit::PawnOf(WorldContext, F.Mover) : nullptr;
+	if (!M || !Mover) return F.Xf;
+	return Snapped(Mover->GetWorld(), *M, MovedXf(Mover, *M, F.Turn, F.Reach), F.Id);
+}
+
 FTransform MovedXf(const APawn* Pawn, const FModel& M, double Turn, double Reach)
 {
 	if (!Pawn) return FTransform::Identity;
@@ -506,7 +527,24 @@ FString UTorqueBuildSubsystem::ApplyFurniture(int32 Peer, const FTorqueShedReque
 		if (!F) return FString();
 		const FVector At = R.Place.GetLocation();
 		const bool bLifted = M && (M->bWall || M->Small());
+		const FTransform Was = F->Xf;
 		F->Xf = FTransform(FRotator(0.0, R.Place.Rotator().Yaw, 0.0), FVector(At.X, At.Y, bLifted ? FMath::Clamp(At.Z, -10.0, 400.0) : 0.0));
+		// [trolley] What's on its deck (boxes, stacks of them, parts) goes where it went.
+		if (M && TorqueFurniture::IsTrolley(*M))
+		{
+			int32 Carried = 0;
+			for (TPair<int32, FTorqueItem>& KV : Items)
+				if (KV.Value.At == ETorqueAt::Floor && TorqueFurniture::OnTrolley(*M, Was, KV.Value.Place.GetLocation()))
+				{
+					KV.Value.Place = KV.Value.Place * Was.Inverse() * F->Xf;
+					++Carried;
+				}
+			if (Carried > 0)
+			{
+				OnItems.Broadcast();
+				UE_LOG(LogTemp, Log, TEXT("Torque: the %s carried %d things"), *M->Name.ToLower(), Carried);
+			}
+		}
 		F->Mover = 0;
 		F->Turn = F->Reach = 0.0f;
 		return FString();

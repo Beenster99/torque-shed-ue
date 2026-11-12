@@ -36,6 +36,7 @@
 #include "Shed/TorqueTyreGame.h"
 #include "SonyPad.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -644,7 +645,10 @@ void ATorqueWalker::ReadInput(float Dt)
 	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
 	// for the whole crew (walker.gd's "ping").
 	if (!bComputer && !bBench && (KeyJust(ETorqueKey::Ping) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque ping: ping pressed on foot"));
 		Ping();
+	}
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
@@ -1181,11 +1185,15 @@ void ATorqueWalker::FindTarget()
 		}
 }
 
-void ATorqueWalker::Ping()
+FString ATorqueWalker::Ping()
 {
 	APlayerController* PC = Cast<APlayerController>(Controller);
 	UWorld* World = GetWorld();
-	if (!PC || !World || !Camera) return;
+	if (!PC || !World || !Camera)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque ping: pressed, but the walker has no controller or camera"));
+		return FString();
+	}
 	// What the look finds as far as a ping reaches (walker.gd PING_REACH): the walker's own look, with
 	// a longer arm, then put back as it was.
 	const float ArmReach = Reach;
@@ -1247,15 +1255,21 @@ void ATorqueWalker::Ping()
 	if (TorquePing::PlayerOnLine(this, Start, Look, ThingCm, Who, WhoCm))
 	{
 		TorquePing::Send(PC, Who);
-		return;
+		return Who.What;
 	}
 	if (!P.What.IsEmpty())
 	{
 		TorquePing::Send(PC, P);
-		return;
+		return P.What;
 	}
 	// Nothing in the shed by name: the spot the look meets (the floor, a wall, the road), or nothing.
-	if (TorquePing::FromView(PC, this).IsEmpty()) Say(TEXT("Nothing there to ping."), false, 2.0);
+	const FString Spot = TorquePing::FromView(PC, this);
+	if (Spot.IsEmpty())
+	{
+		Say(TEXT("Nothing there to ping."), false, 2.0);
+		UE_LOG(LogTemp, Log, TEXT("Torque ping: pressed, nothing within reach"));
+	}
+	return Spot;
 }
 
 TArray<int32> ATorqueWalker::ItemsNear(const FVector& At, double Radius) const
@@ -2190,6 +2204,24 @@ FTransform ATorqueWalker::CarryDrop() const
 		}
 	}
 	FVector At = Feet + Flat * Dist;
+	// beenster (Nov 12): where the crosshair points. Looking down at the floor (or a low surface)
+	// within reach, it goes down there; looking ahead or up, the wheel's reach as before.
+	if (World)
+		if (const APlayerController* AimPC = Cast<APlayerController>(GetController()); AimPC && AimPC->PlayerCameraManager)
+		{
+			const FVector Eye = AimPC->PlayerCameraManager->GetCameraLocation();
+			const FVector Look = AimPC->PlayerCameraManager->GetCameraRotation().Vector();
+			FHitResult Aim;
+			const double AimRange = 55.0 + Half + TWI::CarryMax + 150.0;
+			if (Look.Z < -0.05 && World->LineTraceSingleByChannel(Aim, Eye, Eye + Look * AimRange, ECC_Visibility, Params) &&
+				Aim.ImpactNormal.Z > 0.7 && Aim.ImpactPoint.Z < Feet.Z + 60.0)
+			{
+				const FVector2D Off(Aim.ImpactPoint.X - Feet.X, Aim.ImpactPoint.Y - Feet.Y);
+				const double Along = FMath::Clamp(Off.Size(), Base + TWI::CarryMin, Base + TWI::CarryMax);
+				const FVector2D Dir2 = Off.SizeSquared() > 1.0 ? Off.GetSafeNormal() : FVector2D(Flat.X, Flat.Y);
+				At = FVector(Feet.X + Dir2.X * Along, Feet.Y + Dir2.Y * Along, Feet.Z);
+			}
+		}
 	FHitResult Down;
 	const FVector Top(At.X, At.Y, Feet.Z + 120.0);
 	if (World && World->LineTraceSingleByChannel(Down, Top, Top - FVector(0, 0, 400), ECC_Visibility, Params)) At.Z = Down.ImpactPoint.Z;
@@ -2363,7 +2395,7 @@ void ATorqueWalker::UpdateCues()
 		}
 	}
 	if (XRay && GhostXRayMaterials.Num() == 0)
-		for (const FLinearColor& C : {FLinearColor(1.0f, 0.82f, 0.05f), FLinearColor(1.0f, 0.15f, 0.1f)})
+		for (const FLinearColor& C : {FLinearColor(1.0f, 0.42f, 0.03f), FLinearColor(1.0f, 0.12f, 0.1f)})
 		{
 			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(XRay, this);
 			M->SetVectorParameterValue(TEXT("Color"), C * 2.0f);
@@ -2400,12 +2432,12 @@ void ATorqueWalker::UpdateCues()
 	while (GhostParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostParts);
 	while (XRay && GhostXRayParts.Num() < Pieces.Num() && CubeMesh) MakePart(GhostXRayParts);
 	const bool bOk = Plan.Blocked.IsEmpty();
-	// Yellow where it can go (beenster, build 135: yellow, so it isn't the look outline's orange), red
-	// where it can't; steady, no pulse.
+	// Orange where it can go (beenster, Nov 12: "where your mouse is pointing (and orange)"; it was
+	// yellow after build 135), red where it can't; steady, no pulse.
 	if (GhostMaterials.Num() >= 4)
 	{
 		// fill, edge (can), fill, edge (can't): bright colours over 1, as the glow is in light units.
-		const FLinearColor Can(1.0f, 0.82f, 0.05f), Cannot(1.0f, 0.15f, 0.1f);
+		const FLinearColor Can(1.0f, 0.42f, 0.03f), Cannot(1.0f, 0.12f, 0.1f);
 		GhostMaterials[0]->SetVectorParameterValue(TEXT("Color"), Can * 3.0f);
 		GhostMaterials[0]->SetScalarParameterValue(TEXT("Opacity"), 0.22f);
 		GhostMaterials[1]->SetVectorParameterValue(TEXT("Color"), Can * 6.0f);
@@ -2608,6 +2640,16 @@ void ATorqueWalker::Interact()
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Computer)
 	{
 		OpenComputer();
+		return;
+	}
+	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Tv)
+	{
+		// [tv] F at a wall TV steps their brightness (dim, low, normal, bright, round again); yours,
+		// saved with your settings.
+		FTorqueSettings& Settings = FTorqueSettings::Get();
+		Settings.ScreenBright = (Settings.ScreenBright + 1) % 4;
+		Settings.Save();
+		Say(FString::Printf(TEXT("TV brightness: %s"), FTorqueSettings::ScreenBrightName(Settings.ScreenBright)), true);
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump)
@@ -3027,6 +3069,11 @@ void ATorqueWalker::UpdateHud()
 		HudLines.Add({FString::Printf(TEXT("%s: %s   %s"), *TorqueShedParts::SlotName(TargetSlot), *B->ItemTitle(TargetItem),
 			B->IsBolted(TargetBay, TargetSlot) ? TEXT("bolted") : TEXT("loose")), FColor::White, 0.8f});
 		if (Thing) HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
+		if (Thing && Thing->Kind == FName(TEXT("wheel")))
+		{
+			const FString Fits = UTorqueBuildSubsystem::TyresThatFit(Thing->Part);
+			if (!Fits.IsEmpty()) HudLines.Add({Fits, Info, 0.55f});
+		}
 		if (B->Exists(TargetBay))
 			HudLines.Add({FString::Printf(TEXT("%s: geometry mode (fit this bike's parts)"), *FTorqueKeys::Text(ETorqueKey::GeometryMode)), Prompt, 0.55f});
 		const FString Fab = B->FabOwedText(TargetBay);
@@ -3042,6 +3089,11 @@ void ATorqueWalker::UpdateHud()
 			HudLines.Add({B->ItemTitle(TargetItem) + Where, FColor::White, 0.8f});
 			HudLines.Add({B->ConditionText(TargetItem), Info, 0.55f});
 			if (Thing->Tyre != 0) HudLines.Add({TEXT("Tyre: ") + B->ItemTitle(Thing->Tyre), Info, 0.55f});
+			if (Thing->Kind == FName(TEXT("wheel")) && !Thing->bBoxed)
+			{
+				const FString Fits = UTorqueBuildSubsystem::TyresThatFit(Thing->Part);
+				if (!Fits.IsEmpty()) HudLines.Add({Fits, Info, 0.55f});
+			}
 			if (Thing->bBoxed) HudLines.Add({TEXT("F / Triangle: unpack it"), Prompt, 0.65f});
 		}
 		break;
@@ -3054,6 +3106,9 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
 				HudLines.Add({FString::Printf(TEXT("Right mouse / Square: change channel (next: %s)"),
 					TorqueShedTv::Name(TorqueShedTv::Next(TargetPlace->Index, B->TvChannel(TargetPlace->Index)))), Prompt, 0.65f});
+			if (TargetPlace->Kind == ETorquePlace::Tv)   // [tv]
+				HudLines.Add({FString::Printf(TEXT("F / Triangle: brightness (now %s)"),
+					FTorqueSettings::ScreenBrightName(FTorqueSettings::Get().ScreenBright)), Prompt, 0.6f});
 			if (TargetPlace->Kind == ETorquePlace::Tv && B->TvChannel(TargetPlace->Index) == TorqueShedTv::YouTube)   // [tv]
 				HudLines.Add({TEXT("Ctrl+V: play the YouTube link you've copied"), Prompt, 0.55f});
 			if (TargetPlace->Kind == ETorquePlace::Lift)

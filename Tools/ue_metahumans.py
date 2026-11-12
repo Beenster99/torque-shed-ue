@@ -15,6 +15,7 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make rig nowardrobe   the same with no hair or clothes (whole bodies)
     py Tools/ue_metahumans.py make rig A B          only Avatar_A and Avatar_B (the others kept)
     py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
+    py Tools/ue_metahumans.py fab          import beenster's Fab MetaHuman clothes (.mhpkg) for `make` (make does it too)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
 
 Or without opening the editor:
@@ -43,10 +44,10 @@ MAX_TEXTURE = 1024
 # only the medium BobCurly did), so the avatars wear medium (_M_) styles.
 HAIR_TOO_SHORT = ("buzz", "360", "shaved", "bald", "fade", "stubble", "_s_")
 AVATARS = [   # the people made by `make`: a name each, their height (cm), and their hair and clothes (wardrobe keywords)
-    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["work", "jacket", "jean", "boot"]},
-    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jean", "trainer", "sneaker"]},
-    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["overall", "work", "boot"]},
-    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "trouser", "pant", "boot"]},
+    {"name": "Avatar_A", "height": 170.0, "hair": ["_m_", "straight", "part", "slick"], "hair_colour": [0.045, 0.028, 0.016], "outfit": ["jacket", "work", "jean", "boot"]},
+    {"name": "Avatar_B", "height": 176.0, "hair": ["_m_", "wav", "messy", "tousle"], "hair_colour": [0.11, 0.065, 0.035], "outfit": ["hoodie", "jacket", "jean", "boot"]},
+    {"name": "Avatar_C", "height": 182.0, "hair": ["_m_", "side", "fringe", "swept"], "hair_colour": [0.25, 0.17, 0.09], "outfit": ["jacket", "shirt", "jean", "boot"]},
+    {"name": "Avatar_D", "height": 188.0, "hair": ["_m_", "curl", "wav"], "hair_colour": [0.02, 0.015, 0.012], "outfit": ["shirt", "jacket", "jean", "boot"]},
 ]
 
 
@@ -154,6 +155,60 @@ _WARDROBE = None
 
 
 WEAR_CLASSES = ("wardrobe", "groom", "outfit", "cloth", "garment")
+
+
+FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; never cooked
+FAB_VAULT = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
+FAB_SKIP = ("helmet",)   # the helmet goes on the rider by Tools/ue_build_level.py
+
+
+def fab_wardrobe():
+    """Every MetaHuman package (.mhpkg) in the Fab cache but the helmet, imported through the MetaHuman
+    plugin's MetaHumanPackageFactory to /Game/MetaHumanWardrobe/<folder>, so `make` can dress the
+    avatars with its wardrobe items (beenster's MetaHuman Jeans and Boots, Nov 12). The build bakes
+    the garments into each avatar's own folder; these sources are never cooked (their wardrobe item
+    class is editor-only)."""
+    if not os.path.isdir(FAB_VAULT):
+        log("fab: no folder %s" % FAB_VAULT)
+        return
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    factory = getattr(unreal, "MetaHumanPackageFactory", None)
+    for d in sorted(os.listdir(FAB_VAULT)):
+        full = os.path.join(FAB_VAULT, d)
+        if not os.path.isdir(full) or any(w in d.lower() for w in FAB_SKIP):
+            continue
+        pkgs = []
+        for root, _, names in os.walk(full):
+            pkgs += [os.path.join(root, n) for n in names if n.lower().endswith(".mhpkg")]
+        if not pkgs:
+            others = []
+            for root, _, names in os.walk(full):
+                others += names
+            log("fab: %s has no MetaHuman package (%s); not wearable by the avatars" % (d, ", ".join(others[:8])))
+            continue
+        dest = FAB_WARDROBE + "/" + "".join(c if c.isalnum() else "_" for c in d.split("-")[0])
+        if unreal.EditorAssetLibrary.does_directory_exist(dest) and unreal.EditorAssetLibrary.list_assets(dest, recursive=True):
+            log("fab: %s already imported at %s" % (d, dest))
+            continue
+        src = max(pkgs, key=os.path.getsize)
+        t = unreal.AssetImportTask()
+        t.set_editor_property("filename", src)
+        t.set_editor_property("destination_path", dest)
+        t.set_editor_property("automated", True)
+        t.set_editor_property("replace_existing", True)
+        t.set_editor_property("save", True)
+        if factory is not None:
+            t.set_editor_property("factory", factory())
+        try:
+            tools.import_asset_tasks([t])
+        except Exception as e:
+            unreal.log_warning("[Torque] fab: importing %s failed: %s" % (src, e))
+            continue
+        got = [str(g) for g in (t.get_editor_property("imported_object_paths") or [])]
+        log("fab: %s -> %s: %d assets: %s" % (src, dest, len(got), ", ".join(got[:30])))
+    unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous(["/Game"], True)
+    global _WARDROBE
+    _WARDROBE = None
 
 
 def _wardrobe():
@@ -404,6 +459,8 @@ def _dress(sub, ch, av):
             sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words) + 1
             if "wardrobe" in cls.lower():
                 sc += 2
+            if pkg.startswith(FAB_WARDROBE + "/"):
+                sc += 4   # beenster's own Fab clothes beat the Creator's stock ones
             if sc > score:
                 best, score = (pkg, name), sc
         if best is None:
@@ -874,6 +931,38 @@ def _editor_only_deps(pkg):
     return bad
 
 
+def _make_two_sided(mat, av, why):
+    """A garment's material drawn from both sides: in first person (shed walker, riding) the camera
+    looks at the clothes from inside the collar, where single-sided cloth draws nothing (beenster,
+    build 137: see-through clothes in the shed and on the bike)."""
+    if mat is None:
+        return
+    path = _path(mat)
+    if path.startswith("/MetaHuman"):
+        log("%s: %s: material %s is the plugin's; can't make it two-sided" % (av, why, path))
+        return
+    try:
+        if isinstance(mat, unreal.MaterialInstanceConstant):
+            ov = mat.get_editor_property("base_property_overrides")
+            if ov.get_editor_property("override_two_sided") and ov.get_editor_property("two_sided"):
+                return
+            ov.set_editor_property("override_two_sided", True)
+            ov.set_editor_property("two_sided", True)
+            mat.set_editor_property("base_property_overrides", ov)
+            unreal.MaterialEditingLibrary.update_material_instance(mat)
+        elif isinstance(mat, unreal.Material):
+            if mat.get_editor_property("two_sided"):
+                return
+            mat.set_editor_property("two_sided", True)
+            unreal.MaterialEditingLibrary.recompile_material(mat)
+        else:
+            return
+        unreal.EditorAssetLibrary.save_loaded_asset(mat, only_if_is_dirty=False)
+        log("%s: %s: material %s made two-sided" % (av, why, path))
+    except Exception as e:
+        unreal.log_warning("[Torque] %s: %s: couldn't make %s two-sided: %s" % (av, why, path, e))
+
+
 def _game_safe_mesh(mesh, av):
     """Drop a skeletal mesh's post-process Anim Blueprint when it needs the MetaHuman plugin (the
     game poses the bones itself), then report anything else of the plugin it still pulls in."""
@@ -924,6 +1013,13 @@ def _game_safe_mesh(mesh, av):
                         ", ".join(str(n) for n in mel.get_vector_parameter_names(m))))
         except Exception:
             pass
+    # Garments (not the body or face) drawn from both sides.
+    if "/face/" not in pkg.lower() and "/body/" not in pkg.lower():
+        try:
+            for slot in mesh.get_editor_property("materials"):
+                _make_two_sided(slot.get_editor_property("material_interface"), av, pkg.rsplit("/", 1)[-1])
+        except Exception as e:
+            log("%s: %s materials: %s" % (av, pkg, e))
     bad = _editor_only_deps(pkg)
     if bad:
         unreal.log_warning("[Torque] %s: %s still pulls in editor-only MetaHuman content: %s" % (av, pkg, ", ".join(sorted(bad)[:5])))
@@ -1417,6 +1513,10 @@ def _parts_of_blueprint(pkg, name, av):
                 continue
             entry["parts"].append({"name": c.get_name(), "mesh": _path(m), "materials": mats(c)})
             _game_safe_mesh(m, av)
+            if "face" not in c.get_name().lower():
+                for mp in entry["parts"][-1]["materials"]:
+                    if mp:
+                        _make_two_sided(unreal.load_asset(mp.split(".")[0]), av, c.get_name())
         # The grooms (hair, brows, lashes, beard): any component whose class says Groom. The
         # peach fuzz is strands only and too fine to see at shed distances, so it's left out.
         for g in actor.get_components_by_class(unreal.ActorComponent):
@@ -1565,7 +1665,8 @@ def register():
         json.dump({"about": "Co-op avatars: assembled MetaHumans, one per player colour in this order "
                             "(Tools/ue_metahumans.py writes this; Source/TorqueShedProto/Shed/TorqueAvatar.* reads it).",
                    "avatars": out}, f, indent=1)
-    log("%d avatars written to %s" % (len(out), path))
+    log("%d avatars written to %s (%s). Commit it: it's tracked, so a reset or pull on the PC puts the old copy back"
+        % (len(out), path, "; ".join("%s: %d parts" % (e["name"], len(e.get("parts", []))) for e in out)))
     set_never_cook(False)
 
 
@@ -1577,8 +1678,12 @@ def main(args):
         _wardrobe()
     elif mode == "slim":
         slim()
+    elif mode == "fab":
+        fab_wardrobe()
+        _wardrobe()
     elif mode == "make":
         rest = args[1:]
+        fab_wardrobe()
         only = [a for a in rest if a not in ("rig", "nowardrobe")]   # e.g. `make rig A B`: just those
         make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()

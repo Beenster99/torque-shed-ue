@@ -416,6 +416,11 @@ public:
 	static FTransform HomeOf(int32 Bay);
 	FTransform BikeTransform(int32 Bay) const;
 	bool IsAway(int32 Bay) const { return Exists(Bay) && Bikes[Bay].bAway; }
+	// Left ticking over by its rider (beenster, Nov 12: "bikes should remain on and idling when you
+	// get off"): heard idling where it stands (UTorqueSfx) until it's ridden again or switched off.
+	// Each machine's own (not saved, not sent): the rider's and the host's know.
+	void SetIdling(int32 Bay, bool bOn) { if (Bay >= 0 && Bay < 32) IdlingBays = bOn ? (IdlingBays | (1u << Bay)) : (IdlingBays & ~(1u << Bay)); }
+	bool IsIdling(int32 Bay) const { return Exists(Bay) && Bay < 32 && (IdlingBays & (1u << Bay)) != 0; }
 	// The bay whose bike Peer is wheeling, or INDEX_NONE.
 	int32 PushedBy(int32 Peer) const;
 	// The dyno rig (dyno_room.gd rig_transform: on the drum, nose to the far wall), its strap posts.
@@ -604,6 +609,9 @@ public:
 	static FString BeadText(const FTorqueItem& It);
 	// PartsDB.tyre_fit_reason: why Tyre won't go on Wheel's rim ("" when it will).
 	static FString TyreFitReason(FName Tyre, FName Wheel);
+	// The tyres that go on a wheel (beenster, Nov 12: "when you hover over a wheel rim, it should tell
+	// you what tyres fit it"): its rim and the widths it takes, then the catalogue's tyres for it.
+	static FString TyresThatFit(FName Wheel);
 	// How well bay Bay's front (or rear) tyre's bead is seated, 0..1 (1: as it came, or no tyre).
 	float BeadOf(int32 Bay, bool bFront) const;
 
@@ -680,6 +688,7 @@ private:
 	bool bShedLights = true;
 	bool bDoorUp = true;
 	FTransform StandXf = FTransform(FVector(560.0, -40.0, 0.0));
+	uint32 IdlingBays = 0;   // SetIdling
 	int32 StandPusher = 0;
 	int32 ExtinguisherBy = 0;
 	bool bFoaming = false;
