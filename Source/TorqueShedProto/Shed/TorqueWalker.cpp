@@ -644,7 +644,10 @@ void ATorqueWalker::ReadInput(float Dt)
 	// [ping] Middle mouse (D-pad left on a pad, as nothing else on foot has it): mark what's looked at
 	// for the whole crew (walker.gd's "ping").
 	if (!bComputer && !bBench && (KeyJust(ETorqueKey::Ping) || Just(EKeys::Gamepad_DPad_Left) || (SonyHit & ESonyButton::DLeft)))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque ping: ping pressed on foot"));
 		Ping();
+	}
 	const FTorqueSettings& Set = FTorqueSettings::Get();   // Settings > Controller: look speeds, invert
 
 	const bool bWorkJust = KeyJust(ETorqueKey::Work) || Just(EKeys::Gamepad_FaceButton_Bottom) || (SonyHit & ESonyButton::Cross);
@@ -1181,11 +1184,15 @@ void ATorqueWalker::FindTarget()
 		}
 }
 
-void ATorqueWalker::Ping()
+FString ATorqueWalker::Ping()
 {
 	APlayerController* PC = Cast<APlayerController>(Controller);
 	UWorld* World = GetWorld();
-	if (!PC || !World || !Camera) return;
+	if (!PC || !World || !Camera)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque ping: pressed, but the walker has no controller or camera"));
+		return FString();
+	}
 	// What the look finds as far as a ping reaches (walker.gd PING_REACH): the walker's own look, with
 	// a longer arm, then put back as it was.
 	const float ArmReach = Reach;
@@ -1247,15 +1254,21 @@ void ATorqueWalker::Ping()
 	if (TorquePing::PlayerOnLine(this, Start, Look, ThingCm, Who, WhoCm))
 	{
 		TorquePing::Send(PC, Who);
-		return;
+		return Who.What;
 	}
 	if (!P.What.IsEmpty())
 	{
 		TorquePing::Send(PC, P);
-		return;
+		return P.What;
 	}
 	// Nothing in the shed by name: the spot the look meets (the floor, a wall, the road), or nothing.
-	if (TorquePing::FromView(PC, this).IsEmpty()) Say(TEXT("Nothing there to ping."), false, 2.0);
+	const FString Spot = TorquePing::FromView(PC, this);
+	if (Spot.IsEmpty())
+	{
+		Say(TEXT("Nothing there to ping."), false, 2.0);
+		UE_LOG(LogTemp, Log, TEXT("Torque ping: pressed, nothing within reach"));
+	}
+	return Spot;
 }
 
 TArray<int32> ATorqueWalker::ItemsNear(const FVector& At, double Radius) const

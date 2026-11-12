@@ -168,6 +168,8 @@ public:
 	// --- For hands-off tests (UTorqueShedTest, -TorqueShedAction=) --------------------------------
 	// Stand Distance cm from a point, on the side Away points to, and look at it; say what's seen.
 	FString TestLookAt(const FVector& Point, const FVector& Away, double Distance);
+	// [ping test] The ping, as middle mouse does it, from where the walker looks now: what was pinged ("" nothing).
+	FString TestPing() { return Ping(); }
 	// [outline test] The look outline left off (to read the screen without it), and what's in place for it.
 	bool bTestNoOutline = false;
 	FString TestOutlineStatus(bool& bOk) const;
@@ -271,7 +273,8 @@ private:
 	void FindTarget();
 	// [ping] Middle mouse (D-pad left): what's in the middle of the view, up to 60 m, marked for the
 	// whole crew (Coop/TorquePing.h; walker.gd ping()).
-	void Ping();
+	// Returns what was pinged (sent), "" for nothing.
+	FString Ping();
 	struct FLookHit
 	{
 		ETorqueLook Kind = ETorqueLook::None;

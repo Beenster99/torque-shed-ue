@@ -149,6 +149,7 @@ void ATorquePlayerController::ClientPing_Implementation(const FTorquePingNet& Ne
 	if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->PlayAt(TEXT("ping"), NewPing.At, 2.0f);
 	// Someone else's: "Sam pinged the workbench" for 2 s.
 	const bool bMine = PlayerState && NewPing.PlayerId == PlayerState->GetPlayerId();
+	UE_LOG(LogTemp, Log, TEXT("Torque ping: showing %s's %s (%s, %d showing)"), *NewPing.Name, *NewPing.What, NewPing.bBox ? TEXT("box") : TEXT("ring"), Pings.Num());
 	if (!bMine) ShowNote(FString::Printf(TEXT("%s pinged %s"), *NewPing.Name, *NewPing.What.ToLower()), 2.0);
 }
 
