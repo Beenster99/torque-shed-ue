@@ -11,6 +11,13 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/CommandLine.h"
+#include "HAL/PlatformMemory.h"
+#include "Misc/App.h"
+#include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "Misc/PackageName.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -125,12 +132,15 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueRideUK="), Spec, false)) StartRide(Spec);
+	else if (FParse::Value(FCommandLine::Get(), TEXT("TorqueLejog="), Spec, false)) StartLejog(Spec);
+	else if (FParse::Param(FCommandLine::Get(), TEXT("TorqueLejog"))) StartLejog(TEXT("1"));
 	// (and what is kept over the limit let go, on a worker, unless a ride or the test is already under way)
 	WorldSettingsChanged();
 }
 
 void UTorqueWorldSubsystem::Deinitialize()
 {
+	if (LejogTicker.IsValid()) FTSTicker::GetCoreTicker().RemoveTicker(LejogTicker);
 	if (Shared) Shared->bStop = true;
 	if (TestRun.IsValid()) TestRun.Wait();
 	if (CacheRun.IsValid()) CacheRun.Wait();
@@ -273,6 +283,19 @@ bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, 
 void UTorqueWorldSubsystem::RidePlanned(std::shared_ptr<TorqueWorld::RidePlan> Made, bool bRide)
 {
 	bPlanning = false;
+	if (LejogOn >= 0 && bLegAsked && bRide)
+	{
+		// [stage 8] (a leg of the robot's ride: how long it took to plan; one that can't be planned is passed)
+		bLegAsked = false;
+		LegPlanSecs = FPlatformTime::Seconds() - LegAskedAt;
+		if (!Made || !Made->Ok)
+		{
+			++LejogFailed;
+			EndLeg(FString(TEXT("FAILED to plan: ")) + (Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no plan")));
+			return;
+		}
+		LegPlan = Made;
+	}
 	if (!Made || !Made->Ok)
 	{
 		Note = FString(TEXT("Ride UK: ")) + (Made ? UTF8_TO_TCHAR(Made->Why.c_str()) : TEXT("no ride was planned."));
@@ -527,4 +550,144 @@ void UTorqueWorldSubsystem::TidyCache(bool bClear)
 			Self->bCacheBusy = false;
 		});
 	});
+}
+
+// --- Land's End to John o' Groats (stage 8) --------------------------------------------------------
+
+void UTorqueWorldSubsystem::LejogSay(const FString& Line) const
+{
+	UE_LOG(LogTemp, Display, TEXT("Torque lejog: %s"), *Line);
+	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World"), TEXT("lejog.txt")));
+	FFileHelper::SaveStringToFile(FDateTime::Now().ToString(TEXT("%Y-%m-%d %H:%M:%S  ")) + Line + TEXT("\n"), *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,
+		&IFileManager::Get(), FILEWRITE_Append);
+}
+
+void UTorqueWorldSubsystem::StartLejog(const FString& Spec)
+{
+	std::string Text;
+	const std::string Path = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/lejog.json")));
+	if (!TorqueWorld::Files::Read(Path, Text) || !TorqueWorld::Route::ReadFamousRoads(Text, LejogLegs) || LejogLegs.empty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Torque lejog: FAIL: no legs (%s)"), UTF8_TO_TCHAR(Path.c_str()));
+		return;
+	}
+	const FString NextFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World"), TEXT("lejog_next.txt"));
+	int32 From = 1;
+	if (Spec.TrimStartAndEnd().Equals(TEXT("next"), ESearchCase::IgnoreCase))
+	{
+		FString Kept;
+		if (FFileHelper::LoadFileToString(Kept, *NextFile)) From = FMath::Max(1, FCString::Atoi(*Kept.TrimStartAndEnd()));
+	}
+	else
+		From = FMath::Max(1, FCString::Atoi(*Spec));
+	int32 Count = int32(LejogLegs.size());
+	FParse::Value(FCommandLine::Get(), TEXT("TorqueLejogLegs="), Count);
+	LejogOn = FMath::Min(From, int32(LejogLegs.size())) - 1;
+	LejogLast = FMath::Min(int32(LejogLegs.size()) - 1, LejogOn + FMath::Max(1, Count) - 1);
+	LejogMemStart = FPlatformMemory::GetStats().UsedPhysical;
+	LejogSay(FString::Printf(TEXT("START legs %d to %d of %d, memory %.2f GB"), LejogOn + 1, LejogLast + 1, int32(LejogLegs.size()), double(LejogMemStart) / 1e9));
+	LejogTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UTorqueWorldSubsystem::LejogTick), 0.0f);
+	NextLeg();
+}
+
+void UTorqueWorldSubsystem::NextLeg()
+{
+	bLegRiding = false;
+	LegPlan.reset();
+	if (LejogOn < 0) return;
+	FFileHelper::SaveStringToFile(FString::FromInt(LejogOn + 1), *FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World"), TEXT("lejog_next.txt")));
+	if (LejogOn > LejogLast)
+	{
+		const uint64 Mem = FPlatformMemory::GetStats().UsedPhysical;
+		LejogSay(FString::Printf(TEXT("DONE %.0f km ridden; %d legs failed to plan, %d stuck; memory %.2f GB at the start, %.2f GB now; kept on disk %s"), LejogKm, LejogFailed, LejogStuck,
+			double(LejogMemStart) / 1e9, double(Mem) / 1e9, *CacheSaid));
+		LejogOn = -1;
+		if (FParse::Param(FCommandLine::Get(), TEXT("TorqueLejogQuit"))) FPlatformMisc::RequestExit(false, TEXT("TorqueLejog"));
+		return;
+	}
+	if (bPlanning) return;   // (asked again from the ticker once the planning in hand is done)
+	const TorqueWorld::Route::FamousRoad& Leg = LejogLegs[size_t(LejogOn)];
+	bLegAsked = true;
+	LegAskedAt = FPlatformTime::Seconds();
+	LejogSay(FString::Printf(TEXT("leg %d/%d %s: planning"), LejogOn + 1, int32(LejogLegs.size()), UTF8_TO_TCHAR(Leg.Name.c_str())));
+	if (!StartJourney(Leg.Journey, UTF8_TO_TCHAR(Leg.Name.c_str()), true)) bLegAsked = false;
+}
+
+void UTorqueWorldSubsystem::EndLeg(const FString& How)
+{
+	const uint64 Mem = FPlatformMemory::GetStats().UsedPhysical;
+	const TorqueWorld::Route::FamousRoad& Leg = LejogLegs[size_t(LejogOn)];
+	const double Mins = (FPlatformTime::Seconds() - LegStartedAt) / 60.0;
+	LejogSay(FString::Printf(TEXT("leg %d/%d %s: %s; %.1f km in %.0f min, planned in %.0f s; %d hitches over 100 ms, the worst %.0f ms; memory %.2f GB (%+.2f since the start)"),
+		LejogOn + 1, int32(LejogLegs.size()), UTF8_TO_TCHAR(Leg.Name.c_str()), *How, LegBest / 1000.0, bLegRiding ? Mins : 0.0, LegPlanSecs, LegHitches, LegWorstMs,
+		double(Mem) / 1e9, (double(Mem) - double(LejogMemStart)) / 1e9));
+	LejogKm += LegBest / 1000.0;
+	++LejogOn;
+	bLegRiding = false;
+	LegPlan.reset();
+	WeighCache();   // (what is kept on disk, over the limit let go between legs, and logged)
+	NextLeg();
+}
+
+bool UTorqueWorldSubsystem::LejogTick(float DeltaSeconds)
+{
+	if (LejogOn < 0) return true;
+	const double Now = FPlatformTime::Seconds();
+	if (!bLegAsked && !bLegRiding && !LegPlan && !bPlanning)
+	{
+		NextLeg();
+		return true;
+	}
+	UGameInstance* GI = GetGameInstance();
+	UWorld* World = GI ? GI->GetWorld() : nullptr;
+	APlayerController* PC = GI ? GI->GetFirstLocalPlayerController() : nullptr;
+	const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+	const bool bOnRide = World && World->GetMapName().Contains(TEXT("RideUK")) && Pawn && LegPlan && Plan == LegPlan;
+	if (!bLegRiding)
+	{
+		if (!bOnRide) return true;
+		bLegRiding = true;
+		LegStartedAt = LegBestAt = LegLookAt = LegMemAt = Now;
+		LegBest = 0.0;
+		LegWas = -1.0;
+		LegHitches = 0;
+		LegWorstMs = 0.0;
+		LejogSay(FString::Printf(TEXT("leg %d/%d: riding %.1f km"), LejogOn + 1, int32(LejogLegs.size()), LegPlan->FinishM / 1000.0));
+		return true;
+	}
+	if (!bOnRide) return true;   // (the level going or coming: nothing to measure)
+	// (the frames: a hitch is one over 100 ms, after the first few seconds' settling)
+	if (Now - LegStartedAt > 8.0 && DeltaSeconds > 0.1f)
+	{
+		++LegHitches;
+		LegWorstMs = FMath::Max(LegWorstMs, double(DeltaSeconds) * 1000.0);
+	}
+	if (Now - LegLookAt < 1.0) return true;
+	LegLookAt = Now;
+	const FVector At = Pawn->GetActorLocation();
+	const TorqueWorld::RidePlan::RideNav N = LegPlan->NavAt(At.X / 100.0, At.Y / 100.0, LegWas);
+	LegWas = N.Along;
+	if (N.Along > LegBest + 20.0)
+	{
+		LegBest = N.Along;
+		LegBestAt = Now;
+	}
+	if (Now - LegMemAt > 60.0)
+	{
+		LegMemAt = Now;
+		LejogSay(FString::Printf(TEXT("leg %d at %.1f km, memory %.2f GB, %d hitches so far"), LejogOn + 1, N.Along / 1000.0, double(FPlatformMemory::GetStats().UsedPhysical) / 1e9, LegHitches));
+	}
+	if (N.ToFinish < 30.0)
+	{
+		LegBest = FMath::Max(LegBest, N.Along);
+		EndLeg(TEXT("done"));
+	}
+	else if (Now - LegBestAt > 120.0)
+	{
+		// (no way along in two minutes: crashed, lost or stuck; where, then on to the next leg)
+		const TorqueWorld::Geo G = TorqueWorld::Frame(LegPlan->Area.Roads.FrameLat, LegPlan->Area.Roads.FrameLon).ToGeo(At.X / 100.0, At.Y / 100.0);
+		++LejogStuck;
+		EndLeg(FString::Printf(TEXT("STUCK at %.2f km (%.5f, %.5f)%s"), N.Along / 1000.0, G.Lat, G.Lon, N.OffRoute ? TEXT(", off the road") : TEXT("")));
+	}
+	return true;
 }

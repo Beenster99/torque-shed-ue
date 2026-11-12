@@ -11,6 +11,7 @@
 #include "WorldLoad.h"
 #include "WorldRide.h"
 #include "WorldRoadLine.h"
+#include "WorldRoute.h"
 
 #include <atomic>
 #include <chrono>
@@ -22,6 +23,33 @@
 using namespace TorqueWorld;
 
 static std::string GTmp;
+
+// [stage 8] The landmark bridges a ride carries, made as hero pieces.
+static void SayHeroes(const RidePlan& Plan)
+{
+	std::string Text;
+	std::vector<RidePlan::Landmark> Marks;
+	if (!Files::Read(std::string(TORQUE_SIMTEST) + "/../Data/RideUK/landmark_bridges.json", Text) || !RidePlan::ReadLandmarks(Text, Marks)) { std::printf("  no landmark bridges file\n"); return; }
+	std::vector<RidePlan::HeroPiece> Heroes;
+	Plan.HeroBridges(Marks, Heroes);
+	for (const RidePlan::HeroPiece& H : Heroes)
+	{
+		std::printf("     landmark bridge: %s, %d points\n", H.Name.c_str(), int(H.Mesh->Vertices()));
+		// (WORLD_RIDE_HERO_DIR=folder: each as an OBJ with the deck's road beside it, to look at)
+		if (const char* Dir = std::getenv("WORLD_RIDE_HERO_DIR"))
+		{
+			std::string Obj;
+			const RideMesh& M = *H.Mesh;
+			for (size_t I = 0; I + 2 < M.Pos.size(); I += 3) Obj += "v " + std::to_string(M.Pos[I] + M.OriginX) + " " + std::to_string(M.Pos[I + 1]) + " " + std::to_string(M.Pos[I + 2] + M.OriginZ) + "\n";
+			for (size_t I = 0; I + 2 < M.Idx.size(); I += 3) Obj += "f " + std::to_string(M.Idx[I] + 1) + " " + std::to_string(M.Idx[I + 1] + 1) + " " + std::to_string(M.Idx[I + 2] + 1) + "\n";
+			for (int Which = 0; Which < Plan.RoadCount(); ++Which)
+				for (const RoadPoint& P : Plan.RoadOf(Which))
+					if (P.Bridge && std::hypot(P.At.X - M.OriginX, P.At.Z - M.OriginZ) < 2500.0)
+						Obj += "# deck " + std::to_string(P.At.X) + " " + std::to_string(P.Height) + " " + std::to_string(P.At.Z) + " " + std::to_string(P.Half) + "\n";
+			Files::Write(std::string(Dir) + "/" + H.Name + ".obj", Obj);
+		}
+	}
+}
 static std::atomic<int> GAsked{0};
 
 // A blocking GET through curl: the HTTP code (0 for no answer) and the body.
@@ -61,6 +89,57 @@ int main(int Argc, char** Argv)
 	Cells.Get = CurlGet;
 	HeightStore Heights;
 	Heights.Disk = Files::Join(Root, "heights");
+	// [stage 8] WORLD_RIDE_JOURNEYS=<a file of journeys, as the famous roads'> plans each in turn (the
+	// Land's End to John o' Groats legs): how far, how long to plan, the bridges and the thin data.
+	// WORLD_RIDE_FROM=n starts at the nth (1 the first).
+	if (const char* JourneysFile = std::getenv("WORLD_RIDE_JOURNEYS"))
+	{
+		std::string Text;
+		std::vector<Route::FamousRoad> Legs;
+		if (!Files::Read(JourneysFile, Text) || !Route::ReadFamousRoads(Text, Legs)) { std::printf("can't read %s\n", JourneysFile); return 2; }
+		const int First = std::getenv("WORLD_RIDE_FROM") != nullptr ? std::max(1, std::atoi(std::getenv("WORLD_RIDE_FROM"))) : 1;
+		double AllKm = 0.0, AllMin = 0.0;
+		int Failed = 0;
+		for (size_t L = size_t(First - 1); L < Legs.size(); ++L)
+		{
+			const auto T0 = std::chrono::steady_clock::now();
+			const std::shared_ptr<RidePlan> Leg = RidePlan::Make(Cells, Heights, Legs[L].Journey);
+			const double Secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - T0).count();
+			if (!Leg->Ok)
+			{
+				++Failed;
+				std::printf("%2d %-44s FAIL in %.0f s: %s\n", int(L + 1), Legs[L].Name.c_str(), Secs, Leg->Why.c_str());
+				std::fflush(stdout);
+				continue;
+			}
+			const RideSummary Sum = Leg->Summary();
+			AllKm += Sum.Metres / 1000.0;
+			AllMin += Sum.Minutes;
+			int LongBridges = 0;
+			double Longest = 0.0;
+			for (size_t I = 1; I < Leg->Road.size(); ++I)
+				if (Leg->Road[I].Bridge && !Leg->Road[I - 1].Bridge)
+				{
+					size_t J = I;
+					while (J + 1 < Leg->Road.size() && Leg->Road[J + 1].Bridge) ++J;
+					const double Long = Leg->Road[J].Along - Leg->Road[I].Along;
+					Longest = std::fmax(Longest, Long);
+					if (Long > 150.0)
+					{
+						++LongBridges;
+						const Geo G = Frame(Leg->Area.Roads.FrameLat, Leg->Area.Roads.FrameLon).ToGeo(Leg->Road[(I + J) / 2].At.X, Leg->Road[(I + J) / 2].At.Z);
+						std::printf("     a bridge of %.0f m at %.1f km (%.5f, %.5f)\n", Long, Leg->Road[I].Along / 1000.0, G.Lat, G.Lon);
+					}
+				}
+			std::printf("%2d %-44s %6.1f km, %4.0f min, climb %4.0f m, %d cells, planned in %3.0f s; %d bridges over 150 m (longest %.0f m); %d thin\n", int(L + 1), Legs[L].Name.c_str(),
+				Sum.Metres / 1000.0, Sum.Minutes, Sum.Climb, int(Leg->Area.Cells.size()), Secs, LongBridges, Longest, int(Sum.Thin.size()));
+			for (const ThinSpot& T : Sum.Thin) std::printf("     thin at %.1f km (%.4f, %.4f): %s\n", T.Along / 1000.0, T.At.Lat, T.At.Lon, T.Why.c_str());
+			SayHeroes(*Leg);
+			std::fflush(stdout);
+		}
+		std::printf("All: %.0f km, about %.1f h riding; %d failed\n", AllKm, AllMin / 60.0, Failed);
+		return Failed == 0 ? 0 : 1;
+	}
 	const RideCheck R = CheckRide(Cells, Heights, At[0], At[1], At[2], At[3], [](const std::string& Text) { std::printf("  %s\n", Text.c_str()); std::fflush(stdout); });
 	std::printf("%s\n", R.Dump().c_str());
 	std::printf("%d fetches. %s\n", GAsked.load(), R.Ok ? "PASS" : ("FAIL: " + R.Why).c_str());

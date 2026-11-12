@@ -122,6 +122,8 @@ private:
 	TSet<FIntVector> Asked;      // being made on a worker
 	TArray<FIntVector> Want;     // as of the last look
 	UPROPERTY(Transient) TMap<int32, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
+	// [stage 8] The landmark bridges' hero pieces (RidePlan::HeroBridges), all ride long.
+	UPROPERTY(Transient) TArray<TObjectPtr<UProceduralMeshComponent>> HeroParts;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LandMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RoadMaterial;
 	// The hand-built ride's scanned stone, for dry stone walls and for stone houses (RideMesh::Stone, Masonry).

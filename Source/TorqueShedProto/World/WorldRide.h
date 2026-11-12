@@ -496,6 +496,26 @@ public:
 	// of its buildings drawn, and no tree heights at all.
 	std::vector<ThinSpot> Thin;
 	void FindThinData();
+	// [stage 8] Britain's landmark bridges as hero pieces (World/WorldRideHero.cpp): where one of
+	// Data/RideUK/landmark_bridges.json carries a road of the ride, its towers, cables, stays or arch
+	// over the deck the road already has. Read once; each piece is a mesh of its own (coloured, about
+	// the bridge's middle) and its name. Kinds: suspension, cable_stayed, arch.
+	struct Landmark
+	{
+		std::string Name, Kind;
+		Geo At;                  // about the middle of its main span
+		double Span = 300.0;     // the main span (m), or each span between towers
+		double Up = 60.0;        // how high its towers (or arch) stand over the deck (m)
+		int Towers = 2;
+		float Colour[3] = {0.32f, 0.33f, 0.33f};
+	};
+	static bool ReadLandmarks(const std::string& Text, std::vector<Landmark>& Out);
+	struct HeroPiece
+	{
+		std::string Name;
+		std::shared_ptr<RideMesh> Mesh;
+	};
+	void HeroBridges(const std::vector<Landmark>& Marks, std::vector<HeroPiece>& Out) const;
 	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
 	// little under the limit, as a rider on a road they do not know).
 	RideSummary Summary(double Cap = 24.6) const;

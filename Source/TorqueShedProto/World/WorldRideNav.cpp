@@ -158,8 +158,8 @@ void RidePlan::FindThinData()
 		T.Why = "No tree heights here: the trees are guessed from the land";
 		Thin.push_back(T);
 	}
-	// A town's ground with few buildings: in each kilometre, the land beside the road that the survey
-	// calls built on, against the buildings the map has within 120 m.
+	// A town's ground with few buildings: in each kilometre, the land 100 m either side of the road that
+	// the survey calls built on, against the buildings the map has within 120 m.
 	const auto Buildings = [this, &G](const P2& At)
 	{
 		int N = 0;
@@ -184,15 +184,19 @@ void RidePlan::FindThinData()
 		for (; I < Road.size() && Road[I].Along < From + 1000.0; I += 12)   // (every 50 m or so)
 		{
 			const P2 P = Road[I].At;
-			for (double Off : {-60.0, 60.0})
+			const P2 D = Road[std::min(I + 1, Road.size() - 1)].At - Road[I > 0 ? I - 1 : 0].At;
+			const double Len = D.Length();
+			const P2 Across = Len > 1e-6 ? P2(D.Z / Len, -D.X / Len) : P2(0.0, 1.0);
+			for (double Off : {-100.0, 100.0})
 			{
-				const P2 Side(P.X + Off, P.Z);
+				const P2 Side = P + Across * Off;
 				++Samples;
 				if (Land->Cover(Side.X, Side.Z) == 5) ++Urban;
 			}
 			Built += Buildings(P);
 		}
-		const bool IsThin = Samples >= 8 && Urban * 10 >= Samples * 4 && Built * 2 < Samples;
+		// (100 m off, so a dual carriageway's own width, which the survey calls built on, isn't counted)
+		const bool IsThin = Samples >= 8 && Urban * 2 >= Samples && Built * 4 < Samples;
 		if (IsThin && ThinFrom < 0.0) ThinFrom = From;
 		if ((!IsThin || From + 1000.0 >= End) && ThinFrom >= 0.0)
 		{

@@ -23,6 +23,7 @@
 #include "ProceduralMeshComponent.h"
 
 #include "World/WorldRide.h"
+#include "World/WorldFiles.h"
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
 #include "HAL/FileManager.h"
@@ -243,6 +244,27 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	UpdateRoad(Start, true);
 	UE_LOG(LogTemp, Display, TEXT("Torque ride world: %d squares of ground and %d pieces of road round the start in %.2f s; the road starts at %.0f m above the sea"),
 		Tiles.Num(), RoadParts.Num(), FPlatformTime::Seconds() - T0, Plan->Road[0].Height);
+	// [stage 8] The landmark bridges the ride's roads cross, made whole now and kept all ride: seen
+	// from far off, as the real ones are.
+	{
+		std::string Text;
+		std::vector<TorqueWorld::RidePlan::Landmark> Marks;
+		const std::string Path = TCHAR_TO_UTF8(*FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/landmark_bridges.json")));
+		if (TorqueWorld::Files::Read(Path, Text) && TorqueWorld::RidePlan::ReadLandmarks(Text, Marks))
+		{
+			std::vector<TorqueWorld::RidePlan::HeroPiece> Heroes;
+			Plan->HeroBridges(Marks, Heroes);
+			for (const TorqueWorld::RidePlan::HeroPiece& Hero : Heroes)
+				if (UProceduralMeshComponent* Part = MakePart(*Hero.Mesh, RoadMaterial.Get(), false, true, true))
+				{
+					Part->SetCullDistance(0.0f);
+					HeroParts.Add(Part);
+					UE_LOG(LogTemp, Display, TEXT("Torque ride world: landmark bridge %s (%d points)"), UTF8_TO_TCHAR(Hero.Name.c_str()), int32(Hero.Mesh->Vertices()));
+				}
+		}
+		else
+			UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no landmark bridges (%s)"), UTF8_TO_TCHAR(Path.c_str()));
+	}
 }
 
 void ATorqueRideWorld::EndPlay(const EEndPlayReason::Type Reason)

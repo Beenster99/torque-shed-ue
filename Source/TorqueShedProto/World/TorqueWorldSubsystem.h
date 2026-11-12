@@ -17,10 +17,18 @@
 // by Tools/ue_build_rideuk.py), where ATorqueRideWorld lays the ground and the road out round the
 // rider. -TorqueRideUK=hawes (or =latA,lonA,latB,lonB) starts one as soon as the game is up; with
 // -TorqueAutoRide the robot rides it. It logs "Torque ride UK: PASS" once planned, or "FAIL: why".
+//
+// Stage 8, the whole UK proven: -TorqueLejog (with -TorqueAutoRide -TorqueNoInput) has the robot ride
+// Land's End to John o' Groats in the legs of Data/RideUK/lejog.json, one after another, each planned
+// and its level opened as a player's would be. =N starts at leg N, =next where the last run stopped
+// (Saved/World/lejog_next.txt); -TorqueLejogLegs=K rides K legs and stops (an afternoon's worth);
+// -TorqueLejogQuit closes the game at the end. Each leg logs "Torque lejog: leg ..." with its time,
+// frame hitches, memory and the disk kept, and any stuck or failed place; all go to Saved/World/lejog.txt.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Async/Future.h"
+#include "Containers/Ticker.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 
 #include "World/WorldRide.h"
@@ -109,6 +117,22 @@ public:
 
 private:
 	void StartTest(const FString& Spec);
+
+	// [stage 8] The Land's End to John o' Groats robot ride (see above).
+	std::vector<TorqueWorld::Route::FamousRoad> LejogLegs;
+	int32 LejogOn = -1, LejogLast = -1, LejogFailed = 0, LejogStuck = 0;
+	bool bLegRiding = false, bLegAsked = false;
+	double LegAskedAt = 0.0, LegStartedAt = 0.0, LegPlanSecs = 0.0, LegBest = 0.0, LegBestAt = 0.0, LegWas = -1.0, LegLookAt = 0.0, LegMemAt = 0.0;
+	int32 LegHitches = 0;
+	double LegWorstMs = 0.0, LejogKm = 0.0;
+	uint64 LejogMemStart = 0;
+	std::shared_ptr<TorqueWorld::RidePlan> LegPlan;
+	FTSTicker::FDelegateHandle LejogTicker;
+	void StartLejog(const FString& Spec);
+	void NextLeg();
+	void EndLeg(const FString& How);
+	bool LejogTick(float DeltaSeconds);
+	void LejogSay(const FString& Line) const;
 
 	// (shared with the workers, which may outlast a frame but never the subsystem: Deinitialize waits for them)
 	std::shared_ptr<FTorqueWorldShared> Shared;
