@@ -577,6 +577,41 @@ int main()
 				const std::shared_ptr<RidePlan> Plan = RidePlan::Make(Cells, Net2, GA.Lat, GA.Lon, GB.Lat, GB.Lon);
 				Check(Plan->Ok && Plan->Why.empty() && Plan->Road.size() > 100 && Plan->Length > Len * 0.9 && Plan->Length < Len * 1.5 && Near(Plan->Road.back().Along, Plan->Length, 1e-9),
 					"a ride is planned between the same two places: a road of its own, the quick way, about as long as the shortest");
+				// A journey through a third pin, and in each style (Ride UK stage 4: the Route planner's).
+				{
+					// (a junction well off the quick way's line: a mile or two north of its middle)
+					const Geo Mid = G.FrameOf().ToGeo((G.Nodes[size_t(From)].X + G.Nodes[size_t(To)].X) * 0.5, (G.Nodes[size_t(From)].Z + G.Nodes[size_t(To)].Z) * 0.5 - 2000.0);
+					RouteRequest Three;
+					Three.Pins = {{GA.Lat, GA.Lon, "Start"}, {Mid.Lat, Mid.Lon, "Via"}, {GB.Lat, GB.Lon, "End"}};
+					Three.Mode = "main";
+					const std::shared_ptr<RidePlan> Via = RidePlan::Make(Cells, Net2, Three);
+					double ViaOff = 1e18;
+					if (Via->Ok && Via->PinNodes.size() == 3)
+					{
+						const P2 ViaNode = Via->Area.Roads.Nodes[size_t(Via->PinNodes[1])];
+						for (const RoadPoint& P : Via->Road) ViaOff = std::fmin(ViaOff, P.At.DistanceTo(ViaNode));
+					}
+					std::printf("      through a third pin: %.1f km (the quick way %.1f km), %.0f m from its junction at most; the last pin at %.1f km, the road runs on %.0f m\n",
+						Via->Length / 1000.0, Plan->Length / 1000.0, ViaOff, Via->FinishM / 1000.0, Via->Length - Via->FinishM);
+					Check(Via->Ok && Via->Length > Plan->Length + 500.0 && ViaOff < RidePlan::SpurM && Via->FinishM < Via->Length - 100.0 && Via->Length - Via->FinishM < RidePlan::RunOutM * 2.5 && Via->Request.Pins.size() == 3,
+						"a journey goes through every pin in order (or within a short dead end of one), and its road runs on a little past the last");
+					double Twist[4] = {0, 0, 0, 0}, Km[4] = {0, 0, 0, 0};
+					bool AllOk = true;
+					for (int Sty = 0; Sty < Route::StyleCount; ++Sty)
+					{
+						RouteRequest Two;
+						Two.Pins = {{GA.Lat, GA.Lon, ""}, {GB.Lat, GB.Lon, ""}};
+						Two.Mode = Route::Styles[Sty];
+						const std::shared_ptr<RidePlan> Styled = RidePlan::Make(Cells, Net2, Two);
+						AllOk = AllOk && Styled->Ok;
+						std::vector<P2> StyledLine;
+						for (const RoadPoint& P : Styled->Road) StyledLine.push_back(P.At);
+						Twist[Sty] = Route::Twistiness(StyledLine);
+						Km[Sty] = Styled->FinishM / 1000.0;
+					}
+					std::printf("      by style: main %.1f km (%.0f deg/km), scenic %.1f km (%.0f), tracks %.1f km (%.0f), curvy %.1f km (%.0f)\n", Km[0], Twist[0], Km[1], Twist[1], Km[2], Twist[2], Km[3], Twist[3]);
+					Check(AllOk && Twist[3] >= Twist[0] * 0.95, "every style plans a ride between the same places, the curvy one no straighter than the quick way");
+				}
 				if (Plan->Ok)
 				{
 					double Gap = 0.0, Step = 0.0, Off = 0.0, Under = 0.0, Kink = 0.0;

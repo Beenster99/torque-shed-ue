@@ -38,6 +38,7 @@
 #pragma once
 
 #include "WorldLoad.h"
+#include "WorldRoute.h"
 
 #include <cstdint>
 #include <memory>
@@ -105,6 +106,28 @@ public:
 	// Blocks (a worker's job); Say hears each step. Never null: Ok says whether it can be ridden.
 	static std::shared_ptr<RidePlan> Make(CellStore& Store, HeightStore& Heights, double LatA, double LonA, double LatB, double LonB,
 		const std::function<void(const std::string&)>& Say = nullptr);
+	// The same through every pin of a journey, in order, by the roads its style likes (Route::EdgeCosts);
+	// the quick way A to B above is the journey of two pins in the "main" style.
+	static std::shared_ptr<RidePlan> Make(CellStore& Store, HeightStore& Heights, const RouteRequest& Want,
+		const std::function<void(const std::string&)>& Say = nullptr);
+	// The cells a journey's roads are read from (Wide: a band of whole cells, for a way that wanders).
+	static std::vector<CellId> CellsFor(const RouteRequest& Want, bool Wide);
+	static constexpr double CellDeg = 0.25;     // a cell of the world's store, in degrees
+	static constexpr int MaxCells = 64;         // the most cells one ride reads (RealRegion.MAX_AREA_CELLS)
+	static constexpr double SnapM = 2000.0;     // a pin is taken to the junction nearest it within this
+	static constexpr double RunOutM = 600.0;    // the road goes on this far past the last pin
+	static constexpr double SpurM = 300.0;      // an out-and-back this long or shorter is left out
+	// A step of the way: from a junction along an edge to the next.
+	struct RideStep
+	{
+		int From = 0, Edge = 0, To = 0;
+	};
+	static std::vector<RideStep> StripSpurs(const Region& G, const std::vector<RideStep>& Steps);
+	static std::vector<RideStep> RunOut(const Region& G, const std::vector<RideStep>& Steps, const std::vector<double>& EdgeCost);
+	RouteRequest Request;               // the journey as asked for
+	std::vector<int> PinNodes;          // each pin's junction
+	double RunOutFrom = 0.0;            // how far along the map's roads the last pin is (the run-out is after it)
+	double FinishM = 0.0;               // and how far along the road as laid
 
 	bool Ok = false;
 	std::string Why;

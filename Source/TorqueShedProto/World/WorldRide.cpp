@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <set>
 
 namespace TorqueWorld
 {
@@ -35,33 +36,124 @@ double Smooth01(double T)
 std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights, double InLatA, double InLonA, double InLatB, double InLonB,
 	const std::function<void(const std::string&)>& Say)
 {
+	RouteRequest Two;
+	Two.Pins.resize(2);
+	Two.Pins[0].Lat = InLatA; Two.Pins[0].Lon = InLonA;
+	Two.Pins[1].Lat = InLatB; Two.Pins[1].Lon = InLonB;
+	Two.Mode = "main";
+	return Make(Store, Heights, Two, Say);
+}
+
+std::vector<CellId> RidePlan::CellsFor(const RouteRequest& Want, bool Wide)
+{
+	// Along the straight lines from pin to pin: those within about 3 km of them, or (Wide, when the
+	// roads wander further) every cell next to one they cross, as AdventureJourney.cells_for does.
+	std::set<CellId> Seen;
+	std::vector<CellId> Out;
+	const auto Add = [&](double Lat, double Lon)
+	{
+		const double Pad = Wide ? CellDeg : 0.03;
+		for (const CellId& C : CellsInBox(Lat - Pad, Lon - Pad, Lat + Pad, Lon + Pad))
+			if (Seen.insert(C).second) Out.push_back(C);
+	};
+	for (size_t I = 0; I < Want.Pins.size(); ++I)
+	{
+		const RoutePin& B = Want.Pins[I];
+		if (I == 0) { Add(B.Lat, B.Lon); continue; }
+		const RoutePin& A = Want.Pins[I - 1];
+		const int Steps = std::max(1, int(std::ceil(std::hypot(B.Lat - A.Lat, B.Lon - A.Lon) / 0.02)));
+		for (int K = 0; K <= Steps; ++K) Add(A.Lat + (B.Lat - A.Lat) * K / Steps, A.Lon + (B.Lon - A.Lon) * K / Steps);
+	}
+	return Out;
+}
+
+std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights, const RouteRequest& Want, const std::function<void(const std::string&)>& Say)
+{
 	std::shared_ptr<RidePlan> R = std::make_shared<RidePlan>();
-	R->LatA = InLatA; R->LonA = InLonA; R->LatB = InLatB; R->LonB = InLonB;
+	R->Request = Want;
+	if (!Route::IsStyle(R->Request.Mode)) R->Request.Mode = "main";
+	if (Want.Pins.size() >= 2)
+	{
+		R->LatA = Want.Pins.front().Lat; R->LonA = Want.Pins.front().Lon;
+		R->LatB = Want.Pins.back().Lat; R->LonB = Want.Pins.back().Lon;
+	}
 	const auto Tell = [&Say](const std::string& Text) { if (Say) Say(Text); };
+	if (Want.Pins.size() < 2) { R->Why = "Pin a start and somewhere to get to."; return R; }
+	if (Want.Pins.size() > size_t(Route::MaxPinsAnyway)) { R->Why = "That's more pins than a ride can have."; return R; }
 	Tell("Reading the world's index");
 	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
 	if (!Idx || Idx->Empty()) { R->Why = "The world's index can't be had."; return R; }
-	const double Pad = 0.03;
-	std::vector<CellId> Cells;
-	for (const CellId& C : CellsInBox(std::fmin(InLatA, InLatB) - Pad, std::fmin(InLonA, InLonB) - Pad, std::fmax(InLatA, InLatB) + Pad, std::fmax(InLonA, InLonB) + Pad))
+	// The roads near the pins' lines, and the way through the pins: the cheapest roads for the style,
+	// leg by leg. Where a leg finds no way in the cells close by, again with a wider band of them.
+	std::vector<RideStep> Steps;
+	for (int Attempt = 0; Attempt < 2; ++Attempt)
 	{
-		const CellStore::EState St = Store.StateOf(C, *Idx);
-		if (St == CellStore::EState::Here || St == CellStore::EState::Baked) Cells.push_back(C);
+		std::vector<CellId> Cells;
+		for (const CellId& C : CellsFor(Want, Attempt == 1))
+		{
+			const CellStore::EState St = Store.StateOf(C, *Idx);
+			if (St == CellStore::EState::Here || St == CellStore::EState::Baked) Cells.push_back(C);
+		}
+		if (Cells.empty()) { R->Why = "Nobody has baked that part of the world yet."; return R; }
+		if (Cells.size() > size_t(MaxCells)) { R->Why = "That journey is too long for one ride: pin somewhere nearer."; return R; }
+		Tell("Fetching " + std::to_string(Cells.size()) + " cells of roads");
+		R->Area = LoadedArea();
+		if (!LoadCells(Store, Heights, Cells, R->Area, &R->Why)) return R;
+		const Region& G0 = R->Area.Roads;
+		const Frame F0 = G0.FrameOf();
+		R->PinNodes.clear();
+		bool Snapped = true;
+		for (size_t I = 0; I < Want.Pins.size(); ++I)
+		{
+			const P2 At = F0.FromGeo(Want.Pins[I].Lat, Want.Pins[I].Lon);
+			const int Node = G0.NearestConnected(At.X, At.Z, SnapM);
+			if (Node < 0)
+			{
+				Snapped = false;
+				R->Why = I == 0 ? "There is no road within 2 km of the start." : I + 1 == Want.Pins.size() ? "There is no road within 2 km of the end."
+					: "There is no road within 2 km of pin " + std::to_string(I + 1) + ".";
+				break;
+			}
+			R->PinNodes.push_back(Node);
+		}
+		if (!Snapped) { if (Attempt == 1) return R; continue; }
+		Tell("Finding the way by road");
+		const std::vector<double> Costs = Route::EdgeCosts(G0, R->Request.Mode);
+		Steps.clear();
+		bool Through = true;
+		for (size_t I = 0; I + 1 < R->PinNodes.size() && Through; ++I)
+		{
+			if (R->PinNodes[I] == R->PinNodes[I + 1]) continue;
+			const std::vector<int> Leg = G0.CheapestPath(R->PinNodes[I], R->PinNodes[I + 1], &Costs);
+			if (Leg.empty()) { Through = false; break; }
+			int Node = R->PinNodes[I];
+			for (int E : Leg)
+			{
+				const int Next = G0.OtherEnd(E, Node);
+				Steps.push_back({Node, E, Next});
+				Node = Next;
+			}
+		}
+		if (Through) break;
+		R->Why = "There is no way by road between those places.";
+		if (Attempt == 1) return R;
 	}
-	if (Cells.empty()) { R->Why = "Nobody has baked that part of the world yet."; return R; }
-	Tell("Fetching " + std::to_string(Cells.size()) + " cells of roads");
-	if (!LoadCells(Store, Heights, Cells, R->Area, &R->Why)) return R;
 	const Region& G = R->Area.Roads;
-	const Frame F = G.FrameOf();
-	const P2 A = F.FromGeo(InLatA, InLonA), B = F.FromGeo(InLatB, InLonB);
-	const int From = G.NearestConnected(A.X, A.Z, 2000.0), To = G.NearestConnected(B.X, B.Z, 2000.0);
-	if (From < 0 || To < 0) { R->Why = std::string("There is no road within 2 km of the ") + (From < 0 ? "start." : "end."); return R; }
-	Tell("Finding the way by road");
-	// The quick way: a metre of main road costs less than one of a back lane.
-	std::vector<double> Costs;
-	for (const std::string& Class : G.Classes) Costs.push_back(RoadLine::MainCostOf(Class));
-	const std::vector<int> Path = G.ShortestPath(From, To, &Costs);
-	if (Path.empty()) { R->Why = "There is no way by road between them."; return R; }
+	// (short out-and-backs to a pin on a dead end left out; then on past the last pin, so the ride has
+	// somewhere to run out to)
+	Steps = StripSpurs(G, Steps);
+	if (Steps.empty()) { R->Why = "Those pins are the same place: pin somewhere else to get to."; return R; }
+	double PinsEnd = 0.0;
+	for (const RideStep& St : Steps) PinsEnd += G.Edges[size_t(St.Edge)].Length;
+	{
+		const std::vector<double> Costs = Route::EdgeCosts(G, R->Request.Mode);
+		const std::vector<RideStep> Tail = RunOut(G, Steps, Costs);
+		Steps.insert(Steps.end(), Tail.begin(), Tail.end());
+	}
+	R->RunOutFrom = PinsEnd;
+	const int From = Steps.front().From;
+	std::vector<int> Path;
+	for (const RideStep& St : Steps) Path.push_back(St.Edge);
 	for (int E : Path)
 	{
 		const std::string Name = G.NameOf(E);
@@ -125,6 +217,8 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (R->TilesFailed > 0) { R->Why = std::to_string(R->TilesFailed) + " of the ground's tiles couldn't be fetched."; return R; }
 	Tell("Laying the road");
 	R->LayRoad(Line, Halves, Speeds);
+	// (where the last pin is on the road as laid: the run-out is past it)
+	R->FinishM = !RawAlong.empty() && RawAlong.back() > 1.0 ? std::fmin(R->Length, R->RunOutFrom * R->Length / RawAlong.back()) : R->Length;
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
@@ -196,6 +290,80 @@ std::vector<int> RidePlan::SpansAlong(const std::vector<P2>& Line, int Kind) con
 		// (overlapping, or end to end: one bridge)
 		if (Out.size() >= 2 && F.first <= Out.back() + 1) Out.back() = std::max(Out.back(), F.second);
 		else { Out.push_back(F.first); Out.push_back(F.second); }
+	}
+	return Out;
+}
+
+std::vector<RidePlan::RideStep> RidePlan::StripSpurs(const Region& G, const std::vector<RideStep>& Steps)
+{
+	// (RoutePlanner.strip_spurs: where the way doubles back on itself along the same edges, up to SpurM
+	// metres each way, both the out and the back are left out)
+	std::vector<RideStep> Out;
+	size_t I = 0;
+	while (I < Steps.size())
+	{
+		size_t K = 0;
+		double Run = 0.0;
+		while (I + K < Steps.size() && Out.size() > K)
+		{
+			const RideStep& Back = Out[Out.size() - 1 - K];
+			const RideStep& St = Steps[I + K];
+			if (Back.Edge != St.Edge || Back.To != St.From || Back.From != St.To) break;
+			Run += G.Edges[size_t(St.Edge)].Length;
+			++K;
+		}
+		if (K > 0 && Run <= SpurM)
+		{
+			Out.resize(Out.size() - K);
+			I += K;
+		}
+		else
+		{
+			Out.push_back(Steps[I]);
+			++I;
+		}
+	}
+	return Out;
+}
+
+std::vector<RidePlan::RideStep> RidePlan::RunOut(const Region& G, const std::vector<RideStep>& Steps, const std::vector<double>& EdgeCost)
+{
+	// (RoutePlanner._run_out: on along the biggest road that goes on, the straightest of equals, never
+	// back the way it came)
+	std::vector<RideStep> Out;
+	if (Steps.empty()) return Out;
+	int At = Steps.back().To, Came = Steps.back().Edge;
+	const auto Bearing = [](const P2& D) { return std::atan2(D.X, -D.Z); };
+	std::vector<P2> Last = G.LineFrom(Came, Steps.back().From);
+	double Heading = Last.size() >= 2 ? Bearing(Last.back() - Last[Last.size() - 2]) : 0.0;
+	std::set<int> Seen;
+	double Run = 0.0;
+	const double Pi = 3.14159265358979323846;
+	while (Run < RunOutM + 50.0)
+	{
+		int Best = -1;
+		double BestCost = 1e18, BestTurn = 1e18;
+		for (int Ei : G.Adjacent[size_t(At)])
+		{
+			if (Ei == Came || Seen.count(Ei) != 0 || !G.Passable(Ei, At) || G.TurnBanned(Came, At, Ei)) continue;
+			const std::vector<P2> L = G.LineFrom(Ei, At);
+			if (L.size() < 2) continue;
+			double Turn = Bearing(L[1] - L[0]) - Heading;
+			while (Turn > Pi) Turn -= 2.0 * Pi;
+			while (Turn < -Pi) Turn += 2.0 * Pi;
+			Turn = std::fabs(Turn);
+			const double C = size_t(Ei) < EdgeCost.size() ? EdgeCost[size_t(Ei)] : 1.0;
+			if (C < BestCost - 1e-9 || (std::fabs(C - BestCost) <= 1e-9 && Turn < BestTurn)) { Best = Ei; BestCost = C; BestTurn = Turn; }
+		}
+		if (Best < 0) break;
+		Seen.insert(Best);
+		const int To = G.OtherEnd(Best, At);
+		Out.push_back({At, Best, To});
+		const std::vector<P2> L = G.LineFrom(Best, At);
+		Heading = Bearing(L.back() - L[L.size() - 2]);
+		Run += G.Edges[size_t(Best)].Length;
+		At = To;
+		Came = Best;
 	}
 	return Out;
 }
@@ -1419,6 +1587,7 @@ std::string RidePlan::RouteJson() const
 	if (Called.empty()) Called = Names.empty() ? std::string("Ride UK") : "Ride UK: " + Names.front() + " to " + Names.back();
 	Set("name", Json::MakeString(Called));
 	Set("length_m", Json::MakeNumber(Length));
+	Set("finish_m", Json::MakeNumber(FinishM > 0.0 ? FinishM : Length));
 	Set("road_half_width_m", Json::MakeNumber(WidestHalf));
 	Json Geo = Json::MakeArray();
 	Geo.A.push_back(Json::MakeNumber(Area.Roads.FrameLat));

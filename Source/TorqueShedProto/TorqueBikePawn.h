@@ -330,6 +330,7 @@ private:
 	// The route, sim metres.
 	TArray<FVector> Line;             // (x, y, z) sim
 	double RouteLengthM = 3000.0;     // route.json length_m
+	double RouteFinishM = 3000.0;     // route.json finish_m: where a planned ride's last pin is (its length where it has none)
 	int32 Near = 0;
 	int32 StartIndex = 0;             // where the ride starts on Line (-TorqueStartKm)
 	double RideTime = 0.0;

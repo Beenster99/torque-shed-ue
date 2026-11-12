@@ -578,6 +578,18 @@ int Region::NearestConnected(double X, double Z, double Within, int MinNodes) co
 }
 std::vector<int> Region::ShortestPath(int From, int To, const std::vector<double>* ClassCost) const
 {
+	std::vector<double> PerEdge;
+	if (ClassCost != nullptr)
+	{
+		PerEdge.resize(Edges.size(), 1.0);
+		for (size_t E = 0; E < Edges.size(); ++E)
+			if (size_t(Edges[E].Class) < ClassCost->size()) PerEdge[E] = (*ClassCost)[size_t(Edges[E].Class)];
+	}
+	return CheapestPath(From, To, ClassCost != nullptr ? &PerEdge : nullptr);
+}
+
+std::vector<int> Region::CheapestPath(int From, int To, const std::vector<double>* EdgeCost) const
+{
 	std::vector<int> Out;
 	if (From < 0 || To < 0 || From >= int(Nodes.size()) || To >= int(Nodes.size()) || From == To) return Out;
 	// Over (edge arrived by, at its far node), so a banned turn can be refused: 2 states an edge.
@@ -589,7 +601,7 @@ std::vector<int> Region::ShortestPath(int From, int To, const std::vector<double
 	const auto Cost = [&](int Edge)
 	{
 		const RoadEdge& E = Edges[size_t(Edge)];
-		return ClassCost != nullptr && size_t(E.Class) < ClassCost->size() ? E.Length * (*ClassCost)[size_t(E.Class)] : E.Length;
+		return EdgeCost != nullptr && size_t(Edge) < EdgeCost->size() ? E.Length * (*EdgeCost)[size_t(Edge)] : E.Length;
 	};
 	auto Arrive = [&](int Edge, int AtNode) { return Edge * 2 + (Edges[size_t(Edge)].B == AtNode ? 1 : 0); };
 	for (int Ei : Adjacent[size_t(From)])

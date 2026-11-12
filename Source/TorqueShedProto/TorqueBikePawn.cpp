@@ -999,6 +999,8 @@ void ATorqueBikePawn::LoadRoute()
 	double RoadHalf = 2.5;
 	Json->TryGetNumberField(TEXT("road_half_width_m"), RoadHalf);
 	Json->TryGetNumberField(TEXT("length_m"), RouteLengthM);
+	RouteFinishM = RouteLengthM;
+	Json->TryGetNumberField(TEXT("finish_m"), RouteFinishM);   // (a planned ride's last pin: its road runs on past it)
 	if (!FPaths::IsRelative(RouteFile)) Json->TryGetStringField(TEXT("name"), RouteName);   // (a real-world ride says what it is)
 	const TArray<TSharedPtr<FJsonValue>>* Open = nullptr;   // [yard]
 	if (Json->TryGetArrayField(TEXT("open_area_sim"), Open) && Open->Num() >= 4)
@@ -4089,7 +4091,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("The yard   stopped, %s: get off and park it here   %s: back to its bay and walk in"),
 			*FTorqueKeys::Text(ETorqueKey::Use), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
 	else
-		Add(FString::Printf(TEXT("%s  %s of %s   %d:%05.2f%s"), *RouteName, *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
+		Add(FString::Printf(TEXT("%s  %s of %s   %d:%05.2f%s"), *RouteName, *Set.DistanceText(FMath::Min(DoneM, RouteFinishM)), *Set.DistanceText(RouteFinishM), Mins, Secs,
 			bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.

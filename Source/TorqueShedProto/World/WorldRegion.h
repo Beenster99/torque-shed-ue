@@ -155,6 +155,8 @@ public:
 	// With ClassCost (what a metre of each of Classes costs), the cheapest way instead: the quick way
 	// keeps to main roads (RoadLine::MainCostOf).
 	std::vector<int> ShortestPath(int From, int To, const std::vector<double>* ClassCost = nullptr) const;
+	// The same with what a metre of each edge costs (EdgeCost, one per edge): the Route planner's styles.
+	std::vector<int> CheapestPath(int From, int To, const std::vector<double>* EdgeCost) const;
 	// The line of a path from its first junction, every point once.
 	std::vector<P2> PathLine(int From, const std::vector<int>& Path) const;
 
