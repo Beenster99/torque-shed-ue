@@ -3,6 +3,7 @@
 #include "TorquePlayerController.h"
 #include "TorqueMenuPawn.h"
 #include "TorqueUi.h"
+#include "TorqueSettings.h"
 #include "TorqueBikePawn.h"
 
 #include "CollisionQueryParams.h"
@@ -116,8 +117,14 @@ FString FromView(APlayerController* PC, const AActor* Ignore)
 
 void Send(APlayerController* PC, const FTorquePingNet& P)
 {
-	// Through the host to everyone (alone, the call runs here at once).
-	if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC)) TPC->ServerPing(P);
+	// Through the host to everyone (alone, the call runs here at once). It carries this player's
+	// profile name and colour (Settings > Character), as the Esc menu shows them: the player state's
+	// name is the Windows name until co-op sends the chosen one, and never is when playing alone.
+	const FTorqueSettings& Mine = FTorqueSettings::Get();
+	FTorquePingNet Out = P;
+	Out.Name = Mine.Name.TrimStartAndEnd().Left(20);
+	Out.Colour = Mine.RiderColour();
+	if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC)) TPC->ServerPing(Out);
 }
 
 void Draw(UCanvas* Canvas, const TArray<FShown>& Pings, double Now, const FVector& Eye, const FVector& Ahead)
