@@ -145,6 +145,8 @@ public:
 	// Hold a lever for a check of the rider's fingers on it: Side 0 the clutch, 1 the front brake;
 	// Pull 0..1 with the fingers over it, below 0 to let it go back to the riding.
 	void TestLever(int32 Side, double Pull) { TestLeverHold[FMath::Clamp(Side, 0, 1)] = Pull; }
+	// The rider's right hand rolled to this throttle (0..1) for the pose only, the bike's own throttle untouched (below 0: none).
+	void TestGripThrottle(double Roll) { TestGripThrottleHold = Roll; }
 	// The stage 3 controls for TorqueShedTest, as the keys work them: What "gear" (Arg +1 up, -1 down, as
 	// X / Z: the box goes manual), "ignition" (as I), "clutch" (Arg 1 held, 0 let go, as Left Alt) or "state"
 	// (nothing). Says the gear, the engine, the clutch and the speed after it.
@@ -455,6 +457,7 @@ private:
 	int32 GroupParts[6] = {0, 0, 0, 0, 0, 0};   // its meshes on the bike, steering, fork lowers, front wheel, swingarm, rear wheel
 	bool bTestAutoRide = false;
 	bool bTestStopping = false;   // TestStop: the robot brakes instead of holding its speed
+	double TestGripThrottleHold = -1.0;   // TestGripThrottle's roll (below 0: none)
 	double TestLeverHold[2] = {-1.0, -1.0};   // TestLever's hold, per side (below 0: none)
 	bool bTestClutch = false;   // TestControl's clutch, held
 	// The pad's starter (LB + RB held): how long both have been held, and whether it has fired this hold.
