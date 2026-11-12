@@ -213,6 +213,14 @@ const char* BikeHeat::TyreState() const
 	return Out;
 }
 
+int BikeHeat::TyreBand(int I) const
+{
+	const double T = TyreTemp(I);
+	if (T > Parts.Tyre[I].Hi) return 1;
+	if (TempGrip(I) < 0.97 && T < Parts.Tyre[I].Lo) return -1;
+	return 0;
+}
+
 const char* BikeHeat::EngineState() const
 {
 	const EngineTemps& E = Parts.Liquid ? LIQUID : AIRC;

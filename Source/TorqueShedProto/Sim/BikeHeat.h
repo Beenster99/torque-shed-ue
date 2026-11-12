@@ -57,6 +57,8 @@ public:
 	// "cold", "warm" or "hot", for the HUD: the tyres together, and the engine.
 	const char* TyreState() const;
 	const char* EngineState() const;
+	// One tyre for the telemetry: -1 cold (gripping less), 0 working, 1 overheated.
+	int TyreBand(int I) const;
 	bool Liquid() const { return Parts.Liquid; }
 
 private:

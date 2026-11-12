@@ -1528,6 +1528,12 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		SetWaving(!Sim->IsCrashed && (bPadWave || FTorqueKeys::Down(PC, ETorqueKey::Wave)));
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Help)) bShowHelp = !bShowHelp;
+	// beenster (Nov 12): F2 the info lines top left (off to start with), F3 the telemetry.
+	if (FTorqueKeys::Just(PC, ETorqueKey::RideHud))
+	{
+		bHudLines = !bHudLines;
+		if (bHudLines) bShowHelp = true;
+	}
 	// Settings > Gameplay > Telemetry overlay (F3 while riding, as Torque Shed).
 	if (FTorqueKeys::Just(PC, ETorqueKey::Telemetry))
 	{
@@ -1550,7 +1556,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	{
 		bool bOk = false;
 		if (!bPadSetsCam && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
-		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.ToggleHeadlight(bOk), bOk);
+		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.CycleBeam(bOk), bOk);   // L cycles: dipped, main, main + fog, off
 		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Hazards)) LightsNote(Lights.ToggleHazard(bOk), bOk);
@@ -2488,6 +2494,39 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 			Sample.RearBrake = (float)RearBrake;
 			Sample.Lean = (float)FMath::RadiansToDegrees(Sim->LeanAngle);
 			Sample.Gear = Sim->Gear;
+			Sample.Steer = (float)FMath::RadiansToDegrees(Sim->Steer);
+			for (int32 WI = 0; WI < 2; ++WI)
+			{
+				const TorqueSim::Wheel& Wh = Sim->Wheels[WI];
+				Sample.SlipRatio[WI] = (float)Wh.Kappa;
+				Sample.SlipAngle[WI] = (float)FMath::RadiansToDegrees(Wh.Alpha);
+				Sample.GripUsed[WI] = (float)Wh.GripUsed;
+				Sample.LoadN[WI] = (float)Wh.Load;
+				Sample.bContact[WI] = Wh.Contact;
+				Sample.SuspMm[WI] = (float)(Wh.Compression * 1000.0);
+				Sample.TravelMm[WI] = (float)(Wh.Travel * 1000.0);
+				Sample.bBottomed[WI] = Wh.Bottomed;
+				Sample.TyreSurface[WI] = (float)Sim->Heat.Surface[WI];
+				Sample.TyreCarcass[WI] = (float)Sim->Heat.Carcass[WI];
+				Sample.TyreC[WI] = (float)Sim->Heat.TyreTemp(WI);
+				Sample.TyreBand[WI] = (int8)Sim->Heat.TyreBand(WI);
+				Sample.DiscC[WI] = (float)Sim->Heat.Discs[WI];
+			}
+			Sample.EngineC = (float)Sim->Heat.Engine;
+			Sample.OilC = (float)Sim->Heat.Oil;
+			Sample.AirC = (float)Sim->Heat.Air;
+			Sample.RoadC = (float)Sim->Heat.Road;
+			{
+				const FString EngineBandText = UTF8_TO_TCHAR(Sim->Heat.EngineState());
+				Sample.EngineBand = EngineBandText == TEXT("hot") ? 1 : EngineBandText == TEXT("cold") ? -1 : 0;
+			}
+			Sample.bLiquid = Sim->Heat.Liquid();
+			Sample.bFan = Sim->Heat.Fan;
+			Sample.PowerMult = (float)Sim->Heat.Power;
+			Sample.PitchDeg = (float)FMath::RadiansToDegrees(Sim->Dive);
+			Sample.RakeDeg = (float)FMath::RadiansToDegrees(Sim->RakeNow);
+			Sample.TrailMm = (float)(Sim->TrailSprings * 1000.0);
+			Sample.TrailStandMm = (float)(Sim->Build.Trail * 1000.0);
 			if (Telemetry.Num() >= 120) Telemetry.RemoveAt(0);
 			Telemetry.Add(Sample);
 		}
@@ -4093,12 +4132,16 @@ void ATorqueBikePawn::DrawHud()
 	if (GearNoteFor > 0.0)
 		Add(FString::Printf(TEXT("%s gears   ABS %s"), bManual ? TEXT("Manual") : TEXT("Automatic"),
 			!(bHasAbs[0] || bHasAbs[1]) ? TEXT("none fitted") : bAbs ? TEXT("on") : TEXT("off")), FColor(255, 220, 120), 1.2f);
-	if (bYard)   // [yard]
+	// beenster (Nov 12): a clean screen by default. The lines that stay up (the route, the heat, the
+	// realism and weather, the help) only with F2; notes that come and go still show.
+	if (!bHudLines) {}
+	else if (bYard)   // [yard]
 		Add(FString::Printf(TEXT("The yard   stopped, %s: get off and park it here   %s: back to its bay and walk in"),
 			*FTorqueKeys::Text(ETorqueKey::Use), *FTorqueKeys::Text(ETorqueKey::BackToShed)), FColor(200, 220, 255), 1.1f);
 	else
 		Add(FString::Printf(TEXT("%s  %s of %s   %d:%05.2f%s"), *RouteName, *Set.DistanceText(DoneM), *Set.DistanceText(RouteLengthM), Mins, Secs,
 			bFinished ? TEXT("   FINISHED - Home, or Restart in the Options menu, to ride again") : TEXT("")), FColor(200, 220, 255), 1.1f);
+	if (!bHudLines && bFinished && !bYard) Add(TEXT("FINISHED - Home, or Restart in the Options menu, to ride again"), FColor(200, 220, 255), 1.1f);
 	if (Sim->IsCrashed) Add(bYard ? TEXT("Off! Back on in a moment...") : TEXT("Off! Back on the road in a moment..."), FColor::Orange, 1.4f);
 	// [foot] Getting off and on.
 	if (FootNoteFor > 0.0) Add(FootNote, FColor(255, 220, 120), 1.2f);
@@ -4116,8 +4159,9 @@ void ATorqueBikePawn::DrawHud()
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
 	}
-	else if (!Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
+	else if (bHudLines && !Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
 		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);
+	if (bHudLines)
 	{
 		// The heat (BikeHeat): cold tyres grip less, an overheating engine loses power.
 		const FString Tyres = UTF8_TO_TCHAR(Sim->Heat.TyreState()), Engine = UTF8_TO_TCHAR(Sim->Heat.EngineState());
@@ -4135,15 +4179,17 @@ void ATorqueBikePawn::DrawHud()
 	static const TCHAR* WeatherNames[3] = {TEXT("sunny"), TEXT("overcast"), TEXT("wet roads")};
 	const ATorqueGameState* WeatherGs = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
 	const FString WeatherNow = WeatherGs ? WeatherGs->WeatherText(FTorqueSettings::Get().Units == 1) : FString(WeatherNames[FMath::Clamp(Weather, 0, 2)]);
-	Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s"), Assist,
-		bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), *WeatherNow), FColor(170, 200, 170), 0.9f);
+	if (bHudLines)
+		Add(FString::Printf(TEXT("Riding realism %.1f (0 full sim, 1 easy)   %s   weather: %s   (%s hides these lines, %s telemetry)"), Assist,
+			bSony ? TEXT("PlayStation pad connected") : TEXT("no PlayStation pad"), *WeatherNow, *FTorqueKeys::Text(ETorqueKey::RideHud),
+			*FTorqueKeys::Text(ETorqueKey::Telemetry)), FColor(170, 200, 170), 0.9f);
 	if (HostOnlyNoteFor > 0.0) Add(TEXT("The host sets the weather"), FColor(255, 220, 120), 1.1f);
-	if (NetBike)
+	if (NetBike && bHudLines)
 	{
 		const FString NetLine = NetBike->StatusLine();
 		if (!NetLine.IsEmpty()) Add(NetLine, FColor(170, 210, 255), 0.9f);
 	}
-	if (bShowHelp)
+	if (bShowHelp && bHudLines)
 	{
 		const FColor Help(200, 200, 200);
 		Add(TEXT("Pad:  R2 throttle   L2 front brake   Circle / B rear brake   left stick lean (push up/down: weight)   right stick look"), Help, 0.62f);
@@ -4158,7 +4204,7 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s ABS   %s camera   %s look back   %s back on road   %s restart   %s / %s realism   %s weather   %s horn   %s telemetry"),
 			*K(ETorqueKey::Abs), *K(ETorqueKey::Camera), *K(ETorqueKey::LookBack), *K(ETorqueKey::BackOnRoad), *K(ETorqueKey::Restart),
 			*K(ETorqueKey::RealismDown), *K(ETorqueKey::RealismUp), *K(ETorqueKey::Weather), *K(ETorqueKey::Horn), *K(ETorqueKey::Telemetry)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s headlight   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
+		Add(FString::Printf(TEXT("      %s lights   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
 			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
 			*K(ETorqueKey::Hazards), *K(ETorqueKey::Clutch), *K(ETorqueKey::Nod), *K(ETorqueKey::Wave)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s shed   Esc menu"),

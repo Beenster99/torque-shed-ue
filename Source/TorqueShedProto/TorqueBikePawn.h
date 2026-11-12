@@ -60,6 +60,24 @@ struct FTorqueTelemetry
 	float Throttle = 0.0f, FrontBrake = 0.0f, RearBrake = 0.0f;   // 0 .. 1
 	float Lean = 0.0f;       // degrees, + right
 	int32 Gear = 0;
+	// Torque Shed's telemetry_overlay.gd (beenster, Nov 12: tyre and engine temperatures and more):
+	// per wheel [0 front, 1 rear].
+	float Steer = 0.0f;                          // degrees, + right
+	float SlipRatio[2] = {0.0f, 0.0f};           // kappa
+	float SlipAngle[2] = {0.0f, 0.0f};           // degrees
+	float GripUsed[2] = {0.0f, 0.0f};            // 1 = the limit
+	float LoadN[2] = {0.0f, 0.0f};
+	bool bContact[2] = {true, true};
+	float SuspMm[2] = {0.0f, 0.0f}, TravelMm[2] = {0.0f, 0.0f};
+	bool bBottomed[2] = {false, false};
+	float TyreSurface[2] = {20.0f, 20.0f}, TyreCarcass[2] = {20.0f, 20.0f}, TyreC[2] = {20.0f, 20.0f};
+	int8 TyreBand[2] = {0, 0};                   // -1 cold, 0 working, 1 overheated
+	float DiscC[2] = {20.0f, 20.0f};
+	float EngineC = 20.0f, OilC = 20.0f, AirC = 15.0f, RoadC = 15.0f;
+	int8 EngineBand = 0;                         // -1 cold, 0 warm, 1 hot
+	bool bLiquid = true, bFan = false;
+	float PitchDeg = 0.0f, RakeDeg = 0.0f, TrailMm = 0.0f, TrailStandMm = 0.0f;
+	float PowerMult = 1.0f;                      // what the heat leaves of the engine's power
 };
 
 UCLASS()
@@ -317,6 +335,7 @@ private:
 	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;
 	void TripLog(const TCHAR* Why);
 	bool bShowHelp = true;
+	bool bHudLines = false;   // the riding info lines top left (F2); a clean screen to start with (beenster, Nov 12)
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
 	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.
 	int32 Weather = 0;

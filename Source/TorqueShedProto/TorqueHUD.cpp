@@ -412,63 +412,172 @@ void ATorqueHUD::DrawFrameRate()
 	TorqueUi::Text(Canvas, Fps, FX, FY, Px, FpsShown >= 59.0f ? FLinearColor(0.55f, 1.0f, 0.55f, 1.0f) : FpsShown >= 40.0f ? TorqueUi::Accent : TorqueUi::Warn, true);
 }
 
-// Settings > Gameplay > Telemetry overlay (F3): Torque Shed's live strips of what the bike is doing,
-// down the right of the screen, the last twelve seconds of each.
+// Settings > Gameplay > Telemetry overlay (F3): Torque Shed's telemetry_overlay.gd down the right of
+// the screen. At the top the speed, gear and revs; then each tyre (its friction circle: the ring is
+// its grip, the dot how much of it is used, red past it), its load, its suspension, its tread and
+// carcass temperature and its disc; beside them the throttle and brakes, the geometry on the springs
+// and the engine, oil and air; under it all the last twelve seconds as strips (beenster, Nov 12:
+// "tyre temps, engine temps, and more details ... like with Torque Shed").
 void ATorqueHUD::DrawTelemetry(const ATorqueBikePawn* Bike, float S)
 {
 	const TArray<FTorqueTelemetry>& Samples = Bike->GetTelemetry();
 	if (Samples.Num() < 2 || !Canvas || !GEngine) return;
-	UFont* Font = GEngine->GetSmallFont();
 	const FTorqueSettings& Set = FTorqueSettings::Get();
-	struct FStrip { const TCHAR* Name; float Lo, Hi; FLinearColor Colour; };
+	const FTorqueTelemetry& Now = Samples.Last();
+	const FLinearColor FrontCol(0.45f, 0.75f, 1.0f), RearCol(1.0f, 0.62f, 0.3f), Over(1.0f, 0.3f, 0.25f), Cold(0.6f, 0.82f, 1.0f);
+	const FLinearColor Ink = TorqueUi::Ink, Dim = TorqueUi::Dim;
+	const float PW = 420.0f * S, X0 = Canvas->ClipX - PW - 24.0f * S, Top = 64.0f * S;
+	const float Bottom = Canvas->ClipY - 250.0f * S;   // clear of the speedo in the corner
+	if (Bottom - Top < 200.0f * S) return;
+	TorqueUi::Rect(Canvas, X0, Top, PW, Bottom - Top, FLinearColor(0.02f, 0.025f, 0.035f, 0.78f));
+	TorqueUi::Rect(Canvas, X0, Top, 3.0f * S, Bottom - Top, TorqueUi::Accent);
+	const float Px = 13.0f * S, Row = 16.0f * S;
+	float Y = Top + 8.0f * S;
+	TorqueUi::Text(Canvas, TEXT("TELEMETRY"), X0 + 12.0f * S, Y, 15.0f * S, TorqueUi::Accent, true);
+	TorqueUi::Text(Canvas, FString::Printf(TEXT("%s  ·  gear %s  ·  %d rpm"), *Set.SpeedText(Now.Speed),
+		Now.Gear <= 0 ? TEXT("N") : *FString::FromInt(Now.Gear), FMath::RoundToInt(Now.Rpm / 50.0f) * 50), X0 + 118.0f * S, Y + 1.0f * S, 14.0f * S, Ink);
+	Y += 26.0f * S;
+
+	// The two tyres.
+	const float D = 96.0f * S, ColW = 124.0f * S;
+	for (int32 WI = 0; WI < 2; ++WI)
+	{
+		const float CX = X0 + 14.0f * S + WI * ColW + D * 0.5f, CY = Y + 16.0f * S + D * 0.5f, Rad = D * 0.5f - 4.0f * S;
+		const FLinearColor Col = WI == 0 ? FrontCol : RearCol;
+		TorqueUi::Text(Canvas, WI == 0 ? TEXT("FRONT") : TEXT("REAR"), CX - Rad, Y, 12.0f * S, Dim, true);
+		// The ring (the grip at this load), half-way ring, and the dot: how much is used, pointing
+		// the way the tyre's working (sideways from the slip angle, along from the slip ratio).
+		const int32 Seg = 40;
+		for (int32 K = 0; K < Seg; ++K)
+		{
+			const float A0 = 2.0f * PI * K / Seg, A1 = 2.0f * PI * (K + 1) / Seg;
+			Canvas->K2_DrawLine(FVector2D(CX + Rad * FMath::Cos(A0), CY + Rad * FMath::Sin(A0)), FVector2D(CX + Rad * FMath::Cos(A1), CY + Rad * FMath::Sin(A1)),
+				1.5f, FLinearColor(1, 1, 1, 0.35f));
+			Canvas->K2_DrawLine(FVector2D(CX + 0.5f * Rad * FMath::Cos(A0), CY + 0.5f * Rad * FMath::Sin(A0)),
+				FVector2D(CX + 0.5f * Rad * FMath::Cos(A1), CY + 0.5f * Rad * FMath::Sin(A1)), 1.0f, FLinearColor(1, 1, 1, 0.1f));
+		}
+		Canvas->K2_DrawLine(FVector2D(CX - Rad, CY), FVector2D(CX + Rad, CY), 1.0f, FLinearColor(1, 1, 1, 0.08f));
+		Canvas->K2_DrawLine(FVector2D(CX, CY - Rad), FVector2D(CX, CY + Rad), 1.0f, FLinearColor(1, 1, 1, 0.08f));
+		const float Used = Now.GripUsed[WI];
+		FVector2D Dir(FMath::Clamp(Now.SlipAngle[WI] / 6.0f, -1.0f, 1.0f), -FMath::Clamp(Now.SlipRatio[WI] / 0.12f, -1.0f, 1.0f));
+		if (Dir.SizeSquared() < 1e-4f) Dir = FVector2D(0.0f, 0.0f);
+		else Dir.Normalize();
+		const float Reach = FMath::Min(Used, 1.15f) * Rad;
+		TorqueUi::Disc(Canvas, CX + (float)Dir.X * Reach, CY + (float)Dir.Y * Reach, 5.0f * S, Used > 1.0f ? Over : Col, 16);
+		float LY = CY + Rad + 8.0f * S;
+		TorqueUi::Text(Canvas, Now.bContact[WI] ? FString::Printf(TEXT("%.1f kN  grip %d%%"), Now.LoadN[WI] / 1000.0f, FMath::RoundToInt(Used * 100.0f)) : FString(TEXT("in the air")),
+			CX - Rad, LY, Px, Used > 1.0f ? Over : Ink);
+		LY += Row;
+		TorqueUi::Text(Canvas, Now.bBottomed[WI] ? FString(TEXT("BOTTOMED")) : FString::Printf(TEXT("%s %d/%d mm"), WI == 0 ? TEXT("fork") : TEXT("shock"),
+			FMath::RoundToInt(Now.SuspMm[WI]), FMath::RoundToInt(Now.TravelMm[WI])), CX - Rad, LY, Px, Now.bBottomed[WI] ? Over : Dim);
+		LY += Row;
+		const FLinearColor TyreCol = Now.TyreBand[WI] > 0 ? Over : Now.TyreBand[WI] < 0 ? Cold : Ink;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("tyre %d/%d°C"), FMath::RoundToInt(Now.TyreSurface[WI]), FMath::RoundToInt(Now.TyreCarcass[WI])),
+			CX - Rad, LY, Px, TyreCol);
+		LY += Row;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("disc %d°C"), FMath::RoundToInt(Now.DiscC[WI])), CX - Rad, LY, Px,
+			Now.DiscC[WI] > 500.0f ? Over : Dim);
+	}
+	// The throttle and brakes as bars, then the geometry and the engine's heat.
+	{
+		const float BX = X0 + 14.0f * S + 2.0f * ColW, BW = X0 + PW - 12.0f * S - BX;
+		float BY = Y + 4.0f * S;
+		const struct { const TCHAR* Name; float V; FLinearColor C; } Bars[] = {
+			{TEXT("Throttle"), Now.Throttle, FLinearColor(0.45f, 1.0f, 0.45f)}, {TEXT("Front brake"), Now.FrontBrake, FrontCol}, {TEXT("Rear brake"), Now.RearBrake, RearCol}};
+		for (const auto& Bar : Bars)
+		{
+			TorqueUi::Text(Canvas, Bar.Name, BX, BY, 12.0f * S, Dim);
+			TorqueUi::Rect(Canvas, BX, BY + 15.0f * S, BW, 7.0f * S, FLinearColor(1, 1, 1, 0.08f));
+			TorqueUi::Rect(Canvas, BX, BY + 15.0f * S, BW * FMath::Clamp(Bar.V, 0.0f, 1.0f), 7.0f * S, Bar.C);
+			BY += 28.0f * S;
+		}
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("Pitch %+.1f°  rake %.1f°"), Now.PitchDeg, Now.RakeDeg), BX, BY, 12.0f * S, Dim);
+		BY += 15.0f * S;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("Trail %d mm (%d standing)"), FMath::RoundToInt(Now.TrailMm), FMath::RoundToInt(Now.TrailStandMm)), BX, BY, 12.0f * S, Dim);
+		BY += 15.0f * S;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("Steer %+.1f°  lean %+.0f°"), Now.Steer, Now.Lean), BX, BY, 12.0f * S, Dim);
+		BY += 19.0f * S;
+		const FLinearColor EngCol = Now.EngineBand > 0 ? Over : Now.EngineBand < 0 ? Cold : Ink;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("%s %d°C%s"), Now.bLiquid ? TEXT("Coolant") : TEXT("Head"), FMath::RoundToInt(Now.EngineC),
+			Now.bFan ? TEXT("  fan") : TEXT("")), BX, BY, 13.0f * S, EngCol, true);
+		BY += 16.0f * S;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("Oil %d°C  ·  air %d°C"), FMath::RoundToInt(Now.OilC), FMath::RoundToInt(Now.AirC)), BX, BY, 12.0f * S, Dim);
+		BY += 15.0f * S;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("Road %d°C%s"), FMath::RoundToInt(Now.RoadC),
+			Now.PowerMult < 0.995f ? *FString::Printf(TEXT("  ·  power %d%%"), FMath::RoundToInt(Now.PowerMult * 100.0f)) : TEXT("")), BX, BY, 12.0f * S,
+			Now.PowerMult < 0.995f ? Over : Dim);
+	}
+	Y += 16.0f * S + D + 4.0f * Row + 14.0f * S;
+
+	// The strips: the last twelve seconds, front and rear together where there are two.
+	struct FStrip { const TCHAR* Name; float Lo, Hi; bool bTwo; };
 	const float TopSpeed = Set.Units == 0 ? 220.0f / 3.6f : 140.0f / 2.23694f;
 	const FStrip Strips[] = {
-		{TEXT("Speed"), 0.0f, TopSpeed, FLinearColor(0.55f, 0.85f, 1.0f)},
-		{TEXT("Revs"), 0.0f, 10000.0f, FLinearColor(1.0f, 0.75f, 0.35f)},
-		{TEXT("Throttle"), 0.0f, 1.0f, FLinearColor(0.45f, 1.0f, 0.45f)},
-		{TEXT("Front brake"), 0.0f, 1.0f, FLinearColor(1.0f, 0.4f, 0.35f)},
-		{TEXT("Rear brake"), 0.0f, 1.0f, FLinearColor(1.0f, 0.6f, 0.6f)},
-		{TEXT("Lean"), -60.0f, 60.0f, FLinearColor(0.9f, 0.9f, 0.9f)},
+		{TEXT("Speed"), 0.0f, TopSpeed, false},
+		{TEXT("Revs"), 0.0f, 12000.0f, false},
+		{TEXT("Lean (+ right)"), -60.0f, 60.0f, false},
+		{TEXT("Steering (+ right)"), -10.0f, 10.0f, false},
+		{TEXT("Slip ratio"), -0.2f, 0.2f, true},
+		{TEXT("Grip used (1 = the limit)"), 0.0f, 1.2f, true},
+		{TEXT("Suspension travel used"), 0.0f, 1.0f, true},
+		{TEXT("Tyre temperature °C"), 0.0f, 120.0f, true},
+		{TEXT("Brake temperature °C"), 0.0f, 600.0f, true},
+		{TEXT("Engine temperature °C"), 0.0f, 130.0f, false},
 	};
-	const float W = 360.0f * S, H = 54.0f * S, Gap = 10.0f * S;
-	const float X0 = Canvas->ClipX - W - 40.0f * S;
-	float Y0 = 150.0f * S;
-	const FTorqueTelemetry& Now = Samples.Last();
-	for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Strips); ++I)
+	const int32 NStrips = UE_ARRAY_COUNT(Strips);
+	const float Gap = 4.0f * S;
+	const float SH = FMath::Min(46.0f * S, (Bottom - 8.0f * S - Y - Gap * NStrips) / NStrips);
+	if (SH < 18.0f * S) return;
+	const float SX = X0 + 10.0f * S, SW = PW - 20.0f * S;
+	auto ValueOf = [](int32 Which, int32 WI, const FTorqueTelemetry& T) -> float {
+		switch (Which)
+		{
+		case 0: return T.Speed;
+		case 1: return T.Rpm;
+		case 2: return T.Lean;
+		case 3: return T.Steer;
+		case 4: return T.SlipRatio[WI];
+		case 5: return T.GripUsed[WI];
+		case 6: return T.TravelMm[WI] > 0.0f ? T.SuspMm[WI] / T.TravelMm[WI] : 0.0f;
+		case 7: return T.TyreC[WI];
+		case 8: return T.DiscC[WI];
+		default: return T.EngineC;
+		}
+	};
+	const int32 N = Samples.Num();
+	for (int32 I = 0; I < NStrips; ++I)
 	{
 		const FStrip& St = Strips[I];
-		DrawRect(FLinearColor(0, 0, 0, 0.45f), X0, Y0, W, H);
-		auto ValueOf = [I](const FTorqueTelemetry& T) -> float {
-			switch (I)
-			{
-			case 0: return T.Speed;
-			case 1: return T.Rpm;
-			case 2: return T.Throttle;
-			case 3: return T.FrontBrake;
-			case 4: return T.RearBrake;
-			default: return T.Lean;
-			}
-		};
-		if (St.Lo < 0.0f) DrawRect(FLinearColor(1, 1, 1, 0.2f), X0, Y0 + H * 0.5f, W, 1.0f * S);   // the middle: upright
-		const int32 N = Samples.Num();
-		for (int32 K = 1; K < N; ++K)
+		TorqueUi::Rect(Canvas, SX, Y, SW, SH, FLinearColor(0, 0, 0, 0.35f));
+		if (St.Lo < 0.0f) TorqueUi::Rect(Canvas, SX, Y + SH * (St.Hi / (St.Hi - St.Lo)), SW, 1.0f, FLinearColor(1, 1, 1, 0.18f));
+		if (I == 5) TorqueUi::Rect(Canvas, SX, Y + SH - SH * (1.0f - St.Lo) / (St.Hi - St.Lo), SW, 1.0f, FLinearColor(1.0f, 0.3f, 0.25f, 0.5f));   // the limit
+		for (int32 WI = 0; WI < (St.bTwo ? 2 : 1); ++WI)
 		{
-			const float Xa = X0 + W * (K - 1) / 119.0f, Xb = X0 + W * K / 119.0f;
-			const float Ya = Y0 + H - H * FMath::Clamp((ValueOf(Samples[K - 1]) - St.Lo) / (St.Hi - St.Lo), 0.0f, 1.0f);
-			const float Yb = Y0 + H - H * FMath::Clamp((ValueOf(Samples[K]) - St.Lo) / (St.Hi - St.Lo), 0.0f, 1.0f);
-			Draw2DLine(FMath::RoundToInt(Xa), FMath::RoundToInt(Ya), FMath::RoundToInt(Xb), FMath::RoundToInt(Yb), St.Colour.ToFColor(true));
+			const FLinearColor Col = !St.bTwo ? (I == 9 ? FLinearColor(1.0f, 0.5f, 0.35f) : FLinearColor(0.9f, 0.9f, 0.9f)) : WI == 0 ? FrontCol : RearCol;
+			for (int32 K = 1; K < N; ++K)
+			{
+				const float Xa = SX + SW * (K - 1) / 119.0f, Xb = SX + SW * K / 119.0f;
+				const float Ya = Y + SH - SH * FMath::Clamp((ValueOf(I, WI, Samples[K - 1]) - St.Lo) / (St.Hi - St.Lo), 0.0f, 1.0f);
+				const float Yb = Y + SH - SH * FMath::Clamp((ValueOf(I, WI, Samples[K]) - St.Lo) / (St.Hi - St.Lo), 0.0f, 1.0f);
+				Canvas->K2_DrawLine(FVector2D(Xa, Ya), FVector2D(Xb, Yb), 1.5f, Col);
+			}
 		}
 		FString Value;
 		switch (I)
 		{
 		case 0: Value = Set.SpeedText(Now.Speed); break;
-		case 1: Value = FString::Printf(TEXT("%.0f rpm  gear %d"), Now.Rpm, Now.Gear); break;
-		case 5: Value = FString::Printf(TEXT("%+.0f deg"), Now.Lean); break;
-		default: Value = FString::Printf(TEXT("%.0f%%"), ValueOf(Now) * 100.0f); break;
+		case 1: Value = FString::Printf(TEXT("%.0f"), Now.Rpm); break;
+		case 2: Value = FString::Printf(TEXT("%+.0f°"), Now.Lean); break;
+		case 3: Value = FString::Printf(TEXT("%+.1f°"), Now.Steer); break;
+		case 4: Value = FString::Printf(TEXT("%+.2f / %+.2f"), Now.SlipRatio[0], Now.SlipRatio[1]); break;
+		case 5: Value = FString::Printf(TEXT("%.2f / %.2f"), Now.GripUsed[0], Now.GripUsed[1]); break;
+		case 6: Value = FString::Printf(TEXT("%d / %d mm"), FMath::RoundToInt(Now.SuspMm[0]), FMath::RoundToInt(Now.SuspMm[1])); break;
+		case 7: Value = FString::Printf(TEXT("%.0f / %.0f"), Now.TyreC[0], Now.TyreC[1]); break;
+		case 8: Value = FString::Printf(TEXT("%.0f / %.0f"), Now.DiscC[0], Now.DiscC[1]); break;
+		default: Value = FString::Printf(TEXT("%.0f"), Now.EngineC); break;
 		}
-		Canvas->SetDrawColor(St.Colour.ToFColor(true));
-		Canvas->DrawText(Font, FString::Printf(TEXT("%s  %s"), St.Name, *Value), X0 + 6.0f * S, Y0 + 3.0f * S, S * 1.1f, S * 1.1f);
-		Y0 += H + Gap;
+		TorqueUi::Text(Canvas, FString::Printf(TEXT("%s   %s"), St.Name, *Value), SX + 5.0f * S, Y + 2.0f * S, 11.5f * S, Dim);
+		Y += SH + Gap;
 	}
 }
 
