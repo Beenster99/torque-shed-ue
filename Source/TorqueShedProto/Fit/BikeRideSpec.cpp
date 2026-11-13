@@ -370,6 +370,11 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 					Notes->push_back(std::string("The ") + End + " tyre's bead isn't seated right: it grips less. Refit it on the tyre changer.");
 		// Off a tyre's best pressure it grips less on tarmac; a little soft finds more grip in the dirt.
 		const double DevF = Tn.PressureOffset(true), DevR = Tn.PressureOffset(false);
+		// [TFT] The pressures as set (bar, cold) and how far off their best, for the dash's tyre page.
+		S.TyreBar[0] = Tn.Value("psi_f");
+		S.TyreBar[1] = Tn.Value("psi_r");
+		S.TyreOff[0] = DevF;
+		S.TyreOff[1] = DevR;
 		const double BeadF = BeadGrip(In.BeadFront), BeadR = BeadGrip(In.BeadRear);
 		auto GripOf = [&](const Json& Ty, double Width, double Scale, int Fit, const char* Surf, double Dev, double BeadK) {
 			const bool Road = std::string(Surf) == "tarmac";

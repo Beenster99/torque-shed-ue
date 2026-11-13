@@ -73,6 +73,9 @@ struct BikeSpec
 	double FrontRadius = 0.300, RearRadius = 0.312;
 	double FrontInertia = 0.72, RearInertia = 1.0;
 	TyreParams TyreFront, TyreRear;
+	// [TFT] The tyres' pressures as set (bar, cold: front, rear) and how far off their best each is
+	// (-0.2: 20% soft), for the dash to show; the grip they cost is already in the tyres.
+	double TyreBar[2] = {2.3, 2.5}, TyreOff[2] = {0.0, 0.0};
 	double WetGrip = 1.0;             // the weather: wet roads take about a third of the grip away
 	double Rolling = 0.015;
 	BikeHeatParts Heat;

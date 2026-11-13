@@ -674,6 +674,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 			Said(Bike->TestLights(P.Num() > 1 ? P[1] : FString(TEXT("state"))));
 			return true;
 		}
+		// [tft] tft[:state|left|right|up|down|overlay|arrange|cruise]: the bike's screen worked as its
+		// buttons do, then what it is and shows.
+		if (Verb == TEXT("tft"))
+		{
+			Said(Bike->TestTft(P.Num() > 1 ? P[1] : FString(TEXT("state"))));
+			return true;
+		}
 		// stop: brakes on (the robot still steering along the road) until the bike stands still, up to
 		// 40 s; then the robot's off and the brakes stay on, ready for foot:off.
 		if (Verb == TEXT("stop"))

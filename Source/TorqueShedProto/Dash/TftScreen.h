@@ -73,6 +73,7 @@ struct State
 	// The sat nav's words (the map itself is the scene).
 	bool Nav = false, NavOff = false;
 	int NavTurn = 9;                // -3 sharp left .. 3 sharp right, 9 the finish
+	double NavMetres = 0.0;         // to the turn (the map closes in for it), 0 none
 	std::string NavDistance, NavOnto, NavLeft, NavEta, NavRoad, NavPlace;
 	int Limit = 0;                  // the road's limit as its sign shows it, 0 none
 	bool LimitNational = false, LimitAssumed = false;
