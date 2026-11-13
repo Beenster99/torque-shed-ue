@@ -24,7 +24,7 @@ const TCHAR* const SlotNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TE
 	TEXT("front_tyre"), TEXT("rear_tyre"), TEXT("front_disc"), TEXT("rear_disc"), TEXT("front_caliper"), TEXT("rear_caliper"),
 	TEXT("front_pads"), TEXT("rear_pads"), TEXT("front_master"), TEXT("rear_master"), TEXT("tank"), TEXT("saddle"),
 	TEXT("handlebars"), TEXT("dashboard"), TEXT("engine"), TEXT("exhaust"), TEXT("final_drive"), TEXT("chain"),
-	TEXT("side_stand"), TEXT("centre_stand"), TEXT("headlight"), TEXT("horn"), TEXT("ecu"), TEXT("panniers"), TEXT("top_box"),
+	TEXT("side_stand"), TEXT("centre_stand"), TEXT("headlight"), TEXT("horn"), TEXT("panniers"), TEXT("top_box"),
 	TEXT("fog_lights"), TEXT("tail"), TEXT("fairing"), TEXT("mirrors"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"),
 	TEXT("oil_filter"), TEXT("spark_plugs"), TEXT("cooling"), TEXT("gearbox"), TEXT("front_mudguard"), TEXT("indicators"),
 	TEXT("side_panels"), TEXT("rearsets"), TEXT("guards"), TEXT("number_boards"), TEXT("swingarm"), TEXT("steering_damper"),
@@ -34,7 +34,7 @@ const TCHAR* const EngineSlotNames[] = {TEXT("head"), TEXT("fuel"), TEXT("air_fi
 const TCHAR* const ServiceSlotNames[] = {TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs")};
 const TCHAR* const LowSlotNames[] = {TEXT("side_stand"), TEXT("centre_stand"), TEXT("final_drive"), TEXT("chain"),
 	TEXT("rearsets"), TEXT("guards")};
-const TCHAR* const OptionalSlotNames[] = {TEXT("headlight"), TEXT("indicators"), TEXT("front_mudguard"), TEXT("ecu"),
+const TCHAR* const OptionalSlotNames[] = {TEXT("headlight"), TEXT("indicators"), TEXT("front_mudguard"),
 	TEXT("steering_damper"), TEXT("mirrors"), TEXT("lever_guards"), TEXT("fairing"), TEXT("satnav"), TEXT("tail"),
 	TEXT("guards"), TEXT("panniers"), TEXT("top_box"), TEXT("tank_bag"), TEXT("number_boards"), TEXT("aux_tank"),
 	TEXT("toolbox"), TEXT("fog_lights"), TEXT("horn"), TEXT("side_panels"), TEXT("centre_stand")};
@@ -43,7 +43,7 @@ const TCHAR* const KindNames[] = {TEXT("frame"), TEXT("fork"), TEXT("shock"), TE
 	TEXT("caliper"), TEXT("pads"), TEXT("master"), TEXT("tank"), TEXT("saddle"), TEXT("handlebars"), TEXT("dashboard"),
 	TEXT("engine"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs"), TEXT("cooling"),
 	TEXT("gearbox"), TEXT("exhaust"), TEXT("final_drive"), TEXT("chain"), TEXT("side_stand"), TEXT("centre_stand"),
-	TEXT("headlight"), TEXT("horn"), TEXT("ecu"), TEXT("panniers"), TEXT("top_box"), TEXT("fog_lights"), TEXT("tail"),
+	TEXT("headlight"), TEXT("horn"), TEXT("panniers"), TEXT("top_box"), TEXT("fog_lights"), TEXT("tail"),
 	TEXT("fairing"), TEXT("mirrors"), TEXT("front_mudguard"), TEXT("indicators"), TEXT("side_panels"), TEXT("rearsets"),
 	TEXT("guards"), TEXT("number_boards"), TEXT("swingarm"), TEXT("steering_damper"), TEXT("tank_bag"), TEXT("aux_tank"),
 	TEXT("toolbox"), TEXT("satnav"), TEXT("lever_guards")};

@@ -781,6 +781,7 @@ private:
 	FString NewOrderedBike(int32 Peer, int32 Bay, const FString& Order);
 	// A loaded shed's Speed Twins become project bikes and its loose Speed Twin parts go. How many.
 	int32 DropSpeedTwins();
+	int32 DropRetiredParts();   // [tft] the ECUs and the old sat nav units
 	int32 FreeBay() const;
 	// [co-op] A bay whose bike is parked away from it (wheeled out, in the wash bay) is free for a
 	// frame: that bike's record goes to an empty bay's place, standing where it is. Empty when it

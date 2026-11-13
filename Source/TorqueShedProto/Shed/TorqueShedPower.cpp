@@ -81,16 +81,16 @@ FTorqueEngineNumbers Numbers(const UTorqueBuildSubsystem& B, int32 Bay)
 	E.bValid = true;
 	const FSlotPart Head = PartIn(B, Bay, TEXT("head")), Fuel = PartIn(B, Bay, TEXT("fuel")), Air = PartIn(B, Bay, TEXT("air_filter"));
 	const FSlotPart Oil = PartIn(B, Bay, TEXT("oil_filter")), Plugs = PartIn(B, Bay, TEXT("spark_plugs")), Exhaust = PartIn(B, Bay, TEXT("exhaust"));
-	const FSlotPart Ecu = PartIn(B, Bay, TEXT("ecu")), Gearbox = PartIn(B, Bay, TEXT("gearbox")), Final = PartIn(B, Bay, TEXT("final_drive"));
+	const FSlotPart Gearbox = PartIn(B, Bay, TEXT("gearbox")), Final = PartIn(B, Bay, TEXT("final_drive"));
 	// The block: a Speed Twin's own is a 1200 twin (112 N m, revving to 8500).
 	const float Displacement = Field(Block, TEXT("displacement"), 1200.0f);
 	E.PeakTorque = Displacement * Field(Block, TEXT("torque_per_cc"), 112.0f / 1200.0f);
 	E.PeakTorqueRpm = Field(Block, TEXT("peak_torque_rpm"), 6000.0f) * Field(Head, TEXT("peak_shift"), 1.0f) * Field(Fuel, TEXT("peak_shift"), 1.0f);
-	E.Redline = Field(Block, TEXT("redline"), 8500.0f) + Field(Head, TEXT("redline_add"), 0.0f) + (Ecu.bThere ? Field(Ecu, TEXT("rev_add"), 0.0f) : 0.0f);
+	E.Redline = Field(Block, TEXT("redline"), 8500.0f) + Field(Head, TEXT("redline_add"), 0.0f);
 	E.IdleRpm = Field(Block, TEXT("idle_rpm"), 950.0f);
 	const float Breathing = Field(Block, TEXT("breathing"), 1.0f);
 	// Every engine part's multiplier and how worn it is.
-	float Mult = Field(Head, TEXT("torque_mult"), 1.0f) * Lerp(0.75f, 1.0f, Head.Health) * (Ecu.bThere ? Field(Ecu, TEXT("power"), 1.0f) : 1.0f);
+	float Mult = Field(Head, TEXT("torque_mult"), 1.0f) * Lerp(0.75f, 1.0f, Head.Health);
 	const float Demand = Displacement * Field(Head, TEXT("peak_shift"), 1.0f) * Breathing;
 	const float Flow = Field(Fuel, TEXT("flow"), 1300.0f) * Lerp(0.8f, 1.0f, Fuel.Health);
 	Mult *= Field(Fuel, TEXT("torque_mult"), 1.0f);

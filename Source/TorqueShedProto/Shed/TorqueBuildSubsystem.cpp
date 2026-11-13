@@ -641,7 +641,8 @@ void UTorqueBuildSubsystem::Load()
 			KV.Value.At = ETorqueAt::Floor;
 			KV.Value.Place = FTransform(TorqueShedLayout::DropAt() + FVector(Rng.FRandRange(-60.0f, 60.0f), Rng.FRandRange(-40.0f, 40.0f), 0.0));
 		}
-	if (DropSpeedTwins() > 0)
+	const int32 Retired = DropRetiredParts();
+	if (DropSpeedTwins() + Retired > 0)
 	{
 		Builds.SetNum(Bays);
 		for (int32 I = 0; I < Bays; ++I) RebuildBuild(I);
@@ -1446,6 +1447,59 @@ int32 UTorqueBuildSubsystem::DropSpeedTwins()
 	return Bikes2 + Loose.Num();
 }
 
+int32 UTorqueBuildSubsystem::DropRetiredParts()
+{
+	// [tft] The separate ECUs are out of the game (beenster, Nov 13: the dash holds the bike's
+	// electronics, the TFT screens its rider aids), and so are the old sat nav units (the phone sat nav
+	// is the one sat nav). A saved shed's ECUs go; one that gave rider aids leaves a TFT dash with the
+	// same aids on the floor in its place (there's no money to give back). A saved sat nav unit
+	// becomes the phone sat nav where it is.
+	static const TCHAR* const Ecus[] = {TEXT("remap_ecu"), TEXT("remap2_ecu"), TEXT("ecu_safety"), TEXT("sport_ecu"), TEXT("race_ecu")};
+	static const TCHAR* const Instead[] = {nullptr, nullptr, TEXT("tft_colour"), TEXT("tft_naked"), TEXT("race_logger")};
+	static const TCHAR* const Navs[] = {TEXT("compact_gps"), TEXT("road_gps"), TEXT("adventure_gps"), TEXT("rally_tablet")};
+	int32 Changed = 0;
+	TArray<int32> Gone;
+	TArray<FName> Given;
+	for (TPair<int32, FTorqueItem>& KV : Items)
+	{
+		for (const TCHAR* Nav : Navs)
+			if (KV.Value.Part == FName(Nav))
+			{
+				KV.Value.Part = FName(TEXT("phone_nav_mount"));
+				KV.Value.Kind = TorqueShedParts::PartKind(KV.Value.Part);
+				++Changed;
+			}
+		for (int32 I = 0; I < UE_ARRAY_COUNT(Ecus); ++I)
+			if (KV.Value.Part == FName(Ecus[I]))
+			{
+				Gone.Add(KV.Key);
+				if (Instead[I]) Given.Add(FName(Instead[I]));
+			}
+	}
+	for (int32 Id : Gone)
+	{
+		for (TPair<int32, FTorqueItem>& KV : Items)
+			for (TPair<FName, int32>& Sl : KV.Value.Slots)
+				if (Sl.Value == Id) Sl.Value = 0;
+		EraseItem(Id);
+	}
+	// No bike has an ECU's place any more.
+	for (FTorqueShedBike& B : Bikes) Changed += B.Slots.Remove(FName(TEXT("ecu")));
+	for (const FName& Part : Given)
+	{
+		if (TorqueShedParts::PartKind(Part).IsNone()) continue;   // (a part list without it)
+		const int32 Id = NewItem(Part, 0.0f, 0.0f, 0.0f);
+		if (FTorqueItem* It = Items.Find(Id))
+			It->Place = FTransform(TorqueShedLayout::DropAt() + FVector(Rng.FRandRange(-60.0f, 60.0f), Rng.FRandRange(-40.0f, 40.0f), 0.0));
+	}
+	if (Changed + Gone.Num() > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: the saved shed's ECUs and old sat navs are retired (%d ECUs gone, %d TFT dashes left in their place, %d other changes)"),
+			Gone.Num(), Given.Num(), Changed);
+	}
+	return Changed + Gone.Num();
+}
+
 void UTorqueBuildSubsystem::Move(int32 Id, ETorqueAt At, int32 Ref, FName Spot)
 {
 	FTorqueItem* It = Items.Find(Id);
@@ -1759,10 +1813,11 @@ bool UTorqueBuildSubsystem::WithTune(int32 Bay, TFunctionRef<void(const TorqueFi
 	for (const TPair<FString, FString>& KV : Parts) Map[TBI::Std(KV.Key)] = TBI::Std(KV.Value);
 	TorqueFit::TuneMap Tune;
 	for (const TPair<FName, float>& KV : TuneOf(Bay)) Tune[TBI::Id(KV.Key)] = KV.Value;
-	double EcuHealth = 1.0;
-	if (const FTorqueItem* Ecu = Items.Find(ItemOn(Bay, FName(TEXT("ecu")))))
-		EcuHealth = TorqueFit::PartHealth(Ecu->Wear, Ecu->Rust, Ecu->Dirt);
-	const TorqueFit::BikeTune T(*Lay, TorqueFit::RideParts(*Lay, Map), Tune, EcuHealth);
+	// (The dash holds the bike's electronics now the separate ECUs are gone: its state is theirs.)
+	double DashHealth = 1.0;
+	if (const FTorqueItem* DashItem = Items.Find(ItemOn(Bay, FName(TEXT("dashboard")))))
+		DashHealth = TorqueFit::PartHealth(DashItem->Wear, DashItem->Rust, DashItem->Dirt);
+	const TorqueFit::BikeTune T(*Lay, TorqueFit::RideParts(*Lay, Map), Tune, DashHealth);
 	Fn(T);
 	return true;
 }
