@@ -195,7 +195,6 @@ void ATorqueHUD::DrawRiderNames()
 	FVector Eye = FVector::ZeroVector;
 	FRotator EyeRot;
 	if (PC) PC->GetPlayerViewPoint(Eye, EyeRot);
-	UFont* Font = GEngine->GetLargeFont();
 	const float Sc = Canvas->ClipY / 1080.0f;
 	int32 Others = 0, NoState = 0, Behind = 0, Drawn = 0;
 	for (TActorIterator<APawn> It(GetWorld()); It; ++It)
@@ -221,34 +220,33 @@ void ATorqueHUD::DrawRiderNames()
 		const FVector Screen = Project(Head, false);
 		++Drawn;
 		const double Metres = FVector::Dist(Eye, Head) / 100.0;
-		const FString Text = Metres < 30.0 ? PS->GetPlayerName() : FString::Printf(TEXT("%s  %.0f m"), *PS->GetPlayerName(), Metres);
-		// Big enough to read at a glance (and in a small window): as the HUD's main lines.
-		const float K = Sc * (Metres < 30.0 ? 1.5f : Metres < 100.0 ? 1.2f : 1.0f);
-		float W = 0, H = 0;
-		Canvas->StrLen(Font, Text, W, H);
-		const float X = Screen.X - 0.5f * W * K, Y = Screen.Y - H * K;
-		DrawRect(FLinearColor(0, 0, 0, 0.35f), X - 6.0f * Sc, Y - 3.0f * Sc, W * K + 12.0f * Sc, H * K + 6.0f * Sc);
+		// Subtle (beenster, build 141: too big and bold): the name in plain text, not bold, with no box,
+		// a soft shadow to read over the world, a touch see-through, smaller the further off they are;
+		// the distance after it, dimmer still.
+		const float Px = Sc * (Metres < 30.0 ? 19.0f : Metres < 100.0 ? 17.0f : 15.0f);
+		const float Fade = Metres < 100.0 ? 0.9f : 0.75f;
+		const FString Name = PS->GetPlayerName();
+		const FString Dist = Metres < 30.0 ? FString() : FString::Printf(TEXT("  %.0f m"), Metres);
+		const float NameW = (float)TorqueUi::Measure(Name, Px).X;
+		const float DistW = Dist.IsEmpty() ? 0.0f : (float)TorqueUi::Measure(Dist, Px * 0.85f).X;
+		const float H = (float)TorqueUi::Measure(Name, Px).Y;
+		const float X = Screen.X - 0.5f * (NameW + DistW), Y = Screen.Y - H;
 		// The name in the colour they chose (Settings > Character); pale for the dark ones.
 		const ATorquePlayerState* TPS = Cast<ATorquePlayerState>(PS);
-		FColor NameColour(255, 230, 150);
+		FLinearColor NameColour = FLinearColor(FColor(255, 230, 150));
 		if (TPS)
 		{
 			const FColor C = TPS->ColourValue();
-			NameColour = (C.R + C.G + C.B) < 200 ? FColor(220, 220, 220) : C;
+			NameColour = FLinearColor((C.R + C.G + C.B) < 200 ? FColor(220, 220, 220) : C);
 		}
-		Canvas->SetDrawColor(NameColour);
-		Canvas->DrawText(Font, Text, X, Y, K, K);
+		NameColour.A = Fade;
+		TorqueUi::Text(Canvas, Name, X, Y, Px, NameColour);
+		if (!Dist.IsEmpty())
+			TorqueUi::Text(Canvas, Dist, X + NameW, Y + (Px - Px * 0.85f) * 0.6f, Px * 0.85f, FLinearColor(0.85f, 0.85f, 0.85f, Fade * 0.8f));
 		// In the shed, what they're doing: "fitting clubman bars to bay 2".
 		if (TPS && !TPS->Activity.IsEmpty() && Metres < 40.0)
-		{
-			const float AK = K * 0.7f;
-			float AW = 0, AH = 0;
-			Canvas->StrLen(Font, TPS->Activity, AW, AH);
-			const float AX = Screen.X - 0.5f * AW * AK, AY = Y + H * K + 6.0f * Sc;
-			DrawRect(FLinearColor(0, 0, 0, 0.3f), AX - 5.0f * Sc, AY - 2.0f * Sc, AW * AK + 10.0f * Sc, AH * AK + 4.0f * Sc);
-			Canvas->SetDrawColor(FColor(200, 230, 200));
-			Canvas->DrawText(Font, TPS->Activity, AX, AY, AK, AK);
-		}
+			TorqueUi::Text(Canvas, TPS->Activity, Screen.X, Y + H + 2.0f * Sc, Px * 0.8f, FLinearColor(0.78f, 0.9f, 0.78f, Fade * 0.85f),
+				false, TorqueUi::EAlign::Centre);
 	}
 	// Once every 10 s in co-op, so a test can tell why a name tag isn't there.
 	NameLogClock -= GetWorld()->GetDeltaSeconds();
