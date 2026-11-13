@@ -195,3 +195,14 @@ if(MSVC)
 else()
   target_compile_options(radio_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow)
 endif()
+
+# The TFT screens and the sat nav's map (plain C++ draw lists): every shape, view and design drawn and checked.
+# tft_test <dir> also writes each one as an SVG; Tools/tft_sheets.js makes picture sheets of them.
+set(DASH ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/Dash)
+add_executable(tft_test tft_test.cpp ${DASH}/TftScreen.cpp ${DASH}/TftMap.cpp)
+target_include_directories(tft_test PRIVATE ${DASH})
+if(MSVC)
+  target_compile_options(tft_test PRIVATE /W4)
+else()
+  target_compile_options(tft_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
