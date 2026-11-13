@@ -320,13 +320,31 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	// (The sky bench holds its own sun: a day and a place of its choosing.)
 	if (!bSunHeld) bRealSunNow = bRealClock;
 	if (!bSunHeld && bRealClock) TickRealClock();
-	else if (!bSunHeld && (SunShift != 0.0f || SunDec != 15.0f || SunLat != 54.35f))
+	else if (!bSunHeld && HasAuthority())
 	{
-		SunShift = 0.0f;
-		SunDec = 15.0f;
-		SunLat = 54.35f;
-		ApplySun();
-		ForceNetUpdate();
+		// A clock set in Settings (or running by itself) is today's clock at the place the weather is from:
+		// the sun stands as it does there today at that hour, so 05:00 on a November morning is dark and
+		// the sun comes up when the info panel says (beenster, build 141: 05:00 with a 07:29 sunrise was
+		// broad daylight, because the sun was a midsummer one). Test runs keep the fixed summer sun their
+		// shots were taken with.
+		float Shift = 0.0f, Dec = 15.0f, SLat = 54.35f;
+		if (!bTestRun)
+		{
+			const FDateTime Utc = FDateTime::UtcNow();
+			const int32 Day = Utc.GetDayOfYear();
+			const int32 Off = bUtcKnown ? UtcOffset : FMath::RoundToInt((FDateTime::Now() - Utc).GetTotalSeconds() / 900.0) * 900;
+			Dec = (float)TorqueWeather::SunDeclination(Day);
+			SLat = (float)LatitudeAt;
+			Shift = (float)(LongitudeAt / 15.0 + TorqueWeather::EquationOfTime(Day) / 60.0 - Off / 3600.0);
+		}
+		if (FMath::Abs(SunShift - Shift) > 1e-4f || FMath::Abs(SunDec - Dec) > 1e-3f || FMath::Abs(SunLat - SLat) > 1e-3f)
+		{
+			SunShift = Shift;
+			SunDec = Dec;
+			SunLat = SLat;
+			ApplySun();
+			ForceNetUpdate();
+		}
 	}
 	if (Set.bDayNight && !bRealClock && !bSunHeld)
 	{
