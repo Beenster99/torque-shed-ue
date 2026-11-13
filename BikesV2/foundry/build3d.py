@@ -1,0 +1,513 @@
+"""The 3D step: builds a whole bike in Blender from a model description file and renders it.
+
+Reads the same data/models/<model>.json as the drawing step. Blender axes: x forward,
+y to the bike's left, z up, metres. The side render uses an orthographic camera
+framed exactly like the elevation drawing, so the two can be overlaid.
+
+Usage: python3 foundry/build3d.py corvano_naked [--glb] [--samples 48]
+  -> out/renders/<model>_side.png, <model>_q.png, and optionally out/glb/<model>.glb
+"""
+import json
+import math
+import os
+import sys
+
+import bpy
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import shapes  # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MM = 0.001
+
+# Half-width tables along each body part, u = 0 at the rear end and 1 at the front end.
+# n is the roundness of the cross-section (2 = ellipse, higher = boxier); bottom narrows the underside.
+WIDTHS = {
+    "tank": {"w": [[0, 95], [0.25, 150], [0.6, 180], [0.85, 150], [1, 105]], "n": 2.7, "bottom": 0.62},
+    "seat": {"w": [[0, 105], [0.35, 140], [0.7, 150], [1, 85]], "n": 3.6, "bottom": 0.85},
+    "tail": {"w": [[0, 55], [0.4, 105], [1, 125]], "n": 3.0, "bottom": 0.8},
+}
+
+MATS = {
+    "paint": dict(metallic=0.0, rough=0.28, coat=1.0),
+    "frame": dict(metallic=0.6, rough=0.35, coat=0.3),
+    "rubber": dict(col=(0.016, 0.016, 0.018), rough=0.75),
+    "alu": dict(col=(0.62, 0.64, 0.66), metallic=1.0, rough=0.38),
+    "alu_dark": dict(col=(0.06, 0.065, 0.07), metallic=0.9, rough=0.45),
+    "steel": dict(col=(0.55, 0.56, 0.57), metallic=1.0, rough=0.22),
+    "chrome": dict(col=(0.9, 0.9, 0.9), metallic=1.0, rough=0.06),
+    "engine": dict(col=(0.34, 0.35, 0.37), metallic=0.9, rough=0.5),
+    "engine_dark": dict(col=(0.11, 0.115, 0.12), metallic=0.8, rough=0.5),
+    "plastic": dict(col=(0.02, 0.021, 0.023), rough=0.5),
+    "seat": dict(col=(0.018, 0.018, 0.02), rough=0.62),
+    "exhaust": dict(col=(0.5, 0.48, 0.45), metallic=1.0, rough=0.3),
+    "gold": dict(col=(0.42, 0.27, 0.08), metallic=1.0, rough=0.32),
+    "lens": dict(col=(0.9, 0.88, 0.75), rough=0.1, emit=0.6),
+    "redlens": dict(col=(0.5, 0.02, 0.03), rough=0.15, emit=0.3),
+    "plate": dict(col=(0.6, 0.5, 0.05), rough=0.5),
+    "floor": dict(col=(0.2, 0.205, 0.21), rough=0.85),
+}
+_mats = {}
+
+
+def hex_rgb(h):
+    h = h.lstrip("#")
+    return tuple(((int(h[i:i + 2], 16) / 255) ** 2.2) for i in (0, 2, 4))
+
+
+def mat(name, col=None):
+    key = name + str(col)
+    if key in _mats:
+        return _mats[key]
+    spec = MATS[name]
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    b = m.node_tree.nodes["Principled BSDF"]
+    c = col or spec.get("col", (0.5, 0.5, 0.5))
+    b.inputs["Base Color"].default_value = (*c, 1)
+    b.inputs["Metallic"].default_value = spec.get("metallic", 0.0)
+    b.inputs["Roughness"].default_value = spec.get("rough", 0.5)
+    if spec.get("coat"):
+        b.inputs["Coat Weight"].default_value = spec["coat"]
+        b.inputs["Coat Roughness"].default_value = 0.04
+    if spec.get("emit"):
+        b.inputs["Emission Color"].default_value = (*c, 1)
+        b.inputs["Emission Strength"].default_value = spec["emit"]
+    _mats[key] = m
+    return m
+
+
+def V(x, y, z):
+    return (x * MM, y * MM, z * MM)
+
+
+def mesh_obj(name, verts, faces, material, smooth=True, bevel=0.0):
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    me.update()
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(ob)
+    me.materials.append(material)
+    if smooth:
+        me.polygons.foreach_set("use_smooth", [True] * len(me.polygons))
+        try:
+            me.set_sharp_from_angle(angle=math.radians(38))
+        except Exception:
+            pass
+    if bevel:
+        md = ob.modifiers.new("bevel", "BEVEL")
+        md.width, md.segments, md.limit_method = bevel * MM, 2, "ANGLE"
+    return ob
+
+
+def tube(name, pts, radius, material, cyclic=False, caps=True):
+    """A round tube along 3D points (mm)."""
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth, cu.bevel_resolution, cu.use_fill_caps = radius * MM, 6, caps
+    sp = cu.splines.new("POLY")
+    sp.points.add(len(pts) - 1)
+    for p, q in zip(sp.points, pts):
+        p.co = (*V(*q), 1)
+    sp.use_cyclic_u = cyclic
+    ob = bpy.data.objects.new(name, cu)
+    bpy.context.collection.objects.link(ob)
+    cu.materials.append(material)
+    return ob
+
+
+def smooth_tube(name, pts, radius, material):
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth, cu.bevel_resolution, cu.use_fill_caps = radius * MM, 6, True
+    sp = cu.splines.new("NURBS")
+    sp.points.add(len(pts) - 1)
+    for p, q in zip(sp.points, pts):
+        p.co = (*V(*q), 1)
+    sp.use_endpoint_u, sp.order_u = True, 3
+    cu.resolution_u = 10
+    ob = bpy.data.objects.new(name, cu)
+    bpy.context.collection.objects.link(ob)
+    cu.materials.append(material)
+    return ob
+
+
+def prism(name, poly, y0, y1, material, bevel=2.0):
+    """Extrude a side-view polygon (x, z in mm) between two y planes."""
+    n = len(poly)
+    verts = [V(p[0], y0, p[1]) for p in poly] + [V(p[0], y1, p[1]) for p in poly]
+    faces = [tuple(range(n - 1, -1, -1)), tuple(range(n, 2 * n))]
+    faces += [(i, (i + 1) % n, n + (i + 1) % n, n + i) for i in range(n)]
+    return mesh_obj(name, verts, faces, material, True, bevel)
+
+
+def revolve(name, profile, centre, material, segs=72, a0=0.0, a1=360.0, bevel=0.0):
+    """Revolve a closed profile of (radius, y) in mm about the wheel axis through centre (x, z)."""
+    full = abs(a1 - a0) >= 359.9
+    k = segs if full else segs + 1
+    verts, faces = [], []
+    for i in range(k):
+        a = math.radians(a0 + (a1 - a0) * i / segs)
+        for r, y in profile:
+            verts.append(V(centre[0] + r * math.cos(a), y, centre[1] + r * math.sin(a)))
+    m = len(profile)
+    for i in range(segs):
+        i2 = (i + 1) % k if full else i + 1
+        for j in range(m):
+            j2 = (j + 1) % m
+            faces.append((i * m + j, i2 * m + j, i2 * m + j2, i * m + j2))
+    if not full:
+        faces += [tuple(range(m - 1, -1, -1)), tuple((k - 1) * m + j for j in range(m))]
+    return mesh_obj(name, verts, faces, material, True, bevel)
+
+
+def unit(a_deg):
+    return (math.cos(math.radians(a_deg)), math.sin(math.radians(a_deg)))
+
+
+def add(p, q, k=1.0):
+    return (p[0] + q[0] * k, p[1] + q[1] * k)
+
+
+def wheel(tag, c, w, width, rim_col, discs):
+    rt, rr, hw = w["tyre_r"], w["rim_r"], width / 2
+    prof = [(rr + 4, hw * 0.78), (rr + 30, hw * 0.98), (rt - 42, hw), (rt - 16, hw * 0.78), (rt - 3, hw * 0.4), (rt, 0),
+            (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
+    revolve(tag + "_tyre", prof, c, mat("rubber"))
+    rw = hw * 0.8
+    rprof = [(rr + 8, rw), (rr + 8, rw - 8), (rr - 8, rw - 14), (rr - 22, 0), (rr - 8, -rw + 14), (rr + 8, -rw + 8), (rr + 8, -rw), (rr - 26, -rw + 6), (rr - 34, 0), (rr - 26, rw - 6)]
+    revolve(tag + "_rim", rprof, c, mat("alu_dark", rim_col))
+    n = w.get("spokes", 5)
+    for k in range(n):
+        a0 = 360 / n * k + w.get("phase", 12)
+        for side in (-1, 1):
+            a_h, a_r = a0 + side * 16, a0 + side * 9 + 20
+            quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
+            prism(f"{tag}_spoke{k}{side}", quad, -13, 13, mat("alu_dark", rim_col), 3)
+    revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("alu_dark", rim_col), 32)
+    d = w.get("disc")
+    for y in discs if d else []:
+        revolve(f"{tag}_disc{y}", [(d, y + 2.5), (d, y - 2.5), (d - 36, y - 2.5), (d - 36, y + 2.5)], c, mat("steel"), 64)
+        revolve(f"{tag}_carrier{y}", [(d - 34, y + 3), (d - 34, y - 3), (d - 72, y - 3), (d - 72, y + 3)], c, mat("alu_dark"), 48)
+
+
+def loft(name, outline, spec, material, stations=56, ring=30):
+    """A body part with real width: superellipse sections between the outline's top and bottom lines."""
+    xs = [p[0] for p in outline]
+    x0, x1 = min(xs), max(xs)
+    rows = []
+    for i in range(stations):
+        u = (i + 0.5) / stations
+        x = x0 + (x1 - x0) * u
+        tb = shapes.top_bottom(outline, x)
+        if not tb or tb[0] - tb[1] < 2:
+            continue
+        zc, h, w = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2, shapes.lerp_table(spec["w"], u)
+        edge = min(u, 1 - u) * stations          # round the two ends off
+        w *= min(1.0, 0.35 + 0.65 * math.sqrt(min(1.0, edge / 3.0)))
+        row = []
+        for j in range(ring):
+            th = 2 * math.pi * j / ring
+            cs, sn = math.cos(th), math.sin(th)
+            e = 2.0 / spec["n"]
+            y = w * math.copysign(abs(cs) ** e, cs)
+            z = zc + h * math.copysign(abs(sn) ** e, sn)
+            if sn < 0:
+                y *= 1 - (1 - spec["bottom"]) * abs(sn)
+            row.append(V(x, y, z))
+        rows.append(row)
+    verts = [v for r in rows for v in r]
+    faces = []
+    for i in range(len(rows) - 1):
+        for j in range(ring):
+            j2 = (j + 1) % ring
+            faces.append((i * ring + j, i * ring + j2, (i + 1) * ring + j2, (i + 1) * ring + j))
+    faces.append(tuple(range(ring - 1, -1, -1)))
+    faces.append(tuple((len(rows) - 1) * ring + j for j in range(ring)))
+    ob = mesh_obj(name, verts, faces, material, True, 0)
+    md = ob.modifiers.new("sub", "SUBSURF")
+    md.levels = md.render_levels = 1
+    return ob
+
+
+def arc_band(name, a, hw, material):
+    prof = [(a["r0"], hw), (a["r1"], hw * 0.7), (a["r1"] + 6, 0), (a["r1"], -hw * 0.7), (a["r0"], -hw), (a["r0"] - 4, 0)]
+    return revolve(name, prof, tuple(a["c"]), material, 36, a["a0"], a["a1"])
+
+
+def build(model):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    g, wh, col = model["geometry"], model["wheels"], model["colours"]
+    body_c, frame_c, rim_c = hex_rgb(col["body"]), hex_rgb(col["frame"]), hex_rgb(col.get("rim", "#2b2d31"))
+    paint, framem = mat("paint", body_c), mat("frame", frame_c)
+    wb, rake = g["wheelbase"], math.radians(g["rake"])
+    A, F = (0, wh["rear"]["tyre_r"]), (wb, wh["front"]["tyre_r"])
+    uf, nb = (-math.sin(rake), math.cos(rake)), (-math.cos(rake), -math.sin(rake))
+    fk = model["fork"]
+    top = add(F, uf, fk["length"])
+    head_t, head_b = add(add(F, uf, fk["length"] - 22), nb, fk["offset"]), add(add(F, uf, fk["lower_yoke"] + 18), nb, fk["offset"])
+
+    # wheels
+    wheel("front", F, wh["front"], 120, rim_c, (-78, 78))
+    wheel("rear", A, wh["rear"], 180, rim_c, (-82,))
+
+    # fork legs, yokes, axle
+    forkm = mat("gold") if col.get("fork", "").lower() == "#b8975a" else mat("alu_dark")
+    stan = add(F, uf, fk["slider_top"])
+    for s in (-1, 1):
+        y = s * 105
+        tube(f"stanchion{s}", [(add(F, uf, 40)[0], y, add(F, uf, 40)[1]), (stan[0], y, stan[1])], 21.5, mat("chrome"))
+        tube(f"forktube{s}", [(stan[0], y, stan[1]), (top[0], y, top[1])], 29, forkm)
+        foot = add(F, uf, -30)
+        tube(f"forkfoot{s}", [(foot[0], y, foot[1]), (add(F, uf, 62)[0], y, add(F, uf, 62)[1])], 31, mat("alu_dark"))
+    tube("axle_f", [(F[0], -125, F[1]), (F[0], 125, F[1])], 12, mat("steel"))
+    for at, th in ((fk["length"] - 22, 22), (fk["lower_yoke"], 26)):
+        c = add(F, uf, at)
+        a, b = add(c, nb, -40), add(c, nb, fk["offset"] + 42)
+        n2 = (uf[0] * th, uf[1] * th)
+        prism(f"yoke{at}", [add(a, n2, 1), add(b, n2, 1), add(b, n2, -1), add(a, n2, -1)], -135, 135, mat("alu_dark"), 6)
+    tube("head", [(head_t[0], 0, head_t[1]), (head_b[0], 0, head_b[1])], 31, framem)
+    cal = model.get("front_caliper")
+    if cal:
+        cp = shapes.dense(cal, True, 0.8)
+        for s in (-1, 1):
+            prism(f"caliper{s}", cp, s * 62, s * 100, mat("gold") if forkm.name.startswith("gold") else mat("alu_dark"), 4)
+
+    # frame tubes: half-width grows from the head back to the pivot
+    fr = model["frame"]
+    nodes = {k: tuple(v) for k, v in fr["nodes"].items()}
+    nodes.update(head_t=head_t, head_b=head_b)
+
+    def half(p):
+        u = (head_t[0] - p[0]) / max(1.0, head_t[0] - 600)
+        return 22 + max(0.0, min(1.0, u)) * 118
+
+    for i, tb in enumerate(fr["tubes"]):
+        pts = [nodes[n] for n in tb["path"]]
+        sub = tb.get("cls") == "sub"
+        for s in (-1, 1):
+            p3 = [(p[0], s * (110 if sub and p[0] < 500 else half(p)), p[1]) for p in pts]
+            tube(f"frame{i}{s}", p3, tb["w"] / 2, framem)
+    for i, pl in enumerate(fr.get("plates", [])):
+        pp = shapes.dense(pl["pts"], True, pl.get("t", 0.6))
+        for s in (-1, 1):
+            prism(f"spar{i}{s}", pp, s * 118, s * 152, framem, 6)
+    # engine
+    eng = model["engine"]
+    crank = tuple(eng["crank"])
+    wide = 420 if eng["layout"] in ("inline4", "triple") else 300
+    prism("crankcase", shapes.dense(eng["case"], True, 0.9), -wide / 2 + 20, wide / 2 - 20, mat("engine"), 10)
+    for i, cy in enumerate(eng["cylinders"]):
+        u = unit(cy["angle"])
+        base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
+        headend = add(end, u, cy["head"])
+        if eng["layout"] in ("inline4", "triple"):
+            n = (-u[1], u[0])
+            hwc = cy["bore_w"] / 2
+            prism(f"block{i}", [add(base, n, hwc), add(end, n, hwc), add(end, n, -hwc), add(base, n, -hwc)], -wide / 2 + 30, wide / 2 - 30, mat("engine"), 5)
+            hwc += 13
+            prism(f"cylhead{i}", [add(end, n, hwc), add(headend, n, hwc), add(headend, n, -hwc), add(end, n, -hwc)], -wide / 2 + 25, wide / 2 - 25, mat("engine"), 8)
+            cov = add(headend, u, 30)
+            prism(f"cover{i}", [add(headend, n, hwc - 8), add(cov, n, hwc - 18), add(cov, n, -hwc + 18), add(headend, n, -hwc + 8)], -wide / 2 + 35, wide / 2 - 35, mat("engine_dark"), 8)
+        else:
+            r = cy["bore_w"] / 2
+            tube(f"barrel{i}", [(base[0], 0, base[1]), (end[0], 0, end[1])], r - 14, mat("engine"))
+            if cy.get("fins", True):
+                k = 14
+                while k < cy["length"] - 6:
+                    q0, q1 = add(base, u, k), add(base, u, k + 3)
+                    tube(f"fin{i}_{k}", [(q0[0], 0, q0[1]), (q1[0], 0, q1[1])], r + 4, mat("engine"))
+                    k += 13
+            tube(f"cylhead{i}", [(end[0], 0, end[1]), (headend[0], 0, headend[1])], r + 12, mat("engine"))
+            cov = add(headend, u, 28)
+            tube(f"cover{i}", [(headend[0], 0, headend[1]), (cov[0], 0, cov[1])], r - 6, mat("engine_dark"))
+    for i, cv in enumerate(eng.get("covers", [])):
+        c = tuple(cv["c"])
+        tube(f"sidecover{i}", [(c[0], wide / 2 - 30, c[1]), (c[0], wide / 2 + 18, c[1])], cv["r"], mat("engine_dark"))
+    for i, shp in enumerate(eng.get("extras", [])):
+        prism(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -110, 110, mat("plastic"), 8)
+    r = model.get("radiator")
+    if r:
+        u = unit(r["angle"])
+        n = (-u[1], u[0])
+        a, b, hwc = tuple(r["at"]), add(tuple(r["at"]), u, r["len"]), r["w"] / 2
+        prism("radiator", [add(a, n, hwc), add(b, n, hwc), add(b, n, -hwc), add(a, n, -hwc)], -150, 150, mat("plastic"), 4)
+
+    # exhaust on the right side
+    ex = model["exhaust"]
+    for i, hp in enumerate(ex["headers"]):
+        pts = shapes.dense(hp["pts"], False, 1.0)[::3] + [tuple(hp["pts"][-1][:2])]
+        yy = [-40 - 110 * (j / (len(pts) - 1)) for j in range(len(pts))]
+        smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.62, mat("exhaust"))
+    for i, can in enumerate(ex.get("cans", [])):
+        tube(f"can{i}", [(can["a"][0], -165, can["a"][1]), (can["b"][0], -175, can["b"][1])], can["w"] / 2 * 0.8, mat("exhaust"))
+
+    # swingarm, sprocket, chain, shock
+    sw = model["swingarm"]
+    so = shapes.dense(sw["outline"], True, 0.9)
+    swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
+    sides = (1, -1) if sw.get("cls") == "alu" else (1,)
+    for s in sides:
+        prism(f"swingarm{s}", so, s * 118 if len(sides) == 2 else 70, s * 158 if len(sides) == 2 else 150, swm, 8)
+    piv = tuple(sw["pivot"])
+    tube("pivot", [(piv[0], -160, piv[1]), (piv[0], 160, piv[1])], 14, mat("steel"))
+    tube("axle_r", [(A[0], -150, A[1]), (A[0], 165, A[1])], 14, mat("steel"))
+    revolve("sprocket", [(sw["sprocket_r"], 100), (sw["sprocket_r"], 94), (40, 94), (40, 100)], A, mat("steel"), 48)
+    cs = tuple(eng["countershaft"])
+    d = math.hypot(A[0] - cs[0], A[1] - cs[1])
+    th = math.atan2(A[1] - cs[1], A[0] - cs[0])
+    al = math.acos((36 - sw["sprocket_r"]) / d)
+    loop = []
+    for sgn in (1, -1):
+        v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
+        pair = [add(cs, v, 36), add(A, v, sw["sprocket_r"])]
+        loop += pair if sgn == 1 else pair[::-1]
+    tube("chain", [(p[0], 97, p[1]) for p in loop], 7, mat("steel"), cyclic=True)
+    sk = model["shock"]
+    tube("shock", [(sk["top"][0], 0, sk["top"][1]), (sk["bottom"][0], 0, sk["bottom"][1])], 16, mat("alu_dark"))
+    L = math.hypot(sk["bottom"][0] - sk["top"][0], sk["bottom"][1] - sk["top"][1])
+    us = ((sk["bottom"][0] - sk["top"][0]) / L, (sk["bottom"][1] - sk["top"][1]) / L)
+    ns = (-us[1], us[0])
+    coil = []
+    for i in range(121):
+        t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 9 * i / 120
+        q = add(add(tuple(sk["top"]), us, t), ns, 27 * math.cos(a))
+        coil.append((q[0], 27 * math.sin(a), q[1]))
+    tube("spring", coil, 5, mat("paint", hex_rgb(col.get("accent", col["body"]))))
+
+    # bodywork
+    body = model["body"]
+    for part in ("tank", "seat", "tail"):
+        shp = body[part][0]
+        outline = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+        spec = model.get("widths", {}).get(part, WIDTHS[part])
+        loft(part, outline, spec, mat("seat") if part == "seat" else paint)
+    for i, shp in enumerate(body.get("tail", [])[1:]):
+        if shp["cls"] == "redlens":
+            prism(f"taillight{i}", [tuple(p[:2]) for p in shp["pts"]], -45, 45, mat("redlens"), 2)
+    for i, shp in enumerate(body.get("front_guard", []) + body.get("panels", [])):
+        m_ = paint if shp["cls"] == "body" else mat("plastic")
+        if "arc" in shp:
+            arc_band(f"guard{i}", shp["arc"], 72 if shp["arc"]["c"][0] > 100 else 100, m_)
+        else:
+            pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+            low = max(p[1] for p in pp) < 400
+            if low:
+                prism(f"belly{i}", pp, -120, 120, m_, 10)
+            else:
+                for s in (-1, 1):
+                    prism(f"panel{i}{s}", pp, s * 150, s * 162, m_, 4)
+    for i, shp in enumerate(body.get("behind", [])):
+        hw = 85 if shp["cls"] == "plate" else (95 if "fender" in shp["cls"] else 25)
+        pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+        prism(f"behind{i}", pp, -hw, hw, mat("plate") if shp["cls"] == "plate" else mat("plastic"), 2)
+    for c in body.get("caps", []):
+        tube("filler", [(c["at"][0], 0, c["at"][1] - 20), (c["at"][0], 0, c["at"][1] - 4)], 38, mat("alu_dark"))
+
+    # front end: lamp, dash, bars, mirrors
+    grip = next((tuple(s_["at"]) for s_ in model.get("front_end", []) if s_.get("circle")), None)
+    for i, shp in enumerate(model.get("front_end", [])):
+        if shp.get("circle") or shp.get("tube"):
+            pass
+        else:
+            pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+            if shp["cls"] == "lens":
+                prism(f"lens{i}", pp, -62, 62, mat("lens"), 3)
+            elif max(p[1] for p in pp) > 1120:
+                for s in (-1, 1):
+                    prism(f"mirror{i}{s}", pp, s * 330, s * 430, mat("plastic"), 6)
+                    cx = sum(p[0] for p in pp) / len(pp)
+                    cz = min(p[1] for p in pp)
+                    if grip:
+                        tube(f"mstalk{s}", [(grip[0] + 10, s * 300, grip[1] + 5), (cx, s * 370, cz + 5)], 5, mat("plastic"))
+            else:
+                prism(f"front{i}", pp, -88, 88, mat("plastic"), 10)
+    if grip:
+        for s in (-1, 1):
+            tube(f"riser{s}", [(top[0], s * 45, top[1]), (top[0] - 28, s * 45, top[1] + 62)], 15, mat("alu_dark"))
+            tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
+            tube(f"lever{s}", [(grip[0] + 30, s * 262, grip[1] - 10), (grip[0] + 62, s * 300, grip[1] - 22), (grip[0] + 55, s * 395, grip[1] - 24)], 5, mat("alu_dark"))
+        smooth_tube("bar", [(grip[0] - 4, -380, grip[1] - 3), (grip[0], -240, grip[1]), (top[0] - 28, -70, top[1] + 62), (top[0] - 28, 70, top[1] + 62), (grip[0], 240, grip[1]), (grip[0] - 4, 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+
+    # footrests and stand
+    pegs = [tuple(s["at"]) for s in model.get("hangers", []) if s.get("circle")]
+    for i, shp in enumerate(model.get("hangers", [])):
+        if shp.get("pts") and not shp.get("tube"):
+            pp = shapes.dense(shp["pts"], True, shp.get("t", 0.8))
+            for s in (-1, 1):
+                prism(f"hanger{i}{s}", pp, s * 165, s * 177, mat("alu_dark"), 3)
+    for i, p in enumerate(pegs):
+        for s in (-1, 1):
+            tube(f"peg{i}{s}", [(p[0], s * 170, p[1]), (p[0], s * 255, p[1])], 12, mat("alu"))
+    if len(pegs) > 1:
+        for s in (-1, 1):
+            n3 = nodes.get("S3", (470, 780))
+            tube(f"pillionhanger{s}", [(n3[0], s * 112, n3[1]), (pegs[1][0], s * 168, pegs[1][1])], 8, mat("alu_dark"))
+    return dict(A=A, F=F, wb=wb)
+
+
+def studio(scene):
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0.7, 0, 0))
+    bpy.context.object.data.materials.append(mat("floor"))
+    w = bpy.data.worlds.new("w")
+    w.use_nodes = True
+    w.node_tree.nodes["Background"].inputs[0].default_value = (0.75, 0.77, 0.8, 1)
+    w.node_tree.nodes["Background"].inputs[1].default_value = 0.3
+    scene.world = w
+    for loc, energy, size in (((0.7, 3.5, 3.2), 170, 4.0), ((3.5, 2.0, 1.6), 70, 3.0), ((-2.2, 2.5, 1.8), 70, 3.0), ((0.7, -3.0, 2.5), 60, 4.0)):
+        bpy.ops.object.light_add(type="AREA", location=loc)
+        L = bpy.context.object
+        L.data.energy, L.data.size = energy, size
+        L.rotation_euler = _look(loc, (0.7, 0, 0.6))
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.use_denoising = True
+    scene.render.film_transparent = False
+
+
+def _look(loc, target):
+    from mathutils import Vector
+    d = Vector(target) - Vector(loc)
+    return d.to_track_quat("-Z", "Y").to_euler()
+
+
+def render(name, samples=48):
+    sc = bpy.context.scene
+    studio(sc)
+    sc.cycles.samples = samples
+    out = os.path.join(ROOT, "out", "renders")
+    os.makedirs(out, exist_ok=True)
+    # side view, framed exactly like foundry/elevation.py (W 1600, H 1000, S 0.56, OX 1275, OY 850)
+    cam = bpy.data.cameras.new("side")
+    cam.type, cam.ortho_scale = "ORTHO", 1600 / 0.56 * MM
+    ob = bpy.data.objects.new("side", cam)
+    sc.collection.objects.link(ob)
+    cx, cz = (1275 - 800) / 0.56 * MM, (850 - 500) / 0.56 * MM
+    ob.location = (cx, 6.0, cz)
+    ob.rotation_euler = _look((cx, 6.0, cz), (cx, 0, cz))
+    sc.camera = ob
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
+    sc.render.filepath = os.path.join(out, name + "_side.png")
+    bpy.ops.render.render(write_still=True)
+    # three-quarter view from the front left
+    cam2 = bpy.data.cameras.new("q")
+    cam2.lens = 70
+    ob2 = bpy.data.objects.new("q", cam2)
+    sc.collection.objects.link(ob2)
+    ob2.location = (4.3, 3.6, 1.45)
+    ob2.rotation_euler = _look(ob2.location, (0.72, 0, 0.55))
+    sc.camera = ob2
+    sc.render.filepath = os.path.join(out, name + "_q.png")
+    bpy.ops.render.render(write_still=True)
+    return out
+
+
+if __name__ == "__main__":
+    name = sys.argv[1]
+    model = json.load(open(os.path.join(ROOT, "data", "models", name + ".json")))
+    build(model)
+    if "--glb" in sys.argv:
+        os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
+        bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
+    samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
+    print("renders in", render(name, samples))

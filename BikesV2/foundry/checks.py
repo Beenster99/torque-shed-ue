@@ -51,13 +51,59 @@ def check(model, fams):
     return out
 
 
+def packing(model, tmp="/tmp"):
+    """Share of empty space inside the bike's middle, between its lowest and highest drawn part.
+
+    beenster, 13 Nov: "the large void space beneath the tank and saddle ... should not exist".
+    Rasterises the side elevation (needs node + Playwright, see foundry/shot.js) and, for each
+    column between the swingarm pivot and the steering head, counts unfilled pixels between the
+    lowest and highest drawn pixel. Returns a fraction 0..1, or None if it could not be drawn.
+    """
+    import subprocess
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import elevation
+    from PIL import Image
+    m = dict(model, dimensions=False)
+    svg = elevation.draw(m)
+    html = os.path.join(tmp, "v2_pack.html")
+    png = os.path.join(tmp, "v2_pack.png")
+    css = elevation.CSS + ".elev .paper{fill:#fff}.elev .ground{stroke:none}.elev .castin,.elev .hole{fill:#888}"
+    open(html, "w").write("<html><head><style>body{margin:0}" + css + "</style></head><body>" + svg + "</body></html>")
+    try:
+        subprocess.run(["node", os.path.join(os.path.dirname(os.path.abspath(__file__)), "shot.js"), "file://" + html, png, "1600", "1000"],
+                       check=True, timeout=90, cwd=tmp, capture_output=True)
+    except Exception:
+        return None
+    im = Image.open(png).convert("L")
+    px = im.load()
+    g = model["geometry"]
+    x_hi = g["wheelbase"] - model["wheels"]["front"]["tyre_r"] - 30
+    x_lo = model["swingarm"]["pivot"][0]
+    empty = total = 0
+    for X in range(int(elevation.X(x_hi)), int(elevation.X(x_lo))):
+        col = [px[X, Y] < 250 for Y in range(int(elevation.Y(1150)), int(elevation.Y(60)))]
+        if True not in col:
+            continue
+        a, b = col.index(True), len(col) - 1 - col[::-1].index(True)
+        total += b - a + 1
+        empty += col[a:b + 1].count(False)
+    return empty / total if total else None
+
+
+PACKING_MAX = 0.12
+
+
 if __name__ == "__main__":
     fams = json.load(open(os.path.join(ROOT, "data", "families.json")))["families"]
     bad = 0
     for path in sorted(glob.glob(os.path.join(ROOT, "data", "models", "*.json"))):
         m = json.load(open(path))
         print(m["name"])
-        for ok, msg in check(m, fams):
+        res = check(m, fams)
+        pk = packing(m)
+        if pk is not None:
+            res.append((pk <= PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {PACKING_MAX * 100:.0f}%)"))
+        for ok, msg in res:
             bad += not ok
             print("  ", "ok  " if ok else "FAIL", msg)
     sys.exit(1 if bad else 0)
