@@ -699,6 +699,66 @@ int main()
 						Check(Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/prop_kit.json"), KitText) && RidePlan::ReadPropKit(KitText, KitRows) && int(KitRows.size()) == RidePlan::PropKinds,
 							"Data/RideUK/prop_kit.json has a row for every kind of prop");
 					}
+					// [OSM stage 2 batch B] The power and the skyline: no telegraph wire longer than 120 m, none
+					// lower than 5 m over a road, every pole on a wire turned to it; the tall things drawn near and
+					// far, the same each time.
+					{
+						int Long = 0, Sagging = 0, Poles = 0, Turned = 0;
+						for (const RidePlan::Wire& W : Plan->Wires)
+						{
+							const double Span = W.A.DistanceTo(W.B);
+							if (Span > (W.High ? 500.0 : 120.0) + 1e-6) ++Long;
+							for (int K = 1; K < 40; ++K)
+							{
+								const double T = K / 40.0;
+								const P2 P = W.A + (W.B - W.A) * T;
+								double Dist = 0.0, H = 0.0, Half = 0.0;
+								int Which = 0;
+								if (Plan->Nearest(P.X, P.Z, Dist, H, nullptr, &Half, &Which) && Dist < Half && W.Ya + (W.Yb - W.Ya) * T - 4.0 * W.Sag * T * (1.0 - T) - H < 4.99) { ++Sagging; break; }
+							}
+						}
+						for (const RidePlan::Furnish& F : Plan->Furniture)
+						{
+							if (F.Kind != RidePlan::PowerPole) continue;
+							++Poles;
+							for (const RidePlan::Wire& W : Plan->Wires)
+								if (!W.High && (W.A.DistanceTo(F.At) < 0.01 || W.B.DistanceTo(F.At) < 0.01))
+								{
+									const P2 D = W.B - W.A;
+									Turned += std::fabs(D.X * F.Face.Z - D.Z * F.Face.X) / std::fmax(D.Length(), 1e-9) < 0.5 ? 1 : 0;
+									break;
+								}
+						}
+						int Kinds[RidePlan::TallKinds] = {};
+						for (const RidePlan::TallThing& T : Plan->Talls) ++Kinds[T.Kind];
+						int Solar = 0;
+						for (const RidePlan::Yard& Y : Plan->Yards) Solar += Y.Solar ? 1 : 0;
+						const P2 Middle = Plan->Road[Plan->Road.size() / 2].At;
+						size_t NearTris = 0, FarTris = 0;
+						bool Repeat = true;
+						for (int Sq = 0; Sq < 9; ++Sq)
+						{
+							const double Sx = std::floor(Middle.X / 512.0) * 512.0 + (Sq % 3 - 1) * 512.0, Sz = std::floor(Middle.Z / 512.0) * 512.0 + (Sq / 3 - 1) * 512.0;
+							RideMesh One, Two;
+							One.OriginX = Two.OriginX = Sx;
+							One.OriginZ = Two.OriginZ = Sz;
+							Plan->SkylineTile(Sx, Sz, 512.0, 2, One);
+							Plan->SkylineTile(Sx, Sz, 512.0, 2, Two);
+							Repeat = Repeat && One.Pos == Two.Pos && One.Idx == Two.Idx;
+							NearTris += One.Idx.size() / 3;
+						}
+						{
+							RideMesh Far;
+							Far.OriginX = Middle.X - 8192.0;
+							Far.OriginZ = Middle.Z - 8192.0;
+							Plan->SkylineTile(Middle.X - 8192.0, Middle.Z - 8192.0, 16384.0, 0, Far);
+							FarTris = Far.Idx.size() / 3;
+						}
+						std::printf("      skyline: %d wires (%d left out), %d poles (%d turned to their wire), %d masts, %d monopoles, %d turbines, %d silos, %d tanks, %d pylons, %d kiosks, %d substations, %d solar farms; %zu triangles in 9 near squares, %zu far over 16 km\n",
+							int(Plan->Wires.size()), Plan->WiresDropped, Poles, Turned, Kinds[RidePlan::TallMast], Kinds[RidePlan::TallMonopole], Kinds[RidePlan::TallTurbine], Kinds[RidePlan::TallSilo],
+							Kinds[RidePlan::TallTank], Kinds[RidePlan::TallPylon], Kinds[RidePlan::TallKiosk], int(Plan->Yards.size()) - Solar, Solar, NearTris, FarTris);
+						Check(!Plan->Wires.empty() && Long == 0 && Sagging == 0 && Repeat, "the power and the skyline: wires between the poles, none too long or low over a road, the same each time");
+					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.
 					{

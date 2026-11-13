@@ -443,6 +443,44 @@ public:
 		std::string Credit;
 	};
 	static bool ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out);
+	// [OSM stage 2 batch B] The power and the skyline (World/WorldRideSkyline.cpp): the wires between
+	// telegraph poles (the map's minor lines, or a pole joined to its neighbours within 90 m) and
+	// between pylons (its power lines), the pylons, masts, wind turbines, silos, water towers and tanks
+	// (Talls), and substations and solar farms (Yards). Made once by IndexSkyline (after IndexFurniture:
+	// it turns each pole's arm square to its wire, and puts up a pole where a line has none). A wire is
+	// from A (Ya over the ground's level, the attachment's height) to B, sagging Sag in its middle, in
+	// Strands across Spread; one too long, or lower than 5 m over a road, is left out and counted.
+	struct Wire
+	{
+		P2 A, B;
+		double Ya = 0.0, Yb = 0.0, Sag = 0.0, Spread = 0.0;
+		int Strands = 2;
+		bool High = false;   // a power line's (pylons'), or a telegraph pole's
+	};
+	enum ETall { TallMast, TallMonopole, TallTurbine, TallSilo, TallWaterTower, TallTank, TallPylon, TallKiosk, TallKinds };
+	struct TallThing
+	{
+		int Kind = 0;
+		P2 At, Face;            // Face: a pylon's line, a turbine's rotor's way
+		double Ground = 0.0, Height = 0.0, Radius = 0.0;
+		uint32_t Id = 0;
+	};
+	struct Yard
+	{
+		bool Solar = false;     // a solar farm (or a substation)
+		std::vector<P2> Ring;
+		P2 Mid;
+		double Radius = 0.0;    // from Mid to its farthest corner
+		uint32_t Id = 0;
+	};
+	std::vector<Wire> Wires;
+	std::vector<TallThing> Talls;
+	std::vector<Yard> Yards;
+	int WiresDropped = 0;
+	void IndexSkyline();
+	// What of it stands on a square: Detail 2 (the finest squares) all of it with the wires, 1 all but
+	// the wires, 0 (to 10 km) the tall ones as plain far shapes, -1 (beyond) only the turbines.
+	void SkylineTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
@@ -632,6 +670,7 @@ private:
 		std::unordered_map<long long, std::vector<int>> Furniture;   // into RidePlan::Furniture
 		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
 		std::unordered_map<long long, std::vector<double>> GapWidths;   // [OSM stage 2] each one's width, as Gaps
+		std::unordered_map<long long, std::vector<int>> Wires, Talls, Yards;   // [OSM stage 2 batch B] by the square their middle is in
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
 		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
 		// RailCell square within 40 m of them (for NearRail).
