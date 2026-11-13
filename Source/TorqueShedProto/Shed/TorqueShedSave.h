@@ -135,6 +135,7 @@ public:
 	// [kit] The main lights, the roller door and where the engine stand was left (added to version
 	// 3 too: an older save's lights are on, its door up, its stand at home).
 	UPROPERTY() bool bShedLights = true;
+	UPROPERTY() uint8 RoomLightsOff = 0;   // the paint shop's, mixing bay's and storage room's lights (a bit each, set: off)
 	UPROPERTY() bool bDoorUp = true;
 	UPROPERTY() bool bStandMoved = false;
 	UPROPERTY() FVector StandAt = FVector::ZeroVector;

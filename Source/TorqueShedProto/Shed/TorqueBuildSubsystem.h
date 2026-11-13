@@ -436,6 +436,11 @@ public:
 	// [kit] The main shed's lights and roller door, the engine stand (where it stands, who's
 	// pushing it, 0: no one) and the fire extinguisher (who has it, and whether it's spraying).
 	bool ShedLightsOn() const { return bShedLights; }
+	// [kit] The other rooms' lights, each on its own switch inside its door (beenster, build 141):
+	// Room 1 the paint shop, 2 the mixing bay, 3 the storage room (a ShedLights request's Colour).
+	static constexpr int32 PaintRoom = 1, MixingRoom = 2, StorageRoom = 3;
+	bool RoomLightsOn(int32 Room) const { return Room <= 0 ? bShedLights : (RoomLightsOff & (1 << (Room - 1))) == 0; }
+	static const TCHAR* RoomLightsName(int32 Room);
 	bool DoorUp() const { return bDoorUp; }
 	const FTransform& StandTransform() const { return StandXf; }
 	int32 StandPushedBy() const { return StandPusher; }
@@ -686,6 +691,7 @@ private:
 	int32 LiftsUp = 0;               // a bit per lift id that's up
 	// [kit]
 	bool bShedLights = true;
+	uint8 RoomLightsOff = 0;   // a bit per room (RoomLightsOn): set while its lights are off
 	bool bDoorUp = true;
 	FTransform StandXf = FTransform(FVector(560.0, -40.0, 0.0));
 	uint32 IdlingBays = 0;   // SetIdling

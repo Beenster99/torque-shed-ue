@@ -4,11 +4,15 @@
 #include "Shed/TorqueShedLayout.h"
 #include "Shed/TorqueToolModels.h"
 #include "TorqueAudio/TorqueSfx.h"
+#include "TorqueAudio/SfxRules.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/LightComponent.h"
+#include "Components/LocalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/Light.h"
 #include "Engine/RectLight.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -58,11 +62,29 @@ FString UTorqueBuildSubsystem::CheckKit(int32 Peer, const FTorqueShedRequest& R)
 	}
 }
 
+const TCHAR* UTorqueBuildSubsystem::RoomLightsName(int32 Room)
+{
+	switch (Room)
+	{
+	case PaintRoom: return TEXT("Paint shop lights");
+	case MixingRoom: return TEXT("Mixing bay lights");
+	case StorageRoom: return TEXT("Storage room lights");
+	default: return TEXT("Shed lights");
+	}
+}
+
 FString UTorqueBuildSubsystem::ApplyKit(int32 Peer, const FTorqueShedRequest& R)
 {
 	switch (R.Kind)
 	{
 	case ETorqueShedAct::ShedLights:
+		if (R.Colour >= PaintRoom && R.Colour <= StorageRoom)
+		{
+			// [kit] Another room's own switch.
+			const uint8 Bit = uint8(1 << (R.Colour - 1));
+			RoomLightsOff = R.Item != 0 ? uint8(RoomLightsOff & ~Bit) : uint8(RoomLightsOff | Bit);
+			return FString::Printf(TEXT("%s %s"), RoomLightsName(R.Colour), R.Item != 0 ? TEXT("on") : TEXT("off"));
+		}
 		bShedLights = R.Item != 0;
 		return bShedLights ? TEXT("Shed lights on") : TEXT("Shed lights off");
 	case ETorqueShedAct::Door:
@@ -325,6 +347,70 @@ void ATorqueShedKit::FindLights()
 		}
 	}
 	BattenDark = TorqueToolModels::Finish(this, FLinearColor(0.05f, 0.05f, 0.055f), 0.0f, 0.35f);
+	// [kit] The other rooms' lights and glowing tubes, by which room they're in (TorqueSfxRules::RoomAt).
+	static const char* const RoomNames[3] = {"paint", "mixing", "storage"};
+	auto RoomOf = [](const FVector& P) -> int32 {
+		const std::string Room = TorqueSfxRules::RoomAt(P.X, P.Y, P.Z);
+		for (int32 I = 0; I < 3; ++I)
+			if (Room == RoomNames[I]) return I;
+		return INDEX_NONE;
+	};
+	for (int32 I = 0; I < 3; ++I)
+	{
+		RoomLights[I].Reset();
+		RoomGlow[I].Reset();
+		RoomGlowLit[I].Reset();
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		// Only the level's own lights and meshes (not a bike's lamps parked in there).
+		if (It->ActorHasTag(TSKI::LightTag) || It->ActorHasTag(TSKI::BattenTag)) continue;
+		const bool bLamp = It->IsA<ALight>(), bMesh = It->IsA<AStaticMeshActor>();
+		if (!bLamp && !bMesh) continue;
+		const int32 Room = RoomOf(It->GetActorLocation());
+		if (Room == INDEX_NONE) continue;
+		TInlineComponentArray<ULocalLightComponent*> Lamps(*It);
+		for (ULocalLightComponent* Lamp : Lamps) RoomLights[Room].Add(Lamp);
+		if (!bMesh) continue;
+		TInlineComponentArray<UStaticMeshComponent*> Meshes(*It);
+		for (UStaticMeshComponent* M : Meshes)
+		{
+			UMaterialInterface* Mat = M ? M->GetMaterial(0) : nullptr;
+			const FString MatName = Mat ? Mat->GetName() : FString();
+			if (MatName.Contains(TEXT("ShedLed")) || MatName.Contains(TEXT("HexLed")))
+			{
+				RoomGlow[Room].Add(M);
+				RoomGlowLit[Room].Add(Mat);
+			}
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque kit: room lights: paint %d (%d glowing), mixing %d (%d), storage %d (%d)"), RoomLights[0].Num(), RoomGlow[0].Num(),
+		RoomLights[1].Num(), RoomGlow[1].Num(), RoomLights[2].Num(), RoomGlow[2].Num());
+	// Each room's switch plate, white on the wall inside its door (its place: TorqueShedLayout's ShedSwitch 2 .. 4).
+	if (RoomPlates.Num() == 0)
+		for (int32 Index = 2; Index <= 4; ++Index)
+			for (const FTorquePlace& P : TorqueShedLayout::Places())
+			{
+				if (P.Kind != ETorquePlace::ShedSwitch || P.Index != Index) continue;
+				// Flat against the wall: thin across x (the walls these are on run along y).
+				const bool bFacesEast = P.Box.Min.X >= P.Put.X - 3.0;   // the wall's face at the box's west side
+				const double WallX = bFacesEast ? P.Box.Min.X : P.Box.Max.X;
+				const double Out = bFacesEast ? 1.0 : -1.0;
+				if (UStaticMeshComponent* Plate = Piece(CubeMesh, FLinearColor(0.86f, 0.86f, 0.84f), 0.0f, 0.45f))
+				{
+					Plate->SetWorldLocation(FVector(WallX + Out * 0.6, P.Put.Y, P.Put.Z));
+					Plate->SetWorldScale3D(FVector(1.2, 8.6, 8.6) / 100.0);
+					RoomPlates.Add(Plate);
+				}
+				if (UStaticMeshComponent* Rocker = Piece(CubeMesh, FLinearColor(0.93f, 0.93f, 0.91f), 0.0f, 0.35f))
+				{
+					Rocker->SetWorldLocation(FVector(WallX + Out * 1.4, P.Put.Y, P.Put.Z));
+					Rocker->SetWorldScale3D(FVector(0.8, 2.4, 4.0) / 100.0);
+					RoomPlates.Add(Rocker);
+				}
+			}
+	if (const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this))
+		for (int32 I = 0; I < 3; ++I) ShowRoom(I, B->RoomLightsOn(I + 1));
 	if (const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this)) ShowLights(B->ShedLightsOn());
 }
 
@@ -335,6 +421,16 @@ void ATorqueShedKit::ShowLights(bool bOn)
 		if (L) L->SetVisibility(bOn);
 	for (int32 I = 0; I < Battens.Num(); ++I)
 		if (Battens[I]) Battens[I]->SetMaterial(0, bOn ? BattenLit[I] : BattenDark);
+}
+
+void ATorqueShedKit::ShowRoom(int32 Room, bool bOn)
+{
+	if (Room < 0 || Room > 2) return;
+	bRoomShown[Room] = bOn;
+	for (const TWeakObjectPtr<ULightComponent>& L : RoomLights[Room])
+		if (L.IsValid()) L->SetVisibility(bOn);
+	for (int32 I = 0; I < RoomGlow[Room].Num(); ++I)
+		if (UStaticMeshComponent* Glow = RoomGlow[Room][I].Get()) Glow->SetMaterial(0, bOn ? RoomGlowLit[Room][I].Get() : BattenDark);
 }
 
 void ATorqueShedKit::DrawDoor()
@@ -401,6 +497,14 @@ void ATorqueShedKit::Tick(float DeltaSeconds)
 		ShowLights(B->ShedLightsOn());
 		if (Sfx) Sfx->PlayAt(TEXT("light_switch"), TSKI::SwitchAt - FVector(0.0, 0.0, 8.0), -4.0f);
 	}
+	// [kit] The other rooms' lights, each on its own switch.
+	for (int32 Room = 0; Room < 3; ++Room)
+		if (B->RoomLightsOn(Room + 1) != bRoomShown[Room])
+		{
+			ShowRoom(Room, B->RoomLightsOn(Room + 1));
+			for (const FTorquePlace& P : TorqueShedLayout::Places())
+				if (P.Kind == ETorquePlace::ShedSwitch && P.Index == Room + 2 && Sfx) Sfx->PlayAt(TEXT("light_switch"), P.Put, -4.0f);
+		}
 
 	// The engine stand, where it stands or in front of whoever's wheeling it; what's on it follows
 	// its place (ATorqueShedItems), and you point at it where it is.

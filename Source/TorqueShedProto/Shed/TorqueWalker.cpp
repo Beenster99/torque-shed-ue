@@ -158,6 +158,8 @@ FString PlaceName(const FTorquePlace& P, const UTorqueBuildSubsystem* B)
 	case ETorquePlace::Stand: return TEXT("Engine stand");
 	case ETorquePlace::ShedSwitch:   // [kit]
 		if (P.Index == 0) return (B && B->ShedLightsOn()) ? TEXT("Shed lights (on)") : TEXT("Shed lights (off)");
+		if (P.Index >= 2)
+			return FString::Printf(TEXT("%s (%s)"), UTorqueBuildSubsystem::RoomLightsName(P.Index - 1), (B && B->RoomLightsOn(P.Index - 1)) ? TEXT("on") : TEXT("off"));
 		return (B && B->DoorUp()) ? TEXT("Roller door (up)") : TEXT("Roller door (down)");
 	case ETorquePlace::Extinguisher:
 		return (B && B->ExtinguisherHeldBy() != 0) ? TEXT("Fire extinguisher's place (someone has it)") : TEXT("Fire extinguisher");
@@ -2688,8 +2690,14 @@ void ATorqueWalker::Interact()
 		FTorqueShedRequest R;
 		if (TargetPlace->Kind == ETorquePlace::ShedSwitch)
 		{
-			R.Kind = TargetPlace->Index == 0 ? ETorqueShedAct::ShedLights : ETorqueShedAct::Door;
-			R.Item = TargetPlace->Index == 0 ? (B->ShedLightsOn() ? 0 : 1) : (B->DoorUp() ? 0 : 1);
+			R.Kind = TargetPlace->Index == 1 ? ETorqueShedAct::Door : ETorqueShedAct::ShedLights;
+			if (TargetPlace->Index >= 2)
+			{
+				// Another room's own switch (Colour: the room).
+				R.Colour = TargetPlace->Index - 1;
+				R.Item = B->RoomLightsOn(R.Colour) ? 0 : 1;
+			}
+			else R.Item = TargetPlace->Index == 0 ? (B->ShedLightsOn() ? 0 : 1) : (B->DoorUp() ? 0 : 1);
 		}
 		else
 		{
@@ -3114,7 +3122,7 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Lift)
 				HudLines.Add({B->LiftUp(TargetPlace->Index) ? TEXT("F / Triangle: lower it") : TEXT("F / Triangle: raise it"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::ShedSwitch)   // [kit]
-				HudLines.Add({TargetPlace->Index == 0 ? FString(TEXT("F / Triangle: flick the lights"))
+				HudLines.Add({TargetPlace->Index != 1 ? FString(TEXT("F / Triangle: flick the lights"))
 					: FString(B->DoorUp() ? TEXT("F / Triangle: roller door down") : TEXT("F / Triangle: roller door up")), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Extinguisher && B->ExtinguisherHeldBy() == 0)
 				HudLines.Add({TEXT("F / Triangle: take the fire extinguisher"), Prompt, 0.65f});
