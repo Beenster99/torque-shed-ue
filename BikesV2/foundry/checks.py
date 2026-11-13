@@ -106,6 +106,44 @@ def deck(model, fams):
     return out
 
 
+def kit_parts(model, fams):
+    """Checks on the parts a kit can swap besides tank, seat and tail: the head unit and any
+    belly pan keep clear of the front tyre and mudguard with the fork fully compressed, the
+    exhaust and pan keep the family's ground clearance, and nothing reaches past the bike's length."""
+    import shapes
+    fam = fams[model["family"].lower()]
+    g, out = model["geometry"], []
+    rake, travel = math.radians(g["rake"]), fam["fork_travel"][1]
+    rt = model["wheels"]["front"]["tyre_r"]
+    c = (g["wheelbase"] - math.sin(rake) * travel, rt + math.cos(rake) * travel)
+
+    def pts_of(shp):
+        if shp.get("circle"):
+            return [(shp["at"][0] + shp["circle"] * math.cos(k), shp["at"][1] + shp["circle"] * math.sin(k)) for k in (0, 1.57, 3.14, 4.71)]
+        return shapes.dense(shp["pts"], shp.get("closed", True), shp.get("t", 1.0))
+
+    head = [p for shp in model["front_end"] if shp.get("part") == "head" for p in pts_of(shp)]
+    if head:
+        gap = min(math.hypot(p[0] - c[0], p[1] - c[1]) for p in head) - rt
+        out.append((gap >= 45, f"lamp unit to front tyre at full compression {gap:.0f} mm (needs 45, room for the mudguard)"))
+    low_need = fam["ground_clearance"][0]
+    ex, lows, rear = model["exhaust"], [], []
+    for hp in ex.get("headers", []):
+        lows += [p[1] - hp.get("w", 44) / 2 for p in hp["pts"]]
+    for can in ex.get("cans", []):
+        lows += [can["a"][1] - can["w"] / 2, can["b"][1] - can["w"] / 2]
+        rear.append(min(can["a"][0], can["b"][0]))
+    out.append((min(lows) >= low_need, f"exhaust lowest point {min(lows):.0f} mm off the ground (needs {low_need})"))
+    if rear:
+        out.append((min(rear) >= -model["wheels"]["rear"]["tyre_r"], f"silencer ends {min(rear):.0f} mm from the rear axle, inside the rear tyre line"))
+    pans = [p for shp in model["body"].get("panels", []) if shp.get("cls") == "body" and not shp.get("cowl") for p in pts_of(shp) if p[1] < 420]
+    if pans:
+        gap = min(math.hypot(p[0] - c[0], p[1] - c[1]) for p in pans) - rt
+        low = min(p[1] for p in pans)
+        out.append((gap >= fam["clearance"]["front_tyre_min"] and low >= low_need, f"belly pan: {gap:.0f} mm from the front tyre at full compression, {low:.0f} mm off the ground (needs {fam['clearance']['front_tyre_min']} and {low_need})"))
+    return out
+
+
 def packing(model, tmp="/tmp"):
     """Share of empty space inside the bike's middle, between its lowest and highest drawn part.
 
@@ -173,24 +211,40 @@ if __name__ == "__main__":
             for ok, msg in check(m, fams) + deck(m, fams):
                 bad += not ok
                 print("  ", "ok  " if ok else "FAIL", msg)
-    # every kit combination on its own bike, and every tank and seat pair on the other brand's frame with each of its tails
-    combos = fails = 0
+    # every tank and seat pair with every tail on its own bike and on the other brand's frame (deck rules),
+    # and every front, exhaust and extras choice (clearance rules); the two groups do not touch each other
+    import itertools
+    cnt, total = {"combos": 0, "fails": 0}, 0
+
+    def tally(res, label):
+        cnt["combos"] += 1
+        for ok, msg in res:
+            if not ok:
+                cnt["fails"] += 1
+                print("   FAIL", label, msg)
+
     for h in models:
+        kit = h.get("kit", {})
         tn, sn = len(mix.kit_names(h, "tank_seat")), len(mix.kit_names(h, "tail"))
+        fn, en, xn = len(mix.kit_names(h, "front")), len(mix.kit_names(h, "exhaust")), len(kit.get("extras", []))
+        xsets = [x for r in range(xn + 1) for x in itertools.combinations(range(1, xn + 1), r)]
+        total += tn * sn * fn * en * len(xsets)
         for i in range(tn):
             for j in range(sn):
-                res = deck(mix.apply_kit(h, i, j), fams)
-                combos += 1
-                fails += sum(not ok for ok, _ in res)
+                for xs in ([x for x in xsets if all(kit["extras"][e - 1].get("auto") for e in x)]):
+                    tally(deck(mix.apply_kit(h, i, j, extras=xs), fams), f"{h['brand']} {i},{j},{xs}")
                 for d in models:
-                    if d is h or d["family"] != h["family"]:
+                    if d is h or d["family"] != h["family"] or i:
                         continue
                     for i2 in range(len(mix.kit_names(d, "tank_seat"))):
-                        if i:
-                            continue
-                        res = deck(mix.mix(mix.apply_kit(h, 0, j), mix.apply_kit(d, i2, 0)), fams)
-                        combos += 1
-                        fails += sum(not ok for ok, _ in res)
+                        tally(deck(mix.mix(mix.apply_kit(h, 0, j), mix.apply_kit(d, i2, 0)), fams), f"{h['brand']} tail {j} + {d['brand']} pair {i2}")
+        for f in range(fn):
+            for e in range(en):
+                for xs in xsets:
+                    v = mix.apply_kit(h, 0, 0, f, e, xs)
+                    tally(check(v, fams) + kit_parts(v, fams), f"{h['brand']} front {f}, exhaust {e}, extras {xs}")
+    print(f"different bikes the kits can make, all models: {total}")
+    combos, fails = cnt["combos"], cnt["fails"]
     print(f"kit combinations checked: {combos}, failed checks: {fails}")
     bad += fails
     sys.exit(1 if bad else 0)

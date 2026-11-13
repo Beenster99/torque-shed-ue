@@ -108,26 +108,39 @@ def build(family, names):
         h.append('<section><h2>Plate hanger: its own part, optional</h2><p class="lede">The long hanger with the number plate and its lamp is drawn in on every bike above, as most countries require it, but it is a separate bolt-on part. A build can leave it off, as here.</p><div class="shots">' + "".join(bare) + "</div></section>")
     import itertools
     import mix
+    import random
     kit_html, combos = [], 0
+    show = [(1, 2, 1, 1, (1,)), (2, 1, 2, 2, (2,)), (0, 0, 2, 1, (1, 2)), (1, 1, 1, 2, ()), (2, 2, 0, 0, (1,)), (0, 1, 1, 0, (2,))]
     for n in names:
         base = elevation.load(n)
-        if not base.get("kit"):
+        kit = base.get("kit")
+        if not kit:
             continue
-        tn, sn = mix.kit_names(base, "tank_seat"), mix.kit_names(base, "tail")
-        allv = [mix.apply_kit(base, i, j) for i in range(len(tn)) for j in range(len(sn))]
-        combos += len(allv)
-        diffs = [mix.silhouette_difference(a, b) for a, b in itertools.combinations(allv, 2)]
+        nm = {p: mix.kit_names(base, p) for p in mix.KIT_PARTS}
+        xn = [v["name"] + " (" + v["note"] + ")" for v in kit.get("extras", [])]
+        count = 2 ** len(xn)
+        for p in mix.KIT_PARTS:
+            count *= len(nm[p])
+        combos += count
+        rnd = random.Random(7)
+        def pick():
+            return mix.apply_kit(base, *[rnd.randrange(len(nm[p])) for p in mix.KIT_PARTS], [e + 1 for e in range(len(xn)) if rnd.random() < 0.5])
+        diffs = sorted(mix.look_difference(pick(), pick()) for _ in range(150))
+        diffs = [d for d in diffs if d > 0] or [0]
         figs = []
-        for i in range(1, len(tn)):
-            j = min(i, len(sn) - 1)
-            v = mix.apply_kit(base, i, j)
+        for args in show:
+            v = mix.apply_kit(base, *args)
             v["dimensions"] = False
-            v["name"] = f"{base['brand'].title()}: {tn[i]} tank and seat, {sn[j]} tail"
-            note = base["kit"]["tank_seat"][i - 1]["note"] + "; tail " + base["kit"]["tail"][j - 1]["note"]
-            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{note[0].upper() + note[1:]}.</figcaption></figure>')
-        kit_html.append(f"""<h3>{base['brand'].title()} kit</h3><p>Tank and seat pairs: {", ".join(tn)}. Tails: {", ".join(sn)}. The first of each is the bike as drawn above. That gives {len(allv)} different bikes on this one frame, and every one passes the fit checks. Measured side on, any two of them differ by {min(diffs) * 100:.0f}% to {max(diffs) * 100:.0f}% of their tank, seat and tail outline.</p><div class="shots">{"".join(figs)}</div>""")
+            f = v["kit_fitted"]
+            v["name"] = base["brand"].title() + " kit build"
+            cap = f"{f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + ("".join(", " + x for x in f["extras"]) if f["extras"] else "")
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{cap}.</figcaption></figure>')
+        def menu(p, label):
+            notes = ["as drawn above"] + [v["note"] for v in kit[p]]
+            return f"<li><b>{label}:</b> " + "; ".join(f"{a} ({b})" for a, b in zip(nm[p], notes)) + ".</li>"
+        kit_html.append(f"""<h3>{base['brand'].title()} kit</h3><ul>{menu("tank_seat", "Tank and seat pairs")}{menu("tail", "Tails")}{menu("front", "Front ends")}{menu("exhaust", "Exhausts")}<li><b>Optional extras:</b> {"; ".join(xn)}.</li></ul><p>That gives {count} different bikes on this one frame, before colour and before any part from another brand. Every choice passes the fit and clearance checks. Measured side on over the parts a kit can change, two bikes picked at random differ by {diffs[len(diffs) // 2] * 100:.0f}% on average (from {diffs[0] * 100:.0f}% to {diffs[-1] * 100:.0f}%). Six of them:</p><div class="shots">{"".join(figs)}</div>""")
     if kit_html:
-        h.append('<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs and tails. This is what stops two people who pick the same frame from ending up with the same bike. Each pair also fits the other brand\'s frame.</p>' + "".join(kit_html) + "</section>")
+        h.append('<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs, tails, front ends and exhausts, plus optional extras. This is what stops two people who pick the same frame from ending up with the same bike. The tank and seat pairs also fit the other brand\'s frame.</p>' + "".join(kit_html) + "</section>")
     loaded = [elevation.load(n) for n in names]
     pairs = [(a, b) for a in loaded for b in loaded if a is not b]
     if pairs:
@@ -144,7 +157,7 @@ def build(family, names):
 <li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
 <li>The mixed builds are the first proof of the mounting standard. They are drawings only for now; the 3D versions follow.</li>
-<li>Not yet drawn: top and front views, front end variants, and the kit parts in 3D.</li></ul></section></div>""")
+<li>Not yet drawn: top and front views, and the kit parts in 3D.</li></ul></section></div>""")
     out = os.path.join(ROOT, "out", f"{family}_elevations.html")
     open(out, "w").write("\n".join(h))
     return out

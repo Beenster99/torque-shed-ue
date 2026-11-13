@@ -69,12 +69,37 @@ def kit_names(model, part):
     return [kit.get("base", {}).get(part, "standard")] + [v["name"] for v in kit.get(part, [])]
 
 
-def apply_kit(model, tank_seat=0, tail=0):
-    """The model with kit variants fitted (0 is the bike as drawn). Returns a new model dict."""
+KIT_PARTS = ("tank_seat", "tail", "front", "exhaust")
+
+
+def seat_cowl(body):
+    """A painted cowl over the pillion half of whatever seat is fitted: follows the seat's own
+    top line with a hump, and closes along the seat's underside, so it suits any seat."""
+    import shapes
+    seat = next(shapes.dense(shp["pts"], True, shp.get("t", 1.0)) for shp in body["seat"] if shp.get("cls") == "seat")
+    xs = [p[0] for p in seat]
+    x0, x1 = min(xs) + 4, min(xs) + 0.4 * (max(xs) - min(xs))
+    n = 12
+    top, bot = [], []
+    for k in range(n + 1):
+        f = k / n
+        x = x0 + (x1 - x0) * f
+        zt, zb = shapes.top_bottom(seat, x)
+        top.append([round(x, 1), round(zt + 8 + 46 * math.sin(math.pi * min(1.0, f * 1.15)) ** 0.7 * (1 - 0.35 * f), 1)])
+        bot.append([round(x, 1), round(zb + 2, 1)])
+    top[0].append(1)
+    top[-1].append(1)
+    bot[0].append(1)
+    bot[-1].append(1)
+    return {"pts": top[::-1] + bot, "cls": "body", "t": 0.6, "cowl": True}
+
+
+def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=()):
+    """The model with kit variants fitted (0 is the bike as drawn; extras is a list of 1-based
+    numbers of the optional add-ons). Returns a new model dict."""
     import shapes
     m = copy.deepcopy(model)
     kit, b = model.get("kit", {}), m["body"]
-    names = []
     if tank_seat:
         v = kit["tank_seat"][tank_seat - 1]
         tank = copy.deepcopy(v["tank"])
@@ -87,16 +112,63 @@ def apply_kit(model, tank_seat=0, tail=0):
         for c in b.get("caps", []):
             c["at"][1] = round(shapes.top_bottom(outline, c["at"][0])[0] - 6, 1)
         b["tank"], b["seat"] = tank, copy.deepcopy(v["seat"])
-        names.append(v["name"])
     if tail:
         v = kit["tail"][tail - 1]
         b["tail"] = copy.deepcopy(v["tail"])
         for shp in b.get("behind", []):
             if "fender" in shp.get("cls", "") and v.get("tray"):
                 shp["pts"] = copy.deepcopy(v["tray"])
-        names.append(v["name"])
-    m["kit_fitted"] = {"tank_seat": kit_names(model, "tank_seat")[tank_seat], "tail": kit_names(model, "tail")[tail]}
+    if front:
+        # the head unit (lamp, its housing, the clocks) swaps as one; bars, levers and mirrors stay
+        head = [dict(shp, part="head") for shp in copy.deepcopy(kit["front"][front - 1]["head"])]
+        m["front_end"] = head + [shp for shp in m["front_end"] if shp.get("part") != "head"]
+    if exhaust:
+        m["exhaust"] = copy.deepcopy(kit["exhaust"][exhaust - 1]["exhaust"])
+    fitted = []
+    for e in extras:
+        v = kit["extras"][e - 1]
+        for part, shapes_ in v.get("add", {}).items():
+            b.setdefault(part, []).extend(copy.deepcopy(shapes_))
+        if v.get("auto") == "seat_cowl":
+            b.setdefault("panels", []).append(seat_cowl(b))
+        fitted.append(v["name"])
+    pick = {"tank_seat": tank_seat, "tail": tail, "front": front, "exhaust": exhaust}
+    m["kit_fitted"] = {p: kit_names(model, p)[i] for p, i in pick.items() if p in kit or p in kit.get("base", {})}
+    m["kit_fitted"]["extras"] = fitted
     return m
+
+
+def look_difference(a, b):
+    """How different two whole bikes look from the side, over every part a kit can change
+    (bodywork, head unit, exhaust): 0 the same, 1 nothing shared."""
+    import shapes
+    from PIL import Image, ImageChops, ImageDraw
+    K = 0.4
+
+    def q(p):
+        return ((1400 - p[0]) * K, (1200 - p[1]) * K)
+
+    def mask(m):
+        im = Image.new("1", (760, 480), 0)
+        d = ImageDraw.Draw(im)
+        solid = [shp for part in ("tail", "seat", "tank", "panels") for shp in m["body"].get(part, [])]
+        solid += [shp for shp in m["front_end"] if shp.get("part") == "head"]
+        for shp in solid:
+            if shp.get("circle"):
+                (x, y), r = q(shp["at"]), shp["circle"] * K
+                d.ellipse([x - r, y - r, x + r, y + r], fill=1)
+            elif shp.get("closed", True) and "pts" in shp:
+                d.polygon([q(p) for p in shapes.dense(shp["pts"], True, shp.get("t", 1.0))], fill=1)
+        ex = m["exhaust"]
+        for hp in ex.get("headers", []):
+            d.line([q(p) for p in hp["pts"]], fill=1, width=int(hp.get("w", 44) * K), joint="curve")
+        for can in ex.get("cans", []):
+            d.line([q(can["a"]), q(can["b"])], fill=1, width=int(can["w"] * K))
+        return im
+    ma, mb = mask(a), mask(b)
+    union = sum(ImageChops.logical_or(ma, mb).getdata())
+    both = sum(ImageChops.logical_and(ma, mb).getdata())
+    return 1 - both / union if union else 0.0
 
 
 def silhouette_difference(a, b, parts=("tank", "seat", "tail")):

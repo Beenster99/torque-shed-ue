@@ -425,6 +425,7 @@ CSS = """
 .elev .hl{fill:none;stroke:#fff;stroke-width:3;opacity:.28}
 .elev .seat{fill:#222429;stroke:var(--ink);stroke-width:1.4}.elev .stitch{fill:none;stroke:#8a8f95;stroke-width:.8;stroke-dasharray:4 3}
 .elev .plastic{fill:#2b2d31;stroke:var(--ink);stroke-width:1.3}.elev .lens{fill:#e9e2b8;stroke:var(--ink);stroke-width:1}.elev .redlens{fill:#b3202a;stroke:var(--ink);stroke-width:1}
+.elev .screen{fill:#5d6b78;fill-opacity:.55;stroke:var(--ink);stroke-width:1.1}.elev .chromef{fill:#dfe3e6;stroke:var(--ink);stroke-width:1}
 .elev .plate{fill:#f1e9a8;stroke:var(--ink);stroke-width:1}
 .elev .dim{stroke:#1f4fd1;stroke-width:1;fill:none}.elev .dash{stroke-dasharray:7 5}.elev .dimt{fill:#1f4fd1;font-size:15px;font-family:"IBM Plex Mono",ui-monospace,monospace}
 .elev .title{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:44px;fill:#16181b}.elev .subt{font-size:16px;fill:#4a5057}
