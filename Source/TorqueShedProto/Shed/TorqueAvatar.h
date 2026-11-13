@@ -181,6 +181,9 @@ private:
 	void HandRest(int32 S, FVector& Aim0, FVector& Across0, FVector& Palm0) const;
 	void HandOnBar(int32 S, const FVector& Bar, const FVector& Across1, const FVector& Aim1, double AimOff, double PalmOff,
 		FQuat& HandQ, FVector& WristAt, FVector& Palm1) const;
+	// [rider pose] LeverOn (0..1): the index and middle fingers reach off the grip onto a lever's blade
+	// lying along the bar at LeverLine (an offset from Bar, out in front of it), closing round it there.
 	void WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, const FQuat& Hq, const FVector& WAct, const FVector& Bar,
-		const FVector& Axis, const FVector& Aim1, const FVector& Palm1, double GripR, const double FingerK[5], double ThumbOff) const;
+		const FVector& Axis, const FVector& Aim1, const FVector& Palm1, double GripR, const double FingerK[5], double ThumbOff,
+		double LeverOn = 0.0, const FVector& LeverLine = FVector::ZeroVector) const;
 };

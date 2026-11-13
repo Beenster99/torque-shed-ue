@@ -578,6 +578,7 @@ private:
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever
+	double ClutchFingers = 0.0;        // [rider pose] two fingers over the clutch lever (it's in, being let out, a shift, stopped)
 	// What the rider's body follows, smoothed: the bike's lean (degrees, + right) and its speeding up
 	// (m/s/s, - braking).
 	double BodyLean = 0.0, LongAcc = 0.0, LastSpeed = 0.0;
