@@ -178,7 +178,7 @@ def mesh_obj(name, verts, faces, material, smooth=True, bevel=0.0):
             pass
     if bevel:
         md = ob.modifiers.new("bevel", "BEVEL")
-        md.width, md.segments, md.limit_method = bevel * MM, 2, "ANGLE"
+        md.width, md.segments, md.limit_method = bevel * MM, 3, "ANGLE"
     return ob
 
 
@@ -221,6 +221,53 @@ def prism(name, poly, y0, y1, material, bevel=2.0):
     faces = [tuple(range(n - 1, -1, -1)), tuple(range(n, 2 * n))]
     faces += [(i, (i + 1) % n, n + (i + 1) % n, n + i) for i in range(n)]
     return mesh_obj(name, verts, faces, material, True, bevel)
+
+
+def pillow(name, poly, y0, y1, material, inset=14.0, zone=None, both=True, steps=5):
+    """A prism with rounded shoulders instead of flat sides: the outline is drawn in towards its
+    middle by up to inset mm over the last zone mm before each end (only the y1 end if not both),
+    on an elliptical curve. Makes cast and moulded parts read as shaped, not sawn from sheet."""
+    xs, zs = [q[0] for q in poly], [q[1] for q in poly]
+    cx, cz = (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2
+    wx, wz = max(xs) - min(xs), max(zs) - min(zs)
+    inset = min(inset, 0.3 * min(wx, wz))
+    span = abs(y1 - y0)
+    zone = min(zone if zone else inset * 1.6, span / (2.0 if both else 1.0))
+    sgn = 1 if y1 > y0 else -1
+    layers = []   # (y, inset there)
+    if both:
+        for k in range(steps, 0, -1):
+            t = k / steps
+            layers.append((y0 + sgn * zone * (1 - math.sin(t * math.pi / 2)) , inset * (1 - math.cos(t * math.pi / 2))))
+    layers.append((y0 + (sgn * zone if both else 0), 0.0))
+    for k in range(0, steps + 1):
+        t = k / steps
+        layers.append((y1 - sgn * zone * (1 - math.sin(t * math.pi / 2)), inset * (1 - math.cos(t * math.pi / 2))))
+    n, verts, faces = len(poly), [], []
+    for y, d in layers:
+        fx, fz = 1 - 2 * d / max(wx, 1.0), 1 - 2 * d / max(wz, 1.0)
+        verts += [V(cx + (q[0] - cx) * fx, y, cz + (q[1] - cz) * fz) for q in poly]
+    for li in range(len(layers) - 1):
+        a, b = li * n, (li + 1) * n
+        faces += [(a + i, a + (i + 1) % n, b + (i + 1) % n, b + i) for i in range(n)]
+    faces += [tuple(range(n - 1, -1, -1)), tuple((len(layers) - 1) * n + i for i in range(n))]
+    ob = mesh_obj(name, verts, faces, material, True, 0)
+    ob.data.polygons.foreach_set("use_smooth", [True] * len(ob.data.polygons))
+    try:
+        ob.data.set_sharp_from_angle(angle=math.radians(50))
+    except Exception:
+        pass
+    bm_fix_normals(ob)
+    return ob
+
+
+def bm_fix_normals(ob):
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
 
 
 def revolve(name, profile, centre, material, segs=72, a0=0.0, a1=360.0, bevel=0.0):
@@ -355,7 +402,7 @@ def build(model):
     if cal:
         cp = shapes.dense(cal, True, 0.8)
         for s in (-1, 1):
-            prism(f"caliper{s}", cp, s * 62, s * 100, mat("gold") if forkm.name.startswith("gold") else mat("alu_dark"), 4)
+            pillow(f"caliper{s}", cp, s * 62, s * 104, mat("gold") if forkm.name.startswith("gold") else mat("alu_dark"), 8, 14)
 
     # frame tubes: half-width grows from the head back to the pivot
     fr = model["frame"]
@@ -375,12 +422,12 @@ def build(model):
     for i, pl in enumerate(fr.get("plates", [])):
         pp = shapes.dense(pl["pts"], True, pl.get("t", 0.6))
         for s in (-1, 1):
-            prism(f"spar{i}{s}", pp, s * 118, s * 152, framem, 6)
+            pillow(f"spar{i}{s}", pp, s * 112, s * 158, framem, 16, 22, both=False)
     # engine
     eng = model["engine"]
     crank = tuple(eng["crank"])
     wide = 420 if eng["layout"] in ("inline4", "triple") else 300
-    prism("crankcase", shapes.dense(eng["case"], True, 0.9), -wide / 2 + 20, wide / 2 - 20, mat("engine"), 10)
+    pillow("crankcase", shapes.dense(eng["case"], True, 0.9), -wide / 2 + 10, wide / 2 - 10, mat("engine"), 30, 55)
     for i, cy in enumerate(eng["cylinders"]):
         u = unit(cy["angle"])
         base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
@@ -388,11 +435,11 @@ def build(model):
         if eng["layout"] in ("inline4", "triple"):
             n = (-u[1], u[0])
             hwc = cy["bore_w"] / 2
-            prism(f"block{i}", [add(base, n, hwc), add(end, n, hwc), add(end, n, -hwc), add(base, n, -hwc)], -wide / 2 + 30, wide / 2 - 30, mat("engine"), 5)
+            pillow(f"block{i}", [add(base, n, hwc), add(end, n, hwc), add(end, n, -hwc), add(base, n, -hwc)], -wide / 2 + 30, wide / 2 - 30, mat("engine"), 8, 14)
             hwc += 13
-            prism(f"cylhead{i}", [add(end, n, hwc), add(headend, n, hwc), add(headend, n, -hwc), add(end, n, -hwc)], -wide / 2 + 25, wide / 2 - 25, mat("engine"), 8)
+            pillow(f"cylhead{i}", [add(end, n, hwc), add(headend, n, hwc), add(headend, n, -hwc), add(end, n, -hwc)], -wide / 2 + 25, wide / 2 - 25, mat("engine"), 10, 18)
             cov = add(headend, u, 30)
-            prism(f"cover{i}", [add(headend, n, hwc - 8), add(cov, n, hwc - 18), add(cov, n, -hwc + 18), add(headend, n, -hwc + 8)], -wide / 2 + 35, wide / 2 - 35, mat("engine_dark"), 8)
+            pillow(f"cover{i}", [add(headend, n, hwc - 8), add(cov, n, hwc - 18), add(cov, n, -hwc + 18), add(headend, n, -hwc + 8)], -wide / 2 + 35, wide / 2 - 35, mat("engine_dark"), 10, 24)
         else:
             r = cy["bore_w"] / 2
             tube(f"barrel{i}", [(base[0], 0, base[1]), (end[0], 0, end[1])], r - 14, mat("engine"))
@@ -409,7 +456,7 @@ def build(model):
         c = tuple(cv["c"])
         tube(f"sidecover{i}", [(c[0], wide / 2 - 30, c[1]), (c[0], wide / 2 + 18, c[1])], cv["r"], mat("engine_dark"))
     for i, shp in enumerate(eng.get("extras", [])):
-        prism(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -110, 110, mat("plastic"), 8)
+        pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -112, 112, mat("plastic"), 26, 45)
     r = model.get("radiator")
     if r:
         u = unit(r["angle"])
@@ -432,7 +479,7 @@ def build(model):
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
     sides = (1, -1) if sw.get("cls") == "alu" else (1,)
     for s in sides:
-        prism(f"swingarm{s}", so, s * 118 if len(sides) == 2 else 70, s * 158 if len(sides) == 2 else 150, swm, 8)
+        pillow(f"swingarm{s}", so, s * 112 if len(sides) == 2 else 70, s * 160 if len(sides) == 2 else 152, swm, 14, 20)
     piv = tuple(sw["pivot"])
     tube("pivot", [(piv[0], -160, piv[1]), (piv[0], 160, piv[1])], 14, mat("steel"))
     tube("axle_r", [(A[0], -150, A[1]), (A[0], 165, A[1])], 14, mat("steel"))
@@ -477,14 +524,14 @@ def build(model):
             pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
             low = max(p[1] for p in pp) < 400
             if low:
-                prism(f"belly{i}", pp, -120, 120, m_, 10)
+                pillow(f"belly{i}", pp, -125, 125, m_, 22, 50)
             else:
                 for s in (-1, 1):
-                    prism(f"panel{i}{s}", pp, s * 150, s * 162, m_, 4)
+                    pillow(f"panel{i}{s}", pp, s * 128, s * 166, m_, 18, 30, both=False)
     for i, shp in enumerate(body.get("behind", [])):
         hw = 85 if shp["cls"] == "plate" else (95 if "fender" in shp["cls"] else 25)
         pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
-        prism(f"behind{i}", pp, -hw, hw, mat("plate") if shp["cls"] == "plate" else mat("plastic"), 2)
+        (prism if shp["cls"] == "plate" else pillow)(f"behind{i}", pp, -hw, hw, mat("plate") if shp["cls"] == "plate" else mat("plastic"), 2 if shp["cls"] == "plate" else 10)
     for c in body.get("caps", []):
         tube("filler", [(c["at"][0], 0, c["at"][1] - 20), (c["at"][0], 0, c["at"][1] - 4)], 38, mat("alu_dark"))
 
@@ -496,16 +543,16 @@ def build(model):
         else:
             pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
             if shp["cls"] == "lens":
-                prism(f"lens{i}", pp, -62, 62, mat("lens"), 3)
+                pillow(f"lens{i}", [(q[0] + 7, q[1]) for q in pp], -74, 74, mat("lens"), 8, 30)
             elif max(p[1] for p in pp) > 1120:
                 for s in (-1, 1):
-                    prism(f"mirror{i}{s}", pp, s * 330, s * 430, mat("plastic"), 6)
+                    pillow(f"mirror{i}{s}", pp, s * 330, s * 430, mat("plastic"), 7, 16)
                     cx = sum(p[0] for p in pp) / len(pp)
                     cz = min(p[1] for p in pp)
                     if grip:
                         tube(f"mstalk{s}", [(grip[0] + 10, s * 300, grip[1] + 5), (cx, s * 370, cz + 5)], 5, mat("plastic"))
             else:
-                prism(f"front{i}", pp, -88, 88, mat("plastic"), 10)
+                pillow(f"front{i}", pp, -90, 90, mat("plastic"), 20, 50)
     if grip:
         for s in (-1, 1):
             tube(f"riser{s}", [(top[0], s * 45, top[1]), (top[0] - 28, s * 45, top[1] + 62)], 15, mat("alu_dark"))
@@ -519,7 +566,7 @@ def build(model):
         if shp.get("pts") and not shp.get("tube"):
             pp = shapes.dense(shp["pts"], True, shp.get("t", 0.8))
             for s in (-1, 1):
-                prism(f"hanger{i}{s}", pp, s * 165, s * 177, mat("alu_dark"), 3)
+                pillow(f"hanger{i}{s}", pp, s * 163, s * 179, mat("alu_dark"), 4, 5)
     for i, p in enumerate(pegs):
         for s in (-1, 1):
             tube(f"peg{i}{s}", [(p[0], s * 170, p[1]), (p[0], s * 255, p[1])], 12, mat("alu"))
