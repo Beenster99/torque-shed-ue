@@ -339,9 +339,35 @@ def wheel(tag, c, w, width, rim_col, discs):
             quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
             pillow(f"{tag}_spoke{k}{side}", quad, -15, 15, mat("rim", rim_col), 5, 12)
     revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("rim", rim_col), 32)
+    # tread: slanted grooves over both shoulders, one mesh, laid a hair proud of the carcass
+    path = [(rt - 2.0, 0.22), (rt - 6.5, 0.5), (rt - 15.0, 0.78), (rt - 27.0, 0.92), (rt - 40.0, 0.995)]
+    verts, faces, ng = [], [], 46
+    for k in range(ng):
+        for side in (-1, 1):
+            a_ = 360 / ng * (k + (0.5 if side > 0 else 0))
+            base = len(verts)
+            for j, (r_, f_) in enumerate(path):
+                for da in (-0.55, 0.55):
+                    aa = math.radians(a_ + j * 2.4 + da * (1 + j * 0.12))
+                    verts.append(V(c[0] + (r_ + 1.2) * math.cos(aa), side * f_ * hw * 1.012, c[1] + (r_ + 1.2) * math.sin(aa)))
+                if j:
+                    q0 = base + 2 * (j - 1)
+                    faces.append((q0, q0 + 1, q0 + 3, q0 + 2))
+    mesh_obj(tag + "_tread", verts, faces, mat("rubber", (0.004, 0.004, 0.005)), smooth=False)
     d = w.get("disc")
     for y in discs if d else []:
         revolve(f"{tag}_disc{y}", [(d, y + 2.5), (d, y - 2.5), (d - 36, y - 2.5), (d - 36, y + 2.5)], c, mat("steel"), 64)
+        # drilled holes: dark dots on both faces, two staggered rings
+        verts, faces = [], []
+        for ring_r, n_, ph in ((d - 11, 30, 0.0), (d - 24, 30, 0.5)):
+            for k in range(n_):
+                a_ = 2 * math.pi * (k + ph) / n_
+                hx, hz = c[0] + ring_r * math.cos(a_), c[1] + ring_r * math.sin(a_)
+                for yy in (y + 2.8, y - 2.8):
+                    base = len(verts)
+                    verts += [V(hx + 3.6 * math.cos(t * math.pi / 4), yy, hz + 3.6 * math.sin(t * math.pi / 4)) for t in range(8)]
+                    faces.append(tuple(range(base, base + 8)))
+        mesh_obj(f"{tag}_discholes{y}", verts, faces, mat("plastic"), smooth=False)
         revolve(f"{tag}_carrier{y}", [(d - 34, y + 3), (d - 34, y - 3), (d - 72, y - 3), (d - 72, y + 3)], c, mat("alu_dark"), 48)
 
 
@@ -497,6 +523,17 @@ def build(model):
         n = (-u[1], u[0])
         a, b, hwc = tuple(r["at"]), add(tuple(r["at"]), u, r["len"]), r["w"] / 2
         prism("radiator", [add(a, n, hwc), add(b, n, hwc), add(b, n, -hwc), add(a, n, -hwc)], -150, 150, mat("plastic"), 4)
+        # the core: a finned face front and back between the plastic end tanks, with a filler neck
+        if n[0] < 0:
+            n = (-n[0], -n[1])
+        a2, b2 = add(a, u, 16), add(b, u, -16)
+        prism("radcore", [add(a2, n, hwc + 3), add(b2, n, hwc + 3), add(b2, n, -hwc - 3), add(a2, n, -hwc - 3)], -128, 128, mat("alu_dark"), 1)
+        k_ = 10.0
+        while k_ < r["len"] - 40:
+            for sg in (1, -1):
+                q = add(add(a2, u, k_), n, sg * (hwc + 3.5))
+                tube(f"radfin{int(k_)}{sg}", [(q[0], -126, q[1]), (q[0], 126, q[1])], 2.2, mat("alu"), caps=False)
+            k_ += 11
 
     # exhaust on the right side
     ex = model["exhaust"]
@@ -542,7 +579,37 @@ def build(model):
         v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
         pair = [add(cs, v, 36), add(A, v, sw["sprocket_r"])]
         loop += pair if sgn == 1 else pair[::-1]
-    tube("chain", [(p[0], 97, p[1]) for p in loop], 7, mat("steel"), cyclic=True)
+    R_ = sw["sprocket_r"]
+    line = []
+    for k in range(25):                      # round the back of the rear sprocket
+        t_ = th + al - 2 * al * k / 24
+        line.append(((A[0] + R_ * math.cos(t_), A[1] + R_ * math.sin(t_)), (math.cos(t_), math.sin(t_))))
+    for k in range(13):                      # round the front of the gearbox sprocket
+        t_ = th - al - (2 * math.pi - 2 * al) * k / 12
+        line.append(((cs[0] + 36 * math.cos(t_), cs[1] + 36 * math.sin(t_)), (math.cos(t_), math.sin(t_))))
+    verts, faces, m_ = [], [], len(line)
+    for (px, pz), (nx_, nz_) in line:
+        for dy, dr in ((88, 5.5), (106, 5.5), (106, -5.5), (88, -5.5)):
+            verts.append(V(px + nx_ * dr, dy, pz + nz_ * dr))
+    for k in range(m_):
+        k2 = (k + 1) % m_
+        for e in range(4):
+            faces.append((4 * k + e, 4 * k + (e + 1) % 4, 4 * k2 + (e + 1) % 4, 4 * k2 + e))
+    mesh_obj("chain", verts, faces, mat("steel"), smooth=False)
+    # side plates: a dark stripe along the middle of each run so the links read
+    for sgn in (1, -1):
+        v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
+        p0, p1 = add(cs, v, 36), add(A, v, R_)
+        nl = int(math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 15.875)
+        verts, faces = [], []
+        for k in range(nl):
+            f0, f1 = (k + 0.2) / nl, (k + 0.8) / nl
+            for yy in (87.6, 106.4):
+                base = len(verts)
+                for f_, dr in ((f0, 3.2), (f1, 3.2), (f1, -3.2), (f0, -3.2)):
+                    verts.append(V(p0[0] + (p1[0] - p0[0]) * f_ + v[0] * dr, yy, p0[1] + (p1[1] - p0[1]) * f_ + v[1] * dr))
+                faces.append((base, base + 1, base + 2, base + 3))
+        mesh_obj(f"chainlinks{sgn}", verts, faces, mat("alu_dark"), smooth=False)
     sk = model["shock"]
     tube("shock", [(sk["top"][0], 0, sk["top"][1]), (sk["bottom"][0], 0, sk["bottom"][1])], 16, mat("alu_dark"))
     L = math.hypot(sk["bottom"][0] - sk["top"][0], sk["bottom"][1] - sk["top"][1])
@@ -635,7 +702,7 @@ def build(model):
         if round_lamp and shp.get("part") == "head":
             continue
         if shp["cls"] == "lens":
-            pillow(f"lens{i}", [(q[0] + 7, q[1]) for q in pp], -74, 74, mat("lens"), 8, 30)
+            pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
         elif shp["cls"] == "screen":
             pillow(f"screen{i}", pp, -105, 105, mat("screen"), 30, 70)
         elif max(p[1] for p in pp) > 1120:
