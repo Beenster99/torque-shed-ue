@@ -924,6 +924,94 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 		break;
 	case EPage::Gameplay:
 	{
+		// Time and weather first (what's changed most), then riding, the camera, units, co-op, and the
+		// Ride UK disk cache last (beenster, build 141: the page made easier to use).
+		Heading(TEXT("TIME AND WEATHER"));
+		{
+			ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			// The host's: on a joined machine they're shown, not changed.
+			auto HostOnly = [&R, bClient]() {
+				if (!bClient) return;
+				FRow& Last = R.Last();
+				Last.Choose = nullptr;
+				Last.Step = nullptr;
+				Last.bToggle = false;
+				Last.bDisabled = true;
+				Last.SetFrac = nullptr;
+				Last.Commit = nullptr;
+				Last.Hint += TEXT(" (set by the host)");
+			};
+			Toggle(TEXT("Real time of day"), S.bRealClock, TEXT("The clock and the sun follow the real time and date where you ride (night falls when it really does)"));
+			HostOnly();
+			// With the real clock on, the made clock's rows are shown, not changed.
+			auto RealClockOnly = [&R, &S]() {
+				if (!S.bRealClock) return;
+				FRow& Last = R.Last();
+				Last.Choose = nullptr;
+				Last.Step = nullptr;
+				Last.bToggle = false;
+				Last.bDisabled = true;
+				Last.SetFrac = nullptr;
+				Last.Commit = nullptr;
+				Last.Hint += TEXT(" (off while Real time of day is on)");
+			};
+			Toggle(TEXT("Day/night cycle"), S.bDayNight, TEXT("The clock runs, the sun crosses the sky and night falls"));
+			HostOnly();
+			RealClockOnly();
+			{
+				const TArray<int32>& Lengths = FTorqueSettings::DayLengths();
+				const int32 At = FMath::Max(Lengths.IndexOfByKey(S.DayLength), 0);
+				const int32 M = Lengths[At];
+				const FString Len = M < 60 ? FString::Printf(TEXT("%d minutes"), M) : M == 60 ? FString(TEXT("1 hour")) : FString::Printf(TEXT("%d hours"), M / 60);
+				Slide(TEXT("Day length"), Len, TEXT("Real time for a whole day, with the cycle on"), Lengths.Num() > 1 ? float(At) / (Lengths.Num() - 1) : 0.0f,
+					[&S, At](int32 D) { const TArray<int32>& L = FTorqueSettings::DayLengths(); S.DayLength = L[FMath::Clamp(At + D, 0, L.Num() - 1)]; },
+					[&S](float F) { const TArray<int32>& L = FTorqueSettings::DayLengths(); S.DayLength = L[FMath::Clamp(FMath::RoundToInt(F * (L.Num() - 1)), 0, L.Num() - 1)]; });
+				HostOnly();
+				RealClockOnly();
+			}
+			{
+				const float Built = GS ? GS->BuiltHour() : 15.0f;
+				const float Now = GS ? GS->GetHour() : S.TimeOfDay;
+				const FString When = Now < 0.0f ? FString::Printf(TEXT("Level's own (about %s)"), *ATorqueGameState::ClockText(Built)) : ATorqueGameState::ClockText(Now);
+				// A slider (beenster, build 141): dragged, the sun moves as you go; Left / Right half an hour.
+				Slide(TEXT("Time of day"), When, TEXT("Drag for any hour; Left / Right, half an hour a step"), (Now < 0.0f ? Built : Now) / 24.0f,
+					[GS, &S, Built, Now](int32 D) {
+						const float From = Now < 0.0f ? FMath::RoundToFloat(Built * 2.0f) / 2.0f - 0.5f * D : FMath::RoundToFloat(Now * 2.0f) / 2.0f;
+						S.TimeOfDay = FMath::Fmod(From + 0.5f * D + 24.0f, 24.0f);
+						if (GS) GS->SetHour(S.TimeOfDay);
+					},
+					[GS, &S](float F) {
+						// To the quarter hour, 00:00 .. 23:45.
+						S.TimeOfDay = FMath::Clamp(FMath::RoundToFloat(F * 96.0f), 0.0f, 95.0f) / 4.0f;
+						if (GS) GS->SetHour(S.TimeOfDay);
+					});
+				HostOnly();
+				RealClockOnly();
+				if (Now >= 0.0f && !bClient && !S.bRealClock)
+					Add(TEXT("Back to the level's own light"), FString(), TEXT("The sun where the level was made with it (the clock stops)"), [this, GS, &S]() {
+						S.TimeOfDay = -1.0f;
+						S.bDayNight = false;
+						if (GS) GS->SetHour(-1.0f);
+						Changed();
+					});
+			}
+			{
+				// Live first (the default), then the choices the game always had.
+				static const int32 Order[] = {FTorqueSettings::WeatherLive, 0, 1, 2, 3};
+				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads"), TEXT("Live")};
+				const FString NowText = GS ? FString::Printf(TEXT(" Now: %s."), *GS->WeatherText(S.Units == 1)) : FString();
+				const FString Hint = S.WeatherMode == FTorqueSettings::WeatherLive
+					? FString::Printf(TEXT("The real weather where you ride, updated every 15 minutes. Weather data by Open-Meteo.com (CC BY 4.0).%s"), *NowText)
+					: FString::Printf(TEXT("%s while riding changes it now.%s"), *FTorqueKeys::Text(ETorqueKey::Weather), *NowText);
+				Setting(TEXT("Weather"), Kinds[FMath::Clamp(S.WeatherMode, 0, 4)], Hint, [GS, &S](int32 D) {
+						int32 I = 0;
+						while (I < (int32)UE_ARRAY_COUNT(Order) - 1 && Order[I] != S.WeatherMode) ++I;
+						S.WeatherMode = Order[Wrap(I + D, (int32)UE_ARRAY_COUNT(Order))];
+						if (GS) GS->WeatherModeChanged();
+					});
+				HostOnly();
+			}
+		}
 		Heading(TEXT("RIDING"));
 		{
 			float* Ptr = &S.Realism;
@@ -972,6 +1060,12 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 				TEXT("How far the camera looks down at the bike (below 0: up the road)"), Cam.ChaseTilt, FTorqueProfile::ChaseTiltMin, FTorqueProfile::ChaseTiltMax, 1.0f);
 			Add(TEXT("Third person: reset"), FString(), TEXT("Back to the usual distance, height and tilt"), []() { FTorqueProfile::Mine().ResetChase(); FTorqueProfile::Mine().Save(); });
 		}
+		Heading(TEXT("UNITS"));
+		Setting(TEXT("Units"), S.Units == 0 ? FString(TEXT("Metric (km/h, km)")) : FString(TEXT("Imperial (mph, miles)")), TEXT("Speeds and distances on the HUD"),
+			[&S](int32) { S.Units = 1 - S.Units; });
+		Heading(TEXT("CO-OP"));
+		Toggle(TEXT("Open my router for internet friends"), S.bOpenRouter,
+			TEXT("Hosting asks your router to open UDP port 7777 (UPnP), and closes it again after. Off: forward it by hand"));
 		// [Ride UK stage 8] The real world kept on this machine.
 		Heading(TEXT("RIDE UK: THE REAL WORLD"));
 		{
@@ -1008,86 +1102,6 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					ShowNote(Why, 3.0);
 				});
 		}
-		Heading(TEXT("UNITS"));
-		Setting(TEXT("Units"), S.Units == 0 ? FString(TEXT("Metric (km/h, km)")) : FString(TEXT("Imperial (mph, miles)")), TEXT("Speeds and distances on the HUD"),
-			[&S](int32) { S.Units = 1 - S.Units; });
-		Heading(TEXT("TIME AND WEATHER"));
-		{
-			ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
-			// The host's: on a joined machine they're shown, not changed.
-			auto HostOnly = [&R, bClient]() {
-				if (!bClient) return;
-				FRow& Last = R.Last();
-				Last.Choose = nullptr;
-				Last.Step = nullptr;
-				Last.bToggle = false;
-				Last.bDisabled = true;
-				Last.Hint += TEXT(" (set by the host)");
-			};
-			Toggle(TEXT("Real time of day"), S.bRealClock, TEXT("The clock and the sun follow the real time and date where you ride (night falls when it really does)"));
-			HostOnly();
-			// With the real clock on, the made clock's rows are shown, not changed.
-			auto RealClockOnly = [&R, &S]() {
-				if (!S.bRealClock) return;
-				FRow& Last = R.Last();
-				Last.Choose = nullptr;
-				Last.Step = nullptr;
-				Last.bToggle = false;
-				Last.bDisabled = true;
-				Last.Hint += TEXT(" (off while Real time of day is on)");
-			};
-			Toggle(TEXT("Day/night cycle"), S.bDayNight, TEXT("The clock runs, the sun crosses the sky and night falls"));
-			HostOnly();
-			RealClockOnly();
-			{
-				const TArray<int32>& Lengths = FTorqueSettings::DayLengths();
-				const int32 At = FMath::Max(Lengths.IndexOfByKey(S.DayLength), 0);
-				const int32 M = Lengths[At];
-				const FString Len = M < 60 ? FString::Printf(TEXT("%d minutes"), M) : M == 60 ? FString(TEXT("1 hour")) : FString::Printf(TEXT("%d hours"), M / 60);
-				Setting(TEXT("Day length"), Len, TEXT("Real time for a whole day, with the cycle on"),
-					[&S, At](int32 D) { const TArray<int32>& L = FTorqueSettings::DayLengths(); S.DayLength = L[FMath::Clamp(At + D, 0, L.Num() - 1)]; });
-				HostOnly();
-				RealClockOnly();
-			}
-			{
-				const float Built = GS ? GS->BuiltHour() : 15.0f;
-				const float Now = GS ? GS->GetHour() : S.TimeOfDay;
-				const FString When = Now < 0.0f ? FString::Printf(TEXT("Level's own (about %s)"), *ATorqueGameState::ClockText(Built)) : ATorqueGameState::ClockText(Now);
-				Setting(TEXT("Time of day"), When, TEXT("Half an hour a step"), [GS, &S, Built, Now](int32 D) {
-					const float From = Now < 0.0f ? FMath::RoundToFloat(Built * 2.0f) / 2.0f - 0.5f * D : FMath::RoundToFloat(Now * 2.0f) / 2.0f;
-					S.TimeOfDay = FMath::Fmod(From + 0.5f * D + 24.0f, 24.0f);
-					if (GS) GS->SetHour(S.TimeOfDay);
-				});
-				HostOnly();
-				RealClockOnly();
-				if (Now >= 0.0f && !bClient && !S.bRealClock)
-					Add(TEXT("Back to the level's own light"), FString(), TEXT("The sun where the level was made with it (the clock stops)"), [this, GS, &S]() {
-						S.TimeOfDay = -1.0f;
-						S.bDayNight = false;
-						if (GS) GS->SetHour(-1.0f);
-						Changed();
-					});
-			}
-			{
-				// Live first (the default), then the choices the game always had.
-				static const int32 Order[] = {FTorqueSettings::WeatherLive, 0, 1, 2, 3};
-				static const TCHAR* Kinds[] = {TEXT("Changes by itself"), TEXT("Always sunny"), TEXT("Always overcast"), TEXT("Always wet roads"), TEXT("Live")};
-				const FString NowText = GS ? FString::Printf(TEXT(" Now: %s."), *GS->WeatherText(S.Units == 1)) : FString();
-				const FString Hint = S.WeatherMode == FTorqueSettings::WeatherLive
-					? FString::Printf(TEXT("The real weather where you ride, updated every 15 minutes. Weather data by Open-Meteo.com (CC BY 4.0).%s"), *NowText)
-					: FString::Printf(TEXT("%s while riding changes it now.%s"), *FTorqueKeys::Text(ETorqueKey::Weather), *NowText);
-				Setting(TEXT("Weather"), Kinds[FMath::Clamp(S.WeatherMode, 0, 4)], Hint, [GS, &S](int32 D) {
-						int32 I = 0;
-						while (I < (int32)UE_ARRAY_COUNT(Order) - 1 && Order[I] != S.WeatherMode) ++I;
-						S.WeatherMode = Order[Wrap(I + D, (int32)UE_ARRAY_COUNT(Order))];
-						if (GS) GS->WeatherModeChanged();
-					});
-				HostOnly();
-			}
-		}
-		Heading(TEXT("CO-OP"));
-		Toggle(TEXT("Open my router for internet friends"), S.bOpenRouter,
-			TEXT("Hosting asks your router to open UDP port 7777 (UPnP), and closes it again after. Off: forward it by hand"));
 		break;
 	}
 	case EPage::Controller:
