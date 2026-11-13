@@ -21,6 +21,7 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueWalker.h"
 #include "TorqueBikePawn.h"
+#include "World/TorqueRideWorld.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -555,6 +556,15 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		if (Verb == TEXT("menu")) Said(PC->TestMenu(P.Num() > 2 ? (P[1] + TEXT(":") + P[2]).ToLower() : P.Num() > 1 ? P[1].ToLower() : FString(TEXT("pause"))));
 		else if (P.Num() >= 3) Said(PC->TestFace(P[1].ToLower(), FCString::Atof(*P[2])));
 		else Warn(TEXT("face what? face:jaw:0.8, face:height:-0.5, face:avatar:2"));
+		return true;
+	}
+	if (Verb == TEXT("limit"))
+	{
+		// [OSM stage 1] "limit:40" (20..70), "limit:nsl" (the national limit), "limit:road" (the road's
+		// own again): the speed limit sign on a Ride UK ride's HUD, for a picture of each.
+		const FString What = P.Num() > 1 ? P[1].ToLower() : FString(TEXT("road"));
+		ATorqueRideWorld::TestLimit = What == TEXT("nsl") ? -1 : What == TEXT("road") ? INDEX_NONE : FMath::Clamp(FCString::Atoi(*What), 10, 130);
+		Said(TEXT("limit sign: ") + What);
 		return true;
 	}
 	if (Verb == TEXT("hud"))

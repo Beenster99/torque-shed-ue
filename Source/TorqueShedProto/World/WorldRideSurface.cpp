@@ -192,6 +192,15 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 	NearOpts Opts;
 	NearHit Hit;
 	if (!NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + 0.05) return S;
+	// [OSM stage 1] A road the map says is gravel: gravel all over (no marks, no paint on it).
+	{
+		const RoadFact* F = Hit.Which == 0 ? FactAt(Hit.Along) : nullptr;
+		if (Hit.Which == 0 ? F != nullptr && F->Gravel : Hit.Which - 1 < int(Sides.size()) && Sides[size_t(Hit.Which) - 1].Gravel)
+		{
+			S.Kind = SurfGravel;
+			return S;
+		}
+	}
 	// A level crossing's rails, flush with the road: steel under the tyre for a rail head's width.
 	{
 		double RailDist = 0.0, RailTop = 0.0;

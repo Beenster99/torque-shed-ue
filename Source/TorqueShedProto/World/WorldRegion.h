@@ -118,6 +118,13 @@ public:
 	std::vector<Span> Spans;
 	std::vector<Stream> Streams;
 	Features Scenery;
+	// [OSM stage 1] Each cell's place, from its place profile: its middle and "North Yorkshire, England".
+	struct CellPlace
+	{
+		double Lat = 0.0, Lon = 0.0;
+		std::string Words;
+	};
+	std::vector<CellPlace> CellPlaces;
 	// The cells it was stitched from: their folders and each one's region.json (for cover and more).
 	std::vector<std::pair<std::string, TorqueFit::Json>> CellMetas;
 

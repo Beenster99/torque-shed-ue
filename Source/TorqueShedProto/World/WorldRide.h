@@ -170,6 +170,9 @@ struct RideSummary
 	double Minutes = 0.0;           // at a steady, legal pace: bends taken at a comfortable lean
 	std::vector<Geo> Line;          // the road, a point every 50 m or so, for the map
 	std::vector<ThinSpot> Thin;     // [stage 8] where the map's data is thin, for a warning on the map
+	// [OSM stage 1] Where it starts ("North Yorkshire, England") and the stops on the way, for the
+	// planner: "2 pubs, 3 cafes, fuel, Middleham Castle" (the castles by name).
+	std::string Place, StopsLine;
 	double Litres(double PerHundredKm) const { return Metres / 100000.0 * PerHundredKm; }
 };
 
@@ -232,6 +235,7 @@ public:
 		std::vector<RoadPoint> Pts;
 		double Length = 0.0;
 		Mouth Mouths[2];       // at its first point's end and its last's
+		bool Track = false, Gravel = false;   // [OSM stage 1] a farm track (no paint); gravel, not tarmac
 	};
 	std::vector<SideRoad> Sides;        // the other roads near it, each from junction to junction
 	// A junction off the ride's road's sides: two or more road ends at one place (side roads meeting each
@@ -382,6 +386,7 @@ public:
 	// and field gates in their walls. Face is the way a sign faces (towards the traffic that reads it).
 	// Then a red phone box in the bigger villages, a pub's hanging sign by the road with its name, and a
 	// level crossing's barrier and lights on each road approach to a railway in use.
+	// (Limit30 is any limit's roundel, its number in Text: [OSM stage 1] 20, 30, 40, 50 mph, or km/h abroad)
 	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier, FurnishKinds };
 	struct Furnish
 	{
@@ -451,7 +456,7 @@ public:
 		double Lift = 0.0;
 		double Drawn = 0.0;   // how far over the road the mark there is drawn (MarkUp): a ray hits that
 	};
-	enum ESurface { SurfTarmac, SurfSlick, SurfGrit, SurfSteel };
+	enum ESurface { SurfTarmac, SurfSlick, SurfGrit, SurfSteel, SurfGravel };   // [OSM stage 1] gravel: a gravel road's own surface
 	RideSurface SurfaceAt(double X, double Z) const;
 	// The sat nav (Ride UK stage 7: WorldRideNav.cpp). The turns along the ride's road: at each junction
 	// where it leaves the road ahead (or the road it is on bends away from the way on), how far along,
@@ -467,7 +472,8 @@ public:
 	std::vector<RideTurn> Turns;
 	// Places to stop along it from the map: fuel, cafes, pubs, viewpoints, lay-bys, within StopReach of
 	// the road; how far along, and which side (+ the left).
-	enum EStop { StopFuel, StopCafe, StopPub, StopView, StopLayby, StopKinds };
+	// [OSM stage 1] inns, campsites and castles too.
+	enum EStop { StopFuel, StopCafe, StopPub, StopView, StopLayby, StopInn, StopCamp, StopCastle, StopKinds };
 	struct RideStop
 	{
 		double Along = 0.0, Off = 0.0;
@@ -476,7 +482,7 @@ public:
 	};
 	static constexpr double StopReach = 120.0;
 	std::vector<RideStop> Stops;
-	static const char* StopName(int Kind);   // "Fuel", "Cafe", "Pub", "Viewpoint", "Lay-by"
+	static const char* StopName(int Kind);   // "Fuel", "Cafe", "Pub", "Viewpoint", "Lay-by", "Inn", "Campsite", "Castle"
 	// What the sat nav says at (X, Z): how far along the ride's road the rider is (near Was, the last
 	// answer, where the road passes itself), the next turn and the distance to it, the next stop of
 	// each kind ahead, and how far to the finish; OffRoute when the rider is more than 40 m off it.
@@ -487,10 +493,48 @@ public:
 		int Turn = Finish;
 		double ToTurn = 0.0;
 		std::string Onto;
-		double ToStop[StopKinds] = {-1.0, -1.0, -1.0, -1.0, -1.0};   // -1: none ahead
+		double ToStop[StopKinds] = {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};   // -1: none ahead
 		std::string StopCalled[StopKinds];
+		// [OSM stage 1] The road's facts here: its limit as a sign shows it (mph in Britain, rounded to
+		// 5; km/h elsewhere; 0 for none shown, as on a farm track), whether that is Britain's national
+		// limit, and whether the map said it or it was assumed (built up 30, else 60 or 70); the road's
+		// name as the map has it; and the place ("North Yorkshire, England").
+		int Limit = 0;
+		bool LimitMph = true, LimitNational = false, LimitAssumed = true;
+		std::string Road, Place;
 	};
 	RideNav NavAt(double X, double Z, double Was = -1.0) const;
+	// [OSM stage 1] The road's facts along the ride (World/WorldRideFacts.cpp), worked out when the ride
+	// is planned. Facts: each stretch of the map's road the ride follows, From..To along it, with the
+	// limit the map gives (km/h, 0 none), its name, class and whether it is gravel. Limits: the limit
+	// all along it once settled (SettleLimits, after the built-up stretches are known): the map's where
+	// it has one, else assumed (in Britain 30 mph built up, 70 on a motorway, else 60; abroad by class),
+	// none on a track; a change kept only with 100 m or more each side.
+	struct RoadFact
+	{
+		double From = 0.0, To = 0.0;
+		int MappedKmh = 0;
+		std::string Name, Class;
+		bool Gravel = false;
+	};
+	std::vector<RoadFact> Facts;
+	struct LimitStretch
+	{
+		double From = 0.0, To = 0.0;
+		int Kmh = 0;
+		bool Assumed = true;
+	};
+	std::vector<LimitStretch> Limits;
+	void FindFacts(int From, const std::vector<int>& Path, double RawLength);
+	void SettleLimits();
+	const RoadFact* FactAt(double Along) const;
+	const LimitStretch* LimitAt(double Along) const;
+	// A limit as a sign here shows it (mph rounded to 5 in Britain, km/h elsewhere), and whether it is
+	// Britain's national limit (60 or 70 mph).
+	int ShownLimit(int Kmh, bool* National = nullptr) const;
+	static int AssumedKmh(const std::string& Class, bool BuiltUp, bool Uk);
+	// The county and country at a place of the ride's frame, from the cells' place profiles; "" if none.
+	std::string PlaceAt(double X, double Z) const;
 	void FindTurnsAndStops(int From, const std::vector<int>& Path, double RawLength);
 	// [stage 8] Where the map is thin along the road (World/WorldRideNav.cpp): a town's ground with few
 	// of its buildings drawn, and no tree heights at all.
@@ -516,9 +560,9 @@ public:
 		std::shared_ptr<RideMesh> Mesh;
 	};
 	void HeroBridges(const std::vector<Landmark>& Marks, std::vector<HeroPiece>& Out) const;
-	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 55 mph, a
-	// little under the limit, as a rider on a road they do not know).
-	RideSummary Summary(double Cap = 24.6) const;
+	// The ride to its finish, summed up. Cap is the fastest it is ridden anywhere (m/s; 70 mph); [OSM
+	// stage 1] each stretch a little under its limit (Limits), as a rider on a road they do not know.
+	RideSummary Summary(double Cap = 31.3) const;
 
 private:
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds);

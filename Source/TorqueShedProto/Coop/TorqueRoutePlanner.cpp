@@ -861,6 +861,12 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 		Y += 10.0f * S;
 		if (!Title.IsEmpty()) Ui::TextFit(Canvas, Title, X0, Y, 20.0f * S, PW, Ui::Ink, true);
 		Y += 30.0f * S;
+		// [OSM stage 1] Where it is.
+		if (bPlanned && !W->PreviewSummary().Place.empty())
+		{
+			Ui::TextFit(Canvas, TRPI::ToF(W->PreviewSummary().Place), X0, Y - 6.0f * S, 13.0f * S, PW, Ui::Dim);
+			Y += 16.0f * S;
+		}
 		if (bPlanned)
 		{
 			const TorqueWorld::RideSummary& Sum = W->PreviewSummary();
@@ -881,10 +887,16 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 				Ui::Text(Canvas, Cells[I][0].ToUpper(), CX, CY, 11.5f * S, Ui::Dim, true);
 				Ui::TextFit(Canvas, Cells[I][1], CX, CY + 15.0f * S, 17.0f * S, PW * 0.5f - 8.0f * S, Ui::Ink);
 			}
+			// [OSM stage 1] What there is to stop at on the way.
+			float TY = Y + 3.0f * 44.0f * S + 4.0f * S;
+			if (!Sum.StopsLine.empty())
+			{
+				Ui::TextFit(Canvas, TEXT("On the way: ") + TRPI::ToF(Sum.StopsLine), X0, TY, 13.0f * S, PW, FLinearColor(0.75f, 0.9f, 1.0f, 0.9f));
+				TY += 18.0f * S;
+			}
 			// [stage 8] What of the map is thin on the way.
 			if (!Sum.Thin.empty())
 			{
-				const float TY = Y + 3.0f * 44.0f * S + 4.0f * S;
 				const TorqueWorld::ThinSpot& First = Sum.Thin.front();
 				const FString Line = Sum.Thin.size() == 1
 					? FString::Printf(TEXT("! %s (%.0f km in)"), *TRPI::ToF(First.Why), First.Along / 1000.0)

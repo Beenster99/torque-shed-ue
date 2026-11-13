@@ -810,6 +810,8 @@ void RidePlan::IndexFurniture()
 			if (Road[Run.second].Along - Road[Run.first].Along >= 150.0)
 				for (size_t I = Run.first; I <= Run.second; ++I) BuiltUp[I] = 1;
 	}
+	// [OSM stage 1] The limit all along it, now the built-up stretches are known.
+	SettleLimits();
 	const auto PointAt = [this](double Along)
 	{
 		size_t I = 0;
@@ -823,9 +825,9 @@ void RidePlan::IndexFurniture()
 		const P2 L(D.Z, -D.X);
 		return Road[I].At + L * (Side * (Road[I].Half + Out));
 	};
-	// Coming into each built-up stretch, each way: the place's name, then the 30 limit; leaving, the
-	// national limit. In Britain they stand on the left of the traffic that reads them. [stage 8]
-	// Elsewhere on the side the traffic keeps to: a 50 (km/h) coming in, and no national limit sign.
+	// Coming into each built-up stretch, each way: the place's name. In Britain it stands on the left
+	// of the traffic that reads it, [stage 8] elsewhere on the side the traffic keeps to. [OSM stage 1]
+	// The limit signs go where the limit changes (Limits), below.
 	const double Keep = KeepLeft() ? 1.0 : -1.0;
 	const bool Uk = Britain();
 	for (size_t I = 0; I < Road.size(); ++I)
@@ -863,10 +865,6 @@ void RidePlan::IndexFurniture()
 				if (OffAll(F.At, 0.6) && OffAll(F.At + Across * (Wide * 0.5), 0.3) && OffAll(F.At - Across * (Wide * 0.5), 0.3)) Put(F);
 			};
 			if (!Called.empty()) Sign(NameSign, Start + Back * 10.0, Called);
-			Sign(Limit30, Start, Uk ? "30" : "50");
-			// (leaving at the other end, the way this traffic goes: its left there)
-			const double End = Way == 0 ? Road[J].Along : Road[I].Along;
-			if (Uk) Sign(LimitNational, End - Back * 5.0, "");
 		}
 		// Street lamps through it, on its left every 36 m.
 		for (double Along = Road[I].Along + 12.0; Along < Road[J].Along - 6.0; Along += 36.0)
@@ -881,6 +879,31 @@ void RidePlan::IndexFurniture()
 			if (OffAll(F.At, 0.5)) Put(F);
 		}
 		I = J;
+	}
+	// [OSM stage 1] The limit signs: where the limit changes, a pair facing each way, each showing the
+	// limit its own reader is coming into (on the traffic's side); the national limit's own sign in
+	// Britain at 60 and 70; none where the limit is none (a track). The map's limits where it has them,
+	// else assumed: 30 where it is built up, the national limit outside.
+	for (size_t K = 1; K < Limits.size(); ++K)
+	{
+		const double At = Limits[K].From;
+		for (int Way = 0; Way < 2; ++Way)
+		{
+			const LimitStretch& Into = Way == 0 ? Limits[K] : Limits[K - 1];
+			bool National = false;
+			const int Shown = ShownLimit(Into.Kmh, &National);
+			if (Shown <= 0 || At < 0.0 || At > Length) continue;
+			const size_t P = PointAt(At);
+			const double Side = (Way == 0 ? 1.0 : -1.0) * Keep, Back = Way == 0 ? -1.0 : 1.0;
+			Furnish F;
+			F.Kind = National ? LimitNational : Limit30;
+			F.At = Verge(P, Side, 0.7 + 0.4);
+			F.Face = Dir(P) * Back;   // (towards the traffic coming in)
+			F.Text = National ? std::string() : std::to_string(Shown);
+			F.Height = Ground(F.At.X, F.At.Z);
+			const P2 Across(F.Face.Z, -F.Face.X);
+			if (OffAll(F.At, 0.6) && OffAll(F.At + Across * 0.4, 0.3) && OffAll(F.At - Across * 0.4, 0.3)) Put(F);
+		}
 	}
 	// Chevrons round the sharp bends: under 40 m round, turning 45 degrees or more, on the outside.
 	{

@@ -699,6 +699,40 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 			Say(FString::Printf(TEXT("%s to go"), *FTorqueDash::NavDistance(D.NavLeft, bMetric)), RX + 62.0f, NY + 66.0f, 12.0f, Dim(0.6f));
 		}
 		if (!D.NavStop.IsEmpty()) Say(D.NavStop.Left(36), RX + 12.0f, NY + 82.0f, 12.0f, FLinearColor(0.75f, 0.9f, 1.0f, 0.85f));
+		// [OSM stage 1] The limit as a road sign, beside the sat nav: big for a few seconds when it
+		// changes, then small; a limit the map doesn't give (assumed) a little dimmer. The road's name
+		// under it. Nothing on a farm track (no limit shown).
+		const int32 Key = D.NavLimit * 4 + (D.bNavLimitNational ? 1 : 0) + (D.bNavLimitAssumed ? 2 : 0);
+		const double Now = FPlatformTime::Seconds();
+		if (Key != LimitShownKey)
+		{
+			if (D.NavLimit != LimitShownKey / 4 || D.bNavLimitNational != ((LimitShownKey & 1) != 0)) LimitChangedAt = Now;
+			LimitShownKey = Key;
+		}
+		if (D.NavLimit > 0 && !D.bNavOff)
+		{
+			const float Fresh = (float)FMath::Clamp(1.0 - (Now - LimitChangedAt - 3.0) / 0.6, 0.0, 1.0);   // 1 for 3 s, easing to 0
+			const float Pop = (float)FMath::Clamp((Now - LimitChangedAt) / 0.25, 0.0, 1.0);                 // fades in over a quarter second
+			const float R = FMath::Lerp(20.0f, 32.0f, Fresh), A = (D.bNavLimitAssumed ? 0.62f : 1.0f) * Pop;
+			const float CX = RX + 226.0f + 10.0f + R, CY = NY + 6.0f + R;
+			TorqueUi::Disc(Canvas, CX * G, CY * G, (R + 1.5f) * G, FLinearColor(0.0f, 0.0f, 0.0f, 0.35f * A), 32);
+			if (D.bNavLimitNational)
+			{
+				// (white, a black bar from top right to bottom left)
+				TorqueUi::Disc(Canvas, CX * G, CY * G, R * G, FLinearColor(1.0f, 1.0f, 1.0f, A), 32);
+				const float C = R * 0.62f;
+				Canvas->K2_DrawLine(FVector2D((CX + C) * G, (CY - C) * G), FVector2D((CX - C) * G, (CY + C) * G), R * 0.22f * G, FLinearColor(0.02f, 0.02f, 0.02f, A));
+			}
+			else
+			{
+				TorqueUi::Disc(Canvas, CX * G, CY * G, R * G, FLinearColor(0.78f, 0.06f, 0.06f, A), 32);
+				TorqueUi::Disc(Canvas, CX * G, CY * G, R * 0.78f * G, FLinearColor(1.0f, 1.0f, 1.0f, A), 32);
+				const float Px = R * (D.NavLimit >= 100 ? 0.62f : 0.82f);
+				TorqueUi::Text(Canvas, FString::FromInt(D.NavLimit), CX * G, (CY - Px * 0.55f) * G, Px * G, FLinearColor(0.02f, 0.02f, 0.02f, A), true, TorqueUi::EAlign::Centre, false);
+			}
+			if (!D.bNavLimitMph) Say(TEXT("km/h"), CX, CY + R + 12.0f, 10.0f, Dim(0.6f * A), TorqueUi::EAlign::Centre);
+		}
+		if (!D.NavRoad.IsEmpty() && !D.bNavOff) Say(D.NavRoad.Left(28), RX + 226.0f + 10.0f, NY + 88.0f, 12.0f, Dim(0.7f));
 	}
 	// What to press, along the bottom: starting, or stopped.
 	FString Hint;

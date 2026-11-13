@@ -241,6 +241,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->LayKnots();
 	R->IndexScenery();
 	R->IndexRails();
+	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->IndexFurniture();
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->FindThinData();
@@ -602,6 +603,8 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
 		SideRoad Side;
 		Side.Length = Along.back();
+		Side.Track = Class == "track";
+		Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
 		const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 		const double Half = RoadLine::WidthOf(Class) * 0.5;
 		for (size_t I = 0; I < Line.size(); ++I)
@@ -1351,9 +1354,26 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const Row& A = RowA;
 		const Row& B = RowB;
 		if (!(A.Bore && B.Bore)) { RingA.clear(); LidA.clear(); }
+		// [OSM stage 1] What this bit of road is: a farm track has no paint; a gravel one is drawn in
+		// the verge's grit, not tarmac (and the tyres feel it: SurfaceAt).
+		bool Track = false, Gravel = false;
+		if (Which == 0)
+		{
+			if (const RoadFact* F = FactAt((A.Along + B.Along) * 0.5))
+			{
+				Track = F->Class == "track";
+				Gravel = F->Gravel;
+			}
+		}
+		else
+		{
+			Track = Sides[size_t(Which) - 1].Track;
+			Gravel = Sides[size_t(Which) - 1].Gravel;
+		}
+		static constexpr float Grit[3] = {0.095f, 0.088f, 0.07f};
 		// The tarmac, in two halves either side of the crown.
-		Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Tarmac);
-		Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Tarmac);
+		Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Gravel ? Grit : Tarmac);
+		Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Gravel ? Grit : Tarmac);
 		if (A.Deck && B.Deck)
 		{
 			// A bridge: a stone parapet each side (its top, and its faces down past the deck to the
@@ -1508,7 +1528,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
 		// 3 m dashes with 6 m gaps.
 		const double Half = std::fmin(A.Half, B.Half);
-		if (A.Along < PaintFrom || B.Along > PaintTo) continue;
+		if (A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel) continue;
 		if (Half >= 2.95)
 		{
 			for (double Side : {1.0, -1.0})
@@ -1734,6 +1754,9 @@ RideSummary RidePlan::Summary(double Cap) const
 	// for it and pulling away from it at about 1.5 m/s^2, no faster than Cap anywhere.
 	const size_t N = Last + 1;
 	std::vector<double> Fast(N, Cap);
+	// [OSM stage 1] No faster than a little under each stretch's limit (a track's, none: 30 km/h).
+	for (size_t I = 0; I < N; ++I)
+		if (const LimitStretch* L = LimitAt(Road[I].Along)) Fast[I] = std::fmin(Cap, (L->Kmh > 0 ? L->Kmh : 30) / 3.6 * 0.85);
 	for (size_t I = 0; I < N; ++I)
 	{
 		size_t A = I, B = I;
@@ -1747,7 +1770,7 @@ RideSummary RidePlan::Summary(double Cap) const
 		const double Arc = Road[B].Along - Road[A].Along;
 		if (std::fabs(Turn) < 1e-4) continue;
 		const double Radius = Arc / std::fabs(Turn);
-		Fast[I] = std::fmin(Cap, std::sqrt(2.0 * Radius));
+		Fast[I] = std::fmin(Fast[I], std::sqrt(2.0 * Radius));
 	}
 	Fast.front() = Fast.back() = std::fmin(Fast.front(), 3.0);
 	for (size_t I = 1; I < N; ++I)
@@ -1757,6 +1780,28 @@ RideSummary RidePlan::Summary(double Cap) const
 	double Seconds = 0.0;
 	for (size_t I = 1; I < N; ++I) Seconds += (Road[I].Along - Road[I - 1].Along) / std::fmax(1.0, 0.5 * (Fast[I] + Fast[I - 1]));
 	Out.Minutes = Seconds / 60.0;
+	// [OSM stage 1] Where it starts, and what there is to stop at on the way.
+	Out.Place = PlaceAt(Road[0].At.X, Road[0].At.Z);
+	{
+		int Count[StopKinds] = {};
+		std::vector<std::string> Castles;
+		for (const RideStop& S : Stops)
+		{
+			if (S.Along > Out.Metres + 50.0) continue;
+			++Count[S.Kind];
+			if (S.Kind == StopCastle && std::find(Castles.begin(), Castles.end(), S.Name) == Castles.end()) Castles.push_back(S.Name);
+		}
+		static const char* One[StopKinds] = {"fuel", "a cafe", "a pub", "a viewpoint", "a lay-by", "an inn", "a campsite", ""};
+		static const char* Many[StopKinds] = {"fuel stops", "cafes", "pubs", "viewpoints", "lay-bys", "inns", "campsites", ""};
+		std::string Line;
+		for (int K : {int(StopPub), int(StopCafe), int(StopFuel), int(StopInn), int(StopView), int(StopCamp), int(StopLayby)})
+		{
+			if (Count[K] == 0) continue;
+			Line += (Line.empty() ? "" : ", ") + (Count[K] == 1 ? std::string(One[K]) : std::to_string(Count[K]) + " " + Many[K]);
+		}
+		for (const std::string& C : Castles) Line += (Line.empty() ? "" : ", ") + C;
+		Out.StopsLine = Line;
+	}
 	return Out;
 }
 } // namespace TorqueWorld

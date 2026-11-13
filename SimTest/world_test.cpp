@@ -664,6 +664,24 @@ int main()
 					Check(Near(Sum.Metres, Via->FinishM, 5.0) && Sum.Climb > 10.0 && Sum.Highest > Sum.Lowest && Sum.Highest < 800.0 && Mph > 20.0 && Mph < 60.0
 							&& double(Sum.Line.size()) > Sum.Metres / 60.0 && Near(Sum.Line.front().Lat, GA.Lat, 0.01) && Near(Sum.Litres(5.0), Sum.Metres / 20000.0, 1e-9),
 						"a ride is summed up to its finish: how far, the climb, the highest point, how twisty, about how long, the fuel, and its line for the map");
+					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
+					// where it changes, the place, and a ride time from the limits.
+					{
+						bool Short = false, Known = true;
+						for (size_t K = 0; K < Plan->Limits.size(); ++K)
+						{
+							Short = Short || (Plan->Limits.size() > 1 && Plan->Limits[K].To - Plan->Limits[K].From < 100.0);
+							Known = Known && (K == 0 || Plan->Limits[K].From == Plan->Limits[K - 1].To);
+						}
+						const RidePlan::RideNav N0 = Plan->NavAt(Plan->Road[0].At.X, Plan->Road[0].At.Z);
+						const int Signs = Plan->FurnitureCount(RidePlan::Limit30) + Plan->FurnitureCount(RidePlan::LimitNational);
+						const int Changes = int(Plan->Limits.size()) - 1;
+						std::printf("      road facts: %d limit stretches, %d signs, start '%s' %d mph%s, %s\n", int(Plan->Limits.size()), Signs, N0.Road.c_str(), N0.Limit,
+							N0.LimitAssumed ? " (assumed)" : "", N0.Place.c_str());
+						Check(!Plan->Limits.empty() && !Short && Known && Signs <= Changes * 2 && Signs >= Changes && N0.Limit > 0 && !N0.Road.empty()
+								&& N0.Place.find("England") != std::string::npos,
+							"the road's facts: its limit all along it (no flicker under 100 m), a sign each way where it changes, the road's name, the county and country");
+					}
 					// The road's furniture (stage 5).
 					{
 						int Built = 0;

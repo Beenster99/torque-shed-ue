@@ -163,6 +163,8 @@ bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
 	return true;
 }
 
+int32 ATorqueRideWorld::TestLimit = INDEX_NONE;
+
 void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -178,6 +180,19 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
 	Dash.NavLeft = N.ToFinish;
 	Dash.bAtFuel = N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0;
+	// [OSM stage 1] The road's facts.
+	Dash.NavLimit = N.Limit;
+	Dash.bNavLimitMph = N.LimitMph;
+	Dash.bNavLimitNational = N.LimitNational;
+	Dash.bNavLimitAssumed = N.LimitAssumed;
+	if (TestLimit != INDEX_NONE)
+	{
+		Dash.NavLimit = TestLimit < 0 ? 60 : TestLimit;
+		Dash.bNavLimitNational = TestLimit < 0;
+		Dash.bNavLimitAssumed = false;
+	}
+	Dash.NavRoad = UTF8_TO_TCHAR(N.Road.c_str());
+	Dash.NavPlace = UTF8_TO_TCHAR(N.Place.c_str());
 	// (the next fuel and the next cafe, whichever's nearer; a viewpoint if it's close)
 	Dash.NavStop.Reset();
 	double Best = 1e18;
