@@ -140,6 +140,17 @@ else()
   target_compile_options(weather_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
 
+# The sky (skies plan): the light table, the sun through cloud, the air, the cloud layers, and the
+# recorded days (Data/Sky/days) read as the live feed's answers.
+add_executable(sky_test sky_test.cpp ${WEATHER}/SkyModel.cpp ${WEATHER}/WeatherModel.cpp ${FIT}/FitJson.cpp)
+target_include_directories(sky_test PRIVATE ${WEATHER} ${FIT})
+target_compile_definitions(sky_test PRIVATE TORQUE_SKY_DATA="${CMAKE_CURRENT_SOURCE_DIR}/../Data/Sky")
+if(MSVC)
+  target_compile_options(sky_test PRIVATE /W4)
+else()
+  target_compile_options(sky_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
+
 # Reading the real world (Ride UK stage 1): the grid, the height tiles, cells stitched into a road
 # graph and the ground's height, against the Godot game's answers on the same files.
 set(WORLD ${CMAKE_CURRENT_SOURCE_DIR}/../Source/TorqueShedProto/World)

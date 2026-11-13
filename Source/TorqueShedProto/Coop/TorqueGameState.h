@@ -17,6 +17,7 @@
 #include "TorqueGameState.generated.h"
 
 class UMaterialParameterCollection;
+class ATorqueSky;
 
 // The host's weather as it is now, sent to everyone (the numbers of TorqueWeather::State, and where
 // they came from).
@@ -38,6 +39,20 @@ struct FTorqueWeatherNet
 	UPROPERTY() float CloudBase = 5000.0f;
 	UPROPERTY() float Puddles = 0.0f;
 	UPROPERTY() float SnowDepth = 0.0f;   // (lying snow, m)
+	// The sky's (skies plan stage 1): the cloud layers, the air, the sunshine and the wind aloft.
+	UPROPERTY() float MidCloud = 0.0f;
+	UPROPERTY() float HighCloud = 0.1f;
+	UPROPERTY() float Humidity = 70.0f;
+	UPROPERTY() float Cape = 0.0f;
+	UPROPERTY() float FreezingLevel = 2500.0f;
+	UPROPERTY() float DirectSun = -1.0f;
+	UPROPERTY() float DiffuseSun = -1.0f;
+	UPROPERTY() float Wind850 = 9.0f;
+	UPROPERTY() float Wind850From = 235.0f;
+	UPROPERTY() float Wind700 = 14.0f;
+	UPROPERTY() float Wind700From = 245.0f;
+	UPROPERTY() float Wind300 = 28.0f;
+	UPROPERTY() float Wind300From = 255.0f;
 	// ETorqueWeatherSource, and when the live weather was fetched (seconds since 1970, 0 for never).
 	UPROPERTY() uint8 Source = 0;
 	UPROPERTY() int64 FetchedAt = 0;
@@ -117,6 +132,14 @@ public:
 	// [info] A point of the level (cm) as a place on Earth and its height above sea level, metres, by
 	// the route's origin (Buttertubs' origin_geo, or -TorqueWeatherAt=).
 	void GeoAt(const FVector& At, double& Lat, double& Lon, double& Asl) const;
+	// The sky (Weather/TorqueSky.h): this machine's, and how far the wind has carried the clouds (the
+	// host's, shared so everyone sees the same cloud in the same place; false until the host has sent one).
+	ATorqueSky* GetSky() const;
+	void ShareSkyDrift(double East, double North);
+	bool SharedSkyDrift(double& East, double& North) const;
+	// [test] the sky bench: this weather held, and the sun as it stands at latitude Lat on day Day
+	// (1 .. 366) at solar time SolarHour (as the real sun, so the feed's sunshine figures fit it).
+	void BenchSky(const TorqueWeather::State& S, double Lat, int32 Day, double SolarHour);
 
 private:
 	UPROPERTY(ReplicatedUsing = OnRep_Weather) int32 Weather = 0;
@@ -181,8 +204,15 @@ private:
 	bool bSunCaptured = false;
 	FRotator BuiltSun = FRotator::ZeroRotator;
 	double SunYawOffset = 0.0;
-	float DayLight = 1.0f;   // 0 at night .. 1 by day: the sun's brightness and the exposure follow
+	float DayLight = 1.0f;   // 0 at night .. 1 by day: the exposure, the haze's glow and the lamps follow
 	float AppliedDayLight = -1.0f;
+	double SunElevationNow = 30.0, AppliedSunElevation = -1000.0;   // the sun's height, degrees
+	bool bRealSunNow = false;   // the sun is the real one (Real time of day, or the bench)
+	bool bSunHeld = false;      // [test] the bench holds the sun's day and place
+	UPROPERTY(Transient) TObjectPtr<ATorqueSky> Sky;
+	UPROPERTY(Replicated) double SkyDriftE = 0.0;
+	UPROPERTY(Replicated) double SkyDriftN = 0.0;
+	UPROPERTY(Replicated) bool bSkyDriftSet = false;
 	TWeakObjectPtr<class ADirectionalLight> SunActorPtr;
 
 public:
@@ -208,21 +238,12 @@ private:
 	FDelegateHandle HostChangeHandle;
 	UFUNCTION() void OnRep_Weather();
 
-	// The level's light as it was built (sunny), kept the first time so each weather is made from it.
+	// The weather on screen: the sky (ATorqueSky: sun, sky light, air, fog, clouds, camera) and the
+	// materials' weather (MPC_Weather: wet roads, wind, rain, puddles, snow, night).
 	void ApplyWeather();
-	bool bCaptured = false;
-	float SunLux = 0.f, SunAngle = 0.f, SkyIntensity = 1.f, FogDensity = 0.f, Mie = 0.f, Rayleigh = 0.f;
-	FLinearColor FogInscatter = FLinearColor::Black, FogSunInscatter = FLinearColor::Black;   // the height fog's own glow, as built (by day)
-	float ExposureBias = 0.f, ExposureMin = 0.f, ExposureMax = 0.f;
 	float AppliedOpen = -1.0f;   // how open to the sky the camera was when the exposure was last set
-	TWeakObjectPtr<class UDirectionalLightComponent> SunPtr;
-	TWeakObjectPtr<class USkyLightComponent> SkyPtr;
-	TWeakObjectPtr<class UExponentialHeightFogComponent> FogPtr;
-	TWeakObjectPtr<class USkyAtmosphereComponent> AtmoPtr;
-	TWeakObjectPtr<class APostProcessVolume> PpvPtr;
 	UPROPERTY(Transient) TObjectPtr<UMaterialParameterCollection> WeatherMpc;
 	// The weather effects you see around you (rain, splashes, tyre spray): one per machine.
 	UPROPERTY(Transient) TObjectPtr<class ATorqueWeatherFx> Fx;
-	bool bLooked = false;
 	int32 LoggedKind = -1;
 };

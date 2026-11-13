@@ -34,6 +34,23 @@ struct State
 	// Lying snow, metres deep (Open-Meteo's snow_depth; Ride UK stage 6): the land and the wall tops
 	// whiten from a centimetre or two (SnowCover).
 	double SnowDepth = 0.0;
+
+	// What the sky needs (skies plan, stage 1): carried, blended, saved and shared like the rest, and
+	// read by Weather/SkyModel.h. Their defaults are a fair day's.
+	double MidCloud = 0.0;        // middle cloud cover (about 2 to 6 km), 0 .. 1
+	double HighCloud = 0.1;       // high cloud cover (above about 6 km: cirrus), 0 .. 1
+	double Humidity = 70.0;       // relative humidity at 2 m, %
+	double Cape = 0.0;            // how unstable the air is (convective available potential energy), J/kg
+	double FreezingLevel = 2500.0;// the height of 0 C, metres above sea level
+	// The sunshine reaching the ground, W per square metre: straight from the sun (on a level surface)
+	// and scattered by the sky and the cloud. Below 0: not known (an old save, the backup feed, a preset).
+	double DirectSun = -1.0;
+	double DiffuseSun = -1.0;
+	// The wind aloft, metres per second and where it comes from: about 1.5 km (850 hPa, the low cloud's),
+	// 3 km (700 hPa, the middle cloud's) and 9 km (300 hPa, the cirrus').
+	double Wind850 = 9.0, Wind850From = 235.0;
+	double Wind700 = 14.0, Wind700From = 245.0;
+	double Wind300 = 28.0, Wind300From = 255.0;
 };
 
 enum EKind { Sunny = 0, Overcast = 1, Wet = 2 };
@@ -46,7 +63,11 @@ int NearestKind(const State& S);
 // A blend: T 0 is A, 1 is B. The wind turns the short way round; the code is the nearer one's.
 State Blend(const State& A, const State& B, double T);
 
-// How the light reads a State: 0 for the sunny preset's sky, 1 for the overcast and wet presets'.
+// How much of the sun's light the cloud keeps from the ground, 0 .. 1: low and middle cloud in full,
+// the thin high cloud a quarter (a sky covered in cirrus is a bright, milky day with shadows).
+double SunBlock(const State& S);
+// How the light reads a State: 0 for the sunny preset's sky, 1 for the overcast and wet presets'
+// (from SunBlock, so thin high cloud no longer reads as overcast).
 double Dullness(const State& S);
 // How wet the day looks (the darker light and thicker haze of the old "wet roads"): 0 dry, 1 the wet preset.
 double WetLook(const State& S);

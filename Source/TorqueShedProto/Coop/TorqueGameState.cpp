@@ -19,6 +19,7 @@
 #include "Engine/World.h"
 #include "Fit/FitJson.h"
 #include "Weather/TorqueWeatherFx.h"
+#include "Weather/TorqueSky.h"
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/PlayerController.h"
 #include "HttpModule.h"
@@ -41,6 +42,13 @@
 bool ATorqueGameState::bRealClockTest = false;
 bool ATorqueGameState::bTestClockSet = false;
 
+namespace
+{
+// The weather's numbers as sent, and back (below).
+FTorqueWeatherNet NetOf(const TorqueWeather::State& S);
+TorqueWeather::State StateOf(const FTorqueWeatherNet& N);
+} // namespace
+
 void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -53,6 +61,9 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 	DOREPLIFETIME(ATorqueGameState, RideJourney);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftE);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftN);
+	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
 }
 
 void ATorqueGameState::BeginPlay()
@@ -115,6 +126,8 @@ void ATorqueGameState::BeginPlay()
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		Params.ObjectFlags |= RF_Transient;
 		Fx = GetWorld()->SpawnActor<ATorqueWeatherFx>(Params);
+		// The sky: sun, sky light, air, fog, clouds and the camera, from the weather (skies plan).
+		Sky = GetWorld()->SpawnActor<ATorqueSky>(Params);
 	}
 	if (HasAuthority())
 	{
@@ -304,8 +317,10 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	// The real time of day, or the day going by: a whole day in Settings' Day length of real minutes.
 	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
 	const bool bRealClock = Set.bRealClock && (!bTestRun || bRealClockTest);
-	if (bRealClock) TickRealClock();
-	else if (SunShift != 0.0f || SunDec != 15.0f || SunLat != 54.35f)
+	// (The sky bench holds its own sun: a day and a place of its choosing.)
+	if (!bSunHeld) bRealSunNow = bRealClock;
+	if (!bSunHeld && bRealClock) TickRealClock();
+	else if (!bSunHeld && (SunShift != 0.0f || SunDec != 15.0f || SunLat != 54.35f))
 	{
 		SunShift = 0.0f;
 		SunDec = 15.0f;
@@ -313,7 +328,7 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 		ApplySun();
 		ForceNetUpdate();
 	}
-	if (Set.bDayNight && !bRealClock)
+	if (Set.bDayNight && !bRealClock && !bSunHeld)
 	{
 		if (Hour < 0.0f) Hour = BuiltAt;
 		Hour = FMath::Fmod(Hour + DeltaSeconds * 24.0f / (60.0f * (float)FMath::Max(Set.DayLength, 1)), 24.0f);
@@ -404,20 +419,27 @@ void ATorqueGameState::ApplySun()
 	if (Hour < 0.0f)
 	{
 		SunActor->SetActorRotation(BuiltSun);
+		SunElevationNow = -(double)BuiltSun.Pitch;
 		DayLight = 1.0f;
 	}
 	else
 	{
 		double E = 0.0, B = 0.0;
 		SunAt(FMath::Fmod(Hour + SunShift + 48.0, 24.0), E, B, SunLat, SunDec);
-		// Below the horizon the light goes out (and stays pointing down, so nothing is lit from under).
-		SunActor->SetActorRotation(FRotator(-FMath::Max(E, 2.0), LightYaw(B) + SunYawOffset, BuiltSun.Roll));
-		DayLight = FMath::SmoothStep(-4.0f, 6.0f, (float)E);
+		SunElevationNow = E;
+		// Below the horizon the light goes on pointing at the real sun (down to the sky's lowest): the
+		// atmosphere stays lit from below the horizon, so the glow sits where the sun went down, and the
+		// planet's shadow keeps it off the ground. Day light follows the real light, through twilight.
+		const double Points = Sky ? Sky->LightElevationAt(E) : FMath::Max(E, 2.0);
+		SunActor->SetActorRotation(FRotator(-Points, LightYaw(B) + SunYawOffset, BuiltSun.Roll));
+		DayLight = Sky ? Sky->DayLightAt(E) : FMath::SmoothStep(-4.0f, 6.0f, (float)E);
 	}
 	// The sun's brightness and the exposure with it, when the light has changed enough to see.
-	if (AppliedDayLight < 0.0f || FMath::Abs(DayLight - AppliedDayLight) > 0.01f || (DayLight != AppliedDayLight && (DayLight == 0.0f || DayLight == 1.0f)))
+	if (AppliedDayLight < 0.0f || FMath::Abs(DayLight - AppliedDayLight) > 0.01f || (DayLight != AppliedDayLight && (DayLight == 0.0f || DayLight == 1.0f))
+		|| FMath::Abs(SunElevationNow - AppliedSunElevation) > 0.2)
 	{
 		AppliedDayLight = DayLight;
+		AppliedSunElevation = SunElevationNow;
 		ApplyWeather();
 	}
 }
@@ -492,21 +514,11 @@ void ATorqueGameState::GoToMode(float FadeSeconds)
 void ATorqueGameState::SendNet()
 {
 	if (!HasAuthority()) return;
-	const TorqueWeather::State& S = Fade.Now;
-	Net.Cloud = (float)S.Cloud;
-	Net.Rain = (float)S.Rain;
-	Net.Snow = (float)S.Snow;
-	Net.Wind = (float)S.Wind;
-	Net.WindFrom = (float)S.WindFrom;
-	Net.Gust = (float)S.Gust;
-	Net.Air = (float)S.Air;
-	Net.Visibility = (float)S.Visibility;
-	Net.RoadWet = (float)S.RoadWet;
-	Net.Code = S.Code;
-	Net.LowCloud = (float)S.LowCloud;
-	Net.CloudBase = (float)S.CloudBase;
-	Net.Puddles = (float)S.Puddles;
-	Net.SnowDepth = (float)S.SnowDepth;
+	const uint8 Source = Net.Source;
+	const int64 FetchedAt = Net.FetchedAt;
+	Net = NetOf(Fade.Now);
+	Net.Source = Source;
+	Net.FetchedAt = FetchedAt;
 	if (const UWorld* World = GetWorld()) NetSentAt = World->GetRealTimeSeconds();
 	ForceNetUpdate();
 }
@@ -514,21 +526,7 @@ void ATorqueGameState::SendNet()
 void ATorqueGameState::OnRep_Net()
 {
 	if (HasAuthority()) return;
-	TorqueWeather::State S;
-	S.Cloud = Net.Cloud;
-	S.Rain = Net.Rain;
-	S.Snow = Net.Snow;
-	S.Wind = Net.Wind;
-	S.WindFrom = Net.WindFrom;
-	S.Gust = Net.Gust;
-	S.Air = Net.Air;
-	S.Visibility = Net.Visibility;
-	S.RoadWet = Net.RoadWet;
-	S.Code = Net.Code;
-	S.LowCloud = Net.LowCloud;
-	S.CloudBase = Net.CloudBase;
-	S.Puddles = Net.Puddles;
-	S.SnowDepth = Net.SnowDepth;
+	const TorqueWeather::State S = StateOf(Net);
 	// The host sends a fade a couple of times a second: ease between, so it stays smooth here too.
 	if (AppliedAt < 0.0) Fade.Set(S);
 	else Fade.FadeTo(S, 0.6);
@@ -547,6 +545,7 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 		|| FMath::Abs(Here.Rain - HereApplied.Rain) > 0.03 || FMath::Abs(Here.RoadWet - HereApplied.RoadWet) > 0.01
 		|| FMath::Abs(Here.Puddles - HereApplied.Puddles) > 0.01 || FMath::Abs(Here.SnowDepth - HereApplied.SnowDepth) > 0.002 || FMath::Abs(Here.Air - HereApplied.Air) > 0.2
 		|| FMath::Abs(Here.Wind - HereApplied.Wind) > 0.2 || FMath::Abs(Here.LowCloud - HereApplied.LowCloud) > 0.01
+		|| FMath::Abs(Here.MidCloud - HereApplied.MidCloud) > 0.01 || FMath::Abs(Here.HighCloud - HereApplied.HighCloud) > 0.01
 		|| FMath::Abs(Here.Visibility - HereApplied.Visibility) > 0.03 * HereApplied.Visibility);
 	if (HasAuthority())
 	{
@@ -733,6 +732,10 @@ FTorqueWeatherNet NetOf(const TorqueWeather::State& S)
 	N.RoadWet = (float)S.RoadWet; N.Code = S.Code; N.LowCloud = (float)S.LowCloud; N.CloudBase = (float)S.CloudBase;
 	N.Puddles = (float)S.Puddles;
 	N.SnowDepth = (float)S.SnowDepth;
+	N.MidCloud = (float)S.MidCloud; N.HighCloud = (float)S.HighCloud; N.Humidity = (float)S.Humidity; N.Cape = (float)S.Cape;
+	N.FreezingLevel = (float)S.FreezingLevel; N.DirectSun = (float)S.DirectSun; N.DiffuseSun = (float)S.DiffuseSun;
+	N.Wind850 = (float)S.Wind850; N.Wind850From = (float)S.Wind850From; N.Wind700 = (float)S.Wind700; N.Wind700From = (float)S.Wind700From;
+	N.Wind300 = (float)S.Wind300; N.Wind300From = (float)S.Wind300From;
 	return N;
 }
 
@@ -742,6 +745,9 @@ TorqueWeather::State StateOf(const FTorqueWeatherNet& N)
 	S.Cloud = N.Cloud; S.Rain = N.Rain; S.Snow = N.Snow; S.Wind = N.Wind; S.WindFrom = N.WindFrom; S.Gust = N.Gust;
 	S.Air = N.Air; S.Visibility = N.Visibility; S.RoadWet = N.RoadWet; S.Code = N.Code; S.LowCloud = N.LowCloud;
 	S.CloudBase = N.CloudBase; S.Puddles = N.Puddles; S.SnowDepth = N.SnowDepth;
+	S.MidCloud = N.MidCloud; S.HighCloud = N.HighCloud; S.Humidity = N.Humidity; S.Cape = N.Cape; S.FreezingLevel = N.FreezingLevel;
+	S.DirectSun = N.DirectSun; S.DiffuseSun = N.DiffuseSun; S.Wind850 = N.Wind850; S.Wind850From = N.Wind850From;
+	S.Wind700 = N.Wind700; S.Wind700From = N.Wind700From; S.Wind300 = N.Wind300; S.Wind300From = N.Wind300From;
 	return S;
 }
 } // namespace
@@ -898,114 +904,32 @@ float ATorqueGameState::HazeNow() const
 	return (float)TorqueWeather::HazeAt(Here, Asl);
 }
 
-// Weather: the level is built sunny. As the sky dulls (the State's cloud) the sun dims and softens,
-// the sky greys and the haze thickens; a wet day darkens a little more, and the roads take their
-// wetness (the materials' Wetness, MPC_Weather). Low visibility thickens the haze further. The
-// three presets give exactly the light the three kinds always had. The bikes take the grip from
-// GetWeather (the nearest kind) until stage 4.
+// Weather: the level is built sunny. As the sky dulls the sun dims and softens, the sky greys and the
+// haze thickens; a wet day darkens a little more; real cloud is drawn at its real height and cover;
+// and the roads take their wetness (the materials' Wetness, MPC_Weather). All of the sky is
+// ATorqueSky's (Weather/TorqueSky.h, its looks in Data/Sky/sky_looks.json); the three presets give
+// exactly the light the three kinds always had (SimTest sky_test). The bikes take the grip from the
+// weather where they are (stage 4).
 void ATorqueGameState::ApplyWeather()
 {
 	UWorld* W = GetWorld();
 	if (!W) return;
-	if (!bLooked || !SunPtr.IsValid())
-	{
-		bLooked = true;
-		for (TActorIterator<ADirectionalLight> It(W); It && !SunPtr.IsValid(); ++It) SunPtr = Cast<UDirectionalLightComponent>(It->GetLightComponent());
-		for (TActorIterator<ASkyLight> It(W); It && !SkyPtr.IsValid(); ++It) SkyPtr = It->GetLightComponent();
-		for (TActorIterator<AExponentialHeightFog> It(W); It && !FogPtr.IsValid(); ++It) FogPtr = It->GetComponent();
-		for (TActorIterator<AActor> It(W); It && !AtmoPtr.IsValid(); ++It) AtmoPtr = It->FindComponentByClass<USkyAtmosphereComponent>();
-		for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It) if (It->bUnbound) PpvPtr = *It;
-		if (!WeatherMpc) WeatherMpc = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather"));
-	}
-	UDirectionalLightComponent* Sun = SunPtr.Get();
-	USkyLightComponent* Sky = SkyPtr.Get();
-	UExponentialHeightFogComponent* Fog = FogPtr.Get();
-	USkyAtmosphereComponent* Atmo = AtmoPtr.Get();
-	APostProcessVolume* Ppv = PpvPtr.Get();
-	if (!bCaptured)
-	{
-		bCaptured = true;
-		if (Sun) { SunLux = Sun->Intensity; SunAngle = Sun->LightSourceAngle; }
-		if (Sky) SkyIntensity = Sky->Intensity;
-		if (Fog) { FogDensity = Fog->FogDensity; FogInscatter = Fog->FogInscatteringLuminance; FogSunInscatter = Fog->DirectionalInscatteringLuminance; }
-		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
-		if (Ppv) { ExposureBias = Ppv->Settings.AutoExposureBias; ExposureMin = Ppv->Settings.AutoExposureMinBrightness; ExposureMax = Ppv->Settings.AutoExposureMaxBrightness; }
-		// A level's own trim on that exposure, kept as data so it can be tuned without a rebuild:
-		// Data/<map>/look.json {"exposure_bias": stops}, or -TorqueExposure=stops on the command line
-		// (beenster, build 140: the streamed Ride UK came out washed out next to Buttertubs).
-		if (Ppv)
-		{
-			const FString Map = UWorld::RemovePIEPrefix(W->GetMapName());
-			float Trim = 0.0f;
-			FString Text;
-			if (FFileHelper::LoadFileToString(Text, *(FPaths::ProjectDir() / TEXT("Data") / Map / TEXT("look.json"))))
-			{
-				TSharedPtr<FJsonObject> Look;
-				const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
-				double Stops = 0.0;
-				if (FJsonSerializer::Deserialize(Reader, Look) && Look.IsValid() && Look->TryGetNumberField(TEXT("exposure_bias"), Stops)) Trim = float(Stops);
-			}
-			FParse::Value(FCommandLine::Get(), TEXT("TorqueExposure="), Trim);
-			ExposureBias += Trim;
-			UE_LOG(LogTemp, Display, TEXT("Torque weather: %s exposure bias %.2f (trim %.2f), range %.1f to %.1f EV"), *Map, ExposureBias, Trim, ExposureMin, ExposureMax);
-		}
-	}
 	const TorqueWeather::State& St = Here;
-	const float Dull = (float)TorqueWeather::Dullness(St);    // 0 the sunny preset's sky .. 1 overcast's
-	const float WetL = (float)TorqueWeather::WetLook(St);     // 0 dry .. 1 the wet preset's
-	const float Haze = HazeNow();                              // 1, or more in poor visibility or up in low cloud
-	AppliedHaze = Haze;
-	if (Sun)
+	AppliedHaze = HazeNow();   // 1, or more in poor visibility or up in low cloud
+	const float Open = FMath::Clamp(WeatherOpen(), 0.0f, 1.0f);
+	AppliedOpen = Open;
+	if (Sky)
 	{
-		Sun->SetIntensity(SunLux * FMath::Lerp(1.0f, FMath::Lerp(0.14f, 0.10f, WetL), Dull) * DayLight);
-		// A sun behind cloud: next to no shadow, from a light as wide as the bright patch of cloud. The sky
-		// draws its sun disc as wide as the light, so under any cloud that softens the shadows the disc is
-		// put out (beenster, build 135: "the sun is massive" under a live overcast, a 40 degree disc).
-		const float Angle = FMath::Lerp(SunAngle, 40.0f, Dull);
-		Sun->SetLightSourceAngle(Angle);
-		const float Disc = FMath::Clamp(1.0f - (Angle - SunAngle) / 1.5f, 0.0f, 1.0f);
-		Sun->SetAtmosphereSunDiskColorScale(FLinearColor(Disc, Disc, Disc, 1.0f));
+		// The ground under the viewer: the camera's height above sea level, less a rider's eye.
+		double Lat = 0.0, Lon = 0.0, Asl = OriginAsl;
+		ViewGeo(Lat, Lon, Asl);
+		Sky->Apply(St, SunElevationNow, bRealSunNow, AppliedHaze, Asl - 1.5, Open);
 	}
-	if (Sky) Sky->SetIntensity(SkyIntensity * FMath::Lerp(1.0f, 2.5f, Dull));
-	// A real camera opens up under cloud: the exposure follows (the level's histogram range was set for
-	// sun, so it clamped and overcast came out far too dark).
-	if (Ppv)
-	{
-		Ppv->Settings.bOverride_AutoExposureBias = true;
-		Ppv->Settings.bOverride_AutoExposureMinBrightness = true;
-		Ppv->Settings.bOverride_AutoExposureMaxBrightness = true;
-		Ppv->Settings.AutoExposureBias = ExposureBias + Dull * FMath::Lerp(1.6f, 1.9f, WetL);
-		// At night: indoors, open up (the shed under its lights); out under the sky, the exposure is held
-		// in a narrow band a little open, so the road shows in your lights but the night stays night. With
-		// the old wide range the camera kept opening for ten seconds after riding out, until the dark
-		// looked like day (beenster, Nov 10).
-		const float Night = 1.0f - DayLight;
-		const float Out = FMath::Clamp(WeatherOpen(), 0.0f, 1.0f);
-		AppliedOpen = Out;
-		const float Lo = FMath::Lerp(ExposureMin - 3.0f * Dull, ExposureMin - FMath::Lerp(5.0f, 3.0f, Out), Night);
-		const float Hi = FMath::Lerp(ExposureMax, ExposureMin - 2.0f, Night * Out);
-		Ppv->Settings.AutoExposureMinBrightness = Lo;
-		Ppv->Settings.AutoExposureMaxBrightness = FMath::Max(Hi, Lo + 0.5f);
-	}
-	if (Fog)
-	{
-		Fog->SetFogDensity(FogDensity * FMath::Lerp(1.0f, FMath::Lerp(2.0f, 3.0f, WetL), Dull) * Haze);
-		// The haze's own glow is a fixed colour (the level's daylight grey): it has to go down with the
-		// sun, or at night (exposure opened five stops) the far hills glow flat grey against a black sky
-		// (beenster, Nov 10). A trace of it stays for moonlight and the glow of distant towns.
-		const float Glow = FMath::Lerp(0.006f, 1.0f, DayLight);
-		Fog->SetFogInscatteringColor(FogInscatter * Glow);
-		Fog->SetDirectionalInscatteringColor(FogSunInscatter * DayLight);
-	}
-	if (Atmo)
-	{
-		// A white-grey British overcast: almost no Rayleigh (the blue), thick Mie (the white haze).
-		Atmo->SetMieScatteringScale(Mie * FMath::Lerp(1.0f, 12.0f, Dull));
-		Atmo->SetRayleighScatteringScale(Rayleigh * FMath::Lerp(1.0f, 0.08f, Dull));
-	}
+	if (!WeatherMpc) WeatherMpc = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather"));
 	if (WeatherMpc)
 	{
-		// (Only those the collection has: the level's build adds the wind and cloud ones.)
+		// (Only those the collection has: the level's build adds the wind and cloud ones. The cloud
+		// shadows' CloudShadow is the sky's.)
 		auto SetMpc = [this, W](const TCHAR* Name, float Value) {
 			if (WeatherMpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, WeatherMpc, FName(Name), Value);
 		};
@@ -1016,9 +940,6 @@ void ATorqueGameState::ApplyWeather()
 		SetMpc(TEXT("Wind"), (float)TorqueWeather::SwayFromWind(St));
 		SetMpc(TEXT("WindX"), (float)FMath::Sin(To));
 		SetMpc(TEXT("WindY"), (float)-FMath::Cos(To));
-		// Cloud shadows over the fells: the made look (0.6) on the sunny preset's fair day (a tenth of the
-		// sky), none on a clear one, more of the ground in shade as the cloud builds.
-		SetMpc(TEXT("CloudShadow"), (float)(St.Cloud <= 0.1 ? FMath::Lerp(1.0, 0.6, St.Cloud / 0.1) : FMath::Lerp(0.6, 0.45, FMath::Clamp((St.Cloud - 0.1) / 0.5, 0.0, 1.0))));
 		SetMpc(TEXT("Rain"), (float)TorqueWeather::RainShow(St));
 		// Standing water: the road's edges first (inside of bends most), the middle after hours of rain.
 		SetMpc(TEXT("Puddles"), (float)FMath::Clamp(St.Puddles, 0.0, 1.0));
@@ -1031,5 +952,47 @@ void ATorqueGameState::ApplyWeather()
 	{
 		LoggedKind = Weather;
 		UE_LOG(LogTemp, Log, TEXT("Torque: weather %d"), Weather);
+		if (Sky) UE_LOG(LogTemp, Log, TEXT("Torque sky: %s"), *Sky->Describe());
 	}
+}
+
+void ATorqueGameState::ShareSkyDrift(double East, double North)
+{
+	if (!HasAuthority()) return;
+	SkyDriftE = East;
+	SkyDriftN = North;
+	bSkyDriftSet = true;
+}
+
+bool ATorqueGameState::SharedSkyDrift(double& East, double& North) const
+{
+	East = SkyDriftE;
+	North = SkyDriftN;
+	return bSkyDriftSet;
+}
+
+void ATorqueGameState::BenchSky(const TorqueWeather::State& S, double Lat, int32 Day, double SolarHour)
+{
+	// Held: no fetching, no changing by itself, no grid; the sun of that day and place, as the real one.
+	Mode = 1;
+	SetGrid(TorqueWeather::Grid(), 0, 0.0);
+	SetFromState(S);
+	Net.Source = (uint8)ETorqueWeatherSource::Fixed;
+	bSunHeld = true;
+	bRealSunNow = true;
+	SunDec = (float)TorqueWeather::SunDeclination(Day);
+	SunLat = (float)Lat;
+	SunShift = 0.0f;
+	Hour = (float)FMath::Fmod(SolarHour + 24.0, 24.0);
+	UpdateHere();
+	HereApplied = Here;
+	AppliedDayLight = -1.0f;
+	ApplySun();
+	ApplyWeather();
+	AppliedAt = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0;
+}
+
+ATorqueSky* ATorqueGameState::GetSky() const
+{
+	return Sky.Get();
 }

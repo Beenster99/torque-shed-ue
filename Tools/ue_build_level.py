@@ -256,6 +256,58 @@ def wetness(g):
     return weather_param(g, "Wetness")
 
 
+SKY_MPC = MAT_DIR + "/MPC_Sky"   # ATorqueSky sets these at run time (Weather/TorqueSky.h, skies plan stage 2)
+SKY_PARAMS = (
+    ("Cover", 0.3),     # the cloud cover drawn, 0 clear .. 1 overcast (the real cover, remapped for the view from the saddle)
+    ("Density", 0.8),   # how dense the cloud is: x 0.1 per metre of extinction (0.6 a fair day, 1 a deck, 1.6 rain cloud)
+    ("Albedo", 1.0),    # the cloud's own colour: 1 white, 0.7 the grey of rain cloud
+    ("Shape", 0.3),     # 0 heaped (cumulus) .. 1 a flat deck (stratus)
+    ("DriftX", 0.0),    # how far the wind at cloud height has carried the clouds, metres along x (east)
+    ("DriftY", 0.0),    # and along y (south)
+)
+_sky_mpc = None
+
+
+def sky_mpc():
+    """The sky's material parameter collection, as weather_mpc (parameters kept with their ids)."""
+    global _sky_mpc
+    if _sky_mpc is not None:
+        return _sky_mpc or None
+    try:
+        mpc = unreal.load_asset(SKY_MPC) if unreal.EditorAssetLibrary.does_asset_exist(SKY_MPC) else None
+        if mpc is None:
+            folder, name = SKY_MPC.rsplit("/", 1)
+            mpc = asset_tools.create_asset(name, folder, unreal.MaterialParameterCollection,
+                                           unreal.MaterialParameterCollectionFactoryNew())
+        have = {}
+        for p in mpc.get_editor_property("scalar_parameters") or []:
+            have[str(p.get_editor_property("parameter_name"))] = p
+        params = []
+        for name, default in SKY_PARAMS:
+            p = have.get(name)
+            if p is None:
+                p = unreal.CollectionScalarParameter()
+                p.set_editor_property("parameter_name", name)
+            p.set_editor_property("default_value", default)
+            params.append(p)
+        mpc.set_editor_property("scalar_parameters", params)
+        unreal.EditorAssetLibrary.save_loaded_asset(mpc)
+        _sky_mpc = mpc
+        log("sky parameter collection made")
+    except Exception as e:
+        unreal.log_warning("[Torque] no sky parameter collection: %s" % e)
+        _sky_mpc = False
+    return _sky_mpc or None
+
+
+def sky_param(g, name):
+    """One of the sky's scalars in a material (its default when the collection couldn't be made)."""
+    mpc = sky_mpc()
+    if mpc is None:
+        return g.const(dict(SKY_PARAMS)[name])
+    return g.node(unreal.MaterialExpressionCollectionParameter, collection=mpc, parameter_name=name)
+
+
 def snow_cover(g, layer, keep=0.0):
     """Lying snow over a layer [colour, normal, roughness] (Ride UK stage 6), from MPC_Weather's Snow:
     on faces that look up first, in drifts, a full cover at 1; keep (0..1) holds some of the surface
@@ -2206,9 +2258,17 @@ def cloud_shadow_material():
         return None
     g = Graph(new_material("M_CloudShadow"))
     try_set(g.m, "material_domain", unreal.MaterialDomain.MD_LIGHT_FUNCTION)
-    tm = g.node(unreal.MaterialExpressionTime)
-    drift = g.op(unreal.MaterialExpressionMultiply, tm,
-                 g.node(unreal.MaterialExpressionConstant2Vector, r=-6.5 / 1800.0, g=-6.5 / 1800.0))   # +x east, +y south
+    if sky_mpc() is not None:
+        # Carried by the real wind at cloud height (MPC_Sky's drift, metres, added up by the game) where
+        # the clouds aren't drawn (the Low setting); elsewhere ATorqueSky turns these shadows off.
+        drift = g.node(unreal.MaterialExpressionAppendVector)
+        g.link(sky_param(g, "DriftX"), drift, "A")
+        g.link(sky_param(g, "DriftY"), drift, "B")
+        drift = g.op(unreal.MaterialExpressionMultiply, drift, const_b=-1.0 / 1800.0)
+    else:
+        tm = g.node(unreal.MaterialExpressionTime)
+        drift = g.op(unreal.MaterialExpressionMultiply, tm,
+                     g.node(unreal.MaterialExpressionConstant2Vector, r=-6.5 / 1800.0, g=-6.5 / 1800.0))   # +x east, +y south
     uv = g.op(unreal.MaterialExpressionAdd, g.world_uv(1800.0), drift)
     a = g.sample(nt, uv, "linear")
     uv2 = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, uv, const_b=2.3), g.node(unreal.MaterialExpressionConstant2Vector, r=0.31, g=0.67))
@@ -2870,6 +2930,108 @@ def is_detail(name):
     return name.startswith("detail_") or name.startswith("far_")   # far_: walls and buildings beyond the near land
 
 
+def cloud_noise_texture():
+    """Data/Sky/cloud_noise.png (Tools/make_cloud_noise.py): the clouds' 3D noise as 64 slices in an 8 x 8
+    sheet, linear, no mips (the cloud material picks the slices itself)."""
+    f = os.path.join(os.path.dirname(data_dir()), "Sky", "cloud_noise.png")
+    if not os.path.exists(f):
+        unreal.log_warning("[Torque] no %s: run Tools/make_cloud_noise.py" % f)
+        return None
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", TEX_DEST + "/Sky"), ("destination_name", "T_CloudNoise"),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    asset_tools.import_asset_tasks([t])
+    tex = unreal.load_asset(TEX_DEST + "/Sky/T_CloudNoise")
+    if tex:
+        tex.set_editor_property("srgb", False)
+        try_set(tex, "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        try_set(tex, "compression_settings", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP)   # (uncompressed: the slices must not bleed)
+        try_set(tex, "lod_group", unreal.TextureGroup.TEXTUREGROUP_EFFECTS_NOT_FILTERED)
+        try_set(tex, "never_stream", True)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+# The clouds' density at a point of the layer (skies plan stage 2), per metre of extinction.
+# q: metres (x east, y south, z up), carried back along the wind's drift. Three samples of the 3D noise
+# (a pseudo-volume: 64 slices of 66 texels in an 8 x 8 sheet, each with a wrapped border) at 7 km, 1.8 km
+# and 600 m, and the big shape flattened at 25 km for the weather's own patches across the sky. The
+# cover (MPC_Sky Cover) sets how much of the shape is cloud; Shape takes the height profile from a heaped
+# cumulus (a flat base, a rounded top) to a flat deck; the finer noise eats the edges.
+CLOUD_HLSL = r"""
+float3 q = WP / 100.0;
+q.xy -= float2(DriftX, DriftY);
+float h = saturate(NormAlt);
+float heaped = saturate(h / 0.07) * saturate((1.0 - h) / 0.65);
+float deck = saturate(h / 0.04) * saturate((1.0 - h) / 0.2);
+float profile = lerp(heaped, deck, saturate(Shape));
+float scales[3] = { 7000.0, 1800.0, 600.0 };
+float n[3] = { 0.0, 0.0, 0.0 };
+[unroll] for (int i = 0; i < 3; i++)
+{
+    float3 w = frac(q / scales[i] + float3(0.13, 0.37, 0.0) * i);
+    float z = w.z * 64.0 - 0.5;
+    float z0 = floor(z);
+    float f = z - z0;
+    float s0 = fmod(z0 + 64.0, 64.0);
+    float s1 = fmod(z0 + 1.0, 64.0);
+    float2 inTile = (1.0 + w.xy * 64.0) / 66.0;
+    float2 t0 = float2(fmod(s0, 8.0), floor(s0 / 8.0));
+    float2 t1 = float2(fmod(s1, 8.0), floor(s1 / 8.0));
+    float4 a = Noise.SampleLevel(NoiseSampler, (t0 + inTile) / 8.0, 0);
+    float4 b = Noise.SampleLevel(NoiseSampler, (t1 + inTile) / 8.0, 0);
+    float4 v = lerp(a, b, f);
+    n[i] = i == 0 ? v.r : (i == 1 ? v.g : v.b);
+}
+float2 bw = frac(q.xy / 25000.0);
+float broad = Noise.SampleLevel(NoiseSampler, (1.0 + bw * 64.0) / 66.0 / 8.0, 0).r;
+float shape = saturate(n[0] * 0.65 + broad * 0.35);
+float c = saturate(Cover);
+float d = saturate((shape * profile - (1.0 - c)) / 0.18);
+d = max(d, saturate(profile * 1.5) * smoothstep(0.9, 1.0, c));
+float erode = n[1] * 0.7 + n[2] * 0.3;
+d = saturate(d - (1.0 - erode) * 0.45 * (1.0 - d * 0.5) * (1.0 - 0.6 * saturate(Shape)));
+return d * Density * 0.1;
+"""
+
+
+def cloud_material():
+    """M_RideCloud (skies plan stage 2): the Volumetric Cloud's own material in place of the engine's
+    default, which followed nothing. It reads MPC_Sky (Cover, Density, Albedo, Shape, DriftX/Y), set
+    by ATorqueSky from the weather; ATorqueSky also sets the layer's base and depth."""
+    nt = cloud_noise_texture()
+    if nt is None or sky_mpc() is None:
+        return None
+    g = Graph(new_material("M_RideCloud"))
+    try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME)
+    try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    c = g.node(unreal.MaterialExpressionCustom, -500)
+    try_set(c, "code", CLOUD_HLSL)
+    try_set(c, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    names = ("WP", "NormAlt", "Cover", "Shape", "Density", "DriftX", "DriftY", "Noise")
+    ins = []
+    for n in names:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(c, "inputs", ins)
+    g.link(g.node(unreal.MaterialExpressionWorldPosition), c, "WP")
+    attr = g.node(unreal.MaterialExpressionCloudSampleAttribute)
+    g.link(attr, c, "NormAlt", "NormAltitudeInLayer")
+    for n in ("Cover", "Shape", "Density", "DriftX", "DriftY"):
+        g.link(sky_param(g, n), c, n)
+    g.link(g.node(unreal.MaterialExpressionTextureObject, texture=nt), c, "Noise")
+    # Volume outputs: albedo (base colour), extinction (subsurface colour), no glow of its own.
+    mel.connect_material_property(sky_param(g, "Albedo"), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(c, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
+    mel.connect_material_property(g.const(0.0), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    log("cloud material M_RideCloud made")
+    return g.m
+
+
 def sky_and_camera(reuse_cloud_shadow=False):
     """The sun, sky, air, clouds and the camera's grade, as every outdoor level has them (the ride on
     Buttertubs, and Tools/ue_build_rideuk.py's level for the real world's roads)."""
@@ -2921,6 +3083,14 @@ def sky_and_camera(reuse_cloud_shadow=False):
         for k, v in (("layer_bottom_altitude", 1.4), ("layer_height", 5.0), ("tracing_max_distance", 60.0),
                      ("shadow_tracing_distance", 12.0)):
             try_set(cc, k, v)
+        # Our own cloud, following the real weather (ATorqueSky): borrowed as it is by another level's
+        # script, as the cloud shadows are (making it afresh would delete what this level points at).
+        rc = unreal.load_asset(MAT_DIR + "/M_RideCloud") if reuse_cloud_shadow else cloud_material()
+        if rc is not None:
+            ok = try_set(cc, "material", rc)
+            log("clouds: M_RideCloud %s" % ("set" if ok else "NOT set"))
+        else:
+            unreal.log_warning("[Torque] clouds: no M_RideCloud; the engine's default cloud stays")
     except Exception as e:
         unreal.log_warning("[Torque] no volumetric cloud: %s" % e)
     ppv = spawn(unreal.PostProcessVolume)

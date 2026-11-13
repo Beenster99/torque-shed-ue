@@ -15,6 +15,14 @@ namespace
 double Clamp01(double V) { return V < 0.0 ? 0.0 : V > 1.0 ? 1.0 : V; }
 double Smooth(double T) { T = Clamp01(T); return T * T * (3.0 - 2.0 * T); }
 double Lerp(double A, double B, double T) { return A + (B - A) * T; }
+// A bearing from A towards B, the short way round.
+double TurnLerp(double A, double B, double T)
+{
+	const double Turn = std::fmod(B - A + 540.0, 360.0) - 180.0;
+	return std::fmod(A + Turn * T + 360.0, 360.0);
+}
+// A figure that may not be known (below 0): known only when both are.
+double LerpKnown(double A, double B, double T) { return A < 0.0 || B < 0.0 ? -1.0 : Lerp(A, B, T); }
 // A road's film of water that reads as fully wet, and the most it holds before running off, mm.
 constexpr double WetFilm = 0.2, MaxFilm = 0.5;
 } // namespace
@@ -27,11 +35,13 @@ State Preset(int Kind)
 	case Overcast:
 		S.Cloud = 1.0; S.Rain = 0.0; S.Wind = 6.0; S.Gust = 10.0; S.Air = 11.0; S.Visibility = 20000.0; S.RoadWet = 0.0; S.Code = 3;
 		S.LowCloud = 0.6; S.CloudBase = 1500.0;
+		S.MidCloud = 0.9; S.HighCloud = 0.4; S.Humidity = 85.0;
 		break;
 	case Wet:
 		S.Cloud = 1.0; S.Rain = 1.0; S.Wind = 7.0; S.Gust = 11.0; S.Air = 10.0; S.Visibility = 10000.0; S.RoadWet = 1.0; S.Code = 61;
 		S.Puddles = 0.4;   // (the edges, as the wet roads always had puddles)
 		S.LowCloud = 0.9; S.CloudBase = 900.0;
+		S.MidCloud = 0.9; S.HighCloud = 0.3; S.Humidity = 90.0; S.FreezingLevel = 1800.0;
 		break;
 	default:
 		break;   // sunny: the State's own defaults
@@ -65,10 +75,33 @@ State Blend(const State& A, const State& B, double T)
 	S.CloudBase = Lerp(A.CloudBase, B.CloudBase, T);
 	S.Puddles = Lerp(A.Puddles, B.Puddles, T);
 	S.Code = T < 0.5 ? A.Code : B.Code;
+	S.MidCloud = Lerp(A.MidCloud, B.MidCloud, T);
+	S.HighCloud = Lerp(A.HighCloud, B.HighCloud, T);
+	S.Humidity = Lerp(A.Humidity, B.Humidity, T);
+	S.Cape = Lerp(A.Cape, B.Cape, T);
+	S.FreezingLevel = Lerp(A.FreezingLevel, B.FreezingLevel, T);
+	S.DirectSun = LerpKnown(A.DirectSun, B.DirectSun, T);
+	S.DiffuseSun = LerpKnown(A.DiffuseSun, B.DiffuseSun, T);
+	S.Wind850 = Lerp(A.Wind850, B.Wind850, T);
+	S.Wind850From = TurnLerp(A.Wind850From, B.Wind850From, T);
+	S.Wind700 = Lerp(A.Wind700, B.Wind700, T);
+	S.Wind700From = TurnLerp(A.Wind700From, B.Wind700From, T);
+	S.Wind300 = Lerp(A.Wind300, B.Wind300, T);
+	S.Wind300From = TurnLerp(A.Wind300From, B.Wind300From, T);
 	return S;
 }
 
-double Dullness(const State& S) { return Smooth((S.Cloud - 0.2) / 0.7); }
+double SunBlock(const State& S)
+{
+	// Low and middle cloud hide the sun in full; high cloud is thin (a veil of cirrus lets most of it
+	// through, still casting shadows), so it counts for a quarter. The layers overlap at random, and
+	// together they never hide more than the total the feed gives.
+	const double Low = Clamp01(S.LowCloud), Mid = Clamp01(S.MidCloud), High = Clamp01(S.HighCloud);
+	const double Layers = 1.0 - (1.0 - Low) * (1.0 - Mid) * (1.0 - 0.25 * High);
+	return std::min(Layers, Clamp01(S.Cloud));
+}
+
+double Dullness(const State& S) { return Smooth((SunBlock(S) - 0.2) / 0.7); }
 
 double WetLook(const State& S) { return std::max(Clamp01(S.RoadWet), Clamp01(S.Rain / 1.0)); }
 
@@ -285,10 +318,21 @@ long long ParseIsoUtc(const std::string& Iso)
 }
 } // namespace
 
+namespace
+{
+// What each point is asked for: the ground's weather, then the sky's (skies plan stage 1: the three
+// cloud layers, how unstable the air is, the freezing level, the sunshine and the wind aloft).
+constexpr const char* CurrentFields =
+	"temperature_2m,dew_point_2m,relative_humidity_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,"
+	"cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility,"
+	"cape,freezing_level_height,direct_radiation,diffuse_radiation,"
+	"wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa,wind_speed_300hPa,wind_direction_300hPa";
+} // namespace
+
 std::string OpenMeteoUrl(double Lat, double Lon)
 {
 	return "https://api.open-meteo.com/v1/forecast?" + LatLon("latitude", Lat, "longitude", Lon) +
-		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
+		"&current=" + std::string(CurrentFields) +
 		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime";
 }
 
@@ -342,6 +386,24 @@ bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Tim
 	const long long Now = static_cast<long long>(Cur->Num("time", 0.0));
 	S.LowCloud = Clamp01(Cur->Num("cloud_cover_low", S.Cloud * 60.0) / 100.0);
 	S.CloudBase = Cur->Get("dew_point_2m") ? CloudBaseFrom(Root.Num("elevation", 0.0), S.Air, Cur->Num("dew_point_2m")) : 5000.0;
+	// The sky's (stage 1 of the skies plan). Without the layers (an older answer), the middle takes the
+	// total, so the light reads as it always did.
+	auto Known = [Cur](const char* Name) { const Json* V = Cur->Get(Name); return V && V->IsNumber(); };
+	S.MidCloud = Known("cloud_cover_mid") ? Clamp01(Cur->Num("cloud_cover_mid") / 100.0) : S.Cloud;
+	S.HighCloud = Known("cloud_cover_high") ? Clamp01(Cur->Num("cloud_cover_high") / 100.0) : 0.0;
+	S.Humidity = Known("relative_humidity_2m") ? std::min(std::max(Cur->Num("relative_humidity_2m"), 0.0), 100.0) : S.Humidity;
+	S.Cape = Known("cape") ? std::max(Cur->Num("cape"), 0.0) : 0.0;
+	S.FreezingLevel = Known("freezing_level_height") ? Cur->Num("freezing_level_height") : S.FreezingLevel;
+	S.DirectSun = Known("direct_radiation") ? std::max(Cur->Num("direct_radiation"), 0.0) : -1.0;
+	S.DiffuseSun = Known("diffuse_radiation") ? std::max(Cur->Num("diffuse_radiation"), 0.0) : -1.0;
+	auto Aloft = [&](const char* Speed, const char* From, double& OutSpeed, double& OutFrom, double Scale) {
+		// (Missing: the surface wind, stronger with height, as a fair guess.)
+		OutSpeed = Known(Speed) ? std::max(Cur->Num(Speed), 0.0) : S.Wind * Scale;
+		OutFrom = Known(From) ? Cur->Num(From) : S.WindFrom;
+	};
+	Aloft("wind_speed_850hPa", "wind_direction_850hPa", S.Wind850, S.Wind850From, 1.6);
+	Aloft("wind_speed_700hPa", "wind_direction_700hPa", S.Wind700, S.Wind700From, 2.3);
+	Aloft("wind_speed_300hPa", "wind_direction_300hPa", S.Wind300, S.Wind300From, 4.5);
 
 	// The road: the rain of the last few hours (each hour's value is the hour before it), then this
 	// quarter hour's.
@@ -409,7 +471,7 @@ std::string OpenMeteoGridUrl(double Lat, double Lon, int N, double StepM)
 			Lons += Buf;
 		}
 	return "https://api.open-meteo.com/v1/forecast?latitude=" + Lats + "&longitude=" + Lons +
-		"&current=temperature_2m,dew_point_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility"
+		"&current=" + std::string(CurrentFields) +
 		"&hourly=precipitation&past_hours=8&forecast_hours=1&wind_speed_unit=ms&timeformat=unixtime&timezone=auto";
 }
 
@@ -509,6 +571,26 @@ State GridAt(const Grid& G, double Lat, double Lon, double AslM, double DriftSec
 	S.LowCloud = Mix(A.LowCloud, B.LowCloud, C.LowCloud, D.LowCloud);
 	S.CloudBase = Mix(A.CloudBase, B.CloudBase, C.CloudBase, D.CloudBase);
 	S.Puddles = Mix(A.Puddles, B.Puddles, C.Puddles, D.Puddles);
+	S.MidCloud = Mix(A.MidCloud, B.MidCloud, C.MidCloud, D.MidCloud);
+	S.HighCloud = Mix(A.HighCloud, B.HighCloud, C.HighCloud, D.HighCloud);
+	S.Humidity = Mix(A.Humidity, B.Humidity, C.Humidity, D.Humidity);
+	S.Cape = Mix(A.Cape, B.Cape, C.Cape, D.Cape);
+	S.FreezingLevel = Mix(A.FreezingLevel, B.FreezingLevel, C.FreezingLevel, D.FreezingLevel);
+	S.DirectSun = A.DirectSun < 0.0 || B.DirectSun < 0.0 || C.DirectSun < 0.0 || D.DirectSun < 0.0 ? -1.0 : Mix(A.DirectSun, B.DirectSun, C.DirectSun, D.DirectSun);
+	S.DiffuseSun = A.DiffuseSun < 0.0 || B.DiffuseSun < 0.0 || C.DiffuseSun < 0.0 || D.DiffuseSun < 0.0 ? -1.0 : Mix(A.DiffuseSun, B.DiffuseSun, C.DiffuseSun, D.DiffuseSun);
+	{
+		// The wind aloft as vectors (a wind turning through north stays a wind).
+		auto Vec = [&Mix, &A, &B, &C, &D](double State::*Speed, double State::*From, double& OutSpeed, double& OutFrom) {
+			auto X = [Speed, From](const State& P) { return std::sin(P.*From * DegToRad) * P.*Speed; };
+			auto Y = [Speed, From](const State& P) { return std::cos(P.*From * DegToRad) * P.*Speed; };
+			const double Vx = Mix(X(A), X(B), X(C), X(D)), Vy = Mix(Y(A), Y(B), Y(C), Y(D));
+			OutSpeed = Mix(A.*Speed, B.*Speed, C.*Speed, D.*Speed);
+			OutFrom = std::fmod(std::atan2(Vx, Vy) / DegToRad + 360.0, 360.0);
+		};
+		Vec(&State::Wind850, &State::Wind850From, S.Wind850, S.Wind850From);
+		Vec(&State::Wind700, &State::Wind700From, S.Wind700, S.Wind700From);
+		Vec(&State::Wind300, &State::Wind300From, S.Wind300, S.Wind300From);
+	}
 	{
 		auto X = [](const State& P) { return std::sin(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
 		auto Y = [](const State& P) { return std::cos(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
@@ -542,6 +624,14 @@ State AddDifference(const State& Base, const State& Here, const State& Ref, doub
 	double D = std::fmod(Here.WindFrom - Ref.WindFrom + 540.0, 360.0) - 180.0;
 	S.WindFrom = std::fmod(Base.WindFrom + D * W + 360.0, 360.0);
 	if (W >= 0.5 && Here.Code != Ref.Code) S.Code = Here.Code;
+	S.MidCloud = Clamp01(Add(Base.MidCloud, Here.MidCloud, Ref.MidCloud));
+	S.HighCloud = Clamp01(Add(Base.HighCloud, Here.HighCloud, Ref.HighCloud));
+	S.Humidity = std::min(std::max(Add(Base.Humidity, Here.Humidity, Ref.Humidity), 0.0), 100.0);
+	S.Cape = std::max(Add(Base.Cape, Here.Cape, Ref.Cape), 0.0);
+	S.FreezingLevel = Add(Base.FreezingLevel, Here.FreezingLevel, Ref.FreezingLevel);
+	if (Base.DirectSun >= 0.0 && Here.DirectSun >= 0.0 && Ref.DirectSun >= 0.0) S.DirectSun = std::max(Add(Base.DirectSun, Here.DirectSun, Ref.DirectSun), 0.0);
+	if (Base.DiffuseSun >= 0.0 && Here.DiffuseSun >= 0.0 && Ref.DiffuseSun >= 0.0) S.DiffuseSun = std::max(Add(Base.DiffuseSun, Here.DiffuseSun, Ref.DiffuseSun), 0.0);
+	// (The wind aloft is the same across a few km: the shared one stands.)
 	return S;
 }
 
@@ -615,6 +705,12 @@ bool ParseMetNo(const std::string& Body, State& Out, long long* Time, std::strin
 	S.Rain = 0.0;
 	S.Code = S.Cloud > 0.85 ? 3 : S.Cloud > 0.4 ? 2 : S.Cloud > 0.1 ? 1 : 0;
 	S.LowCloud = Clamp01(Details->Num("cloud_area_fraction_low", S.Cloud * 60.0) / 100.0);
+	S.MidCloud = Clamp01(Details->Num("cloud_area_fraction_medium", S.Cloud * 100.0) / 100.0);
+	S.HighCloud = Clamp01(Details->Num("cloud_area_fraction_high", 0.0) / 100.0);
+	S.Humidity = Details->Num("relative_humidity", S.Humidity);
+	S.Wind850 = S.Wind * 1.6; S.Wind850From = S.WindFrom;
+	S.Wind700 = S.Wind * 2.3; S.Wind700From = S.WindFrom;
+	S.Wind300 = S.Wind * 4.5; S.Wind300From = S.WindFrom;
 	if (Details->Get("relative_humidity"))
 	{
 		double Elev = 0.0;
@@ -643,11 +739,11 @@ std::string Save(const State& S)
 	std::snprintf(Buf, sizeof(Buf), "w1 %.3f %.3f %.3f %.3f %.1f %.3f %.2f %.0f %.3f %d %.3f %.0f %.3f", S.Cloud, S.Rain, S.Snow, S.Wind, S.WindFrom, S.Gust,
 		S.Air, S.Visibility, S.RoadWet, S.Code, S.LowCloud, S.CloudBase, S.Puddles);
 	std::string Out = Buf;
-	if (S.SnowDepth > 0.0)
-	{
-		std::snprintf(Buf, sizeof(Buf), " %.3f", S.SnowDepth);
-		Out += Buf;
-	}
+	// (w2: the sky's figures after the lying snow, always written)
+	Out[1] = '2';
+	std::snprintf(Buf, sizeof(Buf), " %.3f %.3f %.3f %.1f %.0f %.0f %.1f %.1f %.1f %.0f %.1f %.0f %.1f %.0f", S.SnowDepth, S.MidCloud, S.HighCloud, S.Humidity,
+		S.Cape, S.FreezingLevel, S.DirectSun, S.DiffuseSun, S.Wind850, S.Wind850From, S.Wind700, S.Wind700From, S.Wind300, S.Wind300From);
+	Out += Buf;
 	return Out;
 }
 
@@ -656,12 +752,22 @@ bool Load(const std::string& Text, State& Out)
 	std::istringstream In(Text);
 	std::string Tag;
 	State S;
-	if (!(In >> Tag) || Tag != "w1") return false;
+	if (!(In >> Tag) || (Tag != "w1" && Tag != "w2")) return false;
 	if (!(In >> S.Cloud >> S.Rain >> S.Snow >> S.Wind >> S.WindFrom >> S.Gust >> S.Air >> S.Visibility >> S.RoadWet >> S.Code)) return false;
 	In >> S.LowCloud >> S.CloudBase;   // (an older save without them keeps the defaults)
 	if (In.fail()) { S.LowCloud = 0.0; S.CloudBase = 5000.0; }
 	else if (!(In >> S.Puddles)) S.Puddles = 0.0;
 	else if (!(In >> S.SnowDepth)) S.SnowDepth = 0.0;
+	State Sky = S;
+	if (Tag == "w2" && (In >> Sky.MidCloud >> Sky.HighCloud >> Sky.Humidity >> Sky.Cape >> Sky.FreezingLevel >> Sky.DirectSun >> Sky.DiffuseSun
+		>> Sky.Wind850 >> Sky.Wind850From >> Sky.Wind700 >> Sky.Wind700From >> Sky.Wind300 >> Sky.Wind300From))
+		S = Sky;
+	else
+	{
+		// (A w1 save: no layers, so the middle takes the total and the light reads as it did.)
+		S.MidCloud = S.Cloud;
+		S.HighCloud = 0.0;
+	}
 	Out = S;
 	return true;
 }

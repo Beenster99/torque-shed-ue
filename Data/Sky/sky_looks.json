@@ -1,0 +1,53 @@
+{
+ "about": "The sky's tuning figures (Weather/SkyModel.h, skies plan). The game reads this at start (ATorqueSky): change a figure, restart, no recompile. A figure left out keeps its default. Curves are [x, y] points, straight between. sky_test checks the presets still give the light they always had.",
+ "light": {
+  "clear_lux": [[-18, 0.0007], [-12, 0.008], [-9, 0.2], [-6, 3.4], [-3, 60], [-0.83, 400], [0, 650], [5, 6000], [10, 15000], [20, 33000], [30, 52000], [45, 76000], [60, 96000], [90, 105000]],
+  "overcast_lux": 0.15,
+  "rain_cloud_lux": 0.035,
+  "day_from_lux": 1.0,
+  "day_full_lux": 2000.0,
+  "sun_lowest_deg": -10.0,
+  "sun_fade_from_deg": -2.0,
+  "sun_fade_to_deg": -10.0,
+  "sun_dim_dull": 0.14,
+  "sun_dim_wet": 0.10,
+  "sun_wide_deg": 40.0,
+  "disc_hide_over_deg": 1.5,
+  "sky_light_dull": 2.5,
+  "exposure_dull_stops": 1.6,
+  "exposure_wet_stops": 1.9,
+  "direct_trust": 0.5,
+  "direct_trust_from_deg": 8.0
+ },
+ "air": {
+  "haze_by_km": [[8, 1.0], [10, 1.0], [40, 1.0], [60, 0.7], [100, 0.5]],
+  "humid_from": 90.0,
+  "humid_swell": 1.5,
+  "dull_mie": 12.0,
+  "dull_rayleigh": 0.08,
+  "dull_mie_clouds": 4.0,
+  "dull_rayleigh_clouds": 0.35,
+  "fog_dull": 2.0,
+  "fog_wet": 3.0,
+  "fog_night_glow": 0.006
+ },
+ "cloud": {
+  "cover_shown": [[0, 0], [0.1, 0.12], [0.25, 0.3], [0.5, 0.52], [0.75, 0.74], [1, 1]],
+  "low_deck_m": 700.0,
+  "low_heap_m": 1000.0,
+  "cape_depth_per_100": 250.0,
+  "cape_most_m": 4500.0,
+  "mid_base_m": 3200.0,
+  "mid_depth_m": 1500.0,
+  "low_base_least_m": 150.0,
+  "low_base_most_m": 2600.0,
+  "density_fair": 0.6,
+  "density_deck": 1.0,
+  "density_rain": 1.6,
+  "albedo_fair": 1.0,
+  "albedo_rain": 0.7,
+  "deck_from": 0.7,
+  "deck_to": 0.95,
+  "legacy_shadow": [[0, 1.0], [0.1, 0.6], [0.6, 0.45], [1, 0.45]]
+ }
+}

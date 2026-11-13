@@ -1,0 +1,64 @@
+{
+ "latitude": 54.306072,
+ "longitude": -2.191742,
+ "elevation": 250.0,
+ "utc_offset_seconds": 0,
+ "current": {
+  "temperature_2m": 21.8,
+  "dew_point_2m": 17.4,
+  "relative_humidity_2m": 76,
+  "precipitation": 0.0,
+  "snowfall": 0.0,
+  "snow_depth": 0.0,
+  "cloud_cover": 100,
+  "cloud_cover_low": 55,
+  "cloud_cover_mid": 0,
+  "cloud_cover_high": 100,
+  "wind_speed_10m": 5.3,
+  "wind_direction_10m": 264,
+  "wind_gusts_10m": 9.9,
+  "weather_code": 3,
+  "visibility": 32820.0,
+  "cape": 990.0,
+  "freezing_level_height": 4040.0,
+  "direct_radiation": 68.0,
+  "diffuse_radiation": 307.0,
+  "wind_speed_850hPa": 13.16,
+  "wind_direction_850hPa": 261,
+  "wind_speed_700hPa": 15.17,
+  "wind_direction_700hPa": 231,
+  "wind_speed_300hPa": 27.0,
+  "wind_direction_300hPa": 235,
+  "time": 1786716000,
+  "interval": 3600
+ },
+ "hourly": {
+  "time": [
+   1786687200,
+   1786690800,
+   1786694400,
+   1786698000,
+   1786701600,
+   1786705200,
+   1786708800,
+   1786712400,
+   1786716000
+  ],
+  "precipitation": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ "recorded": {
+  "kind": "fair_cumulus",
+  "sun_elevation": 44.4,
+  "note": "Open-Meteo, CC BY 4.0"
+ }
+}
