@@ -290,6 +290,29 @@ def revolve(name, profile, centre, material, segs=72, a0=0.0, a1=360.0, bevel=0.
     return mesh_obj(name, verts, faces, material, True, bevel)
 
 
+def cone(name, p0, p1, r0, r1, material, segs=28):
+    """A round taper between two 3D points (mm), radius r0 at p0 and r1 at p1, ends closed."""
+    from mathutils import Vector
+    a, b = Vector(p0), Vector(p1)
+    ax = (b - a).normalized()
+    side = ax.cross(Vector((0, 0, 1)))
+    if side.length < 1e-4:
+        side = ax.cross(Vector((0, 1, 0)))
+    side.normalize()
+    up = side.cross(ax)
+    verts = []
+    for c, r in ((a, r0), (b, r1)):
+        for k in range(segs):
+            t = 2 * math.pi * k / segs
+            q = c + (side * math.cos(t) + up * math.sin(t)) * r
+            verts.append(V(q.x, q.y, q.z))
+    faces = [(k, (k + 1) % segs, segs + (k + 1) % segs, segs + k) for k in range(segs)]
+    faces += [tuple(range(segs - 1, -1, -1)), tuple(range(segs, 2 * segs))]
+    ob = mesh_obj(name, verts, faces, material, True, 0)
+    bm_fix_normals(ob)
+    return ob
+
+
 def unit(a_deg):
     return (math.cos(math.radians(a_deg)), math.sin(math.radians(a_deg)))
 
@@ -312,7 +335,7 @@ def wheel(tag, c, w, width, rim_col, discs):
         for side in (-1, 1):
             a_h, a_r = a0 + side * 16, a0 + side * 9 + 20
             quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
-            prism(f"{tag}_spoke{k}{side}", quad, -13, 13, mat("rim", rim_col), 3)
+            pillow(f"{tag}_spoke{k}{side}", quad, -15, 15, mat("rim", rim_col), 5, 12)
     revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("rim", rim_col), 32)
     d = w.get("disc")
     for y in discs if d else []:
@@ -454,7 +477,16 @@ def build(model):
             tube(f"cover{i}", [(headend[0], 0, headend[1]), (cov[0], 0, cov[1])], r - 6, mat("engine_dark"))
     for i, cv in enumerate(eng.get("covers", [])):
         c = tuple(cv["c"])
-        tube(f"sidecover{i}", [(c[0], wide / 2 - 30, c[1]), (c[0], wide / 2 + 18, c[1])], cv["r"], mat("engine_dark"))
+        for sg in (1, -1):
+            y0 = sg * (wide / 2 - 30)
+            cone(f"sidecover{i}{sg}", (c[0], y0, c[1]), (c[0], y0 + sg * 34, c[1]), cv["r"], cv["r"] - 6, mat("engine_dark"), 48)
+            cone(f"sidedome{i}{sg}", (c[0], y0 + sg * 34, c[1]), (c[0], y0 + sg * 50, c[1]), cv["r"] * 0.72, cv["r"] * 0.55, mat("engine"), 48)
+            nb_ = cv.get("bolts", 6)
+            for k in range(nb_):
+                q = add(c, unit(k * 360 / nb_ + 15), cv["r"] * 0.86)
+                cone(f"bolt{i}{sg}{k}", (q[0], y0 + sg * 30, q[1]), (q[0], y0 + sg * 40, q[1]), 6, 6, mat("steel"), 6)
+        cs_ = tuple(eng["countershaft"])
+        cone("sprocketcover", (cs_[0], wide / 2 - 40, cs_[1]), (cs_[0], wide / 2 + 6, cs_[1]), 52, 44, mat("engine_dark"), 32)
     for i, shp in enumerate(eng.get("extras", [])):
         pillow(f"airbox{i}", shapes.dense(shp["pts"], True, shp.get("t", 0.9)), -112, 112, mat("plastic"), 26, 45)
     r = model.get("radiator")
@@ -473,13 +505,20 @@ def build(model):
         sg = 1 if both and i == 0 else -1
         out_y = 190 if both else 150
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
-        smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.62, mat("exhaust"))
+        smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both else (-1,)):
             y0c, y1c = (190, 205) if both else (165, 175)
-            tube(f"can{i}{sg}", [(can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])], can["w"] / 2 * 0.8, mat("exhaust"))
-            ux, uz = can["b"][0] - can["a"][0], can["b"][1] - can["a"][1]
-            tube(f"cantip{i}{sg}", [(can["b"][0] - ux * 0.02, sg * y1c, can["b"][1] - uz * 0.02), (can["b"][0] + ux * 0.05, sg * y1c, can["b"][1] + uz * 0.05)], can["w"] / 2 * 0.62, mat("exhaust_black"))
+            a3, b3 = (can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])
+            rc = can["w"] / 2 * 0.86
+
+            def at(t, a3=a3, b3=b3):
+                return tuple(a3[k] + (b3[k] - a3[k]) * t for k in range(3))
+            cone(f"caninlet{i}{sg}", at(-0.06), at(0.14), rc * 0.42, rc, mat("exhaust"), 36)
+            cone(f"can{i}{sg}", at(0.14), at(0.9), rc, rc, mat("exhaust"), 36)
+            cone(f"canband{i}{sg}", at(0.2), at(0.24), rc + 2.5, rc + 2.5, mat("steel"), 36)
+            cone(f"canend{i}{sg}", at(0.9), at(1.0), rc + 2, rc * 0.9, mat("exhaust_black"), 36)
+            cone(f"canbore{i}{sg}", at(0.995), at(1.012), rc * 0.6, rc * 0.6, mat("rubber"), 24)
 
     # swingarm, sprocket, chain, shock
     sw = model["swingarm"]
@@ -578,6 +617,31 @@ def build(model):
             tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
             tube(f"lever{s}", [(grip[0] + 30, s * 262, grip[1] - 10), (grip[0] + 62, s * 300, grip[1] - 22), (grip[0] + 55, s * 395, grip[1] - 24)], 5, mat("alu_dark"))
         smooth_tube("bar", [(grip[0] - 4, -380, grip[1] - 3), (grip[0], -240, grip[1]), (top[0] - 28, -70, top[1] + 62), (top[0] - 28, 70, top[1] + 62), (grip[0], 240, grip[1]), (grip[0] - 4, 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+
+    # hoses and cables: front brake lines to both calipers, clutch and throttle cables down behind the head
+    if grip:
+        blk = mat("rubber")
+        mc = (grip[0] + 22, grip[1] - 6)
+        for s in (-1, 1):
+            calp = add(F, (-0.6, 0.35), 95)
+            smooth_tube(f"brakehose{s}", [(mc[0], -250, mc[1]), (mc[0] + 70, -150, mc[1] - 60), (head_t[0] + 70, s * 60, head_t[1] - 120),
+                                          (add(F, uf, 330)[0] - 40, s * 96, add(F, uf, 330)[1]), (calp[0], s * 92, calp[1])], 4.5, blk)
+        smooth_tube("clutchcable", [(mc[0], 250, mc[1]), (mc[0] + 80, 150, mc[1] - 50), (head_t[0] + 30, 60, head_t[1] - 80),
+                                    (head_b[0] - 90, 110, head_b[1] - 40), (crank[0] - 60, wide / 2 - 30, crank[1] + 110)], 3.5, blk)
+        smooth_tube("throttlecable", [(mc[0], -255, mc[1] + 8), (mc[0] + 90, -140, mc[1] - 30), (head_t[0] + 20, -50, head_t[1] - 60),
+                                      (head_b[0] - 120, -70, head_b[1] + 20)], 3.5, blk)
+        # indicators either side of the lamp
+        for s in (-1, 1):
+            ix, iz = head_b[0] + 60, head_b[1] + 40
+            tube(f"indstalk{s}", [(ix, s * 90, iz), (ix, s * 150, iz)], 5, mat("plastic"))
+            cone(f"indicator{s}", (ix - 14, s * 165, iz), (ix + 18, s * 165, iz), 13, 9, mat("amberlens"), 16)
+    tl = next((shp for shp in body.get("tail", []) if shp.get("cls") == "redlens"), None)
+    if tl:
+        tx = sum(q[0] for q in tl["pts"]) / len(tl["pts"])
+        tz = min(q[1] for q in tl["pts"]) - 25
+        for s in (-1, 1):
+            tube(f"rindstalk{s}", [(tx + 30, s * 60, tz), (tx + 30, s * 125, tz)], 5, mat("plastic"))
+            cone(f"rindicator{s}", (tx + 44, s * 138, tz), (tx + 12, s * 138, tz), 13, 9, mat("amberlens"), 16)
 
     # footrests and stand
     pegs = [tuple(s["at"]) for s in model.get("hangers", []) if s.get("circle")]

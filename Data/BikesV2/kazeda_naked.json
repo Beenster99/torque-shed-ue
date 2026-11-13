@@ -157,6 +157,9 @@
   },
   "lens": {
    "ue": "lens_clear"
+  },
+  "amberlens": {
+   "ue": "lens_amber"
   }
  }
 }
