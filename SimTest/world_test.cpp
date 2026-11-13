@@ -664,6 +664,41 @@ int main()
 					Check(Near(Sum.Metres, Via->FinishM, 5.0) && Sum.Climb > 10.0 && Sum.Highest > Sum.Lowest && Sum.Highest < 800.0 && Mph > 20.0 && Mph < 60.0
 							&& double(Sum.Line.size()) > Sum.Metres / 60.0 && Near(Sum.Line.front().Lat, GA.Lat, 0.01) && Near(Sum.Litres(5.0), Sum.Metres / 20000.0, 1e-9),
 						"a ride is summed up to its finish: how far, the climb, the highest point, how twisty, about how long, the fuel, and its line for the map");
+					// [OSM stage 2] The prop layer: with a kit for every kind, a square's props are the same each
+					// time it is made, all inside it, none on a road; stiles and kissing gates stand in their lines.
+					{
+						std::shared_ptr<RidePlan> Kitted = std::make_shared<RidePlan>(*Plan);
+						for (bool& M : Kitted->PropModelled) M = true;
+						const P2 Middle = Plan->Road[Plan->Road.size() / 2].At;
+						const double X0 = std::floor(Middle.X / 512.0) * 512.0 - 512.0, Z0 = std::floor(Middle.Z / 512.0) * 512.0 - 512.0;
+						std::vector<RideProp> First, Again;
+						int Total = 0, Inside = 0, OnRoad = 0;
+						for (int Sq = 0; Sq < 9; ++Sq)
+						{
+							const double Sx = X0 + (Sq % 3) * 512.0, Sz = Z0 + (Sq / 3) * 512.0;
+							Kitted->PropsTile(Sx, Sz, 512.0, First);
+							Kitted->PropsTile(Sx, Sz, 512.0, Again);
+							bool Alike = First.size() == Again.size();
+							for (size_t K = 0; Alike && K < First.size(); ++K) Alike = First[K].X == Again[K].X && First[K].Kind == Again[K].Kind && First[K].Variant == Again[K].Variant;
+							Check(Alike, "a square's props are the same each time it is made");
+							for (const RideProp& P : First)
+							{
+								++Total;
+								Inside += P.X >= 0.0f && P.X < 512.0f && P.Z >= 0.0f && P.Z < 512.0f ? 1 : 0;
+								double Dist = 0.0, H = 0.0, Half = 0.0;
+								int Which = 0;
+								if (P.Kind != RidePlan::PropStreetLamp && Plan->Nearest(Sx + P.X, Sz + P.Z, Dist, H, nullptr, &Half, &Which) && Dist < Half + 0.3) ++OnRoad;
+							}
+						}
+						std::printf("      props: %d in 9 squares (%d inside their square, %d on a road); %d stiles, %d kissing gates, %d bollards, %d benches, %d boards\n", Total, Inside, OnRoad,
+							Plan->FurnitureCount(RidePlan::Stile), Plan->FurnitureCount(RidePlan::KissingGate), Plan->FurnitureCount(RidePlan::Bollard), Plan->FurnitureCount(RidePlan::Seat),
+							Plan->FurnitureCount(RidePlan::InfoBoard));
+						Check(Total > 0 && Inside == Total && OnRoad == 0, "the prop layer: a square's props inside it, none on a road");
+						std::vector<RidePlan::PropKitRow> KitRows;
+						std::string KitText;
+						Check(Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/prop_kit.json"), KitText) && RidePlan::ReadPropKit(KitText, KitRows) && int(KitRows.size()) == RidePlan::PropKinds,
+							"Data/RideUK/prop_kit.json has a row for every kind of prop");
+					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.
 					{

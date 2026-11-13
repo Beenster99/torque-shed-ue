@@ -1087,6 +1087,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		if (Stands->Any()) Out.Extra = Stands;
 		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
 		AnimalsTile(X0, Z0, Size, Out.Animals);
+		PropsTile(X0, Z0, Size, Out.Props);   // [OSM stage 2]
 	}
 }
 

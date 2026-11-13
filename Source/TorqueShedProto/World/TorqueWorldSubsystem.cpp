@@ -30,6 +30,7 @@
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
 #include "World/WorldRide.h"
+#include "World/TorqueRideWorld.h"
 
 #include <atomic>
 
@@ -215,6 +216,7 @@ TArray<FString> UTorqueWorldSubsystem::Credits() const
 	if (Out.Num() > 0)
 	{
 		Out.Add(TEXT("Place search: GeoNames (geonames.org) (CC BY 4.0)."));
+		Out.Append(ATorqueRideWorld::PropCredits);
 		return Out;
 	}
 	// (as the UK's cells give them)
@@ -223,6 +225,7 @@ TArray<FString> UTorqueWorldSubsystem::Credits() const
 	Out.Add(TEXT("Place: Natural Earth; K\u00f6ppen-Geiger zones, Beck, H.E. et al. (2023) (CC BY 4.0); land cover and ground colour, \u00a9 ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium (CC BY 4.0); climate, CRU TS 4.09, University of East Anglia and Met Office (Open Government Licence)."));
 	Out.Add(TEXT("Tree heights: Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0)."));
 	Out.Add(TEXT("Place search: GeoNames (geonames.org) (CC BY 4.0)."));
+	Out.Append(ATorqueRideWorld::PropCredits);   // [OSM stage 2] (the models by the road)
 	return Out;
 }
 

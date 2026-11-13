@@ -22,6 +22,15 @@ long long SceneKey(double X, double Z)
 	return static_cast<long long>(std::floor(X / SceneCell)) * 4000037LL + static_cast<long long>(std::floor(Z / SceneCell));
 }
 
+// [OSM stage 2] A hash of the map's own id for a thing (FNV-1a), never 0: its variant, the same for
+// every rider and through a re-bake.
+uint32_t PropHash(const std::string& Id)
+{
+	uint32_t H = 2166136261u;
+	for (char C : Id) H = (H ^ static_cast<unsigned char>(C)) * 16777619u;
+	return H == 0 ? 1u : H;
+}
+
 // A number from 0 to 1 that is always the same for the same place (and Salt).
 double Chance(double X, double Z, int Salt)
 {
@@ -348,9 +357,13 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 					const P2 Side(Dir.Z, -Dir.X);
 					for (int K = 0; K < Bits; ++K)
 					{
-						const P2 Pa = A + (B - A) * (double(K) / Bits), Pb = A + (B - A) * (double(K + 1) / Bits);
+						// [OSM stage 2] Less the gateway of any gate or stile that stands in it: up to two pieces.
+						P2 Pieces[2][2];
+						const int Count = CutGaps(A + (B - A) * (double(K) / Bits), A + (B - A) * (double(K + 1) / Bits), Pieces);
+						for (int Pc = 0; Pc < Count; ++Pc)
+						{
+						const P2 Pa = Pieces[Pc][0], Pb = Pieces[Pc][1];
 						const P2 Pm = (Pa + Pb) * 0.5;
-						if (InGap(Pm.X, Pm.Z)) continue;   // (a field gate stands here)
 						if (RailClear(Pm.X, Pm.Z) < 2.6) continue;   // (nor across a railway)
 						const double Spare = Hedge ? 1.6 : 1.0;
 						if (!OffRoad(Pm.X, Pm.Z, Spare) || !OffRoad(Pa.X, Pa.Z, Spare) || !OffRoad(Pb.X, Pb.Z, Spare)) continue;
@@ -391,6 +404,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							continue;
 						}
 						Stretch(Foot, Top, -0.4, High, Colour, IsWall);
+											}
 					}
 				}
 			}
@@ -830,6 +844,10 @@ void RidePlan::IndexFurniture()
 	// The limit signs go where the limit changes (Limits), below.
 	const double Keep = KeepLeft() ? 1.0 : -1.0;
 	const bool Uk = Britain();
+	// [OSM stage 2] The street lamps the map has, near a road.
+	std::vector<P2> MappedLamps;
+	for (const FeaturePoint& P : G.Scenery.Points)
+		if (P.Kind == "street_lamp") MappedLamps.push_back(P.At);
 	for (size_t I = 0; I < Road.size(); ++I)
 	{
 		if (!BuiltUp[I] || (I > 0 && BuiltUp[I - 1])) continue;
@@ -866,13 +884,16 @@ void RidePlan::IndexFurniture()
 			};
 			if (!Called.empty()) Sign(NameSign, Start + Back * 10.0, Called);
 		}
-		// Street lamps through it, on its left every 36 m.
+		// Street lamps through it, on its left every 36 m; [OSM stage 2] none within 150 m of one the map
+		// has (those stand where they are mapped, below).
 		for (double Along = Road[I].Along + 12.0; Along < Road[J].Along - 6.0; Along += 36.0)
 		{
 			const size_t K = PointAt(Along);
 			Furnish F;
 			F.Kind = StreetLamp;
+			F.Mapped = false;
 			F.At = Verge(K, Keep, 0.9);
+			if (std::any_of(MappedLamps.begin(), MappedLamps.end(), [&F](const P2& M) { return M.DistanceTo(F.At) < 150.0; })) continue;
 			const P2 D = Dir(K);
 			F.Face = P2(-D.Z, D.X) * Keep;   // (its arm reaches out over the road)
 			F.Height = Ground(F.At.X, F.At.Z);
@@ -1059,6 +1080,14 @@ void RidePlan::IndexFurniture()
 		else if (P.Kind == "bench") Kind = Seat;
 		else if (P.Kind == "milestone") Kind = Milestone;
 		else if (P.Kind == "gate") Kind = FieldGate;
+		// [OSM stage 2]
+		else if (P.Kind == "stile") Kind = Stile;
+		else if (P.Kind == "kissing_gate") Kind = KissingGate;
+		else if (P.Kind == "lift_gate") Kind = LiftGate;
+		else if (P.Kind == "bollard") Kind = Bollard;
+		else if (P.Kind == "picnic_table") Kind = PicnicTable;
+		else if (P.Kind == "information") Kind = InfoBoard;
+		else if (P.Kind == "street_lamp") Kind = StreetLamp;
 		if (Kind < 0) continue;
 		NearOpts Opts;
 		NearHit Hit;
@@ -1070,6 +1099,7 @@ void RidePlan::IndexFurniture()
 		F.At = P.At;
 		F.Face = P2(std::cos(P.Heading), std::sin(P.Heading));
 		if (std::isnan(F.Face.X) || std::isnan(F.Face.Z)) F.Face = P2(1.0, 0.0);
+		F.Id = PropHash(P.Id);
 		if (Kind == CattleGrid)
 		{
 			// (across the road it lies on, the road's own way)
@@ -1088,34 +1118,100 @@ void RidePlan::IndexFurniture()
 			continue;
 		}
 		if (Any && Hit.Dist < Hit.Half + 0.5) continue;   // (a gate across a lane, a box on the tarmac: not here)
-		if (Kind == FieldGate)
+		const bool InLine = Kind == FieldGate || Kind == Stile || Kind == KissingGate;
+		if (InLine)
 		{
-			// In the wall, hedge or fence it stands in, along it, and a gap left in the wall for it.
-			const auto It = Scene->Lines.find(SceneKey(P.At.X, P.At.Z));
-			if (It == Scene->Lines.end()) continue;
-			double BestD = 1.5;
-			P2 Along;
-			for (int L : It->second)
-			{
-				const FeatureLine& Line = G.Scenery.Lines[size_t(L)];
-				for (size_t K = 0; K + 1 < Line.Line.size(); ++K)
+			// In the wall, hedge or fence it stands in: [OSM stage 2] the nearest within 6 m, moved onto
+			// it, along it, and a gap left in the line its width. With none near, it faces the road.
+			double BestD = 6.0;
+			P2 Along, OnLine;
+			for (int Dz = -1; Dz <= 1; ++Dz)
+				for (int Dx = -1; Dx <= 1; ++Dx)
 				{
-					const P2 A = Line.Line[K], B = Line.Line[K + 1], AB = B - A;
-					const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
-					if (Len2 < 1e-6) continue;
-					const double T = std::fmax(0.0, std::fmin(1.0, ((P.At.X - A.X) * AB.X + (P.At.Z - A.Z) * AB.Z) / Len2));
-					const double D = (A + AB * T).DistanceTo(P.At);
-					if (D < BestD) { BestD = D; Along = AB * (1.0 / std::sqrt(Len2)); }
+					const auto It = Scene->Lines.find(SceneKey(P.At.X + Dx * 6.0, P.At.Z + Dz * 6.0));
+					if (It == Scene->Lines.end()) continue;
+					for (int L : It->second)
+					{
+						const FeatureLine& Line = G.Scenery.Lines[size_t(L)];
+						for (size_t K = 0; K + 1 < Line.Line.size(); ++K)
+						{
+							const P2 A = Line.Line[K], B = Line.Line[K + 1], AB = B - A;
+							const double Len2 = AB.X * AB.X + AB.Z * AB.Z;
+							if (Len2 < 1e-6) continue;
+							const double T = std::fmax(0.0, std::fmin(1.0, ((P.At.X - A.X) * AB.X + (P.At.Z - A.Z) * AB.Z) / Len2));
+							const P2 Foot = A + AB * T;
+							const double D = Foot.DistanceTo(P.At);
+							if (D < BestD) { BestD = D; Along = AB * (1.0 / std::sqrt(Len2)); OnLine = Foot; }
+						}
+					}
 				}
+			F.Size = Kind == FieldGate ? 3.6 : Kind == KissingGate ? 1.5 : 1.0;
+			if (BestD < 6.0)
+			{
+				// (moved onto the line, unless that puts it on a road)
+				NearHit OnRoad;
+				if (!(NearestOf(OnLine.X, OnLine.Z, Opts, OnRoad) && OnRoad.Dist < OnRoad.Half + F.Size * 0.5 + 0.3)) F.At = OnLine;
+				F.Face = Along;
+				Scene->Gaps[SceneKey(F.At.X, F.At.Z)].push_back(F.At);
+				Scene->GapWidths[SceneKey(F.At.X, F.At.Z)].push_back(F.Size);
 			}
-			if (BestD >= 1.5) continue;
-			F.Face = Along;
-			F.Size = 3.6;
-			Scene->Gaps[SceneKey(P.At.X, P.At.Z)].push_back(P.At);
+			else if (Kind == FieldGate) continue;   // (a field gate in no line is one across a track: not drawn)
+			else if (Any) F.Face = Hit.Foot.DistanceTo(F.At) > 1e-3 ? P2(-(Hit.Foot.Z - F.At.Z), Hit.Foot.X - F.At.X) * (1.0 / Hit.Foot.DistanceTo(F.At)) : F.Face;
+		}
+		else if (Any && Kind != PowerPole && Kind != StreetLamp && Kind != Bollard)
+		{
+			// [OSM stage 2] It faces the road, 0.6 m or more back from its edge.
+			const double D = Hit.Foot.DistanceTo(F.At);
+			if (D > 1e-3)
+			{
+				const P2 Out = (F.At - Hit.Foot) * (1.0 / D);
+				F.Face = Out * -1.0;
+				const double Back = Hit.Half + (Kind == PicnicTable ? 1.6 : Kind == InfoBoard ? 1.0 : 0.6);
+				if (D < Back) F.At = Hit.Foot + Out * Back;
+			}
+		}
+		else if (Any && Kind == StreetLamp)
+		{
+			// (a mapped lamp's arm reaches out over the road)
+			const double D = Hit.Foot.DistanceTo(F.At);
+			if (D > 1e-3) F.Face = (Hit.Foot - F.At) * (1.0 / D);
 		}
 		F.Height = Ground(F.At.X, F.At.Z);
 		Put(F);
 	}
+}
+
+int RidePlan::CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const
+{
+	Out[0][0] = A;
+	Out[0][1] = B;
+	const double Len = A.DistanceTo(B);
+	if (!Scene || Len < 1e-6) return 1;
+	// (the gateways near it: in the squares of its ends)
+	double Lo = 2.0, Hi = -1.0;
+	const P2 Dir = (B - A) * (1.0 / Len);
+	for (const long long Key : {SceneKey(A.X, A.Z), SceneKey(B.X, B.Z)})
+	{
+		const auto It = Scene->Gaps.find(Key);
+		if (It == Scene->Gaps.end()) continue;
+		const auto Wd = Scene->GapWidths.find(Key);
+		for (size_t K = 0; K < It->second.size(); ++K)
+		{
+			const P2 G = It->second[K];
+			const double Half = (Wd != Scene->GapWidths.end() && K < Wd->second.size() ? Wd->second[K] : 3.6) * 0.5 + 0.05;
+			const double T = (G - A).X * Dir.X + (G - A).Z * Dir.Z;
+			const double Off = std::fabs((G - A).X * Dir.Z - (G - A).Z * Dir.X);
+			if (Off > 0.8 || T < -Half || T > Len + Half) continue;
+			Lo = std::fmin(Lo, (T - Half) / Len);
+			Hi = std::fmax(Hi, (T + Half) / Len);
+		}
+		if (Key == SceneKey(B.X, B.Z)) break;   // (one square for both ends)
+	}
+	if (Hi < Lo) return 1;
+	int N = 0;
+	if (Lo > 0.05) { Out[N][0] = A; Out[N][1] = A + (B - A) * Lo; ++N; }
+	if (Hi < 0.95) { Out[N][0] = A + (B - A) * Hi; Out[N][1] = B; ++N; }
+	return N;
 }
 
 bool RidePlan::InGap(double X, double Z) const
@@ -1165,6 +1261,9 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				const Furnish& F = Furniture[size_t(Index)];
 				if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
 				if (!Fine && F.Kind != PowerPole && F.Kind != StreetLamp) continue;
+				// [OSM stage 2] a kind the prop kit has a model for is drawn from it (PropsTile), but a
+				// street lamp's glowing head and real light stay here
+				if (Modelled(F.Kind) && F.Kind != StreetLamp) continue;
 				const double Y = F.Height;
 				const P2 Face = F.Face;
 				const P2 Side(Face.Z, -Face.X);
@@ -1375,6 +1474,87 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 						Quad(Out, At3(A.X, Y + H, A.Z), At3(B.X, Y + H, B.Z), At3(B.X, Y + H + 0.06, B.Z), At3(A.X, Y + H + 0.06, A.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
 					}
 					Quad(Out, At3(A.X, Y + 0.25, A.Z), At3(A.X, Y + 0.31, A.Z), At3(B.X, Y + 1.19, B.Z), At3(B.X, Y + 1.13, B.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
+					break;
+				}
+				// [OSM stage 2] Stand-ins until the kit has models for them.
+				case Stile:
+				{
+					// (a step stile: two posts in the line, a rail between them and a step each side)
+					for (double Su : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Face * (Su * 0.45);
+						Box(Out, Q.X, Q.Z, Face, 0.06, 0.06, Y - 0.2, Y + 1.2, Shade(Wood, 1.4));
+					}
+					Box(Out, F.At.X, F.At.Z, Face, 0.5, 0.04, Y + 0.95, Y + 1.02, Shade(Wood, 1.5));
+					for (double Sv : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Side * (Sv * 0.3);
+						Box(Out, Q.X, Q.Z, Face, 0.4, 0.12, Y + 0.38, Y + 0.43, Shade(Wood, 1.6));
+					}
+					break;
+				}
+				case KissingGate:
+				{
+					// (a gate swinging in a three-sided pen of rails, between two posts)
+					for (double Su : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Face * (Su * 0.75);
+						Box(Out, Q.X, Q.Z, Face, 0.07, 0.07, Y - 0.2, Y + 1.3, Shade(Wood, 1.4));
+					}
+					const P2 Back = F.At + Side * 0.7;
+					for (double H : {0.45, 0.95})
+					{
+						Box(Out, Back.X, Back.Z, Face, 0.75, 0.03, Y + H, Y + H + 0.06, Shade(Wood, 1.5));
+						for (double Su : {-1.0, 1.0})
+						{
+							const P2 Q = F.At + Face * (Su * 0.75) + Side * 0.35;
+							Box(Out, Q.X, Q.Z, Side, 0.35, 0.03, Y + H, Y + H + 0.06, Shade(Wood, 1.5));
+						}
+					}
+					Box(Out, F.At.X + Side.X * 0.35, F.At.Z + Side.Z * 0.35, Side, 0.02, 0.6, Y + 0.25, Y + 1.15, Shade(Wood, 1.7));
+					break;
+				}
+				case LiftGate:
+				{
+					// (a post, and the red and white arm raised beside it)
+					Box(Out, F.At.X, F.At.Z, Face, 0.1, 0.1, Y - 0.2, Y + 1.1, Grey);
+					Box(Out, F.At.X + Side.X * 0.12, F.At.Z + Side.Z * 0.12, Face, 0.03, 0.03, Y + 1.0, Y + 3.6, White);
+					break;
+				}
+				case Bollard:
+				{
+					Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.1, Y + 0.95, Britain() ? White : Grey);
+					Box(Out, F.At.X, F.At.Z, Face, 0.085, 0.085, Y + 0.7, Y + 0.78, Black);
+					break;
+				}
+				case PicnicTable:
+				{
+					// (a timber top and a bench each side, along the road)
+					Box(Out, F.At.X, F.At.Z, Side, 0.9, 0.35, Y + 0.72, Y + 0.77, Shade(Wood, 1.7));
+					for (double Sv : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Face * (Sv * 0.6);
+						Box(Out, Q.X, Q.Z, Side, 0.9, 0.13, Y + 0.42, Y + 0.46, Shade(Wood, 1.7));
+					}
+					for (double Su : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Side * (Su * 0.75);
+						Box(Out, Q.X, Q.Z, Face, 0.7, 0.04, Y, Y + 0.72, Shade(Wood, 1.4));
+					}
+					break;
+				}
+				case InfoBoard:
+				{
+					// (two legs and a sloping panel facing the road)
+					for (double Su : {-1.0, 1.0})
+					{
+						const P2 Q = F.At + Side * (Su * 0.5);
+						Box(Out, Q.X, Q.Z, Face, 0.05, 0.05, Y - 0.2, Y + 1.0, Shade(Wood, 1.3));
+					}
+					const P2 U = Side;
+					const P3 Lo3 = At3(F.At.X + Face.X * 0.15, Y + 0.85, F.At.Z + Face.Z * 0.15), Hi3 = At3(F.At.X - Face.X * 0.15, Y + 1.25, F.At.Z - Face.Z * 0.15);
+					const auto Pt = [&](const P3& C, double Su) { return At3(C.X + U.X * Su * 0.55, C.Y, C.Z + U.Z * Su * 0.55); };
+					Quad(Out, Pt(Lo3, -1.0), Pt(Lo3, 1.0), Pt(Hi3, 1.0), Pt(Hi3, -1.0), At3(F.At.X + Face.X * 50.0, Y + 60.0, F.At.Z + Face.Z * 50.0), Shade(Grey, 1.6), true);
 					break;
 				}
 				default: break;

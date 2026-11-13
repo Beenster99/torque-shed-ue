@@ -61,6 +61,21 @@ struct RoadPoint
 	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
 };
 
+// [OSM stage 2] One prop on a square of ground (World/WorldRideProps.cpp), for the game to draw with
+// a model from the prop kit (Data/RideUK/prop_kit.json; the RideUK level's kit actor tagged RideProps):
+// its kind (RidePlan::EProp), which of the kind's models (Variant, by the map's id), where its foot is
+// (about the square's origin, like the plants), which way its front (the model's +x) faces (radians:
+// along (cos, sin) with x east and z south), its scale, the map's own id, and whether the map put it
+// there (Mapped) or a rule did (a street lamp through a village).
+struct RideProp
+{
+	uint16_t Kind = 0;
+	uint8_t Variant = 0;
+	bool Mapped = true;
+	float X = 0.0f, Y = 0.0f, Z = 0.0f, Yaw = 0.0f, Scale = 1.0f;
+	uint32_t Id = 0;
+};
+
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
 // hand-built ride's own meshes: Kind is RidePlan::PlantName's, the place is about the square's origin
 // like its mesh's points, Normal the ground's tilt (x, z; 0, 0 upright), Height a tree's in metres
@@ -145,6 +160,8 @@ struct RideMesh
 	std::vector<RidePlant> Plants;
 	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).
 	std::vector<RideAnimal> Animals;
+	// [OSM stage 2] With a square of ground: its props (RidePlan::PropsTile), the kinds the kit has models for.
+	std::vector<RideProp> Props;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
 	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
@@ -387,7 +404,9 @@ public:
 	// Then a red phone box in the bigger villages, a pub's hanging sign by the road with its name, and a
 	// level crossing's barrier and lights on each road approach to a railway in use.
 	// (Limit30 is any limit's roundel, its number in Text: [OSM stage 1] 20, 30, 40, 50 mph, or km/h abroad)
-	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier, FurnishKinds };
+	// [OSM stage 2] stiles, kissing gates, lift barriers, bollards, picnic tables and information boards.
+	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier,
+		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, FurnishKinds };
 	struct Furnish
 	{
 		int Kind = 0;
@@ -395,9 +414,35 @@ public:
 		std::string Text;
 		double Size = 0.0;   // a grid's width, a gate's length, a chevron bend's turn (+ left)
 		double Height = 0.0; // the ground (or the road) under it
+		uint32_t Id = 0;     // [OSM stage 2] a hash of the map's own id (0 for one placed by rule): its variant
+		bool Mapped = true;  // the map put it there (not a rule)
 	};
 	std::vector<Furnish> Furniture;
 	int FurnitureCount(int Kind) const;
+	// [OSM stage 2] The prop layer (World/WorldRideProps.cpp). The kinds drawn from real models, each
+	// stage adding its own at the end (never reordered). A kind the kit has a model for comes as props
+	// (PropsTile) and FurnitureTile leaves its code-made shape out; one with none keeps that shape. The
+	// game says which it has (PropModelled) before any square is made.
+	enum EProp { PropPostBox, PropSeat, PropBusStop, PropMilestone, PropPhoneBox, PropPowerPole, PropFieldGate, PropStreetLamp, PropStile, PropKissingGate, PropLiftGate,
+		PropBollard, PropPicnicTable, PropInfoBoard, PropKinds };
+	static const char* PropName(int Kind);   // "post_box", "seat", ... (the kit file's and the models' names)
+	static int PropOf(int FurnishKind);      // the prop a kind of furniture is drawn as, -1 none (signs)
+	bool PropModelled[PropKinds] = {};
+	bool Modelled(int FurnishKind) const { const int P = PropOf(FurnishKind); return P >= 0 && PropModelled[P]; }
+	void PropsTile(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// A row of Data/RideUK/prop_kit.json: the kind, the words in an asset's path that make it one of the
+	// kind's models, how far off it shows (m), its height in life (m: the model is scaled to it), a turn
+	// (degrees) and a drop (m) to put the model's front to +x and its foot on the ground, whether it casts
+	// a shadow, and the credit its licence asks for.
+	struct PropKitRow
+	{
+		std::string Kind;
+		std::vector<std::string> Words;
+		double Reach = 300.0, Height = 1.0, Turn = 0.0, Drop = 0.0;
+		bool Shadow = false;
+		std::string Credit;
+	};
+	static bool ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out);
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
@@ -586,6 +631,7 @@ private:
 		std::unordered_map<long long, std::vector<int>> Looks;       // into Region::Scenery.Buildings (the map's tags)
 		std::unordered_map<long long, std::vector<int>> Furniture;   // into RidePlan::Furniture
 		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
+		std::unordered_map<long long, std::vector<double>> GapWidths;   // [OSM stage 2] each one's width, as Gaps
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
 		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
 		// RailCell square within 40 m of them (for NearRail).
@@ -599,6 +645,9 @@ private:
 	void IndexFurniture();
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
+	// [OSM stage 2] A bit of a wall, hedge or fence from A to B less the gateways in it: its pieces
+	// (Out, each from and to), 0, 1 or 2 of them.
+	int CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const;
 	std::shared_ptr<SceneIndex> Scene;
 	void IndexScenery();
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square

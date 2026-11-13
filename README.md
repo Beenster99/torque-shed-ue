@@ -207,6 +207,16 @@ licences ask. The ground is coloured by what covers it (pasture, moor, meadow, w
 water) and each of its finer squares carries what stands on it (`World/WorldRideScenery`): dry stone
 walls, hedges and fences on their mapped lines, buildings on their mapped footprints under pitched
 roofs, and stand-in trees where the map's canopy has trees, all plain coloured meshes for now.
+The things that stand by the road (post boxes, seats, bus stops, milestones, phone boxes, poles,
+field gates, stiles, kissing gates, barrier gates, bollards, picnic tables, information boards) are
+drawn from real models where the prop kit has them (OSM stage 2, `World/WorldRideProps`): gates and
+stiles snap into the wall or fence they stand in, which is cut for them, and the rest face the road.
+`python Tools/make_ride_props.py` makes the plain ones (`Data/RideUK/Props/*.glb`) and
+`Tools/ue_build_rideuk.py` lists them, with any Fab models matching `Data/RideUK/prop_kit.json`'s
+words (preferred), in a kit actor tagged RideProps; a kind with none keeps its code-made shape.
+Each road's speed limit (mapped, or the UK's rule by class where not), its name and whether it is
+gravel come from the map too (OSM stage 1, `World/WorldRideFacts`): the HUD shows the limit and the
+road's name, and the route planner the county and what is on the way.
 Still to come: scanned materials and the satellite's tint, the grass carpet, scanned trees in the
 stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs

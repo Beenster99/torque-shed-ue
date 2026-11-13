@@ -75,6 +75,9 @@ public:
 	// [OSM stage 1] A test run's limit on the HUD in place of the road's (the "limit:" test verb), for a
 	// picture of each: 20..70, -1 the national limit; INDEX_NONE (the default) the road's own.
 	static int32 TestLimit;
+	// [OSM stage 2] The credits the prop kit's others' models ask for (Data/RideUK/prop_kit.json's
+	// "credit" of each kind drawn from a Fab model), for the credits page; empty with none.
+	static TArray<FString> PropCredits;
 	// [stage 7] The ride diary: a photo (the screen as it is, without the HUD) pinned where the rider
 	// is, saved with the ride in Saved/RideDiary. What happened, for a note on the screen.
 	static FString TakePhoto();
@@ -167,6 +170,17 @@ private:
 	void SendBird(FRideBird& Bird, const FVector2D& At, uint32 Salt);
 	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> AnimalKit;
 	TArray<TArray<int32>> AnimalModels;   // by RidePlan::EAnimal: indices into AnimalKit
+	// [OSM stage 2] The prop kit (the TorqueFoliage actor tagged RideProps: SM_Prop_<kind>_<n>, made by
+	// Tools/ue_build_rideuk.py from Data/RideUK/prop_kit.json), which of its models each kind of prop
+	// (RidePlan::EProp) uses, and each kind's height in life (cm), turn (degrees) and drop (cm) from the
+	// kit file. A kind with none keeps its code-made shape.
+	UPROPERTY(Transient) TArray<FTorqueFoliageSpecies> PropKit;
+	TArray<TArray<int32>> PropModels;
+	TArray<FVector> PropFix;
+	FVector PropFrame = FVector(0.0, 1.0, 1.0);
+	void FindProps();
+	void PlaceProps(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
+	int32 PropsShown = 0;
 	FVector AnimalFrame = FVector(0.0, 1.0, 1.0);
 	int32 AnimalsShown = 0;
 	FVector GrassFrame = FVector(0.0, 1.0, 1.0), TreeFrame = FVector(0.0, 1.0, 1.0);   // yaw, mirror, scale

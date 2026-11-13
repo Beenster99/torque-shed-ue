@@ -164,6 +164,7 @@ bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
 }
 
 int32 ATorqueRideWorld::TestLimit = INDEX_NONE;
+TArray<FString> ATorqueRideWorld::PropCredits;
 
 void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 {
@@ -246,6 +247,9 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	if (!NightMaterial) NightMaterial = RoadMaterial;   // (pale studs and glass, never lit)
 	// (before any square is made: whether its trees come as real ones, and how much grass)
 	const bool bKit = FindKit();
+	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
+	FindProps();
+	for (int32 K = 0; K < TorqueWorld::RidePlan::PropKinds; ++K) Plan->PropModelled[K] = PropModels.IsValidIndex(K) && PropModels[K].Num() > 0;
 	bool bTreeModels = false;
 	for (int32 K = TorqueWorld::RidePlan::FirstTree; K < TorqueWorld::RidePlan::PlantKinds && bKit; ++K) bTreeModels = bTreeModels || KindNear[K].Num() > 0;
 	Plan->RealTrees = bTreeModels;
@@ -480,6 +484,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	DropPlants(Key);
 	PlacePlants(Key, Mesh);
 	PlaceAnimals(Key, Mesh);
+	PlaceProps(Key, Mesh);   // [OSM stage 2]
 	DropWords(Key);
 	DropWater(Key);
 	// (its water: seen, not cast as shadow, not ridden on)
@@ -875,6 +880,108 @@ void ATorqueRideWorld::PlaceAnimals(const FIntVector& Key, const TorqueWorld::Ri
 		Parts.Add(Ism);
 		PlantsShown += Group.Value.Num();   // (let go with the plants, which count them off)
 		AnimalsShown += Group.Value.Num();
+	}
+}
+
+void ATorqueRideWorld::FindProps()
+{
+	using TorqueWorld::RidePlan;
+	PropKit.Reset();
+	PropModels.Reset();
+	PropModels.SetNum(RidePlan::PropKinds);
+	PropFix.Init(FVector(100.0, 0.0, 0.0), RidePlan::PropKinds);
+	// (each kind's height in life, turn and drop, from the kit file)
+	std::string Text;
+	std::vector<RidePlan::PropKitRow> Rows;
+	const std::string Path = TCHAR_TO_UTF8(*FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/prop_kit.json")));
+	if (TorqueWorld::Files::Read(Path, Text) && RidePlan::ReadPropKit(Text, Rows))
+		for (const RidePlan::PropKitRow& R : Rows)
+			for (int32 K = 0; K < RidePlan::PropKinds; ++K)
+				if (R.Kind == RidePlan::PropName(K)) PropFix[K] = FVector(R.Height * 100.0, R.Turn, R.Drop * 100.0);
+	if (UWorld* World = GetWorld())
+		for (TActorIterator<ATorqueFoliage> It(World); It; ++It)
+		{
+			if (!It->ActorHasTag(TEXT("RideProps"))) continue;
+			PropFrame = FVector(It->FrameYaw, It->FrameMirror, It->FrameScale);
+			for (const FTorqueFoliageSpecies& S : It->Species)
+			{
+				if (!S.Mesh) continue;
+				const FString Name = S.Name.ToString();
+				for (int32 K = 0; K < RidePlan::PropKinds; ++K)
+					if (Name.StartsWith(FString(TEXT("SM_Prop_")) + UTF8_TO_TCHAR(RidePlan::PropName(K)) + TEXT("_"))) PropModels[K].Add(PropKit.Num());
+				PropKit.Add(S);
+			}
+		}
+	FString Have, Missing;
+	PropCredits.Reset();
+	for (int32 K = 0; K < RidePlan::PropKinds; ++K)
+	{
+		(PropModels[K].Num() ? Have : Missing) += FString(TEXT(" ")) + UTF8_TO_TCHAR(RidePlan::PropName(K));
+		// (a kind drawn from others' models credits them, as their licence asks)
+		bool Theirs = false;
+		for (const int32 Mi : PropModels[K]) Theirs = Theirs || PropKit[Mi].bNativeMesh;
+		if (!Theirs) continue;
+		for (const RidePlan::PropKitRow& R : Rows)
+			if (R.Kind == RidePlan::PropName(K) && !R.Credit.empty())
+			{
+				const FString Credit = FString(TEXT("Models: ")) + UTF8_TO_TCHAR(R.Credit.c_str()) + TEXT(".");
+				PropCredits.AddUnique(Credit);
+			}
+	}
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: props: %d models; from models:%s; code-made:%s%s"), PropKit.Num(), Have.IsEmpty() ? TEXT(" none") : *Have,
+		Missing.IsEmpty() ? TEXT(" none") : *Missing, PropKit.Num() ? TEXT("") : TEXT(" (no RideProps actor in the level: python Tools/make_ride_props.py, then Tools/ue_build_rideuk.py)"));
+}
+
+void ATorqueRideWorld::PlaceProps(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh)
+{
+	using TorqueWorld::RidePlan;
+	if (Mesh.Props.empty() || PropKit.Num() == 0) return;
+	TMap<int32, TArray<FTransform>> Groups;   // by model
+	for (const TorqueWorld::RideProp& P : Mesh.Props)
+	{
+		if (P.Kind >= RidePlan::PropKinds) continue;
+		const TArray<int32>& Choice = PropModels[P.Kind];
+		if (Choice.Num() == 0) continue;
+		const int32 Mi = Choice[int32(P.Variant) % Choice.Num()];
+		const FTorqueFoliageSpecies& S = PropKit[Mi];
+		UStaticMesh* Model = S.Mesh.Get();
+		if (!Model) continue;
+		const FVector& Fix = PropFix[P.Kind];
+		// (as tall as the kind in life, whatever the model's own height)
+		const double Own = Model->GetBounds().BoxExtent.Z * 2.0 * (S.bNativeMesh ? 1.0 : FMath::Abs(PropFrame.Z));
+		const double Size = (Own > 1.0 ? Fix.X / Own : 1.0) * double(P.Scale) * S.ScaleMultiplier;
+		// (the ride's frame is x east, y up, z south; Unreal's x east, y south, z up: a yaw a there is a here)
+		const FQuat Rot(FVector::UpVector, FMath::DegreesToRadians(FMath::RadiansToDegrees(double(P.Yaw)) + Fix.Y + (S.bNativeMesh ? 0.0 : PropFrame.X)));
+		const FVector Scale3 = S.bNativeMesh ? FVector(Size) : FVector(Size * PropFrame.Z, Size * PropFrame.Z * PropFrame.Y, Size * PropFrame.Z);
+		Groups.FindOrAdd(Mi).Add(FTransform(Rot, FVector(double(P.X) * 100.0, double(P.Z) * 100.0, double(P.Y) * 100.0 - Fix.Z), Scale3));
+	}
+	TArray<TWeakObjectPtr<UInstancedStaticMeshComponent>>& Parts = TilePlants.FindOrAdd(Key);
+	for (TPair<int32, TArray<FTransform>>& Group : Groups)
+	{
+		const FTorqueFoliageSpecies& S = PropKit[Group.Key];
+		// As the animals: no collision, no navigation; shadows only from the taller kinds (the kit says).
+		UInstancedStaticMeshComponent* Ism = NewObject<UInstancedStaticMeshComponent>(this, NAME_None, RF_Transient);
+		Ism->SetMobility(EComponentMobility::Movable);
+		Ism->SetupAttachment(RootComponent);
+		Ism->SetRelativeLocation(FVector(Mesh.OriginX * 100.0, Mesh.OriginZ * 100.0, 0.0));
+		Ism->SetStaticMesh(S.Mesh);
+		if (S.Material) Ism->SetMaterial(0, S.Material);
+		Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Ism->SetCollisionProfileName(TEXT("NoCollision"));
+		Ism->SetCanEverAffectNavigation(false);
+		Ism->SetGenerateOverlapEvents(false);
+		Ism->SetCastShadow(S.bCastShadow);
+		Ism->bReceivesDecals = false;
+		Ism->bVisibleInRayTracing = false;
+		const float Cull = FMath::Max(S.CullDistance, 5000.0f);
+		Ism->SetCullDistances(int32(Cull * 0.85f), int32(Cull));
+		Ism->LDMaxDrawDistance = Cull * 1.05f;
+		Ism->RegisterComponent();
+		Ism->AddInstances(Group.Value, false, false);
+		AddInstanceComponent(Ism);
+		Parts.Add(Ism);
+		PlantsShown += Group.Value.Num();   // (let go with the plants, which count them off)
+		PropsShown += Group.Value.Num();
 	}
 }
 

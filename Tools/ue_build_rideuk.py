@@ -404,6 +404,107 @@ def animal_kit(L):
     return "RideAnimals: %d models" % len(species)
 
 
+PROP_DEST = "/Game/RideUK/Props"
+
+
+def prop_kit(L):
+    """The things by the road (OSM stage 2): Data/RideUK/Props/*.glb (Tools/make_ride_props.py)
+    imported to /Game/RideUK/Props, no collision, and any static mesh under /Game whose path holds one
+    of a kind's words in Data/RideUK/prop_kit.json (Fab models imported on the PC; a scan of a real,
+    named place only when the file's use_real_scans is true), which take that kind's place. All listed
+    in a TorqueFoliage actor tagged RideProps that plants nothing itself, each as a species named
+    SM_Prop_<kind>_<n>; World/TorqueRideWorld puts them by the road as it goes, each kind scaled to its
+    height in life. Returns a short note for the log."""
+    if not hasattr(unreal, "TorqueFoliage"):
+        return "no props (TorqueFoliage isn't built)"
+    ride = os.path.join(os.path.dirname(L.data_dir()), "RideUK")
+    spec_file = os.path.join(ride, "prop_kit.json")
+    if not os.path.exists(spec_file):
+        return "no props (Data/RideUK/prop_kit.json is missing)"
+    spec = json.load(open(spec_file))
+    norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
+    skip = [norm(w) for w in spec.get("skip", [])]
+    most = int(spec.get("most", 4))
+    real = bool(spec.get("use_real_scans", False))
+    # Ours, made by Tools/make_ride_props.py.
+    folder = os.path.join(ride, "Props")
+    ours = {}
+    if os.path.isdir(folder) and any(f.endswith(".glb") for f in os.listdir(folder)):
+        ours = L.import_glbs(folder, PROP_DEST)
+        sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        for mesh in ours.values():
+            try:
+                sme.remove_collisions(mesh)
+            except Exception:
+                pass
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    # Others' (Fab), by the kit's words.
+    meshes = []
+    for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
+        if str(a.asset_class_path.asset_name) != "StaticMesh":
+            continue
+        pkg = str(a.package_name)
+        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+            continue
+        meshes.append((norm(pkg), "%s.%s" % (pkg, a.asset_name)))
+    found = {}
+    for kind, row in spec["kinds"].items():
+        keys = [norm(w) for w in row.get("words", []) + (row.get("real_words", []) if real else []) if norm(w)]
+        got = sorted(p for n, p in meshes if any(k in n for k in keys) and not any(w in n for w in skip))[:most] if keys else []
+        if got:
+            found[kind] = got
+    original = L.new_material
+    try:
+        L.new_material = lambda name, folder=None: original(name, MAT_DIR)
+        paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+    finally:
+        L.new_material = original
+    frame = (0.0, 1.0, 1.0)
+    if ours:
+        first = sorted(ours)[0]
+        frame = L.find_frame(ours[first], os.path.join(folder, first + ".glb"))
+    species = []
+
+    def add(name, mesh, native, row):
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", name)
+        e.set_editor_property("mesh", mesh)
+        if not native:
+            e.set_editor_property("material", paint)
+        for k, v in (("cast_shadow", bool(row.get("shadow", False))), ("scale_multiplier", 1.0),
+                     ("cull_distance", float(row.get("reach", 400)) * 100.0), ("native_mesh", native)):
+            try:
+                e.set_editor_property(k, v)
+            except Exception:
+                pass
+        species.append(e)
+
+    for kind, row in spec["kinds"].items():
+        if kind in found:
+            for n, p in enumerate(found[kind]):
+                m = unreal.load_asset(p)
+                if m:
+                    add("SM_Prop_%s_fab%d" % (kind, n), m, True, row)
+        else:
+            for name, mesh in sorted(ours.items()):
+                if name.startswith("SM_Prop_%s_" % kind):
+                    add(name, mesh, False, row)
+    a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
+    a.set_actor_label("RideProps")
+    a.set_editor_property("tags", [unreal.Name("RideProps")])
+    a.set_editor_property("instances_file", "")
+    a.set_editor_property("density", 0.0)
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    kinds = {str(e.get_editor_property("name")).rsplit("_", 1)[0][len("SM_Prop_"):] for e in species}
+    none = [k for k in spec["kinds"] if k not in kinds]
+    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s" % (
+        len(species), len(found), ", ".join("%s %s" % (k, v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or "none",
+        len(none), ", ".join(none) or "none")
+
+
 def build():
     L = level_lib()
     land_material(L)
@@ -419,6 +520,7 @@ def build():
     L.spawn(unreal.PlayerStart, (0, 0, 100000.0))
     place_kit(kit)
     log(animal_kit(L))
+    log(prop_kit(L))
     L.save_fresh_level(MAP, before)
     log("built %s and %s/M_RideLand, M_RideRoad%s" % (MAP, MAT_DIR, "".join(", " + m for m in scanned)))
 

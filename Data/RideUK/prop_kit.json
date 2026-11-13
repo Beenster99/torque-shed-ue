@@ -1,0 +1,24 @@
+{
+ "_about": "The prop kit for Ride UK (OSM stage 2): the models World/TorqueRideWorld draws by the road in place of their code-made shapes, by the kinds of World/WorldRideProps.cpp (RidePlan::EProp, PropName). Tools/ue_build_rideuk.py (prop_kit) imports Data/RideUK/Props/*.glb (Tools/make_ride_props.py: SM_Prop_<kind>_<n>), then looks for static meshes anywhere under /Game whose path holds one of a kind's 'words' (case, spaces and underscores ignored; Fab packs beenster has added and the hub has imported), preferring those, and lists them on a TorqueFoliage actor tagged RideProps, each scaled to the kind's 'height' in life (m). 'turn' (degrees) and 'drop' (m) put a model's front to +x and its foot on the ground. 'reach' is how far off it shows (m), 'shadow' whether it casts one. 'real_words' are scans of real, named places (a post box from Gravesend, a milestone on Clapham Common): used only when 'use_real_scans' is true (beenster's open question, streaming plan). 'credit' is shown on the credits page: CC BY assets need it. A kind with no model found keeps its code-made shape. No brands: check every model's textures before adding its words here.",
+ "use_real_scans": false,
+ "most": 4,
+ "skip": ["lod", "collision", "proxy", "billboard", "impostor"],
+ "kinds": {
+  "post_box": {"words": [], "real_words": ["gravesend post box", "edward vii post box", "penfold post box", "coronation post box", "pillar box"], "reach": 350, "height": 1.62, "shadow": false,
+   "credit": "Post box scans by artfletch (CC BY 4.0), Fab"},
+  "seat": {"words": ["urban european park bench", "park bench wood"], "reach": 350, "height": 0.85, "shadow": false, "credit": ""},
+  "bus_stop": {"words": [], "reach": 500, "height": 2.75, "shadow": true, "credit": ""},
+  "milestone": {"words": [], "real_words": ["clapham common milestone", "barkway milestone", "greenhithe milestone", "hare street milestone"], "reach": 300, "height": 0.8, "shadow": false,
+   "credit": "Milestone scans by artfletch (CC BY 4.0), Fab"},
+  "phone_box": {"words": ["classic british red telephone booth", "red telephone booth"], "reach": 500, "height": 2.5, "shadow": true, "credit": ""},
+  "power_pole": {"words": ["wood utility pole", "telegraph pole"], "reach": 1500, "height": 9.0, "shadow": true, "credit": "Wood Utility Poles by Eleanie (CC BY 4.0), Fab"},
+  "field_gate": {"words": [], "reach": 400, "height": 1.35, "shadow": false, "credit": ""},
+  "street_lamp": {"words": [], "reach": 1200, "height": 6.0, "shadow": true, "credit": ""},
+  "stile": {"words": ["sty and telegraph pole stile"], "reach": 300, "height": 1.2, "shadow": false, "credit": "Sty and Telegraph Pole by Immersive-Games (CC BY 4.0), Fab"},
+  "kissing_gate": {"words": [], "reach": 300, "height": 1.3, "shadow": false, "credit": ""},
+  "lift_gate": {"words": [], "reach": 300, "height": 1.05, "shadow": false, "credit": ""},
+  "bollard": {"words": ["metal bollard"], "reach": 250, "height": 1.0, "shadow": false, "credit": ""},
+  "picnic_table": {"words": ["picnic table"], "reach": 350, "height": 0.75, "shadow": false, "credit": ""},
+  "info_board": {"words": [], "reach": 300, "height": 1.3, "shadow": false, "credit": ""}
+ }
+}
