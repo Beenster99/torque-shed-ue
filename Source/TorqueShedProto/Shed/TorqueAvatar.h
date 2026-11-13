@@ -79,6 +79,7 @@ struct FTorqueRideTargets
 	FVector Peg[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	TArray<FVector2D> TankHalfW;
 	double FeetDown = 0.0;
+	double KeepOnPeg[2] = {0.0, 0.0};          // [rider pose] that foot stays on its peg while the other is down
 	bool bLaidBack = false;                  // feet forward (a cruiser's or chopper's): arms may reach further
 	double BackDeg = -100.0;                 // the style's back lean (FBikeFrame::BackDeg; < -90: none)
 };
@@ -108,7 +109,8 @@ public:
 	static bool bOldRidePose;
 	// What the last PoseRiding came to, for the test log: the back's lean forward of upright, each
 	// knee's and elbow's angle, how far each hand and ankle fell short, and each knee's distance out.
-	struct FRideReport { double BackDeg = 0.0, KneeDeg[2] = {0.0, 0.0}, ElbowDeg[2] = {0.0, 0.0}, HandShort[2] = {0.0, 0.0}, AnkleShort[2] = {0.0, 0.0}, KneeOut[2] = {0.0, 0.0}, GripRollDeg[2] = {0.0, 0.0}, IndexCurlDeg[2] = {0.0, 0.0}, MiddleCurlDeg[2] = {0.0, 0.0}; };
+	struct FRideReport { double BackDeg = 0.0, KneeDeg[2] = {0.0, 0.0}, ElbowDeg[2] = {0.0, 0.0}, HandShort[2] = {0.0, 0.0}, AnkleShort[2] = {0.0, 0.0}, KneeOut[2] = {0.0, 0.0}, GripRollDeg[2] = {0.0, 0.0}, IndexCurlDeg[2] = {0.0, 0.0}, MiddleCurlDeg[2] = {0.0, 0.0};
+		FVector HipJointAt[2] = {FVector::ZeroVector, FVector::ZeroVector}; double LegReach = 0.0; };   // [rider pose] hip joints (parent space) and the leg's length (parent cm)
 	FRideReport RideReport;
 	// The head joint's place and its turn from rest in the parent's space, as last posed (riding).
 	bool HeadInParent(FVector& At, FQuat& Turn) const;

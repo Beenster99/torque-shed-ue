@@ -886,6 +886,9 @@ FString ATorqueBikePawn::TestRideLog() const
 			Out += FString::Printf(TEXT("\nrider hands: throttle %.2f, grip roll %.1f / %.1f deg, index curl %.0f / %.0f deg, middle curl %.0f / %.0f deg, levers held %.2f / %.2f, pulled %.2f / %.2f"),
 				TestGripThrottleHold >= 0.0 ? TestGripThrottleHold : Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
 				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
+			// Stopped on a tall bike: leant onto the left foot, the right kept on its peg.
+			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, leg %.1f cm"),
+				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], Rp.LegReach);
 		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
@@ -2696,6 +2699,15 @@ void ATorqueBikePawn::UpdateVisuals(double Alpha)
 {
 	// Draw between the last two steps so the bike moves smoothly at any frame rate.
 	SetActorLocationAndRotation(FMath::Lerp(PrevPos, CurPos, Alpha), FQuat::Slerp(PrevRot, CurRot, Alpha));
+	// [rider pose] Stopped on a tall bike: leant onto the rider's left foot about the tyres' contact line.
+	if (bOnFoot || bParkedLook) StopLeanDeg = 0.0;   // (off it, or parked on its stand: no rider's foot to lean on)
+	if (FMath::Abs(StopLeanDeg) > 0.01)
+	{
+		const FQuat Tip(FVector::ForwardVector, FMath::DegreesToRadians(StopLeanDeg));
+		const FVector Contact(0.0, 0.0, -Sim->Build.RearRadius * 100.0);
+		const FQuat Was = GetActorQuat();
+		SetActorLocationAndRotation(GetActorLocation() + Was.RotateVector(Contact - Tip.RotateVector(Contact)), Was * Tip);
+	}
 	// The respawn ghost (BikeGhost): a faint, steady wireframe of the bike and rider's polygons, no blink.
 	UpdateGhostLook();
 
@@ -3190,6 +3202,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	// tank's knee pads, the balls of its feet on the pegs.
 	T.bOnLayout = bRiderOnLayout;
 	T.FeetDown = RiderFeetDown;
+	for (int32 S = 0; S < 2; ++S) T.KeepOnPeg[S] = RiderKeepOnPeg[S];
 	T.bLaidBack = bRiderLaidBack;
 	if (bRiderOnLayout)
 	{
@@ -3460,7 +3473,36 @@ void ATorqueBikePawn::UpdateRider()
 			const FVector Down(RiderPeg[1].X - (-22.0), 0.0, 31.0 - Sim->Build.RearRadius * 100.0);
 			In.FootDownL += Down;
 			In.FootDownR += Down;
+			// [rider pose] Too tall to reach the road (an MX bike's saddle): lean the bike onto the left
+			// foot, about the tyres' contact line, as far as that leg needs, and keep the right on its peg.
+			// (The MetaHuman's own hip joint and leg, as last posed; leant left by A, a point y across and
+			// z up from the ground sits (z - Ground) cos A + y sin A up, so the ankle's mark rises by that.)
+			const double Ground = -Sim->Build.RearRadius * 100.0;
+			const double AnkleUp = In.FootDownL.Z - Ground;
+			double LeanWant = 0.0;
+			if (In.FeetDown > 0.0 && RiderAvatar.IsValid() && RiderAvatar.RideReport.LegReach > 1.0 && !bThrown)
+			{
+				const FVector HipL = RiderAvatar.RideReport.HipJointAt[0];
+				const double Reach = RiderAvatar.RideReport.LegReach * 0.96;
+				for (double Deg = 0.0; Deg <= 20.0; Deg += 0.25)
+				{
+					LeanWant = Deg;
+					const double Ar = FMath::DegreesToRadians(Deg);
+					const FVector Mark(In.FootDownL.X, In.FootDownL.Y, Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar));
+					if ((Mark - HipL).Size() <= Reach) break;
+				}
+			}
+			const double LeanTo = LeanWant * FMath::SmoothStep(0.0, 1.0, In.FeetDown);
+			StopLeanDeg = MoveToward(StopLeanDeg, LeanTo, 25.0 * (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0));
+			if (StopLeanDeg > 0.01)
+			{
+				const double Ar = FMath::DegreesToRadians(StopLeanDeg);
+				In.FootDownL.Z = Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar);
+			}
+			In.KeepOnPeg[1] = FMath::Clamp(StopLeanDeg / 2.0, 0.0, 1.0);
 		}
+		else StopLeanDeg = 0.0;
+		for (int32 S = 0; S < 2; ++S) RiderKeepOnPeg[S] = In.KeepOnPeg[S];
 		// The head turns toward where the corner goes (the apex) and stays nearer level than the bike.
 		// Unreal: + yaw looks right, + roll drops the right side.
 		const double HeadLean = FMath::Clamp(BodyLean, -55.0, 55.0);

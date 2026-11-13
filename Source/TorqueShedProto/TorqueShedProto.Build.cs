@@ -8,7 +8,7 @@ public class TorqueShedProto : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		// The riding sim (Sim/) is plain C++ shared with the standalone test; keep its files apart.
 		bUseUnity = false;
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json", "RenderCore", "RHI",
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Json", "AssetRegistry", "RenderCore", "RHI",
 			// Co-op (Coop/): sessions through the online subsystem (Null now, EOS later), this PC's address,
 			// pasting an address into the menu, and asking the router to open the port (UPnP over HTTP).
 			"OnlineSubsystem", "OnlineSubsystemUtils", "Sockets", "Networking", "ApplicationCore", "HTTP",

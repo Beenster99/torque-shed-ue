@@ -3638,6 +3638,11 @@ int32 UTorqueBuildSubsystem::BikeFor(const UObject* WorldContext)
 {
 	const UTorqueBuildSubsystem* S = Of(WorldContext);
 	if (!S) return 0;
+	// [co-op] A ridden bike already drawn from a bay (ATorqueBikePawn::BuildCatalogueModel, from the
+	// bay the host spawned it with): that bay, for its paint, finishes and fit too. Before this, on
+	// a co-op ride a rider's bike was shaped as theirs but painted as this machine's own (build 141).
+	if (const ATorqueBikePawn* Ridden = Cast<ATorqueBikePawn>(WorldContext))
+		if (Ridden->GetRideBay() >= 0) return Ridden->GetRideBay();
 	if (const APawn* P = Cast<APawn>(WorldContext))
 		if (S->BikeOfPawn.IsBound())
 		{
