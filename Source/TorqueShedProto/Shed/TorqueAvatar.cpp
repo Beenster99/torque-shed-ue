@@ -1174,6 +1174,43 @@ void FTorqueAvatar::TouchHair()
 	// bound to the skin, isn't sent its new place by the head's bones moving: send it every frame.
 	// -TorqueHairRecreate rebuilds its render state every frame instead (a heavier test);
 	// -TorqueHairLog logs each groom every 2 s.
+	// [round 142] Where every part of this avatar is, 3 s and 10 s after it was first posed (floating
+	// heads, headless and armless riders in build 141), and -TorqueHidePart=<word> hides the parts
+	// whose name or mesh has it, to see which part is which.
+	{
+		const double T0 = FPlatformTime::Seconds();
+		if (PartsLogFirst < 0.0) PartsLogFirst = T0;
+		const double Age = T0 - PartsLogFirst;
+		if (Driver && ((PartsLogged == 0 && Age > 3.0) || (PartsLogged == 1 && Age > 10.0)))
+		{
+			++PartsLogged;
+			FString HidePart;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueHidePart="), HidePart);
+			const FVector HeadW = Head != INDEX_NONE ? Driver->GetBoneLocationByName(Bones[Head].Name, EBoneSpaces::WorldSpace) : FVector::ZeroVector;
+			auto Describe = [&HeadW](USceneComponent* C)
+			{
+				const UPrimitiveComponent* PC = Cast<UPrimitiveComponent>(C);
+				const USkinnedMeshComponent* SC = Cast<USkinnedMeshComponent>(C);
+				const UObject* Asset = SC ? (const UObject*)SC->GetSkinnedAsset() : nullptr;
+				if (const UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(C)) Asset = SM->GetStaticMesh();
+				const USkinnedMeshComponent* Lead = SC ? SC->LeaderPoseComponent.Get() : nullptr;
+				return FString::Printf(TEXT("%s [%s] %s visible %d, leader %s, bones %d, bounds centre %s from the head (r %.0f)"),
+					*C->GetName(), *C->GetClass()->GetName(), Asset ? *Asset->GetName() : TEXT("-"), (int32)C->IsVisible(),
+					Lead ? *Lead->GetName() : TEXT("none"), SC && SC->GetSkinnedAsset() ? SC->GetSkinnedAsset()->GetRefSkeleton().GetNum() : 0,
+					PC ? *(PC->Bounds.Origin - HeadW).ToCompactString() : TEXT("-"), PC ? PC->Bounds.SphereRadius : 0.0);
+			};
+			UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s parts (%.0f s): head joint at %s; driver %s"), *Name, Age, *HeadW.ToCompactString(), *Describe(Driver));
+			for (const TWeakObjectPtr<USceneComponent>& P : Parts)
+				if (USceneComponent* C = P.Get())
+				{
+					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s part %s%s"), *Name, *Describe(C), C == FaceMesh ? TEXT(" (THE FACE)") : TEXT(""));
+					const USkinnedMeshComponent* SC = Cast<USkinnedMeshComponent>(C);
+					const FString AssetName = SC && SC->GetSkinnedAsset() ? SC->GetSkinnedAsset()->GetName() : FString();
+					if (!HidePart.IsEmpty() && (C->GetName().Contains(HidePart) || AssetName.Contains(HidePart))) C->SetVisibility(false, false);
+				}
+			if (!HidePart.IsEmpty() && Driver->GetSkinnedAsset() && Driver->GetSkinnedAsset()->GetName().Contains(HidePart)) Driver->SetVisibility(false, false);
+		}
+	}
 	static const bool bRecreate = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairRecreate"));
 	static const bool bLog = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairLog"));
 	const double Now = FPlatformTime::Seconds();

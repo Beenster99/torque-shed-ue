@@ -149,6 +149,8 @@ private:
 	void PoseFace();
 	void TouchHair();   // the grooms told their place each frame (they draw where they were made otherwise)
 	double HairLogAt = 0.0;
+	double PartsLogFirst = -1.0;   // [round 142] when this avatar was first posed, for the parts log
+	int32 PartsLogged = 0;
 	struct FBone { FName Name; int32 Index = INDEX_NONE; int32 Parent = INDEX_NONE; FVector Rest; FQuat RestQ; };
 	TArray<FBone> Bones;              // the driven bones, parents first (Parent indexes into Bones)
 	int32 Find(const TCHAR* BoneName) const;
