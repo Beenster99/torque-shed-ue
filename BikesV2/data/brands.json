@@ -1,0 +1,18 @@
+{
+  "about": "Bike Models V2 fictional brands. Working names, not yet checked against real companies. No real maker name, logo or exact design ships.",
+  "version": 1,
+  "brands": {
+    "corvano": {"name": "Corvano", "spirit": "Italian in spirit: lean, sharp, minimal", "frame": "trellis", "engines": ["vtwin90", "single"], "signature": ["single-sided swingarm", "slim waist", "short stubby tail", "low horizontal lamp"], "surface": "sharp", "colours": ["#B3122A", "#E9E6DF", "#16171A", "#B08D57"],
+      "families": ["naked", "sport", "cafe", "classic", "adventure", "mx", "cruiser"]},
+    "hartwell": {"name": "Hartwell", "spirit": "British in spirit: classic and sculpted", "frame": "cradle", "engines": ["parallel_twin", "triple"], "signature": ["round lamp", "knee-cut tank", "ribbed bench seat", "twin upswept silencers"], "surface": "round", "colours": ["#1F4D3A", "#F1EBDD", "#14181B", "#C9CED3"],
+      "families": ["naked", "sport", "cafe", "classic", "adventure", "chopper"]},
+    "kazeda": {"name": "Kazeda", "spirit": "Japanese in spirit: precise, layered, angular", "frame": "spar", "engines": ["inline4", "parallel_twin", "single"], "signature": ["low crouched nose", "layered panels", "split lamps", "raised sharp tail"], "surface": "sharp", "colours": ["#1C4FBF", "#0F1114", "#C8CDD2", "#D7E23A"],
+      "families": ["naked", "sport", "cafe", "classic", "adventure", "mx", "chopper", "cruiser"]},
+    "varga": {"name": "Varga", "spirit": "Central European in spirit: tall, flat-sided, aggressive", "frame": "trellis_bright", "engines": ["single", "parallel_twin"], "signature": ["bright exposed trellis", "flat sharp panels", "vertical lamp", "high tail"], "surface": "flat", "colours": ["#F26A1B", "#F4F4F2", "#17181A", "#5B6168"],
+      "families": ["naked", "sport", "adventure", "mx"]},
+    "lodestar": {"name": "Lodestar", "spirit": "American in spirit: long, low and heavy", "frame": "double_cradle", "engines": ["vtwin45"], "signature": ["teardrop tank", "deep mudguards", "chrome", "staggered pipes"], "surface": "round", "colours": ["#101113", "#C7CBD0", "#7A1F1F", "#D8C9A3"],
+      "families": ["cafe", "classic", "chopper", "cruiser"]},
+    "rheinhart": {"name": "Rheinhart", "spirit": "German in spirit: functional and engineered", "frame": "engine_carried", "engines": ["boxer"], "signature": ["cylinders out in the wind", "upright tank", "bolt-on rear frame", "shaft drive"], "surface": "blocky", "colours": ["#E8E9EA", "#1A3C7A", "#15171A", "#C43B2E"],
+      "families": ["naked", "cafe", "classic", "adventure", "cruiser"]}
+  }
+}

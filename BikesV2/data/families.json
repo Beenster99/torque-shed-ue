@@ -1,0 +1,88 @@
+{
+  "about": "Bike Models V2 family envelopes. A family is a loose envelope: every model in it must fall inside these ranges. Lengths in mm, angles in degrees. Side-view coordinates: x forward from the rear axle, z up from the ground. Centre values are seeded from the reference figures in Data/Fitment/layout.json (published maker figures); the ranges are first-pass and get checked against each model in Phase 1.",
+  "version": 1,
+  "dropped_types": ["supermoto", "race", "bobber"],
+  "undecided_types": ["scrambler", "roader", "tourer"],
+  "families": {
+    "naked": {
+      "name": "Naked",
+      "defines": "Exposed engine, no fairing, upright bars, short tail",
+      "layouts": ["vtwin90", "parallel_twin", "triple", "inline4", "boxer"],
+      "wheelbase": [1400, 1500], "rake": [23.0, 25.5], "seat_height": [790, 840], "ground_clearance": [130, 160],
+      "front_wheel": {"rim_in": [17, 17], "tyre_radius": 300}, "rear_wheel": {"rim_in": [17, 17], "tyre_radius": 316},
+      "fork_travel": [120, 140],
+      "rider": {"hip_x": [470, 560], "peg": {"fwd": [40, 160], "down": [520, 580]}, "grip": {"fwd": [530, 590], "up": [220, 300]}, "back_lean": [20, 35]},
+      "deck": {"tank_span": 430, "tank_pitch": [-4, 4], "tunnel_w": 130, "tunnel_h": 90, "rail_spacing": 200, "seat_solo": 310, "seat_dual": 560, "seat_pitch": [4, 16], "nose_x": [600, 680], "nose_z": [850, 900]}
+    },
+    "sport": {
+      "name": "Sport",
+      "defines": "Full or half fairing, clip-on bars, rear-set pegs, raised tail",
+      "layouts": ["vtwin90", "triple", "inline4", "parallel_twin"],
+      "wheelbase": [1390, 1460], "rake": [23.0, 24.5], "seat_height": [810, 850], "ground_clearance": [120, 140],
+      "front_wheel": {"rim_in": [17, 17], "tyre_radius": 300}, "rear_wheel": {"rim_in": [17, 17], "tyre_radius": 322},
+      "fork_travel": [110, 125],
+      "rider": {"hip_x": [480, 560], "peg": {"fwd": [20, 130], "down": [520, 590]}, "grip": {"fwd": [530, 590], "up": [60, 150]}, "back_lean": [28, 45]},
+      "deck": {"tank_span": 440, "tank_pitch": [-2, 6], "tunnel_w": 140, "tunnel_h": 100, "rail_spacing": 190, "seat_solo": 290, "seat_dual": 520, "seat_pitch": [8, 20], "nose_x": [600, 680], "nose_z": [860, 910]}
+    },
+    "cafe": {
+      "name": "Cafe",
+      "defines": "Low bars, single seat with hump, flat tank line, minimal bodywork",
+      "layouts": ["parallel_twin", "vtwin90", "inline4", "boxer", "vtwin45"],
+      "wheelbase": [1400, 1480], "rake": [22.5, 26.0], "seat_height": [780, 820], "ground_clearance": [130, 160],
+      "front_wheel": {"rim_in": [17, 19], "tyre_radius": 310}, "rear_wheel": {"rim_in": [17, 18], "tyre_radius": 320},
+      "fork_travel": [110, 130],
+      "rider": {"hip_x": [440, 520], "peg": {"fwd": [60, 400], "down": [520, 620]}, "grip": {"fwd": [550, 610], "up": [80, 170]}, "back_lean": [18, 30]},
+      "deck": {"tank_span": 470, "tank_pitch": [-2, 3], "tunnel_w": 120, "tunnel_h": 80, "rail_spacing": 210, "seat_solo": 330, "seat_dual": 560, "seat_pitch": [0, 6], "nose_x": [560, 650], "nose_z": [820, 870]}
+    },
+    "classic": {
+      "name": "Classic",
+      "defines": "Round lamp, flat bench seat, twin shocks, wire wheels",
+      "layouts": ["parallel_twin", "vtwin90", "inline4", "boxer", "vtwin45"],
+      "wheelbase": [1400, 1500], "rake": [25.0, 28.0], "seat_height": [760, 810], "ground_clearance": [140, 170],
+      "front_wheel": {"rim_in": [18, 19], "tyre_radius": 328}, "rear_wheel": {"rim_in": [17, 18], "tyre_radius": 325},
+      "fork_travel": [115, 135],
+      "rider": {"hip_x": [450, 530], "peg": {"fwd": [280, 400], "down": [500, 580]}, "grip": {"fwd": [520, 580], "up": [220, 300]}, "back_lean": [0, 10]},
+      "deck": {"tank_span": 460, "tank_pitch": [-3, 2], "tunnel_w": 110, "tunnel_h": 80, "rail_spacing": 220, "seat_solo": 340, "seat_dual": 640, "seat_pitch": [0, 5], "nose_x": [580, 680], "nose_z": [800, 850]}
+    },
+    "adventure": {
+      "name": "Adventure",
+      "defines": "Tall suspension, beak or screen, large tank, luggage",
+      "layouts": ["boxer", "parallel_twin", "vtwin90", "single", "triple", "inline4"],
+      "wheelbase": [1500, 1600], "rake": [24.5, 28.0], "seat_height": [830, 890], "ground_clearance": [200, 260],
+      "front_wheel": {"rim_in": [19, 21], "tyre_radius": 345}, "rear_wheel": {"rim_in": [17, 18], "tyre_radius": 335},
+      "fork_travel": [190, 240],
+      "rider": {"hip_x": [520, 620], "peg": {"fwd": [240, 340], "down": [520, 580]}, "grip": {"fwd": [530, 590], "up": [310, 400]}, "back_lean": [8, 18]},
+      "deck": {"tank_span": 500, "tank_pitch": [-8, 0], "tunnel_w": 140, "tunnel_h": 110, "rail_spacing": 220, "seat_solo": 330, "seat_dual": 640, "seat_pitch": [2, 10], "nose_x": [650, 760], "nose_z": [860, 920]}
+    },
+    "mx": {
+      "name": "MX",
+      "defines": "Light single, long travel, high mudguards, number boards",
+      "layouts": ["single"],
+      "wheelbase": [1460, 1495], "rake": [26.0, 28.0], "seat_height": [940, 970], "ground_clearance": [330, 360],
+      "front_wheel": {"rim_in": [21, 21], "tyre_radius": 353}, "rear_wheel": {"rim_in": [18, 19], "tyre_radius": 340},
+      "fork_travel": [300, 310],
+      "rider": {"hip_x": [590, 720], "peg": {"fwd": [80, 170], "down": [610, 670]}, "grip": {"fwd": [470, 530], "up": [280, 360]}, "back_lean": [0, 10]},
+      "deck": {"tank_span": 360, "tank_pitch": [-18, -8], "tunnel_w": 100, "tunnel_h": 120, "rail_spacing": 150, "seat_solo": 700, "seat_dual": 700, "seat_pitch": [0, 6], "nose_x": [880, 960], "nose_z": [960, 1010]}
+    },
+    "chopper": {
+      "name": "Chopper",
+      "defines": "Raked long forks, stretched frame, small tank, low seat",
+      "layouts": ["vtwin45", "parallel_twin", "inline4"],
+      "wheelbase": [1650, 1900], "rake": [34.0, 45.0], "seat_height": [620, 700], "ground_clearance": [100, 130],
+      "front_wheel": {"rim_in": [19, 21], "tyre_radius": 335}, "rear_wheel": {"rim_in": [16, 18], "tyre_radius": 330},
+      "fork_travel": [100, 130],
+      "rider": {"hip_x": [330, 450], "peg": {"fwd": [620, 780], "down": [260, 360]}, "grip": {"fwd": [560, 680], "up": [280, 480]}, "back_lean": [-8, 5]},
+      "deck": {"tank_span": 340, "tank_pitch": [6, 18], "tunnel_w": 90, "tunnel_h": 70, "rail_spacing": 230, "seat_solo": 320, "seat_dual": 520, "seat_pitch": [-2, 4], "nose_x": [520, 640], "nose_z": [680, 760]}
+    },
+    "cruiser": {
+      "name": "Cruiser",
+      "defines": "Long and low, forward pegs, wide tank, deep mudguards",
+      "layouts": ["vtwin45", "parallel_twin", "boxer", "vtwin90", "inline4"],
+      "wheelbase": [1545, 1720], "rake": [28.0, 33.0], "seat_height": [650, 720], "ground_clearance": [115, 140],
+      "front_wheel": {"rim_in": [16, 19], "tyre_radius": 330}, "rear_wheel": {"rim_in": [16, 17], "tyre_radius": 325},
+      "fork_travel": [110, 140],
+      "rider": {"hip_x": [380, 500], "peg": {"fwd": [450, 740], "down": [330, 420]}, "grip": {"fwd": [560, 640], "up": [260, 430]}, "back_lean": [-5, 5]},
+      "deck": {"tank_span": 500, "tank_pitch": [4, 12], "tunnel_w": 120, "tunnel_h": 80, "rail_spacing": 240, "seat_solo": 360, "seat_dual": 620, "seat_pitch": [-2, 4], "nose_x": [540, 660], "nose_z": [700, 770]}
+    }
+  }
+}
