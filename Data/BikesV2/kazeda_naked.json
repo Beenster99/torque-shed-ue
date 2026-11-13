@@ -2,7 +2,7 @@
  "name": "Kazeda naked (working title N1)",
  "brand": "kazeda",
  "family": "Naked",
- "rev": "C",
+ "rev": "D",
  "wheelbase_mm": 1440,
  "seat_height_mm": 825,
  "surfaces": {
@@ -91,6 +91,16 @@
    ],
    "metallic": 1.0,
    "roughness": 0.3
+  },
+  "exhaust_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.4,
+   "roughness": 0.6
   },
   "alu": {
    "ue": "cat_brushed_steel",

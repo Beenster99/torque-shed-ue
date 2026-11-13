@@ -466,12 +466,20 @@ def build(model):
 
     # exhaust on the right side
     ex = model["exhaust"]
+    # ("side": "both" is one high silencer each side: the first header runs to the left one, the rest to the right)
+    both = ex.get("side") == "both"
     for i, hp in enumerate(ex["headers"]):
         pts = shapes.dense(hp["pts"], False, 1.0)[::3] + [tuple(hp["pts"][-1][:2])]
-        yy = [-40 - 110 * (j / (len(pts) - 1)) for j in range(len(pts))]
+        sg = 1 if both and i == 0 else -1
+        out_y = 190 if both else 150
+        yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.62, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
-        tube(f"can{i}", [(can["a"][0], -165, can["a"][1]), (can["b"][0], -175, can["b"][1])], can["w"] / 2 * 0.8, mat("exhaust"))
+        for sg in ((1, -1) if both else (-1,)):
+            y0c, y1c = (190, 205) if both else (165, 175)
+            tube(f"can{i}{sg}", [(can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])], can["w"] / 2 * 0.8, mat("exhaust"))
+            ux, uz = can["b"][0] - can["a"][0], can["b"][1] - can["a"][1]
+            tube(f"cantip{i}{sg}", [(can["b"][0] - ux * 0.02, sg * y1c, can["b"][1] - uz * 0.02), (can["b"][0] + ux * 0.05, sg * y1c, can["b"][1] + uz * 0.05)], can["w"] / 2 * 0.62, mat("exhaust_black"))
 
     # swingarm, sprocket, chain, shock
     sw = model["swingarm"]
@@ -523,13 +531,24 @@ def build(model):
         else:
             pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
             low = max(p[1] for p in pp) < 400
-            if low:
+            if shp.get("shroud"):
+                # the fork shroud: a shell round the front of each lower fork leg, joined to the mudguard
+                for s in (-1, 1):
+                    pillow(f"shroud{i}{s}", pp, s * 72, s * 140, m_, 10, 24)
+            elif low:
                 pillow(f"belly{i}", pp, -125, 125, m_, 22, 50)
             else:
                 for s in (-1, 1):
                     pillow(f"panel{i}{s}", pp, s * 128, s * 166, m_, 18, 30, both=False)
-    for i, shp in enumerate(body.get("behind", [])):
+    hanger = body.get("plate_hanger", []) if model.get("fit", {}).get("plate_hanger", True) else []
+    for i, shp in enumerate(hanger):
+        if shp["cls"] == "redlens":
+            prism(f"platelamp{i}", [tuple(q[:2]) for q in shp["pts"]], -30, 30, mat("redlens"), 2)
+    for i, shp in enumerate(body.get("behind", []) + [h for h in hanger if h["cls"] != "redlens"]):
         hw = 85 if shp["cls"] == "plate" else (95 if "fender" in shp["cls"] else 25)
+        if "arc" in shp:
+            arc_band(f"platearm{i}", shp["arc"], 60, mat("plastic"))
+            continue
         pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
         (prism if shp["cls"] == "plate" else pillow)(f"behind{i}", pp, -hw, hw, mat("plate") if shp["cls"] == "plate" else mat("plastic"), 2 if shp["cls"] == "plate" else 10)
     for c in body.get("caps", []):

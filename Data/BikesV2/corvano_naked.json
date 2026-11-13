@@ -2,7 +2,7 @@
  "name": "Corvano naked (working title N1)",
  "brand": "corvano",
  "family": "Naked",
- "rev": "C",
+ "rev": "D",
  "wheelbase_mm": 1465,
  "seat_height_mm": 820,
  "surfaces": {
@@ -101,6 +101,16 @@
    ],
    "metallic": 1.0,
    "roughness": 0.3
+  },
+  "exhaust_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.4,
+   "roughness": 0.6
   },
   "accent__accent": {
    "ue": "paint_silver",

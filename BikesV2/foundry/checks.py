@@ -78,6 +78,13 @@ def deck(model, fams):
 
     (t0, t1), (s0, s1), (l0, l1) = ext("tank"), ext("seat"), ext("tail")
     out.append((abs(t0 - (nx - 15)) <= 25 and t1 - nx <= fd["tank_span"] + 10, f"tank sits on its section: starts {t0 - nx:+.0f} mm from the nose, reaches {t1 - nx:.0f} of {fd['tank_span']} mm"))
+    if fd.get("tank_flat_bottom"):
+        # beenster, 13 Nov: "a naked bike tank is still flat on the bottom, remove the sculpting for all naked tanks"
+        tank = next(shapes.dense(shp["pts"], True, shp.get("t", 1.0)) for shp in b["tank"] if shp.get("cls") == "body")
+        xa, xb = t0 + 0.12 * (t1 - t0), t1 - 0.12 * (t1 - t0)
+        za, zb = shapes.top_bottom(tank, xa)[1], shapes.top_bottom(tank, xb)[1]
+        dev = max(abs(shapes.top_bottom(tank, xa + (xb - xa) * k / 20)[1] - (za + (zb - za) * k / 20)) for k in range(21))
+        out.append((dev <= 6, f"tank underside is flat (bends {dev:.0f} mm, at most 6)"))
     out.append((s1 - t0 >= 25, f"seat nose overlaps the tank by {s1 - t0:.0f} mm (needs 25)"))
     out.append((l1 - s0 >= 30, f"tail tucks under the seat by {l1 - s0:.0f} mm (needs 30)"))
     out.append((nx - s0 >= fd["seat_solo"], f"seat covers the solo mount: {nx - s0:.0f} mm long (needs {fd['seat_solo']})"))

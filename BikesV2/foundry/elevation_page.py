@@ -94,6 +94,17 @@ def build(family, names):
             res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
+    import copy
+    bare = []
+    for n in names:
+        m2 = copy.deepcopy(elevation.load(n))
+        if m2["body"].get("plate_hanger"):
+            m2["fit"] = {"plate_hanger": False}
+            m2["dimensions"] = False
+            m2["name"] = m2["brand"].title() + " without the plate hanger"
+            bare.append(f'<div class="sheet">{elevation.draw(m2)}</div>')
+    if bare:
+        h.append('<section><h2>Plate hanger: its own part, optional</h2><p class="lede">The long hanger with the number plate and its lamp is drawn in on every bike above, as most countries require it, but it is a separate bolt-on part. A build can leave it off, as here.</p><div class="shots">' + "".join(bare) + "</div></section>")
     import mix
     loaded = [elevation.load(n) for n in names]
     pairs = [(a, b) for a in loaded for b in loaded if a is not b]
@@ -107,7 +118,8 @@ def build(family, names):
     h.append(swatch_section())
     h.append("""<section><h2>What these drawings are, and are not yet</h2>
 <ul class="plain"><li>They are drawn to scale from real numbers: wheelbase, rake, trail, seat height, wheel sizes and every frame tube.</li>
-<li>The automatic checks under each drawing run on every change. Two came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, and the middle of the bike may not be more than 12% empty space. The space under the tank and saddle is now filled with an airbox, side panels and an inner mudguard.</li>
+<li>The automatic checks under each drawing run on every change. Three came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, the middle of the bike may not be more than 12% empty space, and a naked tank must be flat underneath.</li>
+<li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
 <li>The mixed builds are the first proof of the mounting standard. They are drawings only for now; the 3D versions follow.</li>
 <li>Not yet drawn: top and front views, the kit variants (three tank and seat pairs, three tails, front ends) and small detail such as cables, hoses and fasteners.</li></ul></section></div>""")

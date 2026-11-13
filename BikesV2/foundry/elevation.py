@@ -236,10 +236,16 @@ def draw(model):
 
     # ---- behind: far-side exhaust can, rear hugger, plate hanger
     ex = model["exhaust"]
-    for can in ex.get("cans", []):
+    def draw_can(can):
         sh.tube([tuple(can["a"]), tuple(can["b"])], can["w"], "exh")
         sh.tube([add(tuple(can["b"]), (-1, 0), 0), add(tuple(can["b"]), ((can["b"][0] - can["a"][0]), (can["b"][1] - can["a"][1])), 0.06)], can["w"] - 16, "dark")
-    for shp in body.get("behind", []):
+
+    for can in ex.get("cans", []):
+        if not can.get("front"):
+            draw_can(can)
+    # (the plate hanger is a part of its own, body["plate_hanger"]: road legal in most countries, but optional in a build)
+    hanger = body.get("plate_hanger", []) if model.get("fit", {}).get("plate_hanger", True) else []
+    for shp in body.get("behind", []) + hanger:
         sh.path(pts_of(shp), shp["cls"], True, shp.get("t", 1.0))
 
     # ---- wheels
@@ -339,6 +345,11 @@ def draw(model):
             sh.circ(tuple(shp["at"]), shp["circle"], shp["cls"])
         else:
             sh.path(shp["pts"], shp["cls"], shp.get("closed", True), shp.get("t", 0.8))
+
+    # ---- a silencer on the near (left) side sits in front of the swingarm and wheel
+    for can in ex.get("cans", []):
+        if can.get("front"):
+            draw_can(can)
 
     # ---- seat pan: a hidden base under the seat, behind the tail, so that a seat from another
     # brand never shows daylight over this bike's tail (docs/mounting_standard.md, joint rule 1)
