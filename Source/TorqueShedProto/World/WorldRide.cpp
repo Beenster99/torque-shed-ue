@@ -1258,9 +1258,32 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	const double Pi = 3.14159265358979323846;
 	// The tube's section at a row, from the road's left edge along the kerb to the wall's foot, up over
 	// the arch and down to the right foot and edge (AdventureTunnels.profile).
-	const auto Ring = [&Across, Pi](const Row& R)
+	// (build 141, beenster: a block of turf across the A30 at Trewint. An underpass is a short tunnel
+	// under another road with less than the tube's headroom: the tube is squashed to fit under that road,
+	// and the lid never rises above it; the cap is that road's tarmac less 0.35 m, or none)
+	NearOpts Over;
+	Over.NotRoad = Which;
+	Over.NoBores = true;
+	const auto CapOver = [this, &Over](const Row& R)
+	{
+		// (an underpass: within 25 m of a road 2 m or more above it. There the tube and its lid stay
+		// under the ground as it lies, and under that road's tarmac where it passes over)
+		NearHit Hit;
+		if (!NearestOf(R.At.X, R.At.Z, Over, Hit) || Hit.Dist > Hit.Half + 25.0 || Hit.Height < R.Height + 2.0) return 1e18;
+		const double G = GroundOf(R.At.X, R.At.Z, 0.0, true);
+		double Top = std::isnan(G) ? Hit.Height - 0.35 : G - 0.3;
+		if (Hit.Dist < Hit.Half + 8.0) Top = std::fmin(Top, Hit.Height - 0.35);
+		return Top;
+	};
+	const auto Squash = [&CapOver](const Row& R)
+	{
+		const double Cap = CapOver(R);
+		return Cap > 1e17 ? 1.0 : std::clamp((Cap - 0.25 - R.Height) / (TubeWall + TubeArch), 0.45, 1.0);
+	};
+	const auto Ring = [&Across, &Squash, Pi](const Row& R)
 	{
 		const double E = R.Half, W = E + TubeSide;
+		const double Sq = Squash(R);
 		const double EdgeL = R.Height + RoadLine::CrossHeight(E, R.Half, R.Bank), EdgeR = R.Height + RoadLine::CrossHeight(-E, R.Half, R.Bank);
 		std::vector<P3> Pts3;
 		Pts3.push_back(Across(R, E, EdgeL));
@@ -1268,7 +1291,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		for (int K = 0; K <= TubeArchSegs; ++K)
 		{
 			const double Th = Pi * K / TubeArchSegs;
-			Pts3.push_back(Across(R, W * std::cos(Th), R.Height + TubeWall + TubeArch * std::sin(Th)));
+			Pts3.push_back(Across(R, W * std::cos(Th), R.Height + (TubeWall + TubeArch * std::sin(Th)) * Sq));
 		}
 		Pts3.push_back(Across(R, -W, EdgeR - 0.1));
 		Pts3.push_back(Across(R, -E, EdgeR));
@@ -1276,22 +1299,25 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	};
 	// The hill's lid over it at a row: the ground as it would lie with no tunnel, from well out on the
 	// left to well out on the right, never lower than just over the arch; its rim tucked under the land.
-	const auto Lid = [this, &Across, Pi](const Row& R)
+	const auto Lid = [this, &Across, &Over, &CapOver, &Squash, Pi](const Row& R)
 	{
 		const double E = R.Half, W = E + TubeSide;
 		std::vector<P3> Pts3;
+		const double Cap = CapOver(R), Sq = Squash(R);
 		const auto Add = [&](double Off, double Least, double Tuck)
 		{
 			P3 Q = Across(R, Off, 0.0);
 			const double G = GroundOf(Q.X, Q.Z, 0.0, true);
-			Q.Y = std::fmax(std::isnan(G) ? R.Height + TubeWall + TubeArch + 3.0 : G, Least) - Tuck;
+			Q.Y = std::fmax(std::isnan(G) ? std::fmin(R.Height + TubeWall + TubeArch + 3.0, Cap) : G, std::fmin(Least, Cap)) - Tuck;
+			NearHit Hit;
+			if (NearestOf(Q.X, Q.Z, Over, Hit) && Hit.Dist < Hit.Half + 0.6 && Hit.Height > R.Height + 2.0) Q.Y = std::fmin(Q.Y, Hit.Height - 0.35);
 			Pts3.push_back(Q);
 		};
 		for (double Far : {LidReach, 16.0, 10.0, 4.0}) Add(E + Far, -1e18, Far == LidReach ? 0.4 : 0.0);
 		for (int K = 0; K <= TubeArchSegs; ++K)
 		{
 			const double Th = Pi * K / TubeArchSegs;
-			Add(W * std::cos(Th), R.Height + TubeWall + TubeArch * std::sin(Th) + 0.6, 0.0);
+			Add(W * std::cos(Th), R.Height + (TubeWall + TubeArch * std::sin(Th)) * Sq + 0.6, 0.0);
 		}
 		for (double Far : {4.0, 10.0, 16.0, LidReach}) Add(-E - Far, -1e18, Far == LidReach ? 0.4 : 0.0);
 		return Pts3;
@@ -1448,11 +1474,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				G.OriginX = Out.OriginX;
 				G.OriginZ = Out.OriginZ;
 				static constexpr float Warm[3] = {1.0f, 0.86f, 0.66f};
-				const double W = L.Half + TubeSide;
+				const double W = L.Half + TubeSide, LampSq = Squash(L);
 				for (double Th : {Pi * 0.36, Pi * 0.64})
 				{
 					// (just in from the arch, square to it)
-					const double Off = W * std::cos(Th) * 0.97, Y = L.Height + TubeWall + TubeArch * std::sin(Th) * 0.97;
+					const double Off = W * std::cos(Th) * 0.97, Y = L.Height + (TubeWall + TubeArch * std::sin(Th) * 0.97) * LampSq;
 					const P2 Mid = L.At + L.Left * Off;
 					const P2 Side = L.Left * (std::sin(Th) * 0.12);   // (the lamp's 0.25 m across, along the arch)
 					const double Rise = std::cos(Th) * 0.12;
@@ -1477,7 +1503,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				if (std::fmod(Mark + 1e-6, LightStep) < LampStep * 0.5)
 				{
 					Out.Lights.push_back(float(L.At.X - Out.OriginX));
-					Out.Lights.push_back(float(L.Height + TubeWall + TubeArch - 0.6));
+					Out.Lights.push_back(float(L.Height + (TubeWall + TubeArch) * LampSq - 0.6));
 					Out.Lights.push_back(float(L.At.Z - Out.OriginZ));
 				}
 			}

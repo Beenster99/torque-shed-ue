@@ -260,12 +260,69 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							Quad(Into, At3(Pa.X + Side.X * TopW, Ga + Hi, Pa.Z + Side.Z * TopW), At3(Pb.X + Side.X * TopW, Gb + Hi, Pb.Z + Side.Z * TopW),
 								At3(Pb.X - Side.X * TopW, Gb + Hi, Pb.Z - Side.Z * TopW), At3(Pa.X - Side.X * TopW, Ga + Hi, Pa.Z - Side.Z * TopW), Sky, Scanned ? Mask : Shade(Col, 1.12), false, Scanned ? 0.45f : -1.0f);
 						};
+						// (beenster, build 141: hedges "very low poly". On the finest squares a hedge is a lumpy,
+						// rounded mass: every metre or so its own height and width, a rounded top over sides that
+						// bulge, each facet its own shade of leaf; flat boxes only further out)
+						const auto Leafy = [&](double Lo, double High2, double HalfW)
+						{
+							const double Len2 = Pa.DistanceTo(Pb);
+							const int Cuts = std::max(1, int(std::ceil(Len2 / 1.1)));
+							// (the section: across (x of the half width) and up (of the height), foot to foot over the top)
+							static constexpr double Prof[7][2] = {{-1.0, 0.0}, {-1.12, 0.45}, {-0.82, 0.85}, {0.0, 1.0}, {0.82, 0.85}, {1.12, 0.45}, {1.0, 0.0}};
+							P3 Prev[7];
+							for (int Cut = 0; Cut <= Cuts; ++Cut)
+							{
+								const double T = double(Cut) / Cuts;
+								const P2 C = Pa + (Pb - Pa) * T;
+								const double Gc = Ga + (Gb - Ga) * T;
+								// (the lumps: keyed to the spot, so the next piece of the line meets this one)
+								const double Hh = High2 * (0.82 + 0.36 * Chance(std::round(C.X * 2.0), std::round(C.Z * 2.0), 41));
+								const double Ww = HalfW * (0.8 + 0.4 * Chance(std::round(C.X * 2.0), std::round(C.Z * 2.0), 42));
+								const double Lean = (Chance(std::round(C.X * 2.0), std::round(C.Z * 2.0), 43) - 0.5) * 0.3 * HalfW;
+								P3 Here[7];
+								for (int Pk = 0; Pk < 7; ++Pk)
+								{
+									const double Ac = Prof[Pk][0] * Ww + Prof[Pk][1] * Lean;
+									Here[Pk] = At3(C.X + Side.X * Ac, Gc + Lo + Prof[Pk][1] * Hh, C.Z + Side.Z * Ac);
+								}
+								if (Cut > 0)
+									for (int Pk = 0; Pk + 1 < 7; ++Pk)
+									{
+										const double Up = (Prof[Pk][1] + Prof[Pk + 1][1]) * 0.5;
+										const double Sgn = Prof[Pk][0] + Prof[Pk + 1][0] < 0.0 ? -1.0 : 1.0;
+										const P3 Toward = At3(C.X + Side.X * Sgn * 50.0, Gc + Lo + Hh * Up + (Up > 0.9 ? 50.0 : 0.0), C.Z + Side.Z * Sgn * 50.0);
+										const double Lit = (0.62 + 0.45 * Up) * (Sgn > 0.0 ? 1.0 : 0.9) * (0.8 + 0.4 * Chance(C.X + Pk, C.Z, 44));
+										const Rgb Leaf = Chance(C.X, C.Z + Pk, 45) < 0.18 ? Rgb{0.05f, 0.07f, 0.022f} : HedgeGreen;
+										Quad(Out, Prev[Pk], Here[Pk], Here[Pk + 1], Prev[Pk + 1], Toward, Shade(Leaf, Lit));
+									}
+								for (int Pk = 0; Pk < 7; ++Pk) Prev[Pk] = Here[Pk];
+							}
+						};
 						if (Bank)
 						{
-							// (a bank about 1.4 m, a metre wide at its top, and the hedge on it)
+							// (a bank about 1.4 m, a metre wide at its top, and the hedge on it; near the road its
+							// faces are stone under moss and turf, as a Cornish hedge's are)
 							const double BankHigh = 1.3 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 21);
-							Stretch(1.15, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
-							if (Fine) Stretch(0.5, 0.35, BankHigh - 0.1, BankHigh + 0.9 + 0.5 * Chance(Pa.X, Pa.Z, 23), Shade(HedgeGreen, 0.85 + 0.3 * Chance(Pa.X, Pa.Z, 24)), false);
+							if (Fine && Walls)
+							{
+								Rgb Faced = Mask;
+								Faced.G = 0.15f;
+								for (double Sg : {1.0, -1.0})
+								{
+									const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 1.0, Pm.Z + Side.Z * Sg * 50.0);
+									Quad(*Walls, At3(Pa.X + Side.X * Sg * 1.15, Ga - 0.4, Pa.Z + Side.Z * Sg * 1.15), At3(Pb.X + Side.X * Sg * 1.15, Gb - 0.4, Pb.Z + Side.Z * Sg * 1.15),
+										At3(Pb.X + Side.X * Sg * 0.55, Gb + BankHigh, Pb.Z + Side.Z * Sg * 0.55), At3(Pa.X + Side.X * Sg * 0.55, Ga + BankHigh, Pa.Z + Side.Z * Sg * 0.55), Far, Faced, false, 0.8f);
+								}
+								Quad(Out, At3(Pa.X + Side.X * 0.55, Ga + BankHigh, Pa.Z + Side.Z * 0.55), At3(Pb.X + Side.X * 0.55, Gb + BankHigh, Pb.Z + Side.Z * 0.55),
+									At3(Pb.X - Side.X * 0.55, Gb + BankHigh, Pb.Z - Side.Z * 0.55), At3(Pa.X - Side.X * 0.55, Ga + BankHigh, Pa.Z - Side.Z * 0.55), Sky, Turf);
+								Leafy(BankHigh - 0.1, 0.9 + 0.5 * Chance(F.Line[0].X, F.Line[0].Z, 23), 0.5);
+							}
+							else Stretch(1.15, 0.55, -0.4, BankHigh, Shade(Turf, 0.85 + 0.3 * Chance(F.Line[0].X, F.Line[0].Z, 22)), false);
+							continue;
+						}
+						if (Hedge && Fine)
+						{
+							Leafy(-0.3, High + 0.3, Foot);
 							continue;
 						}
 						Stretch(Foot, Top, -0.4, High, Colour, IsWall);

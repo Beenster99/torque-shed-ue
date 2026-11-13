@@ -293,6 +293,32 @@ int main(int Argc, char** Argv)
 		}
 		std::printf("The road's edges against the land's mesh: grass over the tarmac at %d of %d (%.3f m at most); over the shoulder's level part at %d; the shoulder's foot in the air at %d (%.3f m at most)\n", Over, Asked2, Worst, OverFlat, Air, WorstAir);
 	}
+	if (const char* LinesAt = std::getenv("WORLD_RIDE_LINES_AT"))
+	{
+		// The walls, hedges and fences mapped within 80 m of lat,lon, and the roads' points there.
+		double La = 0.0, Lo = 0.0;
+		std::sscanf(LinesAt, "%lf,%lf", &La, &Lo);
+		const Region& G = Plan->Area.Roads;
+		const P2 C = Frame(G.FrameLat, G.FrameLon).FromGeo(La, Lo);
+		for (const FeatureLine& F : G.Scenery.Lines)
+		{
+			bool Near = false;
+			for (const P2& Q : F.Line) Near = Near || Q.DistanceTo(C) < 80.0;
+			if (!Near) continue;
+			std::printf("  line %s:", F.Kind.c_str());
+			for (const P2& Q : F.Line) std::printf(" (%.1f %.1f)", Q.X - C.X, Q.Z - C.Z);
+			std::printf("\n");
+		}
+		int Shown = 0;
+		for (const FeatureLine& F : G.Scenery.Lines)
+		{
+			if (Shown >= 12 || (F.Kind != "hedge" && F.Kind != "wall")) continue;
+			for (const RoadPoint& P : Plan->Road)
+				if (P.At.DistanceTo(F.Line[0]) < 15.0) { std::printf("  %s near the ride at %.0f m\n", F.Kind.c_str(), P.Along); ++Shown; break; }
+		}
+		for (const RoadPoint& P : Plan->Road)
+			if (P.At.DistanceTo(C) < 80.0) std::printf("  ride road %.1f %.1f at %.0f h %.1f half %.1f%s%s\n", P.At.X - C.X, P.At.Z - C.Z, P.Along, P.Height, P.Half, P.Bridge ? " bridge" : "", P.Tunnel ? " tunnel" : "");
+	}
 	if (std::getenv("WORLD_RIDE_STATS") != nullptr)
 	{
 		// How much stands on the squares along the ride: the finest (256 m) and the middle (1 km) ones.

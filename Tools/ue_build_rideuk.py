@@ -90,8 +90,7 @@ def road_material_scanned(L, tex, roles):
     """Build 141 (beenster: "the road surface more like the Buttertubs demo"): M_RideRoad in Buttertubs'
     scanned tarmac (M_Road: the scan with its brown taken out to the Dales' light, cool grey, slow patches
     of older and newer tarmac, darker and glossy when wet). The road mesh's vertex colour still says what
-    each strip is (World/WorldRide's RoadPiece): only the tarmac's own dark grey (no channel above about
-    0.03) takes the scan; the paint, verge, kerbs, bridge stone and tunnel portals keep their colours."""
+    each strip is (World/WorldRide's RoadPiece): only the tarmac's own dark grey takes the scan; the paint, verge, kerbs, bridge stone and tunnel portals keep their colours."""
     g = L.Graph(L.new_material("M_RideRoad", MAT_DIR))
     road = g.layer(tex["asphalt"], roles["asphalt"]["tile_m"])
     flat = g.node(unreal.MaterialExpressionDesaturation, -600)
@@ -103,11 +102,14 @@ def road_material_scanned(L, tex, roles):
     # Patches of a fresher, darker surface dressing and paler, older tarmac, tens of metres long.
     patch = g.mask_noise(0.0012, -2.0, 3.0)
     road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.08), g.const(0.8), patch))
-    # Which strips are tarmac: the vertex colour's brightest channel at or under 0.03.
+    # Which strips are tarmac: the vertex colour within a hair of the tarmac's own (0.022, 0.022, 0.025),
+    # so nothing else drawn in this material (dark glass, black paint) takes the scan.
     vc = g.node(unreal.MaterialExpressionVertexColor)
-    hi = g.op(unreal.MaterialExpressionMax, g.op(unreal.MaterialExpressionMax, vc, vc, a_out="R", b_out="G"), vc, b_out="B")
+    d = g.node(unreal.MaterialExpressionDistance, -600)
+    g.link(vc, d, "A")
+    g.link(g.const((0.022, 0.022, 0.025)), d, "B")
     tar = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
-               g.op(unreal.MaterialExpressionSubtract, g.const(0.045), hi), const_b=66.0))   # 1 at 0.03 .. 0 at 0.045
+               g.op(unreal.MaterialExpressionSubtract, g.const(0.012), d), const_b=166.0))   # 1 within 0.006 .. 0 by 0.012 (8-bit vertex colours)
     own = [g.op(unreal.MaterialExpressionMultiply, vc, L.noise(g.m, 0.05, 0.8, 1.2, -1200, g.y + 200)),
            g.const((0.0, 0.0, 1.0)), g.const(0.8)]
     g.y += 140
