@@ -367,6 +367,13 @@ void UTorqueSfx::JobDone(const FTorqueShedRequest& R, int32 HeldBefore, const FV
 	case ETorqueShedAct::PaintTinTake: Said(TEXT("pickup"), PlayAt(TEXT("pickup"), At, -6.0f)); return;
 	case ETorqueShedAct::TyreFit: Said(TEXT("bead_pop"), PlayAt(TEXT("bead_pop"), At, -4.0f)); return;
 	case ETorqueShedAct::Fabricate: Said(TEXT("ting"), PlayAt(TEXT("ting"), At, -2.0f)); return;
+	// [fluids] The pump's nozzle lifted off its holster, or hung back on it with a clunk.
+	case ETorqueShedAct::PumpNozzle:
+	{
+		const TCHAR* Nozzle = R.Item != 0 ? TEXT("pickup") : TEXT("clunk");
+		Said(Nozzle, PlayAt(Nozzle, At, -5.0f));
+		return;
+	}
 	case ETorqueShedAct::ScrapBike:
 	{
 		// The bike going for scrap (shed_state remove_bike, recovery_view's "scrap"): at its bay, the
