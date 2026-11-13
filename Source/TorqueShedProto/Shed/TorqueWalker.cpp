@@ -448,6 +448,31 @@ void ATorqueWalker::UpdateAvatar(float Dt)
 		G.TriggerPull = WorkBlend;
 		G.bIndexTop = Grips[S].bIndexTop;
 	}
+	// Sat on a seat (beenster, build 141: "when I sit down I am looking through my clothes"): the body
+	// sat on it by its own hips, as on a bike, feet on the floor ahead and hands on the thighs, so the
+	// seated eye (SeatEye, 72 cm over the seat) is at its head, not inside its standing waist.
+	const FTorqueFurniture* SatOn = SeatId != 0 && B ? B->FurnitureById(SeatId) : nullptr;
+	if (SatOn)
+	{
+		const double X0 = bMine ? TWI::BodyBack : 0.0;   // the capsule's middle, in the avatar root's space
+		const double FloorZ = SatOn->Xf.GetLocation().Z - AvatarRoot->GetComponentLocation().Z;
+		FTorqueRideTargets T;
+		T.Seat = FVector(X0 - 4.0, 0.0, -2.0);   // the seat's top under the hips (the capsule sits 2 cm over it)
+		T.bSeat = true;
+		T.Hip = T.Seat + FVector(0.0, 0.0, 9.0);
+		T.Neck = T.Seat + FVector(-3.0, 0.0, 66.0);
+		T.Look = FRotator(FMath::Clamp((double)In.LookPitch, -45.0, 35.0), 0.0, 0.0).Quaternion();
+		for (int32 S = 0; S < 2; ++S)
+		{
+			const double Side = S == 0 ? -1.0 : 1.0;   // 0 left, 1 right (+y right)
+			T.Ankle[S] = FVector(X0 + 40.0, Side * 12.0, FloorZ + 9.0);
+			T.Wrist[S] = T.WristUnrolled[S] = T.Seat + FVector(30.0, Side * 15.0, 20.0);
+			T.Grip[S] = T.Seat + FVector(36.0, Side * 13.0, 17.0);
+			T.HandOff[S] = 1.0;   // resting on the thighs, not round a bar
+		}
+		Avatar->PoseRiding(T);
+		return;
+	}
 	Avatar->Pose(In, Dt);
 	// The tool follows the right hand when the arm couldn't reach where the view holds it.
 	FVector Reached;
