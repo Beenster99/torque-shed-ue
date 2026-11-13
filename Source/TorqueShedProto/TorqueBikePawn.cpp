@@ -887,8 +887,8 @@ FString ATorqueBikePawn::TestRideLog() const
 				TestGripThrottleHold >= 0.0 ? TestGripThrottleHold : Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
 				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
 			// Stopped on a tall bike: leant onto the left foot, the right kept on its peg.
-			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, leg %.1f cm, left hip joint %s, ground at z %.1f"),
-				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], Rp.LegReach, *Rp.HipJointAt[0].ToCompactString(), -Sim->Build.RearRadius * 100.0);
+			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, on the toes %.1f / %.1f cm, leg %.1f cm, left hip joint %s, ground at z %.1f"),
+				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], RiderToes[0], RiderToes[1], Rp.LegReach, *Rp.HipJointAt[0].ToCompactString(), -Sim->Build.RearRadius * 100.0);
 		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
@@ -3337,7 +3337,7 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 	// tank's knee pads, the balls of its feet on the pegs.
 	T.bOnLayout = bRiderOnLayout;
 	T.FeetDown = RiderFeetDown;
-	for (int32 S = 0; S < 2; ++S) T.KeepOnPeg[S] = RiderKeepOnPeg[S];
+	for (int32 S = 0; S < 2; ++S) { T.KeepOnPeg[S] = RiderKeepOnPeg[S]; T.Toes[S] = RiderToes[S]; }
 	T.bLaidBack = bRiderLaidBack;
 	if (bRiderOnLayout)
 	{
@@ -3622,29 +3622,40 @@ void ATorqueBikePawn::UpdateRider()
 			// z up from the ground sits (z - Ground) cos A + y sin A up, so the ankle's mark rises by that.)
 			const double Ground = -Sim->Build.RearRadius * 100.0;
 			const double AnkleUp = In.FootDownL.Z - Ground;
-			double LeanWant = 0.0;
-			if (In.FeetDown > 0.0 && RiderAvatar.IsValid() && RiderAvatar.RideReport.LegReach > 1.0 && !bThrown)
+			// [rider pose] Up on the toes first (the heel up to 7 cm off the road), then, if that's not
+			// enough, the bike leant over onto the left foot (Toes: how far each ankle rises for it).
+			constexpr double ToesMax = 7.0;
+			double LeanWant = 0.0, Toes[2] = {0.0, 0.0};
+			const double Reach = RiderAvatar.IsValid() ? RiderAvatar.RideReport.LegReach * 0.99 : 0.0;
+			// (How far an ankle's mark has to rise for the leg to reach it, the bike leant Deg; -1: too far.)
+			auto RiseFor = [&](const FVector& HipAt, const FVector& FootAt, double LeanAt) {
+				const double LeanR = FMath::DegreesToRadians(LeanAt);
+				const FVector Mark(FootAt.X, FootAt.Y, Ground + (AnkleUp - FootAt.Y * FMath::Sin(LeanR)) / FMath::Cos(LeanR));
+				for (double Up = 0.0; Up <= ToesMax; Up += 0.5)
+					if ((Mark + FVector(0.0, 0.0, Up) - HipAt).Size() <= Reach) return Up;
+				return -1.0;
+			};
+			if (In.FeetDown > 0.0 && Reach > 1.0 && !bThrown)
 			{
-				const FVector HipL = RiderAvatar.RideReport.HipJointAt[0];
-				const double Reach = RiderAvatar.RideReport.LegReach * 0.99;
+				const FVector HipL = RiderAvatar.RideReport.HipJointAt[0], HipR = RiderAvatar.RideReport.HipJointAt[1];
+				LeanWant = 20.0;
+				Toes[0] = ToesMax;
 				for (double Deg = 0.0; Deg <= 20.0; Deg += 0.25)
 				{
-					LeanWant = Deg;
-					const double Ar = FMath::DegreesToRadians(Deg);
-					const FVector Mark(In.FootDownL.X, In.FootDownL.Y, Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar));
-					if ((Mark - HipL).Size() <= Reach) break;
+					const double Rise = RiseFor(HipL, In.FootDownL, Deg);
+					if (Rise >= 0.0) { LeanWant = Deg; Toes[0] = Rise; break; }
 				}
+				// (Upright, the right foot down too, on its toes as far as it needs.)
+				if (LeanWant <= 0.0) Toes[1] = FMath::Max(RiseFor(HipR, In.FootDownR, 0.0), 0.0);
 			}
-			// (Within a few degrees of reaching, the rider stretches onto his toes and the bike stays upright:
-			// beenster, both feet down at a standstill, the bike vertical.)
-			if (LeanWant < 4.0) LeanWant = 0.0;
 			const double LeanTo = LeanWant * FMath::SmoothStep(0.0, 1.0, In.FeetDown);
 			StopLeanDeg = MoveToward(StopLeanDeg, LeanTo, 25.0 * (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0));
-			if (StopLeanDeg > 0.01)
 			{
 				const double Ar = FMath::DegreesToRadians(StopLeanDeg);
-				In.FootDownL.Z = Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar);
+				In.FootDownL.Z = Ground + (AnkleUp - In.FootDownL.Y * FMath::Sin(Ar)) / FMath::Cos(Ar) + Toes[0];
+				In.FootDownR.Z += Toes[1];
 			}
+			for (int32 S = 0; S < 2; ++S) RiderToes[S] = Toes[S] * In.FeetDown;
 			In.KeepOnPeg[1] = FMath::Clamp(StopLeanDeg / 2.0, 0.0, 1.0);
 		}
 		else StopLeanDeg = 0.0;

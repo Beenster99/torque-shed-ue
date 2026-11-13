@@ -550,6 +550,7 @@ private:
 	// onto the left foot about its tyres' contact line, deg (left side down), the right foot on its peg.
 	double StopLeanDeg = 0.0;
 	double RiderKeepOnPeg[2] = {0.0, 0.0};
+	double RiderToes[2] = {0.0, 0.0};   // [rider pose] how far each heel is up off the road at a stop (on the toes), cm
 	double RiderStyleBackDeg = -100.0;   // [rider pose] the style's back lean (FBikeFrame::BackDeg)
 	FVector RiderGrip[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	FVector RiderChest = FVector::ZeroVector;   // the top of the back's place against the Speed Twin's

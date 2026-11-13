@@ -1772,6 +1772,14 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 						A = FMath::Lerp(AnkleOnPeg, A, Down);
 						FootQ = FQuat::Slerp(OnPeg, FQuat::Identity, Down);
 					}
+					// [rider pose] Down at a stop on tiptoe (a tall saddle): the toes pointed down so the ball
+					// of the foot meets the road under an ankle Toes cm up.
+					if (bBall[S] && Down > 0.0 && Tg.Toes[S] > 0.1)
+					{
+						const double ToeLen = FMath::Max((BallRest[S] - A0).Size(), 5.0);
+						const double ToePr = FMath::Asin(FMath::Clamp(Tg.Toes[S] / ToeLen, 0.0, 0.8)) * Down;
+						FootQ = FQuat::FindBetweenVectors(Fwd, Fwd * FMath::Cos(ToePr) - Up * FMath::Sin(ToePr)) * FootQ;
+					}
 					// The knee on the circle the thigh and shin allow, as near as it comes to a nearly
 					// level thigh (12 degrees down from the hip joint, as people sit a bike: beenster), as
 					// far out as the bike's knee point (the tank's knee pads; without one, 6 cm out from

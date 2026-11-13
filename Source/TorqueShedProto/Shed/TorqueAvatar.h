@@ -79,6 +79,7 @@ struct FTorqueRideTargets
 	FVector Peg[2] = {FVector::ZeroVector, FVector::ZeroVector};
 	TArray<FVector2D> TankHalfW;
 	double FeetDown = 0.0;
+	double Toes[2] = {0.0, 0.0};               // [rider pose] down at a stop on tiptoe: how far the ankle's up for it, cm
 	double KeepOnPeg[2] = {0.0, 0.0};          // [rider pose] that foot stays on its peg while the other is down
 	bool bLaidBack = false;                  // feet forward (a cruiser's or chopper's): arms may reach further
 	double BackDeg = -100.0;                 // the style's back lean (FBikeFrame::BackDeg; < -90: none)
