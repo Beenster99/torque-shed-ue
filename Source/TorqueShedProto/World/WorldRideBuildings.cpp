@@ -10,6 +10,33 @@
 
 namespace TorqueWorld
 {
+namespace RideBuildingBits
+{
+// The height to the eaves of a building the map gives no height for. Most British houses are two
+// storeys (eaves about 5.3 m); a few are bungalows; a town's bigger houses three storeys. A small
+// footprint is an outbuilding of one storey; shops have a flat above; blocks three to five storeys.
+// (Build 141: the old guess took the roof out of 4-7 m, which left most houses one storey.)
+double GuessEaves(int Baked, bool Big, double HalfLong, double HalfShort, double X, double Z, bool InTown)
+{
+	const double Area = HalfLong * HalfShort * 4.0;
+	const double Roll = RideSceneBits::Chance(X, Z, 61), Jig = RideSceneBits::Chance(X, Z, 62) - 0.5;
+	if (Big) return 5.5 + 2.0 * Jig;
+	switch (Baked)
+	{
+	case 1: return 2.5 + 0.4 * Jig;                                        // shed
+	case 3: return (Roll < 0.2 && InTown ? 8.4 : 5.9) + 0.5 * Jig;         // shop, a flat above
+	case 4: return 2.9 * (3 + int(Roll * 3.0)) + 0.3 + 0.4 * Jig;          // flats
+	case 6: return 6.0 + 2.0 * Jig;                                        // worship
+	case 7: return (Roll < 0.4 ? 8.2 : 6.0) + 0.6 * Jig;                   // civic
+	default: break;
+	}
+	if (Area < 28.0) return 2.5 + 0.4 * Jig;                               // an outbuilding
+	if (Area > 55.0 && InTown && Roll > 0.86) return 8.0 + 0.5 * Jig;      // a town's tall house
+	if (Roll < (InTown ? 0.06 : 0.14)) return 2.7 + 0.3 * Jig;             // a bungalow
+	return 5.3 + 0.4 * Jig;                                                // two storeys
+}
+} // namespace RideBuildingBits
+
 void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally) const
 {
 	using namespace RideSceneBits;
@@ -133,8 +160,8 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				else if (RoofShape.empty() && IsCivic) Shape = ERoof::Hipped;
 				const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
 					: Big ? HalfShort * 0.35 : IsWorship ? std::fmin(HalfShort * 1.15, 6.5) : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
-				const double Whole = B.Height > 2.0 ? B.Height : (Big ? 6.5 : 4.0 + 3.0 * Chance(B.X, B.Z, 1));
-				const double Eaves = std::fmax(2.3, Whole - Rise);
+				const double Eaves = B.Height > 2.0 ? std::fmax(2.3, B.Height - Rise)
+					: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
 				const double Pick = Chance(B.X, B.Z, 2);
 				// (the walling: the map's material, else the local share of render, brick, else stone; a barn stays stone, or brick where brick is the rule)
 				const bool TaggedRender = WallMaterial == "plaster" || WallMaterial == "render" || WallMaterial == "stucco";
@@ -597,8 +624,8 @@ void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse
 				const int Baked = B.More.empty() ? 0 : std::clamp(int(B.More[0]), 0, 7);
 				const bool Big = HalfShort > 6.0 || Baked == 2 || Baked == 5;
 				const double Rise = Big ? HalfShort * 0.35 : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
-				const double Whole = B.Height > 2.0 ? B.Height : (Big ? 6.5 : 4.0 + 3.0 * Chance(B.X, B.Z, 1));
-				const double Eaves = std::fmax(2.3, Whole - Rise);
+				const double Eaves = B.Height > 2.0 ? std::fmax(2.3, B.Height - Rise)
+					: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
 				const double Pick = Chance(B.X, B.Z, 2);
 				const Rgb Wall = Pick < Look.RenderShare ? Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B}
 					: Pick < Look.RenderShare + Look.BrickShare ? Rgb{Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B}

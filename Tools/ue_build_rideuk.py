@@ -86,6 +86,39 @@ def road_material(L):
     return m
 
 
+def road_material_scanned(L, tex, roles):
+    """Build 141 (beenster: "the road surface more like the Buttertubs demo"): M_RideRoad in Buttertubs'
+    scanned tarmac (M_Road: the scan with its brown taken out to the Dales' light, cool grey, slow patches
+    of older and newer tarmac, darker and glossy when wet). The road mesh's vertex colour still says what
+    each strip is (World/WorldRide's RoadPiece): only the tarmac's own dark grey (no channel above about
+    0.03) takes the scan; the paint, verge, kerbs, bridge stone and tunnel portals keep their colours."""
+    g = L.Graph(L.new_material("M_RideRoad", MAT_DIR))
+    road = g.layer(tex["asphalt"], roles["asphalt"]["tile_m"])
+    flat = g.node(unreal.MaterialExpressionDesaturation, -600)
+    g.link(road[0], flat)
+    g.link(g.const(0.9), flat, "Fraction")
+    road[0] = g.op(unreal.MaterialExpressionMultiply, flat, g.const((0.96, 0.99, 1.06)))
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], L.noise(g.m, 0.002, 0.6, 0.95, -1200, g.y + 200))
+    g.y += 140
+    # Patches of a fresher, darker surface dressing and paler, older tarmac, tens of metres long.
+    patch = g.mask_noise(0.0012, -2.0, 3.0)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.08), g.const(0.8), patch))
+    # Which strips are tarmac: the vertex colour's brightest channel at or under 0.03.
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    hi = g.op(unreal.MaterialExpressionMax, g.op(unreal.MaterialExpressionMax, vc, vc, a_out="R", b_out="G"), vc, b_out="B")
+    tar = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+               g.op(unreal.MaterialExpressionSubtract, g.const(0.045), hi), const_b=66.0))   # 1 at 0.03 .. 0 at 0.045
+    own = [g.op(unreal.MaterialExpressionMultiply, vc, L.noise(g.m, 0.05, 0.8, 1.2, -1200, g.y + 200)),
+           g.const((0.0, 0.0, 1.0)), g.const(0.8)]
+    g.y += 140
+    road = g.mix(own, road, tar)
+    # Wet: the tarmac dark and glossy (as Buttertubs' road); dry keeps a floor so there's no white sheen.
+    wet = L.wetness(g)
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.const(0.5), tar), wet))
+    road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.const(0.12), wet))
+    return g.finish(road, specular=0.4)
+
+
 def lamp_material(L):
     """A tunnel lamp's glowing face (World/WorldRide's RoadPiece: RideMesh::Glow, its vertex colour the
     light's): unlit, bright enough to read as a lamp under Ride UK's daytime exposure and at night."""
@@ -292,7 +325,9 @@ def scanned_materials(L):
                            ("M_RideNight", lambda: night_material(L)),
                            # (OSM stage 3: roofs coursed by their roofing, and brick walls in bond)
                            ("M_RideRoof", lambda: roof_material(L)),
-                           ("M_RideBrick", lambda: brick_material(L))):
+                           ("M_RideBrick", lambda: brick_material(L)),
+                           # (build 141: the road in Buttertubs' scanned tarmac; the plain one stays without the scan)
+                           ("M_RideRoad", lambda: road_material_scanned(L, tex, roles) if "asphalt" in tex else None)):
             # (the level script's makers name their own material in its own folder: put it here, under our name)
             L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
             try:
