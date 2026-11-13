@@ -127,6 +127,11 @@ struct RideMesh
 	// dirt at the foot), null for none.
 	Tint StoneTint, MasonryTint;
 	std::shared_ptr<RideMesh> Render;
+	// [OSM stage 3] Pitched and flat roofs (M_RideRoof: the vertex colour the roof's colour, its alpha
+	// the roofing, 0 slate, 0.25 stone slates, 0.5 clay tiles, 0.75 thatch, 1 sheet or felt with no
+	// courses; UV0 metres along the eaves and up the slope) and brick walls (M_RideBrick: the vertex
+	// colour the brick's, its alpha dirt at the foot; UV0 metres along the wall and down it). Null for none.
+	std::shared_ptr<RideMesh> Roofing, Brickwork;
 	// With a square of ground: its water (Ride UK stage 5: the sea at its level, lakes and wide rivers
 	// as the land's cover has them, the map's rivers, streams and canals as ribbons), coloured, never
 	// collided with (M_RideWater). Null for none.
@@ -155,7 +160,7 @@ struct RideMesh
 		std::string Text;
 	};
 	std::vector<Label> Labels;
-	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Night && Night->Vertices() > 0); }
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Roofing && Roofing->Vertices() > 0) || (Brickwork && Brickwork->Vertices() > 0) || (Night && Night->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
 	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).
@@ -553,7 +558,7 @@ public:
 	{
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0;
 	};
-	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, BuildingTally* Tally = nullptr) const;
+	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn

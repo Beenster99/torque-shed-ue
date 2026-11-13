@@ -819,21 +819,31 @@ int main()
 						std::map<std::pair<int, int>, int> Squares;
 						for (const Building& Bd : Plan->Area.Roads.Buildings) ++Squares[{int(std::floor(Bd.X / 256.0)), int(std::floor(Bd.Z / 256.0))}];
 						RidePlan::BuildingTally Tally;
-						size_t MostTris = 0;
+						size_t MostTris = 0, RoofTris = 0, BrickTris = 0, RoofFaces = 0, LevelFaces = 0;
 						int Tiles = 0;
 						for (const auto& Sq : Squares)
 						{
 							const double Sx = Sq.first.first * 256.0, Sz = Sq.first.second * 256.0;
-							RideMesh Body, Wash, Homes;
-							Body.OriginX = Wash.OriginX = Homes.OriginX = Sx;
-							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Sz;
-							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, &Tally);
-							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size()) / 3);
+							RideMesh Body, Wash, Homes, Tops, Brick;
+							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
+							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
+							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Tally);
+							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size() + Tops.Idx.size() + Brick.Idx.size()) / 3);
+							RoofTris += Tops.Idx.size() / 3;
+							BrickTris += Brick.Idx.size() / 3;
+							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves)
+							for (size_t Vq = 0; Vq + 3 < Tops.Vertices(); Vq += 4)
+							{
+								++RoofFaces;
+								if (std::fabs(Tops.Uv[Vq * 2 + 1] - Tops.Uv[(Vq + 1) * 2 + 1]) < 0.01f && Tops.Alpha.size() == Tops.Vertices()) ++LevelFaces;
+							}
 							++Tiles;
 						}
 						std::printf("      buildings: %d drawn in %d squares; %d terraces (%d houses), %d chimneys, %d barns, %d ruins, %d within 20 m of a road; at most %zu triangles in a square\n",
 							Tally.Drawn, Tiles, Tally.Terraces, Tally.TerraceHouses, Tally.Chimneys, Tally.Barns, Tally.Ruins, Tally.NearRoad, MostTris);
+						std::printf("      roofs: %zu triangles in M_RideRoof (%zu of %zu faces' courses level), %zu of brick in M_RideBrick\n", RoofTris, LevelFaces, RoofFaces, BrickTris);
 						Check(Tally.Drawn > 0 && Tally.Terraces > 0 && Tally.Chimneys > Tally.Drawn / 4 && MostTris < 150000, "buildings by kind: terraces split into houses, chimneys up, no square too heavy");
+						Check(RoofTris > 0 && LevelFaces == RoofFaces, "roofs drawn for their own surface, the courses level along the eaves");
 					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.

@@ -10,7 +10,7 @@
 
 namespace TorqueWorld
 {
-void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, BuildingTally* Tally) const
+void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally) const
 {
 	using namespace RideSceneBits;
 	if (!Scene || !Land) return;
@@ -152,7 +152,8 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const auto WallQuad = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, double By)
 				{
 					if (Rendered) Quad(Washed, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.08f);
-					else if (Brick || Plain) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
+					else if (Brick) Quad(BrickOut, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By), false, 0.06f);
+					else if (Plain) Quad(Out, Q0, Q1, Q2, Q3, Toward, Shade(Wall, By));
 					else Quad(Houses, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
 				};
 				// (the roof: the map's material, else the local share of thatch, clay tiles or pantiles, stone slates, else slate)
@@ -171,6 +172,13 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				const Rgb RoofBase = HasRoofColour ? TaggedRoof : GlassRoof ? Glass : RoofMaterial == "copper" ? Verdigris : Sheet ? RoofSheet : Felt ? RoofFelt
 					: Thatch ? Straw : Tiled ? Tiles : Flags ? StoneSlate : Slate;
 				const Rgb Roof = Shade(RoofBase, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
+				// ([OSM stage 3] its roofing for M_RideRoof's courses: glass stays plain)
+				const float Roofing = HasRoofColour && !Tiled && !Thatch && !Flags && !Sheet && !Felt ? 0.0f : Sheet || Felt ? 1.0f : Thatch ? 0.75f : Tiled ? 0.5f : Flags ? 0.25f : 0.0f;
+				const auto RoofFace = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& C)
+				{
+					if (GlassRoof) Quad(Out, Q0, Q1, Q2, Q3, Toward, C);
+					else RoofQuad(RoofOut, Q0, Q1, Q2, Q3, Toward, C, Roofing);
+				};
 				const P3 Centre = Local(0.0, 0.0, Eaves * 0.5);
 				// (none of it over a road: the map's footprints and the road's own line don't always agree)
 				bool Clear = true;
@@ -232,24 +240,24 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					{
 						const P3 Peak = Local(Sg * HalfLong, 0.0, Top);
 						WallQuad(E3, E2, Peak, E3, Outside(E0, E2), 0.93);
-						Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, 0.0, Top),
+						RoofFace(Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, 0.0, Top),
 							Local(-HalfLong - Over, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
 						break;
 					}
 					case ERoof::Hipped:
 					{
 						// (a slope down each long side, and a hip down each end to the ridge's end)
-						Quad(Out, Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(Ridge, 0.0, Top),
+						RoofFace(Local(-HalfLong - Over, Sg * (HalfShort + Over), Low), Local(HalfLong + Over, Sg * (HalfShort + Over), Low), Local(Ridge, 0.0, Top),
 							Local(-Ridge, 0.0, Top), Sky, Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
 						const P3 H0 = Local(Sg * (HalfLong + Over), -(HalfShort + Over), Low), H1 = Local(Sg * (HalfLong + Over), HalfShort + Over, Low), Tip = Local(Sg * Ridge, 0.0, Top);
-						Quad(Out, H0, H1, Tip, H0, Sky, Shade(Roof, 0.94));
+						RoofFace(H0, H1, Tip, H0, Sky, Shade(Roof, 0.94));
 						break;
 					}
 					case ERoof::Flat:
 						// (one flat top, a hair over the walls, with a low parapet's coping round it on the finer squares)
 						if (Sg > 0.0)
 						{
-							Quad(Out, Local(-HalfLong, -HalfShort, Eaves + 0.02), Local(HalfLong, -HalfShort, Eaves + 0.02), Local(HalfLong, HalfShort, Eaves + 0.02),
+							RoofFace(Local(-HalfLong, -HalfShort, Eaves + 0.02), Local(HalfLong, -HalfShort, Eaves + 0.02), Local(HalfLong, HalfShort, Eaves + 0.02),
 								Local(-HalfLong, HalfShort, Eaves + 0.02), Sky, Roof);
 							if (Fine)
 								for (int K = 0; K < 4; ++K)
@@ -269,8 +277,8 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						const P3 Up = Local(Sg * HalfLong, -HalfShort, Top);
 						WallQuad(E3, E2, Up, E3, Outside(E0, E2), 0.93);
 						if (Sg > 0.0)
-							Quad(Out, Local(-HalfLong - Over, -(HalfShort + Over), Top + Drop), Local(HalfLong + Over, -(HalfShort + Over), Top + Drop),
-								Local(HalfLong + Over, HalfShort + Over, Low), Local(-HalfLong - Over, HalfShort + Over, Low), Sky, Roof);
+							RoofFace(Local(-HalfLong - Over, HalfShort + Over, Low), Local(HalfLong + Over, HalfShort + Over, Low),
+								Local(HalfLong + Over, -(HalfShort + Over), Top + Drop), Local(-HalfLong - Over, -(HalfShort + Over), Top + Drop), Sky, Roof);
 						break;
 					}
 					}

@@ -147,6 +147,9 @@ private:
 	// [stage 5] Rendered and limewashed walls (M_RideRender), and the stone tinted to each part of the
 	// country's own (an instance of M_RideStone or M_RideMasonry per tint, made the first time it's needed).
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RenderMaterial;
+	// [OSM stage 3] Roofs (M_RideRoof: slate, stone slate, tile, thatch or sheet by the vertex alpha) and brick walls (M_RideBrick).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> RoofMaterial;
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> BrickMaterial;
 	UPROPERTY(Transient) TMap<uint32, TObjectPtr<UMaterialInterface>> Tinted;
 	UMaterialInterface* TintedOf(UMaterialInterface* Base, uint32 Which, const TorqueWorld::Tint& By);
 	// The kit: the grass's species and the trees', and which of them each of the plan's kinds uses

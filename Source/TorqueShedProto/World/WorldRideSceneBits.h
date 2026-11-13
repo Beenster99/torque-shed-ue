@@ -127,6 +127,38 @@ inline void Quad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const 
 	if (Flip || BothSides) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
 }
 
+// [OSM stage 3] A roof's face for M_RideRoof: as Quad, its UVs metres along the eaves (Q0 to Q1) and
+// up the slope, so the courses run level along it; its alpha the roofing (see RideMesh::Roofing).
+inline void RoofQuad(RideMesh& Out, const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& Colour, float Kind)
+{
+	const double Ax = Q2.X - Q0.X, Ay = Q2.Y - Q0.Y, Az = Q2.Z - Q0.Z, Bx = Q3.X - Q1.X, By = Q3.Y - Q1.Y, Bz = Q3.Z - Q1.Z;
+	double Nx = Ay * Bz - Az * By, Ny = Az * Bx - Ax * Bz, Nz = Ax * By - Ay * Bx;
+	const double Len = std::sqrt(Nx * Nx + Ny * Ny + Nz * Nz);
+	if (Len < 1e-9) return;
+	const bool Flip = Nx * (Toward.X - Q0.X) + Ny * (Toward.Y - Q0.Y) + Nz * (Toward.Z - Q0.Z) < 0.0;
+	const double Sign = (Flip ? -1.0 : 1.0) / Len;
+	Nx *= Sign; Ny *= Sign; Nz *= Sign;
+	// (along the eaves, level; and up the slope, in the face at right angles to it)
+	double Tx = Q1.X - Q0.X, Tz = Q1.Z - Q0.Z;
+	const double Tl = std::hypot(Tx, Tz);
+	if (Tl < 1e-6) { Tx = 1.0; Tz = 0.0; } else { Tx /= Tl; Tz /= Tl; }
+	double Sx = Ny * Tz, Sy = Nz * Tx - Nx * Tz, Sz = -Ny * Tx;   // (N x T)
+	if (Sy < 0.0) { Sx = -Sx; Sy = -Sy; Sz = -Sz; }
+	const uint32_t V = uint32_t(Out.Vertices());
+	for (const P3* Q : {&Q0, &Q1, &Q2, &Q3})
+	{
+		const double Lx = Q->X - Out.OriginX, Lz = Q->Z - Out.OriginZ;
+		Out.Pos.push_back(float(Lx)); Out.Pos.push_back(float(Q->Y)); Out.Pos.push_back(float(Lz));
+		Out.Nrm.push_back(float(Nx)); Out.Nrm.push_back(float(Ny)); Out.Nrm.push_back(float(Nz));
+		Out.Uv.push_back(float(Lx * Tx + Lz * Tz)); Out.Uv.push_back(float(-(Lx * Sx + Q->Y * Sy + Lz * Sz)));
+		Out.Col.push_back(Colour.R); Out.Col.push_back(Colour.G); Out.Col.push_back(Colour.B);
+		Out.Alpha.push_back(Kind);
+	}
+	if (!Flip) Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
+	else Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
+}
+
+
 // A flat disc of a sign facing Face (level, unit), its middle at C.
 inline void Disc(RideMesh& Out, const P3& C, const P2& Face, double Radius, const Rgb& Colour, int Segments = 20)
 {

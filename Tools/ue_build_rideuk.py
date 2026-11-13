@@ -157,6 +157,103 @@ def water_material(L):
     return g.m
 
 
+def _coursed(g, L, u_m, v_m, stagger=0.5):
+    """Running courses on UV0 (metres): units u_m along, v_m up, every other course offset by
+    `stagger` of a unit. Returns (along-unit fraction, up-course fraction, the unit's own 0..1
+    variation from the noise texture or None)."""
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+    v = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(uv, v)
+    div = lambda a, b: g.op(unreal.MaterialExpressionDivide, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(unreal.MaterialExpressionDivide, a, b)
+    rows = div(v, v_m)
+    row = g.op(unreal.MaterialExpressionFloor, rows)
+    fv = g.op(unreal.MaterialExpressionFrac, rows)
+    units = g.op(unreal.MaterialExpressionAdd, div(u, u_m),
+                 g.op(unreal.MaterialExpressionMultiply, row, const_b=stagger))
+    fu = g.op(unreal.MaterialExpressionFrac, units)
+    var = None
+    nt = L.noise_texture()
+    if nt is not None:
+        # (one value per unit: the noise read at a point fixed by the unit's column and course)
+        cell = g.op(unreal.MaterialExpressionAppendVector,
+                    g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionFloor, units), const_b=0.1731),
+                    g.op(unreal.MaterialExpressionMultiply, row, const_b=0.2917))
+        var = g.sample(nt, cell, "linear")
+    return fu, fv, var
+
+
+def roof_material(L):
+    """[OSM stage 3] The streamed world's roofs (World/WorldRideBuildings: RideMesh::Roofing), drawn
+    without any texture: the vertex colour the roof's colour; the vertex alpha the roofing, 0 slate,
+    0.25 stone slates, 0.5 clay tiles (courses of those three, each slate or tile a little different,
+    a shadow under each course's edge), 0.75 thatch (streaks down the slope), 1 sheet or felt
+    (corrugations). UV0 is metres along the eaves and up the slope."""
+    g = L.Graph(L.new_material("M_RideRoof"))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    k = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.0, a_out="A")
+    sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+    # (course height: slate 0.23 m, stone slates 0.36, tiles 0.2; units 1.3 times as wide)
+    to_stone = sat(g.op(unreal.MaterialExpressionMultiply, k, const_b=4.0))
+    to_tile = sat(g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, k, const_b=0.25), const_b=4.0))
+    h = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, to_stone, const_b=0.13),
+             g.op(unreal.MaterialExpressionMultiply, to_tile, const_b=-0.16))
+    h = g.op(unreal.MaterialExpressionAdd, h, const_b=0.23)
+    w = g.op(unreal.MaterialExpressionMultiply, h, const_b=1.3)
+    fu, fv, var = _coursed(g, L, w, h)
+    edge = g.lerp(g.const(0.62), g.const(1.0), sat(g.op(unreal.MaterialExpressionDivide, fv, const_b=0.14)))
+    joint = g.op(unreal.MaterialExpressionMin, fu, g.op(unreal.MaterialExpressionOneMinus, fu))
+    joint = g.lerp(g.const(0.78), g.const(1.0), sat(g.op(unreal.MaterialExpressionDivide, joint, const_b=0.035)))
+    shade = g.op(unreal.MaterialExpressionMultiply, edge, joint)
+    if var is not None:
+        shade = g.op(unreal.MaterialExpressionMultiply, shade,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.3, a_out="R"), const_b=0.85))
+    # (courses on slate, stone slate and tile only; thatch streaked; sheet corrugated)
+    coursed = g.op(unreal.MaterialExpressionOneMinus, sat(g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, k, const_b=0.5), const_b=4.0)))
+    sheet = sat(g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, k, const_b=0.875), const_b=8.0))
+    thatch = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, coursed), g.op(unreal.MaterialExpressionOneMinus, sheet))
+    other = g.const(1.0)
+    nt = L.noise_texture()
+    if nt is not None:
+        streak = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=3.0, v_tiling=0.12), "linear")
+        streak = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, streak, const_b=0.35, a_out="R"), const_b=0.8)
+        other = g.lerp(other, streak, thatch)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+    wave = g.node(unreal.MaterialExpressionSine, period=0.076); g.link(u, wave)
+    wave = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, wave, const_b=0.12), const_b=0.92)
+    other = g.lerp(other, wave, sheet)
+    shade = g.lerp(other, shade, coursed)
+    col = g.op(unreal.MaterialExpressionMultiply, vc, shade)
+    col = L.far_dull(g, col)
+    rough = g.lerp(g.const(0.88), g.const(0.62), g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, to_stone), coursed))   # (slate the glossiest)
+    return g.finish([col, g.const((0.0, 0.0, 1.0)), rough], specular=0.4)
+
+
+def brick_material(L):
+    """[OSM stage 3] The streamed world's brick walls (RideMesh::Brickwork), without any texture:
+    the vertex colour the brick's, in stretcher bond (215 by 65 mm bricks, 10 mm joints), each
+    brick a little lighter or darker, pale mortar, dirt and green-brown splash at the foot from the
+    vertex alpha as M_RideRender has. UV0 is metres along the wall and down it."""
+    g = L.Graph(L.new_material("M_RideBrick"))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    col = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
+    fu, fv, var = _coursed(g, L, 0.225, 0.075)
+    sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+    if var is not None:
+        col = g.op(unreal.MaterialExpressionMultiply, col,
+                   g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.4, a_out="R"), const_b=0.8))
+    brick = g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, fu, const_b=0.045)),
+                 sat(g.op(unreal.MaterialExpressionDivide, fv, const_b=0.13)))
+    mortar = g.op(unreal.MaterialExpressionMultiply, vc, g.const((1.5, 1.6, 1.8)))
+    mortar = g.op(unreal.MaterialExpressionMin, mortar, g.const((0.42, 0.4, 0.36)))
+    col = g.lerp(mortar, col, brick)
+    dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
+    col = g.lerp(col, dirt, vc, alpha_out="A")
+    col = L.far_dull(g, col)
+    rough = g.lerp(g.const(0.95), g.const(0.85), brick)
+    return g.finish([col, g.const((0.0, 0.0, 1.0)), rough], specular=0.35)
+
+
 def scanned_materials(L):
     """The hand-built ride's own scanned looks, made again here under /Game/RideUK/Materials so the
     streamed world is drawn as Buttertubs is (Ride UK stage 3): M_RideLandScan (Buttertubs' M_Land:
@@ -177,7 +274,10 @@ def scanned_materials(L):
                            # (stage 5: the sea, lakes and rivers)
                            ("M_RideWater", lambda: water_material(L)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
-                           ("M_RideNight", lambda: night_material(L))):
+                           ("M_RideNight", lambda: night_material(L)),
+                           # (OSM stage 3: roofs coursed by their roofing, and brick walls in bond)
+                           ("M_RideRoof", lambda: roof_material(L)),
+                           ("M_RideBrick", lambda: brick_material(L))):
             # (the level script's makers name their own material in its own folder: put it here, under our name)
             L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
             try:

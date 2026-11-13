@@ -217,6 +217,14 @@ words (preferred), in a kit actor tagged RideProps; a kind with none keeps its c
 Each road's speed limit (mapped, or the UK's rule by class where not), its name and whether it is
 gravel come from the map too (OSM stage 1, `World/WorldRideFacts`): the HUD shows the limit and the
 road's name, and the route planner the county and what is on the way.
+Buildings (OSM stage 3, `World/WorldRideBuildings`) are drawn by kind: houses, barns with cart
+doors, sheds and garages, works with roller doors, chapels and churches with pointed windows, shops,
+blocks, civic buildings and ruins. A long house in a busy street is a terrace split into houses, its
+doors in pairs; doors face the nearer road; windows (sash, casement or mullioned), sills, lintels,
+chimneys and pots, the roof's pitch and overhang and the doors' colours follow the place's look
+(`World/WorldRideStyle`). Roofs are coursed in M_RideRoof (slate, stone slates, clay tiles, thatch or
+sheet, by the map or the look) and brick walls laid in bond in M_RideBrick, both made by
+`Tools/ue_build_rideuk.py` with no textures; without them they are drawn plain.
 Still to come: scanned materials and the satellite's tint, the grass carpet, scanned trees in the
 stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs

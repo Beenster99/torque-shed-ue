@@ -452,7 +452,9 @@ int main(int Argc, char** Argv)
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
 					const RideMesh* Washed = Extra ? Extra->Render.get() : nullptr;
 					const RideMesh* Wet = Land.Water.get();
-					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet})
+					const RideMesh* Tops = Extra ? Extra->Roofing.get() : nullptr;
+					const RideMesh* Brick = Extra ? Extra->Brickwork.get() : nullptr;
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet, Tops, Brick})
 					{
 						if (Mesh == nullptr) continue;
 						// (the stone's vertex colours are the scanned material's masks: shown as limestone of that brightness, a little lighter where lichened)

@@ -275,7 +275,10 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 		}
 
 	// Buildings (World/WorldRideBuildings.cpp: OSM stage 3).
-	BuildingsTile(X0, Z0, Size, Fine, Look, Out, *Washed, *Houses);
+	std::shared_ptr<RideMesh> Roofs = std::make_shared<RideMesh>(), Bricks = std::make_shared<RideMesh>();
+	Roofs->OriginX = Bricks->OriginX = X0;
+	Roofs->OriginZ = Bricks->OriginZ = Z0;
+	BuildingsTile(X0, Z0, Size, Fine, Look, Out, *Washed, *Houses, *Roofs, *Bricks);
 
 	// Trees, where the map's canopy says there are some: stand-in shapes on a scattered grid, as tall
 	// as the canopy, broadleaved (round) or needleleaved (pointed).
@@ -336,6 +339,8 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 	if (Walls->Vertices() > 0) Out.Stone = Walls;
 	if (Houses->Vertices() > 0) Out.Masonry = Houses;
 	if (Washed->Vertices() > 0) Out.Render = Washed;
+	if (Roofs->Vertices() > 0) Out.Roofing = Roofs;
+	if (Bricks->Vertices() > 0) Out.Brickwork = Bricks;
 }
 
 // --- The road's furniture (stage 5) -----------------------------------------------------------------

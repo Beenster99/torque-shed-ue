@@ -234,6 +234,8 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	RenderMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRender.M_RideRender"));
 	WaterMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideWater.M_RideWater"));
 	NightMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideNight.M_RideNight"));
+	RoofMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideRoof.M_RideRoof"));
+	BrickMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/RideUK/Materials/M_RideBrick.M_RideBrick"));
 	if (!LandMaterial || !RoadMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Torque ride world: no materials in /Game/RideUK/Materials (run Tools/ue_build_rideuk.py); the ground is drawn plain"));
@@ -245,6 +247,10 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	if (!RenderMaterial) RenderMaterial = RoadMaterial;
 	if (!WaterMaterial) WaterMaterial = RoadMaterial;
 	if (!NightMaterial) NightMaterial = RoadMaterial;   // (pale studs and glass, never lit)
+	// [OSM stage 3] (roofs and brick in their vertex colours, plain, until the materials are made)
+	UE_LOG(LogTemp, Display, TEXT("Torque ride world: roofs %s, brick %s"), RoofMaterial ? TEXT("coursed") : TEXT("plain"), BrickMaterial ? TEXT("coursed") : TEXT("plain"));
+	if (!RoofMaterial) RoofMaterial = RoadMaterial;
+	if (!BrickMaterial) BrickMaterial = RoadMaterial;
 	// (before any square is made: whether its trees come as real ones, and how much grass)
 	const bool bKit = FindKit();
 	// [OSM stage 2] Which kinds of prop come from models (before any square is made).
@@ -506,6 +512,8 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		Kinds.Emplace(Mesh.Extra->Stone.get(), TintedOf(StoneMaterial.Get(), 0, Mesh.Extra->StoneTint));
 		Kinds.Emplace(Mesh.Extra->Masonry.get(), TintedOf(MasonryMaterial.Get(), 1, Mesh.Extra->MasonryTint));
 		Kinds.Emplace(Mesh.Extra->Render.get(), RenderMaterial.Get());
+		Kinds.Emplace(Mesh.Extra->Roofing.get(), RoofMaterial.Get());
+		Kinds.Emplace(Mesh.Extra->Brickwork.get(), BrickMaterial.Get());
 		Kinds.Emplace(Mesh.Extra->Night.get(), NightMaterial.Get());
 		UProceduralMeshComponent* Stands = MakePart(Kinds, false, bAtOnce, Key.X == 0);
 		if (Stands) TileExtras.Add(Key, Stands);
