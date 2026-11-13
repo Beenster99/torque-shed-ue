@@ -79,6 +79,11 @@ int main(int Argc, char** Argv)
 		return 2;
 	}
 	const std::string Root = Argv[1];
+	{
+		// [towns stage 1] (the famous towns' looks, as the game sets them)
+		std::string TownText;
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+	}
 	// Hawes market place to Leyburn market place.
 	double At[4] = {54.3040, -2.1965, 54.3103, -1.8290};
 	for (int I = 0; I < 4 && Argc == 6; ++I) At[I] = std::atof(Argv[2 + I]);
@@ -452,7 +457,9 @@ int main(int Argc, char** Argv)
 					const RideMesh* Houses = Extra ? Extra->Masonry.get() : nullptr;
 					const RideMesh* Washed = Extra ? Extra->Render.get() : nullptr;
 					const RideMesh* Wet = Land.Water.get();
-					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet})
+					const RideMesh* Tops = Extra ? Extra->Roofing.get() : nullptr;
+					const RideMesh* Brick = Extra ? Extra->Brickwork.get() : nullptr;
+					for (const RideMesh* Mesh : {static_cast<const RideMesh*>(&Land), Extra, Walls, Houses, Washed, Wet, Tops, Brick})
 					{
 						if (Mesh == nullptr) continue;
 						// (the stone's vertex colours are the scanned material's masks: shown as limestone of that brightness, a little lighter where lichened)
@@ -480,6 +487,72 @@ int main(int Argc, char** Argv)
 				}
 		}
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
+	}
+	{
+		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and
+		// the share with a mapped class, roof shape, roof or wall material (matched by position, as
+		// BuildingsTile matches them).
+		static const char* Kinds[8] = {"house", "shed", "barn", "shop", "block", "industrial", "worship", "civic"};
+		const Region& G = Plan->Area.Roads;
+		int ByKind[9] = {}, Classed = 0, Shaped = 0, Material = 0;
+		std::map<std::string, int> Classes;
+		std::unordered_map<long long, std::vector<int>> LookAt;
+		const auto Key = [](double X, double Z) { return static_cast<long long>(std::floor(X / 64.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 64.0)); };
+		for (size_t L = 0; L < G.Scenery.Buildings.size(); ++L) LookAt[Key(G.Scenery.Buildings[L].At.X, G.Scenery.Buildings[L].At.Z)].push_back(int(L));
+		for (const Building& B : G.Buildings)
+		{
+			const int K = !B.More.empty() && B.More[0] >= 0 && B.More[0] < 8 ? int(B.More[0]) : 8;
+			++ByKind[K];
+			const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+			const BuildingLook* Tags = nullptr;
+			for (int Dz = -1; Dz <= 1 && !Tags; ++Dz)
+				for (int Dx = -1; Dx <= 1 && !Tags; ++Dx)
+				{
+					const auto It = LookAt.find(Key(B.X + Dx * 64.0, B.Z + Dz * 64.0));
+					if (It == LookAt.end()) continue;
+					for (int L : It->second)
+					{
+						const BuildingLook& Lo = G.Scenery.Buildings[size_t(L)];
+						const double Ddx = Lo.At.X - B.X, Ddz = Lo.At.Z - B.Z;
+						if (std::fabs(Ddx * Cs - Ddz * Sn) <= B.W * 0.5 + 0.5 && std::fabs(Ddx * Sn + Ddz * Cs) <= B.D * 0.5 + 0.5) { Tags = &Lo; break; }
+					}
+				}
+			if (!Tags) continue;
+			if (!Tags->Words[0].empty() && Tags->Words[0] != "yes") { ++Classed; ++Classes[Tags->Words[0]]; }
+			Shaped += Tags->Words[1].empty() ? 0 : 1;
+			Material += Tags->Words[3].empty() && Tags->Words[4].empty() ? 0 : 1;
+		}
+		const double All = std::max<size_t>(1, G.Buildings.size());
+		std::printf("Buildings: %zu (", G.Buildings.size());
+		for (int K = 0; K < 8; ++K) std::printf("%s%s %d", K ? ", " : "", Kinds[K], ByKind[K]);
+		std::printf("); mapped: class %.1f%%, roof shape %.1f%%, material %.1f%%\n", 100.0 * Classed / All, 100.0 * Shaped / All, 100.0 * Material / All);
+		std::vector<std::pair<int, std::string>> Top;
+		for (const auto& C : Classes) Top.emplace_back(-C.second, C.first);
+		std::sort(Top.begin(), Top.end());
+		std::printf("  mapped classes:");
+		for (size_t I = 0; I < Top.size() && I < 12; ++I) std::printf(" %s %d", Top[I].second.c_str(), -Top[I].first);
+		std::printf("\n");
+	}
+	{
+		// [towns stage 1] Which squares took a town's look, and from what.
+		std::map<std::string, int> From;
+		for (const auto& Sq : Plan->TownGrid) ++From[Plan->TownSources[size_t(Sq.second)]];
+		std::printf("Town looks: %zu km squares (%d counted from tags, %d of the table's towns):", Plan->TownGrid.size(), Plan->TownsCounted, Plan->TownsTabled);
+		for (const auto& F : From) std::printf(" %s x%d;", F.first.c_str(), F.second);
+		std::printf("\n");
+		for (size_t I = 0; I < Plan->TownLooks.size() && I < 6; ++I)
+		{
+			const LocalLook& L = Plan->TownLooks[I];
+			std::printf("  %s: brick %.2f render %.2f (stone the rest); tile %.2f stone slate %.2f thatch %.2f (slate the rest); brick colour %.3f %.3f %.3f\n", Plan->TownSources[I].c_str(),
+				double(L.BrickShare), double(L.RenderShare), double(L.TileShare), double(L.StoneSlateShare), double(L.ThatchShare), double(L.BrickColour.R), double(L.BrickColour.G), double(L.BrickColour.B));
+		}
+		// [towns stage 2] The towers.
+		int Tall = 0, Parts = 0;
+		for (const RidePlan::TowerShape& T : Plan->TowerShapes) { Tall += T.Top >= 40.0 ? 1 : 0; Parts += !T.Group.empty() && T.Group != T.Id ? 1 : 0; }
+		int Under = 0;
+		for (const Building& B : Plan->Area.Roads.Buildings) Under += Plan->UnderTower(B.X, B.Z) ? 1 : 0;
+		std::printf("Towers: %zu (%d 40 m or more, %d parts, %d outlines drawn as their parts, %d heights guessed); %d box buildings left to them\n", Plan->TowerShapes.size(), Tall, Parts,
+			Plan->TowersOutlines, Plan->TowersGuessed, Under);
 	}
 	{
 		// [OSM stage 1] The road's facts: the limit all along it, the stops, the place at the start.

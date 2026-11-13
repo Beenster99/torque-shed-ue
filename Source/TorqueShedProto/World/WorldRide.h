@@ -61,6 +61,21 @@ struct RoadPoint
 	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
 };
 
+// [OSM stage 2] One prop on a square of ground (World/WorldRideProps.cpp), for the game to draw with
+// a model from the prop kit (Data/RideUK/prop_kit.json; the RideUK level's kit actor tagged RideProps):
+// its kind (RidePlan::EProp), which of the kind's models (Variant, by the map's id), where its foot is
+// (about the square's origin, like the plants), which way its front (the model's +x) faces (radians:
+// along (cos, sin) with x east and z south), its scale, the map's own id, and whether the map put it
+// there (Mapped) or a rule did (a street lamp through a village).
+struct RideProp
+{
+	uint16_t Kind = 0;
+	uint8_t Variant = 0;
+	bool Mapped = true;
+	float X = 0.0f, Y = 0.0f, Z = 0.0f, Yaw = 0.0f, Scale = 1.0f;
+	uint32_t Id = 0;
+};
+
 // One plant or tree on a square of ground (WorldRidePlants.cpp), for the game to draw with the
 // hand-built ride's own meshes: Kind is RidePlan::PlantName's, the place is about the square's origin
 // like its mesh's points, Normal the ground's tilt (x, z; 0, 0 upright), Height a tree's in metres
@@ -112,6 +127,11 @@ struct RideMesh
 	// dirt at the foot), null for none.
 	Tint StoneTint, MasonryTint;
 	std::shared_ptr<RideMesh> Render;
+	// [OSM stage 3] Pitched and flat roofs (M_RideRoof: the vertex colour the roof's colour, its alpha
+	// the roofing, 0 slate, 0.25 stone slates, 0.5 clay tiles, 0.75 thatch, 1 sheet or felt with no
+	// courses; UV0 metres along the eaves and up the slope) and brick walls (M_RideBrick: the vertex
+	// colour the brick's, its alpha dirt at the foot; UV0 metres along the wall and down it). Null for none.
+	std::shared_ptr<RideMesh> Roofing, Brickwork;
 	// With a square of ground: its water (Ride UK stage 5: the sea at its level, lakes and wide rivers
 	// as the land's cover has them, the map's rivers, streams and canals as ribbons), coloured, never
 	// collided with (M_RideWater). Null for none.
@@ -140,17 +160,42 @@ struct RideMesh
 		std::string Text;
 	};
 	std::vector<Label> Labels;
-	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Night && Night->Vertices() > 0); }
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Roofing && Roofing->Vertices() > 0) || (Brickwork && Brickwork->Vertices() > 0) || (Night && Night->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
 	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).
 	std::vector<RideAnimal> Animals;
+	// [OSM stage 2] With a square of ground: its props (RidePlan::PropsTile), the kinds the kit has models for.
+	std::vector<RideProp> Props;
 	// With a piece of road: its lamps' glowing faces (in a tunnel), their colour the light's, or null;
 	// and where a real light goes for them, x y z each (in the piece's own origin), a few to a tunnel.
 	// With what stands on a fine square: its street lamps' lights, the same way (lit only after dark).
 	std::shared_ptr<RideMesh> Glow;
 	std::vector<float> Lights;
 };
+
+// [OSM stage 2] Plain shapes for what stands by the road and on the skyline, made in code into a
+// RideMesh (WorldRideSkyline.cpp): a point, a colour (linear), a quad (seen from both sides, or the side
+// its winding gives), a thin bar between two points, an upright round thing (tapered, Sides round, its
+// top a cone Cap high or flat), and an outline's inside and area.
+namespace RideShapes
+{
+struct V3
+{
+	double X = 0.0, Y = 0.0, Z = 0.0;
+};
+struct Paint
+{
+	float R = 0.0f, G = 0.0f, B = 0.0f;
+};
+V3 Pt(double X, double Y, double Z);
+void Vert(RideMesh& Out, const V3& Q, const V3& N, const Paint& C, double U, double V);
+void SkyQuad(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& Q3, const Paint& C, bool Both);
+void Strut(RideMesh& Out, const V3& A, const V3& B, double W, const Paint& C);
+void Column(RideMesh& Out, const V3& Base, double R0, double R1, double H, int Sides, const Paint& C, double Cap = 0.0);
+bool InRing(const std::vector<P2>& Ring, double X, double Z);
+double RingArea(const std::vector<P2>& Ring, P2& Mid);   // and its middle
+} // namespace RideShapes
 
 // [stage 8] A stretch of a ride where the map's data is thin: where it starts, and why.
 struct ThinSpot
@@ -387,7 +432,9 @@ public:
 	// Then a red phone box in the bigger villages, a pub's hanging sign by the road with its name, and a
 	// level crossing's barrier and lights on each road approach to a railway in use.
 	// (Limit30 is any limit's roundel, its number in Text: [OSM stage 1] 20, 30, 40, 50 mph, or km/h abroad)
-	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier, FurnishKinds };
+	// [OSM stage 2] stiles, kissing gates, lift barriers, bollards, picnic tables and information boards.
+	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier,
+		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, FurnishKinds };
 	struct Furnish
 	{
 		int Kind = 0;
@@ -395,9 +442,154 @@ public:
 		std::string Text;
 		double Size = 0.0;   // a grid's width, a gate's length, a chevron bend's turn (+ left)
 		double Height = 0.0; // the ground (or the road) under it
+		uint32_t Id = 0;     // [OSM stage 2] a hash of the map's own id (0 for one placed by rule): its variant
+		bool Mapped = true;  // the map put it there (not a rule)
 	};
 	std::vector<Furnish> Furniture;
 	int FurnitureCount(int Kind) const;
+	// [OSM stage 2] The prop layer (World/WorldRideProps.cpp). The kinds drawn from real models, each
+	// stage adding its own at the end (never reordered). A kind the kit has a model for comes as props
+	// (PropsTile) and FurnitureTile leaves its code-made shape out; one with none keeps that shape. The
+	// game says which it has (PropModelled) before any square is made.
+	enum EProp { PropPostBox, PropSeat, PropBusStop, PropMilestone, PropPhoneBox, PropPowerPole, PropFieldGate, PropStreetLamp, PropStile, PropKissingGate, PropLiftGate,
+		PropBollard, PropPicnicTable, PropInfoBoard, PropKinds };
+	static const char* PropName(int Kind);   // "post_box", "seat", ... (the kit file's and the models' names)
+	static int PropOf(int FurnishKind);      // the prop a kind of furniture is drawn as, -1 none (signs)
+	bool PropModelled[PropKinds] = {};
+	bool Modelled(int FurnishKind) const { const int P = PropOf(FurnishKind); return P >= 0 && PropModelled[P]; }
+	void PropsTile(double X0, double Z0, double Size, std::vector<RideProp>& Out) const;
+	// A row of Data/RideUK/prop_kit.json: the kind, the words in an asset's path that make it one of the
+	// kind's models, how far off it shows (m), its height in life (m: the model is scaled to it), a turn
+	// (degrees) and a drop (m) to put the model's front to +x and its foot on the ground, whether it casts
+	// a shadow, and the credit its licence asks for.
+	struct PropKitRow
+	{
+		std::string Kind;
+		std::vector<std::string> Words;
+		double Reach = 300.0, Height = 1.0, Turn = 0.0, Drop = 0.0;
+		bool Shadow = false;
+		std::string Credit;
+	};
+	static bool ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out);
+	// [OSM stage 2 batch B] The power and the skyline (World/WorldRideSkyline.cpp): the wires between
+	// telegraph poles (the map's minor lines, or a pole joined to its neighbours within 90 m) and
+	// between pylons (its power lines), the pylons, masts, wind turbines, silos, water towers and tanks
+	// (Talls), and substations and solar farms (Yards). Made once by IndexSkyline (after IndexFurniture:
+	// it turns each pole's arm square to its wire, and puts up a pole where a line has none). A wire is
+	// from A (Ya over the ground's level, the attachment's height) to B, sagging Sag in its middle, in
+	// Strands across Spread; one too long, or lower than 5 m over a road, is left out and counted.
+	struct Wire
+	{
+		P2 A, B;
+		double Ya = 0.0, Yb = 0.0, Sag = 0.0, Spread = 0.0;
+		int Strands = 2;
+		bool High = false;   // a power line's (pylons'), or a telegraph pole's
+	};
+	enum ETall { TallMast, TallMonopole, TallTurbine, TallSilo, TallWaterTower, TallTank, TallPylon, TallKiosk, TallKinds };
+	struct TallThing
+	{
+		int Kind = 0;
+		P2 At, Face;            // Face: a pylon's line, a turbine's rotor's way
+		double Ground = 0.0, Height = 0.0, Radius = 0.0;
+		uint32_t Id = 0;
+	};
+	struct Yard
+	{
+		bool Solar = false;     // a solar farm (or a substation)
+		std::vector<P2> Ring;
+		P2 Mid;
+		double Radius = 0.0;    // from Mid to its farthest corner
+		uint32_t Id = 0;
+	};
+	std::vector<Wire> Wires;
+	std::vector<TallThing> Talls;
+	std::vector<Yard> Yards;
+	int WiresDropped = 0;
+	void IndexSkyline();
+	// What of it stands on a square: Detail 2 (the finest squares) all of it with the wires, 1 all but
+	// the wires, 0 (to 10 km) the tall ones as plain far shapes, -1 (beyond) only the turbines.
+	void SkylineTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [OSM stage 2 batch C] Field areas (World/WorldRideFields.cpp): quarries (bare rock, worked faces
+	// along their edges), graveyards and cemeteries (mown grass, headstones in loose rows facing east,
+	// none in a building), allotments (plots of dug earth and green, a shed on some) and orchards (fruit
+	// trees in rows: PlantsTile). Each colours the ground inside its outline (LandColour: FieldTint)
+	// and stands its things on it (FieldsTile: Detail as SkylineTile's, the small things only at 2).
+	// [OSM stage 2 batch D] and scree (grey stones, a scatter of them near) and reservoirs (flat water at
+	// their level, drawn with the water: WaterTile).
+	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldScree, FieldReservoir, FieldKinds };
+	struct FieldArea
+	{
+		int Kind = 0;
+		std::vector<P2> Ring;
+		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
+		double Level = 0.0;   // a reservoir's water
+		uint32_t Id = 0;
+	};
+	std::vector<FieldArea> FieldAreas;
+	void IndexFields();
+	int FieldAt(double X, double Z) const;   // the field area here (FieldAreas), -1 none
+	void FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const;
+	bool FieldTint(double X, double Z, float* Rgb) const;   // the ground's colour in a field area, false outside one
+	void FieldsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [OSM stage 2 batch D] Wild ground and water works (World/WorldRideWild.cpp): the map's cliffs as
+	// rock faces along their lines (the low side to the right of the way the line runs, as the map draws
+	// them), a cairn or a trig pillar on each mapped peak, dams as walls across their valleys and weirs
+	// as steps across their rivers. Detail as SkylineTile's: the cliffs and dams far off too (they shape
+	// the skyline), the peaks' markers and the weirs near.
+	struct WildLine
+	{
+		int Kind = 0;   // 0 a cliff, 1 a dam, 2 a weir
+		std::vector<P2> Line;
+		uint32_t Id = 0;
+	};
+	struct Summit
+	{
+		P2 At;
+		std::string Name;
+		double Elevation = 0.0;
+		bool Trig = false;   // a trig pillar (or a cairn)
+	};
+	std::vector<WildLine> WildLines;
+	std::vector<Summit> Summits;
+	void IndexWild();
+	// [towns stage 1] The look of each town (World/WorldRideTowns.cpp): by the kilometre square, a look
+	// counted from the tagged walls and roofs round it, or a town's from Data/RideUK/town_looks.json
+	// (SetTownTable), over the region's. LookHere gives it; null where a square has none.
+	static constexpr double TownCell = 1000.0;
+	std::unordered_map<long long, int> TownGrid;
+	std::vector<LocalLook> TownLooks;
+	std::vector<std::string> TownSources;   // each look's: "tags N" (counted from N) or the table's town
+	int TownsCounted = 0, TownsTabled = 0;  // squares counted; the table's towns met
+	void IndexTowns();
+	const LocalLook* TownLookAt(double X, double Z) const;
+	// [towns stage 2] The large and tall buildings at their true outlines and heights (World/
+	// WorldRideTowers.cpp): the baker's "towers" (and a tall building's parts), simplified to 16
+	// corners or fewer, each on its building's lowest ground.
+	struct TowerShape
+	{
+		std::vector<P2> Ring;
+		P2 Mid;
+		double Floor = 0.0;                 // its area (m2)
+		double Base = 0.0, Top = 0.0;       // above its ground (a part may start up in the air)
+		double Ground = 0.0;
+		std::string Name, Id, Group, Class, RoofShape, RoofColour, RoofMaterial, WallMaterial, WallColour;
+		bool Guessed = false;               // no height mapped: one from its class and size
+		bool Outline = false;               // drawn as its parts instead
+	};
+	std::vector<TowerShape> TowerShapes;
+	int TowersGuessed = 0, TowersOutlines = 0;
+	void IndexTowers();
+	// Detail 2 near (windows, parapets, lit windows at night), 1 plain, 0 far (40 m and over), -1 (80 m and over).
+	void TowersTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// Whether a point is inside a tower that stands on the ground (a box building there is not drawn).
+	bool UnderTower(double X, double Z) const;
+	void WildTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [OSM stage 3] What a square's buildings came to (for the tests and the report).
+	struct BuildingTally
+	{
+		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
+	};
+	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
@@ -586,6 +778,12 @@ private:
 		std::unordered_map<long long, std::vector<int>> Looks;       // into Region::Scenery.Buildings (the map's tags)
 		std::unordered_map<long long, std::vector<int>> Furniture;   // into RidePlan::Furniture
 		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
+		std::unordered_map<long long, std::vector<double>> GapWidths;   // [OSM stage 2] each one's width, as Gaps
+		std::unordered_map<long long, std::vector<int>> Wires, Talls, Yards;   // [OSM stage 2 batch B] by the square their middle is in
+		std::unordered_map<long long, std::vector<int>> Fields;   // [OSM stage 2 batch C] by every 64 m square each field area's box covers
+		std::unordered_map<long long, std::vector<std::pair<int, int>>> Wild;   // [OSM stage 2 batch D] (line, first point) by the square its middle is in
+		std::unordered_map<long long, std::vector<int>> Summits;
+		std::unordered_map<long long, std::vector<int>> Towers;   // [towns stage 2] by every 256 m square each tower's box covers
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
 		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
 		// RailCell square within 40 m of them (for NearRail).
@@ -599,6 +797,9 @@ private:
 	void IndexFurniture();
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;
+	// [OSM stage 2] A bit of a wall, hedge or fence from A to B less the gateways in it: its pieces
+	// (Out, each from and to), 0, 1 or 2 of them.
+	int CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const;
 	std::shared_ptr<SceneIndex> Scene;
 	void IndexScenery();
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square

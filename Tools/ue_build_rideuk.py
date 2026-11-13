@@ -157,6 +157,103 @@ def water_material(L):
     return g.m
 
 
+def _coursed(g, L, u_m, v_m, stagger=0.5):
+    """Running courses on UV0 (metres): units u_m along, v_m up, every other course offset by
+    `stagger` of a unit. Returns (along-unit fraction, up-course fraction, the unit's own 0..1
+    variation from the noise texture or None)."""
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+    v = g.node(unreal.MaterialExpressionComponentMask, r=False, g=True, b=False, a=False); g.link(uv, v)
+    div = lambda a, b: g.op(unreal.MaterialExpressionDivide, a, const_b=float(b)) if isinstance(b, (int, float)) else g.op(unreal.MaterialExpressionDivide, a, b)
+    rows = div(v, v_m)
+    row = g.op(unreal.MaterialExpressionFloor, rows)
+    fv = g.op(unreal.MaterialExpressionFrac, rows)
+    units = g.op(unreal.MaterialExpressionAdd, div(u, u_m),
+                 g.op(unreal.MaterialExpressionMultiply, row, const_b=stagger))
+    fu = g.op(unreal.MaterialExpressionFrac, units)
+    var = None
+    nt = L.noise_texture()
+    if nt is not None:
+        # (one value per unit: the noise read at a point fixed by the unit's column and course)
+        cell = g.op(unreal.MaterialExpressionAppendVector,
+                    g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionFloor, units), const_b=0.1731),
+                    g.op(unreal.MaterialExpressionMultiply, row, const_b=0.2917))
+        var = g.sample(nt, cell, "linear")
+    return fu, fv, var
+
+
+def roof_material(L):
+    """[OSM stage 3] The streamed world's roofs (World/WorldRideBuildings: RideMesh::Roofing), drawn
+    without any texture: the vertex colour the roof's colour; the vertex alpha the roofing, 0 slate,
+    0.25 stone slates, 0.5 clay tiles (courses of those three, each slate or tile a little different,
+    a shadow under each course's edge), 0.75 thatch (streaks down the slope), 1 sheet or felt
+    (corrugations). UV0 is metres along the eaves and up the slope."""
+    g = L.Graph(L.new_material("M_RideRoof"))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    k = g.op(unreal.MaterialExpressionMultiply, vc, const_b=1.0, a_out="A")
+    sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+    # (course height: slate 0.23 m, stone slates 0.36, tiles 0.2; units 1.3 times as wide)
+    to_stone = sat(g.op(unreal.MaterialExpressionMultiply, k, const_b=4.0))
+    to_tile = sat(g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, k, const_b=0.25), const_b=4.0))
+    h = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, to_stone, const_b=0.13),
+             g.op(unreal.MaterialExpressionMultiply, to_tile, const_b=-0.16))
+    h = g.op(unreal.MaterialExpressionAdd, h, const_b=0.23)
+    w = g.op(unreal.MaterialExpressionMultiply, h, const_b=1.3)
+    fu, fv, var = _coursed(g, L, w, h)
+    edge = g.lerp(g.const(0.62), g.const(1.0), sat(g.op(unreal.MaterialExpressionDivide, fv, const_b=0.14)))
+    joint = g.op(unreal.MaterialExpressionMin, fu, g.op(unreal.MaterialExpressionOneMinus, fu))
+    joint = g.lerp(g.const(0.78), g.const(1.0), sat(g.op(unreal.MaterialExpressionDivide, joint, const_b=0.035)))
+    shade = g.op(unreal.MaterialExpressionMultiply, edge, joint)
+    if var is not None:
+        shade = g.op(unreal.MaterialExpressionMultiply, shade,
+                     g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.3, a_out="R"), const_b=0.85))
+    # (courses on slate, stone slate and tile only; thatch streaked; sheet corrugated)
+    coursed = g.op(unreal.MaterialExpressionOneMinus, sat(g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, k, const_b=0.5), const_b=4.0)))
+    sheet = sat(g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, k, const_b=0.875), const_b=8.0))
+    thatch = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, coursed), g.op(unreal.MaterialExpressionOneMinus, sheet))
+    other = g.const(1.0)
+    nt = L.noise_texture()
+    if nt is not None:
+        streak = g.sample(nt, g.node(unreal.MaterialExpressionTextureCoordinate, u_tiling=3.0, v_tiling=0.12), "linear")
+        streak = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, streak, const_b=0.35, a_out="R"), const_b=0.8)
+        other = g.lerp(other, streak, thatch)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    u = g.node(unreal.MaterialExpressionComponentMask, r=True, g=False, b=False, a=False); g.link(uv, u)
+    wave = g.node(unreal.MaterialExpressionSine, period=0.076); g.link(u, wave)
+    wave = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, wave, const_b=0.12), const_b=0.92)
+    other = g.lerp(other, wave, sheet)
+    shade = g.lerp(other, shade, coursed)
+    col = g.op(unreal.MaterialExpressionMultiply, vc, shade)
+    col = L.far_dull(g, col)
+    rough = g.lerp(g.const(0.88), g.const(0.62), g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionOneMinus, to_stone), coursed))   # (slate the glossiest)
+    return g.finish([col, g.const((0.0, 0.0, 1.0)), rough], specular=0.4)
+
+
+def brick_material(L):
+    """[OSM stage 3] The streamed world's brick walls (RideMesh::Brickwork), without any texture:
+    the vertex colour the brick's, in stretcher bond (215 by 65 mm bricks, 10 mm joints), each
+    brick a little lighter or darker, pale mortar, dirt and green-brown splash at the foot from the
+    vertex alpha as M_RideRender has. UV0 is metres along the wall and down it."""
+    g = L.Graph(L.new_material("M_RideBrick"))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    col = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0))
+    fu, fv, var = _coursed(g, L, 0.225, 0.075)
+    sat = lambda e: g.op(unreal.MaterialExpressionSaturate, e)
+    if var is not None:
+        col = g.op(unreal.MaterialExpressionMultiply, col,
+                   g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, var, const_b=0.4, a_out="R"), const_b=0.8))
+    brick = g.op(unreal.MaterialExpressionMultiply, sat(g.op(unreal.MaterialExpressionDivide, fu, const_b=0.045)),
+                 sat(g.op(unreal.MaterialExpressionDivide, fv, const_b=0.13)))
+    mortar = g.op(unreal.MaterialExpressionMultiply, vc, g.const((1.5, 1.6, 1.8)))
+    mortar = g.op(unreal.MaterialExpressionMin, mortar, g.const((0.42, 0.4, 0.36)))
+    col = g.lerp(mortar, col, brick)
+    dirt = g.op(unreal.MaterialExpressionMultiply, col, g.const((0.42, 0.42, 0.33)))
+    col = g.lerp(col, dirt, vc, alpha_out="A")
+    col = L.far_dull(g, col)
+    rough = g.lerp(g.const(0.95), g.const(0.85), brick)
+    return g.finish([col, g.const((0.0, 0.0, 1.0)), rough], specular=0.35)
+
+
 def scanned_materials(L):
     """The hand-built ride's own scanned looks, made again here under /Game/RideUK/Materials so the
     streamed world is drawn as Buttertubs is (Ride UK stage 3): M_RideLandScan (Buttertubs' M_Land:
@@ -177,7 +274,10 @@ def scanned_materials(L):
                            # (stage 5: the sea, lakes and rivers)
                            ("M_RideWater", lambda: water_material(L)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
-                           ("M_RideNight", lambda: night_material(L))):
+                           ("M_RideNight", lambda: night_material(L)),
+                           # (OSM stage 3: roofs coursed by their roofing, and brick walls in bond)
+                           ("M_RideRoof", lambda: roof_material(L)),
+                           ("M_RideBrick", lambda: brick_material(L))):
             # (the level script's makers name their own material in its own folder: put it here, under our name)
             L.new_material = lambda name, folder=None, _want=want: original(_want, MAT_DIR)
             try:
@@ -404,6 +504,107 @@ def animal_kit(L):
     return "RideAnimals: %d models" % len(species)
 
 
+PROP_DEST = "/Game/RideUK/Props"
+
+
+def prop_kit(L):
+    """The things by the road (OSM stage 2): Data/RideUK/Props/*.glb (Tools/make_ride_props.py)
+    imported to /Game/RideUK/Props, no collision, and any static mesh under /Game whose path holds one
+    of a kind's words in Data/RideUK/prop_kit.json (Fab models imported on the PC; a scan of a real,
+    named place only when the file's use_real_scans is true), which take that kind's place. All listed
+    in a TorqueFoliage actor tagged RideProps that plants nothing itself, each as a species named
+    SM_Prop_<kind>_<n>; World/TorqueRideWorld puts them by the road as it goes, each kind scaled to its
+    height in life. Returns a short note for the log."""
+    if not hasattr(unreal, "TorqueFoliage"):
+        return "no props (TorqueFoliage isn't built)"
+    ride = os.path.join(os.path.dirname(L.data_dir()), "RideUK")
+    spec_file = os.path.join(ride, "prop_kit.json")
+    if not os.path.exists(spec_file):
+        return "no props (Data/RideUK/prop_kit.json is missing)"
+    spec = json.load(open(spec_file))
+    norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
+    skip = [norm(w) for w in spec.get("skip", [])]
+    most = int(spec.get("most", 4))
+    real = bool(spec.get("use_real_scans", False))
+    # Ours, made by Tools/make_ride_props.py.
+    folder = os.path.join(ride, "Props")
+    ours = {}
+    if os.path.isdir(folder) and any(f.endswith(".glb") for f in os.listdir(folder)):
+        ours = L.import_glbs(folder, PROP_DEST)
+        sme = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+        for mesh in ours.values():
+            try:
+                sme.remove_collisions(mesh)
+            except Exception:
+                pass
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    # Others' (Fab), by the kit's words.
+    meshes = []
+    for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
+        if str(a.asset_class_path.asset_name) != "StaticMesh":
+            continue
+        pkg = str(a.package_name)
+        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+            continue
+        meshes.append((norm(pkg), "%s.%s" % (pkg, a.asset_name)))
+    found = {}
+    for kind, row in spec["kinds"].items():
+        keys = [norm(w) for w in row.get("words", []) + (row.get("real_words", []) if real else []) if norm(w)]
+        got = sorted(p for n, p in meshes if any(k in n for k in keys) and not any(w in n for w in skip))[:most] if keys else []
+        if got:
+            found[kind] = got
+    original = L.new_material
+    try:
+        L.new_material = lambda name, folder=None: original(name, MAT_DIR)
+        paint = L.flat_material("M_RideProp", 0.7, fine=0.25)
+    finally:
+        L.new_material = original
+    frame = (0.0, 1.0, 1.0)
+    if ours:
+        first = sorted(ours)[0]
+        frame = L.find_frame(ours[first], os.path.join(folder, first + ".glb"))
+    species = []
+
+    def add(name, mesh, native, row):
+        e = unreal.TorqueFoliageSpecies()
+        e.set_editor_property("name", name)
+        e.set_editor_property("mesh", mesh)
+        if not native:
+            e.set_editor_property("material", paint)
+        for k, v in (("cast_shadow", bool(row.get("shadow", False))), ("scale_multiplier", 1.0),
+                     ("cull_distance", float(row.get("reach", 400)) * 100.0), ("native_mesh", native)):
+            try:
+                e.set_editor_property(k, v)
+            except Exception:
+                pass
+        species.append(e)
+
+    for kind, row in spec["kinds"].items():
+        if kind in found:
+            for n, p in enumerate(found[kind]):
+                m = unreal.load_asset(p)
+                if m:
+                    add("SM_Prop_%s_fab%d" % (kind, n), m, True, row)
+        else:
+            for name, mesh in sorted(ours.items()):
+                if name.startswith("SM_Prop_%s_" % kind):
+                    add(name, mesh, False, row)
+    a = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(unreal.TorqueFoliage, unreal.Vector(0, 0, 0))
+    a.set_actor_label("RideProps")
+    a.set_editor_property("tags", [unreal.Name("RideProps")])
+    a.set_editor_property("instances_file", "")
+    a.set_editor_property("density", 0.0)
+    a.set_editor_property("species", species)
+    a.set_editor_property("frame_yaw", float(frame[0]))
+    a.set_editor_property("frame_mirror", float(frame[1]))
+    a.set_editor_property("frame_scale", float(frame[2]))
+    kinds = {str(e.get_editor_property("name")).rsplit("_", 1)[0][len("SM_Prop_"):] for e in species}
+    none = [k for k in spec["kinds"] if k not in kinds]
+    return "RideProps: %d models (%s from Fab: %s), %d kinds with none (code-made): %s" % (
+        len(species), len(found), ", ".join("%s %s" % (k, v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or "none",
+        len(none), ", ".join(none) or "none")
+
+
 def build():
     L = level_lib()
     land_material(L)
@@ -419,6 +620,7 @@ def build():
     L.spawn(unreal.PlayerStart, (0, 0, 100000.0))
     place_kit(kit)
     log(animal_kit(L))
+    log(prop_kit(L))
     L.save_fresh_level(MAP, before)
     log("built %s and %s/M_RideLand, M_RideRoad%s" % (MAP, MAT_DIR, "".join(", " + m for m in scanned)))
 

@@ -20,7 +20,9 @@
 #include "WorldTerrain.h"
 #include "WorldZip.h"
 
+#include <algorithm>
 #include <chrono>
+#include <map>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -51,6 +53,9 @@ int main()
 {
 	Json Ref;
 	std::string Text;
+	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
+	std::string TownText;
+	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
 	if (!Files::Read(Files::Join(Data, "godot_world.json"), Text) || !Json::Parse(Text, Ref))
 	{
 		std::printf("FAIL  no godot_world.json in %s\n", Data.c_str());
@@ -664,6 +669,238 @@ int main()
 					Check(Near(Sum.Metres, Via->FinishM, 5.0) && Sum.Climb > 10.0 && Sum.Highest > Sum.Lowest && Sum.Highest < 800.0 && Mph > 20.0 && Mph < 60.0
 							&& double(Sum.Line.size()) > Sum.Metres / 60.0 && Near(Sum.Line.front().Lat, GA.Lat, 0.01) && Near(Sum.Litres(5.0), Sum.Metres / 20000.0, 1e-9),
 						"a ride is summed up to its finish: how far, the climb, the highest point, how twisty, about how long, the fuel, and its line for the map");
+					// [OSM stage 2] The prop layer: with a kit for every kind, a square's props are the same each
+					// time it is made, all inside it, none on a road; stiles and kissing gates stand in their lines.
+					{
+						std::shared_ptr<RidePlan> Kitted = std::make_shared<RidePlan>(*Plan);
+						for (bool& M : Kitted->PropModelled) M = true;
+						const P2 Middle = Plan->Road[Plan->Road.size() / 2].At;
+						const double X0 = std::floor(Middle.X / 512.0) * 512.0 - 512.0, Z0 = std::floor(Middle.Z / 512.0) * 512.0 - 512.0;
+						std::vector<RideProp> First, Again;
+						int Total = 0, Inside = 0, OnRoad = 0;
+						for (int Sq = 0; Sq < 9; ++Sq)
+						{
+							const double Sx = X0 + (Sq % 3) * 512.0, Sz = Z0 + (Sq / 3) * 512.0;
+							Kitted->PropsTile(Sx, Sz, 512.0, First);
+							Kitted->PropsTile(Sx, Sz, 512.0, Again);
+							bool Alike = First.size() == Again.size();
+							for (size_t K = 0; Alike && K < First.size(); ++K) Alike = First[K].X == Again[K].X && First[K].Kind == Again[K].Kind && First[K].Variant == Again[K].Variant;
+							Check(Alike, "a square's props are the same each time it is made");
+							for (const RideProp& P : First)
+							{
+								++Total;
+								Inside += P.X >= 0.0f && P.X < 512.0f && P.Z >= 0.0f && P.Z < 512.0f ? 1 : 0;
+								double Dist = 0.0, H = 0.0, Half = 0.0;
+								int Which = 0;
+								if (P.Kind != RidePlan::PropStreetLamp && Plan->Nearest(Sx + P.X, Sz + P.Z, Dist, H, nullptr, &Half, &Which) && Dist < Half + 0.3) ++OnRoad;
+							}
+						}
+						std::printf("      props: %d in 9 squares (%d inside their square, %d on a road); %d stiles, %d kissing gates, %d bollards, %d benches, %d boards\n", Total, Inside, OnRoad,
+							Plan->FurnitureCount(RidePlan::Stile), Plan->FurnitureCount(RidePlan::KissingGate), Plan->FurnitureCount(RidePlan::Bollard), Plan->FurnitureCount(RidePlan::Seat),
+							Plan->FurnitureCount(RidePlan::InfoBoard));
+						Check(Total > 0 && Inside == Total && OnRoad == 0, "the prop layer: a square's props inside it, none on a road");
+						std::vector<RidePlan::PropKitRow> KitRows;
+						std::string KitText;
+						Check(Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/prop_kit.json"), KitText) && RidePlan::ReadPropKit(KitText, KitRows) && int(KitRows.size()) == RidePlan::PropKinds,
+							"Data/RideUK/prop_kit.json has a row for every kind of prop");
+					}
+					// [OSM stage 2 batch B] The power and the skyline: no telegraph wire longer than 120 m, none
+					// lower than 5 m over a road, every pole on a wire turned to it; the tall things drawn near and
+					// far, the same each time.
+					{
+						int Long = 0, Sagging = 0, Poles = 0, Turned = 0;
+						for (const RidePlan::Wire& W : Plan->Wires)
+						{
+							const double Span = W.A.DistanceTo(W.B);
+							if (Span > (W.High ? 500.0 : 120.0) + 1e-6) ++Long;
+							for (int K = 1; K < 40; ++K)
+							{
+								const double T = K / 40.0;
+								const P2 P = W.A + (W.B - W.A) * T;
+								double Dist = 0.0, H = 0.0, Half = 0.0;
+								int Which = 0;
+								if (Plan->Nearest(P.X, P.Z, Dist, H, nullptr, &Half, &Which) && Dist < Half && W.Ya + (W.Yb - W.Ya) * T - 4.0 * W.Sag * T * (1.0 - T) - H < 4.99) { ++Sagging; break; }
+							}
+						}
+						for (const RidePlan::Furnish& F : Plan->Furniture)
+						{
+							if (F.Kind != RidePlan::PowerPole) continue;
+							++Poles;
+							for (const RidePlan::Wire& W : Plan->Wires)
+								if (!W.High && (W.A.DistanceTo(F.At) < 0.01 || W.B.DistanceTo(F.At) < 0.01))
+								{
+									const P2 D = W.B - W.A;
+									Turned += std::fabs(D.X * F.Face.Z - D.Z * F.Face.X) / std::fmax(D.Length(), 1e-9) < 0.5 ? 1 : 0;
+									break;
+								}
+						}
+						int Kinds[RidePlan::TallKinds] = {};
+						for (const RidePlan::TallThing& T : Plan->Talls) ++Kinds[T.Kind];
+						int Solar = 0;
+						for (const RidePlan::Yard& Y : Plan->Yards) Solar += Y.Solar ? 1 : 0;
+						const P2 Middle = Plan->Road[Plan->Road.size() / 2].At;
+						size_t NearTris = 0, FarTris = 0;
+						bool Repeat = true;
+						for (int Sq = 0; Sq < 9; ++Sq)
+						{
+							const double Sx = std::floor(Middle.X / 512.0) * 512.0 + (Sq % 3 - 1) * 512.0, Sz = std::floor(Middle.Z / 512.0) * 512.0 + (Sq / 3 - 1) * 512.0;
+							RideMesh One, Two;
+							One.OriginX = Two.OriginX = Sx;
+							One.OriginZ = Two.OriginZ = Sz;
+							Plan->SkylineTile(Sx, Sz, 512.0, 2, One);
+							Plan->SkylineTile(Sx, Sz, 512.0, 2, Two);
+							Repeat = Repeat && One.Pos == Two.Pos && One.Idx == Two.Idx;
+							NearTris += One.Idx.size() / 3;
+						}
+						{
+							RideMesh Far;
+							Far.OriginX = Middle.X - 8192.0;
+							Far.OriginZ = Middle.Z - 8192.0;
+							Plan->SkylineTile(Middle.X - 8192.0, Middle.Z - 8192.0, 16384.0, 0, Far);
+							FarTris = Far.Idx.size() / 3;
+						}
+						std::printf("      skyline: %d wires (%d left out), %d poles (%d turned to their wire), %d masts, %d monopoles, %d turbines, %d silos, %d tanks, %d pylons, %d kiosks, %d substations, %d solar farms; %zu triangles in 9 near squares, %zu far over 16 km\n",
+							int(Plan->Wires.size()), Plan->WiresDropped, Poles, Turned, Kinds[RidePlan::TallMast], Kinds[RidePlan::TallMonopole], Kinds[RidePlan::TallTurbine], Kinds[RidePlan::TallSilo],
+							Kinds[RidePlan::TallTank], Kinds[RidePlan::TallPylon], Kinds[RidePlan::TallKiosk], int(Plan->Yards.size()) - Solar, Solar, NearTris, FarTris);
+						Check(!Plan->Wires.empty() && Long == 0 && Sagging == 0 && Repeat, "the power and the skyline: wires between the poles, none too long or low over a road, the same each time");
+					}
+					// [OSM stage 2 batch C] Field areas: each kind found, the ground tinted inside them, headstones
+					// in the graveyards (none on a road), worked faces in the quarries.
+					{
+						int Kinds[RidePlan::FieldKinds] = {};
+						for (const RidePlan::FieldArea& F : Plan->FieldAreas) ++Kinds[F.Kind];
+						int Tinted = 0, Graves = 0, Faces = 0, Tested = 0, Each[RidePlan::FieldKinds] = {};
+						for (size_t I = 0; I < Plan->FieldAreas.size(); ++I)
+						{
+							const RidePlan::FieldArea& F = Plan->FieldAreas[I];
+							if ((F.Kind != RidePlan::FieldGraves && F.Kind != RidePlan::FieldQuarry) || Each[F.Kind] >= 10) continue;
+							P2 Centre;
+							RideShapes::RingArea(F.Ring, Centre);
+							float Rgb[3] = {0.1f, 0.1f, 0.1f};
+							if (!RideShapes::InRing(F.Ring, Centre.X, Centre.Z)) continue;
+							++Tested;
+							++Each[F.Kind];
+							Tinted += Plan->FieldTint(Centre.X, Centre.Z, Rgb) ? 1 : 0;
+							const double Sx = std::floor(Centre.X / 256.0) * 256.0, Sz = std::floor(Centre.Z / 256.0) * 256.0;
+							RideMesh Stands;
+							Stands.OriginX = Sx;
+							Stands.OriginZ = Sz;
+							Plan->FieldsTile(Sx, Sz, 256.0, 2, Stands);
+							(F.Kind == RidePlan::FieldGraves ? Graves : Faces) += int(Stands.Idx.size() / 3);
+						}
+						std::printf("      fields: %d quarries, %d graveyards, %d allotments, %d orchards; %d of %d tested tinted inside; %d triangles of headstones, %d of quarry faces\n",
+							Kinds[RidePlan::FieldQuarry], Kinds[RidePlan::FieldGraves], Kinds[RidePlan::FieldAllotments], Kinds[RidePlan::FieldOrchard], Tinted, Tested, Graves, Faces);
+						Check(Kinds[RidePlan::FieldGraves] > 0 && Tinted == Tested && Graves > 0, "field areas: graveyards and quarries found and tinted, headstones stood in the graveyards");
+					}
+					// [OSM stage 2 batch D] Wild ground: cliffs, peaks, dams and weirs found and drawn near and far.
+					{
+						int Cliffs = 0, Dams = 0, Weirs = 0, Trigs = 0, Screes = 0, Reservoirs = 0;
+						for (const RidePlan::WildLine& W : Plan->WildLines) (W.Kind == 0 ? Cliffs : W.Kind == 1 ? Dams : Weirs) += 1;
+						for (const RidePlan::Summit& S : Plan->Summits) Trigs += S.Trig ? 1 : 0;
+						for (const RidePlan::FieldArea& F : Plan->FieldAreas) { Screes += F.Kind == RidePlan::FieldScree ? 1 : 0; Reservoirs += F.Kind == RidePlan::FieldReservoir ? 1 : 0; }
+						size_t NearWild = 0, FarWild = 0;
+						for (const RidePlan::WildLine& W : Plan->WildLines)
+						{
+							if (W.Kind != 0 || NearWild > 0) continue;
+							const double Sx = std::floor(W.Line[0].X / 256.0) * 256.0, Sz = std::floor(W.Line[0].Z / 256.0) * 256.0;
+							RideMesh Near1;
+							Near1.OriginX = Sx; Near1.OriginZ = Sz;
+							Plan->WildTile(Sx, Sz, 256.0, 2, Near1);
+							NearWild = Near1.Idx.size() / 3;
+							RideMesh Far1;
+							Far1.OriginX = Sx - 2048.0; Far1.OriginZ = Sz - 2048.0;
+							Plan->WildTile(Sx - 2048.0, Sz - 2048.0, 4096.0, 0, Far1);
+							FarWild = Far1.Idx.size() / 3;
+						}
+						std::printf("      wild: %d cliffs, %d dams, %d weirs, %d peaks (%d trig pillars), %d scree areas, %d reservoirs; %zu triangles near a cliff, %zu in its 4 km square far off\n",
+							Cliffs, Dams, Weirs, int(Plan->Summits.size()), Trigs, Screes, Reservoirs, NearWild, FarWild);
+						Check(Cliffs > 0 && !Plan->Summits.empty() && NearWild > 0 && FarWild > 0, "wild ground: cliffs drawn near and far, peaks marked");
+					}
+					// [OSM stage 3] Buildings by kind: every square with buildings in it drawn, terraces split into
+					// houses, chimneys up, most doors on a road; no square over 150,000 triangles.
+					{
+						std::map<std::pair<int, int>, int> Squares;
+						for (const Building& Bd : Plan->Area.Roads.Buildings) ++Squares[{int(std::floor(Bd.X / 256.0)), int(std::floor(Bd.Z / 256.0))}];
+						RidePlan::BuildingTally Tally;
+						size_t MostTris = 0, RoofTris = 0, BrickTris = 0, RoofFaces = 0, LevelFaces = 0;
+						int Tiles = 0;
+						for (const auto& Sq : Squares)
+						{
+							const double Sx = Sq.first.first * 256.0, Sz = Sq.first.second * 256.0;
+							RideMesh Body, Wash, Homes, Tops, Brick;
+							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
+							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
+							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Tally);
+							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size() + Tops.Idx.size() + Brick.Idx.size()) / 3);
+							RoofTris += Tops.Idx.size() / 3;
+							BrickTris += Brick.Idx.size() / 3;
+							// (each roof's courses level: along the eaves, V the same at both ends of each face's eaves)
+							for (size_t Vq = 0; Vq + 3 < Tops.Vertices(); Vq += 4)
+							{
+								++RoofFaces;
+								if (std::fabs(Tops.Uv[Vq * 2 + 1] - Tops.Uv[(Vq + 1) * 2 + 1]) < 0.01f && Tops.Alpha.size() == Tops.Vertices()) ++LevelFaces;
+							}
+							++Tiles;
+						}
+						std::printf("      buildings: %d drawn in %d squares; %d terraces (%d houses), %d chimneys, %d barns, %d ruins, %d within 20 m of a road; at most %zu triangles in a square\n",
+							Tally.Drawn, Tiles, Tally.Terraces, Tally.TerraceHouses, Tally.Chimneys, Tally.Barns, Tally.Ruins, Tally.NearRoad, MostTris);
+						std::printf("      roofs: %zu triangles in M_RideRoof (%zu of %zu faces' courses level), %zu of brick in M_RideBrick\n", RoofTris, LevelFaces, RoofFaces, BrickTris);
+						Check(Tally.Drawn > 0 && Tally.Terraces > 0 && Tally.Chimneys > Tally.Drawn / 4 && MostTris < 150000, "buildings by kind: terraces split into houses, chimneys up, no square too heavy");
+						Check(RoofTris > 0 && LevelFaces == RoofFaces, "roofs drawn for their own surface, the courses level along the eaves");
+					}
+					// [towns stage 1] The town looks: the table read, York brick under clay tiles and Leeds brick
+					// under slate as it says, a name the colours don't know refused.
+					{
+						const std::vector<TownEntry> Towns = TownTable();
+						const TownEntry* York = nullptr;
+						const TownEntry* Leeds = nullptr;
+						int Unknown = 0;
+						for (const TownEntry& T : Towns)
+						{
+							if (T.Name == "York") York = &T;
+							if (T.Name == "Leeds") Leeds = &T;
+							Tint Probe;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+						}
+						bool Right = York != nullptr && Leeds != nullptr;
+						if (Right)
+						{
+							const LocalLook Y = TownLook(LookAt(York->Lat, York->Lon), *York), Ld = TownLook(LookAt(Leeds->Lat, Leeds->Lon), *Leeds);
+							Right = Y.BrickShare > 0.7f && Y.TileShare > 0.6f && Ld.BrickShare > 0.7f && Ld.TileShare < 0.3f && Ld.HouseStone.R < 0.6f;
+						}
+						const int Squares = int(Plan->TownGrid.size());
+						std::printf("      towns: %zu in the table (%d with a colour it doesn't know); %d km squares here with a town look (%d counted from tags, %d of the table's towns)\n",
+							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
+						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
+					}
+					// [towns stage 2] The towers: drawn at their outlines and heights near, the tall ones far;
+					// no box building drawn inside one.
+					{
+						size_t Near = 0;
+						int Parts = 0;
+						for (const RidePlan::TowerShape& T : Plan->TowerShapes) Parts += !T.Group.empty() && T.Group != T.Id ? 1 : 0;
+						for (const RidePlan::TowerShape& T : Plan->TowerShapes)
+						{
+							if (T.Outline) continue;
+							const double Sx = std::floor(T.Mid.X / 256.0) * 256.0, Sz = std::floor(T.Mid.Z / 256.0) * 256.0;
+							RideMesh Near1;
+							Near1.OriginX = Sx; Near1.OriginZ = Sz;
+							Plan->TowersTile(Sx, Sz, 256.0, 2, Near1);
+							Near += Near1.Idx.size() / 3;
+						}
+						RidePlan::BuildingTally Under;
+						for (const RidePlan::TowerShape& T : Plan->TowerShapes)
+						{
+							const double Sx = std::floor(T.Mid.X / 256.0) * 256.0, Sz = std::floor(T.Mid.Z / 256.0) * 256.0;
+							RideMesh Body, Wash, Homes, Tops, Brick;
+							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
+							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
+							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Under);
+						}
+						std::printf("      towers: %zu (%d parts, %d drawn as their parts, %d with a height guessed); %zu triangles near them; %d box buildings left to them\n",
+							Plan->TowerShapes.size(), Parts, Plan->TowersOutlines, Plan->TowersGuessed, Near, Under.UnderTowers);
+						Check(!Plan->TowerShapes.empty() && Near > 0, "towers drawn at their true outlines, the box buildings under them left out");
+					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.
 					{
@@ -1276,8 +1513,8 @@ int main()
 						RideMesh FarSq;
 						Plan->LandTile(std::floor(Plan->Road[0].At.X / 4096.0) * 4096.0, std::floor(Plan->Road[0].At.Z / 4096.0) * 4096.0, 4096.0, 64, FarSq);
 						std::printf("      %d squares of ground along it: %d points of walls, buildings and trees stand on them, %d of them in the scanned stone and %d plain grey; %d on a road\n", int(Squares), int(Stands), int(InScan), int(StoneGrey), int(OnTarmac));
-						Check(Coloured && Masked && Stands > 2000 && InScan > 500 && Alike == Squares && OnTarmac == 0 && !FarSq.Extra && FarSq.Col.size() == FarSq.Pos.size(),
-							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees (walls and stone houses in the scanned stone's masks): the same every time, none in a rider's way on a road, none on the far-off squares");
+						Check(Coloured && Masked && Stands > 2000 && InScan > 500 && Alike == Squares && OnTarmac == 0 && (!FarSq.Extra || (!FarSq.Extra->Stone && !FarSq.Extra->Masonry && FarSq.Extra->Idx.size() < 60000)) && FarSq.Col.size() == FarSq.Pos.size(),
+							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees (walls and stone houses in the scanned stone's masks): the same every time, none in a rider's way on a road, on the far-off squares only the skyline's far shapes (no walls or houses)");
 					}
 					// The grass and trees on the land, for the game to draw with Buttertubs' own plants.
 					{

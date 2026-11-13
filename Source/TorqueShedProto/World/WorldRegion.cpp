@@ -658,4 +658,18 @@ std::vector<P2> Region::PathLine(int From, const std::vector<int>& Path) const
 	}
 	return Out;
 }
+// [towns stage 1] Whether a landmark's name is a landmark's: not a business's (hire, ltd, shop...),
+// nor one far off with its country or region after a comma.
+bool Region::LandmarkName(const std::string& Name)
+{
+	std::string Low;
+	for (char Ch : Name) Low += char(Ch >= 'A' && Ch <= 'Z' ? Ch - 'A' + 'a' : Ch);
+	const std::string Padded = " " + Low + " ";
+	static const char* Trade[] = {" hire ", " ltd ", " limited ", " plc ", " shop ", " store ", " services ", " bouncy ", " inflatable", " rental",
+		" takeaway ", " restaurant ", " hotel ", " salon ", " studio ", " cars ", " sales ", " supplies ", " events ", " entertainment", " pleasure beach ", " plesure beach "};
+	for (const char* W : Trade)
+		if (Padded.find(W) != std::string::npos) return false;
+	return Low.find(',') == std::string::npos;
+}
+
 } // namespace TorqueWorld
