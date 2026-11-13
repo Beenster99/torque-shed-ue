@@ -23,7 +23,9 @@ struct ClassRow
 constexpr ClassRow ClassRows[] = {
 	{"motorway", 7.4, 18.0, 0.7, 110.0}, {"trunk", 7.4, 16.0, 0.75, 100.0}, {"primary", 7.4, 13.0, 0.8, 95.0}, {"secondary", 6.0, 11.0, 0.9, 80.0},
 	{"tertiary", 6.0, 9.0, 1.0, 70.0}, {"unclassified", 4.6, 7.0, 1.15, 60.0}, {"residential", 4.6, 5.0, 1.3, 40.0}, {"living_street", 4.6, 4.0, 1.4, 30.0},
-	{"track", 3.3, 6.0, 3.0, 30.0}};
+	{"track", 3.3, 6.0, 3.0, 30.0},
+	// [OSM stage 4] (service roads, alleys, drives and car park aisles: narrow, slow, a last resort)
+	{"service", 3.5, 3.0, 8.0, 25.0}};
 
 const ClassRow* RowOf(const std::string& Class)
 {
