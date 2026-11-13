@@ -239,10 +239,15 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
 	R->LayKnots();
+	R->IndexTowns();     // [towns stage 1] (before anything asks a place's look)
 	R->IndexScenery();
 	R->IndexRails();
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->IndexFurniture();
+	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
+	R->IndexFields();    // [OSM stage 2 batch C]
+	R->IndexWild();      // [OSM stage 2 batch D]
+	R->IndexTowers();    // [towns stage 2]
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->FindThinData();
 	R->Ok = true;
@@ -1084,9 +1089,25 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	{
 		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();
 		SceneryTile(X0, Z0, Size, Step, *Stands);
+		SkylineTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [OSM stage 2 batch B]
+		FieldsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [OSM stage 2 batch C]
+		WildTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);      // [OSM stage 2 batch D]
+		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		if (Stands->Any()) Out.Extra = Stands;
 		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
 		AnimalsTile(X0, Z0, Size, Out.Animals);
+		PropsTile(X0, Z0, Size, Out.Props);   // [OSM stage 2]
+	}
+	else if (Scene)
+	{
+		// [OSM stage 2 batch B] (farther off, only the tall things, as far shapes)
+		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();
+		Stands->OriginX = X0;
+		Stands->OriginZ = Z0;
+		SkylineTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);
+		WildTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [OSM stage 2 batch D] (the cliffs and dams)
+		TowersTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands); // [towns stage 2] (the tall buildings)
+		if (Stands->Any()) Out.Extra = Stands;
 	}
 }
 

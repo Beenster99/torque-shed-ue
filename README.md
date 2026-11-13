@@ -207,6 +207,31 @@ licences ask. The ground is coloured by what covers it (pasture, moor, meadow, w
 water) and each of its finer squares carries what stands on it (`World/WorldRideScenery`): dry stone
 walls, hedges and fences on their mapped lines, buildings on their mapped footprints under pitched
 roofs, and stand-in trees where the map's canopy has trees, all plain coloured meshes for now.
+The things that stand by the road (post boxes, seats, bus stops, milestones, phone boxes, poles,
+field gates, stiles, kissing gates, barrier gates, bollards, picnic tables, information boards) are
+drawn from real models where the prop kit has them (OSM stage 2, `World/WorldRideProps`): gates and
+stiles snap into the wall or fence they stand in, which is cut for them, and the rest face the road.
+`python Tools/make_ride_props.py` makes the plain ones (`Data/RideUK/Props/*.glb`) and
+`Tools/ue_build_rideuk.py` lists them, with any Fab models matching `Data/RideUK/prop_kit.json`'s
+words (preferred), in a kit actor tagged RideProps; a kind with none keeps its code-made shape.
+Each road's speed limit (mapped, or the UK's rule by class where not), its name and whether it is
+gravel come from the map too (OSM stage 1, `World/WorldRideFacts`): the HUD shows the limit and the
+road's name, and the route planner the county and what is on the way.
+Buildings (OSM stage 3, `World/WorldRideBuildings`) are drawn by kind: houses, barns with cart
+doors, sheds and garages, works with roller doors, chapels and churches with pointed windows, shops,
+blocks, civic buildings and ruins. A long house in a busy street is a terrace split into houses, its
+doors in pairs; doors face the nearer road; windows (sash, casement or mullioned), sills, lintels,
+chimneys and pots, the roof's pitch and overhang and the doors' colours follow the place's look
+(`World/WorldRideStyle`). Roofs are coursed in M_RideRoof (slate, stone slates, clay tiles, thatch or
+sheet, by the map or the look) and brick walls laid in bond in M_RideBrick, both made by
+`Tools/ue_build_rideuk.py` with no textures; without them they are drawn plain.
+Towns have their own look (towns stage 1, `World/WorldRideTowns`): where the map's mappers have
+tagged 50 or more walls or roofs within 3 km, the houses follow that mix (York brick under clay
+tiles); the famous places in `Data/RideUK/town_looks.json` (Bath stone, Leeds' sooty stone and
+slate, Edinburgh sandstone...) take theirs from there. The large and tall buildings the baker keeps
+at their true outlines (towns stage 2, `World/WorldRideTowers`) stand at their real heights: office
+towers in glass, flats and schools with windows a floor, sheds in cladding, churches and York
+Minster's parts in stone; those of 40 m and more are seen from far off.
 Still to come: scanned materials and the satellite's tint, the grass carpet, scanned trees in the
 stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs

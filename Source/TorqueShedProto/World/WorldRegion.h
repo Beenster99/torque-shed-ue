@@ -111,6 +111,9 @@ public:
 	std::vector<std::array<int, 3>> Bans;        // turns the road rules prohibit: (edge arrived by, node, edge left by), sorted
 	std::vector<Building> Buildings;
 	std::vector<TorqueFit::Json> Pois, Landmarks, Places;   // {kind, name, x, z, ...} as the baker wrote them
+	// [towns stage 1] Whether a landmark's name is a landmark's: not a business's named after a place
+	// ("Bradford Leeds Castle Hire"), nor one far off mapped by mistake ("Calangute Beach, Goa").
+	static bool LandmarkName(const std::string& Name);
 	// For each node the connected piece of road it is in, and how many junctions each piece has.
 	std::vector<int> Component, ComponentSize;
 	// Its bridges and tunnels, rivers and streams, and scenery, where the store has them (AddSpans,

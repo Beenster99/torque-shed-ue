@@ -158,7 +158,7 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	}
 	// [OSM stage 1] The castles: further off the road is still worth the stop (one seen from it).
 	for (const TorqueFit::Json& Lm : G.Landmarks)
-		if (Lm.Str("kind") == "castle") Add(StopCastle, Lm.Str("name"), P2(Lm.Num("x"), Lm.Num("z")), 600.0);
+		if (Lm.Str("kind") == "castle" && Region::LandmarkName(Lm.Str("name"))) Add(StopCastle, Lm.Str("name"), P2(Lm.Num("x"), Lm.Num("z")), 600.0);
 	for (const FeaturePoint& P : G.Scenery.Points)
 		if (P.Kind == "viewpoint") Add(StopView, P.Name, P.At);
 	std::sort(Stops.begin(), Stops.end(), [](const RideStop& A, const RideStop& B) { return A.Along < B.Along; });
