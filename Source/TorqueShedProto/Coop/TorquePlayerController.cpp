@@ -2044,6 +2044,50 @@ void ATorquePlayerController::ServerGetOffYard_Implementation()
 	TorqueYard::HostGetOff(this);
 }
 
+void ATorquePlayerController::ServerTakeBike_Implementation(ATorqueBikePawn* Theirs)
+{
+	ATorqueBikePawn* Mine = Cast<ATorqueBikePawn>(GetPawn());
+	if (!Mine || !Theirs || Mine == Theirs || Mine->InYard() || Theirs->InYard()) return;
+	ATorquePlayerController* Other = Cast<ATorquePlayerController>(Theirs->GetController());
+	const FString OtherName = Theirs->GetPlayerState() ? Theirs->GetPlayerState()->GetPlayerName() : FString(TEXT("a mate"));
+	// Both stood parked with their riders off (as the host sees them: its own, or their snapshots),
+	// and the asker's feet by it (a little more reach than theirs: the host sees them a moment late).
+	if (!Mine->IsParkedUp() || !Theirs->IsParkedUp() || !Other || Other == this)
+	{
+		ClientNote(FString::Printf(TEXT("%s's bike can't be taken now: they need to be off it, and you off yours."), *OtherName));
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Torque net: %s takes %s's bike (bay %d), %s gets theirs (bay %d)"),
+		PlayerState ? *PlayerState->GetPlayerName() : TEXT("a rider"), *OtherName, Theirs->GetRideBay() + 1, *OtherName, Mine->GetRideBay() + 1);
+	UnPossess();
+	Other->UnPossess();
+	Possess(Theirs);
+	Other->Possess(Mine);
+	// The snapshots kept from each bike's last rider go: the new rider's machine sends afresh.
+	if (Mine->NetBike) Mine->NetBike->ForgetSnapshots();
+	if (Theirs->NetBike) Theirs->NetBike->ForgetSnapshots();
+	const FString MyName = PlayerState ? PlayerState->GetPlayerName() : FString(TEXT("a mate"));
+	ClientSwappedBike(Theirs, Mine, true, OtherName);
+	Other->ClientSwappedBike(Mine, Theirs, false, MyName);
+}
+
+void ATorquePlayerController::ClientSwappedBike_Implementation(ATorqueBikePawn* NowMine, ATorqueBikePawn* Was, bool bRide, const FString& Whose)
+{
+	if (!NowMine) return;
+	// Where we stand (as our own machine had us), on foot by the bike that's ours now.
+	FVector Feet = NowMine->GetActorLocation();
+	double Yaw = NowMine->GetActorRotation().Yaw;
+	if (Was && Was->IsOnFoot())
+	{
+		Feet = Was->FeetAt();
+		Yaw = Was->FeetYaw();
+	}
+	if (Was && Was != NowMine) Was->LetOver();
+	NowMine->TakeOver(Feet, Yaw, bRide);
+	ShowNote(bRide ? FString::Printf(TEXT("Riding %s's bike"), *Whose)
+		: FString::Printf(TEXT("%s took your bike: theirs is yours, where they left it"), *Whose), 4.0);
+}
+
 void ATorquePlayerController::ServerWalkBackIn_Implementation()
 {
 	TorqueYard::HostWalkBackIn(this);

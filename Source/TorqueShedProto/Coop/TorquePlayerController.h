@@ -24,6 +24,8 @@ class AHUD;
 class UCanvas;
 class ATorqueProfilePreview;
 
+class ATorqueBikePawn;
+
 UCLASS()
 class ATorquePlayerController : public APlayerController
 {
@@ -74,6 +76,13 @@ public:
 	UFUNCTION(Server, Reliable) void ServerRideYard(int32 Bay, bool bAtBike);
 	UFUNCTION(Server, Reliable) void ServerGetOffYard();
 	UFUNCTION(Server, Reliable) void ServerWalkBackIn();
+
+	// [co-op] On the road, on foot by a mate's parked bike (their rider off it too), F rides it
+	// (beenster, build 141): the host swaps the two riders' bikes over, and tells each rider's machine
+	// which bike is theirs now and which they let go of (the asker gets on; the other stays on foot,
+	// their old bike gone and the asker's left ticking over where it stood).
+	UFUNCTION(Server, Reliable) void ServerTakeBike(ATorqueBikePawn* Theirs);
+	UFUNCTION(Client, Reliable) void ClientSwappedBike(ATorqueBikePawn* NowMine, ATorqueBikePawn* Was, bool bRide, const FString& Whose);
 
 	// [shed test] The tests' way to the menus (-TorqueShedAction's key presses don't reach the game):
 	// "pause", "profile", "settings", "credits" or "close" (the world isn't paused, so the test runs on), and a

@@ -6,6 +6,8 @@
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Misc/Guid.h"
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
 #include "HAL/PlatformTime.h"
@@ -31,6 +33,17 @@ static_assert(NI_Count <= TorqueNet::MaxInts, "more stepped values than a snapsh
 
 constexpr uint8 FlagCrashed = 1, FlagFrontDown = 2, FlagRearDown = 4, FlagGhost = 8, FlagParked = 16, FlagNod = 32, FlagWave = 64;
 constexpr uint8 SoundEngine = 1, SoundHorn = 2;   // FTorqueBikeNetState::Sounds
+
+// This machine, as its snapshots say (a bike's sender changes when riders swap bikes).
+int32 MachineToken()
+{
+	static const int32 Token = []() {
+		const FGuid G = FGuid::NewGuid();
+		const int32 T = (int32)(G.A ^ G.B ^ G.C ^ G.D);
+		return T == 0 ? 1 : T;
+	}();
+	return Token;
+}
 
 bool NetLogEverySecond()
 {
@@ -92,7 +105,34 @@ bool UTorqueNetBikeComponent::IsRemote() const
 {
 	const APawn* P = Cast<APawn>(GetOwner());
 	if (!P || P->GetNetMode() == NM_Standalone) return false;
-	return !P->IsLocallyControlled();
+	if (!P->IsLocallyControlled()) return true;
+	// [co-op] Swapped to a mate: ours no more, though its controller here may not have heard yet.
+	const APlayerController* PC = Cast<APlayerController>(P->GetController());
+	return bHandedOver || (PC && PC->GetPawn() != P);
+}
+
+void UTorqueNetBikeComponent::TakenOver()
+{
+	bHandedOver = false;
+	bPlaced = true;   // where it stands, not a start slot
+	SendClock = 0.0;
+}
+
+void UTorqueNetBikeComponent::HandedOver()
+{
+	bHandedOver = true;
+	Smooth.Reset();
+	LastPushedSeq = 0;
+	LastSender = 0;
+}
+
+void UTorqueNetBikeComponent::ForgetSnapshots()
+{
+	for (int32 I = 0; I < RecentCount; ++I) Recent[I] = FTorqueBikeNetState();
+	RecentNext = 0;
+	Smooth.Reset();
+	LastPushedSeq = 0;
+	LastSender = 0;
 }
 
 void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
@@ -138,6 +178,13 @@ void UTorqueNetBikeComponent::Capture(FTorqueBikeNetState& S) const
 
 void UTorqueNetBikeComponent::Receive(const FTorqueBikeNetState& S)
 {
+	if (S.Sender != LastSender)
+	{
+		// [co-op] Someone else rides it now: their clock and their count, from the start.
+		LastSender = S.Sender;
+		LastPushedSeq = 0;
+		Smooth.Reset();
+	}
 	if (S.Seq <= LastPushedSeq) return;   // already have it (the property carries the last few)
 	LastPushedSeq = S.Seq;
 	TorqueNet::Snap N;
@@ -339,6 +386,7 @@ void UTorqueNetBikeComponent::AfterTick(float DeltaSeconds)
 			FTorqueBikeNetState S;
 			Capture(S);
 			S.Seq = ++SendSeq;
+			S.Sender = MachineToken();
 			++SentInSecond;
 			if (B->HasAuthority()) Keep(S);   // the host's own bike: straight to the others
 			else ServerState(S);

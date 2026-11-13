@@ -121,6 +121,19 @@ public:
 	// rider's), its stand down and the rider hidden.
 	bool IsOnFoot() const { return bOnFoot; }
 	void SetParkedLook(bool bParked);
+	// [co-op] Riding a mate's bike on the road (beenster, build 141): a bike standing parked with its
+	// rider off it, ours or as their snapshots say. Their parked bike nearest our feet (within reach),
+	// if any. The host swaps the two bikes over (ATorquePlayerController::ServerTakeBike); then on
+	// each rider's machine the bike now theirs is taken over where it stands, its engine as it was
+	// (TakeOver: on foot where they stood, and the one who asked gets on), and the one let go of
+	// stops being ridden here (LetOver).
+	bool IsParkedUp() const { return !Sim->IsCrashed && (bOnFoot || bParkedLook) && !bPushing; }
+	ATorqueBikePawn* MateBikeInReach() const;
+	FVector FeetAt() const { return FootPos; }
+	double FeetYaw() const { return FootYaw; }
+	void TakeOver(const FVector& Feet, double Yaw, bool bRide);
+	void LetOver();
+	double TakeAskedAt = -100.0;   // when we last asked the host for a mate's bike (world seconds)
 	// [gestures] The rider's nod (R3 or the Y key tapped) and wave (R3 or the U key held: the left hand off the bar):
 	// what they're doing now, and a co-op rider's as their snapshots say (TorqueNetBike), so the
 	// others see it. A nod starts on the bit's rising edge and runs its own course.
@@ -294,6 +307,7 @@ private:
 	// snapshot says they are (NetBike), shown only while they're off it. Ours is first person.
 	TUniquePtr<FTorqueAvatar> NetWalker;
 	UPROPERTY(Transient) TObjectPtr<USceneComponent> NetWalkerRoot = nullptr;
+	TWeakObjectPtr<const APlayerState> NetWalkerFor;   // [co-op] whose body NetWalker is (bikes can be swapped)
 	FVector NetWalkerWas = FVector::ZeroVector;
 	bool bNetWalkerShown = false, bNetWalkerTried = false;
 	void ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, float Dt);

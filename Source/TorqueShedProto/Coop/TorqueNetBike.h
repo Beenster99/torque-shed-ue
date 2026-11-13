@@ -57,6 +57,7 @@ struct FTorqueBikeNetState
 	UPROPERTY() FVector_NetQuantize10 FootPos;  // off the bike (Flags 16): where the rider stands, world cm (their feet)
 	UPROPERTY() float FootYaw = 0.f;            // and the way they face, degrees
 	UPROPERTY() int32 Seq = 0;
+	UPROPERTY() int32 Sender = 0;               // [co-op] the sending machine (bikes can change hands): a new one starts afresh
 };
 
 UCLASS(ClassGroup = (Torque), meta = (BlueprintSpawnableComponent))
@@ -75,6 +76,12 @@ public:
 	void ApplyRemote(float DeltaSeconds);
 	// After the pawn's frame: send our own bike's snapshot when it's time, keep the stats.
 	void AfterTick(float DeltaSeconds);
+	// [co-op] Bikes swapped on the road (ATorquePlayerController::ServerTakeBike): this machine rides
+	// it now where it stands (not moved to a start slot); or it's someone else's now, drawn from
+	// theirs; and on the host, the snapshots kept from its last rider are dropped.
+	void TakenOver();
+	void HandedOver();
+	void ForgetSnapshots();
 	// A line for the HUD: who's riding, ping, snapshot rates. Empty when riding alone.
 	FString StatusLine() const;
 
@@ -90,6 +97,8 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_State) FTorqueBikeNetState Recent[4];   // RecentCount (UHT wants a number)
 	int32 RecentNext = 0;
 	int32 LastPushedSeq = 0;
+	int32 LastSender = 0;
+	bool bHandedOver = false;       // let go of here, before the possession's change has come back
 	void Keep(const FTorqueBikeNetState& S);
 
 	UFUNCTION() void OnRep_State();
