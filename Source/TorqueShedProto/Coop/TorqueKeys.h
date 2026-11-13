@@ -20,7 +20,7 @@ enum class ETorqueKey : uint8
 	// Riding.
 	Throttle, FrontBrake, RearBrake, LeanLeft, LeanRight, WeightBack, WeightForward, ShiftUp, ShiftDown, AutoShift, Abs, Clutch, Ignition,
 	Camera, CamCloser, CamFarther, CamHigher, CamLower, CamTiltUp, CamTiltDown, LookBack, BackOnRoad, Restart, RealismDown, RealismUp, Weather, Horn,
-	Headlight, MainBeam, FogLights, IndicateLeft, IndicateRight, Hazards, BackToShed, Telemetry, RideHud, Nod, Wave, InfoPanel, Photo,
+	Headlight, MainBeam, FogLights, IndicateLeft, IndicateRight, Hazards, BackToShed, Telemetry, RideHud, Nod, Wave, InfoPanel, PickPlace, Photo,
 	// Both.
 	Help, Perf, PerfLog, Ping,
 	Count

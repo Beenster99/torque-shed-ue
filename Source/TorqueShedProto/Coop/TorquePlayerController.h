@@ -52,6 +52,11 @@ public:
 	UFUNCTION(Client, Reliable) void ClientNote(const FString& Text);
 	// A note under the middle of the screen from this machine (a ping's "nothing there").
 	void ShowNote(const FString& Text, double Seconds);
+	// [info] A place picked in the riding info panel (beenster, Nov 13: "makes us want to ride off and
+	// see it"): it becomes the Route planner's journey as a waypoint, from here (HereName) to it, then
+	// on to where the Ride UK journey being ridden ends. In co-op it goes to everyone's planner, as a
+	// pin dropped there does; alone it's kept as the last journey. Returns what to tell the rider.
+	FString AddWaypoint(double Lat, double Lon, const FString& Name, double HereLat, double HereLon, const FString& HereName);
 
 	// [ping] Torque Shed's ping (TorquePing.h): to the host, which names it and sends it to everyone,
 	// and on each player's machine, shown for TorquePing::Life seconds with its chime.

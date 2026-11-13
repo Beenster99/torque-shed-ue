@@ -110,6 +110,9 @@ public:
 	// snapshots), and whether its rider is off.
 	double SpeedMs() const;
 	bool RiderCrashed() const;
+	// [info] The pointer is out (M) to click a place in the info panel: the mouse moves it, not the view.
+	bool IsPointing() const { return bPointing; }
+	void SetPointing(bool bOn) { bPointing = bOn; }
 
 	// Off the bike (Torque Shed's get off, F): stopped, the rider steps off to its left and walks about
 	// in first person; the bike stands on its side stand (leaned over on it), else its centre stand
@@ -343,6 +346,7 @@ private:
 	double TripLogClock = 0.0, TripSpeedKm = 0.0, TripLogTime = 0.0;
 	void TripLog(const TCHAR* Why);
 	bool bShowHelp = true;
+	bool bPointing = false;   // [info] the pointer out to pick a place in the info panel (M)
 	bool bHudLines = false;   // the riding info lines top left (F2); a clean screen to start with (beenster, Nov 12)
 	// Weather: 0 sunny, 1 overcast, 2 wet (-TorqueWeather=sunny|overcast|wet; V or D-pad right cycles).
 	// ATorqueGameState owns it (the host's, in co-op) and lights the world; the bike takes the grip.

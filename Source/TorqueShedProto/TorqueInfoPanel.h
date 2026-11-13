@@ -10,6 +10,12 @@
 //  - about this place: the nearest Wikipedia article with a few lines of it, and what else is near;
 //  - who's riding: each rider's profile name in their colour, their bike, speed and how far away.
 //
+// [waypoint] M puts a pointer out (ATorqueBikePawn::IsPointing); a click on a place in "about this
+// place" makes it a waypoint (beenster, Nov 13): the Route planner's journey goes from here to it
+// (ATorquePlayerController::AddWaypoint, shared in co-op), and a marker at the top of the screen
+// shows which way it is and how far, until you get within 150 m. A click on the waypoint's line
+// clears it.
+//
 // Where on Earth: on Buttertubs (and in the shed's yard) the level's origin from the route
 // (ATorqueGameState::GeoAt); on a Ride UK ride, the ride's own frame (RidePlan's region).
 //
@@ -22,6 +28,7 @@
 class UCanvas;
 class AHUD;
 class ATorqueBikePawn;
+class APlayerController;
 
 class FTorqueInfoPanel
 {
@@ -33,7 +40,7 @@ public:
 	// What the internet said (shared with the requests in flight, which may outlive a frame).
 	struct FHour { FString Label; int32 Code = 0; float Temp = 0.0f; int32 RainPct = 0; bool bDay = true; };
 	struct FDay { FString Label; int32 Code = 0; float Max = 0.0f, Min = 0.0f; int32 RainPct = 0; };
-	struct FNear { FString Title, Text; double Metres = 0.0; };
+	struct FNear { FString Title, Text; double Metres = 0.0, Lat = 0.0, Lon = 0.0; };
 	struct FData
 	{
 		// OpenStreetMap: the road, the place, the county (or what stands for them abroad), the country.
@@ -58,4 +65,6 @@ private:
 	float ShownTop = -1.0f;   // eased, so a note coming and going above doesn't jolt it
 	double LogClock = 3.0;
 	void Ask(double Lat, double Lon, double Now);
+	// [waypoint] The marker at the top of the screen: which way the waypoint is from the view, how far.
+	void DrawWaypoint(UCanvas* Canvas, const APlayerController* PC, double Lat, double Lon, float CamYaw, float S);
 };
