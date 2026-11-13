@@ -1397,7 +1397,8 @@ void FTorqueAvatar::HandOnBar(int32 S, const FVector& Bar, const FVector& Across
 }
 
 void FTorqueAvatar::WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, const FQuat& Hq, const FVector& WAct, const FVector& Bar,
-	const FVector& Axis, const FVector& Aim1, const FVector& Palm1, double GripR, const double FingerK[5], double ThumbOff) const
+	const FVector& Axis, const FVector& Aim1, const FVector& Palm1, double GripR, const double FingerK[5], double ThumbOff,
+	double LeverOn, const FVector& LeverLine) const
 {
 	// Joint by joint, each finger bone turns (about the bar's line, towards the palm) until its far
 	// end touches the grip's surface (GripR from the bar's line), so the fingers follow the bar
@@ -1409,6 +1410,12 @@ void FTorqueAvatar::WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, co
 	const FVector Curl = Hq.RotateVector(FVector::CrossProduct(Aim0.GetSafeNormal(), Palm0).GetSafeNormal());
 	const FVector Ax = Axis.GetSafeNormal();
 	auto FromBar = [&](const FVector& X) { const FVector V = X - Bar; return (V - Ax * FVector::DotProduct(V, Ax)).Size(); };
+	// [rider pose] The lever's blade: a line along the bar, LeverLine out from it; the fingers close
+	// till they touch it (half a blade plus half a finger), or as near as they come.
+	const FVector Blade = Bar + LeverLine;
+	auto FromBlade = [&](const FVector& X) { const FVector V = X - Blade; return (V - Ax * FVector::DotProduct(V, Ax)).Size(); };
+	const double OnLever = LeverLine.IsNearlyZero() ? 0.0 : FMath::Clamp(LeverOn, 0.0, 1.0);
+	constexpr double BladeR = 1.5;
 	for (int32 F = 1; F < 5; ++F)
 	{
 		const double K = FingerK[F];
@@ -1428,7 +1435,20 @@ void FTorqueAvatar::WrapFingers(int32 S, TArray<FQuat>& D, TArray<bool>& Set, co
 			double Deg = J == 2 ? 70.0 : 90.0;   // as far as it bends when the bar's out of reach
 			for (double T = 0.0; T <= 110.0; T += 3.0)
 				if (FromBar(Pj + FQuat(Curl, FMath::DegreesToRadians(T)).RotateVector(Seg)) <= GripR) { Deg = T; break; }
-			const FQuat Q(Curl, FMath::DegreesToRadians(Deg * K));
+			Deg *= K;
+			if (OnLever > 0.0 && (F == 1 || F == 2))
+			{
+				// On the lever: each joint turns until its end touches the blade, or comes nearest it.
+				double LeverDeg = 0.0, Nearest = 1.0e9;
+				for (double T = -10.0; T <= 110.0; T += 2.0)
+				{
+					const double Gap = FromBlade(Pj + FQuat(Curl, FMath::DegreesToRadians(T)).RotateVector(Seg));
+					if (Gap < Nearest) { Nearest = Gap; LeverDeg = T; }
+					if (Gap <= BladeR) break;
+				}
+				Deg = FMath::Lerp(Deg, LeverDeg, OnLever);
+			}
+			const FQuat Q(Curl, FMath::DegreesToRadians(Deg));
 			D[B] = Q * Par; Set[B] = true;
 			Pj += Q.RotateVector(Seg);
 			Par = D[B];
@@ -1689,8 +1709,13 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				const double Loose = 1.0 - HandOffS[S] * 0.7;
 				double K[5] = {0.0, Loose, Loose, Loose, Loose};
 				const double On = FMath::Clamp(Tg.LeverFingers[S], 0.0, 1.0), Pull = FMath::Clamp(Tg.LeverPull[S], 0.0, 1.0);
-				for (int32 F = 1; F <= 2; ++F) K[F] *= FMath::Lerp(1.0, 0.35 + 0.45 * Pull, On);
-				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, HandOffS[S]);   // the grip's radius plus half a finger
+				// [rider pose] The lever (beenster: two fingers reach out and pull it): its blade in front of
+				// the grip and a little below, about 9 cm out let go, 3 cm when pulled to the bar.
+				FVector Ahead = Fwd - BarAxis[S] * FVector::DotProduct(Fwd, BarAxis[S]);
+				Ahead = (Ahead.GetSafeNormal(UE_SMALL_NUMBER, Fwd) - Up * 0.35).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
+				const FVector LeverLine = Ahead * FMath::Lerp(9.0, 3.0, Pull);
+				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, HandOffS[S],
+					On * (1.0 - HandOffS[S]), LeverLine);   // the grip's radius plus half a finger
 			}
 			else if (I == Thigh[S])
 			{

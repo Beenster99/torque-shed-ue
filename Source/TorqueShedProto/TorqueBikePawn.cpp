@@ -2750,6 +2750,11 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		// Front brake: two fingers go over the lever as soon as you brake, and come off after.
 		const double Want = FrontBrake > 0.03 ? 1.0 : 0.0;
 		BrakeFingers = MoveToward(BrakeFingers, Want, (Want > BrakeFingers ? 10.0 : 4.0) * DeltaSeconds);
+		// [rider pose] Clutch: two fingers on the lever while it's in at all (held, being let out, a
+		// gear change) or the bike is stopped, and off a moment after it's fully out (beenster).
+		const bool bClutchWork = Sim->ClutchIn || Sim->Clutch > 0.03 || FMath::Abs(Sim->Speed) < 2.5 || SinceShift < 0.30;
+		const double ClutchWant = bClutchWork ? 1.0 : 0.0;
+		ClutchFingers = MoveToward(ClutchFingers, ClutchWant, (ClutchWant > ClutchFingers ? 10.0 : 3.0) * DeltaSeconds);
 	}
 	if (Sound && Sim->Gear != LastGear) Sound->GearChange(Sim->Gear > LastGear);
 	LastGear = Sim->Gear;
@@ -3689,8 +3694,9 @@ void ATorqueBikePawn::UpdateRider()
 			const double Held = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 2.5, 0.0, 1.0);
 			// The clutch held in (LB, or Left Alt): the lever pulled to the bar.
 			const double Lever = Sim->ClutchIn ? 1.0 : 0.0;
-			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), Lever);
-			In.LeverPull[0] = FMath::Max3(PullShift, Held, Lever);
+			// (The lever follows the clutch as it's let out: Sim->Clutch, how far it's in.)
+			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), FMath::Max(Lever, ClutchFingers));
+			In.LeverPull[0] = FMath::Max(FMath::Max3(PullShift, Held, Lever), FMath::Clamp(Sim->Clutch, 0.0, 1.0)) * FMath::Clamp(In.LeverFingers[0] * 2.0, 0.0, 1.0);
 		}
 		for (int32 S = 0; S < 2; ++S)
 			if (TestLeverHold[S] >= 0.0)
