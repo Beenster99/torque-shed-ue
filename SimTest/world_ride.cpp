@@ -328,6 +328,26 @@ int main(int Argc, char** Argv)
 		const std::vector<RidePlan::Knot> Knots = LaidKnots(*Plan);
 		for (const RidePlan::Knot& K : Knots) if (K.Owner == 0) ++AtStart;
 		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines; %d junctions off it (%d at its ends)\n", Mouths, GiveWays, int(Knots.size()), AtStart);
+		// [towns stage 3] The buildings drawn round the ride's start (WORLD_RIDE_OUTLINES=1): how many
+		// came from true outlines, how long the squares took, and their tally.
+		if (std::getenv("WORLD_RIDE_OUTLINES") != nullptr)
+		{
+			RidePlan::BuildingTally Tally;
+			size_t Tris = 0;
+			const auto OutT0 = std::chrono::steady_clock::now();
+			const double Cx = std::floor(Plan->Road[0].At.X / 256.0) * 256.0, Cz = std::floor(Plan->Road[0].At.Z / 256.0) * 256.0;
+			for (int Dz = -2; Dz <= 2; ++Dz)
+				for (int Dx = -2; Dx <= 2; ++Dx)
+				{
+					RideMesh Body, Wash, Homes, Tops, Brick;
+					const double Sx = Cx + Dx * 256.0, Sz = Cz + Dz * 256.0;
+					Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Tally);
+					Tris += (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size() + Tops.Idx.size() + Brick.Idx.size()) / 3;
+				}
+			const double OutMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - OutT0).count();
+			std::printf("Buildings round the start (25 squares of 256 m): %d boxes from true outlines, %d drawn, %d terraces, %zu triangles, in %.0f ms\n",
+				Tally.Outlined, Tally.Drawn, Tally.Terraces, Tris, OutMs);
+		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.
 		if (const char* GrowAt = std::getenv("WORLD_RIDE_GROW"))
