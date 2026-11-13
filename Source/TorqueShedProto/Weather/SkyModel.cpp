@@ -1,5 +1,7 @@
 #include "SkyModel.h"
 
+#include <initializer_list>
+
 #include "../Fit/FitJson.h"
 
 #include <algorithm>
@@ -62,13 +64,49 @@ const NamedNumber Numbers[] = {
 	{"dull_mie", &Looks::DullMie}, {"dull_rayleigh", &Looks::DullRayleigh},
 	{"dull_mie_clouds", &Looks::DullMieClouds}, {"dull_rayleigh_clouds", &Looks::DullRayleighClouds},
 	{"fog_dull", &Looks::FogDull}, {"fog_wet", &Looks::FogWet}, {"fog_night_glow", &Looks::FogNightGlow},
-	{"low_deck_m", &Looks::LowDeckM}, {"low_heap_m", &Looks::LowHeapM}, {"cape_depth_per_100", &Looks::CapeDepthPer100},
-	{"cape_most_m", &Looks::CapeMostM}, {"mid_base_m", &Looks::MidBaseM}, {"mid_depth_m", &Looks::MidDepthM},
+	{"low_heap_m", &Looks::LowHeapM}, {"cape_depth_per_100", &Looks::CapeDepthPer100},
+	{"cape_most_m", &Looks::CapeMostM}, {"mid_base_m", &Looks::MidBaseM},
 	{"low_base_least_m", &Looks::LowBaseLeastM}, {"low_base_most_m", &Looks::LowBaseMostM},
-	{"density_fair", &Looks::DensityFair}, {"density_deck", &Looks::DensityDeck}, {"density_rain", &Looks::DensityRain},
+	{"density_rain", &Looks::DensityRain},
 	{"albedo_fair", &Looks::AlbedoFair}, {"albedo_rain", &Looks::AlbedoRain},
 	{"deck_from", &Looks::DeckFrom}, {"deck_to", &Looks::DeckTo},
+	{"convect_from_deg", &Looks::ConvectFromDeg}, {"convect_full_deg", &Looks::ConvectFullDeg}, {"convect_cape", &Looks::ConvectCape},
+	{"shower_cape_from", &Looks::ShowerCapeFrom}, {"shower_cape_to", &Looks::ShowerCapeTo},
+	{"shower_rain_mm", &Looks::ShowerRainMm}, {"steady_rain_mm", &Looks::SteadyRainMm},
+	{"towering_cape_from", &Looks::ToweringCapeFrom}, {"towering_cape_to", &Looks::ToweringCapeTo},
+	{"stratus_cover_from", &Looks::StratusCoverFrom}, {"stratus_cover_to", &Looks::StratusCoverTo},
+	{"stratus_base_from_m", &Looks::StratusBaseFromM}, {"stratus_base_to_m", &Looks::StratusBaseToM},
+	{"broken_to", &Looks::BrokenTo}, {"broken_sheet", &Looks::BrokenSheet},
+	{"mid_sheet_from", &Looks::MidSheetFrom}, {"mid_sheet_to", &Looks::MidSheetTo},
+	{"veil_from", &Looks::VeilFrom}, {"veil_to", &Looks::VeilTo},
+	{"high_base_m", &Looks::HighBaseM}, {"high_opacity", &Looks::HighOpacity},
+	{"veil_widen_deg", &Looks::VeilWidenDeg}, {"glass_widen_deg", &Looks::GlassWidenDeg},
+	{"glass_shadows", &Looks::GlassShadows}, {"halo_most", &Looks::HaloMost},
+	{"fog_shallow_m", &Looks::FogShallowM}, {"fog_thick_m", &Looks::FogThickM}, {"fog_top_fade_m", &Looks::FogTopFadeM},
+	{"mist_humid_from", &Looks::MistHumidFrom}, {"mist_humid_full", &Looks::MistHumidFull}, {"mist_calm_ms", &Looks::MistCalmMs},
+	{"mist_windy_ms", &Looks::MistWindyMs}, {"mist_clear_to", &Looks::MistClearTo}, {"mist_gone_deg", &Looks::MistGoneDeg},
+	{"mist_depth_m", &Looks::MistDepthM}, {"mist_extinction", &Looks::MistExtinction}, {"rainbow_sun_most_deg", &Looks::RainbowSunMostDeg}, {"rainbow_rain_mm", &Looks::RainbowRainMm},
 };
+struct NamedKindFigure { const char* Name; double KindLook::*Field; };
+const NamedKindFigure KindFigures[] = {
+	{"shape", &KindLook::Shape}, {"lumps", &KindLook::Lumps}, {"ragged", &KindLook::Ragged}, {"density", &KindLook::Density},
+	{"base_dark", &KindLook::BaseDark}, {"depth_m", &KindLook::DepthM}, {"cape_depth", &KindLook::CapeDepth}, {"sheet", &KindLook::Sheet},
+};
+const char* const KindNames[KindCount] = {
+	"cumulus", "stratocumulus", "stratus", "nimbostratus", "towering", "altocumulus", "altostratus", "cirrus", "cirrostratus",
+};
+
+// The "kinds" object, wherever the file puts it.
+const TorqueFit::Json* FindKinds(const TorqueFit::Json& J)
+{
+	if (!J.IsObject()) return nullptr;
+	for (const auto& KV : J.O)
+	{
+		if (KV.first == "kinds" && KV.second.IsObject()) return &KV.second;
+		if (const TorqueFit::Json* Inner = FindKinds(KV.second)) return Inner;
+	}
+	return nullptr;
+}
 const NamedCurve Curves[] = {
 	{"clear_lux", &Looks::ClearLux}, {"haze_by_km", &Looks::HazeByKm}, {"cover_shown", &Looks::CoverShown},
 	{"legacy_shadow", &Looks::LegacyShadow},
@@ -81,6 +119,7 @@ void Gather(const TorqueFit::Json& J, std::vector<const std::pair<std::string, T
 	if (!J.IsObject()) return;
 	for (const auto& KV : J.O)
 	{
+		if (KV.first == "kinds") continue;   // (read on its own: its rows share figure names)
 		if (KV.second.IsObject()) Gather(KV.second, Out);
 		else Out.push_back(&KV);
 	}
@@ -114,7 +153,30 @@ bool LoadLooks(const std::string& Text, Looks& Out, std::string* Error)
 				if (!Read.P.empty()) Out.*(C.Field) = Read;
 			}
 	}
+	if (const Json* Kinds = FindKinds(Root))
+		for (int K = 0; K < KindCount; ++K)
+			if (const Json* Row = Kinds->Get(KindNames[K]); Row && Row->IsObject())
+				for (const NamedKindFigure& F : KindFigures)
+					if (const Json* V = Row->Get(F.Name); V && V->IsNumber()) Out.Kinds[K].*(F.Field) = V->N;
 	return true;
+}
+
+const char* KindName(int K) { return K >= 0 && K < KindCount ? KindNames[K] : "none"; }
+
+int Sky::Dominant(int Layer) const
+{
+	static const int LowKinds[] = {Cumulus, Stratocumulus, Stratus, Nimbostratus, Towering};
+	static const int MidKinds[] = {Altocumulus, Altostratus, Nimbostratus};
+	static const int HighKinds[] = {Cirrus, Cirrostratus};
+	const int* List = Layer == 0 ? LowKinds : Layer == 1 ? MidKinds : HighKinds;
+	const int Count = Layer == 0 ? 5 : Layer == 1 ? 3 : 2;
+	const double LayerCover = Layer == 0 ? Low.Cover : Layer == 1 ? Mid.Cover : High.Cover;
+	if (LayerCover < 0.05) return -1;
+	int Best = -1;
+	double Most = 0.0;
+	for (int I = 0; I < Count; ++I)
+		if (Weight[List[I]] > Most) { Most = Weight[List[I]]; Best = List[I]; }
+	return Best;
 }
 
 double ClearSkyLux(double SunElevation, const Looks& L) { return L.ClearLux.AtLog(SunElevation); }
@@ -195,50 +257,157 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.FogGlow = Lerp(L.FogNightGlow, 1.0, S.DayLight);
 	S.FogSunGlow = S.DayLight;
 
+	// Stage 4: fog with a top, valley mist, a rainbow. Radiation fog and mist need a calm, clear night
+	// (or its morning); the sun climbing burns them off.
+	{
+		const double Valley = In.ValleyAsl >= 0.0 ? std::min(In.ValleyAsl, In.GroundAsl) : In.GroundAsl;
+		const double Eye = In.ViewAsl >= 0.0 ? In.ViewAsl : In.GroundAsl + 2.0;
+		const double LowMidCover = 1.0 - (1.0 - Clamp01(W.LowCloud)) * (1.0 - Clamp01(W.MidCloud));
+		const double Calm = 1.0 - Smooth((W.Wind - L.MistCalmMs) / std::max(L.MistWindyMs - L.MistCalmMs, 0.1));
+		const double ClearAbove = 1.0 - Smooth((LowMidCover - L.MistClearTo) / std::max(1.0 - L.MistClearTo, 0.05) * 1.5);
+		const double Burn = 1.0 - Smooth(E / std::max(L.MistGoneDeg, 1.0));
+		const double Damp = Smooth((W.Humidity - L.MistHumidFrom) / std::max(L.MistHumidFull - L.MistHumidFrom, 0.5));
+		const double Radiation = Calm * std::max(ClearAbove, 1.0 - Smooth((W.LowCloud - 0.3) / 0.4));
+		S.Mist = Clamp01(Damp * Calm * ClearAbove * Burn);
+		S.MistTopAsl = Valley + L.MistDepthM * (0.5 + S.Mist);
+		// Fog from the feed (under 1 km): lying in the valleys with a top when it's radiation fog.
+		const double Foggy = 1.0 - Smooth((W.Visibility - 1000.0) / 3000.0);
+		if (Foggy > 0.0 && Radiation > 0.5)
+		{
+			const double Thick = 1.0 - Smooth((W.Visibility - 200.0) / 800.0);
+			S.FogTopAsl = Valley + Lerp(L.FogShallowM, L.FogThickM, Thick);
+			// Above its top the fog's haze goes (the viewer looks out over it into clear air).
+			const double Out = Smooth((Eye - S.FogTopAsl) / std::max(L.FogTopFadeM, 1.0));
+			const double FogPart = TorqueWeather::FogBoost(W);
+			if (FogPart > 1.0 && In.Haze <= FogPart + 1e-6)
+				S.FogScale /= Lerp(1.0, FogPart, Out * Radiation);
+		}
+		// A rainbow: rain falling here or near, the sun out (not hidden by cloud) and lower than 42 degrees.
+		const double Wet = Smooth(std::max(W.Rain, In.RainNear) / std::max(L.RainbowRainMm, 0.01));
+		const double SunOut = 1.0 - Smooth((S.Block - 0.4) / 0.4);
+		S.Rainbow = Wet * SunOut * Smooth(E / 3.0) * (1.0 - Smooth((E - (L.RainbowSunMostDeg - 6.0)) / 6.0));
+	}
+
 	// The cloud layers.
 	const double Rain = TorqueWeather::RainShow(W);
 	S.Low.Cover = Clamp01(W.LowCloud);
 	S.Low.BaseAsl = std::max(std::min(W.CloudBase, L.LowBaseMostM), In.GroundAsl + L.LowBaseLeastM);
-	const double DeckLow = Smooth((S.Low.Cover - 0.6) / 0.3);
-	const double Heap = L.LowHeapM + std::min(std::max(W.Cape, 0.0) / 100.0 * L.CapeDepthPer100, L.CapeMostM);
-	S.Low.TopAsl = S.Low.BaseAsl + Lerp(Heap, L.LowDeckM, DeckLow) + 1500.0 * Rain;
 	S.Low.Wind = W.Wind850;
 	S.Low.WindFrom = W.Wind850From;
 	S.Mid.Cover = Clamp01(W.MidCloud);
-	S.Mid.BaseAsl = std::max(L.MidBaseM, S.Low.BaseAsl + 300.0);
-	S.Mid.TopAsl = S.Mid.BaseAsl + L.MidDepthM;
 	S.Mid.Wind = W.Wind700;
 	S.Mid.WindFrom = W.Wind700From;
 	S.High.Cover = Clamp01(W.HighCloud);
-	S.High.BaseAsl = 8000.0;
-	S.High.TopAsl = 9500.0;
+	S.High.BaseAsl = L.HighBaseM;
+	S.High.TopAsl = L.HighBaseM + 500.0;
 	S.High.Wind = W.Wind300;
 	S.High.WindFrom = W.Wind300From;
 
-	// The layer drawn (stage 2 draws one; stage 3 splits them): the low and middle cloud together, at
-	// the low cloud's height unless the middle cloud is most of it.
-	S.Cover = 1.0 - (1.0 - S.Low.Cover) * (1.0 - S.Mid.Cover);
-	const double MidShare = S.Mid.Cover / std::max(S.Low.Cover + S.Mid.Cover, 1e-6);
-	const double M = Smooth((MidShare - 0.6) / 0.3);
-	S.BaseAsl = Lerp(S.Low.BaseAsl, S.Mid.BaseAsl, M);
-	S.TopAsl = Lerp(S.Low.TopAsl, S.Mid.TopAsl, M);
-	S.CoverShown = Clamp01(L.CoverShown.At(S.Cover));
-	S.Shape = Smooth((S.Cover - 0.55) / 0.4) * (1.0 - Smooth(std::max(W.Cape, 0.0) / 800.0));
-	S.Density = Lerp(Lerp(L.DensityFair, L.DensityDeck, S.Shape), L.DensityRain, Rain);
-	S.Albedo = Lerp(L.AlbedoFair, L.AlbedoRain, std::max(Rain, S.WetLook * 0.5));
+	// The kinds (stage 3), by the plan's rules, each a band blended across. The low layer's share goes
+	// first to towering cumulus (showers, or very unstable air by day), then nimbostratus (steady rain
+	// under a closed sky), stratus (a closed sky low on the ground), cumulus (broken cloud, the sun's
+	// heat), and what is left is stratocumulus.
 	{
-		// Carried on the wind at its height (blowing towards: from the west, it goes east).
-		auto Towards = [](double Speed, double FromDeg, double& East, double& North) {
-			East = -std::sin(FromDeg * DegToRad) * Speed;
-			North = -std::cos(FromDeg * DegToRad) * Speed;
-		};
-		double LowE = 0.0, LowN = 0.0, MidE = 0.0, MidN = 0.0;
-		Towards(S.Low.Wind, S.Low.WindFrom, LowE, LowN);
-		Towards(S.Mid.Wind, S.Mid.WindFrom, MidE, MidN);
-		S.DriftE = Lerp(LowE, MidE, M);
-		S.DriftN = Lerp(LowN, MidN, M);
+		const int C = W.Code;
+		const bool bShowerCode = (C >= 80 && C <= 82) || C == 85 || C == 86 || C >= 95;
+		const double Showery = bShowerCode ? 1.0 : Smooth((W.Cape - L.ShowerCapeFrom) / std::max(L.ShowerCapeTo - L.ShowerCapeFrom, 1.0));
+		const double Heat = Smooth((E - L.ConvectFromDeg) / std::max(L.ConvectFullDeg - L.ConvectFromDeg, 1e-3));
+		const double LowMid = 1.0 - (1.0 - S.Low.Cover) * (1.0 - S.Mid.Cover);
+		const double BaseAgl = S.Low.BaseAsl - In.GroundAsl;
+		const double Tow = std::max(Smooth(W.Rain / std::max(L.ShowerRainMm, 1e-3)) * Showery,
+			Heat * Smooth((W.Cape - L.ToweringCapeFrom) / std::max(L.ToweringCapeTo - L.ToweringCapeFrom, 1.0)));
+		const double Ns = Smooth(W.Rain / std::max(L.SteadyRainMm, 1e-3)) * (1.0 - Showery) * Smooth((LowMid - 0.7) / 0.25);
+		const double St = Smooth((S.Low.Cover - L.StratusCoverFrom) / std::max(L.StratusCoverTo - L.StratusCoverFrom, 1e-3))
+			* (1.0 - Smooth((BaseAgl - L.StratusBaseFromM) / std::max(L.StratusBaseToM - L.StratusBaseFromM, 1.0)));
+		const double Broken = 1.0 - Smooth((S.Low.Cover - L.BrokenTo) / std::max(L.BrokenSheet - L.BrokenTo, 1e-3));
+		const double Cu = Broken * Heat * Lerp(0.5, 1.0, Smooth(std::max(W.Cape, 0.0) / std::max(L.ConvectCape, 1.0)));
+		double Rest = 1.0;
+		auto Take = [&Rest](double Share) { const double Got = Rest * Clamp01(Share); Rest -= Got; return Got; };
+		S.Weight[Towering] = Take(Tow);
+		S.Weight[Nimbostratus] = Take(Ns);
+		S.Weight[Stratus] = Take(St);
+		S.Weight[Cumulus] = Take(Cu);
+		S.Weight[Stratocumulus] = Rest;
+		// The middle: nimbostratus fills it as it does the low; the rest a sheet (altostratus) as it
+		// closes, small cells in rows (altocumulus) while it's broken.
+		const double MidRest = 1.0 - S.Weight[Nimbostratus];
+		const double Sheet = Smooth((S.Mid.Cover - L.MidSheetFrom) / std::max(L.MidSheetTo - L.MidSheetFrom, 1e-3));
+		S.Weight[Altostratus] = MidRest * Sheet;
+		S.Weight[Altocumulus] = MidRest * (1.0 - Sheet);
+		// The high: wisps of cirrus, a veil of cirrostratus as it closes.
+		S.Weight[Cirrostratus] = Smooth((S.High.Cover - L.VeilFrom) / std::max(L.VeilTo - L.VeilFrom, 1e-3));
+		S.Weight[Cirrus] = 1.0 - S.Weight[Cirrostratus];
 	}
-	S.CloudShadows = In.bClouds ? 1.0 - Deck : 0.0;
+	auto Blend = [&L, &S](std::initializer_list<int> Kinds) {
+		KindLook Out{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+		double Sum = 0.0;
+		for (int K : Kinds) Sum += S.Weight[K];
+		for (int K : Kinds)
+		{
+			const double Wt = Sum > 1e-9 ? S.Weight[K] / Sum : 1.0 / static_cast<double>(Kinds.size());
+			const KindLook& R = L.Kinds[K];
+			Out.Shape += R.Shape * Wt; Out.Lumps += R.Lumps * Wt; Out.Ragged += R.Ragged * Wt; Out.Density += R.Density * Wt;
+			Out.BaseDark += R.BaseDark * Wt; Out.DepthM += R.DepthM * Wt; Out.CapeDepth += R.CapeDepth * Wt; Out.Sheet += R.Sheet * Wt;
+		}
+		return Out;
+	};
+	const double Heap = L.LowHeapM + std::min(std::max(W.Cape, 0.0) / 100.0 * L.CapeDepthPer100, L.CapeMostM);
+	S.LowDrawn.Look = Blend({Cumulus, Stratocumulus, Stratus, Nimbostratus, Towering});
+	S.MidDrawn.Look = Blend({Altocumulus, Altostratus, Nimbostratus});
+	S.Low.TopAsl = S.Low.BaseAsl + S.LowDrawn.Look.DepthM + S.LowDrawn.Look.CapeDepth * Heap;
+	S.Mid.BaseAsl = std::max(L.MidBaseM, S.Low.BaseAsl + 300.0);
+	// (nimbostratus is one thick cloud from the low base up: the middle layer joins it)
+	S.Mid.BaseAsl = Lerp(S.Mid.BaseAsl, std::max(S.Low.TopAsl - 600.0, S.Low.BaseAsl + 300.0), S.Weight[Nimbostratus]);
+	S.Mid.TopAsl = S.Mid.BaseAsl + std::max(S.MidDrawn.Look.DepthM, 300.0);
+	// A wet look darkens both.
+	const double WetGrey = std::max(Rain, S.WetLook * 0.5);
+	auto Towards = [](double Speed, double FromDeg, double& East, double& North) {
+		// Carried on the wind at its height (blowing towards: from the west, it goes east).
+		East = -std::sin(FromDeg * DegToRad) * Speed;
+		North = -std::cos(FromDeg * DegToRad) * Speed;
+	};
+	S.LowDrawn.Cover = S.Low.Cover;
+	S.LowDrawn.CoverShown = Clamp01(L.CoverShown.At(S.Low.Cover));
+	S.LowDrawn.Albedo = Lerp(L.AlbedoFair, L.AlbedoRain, WetGrey);
+	Towards(S.Low.Wind, S.Low.WindFrom, S.LowDrawn.DriftE, S.LowDrawn.DriftN);
+	S.MidDrawn.Cover = S.Mid.Cover;
+	S.MidDrawn.CoverShown = Clamp01(L.CoverShown.At(S.Mid.Cover));
+	S.MidDrawn.Albedo = Lerp(L.AlbedoFair, L.AlbedoRain, WetGrey * 0.7);
+	Towards(S.Mid.Wind, S.Mid.WindFrom, S.MidDrawn.DriftE, S.MidDrawn.DriftN);
+	Towards(S.High.Wind, S.High.WindFrom, S.HighDriftE, S.HighDriftN);
+	S.LowDrawn.Look.Density = Lerp(S.LowDrawn.Look.Density, std::max(S.LowDrawn.Look.Density, L.DensityRain), Rain);
+
+	// The volume: from the lowest drawn base to the highest drawn top, each layer a band in it.
+	const bool bLow = S.Low.Cover > 0.01, bMid = S.Mid.Cover > 0.01;
+	S.BaseAsl = bLow || !bMid ? S.Low.BaseAsl : S.Mid.BaseAsl;
+	S.TopAsl = std::max(bLow || !bMid ? S.Low.TopAsl : 0.0, bMid ? S.Mid.TopAsl : 0.0);
+	const double Span = std::max(S.TopAsl - S.BaseAsl, 1.0);
+	auto Band = [&S, Span](const Layer& Ly, Sky::Drawn& D) {
+		D.Bottom = Clamp01((Ly.BaseAsl - S.BaseAsl) / Span);
+		D.Top = std::max(Clamp01((Ly.TopAsl - S.BaseAsl) / Span), D.Bottom + 1e-3);
+	};
+	Band(S.Low, S.LowDrawn);
+	Band(S.Mid, S.MidDrawn);
+
+	// The low layer's figures under their stage 2 names (the material's Cover, Density, Albedo, Shape).
+	S.Cover = 1.0 - (1.0 - S.Low.Cover) * (1.0 - S.Mid.Cover);
+	S.CoverShown = S.LowDrawn.CoverShown;
+	S.Shape = bLow || !bMid ? S.LowDrawn.Look.Shape : S.MidDrawn.Look.Shape;
+	S.Density = S.LowDrawn.Look.Density;
+	S.Albedo = S.LowDrawn.Albedo;
+	S.DriftE = bLow || !bMid ? S.LowDrawn.DriftE : S.MidDrawn.DriftE;
+	S.DriftN = bLow || !bMid ? S.LowDrawn.DriftN : S.MidDrawn.DriftN;
+
+	// The high sheet, and the sun through it: a veil makes a milky sun with a halo; a middle sheet a
+	// ground glass sun with faint shadows.
+	S.HighShown = Clamp01(L.CoverShown.At(S.High.Cover));
+	S.HighSheet = Lerp(L.Kinds[Cirrus].Sheet, L.Kinds[Cirrostratus].Sheet, S.Weight[Cirrostratus]);
+	const double Veil = S.Weight[Cirrostratus] * S.High.Cover;
+	const double Glass = S.Weight[Altostratus] * S.Mid.Cover * (1.0 - S.Low.Cover);
+	S.Halo = L.HaloMost * Veil * (1.0 - S.Cover) * Smooth(E / 5.0);
+	S.SunAngle = std::min(S.SunAngle + L.VeilWidenDeg * Veil + L.GlassWidenDeg * Glass, std::max(L.SunWideDeg, S.SunAngle));
+	S.SunDisc = Clamp01(1.0 - S.SunAngle / std::max(L.DiscHideOverDeg, 1e-3));
+	S.CloudShadows = In.bClouds ? (1.0 - Deck) * (1.0 - (1.0 - L.GlassShadows) * Glass) : 0.0;
 	S.LegacyShadow = In.bClouds ? 1.0 : L.LegacyShadow.At(W.Cloud);
 	return S;
 }

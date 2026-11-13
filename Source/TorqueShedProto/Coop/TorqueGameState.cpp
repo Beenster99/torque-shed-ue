@@ -61,8 +61,9 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 	DOREPLIFETIME(ATorqueGameState, RideJourney);
-	DOREPLIFETIME(ATorqueGameState, SkyDriftE);
-	DOREPLIFETIME(ATorqueGameState, SkyDriftN);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftLow);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftMid);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftHigh);
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
 }
 
@@ -314,19 +315,38 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 			NextFetchIn = 0.0;
 	}
 	if (Mode == FTorqueSettings::WeatherLive && !bFetching && (NextFetchIn -= DeltaSeconds) <= 0.0) FetchLive(0);
+	if (Mode == FTorqueSettings::WeatherLive && HasAuthority() && !bFetchingWide && GridNow.Valid() && (NextWideIn -= DeltaSeconds) <= 0.0) FetchWide();
 	// The real time of day, or the day going by: a whole day in Settings' Day length of real minutes.
 	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
 	const bool bRealClock = Set.bRealClock && (!bTestRun || bRealClockTest);
 	// (The sky bench holds its own sun: a day and a place of its choosing.)
 	if (!bSunHeld) bRealSunNow = bRealClock;
 	if (!bSunHeld && bRealClock) TickRealClock();
-	else if (!bSunHeld && (SunShift != 0.0f || SunDec != 15.0f || SunLat != 54.35f))
+	else if (!bSunHeld && HasAuthority())
 	{
-		SunShift = 0.0f;
-		SunDec = 15.0f;
-		SunLat = 54.35f;
-		ApplySun();
-		ForceNetUpdate();
+		// A clock set in Settings (or running by itself) is today's clock at the place the weather is from:
+		// the sun stands as it does there today at that hour, so 05:00 on a November morning is dark and
+		// the sun comes up when the info panel says (beenster, build 141: 05:00 with a 07:29 sunrise was
+		// broad daylight, because the sun was a midsummer one). Test runs keep the fixed summer sun their
+		// shots were taken with.
+		float Shift = 0.0f, Dec = 15.0f, SLat = 54.35f;
+		if (!bTestRun)
+		{
+			const FDateTime Utc = FDateTime::UtcNow();
+			const int32 Day = Utc.GetDayOfYear();
+			const int32 Off = bUtcKnown ? UtcOffset : FMath::RoundToInt((FDateTime::Now() - Utc).GetTotalSeconds() / 900.0) * 900;
+			Dec = (float)TorqueWeather::SunDeclination(Day);
+			SLat = (float)LatitudeAt;
+			Shift = (float)(LongitudeAt / 15.0 + TorqueWeather::EquationOfTime(Day) / 60.0 - Off / 3600.0);
+		}
+		if (FMath::Abs(SunShift - Shift) > 1e-4f || FMath::Abs(SunDec - Dec) > 1e-3f || FMath::Abs(SunLat - SLat) > 1e-3f)
+		{
+			SunShift = Shift;
+			SunDec = Dec;
+			SunLat = SLat;
+			ApplySun();
+			ForceNetUpdate();
+		}
 	}
 	if (Set.bDayNight && !bRealClock && !bSunHeld)
 	{
@@ -639,6 +659,88 @@ void ATorqueGameState::FetchLive(int32 Feed)
 	Req->ProcessRequest();
 }
 
+void ATorqueGameState::FetchWide()
+{
+	// The wider ring: Open-Meteo for 49 points 12 km apart round the host, snapped as the near grid is.
+	double VLat = LatitudeAt, VLon = LongitudeAt, VAsl = 0.0;
+	ViewGeo(VLat, VLon, VAsl);
+	TorqueWeather::SnapCentre(VLat, VLon, WIDE_STEP_M, WideLat, WideLon);
+	const std::string Url = TorqueWeather::OpenMeteoGridUrl(WideLat, WideLon, WIDE_N, WIDE_STEP_M);
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(UTF8_TO_TCHAR(Url.c_str()));
+	Req->SetVerb(TEXT("GET"));
+	Req->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	Req->SetTimeout(20.0f);
+	TWeakObjectPtr<ATorqueGameState> Self(this);
+	Req->OnProcessRequestComplete().BindLambda([Self](FHttpRequestPtr, FHttpResponsePtr Resp, bool bConnected)
+	{
+		ATorqueGameState* GS = Self.Get();
+		if (!GS) return;
+		GS->bFetchingWide = false;
+		GS->WideRequest.Reset();
+		const bool bOk = bConnected && Resp.IsValid() && EHttpResponseCodes::IsOk(Resp->GetResponseCode());
+		TorqueWeather::Grid G;
+		long long When = 0;
+		std::string Why = bOk ? std::string() : std::string("no answer");
+		if (bOk && TorqueWeather::ParseOpenMeteoGrid(TCHAR_TO_UTF8(*Resp->GetContentAsString()), GS->WideLat, GS->WideLon, WIDE_N, WIDE_STEP_M, G, &When, nullptr, &Why))
+		{
+			GS->GridWide = G;
+			GS->GridWideAt = FDateTime::UtcNow().ToUnixTimestamp();
+			GS->NextWideIn = 30.0 * 60.0;
+			double Wettest = 0.0;
+			for (const TorqueWeather::State& P : G.Points) Wettest = FMath::Max(Wettest, P.Rain);
+			UE_LOG(LogTemp, Log, TEXT("Torque weather: wider ring %dx%d, %.0f km apart, round %.3f, %.3f: wettest %.1f mm/h; rain near %.1f mm/h"),
+				WIDE_N, WIDE_N, WIDE_STEP_M / 1000.0, GS->WideLat, GS->WideLon, Wettest, GS->RainNearNow());
+		}
+		else
+		{
+			GS->NextWideIn = 10.0 * 60.0;
+			UE_LOG(LogTemp, Warning, TEXT("Torque weather: wider ring failed: %s"), UTF8_TO_TCHAR(Why.c_str()));
+		}
+	});
+	bFetchingWide = true;
+	WideRequest = Req;
+	Req->ProcessRequest();
+}
+
+double ATorqueGameState::ValleyAslNow() const
+{
+	if (!GridNow.Valid()) return -1.0;
+	double Lowest = 1e9;
+	for (double E : GridNow.Elevation) Lowest = FMath::Min(Lowest, E);
+	return Lowest;
+}
+
+double ATorqueGameState::RainNearNow() const
+{
+	// Each point's rain, carried on the low cloud's wind since it was asked, fading out by 35 km away.
+	double VLat = LatitudeAt, VLon = LongitudeAt, VAsl = 0.0;
+	ViewGeo(VLat, VLon, VAsl);
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	double Most = 0.0;
+	auto Look = [&](const TorqueWeather::Grid& G, int64 At) {
+		if (!G.Valid()) return;
+		const double Since = (double)FMath::Max<int64>(Now - At, 0);
+		const double Half = (G.N - 1) * 0.5;
+		for (int32 Row = 0; Row < G.N; ++Row)
+			for (int32 Col = 0; Col < G.N; ++Col)
+			{
+				const TorqueWeather::State& P = G.Points[Row * G.N + Col];
+				if (P.Rain <= 0.0) continue;
+				const double To = FMath::DegreesToRadians(P.Wind850From + 180.0);
+				const double PE = (Col - Half) * G.StepM + FMath::Sin(To) * P.Wind850 * Since;
+				const double PN = (Half - Row) * G.StepM + FMath::Cos(To) * P.Wind850 * Since;
+				double E = 0.0, N = 0.0;
+				TorqueWeather::MetresBetween(G.Lat, G.Lon, VLat, VLon, E, N);
+				const double Dist = FMath::Sqrt(FMath::Square(PE - E) + FMath::Square(PN - N));
+				Most = FMath::Max(Most, P.Rain * FMath::Clamp(1.0 - Dist / 35000.0, 0.0, 1.0));
+			}
+	};
+	Look(GridNow, GridFetchedNow);
+	Look(GridWide, GridWideAt);
+	return Most;
+}
+
 void ATorqueGameState::LiveAnswer(int32 Feed, bool, const FString& Body)
 {
 	bFetching = false;
@@ -923,7 +1025,7 @@ void ATorqueGameState::ApplyWeather()
 		// The ground under the viewer: the camera's height above sea level, less a rider's eye.
 		double Lat = 0.0, Lon = 0.0, Asl = OriginAsl;
 		ViewGeo(Lat, Lon, Asl);
-		Sky->Apply(St, SunElevationNow, bRealSunNow, AppliedHaze, Asl - 1.5, Open);
+		Sky->Apply(St, SunElevationNow, bRealSunNow, AppliedHaze, Asl - 1.5, Open, Asl, ValleyAslNow(), RainNearNow());
 	}
 	if (!WeatherMpc) WeatherMpc = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather"));
 	if (WeatherMpc)
@@ -956,18 +1058,19 @@ void ATorqueGameState::ApplyWeather()
 	}
 }
 
-void ATorqueGameState::ShareSkyDrift(double East, double North)
+void ATorqueGameState::ShareSkyDrift(int32 Layer, double East, double North)
 {
 	if (!HasAuthority()) return;
-	SkyDriftE = East;
-	SkyDriftN = North;
+	FVector2D& To = Layer == 0 ? SkyDriftLow : Layer == 1 ? SkyDriftMid : SkyDriftHigh;
+	To = FVector2D(East, North);
 	bSkyDriftSet = true;
 }
 
-bool ATorqueGameState::SharedSkyDrift(double& East, double& North) const
+bool ATorqueGameState::SharedSkyDrift(int32 Layer, double& East, double& North) const
 {
-	East = SkyDriftE;
-	North = SkyDriftN;
+	const FVector2D& From = Layer == 0 ? SkyDriftLow : Layer == 1 ? SkyDriftMid : SkyDriftHigh;
+	East = From.X;
+	North = From.Y;
 	return bSkyDriftSet;
 }
 

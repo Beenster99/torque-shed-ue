@@ -1,7 +1,64 @@
 {
  "about": "The sky's tuning figures (Weather/SkyModel.h, skies plan). The game reads this at start (ATorqueSky): change a figure, restart, no recompile. A figure left out keeps its default. Curves are [x, y] points, straight between. sky_test checks the presets still give the light they always had.",
  "light": {
-  "clear_lux": [[-18, 0.0007], [-12, 0.008], [-9, 0.2], [-6, 3.4], [-3, 60], [-0.83, 400], [0, 650], [5, 6000], [10, 15000], [20, 33000], [30, 52000], [45, 76000], [60, 96000], [90, 105000]],
+  "clear_lux": [
+   [
+    -18,
+    0.0007
+   ],
+   [
+    -12,
+    0.008
+   ],
+   [
+    -9,
+    0.2
+   ],
+   [
+    -6,
+    3.4
+   ],
+   [
+    -3,
+    60
+   ],
+   [
+    -0.83,
+    400
+   ],
+   [
+    0,
+    650
+   ],
+   [
+    5,
+    6000
+   ],
+   [
+    10,
+    15000
+   ],
+   [
+    20,
+    33000
+   ],
+   [
+    30,
+    52000
+   ],
+   [
+    45,
+    76000
+   ],
+   [
+    60,
+    96000
+   ],
+   [
+    90,
+    105000
+   ]
+  ],
   "overcast_lux": 0.15,
   "rain_cloud_lux": 0.035,
   "day_from_lux": 1.0,
@@ -10,7 +67,7 @@
   "sun_fade_from_deg": -2.0,
   "sun_fade_to_deg": -10.0,
   "sun_dim_dull": 0.14,
-  "sun_dim_wet": 0.10,
+  "sun_dim_wet": 0.1,
   "sun_wide_deg": 40.0,
   "disc_hide_over_deg": 1.5,
   "sky_light_dull": 2.5,
@@ -20,7 +77,28 @@
   "direct_trust_from_deg": 8.0
  },
  "air": {
-  "haze_by_km": [[8, 1.0], [10, 1.0], [40, 1.0], [60, 0.7], [100, 0.5]],
+  "haze_by_km": [
+   [
+    8,
+    1.0
+   ],
+   [
+    10,
+    1.0
+   ],
+   [
+    40,
+    1.0
+   ],
+   [
+    60,
+    0.7
+   ],
+   [
+    100,
+    0.5
+   ]
+  ],
   "humid_from": 90.0,
   "humid_swell": 1.5,
   "dull_mie": 12.0,
@@ -32,22 +110,197 @@
   "fog_night_glow": 0.006
  },
  "cloud": {
-  "cover_shown": [[0, 0], [0.1, 0.12], [0.25, 0.3], [0.5, 0.52], [0.75, 0.74], [1, 1]],
-  "low_deck_m": 700.0,
+  "cover_shown": [
+   [
+    0,
+    0
+   ],
+   [
+    0.1,
+    0.12
+   ],
+   [
+    0.25,
+    0.3
+   ],
+   [
+    0.5,
+    0.52
+   ],
+   [
+    0.75,
+    0.74
+   ],
+   [
+    1,
+    1
+   ]
+  ],
   "low_heap_m": 1000.0,
   "cape_depth_per_100": 250.0,
   "cape_most_m": 4500.0,
   "mid_base_m": 3200.0,
-  "mid_depth_m": 1500.0,
   "low_base_least_m": 150.0,
   "low_base_most_m": 2600.0,
-  "density_fair": 0.6,
-  "density_deck": 1.0,
   "density_rain": 1.6,
   "albedo_fair": 1.0,
   "albedo_rain": 0.7,
   "deck_from": 0.7,
   "deck_to": 0.95,
-  "legacy_shadow": [[0, 1.0], [0.1, 0.6], [0.6, 0.45], [1, 0.45]]
+  "legacy_shadow": [
+   [
+    0,
+    1.0
+   ],
+   [
+    0.1,
+    0.6
+   ],
+   [
+    0.6,
+    0.45
+   ],
+   [
+    1,
+    0.45
+   ]
+  ],
+  "high_base_m": 9000.0,
+  "high_opacity": 0.75,
+  "kinds": {
+   "_": "Each kind's look: shape 0 heaped .. 1 flat; lumps 0 big .. 1 small; ragged edges; density; base_dark; depth_m (+ cape_depth x the CAPE heap); sheet (high cloud: 0 wisps .. 1 veil).",
+   "cumulus": {
+    "shape": 0.0,
+    "lumps": 0.6,
+    "ragged": 0.55,
+    "density": 0.7,
+    "base_dark": 0.15,
+    "depth_m": 0.0,
+    "cape_depth": 1.0,
+    "sheet": 0.0
+   },
+   "stratocumulus": {
+    "shape": 0.75,
+    "lumps": 0.55,
+    "ragged": 0.35,
+    "density": 0.9,
+    "base_dark": 0.3,
+    "depth_m": 700.0,
+    "cape_depth": 0.0,
+    "sheet": 0.0
+   },
+   "stratus": {
+    "shape": 1.0,
+    "lumps": 0.1,
+    "ragged": 0.1,
+    "density": 1.0,
+    "base_dark": 0.15,
+    "depth_m": 400.0,
+    "cape_depth": 0.0,
+    "sheet": 0.0
+   },
+   "nimbostratus": {
+    "shape": 0.9,
+    "lumps": 0.2,
+    "ragged": 0.6,
+    "density": 1.6,
+    "base_dark": 0.6,
+    "depth_m": 3000.0,
+    "cape_depth": 0.0,
+    "sheet": 0.0
+   },
+   "towering": {
+    "shape": 0.0,
+    "lumps": 0.3,
+    "ragged": 0.45,
+    "density": 1.4,
+    "base_dark": 0.55,
+    "depth_m": 2500.0,
+    "cape_depth": 1.0,
+    "sheet": 0.0
+   },
+   "altocumulus": {
+    "shape": 0.55,
+    "lumps": 1.0,
+    "ragged": 0.65,
+    "density": 0.6,
+    "base_dark": 0.1,
+    "depth_m": 600.0,
+    "cape_depth": 0.0,
+    "sheet": 0.0
+   },
+   "altostratus": {
+    "shape": 1.0,
+    "lumps": 0.05,
+    "ragged": 0.15,
+    "density": 0.5,
+    "base_dark": 0.15,
+    "depth_m": 1500.0,
+    "cape_depth": 0.0,
+    "sheet": 0.0
+   },
+   "cirrus": {
+    "shape": 0.0,
+    "lumps": 0.0,
+    "ragged": 0.0,
+    "density": 0.35,
+    "base_dark": 0.0,
+    "depth_m": 0.0,
+    "cape_depth": 0.0,
+    "sheet": 0.0
+   },
+   "cirrostratus": {
+    "shape": 0.0,
+    "lumps": 0.0,
+    "ragged": 0.0,
+    "density": 0.25,
+    "base_dark": 0.0,
+    "depth_m": 0.0,
+    "cape_depth": 0.0,
+    "sheet": 1.0
+   }
+  }
+ },
+ "kinds_rules": {
+  "_": "Stage 3: which kind of cloud each layer shows. Every rule is a band blended across, never a switch.",
+  "convect_from_deg": 5.0,
+  "convect_full_deg": 25.0,
+  "convect_cape": 300.0,
+  "shower_cape_from": 200.0,
+  "shower_cape_to": 600.0,
+  "shower_rain_mm": 0.15,
+  "steady_rain_mm": 1.0,
+  "towering_cape_from": 800.0,
+  "towering_cape_to": 2000.0,
+  "stratus_cover_from": 0.7,
+  "stratus_cover_to": 0.95,
+  "stratus_base_from_m": 300.0,
+  "stratus_base_to_m": 800.0,
+  "broken_to": 0.65,
+  "broken_sheet": 0.95,
+  "mid_sheet_from": 0.55,
+  "mid_sheet_to": 0.9,
+  "veil_from": 0.45,
+  "veil_to": 0.85,
+  "veil_widen_deg": 1.0,
+  "glass_widen_deg": 6.0,
+  "glass_shadows": 0.25,
+  "halo_most": 0.6
+ },
+ "seen_coming": {
+  "_": "Stage 4: fog with a top, valley mist (Local Fog Volumes in the hollows), rainbow rule.",
+  "fog_shallow_m": 40.0,
+  "fog_thick_m": 120.0,
+  "fog_top_fade_m": 40.0,
+  "mist_humid_from": 86.0,
+  "mist_humid_full": 95.0,
+  "mist_calm_ms": 1.5,
+  "mist_windy_ms": 4.0,
+  "mist_clear_to": 0.35,
+  "mist_gone_deg": 14.0,
+  "mist_depth_m": 25.0,
+  "mist_extinction": 0.6,
+  "rainbow_sun_most_deg": 42.0,
+  "rainbow_rain_mm": 0.2
  }
 }

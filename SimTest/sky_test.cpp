@@ -5,6 +5,7 @@
 #include "WeatherModel.h"
 #include "FitJson.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -205,7 +206,7 @@ int main()
 		In.GroundAsl = 300.0;
 		Sky S = Compute(In, L);
 		std::printf("  a 450 m base over a 300 m dale: drawn %.0f to %.0f m, cover %.2f\n", S.BaseAsl, S.TopAsl, S.Cover);
-		Check(Near(S.BaseAsl, 450.0, 1e-6) && S.TopAsl > S.BaseAsl + 500.0, "the base is the dew point's, the deck some hundreds of metres deep");
+		Check(Near(S.BaseAsl, 450.0, 1e-6) && S.Low.TopAsl > S.BaseAsl + 300.0 && S.Dominant(0) == Stratus, "the base is the dew point's: a stratus lid some hundreds of metres deep");
 		Check(S.BaseAsl < 526.0, "  a 450 m base hides the top of Buttertubs (526 m)");
 		In.GroundAsl = 400.0;
 		Check(Near(Compute(In, L).BaseAsl, 550.0, 1e-6), "the base never sits on the ground under the viewer (150 m clear)");
@@ -231,11 +232,142 @@ int main()
 		const Sky D = Compute(In, L);
 		In.Weather = Cu;
 		const Sky Broken = Compute(In, L);
-		std::printf("  cumulus (half cover, CAPE 600): shape %.2f, %0.f m deep; the overcast deck: shape %.2f\n", S.Shape, S.TopAsl - S.BaseAsl, D.Shape);
-		Check(S.Shape < 0.1 && D.Shape > 0.8 && S.TopAsl - S.BaseAsl > 2000.0, "heaped cumulus on an unstable day, a flat deck under overcast");
+		std::printf("  cumulus (half cover, CAPE 600): shape %.2f, %0.f m deep; the overcast's middle deck: shape %.2f\n", S.Shape, S.Low.TopAsl - S.Low.BaseAsl, D.MidDrawn.Look.Shape);
+		Check(S.Shape < 0.2 && D.MidDrawn.Look.Shape > 0.8 && S.Low.TopAsl - S.Low.BaseAsl > 2000.0, "heaped cumulus on an unstable day, a flat deck under overcast");
 		Check(Broken.CloudShadows > 0.99 && Broken.SunScale > 0.99, "broken cloud drawn: its own shadows, the sun not dimmed as well");
 		Check(D.CloudShadows < 0.01 && Near(D.SunScale, Old(Deck).Sun, 1e-6), "a closed deck: the sun dimmed as before, no shadows from it");
 		Check(Broken.LegacyShadow == 1.0 && Near(At(Cu, 20.0).LegacyShadow, 0.6 - 0.15 * 0.8, 1e-6), "the old noise shadows only where clouds aren't drawn");
+	}
+
+	std::printf("\nThe kinds of cloud (stage 3)\n");
+	{
+		auto Make = [](double Low, double Mid, double High, double Rain, int Code, double Cape, double Base) {
+			State W = TorqueWeather::Preset(TorqueWeather::Sunny);
+			W.LowCloud = Low; W.MidCloud = Mid; W.HighCloud = High; W.Rain = Rain; W.Code = Code; W.Cape = Cape; W.CloudBase = Base;
+			W.Cloud = 1.0 - (1.0 - Low) * (1.0 - Mid) * (1.0 - High);
+			return W;
+		};
+		struct Case { const char* What; State W; double Sun; int Layer; int Want; };
+		const Case Cases[] = {
+			{"broken low cloud, unstable air, midday: cumulus", Make(0.4, 0.0, 0.0, 0.0, 2, 400.0, 1200.0), 40.0, 0, Cumulus},
+			{"mostly covered, stable, a winter high: stratocumulus", Make(0.85, 0.0, 0.0, 0.0, 3, 0.0, 1100.0), 12.0, 0, Stratocumulus},
+			{"broken cloud at night: stratocumulus, not cumulus", Make(0.5, 0.0, 0.0, 0.0, 2, 300.0, 1100.0), -10.0, 0, Stratocumulus},
+			{"closed, base 450 m over a 300 m dale, drizzle: stratus", Make(1.0, 0.2, 0.0, 0.2, 53, 0.0, 450.0), 15.0, 0, Stratus},
+			{"steady rain under a closed sky: nimbostratus", Make(1.0, 1.0, 0.5, 3.0, 63, 0.0, 700.0), 20.0, 0, Nimbostratus},
+			{"  and it fills the middle too", Make(1.0, 1.0, 0.5, 3.0, 63, 0.0, 700.0), 20.0, 1, Nimbostratus},
+			{"showers: towering cumulus", Make(0.6, 0.2, 0.0, 1.5, 81, 500.0, 900.0), 35.0, 0, Towering},
+			{"broken middle cloud: altocumulus", Make(0.0, 0.4, 0.0, 0.0, 2, 0.0, 3000.0), 30.0, 1, Altocumulus},
+			{"a closed middle sheet: altostratus", Make(0.0, 1.0, 0.2, 0.0, 3, 0.0, 3000.0), 30.0, 1, Altostratus},
+			{"light high cloud: cirrus", Make(0.0, 0.0, 0.3, 0.0, 1, 0.0, 3000.0), 30.0, 2, Cirrus},
+			{"heavy high cloud: cirrostratus", Make(0.0, 0.0, 0.95, 0.0, 2, 0.0, 3000.0), 30.0, 2, Cirrostratus},
+		};
+		bool bAll = true;
+		for (const Case& C : Cases)
+		{
+			Inputs In;
+			In.Weather = C.W;
+			In.SunElevation = C.Sun;
+			In.GroundAsl = 300.0;
+			In.bClouds = true;
+			const Sky S = Compute(In, L);
+			const int Got = S.Dominant(C.Layer);
+			std::printf("  %s %-58s %s (%.2f)\n", Got == C.Want ? "  " : "!!", C.What, KindName(Got), Got >= 0 ? S.Weight[Got] : 0.0);
+			bAll = bAll && Got == C.Want;
+		}
+		Check(bAll, "the rule table picks each of the nine kinds");
+
+		// Blended, never switched: the weights move smoothly as a figure sweeps across its band.
+		double Jump = 0.0;
+		Sky Prev{};
+		for (int I = 0; I <= 200; ++I)
+		{
+			const double T = I / 200.0;
+			Inputs In;
+			In.Weather = Make(T, T, T, 0.0, 2, 200.0, 900.0);
+			In.SunElevation = 25.0;
+			In.GroundAsl = 300.0;
+			const Sky S = Compute(In, L);
+			if (I > 0)
+				for (int K = 0; K < KindCount; ++K) Jump = std::max(Jump, std::fabs(S.Weight[K] - Prev.Weight[K]));
+			Prev = S;
+		}
+		std::printf("  the biggest step in any kind's weight as the cover sweeps 0 to 100%% in 0.5%% steps: %.3f\n", Jump);
+		Check(Jump < 0.05, "kinds blend across a band, never flip on a threshold");
+		double Sum = 0.0;
+		for (int K = Cumulus; K <= Towering; ++K) Sum += Prev.Weight[K];
+		Check(Near(Sum, 1.0, 1e-9), "  a layer's weights add up to one");
+
+		// The sun through cloud.
+		Inputs In;
+		In.SunElevation = 30.0;
+		In.GroundAsl = 300.0;
+		In.bClouds = true;
+		In.Weather = Make(0.0, 0.0, 0.0, 0.0, 0, 0.0, 3000.0);
+		const Sky Clear = Compute(In, L);
+		In.Weather = Make(0.0, 0.0, 0.95, 0.0, 2, 0.0, 3000.0);
+		const Sky Veil = Compute(In, L);
+		In.Weather = Make(0.0, 1.0, 0.0, 0.0, 3, 0.0, 3000.0);
+		const Sky Glass = Compute(In, L);
+		std::printf("  sun width / disc / halo / shadows: clear %.2f %.2f %.2f %.2f; a veil %.2f %.2f %.2f %.2f; altostratus %.2f %.2f %.2f %.2f\n",
+			Clear.SunAngle, Clear.SunDisc, Clear.Halo, Clear.CloudShadows, Veil.SunAngle, Veil.SunDisc, Veil.Halo, Veil.CloudShadows,
+			Glass.SunAngle, Glass.SunDisc, Glass.Halo, Glass.CloudShadows);
+		Check(Veil.Halo > 0.3 && Veil.SunDisc < 0.5 && Veil.SunDisc > 0.0 && Clear.Halo == 0.0, "a veil: a milky sun with a halo");
+		Check(Glass.SunDisc == 0.0 && Glass.CloudShadows < 0.5 && Glass.Halo < 0.01, "altostratus: a ground glass sun, faint shadows, no halo");
+		Check(Veil.HighShown > 0.9 && Veil.HighSheet > 0.9 && Compute([&] { Inputs I = In; I.Weather = Make(0, 0, 0.3, 0, 1, 0, 3000); return I; }(), L).HighSheet < 0.2,
+			"  the high sheet: a veil at full cover, wisps when light");
+
+		// Two layers in the one volume: each in its own band.
+		In.Weather = Make(0.5, 0.6, 0.0, 0.0, 2, 100.0, 1000.0);
+		const Sky Two = Compute(In, L);
+		std::printf("  two layers: volume %.0f-%.0f m, low band %.2f-%.2f, middle band %.2f-%.2f\n", Two.BaseAsl, Two.TopAsl,
+			Two.LowDrawn.Bottom, Two.LowDrawn.Top, Two.MidDrawn.Bottom, Two.MidDrawn.Top);
+		Check(Two.LowDrawn.Bottom == 0.0 && Two.LowDrawn.Top < Two.MidDrawn.Bottom && Near(Two.MidDrawn.Top, 1.0, 1e-9), "low and middle cloud drawn as two bands, a gap between");
+	}
+
+	std::printf("\nWeather you can see coming (stage 4): fog with a top, valley mist, rainbows\n");
+	{
+		State Still = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Still.LowCloud = 0.0; Still.MidCloud = 0.0; Still.Cloud = 0.05; Still.Wind = 1.0; Still.Humidity = 97.0; Still.Visibility = 400.0;
+		Inputs In;
+		In.Weather = Still;
+		In.SunElevation = 2.0;
+		In.GroundAsl = 250.0;
+		In.ValleyAsl = 250.0;
+		In.Haze = TorqueWeather::FogBoost(Still);
+		const Sky Down = Compute(In, L);
+		In.GroundAsl = 600.0;
+		In.ViewAsl = 602.0;
+		const Sky Up = Compute(In, L);
+		std::printf("  a still, clear dawn, 400 m visibility: mist %.2f to %.0f m, fog top %.0f m; fog x%.1f in it, x%.1f on the hill above\n",
+			Down.Mist, Down.MistTopAsl, Down.FogTopAsl, Down.FogScale, Up.FogScale);
+		Check(Down.Mist > 0.7 && Down.FogTopAsl > 250.0 && Down.FogTopAsl < 400.0, "radiation fog lies in the valley with a top, mist in the hollows");
+		Check(Up.FogScale < Down.FogScale / 5.0, "  a hill road climbs out of it into clear air");
+		State Windy = Still;
+		Windy.Wind = 7.0;
+		In.Weather = Windy;
+		In.GroundAsl = 250.0; In.ViewAsl = -1.0;
+		const Sky Blown = Compute(In, L);
+		Check(Blown.Mist < 0.05 && Blown.FogTopAsl < 0.0, "  but fog on a wind is deep, and no mist forms");
+		In.Weather = Still;
+		In.SunElevation = 25.0;
+		Check(Compute(In, L).Mist < 0.01, "  the mist burns off as the sun climbs");
+
+		State Shower = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Shower.Rain = 1.0; Shower.LowCloud = 0.4; Shower.Cloud = 0.4; Shower.Code = 80;
+		Inputs R;
+		R.Weather = Shower;
+		R.SunElevation = 20.0;
+		const double Bow = Compute(R, L).Rainbow;
+		R.SunElevation = 50.0;
+		const double High = Compute(R, L).Rainbow;
+		R.SunElevation = 20.0;
+		R.Weather = TorqueWeather::Preset(TorqueWeather::Wet);
+		const double Grey = Compute(R, L).Rainbow;
+		R.Weather = TorqueWeather::Preset(TorqueWeather::Sunny);
+		R.RainNear = 2.0;
+		const double Near = Compute(R, L).Rainbow;
+		std::printf("  rainbow: a shower with the sun at 20 deg %.2f, at 50 deg %.2f, under a grey wet sky %.2f, a shower near on a sunny day %.2f\n", Bow, High, Grey, Near);
+		Check(Bow > 0.5 && High < 0.01 && Grey < 0.05 && Near > 0.5, "a rainbow when it rains with the sun out and low behind you");
 	}
 
 	std::printf("\nThe shipped looks (Data/Sky/sky_looks.json)\n");
@@ -250,14 +382,21 @@ int main()
 		Looks Some;
 		LoadLooks(R"({"light": {"overcast_lux": 0.2, "clear_lux": [[0, 1], [90, 2]]}, "cloud": {"deck_to": 0.9}})", Some);
 		Check(Some.OvercastLux == 0.2 && Some.ClearLux.P.size() == 2 && Some.DeckTo == 0.9 && Some.RainCloudLux == L.RainCloudLux, "  a figure it names is taken; the rest keep theirs");
+		Looks K;
+		LoadLooks(R"({"cloud": {"kinds": {"stratus": {"depth_m": 250, "shape": 0.9}}, "shape": 7}})", K);
+		Check(K.Kinds[Stratus].DepthM == 250.0 && K.Kinds[Stratus].Shape == 0.9 && K.Kinds[Cumulus].Shape == L.Kinds[Cumulus].Shape,
+			"  a kind's row is read (and its figure names don't leak into the others)");
 	}
 
 	std::printf("\nThe recorded days (Data/Sky/days, real Open-Meteo hours over Wensleydale)\n");
 	{
-		struct Day { const char* Name; double MinDull, MaxDull; };
+		// The kind expected in each layer (low, middle, high; -1 none, -2 either of two: see Or).
+		struct Day { const char* Name; double MinDull, MaxDull; int Kinds[3]; int Or; };
 		const Day Days[] = {
-			{"clear_day", 0.0, 0.02}, {"high_veil", 0.0, 0.35}, {"fair_cumulus", 0.0, 1.0}, {"low_grey", 0.95, 1.0},
-			{"frontal_rain", 0.95, 1.0}, {"foggy_dawn", 0.9, 1.0}, {"storm", 0.0, 1.0}, {"dusk_clear", 0.0, 0.02},
+			{"clear_day", 0.0, 0.02, {-1, -1, -1}, -1}, {"high_veil", 0.0, 0.35, {-1, -1, Cirrostratus}, -1},
+			{"fair_cumulus", 0.0, 1.0, {Cumulus, -1, Cirrostratus}, -1}, {"low_grey", 0.95, 1.0, {Stratus, Altostratus, -1}, -1},
+			{"frontal_rain", 0.95, 1.0, {Nimbostratus, Nimbostratus, Cirrostratus}, -1}, {"foggy_dawn", 0.9, 1.0, {Stratus, Altostratus, Cirrostratus}, Stratocumulus},
+			{"storm", 0.0, 1.0, {Towering, Altocumulus, -1}, -1}, {"dusk_clear", 0.0, 0.02, {-1, -1, -1}, -1},
 		};
 		bool bAll = true;
 		for (const Day& D : Days)
@@ -281,13 +420,20 @@ int main()
 			In.GroundAsl = Root.Num("elevation", 300.0);
 			In.bClouds = true;
 			const Sky S = Compute(In, L);
-			const bool Ok = S.Dull >= D.MinDull && S.Dull <= D.MaxDull;
+			bool bKinds = true;
+			for (int Ly = 0; Ly < 3; ++Ly)
+			{
+				const int Got = S.Dominant(Ly);
+				bKinds = bKinds && (Got == D.Kinds[Ly] || (Ly == 0 && D.Or >= 0 && Got == D.Or));
+			}
+			std::printf("     kinds: low %s, middle %s, high %s\n", KindName(S.Dominant(0)), KindName(S.Dominant(1)), KindName(S.Dominant(2)));
+			const bool Ok = S.Dull >= D.MinDull && S.Dull <= D.MaxDull && bKinds;
 			std::printf("  %s %-13s sun %5.1f: cloud %3.0f%% (low %3.0f mid %3.0f high %3.0f), direct %4.0f W/m2 -> block %.2f, dull %.2f (old %.2f), %7.0f lux, cloud drawn %.2f at %4.0f-%4.0f m, wind aloft %2.0f m/s from %3.0f\n",
 				Ok ? "  " : "!!", D.Name, Elev, W.Cloud * 100.0, W.LowCloud * 100.0, W.MidCloud * 100.0, W.HighCloud * 100.0, W.DirectSun, S.Block, S.Dull,
 				Smooth((W.Cloud - 0.2) / 0.7), S.GroundLux, S.CoverShown, S.BaseAsl, S.TopAsl, W.Wind850, W.Wind850From);
 			bAll = bAll && Ok;
 		}
-		Check(bAll, "each recorded sky reads as the sky it was (a high veil no longer overcast, a low grey day dull)");
+		Check(bAll, "each recorded sky reads as the sky it was (a high veil no longer overcast, a low grey day dull), and the rules pick its kinds");
 	}
 
 	std::printf("\nThe weather state keeps the sky's figures\n");

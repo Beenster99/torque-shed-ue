@@ -2,6 +2,7 @@
 
 #include "Coop/TorqueGameState.h"
 #include "Fit/FitJson.h"
+#include "Weather/TorqueCloudGuard.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -17,6 +18,7 @@
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -120,7 +122,11 @@ void ATorqueSky::Find()
 	for (TActorIterator<ASkyLight> It(W); It && !SkyPtr.IsValid(); ++It) SkyPtr = It->GetLightComponent();
 	for (TActorIterator<AExponentialHeightFog> It(W); It && !FogPtr.IsValid(); ++It) FogPtr = It->GetComponent();
 	for (TActorIterator<AActor> It(W); It && !AtmoPtr.IsValid(); ++It) AtmoPtr = It->FindComponentByClass<USkyAtmosphereComponent>();
+	// (the guard has already looked at the cloud before the first frame; this is in case it didn't run)
+	TorqueCloudGuard::Check(W);
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
+	for (TActorIterator<AActor> It(W); It && !HighSheetPtr.IsValid(); ++It)
+		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
 	for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It)
 	{
 		if (It->bUnbound) PpvPtr = *It;
@@ -137,7 +143,7 @@ void ATorqueSky::Find()
 bool ATorqueSky::CloudsDrawn() const
 {
 	const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-	if (!Cloud || !SkyMpc) return false;
+	if (!Cloud || !SkyMpc || !Cloud->IsVisible()) return false;
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud"));
 	if (CVar && CVar->GetInt() == 0) return false;
 	const UObject* Mat = ReadObjectProperty(Cloud, TEXT("Material"));
@@ -171,7 +177,8 @@ double ATorqueSky::LightElevationAt(double SunElevation) const
 	return FMath::Max(SunElevation, Looks.SunLowestDeg);
 }
 
-void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation, bool bRealSun, double Haze, double GroundAsl, float Open)
+void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation, bool bRealSun, double Haze, double GroundAsl, float Open,
+	double ViewAsl, double ValleyAsl, double RainNear)
 {
 	UWorld* W = GetWorld();
 	if (!W) return;
@@ -217,6 +224,9 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	In.bRealSun = bRealSun;
 	In.Haze = Haze;
 	In.GroundAsl = GroundAsl;
+	In.ViewAsl = ViewAsl;
+	In.ValleyAsl = ValleyAsl;
+	In.RainNear = RainNear;
 	In.bClouds = CloudsDrawn();
 	const TorqueSky::Sky S = TorqueSky::Compute(In, Looks);
 	Last = S;
@@ -304,6 +314,27 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("Density"), (float)S.Density);
 		SetMpc(SkyMpc, TEXT("Albedo"), (float)S.Albedo);
 		SetMpc(SkyMpc, TEXT("Shape"), (float)S.Shape);
+		// Stage 3: the two layers' bands and looks, the high sheet and the halo.
+		const TorqueSky::Sky::Drawn& Lo = S.LowDrawn;
+		const TorqueSky::Sky::Drawn& Mi = S.MidDrawn;
+		SetMpc(SkyMpc, TEXT("LowBottom"), (float)Lo.Bottom);
+		SetMpc(SkyMpc, TEXT("LowTop"), (float)Lo.Top);
+		SetMpc(SkyMpc, TEXT("LowLumps"), (float)Lo.Look.Lumps);
+		SetMpc(SkyMpc, TEXT("LowRagged"), (float)Lo.Look.Ragged);
+		SetMpc(SkyMpc, TEXT("LowBaseDark"), (float)Lo.Look.BaseDark);
+		SetMpc(SkyMpc, TEXT("MidCover"), (float)Mi.CoverShown);
+		SetMpc(SkyMpc, TEXT("MidBottom"), (float)Mi.Bottom);
+		SetMpc(SkyMpc, TEXT("MidTop"), (float)Mi.Top);
+		SetMpc(SkyMpc, TEXT("MidDensity"), (float)Mi.Look.Density);
+		SetMpc(SkyMpc, TEXT("MidShape"), (float)Mi.Look.Shape);
+		SetMpc(SkyMpc, TEXT("MidLumps"), (float)Mi.Look.Lumps);
+		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);
+		SetMpc(SkyMpc, TEXT("MidAlbedo"), (float)Mi.Albedo);
+		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
+		SetMpc(SkyMpc, TEXT("HighCover"), (float)S.HighShown);
+		SetMpc(SkyMpc, TEXT("HighSheet"), (float)S.HighSheet);
+		SetMpc(SkyMpc, TEXT("HighOpacity"), (float)Looks.HighOpacity);
+		SetMpc(SkyMpc, TEXT("Halo"), (float)S.Halo);
 	}
 	// The old noise cloud shadows: where no clouds are drawn (the Low setting), the cover's amount; where
 	// they are, none (the clouds you see cast their own).
@@ -314,6 +345,8 @@ void ATorqueSky::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickDrift(DeltaSeconds);
+	TickHighSheet();
+	TickMist();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
 }
 
@@ -322,35 +355,177 @@ void ATorqueSky::TickDrift(float DeltaSeconds)
 	UWorld* W = GetWorld();
 	ATorqueGameState* GS = Game.Get();
 	if (!W || !bApplied) return;
-	// Carried on the wind at cloud height, every frame (the clouds move smoothly).
-	DriftE += Last.DriftE * DeltaSeconds;
-	DriftN += Last.DriftN * DeltaSeconds;
-	if (GS)
+	// Carried on the wind at each layer's height, every frame (the clouds move smoothly).
+	const double SpeedE[3] = {Last.LowDrawn.DriftE, Last.MidDrawn.DriftE, Last.HighDriftE};
+	const double SpeedN[3] = {Last.LowDrawn.DriftN, Last.MidDrawn.DriftN, Last.HighDriftN};
+	const bool bSend = GS && GS->HasAuthority() && W->GetTimeSeconds() - SentDriftAt > 2.0;   // to everyone every couple of seconds
+	if (bSend) SentDriftAt = W->GetTimeSeconds();
+	for (int32 Ly = 0; Ly < 3; ++Ly)
 	{
+		DriftE[Ly] += SpeedE[Ly] * DeltaSeconds;
+		DriftN[Ly] += SpeedN[Ly] * DeltaSeconds;
+		if (!GS) continue;
 		double SharedE = 0.0, SharedN = 0.0;
 		if (GS->HasAuthority())
 		{
-			// To everyone every couple of seconds.
-			if (W->GetTimeSeconds() - SentDriftAt > 2.0)
-			{
-				SentDriftAt = W->GetTimeSeconds();
-				GS->ShareSkyDrift(DriftE, DriftN);
-			}
+			if (bSend) GS->ShareSkyDrift(Ly, DriftE[Ly], DriftN[Ly]);
 		}
-		else if (GS->SharedSkyDrift(SharedE, SharedN))
+		else if (GS->SharedSkyDrift(Ly, SharedE, SharedN))
 		{
 			// Joined: the host's at once; then eased towards it (it's a couple of seconds old: close enough).
-			const double Off = FMath::Sqrt(FMath::Square(SharedE - DriftE) + FMath::Square(SharedN - DriftN));
+			const double Off = FMath::Sqrt(FMath::Square(SharedE - DriftE[Ly]) + FMath::Square(SharedN - DriftN[Ly]));
 			const double K = Off > 2000.0 ? 1.0 : FMath::Min(DeltaSeconds * 0.5, 1.0);
-			DriftE += (SharedE - DriftE) * K;
-			DriftN += (SharedN - DriftN) * K;
+			DriftE[Ly] += (SharedE - DriftE[Ly]) * K;
+			DriftN[Ly] += (SharedN - DriftN[Ly]) * K;
 		}
 	}
 	if (SkyMpc)
 	{
 		// (Metres along the level's x east and y south.)
-		if (SkyMpc->GetScalarParameterByName(TEXT("DriftX"))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, TEXT("DriftX"), (float)DriftE);
-		if (SkyMpc->GetScalarParameterByName(TEXT("DriftY"))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, TEXT("DriftY"), (float)-DriftN);
+		static const TCHAR* const Names[3][2] = {{TEXT("DriftX"), TEXT("DriftY")}, {TEXT("MidDriftX"), TEXT("MidDriftY")}, {TEXT("HighDriftX"), TEXT("HighDriftY")}};
+		for (int32 Ly = 0; Ly < 3; ++Ly)
+		{
+			if (SkyMpc->GetScalarParameterByName(FName(Names[Ly][0]))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Names[Ly][0]), (float)DriftE[Ly]);
+			if (SkyMpc->GetScalarParameterByName(FName(Names[Ly][1]))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Names[Ly][1]), (float)-DriftN[Ly]);
+		}
+	}
+}
+
+void ATorqueSky::TickHighSheet()
+{
+	UWorld* W = GetWorld();
+	AActor* Sheet = HighSheetPtr.Get();
+	if (!W || !Sheet || !bApplied) return;
+	// Hidden on a sky without high cloud, or where the sky has no MPC_Sky to draw it by.
+	const bool bShow = SkyMpc && Last.HighShown > 0.005;
+	if (Sheet->IsHidden() == bShow) Sheet->SetActorHiddenInGame(!bShow);
+	if (!bShow) return;
+	// Over the camera, at the high cloud's height above sea level.
+	const APlayerController* PC = W->GetFirstPlayerController();
+	if (!PC || !PC->PlayerCameraManager) return;
+	const FVector Cam = PC->PlayerCameraManager->GetCameraLocation();
+	double OriginAsl = 0.0;
+	if (const ATorqueGameState* GS = Game.Get())
+	{
+		double Lat = 0.0, Lon = 0.0;
+		GS->GeoAt(FVector::ZeroVector, Lat, Lon, OriginAsl);
+	}
+	const FVector At(Cam.X, Cam.Y, (Last.High.BaseAsl - OriginAsl) * 100.0);
+	if (FVector::DistSquared(At, Sheet->GetActorLocation()) > 100.0 * 100.0) Sheet->SetActorLocation(At);
+}
+
+void ATorqueSky::TickMist()
+{
+	UWorld* W = GetWorld();
+	if (!W || !bApplied) return;
+	const APlayerController* PC = W->GetFirstPlayerController();
+	if (!PC || !PC->PlayerCameraManager) return;
+	// How much: the valley mist, or fog lying with a top (thicker); none, and the pool hides.
+	const bool bFogTop = Last.FogTopAsl >= 0.0;
+	const float Amount = (float)FMath::Max(Last.Mist, bFogTop ? 1.0 : 0.0);
+	const double TopAsl = bFogTop ? FMath::Max(Last.FogTopAsl, Last.MistTopAsl) : Last.MistTopAsl;
+	if (Amount < 0.02f && MistApplied <= 0.0f) return;
+	const FVector Cam = PC->PlayerCameraManager->GetCameraLocation();
+	const double Now = W->GetTimeSeconds();
+	const TorqueSky::Looks& L = Looks;
+	if (MistPool.Num() == 0)
+	{
+		UClass* FogClass = FindObject<UClass>(nullptr, TEXT("/Script/Engine.LocalFogVolume"));
+		if (!FogClass)
+		{
+			MistApplied = 0.0f;
+			UE_LOG(LogTemp, Warning, TEXT("Torque sky: no Local Fog Volume in this engine: no valley mist"));
+			return;
+		}
+		FActorSpawnParameters P;
+		P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		for (int32 I = 0; I < 12; ++I)
+			if (AActor* A = W->SpawnActor<AActor>(FogClass, FTransform(FVector(0.0, 0.0, -1e7)), P))
+			{
+				A->SetActorHiddenInGame(true);
+				MistPool.Add(A);
+			}
+		// The volume's own size at scale 1 (its sphere's radius, cm), to scale it to the hollows.
+		if (MistPool.Num() > 0 && MistPool[0].IsValid())
+		{
+			FVector Origin, Extent;
+			MistPool[0]->GetActorBounds(false, Origin, Extent, true);
+			MistBaseRadius = FMath::Max(Extent.X, 1.0);
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque sky: valley mist pool of %d (radius %.0f cm at scale 1)"), MistPool.Num(), MistBaseRadius);
+	}
+	// Re-laid when the camera has moved 1.5 km, or every minute.
+	const bool bPlace = FVector::Dist2D(Cam, MistPlacedAt) > 150000.0 || Now - MistPlacedTime > 60.0;
+	double OriginAsl = 0.0;
+	if (const ATorqueGameState* GS = Game.Get())
+	{
+		double Lat = 0.0, Lon = 0.0;
+		GS->GeoAt(FVector::ZeroVector, Lat, Lon, OriginAsl);
+	}
+	const double TopZ = (TopAsl - OriginAsl) * 100.0;
+	if (bPlace && Amount >= 0.02f)
+	{
+		MistPlacedAt = Cam;
+		MistPlacedTime = Now;
+		// The ground on a 13 x 13 lattice 400 m apart round the camera; hollows are points below the fog's
+		// (or mist's) top, the lowest first, no two within 700 m.
+		struct FSpot { FVector At; double Below; };
+		TArray<FSpot> Spots;
+		FCollisionQueryParams Q(SCENE_QUERY_STAT(TorqueMist), false);
+		if (APawn* Pawn = PC->GetPawn()) Q.AddIgnoredActor(Pawn);
+		for (int32 X = -6; X <= 6; ++X)
+			for (int32 Y = -6; Y <= 6; ++Y)
+			{
+				const FVector From(Cam.X + X * 40000.0, Cam.Y + Y * 40000.0, Cam.Z + 300000.0);
+				FHitResult Hit;
+				if (!W->LineTraceSingleByChannel(Hit, From, From - FVector(0.0, 0.0, 800000.0), ECC_Visibility, Q)) continue;
+				const double Below = TopZ - Hit.ImpactPoint.Z;
+				if (Below > 300.0) Spots.Add({Hit.ImpactPoint, Below});
+			}
+		Spots.Sort([](const FSpot& A, const FSpot& B) { return A.Below > B.Below; });
+		TArray<FVector> Chosen;
+		for (const FSpot& Spot : Spots)
+		{
+			if (Chosen.Num() >= MistPool.Num()) break;
+			bool bNear = false;
+			for (const FVector& C : Chosen) bNear = bNear || FVector::Dist2D(C, Spot.At) < 70000.0;
+			if (!bNear) Chosen.Add(Spot.At);
+		}
+		const double Radius = 45000.0;   // each a lens of mist 900 m across
+		for (int32 I = 0; I < MistPool.Num(); ++I)
+		{
+			AActor* A = MistPool[I].Get();
+			if (!A) continue;
+			if (I >= Chosen.Num())
+			{
+				A->SetActorHiddenInGame(true);
+				continue;
+			}
+			// Centred on the ground, its top at the fog's top: a flattened lens, half of it below ground.
+			const double Depth = FMath::Max(TopZ - Chosen[I].Z, 500.0);
+			const double Base = FMath::Max(MistBaseRadius, 1.0);
+			A->SetActorLocation(FVector(Chosen[I].X, Chosen[I].Y, Chosen[I].Z));
+			A->SetActorScale3D(FVector(Radius / Base, Radius / Base, Depth / Base));
+			A->SetActorHiddenInGame(false);
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque sky: valley mist %.2f%s, top %.0f m: %d hollows"), Amount, bFogTop ? TEXT(" (fog lying with a top)") : TEXT(""), TopAsl, Chosen.Num());
+	}
+	// How thick (the engine's radial fog, by name: tunable in sky_looks.json as mist_extinction).
+	const float Thick = Amount < 0.02f ? 0.0f : Amount * (float)L.MistExtinction * (bFogTop ? 3.0f : 1.0f);
+	if (FMath::Abs(Thick - MistApplied) > 0.005f)
+	{
+		MistApplied = Thick;
+		for (const TWeakObjectPtr<AActor>& Ptr : MistPool)
+			if (AActor* A = Ptr.Get())
+			{
+				if (Thick <= 0.0f) A->SetActorHiddenInGame(true);
+				if (UActorComponent* C = A->GetRootComponent())
+				{
+					SetFloatProperty(C, TEXT("RadialFogExtinction"), Thick);
+					SetFloatProperty(C, TEXT("HeightFogExtinction"), 0.0f);
+					C->MarkRenderStateDirty();
+				}
+			}
 	}
 }
 
@@ -360,7 +535,11 @@ FString ATorqueSky::Describe() const
 	return FString::Printf(TEXT("sun %.1f deg (light at %.1f), block %.2f, dull %.2f, %.0f lux (EV100 %.1f; clear sky %.0f), day light %.2f, sun x%.2f, sky light x%.2f, exposure %+.2f, mie x%.2f, rayleigh x%.2f, fog x%.2f; cloud %.0f%% (drawn %.2f, shape %.2f, density %.2f) %.0f-%.0f m, drifting %.1f m/s E %.1f m/s N, its shadows %.2f; clouds %s"),
 		S.SunElevation, S.LightElevation, S.Block, S.Dull, S.GroundLux, TorqueSky::Ev100(S.GroundLux), S.ClearLux, S.DayLight, S.SunScale, S.SkyLightScale,
 		S.ExposureStops, S.MieScale, S.RayleighScale, S.FogScale, S.Cover * 100.0, S.CoverShown, S.Shape, S.Density, S.BaseAsl, S.TopAsl, S.DriftE, S.DriftN,
-		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"));
+		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"))
+		+ FString::Printf(TEXT("; kinds: low %s, middle %s, high %s (veil %.2f, halo %.2f); bands low %.2f-%.2f middle %.2f-%.2f"),
+			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),
+			S.HighSheet, S.Halo, S.LowDrawn.Bottom, S.LowDrawn.Top, S.MidDrawn.Bottom, S.MidDrawn.Top)
+		+ FString::Printf(TEXT("; mist %.2f (top %.0f m), fog top %.0f m, rainbow %.2f"), S.Mist, S.MistTopAsl, S.FogTopAsl, S.Rainbow);
 }
 
 // --- The sky bench ---------------------------------------------------------------------------------------

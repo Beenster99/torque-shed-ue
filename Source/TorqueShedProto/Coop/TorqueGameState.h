@@ -135,8 +135,9 @@ public:
 	// The sky (Weather/TorqueSky.h): this machine's, and how far the wind has carried the clouds (the
 	// host's, shared so everyone sees the same cloud in the same place; false until the host has sent one).
 	ATorqueSky* GetSky() const;
-	void ShareSkyDrift(double East, double North);
-	bool SharedSkyDrift(double& East, double& North) const;
+	// (Layer 0 low, 1 middle, 2 high.)
+	void ShareSkyDrift(int32 Layer, double East, double North);
+	bool SharedSkyDrift(int32 Layer, double& East, double& North) const;
 	// [test] the sky bench: this weather held, and the sun as it stands at latitude Lat on day Day
 	// (1 .. 366) at solar time SolarHour (as the real sun, so the feed's sunshine figures fit it).
 	void BenchSky(const TorqueWeather::State& S, double Lat, int32 Day, double SolarHour);
@@ -196,6 +197,21 @@ private:
 	double FetchLat = 0.0, FetchLon = 0.0, LastFetchAt = -1000.0;
 	static constexpr int32 GRID_N = 5;
 	static constexpr double GRID_STEP_M = 2500.0;
+	// The wider ring (skies stage 4): 7 x 7 points 12 km apart, about 70 km across, asked every half hour
+	// by the host, for the weather you can see coming (showers over the next dale). Host only for now.
+	TorqueWeather::Grid GridWide;
+	int64 GridWideAt = 0;
+	double NextWideIn = 20.0;
+	bool bFetchingWide = false;
+	double WideLat = 0.0, WideLon = 0.0;
+	TSharedPtr<IHttpRequest, ESPMode::ThreadSafe> WideRequest;
+	static constexpr int32 WIDE_N = 7;
+	static constexpr double WIDE_STEP_M = 12000.0;
+	void FetchWide();
+	// For the sky: the lowest ground of the weather's points (metres above sea level; -1 none), and the
+	// heaviest rain round about, carried on the wind and fading with distance (mm/h).
+	double ValleyAslNow() const;
+	double RainNearNow() const;
 	double WeatherChangeIn = 0.0;   // the host, weather changing by itself: seconds to the next change
 	double HourSentAt = 0.0;
 	float BuiltAt = 15.0f;
@@ -210,8 +226,9 @@ private:
 	bool bRealSunNow = false;   // the sun is the real one (Real time of day, or the bench)
 	bool bSunHeld = false;      // [test] the bench holds the sun's day and place
 	UPROPERTY(Transient) TObjectPtr<ATorqueSky> Sky;
-	UPROPERTY(Replicated) double SkyDriftE = 0.0;
-	UPROPERTY(Replicated) double SkyDriftN = 0.0;
+	UPROPERTY(Replicated) FVector2D SkyDriftLow = FVector2D::ZeroVector;    // metres east, north
+	UPROPERTY(Replicated) FVector2D SkyDriftMid = FVector2D::ZeroVector;
+	UPROPERTY(Replicated) FVector2D SkyDriftHigh = FVector2D::ZeroVector;
 	UPROPERTY(Replicated) bool bSkyDriftSet = false;
 	TWeakObjectPtr<class ADirectionalLight> SunActorPtr;
 
