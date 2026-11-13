@@ -514,7 +514,14 @@ class Graph:
 
     def op(self, cls, a, b=None, a_out="", b_out="", **props):
         e = self.node(cls, -600, **props)
-        self.link(a, e, "A" if b is not None or cls not in (unreal.MaterialExpressionSaturate, unreal.MaterialExpressionOneMinus) else "", a_out)
+        one_input = tuple(getattr(unreal, n) for n in (
+            "MaterialExpressionSaturate", "MaterialExpressionOneMinus", "MaterialExpressionFrac",
+            "MaterialExpressionFloor", "MaterialExpressionCeil", "MaterialExpressionAbs",
+            "MaterialExpressionRound", "MaterialExpressionTruncate", "MaterialExpressionSine",
+            "MaterialExpressionCosine", "MaterialExpressionSquareRoot") if hasattr(unreal, n))
+        # One-input nodes (Frac, Floor, ...) take their input on the unnamed pin, not "A" (round 141:
+        # M_RideRoof/M_RideBrick failed with "Missing Frac input").
+        self.link(a, e, "A" if b is not None or cls not in one_input else "", a_out)
         if b is not None:
             self.link(b, e, "B", b_out)
         return e
@@ -2996,6 +3003,9 @@ return d * Density * 0.1;
 """
 
 
+USE_RIDE_CLOUD = False   # round 141 crash: off until the skies thread proves M_RideCloud compiles as Volume
+
+
 def cloud_material():
     """M_RideCloud (skies plan stage 2): the Volumetric Cloud's own material in place of the engine's
     default, which followed nothing. It reads MPC_Sky (Cover, Density, Albedo, Shape, DriftX/Y), set
@@ -3086,6 +3096,13 @@ def sky_and_camera(reuse_cloud_shadow=False):
         # Our own cloud, following the real weather (ATorqueSky): borrowed as it is by another level's
         # script, as the cloud shadows are (making it afresh would delete what this level points at).
         rc = unreal.load_asset(MAT_DIR + "/M_RideCloud") if reuse_cloud_shadow else cloud_material()
+        # Round 141 crashed on Buttertubs (VolumetricCloudRendering assert: Material domain must be
+        # MD_Volume): only hand the cloud a material that really is Volume domain; otherwise the
+        # engine's default cloud stays. USE_RIDE_CLOUD=False keeps the default until it's proven.
+        if rc is not None and (not USE_RIDE_CLOUD or rc.get_editor_property("material_domain") != unreal.MaterialDomain.MD_VOLUME):
+            unreal.log_warning("[Torque] clouds: M_RideCloud not used (enabled %s, domain %s); the engine's default cloud stays"
+                               % (USE_RIDE_CLOUD, rc.get_editor_property("material_domain")))
+            rc = None
         if rc is not None:
             ok = try_set(cc, "material", rc)
             log("clouds: M_RideCloud %s" % ("set" if ok else "NOT set"))
