@@ -161,7 +161,7 @@ WEAR_CLASSES = ("wardrobe", "groom", "outfit", "cloth", "garment")
 
 NO_FAB = False   # `make nofab`: only the Creator's own wardrobe, never the Fab clothes
 BACKUP = "/Game/MetaHumanBackup"   # an avatar's previous build while a new one is made; never cooked
-FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; never cooked
+FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; cooked only by reference
 FAB_VAULT = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
 FAB_SKIP = ("helmet",)   # the helmet goes on the rider by Tools/ue_build_level.py
 
@@ -170,8 +170,8 @@ def fab_wardrobe():
     """Every MetaHuman package (.mhpkg) in the Fab cache but the helmet, imported through the MetaHuman
     plugin's MetaHumanPackageFactory to /Game/MetaHumanWardrobe/<folder>, so `make` can dress the
     avatars with its wardrobe items (beenster's MetaHuman Jeans and Boots, Nov 12). The build bakes
-    the garments into each avatar's own folder; these sources are never cooked (their wardrobe item
-    class is editor-only)."""
+    the garments into each avatar's own folder, using these sources' materials and textures (cooked
+    by reference; the wardrobe items themselves are editor-only and nothing in the game uses them)."""
     if not os.path.isdir(FAB_VAULT):
         log("fab: no folder %s" % FAB_VAULT)
         return
@@ -1434,6 +1434,20 @@ def _hair_from_build(entry, av):
         name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
         lod = _cards_lod(ga)
         cards, cards_mat, atlas = _cards_mesh(ga, lod) if lod >= 0 else ("", "", "")
+        if (not cards or not atlas) and "hair" in (group(g) or g).lower():
+            # Round 142: Avatar_A's groom gave no cards LOD, so A went bald. The build's own cards mesh
+            # (lowest LOD of group 0) and atlas, found by name, as the game's fallback does.
+            def lod_of(p):
+                try:
+                    return int(p.rsplit("_LOD", 1)[1].split(".")[0])
+                except Exception:
+                    return 99
+            cm = sorted((m for m in statics if "CardsMesh_Group0_LOD" in m and m.rsplit("/", 1)[-1].startswith("Hair_")), key=lod_of)
+            tex = [("%s.%s" % (a.package_name, a.asset_name)) for a in reg.get_assets_by_path(folder, recursive=True)
+                   if _cls_name(a) == "Texture2D" and str(a.asset_name).startswith("Hair_") and "CardsAtlas_Attribute" in str(a.asset_name)]
+            cards = cards or (cm[0] if cm else "")
+            atlas = atlas or (tex[0] if tex else "")
+            log("%s: no cards from the groom's LOD table; by name: mesh %s, atlas %s" % (av, cards or "none", atlas or "none"))
         # The game draws the cards mesh with its own M_HairCards (the plugin's MI_Hair is editor-only).
         hair_mat = _hair_cards_material(atlas) if cards and atlas else ""
         colour = next((a.get("hair_colour") for a in AVATARS if a["name"] == av), None) or [0.045, 0.028, 0.016]
@@ -1533,8 +1547,12 @@ def _parts_of_blueprint(pkg, name, av):
         if not skins:
             unreal.log_warning("[Torque] %s: %s has no skeletal meshes" % (av, pkg))
             return None
-        body = next(((c, m) for c, m in skins if c.get_name().lower() == "body"), None) \
+        # The body by its mesh's path first: UE 5.8's rebuilt Blueprints name every component
+        # SkeletalMesh, SkeletalMesh1... (round 142 took a garment for the body: headless, armless riders).
+        body = next(((c, m) for c, m in skins if "/body/" in _path(m).lower() or "bodymesh" in _path(m).lower()), None) \
+            or next(((c, m) for c, m in skins if c.get_name().lower() == "body"), None) \
             or next(((c, m) for c, m in skins if "body" in c.get_name().lower()), None) or skins[0]
+        log("%s: body mesh %s (component %s)" % (av, _path(body[1]), body[0].get_name()))
 
         def mats(c):
             try:
@@ -1551,7 +1569,10 @@ def _parts_of_blueprint(pkg, name, av):
         for c, m in skins:
             if c == body[0]:
                 continue
-            entry["parts"].append({"name": c.get_name(), "mesh": _path(m), "materials": mats(c)})
+            pname = c.get_name()
+            if "/face/" in _path(m).lower() or "facemesh" in _path(m).lower():
+                pname = "Face"   # (UE 5.8's rebuilt Blueprints name every component SkeletalMesh, SkeletalMesh1...)
+            entry["parts"].append({"name": pname, "mesh": _path(m), "materials": mats(c)})
             _game_safe_mesh(m, av)
             if "face" not in c.get_name().lower():
                 for mp in entry["parts"][-1]["materials"]:

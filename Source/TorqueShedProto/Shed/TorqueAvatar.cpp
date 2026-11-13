@@ -189,6 +189,19 @@ const TArray<FEntry>& Entries()
 				P.Materials = Strings(*PO, TEXT("materials"));
 				E.Parts.Add(P);
 			}
+		// The body by its path (round 142's avatars.json named a garment as the body, the real body
+		// a part: headless, armless avatars): swapped back when a part is plainly the body mesh.
+		auto IsBodyPath = [](const FString& Path) { return Path.Contains(TEXT("/Body/")) || Path.Contains(TEXT("BodyMesh")); };
+		if (!IsBodyPath(E.BodyMesh))
+			for (FPart& P : E.Parts)
+				if (IsBodyPath(P.Mesh))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: avatars.json's body %s isn't the body; using %s"), *E.Name, *E.BodyMesh, *P.Mesh);
+					Swap(E.BodyMesh, P.Mesh);
+					Swap(E.BodyMaterials, P.Materials);
+					P.Name = FPaths::GetBaseFilename(P.Mesh);
+					break;
+				}
 		if (E.Blueprint.IsEmpty() && !E.BodyMesh.IsEmpty()) DiscoverParts(E, List.Num());
 		if (!E.Blueprint.IsEmpty() || !E.BodyMesh.IsEmpty()) List.Add(E);
 	}
@@ -347,7 +360,10 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!M) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no mesh %s"), *E.Name, *P.Mesh); continue; }
 		// The face is posed too (copying the body's neck and head, plus the profile's face edits);
 		// the rest follow the body as their leader.
-		const bool bFace = !OutFace && (P.Name.Contains(TEXT("Face")) || M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_FacialRoot")) != INDEX_NONE);
+		// (Round 142's rebuild names the parts SkeletalMesh, SkeletalMesh1...: the face is known by its
+		// path or its facial joints too, or it's left unposed, floating where a standing head would be.)
+		const bool bFace = !OutFace && (P.Name.Contains(TEXT("Face")) || P.Mesh.Contains(TEXT("/Face/")) || P.Mesh.Contains(TEXT("FaceMesh"))
+			|| M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_FacialRoot")) != INDEX_NONE || M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_Neck1Root")) != INDEX_NONE);
 		USkinnedMeshComponent* C = nullptr;
 		if (bFace)
 		{
@@ -373,6 +389,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s %s"), *E.Name, bFace ? TEXT("face") : TEXT("mesh"), *P.Mesh);
 		ByName.Add(P.Name, C);
+		if (bFace) ByName.Add(TEXT("Face"), C);   // what the hair is attached to, whatever the part's name
 		Out.Add(C);
 	}
 	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
@@ -1157,6 +1174,43 @@ void FTorqueAvatar::TouchHair()
 	// bound to the skin, isn't sent its new place by the head's bones moving: send it every frame.
 	// -TorqueHairRecreate rebuilds its render state every frame instead (a heavier test);
 	// -TorqueHairLog logs each groom every 2 s.
+	// [round 142] Where every part of this avatar is, 3 s and 10 s after it was first posed (floating
+	// heads, headless and armless riders in build 141), and -TorqueHidePart=<word> hides the parts
+	// whose name or mesh has it, to see which part is which.
+	{
+		const double T0 = FPlatformTime::Seconds();
+		if (PartsLogFirst < 0.0) PartsLogFirst = T0;
+		const double Age = T0 - PartsLogFirst;
+		if (Driver && ((PartsLogged == 0 && Age > 3.0) || (PartsLogged == 1 && Age > 10.0)))
+		{
+			++PartsLogged;
+			FString HidePart;
+			FParse::Value(FCommandLine::Get(), TEXT("TorqueHidePart="), HidePart);
+			const FVector HeadW = Head != INDEX_NONE ? Driver->GetBoneLocationByName(Bones[Head].Name, EBoneSpaces::WorldSpace) : FVector::ZeroVector;
+			auto Describe = [&HeadW](USceneComponent* C)
+			{
+				const UPrimitiveComponent* PC = Cast<UPrimitiveComponent>(C);
+				const USkinnedMeshComponent* SC = Cast<USkinnedMeshComponent>(C);
+				const UObject* Asset = SC ? (const UObject*)SC->GetSkinnedAsset() : nullptr;
+				if (const UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(C)) Asset = SM->GetStaticMesh();
+				const USkinnedMeshComponent* Lead = SC ? SC->LeaderPoseComponent.Get() : nullptr;
+				return FString::Printf(TEXT("%s [%s] %s visible %d, leader %s, bones %d, bounds centre %s from the head (r %.0f)"),
+					*C->GetName(), *C->GetClass()->GetName(), Asset ? *Asset->GetName() : TEXT("-"), (int32)C->IsVisible(),
+					Lead ? *Lead->GetName() : TEXT("none"), SC && SC->GetSkinnedAsset() ? SC->GetSkinnedAsset()->GetRefSkeleton().GetNum() : 0,
+					PC ? *(PC->Bounds.Origin - HeadW).ToCompactString() : TEXT("-"), PC ? PC->Bounds.SphereRadius : 0.0);
+			};
+			UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s parts (%.0f s): head joint at %s; driver %s"), *Name, Age, *HeadW.ToCompactString(), *Describe(Driver));
+			for (const TWeakObjectPtr<USceneComponent>& P : Parts)
+				if (USceneComponent* C = P.Get())
+				{
+					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s part %s%s"), *Name, *Describe(C), C == FaceMesh ? TEXT(" (THE FACE)") : TEXT(""));
+					const USkinnedMeshComponent* SC = Cast<USkinnedMeshComponent>(C);
+					const FString AssetName = SC && SC->GetSkinnedAsset() ? SC->GetSkinnedAsset()->GetName() : FString();
+					if (!HidePart.IsEmpty() && (C->GetName().Contains(HidePart) || AssetName.Contains(HidePart))) C->SetVisibility(false, false);
+				}
+			if (!HidePart.IsEmpty() && Driver->GetSkinnedAsset() && Driver->GetSkinnedAsset()->GetName().Contains(HidePart)) Driver->SetVisibility(false, false);
+		}
+	}
 	static const bool bRecreate = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairRecreate"));
 	static const bool bLog = FParse::Param(FCommandLine::Get(), TEXT("TorqueHairLog"));
 	const double Now = FPlatformTime::Seconds();
