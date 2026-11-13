@@ -1338,6 +1338,18 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		else if (bUseJust && OnFootFor > 0.4)
 		{
 			if (FVector::Dist2D(FootPos, GetActorLocation()) <= 250.0) { bUseArmed = true; UseHeld = 0.0; }
+			else if (ATorqueBikePawn* Mate = MateBikeInReach())
+			{
+				// [co-op] A mate's bike parked up: the host swaps them over, and we get on theirs.
+				const double Now = GestureNow();
+				if (Now - TakeAskedAt > 1.5)
+				{
+					TakeAskedAt = Now;
+					if (ATorquePlayerController* TPC = Cast<ATorquePlayerController>(PC)) TPC->ServerTakeBike(Mate);
+					FootNote = FString::Printf(TEXT("Getting on %s's bike..."), *Mate->GetPlayerState()->GetPlayerName());
+					FootNoteFor = 1.5;
+				}
+			}
 			else GetOn();   // (says to walk back to it)
 		}
 		if (bUseArmed)
@@ -1708,6 +1720,69 @@ bool ATorqueBikePawn::GetOff()
 	UE_LOG(LogTemp, Log, TEXT("Torque: got off, the bike on its %s, engine %s"),
 		ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("running") : TEXT("off"));
 	return true;
+}
+
+ATorqueBikePawn* ATorqueBikePawn::MateBikeInReach() const
+{
+	UWorld* World = GetWorld();
+	if (!World || !bOnFoot || bYard || GetNetMode() == NM_Standalone) return nullptr;
+	ATorqueBikePawn* Best = nullptr;
+	double BestDist = 250.0;
+	for (TActorIterator<ATorqueBikePawn> It(World); It; ++It)
+	{
+		if (*It == this || !It->NetBike || !It->NetBike->IsRemote() || !It->GetPlayerState() || !It->IsParkedUp()) continue;
+		const double D = FVector::Dist2D(FootPos, It->GetActorLocation());
+		if (D <= BestDist && FMath::Abs(FootPos.Z - It->GetActorLocation().Z) <= 200.0)
+		{
+			Best = *It;
+			BestDist = D;
+		}
+	}
+	return Best;
+}
+
+void ATorqueBikePawn::TakeOver(const FVector& Feet, double Yaw, bool bRide)
+{
+	// Where it stands and which way it points, as it was last drawn here (a mate's snapshots), put
+	// back into our own parked state: the stand it's on, the ground under it (its pose less the
+	// height it stands at, HoldParked the other way round), the engine as heard.
+	if (bPushing) LetGoBike();
+	const V3 Fwd = Sim->Basis.Z * -1.0;
+	ParkHeading = std::atan2(-Fwd.x, -Fwd.z);
+	ChooseStand();
+	const double AxleUp = 0.5 * ((Sim->Wheels[0].Radius - Sim->Wheels[0].Centre.y) + (Sim->Wheels[1].Radius - Sim->Wheels[1].Centre.y));
+	ParkGround = Sim->Position - Sim->Basis * V3(0.0, AxleUp + ParkLift, 0.0);
+	Sim->IsCrashed = false;
+	Sim->ClutchIn = false;
+	Sim->Gear = BikeSim::NEUTRAL;
+	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
+	FootPos = Feet;
+	FootYaw = Yaw;
+	FootPitch = 0.0;
+	bOnFoot = true;
+	OnFootFor = 1.0;   // (not the just-got-off pause)
+	bUseArmed = false;
+	HoldParked();
+	PrevPos = CurPos = ToUE(Sim->Position);
+	PrevRot = CurRot = BasisToUE(Sim->Basis);
+	Accum = 0.0;
+	bParkedLook = false;   // (posed again for ours: the stand down, the rider off)
+	SetParkedLook(true);
+	ShowNetWalker(false, Feet, Yaw, 0.0f);   // their body walked beside it here: they're on another bike now
+	if (NetBike) NetBike->TakenOver();
+	UE_LOG(LogTemp, Log, TEXT("Torque net: took over bay %d's bike where it stands, engine %s%s"), RideBay + 1,
+		Sim->EngineOn ? TEXT("ticking over") : TEXT("off"), bRide ? TEXT(", getting on") : TEXT(", on foot beside it"));
+	if (bRide) GetOn();
+}
+
+void ATorqueBikePawn::LetOver()
+{
+	// Ridden by a mate now: drawn from their snapshots from here on (TorqueNetBike), as any of theirs.
+	if (bPushing) LetGoBike();
+	bOnFoot = false;
+	bUseArmed = false;
+	Throttle = FrontBrake = RearBrake = Lean = Shift = 0.0;
+	if (NetBike) NetBike->HandedOver();
 }
 
 double ATorqueBikePawn::GestureNow() const
@@ -3113,6 +3188,18 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 		bNetWalkerShown = false;
 		return;
 	}
+	{
+		// [co-op] Someone else rides it now (bikes swapped on the road): their body, not the last rider's.
+		const APlayerState* Now = GetPlayerState();
+		if (NetWalkerFor.Get() != Now)
+		{
+			if (NetWalker && NetWalker->IsValid()) NetWalker->SetShown(false, false, false);
+			NetWalker.Reset();
+			bNetWalkerTried = false;
+			bNetWalkerShown = false;
+			NetWalkerFor = Now;
+		}
+	}
 	if (!NetWalker && !bNetWalkerTried && FTorqueAvatar::Count() > 0)
 	{
 		// Made the first time they get off: the same MetaHuman, height and face as their rider.
@@ -3120,11 +3207,14 @@ void ATorqueBikePawn::ShowNetWalker(bool bOn, const FVector& Feet, double Yaw, f
 		const ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>();
 		const FTorqueProfile Look = PS ? FTorqueProfile::Unpack(PS->Profile) : FTorqueProfile::Mine();
 		const int32 Colour = PS ? PS->Colour : FTorqueSettings::Get().Colour;
-		NetWalkerRoot = NewObject<USceneComponent>(this, TEXT("NetWalkerRoot"));
-		NetWalkerRoot->SetupAttachment(Root);
-		NetWalkerRoot->SetUsingAbsoluteLocation(true);
-		NetWalkerRoot->SetUsingAbsoluteRotation(true);
-		NetWalkerRoot->RegisterComponent();
+		if (!NetWalkerRoot)   // (one made already for the last rider's body: kept)
+		{
+			NetWalkerRoot = NewObject<USceneComponent>(this, TEXT("NetWalkerRoot"));
+			NetWalkerRoot->SetupAttachment(Root);
+			NetWalkerRoot->SetUsingAbsoluteLocation(true);
+			NetWalkerRoot->SetUsingAbsoluteRotation(true);
+			NetWalkerRoot->RegisterComponent();
+		}
 		NetWalkerRoot->SetWorldLocationAndRotation(Feet, FRotator(0.0, Yaw, 0.0));
 		NetWalker = MakeUnique<FTorqueAvatar>();
 		if (NetWalker->Build(this, NetWalkerRoot, Look.AvatarFor(Colour)))
@@ -4326,10 +4416,15 @@ void ATorqueBikePawn::DrawHud()
 			Add(FString::Printf(TEXT("Wheeling the bike: %s to walk, %s to let go (it goes on its stand), engine %s"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
 				*Use, Sim->EngineOn ? TEXT("ticking over") : TEXT("off")), FColor(200, 230, 200), 1.0f);
 		else
+		{
+			// [co-op] By a mate's parked bike (and not our own): it's ours to ride.
+			const ATorqueBikePawn* Mate = Away > 250.0 ? MateBikeInReach() : nullptr;
+			const FString MateLine = Mate ? FString::Printf(TEXT("to ride %s's bike"), *Mate->GetPlayerState()->GetPlayerName()) : FString();
 			Add(FString::Printf(TEXT("On foot: %s or the left stick to walk (Shift / L3 hurries), %s %s   (the bike's on its %s, engine %s)"), *FTorqueKeys::Text(ETorqueKey::WalkForward),
-				*Use, Away <= 250.0 ? *FString::Printf(TEXT("to get back on, hold %s to wheel it"), *Use) : TEXT("by the bike to get back on"),
+				*Use, Mate ? *MateLine : Away <= 250.0 ? *FString::Printf(TEXT("to get back on, hold %s to wheel it"), *Use) : TEXT("by the bike to get back on"),
 				ParkStand == 1 ? TEXT("side stand") : ParkStand == 2 ? TEXT("centre stand") : TEXT("wheels"), Sim->EngineOn ? TEXT("ticking over") : TEXT("off")),
 				FColor(200, 230, 200), 1.0f);
+		}
 	}
 	else if (bHudLines && !Sim->IsCrashed && FMath::Abs(Sim->Speed) < 0.5)
 		Add(FString::Printf(TEXT("%s: get off"), *FTorqueKeys::Text(ETorqueKey::Use)), FColor(200, 230, 200), 0.9f);
