@@ -67,6 +67,8 @@ void RidePlan::IndexFields()
 		else if (A.Kind == "cemetery" || A.Kind == "grave_yard") Kind = FieldGraves;
 		else if (A.Kind == "allotments") Kind = FieldAllotments;
 		else if (A.Kind == "orchard") Kind = FieldOrchard;
+		else if (A.Kind == "scree" || A.Kind == "shingle") Kind = FieldScree;   // [OSM stage 2 batch D]
+		else if (A.Kind == "reservoir") Kind = FieldReservoir;
 		if (Kind < 0 || A.Ring.size() < 3) continue;
 		FieldArea F;
 		F.Kind = Kind;
@@ -81,6 +83,19 @@ void RidePlan::IndexFields()
 		// (none bigger than 3 km across: a mapping slip, or a whole estate, not a field)
 		if (F.MaxX - F.MinX > 3000.0 || F.MaxZ - F.MinZ > 3000.0) continue;
 		F.Id = FieldHash(A.Id);
+		if (Kind == FieldReservoir)
+		{
+			// (its water at the level of the lower part of its shore: a fifth of the way up its edge's heights)
+			std::vector<double> Shore;
+			for (const P2& P : A.Ring)
+			{
+				const double Y = Ground(P.X, P.Z);
+				if (!std::isnan(Y)) Shore.push_back(Y);
+			}
+			if (Shore.empty()) continue;
+			std::sort(Shore.begin(), Shore.end());
+			F.Level = Shore[Shore.size() / 5] + 0.1;
+		}
 		const int Index = int(FieldAreas.size());
 		for (double Z = std::floor(F.MinZ / FieldCell) * FieldCell; Z <= F.MaxZ; Z += FieldCell)
 			for (double X = std::floor(F.MinX / FieldCell) * FieldCell; X <= F.MaxX; X += FieldCell) Scene->Fields[FieldKey(X + 1.0, Z + 1.0)].push_back(Index);
@@ -154,6 +169,15 @@ bool RidePlan::FieldTint(double X, double Z, float* Rgb) const
 		To[0] = 0.075f; To[1] = 0.11f; To[2] = 0.035f;
 		By = 0.45;
 		break;
+	case FieldScree:
+	{
+		// (grey broken stone, lighter and darker in patches)
+		const double Pale = Roll(std::floor(X / 6.0), std::floor(Z / 6.0), F.Id);
+		To[0] = float(0.17 + 0.06 * Pale); To[1] = float(0.165 + 0.06 * Pale); To[2] = float(0.15 + 0.05 * Pale);
+		By = 0.8;
+		break;
+	}
+	case FieldReservoir: return false;   // (its water is drawn over it)
 	default: return false;
 	}
 	for (int K = 0; K < 3; ++K) Rgb[K] = float(Rgb[K] + (To[K] - Rgb[K]) * By);
@@ -221,7 +245,24 @@ void RidePlan::FieldsTile(double X0, double Z0, double Size, int Detail, RideMes
 			continue;
 		}
 		if (Detail < 2) continue;
-		if (F.Kind == FieldGraves)
+		if (F.Kind == FieldScree)
+		{
+			// [OSM stage 2 batch D] A scatter of broken stones, more and bigger downhill.
+			int Stones = 0;
+			for (double Z = std::ceil(std::fmax(F.MinZ, Z0) / 2.5) * 2.5; Z < std::fmin(F.MaxZ, Z0 + Size) && Stones < 900; Z += 2.5)
+				for (double X = std::ceil(std::fmax(F.MinX, X0) / 2.5) * 2.5; X < std::fmin(F.MaxX, X0 + Size) && Stones < 900; X += 2.5)
+				{
+					if (Roll(X, Z, 31u) > 0.35) continue;
+					const double Px = X + (Roll(X, Z, 32u) - 0.5) * 2.0, Pz = Z + (Roll(X, Z, 33u) - 0.5) * 2.0;
+					if (!Inside(Px, Pz) || !InRing(F.Ring, Px, Pz) || !OffRoad(Px, Pz, 1.5)) continue;
+					const double Y = Ground(Px, Pz);
+					if (std::isnan(Y)) continue;
+					++Stones;
+					const double R = 0.15 + 0.5 * Roll(X, Z, 34u) * Roll(X, Z, 35u), Tone = 0.8 + 0.4 * Roll(X, Z, 36u);
+					Column(Out, Pt(Px, Y - R * 0.4, Pz), R, R * 0.6, R * 0.7, 5, Paint{float(0.2 * Tone), float(0.195 * Tone), float(0.18 * Tone)}, R * 0.25);
+				}
+		}
+		else if (F.Kind == FieldGraves)
 		{
 			// Headstones in loose rows running north to south, each facing east (+x), some leaning,
 			// some gone; crosses now and then; none in the church or on the path.

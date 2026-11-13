@@ -1586,12 +1586,28 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 	if (Sheet.Vertices() < size_t(N) * N) return;
 	// Each point of the square: 0 dry, 1 a lake or a wide river (the land's cover), 2 the sea.
 	std::vector<unsigned char> Wet(size_t(N) * N, 0);
-	bool AnyWet = false;
+	std::vector<double> Held(size_t(N) * N, 0.0);   // (a reservoir's level, where one is)
+	bool AnyWet = false, Reservoirs = false;
+	{
+		std::vector<int> Here;
+		FieldsIn(X0, Z0, Size, Here);
+		for (int Fa : Here) Reservoirs = Reservoirs || FieldAreas[size_t(Fa)].Kind == FieldReservoir;
+	}
 	for (int J = 0; J < N; ++J)
 		for (int I = 0; I < N; ++I)
 		{
 			const double X = X0 + I * Step, Z = Z0 + J * Step;
 			unsigned char W = Land->SeaAt(X, Z) ? 2 : Land->Cover(X, Z) == Terrain::CoverWater ? 1 : 0;
+			// [OSM stage 2 batch D] (a mapped reservoir: flat, at its own level)
+			if (W != 2 && Reservoirs)
+			{
+				const int Fa = FieldAt(X, Z);
+				if (Fa >= 0 && FieldAreas[size_t(Fa)].Kind == FieldReservoir)
+				{
+					W = 3;
+					Held[size_t(J) * N + I] = FieldAreas[size_t(Fa)].Level;
+				}
+			}
 			// (never on a road: a causeway or a road along a lake's edge stays dry)
 			if (W != 0)
 			{
@@ -1628,7 +1644,7 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					if (Wet[V] == 0) continue;
 					Any = true;
 					Sea = Sea || Wet[V] == 2;
-					Level[K] = Wet[V] == 2 ? 0.0 : double(Sheet.Pos[V * 3 + 1]) + 0.12;
+					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? std::fmax(Held[V], double(Sheet.Pos[V * 3 + 1]) + 0.05) : double(Sheet.Pos[V * 3 + 1]) + 0.12;
 					Lowest = std::fmin(Lowest, Level[K]);
 				}
 				if (!Any) continue;

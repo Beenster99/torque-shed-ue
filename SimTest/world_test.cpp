@@ -787,6 +787,30 @@ int main()
 							Kinds[RidePlan::FieldQuarry], Kinds[RidePlan::FieldGraves], Kinds[RidePlan::FieldAllotments], Kinds[RidePlan::FieldOrchard], Tinted, Tested, Graves, Faces);
 						Check(Kinds[RidePlan::FieldGraves] > 0 && Tinted == Tested && Graves > 0, "field areas: graveyards and quarries found and tinted, headstones stood in the graveyards");
 					}
+					// [OSM stage 2 batch D] Wild ground: cliffs, peaks, dams and weirs found and drawn near and far.
+					{
+						int Cliffs = 0, Dams = 0, Weirs = 0, Trigs = 0, Screes = 0, Reservoirs = 0;
+						for (const RidePlan::WildLine& W : Plan->WildLines) (W.Kind == 0 ? Cliffs : W.Kind == 1 ? Dams : Weirs) += 1;
+						for (const RidePlan::Summit& S : Plan->Summits) Trigs += S.Trig ? 1 : 0;
+						for (const RidePlan::FieldArea& F : Plan->FieldAreas) { Screes += F.Kind == RidePlan::FieldScree ? 1 : 0; Reservoirs += F.Kind == RidePlan::FieldReservoir ? 1 : 0; }
+						size_t NearWild = 0, FarWild = 0;
+						for (const RidePlan::WildLine& W : Plan->WildLines)
+						{
+							if (W.Kind != 0 || NearWild > 0) continue;
+							const double Sx = std::floor(W.Line[0].X / 256.0) * 256.0, Sz = std::floor(W.Line[0].Z / 256.0) * 256.0;
+							RideMesh Near1;
+							Near1.OriginX = Sx; Near1.OriginZ = Sz;
+							Plan->WildTile(Sx, Sz, 256.0, 2, Near1);
+							NearWild = Near1.Idx.size() / 3;
+							RideMesh Far1;
+							Far1.OriginX = Sx - 2048.0; Far1.OriginZ = Sz - 2048.0;
+							Plan->WildTile(Sx - 2048.0, Sz - 2048.0, 4096.0, 0, Far1);
+							FarWild = Far1.Idx.size() / 3;
+						}
+						std::printf("      wild: %d cliffs, %d dams, %d weirs, %d peaks (%d trig pillars), %d scree areas, %d reservoirs; %zu triangles near a cliff, %zu in its 4 km square far off\n",
+							Cliffs, Dams, Weirs, int(Plan->Summits.size()), Trigs, Screes, Reservoirs, NearWild, FarWild);
+						Check(Cliffs > 0 && !Plan->Summits.empty() && NearWild > 0 && FarWild > 0, "wild ground: cliffs drawn near and far, peaks marked");
+					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.
 					{
@@ -1399,8 +1423,8 @@ int main()
 						RideMesh FarSq;
 						Plan->LandTile(std::floor(Plan->Road[0].At.X / 4096.0) * 4096.0, std::floor(Plan->Road[0].At.Z / 4096.0) * 4096.0, 4096.0, 64, FarSq);
 						std::printf("      %d squares of ground along it: %d points of walls, buildings and trees stand on them, %d of them in the scanned stone and %d plain grey; %d on a road\n", int(Squares), int(Stands), int(InScan), int(StoneGrey), int(OnTarmac));
-						Check(Coloured && Masked && Stands > 2000 && InScan > 500 && Alike == Squares && OnTarmac == 0 && !FarSq.Extra && FarSq.Col.size() == FarSq.Pos.size(),
-							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees (walls and stone houses in the scanned stone's masks): the same every time, none in a rider's way on a road, none on the far-off squares");
+						Check(Coloured && Masked && Stands > 2000 && InScan > 500 && Alike == Squares && OnTarmac == 0 && (!FarSq.Extra || (!FarSq.Extra->Stone && !FarSq.Extra->Masonry && FarSq.Extra->Idx.size() < 60000)) && FarSq.Col.size() == FarSq.Pos.size(),
+							"the ground is coloured by what covers it, and its finer squares carry their walls, buildings and trees (walls and stone houses in the scanned stone's masks): the same every time, none in a rider's way on a road, on the far-off squares only the skyline's far shapes (no walls or houses)");
 					}
 					// The grass and trees on the land, for the game to draw with Buttertubs' own plants.
 					{

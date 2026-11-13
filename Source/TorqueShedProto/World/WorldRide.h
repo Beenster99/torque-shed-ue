@@ -509,12 +509,15 @@ public:
 	// none in a building), allotments (plots of dug earth and green, a shed on some) and orchards (fruit
 	// trees in rows: PlantsTile). Each colours the ground inside its outline (LandColour: FieldTint)
 	// and stands its things on it (FieldsTile: Detail as SkylineTile's, the small things only at 2).
-	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldKinds };
+	// [OSM stage 2 batch D] and scree (grey stones, a scatter of them near) and reservoirs (flat water at
+	// their level, drawn with the water: WaterTile).
+	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldScree, FieldReservoir, FieldKinds };
 	struct FieldArea
 	{
 		int Kind = 0;
 		std::vector<P2> Ring;
 		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
+		double Level = 0.0;   // a reservoir's water
 		uint32_t Id = 0;
 	};
 	std::vector<FieldArea> FieldAreas;
@@ -523,6 +526,28 @@ public:
 	void FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const;
 	bool FieldTint(double X, double Z, float* Rgb) const;   // the ground's colour in a field area, false outside one
 	void FieldsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [OSM stage 2 batch D] Wild ground and water works (World/WorldRideWild.cpp): the map's cliffs as
+	// rock faces along their lines (the low side to the right of the way the line runs, as the map draws
+	// them), a cairn or a trig pillar on each mapped peak, dams as walls across their valleys and weirs
+	// as steps across their rivers. Detail as SkylineTile's: the cliffs and dams far off too (they shape
+	// the skyline), the peaks' markers and the weirs near.
+	struct WildLine
+	{
+		int Kind = 0;   // 0 a cliff, 1 a dam, 2 a weir
+		std::vector<P2> Line;
+		uint32_t Id = 0;
+	};
+	struct Summit
+	{
+		P2 At;
+		std::string Name;
+		double Elevation = 0.0;
+		bool Trig = false;   // a trig pillar (or a cairn)
+	};
+	std::vector<WildLine> WildLines;
+	std::vector<Summit> Summits;
+	void IndexWild();
+	void WildTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
@@ -714,6 +739,8 @@ private:
 		std::unordered_map<long long, std::vector<double>> GapWidths;   // [OSM stage 2] each one's width, as Gaps
 		std::unordered_map<long long, std::vector<int>> Wires, Talls, Yards;   // [OSM stage 2 batch B] by the square their middle is in
 		std::unordered_map<long long, std::vector<int>> Fields;   // [OSM stage 2 batch C] by every 64 m square each field area's box covers
+		std::unordered_map<long long, std::vector<std::pair<int, int>>> Wild;   // [OSM stage 2 batch D] (line, first point) by the square its middle is in
+		std::unordered_map<long long, std::vector<int>> Summits;
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
 		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
 		// RailCell square within 40 m of them (for NearRail).
