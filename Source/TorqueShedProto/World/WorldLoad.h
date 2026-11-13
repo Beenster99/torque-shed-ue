@@ -33,6 +33,8 @@ bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>
 // fine and middle tiles (so the sea is known before a tile is read), then every tile it uses that
 // isn't on disk. Returns how many tiles it couldn't get. Blocks: a worker's job.
 int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, const std::function<void(int, int)>& Progress = nullptr);
+// [ride anywhere] The same for some tiles: those of Keys not on disk yet, with the sea of the cells under them.
+int FetchKeys(CellStore& Store, HeightStore& Heights, const std::vector<TileKey>& Keys);
 // A road's points no further apart than Step metres (a ride's road, for Terrain::ForRoad), with how
 // far along the road each is.
 std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along = nullptr);

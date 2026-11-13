@@ -43,6 +43,8 @@ class RidePlan;
 struct DiaryRide;
 struct RideMesh;
 struct Tint;
+struct RoamArea;
+struct RideGuide;
 }
 struct FTorqueRideJobs;
 struct FTorqueDash;
@@ -69,9 +71,23 @@ public:
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
 	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
 	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
+	// Where to put a bike back after a fall (beenster, build 142: off on a side road, it always went back
+	// to the ride's road): the middle of the nearest road of any kind to At (the ride's frame, metres), a
+	// little to its left as the UK keeps, facing along it the way nearer Heading (sim: 0 faces -z, + left).
+	// Which is 0 for the ride's own road, a side road's number otherwise. False with no ride, or no road
+	// within 80 m.
+	static bool RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which);
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
+	// [ride anywhere] The world loaded round the ride and the way the sat nav is guiding the riders
+	// (World/WorldRoam.h), for the maps (the TFT's, the HUD's); null with no ride. Read on the game
+	// thread; each is a snapshot to keep, replaced (its Version up) when the area grows or the way
+	// re-routes, and OnRoamChanged is broadcast then.
+	static std::shared_ptr<const TorqueWorld::RoamArea> RoamNow();
+	static std::shared_ptr<const TorqueWorld::RideGuide> GuideNow();
+	DECLARE_MULTICAST_DELEGATE(FOnRoamChanged);
+	static FOnRoamChanged OnRoamChanged;
 	// [OSM stage 1] A test run's limit on the HUD in place of the road's (the "limit:" test verb), for a
 	// picture of each: 20..70, -1 the national limit; INDEX_NONE (the default) the road's own.
 	static int32 TestLimit;
@@ -113,6 +129,8 @@ private:
 	void PlaceAnimals(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
+	std::shared_ptr<const TorqueWorld::RoamArea> Roam;
+	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;
@@ -127,7 +145,7 @@ private:
 	void DropWords(const FIntVector& Key);
 	TSet<FIntVector> Asked;      // being made on a worker
 	TArray<FIntVector> Want;     // as of the last look
-	UPROPERTY(Transient) TMap<int32, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
+	UPROPERTY(Transient) TMap<int64, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
 	// [stage 8] The landmark bridges' hero pieces (RidePlan::HeroBridges), all ride long.
 	UPROPERTY(Transient) TArray<TObjectPtr<UProceduralMeshComponent>> HeroParts;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LandMaterial;
@@ -141,7 +159,7 @@ private:
 	void DropStreetLights(const FIntVector& Key);
 	bool bStreetLightsOn = false;
 	// A road piece's tunnel lights (by piece, as RoadParts), let go with it.
-	TMap<int32, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
+	TMap<int64, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MasonryMaterial;
 	// [stage 5] Rendered and limewashed walls (M_RideRender), and the stone tinted to each part of the
@@ -194,5 +212,10 @@ private:
 	int32 PlantsShown = 0;
 	FVector2D LookedAt = FVector2D(1e12, 1e12);
 	double SinceLook = 0.0;
+	// [ride anywhere] Squares to make again (their ground has come since), and where the ground round
+	// the rider was last fetched.
+	TSet<FIntVector> Stale;
+	FVector2D GroundAt = FVector2D(1e12, 1e12);
+	bool bFetchingGround = false;
 	bool bSaidReady = false;
 };

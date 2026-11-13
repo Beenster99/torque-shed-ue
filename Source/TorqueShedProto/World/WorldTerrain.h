@@ -67,6 +67,9 @@ public:
 	// own view, which uses whatever is on disk.
 	std::vector<TileKey> UsedKeys() const;
 	bool IsRide() const { return !Uses.empty(); }
+	// [ride anywhere] A ride's view that also takes any tile it has (on disk or fetched while riding)
+	// past its own, so the ground goes on wherever the riders roam. Set before anyone reads it.
+	void SetRoam(bool On) { Roam = On; }
 	// The cells under the ride's fine and middle tiles: those whose place profiles say where the sea is.
 	std::vector<CellId> CellsUnderRide() const;
 
@@ -134,6 +137,7 @@ private:
 	Frame F;
 	int Zooms[LevelCount];
 	std::vector<std::set<TileKey>> Uses;   // per level; empty: any tile on disk (the map's own view)
+	bool Roam = false;
 	std::shared_ptr<const PadSet> Pads;
 	std::shared_ptr<Ground> Land;
 	mutable std::mutex Lock;

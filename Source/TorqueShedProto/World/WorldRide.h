@@ -281,8 +281,8 @@ public:
 		double Length = 0.0;
 		Mouth Mouths[2];       // at its first point's end and its last's
 		bool Track = false, Gravel = false;   // [OSM stage 1] a farm track (no paint); gravel, not tarmac
+		int Edge = -1;         // [ride anywhere] its edge in the area's roads
 	};
-	std::vector<SideRoad> Sides;        // the other roads near it, each from junction to junction
 	// A junction off the ride's road's sides: two or more road ends at one place (side roads meeting each
 	// other, or the ride's road's own start or end), none of them a mouth. Its tarmac is a fan over
 	// them all, with rounded corners between neighbouring roads and a round outside where a road bends.
@@ -299,13 +299,40 @@ public:
 		std::vector<KnotArm> Arms;   // round the junction, anticlockwise seen from above
 		int Owner = 0, OwnerEnd = 0; // drawn with this road's piece at this end
 	};
-	std::vector<Knot> Knots;
 	// A knot's fan, its corners' shoulders, into Out (in Out's own origin).
 	void KnotPiece(const Knot& K, RideMesh& Out) const;
-	// Every road: 0 is the ride's own, then the sides.
-	int RoadCount() const { return 1 + int(Sides.size()); }
-	const std::vector<RoadPoint>& RoadOf(int Which) const { return Which <= 0 ? Road : Sides[size_t(Which) - 1].Pts; }
-	static constexpr double SideReach = 300.0;  // roads this near the ride's (about) are drawn
+	// [ride anywhere] Every road: 0 is the ride's own; every other road of the area (its network) is
+	// 1 + its edge in Area.Roads, from junction to junction. Those near the ride's road (SideReach) are
+	// laid with the plan (their mouths are on it): PlanSides. Every other one is laid a block of
+	// BlockSize metres at a time (LayBlocks), on whichever thread first wants it, the same on every
+	// machine whatever order they come in. SideOf is null for a road not laid (yet, or ever: a loop),
+	// and RoadOf empty.
+	int RoadCount() const { return 1 + int(Area.Roads.Edges.size()); }
+	const SideRoad* SideOf(int Which) const;
+	const std::vector<RoadPoint>& RoadOf(int Which) const;
+	const std::vector<int>& PlanSides() const { return Planned; }
+	static constexpr double SideReach = 300.0;  // roads this near the ride's (about) are laid with it
+	static constexpr double BlockSize = 512.0;
+	static constexpr double TileMargin = 1000.0;   // the fine ground fetched this far round a block
+	// The roads with a point in the blocks a box touches, 0 (the ride's own) among them where its box
+	// meets this one; with Lay those blocks are laid first (a worker's job), else only roads laid already.
+	std::vector<int> RoadsNear(const Rect& Box, bool Lay) const;
+	void LayBlocks(const Rect& Box) const;
+	bool BlockLaid(double X, double Z) const;
+	int BlocksLaid() const;
+	// [ride anywhere] The ground wherever the riders roam: the fine tiles over a box and a tile round
+	// it fetched (a block's are, before its roads are laid, so their heights are final), and round a
+	// rider the middle and skyline tiles out to their reach. EnsureGround: how many couldn't be had;
+	// GroundRound: how many came. Both block, on the network (a worker's job). The stores are the
+	// plan's (Make's), kept for the ride.
+	int EnsureGround(const Rect& Box) const;
+	int GroundRound(double X, double Z) const;
+	CellStore* CellsFrom = nullptr;
+	HeightStore* HeightsFrom = nullptr;
+	std::shared_ptr<void> StoresAlive;   // (whatever holds them, kept as long as the plan is)
+	// The junction (knot) a road's end is one of the arms of, once its block is laid; null for none.
+	const Knot* KnotAt(int Which, int End) const;
+	std::vector<Knot> KnotsLaid() const;   // every one so far (the tests)
 	std::vector<std::string> Names;     // the roads taken, each once, in order
 	double Length = 0.0;
 	double LatA = 0.0, LonA = 0.0, LatB = 0.0, LonB = 0.0;
@@ -774,7 +801,16 @@ private:
 	// other) and says what each knot is on: 0 the ground, 1 a bridge, 2 a tunnel. Counts them.
 	void LevelSpans(const std::vector<P2>& Line, std::vector<double>& H, std::vector<char>& Kind, int& BridgeCount, int& TunnelCount) const;
 	void LaySides(const std::vector<int>& Path);
-	void LayKnots();
+	// [ride anywhere] One road of the network laid (edge E): false for none. Marks: the ride's road's
+	// points its mouths lie beside (for MouthAt), with their bits.
+	bool LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigned char>>& Marks, int& NBridges, int& NTunnels) const;
+	const SideRoad* EnsureSide(int E, std::vector<std::pair<int, unsigned char>>* Marks = nullptr) const;
+	void LayBlock(long long Key) const;
+	void KnotsOfBlock(long long Key) const;
+	struct Network;
+	std::shared_ptr<Network> Net;
+	std::vector<int> Planned;
+	Rect RoadBox;
 	// A mouth's corner on the side road's left (Sigma +1) or right (-1): the corner itself, the way
 	// along the ride's road's edge from it, and how far along each edge the rounding starts.
 	static void MouthCorner(const Mouth& M, const P2& MainAt, double Half, double Sigma, P2& Corner, P2& AlongMain, double& Reach);
@@ -816,6 +852,5 @@ private:
 	int CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const;
 	std::shared_ptr<SceneIndex> Scene;
 	void IndexScenery();
-	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
 };
 } // namespace TorqueWorld
