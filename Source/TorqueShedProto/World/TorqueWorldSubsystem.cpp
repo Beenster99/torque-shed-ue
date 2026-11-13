@@ -375,9 +375,13 @@ const TorqueWorld::Route::Gazetteer& UTorqueWorldSubsystem::Places()
 		std::string Text;
 		const std::string Path = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/World/uk_places.tsv")));
 		if (!TorqueWorld::Files::Read(Path, Text) || !PlaceList.Load(Text))
+		{
 			UE_LOG(LogTemp, Error, TEXT("Torque route: no places to search (%s)"), UTF8_TO_TCHAR(Path.c_str()));
+		}
 		else
+		{
 			UE_LOG(LogTemp, Display, TEXT("Torque route: %d places to search"), int32(PlaceList.Count()));
+		}
 	}
 	return PlaceList;
 }

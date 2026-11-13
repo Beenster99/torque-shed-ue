@@ -803,7 +803,7 @@ void ATorqueRideWorld::SendBird(FRideBird& Bird, const FVector2D& At, uint32 Sal
 		for (int32 K = 0; K < 8 && !bSea; ++K)
 			for (double R : {1500.0, 4000.0})
 				bSea = bSea || Plan->Land->SeaAt(Where.X + FMath::Cos(K * PI / 4.0) * R, Where.Y + FMath::Sin(K * PI / 4.0) * R);
-	const FString Region = UTF8_TO_TCHAR(Plan->LookHere(Where.X, Where.Y).Name.c_str());
+	const FString Region = UTF8_TO_TCHAR(Plan->LookHere(Where.X, Where.Y).Name);
 	const bool bKites = Region == TEXT("wales") || Region == TEXT("lowland") || Region == TEXT("cotswolds") || Region == TEXT("dales") || Region == TEXT("highlands");
 	const double Pick = TRWBirds::Unit(Salt * 7u + 5u);
 	const int32 Kind = bSea && Pick < 0.7 ? 2 : bKites && Pick < 0.5 ? 1 : 0;
