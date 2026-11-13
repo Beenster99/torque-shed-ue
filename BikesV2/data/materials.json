@@ -1,5 +1,5 @@
 {
- "about": "Shared surface library for Bike Models V2. One tag per finish; every model and every pool part uses these and nothing else, so bikes from different brands sit together. A tag written tag__slot takes its colour from that colour slot of the bike (body, frame, rim, fork, accent). Colours are linear RGB. bump is a fine surface grain (size in mm, depth 0-1) used in renders and as a hint for the game material.",
+ "about": "Shared surface library for Bike Models V2. One tag per finish; every model and every pool part uses these and nothing else, so bikes from different brands sit together. A tag written tag__slot takes its colour from that colour slot of the bike (body, frame, rim, fork, accent). Colours are linear RGB. bump is a fine surface grain (size in mm, depth 0-1) used in renders and as a hint for the game material. ue names the game's existing bike material (/Game/Bike/Materials/MI_<ue>) the surface is shown on until V2 has its own; unless ue_tint is false the game sets that material's colour, metallic and roughness from this file.",
  "colour_slots": [
   "body",
   "frame",
@@ -44,120 +44,141 @@
   "paint": {
    "label": "Bodywork paint (finish chosen per bike)",
    "slot": "body",
-   "finish": true
+   "finish": true,
+   "ue": "paint_silver"
   },
   "frame": {
    "label": "Frame coating",
    "slot": "frame",
    "metallic": 0.6,
    "rough": 0.35,
-   "coat": 0.3
+   "coat": 0.3,
+   "ue": "cat_powder"
   },
   "rim": {
    "label": "Wheel coating",
    "slot": "rim",
    "metallic": 0.85,
-   "rough": 0.42
+   "rough": 0.42,
+   "ue": "cat_powder"
   },
   "accent": {
    "label": "Accent parts (springs, pinstripes)",
    "slot": "accent",
    "metallic": 0.0,
    "rough": 0.3,
-   "coat": 0.8
+   "coat": 0.8,
+   "ue": "paint_silver"
   },
   "rubber": {
    "label": "Tyre and grip rubber",
    "col": [0.016, 0.016, 0.018],
    "rough": 0.78,
-   "bump": [1.2, 0.25]
+   "bump": [1.2, 0.25],
+   "ue": "cat_rubber",
+   "ue_tint": false
   },
   "seat": {
    "label": "Seat vinyl",
    "col": [0.018, 0.018, 0.02],
    "rough": 0.6,
-   "bump": [0.6, 0.35]
+   "bump": [0.6, 0.35],
+   "ue": "leather"
   },
   "seat_tan": {
    "label": "Seat leather, tan",
    "col": [0.22, 0.1, 0.04],
    "rough": 0.55,
-   "bump": [0.8, 0.3]
+   "bump": [0.8, 0.3],
+   "ue": "leather"
   },
   "plastic": {
    "label": "Black plastic, grained",
    "col": [0.02, 0.021, 0.023],
    "rough": 0.52,
-   "bump": [0.5, 0.2]
+   "bump": [0.5, 0.2],
+   "ue": "cat_plastic"
   },
   "alu": {
    "label": "Bare aluminium, brushed",
    "col": [0.62, 0.64, 0.66],
    "metallic": 1.0,
-   "rough": 0.38
+   "rough": 0.38,
+   "ue": "cat_brushed_steel"
   },
   "alu_cast": {
    "label": "Cast aluminium",
    "col": [0.42, 0.43, 0.45],
    "metallic": 0.9,
    "rough": 0.55,
-   "bump": [1.5, 0.3]
+   "bump": [1.5, 0.3],
+   "ue": "cat_cast_alloy"
   },
   "alu_dark": {
    "label": "Black anodised aluminium",
    "col": [0.06, 0.065, 0.07],
    "metallic": 0.9,
-   "rough": 0.45
+   "rough": 0.45,
+   "ue": "cat_anodised"
   },
   "engine": {
    "label": "Engine cases, silver",
    "col": [0.34, 0.35, 0.37],
    "metallic": 0.9,
    "rough": 0.5,
-   "bump": [1.5, 0.25]
+   "bump": [1.5, 0.25],
+   "ue": "cat_cast_alloy"
   },
   "engine_dark": {
    "label": "Engine covers, black",
    "col": [0.11, 0.115, 0.12],
    "metallic": 0.8,
    "rough": 0.5,
-   "bump": [1.5, 0.2]
+   "bump": [1.5, 0.2],
+   "ue": "cat_cast_alloy"
   },
   "steel": {
    "label": "Bright steel (discs, chain, axles)",
    "col": [0.55, 0.56, 0.57],
    "metallic": 1.0,
-   "rough": 0.22
+   "rough": 0.22,
+   "ue": "cat_brushed_steel"
   },
   "chrome": {
    "label": "Chrome",
    "col": [0.9, 0.9, 0.9],
    "metallic": 1.0,
-   "rough": 0.06
+   "rough": 0.06,
+   "ue": "chrome",
+   "ue_tint": false
   },
   "exhaust": {
    "label": "Stainless exhaust",
    "col": [0.5, 0.48, 0.45],
    "metallic": 1.0,
-   "rough": 0.3
+   "rough": 0.3,
+   "ue": "cat_brushed_steel"
   },
   "exhaust_black": {
    "label": "Black ceramic exhaust",
    "col": [0.03, 0.03, 0.032],
    "metallic": 0.4,
-   "rough": 0.6
+   "rough": 0.6,
+   "ue": "cat_black_metal"
   },
   "titanium": {
    "label": "Titanium, heat blued",
    "col": [0.36, 0.34, 0.42],
    "metallic": 1.0,
-   "rough": 0.3
+   "rough": 0.3,
+   "ue": "cat_titanium"
   },
   "gold": {
    "label": "Gold anodised (forks, calipers)",
    "col": [0.42, 0.27, 0.08],
    "metallic": 1.0,
-   "rough": 0.32
+   "rough": 0.32,
+   "ue": "cat_anodised"
   },
   "carbon": {
    "label": "Carbon fibre",
@@ -165,30 +186,39 @@
    "metallic": 0.3,
    "rough": 0.3,
    "coat": 1.0,
-   "bump": [2.0, 0.15]
+   "bump": [2.0, 0.15],
+   "ue": "cat_carbon",
+   "ue_tint": false
   },
   "lens": {
    "label": "Headlight lens",
    "col": [0.9, 0.88, 0.75],
    "rough": 0.1,
-   "emit": 0.6
+   "emit": 0.6,
+   "ue": "lens_clear",
+   "ue_tint": false
   },
   "redlens": {
    "label": "Tail light lens",
    "col": [0.5, 0.02, 0.03],
    "rough": 0.15,
-   "emit": 0.3
+   "emit": 0.3,
+   "ue": "lens_red",
+   "ue_tint": false
   },
   "amberlens": {
    "label": "Indicator lens",
    "col": [0.8, 0.3, 0.02],
    "rough": 0.15,
-   "emit": 0.2
+   "emit": 0.2,
+   "ue": "lens_amber",
+   "ue_tint": false
   },
   "plate": {
    "label": "Number plate",
    "col": [0.6, 0.5, 0.05],
-   "rough": 0.5
+   "rough": 0.5,
+   "ue": "cat_plastic"
   }
  },
  "brand_finish": {

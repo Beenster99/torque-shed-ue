@@ -5,6 +5,7 @@ y to the bike's left, z up, metres. The side render uses an orthographic camera
 framed exactly like the elevation drawing, so the two can be overlaid.
 
 Usage: python3 foundry/build3d.py corvano_naked [--glb] [--samples 48]
+       python3 foundry/build3d.py corvano_naked --game   (writes Data/BikesV2/ for the game, no render)
   -> out/renders/<model>_side.png, <model>_q.png, and optionally out/glb/<model>.glb
 """
 import json
@@ -77,6 +78,43 @@ def mat(name, col=None, finish=None):
         nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
     _mats[key] = m
     return m
+
+
+def export_game(name, model):
+    """Writes the bike as the game reads it: Data/BikesV2/<name>.glb (one mesh, one primitive per
+    surface, the reader in Source/TorqueShedProto/Fit/PartMesh) and <name>.json (each surface's look)."""
+    dst = os.path.join(os.path.dirname(ROOT), "Data", "BikesV2")
+    os.makedirs(dst, exist_ok=True)
+    obs = [o for o in bpy.context.scene.objects if o.type in ("MESH", "CURVE")]
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in obs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = obs[0]
+    bpy.ops.object.convert(target="MESH")
+    obs = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+    bpy.context.view_layer.objects.active = obs[0]
+    bpy.ops.object.join()
+    ob = bpy.context.view_layer.objects.active
+    ob.name = ob.data.name = name
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(dst, name + ".glb"), use_selection=True, export_apply=True, export_yup=True,
+                              export_texcoords=True, export_normals=True, export_materials="EXPORT", export_cameras=False, export_lights=False)
+    looks = {}
+    for m in ob.data.materials:
+        tag = m.name.split(".")[0]
+        spec = LIB["surfaces"].get(tag.split("__")[0], {})
+        b = m.node_tree.nodes["Principled BSDF"]
+        look = {"ue": spec.get("ue", "cat_brushed_steel")}
+        if spec.get("ue_tint", True):
+            look["color"] = [round(v, 4) for v in b.inputs["Base Color"].default_value[:3]]
+            look["metallic"] = round(b.inputs["Metallic"].default_value, 3)
+            look["roughness"] = round(b.inputs["Roughness"].default_value, 3)
+        looks[m.name] = look
+    g = model["geometry"]
+    info = {"name": model["name"], "brand": model["brand"], "family": model["family"], "rev": model.get("rev"),
+            "wheelbase_mm": g["wheelbase"], "seat_height_mm": g["seat_height"], "surfaces": looks}
+    json.dump(info, open(os.path.join(dst, name + ".json"), "w"), indent=1)
+    return dst
 
 
 def swatches(samples=32):
@@ -559,5 +597,8 @@ if __name__ == "__main__":
     if "--glb" in sys.argv:
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)
         bpy.ops.export_scene.gltf(filepath=os.path.join(ROOT, "out", "glb", name + ".glb"), export_apply=True)
+    if "--game" in sys.argv:
+        print("game files in", export_game(name, model))
+        sys.exit(0)
     samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
     print("renders in", render(name, samples))

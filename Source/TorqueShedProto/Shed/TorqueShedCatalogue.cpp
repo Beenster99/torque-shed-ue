@@ -601,4 +601,62 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 	return Made->Num();
 }
 
+// [bikes v2]
+int32 MakeV2Display(AActor* Owner, USceneComponent* Parent, const FString& Model, TArray<UStaticMeshComponent*>& Out)
+{
+	if (!Owner || !Parent) return 0;
+	std::string Bytes, Text, Error;
+	TorqueFit::PartMesh Glb;
+	TorqueFit::Json Info;
+	const FString Base = TEXT("Data/BikesV2/") + Model;
+	if (!TSCI::ReadBytes(Base + TEXT(".glb"), Bytes) || !Glb.LoadGlb(Bytes, Error) ||
+		!TSCI::ReadBytes(Base + TEXT(".json"), Text) || !TorqueFit::Json::Parse(Text, Info, &Error))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque: Bike Models V2 model %s didn't load (%s)"), *Model, *TSCI::Ue(Error));
+		return 0;
+	}
+	const TorqueFit::Json* Surfaces = Info.Get("surfaces");
+	int32 Made = 0;
+	for (const TorqueFit::PartSurface& S : Glb.Surfaces)
+	{
+		const TorqueFit::Json* Look = Surfaces ? Surfaces->Get(S.Material) : nullptr;
+		const FString Finish = TSCI::Ue(Look ? Look->Str("ue", "cat_brushed_steel") : std::string("cat_brushed_steel"));
+		UMaterialInterface* Mat = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Bike/Materials/MI_%s.MI_%s"), *Finish, *Finish));
+		if (!Mat) Mat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Bike/Materials/MI_steel_brushed.MI_steel_brushed"));
+		TArray<FVector> Pos;
+		TArray<int32> Tris;
+		bool bFlipped = false;
+		UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped, true, false);
+		if (!Mesh) continue;
+		UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Owner);
+		C->SetStaticMesh(Mesh);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetGenerateOverlapEvents(false);
+		C->SetupAttachment(Parent);
+		C->SetRelativeTransform(FTransform::Identity);
+		if (Mat) C->SetMaterial(0, Mat);
+		C->ComponentTags.Add(FName(TEXT("BikesV2")));
+		C->ComponentTags.Add(FName(NoPaintTag));
+		C->RegisterComponent();
+		const TorqueFit::Json* Colour = Look ? Look->Get("color") : nullptr;
+		if (Look && Colour && Colour->A.size() >= 3)
+		{
+			if (UMaterialInstanceDynamic* M = C->CreateDynamicMaterialInstance(0))
+			{
+				const FLinearColor Lin((float)Colour->A[0].N, (float)Colour->A[1].N, (float)Colour->A[2].N);
+				M->SetVectorParameterValue(TEXT("Color"), Lin);
+				M->SetVectorParameterValue(TEXT("Color2"), Lin);
+				const float Metal = (float)Look->Num("metallic", 0.0), Rough = (float)Look->Num("roughness", 0.5);
+				for (const TCHAR* Param : {TEXT("Metallic"), TEXT("Metallic2")}) M->SetScalarParameterValue(Param, Metal);
+				for (const TCHAR* Param : {TEXT("Roughness"), TEXT("Roughness2")}) M->SetScalarParameterValue(Param, Rough);
+			}
+		}
+		Out.Add(C);
+		++Made;
+	}
+	UE_LOG(LogTemp, Display, TEXT("Torque: Bike Models V2 model %s drawn (%d surfaces)"), *Model, Made);
+	return Made;
+}
+
+
 }

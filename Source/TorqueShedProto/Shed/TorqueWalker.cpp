@@ -6,6 +6,7 @@
 #include "Coop/HandsState.h"
 #include "Shed/TorqueAvatar.h"
 #include "Shed/TorqueAvatarDemo.h"
+#include "Shed/TorqueBikesV2Show.h"
 #include "Coop/TorqueKeys.h"
 #include "Shed/TorqueProfile.h"
 #include "Shed/TorqueDynoRoom.h"
@@ -551,6 +552,12 @@ void ATorqueWalker::Tick(float DeltaSeconds)
 			const FVector Feet = GetActorLocation() - FVector(0.0, 0.0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
 			World->SpawnActor<ATorqueAvatarDemo>(Feet + Ahead.Vector() * 300.0, Ahead);
 		}
+	}
+	// [bikes v2] The Bike Models V2 bikes on show in the shed (Data/BikesV2/show.json), once.
+	if (!bBikesV2Shown)
+	{
+		bBikesV2Shown = true;
+		ATorqueBikesV2Show::SpawnIn(GetWorld());
 	}
 	// This machine's player, as the shed knows them (whose hands a part is in).
 	if (!bPeerSet && B && GetPlayerState())

@@ -1,0 +1,8 @@
+{
+ "about": "Bike Models V2 bikes shown in the shed for looking at (not ridable, no collision). at_cm is the spot on the shed floor (x east, y towards the roller door), yaw 90 faces the door. Set enabled to false to hide them; no rebuild needed.",
+ "enabled": true,
+ "bikes": [
+  {"model": "corvano_naked", "at_cm": [-85, -60], "yaw": 90},
+  {"model": "kazeda_naked", "at_cm": [85, -60], "yaw": 90}
+ ]
+}

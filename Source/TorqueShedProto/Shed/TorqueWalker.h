@@ -628,6 +628,7 @@ private:
 	int32 AvatarFor = -1;             // the avatar it was made as (their profile's, or their colour's)
 	TArray<uint8> AvatarLook;         // the profile (height, face) put on it
 	bool bAvatarDemo = false;
+	bool bBikesV2Shown = false;   // [bikes v2] the V2 bikes on show were asked for (ATorqueBikesV2Show)
 	void UpdateAvatar(float Dt);
 	// [hands] Your own body in first person: your avatar under the camera, its hands round the
 	// tool (the tool goes where the hand can reach), the camera at its eyes. Off with -TorqueNoBody.

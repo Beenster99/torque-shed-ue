@@ -39,3 +39,14 @@ stay untouched until the switch-over phase.
 0 Foundations, 1 Proof (Corvano and Kazeda nakeds), 2 Naked complete, 3 the other
 seven families in four waves, 4 Switch-over, 5 Depth. beenster reviews drawings
 and renders as pages, never by testing builds.
+
+## In the game (first step, for looking only)
+
+`python3 foundry/build3d.py <model> --game` writes `Data/BikesV2/<model>.glb` and
+`<model>.json` (each surface's look). `Data/BikesV2/show.json` lists the bikes
+that stand in the shed and where; `"enabled": false` hides them without a
+rebuild, and `-TorqueNoBikesV2` on the command line does the same for one run.
+The game side is `Shed/TorqueBikesV2Show` and `TorqueShedCatalogue::MakeV2Display`.
+The bikes are not ridable, have no collision and are not saved or sent in co-op.
+`SimTest/bikesv2_test` loads every shown bike with the game's own glb reader.
+
