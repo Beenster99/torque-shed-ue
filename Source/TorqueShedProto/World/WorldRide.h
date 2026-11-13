@@ -237,6 +237,7 @@ public:
 	// The cells a journey's roads are read from (Wide: a band of whole cells, for a way that wanders).
 	static std::vector<CellId> CellsFor(const RouteRequest& Want, bool Wide);
 	static constexpr double CellDeg = 0.25;     // a cell of the world's store, in degrees
+	static constexpr double RoamPad = 0.1;      // [ride anywhere] the cells within this (degrees) of the way are read: room to roam
 	static constexpr int MaxCells = 64;         // the most cells one ride reads (RealRegion.MAX_AREA_CELLS)
 	static constexpr double SnapM = 2000.0;     // a pin is taken to the junction nearest it within this
 	static constexpr double RunOutM = 600.0;    // the road goes on this far past the last pin

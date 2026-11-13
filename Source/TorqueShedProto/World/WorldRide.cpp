@@ -97,13 +97,13 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 
 std::vector<CellId> RidePlan::CellsFor(const RouteRequest& Want, bool Wide)
 {
-	// Along the straight lines from pin to pin: those within about 3 km of them, or (Wide, when the
+	// Along the straight lines from pin to pin: those within RoamPad (about 11 km) of them, or (Wide, when the
 	// roads wander further) every cell next to one they cross, as AdventureJourney.cells_for does.
 	std::set<CellId> Seen;
 	std::vector<CellId> Out;
 	const auto Add = [&](double Lat, double Lon)
 	{
-		const double Pad = Wide ? CellDeg : 0.03;
+		const double Pad = Wide ? CellDeg : RoamPad;
 		for (const CellId& C : CellsInBox(Lat - Pad, Lon - Pad, Lat + Pad, Lon + Pad))
 			if (Seen.insert(C).second) Out.push_back(C);
 	};
