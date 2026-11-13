@@ -482,6 +482,51 @@ int main(int Argc, char** Argv)
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 	}
 	{
+		// [OSM stage 3] What the map says of the buildings: how many of each kind the baker gave, and
+		// the share with a mapped class, roof shape, roof or wall material (matched by position, as
+		// BuildingsTile matches them).
+		static const char* Kinds[8] = {"house", "shed", "barn", "shop", "block", "industrial", "worship", "civic"};
+		const Region& G = Plan->Area.Roads;
+		int ByKind[9] = {}, Classed = 0, Shaped = 0, Material = 0;
+		std::map<std::string, int> Classes;
+		std::unordered_map<long long, std::vector<int>> LookAt;
+		const auto Key = [](double X, double Z) { return static_cast<long long>(std::floor(X / 64.0)) * 4000037LL + static_cast<long long>(std::floor(Z / 64.0)); };
+		for (size_t L = 0; L < G.Scenery.Buildings.size(); ++L) LookAt[Key(G.Scenery.Buildings[L].At.X, G.Scenery.Buildings[L].At.Z)].push_back(int(L));
+		for (const Building& B : G.Buildings)
+		{
+			const int K = !B.More.empty() && B.More[0] >= 0 && B.More[0] < 8 ? int(B.More[0]) : 8;
+			++ByKind[K];
+			const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+			const BuildingLook* Tags = nullptr;
+			for (int Dz = -1; Dz <= 1 && !Tags; ++Dz)
+				for (int Dx = -1; Dx <= 1 && !Tags; ++Dx)
+				{
+					const auto It = LookAt.find(Key(B.X + Dx * 64.0, B.Z + Dz * 64.0));
+					if (It == LookAt.end()) continue;
+					for (int L : It->second)
+					{
+						const BuildingLook& Lo = G.Scenery.Buildings[size_t(L)];
+						const double Ddx = Lo.At.X - B.X, Ddz = Lo.At.Z - B.Z;
+						if (std::fabs(Ddx * Cs - Ddz * Sn) <= B.W * 0.5 + 0.5 && std::fabs(Ddx * Sn + Ddz * Cs) <= B.D * 0.5 + 0.5) { Tags = &Lo; break; }
+					}
+				}
+			if (!Tags) continue;
+			if (!Tags->Words[0].empty() && Tags->Words[0] != "yes") { ++Classed; ++Classes[Tags->Words[0]]; }
+			Shaped += Tags->Words[1].empty() ? 0 : 1;
+			Material += Tags->Words[3].empty() && Tags->Words[4].empty() ? 0 : 1;
+		}
+		const double All = std::max<size_t>(1, G.Buildings.size());
+		std::printf("Buildings: %zu (", G.Buildings.size());
+		for (int K = 0; K < 8; ++K) std::printf("%s%s %d", K ? ", " : "", Kinds[K], ByKind[K]);
+		std::printf("); mapped: class %.1f%%, roof shape %.1f%%, material %.1f%%\n", 100.0 * Classed / All, 100.0 * Shaped / All, 100.0 * Material / All);
+		std::vector<std::pair<int, std::string>> Top;
+		for (const auto& C : Classes) Top.emplace_back(-C.second, C.first);
+		std::sort(Top.begin(), Top.end());
+		std::printf("  mapped classes:");
+		for (size_t I = 0; I < Top.size() && I < 12; ++I) std::printf(" %s %d", Top[I].second.c_str(), -Top[I].first);
+		std::printf("\n");
+	}
+	{
 		// [OSM stage 1] The road's facts: the limit all along it, the stops, the place at the start.
 		std::printf("Limits along the ride (%s):\n", Plan->Britain() ? "mph" : "km/h");
 		for (const RidePlan::LimitStretch& L : Plan->Limits)
