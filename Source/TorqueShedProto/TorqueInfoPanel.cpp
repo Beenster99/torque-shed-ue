@@ -5,6 +5,7 @@
 #include "Coop/TorquePlayerState.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueKeys.h"
+#include "Coop/TorquePlayerController.h"
 #include "Shed/TorqueBuildSubsystem.h"
 #include "TorqueBikePawn.h"
 #include "Weather/WeatherModel.h"
@@ -22,6 +23,7 @@
 #include "GameFramework/PlayerState.h"
 #include "HAL/PlatformTime.h"
 #include "HttpModule.h"
+#include "InputCoreTypes.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Misc/CommandLine.h"
@@ -263,6 +265,23 @@ struct FIconPen
 	}
 };
 
+// [waypoint] The place picked to ride to (one for this game, kept from one level to the next).
+struct FWaypoint
+{
+	bool bOn = false;
+	double Lat = 0.0, Lon = 0.0;
+	FString Name;
+};
+static FWaypoint GWaypoint;
+
+static double MetresTo(double FromLat, double FromLon, double ToLat, double ToLon, double& Bearing)
+{
+	double East = 0.0, North = 0.0;
+	TorqueWeather::MetresBetween(FromLat, FromLon, ToLat, ToLon, East, North);
+	Bearing = FMath::Fmod(FMath::RadiansToDegrees(FMath::Atan2(East, North)) + 360.0, 360.0);
+	return FMath::Sqrt(East * East + North * North);
+}
+
 // Where a point of this level is on Earth, and how high (m above sea level).
 static void GeoOf(const UWorld* World, const FVector& At, double& Lat, double& Lon, double& Asl)
 {
@@ -500,9 +519,11 @@ void FTorqueInfoPanel::Ask(double Lat, double Lon, double Now)
 								double East = 0.0, North = 0.0;
 								TorqueWeather::MetresBetween(AskLat, AskLon, C->GetNumberField(TEXT("lat")), C->GetNumberField(TEXT("lon")), East, North);
 								N.Metres = FMath::Sqrt(East * East + North * North);
+								N.Lat = C->GetNumberField(TEXT("lat"));
+								N.Lon = C->GetNumberField(TEXT("lon"));
 							}
 						}
-						if (!N.Title.IsEmpty()) Got->Near.Add(N);
+						if (!N.Title.IsEmpty() && N.Metres < 1.0e8) Got->Near.Add(N);   // (only those with a place, to ride to)
 					}
 					// The nearest with words first, then the rest by distance.
 					Got->Near.Sort([](const FNear& A, const FNear& B) { return A.Metres < B.Metres; });
@@ -530,16 +551,7 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
 	// Test runs keep a clean screen (and ask nothing of the internet) unless -TorqueInfoPanel.
 	const bool bWant = Set.bInfoPanel && (!bTestRun || bAsked);
-	Slide = FMath::FInterpConstantTo(Slide, bWant ? 1.0f : 0.0f, Dt, 4.0f);   // a quarter of a second in or out
-	if (Slide <= 0.0f) return;
-	const float Ease = 1.0f - FMath::Pow(1.0f - Slide, 3.0f);
-
 	const float S = TorqueUi::Scale(Canvas);
-	const float PW = 380.0f * S, Pad = 14.0f * S, CW = PW - 2.0f * Pad - 3.0f * S;
-	const float X0 = 20.0f * S - (1.0f - Ease) * (PW + 40.0f * S), TX = X0 + 3.0f * S + Pad;
-	const float Want = FMath::Max(TopY, 90.0f * S);
-	ShownTop = ShownTop < 0.0f ? Want : FMath::FInterpTo(ShownTop, Want, Dt, 6.0f);
-	const float Top = ShownTop;
 
 	// Where we are, from the camera.
 	const APlayerController* PC = Hud->GetOwningPlayerController();
@@ -548,6 +560,31 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	if (PC) PC->GetPlayerViewPoint(Eye, EyeRot);
 	double Lat = 0.0, Lon = 0.0, Asl = 0.0;
 	GeoOf(World, Eye, Lat, Lon, Asl);
+	// [waypoint] Its marker, panel or no panel; there (within 150 m), it's done.
+	ATorquePlayerController* TPC = Cast<ATorquePlayerController>(Hud->GetOwningPlayerController());
+	if (GWaypoint.bOn)
+	{
+		double Bearing = 0.0;
+		if (MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, Bearing) < 150.0)
+		{
+			GWaypoint.bOn = false;
+			if (TPC) TPC->ShowNote(FString::Printf(TEXT("You've reached %s"), *GWaypoint.Name), 6.0);
+			UE_LOG(LogTemp, Log, TEXT("Torque info: waypoint %s reached"), *GWaypoint.Name);
+		}
+		else
+			DrawWaypoint(Canvas, PC, Lat, Lon, (float)EyeRot.Yaw, S);
+	}
+	const bool bPointing = Bike->IsPointing();
+	Slide = FMath::FInterpConstantTo(Slide, bWant || bPointing ? 1.0f : 0.0f, Dt, 4.0f);   // a quarter of a second in or out
+	if (Slide <= 0.0f) return;
+	const float Ease = 1.0f - FMath::Pow(1.0f - Slide, 3.0f);
+
+	const float PW = 380.0f * S, Pad = 14.0f * S, CW = PW - 2.0f * Pad - 3.0f * S;
+	const float X0 = 20.0f * S - (1.0f - Ease) * (PW + 40.0f * S), TX = X0 + 3.0f * S + Pad;
+	const float Want = FMath::Max(TopY, 90.0f * S);
+	ShownTop = ShownTop < 0.0f ? Want : FMath::FInterpTo(ShownTop, Want, Dt, 6.0f);
+	const float Top = ShownTop;
+
 	const double Now = FPlatformTime::Seconds();
 	if (!bTestRun || bAsked) Ask(Lat, Lon, Now);
 	const FData& D = *Data;
@@ -558,6 +595,37 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 	// go first when the screen's too short for them all).
 	struct FPart { float H; int32 Keep; TFunction<void(float)> Paint; };
 	TArray<FPart> Parts;
+	// [waypoint] What can be clicked with the pointer out (M): its box, what a click does; the row
+	// under the pointer lit as it's drawn.
+	struct FHit { FBox2D Box; TFunction<void()> Do; };
+	TArray<FHit> Hits;
+	TArray<FHit>* HitList = &Hits;
+	FVector2D Mouse(-1.0, -1.0);
+	{
+		float MX = 0.0f, MY = 0.0f;
+		if (bPointing && PC && PC->GetMousePosition(MX, MY)) Mouse = FVector2D(MX, MY);
+	}
+	auto Clickable = [Canvas, HitList, Mouse, bPointing](float X, float Y, float W, float H, TFunction<void()> Do)
+	{
+		const FBox2D Box(FVector2D(X, Y), FVector2D(X + W, Y + H));
+		const bool bOver = bPointing && Box.IsInside(Mouse);
+		if (bOver) TorqueUi::Rect(Canvas, X, Y, W, H, FLinearColor(0.96f, 0.63f, 0.17f, 0.18f));
+		HitList->Add({Box, MoveTemp(Do)});
+		return bOver;
+	};
+	FString HereName = D.Place.IsEmpty() ? D.Road : D.Place;
+	auto MakeWaypoint = [TPC, Lat, Lon, HereName](const FString& Name, double ToLat, double ToLon)
+	{
+		return [TPC, Lat, Lon, HereName, Name, ToLat, ToLon]()
+		{
+			GWaypoint.bOn = true;
+			GWaypoint.Lat = ToLat;
+			GWaypoint.Lon = ToLon;
+			GWaypoint.Name = Name;
+			const FString Said = TPC ? TPC->AddWaypoint(ToLat, ToLon, Name, Lat, Lon, HereName) : FString::Printf(TEXT("%s is a waypoint"), *Name);
+			if (TPC) TPC->ShowNote(Said, 7.0);
+		};
+	};
 	const FLinearColor Ink = TorqueUi::Ink, Dim = TorqueUi::Dim, Faint = TorqueUi::Faint, Accent = TorqueUi::Accent;
 	const FLinearColor RainBlue(0.5f, 0.75f, 1.0f, 1.0f);
 	auto Heading = [Canvas, S, TX, CW, Accent, Faint](const FString& Title, const FString& Right, float Y)
@@ -709,7 +777,17 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		if (!Set.bPlaceLookup) PlaceLine = TEXT("(Names: turn on \"about this place\" in Settings)");
 		else if (RoadLine.IsEmpty() && PlaceLine.IsEmpty())
 			PlaceLine = D.bPlaceFailed ? TEXT("No place names: no answer from the internet") : D.bPlaceBusy || D.PlaceAsked < -999.0 ? TEXT("Finding where this is...") : TEXT("Off the mapped roads");
-		const float H = HeadH + (RoadLine.IsEmpty() ? 0.0f : 20.0f * S) + 19.0f * S + 17.0f * S + 4.0f * S;
+		// [waypoint] The place picked to ride to, how far and which way; a click clears it.
+		FString WayLine;
+		if (GWaypoint.bOn)
+		{
+			double WayBearing = 0.0;
+			const double Far = MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, WayBearing);
+			const FString Way(UTF8_TO_TCHAR(TorqueWeather::Compass(WayBearing).c_str()));
+			WayLine = FString::Printf(TEXT("Waypoint: %s, %s %s"), *GWaypoint.Name, *Set.DistanceText(Far), *Way);
+		}
+		const float WayH = WayLine.IsEmpty() ? 0.0f : 20.0f * S;
+		const float H = HeadH + (RoadLine.IsEmpty() ? 0.0f : 20.0f * S) + 19.0f * S + 17.0f * S + WayH + 4.0f * S;
 		Parts.Add({H, 80, [=](float Y)
 		{
 			Heading(TEXT("WHERE YOU ARE"), FString(), Y);
@@ -722,10 +800,17 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 			TorqueUi::TextFit(Canvas, PlaceLine, TX, LY, 14.0f * S, CW, Set.bPlaceLookup ? Ink : Faint);
 			LY += 19.0f * S;
 			TorqueUi::TextFit(Canvas, Coords, TX, LY, 12.0f * S, CW, Dim);
+			if (!WayLine.IsEmpty())
+			{
+				LY += 19.0f * S;
+				const bool bOver = Clickable(TX - 4.0f * S, LY - 2.0f * S, CW + 8.0f * S, 19.0f * S, []() { GWaypoint.bOn = false; });
+				TorqueUi::TextFit(Canvas, bOver ? FString(TEXT("Clear the waypoint")) : WayLine, TX, LY, 13.5f * S, CW, Accent, true);
+			}
 		}});
 	}
 
-	// 5. About this place (Wikipedia).
+	// 5. About this place (Wikipedia). With the pointer out (M), a click on a place makes it a
+	// waypoint (beenster, Nov 13: "makes us want to ride off and see it").
 	if (Set.bPlaceLookup && D.Near.Num() > 0)
 	{
 		const FNear Lead = D.Near[0];
@@ -736,30 +821,43 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 			Wrapped.SetNum(5);
 			Wrapped[4] += TEXT("...");
 		}
-		FString Also;
-		for (int32 I = 1; I < D.Near.Num() && I < 5; ++I)
-			Also += (Also.IsEmpty() ? TEXT("Also near: ") : TEXT(", ")) + FString::Printf(TEXT("%s (%s)"), *D.Near[I].Title, *Set.DistanceText(D.Near[I].Metres));
-		TArray<FString> AlsoLines = TorqueUi::WrapLines(Also, 12.0f * S, CW);
-		if (AlsoLines.Num() > 2) AlsoLines.SetNum(2);
+		TArray<FNear> Others;
+		for (int32 I = 1; I < D.Near.Num() && Others.Num() < 3; ++I) Others.Add(D.Near[I]);
 		const FString Dist = Lead.Metres < 1.0e8 ? Set.DistanceText(Lead.Metres) + TEXT(" away") : FString();
-		const float H = HeadH + 20.0f * S + Wrapped.Num() * TextPx * 1.3f + AlsoLines.Num() * 16.0f * S + 6.0f * S;
+		const FString Hint = bPointing ? FString::Printf(TEXT("Click a place to ride to it  ·  %s or right click: pointer away"), *FTorqueKeys::Text(ETorqueKey::PickPlace))
+			: FString::Printf(TEXT("%s, then click a place: make it a waypoint"), *FTorqueKeys::Text(ETorqueKey::PickPlace));
+		const float RowH = 18.0f * S;
+		const float H = HeadH + 20.0f * S + Wrapped.Num() * TextPx * 1.3f + (Others.Num() > 0 ? 16.0f * S + Others.Num() * RowH : 0.0f) + 18.0f * S + 4.0f * S;
+		const auto Pick = MakeWaypoint;
 		Parts.Add({H, 20, [=](float Y)
 		{
 			Heading(TEXT("ABOUT THIS PLACE"), Dist, Y);
 			float LY = Y + HeadH;
-			TorqueUi::TextFit(Canvas, Lead.Title, TX, LY, 15.0f * S, CW, Ink, true);
+			const bool bLeadOver = Clickable(TX - 4.0f * S, LY - 2.0f * S, CW + 8.0f * S, 20.0f * S, Pick(Lead.Title, Lead.Lat, Lead.Lon));
+			TorqueUi::TextFit(Canvas, bLeadOver ? TEXT("+ ") + Lead.Title : Lead.Title, TX, LY, 15.0f * S, CW, bLeadOver ? Accent : Ink, true);
 			LY += 20.0f * S;
 			for (const FString& L : Wrapped)
 			{
 				TorqueUi::Text(Canvas, L, TX, LY, TextPx, Dim);
 				LY += TextPx * 1.3f;
 			}
-			LY += 2.0f * S;
-			for (const FString& L : AlsoLines)
+			if (Others.Num() > 0)
 			{
-				TorqueUi::Text(Canvas, L, TX, LY, 12.0f * S, Faint);
-				LY += 16.0f * S;
+				LY += 2.0f * S;
+				TorqueUi::Text(Canvas, TEXT("Also near"), TX, LY, 11.5f * S, Faint);
+				LY += 14.0f * S;
+				for (const FNear& O : Others)
+				{
+					const bool bOver = Clickable(TX - 4.0f * S, LY - 1.0f * S, CW + 8.0f * S, RowH, Pick(O.Title, O.Lat, O.Lon));
+					const FString Away = Set.DistanceText(O.Metres);
+					const float AwayW = (float)TorqueUi::Measure(Away, 12.0f * S).X;
+					TorqueUi::TextFit(Canvas, bOver ? TEXT("+ ") + O.Title : O.Title, TX, LY, 13.0f * S, CW - AwayW - 10.0f * S, bOver ? Accent : Ink);
+					TorqueUi::Text(Canvas, Away, TX + CW, LY + 1.0f * S, 12.0f * S, Dim, false, TorqueUi::EAlign::Right);
+					LY += RowH;
+				}
 			}
+			LY += 2.0f * S;
+			TorqueUi::TextFit(Canvas, Hint, TX, LY, 11.5f * S, CW, bPointing ? Accent : Faint);
 		}});
 	}
 
@@ -859,6 +957,14 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		P.Paint(Y);
 		Y += P.H + Gap;
 	}
+	// [waypoint] A click with the pointer out.
+	if (bPointing && PC && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+		for (const FHit& Hit : Hits)
+			if (Hit.Box.IsInside(Mouse))
+			{
+				Hit.Do();
+				break;
+			}
 
 	// Every 10 s, so a test run can tell it's there and what it shows.
 	LogClock -= Dt;
@@ -868,4 +974,44 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 		UE_LOG(LogTemp, Log, TEXT("Torque info: panel at %.4f, %.4f (%s, %s): %d parts, %d forecast hours, %d near, place lookup %s"),
 			Lat, Lon, *D.Road, *D.Place, Parts.Num(), D.Hours.Num(), D.Near.Num(), Set.bPlaceLookup ? TEXT("on") : TEXT("off"));
 	}
+}
+
+void FTorqueInfoPanel::DrawWaypoint(UCanvas* Canvas, const APlayerController* PC, double Lat, double Lon, float CamYaw, float S)
+{
+	// A diamond at the top of the screen over where the place lies (at the edge, with an arrow, when
+	// it's off to the side or behind), its name and how far under it.
+	double Bearing = 0.0;
+	const double Far = MetresTo(Lat, Lon, GWaypoint.Lat, GWaypoint.Lon, Bearing);
+	const double Facing = FMath::Fmod(90.0 + CamYaw + 720.0, 360.0);   // (x east, y south: yaw 0 faces east)
+	double Rel = FMath::Fmod(Bearing - Facing + 540.0, 360.0) - 180.0;   // -180 .. 180, + to the right
+	const float Fov = PC && PC->PlayerCameraManager ? PC->PlayerCameraManager->GetFOVAngle() : 90.0f;
+	const float Half = Canvas->ClipX * 0.5f;
+	const double HalfFov = FMath::Clamp(Fov * 0.5, 10.0, 80.0);
+	const bool bInView = FMath::Abs(Rel) < HalfFov;
+	const float Edge = 70.0f * S;
+	const float MX = bInView ? Half + Half * (float)(FMath::Tan(FMath::DegreesToRadians(Rel)) / FMath::Tan(FMath::DegreesToRadians(HalfFov)))
+		: (Rel > 0.0 ? Canvas->ClipX - Edge : Edge);
+	const float MY = 26.0f * S, R = 8.0f * S;
+	const FLinearColor Accent = TorqueUi::Accent;
+	TArray<FVector2D> Diamond;
+	Diamond.Add(FVector2D(MX, MY - R));
+	Diamond.Add(FVector2D(MX + R, MY));
+	Diamond.Add(FVector2D(MX, MY + R));
+	Diamond.Add(FVector2D(MX - R, MY));
+	TorqueUi::Polygon(Canvas, Diamond, Accent);
+	if (!bInView)
+	{
+		// Off to that side: an arrow beside it pointing the way to turn.
+		const float Dir = Rel > 0.0 ? 1.0f : -1.0f;
+		TArray<FVector2D> Arrow;
+		Arrow.Add(FVector2D(MX + Dir * 2.4f * R, MY));
+		Arrow.Add(FVector2D(MX + Dir * 1.4f * R, MY - 0.8f * R));
+		Arrow.Add(FVector2D(MX + Dir * 1.4f * R, MY + 0.8f * R));
+		TorqueUi::Polygon(Canvas, Arrow, Accent);
+	}
+	const FString Label = FString::Printf(TEXT("%s  %s"), *GWaypoint.Name, *FTorqueSettings::Get().DistanceText(Far));
+	const float LW = (float)TorqueUi::Measure(Label, 14.0f * S, true).X;
+	const float LX = FMath::Clamp(MX - LW * 0.5f, 12.0f * S, Canvas->ClipX - LW - 12.0f * S);
+	TorqueUi::Rect(Canvas, LX - 8.0f * S, MY + R + 4.0f * S, LW + 16.0f * S, 22.0f * S, FLinearColor(0.02f, 0.025f, 0.035f, 0.55f));
+	TorqueUi::Text(Canvas, Label, LX, MY + R + 7.0f * S, 14.0f * S, TorqueUi::Ink, true);
 }

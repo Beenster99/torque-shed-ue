@@ -1301,13 +1301,38 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// The pause or settings menu is up: let go of the controls (the menu has the keys).
 	if (ATorquePlayerController::MenuUp(PC))
 	{
+		bPointing = false;   // [info] (the menu has the pointer now)
 		Throttle = FrontBrake = RearBrake = Shift = 0.0;
 		Lean = Approach(Lean, 0.0, 2.2, 4.0, Dt);
 		return;
 	}
 	// The game has the mouse while no menu is up, captured and hidden, as the shed's walker takes it:
 	// nothing took it on the ride, so its moves never reached the look on foot (beenster, build 134).
-	if (!bMouseTaken || PC->bShowMouseCursor)
+	// [info] M puts a pointer out to click a place in the info panel (a waypoint); M again, or a
+	// right click, takes it away. The panel slides out for it.
+	if (FTorqueKeys::Just(PC, ETorqueKey::PickPlace) || (bPointing && PC->WasInputKeyJustPressed(EKeys::RightMouseButton)))
+	{
+		bPointing = !bPointing && !PC->WasInputKeyJustPressed(EKeys::RightMouseButton);
+		if (bPointing && !FTorqueSettings::Get().bInfoPanel)
+		{
+			FTorqueSettings& Keep = FTorqueSettings::Get();
+			Keep.bInfoPanel = true;
+			if (Keep.bSaved) Keep.Save();
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque info: pointer %s"), bPointing ? TEXT("out") : TEXT("away"));
+	}
+	if (bPointing)
+	{
+		if (!PC->bShowMouseCursor)
+		{
+			PC->bShowMouseCursor = true;
+			FInputModeGameAndUI Mode;
+			Mode.SetLockMouseToViewportBehavior(EMouseLockMode::LockAlways);
+			Mode.SetHideCursorDuringCapture(false);
+			PC->SetInputMode(Mode);
+		}
+	}
+	else if (!bMouseTaken || PC->bShowMouseCursor)
 	{
 		bMouseTaken = true;
 		PC->bShowMouseCursor = false;
@@ -1421,7 +1446,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// back behind the bike a moment after you stop moving it.
 	{
 		float Mx = 0.0f, My = 0.0f;
-		PC->GetInputMouseDelta(Mx, My);
+		if (!bPointing) PC->GetInputMouseDelta(Mx, My);   // [info] (the pointer's, while it's out)
 		if (FMath::Abs(Mx) + FMath::Abs(My) > 0.0f)
 		{
 			MouseYaw = FMath::Clamp(MouseYaw + Mx * 0.25 * Set.MouseLook, -170.0, 170.0);
@@ -1884,7 +1909,7 @@ void ATorqueBikePawn::StepFoot(APlayerController* PC, double Dt, double MoveX, d
 	OnFootFor += Dt;
 	const FTorqueSettings& Set = FTorqueSettings::Get();
 	float Mx = 0.0f, My = 0.0f;
-	if (PC) PC->GetInputMouseDelta(Mx, My);
+	if (PC && !bPointing) PC->GetInputMouseDelta(Mx, My);   // [info] (the pointer's, while it's out)
 	if ((Mx != 0.0f || My != 0.0f) && OnFootFor - FootMouseLogAt > 1.0)
 	{
 		FootMouseLogAt = OnFootFor;
@@ -4390,8 +4415,8 @@ void ATorqueBikePawn::DrawHud()
 		Add(FString::Printf(TEXT("      %s lights   %s main beam   %s fog lights   %s / %s indicate left / right   %s hazards   %s clutch   %s nod   %s wave"),
 			*K(ETorqueKey::Headlight), *K(ETorqueKey::MainBeam), *K(ETorqueKey::FogLights), *K(ETorqueKey::IndicateLeft), *K(ETorqueKey::IndicateRight),
 			*K(ETorqueKey::Hazards), *K(ETorqueKey::Clutch), *K(ETorqueKey::Nod), *K(ETorqueKey::Wave)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s info panel   %s shed   Esc menu"),
-			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::InfoPanel), *K(ETorqueKey::BackToShed)), Help, 0.62f);
+		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s info panel (%s: click a place)   %s shed   Esc menu"),
+			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::InfoPanel), *K(ETorqueKey::PickPlace), *K(ETorqueKey::BackToShed)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),
 			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
 			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown)), Help, 0.62f);

@@ -73,6 +73,7 @@ const FTorqueKeys::FAction* ActionList()
 	{TEXT("Nod"), TEXT("Nod to another rider"), R, {EKeys::Y, FKey()}},
 	{TEXT("Wave"), TEXT("Wave at another rider (hold)"), R, {EKeys::U, FKey()}},
 	{TEXT("InfoPanel"), TEXT("Info panel (left) in / out"), R, {EKeys::F1, FKey()}},
+	{TEXT("PickPlace"), TEXT("Info panel: a pointer to click a place (a waypoint)"), R, {EKeys::M, FKey()}},
 	{TEXT("Photo"), TEXT("Take a photo for the ride diary"), R, {EKeys::F9, FKey()}},
 	{TEXT("Help"), TEXT("Help lines on / off"), FR, {EKeys::H, FKey()}},
 	{TEXT("Perf"), TEXT("Performance numbers on / off"), FR, {EKeys::P, FKey()}},
