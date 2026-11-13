@@ -43,6 +43,8 @@ class RidePlan;
 struct DiaryRide;
 struct RideMesh;
 struct Tint;
+struct RoamArea;
+struct RideGuide;
 }
 struct FTorqueRideJobs;
 struct FTorqueDash;
@@ -78,6 +80,14 @@ public:
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
+	// [ride anywhere] The world loaded round the ride and the way the sat nav is guiding the riders
+	// (World/WorldRoam.h), for the maps (the TFT's, the HUD's); null with no ride. Read on the game
+	// thread; each is a snapshot to keep, replaced (its Version up) when the area grows or the way
+	// re-routes, and OnRoamChanged is broadcast then.
+	static std::shared_ptr<const TorqueWorld::RoamArea> RoamNow();
+	static std::shared_ptr<const TorqueWorld::RideGuide> GuideNow();
+	DECLARE_MULTICAST_DELEGATE(FOnRoamChanged);
+	static FOnRoamChanged OnRoamChanged;
 	// [OSM stage 1] A test run's limit on the HUD in place of the road's (the "limit:" test verb), for a
 	// picture of each: 20..70, -1 the national limit; INDEX_NONE (the default) the road's own.
 	static int32 TestLimit;
@@ -119,6 +129,8 @@ private:
 	void PlaceAnimals(const FIntVector& Key, const TorqueWorld::RideMesh& Mesh);
 
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
+	std::shared_ptr<const TorqueWorld::RoamArea> Roam;
+	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;

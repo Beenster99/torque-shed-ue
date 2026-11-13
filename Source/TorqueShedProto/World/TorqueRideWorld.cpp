@@ -1,4 +1,5 @@
 #include "World/TorqueRideWorld.h"
+#include "World/WorldRoam.h"
 #include "TorqueDash.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
@@ -240,6 +241,20 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	}
 }
 
+ATorqueRideWorld::FOnRoamChanged ATorqueRideWorld::OnRoamChanged;
+
+std::shared_ptr<const TorqueWorld::RoamArea> ATorqueRideWorld::RoamNow()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride ? Ride->Roam : nullptr;
+}
+
+std::shared_ptr<const TorqueWorld::RideGuide> ATorqueRideWorld::GuideNow()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride ? Ride->Guide : nullptr;
+}
+
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 {
 	Plan = InPlan;
@@ -253,6 +268,10 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		if (Plan->Request.Pins.size() >= 2) Diary->Code = TorqueWorld::Route::CodeOf(Plan->Request);
 	}
 	if (!Plan || !Plan->Ok || Plan->Road.size() < 2) return;
+	// [ride anywhere] The world and the way as planned, for the maps.
+	Roam = TorqueWorld::RoamOfPlan(Plan);
+	Guide = TorqueWorld::GuideOfPlan(*Plan);
+	OnRoamChanged.Broadcast();
 	Jobs = std::make_shared<FTorqueRideJobs>();
 	// (the ground in the hand-built ride's scanned grass, moor and rock when Tools/ue_build_rideuk.py
 	// could make it from Buttertubs' textures; the plain mottled one otherwise)
