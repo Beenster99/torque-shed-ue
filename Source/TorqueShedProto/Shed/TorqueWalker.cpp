@@ -944,7 +944,7 @@ void ATorqueWalker::ReadInput(float Dt)
 	const bool bAtBike = FShed && TargetBay != INDEX_NONE && FShed->Exists(TargetBay) &&
 		(Target == ETorqueLook::BikePart || (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Bay));
 	// [kit] The switch boxes by the roller door, the engine stand, the fire extinguisher.
-	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bAltJust);   // [furniture] first; [fluids] the pump (right mouse)
+	const bool bKitF = FurnitureInput(Dt, bF, bFDown, bAltJust) || KitInput(Dt, bF, bFDown) || FluidInput(bAltJust, bWorkJust);   // [furniture] first; [fluids] the pump (left mouse; right hangs it up)
 	if (bKitF)
 	{
 	}
@@ -2654,8 +2654,8 @@ void ATorqueWalker::Interact()
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Pump)
 	{
-		// [fluids] The pump's on right mouse now (FluidInput); F just says so.
-		Say(TEXT("Right mouse (R / Square) lifts the nozzle off the pump."), true);
+		// [fluids] The pump's on left mouse now (FluidInput); F just says so.
+		Say(TEXT("Left mouse (Cross) lifts the nozzle off the pump."), true);
 		return;
 	}
 	if (TargetPlace && TargetPlace->Kind == ETorquePlace::Lift)
@@ -3119,8 +3119,8 @@ void ATorqueWalker::UpdateHud()
 			if (TargetPlace->Kind == ETorquePlace::Extinguisher && B->ExtinguisherHeldBy() == 0)
 				HudLines.Add({TEXT("F / Triangle: take the fire extinguisher"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Pump)   // [fluids]
-				HudLines.Add({B->PumpHeldBy() == B->Me() ? TEXT("Right mouse / Square: hang the nozzle back up")
-					: (B->PumpHeldBy() == 0 ? TEXT("Right mouse / Square: lift the nozzle off the pump") : TEXT("Someone has the nozzle")), Prompt, 0.65f});
+				HudLines.Add({B->PumpHeldBy() == B->Me() ? TEXT("Left mouse / Cross: hang the nozzle back up")
+					: (B->PumpHeldBy() == 0 ? TEXT("Left mouse / Cross: lift the nozzle off the pump") : TEXT("Someone has the nozzle")), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Stand && B->HeldBy(B->Me()) == 0)
 				HudLines.Add({TEXT("Hold F / Triangle: wheel the engine stand"), Prompt, 0.65f});
 			if (TargetPlace->Kind == ETorquePlace::Radio)
@@ -3174,8 +3174,7 @@ void ATorqueWalker::UpdateHud()
 				AltPlan.Request.Kind == ETorqueShedAct::PumpFill ? TEXT("Hold right mouse / Square") : TEXT("Right mouse / Square"), *AltPlan.Verb)
 			: FString::Printf(TEXT("Can't %s: %s"), *AltPlan.Verb, *AltPlan.Blocked), AltPlan.Blocked.IsEmpty() ? Prompt : Blocked, 0.6f});
 	// [fluids] The nozzle in your hand, away from the pump and not filling: the same button hangs it up.
-	const bool bPumpFill = AltPlan.bValid && AltPlan.Request.Kind == ETorqueShedAct::PumpFill;
-	if (B->PumpHeldBy() == B->Me() && (!bPumpFill || !AltPlan.Blocked.IsEmpty()) && !(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
+	if (B->PumpHeldBy() == B->Me() && !(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
 		HudLines.Add({TEXT("Right mouse / Square: hang the nozzle back on the pump"), Prompt, 0.6f});
 	if (Target == ETorqueLook::BikePart) HudLines.Add({TEXT("F / Triangle: ride this bike out   Hold F / Triangle: wheel it"), Prompt, 0.6f});
 	// (No progress bar in the panel: the ring round the crosshair shows it, always: beenster, Nov 10.)

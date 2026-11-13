@@ -22,9 +22,10 @@ FString FluidLitresText(float L)
 }
 }
 
-bool ATorqueWalker::FluidInput(bool bRight)
+bool ATorqueWalker::FluidInput(bool bRight, bool bLeft)
 {
-	// The pump works on the second work button (right mouse, R, Square), not F (beenster, Nov 10).
+	// The pump (beenster, build 141): left mouse (Cross) lifts the nozzle and, held at a bike, fills
+	// it (PumpPlan's Plan); right mouse (R, Square) also lifts it, and hangs it back up from anywhere.
 	UTorqueBuildSubsystem* B = Shed();
 	if (!B) return false;
 	const int32 Me = B->Me();
@@ -42,12 +43,12 @@ bool ATorqueWalker::FluidInput(bool bRight)
 			R.Item = 0;
 			if (B->Request(R, WhyNot)) Say(TEXT("The hose wouldn't stretch any further: the nozzle's back on the pump."), false);
 			Doing(FString(), 0.0);
-			return bRight;
+			return bRight || bLeft;
 		}
-		if (!bRight) return false;
-		// At a bike whose tank will take some: holding the button fills it (PumpPlan's AltPlan).
-		if (AltPlan.bValid && AltPlan.Request.Kind == ETorqueShedAct::PumpFill && AltPlan.Blocked.IsEmpty()) return false;
-		// Anywhere else (or the tank's full): hang it back up.
+		// Left mouse hangs it up only at the pump itself (at a bike it fills: the work button's Plan).
+		const bool bAtPump = Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump;
+		if (!bRight && !(bLeft && bAtPump)) return false;
+		// Right mouse anywhere, left at the pump: hang it back up.
 		FTorqueShedRequest R;
 		R.Kind = ETorqueShedAct::PumpNozzle;
 		R.Item = 0;
@@ -56,8 +57,8 @@ bool ATorqueWalker::FluidInput(bool bRight)
 		bWaitRelease = true;
 		return true;
 	}
-	if (!bRight) return false;
-	// Right mouse at the pump: lift the nozzle off it.
+	if (!bRight && !bLeft) return false;
+	// Left (or right) mouse at the pump: lift the nozzle off it.
 	if (Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump)
 	{
 		FTorqueShedRequest R;
@@ -72,12 +73,12 @@ bool ATorqueWalker::FluidInput(bool bRight)
 
 bool ATorqueWalker::PumpFilling() const
 {
-	return bAltHeld && !bWorkHeld && AltPlan.bValid && AltPlan.Request.Kind == ETorqueShedAct::PumpFill;
+	return (bWorkHeld || ActHeldFor > 0.0) && Plan.bValid && Plan.Request.Kind == ETorqueShedAct::PumpFill;
 }
 
 bool ATorqueWalker::PumpFlowing() const
 {
-	return PumpFilling() && AltPlan.Blocked.IsEmpty();
+	return PumpFilling() && Plan.Blocked.IsEmpty();
 }
 
 void ATorqueWalker::PumpPlan()
@@ -87,7 +88,7 @@ void ATorqueWalker::PumpPlan()
 	const int32 Me = B->Me();
 	if (B->PumpHeldBy() != Me)
 	{
-		// Looking at the pump with the nozzle on it: right mouse lifts it (FluidInput), shown on the HUD.
+		// Looking at the pump with the nozzle on it: left mouse lifts it (FluidInput), shown on the HUD.
 		return;
 	}
 	// The nozzle in your hand: the bike you're looking at (any of its parts, or its bay's floor).
@@ -98,13 +99,13 @@ void ATorqueWalker::PumpPlan()
 	const double Step = 0.5;
 	const float Space = B->FuelSpace(Bay);
 	const FString Name = B->Bike(Bay).Name;
-	// On the second work button (right mouse), held: a squirt each half second till it clicks off.
-	AltPlan = MakeOne(ETorqueShedAct::PumpFill, Step, FString::Printf(TEXT("fill %s's tank (%s of %s)"), *Name,
+	// On the work button (left mouse, Cross), held: a squirt each half second till it clicks off.
+	Plan = MakeOne(ETorqueShedAct::PumpFill, Step, FString::Printf(TEXT("fill %s's tank (%s of %s)"), *Name,
 		*FluidLitresText(B->FuelOf(Bay)), *FluidLitresText(B->FuelCapacityOf(Bay))));
-	AltPlan.bRepeat = true;
-	AltPlan.Request.Bay = Bay;
-	AltPlan.Request.Amount = FMath::Clamp(UTorqueBuildSubsystem::PumpRate * float(Step), 0.01f, FMath::Max(Space, 0.01f));
-	AltPlan.Blocked = B->Check(Me, AltPlan.Request);
+	Plan.bRepeat = true;
+	Plan.Request.Bay = Bay;
+	Plan.Request.Amount = FMath::Clamp(UTorqueBuildSubsystem::PumpRate * float(Step), 0.01f, FMath::Max(Space, 0.01f));
+	Plan.Blocked = B->Check(Me, Plan.Request);
 }
 
 bool ATorqueWalker::FluidPlan(int32 Held)
@@ -225,14 +226,14 @@ FString ATorqueWalker::TestFluid(const FString& Verb, const TArray<FString>& Arg
 			FindTarget();
 			if (!(Target == ETorqueLook::Place && TargetPlace && TargetPlace->Kind == ETorquePlace::Pump))
 				return TEXT("not looking at the pump: ") + Seen + TEXT(" (went into: ") + TestCandidates() + TEXT(")");
-			FluidInput(true);
+			FluidInput(false, true);
 			bWaitRelease = false;
-			return FString::Printf(TEXT("right mouse at the pump: %s; %s"), Note.IsEmpty() ? TEXT("-") : *Note, *FluidLog());
+			return FString::Printf(TEXT("left mouse at the pump: %s; %s"), Note.IsEmpty() ? TEXT("-") : *Note, *FluidLog());
 		}
 		if (What == TEXT("hang"))
 		{
 			if (B->PumpHeldBy() != Me) return TEXT("not holding the nozzle: ") + FluidLog();
-			AltPlan = FPlan();   // not at a bike: the button hangs it up
+			Plan = FPlan();   // not at a bike: right mouse hangs it up
 			FluidInput(true);
 			bWaitRelease = false;
 			return FString::Printf(TEXT("right mouse with the nozzle: %s; %s"), Note.IsEmpty() ? TEXT("-") : *Note, *FluidLog());
@@ -257,7 +258,7 @@ FString ATorqueWalker::TestFluid(const FString& Verb, const TArray<FString>& Arg
 			if (!B->Exists(Bay)) return TEXT("can't fill: no bike in that bay");
 			const float Before = B->FuelOf(Bay);
 			const double Seconds = Args.Num() > 1 ? FMath::Clamp(FCString::Atod(*Args[1]), 0.5, 120.0) : 10.0;
-			// Stand by the filler on the pump's side and hold right mouse, a squirt each half second.
+			// Stand by the filler on the pump's side and hold left mouse, a squirt each half second.
 			const FVector Filler = B->FillerOf(Bay);
 			FVector Side = (UTorqueBuildSubsystem::PumpHoseRoot() - Filler).GetSafeNormal2D();
 			if (Side.IsNearlyZero()) Side = FVector(0.0, 1.0, 0.0);
@@ -269,17 +270,17 @@ FString ATorqueWalker::TestFluid(const FString& Verb, const TArray<FString>& Arg
 				ReAim();
 				FindTarget();
 				MakePlan();
-				if (!AltPlan.bValid || AltPlan.Request.Kind != ETorqueShedAct::PumpFill)
+				if (!Plan.bValid || Plan.Request.Kind != ETorqueShedAct::PumpFill)
 				{
 					Stop = TEXT("no fill plan looking at ") + Describe();
 					break;
 				}
-				if (!AltPlan.Blocked.IsEmpty())
+				if (!Plan.Blocked.IsEmpty())
 				{
-					Stop = AltPlan.Blocked;
+					Stop = Plan.Blocked;
 					break;
 				}
-				if (!Do(AltPlan)) { Stop = Note; break; }
+				if (!Do(Plan)) { Stop = Note; break; }
 				++Squirts;
 			}
 			const float After = B->FuelOf(Bay);

@@ -931,15 +931,15 @@ void UTorqueSfx::TickWalkers(float Dt)
 		if (bLocal)
 		{
 			FTorqueShedRequest R;
-			if (W->SoundJob(R))
+			// The petrol pump's nozzle squeezed into a tank: the fuel glugging in.
+			if (W->PumpFlowing())
+				Want = TEXT("pour");
+			else if (W->SoundJob(R))
 			{
 				const bool bGun = R.bGun || W->SoundTool() == ETorqueTool::Gun;
 				const bool bPaint = R.Kind == ETorqueShedAct::Paint || R.Kind == ETorqueShedAct::Prime || R.Kind == ETorqueShedAct::Coat;
 				Want = bPaint && bGun ? FString(TEXT("spray_gun")) : FString(UTF8_TO_TCHAR(WorkLoop(S(ActName(R.Kind)))));
 			}
-			// The petrol pump's nozzle squeezed into a tank: the fuel glugging in.
-			else if (W->PumpFlowing())
-				Want = TEXT("pour");
 		}
 		else if (W->SoundWorking())
 			Want = UTF8_TO_TCHAR(ToolLoop(S(ToolName(W->SoundTool()))));
