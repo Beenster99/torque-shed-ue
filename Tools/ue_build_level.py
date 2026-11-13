@@ -3086,6 +3086,14 @@ def cloud_material():
         bad.append("domain")
     if not try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE):
         bad.append("blend")
+    # "Used with Volumetric Cloud" (round 142's crash): without it the cook leaves out the cloud's own
+    # shaders, the cloud shadow pass falls back to the default (surface) material and the engine asserts
+    # (MD_Volume, VolumetricCloudRendering.cpp) as soon as a cloud casts a shadow.
+    try:
+        mel.set_material_usage(g.m, unreal.MaterialUsage.MATUSAGE_VOLUMETRIC_CLOUD)
+    except Exception as e:
+        bad.append("usage VolumetricCloud (%s)" % e)
+    try_set(g.m, "used_with_volumetric_cloud", True)
     c = g.node(unreal.MaterialExpressionCustom, -500)
     try_set(c, "code", CLOUD_HLSL)
     try_set(c, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)

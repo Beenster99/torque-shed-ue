@@ -464,6 +464,11 @@ def _dress(sub, ch, av):
                 continue
             if "bottom" in low and any(w in n for w in ("shirt", "jacket", "hoodie", "top", "tee")):
                 continue
+            # Round 142: the Fab boots tied the Fab jeans for the bottom slot and won it: legs in boots.
+            if "bottom" in low and any(w in n for w in ("boot", "shoe", "trainer", "sneaker", "sock")):
+                continue
+            if any(w in low for w in ("shoe", "feet", "foot")) and any(w in n for w in ("jean", "pant", "trouser", "short", "shirt", "jacket")):
+                continue
             sc = sum(3 if w in name.lower() else (1 if w in n else 0) for w in words) + 1
             if "wardrobe" in cls.lower():
                 sc += 2
