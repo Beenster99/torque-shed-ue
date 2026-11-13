@@ -1211,6 +1211,9 @@ def _hair_cards_material(atlas_path):
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     m.set_editor_property("two_sided", True)
     m.set_editor_property("opacity_mask_clip_value", 0.33)
+    # Also hides the default top's shorts under the Fab jeans (a skeletal mesh): without the usage flag a
+    # cooked game draws the engine's default material on it instead.
+    m.set_editor_property("used_with_skeletal_mesh", True)
     tex = mel.create_material_expression(m, unreal.MaterialExpressionTextureSampleParameter2D, -800, 0)
     tex.set_editor_property("parameter_name", "Atlas")
     tex.set_editor_property("texture", atlas)

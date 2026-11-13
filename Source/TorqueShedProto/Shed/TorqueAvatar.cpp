@@ -392,6 +392,36 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (bFace) ByName.Add(TEXT("Face"), C);   // what the hair is attached to, whatever the part's name
 		Out.Add(C);
 	}
+	// Round 143: the Creator's only top (its default garment) comes with shorts, which drew over the
+	// Fab jeans (white shorts blotched with denim). With a bottom garment worn, the top's shorts,
+	// trouser or bottom sections are hidden: drawn with M_HairCards at no opacity (masked, so nothing
+	// shows). -TorqueKeepShorts keeps them.
+	{
+		bool bBottom = false;
+		for (const FPart& P : E.Parts) bBottom |= P.Mesh.Contains(TEXT("BottomGarment"));
+		static UMaterialInterface* const Clear = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
+		if (bBottom && Clear && !FParse::Param(FCommandLine::Get(), TEXT("TorqueKeepShorts")))
+			for (const TWeakObjectPtr<USceneComponent>& W : Out)
+			{
+				USkinnedMeshComponent* Top = Cast<USkinnedMeshComponent>(W.Get());
+				if (!Top || !Top->GetSkinnedAsset() || !Top->GetSkinnedAsset()->GetName().Contains(TEXT("TopGarment"))) continue;
+				const TArray<FName> SlotNames = Top->GetMaterialSlotNames();
+				for (int32 Slot = 0; Slot < SlotNames.Num(); ++Slot)
+				{
+					const FString SlotName = SlotNames[Slot].ToString().ToLower();
+					UMaterialInterface* Was = Top->GetMaterial(Slot);
+					const FString WasName = Was ? Was->GetName().ToLower() : FString();
+					const bool bLegs = SlotName.Contains(TEXT("short")) || SlotName.Contains(TEXT("trouser")) || SlotName.Contains(TEXT("pant")) || SlotName.Contains(TEXT("bottom"))
+						|| WasName.Contains(TEXT("short")) || WasName.Contains(TEXT("trouser")) || WasName.Contains(TEXT("pant"));
+					if (!bLegs) continue;
+					UMaterialInstanceDynamic* Gone = UMaterialInstanceDynamic::Create(Clear, Top);
+					Gone->SetVectorParameterValue(FName(TEXT("Mask")), FLinearColor(0.f, 0.f, 0.f, 0.f));
+					Top->SetMaterial(Slot, Gone);
+					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s slot %d (%s, %s) hidden under the bottom garment"), *E.Name,
+						*Top->GetSkinnedAsset()->GetName(), Slot, *SlotNames[Slot].ToString(), Was ? *Was->GetName() : TEXT("none"));
+				}
+			}
+	}
 	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
 	// bone's rest so it sits where it was made and turns with the head. Each groom with a cards mesh
 	// is drawn this way too, with the game's M_HairCards (round 129: grooms drew only far away,
