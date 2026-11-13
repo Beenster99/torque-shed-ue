@@ -793,38 +793,39 @@ void RoundMask(Paint& P)
 
 void PhoneScreen(Paint& P, const State& St, const MapScene* Map)
 {
-	const float W = 360.0f, H = 640.0f;
+	// The phone lies on its side in the cradle (640 x 400).
+	const float W = 640.0f, H = 400.0f;
 	if (!Map || !Map->Data)
 	{
 		P.Rect(0.0f, 0.0f, W, H, PanelBg);
 		P.Text("No map here", W * 0.5f, H * 0.5f, 22.0f, Dim, Align::Centre, true);
 		return;
 	}
-	DrawMap(P, 0.0f, 0.0f, W, H, *Map, 0.70f);
+	DrawMap(P, 0.0f, 0.0f, W, H, *Map, 0.66f);
 	if (St.Nav)
 	{
-		// The turn across the top, in the green of a phone's nav app.
-		P.RoundRect(10.0f, 10.0f, W - 20.0f, 92.0f, 12.0f, St.NavOff ? Rgba(0.55f, 0.20f, 0.12f) : Rgba(0.06f, 0.45f, 0.30f));
-		if (St.NavOff) P.Text("Off route", 28.0f, 66.0f, 30.0f, Ink, Align::Left, true);
+		// The turn at the top left, in the green of a phone's nav app.
+		P.RoundRect(10.0f, 10.0f, 300.0f, 84.0f, 12.0f, St.NavOff ? Rgba(0.55f, 0.20f, 0.12f) : Rgba(0.06f, 0.45f, 0.30f));
+		if (St.NavOff) P.Text("Off route", 28.0f, 62.0f, 30.0f, Ink, Align::Left, true);
 		else
 		{
-			TurnArrow(P, 20.0f, 20.0f, 72.0f, St.NavTurn, Ink);
-			P.Text(St.NavDistance, 104.0f, 56.0f, 34.0f, Ink, Align::Left, true);
-			P.Text(St.NavOnto.substr(0, 26), 104.0f, 84.0f, 18.0f, Ink.Fade(0.85f));
+			TurnArrow(P, 18.0f, 18.0f, 68.0f, St.NavTurn, Ink);
+			P.Text(St.NavDistance, 98.0f, 52.0f, 32.0f, Ink, Align::Left, true);
+			P.Text(St.NavOnto.substr(0, 22), 98.0f, 78.0f, 17.0f, Ink.Fade(0.85f));
 		}
 	}
 	// The speed in a chip, the limit beside it, and how far and when along the foot.
-	P.RoundRect(12.0f, H - 150.0f, 84.0f, 70.0f, 10.0f, Rgba(1.0f, 1.0f, 1.0f, 0.94f));
-	P.Text(Whole(St.Speed), 54.0f, H - 104.0f, 38.0f, Rgba(0.1f, 0.1f, 0.12f), Align::Centre, true);
-	P.Text(SpeedUnit(St), 54.0f, H - 88.0f, 12.0f, Rgba(0.4f, 0.4f, 0.42f), Align::Centre);
-	if (St.Limit > 0) LimitSign(P, St, 136.0f, H - 115.0f, 30.0f);
-	P.Rect(0.0f, H - 64.0f, W, 64.0f, Rgba(1.0f, 1.0f, 1.0f, 0.96f));
+	P.RoundRect(12.0f, H - 134.0f, 84.0f, 70.0f, 10.0f, Rgba(1.0f, 1.0f, 1.0f, 0.94f));
+	P.Text(Whole(St.Speed), 54.0f, H - 88.0f, 38.0f, Rgba(0.1f, 0.1f, 0.12f), Align::Centre, true);
+	P.Text(SpeedUnit(St), 54.0f, H - 72.0f, 12.0f, Rgba(0.4f, 0.4f, 0.42f), Align::Centre);
+	if (St.Limit > 0) LimitSign(P, St, 136.0f, H - 99.0f, 30.0f);
+	P.Rect(0.0f, H - 50.0f, W, 50.0f, Rgba(1.0f, 1.0f, 1.0f, 0.96f));
 	if (St.Nav)
 	{
-		P.Text(St.NavEta, 18.0f, H - 24.0f, 26.0f, Rgba(0.08f, 0.45f, 0.25f), Align::Left, true);
-		P.Text(St.NavLeft, W - 18.0f, H - 24.0f, 20.0f, Rgba(0.3f, 0.3f, 0.32f), Align::Right);
+		P.Text(St.NavEta, 18.0f, H - 16.0f, 26.0f, Rgba(0.08f, 0.45f, 0.25f), Align::Left, true);
+		P.Text(St.NavLeft, W - 18.0f, H - 17.0f, 20.0f, Rgba(0.3f, 0.3f, 0.32f), Align::Right);
 	}
-	else P.Text(St.NavRoad.empty() ? St.NavPlace : St.NavRoad, 18.0f, H - 26.0f, 20.0f, Rgba(0.2f, 0.2f, 0.22f));
+	else P.Text(St.NavRoad.empty() ? St.NavPlace : St.NavRoad, 18.0f, H - 18.0f, 20.0f, Rgba(0.2f, 0.2f, 0.22f));
 }
 } // namespace
 
@@ -834,7 +835,7 @@ void SizeOf(Shape S, float& W, float& H)
 	{
 	case Shape::Ultra: W = 1280.0f; H = 480.0f; break;
 	case Shape::Round: W = 480.0f; H = 480.0f; break;
-	case Shape::Phone: W = 360.0f; H = 640.0f; break;
+	case Shape::Phone: W = 640.0f; H = 400.0f; break;
 	default: W = 800.0f; H = 480.0f; break;
 	}
 }

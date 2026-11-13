@@ -150,11 +150,32 @@ const std::vector<std::string>& AidOrder()
 BikeTune::BikeTune(const BikeLayout& InLay, const PartsMap& InParts, const TuneMap& InTune, double EcuHealth)
 	: Lay(InLay), Parts(InParts), Tune(InTune)
 {
-	const Json& Ecu = Part("ecu");
-	if (const Json* F = Ecu.Get("features"))
+	// [TFT] This game has no ECU parts: the rider aids, and how far the engine can be tuned, come with
+	// the dash (a TFT or the race logger has the lot, clocks and an LCD plain ABS). A catalogue that
+	// still lists ECUs (the Godot game's, as SimTest compares against) works as the Godot game does.
+	bDashAids = !Lay.Catalogue() || Lay.Catalogue()->Ids("ecu").empty();
+	const Json& Ecu = Part(bDashAids ? "dashboard" : "ecu");
+	if (const Json* F = Ecu.Get(bDashAids ? "aids" : "features"))
 		for (const Json& X : F->A)
 			if (X.S != "remap") EcuFeatures.push_back(X.S);
 	EcuAidLevel = Ecu.Num("aid_level", 0.0) * TnLerp(0.5, 1.0, TnClamp(EcuHealth, 0.15, 1.0));
+}
+
+bool BikeTune::HasModes() const
+{
+	if (!bDashAids) return false;
+	if (const Json* F = Part("dashboard").Get("features"))
+		for (const Json& X : F->A)
+			if (X.S == "modes") return true;
+	return false;
+}
+
+bool BikeTune::DashHas(const std::string& Feature) const
+{
+	if (const Json* F = Part("dashboard").Get("features"))
+		for (const Json& X : F->A)
+			if (X.S == Feature) return true;
+	return false;
 }
 
 bool BikeTune::Has(const std::string& Slot) const
@@ -183,7 +204,7 @@ std::string BikeTune::Block(const std::string& Key) const
 		if ((int)P.Num("adjust", 0.0) < Need) return "The " + TnLower(P.Str("name", "suspension")) + " has no " + What + " adjuster.";
 	}
 	else if (Key == "spread" && !Part("gearbox").Flag("cassette")) return "Only a cassette gearbox lets you respace the ratios.";
-	else if (TnStartsWith(Key, "aid_") && !HasAid(TnAidOf(Key))) return "This ECU has no " + AidName(TnAidOf(Key)) + ".";
+	else if (TnStartsWith(Key, "aid_") && !HasAid(TnAidOf(Key))) return std::string(bDashAids ? "This dash has no " : "This ECU has no ") + AidName(TnAidOf(Key)) + ".";
 	else if (Key == "screen")
 	{
 		if (!Has("fairing")) return "There's no fairing fitted.";
@@ -197,7 +218,11 @@ std::string BikeTune::Block(const std::string& Key) const
 	return std::string();
 }
 
-double BikeTune::EcuReach() const { return Has("ecu") ? Part("ecu").Num("tune_range", 0.25) : 0.25; }
+double BikeTune::EcuReach() const
+{
+	const char* Slot = bDashAids ? "dashboard" : "ecu";
+	return Has(Slot) ? Part(Slot).Num("tune_range", 0.25) : 0.25;
+}
 
 void BikeTune::Range(const std::string& Key, double& Lo, double& Hi) const
 {
@@ -208,7 +233,11 @@ void BikeTune::Range(const std::string& Key, double& Lo, double& Hi) const
 		Lo = -E;
 		Hi = E;
 	}
-	else if (Key == "limiter") Hi = Has("ecu") ? Part("ecu").Num("limiter_add", 0.0) : 0.0;
+	else if (Key == "limiter")
+	{
+		const char* Slot = bDashAids ? "dashboard" : "ecu";
+		Hi = Has(Slot) ? Part(Slot).Num("limiter_add", 0.0) : 0.0;
+	}
 }
 
 double BikeTune::Default(const std::string& Key) const
@@ -363,6 +392,19 @@ std::string BikeTune::ValueText(const std::string& Key, double V, double StockRe
 
 std::string BikeTune::AidsNote() const
 {
+	if (bDashAids)
+	{
+		const std::string Dash = Has("dashboard") ? Part("dashboard").Str("name", Parts.at("dashboard")) : std::string("No dash");
+		std::vector<std::string> Has2;
+		for (const std::string& Aid : AidOrder())
+			if (HasAid(Aid)) Has2.push_back(AidName(Aid));
+		if (Has2.empty()) return Dash + ": no rider aids. A TFT dash brings traction control, wheelie control and ride modes.";
+		if (Has2.size() == 1) return Dash + ": " + Has2[0] + " only, on or off. A TFT dash brings traction control, wheelie control and ride modes.";
+		std::string Words;
+		for (size_t I = 0; I + 1 < Has2.size(); ++I) Words += (I ? ", " : "") + Has2[I];
+		Words += " and " + Has2.back();
+		return Dash + ": set its " + Words + TnFormat(" here, for Touring mode. Each goes from off to level %d (ABS just on or off); level %d is how it comes from the factory. The other ride modes are set from the bike's screen.", AidLevels, AidStock);
+	}
 	const std::string Ecu = Has("ecu") ? Part("ecu").Str("name", Parts.at("ecu")) : std::string();
 	std::vector<std::string> Names;
 	for (const std::string& Aid : AidOrder())
@@ -382,6 +424,18 @@ std::string BikeTune::AidsNote() const
 
 std::string BikeTune::EcuText(const std::string& Key) const
 {
+	if (bDashAids)
+	{
+		const std::string Dash = Has("dashboard") ? Part("dashboard").Str("name", Parts.at("dashboard")) : std::string("No dash");
+		if (Key == "limiter")
+		{
+			double Lo = 0.0, Hi = 0.0;
+			Range("limiter", Lo, Hi);
+			return Dash + TnFormat(": up to %+ld rpm over stock.", TnRound(Hi));
+		}
+		if (EcuReach() < 1.0) return Dash + TnFormat(": %ld%% of the range (jets and timing plate). A TFT dash's engine management opens it all up.", TnRound(EcuReach() * 100.0));
+		return Dash + ": full range.";
+	}
 	const std::string Ecu = Has("ecu") ? Part("ecu").Str("name", Parts.at("ecu")) : std::string("No ECU (jets and timing plate)");
 	if (Key == "limiter")
 	{

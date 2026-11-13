@@ -860,10 +860,12 @@ void BikeSim::UpdateEngine(double Delta)
 		TcTarget = std::min(TcTarget, Clamp(1.0 - (PitchOverRoad - Cap) * 12.0, 0.05, 1.0));
 	}
 	Traction = Lerp(Traction, TcTarget, 1.0 - std::exp(-25.0 * Delta));
-	double EngineNm = Build.EngineTorque(Rpm) * ThrottleEff * Traction * Heat.Power;   // a cold engine is a little down, an overheating one more so
+	// [ride modes] A soft mode gives less for the first of the twistgrip (a sharp one more), and a low one less of the power.
+	const double Wrist = Build.ThrottleSoft != 0.0 ? std::pow(ThrottleEff, 1.0 + Build.ThrottleSoft) : ThrottleEff;
+	double EngineNm = Build.EngineTorque(Rpm) * Wrist * Build.PowerMode * Traction * Heat.Power;   // a cold engine is a little down, an overheating one more so
 	if (Rpm >= Build.Redline) EngineNm = 0.0;   // rev limiter
 	double Made = std::max(EngineNm, 0.0);
-	if (Engaged) EngineNm -= (1.0 - ThrottleEff) * Build.PeakTorque * 0.25 * Clamp(Rpm / Build.Redline, 0.0, 1.0);
+	if (Engaged) EngineNm -= (1.0 - ThrottleEff) * Build.PeakTorque * 0.25 * Build.EngineBrake * Clamp(Rpm / Build.Redline, 0.0, 1.0);
 	if (Shifting)
 	{
 		EngineNm = 0.0;

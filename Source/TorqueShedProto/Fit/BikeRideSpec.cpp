@@ -260,7 +260,9 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 {
 	if (!Lay.Loaded()) return false;
 	RsBuild B{Lay, RideParts(Lay, In.Parts), In.Health, 2, {}};
-	const BikeTune Tn(Lay, B.Parts, In.Tune, B.Health("ecu"));
+	// (the aids' box: the dash's own electronics where the catalogue has no ECUs)
+	const bool DashAids = !Lay.Catalogue() || Lay.Catalogue()->Ids("ecu").empty();
+	const BikeTune Tn(Lay, B.Parts, In.Tune, B.Health(DashAids ? "dashboard" : "ecu"));
 	for (const std::string& Slot : In.Lightened)
 	{
 		const auto P = B.Parts.find(Slot);
@@ -422,6 +424,26 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 		S.AbsFront = S.AbsRear = Tn.AidStrength("abs") > 0.0;
 		S.TractionStrength = Tn.AidStrength("traction");
 		S.TractionControl = S.TractionStrength > 0.0;
+		// [ride modes] What the dash lets the rider set from the saddle (Sim/RideModes.h): Touring is
+		// these, the desk's levels.
+		TorqueSim::BikeSpec::AidCaps& C = S.Aids;
+		C.Modes = Tn.HasModes();
+		C.Abs = Tn.HasAid("abs");
+		C.Traction = Tn.HasAid("traction");
+		C.Lean = Tn.HasAid("lean_traction");
+		C.Wheelie = Tn.HasAid("anti_wheelie");
+		C.Stability = Tn.HasAid("stability");
+		C.Cruise = Tn.DashAids() && Tn.DashHas("cruise");
+		C.Firm = Tn.EcuAid();
+		C.Desk[0] = Tn.AidLevel("abs");
+		C.Desk[1] = Tn.AidLevel("traction");
+		C.Desk[2] = Tn.AidLevel("lean_traction");
+		C.Desk[3] = Tn.AidLevel("anti_wheelie");
+		C.Desk[4] = Tn.AidLevel("stability");
+		const std::string Style = Lay.StyleFor(B.Parts);
+		C.Enduro = Style == "adventure" || Style == "scrambler" || Style == "mx" || Style == "supermoto";
+		C.Race = Style == "sport" || Style == "race" || Style == "naked" || Style == "supermoto";
+		C.SemiActive = B.Part("fork").Flag("electronic") && B.Part("shock").Flag("electronic");
 	}
 
 	// Gearbox, sprockets and chain.
