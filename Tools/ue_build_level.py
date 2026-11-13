@@ -2961,84 +2961,128 @@ def cloud_noise_texture():
 
 
 # The clouds' density at a point of the layer (skies plan stage 2), per metre of extinction.
-# q: metres (x east, y south, z up), carried back along the wind's drift. Three samples of the 3D noise
-# (a pseudo-volume: 64 slices of 66 texels in an 8 x 8 sheet, each with a wrapped border) at 7 km, 1.8 km
-# and 600 m, and the big shape flattened at 25 km for the weather's own patches across the sky. The
-# cover (MPC_Sky Cover) sets how much of the shape is cloud; Shape takes the height profile from a heaped
-# cumulus (a flat base, a rounded top) to a flat deck; the finer noise eats the edges.
+# The graph hands the code only small floats (round 141 crashed on a cloud material that didn't compile,
+# most likely the large-world WorldPosition into the Custom node): W0, W1, W2 are the point in repeats of
+# 7 km, 1.8 km and 600 m (frac'd in the graph, carried back along the wind's drift), WB in repeats of
+# 25 km for the weather's own patches across the sky. Three samples of the 3D noise (a pseudo-volume: 64
+# slices of 66 texels in an 8 x 8 sheet, each with a wrapped border). The cover (MPC_Sky Cover) sets how
+# much of the shape is cloud; Shape takes the height profile from a heaped cumulus (a flat base, a
+# rounded top) to a flat deck; the finer noise eats the edges.
 CLOUD_HLSL = r"""
-float3 q = WP / 100.0;
-q.xy -= float2(DriftX, DriftY);
 float h = saturate(NormAlt);
 float heaped = saturate(h / 0.07) * saturate((1.0 - h) / 0.65);
 float deck = saturate(h / 0.04) * saturate((1.0 - h) / 0.2);
 float profile = lerp(heaped, deck, saturate(Shape));
-float scales[3] = { 7000.0, 1800.0, 600.0 };
-float n[3] = { 0.0, 0.0, 0.0 };
+float3 ws[3] = { W0, W1, W2 };
+float nv[3] = { 0.0, 0.0, 0.0 };
 [unroll] for (int i = 0; i < 3; i++)
 {
-    float3 w = frac(q / scales[i] + float3(0.13, 0.37, 0.0) * i);
+    float3 w = frac(ws[i] + float3(0.13, 0.37, 0.0) * i);
     float z = w.z * 64.0 - 0.5;
     float z0 = floor(z);
-    float f = z - z0;
+    float zf = z - z0;
     float s0 = fmod(z0 + 64.0, 64.0);
     float s1 = fmod(z0 + 1.0, 64.0);
     float2 inTile = (1.0 + w.xy * 64.0) / 66.0;
     float2 t0 = float2(fmod(s0, 8.0), floor(s0 / 8.0));
     float2 t1 = float2(fmod(s1, 8.0), floor(s1 / 8.0));
-    float4 a = Noise.SampleLevel(NoiseSampler, (t0 + inTile) / 8.0, 0);
-    float4 b = Noise.SampleLevel(NoiseSampler, (t1 + inTile) / 8.0, 0);
-    float4 v = lerp(a, b, f);
-    n[i] = i == 0 ? v.r : (i == 1 ? v.g : v.b);
+    float4 va = CloudTex.SampleLevel(CloudTexSampler, (t0 + inTile) / 8.0, 0);
+    float4 vb = CloudTex.SampleLevel(CloudTexSampler, (t1 + inTile) / 8.0, 0);
+    float4 v = lerp(va, vb, zf);
+    nv[i] = i == 0 ? v.r : (i == 1 ? v.g : v.b);
 }
-float2 bw = frac(q.xy / 25000.0);
-float broad = Noise.SampleLevel(NoiseSampler, (1.0 + bw * 64.0) / 66.0 / 8.0, 0).r;
-float shape = saturate(n[0] * 0.65 + broad * 0.35);
-float c = saturate(Cover);
-float d = saturate((shape * profile - (1.0 - c)) / 0.18);
-d = max(d, saturate(profile * 1.5) * smoothstep(0.9, 1.0, c));
-float erode = n[1] * 0.7 + n[2] * 0.3;
-d = saturate(d - (1.0 - erode) * 0.45 * (1.0 - d * 0.5) * (1.0 - 0.6 * saturate(Shape)));
-return d * Density * 0.1;
+float2 bw = frac(WB.xy);
+float broad = CloudTex.SampleLevel(CloudTexSampler, (1.0 + bw * 64.0) / 66.0 / 8.0, 0).r;
+float shp = saturate(nv[0] * 0.65 + broad * 0.35);
+float cv = saturate(Cover);
+float dn = saturate((shp * profile - (1.0 - cv)) / 0.18);
+dn = max(dn, saturate(profile * 1.5) * smoothstep(0.9, 1.0, cv));
+float erode = nv[1] * 0.7 + nv[2] * 0.3;
+dn = saturate(dn - (1.0 - erode) * 0.45 * (1.0 - dn * 0.5) * (1.0 - 0.6 * saturate(Shape)));
+return dn * Density * 0.1;
 """
 
 
-USE_RIDE_CLOUD = False   # round 141 crash: off until the skies thread proves M_RideCloud compiles as Volume
+# Our own cloud on the levels. Round 141 crashed with it (off since); now the cloud's inputs are small
+# floats, the material is checked here, and the game checks it again at start (ATorqueSky's guard puts
+# the engine's cloud back if it isn't a working Volume material). TORQUE_RIDE_CLOUD=0 keeps the engine's.
+USE_RIDE_CLOUD = os.environ.get("TORQUE_RIDE_CLOUD", "1") != "0"
 
 
 def cloud_material():
     """M_RideCloud (skies plan stage 2): the Volumetric Cloud's own material in place of the engine's
     default, which followed nothing. It reads MPC_Sky (Cover, Density, Albedo, Shape, DriftX/Y), set
-    by ATorqueSky from the weather; ATorqueSky also sets the layer's base and depth."""
+    by ATorqueSky from the weather; ATorqueSky also sets the layer's base and depth. None when any part
+    of it didn't go together (the engine's cloud then stays)."""
     nt = cloud_noise_texture()
     if nt is None or sky_mpc() is None:
         return None
     g = Graph(new_material("M_RideCloud"))
-    try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME)
-    try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not (mel.connect_material_expressions(a, out, b, pin)):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    if not try_set(g.m, "material_domain", unreal.MaterialDomain.MD_VOLUME):
+        bad.append("domain")
+    if not try_set(g.m, "blend_mode", unreal.BlendMode.BLEND_ADDITIVE):
+        bad.append("blend")
     c = g.node(unreal.MaterialExpressionCustom, -500)
     try_set(c, "code", CLOUD_HLSL)
     try_set(c, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
-    names = ("WP", "NormAlt", "Cover", "Shape", "Density", "DriftX", "DriftY", "Noise")
+    names = ("W0", "W1", "W2", "WB", "NormAlt", "Cover", "Shape", "Density", "CloudTex")
     ins = []
     for n in names:
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
     try_set(c, "inputs", ins)
-    g.link(g.node(unreal.MaterialExpressionWorldPosition), c, "WP")
+    # The point, metres, carried back along the drift (x east, y south: MPC DriftX/DriftY, metres), then
+    # in repeats of each scale and frac'd here, so the code sees small floats only.
+    wp = g.node(unreal.MaterialExpressionWorldPosition)
+    q = g.node(unreal.MaterialExpressionDivide, -900, const_b=100.0)
+    link(wp, q, "A")
+    drift = g.node(unreal.MaterialExpressionAppendVector, -900)
+    link(sky_param(g, "DriftX"), drift, "A")
+    link(sky_param(g, "DriftY"), drift, "B")
+    drift3 = g.node(unreal.MaterialExpressionAppendVector, -800)
+    link(drift, drift3, "A")
+    link(g.const(0.0), drift3, "B")
+    qd = g.node(unreal.MaterialExpressionSubtract, -700)
+    link(q, qd, "A")
+    link(drift3, qd, "B")
+    for pin, metres in (("W0", 7000.0), ("W1", 1800.0), ("W2", 600.0), ("WB", 25000.0)):
+        d = g.node(unreal.MaterialExpressionDivide, -650, const_b=metres)
+        link(qd, d, "A")
+        f = g.node(unreal.MaterialExpressionFrac, -600)
+        link(d, f, "")
+        link(f, c, pin)
     attr = g.node(unreal.MaterialExpressionCloudSampleAttribute)
-    g.link(attr, c, "NormAlt", "NormAltitudeInLayer")
-    for n in ("Cover", "Shape", "Density", "DriftX", "DriftY"):
-        g.link(sky_param(g, n), c, n)
-    g.link(g.node(unreal.MaterialExpressionTextureObject, texture=nt), c, "Noise")
+    link(attr, c, "NormAlt", "NormAltitudeInLayer")
+    for n in ("Cover", "Shape", "Density"):
+        link(sky_param(g, n), c, n)
+    link(g.node(unreal.MaterialExpressionTextureObject, texture=nt), c, "CloudTex")
     # Volume outputs: albedo (base colour), extinction (subsurface colour), no glow of its own.
-    mel.connect_material_property(sky_param(g, "Albedo"), "", unreal.MaterialProperty.MP_BASE_COLOR)
-    mel.connect_material_property(c, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
-    mel.connect_material_property(g.const(0.0), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    for src, prop in ((sky_param(g, "Albedo"), unreal.MaterialProperty.MP_BASE_COLOR),
+                      (c, unreal.MaterialProperty.MP_SUBSURFACE_COLOR),
+                      (g.const(0.0), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
+        if not mel.connect_material_property(src, "", prop):
+            bad.append(str(prop))
     mel.recompile_material(g.m)
     unreal.EditorAssetLibrary.save_loaded_asset(g.m)
-    log("cloud material M_RideCloud made")
+    try:   # (a material that didn't compile shows no instructions: the log says so for the round)
+        st = mel.get_statistics(g.m)
+        log("cloud material stats: pixel %s, vertex %s, samplers %s" % (
+            st.get_editor_property("num_pixel_shader_instructions"), st.get_editor_property("num_vertex_shader_instructions"),
+            st.get_editor_property("num_samplers")))
+    except Exception as e:
+        log("cloud material stats: unavailable (%s)" % e)
+    domain = g.m.get_editor_property("material_domain")
+    if domain != unreal.MaterialDomain.MD_VOLUME:
+        bad.append("domain is %s" % domain)
+    if bad:
+        unreal.log_warning("[Torque] cloud material M_RideCloud NOT used: %s" % "; ".join(bad))
+        return None
+    log("cloud material M_RideCloud made (Volume, all links made)")
     return g.m
 
 
@@ -3098,7 +3142,7 @@ def sky_and_camera(reuse_cloud_shadow=False):
         rc = unreal.load_asset(MAT_DIR + "/M_RideCloud") if reuse_cloud_shadow else cloud_material()
         # Round 141 crashed on Buttertubs (VolumetricCloudRendering assert: Material domain must be
         # MD_Volume): only hand the cloud a material that really is Volume domain; otherwise the
-        # engine's default cloud stays. USE_RIDE_CLOUD=False keeps the default until it's proven.
+        # engine's default cloud stays (as it does with TORQUE_RIDE_CLOUD=0).
         if rc is not None and (not USE_RIDE_CLOUD or rc.get_editor_property("material_domain") != unreal.MaterialDomain.MD_VOLUME):
             unreal.log_warning("[Torque] clouds: M_RideCloud not used (enabled %s, domain %s); the engine's default cloud stays"
                                % (USE_RIDE_CLOUD, rc.get_editor_property("material_domain")))

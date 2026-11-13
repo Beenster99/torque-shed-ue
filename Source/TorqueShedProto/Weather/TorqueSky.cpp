@@ -2,6 +2,7 @@
 
 #include "Coop/TorqueGameState.h"
 #include "Fit/FitJson.h"
+#include "Weather/TorqueCloudGuard.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -120,6 +121,8 @@ void ATorqueSky::Find()
 	for (TActorIterator<ASkyLight> It(W); It && !SkyPtr.IsValid(); ++It) SkyPtr = It->GetLightComponent();
 	for (TActorIterator<AExponentialHeightFog> It(W); It && !FogPtr.IsValid(); ++It) FogPtr = It->GetComponent();
 	for (TActorIterator<AActor> It(W); It && !AtmoPtr.IsValid(); ++It) AtmoPtr = It->FindComponentByClass<USkyAtmosphereComponent>();
+	// (the guard has already looked at the cloud before the first frame; this is in case it didn't run)
+	TorqueCloudGuard::Check(W);
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
 	for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It)
 	{
@@ -137,7 +140,7 @@ void ATorqueSky::Find()
 bool ATorqueSky::CloudsDrawn() const
 {
 	const UVolumetricCloudComponent* Cloud = CloudPtr.Get();
-	if (!Cloud || !SkyMpc) return false;
+	if (!Cloud || !SkyMpc || !Cloud->IsVisible()) return false;
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud"));
 	if (CVar && CVar->GetInt() == 0) return false;
 	const UObject* Mat = ReadObjectProperty(Cloud, TEXT("Material"));
