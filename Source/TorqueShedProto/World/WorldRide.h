@@ -516,7 +516,14 @@ public:
 	// and stands its things on it (FieldsTile: Detail as SkylineTile's, the small things only at 2).
 	// [OSM stage 2 batch D] and scree (grey stones, a scatter of them near) and reservoirs (flat water at
 	// their level, drawn with the water: WaterTile).
-	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldScree, FieldReservoir, FieldKinds };
+	// [OSM stage 4] And the ground file's shapes (Region::Ground): water as true shapes (as reservoirs:
+	// flat, at the lowest tenth of their shore), lawns where people live, hard standing in yards and car
+	// parks, farmyards, building sites, rough brownfield, mown parks and striped pitches, sand and mud,
+	// and woods, scrub, heath and wetland coloured to their mapped edges. Where shapes overlap the
+	// smallest wins (a pitch in a park in a town).
+	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldScree, FieldReservoir,
+		FieldLawn, FieldHard, FieldFarmyard, FieldSite, FieldBrownfield, FieldPark, FieldPitch, FieldSand, FieldMud, FieldCarPark,
+		FieldWood, FieldScrub, FieldHeath, FieldWetland, FieldKinds };
 	struct FieldArea
 	{
 		int Kind = 0;
@@ -524,6 +531,7 @@ public:
 		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
 		double Level = 0.0;   // a reservoir's water
 		uint32_t Id = 0;
+		double BoxArea = 0.0;   // [OSM stage 4] (the smaller of two that overlap is the one here)
 	};
 	std::vector<FieldArea> FieldAreas;
 	void IndexFields();
@@ -787,6 +795,7 @@ private:
 		std::unordered_map<long long, std::vector<int>> Summits;
 		std::unordered_map<long long, std::vector<int>> Towers;   // [towns stage 2] by every 256 m square each tower's box covers
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
+		std::unordered_map<long long, std::vector<int>> Paths;       // [OSM stage 4] into Region::Ground.Paths, by the squares their bits' middles are in
 		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
 		// RailCell square within 40 m of them (for NearRail).
 		std::unordered_map<long long, std::vector<std::pair<int, int>>> RailBits, RailNearBy;
@@ -796,6 +805,9 @@ private:
 	void RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out, RideMesh& Stone) const;
 	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
 	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
+	// [OSM stage 4] The map's footpaths, bridleways, cycleways, pedestrian streets and steps beside the roads
+	// (Region::Ground.Paths): a ribbon on the ground along each, its colour its surface's, never on a road.
+	void PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const;
 	void IndexFurniture();
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;

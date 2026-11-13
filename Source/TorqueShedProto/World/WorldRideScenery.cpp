@@ -144,6 +144,13 @@ void RidePlan::IndexScenery()
 			std::vector<int>& Row = Scene->Streams[SceneKey(Mid.X, Mid.Z)];
 			if (std::find(Row.begin(), Row.end(), int(S)) == Row.end()) Row.push_back(int(S));
 		}
+	for (size_t S = 0; S < G.Ground.Paths.size(); ++S)
+		for (size_t I = 0; I + 1 < G.Ground.Paths[S].Pts.size(); ++I)
+		{
+			const P2 Mid = (G.Ground.Paths[S].Pts[I] + G.Ground.Paths[S].Pts[I + 1]) * 0.5;
+			std::vector<int>& Row = Scene->Paths[SceneKey(Mid.X, Mid.Z)];
+			if (std::find(Row.begin(), Row.end(), int(S)) == Row.end()) Row.push_back(int(S));
+		}
 }
 
 void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, RideMesh& Out) const
@@ -1298,10 +1305,12 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 	std::vector<unsigned char> Wet(size_t(N) * N, 0);
 	std::vector<double> Held(size_t(N) * N, 0.0);   // (a reservoir's level, where one is)
 	bool AnyWet = false, Reservoirs = false;
+	std::vector<int> MappedWater;   // [OSM stage 4] (the map's own water shapes here)
 	{
 		std::vector<int> Here;
 		FieldsIn(X0, Z0, Size, Here);
-		for (int Fa : Here) Reservoirs = Reservoirs || FieldAreas[size_t(Fa)].Kind == FieldReservoir;
+		for (int Fa : Here)
+			if (FieldAreas[size_t(Fa)].Kind == FieldReservoir) { Reservoirs = true; MappedWater.push_back(Fa); }
 	}
 	for (int J = 0; J < N; ++J)
 		for (int I = 0; I < N; ++I)
@@ -1317,6 +1326,14 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					W = 3;
 					Held[size_t(J) * N + I] = FieldAreas[size_t(Fa)].Level;
 				}
+				// [OSM stage 4] (the land's cover is 10 m squares from space, a little off the map: where the
+				// map draws a lake or river's own shape, the cover's water beside that shape is dry land)
+				else if (W == 1)
+					for (int Wa : MappedWater)
+					{
+						const FieldArea& A = FieldAreas[size_t(Wa)];
+						if (X >= A.MinX - 15.0 && X <= A.MaxX + 15.0 && Z >= A.MinZ - 15.0 && Z <= A.MaxZ + 15.0) { W = 0; break; }
+					}
 			}
 			// (never on a road: a causeway or a road along a lake's edge stays dry)
 			if (W != 0)
@@ -1497,6 +1514,97 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 						Pa = Pb;
 						La = Lb;
 						Ya = Yb;
+					}
+				}
+			}
+		}
+}
+
+// --- Paths (OSM stage 4) ------------------------------------------------------------------------------
+
+namespace
+{
+// A path's width (m) where the map gives none, and its colour by its surface (or its kind's own).
+double PathWidth(const GroundShape& P)
+{
+	if (P.Width > 0.3) return std::fmin(8.0, P.Width);
+	if (P.Kind == "pedestrian") return 5.0;
+	if (P.Kind == "bridleway" || P.Kind == "cycleway") return 2.5;
+	if (P.Kind == "steps") return 1.8;
+	if (P.Kind == "footway") return 1.8;
+	return 1.0;   // (a path across fields: a worn line)
+}
+
+Rgb PathColour(const GroundShape& P)
+{
+	const std::string& S = P.Word;
+	const Rgb Tarmac = {0.045f, 0.045f, 0.047f}, Flags = {0.13f, 0.125f, 0.115f}, Gravel = {0.15f, 0.135f, 0.11f}, Dirt = {0.085f, 0.07f, 0.048f}, Worn = {0.075f, 0.08f, 0.04f}, Stone = {0.17f, 0.16f, 0.145f};
+	if (S == "asphalt" || S == "paved" || S == "concrete") return Tarmac;
+	if (S == "paving_stones" || S == "sett" || S == "cobblestone" || S == "bricks") return Flags;
+	if (S == "gravel" || S == "fine_gravel" || S == "compacted" || S == "pebblestone") return Gravel;
+	if (S == "dirt" || S == "ground" || S == "earth" || S == "mud" || S == "unpaved") return Dirt;
+	if (S == "grass") return Worn;
+	if (P.Kind == "steps") return Stone;
+	if (P.Kind == "pedestrian") return Flags;
+	if (P.Kind == "footway" || P.Kind == "cycleway") return Tarmac;
+	if (P.Kind == "bridleway") return Dirt;
+	return Worn;   // (a path: trodden grass)
+}
+}
+
+void RidePlan::PathsTile(double X0, double Z0, double Size, double Step, RideMesh& Out) const
+{
+	if (!Scene || Scene->Paths.empty() || Step > 4.5) return;
+	const Region& G = Area.Roads;
+	const auto Inside = [X0, Z0, Size](const P2& P) { return P.X >= X0 && P.X < X0 + Size && P.Z >= Z0 && P.Z < Z0 + Size; };
+	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
+		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
+		{
+			const long long Key = static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz);
+			const auto It = Scene->Paths.find(Key);
+			if (It == Scene->Paths.end()) continue;
+			for (int S : It->second)
+			{
+				const GroundShape& Way = G.Ground.Paths[size_t(S)];
+				const double Half = PathWidth(Way) * 0.5;
+				const Rgb Base = PathColour(Way);
+				const double Lift = Way.Kind == "steps" ? 0.08 : 0.045;
+				for (size_t I = 0; I + 1 < Way.Pts.size(); ++I)
+				{
+					const P2 A = Way.Pts[I], B = Way.Pts[I + 1];
+					const P2 Mid = (A + B) * 0.5;
+					if (SceneKey(Mid.X, Mid.Z) != Key || !Inside(Mid)) continue;
+					const double Len = A.DistanceTo(B);
+					if (Len < 0.2) continue;
+					const P2 Dir = (B - A) * (1.0 / Len), Left(Dir.Z, -Dir.X);
+					// (each end runs on past its point by a little of its width, so a corner of the line has no notch)
+					const double Over = std::fmin(Half * 0.7, 1.0);
+					const P2 From = A - Dir * (I > 0 ? Over : 0.0), To = B + Dir * (I + 2 < Way.Pts.size() ? Over : 0.0);
+					const double Run = From.DistanceTo(To);
+					const int Bits = std::max(1, int(std::ceil(Run / 2.0)));
+					for (int K = 0; K < Bits; ++K)
+					{
+						const P2 Pa = From + (To - From) * (double(K) / Bits), Pb = From + (To - From) * (double(K + 1) / Bits);
+						const P2 Pm = (Pa + Pb) * 0.5;
+						NearOpts Opts;
+						NearHit Hit;
+						if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Half + 0.4) continue;   // (on or at the road: the road's own)
+						if (Land->Cover(Pm.X, Pm.Z) == Terrain::CoverWater || Land->SeaAt(Pm.X, Pm.Z)) continue;
+						double Y[4];
+						const P2 Q[4] = {Pa + Left * Half, Pb + Left * Half, Pb - Left * Half, Pa - Left * Half};
+						bool Laid = true;
+						for (int C = 0; C < 4 && Laid; ++C)
+						{
+							// (on the ground's own mesh, at the higher of the corner and the line's middle, so the ground doesn't show through)
+							const double Edge = Ground(Q[C].X, Q[C].Z, Step), Centre = Ground(C == 0 || C == 3 ? Pa.X : Pb.X, C == 0 || C == 3 ? Pa.Z : Pb.Z, Step);
+							Laid = !std::isnan(Edge) && !std::isnan(Centre);
+							Y[C] = Laid ? std::fmax(Edge, Centre - 0.15) + Lift : 0.0;
+						}
+						if (!Laid) continue;
+						const double Wear = 0.88 + 0.24 * Chance(std::floor(Pm.X / 4.0), std::floor(Pm.Z / 4.0), 71);
+						Quad(Out, At3(Q[0].X, Y[0], Q[0].Z), At3(Q[1].X, Y[1], Q[1].Z), At3(Q[2].X, Y[2], Q[2].Z), At3(Q[3].X, Y[3], Q[3].Z),
+							At3(Pm.X, Y[0] + 100.0, Pm.Z), Shade(Base, Wear));
 					}
 				}
 			}

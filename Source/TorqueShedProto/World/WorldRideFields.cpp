@@ -60,6 +60,14 @@ void RidePlan::IndexFields()
 	using namespace RideFieldsBits;
 	FieldAreas.clear();
 	if (!Scene) return;
+	// (each shape: its kind, ring and id; the features file's first, then the ground file's)
+	struct Shape
+	{
+		int Kind;
+		const std::vector<P2>* Ring;
+		std::string Id;
+	};
+	std::vector<Shape> Shapes;
 	for (const FeatureArea& A : Area.Roads.Scenery.Areas)
 	{
 		int Kind = -1;
@@ -69,32 +77,65 @@ void RidePlan::IndexFields()
 		else if (A.Kind == "orchard") Kind = FieldOrchard;
 		else if (A.Kind == "scree" || A.Kind == "shingle") Kind = FieldScree;   // [OSM stage 2 batch D]
 		else if (A.Kind == "reservoir") Kind = FieldReservoir;
-		if (Kind < 0 || A.Ring.size() < 3) continue;
+		if (Kind >= 0) Shapes.push_back({Kind, &A.Ring, A.Id});
+	}
+	// [OSM stage 4] The ground file's.
+	for (const GroundShape& A : Area.Roads.Ground.Areas)
+	{
+		const std::string& K = A.Kind;
+		int Kind = -1;
+		if (K == "lake" || K == "pond" || K == "reservoir" || K == "river" || K == "basin" || K == "canal") Kind = FieldReservoir;
+		else if (K == "residential") Kind = FieldLawn;
+		else if (K == "retail" || K == "commercial" || K == "industrial") Kind = FieldHard;
+		else if (K == "farmyard") Kind = FieldFarmyard;
+		else if (K == "construction") Kind = FieldSite;
+		else if (K == "brownfield") Kind = FieldBrownfield;
+		else if (K == "park" || K == "recreation_ground" || K == "village_green" || K == "playground") Kind = FieldPark;
+		else if (K == "pitch") Kind = FieldPitch;
+		else if (K == "beach" || K == "sand" || K == "dune") Kind = FieldSand;
+		else if (K == "shingle") Kind = FieldScree;
+		else if (K == "mud") Kind = FieldMud;
+		else if (K == "car_park") Kind = FieldCarPark;
+		else if (K == "wood") Kind = FieldWood;
+		else if (K == "scrub") Kind = FieldScrub;
+		else if (K == "heath") Kind = FieldHeath;
+		else if (K == "wetland") Kind = FieldWetland;
+		if (Kind < 0 || A.Pts.size() < 3) continue;
+		Shapes.push_back({Kind, &A.Pts, K + std::to_string(std::lround(A.Pts[0].X * 10.0)) + "_" + std::to_string(std::lround(A.Pts[0].Z * 10.0))});
+	}
+	for (const Shape& Sh : Shapes)
+	{
+		const std::vector<P2>& Ring = *Sh.Ring;
+		if (Ring.size() < 3) continue;
 		FieldArea F;
-		F.Kind = Kind;
-		F.Ring = A.Ring;
-		F.MinX = F.MaxX = A.Ring[0].X;
-		F.MinZ = F.MaxZ = A.Ring[0].Z;
-		for (const P2& P : A.Ring)
+		F.Kind = Sh.Kind;
+		F.Ring = Ring;
+		F.MinX = F.MaxX = Ring[0].X;
+		F.MinZ = F.MaxZ = Ring[0].Z;
+		for (const P2& P : Ring)
 		{
 			F.MinX = std::fmin(F.MinX, P.X); F.MaxX = std::fmax(F.MaxX, P.X);
 			F.MinZ = std::fmin(F.MinZ, P.Z); F.MaxZ = std::fmax(F.MaxZ, P.Z);
 		}
-		// (none bigger than 3 km across: a mapping slip, or a whole estate, not a field)
-		if (F.MaxX - F.MinX > 3000.0 || F.MaxZ - F.MinZ > 3000.0) continue;
-		F.Id = FieldHash(A.Id);
-		if (Kind == FieldReservoir)
+		// (none bigger than 3 km across: a mapping slip, or a whole estate, not a field; water and the
+		// wild ground's outlines may be: a lake, a forest)
+		const double Most = Sh.Kind == FieldReservoir ? 25000.0 : Sh.Kind >= FieldWood ? 8000.0 : 3000.0;
+		if (F.MaxX - F.MinX > Most || F.MaxZ - F.MinZ > Most) continue;
+		F.BoxArea = (F.MaxX - F.MinX) * (F.MaxZ - F.MinZ);
+		F.Id = FieldHash(Sh.Id);
+		if (Sh.Kind == FieldReservoir)
 		{
-			// (its water at the level of the lower part of its shore: a fifth of the way up its edge's heights)
+			// (its water at the level of the lower part of its shore: a tenth of the way up its edge's
+			// heights, so noisy heights on a steep bank never lift it up the slope)
 			std::vector<double> Shore;
-			for (const P2& P : A.Ring)
+			for (const P2& P : Ring)
 			{
 				const double Y = Ground(P.X, P.Z);
 				if (!std::isnan(Y)) Shore.push_back(Y);
 			}
 			if (Shore.empty()) continue;
 			std::sort(Shore.begin(), Shore.end());
-			F.Level = Shore[Shore.size() / 5] + 0.1;
+			F.Level = Shore[Shore.size() / 10] + 0.1;
 		}
 		const int Index = int(FieldAreas.size());
 		for (double Z = std::floor(F.MinZ / FieldCell) * FieldCell; Z <= F.MaxZ; Z += FieldCell)
@@ -109,12 +150,15 @@ int RidePlan::FieldAt(double X, double Z) const
 	if (!Scene || FieldAreas.empty()) return -1;
 	const auto It = Scene->Fields.find(FieldKey(X, Z));
 	if (It == Scene->Fields.end()) return -1;
+	// ([OSM stage 4] the smallest of those it is in: a pitch in a park in a town)
+	int Best = -1;
 	for (int I : It->second)
 	{
 		const FieldArea& F = FieldAreas[size_t(I)];
-		if (X >= F.MinX && X <= F.MaxX && Z >= F.MinZ && Z <= F.MaxZ && InRing(F.Ring, X, Z)) return I;
+		if (Best >= 0 && F.BoxArea >= FieldAreas[size_t(Best)].BoxArea) continue;
+		if (X >= F.MinX && X <= F.MaxX && Z >= F.MinZ && Z <= F.MaxZ && InRing(F.Ring, X, Z)) Best = I;
 	}
-	return -1;
+	return Best;
 }
 
 void RidePlan::FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const
@@ -178,6 +222,81 @@ bool RidePlan::FieldTint(double X, double Z, float* Rgb) const
 		break;
 	}
 	case FieldReservoir: return false;   // (its water is drawn over it)
+	// [OSM stage 4] The ground file's shapes.
+	case FieldLawn:
+	{
+		// (gardens: lawn, a little patchy from plot to plot)
+		const double Plot = Roll(std::floor(X / 11.0), std::floor(Z / 9.0), F.Id);
+		To[0] = float(0.07 + 0.03 * Plot); To[1] = float(0.12 + 0.03 * Plot); To[2] = 0.04f;
+		By = 0.55;
+		break;
+	}
+	case FieldHard:
+	{
+		// (yards' concrete and tarmac, with mown verges and beds between: a third of it green)
+		const double Patch = Roll(std::floor(X / 14.0), std::floor(Z / 14.0), F.Id);
+		if (Patch < 0.33) { To[0] = 0.065f; To[1] = 0.11f; To[2] = 0.035f; By = 0.5; }
+		else { To[0] = float(0.075 + 0.02 * Patch); To[1] = float(0.075 + 0.02 * Patch); To[2] = float(0.07 + 0.02 * Patch); By = 0.75; }
+		break;
+	}
+	case FieldFarmyard:
+	{
+		// (mud, straw and concrete)
+		const double Mix = Roll(std::floor(X / 7.0), std::floor(Z / 7.0), F.Id);
+		if (Mix < 0.4) { To[0] = 0.075f; To[1] = 0.06f; To[2] = 0.04f; }
+		else if (Mix < 0.7) { To[0] = 0.15f; To[1] = 0.13f; To[2] = 0.07f; }
+		else { To[0] = 0.12f; To[1] = 0.12f; To[2] = 0.11f; }
+		By = 0.8;
+		break;
+	}
+	case FieldSite:
+		To[0] = 0.12f; To[1] = 0.09f; To[2] = 0.06f;   // (bare earth)
+		By = 0.85;
+		break;
+	case FieldBrownfield:
+		To[0] = 0.11f; To[1] = 0.115f; To[2] = 0.06f;   // (rough grass over rubble)
+		By = 0.6;
+		break;
+	case FieldPark:
+		To[0] = 0.06f; To[1] = 0.115f; To[2] = 0.032f;   // (mown)
+		By = 0.65;
+		break;
+	case FieldPitch:
+	{
+		// (mown in stripes 6 m wide)
+		const bool Light = int(std::floor(X / 6.0)) % 2 == 0;
+		To[0] = Light ? 0.07f : 0.055f; To[1] = Light ? 0.135f : 0.11f; To[2] = Light ? 0.04f : 0.03f;
+		By = 0.85;
+		break;
+	}
+	case FieldSand:
+		To[0] = 0.36f; To[1] = 0.32f; To[2] = 0.23f;
+		By = 0.85;
+		break;
+	case FieldMud:
+		To[0] = 0.08f; To[1] = 0.07f; To[2] = 0.055f;
+		By = 0.8;
+		break;
+	case FieldCarPark:
+		To[0] = 0.04f; To[1] = 0.04f; To[2] = 0.042f;   // (tarmac)
+		By = 0.95;
+		break;
+	case FieldWood:
+		To[0] = 0.040f; To[1] = 0.060f; To[2] = 0.025f;   // (the floor under the trees, as the cover's forest)
+		By = 0.7;
+		break;
+	case FieldScrub:
+		To[0] = 0.07f; To[1] = 0.08f; To[2] = 0.035f;
+		By = 0.55;
+		break;
+	case FieldHeath:
+		To[0] = 0.095f; To[1] = 0.08f; To[2] = 0.05f;
+		By = 0.55;
+		break;
+	case FieldWetland:
+		To[0] = 0.06f; To[1] = 0.075f; To[2] = 0.04f;
+		By = 0.6;
+		break;
 	default: return false;
 	}
 	for (int K = 0; K < 3; ++K) Rgb[K] = float(Rgb[K] + (To[K] - Rgb[K]) * By);
