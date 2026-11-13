@@ -324,6 +324,52 @@ int main()
 		Check(Two.LowDrawn.Bottom == 0.0 && Two.LowDrawn.Top < Two.MidDrawn.Bottom && Near(Two.MidDrawn.Top, 1.0, 1e-9), "low and middle cloud drawn as two bands, a gap between");
 	}
 
+	std::printf("\nWeather you can see coming (stage 4): fog with a top, valley mist, rainbows\n");
+	{
+		State Still = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Still.LowCloud = 0.0; Still.MidCloud = 0.0; Still.Cloud = 0.05; Still.Wind = 1.0; Still.Humidity = 97.0; Still.Visibility = 400.0;
+		Inputs In;
+		In.Weather = Still;
+		In.SunElevation = 2.0;
+		In.GroundAsl = 250.0;
+		In.ValleyAsl = 250.0;
+		In.Haze = TorqueWeather::FogBoost(Still);
+		const Sky Down = Compute(In, L);
+		In.GroundAsl = 600.0;
+		In.ViewAsl = 602.0;
+		const Sky Up = Compute(In, L);
+		std::printf("  a still, clear dawn, 400 m visibility: mist %.2f to %.0f m, fog top %.0f m; fog x%.1f in it, x%.1f on the hill above\n",
+			Down.Mist, Down.MistTopAsl, Down.FogTopAsl, Down.FogScale, Up.FogScale);
+		Check(Down.Mist > 0.7 && Down.FogTopAsl > 250.0 && Down.FogTopAsl < 400.0, "radiation fog lies in the valley with a top, mist in the hollows");
+		Check(Up.FogScale < Down.FogScale / 5.0, "  a hill road climbs out of it into clear air");
+		State Windy = Still;
+		Windy.Wind = 7.0;
+		In.Weather = Windy;
+		In.GroundAsl = 250.0; In.ViewAsl = -1.0;
+		const Sky Blown = Compute(In, L);
+		Check(Blown.Mist < 0.05 && Blown.FogTopAsl < 0.0, "  but fog on a wind is deep, and no mist forms");
+		In.Weather = Still;
+		In.SunElevation = 25.0;
+		Check(Compute(In, L).Mist < 0.01, "  the mist burns off as the sun climbs");
+
+		State Shower = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Shower.Rain = 1.0; Shower.LowCloud = 0.4; Shower.Cloud = 0.4; Shower.Code = 80;
+		Inputs R;
+		R.Weather = Shower;
+		R.SunElevation = 20.0;
+		const double Bow = Compute(R, L).Rainbow;
+		R.SunElevation = 50.0;
+		const double High = Compute(R, L).Rainbow;
+		R.SunElevation = 20.0;
+		R.Weather = TorqueWeather::Preset(TorqueWeather::Wet);
+		const double Grey = Compute(R, L).Rainbow;
+		R.Weather = TorqueWeather::Preset(TorqueWeather::Sunny);
+		R.RainNear = 2.0;
+		const double Near = Compute(R, L).Rainbow;
+		std::printf("  rainbow: a shower with the sun at 20 deg %.2f, at 50 deg %.2f, under a grey wet sky %.2f, a shower near on a sunny day %.2f\n", Bow, High, Grey, Near);
+		Check(Bow > 0.5 && High < 0.01 && Grey < 0.05 && Near > 0.5, "a rainbow when it rains with the sun out and low behind you");
+	}
+
 	std::printf("\nThe shipped looks (Data/Sky/sky_looks.json)\n");
 	{
 		Looks File;

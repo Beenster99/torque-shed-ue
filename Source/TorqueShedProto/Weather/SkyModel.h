@@ -153,6 +153,24 @@ struct Looks
 	// The sun through cloud: a veil makes it milky (the light widens this many degrees, its disc softens)
 	// with a 22 degree halo now and then; altostratus a ground glass sun (wider still, faint shadows).
 	double VeilWidenDeg = 1.0, GlassWidenDeg = 6.0, GlassShadows = 0.25, HaloMost = 0.6;
+
+	// --- Weather you can see coming (stage 4) ---
+	// Fog with a top: fog that formed overnight in calm, clear air lies this deep over the low ground
+	// (metres, thin .. thick as the visibility falls); fog that came in on the wind (advection, hill fog)
+	// is deep: no top here.
+	double FogShallowM = 40.0, FogThickM = 120.0;
+	// How fast the fog's haze goes as the viewer climbs out of its top (metres to clear air).
+	double FogTopFadeM = 40.0;
+	// Valley mist after a clear, still night: air within this many % of saturation (88 %: about two
+	// degrees from the dew point), wind under these m/s, the sky this clear; it thins as the sun climbs
+	// to MistGoneDeg (about one to three hours after sunrise) and lies MistDepthM deep in the hollows.
+	double MistHumidFrom = 86.0, MistHumidFull = 95.0, MistCalmMs = 1.5, MistWindyMs = 4.0, MistClearTo = 0.35;
+	double MistGoneDeg = 14.0, MistDepthM = 25.0;
+	// How thick the mist is drawn (the Local Fog Volumes' radial extinction at full mist; fog lying with
+	// a top is three times this).
+	double MistExtinction = 0.6;
+	// A rainbow: rain about (falling, or in the cells the wind brings), the sun out and low behind you.
+	double RainbowSunMostDeg = 42.0, RainbowRainMm = 0.2;
 };
 
 // Looks from sky_looks.json's text: whatever it names over the defaults. False (with why) when the text
@@ -213,6 +231,11 @@ struct Sky
 	// The high sheet: its cover drawn, wisps .. veil, the wind that carries it, and the sun's halo.
 	double HighShown = 0.0, HighSheet = 0.0, HighDriftE = 0.0, HighDriftN = 0.0, Halo = 0.0;
 	int Dominant(int Layer) const;   // the kind with the most weight in a layer (0 low, 1 middle, 2 high), -1 none
+	// Weather you can see coming (stage 4).
+	double FogTopAsl = -1.0;     // the top of fog lying in the valleys, metres above sea level (-1: no top, deep fog or none)
+	double Mist = 0.0;           // valley mist in the hollows, 0 none .. 1 thick
+	double MistTopAsl = 0.0;     // and its top over the low ground
+	double Rainbow = 0.0;        // how strong a rainbow would be opposite the sun, 0 .. 1
 	double LegacyShadow = 1.0;   // MPC_Weather CloudShadow
 };
 
@@ -224,6 +247,12 @@ struct Inputs
 	double Haze = 1.0;           // WeatherModel's HazeAt for the viewer (the fog of low visibility, or being in cloud)
 	double GroundAsl = 0.0;      // the ground under the viewer, metres above sea level
 	bool bClouds = true;         // the volumetric clouds are drawn (Medium graphics and up)
+	// Stage 4: where the viewer's eye is (metres above sea level; below 0: on the ground, GroundAsl + 2) and
+	// the low ground round about (the lowest of the weather's points; below 0: GroundAsl).
+	double ViewAsl = -1.0;
+	double ValleyAsl = -1.0;
+	// Rain within the wider ring (stage 4's second grid), mm/h, at its wettest: a shower you can see coming.
+	double RainNear = 0.0;
 };
 
 // The sky.

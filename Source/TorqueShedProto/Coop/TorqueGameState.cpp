@@ -315,6 +315,7 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 			NextFetchIn = 0.0;
 	}
 	if (Mode == FTorqueSettings::WeatherLive && !bFetching && (NextFetchIn -= DeltaSeconds) <= 0.0) FetchLive(0);
+	if (Mode == FTorqueSettings::WeatherLive && HasAuthority() && !bFetchingWide && GridNow.Valid() && (NextWideIn -= DeltaSeconds) <= 0.0) FetchWide();
 	// The real time of day, or the day going by: a whole day in Settings' Day length of real minutes.
 	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
 	const bool bRealClock = Set.bRealClock && (!bTestRun || bRealClockTest);
@@ -658,6 +659,88 @@ void ATorqueGameState::FetchLive(int32 Feed)
 	Req->ProcessRequest();
 }
 
+void ATorqueGameState::FetchWide()
+{
+	// The wider ring: Open-Meteo for 49 points 12 km apart round the host, snapped as the near grid is.
+	double VLat = LatitudeAt, VLon = LongitudeAt, VAsl = 0.0;
+	ViewGeo(VLat, VLon, VAsl);
+	TorqueWeather::SnapCentre(VLat, VLon, WIDE_STEP_M, WideLat, WideLon);
+	const std::string Url = TorqueWeather::OpenMeteoGridUrl(WideLat, WideLon, WIDE_N, WIDE_STEP_M);
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(UTF8_TO_TCHAR(Url.c_str()));
+	Req->SetVerb(TEXT("GET"));
+	Req->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	Req->SetTimeout(20.0f);
+	TWeakObjectPtr<ATorqueGameState> Self(this);
+	Req->OnProcessRequestComplete().BindLambda([Self](FHttpRequestPtr, FHttpResponsePtr Resp, bool bConnected)
+	{
+		ATorqueGameState* GS = Self.Get();
+		if (!GS) return;
+		GS->bFetchingWide = false;
+		GS->WideRequest.Reset();
+		const bool bOk = bConnected && Resp.IsValid() && EHttpResponseCodes::IsOk(Resp->GetResponseCode());
+		TorqueWeather::Grid G;
+		long long When = 0;
+		std::string Why = bOk ? std::string() : std::string("no answer");
+		if (bOk && TorqueWeather::ParseOpenMeteoGrid(TCHAR_TO_UTF8(*Resp->GetContentAsString()), GS->WideLat, GS->WideLon, WIDE_N, WIDE_STEP_M, G, &When, nullptr, &Why))
+		{
+			GS->GridWide = G;
+			GS->GridWideAt = FDateTime::UtcNow().ToUnixTimestamp();
+			GS->NextWideIn = 30.0 * 60.0;
+			double Wettest = 0.0;
+			for (const TorqueWeather::State& P : G.Points) Wettest = FMath::Max(Wettest, P.Rain);
+			UE_LOG(LogTemp, Log, TEXT("Torque weather: wider ring %dx%d, %.0f km apart, round %.3f, %.3f: wettest %.1f mm/h; rain near %.1f mm/h"),
+				WIDE_N, WIDE_N, WIDE_STEP_M / 1000.0, GS->WideLat, GS->WideLon, Wettest, GS->RainNearNow());
+		}
+		else
+		{
+			GS->NextWideIn = 10.0 * 60.0;
+			UE_LOG(LogTemp, Warning, TEXT("Torque weather: wider ring failed: %s"), UTF8_TO_TCHAR(Why.c_str()));
+		}
+	});
+	bFetchingWide = true;
+	WideRequest = Req;
+	Req->ProcessRequest();
+}
+
+double ATorqueGameState::ValleyAslNow() const
+{
+	if (!GridNow.Valid()) return -1.0;
+	double Lowest = 1e9;
+	for (double E : GridNow.Elevation) Lowest = FMath::Min(Lowest, E);
+	return Lowest;
+}
+
+double ATorqueGameState::RainNearNow() const
+{
+	// Each point's rain, carried on the low cloud's wind since it was asked, fading out by 35 km away.
+	double VLat = LatitudeAt, VLon = LongitudeAt, VAsl = 0.0;
+	ViewGeo(VLat, VLon, VAsl);
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	double Most = 0.0;
+	auto Look = [&](const TorqueWeather::Grid& G, int64 At) {
+		if (!G.Valid()) return;
+		const double Since = (double)FMath::Max<int64>(Now - At, 0);
+		const double Half = (G.N - 1) * 0.5;
+		for (int32 Row = 0; Row < G.N; ++Row)
+			for (int32 Col = 0; Col < G.N; ++Col)
+			{
+				const TorqueWeather::State& P = G.Points[Row * G.N + Col];
+				if (P.Rain <= 0.0) continue;
+				const double To = FMath::DegreesToRadians(P.Wind850From + 180.0);
+				const double PE = (Col - Half) * G.StepM + FMath::Sin(To) * P.Wind850 * Since;
+				const double PN = (Half - Row) * G.StepM + FMath::Cos(To) * P.Wind850 * Since;
+				double E = 0.0, N = 0.0;
+				TorqueWeather::MetresBetween(G.Lat, G.Lon, VLat, VLon, E, N);
+				const double Dist = FMath::Sqrt(FMath::Square(PE - E) + FMath::Square(PN - N));
+				Most = FMath::Max(Most, P.Rain * FMath::Clamp(1.0 - Dist / 35000.0, 0.0, 1.0));
+			}
+	};
+	Look(GridNow, GridFetchedNow);
+	Look(GridWide, GridWideAt);
+	return Most;
+}
+
 void ATorqueGameState::LiveAnswer(int32 Feed, bool, const FString& Body)
 {
 	bFetching = false;
@@ -942,7 +1025,7 @@ void ATorqueGameState::ApplyWeather()
 		// The ground under the viewer: the camera's height above sea level, less a rider's eye.
 		double Lat = 0.0, Lon = 0.0, Asl = OriginAsl;
 		ViewGeo(Lat, Lon, Asl);
-		Sky->Apply(St, SunElevationNow, bRealSunNow, AppliedHaze, Asl - 1.5, Open);
+		Sky->Apply(St, SunElevationNow, bRealSunNow, AppliedHaze, Asl - 1.5, Open, Asl, ValleyAslNow(), RainNearNow());
 	}
 	if (!WeatherMpc) WeatherMpc = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Buttertubs/Materials/MPC_Weather.MPC_Weather"));
 	if (WeatherMpc)

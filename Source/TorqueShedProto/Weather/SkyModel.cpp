@@ -82,6 +82,10 @@ const NamedNumber Numbers[] = {
 	{"high_base_m", &Looks::HighBaseM}, {"high_opacity", &Looks::HighOpacity},
 	{"veil_widen_deg", &Looks::VeilWidenDeg}, {"glass_widen_deg", &Looks::GlassWidenDeg},
 	{"glass_shadows", &Looks::GlassShadows}, {"halo_most", &Looks::HaloMost},
+	{"fog_shallow_m", &Looks::FogShallowM}, {"fog_thick_m", &Looks::FogThickM}, {"fog_top_fade_m", &Looks::FogTopFadeM},
+	{"mist_humid_from", &Looks::MistHumidFrom}, {"mist_humid_full", &Looks::MistHumidFull}, {"mist_calm_ms", &Looks::MistCalmMs},
+	{"mist_windy_ms", &Looks::MistWindyMs}, {"mist_clear_to", &Looks::MistClearTo}, {"mist_gone_deg", &Looks::MistGoneDeg},
+	{"mist_depth_m", &Looks::MistDepthM}, {"mist_extinction", &Looks::MistExtinction}, {"rainbow_sun_most_deg", &Looks::RainbowSunMostDeg}, {"rainbow_rain_mm", &Looks::RainbowRainMm},
 };
 struct NamedKindFigure { const char* Name; double KindLook::*Field; };
 const NamedKindFigure KindFigures[] = {
@@ -252,6 +256,37 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.FogScale = Lerp(1.0, Lerp(L.FogDull, L.FogWet, S.WetLook), S.Dull) * std::max(In.Haze, 0.0) * Air;
 	S.FogGlow = Lerp(L.FogNightGlow, 1.0, S.DayLight);
 	S.FogSunGlow = S.DayLight;
+
+	// Stage 4: fog with a top, valley mist, a rainbow. Radiation fog and mist need a calm, clear night
+	// (or its morning); the sun climbing burns them off.
+	{
+		const double Valley = In.ValleyAsl >= 0.0 ? std::min(In.ValleyAsl, In.GroundAsl) : In.GroundAsl;
+		const double Eye = In.ViewAsl >= 0.0 ? In.ViewAsl : In.GroundAsl + 2.0;
+		const double LowMidCover = 1.0 - (1.0 - Clamp01(W.LowCloud)) * (1.0 - Clamp01(W.MidCloud));
+		const double Calm = 1.0 - Smooth((W.Wind - L.MistCalmMs) / std::max(L.MistWindyMs - L.MistCalmMs, 0.1));
+		const double ClearAbove = 1.0 - Smooth((LowMidCover - L.MistClearTo) / std::max(1.0 - L.MistClearTo, 0.05) * 1.5);
+		const double Burn = 1.0 - Smooth(E / std::max(L.MistGoneDeg, 1.0));
+		const double Damp = Smooth((W.Humidity - L.MistHumidFrom) / std::max(L.MistHumidFull - L.MistHumidFrom, 0.5));
+		const double Radiation = Calm * std::max(ClearAbove, 1.0 - Smooth((W.LowCloud - 0.3) / 0.4));
+		S.Mist = Clamp01(Damp * Calm * ClearAbove * Burn);
+		S.MistTopAsl = Valley + L.MistDepthM * (0.5 + S.Mist);
+		// Fog from the feed (under 1 km): lying in the valleys with a top when it's radiation fog.
+		const double Foggy = 1.0 - Smooth((W.Visibility - 1000.0) / 3000.0);
+		if (Foggy > 0.0 && Radiation > 0.5)
+		{
+			const double Thick = 1.0 - Smooth((W.Visibility - 200.0) / 800.0);
+			S.FogTopAsl = Valley + Lerp(L.FogShallowM, L.FogThickM, Thick);
+			// Above its top the fog's haze goes (the viewer looks out over it into clear air).
+			const double Out = Smooth((Eye - S.FogTopAsl) / std::max(L.FogTopFadeM, 1.0));
+			const double FogPart = TorqueWeather::FogBoost(W);
+			if (FogPart > 1.0 && In.Haze <= FogPart + 1e-6)
+				S.FogScale /= Lerp(1.0, FogPart, Out * Radiation);
+		}
+		// A rainbow: rain falling here or near, the sun out (not hidden by cloud) and lower than 42 degrees.
+		const double Wet = Smooth(std::max(W.Rain, In.RainNear) / std::max(L.RainbowRainMm, 0.01));
+		const double SunOut = 1.0 - Smooth((S.Block - 0.4) / 0.4);
+		S.Rainbow = Wet * SunOut * Smooth(E / 3.0) * (1.0 - Smooth((E - (L.RainbowSunMostDeg - 6.0)) / 6.0));
+	}
 
 	// The cloud layers.
 	const double Rain = TorqueWeather::RainShow(W);

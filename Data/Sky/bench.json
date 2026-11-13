@@ -497,6 +497,41 @@
    "day": 172,
    "sun": -2,
    "evening": true
+  },
+  {
+   "name": "40_mist_dawn",
+   "note": "valley mist after a clear, still night (stage 4)",
+   "day": 172,
+   "sun": 1,
+   "look": "away",
+   "weather": {
+    "preset": "sunny",
+    "cloud": 5,
+    "low": 0,
+    "mid": 0,
+    "high": 5,
+    "wind": 0.8,
+    "humidity": 97,
+    "visibility": 3000
+   }
+  },
+  {
+   "name": "41_fog_top",
+   "note": "radiation fog lying in the dale with a top (stage 4)",
+   "day": 172,
+   "sun": 3,
+   "look": "horizon",
+   "yaw": 200,
+   "weather": {
+    "preset": "sunny",
+    "cloud": 5,
+    "low": 0,
+    "mid": 0,
+    "high": 0,
+    "wind": 0.8,
+    "humidity": 99,
+    "visibility": 300
+   }
   }
  ]
 }

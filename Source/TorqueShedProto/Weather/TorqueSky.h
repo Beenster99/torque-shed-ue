@@ -34,7 +34,10 @@ public:
 	// The sky for this weather (the weather where this machine's camera is), with the sun SunElevation
 	// degrees up (the real sun when bRealSun), the viewer's haze (WeatherModel's HazeAt), the ground under
 	// the viewer (metres above sea level) and how open to the sky the camera is (0 under a roof .. 1).
-	void Apply(const TorqueWeather::State& Weather, double SunElevation, bool bRealSun, double Haze, double GroundAsl, float Open);
+	// Stage 4: the camera's height (metres above sea level), the low ground round about and the heaviest
+	// rain near (mm/h); below 0, not known.
+	void Apply(const TorqueWeather::State& Weather, double SunElevation, bool bRealSun, double Haze, double GroundAsl, float Open,
+		double ViewAsl = -1.0, double ValleyAsl = -1.0, double RainNear = 0.0);
 	// The day's light (0 night .. 1 day) and where the light points (degrees above the horizon) for the
 	// sun at this height: the lamps, the exposure and the haze's glow follow the first.
 	float DayLightAt(double SunElevation) const;
@@ -70,6 +73,13 @@ private:
 	bool CloudsDrawn() const;
 	// The level's planet surface, metres above sea level (the cloud layer's heights are above it).
 	double PlanetAsl() const;
+	// Valley mist and fog with a top (stage 4): a pool of the engine's Local Fog Volumes (made here, by
+	// class name), laid in the hollows round the camera (found by tracing down to the ground).
+	TArray<TWeakObjectPtr<AActor>> MistPool;
+	FVector MistPlacedAt = FVector(1e12);
+	double MistPlacedTime = -1000.0, MistBaseRadius = 0.0;
+	float MistApplied = -1.0f;
+	void TickMist();
 	// The high cloud's sheet (stage 3; Tools/ue_build_level.py tags it TorqueHighCloud), kept over the camera.
 	TWeakObjectPtr<AActor> HighSheetPtr;
 	void TickHighSheet();

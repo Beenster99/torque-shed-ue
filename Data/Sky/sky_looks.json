@@ -286,5 +286,21 @@
   "glass_widen_deg": 6.0,
   "glass_shadows": 0.25,
   "halo_most": 0.6
+ },
+ "seen_coming": {
+  "_": "Stage 4: fog with a top, valley mist (Local Fog Volumes in the hollows), rainbow rule.",
+  "fog_shallow_m": 40.0,
+  "fog_thick_m": 120.0,
+  "fog_top_fade_m": 40.0,
+  "mist_humid_from": 86.0,
+  "mist_humid_full": 95.0,
+  "mist_calm_ms": 1.5,
+  "mist_windy_ms": 4.0,
+  "mist_clear_to": 0.35,
+  "mist_gone_deg": 14.0,
+  "mist_depth_m": 25.0,
+  "mist_extinction": 0.6,
+  "rainbow_sun_most_deg": 42.0,
+  "rainbow_rain_mm": 0.2
  }
 }
