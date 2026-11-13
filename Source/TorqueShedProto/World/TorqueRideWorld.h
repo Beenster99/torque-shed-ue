@@ -145,7 +145,7 @@ private:
 	void DropWords(const FIntVector& Key);
 	TSet<FIntVector> Asked;      // being made on a worker
 	TArray<FIntVector> Want;     // as of the last look
-	UPROPERTY(Transient) TMap<int32, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
+	UPROPERTY(Transient) TMap<int64, TObjectPtr<UProceduralMeshComponent>> RoadParts;   // by piece
 	// [stage 8] The landmark bridges' hero pieces (RidePlan::HeroBridges), all ride long.
 	UPROPERTY(Transient) TArray<TObjectPtr<UProceduralMeshComponent>> HeroParts;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> LandMaterial;
@@ -159,7 +159,7 @@ private:
 	void DropStreetLights(const FIntVector& Key);
 	bool bStreetLightsOn = false;
 	// A road piece's tunnel lights (by piece, as RoadParts), let go with it.
-	TMap<int32, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
+	TMap<int64, TArray<TWeakObjectPtr<class UPointLightComponent>>> RoadLights;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> StoneMaterial;
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> MasonryMaterial;
 	// [stage 5] Rendered and limewashed walls (M_RideRender), and the stone tinted to each part of the

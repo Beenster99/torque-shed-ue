@@ -1,5 +1,6 @@
 #include "World/TorqueRideWorld.h"
 #include "World/WorldRoam.h"
+#include <algorithm>
 #include "TorqueDash.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
@@ -615,8 +616,16 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 {
 	// Every road (the ride's own, then those that meet it) in pieces of PiecePoints points; a piece's
 	// key is its road times 4096 and which piece of it.
-	const int32 Roads = Plan->RoadCount();
-	for (int32 Which = 0; Which < Roads; ++Which)
+	// [ride anywhere] The roads laid so far round the rider (the network's blocks are laid by the near
+	// squares of ground as they are made), and those whose pieces are in place (to drop the far ones).
+	TorqueWorld::Rect Around;
+	Around.X0 = At.X - TRWI::RoadReach - 600.0; Around.Z0 = At.Y - TRWI::RoadReach - 600.0;
+	Around.X1 = At.X + TRWI::RoadReach + 600.0; Around.Z1 = At.Y + TRWI::RoadReach + 600.0;
+	std::vector<int> Roads = Plan->RoadsNear(Around, false);
+	for (const auto& Have : RoadParts) Roads.push_back(int(Have.Key / 4096));
+	std::sort(Roads.begin(), Roads.end());
+	Roads.erase(std::unique(Roads.begin(), Roads.end()), Roads.end());
+	for (const int Which : Roads)
 	{
 		const std::vector<TorqueWorld::RoadPoint>& Pts = Plan->RoadOf(Which);
 		const int32 Points = int32(Pts.size());
@@ -627,9 +636,11 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const int32 First = K * TRWI::PiecePoints, Last = FMath::Min(First + TRWI::PiecePoints, Points - 1);
 			const TorqueWorld::RoadPoint& Mid = Pts[size_t((First + Last) / 2)];
 			const double HowFar = FVector2D::Distance(At, FVector2D(Mid.At.X, Mid.At.Z));
-			const int32 Key = Which * 4096 + K;
+			const int64 Key = int64(Which) * 4096 + K;
 			const bool bHave = RoadParts.Contains(Key);
-			if (!bHave && HowFar < TRWI::RoadReach)
+			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
+			const bool bEndsLaid = (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
+			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid)
 			{
 				TorqueWorld::RideMesh Mesh;
 				Plan->RoadPiece(Which, First, Last, Mesh);

@@ -195,7 +195,7 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 	// [OSM stage 1] A road the map says is gravel: gravel all over (no marks, no paint on it).
 	{
 		const RoadFact* F = Hit.Which == 0 ? FactAt(Hit.Along) : nullptr;
-		if (Hit.Which == 0 ? F != nullptr && F->Gravel : Hit.Which - 1 < int(Sides.size()) && Sides[size_t(Hit.Which) - 1].Gravel)
+		if (Hit.Which == 0 ? F != nullptr && F->Gravel : SideOf(Hit.Which) != nullptr && SideOf(Hit.Which)->Gravel)
 		{
 			S.Kind = SurfGravel;
 			return S;

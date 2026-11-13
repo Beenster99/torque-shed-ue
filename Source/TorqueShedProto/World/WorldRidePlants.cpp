@@ -126,7 +126,9 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 	std::vector<float> Edge(size_t(G) * G, float(Reach));
 	{
 		const double Bx0 = X0 - Reach, Bz0 = Z0 - Reach, Bx1 = X0 + Size + Reach, Bz1 = Z0 + Size + Reach;
-		for (int W = 0; W < RoadCount(); ++W)
+		Rect Around;
+		Around.X0 = Bx0; Around.Z0 = Bz0; Around.X1 = Bx1; Around.Z1 = Bz1;
+		for (const int W : RoadsNear(Around, false))
 		{
 			const std::vector<RoadPoint>& Pts = RoadOf(W);
 			for (size_t K = 0; K < Pts.size(); ++K)

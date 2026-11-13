@@ -24,6 +24,7 @@
 #include <chrono>
 #include <map>
 #include <cmath>
+#include <functional>
 #include <cstdlib>
 #include <cstdio>
 #include <string>
@@ -47,6 +48,40 @@ static bool SameHeight(const Json& Want, double Got, double Tol, double& Worst)
 	if (std::isnan(Got)) return false;
 	Worst = std::fmax(Worst, std::fabs(Want.N - Got));
 	return std::fabs(Want.N - Got) <= Tol;
+}
+
+// [ride anywhere] The roads laid with a plan (those near its road), the first few with the ride's own,
+// and the junctions along it (its blocks laid first).
+static std::vector<int> FirstRoads(const TorqueWorld::RidePlan& P, size_t Most)
+{
+	std::vector<int> Out = {0};
+	for (int W : P.PlanSides())
+	{
+		if (Out.size() >= Most) break;
+		Out.push_back(W);
+	}
+	return Out;
+}
+
+static std::vector<std::reference_wrapper<const TorqueWorld::RidePlan::SideRoad>> PlanSideRoads(const TorqueWorld::RidePlan& P)
+{
+	std::vector<std::reference_wrapper<const TorqueWorld::RidePlan::SideRoad>> Out;
+	for (int W : P.PlanSides()) Out.push_back(std::cref(*P.SideOf(W)));
+	return Out;
+}
+
+static std::vector<TorqueWorld::RidePlan::Knot> LaidKnots(const TorqueWorld::RidePlan& P)
+{
+	TorqueWorld::Rect Box;
+	Box.X0 = Box.Z0 = 1e18;
+	Box.X1 = Box.Z1 = -1e18;
+	for (const TorqueWorld::RoadPoint& R : P.Road)
+	{
+		Box.X0 = std::fmin(Box.X0, R.At.X - 300.0); Box.X1 = std::fmax(Box.X1, R.At.X + 300.0);
+		Box.Z0 = std::fmin(Box.Z0, R.At.Z - 300.0); Box.Z1 = std::fmax(Box.Z1, R.At.Z + 300.0);
+	}
+	P.LayBlocks(Box);
+	return P.KnotsLaid();
 }
 
 int main()
@@ -1046,7 +1081,7 @@ int main()
 						// the ride's road and a side road, each where RoadMarks lays it.
 						{
 							int Kinds[4] = {}, Proud = 0, Sunk = 0, Samples = 0, Grit = 0, Covers = 0;
-							for (int Which = 0; Which < std::min(Plan->RoadCount(), 6); ++Which)
+							for (const int Which : FirstRoads(*Plan, 6))
 							{
 								const std::vector<RoadPoint>& Pts = Plan->RoadOf(Which);
 								for (size_t I = 0; I + 1 < Pts.size(); ++I)
@@ -1246,7 +1281,7 @@ int main()
 					{
 						int Meeting = 0, Level = 0, SidePts = 0;
 						double WorstStep = 0.0;
-						for (const RidePlan::SideRoad& Sd : Plan->Sides)
+						for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 						{
 							SidePts += int(Sd.Pts.size());
 							for (int End = 0; End < 2; ++End)
@@ -1264,9 +1299,9 @@ int main()
 							}
 						}
 						RideMesh SideMesh;
-						if (!Plan->Sides.empty()) Plan->RoadPiece(1, 0, 64, SideMesh);
-						std::printf("      %d roads beside it in %d points; %d ends meet the ride's road, %d of them level with it; steepest %.2f\n", int(Plan->Sides.size()), SidePts, Meeting, Level, WorstStep);
-						Check(Plan->Sides.size() > 20 && Meeting > 10 && Level == Meeting && WorstStep < 0.6 && SideMesh.Vertices() >= 12 && Plan->RoadCount() == 1 + int(Plan->Sides.size()),
+						if (!Plan->PlanSides().empty()) Plan->RoadPiece(Plan->PlanSides().front(), 0, 64, SideMesh);
+						std::printf("      %d roads beside it in %d points; %d ends meet the ride's road, %d of them level with it; steepest %.2f\n", int(Plan->PlanSides().size()), SidePts, Meeting, Level, WorstStep);
+						Check(Plan->PlanSides().size() > 20 && Meeting > 10 && Level == Meeting && WorstStep < 0.6 && SideMesh.Vertices() >= 12 && Plan->SideOf(Plan->PlanSides().back()) != nullptr,
 							"the roads near the ride are laid too, each level with the ride's road where it meets it");
 					}
 					// Its bridges: the fixture's spans it crosses, each a deck with parapets.
@@ -1353,9 +1388,9 @@ int main()
 					// Junction mouths: corners rounded, give-way lines across the lesser road, the edge line broken.
 					{
 						int Mouths = 0, GiveWays = 0, Painted = 0, Tested = 0, FacingUp = 0, Broken = 0, Wide = 0;
-						for (size_t W = 0; W < Plan->Sides.size(); ++W)
+						for (size_t W = 0; W < Plan->PlanSides().size(); ++W)
 						{
-							const RidePlan::SideRoad& Sd = Plan->Sides[W];
+							const RidePlan::SideRoad& Sd = (*Plan->SideOf(Plan->PlanSides()[W]));
 							bool Decked = false;
 							for (const RoadPoint& P : Sd.Pts) Decked = Decked || P.Bridge || P.Tunnel;
 							for (int End = 0; End < 2; ++End)
@@ -1367,7 +1402,7 @@ int main()
 								++GiveWays;
 								RideMesh Mesh;
 								const int Count = int(Sd.Pts.size());
-								Plan->RoadPiece(int(W) + 1, End == 0 ? 0 : std::max(0, Count - 1 - 64), End == 0 ? std::min(64, Count - 1) : Count - 1, Mesh);
+								Plan->RoadPiece(Plan->PlanSides()[W], End == 0 ? 0 : std::max(0, Count - 1 - 64), End == 0 ? std::min(64, Count - 1) : Count - 1, Mesh);
 								bool Marks = false, AllUp = true;
 								for (size_t V = 0; V < Mesh.Vertices(); ++V)
 									if (Mesh.Col[V * 3] > 0.8f && std::hypot(Mesh.OriginX + Mesh.Pos[V * 3] - M.At.X, Mesh.OriginZ + Mesh.Pos[V * 3 + 2] - M.At.Z) < Sd.Pts[0].Half * 2.5 + 1.0) Marks = true;
@@ -1403,11 +1438,11 @@ int main()
 						double WorstProud = 0.0, WorstLean = 0.0;
 						RidePlan::NearOpts MainOnly;
 						MainOnly.MainOnly = true;
-						for (size_t W = 0; W < Plan->Sides.size(); ++W)
+						for (size_t W = 0; W < Plan->PlanSides().size(); ++W)
 						{
-							const int Count = int(Plan->Sides[W].Pts.size());
+							const int Count = int((*Plan->SideOf(Plan->PlanSides()[W])).Pts.size());
 							RideMesh Mesh;
-							Plan->RoadPiece(int(W) + 1, 0, Count - 1, Mesh);
+							Plan->RoadPiece(Plan->PlanSides()[W], 0, Count - 1, Mesh);
 							for (size_t V = 0; V < Mesh.Vertices(); ++V)
 							{
 								const double X = Mesh.OriginX + Mesh.Pos[V * 3], Y = Mesh.Pos[V * 3 + 1], Z = Mesh.OriginZ + Mesh.Pos[V * 3 + 2];
@@ -1434,7 +1469,7 @@ int main()
 					// over all their roads, rounded between them, facing up, never under its roads' surfaces.
 					{
 						int Fans = 0, FansUp = 0, FansUnder = 0, Arms = 0;
-						for (const RidePlan::Knot& K : Plan->Knots)
+						for (const RidePlan::Knot& K : LaidKnots(*Plan))
 						{
 							RideMesh Mesh;
 							Mesh.OriginX = K.At.X;
@@ -1605,7 +1640,7 @@ int main()
 					{
 						int Decks = 0, Crossings = 0;
 						double Least = 1e9;
-						for (const RidePlan::SideRoad& Sd : Plan->Sides)
+						for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 							for (size_t I = 1; I < Sd.Pts.size(); ++I)
 							{
 								if (Sd.Pts[I].Bridge && !Sd.Pts[I - 1].Bridge) ++Decks;
