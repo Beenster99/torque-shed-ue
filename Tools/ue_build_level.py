@@ -3250,7 +3250,7 @@ def high_cloud_material():
         f = g.node(unreal.MaterialExpressionFrac, -600)
         link(d, f, "")
         smp = g.node(unreal.MaterialExpressionTextureSample, -550, texture=tex,
-                     sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+                     sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
         link(f, smp, "UVs")
         samples.append(smp)
     # How far from the camera across the ground (the sheet fades out before its edge, 150 km off).
