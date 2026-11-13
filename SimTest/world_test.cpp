@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <chrono>
 #include <map>
+#include <set>
 #include <cmath>
 #include <functional>
 #include <cstdlib>
@@ -987,31 +988,39 @@ int main()
 							Plan->FurnitureCount(RidePlan::PubSign), Pubs, Churches, Plan->FurnitureCount(RidePlan::CrossingBarrier));
 						// The livestock (stage 6): flocks and herds in the fields along the ride, lambs in spring, none on a road.
 						{
-							int Kinds[RidePlan::AnimalKinds] = {}, Trampled = 0, Squares = 0;
+							int Kinds[RidePlan::AnimalKinds] = {}, Trampled = 0, Squares = 0, Close = 0;
 							const int Was = Plan->Month;
 							int Spring = 0, Winter = 0;
 							for (int M : {5, 1})
 							{
 								const_cast<RidePlan&>(*Plan).Month = M;
+								// (the squares along it and those either side: they keep their distance from the roads)
+								std::set<std::pair<long long, long long>> Done;
 								for (size_t I = 0; I < Plan->Road.size(); I += 60)
-								{
-									const double Tx = std::floor(Plan->Road[I].At.X / 256.0) * 256.0, Tz = std::floor(Plan->Road[I].At.Z / 256.0) * 256.0;
-									std::vector<RideAnimal> Herd;
-									Plan->AnimalsTile(Tx, Tz, 256.0, Herd);
-									Squares += M == 5 ? 1 : 0;
-									for (const RideAnimal& Beast : Herd)
-									{
-										if (M == 5) ++Kinds[Beast.Kind];
-										(M == 5 ? Spring : Winter) += Beast.Kind >= RidePlan::CowGraze ? 1 : 0;
-										if (!std::isnan(Plan->RoadHeight(Tx + Beast.X, Tz + Beast.Z))) ++Trampled;
-									}
-								}
+									for (int Dx = -1; Dx <= 1; ++Dx)
+										for (int Dz = -1; Dz <= 1; ++Dz)
+										{
+											const long long Cx = static_cast<long long>(std::floor(Plan->Road[I].At.X / 256.0)) + Dx, Cz = static_cast<long long>(std::floor(Plan->Road[I].At.Z / 256.0)) + Dz;
+											if (!Done.insert({Cx, Cz}).second) continue;
+											const double Tx = double(Cx) * 256.0, Tz = double(Cz) * 256.0;
+											std::vector<RideAnimal> Herd;
+											Plan->AnimalsTile(Tx, Tz, 256.0, Herd);
+											Squares += M == 5 ? 1 : 0;
+											for (const RideAnimal& Beast : Herd)
+											{
+												if (M == 5) ++Kinds[Beast.Kind];
+												(M == 5 ? Spring : Winter) += Beast.Kind >= RidePlan::CowGraze ? 1 : 0;
+												if (!std::isnan(Plan->RoadHeight(Tx + Beast.X, Tz + Beast.Z))) ++Trampled;
+												for (const RoadPoint& Rp : Plan->Road)
+													if (Rp.At.DistanceTo(P2(Tx + Beast.X, Tz + Beast.Z)) < RidePlan::FarFromRoad) { ++Close; break; }
+											}
+										}
 							}
 							const_cast<RidePlan&>(*Plan).Month = Was;
-							std::printf("      animals in %d squares along it (May): %d ewes, %d lambs, %d cattle (January: %d cattle out); %d on a road\n", Squares,
-								Kinds[RidePlan::EweGraze] + Kinds[RidePlan::EweLook] + Kinds[RidePlan::EweLie], Kinds[RidePlan::Lamb], Spring, Winter, Trampled);
-							Check(Kinds[RidePlan::EweGraze] > 20 && Kinds[RidePlan::Lamb] > 5 && Spring > 0 && Winter < Spring && Trampled == 0,
-								"sheep in the fields with lambs in spring, cattle out in summer and mostly in for the winter, none on a road");
+							std::printf("      animals in %d squares along it (May): %d ewes, %d lambs, %d cattle (January: %d cattle out); %d on a road, %d near the ride's road\n", Squares,
+								Kinds[RidePlan::EweGraze] + Kinds[RidePlan::EweLook] + Kinds[RidePlan::EweLie], Kinds[RidePlan::Lamb], Spring, Winter, Trampled, Close);
+							Check(Kinds[RidePlan::EweGraze] > 20 && Kinds[RidePlan::Lamb] > 5 && Spring > 0 && Winter < Spring && Trampled == 0 && Close == 0,
+								"sheep in the fields with lambs in spring, cattle out in summer and mostly in for the winter, all well away from the roads");
 						}
 						// After dark (stage 7): lit windows and street lamps in the town squares, cat's eyes on the road
 						// out of them.

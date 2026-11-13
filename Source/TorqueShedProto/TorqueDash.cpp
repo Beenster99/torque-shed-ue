@@ -259,7 +259,7 @@ void FTorqueDash::UpdateClocks(int32 Units)
 	FString Text;
 	FColor Colour;
 	// (the sat nav's next turn, on a ride with one)
-	const FString Nav = bNav ? (bNavOff ? FString(TEXT("OFF ROUTE")) : NavMark(NavTurn) + TEXT(" ") + NavDistance(NavTo, bMetric)) : FString();
+	const FString Nav = bNav ? (bNavOff ? FString(bNavRerouting ? TEXT("REROUTING") : TEXT("OFF ROUTE")) : NavMark(NavTurn) + TEXT(" ") + NavDistance(NavTo, bMetric)) : FString();
 	if (bDials)
 	{
 		Text = (bEngineOn ? GearText : FString(TEXT("OFF"))) + TEXT("\n") + BarsText;

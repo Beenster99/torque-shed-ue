@@ -359,6 +359,27 @@ int main(int Argc, char** Argv)
 				const bool On = Plan->NearestOf(Rx, Rz, RidePlan::NearOpts(), Hit);
 				std::printf("Roaming at (%.0f, %.0f): %d blocks laid in %.0f ms, %d roads in %d points; nearest road %s %.1f m off\n", Rx, Rz, Plan->BlocksLaid() - Before, RoamMs,
 					int(Roads.size()), int(Pts), On ? std::to_string(Hit.Which).c_str() : "none", On ? Hit.Dist : -1.0);
+				// (the sat nav's way back from a road there, heading north and then south)
+				for (const int W : Roads)
+				{
+					if (W == 0) continue;
+					const std::vector<RoadPoint>& On2 = Plan->RoadOf(W);
+					if (On2.size() < 4) continue;
+					const P2 At2 = On2[On2.size() / 2].At;
+					for (const double Heading : {0.0, 3.14159265})
+					{
+						const auto WayT0 = std::chrono::steady_clock::now();
+						const std::shared_ptr<const RideDetour> D = Plan->DetourFrom(At2.X, At2.Z, Heading, 0.0);
+						const double DMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - WayT0).count();
+						if (D == nullptr) { std::printf("  no way back from road %d\n", W); continue; }
+						std::printf("  the way back from road %d at (%.0f, %.0f) heading %.0f: %.2f km, %d turns, rejoins at %.2f km (%.1f ms)\n", W, At2.X, At2.Z, Heading, D->Length / 1000.0,
+							int(D->Turns.size()), D->RejoinAlong / 1000.0, DMs);
+						for (const RidePlan::RideTurn& Tn : D->Turns) std::printf("    at %.2f km turn %d onto %s\n", Tn.Along / 1000.0, Tn.Turn, Tn.Onto.c_str());
+						const RidePlan::RideNav Nv = Plan->NavDetour(*D, At2.X, At2.Z);
+						std::printf("    nav: turn %d in %.0f m onto %s; %.2f km to the finish; on %s\n", Nv.Turn, Nv.ToTurn, Nv.Onto.c_str(), Nv.ToFinish / 1000.0, Nv.Road.c_str());
+					}
+					break;
+				}
 			}
 		}
 		int Shown = 0;

@@ -45,7 +45,15 @@ struct RideMesh;
 struct Tint;
 struct RoamArea;
 struct RideGuide;
+struct RideDetour;
 }
+// [ride anywhere] The sat nav's own: the way back from off the ride's road, and how the rider is going.
+struct FRideNavState
+{
+	std::shared_ptr<const TorqueWorld::RideDetour> Detour;
+	double OffSince = -1.0, LastTry = -1e9, Heading = 0.0;
+	FVector2D Prev = FVector2D(1e12, 1e12);
+};
 struct FTorqueRideJobs;
 struct FTorqueDash;
 
@@ -131,6 +139,7 @@ private:
 	std::shared_ptr<TorqueWorld::RidePlan> Plan;
 	std::shared_ptr<const TorqueWorld::RoamArea> Roam;
 	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
+	FRideNavState NavState;
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;

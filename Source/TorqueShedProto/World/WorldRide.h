@@ -221,6 +221,8 @@ struct RideSummary
 	double Litres(double PerHundredKm) const { return Metres / 100000.0 * PerHundredKm; }
 };
 
+struct RideDetour;
+
 class RidePlan
 {
 public:
@@ -311,6 +313,7 @@ public:
 	const SideRoad* SideOf(int Which) const;
 	const std::vector<RoadPoint>& RoadOf(int Which) const;
 	const std::vector<int>& PlanSides() const { return Planned; }
+	static constexpr double FarFromRoad = 140.0;   // the livestock keep this far from any road (and 40 m more)
 	static constexpr double SideReach = 300.0;  // roads this near the ride's (about) are laid with it
 	static constexpr double BlockSize = 512.0;
 	static constexpr double TileMargin = 1000.0;   // the fine ground fetched this far round a block
@@ -733,6 +736,20 @@ public:
 		std::string Road, Place;
 	};
 	RideNav NavAt(double X, double Z, double Was = -1.0) const;
+	// [ride anywhere] The way back when the rider has left the ride's road: from the junction ahead of
+	// them on the road they are on (Heading: sim, 0 faces -z, + left) by the map's roads to the junction
+	// of the ride's road ahead of Was that leaves least to ride to the finish, with its turns (the last
+	// onto the ride's road there, Onto its name). Null when they are on no road, or none gets back.
+	std::shared_ptr<const RideDetour> DetourFrom(double X, double Z, double Heading, double Was) const;
+	// The sat nav along a detour (as NavAt; OffRoute when more than 40 m off it).
+	RideNav NavDetour(const RideDetour& D, double X, double Z) const;
+	// The junctions of the ride's road, each with how far along it is and the edge it leaves by (-1 the last).
+	struct PathNode
+	{
+		int Node = -1, Next = -1;
+		double Along = 0.0;
+	};
+	std::vector<PathNode> PathNodes;
 	// [OSM stage 1] The road's facts along the ride (World/WorldRideFacts.cpp), worked out when the ride
 	// is planned. Facts: each stretch of the map's road the ride follows, From..To along it, with the
 	// limit the map gives (km/h, 0 none), its name, class and whether it is gravel. Limits: the limit
@@ -852,5 +869,14 @@ private:
 	int CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const;
 	std::shared_ptr<SceneIndex> Scene;
 	void IndexScenery();
+};
+// [ride anywhere] The sat nav's way back to the ride's road (RidePlan::DetourFrom).
+struct RideDetour
+{
+	std::vector<P2> Line;                    // from the rider, by the roads, to where it rejoins
+	std::vector<double> Along;               // how far along Line each point is
+	std::vector<RidePlan::RideTurn> Turns;   // along Line; the last where it rejoins
+	double Length = 0.0;
+	double RejoinAlong = 0.0;                // how far along the ride's road it rejoins
 };
 } // namespace TorqueWorld

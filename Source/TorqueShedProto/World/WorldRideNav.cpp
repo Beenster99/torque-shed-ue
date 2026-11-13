@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <queue>
+#include <unordered_map>
 
 namespace TorqueWorld
 {
@@ -91,11 +94,14 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	std::vector<double> Angles;
 	int Node = From;
 	double Raw = 0.0;
+	PathNodes.clear();
+	PathNodes.push_back({From, Path[0], 0.0});
 	for (size_t I = 0; I < Path.size(); ++I)
 	{
 		const int Next = G.OtherEnd(Path[I], Node);
 		Raw += G.Edges[size_t(Path[I])].Length;
 		Node = Next;
+		PathNodes.push_back({Node, I + 1 < Path.size() ? Path[I + 1] : -1, AlongOf(G.Nodes[size_t(Node)], Raw * Scale)});
 		if (I + 1 >= Path.size()) break;
 		const int Came = Path[I], Onto = Path[I + 1];
 		const std::vector<int>& Here = G.Adjacent[size_t(Node)];
@@ -273,6 +279,161 @@ RidePlan::RideNav RidePlan::NavAt(double X, double Z, double Was) const
 	}
 	N.LimitMph = Britain();
 	if (const RoadFact* F = FactAt(N.Along)) N.Road = F->Name;
+	N.Place = PlaceAt(X, Z);
+	return N;
+}
+std::shared_ptr<const RideDetour> RidePlan::DetourFrom(double X, double Z, double Heading, double Was) const
+{
+	using namespace RideNavBits;
+	const Region& G = Area.Roads;
+	NearOpts Opts;
+	NearHit Hit;
+	if (PathNodes.empty() || !NearestOf(X, Z, Opts, Hit) || Hit.Which <= 0 || Hit.Dist > Hit.Half + 25.0) return nullptr;
+	const SideRoad* On = SideOf(Hit.Which);
+	if (On == nullptr || On->Edge < 0 || size_t(On->Edge) >= G.Edges.size()) return nullptr;
+	const RoadEdge& Edge = G.Edges[size_t(On->Edge)];
+	// Which end the rider is heading for: the road's own way at their point against their heading.
+	const std::vector<RoadPoint>& Pts = On->Pts;
+	const size_t I0 = size_t(std::max(0, std::min(Hit.Index, int(Pts.size()) - 2)));
+	const P2 Way = Pts[I0 + 1].At - Pts[I0].At;
+	const P2 Facing(-std::sin(Heading), -std::cos(Heading));
+	const bool ToEnd = Way.X * Facing.X + Way.Z * Facing.Z >= 0.0;
+	// (the laid road's ends are its edge's: A at its first point unless the edge was laid the other way)
+	const bool AFirst = Edge.Line.front().DistanceTo(Pts.front().At) <= Edge.Line.back().DistanceTo(Pts.front().At);
+	const int Start = ToEnd == AFirst ? Edge.B : Edge.A;
+	const double FirstBit = ToEnd ? On->Length - Hit.Along : Hit.Along;
+	// The ride's junctions ahead, by what each leaves to ride.
+	std::unordered_map<int, size_t> Ahead;
+	for (size_t K = 0; K < PathNodes.size(); ++K)
+		if (PathNodes[K].Along > Was + 30.0 && Ahead.count(PathNodes[K].Node) == 0) Ahead[PathNodes[K].Node] = K;
+	if (Ahead.empty()) return nullptr;
+	// Out from the junction ahead by the map's roads (every road both ways), nearest first, until the
+	// nearest left can't beat the best found.
+	std::vector<double> Dist(G.Nodes.size(), 1e18);
+	std::vector<int> Came(G.Nodes.size(), -1);
+	using Reach = std::pair<double, int>;
+	std::priority_queue<Reach, std::vector<Reach>, std::greater<Reach>> Next;
+	Dist[size_t(Start)] = 0.0;
+	Next.push({0.0, Start});
+	double Best = 1e18;
+	int BestNode = -1;
+	while (!Next.empty())
+	{
+		const Reach Top = Next.top();
+		Next.pop();
+		if (Top.first > Dist[size_t(Top.second)]) continue;
+		if (Top.first >= Best) break;
+		const auto It = Ahead.find(Top.second);
+		if (It != Ahead.end())
+		{
+			const double Left = Top.first + (FinishM - PathNodes[It->second].Along);
+			if (Left < Best) { Best = Left; BestNode = Top.second; }
+		}
+		for (const int E : G.Adjacent[size_t(Top.second)])
+		{
+			const int Other = G.OtherEnd(E, Top.second);
+			// (a farm track or a service road only where nothing else goes)
+			const std::string& Class = G.ClassOf(E);
+			const double D = Top.first + G.Edges[size_t(E)].Length * (Class == "track" || Class == "service" ? 4.0 : 1.0);
+			if (D < Dist[size_t(Other)]) { Dist[size_t(Other)] = D; Came[size_t(Other)] = E; Next.push({D, Other}); }
+		}
+	}
+	if (BestNode < 0) return nullptr;
+	std::vector<int> Path;
+	for (int N = BestNode; N != Start; N = G.OtherEnd(Came[size_t(N)], N)) Path.push_back(Came[size_t(N)]);
+	std::reverse(Path.begin(), Path.end());
+	std::shared_ptr<RideDetour> D = std::make_shared<RideDetour>();
+	// Its line: from the rider along their road to the junction ahead, then the map's roads.
+	{
+		std::vector<P2> Line = {P2(X, Z)};
+		if (ToEnd) { for (size_t K = I0 + 1; K < Pts.size(); ++K) Line.push_back(Pts[K].At); }
+		else { for (size_t K = I0 + 1; K-- > 0;) Line.push_back(Pts[K].At); }
+		const std::vector<P2> Rest = G.PathLine(Start, Path);
+		for (const P2& P : Rest)
+			if (Line.empty() || P.DistanceTo(Line.back()) > 0.5) Line.push_back(P);
+		D->Line = Line;
+		D->Along.assign(Line.size(), 0.0);
+		for (size_t K = 1; K < Line.size(); ++K) D->Along[K] = D->Along[K - 1] + Line[K].DistanceTo(Line[K - 1]);
+		D->Length = D->Along.back();
+	}
+	const PathNode& Rejoin = PathNodes[Ahead[BestNode]];
+	D->RejoinAlong = Rejoin.Along;
+	// Its turns: at each junction on the way, as the ride's own are found; the last onto the ride's road.
+	std::vector<int> Edges = {On->Edge};
+	Edges.insert(Edges.end(), Path.begin(), Path.end());
+	if (Rejoin.Next >= 0) Edges.push_back(Rejoin.Next);
+	int Node = Start;
+	double Gone = FirstBit;
+	std::vector<double> Bends;
+	for (size_t K = 0; K + 1 < Edges.size(); ++K)
+	{
+		if (K > 0) { Gone += G.Edges[size_t(Edges[K])].Length; Node = G.OtherEnd(Edges[K], Node); }
+		const int Came1 = Edges[K], Onto = Edges[K + 1];
+		const bool Last = K + 2 == Edges.size() && Rejoin.Next >= 0;
+		const std::vector<int>& Here = G.Adjacent[size_t(Node)];
+		const P2 Back = HeadingOut(G, Came1, Node);
+		const P2 In(-Back.X, -Back.Z);
+		const double Ours = TurnOf(In, HeadingOut(G, Onto, Node));
+		double Straightest = 1e9;
+		for (int E : Here)
+			if (E != Came1 && E != Onto) Straightest = std::min(Straightest, std::fabs(TurnOf(In, HeadingOut(G, E, Node))));
+		if (!Last && (Here.size() < 3 || !(std::fabs(Ours) > 0.6 || Straightest < std::fabs(Ours) || (G.NameOf(Onto) != G.NameOf(Came1) && std::fabs(Ours) > 0.26)))) continue;
+		// (a roundabout or a staggered crossroads: two turns close together are one)
+		if (!D->Turns.empty() && Gone - D->Turns.back().Along < 30.0)
+		{
+			Bends.back() += Ours;
+			D->Turns.back().Turn = TurnKind(Bends.back());
+			D->Turns.back().Onto = G.NameOf(Onto);
+			continue;
+		}
+		RideTurn T;
+		T.Along = std::min(Gone, D->Length);
+		T.Turn = TurnKind(Ours);
+		T.Onto = G.NameOf(Onto);
+		D->Turns.push_back(T);
+		Bends.push_back(Ours);
+	}
+	if (D->Turns.empty() || D->Turns.back().Along < D->Length - 1.0)
+	{
+		RideTurn T;
+		T.Along = D->Length;
+		T.Turn = 0;
+		T.Onto = G.NameOf(Rejoin.Next >= 0 ? Rejoin.Next : Path.empty() ? On->Edge : Path.back());
+		D->Turns.push_back(T);
+	}
+	return D;
+}
+
+RidePlan::RideNav RidePlan::NavDetour(const RideDetour& D, double X, double Z) const
+{
+	RideNav N;
+	double Best = 1e18, At = 0.0;
+	for (size_t K = 0; K + 1 < D.Line.size(); ++K)
+	{
+		const P2 A = D.Line[K], Ab = D.Line[K + 1] - A;
+		const double L2 = Ab.X * Ab.X + Ab.Z * Ab.Z;
+		const double T = L2 > 1e-9 ? std::clamp(((X - A.X) * Ab.X + (Z - A.Z) * Ab.Z) / L2, 0.0, 1.0) : 0.0;
+		const double Dx = A.X + Ab.X * T - X, Dz = A.Z + Ab.Z * T - Z;
+		const double D2 = Dx * Dx + Dz * Dz;
+		if (D2 < Best) { Best = D2; At = D.Along[K] + (D.Along[K + 1] - D.Along[K]) * T; }
+	}
+	N.OffRoute = std::sqrt(Best) > 40.0;
+	N.Along = At;
+	N.ToFinish = std::max(D.Length - At, 0.0) + std::max(FinishM - D.RejoinAlong, 0.0);
+	N.Turn = Finish;
+	for (const RideTurn& T : D.Turns)
+		if (T.Along > At + 3.0)
+		{
+			N.Turn = T.Turn;
+			N.ToTurn = T.Along - At;
+			N.Onto = T.Onto;
+			break;
+		}
+	NearOpts Opts;
+	NearHit Hit;
+	if (NearestOf(X, Z, Opts, Hit) && Hit.Which > 0)
+		if (const SideRoad* On = SideOf(Hit.Which)) N.Road = Area.Roads.NameOf(On->Edge);
+	N.LimitMph = Britain();
 	N.Place = PlaceAt(X, Z);
 	return N;
 }
