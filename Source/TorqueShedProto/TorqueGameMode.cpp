@@ -153,8 +153,27 @@ FString ATorqueGameMode::InitNewPlayer(APlayerController* NewPlayerController, c
 {
 	const FString Error = Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
 	const FString Name = UGameplayStatics::ParseOption(Options, TEXT("TorqueName"));
-	if (NewPlayerController && !Name.IsEmpty()) ChangeName(NewPlayerController, Name.Left(20), false);
+	if (NewPlayerController && !Name.IsEmpty()) ChangeName(NewPlayerController, UniqueName(NewPlayerController, Name.Left(20)), false);
 	return Error;
+}
+
+FString ATorqueGameMode::UniqueName(const AController* For, const FString& Want)
+{
+	const UWorld* World = For ? For->GetWorld() : nullptr;
+	const AGameStateBase* GS = World ? World->GetGameState() : nullptr;
+	if (!GS) return Want;
+	auto Taken = [GS, For](const FString& Name) {
+		for (const APlayerState* PS : GS->PlayerArray)
+			if (PS && PS->GetOwner() != For && PS->GetPlayerName().Equals(Name, ESearchCase::IgnoreCase)) return true;
+		return false;
+	};
+	if (!Taken(Want)) return Want;
+	for (int32 N = 2; N < 100; ++N)
+	{
+		const FString Next = FString::Printf(TEXT("%s %d"), *Want.Left(17), N);
+		if (!Taken(Next)) return Next;
+	}
+	return Want;
 }
 
 void ATorqueGameMode::PostLogin(APlayerController* NewPlayer)

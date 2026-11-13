@@ -87,14 +87,19 @@ void FTorqueRoutePlanner::Open(UTorqueWorldSubsystem* InWorld)
 	Finds.clear();
 	bDown = bDragged = false;
 	bViewDirty = true;
-	if (Want.Pins.empty() && InWorld)
+	// [co-op] A journey the riders are already planning together is the one shown; else this
+	// player's last, which goes out to everyone.
+	SharedSeen.Reset();
+	if (!TakeShared(true))
 	{
-		TorqueWorld::RouteRequest Last;
-		FString LastTitle;
-		if (InWorld->LastJourney(Last, LastTitle)) SetJourney(Last, LastTitle);
+		if (Want.Pins.empty() && InWorld)
+		{
+			TorqueWorld::RouteRequest Last;
+			FString LastTitle;
+			if (InWorld->LastJourney(Last, LastTitle)) SetJourney(Last, LastTitle);
+		}
+		if (OnJourneyChanged && Want.Pins.size() >= 2) OnJourneyChanged(TRPI::ToF(TorqueWorld::Route::CodeOf(Want)), Title);
 	}
-	// (a co-op host's journey already up when the planner opens goes out to everyone too)
-	if (OnJourneyChanged && Want.Pins.size() >= 2) OnJourneyChanged(TRPI::ToF(TorqueWorld::Route::CodeOf(Want)), Title);
 	if (Want.Pins.empty())
 	{
 		// (the whole of Great Britain)
@@ -125,6 +130,34 @@ void FTorqueRoutePlanner::Changed()
 	if (Want.Pins.size() >= 2 && TorqueWorld::Route::FromCode(TorqueWorld::Route::CodeOf(Want), AsCoded)) Want = AsCoded;
 	if (!bNamed) Title = MadeTitle();
 	if (OnJourneyChanged && Want.Pins.size() >= 2) OnJourneyChanged(TRPI::ToF(TorqueWorld::Route::CodeOf(Want)), Title);
+}
+
+bool FTorqueRoutePlanner::TakeShared(bool bOpening)
+{
+	FString Code, Name, By;
+	bool bMine = false;
+	if (!SharedJourney || !SharedJourney(Code, Name, By, bMine) || Code.IsEmpty()) return false;
+	if (Code == SharedSeen) return false;
+	SharedSeen = Code;
+	// (this player's own change coming back, or already the journey here)
+	if (!bOpening && bMine) return false;
+	if (Want.Pins.size() >= 2 && TRPI::ToF(TorqueWorld::Route::CodeOf(Want)) == Code) return true;
+	TorqueWorld::RouteRequest Theirs;
+	if (!TorqueWorld::Route::FromCode(TCHAR_TO_UTF8(*Code), Theirs)) return false;
+	Want = Theirs;
+	if (!TorqueWorld::Route::IsStyle(Want.Mode)) Want.Mode = "main";
+	Title = Name;
+	bNamed = !Name.IsEmpty() && Name != MadeTitle();
+	if (!bNamed) Title = MadeTitle();
+	LoopOn = -1;
+	++Serial;   // (planned afresh here, as any change; not sent back)
+	bRideWhenPlanned = false;
+	ChangedAt = FPlatformTime::Seconds();
+	if (bOpening)
+		FitTo(Want.Pins);
+	else if (!By.IsEmpty())
+		Say(FString::Printf(TEXT("%s changed the journey."), *By));
+	return true;
 }
 
 bool FTorqueRoutePlanner::PreviewGood() const
@@ -271,6 +304,11 @@ void FTorqueRoutePlanner::Ride()
 {
 	UTorqueWorldSubsystem* W = World.Get();
 	if (!W || Want.Pins.size() < 2) return;
+	if (!bCanSetOff)
+	{
+		Say(TEXT("The host sets off: everyone rides this journey once they do."));
+		return;
+	}
 	if (WaitingFor)
 	{
 		const FString Who = WaitingFor();
@@ -373,6 +411,7 @@ bool FTorqueRoutePlanner::Tick(APlayerController* PC)
 	UTorqueWorldSubsystem* W = World.Get();
 	if (!PC || !W) return false;
 	const double Now = FPlatformTime::Seconds();
+	TakeShared(false);   // [co-op] another rider's pins
 	float MX = 0.0f, MY = 0.0f;
 	Mouse = PC->GetMousePosition(MX, MY) ? FVector2D(MX, MY) : FVector2D(-1.0, -1.0);
 	const auto Just = [PC](const FKey& K) { return PC->WasInputKeyJustPressed(K); };
@@ -918,10 +957,11 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 		const float BY = SH - Foot - 54.0f * S;
 		const bool bCan = Want.Pins.size() >= 2;
 		const FString Who = WaitingFor ? WaitingFor() : FString();
-		const FString Label = !Who.IsEmpty() ? FString::Printf(TEXT("Waiting for %s"), *Who)
+		const FString Label = !bCanSetOff ? FString(TEXT("The host sets off"))
+			: !Who.IsEmpty() ? FString::Printf(TEXT("Waiting for %s"), *Who)
 			: bPlanned ? FString(WaitingFor ? TEXT("Ride it (everyone)") : TEXT("Ride it"))
 			: (W->IsPlanningRide() && PlanFor == Serial ? FString(TEXT("Ride it (once planned)")) : FString(TEXT("Ride it")));
-		Button(Canvas, X0, BY, PW, 48.0f * S, Label, bCan && Who.IsEmpty(), bCan, [this]() { Ride(); }, 20.0f * S);
+		Button(Canvas, X0, BY, PW, 48.0f * S, Label, bCan && Who.IsEmpty() && bCanSetOff, bCan && bCanSetOff, [this]() { Ride(); }, 20.0f * S);
 	}
 	// Notes, and the keys.
 	if (FPlatformTime::Seconds() < SaidUntil && !Said.IsEmpty())

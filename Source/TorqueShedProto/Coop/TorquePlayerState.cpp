@@ -2,6 +2,8 @@
 
 #include "HandsState.h"
 #include "TorqueSettings.h"
+#include "TorqueGameMode.h"
+#include "TorqueGameState.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/PlayerController.h"
@@ -23,6 +25,15 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 void ATorquePlayerState::ServerSetRideReady_Implementation(const FString& Code)
 {
 	RideReadyFor = Code.Left(4096);
+}
+
+void ATorquePlayerState::ServerSetRideJourney_Implementation(const FString& Code, const FString& Name)
+{
+	ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	if (!GS || Code.IsEmpty() || Code.Len() > 4096 || Code.Contains(TEXT("\n"))) return;
+	FString Clean = Name.Left(80);
+	Clean.ReplaceInline(TEXT("\n"), TEXT(" "));
+	GS->SetRideJourney(Code + TEXT("\n") + Clean, GetPlayerName(), GetPlayerId());
 }
 
 void ATorquePlayerState::CopyProperties(APlayerState* Into)
@@ -50,7 +61,11 @@ void ATorquePlayerState::ServerSetLook_Implementation(const FString& NewName, ui
 	if (!Clean.IsEmpty() && Clean != GetPlayerName())
 	{
 		if (AGameModeBase* Mode = GetWorld() ? GetWorld()->GetAuthGameMode() : nullptr)
-			if (AController* C = GetOwningController()) Mode->ChangeName(C, Clean, false);
+			if (AController* C = GetOwningController())
+			{
+				const FString Unique = ATorqueGameMode::UniqueName(C, Clean);   // [co-op] never two of one name
+				if (Unique != GetPlayerName()) Mode->ChangeName(C, Unique, false);
+			}
 	}
 }
 

@@ -289,11 +289,14 @@ void UTorqueNetBikeComponent::SetUpSound(bool bRemote)
 		At.bAttenuate = true;
 		At.bSpatialize = true;
 		At.AttenuationShape = EAttenuationShape::Sphere;
-		At.AttenuationShapeExtents = FVector(300.0, 0.0, 0.0);
-		At.FalloffDistance = 40000.f;
+		// (beenster, build 141: too loud from a distance. Full within 2 m, then falling away over
+		// 200 m to 60 dB down, and a touch quieter than our own even close by.)
+		At.AttenuationShapeExtents = FVector(200.0, 0.0, 0.0);
+		At.FalloffDistance = 20000.f;
 		At.DistanceAlgorithm = EAttenuationDistanceModel::NaturalSound;
-		At.dBAttenuationAtMax = -50.f;
+		At.dBAttenuationAtMax = -60.f;
 	}
+	A->SetVolumeMultiplier(bRemote ? 0.75f : 1.0f);
 	B->Sound->Ambience = !bRemote;
 	B->Sound->WindLevel = bRemote ? 0.15 : 1.0;
 	A->Play();

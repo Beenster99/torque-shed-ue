@@ -61,6 +61,8 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 	DOREPLIFETIME(ATorqueGameState, RideJourney);
+	DOREPLIFETIME(ATorqueGameState, RideJourneyBy);
+	DOREPLIFETIME(ATorqueGameState, RideJourneyById);
 	DOREPLIFETIME(ATorqueGameState, SkyDriftE);
 	DOREPLIFETIME(ATorqueGameState, SkyDriftN);
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);

@@ -540,7 +540,7 @@ void ATorqueShedScreens::EndPlay(const EEndPlayReason::Type Reason)
 int32 ATorqueShedScreens::ChannelOf(int32 Tv) const
 {
 	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-	return B ? B->TvChannel(Tv) : (int32)TorqueShedTv::Default[FMath::Clamp(Tv, 0, TorqueShedTv::Tvs - 1)];
+	return TorqueShedTv::Shown(B ? B->TvChannel(Tv) : (int32)TorqueShedTv::Default[FMath::Clamp(Tv, 0, TorqueShedTv::Tvs - 1)]);
 }
 
 bool ATorqueShedScreens::IsLive(int32 Tv) const
@@ -580,7 +580,7 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	auto PieceChannel = [Sub](int32 Id) -> int32
 	{
 		const FTorqueFurniture* F = Sub ? Sub->FurnitureById(Id) : nullptr;
-		return F ? (int32)F->Channel : -1;
+		return F ? TorqueShedTv::Shown(F->Channel) : -1;
 	};
 	for (const TPair<int32, int32>& KV : PieceShown)
 		if (KV.Value != PieceChannel(KV.Key)) bDirty = true;
@@ -657,7 +657,7 @@ void ATorqueShedScreens::Redraw()
 	for (const TPair<int32, UStaticMeshComponent*>& KV : PieceQuads)
 	{
 		const FTorqueFurniture* F = B ? B->FurnitureById(KV.Key) : nullptr;
-		if (F) DrawPiece(KV.Key, F->Channel, Now);
+		if (F) DrawPiece(KV.Key, TorqueShedTv::Shown(F->Channel), Now);
 	}
 }
 

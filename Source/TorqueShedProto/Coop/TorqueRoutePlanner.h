@@ -45,6 +45,12 @@ public:
 	// the same road), and asked who is still planning it ("" when everyone is ready to set off).
 	TFunction<void(const FString& Code, const FString& Name)> OnJourneyChanged;
 	TFunction<FString()> WaitingFor;
+	// [co-op] Everyone plans together (beenster, build 141): the journey the riders share as it
+	// stands (false for none yet), its name, who last changed it, and whether that was this player.
+	// Someone else's change is taken up as it comes, without moving this player's map.
+	TFunction<bool(FString& Code, FString& Name, FString& By, bool& bMine)> SharedJourney;
+	// Only the host sets off: a joined rider's Ride button says so.
+	bool bCanSetOff = true;
 	// The journey as it stands, and setting one (a co-op host's, a code): the map goes to it.
 	const TorqueWorld::RouteRequest& Journey() const { return Want; }
 	void SetJourney(const TorqueWorld::RouteRequest& NewJourney, const FString& Name);
@@ -59,6 +65,8 @@ private:
 	double ChangedAt = 0.0;
 	bool bRideWhenPlanned = false;
 	void Changed();
+	FString SharedSeen;   // [co-op] the shared journey's code last looked at
+	bool TakeShared(bool bOpening);
 	bool PreviewGood() const;
 	FString MadeTitle() const;
 

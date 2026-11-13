@@ -30,5 +30,7 @@ public:
 
 	// Launched with no "play" option on the map, alone, and with none of the -Torque test switches.
 	bool ShowsMenu() const;
+	// [co-op] Want, or "Want 2", "Want 3"... if another player in the game already has that name.
+	static FString UniqueName(const AController* For, const FString& Want);
 	bool IsShed() const;
 };

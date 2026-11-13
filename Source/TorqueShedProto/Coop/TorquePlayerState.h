@@ -47,6 +47,8 @@ public:
 	// game has planned, ready to set off on it ("" for none).
 	UPROPERTY(Replicated) FString RideReadyFor;
 	UFUNCTION(Server, Reliable) void ServerSetRideReady(const FString& Code);
+	// [co-op] This player's change to the shared journey in the Route planner (everyone plans it).
+	UFUNCTION(Server, Reliable) void ServerSetRideJourney(const FString& Code, const FString& Name);
 	// The hands (the owner's own copy is set at once; the others get the host's).
 	UPROPERTY(ReplicatedUsing = OnRep_Hands) FTorqueHandsNet Hands;
 	UFUNCTION() void OnRep_Hands(const FTorqueHandsNet& Before);
