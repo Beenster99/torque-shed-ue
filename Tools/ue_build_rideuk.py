@@ -489,6 +489,9 @@ def grass_materials(L, kit):
     log("grass materials: M_RideFoliage%s, %d scanned instances" % (", M_RideFoliageScan" if master else "", len(copied)))
 
 
+SCAN_DEST = "/Game/RideUK/ScannedTrees"
+
+
 def scanned_trees(L, kit):
     """Scanned trees (Data/RideUK/scanned_trees.json: Quixel Megaplants once imported on the PC) in
     the kit's "Trees" in place of Buttertubs' own models of the same kind, as species named
@@ -497,9 +500,9 @@ def scanned_trees(L, kit):
     if not os.path.exists(f) or "Trees" not in kit:
         return
     spec = json.load(open(f))
-    if not spec.get("enabled", True):
-        log("scanned trees: off (scanned_trees.json enabled=false); our own trees stay")
-        return
+    use = spec.get("enabled", True)
+    if not use:
+        log("scanned trees: off (scanned_trees.json enabled=false): our own trees stay; a trial of what would be used follows")
     norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
     skip = [norm(w) for w in spec.get("skip", [])]
     most = int(spec.get("most", 6))
@@ -538,6 +541,61 @@ def scanned_trees(L, kit):
                 return m.get_path_name()
         return None
 
+    def gs(*names):
+        """The first Geometry Script function found by name (its Python home moved between releases)."""
+        for home in ("GeometryScript_AssetUtils", "GeometryScript_SkeletalMeshFunctions", "GeometryScript_NewAssetUtils",
+                     "GeometryScript_CreateNewAssetFunctions", "GeometryScript_StaticMeshFunctions"):
+            c = getattr(unreal, home, None)
+            for n in names:
+                if c is not None and hasattr(c, n):
+                    return getattr(c, n)
+        return None
+
+    why = []
+
+    def static_of_skeletal(path):
+        """A Megaplant's whole tree is a SkeletalMesh (its bones sway in the wind): a static copy of it,
+        made once with Geometry Script into SCAN_DEST (Nanite, no collision, the tree's own materials).
+        The path of the copy, or None (the reason in why)."""
+        name = "SM_" + path.rsplit(".", 1)[-1]
+        dest = "%s/%s" % (SCAN_DEST, name)
+        if unreal.EditorAssetLibrary.does_asset_exist(dest):
+            return "%s.%s" % (dest, name)
+        copy = gs("copy_mesh_from_skeletal_mesh")
+        make = gs("create_new_static_mesh_asset_from_mesh")
+        if copy is None or make is None:
+            why.append("no Geometry Script (enable the GeometryScripting plugin)")
+            return None
+        try:
+            skel = unreal.load_asset(path)
+            dm = unreal.DynamicMesh()
+            res = copy(skel, dm, unreal.GeometryScriptCopyMeshFromAssetOptions(), unreal.GeometryScriptMeshReadLOD())
+            dm = res[0] if isinstance(res, (tuple, list)) else dm
+            opts = unreal.GeometryScriptCreateNewStaticMeshAssetOptions()
+            for prop, val in (("enable_nanite", True), ("enable_collision", False), ("enable_recompute_normals", False),
+                              ("enable_recompute_tangents", False)):
+                try:
+                    opts.set_editor_property(prop, val)
+                except Exception:
+                    pass
+            res = make(dm, dest, opts)
+            sm = res[0] if isinstance(res, (tuple, list)) else res
+            if not isinstance(sm, unreal.StaticMesh):
+                why.append("%s: no mesh made" % name)
+                return None
+            # (the tree's own materials, slot for slot as its sections were copied)
+            mats = []
+            for m in skel.get_editor_property("materials"):
+                mats.append(unreal.StaticMaterial(material_interface=m.get_editor_property("material_interface"),
+                                                  material_slot_name=m.get_editor_property("material_slot_name")))
+            if mats:
+                sm.set_editor_property("static_materials", mats)
+            unreal.EditorAssetLibrary.save_asset(dest, only_if_is_dirty=False)
+            return sm.get_path_name()
+        except Exception as e:
+            why.append("%s: %s" % (name, e))
+            return None
+
     for kind, words in spec["kinds"].items():
         keys = [norm(w) for w in words]
         wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
@@ -546,6 +604,13 @@ def scanned_trees(L, kit):
         classes = sorted(set(c for _, c in theirs))
         log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
             ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
+        skels = sorted(p for p, c in theirs if c == "SkeletalMesh")[:most]
+        if skels:
+            # (Megaplants: the whole trees are skeletal meshes; the static ones are only leaves and buds)
+            made = [m for m in (static_of_skeletal(p) for p in skels) if m]
+            log("scanned trees: %s: %d whole trees from its skeletal meshes (%s)%s" % (kind, len(made),
+                ", ".join(p.rsplit(".", 1)[-1] for p in skels), ("; " + "; ".join(why[-3:])) if not made and why else ""))
+            got = made or got
         if not got and theirs:
             # (no plain mesh: whatever the vegetation assets hold or make)
             made = sorted(set(m for m in (mesh_of(p) for p, _ in theirs[:24]) if m))[:most]
@@ -555,13 +620,15 @@ def scanned_trees(L, kit):
         if not got:
             continue
         found[kind] = got
+        if not use:
+            continue
         # (ours of this kind go: the scanned ones take every tree of it, near and far)
         rows[:] = [r for r in rows if not (r["name"].startswith("SM_Tree_%s_" % kind) or r["name"].startswith("SM_TreeFar_%s_" % kind))]
         r = dict(template)
         r.update({"name": "SM_Tree_%s_scan" % kind, "mesh": "", "material": "", "variants": got, "variant_materials": [],
                   "native_mesh": True, "scale_multiplier": 1.0, "keep": 1.0, "cull_spread": 1.0, "min_draw_distance": 0.0, "cast_shadow": True})
         rows.append(r)
-    log("scanned trees: %s" % (", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
+    log("scanned trees%s: %s" % ("" if use else " (trial, not planted)", ", ".join("%s %d (%s)" % (k, len(v), v[0].rsplit("/", 1)[-1]) for k, v in found.items()) or
                                "none found (import the Megaplants on the PC; Data/RideUK/scanned_trees.json)"))
 
 

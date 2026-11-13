@@ -1,7 +1,7 @@
 {
  "_about": "Scanned trees (Quixel Megaplants, free on Fab) for Ride UK, by the ride's tree kinds (World/WorldRidePlants.cpp). Tools/ue_build_rideuk.py looks for static meshes anywhere under /Game whose path holds one of a kind's words (case, spaces and underscores ignored) and uses them in place of Buttertubs' own models of that kind. A kind with none found keeps ours; oak, beech, willow, rowan, pine and hazel then fall back to ash, sycamore, alder, birch, spruce and hawthorn. There is no Megaplants ash or hawthorn. 'skip' words leave out parts that aren't whole trees; 'most' caps the models per kind.",
  "enabled": false,
- "_enabled": "hub, round 143: off. Megaplants whole trees are SkeletalMesh / ProceduralVegetation assets; the only StaticMeshes are leaf, bud and decoration parts, which got planted as trees. Turn on once scanned_trees() uses the whole tree.",
+ "_enabled": "hub, round 143: off. Megaplants whole trees are SkeletalMesh / ProceduralVegetation assets; the only StaticMeshes are leaf, bud and decoration parts, which got planted as trees. Since 144 scanned_trees() turns the whole-tree SkeletalMeshes into static Nanite copies (Geometry Script, /Game/RideUK/ScannedTrees) and, while off, logs a trial of what it would plant. Turn on once that log names whole trees.",
  "most": 6,
  "skip": ["billboard", "impostor", "branch", "twig", "debris", "stump", "fallen", "leaves", "atlas", "sapling", "seedling", "leaf", "bud", "decoration"],
  "kinds": {

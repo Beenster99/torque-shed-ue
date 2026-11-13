@@ -25,6 +25,7 @@
 		{ "Name": "ChaosOutfitAsset", "Enabled": true, "Optional": true },
 		{ "Name": "ProceduralMeshComponent", "Enabled": true },
 		{ "Name": "ProceduralVegetationEditor", "Enabled": true },
+		{ "Name": "GeometryScripting", "Enabled": true, "TargetAllowList": [ "Editor" ] },
 		{ "Name": "AndroidFileServer", "Enabled": false }
 	]
 }
