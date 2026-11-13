@@ -14,6 +14,8 @@ colour, posed in code; without the file it keeps the shape body.
     py Tools/ue_metahumans.py make rig     the same, auto-rigging each in Epic's cloud first (sign-in)
     py Tools/ue_metahumans.py make rig nowardrobe   the same with no hair or clothes (whole bodies)
     py Tools/ue_metahumans.py make rig A B          only Avatar_A and Avatar_B (the others kept)
+    py Tools/ue_metahumans.py make nofab A          the Creator's own wardrobe only (no Fab clothes)
+    (make keeps each avatar's old build in /Game/MetaHumanBackup until the new one has its meshes)
     py Tools/ue_metahumans.py wardrobe     list what can dress them (Saved/metahuman_content.txt)
     py Tools/ue_metahumans.py fab          import beenster's Fab MetaHuman clothes (.mhpkg) for `make` (make does it too)
     py Tools/ue_metahumans.py slim         cap the avatars' textures at MAX_TEXTURE (make does it too)
@@ -157,6 +159,8 @@ _WARDROBE = None
 WEAR_CLASSES = ("wardrobe", "groom", "outfit", "cloth", "garment")
 
 
+NO_FAB = False   # `make nofab`: only the Creator's own wardrobe, never the Fab clothes
+BACKUP = "/Game/MetaHumanBackup"   # an avatar's previous build while a new one is made; never cooked
 FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; never cooked
 FAB_VAULT = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
 FAB_SKIP = ("helmet",)   # the helmet goes on the rider by Tools/ue_build_level.py
@@ -238,6 +242,10 @@ def _wardrobe():
         if "metahuman" in low_pkg or any(w in low_cls for w in WEAR_CLASSES):
             counts[(mount, cls)] = counts.get((mount, cls), 0) + 1
         if any(w in low_cls for w in WEAR_CLASSES) and "binding" not in low_cls and "cache" not in low_cls:
+            # Never the rider's helmet (round 141: its wardrobe item has no editor pipeline, and the
+            # build that picked it made no meshes at all), nor our own backups.
+            if "helmet" in low_pkg or low_pkg.startswith(BACKUP.lower() + "/") or (NO_FAB and low_pkg.startswith(FAB_WARDROBE.lower() + "/")):
+                continue
             found.append((pkg, str(a.asset_name), cls))
     path = os.path.join(project_dir(), "Saved", "metahuman_content.txt")
     try:
@@ -705,7 +713,16 @@ def make(rig=False, wardrobe=True, only=None):
                 if _is_rigged(sub, ch) is False:
                     log("%s: still not rigged after the auto-rig; trying once more" % name)
                     _auto_rig(sub, ch, name)
-                log("%s: rigged = %s" % (name, _is_rigged(sub, ch)))
+                state = _is_rigged(sub, ch)
+                log("%s: rigged = %s" % (name, state))
+                if state is not True:
+                    # Round 141: the cloud rig is asynchronous (it finishes on later editor ticks, which a
+                    # headless script never gives it), and building straight after made no meshes. So
+                    # build only once the rig can be seen to be done: rerun `make` (without rig) after it.
+                    unreal.log_warning("[Torque] %s: the auto-rig was requested but isn't confirmed done; NOT building. "
+                                       "Rig it in the editor (Docs/avatars.md), then run make without rig." % name)
+                    _save(ch, name)
+                    continue
             else:
                 log("%s: already rigged" % name)
             _texture_sources(sub, ch, name)
@@ -743,22 +760,45 @@ def make(rig=False, wardrobe=True, only=None):
                     unreal.log_warning("[Torque] %s: %s reads back %s, not %s" % (name, f, got, want))
                 log("%s: building with %s = %s" % (name, f, got))
             # A rebuild at another quality leaves the old build's files behind, and /Game/MetaHumans
-            # is always cooked, so clear this avatar's old build first.
-            if unreal.EditorAssetLibrary.does_directory_exist(folder):
-                log("%s: clearing the old build in %s" % (name, folder))
-                unreal.EditorAssetLibrary.delete_directory(folder)
+            # is always cooked, so the old build is moved aside first (to BACKUP, never cooked) and
+            # only deleted once the new one has its meshes. Round 141 lost all four avatars when a
+            # build made only a Blueprint after the old build had been deleted.
+            eal = unreal.EditorAssetLibrary
+            backup = BACKUP + "/" + name
+            had_old = eal.does_directory_exist(folder) and bool(eal.list_assets(folder, recursive=True))
+            if had_old:
+                if eal.does_directory_exist(backup):
+                    eal.delete_directory(backup)
+                moved = eal.rename_directory(folder, backup)
+                log("%s: old build moved aside to %s (%s)" % (name, backup, "ok" if moved else "FAILED"))
+                if not moved:
+                    unreal.log_warning("[Torque] %s: couldn't move the old build aside; not rebuilding it" % name)
+                    continue
+            made = {}
             try:
                 sub.build_meta_human(ch, bp)
-                built = True
                 log("%s: build_meta_human done" % name)
                 # What it made, by class: grooms and garments should be among them.
                 reg = unreal.AssetRegistryHelpers.get_asset_registry()
-                made = {}
+                reg.scan_paths_synchronous([folder], True)
                 for a in reg.get_assets_by_path(folder, recursive=True):
                     made[_cls_name(a)] = made.get(_cls_name(a), 0) + 1
                 log("%s: built %s" % (name, ", ".join("%d %s" % (n, c) for c, n in sorted(made.items()))))
             except Exception as e:
                 unreal.log_warning("[Torque] %s: build_meta_human failed: %s" % (name, e))
+            built = made.get("SkeletalMesh", 0) > 0
+            if built:
+                if had_old:
+                    eal.delete_directory(backup)
+                    log("%s: new build has %d skeletal meshes; old build deleted" % (name, made["SkeletalMesh"]))
+            else:
+                unreal.log_warning("[Torque] %s: the new build has NO skeletal meshes; putting the old build back" % name)
+                if eal.does_directory_exist(folder):
+                    eal.delete_directory(folder)
+                if had_old:
+                    back = eal.rename_directory(backup, folder)
+                    log("%s: old build restored from %s (%s)" % (name, backup, "ok" if back else "FAILED: it's still in " + backup))
+                    continue   # never the bare geometry export over a restored build
         if not built:
             # No rig to build with: export the preview body's skeletal mesh instead, so the game
             # can still pose a body (register lists a body-only mesh too).
@@ -1683,8 +1723,11 @@ def main(args):
         _wardrobe()
     elif mode == "make":
         rest = args[1:]
-        fab_wardrobe()
-        only = [a for a in rest if a not in ("rig", "nowardrobe")]   # e.g. `make rig A B`: just those
+        global NO_FAB
+        NO_FAB = "nofab" in rest
+        if not NO_FAB:
+            fab_wardrobe()
+        only = [a for a in rest if a not in ("rig", "nowardrobe", "nofab")]   # e.g. `make rig A B`: just those
         make(rig="rig" in rest, wardrobe="nowardrobe" not in rest, only=only or None)
         register()
     else:
