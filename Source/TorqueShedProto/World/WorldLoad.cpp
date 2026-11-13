@@ -104,6 +104,9 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 			Hashes.push_back(Name + ":" + (It != Idx->Features.end() ? It->second : std::string()));
 		}
 		if (Store.Kept(CellStore::EKind::Trees, Name, *Idx, File)) Out.Land->AddTrees(File);
+		// [OSM stage 4] Its ground (water shapes, land use, parks, car parks, single trees) and its paths.
+		if (Store.Kept(CellStore::EKind::Grounds, Name, *Idx, File)) Out.Roads.AddGround(File);
+		if (Store.Kept(CellStore::EKind::Paths, Name, *Idx, File)) Out.Roads.AddPaths(File);
 		// Its place profile says whether it has sea: land below sea level in a cell with none (a polder) is land.
 		// [OSM stage 1] And where it is: the county and the country.
 		if (Store.Kept(CellStore::EKind::Profiles, Name, *Idx, File) && !File.Flag("guessed", true))

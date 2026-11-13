@@ -22,7 +22,8 @@ struct Use
 Use Measure(const std::string& CellsDir, const std::string& HeightsDir);
 // How many cells the store may keep in a limit of LimitBytes for everything: the cells have 40% of it.
 int CellsToKeep(long long LimitBytes);
-static constexpr long long CellBytes = 2500000;
+// ([OSM stage 4] about 0.6 MB more a country cell, 3 MB a city one, with its ground and paths: Leyburn, York)
+static constexpr long long CellBytes = 3200000;
 // Deletes the height tiles fetched longest ago (and the notes of tiles that are none) until those kept
 // come to no more than 60% of LimitBytes. Returns the bytes freed.
 long long PruneHeights(const std::string& HeightsDir, long long LimitBytes);

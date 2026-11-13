@@ -39,6 +39,8 @@ struct WorldIndex
 	std::unordered_map<std::string, CellEntry> Cells;   // by "ROW_COL"
 	// The hash (the first 12 digits of its text's SHA-1) of each cell's own files, and each 5 degree block's sketch.
 	std::unordered_map<std::string, std::string> Streams, Trees, Features, Profiles, Sketches;
+	// [OSM stage 4] Each cell's ground (water shapes, land use, parks, car parks, single trees) and paths.
+	std::unordered_map<std::string, std::string> Grounds, Paths;
 	TorqueFit::Json Areas;   // named areas made of cells: {name: {title, frame, south, west, north, east}}
 
 	bool Parse(const std::string& Text);
@@ -54,7 +56,7 @@ public:
 	// GETs a URL, following redirects: the HTTP code (0 for no answer) and the body. Blocks.
 	using Fetcher = std::function<int(const std::string& Url, std::string& Body)>;
 	// A cell's own files beside the index.
-	enum class EKind { Streams, Trees, Features, Profiles, Sketches };
+	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths };
 	enum class EState { Here, Baked, Sea, Unknown };
 
 	// Where fetched cells (and the index) are kept, and other folders cells are found in (the game's own).

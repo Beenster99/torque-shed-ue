@@ -71,6 +71,45 @@ static int CurlGet(const std::string& Url, std::string& Body)
 	return std::atoi(Buf);
 }
 
+// [OSM stage 4] WORLD_RIDE_GROUND=<folder of ground_ROW_COL.json and paths_ROW_COL.json, as Tools' bakers
+// wrote them>: the store's index is given their hashes and the files are served from there, as if the
+// world's store had them already.
+static std::string GGround;
+static int FixtureGet(const std::string& Url, std::string& Body)
+{
+	if (!GGround.empty())
+		for (const char* Kind : {"ground", "paths"})
+		{
+			const std::string Mark = std::string("/") + Kind + "/c";
+			const size_t At = Url.find(Mark);
+			if (At == std::string::npos) continue;
+			const std::string Cell = Url.substr(At + Mark.size(), Url.size() - At - Mark.size() - 5);
+			if (Files::Read(Files::Join(GGround, std::string(Kind) + "_" + Cell + ".json"), Body)) return 200;
+		}
+	const int Code = CurlGet(Url, Body);
+	if (GGround.empty()) return Code;
+	const auto Ends = [&Url](const std::string& Tail) { return Url.size() >= Tail.size() && Url.compare(Url.size() - Tail.size(), Tail.size(), Tail) == 0; };
+	if (Ends("index.json") && Code == 200)
+	{
+		std::string Grounds, PathsJ;
+		for (const Files::FileFound& F : Files::Walk(GGround))
+		{
+			const std::string Base = F.Path.substr(F.Path.find_last_of('/') + 1);
+			std::string Text;
+			if (Base.size() < 6 || Base.compare(Base.size() - 5, 5, ".json") != 0 || (!Files::Read(F.Path, Text) && !Files::Read(Files::Join(GGround, F.Path), Text))) continue;
+			const bool IsGround = Base.rfind("ground_", 0) == 0, IsPaths = Base.rfind("paths_", 0) == 0;
+			if (!IsGround && !IsPaths) continue;
+			const std::string Cell = Base.substr(IsGround ? 7 : 6, Base.size() - 5 - (IsGround ? 7 : 6));
+			std::string& Into = IsGround ? Grounds : PathsJ;
+			Into += std::string(Into.empty() ? "" : ",") + "\"" + Cell + "\":\"" + CellStore::TextHash(Text) + "\"";
+		}
+		const size_t Last = Body.find_last_of('}');
+		if (Last != std::string::npos) Body.insert(Last, ",\"grounds\":{" + Grounds + "},\"paths\":{" + PathsJ + "}");
+		return Code;
+	}
+	return Code;
+}
+
 int main(int Argc, char** Argv)
 {
 	if (Argc != 2 && Argc != 6)
@@ -91,7 +130,8 @@ int main(int Argc, char** Argv)
 	Files::Write(Files::Join(GTmp, "here"), "");
 	CellStore Cells;
 	Cells.Dir = Files::Join(Root, "cells");
-	Cells.Get = CurlGet;
+	Cells.Get = FixtureGet;
+	if (const char* Fixtures = std::getenv("WORLD_RIDE_GROUND")) GGround = Fixtures;
 	HeightStore Heights;
 	Heights.Disk = Files::Join(Root, "heights");
 	// [stage 8] WORLD_RIDE_JOURNEYS=<a file of journeys, as the famous roads'> plans each in turn (the
@@ -292,6 +332,18 @@ int main(int Argc, char** Argv)
 			}
 		}
 		std::printf("The road's edges against the land's mesh: grass over the tarmac at %d of %d (%.3f m at most); over the shoulder's level part at %d; the shoulder's foot in the air at %d (%.3f m at most)\n", Over, Asked2, Worst, OverFlat, Air, WorstAir);
+	}
+	{
+		// [OSM stage 4] The ground and paths the cells brought (none until the store has them, or WORLD_RIDE_GROUND).
+		const GroundData& Gd = Plan->Area.Roads.Ground;
+		std::map<std::string, int> ByKind;
+		for (const GroundShape& Sh : Gd.Areas) ++ByKind[Sh.Kind];
+		for (const GroundShape& Sh : Gd.Lines) ++ByKind[Sh.Kind];
+		for (const GroundShape& Sh : Gd.Points) ++ByKind[Sh.Kind];
+		for (const GroundShape& Sh : Gd.Paths) ++ByKind[Sh.Kind];
+		std::printf("Ground: %d areas, %d lines, %d points, %d paths;", int(Gd.Areas.size()), int(Gd.Lines.size()), int(Gd.Points.size()), int(Gd.Paths.size()));
+		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
+		std::printf("\n");
 	}
 	if (const char* LinesAt = std::getenv("WORLD_RIDE_LINES_AT"))
 	{

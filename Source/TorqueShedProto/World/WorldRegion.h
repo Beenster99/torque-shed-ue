@@ -84,6 +84,20 @@ struct BuildingLook
 	P2 At;
 	std::string Words[6];
 };
+// [OSM stage 4] The ground between the roads (a cell's ground file) and the paths beside them (its paths
+// file): each a kind ("lake", "car_park", "footway"...), a word ("soccer" for a pitch, a tree's species, a
+// path's surface; "" none), a name where kept, and its shape: an area's outer ring, a line, or one point.
+struct GroundShape
+{
+	std::string Kind, Word, Name;
+	std::vector<P2> Pts;
+	double Width = 0.0;   // (m: a line's, where the map gives it; 0 none)
+};
+struct GroundData
+{
+	std::vector<GroundShape> Areas, Lines, Points, Paths;
+	bool Empty() const { return Areas.empty() && Lines.empty() && Points.empty() && Paths.empty(); }
+};
 struct Features
 {
 	std::vector<FeaturePoint> Points;
@@ -121,6 +135,8 @@ public:
 	std::vector<Span> Spans;
 	std::vector<Stream> Streams;
 	Features Scenery;
+	// [OSM stage 4] Its ground and paths, where the store has them (AddGround, AddPaths).
+	GroundData Ground;
 	// [OSM stage 1] Each cell's place, from its place profile: its middle and "North Yorkshire, England".
 	struct CellPlace
 	{
@@ -178,6 +194,10 @@ public:
 	void AddFeatures(const TorqueFit::Json& File);
 	// The features files this game reads.
 	static constexpr int FeaturesFormat = 1;
+	// [OSM stage 4] A ground file and a paths file (a cell's) into the region's frame; another format is left out.
+	void AddGround(const TorqueFit::Json& File);
+	void AddPaths(const TorqueFit::Json& File);
+	static constexpr int GroundFormat = 1, PathsFormat = 1;
 	// A tower this tall (m) is a skyscraper, seen from miles off.
 	static constexpr double Skyscraper = 100.0;
 

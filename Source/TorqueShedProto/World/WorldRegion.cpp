@@ -417,6 +417,71 @@ void Region::AddStreams(const Json& Rows)
 	}
 }
 
+void Region::AddGround(const Json& File)
+{
+	if (!File.IsObject() || int(File.Num("format")) != GroundFormat) return;
+	const Frame F = FrameOf();
+	const Json* Kinds = File.Get("kinds");
+	const Json* FileNames = File.Get("names");
+	const Json* Words = File.Get("words");
+	const int KindCount = Kinds != nullptr ? int(Kinds->A.size()) : 0;
+	const auto KindOk = [KindCount](const Json& Row) { return int(Row.A[0].N) >= 0 && int(Row.A[0].N) < KindCount; };
+	// (areas: [kind, word, name, lat, lon, dlat, dlon, ...]; lines: [kind, width, word, lat, lon, ...]; points: [kind, word, lat, lon])
+	if (const Json* Rows = File.Get("areas"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 9 || !KindOk(Row)) continue;
+			GroundShape G;
+			G.Kind = Word(Kinds, Row.A[0]);
+			G.Word = Word(Words, Row.A[1]);
+			G.Name = Word(FileNames, Row.A[2]);
+			G.Pts = Steps(F, Row, 3);
+			if (G.Pts.size() >= 3) Ground.Areas.push_back(std::move(G));
+		}
+	if (const Json* Rows = File.Get("lines"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 7 || !KindOk(Row)) continue;
+			GroundShape G;
+			G.Kind = Word(Kinds, Row.A[0]);
+			G.Width = Row.A[1].IsNumber() ? Row.A[1].N : 0.0;
+			G.Word = Word(Words, Row.A[2]);
+			G.Pts = Steps(F, Row, 3);
+			if (G.Pts.size() >= 2) Ground.Lines.push_back(std::move(G));
+		}
+	if (const Json* Rows = File.Get("points"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 4 || !KindOk(Row)) continue;
+			GroundShape G;
+			G.Kind = Word(Kinds, Row.A[0]);
+			G.Word = Word(Words, Row.A[1]);
+			G.Pts.push_back(F.FromGeo(Row.A[2].N * 1e-5, Row.A[3].N * 1e-5));
+			Ground.Points.push_back(std::move(G));
+		}
+}
+
+void Region::AddPaths(const Json& File)
+{
+	if (!File.IsObject() || int(File.Num("format")) != PathsFormat) return;
+	const Frame F = FrameOf();
+	const Json* Kinds = File.Get("kinds");
+	const Json* PathSurfaces = File.Get("surfaces");
+	const int KindCount = Kinds != nullptr ? int(Kinds->A.size()) : 0;
+	// ([kind, width, surface, lat, lon, dlat, dlon, ...])
+	if (const Json* Rows = File.Get("lines"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 7 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			GroundShape G;
+			G.Kind = Word(Kinds, Row.A[0]);
+			G.Width = Row.A[1].IsNumber() ? Row.A[1].N : 0.0;
+			G.Word = Word(PathSurfaces, Row.A[2]);
+			G.Pts = Steps(F, Row, 3);
+			if (G.Pts.size() >= 2) Ground.Paths.push_back(std::move(G));
+		}
+}
+
 void Region::AddFeatures(const Json& File)
 {
 	if (!File.IsObject() || int(File.Num("format")) != FeaturesFormat) return;

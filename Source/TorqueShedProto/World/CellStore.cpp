@@ -31,6 +31,8 @@ const char* FolderOf(CellStore::EKind Kind)
 	case CellStore::EKind::Trees: return "tree";
 	case CellStore::EKind::Features: return "feature";
 	case CellStore::EKind::Profiles: return "profile";
+	case CellStore::EKind::Grounds: return "ground";
+	case CellStore::EKind::Paths: return "paths";
 	default: return "sketch";
 	}
 }
@@ -67,6 +69,8 @@ bool WorldIndex::Parse(const std::string& Text)
 	Hashes(Root, "features", Features);
 	Hashes(Root, "profiles", Profiles);
 	Hashes(Root, "sketches", Sketches);
+	Hashes(Root, "grounds", Grounds);
+	Hashes(Root, "paths", Paths);
 	if (const Json* A = Root.Get("areas")) Areas = *A;
 	return true;
 }
@@ -219,7 +223,8 @@ std::string CellStore::RefetchStale(const std::vector<CellId>& Cells, const Worl
 bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx, Json& Out)
 {
 	const std::unordered_map<std::string, std::string>& Map = Kind == EKind::Streams ? Idx.Streams
-		: (Kind == EKind::Trees ? Idx.Trees : (Kind == EKind::Features ? Idx.Features : (Kind == EKind::Profiles ? Idx.Profiles : Idx.Sketches)));
+		: Kind == EKind::Trees ? Idx.Trees : Kind == EKind::Features ? Idx.Features : Kind == EKind::Profiles ? Idx.Profiles
+		: Kind == EKind::Grounds ? Idx.Grounds : Kind == EKind::Paths ? Idx.Paths : Idx.Sketches;
 	auto It = Map.find(Name);
 	if (It == Map.end() || It->second.empty()) return false;
 	const std::string Rel = std::string(FolderOf(Kind)) + "/" + (Kind == EKind::Sketches ? "b" : "c") + Name + ".json";
