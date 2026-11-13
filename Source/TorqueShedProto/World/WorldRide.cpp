@@ -1107,6 +1107,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		SkylineTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);
 		WildTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands);   // [OSM stage 2 batch D] (the cliffs and dams)
 		TowersTile(X0, Z0, Size, Step <= 70.0 ? 0 : -1, *Stands); // [towns stage 2] (the tall buildings)
+		if (Step <= 70.0) FarBuildingsTile(X0, Z0, Size, Step, Step <= 20.0 ? 60.0 : 200.0, *Stands);   // [build 141] (the villages and towns far off)
 		if (Stands->Any()) Out.Extra = Stands;
 	}
 }

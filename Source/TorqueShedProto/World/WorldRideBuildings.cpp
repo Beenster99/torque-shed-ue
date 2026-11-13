@@ -200,7 +200,17 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					// (a point well outside the face whose opposite corners are A and C)
 					return At3(Centre.X + ((A.X + C.X) * 0.5 - Centre.X) * 50.0, Centre.Y, Centre.Z + ((A.Z + C.Z) * 0.5 - Centre.Z) * 50.0);
 				};
-				const double Sunk = -1.0;
+				// (its walls go down to below the lowest ground at its corners, so none stands with a corner
+				// in the air on a slope: beenster, build 141; a metre under where the ground is level)
+				double Sunk = -1.0;
+				for (double Su : {-1.0, 1.0})
+					for (double Sv : {-1.0, 1.0})
+					{
+						const P3 Corner = Local(Su * (HalfLong + 0.3), Sv * (HalfShort + 0.3), 0.0);
+						const double Gc = Ground(Corner.X, Corner.Z);
+						if (!std::isnan(Gc)) Sunk = std::fmin(Sunk, Gc - Base - 0.5);
+					}
+				Sunk = std::fmax(Sunk, -8.0);
 				const double Over = Shape == ERoof::Flat ? 0.0 : Thatch ? 0.55 : double(Look.Overhang), Drop = Rise > 0.0 ? Over * Rise / HalfShort : 0.0;
 				// (a hipped roof's ridge: shorter than the walls by the roof's depth each end, a point if it is square)
 				const double Ridge = std::fmax(0.0, HalfLong - HalfShort);
@@ -457,8 +467,9 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 						for (int Bay = 1; Bay < Bays; Bay += 2) Chimney(-HalfLong + Bay * BayW, Top - 1.0);
 					else if (Look.Chimney == LocalLook::GableEnds && Shape == ERoof::Gabled)
 					{
-						Chimney(-HalfLong + 0.3, Eaves);
-						if (HalfLong > 3.0 || Chance(B.X, B.Z, 12) < 0.5) Chimney(HalfLong - 0.3, Eaves);
+						// (each stack 10 cm proud of its gable: flush, the two faces fought, beenster build 141)
+						Chimney(-HalfLong + 0.2, Eaves);
+						if (HalfLong > 3.0 || Chance(B.X, B.Z, 12) < 0.5) Chimney(HalfLong - 0.2, Eaves);
 					}
 					else Chimney((Chance(B.X, B.Z, 12) - 0.5) * HalfLong * 0.8, Top - 1.0);
 				}
@@ -532,6 +543,81 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 									}
 						}
 					}
+				}
+			}
+		}
+}
+// [build 141 feedback] Farther off (beenster: "increase the drawing of objects in the very far
+// distance"): the coarse squares had no buildings at all, so villages and towns vanished past a few
+// hundred metres. Each building as a plain block under a plain pitched roof, its colours as the look
+// of the place would give it, 12 triangles; the small ones left out the farther the square.
+void RidePlan::FarBuildingsTile(double X0, double Z0, double Size, double Coarse, double MinArea, RideMesh& Out) const
+{
+	using namespace RideSceneBits;
+	if (!Scene || !Land) return;
+	const Region& G = Area.Roads;
+	const int CellX0 = int(std::floor(X0 / SceneCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / SceneCell)), CellZ0 = int(std::floor(Z0 / SceneCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / SceneCell));
+	static const Rgb Stone = {0.30f, 0.28f, 0.245f}, Slate = {0.085f, 0.085f, 0.095f}, StoneSlate = {0.17f, 0.155f, 0.13f};
+	// (the biggest first, and no more than 2,500 a square: a city's far square stays light)
+	std::vector<std::pair<double, int>> Chosen;
+	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
+		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
+		{
+			const auto It = Scene->Buildings.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
+			if (It == Scene->Buildings.end()) continue;
+			for (int Index : It->second)
+			{
+				const Building& B = G.Buildings[size_t(Index)];
+				if (B.X < X0 || B.X >= X0 + Size || B.Z < Z0 || B.Z >= Z0 + Size || B.W * B.D < MinArea) continue;
+				Chosen.emplace_back(-B.W * B.D, Index);
+			}
+		}
+	constexpr size_t Most = 2500;
+	if (Chosen.size() > Most)
+	{
+		std::nth_element(Chosen.begin(), Chosen.begin() + std::ptrdiff_t(Most), Chosen.end());
+		Chosen.resize(Most);
+	}
+	{
+			for (const std::pair<double, int>& Pick0 : Chosen)
+			{
+				const Building& B = G.Buildings[size_t(Pick0.second)];
+				if (UnderTower(B.X, B.Z)) continue;
+				const double Base = Ground(B.X, B.Z, Coarse);
+				if (std::isnan(Base)) continue;
+				const LocalLook& Look = LookHere(B.X, B.Z);
+				const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
+				const bool LongX = B.W >= B.D;
+				const double HalfLong = (LongX ? B.W : B.D) * 0.5, HalfShort = (LongX ? B.D : B.W) * 0.5;
+				const auto Local = [&](double Along, double Across, double Y)
+				{
+					const double Lx = LongX ? Along : Across, Lz = LongX ? Across : Along;
+					return At3(B.X + Lx * Cs + Lz * Sn, Base + Y, B.Z - Lx * Sn + Lz * Cs);
+				};
+				const int Baked = B.More.empty() ? 0 : std::clamp(int(B.More[0]), 0, 7);
+				const bool Big = HalfShort > 6.0 || Baked == 2 || Baked == 5;
+				const double Rise = Big ? HalfShort * 0.35 : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
+				const double Whole = B.Height > 2.0 ? B.Height : (Big ? 6.5 : 4.0 + 3.0 * Chance(B.X, B.Z, 1));
+				const double Eaves = std::fmax(2.3, Whole - Rise);
+				const double Pick = Chance(B.X, B.Z, 2);
+				const Rgb Wall = Pick < Look.RenderShare ? Rgb{Look.RenderColour.R, Look.RenderColour.G, Look.RenderColour.B}
+					: Pick < Look.RenderShare + Look.BrickShare ? Rgb{Look.BrickColour.R, Look.BrickColour.G, Look.BrickColour.B}
+					: Rgb{Stone.R * Look.HouseStone.R, Stone.G * Look.HouseStone.G, Stone.B * Look.HouseStone.B};
+				const double RoofPick = Chance(B.X, B.Z, 6);
+				const Rgb Roof = RoofPick < Look.TileShare ? Rgb{Look.TileColour.R, Look.TileColour.G, Look.TileColour.B} : RoofPick < Look.TileShare + Look.StoneSlateShare ? StoneSlate : Slate;
+				const double Sunk = -2.0;
+				const P3 Centre = Local(0.0, 0.0, Eaves * 0.5);
+				const auto Away = [&Centre](const P3& A, const P3& C) { return At3(Centre.X + ((A.X + C.X) * 0.5 - Centre.X) * 50.0, Centre.Y, Centre.Z + ((A.Z + C.Z) * 0.5 - Centre.Z) * 50.0); };
+				const P3 Sky = At3(B.X, Base + 1e5, B.Z);
+				for (double Sg : {1.0, -1.0})
+				{
+					const P3 L0 = Local(-HalfLong, Sg * HalfShort, Sunk), L1 = Local(HalfLong, Sg * HalfShort, Sunk), L2 = Local(HalfLong, Sg * HalfShort, Eaves), L3 = Local(-HalfLong, Sg * HalfShort, Eaves);
+					Quad(Out, L0, L1, L2, L3, Away(L0, L2), Wall);
+					const P3 E0 = Local(Sg * HalfLong, -HalfShort, Sunk), E1 = Local(Sg * HalfLong, HalfShort, Sunk), E2 = Local(Sg * HalfLong, HalfShort, Eaves), E3 = Local(Sg * HalfLong, -HalfShort, Eaves);
+					Quad(Out, E0, E1, E2, E3, Away(E0, E2), Shade(Wall, 0.93));
+					Quad(Out, E3, E2, Local(Sg * HalfLong, 0.0, Eaves + Rise), E3, Away(E0, E2), Shade(Wall, 0.93));
+					Quad(Out, Local(-HalfLong, Sg * HalfShort, Eaves), Local(HalfLong, Sg * HalfShort, Eaves), Local(HalfLong, 0.0, Eaves + Rise), Local(-HalfLong, 0.0, Eaves + Rise), Sky,
+						Shade(Roof, Sg > 0.0 ? 1.0 : 0.88));
 				}
 			}
 		}

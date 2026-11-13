@@ -106,7 +106,7 @@ def night_material(L):
     """What lights up after dark (Ride UK stage 7: RideMesh::Night): lit windows and street lamps' heads
     (vertex alpha 0) and cat's eyes (alpha 1), their vertex colour the light's. By day dark glass, or a
     pale stud; as MPC_Weather's Night rises they glow, the cat's eyes only near by (they shine back the
-    headlight, which reaches a couple of hundred metres)."""
+    headlight, which reaches a couple of hundred metres: lit only in the beam, never glowing by themselves)."""
     g = L.Graph(L.new_material("M_RideNight", MAT_DIR))
     vc = g.node(unreal.MaterialExpressionVertexColor)
     alpha = g.op(unreal.MaterialExpressionMultiply, vc, g.const(1.0), a_out="A")   # (the vertex colour's A output)
@@ -114,10 +114,25 @@ def night_material(L):
     # (by day: glass 4% of its colour, a stud half)
     base = g.op(unreal.MaterialExpressionMultiply, rgb, g.lerp(g.const(0.04), g.const(0.5), alpha))
     night = L.weather_param(g, "Night")
-    # (a cat's eye fades out past 150 m; a lit window or lamp doesn't)
+    # (a cat's eye or a red edge stud is a retroreflector, not a light: it shines only back along the
+    # headlight's beam, which the camera rides just behind. So it is lit only in the beam, the middle
+    # of the view a little below the horizon, brightest near and gone by about 120 m, and dark otherwise
+    # (beenster, build 141: "should only reflect back our light, not glow in the dark"). A lit window
+    # or lamp keeps its glow.)
     depth = g.node(unreal.MaterialExpressionPixelDepth)
-    near = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.4), g.op(unreal.MaterialExpressionDivide, depth, g.const(15000.0))))
-    fade = g.lerp(g.const(1.0), near, alpha)
+    near = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.2), g.op(unreal.MaterialExpressionDivide, depth, g.const(10000.0))))
+    near = g.op(unreal.MaterialExpressionMultiply, near, near)
+    beam = g.const(1.0)
+    try:
+        sp = g.node(unreal.MaterialExpressionScreenPosition)
+        c2 = lambda a, b: g.node(unreal.MaterialExpressionConstant2Vector, r=a, g=b)   # (two numbers: ViewportUV is two)
+        off = g.op(unreal.MaterialExpressionSubtract, sp, c2(0.5, 0.6), a_out="ViewportUV")
+        off = g.op(unreal.MaterialExpressionMultiply, off, c2(1.5, 2.6))
+        dist = g.op(unreal.MaterialExpressionDotProduct, off, off)
+        beam = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionSubtract, g.const(1.0), dist))
+    except Exception as e:
+        unreal.log_warning("[Torque] ride UK: cat's eyes beam not made (%s); they fade by distance only" % e)
+    fade = g.lerp(g.const(1.0), g.op(unreal.MaterialExpressionMultiply, near, beam), alpha)
     glow = g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionMultiply, rgb, night), g.op(unreal.MaterialExpressionMultiply, fade, g.const(60.0)))
     L.mel.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)

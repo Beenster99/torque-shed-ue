@@ -269,6 +269,44 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 							continue;
 						}
 						Stretch(Foot, Top, -0.4, High, Colour, IsWall);
+						// (beenster, build 141: walls "low def". Near a road on the finest squares, a dry stone wall
+						// has its coping: a row of upright stones along its top, each its own height and lean)
+						if (IsWall && Step <= 4.5)
+						{
+							NearOpts Opts;
+							NearHit Hit;
+							if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist < Hit.Half + 60.0)
+							{
+								const int Stones = std::max(1, int(Pa.DistanceTo(Pb) / 0.32));
+								const double Cw = Top * 1.15;
+								for (int Sn = 0; Sn < Stones; ++Sn)
+								{
+									const double T0 = (Sn + 0.04) / Stones, T1 = (Sn + 0.96) / Stones;
+									const P2 S0 = Pa + (Pb - Pa) * T0, S1 = Pa + (Pb - Pa) * T1;
+									const double Y0 = Ga + (Gb - Ga) * T0 + High - 0.02, Y1 = Ga + (Gb - Ga) * T1 + High - 0.02;
+									const double Up = 0.16 + 0.14 * Chance(S0.X, S0.Z, 31), Tip = (Chance(S0.X, S0.Z, 32) - 0.5) * 0.06;
+									const P2 Lean = Dir * Tip;
+									const P3 Sky3 = At3(S0.X, Y0 + 50.0, S0.Z);
+									for (double Sg : {1.0, -1.0})
+									{
+										const P3 Far = At3(S0.X + Side.X * Sg * 50.0, Y0, S0.Z + Side.Z * Sg * 50.0);
+										Quad(Into, At3(S0.X + Side.X * Sg * Cw, Y0, S0.Z + Side.Z * Sg * Cw), At3(S1.X + Side.X * Sg * Cw, Y1, S1.Z + Side.Z * Sg * Cw),
+											At3(S1.X + Lean.X + Side.X * Sg * Cw * 0.8, Y1 + Up, S1.Z + Lean.Z + Side.Z * Sg * Cw * 0.8),
+											At3(S0.X + Lean.X + Side.X * Sg * Cw * 0.8, Y0 + Up, S0.Z + Lean.Z + Side.Z * Sg * Cw * 0.8), Far, Mask, false, 0.3f);
+										// (its two ends, so the gaps between the stones show)
+										const P2 Se = Sg > 0.0 ? S1 : S0;
+										const double Ye = Sg > 0.0 ? Y1 : Y0;
+										const P3 EndOut = At3(Se.X + Dir.X * Sg * 50.0, Ye, Se.Z + Dir.Z * Sg * 50.0);
+										Quad(Into, At3(Se.X + Side.X * Cw, Ye, Se.Z + Side.Z * Cw), At3(Se.X - Side.X * Cw, Ye, Se.Z - Side.Z * Cw),
+											At3(Se.X + Lean.X - Side.X * Cw * 0.8, Ye + Up, Se.Z + Lean.Z - Side.Z * Cw * 0.8), At3(Se.X + Lean.X + Side.X * Cw * 0.8, Ye + Up, Se.Z + Lean.Z + Side.Z * Cw * 0.8),
+											EndOut, Mask, false, 0.3f);
+									}
+									Quad(Into, At3(S0.X + Lean.X + Side.X * Cw * 0.8, Y0 + Up, S0.Z + Lean.Z + Side.Z * Cw * 0.8), At3(S1.X + Lean.X + Side.X * Cw * 0.8, Y1 + Up, S1.Z + Lean.Z + Side.Z * Cw * 0.8),
+										At3(S1.X + Lean.X - Side.X * Cw * 0.8, Y1 + Up, S1.Z + Lean.Z - Side.Z * Cw * 0.8), At3(S0.X + Lean.X - Side.X * Cw * 0.8, Y0 + Up, S0.Z + Lean.Z - Side.Z * Cw * 0.8),
+										Sky3, Mask, false, 0.5f);
+								}
+							}
+						}
 											}
 					}
 				}
@@ -843,6 +881,20 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		const auto Pt = [&](double Su, double Sv) { return At3(C.X + U.X * Su * W * 0.5, C.Y + Sv * H * 0.5, C.Z + U.Z * Su * W * 0.5); };
 		Quad(Out, Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(C.X + Face.X * 50.0, C.Y, C.Z + Face.Z * 50.0), Colour);
 	};
+	// (beenster, build 141: the road furniture "a bit basic". Posts, lamp columns and poles are round
+	// and tapered now, ten sides near, five farther off)
+	const auto Post = [&Out, Fine](double X, double Z, double Lo, double Hi, double R0, double R1, const Rgb& Colour)
+	{
+		RideShapes::Paint Pp;
+		Pp.R = Colour.R; Pp.G = Colour.G; Pp.B = Colour.B;
+		RideShapes::Column(Out, RideShapes::Pt(X, Lo, Z), R0, R1, Hi - Lo, Fine ? 10 : 5, Pp, R1);
+	};
+	const auto Rod = [&Out](const P3& A, const P3& B, double W, const Rgb& Colour)
+	{
+		RideShapes::Paint Pp;
+		Pp.R = Colour.R; Pp.G = Colour.G; Pp.B = Colour.B;
+		RideShapes::Strut(Out, RideShapes::Pt(A.X, A.Y, A.Z), RideShapes::Pt(B.X, B.Y, B.Z), W, Pp);
+	};
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
 		{
@@ -864,7 +916,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				case NameSign:
 				{
 					const double W = 0.5 + 0.17 * double(F.Text.size()), H = 0.5;
-					for (double Su : {-1.0, 1.0}) Box(Out, F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Face, 0.04, 0.04, Y - 0.3, Y + 1.95, Grey);
+					for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Y - 0.3, Y + 1.95, 0.045, 0.04, Grey);
 					const P3 Mid = At3(F.At.X, Y + 1.55, F.At.Z);
 					Board(Mid, Face, W + 0.08, H + 0.08, Grey, -0.01);
 					Board(Mid, Face * -1.0, W + 0.08, H + 0.08, Grey, 0.03);
@@ -876,7 +928,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				case Limit30:
 				case LimitNational:
 				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.04, 0.04, Y - 0.3, Y + 1.9, Grey);
+					Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.15, 0.045, 0.04, Grey);
 					const P3 Mid = At3(F.At.X, Y + 1.75, F.At.Z);
 					Disc(Out, At3(Mid.X - Face.X * 0.05, Mid.Y, Mid.Z - Face.Z * 0.05), Face * -1.0, 0.38, Grey);
 					if (F.Kind == Limit30)
@@ -899,7 +951,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				}
 				case Chevron:
 				{
-					for (double Su : {-0.3, 0.3}) Box(Out, F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Face, 0.035, 0.035, Y - 0.3, Y + 1.7, Grey);
+					for (double Su : {-0.3, 0.3}) Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y - 0.3, Y + 1.7, 0.04, 0.035, Grey);
 					const P3 Mid = At3(F.At.X, Y + 1.3, F.At.Z);
 					// (each face its arrows the way its own reader's bend turns: forwards F.Size, back the other)
 					for (int Back = 0; Back < 2; ++Back)
@@ -918,11 +970,17 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				}
 				case StreetLamp:
 				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.07, 0.07, Y - 0.3, Y + 6.0, Grey);
+					// A tapered round column on a wider foot, an outreach arm swept up to the lantern, and the
+					// lantern's cowl over its glowing face.
+					Post(F.At.X, F.At.Z, Y - 0.3, Y + 6.0, 0.085, 0.05, Grey);
 					if (!Fine) break;
+					Post(F.At.X, F.At.Z, Y - 0.1, Y + 0.9, 0.13, 0.11, Shade(Grey, 0.85));
 					const double Ax = F.At.X + Face.X * 1.1, Az = F.At.Z + Face.Z * 1.1;
-					Box(Out, (F.At.X + Ax) * 0.5, (F.At.Z + Az) * 0.5, Face, 0.6, 0.03, Y + 5.85, Y + 5.95, Grey);
-					Box(Out, Ax, Az, Face, 0.25, 0.1, Y + 5.75, Y + 5.92, Grey);
+					const P3 Bend = At3(F.At.X + Face.X * 0.35, Y + 6.05, F.At.Z + Face.Z * 0.35);
+					Rod(At3(F.At.X, Y + 5.75, F.At.Z), Bend, 0.06, Grey);
+					Rod(Bend, At3(Ax - Face.X * 0.2, Y + 5.95, Az - Face.Z * 0.2), 0.05, Grey);
+					Box(Out, Ax, Az, Face, 0.27, 0.11, Y + 5.75, Y + 5.88, Grey);
+					Box(Out, Ax, Az, Face, 0.2, 0.08, Y + 5.88, Y + 5.96, Shade(Grey, 0.8));
 					Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
 					// (its light: the lamp's face glowing after dark, and a real light under it near the rider)
 					static const Rgb LampLight = {1.0f, 0.88f, 0.66f};
@@ -966,8 +1024,16 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				}
 				case PowerPole:
 				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.12, 0.12, Y - 0.5, Y + 8.5, PoleWood);
+					// A round timber pole, tapering, its cross-arm and (near) three insulators and a cap.
+					Post(F.At.X, F.At.Z, Y - 0.5, Y + 8.5, 0.15, 0.11, PoleWood);
 					Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.05, Y + 7.9, Y + 8.05, PoleWood);
+					if (Fine)
+					{
+						static const Rgb Porcelain = {0.55f, 0.56f, 0.55f};
+						for (double Su : {-0.65, 0.0, 0.65})
+							Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y + 8.05, Y + 8.25, 0.045, 0.03, Porcelain);
+						Post(F.At.X, F.At.Z, Y + 8.5, Y + 8.56, 0.12, 0.02, Shade(PoleWood, 0.7));
+					}
 					break;
 				}
 				case PostBox:
@@ -979,7 +1045,7 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 				}
 				case BusStop:
 				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.04, 0.04, Y - 0.3, Y + 2.7, Grey);
+					Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.7, 0.045, 0.04, Grey);
 					const P3 Mid = At3(F.At.X + Side.X * 0.3, Y + 2.45, F.At.Z + Side.Z * 0.3);
 					for (int Back = 0; Back < 2; ++Back) Board(Mid, Back ? Face * -1.0 : Face, 0.5, 0.42, White, 0.01);
 					for (int Back = 0; Back < 2; ++Back)
@@ -1206,6 +1272,43 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 			Wet[size_t(J) * N + I] = W;
 			AnyWet = AnyWet || W != 0;
 		}
+	// (beenster, build 141: lakes and wide rivers lay on the ground as a tilted sheet, every point at
+	// its own ground. Water lies level: each wet point at the lowest wet ground within Reach of it, so
+	// a lake is flat to its shore and a river steps down its valley only over tens of metres. The
+	// window runs past the square's edge on the same lattice, so the squares either side agree.)
+	std::vector<double> Lake(size_t(N) * N, std::nan(""));
+	if (AnyWet)
+	{
+		const int Reach = std::max(2, int(std::lround(40.0 / Step)));
+		const int M = N + 2 * Reach;
+		std::vector<double> Low(size_t(M) * M, 1e9), Row(size_t(M) * M, 1e9);
+		for (int J = 0; J < M; ++J)
+			for (int I = 0; I < M; ++I)
+			{
+				const int Ii = I - Reach, Jj = J - Reach;
+				const bool In = Ii >= 0 && Ii < N && Jj >= 0 && Jj < N;
+				const double X = X0 + Ii * Step, Z = Z0 + Jj * Step;
+				const bool LakeHere = In ? Wet[size_t(Jj) * N + Ii] == 1 : (!Land->SeaAt(X, Z) && Land->Cover(X, Z) == Terrain::CoverWater);
+				if (!LakeHere) continue;
+				const double Y = In ? double(Sheet.Pos[(size_t(Jj) * N + Ii) * 3 + 1]) : Ground(X, Z, Step);
+				if (!std::isnan(Y)) Low[size_t(J) * M + I] = Y;
+			}
+		for (int J = 0; J < M; ++J)
+			for (int I = Reach; I < M - Reach; ++I)
+			{
+				double Least = 1e9;
+				for (int D = -Reach; D <= Reach; ++D) Least = std::fmin(Least, Low[size_t(J) * M + I + D]);
+				Row[size_t(J) * M + I] = Least;
+			}
+		for (int J = 0; J < N; ++J)
+			for (int I = 0; I < N; ++I)
+			{
+				if (Wet[size_t(J) * N + I] != 1) continue;
+				double Least = 1e9;
+				for (int D = -Reach; D <= Reach; ++D) Least = std::fmin(Least, Row[size_t(J + Reach + D) * M + I + Reach]);
+				if (Least < 1e8) Lake[size_t(J) * N + I] = Least + 0.1;
+			}
+	}
 	const auto Put = [&Out](double X, double Y, double Z, const Rgb& C)
 	{
 		Out.Pos.push_back(float(X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(Z - Out.OriginZ));
@@ -1231,7 +1334,8 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					if (Wet[V] == 0) continue;
 					Any = true;
 					Sea = Sea || Wet[V] == 2;
-					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? std::fmax(Held[V], double(Sheet.Pos[V * 3 + 1]) + 0.05) : double(Sheet.Pos[V * 3 + 1]) + 0.12;
+					Level[K] = Wet[V] == 2 ? 0.0 : Wet[V] == 3 ? std::fmax(Held[V], double(Sheet.Pos[V * 3 + 1]) + 0.05)
+						: !std::isnan(Lake[V]) ? Lake[V] : double(Sheet.Pos[V * 3 + 1]) + 0.12;
 					Lowest = std::fmin(Lowest, Level[K]);
 				}
 				if (!Any) continue;
@@ -1262,6 +1366,41 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 			{
 				const Stream& Flow = G.Streams[size_t(S)];
 				const double Wide = Flow.Kind == 0 ? 7.0 : Flow.Kind == 2 ? 6.0 : 2.2;
+				// (beenster, build 141: small streams were "a series of squares": each 3 m bit was its own flat
+				// piece at its own height. Now one ribbon: stations every 3 m or less, shared by the bits either
+				// side and mitred at the map's corners, each at the lowest ground across the stream there, so
+				// it runs down its valley without steps or gaps)
+				const auto LeftAt = [&Flow](size_t I, bool End)
+				{
+					// (at a corner of the map's line, the two segments' directions averaged)
+					const P2 A = Flow.Line[I], B = Flow.Line[I + 1];
+					P2 D = (B - A) * (1.0 / std::fmax(1e-6, A.DistanceTo(B)));
+					const size_t J = End ? I + 1 : I;
+					if (End ? J + 1 < Flow.Line.size() : J > 0)
+					{
+						const P2 Pa = End ? Flow.Line[J] : Flow.Line[J - 1], Pb = End ? Flow.Line[J + 1] : Flow.Line[J];
+						const double L2 = Pa.DistanceTo(Pb);
+						if (L2 > 1e-6)
+						{
+							const P2 D2 = (Pb - Pa) * (1.0 / L2);
+							const P2 Sum = D + D2;
+							const double Ls = std::hypot(Sum.X, Sum.Z);
+							if (Ls > 0.3) D = Sum * (1.0 / Ls);
+						}
+					}
+					return P2(D.Z, -D.X);
+				};
+				const double Half = Wide * 0.5;
+				const auto LevelAt = [&](const P2& P, const P2& L)
+				{
+					double Lie = 1e9;
+					for (const P2& Q : {P, P + L * Half, P - L * Half})
+					{
+						const double Y = Ground(Q.X, Q.Z, Step);
+						if (!std::isnan(Y)) Lie = std::fmin(Lie, Y);
+					}
+					return Lie > 1e8 ? std::nan("") : Lie + (Flow.Kind == 2 ? 0.2 : 0.1);
+				};
 				for (size_t I = 0; I + 1 < Flow.Line.size(); ++I)
 				{
 					const P2 A = Flow.Line[I], B = Flow.Line[I + 1];
@@ -1269,33 +1408,38 @@ void RidePlan::WaterTile(double X0, double Z0, double Size, int Cells, const Rid
 					if (SceneKey(Mid.X, Mid.Z) != Key || !Inside(Mid)) continue;
 					const double Len = A.DistanceTo(B);
 					if (Len < 0.2) continue;
-					const P2 Dir = (B - A) * (1.0 / Len), Left(Dir.Z, -Dir.X);
+					const P2 Dir = (B - A) * (1.0 / Len), Along(Dir.Z, -Dir.X);
+					const P2 StartLeft = LeftAt(I, false), EndLeft = LeftAt(I, true);
 					const int Bits = std::max(1, int(std::ceil(Len / 3.0)));
-					// (each bit a little longer than its share, so the bends close)
+					const Rgb C = Flow.Kind == 2 ? LakeWater : RiverWater;
+					P2 Pa = A, La = StartLeft;
+					double Ya = LevelAt(Pa, La);
 					for (int K = 0; K < Bits; ++K)
 					{
-						const P2 Pa = A + (B - A) * (double(K) / Bits) - Dir * 0.3, Pb = A + (B - A) * (double(K + 1) / Bits) + Dir * 0.3;
+						const P2 Pb = A + (B - A) * (double(K + 1) / Bits);
+						const P2 Lb = K + 1 == Bits ? EndLeft : Along;
+						const double Yb = LevelAt(Pb, Lb);
 						const P2 Pm = (Pa + Pb) * 0.5;
-						if (Land->Cover(Pm.X, Pm.Z) == Terrain::CoverWater || Land->SeaAt(Pm.X, Pm.Z)) continue;
-						NearOpts Opts;
-						NearHit Hit;
-						if (NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Wide * 0.5 + 1.5) continue;   // (under the road: a culvert)
-						double Lie = 1e9;
-						for (const P2& P : {Pa, Pb, Pa + Left * (Wide * 0.5), Pa - Left * (Wide * 0.5), Pb + Left * (Wide * 0.5), Pb - Left * (Wide * 0.5)})
+						bool Draw = !std::isnan(Ya) && !std::isnan(Yb) && Land->Cover(Pm.X, Pm.Z) != Terrain::CoverWater && !Land->SeaAt(Pm.X, Pm.Z);
+						if (Draw)
 						{
-							const double Y = Ground(P.X, P.Z, Step);
-							if (!std::isnan(Y)) Lie = std::fmin(Lie, Y);
+							NearOpts Opts;
+							NearHit Hit;
+							Draw = !(NearestOf(Pm.X, Pm.Z, Opts, Hit) && Hit.Dist <= Hit.Half + Half + 1.5);   // (under the road: a culvert)
 						}
-						if (Lie > 1e8) continue;
-						const double Y = Flow.Kind == 2 ? Lie + 0.2 : Lie + 0.12;
-						const uint32_t Base = uint32_t(Out.Vertices());
-						const Rgb C = Flow.Kind == 2 ? LakeWater : RiverWater;
-						Put(Pa.X + Left.X * Wide * 0.5, Y, Pa.Z + Left.Z * Wide * 0.5, C);
-						Put(Pa.X - Left.X * Wide * 0.5, Y, Pa.Z - Left.Z * Wide * 0.5, C);
-						Put(Pb.X + Left.X * Wide * 0.5, Y, Pb.Z + Left.Z * Wide * 0.5, C);
-						Put(Pb.X - Left.X * Wide * 0.5, Y, Pb.Z - Left.Z * Wide * 0.5, C);
-						// (Left is the stream's left going down it, so these face up whichever way it runs)
-						Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
+						if (Draw)
+						{
+							const uint32_t Base = uint32_t(Out.Vertices());
+							Put(Pa.X + La.X * Half, Ya, Pa.Z + La.Z * Half, C);
+							Put(Pa.X - La.X * Half, Ya, Pa.Z - La.Z * Half, C);
+							Put(Pb.X + Lb.X * Half, Yb, Pb.Z + Lb.Z * Half, C);
+							Put(Pb.X - Lb.X * Half, Yb, Pb.Z - Lb.Z * Half, C);
+							// (Left is the stream's left going down it, so these face up whichever way it runs)
+							Out.Idx.insert(Out.Idx.end(), {Base, Base + 1, Base + 2, Base + 1, Base + 3, Base + 2});
+						}
+						Pa = Pb;
+						La = Lb;
+						Ya = Yb;
 					}
 				}
 			}
