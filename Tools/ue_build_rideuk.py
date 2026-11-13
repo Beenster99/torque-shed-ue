@@ -497,6 +497,9 @@ def scanned_trees(L, kit):
     if not os.path.exists(f) or "Trees" not in kit:
         return
     spec = json.load(open(f))
+    if not spec.get("enabled", True):
+        log("scanned trees: off (scanned_trees.json enabled=false); our own trees stay")
+        return
     norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
     skip = [norm(w) for w in spec.get("skip", [])]
     most = int(spec.get("most", 6))
