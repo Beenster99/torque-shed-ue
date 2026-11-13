@@ -494,6 +494,16 @@ public:
 	};
 	std::vector<Furnish> Furniture;
 	int FurnitureCount(int Kind) const;
+	// [ride anywhere 4] The furniture of the network's roads (not the ride's own: that is Furniture),
+	// made the first time a square of them is drawn and kept: street lamps through the built-up
+	// stretches of each road laid, chevrons round its sharp bends, and the map's own boxes, stops,
+	// benches, lamps, bollards and cattle grids by roads that weren't laid when the ride was planned.
+	// Those standing in (X0, Z0)-(+Size) into Out, kept alive by Hold. Safe on any thread.
+	void NetworkFurniture(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<Furnish>>>& Hold, std::vector<const Furnish*>& Out) const;
+	std::vector<Furnish> RoadFurniture(int Which) const;    // (a laid road's lamps and chevrons)
+	std::vector<Furnish> BlockFurniture(const Rect& In) const;   // (the map's furniture in a block left by IndexFurniture)
+	std::vector<P2> MappedLamps;                            // the map's street lamps (IndexFurniture)
+	std::vector<unsigned char> MappedLeft;                  // by Scenery.Points: 1 for one IndexFurniture had no road for
 	// [OSM stage 2] The prop layer (World/WorldRideProps.cpp). The kinds drawn from real models, each
 	// stage adding its own at the end (never reordered). A kind the kit has a model for comes as props
 	// (PropsTile) and FurnitureTile leaves its code-made shape out; one with none keeps that shape. The

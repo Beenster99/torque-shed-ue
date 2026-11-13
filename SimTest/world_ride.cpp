@@ -392,6 +392,19 @@ int main(int Argc, char** Argv)
 					}
 				}
 				std::printf("  the roads there sit within %.1f m of the ground (%d points with none)\n", Worst, NoGround);
+				{
+					// [ride anywhere 4] the network's furniture there, made and then asked again (kept)
+					std::vector<std::shared_ptr<const std::vector<RidePlan::Furnish>>> FurnHeld;
+					std::vector<const RidePlan::Furnish*> FurnHere;
+					const auto FurnT0 = std::chrono::steady_clock::now();
+					Plan->NetworkFurniture(Around.X0, Around.Z0, Around.X1 - Around.X0, FurnHeld, FurnHere);
+					const double FurnMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - FurnT0).count();
+					std::map<int, int> ByKind;
+					for (const RidePlan::Furnish* F : FurnHere) ++ByKind[F->Kind];
+					std::printf("  the network's furniture there: %zu in %.0f ms (lamps %d, chevrons %d, post boxes %d, bus stops %d, benches %d, cattle grids %d)\n",
+						FurnHere.size(), FurnMs, ByKind[RidePlan::StreetLamp], ByKind[RidePlan::Chevron], ByKind[RidePlan::PostBox], ByKind[RidePlan::BusStop],
+						ByKind[RidePlan::Seat], ByKind[RidePlan::CattleGrid]);
+				}
 				RidePlan::NearHit Hit;
 				const bool On = Plan->NearestOf(Rx, Rz, RidePlan::NearOpts(), Hit);
 				std::printf("Roaming at (%.0f, %.0f): %d blocks laid in %.0f ms, %d roads in %d points; nearest road %s %.1f m off\n", Rx, Rz, Plan->BlocksLaid() - Before, RoamMs,

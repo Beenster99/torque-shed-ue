@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <map>
 #include <mutex>
 #include <shared_mutex>
 #include <cmath>
@@ -33,6 +34,8 @@ struct RidePlan::Network
 	std::unordered_map<long long, std::shared_ptr<const Knot>> Knots;      // by road * 2 + end, each arm's
 	std::atomic<int> Blocks{0}, Bridges{0}, Tunnels{0};
 	std::mutex Fetching;                                          // one fetch of ground at a time
+	std::mutex Furnishing;                                        // Furnished
+	std::map<std::pair<int, long long>, std::shared_ptr<const std::vector<RidePlan::Furnish>>> Furnished;   // [ride anywhere 4] by (0 road | 1 block, its key)
 };
 
 namespace
@@ -1007,6 +1010,43 @@ void RidePlan::LayBlocks(const Rect& Box) const
 	if (Net == nullptr) return;
 	for (long long Bx = BlockOf(Box.X0); Bx <= BlockOf(Box.X1); ++Bx)
 		for (long long Bz = BlockOf(Box.Z0); Bz <= BlockOf(Box.Z1); ++Bz) LayBlock(BlockKey(Bx, Bz));
+}
+
+void RidePlan::NetworkFurniture(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<Furnish>>>& Hold, std::vector<const Furnish*>& Out) const
+{
+	if (!Scene || Net == nullptr) return;
+	Rect Box;
+	Box.X0 = X0; Box.Z0 = Z0; Box.X1 = X0 + Size; Box.Z1 = Z0 + Size;
+	const size_t First = Hold.size();
+	const auto Once = [this, &Hold](int Kind, long long Key, const std::function<std::vector<Furnish>()>& Make)
+	{
+		{
+			std::lock_guard<std::mutex> Lock(Net->Furnishing);
+			const auto It = Net->Furnished.find({Kind, Key});
+			if (It != Net->Furnished.end()) { Hold.push_back(It->second); return; }
+		}
+		// (made outside the lock: two workers may both make one, and the first kept is the one used)
+		std::shared_ptr<const std::vector<Furnish>> Made = std::make_shared<const std::vector<Furnish>>(Make());
+		std::lock_guard<std::mutex> Lock(Net->Furnishing);
+		Hold.push_back(Net->Furnished.emplace(std::make_pair(Kind, Key), Made).first->second);
+	};
+	for (const int Which : RoadsNear(Box, false))
+		if (Which > 0) Once(0, Which, [this, Which]() { return RoadFurniture(Which); });
+	for (long long Bx = BlockOf(Box.X0); Bx <= BlockOf(Box.X1 - 0.001); ++Bx)
+		for (long long Bz = BlockOf(Box.Z0); Bz <= BlockOf(Box.Z1 - 0.001); ++Bz)
+		{
+			const long long Key = BlockKey(Bx, Bz);
+			{
+				std::lock_guard<std::mutex> Lock(Net->Lay);
+				const auto It = Net->BlockState.find(Key);
+				if (It == Net->BlockState.end() || It->second != 2) continue;
+			}
+			const Rect In = BlockBox(Key);
+			Once(1, Key, [this, In]() { return BlockFurniture(In); });
+		}
+	for (size_t L = First; L < Hold.size(); ++L)
+		for (const Furnish& F : *Hold[L])
+			if (F.At.X >= X0 && F.At.X < X0 + Size && F.At.Z >= Z0 && F.At.Z < Z0 + Size) Out.push_back(&F);
 }
 
 bool RidePlan::BlockLaid(double X, double Z) const

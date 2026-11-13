@@ -539,9 +539,10 @@ void RidePlan::IndexFurniture()
 	const double Keep = KeepLeft() ? 1.0 : -1.0;
 	const bool Uk = Britain();
 	// [OSM stage 2] The street lamps the map has, near a road.
-	std::vector<P2> MappedLamps;
+	MappedLamps.clear();
 	for (const FeaturePoint& P : G.Scenery.Points)
 		if (P.Kind == "street_lamp") MappedLamps.push_back(P.At);
+	MappedLeft.assign(G.Scenery.Points.size(), 0);
 	for (size_t I = 0; I < Road.size(); ++I)
 	{
 		if (!BuiltUp[I] || (I > 0 && BuiltUp[I - 1])) continue;
@@ -764,8 +765,9 @@ void RidePlan::IndexFurniture()
 		}
 	}
 	// What the map has: cattle grids on the road, and beside it poles, boxes, stops, benches, milestones and gates.
-	for (const FeaturePoint& P : G.Scenery.Points)
+	for (size_t Pi = 0; Pi < G.Scenery.Points.size(); ++Pi)
 	{
+		const FeaturePoint& P = G.Scenery.Points[Pi];
 		int Kind = -1;
 		if (P.Kind == "cattle_grid") Kind = CattleGrid;
 		else if (P.Kind == "power_pole") Kind = PowerPole;
@@ -786,8 +788,8 @@ void RidePlan::IndexFurniture()
 		NearOpts Opts;
 		NearHit Hit;
 		const bool Any = NearestOf(P.At.X, P.At.Z, Opts, Hit);
-		// (only near a road anyone sees: within 300 m of one)
-		if (!Any && Kind != PowerPole) continue;
+		// (only near a road anyone sees: [ride anywhere 4] one by a road laid later is put there then)
+		if (!Any && Kind != PowerPole) { MappedLeft[Pi] = 1; continue; }
 		Furnish F;
 		F.Kind = Kind;
 		F.At = P.At;
@@ -959,330 +961,335 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 		Pp.R = Colour.R; Pp.G = Colour.G; Pp.B = Colour.B;
 		RideShapes::Strut(Out, RideShapes::Pt(A.X, A.Y, A.Z), RideShapes::Pt(B.X, B.Y, B.Z), W, Pp);
 	};
+	std::vector<const Furnish*> Here;
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
 		{
 			const auto It = Scene->Furniture.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
 			if (It == Scene->Furniture.end()) continue;
-			for (int Index : It->second)
+			for (int Index : It->second) Here.push_back(&Furniture[size_t(Index)]);
+		}
+	// [ride anywhere 4] and the network's roads' own
+	std::vector<std::shared_ptr<const std::vector<Furnish>>> Held;
+	NetworkFurniture(X0, Z0, Size, Held, Here);
+	for (const Furnish* Each : Here)
+	{
+		const Furnish& F = *Each;
+		if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
+		if (!Fine && F.Kind != PowerPole && F.Kind != StreetLamp) continue;
+		// [OSM stage 2] a kind the prop kit has a model for is drawn from it (PropsTile), but a
+		// street lamp's glowing head and real light stay here
+		if (Modelled(F.Kind) && F.Kind != StreetLamp) continue;
+		const double Y = F.Height;
+		const P2 Face = F.Face;
+		const P2 Side(Face.Z, -Face.X);
+		switch (F.Kind)
+		{
+		case NameSign:
+		{
+			const double W = 0.5 + 0.17 * double(F.Text.size()), H = 0.5;
+			for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Y - 0.3, Y + 1.95, 0.045, 0.04, Grey);
+			const P3 Mid = At3(F.At.X, Y + 1.55, F.At.Z);
+			Board(Mid, Face, W + 0.08, H + 0.08, Grey, -0.01);
+			Board(Mid, Face * -1.0, W + 0.08, H + 0.08, Grey, 0.03);
+			Board(Mid, Face, W + 0.04, H + 0.04, Black, 0.05);
+			Board(Mid, Face, W, H, White, 0.06);
+			Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.22, F.Text, Black);
+			break;
+		}
+		case Limit30:
+		case LimitNational:
+		{
+			Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.15, 0.045, 0.04, Grey);
+			const P3 Mid = At3(F.At.X, Y + 1.75, F.At.Z);
+			Disc(Out, At3(Mid.X - Face.X * 0.05, Mid.Y, Mid.Z - Face.Z * 0.05), Face * -1.0, 0.38, Grey);
+			if (F.Kind == Limit30)
 			{
-				const Furnish& F = Furniture[size_t(Index)];
-				if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
-				if (!Fine && F.Kind != PowerPole && F.Kind != StreetLamp) continue;
-				// [OSM stage 2] a kind the prop kit has a model for is drawn from it (PropsTile), but a
-				// street lamp's glowing head and real light stay here
-				if (Modelled(F.Kind) && F.Kind != StreetLamp) continue;
-				const double Y = F.Height;
-				const P2 Face = F.Face;
-				const P2 Side(Face.Z, -Face.X);
-				switch (F.Kind)
+				Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, Red);
+				Disc(Out, At3(Mid.X + Face.X * 0.06, Mid.Y, Mid.Z + Face.Z * 0.06), Face, 0.30, White);
+				Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.3, F.Text, Black);
+			}
+			else
+			{
+				// (white, crossed by a black bar from top right to bottom left)
+				Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, White);
+				const P2 U(Face.Z, -Face.X);
+				const double Px = Mid.X + Face.X * 0.065, Pz = Mid.Z + Face.Z * 0.065, R = 0.36, T = 0.05;
+				const auto Pt = [&](double Su, double Sv) { return At3(Px + U.X * Su, Mid.Y + Sv, Pz + U.Z * Su); };
+				const double C = R * 0.7071;
+				Quad(Out, Pt(-C - T, -C + T), Pt(-C + T, -C - T), Pt(C + T, C - T), Pt(C - T, C + T), At3(Px + Face.X * 50.0, Mid.Y, Pz + Face.Z * 50.0), Black, true);
+			}
+			break;
+		}
+		case Chevron:
+		{
+			for (double Su : {-0.3, 0.3}) Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y - 0.3, Y + 1.7, 0.04, 0.035, Grey);
+			const P3 Mid = At3(F.At.X, Y + 1.3, F.At.Z);
+			// (each face its arrows the way its own reader's bend turns: forwards F.Size, back the other)
+			for (int Back = 0; Back < 2; ++Back)
+			{
+				const P2 N = Back ? Face * -1.0 : Face;
+				const double Point = Back ? -F.Size : F.Size;   // +1: the tip to the reader's left
+				Board(Mid, N, 0.9, 0.7, Black, 0.03);
+				const P2 U(N.Z, -N.X);   // (the reader's left, as they face it)
+				const double Px = Mid.X + N.X * 0.04, Pz = Mid.Z + N.Z * 0.04;
+				const auto Pt = [&](double Su, double Sv) { return At3(Px - U.X * Su * Point, Mid.Y + Sv, Pz - U.Z * Su * Point); };
+				const P3 Toward = At3(Px + N.X * 50.0, Mid.Y, Pz + N.Z * 50.0);
+				for (double Sv : {1.0, -1.0})
+					Quad(Out, Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
+			}
+			break;
+		}
+		case StreetLamp:
+		{
+			// A tapered round column on a wider foot, an outreach arm swept up to the lantern, and the
+			// lantern's cowl over its glowing face.
+			Post(F.At.X, F.At.Z, Y - 0.3, Y + 6.0, 0.085, 0.05, Grey);
+			if (!Fine) break;
+			Post(F.At.X, F.At.Z, Y - 0.1, Y + 0.9, 0.13, 0.11, Shade(Grey, 0.85));
+			const double Ax = F.At.X + Face.X * 1.1, Az = F.At.Z + Face.Z * 1.1;
+			const P3 Bend = At3(F.At.X + Face.X * 0.35, Y + 6.05, F.At.Z + Face.Z * 0.35);
+			Rod(At3(F.At.X, Y + 5.75, F.At.Z), Bend, 0.06, Grey);
+			Rod(Bend, At3(Ax - Face.X * 0.2, Y + 5.95, Az - Face.Z * 0.2), 0.05, Grey);
+			Box(Out, Ax, Az, Face, 0.27, 0.11, Y + 5.75, Y + 5.88, Grey);
+			Box(Out, Ax, Az, Face, 0.2, 0.08, Y + 5.88, Y + 5.96, Shade(Grey, 0.8));
+			Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
+			// (its light: the lamp's face glowing after dark, and a real light under it near the rider)
+			static const Rgb LampLight = {1.0f, 0.88f, 0.66f};
+			{
+				const P2 Crosswise(Face.Z, -Face.X);
+				const double Ly = Y + 5.735;
+				const auto Pt = [&](double Su, double Sv) { return At3(Ax + Face.X * Su * 0.18 + Crosswise.X * Sv * 0.07, Ly, Az + Face.Z * Su * 0.18 + Crosswise.Z * Sv * 0.07); };
+				Quad(Out.NightOf(), Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(Ax, Ly - 100.0, Az), LampLight, false, 0.0f);
+			}
+			Out.Lights.push_back(float(Ax - Out.OriginX));
+			Out.Lights.push_back(float(Y + 5.4));
+			Out.Lights.push_back(float(Az - Out.OriginZ));
+			break;
+		}
+		case CattleGrid:
+		{
+			// Steel bars across the road, a little proud of it, and a short rail each side.
+			const P2 Across(Face.Z, -Face.X);
+			const double Half = F.Size * 0.5;
+			for (int K = -9; K <= 9; ++K)
+			{
+				const double Off = K * 0.13;
+				const P2 C = F.At + Face * Off;
+				const auto Top = [&](double Su)
 				{
-				case NameSign:
+					const P2 Q = C + Across * (Su * Half);
+					const double H = RoadHeight(Q.X, Q.Z);
+					return std::isnan(H) ? Y : H;
+				};
+				const double Ya = Top(-1.0) + 0.012, Yb = Top(1.0) + 0.012;
+				const P2 A = C + Across * (-Half), B = C + Across * Half, T = Face * 0.025;
+				Quad(Out, At3(A.X - T.X, Ya, A.Z - T.Z), At3(B.X - T.X, Yb, B.Z - T.Z), At3(B.X + T.X, Yb, B.Z + T.Z), At3(A.X + T.X, Ya, A.Z + T.Z), At3(C.X, Y + 100.0, C.Z), Steel);
+			}
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Across * (Su * (Half + 0.3));
+				const double G0 = Ground(Q.X, Q.Z);
+				if (!std::isnan(G0)) Box(Out, Q.X, Q.Z, Face, 1.3, 0.05, G0 - 0.2, G0 + 0.9, Steel);
+			}
+			break;
+		}
+		case PowerPole:
+		{
+			// A round timber pole, tapering, its cross-arm and (near) three insulators and a cap.
+			Post(F.At.X, F.At.Z, Y - 0.5, Y + 8.5, 0.15, 0.11, PoleWood);
+			Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.05, Y + 7.9, Y + 8.05, PoleWood);
+			if (Fine)
+			{
+				static const Rgb Porcelain = {0.55f, 0.56f, 0.55f};
+				for (double Su : {-0.65, 0.0, 0.65})
+					Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y + 8.05, Y + 8.25, 0.045, 0.03, Porcelain);
+				Post(F.At.X, F.At.Z, Y + 8.5, Y + 8.56, 0.12, 0.02, Shade(PoleWood, 0.7));
+			}
+			break;
+		}
+		case PostBox:
+		{
+			Box(Out, F.At.X, F.At.Z, Face, 0.25, 0.25, Y - 0.1, Y + 1.45, Red);
+			Box(Out, F.At.X, F.At.Z, Face, 0.28, 0.28, Y + 1.45, Y + 1.55, Shade(Red, 0.7));
+			Board(At3(F.At.X, Y + 1.15, F.At.Z), Face, 0.3, 0.04, Black, 0.26);
+			break;
+		}
+		case BusStop:
+		{
+			Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.7, 0.045, 0.04, Grey);
+			const P3 Mid = At3(F.At.X + Side.X * 0.3, Y + 2.45, F.At.Z + Side.Z * 0.3);
+			for (int Back = 0; Back < 2; ++Back) Board(Mid, Back ? Face * -1.0 : Face, 0.5, 0.42, White, 0.01);
+			for (int Back = 0; Back < 2; ++Back)
+				Label(At3(Mid.X + (Back ? -Face.X : Face.X) * 0.03, Mid.Y, Mid.Z + (Back ? -Face.Z : Face.Z) * 0.03), Back ? Face * -1.0 : Face, 0.14, "BUS", Black);
+			break;
+		}
+		case Seat:
+		{
+			Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.22, Y + 0.42, Y + 0.47, Wood);
+			Box(Out, F.At.X - Face.X * 0.2, F.At.Z - Face.Z * 0.2, Side, 0.8, 0.03, Y + 0.5, Y + 0.85, Wood);
+			for (double Su : {-0.7, 0.7}) Box(Out, F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Side, 0.04, 0.2, Y - 0.1, Y + 0.42, Steel);
+			break;
+		}
+		case PhoneBox:
+		{
+			// A red box with a domed top, its glazed sides, and TELEPHONE over the door.
+			Box(Out, F.At.X, F.At.Z, Face, 0.45, 0.45, Y - 0.1, Y + 2.3, Red);
+			Box(Out, F.At.X, F.At.Z, Face, 0.5, 0.5, Y + 2.3, Y + 2.45, Shade(Red, 0.85));
+			Box(Out, F.At.X, F.At.Z, Face, 0.36, 0.36, Y + 2.45, Y + 2.55, Shade(Red, 0.75));
+			for (int Way = 0; Way < 4; ++Way)
+			{
+				const P2 N = Way == 0 ? Face : Way == 1 ? Side : Way == 2 ? Face * -1.0 : Side * -1.0;
+				Board(At3(F.At.X, Y + 1.3, F.At.Z), N, 0.62, 1.4, Shade(Grey, 0.35), 0.455);
+				Board(At3(F.At.X, Y + 2.17, F.At.Z), N, 0.7, 0.13, White, 0.505);
+			}
+			Label(At3(F.At.X + Face.X * 0.52, Y + 2.17, F.At.Z + Face.Z * 0.52), Face, 0.09, "TELEPHONE", Black);
+			break;
+		}
+		case PubSign:
+		{
+			// A post, an arm out over the verge, and the board hanging from it with the pub's name both sides.
+			Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 3.4, Wood);
+			// (Side is towards the road: the arm reaches out over the verge; the board painted one of a pub's colours)
+			const P2 Arm = F.At + Side * 0.6;
+			Box(Out, (F.At.X + Arm.X) * 0.5, (F.At.Z + Arm.Z) * 0.5, Side, 0.65, 0.04, Y + 3.2, Y + 3.3, Wood);
+			static const Rgb Paints[4] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
+			const Rgb& Paint = Paints[std::min(3, int(Chance(F.At.X, F.At.Z, 52) * 4.0))];
+			const double W = std::fmax(0.8, std::fmin(1.3, 0.25 + 0.05 * double(F.Text.size())));
+			const P3 Mid = At3(Arm.X, Y + 2.55, Arm.Z);
+			Board(Mid, Face, W, 0.9, Shade(Wood, 1.4), 0.02);
+			Board(Mid, Face * -1.0, W, 0.9, Shade(Wood, 1.4), 0.02);
+			Board(Mid, Face, W - 0.1, 0.8, Paint, 0.03);
+			Board(Mid, Face * -1.0, W - 0.1, 0.8, Paint, 0.03);
+			for (int Back = 0; Back < 2; ++Back)
+			{
+				const P2 N = Back ? Face * -1.0 : Face;
+				Label(At3(Mid.X + N.X * 0.045, Mid.Y, Mid.Z + N.Z * 0.045), N, std::fmin(0.12, 0.9 * (W - 0.2) / std::fmax(1.0, double(F.Text.size()) * 0.55)), F.Text, Shade(White, 1.1));
+			}
+			break;
+		}
+		case CrossingBarrier:
+		{
+			// The post with its two red lights in a black board facing the traffic, and the red and
+			// white barrier arm raised.
+			Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 2.6, White);
+			const P3 Lights = At3(F.At.X, Y + 2.2, F.At.Z);
+			Board(Lights, Face, 1.0, 0.45, Black, 0.09);
+			for (double Su : {-0.3, 0.3})
+				Disc(Out, At3(Lights.X + Side.X * Su + Face.X * 0.1, Lights.Y, Lights.Z + Side.Z * Su + Face.Z * 0.1), Face, 0.11, Shade(Red, 1.3), 12);
+			Box(Out, F.At.X + Side.X * 0.3, F.At.Z + Side.Z * 0.3, Face, 0.18, 0.18, Y - 0.1, Y + 1.1, Shade(Grey, 0.6));
+			for (int K = 0; K < 6; ++K)
+				Box(Out, F.At.X + Side.X * 0.3, F.At.Z + Side.Z * 0.3, Face, 0.05, 0.05, Y + 1.1 + K * 0.6, Y + 1.7 + K * 0.6, K % 2 == 0 ? Red : White);
+			break;
+		}
+		case Milestone:
+		{
+			Box(Out, F.At.X, F.At.Z, Face, 0.18, 0.12, Y - 0.2, Y + 0.75, Stone3);
+			break;
+		}
+		case FieldGate:
+		{
+			// Five bars and a brace between two posts, in line with its wall, galvanised or wooden.
+			const Rgb Bar = Chance(F.At.X, F.At.Z, 31) < 0.6 ? Steel : Shade(Wood, 1.6);
+			const double Half = F.Size * 0.5;
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Face * (Su * (Half + 0.12));
+				Box(Out, Q.X, Q.Z, Face, 0.1, 0.1, Y - 0.3, Y + 1.35, Shade(Stone3, 1.1));
+			}
+			const P2 A = F.At + Face * -Half, B = F.At + Face * Half;
+			for (int K = 0; K < 5; ++K)
+			{
+				const double H = 0.25 + K * 0.22;
+				Quad(Out, At3(A.X, Y + H, A.Z), At3(B.X, Y + H, B.Z), At3(B.X, Y + H + 0.06, B.Z), At3(A.X, Y + H + 0.06, A.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
+			}
+			Quad(Out, At3(A.X, Y + 0.25, A.Z), At3(A.X, Y + 0.31, A.Z), At3(B.X, Y + 1.19, B.Z), At3(B.X, Y + 1.13, B.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
+			break;
+		}
+		// [OSM stage 2] Stand-ins until the kit has models for them.
+		case Stile:
+		{
+			// (a step stile: two posts in the line, a rail between them and a step each side)
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Face * (Su * 0.45);
+				Box(Out, Q.X, Q.Z, Face, 0.06, 0.06, Y - 0.2, Y + 1.2, Shade(Wood, 1.4));
+			}
+			Box(Out, F.At.X, F.At.Z, Face, 0.5, 0.04, Y + 0.95, Y + 1.02, Shade(Wood, 1.5));
+			for (double Sv : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Side * (Sv * 0.3);
+				Box(Out, Q.X, Q.Z, Face, 0.4, 0.12, Y + 0.38, Y + 0.43, Shade(Wood, 1.6));
+			}
+			break;
+		}
+		case KissingGate:
+		{
+			// (a gate swinging in a three-sided pen of rails, between two posts)
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Face * (Su * 0.75);
+				Box(Out, Q.X, Q.Z, Face, 0.07, 0.07, Y - 0.2, Y + 1.3, Shade(Wood, 1.4));
+			}
+			const P2 Back = F.At + Side * 0.7;
+			for (double H : {0.45, 0.95})
+			{
+				Box(Out, Back.X, Back.Z, Face, 0.75, 0.03, Y + H, Y + H + 0.06, Shade(Wood, 1.5));
+				for (double Su : {-1.0, 1.0})
 				{
-					const double W = 0.5 + 0.17 * double(F.Text.size()), H = 0.5;
-					for (double Su : {-1.0, 1.0}) Post(F.At.X + Side.X * Su * (W * 0.5 - 0.15), F.At.Z + Side.Z * Su * (W * 0.5 - 0.15), Y - 0.3, Y + 1.95, 0.045, 0.04, Grey);
-					const P3 Mid = At3(F.At.X, Y + 1.55, F.At.Z);
-					Board(Mid, Face, W + 0.08, H + 0.08, Grey, -0.01);
-					Board(Mid, Face * -1.0, W + 0.08, H + 0.08, Grey, 0.03);
-					Board(Mid, Face, W + 0.04, H + 0.04, Black, 0.05);
-					Board(Mid, Face, W, H, White, 0.06);
-					Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.22, F.Text, Black);
-					break;
-				}
-				case Limit30:
-				case LimitNational:
-				{
-					Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.15, 0.045, 0.04, Grey);
-					const P3 Mid = At3(F.At.X, Y + 1.75, F.At.Z);
-					Disc(Out, At3(Mid.X - Face.X * 0.05, Mid.Y, Mid.Z - Face.Z * 0.05), Face * -1.0, 0.38, Grey);
-					if (F.Kind == Limit30)
-					{
-						Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, Red);
-						Disc(Out, At3(Mid.X + Face.X * 0.06, Mid.Y, Mid.Z + Face.Z * 0.06), Face, 0.30, White);
-						Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.3, F.Text, Black);
-					}
-					else
-					{
-						// (white, crossed by a black bar from top right to bottom left)
-						Disc(Out, At3(Mid.X + Face.X * 0.05, Mid.Y, Mid.Z + Face.Z * 0.05), Face, 0.38, White);
-						const P2 U(Face.Z, -Face.X);
-						const double Px = Mid.X + Face.X * 0.065, Pz = Mid.Z + Face.Z * 0.065, R = 0.36, T = 0.05;
-						const auto Pt = [&](double Su, double Sv) { return At3(Px + U.X * Su, Mid.Y + Sv, Pz + U.Z * Su); };
-						const double C = R * 0.7071;
-						Quad(Out, Pt(-C - T, -C + T), Pt(-C + T, -C - T), Pt(C + T, C - T), Pt(C - T, C + T), At3(Px + Face.X * 50.0, Mid.Y, Pz + Face.Z * 50.0), Black, true);
-					}
-					break;
-				}
-				case Chevron:
-				{
-					for (double Su : {-0.3, 0.3}) Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y - 0.3, Y + 1.7, 0.04, 0.035, Grey);
-					const P3 Mid = At3(F.At.X, Y + 1.3, F.At.Z);
-					// (each face its arrows the way its own reader's bend turns: forwards F.Size, back the other)
-					for (int Back = 0; Back < 2; ++Back)
-					{
-						const P2 N = Back ? Face * -1.0 : Face;
-						const double Point = Back ? -F.Size : F.Size;   // +1: the tip to the reader's left
-						Board(Mid, N, 0.9, 0.7, Black, 0.03);
-						const P2 U(N.Z, -N.X);   // (the reader's left, as they face it)
-						const double Px = Mid.X + N.X * 0.04, Pz = Mid.Z + N.Z * 0.04;
-						const auto Pt = [&](double Su, double Sv) { return At3(Px - U.X * Su * Point, Mid.Y + Sv, Pz - U.Z * Su * Point); };
-						const P3 Toward = At3(Px + N.X * 50.0, Mid.Y, Pz + N.Z * 50.0);
-						for (double Sv : {1.0, -1.0})
-							Quad(Out, Pt(-0.2, 0.0), Pt(-0.06, 0.0), Pt(0.2, 0.26 * Sv), Pt(0.06, 0.26 * Sv), Toward, White, true);
-					}
-					break;
-				}
-				case StreetLamp:
-				{
-					// A tapered round column on a wider foot, an outreach arm swept up to the lantern, and the
-					// lantern's cowl over its glowing face.
-					Post(F.At.X, F.At.Z, Y - 0.3, Y + 6.0, 0.085, 0.05, Grey);
-					if (!Fine) break;
-					Post(F.At.X, F.At.Z, Y - 0.1, Y + 0.9, 0.13, 0.11, Shade(Grey, 0.85));
-					const double Ax = F.At.X + Face.X * 1.1, Az = F.At.Z + Face.Z * 1.1;
-					const P3 Bend = At3(F.At.X + Face.X * 0.35, Y + 6.05, F.At.Z + Face.Z * 0.35);
-					Rod(At3(F.At.X, Y + 5.75, F.At.Z), Bend, 0.06, Grey);
-					Rod(Bend, At3(Ax - Face.X * 0.2, Y + 5.95, Az - Face.Z * 0.2), 0.05, Grey);
-					Box(Out, Ax, Az, Face, 0.27, 0.11, Y + 5.75, Y + 5.88, Grey);
-					Box(Out, Ax, Az, Face, 0.2, 0.08, Y + 5.88, Y + 5.96, Shade(Grey, 0.8));
-					Board(At3(Ax, Y + 5.745, Az), P2(0.0, 1.0), 0.4, 0.15, Lamp, 0.0);
-					// (its light: the lamp's face glowing after dark, and a real light under it near the rider)
-					static const Rgb LampLight = {1.0f, 0.88f, 0.66f};
-					{
-						const P2 Crosswise(Face.Z, -Face.X);
-						const double Ly = Y + 5.735;
-						const auto Pt = [&](double Su, double Sv) { return At3(Ax + Face.X * Su * 0.18 + Crosswise.X * Sv * 0.07, Ly, Az + Face.Z * Su * 0.18 + Crosswise.Z * Sv * 0.07); };
-						Quad(Out.NightOf(), Pt(-1, -1), Pt(1, -1), Pt(1, 1), Pt(-1, 1), At3(Ax, Ly - 100.0, Az), LampLight, false, 0.0f);
-					}
-					Out.Lights.push_back(float(Ax - Out.OriginX));
-					Out.Lights.push_back(float(Y + 5.4));
-					Out.Lights.push_back(float(Az - Out.OriginZ));
-					break;
-				}
-				case CattleGrid:
-				{
-					// Steel bars across the road, a little proud of it, and a short rail each side.
-					const P2 Across(Face.Z, -Face.X);
-					const double Half = F.Size * 0.5;
-					for (int K = -9; K <= 9; ++K)
-					{
-						const double Off = K * 0.13;
-						const P2 C = F.At + Face * Off;
-						const auto Top = [&](double Su)
-						{
-							const P2 Q = C + Across * (Su * Half);
-							const double H = RoadHeight(Q.X, Q.Z);
-							return std::isnan(H) ? Y : H;
-						};
-						const double Ya = Top(-1.0) + 0.012, Yb = Top(1.0) + 0.012;
-						const P2 A = C + Across * (-Half), B = C + Across * Half, T = Face * 0.025;
-						Quad(Out, At3(A.X - T.X, Ya, A.Z - T.Z), At3(B.X - T.X, Yb, B.Z - T.Z), At3(B.X + T.X, Yb, B.Z + T.Z), At3(A.X + T.X, Ya, A.Z + T.Z), At3(C.X, Y + 100.0, C.Z), Steel);
-					}
-					for (double Su : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Across * (Su * (Half + 0.3));
-						const double G0 = Ground(Q.X, Q.Z);
-						if (!std::isnan(G0)) Box(Out, Q.X, Q.Z, Face, 1.3, 0.05, G0 - 0.2, G0 + 0.9, Steel);
-					}
-					break;
-				}
-				case PowerPole:
-				{
-					// A round timber pole, tapering, its cross-arm and (near) three insulators and a cap.
-					Post(F.At.X, F.At.Z, Y - 0.5, Y + 8.5, 0.15, 0.11, PoleWood);
-					Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.05, Y + 7.9, Y + 8.05, PoleWood);
-					if (Fine)
-					{
-						static const Rgb Porcelain = {0.55f, 0.56f, 0.55f};
-						for (double Su : {-0.65, 0.0, 0.65})
-							Post(F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Y + 8.05, Y + 8.25, 0.045, 0.03, Porcelain);
-						Post(F.At.X, F.At.Z, Y + 8.5, Y + 8.56, 0.12, 0.02, Shade(PoleWood, 0.7));
-					}
-					break;
-				}
-				case PostBox:
-				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.25, 0.25, Y - 0.1, Y + 1.45, Red);
-					Box(Out, F.At.X, F.At.Z, Face, 0.28, 0.28, Y + 1.45, Y + 1.55, Shade(Red, 0.7));
-					Board(At3(F.At.X, Y + 1.15, F.At.Z), Face, 0.3, 0.04, Black, 0.26);
-					break;
-				}
-				case BusStop:
-				{
-					Post(F.At.X, F.At.Z, Y - 0.3, Y + 2.7, 0.045, 0.04, Grey);
-					const P3 Mid = At3(F.At.X + Side.X * 0.3, Y + 2.45, F.At.Z + Side.Z * 0.3);
-					for (int Back = 0; Back < 2; ++Back) Board(Mid, Back ? Face * -1.0 : Face, 0.5, 0.42, White, 0.01);
-					for (int Back = 0; Back < 2; ++Back)
-						Label(At3(Mid.X + (Back ? -Face.X : Face.X) * 0.03, Mid.Y, Mid.Z + (Back ? -Face.Z : Face.Z) * 0.03), Back ? Face * -1.0 : Face, 0.14, "BUS", Black);
-					break;
-				}
-				case Seat:
-				{
-					Box(Out, F.At.X, F.At.Z, Side, 0.8, 0.22, Y + 0.42, Y + 0.47, Wood);
-					Box(Out, F.At.X - Face.X * 0.2, F.At.Z - Face.Z * 0.2, Side, 0.8, 0.03, Y + 0.5, Y + 0.85, Wood);
-					for (double Su : {-0.7, 0.7}) Box(Out, F.At.X + Side.X * Su, F.At.Z + Side.Z * Su, Side, 0.04, 0.2, Y - 0.1, Y + 0.42, Steel);
-					break;
-				}
-				case PhoneBox:
-				{
-					// A red box with a domed top, its glazed sides, and TELEPHONE over the door.
-					Box(Out, F.At.X, F.At.Z, Face, 0.45, 0.45, Y - 0.1, Y + 2.3, Red);
-					Box(Out, F.At.X, F.At.Z, Face, 0.5, 0.5, Y + 2.3, Y + 2.45, Shade(Red, 0.85));
-					Box(Out, F.At.X, F.At.Z, Face, 0.36, 0.36, Y + 2.45, Y + 2.55, Shade(Red, 0.75));
-					for (int Way = 0; Way < 4; ++Way)
-					{
-						const P2 N = Way == 0 ? Face : Way == 1 ? Side : Way == 2 ? Face * -1.0 : Side * -1.0;
-						Board(At3(F.At.X, Y + 1.3, F.At.Z), N, 0.62, 1.4, Shade(Grey, 0.35), 0.455);
-						Board(At3(F.At.X, Y + 2.17, F.At.Z), N, 0.7, 0.13, White, 0.505);
-					}
-					Label(At3(F.At.X + Face.X * 0.52, Y + 2.17, F.At.Z + Face.Z * 0.52), Face, 0.09, "TELEPHONE", Black);
-					break;
-				}
-				case PubSign:
-				{
-					// A post, an arm out over the verge, and the board hanging from it with the pub's name both sides.
-					Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 3.4, Wood);
-					// (Side is towards the road: the arm reaches out over the verge; the board painted one of a pub's colours)
-					const P2 Arm = F.At + Side * 0.6;
-					Box(Out, (F.At.X + Arm.X) * 0.5, (F.At.Z + Arm.Z) * 0.5, Side, 0.65, 0.04, Y + 3.2, Y + 3.3, Wood);
-					static const Rgb Paints[4] = {{0.01f, 0.06f, 0.025f}, {0.12f, 0.012f, 0.015f}, {0.008f, 0.015f, 0.07f}, {0.012f, 0.012f, 0.012f}};
-					const Rgb& Paint = Paints[std::min(3, int(Chance(F.At.X, F.At.Z, 52) * 4.0))];
-					const double W = std::fmax(0.8, std::fmin(1.3, 0.25 + 0.05 * double(F.Text.size())));
-					const P3 Mid = At3(Arm.X, Y + 2.55, Arm.Z);
-					Board(Mid, Face, W, 0.9, Shade(Wood, 1.4), 0.02);
-					Board(Mid, Face * -1.0, W, 0.9, Shade(Wood, 1.4), 0.02);
-					Board(Mid, Face, W - 0.1, 0.8, Paint, 0.03);
-					Board(Mid, Face * -1.0, W - 0.1, 0.8, Paint, 0.03);
-					for (int Back = 0; Back < 2; ++Back)
-					{
-						const P2 N = Back ? Face * -1.0 : Face;
-						Label(At3(Mid.X + N.X * 0.045, Mid.Y, Mid.Z + N.Z * 0.045), N, std::fmin(0.12, 0.9 * (W - 0.2) / std::fmax(1.0, double(F.Text.size()) * 0.55)), F.Text, Shade(White, 1.1));
-					}
-					break;
-				}
-				case CrossingBarrier:
-				{
-					// The post with its two red lights in a black board facing the traffic, and the red and
-					// white barrier arm raised.
-					Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.3, Y + 2.6, White);
-					const P3 Lights = At3(F.At.X, Y + 2.2, F.At.Z);
-					Board(Lights, Face, 1.0, 0.45, Black, 0.09);
-					for (double Su : {-0.3, 0.3})
-						Disc(Out, At3(Lights.X + Side.X * Su + Face.X * 0.1, Lights.Y, Lights.Z + Side.Z * Su + Face.Z * 0.1), Face, 0.11, Shade(Red, 1.3), 12);
-					Box(Out, F.At.X + Side.X * 0.3, F.At.Z + Side.Z * 0.3, Face, 0.18, 0.18, Y - 0.1, Y + 1.1, Shade(Grey, 0.6));
-					for (int K = 0; K < 6; ++K)
-						Box(Out, F.At.X + Side.X * 0.3, F.At.Z + Side.Z * 0.3, Face, 0.05, 0.05, Y + 1.1 + K * 0.6, Y + 1.7 + K * 0.6, K % 2 == 0 ? Red : White);
-					break;
-				}
-				case Milestone:
-				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.18, 0.12, Y - 0.2, Y + 0.75, Stone3);
-					break;
-				}
-				case FieldGate:
-				{
-					// Five bars and a brace between two posts, in line with its wall, galvanised or wooden.
-					const Rgb Bar = Chance(F.At.X, F.At.Z, 31) < 0.6 ? Steel : Shade(Wood, 1.6);
-					const double Half = F.Size * 0.5;
-					for (double Su : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Face * (Su * (Half + 0.12));
-						Box(Out, Q.X, Q.Z, Face, 0.1, 0.1, Y - 0.3, Y + 1.35, Shade(Stone3, 1.1));
-					}
-					const P2 A = F.At + Face * -Half, B = F.At + Face * Half;
-					for (int K = 0; K < 5; ++K)
-					{
-						const double H = 0.25 + K * 0.22;
-						Quad(Out, At3(A.X, Y + H, A.Z), At3(B.X, Y + H, B.Z), At3(B.X, Y + H + 0.06, B.Z), At3(A.X, Y + H + 0.06, A.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
-					}
-					Quad(Out, At3(A.X, Y + 0.25, A.Z), At3(A.X, Y + 0.31, A.Z), At3(B.X, Y + 1.19, B.Z), At3(B.X, Y + 1.13, B.Z), At3(F.At.X + Side.X * 50.0, Y + 1.0, F.At.Z + Side.Z * 50.0), Bar, true);
-					break;
-				}
-				// [OSM stage 2] Stand-ins until the kit has models for them.
-				case Stile:
-				{
-					// (a step stile: two posts in the line, a rail between them and a step each side)
-					for (double Su : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Face * (Su * 0.45);
-						Box(Out, Q.X, Q.Z, Face, 0.06, 0.06, Y - 0.2, Y + 1.2, Shade(Wood, 1.4));
-					}
-					Box(Out, F.At.X, F.At.Z, Face, 0.5, 0.04, Y + 0.95, Y + 1.02, Shade(Wood, 1.5));
-					for (double Sv : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Side * (Sv * 0.3);
-						Box(Out, Q.X, Q.Z, Face, 0.4, 0.12, Y + 0.38, Y + 0.43, Shade(Wood, 1.6));
-					}
-					break;
-				}
-				case KissingGate:
-				{
-					// (a gate swinging in a three-sided pen of rails, between two posts)
-					for (double Su : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Face * (Su * 0.75);
-						Box(Out, Q.X, Q.Z, Face, 0.07, 0.07, Y - 0.2, Y + 1.3, Shade(Wood, 1.4));
-					}
-					const P2 Back = F.At + Side * 0.7;
-					for (double H : {0.45, 0.95})
-					{
-						Box(Out, Back.X, Back.Z, Face, 0.75, 0.03, Y + H, Y + H + 0.06, Shade(Wood, 1.5));
-						for (double Su : {-1.0, 1.0})
-						{
-							const P2 Q = F.At + Face * (Su * 0.75) + Side * 0.35;
-							Box(Out, Q.X, Q.Z, Side, 0.35, 0.03, Y + H, Y + H + 0.06, Shade(Wood, 1.5));
-						}
-					}
-					Box(Out, F.At.X + Side.X * 0.35, F.At.Z + Side.Z * 0.35, Side, 0.02, 0.6, Y + 0.25, Y + 1.15, Shade(Wood, 1.7));
-					break;
-				}
-				case LiftGate:
-				{
-					// (a post, and the red and white arm raised beside it)
-					Box(Out, F.At.X, F.At.Z, Face, 0.1, 0.1, Y - 0.2, Y + 1.1, Grey);
-					Box(Out, F.At.X + Side.X * 0.12, F.At.Z + Side.Z * 0.12, Face, 0.03, 0.03, Y + 1.0, Y + 3.6, White);
-					break;
-				}
-				case Bollard:
-				{
-					Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.1, Y + 0.95, Britain() ? White : Grey);
-					Box(Out, F.At.X, F.At.Z, Face, 0.085, 0.085, Y + 0.7, Y + 0.78, Black);
-					break;
-				}
-				case PicnicTable:
-				{
-					// (a timber top and a bench each side, along the road)
-					Box(Out, F.At.X, F.At.Z, Side, 0.9, 0.35, Y + 0.72, Y + 0.77, Shade(Wood, 1.7));
-					for (double Sv : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Face * (Sv * 0.6);
-						Box(Out, Q.X, Q.Z, Side, 0.9, 0.13, Y + 0.42, Y + 0.46, Shade(Wood, 1.7));
-					}
-					for (double Su : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Side * (Su * 0.75);
-						Box(Out, Q.X, Q.Z, Face, 0.7, 0.04, Y, Y + 0.72, Shade(Wood, 1.4));
-					}
-					break;
-				}
-				case InfoBoard:
-				{
-					// (two legs and a sloping panel facing the road)
-					for (double Su : {-1.0, 1.0})
-					{
-						const P2 Q = F.At + Side * (Su * 0.5);
-						Box(Out, Q.X, Q.Z, Face, 0.05, 0.05, Y - 0.2, Y + 1.0, Shade(Wood, 1.3));
-					}
-					const P2 U = Side;
-					const P3 Lo3 = At3(F.At.X + Face.X * 0.15, Y + 0.85, F.At.Z + Face.Z * 0.15), Hi3 = At3(F.At.X - Face.X * 0.15, Y + 1.25, F.At.Z - Face.Z * 0.15);
-					const auto Pt = [&](const P3& C, double Su) { return At3(C.X + U.X * Su * 0.55, C.Y, C.Z + U.Z * Su * 0.55); };
-					Quad(Out, Pt(Lo3, -1.0), Pt(Lo3, 1.0), Pt(Hi3, 1.0), Pt(Hi3, -1.0), At3(F.At.X + Face.X * 50.0, Y + 60.0, F.At.Z + Face.Z * 50.0), Shade(Grey, 1.6), true);
-					break;
-				}
-				default: break;
+					const P2 Q = F.At + Face * (Su * 0.75) + Side * 0.35;
+					Box(Out, Q.X, Q.Z, Side, 0.35, 0.03, Y + H, Y + H + 0.06, Shade(Wood, 1.5));
 				}
 			}
+			Box(Out, F.At.X + Side.X * 0.35, F.At.Z + Side.Z * 0.35, Side, 0.02, 0.6, Y + 0.25, Y + 1.15, Shade(Wood, 1.7));
+			break;
 		}
+		case LiftGate:
+		{
+			// (a post, and the red and white arm raised beside it)
+			Box(Out, F.At.X, F.At.Z, Face, 0.1, 0.1, Y - 0.2, Y + 1.1, Grey);
+			Box(Out, F.At.X + Side.X * 0.12, F.At.Z + Side.Z * 0.12, Face, 0.03, 0.03, Y + 1.0, Y + 3.6, White);
+			break;
+		}
+		case Bollard:
+		{
+			Box(Out, F.At.X, F.At.Z, Face, 0.08, 0.08, Y - 0.1, Y + 0.95, Britain() ? White : Grey);
+			Box(Out, F.At.X, F.At.Z, Face, 0.085, 0.085, Y + 0.7, Y + 0.78, Black);
+			break;
+		}
+		case PicnicTable:
+		{
+			// (a timber top and a bench each side, along the road)
+			Box(Out, F.At.X, F.At.Z, Side, 0.9, 0.35, Y + 0.72, Y + 0.77, Shade(Wood, 1.7));
+			for (double Sv : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Face * (Sv * 0.6);
+				Box(Out, Q.X, Q.Z, Side, 0.9, 0.13, Y + 0.42, Y + 0.46, Shade(Wood, 1.7));
+			}
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Side * (Su * 0.75);
+				Box(Out, Q.X, Q.Z, Face, 0.7, 0.04, Y, Y + 0.72, Shade(Wood, 1.4));
+			}
+			break;
+		}
+		case InfoBoard:
+		{
+			// (two legs and a sloping panel facing the road)
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Side * (Su * 0.5);
+				Box(Out, Q.X, Q.Z, Face, 0.05, 0.05, Y - 0.2, Y + 1.0, Shade(Wood, 1.3));
+			}
+			const P2 U = Side;
+			const P3 Lo3 = At3(F.At.X + Face.X * 0.15, Y + 0.85, F.At.Z + Face.Z * 0.15), Hi3 = At3(F.At.X - Face.X * 0.15, Y + 1.25, F.At.Z - Face.Z * 0.15);
+			const auto Pt = [&](const P3& C, double Su) { return At3(C.X + U.X * Su * 0.55, C.Y, C.Z + U.Z * Su * 0.55); };
+			Quad(Out, Pt(Lo3, -1.0), Pt(Lo3, 1.0), Pt(Hi3, 1.0), Pt(Hi3, -1.0), At3(F.At.X + Face.X * 50.0, Y + 60.0, F.At.Z + Face.Z * 50.0), Shade(Grey, 1.6), true);
+			break;
+		}
+		default: break;
+		}
+	}
 }
 
 // --- Water (stage 5) ----------------------------------------------------------------------------------
@@ -2089,5 +2096,210 @@ void RidePlan::RailTile(double X0, double Z0, double Size, bool Fine, RideMesh& 
 		Words.Text = Plat.Name;
 		Out.Labels.push_back(Words);
 	}
+}
+// [ride anywhere 4] The furniture of the network's roads (see NetworkFurniture).
+std::vector<RidePlan::Furnish> RidePlan::RoadFurniture(int Which) const
+{
+	std::vector<Furnish> Out;
+	const SideRoad* Mine = SideOf(Which);
+	if (Mine == nullptr || Mine->Pts.size() < 2 || Mine->Track || !Scene) return Out;
+	const std::vector<RoadPoint>& Pts = Mine->Pts;
+	const Region& G = Area.Roads;
+	if (Mine->Edge >= 0)
+	{
+		const std::string& Class = G.ClassOf(Mine->Edge);
+		if (Class == "track" || Class == "service" || Class == "path" || Class == "footway" || Class == "cycleway" || Class == "bridleway") return Out;
+	}
+	const auto Dir = [&Pts](size_t I)
+	{
+		const size_t A = I > 0 ? I - 1 : 0, B = std::min(Pts.size() - 1, I + 1);
+		const P2 D = Pts[B].At - Pts[A].At;
+		const double L = D.Length();
+		return L > 1e-9 ? D * (1.0 / L) : P2(1.0, 0.0);
+	};
+	const auto Verge = [&](size_t I, double Side, double Past)
+	{
+		const P2 D = Dir(I);
+		const P2 L(D.Z, -D.X);
+		return Pts[I].At + L * (Side * (Pts[I].Half + Past));
+	};
+	const auto OffAll = [this](const P2& P, double Spare)
+	{
+		NearOpts Opts;
+		NearHit Hit;
+		return !NearestOf(P.X, P.Z, Opts, Hit) || Hit.Dist > Hit.Half + Spare;
+	};
+	const auto PointAt = [&Pts](double Along)
+	{
+		size_t I = 0;
+		while (I + 1 < Pts.size() && Pts[I + 1].Along <= Along) ++I;
+		return I;
+	};
+	const auto Put = [&Out](Furnish F)
+	{
+		if (!std::isnan(F.Height)) Out.push_back(std::move(F));
+	};
+	// Built up as the ride's road is (five buildings within 70 m: town streets are short), gaps under
+	// 120 m closed, stretches under 60 m left out.
+	std::vector<unsigned char> Busy(Pts.size(), 0);
+	for (size_t I = 0; I < Pts.size(); ++I)
+	{
+		const P2 P = Pts[I].At;
+		int Count = 0;
+		for (int Dz = -1; Dz <= 1 && Count < 5; ++Dz)
+			for (int Dx = -1; Dx <= 1 && Count < 5; ++Dx)
+			{
+				const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+				if (It == Scene->Buildings.end()) continue;
+				for (int B : It->second)
+					if (std::hypot(G.Buildings[size_t(B)].X - P.X, G.Buildings[size_t(B)].Z - P.Z) < 70.0 && ++Count >= 5) break;
+			}
+		Busy[I] = Count >= 5 ? 1 : 0;
+	}
+	for (size_t I = 0; I < Pts.size();)
+	{
+		if (Busy[I]) { ++I; continue; }
+		size_t J = I;
+		while (J + 1 < Pts.size() && !Busy[J + 1]) ++J;
+		if (I > 0 && J + 1 < Pts.size() && Pts[J].Along - Pts[I].Along < 120.0)
+			for (size_t K = I; K <= J; ++K) Busy[K] = 1;
+		I = J + 1;
+	}
+	const double Keep = KeepLeft() ? 1.0 : -1.0;
+	for (size_t I = 0; I < Pts.size(); ++I)
+	{
+		if (!Busy[I] || (I > 0 && Busy[I - 1])) continue;
+		size_t J = I;
+		while (J + 1 < Pts.size() && Busy[J + 1]) ++J;
+		if (Pts[J].Along - Pts[I].Along >= 60.0)
+			// Street lamps on its left every 36 m, none within 150 m of one the map has.
+			for (double Along = Pts[I].Along + 12.0; Along < Pts[J].Along - 6.0; Along += 36.0)
+			{
+				const size_t K = PointAt(Along);
+				Furnish F;
+				F.Kind = StreetLamp;
+				F.Mapped = false;
+				F.At = Verge(K, Keep, 0.9);
+				if (std::any_of(MappedLamps.begin(), MappedLamps.end(), [&F](const P2& M) { return M.DistanceTo(F.At) < 150.0; })) continue;
+				const P2 D = Dir(K);
+				F.Face = P2(-D.Z, D.X) * Keep;
+				F.Height = Ground(F.At.X, F.At.Z);
+				if (OffAll(F.At, 0.5)) Put(F);
+			}
+		I = J;
+	}
+	// Chevrons round its sharp bends out of town, as the ride's road's.
+	if (Mine->Gravel) return Out;
+	const double Pi = 3.14159265358979323846;
+	std::vector<double> Radius(Pts.size(), 1e9), Turn(Pts.size(), 0.0);
+	for (size_t I = 0; I < Pts.size(); ++I)
+	{
+		size_t A = I, B = I;
+		while (A > 0 && Pts[I].Along - Pts[A].Along < 15.0) --A;
+		while (B + 1 < Pts.size() && Pts[B].Along - Pts[I].Along < 15.0) ++B;
+		if (A == I || B == I) continue;
+		const P2 U = Pts[I].At - Pts[A].At, V = Pts[B].At - Pts[I].At;
+		double T = std::atan2(V.Z, V.X) - std::atan2(U.Z, U.X);
+		while (T > Pi) T -= 2.0 * Pi;
+		while (T < -Pi) T += 2.0 * Pi;
+		Turn[I] = T;
+		if (std::fabs(T) > 1e-4) Radius[I] = (Pts[B].Along - Pts[A].Along) / std::fabs(T);
+	}
+	for (size_t I = 0; I < Pts.size(); ++I)
+	{
+		if (Radius[I] >= 40.0 || Busy[I]) continue;
+		size_t J = I, Apex = I;
+		while (J + 1 < Pts.size() && Radius[J + 1] < 40.0 && (Turn[J + 1] > 0.0) == (Turn[I] > 0.0))
+		{
+			++J;
+			if (Radius[J] < Radius[Apex]) Apex = J;
+		}
+		double Whole = 0.0;
+		for (size_t K = I; K <= J; ++K) Whole += Turn[K] * (K > I ? (Pts[K].Along - Pts[K - 1].Along) : 0.0) / 30.0;
+		// (not within 20 m of its ends: a junction's corner is no bend)
+		if ((std::fabs(Whole) >= 45.0 * Pi / 180.0 || Radius[Apex] < 20.0) && Pts[Apex].Along > 20.0 && Pts[Apex].Along < Mine->Length - 20.0)
+			for (double Off : {-12.0, 0.0, 12.0})
+			{
+				const size_t K = PointAt(Pts[Apex].Along + Off);
+				Furnish F;
+				F.Kind = Chevron;
+				F.Mapped = false;
+				F.At = Verge(K, Turn[Apex] > 0.0 ? 1.0 : -1.0, 1.6);
+				F.Face = Dir(K) * -1.0;
+				F.Size = Turn[Apex] > 0.0 ? -1.0 : 1.0;
+				F.Height = Ground(F.At.X, F.At.Z);
+				if (OffAll(F.At, 0.8)) Put(F);
+			}
+		I = J;
+	}
+	return Out;
+}
+
+std::vector<RidePlan::Furnish> RidePlan::BlockFurniture(const Rect& In) const
+{
+	std::vector<Furnish> Out;
+	const Region& G = Area.Roads;
+	if (!Scene || MappedLeft.size() != G.Scenery.Points.size()) return Out;
+	const bool Uk = Britain();
+	for (size_t Pi = 0; Pi < G.Scenery.Points.size(); ++Pi)
+	{
+		if (!MappedLeft[Pi]) continue;
+		const FeaturePoint& P = G.Scenery.Points[Pi];
+		if (P.At.X < In.X0 || P.At.X >= In.X1 || P.At.Z < In.Z0 || P.At.Z >= In.Z1) continue;
+		// (the kinds that stand by a road; gates and stiles stand in walls drawn already)
+		int Kind = -1;
+		if (P.Kind == "cattle_grid") Kind = CattleGrid;
+		else if (P.Kind == "post_box" && Uk) Kind = PostBox;
+		else if (P.Kind == "bus_stop") Kind = BusStop;
+		else if (P.Kind == "bench") Kind = Seat;
+		else if (P.Kind == "milestone") Kind = Milestone;
+		else if (P.Kind == "lift_gate") Kind = LiftGate;
+		else if (P.Kind == "bollard") Kind = Bollard;
+		else if (P.Kind == "picnic_table") Kind = PicnicTable;
+		else if (P.Kind == "information") Kind = InfoBoard;
+		else if (P.Kind == "street_lamp") Kind = StreetLamp;
+		if (Kind < 0) continue;
+		NearOpts Opts;
+		NearHit Hit;
+		if (!NearestOf(P.At.X, P.At.Z, Opts, Hit)) continue;
+		Furnish F;
+		F.Kind = Kind;
+		F.At = P.At;
+		F.Face = P2(std::cos(P.Heading), std::sin(P.Heading));
+		if (std::isnan(F.Face.X) || std::isnan(F.Face.Z)) F.Face = P2(1.0, 0.0);
+		F.Id = PropHash(P.Id);
+		if (Kind == CattleGrid)
+		{
+			if (Hit.Dist > Hit.Half) continue;
+			const std::vector<RoadPoint>& On = RoadOf(Hit.Which);
+			const size_t K = size_t(std::max(0, Hit.Index));
+			if (K + 1 >= On.size()) continue;
+			const P2 D = On[K + 1].At - On[K].At;
+			const double L = D.Length();
+			if (L < 1e-6) continue;
+			F.At = Hit.Foot;
+			F.Face = D * (1.0 / L);
+			F.Size = Hit.Half * 2.0 + 0.6;
+			F.Height = Hit.Height;
+			Out.push_back(F);
+			continue;
+		}
+		if (Hit.Dist < Hit.Half + 0.5) continue;
+		const double D = Hit.Foot.DistanceTo(F.At);
+		if (Kind == StreetLamp)
+		{
+			if (D > 1e-3) F.Face = (Hit.Foot - F.At) * (1.0 / D);
+		}
+		else if (Kind != Bollard && D > 1e-3)
+		{
+			const P2 Away = (F.At - Hit.Foot) * (1.0 / D);
+			F.Face = Away * -1.0;
+			const double Back = Hit.Half + (Kind == PicnicTable ? 1.6 : Kind == InfoBoard ? 1.0 : 0.6);
+			if (D < Back) F.At = Hit.Foot + Away * Back;
+		}
+		F.Height = Ground(F.At.X, F.At.Z);
+		if (!std::isnan(F.Height)) Out.push_back(F);
+	}
+	return Out;
 }
 } // namespace TorqueWorld

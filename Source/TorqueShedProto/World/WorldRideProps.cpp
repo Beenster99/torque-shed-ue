@@ -58,34 +58,39 @@ void RidePlan::PropsTile(double X0, double Z0, double Size, std::vector<RideProp
 	if (!Any) return;
 	const int CellX0 = int(std::floor(X0 / PropCell)), CellX1 = int(std::floor((X0 + Size - 0.001) / PropCell));
 	const int CellZ0 = int(std::floor(Z0 / PropCell)), CellZ1 = int(std::floor((Z0 + Size - 0.001) / PropCell));
+	std::vector<const Furnish*> Here;
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
 		{
 			const auto It = Scene->Furniture.find(static_cast<long long>(Cx) * 4000037LL + static_cast<long long>(Cz));
 			if (It == Scene->Furniture.end()) continue;
-			for (int Index : It->second)
-			{
-				const Furnish& F = Furniture[size_t(Index)];
-				if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
-				const int Kind = PropOf(F.Kind);
-				if (Kind < 0 || !PropModelled[Kind] || std::isnan(F.Height)) continue;
-				RideProp P;
-				P.Kind = uint16_t(Kind);
-				P.Mapped = F.Mapped;
-				P.Id = F.Id != 0 ? F.Id : static_cast<uint32_t>(std::lround(F.At.X * 7.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(F.At.Z * 7.0)) * 19349663u;
-				P.Variant = uint8_t((P.Id >> 8) & 0xff);
-				P.X = float(F.At.X - X0);
-				P.Z = float(F.At.Z - Z0);
-				P.Y = float(F.Height);
-				// Its front (the model's +x) to the road, or for a thing that stands in a line (a gate,
-				// a stile) square to the line: the line runs along Face, so the front is across it.
-				const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate;
-				const P2 Front = InLine ? P2(F.Face.Z, -F.Face.X) : F.Face;
-				P.Yaw = float(std::atan2(Front.Z, Front.X));
-				P.Scale = 1.0f;
-				Out.push_back(P);
-			}
+			for (int Index : It->second) Here.push_back(&Furniture[size_t(Index)]);
 		}
+	// [ride anywhere 4] and the network's roads' own
+	std::vector<std::shared_ptr<const std::vector<Furnish>>> Held;
+	NetworkFurniture(X0, Z0, Size, Held, Here);
+	for (const Furnish* Each : Here)
+	{
+		const Furnish& F = *Each;
+		if (F.At.X < X0 || F.At.X >= X0 + Size || F.At.Z < Z0 || F.At.Z >= Z0 + Size) continue;
+		const int Kind = PropOf(F.Kind);
+		if (Kind < 0 || !PropModelled[Kind] || std::isnan(F.Height)) continue;
+		RideProp P;
+		P.Kind = uint16_t(Kind);
+		P.Mapped = F.Mapped;
+		P.Id = F.Id != 0 ? F.Id : static_cast<uint32_t>(std::lround(F.At.X * 7.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(F.At.Z * 7.0)) * 19349663u;
+		P.Variant = uint8_t((P.Id >> 8) & 0xff);
+		P.X = float(F.At.X - X0);
+		P.Z = float(F.At.Z - Z0);
+		P.Y = float(F.Height);
+		// Its front (the model's +x) to the road, or for a thing that stands in a line (a gate,
+		// a stile) square to the line: the line runs along Face, so the front is across it.
+		const bool InLine = F.Kind == FieldGate || F.Kind == Stile || F.Kind == KissingGate;
+		const P2 Front = InLine ? P2(F.Face.Z, -F.Face.X) : F.Face;
+		P.Yaw = float(std::atan2(Front.Z, Front.X));
+		P.Scale = 1.0f;
+		Out.push_back(P);
+	}
 }
 
 bool RidePlan::ReadPropKit(const std::string& Text, std::vector<PropKitRow>& Out)
