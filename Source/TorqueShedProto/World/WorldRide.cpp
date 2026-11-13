@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldRideSceneBits.h"
 #include "WorldRoadLine.h"
 
 #include <algorithm>
@@ -1322,6 +1323,30 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		for (double Far : {4.0, 10.0, 16.0, LidReach}) Add(-E - Far, -1e18, Far == LidReach ? 0.4 : 0.0);
 		return Pts3;
 	};
+	// (a gravel side road: how far a point along it is from an end where it joins another road, a mouth
+	// or a junction; 1e18 for the ride's own road, or a road with no join)
+	bool Joined[2] = {false, false};
+	double JoinAt[2] = {0.0, 0.0};
+	if (Which > 0)
+	{
+		const SideRoad& Sd = Sides[size_t(Which) - 1];
+		for (int End = 0; End < 2; ++End)
+		{
+			Joined[End] = Sd.Mouths[End].Is;
+			JoinAt[End] = Sd.Mouths[End].Is ? std::fmax(Sd.Mouths[End].Clear[0], Sd.Mouths[End].Clear[1]) : 0.0;   // (from where the mouth's tarmac ends)
+			for (const Knot& Kn : Knots)
+				for (const KnotArm& Arm : Kn.Arms)
+					if (Arm.Which == Which && Arm.End == End) Joined[End] = true;
+		}
+	}
+	const double SideLength = Which > 0 ? Sides[size_t(Which) - 1].Length : 0.0;
+	const auto GravelFade = [&Joined, &JoinAt, SideLength](double Along)
+	{
+		double D = 1e18;
+		if (Joined[0]) D = std::fmin(D, Along - JoinAt[0]);
+		if (Joined[1]) D = std::fmin(D, SideLength - Along - JoinAt[1]);
+		return std::fmax(0.0, D);
+	};
 	const int LidArch = 4;   // (the lid's first point over the arch)
 	std::vector<P3> RingA, RingB, LidA, LidB;
 	const double PaintLift = 0.015;
@@ -1420,8 +1445,70 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		static constexpr float Grit[3] = {0.095f, 0.088f, 0.07f};
 		// The tarmac, in two halves either side of the crown.
-		Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Gravel ? Grit : Tarmac);
-		Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Gravel ? Grit : Tarmac);
+		// (beenster, build 141: a gravel road off tarmac fades into its gravel over its first metres. The
+		// tarmac reaches out a ragged tongue, each lane of it worn back its own way, and loose stones
+		// thrown from the gravel lie on it, thicker towards its end)
+		const double FadeLen = 12.0;
+		const double FadeD = Gravel ? std::fmin(GravelFade(A.Along), GravelFade(B.Along)) : 1e18;
+		if (FadeD < FadeLen)
+		{
+			constexpr int Lanes = 8;
+			double Lim[Lanes + 1];
+			for (int Ln = 0; Ln <= Lanes; ++Ln)
+			{
+				const double Fr = 1.0 - 2.0 * Ln / Lanes;
+				Lim[Ln] = 6.0 + 6.0 * (RideSceneBits::Chance(double(Which), double(Ln), 76) - 0.5) - 3.0 * Fr * Fr;
+			}
+			// (a quad from two rows at their own offsets: left and right at the near row, then the far one)
+			const auto Patch = [&Into, &Put](const Row& L0, double OL0, const Row& R0, double OR0, const Row& L1, double OL1, const Row& R1, double OR1, double Lift, const float* Colour)
+			{
+				RideMesh& M = *Into;
+				const uint32_t V = uint32_t(M.Vertices());
+				Put(L0, OL0, Lift, Colour);
+				Put(R0, OR0, Lift, Colour);
+				Put(L1, OL1, Lift, Colour);
+				Put(R1, OR1, Lift, Colour);
+				M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
+			};
+			const int Downs = std::max(1, int(std::ceil(B.At.DistanceTo(A.At) / 1.0)));
+			for (int Dn = 0; Dn < Downs; ++Dn)
+			{
+				const Row R0 = Between(A, B, double(Dn) / Downs), R1 = Between(A, B, double(Dn + 1) / Downs);
+				const double D0 = GravelFade(R0.Along), D1 = GravelFade(R1.Along);
+				for (int Ln = 0; Ln < Lanes; ++Ln)
+				{
+					const double F0 = 1.0 - 2.0 * Ln / Lanes, F1 = 1.0 - 2.0 * (Ln + 1) / Lanes;   // (left to right)
+					// Where the tongue ends across this lane: from its left boundary's reach to its right's.
+					const auto Cut = [&](double Reach) { return std::fabs(D1 - D0) < 1e-6 ? (D0 < Reach ? 1.0 : 0.0) : std::clamp((Reach - D0) / (D1 - D0), 0.0, 1.0); };
+					const double TL = Cut(Lim[Ln]), TR = Cut(Lim[Ln + 1]);
+					const bool NearIsTar = D0 <= D1;   // (the tarmac lies on the side of the join)
+					const Row ML = Between(R0, R1, NearIsTar ? TL : 1.0 - TL), MR = Between(R0, R1, NearIsTar ? TR : 1.0 - TR);
+					const float* NearCol = NearIsTar ? Tarmac : Grit;
+					const float* FarCol = NearIsTar ? Grit : Tarmac;
+					Patch(R0, F0 * R0.Half, R0, F1 * R0.Half, ML, F0 * ML.Half, MR, F1 * MR.Half, 0.0, NearCol);
+					Patch(ML, F0 * ML.Half, MR, F1 * MR.Half, R1, F0 * R1.Half, R1, F1 * R1.Half, 0.0, FarCol);
+					// Loose stones: on the tarmac within 4 m of the tongue's end, a few, each its own shape.
+					const double Mid = (D0 + D1) * 0.5, Reach = (Lim[Ln] + Lim[Ln + 1]) * 0.5;
+					if (Mid > Reach || Mid < Reach - 4.0) continue;
+					const P2 Spot = (R0.At + R1.At) * 0.5 + R0.Left * ((F0 + F1) * 0.5 * R0.Half);
+					const int Stones = int(1.0 + 3.0 * (1.0 - (Reach - Mid) / 4.0) * RideSceneBits::Chance(Spot.X, Spot.Z, 72));
+					for (int St = 0; St < Stones; ++St)
+					{
+						const double U = RideSceneBits::Chance(Spot.X + St, Spot.Z, 73), V = RideSceneBits::Chance(Spot.X, Spot.Z + St, 74);
+						const double Sz = 0.1 + 0.25 * RideSceneBits::Chance(Spot.X + St, Spot.Z + St, 75), Wd = Sz / std::fmax(0.5, R0.Half);
+						const double Fa = F1 + (F0 - F1) * U;
+						const Row S0 = Between(R0, R1, std::clamp(V - Sz * 0.4, 0.0, 1.0)), S1 = Between(R0, R1, std::clamp(V + Sz * 0.6, 0.0, 1.0));
+						const double J = RideSceneBits::Chance(Spot.X - St, Spot.Z, 77) - 0.5;
+						Patch(S0, (Fa + Wd * (0.5 + J * 0.4)) * S0.Half, S0, (Fa - Wd * 0.4) * S0.Half, S1, (Fa + Wd * 0.3) * S1.Half, S1, (Fa - Wd * (0.6 - J * 0.4)) * S1.Half, 0.006, Grit);
+					}
+				}
+			}
+		}
+		else
+		{
+			Strip(A, B, A.Half, 0.0, B.Half, 0.0, 0.0, 0.0, Gravel ? Grit : Tarmac);
+			Strip(A, B, 0.0, -A.Half, 0.0, -B.Half, 0.0, 0.0, Gravel ? Grit : Tarmac);
+		}
 		if (A.Deck && B.Deck)
 		{
 			// A bridge: a stone parapet each side (its top, and its faces down past the deck to the
