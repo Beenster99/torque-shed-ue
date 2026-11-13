@@ -3,14 +3,37 @@
 #include "WorldRoadLine.h"
 
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <shared_mutex>
 #include <cmath>
 #include <ctime>
 #include <functional>
+#include <queue>
 #include <set>
 
 namespace TorqueWorld
 {
 using TorqueFit::Json;
+
+// [ride anywhere] The network's state, shared by every thread that lays or reads it.
+struct RidePlan::Network
+{
+	std::vector<char> OnRide;                                     // the edges the ride's own road is made of
+	std::unordered_map<long long, std::vector<int>> BlockEdges;   // the edges through each block (set with the plan)
+	std::unique_ptr<std::atomic<const SideRoad*>[]> Side;         // by edge, once laid (null: not, or none)
+	std::mutex Lay;                                               // EdgeState, BlockState, Own
+	std::condition_variable Done;
+	std::vector<char> EdgeState;                                  // 0 not laid, 1 being laid, 2 laid
+	std::unordered_map<long long, char> BlockState;
+	std::vector<std::unique_ptr<SideRoad>> Own;
+	std::shared_mutex Read;                                       // Near, Knots
+	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
+	std::unordered_map<long long, std::shared_ptr<const Knot>> Knots;      // by road * 2 + end, each arm's
+	std::atomic<int> Blocks{0}, Bridges{0}, Tunnels{0};
+	std::mutex Fetching;                                          // one fetch of ground at a time
+};
 
 namespace
 {
@@ -20,6 +43,32 @@ long long NearKey(double X, double Z)
 {
 	const long long Cx = static_cast<long long>(std::floor(X / NearCell)), Cz = static_cast<long long>(std::floor(Z / NearCell));
 	return Cx * 4000037LL + Cz;
+}
+
+// [ride anywhere] The network's blocks: by column and row of RidePlan::BlockSize.
+long long BlockOf(double V)
+{
+	return static_cast<long long>(std::floor(V / RidePlan::BlockSize));
+}
+
+long long BlockKey(long long Bx, long long Bz)
+{
+	return Bx * 4000037LL + Bz;
+}
+
+Rect BlockBox(long long Key)
+{
+	// (the inverse of BlockKey: Bz in -2000018..2000018)
+	long long Bz = Key % 4000037LL;
+	if (Bz > 2000018LL) Bz -= 4000037LL;
+	else if (Bz < -2000018LL) Bz += 4000037LL;
+	const long long Bx = (Key - Bz) / 4000037LL;
+	Rect R;
+	R.X0 = double(Bx) * RidePlan::BlockSize;
+	R.Z0 = double(Bz) * RidePlan::BlockSize;
+	R.X1 = R.X0 + RidePlan::BlockSize;
+	R.Z1 = R.Z0 + RidePlan::BlockSize;
+	return R;
 }
 
 double Dot(const P2& A, const P2& B)
@@ -224,6 +273,9 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	}
 	// (the tiles are chosen by the road as the map has it, a point every 30 m, as every rider's are)
 	R->Land = R->Area.Land->ForRoad(Resample(G.PathLine(From, Path), 30.0));
+	R->Land->SetRoam(true);   // [ride anywhere]
+	R->CellsFrom = &Store;
+	R->HeightsFrom = &Heights;
 	Tell("Fetching the ground: " + std::to_string(R->Land->UsedKeys().size()) + " tiles");
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
 	if (R->TilesFailed > 0)
@@ -239,7 +291,13 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
-	R->LayKnots();
+	{
+		// [ride anywhere] The network round the start laid now, its ground fetched (not on the game thread
+		// as the first squares are made).
+		Rect Start;
+		Start.X0 = R->Road[0].At.X - 700.0; Start.Z0 = R->Road[0].At.Z - 700.0; Start.X1 = R->Road[0].At.X + 700.0; Start.Z1 = R->Road[0].At.Z + 700.0;
+		R->LayBlocks(Start);
+	}
 	R->IndexTowns();     // [towns stage 1] (before anything asks a place's look)
 	R->IndexScenery();
 	R->IndexRails();
@@ -415,7 +473,7 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 {
 	const std::vector<double> Banks = RoadLine::BankOf(Line, Speeds);
 	Road.clear();
-	Near.clear();
+	Net = std::make_shared<Network>();
 	Bridges = Tunnels = 0;
 	std::vector<double> H(Line.size());
 	double Last = 0.0;
@@ -469,8 +527,13 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Tunnel = Kind[I] == 2;
 		P.Bank = Banks[I];
 		WidestHalf = std::fmax(WidestHalf, P.Half);
-		Near[NearKey(P.At.X, P.At.Z)].push_back({0, int(Road.size())});
+		Net->Near[NearKey(P.At.X, P.At.Z)].push_back({0, int(Road.size())});
 		Road.push_back(P);
+		if (Road.size() == 1) { RoadBox.X0 = RoadBox.X1 = P.At.X; RoadBox.Z0 = RoadBox.Z1 = P.At.Z; }
+		RoadBox.X0 = std::fmin(RoadBox.X0, P.At.X - 50.0);
+		RoadBox.X1 = std::fmax(RoadBox.X1, P.At.X + 50.0);
+		RoadBox.Z0 = std::fmin(RoadBox.Z0, P.At.Z - 50.0);
+		RoadBox.Z1 = std::fmax(RoadBox.Z1, P.At.Z + 50.0);
 	}
 	Length = Along;
 }
@@ -497,12 +560,14 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 	// is the lane's; the ride's own road wins a tie)
 	double Best = 1e18;
 	Hit = NearHit();
+	if (Net == nullptr) return false;
+	std::shared_lock<std::shared_mutex> Hold(Net->Read);
 	const long long Cx = static_cast<long long>(std::floor(X / NearCell)), Cz = static_cast<long long>(std::floor(Z / NearCell));
 	for (long long Dx = -3; Dx <= 3; ++Dx)
 		for (long long Dz = -3; Dz <= 3; ++Dz)
 		{
-			const auto It = Near.find((Cx + Dx) * 4000037LL + (Cz + Dz));
-			if (It == Near.end()) continue;
+			const auto It = Net->Near.find((Cx + Dx) * 4000037LL + (Cz + Dz));
+			if (It == Net->Near.end()) continue;
 			for (const std::pair<int, int>& Entry : It->second)
 			{
 				if ((Opts.MainOnly && Entry.first != 0) || Entry.first == Opts.NotRoad || (Opts.OnlyRoad >= 0 && Entry.first != Opts.OnlyRoad)) continue;
@@ -548,202 +613,405 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 
 void RidePlan::LaySides(const std::vector<int>& Path)
 {
-	Sides.clear();
+	Planned.clear();
 	MouthAt.assign(Road.size(), 0);
 	SideBridges = SideTunnels = 0;
 	const Region& G = Area.Roads;
-	// Where the ride goes, in squares of SideReach: a road with a point in one of them or the next is near it.
+	Network& N = *Net;
+	N.OnRide.assign(G.Edges.size(), 0);
+	for (int E : Path) N.OnRide[size_t(E)] = 1;
+	N.Side = std::make_unique<std::atomic<const SideRoad*>[]>(G.Edges.size());
+	for (size_t E = 0; E < G.Edges.size(); ++E) N.Side[E].store(nullptr, std::memory_order_relaxed);
+	N.EdgeState.assign(G.Edges.size(), 0);
+	// Every road the network can lay, filed under each block a bit of it passes through.
+	for (size_t E = 0; E < G.Edges.size(); ++E)
+	{
+		const RoadEdge& Edge = G.Edges[E];
+		if (N.OnRide[E] != 0 || Edge.Line.size() < 2 || Edge.A == Edge.B) continue;
+		for (size_t I = 0; I + 1 < Edge.Line.size(); ++I)
+		{
+			const P2& A = Edge.Line[I];
+			const P2& B = Edge.Line[I + 1];
+			const long long X0 = BlockOf(std::fmin(A.X, B.X)), X1 = BlockOf(std::fmax(A.X, B.X));
+			const long long Z0 = BlockOf(std::fmin(A.Z, B.Z)), Z1 = BlockOf(std::fmax(A.Z, B.Z));
+			for (long long Bx = X0; Bx <= X1; ++Bx)
+				for (long long Bz = Z0; Bz <= Z1; ++Bz)
+				{
+					std::vector<int>& In = N.BlockEdges[BlockKey(Bx, Bz)];
+					if (In.empty() || In.back() != int(E)) In.push_back(int(E));
+				}
+		}
+	}
+	// Those near the ride's road are laid now, in the map's order: their mouths are on it. (Where the ride
+	// goes, in squares of SideReach: a road with a point in one of them or the next is near it.)
 	std::unordered_map<long long, char> Beside;
 	const auto Square = [](double X, double Z) { return static_cast<long long>(std::floor(X / SideReach)) * 4000037LL + static_cast<long long>(std::floor(Z / SideReach)); };
 	for (const RoadPoint& P : Road)
 		for (int Dx = -1; Dx <= 1; ++Dx)
 			for (int Dz = -1; Dz <= 1; ++Dz) Beside[Square(P.At.X + Dx * SideReach, P.At.Z + Dz * SideReach)] = 1;
-	std::vector<char> OnRide(G.Edges.size(), 0);
-	for (int E : Path) OnRide[size_t(E)] = 1;
+	std::vector<std::pair<int, unsigned char>> Marks;
 	for (size_t E = 0; E < G.Edges.size(); ++E)
 	{
 		const RoadEdge& Edge = G.Edges[E];
-		if (OnRide[E] != 0 || Edge.Line.size() < 2 || Edge.A == Edge.B) continue;
+		if (N.OnRide[E] != 0 || Edge.Line.size() < 2 || Edge.A == Edge.B) continue;
 		bool Near1 = false;
 		for (const P2& P : Edge.Line)
 			if (Beside.count(Square(P.X, P.Z)) != 0) { Near1 = true; break; }
 		if (!Near1) continue;
-		// Its line as the map drew it; where an end is at the ride's road (whose line the smoothing may
-		// have moved a little off the junction), on to that road's middle.
-		std::vector<P2> Raw = Edge.Line;
-		bool Meets[2] = {false, false};
-		for (int End = 0; End < 2; ++End)
-		{
-			const P2 At = End == 0 ? Raw.front() : Raw.back();
-			double D = 0.0, H = 0.0;
-			int Index = -1;
-			if (!Nearest(At.X, At.Z, D, H, &Index, nullptr, nullptr, true) || D > 15.0) continue;
-			Meets[End] = true;
-			const P2 Mid = Road[size_t(Index)].At;
-			if (Mid.DistanceTo(At) > 0.5)
-			{
-				if (End == 0) Raw.insert(Raw.begin(), Mid);
-				else Raw.push_back(Mid);
-			}
-		}
-		const std::string& Class = G.ClassOf(int(E));
-		std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, std::vector<double>(Raw.size(), RoadLine::FairOf(Class)));
-		// (the knots stop at the last whole step: on to the junction itself, so no road ends short of it)
-		if (Line.empty() || Line.back().DistanceTo(Raw.back()) > 0.3) Line.push_back(Raw.back());
-		if (Line.size() < 2) continue;
-		// Its height: the ground's, smoothed as the ride's road is; at a junction off the ride, the
-		// ground's at the junction (so every road that meets there agrees); near the ride's road, that road's.
-		std::vector<double> H(Line.size()), Along(Line.size(), 0.0);
-		double Last = Road.front().Height;
-		for (size_t I = 0; I < Line.size(); ++I)
-		{
-			const double Y = Land->Height(Line[I].X, Line[I].Z);
-			if (!std::isnan(Y)) Last = Y;
-			H[I] = std::fmax(std::isnan(Y) ? Last : Y, 0.0);
-			if (I > 0) Along[I] = Along[I - 1] + Line[I].DistanceTo(Line[I - 1]);
-		}
-		const double EndH[2] = {H.front(), H.back()};
-		// (its own bridges and tunnels, as the ride's road has its)
-		std::vector<char> Kind;
-		LevelSpans(Line, H, Kind, SideBridges, SideTunnels);
-		H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
-		SideRoad Side;
-		Side.Length = Along.back();
-		Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
-		Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
-		const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
-		const double Half = RoadLine::WidthOf(Class) * 0.5;
-		for (size_t I = 0; I < Line.size(); ++I)
-		{
-			for (int End = 0; End < 2; ++End)
-			{
-				if (Meets[End]) continue;
-				const double From = End == 0 ? Along[I] : Side.Length - Along[I];
-				H[I] += (EndH[End] - H[I]) * (1.0 - Smooth01(From / 30.0));
-			}
-		}
-		// (no ramp steeper than 1 in 5 from all that, then the ride's road's own height where it is near)
-		for (int Round = 0; Round < 3; ++Round)
-		{
-			for (size_t I = 1; I < H.size(); ++I)
-			{
-				const double Lim = 0.2 * (Along[I] - Along[I - 1]);
-				H[I] = std::fmin(std::fmax(H[I], H[I - 1] - Lim), H[I - 1] + Lim);
-			}
-			for (size_t I = H.size(); I-- > 1;)
-			{
-				const double Lim = 0.2 * (Along[I] - Along[I - 1]);
-				H[I - 1] = std::fmin(std::fmax(H[I - 1], H[I] - Lim), H[I] + Lim);
-			}
-		}
-		// Where it is by the ride's road. At a junction it has no deck of its own; where it goes over or
-		// under the ride's road with no junction (one of the two on a bridge or in a tunnel there), each
-		// keeps its own height.
-		std::vector<NearHit> Main(Line.size());
-		std::vector<double> Apart(Line.size(), 1e18);
-		NearOpts MainOnly;
-		MainOnly.MainOnly = true;
-		for (size_t I = 0; I < Line.size(); ++I)
-		{
-			if (!NearestOf(Line[I].X, Line[I].Z, MainOnly, Main[I])) continue;
-			if (Main[I].Dist > Main[I].Half + 2.0) continue;
-			const double FromEnd = std::fmin(Meets[0] ? Along[I] : 1e18, Meets[1] ? Side.Length - Along[I] : 1e18);
-			if (FromEnd < 25.0) Kind[I] = 0;
-			else if (Kind[I] != 0 || Main[I].Deck || Main[I].Bore) Apart[I] = 0.0;
-		}
-		for (size_t I = 1; I < Line.size(); ++I) Apart[I] = std::fmin(Apart[I], Apart[I - 1] + (Along[I] - Along[I - 1]));
-		for (size_t I = Line.size(); I-- > 1;) Apart[I - 1] = std::fmin(Apart[I - 1], Apart[I] + (Along[I] - Along[I - 1]));
-		for (size_t I = 0; I < Line.size(); ++I)
-		{
-			double Y = H[I];
-			double Meeting = 0.0;
-			if (Main[I].Index >= 0)
-			{
-				// (the ride's road's surface where this point is on it, tilt and all; its edge's beyond)
-				Meeting = (1.0 - Smooth01((Main[I].Dist - Main[I].Half - 2.0) / 30.0)) * Smooth01(Apart[I] / 40.0);
-				Y += (Main[I].Height + Main[I].Cross - Y) * Meeting;
-			}
-			RoadPoint P;
-			P.At = Line[I];
-			P.Along = Along[I];
-			P.Height = Y;
-			P.Half = Half;
-			P.Bridge = Kind[I] == 1;
-			P.Tunnel = Kind[I] == 2;
-			// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
-			P.Bank = Banks[I] * (1.0 - Meeting) * Smooth01(std::fmin(Along[I], Side.Length - Along[I]) / 20.0);
-			Side.Pts.push_back(P);
-		}
-		// Its mouths: from each end on the ride's road, out to where its middle leaves that road's edge.
-		for (int End = 0; End < 2; ++End)
-		{
-			if (!Meets[End]) continue;
-			const int Count = int(Side.Pts.size()), Dir = End == 0 ? 1 : -1;
-			NearHit Last2, Here;
-			for (int Gone = 0, I = End == 0 ? 0 : Count - 1; Gone < Count; ++Gone, I += Dir)
-			{
-				const RoadPoint& P = Side.Pts[size_t(I)];
-				if ((End == 0 ? P.Along : Side.Length - P.Along) > 40.0 || !NearestOf(P.At.X, P.At.Z, MainOnly, Here)) break;
-				if (Here.Dist <= Here.Half) { Last2 = Here; continue; }
-				if (Gone == 0) break;   // (its end is not on the ride's road after all)
-				const RoadPoint& Q = Side.Pts[size_t(I - Dir)];
-				const double In = std::fmax(0.0, Last2.Half - Last2.Dist), Outside = Here.Dist - Here.Half;
-				const P2 Step2 = P.At - Q.At;
-				const int Mi = Here.Index;
-				const P2 MainDir = Road[size_t(std::min(Mi + 1, int(Road.size()) - 1))].At - Road[size_t(std::max(Mi - 1, 0))].At;
-				if (Step2.Length() < 1e-6 || MainDir.Length() < 1e-6) break;
-				Mouth M;
-				M.At = Q.At + Step2 * (In / (In + Outside));
-				M.Away = Step2 * (1.0 / Step2.Length());
-				M.Along = MainDir * (1.0 / MainDir.Length());
-				M.Across = P2(M.Along.Z, -M.Along.X);   // (the ride's road's left)
-				const bool OnLeft = Dot(M.At - Road[size_t(Mi)].At, M.Across) >= 0.0;
-				if (!OnLeft) M.Across = M.Across * -1.0;
-				if (Dot(M.Away, M.Across) < 0.4) break;   // (it runs in alongside: no corner to round)
-				M.Is = true;
-				M.MainIndex = Mi;
-				M.MainHalf = Here.Half;
-				// (a lane meeting a lane has no markings; a lesser road meeting a greater gives way)
-				M.GiveWay = Half >= 1.6 && Half < Here.Half - 0.2;
-				const double AlongAt = Q.Along + (P.Along - Q.Along) * (In / (In + Outside));
-				M.From = End == 0 ? AlongAt : Side.Length - AlongAt;
-				// The ride's road's points the mouth and its corners lie beside: no edge line there, and no
-				// shoulder across the mouth itself.
-				double From = 1e18, To = -1e18, MouthFrom = 1e18, MouthTo = -1e18;
-				for (int Sd = 0; Sd < 2; ++Sd)
-				{
-					const double Sigma = Sd == 0 ? 1.0 : -1.0;
-					P2 Corner, AlongMain;
-					double Reach = 0.0;
-					MouthCorner(M, Road[size_t(Mi)].At, Half, Sigma, Corner, AlongMain, Reach);
-					const P2 EdgeAt = M.At + P2(M.Away.Z, -M.Away.X) * (Sigma * Half);
-					M.Clear[Sd] = M.From + Dot(Corner - EdgeAt, M.Away) + Reach;
-					const double At2 = Dot(Corner + AlongMain * Reach - Road[size_t(Mi)].At, M.Along), At3 = Dot(Corner - Road[size_t(Mi)].At, M.Along);
-					From = std::fmin(From, At2);
-					To = std::fmax(To, At2);
-					MouthFrom = std::fmin(MouthFrom, At3);
-					MouthTo = std::fmax(MouthTo, At3);
-				}
-				Side.Mouths[End] = M;
-				for (int J = std::max(0, Mi - 12); J <= std::min(int(Road.size()) - 1, Mi + 12); ++J)
-				{
-					const double At2 = Dot(Road[size_t(J)].At - Road[size_t(Mi)].At, M.Along);
-					if (At2 >= From - 0.5 && At2 <= To + 0.5) MouthAt[size_t(J)] |= static_cast<unsigned char>(OnLeft ? 1 : 2);
-					if (At2 >= MouthFrom && At2 <= MouthTo) MouthAt[size_t(J)] |= static_cast<unsigned char>(OnLeft ? 4 : 8);
-				}
-				break;
-			}
-		}
-		Sides.push_back(std::move(Side));
+		Marks.clear();
+		if (EnsureSide(int(E), &Marks) == nullptr) continue;
+		Planned.push_back(int(E) + 1);
+		for (const std::pair<int, unsigned char>& M : Marks) MouthAt[size_t(M.first)] |= M.second;
 	}
-	// (filed once all are laid, so none was pulled to another side road's height)
-	for (size_t K = 0; K < Sides.size(); ++K)
-		for (size_t I = 0; I < Sides[K].Pts.size(); ++I) Near[NearKey(Sides[K].Pts[I].At.X, Sides[K].Pts[I].At.Z)].push_back({int(K) + 1, int(I)});
+	SideBridges = N.Bridges.load();
+	SideTunnels = N.Tunnels.load();
 }
 
-void RidePlan::LayKnots()
+bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigned char>>& Marks, int& NBridges, int& NTunnels) const
 {
-	Knots.clear();
+	const Region& G = Area.Roads;
+	const RoadEdge& Edge = G.Edges[size_t(E)];
+	Side.Edge = E;
+	// Its line as the map drew it; where an end is at the ride's road (whose line the smoothing may
+	// have moved a little off the junction), on to that road's middle.
+	std::vector<P2> Raw = Edge.Line;
+	bool Meets[2] = {false, false};
+	for (int End = 0; End < 2; ++End)
+	{
+		const P2 At = End == 0 ? Raw.front() : Raw.back();
+		double D = 0.0, H = 0.0;
+		int Index = -1;
+		if (!Nearest(At.X, At.Z, D, H, &Index, nullptr, nullptr, true) || D > 15.0) continue;
+		Meets[End] = true;
+		const P2 Mid = Road[size_t(Index)].At;
+		if (Mid.DistanceTo(At) > 0.5)
+		{
+			if (End == 0) Raw.insert(Raw.begin(), Mid);
+			else Raw.push_back(Mid);
+		}
+	}
+	const std::string& Class = G.ClassOf(int(E));
+	std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, std::vector<double>(Raw.size(), RoadLine::FairOf(Class)));
+	// (the knots stop at the last whole step: on to the junction itself, so no road ends short of it)
+	if (Line.empty() || Line.back().DistanceTo(Raw.back()) > 0.3) Line.push_back(Raw.back());
+	if (Line.size() < 2) return false;
+	// Its height: the ground's, smoothed as the ride's road is; at a junction off the ride, the
+	// ground's at the junction (so every road that meets there agrees); near the ride's road, that road's.
+	std::vector<double> H(Line.size()), Along(Line.size(), 0.0);
+	double Last = Road.front().Height;
+	for (size_t I = 0; I < Line.size(); ++I)
+	{
+		const double Y = Land->Height(Line[I].X, Line[I].Z);
+		if (!std::isnan(Y)) Last = Y;
+		H[I] = std::fmax(std::isnan(Y) ? Last : Y, 0.0);
+		if (I > 0) Along[I] = Along[I - 1] + Line[I].DistanceTo(Line[I - 1]);
+	}
+	const double EndH[2] = {H.front(), H.back()};
+	// (its own bridges and tunnels, as the ride's road has its)
+	std::vector<char> Kind;
+	LevelSpans(Line, H, Kind, NBridges, NTunnels);
+	H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
+	Side.Length = Along.back();
+	Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
+	Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
+	const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
+	const double Half = RoadLine::WidthOf(Class) * 0.5;
+	for (size_t I = 0; I < Line.size(); ++I)
+	{
+		for (int End = 0; End < 2; ++End)
+		{
+			if (Meets[End]) continue;
+			const double From = End == 0 ? Along[I] : Side.Length - Along[I];
+			H[I] += (EndH[End] - H[I]) * (1.0 - Smooth01(From / 30.0));
+		}
+	}
+	// (no ramp steeper than 1 in 5 from all that, then the ride's road's own height where it is near)
+	for (int Round = 0; Round < 3; ++Round)
+	{
+		for (size_t I = 1; I < H.size(); ++I)
+		{
+			const double Lim = 0.2 * (Along[I] - Along[I - 1]);
+			H[I] = std::fmin(std::fmax(H[I], H[I - 1] - Lim), H[I - 1] + Lim);
+		}
+		for (size_t I = H.size(); I-- > 1;)
+		{
+			const double Lim = 0.2 * (Along[I] - Along[I - 1]);
+			H[I - 1] = std::fmin(std::fmax(H[I - 1], H[I] - Lim), H[I] + Lim);
+		}
+	}
+	// Where it is by the ride's road. At a junction it has no deck of its own; where it goes over or
+	// under the ride's road with no junction (one of the two on a bridge or in a tunnel there), each
+	// keeps its own height.
+	std::vector<NearHit> Main(Line.size());
+	std::vector<double> Apart(Line.size(), 1e18);
+	NearOpts MainOnly;
+	MainOnly.MainOnly = true;
+	for (size_t I = 0; I < Line.size(); ++I)
+	{
+		if (!NearestOf(Line[I].X, Line[I].Z, MainOnly, Main[I])) continue;
+		if (Main[I].Dist > Main[I].Half + 2.0) continue;
+		const double FromEnd = std::fmin(Meets[0] ? Along[I] : 1e18, Meets[1] ? Side.Length - Along[I] : 1e18);
+		if (FromEnd < 25.0) Kind[I] = 0;
+		else if (Kind[I] != 0 || Main[I].Deck || Main[I].Bore) Apart[I] = 0.0;
+	}
+	for (size_t I = 1; I < Line.size(); ++I) Apart[I] = std::fmin(Apart[I], Apart[I - 1] + (Along[I] - Along[I - 1]));
+	for (size_t I = Line.size(); I-- > 1;) Apart[I - 1] = std::fmin(Apart[I - 1], Apart[I] + (Along[I] - Along[I - 1]));
+	for (size_t I = 0; I < Line.size(); ++I)
+	{
+		double Y = H[I];
+		double Meeting = 0.0;
+		if (Main[I].Index >= 0)
+		{
+			// (the ride's road's surface where this point is on it, tilt and all; its edge's beyond)
+			Meeting = (1.0 - Smooth01((Main[I].Dist - Main[I].Half - 2.0) / 30.0)) * Smooth01(Apart[I] / 40.0);
+			Y += (Main[I].Height + Main[I].Cross - Y) * Meeting;
+		}
+		RoadPoint P;
+		P.At = Line[I];
+		P.Along = Along[I];
+		P.Height = Y;
+		P.Half = Half;
+		P.Bridge = Kind[I] == 1;
+		P.Tunnel = Kind[I] == 2;
+		// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
+		P.Bank = Banks[I] * (1.0 - Meeting) * Smooth01(std::fmin(Along[I], Side.Length - Along[I]) / 20.0);
+		Side.Pts.push_back(P);
+	}
+	// Its mouths: from each end on the ride's road, out to where its middle leaves that road's edge.
+	for (int End = 0; End < 2; ++End)
+	{
+		if (!Meets[End]) continue;
+		const int Count = int(Side.Pts.size()), Dir = End == 0 ? 1 : -1;
+		NearHit Last2, Here;
+		for (int Gone = 0, I = End == 0 ? 0 : Count - 1; Gone < Count; ++Gone, I += Dir)
+		{
+			const RoadPoint& P = Side.Pts[size_t(I)];
+			if ((End == 0 ? P.Along : Side.Length - P.Along) > 40.0 || !NearestOf(P.At.X, P.At.Z, MainOnly, Here)) break;
+			if (Here.Dist <= Here.Half) { Last2 = Here; continue; }
+			if (Gone == 0) break;   // (its end is not on the ride's road after all)
+			const RoadPoint& Q = Side.Pts[size_t(I - Dir)];
+			const double In = std::fmax(0.0, Last2.Half - Last2.Dist), Outside = Here.Dist - Here.Half;
+			const P2 Step2 = P.At - Q.At;
+			const int Mi = Here.Index;
+			const P2 MainDir = Road[size_t(std::min(Mi + 1, int(Road.size()) - 1))].At - Road[size_t(std::max(Mi - 1, 0))].At;
+			if (Step2.Length() < 1e-6 || MainDir.Length() < 1e-6) break;
+			Mouth M;
+			M.At = Q.At + Step2 * (In / (In + Outside));
+			M.Away = Step2 * (1.0 / Step2.Length());
+			M.Along = MainDir * (1.0 / MainDir.Length());
+			M.Across = P2(M.Along.Z, -M.Along.X);   // (the ride's road's left)
+			const bool OnLeft = Dot(M.At - Road[size_t(Mi)].At, M.Across) >= 0.0;
+			if (!OnLeft) M.Across = M.Across * -1.0;
+			if (Dot(M.Away, M.Across) < 0.4) break;   // (it runs in alongside: no corner to round)
+			M.Is = true;
+			M.MainIndex = Mi;
+			M.MainHalf = Here.Half;
+			// (a lane meeting a lane has no markings; a lesser road meeting a greater gives way)
+			M.GiveWay = Half >= 1.6 && Half < Here.Half - 0.2;
+			const double AlongAt = Q.Along + (P.Along - Q.Along) * (In / (In + Outside));
+			M.From = End == 0 ? AlongAt : Side.Length - AlongAt;
+			// The ride's road's points the mouth and its corners lie beside: no edge line there, and no
+			// shoulder across the mouth itself.
+			double From = 1e18, To = -1e18, MouthFrom = 1e18, MouthTo = -1e18;
+			for (int Sd = 0; Sd < 2; ++Sd)
+			{
+				const double Sigma = Sd == 0 ? 1.0 : -1.0;
+				P2 Corner, AlongMain;
+				double Reach = 0.0;
+				MouthCorner(M, Road[size_t(Mi)].At, Half, Sigma, Corner, AlongMain, Reach);
+				const P2 EdgeAt = M.At + P2(M.Away.Z, -M.Away.X) * (Sigma * Half);
+				M.Clear[Sd] = M.From + Dot(Corner - EdgeAt, M.Away) + Reach;
+				const double At2 = Dot(Corner + AlongMain * Reach - Road[size_t(Mi)].At, M.Along), At3 = Dot(Corner - Road[size_t(Mi)].At, M.Along);
+				From = std::fmin(From, At2);
+				To = std::fmax(To, At2);
+				MouthFrom = std::fmin(MouthFrom, At3);
+				MouthTo = std::fmax(MouthTo, At3);
+			}
+			Side.Mouths[End] = M;
+			for (int J = std::max(0, Mi - 12); J <= std::min(int(Road.size()) - 1, Mi + 12); ++J)
+			{
+				const double At2 = Dot(Road[size_t(J)].At - Road[size_t(Mi)].At, M.Along);
+				if (At2 >= From - 0.5 && At2 <= To + 0.5) Marks.emplace_back(J, static_cast<unsigned char>(OnLeft ? 1 : 2));
+				if (At2 >= MouthFrom && At2 <= MouthTo) Marks.emplace_back(J, static_cast<unsigned char>(OnLeft ? 4 : 8));
+			}
+			break;
+		}
+	}
+	return true;
+}
+
+const RidePlan::SideRoad* RidePlan::EnsureSide(int E, std::vector<std::pair<int, unsigned char>>* Marks) const
+{
+	Network& N = *Net;
+	if (E < 0 || size_t(E) >= N.EdgeState.size() || N.OnRide[size_t(E)] != 0) return nullptr;
+	{
+		std::unique_lock<std::mutex> Hold(N.Lay);
+		for (;;)
+		{
+			const char State = N.EdgeState[size_t(E)];
+			if (State == 2) return N.Side[size_t(E)].load(std::memory_order_acquire);
+			if (State == 0) { N.EdgeState[size_t(E)] = 1; break; }
+			N.Done.wait(Hold);
+		}
+	}
+	std::unique_ptr<SideRoad> Made = std::make_unique<SideRoad>();
+	std::vector<std::pair<int, unsigned char>> Mine;
+	int Nb = 0, Nt = 0;
+	const bool Laid = LaySide(E, *Made, Marks != nullptr ? *Marks : Mine, Nb, Nt);
+	const SideRoad* Out = Laid ? Made.get() : nullptr;
+	{
+		std::lock_guard<std::mutex> Hold(N.Lay);
+		if (Laid) N.Own.push_back(std::move(Made));
+		N.Side[size_t(E)].store(Out, std::memory_order_release);
+		N.EdgeState[size_t(E)] = 2;
+	}
+	N.Bridges += Nb;
+	N.Tunnels += Nt;
+	if (Out != nullptr)
+	{
+		std::unique_lock<std::shared_mutex> Write(N.Read);
+		for (size_t I = 0; I < Out->Pts.size(); ++I) N.Near[NearKey(Out->Pts[I].At.X, Out->Pts[I].At.Z)].push_back({E + 1, int(I)});
+	}
+	N.Done.notify_all();
+	return Out;
+}
+
+const RidePlan::SideRoad* RidePlan::SideOf(int Which) const
+{
+	if (Which <= 0 || Net == nullptr || Net->Side == nullptr || size_t(Which - 1) >= Net->EdgeState.size()) return nullptr;
+	return Net->Side[size_t(Which - 1)].load(std::memory_order_acquire);
+}
+
+const std::vector<RoadPoint>& RidePlan::RoadOf(int Which) const
+{
+	static const std::vector<RoadPoint> None;
+	if (Which <= 0) return Road;
+	const SideRoad* Side = SideOf(Which);
+	return Side != nullptr ? Side->Pts : None;
+}
+
+std::vector<int> RidePlan::RoadsNear(const Rect& Box, bool Lay) const
+{
+	std::vector<int> Out;
+	if (Net == nullptr) return Out;
+	if (!(RoadBox.X1 < Box.X0 || RoadBox.X0 > Box.X1 || RoadBox.Z1 < Box.Z0 || RoadBox.Z0 > Box.Z1)) Out.push_back(0);
+	if (Lay) LayBlocks(Box);
+	for (long long Bx = BlockOf(Box.X0); Bx <= BlockOf(Box.X1); ++Bx)
+		for (long long Bz = BlockOf(Box.Z0); Bz <= BlockOf(Box.Z1); ++Bz)
+		{
+			const auto It = Net->BlockEdges.find(BlockKey(Bx, Bz));
+			if (It == Net->BlockEdges.end()) continue;
+			for (int E : It->second)
+				if (SideOf(E + 1) != nullptr) Out.push_back(E + 1);
+		}
+	std::sort(Out.begin(), Out.end());
+	Out.erase(std::unique(Out.begin(), Out.end()), Out.end());
+	return Out;
+}
+
+void RidePlan::LayBlocks(const Rect& Box) const
+{
+	if (Net == nullptr) return;
+	for (long long Bx = BlockOf(Box.X0); Bx <= BlockOf(Box.X1); ++Bx)
+		for (long long Bz = BlockOf(Box.Z0); Bz <= BlockOf(Box.Z1); ++Bz) LayBlock(BlockKey(Bx, Bz));
+}
+
+bool RidePlan::BlockLaid(double X, double Z) const
+{
+	if (Net == nullptr) return false;
+	std::lock_guard<std::mutex> Hold(Net->Lay);
+	const auto It = Net->BlockState.find(BlockKey(BlockOf(X), BlockOf(Z)));
+	return It != Net->BlockState.end() && It->second == 2;
+}
+
+int RidePlan::BlocksLaid() const
+{
+	return Net == nullptr ? 0 : Net->Blocks.load();
+}
+
+void RidePlan::LayBlock(long long Key) const
+{
+	Network& N = *Net;
+	{
+		std::unique_lock<std::mutex> Hold(N.Lay);
+		for (;;)
+		{
+			char& State = N.BlockState[Key];
+			if (State == 2) return;
+			if (State == 0) { State = 1; break; }
+			N.Done.wait(Hold);
+		}
+	}
+	EnsureGround(BlockBox(Key));
+	const auto It = N.BlockEdges.find(Key);
+	if (It != N.BlockEdges.end())
+		for (int E : It->second) EnsureSide(E);
+	KnotsOfBlock(Key);
+	{
+		std::lock_guard<std::mutex> Hold(N.Lay);
+		N.BlockState[Key] = 2;
+	}
+	++N.Blocks;
+	N.Done.notify_all();
+}
+
+int RidePlan::EnsureGround(const Rect& Box) const
+{
+	if (CellsFrom == nullptr || HeightsFrom == nullptr || Land == nullptr || Net == nullptr || CellsFrom->Offline) return 0;
+	if (Land->Ready(Rect{Box.X0 - TileMargin, Box.Z0 - TileMargin, Box.X1 + TileMargin, Box.Z1 + TileMargin}, 0)) return 0;
+	// (every tile within a tile's width of the box: the fine tiles round any point of it are all in, so
+	// none of it is eased into the coarser level)
+	std::vector<P2> Points;
+	for (double Z = Box.Z0; Z <= Box.Z1 + 1.0; Z += 128.0)
+		for (double X = Box.X0; X <= Box.X1 + 1.0; X += 128.0) Points.push_back(P2(X, Z));
+	const std::vector<TileKey> Keys = HeightStore::KeysNear(Points, TileMargin, Land->Zoom(0), Land->FrameOf());
+	std::lock_guard<std::mutex> Hold(Net->Fetching);
+	return FetchKeys(*CellsFrom, *HeightsFrom, Keys);
+}
+
+int RidePlan::GroundRound(double X, double Z) const
+{
+	if (CellsFrom == nullptr || HeightsFrom == nullptr || Land == nullptr || Net == nullptr || CellsFrom->Offline) return 0;
+	int Came = 0;
+	const std::vector<P2> At = {P2(X, Z)};
+	for (int L = 0; L < Terrain::LevelCount; ++L)
+	{
+		const std::vector<TileKey> Keys = HeightStore::KeysNear(At, L == 0 ? 1500.0 : Terrain::LiveReach[L], Land->Zoom(L), Land->FrameOf());
+		std::vector<TileKey> Want;
+		for (const TileKey& K : Keys)
+			if (!HeightsFrom->Has(K)) Want.push_back(K);
+		if (Want.empty()) continue;
+		std::lock_guard<std::mutex> Hold(Net->Fetching);
+		Came += int(Want.size()) - FetchKeys(*CellsFrom, *HeightsFrom, Want);
+	}
+	return Came;
+}
+
+const RidePlan::Knot* RidePlan::KnotAt(int Which, int End) const
+{
+	if (Net == nullptr) return nullptr;
+	std::shared_lock<std::shared_mutex> Hold(Net->Read);
+	const auto It = Net->Knots.find(static_cast<long long>(Which) * 2 + End);
+	return It == Net->Knots.end() ? nullptr : It->second.get();
+}
+
+std::vector<RidePlan::Knot> RidePlan::KnotsLaid() const
+{
+	std::vector<Knot> Out;
+	if (Net == nullptr) return Out;
+	std::shared_lock<std::shared_mutex> Hold(Net->Read);
+	for (const auto& KV : Net->Knots)
+		if (static_cast<long long>(KV.second->Owner) * 2 + KV.second->OwnerEnd == KV.first) Out.push_back(*KV.second);
+	std::sort(Out.begin(), Out.end(), [](const Knot& X, const Knot& Y) { return X.Owner != Y.Owner ? X.Owner < Y.Owner : X.OwnerEnd < Y.OwnerEnd; });
+	return Out;
+}
+
+void RidePlan::KnotsOfBlock(long long Key) const
+{
+	// The junctions whose roads' ends are in the block: two or more ends at one place, none a mouth.
+	// (Every road meeting at a junction passes through the block its ends are in, so is laid with it.)
+	const Rect Box = BlockBox(Key);
+	const auto Inside = [&Box](const P2& At) { return At.X >= Box.X0 && At.X < Box.X1 && At.Z >= Box.Z0 && At.Z < Box.Z1; };
 	struct EndOf
 	{
 		KnotArm Arm;
@@ -752,16 +1020,22 @@ void RidePlan::LayKnots()
 		bool Used = false;
 	};
 	std::vector<EndOf> Ends;
-	for (int W = 0; W < RoadCount(); ++W)
+	std::vector<int> Roads = {0};
+	const auto It = Net->BlockEdges.find(Key);
+	if (It != Net->BlockEdges.end())
+		for (int E : It->second) Roads.push_back(E + 1);
+	for (int W : Roads)
 	{
+		const SideRoad* Sd = W > 0 ? SideOf(W) : nullptr;
+		if (W > 0 && Sd == nullptr) continue;
 		const std::vector<RoadPoint>& Pts = RoadOf(W);
 		if (Pts.size() < 3) continue;
 		for (int End = 0; End < 2; ++End)
 		{
-			if (W > 0 && Sides[size_t(W) - 1].Mouths[End].Is) continue;
+			if (Sd != nullptr && Sd->Mouths[End].Is) continue;
 			const size_t I0 = End == 0 ? 0 : Pts.size() - 1;
 			const RoadPoint& P = Pts[I0];
-			if (P.Bridge || P.Tunnel) continue;
+			if (P.Bridge || P.Tunnel || !Inside(P.At)) continue;
 			// (its heading from a few metres in: the last step can be a stub)
 			size_t I1 = I0;
 			for (size_t Step = 1; Step < Pts.size(); ++Step)
@@ -771,16 +1045,17 @@ void RidePlan::LayKnots()
 			}
 			const P2 D = Pts[I1].At - P.At;
 			if (D.Length() < 1e-6) continue;
-			EndOf E;
-			E.Arm.Which = W;
-			E.Arm.End = End;
-			E.Arm.Away = D * (1.0 / D.Length());
-			E.Arm.Half = P.Half;
-			E.At = P.At;
-			E.Height = P.Height;
-			Ends.push_back(E);
+			EndOf En;
+			En.Arm.Which = W;
+			En.Arm.End = End;
+			En.Arm.Away = D * (1.0 / D.Length());
+			En.Arm.Half = P.Half;
+			En.At = P.At;
+			En.Height = P.Height;
+			Ends.push_back(En);
 		}
 	}
+	std::vector<std::shared_ptr<const Knot>> Made;
 	for (size_t A = 0; A < Ends.size(); ++A)
 	{
 		if (Ends[A].Used) continue;
@@ -788,29 +1063,32 @@ void RidePlan::LayKnots()
 		for (size_t B = A + 1; B < Ends.size(); ++B)
 			if (!Ends[B].Used && Ends[B].At.DistanceTo(Ends[A].At) < 1.5 && std::fabs(Ends[B].Height - Ends[A].Height) < 1.5) Group.push_back(B);
 		if (Group.size() < 2) continue;
-		Knot K;
-		K.Owner = 1 << 30;
+		std::shared_ptr<Knot> K = std::make_shared<Knot>();
+		K->Owner = 1 << 30;
 		bool Main = false, Side = false;
 		double Hmax = -1e18;
-		for (size_t G : Group)
+		for (size_t Gi : Group)
 		{
-			Ends[G].Used = true;
-			K.Arms.push_back(Ends[G].Arm);
-			K.At = K.At + Ends[G].At * (1.0 / double(Group.size()));
-			Hmax = std::fmax(Hmax, Ends[G].Height);
-			if (Ends[G].Arm.Which == 0) { Main = true; K.Height = Ends[G].Height; K.At = Ends[G].At; }
+			Ends[Gi].Used = true;
+			K->Arms.push_back(Ends[Gi].Arm);
+			K->At = K->At + Ends[Gi].At * (1.0 / double(Group.size()));
+			Hmax = std::fmax(Hmax, Ends[Gi].Height);
+			if (Ends[Gi].Arm.Which == 0) { Main = true; K->Height = Ends[Gi].Height; K->At = Ends[Gi].At; }
 			else Side = true;
-			if (Ends[G].Arm.Which < K.Owner) { K.Owner = Ends[G].Arm.Which; K.OwnerEnd = Ends[G].Arm.End; }
+			if (Ends[Gi].Arm.Which < K->Owner) { K->Owner = Ends[Gi].Arm.Which; K->OwnerEnd = Ends[Gi].Arm.End; }
 		}
 		if (!Side) continue;
 		if (Main)
 		{
-			for (size_t G : Group) if (Ends[G].Arm.Which == 0) K.At = Ends[G].At;
+			for (size_t Gi : Group) if (Ends[Gi].Arm.Which == 0) K->At = Ends[Gi].At;
 		}
-		else K.Height = Hmax;
-		std::sort(K.Arms.begin(), K.Arms.end(), [](const KnotArm& X, const KnotArm& Y) { return std::atan2(X.Away.Z, X.Away.X) < std::atan2(Y.Away.Z, Y.Away.X); });
-		Knots.push_back(std::move(K));
+		else K->Height = Hmax;
+		std::sort(K->Arms.begin(), K->Arms.end(), [](const KnotArm& X, const KnotArm& Y) { return std::atan2(X.Away.Z, X.Away.X) < std::atan2(Y.Away.Z, Y.Away.X); });
+		Made.push_back(K);
 	}
+	std::unique_lock<std::shared_mutex> Write(Net->Read);
+	for (const std::shared_ptr<const Knot>& K : Made)
+		for (const KnotArm& Arm : K->Arms) Net->Knots[static_cast<long long>(Arm.Which) * 2 + Arm.End] = K;
 }
 
 void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
@@ -1009,6 +1287,14 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 	Out.OriginZ = Z0;
 	const int N = Cells + 1;
 	const double Step = Size / Cells;
+	// [ride anywhere] The network's roads over a near square (and a little round it) laid before its
+	// ground is cut for them; a far one has whatever roads are laid already.
+	if (Step <= 8.0)
+	{
+		Rect Around;
+		Around.X0 = X0 - 64.0; Around.Z0 = Z0 - 64.0; Around.X1 = X0 + Size + 64.0; Around.Z1 = Z0 + Size + 64.0;
+		LayBlocks(Around);
+	}
 	// Heights one cell past the edge each way, for the slopes at the edge.
 	const int M = N + 2;
 	std::vector<double> H(size_t(M) * M);
@@ -1145,6 +1431,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 {
 	Out = RideMesh();
 	if (Which < 0 || Which >= RoadCount()) return;
+	const SideRoad* Mine = Which > 0 ? SideOf(Which) : nullptr;
+	if (Which > 0 && Mine == nullptr) return;
 	const std::vector<RoadPoint>& Pts = RoadOf(Which);
 	First = std::max(0, First);
 	Last = std::min(int(Pts.size()) - 1, Last);
@@ -1152,7 +1440,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	Out.OriginX = Pts[size_t(First)].At.X;
 	Out.OriginZ = Pts[size_t(First)].At.Z;
 	// (a side road's paint stops short of the junctions at its ends)
-	const double PaintFrom = Which == 0 ? -1.0 : 12.0, PaintTo = Which == 0 ? 1e18 : Sides[size_t(Which) - 1].Length - 12.0;
+	const double PaintFrom = Which == 0 ? -1.0 : 12.0, PaintTo = Which == 0 ? 1e18 : Mine->Length - 12.0;
 	// (the Godot game's colours, linear: tarmac, the verge (worn grass and grit: the Godot gravel read as a pale
 	// band beside the road in build 140), paint)
 	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, Paint[3] = {0.83f, 0.83f, 0.75f},
@@ -1330,17 +1618,14 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	double JoinAt[2] = {0.0, 0.0};
 	if (Which > 0)
 	{
-		const SideRoad& Sd = Sides[size_t(Which) - 1];
+		const SideRoad& Sd = *Mine;
 		for (int End = 0; End < 2; ++End)
 		{
-			Joined[End] = Sd.Mouths[End].Is;
+			Joined[End] = Sd.Mouths[End].Is || KnotAt(Which, End) != nullptr;
 			JoinAt[End] = Sd.Mouths[End].Is ? std::fmax(Sd.Mouths[End].Clear[0], Sd.Mouths[End].Clear[1]) : 0.0;   // (from where the mouth's tarmac ends)
-			for (const Knot& Kn : Knots)
-				for (const KnotArm& Arm : Kn.Arms)
-					if (Arm.Which == Which && Arm.End == End) Joined[End] = true;
 		}
 	}
-	const double SideLength = Which > 0 ? Sides[size_t(Which) - 1].Length : 0.0;
+	const double SideLength = Which > 0 ? Mine->Length : 0.0;
 	const auto GravelFade = [&Joined, &JoinAt, SideLength](double Along)
 	{
 		double D = 1e18;
@@ -1372,7 +1657,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		bool UnderMain = false;
 		for (int End = 0; End < 2 && Which > 0; ++End)
 		{
-			const SideRoad& Side = Sides[size_t(Which) - 1];
+			const SideRoad& Side = *Mine;
 			const Mouth& M = Side.Mouths[End];
 			if (!M.Is) continue;
 			double Fa = End == 0 ? RowA.Along : Side.Length - RowA.Along, Fb = End == 0 ? RowB.Along : Side.Length - RowB.Along;
@@ -1441,8 +1726,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 		else
 		{
-			Track = Sides[size_t(Which) - 1].Track;
-			Gravel = Sides[size_t(Which) - 1].Gravel;
+			Track = Mine->Track;
+			Gravel = Mine->Gravel;
 		}
 		static constexpr float Grit[3] = {0.095f, 0.088f, 0.07f};
 		// The tarmac, in two halves either side of the crown.
@@ -1709,13 +1994,16 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		}
 	}
 	// The junctions off the ride's road this road's ends are drawn with.
-	for (const Knot& K : Knots)
-		if (K.Owner == Which && (K.OwnerEnd == 0 ? First == 0 : Last == Count - 1)) KnotPiece(K, Out);
+	for (int End = 0; End < 2; ++End)
+	{
+		if (End == 0 ? First != 0 : Last != Count - 1) continue;
+		const Knot* K = KnotAt(Which, End);
+		if (K != nullptr && K->Owner == Which && K->OwnerEnd == End) KnotPiece(*K, Out);
+	}
 	// A side road's mouths on the ride's road, each with the piece its end is in.
 	for (int End = 0; End < 2 && Which > 0; ++End)
 	{
-		const SideRoad& Side = Sides[size_t(Which) - 1];
-		const Mouth& M = Side.Mouths[End];
+		const Mouth& M = Mine->Mouths[End];
 		if (!M.Is || (End == 0 ? First != 0 : Last != Count - 1)) continue;
 		const double Half = Pts[size_t(End == 0 ? 0 : Count - 1)].Half;
 		const P2 MainAt = Road[size_t(M.MainIndex)].At;

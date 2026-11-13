@@ -67,6 +67,14 @@ void RidePlan::AnimalsTile(double X0, double Z0, double Size, std::vector<RideAn
 		NearOpts Opts;
 		NearHit Hit;
 		if (NearestOf(X, Z, Opts, Hit) && Hit.Dist < Hit.Half + 5.0) return false;
+		// (beenster, build 142: up close they look odd, so they keep to the distance: no road within
+		// FarFromRoad, rings of points round it each looking 40 m about)
+		for (double R = 35.0; R <= FarFromRoad; R += 35.0)
+			for (int K = 0; K < 12; ++K)
+			{
+				const double A = K * 0.5235987755982988 + R * 0.01;
+				if (NearestOf(X + R * std::cos(A), Z + R * std::sin(A), Opts, Hit)) return false;
+			}
 		double RailDist = 0.0, RailTop = 0.0;
 		int RailOn = 0;
 		if (NearRail(X, Z, RailDist, RailTop, RailOn) && RailOn != 2 && RailDist < 7.0) return false;
@@ -199,14 +207,15 @@ RidePlace RidePlan::SoundsAt(double X, double Z) const
 		}
 	P.Town = std::clamp((Built - 4) / 36.0, 0.0, 1.0);
 	// The flocks and herds: each animal near by counts, the nearer the more.
-	const double X0 = std::floor((X - 160.0) / 64.0) * 64.0, Z0 = std::floor((Z - 160.0) / 64.0) * 64.0;
+	// (they keep their distance from the roads, so a bleat carries a few hundred metres)
+	const double X0 = std::floor((X - 352.0) / 64.0) * 64.0, Z0 = std::floor((Z - 352.0) / 64.0) * 64.0;
 	std::vector<RideAnimal> Beasts;
-	AnimalsTile(X0, Z0, 384.0, Beasts);
+	AnimalsTile(X0, Z0, 768.0, Beasts);
 	for (const RideAnimal& A : Beasts)
 	{
 		const double D = std::hypot(X0 + A.X - X, Z0 + A.Z - Z);
-		if (D > 150.0) continue;
-		const double Heard = 1.0 / (1.0 + (D / 40.0) * (D / 40.0));
+		if (D > 350.0) continue;
+		const double Heard = 1.0 / (1.0 + (D / 150.0) * (D / 150.0));
 		(A.Kind <= Lamb ? P.Sheep : P.Cattle) += Heard * 0.25;
 	}
 	P.Sheep = std::min(P.Sheep, 1.0);

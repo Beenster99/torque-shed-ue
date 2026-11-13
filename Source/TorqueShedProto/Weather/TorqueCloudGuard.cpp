@@ -37,6 +37,9 @@ FString WhyNot(UMaterialInterface* MatIf, UWorld* World)
 	UMaterial* Mat = MatIf->GetMaterial();
 	if (!Mat) return TEXT("no base material");
 	if (Mat->MaterialDomain != MD_Volume) return FString::Printf(TEXT("domain %d, not Volume"), (int32)Mat->MaterialDomain.GetValue());
+	// Without "Used with Volumetric Cloud" the cook has none of the cloud's shaders for it: the cloud
+	// shadow pass falls back to the default surface material and asserts (round 142).
+	if (!Mat->GetUsageByFlag(MATUSAGE_VolumetricCloud)) return TEXT("not marked Used with Volumetric Cloud");
 	if (CompileFailed(Mat, World)) return TEXT("not compiled (no shaders, or an error)");
 	return FString();
 }

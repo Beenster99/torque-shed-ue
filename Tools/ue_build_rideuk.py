@@ -500,20 +500,55 @@ def scanned_trees(L, kit):
     norm = lambda t: "".join(ch for ch in t.lower() if ch.isalnum())
     skip = [norm(w) for w in spec.get("skip", [])]
     most = int(spec.get("most", 6))
-    meshes = []
+    meshes, others = [], []
     for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
-        if str(a.asset_class_path.asset_name) != "StaticMesh":
-            continue
         pkg = str(a.package_name)
         if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
             continue
-        meshes.append((norm(pkg), "%s.%s" % (pkg, a.asset_name)))
+        cls = str(a.asset_class_path.asset_name)
+        path = "%s.%s" % (pkg, a.asset_name)
+        if cls == "StaticMesh":
+            meshes.append((norm(pkg), path))
+        elif cls not in ("Material", "MaterialInstanceConstant", "Texture2D", "MaterialFunction", "PhysicsAsset", "Skeleton"):
+            others.append((norm(pkg), path, cls))
     rows = kit["Trees"]["species"]
     template = dict(rows[0]) if rows else {"cull_distance": 3000000.0, "cast_shadow": True}
     found = {}
+
+    def mesh_of(path):
+        """A static mesh a non-mesh asset (a Megaplant's Procedural Vegetation or Nanite assembly asset,
+        a blueprint) holds or makes, or None."""
+        try:
+            obj = unreal.load_asset(path)
+        except Exception:
+            return None
+        if obj is None:
+            return None
+        if isinstance(obj, unreal.StaticMesh):
+            return obj.get_path_name()
+        for prop in ("static_mesh", "mesh", "output_mesh", "nanite_mesh", "generated_mesh", "final_mesh", "base_mesh"):
+            try:
+                m = obj.get_editor_property(prop)
+            except Exception:
+                continue
+            if isinstance(m, unreal.StaticMesh):
+                return m.get_path_name()
+        return None
+
     for kind, words in spec["kinds"].items():
         keys = [norm(w) for w in words]
-        got = sorted(p for n, p in meshes if any(k in n for k in keys) and not any(w in n for w in skip))[:most]
+        wanted = lambda n: any(k in n for k in keys) and not any(w in n for w in skip)
+        got = sorted(p for n, p in meshes if wanted(n))[:most]
+        theirs = [(p, c) for n, p, c in others if wanted(n)]
+        classes = sorted(set(c for _, c in theirs))
+        log("scanned trees: %s: %d static meshes; other assets: %s" % (kind, len([1 for n, _ in meshes if wanted(n)]),
+            ", ".join("%s x%d" % (c, len([1 for _, cc in theirs if cc == c])) for c in classes) or "none"))
+        if not got and theirs:
+            # (no plain mesh: whatever the vegetation assets hold or make)
+            made = sorted(set(m for m in (mesh_of(p) for p, _ in theirs[:24]) if m))[:most]
+            log("scanned trees: %s: %d meshes from its %s assets%s" % (kind, len(made), "/".join(classes),
+                "" if made else " (none: open one in the editor and export it as a static mesh, or tell the hub its class)"))
+            got = made
         if not got:
             continue
         found[kind] = got

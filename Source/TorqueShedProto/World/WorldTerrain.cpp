@@ -42,7 +42,7 @@ double Terrain::HeightAtLevel(int Level, double X, double Z) const
 bool Terrain::UsesKey(int Level, const TileKey& Key) const
 {
 	if (Uses.empty()) return Store.Has(Key);
-	return Uses[size_t(Level)].count(Key) != 0;
+	return Uses[size_t(Level)].count(Key) != 0 || (Roam && Store.Has(Key));
 }
 
 bool Terrain::Ready(const Rect& Area, int Level) const

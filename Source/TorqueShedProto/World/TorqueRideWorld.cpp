@@ -1,4 +1,6 @@
 #include "World/TorqueRideWorld.h"
+#include "World/WorldRoam.h"
+#include <algorithm>
 #include "TorqueDash.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
@@ -163,18 +165,101 @@ bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
 	return true;
 }
 
+bool ATorqueRideWorld::RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	using TorqueWorld::RidePlan;
+	const RidePlan& P = *Ride->Plan;
+	RidePlan::NearOpts Opts;
+	RidePlan::NearHit Hit;
+	if (!P.NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist > 80.0 || Hit.Index < 0) return false;
+	const std::vector<TorqueWorld::RoadPoint>& Pts = P.RoadOf(Hit.Which);
+	if (Pts.size() < 2) return false;
+	const size_t I = FMath::Min(size_t(Hit.Index), Pts.size() - 2);
+	double Dx = Pts[I + 1].At.X - Pts[I].At.X, Dz = Pts[I + 1].At.Z - Pts[I].At.Z;
+	const double Len = FMath::Sqrt(Dx * Dx + Dz * Dz);
+	if (Len < 1e-3) return false;
+	Dx /= Len;
+	Dz /= Len;
+	// (the way along the road nearer the way the bike was going)
+	const double Fx = -FMath::Sin(Heading), Fz = -FMath::Cos(Heading);
+	if (Dx * Fx + Dz * Fz < 0.0)
+	{
+		Dx = -Dx;
+		Dz = -Dz;
+	}
+	// (left of (dx, dz) with x east and z south is (dz, -dx)); a third of the way out from the middle
+	const double Aside = FMath::Min(1.5, Hit.Half * 0.35);
+	OutPos = FVector(Hit.Foot.X + Dz * Aside, Hit.Height, Hit.Foot.Z - Dx * Aside);
+	OutHeading = FMath::Atan2(-Dx, -Dz);
+	Which = Hit.Which;
+	return true;
+}
+
 int32 ATorqueRideWorld::TestLimit = INDEX_NONE;
 TArray<FString> ATorqueRideWorld::PropCredits;
 
 void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 {
-	const ATorqueRideWorld* Ride = Current.Get();
+	ATorqueRideWorld* Ride = Current.Get();
 	Dash.bNav = Ride && Ride->Plan && Ride->Plan->Ok && !Ride->Plan->Turns.empty();
 	Dash.bAtFuel = false;
+	Dash.bNavRerouting = false;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
-	const RidePlan::RideNav N = Ride->Plan->NavAt(At.X / 100.0, At.Y / 100.0, Was);
+	const double X = At.X / 100.0, Z = At.Y / 100.0;
+	RidePlan::RideNav N = Ride->Plan->NavAt(X, Z, Was);
 	Was = N.Along;
+	// [ride anywhere] Off the ride's road a few seconds: the way back by the map's roads, from the
+	// junction ahead of the rider, found again whenever they leave it too. The guide (the maps' route)
+	// follows it; back on the ride's road, the ride's own again.
+	FRideNavState& S = Ride->NavState;
+	const double Now = FPlatformTime::Seconds();
+	const FVector2D Here(X, Z);
+	if (S.Prev.X < 1e11 && FVector2D::Distance(Here, S.Prev) > 2.0) S.Heading = FMath::Atan2(-(Here.X - S.Prev.X), -(Here.Y - S.Prev.Y));
+	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
+	if (!N.OffRoute)
+	{
+		S.OffSince = -1.0;
+		if (S.Detour) { S.Detour.reset(); Ride->Guide = TorqueWorld::GuideOfPlan(*Ride->Plan, Ride->Guide ? Ride->Guide->Version + 1 : 1); OnRoamChanged.Broadcast(); }
+	}
+	else
+	{
+		if (S.OffSince < 0.0) S.OffSince = Now;
+		RidePlan::RideNav Back;
+		bool bOnIt = false;
+		if (S.Detour)
+		{
+			Back = Ride->Plan->NavDetour(*S.Detour, X, Z);
+			bOnIt = !Back.OffRoute;
+		}
+		if (!bOnIt && Now - S.OffSince > 3.0 && Now - S.LastTry > 4.0)
+		{
+			S.LastTry = Now;
+			S.Detour = Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
+			if (S.Detour)
+			{
+				Back = Ride->Plan->NavDetour(*S.Detour, X, Z);
+				bOnIt = !Back.OffRoute;
+				Ride->Guide = TorqueWorld::GuideOfDetour(*Ride->Plan, *S.Detour, Ride->Guide ? Ride->Guide->Version + 1 : 1);
+				OnRoamChanged.Broadcast();
+			}
+		}
+		if (bOnIt)
+		{
+			// (the way back's turns and distance; the limits and stops stay the ride road's, but for the road's name)
+			N.OffRoute = false;
+			N.Turn = Back.Turn;
+			N.ToTurn = Back.ToTurn;
+			N.Onto = Back.Onto;
+			N.ToFinish = Back.ToFinish;
+			N.Road = Back.Road;
+			N.Limit = 0;
+			for (double& To : N.ToStop) To = -1.0;
+		}
+		else Dash.bNavRerouting = true;
+	}
 	Dash.bNavOff = N.OffRoute;
 	Dash.NavTurn = N.Turn;
 	Dash.NavTo = N.ToTurn;
@@ -208,6 +293,21 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	}
 }
 
+ATorqueRideWorld::FOnRoamChanged ATorqueRideWorld::OnRoamChanged;
+
+
+std::shared_ptr<const TorqueWorld::RoamArea> ATorqueRideWorld::RoamNow()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride ? Ride->Roam : nullptr;
+}
+
+std::shared_ptr<const TorqueWorld::RideGuide> ATorqueRideWorld::GuideNow()
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	return Ride ? Ride->Guide : nullptr;
+}
+
 void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 {
 	Plan = InPlan;
@@ -221,6 +321,11 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 		if (Plan->Request.Pins.size() >= 2) Diary->Code = TorqueWorld::Route::CodeOf(Plan->Request);
 	}
 	if (!Plan || !Plan->Ok || Plan->Road.size() < 2) return;
+	// [ride anywhere] The world and the way as planned, for the maps.
+	Roam = TorqueWorld::RoamOfPlan(Plan);
+	Guide = TorqueWorld::GuideOfPlan(*Plan);
+	NavState = FRideNavState();
+	OnRoamChanged.Broadcast();
 	Jobs = std::make_shared<FTorqueRideJobs>();
 	// (the ground in the hand-built ride's scanned grass, moor and rock when Tools/ue_build_rideuk.py
 	// could make it from Buttertubs' textures; the plain mottled one otherwise)
@@ -358,7 +463,7 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 	const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
 	for (const FIntVector& Key : Want)
 	{
-		if (Tiles.Contains(Key) || Asked.Contains(Key)) continue;
+		if ((Tiles.Contains(Key) && !Stale.Contains(Key)) || Asked.Contains(Key)) continue;
 		const double Size = TRWI::SizeOf(Key.X);
 		const int32 Cells = TRWI::CellsOf[Key.X];
 		if (bAtOnce)
@@ -373,6 +478,7 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 		}
 		if (Share->Busy.load() >= TRWI::AtATime) break;
 		Asked.Add(Key);
+		Stale.Remove(Key);
 		++Share->Busy;
 		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Key, Size, Cells]()
 		{
@@ -564,8 +670,16 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 {
 	// Every road (the ride's own, then those that meet it) in pieces of PiecePoints points; a piece's
 	// key is its road times 4096 and which piece of it.
-	const int32 Roads = Plan->RoadCount();
-	for (int32 Which = 0; Which < Roads; ++Which)
+	// [ride anywhere] The roads laid so far round the rider (the network's blocks are laid by the near
+	// squares of ground as they are made), and those whose pieces are in place (to drop the far ones).
+	TorqueWorld::Rect Around;
+	Around.X0 = At.X - TRWI::RoadReach - 600.0; Around.Z0 = At.Y - TRWI::RoadReach - 600.0;
+	Around.X1 = At.X + TRWI::RoadReach + 600.0; Around.Z1 = At.Y + TRWI::RoadReach + 600.0;
+	std::vector<int> Roads = Plan->RoadsNear(Around, false);
+	for (const auto& Have : RoadParts) Roads.push_back(int(Have.Key / 4096));
+	std::sort(Roads.begin(), Roads.end());
+	Roads.erase(std::unique(Roads.begin(), Roads.end()), Roads.end());
+	for (const int Which : Roads)
 	{
 		const std::vector<TorqueWorld::RoadPoint>& Pts = Plan->RoadOf(Which);
 		const int32 Points = int32(Pts.size());
@@ -576,9 +690,11 @@ void ATorqueRideWorld::UpdateRoad(const FVector2D& At, bool bAtOnce)
 			const int32 First = K * TRWI::PiecePoints, Last = FMath::Min(First + TRWI::PiecePoints, Points - 1);
 			const TorqueWorld::RoadPoint& Mid = Pts[size_t((First + Last) / 2)];
 			const double HowFar = FVector2D::Distance(At, FVector2D(Mid.At.X, Mid.At.Z));
-			const int32 Key = Which * 4096 + K;
+			const int64 Key = int64(Which) * 4096 + K;
 			const bool bHave = RoadParts.Contains(Key);
-			if (!bHave && HowFar < TRWI::RoadReach)
+			// (a piece with an end of its road waits for the block that end is in: its junction is drawn with it)
+			const bool bEndsLaid = (First != 0 || Plan->BlockLaid(Pts.front().At.X, Pts.front().At.Z)) && (Last != Points - 1 || Plan->BlockLaid(Pts.back().At.X, Pts.back().At.Z));
+			if (!bHave && HowFar < TRWI::RoadReach && bEndsLaid)
 			{
 				TorqueWorld::RideMesh Mesh;
 				Plan->RoadPiece(Which, First, Last, Mesh);
@@ -684,6 +800,30 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	BirdsLookedAt = At;
 	Update(At, false);
 	UpdateRoad(At, false);
+	// [ride anywhere] The ground round the rider fetched as they roam, on a worker, every 800 m: the
+	// fine tiles near, the middle and skyline tiles out to their reach. The far squares made before
+	// new tiles came are made again (the near ones fetch their own before they are made).
+	if (!bFetchingGround && (GroundAt.X > 1e11 || FVector2D::Distance(At, GroundAt) > 800.0))
+	{
+		bFetchingGround = true;
+		GroundAt = At;
+		const std::shared_ptr<const TorqueWorld::RidePlan> Held = Plan;
+		const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
+		const TWeakObjectPtr<ATorqueRideWorld> Self(this);
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Self, At]()
+		{
+			const int32 Came = Share->bStop ? 0 : Held->GroundRound(At.X, At.Y);
+			AsyncTask(ENamedThreads::GameThread, [Self, Came]()
+			{
+				ATorqueRideWorld* Ride = Self.Get();
+				if (Ride == nullptr) return;
+				Ride->bFetchingGround = false;
+				if (Came <= 0) return;
+				for (const auto& Have : Ride->Tiles)
+					if (Have.Key.X >= 2) Ride->Stale.Add(Have.Key);
+			});
+		});
+	}
 	// A square no longer wanted goes once every wanted square over the same ground is in place.
 	TArray<FIntVector> Going;
 	const TSet<FIntVector> WantSet(Want);

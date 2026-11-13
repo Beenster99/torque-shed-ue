@@ -14,6 +14,7 @@
 #include "WorldRoute.h"
 
 #include <atomic>
+#include <functional>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -21,6 +22,37 @@
 #include <string>
 
 using namespace TorqueWorld;
+
+// [ride anywhere] The roads laid with the plan, the network's blocks along the ride laid and their
+// junctions, and every road laid so far.
+static std::vector<std::reference_wrapper<const RidePlan::SideRoad>> PlanSideRoads(const RidePlan& P)
+{
+	std::vector<std::reference_wrapper<const RidePlan::SideRoad>> Out;
+	for (int W : P.PlanSides()) Out.push_back(std::cref(*P.SideOf(W)));
+	return Out;
+}
+
+static std::vector<RidePlan::Knot> LaidKnots(const RidePlan& P)
+{
+	TorqueWorld::Rect Box;
+	Box.X0 = Box.Z0 = 1e18;
+	Box.X1 = Box.Z1 = -1e18;
+	for (const RoadPoint& R : P.Road)
+	{
+		Box.X0 = std::fmin(Box.X0, R.At.X - 300.0); Box.X1 = std::fmax(Box.X1, R.At.X + 300.0);
+		Box.Z0 = std::fmin(Box.Z0, R.At.Z - 300.0); Box.Z1 = std::fmax(Box.Z1, R.At.Z + 300.0);
+	}
+	P.LayBlocks(Box);
+	return P.KnotsLaid();
+}
+
+static std::vector<int> LaidRoads(const RidePlan& P)
+{
+	std::vector<int> Out = {0};
+	for (int W = 1; W < P.RoadCount(); ++W)
+		if (P.SideOf(W) != nullptr) Out.push_back(W);
+	return Out;
+}
 
 static std::string GTmp;
 
@@ -42,7 +74,7 @@ static void SayHeroes(const RidePlan& Plan)
 			const RideMesh& M = *H.Mesh;
 			for (size_t I = 0; I + 2 < M.Pos.size(); I += 3) Obj += "v " + std::to_string(M.Pos[I] + M.OriginX) + " " + std::to_string(M.Pos[I + 1]) + " " + std::to_string(M.Pos[I + 2] + M.OriginZ) + "\n";
 			for (size_t I = 0; I + 2 < M.Idx.size(); I += 3) Obj += "f " + std::to_string(M.Idx[I] + 1) + " " + std::to_string(M.Idx[I + 1] + 1) + " " + std::to_string(M.Idx[I + 2] + 1) + "\n";
-			for (int Which = 0; Which < Plan.RoadCount(); ++Which)
+			for (const int Which : LaidRoads(Plan))
 				for (const RoadPoint& P : Plan.RoadOf(Which))
 					if (P.Bridge && std::hypot(P.At.X - M.OriginX, P.At.Z - M.OriginZ) < 2500.0)
 						Obj += "# deck " + std::to_string(P.At.X) + " " + std::to_string(P.Height) + " " + std::to_string(P.At.Z) + " " + std::to_string(P.Half) + "\n";
@@ -259,8 +291,8 @@ int main(int Argc, char** Argv)
 		Plan->Length / 1000.0, int(Plan->Road.size()), Steep, Crest, Off, Ms);
 	{
 		size_t SidePts = 0;
-		for (const RidePlan::SideRoad& Sd : Plan->Sides) SidePts += Sd.Pts.size();
-		std::printf("Beside it: %d roads in %d points; %d bridges and %d tunnels on the way\n", int(Plan->Sides.size()), int(SidePts), Plan->Bridges, Plan->Tunnels);
+		for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan)) SidePts += Sd.Pts.size();
+		std::printf("Beside it: %d roads in %d points; %d bridges and %d tunnels on the way\n", int(Plan->PlanSides().size()), int(SidePts), Plan->Bridges, Plan->Tunnels);
 		for (size_t I = 1; I < Plan->Road.size(); ++I)
 			if (Plan->Road[I].Bridge && !Plan->Road[I - 1].Bridge)
 			{
@@ -274,7 +306,7 @@ int main(int Argc, char** Argv)
 		// The other roads' bridges and tunnels, and where one goes over or under the ride's road.
 		std::printf("On the roads beside it: %d bridges and %d tunnels\n", Plan->SideBridges, Plan->SideTunnels);
 		int Shown = 0;
-		for (const RidePlan::SideRoad& Sd : Plan->Sides)
+		for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 			for (size_t I = 1; I < Sd.Pts.size(); ++I)
 			{
 				const RoadPoint& P = Sd.Pts[I];
@@ -290,13 +322,68 @@ int main(int Argc, char** Argv)
 	}
 	{
 		int Mouths = 0, GiveWays = 0;
-		for (const RidePlan::SideRoad& Sd : Plan->Sides)
+		for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 			for (const RidePlan::Mouth& M : Sd.Mouths) { if (M.Is) ++Mouths; if (M.Is && M.GiveWay) ++GiveWays; }
 		int AtStart = 0;
-		for (const RidePlan::Knot& K : Plan->Knots) if (K.Owner == 0) ++AtStart;
-		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines; %d junctions off it (%d at its ends)\n", Mouths, GiveWays, int(Plan->Knots.size()), AtStart);
+		const std::vector<RidePlan::Knot> Knots = LaidKnots(*Plan);
+		for (const RidePlan::Knot& K : Knots) if (K.Owner == 0) ++AtStart;
+		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines; %d junctions off it (%d at its ends)\n", Mouths, GiveWays, int(Knots.size()), AtStart);
+		// [ride anywhere] The network round a place off the ride (WORLD_RIDE_ROAM=x,z in the frame, m):
+		// its blocks within 1.2 km laid, and how long that took.
+		if (const char* Roam = std::getenv("WORLD_RIDE_ROAM"))
+		{
+			double Rx = 0.0, Rz = 0.0;
+			if (std::sscanf(Roam, "%lf,%lf", &Rx, &Rz) == 2)
+			{
+				TorqueWorld::Rect Around;
+				Around.X0 = Rx - 1200.0; Around.Z0 = Rz - 1200.0; Around.X1 = Rx + 1200.0; Around.Z1 = Rz + 1200.0;
+				const auto RoamT0 = std::chrono::steady_clock::now();
+				const int Before = Plan->BlocksLaid();
+				const std::vector<int> Roads = Plan->RoadsNear(Around, true);
+				const double RoamMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - RoamT0).count();
+				size_t Pts = 0;
+				double Worst = 0.0;
+				int NoGround = 0;
+				for (int W : Roads)
+				{
+					Pts += Plan->RoadOf(W).size();
+					for (const RoadPoint& P : Plan->RoadOf(W))
+					{
+						const double G = Plan->Land->Height(P.At.X, P.At.Z);
+						if (std::isnan(G)) { ++NoGround; continue; }
+						if (!P.Bridge && !P.Tunnel) Worst = std::fmax(Worst, std::fabs(P.Height - G));
+					}
+				}
+				std::printf("  the roads there sit within %.1f m of the ground (%d points with none)\n", Worst, NoGround);
+				RidePlan::NearHit Hit;
+				const bool On = Plan->NearestOf(Rx, Rz, RidePlan::NearOpts(), Hit);
+				std::printf("Roaming at (%.0f, %.0f): %d blocks laid in %.0f ms, %d roads in %d points; nearest road %s %.1f m off\n", Rx, Rz, Plan->BlocksLaid() - Before, RoamMs,
+					int(Roads.size()), int(Pts), On ? std::to_string(Hit.Which).c_str() : "none", On ? Hit.Dist : -1.0);
+				// (the sat nav's way back from a road there, heading north and then south)
+				for (const int W : Roads)
+				{
+					if (W == 0) continue;
+					const std::vector<RoadPoint>& On2 = Plan->RoadOf(W);
+					if (On2.size() < 4) continue;
+					const P2 At2 = On2[On2.size() / 2].At;
+					for (const double Heading : {0.0, 3.14159265})
+					{
+						const auto WayT0 = std::chrono::steady_clock::now();
+						const std::shared_ptr<const RideDetour> D = Plan->DetourFrom(At2.X, At2.Z, Heading, 0.0);
+						const double DMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - WayT0).count();
+						if (D == nullptr) { std::printf("  no way back from road %d\n", W); continue; }
+						std::printf("  the way back from road %d at (%.0f, %.0f) heading %.0f: %.2f km, %d turns, rejoins at %.2f km (%.1f ms)\n", W, At2.X, At2.Z, Heading, D->Length / 1000.0,
+							int(D->Turns.size()), D->RejoinAlong / 1000.0, DMs);
+						for (const RidePlan::RideTurn& Tn : D->Turns) std::printf("    at %.2f km turn %d onto %s\n", Tn.Along / 1000.0, Tn.Turn, Tn.Onto.c_str());
+						const RidePlan::RideNav Nv = Plan->NavDetour(*D, At2.X, At2.Z);
+						std::printf("    nav: turn %d in %.0f m onto %s; %.2f km to the finish; on %s\n", Nv.Turn, Nv.ToTurn, Nv.Onto.c_str(), Nv.ToFinish / 1000.0, Nv.Road.c_str());
+					}
+					break;
+				}
+			}
+		}
 		int Shown = 0;
-		for (const RidePlan::SideRoad& Sd : Plan->Sides)
+		for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 			for (const RidePlan::Mouth& M : Sd.Mouths)
 				if (M.Is && ++Shown <= 12) std::printf("  a mouth at %.2f km%s\n", Plan->Road[size_t(M.MainIndex)].Along / 1000.0, M.GiveWay ? ", give way" : "");
 	}
@@ -483,18 +570,18 @@ int main(int Argc, char** Argv)
 		{
 			// (or a junction off it: WORLD_RIDE_KNOT=n, the nth nearest the ride's start)
 			std::vector<P2> Spots;
-			for (const RidePlan::Knot& K : Plan->Knots) Spots.push_back(K.At);
+			for (const RidePlan::Knot& K : LaidKnots(*Plan)) Spots.push_back(K.At);
 			const P2 Start = Plan->Road[0].At;
 			std::sort(Spots.begin(), Spots.end(), [&Start](const P2& A, const P2& B) { return A.DistanceTo(Start) < B.DistanceTo(Start); });
 			const size_t Want = size_t(std::atoi(std::getenv("WORLD_RIDE_KNOT")));
 			if (Want < Spots.size()) Centre = Spots[Want];
 		}
 		else
-			for (const RidePlan::SideRoad& Sd : Plan->Sides)
+			for (const RidePlan::SideRoad& Sd : PlanSideRoads(*Plan))
 				for (const RidePlan::Mouth& M : Sd.Mouths) if (!Found && M.Is && M.GiveWay) { Centre = M.At; Found = true; }
 		std::string Text;
 		char Buf[128];
-		for (int W = 0; W < Plan->RoadCount(); ++W)
+		for (const int W : LaidRoads(*Plan))
 		{
 			const std::vector<RoadPoint>& Pts = Plan->RoadOf(W);
 			for (int First = 0; First < int(Pts.size()) - 1; First += 64)
@@ -656,7 +743,7 @@ int main(int Argc, char** Argv)
 		// Every road's knots (x z height half), a road a line, for a picture.
 		std::string Text;
 		char Buf[96];
-		for (int W = 0; W < Plan->RoadCount(); ++W)
+		for (const int W : LaidRoads(*Plan))
 		{
 			for (const RoadPoint& P : Plan->RoadOf(W))
 			{

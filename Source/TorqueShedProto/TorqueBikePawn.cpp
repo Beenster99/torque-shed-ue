@@ -1066,13 +1066,28 @@ void ATorqueBikePawn::BackOnWheels()
 	// [yard] Out on the open concrete: back on the bike where he came off, facing the way it was
 	// going. (Against a wall, or round the back of the shed: back at the door.)
 	const V3 P = Sim->Position;
+	const V3 Fwd = Sim->Basis * V3(0.0, 0.0, -1.0);
+	const double Facing = (Fwd.x * Fwd.x + Fwd.z * Fwd.z) > 1e-6 ? std::atan2(-Fwd.x, -Fwd.z) : 0.0;
+	// [Ride UK] (beenster, build 142: off on a side road, it always put him back on the ride's road) On a
+	// real-world ride, back on the nearest road where he came off, whichever road that is, facing the
+	// way he was going along it.
+	if (!bYard && !FPaths::IsRelative(RouteFile))
+	{
+		FVector Back;
+		double Heading = 0.0;
+		int32 Which = 0;
+		if (ATorqueRideWorld::RoadBack(FVector(P.x, P.y, P.z), Facing, Back, Heading, Which) && Which != 0)
+		{
+			PlaceOnGround(V3(Back.X, Back.Y + 0.3, Back.Z), Heading);
+			return;
+		}
+	}
 	if (!bYard || !YardOpen.bIsValid || !YardOpen.IsInside(FVector2D(P.x, P.z)))
 	{
 		Respawn(bYard ? 0 : FMath::Max(Near - 2, 0));
 		return;
 	}
-	const V3 Fwd = Sim->Basis * V3(0.0, 0.0, -1.0);
-	PlaceOnGround(P, (Fwd.x * Fwd.x + Fwd.z * Fwd.z) > 1e-6 ? std::atan2(-Fwd.x, -Fwd.z) : 0.0);
+	PlaceOnGround(P, Facing);
 }
 
 void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)
@@ -2792,6 +2807,11 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		// Front brake: two fingers go over the lever as soon as you brake, and come off after.
 		const double Want = FrontBrake > 0.03 ? 1.0 : 0.0;
 		BrakeFingers = MoveToward(BrakeFingers, Want, (Want > BrakeFingers ? 10.0 : 4.0) * DeltaSeconds);
+		// [rider pose] Clutch: two fingers on the lever while it's in at all (held, being let out, a
+		// gear change) or the bike is stopped, and off a moment after it's fully out (beenster).
+		const bool bClutchWork = Sim->ClutchIn || Sim->Clutch > 0.03 || FMath::Abs(Sim->Speed) < 2.5 || SinceShift < 0.30;
+		const double ClutchWant = bClutchWork ? 1.0 : 0.0;
+		ClutchFingers = MoveToward(ClutchFingers, ClutchWant, (ClutchWant > ClutchFingers ? 10.0 : 3.0) * DeltaSeconds);
 	}
 	if (Sound && Sim->Gear != LastGear) Sound->GearChange(Sim->Gear > LastGear);
 	LastGear = Sim->Gear;
@@ -3732,8 +3752,9 @@ void ATorqueBikePawn::UpdateRider()
 			const double Held = FMath::Clamp(1.0 - FMath::Abs(Sim->Speed) / 2.5, 0.0, 1.0);
 			// The clutch held in (LB, or Left Alt): the lever pulled to the bar.
 			const double Lever = Sim->ClutchIn ? 1.0 : 0.0;
-			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), Lever);
-			In.LeverPull[0] = FMath::Max3(PullShift, Held, Lever);
+			// (The lever follows the clutch as it's let out: Sim->Clutch, how far it's in.)
+			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), FMath::Max(Lever, ClutchFingers));
+			In.LeverPull[0] = FMath::Max(FMath::Max3(PullShift, Held, Lever), FMath::Clamp(Sim->Clutch, 0.0, 1.0)) * FMath::Clamp(In.LeverFingers[0] * 2.0, 0.0, 1.0);
 		}
 		for (int32 S = 0; S < 2; ++S)
 			if (TestLeverHold[S] >= 0.0)

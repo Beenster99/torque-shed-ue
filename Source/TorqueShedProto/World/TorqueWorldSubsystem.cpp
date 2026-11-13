@@ -281,6 +281,7 @@ bool UTorqueWorldSubsystem::StartJourney(const TorqueWorld::RouteRequest& Want, 
 			const FString Said = FString(TEXT("Ride UK: ")) + UTF8_TO_TCHAR(Step.c_str()) + TEXT("...");
 			AsyncTask(ENamedThreads::GameThread, [Self, Said]() { if (Self.IsValid()) Self->Note = Said; });
 		});
+		if (Made) Made->StoresAlive = Held;   // [ride anywhere] (the plan fetches ground with them as the riders roam)
 		if (Held->bStop) return;   // (the game closed under it)
 		Made->Title = TitleStd;
 		if (Made->Ok && bRide) TorqueWorld::Files::Write(RoutePath, Made->RouteJson());

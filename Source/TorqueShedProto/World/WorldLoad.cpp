@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <set>
 
 namespace TorqueWorld
 {
@@ -137,6 +138,27 @@ int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, con
 		if (Store.Kept(CellStore::EKind::Profiles, C.Name(), *Idx, File) && !File.Flag("guessed", true)) Heights.KnowSea(C, File.Num("sea") > 0.0 || File.Flag("coast"));
 	}
 	return Heights.Fetch(Ride.UsedKeys(), Store.Get, 6, Progress);
+}
+
+int FetchKeys(CellStore& Store, HeightStore& Heights, const std::vector<TileKey>& Keys)
+{
+	std::vector<TileKey> Want;
+	std::set<CellId> Under;
+	for (const TileKey& K : Keys)
+	{
+		if (Heights.Has(K)) continue;
+		Want.push_back(K);
+		for (const CellId& C : CellsUnder(K)) Under.insert(C);
+	}
+	if (Want.empty()) return 0;
+	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	for (const CellId& C : Under)
+	{
+		if (Heights.SeaIn(C) >= 0) continue;
+		Json File;
+		if (Store.Kept(CellStore::EKind::Profiles, C.Name(), *Idx, File) && !File.Flag("guessed", true)) Heights.KnowSea(C, File.Num("sea") > 0.0 || File.Flag("coast"));
+	}
+	return Heights.Fetch(Want, Store.Get, 6);
 }
 
 std::vector<P2> Resample(const std::vector<P2>& Line, double Step, std::vector<double>* Along)
