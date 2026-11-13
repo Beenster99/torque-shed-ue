@@ -71,7 +71,7 @@ def arc_pts(c, r, a0, a1, n=14):
 def engine(e, layout):
     """Schematic engine. e = crank centre."""
     o = []
-    cyl = {"vtwin90": [(15, 350, 150), (105, 340, 150)], "vtwin45": [(67, 400, 175), (113, 400, 175)],
+    cyl = {"vtwin90": [(34, 300, 150), (124, 300, 150)], "vtwin45": [(67, 400, 175), (113, 400, 175)],
            "parallel_twin": [(78, 390, 195)], "triple": [(68, 390, 205)], "inline4": [(60, 390, 215)],
            "single": [(84, 420, 165)], "boxer": []}[layout]
     k = 1.22
