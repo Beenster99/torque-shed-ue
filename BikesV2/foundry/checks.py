@@ -173,4 +173,24 @@ if __name__ == "__main__":
             for ok, msg in check(m, fams) + deck(m, fams):
                 bad += not ok
                 print("  ", "ok  " if ok else "FAIL", msg)
+    # every kit combination on its own bike, and every tank and seat pair on the other brand's frame with each of its tails
+    combos = fails = 0
+    for h in models:
+        tn, sn = len(mix.kit_names(h, "tank_seat")), len(mix.kit_names(h, "tail"))
+        for i in range(tn):
+            for j in range(sn):
+                res = deck(mix.apply_kit(h, i, j), fams)
+                combos += 1
+                fails += sum(not ok for ok, _ in res)
+                for d in models:
+                    if d is h or d["family"] != h["family"]:
+                        continue
+                    for i2 in range(len(mix.kit_names(d, "tank_seat"))):
+                        if i:
+                            continue
+                        res = deck(mix.mix(mix.apply_kit(h, 0, j), mix.apply_kit(d, i2, 0)), fams)
+                        combos += 1
+                        fails += sum(not ok for ok, _ in res)
+    print(f"kit combinations checked: {combos}, failed checks: {fails}")
+    bad += fails
     sys.exit(1 if bad else 0)

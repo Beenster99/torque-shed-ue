@@ -61,3 +61,60 @@ if __name__ == "__main__":
     open(out + ".svg", "w").write(svg)
     open(out + ".html", "w").write(f"<!doctype html><meta charset=utf-8><style>{elevation.CSS}body{{margin:0}}</style>{svg}")
     print(out + ".svg")
+
+
+def kit_names(model, part):
+    """Names of a model's variants of one kit part ("tank_seat" or "tail"), its own first."""
+    kit = model.get("kit", {})
+    return [kit.get("base", {}).get(part, "standard")] + [v["name"] for v in kit.get(part, [])]
+
+
+def apply_kit(model, tank_seat=0, tail=0):
+    """The model with kit variants fitted (0 is the bike as drawn). Returns a new model dict."""
+    import shapes
+    m = copy.deepcopy(model)
+    kit, b = model.get("kit", {}), m["body"]
+    names = []
+    if tank_seat:
+        v = kit["tank_seat"][tank_seat - 1]
+        tank = copy.deepcopy(v["tank"])
+        outline = shapes.dense(tank[0]["pts"], True, tank[0].get("t", 1.0))
+        xs = [p[0] for p in outline]
+        x0, x1 = min(xs), max(xs)
+        # a highlight under the top line, and the filler cap sat on the new top
+        hl = [[x, shapes.top_bottom(outline, x)[0] - 30] for x in (x0 + (x1 - x0) * f for f in (0.3, 0.5, 0.68, 0.84))]
+        tank.append({"pts": hl, "cls": "hl", "closed": False})
+        for c in b.get("caps", []):
+            c["at"][1] = round(shapes.top_bottom(outline, c["at"][0])[0] - 6, 1)
+        b["tank"], b["seat"] = tank, copy.deepcopy(v["seat"])
+        names.append(v["name"])
+    if tail:
+        v = kit["tail"][tail - 1]
+        b["tail"] = copy.deepcopy(v["tail"])
+        for shp in b.get("behind", []):
+            if "fender" in shp.get("cls", "") and v.get("tray"):
+                shp["pts"] = copy.deepcopy(v["tray"])
+        names.append(v["name"])
+    m["kit_fitted"] = {"tank_seat": kit_names(model, "tank_seat")[tank_seat], "tail": kit_names(model, "tail")[tail]}
+    return m
+
+
+def silhouette_difference(a, b, parts=("tank", "seat", "tail")):
+    """How different two bikes' upper bodies look from the side: 0 the same, 1 nothing shared.
+    The share of the combined tank, seat and tail outline that only one of the two covers."""
+    import shapes
+    from PIL import Image, ImageChops, ImageDraw
+
+    def mask(m):
+        im = Image.new("1", (640, 300), 0)
+        d = ImageDraw.Draw(im)
+        for part in parts:
+            for shp in m["body"][part]:
+                if shp.get("closed", True) and shp.get("cls") in ("body", "seat"):
+                    pts = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+                    d.polygon([((1200 - x) * 0.5, (1150 - z) * 0.5) for x, z in pts], fill=1)
+        return im
+    ma, mb = mask(a), mask(b)
+    union = sum(ImageChops.logical_or(ma, mb).getdata())
+    both = sum(ImageChops.logical_and(ma, mb).getdata())
+    return 1 - both / union if union else 0.0

@@ -24,6 +24,7 @@ EXTRA = """
 .sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
 .sw figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;font-size:12px;color:var(--mute)}
 .sw img{width:84px;height:84px;display:block}
+h3{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:22px;margin:18px 0 4px}figure.sheet{margin:0}figure.sheet figcaption{font-size:12.5px;color:var(--mute)}
 ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;max-width:68ch}
 """
 
@@ -105,7 +106,28 @@ def build(family, names):
             bare.append(f'<div class="sheet">{elevation.draw(m2)}</div>')
     if bare:
         h.append('<section><h2>Plate hanger: its own part, optional</h2><p class="lede">The long hanger with the number plate and its lamp is drawn in on every bike above, as most countries require it, but it is a separate bolt-on part. A build can leave it off, as here.</p><div class="shots">' + "".join(bare) + "</div></section>")
+    import itertools
     import mix
+    kit_html, combos = [], 0
+    for n in names:
+        base = elevation.load(n)
+        if not base.get("kit"):
+            continue
+        tn, sn = mix.kit_names(base, "tank_seat"), mix.kit_names(base, "tail")
+        allv = [mix.apply_kit(base, i, j) for i in range(len(tn)) for j in range(len(sn))]
+        combos += len(allv)
+        diffs = [mix.silhouette_difference(a, b) for a, b in itertools.combinations(allv, 2)]
+        figs = []
+        for i in range(1, len(tn)):
+            j = min(i, len(sn) - 1)
+            v = mix.apply_kit(base, i, j)
+            v["dimensions"] = False
+            v["name"] = f"{base['brand'].title()}: {tn[i]} tank and seat, {sn[j]} tail"
+            note = base["kit"]["tank_seat"][i - 1]["note"] + "; tail " + base["kit"]["tail"][j - 1]["note"]
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{note[0].upper() + note[1:]}.</figcaption></figure>')
+        kit_html.append(f"""<h3>{base['brand'].title()} kit</h3><p>Tank and seat pairs: {", ".join(tn)}. Tails: {", ".join(sn)}. The first of each is the bike as drawn above. That gives {len(allv)} different bikes on this one frame, and every one passes the fit checks. Measured side on, any two of them differ by {min(diffs) * 100:.0f}% to {max(diffs) * 100:.0f}% of their tank, seat and tail outline.</p><div class="shots">{"".join(figs)}</div>""")
+    if kit_html:
+        h.append('<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs and tails. This is what stops two people who pick the same frame from ending up with the same bike. Each pair also fits the other brand\'s frame.</p>' + "".join(kit_html) + "</section>")
     loaded = [elevation.load(n) for n in names]
     pairs = [(a, b) for a in loaded for b in loaded if a is not b]
     if pairs:
@@ -122,7 +144,7 @@ def build(family, names):
 <li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
 <li>The mixed builds are the first proof of the mounting standard. They are drawings only for now; the 3D versions follow.</li>
-<li>Not yet drawn: top and front views, the kit variants (three tank and seat pairs, three tails, front ends) and small detail such as cables, hoses and fasteners.</li></ul></section></div>""")
+<li>Not yet drawn: top and front views, front end variants, and the kit parts in 3D.</li></ul></section></div>""")
     out = os.path.join(ROOT, "out", f"{family}_elevations.html")
     open(out, "w").write("\n".join(h))
     return out
