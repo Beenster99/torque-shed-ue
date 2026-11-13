@@ -342,7 +342,19 @@ int main(int Argc, char** Argv)
 				const std::vector<int> Roads = Plan->RoadsNear(Around, true);
 				const double RoamMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - RoamT0).count();
 				size_t Pts = 0;
-				for (int W : Roads) Pts += Plan->RoadOf(W).size();
+				double Worst = 0.0;
+				int NoGround = 0;
+				for (int W : Roads)
+				{
+					Pts += Plan->RoadOf(W).size();
+					for (const RoadPoint& P : Plan->RoadOf(W))
+					{
+						const double G = Plan->Land->Height(P.At.X, P.At.Z);
+						if (std::isnan(G)) { ++NoGround; continue; }
+						if (!P.Bridge && !P.Tunnel) Worst = std::fmax(Worst, std::fabs(P.Height - G));
+					}
+				}
+				std::printf("  the roads there sit within %.1f m of the ground (%d points with none)\n", Worst, NoGround);
 				RidePlan::NearHit Hit;
 				const bool On = Plan->NearestOf(Rx, Rz, RidePlan::NearOpts(), Hit);
 				std::printf("Roaming at (%.0f, %.0f): %d blocks laid in %.0f ms, %d roads in %d points; nearest road %s %.1f m off\n", Rx, Rz, Plan->BlocksLaid() - Before, RoamMs,

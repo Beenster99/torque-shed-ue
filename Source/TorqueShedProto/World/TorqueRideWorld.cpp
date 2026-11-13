@@ -410,7 +410,7 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 	const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
 	for (const FIntVector& Key : Want)
 	{
-		if (Tiles.Contains(Key) || Asked.Contains(Key)) continue;
+		if ((Tiles.Contains(Key) && !Stale.Contains(Key)) || Asked.Contains(Key)) continue;
 		const double Size = TRWI::SizeOf(Key.X);
 		const int32 Cells = TRWI::CellsOf[Key.X];
 		if (bAtOnce)
@@ -425,6 +425,7 @@ void ATorqueRideWorld::Update(const FVector2D& At, bool bAtOnce)
 		}
 		if (Share->Busy.load() >= TRWI::AtATime) break;
 		Asked.Add(Key);
+		Stale.Remove(Key);
 		++Share->Busy;
 		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Key, Size, Cells]()
 		{
@@ -746,6 +747,30 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	BirdsLookedAt = At;
 	Update(At, false);
 	UpdateRoad(At, false);
+	// [ride anywhere] The ground round the rider fetched as they roam, on a worker, every 800 m: the
+	// fine tiles near, the middle and skyline tiles out to their reach. The far squares made before
+	// new tiles came are made again (the near ones fetch their own before they are made).
+	if (!bFetchingGround && (GroundAt.X > 1e11 || FVector2D::Distance(At, GroundAt) > 800.0))
+	{
+		bFetchingGround = true;
+		GroundAt = At;
+		const std::shared_ptr<const TorqueWorld::RidePlan> Held = Plan;
+		const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
+		const TWeakObjectPtr<ATorqueRideWorld> Self(this);
+		AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Self, At]()
+		{
+			const int32 Came = Share->bStop ? 0 : Held->GroundRound(At.X, At.Y);
+			AsyncTask(ENamedThreads::GameThread, [Self, Came]()
+			{
+				ATorqueRideWorld* Ride = Self.Get();
+				if (Ride == nullptr) return;
+				Ride->bFetchingGround = false;
+				if (Came <= 0) return;
+				for (const auto& Have : Ride->Tiles)
+					if (Have.Key.X >= 2) Ride->Stale.Add(Have.Key);
+			});
+		});
+	}
 	// A square no longer wanted goes once every wanted square over the same ground is in place.
 	TArray<FIntVector> Going;
 	const TSet<FIntVector> WantSet(Want);

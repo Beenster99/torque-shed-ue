@@ -212,5 +212,10 @@ private:
 	int32 PlantsShown = 0;
 	FVector2D LookedAt = FVector2D(1e12, 1e12);
 	double SinceLook = 0.0;
+	// [ride anywhere] Squares to make again (their ground has come since), and where the ground round
+	// the rider was last fetched.
+	TSet<FIntVector> Stale;
+	FVector2D GroundAt = FVector2D(1e12, 1e12);
+	bool bFetchingGround = false;
 	bool bSaidReady = false;
 };

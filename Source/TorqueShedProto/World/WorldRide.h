@@ -313,12 +313,23 @@ public:
 	const std::vector<int>& PlanSides() const { return Planned; }
 	static constexpr double SideReach = 300.0;  // roads this near the ride's (about) are laid with it
 	static constexpr double BlockSize = 512.0;
+	static constexpr double TileMargin = 1000.0;   // the fine ground fetched this far round a block
 	// The roads with a point in the blocks a box touches, 0 (the ride's own) among them where its box
 	// meets this one; with Lay those blocks are laid first (a worker's job), else only roads laid already.
 	std::vector<int> RoadsNear(const Rect& Box, bool Lay) const;
 	void LayBlocks(const Rect& Box) const;
 	bool BlockLaid(double X, double Z) const;
 	int BlocksLaid() const;
+	// [ride anywhere] The ground wherever the riders roam: the fine tiles over a box and a tile round
+	// it fetched (a block's are, before its roads are laid, so their heights are final), and round a
+	// rider the middle and skyline tiles out to their reach. EnsureGround: how many couldn't be had;
+	// GroundRound: how many came. Both block, on the network (a worker's job). The stores are the
+	// plan's (Make's), kept for the ride.
+	int EnsureGround(const Rect& Box) const;
+	int GroundRound(double X, double Z) const;
+	CellStore* CellsFrom = nullptr;
+	HeightStore* HeightsFrom = nullptr;
+	std::shared_ptr<void> StoresAlive;   // (whatever holds them, kept as long as the plan is)
 	// The junction (knot) a road's end is one of the arms of, once its block is laid; null for none.
 	const Knot* KnotAt(int Which, int End) const;
 	std::vector<Knot> KnotsLaid() const;   // every one so far (the tests)

@@ -32,6 +32,7 @@ struct RidePlan::Network
 	std::unordered_map<long long, std::vector<std::pair<int, int>>> Near;   // (road, point) by 16 m square
 	std::unordered_map<long long, std::shared_ptr<const Knot>> Knots;      // by road * 2 + end, each arm's
 	std::atomic<int> Blocks{0}, Bridges{0}, Tunnels{0};
+	std::mutex Fetching;                                          // one fetch of ground at a time
 };
 
 namespace
@@ -272,6 +273,9 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	}
 	// (the tiles are chosen by the road as the map has it, a point every 30 m, as every rider's are)
 	R->Land = R->Area.Land->ForRoad(Resample(G.PathLine(From, Path), 30.0));
+	R->Land->SetRoam(true);   // [ride anywhere]
+	R->CellsFrom = &Store;
+	R->HeightsFrom = &Heights;
 	Tell("Fetching the ground: " + std::to_string(R->Land->UsedKeys().size()) + " tiles");
 	R->TilesFailed = FetchGround(Store, Heights, *R->Land);
 	if (R->TilesFailed > 0)
@@ -287,6 +291,13 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
 	Tell("Laying the roads that meet it");
 	R->LaySides(Path);
+	{
+		// [ride anywhere] The network round the start laid now, its ground fetched (not on the game thread
+		// as the first squares are made).
+		Rect Start;
+		Start.X0 = R->Road[0].At.X - 700.0; Start.Z0 = R->Road[0].At.Z - 700.0; Start.X1 = R->Road[0].At.X + 700.0; Start.Z1 = R->Road[0].At.Z + 700.0;
+		R->LayBlocks(Start);
+	}
 	R->IndexTowns();     // [towns stage 1] (before anything asks a place's look)
 	R->IndexScenery();
 	R->IndexRails();
@@ -931,6 +942,7 @@ void RidePlan::LayBlock(long long Key) const
 			N.Done.wait(Hold);
 		}
 	}
+	EnsureGround(BlockBox(Key));
 	const auto It = N.BlockEdges.find(Key);
 	if (It != N.BlockEdges.end())
 		for (int E : It->second) EnsureSide(E);
@@ -941,6 +953,38 @@ void RidePlan::LayBlock(long long Key) const
 	}
 	++N.Blocks;
 	N.Done.notify_all();
+}
+
+int RidePlan::EnsureGround(const Rect& Box) const
+{
+	if (CellsFrom == nullptr || HeightsFrom == nullptr || Land == nullptr || Net == nullptr || CellsFrom->Offline) return 0;
+	if (Land->Ready(Rect{Box.X0 - TileMargin, Box.Z0 - TileMargin, Box.X1 + TileMargin, Box.Z1 + TileMargin}, 0)) return 0;
+	// (every tile within a tile's width of the box: the fine tiles round any point of it are all in, so
+	// none of it is eased into the coarser level)
+	std::vector<P2> Points;
+	for (double Z = Box.Z0; Z <= Box.Z1 + 1.0; Z += 128.0)
+		for (double X = Box.X0; X <= Box.X1 + 1.0; X += 128.0) Points.push_back(P2(X, Z));
+	const std::vector<TileKey> Keys = HeightStore::KeysNear(Points, TileMargin, Land->Zoom(0), Land->FrameOf());
+	std::lock_guard<std::mutex> Hold(Net->Fetching);
+	return FetchKeys(*CellsFrom, *HeightsFrom, Keys);
+}
+
+int RidePlan::GroundRound(double X, double Z) const
+{
+	if (CellsFrom == nullptr || HeightsFrom == nullptr || Land == nullptr || Net == nullptr || CellsFrom->Offline) return 0;
+	int Came = 0;
+	const std::vector<P2> At = {P2(X, Z)};
+	for (int L = 0; L < Terrain::LevelCount; ++L)
+	{
+		const std::vector<TileKey> Keys = HeightStore::KeysNear(At, L == 0 ? 1500.0 : Terrain::LiveReach[L], Land->Zoom(L), Land->FrameOf());
+		std::vector<TileKey> Want;
+		for (const TileKey& K : Keys)
+			if (!HeightsFrom->Has(K)) Want.push_back(K);
+		if (Want.empty()) continue;
+		std::lock_guard<std::mutex> Hold(Net->Fetching);
+		Came += int(Want.size()) - FetchKeys(*CellsFrom, *HeightsFrom, Want);
+	}
+	return Came;
 }
 
 const RidePlan::Knot* RidePlan::KnotAt(int Which, int End) const
