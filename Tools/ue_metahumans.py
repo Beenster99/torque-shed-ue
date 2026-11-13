@@ -161,7 +161,7 @@ WEAR_CLASSES = ("wardrobe", "groom", "outfit", "cloth", "garment")
 
 NO_FAB = False   # `make nofab`: only the Creator's own wardrobe, never the Fab clothes
 BACKUP = "/Game/MetaHumanBackup"   # an avatar's previous build while a new one is made; never cooked
-FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; never cooked
+FAB_WARDROBE = "/Game/MetaHumanWardrobe"   # beenster's Fab MetaHuman clothes (.mhpkg), imported by `fab`; cooked only by reference
 FAB_VAULT = os.environ.get("TORQUE_FAB_VAULT") or r"C:\ProgramData\Epic\EpicGamesLauncher\VaultCache\FabLibrary"
 FAB_SKIP = ("helmet",)   # the helmet goes on the rider by Tools/ue_build_level.py
 
@@ -170,8 +170,8 @@ def fab_wardrobe():
     """Every MetaHuman package (.mhpkg) in the Fab cache but the helmet, imported through the MetaHuman
     plugin's MetaHumanPackageFactory to /Game/MetaHumanWardrobe/<folder>, so `make` can dress the
     avatars with its wardrobe items (beenster's MetaHuman Jeans and Boots, Nov 12). The build bakes
-    the garments into each avatar's own folder; these sources are never cooked (their wardrobe item
-    class is editor-only)."""
+    the garments into each avatar's own folder, using these sources' materials and textures (cooked
+    by reference; the wardrobe items themselves are editor-only and nothing in the game uses them)."""
     if not os.path.isdir(FAB_VAULT):
         log("fab: no folder %s" % FAB_VAULT)
         return
