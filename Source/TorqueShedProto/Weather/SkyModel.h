@@ -27,6 +27,27 @@ struct Curve
 	double AtLog(double X) const;
 };
 
+// The kinds of cloud (stage 3), by layer: low, low and middle (nimbostratus), middle, high.
+enum Kind
+{
+	Cumulus, Stratocumulus, Stratus, Nimbostratus, Towering, Altocumulus, Altostratus, Cirrus, Cirrostratus, KindCount
+};
+const char* KindName(int K);
+
+// How a kind of cloud looks (a row of sky_looks.json's "kinds"): the drawn layer blends the rows of its
+// kinds by their weights, so the sky never snaps from one kind to the next.
+struct KindLook
+{
+	double Shape = 0.5;      // the height profile: 0 heaped (a flat base, a rounded top) .. 1 a flat sheet
+	double Lumps = 0.5;      // 0 big shapes (the 7 km noise) .. 1 small ones (the 1.8 km noise)
+	double Ragged = 0.4;     // how much the fine noise eats the edges, 0 .. 1
+	double Density = 0.8;    // MPC_Sky density (the material's extinction scale)
+	double BaseDark = 0.2;   // how much darker the cloud's base is than its top, 0 .. 1
+	double DepthM = 700.0;   // how deep, metres
+	double CapeDepth = 0.0;  // and this share of the depth CAPE gives a heaped cloud (cumulus 1)
+	double Sheet = 0.0;      // high cloud only: 0 wisps (cirrus) .. 1 a veil (cirrostratus)
+};
+
 struct Looks
 {
 	// --- Light (stage 1) ---
@@ -74,17 +95,17 @@ struct Looks
 	// The cover as drawn, by the real cover: perspective bunches clouds towards the horizon, so half
 	// the sky must look half covered from the saddle (set from the bench's five straight-up shots).
 	Curve CoverShown{{{0.0, 0.0}, {0.1, 0.12}, {0.25, 0.3}, {0.5, 0.52}, {0.75, 0.74}, {1.0, 1.0}}};
-	// The low cloud's depth, metres: a deck (stratus) or fair weather cumulus, and taller with CAPE
-	// (metres more per 100 J/kg, up to CapeMostM).
-	double LowDeckM = 700.0, LowHeapM = 1000.0, CapeDepthPer100 = 250.0, CapeMostM = 4500.0;
-	// Middle cloud's base and depth, metres above sea level / deep.
-	double MidBaseM = 3200.0, MidDepthM = 1500.0;
+	// A heaped cloud's depth, metres: fair weather cumulus, and taller with CAPE (metres more per
+	// 100 J/kg, up to CapeMostM). (Every other kind's depth is its row in Kinds.)
+	double LowHeapM = 1000.0, CapeDepthPer100 = 250.0, CapeMostM = 4500.0;
+	// Middle cloud's base, metres above sea level.
+	double MidBaseM = 3200.0;
 	// The cloud base is never lower than this above the ground under the viewer, nor higher than
 	// LowBaseMostM above sea level (the dew point's base runs off to 5 km on a dry day).
 	double LowBaseLeastM = 150.0, LowBaseMostM = 2600.0;
-	// How dense the cloud is (MPC_Sky Density: the material's extinction scale), a thin fair day's
-	// and a deck's, and darker still in rain.
-	double DensityFair = 0.6, DensityDeck = 1.0, DensityRain = 1.6;
+	// How dense the cloud is (MPC_Sky Density: the material's extinction scale) in rain, at least
+	// (each kind's own density is its row in Kinds).
+	double DensityRain = 1.6;
 	// How grey the cloud's own colour is (MPC_Sky Albedo): white, and under rain.
 	double AlbedoFair = 1.0, AlbedoRain = 0.7;
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
@@ -93,6 +114,45 @@ struct Looks
 	// The old noise cloud shadows (M_CloudShadow, MPC_Weather CloudShadow) where clouds aren't drawn
 	// (the Low setting): 1 none .. 0.45 most of the ground, by the cover.
 	Curve LegacyShadow{{{0.0, 1.0}, {0.1, 0.6}, {0.6, 0.45}, {1.0, 0.45}}};
+
+	// --- Kinds of cloud (stage 3) ---
+	KindLook Kinds[KindCount] = {
+		/* cumulus */       {0.0, 0.6, 0.55, 0.7, 0.15, 0.0, 1.0, 0.0},
+		/* stratocumulus */ {0.75, 0.55, 0.35, 0.9, 0.3, 700.0, 0.0, 0.0},
+		/* stratus */       {1.0, 0.1, 0.1, 1.0, 0.15, 400.0, 0.0, 0.0},
+		/* nimbostratus */  {0.9, 0.2, 0.6, 1.6, 0.6, 3000.0, 0.0, 0.0},
+		/* towering */      {0.0, 0.3, 0.45, 1.4, 0.55, 2500.0, 1.0, 0.0},
+		/* altocumulus */   {0.55, 1.0, 0.65, 0.6, 0.1, 600.0, 0.0, 0.0},
+		/* altostratus */   {1.0, 0.05, 0.15, 0.5, 0.15, 1500.0, 0.0, 0.0},
+		/* cirrus */        {0.0, 0.0, 0.0, 0.35, 0.0, 0.0, 0.0, 0.0},
+		/* cirrostratus */  {0.0, 0.0, 0.0, 0.25, 0.0, 0.0, 0.0, 1.0},
+	};
+	// The rules (the plan's table), each a band to blend across, never a switch:
+	// heating: the sun this high (degrees) starts cumulus off, full from ConvectFullDeg;
+	double ConvectFromDeg = 5.0, ConvectFullDeg = 25.0;
+	// unstable air: CAPE (J/kg) at which cumulus are sure (with none, half a chance by day);
+	double ConvectCape = 300.0;
+	// rain counts as showers (towering cumulus) when the code says so or the air is this unstable;
+	double ShowerCapeFrom = 200.0, ShowerCapeTo = 600.0;
+	// rain this heavy (mm/h) is a shower's or a front's for sure;
+	double ShowerRainMm = 0.15, SteadyRainMm = 1.0;
+	// towering cumulus without rain yet: from this CAPE, sure at that;
+	double ToweringCapeFrom = 800.0, ToweringCapeTo = 2000.0;
+	// stratus: the low cover closing (from, to), its base under these metres above the ground;
+	double StratusCoverFrom = 0.7, StratusCoverTo = 0.95, StratusBaseFromM = 300.0, StratusBaseToM = 800.0;
+	// broken low cover (cumulus) up to this, a sheet (stratocumulus) from that;
+	double BrokenTo = 0.65, BrokenSheet = 0.95;
+	// a middle sheet (altostratus) from this cover, sure at that;
+	double MidSheetFrom = 0.55, MidSheetTo = 0.9;
+	// a high veil (cirrostratus) from this cover, sure at that.
+	double VeilFrom = 0.45, VeilTo = 0.85;
+	// --- The high cloud (stage 3): a sheet on the sky, not a volume ---
+	double HighBaseM = 9000.0;
+	// How solid the sheet is at full cover, wisps and veil.
+	double HighOpacity = 0.75;
+	// The sun through cloud: a veil makes it milky (the light widens this many degrees, its disc softens)
+	// with a 22 degree halo now and then; altostratus a ground glass sun (wider still, faint shadows).
+	double VeilWidenDeg = 1.0, GlassWidenDeg = 6.0, GlassShadows = 0.25, HaloMost = 0.6;
 };
 
 // Looks from sky_looks.json's text: whatever it names over the defaults. False (with why) when the text
@@ -137,6 +197,22 @@ struct Sky
 	double Shape = 0.0;          // MPC_Sky Shape: 0 heaped (cumulus) .. 1 a flat deck
 	double DriftE = 0.0, DriftN = 0.0;    // the drawn layer's wind, metres a second towards east and north
 	double CloudShadows = 1.0;   // the drawn clouds' shadows on the ground, 0 .. 1 (the light's strength)
+	// The kinds (stage 3): each kind's weight in its layer (a layer's add up to 1 when it has cloud), and
+	// the two volume layers drawn in the one cloud. The fields above (Cover .. DriftN) are the low layer's;
+	// BaseAsl .. TopAsl is the whole volume, both layers in it.
+	double Weight[KindCount] = {};
+	struct Drawn
+	{
+		double Cover = 0.0, CoverShown = 0.0;   // the real cover, and MPC_Sky's
+		KindLook Look;                          // its kinds' looks blended
+		double Bottom = 0.0, Top = 1.0;         // its band in the volume, 0 .. 1 of the volume's height
+		double DriftE = 0.0, DriftN = 0.0;      // its wind, m/s towards east and north
+		double Albedo = 1.0;
+	};
+	Drawn LowDrawn, MidDrawn;
+	// The high sheet: its cover drawn, wisps .. veil, the wind that carries it, and the sun's halo.
+	double HighShown = 0.0, HighSheet = 0.0, HighDriftE = 0.0, HighDriftN = 0.0, Halo = 0.0;
+	int Dominant(int Layer) const;   // the kind with the most weight in a layer (0 low, 1 middle, 2 high), -1 none
 	double LegacyShadow = 1.0;   // MPC_Weather CloudShadow
 };
 
