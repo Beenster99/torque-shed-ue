@@ -206,3 +206,16 @@ if(MSVC)
 else()
   target_compile_options(tft_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
 endif()
+
+# Ride modes, the TFT's menu and the rider aids coming with the dash (no ECU parts).
+add_executable(modes_test modes_test.cpp ${SIM}/RideModes.cpp ${DASH}/TftMenu.cpp ${DASH}/TftScreen.cpp ${DASH}/TftMap.cpp ${FIT}/BikeRideSpec.cpp ${FIT}/BikeTune.cpp
+  ${SIM}/BikeSim.cpp ${SIM}/BikeContacts.cpp ${SIM}/BikeHeat.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${SIM}/TyreModel.cpp ${SIM}/BikeSpec.cpp)
+target_include_directories(modes_test PRIVATE ${SIM} ${FIT} ${DASH})
+if(MSVC)
+  target_compile_options(modes_test PRIVATE /W4)
+else()
+  target_compile_options(modes_test PRIVATE -Wall -Wextra -Wshadow=local -Werror=shadow=local)
+endif()
+# Writes a dash unit's shapes for Tools/dash_pictures.py (a picture of the unit without the engine).
+add_executable(dash_dump dash_dump.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp)
+target_include_directories(dash_dump PRIVATE ${FIT} ${SIM})

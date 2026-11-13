@@ -871,6 +871,8 @@ int main(int argc, char** argv)
 		std::string Bad;
 		for (const auto& [Key, Sw] : Sweep ? Sweep->O : decltype(Ref.O)())
 		{
+			// (the TFT dashes are this game's own units now, not Godot's housing: checked further down)
+			if (Key.rfind("dashboard/tft_", 0) == 0) continue;
 			PartsMap B = GLay.ReferenceBuild(Sw.Str("base"));
 			for (const auto& [Slot, Id] : Sw.Get("parts")->O) B[Slot] = Id.S;
 			const Layout L = GLay.Solve(B);
@@ -916,7 +918,8 @@ int main(int argc, char** argv)
 			PartsMap B = Lay.ReferenceBuild("naked");
 			B["dashboard"] = Id;
 			const std::string Style = Lay.Part(Id) ? Lay.Part(Id)->Str("style") : "";
-			int Speed = 0, Revs = 0, Readout = 0, Leds = 0;
+			int Speed = 0, Revs = 0, Readout = 0, Leds = 0, Screens = 0;
+			const std::string Unit = Lay.Part(Id) ? Lay.Part(Id)->Str("unit") : "";
 			std::string Wrong;
 			for (const FittedPart& P : Placer.Fit(B, Lay.Solve(B)))
 			{
@@ -939,15 +942,41 @@ int main(int argc, char** argv)
 					if ((Mid - (P.GaugeAt + P.GaugeUp * 0.016)).Length() > 0.001) Wrong += " " + P.Gauge + " needle off its pivot " + P3(Mid) + " vs " + P3(P.GaugeAt);
 				}
 				else if (P.Gauge == "readout") ++Readout;
+				else if (P.Gauge.rfind("screen_", 0) == 0)
+				{
+					// [TFT] The lit face: its shape and size in its name, as the part's, its picture's corners the face's.
+					++Screens;
+					const Json* Glass = Lay.Part(Id)->Get("glass");
+					const std::string Shape = Lay.Part(Id)->Str("screen");
+					const std::string Want = "screen_" + Shape + "_" + std::to_string(int(std::lround(Glass->A[0].N * 1000.0))) + "x" + std::to_string(int(std::lround(Glass->A[1].N * 1000.0)));
+					if (P.Gauge != Want) Wrong += " " + P.Gauge + " should be " + Want;
+					V3 Mid;
+					double Far = 0.0, U0 = 1.0, U1 = 0.0, V0 = 1.0, V1 = 0.0;
+					size_t N = 0;
+					for (const PartSurface& S : P.Made->Surfaces)
+					{
+						for (const V3& Q : S.Pos) { Mid += Q; ++N; }
+						for (double Uu : S.U) { U0 = std::min(U0, Uu); U1 = std::max(U1, Uu); }
+						for (double Vv : S.V) { V0 = std::min(V0, Vv); V1 = std::max(V1, Vv); }
+					}
+					Mid = Mid * (1.0 / std::max<size_t>(N, 1));
+					for (const PartSurface& S : P.Made->Surfaces)
+						for (const V3& Q : S.Pos) Far = std::max(Far, (Q - Mid).Length());
+					if (Shape != "round" && (Mid - P.GaugeAt).Length() > 0.001) Wrong += " " + P.Gauge + " face off its middle";
+					const double Reach = Shape == "round" ? Glass->A[0].N * 0.5 : std::hypot(Glass->A[0].N, Glass->A[1].N) * 0.5;
+					if (std::fabs(Far - Reach) > 0.002) Wrong += " " + P.Gauge + " face the wrong size";
+					if (U0 > 0.01 || U1 < 0.99 || V0 > 0.01 || V1 < 0.99) Wrong += " " + P.Gauge + " picture doesn't fill the face";
+				}
 				else if (P.Gauge.rfind("led", 0) == 0) ++Leds;
 			}
 			const bool Dial = Style == "analog" || Style == "twin";
-			const int WantLeds = Style == "tft" || (!Dial && Style != "lcd") ? 6 : 0;
-			if (Speed != (Dial ? 1 : 0) || Revs != (Style == "twin" ? 1 : 0) || Readout != 1 || Leds != WantLeds)
-				Wrong += " speed " + std::to_string(Speed) + ", revs " + std::to_string(Revs) + ", readout " + std::to_string(Readout) + ", shift lights " + std::to_string(Leds);
+			const bool Tft = Style == "tft";
+			const int WantLeds = Tft ? (Unit == "colour" || Unit == "touring" ? 6 : 0) : (!Dial && Style != "lcd") ? 6 : 0;
+			if (Speed != (Dial ? 1 : 0) || Revs != (Style == "twin" ? 1 : 0) || Readout != (Tft ? 0 : 1) || Leds != WantLeds || Screens != (Tft ? 1 : 0))
+				Wrong += " speed " + std::to_string(Speed) + ", revs " + std::to_string(Revs) + ", readout " + std::to_string(Readout) + ", shift lights " + std::to_string(Leds) + ", screens " + std::to_string(Screens);
 			if (!Wrong.empty()) Bad += "\n      " + Id + " (" + Style + "):" + Wrong;
 		}
-		Expect(Have && Dashes >= 7 && Bad.empty(), std::to_string(Dashes) + " dashes: dials have their needles (the twin's revs too), every dash a readout, TFTs and the race logger their shift lights, all facing the rider" + Bad);
+		Expect(Have && Dashes >= 7 && Bad.empty(), std::to_string(Dashes) + " dashes: dials have their needles (the twin's revs too), clocks, the LCD and the race logger a readout, a TFT its lit screen of the part's shape and size, the bigger TFTs and the race logger their shift lights, all facing the rider" + Bad);
 	}
 
 	std::printf(Failures ? "\n%d FAILED\n" : "\nall ok\n", Failures);
