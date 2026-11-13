@@ -1458,7 +1458,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			for (int Ln = 0; Ln <= Lanes; ++Ln)
 			{
 				const double Fr = 1.0 - 2.0 * Ln / Lanes;
-				Lim[Ln] = 6.0 + 6.0 * (RideSceneBits::Chance(double(Which), double(Ln), 76) - 0.5) - 3.0 * Fr * Fr;
+				Lim[Ln] = 6.0 + 3.0 * (RideSceneBits::Chance(double(Which), double(Ln), 76) - 0.5) - 2.0 * Fr * Fr;
 			}
 			// (a quad from two rows at their own offsets: left and right at the near row, then the far one)
 			const auto Patch = [&Into, &Put](const Row& L0, double OL0, const Row& R0, double OR0, const Row& L1, double OL1, const Row& R1, double OR1, double Lift, const float* Colour)
@@ -1471,6 +1471,15 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Put(R1, OR1, Lift, Colour);
 				M.Idx.insert(M.Idx.end(), {V, V + 1, V + 2, V + 1, V + 3, V + 2});
 			};
+			// (beenster, Nov 13: the tongue's edge was "too low res". Now each vertex's colour runs from the
+			// tarmac's to the grit's over a few metres, each lane's reach its own; M_RideRoad reads how far
+			// along that line a pixel's colour is and lets the gravel scan's stones break through the
+			// scanned tarmac by their own height, so the edge is as fine as the scans)
+			const auto Mixed = [&](double D, int Ln, float* C)
+			{
+				const double G = std::clamp((D - Lim[Ln]) / 4.0 + 0.5, 0.0, 1.0);
+				for (int Ch = 0; Ch < 3; ++Ch) C[Ch] = float(Tarmac[Ch] + (Grit[Ch] - Tarmac[Ch]) * G);
+			};
 			const int Downs = std::max(1, int(std::ceil(B.At.DistanceTo(A.At) / 1.0)));
 			for (int Dn = 0; Dn < Downs; ++Dn)
 			{
@@ -1479,15 +1488,15 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				for (int Ln = 0; Ln < Lanes; ++Ln)
 				{
 					const double F0 = 1.0 - 2.0 * Ln / Lanes, F1 = 1.0 - 2.0 * (Ln + 1) / Lanes;   // (left to right)
-					// Where the tongue ends across this lane: from its left boundary's reach to its right's.
-					const auto Cut = [&](double Reach) { return std::fabs(D1 - D0) < 1e-6 ? (D0 < Reach ? 1.0 : 0.0) : std::clamp((Reach - D0) / (D1 - D0), 0.0, 1.0); };
-					const double TL = Cut(Lim[Ln]), TR = Cut(Lim[Ln + 1]);
-					const bool NearIsTar = D0 <= D1;   // (the tarmac lies on the side of the join)
-					const Row ML = Between(R0, R1, NearIsTar ? TL : 1.0 - TL), MR = Between(R0, R1, NearIsTar ? TR : 1.0 - TR);
-					const float* NearCol = NearIsTar ? Tarmac : Grit;
-					const float* FarCol = NearIsTar ? Grit : Tarmac;
-					Patch(R0, F0 * R0.Half, R0, F1 * R0.Half, ML, F0 * ML.Half, MR, F1 * MR.Half, 0.0, NearCol);
-					Patch(ML, F0 * ML.Half, MR, F1 * MR.Half, R1, F0 * R1.Half, R1, F1 * R1.Half, 0.0, FarCol);
+					float C00[3], C01[3], C10[3], C11[3];
+					Mixed(D0, Ln, C00); Mixed(D0, Ln + 1, C01); Mixed(D1, Ln, C10); Mixed(D1, Ln + 1, C11);
+					RideMesh& M = *Into;
+					const uint32_t Base4 = uint32_t(M.Vertices());
+					Put(R0, F0 * R0.Half, 0.0, C00);
+					Put(R0, F1 * R0.Half, 0.0, C01);
+					Put(R1, F0 * R1.Half, 0.0, C10);
+					Put(R1, F1 * R1.Half, 0.0, C11);
+					M.Idx.insert(M.Idx.end(), {Base4, Base4 + 1, Base4 + 2, Base4 + 1, Base4 + 3, Base4 + 2});
 					// Loose stones: on the tarmac within 4 m of the tongue's end, a few, each its own shape.
 					const double Mid = (D0 + D1) * 0.5, Reach = (Lim[Ln] + Lim[Ln + 1]) * 0.5;
 					if (Mid > Reach || Mid < Reach - 4.0) continue;

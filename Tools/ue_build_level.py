@@ -463,6 +463,22 @@ def import_textures():
     spec = json.load(open(spec_path))
     out = {}
     for role, r in spec["roles"].items():
+        if "ue_find" in r and "ue" not in r:
+            # A Megascans surface added from Fab whose folder's code isn't known ahead: "ue_find" is the
+            # folder's name before it (e.g. "Ground_Gravel"), looked for under /Game/Fab/Megascans/Surfaces.
+            found = {}
+            ar = unreal.AssetRegistryHelpers.get_asset_registry()
+            for a in ar.get_assets_by_path("/Game/Fab/Megascans/Surfaces", recursive=True):
+                path = str(a.package_name)
+                folder = path.split("/")[-2] if path.count("/") >= 2 else ""
+                if not folder.lower().startswith(r["ue_find"].lower() + "_"):
+                    continue
+                for key, suffix in (("color", "_BaseColor"), ("normal", "_Normal"), ("rough", "_Roughness"), ("ao", "_AO")):
+                    if path.endswith(suffix) and key not in found:
+                        found[key] = path
+            if "color" in found:
+                r["ue"] = found   # (so a material can tell the Megascans surface from the fallback)
+                unreal.log("[Torque] %s: using %s" % (role, found["color"]))
         if "ue" in r:
             # Textures already in the project (a Megascans surface from Fab, say):
             # "ue": {"color": "/Game/...", "normal": "/Game/...", "rough": "/Game/...", "ao": "/Game/..."}

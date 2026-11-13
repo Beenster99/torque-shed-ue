@@ -113,11 +113,67 @@ def road_material_scanned(L, tex, roles):
     own = [g.op(unreal.MaterialExpressionMultiply, vc, L.noise(g.m, 0.05, 0.8, 1.2, -1200, g.y + 200)),
            g.const((0.0, 0.0, 1.0)), g.const(0.8)]
     g.y += 140
-    road = g.mix(own, road, tar)
-    # Wet: the tarmac dark and glossy (as Buttertubs' road); dry keeps a floor so there's no white sheen.
+    # Gravel tracks (beenster, Nov 13: the fade from tarmac was "too low res"; use proper gravel scans). The
+    # mesh colours a gravel road in its grit (0.095, 0.088, 0.07) and fades the tarmac's colour into it over
+    # its first metres. How far along that line a pixel's colour lies (Along, 0 tarmac .. 1 grit) and how near
+    # the line it is (Near) pick the surface; where the two meet the gravel scan's own bright stones break
+    # through the tarmac first, by their height, so the edge is as fine as the scans.
+    gravel_key = "track_gravel" if "track_gravel" in tex else ("gravel" if "gravel" in tex else None)
+    if gravel_key:
+        tar_c, grit_c = (0.022, 0.022, 0.025), (0.095, 0.088, 0.07)
+        span = tuple(b - a for a, b in zip(tar_c, grit_c))
+        span2 = sum(v * v for v in span)
+        rel = g.op(unreal.MaterialExpressionSubtract, vc, g.const(tar_c))
+        dot = g.node(unreal.MaterialExpressionDotProduct, -600)
+        g.link(rel, dot, "A")
+        g.link(g.const(span), dot, "B")
+        along = g.op(unreal.MaterialExpressionMultiply, dot, const_b=1.0 / span2)
+        on_line = g.op(unreal.MaterialExpressionAdd, g.const(tar_c), g.op(unreal.MaterialExpressionMultiply, g.const(span), along))
+        off = g.node(unreal.MaterialExpressionDistance, -600)
+        g.link(vc, off, "A")
+        g.link(on_line, off, "B")
+        near = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSubtract, g.const(0.012), off), const_b=166.0))
+        # (and only between the two ends, a little past each for 8-bit rounding)
+        ends = g.op(unreal.MaterialExpressionMultiply,
+                    g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionAdd, along, const_b=0.15), const_b=8.0)),
+                    g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, g.const(1.15), along), const_b=8.0)))
+        near = g.op(unreal.MaterialExpressionMultiply, near, ends)
+        grav = g.layer(tex[gravel_key], roles[gravel_key]["tile_m"])
+        # (the Megascans scan is paler than ambientCG's dark wet gravel, the fallback: each its own tint and middle)
+        megascan = "ue" in roles[gravel_key]
+        tint, middle = ((1.05, 1.04, 1.0), 0.22) if megascan else ((1.5, 1.48, 1.4), 0.15)
+        # (the Dales' tracks are limestone chippings: the scan a little greyer, a little paler)
+        gdull = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(grav[0], gdull)
+        g.link(g.const(0.35), gdull, "Fraction")
+        grav[0] = g.op(unreal.MaterialExpressionMultiply, gdull, g.const(tint))
+        # Its stones' height from the scan's brightness (with its AO in it), and a slow wobble so the edge
+        # isn't a line across the road.
+        lum = g.node(unreal.MaterialExpressionDesaturation, -600)
+        g.link(grav[0], lum)
+        g.link(g.const(1.0), lum, "Fraction")
+        lum1 = g.node(unreal.MaterialExpressionComponentMask, -600, r=True, g=False, b=False, a=False)
+        g.link(lum, lum1)
+        height = g.op(unreal.MaterialExpressionSubtract, g.op(unreal.MaterialExpressionMultiply, lum1, const_b=1.0 / middle), const_b=1.0)   # (middle: the scan's middle brightness)
+        wobble = g.op(unreal.MaterialExpressionSubtract, L.noise(g.m, 0.01, 0.0, 1.0, -1200, g.y + 200), const_b=0.5)
+        g.y += 140
+        edge = g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionSubtract, along, const_b=0.5),
+                    g.op(unreal.MaterialExpressionAdd, g.op(unreal.MaterialExpressionMultiply, height, const_b=0.54),
+                         g.op(unreal.MaterialExpressionMultiply, wobble, const_b=0.25)))
+        stones = g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, edge, const_b=25.0))
+        surface = g.mix(road, grav, stones)
+        road = g.mix(own, surface, near)
+        hard = g.op(unreal.MaterialExpressionMultiply, near, g.op(unreal.MaterialExpressionOneMinus, stones))   # (the tarmac itself, for the wet)
+    else:
+        road = g.mix(own, road, tar)
+        hard = tar
+        near = tar
+    # Wet: the tarmac dark and glossy (as Buttertubs' road), the gravel darker but still rough; dry keeps a
+    # floor so there's no white sheen.
     wet = L.wetness(g)
-    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.const(0.5), tar), wet))
-    road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.const(0.12), wet))
+    road[0] = g.op(unreal.MaterialExpressionMultiply, road[0], g.lerp(g.const(1.0), g.lerp(g.const(0.75), g.lerp(g.const(0.6), g.const(0.5), hard), near), wet))
+    road[2] = g.op(unreal.MaterialExpressionMax, road[2], g.lerp(g.const(0.6), g.lerp(g.const(0.6), g.const(0.12), hard), wet))
     return g.finish(road, specular=0.4)
 
 

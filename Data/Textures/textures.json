@@ -33,6 +33,12 @@
    "id": "Gravel040",
    "tile_m": 2.0
   },
+  "track_gravel": {
+   "id": "Gravel040",
+   "tile_m": 1.6,
+   "ue_find": "Ground_Gravel",
+   "note": "Ride UK's gravel tracks and their fade from tarmac: Quixel Megascans 'Ground Gravel' (free on Fab, listing 5b295907-cbfa-4c47-8a2b-83f2fd828f17) once added to the project, else the ambientCG scan"
+  },
   "asphalt": {
    "id": "Asphalt015",
    "tile_m": 2.5,
