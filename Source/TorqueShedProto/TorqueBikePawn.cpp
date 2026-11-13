@@ -1406,9 +1406,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// moment with the engine off start it.
 	const bool bPadLB = PC->IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || (SonyDown & ESonyButton::L1) != 0;
 	const bool bPadRB = PC->IsInputKeyDown(EKeys::Gamepad_RightShoulder) || (SonyDown & ESonyButton::R1) != 0;
-	// View / Create held in third person: the right stick and D-pad set the camera (AdjustChase), not the look.
+	// View / Create held in third or first person: the right stick and D-pad set the camera (AdjustChase), not the look.
 	const bool bPadView = PC->IsInputKeyDown(EKeys::Gamepad_Special_Left) || (SonyDown & ESonyButton::Create) != 0;
-	const bool bPadSetsCam = bPadView && CameraMode == CamChase;
+	const bool bPadSetsCam = bPadView && (CameraMode == CamChase || CameraMode == CamFirst);
 	const double LookPadX = bPadSetsCam ? 0.0 : LookX, LookPadY = bPadSetsCam ? 0.0 : LookY;
 	// Settings > Gameplay > Chase camera recentres: off, the view stays where the stick left it.
 	const bool bStickLooking = FMath::Abs(LookPadX) > 0.02 || FMath::Abs(LookPadY) > 0.02;
@@ -4018,7 +4018,10 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		// Either way the head leans with the bike, but less, as yours does.
 		const bool bChin = CameraMode == 2;
 		// (First person sits a little behind the helmet's centre, so more of the bars and arms show.)
-		const FVector EyeLocal = HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0) : FVector(-7.0, 0.0, 3.5));
+		// First person, moved as the player set it (FTorqueProfile::FirstForward / FirstHeight).
+		const FTorqueProfile& FirstProf = FTorqueProfile::Mine();
+		const FVector EyeLocal = HeadLocal + (bChin ? FVector(15.0, 0.0, -11.0)
+			: FVector(-7.0 + (double)FirstProf.FirstForward, 0.0, 3.5 + (double)FirstProf.FirstHeight));
 		// The head is the rider's: thrown off in a crash, the view goes with him.
 		const FVector Eye = bThrown ? RiderRoot->GetComponentTransform().TransformPosition(EyeLocal)
 			: BikePos + BikeRot.RotateVector(EyeLocal);
@@ -4035,7 +4038,7 @@ void ATorqueBikePawn::UpdateCamera(float Dt)
 		bFpAimInit = true;
 		FpPitch = FMath::Lerp(FpPitch, AimPitch, AimK);
 		FpFovAdd = FMath::Lerp(FpFovAdd, AimFovAdd, AimK);
-		Rot.Pitch = (bChin ? -12.0 : FpPitch) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
+		Rot.Pitch = (bChin ? -12.0 : FpPitch - (double)FirstProf.FirstTilt) + FMath::RadiansToDegrees(Sim->PitchAngle) * 0.7;
 		Rot.Roll = FMath::RadiansToDegrees(Sim->LeanAngle) * (bChin ? 0.55 : 0.6);
 		Rot.Yaw += LookYaw;
 		Rot.Pitch += LookPitch;
@@ -4123,12 +4126,12 @@ void ATorqueBikePawn::NextCamera()
 	Prof.RideView = CameraMode;
 	Prof.Save();
 	const auto K = [](ETorqueKey A) { return FTorqueKeys::Text(A); };
-	CamNote = CameraMode == CamFirst ? FString(TEXT("First person"))
-		: CameraMode == CamDriveBy ? FString(TEXT("Drive-by camera"))
-		: FString::Printf(TEXT("Third person   %s / %s distance   %s / %s height   %s / %s tilt   (pad: R1 held + right stick, D-pad)"),
+	CamNote = CameraMode == CamDriveBy ? FString(TEXT("Drive-by camera"))
+		: FString::Printf(TEXT("%s   %s / %s distance   %s / %s height   %s / %s tilt   (pad: View held + right stick, D-pad)"),
+			CameraMode == CamFirst ? TEXT("First person") : TEXT("Third person"),
 			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
 			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown));
-	CamNoteFor = CameraMode == CamChase ? 4.0 : 2.0;
+	CamNoteFor = CameraMode == CamDriveBy ? 2.0 : 4.0;
 }
 
 // Third person, set while riding: the keys (Settings > Controller > Key bindings) step it or, held,
@@ -4137,7 +4140,8 @@ void ATorqueBikePawn::NextCamera()
 // moment after you stop. True if it moved.
 bool ATorqueBikePawn::AdjustChase(const APlayerController* PC, float Dt, double PadX, double PadY, bool bPadHeld, int32 PadTilt)
 {
-	if (CameraMode != CamChase || !PC) return false;
+	if ((CameraMode != CamChase && CameraMode != CamFirst) || !PC) return false;
+	const bool bFirst = CameraMode == CamFirst;   // first person: the same keys move the eye a little
 	FTorqueProfile& Prof = FTorqueProfile::Mine();
 	const FTorqueProfile Was = Prof;
 	// A key: a step when it's pressed (the mouse wheel's click), then steadily while it's held.
@@ -4149,24 +4153,38 @@ bool ATorqueBikePawn::AdjustChase(const APlayerController* PC, float Dt, double 
 		else if (FTorqueKeys::Down(PC, Minus)) Move -= PerSecond * Dt;
 		return Move;
 	};
-	double DistBy = KeyAxis(ETorqueKey::CamFarther, ETorqueKey::CamCloser, 30.0, 300.0);
-	double HeightBy = KeyAxis(ETorqueKey::CamHigher, ETorqueKey::CamLower, 15.0, 120.0);
+	// (First person moves in centimetres, a tenth as fast; "further" there is back from the bars.)
+	const double MoveScale = bFirst ? 0.1 : 1.0;
+	double DistBy = KeyAxis(ETorqueKey::CamFarther, ETorqueKey::CamCloser, 30.0 * MoveScale, 300.0 * MoveScale);
+	double HeightBy = KeyAxis(ETorqueKey::CamHigher, ETorqueKey::CamLower, 15.0 * (bFirst ? 0.2 : 1.0), 120.0 * (bFirst ? 0.2 : 1.0));
 	double TiltBy = KeyAxis(ETorqueKey::CamTiltDown, ETorqueKey::CamTiltUp, 1.5, 15.0);
 	if (bPadHeld)
 	{
 		// (Up is +y on the look stick: pushed up raises the camera.)
-		DistBy += PadX * 300.0 * Dt;
-		HeightBy += PadY * 120.0 * Dt;
+		DistBy += PadX * 300.0 * MoveScale * Dt;
+		HeightBy += PadY * 120.0 * (bFirst ? 0.2 : 1.0) * Dt;
 		TiltBy += PadTilt * 15.0 * Dt;
 	}
 	if (DistBy == 0.0 && HeightBy == 0.0 && TiltBy == 0.0) return false;
-	Prof.ChaseDist += (float)DistBy;
-	Prof.ChaseHeight += (float)HeightBy;
-	Prof.ChaseTilt += (float)TiltBy;
+	if (bFirst)
+	{
+		Prof.FirstForward -= (float)DistBy;
+		Prof.FirstHeight += (float)HeightBy;
+		Prof.FirstTilt += (float)TiltBy;
+	}
+	else
+	{
+		Prof.ChaseDist += (float)DistBy;
+		Prof.ChaseHeight += (float)HeightBy;
+		Prof.ChaseTilt += (float)TiltBy;
+	}
 	Prof.ClampChase();
-	if (Prof.ChaseDist == Was.ChaseDist && Prof.ChaseHeight == Was.ChaseHeight && Prof.ChaseTilt == Was.ChaseTilt) return false;
+	if (Prof.ChaseDist == Was.ChaseDist && Prof.ChaseHeight == Was.ChaseHeight && Prof.ChaseTilt == Was.ChaseTilt &&
+		Prof.FirstForward == Was.FirstForward && Prof.FirstHeight == Was.FirstHeight && Prof.FirstTilt == Was.FirstTilt) return false;
 	ChaseSaveIn = 1.0;
-	CamNote = FString::Printf(TEXT("Third person: %.1f m back, %.1f m up, tilted %+.0f°"),
+	CamNote = bFirst ? FString::Printf(TEXT("First person: eye %+.0f cm forward, %+.0f cm up, tilted %+.0f°"),
+		Prof.FirstForward, Prof.FirstHeight, Prof.FirstTilt)
+		: FString::Printf(TEXT("Third person: %.1f m back, %.1f m up, tilted %+.0f°"),
 		Prof.ChaseDist / 100.0f, (Prof.ChaseHeight + 110.0f) / 100.0f, Prof.ChaseTilt);
 	CamNoteFor = 1.5;
 	return true;
@@ -4384,7 +4402,7 @@ void ATorqueBikePawn::DrawHud()
 			*K(ETorqueKey::Hazards), *K(ETorqueKey::Clutch), *K(ETorqueKey::Nod), *K(ETorqueKey::Wave)), Help, 0.62f);
 		Add(FString::Printf(TEXT("      %s performance   %s log it   %s help   %s info panel   %s shed   Esc menu"),
 			*K(ETorqueKey::Perf), *K(ETorqueKey::PerfLog), *K(ETorqueKey::Help), *K(ETorqueKey::InfoPanel), *K(ETorqueKey::BackToShed)), Help, 0.62f);
-		Add(FString::Printf(TEXT("      Third person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),
+		Add(FString::Printf(TEXT("      Third / first person: %s / %s closer / further   %s / %s higher / lower   %s / %s tilt up / down"),
 			*K(ETorqueKey::CamCloser), *K(ETorqueKey::CamFarther), *K(ETorqueKey::CamHigher), *K(ETorqueKey::CamLower),
 			*K(ETorqueKey::CamTiltUp), *K(ETorqueKey::CamTiltDown)), Help, 0.62f);
 	}
