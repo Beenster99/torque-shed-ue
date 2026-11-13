@@ -12,52 +12,13 @@
 
 namespace TorqueWorld
 {
-namespace RideSkylineBits
+namespace RideShapes
 {
-constexpr double SkyCell = 256.0;   // as the scenery's squares (SceneCell)
-constexpr double PoleTop = 8.0;     // a telegraph pole's wires over its foot (its arm: FurnitureTile)
-constexpr double PoleWire = 120.0;  // the longest span between poles
-constexpr double PoleJoin = 90.0;   // a pole on no mapped line joins its neighbours this near
-constexpr double PylonWire = 500.0;
-constexpr double WireClear = 5.0;   // the least a wire may hang over a road
-
-struct V3
-{
-	double X = 0.0, Y = 0.0, Z = 0.0;
-};
-struct Paint
-{
-	float R = 0.0f, G = 0.0f, B = 0.0f;
-};
-
-const Paint Galv = {0.26f, 0.27f, 0.27f}, WireGrey = {0.03f, 0.03f, 0.032f}, Turbine = {0.6f, 0.61f, 0.6f}, Concrete = {0.3f, 0.29f, 0.27f},
-	SiloGreen = {0.07f, 0.12f, 0.08f}, KioskGreen = {0.05f, 0.09f, 0.06f}, Panel = {0.012f, 0.018f, 0.04f}, Fence = {0.06f, 0.07f, 0.065f};
-
 V3 Pt(double X, double Y, double Z)
 {
 	V3 Q;
 	Q.X = X; Q.Y = Y; Q.Z = Z;
 	return Q;
-}
-
-long long SkyKey(double X, double Z)
-{
-	return static_cast<long long>(std::floor(X / SkyCell)) * 4000037LL + static_cast<long long>(std::floor(Z / SkyCell));
-}
-
-uint32_t SkyHash(const std::string& Id, double X, double Z)
-{
-	uint32_t H = 2166136261u;
-	for (char C : Id) H = (H ^ static_cast<unsigned char>(C)) * 16777619u;
-	if (Id.empty()) H ^= static_cast<uint32_t>(std::lround(X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Z * 3.0)) * 19349663u;
-	return H == 0 ? 1u : H;
-}
-
-double Unit(uint32_t H, int Salt)
-{
-	uint32_t V = H ^ (static_cast<uint32_t>(Salt) * 2654435761u);
-	V ^= V >> 15; V *= 2246822519u; V ^= V >> 13; V *= 3266489917u; V ^= V >> 16;
-	return double(V & 0xffffff) / double(0x1000000);
 }
 
 // A vertex of what stands, its own (flat) normal; Alpha kept in step where the mesh has it.
@@ -105,7 +66,7 @@ void Strut(RideMesh& Out, const V3& A, const V3& B, double W, const Paint& C)
 
 // An upright round thing: from its foot's middle Base up H, R0 at the foot to R1 at the top, Sides
 // round, capped with a cone of Cap (0 a flat top).
-void Column(RideMesh& Out, const V3& Base, double R0, double R1, double H, int Sides, const Paint& C, double Cap = 0.0)
+void Column(RideMesh& Out, const V3& Base, double R0, double R1, double H, int Sides, const Paint& C, double Cap)
 {
 	const uint32_t V = uint32_t(Out.Vertices());
 	const double Lean = (R0 - R1) / std::fmax(H, 0.01);
@@ -167,6 +128,41 @@ double RingArea(const std::vector<P2>& Ring, P2& Mid)
 	Mid = P2(Cx / (3.0 * A), Cz / (3.0 * A));
 	return std::fabs(A) * 0.5;
 }
+} // namespace RideShapes
+
+namespace RideSkylineBits
+{
+using namespace RideShapes;
+constexpr double SkyCell = 256.0;   // as the scenery's squares (SceneCell)
+constexpr double PoleTop = 8.0;     // a telegraph pole's wires over its foot (its arm: FurnitureTile)
+constexpr double PoleWire = 120.0;  // the longest span between poles
+constexpr double PoleJoin = 90.0;   // a pole on no mapped line joins its neighbours this near
+constexpr double PylonWire = 500.0;
+constexpr double WireClear = 5.0;   // the least a wire may hang over a road
+
+const Paint Galv = {0.26f, 0.27f, 0.27f}, WireGrey = {0.03f, 0.03f, 0.032f}, Turbine = {0.6f, 0.61f, 0.6f}, Concrete = {0.3f, 0.29f, 0.27f},
+	SiloGreen = {0.07f, 0.12f, 0.08f}, KioskGreen = {0.05f, 0.09f, 0.06f}, Panel = {0.012f, 0.018f, 0.04f}, Fence = {0.06f, 0.07f, 0.065f};
+
+long long SkyKey(double X, double Z)
+{
+	return static_cast<long long>(std::floor(X / SkyCell)) * 4000037LL + static_cast<long long>(std::floor(Z / SkyCell));
+}
+
+uint32_t SkyHash(const std::string& Id, double X, double Z)
+{
+	uint32_t H = 2166136261u;
+	for (char C : Id) H = (H ^ static_cast<unsigned char>(C)) * 16777619u;
+	if (Id.empty()) H ^= static_cast<uint32_t>(std::lround(X * 3.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Z * 3.0)) * 19349663u;
+	return H == 0 ? 1u : H;
+}
+
+double Unit(uint32_t H, int Salt)
+{
+	uint32_t V = H ^ (static_cast<uint32_t>(Salt) * 2654435761u);
+	V ^= V >> 15; V *= 2246822519u; V ^= V >> 13; V *= 3266489917u; V ^= V >> 16;
+	return double(V & 0xffffff) / double(0x1000000);
+}
+
 } // namespace RideSkylineBits
 
 void RidePlan::IndexSkyline()

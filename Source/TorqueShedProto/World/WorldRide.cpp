@@ -244,6 +244,7 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->IndexFurniture();
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
+	R->IndexFields();    // [OSM stage 2 batch C]
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->FindThinData();
 	R->Ok = true;
@@ -1086,6 +1087,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		std::shared_ptr<RideMesh> Stands = std::make_shared<RideMesh>();
 		SceneryTile(X0, Z0, Size, Step, *Stands);
 		SkylineTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);   // [OSM stage 2 batch B]
+		FieldsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [OSM stage 2 batch C]
 		if (Stands->Any()) Out.Extra = Stands;
 		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
 		AnimalsTile(X0, Z0, Size, Out.Animals);

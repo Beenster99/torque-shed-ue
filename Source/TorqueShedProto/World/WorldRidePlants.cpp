@@ -295,6 +295,11 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 			const double WetBase = Fd.Cover == CWetland ? 0.75 : Fd.Cover == CShrub ? 0.4 : 0.2;
 			Fd.Wet = float(WetBase + (Fbm(X, Z, 18.0, 50u) - 0.5) * 0.6);
 		}
+	// [OSM stage 2 batch C] (no grass on a quarry's bare stone)
+	std::vector<int> FieldsHere;
+	FieldsIn(X0, Z0, Size, FieldsHere);
+	bool Quarried = false;
+	for (int Fi : FieldsHere) Quarried = Quarried || FieldAreas[size_t(Fi)].Kind == FieldQuarry;
 	const auto Look = [&](double X, double Z)
 	{
 		const int I = std::min(F - 1, std::max(0, int(std::lround((X - X0) / Fg)))), J = std::min(F - 1, std::max(0, int(std::lround((Z - Z0) / Fg))));
@@ -311,6 +316,11 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 		H.Speckle = Noise(X, Z, 3.0, 40u);
 		H.Wet = std::fmin(1.0, std::fmax(0.0, double(Fd.Wet) + (H.Slope < 0.05 ? 0.1 : 0.0)));
 		H.Ok = H.Cover != CWater && H.Cover != CSand && H.Cover != CRock && H.Cover != CUrban && H.Slope < 1.1;
+		if (Quarried && H.Ok)
+		{
+			const int Fa = FieldAt(X, Z);
+			H.Ok = Fa < 0 || FieldAreas[size_t(Fa)].Kind != FieldQuarry;
+		}
 		return H;
 	};
 	const double Pi2 = 6.283185307179586;
@@ -445,5 +455,20 @@ void RidePlan::PlantsTile(double X0, double Z0, double Size, int Cells, const Ri
 				Put(What, X, Z, Hash(Gx, Gz, 17u) * Pi2, 1.0, 0.15, false, Height, Hash(Gx, Gz, 16u), !Fine);
 			}
 	}
+	// [OSM stage 2 batch C] An orchard's fruit trees, in rows 6 m apart and 5 m along them, low and
+	// spreading (drawn as the hawthorns are), a gap here and there where one has gone.
+	if (RealTrees)
+		for (int Fi : FieldsHere)
+		{
+			const FieldArea& A = FieldAreas[size_t(Fi)];
+			if (A.Kind != FieldOrchard) continue;
+			for (double Z = std::ceil(std::fmax(A.MinZ, Z0) / 5.0) * 5.0; Z < std::fmin(A.MaxZ, Z0 + Size); Z += 5.0)
+				for (double X = std::ceil(std::fmax(A.MinX, X0) / 6.0) * 6.0; X < std::fmin(A.MaxX, X0 + Size); X += 6.0)
+				{
+					const int64_t Gx = static_cast<int64_t>(std::lround(X)), Gz = static_cast<int64_t>(std::lround(Z));
+					if (Hash(Gx, Gz, 21u) < 0.08 || !RideShapes::InRing(A.Ring, X, Z) || RoadEdge(X, Z) < 4.0) continue;
+					Put(Hawthorn, X, Z, Hash(Gx, Gz, 22u) * Pi2, 1.0, 0.15, false, 3.5 + 1.5 * Hash(Gx, Gz, 23u), Hash(Gx, Gz, 24u), !Fine);
+				}
+		}
 }
 } // namespace TorqueWorld

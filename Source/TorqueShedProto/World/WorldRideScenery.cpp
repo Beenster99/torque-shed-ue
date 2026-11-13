@@ -226,6 +226,11 @@ void RidePlan::LandColour(double X, double Z, double Spread, double Slope, float
 		R += C.R * W; G += C.G * W; B += C.B * W;
 	}
 	R /= 6.0; G /= 6.0; B /= 6.0;
+	{
+		// [OSM stage 2 batch C] (a quarry's bare stone, a graveyard's mown grass, the allotments' plots)
+		float Here[3] = {float(R), float(G), float(B)};
+		if (FieldTint(X, Z, Here)) { R = Here[0]; G = Here[1]; B = Here[2]; }
+	}
 	// Steep ground is thin turf, then bare stone.
 	const double Bare = std::fmin(1.0, std::fmax(0.0, (Slope - 0.7) / 0.5));
 	R += (Scar.R - R) * Bare; G += (Scar.G - G) * Bare; B += (Scar.B - B) * Bare;

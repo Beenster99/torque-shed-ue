@@ -759,6 +759,34 @@ int main()
 							Kinds[RidePlan::TallTank], Kinds[RidePlan::TallPylon], Kinds[RidePlan::TallKiosk], int(Plan->Yards.size()) - Solar, Solar, NearTris, FarTris);
 						Check(!Plan->Wires.empty() && Long == 0 && Sagging == 0 && Repeat, "the power and the skyline: wires between the poles, none too long or low over a road, the same each time");
 					}
+					// [OSM stage 2 batch C] Field areas: each kind found, the ground tinted inside them, headstones
+					// in the graveyards (none on a road), worked faces in the quarries.
+					{
+						int Kinds[RidePlan::FieldKinds] = {};
+						for (const RidePlan::FieldArea& F : Plan->FieldAreas) ++Kinds[F.Kind];
+						int Tinted = 0, Graves = 0, Faces = 0, Tested = 0, Each[RidePlan::FieldKinds] = {};
+						for (size_t I = 0; I < Plan->FieldAreas.size(); ++I)
+						{
+							const RidePlan::FieldArea& F = Plan->FieldAreas[I];
+							if ((F.Kind != RidePlan::FieldGraves && F.Kind != RidePlan::FieldQuarry) || Each[F.Kind] >= 10) continue;
+							P2 Centre;
+							RideShapes::RingArea(F.Ring, Centre);
+							float Rgb[3] = {0.1f, 0.1f, 0.1f};
+							if (!RideShapes::InRing(F.Ring, Centre.X, Centre.Z)) continue;
+							++Tested;
+							++Each[F.Kind];
+							Tinted += Plan->FieldTint(Centre.X, Centre.Z, Rgb) ? 1 : 0;
+							const double Sx = std::floor(Centre.X / 256.0) * 256.0, Sz = std::floor(Centre.Z / 256.0) * 256.0;
+							RideMesh Stands;
+							Stands.OriginX = Sx;
+							Stands.OriginZ = Sz;
+							Plan->FieldsTile(Sx, Sz, 256.0, 2, Stands);
+							(F.Kind == RidePlan::FieldGraves ? Graves : Faces) += int(Stands.Idx.size() / 3);
+						}
+						std::printf("      fields: %d quarries, %d graveyards, %d allotments, %d orchards; %d of %d tested tinted inside; %d triangles of headstones, %d of quarry faces\n",
+							Kinds[RidePlan::FieldQuarry], Kinds[RidePlan::FieldGraves], Kinds[RidePlan::FieldAllotments], Kinds[RidePlan::FieldOrchard], Tinted, Tested, Graves, Faces);
+						Check(Kinds[RidePlan::FieldGraves] > 0 && Tinted == Tested && Graves > 0, "field areas: graveyards and quarries found and tinted, headstones stood in the graveyards");
+					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.
 					{

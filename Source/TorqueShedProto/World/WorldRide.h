@@ -169,6 +169,29 @@ struct RideMesh
 	std::vector<float> Lights;
 };
 
+// [OSM stage 2] Plain shapes for what stands by the road and on the skyline, made in code into a
+// RideMesh (WorldRideSkyline.cpp): a point, a colour (linear), a quad (seen from both sides, or the side
+// its winding gives), a thin bar between two points, an upright round thing (tapered, Sides round, its
+// top a cone Cap high or flat), and an outline's inside and area.
+namespace RideShapes
+{
+struct V3
+{
+	double X = 0.0, Y = 0.0, Z = 0.0;
+};
+struct Paint
+{
+	float R = 0.0f, G = 0.0f, B = 0.0f;
+};
+V3 Pt(double X, double Y, double Z);
+void Vert(RideMesh& Out, const V3& Q, const V3& N, const Paint& C, double U, double V);
+void SkyQuad(RideMesh& Out, const V3& Q0, const V3& Q1, const V3& Q2, const V3& Q3, const Paint& C, bool Both);
+void Strut(RideMesh& Out, const V3& A, const V3& B, double W, const Paint& C);
+void Column(RideMesh& Out, const V3& Base, double R0, double R1, double H, int Sides, const Paint& C, double Cap = 0.0);
+bool InRing(const std::vector<P2>& Ring, double X, double Z);
+double RingArea(const std::vector<P2>& Ring, P2& Mid);   // and its middle
+} // namespace RideShapes
+
 // [stage 8] A stretch of a ride where the map's data is thin: where it starts, and why.
 struct ThinSpot
 {
@@ -481,6 +504,25 @@ public:
 	// What of it stands on a square: Detail 2 (the finest squares) all of it with the wires, 1 all but
 	// the wires, 0 (to 10 km) the tall ones as plain far shapes, -1 (beyond) only the turbines.
 	void SkylineTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [OSM stage 2 batch C] Field areas (World/WorldRideFields.cpp): quarries (bare rock, worked faces
+	// along their edges), graveyards and cemeteries (mown grass, headstones in loose rows facing east,
+	// none in a building), allotments (plots of dug earth and green, a shed on some) and orchards (fruit
+	// trees in rows: PlantsTile). Each colours the ground inside its outline (LandColour: FieldTint)
+	// and stands its things on it (FieldsTile: Detail as SkylineTile's, the small things only at 2).
+	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldKinds };
+	struct FieldArea
+	{
+		int Kind = 0;
+		std::vector<P2> Ring;
+		double MinX = 0.0, MinZ = 0.0, MaxX = 0.0, MaxZ = 0.0;
+		uint32_t Id = 0;
+	};
+	std::vector<FieldArea> FieldAreas;
+	void IndexFields();
+	int FieldAt(double X, double Z) const;   // the field area here (FieldAreas), -1 none
+	void FieldsIn(double X0, double Z0, double Size, std::vector<int>& Out) const;
+	bool FieldTint(double X, double Z, float* Rgb) const;   // the ground's colour in a field area, false outside one
+	void FieldsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
@@ -671,6 +713,7 @@ private:
 		std::unordered_map<long long, std::vector<P2>> Gaps;         // gateways the walls leave open
 		std::unordered_map<long long, std::vector<double>> GapWidths;   // [OSM stage 2] each one's width, as Gaps
 		std::unordered_map<long long, std::vector<int>> Wires, Talls, Yards;   // [OSM stage 2 batch B] by the square their middle is in
+		std::unordered_map<long long, std::vector<int>> Fields;   // [OSM stage 2 batch C] by every 64 m square each field area's box covers
 		std::unordered_map<long long, std::vector<int>> Streams;     // into Region::Streams
 		// The railways' bits (line, first point) by the 256 m square their middle is in, and by every
 		// RailCell square within 40 m of them (for NearRail).
