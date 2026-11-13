@@ -245,7 +245,7 @@ def draw(model):
             draw_can(can)
     # (the plate hanger is a part of its own, body["plate_hanger"]: road legal in most countries, but optional in a build)
     hanger = body.get("plate_hanger", []) if model.get("fit", {}).get("plate_hanger", True) else []
-    for shp in body.get("behind", []) + hanger:
+    for shp in body.get("behind", []) + [h for h in hanger if not h.get("front")]:
         sh.path(pts_of(shp), shp["cls"], True, shp.get("t", 1.0))
 
     # ---- wheels
@@ -350,6 +350,9 @@ def draw(model):
     for can in ex.get("cans", []):
         if can.get("front"):
             draw_can(can)
+    for shp in hanger:
+        if shp.get("front") and shp.get("tube"):
+            sh.tube([tuple(q) for q in shp["pts"]], shp["tube"], shp["cls"], shp.get("t", 0.0))
 
     # ---- seat pan: a hidden base under the seat, behind the tail, so that a seat from another
     # brand never shows daylight over this bike's tail (docs/mounting_standard.md, joint rule 1)

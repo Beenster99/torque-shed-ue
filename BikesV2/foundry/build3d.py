@@ -585,6 +585,12 @@ def build(model):
             prism(f"platelamp{i}", [tuple(q[:2]) for q in shp["pts"]], -30, 30, mat("redlens"), 2)
     for i, shp in enumerate(body.get("behind", []) + [h for h in hanger if h["cls"] != "redlens"]):
         hw = 85 if shp["cls"] == "plate" else (95 if "fender" in shp["cls"] else 25)
+        if shp.get("tube"):
+            # an arm from the swingarm, round the outside of the tyre and in to the plate
+            q = [tuple(v) for v in shp["pts"]]
+            ys = [150, 128, 118, 60][:len(q)] + [60] * max(0, len(q) - 4)
+            smooth_tube(f"platearm{i}", [(v[0], y, v[1]) for v, y in zip(q, ys)], shp["tube"] / 2 * 0.8, mat("alu_dark"))
+            continue
         if "arc" in shp:
             arc_band(f"platearm{i}", shp["arc"], 60, mat("plastic"))
             continue
