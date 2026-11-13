@@ -61,8 +61,9 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 	DOREPLIFETIME(ATorqueGameState, RideJourney);
-	DOREPLIFETIME(ATorqueGameState, SkyDriftE);
-	DOREPLIFETIME(ATorqueGameState, SkyDriftN);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftLow);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftMid);
+	DOREPLIFETIME(ATorqueGameState, SkyDriftHigh);
 	DOREPLIFETIME(ATorqueGameState, bSkyDriftSet);
 }
 
@@ -974,18 +975,19 @@ void ATorqueGameState::ApplyWeather()
 	}
 }
 
-void ATorqueGameState::ShareSkyDrift(double East, double North)
+void ATorqueGameState::ShareSkyDrift(int32 Layer, double East, double North)
 {
 	if (!HasAuthority()) return;
-	SkyDriftE = East;
-	SkyDriftN = North;
+	FVector2D& To = Layer == 0 ? SkyDriftLow : Layer == 1 ? SkyDriftMid : SkyDriftHigh;
+	To = FVector2D(East, North);
 	bSkyDriftSet = true;
 }
 
-bool ATorqueGameState::SharedSkyDrift(double& East, double& North) const
+bool ATorqueGameState::SharedSkyDrift(int32 Layer, double& East, double& North) const
 {
-	East = SkyDriftE;
-	North = SkyDriftN;
+	const FVector2D& From = Layer == 0 ? SkyDriftLow : Layer == 1 ? SkyDriftMid : SkyDriftHigh;
+	East = From.X;
+	North = From.Y;
 	return bSkyDriftSet;
 }
 

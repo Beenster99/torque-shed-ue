@@ -124,6 +124,8 @@ void ATorqueSky::Find()
 	// (the guard has already looked at the cloud before the first frame; this is in case it didn't run)
 	TorqueCloudGuard::Check(W);
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
+	for (TActorIterator<AActor> It(W); It && !HighSheetPtr.IsValid(); ++It)
+		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
 	for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It)
 	{
 		if (It->bUnbound) PpvPtr = *It;
@@ -307,6 +309,27 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("Density"), (float)S.Density);
 		SetMpc(SkyMpc, TEXT("Albedo"), (float)S.Albedo);
 		SetMpc(SkyMpc, TEXT("Shape"), (float)S.Shape);
+		// Stage 3: the two layers' bands and looks, the high sheet and the halo.
+		const TorqueSky::Sky::Drawn& Lo = S.LowDrawn;
+		const TorqueSky::Sky::Drawn& Mi = S.MidDrawn;
+		SetMpc(SkyMpc, TEXT("LowBottom"), (float)Lo.Bottom);
+		SetMpc(SkyMpc, TEXT("LowTop"), (float)Lo.Top);
+		SetMpc(SkyMpc, TEXT("LowLumps"), (float)Lo.Look.Lumps);
+		SetMpc(SkyMpc, TEXT("LowRagged"), (float)Lo.Look.Ragged);
+		SetMpc(SkyMpc, TEXT("LowBaseDark"), (float)Lo.Look.BaseDark);
+		SetMpc(SkyMpc, TEXT("MidCover"), (float)Mi.CoverShown);
+		SetMpc(SkyMpc, TEXT("MidBottom"), (float)Mi.Bottom);
+		SetMpc(SkyMpc, TEXT("MidTop"), (float)Mi.Top);
+		SetMpc(SkyMpc, TEXT("MidDensity"), (float)Mi.Look.Density);
+		SetMpc(SkyMpc, TEXT("MidShape"), (float)Mi.Look.Shape);
+		SetMpc(SkyMpc, TEXT("MidLumps"), (float)Mi.Look.Lumps);
+		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);
+		SetMpc(SkyMpc, TEXT("MidAlbedo"), (float)Mi.Albedo);
+		SetMpc(SkyMpc, TEXT("MidBaseDark"), (float)Mi.Look.BaseDark);
+		SetMpc(SkyMpc, TEXT("HighCover"), (float)S.HighShown);
+		SetMpc(SkyMpc, TEXT("HighSheet"), (float)S.HighSheet);
+		SetMpc(SkyMpc, TEXT("HighOpacity"), (float)Looks.HighOpacity);
+		SetMpc(SkyMpc, TEXT("Halo"), (float)S.Halo);
 	}
 	// The old noise cloud shadows: where no clouds are drawn (the Low setting), the cover's amount; where
 	// they are, none (the clouds you see cast their own).
@@ -317,6 +340,7 @@ void ATorqueSky::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickDrift(DeltaSeconds);
+	TickHighSheet();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
 }
 
@@ -325,36 +349,63 @@ void ATorqueSky::TickDrift(float DeltaSeconds)
 	UWorld* W = GetWorld();
 	ATorqueGameState* GS = Game.Get();
 	if (!W || !bApplied) return;
-	// Carried on the wind at cloud height, every frame (the clouds move smoothly).
-	DriftE += Last.DriftE * DeltaSeconds;
-	DriftN += Last.DriftN * DeltaSeconds;
-	if (GS)
+	// Carried on the wind at each layer's height, every frame (the clouds move smoothly).
+	const double SpeedE[3] = {Last.LowDrawn.DriftE, Last.MidDrawn.DriftE, Last.HighDriftE};
+	const double SpeedN[3] = {Last.LowDrawn.DriftN, Last.MidDrawn.DriftN, Last.HighDriftN};
+	const bool bSend = GS && GS->HasAuthority() && W->GetTimeSeconds() - SentDriftAt > 2.0;   // to everyone every couple of seconds
+	if (bSend) SentDriftAt = W->GetTimeSeconds();
+	for (int32 Ly = 0; Ly < 3; ++Ly)
 	{
+		DriftE[Ly] += SpeedE[Ly] * DeltaSeconds;
+		DriftN[Ly] += SpeedN[Ly] * DeltaSeconds;
+		if (!GS) continue;
 		double SharedE = 0.0, SharedN = 0.0;
 		if (GS->HasAuthority())
 		{
-			// To everyone every couple of seconds.
-			if (W->GetTimeSeconds() - SentDriftAt > 2.0)
-			{
-				SentDriftAt = W->GetTimeSeconds();
-				GS->ShareSkyDrift(DriftE, DriftN);
-			}
+			if (bSend) GS->ShareSkyDrift(Ly, DriftE[Ly], DriftN[Ly]);
 		}
-		else if (GS->SharedSkyDrift(SharedE, SharedN))
+		else if (GS->SharedSkyDrift(Ly, SharedE, SharedN))
 		{
 			// Joined: the host's at once; then eased towards it (it's a couple of seconds old: close enough).
-			const double Off = FMath::Sqrt(FMath::Square(SharedE - DriftE) + FMath::Square(SharedN - DriftN));
+			const double Off = FMath::Sqrt(FMath::Square(SharedE - DriftE[Ly]) + FMath::Square(SharedN - DriftN[Ly]));
 			const double K = Off > 2000.0 ? 1.0 : FMath::Min(DeltaSeconds * 0.5, 1.0);
-			DriftE += (SharedE - DriftE) * K;
-			DriftN += (SharedN - DriftN) * K;
+			DriftE[Ly] += (SharedE - DriftE[Ly]) * K;
+			DriftN[Ly] += (SharedN - DriftN[Ly]) * K;
 		}
 	}
 	if (SkyMpc)
 	{
 		// (Metres along the level's x east and y south.)
-		if (SkyMpc->GetScalarParameterByName(TEXT("DriftX"))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, TEXT("DriftX"), (float)DriftE);
-		if (SkyMpc->GetScalarParameterByName(TEXT("DriftY"))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, TEXT("DriftY"), (float)-DriftN);
+		static const TCHAR* const Names[3][2] = {{TEXT("DriftX"), TEXT("DriftY")}, {TEXT("MidDriftX"), TEXT("MidDriftY")}, {TEXT("HighDriftX"), TEXT("HighDriftY")}};
+		for (int32 Ly = 0; Ly < 3; ++Ly)
+		{
+			if (SkyMpc->GetScalarParameterByName(FName(Names[Ly][0]))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Names[Ly][0]), (float)DriftE[Ly]);
+			if (SkyMpc->GetScalarParameterByName(FName(Names[Ly][1]))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Names[Ly][1]), (float)-DriftN[Ly]);
+		}
 	}
+}
+
+void ATorqueSky::TickHighSheet()
+{
+	UWorld* W = GetWorld();
+	AActor* Sheet = HighSheetPtr.Get();
+	if (!W || !Sheet || !bApplied) return;
+	// Hidden on a sky without high cloud, or where the sky has no MPC_Sky to draw it by.
+	const bool bShow = SkyMpc && Last.HighShown > 0.005;
+	if (Sheet->IsHidden() == bShow) Sheet->SetActorHiddenInGame(!bShow);
+	if (!bShow) return;
+	// Over the camera, at the high cloud's height above sea level.
+	const APlayerController* PC = W->GetFirstPlayerController();
+	if (!PC || !PC->PlayerCameraManager) return;
+	const FVector Cam = PC->PlayerCameraManager->GetCameraLocation();
+	double OriginAsl = 0.0;
+	if (const ATorqueGameState* GS = Game.Get())
+	{
+		double Lat = 0.0, Lon = 0.0;
+		GS->GeoAt(FVector::ZeroVector, Lat, Lon, OriginAsl);
+	}
+	const FVector At(Cam.X, Cam.Y, (Last.High.BaseAsl - OriginAsl) * 100.0);
+	if (FVector::DistSquared(At, Sheet->GetActorLocation()) > 100.0 * 100.0) Sheet->SetActorLocation(At);
 }
 
 FString ATorqueSky::Describe() const
@@ -363,7 +414,10 @@ FString ATorqueSky::Describe() const
 	return FString::Printf(TEXT("sun %.1f deg (light at %.1f), block %.2f, dull %.2f, %.0f lux (EV100 %.1f; clear sky %.0f), day light %.2f, sun x%.2f, sky light x%.2f, exposure %+.2f, mie x%.2f, rayleigh x%.2f, fog x%.2f; cloud %.0f%% (drawn %.2f, shape %.2f, density %.2f) %.0f-%.0f m, drifting %.1f m/s E %.1f m/s N, its shadows %.2f; clouds %s"),
 		S.SunElevation, S.LightElevation, S.Block, S.Dull, S.GroundLux, TorqueSky::Ev100(S.GroundLux), S.ClearLux, S.DayLight, S.SunScale, S.SkyLightScale,
 		S.ExposureStops, S.MieScale, S.RayleighScale, S.FogScale, S.Cover * 100.0, S.CoverShown, S.Shape, S.Density, S.BaseAsl, S.TopAsl, S.DriftE, S.DriftN,
-		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"));
+		S.CloudShadows, CloudsDrawn() ? TEXT("drawn") : TEXT("not drawn"))
+		+ FString::Printf(TEXT("; kinds: low %s, middle %s, high %s (veil %.2f, halo %.2f); bands low %.2f-%.2f middle %.2f-%.2f"),
+			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),
+			S.HighSheet, S.Halo, S.LowDrawn.Bottom, S.LowDrawn.Top, S.MidDrawn.Bottom, S.MidDrawn.Top);
 }
 
 // --- The sky bench ---------------------------------------------------------------------------------------

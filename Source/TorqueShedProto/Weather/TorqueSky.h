@@ -70,10 +70,14 @@ private:
 	bool CloudsDrawn() const;
 	// The level's planet surface, metres above sea level (the cloud layer's heights are above it).
 	double PlanetAsl() const;
+	// The high cloud's sheet (stage 3; Tools/ue_build_level.py tags it TorqueHighCloud), kept over the camera.
+	TWeakObjectPtr<AActor> HighSheetPtr;
+	void TickHighSheet();
 
-	// The cloud's drift: how far the wind at cloud height has carried it, metres east and north. The
-	// host adds it up and shares it; the others add it up too and ease towards the host's.
-	double DriftE = 0.0, DriftN = 0.0;
+	// The clouds' drift: how far the wind at each layer's height (low, middle, high) has carried it,
+	// metres east and north. The host adds it up and shares it; the others add it up too and ease
+	// towards the host's.
+	double DriftE[3] = {0.0, 0.0, 0.0}, DriftN[3] = {0.0, 0.0, 0.0};
 	double SentDriftAt = -100.0;
 	void TickDrift(float DeltaSeconds);
 

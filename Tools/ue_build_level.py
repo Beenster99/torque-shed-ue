@@ -264,6 +264,20 @@ SKY_PARAMS = (
     ("Shape", 0.3),     # 0 heaped (cumulus) .. 1 a flat deck (stratus)
     ("DriftX", 0.0),    # how far the wind at cloud height has carried the clouds, metres along x (east)
     ("DriftY", 0.0),    # and along y (south)
+    # Stage 3: the kinds of cloud. The figures above are the low layer's; the volume also holds a middle
+    # layer, each in its own band (0 .. 1 of the volume's height), and a high sheet over the sky.
+    ("LowBottom", 0.0), ("LowTop", 1.0),
+    ("LowLumps", 0.5),  # 0 big shapes .. 1 small ones
+    ("LowRagged", 0.4), # how much the fine noise eats the edges
+    ("LowBaseDark", 0.2),   # how much darker the base is than the top
+    ("MidCover", 0.0), ("MidBottom", 0.8), ("MidTop", 1.0), ("MidDensity", 0.6), ("MidShape", 0.6),
+    ("MidLumps", 1.0), ("MidRagged", 0.6), ("MidAlbedo", 1.0), ("MidBaseDark", 0.1),
+    ("MidDriftX", 0.0), ("MidDriftY", 0.0),
+    ("HighCover", 0.1),     # the high sheet: how much of the sky it covers
+    ("HighSheet", 0.0),     # 0 wisps (cirrus) .. 1 a veil (cirrostratus)
+    ("HighOpacity", 0.75),  # how solid it is at full cover
+    ("HighDriftX", 0.0), ("HighDriftY", 0.0),
+    ("Halo", 0.0),          # the 22 degree halo round the sun in a veil
 )
 _sky_mpc = None
 
@@ -2960,46 +2974,76 @@ def cloud_noise_texture():
     return tex
 
 
-# The clouds' density at a point of the layer (skies plan stage 2), per metre of extinction.
+# The clouds' density at a point of the volume (skies plan stages 2 and 3), per metre of extinction.
+# The volume holds two layers, low and middle, each in its own band of the volume's height (LowBottom ..
+# LowTop, MidBottom .. MidTop) with its own look blended from its kinds of cloud (SkyModel's rule table):
+# Shape (0 heaped cumulus .. 1 a flat sheet), Lumps (big shapes .. small cells), Ragged edges, Density.
 # The graph hands the code only small floats (round 141 crashed on a cloud material that didn't compile,
 # most likely the large-world WorldPosition into the Custom node): W0, W1, W2 are the point in repeats of
-# 7 km, 1.8 km and 600 m (frac'd in the graph, carried back along the wind's drift), WB in repeats of
-# 25 km for the weather's own patches across the sky. Three samples of the 3D noise (a pseudo-volume: 64
-# slices of 66 texels in an 8 x 8 sheet, each with a wrapped border). The cover (MPC_Sky Cover) sets how
-# much of the shape is cloud; Shape takes the height profile from a heaped cumulus (a flat base, a
-# rounded top) to a flat deck; the finer noise eats the edges.
+# 7 km, 1.8 km and 600 m (frac'd in the graph, carried back along the low wind's drift), WB in repeats of
+# 25 km for the weather's own patches; M0, M1, M2, MB the same for the middle layer (3.5 km, 900 m,
+# 300 m, 15 km, along its own wind). Samples of the 3D noise: a pseudo-volume, 64 slices of 66 texels in
+# an 8 x 8 sheet, each with a wrapped border. Only the layer a point is in is sampled.
 CLOUD_HLSL = r"""
-float h = saturate(NormAlt);
-float heaped = saturate(h / 0.07) * saturate((1.0 - h) / 0.65);
-float deck = saturate(h / 0.04) * saturate((1.0 - h) / 0.2);
-float profile = lerp(heaped, deck, saturate(Shape));
-float3 ws[3] = { W0, W1, W2 };
-float nv[3] = { 0.0, 0.0, 0.0 };
-[unroll] for (int i = 0; i < 3; i++)
+float3 ws[8] = { W0, W1, W2, WB, M0, M1, M2, MB };
+float bottoms[2] = { LowBottom, MidBottom };
+float tops[2] = { LowTop, MidTop };
+float covers[2] = { Cover, MidCover };
+float shapes[2] = { Shape, MidShape };
+float lumps[2] = { LowLumps, MidLumps };
+float raggeds[2] = { LowRagged, MidRagged };
+float densities[2] = { Density, MidDensity };
+float best = 0.0;
+[unroll] for (int ly = 0; ly < 2; ly++)
 {
-    float3 w = frac(ws[i] + float3(0.13, 0.37, 0.0) * i);
-    float z = w.z * 64.0 - 0.5;
-    float z0 = floor(z);
-    float zf = z - z0;
-    float s0 = fmod(z0 + 64.0, 64.0);
-    float s1 = fmod(z0 + 1.0, 64.0);
-    float2 inTile = (1.0 + w.xy * 64.0) / 66.0;
-    float2 t0 = float2(fmod(s0, 8.0), floor(s0 / 8.0));
-    float2 t1 = float2(fmod(s1, 8.0), floor(s1 / 8.0));
-    float4 va = CloudTex.SampleLevel(CloudTexSampler, (t0 + inTile) / 8.0, 0);
-    float4 vb = CloudTex.SampleLevel(CloudTexSampler, (t1 + inTile) / 8.0, 0);
-    float4 v = lerp(va, vb, zf);
-    nv[i] = i == 0 ? v.r : (i == 1 ? v.g : v.b);
+    float h = (NormAlt - bottoms[ly]) / max(tops[ly] - bottoms[ly], 0.001);
+    float cv = saturate(covers[ly]);
+    [branch] if (h >= 0.0 && h <= 1.0 && cv > 0.001)
+    {
+        float sh = saturate(shapes[ly]);
+        float heaped = saturate(h / 0.07) * saturate((1.0 - h) / 0.65);
+        float deck = saturate(h / 0.04) * saturate((1.0 - h) / 0.2);
+        float profile = lerp(heaped, deck, sh);
+        float nv[3] = { 0.0, 0.0, 0.0 };
+        [unroll] for (int i = 0; i < 3; i++)
+        {
+            float3 w = frac(ws[ly * 4 + i] + float3(0.13, 0.37, 0.0) * i);
+            float z = w.z * 64.0 - 0.5;
+            float z0 = floor(z);
+            float zf = z - z0;
+            float s0 = fmod(z0 + 64.0, 64.0);
+            float s1 = fmod(z0 + 1.0, 64.0);
+            float2 inTile = (1.0 + w.xy * 64.0) / 66.0;
+            float2 t0 = float2(fmod(s0, 8.0), floor(s0 / 8.0));
+            float2 t1 = float2(fmod(s1, 8.0), floor(s1 / 8.0));
+            float4 va = CloudTex.SampleLevel(CloudTexSampler, (t0 + inTile) / 8.0, 0);
+            float4 vb = CloudTex.SampleLevel(CloudTexSampler, (t1 + inTile) / 8.0, 0);
+            float4 v = lerp(va, vb, zf);
+            nv[i] = i == 0 ? v.r : (i == 1 ? v.g : v.b);
+        }
+        float2 bw = frac(ws[ly * 4 + 3].xy);
+        float broad = CloudTex.SampleLevel(CloudTexSampler, (1.0 + bw * 64.0) / 66.0 / 8.0, 0).r;
+        float lp = saturate(lumps[ly]);
+        float shp = saturate(lerp(nv[0], nv[1], lp) * 0.65 + broad * 0.35);
+        float dn = saturate((shp * profile - (1.0 - cv)) / 0.18);
+        dn = max(dn, saturate(profile * 1.5) * smoothstep(0.9, 1.0, cv));
+        float erode = lerp(nv[1] * 0.7 + nv[2] * 0.3, nv[2], lp);
+        dn = saturate(dn - (1.0 - erode) * 0.8 * saturate(raggeds[ly]) * (1.0 - dn * 0.5));
+        best = max(best, dn * densities[ly]);
+    }
 }
-float2 bw = frac(WB.xy);
-float broad = CloudTex.SampleLevel(CloudTexSampler, (1.0 + bw * 64.0) / 66.0 / 8.0, 0).r;
-float shp = saturate(nv[0] * 0.65 + broad * 0.35);
-float cv = saturate(Cover);
-float dn = saturate((shp * profile - (1.0 - cv)) / 0.18);
-dn = max(dn, saturate(profile * 1.5) * smoothstep(0.9, 1.0, cv));
-float erode = nv[1] * 0.7 + nv[2] * 0.3;
-dn = saturate(dn - (1.0 - erode) * 0.45 * (1.0 - dn * 0.5) * (1.0 - 0.6 * saturate(Shape)));
-return dn * Density * 0.1;
+return best * 0.1;
+"""
+
+# The cloud's own colour at a point (stage 3): its layer's grey, darker towards the base.
+CLOUD_ALBEDO_HLSL = r"""
+float hl = (NormAlt - LowBottom) / max(LowTop - LowBottom, 0.001);
+float hm = (NormAlt - MidBottom) / max(MidTop - MidBottom, 0.001);
+bool inMid = hm >= 0.0 && MidCover > 0.001 && (hl > 1.0 || Cover <= 0.001);
+float h = saturate(inMid ? hm : hl);
+float a = inMid ? MidAlbedo : Albedo;
+float dark = inMid ? MidBaseDark : LowBaseDark;
+return a * (1.0 - saturate(dark) * (1.0 - h));
 """
 
 
@@ -3029,40 +3073,61 @@ def cloud_material():
     c = g.node(unreal.MaterialExpressionCustom, -500)
     try_set(c, "code", CLOUD_HLSL)
     try_set(c, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
-    names = ("W0", "W1", "W2", "WB", "NormAlt", "Cover", "Shape", "Density", "CloudTex")
+    floats = ("NormAlt", "Cover", "Shape", "Density", "LowBottom", "LowTop", "LowLumps", "LowRagged",
+              "MidCover", "MidBottom", "MidTop", "MidShape", "MidLumps", "MidRagged", "MidDensity")
+    names = ("W0", "W1", "W2", "WB", "M0", "M1", "M2", "MB") + floats + ("CloudTex",)
     ins = []
     for n in names:
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", n)
         ins.append(ci)
     try_set(c, "inputs", ins)
-    # The point, metres, carried back along the drift (x east, y south: MPC DriftX/DriftY, metres), then
-    # in repeats of each scale and frac'd here, so the code sees small floats only.
+    alb = g.node(unreal.MaterialExpressionCustom, -500)
+    try_set(alb, "code", CLOUD_ALBEDO_HLSL)
+    try_set(alb, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    alb_names = ("NormAlt", "Cover", "Albedo", "LowBottom", "LowTop", "LowBaseDark", "MidCover", "MidBottom", "MidTop",
+                 "MidAlbedo", "MidBaseDark")
+    ins = []
+    for n in alb_names:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(alb, "inputs", ins)
+    # The point, metres, carried back along each layer's drift (x east, y south: MPC_Sky's drifts, metres),
+    # then in repeats of each scale and frac'd here, so the code sees small floats only.
     wp = g.node(unreal.MaterialExpressionWorldPosition)
     q = g.node(unreal.MaterialExpressionDivide, -900, const_b=100.0)
     link(wp, q, "A")
-    drift = g.node(unreal.MaterialExpressionAppendVector, -900)
-    link(sky_param(g, "DriftX"), drift, "A")
-    link(sky_param(g, "DriftY"), drift, "B")
-    drift3 = g.node(unreal.MaterialExpressionAppendVector, -800)
-    link(drift, drift3, "A")
-    link(g.const(0.0), drift3, "B")
-    qd = g.node(unreal.MaterialExpressionSubtract, -700)
-    link(q, qd, "A")
-    link(drift3, qd, "B")
-    for pin, metres in (("W0", 7000.0), ("W1", 1800.0), ("W2", 600.0), ("WB", 25000.0)):
-        d = g.node(unreal.MaterialExpressionDivide, -650, const_b=metres)
-        link(qd, d, "A")
-        f = g.node(unreal.MaterialExpressionFrac, -600)
-        link(d, f, "")
-        link(f, c, pin)
+    for dx, dy, pins in (("DriftX", "DriftY", (("W0", 7000.0), ("W1", 1800.0), ("W2", 600.0), ("WB", 25000.0))),
+                         ("MidDriftX", "MidDriftY", (("M0", 3500.0), ("M1", 900.0), ("M2", 300.0), ("MB", 15000.0)))):
+        drift = g.node(unreal.MaterialExpressionAppendVector, -900)
+        link(sky_param(g, dx), drift, "A")
+        link(sky_param(g, dy), drift, "B")
+        drift3 = g.node(unreal.MaterialExpressionAppendVector, -800)
+        link(drift, drift3, "A")
+        link(g.const(0.0), drift3, "B")
+        qd = g.node(unreal.MaterialExpressionSubtract, -700)
+        link(q, qd, "A")
+        link(drift3, qd, "B")
+        for pin, metres in pins:
+            d = g.node(unreal.MaterialExpressionDivide, -650, const_b=metres)
+            link(qd, d, "A")
+            f = g.node(unreal.MaterialExpressionFrac, -600)
+            link(d, f, "")
+            link(f, c, pin)
     attr = g.node(unreal.MaterialExpressionCloudSampleAttribute)
     link(attr, c, "NormAlt", "NormAltitudeInLayer")
-    for n in ("Cover", "Shape", "Density"):
-        link(sky_param(g, n), c, n)
+    link(attr, alb, "NormAlt", "NormAltitudeInLayer")
+    params = {}
+    for n in set(floats + alb_names) - {"NormAlt"}:
+        params[n] = sky_param(g, n)
+    for n in floats[1:]:
+        link(params[n], c, n)
+    for n in alb_names[1:]:
+        link(params[n], alb, n)
     link(g.node(unreal.MaterialExpressionTextureObject, texture=nt), c, "CloudTex")
     # Volume outputs: albedo (base colour), extinction (subsurface colour), no glow of its own.
-    for src, prop in ((sky_param(g, "Albedo"), unreal.MaterialProperty.MP_BASE_COLOR),
+    for src, prop in ((alb, unreal.MaterialProperty.MP_BASE_COLOR),
                       (c, unreal.MaterialProperty.MP_SUBSURFACE_COLOR),
                       (g.const(0.0), unreal.MaterialProperty.MP_EMISSIVE_COLOR)):
         if not mel.connect_material_property(src, "", prop):
@@ -3084,6 +3149,184 @@ def cloud_material():
         return None
     log("cloud material M_RideCloud made (Volume, all links made)")
     return g.m
+
+
+def high_cloud_texture():
+    """Data/Sky/high_cloud.png (Tools/make_high_cloud.py): the high cloud's four tiling sheets (wisps,
+    veil, ripples, detail), linear, with mips (it is seen from far off)."""
+    f = os.path.join(os.path.dirname(data_dir()), "Sky", "high_cloud.png")
+    if not os.path.exists(f):
+        unreal.log_warning("[Torque] no %s: run Tools/make_high_cloud.py" % f)
+        return None
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", TEX_DEST + "/Sky"), ("destination_name", "T_HighCloud"),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    asset_tools.import_asset_tasks([t])
+    tex = unreal.load_asset(TEX_DEST + "/Sky/T_HighCloud")
+    if tex:
+        tex.set_editor_property("srgb", False)
+        try_set(tex, "compression_settings", unreal.TextureCompressionSettings.TC_MASKS)
+        try_set(tex, "never_stream", True)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+# The high sheet's look (stage 3): how much of each sheet shows, and its light. The light is the sun's at
+# the sheet's height (the atmosphere's own figure, so it reddens at sunset and is the last cloud to lose
+# the light), brightest looking towards the sun, with a faint ring 22 degrees from it in a veil.
+HIGH_OPACITY_HLSL = r"""
+float wisp = Big.r * (0.55 + 0.45 * Fine.a);
+float veil = Big.g * (0.8 + 0.2 * Fine.a);
+float p = lerp(wisp, veil, saturate(Sheet));
+p = max(p, Fine.b * 0.6 * (1.0 - saturate(Sheet)) * saturate(Cover * 2.0 - 0.6));
+float cv = saturate(Cover);
+float o = saturate((p - (1.0 - cv) * 0.9) / 0.35) * Opacity;
+o *= 1.0 - saturate((Dist - 110000.0) / 40000.0);
+return o;
+"""
+HIGH_LIGHT_HLSL = r"""
+float c = clamp(CosA, -1.0, 1.0);
+float g = 0.6;
+float hg = (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * c, 1e-4), 1.5) / 12.566;
+float iso = 0.0796;
+float a = acos(c);
+float ring = exp(-pow((a - 0.384) / 0.02, 2.0)) * Halo;
+float3 lit = Illum * (iso * 0.7 + hg * 0.3 + ring * 0.3);
+return lit + Illum * float3(0.35, 0.45, 0.6) * 0.015;
+"""
+
+
+def high_cloud_material():
+    """M_RideHighCloud (skies plan stage 3): the cirrus sheet over the sky, a translucent sheet 9 km up
+    that ATorqueSky keeps over the camera. It reads MPC_Sky's High* figures. None if it didn't go together."""
+    tex = high_cloud_texture()
+    if tex is None or sky_mpc() is None:
+        return None
+    g = Graph(new_material("M_RideHighCloud"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT),
+                 ("two_sided", True)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    # (far behind the low clouds: the volumetric cloud is laid over it; fogged per pixel, not per corner)
+    for k in ("apply_cloud_fogging", "compute_fog_per_pixel"):
+        try_set(g.m, k, True)
+    # The sheet's place on the sky, metres, carried along the high wind, in repeats of 20 km and 5 km.
+    wp = g.node(unreal.MaterialExpressionWorldPosition)
+    q = g.node(unreal.MaterialExpressionDivide, -900, const_b=100.0)
+    link(wp, q, "A")
+    q2 = g.node(unreal.MaterialExpressionComponentMask, -850, r=True, g=True, b=False, a=False)
+    link(q, q2, "")
+    drift = g.node(unreal.MaterialExpressionAppendVector, -900)
+    link(sky_param(g, "HighDriftX"), drift, "A")
+    link(sky_param(g, "HighDriftY"), drift, "B")
+    qd = g.node(unreal.MaterialExpressionSubtract, -700)
+    link(q2, qd, "A")
+    link(drift, qd, "B")
+    samples = []
+    for metres in (20000.0, 5000.0):
+        d = g.node(unreal.MaterialExpressionDivide, -650, const_b=metres)
+        link(qd, d, "A")
+        f = g.node(unreal.MaterialExpressionFrac, -600)
+        link(d, f, "")
+        smp = g.node(unreal.MaterialExpressionTextureSample, -550, texture=tex,
+                     sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+        link(f, smp, "UVs")
+        samples.append(smp)
+    # How far from the camera across the ground (the sheet fades out before its edge, 150 km off).
+    cam = g.node(unreal.MaterialExpressionCameraPositionWS)
+    rel = g.node(unreal.MaterialExpressionSubtract, -700)
+    link(wp, rel, "A")
+    link(cam, rel, "B")
+    rel2 = g.node(unreal.MaterialExpressionComponentMask, -650, r=True, g=True, b=False, a=False)
+    link(rel, rel2, "")
+    dist = g.node(unreal.MaterialExpressionLength, -600)
+    link(rel2, dist, "")
+    dist_m = g.node(unreal.MaterialExpressionDivide, -550, const_b=100.0)
+    link(dist, dist_m, "A")
+    op = g.node(unreal.MaterialExpressionCustom, -400)
+    try_set(op, "code", HIGH_OPACITY_HLSL)
+    try_set(op, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    ins = []
+    for n in ("Big", "Fine", "Cover", "Sheet", "Opacity", "Dist"):
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(op, "inputs", ins)
+    link(samples[0], op, "Big", "RGBA")
+    link(samples[1], op, "Fine", "RGBA")
+    link(sky_param(g, "HighCover"), op, "Cover")
+    link(sky_param(g, "HighSheet"), op, "Sheet")
+    link(sky_param(g, "HighOpacity"), op, "Opacity")
+    link(dist_m, op, "Dist")
+    # Its light: the sun's at that height, through the atmosphere, if this engine has the node.
+    lt = g.node(unreal.MaterialExpressionCustom, -400)
+    try_set(lt, "code", HIGH_LIGHT_HLSL)
+    try_set(lt, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+    ins = []
+    for n in ("Illum", "CosA", "Halo"):
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(lt, "inputs", ins)
+    illum_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightIlluminance", None)
+    dir_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightDirection", None)
+    if illum_cls is not None and dir_cls is not None:
+        link(g.node(illum_cls), lt, "Illum")
+        view = g.node(unreal.MaterialExpressionCameraVectorWS)   # (from the point towards the camera)
+        neg = g.node(unreal.MaterialExpressionMultiply, -650, const_b=-1.0)
+        link(view, neg, "A")
+        dot = g.node(unreal.MaterialExpressionDotProduct, -600)
+        link(neg, dot, "A")
+        link(g.node(dir_cls), dot, "B")
+        link(dot, lt, "CosA")
+    else:
+        unreal.log_warning("[Torque] no sky atmosphere light nodes: the high cloud is lit flat")
+        link(g.const((300.0, 290.0, 280.0)), lt, "Illum")
+        link(g.const(0.0), lt, "CosA")
+    link(sky_param(g, "Halo"), lt, "Halo")
+    for src, prop in ((lt, unreal.MaterialProperty.MP_EMISSIVE_COLOR), (op, unreal.MaterialProperty.MP_OPACITY)):
+        if not mel.connect_material_property(src, "", prop):
+            bad.append(str(prop))
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] high cloud material M_RideHighCloud NOT used: %s" % "; ".join(bad))
+        return None
+    log("high cloud material M_RideHighCloud made")
+    return g.m
+
+
+def high_cloud_sheet(reuse=False):
+    """The high cloud's sheet: a 300 km square 9 km up, wearing M_RideHighCloud, tagged TorqueHighCloud.
+    ATorqueSky keeps it over the camera at the high cloud's height and hides it on a sky without any."""
+    mat = unreal.load_asset(MAT_DIR + "/M_RideHighCloud") if reuse else high_cloud_material()
+    plane = unreal.load_asset("/Engine/BasicShapes/Plane")
+    if mat is None or plane is None:
+        unreal.log_warning("[Torque] no high cloud sheet (material %s, plane %s)" % (mat is not None, plane is not None))
+        return None
+    a = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, 900000), unreal.Rotator(0, 0, 0))
+    a.set_actor_label("HighCloudSheet")
+    a.set_folder_path("Sky")
+    a.set_editor_property("tags", [unreal.Name("TorqueHighCloud")])
+    a.set_actor_scale3d(unreal.Vector(300000.0, 300000.0, 1.0))   # (the plane is 1 m square: 300 km)
+    smc = a.get_component_by_class(unreal.StaticMeshComponent)
+    smc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    smc.set_static_mesh(plane)
+    smc.set_material(0, mat)
+    for k, v in (("cast_shadow", False), ("translucency_sort_priority", -10), ("affect_distance_field_lighting", False),
+                 ("visible_in_ray_tracing", False), ("collision_enabled", unreal.CollisionEnabled.NO_COLLISION)):
+        try_set(smc, k, v)
+    try:
+        smc.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    except Exception:
+        pass
+    log("high cloud sheet placed")
+    return a
 
 
 def sky_and_camera(reuse_cloud_shadow=False):
@@ -3154,6 +3397,11 @@ def sky_and_camera(reuse_cloud_shadow=False):
             unreal.log_warning("[Torque] clouds: no M_RideCloud; the engine's default cloud stays")
     except Exception as e:
         unreal.log_warning("[Torque] no volumetric cloud: %s" % e)
+    # The high cloud (stage 3): a sheet over the sky, not a volume (borrowed like the cloud by another level).
+    try:
+        high_cloud_sheet(reuse=reuse_cloud_shadow)
+    except Exception as e:
+        unreal.log_warning("[Torque] no high cloud sheet: %s" % e)
     ppv = spawn(unreal.PostProcessVolume)
     ppv.set_editor_property("unbound", True)
     pp = ppv.get_editor_property("settings")
