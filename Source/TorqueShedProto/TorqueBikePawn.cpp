@@ -3389,6 +3389,9 @@ void ATorqueBikePawn::UpdateRider()
 					if ((Mark - HipL).Size() <= Reach) break;
 				}
 			}
+			// (Within a few degrees of reaching, the rider stretches onto his toes and the bike stays upright:
+			// beenster, both feet down at a standstill, the bike vertical.)
+			if (LeanWant < 4.0) LeanWant = 0.0;
 			const double LeanTo = LeanWant * FMath::SmoothStep(0.0, 1.0, In.FeetDown);
 			StopLeanDeg = MoveToward(StopLeanDeg, LeanTo, 25.0 * (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0));
 			if (StopLeanDeg > 0.01)
