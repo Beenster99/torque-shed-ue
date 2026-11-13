@@ -245,6 +245,9 @@ double ClassCost(const std::string& Mode, const std::string& Class)
 	if (Class == "residential") return S->Residential;
 	if (Class == "living_street") return S->LivingStreet;
 	if (Class == "track") return S->Track;
+	// [OSM stage 4] (a service road, alley, drive or car park aisle: ridden only to start or finish a ride,
+	// never a short cut through a car park)
+	if (Class == "service") return 8.0;
 	return 1.5;
 }
 

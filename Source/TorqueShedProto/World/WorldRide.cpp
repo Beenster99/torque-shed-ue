@@ -609,7 +609,7 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		H = RoadLine::GradeLimit(RoadLine::SmoothHeights(RoadLine::SmoothHeights(H, 9), 9));
 		SideRoad Side;
 		Side.Length = Along.back();
-		Side.Track = Class == "track";
+		Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
 		Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
 		const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
 		const double Half = RoadLine::WidthOf(Class) * 0.5;
@@ -1434,7 +1434,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		{
 			if (const RoadFact* F = FactAt((A.Along + B.Along) * 0.5))
 			{
-				Track = F->Class == "track";
+				Track = F->Class == "track" || F->Class == "service";
 				Gravel = F->Gravel;
 			}
 		}

@@ -20,7 +20,7 @@ constexpr double LimitMinRun = 100.0;
 
 int RidePlan::AssumedKmh(const std::string& Class, bool InBuiltUp, bool Uk)
 {
-	if (Class == "track") return 0;
+	if (Class == "track" || Class == "service") return 0;
 	if (Uk)
 	{
 		if (Class == "motorway") return 113;    // 70 mph

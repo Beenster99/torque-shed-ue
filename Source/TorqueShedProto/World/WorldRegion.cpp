@@ -44,6 +44,7 @@ const char* GenericName(const std::string& Class)
 	if (Class == "tertiary" || Class == "unclassified") return "Minor road";
 	if (Class == "residential" || Class == "living_street") return "Street";
 	if (Class == "track") return "Track";
+	if (Class == "service") return "Service road";
 	return "Road";
 }
 
