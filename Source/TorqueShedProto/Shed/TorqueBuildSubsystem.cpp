@@ -355,6 +355,7 @@ void UTorqueBuildSubsystem::StartFresh()
 	TvVideoAt = 0.0;
 	LiftsUp = 0;
 	bShedLights = true;   // [kit]
+	RoomLightsOff = 0;
 	bDoorUp = true;
 	StandXf = StandHome();
 	StandPusher = 0;
@@ -409,6 +410,7 @@ void UTorqueBuildSubsystem::ToSave(UTorqueShedSave& S) const
 	S.TvVideo = TvVideoId;
 	S.LiftsUp = LiftsUp;
 	S.bShedLights = bShedLights;   // [kit]
+	S.RoomLightsOff = RoomLightsOff;
 	S.bDoorUp = bDoorUp;
 	S.bStandMoved = true;
 	S.StandAt = StandXf.GetLocation();
@@ -525,6 +527,7 @@ bool UTorqueBuildSubsystem::FromSave(const UTorqueShedSave& S)
 	for (int32 L = 0; L < 31; ++L)
 		if (IsLift(L) && (S.LiftsUp & (1 << L)) != 0) LiftsUp |= 1 << L;
 	bShedLights = S.bShedLights;   // [kit]
+	RoomLightsOff = S.RoomLightsOff & 7;
 	bDoorUp = S.bDoorUp;
 	StandXf = S.bStandMoved && TorqueShedLayout::OnSite(S.StandAt) ? FTransform(FRotator(0.0, S.StandYaw, 0.0), FVector(S.StandAt.X, S.StandAt.Y, 0.0)) : StandHome();
 	StandPusher = 0;
@@ -886,7 +889,8 @@ bool UTorqueBuildSubsystem::SaveShed(TArray<uint8>& Out) const
 	Ar << LiftsOut;
 	{
 		// [kit] The main lights, the roller door, the engine stand, the fire extinguisher.
-		uint8 bLightsB = bShedLights ? 1 : 0, bDoorB = bDoorUp ? 1 : 0, bFoamB = bFoaming ? 1 : 0;
+		// (the other rooms' lights in its bits 1 .. 3)
+		uint8 bLightsB = uint8((bShedLights ? 1 : 0) | ((RoomLightsOff & 7) << 1)), bDoorB = bDoorUp ? 1 : 0, bFoamB = bFoaming ? 1 : 0;
 		FVector StandAt = StandXf.GetLocation();
 		double StandYaw = StandXf.Rotator().Yaw;
 		int32 Pusher = StandPusher, ExtBy = ExtinguisherBy;
@@ -1145,7 +1149,8 @@ bool UTorqueBuildSubsystem::LoadShedFromHost(const TArray<uint8>& Data)
 	TvVideoId = TorqueShedTv::VideoId(VideoIn);
 	TvVideoAt = VideoAtIn;
 	LiftsUp = LiftsIn;
-	bShedLights = bLightsB != 0;   // [kit]
+	bShedLights = (bLightsB & 1) != 0;   // [kit]
+	RoomLightsOff = uint8((bLightsB >> 1) & 7);
 	bDoorUp = bDoorB != 0;
 	StandXf = FTransform(FRotator(0.0, StandYawIn, 0.0), StandAtIn);
 	StandPusher = PusherIn;

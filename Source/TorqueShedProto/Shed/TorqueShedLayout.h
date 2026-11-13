@@ -29,7 +29,7 @@ enum class ETorquePlace : uint8
 	Tape,      // the masking tape roll's hook inside the mixing bay door: take it, hang it back
 	Lift,      // a bike lift's control post (Index: the lift, a bay or UTorqueBuildSubsystem::WashLift): F raises or lowers it
 	// [kit] (ATorqueShedKit)
-	ShedSwitch,   // the switch boxes right of the roller door (Index 0 the main lights, 1 the door's up / down)
+	ShedSwitch,   // the switch boxes right of the roller door (Index 0 the main lights, 1 the door's up / down); 2 .. 4 the paint shop's, mixing bay's and storage room's lights
 	Extinguisher, // the fire extinguisher by the workbench: F takes it, F hangs it back
 	// [fluids] (ATorqueShedPump)
 	Pump,         // the petrol pump on the front wall outside: right mouse lifts the nozzle off it and hangs it back
@@ -168,6 +168,13 @@ inline const TArray<FTorquePlace>& Places()
 	// it. And the fire extinguisher standing by the end of the workbench (swaps.json dress at -630, 440).
 	Add(ETorquePlace::ShedSwitch, TEXT("shed_lights"), FVector(277.0, 536.0, 114.0), FVector(293.0, 550.0, 129.0), FVector(285.0, 547.0, 122.0), 0);
 	Add(ETorquePlace::ShedSwitch, TEXT("door_button"), FVector(277.0, 536.0, 129.0), FVector(293.0, 550.0, 146.0), FVector(285.0, 546.0, 136.0), 1);
+	// [kit] The other rooms' light switches, each just inside its door at 1.2 m (ATorqueShedKit draws
+	// the plates; beenster, build 141): the paint shop's on its west wall south of the door from the
+	// shed (y 285 .. 415), the mixing bay's on its west wall south of the tape hook, the storage
+	// room's on its east wall north of the door (y -515 .. -385). Index 2 .. 4: rooms 1 .. 3.
+	Add(ETorquePlace::ShedSwitch, TEXT("paint_lights"), FVector(680.0, 257.0, 112.0), FVector(692.0, 273.0, 130.0), FVector(682.0, 265.0, 121.0), 2);
+	Add(ETorquePlace::ShedSwitch, TEXT("mixing_lights"), FVector(1430.0, 332.0, 112.0), FVector(1442.0, 348.0, 130.0), FVector(1432.0, 340.0, 121.0), 3);
+	Add(ETorquePlace::ShedSwitch, TEXT("storage_lights"), FVector(-692.0, -357.0, 112.0), FVector(-680.0, -343.0, 130.0), FVector(-682.0, -350.0, 121.0), 4);
 	Add(ETorquePlace::Extinguisher, TEXT("extinguisher"), FVector(-652.0, 418.0, 0.0), FVector(-608.0, 462.0, 70.0), FVector(-630.0, 440.0, 0.0), 0);
 	// [fluids] The petrol pump against the front wall outside, west of the roller door
 	// (UTorqueBuildSubsystem::PumpAt: -360, 580; the props' petrol_pump dispenser, 50 cm wide, 41 deep,

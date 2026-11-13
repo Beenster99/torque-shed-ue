@@ -563,7 +563,7 @@ private:
 	// the work button pours it into the tank, engine or brake looked at, the other button drains into
 	// it, it lubes a chain, and at the general waste it's tipped away (FluidPlan: false when it has no
 	// fluid job here, so it's put down like any part).
-	bool FluidInput(bool bRight);
+	bool FluidInput(bool bRight, bool bLeft = false);
 	void PumpPlan();
 	bool FluidPlan(int32 Held);
 	// [furniture] The movable shed and yard kit (TorqueWalkerFurniture.cpp): the piece looked at (it

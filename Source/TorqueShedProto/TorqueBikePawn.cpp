@@ -3832,13 +3832,15 @@ void ATorqueBikePawn::UpdateRumble(float Dt)
 	{
 		const double V = FMath::Abs(Sim->Speed);
 		const float Moving = (float)FMath::Clamp(V / 12.0, 0.0, 1.0);
-		float Grid = 0.0f, Rough = 0.0f;
+		float Grid = 0.0f, Rough = 0.0f, Gravel = 0.0f;
 		for (int32 I = 0; I < 2; ++I)
 		{
 			const Wheel& W = Sim->Wheels[I];
 			const int32 Surf = W.Contact ? W.Surf : -1;
 			if (Surf == SURF_GRID) Grid += 0.5f;
-			if (Surf == SURF_GRAVEL || Surf == SURF_GRASS) Rough += 0.5f;
+			// Gravel only a light buzz (beenster, build 141: too strong for a whole gravel road); grass rougher.
+			if (Surf == SURF_GRASS) Rough += 0.5f;
+			if (Surf == SURF_GRAVEL) { Rough += 0.5f * 0.35f; Gravel += 0.5f; }
 			// (a knock as a tyre goes onto steel, a lighter one onto tar banding or paint)
 			if (Surf != RumbleSurfWas[I] && V > 1.0)
 			{
@@ -3848,7 +3850,8 @@ void ATorqueBikePawn::UpdateRumble(float Dt)
 			RumbleSurfWas[I] = Surf;
 		}
 		RumbleKnock *= FMath::Exp(-Dt / 0.06f);
-		const float Slide = (float)FMath::Max(FMath::Max(FMath::Abs(Sim->Wheels[0].Slip), FMath::Abs(Sim->Wheels[1].Slip)) * 2.0 - 0.4, 0.0);
+		// (the tyres squirming in loose gravel isn't a slide worth shaking for: much less of it there)
+		const float Slide = (float)FMath::Max(FMath::Max(FMath::Abs(Sim->Wheels[0].Slip), FMath::Abs(Sim->Wheels[1].Slip)) * 2.0 - 0.4, 0.0) * (1.0f - 0.6f * Gravel);
 		Low = Grid * (0.35f + 0.3f * Moving) + Rough * 0.3f * Moving + RumbleKnock * 0.7f;
 		High = Grid * 0.55f * Moving + Rough * 0.15f * Moving + RumbleKnock + FMath::Min(Slide, 1.0f) * 0.35f;
 	}

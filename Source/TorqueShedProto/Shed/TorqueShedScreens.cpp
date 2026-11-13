@@ -549,6 +549,12 @@ bool ATorqueShedScreens::IsLive(int32 Tv) const
 	return Ch == TorqueShedTv::Players || Ch == TorqueShedTv::Rider;
 }
 
+bool ATorqueShedScreens::BikeInBay(int32 Bay) const
+{
+	const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
+	return B && B->Exists(Bay) && !B->IsAway(Bay) && B->Bike(Bay).Pusher == 0;
+}
+
 void ATorqueShedScreens::ApplyBrightness()
 {
 	// The wall TVs (0 .. 4) and the bought ones, at the player's brightness (F at a TV steps it).
@@ -575,6 +581,25 @@ void ATorqueShedScreens::Tick(float DeltaSeconds)
 	for (int32 Tv = 0; Tv < TorqueShedTv::Tvs; ++Tv)
 		if (ShownChannel[Tv] != ChannelOf(Tv)) bDirty = true;
 	SyncPieces();
+	if (UTorqueBuildSubsystem* Bays = UTorqueBuildSubsystem::Of(this))
+		for (int32 Bay = 0; Bay < 4 && Bay < TorqueShedTv::Tvs; ++Bay)
+		{
+			const int32 Present = BikeInBay(Bay) ? 1 : 0;
+			if (Present == BayPresent[Bay]) continue;
+			// A bike just put on the bay: its TV comes on at the bay's page (the host asks, for everyone).
+			if (BayPresent[Bay] == 0 && Present == 1 && !Bays->IsHostCopy() && ChannelOf(Bay) != TorqueShedTv::BayPage
+				&& ChannelOf(Bay) != TorqueShedTv::YouTube)
+			{
+				FTorqueShedRequest R;
+				R.Kind = ETorqueShedAct::TvChannel;
+				R.Item = Bay;
+				R.Colour = TorqueShedTv::BayPage;
+				FString WhyNot;
+				Bays->Request(R, WhyNot);
+			}
+			BayPresent[Bay] = Present;
+			bDirty = true;
+		}
 	if (BrightShown != FTorqueSettings::Get().ScreenBright) ApplyBrightness();
 	const UTorqueBuildSubsystem* Sub = UTorqueBuildSubsystem::Of(this);
 	auto PieceChannel = [Sub](int32 Id) -> int32
@@ -754,6 +779,14 @@ void ATorqueShedScreens::DrawPiece(int32 Id, int32 Channel, float Now)
 		if (Q) Q->SetVisibility(true);
 		return;
 	}
+	// [tv] A back wall TV with no bike in its bay is off, whatever it was on (bar a video someone's
+	// watching): it comes back on, at the bay's page, when a bike's put there (Tick).
+	if (Index < 4 && Channel != TorqueShedTv::YouTube && !BikeInBay(Index))
+	{
+		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(false);
+		UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, FLinearColor::Black);
+		return;
+	}
 	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())
 	{
 		// No mate out riding: the TV's off, as the wall's.
@@ -891,8 +924,7 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 	{
 		// The bay's own page is on while its bike stands in the bay, and goes blank, off, when it's
 		// wheeled away (to the dyno, the wash bay...), scrapped or stripped to nothing.
-		const UTorqueBuildSubsystem* B = UTorqueBuildSubsystem::Of(this);
-		const bool bOn = B && B->Exists(Index) && !B->IsAway(Index) && B->Bike(Index).Pusher == 0;
+		const bool bOn = BikeInBay(Index);
 		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(bOn);
 		if (!bOn)
 		{

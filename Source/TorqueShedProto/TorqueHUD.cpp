@@ -714,7 +714,8 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 			const float Fresh = (float)FMath::Clamp(1.0 - (Now - LimitChangedAt - 3.0) / 0.6, 0.0, 1.0);   // 1 for 3 s, easing to 0
 			const float Pop = (float)FMath::Clamp((Now - LimitChangedAt) / 0.25, 0.0, 1.0);                 // fades in over a quarter second
 			const float R = FMath::Lerp(20.0f, 32.0f, Fresh), A = (D.bNavLimitAssumed ? 0.62f : 1.0f) * Pop;
-			const float CX = RX + 226.0f + 10.0f + R, CY = NY + 6.0f + R;
+			// (left of the sat nav: beside it on the right ran off the screen; beenster, build 141)
+			const float CX = RX - 10.0f - R, CY = NY + 6.0f + R;
 			TorqueUi::Disc(Canvas, CX * G, CY * G, (R + 1.5f) * G, FLinearColor(0.0f, 0.0f, 0.0f, 0.35f * A), 32);
 			if (D.bNavLimitNational)
 			{
@@ -732,7 +733,7 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 			}
 			if (!D.bNavLimitMph) Say(TEXT("km/h"), CX, CY + R + 12.0f, 10.0f, Dim(0.6f * A), TorqueUi::EAlign::Centre);
 		}
-		if (!D.NavRoad.IsEmpty() && !D.bNavOff) Say(D.NavRoad.Left(28), RX + 226.0f + 10.0f, NY + 88.0f, 12.0f, Dim(0.7f));
+		if (!D.NavRoad.IsEmpty() && !D.bNavOff) Say(D.NavRoad.Left(28), RX - 10.0f, NY + 88.0f, 12.0f, Dim(0.7f), TorqueUi::EAlign::Right);
 	}
 	// What to press, along the bottom: starting, or stopped.
 	FString Hint;

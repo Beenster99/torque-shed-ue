@@ -74,6 +74,16 @@ private:
 	bool bFoundLights = false;
 	void FindLights();
 	void ShowLights(bool bOn);
+	// [kit] The other rooms' lights (paint shop, mixing bay, storage room; beenster, build 141), found
+	// by where they are: each room's lights, its glowing tubes and tiles with their lit look, and the
+	// switch plate drawn inside its door.
+	// (Not UPROPERTYs: the level's actors own the lights and meshes, their meshes the lit looks.)
+	TArray<TWeakObjectPtr<ULightComponent>> RoomLights[3];
+	TArray<TWeakObjectPtr<UStaticMeshComponent>> RoomGlow[3];
+	TArray<TWeakObjectPtr<UMaterialInterface>> RoomGlowLit[3];
+	UPROPERTY(Transient) TArray<UStaticMeshComponent*> RoomPlates;
+	bool bRoomShown[3] = {true, true, true};
+	void ShowRoom(int32 Room, bool bOn);
 
 	// The engine stand: drawn here (the level's model hidden), where the shed says it is or rolling
 	// along in front of whoever's wheeling it.
