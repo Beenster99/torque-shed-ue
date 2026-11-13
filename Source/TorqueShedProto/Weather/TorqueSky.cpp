@@ -31,6 +31,8 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "UnrealClient.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/UnrealType.h"
 
 namespace
 {
