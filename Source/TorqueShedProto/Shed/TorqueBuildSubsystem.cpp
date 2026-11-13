@@ -1469,7 +1469,7 @@ int32 UTorqueBuildSubsystem::DropRetiredParts()
 				KV.Value.Kind = TorqueShedParts::PartKind(KV.Value.Part);
 				++Changed;
 			}
-		for (int32 I = 0; I < UE_ARRAY_COUNT(Ecus); ++I)
+		for (int32 I = 0; I < (int32)UE_ARRAY_COUNT(Ecus); ++I)
 			if (KV.Value.Part == FName(Ecus[I]))
 			{
 				Gone.Add(KV.Key);
