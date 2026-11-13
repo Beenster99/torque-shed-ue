@@ -268,7 +268,7 @@ void ATorqueBikePawn::BeginPlay()
 			double Lift = 0.0;
 			if (Out.Surface == SURF_TARMAC && ATorqueRideWorld::SurfaceUnder(Hit.ImpactPoint, Kind, Lift))
 			{
-				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;
+				Out.Surface = Kind == 1 ? SURF_SLICK : Kind == 2 || Kind == 4 ? SURF_GRAVEL : Kind == 3 ? SURF_STEEL : SURF_TARMAC;   // [OSM stage 1] 4: a gravel road
 				Out.Lift = Lift;
 			}
 		}

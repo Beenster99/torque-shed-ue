@@ -53,6 +53,11 @@ struct FTorqueDash
 	double NavLeft = 0.0;       // metres to the finish
 	FString NavStop;            // the next fuel or cafe ahead: "Cafe 2.1 mi: Penny Garth"
 	bool bAtFuel = false;       // at a filling station by the road: stopped there, the tank fills
+	// [OSM stage 1] The road's facts: the limit as a sign shows it (0 none), in mph or km/h, Britain's
+	// national limit, assumed (no limit on the map here: shown dimmer); the road's name; the place.
+	int32 NavLimit = 0;
+	bool bNavLimitMph = true, bNavLimitNational = false, bNavLimitAssumed = true;
+	FString NavRoad, NavPlace;
 	// A distance as a sat nav says it: yards then miles, or metres then km.
 	static FString NavDistance(double Metres, bool bMetric);
 	// The turn as words ("Bear left", "Turn right", "Straight on", "Finish") and as a short mark for the

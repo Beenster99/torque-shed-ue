@@ -481,6 +481,25 @@ int main(int Argc, char** Argv)
 		}
 		Files::Write(std::getenv("WORLD_RIDE_MESH"), Text);
 	}
+	{
+		// [OSM stage 1] The road's facts: the limit all along it, the stops, the place at the start.
+		std::printf("Limits along the ride (%s):\n", Plan->Britain() ? "mph" : "km/h");
+		for (const RidePlan::LimitStretch& L : Plan->Limits)
+		{
+			bool National = false;
+			const int Shown = Plan->ShownLimit(L.Kmh, &National);
+			const RidePlan::RoadFact* F = Plan->FactAt((L.From + L.To) * 0.5);
+			std::printf("  %6.2f-%6.2f km  %3d%s%s  %s\n", L.From / 1000.0, L.To / 1000.0, Shown, National ? " (national)" : "", L.Assumed ? " assumed" : "",
+				F != nullptr ? F->Name.c_str() : "");
+		}
+		std::printf("Limit signs: %d roundels, %d national\n", Plan->FurnitureCount(RidePlan::Limit30), Plan->FurnitureCount(RidePlan::LimitNational));
+		for (const RidePlan::RideStop& S : Plan->Stops)
+			if (S.Kind >= RidePlan::StopInn) std::printf("  stop %s at %.2f km: %s\n", RidePlan::StopName(S.Kind), S.Along / 1000.0, S.Name.c_str());
+		const RidePlan::RideNav N0 = Plan->NavAt(Plan->Road[0].At.X, Plan->Road[0].At.Z);
+		std::printf("At the start: %s, limit %d%s, road '%s'; ride time %.0f min\n", N0.Place.c_str(), N0.Limit, N0.LimitMph ? " mph" : " km/h", N0.Road.c_str(),
+			Plan->Summary().Minutes);
+		std::printf("On the way: %s\n", Plan->Summary().StopsLine.c_str());
+	}
 	if (std::getenv("WORLD_RIDE_DUMP") != nullptr)
 	{
 		// Every road's knots (x z height half), a road a line, for a picture.

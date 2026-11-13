@@ -10,6 +10,30 @@ namespace TorqueWorld
 {
 using TorqueFit::Json;
 
+namespace
+{
+// "North Yorkshire, England": a place profile's region, then its country, Britain's by its four
+// nations (from the region's ISO 3166-2 code: Wales', Scotland's and Northern Ireland's councils).
+std::string PlaceWords(const std::string& Region, const std::string& Code, const std::string& Country, const std::string& CountryName)
+{
+	std::string Nation = CountryName;
+	if (Country == "GB")
+	{
+		static const char* Wales[] = {"AGY", "GWN", "CWY", "DEN", "FLN", "WRX", "POW", "CGN", "PEM", "CMN", "SWA", "NTL", "BGE", "VGL", "CRF", "RCT", "MTY", "CAY", "BGW",
+			"TOF", "MON", "NWP"};
+		static const char* Scotland[] = {"ABE", "ABD", "ANS", "AGB", "CLK", "DGY", "DND", "EAY", "EDU", "ELN", "ERW", "EDH", "ELS", "FAL", "FIF", "GLG", "HLD", "IVC",
+			"MLN", "MRY", "NAY", "NLK", "ORK", "PKN", "RFW", "SCB", "ZET", "SAY", "SLK", "STG", "WDU", "WLN"};
+		static const char* Ulster[] = {"ANN", "AND", "ABC", "BFS", "CCG", "DRS", "FMO", "LBC", "MEA", "MUL", "NMD"};
+		const std::string Sub = Code.size() > 3 && Code.compare(0, 3, "GB-") == 0 ? Code.substr(3) : std::string();
+		const auto In = [&Sub](const char* const* List, size_t N) { return std::any_of(List, List + N, [&Sub](const char* C) { return Sub == C; }); };
+		Nation = Sub.empty() ? std::string("United Kingdom") : In(Wales, sizeof(Wales) / sizeof(Wales[0])) ? "Wales"
+			: In(Scotland, sizeof(Scotland) / sizeof(Scotland[0])) ? "Scotland" : In(Ulster, sizeof(Ulster) / sizeof(Ulster[0])) ? "Northern Ireland" : "England";
+	}
+	if (Region.empty() || Region == Nation) return Nation;
+	return Nation.empty() ? Region : Region + ", " + Nation;
+}
+} // namespace
+
 std::string CellsAreaId(const std::vector<CellId>& Cells)
 {
 	std::string Out = "area:@";
@@ -81,8 +105,16 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		}
 		if (Store.Kept(CellStore::EKind::Trees, Name, *Idx, File)) Out.Land->AddTrees(File);
 		// Its place profile says whether it has sea: land below sea level in a cell with none (a polder) is land.
+		// [OSM stage 1] And where it is: the county and the country.
 		if (Store.Kept(CellStore::EKind::Profiles, Name, *Idx, File) && !File.Flag("guessed", true))
+		{
 			Heights.KnowSea(C, File.Num("sea") > 0.0 || File.Flag("coast"));
+			Region::CellPlace Pl;
+			Pl.Lat = File.Num("lat");
+			Pl.Lon = File.Num("lon");
+			Pl.Words = PlaceWords(File.Str("region"), File.Str("region_code"), File.Str("country"), File.Str("country_name"));
+			if (!Pl.Words.empty()) Out.Roads.CellPlaces.push_back(std::move(Pl));
+		}
 	}
 	std::sort(Hashes.begin(), Hashes.end());
 	std::string Joined;

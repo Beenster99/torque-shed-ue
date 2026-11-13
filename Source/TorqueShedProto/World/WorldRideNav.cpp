@@ -45,9 +45,26 @@ int TurnKind(double Angle)
 
 const char* RidePlan::StopName(int Kind)
 {
-	static const char* Names[StopKinds] = {"Fuel", "Cafe", "Pub", "Viewpoint", "Lay-by"};
+	static const char* Names[StopKinds] = {"Fuel", "Cafe", "Pub", "Viewpoint", "Lay-by", "Inn", "Campsite", "Castle"};
 	return Kind >= 0 && Kind < StopKinds ? Names[Kind] : "";
 }
+
+namespace RideNavBits
+{
+// [OSM stage 1] The map's places to stay are mostly holiday cottages: an inn worth stopping at is
+// one its name says takes a rider in for the night (an inn, a hotel, an arms, a B&B, a guest house,
+// a hostel), not a cottage let by the week.
+bool Lodging(const std::string& Name)
+{
+	std::string Low;
+	for (char C : Name) Low += char(C >= 'A' && C <= 'Z' ? C - 'A' + 'a' : C);
+	for (const char* Not : {"cottage", "holiday", "self catering", "self-catering", "apartment", "ltd", "properties", "lodges"})
+		if (Low.find(Not) != std::string::npos) return false;
+	for (const char* Yes : {"inn", "hotel", "arms", "b&b", "b & b", "bed and breakfast", "bed & breakfast", "guest house", "guesthouse", "hostel", "tavern"})
+		if (Low.find(Yes) != std::string::npos) return true;
+	return false;
+}
+} // namespace RideNavBits
 
 void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double RawLength)
 {
@@ -119,10 +136,10 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	// The stops: the map's places by the ride's road.
 	NearOpts Opts;
 	Opts.MainOnly = true;
-	const auto Add = [&](int Kind, const std::string& Name, const P2& At)
+	const auto Add = [&](int Kind, const std::string& Name, const P2& At, double Reach = StopReach)
 	{
 		NearHit Hit;
-		if (!NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist > StopReach) return;
+		if (!NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist > Reach) return;
 		for (const RideStop& S : Stops)
 			if (S.Kind == Kind && S.Name == Name && std::fabs(S.Along - Hit.Along) < 60.0) return;   // (one place, twice on the map)
 		RideStop S;
@@ -136,9 +153,12 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	{
 		const std::string What = Poi.Str("kind");
 		const int Kind = What == "fuel" ? StopFuel : What == "cafe" ? StopCafe : What == "pub" || (What == "inn" && Poi.Num("conf", 1.0) >= 0.75) ? StopPub
-			: What == "layby" ? StopLayby : -1;
+			: What == "layby" ? StopLayby : What == "inn" && Lodging(Poi.Str("name")) ? StopInn : What == "campsite" ? StopCamp : -1;
 		if (Kind >= 0) Add(Kind, Poi.Str("name"), P2(Poi.Num("x"), Poi.Num("z")));
 	}
+	// [OSM stage 1] The castles: further off the road is still worth the stop (one seen from it).
+	for (const TorqueFit::Json& Lm : G.Landmarks)
+		if (Lm.Str("kind") == "castle") Add(StopCastle, Lm.Str("name"), P2(Lm.Num("x"), Lm.Num("z")), 600.0);
 	for (const FeaturePoint& P : G.Scenery.Points)
 		if (P.Kind == "viewpoint") Add(StopView, P.Name, P.At);
 	std::sort(Stops.begin(), Stops.end(), [](const RideStop& A, const RideStop& B) { return A.Along < B.Along; });
@@ -245,6 +265,15 @@ RidePlan::RideNav RidePlan::NavAt(double X, double Z, double Was) const
 			N.ToStop[S.Kind] = std::max(S.Along - N.Along, 0.0);
 			N.StopCalled[S.Kind] = S.Name;
 		}
+	// [OSM stage 1] The road's facts here.
+	if (const LimitStretch* L = LimitAt(N.Along))
+	{
+		N.Limit = ShownLimit(L->Kmh, &N.LimitNational);
+		N.LimitAssumed = L->Assumed;
+	}
+	N.LimitMph = Britain();
+	if (const RoadFact* F = FactAt(N.Along)) N.Road = F->Name;
+	N.Place = PlaceAt(X, Z);
 	return N;
 }
 } // namespace TorqueWorld

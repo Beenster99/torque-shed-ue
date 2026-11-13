@@ -63,7 +63,7 @@ public:
 	// water, a town, sheep, cattle), from the ride being laid out now; false with no ride.
 	static bool PlaceHeard(double& Sea, double& Water, double& Town, double& Sheep, double& Cattle);
 	// The road's surface at a point of the ride's road (Unreal cm; RidePlan::SurfaceAt): Kind 0 tarmac,
-	// 1 slick (paint, tar), 2 grit, 3 steel, and how far it stands over the mark a ray hits there (m). False
+	// 1 slick (paint, tar), 2 grit, 3 steel, 4 a gravel road, and how far it stands over the mark a ray hits there (m). False
 	// with no ride.
 	static bool SurfaceUnder(const FVector& At, int32& Kind, double& Lift);
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
@@ -72,6 +72,9 @@ public:
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
+	// [OSM stage 1] A test run's limit on the HUD in place of the road's (the "limit:" test verb), for a
+	// picture of each: 20..70, -1 the national limit; INDEX_NONE (the default) the road's own.
+	static int32 TestLimit;
 	// [stage 7] The ride diary: a photo (the screen as it is, without the HUD) pinned where the rider
 	// is, saved with the ride in Saved/RideDiary. What happened, for a note on the screen.
 	static FString TakePhoto();

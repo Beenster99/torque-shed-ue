@@ -33,5 +33,9 @@ private:
 	// [info] The riding info panel down the left (F1 slides it in and out; TorqueInfoPanel.h).
 	TSharedPtr<class FTorqueInfoPanel> InfoPanel;
 	float FpsTime = 0.0f, FpsShown = 0.0f;
+	// [OSM stage 1] The limit sign beside the sat nav: what it showed last (limit * 4 + national + 2
+	// assumed), and when the limit last changed (it shows big for a few seconds).
+	int32 LimitShownKey = 0;
+	double LimitChangedAt = -100.0;
 	int32 FpsFrames = 0;
 };
