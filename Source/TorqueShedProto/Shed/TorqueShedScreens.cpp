@@ -779,14 +779,6 @@ void ATorqueShedScreens::DrawPiece(int32 Id, int32 Channel, float Now)
 		if (Q) Q->SetVisibility(true);
 		return;
 	}
-	// [tv] A back wall TV with no bike in its bay is off, whatever it was on (bar a video someone's
-	// watching): it comes back on, at the bay's page, when a bike's put there (Tick).
-	if (Index < 4 && Channel != TorqueShedTv::YouTube && !BikeInBay(Index))
-	{
-		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(false);
-		UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, FLinearColor::Black);
-		return;
-	}
 	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())
 	{
 		// No mate out riding: the TV's off, as the wall's.
@@ -911,6 +903,14 @@ void ATorqueShedScreens::DrawPage(int32 Index, float Now)
 	if (bVideo)
 	{
 		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(true);
+		return;
+	}
+	// [tv] (hub: moved here from DrawPiece, which has no Index) A back wall TV with no bike in its bay is off, whatever it was on (bar a video someone's
+	// watching): it comes back on, at the bay's page, when a bike's put there (Tick).
+	if (Index < 4 && Channel != TorqueShedTv::YouTube && !BikeInBay(Index))
+	{
+		if (Quads.IsValidIndex(Index) && Quads[Index]) Quads[Index]->SetVisibility(false);
+		UKismetRenderingLibrary::ClearRenderTarget2D(this, RT, FLinearColor::Black);
 		return;
 	}
 	if (Channel == TorqueShedTv::Rider && !Filmed.IsValid())

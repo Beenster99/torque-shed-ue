@@ -1,4 +1,5 @@
 #include "TorquePlayerController.h"
+#include "TorqueNetBike.h"
 
 #include "Shed/TorqueGeometryMode.h"
 #include "TorqueMenuPawn.h"
