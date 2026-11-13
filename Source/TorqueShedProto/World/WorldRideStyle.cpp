@@ -1,5 +1,7 @@
 #include "WorldRideStyle.h"
 
+#include <string>
+
 namespace TorqueWorld
 {
 namespace
@@ -20,6 +22,28 @@ LocalLook Make(const char* Name, LocalLook::EBoundary Boundary, Tint Wall, Tint 
 	L.RenderColour = RenderColour;
 	L.BrickColour = BrickColour;
 	L.TileColour = TileColour;
+	// [OSM stage 3] Its building habits, by the place.
+	const std::string N = Name;
+	const auto Set = [&L](float Pitch, float Overhang, LocalLook::EWindow Window, bool Stone, LocalLook::EChimney Chimney)
+	{
+		L.Pitch = Pitch;
+		L.Overhang = Overhang;
+		L.Window = Window;
+		L.StoneSurrounds = Stone;
+		L.Chimney = Chimney;
+	};
+	using B = LocalLook;
+	if (N == "dales" || N == "peak") Set(32.0f, 0.08f, B::Mullion, true, B::GableEnds);         // (stone slates are heavy: a low pitch, flush verges)
+	else if (N == "cotswolds") Set(50.0f, 0.1f, B::Mullion, true, B::GableEnds);
+	else if (N == "lakes") Set(35.0f, 0.15f, B::Casement, true, B::GableEnds);
+	else if (N == "moors" || N == "northumberland") Set(38.0f, 0.15f, B::Sash, true, B::GableEnds);
+	else if (N == "cornwall") Set(35.0f, 0.2f, B::Casement, true, B::GableEnds);
+	else if (N == "devon") Set(50.0f, 0.5f, B::Casement, false, B::GableEnds);                  // (thatch: steep, deep eaves)
+	else if (N == "wales" || N == "highlands" || N == "ulster" || N == "lowlands") Set(42.0f, 0.2f, B::Sash, false, B::GableEnds);
+	else if (N == "fens" || N == "lowland") Set(45.0f, 0.3f, B::Sash, false, B::OnRidge);
+	else Set(30.0f, 0.5f, B::Casement, false, B::OnRidge);                                     // (the world's: low tiled roofs, wide eaves)
+	if (N == "cotswolds") { L.Doors[0] = {0.12f, 0.14f, 0.09f}; L.Doors[1] = {0.5f, 0.47f, 0.38f}; L.Doors[2] = {0.09f, 0.05f, 0.025f}; L.Doors[3] = {0.05f, 0.08f, 0.12f}; }
+	else if (N == "cornwall" || N == "devon") { L.Doors[0] = {0.02f, 0.06f, 0.15f}; L.Doors[1] = {0.6f, 0.6f, 0.58f}; L.Doors[3] = {0.03f, 0.12f, 0.1f}; }
 	return L;
 }
 

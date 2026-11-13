@@ -548,6 +548,12 @@ public:
 	std::vector<Summit> Summits;
 	void IndexWild();
 	void WildTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
+	// [OSM stage 3] What a square's buildings came to (for the tests and the report).
+	struct BuildingTally
+	{
+		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0;
+	};
+	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, BuildingTally* Tally = nullptr) const;
 	// Where the ride's road is built up (a village or a town round it), by its points.
 	std::vector<unsigned char> BuiltUp;
 	// What each of the region's buildings is, where the map says (0 nothing special, 1 a church: drawn
@@ -752,7 +758,6 @@ private:
 	// The water on a square of ground whose own mesh (LandTile's, its points Cells + 1 a side) is Sheet.
 	void WaterTile(double X0, double Z0, double Size, int Cells, const RideMesh& Sheet, RideMesh& Out) const;
 	// [OSM stage 3] The buildings on a square, into Out (plain colours), Washed (render) and Houses (the scanned masonry).
-	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses) const;
 	void IndexFurniture();
 	void FurnitureTile(double X0, double Z0, double Size, bool Fine, RideMesh& Out) const;
 	bool InGap(double X, double Z) const;

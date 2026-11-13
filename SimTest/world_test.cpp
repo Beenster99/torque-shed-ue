@@ -20,7 +20,9 @@
 #include "WorldTerrain.h"
 #include "WorldZip.h"
 
+#include <algorithm>
 #include <chrono>
+#include <map>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -810,6 +812,28 @@ int main()
 						std::printf("      wild: %d cliffs, %d dams, %d weirs, %d peaks (%d trig pillars), %d scree areas, %d reservoirs; %zu triangles near a cliff, %zu in its 4 km square far off\n",
 							Cliffs, Dams, Weirs, int(Plan->Summits.size()), Trigs, Screes, Reservoirs, NearWild, FarWild);
 						Check(Cliffs > 0 && !Plan->Summits.empty() && NearWild > 0 && FarWild > 0, "wild ground: cliffs drawn near and far, peaks marked");
+					}
+					// [OSM stage 3] Buildings by kind: every square with buildings in it drawn, terraces split into
+					// houses, chimneys up, most doors on a road; no square over 150,000 triangles.
+					{
+						std::map<std::pair<int, int>, int> Squares;
+						for (const Building& Bd : Plan->Area.Roads.Buildings) ++Squares[{int(std::floor(Bd.X / 256.0)), int(std::floor(Bd.Z / 256.0))}];
+						RidePlan::BuildingTally Tally;
+						size_t MostTris = 0;
+						int Tiles = 0;
+						for (const auto& Sq : Squares)
+						{
+							const double Sx = Sq.first.first * 256.0, Sz = Sq.first.second * 256.0;
+							RideMesh Body, Wash, Homes;
+							Body.OriginX = Wash.OriginX = Homes.OriginX = Sx;
+							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Sz;
+							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, &Tally);
+							MostTris = std::max(MostTris, (Body.Idx.size() + Wash.Idx.size() + Homes.Idx.size()) / 3);
+							++Tiles;
+						}
+						std::printf("      buildings: %d drawn in %d squares; %d terraces (%d houses), %d chimneys, %d barns, %d ruins, %d within 20 m of a road; at most %zu triangles in a square\n",
+							Tally.Drawn, Tiles, Tally.Terraces, Tally.TerraceHouses, Tally.Chimneys, Tally.Barns, Tally.Ruins, Tally.NearRoad, MostTris);
+						Check(Tally.Drawn > 0 && Tally.Terraces > 0 && Tally.Chimneys > Tally.Drawn / 4 && MostTris < 150000, "buildings by kind: terraces split into houses, chimneys up, no square too heavy");
 					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.

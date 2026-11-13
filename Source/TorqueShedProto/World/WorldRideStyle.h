@@ -29,6 +29,17 @@ struct LocalLook
 	// Roofs: the share of each covering, the rest slate.
 	float StoneSlateShare = 0.45f, TileShare = 0.0f, ThatchShare = 0.0f;
 	Tint TileColour{0.30f, 0.11f, 0.06f};
+	// [OSM stage 3] Building habits: the houses' roof pitch (degrees), how far the roof runs past the
+	// walls (m), the windows (sashes, cottage casements or stone mullions), whether openings have stone
+	// sills and lintels, where the chimneys stand (a stack at each gable end, or on the ridge), and the
+	// door colours the place paints (linear).
+	float Pitch = 40.0f, Overhang = 0.3f;
+	enum EWindow { Sash, Casement, Mullion };
+	EWindow Window = Sash;
+	bool StoneSurrounds = true;
+	enum EChimney { GableEnds, OnRidge };
+	EChimney Chimney = GableEnds;
+	Tint Doors[4] = {{0.02f, 0.06f, 0.03f}, {0.012f, 0.012f, 0.012f}, {0.12f, 0.015f, 0.015f}, {0.01f, 0.02f, 0.07f}};
 };
 
 // The look of the place at a latitude and longitude.
