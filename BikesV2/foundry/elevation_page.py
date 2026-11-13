@@ -110,7 +110,7 @@ def build(family, names):
     import mix
     import random
     kit_html, combos = [], 0
-    show = [(1, 2, 1, 1, (1,)), (2, 1, 2, 2, (2,)), (0, 0, 2, 1, (1, 2)), (1, 1, 1, 2, ()), (2, 2, 0, 0, (1,)), (0, 1, 1, 0, (2,))]
+    show = [(1, 2, 1, 1, (1,)), (2, 1, 2, 2, (2,)), (0, 0, 2, 1, (1, 2)), (1, 1, 1, 3, ()), (2, 2, 0, 3, (1,)), (0, 1, 1, 0, (2,))]
     for n in names:
         base = elevation.load(n)
         kit = base.get("kit")
@@ -129,6 +129,7 @@ def build(family, names):
         diffs = [d for d in diffs if d > 0] or [0]
         figs = []
         for args in show:
+            args = tuple(min(a, len(nm[p]) - 1) for a, p in zip(args[:4], mix.KIT_PARTS)) + (args[4],)
             v = mix.apply_kit(base, *args)
             v["dimensions"] = False
             f = v["kit_fitted"]

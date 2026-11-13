@@ -61,6 +61,8 @@ def mat(name, col=None, finish=None):
         b.inputs["Coat Roughness"].default_value = 0.04
     if spec.get("sheen"):
         b.inputs["Sheen Weight"].default_value = spec["sheen"]
+    if spec.get("alpha"):
+        b.inputs["Alpha"].default_value = spec["alpha"]
     if spec.get("emit"):
         b.inputs["Emission Color"].default_value = (*c, 1)
         b.inputs["Emission Strength"].default_value = spec["emit"]
@@ -574,6 +576,8 @@ def build(model):
                 # the fork shroud: a shell round the front of each lower fork leg, joined to the mudguard
                 for s in (-1, 1):
                     pillow(f"shroud{i}{s}", pp, s * 72, s * 140, m_, 10, 24)
+            elif shp.get("cowl"):
+                pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
             elif low:
                 pillow(f"belly{i}", pp, -125, 125, m_, 22, 50)
             else:
@@ -600,23 +604,49 @@ def build(model):
         tube("filler", [(c["at"][0], 0, c["at"][1] - 20), (c["at"][0], 0, c["at"][1] - 4)], 38, mat("alu_dark"))
 
     # front end: lamp, dash, bars, mirrors
-    grip = next((tuple(s_["at"]) for s_ in model.get("front_end", []) if s_.get("circle")), None)
+    grip = next((tuple(s_["at"]) for s_ in model.get("front_end", []) if s_.get("circle") and s_.get("part") != "head"), None)
+    head = [s_ for s_ in model.get("front_end", []) if s_.get("part") == "head"]
+    round_lamp = any(s_.get("round") for s_ in head)
+    if round_lamp:
+        # a round lamp: bowl, chrome rim and domed glass, turned about the lamp's own axis
+        bowl = next(shapes.dense(s_["pts"], True, s_.get("t", 1.0)) for s_ in head if s_.get("round"))
+        x0, x1 = min(q[0] for q in bowl), max(q[0] for q in bowl)
+        zc = (min(q[1] for q in bowl) + max(q[1] for q in bowl)) / 2
+        R, L = (max(q[1] for q in bowl) - min(q[1] for q in bowl)) / 2, x1 - x0
+        cone("lampbowl0", (x0, 0, zc), (x0 + 0.3 * L, 0, zc), R * 0.35, R * 0.8, mat("plastic"), 40)
+        cone("lampbowl1", (x0 + 0.3 * L, 0, zc), (x0 + 0.7 * L, 0, zc), R * 0.8, R, mat("plastic"), 40)
+        cone("lampbowl2", (x0 + 0.7 * L, 0, zc), (x1, 0, zc), R, R, mat("plastic"), 40)
+        cone("lamprim", (x1 - 6, 0, zc), (x1 + 8, 0, zc), R + 5, R + 3, mat("chrome"), 40)
+        cone("lampglass0", (x1 + 6, 0, zc), (x1 + 16, 0, zc), R, R * 0.75, mat("lens"), 40)
+        cone("lampglass1", (x1 + 16, 0, zc), (x1 + 22, 0, zc), R * 0.75, R * 0.3, mat("lens"), 40)
     for i, shp in enumerate(model.get("front_end", [])):
-        if shp.get("circle") or shp.get("tube"):
-            pass
+        if shp.get("tube"):
+            continue
+        if shp.get("circle"):
+            if shp.get("part") == "head" and shp["cls"] == "plastic":
+                # a round clock: a pair of cups side by side, faces square to the rider
+                d_, r_, c_ = (-0.45, 0.89), shp["circle"], shp["at"]
+                for s in ((-1, 1) if not i % 2 else (-1, 1)):
+                    yc = s * 46
+                    cone(f"clock{i}{s}", (c_[0] - d_[0] * 22, yc, c_[1] - d_[1] * 22), (c_[0] + d_[0] * 20, yc, c_[1] + d_[1] * 20), r_ * 0.8, r_ * 1.25, mat("plastic"), 28)
+                    cone(f"clockrim{i}{s}", (c_[0] + d_[0] * 20, yc, c_[1] + d_[1] * 20), (c_[0] + d_[0] * 24, yc, c_[1] + d_[1] * 24), r_ * 1.3, r_ * 1.3, mat("chrome"), 28)
+            continue
+        pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+        if round_lamp and shp.get("part") == "head":
+            continue
+        if shp["cls"] == "lens":
+            pillow(f"lens{i}", [(q[0] + 7, q[1]) for q in pp], -74, 74, mat("lens"), 8, 30)
+        elif shp["cls"] == "screen":
+            pillow(f"screen{i}", pp, -105, 105, mat("screen"), 30, 70)
+        elif max(p[1] for p in pp) > 1120:
+            for s in (-1, 1):
+                pillow(f"mirror{i}{s}", pp, s * 330, s * 430, mat("plastic"), 7, 16)
+                cx = sum(p[0] for p in pp) / len(pp)
+                cz = min(p[1] for p in pp)
+                if grip:
+                    tube(f"mstalk{s}", [(grip[0] + 10, s * 300, grip[1] + 5), (cx, s * 370, cz + 5)], 5, mat("plastic"))
         else:
-            pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
-            if shp["cls"] == "lens":
-                pillow(f"lens{i}", [(q[0] + 7, q[1]) for q in pp], -74, 74, mat("lens"), 8, 30)
-            elif max(p[1] for p in pp) > 1120:
-                for s in (-1, 1):
-                    pillow(f"mirror{i}{s}", pp, s * 330, s * 430, mat("plastic"), 7, 16)
-                    cx = sum(p[0] for p in pp) / len(pp)
-                    cz = min(p[1] for p in pp)
-                    if grip:
-                        tube(f"mstalk{s}", [(grip[0] + 10, s * 300, grip[1] + 5), (cx, s * 370, cz + 5)], 5, mat("plastic"))
-            else:
-                pillow(f"front{i}", pp, -90, 90, mat("plastic"), 20, 50)
+            pillow(f"front{i}", pp, -90, 90, paint if shp["cls"] == "body" else mat("plastic"), 20, 50)
     if grip:
         for s in (-1, 1):
             tube(f"riser{s}", [(top[0], s * 45, top[1]), (top[0] - 28, s * 45, top[1] + 62)], 15, mat("alu_dark"))
@@ -729,6 +759,24 @@ if __name__ == "__main__":
         print(swatches())
         sys.exit(0)
     model = json.load(open(os.path.join(ROOT, "data", "models", name + ".json")))
+    # --kit tank_seat,tail,front,exhaust[,extra+extra]  and  --donor <model> [--donor-kit ...]: kit and mixed builds
+    import mix
+
+    def kit_args(flag):
+        if flag not in sys.argv:
+            return None
+        v = sys.argv[sys.argv.index(flag) + 1].split(",")
+        return [int(x) for x in v[:4]] + [[int(x) for x in v[4].split("+")] if len(v) > 4 and v[4] else []]
+    ka = kit_args("--kit")
+    if "--donor" in sys.argv:
+        dn = sys.argv[sys.argv.index("--donor") + 1]
+        donor = json.load(open(os.path.join(ROOT, "data", "models", dn + ".json")))
+        dk = kit_args("--donor-kit")
+        model = mix.mix(mix.apply_kit(model, *ka) if ka else model, mix.apply_kit(donor, *dk) if dk else donor)
+        name = f"{name}+{dn}"
+    elif ka:
+        model = mix.apply_kit(model, *ka)
+        name = f"{name}_kit{''.join(str(x) for x in ka[:4])}{''.join('x' + str(x) for x in ka[4])}"
     build(model)
     if "--glb" in sys.argv:
         os.makedirs(os.path.join(ROOT, "out", "glb"), exist_ok=True)

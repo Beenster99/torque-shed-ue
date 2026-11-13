@@ -2,7 +2,7 @@
  "name": "Kazeda naked (working title N1)",
  "brand": "kazeda",
  "family": "Naked",
- "rev": "F",
+ "rev": "G",
  "engine_label": "inline four",
  "frame_label": "aluminium twin spar",
  "colours": {
@@ -1489,7 +1489,7 @@
    },
    {
     "name": "Kabuto",
-    "note": "tall shouldered tank with a stepped seat",
+    "note": "shouldered tank, peak carried forward, with a stepped seat",
     "tank": [
      {
       "pts": [
@@ -1499,22 +1499,23 @@
         1
        ],
        [
-        1035,
         1060,
+        1050,
         1
        ],
        [
-        930,
-        1100
-       ],
-       [
-        840,
-        1085,
+        985,
+        1076,
         1
        ],
        [
-        765,
-        1020
+        860,
+        1056,
+        1
+       ],
+       [
+        770,
+        1005
        ],
        [
         705,
@@ -1568,24 +1569,24 @@
        ],
        [
         445,
-        850
+        848
        ],
        [
         415,
-        905,
+        895,
         1
        ],
        [
         385,
-        950
+        935
        ],
        [
         330,
-        975
+        958
        ],
        [
         255,
-        1000,
+        988,
         1
        ],
        [

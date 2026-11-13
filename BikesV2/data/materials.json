@@ -190,6 +190,14 @@
    "ue": "cat_carbon",
    "ue_tint": false
   },
+  "screen": {
+   "label": "Tinted screen",
+   "col": [0.1, 0.12, 0.14],
+   "rough": 0.05,
+   "alpha": 0.5,
+   "ue": "lens_clear",
+   "ue_tint": false
+  },
   "lens": {
    "label": "Headlight lens",
    "col": [0.9, 0.88, 0.75],

@@ -85,7 +85,8 @@ def seat_cowl(body):
         f = k / n
         x = x0 + (x1 - x0) * f
         zt, zb = shapes.top_bottom(seat, x)
-        top.append([round(x, 1), round(zt + 8 + 46 * math.sin(math.pi * min(1.0, f * 1.15)) ** 0.7 * (1 - 0.35 * f), 1)])
+        # low and sleek: rises gently from the rider's back to the tail tip, never a ball
+        top.append([round(x, 1), round(zt + 3 + 8 * math.sin(math.pi * (1 - f) ** 1.6), 1)])
         bot.append([round(x, 1), round(zb + 2, 1)])
     top[0].append(1)
     top[-1].append(1)
