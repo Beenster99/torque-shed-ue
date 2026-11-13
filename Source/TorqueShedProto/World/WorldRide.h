@@ -306,6 +306,8 @@ public:
 	int RoadCount() const { return 1 + int(Sides.size()); }
 	const std::vector<RoadPoint>& RoadOf(int Which) const { return Which <= 0 ? Road : Sides[size_t(Which) - 1].Pts; }
 	static constexpr double SideReach = 300.0;  // roads this near the ride's (about) are drawn
+	static constexpr double SideOnward = 2000.0;  // and on from those through their junctions this far along the roads
+	static constexpr int SideMore = 1500;         // (but at most this many more roads, nearest first: a town is full of them)
 	std::vector<std::string> Names;     // the roads taken, each once, in order
 	double Length = 0.0;
 	double LatA = 0.0, LonA = 0.0, LatB = 0.0, LonB = 0.0;

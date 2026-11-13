@@ -69,6 +69,12 @@ public:
 	// The cattle grids across the ride's roads, in the ride's frame (metres: x east, y up, z south): each
 	// its middle, and its way along the road (x, z) with its width across (y). False with no ride.
 	static bool CattleGrids(TArray<TPair<FVector, FVector>>& Out);
+	// Where to put a bike back after a fall (beenster, build 142: off on a side road, it always went back
+	// to the ride's road): the middle of the nearest road of any kind to At (the ride's frame, metres), a
+	// little to its left as the UK keeps, facing along it the way nearer Heading (sim: 0 faces -z, + left).
+	// Which is 0 for the ride's own road, a side road's number otherwise. False with no ride, or no road
+	// within 80 m.
+	static bool RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which);
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);

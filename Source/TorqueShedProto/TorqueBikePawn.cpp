@@ -1058,13 +1058,28 @@ void ATorqueBikePawn::BackOnWheels()
 	// [yard] Out on the open concrete: back on the bike where he came off, facing the way it was
 	// going. (Against a wall, or round the back of the shed: back at the door.)
 	const V3 P = Sim->Position;
+	const V3 Fwd = Sim->Basis * V3(0.0, 0.0, -1.0);
+	const double Facing = (Fwd.x * Fwd.x + Fwd.z * Fwd.z) > 1e-6 ? std::atan2(-Fwd.x, -Fwd.z) : 0.0;
+	// [Ride UK] (beenster, build 142: off on a side road, it always put him back on the ride's road) On a
+	// real-world ride, back on the nearest road where he came off, whichever road that is, facing the
+	// way he was going along it.
+	if (!bYard && !FPaths::IsRelative(RouteFile))
+	{
+		FVector Back;
+		double Heading = 0.0;
+		int32 Which = 0;
+		if (ATorqueRideWorld::RoadBack(FVector(P.x, P.y, P.z), Facing, Back, Heading, Which) && Which != 0)
+		{
+			PlaceOnGround(V3(Back.X, Back.Y + 0.3, Back.Z), Heading);
+			return;
+		}
+	}
 	if (!bYard || !YardOpen.bIsValid || !YardOpen.IsInside(FVector2D(P.x, P.z)))
 	{
 		Respawn(bYard ? 0 : FMath::Max(Near - 2, 0));
 		return;
 	}
-	const V3 Fwd = Sim->Basis * V3(0.0, 0.0, -1.0);
-	PlaceOnGround(P, (Fwd.x * Fwd.x + Fwd.z * Fwd.z) > 1e-6 ? std::atan2(-Fwd.x, -Fwd.z) : 0.0);
+	PlaceOnGround(P, Facing);
 }
 
 void ATorqueBikePawn::Respawn(int32 LineIndex, double SideM)

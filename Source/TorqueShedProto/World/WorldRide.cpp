@@ -6,6 +6,7 @@
 #include <cmath>
 #include <ctime>
 #include <functional>
+#include <queue>
 #include <set>
 
 namespace TorqueWorld
@@ -560,14 +561,44 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 			for (int Dz = -1; Dz <= 1; ++Dz) Beside[Square(P.At.X + Dx * SideReach, P.At.Z + Dz * SideReach)] = 1;
 	std::vector<char> OnRide(G.Edges.size(), 0);
 	for (int E : Path) OnRide[size_t(E)] = 1;
+	// The roads drawn: those near the ride, and on from them through their junctions up to SideOnward
+	// metres of road further (nearest first, at most SideMore of them), so a turning off goes on a
+	// good way rather than stopping at its next junction.
+	std::vector<char> Drawn(G.Edges.size(), 0);
+	std::vector<double> Far1(G.Nodes.size(), 1e18);
+	std::vector<std::vector<int>> AtNode(G.Nodes.size());
+	using Reached = std::pair<double, int>;
+	std::priority_queue<Reached, std::vector<Reached>, std::greater<Reached>> Next;
+	const auto Seed = [&Far1, &Next](int Node) { if (Node >= 0 && size_t(Node) < Far1.size() && Far1[size_t(Node)] > 0.0) { Far1[size_t(Node)] = 0.0; Next.push({0.0, Node}); } };
 	for (size_t E = 0; E < G.Edges.size(); ++E)
 	{
 		const RoadEdge& Edge = G.Edges[E];
-		if (OnRide[E] != 0 || Edge.Line.size() < 2 || Edge.A == Edge.B) continue;
-		bool Near1 = false;
+		if (Edge.A >= 0 && size_t(Edge.A) < AtNode.size()) AtNode[size_t(Edge.A)].push_back(int(E));
+		if (Edge.B != Edge.A && Edge.B >= 0 && size_t(Edge.B) < AtNode.size()) AtNode[size_t(Edge.B)].push_back(int(E));
+		if (OnRide[E] != 0) { Seed(Edge.A); Seed(Edge.B); continue; }
+		if (Edge.Line.size() < 2 || Edge.A == Edge.B) continue;
 		for (const P2& P : Edge.Line)
-			if (Beside.count(Square(P.X, P.Z)) != 0) { Near1 = true; break; }
-		if (!Near1) continue;
+			if (Beside.count(Square(P.X, P.Z)) != 0) { Drawn[E] = 1; Seed(Edge.A); Seed(Edge.B); break; }
+	}
+	int More = 0;
+	while (!Next.empty() && More < SideMore)
+	{
+		const Reached Here1 = Next.top();
+		Next.pop();
+		if (Here1.first > Far1[size_t(Here1.second)]) continue;
+		for (const int E : AtNode[size_t(Here1.second)])
+		{
+			const RoadEdge& Edge = G.Edges[size_t(E)];
+			if (Drawn[size_t(E)] == 0 && OnRide[size_t(E)] == 0 && Edge.Line.size() >= 2 && Edge.A != Edge.B && More < SideMore) { Drawn[size_t(E)] = 1; ++More; }
+			const int Other = Edge.A == Here1.second ? Edge.B : Edge.A;
+			const double Far = Here1.first + Edge.Length;
+			if (Other >= 0 && size_t(Other) < Far1.size() && Far < SideOnward && Far < Far1[size_t(Other)]) { Far1[size_t(Other)] = Far; Next.push({Far, Other}); }
+		}
+	}
+	for (size_t E = 0; E < G.Edges.size(); ++E)
+	{
+		const RoadEdge& Edge = G.Edges[E];
+		if (Drawn[E] == 0) continue;
 		// Its line as the map drew it; where an end is at the ride's road (whose line the smoothing may
 		// have moved a little off the junction), on to that road's middle.
 		std::vector<P2> Raw = Edge.Line;

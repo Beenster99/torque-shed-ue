@@ -163,6 +163,38 @@ bool ATorqueRideWorld::CattleGrids(TArray<TPair<FVector, FVector>>& Out)
 	return true;
 }
 
+bool ATorqueRideWorld::RoadBack(const FVector& At, double Heading, FVector& OutPos, double& OutHeading, int32& Which)
+{
+	const ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return false;
+	using TorqueWorld::RidePlan;
+	const RidePlan& P = *Ride->Plan;
+	RidePlan::NearOpts Opts;
+	RidePlan::NearHit Hit;
+	if (!P.NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist > 80.0 || Hit.Index < 0) return false;
+	const std::vector<TorqueWorld::RoadPoint>& Pts = P.RoadOf(Hit.Which);
+	if (Pts.size() < 2) return false;
+	const size_t I = FMath::Min(size_t(Hit.Index), Pts.size() - 2);
+	double Dx = Pts[I + 1].At.X - Pts[I].At.X, Dz = Pts[I + 1].At.Z - Pts[I].At.Z;
+	const double Len = FMath::Sqrt(Dx * Dx + Dz * Dz);
+	if (Len < 1e-3) return false;
+	Dx /= Len;
+	Dz /= Len;
+	// (the way along the road nearer the way the bike was going)
+	const double Fx = -FMath::Sin(Heading), Fz = -FMath::Cos(Heading);
+	if (Dx * Fx + Dz * Fz < 0.0)
+	{
+		Dx = -Dx;
+		Dz = -Dz;
+	}
+	// (left of (dx, dz) with x east and z south is (dz, -dx)); a third of the way out from the middle
+	const double Aside = FMath::Min(1.5, Hit.Half * 0.35);
+	OutPos = FVector(Hit.Foot.X + Dz * Aside, Hit.Height, Hit.Foot.Z - Dx * Aside);
+	OutHeading = FMath::Atan2(-Dx, -Dz);
+	Which = Hit.Which;
+	return true;
+}
+
 int32 ATorqueRideWorld::TestLimit = INDEX_NONE;
 TArray<FString> ATorqueRideWorld::PropCredits;
 
