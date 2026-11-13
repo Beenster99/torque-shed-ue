@@ -1434,6 +1434,20 @@ def _hair_from_build(entry, av):
         name = (group(g) or g.rsplit(".", 1)[-1]).capitalize()
         lod = _cards_lod(ga)
         cards, cards_mat, atlas = _cards_mesh(ga, lod) if lod >= 0 else ("", "", "")
+        if (not cards or not atlas) and "hair" in (group(g) or g).lower():
+            # Round 142: Avatar_A's groom gave no cards LOD, so A went bald. The build's own cards mesh
+            # (lowest LOD of group 0) and atlas, found by name, as the game's fallback does.
+            def lod_of(p):
+                try:
+                    return int(p.rsplit("_LOD", 1)[1].split(".")[0])
+                except Exception:
+                    return 99
+            cm = sorted((m for m in statics if "CardsMesh_Group0_LOD" in m and m.rsplit("/", 1)[-1].startswith("Hair_")), key=lod_of)
+            tex = [("%s.%s" % (a.package_name, a.asset_name)) for a in reg.get_assets_by_path(folder, recursive=True)
+                   if _cls_name(a) == "Texture2D" and str(a.asset_name).startswith("Hair_") and "CardsAtlas_Attribute" in str(a.asset_name)]
+            cards = cards or (cm[0] if cm else "")
+            atlas = atlas or (tex[0] if tex else "")
+            log("%s: no cards from the groom's LOD table; by name: mesh %s, atlas %s" % (av, cards or "none", atlas or "none"))
         # The game draws the cards mesh with its own M_HairCards (the plugin's MI_Hair is editor-only).
         hair_mat = _hair_cards_material(atlas) if cards and atlas else ""
         colour = next((a.get("hair_colour") for a in AVATARS if a["name"] == av), None) or [0.045, 0.028, 0.016]
