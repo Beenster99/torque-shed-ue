@@ -887,8 +887,8 @@ FString ATorqueBikePawn::TestRideLog() const
 				TestGripThrottleHold >= 0.0 ? TestGripThrottleHold : Throttle, Rp.GripRollDeg[0], Rp.GripRollDeg[1], Rp.IndexCurlDeg[0], Rp.IndexCurlDeg[1], Rp.MiddleCurlDeg[0], Rp.MiddleCurlDeg[1],
 				RiderRig.Last.LeverFingers[0], RiderRig.Last.LeverFingers[1], RiderRig.Last.LeverPull[0], RiderRig.Last.LeverPull[1]);
 			// Stopped on a tall bike: leant onto the left foot, the right kept on its peg.
-			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, leg %.1f cm"),
-				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], Rp.LegReach);
+			Out += FString::Printf(TEXT("\nrider stop: feet down %.2f, bike leant %.1f deg onto the left foot, right foot on its peg %.2f, leg %.1f cm, left hip joint %s, ground at z %.1f"),
+				RiderFeetDown, StopLeanDeg, RiderKeepOnPeg[1], Rp.LegReach, *Rp.HipJointAt[0].ToCompactString(), -Sim->Build.RearRadius * 100.0);
 		}
 	}
 	// Every body that could be the rider you see: the pawn's skinned meshes and everything under its
@@ -3473,6 +3473,14 @@ void ATorqueBikePawn::UpdateRider()
 			const FVector Down(RiderPeg[1].X - (-22.0), 0.0, 31.0 - Sim->Build.RearRadius * 100.0);
 			In.FootDownL += Down;
 			In.FootDownR += Down;
+			// [rider pose] The feet go down under the hips, a little ahead of them (as on the Speed Twin
+			// the rig was made on), not ahead with pegs that sit forward (beenster's marked poses).
+			if (RiderAvatar.IsValid() && RiderAvatar.RideReport.LegReach > 1.0)
+			{
+				// (And 18 cm out from each hip joint, the legs straight down and a little apart.)
+				In.FootDownL = FVector(RiderAvatar.RideReport.HipJointAt[0].X + 6.0, RiderAvatar.RideReport.HipJointAt[0].Y - 18.0, In.FootDownL.Z);
+				In.FootDownR = FVector(RiderAvatar.RideReport.HipJointAt[1].X + 6.0, RiderAvatar.RideReport.HipJointAt[1].Y + 18.0, In.FootDownR.Z);
+			}
 			// [rider pose] Too tall to reach the road (an MX bike's saddle): lean the bike onto the left
 			// foot, about the tyres' contact line, as far as that leg needs, and keep the right on its peg.
 			// (The MetaHuman's own hip joint and leg, as last posed; leant left by A, a point y across and
@@ -3483,7 +3491,7 @@ void ATorqueBikePawn::UpdateRider()
 			if (In.FeetDown > 0.0 && RiderAvatar.IsValid() && RiderAvatar.RideReport.LegReach > 1.0 && !bThrown)
 			{
 				const FVector HipL = RiderAvatar.RideReport.HipJointAt[0];
-				const double Reach = RiderAvatar.RideReport.LegReach * 0.96;
+				const double Reach = RiderAvatar.RideReport.LegReach * 0.99;
 				for (double Deg = 0.0; Deg <= 20.0; Deg += 0.25)
 				{
 					LeanWant = Deg;
@@ -3492,6 +3500,9 @@ void ATorqueBikePawn::UpdateRider()
 					if ((Mark - HipL).Size() <= Reach) break;
 				}
 			}
+			// (Within a few degrees of reaching, the rider stretches onto his toes and the bike stays upright:
+			// beenster, both feet down at a standstill, the bike vertical.)
+			if (LeanWant < 4.0) LeanWant = 0.0;
 			const double LeanTo = LeanWant * FMath::SmoothStep(0.0, 1.0, In.FeetDown);
 			StopLeanDeg = MoveToward(StopLeanDeg, LeanTo, 25.0 * (GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0));
 			if (StopLeanDeg > 0.01)
