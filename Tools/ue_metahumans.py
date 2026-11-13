@@ -1547,8 +1547,12 @@ def _parts_of_blueprint(pkg, name, av):
         if not skins:
             unreal.log_warning("[Torque] %s: %s has no skeletal meshes" % (av, pkg))
             return None
-        body = next(((c, m) for c, m in skins if c.get_name().lower() == "body"), None) \
+        # The body by its mesh's path first: UE 5.8's rebuilt Blueprints name every component
+        # SkeletalMesh, SkeletalMesh1... (round 142 took a garment for the body: headless, armless riders).
+        body = next(((c, m) for c, m in skins if "/body/" in _path(m).lower() or "bodymesh" in _path(m).lower()), None) \
+            or next(((c, m) for c, m in skins if c.get_name().lower() == "body"), None) \
             or next(((c, m) for c, m in skins if "body" in c.get_name().lower()), None) or skins[0]
+        log("%s: body mesh %s (component %s)" % (av, _path(body[1]), body[0].get_name()))
 
         def mats(c):
             try:
@@ -1565,7 +1569,10 @@ def _parts_of_blueprint(pkg, name, av):
         for c, m in skins:
             if c == body[0]:
                 continue
-            entry["parts"].append({"name": c.get_name(), "mesh": _path(m), "materials": mats(c)})
+            pname = c.get_name()
+            if "/face/" in _path(m).lower() or "facemesh" in _path(m).lower():
+                pname = "Face"   # (UE 5.8's rebuilt Blueprints name every component SkeletalMesh, SkeletalMesh1...)
+            entry["parts"].append({"name": pname, "mesh": _path(m), "materials": mats(c)})
             _game_safe_mesh(m, av)
             if "face" not in c.get_name().lower():
                 for mp in entry["parts"][-1]["materials"]:

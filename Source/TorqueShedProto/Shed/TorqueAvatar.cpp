@@ -189,6 +189,19 @@ const TArray<FEntry>& Entries()
 				P.Materials = Strings(*PO, TEXT("materials"));
 				E.Parts.Add(P);
 			}
+		// The body by its path (round 142's avatars.json named a garment as the body, the real body
+		// a part: headless, armless avatars): swapped back when a part is plainly the body mesh.
+		auto IsBodyPath = [](const FString& Path) { return Path.Contains(TEXT("/Body/")) || Path.Contains(TEXT("BodyMesh")); };
+		if (!IsBodyPath(E.BodyMesh))
+			for (FPart& P : E.Parts)
+				if (IsBodyPath(P.Mesh))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: avatars.json's body %s isn't the body; using %s"), *E.Name, *E.BodyMesh, *P.Mesh);
+					Swap(E.BodyMesh, P.Mesh);
+					Swap(E.BodyMaterials, P.Materials);
+					P.Name = FPaths::GetBaseFilename(P.Mesh);
+					break;
+				}
 		if (E.Blueprint.IsEmpty() && !E.BodyMesh.IsEmpty()) DiscoverParts(E, List.Num());
 		if (!E.Blueprint.IsEmpty() || !E.BodyMesh.IsEmpty()) List.Add(E);
 	}
@@ -347,7 +360,10 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!M) { UE_LOG(LogTemp, Warning, TEXT("Torque: avatar %s: no mesh %s"), *E.Name, *P.Mesh); continue; }
 		// The face is posed too (copying the body's neck and head, plus the profile's face edits);
 		// the rest follow the body as their leader.
-		const bool bFace = !OutFace && (P.Name.Contains(TEXT("Face")) || M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_FacialRoot")) != INDEX_NONE);
+		// (Round 142's rebuild names the parts SkeletalMesh, SkeletalMesh1...: the face is known by its
+		// path or its facial joints too, or it's left unposed, floating where a standing head would be.)
+		const bool bFace = !OutFace && (P.Name.Contains(TEXT("Face")) || P.Mesh.Contains(TEXT("/Face/")) || P.Mesh.Contains(TEXT("FaceMesh"))
+			|| M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_FacialRoot")) != INDEX_NONE || M->GetRefSkeleton().FindBoneIndex(TEXT("FACIAL_C_Neck1Root")) != INDEX_NONE);
 		USkinnedMeshComponent* C = nullptr;
 		if (bFace)
 		{
@@ -373,6 +389,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (!bFace) C->SetLeaderPoseComponent(Driver, true);
 		UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s %s"), *E.Name, bFace ? TEXT("face") : TEXT("mesh"), *P.Mesh);
 		ByName.Add(P.Name, C);
+		if (bFace) ByName.Add(TEXT("Face"), C);   // what the hair is attached to, whatever the part's name
 		Out.Add(C);
 	}
 	// Hair cards kept as a static mesh, made in the face's space: on its head bone, offset by the
