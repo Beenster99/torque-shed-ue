@@ -236,8 +236,18 @@ public:
 	// [Ride UK] The host's journey in the Route planner: its code and its name on a line each ("" for
 	// none). Everyone's game plans the same road from it ahead of setting off (the cells and the
 	// ground are fetched on each machine), and says so (ATorquePlayerState::RideReadyFor).
+	// [co-op] Any rider can change it (ATorquePlayerState::ServerSetRideJourney); who did last, by
+	// name and player id, so each Route planner takes up the others' changes and not its own.
 	UPROPERTY(Replicated) FString RideJourney;
-	void SetRideJourney(const FString& CodeAndName) { if (HasAuthority()) RideJourney = CodeAndName; }
+	UPROPERTY(Replicated) FString RideJourneyBy;
+	UPROPERTY(Replicated) int32 RideJourneyById = -1;
+	void SetRideJourney(const FString& CodeAndName, const FString& By = FString(), int32 ById = -1)
+	{
+		if (!HasAuthority()) return;
+		RideJourney = CodeAndName;
+		RideJourneyBy = By;
+		RideJourneyById = ById;
+	}
 private:
 	// The shed: written by the host, read by everyone else.
 	UPROPERTY(ReplicatedUsing = OnRep_Shed) FTorqueShedBayNet Shed;

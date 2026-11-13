@@ -134,11 +134,33 @@ void FTorqueSettings::Load()
 	GConfig->GetFloat(Section, TEXT("StickDeadZone"), StickDeadZone, Ini);
 	GConfig->GetFloat(Section, TEXT("Steering"), Steering, Ini);
 	GConfig->GetString(Section, TEXT("Name"), Name, Ini);
+	// [co-op] The settings live in the game's folder, so a friend given a copy of it came in as its
+	// owner (beenster, build 141: guests joined with the host's name). Name and colour are kept for
+	// the computer they were chosen on; on any other, the Windows account's name and its colour.
+	FString NameOwner;
+	GConfig->GetString(Section, TEXT("NameOwner"), NameOwner, Ini);
+	const FString ThisComputer = FPlatformProcess::ComputerName();
+	const bool bOtherComputer = !NameOwner.IsEmpty() && !NameOwner.Equals(ThisComputer, ESearchCase::IgnoreCase);
+	if (bOtherComputer)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: the settings' name and colour were chosen on %s, not this computer (%s): using this computer's own"), *NameOwner, *ThisComputer);
+		Name.Reset();
+	}
+	if (NameOwner.IsEmpty() || bOtherComputer)
+	{
+		GConfig->SetString(Section, TEXT("NameOwner"), *ThisComputer, Ini);
+		if (bOtherComputer)
+		{
+			GConfig->SetString(Section, TEXT("Name"), TEXT(""), Ini);
+			GConfig->RemoveKey(Section, TEXT("Colour"), Ini);   // (chosen again below, from this computer's name)
+		}
+		GConfig->Flush(false, Ini);
+	}
 	// A colour nobody chose (or a -TorqueName test copy, so two on one PC differ): one of the bright
 	// ones, from the name, rather than everyone in black. -TorqueColour=N picks one.
 	FString TestName;
 	const bool bTestName = FParse::Value(FCommandLine::Get(), TEXT("TorqueName="), TestName);
-	if (!GConfig->GetInt(Section, TEXT("Colour"), Colour, Ini) || bTestName)
+	if (!GConfig->GetInt(Section, TEXT("Colour"), Colour, Ini) || bTestName || bOtherComputer)
 	{
 		const FString By = bTestName ? TestName : (Name.IsEmpty() ? FString(FPlatformProcess::UserName()) : Name);
 		Colour = 1 + (int32)(GetTypeHash(By) % (uint32)(Colours().Num() - 1));
@@ -244,6 +266,7 @@ void FTorqueSettings::Save()
 	GConfig->SetFloat(Section, TEXT("StickDeadZone"), StickDeadZone, Ini);
 	GConfig->SetFloat(Section, TEXT("Steering"), Steering, Ini);
 	GConfig->SetString(Section, TEXT("Name"), *Name, Ini);
+	GConfig->SetString(Section, TEXT("NameOwner"), FPlatformProcess::ComputerName(), Ini);   // [co-op] whose name it is
 	GConfig->SetInt(Section, TEXT("Colour"), Colour, Ini);
 	GConfig->SetInt(Section, TEXT("RiderStyle"), RiderStyle, Ini);
 	GConfig->Flush(false, Ini);

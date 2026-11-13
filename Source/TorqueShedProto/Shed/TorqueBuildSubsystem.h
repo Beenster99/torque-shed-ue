@@ -271,7 +271,7 @@ namespace TorqueShedTv
 constexpr int32 Tvs = 5;   // 0 .. 3 the back wall's, over bays 1 .. 4; 4 the one over the workbench
 enum EChannel : uint8
 {
-	Players,   // live cameras on everyone in the shed, and what each is doing
+	Players,   // retired (beenster, build 141: the TV shows the others only while they ride): a TV on it shows the rider cam
 	Rider,     // a third-person chase camera on a rider out on their bike
 	Bikes,     // every bike in the shed at a glance
 	BayPage,   // the bay's own bike, part by part (the back wall's TVs only)
@@ -279,11 +279,13 @@ enum EChannel : uint8
 	Channels
 };
 // What a new garage's TVs show: each back wall TV its own bay's bike (on over a bike in its bay,
-// blank over an empty one: beenster, build 134), the workbench's the players.
-constexpr uint8 Default[Tvs] = {BayPage, BayPage, BayPage, BayPage, Players};
+// blank over an empty one: beenster, build 134), the workbench's a mate out riding.
+constexpr uint8 Default[Tvs] = {BayPage, BayPage, BayPage, BayPage, Rider};
 // Whether TV Tv has channel Channel: every TV has them all bar the bay's own page, which only the
 // back wall's (0 .. 3) have (Tv -1: a bought TV).
-inline bool Has(int32 Tv, int32 Channel) { return Channel >= 0 && Channel < Channels && (Channel != BayPage || (Tv >= 0 && Tv < 4)); }
+// The shed cam (Players) is no longer a channel to turn to; a save with it reads as the rider cam.
+inline bool Has(int32 Tv, int32 Channel) { return Channel > Players && Channel < Channels && (Channel != BayPage || (Tv >= 0 && Tv < 4)); }
+inline int32 Shown(int32 Channel) { return Channel == Players ? (int32)Rider : Channel; }
 inline bool Valid(int32 Tv, int32 Channel) { return Tv >= 0 && Tv < Tvs && Has(Tv, Channel); }
 // The channel after Channel on TV Tv (right mouse at a TV).
 inline int32 Next(int32 Tv, int32 Channel)
@@ -294,7 +296,7 @@ inline int32 Next(int32 Tv, int32 Channel)
 		N = (N + 1) % (int32)Channels;
 		if (Has(Tv, N)) return N;
 	}
-	return Players;
+	return Rider;
 }
 // A YouTube video's id (11 letters, digits, - and _) from a pasted link (youtu.be/ID, watch?v=ID,
 // /shorts/ID, /embed/ID, /live/ID) or the id itself; empty if it isn't one.
@@ -455,7 +457,7 @@ public:
 	const FString& TvVideo() const { return TvVideoId; }
 	double TvVideoStart() const { return TvVideoAt; }
 	// [tv] The channel wall TV Tv is on (TorqueShedTv::EChannel).
-	int32 TvChannel(int32 Tv) const { return Tv >= 0 && Tv < TorqueShedTv::Tvs ? TvChannels[Tv] : 0; }
+	int32 TvChannel(int32 Tv) const { return Tv >= 0 && Tv < TorqueShedTv::Tvs ? TorqueShedTv::Shown(TvChannels[Tv]) : (int32)TorqueShedTv::Rider; }
 	// The bike lifts (shed_state.gd lifts): one under each bay's paddock stand (its id the bay) and
 	// the wash bay's (WashLift), up or down; ATorqueBikeLift draws them and moves them on every
 	// player's game. A bike standing on one goes up with it, and can't be wheeled off or ridden

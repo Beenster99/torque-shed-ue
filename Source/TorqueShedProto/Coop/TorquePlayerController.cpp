@@ -252,20 +252,33 @@ void ATorquePlayerController::OpenPlanner()
 		// (the ride's level opens itself once the road is planned)
 		Planner->OnRide = [this]() { CloseMenu(); };
 	}
-	// In co-op the host's journey is everyone's: their games plan its road as it changes.
-	if (GetNetMode() == NM_ListenServer)
+	// In co-op the journey is everyone's, and everyone plans it (beenster, build 141): any rider's pins
+	// go to the host and out to the others' planners, and each game plans its road as it changes.
+	// Only the host sets off, once everyone's game is ready.
+	const bool bCoop = GetNetMode() == NM_ListenServer || GetNetMode() == NM_Client;
+	if (bCoop)
 	{
 		Planner->OnJourneyChanged = [this](const FString& Code, const FString& Name)
 		{
-			if (ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr) GS->SetRideJourney(Code + TEXT("\n") + Name);
+			if (ATorquePlayerState* PS = GetPlayerState<ATorquePlayerState>()) PS->ServerSetRideJourney(Code, Name);
 		};
-		Planner->WaitingFor = [this]() { return RideWaitingFor(); };
+		Planner->SharedJourney = [this](FString& Code, FString& Name, FString& By, bool& bMine)
+		{
+			const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+			if (!GS || GS->RideJourney.IsEmpty()) return false;
+			if (!GS->RideJourney.Split(TEXT("\n"), &Code, &Name)) Code = GS->RideJourney;
+			By = GS->RideJourneyBy;
+			bMine = PlayerState && GS->RideJourneyById == PlayerState->GetPlayerId();
+			return true;
+		};
 	}
 	else
 	{
 		Planner->OnJourneyChanged = nullptr;
-		Planner->WaitingFor = nullptr;
+		Planner->SharedJourney = nullptr;
 	}
+	Planner->WaitingFor = GetNetMode() == NM_ListenServer ? TFunction<FString()>([this]() { return RideWaitingFor(); }) : TFunction<FString()>();
+	Planner->bCanSetOff = GetNetMode() != NM_Client;
 	Planner->Open(Real);
 	Open(EPage::Route);
 }
@@ -693,7 +706,7 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			UTorqueWorldSubsystem* Real = GetGameInstance() ? GetGameInstance()->GetSubsystem<UTorqueWorldSubsystem>() : nullptr;
 			if (Real && bHost)
 				Add(TEXT("Plan a ride (Ride UK, everyone)"), FString(),
-					TEXT("The Route planner: everyone's game plans the road as you pin it, and Ride it takes everyone once they're ready"), [this]() { OpenPlanner(); });
+					TEXT("The Route planner, together: everyone can pin the journey, and Ride it takes everyone once they're ready"), [this]() { OpenPlanner(); });
 			if (Real && bClient)
 			{
 				// The host's journey, as this game has got on with planning it.
@@ -707,6 +720,9 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 					Add(FString(TEXT("Ride UK: ")) + (RideName.IsEmpty() ? FString(TEXT("the host's journey")) : RideName), FString(), State, nullptr);
 					R.Last().bDisabled = true;
 				}
+				// [co-op] Everyone plans the journey together; the host sets off on it.
+				Add(TEXT("Plan the ride together (Ride UK)"), FString(),
+					TEXT("The Route planner: pin the journey with the others, each of you on the same map; the host sets off"), [this]() { OpenPlanner(); });
 			}
 			if (Real && !bClient && !bHost)
 			{
