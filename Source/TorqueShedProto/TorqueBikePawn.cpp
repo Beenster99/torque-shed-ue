@@ -1226,6 +1226,21 @@ void ATorqueBikePawn::ReadInput(float Dt)
 				Throttle = 0.0;
 				FrontBrake = 0.8;
 				RearBrake = 0.4;
+				// (hub, build 141: the robot stopped 15 m short of the end, never "finished", and a hands-off
+				// Ride UK test sat there until its 50 minute limit. Stopped at the end: say so, and a hands-off
+				// run that isn't riding LEJOG's legs ends)
+				static bool bSaidEnd = false;
+				if (!bSaidEnd && FMath::Abs(Sim->Speed) < 0.5)
+				{
+					bSaidEnd = true;
+					bFinished = true;
+					const double Minutes = GetWorld() ? GetWorld()->GetTimeSeconds() / 60.0 : 0.0;
+					UE_LOG(LogTemp, Display, TEXT("Torque ride UK: reached the end of the ride, %.1f km, %.1f min in"), RouteLengthM / 1000.0, Minutes);
+					if (bNoInput && !FParse::Param(FCommandLine::Get(), TEXT("TorqueLejog")) && FCString::Strifind(FCommandLine::Get(), TEXT("TorqueLejog=")) == nullptr)
+					{
+						FPlatformMisc::RequestExit(false, TEXT("TorqueAutoRideEnd"));
+					}
+				}
 			}
 			else if (EndGap < Gap)
 			{
