@@ -29,6 +29,16 @@ struct FTorqueProfile
 	static constexpr float ChaseTiltMin = -10.0f, ChaseTiltMax = 25.0f;
 	void ClampChase();
 	void ResetChase() { ChaseDist = 480.0f; ChaseHeight = 70.0f; ChaseTilt = 0.0f; }
+	// First person, the same three (beenster): the eye moved forward or back and up or down from the
+	// rider's own eyes (cm), and the view tilted further down (degrees) than the aim that keeps the
+	// hands on the bars in view (ATorqueBikePawn::FirstPersonAim). Set as third person's are.
+	float FirstForward = 0.0f;  // cm, + towards the bars
+	float FirstHeight = 0.0f;   // cm, + up
+	float FirstTilt = 0.0f;     // degrees further down (below 0: up)
+	static constexpr float FirstForwardMin = -20.0f, FirstForwardMax = 20.0f;
+	static constexpr float FirstHeightMin = -15.0f, FirstHeightMax = 25.0f;
+	static constexpr float FirstTiltMin = -15.0f, FirstTiltMax = 15.0f;
+	void ResetFirst() { FirstForward = 0.0f; FirstHeight = 0.0f; FirstTilt = 0.0f; }
 
 	// A face slider: its name on the Profile page and the line under it.
 	struct FSlider { const TCHAR* Name; const TCHAR* Hint; };

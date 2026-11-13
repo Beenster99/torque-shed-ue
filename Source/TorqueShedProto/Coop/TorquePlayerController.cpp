@@ -1124,6 +1124,16 @@ TArray<ATorquePlayerController::FRow> ATorquePlayerController::Rows()
 			ChaseSlide(TEXT("Third person: tilt"), FString::Printf(TEXT("%+.0f°"), Cam.ChaseTilt),
 				TEXT("How far the camera looks down at the bike (below 0: up the road)"), Cam.ChaseTilt, FTorqueProfile::ChaseTiltMin, FTorqueProfile::ChaseTiltMax, 1.0f);
 			Add(TEXT("Third person: reset"), FString(), TEXT("Back to the usual distance, height and tilt"), []() { FTorqueProfile::Mine().ResetChase(); FTorqueProfile::Mine().Save(); });
+			// First person, the same (beenster): each player's own preferred view, kept in their profile.
+			ChaseSlide(TEXT("First person: forward / back"), FString::Printf(TEXT("%+.0f cm"), Cam.FirstForward),
+				TEXT("Your eyes nearer the bars or further back (the same keys and pad buttons as third person, riding in first person)"),
+				Cam.FirstForward, FTorqueProfile::FirstForwardMin, FTorqueProfile::FirstForwardMax, 1.0f);
+			ChaseSlide(TEXT("First person: height"), FString::Printf(TEXT("%+.0f cm"), Cam.FirstHeight),
+				TEXT("Your eyes higher or lower than the rider's own"), Cam.FirstHeight, FTorqueProfile::FirstHeightMin, FTorqueProfile::FirstHeightMax, 1.0f);
+			ChaseSlide(TEXT("First person: tilt"), FString::Printf(TEXT("%+.0f°"), Cam.FirstTilt),
+				TEXT("Look further down at the clocks and hands, or up the road (0: aimed so your hands on the bars show on every bike)"),
+				Cam.FirstTilt, FTorqueProfile::FirstTiltMin, FTorqueProfile::FirstTiltMax, 1.0f);
+			Add(TEXT("First person: reset"), FString(), TEXT("Back to the rider's own eyes and the usual tilt"), []() { FTorqueProfile::Mine().ResetFirst(); FTorqueProfile::Mine().Save(); });
 		}
 		Heading(TEXT("UNITS"));
 		Setting(TEXT("Units"), S.Units == 0 ? FString(TEXT("Metric (km/h, km)")) : FString(TEXT("Imperial (mph, miles)")), TEXT("Speeds and distances on the HUD"),
