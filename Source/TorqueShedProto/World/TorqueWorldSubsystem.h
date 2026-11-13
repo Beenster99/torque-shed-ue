@@ -72,6 +72,13 @@ public:
 	FString RideNote() const;
 	// The ride planned last (null before any): the game mode hands it to ATorqueRideWorld.
 	std::shared_ptr<TorqueWorld::RidePlan> Ride() const { return Plan; }
+	// [ride anywhere 3] The ride being ridden grew (RidePlan::Grow) as the rider neared the edge of what
+	// was read: the grown one in its place wherever the old one was held.
+	void RideGrew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown)
+	{
+		if (Plan == Old) Plan = Grown;
+		if (LegPlan == Old) LegPlan = Grown;
+	}
 	// Who made the world's data, a credit a line as its licence asks: the last ride's own (from its
 	// cells), or before any ride those of the UK's cells.
 	TArray<FString> Credits() const;

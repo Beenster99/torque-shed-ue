@@ -328,6 +328,43 @@ int main(int Argc, char** Argv)
 		const std::vector<RidePlan::Knot> Knots = LaidKnots(*Plan);
 		for (const RidePlan::Knot& K : Knots) if (K.Owner == 0) ++AtStart;
 		std::printf("Junction mouths on the ride's road: %d, %d of them with give-way lines; %d junctions off it (%d at its ends)\n", Mouths, GiveWays, int(Knots.size()), AtStart);
+		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
+		// added, how long it took, and that every old road and the ride's own road are as they were.
+		if (const char* GrowAt = std::getenv("WORLD_RIDE_GROW"))
+		{
+			double Gx = 0.0, Gz = 0.0;
+			if (std::sscanf(GrowAt, "%lf,%lf", &Gx, &Gz) == 2)
+			{
+				const std::vector<CellId> Near = Plan->CellsToGrow(Gx, Gz, RidePlan::GrowPad);
+				const auto GrowT0 = std::chrono::steady_clock::now();
+				std::string GrowWhy;
+				const std::shared_ptr<RidePlan> Big = RidePlan::Grow(Cells, Heights, *Plan, Gx, Gz, &GrowWhy);
+				const double GrowMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - GrowT0).count();
+				if (!Big) std::printf("Growing at (%.0f, %.0f): %zu cells near not read; not grown: %s\n", Gx, Gz, Near.size(), GrowWhy.c_str());
+				else
+				{
+					const Region& G0 = Plan->Area.Roads;
+					const Region& G1 = Big->Area.Roads;
+					int Moved = 0;
+					for (size_t E = 0; E < G0.Edges.size(); ++E)
+					{
+						const RoadEdge& A = G0.Edges[E];
+						const RoadEdge& B = G1.Edges[E];
+						if (A.A != B.A || A.B != B.B || A.Line.size() != B.Line.size()) { ++Moved; continue; }
+						for (size_t K = 0; K < A.Line.size(); ++K)
+							if (A.Line[K].X != B.Line[K].X || A.Line[K].Z != B.Line[K].Z) { ++Moved; break; }
+					}
+					double RoadOff = Plan->Road.size() == Big->Road.size() ? 0.0 : 1e9;
+					for (size_t I = 0; I < Plan->Road.size() && I < Big->Road.size(); ++I)
+						RoadOff = std::fmax(RoadOff, std::fabs(Plan->Road[I].At.X - Big->Road[I].At.X) + std::fabs(Plan->Road[I].At.Z - Big->Road[I].At.Z)
+							+ std::fabs(Plan->Road[I].Height - Big->Road[I].Height));
+					std::printf("Growing at (%.0f, %.0f): %zu cells near not read; grown from %zu to %zu cells, %zu to %zu roads in %.0f ms; "
+						"%d old roads changed, the ride's road %.3f m off; %zu roads to draw again\n",
+						Gx, Gz, Near.size(), Plan->Area.Cells.size(), Big->Area.Cells.size(), G0.Edges.size(), G1.Edges.size(), GrowMs, Moved, RoadOff,
+						Big->RedrawRoads.size());
+				}
+			}
+		}
 		// [ride anywhere] The network round a place off the ride (WORLD_RIDE_ROAM=x,z in the frame, m):
 		// its blocks within 1.2 km laid, and how long that took.
 		if (const char* Roam = std::getenv("WORLD_RIDE_ROAM"))

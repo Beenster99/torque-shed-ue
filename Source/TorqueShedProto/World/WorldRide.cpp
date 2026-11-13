@@ -212,6 +212,16 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 		Steps.insert(Steps.end(), Tail.begin(), Tail.end());
 	}
 	R->RunOutFrom = PinsEnd;
+	R->MadeSteps = Steps;
+	return LayOut(R, Store, Heights, Tell, nullptr);
+}
+
+std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, CellStore& Store, HeightStore& Heights,
+	const std::function<void(const std::string&)>& Said, const P2* StartAt)
+{
+	const auto Tell = [&Said](const std::string& Text) { if (Said) Said(Text); };
+	const Region& G = R->Area.Roads;
+	const std::vector<RideStep>& Steps = R->MadeSteps;
 	const int From = Steps.front().From;
 	std::vector<int> Path;
 	for (const RideStep& St : Steps) Path.push_back(St.Edge);
@@ -294,8 +304,9 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	{
 		// [ride anywhere] The network round the start laid now, its ground fetched (not on the game thread
 		// as the first squares are made).
+		const P2 Mid = StartAt != nullptr ? *StartAt : R->Road[0].At;
 		Rect Start;
-		Start.X0 = R->Road[0].At.X - 700.0; Start.Z0 = R->Road[0].At.Z - 700.0; Start.X1 = R->Road[0].At.X + 700.0; Start.Z1 = R->Road[0].At.Z + 700.0;
+		Start.X0 = Mid.X - 700.0; Start.Z0 = Mid.Z - 700.0; Start.X1 = Mid.X + 700.0; Start.Z1 = Mid.Z + 700.0;
 		R->LayBlocks(Start);
 	}
 	R->IndexTowns();     // [towns stage 1] (before anything asks a place's look)
@@ -310,6 +321,88 @@ std::shared_ptr<RidePlan> RidePlan::Make(CellStore& Store, HeightStore& Heights,
 	R->FindTurnsAndStops(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->FindThinData();
 	R->Ok = true;
+	return R;
+}
+
+std::vector<CellId> RidePlan::CellsToGrow(double X, double Z, double Pad) const
+{
+	std::vector<CellId> Out;
+	if (!Ok) return Out;
+	const Geo At = Area.Roads.FrameOf().ToGeo(X, Z);
+	for (const CellId& C : CellsInBox(At.Lat - Pad, At.Lon - Pad, At.Lat + Pad, At.Lon + Pad))
+		if (std::find(Area.Cells.begin(), Area.Cells.end(), C) == Area.Cells.end()) Out.push_back(C);
+	return Out;
+}
+
+bool RidePlan::WasRead(double X0, double Z0, double X1, double Z1) const
+{
+	const auto In = [this](double X, double Z)
+	{
+		for (const Rect& R : GrewFrom)
+			if (X >= R.X0 && X <= R.X1 && Z >= R.Z0 && Z <= R.Z1) return true;
+		return false;
+	};
+	return In(X0, Z0) && In(X1, Z0) && In(X0, Z1) && In(X1, Z1);
+}
+
+std::shared_ptr<RidePlan> RidePlan::Grow(CellStore& Store, HeightStore& Heights, const RidePlan& Old, double X, double Z, std::string* Why)
+{
+	const auto No = [Why](const std::string& Text) { if (Why != nullptr) *Why = Text; return std::shared_ptr<RidePlan>(); };
+	if (!Old.Ok || Old.MadeSteps.empty() || Old.CellsFrom == nullptr) return No("no ride to grow");
+	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	if (!Idx || Idx->Empty()) return No("the world's index can't be had");
+	// (the old cells first, in their order: Stitch then gives every junction and road the number it had)
+	std::vector<CellId> Cells = Old.Area.Cells;
+	const size_t Had = Cells.size();
+	for (const CellId& C : Old.CellsToGrow(X, Z, RoamPad))
+	{
+		const CellStore::EState St = Store.StateOf(C, *Idx);
+		if (St == CellStore::EState::Here || St == CellStore::EState::Baked) Cells.push_back(C);
+	}
+	if (Cells.size() == Had) return No("no more of the world baked round here");
+	if (Cells.size() > size_t(MaxRoamCells)) return No("the ride has read as many cells as it can hold");
+	std::shared_ptr<RidePlan> R = std::make_shared<RidePlan>();
+	R->Request = Old.Request;
+	R->Month = Old.Month;
+	R->LatA = Old.LatA; R->LonA = Old.LonA; R->LatB = Old.LatB; R->LonB = Old.LonB;
+	R->PinNodes = Old.PinNodes;
+	R->RunOutFrom = Old.RunOutFrom;
+	R->Title = Old.Title;
+	R->MadeSteps = Old.MadeSteps;
+	R->Grown = Old.Grown + 1;
+	R->StoresAlive = Old.StoresAlive;
+	if (!LoadArea(Store, Heights, Cells, Old.Area.Roads.FrameLat, Old.Area.Roads.FrameLon, "the roads here", R->Area, &R->Why)) return No(R->Why);
+	// (a cell that was read before and can't be now would renumber what follows it)
+	if (R->Area.Cells.size() < Had || !std::equal(Old.Area.Cells.begin(), Old.Area.Cells.end(), R->Area.Cells.begin())
+		|| R->Area.Roads.Edges.size() < Old.Area.Roads.Edges.size())
+		return No("the cells read before couldn't all be read again");
+	const P2 At(X, Z);
+	LayOut(R, Store, Heights, nullptr, &At);
+	if (!R->Ok) return No(R->Why);
+	{
+		// (the network as far round the rider as the game draws roads, so none drawn is left unlaid)
+		Rect Round;
+		Round.X0 = X - GrowLayM; Round.Z0 = Z - GrowLayM; Round.X1 = X + GrowLayM; Round.Z1 = Z + GrowLayM;
+		R->LayBlocks(Round);
+	}
+	// The roads whose ends meet new roads where the old area stopped: drawn again.
+	const Region& G0 = Old.Area.Roads;
+	const Region& G1 = R->Area.Roads;
+	for (size_t N = 0; N < G0.Nodes.size(); ++N)
+		if (G1.Adjacent[N].size() != G0.Adjacent[N].size())
+			for (int E : G1.Adjacent[N])
+				if (E < int(G0.Edges.size())) R->RedrawRoads.push_back(1 + E);
+	std::sort(R->RedrawRoads.begin(), R->RedrawRoads.end());
+	R->RedrawRoads.erase(std::unique(R->RedrawRoads.begin(), R->RedrawRoads.end()), R->RedrawRoads.end());
+	const Frame F = G0.FrameOf();
+	for (const CellId& C : Old.Area.Cells)
+	{
+		const Geo Mid = CellMiddle(C);
+		const P2 A = F.FromGeo(Mid.Lat + CellDeg * 0.5, Mid.Lon - CellDeg * 0.5), B = F.FromGeo(Mid.Lat - CellDeg * 0.5, Mid.Lon + CellDeg * 0.5);
+		Rect Box;
+		Box.X0 = A.X; Box.Z0 = A.Z; Box.X1 = B.X; Box.Z1 = B.Z;
+		R->GrewFrom.push_back(Box);
+	}
 	return R;
 }
 

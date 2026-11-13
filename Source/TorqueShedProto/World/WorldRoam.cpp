@@ -3,9 +3,10 @@
 
 namespace TorqueWorld
 {
-std::shared_ptr<const RoamArea> RoamOfPlan(const std::shared_ptr<const RidePlan>& Plan)
+std::shared_ptr<const RoamArea> RoamOfPlan(const std::shared_ptr<const RidePlan>& Plan, int Version)
 {
 	std::shared_ptr<RoamArea> Out = std::make_shared<RoamArea>();
+	Out->Version = Version;
 	if (Plan == nullptr) return Out;
 	Out->Area = std::shared_ptr<const LoadedArea>(Plan, &Plan->Area);
 	const Frame F = Plan->Area.Roads.FrameOf();

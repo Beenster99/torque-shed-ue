@@ -28,6 +28,8 @@
 #include "World/WorldFiles.h"
 #include "World/WorldRideDiary.h"
 #include "World/WorldRoute.h"
+#include "World/TorqueWorldSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "HAL/FileManager.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
@@ -824,6 +826,13 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 			});
 		});
 	}
+	// [ride anywhere 3] More of the world read as the rider nears the edge of what was.
+	SinceGrowLook += 0.2;
+	if (SinceGrowLook >= 2.0)
+	{
+		SinceGrowLook = 0.0;
+		TryGrow(At);
+	}
 	// A square no longer wanted goes once every wanted square over the same ground is in place.
 	TArray<FIntVector> Going;
 	const TSet<FIntVector> WantSet(Want);
@@ -961,6 +970,79 @@ void ATorqueRideWorld::SendBird(FRideBird& Bird, const FVector2D& At, uint32 Sal
 		Bird.Part = MakePart(Shape, RenderMaterial, false, true, false);
 	}
 	Bird.Kind = Kind;
+}
+
+void ATorqueRideWorld::TryGrow(const FVector2D& At)
+{
+	if (bGrowing || !Plan || !Plan->Ok || Plan->CellsFrom == nullptr || Plan->HeightsFrom == nullptr || !Jobs) return;
+	// (a cell near the rider not read and not already found missing)
+	TArray<int64> Near;
+	for (const TorqueWorld::CellId& C : Plan->CellsToGrow(At.X, At.Y, TorqueWorld::RidePlan::GrowPad))
+	{
+		const int64 Key = int64(C.Row) * 100000 + C.Col;
+		if (!GrowTried.Contains(Key)) Near.Add(Key);
+	}
+	if (Near.Num() == 0) return;
+	// (and every other cell it would read, so a miss isn't asked again)
+	TArray<int64> Tried = Near;
+	for (const TorqueWorld::CellId& C : Plan->CellsToGrow(At.X, At.Y, TorqueWorld::RidePlan::RoamPad)) Tried.AddUnique(int64(C.Row) * 100000 + C.Col);
+	bGrowing = true;
+	const std::shared_ptr<TorqueWorld::RidePlan> Held = Plan;
+	const std::shared_ptr<FTorqueRideJobs> Share = Jobs;
+	const TWeakObjectPtr<ATorqueRideWorld> Self(this);
+	UE_LOG(LogTemp, Log, TEXT("Ride anywhere: reading more of the world round (%.0f, %.0f), %d cells near not read"), At.X, At.Y, Near.Num());
+	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [Held, Share, Self, At, Tried]()
+	{
+		std::string Why;
+		std::shared_ptr<TorqueWorld::RidePlan> Grown;
+		if (!Share->bStop) Grown = TorqueWorld::RidePlan::Grow(*Held->CellsFrom, *Held->HeightsFrom, *Held, At.X, At.Y, &Why);
+		if (!Grown) UE_LOG(LogTemp, Log, TEXT("Ride anywhere: not grown: %s"), UTF8_TO_TCHAR(Why.c_str()));
+		AsyncTask(ENamedThreads::GameThread, [Self, Held, Grown, Tried]()
+		{
+			if (ATorqueRideWorld* Ride = Self.Get()) Ride->Grew(Held, Grown, Tried);
+		});
+	});
+}
+
+void ATorqueRideWorld::Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried)
+{
+	bGrowing = false;
+	for (const int64 Key : Tried) GrowTried.Add(Key);
+	if (!Grown || Plan != Old) return;
+	// (cells read now are no longer misses)
+	for (const TorqueWorld::CellId& C : Grown->Area.Cells) GrowTried.Remove(int64(C.Row) * 100000 + C.Col);
+	Plan = Grown;
+	if (UGameInstance* GI = GetGameInstance())
+		if (UTorqueWorldSubsystem* Real = GI->GetSubsystem<UTorqueWorldSubsystem>()) Real->RideGrew(Old, Grown);
+	// The roads that met the old edge, drawn again with their new junctions.
+	TSet<int64> Again;
+	for (const int Which : Grown->RedrawRoads) Again.Add(int64(Which));
+	TArray<int64> Drop;
+	for (const auto& Have : RoadParts)
+		if (Again.Contains(Have.Key / 4096)) Drop.Add(Have.Key);
+	for (const int64 Key : Drop)
+	{
+		if (UProceduralMeshComponent* Part = RoadParts[Key]) Part->DestroyComponent();
+		RoadParts.Remove(Key);
+		if (TArray<TWeakObjectPtr<UPointLightComponent>>* Lights = RoadLights.Find(Key))
+		{
+			for (const TWeakObjectPtr<UPointLightComponent>& Lamp : *Lights) if (Lamp.IsValid()) Lamp->DestroyComponent();
+			RoadLights.Remove(Key);
+		}
+	}
+	// The squares that reach within a kilometre of the old edge or past it, made again with what is there now.
+	for (const auto& Have : Tiles)
+	{
+		const double Size = TRWI::SizeOf(Have.Key.X);
+		const double X0 = Have.Key.Y * Size, Z0 = Have.Key.Z * Size;
+		if (!Grown->WasRead(X0 - 1000.0, Z0 - 1000.0, X0 + Size + 1000.0, Z0 + Size + 1000.0)) Stale.Add(Have.Key);
+	}
+	// The maps: the bigger area, and the way (unless the sat nav is taking the rider back to the road).
+	Roam = TorqueWorld::RoamOfPlan(Plan, Roam ? Roam->Version + 1 : 1);
+	if (!NavState.Detour) Guide = TorqueWorld::GuideOfPlan(*Plan, Guide ? Guide->Version + 1 : 1);
+	OnRoamChanged.Broadcast();
+	UE_LOG(LogTemp, Log, TEXT("Ride anywhere: the ride grew to %d cells, %d roads (%d drawn again)"), int32(Grown->Area.Cells.size()), int32(Grown->Area.Roads.Edges.size()),
+		int32(Grown->RedrawRoads.size()));
 }
 
 void ATorqueRideWorld::TickBirds(float DeltaSeconds)

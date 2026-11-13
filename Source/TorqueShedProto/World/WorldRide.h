@@ -239,6 +239,21 @@ public:
 	static constexpr double CellDeg = 0.25;     // a cell of the world's store, in degrees
 	static constexpr double RoamPad = 0.1;      // [ride anywhere] the cells within this (degrees) of the way are read: room to roam
 	static constexpr int MaxCells = 64;         // the most cells one ride reads (RealRegion.MAX_AREA_CELLS)
+	// [ride anywhere 3] As the rider nears the edge of what was read: the same ride over more of the
+	// world, the cells within RoamPad of (X, Z) not read yet added after the old ones (so every road
+	// and junction keeps its number, and the ride's road and every road laid stay as they were), its
+	// network round (X, Z) laid. Blocks (a worker's job). Null, with why, when there is nothing to add.
+	static std::shared_ptr<RidePlan> Grow(CellStore& Store, HeightStore& Heights, const RidePlan& Old, double X, double Z, std::string* Why = nullptr);
+	// The cells within Pad (degrees) of (X, Z) not read yet (whether baked or not).
+	std::vector<CellId> CellsToGrow(double X, double Z, double Pad) const;
+	static constexpr double GrowPad = 0.05;     // a cell this near the rider (degrees: 3 to 5 km) and not read: grow
+	static constexpr int MaxRoamCells = 144;    // the most a grown ride holds
+	int Grown = 0;                              // how many times this ride has grown
+	std::vector<int> RedrawRoads;               // after growing: roads (as RoadOf) whose ends now meet new ones
+	std::vector<Rect> GrewFrom;                 // after growing: the old area's cells
+	static constexpr double GrowLayM = 3100.0;  // a grown ride's network laid this far round the rider (the game's road reach and more)
+	// After growing: whether all of the box (X0, Z0)-(X1, Z1) was in the old area's cells.
+	bool WasRead(double X0, double Z0, double X1, double Z1) const;
 	static constexpr double SnapM = 2000.0;     // a pin is taken to the junction nearest it within this
 	static constexpr double RunOutM = 600.0;    // the road goes on this far past the last pin
 	static constexpr double SpurM = 300.0;      // an out-and-back this long or shorter is left out
@@ -249,6 +264,7 @@ public:
 	};
 	static std::vector<RideStep> StripSpurs(const Region& G, const std::vector<RideStep>& Steps);
 	static std::vector<RideStep> RunOut(const Region& G, const std::vector<RideStep>& Steps, const std::vector<double>& EdgeCost);
+	std::vector<RideStep> MadeSteps;    // the way, run-out and all, on the area's roads
 	RouteRequest Request;               // the journey as asked for
 	std::vector<int> PinNodes;          // each pin's junction
 	double RunOutFrom = 0.0;            // how far along the map's roads the last pin is (the run-out is after it)
@@ -812,6 +828,10 @@ public:
 	RideSummary Summary(double Cap = 31.3) const;
 
 private:
+	// The rest of Make once the way (MadeSteps) is found on the area read: the road smoothed and laid,
+	// its ground fetched, the network round StartAt (the road's start when null) laid, and all indexed.
+	static std::shared_ptr<RidePlan> LayOut(const std::shared_ptr<RidePlan>& R, CellStore& Store, HeightStore& Heights,
+		const std::function<void(const std::string&)>& Said, const P2* StartAt);
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds);
 	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...
 	std::vector<int> SpansAlong(const std::vector<P2>& Line, int Kind) const;

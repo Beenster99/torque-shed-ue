@@ -226,5 +226,12 @@ private:
 	TSet<FIntVector> Stale;
 	FVector2D GroundAt = FVector2D(1e12, 1e12);
 	bool bFetchingGround = false;
+	// [ride anywhere 3] The ride grown on a worker as the rider nears the edge of what was read
+	// (RidePlan::Grow); the cells found not baked yet, not asked again (Row * 100000 + Col).
+	bool bGrowing = false;
+	double SinceGrowLook = 0.0;
+	TSet<int64> GrowTried;
+	void TryGrow(const FVector2D& At);
+	void Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried);
 	bool bSaidReady = false;
 };
