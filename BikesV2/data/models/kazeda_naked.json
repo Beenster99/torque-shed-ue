@@ -12,6 +12,7 @@
   "fork": "#2e3136",
   "accent": "#C9D431"
  },
+ "deck": {"nose": [690, 866], "tank_pitch": 2, "seat_pitch": 10},
  "geometry": {
   "wheelbase": 1440,
   "rake": 24,

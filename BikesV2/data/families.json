@@ -97,14 +97,8 @@
     "rail_spacing": 200,
     "seat_solo": 310,
     "seat_dual": 560,
-    "seat_pitch": [
-     4,
-     16
-    ],
-    "nose_x": [
-     600,
-     680
-    ],
+    "seat_pitch": [2, 16],
+    "nose_x": [640, 720],
     "nose_z": [
      850,
      900

@@ -21,6 +21,9 @@ EXTRA = """
 .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
 .shots figure{margin:0;display:flex;flex-direction:column;gap:4px}.shots img{width:100%;height:auto;display:block;border:1px solid var(--rule)}
 .shots figcaption{font-size:12.5px;color:var(--mute)}
+.sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
+.sw figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;font-size:12px;color:var(--mute)}
+.sw img{width:84px;height:84px;display:block}
 ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;max-width:68ch}
 """
 
@@ -54,6 +57,27 @@ def renders(name):
 <figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>"""
 
 
+def swatch_section():
+    """The shared surface library as labelled balls, cut from out/renders/materials.png."""
+    import base64
+    import io
+    from PIL import Image
+    src = os.path.join(ROOT, "out", "renders", "materials.png")
+    if not os.path.exists(src):
+        return ""
+    lib = json.load(open(os.path.join(ROOT, "data", "materials.json")))
+    names = [lib["finishes"][f]["label"] for f in lib["finishes"]] + [v["label"] for k, v in lib["surfaces"].items() if k != "paint"]
+    im, cols = Image.open(src).convert("RGBA"), 6
+    cell = im.width // cols
+    figs = []
+    for i, label in enumerate(names):
+        c = im.crop(((i % cols) * cell, (i // cols) * cell, (i % cols + 1) * cell, (i // cols + 1) * cell)).resize((168, 168), Image.LANCZOS)
+        buf = io.BytesIO()
+        c.save(buf, "PNG", optimize=True)
+        figs.append(f'<figure><img src="data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}" alt=""><figcaption>{label.split(" (")[0]}</figcaption></figure>')
+    return f"""<section><h2>Shared surface library</h2><p class="lede">Every model and every shared part uses only these {len(names)} surfaces, so parts from different brands sit together. Paint, frame, wheel and accent surfaces take the bike's own colours, and each brand has a house paint finish.</p><div class="sheet"><div class="sw">{"".join(figs)}</div></div></section>"""
+
+
 def build(family, names):
     fams = json.load(open(os.path.join(ROOT, "data", "families.json")))["families"]
     head = review_page.HEAD.replace("<title>Bike Models V2 Brands and Families</title>", f"<title>{fams[family]['name']} Side Elevations</title>")
@@ -64,16 +88,28 @@ def build(family, names):
 <p class="ask"><strong>What to look at:</strong> does each bike look like a believable machine of its brand, and are the proportions right? Comment on any part you want changed, for example the tank line, the tail, the lamp or the stance. A marked-up change is redrawn and rechecked automatically.</p>"""]
     for n in names:
         m = elevation.load(n)
-        res = checks.check(m, fams)
+        res = checks.check(m, fams) + checks.deck(m, fams)
         pk = checks.packing(m)
         if pk is not None:
             res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
+    import mix
+    loaded = [elevation.load(n) for n in names]
+    pairs = [(a, b) for a in loaded for b in loaded if a is not b]
+    if pairs:
+        h.append("""<section><h2>Mixed builds</h2><p class="lede">One brand's frame and engine with the other brand's tank and seat, straight from the two files above with nothing redrawn by hand. The parts sit on the hidden mounting deck that every frame in the family shares, and a hidden pan under each seat covers any difference in tail line.</p>""")
+        for a, b in pairs:
+            mm = mix.mix(a, b)
+            li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in checks.deck(mm, fams))
+            h.append(f"""<div class="sheet" style="margin-bottom:14px">{elevation.draw(mm)}<ul class="checks">{li}</ul></div>""")
+        h.append("</section>")
+    h.append(swatch_section())
     h.append("""<section><h2>What these drawings are, and are not yet</h2>
 <ul class="plain"><li>They are drawn to scale from real numbers: wheelbase, rake, trail, seat height, wheel sizes and every frame tube.</li>
 <li>The automatic checks under each drawing run on every change. Two came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, and the middle of the bike may not be more than 12% empty space. The space under the tank and saddle is now filled with an airbox, side panels and an inner mudguard.</li>
-<li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky and the materials are plain. Refining the 3D is the next job.</li>
+<li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
+<li>The mixed builds are the first proof of the mounting standard. They are drawings only for now; the 3D versions follow.</li>
 <li>Not yet drawn: top and front views, the kit variants (three tank and seat pairs, three tails, front ends) and small detail such as cables, hoses and fasteners.</li></ul></section></div>""")
     out = os.path.join(ROOT, "out", f"{family}_elevations.html")
     open(out, "w").write("\n".join(h))

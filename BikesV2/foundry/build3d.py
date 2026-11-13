@@ -28,25 +28,8 @@ WIDTHS = {
     "tail": {"w": [[0, 55], [0.4, 105], [1, 125]], "n": 3.0, "bottom": 0.8},
 }
 
-MATS = {
-    "paint": dict(metallic=0.0, rough=0.28, coat=1.0),
-    "frame": dict(metallic=0.6, rough=0.35, coat=0.3),
-    "rubber": dict(col=(0.016, 0.016, 0.018), rough=0.75),
-    "alu": dict(col=(0.62, 0.64, 0.66), metallic=1.0, rough=0.38),
-    "alu_dark": dict(col=(0.06, 0.065, 0.07), metallic=0.9, rough=0.45),
-    "steel": dict(col=(0.55, 0.56, 0.57), metallic=1.0, rough=0.22),
-    "chrome": dict(col=(0.9, 0.9, 0.9), metallic=1.0, rough=0.06),
-    "engine": dict(col=(0.34, 0.35, 0.37), metallic=0.9, rough=0.5),
-    "engine_dark": dict(col=(0.11, 0.115, 0.12), metallic=0.8, rough=0.5),
-    "plastic": dict(col=(0.02, 0.021, 0.023), rough=0.5),
-    "seat": dict(col=(0.018, 0.018, 0.02), rough=0.62),
-    "exhaust": dict(col=(0.5, 0.48, 0.45), metallic=1.0, rough=0.3),
-    "gold": dict(col=(0.42, 0.27, 0.08), metallic=1.0, rough=0.32),
-    "lens": dict(col=(0.9, 0.88, 0.75), rough=0.1, emit=0.6),
-    "redlens": dict(col=(0.5, 0.02, 0.03), rough=0.15, emit=0.3),
-    "plate": dict(col=(0.6, 0.5, 0.05), rough=0.5),
-    "floor": dict(col=(0.2, 0.205, 0.21), rough=0.85),
-}
+LIB = json.load(open(os.path.join(ROOT, "data", "materials.json")))
+FINISH = {"name": "gloss"}  # paint finish of the bike being built; build() sets it
 _mats = {}
 
 
@@ -55,26 +38,87 @@ def hex_rgb(h):
     return tuple(((int(h[i:i + 2], 16) / 255) ** 2.2) for i in (0, 2, 4))
 
 
-def mat(name, col=None):
-    key = name + str(col)
+def mat(name, col=None, finish=None):
+    """A surface from data/materials.json. Slot surfaces are named tag__slot so the game can recolour them."""
+    spec = dict(LIB["surfaces"][name]) if name in LIB["surfaces"] else {"col": [0.2, 0.205, 0.21], "rough": 0.85}
+    if spec.get("finish"):
+        finish = finish or FINISH["name"]
+        spec.update(LIB["finishes"][finish])
+    key = name + str(col) + str(finish)
     if key in _mats:
         return _mats[key]
-    spec = MATS[name]
-    m = bpy.data.materials.new(name)
+    m = bpy.data.materials.new(name + ("__" + spec["slot"] if spec.get("slot") else ""))
     m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    c = col or spec.get("col", (0.5, 0.5, 0.5))
+    nt = m.node_tree
+    b = nt.nodes["Principled BSDF"]
+    c = tuple(col or spec.get("col", (0.5, 0.5, 0.5)))
     b.inputs["Base Color"].default_value = (*c, 1)
     b.inputs["Metallic"].default_value = spec.get("metallic", 0.0)
     b.inputs["Roughness"].default_value = spec.get("rough", 0.5)
     if spec.get("coat"):
         b.inputs["Coat Weight"].default_value = spec["coat"]
         b.inputs["Coat Roughness"].default_value = 0.04
+    if spec.get("sheen"):
+        b.inputs["Sheen Weight"].default_value = spec["sheen"]
     if spec.get("emit"):
         b.inputs["Emission Color"].default_value = (*c, 1)
         b.inputs["Emission Strength"].default_value = spec["emit"]
+    if spec.get("bump"):
+        size_mm, depth = spec["bump"]
+        tc = nt.nodes.new("ShaderNodeTexCoord")
+        nz = nt.nodes.new("ShaderNodeTexNoise")
+        nz.inputs["Scale"].default_value = 1.0 / (size_mm * MM)
+        nz.inputs["Detail"].default_value = 3.0
+        bp = nt.nodes.new("ShaderNodeBump")
+        bp.inputs["Strength"].default_value = depth
+        bp.inputs["Distance"].default_value = size_mm * MM * 0.3
+        nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
+        nt.links.new(nz.outputs["Fac"], bp.inputs["Height"])
+        nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
     _mats[key] = m
     return m
+
+
+def swatches(samples=32):
+    """Renders every surface and paint finish as a ball on one sheet: out/renders/materials.png."""
+    names = [("paint", f) for f in LIB["finishes"]] + [(n, None) for n in LIB["surfaces"] if n != "paint"]
+    cols = 6
+    demo = {"body": "#B3122A", "frame": "#A8884F", "rim": "#2b2d31", "accent": "#D7E23A"}
+    for i, (n, f) in enumerate(names):
+        x, z = -(i % cols) * 0.3, -(i // cols) * 0.3
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.12, segments=64, ring_count=32, location=(x, 0, z))
+        ob = bpy.context.object
+        bpy.ops.object.shade_smooth()
+        slot = LIB["surfaces"][n].get("slot")
+        ob.data.materials.append(mat(n, hex_rgb(demo[slot]) if slot else None, f))
+    sc = bpy.context.scene
+    rows = (len(names) + cols - 1) // cols
+    w = bpy.data.worlds.new("w")
+    w.use_nodes = True
+    w.node_tree.nodes["Background"].inputs[0].default_value = (0.75, 0.77, 0.8, 1)
+    w.node_tree.nodes["Background"].inputs[1].default_value = 0.5
+    sc.world = w
+    cx, cz = -(cols - 1) * 0.15, -(rows - 1) * 0.15
+    for loc, energy in (((cx + 1.0, 2.5, cz + 1.5), 120), ((cx - 1.5, 2.0, cz - 0.5), 40)):
+        bpy.ops.object.light_add(type="AREA", location=loc)
+        L = bpy.context.object
+        L.data.energy, L.data.size = energy, 1.5
+        L.rotation_euler = _look(loc, (cx, 0, cz))
+    cam = bpy.data.cameras.new("sw")
+    cam.type, cam.ortho_scale = "ORTHO", cols * 0.3
+    ob = bpy.data.objects.new("sw", cam)
+    sc.collection.objects.link(ob)
+    ob.location = (cx, 4, cz)
+    ob.rotation_euler = _look(ob.location, (cx, 0, cz))
+    sc.camera = ob
+    sc.render.engine, sc.cycles.device, sc.cycles.samples, sc.cycles.use_denoising = "CYCLES", "CPU", samples, True
+    sc.render.film_transparent = True
+    sc.render.resolution_x, sc.render.resolution_y = 1500, 250 * rows
+    out = os.path.join(ROOT, "out", "renders", "materials.png")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    sc.render.filepath = out
+    bpy.ops.render.render(write_still=True)
+    return [(n, f) for n, f in names], cols
 
 
 def V(x, y, z):
@@ -176,15 +220,15 @@ def wheel(tag, c, w, width, rim_col, discs):
     revolve(tag + "_tyre", prof, c, mat("rubber"))
     rw = hw * 0.8
     rprof = [(rr + 8, rw), (rr + 8, rw - 8), (rr - 8, rw - 14), (rr - 22, 0), (rr - 8, -rw + 14), (rr + 8, -rw + 8), (rr + 8, -rw), (rr - 26, -rw + 6), (rr - 34, 0), (rr - 26, rw - 6)]
-    revolve(tag + "_rim", rprof, c, mat("alu_dark", rim_col))
+    revolve(tag + "_rim", rprof, c, mat("rim", rim_col))
     n = w.get("spokes", 5)
     for k in range(n):
         a0 = 360 / n * k + w.get("phase", 12)
         for side in (-1, 1):
             a_h, a_r = a0 + side * 16, a0 + side * 9 + 20
             quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
-            prism(f"{tag}_spoke{k}{side}", quad, -13, 13, mat("alu_dark", rim_col), 3)
-    revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("alu_dark", rim_col), 32)
+            prism(f"{tag}_spoke{k}{side}", quad, -13, 13, mat("rim", rim_col), 3)
+    revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("rim", rim_col), 32)
     d = w.get("disc")
     for y in discs if d else []:
         revolve(f"{tag}_disc{y}", [(d, y + 2.5), (d, y - 2.5), (d - 36, y - 2.5), (d - 36, y + 2.5)], c, mat("steel"), 64)
@@ -237,6 +281,8 @@ def arc_band(name, a, hw, material):
 
 def build(model):
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    _mats.clear()
+    FINISH["name"] = model.get("finish") or LIB["brand_finish"].get(model.get("brand"), "gloss")
     g, wh, col = model["geometry"], model["wheels"], model["colours"]
     body_c, frame_c, rim_c = hex_rgb(col["body"]), hex_rgb(col["frame"]), hex_rgb(col.get("rim", "#2b2d31"))
     paint, framem = mat("paint", body_c), mat("frame", frame_c)
@@ -373,7 +419,7 @@ def build(model):
         t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 9 * i / 120
         q = add(add(tuple(sk["top"]), us, t), ns, 27 * math.cos(a))
         coil.append((q[0], 27 * math.sin(a), q[1]))
-    tube("spring", coil, 5, mat("paint", hex_rgb(col.get("accent", col["body"]))))
+    tube("spring", coil, 5, mat("accent", hex_rgb(col.get("accent", col["body"]))))
 
     # bodywork
     body = model["body"]
@@ -504,6 +550,10 @@ def render(name, samples=48):
 
 if __name__ == "__main__":
     name = sys.argv[1]
+    if name == "--swatches":
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        print(swatches())
+        sys.exit(0)
     model = json.load(open(os.path.join(ROOT, "data", "models", name + ".json")))
     build(model)
     if "--glb" in sys.argv:

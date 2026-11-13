@@ -14,6 +14,9 @@ import math
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import shapes  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W, H = 1600, 1000
 S = 0.56
@@ -337,6 +340,11 @@ def draw(model):
         else:
             sh.path(shp["pts"], shp["cls"], shp.get("closed", True), shp.get("t", 0.8))
 
+    # ---- seat pan: a hidden base under the seat, behind the tail, so that a seat from another
+    # brand never shows daylight over this bike's tail (docs/mounting_standard.md, joint rule 1)
+    pan = seat_pan(body)
+    if pan:
+        sh.poly(pan, "plastic")
     # ---- bodywork, back to front: tail, seat, tank, panels, trim lines
     for part in ("tail", "seat", "tank", "panels", "trim"):
         for shp in body.get(part, []):
@@ -407,6 +415,39 @@ CSS = """
 .elev .dim{stroke:#1f4fd1;stroke-width:1;fill:none}.elev .dash{stroke-dasharray:7 5}.elev .dimt{fill:#1f4fd1;font-size:15px;font-family:"IBM Plex Mono",ui-monospace,monospace}
 .elev .title{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:44px;fill:#16181b}.elev .subt{font-size:16px;fill:#4a5057}
 """
+
+
+PAN = 40  # depth of the hidden seat pan, mm
+
+
+def _solid(body, part, cls):
+    for shp in body.get(part, []):
+        if shp.get("closed", True) and shp.get("cls") == cls and "pts" in shp:
+            return shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+    return None
+
+
+def seat_tail(body, step=10):
+    """[(x, seat underside z, tail top z)] wherever the seat sits over the tail."""
+    seat, tail = _solid(body, "seat", "seat"), _solid(body, "tail", "body")
+    if not seat or not tail:
+        return []
+    lo = max(min(p[0] for p in seat), min(p[0] for p in tail)) + 12
+    hi = min(max(p[0] for p in seat), max(p[0] for p in tail)) - 12
+    out, x = [], lo
+    while x <= hi:
+        a, b = shapes.top_bottom(seat, x), shapes.top_bottom(tail, x)
+        if a and b:
+            out.append((x, a[1], b[0]))
+        x += step
+    return out
+
+
+def seat_pan(body):
+    st = seat_tail(body)
+    if len(st) < 2:
+        return None
+    return [(x, z + 3) for x, z, _ in st] + [(x, z - PAN) for x, z, _ in reversed(st)]
 
 
 def load(name):
