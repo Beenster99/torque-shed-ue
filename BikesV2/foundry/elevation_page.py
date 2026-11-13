@@ -58,6 +58,36 @@ def renders(name):
 <figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>"""
 
 
+def kit_renders(names):
+    """Three-quarter 3D pictures of kit bikes and mixed bikes, from whatever build3d.py --kit / --donor has rendered."""
+    import base64
+    import glob
+    import io
+    import re
+    import elevation
+    import mix
+    from PIL import Image
+    figs = []
+    for q in sorted(glob.glob(os.path.join(ROOT, "out", "renders", "*_q.png"))):
+        tag = os.path.basename(q)[:-6]
+        k = re.match(r"(.+)_kit(\d)(\d)(\d)(\d)((?:x\d)*)$", tag)
+        if k and k.group(1) in names:
+            v = mix.apply_kit(elevation.load(k.group(1)), *[int(k.group(i)) for i in range(2, 6)], [int(x) for x in k.group(6).split("x") if x])
+            f = v["kit_fitted"]
+            cap = f"{v['brand'].title()}: {f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + "".join(", " + x for x in f["extras"])
+        elif "+" in tag and all(t in names for t in tag.split("+")):
+            a, b = [elevation.load(t)["brand"].title() for t in tag.split("+")]
+            cap = f"{a} frame and engine with the {b} tank and seat"
+        else:
+            continue
+        buf = io.BytesIO()
+        Image.open(q).convert("RGB").resize((1000, 625)).save(buf, "JPEG", quality=82)
+        figs.append(f'<figure><img src="data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}" alt="{cap}, 3D model"><figcaption>{cap}.</figcaption></figure>')
+    if not figs:
+        return ""
+    return '<section><h2>Kit bikes and mixed bikes in 3D</h2><p class="lede">The same kit choices and cross-brand mixes, built as 3D models straight from the files with nothing modelled by hand. The shapes are still the first rough build.</p><div class="shots">' + "".join(figs) + "</div></section>"
+
+
 def swatch_section():
     """The shared surface library as labelled balls, cut from out/renders/materials.png."""
     import base64
@@ -151,14 +181,15 @@ def build(family, names):
             li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in checks.deck(mm, fams))
             h.append(f"""<div class="sheet" style="margin-bottom:14px">{elevation.draw(mm)}<ul class="checks">{li}</ul></div>""")
         h.append("</section>")
+    h.append(kit_renders(names))
     h.append(swatch_section())
     h.append("""<section><h2>What these drawings are, and are not yet</h2>
 <ul class="plain"><li>They are drawn to scale from real numbers: wheelbase, rake, trail, seat height, wheel sizes and every frame tube.</li>
 <li>The automatic checks under each drawing run on every change. Three came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, the middle of the bike may not be more than 12% empty space, and a naked tank must be flat underneath.</li>
 <li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
-<li>The mixed builds are the first proof of the mounting standard. They are drawings only for now; the 3D versions follow.</li>
-<li>Not yet drawn: top and front views, and the kit parts in 3D.</li></ul></section></div>""")
+<li>The mixed builds are the first proof of the mounting standard.</li>
+<li>Not yet drawn: top and front views.</li></ul></section></div>""")
     out = os.path.join(ROOT, "out", f"{family}_elevations.html")
     open(out, "w").write("\n".join(h))
     return out
