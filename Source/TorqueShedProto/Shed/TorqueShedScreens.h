@@ -75,6 +75,10 @@ private:
 
 	// [tv] The channels.
 	int32 ShownChannel[5] = {-1, -1, -1, -1, -1};   // what each TV's page was last drawn for
+	// [tv] Whether each bay has its bike standing in it (-1 not looked yet): the TV behind goes off
+	// as it leaves, and comes on at the bay's page as one arrives (beenster, build 141).
+	int32 BayPresent[4] = {-1, -1, -1, -1};
+	bool BikeInBay(int32 Bay) const;
 	int32 ChannelOf(int32 Tv) const;
 	bool IsLive(int32 Tv) const;
 	void DrawPlayers(UCanvas* C, const FString& Note) const;
