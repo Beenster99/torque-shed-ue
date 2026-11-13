@@ -5,6 +5,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace TorqueWorld
 {
@@ -44,6 +45,32 @@ struct LocalLook
 
 // The look of the place at a latitude and longitude.
 const LocalLook& LookAt(double Lat, double Lon);
+
+// [towns stage 1] A town's own look, from Data/RideUK/town_looks.json (the famous places whose look
+// is well known and whose map tags are thin): where it is, how far it reaches, and its walls and
+// roofs. Within Km of it a building takes this look over its region's, and over the look counted
+// from its neighbours' tags.
+struct TownEntry
+{
+	std::string Name;
+	double Lat = 0.0, Lon = 0.0, Km = 1.5;
+	// The shares of walls and roofs ("" walls the region's), and their colours by name.
+	bool HasWalls = false, HasRoofs = false;
+	float Brick = 0.0f, Stone = 0.0f, Render = 0.0f;
+	float Slate = 0.0f, Tile = 0.0f, StoneSlate = 0.0f, Thatch = 0.0f;
+	std::string BrickName, StoneName, TileName;
+};
+// Reads the table (JSON text); false if it isn't one. Kept for every ride after (thread safe).
+bool SetTownTable(const std::string& Text);
+std::vector<TownEntry> TownTable();
+// A brick colour by name (red, orange, brown, yellow, cream, blue), a stone's tint (bath, honey,
+// sandstone, gritstone, sooty, granite, limestone, red_sandstone, flint, slate) or a roof tile's
+// (red, orange, brown, blue); false for a name it doesn't know.
+bool NamedBrick(const std::string& Name, Tint& Out);
+bool NamedStone(const std::string& Name, Tint& Out);
+bool NamedTile(const std::string& Name, Tint& Out);
+// The region's look made a town's: these shares and colours over it.
+LocalLook TownLook(const LocalLook& Region, const TownEntry& Town);
 // [stage 8] The world's default look, away from Britain: rendered walls, tiled roofs, grey stone.
 const LocalLook& WorldLook();
 } // namespace TorqueWorld

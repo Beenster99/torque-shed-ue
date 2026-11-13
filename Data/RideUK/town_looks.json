@@ -1,0 +1,1677 @@
+{
+ "about": "Towns stage 1: the famous places' own looks, over their region's and over what the map's tags say. at = [lat, lon] of the centre, km = how far it reaches. walls and roofs are shares (any scale). stone = bath, honey, sandstone, red_sandstone, gritstone, sooty, granite, limestone, flint, slate; brick = red, orange, brown, yellow, cream, blue; tile = red, orange, brown, blue. Read by World/WorldRideStyle (SetTownTable).",
+ "towns": [
+  {
+   "name": "Bath",
+   "at": [
+    51.3811,
+    -2.359
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.9,
+    "render": 0.05
+   },
+   "stone": "bath",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.3,
+    "stone": 0.1,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Edinburgh",
+   "at": [
+    55.9533,
+    -3.1883
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.85,
+    "render": 0.1
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Glasgow",
+   "at": [
+    55.8642,
+    -4.2518
+   ],
+   "km": 6.0,
+   "walls": {
+    "brick": 0.15,
+    "stone": 0.75,
+    "render": 0.1
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Aberdeen",
+   "at": [
+    57.1497,
+    -2.0943
+   ],
+   "km": 4.0,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.93,
+    "render": 0.05
+   },
+   "stone": "granite",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Dundee",
+   "at": [
+    56.462,
+    -2.9707
+   ],
+   "km": 3.5,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.75,
+    "render": 0.15
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Inverness",
+   "at": [
+    57.4778,
+    -4.2247
+   ],
+   "km": 2.5,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.55,
+    "render": 0.4
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Perth",
+   "at": [
+    56.395,
+    -3.4308
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.8,
+    "render": 0.15
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Stirling",
+   "at": [
+    56.1165,
+    -3.9369
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.7,
+    "render": 0.25
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "St Andrews",
+   "at": [
+    56.3398,
+    -2.7967
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.8,
+    "render": 0.18
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.7,
+    "tile": 0.3,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Oxford",
+   "at": [
+    51.752,
+    -1.2577
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.35,
+    "stone": 0.6,
+    "render": 0.05
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.5,
+    "tile": 0.4,
+    "stone": 0.1,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Cambridge",
+   "at": [
+    52.2053,
+    0.1218
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.75,
+    "stone": 0.2,
+    "render": 0.05
+   },
+   "stone": "limestone",
+   "brick": "cream",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Cheltenham",
+   "at": [
+    51.8994,
+    -2.0783
+   ],
+   "km": 2.5,
+   "walls": {
+    "brick": 0.2,
+    "stone": 0.2,
+    "render": 0.6
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.8,
+    "tile": 0.2,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Cirencester",
+   "at": [
+    51.719,
+    -1.968
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.9,
+    "render": 0.05
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.1,
+    "stone": 0.7,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Stow-on-the-Wold",
+   "at": [
+    51.93,
+    -1.723
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.0,
+    "stone": 1.0,
+    "render": 0.0
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.9,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Chipping Campden",
+   "at": [
+    52.051,
+    -1.78
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.0,
+    "stone": 1.0,
+    "render": 0.0
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.85,
+    "thatch": 0.05
+   }
+  },
+  {
+   "name": "Bourton-on-the-Water",
+   "at": [
+    51.885,
+    -1.759
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.0,
+    "stone": 1.0,
+    "render": 0.0
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.9,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Burford",
+   "at": [
+    51.807,
+    -1.636
+   ],
+   "km": 0.7,
+   "walls": {
+    "brick": 0.0,
+    "stone": 1.0,
+    "render": 0.0
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.9,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Broadway",
+   "at": [
+    52.036,
+    -1.858
+   ],
+   "km": 0.7,
+   "walls": {
+    "brick": 0.0,
+    "stone": 1.0,
+    "render": 0.0
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.85,
+    "thatch": 0.05
+   }
+  },
+  {
+   "name": "York",
+   "at": [
+    53.96,
+    -1.0873
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.1,
+    "render": 0.05
+   },
+   "stone": "limestone",
+   "brick": "orange",
+   "roofs": {
+    "slate": 0.25,
+    "tile": 0.75,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Leeds",
+   "at": [
+    53.7997,
+    -1.5492
+   ],
+   "km": 6.0,
+   "walls": {
+    "brick": 0.8,
+    "stone": 0.17,
+    "render": 0.03
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.85,
+    "tile": 0.15,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Bradford",
+   "at": [
+    53.795,
+    -1.7594
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.2,
+    "stone": 0.78,
+    "render": 0.02
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.0,
+    "stone": 0.4,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Halifax",
+   "at": [
+    53.721,
+    -1.864
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.88,
+    "render": 0.02
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.0,
+    "stone": 0.6,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Huddersfield",
+   "at": [
+    53.6458,
+    -1.785
+   ],
+   "km": 3.5,
+   "walls": {
+    "brick": 0.15,
+    "stone": 0.83,
+    "render": 0.02
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.5,
+    "tile": 0.0,
+    "stone": 0.5,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Hebden Bridge",
+   "at": [
+    53.741,
+    -2.011
+   ],
+   "km": 1.0,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.98,
+    "render": 0.0
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.9,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Haworth",
+   "at": [
+    53.83,
+    -1.956
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.98,
+    "render": 0.0
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.0,
+    "stone": 0.9,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Skipton",
+   "at": [
+    53.962,
+    -2.017
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.9,
+    "render": 0.05
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.5,
+    "tile": 0.0,
+    "stone": 0.5,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Harrogate",
+   "at": [
+    53.992,
+    -1.541
+   ],
+   "km": 2.5,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.88,
+    "render": 0.02
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Richmond (Yorkshire)",
+   "at": [
+    54.403,
+    -1.737
+   ],
+   "km": 1.2,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.85,
+    "render": 0.1
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.1,
+    "stone": 0.3,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Whitby",
+   "at": [
+    54.486,
+    -0.615
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.55,
+    "stone": 0.35,
+    "render": 0.1
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.9,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Scarborough",
+   "at": [
+    54.283,
+    -0.4
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.25,
+    "render": 0.15
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.4,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Robin Hood's Bay",
+   "at": [
+    54.434,
+    -0.534
+   ],
+   "km": 0.5,
+   "walls": {
+    "brick": 0.3,
+    "stone": 0.6,
+    "render": 0.1
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.0,
+    "tile": 1.0,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Durham",
+   "at": [
+    54.776,
+    -1.575
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.5,
+    "stone": 0.45,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.8,
+    "tile": 0.2,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Newcastle",
+   "at": [
+    54.9783,
+    -1.6178
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.45,
+    "stone": 0.5,
+    "render": 0.05
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Manchester",
+   "at": [
+    53.4808,
+    -2.2426
+   ],
+   "km": 6.0,
+   "walls": {
+    "brick": 0.88,
+    "stone": 0.1,
+    "render": 0.02
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Liverpool",
+   "at": [
+    53.4084,
+    -2.9916
+   ],
+   "km": 6.0,
+   "walls": {
+    "brick": 0.82,
+    "stone": 0.15,
+    "render": 0.03
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Sheffield",
+   "at": [
+    53.3811,
+    -1.4701
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.75,
+    "stone": 0.22,
+    "render": 0.03
+   },
+   "stone": "sooty",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.85,
+    "tile": 0.15,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Nottingham",
+   "at": [
+    52.9548,
+    -1.1581
+   ],
+   "km": 4.0,
+   "walls": {
+    "brick": 0.9,
+    "stone": 0.07,
+    "render": 0.03
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.5,
+    "tile": 0.5,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Leicester",
+   "at": [
+    52.6369,
+    -1.1398
+   ],
+   "km": 4.0,
+   "walls": {
+    "brick": 0.92,
+    "stone": 0.05,
+    "render": 0.03
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.4,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Birmingham",
+   "at": [
+    52.4862,
+    -1.8904
+   ],
+   "km": 7.0,
+   "walls": {
+    "brick": 0.9,
+    "stone": 0.05,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Stoke-on-Trent",
+   "at": [
+    53.0027,
+    -2.1794
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.92,
+    "stone": 0.05,
+    "render": 0.03
+   },
+   "stone": "sandstone",
+   "brick": "brown",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "brown"
+  },
+  {
+   "name": "Chester",
+   "at": [
+    53.1934,
+    -2.8931
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.25,
+    "render": 0.15
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.4,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Shrewsbury",
+   "at": [
+    52.707,
+    -2.754
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.65,
+    "stone": 0.2,
+    "render": 0.15
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Ludlow",
+   "at": [
+    52.368,
+    -2.718
+   ],
+   "km": 1.0,
+   "walls": {
+    "brick": 0.4,
+    "stone": 0.4,
+    "render": 0.2
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Hereford",
+   "at": [
+    52.056,
+    -2.716
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.7,
+    "stone": 0.2,
+    "render": 0.1
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Worcester",
+   "at": [
+    52.192,
+    -2.22
+   ],
+   "km": 2.5,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.1,
+    "render": 0.05
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Stratford-upon-Avon",
+   "at": [
+    52.192,
+    -1.707
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.1,
+    "render": 0.3
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.65,
+    "stone": 0,
+    "thatch": 0.05
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Norwich",
+   "at": [
+    52.6309,
+    1.2974
+   ],
+   "km": 3.5,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.1,
+    "render": 0.05
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "King's Lynn",
+   "at": [
+    52.752,
+    0.395
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.8,
+    "stone": 0.1,
+    "render": 0.1
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "orange"
+  },
+  {
+   "name": "Ipswich",
+   "at": [
+    52.0567,
+    1.1482
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.05,
+    "render": 0.1
+   },
+   "stone": "flint",
+   "brick": "cream",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Lavenham",
+   "at": [
+    52.109,
+    0.796
+   ],
+   "km": 0.6,
+   "walls": {
+    "brick": 0.2,
+    "stone": 0.0,
+    "render": 0.8
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0.1
+   },
+   "tile": "red"
+  },
+  {
+   "name": "London",
+   "at": [
+    51.5072,
+    -0.1276
+   ],
+   "km": 12.0,
+   "walls": {
+    "brick": 0.8,
+    "stone": 0.08,
+    "render": 0.12
+   },
+   "stone": "limestone",
+   "brick": "yellow",
+   "roofs": {
+    "slate": 0.75,
+    "tile": 0.25,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Brighton",
+   "at": [
+    50.8225,
+    -0.1372
+   ],
+   "km": 3.5,
+   "walls": {
+    "brick": 0.35,
+    "stone": 0.05,
+    "render": 0.6
+   },
+   "stone": "flint",
+   "brick": "yellow",
+   "roofs": {
+    "slate": 0.8,
+    "tile": 0.2,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Canterbury",
+   "at": [
+    51.28,
+    1.08
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.75,
+    "stone": 0.15,
+    "render": 0.1
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.2,
+    "tile": 0.8,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Rye",
+   "at": [
+    50.95,
+    0.733
+   ],
+   "km": 0.7,
+   "walls": {
+    "brick": 0.7,
+    "stone": 0.05,
+    "render": 0.25
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.05,
+    "tile": 0.95,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Winchester",
+   "at": [
+    51.0632,
+    -1.308
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.75,
+    "stone": 0.15,
+    "render": 0.1
+   },
+   "stone": "flint",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Salisbury",
+   "at": [
+    51.0688,
+    -1.7945
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.8,
+    "stone": 0.1,
+    "render": 0.1
+   },
+   "stone": "limestone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.7,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Wells",
+   "at": [
+    51.209,
+    -2.647
+   ],
+   "km": 1.0,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.8,
+    "render": 0.1
+   },
+   "stone": "honey",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.4,
+    "tile": 0.6,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Bristol",
+   "at": [
+    51.4545,
+    -2.5879
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.45,
+    "stone": 0.35,
+    "render": 0.2
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.4,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Exeter",
+   "at": [
+    50.7184,
+    -3.5339
+   ],
+   "km": 3.0,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.25,
+    "render": 0.15
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.7,
+    "tile": 0.3,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "red"
+  },
+  {
+   "name": "Totnes",
+   "at": [
+    50.432,
+    -3.684
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.3,
+    "render": 0.6
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Dartmouth",
+   "at": [
+    50.351,
+    -3.579
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.3,
+    "render": 0.6
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Plymouth",
+   "at": [
+    50.3755,
+    -4.1427
+   ],
+   "km": 4.0,
+   "walls": {
+    "brick": 0.3,
+    "stone": 0.4,
+    "render": 0.3
+   },
+   "stone": "granite",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "St Ives",
+   "at": [
+    50.211,
+    -5.48
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.0,
+    "stone": 0.6,
+    "render": 0.4
+   },
+   "stone": "granite",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Padstow",
+   "at": [
+    50.542,
+    -4.938
+   ],
+   "km": 0.6,
+   "walls": {
+    "brick": 0.0,
+    "stone": 0.5,
+    "render": 0.5
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Kendal",
+   "at": [
+    54.328,
+    -2.746
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.9,
+    "render": 0.08
+   },
+   "stone": "limestone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Keswick",
+   "at": [
+    54.601,
+    -3.134
+   ],
+   "km": 1.0,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.7,
+    "render": 0.28
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Ambleside",
+   "at": [
+    54.431,
+    -2.962
+   ],
+   "km": 0.7,
+   "walls": {
+    "brick": 0.02,
+    "stone": 0.8,
+    "render": 0.18
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Carlisle",
+   "at": [
+    54.892,
+    -2.932
+   ],
+   "km": 2.5,
+   "walls": {
+    "brick": 0.6,
+    "stone": 0.35,
+    "render": 0.05
+   },
+   "stone": "red_sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Lancaster",
+   "at": [
+    54.047,
+    -2.801
+   ],
+   "km": 2.0,
+   "walls": {
+    "brick": 0.1,
+    "stone": 0.85,
+    "render": 0.05
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Buxton",
+   "at": [
+    53.259,
+    -1.911
+   ],
+   "km": 1.5,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.9,
+    "render": 0.05
+   },
+   "stone": "limestone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.6,
+    "tile": 0.0,
+    "stone": 0.4,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Bakewell",
+   "at": [
+    53.214,
+    -1.676
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.0,
+    "stone": 1.0,
+    "render": 0.0
+   },
+   "stone": "gritstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.3,
+    "tile": 0.0,
+    "stone": 0.7,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Cardiff",
+   "at": [
+    51.4816,
+    -3.1791
+   ],
+   "km": 4.0,
+   "walls": {
+    "brick": 0.55,
+    "stone": 0.2,
+    "render": 0.25
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.9,
+    "tile": 0.1,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Swansea",
+   "at": [
+    51.6214,
+    -3.9436
+   ],
+   "km": 3.5,
+   "walls": {
+    "brick": 0.35,
+    "stone": 0.25,
+    "render": 0.4
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Tenby",
+   "at": [
+    51.672,
+    -4.703
+   ],
+   "km": 0.7,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.15,
+    "render": 0.8
+   },
+   "stone": "limestone",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Conwy",
+   "at": [
+    53.281,
+    -3.83
+   ],
+   "km": 0.7,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.75,
+    "render": 0.2
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Caernarfon",
+   "at": [
+    53.14,
+    -4.273
+   ],
+   "km": 0.8,
+   "walls": {
+    "brick": 0.05,
+    "stone": 0.6,
+    "render": 0.35
+   },
+   "stone": "slate",
+   "brick": "red",
+   "roofs": {
+    "slate": 1,
+    "tile": 0,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Belfast",
+   "at": [
+    54.5973,
+    -5.9301
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.85,
+    "stone": 0.08,
+    "render": 0.07
+   },
+   "stone": "sandstone",
+   "brick": "red",
+   "roofs": {
+    "slate": 0.95,
+    "tile": 0.05,
+    "stone": 0,
+    "thatch": 0
+   }
+  },
+  {
+   "name": "Milton Keynes",
+   "at": [
+    52.0406,
+    -0.7594
+   ],
+   "km": 5.0,
+   "walls": {
+    "brick": 0.8,
+    "stone": 0.05,
+    "render": 0.15
+   },
+   "stone": "limestone",
+   "brick": "brown",
+   "roofs": {
+    "slate": 0.1,
+    "tile": 0.9,
+    "stone": 0,
+    "thatch": 0
+   },
+   "tile": "brown"
+  }
+ ]
+}

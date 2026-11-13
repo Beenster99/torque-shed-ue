@@ -225,6 +225,13 @@ chimneys and pots, the roof's pitch and overhang and the doors' colours follow t
 (`World/WorldRideStyle`). Roofs are coursed in M_RideRoof (slate, stone slates, clay tiles, thatch or
 sheet, by the map or the look) and brick walls laid in bond in M_RideBrick, both made by
 `Tools/ue_build_rideuk.py` with no textures; without them they are drawn plain.
+Towns have their own look (towns stage 1, `World/WorldRideTowns`): where the map's mappers have
+tagged 50 or more walls or roofs within 3 km, the houses follow that mix (York brick under clay
+tiles); the famous places in `Data/RideUK/town_looks.json` (Bath stone, Leeds' sooty stone and
+slate, Edinburgh sandstone...) take theirs from there. The large and tall buildings the baker keeps
+at their true outlines (towns stage 2, `World/WorldRideTowers`) stand at their real heights: office
+towers in glass, flats and schools with windows a floor, sheds in cladding, churches and York
+Minster's parts in stone; those of 40 m and more are seen from far off.
 Still to come: scanned materials and the satellite's tint, the grass carpet, scanned trees in the
 stand-ins' places; solo only. Start it from the Options menu in the shed or yard
 (*Ride UK: Hawes to Leyburn*), or with `-TorqueRideUK=hawes` (or four numbers), which logs

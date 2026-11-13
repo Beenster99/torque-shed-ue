@@ -53,6 +53,9 @@ int main()
 {
 	Json Ref;
 	std::string Text;
+	// [towns stage 1] (the famous towns' looks, as the game sets them before any ride)
+	std::string TownText;
+	const bool TownsRead = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/town_looks.json"), TownText) && SetTownTable(TownText);
 	if (!Files::Read(Files::Join(Data, "godot_world.json"), Text) || !Json::Parse(Text, Ref))
 	{
 		std::printf("FAIL  no godot_world.json in %s\n", Data.c_str());
@@ -844,6 +847,59 @@ int main()
 						std::printf("      roofs: %zu triangles in M_RideRoof (%zu of %zu faces' courses level), %zu of brick in M_RideBrick\n", RoofTris, LevelFaces, RoofFaces, BrickTris);
 						Check(Tally.Drawn > 0 && Tally.Terraces > 0 && Tally.Chimneys > Tally.Drawn / 4 && MostTris < 150000, "buildings by kind: terraces split into houses, chimneys up, no square too heavy");
 						Check(RoofTris > 0 && LevelFaces == RoofFaces, "roofs drawn for their own surface, the courses level along the eaves");
+					}
+					// [towns stage 1] The town looks: the table read, York brick under clay tiles and Leeds brick
+					// under slate as it says, a name the colours don't know refused.
+					{
+						const std::vector<TownEntry> Towns = TownTable();
+						const TownEntry* York = nullptr;
+						const TownEntry* Leeds = nullptr;
+						int Unknown = 0;
+						for (const TownEntry& T : Towns)
+						{
+							if (T.Name == "York") York = &T;
+							if (T.Name == "Leeds") Leeds = &T;
+							Tint Probe;
+							Unknown += (!T.StoneName.empty() && !NamedStone(T.StoneName, Probe)) || (!T.BrickName.empty() && !NamedBrick(T.BrickName, Probe)) || (!T.TileName.empty() && !NamedTile(T.TileName, Probe)) ? 1 : 0;
+						}
+						bool Right = York != nullptr && Leeds != nullptr;
+						if (Right)
+						{
+							const LocalLook Y = TownLook(LookAt(York->Lat, York->Lon), *York), Ld = TownLook(LookAt(Leeds->Lat, Leeds->Lon), *Leeds);
+							Right = Y.BrickShare > 0.7f && Y.TileShare > 0.6f && Ld.BrickShare > 0.7f && Ld.TileShare < 0.3f && Ld.HouseStone.R < 0.6f;
+						}
+						const int Squares = int(Plan->TownGrid.size());
+						std::printf("      towns: %zu in the table (%d with a colour it doesn't know); %d km squares here with a town look (%d counted from tags, %d of the table's towns)\n",
+							Towns.size(), Unknown, Squares, Plan->TownsCounted, Plan->TownsTabled);
+						Check(TownsRead && Towns.size() >= 60 && Unknown == 0 && Right, "town looks: the table read, every colour known, York brick and clay tile, Leeds brick, slate and sooty stone");
+					}
+					// [towns stage 2] The towers: drawn at their outlines and heights near, the tall ones far;
+					// no box building drawn inside one.
+					{
+						size_t Near = 0;
+						int Parts = 0;
+						for (const RidePlan::TowerShape& T : Plan->TowerShapes) Parts += !T.Group.empty() && T.Group != T.Id ? 1 : 0;
+						for (const RidePlan::TowerShape& T : Plan->TowerShapes)
+						{
+							if (T.Outline) continue;
+							const double Sx = std::floor(T.Mid.X / 256.0) * 256.0, Sz = std::floor(T.Mid.Z / 256.0) * 256.0;
+							RideMesh Near1;
+							Near1.OriginX = Sx; Near1.OriginZ = Sz;
+							Plan->TowersTile(Sx, Sz, 256.0, 2, Near1);
+							Near += Near1.Idx.size() / 3;
+						}
+						RidePlan::BuildingTally Under;
+						for (const RidePlan::TowerShape& T : Plan->TowerShapes)
+						{
+							const double Sx = std::floor(T.Mid.X / 256.0) * 256.0, Sz = std::floor(T.Mid.Z / 256.0) * 256.0;
+							RideMesh Body, Wash, Homes, Tops, Brick;
+							Body.OriginX = Wash.OriginX = Homes.OriginX = Tops.OriginX = Brick.OriginX = Sx;
+							Body.OriginZ = Wash.OriginZ = Homes.OriginZ = Tops.OriginZ = Brick.OriginZ = Sz;
+							Plan->BuildingsTile(Sx, Sz, 256.0, true, Plan->LookHere(Sx + 128.0, Sz + 128.0), Body, Wash, Homes, Tops, Brick, &Under);
+						}
+						std::printf("      towers: %zu (%d parts, %d drawn as their parts, %d with a height guessed); %zu triangles near them; %d box buildings left to them\n",
+							Plan->TowerShapes.size(), Parts, Plan->TowersOutlines, Plan->TowersGuessed, Near, Under.UnderTowers);
+						Check(!Plan->TowerShapes.empty() && Near > 0, "towers drawn at their true outlines, the box buildings under them left out");
 					}
 					// [OSM stage 1] The road's facts: the limit all along it, no stretch of it under 100 m, signs
 					// where it changes, the place, and a ride time from the limits.

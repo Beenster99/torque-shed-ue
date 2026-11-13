@@ -60,6 +60,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			{
 				const Building& B = G.Buildings[size_t(Index)];
 				if (!Inside(B.X, B.Z) || B.W < 2.0 || B.D < 2.0 || !OffRoad(B.X, B.Z, std::fmin(B.W, B.D) * 0.5) || RailClear(B.X, B.Z) < std::fmin(B.W, B.D) * 0.5 + 2.0) continue;
+				// [towns stage 2] (a large or tall building is drawn at its true outline: WorldRideTowers.cpp)
+				if (UnderTower(B.X, B.Z))
+				{
+					if (Tally) ++Tally->UnderTowers;
+					continue;
+				}
 				const double Base = Ground(B.X, B.Z);
 				if (std::isnan(Base)) continue;
 				// (local to the building: x across, z deep; the turn is the one the land's levelled pad uses)

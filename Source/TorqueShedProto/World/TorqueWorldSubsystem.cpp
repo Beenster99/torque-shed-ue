@@ -130,6 +130,13 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// [stage 8] Offline or not, before anything is asked for.
 	Shared->bOffline = FTorqueSettings::Get().bWorldOffline;
 	Shared->Cells.Offline = Shared->bOffline;
+	// [towns stage 1] The famous towns' own looks, before any ride is planned.
+	{
+		std::string Text;
+		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
+		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+	}
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueRideUK="), Spec, false)) StartRide(Spec);
