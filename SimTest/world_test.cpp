@@ -1747,7 +1747,7 @@ int main()
 		std::printf("      cache: %s in %d cell and %d tiles; pruned %lld bytes to %d tiles; cleared to %lld bytes\n", Cache::Words(Before.Total()).c_str(), Before.Cells, Before.Tiles,
 			Freed, After.Tiles, Cleared.Total());
 		Check(Before.CellBytes == 3500 && Before.HeightBytes == 10000 && Before.Cells == 1 && Before.Tiles == 10 && Freed == 4000 && After.Tiles == 6 && Cleared.Total() == 0
-			&& Cache::CellsToKeep(10000000000LL) == 1600 && Cache::CellsToKeep(0) == 24,
+			&& Cache::CellsToKeep(10000000000LL) == 1250 && Cache::CellsToKeep(0) == 24,
 			"what is kept on disk is weighed, its oldest ground let go to stay under the limit, and all of it cleared");
 	}
 
