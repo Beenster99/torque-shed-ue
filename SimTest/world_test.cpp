@@ -1774,6 +1774,47 @@ int main()
 		Check(Steepest <= RoadLine::MaxGrade + 1e-9, "a step in the ground is graded to 15% at most");
 	}
 
+	// ------------------------------------------------------------------ [towns stage 3] outlines as boxes
+	{
+		// (a 10 x 6 m house turned 30 degrees; an L of 12 x 4 m and 4 x 8 m; a round tower of 64 sides)
+		const double Tw = 0.5235987755982988;
+		std::vector<P2> House;
+		for (const P2& C : {P2(-5, -3), P2(5, -3), P2(5, 3), P2(-5, 3)}) House.push_back(P2(100.0 + C.X * std::cos(Tw) - C.Z * std::sin(Tw), 50.0 + C.X * std::sin(Tw) + C.Z * std::cos(Tw)));
+		const std::vector<Building> One = RidePlan::PiecesOf(House, 7.5, 0);
+		bool HouseOk = One.size() == 1 && Near(One[0].X, 100.0, 1e-6) && Near(One[0].Z, 50.0, 1e-6) && Near(One[0].W, 10.0, 1e-6) && Near(One[0].D, 6.0, 1e-6) && One[0].Height == 7.5;
+		if (HouseOk)
+		{
+			// (its corners where the drawer puts them: x across along (cos, -sin) of its yaw, z deep along (sin, cos))
+			const double Cs = std::cos(One[0].Yaw), Sn = std::sin(One[0].Yaw);
+			for (const P2& C : House)
+			{
+				bool Hit = false;
+				for (int Sx : {-1, 1})
+					for (int Sz : {-1, 1})
+					{
+						const double Lx = Sx * One[0].W * 0.5, Lz = Sz * One[0].D * 0.5;
+						Hit = Hit || (Near(One[0].X + Lx * Cs + Lz * Sn, C.X, 1e-6) && Near(One[0].Z - Lx * Sn + Lz * Cs, C.Z, 1e-6));
+					}
+				HouseOk = HouseOk && Hit;
+			}
+		}
+		const std::vector<P2> El = {P2(0, 0), P2(12, 0), P2(12, 4), P2(4, 4), P2(4, 12), P2(0, 12)};
+		const std::vector<Building> Two = RidePlan::PiecesOf(El, 0.0, 0);
+		double ElArea = 0.0;
+		for (const Building& B : Two) ElArea += B.W * B.D;
+		std::vector<P2> Round;
+		for (int K = 0; K < 64; ++K) Round.push_back(P2(10.0 * std::cos(K * 6.283185307179586 / 64.0), 10.0 * std::sin(K * 6.283185307179586 / 64.0)));
+		const std::vector<Building> Few = RidePlan::PiecesOf(Round, 0.0, 6);
+		double RoundArea = 0.0;
+		for (const Building& B : Few) RoundArea += B.W * B.D;
+		std::printf("      outlines: a house as %zu box, an L as %zu (%.0f m2 of 80), a round tower as %zu (%.0f m2 of 314)\n", One.size(), Two.size(), ElArea, Few.size(), RoundArea);
+		Check(HouseOk && Two.size() == 2 && Near(ElArea, 80.0, 0.5) && !Few.empty() && Few.size() <= 8 && RoundArea > 250.0 && RoundArea < 380.0 && Few[0].More[0] == 6.0,
+			"[towns stage 3] an outline is cut into the boxes it is drawn with: a house one, an L two, a round tower a few of about its area");
+		Check(RidePlan::KindOfClass("church", 200.0) == 6 && RidePlan::KindOfClass("garage", 20.0) == 1 && RidePlan::KindOfClass("terrace", 300.0) == 0
+			&& RidePlan::KindOfClass("residential", 900.0) == 4 && RidePlan::KindOfClass("", 60.0) == 0 && RidePlan::KindOfClass("warehouse", 900.0) == 5,
+			"[towns stage 3] the map's class of a building is the baker's kind");
+	}
+
 	// ------------------------------------------------------------------ what is kept on disk (stage 8)
 	{
 		const std::string Root = Files::Join(TORQUE_WORLD_TMP, "world_test_cache");

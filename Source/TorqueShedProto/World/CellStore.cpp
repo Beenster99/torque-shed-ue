@@ -71,6 +71,17 @@ bool WorldIndex::Parse(const std::string& Text)
 	Hashes(Root, "sketches", Sketches);
 	Hashes(Root, "grounds", Grounds);
 	Hashes(Root, "paths", Paths);
+	if (const Json* B = Root.Get("buildings"))
+		if (B->IsObject())
+			for (const auto& Kv : B->O)
+			{
+				if (!Kv.second.IsObject()) continue;
+				CellEntry E;
+				E.Hash = Kv.second.Str("hash");
+				E.Url = Kv.second.Str("url");
+				E.Bytes = static_cast<long long>(Kv.second.Num("bytes"));
+				if (!E.Hash.empty() && !E.Url.empty()) Buildings[Kv.first] = E;
+			}
 	if (const Json* A = Root.Get("areas")) Areas = *A;
 	return true;
 }
@@ -239,6 +250,27 @@ bool CellStore::Kept(EKind Kind, const std::string& Name, const WorldIndex& Idx,
 		if (!Dir.empty()) Files::Write(Path, Text);
 	}
 	return Json::Parse(Text, Out);
+}
+
+bool CellStore::BuildingsZip(const std::string& Name, const WorldIndex& Idx, std::string& Out)
+{
+	const auto It = Idx.Buildings.find(Name);
+	if (It == Idx.Buildings.end()) return false;
+	const CellEntry& E = It->second;
+	const std::string Path = Dir.empty() ? std::string() : Files::Join(Files::Join(Dir, "bld"), "c" + Name + "-" + E.Hash + ".zip");
+	if (!Path.empty() && Files::Read(Path, Out) && Sha256Hex(Out).substr(0, E.Hash.size()) == E.Hash) return true;
+	if (Offline || !Get) return false;
+	Out.clear();
+	if (Get(E.Url, Out) != 200 || Sha256Hex(Out).substr(0, E.Hash.size()) != E.Hash) return false;
+	if (!Path.empty())
+	{
+		// (the cell's older zips go: only the one the index names is kept)
+		const std::string Folder = Files::Join(Dir, "bld");
+		for (const std::string& Old : Files::List(Folder, false))
+			if (Old.rfind("c" + Name + "-", 0) == 0) Files::Remove(Files::Join(Folder, Old));
+		Files::Write(Path, Out);
+	}
+	return true;
 }
 
 Json CellStore::Used() const

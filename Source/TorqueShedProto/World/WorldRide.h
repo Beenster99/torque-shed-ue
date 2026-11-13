@@ -648,11 +648,32 @@ public:
 	void TowersTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// Whether a point is inside a tower that stands on the ground (a box building there is not drawn).
 	bool UnderTower(double X, double Z) const;
+	// [towns stage 3] Every building of a cell with its true outline and height (the cell's buildings
+	// zip, CellStore::BuildingsZip), where the world has them: each outline as one or more boxes (an L
+	// as two, a long curve as a few), each box a Building as the cells' own with the map's words as its
+	// look. Read a tile of a cell at a time and kept. Safe on any thread.
+	struct OutlinePiece
+	{
+		Building B;
+		BuildingLook Look;
+	};
+	// Those whose middles lie in (X0, Z0)-(+Size) into Out (kept alive by Hold); the cells under the
+	// square that have outlines into Covered (their own boxes aren't drawn there).
+	void OutlinesIn(double X0, double Z0, double Size, std::vector<std::shared_ptr<const std::vector<OutlinePiece>>>& Hold,
+		std::vector<const OutlinePiece*>& Out, std::vector<CellId>& Covered) const;
+	// An outline (the area's frame, metres) as the boxes it is drawn with; Kind the baker's (land_bake's
+	// BUILDING_KINDS) from the map's class and its size.
+	static std::vector<Building> PiecesOf(const std::vector<P2>& Ring, double Height, int Kind);
+	static int KindOfClass(const std::string& Class, double Area);
+	struct OutlineStore;
+	static std::shared_ptr<OutlineStore> NewOutlineStore();
+	std::shared_ptr<OutlineStore> Outlines = NewOutlineStore();
 	void WildTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// [OSM stage 3] What a square's buildings came to (for the tests and the report).
 	struct BuildingTally
 	{
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
+		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or more.
