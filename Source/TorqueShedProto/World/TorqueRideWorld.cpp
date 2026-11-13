@@ -202,13 +202,64 @@ TArray<FString> ATorqueRideWorld::PropCredits;
 
 void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 {
-	const ATorqueRideWorld* Ride = Current.Get();
+	ATorqueRideWorld* Ride = Current.Get();
 	Dash.bNav = Ride && Ride->Plan && Ride->Plan->Ok && !Ride->Plan->Turns.empty();
 	Dash.bAtFuel = false;
+	Dash.bNavRerouting = false;
 	if (!Dash.bNav) return;
 	using TorqueWorld::RidePlan;
-	const RidePlan::RideNav N = Ride->Plan->NavAt(At.X / 100.0, At.Y / 100.0, Was);
+	const double X = At.X / 100.0, Z = At.Y / 100.0;
+	RidePlan::RideNav N = Ride->Plan->NavAt(X, Z, Was);
 	Was = N.Along;
+	// [ride anywhere] Off the ride's road a few seconds: the way back by the map's roads, from the
+	// junction ahead of the rider, found again whenever they leave it too. The guide (the maps' route)
+	// follows it; back on the ride's road, the ride's own again.
+	FRideNavState& S = Ride->NavState;
+	const double Now = FPlatformTime::Seconds();
+	const FVector2D Here(X, Z);
+	if (S.Prev.X < 1e11 && FVector2D::Distance(Here, S.Prev) > 2.0) S.Heading = FMath::Atan2(-(Here.X - S.Prev.X), -(Here.Y - S.Prev.Y));
+	if (S.Prev.X > 1e11 || FVector2D::Distance(Here, S.Prev) > 2.0) S.Prev = Here;
+	if (!N.OffRoute)
+	{
+		S.OffSince = -1.0;
+		if (S.Detour) { S.Detour.reset(); Ride->Guide = TorqueWorld::GuideOfPlan(*Ride->Plan, Ride->Guide ? Ride->Guide->Version + 1 : 1); OnRoamChanged.Broadcast(); }
+	}
+	else
+	{
+		if (S.OffSince < 0.0) S.OffSince = Now;
+		RidePlan::RideNav Back;
+		bool bOnIt = false;
+		if (S.Detour)
+		{
+			Back = Ride->Plan->NavDetour(*S.Detour, X, Z);
+			bOnIt = !Back.OffRoute;
+		}
+		if (!bOnIt && Now - S.OffSince > 3.0 && Now - S.LastTry > 4.0)
+		{
+			S.LastTry = Now;
+			S.Detour = Ride->Plan->DetourFrom(X, Z, S.Heading, Was);
+			if (S.Detour)
+			{
+				Back = Ride->Plan->NavDetour(*S.Detour, X, Z);
+				bOnIt = !Back.OffRoute;
+				Ride->Guide = TorqueWorld::GuideOfDetour(*Ride->Plan, *S.Detour, Ride->Guide ? Ride->Guide->Version + 1 : 1);
+				OnRoamChanged.Broadcast();
+			}
+		}
+		if (bOnIt)
+		{
+			// (the way back's turns and distance; the limits and stops stay the ride road's, but for the road's name)
+			N.OffRoute = false;
+			N.Turn = Back.Turn;
+			N.ToTurn = Back.ToTurn;
+			N.Onto = Back.Onto;
+			N.ToFinish = Back.ToFinish;
+			N.Road = Back.Road;
+			N.Limit = 0;
+			for (double& To : N.ToStop) To = -1.0;
+		}
+		else Dash.bNavRerouting = true;
+	}
 	Dash.bNavOff = N.OffRoute;
 	Dash.NavTurn = N.Turn;
 	Dash.NavTo = N.ToTurn;
@@ -244,6 +295,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 
 ATorqueRideWorld::FOnRoamChanged ATorqueRideWorld::OnRoamChanged;
 
+
 std::shared_ptr<const TorqueWorld::RoamArea> ATorqueRideWorld::RoamNow()
 {
 	const ATorqueRideWorld* Ride = Current.Get();
@@ -272,6 +324,7 @@ void ATorqueRideWorld::Begin(std::shared_ptr<TorqueWorld::RidePlan> InPlan)
 	// [ride anywhere] The world and the way as planned, for the maps.
 	Roam = TorqueWorld::RoamOfPlan(Plan);
 	Guide = TorqueWorld::GuideOfPlan(*Plan);
+	NavState = FRideNavState();
 	OnRoamChanged.Broadcast();
 	Jobs = std::make_shared<FTorqueRideJobs>();
 	// (the ground in the hand-built ride's scanned grass, moor and rock when Tools/ue_build_rideuk.py

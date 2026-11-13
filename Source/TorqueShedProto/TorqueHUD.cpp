@@ -666,8 +666,8 @@ void ATorqueHUD::DrawSpeedo(const ATorqueBikePawn* Bike)
 		Box(RX, NY, 226.0f, 88.0f, FLinearColor(0.03f, 0.03f, 0.04f, 0.6f));
 		if (D.bNavOff)
 		{
-			Say(TEXT("OFF ROUTE"), RX + 12.0f, NY + 32.0f, 20.0f, Accent);
-			Say(TEXT("Back to the ride's road"), RX + 12.0f, NY + 54.0f, 13.0f, Dim(0.7f));
+			Say(D.bNavRerouting ? TEXT("REROUTING") : TEXT("OFF ROUTE"), RX + 12.0f, NY + 32.0f, 20.0f, Accent);
+			Say(D.bNavRerouting ? TEXT("Finding the way back") : TEXT("Back to the ride's road"), RX + 12.0f, NY + 54.0f, 13.0f, Dim(0.7f));
 		}
 		else
 		{
