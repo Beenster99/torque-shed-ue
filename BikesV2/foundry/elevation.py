@@ -103,11 +103,9 @@ def pts_of(shp):
     ang = [a["a0"] + (a["a1"] - a["a0"]) * i / n for i in range(n + 1)]
     outer = [add(c, unit(x), a["r1"]) for x in ang]
     inner = [add(c, unit(x), a["r0"]) for x in reversed(ang)]
-    outer[0] += (1,)
-    outer[-1] += (1,)
-    inner[0] += (1,)
-    inner[-1] += (1,)
-    return outer + inner
+    # a mudguard always ends in a curve, never a flat cut (beenster, 14 Nov): a rounded tip at each end
+    rm, d = (a["r0"] + a["r1"]) / 2, math.degrees((a["r1"] - a["r0"]) * 0.75 / a["r1"]) * (1 if a["a1"] > a["a0"] else -1)
+    return outer + [add(c, unit(a["a1"] + d), rm)] + inner + [add(c, unit(a["a0"] - d), rm)]
 
 
 class Sheet:
@@ -264,6 +262,10 @@ def draw(model):
     sh.path(sw["outline"], sw.get("cls", "cast"), True, 0.9)
     for hole in sw.get("holes", []):
         sh.path(hole, "castin", True, 0.9)
+    rc = model.get("rear_caliper")
+    if rc:
+        sh.path(rc["arm"], "cast", True, 0.5)
+        sh.path(rc["body"], "caliper", True, 0.8)
     sh.circ(piv, 26, "bolt")
     sh.circ(A, 38, sw.get("cls", "cast"))
     sh.circ(A, 16, "axle")
@@ -278,7 +280,8 @@ def draw(model):
 
     # ---- exhaust headers (behind the engine)
     for hp in ex["headers"]:
-        sh.tube([tuple(p) for p in hp["pts"]], hp.get("w", 44), "exh", 1.0)
+        if not hp.get("front"):
+            sh.tube([tuple(p) for p in hp["pts"]], hp.get("w", 44), "exh", 1.0)
 
     # ---- engine
     sh.path(eng["case"], "engc", True, 0.9)
@@ -351,6 +354,10 @@ def draw(model):
         else:
             sh.path(shp["pts"], shp["cls"], shp.get("closed", True), shp.get("t", 0.8))
 
+    # ---- a header that runs down the side of the engine, not under it, is drawn over the engine
+    for hp in ex["headers"]:
+        if hp.get("front"):
+            sh.tube([tuple(p) for p in hp["pts"]], hp.get("w", 44), "exh", 1.0)
     # ---- a silencer on the near (left) side sits in front of the swingarm and wheel
     for can in ex.get("cans", []):
         if can.get("front"):

@@ -2,7 +2,7 @@
  "name": "Kazeda naked (working title N1)",
  "brand": "kazeda",
  "family": "Naked",
- "rev": "G",
+ "rev": "H",
  "engine_label": "inline four",
  "frame_label": "aluminium twin spar",
  "colours": {
@@ -34,14 +34,16 @@
    "rim_r": 216,
    "spokes": 6,
    "disc": 160,
-   "phase": 0
+   "phase": 0,
+   "tread": "sipes"
   },
   "rear": {
    "tyre_r": 316,
    "rim_r": 216,
    "spokes": 6,
    "disc": 118,
-   "phase": 15
+   "phase": 15,
+   "tread": "sipes"
   }
  },
  "fork": {
@@ -53,30 +55,29 @@
  },
  "front_caliper": [
   [
-   1335,
-   420,
+   1386,
+   361,
    1
   ],
   [
-   1290,
-   400
+   1349,
+   352
   ],
   [
-   1275,
-   345
+   1314,
+   367
   ],
   [
-   1290,
-   300,
-   1
+   1293,
+   410
   ],
   [
-   1330,
-   310
+   1302,
+   449
   ],
   [
-   1355,
-   370,
+   1337,
+   473,
    1
   ]
  ],
@@ -2264,6 +2265,54 @@
     "note": "painted single seat cowl",
     "auto": "seat_cowl"
    }
+  ]
+ },
+ "rear_caliper": {
+  "body": [
+   [
+    80,
+    342,
+    1
+   ],
+   [
+    123,
+    351
+   ],
+   [
+    110,
+    402
+   ],
+   [
+    64,
+    427
+   ],
+   [
+    45,
+    387,
+    1
+   ]
+  ],
+  "arm": [
+   [
+    30,
+    315,
+    1
+   ],
+   [
+    83,
+    346,
+    1
+   ],
+   [
+    49,
+    389,
+    1
+   ],
+   [
+    6,
+    345,
+    1
+   ]
   ]
  }
 }

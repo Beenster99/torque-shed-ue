@@ -165,7 +165,7 @@ def V(x, y, z):
     return (x * MM, y * MM, z * MM)
 
 
-def mesh_obj(name, verts, faces, material, smooth=True, bevel=0.0):
+def mesh_obj(name, verts, faces, material, smooth=True, bevel=0.0, sharp=True):
     me = bpy.data.meshes.new(name)
     me.from_pydata(verts, [], faces)
     me.update()
@@ -175,7 +175,8 @@ def mesh_obj(name, verts, faces, material, smooth=True, bevel=0.0):
     if smooth:
         me.polygons.foreach_set("use_smooth", [True] * len(me.polygons))
         try:
-            me.set_sharp_from_angle(angle=math.radians(38))
+            if sharp:
+                me.set_sharp_from_angle(angle=math.radians(38))
         except Exception:
             pass
     if bevel:
@@ -323,11 +324,57 @@ def add(p, q, k=1.0):
     return (p[0] + q[0] * k, p[1] + q[1] * k)
 
 
+TYRE_LOD = {"lod": "lod0"}   # the game export uses lod1 to keep the file light
+
+
+def game_tyre(tag, c, w, hw):
+    """The tyre built from the game's own tread section (Data/Parts/Redrawn/tyre/<tread>.glb, drawn from
+    real tyres), bent round the hoop exactly as Fit/BikeParts.cpp does it. False if there is no section."""
+    import struct
+    tread = w.get("tread")
+    path = os.path.join(os.path.dirname(ROOT), "Data", "Parts", "Redrawn", "tyre", f"{tread}.glb")
+    if not tread or not os.path.exists(path):
+        return False
+    raw = open(path, "rb").read()
+    n = struct.unpack("<I", raw[12:16])[0]
+    j = json.loads(raw[20:20 + n])
+    blob = raw[20 + n + 8:]
+    node = next(x for x in j["nodes"] if x["name"] == TYRE_LOD["lod"])
+    prim = j["meshes"][node["mesh"]]["primitives"][0]
+
+    def acc(i, fmt, size):
+        a = j["accessors"][i]
+        bv = j["bufferViews"][a["bufferView"]]
+        off = bv.get("byteOffset", 0) + a.get("byteOffset", 0)
+        stride = bv.get("byteStride", size)
+        return [struct.unpack_from(fmt, blob, off + k * stride) for k in range(a["count"])]
+    pos = acc(prim["attributes"]["POSITION"], "<3f", 12)
+    idx = [v[0] for v in acc(prim["indices"], "<H", 2)]
+    sections = {"sport": 10, "touring": 12, "sipes": 12, "cruiser": 16, "trail": 14, "blocks": 24}.get(tread, 32)
+    rt, rr = w["tyre_r"], w["rim_r"]
+    bead, base, span, step = min(hw * 0.8 - 4, hw * 0.9), rr - 6, max(rt - rr, 20) + 6, 2 * math.pi / sections
+    verts, faces = [], []
+    for k in range(sections):
+        o = len(verts)
+        for x, y, z in pos:
+            a_ = (k + z) * step
+            r_ = base + y * span
+            lat = x * hw
+            if y < 0.434 and abs(x) >= 0.9:
+                lat = math.copysign(bead + (hw - bead) * min(1.0, max(0.0, (abs(x) - 0.9) / 0.1)), x)
+            verts.append(V(c[0] + r_ * math.cos(a_), lat, c[1] + r_ * math.sin(a_)))
+        faces += [(o + idx[t], o + idx[t + 1], o + idx[t + 2]) for t in range(0, len(idx), 3)]
+    ob = mesh_obj(tag + "_tyre", verts, faces, mat("rubber"), True)
+    bm_fix_normals(ob)
+    return True
+
+
 def wheel(tag, c, w, width, rim_col, discs):
     rt, rr, hw = w["tyre_r"], w["rim_r"], width / 2
     prof = [(rr + 4, hw * 0.78), (rr + 30, hw * 0.98), (rt - 42, hw), (rt - 16, hw * 0.78), (rt - 3, hw * 0.4), (rt, 0),
             (rt - 3, -hw * 0.4), (rt - 16, -hw * 0.78), (rt - 42, -hw), (rr + 30, -hw * 0.98), (rr + 4, -hw * 0.78), (rr - 4, 0)]
-    revolve(tag + "_tyre", prof, c, mat("rubber"))
+    if not game_tyre(tag, c, w, hw):
+        revolve(tag + "_tyre", prof, c, mat("rubber"))
     rw = hw * 0.8
     rprof = [(rr + 8, rw), (rr + 8, rw - 8), (rr - 8, rw - 14), (rr - 22, 0), (rr - 8, -rw + 14), (rr + 8, -rw + 8), (rr + 8, -rw), (rr - 26, -rw + 6), (rr - 34, 0), (rr - 26, rw - 6)]
     revolve(tag + "_rim", rprof, c, mat("rim", rim_col))
@@ -358,21 +405,6 @@ def wheel(tag, c, w, width, rim_col, discs):
             quad = [add(c, unit(a_h - 7), 50), add(c, unit(a_r - 3.2), rr - 24), add(c, unit(a_r + 3.2), rr - 24), add(c, unit(a_h + 7), 50)]
             pillow(f"{tag}_spoke{k}{side}", quad, -15, 15, mat("rim", rim_col), 5, 12)
     revolve(tag + "_hub", [(18, hw * 0.7), (56, hw * 0.55), (56, -hw * 0.55), (18, -hw * 0.7)], c, mat("rim", rim_col), 32)
-    # tread: slanted grooves over both shoulders, one mesh, laid a hair proud of the carcass
-    path = [(rt - 2.0, 0.22), (rt - 6.5, 0.5), (rt - 15.0, 0.78), (rt - 27.0, 0.92), (rt - 40.0, 0.995)]
-    verts, faces, ng = [], [], 46
-    for k in range(ng):
-        for side in (-1, 1):
-            a_ = 360 / ng * (k + (0.5 if side > 0 else 0))
-            base = len(verts)
-            for j, (r_, f_) in enumerate(path):
-                for da in (-0.55, 0.55):
-                    aa = math.radians(a_ + j * 2.4 + da * (1 + j * 0.12))
-                    verts.append(V(c[0] + (r_ + 1.2) * math.cos(aa), side * f_ * hw * 1.012, c[1] + (r_ + 1.2) * math.sin(aa)))
-                if j:
-                    q0 = base + 2 * (j - 1)
-                    faces.append((q0, q0 + 1, q0 + 3, q0 + 2))
-    mesh_obj(tag + "_tread", verts, faces, mat("rubber", (0.004, 0.004, 0.005)), smooth=False)
     d = w.get("disc")
     for y in discs if d else []:
         revolve(f"{tag}_disc{y}", [(d, y + 2.5), (d, y - 2.5), (d - 36, y - 2.5), (d - 36, y + 2.5)], c, mat("steel"), 64)
@@ -390,18 +422,28 @@ def wheel(tag, c, w, width, rim_col, discs):
         revolve(f"{tag}_carrier{y}", [(d - 34, y + 3), (d - 34, y - 3), (d - 72, y - 3), (d - 72, y + 3)], c, mat("alu_dark"), 48)
 
 
-def loft(name, outline, spec, material, stations=56, ring=30):
+def loft(name, outline, spec, material, stations=56, ring=30, smooth_lines=True):
     """A body part with real width: superellipse sections between the outline's top and bottom lines."""
     xs = [p[0] for p in outline]
     x0, x1 = min(xs), max(xs)
     rows = []
+    # sample the outline and the width table, then smooth all three lines along the part so that a
+    # corner in the drawing or a kink in the table never shows as a band across the surface
+    samp = []
     for i in range(stations):
         u = (i + 0.5) / stations
+        tb = shapes.top_bottom(outline, x0 + (x1 - x0) * u)
+        if tb and tb[0] - tb[1] >= 2:
+            samp.append([u, tb[0], tb[1], shapes.lerp_table(spec["w"], u)])
+    for _ in range(3):
+        prev = [r_[:] for r_ in samp]
+        for i in range(1, len(samp) - 1):
+            for q in ((1, 2, 3) if smooth_lines else (3,)):
+                samp[i][q] = 0.25 * prev[i - 1][q] + 0.5 * prev[i][q] + 0.25 * prev[i + 1][q]
+    for u, zt, zb, w in samp:
         x = x0 + (x1 - x0) * u
-        tb = shapes.top_bottom(outline, x)
-        if not tb or tb[0] - tb[1] < 2:
-            continue
-        zc, h, w = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2, shapes.lerp_table(spec["w"], u)
+        tb = (zt, zb)
+        zc, h = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2
         edge = min(u, 1 - u) * stations          # round the two ends off
         w *= min(1.0, 0.35 + 0.65 * math.sqrt(min(1.0, edge / 3.0)))
         row = []
@@ -423,19 +465,38 @@ def loft(name, outline, spec, material, stations=56, ring=30):
             faces.append((i * ring + j, i * ring + j2, (i + 1) * ring + j2, (i + 1) * ring + j))
     faces.append(tuple(range(ring - 1, -1, -1)))
     faces.append(tuple((len(rows) - 1) * ring + j for j in range(ring)))
-    ob = mesh_obj(name, verts, faces, material, True, 0)
+    ob = mesh_obj(name, verts, faces, material, True, 0, sharp=False)
     md = ob.modifiers.new("sub", "SUBSURF")
     md.levels = md.render_levels = 1
     return ob
 
 
 def arc_band(name, a, hw, material):
-    """A mudguard: a crowned shell that wraps over the tyre and drops down its shoulders."""
-    lo, hi, n = a["r0"] - 20, a["r1"] + 6, 9
-    outer = [(lo + (hi - lo) * math.cos(math.radians(u)) ** 0.7, hw * math.sin(math.radians(u))) for u in (-88 + 176 * k / (n - 1) for k in range(n))]
-    inner = [(r - 5, y * 0.94) for r, y in outer]
-    prof = outer[::-1] + inner
-    return revolve(name, prof, tuple(a["c"]), material, 36, a["a0"], a["a1"])
+    """A mudguard: a crowned shell that wraps over the tyre and drops down its shoulders, and ends in
+    a curve at both ends, never a flat cut (beenster, 14 Nov)."""
+    lo, hi, n, segs = a["r0"] - 20, a["r1"] + 6, 9, 44
+    c = tuple(a["c"])
+    span = abs(a["a1"] - a["a0"])
+    tip = min(0.3, math.degrees(hw * 1.1 / hi) / span)      # share of the arc taken by each rounded end
+    verts, faces, m = [], [], 2 * n
+    for i in range(segs + 1):
+        f = i / segs
+        e = min(f, 1 - f) / tip
+        k = math.sqrt(max(0.0, 1 - (1 - min(1.0, e)) ** 2))     # plan outline: an ellipse at each end
+        k = max(k, 0.04)
+        ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
+        outer = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) * (0.55 + 0.45 * k), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        inner = [(r - 5 * k, y * 0.94) for r, y in outer]
+        for r, y in outer[::-1] + inner:
+            verts.append(V(c[0] + r * math.cos(ang), y, c[1] + r * math.sin(ang)))
+    for i in range(segs):
+        for q in range(m):
+            q2 = (q + 1) % m
+            faces.append((i * m + q, (i + 1) * m + q, (i + 1) * m + q2, i * m + q2))
+    faces += [tuple(range(m - 1, -1, -1)), tuple(segs * m + q for q in range(m))]
+    ob = mesh_obj(name, verts, faces, material, True, 0)
+    bm_fix_normals(ob)
+    return ob
 
 
 def build(model):
@@ -477,6 +538,12 @@ def build(model):
         cp = shapes.dense(cal, True, 0.8)
         for s in (-1, 1):
             pillow(f"caliper{s}", cp, s * 62, s * 104, mat("gold") if forkm.name.startswith("gold") else mat("alu_dark"), 8, 14)
+
+    rc = model.get("rear_caliper")
+    if rc:
+        # on the disc side of the rear wheel, on a carrier plate from the axle
+        pillow("rearcaliper", shapes.dense(rc["body"], True, 0.8), -106, -60, mat("gold") if forkm.name.startswith("gold") else mat("alu_dark"), 8, 12)
+        prism("rearcarrier", [tuple(q[:2]) for q in rc["arm"]], -100, -92, mat("alu_dark"), 2)
 
     # frame tubes: half-width grows from the head back to the pivot
     fr = model["frame"]
@@ -567,6 +634,11 @@ def build(model):
         sg = 1 if both and i == 0 else -1
         out_y = 190 if both else 150
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
+        if hp.get("front"):
+            # down the side of the engine: out past the cases straight away, then back to the silencer
+            side_y = wide / 2 + 34
+            yy = [sg * (60 + (side_y - 60) * min(1.0, j / (0.18 * (len(pts) - 1))) ** 0.7) for j in range(len(pts))]
+            yy = [sg * (abs(y) + (out_y - side_y) * max(0.0, j / (len(pts) - 1) - 0.75) / 0.25) for j, y in enumerate(yy)]
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both else (-1,)):
@@ -891,6 +963,8 @@ if __name__ == "__main__":
         pa = [int(x) for x in sys.argv[sys.argv.index("--pool") + 1].split(",")]
         model = mix.apply_pool(model, *pa)
         name = f"{name}_pool{''.join(str(x) for x in pa)}"
+    if "--game" in sys.argv:
+        TYRE_LOD["lod"] = "lod1"
     ka = kit_args("--kit")
     if "--donor" in sys.argv:
         dn = sys.argv[sys.argv.index("--donor") + 1]
