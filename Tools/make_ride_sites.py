@@ -621,18 +621,22 @@ def wainhouse():
 
 
 def hardy():
-    """The Hardy Monument (1844) on Black Down: 22 m, an octagonal tower tapering like a telescope, a
-    rib up each corner, a corniced top with a low parapet round a small round lantern; its door on the
-    south east. Dark ironstone-coloured local stone."""
+    """The Hardy Monument (1844) on Black Down: 22 m, an octagonal tower tapering like a telescope from a
+    foot that flares out like a bell, a rib up each corner, a corbelled cornice and a plain parapet on
+    top; its door on the south east. Weathered brown local stone."""
     rng = np.random.default_rng(6)
     S = Site("hardy")
     M = S.mesh("tower#far", "masonry")
     W = S.mesh("windows", "paint")
     c = mas(rng, bright=0.34, bare=1.0, lichen=0.25, moss=0.15)
     lite = mas(rng, bright=0.4, bare=1.0, lichen=0.3, moss=0.1)
-    r0, r1 = 4.15, 2.75
-    prism(M, ngon(8, r0 + 0.25, math.pi / 8), -3.0, 0.8, lite)    # (a plinth)
-    prism(M, ngon(8, r0, math.pi / 8), 0.8, 19.0, c, top_scale=r1 / r0, cap_top=False)
+    r0, r1 = 3.55, 2.45
+    # (the foot flares out like a bell: steep at first, then nearly flat to the ground)
+    prism(M, ngon(8, 5.4, math.pi / 8), -3.0, 0.4, lite, top_scale=5.25 / 5.4)
+    flare = [(0.4, 5.25), (1.4, 4.75), (2.6, 4.2), (3.8, 3.85), (4.6, 3.62)]
+    for (ya, ra), (yb, rb) in zip(flare, flare[1:]):
+        prism(M, ngon(8, ra, math.pi / 8), ya, yb, c, top_scale=rb / ra, cap_top=False)
+    prism(M, ngon(8, 3.62, math.pi / 8), 4.6, 19.0, c, top_scale=r1 / 3.62, cap_top=False)
     # Corner ribs: a thin buttress up each corner, tapering with the tower.
     for k in range(8):
         a = math.pi / 8 + 2 * math.pi * k / 8
@@ -641,23 +645,22 @@ def hardy():
             # (a square rib on the corner: its inner corner in the tower, standing out by out)
             return [(ca * (r - 0.1) - sa * w, y, sa * (r - 0.1) + ca * w), (ca * (r + out) - sa * w, y, sa * (r + out) + ca * w),
                     (ca * (r + out) + sa * w, y, sa * (r + out) - ca * w), (ca * (r - 0.1) + sa * w, y, sa * (r - 0.1) - ca * w)]
-        hexa(M, rib(r0, 0.8), rib(r1, 19.0, 0.3, 0.26), c)
+        hexa(M, rib(4.7, 1.4, 0.42, 0.3), rib(r1, 19.0, 0.3, 0.24), c)
     # Cornice, parapet and lantern.
-    prism(M, ngon(8, r1 + 0.55, math.pi / 8), 19.0, 19.7, lite, cap_bottom=True)
-    prism(M, ngon(8, r1 + 0.35, math.pi / 8), 19.7, 20.6, c, cap_top=True)
-    prism(M, ngon(16, 1.1, 0.0), 20.6, 21.6, c)
-    prism(M, ngon(16, 1.3, 0.0), 21.6, 21.85, lite, top_scale=0.4)
-    prism(M, ngon(8, 0.25, 0.0), 21.85, 22.0, lite)
+    prism(M, ngon(8, r1 + 0.2, math.pi / 8), 19.0, 19.9, c, top_scale=(r1 + 0.6) / (r1 + 0.2), cap_bottom=True, cap_top=False)   # (the cornice, corbelled out)
+    prism(M, ngon(8, r1 + 0.6, math.pi / 8), 19.9, 20.5, lite, cap_bottom=True)
+    prism(M, ngon(8, r1 + 0.35, math.pi / 8), 20.5, 21.6, c)                    # (the parapet)
+    prism(M, ngon(8, r1 + 0.45, math.pi / 8), 21.6, 22.0, lite, top_scale=0.92)
     # Door (south east face) and small windows up the stair.
-    ring = ngon(8, r0, math.pi / 8)
+    ring = ngon(8, 3.75, math.pi / 8)
     face = 1     # (the faces run from east; 1 is south east)
     a, b = np.array(ring[face]), np.array(ring[face + 1])
     m = (a + b) * 0.5; d = (b - a) / np.linalg.norm(b - a); nrm = np.array([d[1], -d[0]])
     if m @ nrm < 0:
         nrm = -nrm
-    panel(W, [m[0], 0.8, m[1]], [nrm[0], 0, nrm[1]], [d[0], 0, d[1]], 1.1, 2.4, DARK, arch=True)
-    for k, y in enumerate((6.0, 10.5, 15.0)):
-        rr = r0 + (r1 - r0) * (y - 0.8) / 18.2
+    panel(W, [m[0], 0.4, m[1]], [nrm[0], 0, nrm[1]], [d[0], 0, d[1]], 1.1, 2.4, DARK, arch=True, proud=0.5)
+    for k, y in enumerate((7.0, 11.5, 15.5)):
+        rr = 3.62 + (r1 - 3.62) * (y - 4.6) / 14.4
         rg = ngon(8, rr, math.pi / 8)
         f = (face + 2 + 3 * k) % 8
         a, b = np.array(rg[f]), np.array(rg[(f + 1) % 8])
@@ -690,16 +693,16 @@ def stoodley():
     c = mas(rng, bright=0.31, bare=1.0, lichen=0.3, moss=0.15)
     lite = mas(rng, bright=0.36, bare=1.0, lichen=0.3, moss=0.1)
     sq = lambda h: [(-h, -h), (h, -h), (h, h), (-h, h)]
-    prism(M, sq(5.2), -3.0, 1.5, c, top_scale=4.6 / 5.2)                 # battered foot
-    prism(M, sq(4.6), 1.5, 10.6, c)                                       # pedestal
-    prism(M, sq(5.0), 10.6, 11.4, lite, cap_bottom=True)                  # balcony floor, oversailing
-    prism(M, [(-5.0, -5.0), (5.0, -5.0), (5.0, -4.7), (-5.0, -4.7)], 11.4, 12.5, c)   # parapet, 4 sides
-    prism(M, [(-5.0, 4.7), (5.0, 4.7), (5.0, 5.0), (-5.0, 5.0)], 11.4, 12.5, c)
-    prism(M, [(-5.0, -4.7), (-4.7, -4.7), (-4.7, 4.7), (-5.0, 4.7)], 11.4, 12.5, c)
-    prism(M, [(4.7, -4.7), (5.0, -4.7), (5.0, 4.7), (4.7, 4.7)], 11.4, 12.5, c)
-    prism(M, sq(3.1), 11.4, 13.4, c)                                      # base of the obelisk
-    prism(M, sq(3.3), 13.4, 13.9, lite)
-    prism(M, sq(2.85), 13.9, 34.6, c, top_scale=1.55 / 2.85, cap_top=False)   # the obelisk
+    prism(M, sq(4.5), -3.0, 1.2, c, top_scale=4.1 / 4.5)                 # battered foot
+    prism(M, sq(4.1), 1.2, 11.2, c, top_scale=3.6 / 4.1)                  # the lower stage, tapering
+    prism(M, sq(4.2), 11.2, 11.7, lite, cap_bottom=True)                  # the balcony's ledge
+    prism(M, [(-4.2, -4.2), (4.2, -4.2), (4.2, -3.95), (-4.2, -3.95)], 11.7, 12.6, c)   # its parapet, 4 sides
+    prism(M, [(-4.2, 3.95), (4.2, 3.95), (4.2, 4.2), (-4.2, 4.2)], 11.7, 12.6, c)
+    prism(M, [(-4.2, -3.95), (-3.95, -3.95), (-3.95, 3.95), (-4.2, 3.95)], 11.7, 12.6, c)
+    prism(M, [(3.95, -3.95), (4.2, -3.95), (4.2, 3.95), (3.95, 3.95)], 11.7, 12.6, c)
+    prism(M, sq(3.2), 11.7, 13.6, c)                                      # base of the obelisk
+    prism(M, sq(3.35), 13.6, 14.0, lite)
+    prism(M, sq(3.0), 14.0, 34.6, c, top_scale=1.55 / 3.0, cap_top=False)    # the obelisk
     prism(M, sq(1.75), 34.6, 35.0, lite)
     # Pyramid cap.
     P = np.array([[-1.6, 35.0, -1.6], [1.6, 35.0, -1.6], [1.6, 35.0, 1.6], [-1.6, 35.0, 1.6], [0, 37.0, 0]], float)
@@ -707,11 +710,11 @@ def stoodley():
     T = _outward(P, T, np.array([0, 35.5, 0]))
     M.add(P, T, lite(len(P)), P[:, [0, 1]] + P[:, [2, 2]])
     # The doorway on the north, and its lettered panel over it (a dark plate).
-    panel(W, [0.0, 0.0, -5.15], [0, 0, -1], [-1, 0, 0], 1.4, 2.6, DARK, arch=True)
-    panel(W, [0.0, 10.0, -4.6], [0, 0, -1], [-1, 0, 0], 0.9, 0.5, DARK)
-    panel(W, [0.0, 12.0, -3.1], [0, 0, -1], [-1, 0, 0], 0.9, 1.0, DARK, arch=True)
+    panel(W, [0.0, 0.0, -4.45], [0, 0, -1], [-1, 0, 0], 1.4, 2.6, DARK, arch=True, proud=0.1)
+    panel(W, [0.0, 9.5, -3.7], [0, 0, -1], [-1, 0, 0], 0.9, 0.5, DARK, proud=0.06)
+    panel(W, [0.0, 11.9, -3.2], [0, 0, -1], [-1, 0, 0], 0.9, 1.4, DARK, arch=True)
     for nrm, rgt in (((1, 0, 0), (0, 0, 1)), ((-1, 0, 0), (0, 0, -1)), ((0, 0, 1), (1, 0, 0))):
-        panel(W, [nrm[0] * 4.6, 5.5, nrm[2] * 4.6], nrm, rgt, 0.5, 1.1, DARK)
+        panel(W, [nrm[0] * 3.9, 5.5, nrm[2] * 3.9], nrm, rgt, 0.5, 1.1, DARK, proud=0.08)
     return S
 
 
@@ -719,8 +722,8 @@ SANDSTONE = dict(bright=0.52, bare=1.0, lichen=0.35, moss=0.12)
 
 
 def cook():
-    """Captain Cook's Monument (1827) on Easby Moor: a 15.5 m sandstone obelisk on a stepped base and a
-    square pedestal with its inscribed tablet facing west."""
+    """Captain Cook's Monument (1827) on Easby Moor: a 15.5 m sandstone obelisk rising straight from a
+    low stepped base, its inscribed tablet on the west face."""
     rng = np.random.default_rng(8)
     S = Site("cook")
     M = S.mesh("obelisk#far", "masonry")
@@ -728,15 +731,13 @@ def cook():
     c = mas(rng, **SANDSTONE)
     lite = mas(rng, bright=0.58, bare=1.0, lichen=0.3, moss=0.08)
     sq = lambda h: [(-h, -h), (h, -h), (h, h), (-h, h)]
-    prism(M, sq(2.6), -2.0, 0.35, lite)
-    prism(M, sq(2.25), 0.35, 0.7, lite)
-    prism(M, sq(1.9), 0.7, 3.2, c)
-    prism(M, sq(2.05), 3.2, 3.6, lite)
-    prism(M, sq(1.45), 3.6, 14.2, c, top_scale=0.85 / 1.45, cap_top=False)
-    P = np.array([[-0.85, 14.2, -0.85], [0.85, 14.2, -0.85], [0.85, 14.2, 0.85], [-0.85, 14.2, 0.85], [0, 15.5, 0]], float)
+    prism(M, sq(1.75), -2.0, 0.3, lite)
+    prism(M, sq(1.55), 0.3, 0.75, lite)
+    prism(M, sq(1.35), 0.75, 14.4, c, top_scale=0.62 / 1.35, cap_top=False)
+    P = np.array([[-0.62, 14.4, -0.62], [0.62, 14.4, -0.62], [0.62, 14.4, 0.62], [-0.62, 14.4, 0.62], [0, 15.5, 0]], float)
     T = _outward(P, np.array([[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]]), np.array([0, 14.6, 0]))
     M.add(P, T, lite(len(P)), P[:, [0, 1]] + P[:, [2, 2]])
-    panel(W, [-1.9, 1.3, 0.0], [-1, 0, 0], [0, 0, 1], 1.5, 1.2, (0.12, 0.1, 0.08), proud=0.02)
+    panel(W, [-1.32, 2.2, 0.0], [-1, 0, 0], [0, 0, 1], 1.1, 0.9, (0.12, 0.1, 0.08), proud=0.03)
     return S
 
 
@@ -747,7 +748,7 @@ SLATE = (0.06, 0.065, 0.075)
 
 def souter():
     """Souter Lighthouse (1871), the first built for electric light: a 23 m tower, white with a broad red
-    band, its gallery and black lantern, rising out of the square engine house; the keepers' cottages
+    band, its gallery and red lantern, rising out of the square engine house; the keepers' cottages
     round a yard to the west, whitewashed under grey slate."""
     rng = np.random.default_rng(9)
     S = Site("souter")
@@ -757,7 +758,7 @@ def souter():
     Wn = S.mesh("windows", "paint")
     dirt = 0.25
     # The tower, round, 0 to 18.5 m; the band from 7 to 12.5 m.
-    for (ya, yb, rgb) in ((-2.0, 7.0, WHITE), (7.0, 12.5, RED_BAND), (12.5, 18.4, WHITE)):
+    for (ya, yb, rgb) in ((-2.0, 0.6, (0.02, 0.05, 0.035)), (0.6, 7.0, WHITE), (7.0, 12.5, RED_BAND), (12.5, 18.4, WHITE)):
         ra = 3.3 - 0.45 * max(ya, 0) / 18.4; rb = 3.3 - 0.45 * yb / 18.4
         prism(Wh, ngon(20, ra, 0.0), ya, yb, (rgb[0], rgb[1], rgb[2], dirt), top_scale=rb / ra, cap_top=(yb > 18))
     # Gallery and railing, the lantern's glazed drum and its black dome.
@@ -766,15 +767,15 @@ def souter():
         a = 2 * math.pi * k / 32
         block(Pt, (math.cos(a) * 3.25, 19.3, math.sin(a) * 3.25), (0.025, 0.55, 0.025), (0.02, 0.02, 0.02, 1.0))
     prism(Pt, ngon(20, 3.27, 0.0), 19.8, 19.9, (0.02, 0.02, 0.02, 1.0), cap_top=False)
-    prism(Wh, ngon(16, 1.95, 0.0), 18.75, 19.5, (WHITE[0], WHITE[1], WHITE[2], 0.2))
+    prism(Wh, ngon(16, 1.95, 0.0), 18.75, 19.5, (RED_BAND[0], RED_BAND[1], RED_BAND[2], 0.2))
     prism(Pt, ngon(16, 1.9, 0.0), 19.5, 21.4, (0.03, 0.04, 0.045, 1.0))
     for k in range(16):
         a = 2 * math.pi * k / 16
-        block(Pt, (math.cos(a) * 1.92, 20.45, math.sin(a) * 1.92), (0.04, 0.95, 0.04), (0.015, 0.015, 0.015, 1.0), a)
+        block(Pt, (math.cos(a) * 1.92, 20.45, math.sin(a) * 1.92), (0.04, 0.95, 0.04), (RED_BAND[0], RED_BAND[1], RED_BAND[2], 1.0), a)
     for k in range(5):
         t0, t1 = k / 5, (k + 1) / 5
         ra = 2.05 * math.cos(t0 * math.pi / 2) + 0.05; rb = 2.05 * math.cos(t1 * math.pi / 2) + 0.05
-        prism(Pt, ngon(16, ra, 0.0), 21.4 + 1.1 * math.sin(t0 * math.pi / 2), 21.4 + 1.1 * math.sin(t1 * math.pi / 2), (0.02, 0.02, 0.02, 1.0), top_scale=rb / ra)
+        prism(Pt, ngon(16, ra, 0.0), 21.4 + 1.1 * math.sin(t0 * math.pi / 2), 21.4 + 1.1 * math.sin(t1 * math.pi / 2), (RED_BAND[0], RED_BAND[1], RED_BAND[2], 1.0), top_scale=rb / ra)
     prism(Pt, ngon(8, 0.12, 0.0), 22.5, 23.0, (0.02, 0.02, 0.02, 1.0))
     # Windows up the tower, on the sea side and the land side.
     for y in (3.5, 9.0, 14.5):
@@ -811,7 +812,7 @@ def souter():
             t = (k + 0.5) / chimneys
             px = x0 + (x1 - x0) * t if ridge_along_x else cx
             pz = cz if ridge_along_x else z0 + (z1 - z0) * t
-            block(Wh, (px, eaves + rise + 0.5, pz), (0.45, 0.9, 0.35), (WHITE[0], WHITE[1], WHITE[2], 0.4))
+            block(Wh, (px, eaves + rise + 0.5, pz), (0.45, 0.9, 0.35), (0.05, 0.05, 0.05, 0.4))
         # windows: along both long sides, ground and first floor where tall enough
         floors = [0.9] + ([3.7] if eaves > 5 else [])
         if ridge_along_x:
