@@ -115,33 +115,42 @@ def varga():
 
 
 def kazeda():
-    """Kazeda: an aluminium twin spar frame left bare, the cylinder leant back with the pipe leaving the rear of
-    the head and running straight to the silencer, layered angular shrouds in two colours and a raised sharp tail."""
+    """Kazeda rev B (beenster, 14 Nov 22:55: too like the Varga). A different layout of bodywork: one belt of
+    colour runs from the shroud tip right back under the seat into a steeply kicked tail, over a big black lower
+    shroud with vents; no side panel, so the bare aluminium twin spar and subframe show; a humped seat; a short
+    squared front mudguard; silver rims; and the pipe leaves the rear of the leant-back cylinder for a stubby
+    silencer tucked high under the tail."""
     m, _ = base()
-    m.update(name="Kazeda MX (working title X2)", brand="kazeda", engine_label="four-stroke single, cylinder leant back", frame_label="aluminium twin spar frame, long-travel suspension",
-             colours={"body": "#1C4FBF", "frame": "#B9BEC4", "rim": "#1b1c1f", "fork": "#d9dbde", "accent": "#D7E23A", "seat": "#101114"})
+    m.update(name="Kazeda MX (working title X2)", brand="kazeda", rev="B", engine_label="four-stroke single, cylinder leant back", frame_label="aluminium twin spar frame, long-travel suspension",
+             colours={"body": "#1C4FBF", "frame": "#B9BEC4", "rim": "#C8CDD2", "fork": "#d9dbde", "accent": "#D7E23A", "seat": "#101114"})
     e = single(101, 132, 140, 100, dx=-20)
     e["extras"] = [{"pts": [[850, 760, 1], [900, 780], [950, 750], [940, 690], [880, 670, 1], [840, 700, 1]], "cls": "engh", "t": 0.6}]
     m["engine"] = e
     m["radiator"] = {"at": [946, 800], "angle": 66, "len": 170, "w": 34}
-    m["exhaust"] = {"headers": [{"pts": [[700, 800], [640, 826], [540, 852], [450, 872]], "w": 42, "front": True}],
-                    "cans": [{"a": [450, 872], "b": [130, 936], "w": 90, "front": True}]}
+    m["exhaust"] = {"headers": [{"pts": [[700, 800], [620, 836], [480, 880], [340, 916]], "w": 42, "front": True}],
+                    "cans": [{"a": [340, 916], "b": [70, 1000], "w": 92}]}
     m["frame"] = {"nodes": {"PV": [520, 640], "PB": [524, 372], "D0": [990, 760], "D1": [890, 410], "D2": [760, 345],
-                            "S1": [600, 800], "S2": [100, 990], "S3": [520, 650], "S4": [190, 930]},
-                  "tubes": [{"path": ["S1", "S2"], "w": 22, "cls": "sub"}, {"path": ["S3", "S4"], "w": 20, "cls": "sub"},
+                            "S1": [600, 800], "S2": [60, 1010], "S3": [520, 650], "S4": [150, 960]},
+                  "tubes": [{"path": ["S1", "S2"], "w": 24, "cls": "sub"}, {"path": ["S3", "S4"], "w": 22, "cls": "sub"}, {"path": ["S3", "S1"], "w": 20, "cls": "sub"},
                             {"path": ["head_b", "D0", "D1", "D2", "PB"], "w": 30, "t": 0.2},
                             {"path": ["head_t", "PV"], "w": 64, "t": 0}, {"path": ["PV", "PB"], "w": 56, "t": 0}], "plates": [], "sub_y": 96}
     b = m["body"]
-    b["tail"] = [{"pts": [[340, 944, 1], [200, 972], [50, 1004], [-110, 1040], [-250, 1076, 1], [-246, 1058, 1], [-110, 1012], [40, 968], [200, 926], [340, 884, 1]], "cls": "body", "t": 0.5}]
-    b["seat"][0]["pts"] = [[930, 1014, 1], [870, 986], [770, 963], [650, 955], [500, 958], [350, 972], [200, 996, 1],
-                           [206, 950, 1], [390, 906], [560, 890], [710, 890], [830, 912], [906, 952, 1]]
-    b["seat"][1]["pts"] = [[860, 970], [760, 950], [650, 942], [500, 945], [350, 958], [230, 976]]
-    b["tank"] = [{"pts": [[886, 960, 1], [916, 1020, 1], [1050, 1070, 1], [1120, 1040, 1], [1270, 930, 1], [1250, 906, 1], [1130, 880, 1], [1040, 760, 1], [960, 740, 1], [900, 800, 1]], "cls": "body", "t": 0.2},
-                 {"pts": [[1262, 924, 1], [1246, 904, 1], [1126, 876, 1], [1036, 756, 1], [1004, 748, 1], [1090, 884, 1]], "cls": "plastic", "t": 0.2, "draw_only": True},
+    # short squared front mudguard, tip lifted; black fork guards
+    x0 = min(q[0] for q in b["front_guard"][0]["pts"]) + 190
+    b["front_guard"][0].update(t=0.3, pts=[[round(x0 + (q[0] - x0) * 0.78, 1) if q[0] > x0 else q[0], round(q[1] + max(0, q[0] - x0) * 0.16, 1)] + q[2:] for q in b["front_guard"][0]["pts"]])
+    b["front_guard"][1]["cls"] = "plastic"
+    b["tail"] = [{"pts": [[340, 944, 1], [200, 968], [90, 1000], [-60, 1070], [-220, 1166, 1], [-212, 1146, 1], [-60, 1040], [70, 972], [200, 926], [340, 884, 1]], "cls": "body", "t": 0.3}]
+    b["seat"][0]["pts"] = [[930, 1014, 1], [870, 986], [770, 963], [650, 955], [520, 956], [430, 966], [370, 1000], [320, 1024], [200, 1034, 1],
+                           [206, 978, 1], [390, 914], [560, 890], [710, 890], [830, 912], [906, 952, 1]]
+    b["seat"][1]["pts"] = [[860, 970], [760, 950], [650, 942], [520, 943], [436, 952], [366, 986]]
+    b["tank"] = [{"pts": [[886, 960, 1], [916, 1020, 1], [1040, 1066, 1], [1110, 1044, 1], [1266, 904, 1], [1252, 882, 1], [1090, 930, 1], [960, 900, 1], [900, 880, 1]], "cls": "body", "t": 0.15},
+                 {"pts": [[1252, 882, 1], [1090, 930, 1], [960, 900, 1], [904, 880, 1], [930, 730, 1], [1010, 690, 1], [1120, 790, 1]], "cls": "plastic", "t": 0.15, "draw_only": True},
+                 {"pts": [[1000, 860, 1], [1090, 880, 1], [1070, 820, 1], [1010, 770, 1]], "cls": "rad", "t": 0.2, "draw_only": True},
                  {"pts": [[940, 1016], [1040, 1050], [1110, 1022]], "cls": "hl", "closed": False}]
-    b["behind"] = [{"pts": [[590, 880, 1], [360, 904], [400, 730], [520, 700, 1]], "cls": "plastic fender", "t": 0.6, "slim": True}]
-    b["panels"] = side_panel([[620, 900, 1], [400, 916, 1], [120, 1000, 1], [300, 800, 1], [470, 720, 1], [600, 760, 1]],
-                             [[560, 880, 1], [390, 894, 1], [330, 830, 1], [480, 770, 1], [570, 800, 1]])
+    b["behind"] = []
+    # the belt: the shroud's colour carried back under the seat and up into the tail, with a small number plate
+    b["panels"] = [{"pts": [[906, 950, 1], [900, 880, 1], [700, 850, 1], [480, 860, 1], [300, 910, 1], [60, 1010, 1], [50, 1044, 1], [200, 996], [390, 916], [560, 892], [710, 892], [830, 914]], "cls": "body", "t": 0.15},
+                   {"pts": [[440, 876, 1], [330, 906, 1], [190, 962, 1], [330, 936, 1], [450, 904, 1]], "cls": "plate", "t": 0.2}]
     return m
 
 
