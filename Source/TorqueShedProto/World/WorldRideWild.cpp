@@ -139,31 +139,120 @@ void RidePlan::WildTile(double X0, double Z0, double Size, int Detail, RideMesh&
 					}
 					else
 					{
-						// A dam: a wall 5 m thick, its top level a little over the highest ground along it;
-						// a weir: a step 0.6 m high and 1.5 m thick across the river.
+						// [places stage 4] A dam: its crest level a little over the highest ground along it. A
+						// short one (under 350 m) a masonry wall in the scanned stone, its face down the valley
+						// battered (wider at the foot by a fifth of its height), a parapet each side of its top
+						// and buttresses down its face; a long one an earth bank, grassed, its slopes 1 in 2.5,
+						// a stone wave wall along the water's side of its crest. A weir: a step 0.6 m high and
+						// 1.5 m thick across the river.
 						const bool Dam = W.Kind == 1;
-						double Crest = -1e9;
+						double Crest = -1e9, DamLong = 0.0;
 						if (Dam)
-							for (const P2& P : W.Line)
+						{
+							for (size_t I = 0; I < W.Line.size(); ++I)
 							{
-								const double Y = Ground(P.X, P.Z);
+								const double Y = Ground(W.Line[I].X, W.Line[I].Z);
 								if (!std::isnan(Y)) Crest = std::fmax(Crest, Y);
+								if (I > 0) DamLong += W.Line[I].DistanceTo(W.Line[I - 1]);
 							}
-						const double Half = Dam ? 2.5 : 0.75;
+						}
+						if (!Dam)
+						{
+							for (int K = 0; K < Bits; ++K)
+							{
+								const P2 Pa = A + U * (L * K / Bits), Pb = A + U * (L * (K + 1) / Bits);
+								const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
+								if (std::isnan(Ga) || std::isnan(Gb)) continue;
+								const double Half = 0.75, Ta = Ga + 0.6, Tb = Gb + 0.6, Ba = Ga - 2.0, Bb = Gb - 2.0;
+								const Paint C = {0.16f, 0.16f, 0.15f};
+								for (double Sv : {-1.0, 1.0})
+									SkyQuad(Out, Pt(Pa.X + Right.X * Sv * Half, Ba, Pa.Z + Right.Z * Sv * Half), Pt(Pb.X + Right.X * Sv * Half, Bb, Pb.Z + Right.Z * Sv * Half),
+										Pt(Pb.X + Right.X * Sv * Half, Tb, Pb.Z + Right.Z * Sv * Half), Pt(Pa.X + Right.X * Sv * Half, Ta, Pa.Z + Right.Z * Sv * Half), C, true);
+								SkyQuad(Out, Pt(Pa.X - Right.X * Half, Ta, Pa.Z - Right.Z * Half), Pt(Pb.X - Right.X * Half, Tb, Pb.Z - Right.Z * Half),
+									Pt(Pb.X + Right.X * Half, Tb, Pb.Z + Right.Z * Half), Pt(Pa.X + Right.X * Half, Ta, Pa.Z + Right.Z * Half), Paint{C.R * 1.15f, C.G * 1.15f, C.B * 1.15f}, true);
+							}
+							continue;
+						}
+						// (which side is the water's: the side whose ground 40 m off is higher, or holds a reservoir)
+						const P2 Mid = (A + B) * 0.5;
+						const auto Wet = [this](const P2& P) { const int Fa = FieldAt(P.X, P.Z); return Fa >= 0 && FieldAreas[size_t(Fa)].Kind == FieldReservoir; };
+						double Side = 1.0;   // (+1: the water to the left of A to B, -Right)
+						{
+							const P2 Lp = Mid - Right * 40.0, Rp = Mid + Right * 40.0;
+							const bool Wl = Wet(Lp), Wr = Wet(Rp);
+							if (Wl != Wr) Side = Wl ? 1.0 : -1.0;
+							else
+							{
+								const double Gl = Ground(Lp.X, Lp.Z), Gr = Ground(Rp.X, Rp.Z);
+								if (!std::isnan(Gl) && !std::isnan(Gr)) Side = Gl >= Gr ? 1.0 : -1.0;
+							}
+						}
+						const P2 Down = Right * Side;   // (towards the valley below)
+						const double Top = Crest + 0.5;
+						const bool Earth = DamLong > 350.0;
+						RideMesh* Mason = nullptr;
+						if (!Earth)
+						{
+							if (!Out.Masonry)
+							{
+								Out.Masonry = std::make_shared<RideMesh>();
+								Out.Masonry->OriginX = Out.OriginX;
+								Out.Masonry->OriginZ = Out.OriginZ;
+								Out.MasonryTint = LookHere(Mid.X, Mid.Z).HouseStone;
+							}
+							Mason = Out.Masonry.get();
+						}
+						const Paint Face = Earth ? Paint{0.07f, 0.09f, 0.035f} : Paint{0.46f, 1.0f, 0.2f};   // (masonry: the scan's masks)
+						const Paint Cap = Earth ? Paint{0.22f, 0.21f, 0.19f} : Paint{0.52f, 1.0f, 0.15f};
 						for (int K = 0; K < Bits; ++K)
 						{
 							const P2 Pa = A + U * (L * K / Bits), Pb = A + U * (L * (K + 1) / Bits);
 							const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
 							if (std::isnan(Ga) || std::isnan(Gb)) continue;
-							const double Ta = Dam ? Crest + 0.5 : Ga + 0.6, Tb = Dam ? Crest + 0.5 : Gb + 0.6;
-							const double Ba = std::fmin(Ga, Ta) - 2.0, Bb = std::fmin(Gb, Tb) - 2.0;
-							const Paint C = Dam ? DamStone : Paint{0.16f, 0.16f, 0.15f};
-							for (double Sv : {-1.0, 1.0})
-								SkyQuad(Out, Pt(Pa.X + Right.X * Sv * Half, Ba, Pa.Z + Right.Z * Sv * Half), Pt(Pb.X + Right.X * Sv * Half, Bb, Pb.Z + Right.Z * Sv * Half),
-									Pt(Pb.X + Right.X * Sv * Half, Tb, Pb.Z + Right.Z * Sv * Half), Pt(Pa.X + Right.X * Sv * Half, Ta, Pa.Z + Right.Z * Sv * Half), C, true);
-							SkyQuad(Out, Pt(Pa.X - Right.X * Half, Ta, Pa.Z - Right.Z * Half), Pt(Pb.X - Right.X * Half, Tb, Pb.Z - Right.Z * Half),
-								Pt(Pb.X + Right.X * Half, Tb, Pb.Z + Right.Z * Half), Pt(Pa.X + Right.X * Half, Ta, Pa.Z + Right.Z * Half),
-								Paint{C.R * 1.15f, C.G * 1.15f, C.B * 1.15f}, true);
+							const double Ha = std::fmax(0.0, Top - Ga), Hb = std::fmax(0.0, Top - Gb);
+							// (the crest 5 m wide; the downstream face's foot out by a fifth of the height, or 2.5 times it for a bank)
+							const double Crest2 = Earth ? 6.0 : 4.5, Batter = Earth ? 2.5 : 0.2;
+							const P2 Ua = Pa - Down * (Crest2 * 0.5), Ub = Pb - Down * (Crest2 * 0.5);   // (the water's edge of the crest)
+							const P2 Da = Pa + Down * (Crest2 * 0.5), Db = Pb + Down * (Crest2 * 0.5);
+							const P2 Fa = Da + Down * (Ha * Batter), Fb = Db + Down * (Hb * Batter);
+							RideMesh& M = Earth ? Out : *Mason;
+							// crest
+							SkyQuad(M, Pt(Ua.X, Top, Ua.Z), Pt(Ub.X, Top, Ub.Z), Pt(Db.X, Top, Db.Z), Pt(Da.X, Top, Da.Z), Cap, true);
+							// the face down the valley, to below the ground at its foot
+							const double Fya = Ground(Fa.X, Fa.Z), Fyb = Ground(Fb.X, Fb.Z);
+							SkyQuad(M, Pt(Da.X, Top, Da.Z), Pt(Db.X, Top, Db.Z), Pt(Fb.X, (std::isnan(Fyb) ? Gb : Fyb) - 1.0, Fb.Z), Pt(Fa.X, (std::isnan(Fya) ? Ga : Fya) - 1.0, Fa.Z), Face, true);
+							// the water's face (into the reservoir, under its level)
+							const P2 Wa = Ua - Down * (Earth ? Ha * 2.5 : 0.3), Wb = Ub - Down * (Earth ? Hb * 2.5 : 0.3);
+							SkyQuad(M, Pt(Ua.X, Top, Ua.Z), Pt(Ub.X, Top, Ub.Z), Pt(Wb.X, Gb - 2.0, Wb.Z), Pt(Wa.X, Ga - 2.0, Wa.Z), Face, true);
+							// parapets (a masonry dam: both sides; a bank: the wave wall on the water's side)
+							for (double Edge : {-1.0, 1.0})
+							{
+								if (Earth && Edge > 0.0) continue;
+								const P2 Ea = Pa + Down * (Edge * (Crest2 * 0.5 - 0.3)), Eb = Pb + Down * (Edge * (Crest2 * 0.5 - 0.3));
+								const double Ph = Earth ? 1.2 : 1.1;
+								for (double Th : {-0.3, 0.3})
+									SkyQuad(M, Pt(Ea.X + Down.X * Th, Top, Ea.Z + Down.Z * Th), Pt(Eb.X + Down.X * Th, Top, Eb.Z + Down.Z * Th), Pt(Eb.X + Down.X * Th, Top + Ph, Eb.Z + Down.Z * Th),
+										Pt(Ea.X + Down.X * Th, Top + Ph, Ea.Z + Down.Z * Th), Cap, true);
+								SkyQuad(M, Pt(Ea.X - Down.X * 0.3, Top + Ph, Ea.Z - Down.Z * 0.3), Pt(Eb.X - Down.X * 0.3, Top + Ph, Eb.Z - Down.Z * 0.3), Pt(Eb.X + Down.X * 0.3, Top + Ph, Eb.Z + Down.Z * 0.3),
+									Pt(Ea.X + Down.X * 0.3, Top + Ph, Ea.Z + Down.Z * 0.3), Cap, true);
+							}
+							// buttresses down a masonry dam's face, every 18 m
+							if (!Earth && Detail >= 1 && Ha > 6.0)
+							{
+								const double At0 = L * K / Bits, At1 = L * (K + 1) / Bits;
+								for (double Bt = std::ceil(At0 / 18.0) * 18.0; Bt < At1; Bt += 18.0)
+								{
+									const P2 Bp = A + U * Bt + Down * (Crest2 * 0.5);
+									const double H = Ha + (Hb - Ha) * (Bt - At0) / std::fmax(1e-6, At1 - At0);
+									const P2 Fp = Bp + Down * (H * (Batter + 0.12));
+									const double Fy = Ground(Fp.X, Fp.Z);
+									for (double Sd : {-1.0, 1.0})
+										SkyQuad(M, Pt(Bp.X + U.X * Sd * 1.0, Top, Bp.Z + U.Z * Sd * 1.0), Pt(Fp.X + U.X * Sd * 1.0, (std::isnan(Fy) ? Top - H : Fy) - 0.5, Fp.Z + U.Z * Sd * 1.0),
+											Pt(Fp.X + U.X * Sd * 1.0 - Down.X * 2.0, (std::isnan(Fy) ? Top - H : Fy) - 0.5, Fp.Z + U.Z * Sd * 1.0 - Down.Z * 2.0), Pt(Bp.X + U.X * Sd * 1.0 - Down.X * 0.1, Top, Bp.Z + U.Z * Sd * 1.0 - Down.Z * 0.1), Face, true);
+									SkyQuad(M, Pt(Bp.X - U.X, Top, Bp.Z - U.Z), Pt(Bp.X + U.X, Top, Bp.Z + U.Z), Pt(Fp.X + U.X, (std::isnan(Fy) ? Top - H : Fy) - 0.5, Fp.Z + U.Z),
+										Pt(Fp.X - U.X, (std::isnan(Fy) ? Top - H : Fy) - 0.5, Fp.Z - U.Z), Face, true);
+								}
+							}
 						}
 					}
 				}

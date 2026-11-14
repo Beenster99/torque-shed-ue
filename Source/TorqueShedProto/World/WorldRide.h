@@ -832,7 +832,12 @@ public:
 	// map has a building for gets its tower (BuildingRole 1); the building under a tower, lighthouse,
 	// windmill or chimney is left out (UnderPlace) and the recipe drawn at its size. Seen from afar: the
 	// tall ones. Detail as SkylineTile's.
-	enum ERecipe { RecipeCircle, RecipeStone, RecipeCross, RecipeObelisk, RecipeMemorial, RecipeChurch, RecipeTower, RecipeLighthouse, RecipeWindmill, RecipeChimney, RecipeKinds };
+	enum ERecipe { RecipeCircle, RecipeStone, RecipeCross, RecipeObelisk, RecipeMemorial, RecipeChurch, RecipeTower, RecipeLighthouse, RecipeWindmill, RecipeChimney,
+		RecipeCastleRuin, RecipeKeep, RecipeHillfort, RecipeRuin, RecipeKinds };
+	// [places stage 4] And the places that shape the land: a ruined castle's broken curtain walls round
+	// its mapped outline with towers at its corners and its keep, a castle with no building for it as a
+	// keep, a hillfort's grassed ramparts round its outline (or a ring), a ruin's low walls; and the dams
+	// (WildTile) as masonry walls with a battered face and parapets, or long earth banks with a wave wall.
 	struct PlaceRecipe
 	{
 		int Sight = -1, Kind = 0;

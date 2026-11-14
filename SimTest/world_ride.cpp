@@ -618,7 +618,7 @@ int main(int Argc, char** Argv)
 		if (std::getenv("WORLD_RIDE_RECIPES") != nullptr)
 		{
 			// (one of each recipe's kind in a row 40 m off the ride's road from 300 m along, 70 m apart)
-			const char* Kinds[] = {"stone_circle", "standing_stone", "cross", "obelisk", "memorial", "church", "tower", "lighthouse", "windmill", "chimney"};
+			const char* Kinds[] = {"stone_circle", "standing_stone", "cross", "obelisk", "memorial", "church", "tower", "lighthouse", "windmill", "chimney", "castle_ruin", "castle", "hillfort"};
 			int K = 0;
 			for (const char* Kd : Kinds)
 			{
@@ -632,7 +632,9 @@ int main(int Argc, char** Argv)
 						S.Kind = Kd;
 						S.Name = std::string("Test ") + Kd;
 						S.Qid = "QT" + std::to_string(K);
-						S.At = Plan->Road[I].At + P2(D.Z / L, -D.X / L) * 40.0;
+						S.At = Plan->Road[I].At + P2(D.Z / L, -D.X / L) * (std::string(Kd) == "hillfort" ? 90.0 : 40.0);
+						if (std::string(Kd) == "castle_ruin")
+							for (const P2& C : {P2(-22, -15), P2(20, -18), P2(24, 12), P2(5, 20), P2(-20, 14)}) S.Outline.push_back(S.At + C);
 						G.Sights.push_back(S);
 						std::printf("recipe test %s at %.1f, %.1f\n", Kd, S.At.X, S.At.Z);
 						break;
@@ -640,6 +642,11 @@ int main(int Argc, char** Argv)
 			}
 		}
 		Plan->IndexPlaceRecipes();
+		{
+			int Dams = 0;
+			for (const RidePlan::WildLine& W : Plan->WildLines) Dams += W.Kind == 1 ? 1 : 0;
+			std::printf("Dams in the region: %d\n", Dams);
+		}
 		std::printf("Recipes:");
 		for (int Rk = 0; Rk < RidePlan::RecipeKinds; ++Rk) std::printf(" %d", Plan->RecipeCount[Rk]);
 		std::printf("\n");
@@ -766,10 +773,28 @@ int main(int Argc, char** Argv)
 					break;
 				}
 		}
+		else if (std::getenv("WORLD_RIDE_DAM") != nullptr)
+		{
+			// [places stage 4] (or the nth dam)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_DAM"));
+			for (const RidePlan::WildLine& W : Plan->WildLines)
+				if (W.Kind == 1 && Nth-- == 0)
+				{
+					Centre = W.Line[W.Line.size() / 2];
+					double Long = 0.0;
+					for (size_t I = 1; I < W.Line.size(); ++I) Long += W.Line[I].DistanceTo(W.Line[I - 1]);
+					std::printf("dam %.0f m long at %.0f, %.0f\n", Long, Centre.X, Centre.Z);
+					break;
+				}
+		}
 		else if (std::getenv("WORLD_RIDE_RECIPE") != nullptr)
 		{
 			// [places stage 3] (or the nth place drawn by a recipe)
-			const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_RECIPE")));
+			const std::string Want = std::getenv("WORLD_RIDE_RECIPE");
+			size_t Nth = size_t(std::atoi(Want.c_str()));
+			if (!Want.empty() && (Want[0] < '0' || Want[0] > '9'))
+				for (size_t I = 0; I < Plan->PlaceRecipes.size(); ++I)
+					if (Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[I].Sight)].Name.find(Want) != std::string::npos) { Nth = I; break; }
 			if (Nth < Plan->PlaceRecipes.size())
 			{
 				Centre = Plan->PlaceRecipes[Nth].At;

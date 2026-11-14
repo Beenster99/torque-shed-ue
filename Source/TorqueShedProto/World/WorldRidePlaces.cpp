@@ -698,6 +698,10 @@ void RidePlan::IndexPlaceRecipes()
 		else if (K == "lighthouse") Kind = RecipeLighthouse;
 		else if (K == "windmill") Kind = RecipeWindmill;
 		else if (K == "chimney") Kind = RecipeChimney;
+		else if (K == "castle_ruin") Kind = RecipeCastleRuin;
+		else if (K == "castle") Kind = S.Sub.find("ruin") != std::string::npos ? RecipeCastleRuin : RecipeKeep;
+		else if (K == "hillfort") Kind = RecipeHillfort;
+		else if (K == "ruin") Kind = RecipeRuin;
 		if (Kind < 0) continue;
 		PlaceRecipe R;
 		R.Sight = int(I);
@@ -724,6 +728,16 @@ void RidePlan::IndexPlaceRecipes()
 				R.Yaw = std::atan2(D.Z, D.X);
 			}
 			else R.Yaw = Roll(R.Seed, 1) * 6.283185307;
+		}
+		if (Kind == RecipeKeep || Kind == RecipeCastleRuin || Kind == RecipeRuin)
+		{
+			// (a castle the map has a sizeable building for is drawn as that; a ruin with no outline and
+			// no size is left as the map has it, but for a castle's: a ruined keep)
+			// (a ruin mapped with its outline is drawn round it whatever stands near)
+			double Foot = 0.0;
+			const int B = NearestBuilding(R.At, 15.0, &Foot);
+			if (S.Outline.size() < 3 && B >= 0 && Foot >= 100.0) continue;
+			if (Kind == RecipeRuin && S.Outline.size() < 3) continue;
 		}
 		if (Kind == RecipeChurch)
 		{
@@ -1083,6 +1097,185 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 					const double Tall = R.Height > 8.0 ? R.Height : 25.0 + 15.0 * Roll(Seed, 2);
 					RideMesh& M = MasonryOf();
 					RideShapes::Column(M, Pt(R.At.X, Y - 0.5, R.At.Z), 1.8, 1.0, Tall + 0.5, Detail >= 1 ? 12 : 6, StoneMask(0.4, 1.0, 0.15));
+					break;
+				}
+				case RecipeCastleRuin:
+				case RecipeRuin:
+				case RecipeKeep:
+				{
+					// A ruined castle: its curtain walls just inside its mapped outline, 2 m thick, broken to
+					// different heights with gaps, a tower at each sharp corner, and its keep; a castle with
+					// no outline, its keep alone (whole, battlemented, for one standing; broken for a ruin).
+					// A ruin: low broken walls round its outline.
+					if (Detail < 0) break;
+					RideMesh& M = MasonryOf();
+					const bool Ruined = R.Kind != RecipeKeep;
+					const bool Low = R.Kind == RecipeRuin;
+					const Paint C = StoneMask(0.44, Roll(Seed, 2) < 0.5 ? 0.0 : 1.0, 0.45);
+					const std::vector<P2>& Ring = S.Outline;
+					const bool HasRing = Ring.size() >= 3 && R.Radius > 6.0 && R.Radius < 220.0;
+					double KeepSide = 0.0;
+					if (HasRing && Detail >= 1)
+					{
+						P2 Mid;
+						const double Signed = RideShapes::RingArea(Ring, Mid);
+						const double In = Signed >= 0.0 ? 1.0 : -1.0;   // (which side of each edge is inside)
+						const size_t N = Ring.size();
+						for (size_t I = 0; I < N; ++I)
+						{
+							const P2 A = Ring[I], B = Ring[(I + 1) % N];
+							const double L = A.DistanceTo(B);
+							if (L < 0.5) continue;
+							const P2 U = (B - A) * (1.0 / L);
+							const P2 Inward = P2(-U.Z, U.X) * In;
+							const int Bits = std::max(1, int(std::ceil(L / 4.0)));
+							for (int K = 0; K < Bits; ++K)
+							{
+								const uint32_t Salt = uint32_t(I * 64 + K);
+								if (Ruined && Roll(Seed, 1000 + Salt) < (Low ? 0.25 : 0.12)) continue;   // (a gap)
+								const P2 P = A + U * (L * (K + 0.5) / Bits) + Inward * 1.2;
+								const double Gy = Ground(P.X, P.Z);
+								if (std::isnan(Gy)) continue;
+								Frame2 Wf;
+								Wf.X = P.X; Wf.Z = P.Z; Wf.Ux = U.X; Wf.Uz = U.Z;
+								const double Tall = Low ? 0.6 + 1.6 * Roll(Seed, 2000 + Salt) : Ruined ? 2.5 + 7.0 * Roll(Seed, 2000 + Salt) * Roll(Seed, 3000 + Salt / 3) + 2.0 * Roll(Seed, 3500 + Salt) : 9.0;
+								Block(M, Wf, Gy - 0.5, L / Bits + 0.05, Low ? 0.9 : 2.0, Tall + 0.5, C, 1.0, 0.0, 0.0, Ruined ? 1.2 * (Roll(Seed, 4000 + Salt) - 0.5) : 0.0);
+							}
+							// (a tower where the wall turns sharply)
+							if (Low) continue;
+							const P2 Pv = Ring[(I + N - 1) % N];
+							const double Lp = Pv.DistanceTo(A);
+							if (Lp < 0.5) continue;
+							const P2 Up = (A - Pv) * (1.0 / Lp);
+							const double Turn = std::fabs(std::atan2(Up.X * U.Z - Up.Z * U.X, Up.X * U.X + Up.Z * U.Z));
+							if (Turn < 0.6) continue;
+							const double Gy = Ground(A.X, A.Z);
+							if (std::isnan(Gy)) continue;
+							const double Tall = Ruined ? 6.0 + 8.0 * Roll(Seed, 5000 + uint32_t(I)) : 13.0;
+							if (Roll(Seed, 6000 + uint32_t(I)) < 0.5)
+							{
+								RideShapes::Column(M, Pt(A.X, Gy - 0.5, A.Z), 3.6, 3.3, Tall + 0.5, Detail >= 2 ? 14 : 8, C);
+							}
+							else
+							{
+								Frame2 Tf;
+								Tf.X = A.X; Tf.Z = A.Z; Tf.Ux = U.X; Tf.Uz = U.Z;
+								Block(M, Tf, Gy - 0.5, 6.5, 6.5, Tall + 0.5, C, 1.0, 0.0, 0.0, Ruined ? 2.0 * (Roll(Seed, 7000 + uint32_t(I)) - 0.5) : 0.0);
+								if (!Ruined) Battlements(M, Tf, Gy + Tall, 6.5, C);
+							}
+						}
+						KeepSide = Low ? 0.0 : R.Radius > 25.0 ? 14.0 + 4.0 * Roll(Seed, 8) : 0.0;
+					}
+					else if (!Low) KeepSide = 11.0 + 5.0 * Roll(Seed, 8);
+					if (KeepSide > 0.0)
+					{
+						// The keep: a great square tower, its top broken (a ruin) or battlemented, a corner
+						// turret standing higher on each corner of a whole one.
+						const double Tall = Ruined ? 12.0 + 8.0 * Roll(Seed, 9) : 18.0 + 6.0 * Roll(Seed, 9);
+						if (Detail < 1 && Tall < 14.0) break;
+						Frame2 Kf = F;
+						Block(M, Kf, Y - 0.8, KeepSide, KeepSide, Tall + 0.8, C, 1.0, 0.0, 0.0, Ruined ? 4.0 * (Roll(Seed, 10) - 0.5) : 0.0, !Ruined);
+						if (Ruined && Detail >= 1)
+						{
+							// (a broken top: stubs of wall standing up at two corners)
+							for (int Cn = 0; Cn < 2; ++Cn)
+							{
+								Frame2 Sf = Kf;
+								const V3 Cp = Kf.At((Cn == 0 ? -1.0 : 1.0) * KeepSide * 0.35, (Cn == 0 ? -1.0 : 1.0) * KeepSide * 0.35, 0.0);
+								Sf.X = Cp.X; Sf.Z = Cp.Z;
+								Block(M, Sf, Y + Tall - 0.5, KeepSide * 0.3, KeepSide * 0.3, 2.0 + 3.0 * Roll(Seed, 11 + uint32_t(Cn)), C, 0.9);
+							}
+						}
+						else if (!Ruined)
+						{
+							Battlements(M, Kf, Y + Tall, KeepSide, C);
+							for (int Cn = 0; Cn < 4; ++Cn)
+							{
+								Frame2 Tf = Kf;
+								const V3 Cp = Kf.At((Cn & 1 ? 1.0 : -1.0) * (KeepSide * 0.5 - 1.2), (Cn & 2 ? 1.0 : -1.0) * (KeepSide * 0.5 - 1.2), 0.0);
+								Tf.X = Cp.X; Tf.Z = Cp.Z;
+								Block(M, Tf, Y + Tall, 2.4, 2.4, 3.0, C);
+							}
+						}
+					}
+					break;
+				}
+				case RecipeHillfort:
+				{
+					// A hillfort: its ramparts, grassed banks round its outline (or a ring 50 to 90 m across
+					// on its top), one to three of them by its size, an entrance or two left open; each bank
+					// coloured as the land round it, darker on its outer slope where the ditch was.
+					if (Detail < 1) break;
+					std::vector<P2> Ring = S.Outline;
+					if (Ring.size() < 3)
+					{
+						Ring.clear();
+						const double Rr = 25.0 + 20.0 * Roll(Seed, 2);
+						for (int K = 0; K < 28; ++K)
+						{
+							const double A = 6.283185307 * K / 28;
+							Ring.push_back(P2(R.At.X + std::cos(A) * Rr * (1.0 + 0.12 * std::sin(3.0 * A + Roll(Seed, 3) * 6.0)), R.At.Z + std::sin(A) * Rr));
+						}
+					}
+					P2 Mid;
+					const double Signed = RideShapes::RingArea(Ring, Mid);
+					const double Out1 = Signed >= 0.0 ? -1.0 : 1.0;   // (outwards from each edge's left)
+					const int Banks = std::fabs(Signed) > 40000.0 ? 2 + int(Roll(Seed, 4) * 2.0) : std::fabs(Signed) > 15000.0 ? 2 : 1;
+					// (along the ring, a point every 4 m, with the way out at each)
+					std::vector<P2> Pts, Outs;
+					for (size_t I = 0; I < Ring.size(); ++I)
+					{
+						const P2 A = Ring[I], B = Ring[(I + 1) % Ring.size()];
+						const double L = A.DistanceTo(B);
+						if (L < 0.5) continue;
+						const P2 U = (B - A) * (1.0 / L);
+						const int Bits = std::max(1, int(std::ceil(L / 4.0)));
+						for (int K = 0; K < Bits; ++K)
+						{
+							Pts.push_back(A + U * (L * K / Bits));
+							Outs.push_back(P2(-U.Z, U.X) * Out1);
+						}
+					}
+					if (Pts.size() < 6) break;
+					// (the entrances: one or two gaps, 3 points wide)
+					const size_t Gap1 = size_t(Roll(Seed, 5) * double(Pts.size())), Gap2 = Roll(Seed, 6) < 0.5 ? (Gap1 + Pts.size() / 2) % Pts.size() : Pts.size() + 10;
+					const auto InGap = [&](size_t I) { for (size_t G0 : {Gap1, Gap2}) if (G0 < Pts.size() && (I + Pts.size() - G0) % Pts.size() < 3) return true; return false; };
+					static const double Across[] = {-5.0, -2.5, 0.0, 2.5, 5.0, 8.0};
+					static const double Rise[] = {0.0, 1.3, 2.0, 1.3, 0.0, 0.0};
+					for (int Bk = 0; Bk < Banks; ++Bk)
+					{
+						const double Away = Bk * 14.0, Scale = 1.0 - 0.25 * Bk;
+						for (size_t I = 0; I < Pts.size(); ++I)
+						{
+							const size_t J = (I + 1) % Pts.size();
+							if (InGap(I) || InGap(J)) continue;
+							for (int C = 0; C + 1 < 6; ++C)
+							{
+								V3 Q[4];
+								Paint Col[4];
+								for (int E = 0; E < 4; ++E)
+								{
+									const size_t Ix = E < 2 ? I : J;
+									const int Col2 = (E == 0 || E == 3) ? C : C + 1;
+									const P2 O = Outs[Ix];
+									const P2 P = Pts[Ix] + O * (Away + Across[Col2]);
+									const double Gy = Ground(P.X, P.Z);
+									Q[E] = Pt(P.X, (std::isnan(Gy) ? Y : Gy) + Rise[Col2] * Scale + 0.04, P.Z);
+									float Grass[3] = {0.08f, 0.1f, 0.04f};
+									LandColour(P.X, P.Z, 4.0, 0.3, Grass);
+									const float Shade2 = Col2 >= 3 ? 0.78f : 1.0f;   // (the outer slope and the ditch darker)
+									Col[E] = Paint{Grass[0] * Shade2, Grass[1] * Shade2, Grass[2] * Shade2};
+								}
+								// (each corner its own colour: a quad of four colours)
+								const uint32_t V = uint32_t(Out.Vertices());
+								for (int E = 0; E < 4; ++E) RideShapes::Vert(Out, Q[E], Pt(0.0, 1.0, 0.0), Col[E], Q[E].X / 4.0, Q[E].Z / 4.0);
+								// (up-facing whichever way the ring runs: as SkyQuad, (Q2 - Q0) x (Q3 - Q1) is the side seen)
+								const double Ny = (Q[2].Z - Q[0].Z) * (Q[3].X - Q[1].X) - (Q[2].X - Q[0].X) * (Q[3].Z - Q[1].Z);
+								if (Ny > 0.0) Out.Idx.insert(Out.Idx.end(), {V, V + 2, V + 1, V, V + 3, V + 2});
+								else Out.Idx.insert(Out.Idx.end(), {V, V + 1, V + 2, V, V + 2, V + 3});
+							}
+						}
+					}
 					break;
 				}
 				default: break;
