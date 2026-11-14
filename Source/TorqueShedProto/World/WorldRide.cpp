@@ -281,7 +281,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			const RoadX::Across Ax = RoadX::Of(G, OwnerEdge, RoadLine::WidthOf(G.ClassOf(OwnerEdge)));
 			Halves[I] = Ax.Half;
 			KnotLanes[I] = Ax.Lanes;
-			KnotOneWay[I] = Ax.OneWay ? 1 : 0;
+			KnotOneWay[I] = char((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0));
 			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
 		}
 		for (int Pass = 0; Pass < 2; ++Pass)
@@ -636,7 +636,8 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Height = H[I];
 		P.Half = I < Halves.size() ? Halves[I] : 2.3;
 		P.Lanes = Lanes != nullptr && I < Lanes->size() ? (*Lanes)[I] : 0;
-		P.OneWay = OneWays != nullptr && I < OneWays->size() && (*OneWays)[I] != 0;
+		P.OneWay = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 1) != 0;
+		P.Dual = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 2) != 0;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		P.Bank = Banks[I];
@@ -889,6 +890,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		P.Half = Half;
 		P.Lanes = Ax.Lanes;
 		P.OneWay = Ax.OneWay;
+		P.Dual = Ax.Dual;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
@@ -1456,6 +1458,14 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 		Opts.NoDecks = true;
 		Opts.NotRoad = Hit.Which;
 		if (!NearestOf(X, Z, Opts, Hit)) return std::fmin(Lie, Clear);
+	}
+	// [OSM stage 5C] Between a dual carriageway's halves, the reservation's ground: straight across from
+	// the one's edge to the other's (each road's own bench would rise over the other's edge where the two
+	// lie at different heights).
+	if (!std::isnan(Lie))
+	{
+		const double Median = MedianGround(Hit);
+		if (!std::isnan(Median)) return std::isnan(Clear) ? Median : std::fmin(Median, Clear);
 	}
 	// (the bench lies under the road's surface as it is tilted, and level with its edge beyond)
 	const double Height = Hit.Height + Hit.Cross - Hit.Fall * std::fmin(FallOn, std::fmax(0.0, Hit.Dist - Hit.Half));
@@ -2266,6 +2276,74 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						Strip(Sa, Sb, Edge + 0.07, Edge - 0.07, Edge + 0.07, Edge - 0.07, PaintLift + 0.006, PaintLift + 0.006, RedEye);
 					}
 				Into = &Out;
+			}
+		}
+	}
+	// [OSM stage 5C] A dual carriageway's central reservation: a steel barrier down its middle (two beams
+	// on posts every 3.2 m), drawn by one of the two halves (the road with the greater number, or the
+	// ride's road where it comes back down the other half: its later part).
+	if (Rows.size() >= 2 && Pts[size_t(First)].OneWay + Pts[size_t(Last)].OneWay + Pts[size_t((First + Last) / 2)].OneWay > 0)
+	{
+		static constexpr float Steel[3] = {0.27f, 0.28f, 0.29f}, PostGrey[3] = {0.2f, 0.2f, 0.21f};
+		struct Mid
+		{
+			bool Is = false;
+			int Of = -1;
+			P2 At, Across;   // the barrier's line, and square to it
+			double Y = 0.0;  // the reservation's ground there
+		};
+		std::vector<Mid> Mids(Rows.size());
+		for (size_t K = 0; K < Rows.size(); ++K)
+		{
+			const int I = First + int(K);
+			DualHit D;
+			if (!Pts[size_t(I)].OneWay || Rows[K].Deck || Rows[K].Bore || !DualAcross(Which, I, 0, D)) continue;
+			if (D.Gap < MedianLeast || D.Gap > MedianMost || D.Which < Which || (D.Which == Which && D.FarAlong < Pts[size_t(I)].Along)) continue;
+			Mid& M = Mids[K];
+			M.Is = true;
+			M.Of = D.Which;
+			M.Across = Rows[K].Left * double(D.Side);
+			M.At = Rows[K].At + M.Across * (Rows[K].Half + D.Gap * 0.5);
+			M.Y = MedianAcross(D, D.Gap * 0.5);
+		}
+		const auto At3 = [](const P2& At, double Y)
+		{
+			P3 Q;
+			Q.X = At.X; Q.Y = Y; Q.Z = At.Z;
+			return Q;
+		};
+		for (size_t K = 0; K + 1 < Rows.size(); ++K)
+		{
+			const Mid& A = Mids[K];
+			const Mid& B = Mids[K + 1];
+			if (!A.Is || !B.Is || A.Of != B.Of || A.At.DistanceTo(B.At) > 12.0) continue;
+			// (the beams: a face each side, 0.45 to 0.78 m up, 0.18 m out from the posts, a lip over each)
+			for (double Sd : {1.0, -1.0})
+			{
+				const P2 Fa = A.At + A.Across * (0.18 * Sd), Fb = B.At + B.Across * (0.18 * Sd);
+				const P3 Out3 = At3(A.At + A.Across * (5.0 * Sd), A.Y + 0.6);
+				Quad3(At3(Fa, A.Y + 0.45), At3(Fb, B.Y + 0.45), At3(Fb, B.Y + 0.78), At3(Fa, A.Y + 0.78), Out3, Steel, false);
+				const P2 Ia = A.At + A.Across * (0.06 * Sd), Ib = B.At + B.Across * (0.06 * Sd);
+				Quad3(At3(Fa, A.Y + 0.78), At3(Fb, B.Y + 0.78), At3(Ib, B.Y + 0.78), At3(Ia, A.Y + 0.78), At3(A.At, A.Y + 1e4), Steel, false);
+			}
+			// (the posts, 0.12 m square, from under the grass to just under the beams' tops)
+			const double La = Rows[K].Along, Lb = Rows[K + 1].Along;
+			for (double S = std::ceil(La / 3.2) * 3.2; S < Lb && Lb > La; S += 3.2)
+			{
+				const double T = (S - La) / (Lb - La);
+				const P2 C = A.At + (B.At - A.At) * T;
+				const double Y = A.Y + (B.Y - A.Y) * T;
+				P2 Along = B.At - A.At;
+				const double Len = Along.Length();
+				Along = Len > 1e-9 ? Along * (0.06 / Len) : P2(0.06, 0.0);
+				const P2 Side(Along.Z, -Along.X);
+				const P2 Corner[4] = {C + Along + Side, C - Along + Side, C - Along - Side, C + Along - Side};
+				for (int F = 0; F < 4; ++F)
+				{
+					const P2& Q0 = Corner[F];
+					const P2& Q1 = Corner[(F + 1) % 4];
+					Quad3(At3(Q0, Y - 0.1), At3(Q1, Y - 0.1), At3(Q1, Y + 0.74), At3(Q0, Y + 0.74), At3(C + (Q0 + Q1 - C * 2.0) * 10.0, Y + 0.3), PostGrey, false);
+				}
 			}
 		}
 	}

@@ -61,6 +61,7 @@ struct RoadPoint
 	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
 	int Lanes = 0;         // [OSM stage 5] mapped lanes across the whole road (0: the rule's; RoadX)
 	bool OneWay = false;   // [OSM stage 5] no centre line
+	bool Dual = false;     // [OSM stage 5C] one half of a dual carriageway: a central reservation on its offside
 };
 
 // [OSM stage 2] One prop on a square of ground (World/WorldRideProps.cpp), for the game to draw with
@@ -951,6 +952,23 @@ public:
 	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
 	std::vector<unsigned char> RoundEdge;   // by edge: 1 on a ring drawn as a circle (IndexRings)
+	// [OSM stage 5C] A dual carriageway's other half, across from a point of one half (DualAcross): on
+	// Side (+1 the half's left as its points run, -1 its right), its road (Which), the grass between the
+	// two halves' edges (Gap, m), and the other half's surface at its near edge (Far). The reservation
+	// between them lies from one edge's height to the other's, MedianSink under, the barrier down its
+	// middle where Gap is between MedianLeast and MedianMost.
+	struct DualHit
+	{
+		int Side = 0, Which = -1;
+		double Gap = 0.0, Near = 0.0, Far = 0.0;
+		double FarAlong = 0.0;   // how far along its own road the other half is there
+	};
+	bool DualAcross(int Which, int Index, int OnlySide, DualHit& Out) const;
+	static constexpr double MedianSink = 0.12, MedianLeast = 1.2, MedianMost = 20.0, MedianWidest = 40.0, MedianPad = 2.5;
+	// The reservation's ground at a point Hit (NearestOf's, of a dual carriageway's half) finds, if it is
+	// between the two halves; NaN otherwise.
+	double MedianGround(const NearHit& Hit) const;
+	static double MedianAcross(const DualHit& D, double Out);   // (Out m from the near half's edge)
 	std::vector<PlaceRecipe> PlaceRecipes;
 	std::vector<SiteNote> SiteNotes;   // [places stage 5] the notes for this ride's places (IndexPlaces)
 	std::vector<int> SightNote;        // for each of Area.Roads.Sights its note in SiteNotes, -1 none
@@ -1062,7 +1080,7 @@ private:
 	// its ground fetched, the network round StartAt (the road's start when null) laid, and all indexed.
 	static std::shared_ptr<RidePlan> LayOut(const std::shared_ptr<RidePlan>& R, CellStore& Store, HeightStore& Heights,
 		const std::function<void(const std::string&)>& Said, const P2* StartAt);
-	// ([OSM stage 5] Lanes and OneWays, a knot each where given: the map's lanes, RoadX)
+	// ([OSM stage 5] Lanes and OneWays, a knot each where given: the map's lanes, RoadX; OneWays 1 one way, 2 more a dual carriageway's half)
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds, const std::vector<int>* Lanes = nullptr,
 		const std::vector<char>* OneWays = nullptr);
 	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...

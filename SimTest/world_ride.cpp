@@ -712,6 +712,50 @@ int main(int Argc, char** Argv)
 			++Shown;
 		}
 	}
+	if (std::getenv("WORLD_RIDE_DUALS") != nullptr)
+	{
+		// [OSM stage 5C] The dual carriageways: the region's edges the map pairs, and how much of the
+		// ride's road is one half of one, with its other half found across from it.
+		int Edges = 0, Paired = 0;
+		for (size_t E = 0; E < Plan->Area.Roads.Edges.size(); ++E)
+		{
+			const RoadExtra* X = Plan->Area.Roads.ExtraOf(int(E));
+			if (X == nullptr || X->Half.empty()) continue;
+			++Edges;
+			Paired += X->Has(RoadExtra::Roundabout) ? 0 : 1;
+		}
+		double DualM = 0.0, FoundM = 0.0, GapSum = 0.0, Proud = -1e9;
+		P2 ProudAt;
+		for (size_t I = 1; I < Plan->Road.size(); ++I)
+		{
+			if (!Plan->Road[I].Dual) continue;
+			const double Step = Plan->Road[I].Along - Plan->Road[I - 1].Along;
+			DualM += Step;
+			RidePlan::DualHit D;
+			if (Plan->DualAcross(0, int(I), 0, D))
+			{
+				FoundM += Step;
+				GapSum += D.Gap * Step;
+				// (the land across the reservation against the line from one edge to the other: never over it)
+				const P2 Dir = Plan->Road[I].At - Plan->Road[I - 1].At;
+				const double Len = Dir.Length();
+				if (Len < 1e-9) continue;
+				const P2 Left(Dir.Z / Len, -Dir.X / Len);
+				for (double T = 0.1; T < 0.95 && D.Gap <= RidePlan::MedianMost; T += 0.2)
+				{
+					const P2 Q = Plan->Road[I].At + Left * (double(D.Side) * (Plan->Road[I].Half + D.Gap * T));
+					RidePlan::NearOpts Any;
+					RidePlan::NearHit On;
+					if (Plan->NearestOf(Q.X, Q.Z, Any, On) && On.Dist <= On.Half + 0.5) continue;   // (on tarmac: the road edge checks' business)
+					const double Over = Plan->Ground(Q.X, Q.Z) - std::fmax(D.Near + (D.Far - D.Near) * T, T < 0.5 ? D.Near : D.Far);
+					if (Over > Proud) { Proud = Over; ProudAt = Q; }
+				}
+			}
+		}
+		std::printf("Duals: %d edges name another half (%d not on a ring); the ride's road %.0f m on a dual carriageway, its other half found across for %.0f m (reservation %.1f m on average)\n",
+			Edges, Paired, DualM, FoundM, FoundM > 0.0 ? GapSum / FoundM : 0.0);
+		std::printf("  the reservation's ground (up to MedianMost wide) at most %.2f m over the line between its edges (at %.0f, %.0f)\n", Proud, ProudAt.X, ProudAt.Z);
+	}
 	if (std::getenv("WORLD_RIDE_RINGS") != nullptr)
 	{
 		// [OSM stage 5B] The roundabouts the map marks, and how round each is.
@@ -884,6 +928,27 @@ int main(int Argc, char** Argv)
 			{
 				Centre = Plan->PlaceRecipes[Nth].At;
 				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
+			}
+		}
+		else if (std::getenv("WORLD_RIDE_DUAL") != nullptr)
+		{
+			// [OSM stage 5C] (or the ride's road where it has gone WORLD_RIDE_DUAL m along its dual
+			// carriageway, counting only the dual parts)
+			double Want = std::atof(std::getenv("WORLD_RIDE_DUAL")), Run = 0.0;
+			for (size_t I = 1; I < Plan->Road.size(); ++I)
+			{
+				if (!Plan->Road[I].Dual) continue;
+				Run += Plan->Road[I].Along - Plan->Road[I - 1].Along;
+				if (Run < Want) continue;
+				Centre = Plan->Road[I].At;
+				Rect Round;
+				Round.X0 = Centre.X - 300.0; Round.Z0 = Centre.Z - 300.0; Round.X1 = Centre.X + 300.0; Round.Z1 = Centre.Z + 300.0;
+				Plan->LayBlocks(Round);
+				RidePlan::DualHit D;
+				const bool Has = Plan->DualAcross(0, int(I), 0, D);
+				std::printf("dual at %.0f, %.0f (%.0f m along): other half %s, side %d, road %d, reservation %.1f m, edges %.2f / %.2f m\n", Centre.X, Centre.Z, Plan->Road[I].Along,
+					Has ? "found" : "NOT found", D.Side, D.Which, D.Gap, D.Near, D.Far);
+				break;
 			}
 		}
 		else if (std::getenv("WORLD_RIDE_RING") != nullptr)

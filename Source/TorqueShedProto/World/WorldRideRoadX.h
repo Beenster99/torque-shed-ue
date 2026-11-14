@@ -16,6 +16,7 @@ struct Across
 	double Half = 2.3;
 	int Lanes = 0;
 	bool OneWay = false;
+	bool Dual = false;   // [5C] a dual carriageway's half (the map names its other half)
 };
 // RuleWidth is the class's width (RoadLine::WidthOf). A recorded width is kept within a sensible range
 // for the class; a road mapped as one lane both ways is single track (SingleTrack m wide, no centre

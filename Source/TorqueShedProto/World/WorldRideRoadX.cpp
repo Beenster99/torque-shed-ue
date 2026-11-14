@@ -27,6 +27,7 @@ Across Of(const Region& G, int Edge, double RuleWidth)
 	const RoadExtra* X = G.ExtraOf(Edge);
 	if (X == nullptr) return Out;
 	Out.OneWay = Out.OneWay || X->Has(RoadExtra::Oneway);
+	Out.Dual = Out.OneWay && !X->Half.empty() && !X->Has(RoadExtra::Roundabout);
 	Out.Lanes = X->Lanes;
 	const std::string& Class = G.ClassOf(Edge);
 	if (X->Width > 0.0)
