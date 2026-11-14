@@ -54,6 +54,8 @@ struct FTorqueWeatherNet
 	UPROPERTY() float Wind700From = 245.0f;
 	UPROPERTY() float Wind300 = 28.0f;
 	UPROPERTY() float Wind300From = 255.0f;
+	UPROPERTY() float Rh300 = -1.0f;    // [skies stage 7] the air 9 km up (contrails)
+	UPROPERTY() float T300 = -45.0f;
 	// ETorqueWeatherSource, and when the live weather was fetched (seconds since 1970, 0 for never).
 	UPROPERTY() uint8 Source = 0;
 	UPROPERTY() int64 FetchedAt = 0;
@@ -115,6 +117,11 @@ public:
 	FString WeatherText(bool bImperial) const;
 	// [skies stage 6] What the forecast says is coming here, in words ("rain in about an hour"; "" for nothing).
 	FString ComingText() const;
+	// [skies stage 7] For the sky: the Kp index and the dust (below 0 not known), and a preset's meteors an
+	// hour (below 0: the date's own).
+	float GetSkyKp() const { return SkyKp; }
+	float GetSkyDust() const { return SkyDust; }
+	float GetPresetMeteors() const { return PresetMeteors; }
 	// The host only (ignored elsewhere): change it for everyone, fading over FadeSeconds (0: at once).
 	void SetWeather(int32 NewWeather, float FadeSeconds = 20.0f);
 	// The host only: Settings' Weather has changed (FTorqueSettings::WeatherMode); go to it.
@@ -234,6 +241,17 @@ private:
 	static constexpr int32 WIDE_N = 7;
 	static constexpr double WIDE_STEP_M = 12000.0;
 	void FetchWide();
+	// [skies stage 7] The space weather (NOAA's planetary Kp index, every three hours: the aurora) and the
+	// dust in the air (Open-Meteo's air quality, every hour: Saharan dust), the host's, sent to everyone;
+	// -1 not known. A preset sky may set them (and a day of the year, and the meteors an hour) to show off.
+	UPROPERTY(Replicated) float SkyKp = -1.0f;
+	UPROPERTY(Replicated) float SkyDust = -1.0f;
+	int32 PresetDay = -1;
+	float PresetMeteors = -1.0f;
+	double NextKpIn = 15.0, NextDustIn = 25.0;
+	bool bFetchingKp = false, bFetchingDust = false;
+	void FetchKp();
+	void FetchDust();
 	// For the sky: the lowest ground of the weather's points (metres above sea level; -1 none), and the
 	// heaviest rain round about, carried on the wind and fading with distance (mm/h).
 	double ValleyAslNow() const;

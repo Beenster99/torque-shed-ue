@@ -3,6 +3,7 @@
 // presets' light kept as it always was, the shipped looks file, and the recorded days.
 #include "SkyModel.h"
 #include "NightSky.h"
+#include "StormSky.h"
 #include "WeatherModel.h"
 #include "FitJson.h"
 
@@ -627,6 +628,190 @@ int main()
 		Check(Grey && At(Grey->Weather, 35.0, true).Dominant(0) == Stratus, "  low grey draws a stratus lid");
 		const NamedSky* Veil = FindSky(Skies, "cirrostratus");
 		Check(Veil && At(Veil->Weather, 35.0, true).Dominant(2) == Cirrostratus, "  the cirrostratus veil draws cirrostratus");
+	}
+
+	// Stage 7: storms and rare skies.
+	{
+		using namespace TorqueStorm;
+		TorqueFit::Json Root;
+		TorqueFit::Json::Parse(ReadFile(std::string(TORQUE_SKY_DATA) + "/presets.json"), Root);
+		const std::vector<NamedSky> Skies = SkiesFromJson(Root);
+		const NamedSky* Storm = FindSky(Skies, "thunderstorm");
+		const NamedSky* Cu = FindSky(Skies, "cumulus");
+		if (Storm && Cu)
+		{
+			const Sky T = At(Storm->Weather, 35.0, true);
+			const Sky F = At(Cu->Weather, 35.0, true);
+			std::printf("  thunderstorm: thunder %.2f, top %.0f m, anvil %.2f; cumulus: thunder %.2f, top %.0f m\n", T.Thunder, T.TopAsl, T.Anvil, F.Thunder, F.TopAsl);
+			Check(T.Thunder > 0.9 && T.TopAsl > 9000.0 && T.Anvil > 0.5, "a thunderstorm towers to 9 km and more, with an anvil");
+			Check(F.Thunder == 0.0 && F.Anvil == 0.0 && F.TopAsl < 5000.0, "  fair cumulus doesn't");
+		}
+
+		// A thunderstorm day replayed: storms over the eastern columns of a wide ring, dry elsewhere.
+		TorqueWeather::Grid Ring;
+		Ring.N = 7;
+		Ring.Lat = 54.3;
+		Ring.Lon = -2.2;
+		Ring.StepM = 12000.0;
+		for (int I = 0; I < 49; ++I)
+		{
+			State P = TorqueWeather::Preset(TorqueWeather::Overcast);
+			P.Wind = 0.0;
+			if (I % 7 >= 5) { P.Code = 95; P.Cape = 1800.0; P.Rain = 10.0; P.CloudBase = 900.0; }
+			Ring.Points.push_back(P);
+			Ring.Elevation.push_back(300.0);
+		}
+		MapGrids RG;
+		RG.Wide = &Ring;
+		const State Here = MapWeatherAt(RG, 54.3, -2.2);
+		const std::vector<Cell> Cells = StormCells(RG, Here, 54.3, -2.2, L);
+		const double T0 = 1786000000.0;
+		const std::vector<Strike> Hour = StrikesBetween(Cells, T0, T0 + 3600.0, L);
+		std::vector<Strike> Halves = StrikesBetween(Cells, T0, T0 + 1234.5, L);
+		const std::vector<Strike> Rest = StrikesBetween(Cells, T0 + 1234.5, T0 + 3600.0, L);
+		Halves.insert(Halves.end(), Rest.begin(), Rest.end());
+		bool bPlace = true, bSame = Halves.size() == Hour.size();
+		int Ground = 0;
+		double Nearest = 1e9;
+		for (size_t I = 0; I < Hour.size(); ++I)
+		{
+			double E = 0.0, N = 0.0;
+			TorqueWeather::MetresBetween(54.3, -2.2, Hour[I].Lat, Hour[I].Lon, E, N);
+			bPlace = bPlace && E > 12000.0 && Thunderiness(MapWeatherAt(RG, Hour[I].Lat, Hour[I].Lon), L) > 0.3;
+			Nearest = std::min(Nearest, std::sqrt(E * E + N * N));
+			Ground += Hour[I].bGround ? 1 : 0;
+			if (bSame) bSame = Halves[I].At == Hour[I].At && Halves[I].Lat == Hour[I].Lat;
+		}
+		std::printf("  storm day: %d cells thundery, %d flashes in an hour (%d to the ground), the nearest %.1f km away\n",
+			static_cast<int>(Cells.size()), static_cast<int>(Hour.size()), Ground, Nearest / 1000.0);
+		Check(Hour.size() > 100 && Hour.size() < 4000 && bPlace, "  flashes come only where the storms are (the east), a few a minute each");
+		Check(Ground > 0 && Ground < static_cast<int>(Hour.size()) / 2, "  some fork to the ground, most stay in the cloud");
+		Check(bSame, "  the same flashes, the same moments, however the hour is cut up (co-op machines agree)");
+		Check(StormCells(MapGrids(), Cu ? Cu->Weather : Here, 54.3, -2.2, L).empty(), "  no storm, no flashes");
+		Check(Near(ThunderDelay(1000.0, L), 2.92, 0.05) && Near(ThunderDelay(10000.0, L), 29.2, 0.3), "thunder follows 3 s a km");
+		Check(ThunderLoudness(500.0, 1.0, L) > ThunderLoudness(8000.0, 1.0, L) && ThunderLoudness(30000.0, 1.0, L) == 0.0, "  louder near, unheard past 22 km");
+		Strike One;
+		One.Seed = 1234u;
+		One.Strokes = 3;
+		double Second = 0.0;
+		for (double T = 0.03; T < 0.4; T += 0.002) Second = std::max(Second, FlashAt(One, T) > 0.4 && FlashAt(One, T - 0.03) < FlashAt(One, T) ? 1.0 : Second);
+		Check(FlashAt(One, 0.0) > 0.9 && FlashAt(One, 0.8) == 0.0 && Second > 0.0, "a flash flickers (return strokes) and is gone in under a second");
+		const std::vector<int16_t> NearT = ThunderSound(800.0, 0.9, 7u, 22050), FarT = ThunderSound(12000.0, 0.9, 7u, 22050);
+		auto Crossings = [](const std::vector<int16_t>& V, size_t Upto) {
+			size_t Z = 0;
+			for (size_t I = 1; I < std::min(Upto, V.size()); ++I) Z += (V[I - 1] < 0) != (V[I] < 0) ? 1 : 0;
+			return static_cast<double>(Z) / static_cast<double>(std::min(Upto, V.size()));
+		};
+		int PeakNear = 0;
+		for (int16_t V : NearT) PeakNear = std::max(PeakNear, std::abs(static_cast<int>(V)));
+		std::printf("  thunder: near %.1f s, far %.1f s; peak %d; zero crossings near %.3f, far %.3f\n", static_cast<double>(NearT.size()) / 22050.0, static_cast<double>(FarT.size()) / 22050.0,
+			PeakNear, Crossings(NearT, 22050), Crossings(FarT, 22050));
+		Check(PeakNear > 20000 && PeakNear <= 32767 && FarT.size() > NearT.size(), "thunder is made: loud, and far thunder rolls longer");
+		Check(Crossings(NearT, 22050) > Crossings(FarT, 22050) * 1.5, "  a near strike cracks (more high notes), far thunder is a low rumble");
+		Check(ThunderSound(800.0, 0.9, 7u, 22050) == NearT, "  the same strike, the same thunder");
+
+		// Hail and snow: white curtains, a flat bright light.
+		const NamedSky* SnowS = FindSky(Skies, "snow_showers");
+		const NamedSky* Far = FindSky(Skies, "distant_showers");
+		if (SnowS && Far)
+		{
+			const TorqueWeather::Grid SnowRing = ShowersAround(SnowS->Weather, 54.3, -2.2, 6, 2.0, 3u);
+			const TorqueWeather::Grid RainRing = ShowersAround(Far->Weather, 54.3, -2.2, 6, 5.0, 3u);
+			MapGrids SG, RG2;
+			SG.Wide = &SnowRing;
+			RG2.Wide = &RainRing;
+			const std::vector<RainShaft> SS = FindRainShafts(SG, 54.3, -2.2, L), RS = FindRainShafts(RG2, 54.3, -2.2, L);
+			Check(!SS.empty() && SS[0].White > 0.9 && !RS.empty() && RS[0].White < 0.1, "snow showers hang white curtains, rain showers grey");
+		}
+		if (const NamedSky* Heavy = FindSky(Skies, "heavy_snow"))
+		{
+			State Grey = Heavy->Weather;
+			Grey.Snow = 0.0;
+			Grey.Code = 3;
+			Check(At(Heavy->Weather, 20.0, true).SkyLightScale > At(Grey, 20.0, true).SkyLightScale * 1.2, "  under snow cloud the light goes flat and bright");
+		}
+
+		// Rare skies.
+		if (const NamedSky* Veil = FindSky(Skies, "cirrostratus"))
+		{
+			const double Low = At(Veil->Weather, 15.0, true).SunDogs, High = At(Veil->Weather, 55.0, true).SunDogs;
+			std::printf("  sun dogs in a veil: sun 15 deg %.2f, 55 deg %.2f\n", Low, High);
+			Check(Low > 0.3 && High == 0.0, "sun dogs either side of a low sun in a veil");
+		}
+		State Jet = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Jet.T300 = -52.0;
+		Jet.Rh300 = 85.0;
+		const double Trails = At(Jet, 30.0, true).Contrails;
+		Jet.Rh300 = 30.0;
+		const double DryTrails = At(Jet, 30.0, true).Contrails;
+		Jet.Rh300 = -1.0;
+		Check(Trails > 0.4 && DryTrails == 0.0 && At(Jet, 30.0, true).Contrails == 0.0, "contrails linger in cold, damp air 9 km up (none in dry air, none unknown)");
+		if (const NamedSky* Fog = FindSky(Skies, "valley_fog"))
+		{
+			Inputs In;
+			In.Weather = Fog->Weather;
+			In.SunElevation = 8.0;
+			In.bClouds = true;
+			In.GroundAsl = 300.0;
+			In.ValleyAsl = 280.0;
+			In.ViewAsl = 285.0;
+			const Sky InFog = Compute(In, L);
+			In.ViewAsl = 600.0;
+			const Sky OnTop = Compute(In, L);
+			std::printf("  valley fog: in it fogbow %.2f glory %.2f; above it fogbow %.2f glory %.2f (fog top %.0f m)\n", InFog.Fogbow, InFog.Glory, OnTop.Fogbow,
+				OnTop.Glory, OnTop.FogTopAsl);
+			Check(InFog.Fogbow > 0.2 && InFog.Glory == 0.0 && OnTop.Glory > 0.2 && OnTop.Fogbow < 0.05, "a fogbow in the fog, a glory looking down on it");
+		}
+		const double York = GeomagneticLat(53.96, -1.08, L.AuroraPoleLat, L.AuroraPoleLon);
+		Inputs Night;
+		Night.Weather = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Night.SunElevation = -25.0;
+		Night.Lat = 53.96;
+		Night.Lon = -1.08;
+		Night.Kp = 2.0;
+		const Sky Quiet = Compute(Night, L);
+		Night.Kp = 7.0;
+		const Sky Storming = Compute(Night, L);
+		Night.SunElevation = 10.0;
+		const Sky ByDay = Compute(Night, L);
+		std::printf("  aurora over York (geomagnetic %.1f deg): Kp 2 %.2f, Kp 7 %.2f (top %.0f deg, bearing %.0f)\n", York, Quiet.Aurora, Storming.Aurora,
+			Storming.AuroraTopDeg, Storming.AuroraBearing);
+		Check(Near(York, 56.0, 1.5) && Quiet.Aurora == 0.0 && Storming.Aurora > 0.5 && ByDay.Aurora == 0.0 && (Storming.AuroraBearing > 290.0 || Storming.AuroraBearing < 20.0),
+			"the aurora: none at Kp 2, low in the north at Kp 7 over York, never by day");
+		int NlcNights = 0, NlcWinter = 0;
+		Inputs Summer;
+		Summer.Weather = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Summer.SunElevation = -10.0;
+		Summer.Lat = 54.3;
+		for (int D = 160; D < 200; ++D) { Summer.DayOfYear = D; NlcNights += Compute(Summer, L).Noctilucent > 0.5 ? 1 : 0; }
+		for (int D = 330; D < 365; ++D) { Summer.DayOfYear = D; NlcWinter += Compute(Summer, L).Noctilucent > 0.0 ? 1 : 0; }
+		std::printf("  noctilucent cloud: %d of 40 midsummer nights, %d of 35 winter ones\n", NlcNights, NlcWinter);
+		Check(NlcNights >= 5 && NlcNights <= 30 && NlcWinter == 0, "  noctilucent cloud on some midsummer nights, never in winter");
+		std::printf("  meteors an hour: 12 Aug %.0f, 14 Dec %.0f, 1 Mar %.0f (%s, %s)\n", MeteorRate(224, L), MeteorRate(347, L), MeteorRate(60, L), ShowerOn(224), ShowerOn(347));
+		Check(MeteorRate(224, L) > 40.0 && MeteorRate(60, L) < 5.0 && std::string(ShowerOn(224)) == "Perseids" && std::string(ShowerOn(347)) == "Geminids",
+			"meteor showers on their nights (the Perseids, the Geminids)");
+		int Seen = 0;
+		bool bWas = false;
+		for (double T = 0.0; T < 3600.0; T += 0.05)
+		{
+			const Meteor M = MeteorAt(T0 + T, 60.0);
+			Seen += M.bOn && !bWas ? 1 : 0;
+			bWas = M.bOn;
+		}
+		std::printf("  at 60 an hour: %d seen in an hour\n", Seen);
+		Check(Seen >= 35 && Seen <= 90, "  about the rate asked for, each from the clock (the same for everyone)");
+		Inputs Dusty;
+		Dusty.Weather = TorqueWeather::Preset(TorqueWeather::Sunny);
+		Dusty.SunElevation = 4.0;
+		const Sky Clean = Compute(Dusty, L);
+		Dusty.Dust = 200.0;
+		const Sky Sahara = Compute(Dusty, L);
+		Check(Sahara.MieScale > Clean.MieScale * 2.0 && Sahara.SunWarm > 0.5 && Clean.SunWarm == 0.0, "Saharan dust: a thicker, warmer haze and a red sun");
+		State Saved = Jet;
+		Saved.Rh300 = 77.0;
+		Saved.T300 = -49.5;
+		State Back;
+		Check(TorqueWeather::Load(TorqueWeather::Save(Saved), Back) && Near(Back.Rh300, 77.0, 0.5) && Near(Back.T300, -49.5, 0.05), "the air 9 km up is saved with the weather");
 	}
 
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);

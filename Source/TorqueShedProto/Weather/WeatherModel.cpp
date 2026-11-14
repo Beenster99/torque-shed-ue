@@ -88,6 +88,8 @@ State Blend(const State& A, const State& B, double T)
 	S.Wind700From = TurnLerp(A.Wind700From, B.Wind700From, T);
 	S.Wind300 = Lerp(A.Wind300, B.Wind300, T);
 	S.Wind300From = TurnLerp(A.Wind300From, B.Wind300From, T);
+	S.Rh300 = LerpKnown(A.Rh300, B.Rh300, T);
+	S.T300 = Lerp(A.T300, B.T300, T);
 	return S;
 }
 
@@ -326,7 +328,8 @@ constexpr const char* CurrentFields =
 	"temperature_2m,dew_point_2m,relative_humidity_2m,precipitation,snowfall,snow_depth,cloud_cover,cloud_cover_low,"
 	"cloud_cover_mid,cloud_cover_high,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,visibility,"
 	"cape,freezing_level_height,direct_radiation,diffuse_radiation,"
-	"wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa,wind_speed_300hPa,wind_direction_300hPa";
+	"wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa,wind_speed_300hPa,wind_direction_300hPa,"
+	"relative_humidity_300hPa,temperature_300hPa";
 // [skies stage 6] And by the hour, for the past rain (the road) and the hours coming (the forecast).
 constexpr const char* HourlyFields =
 	"precipitation,snowfall,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,temperature_2m,dew_point_2m,"
@@ -443,6 +446,8 @@ bool ParseOpenMeteoPoint(const TorqueFit::Json& Root, State& Out, long long* Tim
 	Aloft("wind_speed_850hPa", "wind_direction_850hPa", S.Wind850, S.Wind850From, 1.6);
 	Aloft("wind_speed_700hPa", "wind_direction_700hPa", S.Wind700, S.Wind700From, 2.3);
 	Aloft("wind_speed_300hPa", "wind_direction_300hPa", S.Wind300, S.Wind300From, 4.5);
+	S.Rh300 = Known("relative_humidity_300hPa") ? std::min(std::max(Cur->Num("relative_humidity_300hPa"), 0.0), 100.0) : -1.0;
+	S.T300 = Known("temperature_300hPa") ? Cur->Num("temperature_300hPa") : S.T300;
 
 	// The road: the rain of the last few hours (each hour's value is the hour before it), then this
 	// quarter hour's.
@@ -643,6 +648,8 @@ State MixPoints(const Grid& G, const std::vector<State>& Pts, double Col, double
 		Vec(&State::Wind700, &State::Wind700From, S.Wind700, S.Wind700From);
 		Vec(&State::Wind300, &State::Wind300From, S.Wind300, S.Wind300From);
 	}
+	S.Rh300 = A.Rh300 < 0.0 || B.Rh300 < 0.0 || C.Rh300 < 0.0 || D.Rh300 < 0.0 ? -1.0 : Mix(A.Rh300, B.Rh300, C.Rh300, D.Rh300);
+	S.T300 = Mix(A.T300, B.T300, C.T300, D.T300);
 	{
 		auto X = [](const State& P) { return std::sin(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
 		auto Y = [](const State& P) { return std::cos(P.WindFrom * DegToRad) * std::max(P.Wind, 0.1); };
@@ -1048,6 +1055,9 @@ std::string Save(const State& S)
 	std::snprintf(Buf, sizeof(Buf), " %.3f %.3f %.3f %.1f %.0f %.0f %.1f %.1f %.1f %.0f %.1f %.0f %.1f %.0f", S.SnowDepth, S.MidCloud, S.HighCloud, S.Humidity,
 		S.Cape, S.FreezingLevel, S.DirectSun, S.DiffuseSun, S.Wind850, S.Wind850From, S.Wind700, S.Wind700From, S.Wind300, S.Wind300From);
 	Out += Buf;
+	// (and, after them, the air 9 km up: an older reader stops before it)
+	std::snprintf(Buf, sizeof(Buf), " %.0f %.1f", S.Rh300, S.T300);
+	Out += Buf;
 	return Out;
 }
 
@@ -1065,7 +1075,11 @@ bool Load(const std::string& Text, State& Out)
 	State Sky = S;
 	if (Tag == "w2" && (In >> Sky.MidCloud >> Sky.HighCloud >> Sky.Humidity >> Sky.Cape >> Sky.FreezingLevel >> Sky.DirectSun >> Sky.DiffuseSun
 		>> Sky.Wind850 >> Sky.Wind850From >> Sky.Wind700 >> Sky.Wind700From >> Sky.Wind300 >> Sky.Wind300From))
+	{
 		S = Sky;
+		double Rh = -1.0, T = -45.0;
+		if (In >> Rh >> T) { S.Rh300 = Rh; S.T300 = T; }
+	}
 	else
 	{
 		// (A w1 save: no layers, so the middle takes the total and the light reads as it did.)

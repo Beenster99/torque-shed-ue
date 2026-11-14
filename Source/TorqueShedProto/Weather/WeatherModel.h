@@ -51,6 +51,9 @@ struct State
 	double Wind850 = 9.0, Wind850From = 235.0;
 	double Wind700 = 14.0, Wind700From = 245.0;
 	double Wind300 = 28.0, Wind300From = 255.0;
+	// [skies stage 7] The air about 9 km up (300 hPa), for contrails: its relative humidity, % (below 0:
+	// not known), and its temperature, C.
+	double Rh300 = -1.0, T300 = -45.0;
 };
 
 enum EKind { Sunny = 0, Overcast = 1, Wet = 2 };

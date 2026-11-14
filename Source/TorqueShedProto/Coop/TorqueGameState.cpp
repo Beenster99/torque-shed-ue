@@ -18,6 +18,10 @@
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "Fit/FitJson.h"
+
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
 #include "Weather/TorqueWeatherFx.h"
 #include "Weather/TorqueSky.h"
 #include "Weather/NightSky.h"
@@ -62,6 +66,8 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SunLat);
 	DOREPLIFETIME(ATorqueGameState, GridNet);
 	DOREPLIFETIME(ATorqueGameState, WideNet);
+	DOREPLIFETIME(ATorqueGameState, SkyKp);
+	DOREPLIFETIME(ATorqueGameState, SkyDust);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 	DOREPLIFETIME(ATorqueGameState, RideJourney);
 	DOREPLIFETIME(ATorqueGameState, RideJourneyBy);
@@ -321,6 +327,8 @@ void ATorqueGameState::Tick(float DeltaSeconds)
 	}
 	if (Mode == FTorqueSettings::WeatherLive && !bFetching && (NextFetchIn -= DeltaSeconds) <= 0.0) FetchLive(0);
 	if (Mode == FTorqueSettings::WeatherLive && HasAuthority() && !bFetchingWide && GridNow.Valid() && (NextWideIn -= DeltaSeconds) <= 0.0) FetchWide();
+	if (Mode == FTorqueSettings::WeatherLive && !bFetchingKp && (NextKpIn -= DeltaSeconds) <= 0.0) FetchKp();
+	if (Mode == FTorqueSettings::WeatherLive && !bFetchingDust && GridNow.Valid() && (NextDustIn -= DeltaSeconds) <= 0.0) FetchDust();
 	// The real time of day, or the day going by: a whole day in Settings' Day length of real minutes.
 	const bool bTestRun = FParse::Param(FCommandLine::Get(), TEXT("TorqueNoInput")) || FParse::Param(FCommandLine::Get(), TEXT("TorqueNoSettings"));
 	const bool bRealClock = Set.bRealClock && (!bTestRun || bRealClockTest);
@@ -516,6 +524,22 @@ void ATorqueGameState::GoToMode(float FadeSeconds)
 		// (Not live: one weather for everyone again, the local differences fading out with the change.)
 		SetGrid(TorqueWeather::Grid(), 0, FadeSeconds);
 		SendGrid();
+	}
+	if (Mode != FTorqueSettings::WeatherLive && Mode != FTorqueSettings::WeatherPreset)
+	{
+		// (the space weather and the dust are the live feed's, or a preset's)
+		SkyKp = -1.0f;
+		SkyDust = -1.0f;
+	}
+	if (Mode != FTorqueSettings::WeatherPreset)
+	{
+		PresetDay = -1;
+		PresetMeteors = -1.0f;
+	}
+	if (Mode == FTorqueSettings::WeatherLive)
+	{
+		NextKpIn = FMath::Min(NextKpIn, 15.0);
+		NextDustIn = FMath::Min(NextDustIn, 25.0);
 	}
 	if (Mode != FTorqueSettings::WeatherLive && GridWide.Valid())
 	{
@@ -754,6 +778,88 @@ void ATorqueGameState::FetchWide()
 	Req->ProcessRequest();
 }
 
+void ATorqueGameState::FetchKp()
+{
+	// NOAA's planetary K index (free, public): a list of rows, a header first, the latest last.
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(TEXT("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"));
+	Req->SetVerb(TEXT("GET"));
+	Req->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	Req->SetTimeout(20.0f);
+	TWeakObjectPtr<ATorqueGameState> Self(this);
+	Req->OnProcessRequestComplete().BindLambda([Self](FHttpRequestPtr, FHttpResponsePtr Resp, bool bConnected)
+	{
+		ATorqueGameState* GS = Self.Get();
+		if (!GS) return;
+		GS->bFetchingKp = false;
+		GS->NextKpIn = 3.0 * 3600.0;
+		TorqueFit::Json Root;
+		std::string Why;
+		float Kp = -1.0f;
+		if (bConnected && Resp.IsValid() && EHttpResponseCodes::IsOk(Resp->GetResponseCode())
+			&& TorqueFit::Json::Parse(TCHAR_TO_UTF8(*Resp->GetContentAsString()), Root, &Why) && Root.IsArray())
+			for (const TorqueFit::Json& Row : Root.A)
+			{
+				// (rows are [time, Kp, ...] as text or numbers; older rows first; objects in newer versions)
+				const TorqueFit::Json* V = Row.IsArray() && Row.A.size() > 1 ? &Row.A[1] : Row.IsObject() ? Row.Get("Kp") : nullptr;
+				if (V && V->IsNumber()) Kp = (float)V->N;
+				else if (V && V->IsString() && !V->S.empty() && (std::isdigit((unsigned char)V->S[0]) != 0)) Kp = (float)std::atof(V->S.c_str());
+			}
+		if (Kp >= 0.0f && GS->Mode == FTorqueSettings::WeatherLive)
+		{
+			GS->SkyKp = Kp;
+			GS->ForceNetUpdate();
+			UE_LOG(LogTemp, Log, TEXT("Torque sky: space weather Kp %.2f (NOAA)"), Kp);
+		}
+		else
+		{
+			GS->NextKpIn = 20.0 * 60.0;
+			UE_LOG(LogTemp, Warning, TEXT("Torque sky: no Kp index (%s)"), Why.empty() ? TEXT("no answer") : UTF8_TO_TCHAR(Why.c_str()));
+		}
+	});
+	bFetchingKp = true;
+	Req->ProcessRequest();
+}
+
+void ATorqueGameState::FetchDust()
+{
+	// Open-Meteo's air quality (CAMS): the dust over the grid's centre, micrograms per cubic metre.
+	char Buf[160];
+	std::snprintf(Buf, sizeof(Buf), "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=%.4f&longitude=%.4f&current=dust", GridNow.Lat, GridNow.Lon);
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetURL(UTF8_TO_TCHAR(Buf));
+	Req->SetVerb(TEXT("GET"));
+	Req->SetHeader(TEXT("Accept"), TEXT("application/json"));
+	Req->SetTimeout(20.0f);
+	TWeakObjectPtr<ATorqueGameState> Self(this);
+	Req->OnProcessRequestComplete().BindLambda([Self](FHttpRequestPtr, FHttpResponsePtr Resp, bool bConnected)
+	{
+		ATorqueGameState* GS = Self.Get();
+		if (!GS) return;
+		GS->bFetchingDust = false;
+		GS->NextDustIn = 3600.0;
+		TorqueFit::Json Root;
+		const TorqueFit::Json* Cur = nullptr;
+		if (bConnected && Resp.IsValid() && EHttpResponseCodes::IsOk(Resp->GetResponseCode())
+			&& TorqueFit::Json::Parse(TCHAR_TO_UTF8(*Resp->GetContentAsString()), Root) && Root.IsObject())
+			Cur = Root.Get("current");
+		const TorqueFit::Json* Dust = Cur ? Cur->Get("dust") : nullptr;
+		if (Dust && Dust->IsNumber() && GS->Mode == FTorqueSettings::WeatherLive)
+		{
+			GS->SkyDust = (float)FMath::Max(Dust->N, 0.0);
+			GS->ForceNetUpdate();
+			UE_LOG(LogTemp, Log, TEXT("Torque sky: dust %.0f ug/m3 (Open-Meteo air quality)"), GS->SkyDust);
+		}
+		else
+		{
+			GS->NextDustIn = 20.0 * 60.0;
+			UE_LOG(LogTemp, Warning, TEXT("Torque sky: no dust figure"));
+		}
+	});
+	bFetchingDust = true;
+	Req->ProcessRequest();
+}
+
 double ATorqueGameState::ValleyAslNow() const
 {
 	if (!GridNow.Valid()) return -1.0;
@@ -889,6 +995,7 @@ FTorqueWeatherNet NetOf(const TorqueWeather::State& S)
 	N.FreezingLevel = (float)S.FreezingLevel; N.DirectSun = (float)S.DirectSun; N.DiffuseSun = (float)S.DiffuseSun;
 	N.Wind850 = (float)S.Wind850; N.Wind850From = (float)S.Wind850From; N.Wind700 = (float)S.Wind700; N.Wind700From = (float)S.Wind700From;
 	N.Wind300 = (float)S.Wind300; N.Wind300From = (float)S.Wind300From;
+	N.Rh300 = (float)S.Rh300; N.T300 = (float)S.T300;
 	return N;
 }
 
@@ -901,6 +1008,7 @@ TorqueWeather::State StateOf(const FTorqueWeatherNet& N)
 	S.MidCloud = N.MidCloud; S.HighCloud = N.HighCloud; S.Humidity = N.Humidity; S.Cape = N.Cape; S.FreezingLevel = N.FreezingLevel;
 	S.DirectSun = N.DirectSun; S.DiffuseSun = N.DiffuseSun; S.Wind850 = N.Wind850; S.Wind850From = N.Wind850From;
 	S.Wind700 = N.Wind700; S.Wind700From = N.Wind700From; S.Wind300 = N.Wind300; S.Wind300From = N.Wind300From;
+	S.Rh300 = N.Rh300; S.T300 = N.T300;
 	return S;
 }
 } // namespace
@@ -1234,11 +1342,23 @@ void ATorqueGameState::HoldPreset(float FadeSeconds)
 	if (FadeSeconds <= 0.0f) Weather = TorqueWeather::NearestKind(S);
 	Net.Source = (uint8)ETorqueWeatherSource::Fixed;
 	AppliedAt = -1.0;
+	// [skies stage 7] What a preset shows off: the space weather, dust, a day of the year, meteors.
+	SkyKp = Pick ? (float)Pick->Kp : -1.0f;
+	SkyDust = Pick ? (float)Pick->Dust : -1.0f;
+	PresetMeteors = Pick ? (float)Pick->MeteorsPerHour : -1.0f;
+	PresetDay = Pick ? Pick->Day : -1;
 	// The moon it asks for: the night sky's clock moved (at most a fortnight) to the nearest such moon.
 	SkyShiftDays = 0.0;
+	if (PresetDay > 0)
+	{
+		// (a day of the year: the night sky's clock moved to it, this year)
+		SkyShiftDays = (double)(PresetDay - FDateTime::UtcNow().GetDayOfYear());
+		ApplySun();
+	}
 	if (Pick && !Pick->Moon.empty())
 	{
 		const double Want = Pick->Moon == "full" ? 0.0 : Pick->Moon == "new" ? 180.0 : 90.0;
+		const double DayShift = SkyShiftDays;
 		const double Base = SkyUnixAt(Hour < 0.0f ? 12.0f : Hour);
 		double Best = 1e9;
 		for (double Days = -15.0; Days <= 15.0; Days += 0.25)
@@ -1248,7 +1368,7 @@ void ATorqueGameState::HoldPreset(float FadeSeconds)
 			if (Off < Best)
 			{
 				Best = Off;
-				SkyShiftDays = Days;
+				SkyShiftDays = DayShift + Days;
 			}
 		}
 		UE_LOG(LogTemp, Log, TEXT("Torque weather: preset sky's %s moon: the night sky %+.2f days on"), UTF8_TO_TCHAR(Pick->Moon.c_str()), SkyShiftDays);

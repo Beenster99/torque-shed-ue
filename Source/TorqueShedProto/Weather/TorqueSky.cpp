@@ -6,7 +6,11 @@
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Components/AudioComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundWaveProcedural.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -104,6 +108,22 @@ void ATorqueSky::BeginPlay()
 		UE_LOG(LogTemp, Log, TEXT("Torque sky: looks from %s"), *LooksPath);
 	}
 
+	// Stage 7: the light a lightning flash casts on the land, off until one does.
+	FlashLight = NewObject<UPointLightComponent>(this, TEXT("FlashLight"));
+	if (FlashLight)
+	{
+		FlashLight->SetMobility(EComponentMobility::Movable);
+		FlashLight->SetupAttachment(GetRootComponent());
+		FlashLight->RegisterComponent();
+		FlashLight->bUseInverseSquaredFalloff = true;
+		FlashLight->SetIntensityUnits(ELightUnits::Candelas);
+		FlashLight->SetAttenuationRadius(3000000.0f);   // 30 km
+		FlashLight->SetCastShadows(false);
+		FlashLight->SetLightColor(FLinearColor(0.82f, 0.86f, 1.0f));
+		FlashLight->SetIntensity(0.0f);
+		FlashLight->SetVisibility(false);
+	}
+
 	FString BenchFile;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueSkyBench="), BenchFile) || FParse::Param(FCommandLine::Get(), TEXT("TorqueSkyBench")))
 	{
@@ -135,6 +155,7 @@ void ATorqueSky::Find()
 		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
 	// Stage 4: the rain shafts and the rainbow (Tools/ue_build_level.py places them, hidden).
 	Shafts.Reset();
+	Bolts.Reset();
 	for (TActorIterator<AActor> It(W); It; ++It)
 	{
 		if (It->ActorHasTag(FName(TEXT("TorqueRainShaft"))))
@@ -145,6 +166,12 @@ void ATorqueSky::Find()
 		}
 		if (!RainbowPtr.IsValid() && It->ActorHasTag(FName(TEXT("TorqueRainbow")))) RainbowPtr = *It;
 		if (!StarDomePtr.IsValid() && It->ActorHasTag(FName(TEXT("TorqueStarDome")))) StarDomePtr = *It;
+		if (It->ActorHasTag(FName(TEXT("TorqueBolt"))))
+		{
+			FBoltSlot Slot;
+			Slot.Actor = *It;
+			Bolts.Add(Slot);
+		}
 	}
 	for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It)
 	{
@@ -213,7 +240,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	if (!bCaptured)
 	{
 		bCaptured = true;
-		if (Sun) { SunLux = Sun->Intensity; SunAngle = Sun->LightSourceAngle; }
+		if (Sun) { SunLux = Sun->Intensity; SunAngle = Sun->LightSourceAngle; SunColour = Sun->LightColor; }
 		if (Sky) SkyIntensity = Sky->Intensity;
 		if (Fog) { FogDensity = Fog->FogDensity; FogInscatter = Fog->FogInscatteringLuminance; FogSunInscatter = Fog->DirectionalInscatteringLuminance; }
 		if (Atmo) { Mie = Atmo->MieScatteringScale; Rayleigh = Atmo->RayleighScatteringScale; }
@@ -254,6 +281,18 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		In.MoonElevation = MoonNow.Elevation;
 		In.MoonPhaseAngle = MoonNow.PhaseAngle;
 	}
+	// Stage 7: the place and the day (the aurora, noctilucent cloud, meteors), the space weather and dust.
+	In.Lat = SkyLat;
+	In.Lon = SkyLon;
+	In.DayOfYear = bSkyClock ? FDateTime::FromUnixTimestamp((int64)SkyUnix).GetDayOfYear() : FDateTime::UtcNow().GetDayOfYear();
+	if (Game.IsValid())
+	{
+		In.Kp = Game->GetSkyKp();
+		In.Dust = Game->GetSkyDust();
+		In.MeteorRate = Game->GetPresetMeteors();
+	}
+	WeatherNow = Weather;
+	OpenNow = Open;
 	In.bClouds = CloudsDrawn();
 	const TorqueSky::Sky S = TorqueSky::Compute(In, Looks);
 	Last = S;
@@ -271,6 +310,10 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		Sun->SetLightSourceAngle(SunAngle + (float)S.SunAngle);
 		const float Disc = S.MoonTakeover > 0.5 ? 0.0f : (float)S.SunDisc;   // (the star dome draws the moon)
 		Sun->SetAtmosphereSunDiskColorScale(FLinearColor(Disc, Disc, Disc, 1.0f));
+		// Saharan dust (stage 7): a warmer, redder sun.
+		const FLinearColor Base(SunColour);
+		const FLinearColor Warm = FMath::Lerp(Base, FLinearColor(Base.R, Base.G * 0.62f, Base.B * 0.38f, 1.0f), (float)S.SunWarm);
+		if (!Sun->GetLightColor().Equals(Warm, 0.004f)) Sun->SetLightColor(Warm);
 		// The drawn clouds' shadows on the ground: on while the sky is broken, off as the deck closes (the
 		// dimmed sun takes over then).
 		const float Strength = (float)S.CloudShadows;
@@ -370,6 +413,16 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MoonDisc"), (float)(S.MoonDisc * SunLux));
 		SetMpc(SkyMpc, TEXT("EarthShine"), (float)Looks.EarthShine);
 		SetMpc(SkyMpc, TEXT("SkyGlow"), (float)S.Glow);
+		// Stage 7: the storm's anvil; the rare skies.
+		SetMpc(SkyMpc, TEXT("Anvil"), (float)S.Anvil);
+		SetMpc(SkyMpc, TEXT("SunDogs"), (float)S.SunDogs);
+		SetMpc(SkyMpc, TEXT("Contrails"), (float)S.Contrails);
+		SetMpc(SkyMpc, TEXT("Fogbow"), (float)S.Fogbow);
+		SetMpc(SkyMpc, TEXT("Glory"), (float)S.Glory);
+		SetMpc(SkyMpc, TEXT("Aurora"), (float)(S.Aurora * Looks.AuroraGain));
+		SetMpc(SkyMpc, TEXT("AuroraTop"), (float)S.AuroraTopDeg);
+		SetMpc(SkyMpc, TEXT("AuroraBearing"), (float)S.AuroraBearing);
+		SetMpc(SkyMpc, TEXT("Nlc"), (float)(S.Noctilucent * Looks.NlcGain));
 	}
 	// The old noise cloud shadows: where no clouds are drawn (the Low setting), the cover's amount; where
 	// they are, none (the clouds you see cast their own).
@@ -386,6 +439,8 @@ void ATorqueSky::Tick(float DeltaSeconds)
 	TickRainShafts(DeltaSeconds);
 	TickRainbow();
 	TickStarDome();
+	TickLightning(DeltaSeconds);
+	TickMeteors();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
 }
 
@@ -570,6 +625,7 @@ void ATorqueSky::TickRainShafts(float DeltaSeconds)
 			Use->At = FVector(At.X, At.Y, 0.5 * (TopZ + BottomZ));
 			Use->Scale = FVector(R.RadiusM * 2.0, R.RadiusM * 2.0, FMath::Max(TopZ - BottomZ, 10000.0) / 100.0);
 			Use->Want = (float)(R.Strength * Looks.ShaftOpacity);
+			Use->White = (float)R.White;
 		}
 		for (FShaftSlot& Slot : Shafts)
 			if (!Slot.bSeen) Slot.Want = 0.0f;
@@ -586,7 +642,11 @@ void ATorqueSky::TickRainShafts(float DeltaSeconds)
 		if (!Slot.Mid)
 			if (UStaticMeshComponent* Mesh = A->FindComponentByClass<UStaticMeshComponent>())
 				Slot.Mid = Mesh->CreateAndSetMaterialInstanceDynamic(0);
-		if (Slot.Mid) Slot.Mid->SetScalarParameterValue(FName(TEXT("Strength")), Slot.Now);
+		if (Slot.Mid)
+		{
+			Slot.Mid->SetScalarParameterValue(FName(TEXT("Strength")), Slot.Now);
+			Slot.Mid->SetScalarParameterValue(FName(TEXT("White")), Slot.White);
+		}
 		A->SetActorLocationAndRotation(Slot.At, FRotator::ZeroRotator);
 		A->SetActorScale3D(Slot.Scale);
 	}
@@ -635,11 +695,202 @@ void ATorqueSky::TickStarDome()
 	AActor* Dome = StarDomePtr.Get();
 	if (!W || !Dome || !SkyMpc || !bApplied) return;
 	// Shown at night, and by day while the moon is up (its disc in the blue).
-	const bool bShow = bSkyClock && (Last.Stars > 0.001 || Last.Glow > 0.001 || (Last.MoonDisc > 0.0 && MoonNow.Elevation > -1.0));
+	const bool bShow = bSkyClock && (Last.Stars > 0.001 || Last.Glow > 0.001 || (Last.MoonDisc > 0.0 && MoonNow.Elevation > -1.0)
+		|| Last.Aurora > 0.001 || Last.Noctilucent > 0.001);
 	if (Dome->IsHidden() == bShow) Dome->SetActorHiddenInGame(!bShow);
 	if (!bShow) return;
 	const APlayerController* PC = W->GetFirstPlayerController();
 	if (PC && PC->PlayerCameraManager) Dome->SetActorLocation(PC->PlayerCameraManager->GetCameraLocation());
+}
+
+// --- Stage 7: lightning and thunder, meteors ------------------------------------------------------------
+
+double ATorqueSky::StormClock() const
+{
+	const UWorld* W = GetWorld();
+	const ATorqueGameState* GS = Game.Get();
+	return GS ? GS->GetServerWorldTimeSeconds() : W ? W->GetTimeSeconds() : 0.0;
+}
+
+void ATorqueSky::TickLightning(float DeltaSeconds)
+{
+	UWorld* W = GetWorld();
+	const ATorqueGameState* GS = Game.Get();
+	if (!W || !GS || !bApplied) return;
+	FVector Cam;
+	double Lat = 0.0, Lon = 0.0, OriginAsl = 0.0;
+	if (!CameraGeo(Cam, Lat, Lon, OriginAsl)) return;
+	const double Clock = StormClock();
+	const double Now = W->GetTimeSeconds();
+	// The storm cells round about, every few seconds (they drift with their showers between).
+	if (Now - CellsFoundAt > 5.0)
+	{
+		CellsFoundAt = Now;
+		const size_t Before = StormCellsNow.size();
+		StormCellsNow = TorqueStorm::StormCells(GS->SkyGrids(), WeatherNow, Lat, Lon, Looks);
+		if ((Before == 0) != StormCellsNow.empty())
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque sky: %d thundery storm cells within %.0f km"), int32(StormCellsNow.size()), Looks.StormFarthestM / 1000.0);
+		}
+	}
+	// (joining, or after a hitch: carry on from now, no burst of flashes all at once)
+	if (StrikeClock < 0.0 || Clock < StrikeClock || Clock - StrikeClock > 2.0) StrikeClock = Clock;
+	const float Scale = SunLux > 0.0f ? SunLux / 4700.0f : 1.0f;   // (the level's sun against the one it was built with)
+	if (!StormCellsNow.empty())
+		for (const TorqueStorm::Strike& St : TorqueStorm::StrikesBetween(StormCellsNow, StrikeClock, Clock, Looks))
+		{
+			double E = 0.0, N = 0.0;
+			TorqueWeather::MetresBetween(Lat, Lon, St.Lat, St.Lon, E, N);
+			FFlash F;
+			F.S = St;
+			F.Where = FVector(Cam.X + E * 100.0, Cam.Y - N * 100.0, (St.BaseAsl - OriginAsl) * 100.0);
+			const double Up = St.BaseAsl - (OriginAsl + Cam.Z / 100.0);
+			F.Dist = FMath::Sqrt(E * E + N * N + Up * Up);
+			if (Flashes.Num() < 8) Flashes.Add(F);
+			++FlashCount;
+			// Its thunder, on its way at the speed of sound (a flash in the cloud rumbles softer).
+			const float Loud = (float)(TorqueStorm::ThunderLoudness(F.Dist, St.Power, Looks) * (St.bGround ? 1.0 : 0.7));
+			if (Loud > 0.02f && ThunderDue.Num() < 12)
+			{
+				FThunderDue Due;
+				Due.At = St.At + TorqueStorm::ThunderDelay(F.Dist, Looks);
+				Due.Dist = F.Dist;
+				Due.Loud = Loud;
+				Due.Seed = St.Seed;
+				ThunderDue.Add(Due);
+			}
+			// A fork to the ground near enough to see: one of the bolts stood up there.
+			if (St.bGround && FMath::Sqrt(E * E + N * N) < Looks.BoltFarthestM)
+				for (FBoltSlot& Slot : Bolts)
+					if (!Slot.bOn && Slot.Actor.IsValid())
+					{
+						Slot.bOn = true;
+						Slot.S = St;
+						Slot.Top = F.Where;
+						Slot.Ground = FVector(F.Where.X, F.Where.Y, (GroundAslNow - 80.0 - OriginAsl) * 100.0);
+						break;
+					}
+		}
+	StrikeClock = Clock;
+	// The light now: the cloud lit round the brightest flash, and the land by the nearest bright one.
+	double Glow = 0.0, Land = 0.0;
+	const FFlash* GlowAt = nullptr;
+	const FFlash* LandAt = nullptr;
+	for (const FFlash& F : Flashes)
+	{
+		const double B = TorqueStorm::FlashAt(F.S, Clock - F.S.At) * F.S.Power;
+		if (B > Glow) { Glow = B; GlowAt = &F; }
+		const double Near = B / FMath::Max(FMath::Square(F.Dist / 3000.0), 1.0);
+		if (Near > Land) { Land = Near; LandAt = &F; }
+	}
+	auto SetMpc = [W, this](const TCHAR* Name, float Value) {
+		if (SkyMpc && SkyMpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Name), Value);
+	};
+	SetMpc(TEXT("Flash"), (float)(Glow * Looks.FlashCloudGlow) * Scale);
+	if (GlowAt)
+	{
+		SetMpc(TEXT("FlashX"), (float)((GlowAt->Where.X - Cam.X) / 100.0));
+		SetMpc(TEXT("FlashY"), (float)((GlowAt->Where.Y - Cam.Y) / 100.0));
+		SetMpc(TEXT("FlashR"), (float)Looks.FlashRadiusM);
+	}
+	if (UPointLightComponent* L = FlashLight.Get())
+	{
+		const bool bLit = LandAt && Land > 0.005;
+		if (L->IsVisible() != bLit) L->SetVisibility(bLit);
+		if (bLit)
+		{
+			const double Peak = TorqueStorm::FlashAt(LandAt->S, Clock - LandAt->S.At) * LandAt->S.Power;
+			L->SetWorldLocation(LandAt->Where);
+			L->SetIntensity((float)(Looks.FlashLightCd * Peak * SunLux / 75000.0));
+		}
+	}
+	Flashes.RemoveAll([Clock](const FFlash& F) { return Clock - F.S.At > 0.8; });
+	// The forks: stood up between the cloud base and the ground, facing the camera, flickering with their flash.
+	for (FBoltSlot& Slot : Bolts)
+	{
+		AActor* A = Slot.Actor.Get();
+		if (!A) continue;
+		const double Age = Clock - Slot.S.At;
+		if (Slot.bOn && Age > 0.7) Slot.bOn = false;
+		const bool bShow = Slot.bOn;
+		if (A->IsHidden() == bShow) A->SetActorHiddenInGame(!bShow);
+		if (!bShow) continue;
+		if (!Slot.Mid)
+			if (UStaticMeshComponent* Mesh = A->FindComponentByClass<UStaticMeshComponent>())
+				Slot.Mid = Mesh->CreateAndSetMaterialInstanceDynamic(0);
+		const FVector Mid = (Slot.Top + Slot.Ground) * 0.5;
+		const double HeightM = FMath::Max((Slot.Top.Z - Slot.Ground.Z) / 100.0, 100.0);
+		const FVector ToCam = Cam - Mid;
+		const double Yaw = FMath::RadiansToDegrees(FMath::Atan2(ToCam.Y, ToCam.X));
+		A->SetActorLocationAndRotation(Mid, FRotator(90.0, Yaw, 0.0));
+		A->SetActorScale3D(FVector(HeightM, Looks.BoltWidthM, 1.0));
+		if (Slot.Mid)
+		{
+			Slot.Mid->SetScalarParameterValue(FName(TEXT("Seed")), (float)(Slot.S.Seed % 100000u));
+			Slot.Mid->SetScalarParameterValue(FName(TEXT("Strength")), (float)(TorqueStorm::FlashAt(Slot.S, Age) * Slot.S.Power * Looks.BoltNits) * Scale);
+		}
+	}
+	// The thunder, as it arrives; and those that have rolled away, stopped.
+	for (int32 I = ThunderDue.Num() - 1; I >= 0; --I)
+		if (ThunderDue[I].At <= Clock)
+		{
+			PlayThunder(ThunderDue[I]);
+			ThunderDue.RemoveAt(I);
+		}
+	for (int32 I = ThunderOn.Num() - 1; I >= 0; --I)
+		if (Now >= ThunderOn[I].StopAt || !ThunderOn[I].Audio.IsValid())
+		{
+			if (UAudioComponent* Au = ThunderOn[I].Audio.Get()) Au->Stop();
+			ThunderOn.RemoveAt(I);
+		}
+}
+
+void ATorqueSky::PlayThunder(const FThunderDue& Due)
+{
+	UWorld* W = GetWorld();
+	if (!W || W->GetNetMode() == NM_DedicatedServer) return;
+	// (three rolling at once is a storm overhead already: a quiet fourth isn't missed)
+	if (ThunderOn.Num() >= 3 && Due.Loud < 0.4f) return;
+	const int32 Rate = 22050;
+	const std::vector<int16_t> Pcm = TorqueStorm::ThunderSound(Due.Dist, 1.0, Due.Seed, Rate);
+	if (Pcm.empty()) return;
+	USoundWaveProcedural* Wave = NewObject<USoundWaveProcedural>(this);
+	Wave->SetSampleRate(Rate);
+	Wave->NumChannels = 1;
+	Wave->Duration = (float)Pcm.size() / (float)Rate;
+	Wave->SoundGroup = SOUNDGROUP_Default;
+	Wave->bLooping = false;
+	Wave->QueueAudio(reinterpret_cast<const uint8*>(Pcm.data()), (int32)(Pcm.size() * sizeof(int16_t)));
+	// (muffled a little indoors: the shed's walls)
+	const float Volume = Due.Loud * FMath::Lerp(0.45f, 1.0f, FMath::Clamp(OpenNow, 0.0f, 1.0f));
+	UAudioComponent* Audio = UGameplayStatics::SpawnSound2D(this, Wave, Volume);
+	ThunderWaves.Add(Wave);
+	if (ThunderWaves.Num() > 6) ThunderWaves.RemoveAt(0);
+	FThunderOn On;
+	On.Audio = Audio;
+	On.StopAt = W->GetTimeSeconds() + Wave->Duration + 0.5;
+	ThunderOn.Add(On);
+	++ThunderCount;
+	UE_LOG(LogTemp, Log, TEXT("Torque sky: thunder from %.1f km (%.1f s after its flash), loudness %.2f"), Due.Dist / 1000.0,
+		TorqueStorm::ThunderDelay(Due.Dist, Looks), Due.Loud);
+}
+
+void ATorqueSky::TickMeteors()
+{
+	UWorld* W = GetWorld();
+	if (!W || !SkyMpc || !bApplied) return;
+	const TorqueStorm::Meteor M = TorqueStorm::MeteorAt(StormClock(), Last.MeteorsPerHour);
+	auto SetMpc = [W, this](const TCHAR* Name, float Value) {
+		if (SkyMpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Name), Value);
+	};
+	SetMpc(TEXT("Meteor"), M.bOn ? (float)(M.Bright * Looks.MeteorGain) : 0.0f);
+	if (!M.bOn) return;
+	SetMpc(TEXT("MeteorEl"), (float)M.El);
+	SetMpc(TEXT("MeteorAz"), (float)M.Az);
+	SetMpc(TEXT("MeteorDir"), (float)M.Dir);
+	SetMpc(TEXT("MeteorLen"), (float)M.Length);
+	SetMpc(TEXT("MeteorAlong"), (float)M.Along);
+	// (the dome shows while there are stars; a meteor needs them anyway)
 }
 
 int32 ATorqueSky::ShaftsShown() const
@@ -655,9 +906,9 @@ void ATorqueSky::TickRainbow()
 	AActor* Bow = RainbowPtr.Get();
 	if (!W || !Bow || !SkyMpc || !bApplied) return;
 	const float Strength = (float)(Last.Rainbow * Looks.RainbowOpacity);
-	const bool bShow = Strength > 0.005f;
+	const bool bShow = Strength > 0.005f || Last.Fogbow > 0.005 || Last.Glory > 0.005;   // (stage 7: the same sphere draws them)
 	if (Bow->IsHidden() == bShow) Bow->SetActorHiddenInGame(!bShow);
-	if (FMath::Abs(Strength - RainbowApplied) > 0.002f || (bShow != (RainbowApplied > 0.005f)))
+	if (FMath::Abs(Strength - RainbowApplied) > 0.002f || (Strength > 0.005f) != (RainbowApplied > 0.005f))
 	{
 		if (SkyMpc->GetScalarParameterByName(FName(TEXT("Rainbow")))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(TEXT("Rainbow")), Strength);
 		RainbowApplied = Strength;
@@ -818,7 +1069,11 @@ FString ATorqueSky::Describe() const
 		+ FString::Printf(TEXT("; mist %.2f (top %.0f m), fog top %.0f m, rainbow %.2f, under the base %.2f; weather map %s, rain shafts %d"),
 			S.Mist, S.MistTopAsl, S.FogTopAsl, S.Rainbow, S.BaseFog, MapOnApplied > 0.0f ? TEXT("on") : TEXT("off"), ShaftsShown())
 		+ FString::Printf(TEXT("; moon %.1f deg up, bearing %.0f, %.0f%% lit%s, light x%.5f; stars %.2f, Milky Way %.2f, glow %.3f"),
-			MoonNow.Elevation, MoonNow.Bearing, MoonNow.Lit * 100.0, S.MoonTakeover > 0.5 ? TEXT(" (lighting the night)") : TEXT(""), S.MoonLight, S.Stars, S.MilkyWay, S.Glow);
+			MoonNow.Elevation, MoonNow.Bearing, MoonNow.Lit * 100.0, S.MoonTakeover > 0.5 ? TEXT(" (lighting the night)") : TEXT(""), S.MoonLight, S.Stars, S.MilkyWay, S.Glow)
+		+ FString::Printf(TEXT("; storms: thunder %.2f, anvil %.2f, hail %.2f, snow %.2f, %d storm cells near, %d flashes and %d thunder so far"),
+			S.Thunder, S.Anvil, S.Hail, S.Snowing, int32(StormCellsNow.size()), FlashCount, ThunderCount)
+		+ FString::Printf(TEXT("; rare: sun dogs %.2f, contrails %.2f, fogbow %.2f, glory %.2f, aurora %.2f (top %.0f deg, bearing %.0f), noctilucent %.2f, meteors %.0f an hour, dust %.2f"),
+			S.SunDogs, S.Contrails, S.Fogbow, S.Glory, S.Aurora, S.AuroraTopDeg, S.AuroraBearing, S.Noctilucent, S.MeteorsPerHour, S.Dust);
 }
 
 // --- The sky bench ---------------------------------------------------------------------------------------

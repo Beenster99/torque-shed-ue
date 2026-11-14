@@ -17,10 +17,14 @@
 #include "GameFramework/Actor.h"
 #include "Weather/SkyModel.h"
 #include "Weather/NightSky.h"
+#include "Weather/StormSky.h"
 #include "TorqueSky.generated.h"
 
 class ATorqueGameState;
 class UMaterialParameterCollection;
+class UPointLightComponent;
+class USoundWaveProcedural;
+class UAudioComponent;
 
 UCLASS(NotPlaceable, Transient)
 class ATorqueSky : public AActor
@@ -108,6 +112,7 @@ private:
 		FVector At = FVector::ZeroVector, Scale = FVector::OneVector;
 		float Now = 0.0f, Want = 0.0f;
 		bool bSeen = false;
+		float White = 0.0f;   // (stage 7: snow or hail)
 	};
 	TArray<FShaftSlot> Shafts;
 	double ShaftsFoundAt = -1000.0;
@@ -125,6 +130,52 @@ private:
 	FVector SunEnu = FVector(0.0, 0.0, 1.0);
 	TWeakObjectPtr<AActor> StarDomePtr;
 	void TickStarDome();
+	// Stage 7: lightning and thunder. The storm cells round the camera (found every few seconds), the
+	// flashes on now (each lighting the cloud round it and the land), the forks drawn (a pool of planes
+	// the level script places, tagged TorqueBolt), and the thunder on its way (made when it arrives).
+	TorqueWeather::State WeatherNow;
+	float OpenNow = 1.0f;
+	std::vector<TorqueStorm::Cell> StormCellsNow;
+	double CellsFoundAt = -1000.0, StrikeClock = -1.0;
+	struct FFlash
+	{
+		TorqueStorm::Strike S;
+		FVector Where = FVector::ZeroVector;   // the flash in the level, at the cloud base (cm)
+		double Dist = 0.0;                      // from the camera, metres
+	};
+	TArray<FFlash> Flashes;
+	struct FThunderDue
+	{
+		double At = 0.0;    // on the sky's clock
+		double Dist = 0.0;
+		float Loud = 0.0f;
+		uint32 Seed = 0;
+	};
+	TArray<FThunderDue> ThunderDue;
+	struct FThunderOn
+	{
+		TWeakObjectPtr<UAudioComponent> Audio;
+		double StopAt = 0.0;
+	};
+	TArray<FThunderOn> ThunderOn;
+	UPROPERTY(Transient) TArray<TObjectPtr<USoundWaveProcedural>> ThunderWaves;
+	UPROPERTY(Transient) TObjectPtr<UPointLightComponent> FlashLight;
+	struct FBoltSlot
+	{
+		TWeakObjectPtr<AActor> Actor;
+		TObjectPtr<class UMaterialInstanceDynamic> Mid = nullptr;
+		TorqueStorm::Strike S;
+		FVector Ground = FVector::ZeroVector, Top = FVector::ZeroVector;
+		bool bOn = false;
+	};
+	TArray<FBoltSlot> Bolts;
+	int32 FlashCount = 0, ThunderCount = 0;
+	FColor SunColour = FColor::White;
+	// The clock lightning and meteors keep: the server's world time (the same on every machine in co-op).
+	double StormClock() const;
+	void TickLightning(float DeltaSeconds);
+	void PlayThunder(const FThunderDue& Due);
+	void TickMeteors();
 	// The ground under the viewer from the last Apply (metres above sea level).
 	double GroundAslNow = 0.0;
 	// The camera, where it is on Earth, and the level origin's height above sea level.
