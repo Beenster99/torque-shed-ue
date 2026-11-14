@@ -2,7 +2,7 @@
  "name": "Hartwell naked (working title N1)",
  "brand": "hartwell",
  "family": "Naked",
- "rev": "E",
+ "rev": "F",
  "engine_label": "inline triple",
  "frame_label": "steel tube frame, engine as part of the frame",
  "colours": {
@@ -619,8 +619,8 @@
   {
    "circle": 31,
    "at": [
-    1226.1,
-    962.4
+    1218.1,
+    994.4
    ],
    "cls": "chromef",
    "part": "head"
@@ -628,8 +628,8 @@
   {
    "circle": 25,
    "at": [
-    1226.1,
-    962.4
+    1218.1,
+    994.4
    ],
    "cls": "plastic",
    "part": "head"
@@ -1968,16 +1968,16 @@
      {
       "circle": 31,
       "at": [
-       1226.1,
-       962.4
+       1218.1,
+       994.4
       ],
       "cls": "chromef"
      },
      {
       "circle": 25,
       "at": [
-       1226.1,
-       962.4
+       1218.1,
+       994.4
       ],
       "cls": "plastic"
      },
@@ -2033,12 +2033,12 @@
         787.4
        ],
        [
-        1264.1,
-        763.4
+        1262.1,
+        769.4
        ],
        [
         1172.1,
-        771.4,
+        773.4,
         1
        ]
       ],
@@ -2072,16 +2072,16 @@
      {
       "circle": 31,
       "at": [
-       1226.1,
-       962.4
+       1218.1,
+       994.4
       ],
       "cls": "chromef"
      },
      {
       "circle": 25,
       "at": [
-       1226.1,
-       962.4
+       1218.1,
+       994.4
       ],
       "cls": "plastic"
      }
