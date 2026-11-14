@@ -3767,10 +3767,20 @@ void ATorqueBikePawn::UpdateRider()
 		{
 			UStaticMeshComponent* LeverC = CatLever[S].Get();
 			if (!LeverC) continue;
-			if (!bCatLeverRest[S]) { CatLeverRest[S] = LeverC->GetRelativeTransform(); bCatLeverRest[S] = true; }
-			const FVector Pin = CatLeverRest[S].GetLocation();
-			const FQuat Swing(FVector::UpVector, FMath::DegreesToRadians(28.0 * FMath::Clamp(In.LeverPull[S], 0.0, 1.0)) * (S == 1 ? 1.0 : -1.0));
-			LeverC->SetRelativeTransform(CatLeverRest[S] * FTransform(-Pin) * FTransform(Swing) * FTransform(Pin));
+			if (!bCatLeverRest[S])
+			{
+				// (Which way round the pin takes the blade back toward the rider: the blade's middle from
+				// the pin turned each way. Set by rotation alone: the brake's lever is drawn mirrored, and a
+				// mirrored FTransform doesn't compose.)
+				CatLeverRest[S] = LeverC->GetRelativeTransform();
+				bCatLeverRest[S] = true;
+				const FVector Arm = LeverC->GetStaticMesh() ? LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(CatLeverRest[S]).GetCenter() - CatLeverRest[S].GetLocation() : FVector::ZeroVector;
+				const double Ra = FMath::DegreesToRadians(20.0);
+				CatLeverSign[S] = FQuat(FVector::UpVector, Ra).RotateVector(Arm).X <= FQuat(FVector::UpVector, -Ra).RotateVector(Arm).X ? 1.0 : -1.0;
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider lever %d: blade %s from its pin, swings %s"), S, *Arm.ToCompactString(), CatLeverSign[S] > 0.0 ? TEXT("+") : TEXT("-"));
+			}
+			const FQuat Swing(FVector::UpVector, FMath::DegreesToRadians(28.0 * FMath::Clamp(In.LeverPull[S], 0.0, 1.0)) * CatLeverSign[S]);
+			LeverC->SetRelativeLocationAndRotation(CatLeverRest[S].GetLocation(), Swing * CatLeverRest[S].GetRotation());
 		}
 		In.GripFit[0] = GripDelta[0] * GripFitMove[0];
 		In.GripFit[1] = GripDelta[1] * GripFitMove[1];
