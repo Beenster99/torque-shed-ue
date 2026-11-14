@@ -707,7 +707,7 @@ def build(model):
     for i, hp in enumerate(ex["headers"]):
         pts = shapes.dense(hp["pts"], False, 1.0)[::3] + [tuple(hp["pts"][-1][:2])]
         sg = 1 if left or ((both or under) and i == 0) else -1
-        out_y = 190 if both else 58 if under else 196 if left else 150
+        out_y = 58 if under else 214      # side silencers sit outside the swingarm
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
         if left:
             # stay tucked under the engine, then move out behind the sump and ahead of the swingarm,
@@ -724,7 +724,7 @@ def build(model):
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
         for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
-            y0c, y1c = (190, 205) if both else (58, 58) if under else (198, 208) if left else (165, 175)
+            y0c, y1c = (58, 58) if under else (218, 228)
             a3, b3 = (can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])
             rc = can["w"] / 2 * 0.86
 
@@ -741,16 +741,19 @@ def build(model):
     so = shapes.dense(sw["outline"], True, 0.9)
     swm = mat("alu") if sw.get("cls") == "alu" else mat("alu_dark")
     sides = (1, -1) if sw.get("cls") == "alu" else (1,)
+    # across the bike, from the middle out: tyre (to 90), a gap, the chain (CHAIN_Y), a gap, the arm.
+    # The chain never touches the tyre and never passes through the swingarm (beenster, 14 Nov).
+    CHAIN_Y, ARM_IN, ARM_OUT = 108, 126, 174
     for s in sides:
-        pillow(f"swingarm{s}", so, s * 112 if len(sides) == 2 else 70, s * 160 if len(sides) == 2 else 152, swm, 14, 20)
+        pillow(f"swingarm{s}", so, s * ARM_IN, s * ARM_OUT, swm, 14, 20)
     piv = tuple(sw["pivot"])
-    tube("pivot", [(piv[0], -160, piv[1]), (piv[0], 160, piv[1])], 14, mat("steel"))
-    tube("axle_r", [(A[0], -150, A[1]), (A[0], 165, A[1])], 14, mat("steel"))
+    tube("pivot", [(piv[0], -ARM_OUT, piv[1]), (piv[0], ARM_OUT, piv[1])], 14, mat("steel"))
+    tube("axle_r", [(A[0], -ARM_OUT + 6 if len(sides) == 2 else -60, A[1]), (A[0], ARM_OUT + 6, A[1])], 14, mat("steel"))
     if sw.get("shaft"):
-        cone("finaldrive", (A[0], 60, A[1]), (A[0], 128, A[1]), 78, 70, swm, 40)
-        cone("finaldrivecap", (A[0], 128, A[1]), (A[0], 140, A[1]), 62, 50, mat("alu_dark"), 40)
+        cone("finaldrive", (A[0], 92, A[1]), (A[0], ARM_IN + 10, A[1]), 78, 70, swm, 40)
+        cone("finaldrivecap", (A[0], ARM_OUT - 4, A[1]), (A[0], ARM_OUT + 8, A[1]), 62, 50, mat("alu_dark"), 40)
     else:
-        revolve("sprocket", [(sw["sprocket_r"], 100), (sw["sprocket_r"], 94), (40, 94), (40, 100)], A, mat("steel"), 48)
+        revolve("sprocket", [(sw["sprocket_r"], CHAIN_Y + 3), (sw["sprocket_r"], CHAIN_Y - 3), (40, CHAIN_Y - 3), (40, CHAIN_Y + 3)], A, mat("steel"), 48)
         cs = tuple(eng["countershaft"])
         d = math.hypot(A[0] - cs[0], A[1] - cs[1])
         th = math.atan2(A[1] - cs[1], A[0] - cs[0])
@@ -770,7 +773,7 @@ def build(model):
             line.append(((cs[0] + 36 * math.cos(t_), cs[1] + 36 * math.sin(t_)), (math.cos(t_), math.sin(t_))))
         verts, faces, m_ = [], [], len(line)
         for (px, pz), (nx_, nz_) in line:
-            for dy, dr in ((88, 5.5), (106, 5.5), (106, -5.5), (88, -5.5)):
+            for dy, dr in ((CHAIN_Y - 9, 5.5), (CHAIN_Y + 9, 5.5), (CHAIN_Y + 9, -5.5), (CHAIN_Y - 9, -5.5)):
                 verts.append(V(px + nx_ * dr, dy, pz + nz_ * dr))
         for k in range(m_):
             k2 = (k + 1) % m_
@@ -785,7 +788,7 @@ def build(model):
             verts, faces = [], []
             for k in range(nl):
                 f0, f1 = (k + 0.2) / nl, (k + 0.8) / nl
-                for yy in (87.6, 106.4):
+                for yy in (CHAIN_Y - 9.4, CHAIN_Y + 9.4):
                     base = len(verts)
                     for f_, dr in ((f0, 3.2), (f1, 3.2), (f1, -3.2), (f0, -3.2)):
                         verts.append(V(p0[0] + (p1[0] - p0[0]) * f_ + v[0] * dr, yy, p0[1] + (p1[1] - p0[1]) * f_ + v[1] * dr))
@@ -796,7 +799,7 @@ def build(model):
     # the shock is held at both ends: a bridge across the swingarm at the bottom (out to the one arm
     # on a single-sided swingarm), and a cross tube between the frame sides at the top
     sb, st_ = sk["bottom"], sk["top"]
-    ya, yb = (-112, 112) if len(sides) == 2 else (-34, 78)
+    ya, yb = (-ARM_IN, ARM_IN) if len(sides) == 2 else (-34, ARM_IN + 4)
     tube("shockbridge", [(sb[0], ya, sb[1]), (sb[0], yb, sb[1])], 20, swm)
     cone("shockeye_b", (sb[0], -26, sb[1]), (sb[0], 26, sb[1]), 27, 27, mat("alu_dark"), 24)
     tube("shockmount_t", [(st_[0], -70, st_[1]), (st_[0], 70, st_[1])], 12, framem)
