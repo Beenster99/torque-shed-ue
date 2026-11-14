@@ -235,7 +235,16 @@ int main()
 		std::printf("  cumulus (half cover, CAPE 600): shape %.2f, %0.f m deep; the overcast's middle deck: shape %.2f\n", S.Shape, S.Low.TopAsl - S.Low.BaseAsl, D.MidDrawn.Look.Shape);
 		Check(S.Shape < 0.2 && D.MidDrawn.Look.Shape > 0.8 && S.Low.TopAsl - S.Low.BaseAsl > 2000.0, "heaped cumulus on an unstable day, a flat deck under overcast");
 		Check(Broken.CloudShadows > 0.99 && Broken.SunScale > 0.99, "broken cloud drawn: its own shadows, the sun not dimmed as well");
-		Check(D.CloudShadows < 0.01 && Near(D.SunScale, Old(Deck).Sun, 1e-6), "a closed deck: the sun dimmed as before, no shadows from it");
+		Check(D.CloudShadows > 0.99 && D.SunScale > 0.99, "a closed deck drawn: the sun stays whole and the deck shades it (its underside lit grey, not by the blue sky alone)");
+		{
+			Looks Old2 = L;
+			Old2.DeckDimsSun = 1.0;
+			const Sky D2 = Compute(In, Old2);
+			In.Weather = Deck;
+			const Sky D3 = Compute(In, Old2);
+			Check(D3.CloudShadows < 0.01 && Near(D3.SunScale, Old(Deck).Sun, 1e-6) && D2.SunScale > 0.99, "  (deck_dims_sun 1: the stage 2 way, the sun dimmed, no shadows)");
+			In.Weather = Cu;
+		}
 		Check(Broken.LegacyShadow == 1.0 && Near(At(Cu, 20.0).LegacyShadow, 0.6 - 0.15 * 0.8, 1e-6), "the old noise shadows only where clouds aren't drawn");
 	}
 
@@ -312,7 +321,7 @@ int main()
 			Clear.SunAngle, Clear.SunDisc, Clear.Halo, Clear.CloudShadows, Veil.SunAngle, Veil.SunDisc, Veil.Halo, Veil.CloudShadows,
 			Glass.SunAngle, Glass.SunDisc, Glass.Halo, Glass.CloudShadows);
 		Check(Veil.Halo > 0.3 && Veil.SunDisc < 0.5 && Veil.SunDisc > 0.0 && Clear.Halo == 0.0, "a veil: a milky sun with a halo");
-		Check(Glass.SunDisc == 0.0 && Glass.CloudShadows < 0.5 && Glass.Halo < 0.01, "altostratus: a ground glass sun, faint shadows, no halo");
+		Check(Glass.SunDisc == 0.0 && Glass.SunAngle > Veil.SunAngle && Glass.Halo < 0.01, "altostratus: a ground glass sun, no halo");
 		Check(Veil.HighShown > 0.9 && Veil.HighSheet > 0.9 && Compute([&] { Inputs I = In; I.Weather = Make(0, 0, 0.3, 0, 1, 0, 3000); return I; }(), L).HighSheet < 0.2,
 			"  the high sheet: a veil at full cover, wisps when light");
 
