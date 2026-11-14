@@ -397,6 +397,8 @@ def draw(model):
     # ---- bodywork, back to front: tail, seat, tank, panels, trim lines
     for part in ("tail", "seat", "tank", "panels", "trim"):
         for shp in body.get(part, []):
+            if shp.get("ear"):      # the nose's flared sides: same side view as the nose itself
+                continue
             sh.path(pts_of(shp), shp["cls"], shp.get("closed", True), shp.get("t", 1.0))
     for c in body.get("caps", []):
         sh.circ(tuple(c["at"]), c["r"], c["cls"])

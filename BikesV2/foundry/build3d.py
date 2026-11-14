@@ -1007,11 +1007,13 @@ def build(model):
                         if not shp_.get("reveal"):      # an air channel: a dark duct wall set back inside the opening
                             skin(f"duct{i}{n_}{s}", cut, lambda x, z: wrap(x, z) - 26, s, mat("plastic"), stations=30, rows=12, thick=3.0)
             elif shp.get("ear"):
-                # the nose's flared sides: hand shields standing out ahead of the grips, widest at bar
-                # height, above the cutaway the bars swing through (beenster's red line, 14 Nov)
+                # the nose's flared sides, ahead of the grips and the cutaway the bars swing through
+                # (beenster's red line, 14 Nov)
                 def earf(x, z, w_=shp["w"]):
-                    t_ = max(0.0, min(1.0, (1350 + g["wheelbase"] - 1440 - x) / 130.0))
-                    return 147 + (shapes.lerp_table(w_, z) - 147) * t_ * t_ * (3 - 2 * t_)
+                    # one surface with the nose: it leaves the snout and widens in a straight line in
+                    # plan to the cutaway edge, a kite in front view with nothing standing above the nose
+                    t_ = max(0.0, min(1.0, (1500 + g["wheelbase"] - 1440 - x) / 240.0))
+                    return 96 + (shapes.lerp_table(w_, z) - 96) * t_
                 for s in (-1, 1):
                     skin(f"ear{i}{s}", pp, earf, s, m_, stations=50, rows=18, thick=5.0)
             elif shp.get("cowl"):

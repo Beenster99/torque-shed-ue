@@ -68,7 +68,7 @@ def draft(name, spec):
 
 
 # the nose's underside and back, shared: the back is scooped forward at bar height so the bars reach full lock
-TAIL = [[1470, 756], [1440, 778], [1380, 790], [1240, 772], [1175, 792, 1], [1215, 850], [1258, 905], [1275, 965, 1]]
+TAIL = [[1470, 756], [1440, 778], [1380, 790], [1240, 772], [1175, 792, 1], [1200, 822], [1232, 850], [1256, 885], [1262, 925], [1250, 965, 1]]
 TOP = [[1240, 772], [1150, 788], [1082, 810]]                                                                            # where every fairing side meets the nose
 
 
