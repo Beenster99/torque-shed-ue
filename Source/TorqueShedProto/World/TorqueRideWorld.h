@@ -230,6 +230,9 @@ private:
 	// (RidePlan::Grow); the cells found not baked yet, not asked again (Row * 100000 + Col).
 	bool bGrowing = false;
 	double SinceGrowLook = 0.0;
+	// [build 147] The game thread's costs, logged every 5 seconds (World/RideCosts.h).
+	int32 CostFrames = 0;
+	double CostSince = 0.0, CostWorstFrame = 0.0;
 	TSet<int64> GrowTried;
 	void TryGrow(const FVector2D& At);
 	void Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried);

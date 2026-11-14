@@ -1,4 +1,5 @@
 #include "World/TorqueRideWorld.h"
+#include "World/RideCosts.h"
 #include "World/WorldRoam.h"
 #include <algorithm>
 #include "TorqueDash.h"
@@ -594,18 +595,37 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 	{
 		if (*Old) (*Old)->DestroyComponent();
 	}
-	Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
-	DropPlants(Key);
-	PlacePlants(Key, Mesh);
-	PlaceAnimals(Key, Mesh);
-	PlaceProps(Key, Mesh);   // [OSM stage 2]
-	DropWords(Key);
-	DropWater(Key);
-	// (its water: seen, not cast as shadow, not ridden on)
-	if (Mesh.Water && Mesh.Water->Vertices() > 0)
 	{
-		if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+		RideCosts::FScope Cost(RideCosts::Land);
+		Tiles.Add(Key, MakePart(Mesh, LandMaterial, Key.X == 0, bAtOnce, Key.X < TRWI::ShadowLevels));
 	}
+	{
+		RideCosts::FScope Cost(RideCosts::Plants);
+		DropPlants(Key);
+		PlacePlants(Key, Mesh);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Animals);
+		PlaceAnimals(Key, Mesh);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Props);
+		PlaceProps(Key, Mesh);   // [OSM stage 2]
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Words);
+		DropWords(Key);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Water);
+		DropWater(Key);
+		// (its water: seen, not cast as shadow, not ridden on)
+		if (Mesh.Water && Mesh.Water->Vertices() > 0)
+		{
+			if (UProceduralMeshComponent* Wet = MakePart(*Mesh.Water, WaterMaterial, false, bAtOnce, false)) TileWater.Add(Key, Wet);
+		}
+	}
+	RideCosts::FScope BuildingsCost(RideCosts::Buildings);
 	if (TObjectPtr<UProceduralMeshComponent>* OldExtra = TileExtras.Find(Key))
 	{
 		if (*OldExtra) (*OldExtra)->DestroyComponent();
@@ -628,6 +648,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 		// [stage 7] The street lamps' lights, on the nearest squares only: warm, unshadowed, on after dark.
 		if (Stands && Key.X == 0 && Mesh.Extra->Lights.size() >= 3)
 		{
+			RideCosts::FScope LightsCost(RideCosts::Lights);
 			TArray<TWeakObjectPtr<UPointLightComponent>>& Lamps = StreetLights.FindOrAdd(Key);
 			for (size_t L = 0; L + 2 < Mesh.Extra->Lights.size(); L += 3)
 			{
@@ -646,6 +667,7 @@ void ATorqueRideWorld::Place(const FIntVector& Key, const TorqueWorld::RideMesh&
 			}
 		}
 		// The words on its signs, as text standing just proud of each board.
+		RideCosts::FScope WordsCost(RideCosts::Words);
 		TArray<TWeakObjectPtr<UTextRenderComponent>>& Words = TileWords.FindOrAdd(Key);
 		for (const TorqueWorld::RideMesh::Label& L : Mesh.Extra->Labels)
 		{
@@ -746,6 +768,35 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if (!Plan || !Jobs) return;
+	// [build 147] Where the game thread's time goes, every 5 seconds: each system's ms a frame (its
+	// worst single call), the squares placed, and the frame's own time (game thread and all).
+	{
+		++CostFrames;
+		CostSince += DeltaSeconds;
+		CostWorstFrame = FMath::Max(CostWorstFrame, double(DeltaSeconds) * 1000.0);
+		if (CostSince >= 5.0)
+		{
+			RideCosts::FSums& S = RideCosts::Sums();
+			int32 Waiting = 0;
+			{
+				FScopeLock Hold(&Jobs->Lock);
+				Waiting = Jobs->Made.Num();
+			}
+			FString Line;
+			double All = 0.0;
+			for (int32 W = 0; W < RideCosts::Count; ++W)
+			{
+				All += S.Ms[W];
+				if (S.Calls[W] > 0) Line += FString::Printf(TEXT(" %s %.2f (%d, worst %.1f);"), RideCosts::Name(W), S.Ms[W] / CostFrames, S.Calls[W], S.Worst[W]);
+			}
+			UE_LOG(LogTemp, Display, TEXT("Ride costs: %d frames, %.1f ms a frame (worst %.0f); ours %.2f ms a frame:%s squares waiting %d"),
+				CostFrames, CostSince * 1000.0 / CostFrames, CostWorstFrame, All / CostFrames, *Line, Waiting);
+			S = RideCosts::FSums();
+			CostFrames = 0;
+			CostSince = 0.0;
+			CostWorstFrame = 0.0;
+		}
+	}
 	// What the workers have made goes in place, a few a frame.
 	for (int32 N = 0; N < 4; ++N)
 	{
@@ -800,8 +851,14 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	const FVector2D At = RiderAt();
 	if (BirdsLookedAt.X < 1e11 && FVector2D::Distance(At, BirdsLookedAt) > 0.5) BirdsGoing = (At - BirdsLookedAt).GetSafeNormal();
 	BirdsLookedAt = At;
-	Update(At, false);
-	UpdateRoad(At, false);
+	{
+		RideCosts::FScope Cost(RideCosts::Update);
+		Update(At, false);
+	}
+	{
+		RideCosts::FScope Cost(RideCosts::Roads);
+		UpdateRoad(At, false);
+	}
 	// [ride anywhere] The ground round the rider fetched as they roam, on a worker, every 800 m: the
 	// fine tiles near, the middle and skyline tiles out to their reach. The far squares made before
 	// new tiles came are made again (the near ones fetch their own before they are made).
@@ -1009,6 +1066,7 @@ void ATorqueRideWorld::TryGrow(const FVector2D& At)
 
 void ATorqueRideWorld::Grew(const std::shared_ptr<TorqueWorld::RidePlan>& Old, const std::shared_ptr<TorqueWorld::RidePlan>& Grown, const TArray<int64>& Tried)
 {
+	RideCosts::FScope Cost(RideCosts::Grow);
 	bGrowing = false;
 	for (const int64 Key : Tried) GrowTried.Add(Key);
 	if (!Grown || Plan != Old) return;

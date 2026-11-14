@@ -1,4 +1,5 @@
 #include "TorqueTft.h"
+#include "World/RideCosts.h"
 
 #include "Async/Async.h"
 #include "CanvasItem.h"
@@ -423,6 +424,7 @@ void UTorqueTftComponent::Step(float Dt, const TorqueTft::State& Ride, const FVe
 		const bool bSeen = (bOwnBike && OverlayOn()) || (ScreenFace.IsValid() && ScreenFace->WasRecentlyRendered(0.4f));
 		if (bSeen)
 		{
+			RideCosts::FScope Cost(RideCosts::Tft);
 			TorqueTft::Paint List;
 			TorqueTft::Draw(List, ScreenShape, Shown, MapNow);
 			PaintTo(ScreenRT, List);
@@ -434,6 +436,7 @@ void UTorqueTftComponent::Step(float Dt, const TorqueTft::State& Ride, const FVe
 		PhoneIn = bOwnBike ? 1.0 / 12.0 : 1.0 / 3.0;
 		if (PhoneFace.IsValid() && PhoneFace->WasRecentlyRendered(0.4f))
 		{
+			RideCosts::FScope Cost(RideCosts::Tft);
 			TorqueTft::Paint List;
 			TorqueTft::Draw(List, TorqueTft::Shape::Phone, Shown, MapNow);
 			PaintTo(PhoneRT, List);
@@ -443,6 +446,7 @@ void UTorqueTftComponent::Step(float Dt, const TorqueTft::State& Ride, const FVe
 	if (bOwnBike && TileRT && TileIn <= 0.0 && MapTileOn())
 	{
 		TileIn = 1.0 / 12.0;
+		RideCosts::FScope Cost(RideCosts::MapTile);
 		TorqueTft::Paint List(TTI::TileW, TTI::TileH);
 		TorqueTft::DrawMapTile(List, Shown, MapNow);
 		PaintTo(TileRT, List);
