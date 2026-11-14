@@ -399,7 +399,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 	{
 		bool bBottom = false;
 		for (const FPart& P : E.Parts) bBottom |= P.Mesh.Contains(TEXT("BottomGarment"));
-		static UMaterialInterface* const Clear = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
+		UMaterialInterface* const Clear = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/MetaHumans/Common/M_HairCards.M_HairCards"));
 		if (bBottom && Clear && !FParse::Param(FCommandLine::Get(), TEXT("TorqueKeepShorts")))
 			for (const TWeakObjectPtr<USceneComponent>& W : Out)
 			{
@@ -415,6 +415,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 						|| WasName.Contains(TEXT("short")) || WasName.Contains(TEXT("trouser")) || WasName.Contains(TEXT("pant"));
 					if (!bLegs) continue;
 					UMaterialInstanceDynamic* Gone = UMaterialInstanceDynamic::Create(Clear, Top);
+					if (!Gone) continue;
 					Gone->SetVectorParameterValue(FName(TEXT("Mask")), FLinearColor(0.f, 0.f, 0.f, 0.f));
 					Top->SetMaterial(Slot, Gone);
 					UE_LOG(LogTemp, Log, TEXT("Torque: avatar %s: %s slot %d (%s, %s) hidden under the bottom garment"), *E.Name,
@@ -647,7 +648,7 @@ void AddParts(AActor* Owner, UPoseableMeshComponent* Driver, const FEntry& E, TA
 		if (UMeshComponent* MC = Cast<UMeshComponent>(C))
 		{
 			ApplyMaterials(MC, P.Materials);
-			static UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
+			UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
 			for (int32 Slot = 0; Slot < FMath::Max(MC->GetNumMaterials(), 1); ++Slot)
 			{
 				UMaterialInterface* M = MC->GetMaterial(Slot);
@@ -694,7 +695,7 @@ void FTorqueAvatar::SpawnLooseHair(AActor* Owner, USceneComponent* Parent, int32
 	UClass* GroomClass = FindObject<UClass>(nullptr, TEXT("/Script/HairStrandsCore.GroomComponent"));
 	if (!Owner || !Parent || List.Num() == 0 || !GroomClass) return;
 	const FEntry& E = List[((Index % List.Num()) + List.Num()) % List.Num()];
-	static UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
+	UMaterialInterface* const HairDefault = LoadObject<UMaterialInterface>(nullptr, TEXT("/HairStrands/Materials/HairDefaultMaterial.HairDefaultMaterial"));
 	for (const FPart& P : E.Parts)
 	{
 		if (P.Groom.IsEmpty()) continue;
