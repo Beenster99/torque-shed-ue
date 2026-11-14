@@ -163,6 +163,25 @@ Mark Paint(double From, double To, double Left, double Right)
 	return M;
 }
 
+// [OSM stage 5D] A crossing's zig-zag line along the road from A0 to A1 (either way round), centred Lat
+// across it: marks 2 m long that swing 0.3 m side to side, each drawn as a staircase of short pieces of
+// a 0.1 m line (from a rider's eye, a zig-zag).
+void ZigZag(double A0, double A1, double Lat, std::vector<Mark>& Out)
+{
+	const double Lo = std::fmin(A0, A1), Hi = std::fmax(A0, A1);
+	const int Marks = std::max(1, int(std::lround((Hi - Lo) / 2.0)));
+	const double Each = (Hi - Lo) / Marks;
+	constexpr int Steps = 6;
+	for (int Mk = 0; Mk < Marks; ++Mk)
+		for (int St = 0; St < Steps; ++St)
+		{
+			const double F = (St + 0.5) / Steps;
+			const double Swing = 0.15 * ((Mk % 2 == 0) ? (2.0 * F - 1.0) : (1.0 - 2.0 * F));
+			const double U0 = Lo + Each * (Mk + double(St) / Steps), U1 = Lo + Each * (Mk + double(St + 1) / Steps);
+			Out.push_back(Paint(U0, U1, Lat + Swing + 0.05, Lat + Swing - 0.05));
+		}
+}
+
 // A broken line across Left..Right at Along, Wide along the road: Dash m of paint, Gap m between.
 void Broken(double Along, double Wide, double Left, double Right, double Dash, double Gap, std::vector<Mark>& Out)
 {
@@ -192,6 +211,24 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 		return Lo + 1 < Pts.size() ? std::fmin(Pts[Lo].Half, Pts[Lo + 1].Half) : Pts[Lo].Half;   // (the narrower end of the bit it is on)
 	};
 	std::vector<RoadMark> Made;
+	// [OSM stage 5D] A crossing's zig-zags (no stopping, no overtaking): along both edges, and down the
+	// middle of a two-way road wide enough, from Clear m either side of it out to 16 m (shorter where the
+	// road ends sooner).
+	const auto CrossingZigZags = [&Pts, &Made, RoadLen](double At, double Clear, double Half)
+	{
+		size_t Near = 0;
+		for (size_t P = 1; P < Pts.size(); ++P)
+			if (std::fabs(Pts[P].Along - At) < std::fabs(Pts[Near].Along - At)) Near = P;
+		const bool TwoWay = !Pts[Near].OneWay && Half >= 3.0;
+		for (double Sd : {-1.0, 1.0})
+		{
+			const double A0 = At + Sd * Clear, A1 = std::clamp(At + Sd * 16.0, 0.5, RoadLen - 0.5);
+			if ((A1 - A0) * Sd < 2.0) continue;
+			ZigZag(A0, A1, Half - 0.45, Made);
+			ZigZag(A0, A1, -Half + 0.45, Made);
+			if (TwoWay) ZigZag(A0, A1, 0.0, Made);
+		}
+	};
 	for (const MappedMark& M : *List)
 	{
 		if (M.Along < From - 30.0 || M.Along > To + 30.0) continue;
@@ -219,6 +256,9 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 		{
 			// (black and white stripes along the road, 600 mm each, across its whole width, 3 m deep)
 			for (double U = -Half + 0.1; U + 0.5 < Half; U += 1.2) Made.push_back(Paint(M.Along - 1.5, M.Along + 1.5, U + 0.6, U));
+			// ([OSM stage 5D] a give-way line a metre short of the stripes each way, and the zig-zags)
+			for (double Sd : {-1.0, 1.0}) Broken(M.Along + Sd * 2.6, 0.2, Half - 0.15, -Half + 0.15, 0.6, 0.3, Made);
+			CrossingZigZags(M.Along, 3.2, Half);
 		}
 		else if (K == "crossing_signals")
 		{
@@ -226,6 +266,7 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 			for (double Edge : {-1.2, 1.2}) Broken(M.Along + Edge, 0.1, Half - 0.15, -Half + 0.15, 0.2, 0.2, Made);
 			Made.push_back(Paint(M.Along - 3.0 - 0.15, M.Along - 3.0 + 0.15, Left ? Half - 0.15 : -0.1, Left ? 0.1 : -Half + 0.15));
 			Made.push_back(Paint(M.Along + 3.0 - 0.15, M.Along + 3.0 + 0.15, Left ? -0.1 : Half - 0.15, Left ? -Half + 0.15 : 0.1));
+			CrossingZigZags(M.Along, 3.4, Half);   // [OSM stage 5D]
 		}
 		else if (K == "mini_roundabout")
 		{

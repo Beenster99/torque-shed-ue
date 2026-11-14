@@ -790,7 +790,7 @@ int main(int Argc, char** Argv)
 			for (const MappedPoint& Mp : G.RoadPoints)
 			{
 				if (Mp.Kind == "traffic_signals") { if (Lights < 3) std::printf("  a traffic light at %.1f, %.1f heading %.0f\n", Mp.At.X, Mp.At.Z, Mp.Heading); ++Lights; LightsFacing += Mp.Heading >= 0.0 ? 1 : 0; OnEdge += Mp.Edge >= 0 ? 1 : 0; }
-				if (Mp.Kind == "crossing_zebra") ++Zebras;
+				if (Mp.Kind == "crossing_zebra") { if (Zebras < 3) std::printf("  a zebra crossing at %.0f, %.0f\n", Mp.At.X, Mp.At.Z); ++Zebras; }
 			}
 			std::printf("  %d traffic lights (%d facing a way, %d on a road), %d zebra crossings\n", Lights, LightsFacing, OnEdge, Zebras);
 		}
