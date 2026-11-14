@@ -793,7 +793,13 @@ def build(model):
 
             def at(t, a3=a3, b3=b3):
                 return tuple(a3[k] + (b3[k] - a3[k]) * t for k in range(3))
-            cone(f"caninlet{i}{sg}", at(-0.06), at(0.14), rc * 0.42, rc, mat("exhaust"), 36)
+            if can.get("nip"):      # a classic silencer: chrome, drawn in to a small outlet
+                cone(f"caninlet{i}{sg}", at(-0.02), at(0.1), rc * 0.5, rc, mat("chrome"), 36)
+                cone(f"can{i}{sg}", at(0.1), at(0.7), rc, rc, mat("chrome"), 36)
+                cone(f"cannip{i}{sg}", at(0.7), at(0.96), rc, rc * 0.52, mat("chrome"), 36)
+                cone(f"canend{i}{sg}", at(0.96), at(1.0), rc * 0.52, rc * 0.5, mat("chrome"), 36)
+                cone(f"canbore{i}{sg}", at(0.995), at(1.006), rc * 0.36, rc * 0.36, mat("rubber"), 24)
+                continue
             cone(f"can{i}{sg}", at(0.14), at(0.9), rc, rc, mat("exhaust_black" if can.get("dark") else "exhaust"), 36)
             cone(f"canband{i}{sg}", at(0.2), at(0.24), rc + 2.5, rc + 2.5, mat("steel"), 36)
             cone(f"canend{i}{sg}", at(0.9), at(1.0), rc + 2, rc * 0.9, mat("exhaust_black"), 36)

@@ -240,6 +240,15 @@ def draw(model):
     # ---- behind: far-side exhaust can, rear hugger, plate hanger
     ex = model["exhaust"]
     def draw_can(can):
+        if can.get("nip"):      # a classic silencer: a plain round body drawn in to a small outlet, no end cap
+            a_, b_ = tuple(can["a"]), tuple(can["b"])
+            L = math.hypot(b_[0] - a_[0], b_[1] - a_[1])
+            u_ = ((b_[0] - a_[0]) / L, (b_[1] - a_[1]) / L)
+            n_ = (-u_[1], u_[0])
+            h_ = can["w"] / 2
+            pt = lambda d, o: (a_[0] + u_[0] * d + n_[0] * o, a_[1] + u_[1] * d + n_[1] * o)
+            sh.path([pt(0, h_ * 0.5), pt(L * 0.1, h_), pt(L * 0.7, h_), pt(L * 0.94, h_ * 0.52), pt(L, h_ * 0.5), pt(L, -h_ * 0.5), pt(L * 0.94, -h_ * 0.52), pt(L * 0.7, -h_), pt(L * 0.1, -h_), pt(0, -h_ * 0.5)], "chromef", True, 0.35)
+            return
         sh.tube([tuple(can["a"]), tuple(can["b"])], can["w"], "exh")
         sh.tube([add(tuple(can["b"]), (-1, 0), 0), add(tuple(can["b"]), ((can["b"][0] - can["a"][0]), (can["b"][1] - can["a"][1])), 0.06)], can["w"] - 16, "dark")
 

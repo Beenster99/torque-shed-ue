@@ -716,7 +716,7 @@
   },
   "cruiser": {
    "name": "Cruiser",
-   "defines": "Long and low, forward pegs, wide tank, deep mudguards", "packing_max": 0.18,
+   "defines": "Long and low, forward pegs, wide tank, deep mudguards",
    "layouts": [
     "vtwin45",
     "parallel_twin",

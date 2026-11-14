@@ -67,24 +67,32 @@ def stance(m, base, front_r=FRONT_R, wb_add=0):
 def bench(m):
     """The classic's flat ribbed bench seat, rear mudguard, side covers and twin shocks."""
     b = m["body"]
-    b["seat"] = [{"pts": [[692, 874, 1], [640, 852], [560, 842], [430, 840], [250, 842], [120, 848], [72, 852, 1], [64, 800, 1], [250, 788], [430, 782], [560, 780], [682, 812, 1]], "cls": "seat"}]
-    b["seat"] += [{"pts": [[x, 843], [x - 6, 792]], "cls": "stitch", "closed": False} for x in range(150, 620, 58)]
-    # under the seat: a slim painted rail cover, not a tail unit
-    b["tail"] = [{"pts": [[480, 792, 1], [300, 794], [130, 802], [52, 812, 1], [44, 790, 1], [150, 776], [330, 764], [480, 760, 1]], "cls": "body", "t": 0.7}]
+    b["seat"] = [{"pts": [[692, 874, 1], [640, 852], [560, 842], [430, 840], [250, 846], [60, 854], [-40, 852], [-72, 838, 1], [-68, 802, 1], [60, 796], [250, 788], [430, 782], [560, 780], [682, 812, 1]], "cls": "seat"}]
+    b["seat"] += [{"pts": [[x, 843], [x - 6, 792]], "cls": "stitch", "closed": False} for x in range(20, 620, 58)]
+    # a long substantial tail under the seat that turns down behind it to meet the rear mudguard
+    b["tail"] = [{"pts": [[480, 792, 1], [300, 794], [60, 802], [-72, 804, 1], [-112, 760], [-146, 686, 1], [-112, 676, 1], [-70, 730], [60, 752], [250, 748], [480, 744, 1]], "cls": "body", "t": 0.6},
+                 {"pts": [[-76, 802, 1], [-106, 790, 1], [-102, 760, 1], [-76, 770, 1]], "cls": "redlens", "t": 0.3}]
     b["behind"] = []
     b["plate_hanger"] = []
     m["fit"] = dict(m.get("fit", {}), plate_hanger=False)
-    rg = {"c": [0, REAR_R], "r0": REAR_R + 14, "r1": REAR_R + 34, "a0": 58, "a1": 152}
-    lamp = [[-262, 598, 1], [-292, 574, 1], [-276, 552, 1], [-246, 574, 1]]
+    rg = {"c": [0, REAR_R], "r0": REAR_R + 16, "r1": REAR_R + 48, "a0": 50, "a1": 160}
     b["panels"] = [{"pts": [[640, 800, 1], [560, 776], [450, 776], [420, 750, 1], [470, 650], [555, 600, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7},
-                   {"arc": rg, "cls": "body"},
-                   {"pts": lamp, "cls": "redlens", "t": 0.4}]
+                   {"arc": rg, "cls": "body"}]
     sw = m["swingarm"]
     if sw.get("cls") == "alu" and not sw.get("shaft"):      # a two-sided swingarm takes the classic pair of shocks
         m["shock"] = {"top": [285, 764], "bottom": [95, 398], "twin": True}
-    for n_, v in (("S1", [430, 800]), ("S2", [110, 792]), ("S3", [300, 762]), ("S4", [250, 784])):
+    for n_, v in (("S1", [430, 800]), ("S2", [-30, 796]), ("S3", [300, 762]), ("S4", [250, 784])):
         if n_ in m["frame"]["nodes"]:
             m["frame"]["nodes"][n_] = v
+
+
+def flat_pipes(m):
+    """Classic exhausts run flat and low to a plain chrome silencer drawn in at the end (beenster, 14 Nov)."""
+    ex = m["exhaust"]
+    end = ex["headers"][0]["pts"][-1]
+    if end[1] < 450 and ex.get("side") != "under":
+        z = min(max(end[1], 300), 345)
+        ex["cans"] = [{"a": [end[0], z], "b": [-250, z - 6], "w": 84, "front": True, "nip": True}]
 
 
 def hartwell(m):
@@ -100,7 +108,6 @@ def hartwell(m):
     m.pop("radiator", None)
     for h in m["exhaust"]["headers"]:      # the bigger front wheel needs the pipes' forward sweep pulled back
         h["pts"] = [[min(q[0], 1004 if q[1] > 400 else 1008) if 340 < q[1] < 480 else q[0]] + q[1:] for q in h["pts"]]
-    m["exhaust"]["cans"] = [{"a": [530, 318], "b": [-70, 352], "w": 78, "front": True}]
     m["colours"] = dict(m["colours"], body="#1F4D3A", seat="#5a3a26", rim="#C9CED3", fork="#C9CED3")
     m["engine_label"], m["frame_label"] = "air-cooled look parallel twin", "steel tube cradle frame"
 
@@ -137,6 +144,7 @@ def draft(name, spec):
     for fn in spec.get("style", []):
         fn(m)
     m.pop("spec", None)
+    flat_pipes(m)
     xs = [p[0] for part in ("tail", "seat", "tank", "panels", "front_guard") for s in m["body"][part] if "pts" in s for p in s["pts"]]
     m["body"]["overall"] = [-REAR_R - 36, m["geometry"]["wheelbase"] + FRONT_R + 2]
     path = os.path.join(ROOT, "data", "models", name + ".json")
