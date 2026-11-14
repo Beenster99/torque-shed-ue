@@ -223,6 +223,21 @@ struct RideSummary
 	double Litres(double PerHundredKm) const { return Metres / 100000.0 * PerHundredKm; }
 };
 
+// [places stage 5] The site notes (Data/RideUK/landmarks_uk.json "sites"): the famous places whose facts
+// the map doesn't hold (how many stones, how tall, a spire or not), each where it is (lat, lon), the word
+// its name holds that finds it among the places within Km, and what to draw. Add puts one in that the
+// places file hasn't got. Read once (SetSiteTable, thread safe), kept for every ride after.
+struct SiteNote
+{
+	std::string Name, Match, Kind, Note;
+	double Lat = 0.0, Lon = 0.0, Km = 1.0;
+	double Radius = 0.0, Tall = 0.0;
+	int Stones = 0, Banks = 0, Spire = -1, Banded = -1;
+	bool Lintels = false, Fallen = false, Unlit = false, Add = false;
+};
+bool SetSiteTable(const std::string& Text);
+std::vector<SiteNote> SiteTable();
+
 struct RideDetour;
 
 class RidePlan
@@ -817,11 +832,13 @@ public:
 	static constexpr double PullOffLength = 22.0, PullOffDepth = 6.0;
 	// What IndexPlaces found: places looked at, stops by EPlaceStop, places with no road near enough.
 	int PlacesSeen = 0, PlacesFar = 0, PlaceStopCount[4] = {};
+	void NoteSites();     // [places stage 5] (the start of IndexPlaces: SiteNotes, SightNote)
 	void IndexPlaces();
 	// The place stop whose arrival is within Within m of (X, Z), nearest first; -1 none.
 	int PlaceStopAt(double X, double Z, double Within = 30.0) const;
 	// The name a stop's board shows ("Bolton Castle"), "" none.
 	std::string PlaceStopName(int Stop) const;
+	std::string PlaceStopNote(int Stop) const;   // [places stage 5] its site note's words, "" none
 	// Whether (X, Z) is on a pull-off made for a place (gravel under the tyres).
 	bool OnPullOff(double X, double Z) const;
 	std::unordered_map<long long, std::vector<int>> PlaceGrid;   // stops by the 64 m square their arrival is in
@@ -848,8 +865,16 @@ public:
 		double Base = 0.0;     // the ground under its middle
 		double Claim = 0.0;    // the buildings within this of its middle are its own (not drawn), 0 none
 		uint32_t Seed = 1;
+		// [places stage 5] What its site note says (Data/RideUK/landmarks_uk.json), else the recipe's own:
+		int Count = 0;         // a circle's stones
+		int Banks = 0;         // a hillfort's ramparts
+		int Spire = -1, Banded = -1;   // a church's spire, a lighthouse's red bands (1 yes, 0 no, -1 the recipe's choice)
+		bool Lintels = false, Fallen = false, Unlit = false;
+		std::string Note;      // the note's words about it ("38 stones, 3,000 years old")
 	};
 	std::vector<PlaceRecipe> PlaceRecipes;
+	std::vector<SiteNote> SiteNotes;   // [places stage 5] the notes for this ride's places (IndexPlaces)
+	std::vector<int> SightNote;        // for each of Area.Roads.Sights its note in SiteNotes, -1 none
 	std::unordered_map<long long, std::vector<int>> RecipeGrid;   // by the scenery's 256 m squares
 	int RecipeCount[RecipeKinds] = {};
 	std::vector<unsigned char> TowerTaken;   // the towns' tall buildings a recipe stands in for (TowersTile leaves them out)

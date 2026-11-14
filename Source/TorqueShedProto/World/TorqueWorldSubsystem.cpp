@@ -163,6 +163,11 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string TownsPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/town_looks.json")));
 		const bool bTowns = TorqueWorld::Files::Read(TownsPath, Text) && TorqueWorld::SetTownTable(Text);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: town looks: %d towns from Data/RideUK/town_looks.json%s"), int32(TorqueWorld::TownTable().size()), bTowns ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [places stage 5] The famous places' own notes (how many stones, a spire or not...).
+		std::string SiteText;
+		const std::string SitesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/landmarks_uk.json")));
+		const bool bSites = TorqueWorld::Files::Read(SitesPath, SiteText) && TorqueWorld::SetSiteTable(SiteText);
+		UE_LOG(LogTemp, Display, TEXT("Torque world: site notes: %d from Data/RideUK/landmarks_uk.json%s"), int32(TorqueWorld::SiteTable().size()), bSites ? TEXT("") : TEXT(" (none: unreadable)"));
 	}
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);

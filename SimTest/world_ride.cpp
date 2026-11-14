@@ -156,6 +156,9 @@ int main(int Argc, char** Argv)
 		// [towns stage 1] (the famous towns' looks, as the game sets them)
 		std::string TownText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
+		std::string SiteText;
+		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/landmarks_uk.json"), SiteText) && SetSiteTable(SiteText))
+			std::printf("site notes: %d\n", int(SiteTable().size()));
 	}
 	// Hawes market place to Leyburn market place.
 	double At[4] = {54.3040, -2.1965, 54.3103, -1.8290};
@@ -618,8 +621,10 @@ int main(int Argc, char** Argv)
 		if (std::getenv("WORLD_RIDE_RECIPES") != nullptr)
 		{
 			// (one of each recipe's kind in a row 40 m off the ride's road from 300 m along, 70 m apart)
-			const char* Kinds[] = {"stone_circle", "standing_stone", "cross", "obelisk", "memorial", "church", "tower", "lighthouse", "windmill", "chimney", "castle_ruin", "castle", "hillfort"};
+			const char* Kinds[] = {"stone_circle", "standing_stone", "cross", "obelisk", "memorial", "church", "tower", "lighthouse", "windmill", "chimney", "castle_ruin", "castle", "hillfort",
+				"stone_circle henge", "stone_circle arbor", "standing_stone arrows", "lighthouse hoad"};
 			int K = 0;
+			std::string TestSites;
 			for (const char* Kd : Kinds)
 			{
 				const double Want = 300.0 + 70.0 * K++;
@@ -629,7 +634,8 @@ int main(int Argc, char** Argv)
 						const P2 D = Plan->Road[I].At - Plan->Road[I - 1].At;
 						const double L = std::fmax(1e-6, D.Length());
 						Sight S;
-						S.Kind = Kd;
+						const std::string Full = Kd;
+						S.Kind = Full.substr(0, Full.find(' '));
 						S.Name = std::string("Test ") + Kd;
 						S.Qid = "QT" + std::to_string(K);
 						S.At = Plan->Road[I].At + P2(D.Z / L, -D.X / L) * (std::string(Kd) == "hillfort" ? 90.0 : 40.0);
@@ -637,9 +643,30 @@ int main(int Argc, char** Argv)
 							for (const P2& C : {P2(-22, -15), P2(20, -18), P2(24, 12), P2(5, 20), P2(-20, 14)}) S.Outline.push_back(S.At + C);
 						G.Sights.push_back(S);
 						std::printf("recipe test %s at %.1f, %.1f\n", Kd, S.At.X, S.At.Z);
+						if (Full.find(' ') != std::string::npos)
+						{
+							// [places stage 5] (a site note for it, as landmarks_uk.json's famous ones)
+							const Geo Where = Frame(G.FrameLat, G.FrameLon).ToGeo(S.At.X, S.At.Z);
+							const std::string Word = Full.substr(Full.find(' ') + 1);
+							const char* Extra = Word == "henge" ? "\"radius\": 16.5, \"tall\": 4.1, \"stones\": 30, \"lintels\": true"
+								: Word == "arbor" ? "\"radius\": 19, \"tall\": 2.0, \"stones\": 46, \"fallen\": true"
+								: Word == "arrows" ? "\"radius\": 60, \"tall\": 6.0, \"stones\": 3" : "\"tall\": 30, \"banded\": false, \"unlit\": true";
+							char Row[512];
+							std::snprintf(Row, sizeof(Row), "%s{\"name\": \"%s\", \"match\": \"%s\", \"at\": [%.7f, %.7f], \"note\": \"test %s\", %s}", TestSites.empty() ? "" : ",",
+								S.Name.c_str(), Word.c_str(), Where.Lat, Where.Lon, Word.c_str(), Extra);
+							TestSites += Row;
+						}
 						break;
 					}
 			}
+			if (!TestSites.empty()) SetSiteTable("{\"sites\": [" + TestSites + "]}");
+		}
+		if (std::getenv("WORLD_RIDE_RECIPES") != nullptr)
+		{
+			Plan->NoteSites();
+			int Noted = 0;
+			for (int N : Plan->SightNote) Noted += N >= 0 ? 1 : 0;
+			std::printf("site notes on this ride's places: %d\n", Noted);
 		}
 		Plan->IndexPlaceRecipes();
 		{

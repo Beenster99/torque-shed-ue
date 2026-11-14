@@ -9,7 +9,9 @@
 #include "WorldRoadLine.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -74,7 +76,128 @@ bool InRing(const std::vector<P2>& Ring, double X, double Z)
 	}
 	return In;
 }
+std::mutex SiteLock;
+std::vector<SiteNote>& Sites()
+{
+	static std::vector<SiteNote> List;
+	return List;
+}
+
+// Whether a note of kind Note may be about a place the map has as kind Mapped: the same, or of one family
+// (a monument mapped as a tower, a stone circle as an ancient site), so "Avebury" finds the circle, not the manor.
+bool SameFamily(const std::string& Note, const std::string& Mapped)
+{
+	if (Note.empty() || Note == Mapped) return true;
+	static const char* const Families[][6] = {{"monument", "memorial", "obelisk", "tower", "lighthouse", "ruin"},
+		{"stone_circle", "standing_stone", "ancient_site", "monument", "", ""}, {"hillfort", "ancient_site", "castle", "castle_ruin", "", ""},
+		{"church", "cathedral", "abbey", "", "", ""}};
+	for (const auto& F : Families)
+	{
+		bool A = false, B = false;
+		for (const char* K : F) { A = A || Note == K; B = B || Mapped == K; }
+		if (A && B) return true;
+	}
+	return false;
+}
+
+std::string Lowered(const std::string& Text)
+{
+	std::string Out = Text;
+	for (char& C : Out) C = char(std::tolower(static_cast<unsigned char>(C)));
+	return Out;
+}
 } // namespace
+
+// [places stage 5] {"sites": [{name, match, kind, note, at: [lat, lon], km, radius, tall, stones, banks,
+// spire, banded, lintels, fallen, unlit, add}]}
+bool SetSiteTable(const std::string& Text)
+{
+	TorqueFit::Json Root;
+	if (!TorqueFit::Json::Parse(Text, Root) || !Root.IsObject()) return false;
+	const TorqueFit::Json* Rows = Root.Get("sites");
+	if (Rows == nullptr || !Rows->IsArray()) return false;
+	std::vector<SiteNote> List;
+	for (const TorqueFit::Json& J : Rows->A)
+	{
+		SiteNote N;
+		const TorqueFit::Json* At = J.Get("at");
+		if (At == nullptr || !At->IsArray() || At->A.size() < 2) continue;
+		N.Lat = At->A[0].N;
+		N.Lon = At->A[1].N;
+		N.Name = J.Str("name");
+		N.Match = Lowered(J.Str("match"));
+		if (N.Match.empty()) N.Match = Lowered(N.Name);
+		N.Kind = J.Str("kind");
+		N.Note = J.Str("note");
+		N.Km = J.Num("km", 1.0);
+		N.Radius = J.Num("radius");
+		N.Tall = J.Num("tall");
+		N.Stones = int(J.Num("stones"));
+		N.Banks = int(J.Num("banks"));
+		N.Spire = J.Get("spire") != nullptr ? (J.Flag("spire") ? 1 : 0) : -1;
+		N.Banded = J.Get("banded") != nullptr ? (J.Flag("banded") ? 1 : 0) : -1;
+		N.Lintels = J.Flag("lintels");
+		N.Fallen = J.Flag("fallen");
+		N.Unlit = J.Flag("unlit");
+		N.Add = J.Flag("add");
+		List.push_back(std::move(N));
+	}
+	std::lock_guard<std::mutex> Hold(SiteLock);
+	Sites() = std::move(List);
+	return true;
+}
+
+std::vector<SiteNote> SiteTable()
+{
+	std::lock_guard<std::mutex> Hold(SiteLock);
+	return Sites();
+}
+
+// [places stage 5] Each site note on the place it's about: the nearest within its Km whose name holds its
+// word (its kind and height then the note's), or, for one marked Add the places file hasn't got, a new place.
+void RidePlan::NoteSites()
+{
+	SiteNotes.clear();
+	Region& G = Area.Roads;
+	SightNote.assign(G.Sights.size(), -1);
+	if (G.Bounds.Empty()) return;
+	const Frame F = G.FrameOf();
+	const std::vector<SiteNote> All = SiteTable();
+	for (const SiteNote& N : All)
+	{
+		const P2 At = F.FromGeo(N.Lat, N.Lon);
+		const double Reach = N.Km * 1000.0;
+		if (At.X < G.Bounds.X0 - Reach || At.X > G.Bounds.X1 + Reach || At.Z < G.Bounds.Z0 - Reach || At.Z > G.Bounds.Z1 + Reach) continue;
+		int Best = -1;
+		double BestD = Reach;
+		for (size_t I = 0; I < G.Sights.size(); ++I)
+		{
+			const Sight& S = G.Sights[I];
+			if (SightNote[I] >= 0 || S.Kind == "settlement") continue;
+			const double D = S.At.DistanceTo(At);
+			if (D < BestD && SameFamily(N.Kind, S.Kind) && Lowered(S.Name).find(N.Match) != std::string::npos) { BestD = D; Best = int(I); }
+		}
+		if (Best < 0)
+		{
+			if (!N.Add || At.X < G.Bounds.X0 || At.X > G.Bounds.X1 || At.Z < G.Bounds.Z0 || At.Z > G.Bounds.Z1) continue;
+			Sight S;
+			S.Kind = N.Kind;
+			S.Name = N.Name;
+			S.Lat = N.Lat;
+			S.Lon = N.Lon;
+			S.At = At;
+			Best = int(G.Sights.size());
+			G.Sights.push_back(std::move(S));
+			SightNote.push_back(-1);
+		}
+		Sight& S = G.Sights[size_t(Best)];
+		if (!N.Kind.empty()) S.Kind = N.Kind;
+		if (N.Tall > 0.0) S.Height = N.Tall;
+		if (S.Name.empty()) S.Name = N.Name;
+		SightNote[size_t(Best)] = int(SiteNotes.size());
+		SiteNotes.push_back(N);
+	}
+}
 
 void RidePlan::IndexPlaces()
 {
@@ -82,6 +205,7 @@ void RidePlan::IndexPlaces()
 	PlaceGrid.clear();
 	PlacesSeen = PlacesFar = 0;
 	for (int& C : PlaceStopCount) C = 0;
+	NoteSites();
 	const Region& G = Area.Roads;
 	if (!Scene || G.Sights.empty()) return;
 
@@ -506,6 +630,25 @@ void RidePlan::IndexPlaces()
 		if (std::isnan(F.Height)) continue;
 		Scene->Furniture[SceneKey(F.At.X, F.At.Z)].push_back(int(Furniture.size()));
 		Furniture.push_back(std::move(F));
+		// [places stage 5] Beside a stop off the road (not a street's): an information board about the
+		// place, and a bench looking out at it where it is somewhere to sit and look (the kit's models).
+		if (S.How == PlaceStreet) continue;
+		const P2 Along(S.Face.Z, -S.Face.X);
+		const std::string& Kind = G.Sights[size_t(S.Sights[0])].Kind;
+		const bool Scenic = Kind == "viewpoint" || Kind == "peak" || Kind == "hillfort" || Kind == "stone_circle" || Kind == "standing_stone" || Kind == "waterfall" || Kind == "dam"
+			|| Kind == "castle_ruin" || Kind == "ruin" || Kind == "lighthouse" || Kind == "battlefield";
+		for (int Extra = 0; Extra < (Scenic ? 2 : 1); ++Extra)
+		{
+			Furnish E;
+			E.Kind = Extra == 0 ? InfoBoard : Seat;
+			E.At = S.Board + Along * (Extra == 0 ? 2.6 : -3.2);
+			E.Face = Extra == 0 ? S.Face : S.Face * -1.0;
+			E.Height = Ground(E.At.X, E.At.Z);
+			E.Id = uint32_t(I + 1) * 7u + uint32_t(Extra);
+			if (std::isnan(E.Height)) continue;
+			Scene->Furniture[SceneKey(E.At.X, E.At.Z)].push_back(int(Furniture.size()));
+			Furniture.push_back(std::move(E));
+		}
 	}
 }
 
@@ -534,6 +677,14 @@ std::string RidePlan::PlaceStopName(int Stop) const
 	if (Stop < 0 || Stop >= int(PlaceStops.size())) return std::string();
 	for (int S : PlaceStops[size_t(Stop)].Sights)
 		if (!Area.Roads.Sights[size_t(S)].Name.empty()) return Area.Roads.Sights[size_t(S)].Name;
+	return std::string();
+}
+
+std::string RidePlan::PlaceStopNote(int Stop) const
+{
+	if (Stop < 0 || Stop >= int(PlaceStops.size())) return std::string();
+	for (int S : PlaceStops[size_t(Stop)].Sights)
+		if (size_t(S) < SightNote.size() && SightNote[size_t(S)] >= 0) return SiteNotes[size_t(SightNote[size_t(S)])].Note;
 	return std::string();
 }
 
@@ -709,6 +860,18 @@ void RidePlan::IndexPlaceRecipes()
 		R.At = S.At;
 		R.Seed = PlaceSeed(S);
 		R.Height = S.Height;
+		if (I < SightNote.size() && SightNote[I] >= 0)
+		{
+			const SiteNote& N = SiteNotes[size_t(SightNote[I])];
+			R.Count = N.Stones;
+			R.Banks = N.Banks;
+			R.Spire = N.Spire;
+			R.Banded = N.Banded;
+			R.Lintels = N.Lintels;
+			R.Fallen = N.Fallen;
+			R.Unlit = N.Unlit;
+			R.Note = N.Note;
+		}
 		// (a place mapped as an outline: its middle and size from it)
 		if (S.Outline.size() >= 3)
 		{
@@ -716,6 +879,7 @@ void RidePlan::IndexPlaceRecipes()
 			const double A = std::fabs(RideShapes::RingArea(S.Outline, Mid));
 			if (A > 1.0) { R.At = Mid; R.Radius = std::sqrt(A / 3.14159265); }
 		}
+		if (I < SightNote.size() && SightNote[I] >= 0 && SiteNotes[size_t(SightNote[I])].Radius > 0.0) R.Radius = SiteNotes[size_t(SightNote[I])].Radius;
 		const double Y = Ground(R.At.X, R.At.Z);
 		if (std::isnan(Y)) continue;
 		// (facing the nearest road)
@@ -844,35 +1008,105 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 				{
 					// Standing stones: rough slabs of the local stone, leaning a little, some fallen. A
 					// circle's stones round its ring (the map's, or 8 to 15 m across), an outlier or two.
+					// A site note gives the famous ones their own: how many, how far across, how tall,
+					// most fallen (Arbor Low), lintels on top (Stonehenge); a row of them for a standing
+					// stone noted with more than one (the Devil's Arrows).
 					if (Detail < 1) break;
 					RideMesh& M = StoneOf();
 					const bool Circle = R.Kind == RecipeCircle;
-					const double Radius = Circle ? (R.Radius > 3.0 ? std::fmin(R.Radius, 50.0) : 4.0 + 4.0 * Roll(Seed, 2)) : 0.0;
-					const int Count = Circle ? std::clamp(int(Radius * 1.4 + 6.0 * Roll(Seed, 3)), 8, 40) : 1;
-					const double Tall = Circle ? (Radius > 20.0 ? 1.0 : 1.4) : 1.8 + 1.6 * Roll(Seed, 4);
+					const bool Row = !Circle && R.Count > 1;
+					const bool Noted = R.Count > 0 || !R.Note.empty();
+					const double Radius = Circle ? (R.Radius > 3.0 ? std::fmin(R.Radius, Noted ? 200.0 : 50.0) : 4.0 + 4.0 * Roll(Seed, 2)) : Row ? std::fmax(R.Radius, 30.0) : 0.0;
+					const int Count = R.Count > 0 ? std::min(R.Count, 120) : Circle ? std::clamp(int(Radius * 1.4 + 6.0 * Roll(Seed, 3)), 8, 40) : 1;
+					const double Tall = R.Height > 0.5 ? R.Height : Circle ? (Radius > 20.0 ? 1.0 : 1.4) : 1.8 + 1.6 * Roll(Seed, 4);
+					// (the noted ones nearer their height; a tall lone stone broad to match)
+					const double Spread = R.Height > 0.5 ? 0.35 : 0.9, Least = R.Height > 0.5 ? 0.8 : 0.45;
+					const double Broad = R.Height > 3.0 ? R.Height * 0.22 : 1.0;
+					const double Lean = R.Lintels ? 0.15 : 1.0;   // (dressed and set upright)
+					std::vector<std::pair<Frame2, double>> Up;    // (the standing ones round a lintelled ring: where, how tall)
 					for (int K = 0; K < Count; ++K)
 					{
-						const double A = 6.283185307 * (K + 0.35 * (Roll(Seed, 10 + K) - 0.5)) / Count;
-						const double Rr = Radius * (1.0 + 0.06 * (Roll(Seed, 60 + K) - 0.5));
 						Frame2 Sf;
-						Sf.X = R.At.X + std::cos(A) * Rr;
-						Sf.Z = R.At.Z + std::sin(A) * Rr;
-						// (a circle's stones face along the ring; a lone one its own way)
-						const double Turn = Circle ? A + 1.5708 + 0.4 * (Roll(Seed, 110 + K) - 0.5) : R.Yaw + Roll(Seed, 5) * 3.14159;
+						double Turn = 0.0;
+						double A = 0.0;
+						if (Row)
+						{
+							// (in a line along the way it faces, a little off true)
+							const double U = Count > 1 ? (double(K) / (Count - 1) - 0.5) * 2.0 * Radius : 0.0;
+							Sf.X = R.At.X + F.Ux * U + F.Uz * 3.0 * (Roll(Seed, 10 + K) - 0.5);
+							Sf.Z = R.At.Z + F.Uz * U - F.Ux * 3.0 * (Roll(Seed, 10 + K) - 0.5);
+							Turn = R.Yaw + 0.3 * (Roll(Seed, 110 + K) - 0.5);
+						}
+						else
+						{
+							A = 6.283185307 * (K + (R.Lintels ? 0.0 : 0.35) * (Roll(Seed, 10 + K) - 0.5)) / Count;
+							const double Rr = Radius * (1.0 + (R.Lintels ? 0.01 : 0.06) * (Roll(Seed, 60 + K) - 0.5));
+							Sf.X = R.At.X + std::cos(A) * Rr;
+							Sf.Z = R.At.Z + std::sin(A) * Rr;
+							// (a circle's stones face along the ring; a lone one its own way)
+							Turn = Circle ? A + 1.5708 + (R.Lintels ? 0.0 : 0.4 * (Roll(Seed, 110 + K) - 0.5)) : R.Yaw + Roll(Seed, 5) * 3.14159;
+						}
 						Sf.Ux = std::cos(Turn);
 						Sf.Uz = std::sin(Turn);
 						const double Gy = Ground(Sf.X, Sf.Z);
 						if (std::isnan(Gy)) continue;
-						const double H = Tall * (0.45 + 0.9 * Roll(Seed, 160 + K)), W = (0.55 + 0.6 * Roll(Seed, 210 + K)) * (Circle ? 1.0 : 1.3), T = 0.3 + 0.3 * Roll(Seed, 260 + K);
+						double H = Tall * (Least + Spread * Roll(Seed, 160 + K));
+						double W = (0.55 + 0.6 * Roll(Seed, 210 + K)) * (Circle ? 1.0 : 1.3) * Broad, T = (0.3 + 0.3 * Roll(Seed, 260 + K)) * std::fmax(1.0, Broad * 1.4);
+						if (R.Lintels) { H = Tall; W = std::fmin(2.1, 6.283185307 * Radius / Count * 0.55); T = 1.1; }
 						const Paint C = StoneMask(0.38 + 0.2 * Roll(Seed, 310 + K), Roll(Seed, 360 + K) < 0.3 ? 1.0 : 0.0, 0.3 + 0.5 * Roll(Seed, 410 + K));
-						if (Circle && Roll(Seed, 460 + K) < 0.15)
+						const double FallChance = R.Fallen ? 0.9 : R.Lintels ? 0.35 : Circle ? 0.15 : 0.0;
+						if (Roll(Seed, 460 + K) < FallChance)
 						{
-							// (fallen: lying in the grass)
+							// (fallen: lying in the grass; a lintelled ring's gone stones mostly taken away)
+							if (R.Lintels && Roll(Seed, 470 + K) < 0.6) continue;
 							Block(M, Sf, Gy - 0.15, H, W, T + 0.1, C, 0.85);
 							continue;
 						}
-						Block(M, Sf, Gy - 0.4, W, T, H + 0.4, C, 0.7 + 0.2 * Roll(Seed, 510 + K), 0.25 * (Roll(Seed, 560 + K) - 0.5) * H, 0.25 * (Roll(Seed, 610 + K) - 0.5) * H,
-							0.4 * (Roll(Seed, 660 + K) - 0.5) * W);
+						Block(M, Sf, Gy - 0.4, W, T, H + 0.4, C, 0.7 + 0.2 * Roll(Seed, 510 + K), Lean * 0.25 * (Roll(Seed, 560 + K) - 0.5) * H, Lean * 0.25 * (Roll(Seed, 610 + K) - 0.5) * H,
+							Lean * 0.4 * (Roll(Seed, 660 + K) - 0.5) * W);
+						if (R.Lintels) Up.push_back({Sf, Gy + H});
+					}
+					if (R.Lintels && Circle)
+					{
+						// The lintels: on top from each standing stone to the next where both stand and one's
+						// been left there; inside, a horseshoe of five great trilithons, taller, opening to the
+						// north east (where the sun rises at midsummer).
+						const double Step = 6.283185307 / Count;
+						for (size_t K = 0; Up.size() > 2 && K < Up.size(); ++K)
+						{
+							const Frame2& Pa = Up[K].first;
+							const Frame2& Pb = Up[(K + 1) % Up.size()].first;
+							const double Gap = std::hypot(Pb.X - Pa.X, Pb.Z - Pa.Z);
+							if (Gap > 2.6 * Radius * std::sin(Step * 0.5) + 0.5 || Roll(Seed, 700 + uint32_t(K)) < 0.45) continue;
+							Frame2 Lf;
+							Lf.X = 0.5 * (Pa.X + Pb.X);
+							Lf.Z = 0.5 * (Pa.Z + Pb.Z);
+							Lf.Ux = (Pb.X - Pa.X) / Gap;
+							Lf.Uz = (Pb.Z - Pa.Z) / Gap;
+							Block(M, Lf, std::fmin(Up[K].second, Up[(K + 1) % Up.size()].second) - 0.05, Gap + 1.6, 1.0, 0.8, StoneMask(0.42, 0.0, 0.4));
+						}
+						const double Open = std::atan2(-0.643, 0.766);   // (the north east: +x east, +z south)
+						for (int Tr = 0; Tr < 5; ++Tr)
+						{
+							if (Roll(Seed, 800 + uint32_t(Tr)) < 0.3) continue;   // (one or two fallen down)
+							const double A = Open + 3.14159265 + (Tr - 2) * 0.62;
+							const double Rr = Radius * (0.45 + 0.08 * std::fabs(Tr - 2.0));
+							const double Th = Tall * (Tr == 2 ? 1.75 : 1.4);
+							const double Tx = R.At.X + std::cos(A) * Rr, Tz = R.At.Z + std::sin(A) * Rr;
+							const double Gy = Ground(Tx, Tz);
+							if (std::isnan(Gy)) continue;
+							Frame2 Tf;
+							Tf.X = Tx; Tf.Z = Tz;
+							Tf.Ux = -std::sin(A); Tf.Uz = std::cos(A);
+							for (double Side : {-1.0, 1.0})
+							{
+								Frame2 Lg = Tf;
+								Lg.X = Tx + Tf.Ux * Side * 1.3;
+								Lg.Z = Tz + Tf.Uz * Side * 1.3;
+								Block(M, Lg, Gy - 0.5, 2.0, 1.2, Th + 0.5, StoneMask(0.4, 0.0, 0.35), 0.85);
+							}
+							Block(M, Tf, Gy + Th - 0.05, 5.2, 1.1, 0.9, StoneMask(0.42, 0.0, 0.4));
+						}
 					}
 					break;
 				}
@@ -950,7 +1184,7 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 					const Paint C = StoneMask(0.48, Roll(Seed, 2) < 0.5 ? 0.0 : 1.0, 0.35);
 					const double Long = 14.0 + 6.0 * Roll(Seed, 3), Wide = 6.5 + 1.5 * Roll(Seed, 4), Wall = 5.5 + Roll(Seed, 5), TowerSide = 4.0 + 1.2 * Roll(Seed, 6);
 					const double TowerTall = 12.0 + 6.0 * Roll(Seed, 7);
-					const bool Spire = Roll(Seed, 8) < 0.3;
+					const bool Spire = R.Spire >= 0 ? R.Spire == 1 : Roll(Seed, 8) < 0.3;
 					Frame2 T = F;
 					const V3 Tw = F.At(-Long * 0.5 - TowerSide * 0.5 + 0.3, 0.0, 0.0);
 					T.X = Tw.X; T.Z = Tw.Z;
@@ -1019,7 +1253,7 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 					const Paint White = {0.62f, 0.61f, 0.57f}, Red = {0.30f, 0.03f, 0.025f};
 					const double R0 = std::clamp(R.Radius > 1.5 ? R.Radius : Tall * 0.13, 2.0, 7.0), R1 = R0 * 0.7;
 					const int Sides = Detail >= 2 ? 20 : Detail >= 1 ? 12 : 8;
-					const bool Banded = Roll(Seed, 3) < 0.35;
+					const bool Banded = R.Banded >= 0 ? R.Banded == 1 : Roll(Seed, 3) < 0.35;
 					if (Banded)
 					{
 						const int Bands = 3;
@@ -1043,10 +1277,18 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 						}
 					const double Lr = R1 * 0.65;
 					RideShapes::Column(Out, Pt(R.At.X, Y + Tall + 0.25, R.At.Z), Lr, Lr, 0.5, Sides, Iron);
-					RideMesh& Night = Out.NightOf();
-					const size_t NightFrom = Night.Vertices();
-					RideShapes::Column(Night, Pt(R.At.X, Y + Tall + 0.75, R.At.Z), Lr * 0.95, Lr * 0.95, 2.0, Sides, Paint{3.0f, 2.6f, 1.8f});
-					AlphaFrom(Night, NightFrom, 0.0f);
+					if (R.Unlit)
+					{
+						// (a lighthouse-shaped monument, the Hoad's: its lantern never lit, dark glass)
+						RideShapes::Column(Out, Pt(R.At.X, Y + Tall + 0.75, R.At.Z), Lr * 0.95, Lr * 0.95, 2.0, Sides, Paint{0.03f, 0.035f, 0.04f});
+					}
+					else
+					{
+						RideMesh& Night = Out.NightOf();
+						const size_t NightFrom = Night.Vertices();
+						RideShapes::Column(Night, Pt(R.At.X, Y + Tall + 0.75, R.At.Z), Lr * 0.95, Lr * 0.95, 2.0, Sides, Paint{3.0f, 2.6f, 1.8f});
+						AlphaFrom(Night, NightFrom, 0.0f);
+					}
 					RideShapes::Column(Out, Pt(R.At.X, Y + Tall + 2.75, R.At.Z), Lr, Lr * 0.3, 1.0, Sides, Iron, 0.5);
 					break;
 				}
@@ -1210,7 +1452,7 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 					if (Ring.size() < 3)
 					{
 						Ring.clear();
-						const double Rr = 25.0 + 20.0 * Roll(Seed, 2);
+						const double Rr = R.Radius > 10.0 ? std::fmin(R.Radius, 300.0) : 25.0 + 20.0 * Roll(Seed, 2);
 						for (int K = 0; K < 28; ++K)
 						{
 							const double A = 6.283185307 * K / 28;
@@ -1220,7 +1462,7 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 					P2 Mid;
 					const double Signed = RideShapes::RingArea(Ring, Mid);
 					const double Out1 = Signed >= 0.0 ? -1.0 : 1.0;   // (outwards from each edge's left)
-					const int Banks = std::fabs(Signed) > 40000.0 ? 2 + int(Roll(Seed, 4) * 2.0) : std::fabs(Signed) > 15000.0 ? 2 : 1;
+					const int Banks = R.Banks > 0 ? std::min(R.Banks, 4) : std::fabs(Signed) > 40000.0 ? 2 + int(Roll(Seed, 4) * 2.0) : std::fabs(Signed) > 15000.0 ? 2 : 1;
 					// (along the ring, a point every 4 m, with the way out at each)
 					std::vector<P2> Pts, Outs;
 					for (size_t I = 0; I < Ring.size(); ++I)

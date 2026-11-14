@@ -299,8 +299,10 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	if (StopHere >= 0)
 	{
 		const std::string Name = Ride->Plan->PlaceStopName(StopHere);
-		if (!Name.empty()) Dash.NavStop = FString::Printf(TEXT("Arrived: %s"), UTF8_TO_TCHAR(Name.c_str()));
-		if (Ride->LastPlaceStop != StopHere) UE_LOG(LogTemp, Log, TEXT("Torque places: arrived at '%s' (stop %d)"), UTF8_TO_TCHAR(Name.c_str()), StopHere);
+		// [places stage 5] (and its site note's words for a famous one: "38 stones, about 5,000 years old")
+		const std::string Note = Ride->Plan->PlaceStopNote(StopHere);
+		if (!Name.empty()) Dash.NavStop = Note.empty() ? FString::Printf(TEXT("Arrived: %s"), UTF8_TO_TCHAR(Name.c_str())) : FString::Printf(TEXT("Arrived: %s. %s"), UTF8_TO_TCHAR(Name.c_str()), UTF8_TO_TCHAR(Note.c_str()));
+		if (Ride->LastPlaceStop != StopHere) UE_LOG(LogTemp, Log, TEXT("Torque places: arrived at '%s' (stop %d)%s%s"), UTF8_TO_TCHAR(Name.c_str()), StopHere, Note.empty() ? TEXT("") : TEXT(": "), UTF8_TO_TCHAR(Note.c_str()));
 	}
 	Ride->LastPlaceStop = StopHere;
 }
