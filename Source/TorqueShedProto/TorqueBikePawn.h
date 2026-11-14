@@ -579,6 +579,11 @@ private:
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever
+	// [rider pose] A catalogue bike's drawn clutch and brake levers (they swing to the bar as pulled), as
+	// first seen on their groups.
+	TWeakObjectPtr<UStaticMeshComponent> CatLever[2];
+	FTransform CatLeverRest[2];
+	bool bCatLeverRest[2] = {false, false};
 	double ClutchFingers = 0.0;        // [rider pose] two fingers over the clutch lever (it's in, being let out, a shift, stopped)
 	// What the rider's body follows, smoothed: the bike's lean (degrees, + right) and its speeding up
 	// (m/s/s, - braking).

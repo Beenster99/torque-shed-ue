@@ -1713,7 +1713,9 @@ void FTorqueAvatar::PoseRiding(const FTorqueRideTargets& Tg)
 				// the grip and a little below, about 9 cm out let go, 3 cm when pulled to the bar.
 				FVector Ahead = Fwd - BarAxis[S] * FVector::DotProduct(Fwd, BarAxis[S]);
 				Ahead = (Ahead.GetSafeNormal(UE_SMALL_NUMBER, Fwd) - Up * 0.35).GetSafeNormal(UE_SMALL_NUMBER, Fwd);
-				const FVector LeverLine = Ahead * FMath::Lerp(9.0, 3.0, Pull);
+				FVector LeverLine = Ahead * FMath::Lerp(9.0, 3.0, Pull);
+				// (The bike's own lever where it's drawn, pulled as far as it is.)
+				if (!Tg.LeverLine[S].IsNearlyZero()) LeverLine = ToC(Tg.Grip[S] + Tg.LeverLine[S]) - ToC(Tg.Grip[S]);
 				WrapFingers(S, D, Set, D[HandBone[S]], WAct, BarAt[S], BarAxis[S], AimOn[S], PalmOn[S], 2.6, K, HandOffS[S],
 					On * (1.0 - HandOffS[S]), LeverLine);   // the grip's radius plus half a finger
 			}
