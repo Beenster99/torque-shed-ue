@@ -181,7 +181,7 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 			if (Pts[Mid].Along <= Along) Lo = Mid;
 			else Hi = Mid;
 		}
-		return Pts[Lo].Half;
+		return Lo + 1 < Pts.size() ? std::fmin(Pts[Lo].Half, Pts[Lo + 1].Half) : Pts[Lo].Half;   // (the narrower end of the bit it is on)
 	};
 	std::vector<RoadMark> Made;
 	for (const MappedMark& M : *List)
@@ -281,8 +281,19 @@ void RidePlan::MappedMarks(int Which, double From, double To, std::vector<RoadMa
 			}
 		}
 	}
-	for (const RoadMark& Mk : Made)
-		if (Mk.To >= From && Mk.From <= To) Out.push_back(Mk);
+	for (RoadMark& Mk : Made)
+	{
+		if (Mk.To < From || Mk.From > To) continue;
+		// (paint and humps never past the road's edge where the road narrows under them)
+		if (Mk.Kind != MarkBay)
+		{
+			const double Edge = std::fmin(HalfAt(Mk.From), HalfAt(Mk.To)) - 0.02;
+			Mk.Left = std::fmin(Mk.Left, Edge);
+			Mk.Right = std::fmax(Mk.Right, -Edge);
+			if (Mk.Left <= Mk.Right) continue;
+		}
+		Out.push_back(Mk);
+	}
 }
 } // namespace TorqueWorld
 

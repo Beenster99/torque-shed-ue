@@ -130,12 +130,21 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// [build 146] A house by a road fronts it: its ridge runs along the road and its door is on the
 		// side towards it, as a terraced or semi-detached house is built, even where it is deeper than
 		// wide (beenster, build 145: "many not facing the road"). Long rows keep their length.
+		// [towns stage 5] And a house by a road takes its street's look: the street was built at one go, its
+		// walls, roofs and roof shapes alike, most of its houses still as built (the seed: the road and
+		// which 120 m of it), a few done up their own way. Away from a road each house is its own.
+		double StreetX = B.X, StreetZ = B.Z;
 		{
 			const int Kind0 = B.More.empty() ? 0 : int(B.More[0]);
 			NearOpts Opts;
 			NearHit H;
-			if (Kind0 == 0 && std::fmax(B.W, B.D) < 2.2 * std::fmin(B.W, B.D) && std::fmin(B.W, B.D) <= 12.0
-				&& NearestOf(B.X, B.Z, Opts, H) && H.Dist - H.Half < 30.0)
+			const bool ByRoad = Kind0 == 0 && NearestOf(B.X, B.Z, Opts, H) && H.Dist - H.Half < 40.0;
+			if (ByRoad && Chance(B.X, B.Z, 15) >= 0.18)
+			{
+				StreetX = 13.0 * double(H.Which) + 0.5;   // (small: Chance takes a coordinate)
+				StreetZ = 17.0 * std::floor(H.Along / 120.0) + 0.5;
+			}
+			if (ByRoad && std::fmax(B.W, B.D) < 2.2 * std::fmin(B.W, B.D) && std::fmin(B.W, B.D) <= 12.0 && H.Dist - H.Half < 30.0)
 			{
 				const double Tx = H.Foot.X - B.X, Tz = H.Foot.Z - B.Z, Tl = std::hypot(Tx, Tz);
 				if (Tl > 0.1) LongX = std::fabs(Tx * Cs - Tz * Sn) / Tl < 0.707;   // (x along the road unless the road lies off an x end)
@@ -211,7 +220,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			const bool InTown = TownLookAt(B.X, B.Z) != nullptr;
 			if (Each.Look != nullptr && Area0 < 22.0 && Chance(B.X, B.Z, 13) < 0.6) Shape = ERoof::Skillion;
 			else if (Area0 > 45.0 && Area0 < 170.0 && HalfLong < 1.7 * HalfShort
-				&& Chance(B.X, B.Z, 14) < (InTown ? 0.12 + 0.45 * double(Look.BrickShare) : 0.06 + 0.2 * double(Look.BrickShare)))
+				&& Chance(StreetX, StreetZ, 14) < (InTown ? 0.12 + 0.45 * double(Look.BrickShare) : 0.06 + 0.2 * double(Look.BrickShare)))
 				Shape = ERoof::Hipped;
 		}
 		const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
@@ -223,7 +232,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const double Eaves = MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
 			: TrustHeight ? std::fmax(2.3, B.Height - Rise)
 			: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
-		const double Pick = Chance(B.X, B.Z, 2);
+		const double Pick = IsHouse ? Chance(StreetX, StreetZ, 2) : Chance(B.X, B.Z, 2);
 		// (the walling: the map's material, else the local share of render, brick, else stone; a barn stays stone, or brick where brick is the rule)
 		const bool TaggedRender = WallMaterial == "plaster" || WallMaterial == "render" || WallMaterial == "stucco";
 		const bool TaggedBrick = WallMaterial == "brick", TaggedStone = WallMaterial == "stone" || WallMaterial == "sandstone" || WallMaterial == "limestone";
@@ -237,7 +246,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		static const Rgb GlassWall = {0.10f, 0.12f, 0.12f}, Planks = {0.16f, 0.11f, 0.07f}, Sheeting = {0.30f, 0.31f, 0.30f};
 		const Rgb PlainWall = HasWallColour && !GlassHouse ? TaggedWall : GlassHouse ? GlassWall : Timber ? Planks : Sheeting;
 		const Rgb Wall = Plain ? Shade(PlainWall, 0.92 + 0.12 * Chance(B.X, B.Z, 4))
-			: Shade(Rendered ? Washes : Brick ? Bricks : Stone, (Rendered ? 0.92 : 0.85) + (Rendered ? 0.14 : 0.3) * Chance(B.X, B.Z, 4));
+			: Shade(Rendered ? Washes : Brick ? Bricks : Stone, (Rendered ? 0.92 : 0.85) + (Rendered ? 0.14 : 0.3) * (0.75 * Chance(StreetX, StreetZ, 4) + 0.25 * Chance(B.X, B.Z, 4)));
 		// (a stone house's walls in the scanned masonry: brightness, mostly the bare scan, a little lichen)
 		Rgb Mask;
 		Mask.R = float(0.48 + 0.14 * Chance(B.X, B.Z, 4));
@@ -251,7 +260,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			else Quad(Houses, Q0, Q1, Q2, Q3, Toward, Mask, false, 0.06f);
 		};
 		// (the roof: the map's material, else the local share of thatch, clay tiles or pantiles, stone slates, else slate)
-		const double RoofPick = Chance(B.X, B.Z, 6);
+		const double RoofPick = IsHouse ? Chance(StreetX, StreetZ, 6) : Chance(B.X, B.Z, 6);
 		const bool AnyRoofTag = !RoofMaterial.empty();
 		// ([OSM stage 3] a church, a chapel or a civic building in slate; a barn in stone slate or sheet; a timber shed in felt)
 		const bool Formal = !AnyRoofTag && (IsWorship || IsCivic);
@@ -265,7 +274,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const Rgb Tiles = {Look.TileColour.R, Look.TileColour.G, Look.TileColour.B};
 		const Rgb RoofBase = HasRoofColour ? TaggedRoof : GlassRoof ? Glass : RoofMaterial == "copper" ? Verdigris : Sheet ? RoofSheet : Felt ? RoofFelt
 			: Thatch ? Straw : Tiled ? Tiles : Flags ? StoneSlate : Slate;
-		const Rgb Roof = Shade(RoofBase, 0.9 + 0.2 * Chance(B.X, B.Z, 5));
+		const Rgb Roof = Shade(RoofBase, 0.9 + 0.2 * (0.7 * Chance(StreetX, StreetZ, 5) + 0.3 * Chance(B.X, B.Z, 5)));
 		// ([OSM stage 3] its roofing for M_RideRoof's courses: glass stays plain)
 		const float Roofing = HasRoofColour && !Tiled && !Thatch && !Flags && !Sheet && !Felt ? 0.0f : Sheet || Felt ? 1.0f : Thatch ? 0.75f : Tiled ? 0.5f : Flags ? 0.25f : 0.0f;
 		const auto RoofFace = [&](const P3& Q0, const P3& Q1, const P3& Q2, const P3& Q3, const P3& Toward, const Rgb& C)
