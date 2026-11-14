@@ -967,7 +967,13 @@ public:
 		double FarAlong = 0.0;   // how far along its own road the other half is there
 	};
 	bool DualAcross(int Which, int Index, int OnlySide, DualHit& Out) const;
-	static constexpr double EmbankBarrier = 3.0;   // (a fast road this far over the land beside it has a barrier on that side)
+	static constexpr double EmbankBarrier = 3.0;
+	// [OSM stage 5D] Town streets: a kerb KerbHigh high (its face a 45 degree slope) and a pavement out to
+	// PaveWide from the road's edge, each side, in place of the verge (beenster Nov 14: one continuous kerb
+	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
+	static constexpr double KerbHigh = 0.125, PaveWide = 1.8;
+	static bool StreetClass(const std::string& Class);   // a class that can be a town street
+	std::vector<char> StreetsAlong(int Which) const;      // each point of a road: a town street's (1) or not   // (a fast road this far over the land beside it has a barrier on that side)
 	static constexpr double MedianSink = 0.12, MedianLeast = 1.2, MedianMost = 20.0, MedianWidest = 40.0, MedianPad = 2.5;
 	// The reservation's ground at a point Hit (NearestOf's, of a dual carriageway's half) finds, if it is
 	// between the two halves; NaN otherwise.

@@ -1949,6 +1949,19 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (Joined[1]) D = std::fmin(D, SideLength - Along - JoinAt[1]);
 		return std::fmax(0.0, D);
 	};
+	// [OSM stage 5D] Which of its rows are a town street's: a kerb and pavement each side in place of the
+	// verge (the ride's road where it is built up; another road where the buildings crowd it, not a track,
+	// in stretches of 40 m or more).
+	std::vector<char> StreetRow(Rows.size(), 0);
+	if (Which == 0)
+	{
+		for (size_t K = 0; K < Rows.size(); ++K) StreetRow[K] = !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0 ? 1 : 0;
+	}
+	else if (!Mine->Track && !Mine->Gravel && Mine->Edge >= 0 && StreetClass(Area.Roads.ClassOf(Mine->Edge)))
+	{
+		const std::vector<char> Whole = StreetsAlong(Which);
+		for (size_t K = 0; K < Rows.size(); ++K) StreetRow[K] = Whole[std::min(size_t(First) + K, Whole.size() - 1)];
+	}
 	const int LidArch = 4;   // (the lid's first point over the arch)
 	std::vector<P3> RingA, RingB, LidA, LidB;
 	const double PaintLift = 0.015;
@@ -2255,10 +2268,30 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			// (beenster: in the country the grass runs right up to the tarmac; only a town street has the grit edge)
 			const bool TownEdge = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
 			const float* Edge = TownEdge ? Verge : VergeGrass;
+			const bool Street = StreetRow[K] != 0 && StreetRow[K + 1] != 0 && !A.Deck && !B.Deck;
 			for (int Sd = 0; Sd < 2; ++Sd)
 			{
 				if (NoShoulder[Sd] || ShoulderTo[Sd] <= ShoulderFrom[Sd]) continue;
 				const Row Sa = ShoulderFrom[Sd] > 0.0 ? Between(A, B, ShoulderFrom[Sd]) : A, Sb = ShoulderTo[Sd] < 1.0 ? Between(A, B, ShoulderTo[Sd]) : B;
+				if (Street)
+				{
+					// [OSM stage 5D] The kerb: its face a 45 degree slope up KerbHigh (so a wheel rides up it,
+					// beenster Nov 14), its top; the pavement out to PaveWide; its back down into the ground.
+					static constexpr float KerbStone[3] = {0.16f, 0.16f, 0.15f}, Paving[3] = {0.12f, 0.118f, 0.11f};
+					const double S = Sd == 0 ? 1.0 : -1.0;
+					const auto Band = [&](double From, double To, double LiftFrom, double LiftTo, const float* Colour)
+					{
+						// (From and To out from the edge; the strip left to right)
+						const double Fa = S * (Sa.Half + From), Ta = S * (Sa.Half + To), Fb = S * (Sb.Half + From), Tb = S * (Sb.Half + To);
+						if (S > 0.0) Strip(Sa, Sb, Ta, Fa, Tb, Fb, LiftTo, LiftFrom, Colour);
+						else Strip(Sa, Sb, Fa, Ta, Fb, Tb, LiftFrom, LiftTo, Colour);
+					};
+					Band(0.0, KerbHigh, 0.0, KerbHigh, KerbStone);
+					Band(KerbHigh, KerbHigh + 0.15, KerbHigh, KerbHigh, KerbStone);
+					Band(KerbHigh + 0.15, PaveWide, KerbHigh, KerbHigh + 0.02, Paving);
+					Band(PaveWide, PaveWide + 0.35, KerbHigh + 0.02, -ShoulderDrop, Paving);
+					continue;
+				}
 				if (Sd == 0)
 				{
 					Graded(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, VergeGrass, Edge);
@@ -2290,7 +2323,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// 3 m dashes with 6 m gaps.
 		const double Half = std::fmin(A.Half, B.Half);
 		if (A.Along < PaintFrom || B.Along > PaintTo || Track || Gravel) continue;
-		if (Half >= 2.95)
+		// ([OSM stage 5D] none along a town street's kerbs)
+		if (Half >= 2.95 && !(StreetRow[K] != 0 && StreetRow[K + 1] != 0))
 		{
 			for (double Side : {1.0, -1.0})
 			{

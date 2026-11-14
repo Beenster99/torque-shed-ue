@@ -504,6 +504,52 @@ int RidePlan::FurnitureCount(int Kind) const
 	return N;
 }
 
+bool RidePlan::StreetClass(const std::string& Class)
+{
+	return Class == "residential" || Class == "living_street" || Class == "unclassified" || Class == "tertiary" || Class == "secondary" || Class == "primary"
+		|| Class == "pedestrian";
+}
+
+std::vector<char> RidePlan::StreetsAlong(int Which) const
+{
+	// [OSM stage 5D] Built up as the ride's road is (IndexFurniture), closer in: four buildings or more
+	// within 45 m of the point, gaps under 60 m closed, stretches under 40 m left out.
+	const std::vector<RoadPoint>& Pts = RoadOf(Which);
+	std::vector<char> Out(Pts.size(), 0);
+	if (!Scene || Pts.empty()) return Out;
+	const Region& G = Area.Roads;
+	for (size_t I = 0; I < Pts.size(); ++I)
+	{
+		const P2 P = Pts[I].At;
+		int Count = 0;
+		for (int Dz = -1; Dz <= 1 && Count < 4; ++Dz)
+			for (int Dx = -1; Dx <= 1 && Count < 4; ++Dx)
+			{
+				const auto It = Scene->Buildings.find(SceneKey(P.X + Dx * SceneCell, P.Z + Dz * SceneCell));
+				if (It == Scene->Buildings.end()) continue;
+				for (int B : It->second)
+					if (std::hypot(G.Buildings[size_t(B)].X - P.X, G.Buildings[size_t(B)].Z - P.Z) < 45.0 && ++Count >= 4) break;
+			}
+		Out[I] = Count >= 4 ? 1 : 0;
+	}
+	for (int Pass = 0; Pass < 2; ++Pass)
+	{
+		const char Want = Pass == 0 ? 0 : 1;
+		for (size_t I = 0; I < Out.size();)
+		{
+			if (Out[I] != Want) { ++I; continue; }
+			size_t J = I;
+			while (J + 1 < Out.size() && Out[J + 1] == Want) ++J;
+			const double Long = Pts[J].Along - Pts[I].Along;
+			// (a gap inside a street closed; a short street dropped)
+			if (Pass == 0 && I > 0 && J + 1 < Out.size() && Long < 60.0) for (size_t K = I; K <= J; ++K) Out[K] = 1;
+			if (Pass == 1 && Long < 40.0 && !(I == 0 && J + 1 == Out.size() && Long > 15.0)) for (size_t K = I; K <= J; ++K) Out[K] = 0;
+			I = J + 1;
+		}
+	}
+	return Out;
+}
+
 void RidePlan::IndexFurniture()
 {
 	Furniture.clear();
