@@ -831,6 +831,7 @@ public:
 		double Along = 0.0;
 		int Turn = 0;
 		std::string Onto;
+		int Exit = 0;   // [OSM stage 5B] at a roundabout, which exit (1 the first), 0 not a roundabout
 	};
 	static constexpr int Finish = 9;
 	std::vector<RideTurn> Turns;
@@ -964,6 +965,7 @@ public:
 		int Turn = Finish;
 		double ToTurn = 0.0;
 		std::string Onto;
+		int Exit = 0;   // [OSM stage 5B] the next turn's roundabout exit, 0 none
 		double ToStop[StopKinds] = {-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0};   // -1: none ahead
 		std::string StopCalled[StopKinds];
 		// [OSM stage 1] The road's facts here: its limit as a sign shows it (mph in Britain, rounded to

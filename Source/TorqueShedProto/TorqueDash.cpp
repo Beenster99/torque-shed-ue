@@ -306,6 +306,13 @@ FString FTorqueDash::NavDistance(double Metres, bool bMetric)
 	return Miles < 0.25 ? FString::Printf(TEXT("%d yd"), FMath::RoundToInt(Yards / 10.0) * 10) : FString::Printf(TEXT("%.1f mi"), Miles);
 }
 
+FString FTorqueDash::ExitWords(int32 Exit)
+{
+	const int32 Ten = Exit % 100;
+	const TCHAR* Th = (Ten >= 11 && Ten <= 13) ? TEXT("th") : Exit % 10 == 1 ? TEXT("st") : Exit % 10 == 2 ? TEXT("nd") : Exit % 10 == 3 ? TEXT("rd") : TEXT("th");
+	return FString::Printf(TEXT("Roundabout, %d%s exit"), Exit, Th);
+}
+
 FString FTorqueDash::NavWords(int32 Turn)
 {
 	switch (Turn)

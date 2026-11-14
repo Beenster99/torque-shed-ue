@@ -745,6 +745,8 @@ int main(int Argc, char** Argv)
 			std::printf("  ridden ring %zu (radius %.1f%s): %d road knots within 12 m, %.1f to %.1f m from its middle, tightest bend %.1f m\n", I, Rg.Radius,
 				Rg.Circle ? ", a circle" : "", On, Least, Most, Tightest);
 		}
+		for (const RidePlan::RideTurn& T : Plan->Turns)
+			if (T.Exit > 0) std::printf("  sat nav: at %.0f m, roundabout, exit %d (turn %d) onto '%s'\n", T.Along, T.Exit, T.Turn, T.Onto.c_str());
 		for (size_t I = 0; I < Plan->RoadRings.size() && I < 20; ++I)
 		{
 			const RidePlan::RoadRing& Rg = Plan->RoadRings[I];

@@ -51,6 +51,8 @@ struct FTorqueDash
 	int32 NavTurn = 9;          // RidePlan::RideTurn::Turn: -3 sharp left .. 3 sharp right, 9 the finish
 	double NavTo = 0.0;         // metres to it
 	FString NavOnto;            // the road it's onto (or where the ride finishes)
+	int32 NavExit = 0;          // [OSM stage 5B] the turn is a roundabout's Nth exit (1 the first), 0 not one
+	static FString ExitWords(int32 Exit);   // "Roundabout, 2nd exit"
 	double NavLeft = 0.0;       // metres to the finish
 	FString NavStop;            // the next fuel or cafe ahead: "Cafe 2.1 mi: Penny Garth"
 	bool bAtFuel = false;       // at a filling station by the road: stopped there, the tank fills

@@ -92,6 +92,21 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 		return Found;
 	};
 	std::vector<double> Angles;
+	// [OSM stage 5B] (a roundabout's edges; whether a road off one may be ridden away from it)
+	const auto IsRingEdge = [&G](int E)
+	{
+		const RoadExtra* X = E >= 0 ? G.ExtraOf(E) : nullptr;
+		return X != nullptr && X->Has(RoadExtra::Roundabout);
+	};
+	const auto CanLeave = [&G](int E, int AtNode)
+	{
+		const RoadEdge& R = G.Edges[size_t(E)];
+		return R.Oneway == 0 || (R.Oneway == 1 && R.A == AtNode) || (R.Oneway == -1 && R.B == AtNode);
+	};
+	bool InRing = false;
+	P2 RingIn;
+	double RingAlong = 0.0;
+	int RingExits = 0;
 	int Node = From;
 	double Raw = 0.0;
 	PathNodes.clear();
@@ -105,6 +120,37 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 		if (I + 1 >= Path.size()) break;
 		const int Came = Path[I], Onto = Path[I + 1];
 		const std::vector<int>& Here = G.Adjacent[size_t(Node)];
+		// [OSM stage 5B] Round a roundabout: one turn where the ride enters it, "the Nth exit", its way
+		// the way the ride leaves it as against the way it came in; nothing said at the ring's own nodes.
+		{
+			const bool CameRing = IsRingEdge(Came), OntoRing = IsRingEdge(Onto);
+			if (!CameRing && OntoRing)
+			{
+				const P2 Back0 = HeadingOut(G, Came, Node);
+				RingIn = P2(-Back0.X, -Back0.Z);
+				RingAlong = AlongOf(G.Nodes[size_t(Node)], Raw * Scale);
+				RingExits = 0;
+				InRing = true;
+				continue;
+			}
+			if (InRing && CameRing)
+			{
+				// (each way off the ring here that can be taken counts as an exit)
+				for (int E : Here)
+					if (E != Came && E != Onto && !IsRingEdge(E) && CanLeave(E, Node)) ++RingExits;
+				if (OntoRing) continue;
+				InRing = false;
+				if (RingAlong > FinishM) break;
+				RideTurn T;
+				T.Along = RingAlong;
+				T.Turn = TurnKind(TurnOf(RingIn, HeadingOut(G, Onto, Node)));
+				T.Onto = G.NameOf(Onto);
+				T.Exit = RingExits + 1;
+				Turns.push_back(T);
+				Angles.push_back(0.0);
+				continue;
+			}
+		}
 		if (Here.size() < 3) continue;   // (a bend in the road, not a junction)
 		const P2 Back = HeadingOut(G, Came, Node);
 		const P2 In(-Back.X, -Back.Z);
@@ -119,7 +165,7 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 		const double Along = AlongOf(G.Nodes[size_t(Node)], Raw * Scale);
 		if (Along > FinishM) break;
 		// (a roundabout or a staggered crossroads: two turns close together are one)
-		if (!Turns.empty() && Along - Turns.back().Along < 30.0)
+		if (!Turns.empty() && Along - Turns.back().Along < 30.0 && Turns.back().Exit == 0)
 		{
 			Angles.back() += Ours;
 			Turns.back().Turn = TurnKind(Angles.back());
@@ -263,6 +309,7 @@ RidePlan::RideNav RidePlan::NavAt(double X, double Z, double Was) const
 			N.Turn = T.Turn;
 			N.ToTurn = std::max(T.Along - N.Along, 0.0);
 			N.Onto = T.Onto;
+			N.Exit = T.Exit;
 			break;
 		}
 	for (const RideStop& S : Stops)

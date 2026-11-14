@@ -257,6 +257,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 			N.Turn = Back.Turn;
 			N.ToTurn = Back.ToTurn;
 			N.Onto = Back.Onto;
+			N.Exit = Back.Exit;
 			N.ToFinish = Back.ToFinish;
 			N.Road = Back.Road;
 			N.Limit = 0;
@@ -268,6 +269,7 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 	Dash.NavTurn = N.Turn;
 	Dash.NavTo = N.ToTurn;
 	Dash.NavOnto = UTF8_TO_TCHAR(N.Onto.c_str());
+	Dash.NavExit = N.Exit;   // [OSM stage 5B]
 	Dash.NavLeft = N.ToFinish;
 	Dash.bAtFuel = N.ToStop[RidePlan::StopFuel] >= 0.0 && N.ToStop[RidePlan::StopFuel] < 25.0;
 	// [OSM stage 1] The road's facts.
