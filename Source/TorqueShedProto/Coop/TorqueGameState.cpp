@@ -20,6 +20,7 @@
 #include "Fit/FitJson.h"
 #include "Weather/TorqueWeatherFx.h"
 #include "Weather/TorqueSky.h"
+#include "Weather/NightSky.h"
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/PlayerController.h"
 #include "HttpModule.h"
@@ -454,8 +455,21 @@ void ATorqueGameState::ApplySun()
 		// Below the horizon the light goes on pointing at the real sun (down to the sky's lowest): the
 		// atmosphere stays lit from below the horizon, so the glow sits where the sun went down, and the
 		// planet's shadow keeps it off the ground. Day light follows the real light, through twilight.
-		const double Points = Sky ? Sky->LightElevationAt(E) : FMath::Max(E, 2.0);
-		SunActor->SetActorRotation(FRotator(-Points, LightYaw(B) + SunYawOffset, BuiltSun.Roll));
+		double Points = Sky ? Sky->LightElevationAt(E) : FMath::Max(E, 2.0);
+		double PointsBearing = B;
+		// The night (skies stage 5): the moon and the stars for this hour, today, here; once the sun's
+		// light is gone and the moon is up, the light is the moon's (ATorqueSky dims it to moonlight).
+		if (Sky)
+		{
+			Sky->SetSkyClock(SkyUnixAt(Hour), SunLat, LongitudeAt);
+			double MoonE = 0.0, MoonB = 0.0;
+			if (Sky->MoonLightsNow(E, MoonE, MoonB))
+			{
+				Points = MoonE;
+				PointsBearing = MoonB;
+			}
+		}
+		SunActor->SetActorRotation(FRotator(-Points, LightYaw(PointsBearing) + SunYawOffset, BuiltSun.Roll));
 		DayLight = Sky ? Sky->DayLightAt(E) : FMath::SmoothStep(-4.0f, 6.0f, (float)E);
 	}
 	// The sun's brightness and the exposure with it, when the light has changed enough to see.
@@ -491,6 +505,12 @@ void ATorqueGameState::WeatherModeChanged(float FadeSeconds)
 
 void ATorqueGameState::GoToMode(float FadeSeconds)
 {
+	if (Mode != FTorqueSettings::WeatherPreset && SkyShiftDays != 0.0)
+	{
+		// (a preset sky's moon no more: the night sky back to today's)
+		SkyShiftDays = 0.0;
+		ApplySun();
+	}
 	if (Mode != FTorqueSettings::WeatherLive && (GridNow.Valid() || GridBefore.Valid()))
 	{
 		// (Not live: one weather for everyone again, the local differences fading out with the change.)
@@ -1197,6 +1217,26 @@ void ATorqueGameState::HoldPreset(float FadeSeconds)
 	if (FadeSeconds <= 0.0f) Weather = TorqueWeather::NearestKind(S);
 	Net.Source = (uint8)ETorqueWeatherSource::Fixed;
 	AppliedAt = -1.0;
+	// The moon it asks for: the night sky's clock moved (at most a fortnight) to the nearest such moon.
+	SkyShiftDays = 0.0;
+	if (Pick && !Pick->Moon.empty())
+	{
+		const double Want = Pick->Moon == "full" ? 0.0 : Pick->Moon == "new" ? 180.0 : 90.0;
+		const double Base = SkyUnixAt(Hour < 0.0f ? 12.0f : Hour);
+		double Best = 1e9;
+		for (double Days = -15.0; Days <= 15.0; Days += 0.25)
+		{
+			const TorqueNight::Moon M = TorqueNight::MoonAt(Base + Days * 86400.0, SunLat, LongitudeAt);
+			const double Off = FMath::Abs(M.PhaseAngle - Want) + (Pick->Moon == "half" && !M.bWaxing ? 90.0 : 0.0);
+			if (Off < Best)
+			{
+				Best = Off;
+				SkyShiftDays = Days;
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("Torque weather: preset sky's %s moon: the night sky %+.2f days on"), UTF8_TO_TCHAR(Pick->Moon.c_str()), SkyShiftDays);
+		ApplySun();
+	}
 	// Showers round about (made up, round the rider): the weather map and rain shafts show them.
 	if (Pick && Pick->Showers > 0)
 	{
@@ -1277,6 +1317,7 @@ void ATorqueGameState::BenchSky(const TorqueWeather::State& S, double Lat, int32
 	SunDec = (float)TorqueWeather::SunDeclination(Day);
 	SunLat = (float)Lat;
 	SunShift = 0.0f;
+	SkyDay = Day;
 	Hour = (float)FMath::Fmod(SolarHour + 24.0, 24.0);
 	UpdateHere();
 	HereApplied = Here;
@@ -1284,6 +1325,16 @@ void ATorqueGameState::BenchSky(const TorqueWeather::State& S, double Lat, int32
 	ApplySun();
 	ApplyWeather();
 	AppliedAt = GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.0;
+}
+
+double ATorqueGameState::SkyUnixAt(float ClockHour) const
+{
+	// The clock's hour as a moment (UTC): the sun's shift turns the clock into solar time, the longitude
+	// and the equation of time turn that into Greenwich's (so a made clock and the real one agree).
+	const FDateTime Utc = FDateTime::UtcNow();
+	const int32 Day = SkyDay > 0 ? SkyDay : Utc.GetDayOfYear();
+	const double UtHours = ClockHour + SunShift - LongitudeAt / 15.0 - TorqueWeather::EquationOfTime(Day) / 60.0;
+	return (double)FDateTime(Utc.GetYear(), 1, 1).ToUnixTimestamp() + (Day - 1 + SkyShiftDays) * 86400.0 + UtHours * 3600.0;
 }
 
 ATorqueSky* ATorqueGameState::GetSky() const

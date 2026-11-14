@@ -552,6 +552,81 @@
     "code": 2
    },
    "pitch": 30
+  },
+  {
+   "name": "43_rainbow_showers",
+   "note": "stage 4: sun low behind, a shower ahead (rainbow); rain falling near",
+   "day": 172,
+   "sun": 20,
+   "evening": true,
+   "look": "away",
+   "weather": {
+    "cloud": 50,
+    "low": 45,
+    "mid": 5,
+    "high": 0,
+    "rain": 1.0,
+    "code": 80,
+    "cape": 700,
+    "cloud_base": 1000,
+    "humidity": 80,
+    "road_wet": 0.6
+   }
+  },
+  {
+   "name": "44_night_up",
+   "note": "stage 5: a clear November night, looking up: stars, Milky Way, the moon if up",
+   "day": 320,
+   "sun": -25,
+   "evening": true,
+   "look": "up",
+   "weather": {
+    "preset": "sunny",
+    "cloud": 0,
+    "low": 0,
+    "mid": 0,
+    "high": 0,
+    "visibility": 60000,
+    "humidity": 65
+   }
+  },
+  {
+   "name": "45_night_horizon",
+   "note": "stage 5: the same night along the horizon to the south: stars low, towns' glow",
+   "day": 320,
+   "sun": -25,
+   "evening": true,
+   "look": "horizon",
+   "yaw": 180,
+   "pitch": 15,
+   "weather": {
+    "preset": "sunny",
+    "cloud": 0,
+    "low": 0,
+    "mid": 0,
+    "high": 0,
+    "visibility": 60000,
+    "humidity": 65
+   }
+  },
+  {
+   "name": "46_night_clouds",
+   "note": "stage 5: broken cloud at night: cloud dark against the stars (or moonlit)",
+   "day": 320,
+   "sun": -25,
+   "evening": true,
+   "look": "horizon",
+   "yaw": 120,
+   "pitch": 25,
+   "weather": {
+    "cloud": 50,
+    "low": 45,
+    "mid": 10,
+    "high": 10,
+    "code": 2,
+    "cloud_base": 1100,
+    "humidity": 80
+   }
   }
  ]
 }

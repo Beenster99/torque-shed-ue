@@ -144,6 +144,7 @@ void ATorqueSky::Find()
 			Shafts.Add(Slot);
 		}
 		if (!RainbowPtr.IsValid() && It->ActorHasTag(FName(TEXT("TorqueRainbow")))) RainbowPtr = *It;
+		if (!StarDomePtr.IsValid() && It->ActorHasTag(FName(TEXT("TorqueStarDome")))) StarDomePtr = *It;
 	}
 	for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It)
 	{
@@ -248,6 +249,11 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	In.ViewAsl = ViewAsl;
 	In.ValleyAsl = ValleyAsl;
 	In.RainNear = RainNear;
+	if (bSkyClock)
+	{
+		In.MoonElevation = MoonNow.Elevation;
+		In.MoonPhaseAngle = MoonNow.PhaseAngle;
+	}
 	In.bClouds = CloudsDrawn();
 	const TorqueSky::Sky S = TorqueSky::Compute(In, Looks);
 	Last = S;
@@ -257,12 +263,13 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 
 	if (Sun)
 	{
-		Sun->SetIntensity(SunLux * (float)S.SunScale);
+		// (at night with the moon up, the light is the moon's: the game state points it there)
+		Sun->SetIntensity(SunLux * (float)(S.MoonTakeover > 0.5 ? S.MoonLight : S.SunScale));
 		// A sun behind a closed deck: next to no shadow, from a light as wide as the bright patch of cloud.
 		// The sky draws its sun disc as wide as the light, so as the light widens the disc is put out
 		// (beenster, build 135: "the sun is massive" under a live overcast, a 40 degree disc).
 		Sun->SetLightSourceAngle(SunAngle + (float)S.SunAngle);
-		const float Disc = (float)S.SunDisc;
+		const float Disc = S.MoonTakeover > 0.5 ? 0.0f : (float)S.SunDisc;   // (the star dome draws the moon)
 		Sun->SetAtmosphereSunDiskColorScale(FLinearColor(Disc, Disc, Disc, 1.0f));
 		// The drawn clouds' shadows on the ground: on while the sky is broken, off as the deck closes (the
 		// dimmed sun takes over then).
@@ -357,6 +364,12 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("HighOpacity"), (float)Looks.HighOpacity);
 		SetMpc(SkyMpc, TEXT("Halo"), (float)S.Halo);
 		SetMpc(SkyMpc, TEXT("ShaftLight"), (float)Looks.ShaftLight);
+		// Stage 5: the night sky (the star dome's).
+		SetMpc(SkyMpc, TEXT("Stars"), (float)(S.Stars * Looks.StarGain));
+		SetMpc(SkyMpc, TEXT("MilkyWay"), (float)(S.MilkyWay * Looks.MilkyWayGain));
+		SetMpc(SkyMpc, TEXT("MoonDisc"), (float)(S.MoonDisc * SunLux));
+		SetMpc(SkyMpc, TEXT("EarthShine"), (float)Looks.EarthShine);
+		SetMpc(SkyMpc, TEXT("SkyGlow"), (float)S.Glow);
 	}
 	// The old noise cloud shadows: where no clouds are drawn (the Low setting), the cover's amount; where
 	// they are, none (the clouds you see cast their own).
@@ -372,6 +385,7 @@ void ATorqueSky::Tick(float DeltaSeconds)
 	TickWeatherMap();
 	TickRainShafts(DeltaSeconds);
 	TickRainbow();
+	TickStarDome();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
 }
 
@@ -578,6 +592,56 @@ void ATorqueSky::TickRainShafts(float DeltaSeconds)
 	}
 }
 
+void ATorqueSky::SetSkyClock(double UnixSeconds, double LatDeg, double LonDeg)
+{
+	bSkyClock = true;
+	SkyUnix = UnixSeconds;
+	SkyLat = LatDeg;
+	SkyLon = LonDeg;
+	MoonNow = TorqueNight::MoonAt(UnixSeconds, LatDeg, LonDeg);
+	double SunE = 0.0, SunB = 0.0;
+	TorqueNight::HorizonOf(MoonNow.SunRaDeg, MoonNow.SunDecDeg, UnixSeconds, LatDeg, LonDeg, SunE, SunB);
+	auto Enu = [](double Elev, double Bear) {
+		const double E = FMath::DegreesToRadians(Elev), B = FMath::DegreesToRadians(Bear);
+		return FVector(FMath::Cos(E) * FMath::Sin(B), FMath::Cos(E) * FMath::Cos(B), FMath::Sin(E));
+	};
+	SunEnu = Enu(SunE, SunB);
+	UWorld* W = GetWorld();
+	if (!W || !SkyMpc) return;
+	const FVector MoonEnu = Enu(MoonNow.Elevation, MoonNow.Bearing);
+	auto SetMpc = [W, this](const TCHAR* Name, float Value) {
+		if (SkyMpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Name), Value);
+	};
+	SetMpc(TEXT("Lst"), (float)TorqueNight::SiderealDeg(UnixSeconds, LonDeg));
+	SetMpc(TEXT("Lat"), (float)LatDeg);
+	SetMpc(TEXT("MoonE"), (float)MoonEnu.X);
+	SetMpc(TEXT("MoonN"), (float)MoonEnu.Y);
+	SetMpc(TEXT("MoonU"), (float)MoonEnu.Z);
+	SetMpc(TEXT("SunE"), (float)SunEnu.X);
+	SetMpc(TEXT("SunN"), (float)SunEnu.Y);
+	SetMpc(TEXT("SunU"), (float)SunEnu.Z);
+}
+
+bool ATorqueSky::MoonLightsNow(double SunElevation, double& MoonElevation, double& MoonBearing) const
+{
+	MoonElevation = MoonNow.Elevation;
+	MoonBearing = MoonNow.Bearing;
+	return bSkyClock && SunElevation < Looks.MoonTakesOverDeg && MoonNow.Elevation > 0.5;
+}
+
+void ATorqueSky::TickStarDome()
+{
+	UWorld* W = GetWorld();
+	AActor* Dome = StarDomePtr.Get();
+	if (!W || !Dome || !SkyMpc || !bApplied) return;
+	// Shown at night, and by day while the moon is up (its disc in the blue).
+	const bool bShow = bSkyClock && (Last.Stars > 0.001 || Last.Glow > 0.001 || (Last.MoonDisc > 0.0 && MoonNow.Elevation > -1.0));
+	if (Dome->IsHidden() == bShow) Dome->SetActorHiddenInGame(!bShow);
+	if (!bShow) return;
+	const APlayerController* PC = W->GetFirstPlayerController();
+	if (PC && PC->PlayerCameraManager) Dome->SetActorLocation(PC->PlayerCameraManager->GetCameraLocation());
+}
+
 int32 ATorqueSky::ShaftsShown() const
 {
 	int32 N = 0;
@@ -752,7 +816,9 @@ FString ATorqueSky::Describe() const
 			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),
 			S.HighSheet, S.Halo, S.LowDrawn.Bottom, S.LowDrawn.Top, S.MidDrawn.Bottom, S.MidDrawn.Top)
 		+ FString::Printf(TEXT("; mist %.2f (top %.0f m), fog top %.0f m, rainbow %.2f, under the base %.2f; weather map %s, rain shafts %d"),
-			S.Mist, S.MistTopAsl, S.FogTopAsl, S.Rainbow, S.BaseFog, MapOnApplied > 0.0f ? TEXT("on") : TEXT("off"), ShaftsShown());
+			S.Mist, S.MistTopAsl, S.FogTopAsl, S.Rainbow, S.BaseFog, MapOnApplied > 0.0f ? TEXT("on") : TEXT("off"), ShaftsShown())
+		+ FString::Printf(TEXT("; moon %.1f deg up, bearing %.0f, %.0f%% lit%s, light x%.5f; stars %.2f, Milky Way %.2f, glow %.3f"),
+			MoonNow.Elevation, MoonNow.Bearing, MoonNow.Lit * 100.0, S.MoonTakeover > 0.5 ? TEXT(" (lighting the night)") : TEXT(""), S.MoonLight, S.Stars, S.MilkyWay, S.Glow);
 }
 
 // --- The sky bench ---------------------------------------------------------------------------------------

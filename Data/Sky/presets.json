@@ -1,5 +1,5 @@
 {
- "about": "Preset skies to load from Settings > Gameplay > Preset sky (the host's, for everyone in co-op). Each: key (kept in the settings), label (the menu's), group (the list's headings), note (the hint), and a weather like the sky bench's ({preset, cloud/low/mid/high in %, rain/snow mm per hour, visibility m, humidity %, cape J/kg, cloud_base m, wind m/s, road_wet/puddles 0..1, code WMO, ...}) or recorded (a day in Data/Sky/days). Optional showers_around (with shower_rain, mm/h): that many showers scattered round the rider up to 40 km off, so the clouds round about and the rain shafts under them can be seen. Optional sun: the sun's height in degrees that the clock moves to today (with evening: true after noon); without it the clock stays as it is. Add or change skies here: the game reads this file again when it changes.",
+ "about": "Preset skies to load from Settings > Gameplay > Preset sky (the host's, for everyone in co-op). Each: key (kept in the settings), label (the menu's), group (the list's headings), note (the hint), and a weather like the sky bench's ({preset, cloud/low/mid/high in %, rain/snow mm per hour, visibility m, humidity %, cape J/kg, cloud_base m, wind m/s, road_wet/puddles 0..1, code WMO, ...}) or recorded (a day in Data/Sky/days). Optional showers_around (with shower_rain, mm/h): that many showers scattered round the rider up to 40 km off, so the clouds round about and the rain shafts under them can be seen. Optional moon (full, new or half): the night sky shows that moon (its clock moved up to a fortnight). Optional sun: the sun's height in degrees that the clock moves to today (with evening: true after noon); without it the clock stays as it is. Add or change skies here: the game reads this file again when it changes.",
  "skies": [
   {"key": "clear_blue", "group": "Fair", "label": "Clear blue", "note": "Not a cloud, 40 km visibility",
    "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0}},
@@ -63,8 +63,16 @@
    "sun": -2, "evening": true, "weather": {"cloud": 40, "low": 0, "mid": 0, "high": 40, "code": 1, "humidity": 70}},
   {"key": "clear_dusk", "group": "Light", "label": "Clear dusk", "note": "The blue hour: sun 4 degrees below the horizon",
    "sun": -4, "evening": true, "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0}},
-  {"key": "clear_night", "group": "Light", "label": "Clear night", "note": "A clear, dark night (the stars and moon come in stage 5)",
+  {"key": "clear_night", "group": "Night", "label": "Clear night (tonight's moon)", "note": "A clear night with the stars, and the moon as it really is tonight",
    "sun": -25, "evening": true, "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0, "air": 4}},
+  {"key": "full_moon", "group": "Night", "label": "Full moon", "note": "A clear night under a full moon: the road lit, the stars washed out",
+   "sun": -25, "evening": true, "moon": "full", "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0, "air": 5}},
+  {"key": "moonlit_clouds", "group": "Night", "label": "Moonlit clouds", "note": "Broken cloud lit by a full moon",
+   "sun": -25, "evening": true, "moon": "full", "weather": {"cloud": 50, "low": 45, "mid": 10, "high": 10, "code": 2, "cloud_base": 1100, "humidity": 80, "air": 6}},
+  {"key": "dark_sky", "group": "Night", "label": "Dark sky, Milky Way", "note": "No moon, clear and dry: the Milky Way across the sky",
+   "sun": -30, "evening": true, "moon": "new", "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0, "visibility": 60000, "humidity": 65, "air": 3}},
+  {"key": "day_moon", "group": "Night", "label": "Half moon by day", "note": "A first-quarter moon in the afternoon blue",
+   "sun": 20, "evening": true, "moon": "half", "weather": {"preset": "sunny", "cloud": 10, "low": 10, "mid": 0, "high": 0}},
 
   {"key": "thunderstorm", "group": "Storms and snow", "label": "Thunderstorm", "note": "Towering cloud, heavy showers and gusts (lightning comes in stage 7)",
    "showers_around": 5, "shower_rain": 8, "weather": {"cloud": 90, "low": 70, "mid": 50, "high": 40, "rain": 8, "code": 95, "cape": 2000, "cloud_base": 900, "humidity": 85, "visibility": 4000, "wind": 9, "gust": 22, "road_wet": 1, "puddles": 0.6}},

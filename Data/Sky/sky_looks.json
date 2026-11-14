@@ -321,5 +321,19 @@
   "shaft_opacity": 0.4,
   "shaft_light": 0.012,
   "rainbow_opacity": 0.55
+ },
+ "night": {
+  "_": "Stage 5: the moon's light once the sun's is gone (boosted: the real 0.25 lux would be black), the moon's disc, the stars (Data/Sky/stars.png, the Yale Bright Star Catalogue), the Milky Way, the towns' glow.",
+  "moon_takes_over_deg": -12.0,
+  "moon_light_of_sun": 0.001,
+  "moon_sky_scale": 0.15,
+  "moon_disc_of_sun": 0.03,
+  "earth_shine": 0.004,
+  "stars_from_deg": -6.0,
+  "stars_full_deg": -15.0,
+  "star_gain": 60.0,
+  "milky_way_gain": 0.6,
+  "moon_washes": 0.6,
+  "sky_glow": 0.08
  }
 }

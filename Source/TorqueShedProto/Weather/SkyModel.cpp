@@ -91,7 +91,11 @@ const NamedNumber Numbers[] = {
 	{"map_gain", &Looks::MapGain}, {"map_rain_mm", &Looks::MapRainMm},
 	{"shaft_rain_mm", &Looks::ShaftRainMm}, {"shaft_full_mm", &Looks::ShaftFullMm}, {"shaft_spacing_m", &Looks::ShaftSpacingM},
 	{"shaft_nearest_m", &Looks::ShaftNearestM}, {"shaft_farthest_m", &Looks::ShaftFarthestM}, {"shaft_most", &Looks::ShaftMost},
-	{"shaft_radius_m", &Looks::ShaftRadiusM}, {"shaft_opacity", &Looks::ShaftOpacity}, {"shaft_light", &Looks::ShaftLight}, {"rainbow_opacity", &Looks::RainbowOpacity},
+	{"shaft_radius_m", &Looks::ShaftRadiusM},
+	{"moon_takes_over_deg", &Looks::MoonTakesOverDeg}, {"moon_light_of_sun", &Looks::MoonLightOfSun}, {"moon_sky_scale", &Looks::MoonSkyScale},
+	{"moon_disc_of_sun", &Looks::MoonDiscOfSun}, {"earth_shine", &Looks::EarthShine}, {"stars_from_deg", &Looks::StarsFromDeg},
+	{"stars_full_deg", &Looks::StarsFullDeg}, {"star_gain", &Looks::StarGain}, {"milky_way_gain", &Looks::MilkyWayGain},
+	{"moon_washes", &Looks::MoonWashes}, {"sky_glow", &Looks::SkyGlow}, {"shaft_opacity", &Looks::ShaftOpacity}, {"shaft_light", &Looks::ShaftLight}, {"rainbow_opacity", &Looks::RainbowOpacity},
 };
 struct NamedKindFigure { const char* Name; double KindLook::*Field; };
 const NamedKindFigure KindFigures[] = {
@@ -421,6 +425,30 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.SunAngle = std::min(S.SunAngle + L.VeilWidenDeg * Veil + L.GlassWidenDeg * Glass, std::max(L.SunWideDeg, S.SunAngle));
 	S.SunDisc = Clamp01(1.0 - S.SunAngle / std::max(L.DiscHideOverDeg, 1e-3));
 	S.CloudShadows = In.bClouds ? 1.0 - Deck : 0.0;   // (the drawn deck darkens the ground by its own shadow)
+
+	// The night (stage 5): the moon's light once the sun's is gone, the stars and the Milky Way.
+	{
+		const double MoonE = In.MoonElevation;
+		const double Bright = MoonE > -90.0 ? std::pow(10.0, -0.4 * (0.026 * std::fabs(In.MoonPhaseAngle) + 4.0e-9 * std::pow(In.MoonPhaseAngle, 4.0))) : 0.0;
+		const bool bUp = MoonE > 0.5 && E < L.MoonTakesOverDeg;
+		S.MoonTakeover = bUp ? 1.0 : 0.0;
+		// (low, the moon's light comes through more air; under cloud, as the sun's does)
+		const double MoonAir = Smooth(MoonE / 8.0) * (0.4 + 0.6 * Smooth(MoonE / 30.0));
+		const double Night = Smooth((L.MoonTakesOverDeg - E) / 4.0);
+		S.MoonLight = bUp ? L.MoonLightOfSun * Bright * MoonAir * Night * S.SunShare : 0.0;
+		if (bUp)
+		{
+			S.MieScale *= Lerp(1.0, L.MoonSkyScale, Night);
+			S.RayleighScale *= Lerp(1.0, L.MoonSkyScale, Night);
+		}
+		S.MoonDisc = MoonE > -1.0 ? L.MoonDiscOfSun * Bright : 0.0;
+		const double Dark = Smooth((L.StarsFromDeg - E) / std::max(L.StarsFromDeg - L.StarsFullDeg, 0.1));
+		const double Washed = 1.0 - Clamp01(L.MoonWashes) * Bright * Smooth(MoonE / 10.0);
+		const double Sees = In.bClouds ? 1.0 : 1.0 - Clamp01(W.Cloud);   // (drawn clouds hide them themselves)
+		S.Stars = Dark * Sees * (0.6 + 0.4 * Washed);
+		S.MilkyWay = Dark * Dark * Sees * Washed * (1.0 - Smooth((W.Humidity - 85.0) / 15.0) * 0.5) * Smooth((Km - 15.0) / 25.0);
+		S.Glow = L.SkyGlow * (1.0 - S.DayLight);
+	}
 	S.LegacyShadow = In.bClouds ? 1.0 : L.LegacyShadow.At(W.Cloud);
 	return S;
 }
@@ -475,6 +503,7 @@ std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root)
 		Sky.bEvening = J.Flag("evening", false);
 		Sky.Showers = std::clamp(static_cast<int>(J.Num("showers_around", 0.0)), 0, 20);
 		Sky.ShowerRainMm = std::max(J.Num("shower_rain", 4.0), 0.5);
+		Sky.Moon = J.Str("moon");
 		Out.push_back(std::move(Sky));
 	}
 	return Out;

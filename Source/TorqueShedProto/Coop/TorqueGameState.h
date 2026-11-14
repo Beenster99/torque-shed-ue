@@ -245,6 +245,11 @@ private:
 	double SunElevationNow = 30.0, AppliedSunElevation = -1000.0;   // the sun's height, degrees
 	bool bRealSunNow = false;   // the sun is the real one (Real time of day, or the bench)
 	bool bSunHeld = false;      // [test] the bench holds the sun's day and place
+	// The night sky (skies stage 5): the moment (seconds since 1970, UTC) a clock hour stands for, today
+	// (or the bench's day, SkyDay) where the weather is from.
+	int32 SkyDay = -1;
+	double SkyShiftDays = 0.0;   // (a preset sky's moon: the night sky's clock moved this many days)
+	double SkyUnixAt(float ClockHour) const;
 	UPROPERTY(Transient) TObjectPtr<ATorqueSky> Sky;
 	UPROPERTY(Replicated) FVector2D SkyDriftLow = FVector2D::ZeroVector;    // metres east, north
 	UPROPERTY(Replicated) FVector2D SkyDriftMid = FVector2D::ZeroVector;

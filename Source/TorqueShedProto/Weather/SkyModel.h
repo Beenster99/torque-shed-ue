@@ -194,6 +194,21 @@ struct Looks
 	double ShaftLight = 0.012;   // how much of the sun's light a shaft gives back (its grey)
 	// The rainbow drawn at full strength (its opacity).
 	double RainbowOpacity = 0.55;
+
+	// --- The night (stage 5) ---
+	// Once the sun is MoonTakesOverDeg down (its light gone) and the moon is up, the light points at the
+	// moon: MoonLightOfSun of the level's sun at a full moon high up (the real 0.25 lux would be black at
+	// the night's exposure; a moonlit road wants to be seen), less with the phase and near the horizon.
+	// The sky then lit by it is held to MoonSkyScale of its air (a moonlit sky is a deep, dark blue).
+	double MoonTakesOverDeg = -12.0, MoonLightOfSun = 0.001, MoonSkyScale = 0.15;
+	// The moon's disc, nits per lux of the level's sun at full (2,500 nits against 75,000 lux: about 0.03),
+	// and its earthshine (the dark part, of the lit's).
+	double MoonDiscOfSun = 0.03, EarthShine = 0.004;
+	// The stars come out from StarsFromDeg (sun below the horizon) to StarsFullDeg, StarGain nits for
+	// Sirius, the Milky Way MilkyWayGain at its brightest; a bright moon washes out MoonWashes of them.
+	double StarsFromDeg = -6.0, StarsFullDeg = -15.0, StarGain = 60.0, MilkyWayGain = 0.6, MoonWashes = 0.6;
+	// The glow of towns low round the horizon at night, nits (a dark Dales sky: low).
+	double SkyGlow = 0.08;
 };
 
 // Looks from sky_looks.json's text: whatever it names over the defaults. False (with why) when the text
@@ -260,6 +275,13 @@ struct Sky
 	double MistTopAsl = 0.0;     // and its top over the low ground
 	double Rainbow = 0.0;        // how strong a rainbow would be opposite the sun, 0 .. 1
 	double BaseFog = 0.0;        // how close under a closed low base the viewer is, 0 .. 1 (the air thickens into it)
+	// The night (stage 5).
+	double MoonTakeover = 0.0;   // 0 the light is the sun's .. 1 it points at the moon
+	double MoonLight = 0.0;      // the light's brightness then, times the level's sun
+	double MoonDisc = 0.0;       // the moon's disc, nits per lux of the level's sun (times it in the game)
+	double Stars = 0.0;          // how much of the stars shows, 0 .. 1 (times StarGain)
+	double MilkyWay = 0.0;       // and of the Milky Way
+	double Glow = 0.0;           // the towns' glow, nits
 	double LegacyShadow = 1.0;   // MPC_Weather CloudShadow
 };
 
@@ -277,6 +299,9 @@ struct Inputs
 	double ValleyAsl = -1.0;
 	// Rain within the wider ring (stage 4's second grid), mm/h, at its wettest: a shower you can see coming.
 	double RainNear = 0.0;
+	// Stage 5: the moon from here (degrees up; below -90 none) and its phase angle (0 full .. 180 new).
+	double MoonElevation = -99.0;
+	double MoonPhaseAngle = 180.0;
 };
 
 // The sky.
@@ -338,6 +363,9 @@ struct NamedSky
 	// show off a live day): how many, and how heavy (mm/h).
 	int Showers = 0;
 	double ShowerRainMm = 4.0;
+	// The moon to show (the sky's clock moved up to a fortnight to find it): "full", "new", "half" (first
+	// quarter: up in the afternoon and evening), or empty for today's.
+	std::string Moon;
 	bool HasSun() const { return Sun > -90.0; }
 };
 // The presets file's skies, in its order (any without a key or a weather left out).

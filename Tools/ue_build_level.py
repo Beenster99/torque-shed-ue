@@ -284,6 +284,13 @@ SKY_PARAMS = (
     ("MapX", 0.0), ("MapY", 0.0), ("MapSize", 90000.0), ("MapOn", 0.0), ("MapHereLow", 0.0), ("MapHereMid", 0.0),
     ("Rainbow", 0.0),       # how bright the rainbow is drawn, 0 none
     ("ShaftLight", 0.012),  # how much of the sun's light a rain shaft gives back (its grey)
+    # Stage 5, the night: the stars' clock (local sidereal time, degrees) and the latitude; how much of
+    # the stars and the Milky Way shows (nits for Sirius, and at the Milky Way's brightest); the moon
+    # and the sun as unit vectors east / north / up; the moon disc's brightness (nits) and earthshine
+    # (of it); the towns' glow round the horizon (nits).
+    ("Lst", 0.0), ("Lat", 54.3), ("Stars", 0.0), ("MilkyWay", 0.0),
+    ("MoonE", 0.0), ("MoonN", 0.0), ("MoonU", -1.0), ("SunE", 0.0), ("SunN", 0.0), ("SunU", 1.0),
+    ("MoonDisc", 0.0), ("EarthShine", 0.004), ("SkyGlow", 0.0),
 )
 _sky_mpc = None
 
@@ -3551,6 +3558,112 @@ def rainbow_material():
     return g.m
 
 
+# The night sky (stage 5), drawn over the sky on a sphere round the camera: each point of the view turned
+# into right ascension and declination by the stars' clock and the latitude, the stars and the Milky Way
+# read from Data/Sky/stars.png there; the moon a disc lit on its sun side, with earthshine; the towns'
+# glow low round the horizon. (Level x east, y south, z up.)
+STARS_HLSL = r"""
+float3 d = normalize(-View);
+float3 enu = float3(d.x, -d.y, d.z);
+float sl = sin(radians(Lat)), cl = cos(radians(Lat));
+float xm = dot(enu, float3(0.0, -sl, cl));
+float xp = dot(enu, float3(0.0, cl, sl));
+float dec = asin(clamp(xp, -1.0, 1.0));
+float ha = atan2(-enu.x, xm);
+float ra = radians(Lst) - ha;
+float2 uv = float2(frac(ra / 6.28318530718), 0.5 - dec / 3.14159265359);
+float4 t = StarTex.SampleLevel(StarTexSampler, uv, 0);
+float up = enu.z;
+float thick = smoothstep(-0.02, 0.2, up);
+float3 col = pow(t.rgb, 2.2) * Stars * thick + pow(t.a, 2.2) * MilkyWay * float3(0.82, 0.84, 0.92) * thick;
+col += SkyGlow * float3(1.0, 0.62, 0.32) * exp(-max(up, 0.0) * 9.0) * smoothstep(-0.06, 0.0, up);
+float3 m = normalize(float3(MoonE, MoonN, MoonU));
+float3 sun = normalize(float3(SunE, SunN, SunU));
+float cm = dot(enu, m);
+float ang = acos(clamp(cm, -1.0, 1.0));
+float rm = 0.00454;
+[branch] if (ang < rm * 1.6 && MoonDisc > 0.0)
+{
+    float rr = saturate(ang / rm);
+    float3 side = enu - m * cm;
+    float sl2 = length(side);
+    side = sl2 > 1e-7 ? side / sl2 : float3(0.0, 0.0, 1.0);
+    float3 n = -m * sqrt(saturate(1.0 - rr * rr)) + side * rr;
+    float shade = smoothstep(-0.02, 0.06, dot(n, sun));
+    float disc = 1.0 - smoothstep(rm * 0.96, rm * 1.04, ang);
+    float limb = 0.8 + 0.2 * sqrt(saturate(1.0 - rr * rr));
+    // (the seas: a few soft darker patches, fixed to the face we see)
+    float3 east = normalize(cross(float3(0.0, 0.0, 1.0), m) + float3(1e-5, 0.0, 0.0));
+    float3 north = cross(m, east);
+    float2 f = float2(dot(side, east), dot(side, north)) * rr;
+    float seas = 1.0 - 0.25 * exp(-dot(f - float2(-0.25, 0.3), f - float2(-0.25, 0.3)) / 0.04)
+                     - 0.2 * exp(-dot(f - float2(0.2, 0.15), f - float2(0.2, 0.15)) / 0.03)
+                     - 0.18 * exp(-dot(f - float2(-0.1, -0.2), f - float2(-0.1, -0.2)) / 0.05);
+    col += disc * MoonDisc * (shade * limb * seas + EarthShine) * float3(1.0, 0.97, 0.92);
+}
+col += MoonDisc * 0.0015 * exp(-ang / 0.05) * float3(0.9, 0.92, 1.0) * thick;
+return col;
+"""
+
+
+def stars_texture():
+    """Data/Sky/stars.png (Tools/make_stars.py): the stars (RGB) and the Milky Way (A), linear, no mips
+    (read at full size: faint stars must not be filtered away)."""
+    f = os.path.join(os.path.dirname(data_dir()), "Sky", "stars.png")
+    if not os.path.exists(f):
+        unreal.log_warning("[Torque] no %s: run Tools/make_stars.py" % f)
+        return None
+    t = unreal.AssetImportTask()
+    for k, v in (("filename", f), ("destination_path", TEX_DEST + "/Sky"), ("destination_name", "T_Stars"),
+                 ("automated", True), ("replace_existing", True), ("save", False)):
+        t.set_editor_property(k, v)
+    asset_tools.import_asset_tasks([t])
+    tex = unreal.load_asset(TEX_DEST + "/Sky/T_Stars")
+    if tex:
+        tex.set_editor_property("srgb", False)
+        try_set(tex, "compression_settings", unreal.TextureCompressionSettings.TC_BC7)
+        try_set(tex, "mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        try_set(tex, "never_stream", True)
+        unreal.EditorAssetLibrary.save_loaded_asset(tex)
+    return tex
+
+
+def stars_material():
+    """M_RideStars (skies stage 5): the stars, the Milky Way, the moon and the towns' glow, added over
+    the sky on a sphere round the camera (behind the cirrus and the cloud: cloud fogging on). None if it
+    didn't go together."""
+    tex = stars_texture()
+    if tex is None or sky_mpc() is None:
+        return None
+    g = Graph(new_material("M_RideStars"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_ADDITIVE), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT),
+                 ("two_sided", True)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    for k in ("apply_cloud_fogging", "compute_fog_per_pixel"):
+        try_set(g.m, k, True)
+    names = ("View", "Lat", "Lst", "Stars", "MilkyWay", "SkyGlow", "MoonE", "MoonN", "MoonU", "SunE", "SunN", "SunU",
+             "MoonDisc", "EarthShine", "StarTex")
+    c = _custom(g, STARS_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, names)
+    link(g.node(unreal.MaterialExpressionCameraVectorWS), c, "View")
+    for n in names[1:-1]:
+        link(sky_param(g, n), c, n)
+    link(g.node(unreal.MaterialExpressionTextureObject, texture=tex), c, "StarTex")
+    if not mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR):
+        bad.append("emissive")
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] stars material M_RideStars NOT used: %s" % "; ".join(bad))
+        return None
+    log("stars material M_RideStars made")
+    return g.m
+
+
 def _sky_prop(label, tag, mesh_path, mat, scale):
     mesh = unreal.load_asset(mesh_path)
     if mat is None or mesh is None:
@@ -3578,8 +3691,9 @@ def _sky_prop(label, tag, mesh_path, mat, scale):
 
 
 def rain_shafts_and_rainbow(reuse=False):
-    """Stage 4's pieces ATorqueSky moves about: 8 rain shafts (cylinders tagged TorqueRainShaft) and
-    the rainbow (a sphere round the camera tagged TorqueRainbow), hidden until it uses them."""
+    """Stage 4's and 5's pieces ATorqueSky moves about: 8 rain shafts (cylinders tagged TorqueRainShaft),
+    the rainbow (a sphere round the camera tagged TorqueRainbow) and the star dome (TorqueStarDome),
+    hidden until it uses them."""
     shaft = unreal.load_asset(MAT_DIR + "/M_RideRainShaft") if reuse else rain_shaft_material()
     bow = unreal.load_asset(MAT_DIR + "/M_RideRainbow") if reuse else rainbow_material()
     n = 0
@@ -3588,6 +3702,13 @@ def rain_shafts_and_rainbow(reuse=False):
             n += 1
     b = _sky_prop("Rainbow", "TorqueRainbow", "/Engine/BasicShapes/Sphere", bow, (4000.0, 4000.0, 4000.0))
     log("rain shafts placed: %d; rainbow %s" % (n, "placed" if b else "NOT placed"))
+    # The night sky (stage 5): a sphere 50 km round the camera, drawn before the cirrus sheet (which
+    # covers it) and behind the cloud.
+    stars = unreal.load_asset(MAT_DIR + "/M_RideStars") if reuse else stars_material()
+    dome = _sky_prop("StarDome", "TorqueStarDome", "/Engine/BasicShapes/Sphere", stars, (100000.0, 100000.0, 100000.0))
+    if dome:
+        try_set(dome.get_component_by_class(unreal.StaticMeshComponent), "translucency_sort_priority", -20)
+    log("star dome %s" % ("placed" if dome else "NOT placed"))
 
 
 def sky_and_camera(reuse_cloud_shadow=False):

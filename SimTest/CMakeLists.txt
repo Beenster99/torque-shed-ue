@@ -142,7 +142,7 @@ endif()
 
 # The sky (skies plan): the light table, the sun through cloud, the air, the cloud layers, and the
 # recorded days (Data/Sky/days) read as the live feed's answers.
-add_executable(sky_test sky_test.cpp ${WEATHER}/SkyModel.cpp ${WEATHER}/WeatherModel.cpp ${FIT}/FitJson.cpp)
+add_executable(sky_test sky_test.cpp ${WEATHER}/SkyModel.cpp ${WEATHER}/NightSky.cpp ${WEATHER}/WeatherModel.cpp ${FIT}/FitJson.cpp)
 target_include_directories(sky_test PRIVATE ${WEATHER} ${FIT})
 target_compile_definitions(sky_test PRIVATE TORQUE_SKY_DATA="${CMAKE_CURRENT_SOURCE_DIR}/../Data/Sky")
 if(MSVC)

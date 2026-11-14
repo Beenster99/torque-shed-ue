@@ -2,6 +2,7 @@
 // longer overcast), twilight, the air across the whole range of visibility, the cloud layer drawn, the
 // presets' light kept as it always was, the shipped looks file, and the recorded days.
 #include "SkyModel.h"
+#include "NightSky.h"
 #include "WeatherModel.h"
 #include "FitJson.h"
 
@@ -517,6 +518,67 @@ int main()
 		Check(!PaintWeatherMap(None, 54.3, -2.2, L4).Valid() && FindRainShafts(None, 54.3, -2.2, L4).empty(), "no grids (not live): no map, no shafts");
 	}
 
+	std::printf("\nStage 5: the moon and the stars' clock\n");
+	{
+		auto Sep = [](double E1, double B1, double E2, double B2) {
+			const double R = 3.14159265358979 / 180.0;
+			const double C = std::sin(E1 * R) * std::sin(E2 * R) + std::cos(E1 * R) * std::cos(E2 * R) * std::cos((B1 - B2) * R);
+			return std::acos(std::max(-1.0, std::min(1.0, C))) / R;
+		};
+		// The total solar eclipse of 8 April 2024, totality over Dallas (32.78 N, 96.80 W) at 18:40 UT: the moon on the sun.
+		const double Eclipse = 1712601600.0;
+		const TorqueNight::Moon Mo = TorqueNight::MoonAt(Eclipse, 32.78, -96.80);
+		double SunE = 0.0, SunB = 0.0;
+		TorqueNight::HorizonOf(Mo.SunRaDeg, Mo.SunDecDeg, Eclipse, 32.78, -96.80, SunE, SunB);
+		std::printf("  eclipse: moon %.2f / %.2f, sun %.2f / %.2f (%.2f apart), lit %.3f\n", Mo.Elevation, Mo.Bearing, SunE, SunB, Sep(Mo.Elevation, Mo.Bearing, SunE, SunB), Mo.Lit);
+		Check(Sep(Mo.Elevation, Mo.Bearing, SunE, SunB) < 0.3 && Mo.Lit < 0.01, "the moon covers the sun over Dallas at totality on 8 April 2024 (within 0.3 degrees), new");
+		Check(Near(SunE, 64.5, 1.0) && Near(SunB, 182.0, 6.0), "  the sun 64 degrees up, about due south (Dallas' solar noon is 18:29 UT)");
+		// The total lunar eclipse of 14 March 2025, 06:58 UT: full, opposite the sun.
+		const TorqueNight::Moon Full = TorqueNight::MoonAt(1741935480.0, 54.3, -2.2);
+		Check(Full.Lit > 0.999 && Full.Elongation > 178.5, "full and opposite the sun at the lunar eclipse of 14 March 2025");
+		const TorqueNight::Moon Quarter = TorqueNight::MoonAt(1705549980.0, 54.3, -2.2);
+		const TorqueNight::Moon Last = TorqueNight::MoonAt(1706205240.0, 54.3, -2.2);
+		Check(Near(Quarter.Lit, 0.5, 0.04) && Quarter.bWaxing && Last.Lit > 0.99, "first quarter 18 January 2024 half lit and waxing; full on the 25th");
+		Check(Near(TorqueNight::MoonBrightness(0.0), 1.0, 1e-9) && TorqueNight::MoonBrightness(90.0) < 0.15 && TorqueNight::MoonBrightness(90.0) > 0.05,
+			"  a half moon gives about a tenth of a full one's light");
+		// The Pole Star (RA 2h 31m 49s, Dec +89 15' 51\") stands as high as the latitude, any time.
+		bool bPole = true;
+		for (double T = 1.7e9; T < 1.7e9 + 86400.0; T += 3600.0)
+		{
+			double E = 0.0, B = 0.0;
+			TorqueNight::HorizonOf(37.954, 89.264, T, 54.3, -2.2, E, B);
+			bPole = bPole && std::fabs(E - 54.3) < 0.8 && (B < 2.0 || B > 358.0);
+		}
+		Check(bPole, "the Pole Star stands at the latitude (54.3) all night, due north");
+		// The night's rules.
+		const Looks LN;
+		Inputs In;
+		In.Weather = TorqueWeather::Preset(TorqueWeather::Sunny);
+		In.Weather.Cloud = 0.0; In.Weather.LowCloud = 0.0; In.Weather.HighCloud = 0.0;
+		In.bClouds = true;
+		In.MoonPhaseAngle = 0.0;
+		In.MoonElevation = 40.0;
+		In.SunElevation = -20.0;
+		const Sky FullHigh = Compute(In, LN);
+		In.SunElevation = -8.0;
+		const Sky Dusk = Compute(In, LN);
+		In.SunElevation = -20.0; In.MoonPhaseAngle = 90.0;
+		const Sky Half = Compute(In, LN);
+		In.MoonElevation = -10.0;
+		const Sky NoMoon = Compute(In, LN);
+		In.SunElevation = 30.0; In.MoonElevation = 30.0; In.MoonPhaseAngle = 0.0;
+		const Sky Day = Compute(In, LN);
+		Check(FullHigh.MoonTakeover == 1.0 && Near(FullHigh.MoonLight, LN.MoonLightOfSun, 1e-4) && Dusk.MoonTakeover == 0.0,
+			"a full moon high at night takes the light; not while the sun's twilight lasts");
+		Check(Half.MoonLight < 0.15 * FullHigh.MoonLight && NoMoon.MoonLight == 0.0 && NoMoon.MoonTakeover == 0.0, "  a half moon gives a tenth; no moon, none");
+		Check(FullHigh.RayleighScale < 0.3 && FullHigh.MieScale < 0.3, "  the sky it lights stays a dark blue (its air held down)");
+		Check(NoMoon.Stars > 0.99 && NoMoon.MilkyWay > 0.9 && FullHigh.Stars < 0.8 && FullHigh.MilkyWay < 0.5 && Dusk.Stars < 0.3 && Day.Stars == 0.0,
+			"the stars and the Milky Way at a moonless night; washed by a full moon; none by day, few at dusk");
+		Check(Day.MoonDisc > 0.0 && Day.MoonTakeover == 0.0, "  the moon's disc shows by day too (its light doesn't)");
+		// Sidereal time: J2000.0 (2000-01-01 12:00 UT) at Greenwich is 280.46 degrees.
+		Check(Near(TorqueNight::SiderealDeg(946728000.0, 0.0), 280.46, 0.01), "  the stars' clock at J2000");
+	}
+
 	std::printf("\nThe preset skies (Data/Sky/presets.json, Settings > Gameplay > Preset sky)\n");
 	{
 		TorqueFit::Json Root;
@@ -545,7 +607,7 @@ int main()
 		Check(bDays, "  the recorded days it names are there");
 		const NamedSky* Fog = FindSky(Skies, "valley_fog");
 		const NamedSky* Gold = FindSky(Skies, "golden_hour");
-		Check(Fog && Fog->HasSun() && !Fog->bEvening && Gold && Gold->bEvening && FindSky(Skies, "cumulus") && !FindSky(Skies, "cumulus")->HasSun(),
+		Check(Fog && Fog->HasSun() && !Fog->bEvening && Gold && Gold->bEvening && FindSky(Skies, "full_moon") && FindSky(Skies, "full_moon")->Moon == "full" && FindSky(Skies, "cumulus") && !FindSky(Skies, "cumulus")->HasSun(),
 			"  dawn and evening skies move the clock; the rest keep it");
 		const NamedSky* Far = FindSky(Skies, "distant_showers");
 		Check(Far && Far->Showers == 7 && Far->ShowerRainMm == 5.0, "  showers round about read");

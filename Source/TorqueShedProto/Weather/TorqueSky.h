@@ -16,6 +16,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Weather/SkyModel.h"
+#include "Weather/NightSky.h"
 #include "TorqueSky.generated.h"
 
 class ATorqueGameState;
@@ -38,6 +39,12 @@ public:
 	// rain near (mm/h); below 0, not known.
 	void Apply(const TorqueWeather::State& Weather, double SunElevation, bool bRealSun, double Haze, double GroundAsl, float Open,
 		double ViewAsl = -1.0, double ValleyAsl = -1.0, double RainNear = 0.0);
+	// The night (stage 5): the time the sky stands for (seconds since 1970, UTC) and the place; the game
+	// state sets it with its clock before each Apply. Then: whether the moon gives the light now (the
+	// sun's gone and the moon is up), and where it stands (degrees up, bearing from north).
+	void SetSkyClock(double UnixSeconds, double LatDeg, double LonDeg);
+	bool MoonLightsNow(double SunElevation, double& MoonElevation, double& MoonBearing) const;
+	const TorqueNight::Moon& GetMoon() const { return MoonNow; }
 	// The day's light (0 night .. 1 day) and where the light points (degrees above the horizon) for the
 	// sun at this height: the lamps, the exposure and the haze's glow follow the first.
 	float DayLightAt(double SunElevation) const;
@@ -110,6 +117,14 @@ private:
 	TWeakObjectPtr<AActor> RainbowPtr;
 	float RainbowApplied = -1.0f;
 	void TickRainbow();
+	// Stage 5: the clock and place the night sky stands for, the moon then, and the star dome (a sphere
+	// round the camera tagged TorqueStarDome wearing M_RideStars).
+	bool bSkyClock = false;
+	double SkyUnix = 0.0, SkyLat = 54.3, SkyLon = -2.2;
+	TorqueNight::Moon MoonNow;
+	FVector SunEnu = FVector(0.0, 0.0, 1.0);
+	TWeakObjectPtr<AActor> StarDomePtr;
+	void TickStarDome();
 	// The ground under the viewer from the last Apply (metres above sea level).
 	double GroundAslNow = 0.0;
 	// The camera, where it is on Earth, and the level origin's height above sea level.
