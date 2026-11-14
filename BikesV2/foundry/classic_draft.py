@@ -166,11 +166,41 @@ def own_tank(m):
     m["colours"] = dict(m["colours"], seat="#3a2a20")
 
 
+def lodestar_base():
+    """Lodestar has no naked: its classic takes the cruiser's 45 degree V-twin, double cradle and swingarm,
+    stood up on the classic's wheels, fork and mid footrests (the range's shared pieces)."""
+    from cruiser_draft import lodestar as cruiser
+    c, m = cruiser(), copy.deepcopy(load("hartwell_naked"))
+    m.pop("radiator", None)
+    for k in ("engine", "frame", "swingarm", "colours", "brand", "engine_label", "frame_label"):
+        m[k] = copy.deepcopy(c[k])
+    x = m["engine"]["extras"]
+    m["engine"]["extras"] = [x[0], x[3], x[4], {"pts": [[1004, 792, 1], [1100, 784, 1], [1082, 676, 1], [1012, 690, 1]], "cls": "plastic", "t": 0.6}]
+    m["frame"]["nodes"]["B"] = [668, 792]
+    m["frame"]["nodes"]["D1"] = [1056, 446]
+    m["exhaust"] = {"headers": [{"pts": [[1016, 640], [1040, 545], [1036, 410], [1000, 300], [920, 262], [660, 258], [500, 256]], "w": 46, "front": True},
+                                {"pts": [[650, 640], [585, 590], [530, 470], [480, 380], [440, 356]], "w": 46, "front": True}],
+                    "cans": [{"a": [500, 258], "b": [-250, 262], "w": 80, "front": True, "nip": True},
+                             {"a": [440, 356], "b": [-230, 360], "w": 80, "front": True, "nip": True}]}
+    return m
+
+
+def lodestar(m):
+    m["deck"] = {"nose": [650, 802], "tank_pitch": 0.5, "seat_pitch": 2, "seat_unit": True}
+    b = m["body"]
+    # Lodestar's teardrop: full and high at the front, falling to the saddle
+    b["tank"] = [{"pts": [[1066, 908, 1], [1040, 986], [956, 1020], [846, 1004], [752, 962], [684, 900], [640, 840, 1], [652, 796, 1], [1058, 800, 1], [1084, 858]], "cls": "body"},
+                 {"pts": [[1016, 958], [944, 990], [850, 976], [770, 938]], "cls": "hl", "closed": False}]
+    b["caps"] = [{"at": [950, 1018], "r": 16, "cls": "chromef"}]
+    m["shock"] = {"top": [285, 744], "bottom": [60, 370], "twin": True}
+    m["colours"] = dict(m["colours"], seat="#2a1c16", rim="#C9CED3", fork="#C9CED3")
+
+
 HART_TANK = [[1066, 908, 1], [1028, 978], [940, 1010], [838, 1006], [748, 974], [684, 908], [640, 840, 1], [652, 796, 1], [1058, 800, 1], [1084, 858]]
 
 
 def draft(name, spec):
-    base = load(spec["base"])
+    base = spec["base_fn"]() if "base_fn" in spec else load(spec["base"])
     m = copy.deepcopy(base)
     m.pop("kit", None)
     m.update(name=spec["title"], family="Classic", rev="A")
@@ -194,6 +224,7 @@ DRAFTS = {
     "corvano_classic": {"base": "corvano_naked", "title": "Corvano classic (working title K1)", "style": [own_tank], "front_r": 314, "wb_add": 30},
     "kazeda_classic": {"base": "kazeda_naked", "title": "Kazeda classic (working title K1)", "style": [own_tank], "front_r": 314, "wb_add": 30, "deck": {"nose": [672, 850], "tank_pitch": 2}},
     "rheinhart_classic": {"base": "rheinhart_naked", "title": "Rheinhart classic (working title K1)", "style": [own_tank], "front_r": 314, "wb_add": 20},
+    "lodestar_classic": {"base_fn": lodestar_base, "title": "Lodestar classic (working title K1)", "style": [lodestar], "front_r": 314, "wb_add": 50},
 }
 
 if __name__ == "__main__":
