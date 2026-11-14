@@ -1321,6 +1321,47 @@ def definition(model, c):
                 pts.append((x0 + (x1 - x0) * u, sg * w * f_, zc + h * (1 - f_ ** spec["n"]) ** (1 / spec["n"]) + 0.5))
             if len(pts) > 3:
                 smooth_tube(f"seam{sg}", pts, 2.4, mat("seat"))
+    # crankcase: a ring of bolts round each side, a filler cap and a sight glass
+    case = shapes.dense(eng["case"], True, 0.9)
+    ccx, ccz = sum(q[0] for q in case) / len(case), sum(q[1] for q in case) / len(case)
+    step = max(1, len(case) // 14)
+    for sg in (-1, 1):
+        y0 = sg * (wide / 2 - 26)
+        for k, q in enumerate(case[::step]):
+            d_ = math.hypot(q[0] - ccx, q[1] - ccz) or 1.0
+            b_ = (q[0] - (q[0] - ccx) / d_ * 40, q[1] - (q[1] - ccz) / d_ * 40)
+            cone(f"casebolt{sg}{k}", P(b_, y0), P(b_, y0 + sg * 9), 5.5, 5.5, steel, 6)
+    cone("oilcap", (crank[0] - 150, wide / 2 - 30, crank[1] + 70), (crank[0] - 150, wide / 2 - 4, crank[1] + 70), 17, 15, mat("alu"), 12)
+    cone("sightglass", (crank[0] - 120, -wide / 2 + 24, crank[1] - 70), (crank[0] - 120, -wide / 2 + 14, crank[1] - 70), 13, 13, mat("lens"), 20)
+    # axle nuts and the swingarm pivot caps: hexagons, not bare tube ends
+    for sg in (-1, 1):
+        cone(f"axlenut_f{sg}", (F[0], sg * 124, F[1]), (F[0], sg * 138, F[1]), 15, 15, steel, 6)
+        cone(f"axlenut_r{sg}", (c["A"][0], sg * 150, c["A"][1]), (c["A"][0], sg * 164, c["A"][1]), 17, 17, steel, 6)
+        cone(f"pivotcap{sg}", (piv[0], sg * 176, piv[1]), (piv[0], sg * 186, piv[1]), 15, 13, mat("alu"), 6)
+    # bodywork: a shut line along the waist of the tail and a round badge on each side of the tank
+    for part, f_y in (("tail", 1.0), ("tank", 1.0)):
+        shp = next((s_ for s_ in body.get(part, []) if s_.get("cls") == "body" and "pts" in s_), None)
+        if not shp:
+            continue
+        outline = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
+        xs = [q[0] for q in outline]
+        x0, x1, spec = min(xs), max(xs), WIDTHS[part]
+
+        def side(u, dz=0.0):
+            tb = shapes.top_bottom(outline, x0 + (x1 - x0) * u)
+            w = shapes.lerp_table(spec["w"], u) * (0.3 + 0.7 * math.sqrt(1.0 - (1.0 - min(1.0, min(u, 1 - u) / 0.1)) ** 2))
+            return (x0 + (x1 - x0) * u, w, (tb[0] + tb[1]) / 2 + dz) if tb else None
+        for sg in (-1, 1):
+            if part == "tail":
+                pts = [side(k / 100) for k in range(14, 90, 6)]
+                pts = [(q[0], sg * (q[1] - 0.5), q[2]) for q in pts if q]
+                if len(pts) > 3:
+                    smooth_tube(f"shutline{sg}", pts, 1.6, dark)
+            else:
+                q = side(0.56, 14)
+                if q:
+                    cone(f"badge{sg}", (q[0], sg * (q[1] - 9), q[2]), (q[0], sg * (q[1] + 1.5), q[2]), 24, 22, mat("chrome"), 32)
+                    cone(f"badgein{sg}", (q[0], sg * (q[1] + 1.5), q[2]), (q[0], sg * (q[1] + 2.5), q[2]), 18, 17, mat("paint", c["body_c"]), 32)
 
 
 def studio(scene):
@@ -1337,6 +1378,29 @@ def studio(scene):
         L.data.energy, L.data.size, L.data.shape = energy, size, "DISK"
         L.rotation_euler = _look(loc, (0.7, 0, 0.6))
     if DETAIL["on"]:
+        # outdoors: sky light and a tarmac floor, so the bike is judged in the kind of light the game has
+        try:
+            nt = w.node_tree
+            sky = nt.nodes.new("ShaderNodeTexSky")
+            for k_, v_ in (("sun_elevation", math.radians(38)), ("sun_rotation", math.radians(235)), ("sun_intensity", 0.35)):
+                if hasattr(sky, k_):
+                    setattr(sky, k_, v_)
+            nt.links.new(sky.outputs[0], nt.nodes["Background"].inputs[0])
+            nt.nodes["Background"].inputs[1].default_value = 0.22
+        except Exception as ex:      # no sky texture in this Blender: keep the plain studio world
+            print("sky skipped:", ex)
+        fm = bpy.data.materials.new("tarmac")
+        fm.use_nodes = True
+        fb = fm.node_tree.nodes["Principled BSDF"]
+        fb.inputs["Base Color"].default_value = (0.02, 0.02, 0.022, 1)
+        fb.inputs["Roughness"].default_value = 0.86
+        nz, bp = fm.node_tree.nodes.new("ShaderNodeTexNoise"), fm.node_tree.nodes.new("ShaderNodeBump")
+        nz.inputs["Scale"].default_value, nz.inputs["Detail"].default_value = 260.0, 8.0
+        bp.inputs["Strength"].default_value, bp.inputs["Distance"].default_value = 0.6, 0.004
+        fm.node_tree.links.new(nz.outputs["Fac"], bp.inputs["Height"])
+        fm.node_tree.links.new(bp.outputs["Normal"], fb.inputs["Normal"])
+        floor = next(o for o in scene.objects if o.type == "MESH" and o.data.materials and o.data.materials[0].name.startswith("floor"))
+        floor.data.materials[0] = fm
         # long softboxes overhead and to the side, so paint, chrome and glass have something real to reflect
         for loc, size, energy in (((0.7, 0.0, 3.6), (5.0, 0.7), 70), ((0.7, 3.2, 1.4), (4.2, 0.45), 36), ((3.8, -0.6, 1.2), (0.5, 2.4), 18)):
             bpy.ops.object.light_add(type="AREA", location=loc)
