@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <map>
 #include <set>
 
@@ -40,6 +41,57 @@ std::string CellsAreaId(const std::vector<CellId>& Cells)
 	std::string Out = "area:@";
 	for (size_t I = 0; I < Cells.size(); ++I) Out += (I > 0 ? "," : "") + Cells[I].Name();
 	return Out;
+}
+
+void CoastsOf(const Json& Sketch, HeightStore& Heights)
+{
+	// (each cell's "land": "all", "none", or {"rings": [...], "holes": [...]}, each ring [lat, lon, dlat,
+	// dlon, ...] in 1e-5 degrees, the first point whole and each after it a step: coast_bake.py)
+	const Json* Land = Sketch.Get("land");
+	if (Land == nullptr || !Land->IsObject()) return;
+	for (const auto& Kv : Land->O)
+	{
+		const size_t Cut = Kv.first.find('_');
+		if (Cut == std::string::npos) continue;
+		const CellId C{std::atoi(Kv.first.c_str()), std::atoi(Kv.first.c_str() + Cut + 1)};
+		auto L = std::make_shared<HeightStore::CoastLand>();
+		if (Kv.second.IsString()) L->Kind = Kv.second.S == "none" ? HeightStore::CoastLand::AllSea : HeightStore::CoastLand::AllLand;
+		else if (Kv.second.IsObject())
+		{
+			L->Kind = HeightStore::CoastLand::Edged;
+			for (const auto& Which : {std::make_pair("rings", &L->Rings), std::make_pair("holes", &L->Holes)})
+				if (const Json* Rs = Kv.second.Get(Which.first))
+					for (const Json& R : Rs->A)
+					{
+						std::vector<std::pair<double, double>> Ring;
+						long long Lat = 0, Lon = 0;
+						for (size_t K = 0; K + 1 < R.A.size(); K += 2)
+						{
+							Lat += static_cast<long long>(R.A[K].N);
+							Lon += static_cast<long long>(R.A[K + 1].N);
+							Ring.emplace_back(double(Lat) * 1e-5, double(Lon) * 1e-5);
+						}
+						if (Ring.size() >= 3) Which.second->push_back(std::move(Ring));
+					}
+		}
+		else continue;
+		Heights.KnowCoast(C, L);
+	}
+}
+
+void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, size_t MostBlocks)
+{
+	const std::shared_ptr<const WorldIndex> Idx = Store.IndexNow();
+	if (!Idx) return;
+	std::set<std::string> Blocks;
+	for (const CellId& C : Cells) Blocks.insert(std::to_string(C.Row / 20) + "_" + std::to_string(C.Col / 20));
+	if (Blocks.size() > MostBlocks) return;
+	for (const std::string& Block : Blocks)
+	{
+		if (Heights.CoastBlockRead(Block)) continue;
+		Json Sk;
+		if (Store.Kept(CellStore::EKind::Sketches, Block, *Idx, Sk)) CoastsOf(Sk, Heights);
+	}
 }
 
 bool LoadCells(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, LoadedArea& Out, std::string* Why)
@@ -89,6 +141,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		{
 			Json Sk;
 			if (!Store.Kept(CellStore::EKind::Sketches, Block, *Idx, Sk)) Sk = Json::MakeObject();
+			if (!Heights.CoastBlockRead(Block)) CoastsOf(Sk, Heights);
 			Sketches[Block] = std::move(Sk);
 		}
 		if (const Json* Sp = Sketches[Block].Get("spans"))
@@ -130,6 +183,7 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 int FetchGround(CellStore& Store, HeightStore& Heights, const Terrain& Ride, const std::function<void(int, int)>& Progress)
 {
 	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	KnowCoasts(Store, Heights, Ride.CellsUnderRide());
 	for (const CellId& C : Ride.CellsUnderRide())
 	{
 		if (Heights.SeaIn(C) >= 0) continue;
@@ -152,6 +206,7 @@ int FetchKeys(CellStore& Store, HeightStore& Heights, const std::vector<TileKey>
 	}
 	if (Want.empty()) return 0;
 	const std::shared_ptr<const WorldIndex> Idx = Store.Index();
+	KnowCoasts(Store, Heights, std::vector<CellId>(Under.begin(), Under.end()));
 	for (const CellId& C : Under)
 	{
 		if (Heights.SeaIn(C) >= 0) continue;

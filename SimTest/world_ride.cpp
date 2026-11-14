@@ -12,6 +12,8 @@
 #include "WorldRide.h"
 #include "WorldRoadLine.h"
 #include "WorldRoute.h"
+#include "WorldRouteMap.h"
+#include <set>
 
 #include <atomic>
 #include <functional>
@@ -166,6 +168,43 @@ int main(int Argc, char** Argv)
 	if (const char* Fixtures = std::getenv("WORLD_RIDE_GROUND")) GGround = Fixtures;
 	HeightStore Heights;
 	Heights.Disk = Files::Join(Root, "heights");
+	// [build 147] WORLD_RIDE_MAP=lat,lon,zoom[,file.ppm]: the route planner's relief there (with the
+	// coast known, as the game draws it) and how much of it is sea; WORLD_RIDE_MAP_NOCOAST=1 without.
+	if (const char* MapAt = std::getenv("WORLD_RIDE_MAP"))
+	{
+		Route::MapView V;
+		char File[512] = {0};
+		if (std::sscanf(MapAt, "%lf,%lf,%lf,%511s", &V.Lat, &V.Lon, &V.Zoom, File) < 3) { std::printf("WORLD_RIDE_MAP=lat,lon,zoom[,file]\n"); return 2; }
+		V.W = 1024; V.H = 768;
+		const std::vector<TileKey> Keys = V.Tiles();
+		if (std::getenv("WORLD_RIDE_MAP_NOCOAST") == nullptr)
+		{
+			std::set<CellId> Under;
+			for (const TileKey& K : Keys)
+				for (const CellId& C : CellsUnder(K)) Under.insert(C);
+			Cells.IndexNow();
+			KnowCoasts(Cells, Heights, std::vector<CellId>(Under.begin(), Under.end()), 24);
+		}
+		Heights.Fetch(Keys, Cells.Get, 6);
+		std::vector<uint8_t> Px;
+		Route::DrawRelief(Heights, V, Px);
+		size_t Sea = 0, All = 0;
+		for (int J = 0; J < V.H; ++J)
+			for (int I = 0; I < V.W; ++I)
+			{
+				++All;
+				const uint8_t* C = &Px[(size_t(J) * size_t(V.W) + size_t(I)) * 4];
+				if (C[0] > C[1] && C[0] > C[2] + 30) ++Sea;   // (blue: B over G and R)
+			}
+		std::printf("Map at %.4f, %.4f zoom %.1f: %zu tiles, sea %.1f%% of it\n", V.Lat, V.Lon, V.Zoom, Keys.size(), 100.0 * double(Sea) / double(All));
+		if (File[0] != 0)
+		{
+			std::string Ppm = "P6\n" + std::to_string(V.W) + " " + std::to_string(V.H) + "\n255\n";
+			for (size_t P = 0; P < size_t(V.W) * size_t(V.H); ++P) { Ppm += char(Px[P * 4 + 2]); Ppm += char(Px[P * 4 + 1]); Ppm += char(Px[P * 4]); }
+			Files::Write(File, Ppm);
+		}
+		return 0;
+	}
 	// [stage 8] WORLD_RIDE_JOURNEYS=<a file of journeys, as the famous roads'> plans each in turn (the
 	// Land's End to John o' Groats legs): how far, how long to plan, the bridges and the thin data.
 	// WORLD_RIDE_FROM=n starts at the nth (1 the first).

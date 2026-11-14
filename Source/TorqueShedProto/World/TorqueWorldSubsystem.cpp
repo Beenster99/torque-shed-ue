@@ -29,6 +29,7 @@
 #include "World/WorldFiles.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
+#include <set>
 #include "World/WorldRide.h"
 #include "World/TorqueRideWorld.h"
 
@@ -431,6 +432,13 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		};
 		// What is on disk at once, then again with the tiles that weren't.
 		const std::vector<TorqueWorld::TileKey> Keys = View.Tiles();
+		// [build 147] Where the coast is, so low land (the Fens) isn't drawn as sea.
+		{
+			std::set<TorqueWorld::CellId> Under;
+			for (const TorqueWorld::TileKey& K : Keys)
+				for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
+			TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24);
+		}
 		bool bAll = true;
 		for (const TorqueWorld::TileKey& K : Keys) bAll = bAll && Held->Heights.Has(K);
 		TArray<uint8> First = Draw();
