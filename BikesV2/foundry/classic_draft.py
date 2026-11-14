@@ -49,7 +49,15 @@ def stance(m, base, front_r=FRONT_R, wb_add=0):
     # every classic carries the round lamp and twin clocks (the Hartwell's), set on its own fork
     h = load("hartwell_naked")
     ht = fork_top(h["geometry"], h["wheels"]["front"]["tyre_r"], h["fork"]["length"])
-    fe = [move(s, b[0] - ht[0] - 4, b[1] - ht[1] + 14) for s in h["front_end"] if s.get("part") == "head"]
+    fe = [move(s, b[0] - ht[0] - 6, b[1] - ht[1] + 22) for s in h["front_end"] if s.get("part") == "head"]
+    # a larger lamp than the naked's, with a little peak over the lens
+    bowl = next(s for s in fe if s.get("round"))["pts"]
+    cx, cz = sum(q[0] for q in bowl) / len(bowl) + 20, sum(q[1] for q in bowl) / len(bowl)
+    for s in fe:
+        if "pts" in s:
+            s["pts"] = [[round(cx + (q[0] - cx) * 1.22, 1), round(cz + (q[1] - cz) * 1.22, 1)] + q[2:] for q in s["pts"]]
+    lx, lz = next(s for s in fe if s.get("cls") == "lens")["pts"][0][:2]
+    fe.append({"pts": [[lx - 22, lz + 6, 1], [lx + 36, lz - 8, 1], [lx + 34, lz - 17, 1], [lx - 4, lz - 6, 1]], "cls": "chromef", "t": 0.3, "part": "head"})
     for s in base["front_end"]:
         if s.get("part") == "head":
             continue
@@ -58,6 +66,16 @@ def stance(m, base, front_r=FRONT_R, wb_add=0):
             if s.get("tube") and abs(s["pts"][0][0] - a[0]) < 3 and abs(s["pts"][0][1] - a[1]) < 3:
                 s2["pts"][0] = [round(b[0], 1), round(b[1], 1)]      # the riser still starts on the top yoke
             fe.append(s2)
+    # classic mirrors: round, larger, on a taller stalk (beenster, 14 Nov)
+    for s in fe:
+        if s.get("mirror"):
+            c = [sum(q[0] for q in s["pts"]) / len(s["pts"]), sum(q[1] for q in s["pts"]) / len(s["pts"])]
+            n = [c[0] - 6, c[1] + 78]
+            for t_ in fe:
+                if t_.get("tube") and math.hypot(t_["pts"][-1][0] - c[0], t_["pts"][-1][1] - c[1]) < 45:
+                    t_["pts"][-1] = [round(n[0] + 4, 1), round(n[1] - 40, 1)]
+            s["pts"] = [[round(n[0] + 56 * math.cos(math.radians(k * 30)) * 0.62, 1), round(n[1] + 56 * math.sin(math.radians(k * 30)), 1)] for k in range(12)]
+            s["cls"], s["t"] = "chromef", 1.0
     m["front_end"] = fe
     m["front_caliper"] = [[p[0] + wb_add, p[1] + FRONT_R - r0] + p[2:] for p in base["front_caliper"]]
     wb = m["geometry"]["wheelbase"]
@@ -67,21 +85,31 @@ def stance(m, base, front_r=FRONT_R, wb_add=0):
 def bench(m):
     """The classic's flat ribbed bench seat, rear mudguard, side covers and twin shocks."""
     b = m["body"]
-    b["seat"] = [{"pts": [[668, 846, 1], [630, 846], [560, 842], [430, 840], [250, 846], [60, 854], [-40, 852], [-72, 838, 1], [-68, 802, 1], [60, 796], [250, 788], [430, 782], [560, 780], [662, 800, 1]], "cls": "seat"}]
-    b["seat"] += [{"pts": [[x, 843], [x - 6, 792]], "cls": "stitch", "closed": False} for x in range(20, 600, 58)]
-    # a long substantial tail under the seat that turns down behind it to meet the rear mudguard
-    # (beenster, 14 Nov: the rear mudguard is integrated into the tail; one look, two parts in the game)
-    b["tail"] = [{"pts": [[480, 792, 1], [300, 794], [60, 802], [-72, 804], [-150, 790], [-230, 742], [-300, 652], [-344, 542], [-352, 470, 1], [-330, 468, 1],
-                          [-320, 540], [-278, 640], [-212, 712], [-138, 752], [-60, 762], [60, 756], [250, 748], [480, 744, 1]], "cls": "body", "t": 0.6},
-                 {"pts": [[-246, 742, 1], [-284, 724, 1], [-306, 684, 1], [-280, 696, 1]], "cls": "redlens", "t": 0.3}]
+    # a distinct two-seater: the rider's seat dips, then steps up to the pillion pad (beenster, 14 Nov)
+    b["seat"] = [{"pts": [[668, 846, 1], [600, 838], [500, 832], [400, 836], [345, 848], [305, 868], [200, 874], [40, 874], [-50, 868], [-78, 850, 1],
+                          [-76, 760, 1], [60, 752], [250, 750], [430, 752], [560, 756], [662, 790, 1]], "cls": "seat"},
+                 {"pts": [[640, 828], [500, 816], [400, 820], [350, 832]], "cls": "stitch", "closed": False},
+                 {"pts": [[338, 850], [326, 756]], "cls": "stitch", "closed": False},
+                 {"pts": [[290, 858], [200, 862], [40, 862], [-40, 856]], "cls": "stitch", "closed": False}]
+    # the rear mudguard is integrated into the tail: one sweep from under the seat down behind the wheel,
+    # close over the tyre (one look, two parts in the game)
+    b["tail"] = [{"pts": [[480, 762, 1], [300, 758], [60, 760], [-76, 764, 1], [-100, 726], [-172, 690], [-261, 633], [-333, 555], [-376, 474, 1], [-352, 464, 1],
+                          [-311, 540], [-244, 613], [-161, 666], [-66, 696], [60, 708], [250, 714], [400, 722], [480, 736, 1]], "cls": "body", "t": 0.6},
+                 {"pts": [[-205, 692, 1], [-246, 670, 1], [-262, 634, 1], [-232, 652, 1]], "cls": "redlens", "t": 0.3}]
     b["behind"] = []
-    b["plate_hanger"] = []
-    m["fit"] = dict(m.get("fit", {}), plate_hanger=False)
-    b["panels"] = [{"pts": [[640, 800, 1], [560, 776], [450, 776], [420, 750, 1], [470, 650], [555, 600, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7}]
+    # support struts for both mudguards, and the plate under the rear one
+    wb = m["geometry"]["wheelbase"]
+    fr = m["wheels"]["front"]["tyre_r"]
+    b["plate_hanger"] = [{"tube": 10, "pts": [[285, 744], [-250, 622]], "cls": "steelt", "front": True},
+                         {"tube": 9, "pts": [[wb - 8, fr + 30], [wb - 290, fr + 172]], "cls": "steelt", "front": True},
+                         {"tube": 9, "pts": [[wb + 8, fr + 30], [wb + 222, fr + 262]], "cls": "steelt", "front": True},
+                         {"pts": [[-372, 468, 1], [-388, 474, 1], [-420, 384, 1], [-404, 378, 1]], "cls": "plate", "t": 0}]
+    m["fit"] = dict(m.get("fit", {}), plate_hanger=True)
+    b["panels"] = [{"pts": [[640, 772, 1], [560, 756], [450, 756], [420, 736, 1], [470, 650], [555, 600, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7}]
     sw = m["swingarm"]
     if sw.get("cls") == "alu" and not sw.get("shaft"):      # a two-sided swingarm takes the classic pair of shocks
-        m["shock"] = {"top": [285, 764], "bottom": [95, 398], "twin": True}
-    for n_, v in (("S1", [430, 800]), ("S2", [-30, 796]), ("S3", [300, 762]), ("S4", [250, 784])):
+        m["shock"] = {"top": [285, 744], "bottom": [95, 398], "twin": True}
+    for n_, v in (("S1", [430, 800]), ("S2", [-40, 752]), ("S3", [300, 742]), ("S4", [250, 784])):
         if n_ in m["frame"]["nodes"]:
             m["frame"]["nodes"][n_] = v
 
@@ -90,7 +118,7 @@ def flat_pipes(m):
     """Classic exhausts run flat and low to a plain chrome silencer drawn in at the end (beenster, 14 Nov)."""
     ex = m["exhaust"]
     end = ex["headers"][0]["pts"][-1]
-    if end[1] < 450 and ex.get("side") != "under":
+    if end[1] < 450 and ex.get("side") != "under" and not any(c.get("nip") for c in ex.get("cans", [])):
         z = min(max(end[1], 300), 345)
         ex["cans"] = [{"a": [end[0], z], "b": [-250, z - 6], "w": 84, "front": True, "nip": True}]
 
@@ -108,8 +136,9 @@ def hartwell(m):
     for cy in m["engine"]["cylinders"]:
         cy["fins"] = True
     m.pop("radiator", None)
-    for h in m["exhaust"]["headers"]:      # the bigger front wheel needs the pipes' forward sweep pulled back
-        h["pts"] = [[min(q[0], 1004 if q[1] > 400 else 1008) if 340 < q[1] < 480 else q[0]] + q[1:] for q in h["pts"]]
+    # the pipe comes down the front of the engine and then runs flat all the way back past it
+    m["exhaust"] = {"headers": [{"pts": [[985, 600], [992, 510], [1004, 440], [1004, 385], [984, 332], [935, 310], [700, 308], [520, 306]], "w": 44, "front": True}],
+                    "cans": [{"a": [520, 306], "b": [-250, 302], "w": 84, "front": True, "nip": True}]}
     m["colours"] = dict(m["colours"], body="#1F4D3A", seat="#5a3a26", rim="#C9CED3", fork="#C9CED3")
     m["engine_label"], m["frame_label"] = "air-cooled look parallel twin", "steel tube cradle frame"
 
