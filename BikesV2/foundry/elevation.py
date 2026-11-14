@@ -233,7 +233,7 @@ def draw(model):
     col = model["colours"]
     o = sh.o
     o.append(f"<svg class='elev' viewBox='0 0 {W} {H}' role='img' aria-label='{model['name']} side elevation' "
-             f"style='--body:{col['body']};--frame:{col['frame']};--rimc:{col.get('rim', '#2b2d31')};--forkc:{col.get('fork', '#b8975a')};--accent2:{col.get('accent', col['body'])}'>")
+             f"style='--body:{col['body']};--frame:{col['frame']};--rimc:{col.get('rim', '#2b2d31')};--forkc:{col.get('fork', '#b8975a')};--accent2:{col.get('accent', col['body'])};--seatc:{col.get('seat', '#222429')}'>")
     o.append(f"<rect class='paper' x='0' y='0' width='{W}' height='{H}'/>")
     sh.line((-520, 0), (wb + 520, 0), "ground")
 
@@ -442,7 +442,7 @@ CSS = """
 .elev .caliper{fill:var(--forkc);stroke:var(--ink);stroke-width:1.2}
 .elev .body{fill:var(--body);stroke:var(--ink);stroke-width:1.6}.elev .bodyline{fill:none;stroke:var(--ink);stroke-width:.9;opacity:.6}
 .elev .hl{fill:none;stroke:#fff;stroke-width:3;opacity:.28}
-.elev .seat{fill:#222429;stroke:var(--ink);stroke-width:1.4}.elev .stitch{fill:none;stroke:#8a8f95;stroke-width:.8;stroke-dasharray:4 3}
+.elev .seat{fill:var(--seatc,#222429);stroke:var(--ink);stroke-width:1.4}.elev .stitch{fill:none;stroke:#8a8f95;stroke-width:.8;stroke-dasharray:4 3}
 .elev .plastic{fill:#2b2d31;stroke:var(--ink);stroke-width:1.3}.elev .lens{fill:#e9e2b8;stroke:var(--ink);stroke-width:1}.elev .redlens{fill:#b3202a;stroke:var(--ink);stroke-width:1}
 .elev .screen{fill:#5d6b78;fill-opacity:.55;stroke:var(--ink);stroke-width:1.1}.elev .chromef{fill:#dfe3e6;stroke:var(--ink);stroke-width:1}
 .elev .plate{fill:#f1e9a8;stroke:var(--ink);stroke-width:1}

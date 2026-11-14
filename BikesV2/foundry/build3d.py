@@ -558,7 +558,7 @@ def build(model):
         pts = [nodes[n] for n in tb["path"]]
         sub = tb.get("cls") == "sub"
         for s in (-1, 1):
-            p3 = [(p[0], s * (110 if sub and p[0] < 500 else half(p)), p[1]) for p in pts]
+            p3 = [(p[0], s * (fr.get("sub_y", 110) if sub and (p[0] < 500 or "sub_y" in fr) else half(p)), p[1]) for p in pts]
             tube(f"frame{i}{s}", p3, tb["w"] / 2, framem)
     for i, pl in enumerate(fr.get("plates", [])):
         pp = shapes.dense(pl["pts"], True, pl.get("t", 0.6))
@@ -661,7 +661,7 @@ def build(model):
             def at(t, a3=a3, b3=b3):
                 return tuple(a3[k] + (b3[k] - a3[k]) * t for k in range(3))
             cone(f"caninlet{i}{sg}", at(-0.06), at(0.14), rc * 0.42, rc, mat("exhaust"), 36)
-            cone(f"can{i}{sg}", at(0.14), at(0.9), rc, rc, mat("exhaust"), 36)
+            cone(f"can{i}{sg}", at(0.14), at(0.9), rc, rc, mat("exhaust_black" if can.get("dark") else "exhaust"), 36)
             cone(f"canband{i}{sg}", at(0.2), at(0.24), rc + 2.5, rc + 2.5, mat("steel"), 36)
             cone(f"canend{i}{sg}", at(0.9), at(1.0), rc + 2, rc * 0.9, mat("exhaust_black"), 36)
             cone(f"canbore{i}{sg}", at(0.995), at(1.012), rc * 0.6, rc * 0.6, mat("rubber"), 24)
@@ -739,7 +739,7 @@ def build(model):
         shp = body[part][0]
         outline = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
         spec = model.get("widths", {}).get(part, WIDTHS[part])
-        loft(part, outline, spec, mat("seat") if part == "seat" else paint)
+        loft(part, outline, spec, (mat("seat", hex_rgb(col["seat"])) if col.get("seat") else mat("seat")) if part == "seat" else paint)
     for i, shp in enumerate(body.get("tail", [])[1:]):
         if shp["cls"] == "redlens":
             prism(f"taillight{i}", [tuple(p[:2]) for p in shp["pts"]], -45, 45, mat("redlens"), 2)
