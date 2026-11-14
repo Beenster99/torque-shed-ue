@@ -264,7 +264,15 @@ def pillow(name, poly, y0, y1, material, inset=14.0, zone=None, both=True, steps
     return ob
 
 
-def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0):
+def _inside(poly, x, z):
+    hit = False
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        if (a[1] > z) != (b[1] > z) and x < a[0] + (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]):
+            hit = not hit
+    return hit
+
+
+def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0, holes=()):
     """A thin shell whose side view is the outline poly and whose surface sits at y = side * f(x, z):
     a fairing side, drawn as one flat outline, that wraps out round the engine and closes in again
     towards the nose and keel. Built as an even grid between the outline's top and bottom lines."""
@@ -293,6 +301,17 @@ def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0):
     ob = mesh_obj(name, verts, faces, material, True, 0, sharp=False)
     sol = ob.modifiers.new("shell", "SOLIDIFY")
     sol.thickness, sol.offset = thick * MM, -1
+    if holes:      # openings cut clean through the shell: vents, air channels, engine reveals
+        bpy.context.view_layer.objects.active = ob
+        bpy.ops.object.modifier_apply(modifier=sol.name)
+        for n_, h in enumerate(holes):
+            cutter = prism(f"{name}cut{n_}", list(h), side * 30, side * 460, material, 0)
+            bm_fix_normals(cutter)      # outlines are drawn either way round
+            bo = ob.modifiers.new(f"cut{n_}", "BOOLEAN")
+            bo.operation, bo.object, bo.solver = "DIFFERENCE", cutter, "EXACT"
+            bpy.context.view_layer.objects.active = ob
+            bpy.ops.object.modifier_apply(modifier=bo.name)
+            bpy.data.objects.remove(cutter, do_unlink=True)
     return ob
 
 
@@ -844,6 +863,10 @@ def build(model):
                 xf = max(q[0] for q in pp)
                 sport = model["family"].lower() == "sport"
 
+                # the marks drawn on a fairing side (vents, slots) are cut through it in 3D
+                cut_shapes = [v for v in body.get("panels", []) if v.get("draw_only") and v["cls"] == "plastic"] if sport else []
+                cuts = [[tuple(q[:2]) for q in shapes.dense(v["pts"], True, v.get("t", 1.0))] for v in cut_shapes]
+
                 def lead(z, pp=pp):
                     """The fairing's leading edge at height z."""
                     xs_ = [a[0] + (b_[0] - a[0]) * (z - a[1]) / (b_[1] - a[1]) for a, b_ in zip(pp, pp[1:] + pp[:1])
@@ -869,7 +892,8 @@ def build(model):
                         if x < 1040:
                             y -= 26 * min(1.0, (1040 - x) / 420.0)
                         if z < 430:
-                            y = (y + 26 * min(1.0, max(0.0, 1040 - x) / 420.0)) * (0.74 + 0.26 * max(0.0, (z - 140) / 290.0))
+                            u_ = max(0.0, min(1.0, (z - 140) / 290.0))      # the keel pinches in to the wheel's width in a curve
+                            y = 96 + (y + 26 * min(1.0, max(0.0, 1040 - x) / 420.0) - 96) * math.sqrt(1 - (1 - u_) ** 2)
                         elif z > 690:
                             y *= 1 - 0.16 * min(1.0, (z - 690) / 170.0)
                         d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
@@ -878,7 +902,10 @@ def build(model):
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
                 for s in (-1, 1):
-                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16)
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16, holes=cuts)
+                    for n_, (cut, shp_) in enumerate(zip(cuts, cut_shapes)):
+                        if not shp_.get("reveal"):      # an air channel: a dark duct wall set back inside the opening
+                            skin(f"duct{i}{n_}{s}", cut, lambda x, z: wrap(x, z) - 26, s, mat("plastic"), stations=30, rows=12, thick=3.0)
             elif shp.get("cowl"):
                 if model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel

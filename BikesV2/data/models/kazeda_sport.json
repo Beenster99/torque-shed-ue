@@ -1414,7 +1414,8 @@
     ],
     "cls": "plastic",
     "t": 0.4,
-    "draw_only": true
+    "draw_only": true,
+    "reveal": true
    },
    {
     "pts": [
