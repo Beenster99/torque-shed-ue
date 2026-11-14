@@ -86,7 +86,122 @@ def lodestar():
     return m
 
 
-MODELS = {"lodestar_cruiser": lodestar}
+def shifted_engine(name, dx, dz, k=1.0):
+    """A brand's own engine from its naked, moved (and scaled about its crank) to sit in the cruiser chassis."""
+    e = copy.deepcopy(load(name)["engine"])
+    c0 = list(e["crank"])
+
+    def mv(q):
+        return [round(c0[0] + (q[0] - c0[0]) * k + dx, 1), round(c0[1] + (q[1] - c0[1]) * k + dz, 1)] + list(q[2:])
+    e["crank"], e["countershaft"] = mv(e["crank"]), mv(e["countershaft"])
+    e["case"] = [mv(q) for q in e["case"]]
+    for c in e["covers"]:
+        c["c"], c["r"] = mv(c["c"]), round(c["r"] * k, 1)
+    for x in e["extras"]:
+        x["pts"] = [mv(q) for q in x["pts"]]
+    if "boxer" in e:
+        e["boxer"]["at"], e["boxer"]["r"] = mv(e["boxer"]["at"]), round(e["boxer"]["r"] * k, 1)
+        e["boxer"]["cover"] = [mv(q) for q in e["boxer"]["cover"]]
+    return e
+
+
+def cast_wheels(m, donor, front_rim, rear_rim):
+    d = load(donor)["wheels"]
+    for end, rim in (("front", front_rim), ("rear", rear_rim)):
+        w = dict(d[end])
+        w.update(tyre_r=m["wheels"][end]["tyre_r"], rim_r=rim, disc=m["wheels"][end]["disc"], tread="cruiser")
+        m["wheels"][end] = w
+
+
+def corvano():
+    """Corvano's cruiser: the 90 degree V-twin laid forward as an L, hung from the backbone with no
+    cradle under it, upside-down fork, cast wheels and two short stacked pipes. A muscle cruiser."""
+    m = lodestar()
+    m.update(name="Corvano cruiser (working title R2)", brand="corvano", engine_label="90 degree V-twin",
+             frame_label="steel tube backbone, engine as part of the frame")
+    m["colours"] = {"body": "#B3122A", "frame": "#B3122A", "rim": "#1b1c20", "fork": "#C9A227", "accent": "#E8E9EA", "seat": "#1c1c1e"}
+    lo = m["engine"]["extras"]
+    e = shifted_engine("corvano_naked", 58, -20)
+    e["cylinders"] = [{"angle": 40, "bore_w": 146, "start": 105, "length": 170, "head": 80, "fins": True},
+                      {"angle": 130, "bore_w": 146, "start": 105, "length": 170, "head": 80, "fins": True}]
+    e["extras"] = [{"pts": [[690, 752, 1], [860, 790], [1050, 828, 1], [1064, 730], [990, 650, 1], [760, 636, 1]], "cls": "plastic", "t": 0.7}, lo[1],
+                   {"pts": [[810, 560, 1], [850, 520], [910, 520], [948, 560, 1], [940, 610], [880, 640], [820, 610]], "cls": "chromef", "t": 0.9},
+                   {"pts": [[1040, 520, 1], [1116, 492, 1], [1096, 318, 1], [1020, 330, 1]], "cls": "engh", "t": 0.4},
+                   lo[3], lo[4]]
+    m["engine"] = e
+    m["fork"]["usd"] = True
+    cast_wheels(m, "corvano_naked", 200, 196)
+    m["frame"] = {"nodes": {"B": [690, 760], "Q": [520, 600], "P": [500, 400], "D1": [1130, 630], "S2": [60, 600], "S3": [300, 640]},
+                  "tubes": [{"path": ["Q", "S3", "S2"], "w": 24, "cls": "sub"},
+                            {"path": ["head_t", "B", "Q", "P"], "w": 36, "t": 0.4},
+                            {"path": ["head_b", "D1"], "w": 30, "t": 0.5}], "plates": [], "sub_y": 96}
+    m["exhaust"] = {"headers": [{"pts": [[1146, 560], [1146, 440], [1080, 300], [930, 250], [660, 246], [500, 250]], "w": 50},
+                                {"pts": [[622, 600], [565, 550], [525, 460], [480, 372], [440, 348]], "w": 50}],
+                    "cans": [{"a": [500, 252], "b": [-110, 276], "w": 94, "front": True}, {"a": [440, 348], "b": [-140, 378], "w": 94, "front": True}]}
+    m["hangers"] = [{"tube": 16, "pts": [[1000, 292], [1080, 326]], "cls": "cast"}, {"circle": 17, "at": [1084, 328], "cls": "bolt"},
+                    {"tube": 10, "pts": [[1084, 328], [1118, 380]], "cls": "dark"},
+                    {"tube": 16, "pts": [[740, 236], [520, 176]], "cls": "dark"}]
+    b = m["body"]
+    b["tank"] = [{"pts": [[1168, 914, 1], [1144, 986], [1064, 1020], [930, 1002], [800, 950], [690, 872], [620, 800, 1], [604, 738, 1], [1138, 852, 1], [1176, 882]], "cls": "body"},
+                 {"pts": [[1110, 962], [1050, 990], [930, 974], [816, 932]], "cls": "hl", "closed": False}]
+    b["caps"] = [{"at": [1040, 1020], "r": 16, "cls": "chromef"}]
+    b["front_guard"][0]["arc"].update(a0=66, a1=132)
+    b["panels"][0]["arc"].update(a0=58, a1=128)
+    return m
+
+
+def kazeda():
+    """Kazeda's cruiser: a liquid-cooled parallel twin, blacked out, fat tyres on small cast wheels,
+    a slim peanut tank and one long upswept silencer."""
+    m = lodestar()
+    m.update(name="Kazeda cruiser (working title R3)", brand="kazeda", engine_label="liquid-cooled parallel twin")
+    m["colours"] = {"body": "#16306B", "frame": "#15161a", "rim": "#1b1c20", "fork": "#2a2b30", "accent": "#E8E9EA", "seat": "#1c1c1e"}
+    lo = m["engine"]["extras"]
+    e = shifted_engine("kazeda_naked", 35, -18)
+    e["layout"] = "twin"
+    e["cylinders"] = [{"angle": 76, "bore_w": 210, "start": 105, "length": 205, "head": 115, "fins": False}]
+    e["extras"] = [{"pts": [[690, 748, 1], [800, 776], [960, 806, 1], [990, 700], [900, 620, 1], [740, 620, 1]], "cls": "plastic", "t": 0.7},
+                   lo[1], lo[2], lo[3], lo[4]]
+    m["engine"] = e
+    cast_wheels(m, "kazeda_naked", 196, 190)
+    m["exhaust"] = {"headers": [{"pts": [[985, 590], [1030, 520], [1040, 400], [1002, 296], [920, 258], [660, 254], [500, 258]], "w": 50}],
+                    "cans": [{"a": [500, 258], "b": [-190, 304], "w": 104, "front": True}]}
+    b = m["body"]
+    b["tank"] = [{"pts": [[1168, 914, 1], [1124, 968], [1030, 994], [900, 988], [780, 948], [690, 876], [620, 800, 1], [604, 738, 1], [1138, 852, 1], [1176, 882]], "cls": "body"},
+                 {"pts": [[1096, 950], [1020, 970], [900, 962], [800, 928]], "cls": "hl", "closed": False}]
+    b["caps"] = [{"at": [960, 992], "r": 16, "cls": "chromef"}]
+    b["front_guard"][0]["arc"].update(a0=64, a1=134)
+    b["panels"][0]["arc"].update(a0=54, a1=126)
+    return m
+
+
+def rheinhart():
+    """Rheinhart's cruiser: the flat twin with shaft drive in a double cradle, wire wheels, a tall
+    teardrop tank, deep mudguards and a long fishtail silencer each side."""
+    m = lodestar()
+    m.update(name="Rheinhart cruiser (working title R4)", brand="rheinhart", engine_label="flat twin (boxer), shaft drive")
+    m["colours"] = {"body": "#101114", "frame": "#15161a", "rim": "#C7CBD0", "fork": "#C7CBD0", "accent": "#E8E9EA", "seat": "#1c1c1e"}
+    lo = m["engine"]["extras"]
+    e = shifted_engine("rheinhart_naked", 65, -5, 1.15)
+    x = e["extras"]
+    e["extras"] = [x[1], x[2], lo[1], lo[2], lo[3], lo[4]] + x[4:]
+    m["engine"] = e
+    m["swingarm"] = {"pivot": [500, 400], "sprocket_r": 80, "shaft": True, "cls": "cast",
+                     "outline": [[545, 452, 1], [300, 420], [80, 394], [-10, 381], [-10, 271], [80, 271], [300, 327], [545, 356, 1]], "holes": []}
+    m["exhaust"] = {"side": "left",
+                    "headers": [{"pts": [[985, 392], [1040, 345], [1022, 268], [900, 244], [660, 246], [500, 250]], "w": 46, "front": True},
+                                {"pts": [[985, 392], [1040, 345], [1022, 268], [900, 244], [660, 246], [500, 250]], "w": 46, "front": True}],
+                    "cans": [{"a": [500, 250], "b": [-230, 262], "w": 92, "front": True, "nip": True}]}
+    b = m["body"]
+    b["tank"] = [{"pts": [[1168, 914, 1], [1134, 992], [1044, 1030], [904, 1022], [772, 968], [682, 882], [620, 800, 1], [604, 738, 1], [1138, 852, 1], [1176, 882]], "cls": "body"},
+                 {"pts": [[1104, 972], [1024, 1000], [904, 994], [796, 950]], "cls": "hl", "closed": False}]
+    b["caps"] = [{"at": [940, 1028], "r": 16, "cls": "chromef"}]
+    b["front_guard"][0]["arc"].update(a0=50, a1=148)
+    b["panels"][0]["arc"].update(a0=38, a1=136)
+    return m
+
+
+MODELS = {"lodestar_cruiser": lodestar, "corvano_cruiser": corvano, "kazeda_cruiser": kazeda, "rheinhart_cruiser": rheinhart}
 
 if __name__ == "__main__":
     for n in (sys.argv[1:] or MODELS):
