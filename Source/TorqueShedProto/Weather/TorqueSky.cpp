@@ -311,7 +311,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	if (SkyMpc)
 	{
 		SetMpc(SkyMpc, TEXT("Cover"), (float)S.CoverShown);
-		SetMpc(SkyMpc, TEXT("Density"), (float)S.Density);
+		SetMpc(SkyMpc, TEXT("Density"), (float)(S.Density * Looks.ExtinctionScale));
 		SetMpc(SkyMpc, TEXT("Albedo"), (float)S.Albedo);
 		SetMpc(SkyMpc, TEXT("Shape"), (float)S.Shape);
 		// Stage 3: the two layers' bands and looks, the high sheet and the halo.
@@ -325,7 +325,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("MidCover"), (float)Mi.CoverShown);
 		SetMpc(SkyMpc, TEXT("MidBottom"), (float)Mi.Bottom);
 		SetMpc(SkyMpc, TEXT("MidTop"), (float)Mi.Top);
-		SetMpc(SkyMpc, TEXT("MidDensity"), (float)Mi.Look.Density);
+		SetMpc(SkyMpc, TEXT("MidDensity"), (float)(Mi.Look.Density * Looks.ExtinctionScale));
 		SetMpc(SkyMpc, TEXT("MidShape"), (float)Mi.Look.Shape);
 		SetMpc(SkyMpc, TEXT("MidLumps"), (float)Mi.Look.Lumps);
 		SetMpc(SkyMpc, TEXT("MidRagged"), (float)Mi.Look.Ragged);

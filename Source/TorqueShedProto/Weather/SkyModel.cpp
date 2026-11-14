@@ -67,7 +67,7 @@ const NamedNumber Numbers[] = {
 	{"low_heap_m", &Looks::LowHeapM}, {"cape_depth_per_100", &Looks::CapeDepthPer100},
 	{"cape_most_m", &Looks::CapeMostM}, {"mid_base_m", &Looks::MidBaseM},
 	{"low_base_least_m", &Looks::LowBaseLeastM}, {"low_base_most_m", &Looks::LowBaseMostM},
-	{"density_rain", &Looks::DensityRain},
+	{"density_rain", &Looks::DensityRain}, {"extinction_scale", &Looks::ExtinctionScale},
 	{"albedo_fair", &Looks::AlbedoFair}, {"albedo_rain", &Looks::AlbedoRain},
 	{"deck_from", &Looks::DeckFrom}, {"deck_to", &Looks::DeckTo},
 	{"convect_from_deg", &Looks::ConvectFromDeg}, {"convect_full_deg", &Looks::ConvectFullDeg}, {"convect_cape", &Looks::ConvectCape},
