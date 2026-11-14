@@ -276,7 +276,8 @@ def draw(model):
     if rc:
         sh.path(rc["arm"], "cast", True, 0.5)
         sh.path(rc["body"], "caliper", True, 0.8)
-    sh.circ(piv, 26, "bolt")
+    if not sw.get("rigid"):
+        sh.circ(piv, 26, "bolt")
     if sw.get("shaft"):
         # shaft drive: the bevel box at the wheel, no chain or sprockets
         sh.circ(A, 78, sw.get("cls", "cast"))
@@ -285,7 +286,7 @@ def draw(model):
             sh.circ(add(A, unit(k * 60 + 30), 68), 5, "boltd")
     sh.circ(A, 38, sw.get("cls", "cast"))
     sh.circ(A, 16, "axle")
-    sk = model["shock"]
+    sk = model.get("shock")      # a rigid (hardtail) frame has none
 
     def draw_shock():
         sa, sb = tuple(sk["top"]), tuple(sk["bottom"])
@@ -301,7 +302,7 @@ def draw(model):
             sh.circ(sa, 6, "boltd")
             sh.circ(sb, 15, "cast")
             sh.circ(sb, 6, "boltd")
-    if not sk.get("twin"):       # a pair of shocks stands outside the frame and is drawn last, over the bodywork
+    if sk and not sk.get("twin"):       # a pair of shocks stands outside the frame and is drawn last, over the bodywork
         draw_shock()
 
     # ---- exhaust headers (behind the engine)
@@ -408,11 +409,14 @@ def draw(model):
         for shp in body.get(part, []):
             if shp.get("ear"):      # the nose's flared sides: same side view as the nose itself
                 continue
+            if shp.get("tube"):     # rails, racks and sissy bars
+                sh.tube([tuple(q) for q in shp["pts"]], shp["tube"], shp["cls"], shp.get("t", 0.0))
+                continue
             sh.path(pts_of(shp), shp["cls"], shp.get("closed", True), shp.get("t", 1.0))
     for c in body.get("caps", []):
         sh.circ(tuple(c["at"]), c["r"], c["cls"])
 
-    if sk.get("twin"):
+    if sk and sk.get("twin"):
         draw_shock()
 
     # ---- dimensions and title block

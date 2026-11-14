@@ -455,8 +455,8 @@
     "tyre_radius": 335
    },
    "fork_travel": [
-    190,
-    240
+    170,
+    220
    ],
    "rider": {
     "hip_x": [
@@ -492,7 +492,7 @@
     "tank_span": 500,
     "tank_pitch": [
      -8,
-     0
+     4
     ],
     "tunnel_w": 140,
     "tunnel_h": 110,
@@ -509,7 +509,7 @@
     ],
     "nose_z": [
      860,
-     920
+     930
     ]
    },
    "clearance": {
@@ -615,7 +615,7 @@
    }
   },
   "chopper": {
-   "packing_max": 0.2,
+   "packing_max": 0.25,
    "name": "Chopper",
    "defines": "Raked long forks, stretched frame, small tank, low seat",
    "layouts": [
@@ -691,7 +691,7 @@
     "tank_span": 340,
     "tank_pitch": [
      6,
-     18
+     36
     ],
     "tunnel_w": 90,
     "tunnel_h": 70,
