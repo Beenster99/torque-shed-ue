@@ -615,6 +615,34 @@ int main(int Argc, char** Argv)
 		Plan->IndexPlaces();
 		std::printf("IndexPlaces: %.0f ms\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Began).count());
 		Plan->IndexFields();
+		if (std::getenv("WORLD_RIDE_RECIPES") != nullptr)
+		{
+			// (one of each recipe's kind in a row 40 m off the ride's road from 300 m along, 70 m apart)
+			const char* Kinds[] = {"stone_circle", "standing_stone", "cross", "obelisk", "memorial", "church", "tower", "lighthouse", "windmill", "chimney"};
+			int K = 0;
+			for (const char* Kd : Kinds)
+			{
+				const double Want = 300.0 + 70.0 * K++;
+				for (size_t I = 1; I < Plan->Road.size(); ++I)
+					if (Plan->Road[I].Along >= Want)
+					{
+						const P2 D = Plan->Road[I].At - Plan->Road[I - 1].At;
+						const double L = std::fmax(1e-6, D.Length());
+						Sight S;
+						S.Kind = Kd;
+						S.Name = std::string("Test ") + Kd;
+						S.Qid = "QT" + std::to_string(K);
+						S.At = Plan->Road[I].At + P2(D.Z / L, -D.X / L) * 40.0;
+						G.Sights.push_back(S);
+						std::printf("recipe test %s at %.1f, %.1f\n", Kd, S.At.X, S.At.Z);
+						break;
+					}
+			}
+		}
+		Plan->IndexPlaceRecipes();
+		std::printf("Recipes:");
+		for (int Rk = 0; Rk < RidePlan::RecipeKinds; ++Rk) std::printf(" %d", Plan->RecipeCount[Rk]);
+		std::printf("\n");
 	}
 	{
 		// [places stage 2] The stops made at the places worth riding to.
@@ -737,6 +765,16 @@ int main(int Argc, char** Argv)
 					std::printf("furnish %d at %.1f, %.1f facing %.2f, %.2f: %s\n", Kind, F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Text.c_str());
 					break;
 				}
+		}
+		else if (std::getenv("WORLD_RIDE_RECIPE") != nullptr)
+		{
+			// [places stage 3] (or the nth place drawn by a recipe)
+			const size_t Nth = size_t(std::atoi(std::getenv("WORLD_RIDE_RECIPE")));
+			if (Nth < Plan->PlaceRecipes.size())
+			{
+				Centre = Plan->PlaceRecipes[Nth].At;
+				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
+			}
 		}
 		else if (std::getenv("WORLD_RIDE_PULLOFF") != nullptr)
 		{

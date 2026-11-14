@@ -825,6 +825,32 @@ public:
 	// Whether (X, Z) is on a pull-off made for a place (gravel under the tyres).
 	bool OnPullOff(double X, double Z) const;
 	std::unordered_map<long long, std::vector<int>> PlaceGrid;   // stops by the 64 m square their arrival is in
+	// [places stage 3] The places drawn by their kind's recipe (World/WorldRidePlaces.cpp: PlacesTile):
+	// stone circles and standing stones in the local stone, crosses and memorials on their steps,
+	// obelisks, small churches where the map has no building for one (its tower at the west end),
+	// towers, lighthouses (lit after dark), tower windmills with their sails, and chimneys. A church the
+	// map has a building for gets its tower (BuildingRole 1); the building under a tower, lighthouse,
+	// windmill or chimney is left out (UnderPlace) and the recipe drawn at its size. Seen from afar: the
+	// tall ones. Detail as SkylineTile's.
+	enum ERecipe { RecipeCircle, RecipeStone, RecipeCross, RecipeObelisk, RecipeMemorial, RecipeChurch, RecipeTower, RecipeLighthouse, RecipeWindmill, RecipeChimney, RecipeKinds };
+	struct PlaceRecipe
+	{
+		int Sight = -1, Kind = 0;
+		P2 At;
+		double Yaw = 0.0;      // the way it faces (radians from +x towards +z): its road, or a church's east
+		double Radius = 0.0;   // its size where the map gives it (m), 0 none
+		double Height = 0.0;   // the map's height, 0 none
+		double Base = 0.0;     // the ground under its middle
+		double Claim = 0.0;    // the buildings within this of its middle are its own (not drawn), 0 none
+		uint32_t Seed = 1;
+	};
+	std::vector<PlaceRecipe> PlaceRecipes;
+	std::unordered_map<long long, std::vector<int>> RecipeGrid;   // by the scenery's 256 m squares
+	int RecipeCount[RecipeKinds] = {};
+	std::vector<unsigned char> TowerTaken;   // the towns' tall buildings a recipe stands in for (TowersTile leaves them out)
+	void IndexPlaceRecipes();   // (after IndexTowers)
+	bool UnderPlace(double X, double Z) const;
+	void PlacesTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// What the sat nav says at (X, Z): how far along the ride's road the rider is (near Was, the last
 	// answer, where the road passes itself), the next turn and the distance to it, the next stop of
 	// each kind ahead, and how far to the finish; OffRoute when the rider is more than 40 m off it.
