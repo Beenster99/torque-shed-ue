@@ -414,14 +414,14 @@ def stonehenge():
     blue = dict(bright=0.36, bare=0.2, lichen=0.35)
     for k in range(34):
         b = AXIS + 6 + k * (360.0 / 34) + rng.normal(0, 2.0)
-        if rng.random() < 0.3:
+        if rng.random() < 0.45:
             continue
         x, z = polar(b, 11.8 + rng.normal(0, 0.4))
         M = S.mesh("bluestone_c%02d#drop" % k, "stone")
         if rng.random() < 0.25:
             lying_stone(rng, M, x, z, rng.uniform(1.2, 2.2), 0.7, 0.5, az(b) + rng.uniform(-0.6, 0.6), sink=0.25, **blue)
         else:
-            standing_stone(rng, M, x, z, rng.uniform(0.6, 1.0), rng.uniform(0.6, 2.0), 0.55, az(b) + math.pi / 2, bury=0.5, taper=0.75,
+            standing_stone(rng, M, x, z, rng.uniform(0.6, 1.0), rng.uniform(0.5, 1.7), 0.55, az(b) + math.pi / 2, bury=0.5, taper=0.75,
                            lean=(rng.normal(0, 0.15), rng.normal(0, 0.15)), res=(7, 10), **blue)
     for k in range(13):
         b = AXIS + 70 + k * (220.0 / 12)
@@ -875,7 +875,7 @@ def bolton():
     def battle_box(x0, x1, z0, z1, y):
         for a, b in (((x0, z0), (x1, z0)), ((x1, z0), (x1, z1)), ((x1, z1), (x0, z1)), ((x0, z1), (x0, z0))):
             merlons(M, a, b, y, lite, w=1.0, gap=0.75, h=0.9, t=0.6)
-        prism(M, [(x0 - 0.25, z0 - 0.25), (x1 + 0.25, z0 - 0.25), (x1 + 0.25, z1 + 0.25), (x0 - 0.25, z1 + 0.25)], y - 0.45, y, lite, cap_top=False)
+        prism(M, [(x0 - 0.25, z0 - 0.25), (x1 + 0.25, z0 - 0.25), (x1 + 0.25, z1 + 0.25), (x0 - 0.25, z1 + 0.25)], y - 0.45, y, lite, cap_top=False, cap_bottom=True)
 
     def windows_on(x0, x1, z, normal, ys, step=6.0, w=0.8, h=1.4, arch=False):
         for x in np.arange(x0 + step * 0.5, x1, step):
