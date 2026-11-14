@@ -615,6 +615,7 @@
    }
   },
   "chopper": {
+   "packing_max": 0.2,
    "name": "Chopper",
    "defines": "Raked long forks, stretched frame, small tank, low seat",
    "layouts": [
