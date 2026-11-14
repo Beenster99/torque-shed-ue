@@ -9,6 +9,7 @@
 #include "Shed/TorqueBuildSubsystem.h"
 #include "TorqueBikePawn.h"
 #include "Weather/WeatherModel.h"
+#include "World/TorqueRideWorld.h"
 #include "World/TorqueWorldSubsystem.h"
 #include "World/WorldRide.h"
 
@@ -480,7 +481,7 @@ void FTorqueInfoPanel::Ask(double Lat, double Lon, double Now)
 			D.WikiLat = Lat;
 			D.WikiLon = Lon;
 			const FString Url = FString::Printf(TEXT("https://en.wikipedia.org/w/api.php?action=query&format=json&generator=geosearch")
-				TEXT("&ggscoord=%.5f%%7C%.5f&ggsradius=10000&ggslimit=8&prop=extracts%%7Ccoordinates&exintro=1&explaintext=1&exsentences=3&exlimit=8&colimit=8"),
+				TEXT("&ggscoord=%.5f%%7C%.5f&ggsradius=10000&ggslimit=8&prop=extracts%%7Ccoordinates%%7Cpageprops&ppprop=wikibase_item&exintro=1&explaintext=1&exsentences=3&exlimit=8&colimit=8"),
 				Lat, Lon);
 			const double AskLat = Lat, AskLon = Lon;
 			TorqueInfo::Get(Url, [Weak, AskLat, AskLon](bool bOk, const FString& Body)
@@ -508,6 +509,8 @@ void FTorqueInfoPanel::Ask(double Lat, double Lon, double Now)
 						FNear N;
 						Page->TryGetStringField(TEXT("title"), N.Title);
 						Page->TryGetStringField(TEXT("extract"), N.Text);
+						const TSharedPtr<FJsonObject>* Props = nullptr;
+						if (Page->TryGetObjectField(TEXT("pageprops"), Props)) (*Props)->TryGetStringField(TEXT("wikibase_item"), N.Qid);
 						N.Text.TrimStartAndEndInline();
 						const TArray<TSharedPtr<FJsonValue>>* Coords = nullptr;
 						N.Metres = 1.0e9;
@@ -587,6 +590,31 @@ void FTorqueInfoPanel::Draw(AHUD* Hud, UCanvas* Canvas, const ATorqueBikePawn* B
 
 	const double Now = FPlatformTime::Seconds();
 	if (!bTestRun || bAsked) Ask(Lat, Lon, Now);
+	// [places stage 1] What each suggested place is, from the ride's places (by its Wikidata id, else the
+	// nearest place within 250 m), and where it really is: the waypoint goes to the thing itself.
+	for (FNear& N : Data->Near)
+	{
+		if (!N.Kind.IsEmpty()) continue;
+		const ATorqueRideWorld* RW = nullptr;
+		for (TActorIterator<ATorqueRideWorld> It(World); It; ++It) { RW = *It; break; }
+		if (!RW || !RW->Plan) break;
+		const TorqueWorld::Region& G = RW->Plan->Area.Roads;
+		const TorqueWorld::P2 At = TorqueWorld::Frame(G.FrameLat, G.FrameLon).FromGeo(N.Lat, N.Lon);
+		bool bByQid = false;
+		const int Found = G.FindSight(TCHAR_TO_UTF8(*N.Qid), At.X, At.Z, 250.0, &bByQid);
+		if (Found < 0)
+		{
+			N.Kind = TEXT("unknown");
+			UE_LOG(LogTemp, Log, TEXT("Torque places: '%s' (%s) is unknown: no place of its Wikidata id, none within 250 m"), *N.Title, *N.Qid);
+			continue;
+		}
+		const TorqueWorld::Sight& Sg = G.Sights[size_t(Found)];
+		N.Kind = UTF8_TO_TCHAR(Sg.Kind.c_str());
+		N.Lat = Sg.Lat;
+		N.Lon = Sg.Lon;
+		UE_LOG(LogTemp, Log, TEXT("Torque places: '%s' is a %s ('%s', %s)"), *N.Title, *N.Kind, UTF8_TO_TCHAR(Sg.Name.c_str()),
+			bByQid ? *FString::Printf(TEXT("by Wikidata %s"), *N.Qid) : TEXT("the nearest, no Wikidata match"));
+	}
 	const FData& D = *Data;
 	const ATorqueGameState* GS = World->GetGameState<ATorqueGameState>();
 	const bool bImperial = Set.Units == 1;

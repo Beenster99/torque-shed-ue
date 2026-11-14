@@ -532,6 +532,55 @@ void Region::AddRoadX(const Json& File)
 		}
 }
 
+// [places stage 1] {format, kinds, places: [[kind, name, wikidata, lat, lon, height, material, sub, outline]]}
+// (the game's tools/places_bake.py); a place in two cells' files (it can't be: each is in the cell its
+// middle is in) would be kept twice.
+void Region::AddSights(const Json& File)
+{
+	if (!File.IsObject() || int(File.Num("format")) != SightsFormat) return;
+	const Frame F = FrameOf();
+	const Json* Kinds = File.Get("kinds");
+	const int KindCount = Kinds != nullptr ? int(Kinds->A.size()) : 0;
+	if (const Json* Rows = File.Get("places"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 9 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			Sight S;
+			S.Kind = Word(Kinds, Row.A[0]);
+			S.Name = Row.A[1].IsString() ? Row.A[1].S : std::string();
+			S.Qid = Row.A[2].IsString() ? Row.A[2].S : std::string();
+			S.Lat = Row.A[3].N * 1e-5;
+			S.Lon = Row.A[4].N * 1e-5;
+			S.At = F.FromGeo(S.Lat, S.Lon);
+			S.Height = Row.A[5].IsNumber() ? Row.A[5].N : 0.0;
+			S.Material = Row.A[6].IsString() ? Row.A[6].S : std::string();
+			S.Sub = Row.A[7].IsString() ? Row.A[7].S : std::string();
+			if (Row.A[8].IsArray() && Row.A[8].A.size() >= 4) S.Outline = Steps(F, Row.A[8], 0);
+			Sights.push_back(std::move(S));
+		}
+}
+
+int Region::FindSight(const std::string& Qid, double X, double Z, double Within, bool* ByQid) const
+{
+	if (ByQid) *ByQid = false;
+	if (!Qid.empty())
+		for (size_t I = 0; I < Sights.size(); ++I)
+			if (Sights[I].Qid == Qid)
+			{
+				if (ByQid) *ByQid = true;
+				return int(I);
+			}
+	int Best = -1;
+	double BestD = Within;
+	for (size_t I = 0; I < Sights.size(); ++I)
+	{
+		if (Sights[I].Kind == "settlement") continue;
+		const double D = std::hypot(Sights[I].At.X - X, Sights[I].At.Z - Z);
+		if (D < BestD) { BestD = D; Best = int(I); }
+	}
+	return Best;
+}
+
 const RoadExtra* Region::ExtraOf(int Edge) const
 {
 	if (Extras.empty() || Edge < 0 || Edge >= int(Edges.size()) || Edges[size_t(Edge)].Gid.empty()) return nullptr;

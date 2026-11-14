@@ -125,6 +125,20 @@ struct MappedPoint
 	double Along = 0.0;        // metres along the edge from its node A
 };
 
+// [places stage 1] A place worth riding to (a cell's places file: tools/places_bake.py): what it is
+// (Kind, places_bake.KINDS: stone_circle, church, castle_ruin, dam, ...), its name, its Wikidata id,
+// its middle, its outline (a ring, or a line for a dam's crest; empty for a point), its height and
+// material where mapped (0, ""), and what the map says more of its kind (Sub: a tower's type, a
+// church's denomination, "ruins").
+struct Sight
+{
+	std::string Kind, Name, Qid, Material, Sub;
+	P2 At;
+	double Lat = 0.0, Lon = 0.0;
+	double Height = 0.0;
+	std::vector<P2> Outline;
+};
+
 struct GroundData
 {
 	std::vector<GroundShape> Areas, Lines, Points, Paths;
@@ -173,6 +187,10 @@ public:
 	std::unordered_map<std::string, RoadExtra> Extras;
 	std::vector<MappedPoint> RoadPoints;
 	std::vector<GroundShape> Barriers;   // (Kind guard_rail or concrete_barrier)
+	// [places stage 1] The places worth riding to (AddSights), and finding one: by its Wikidata id first,
+	// else the nearest within Within m of (X, Z) that is not a settlement; -1 none. ByQid says which.
+	std::vector<Sight> Sights;
+	int FindSight(const std::string& Qid, double X, double Z, double Within = 250.0, bool* ByQid = nullptr) const;
 	// The extras of an edge, or null where the map says nothing more.
 	const RoadExtra* ExtraOf(int Edge) const;
 	// Snaps the road points to their nearest edges (after the cells are stitched and the roadx files read).
@@ -242,6 +260,9 @@ public:
 	// [OSM stage 5] A roadx file (a cell's) into the region; another format is left out.
 	void AddRoadX(const TorqueFit::Json& File);
 	static constexpr int RoadXFormat = 1;
+	// [places stage 1] A places file (a cell's) into the region; another format is left out.
+	void AddSights(const TorqueFit::Json& File);
+	static constexpr int SightsFormat = 1;
 	// A tower this tall (m) is a skyscraper, seen from miles off.
 	static constexpr double Skyscraper = 100.0;
 

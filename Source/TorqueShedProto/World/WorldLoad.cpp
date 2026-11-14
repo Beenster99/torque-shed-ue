@@ -199,6 +199,8 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		if (Store.Kept(CellStore::EKind::Paths, Name, *Idx, File)) Out.Roads.AddPaths(File);
 		// [OSM stage 5] The road itself: lanes, roundabouts, lights, crossings, humps, barriers (OpenStreetMap).
 		if (Store.Kept(CellStore::EKind::RoadX, Name, *Idx, File)) Out.Roads.AddRoadX(File);
+		// [places stage 1] The places worth riding to: what each is (OpenStreetMap, with its Wikidata id).
+		if (Store.Kept(CellStore::EKind::Sights, Name, *Idx, File)) Out.Roads.AddSights(File);
 		// Its place profile says whether it has sea: land below sea level in a cell with none (a polder) is land.
 		// [OSM stage 1] And where it is: the county and the country.
 		if (Store.Kept(CellStore::EKind::Profiles, Name, *Idx, File) && !File.Flag("guessed", true))
