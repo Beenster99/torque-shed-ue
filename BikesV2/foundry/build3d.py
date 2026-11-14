@@ -411,7 +411,11 @@ def loft(name, outline, spec, material, stations=56, ring=30):
 
 
 def arc_band(name, a, hw, material):
-    prof = [(a["r0"], hw), (a["r1"], hw * 0.7), (a["r1"] + 6, 0), (a["r1"], -hw * 0.7), (a["r0"], -hw), (a["r0"] - 4, 0)]
+    """A mudguard: a crowned shell that wraps over the tyre and drops down its shoulders."""
+    lo, hi, n = a["r0"] - 20, a["r1"] + 6, 9
+    outer = [(lo + (hi - lo) * math.cos(math.radians(u)) ** 0.7, hw * math.sin(math.radians(u))) for u in (-88 + 176 * k / (n - 1) for k in range(n))]
+    inner = [(r - 5, y * 0.94) for r, y in outer]
+    prof = outer[::-1] + inner
     return revolve(name, prof, tuple(a["c"]), material, 36, a["a0"], a["a1"])
 
 
@@ -642,7 +646,7 @@ def build(model):
             if shp.get("shroud"):
                 # the fork shroud: a shell round the front of each lower fork leg, joined to the mudguard
                 for s in (-1, 1):
-                    pillow(f"shroud{i}{s}", pp, s * 72, s * 140, m_, 10, 24)
+                    pillow(f"shroud{i}{s}", pp, s * 84, s * 128, m_, 14, 22)
             elif shp.get("cowl"):
                 pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
             elif low:
@@ -788,7 +792,7 @@ def _look(loc, target):
     return d.to_track_quat("-Z", "Y").to_euler()
 
 
-def render(name, samples=48):
+def render(name, samples=48, views=False):
     sc = bpy.context.scene
     studio(sc)
     sc.cycles.samples = samples
@@ -816,6 +820,20 @@ def render(name, samples=48):
     sc.camera = ob2
     sc.render.filepath = os.path.join(out, name + "_q.png")
     bpy.ops.render.render(write_still=True)
+    if views:
+        # top and front views, straight on, at the same scale as the side view (1 px = 1/0.56 mm)
+        for tag, loc, rot, res in (("top", (cx, 0, 6.0), (0, 0, math.pi), (1600, 620)),
+                                   ("front", (6.0, 0, cz), None, (620, 1000))):
+            c3 = bpy.data.cameras.new(tag)
+            c3.type, c3.ortho_scale = "ORTHO", max(res) / 0.56 * MM
+            o3 = bpy.data.objects.new(tag, c3)
+            sc.collection.objects.link(o3)
+            o3.location = loc
+            o3.rotation_euler = rot or _look(loc, (0, 0, cz))
+            sc.camera = o3
+            sc.render.resolution_x, sc.render.resolution_y = res
+            sc.render.filepath = os.path.join(out, f"{name}_{tag}.png")
+            bpy.ops.render.render(write_still=True)
     return out
 
 
@@ -852,4 +870,4 @@ if __name__ == "__main__":
         print("game files in", export_game(name, model))
         sys.exit(0)
     samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
-    print("renders in", render(name, samples))
+    print("renders in", render(name, samples, "--views" in sys.argv))

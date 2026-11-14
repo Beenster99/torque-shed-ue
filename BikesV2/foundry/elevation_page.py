@@ -54,8 +54,22 @@ def renders(name):
         return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
     crop = (230, 130, 1520, 880)
+    views = ""
+    top, front = os.path.join(rd, name + "_top.png"), os.path.join(rd, name + "_front.png")
+    if os.path.exists(top) and os.path.exists(front):
+        # widths measured off the pictures (1 px = 1/0.56 mm): anything that differs from the backdrop
+        def width_mm(path, axis):
+            im = Image.open(path).convert("RGB")
+            bg = im.getpixel((5, 5))
+            w_, h_ = im.size
+            hit = [(x, y) for y in range(0, h_, 3) for x in range(0, w_, 3) if sum(abs(a_ - b_) for a_, b_ in zip(im.getpixel((x, y)), bg)) > 90]
+            v = [q[axis] for q in hit]
+            return round((max(v) - min(v)) / 0.56 / 10) * 10
+        wide = width_mm(front, 0)
+        views = f"""<div class="shots"><figure><img src="{uri(Image.open(top).convert('RGB'), (200, 40, 1540, 580))}" alt="{name} from above"><figcaption>Top view, front to the left. About {wide} mm wide across the mirrors.</figcaption></figure>
+<figure><img src="{uri(Image.open(front).convert('RGB'), (30, 130, 590, 880))}" alt="{name} from the front" style="max-height:520px;width:auto;margin:auto;display:block"><figcaption>Front view, same scale.</figcaption></figure></div>"""
     return f"""<div class="shots"><figure><img src="{uri(Image.open(q).convert('RGB'))}" alt="{name} 3D model, three-quarter view"><figcaption>3D model built from the same file</figcaption></figure>
-<figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>"""
+<figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>""" + views
 
 
 def kit_renders(names):
@@ -189,7 +203,7 @@ def build(family, names):
 <li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
 <li>The mixed builds are the first proof of the mounting standard.</li>
-<li>Not yet drawn: top and front views.</li></ul></section></div>""")
+<li>The top and front views are taken straight from the 3D model, so they show its current rough state honestly: lamps, clocks and the tail still need shaping from above.</li></ul></section></div>""")
     out = os.path.join(ROOT, "out", f"{family}_elevations.html")
     open(out, "w").write("\n".join(h))
     return out
