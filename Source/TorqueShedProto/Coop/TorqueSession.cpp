@@ -448,6 +448,13 @@ void UTorqueSession::GoToShed(UObject* WorldContext)
 {
 	UWorld* World = GEngine ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
 	if (!World || !FPackageName::DoesPackageExist(ShedMap)) return;
+	// (hub, round 145: a ride's end quits the game; a trip to the shed asked for as it went logged
+	// "Failed to enter /Game/Shed/Shed")
+	if (IsEngineExitRequested())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Torque: not going back to the shed: the game is quitting"));
+		return;
+	}
 	const ENetMode Mode = World->GetNetMode();
 	if (Mode == NM_Client) return;
 	if (Mode == NM_ListenServer || Mode == NM_DedicatedServer)
