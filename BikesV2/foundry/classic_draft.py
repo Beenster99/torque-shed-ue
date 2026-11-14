@@ -67,17 +67,17 @@ def stance(m, base, front_r=FRONT_R, wb_add=0):
 def bench(m):
     """The classic's flat ribbed bench seat, rear mudguard, side covers and twin shocks."""
     b = m["body"]
-    b["seat"] = [{"pts": [[692, 874, 1], [640, 852], [560, 842], [430, 840], [250, 846], [60, 854], [-40, 852], [-72, 838, 1], [-68, 802, 1], [60, 796], [250, 788], [430, 782], [560, 780], [682, 812, 1]], "cls": "seat"}]
-    b["seat"] += [{"pts": [[x, 843], [x - 6, 792]], "cls": "stitch", "closed": False} for x in range(20, 620, 58)]
+    b["seat"] = [{"pts": [[668, 846, 1], [630, 846], [560, 842], [430, 840], [250, 846], [60, 854], [-40, 852], [-72, 838, 1], [-68, 802, 1], [60, 796], [250, 788], [430, 782], [560, 780], [662, 800, 1]], "cls": "seat"}]
+    b["seat"] += [{"pts": [[x, 843], [x - 6, 792]], "cls": "stitch", "closed": False} for x in range(20, 600, 58)]
     # a long substantial tail under the seat that turns down behind it to meet the rear mudguard
-    b["tail"] = [{"pts": [[480, 792, 1], [300, 794], [60, 802], [-72, 804, 1], [-112, 760], [-146, 686, 1], [-112, 676, 1], [-70, 730], [60, 752], [250, 748], [480, 744, 1]], "cls": "body", "t": 0.6},
-                 {"pts": [[-76, 802, 1], [-106, 790, 1], [-102, 760, 1], [-76, 770, 1]], "cls": "redlens", "t": 0.3}]
+    # (beenster, 14 Nov: the rear mudguard is integrated into the tail; one look, two parts in the game)
+    b["tail"] = [{"pts": [[480, 792, 1], [300, 794], [60, 802], [-72, 804], [-150, 790], [-230, 742], [-300, 652], [-344, 542], [-352, 470, 1], [-330, 468, 1],
+                          [-320, 540], [-278, 640], [-212, 712], [-138, 752], [-60, 762], [60, 756], [250, 748], [480, 744, 1]], "cls": "body", "t": 0.6},
+                 {"pts": [[-246, 742, 1], [-284, 724, 1], [-306, 684, 1], [-280, 696, 1]], "cls": "redlens", "t": 0.3}]
     b["behind"] = []
     b["plate_hanger"] = []
     m["fit"] = dict(m.get("fit", {}), plate_hanger=False)
-    rg = {"c": [0, REAR_R], "r0": REAR_R + 16, "r1": REAR_R + 48, "a0": 50, "a1": 160}
-    b["panels"] = [{"pts": [[640, 800, 1], [560, 776], [450, 776], [420, 750, 1], [470, 650], [555, 600, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7},
-                   {"arc": rg, "cls": "body"}]
+    b["panels"] = [{"pts": [[640, 800, 1], [560, 776], [450, 776], [420, 750, 1], [470, 650], [555, 600, 1], [645, 640, 1], [650, 715, 1]], "cls": "body", "t": 0.7}]
     sw = m["swingarm"]
     if sw.get("cls") == "alu" and not sw.get("shaft"):      # a two-sided swingarm takes the classic pair of shocks
         m["shock"] = {"top": [285, 764], "bottom": [95, 398], "twin": True}
@@ -96,13 +96,15 @@ def flat_pipes(m):
 
 
 def hartwell(m):
-    m["deck"] = {"nose": [672, 846], "tank_pitch": 0.5, "seat_pitch": 2, "seat_unit": True}
+    m["deck"] = {"nose": [650, 802], "tank_pitch": 0.5, "seat_pitch": 2, "seat_unit": True}
     b = m["body"]
     b["tank"] = [{"pts": copy.deepcopy(HART_TANK), "cls": "body"},
-                 {"pts": [[1030, 996], [950, 1026], [860, 1022], [786, 992]], "cls": "hl", "closed": False},
-                 {"pts": [[700, 905, 1], [760, 880], [850, 872], [930, 884], [905, 930], [800, 940, 1]], "cls": "plastic", "t": 0.8, "draw_only": True}]
-    b["caps"] = [{"at": [930, 1052], "r": 16, "cls": "chromef"}]
-    m["frame"]["nodes"]["B"] = [690, 836]
+                 {"pts": [[1008, 952], [928, 982], [838, 978], [764, 948]], "cls": "hl", "closed": False},
+                 {"pts": [[678, 861, 1], [738, 836], [828, 828], [908, 840], [883, 886], [778, 896, 1]], "cls": "plastic", "t": 0.8, "draw_only": True}]
+    b["caps"] = [{"at": [908, 1008], "r": 16, "cls": "chromef"}]
+    m["frame"]["nodes"]["B"] = [668, 792]
+    for e in m["engine"].get("extras", []):      # the airbox comes down with the tank
+        e["pts"] = [[q[0], min(q[1], 806)] + q[2:] for q in e["pts"]]
     for cy in m["engine"]["cylinders"]:
         cy["fins"] = True
     m.pop("radiator", None)
@@ -118,7 +120,7 @@ def own_tank(m):
     b = m["body"]
     ct, bt = [p[0] for p in c], [p[0] for p in b["tank"][0]["pts"]]
     kx = (max(ct) - min(ct)) / (max(bt) - min(bt))
-    d_ = dict({"nose": [672, 846], "tank_pitch": 0.5, "seat_pitch": 2, "seat_unit": True}, **m.pop("spec", {}))
+    d_ = dict({"nose": [650, 802], "tank_pitch": 0.5, "seat_pitch": 2, "seat_unit": True}, **m.pop("spec", {}))
     dz = d_["nose"][1] - m["deck"]["nose"][1]
     for s in b["tank"]:
         s["pts"] = [[round(min(ct) + (p[0] - min(bt)) * kx, 1), round(p[1] + dz, 1)] + p[2:] for p in s["pts"]]
@@ -130,7 +132,7 @@ def own_tank(m):
     m["colours"] = dict(m["colours"], seat="#3a2a20")
 
 
-HART_TANK = [[1088, 952, 1], [1050, 1022], [962, 1054], [860, 1050], [770, 1018], [706, 952], [662, 884, 1], [674, 840, 1], [1080, 844, 1], [1106, 902]]
+HART_TANK = [[1066, 908, 1], [1028, 978], [940, 1010], [838, 1006], [748, 974], [684, 908], [640, 840, 1], [652, 796, 1], [1058, 800, 1], [1084, 858]]
 
 
 def draft(name, spec):

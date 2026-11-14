@@ -789,7 +789,7 @@
     ]
    },
    "deck": {
-    "tank_span": 500,
+    "tank_span": 580,
     "tank_pitch": [
      4,
      12
