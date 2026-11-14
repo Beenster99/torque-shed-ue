@@ -258,7 +258,8 @@ def draw(model):
     # ---- chain and sprockets, swingarm, shock
     sw = model["swingarm"]
     cs = tuple(eng["countershaft"])
-    chain_run(sh, cs, 36, A, sw["sprocket_r"])
+    if not sw.get("shaft"):
+        chain_run(sh, cs, 36, A, sw["sprocket_r"])
     sh.path(sw["outline"], sw.get("cls", "cast"), True, 0.9)
     for hole in sw.get("holes", []):
         sh.path(hole, "castin", True, 0.9)
@@ -267,6 +268,12 @@ def draw(model):
         sh.path(rc["arm"], "cast", True, 0.5)
         sh.path(rc["body"], "caliper", True, 0.8)
     sh.circ(piv, 26, "bolt")
+    if sw.get("shaft"):
+        # shaft drive: the bevel box at the wheel, no chain or sprockets
+        sh.circ(A, 78, sw.get("cls", "cast"))
+        sh.circ(A, 60, "detail")
+        for k in range(6):
+            sh.circ(add(A, unit(k * 60 + 30), 68), 5, "boltd")
     sh.circ(A, 38, sw.get("cls", "cast"))
     sh.circ(A, 16, "axle")
     sk = model["shock"]

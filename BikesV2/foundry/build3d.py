@@ -569,6 +569,18 @@ def build(model):
     crank = tuple(eng["crank"])
     wide = 420 if eng["layout"] in ("inline4", "triple") else 300
     pillow("crankcase", shapes.dense(eng["case"], True, 0.9), -wide / 2 + 10, wide / 2 - 10, mat("engine"), 30, 55)
+    if eng["layout"] == "boxer":
+        # a cylinder out each side: finned barrel, head and a valve cover whose end-on outline is eng["boxer_cover"]
+        bc = eng["boxer"]
+        cx_, cz_ = bc["at"]
+        for s in (-1, 1):
+            cone(f"boxerbarrel{s}", (cx_, s * 110, cz_), (cx_, s * 250, cz_), bc["r"], bc["r"], mat("engine"), 36)
+            k = 122
+            while k < 246:
+                cone(f"boxerfin{s}{k}", (cx_, s * k, cz_), (cx_, s * (k + 4), cz_), bc["r"] + 14, bc["r"] + 14, mat("engine"), 36)
+                k += 13
+            pillow(f"boxerhead{s}", shapes.dense(bc["cover"], True, 0.6), s * 250, s * 318, mat("engine"), 10, 18, both=False)
+            pillow(f"boxercover{s}", [((q[0] - cx_) * 0.9 + cx_, (q[1] - cz_) * 0.86 + cz_) for q in shapes.dense(bc["cover"], True, 0.6)], s * 316, s * 372, mat("engine_dark"), 14, 30, both=False)
     for i, cy in enumerate(eng["cylinders"]):
         u = unit(cy["angle"])
         base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
@@ -664,47 +676,51 @@ def build(model):
     piv = tuple(sw["pivot"])
     tube("pivot", [(piv[0], -160, piv[1]), (piv[0], 160, piv[1])], 14, mat("steel"))
     tube("axle_r", [(A[0], -150, A[1]), (A[0], 165, A[1])], 14, mat("steel"))
-    revolve("sprocket", [(sw["sprocket_r"], 100), (sw["sprocket_r"], 94), (40, 94), (40, 100)], A, mat("steel"), 48)
-    cs = tuple(eng["countershaft"])
-    d = math.hypot(A[0] - cs[0], A[1] - cs[1])
-    th = math.atan2(A[1] - cs[1], A[0] - cs[0])
-    al = math.acos((36 - sw["sprocket_r"]) / d)
-    loop = []
-    for sgn in (1, -1):
-        v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
-        pair = [add(cs, v, 36), add(A, v, sw["sprocket_r"])]
-        loop += pair if sgn == 1 else pair[::-1]
-    R_ = sw["sprocket_r"]
-    line = []
-    for k in range(25):                      # round the back of the rear sprocket
-        t_ = th + al - 2 * al * k / 24
-        line.append(((A[0] + R_ * math.cos(t_), A[1] + R_ * math.sin(t_)), (math.cos(t_), math.sin(t_))))
-    for k in range(13):                      # round the front of the gearbox sprocket
-        t_ = th - al - (2 * math.pi - 2 * al) * k / 12
-        line.append(((cs[0] + 36 * math.cos(t_), cs[1] + 36 * math.sin(t_)), (math.cos(t_), math.sin(t_))))
-    verts, faces, m_ = [], [], len(line)
-    for (px, pz), (nx_, nz_) in line:
-        for dy, dr in ((88, 5.5), (106, 5.5), (106, -5.5), (88, -5.5)):
-            verts.append(V(px + nx_ * dr, dy, pz + nz_ * dr))
-    for k in range(m_):
-        k2 = (k + 1) % m_
-        for e in range(4):
-            faces.append((4 * k + e, 4 * k + (e + 1) % 4, 4 * k2 + (e + 1) % 4, 4 * k2 + e))
-    mesh_obj("chain", verts, faces, mat("steel"), smooth=False)
-    # side plates: a dark stripe along the middle of each run so the links read
-    for sgn in (1, -1):
-        v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
-        p0, p1 = add(cs, v, 36), add(A, v, R_)
-        nl = int(math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 15.875)
-        verts, faces = [], []
-        for k in range(nl):
-            f0, f1 = (k + 0.2) / nl, (k + 0.8) / nl
-            for yy in (87.6, 106.4):
-                base = len(verts)
-                for f_, dr in ((f0, 3.2), (f1, 3.2), (f1, -3.2), (f0, -3.2)):
-                    verts.append(V(p0[0] + (p1[0] - p0[0]) * f_ + v[0] * dr, yy, p0[1] + (p1[1] - p0[1]) * f_ + v[1] * dr))
-                faces.append((base, base + 1, base + 2, base + 3))
-        mesh_obj(f"chainlinks{sgn}", verts, faces, mat("alu_dark"), smooth=False)
+    if sw.get("shaft"):
+        cone("finaldrive", (A[0], 60, A[1]), (A[0], 128, A[1]), 78, 70, swm, 40)
+        cone("finaldrivecap", (A[0], 128, A[1]), (A[0], 140, A[1]), 62, 50, mat("alu_dark"), 40)
+    else:
+        revolve("sprocket", [(sw["sprocket_r"], 100), (sw["sprocket_r"], 94), (40, 94), (40, 100)], A, mat("steel"), 48)
+        cs = tuple(eng["countershaft"])
+        d = math.hypot(A[0] - cs[0], A[1] - cs[1])
+        th = math.atan2(A[1] - cs[1], A[0] - cs[0])
+        al = math.acos((36 - sw["sprocket_r"]) / d)
+        loop = []
+        for sgn in (1, -1):
+            v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
+            pair = [add(cs, v, 36), add(A, v, sw["sprocket_r"])]
+            loop += pair if sgn == 1 else pair[::-1]
+        R_ = sw["sprocket_r"]
+        line = []
+        for k in range(25):                      # round the back of the rear sprocket
+            t_ = th + al - 2 * al * k / 24
+            line.append(((A[0] + R_ * math.cos(t_), A[1] + R_ * math.sin(t_)), (math.cos(t_), math.sin(t_))))
+        for k in range(13):                      # round the front of the gearbox sprocket
+            t_ = th - al - (2 * math.pi - 2 * al) * k / 12
+            line.append(((cs[0] + 36 * math.cos(t_), cs[1] + 36 * math.sin(t_)), (math.cos(t_), math.sin(t_))))
+        verts, faces, m_ = [], [], len(line)
+        for (px, pz), (nx_, nz_) in line:
+            for dy, dr in ((88, 5.5), (106, 5.5), (106, -5.5), (88, -5.5)):
+                verts.append(V(px + nx_ * dr, dy, pz + nz_ * dr))
+        for k in range(m_):
+            k2 = (k + 1) % m_
+            for e in range(4):
+                faces.append((4 * k + e, 4 * k + (e + 1) % 4, 4 * k2 + (e + 1) % 4, 4 * k2 + e))
+        mesh_obj("chain", verts, faces, mat("steel"), smooth=False)
+        # side plates: a dark stripe along the middle of each run so the links read
+        for sgn in (1, -1):
+            v = (math.cos(th + sgn * al), math.sin(th + sgn * al))
+            p0, p1 = add(cs, v, 36), add(A, v, R_)
+            nl = int(math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 15.875)
+            verts, faces = [], []
+            for k in range(nl):
+                f0, f1 = (k + 0.2) / nl, (k + 0.8) / nl
+                for yy in (87.6, 106.4):
+                    base = len(verts)
+                    for f_, dr in ((f0, 3.2), (f1, 3.2), (f1, -3.2), (f0, -3.2)):
+                        verts.append(V(p0[0] + (p1[0] - p0[0]) * f_ + v[0] * dr, yy, p0[1] + (p1[1] - p0[1]) * f_ + v[1] * dr))
+                    faces.append((base, base + 1, base + 2, base + 3))
+            mesh_obj(f"chainlinks{sgn}", verts, faces, mat("alu_dark"), smooth=False)
     sk = model["shock"]
     tube("shock", [(sk["top"][0], 0, sk["top"][1]), (sk["bottom"][0], 0, sk["bottom"][1])], 16, mat("alu_dark"))
     L = math.hypot(sk["bottom"][0] - sk["top"][0], sk["bottom"][1] - sk["top"][1])
