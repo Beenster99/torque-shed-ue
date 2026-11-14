@@ -488,7 +488,9 @@ int32 MakeBike(AActor* Owner, USceneComponent* Parent, const TMap<FString, FStri
 			TArray<FVector> Pos;
 			TArray<int32> Tris;
 			bool bFlipped = false;
-			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal"));
+			// (A TFT's or phone's screen face keeps its own UVs too: the game's page is laid out on them. Box-mapped
+			// in metres it showed only the page's black corner: build 144's dark screens.)
+			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal")) && P.Gauge.rfind("screen_", 0) != 0;
 			const bool bWheel = P.Node == "front_wheel" || P.Node == "rear_wheel";
 			UStaticMesh* Mesh = TSCI::BuildMesh(Owner, S, Mat, Pos, Tris, bFlipped, bBoxUv, bWheel);
 			if (!Mesh) continue;
@@ -577,7 +579,9 @@ int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, 
 				TArray<FVector> Pos;
 				TArray<int32> Tris;
 				bool bFlipped = false;
-				const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal"));
+				// (A TFT's or phone's screen face keeps its own UVs too: the game's page is laid out on them. Box-mapped
+			// in metres it showed only the page's black corner: build 144's dark screens.)
+			const bool bBoxUv = Tag != TEXT("decal") && !Finish.StartsWith(TEXT("decal")) && P.Gauge.rfind("screen_", 0) != 0;
 				M.Mesh = TSCI::BuildMesh(nullptr, S, M.Mat, Pos, Tris, bFlipped, bBoxUv, P.Node == "front_wheel" || P.Node == "rear_wheel");
 				if (!M.Mesh) continue;
 				M.Mesh->AddToRoot();   // kept in the cache across map travel
