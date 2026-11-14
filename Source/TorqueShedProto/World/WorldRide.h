@@ -1141,6 +1141,9 @@ private:
 	// By the ride's road's point: 1 a mouth or its corners on its left, 2 on its right (no edge line);
 	// 4 the mouth itself on its left, 8 on its right (no shoulder).
 	std::vector<unsigned char> MouthAt;
+	// [OSM stage 5D] The same for the mouths of roads that can be town streets (not tracks, drives or
+	// service roads): where double yellow lines start.
+	std::vector<unsigned char> StreetMouthAt;
 	// The scenery's lines and buildings by 256 m square (a line under each square one of its bits' middles is in).
 	struct SceneIndex
 	{

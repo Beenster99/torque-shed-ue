@@ -740,6 +740,7 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 {
 	Planned.clear();
 	MouthAt.assign(Road.size(), 0);
+	StreetMouthAt.assign(Road.size(), 0);
 	SideBridges = SideTunnels = 0;
 	const Region& G = Area.Roads;
 	Network& N = *Net;
@@ -788,6 +789,8 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 		if (EnsureSide(int(E), &Marks) == nullptr) continue;
 		Planned.push_back(int(E) + 1);
 		for (const std::pair<int, unsigned char>& M : Marks) MouthAt[size_t(M.first)] |= M.second;
+		if (StreetClass(G.ClassOf(int(E))))
+			for (const std::pair<int, unsigned char>& M : Marks) StreetMouthAt[size_t(M.first)] |= M.second;
 	}
 	SideBridges = N.Bridges.load();
 	SideTunnels = N.Tunnels.load();
@@ -1720,6 +1723,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, Paint[3] = {0.83f, 0.83f, 0.75f},
 		Stone[3] = {0.2f, 0.19f, 0.17f}, Tile[3] = {0.51f, 0.49f, 0.43f}, Concrete[3] = {0.21f, 0.21f, 0.2f}, Soot[3] = {0.06f, 0.06f, 0.06f},
 		Portal[3] = {0.34f, 0.33f, 0.3f}, Grass[3] = {0.088f, 0.105f, 0.04f};
+	static constexpr float Yellow[3] = {0.78f, 0.52f, 0.03f};   // [OSM stage 5D] no-parking lines
+	static constexpr double YellowReach = 12.0;
 	const int Count = int(Pts.size());
 	struct Row
 	{
@@ -2335,6 +2340,28 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
 				const double Ia = Hard ? A.Half - A.Shoulder : A.Half - 0.3, Ib = Hard ? B.Half - B.Shoulder : B.Half - 0.3, W = Hard ? 0.1 : 0.065;
 				Strip(A, B, Side * Ia + W, Side * Ia - W, Side * Ib + W, Side * Ib - W, PaintLift, PaintLift, Paint);
+			}
+		}
+		// [OSM stage 5D] Double yellow lines along a town street's kerbs near a junction (no parking
+		// within 10 m of one, as the Highway Code has it): 75 mm lines 75 mm apart, 0.25 m off the kerb,
+		// for YellowReach m from a side road's ends and either side of a mouth onto the ride's road.
+		if (StreetRow[K] != 0 && StreetRow[K + 1] != 0 && Half >= 2.4)
+		{
+			const size_t At0 = size_t(First) + K;
+			bool NearJunction = false;
+			if (Which == 0)
+			{
+				for (size_t P = At0; P < StreetMouthAt.size() && P < Pts.size() && Pts[P].Along - A.Along < YellowReach && !NearJunction; ++P) NearJunction = StreetMouthAt[P] != 0;
+				for (size_t P = At0 + 1; P-- > 0 && P < StreetMouthAt.size() && A.Along - Pts[P].Along < YellowReach && !NearJunction;) NearJunction = StreetMouthAt[P] != 0;
+			}
+			else
+				NearJunction = A.Along < YellowReach || Pts.back().Along - B.Along < YellowReach;
+			for (double Side : {1.0, -1.0})
+			{
+				if (!NearJunction) break;
+				if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
+				for (const double In : {0.29, 0.44})
+					Strip(A, B, Side * (A.Half - In) + 0.0375, Side * (A.Half - In) - 0.0375, Side * (B.Half - In) + 0.0375, Side * (B.Half - In) - 0.0375, PaintLift, PaintLift, Yellow);
 			}
 		}
 		// [OSM stage 5B] Where the ride's road comes onto a roundabout: one broken line across its own lane
