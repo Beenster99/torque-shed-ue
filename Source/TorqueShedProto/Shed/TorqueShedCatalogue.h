@@ -80,6 +80,13 @@ bool DrawnParts(const TMap<FString, FString>& Parts, const FString& Geo, std::ve
 int32 MakePart(AActor* Owner, USceneComponent* Parent, const FString& MainSlot, const TMap<FString, FString>& Parts,
 	TArray<UStaticMeshComponent*>& Out);
 
+// [bikes v2] A whole Bike Models V2 bike for looking at (BikesV2/README.md): Data/BikesV2/<Model>.glb
+// (one mesh, a primitive per surface, fitting's frame in metres with the origin on the ground under
+// the rear axle) drawn under Parent in the bike's cm, each surface on the existing bike material
+// that Data/BikesV2/<Model>.json names for it, with that file's colour, metallic and roughness.
+// Nothing fits, rides or saves it yet. Returns the meshes made (0 and a log line if a file is missing).
+int32 MakeV2Display(AActor* Owner, USceneComponent* Parent, const FString& Model, TArray<UStaticMeshComponent*>& Out);
+
 // Tagged on a surface that isn't paint (chrome, rubber...): ApplyLooks leaves its colour alone.
 extern const TCHAR* const NoPaintTag;
 

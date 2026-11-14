@@ -1,0 +1,162 @@
+{
+ "name": "Corvano naked (working title N1)",
+ "brand": "corvano",
+ "family": "Naked",
+ "rev": "C",
+ "wheelbase_mm": 1465,
+ "seat_height_mm": 820,
+ "surfaces": {
+  "rubber": {
+   "ue": "cat_rubber"
+  },
+  "rim__rim": {
+   "ue": "cat_powder",
+   "color": [
+    0.0199,
+    0.022,
+    0.0265
+   ],
+   "metallic": 0.85,
+   "roughness": 0.42
+  },
+  "steel": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.55,
+    0.56,
+    0.57
+   ],
+   "metallic": 1.0,
+   "roughness": 0.22
+  },
+  "alu_dark": {
+   "ue": "cat_anodised",
+   "color": [
+    0.06,
+    0.065,
+    0.07
+   ],
+   "metallic": 0.9,
+   "roughness": 0.45
+  },
+  "chrome": {
+   "ue": "chrome"
+  },
+  "gold": {
+   "ue": "cat_anodised",
+   "color": [
+    0.42,
+    0.27,
+    0.08
+   ],
+   "metallic": 1.0,
+   "roughness": 0.32
+  },
+  "frame__frame": {
+   "ue": "cat_powder",
+   "color": [
+    0.3993,
+    0.2508,
+    0.0759
+   ],
+   "metallic": 0.6,
+   "roughness": 0.35
+  },
+  "engine": {
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.34,
+    0.35,
+    0.37
+   ],
+   "metallic": 0.9,
+   "roughness": 0.5
+  },
+  "engine_dark": {
+   "ue": "cat_cast_alloy",
+   "color": [
+    0.11,
+    0.115,
+    0.12
+   ],
+   "metallic": 0.8,
+   "roughness": 0.5
+  },
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
+  },
+  "exhaust": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.5,
+    0.48,
+    0.45
+   ],
+   "metallic": 1.0,
+   "roughness": 0.3
+  },
+  "accent__accent": {
+   "ue": "paint_silver",
+   "color": [
+    0.4591,
+    0.0029,
+    0.0189
+   ],
+   "metallic": 0.0,
+   "roughness": 0.3
+  },
+  "paint__body": {
+   "ue": "paint_silver",
+   "color": [
+    0.4591,
+    0.0029,
+    0.0189
+   ],
+   "metallic": 0.0,
+   "roughness": 0.28
+  },
+  "seat": {
+   "ue": "leather",
+   "color": [
+    0.018,
+    0.018,
+    0.02
+   ],
+   "metallic": 0.0,
+   "roughness": 0.6
+  },
+  "redlens": {
+   "ue": "lens_red"
+  },
+  "plate": {
+   "ue": "cat_plastic",
+   "color": [
+    0.6,
+    0.5,
+    0.05
+   ],
+   "metallic": 0.0,
+   "roughness": 0.5
+  },
+  "lens": {
+   "ue": "lens_clear"
+  },
+  "alu": {
+   "ue": "cat_brushed_steel",
+   "color": [
+    0.62,
+    0.64,
+    0.66
+   ],
+   "metallic": 1.0,
+   "roughness": 0.38
+  }
+ }
+}

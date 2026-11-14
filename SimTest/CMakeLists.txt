@@ -219,3 +219,12 @@ endif()
 # Writes a dash unit's shapes for Tools/dash_pictures.py (a picture of the unit without the engine).
 add_executable(dash_dump dash_dump.cpp ${FIT}/FitJson.cpp ${FIT}/PartsDb.cpp ${FIT}/BikeLayout.cpp ${FIT}/BikeBody.cpp ${FIT}/BikeParts.cpp ${FIT}/BikeFrame.cpp ${FIT}/PartMesh.cpp)
 target_include_directories(dash_dump PRIVATE ${FIT} ${SIM})
+
+# [bikes v2] The Bike Models V2 bikes on show (Data/BikesV2): each loads with the game's glb reader.
+add_executable(bikesv2_test bikesv2_test.cpp ${FIT}/FitJson.cpp ${FIT}/PartMesh.cpp)
+target_include_directories(bikesv2_test PRIVATE ${FIT} ${SIM})
+if(MSVC)
+  target_compile_options(bikesv2_test PRIVATE /W4)
+else()
+  target_compile_options(bikesv2_test PRIVATE -Wall -Wextra -Wshadow -Werror=shadow -Wconversion -Wno-sign-conversion)
+endif()
