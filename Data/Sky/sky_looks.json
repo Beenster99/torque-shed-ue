@@ -260,7 +260,8 @@
     "sheet": 1.0
    }
   },
-  "extinction_scale": 8.0
+  "extinction_scale": 8.0,
+  "deck_dims_sun": 0.0
  },
  "kinds_rules": {
   "_": "Stage 3: which kind of cloud each layer shows. Every rule is a band blended across, never a switch.",
@@ -285,7 +286,6 @@
   "veil_to": 0.85,
   "veil_widen_deg": 1.0,
   "glass_widen_deg": 6.0,
-  "glass_shadows": 0.25,
   "halo_most": 0.6
  },
  "seen_coming": {

@@ -115,6 +115,10 @@ struct Looks
 	// The deck closes: from this SunBlock to that, the drawn clouds' own shadows give way to a dimmed sun
 	// (so the sun is never dimmed twice).
 	double DeckFrom = 0.7, DeckTo = 0.95;
+	// With real cloud drawn, how much the closing deck still dims the sun itself: 0 never (the drawn deck
+	// shades the ground and its own underside: build 145's bench showed a sun dimmed to a seventh left the
+	// deck lit only by the blue sky light, a flat pale blue haze, not grey), 1 the stage 2 way.
+	double DeckDimsSun = 0.0;
 	// The old noise cloud shadows (M_CloudShadow, MPC_Weather CloudShadow) where clouds aren't drawn
 	// (the Low setting): 1 none .. 0.45 most of the ground, by the cover.
 	Curve LegacyShadow{{{0.0, 1.0}, {0.1, 0.6}, {0.6, 0.45}, {1.0, 0.45}}};
@@ -155,8 +159,8 @@ struct Looks
 	// How solid the sheet is at full cover, wisps and veil.
 	double HighOpacity = 0.75;
 	// The sun through cloud: a veil makes it milky (the light widens this many degrees, its disc softens)
-	// with a 22 degree halo now and then; altostratus a ground glass sun (wider still, faint shadows).
-	double VeilWidenDeg = 1.0, GlassWidenDeg = 6.0, GlassShadows = 0.25, HaloMost = 0.6;
+	// with a 22 degree halo now and then; altostratus a ground glass sun (wider still).
+	double VeilWidenDeg = 1.0, GlassWidenDeg = 6.0, HaloMost = 0.6;
 
 	// --- Weather you can see coming (stage 4) ---
 	// Fog with a top: fog that formed overnight in calm, clear air lies this deep over the low ground

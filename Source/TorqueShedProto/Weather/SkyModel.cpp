@@ -69,7 +69,7 @@ const NamedNumber Numbers[] = {
 	{"low_base_least_m", &Looks::LowBaseLeastM}, {"low_base_most_m", &Looks::LowBaseMostM},
 	{"density_rain", &Looks::DensityRain}, {"extinction_scale", &Looks::ExtinctionScale},
 	{"albedo_fair", &Looks::AlbedoFair}, {"albedo_rain", &Looks::AlbedoRain},
-	{"deck_from", &Looks::DeckFrom}, {"deck_to", &Looks::DeckTo},
+	{"deck_from", &Looks::DeckFrom}, {"deck_to", &Looks::DeckTo}, {"deck_dims_sun", &Looks::DeckDimsSun},
 	{"convect_from_deg", &Looks::ConvectFromDeg}, {"convect_full_deg", &Looks::ConvectFullDeg}, {"convect_cape", &Looks::ConvectCape},
 	{"shower_cape_from", &Looks::ShowerCapeFrom}, {"shower_cape_to", &Looks::ShowerCapeTo},
 	{"shower_rain_mm", &Looks::ShowerRainMm}, {"steady_rain_mm", &Looks::SteadyRainMm},
@@ -81,7 +81,7 @@ const NamedNumber Numbers[] = {
 	{"veil_from", &Looks::VeilFrom}, {"veil_to", &Looks::VeilTo},
 	{"high_base_m", &Looks::HighBaseM}, {"high_opacity", &Looks::HighOpacity},
 	{"veil_widen_deg", &Looks::VeilWidenDeg}, {"glass_widen_deg", &Looks::GlassWidenDeg},
-	{"glass_shadows", &Looks::GlassShadows}, {"halo_most", &Looks::HaloMost},
+	{"halo_most", &Looks::HaloMost},
 	{"fog_shallow_m", &Looks::FogShallowM}, {"fog_thick_m", &Looks::FogThickM}, {"fog_top_fade_m", &Looks::FogTopFadeM},
 	{"mist_humid_from", &Looks::MistHumidFrom}, {"mist_humid_full", &Looks::MistHumidFull}, {"mist_calm_ms", &Looks::MistCalmMs},
 	{"mist_windy_ms", &Looks::MistWindyMs}, {"mist_clear_to", &Looks::MistClearTo}, {"mist_gone_deg", &Looks::MistGoneDeg},
@@ -235,7 +235,7 @@ Sky Compute(const Inputs& In, const Looks& L)
 
 	// The clouds drawn (stage 2) do their own shading while the sky is broken; only as the deck closes
 	// does the sun itself dim and widen, so it is never dimmed twice.
-	const double Deck = In.bClouds ? Smooth((Block - L.DeckFrom) / std::max(L.DeckTo - L.DeckFrom, 1e-3)) : 1.0;
+	const double Deck = In.bClouds ? Clamp01(L.DeckDimsSun) * Smooth((Block - L.DeckFrom) / std::max(L.DeckTo - L.DeckFrom, 1e-3)) : 1.0;
 	const double DullSun = S.Dull * Deck;
 	S.SunShare = Lerp(1.0, Lerp(L.SunDimDull, L.SunDimWet, S.WetLook), DullSun);
 	const double Fade = Smooth((E - L.SunFadeToDeg) / std::max(L.SunFadeFromDeg - L.SunFadeToDeg, 1e-3));
@@ -407,7 +407,7 @@ Sky Compute(const Inputs& In, const Looks& L)
 	S.Halo = L.HaloMost * Veil * (1.0 - S.Cover) * Smooth(E / 5.0);
 	S.SunAngle = std::min(S.SunAngle + L.VeilWidenDeg * Veil + L.GlassWidenDeg * Glass, std::max(L.SunWideDeg, S.SunAngle));
 	S.SunDisc = Clamp01(1.0 - S.SunAngle / std::max(L.DiscHideOverDeg, 1e-3));
-	S.CloudShadows = In.bClouds ? (1.0 - Deck) * (1.0 - (1.0 - L.GlassShadows) * Glass) : 0.0;
+	S.CloudShadows = In.bClouds ? 1.0 - Deck : 0.0;   // (the drawn deck darkens the ground by its own shadow)
 	S.LegacyShadow = In.bClouds ? 1.0 : L.LegacyShadow.At(W.Cloud);
 	return S;
 }
