@@ -122,6 +122,8 @@ def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=()):
     if tail:
         v = kit["tail"][tail - 1]
         b["tail"] = copy.deepcopy(v["tail"])
+        if v.get("plate"):          # a tail that ends somewhere else carries the plate with it
+            b["plate_hanger"] = [shp for shp in b.get("plate_hanger", []) if shp.get("cls") != "plate"] + copy.deepcopy(v["plate"])
         for shp in b.get("behind", []):
             if "fender" in shp.get("cls", "") and v.get("tray"):
                 shp["pts"] = copy.deepcopy(v["tray"])
