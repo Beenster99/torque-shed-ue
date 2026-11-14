@@ -768,6 +768,9 @@ int main(int Argc, char** Argv)
 					break;
 				}
 		}
+		// (the map's crash barriers: where the first few are)
+		for (size_t B = 0; B < G.Barriers.size() && B < 4; ++B)
+			std::printf("  %s, %zu points, from %.0f, %.0f\n", G.Barriers[B].Kind.c_str(), G.Barriers[B].Pts.size(), G.Barriers[B].Pts[0].X, G.Barriers[B].Pts[0].Z);
 		// (the ride's way by class, where the class changes: onto and off the fast roads)
 		std::string Was;
 		double Run = 0.0;

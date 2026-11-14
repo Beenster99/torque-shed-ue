@@ -116,12 +116,26 @@ const LocalLook& RidePlan::LookHere(double X, double Z) const
 void RidePlan::IndexScenery()
 {
 	Scene = std::make_shared<SceneIndex>();
+	// [OSM stage 5C] The map's crash barriers (the roadx bake's guard rails and concrete barriers) drawn
+	// with the walls and fences: added to the scenery's lines once.
+	if (!BarriersLined)
+	{
+		BarriersLined = true;
+		for (const GroundShape& Bar : Area.Roads.Barriers)
+		{
+			FeatureLine F;
+			F.Kind = Bar.Kind == "concrete_barrier" ? "concrete_barrier" : "guard_rail";
+			F.Line = Bar.Pts;
+			Area.Roads.Scenery.Lines.push_back(std::move(F));
+		}
+	}
 	const Region& G = Area.Roads;
 	for (size_t L = 0; L < G.Scenery.Lines.size(); ++L)
 	{
 		const FeatureLine& F = G.Scenery.Lines[L];
 		const bool Wall = F.Kind == "wall" || F.Kind == "retaining_wall", Hedge = F.Kind == "hedge", Fence = F.Kind == "fence";
-		if (!(Wall || Hedge || Fence) || F.Line.size() < 2) continue;
+		const bool Barrier = F.Kind == "guard_rail" || F.Kind == "concrete_barrier";   // [OSM stage 5C]
+		if (!(Wall || Hedge || Fence || Barrier) || F.Line.size() < 2) continue;
 		long long Last = -1;
 		bool Any = false;
 		for (size_t I = 0; I + 1 < F.Line.size(); ++I)
@@ -203,6 +217,7 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 			{
 				const FeatureLine& F = G.Scenery.Lines[size_t(L)];
 				const bool Hedge = F.Kind == "hedge", Fence = F.Kind == "fence";
+				const bool Rail = F.Kind == "guard_rail", Concrete = F.Kind == "concrete_barrier";   // [OSM stage 5C]
 				// (in the South West a mapped wall is a hedge bank: earth faced with turf, a hedge along its top)
 				const bool Bank = Banks && !Fence;
 				// (a dry stone wall: 1.3 m, wider at the foot; a hedge: taller and thick; a fence: posts and a rail)
@@ -237,10 +252,44 @@ void RidePlan::SceneryTile(double X0, double Z0, double Size, double Coarse, Rid
 						const P2 Pa = Pieces[Pc][0], Pb = Pieces[Pc][1];
 						const P2 Pm = (Pa + Pb) * 0.5;
 						if (RailClear(Pm.X, Pm.Z) < 2.6) continue;   // (nor across a railway)
-						const double Spare = Hedge ? 1.6 : 1.0;
+						const double Spare = Hedge ? 1.6 : Rail || Concrete ? 0.2 : 1.0;
 						if (!OffRoad(Pm.X, Pm.Z, Spare) || !OffRoad(Pa.X, Pa.Z, Spare) || !OffRoad(Pb.X, Pb.Z, Spare)) continue;
 						const double Ga = Ground(Pa.X, Pa.Z), Gb = Ground(Pb.X, Pb.Z);
 						if (std::isnan(Ga) || std::isnan(Gb)) continue;
+						if (Rail || Concrete)
+						{
+							// [OSM stage 5C] A crash barrier: a steel beam on a post at each bit's start, a face each
+							// side (0.45 to 0.78 m up), or a concrete step barrier (0.6 m at its foot, 0.24 m at
+							// its top, 0.9 m high).
+							static const Rgb Steel = {0.27f, 0.28f, 0.29f}, PostGrey = {0.2f, 0.2f, 0.21f}, Cast = {0.32f, 0.31f, 0.29f};
+							if (Concrete)
+							{
+								for (double Sg : {1.0, -1.0})
+								{
+									const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 0.5, Pm.Z + Side.Z * Sg * 50.0);
+									Quad(Out, At3(Pa.X + Side.X * Sg * 0.3, Ga - 0.05, Pa.Z + Side.Z * Sg * 0.3), At3(Pb.X + Side.X * Sg * 0.3, Gb - 0.05, Pb.Z + Side.Z * Sg * 0.3),
+										At3(Pb.X + Side.X * Sg * 0.2, Gb + 0.25, Pb.Z + Side.Z * Sg * 0.2), At3(Pa.X + Side.X * Sg * 0.2, Ga + 0.25, Pa.Z + Side.Z * Sg * 0.2), Far, Shade(Cast, 0.95), false);
+									Quad(Out, At3(Pa.X + Side.X * Sg * 0.2, Ga + 0.25, Pa.Z + Side.Z * Sg * 0.2), At3(Pb.X + Side.X * Sg * 0.2, Gb + 0.25, Pb.Z + Side.Z * Sg * 0.2),
+										At3(Pb.X + Side.X * Sg * 0.12, Gb + 0.9, Pb.Z + Side.Z * Sg * 0.12), At3(Pa.X + Side.X * Sg * 0.12, Ga + 0.9, Pa.Z + Side.Z * Sg * 0.12), Far, Cast, false);
+								}
+								Quad(Out, At3(Pa.X + Side.X * 0.12, Ga + 0.9, Pa.Z + Side.Z * 0.12), At3(Pb.X + Side.X * 0.12, Gb + 0.9, Pb.Z + Side.Z * 0.12),
+									At3(Pb.X - Side.X * 0.12, Gb + 0.9, Pb.Z - Side.Z * 0.12), At3(Pa.X - Side.X * 0.12, Ga + 0.9, Pa.Z - Side.Z * 0.12), Sky, Shade(Cast, 1.1), false);
+								continue;
+							}
+							const P2 Along = Dir * 0.06, Across = Side * 0.06;
+							const P3 Out3 = At3(Pa.X + Side.X * 5.0, Ga + 0.5, Pa.Z + Side.Z * 5.0);
+							Quad(Out, At3(Pa.X - Along.X, Ga - 0.2, Pa.Z - Along.Z), At3(Pa.X + Along.X, Ga - 0.2, Pa.Z + Along.Z), At3(Pa.X + Along.X, Ga + 0.74, Pa.Z + Along.Z),
+								At3(Pa.X - Along.X, Ga + 0.74, Pa.Z - Along.Z), Out3, PostGrey, true);
+							Quad(Out, At3(Pa.X - Across.X, Ga - 0.2, Pa.Z - Across.Z), At3(Pa.X + Across.X, Ga - 0.2, Pa.Z + Across.Z), At3(Pa.X + Across.X, Ga + 0.74, Pa.Z + Across.Z),
+								At3(Pa.X - Across.X, Ga + 0.74, Pa.Z - Across.Z), Out3, PostGrey, true);
+							for (double Sg : {1.0, -1.0})
+							{
+								const P2 Fa = Pa + Side * (0.12 * Sg), Fb = Pb + Side * (0.12 * Sg);
+								const P3 Far = At3(Pm.X + Side.X * Sg * 50.0, Ga + 0.6, Pm.Z + Side.Z * Sg * 50.0);
+								Quad(Out, At3(Fa.X, Ga + 0.45, Fa.Z), At3(Fb.X, Gb + 0.45, Fb.Z), At3(Fb.X, Gb + 0.78, Fb.Z), At3(Fa.X, Ga + 0.78, Fa.Z), Far, Steel, false);
+							}
+							continue;
+						}
 						if (Fence)
 						{
 							// A post at the bit's start and a rail to the next.
@@ -829,6 +878,7 @@ void RidePlan::IndexFurniture()
 					for (int L : It->second)
 					{
 						const FeatureLine& Line = G.Scenery.Lines[size_t(L)];
+						if (Line.Kind == "guard_rail" || Line.Kind == "concrete_barrier") continue;   // ([OSM stage 5C] no gate in a crash barrier)
 						for (size_t K = 0; K + 1 < Line.Line.size(); ++K)
 						{
 							const P2 A = Line.Line[K], B = Line.Line[K + 1], AB = B - A;

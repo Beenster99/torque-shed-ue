@@ -1147,6 +1147,7 @@ private:
 	int CutGaps(const P2& A, const P2& B, P2 Out[2][2]) const;
 	std::shared_ptr<SceneIndex> Scene;
 	void IndexScenery();
+	bool BarriersLined = false;   // [OSM stage 5C] the map's crash barriers added to the scenery's lines
 };
 // [ride anywhere] The sat nav's way back to the ride's road (RidePlan::DetourFrom).
 struct RideDetour
