@@ -305,7 +305,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 		double& Debt = SprayDebt.FindOrAdd(Key);
 		const double Pace = FMath::Clamp(Speed / 2500.0, 0.0, 1.6);
 		const double Amount = FMath::SmoothStep(0.0, 1.0, (Wet - 0.05) / 0.45);
-		Debt += Dt * Amount * Pace * 3000.0;
+		Debt += Dt * Amount * Pace * 1400.0;   // (build 145 at 3000 was too much, beenster: about halfway back)
 		const FVector Fwd = FVector(Vel.X, Vel.Y, 0.0).GetSafeNormal();
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Fwd);
 		while (Debt >= 1.0 && Bits.Num() < PuffPool)
@@ -330,7 +330,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 			// speed, so the tail stands a metre or so high at 50 mph, as in the reference.)
 			const double Fling = Speed * FMath::FRandRange(0.25, 0.55);
 			B.Vel = Fwd * Fling * (1.0 - FMath::Cos(Theta)) + FVector(0.0, 0.0, Fling * FMath::Sin(Theta))
-				+ Side * Fling * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.22 : 0.16);   // (a fan, seen from the side too)
+				+ Side * Fling * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.22 : 0.11);   // (a fan, seen from the side too)
 			if (bMist)
 			{
 				// The mist: a few soft, faint puffs that hang in the air behind.
@@ -338,7 +338,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 				B.Life = FMath::FRandRange(0.8f, 1.4f);
 				B.Size0 = FMath::FRandRange(8.0f, 16.0f);
 				B.Size1 = FMath::FRandRange(50.0f, 110.0f) * (float)FMath::Lerp(0.7, 1.2, Pace / 1.6);
-				B.Alpha = FMath::FRandRange(0.12f, 0.22f) * (float)Amount;
+				B.Alpha = FMath::FRandRange(0.07f, 0.13f) * (float)Amount;
 				B.Gravity = 120.0f;
 				B.Drag = 2.5f;
 				B.Soft = 1.0f;

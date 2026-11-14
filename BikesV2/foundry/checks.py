@@ -140,7 +140,16 @@ def kit_parts(model, fams):
     out.append((min(lows) >= low_need, f"exhaust lowest point {min(lows):.0f} mm off the ground (needs {low_need})"))
     if rear:
         out.append((min(rear) >= -model["wheels"]["rear"]["tyre_r"], f"silencer ends {min(rear):.0f} mm from the rear axle, inside the rear tyre line"))
-    pans = [p for shp in model["body"].get("panels", []) if shp.get("cls") == "body" and not shp.get("cowl") for p in pts_of(shp) if p[1] < 420]
+    # a fairing side stands outside the tyre, which rises between the two sides as the fork compresses,
+    # so it is held clear of the tyre at ride height and off the ground; a belly pan sits on the centre
+    # line and has to clear the tyre at full compression
+    sides = [p for shp in model["body"].get("panels", []) if shp.get("fairing") for p in pts_of(shp)]
+    if sides:
+        c0 = (g["wheelbase"], rt)
+        gap = min(math.hypot(p[0] - c0[0], p[1] - c0[1]) for p in sides if p[1] < 640) - rt
+        low = min(p[1] for p in sides)
+        out.append((gap >= 20 and low >= low_need, f"fairing sides: {gap:.0f} mm behind the front tyre at ride height, {low:.0f} mm off the ground (needs 20 and {low_need})"))
+    pans = [p for shp in model["body"].get("panels", []) if shp.get("cls") == "body" and not shp.get("cowl") and not shp.get("fairing") for p in pts_of(shp) if p[1] < 420]
     if pans:
         gap = min(math.hypot(p[0] - c[0], p[1] - c[1]) for p in pans) - rt
         low = min(p[1] for p in pans)

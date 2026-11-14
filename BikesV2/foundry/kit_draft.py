@@ -93,7 +93,7 @@ def nacelle(model):
     """A painted shell round the lamp, in the bike's colour."""
     x0, x1, z0, z1 = head_box(model)
     zc = (z0 + z1) / 2
-    shell = [[x0 - 26, z1 + 14, 1], [x1 - 30, z1 + 26], [x1 - 2, z1 - 10], [x1 + 2, z0 + 12], [x1 - 26, z0 - 12], [x0 - 12, z0 - 4, 1]]
+    shell = [[x0 - 26, z1 + 14, 1], [x1 - 30, z1 + 26], [x1 - 2, z1 - 10], [x1 + 2, z0 + 12], [x1 - 28, z0 - 6], [x0 - 12, z0 - 2, 1]]
     lens = [[x1 - 2, z1 - 14, 1], [x1 + 8, zc + 22], [x1 + 8, zc - 22], [x1, z0 + 14, 1]]
     keep = [s for s in clean_head(model) if s.get("circle")]
     return [{"pts": [[round(v, 1) for v in p[:2]] + p[2:] for p in shell], "cls": "body", "t": 0.6},
@@ -135,9 +135,9 @@ KITS = {
                       ("Reise", "fuller tank with a raised pillion pad", dict(front=1.04, rear=0.95), dict(step=12))],
         "tail": [("Kurzheck", "cut shorter", dict(end_dx=40)), ("Langheck", "longer, with a lifted tip", dict(end_dx=-45, tip_dz=12))],
         "front": [("Scheibe", "twin lamps with a tinted screen", flyscreen), ("Maske", "twin lamps in a painted shell", nacelle)],
-        "exhaust": [("Hoch", "a silencer carried high each side", lambda h: {"side": "both", "headers": [dict(x, pts=x["pts"] + [[455, 540], [440, 610]]) for x in h],
-                                                                           "cans": [{"a": [440, 610], "b": [170, 756], "w": 78, "front": True}]}),
-                    ("Einzel", "one fat silencer on the right", lambda h: {"headers": h[:1], "cans": [{"a": [470, 470], "b": [185, 560], "w": 100, "front": True}]})],
+        "exhaust": [("Hoch", "two silencers carried high under the seat", lambda h: {"side": "under", "headers": [dict(x, pts=x["pts"] + [[455, 560], [420, 660], [380, 716]]) for x in h],
+                                                                                   "cans": [{"a": [380, 716], "b": [110, 806], "w": 72, "front": True}]}),
+                    ("Einzel", "one fat silencer on the swingarm side", lambda h: {"side": "left", "headers": h[:1], "cans": [{"a": [470, 470], "b": [185, 560], "w": 100, "front": True}]})],
         "extras": [{"name": "Schutz", "note": "painted sump guard", "add": {"panels": [PAN]}},
                    {"name": "Kniekissen", "note": "rubber pads on the tank", "add": {"tank": [PADS]}}],
     },

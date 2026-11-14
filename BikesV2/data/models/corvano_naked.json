@@ -2,7 +2,7 @@
  "name": "Corvano naked (working title N1)",
  "brand": "corvano",
  "family": "Naked",
- "rev": "K",
+ "rev": "M",
  "engine_label": "90 degree V-twin",
  "frame_label": "steel trellis, engine as part of the frame",
  "colours": {
@@ -253,7 +253,7 @@
   "w": 36
  },
  "exhaust": {
-  "side": "both",
+  "side": "under",
   "headers": [
    {
     "pts": [
@@ -304,6 +304,18 @@
      [
       452,
       550
+     ],
+     [
+      425,
+      645
+     ],
+     [
+      385,
+      705
+     ],
+     [
+      345,
+      728
      ]
     ],
     "w": 46
@@ -325,6 +337,18 @@
      [
       452,
       550
+     ],
+     [
+      425,
+      645
+     ],
+     [
+      385,
+      705
+     ],
+     [
+      345,
+      728
      ]
     ],
     "w": 46
@@ -333,14 +357,14 @@
   "cans": [
    {
     "a": [
-     452,
-     550
+     345,
+     728
     ],
     "b": [
-     150,
-     676
+     72,
+     868
     ],
-    "w": 88,
+    "w": 72,
     "front": true
    }
   ]
@@ -646,22 +670,22 @@
   {
    "pts": [
     [
-     1205,
-     1000,
+     1195,
+     1040,
      1
     ],
     [
-     1250,
-     985
+     1240,
+     1025
     ],
     [
-     1265,
-     945,
+     1255,
+     985,
      1
     ],
     [
-     1210,
-     940,
+     1200,
+     980,
      1
     ]
    ],
@@ -900,8 +924,8 @@
      ],
      "r0": 318,
      "r1": 344,
-     "a0": 58,
-     "a1": 134
+     "a0": 74,
+     "a1": 146
     },
     "cls": "body"
    },
@@ -1372,7 +1396,7 @@
    "tank_seat": "Classico",
    "tail": "Corta",
    "front": "Ovale",
-   "exhaust": "Laterale"
+   "exhaust": "Sottosella"
   },
   "tank_seat": [
    {
@@ -1955,32 +1979,32 @@
      {
       "circle": 31,
       "at": [
-       1226,
-       972
+       1218,
+       1004
       ],
       "cls": "chromef"
      },
      {
       "circle": 25,
       "at": [
-       1226,
-       972
+       1218,
+       1004
       ],
       "cls": "plastic"
      },
      {
       "circle": 27,
       "at": [
-       1180,
-       1012
+       1172,
+       1044
       ],
       "cls": "chromef"
      },
      {
       "circle": 21,
       "at": [
-       1180,
-       1012
+       1172,
+       1044
       ],
       "cls": "plastic"
      }
@@ -2054,22 +2078,22 @@
      {
       "pts": [
        [
-        1205,
-        1000,
+        1195,
+        1040,
         1
        ],
        [
-        1250,
-        985
+        1240,
+        1025
        ],
        [
-        1265,
-        945,
+        1255,
+        985,
         1
        ],
        [
-        1210,
-        940,
+        1200,
+        980,
         1
        ]
       ],
@@ -2194,14 +2218,15 @@
        "w": 98,
        "front": true
       }
-     ]
+     ],
+     "side": "left"
     }
    },
    {
     "name": "Alto",
-    "note": "twin pipes swept up high under the seat",
+    "note": "one silencer swept up high on the swingarm side",
     "exhaust": {
-     "side": "both",
+     "side": "left",
      "headers": [
       {
        "pts": [
@@ -2403,7 +2428,8 @@
        "w": 70,
        "front": true
       }
-     ]
+     ],
+     "side": "left"
     }
    }
   ],

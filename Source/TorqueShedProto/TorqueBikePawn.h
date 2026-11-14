@@ -603,6 +603,7 @@ private:
 	TWeakObjectPtr<UStaticMeshComponent> CatLever[2];
 	FTransform CatLeverRest[2];
 	bool bCatLeverRest[2] = {false, false};
+	double CatLeverSign[2] = {1.0, 1.0};   // which way about the upright pin takes the blade back
 	double PullAwayLogT = -1.0, PullAwayLogNext = 0.0;   // [rider pose] the clutch hand logged for 3 s after pulling away from a stop
 	double ClutchFingers = 0.0;        // [rider pose] two fingers over the clutch lever (it's in, being let out, a shift, stopped)
 	// What the rider's body follows, smoothed: the bike's lean (degrees, + right) and its speeding up
