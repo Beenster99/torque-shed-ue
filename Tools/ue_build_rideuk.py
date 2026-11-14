@@ -512,7 +512,7 @@ def scanned_trees(L, kit):
     meshes, others = [], []
     for a in unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game", recursive=True):
         pkg = str(a.package_name)
-        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/"):
+        if pkg.startswith("/Game/Buttertubs/") or pkg.startswith("/Game/RideUK/") or pkg.startswith(SCAN_DEST + "/"):
             continue
         cls = str(a.asset_class_path.asset_name)
         path = "%s.%s" % (pkg, a.asset_name)
@@ -563,6 +563,13 @@ def scanned_trees(L, kit):
         else:
             ok = unreal.EditorAssetLibrary.rename_directory(OLD_SCAN_DEST, SCAN_DEST)
             log("scanned trees: %s moved to %s%s" % (OLD_SCAN_DEST, SCAN_DEST, "" if ok else " (FAILED: delete it in the editor)"))
+
+    # (copies of parts a skip word now leaves out, made before it was added: round 144's pine needles)
+    for a in unreal.EditorAssetLibrary.list_assets(SCAN_DEST, recursive=True, include_folder=False) if unreal.EditorAssetLibrary.does_directory_exist(SCAN_DEST) else []:
+        n = norm(a.rsplit("/", 1)[-1])
+        if any(w in n for w in skip):
+            gone = unreal.EditorAssetLibrary.delete_asset(a.split(".")[0])
+            log("scanned trees: %s %s (a skip word)" % (a.split(".")[0], "deleted" if gone else "NOT deleted"))
 
     def static_of_skeletal(path):
         """A Megaplant's whole tree is a SkeletalMesh (its bones sway in the wind): a static copy of it,
