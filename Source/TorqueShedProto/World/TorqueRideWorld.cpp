@@ -832,6 +832,9 @@ void ATorqueRideWorld::Tick(float DeltaSeconds)
 	{
 		SinceGrowLook = 0.0;
 		TryGrow(At);
+		if (Plan)
+			for (const std::string& Note : Plan->TakeOutlineNotes())
+				UE_LOG(LogTemp, Log, TEXT("Towns: %s"), UTF8_TO_TCHAR(Note.c_str()));
 	}
 	// A square no longer wanted goes once every wanted square over the same ground is in place.
 	TArray<FIntVector> Going;
