@@ -1248,7 +1248,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		}
 		return Y + 0.012;
 	};
-	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, Verge[3] = {0.072f, 0.078f, 0.045f}, VergeGrass[3] = {0.10f, 0.16f, 0.03f};
+	static constexpr float Tarmac[3] = {0.022f, 0.022f, 0.025f}, VergeGrass[3] = {0.10f, 0.16f, 0.03f};
 	const auto Vertex = [&Out](const P2& At, double Y, const float* Colour)
 	{
 		Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
@@ -1344,7 +1344,7 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 	{
 		if (Edged[I] == 0) continue;
 		const size_t J = I + 1;
-		const uint32_t In0 = Vertex(Rim[I], RimH[I] - 0.012, Verge), In1 = Vertex(Rim[J], RimH[J] - 0.012, Verge);
+		const uint32_t In0 = Vertex(Rim[I], RimH[I] - 0.012, VergeGrass), In1 = Vertex(Rim[J], RimH[J] - 0.012, VergeGrass);
 		const uint32_t Mid0 = Vertex(Rim[I] + Outward[I] * ShoulderFlat, RimH[I] - 0.012 - ShoulderDip, VergeGrass), Mid1 = Vertex(Rim[J] + Outward[J] * ShoulderFlat, RimH[J] - 0.012 - ShoulderDip, VergeGrass);
 		const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Shoulder, RimH[I] - 0.012 - ShoulderDrop, VergeGrass), Out1 = Vertex(Rim[J] + Outward[J] * Shoulder, RimH[J] - 0.012 - ShoulderDrop, VergeGrass);
 		Tri(In0, In1, Mid1); Tri(In0, Mid1, Mid0); Tri(Mid0, Mid1, Out1); Tri(Mid0, Out1, Out0);
@@ -2073,18 +2073,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		else
 		{
 			// The left shoulder (from down in the ground up to the edge) and the right.
+			// (beenster: in the country the grass runs right up to the tarmac; only a town street has the grit edge)
+			const bool TownEdge = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
+			const float* Edge = TownEdge ? Verge : VergeGrass;
 			for (int Sd = 0; Sd < 2; ++Sd)
 			{
 				if (NoShoulder[Sd] || ShoulderTo[Sd] <= ShoulderFrom[Sd]) continue;
 				const Row Sa = ShoulderFrom[Sd] > 0.0 ? Between(A, B, ShoulderFrom[Sd]) : A, Sb = ShoulderTo[Sd] < 1.0 ? Between(A, B, ShoulderTo[Sd]) : B;
 				if (Sd == 0)
 				{
-					Graded(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, VergeGrass, Verge);
+					Graded(Sa, Sb, Sa.Half + ShoulderFlat, Sa.Half, Sb.Half + ShoulderFlat, Sb.Half, -ShoulderDip, 0.0, VergeGrass, Edge);
 					Strip(Sa, Sb, Sa.Half + Shoulder, Sa.Half + ShoulderFlat, Sb.Half + Shoulder, Sb.Half + ShoulderFlat, -ShoulderDrop, -ShoulderDip, VergeGrass);
 				}
 				else
 				{
-					Graded(Sa, Sb, -Sa.Half, -Sa.Half - ShoulderFlat, -Sb.Half, -Sb.Half - ShoulderFlat, 0.0, -ShoulderDip, Verge, VergeGrass);
+					Graded(Sa, Sb, -Sa.Half, -Sa.Half - ShoulderFlat, -Sb.Half, -Sb.Half - ShoulderFlat, 0.0, -ShoulderDip, Edge, VergeGrass);
 					Strip(Sa, Sb, -Sa.Half - ShoulderFlat, -Sa.Half - Shoulder, -Sb.Half - ShoulderFlat, -Sb.Half - Shoulder, -ShoulderDip, -ShoulderDrop, VergeGrass);
 				}
 			}
@@ -2228,8 +2231,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				// (as two triangles, each made to face up: on a tight curve the four points may not lie in order)
 				const P3 In0 = At3(CurveAt[S], CurveH[S]), In1 = At3(CurveAt[S + 1], CurveH[S + 1]), Mid0 = At3(CurveMid[S], CurveH[S] - ShoulderDip), Mid1 = At3(CurveMid[S + 1], CurveH[S + 1] - ShoulderDip),
 					Out0 = At3(CurveOut[S], CurveH[S] - ShoulderDrop), Out1 = At3(CurveOut[S + 1], CurveH[S + 1] - ShoulderDrop);
-				Quad3(In0, In1, Mid1, In0, Sky, Verge, false);
-				Quad3(In0, Mid1, Mid0, In0, Sky, Verge, false);
+				Quad3(In0, In1, Mid1, In0, Sky, VergeGrass, false);
+				Quad3(In0, Mid1, Mid0, In0, Sky, VergeGrass, false);
 				Quad3(Mid0, Mid1, Out1, Mid0, Sky, VergeGrass, false);
 				Quad3(Mid0, Out1, Out0, Mid0, Sky, VergeGrass, false);
 			}
