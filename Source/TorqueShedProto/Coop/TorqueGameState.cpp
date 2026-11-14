@@ -27,6 +27,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
 #include "EngineUtils.h"
@@ -500,6 +501,11 @@ void ATorqueGameState::GoToMode(float FadeSeconds)
 		SetWeather(Mode - 1, FadeSeconds);
 		return;
 	}
+	if (Mode == FTorqueSettings::WeatherPreset)
+	{
+		HoldPreset(FadeSeconds);
+		return;
+	}
 	if (Mode == 0)
 	{
 		Net.Source = (uint8)ETorqueWeatherSource::ByItself;
@@ -608,7 +614,9 @@ FString ATorqueGameState::WeatherText(bool bImperial) const
 	case ETorqueWeatherSource::LiveLastKnown: return FString::Printf(TEXT("Live, last known: %s (no connection; from %s)"), *Words, *Ago);
 	case ETorqueWeatherSource::LiveWaiting: return TEXT("Live: asking the weather service...");
 	case ETorqueWeatherSource::LiveOffline: return FString::Printf(TEXT("Live: no connection, changing by itself meanwhile (%s now)"), Kinds[FMath::Clamp(Weather, 0, 2)]);
-	default: return Kinds[FMath::Clamp(Weather, 0, 2)];
+	default:
+		if (const FString Held = SkyPresetLabel(); !Held.IsEmpty()) return FString::Printf(TEXT("Preset sky: %s"), *Held);
+		return Kinds[FMath::Clamp(Weather, 0, 2)];
 	}
 }
 
@@ -1074,6 +1082,113 @@ bool ATorqueGameState::SharedSkyDrift(int32 Layer, double& East, double& North) 
 	East = From.X;
 	North = From.Y;
 	return bSkyDriftSet;
+}
+
+const std::vector<TorqueSky::NamedSky>& ATorqueGameState::SkyPresets()
+{
+	// (Plain data, so a function's own copy is safe; read again when the file is changed, so skies can be
+	// added and tuned with the game running.)
+	static std::vector<TorqueSky::NamedSky> Skies;
+	static FDateTime ReadStamp = FDateTime::MinValue();
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Sky/presets.json"));
+	const FDateTime Stamp = IFileManager::Get().GetTimeStamp(*Path);
+	if (Stamp == ReadStamp) return Skies;
+	ReadStamp = Stamp;
+	FString Text;
+	TorqueFit::Json Root;
+	if (!FFileHelper::LoadFileToString(Text, *Path) || !TorqueFit::Json::Parse(TCHAR_TO_UTF8(*Text), Root))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Torque weather: preset skies %s unreadable"), *Path);
+		return Skies;
+	}
+	Skies = TorqueSky::SkiesFromJson(Root);
+	UE_LOG(LogTemp, Log, TEXT("Torque weather: %d preset skies"), (int32)Skies.size());
+	return Skies;
+}
+
+void ATorqueGameState::HoldPreset(float FadeSeconds)
+{
+	const std::vector<TorqueSky::NamedSky>& Skies = SkyPresets();
+	const TorqueSky::NamedSky* Pick = TorqueSky::FindSky(Skies, TCHAR_TO_UTF8(*FTorqueSettings::Get().WeatherPresetKey));
+	if (!Pick && !Skies.empty()) Pick = &Skies[0];
+	TorqueWeather::State S = TorqueWeather::Preset(TorqueWeather::Sunny);
+	if (Pick)
+	{
+		S = Pick->Weather;
+		if (!Pick->Recorded.empty())
+		{
+			// A recorded day: the live feed's answer as it was.
+			FString Text;
+			std::string Why;
+			const FString DayPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Data/Sky/days"), UTF8_TO_TCHAR((Pick->Recorded + ".json").c_str()));
+			TorqueWeather::State Day;
+			if (FFileHelper::LoadFileToString(Text, *DayPath) && TorqueWeather::ParseOpenMeteo(TCHAR_TO_UTF8(*Text), Day, nullptr, &Why))
+				S = Day;
+			else
+				UE_LOG(LogTemp, Warning, TEXT("Torque weather: recorded day %s unreadable (%s)"), *DayPath, UTF8_TO_TCHAR(Why.c_str()));
+		}
+	}
+	Fade.FadeTo(S, FadeSeconds);
+	if (FadeSeconds <= 0.0f) Weather = TorqueWeather::NearestKind(S);
+	Net.Source = (uint8)ETorqueWeatherSource::Fixed;
+	AppliedAt = -1.0;
+	SendNet();
+	TickWeather(0.0f);
+}
+
+void ATorqueGameState::ChooseSkyPreset(const FString& Key, int32 Dir)
+{
+	if (!HasAuthority()) return;
+	const std::vector<TorqueSky::NamedSky>& Skies = SkyPresets();
+	if (Skies.empty()) return;
+	FTorqueSettings& Set = FTorqueSettings::Get();
+	std::string Want = TCHAR_TO_UTF8(*Key);
+	if (Dir != 0)
+	{
+		const int32 N = (int32)Skies.size();
+		int32 At = -1;
+		for (int32 I = 0; I < N; ++I)
+			if (Skies[I].Key == TCHAR_TO_UTF8(*Set.WeatherPresetKey)) At = I;
+		// (Not holding one yet: the first, or the last going back.)
+		At = Set.WeatherMode != FTorqueSettings::WeatherPreset || At < 0 ? (Dir > 0 ? 0 : N - 1) : ((At + Dir) % N + N) % N;
+		Want = Skies[At].Key;
+	}
+	const TorqueSky::NamedSky* Pick = TorqueSky::FindSky(Skies, Want);
+	if (!Pick) return;
+	Set.WeatherMode = FTorqueSettings::WeatherPreset;
+	Set.WeatherPresetKey = UTF8_TO_TCHAR(Pick->Key.c_str());
+	if (Pick->HasSun() && !Set.bRealClock)
+	{
+		Set.TimeOfDay = HourForSun(Pick->Sun, Pick->bEvening);
+		SetHour(Set.TimeOfDay);
+	}
+	Set.Save();
+	UE_LOG(LogTemp, Log, TEXT("Torque weather: preset sky %s"), *Set.WeatherPresetKey);
+	WeatherModeChanged(0.0f);
+}
+
+FString ATorqueGameState::SkyPresetLabel() const
+{
+	if (Mode != FTorqueSettings::WeatherPreset) return FString();
+	const TorqueSky::NamedSky* Pick = TorqueSky::FindSky(SkyPresets(), TCHAR_TO_UTF8(*FTorqueSettings::Get().WeatherPresetKey));
+	return Pick ? FString(UTF8_TO_TCHAR(Pick->Label.c_str())) : FString();
+}
+
+float ATorqueGameState::HourForSun(double Elevation, bool bEvening) const
+{
+	// By solar time (morning before noon, evening after), the nearest height, then as the clock has it.
+	double BestSolar = bEvening ? 18.0 : 6.0, BestOff = 1e9;
+	for (double Solar = bEvening ? 12.0 : 0.0; Solar <= (bEvening ? 24.0 : 12.0); Solar += 1.0 / 60.0)
+	{
+		double E = 0.0, B = 0.0;
+		SunAt(Solar, E, B, SunLat, SunDec);
+		if (FMath::Abs(E - Elevation) < BestOff)
+		{
+			BestOff = FMath::Abs(E - Elevation);
+			BestSolar = Solar;
+		}
+	}
+	return (float)FMath::Fmod(BestSolar - SunShift + 48.0, 24.0);
 }
 
 void ATorqueGameState::BenchSky(const TorqueWeather::State& S, double Lat, int32 Day, double SolarHour)

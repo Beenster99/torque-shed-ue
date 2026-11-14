@@ -464,6 +464,44 @@ int main()
 		Check(FromJ.Rain == 1.0 && Near(FromJ.HighCloud, 0.8, 1e-9) && FromJ.Cape == 300.0 && FromJ.Wind850From == 90.0, "a sky named in JSON (the bench's)");
 	}
 
+	std::printf("\nThe preset skies (Data/Sky/presets.json, Settings > Gameplay > Preset sky)\n");
+	{
+		TorqueFit::Json Root;
+		const bool bRead = TorqueFit::Json::Parse(ReadFile(std::string(TORQUE_SKY_DATA) + "/presets.json"), Root);
+		const std::vector<NamedSky> Skies = SkiesFromJson(Root);
+		const TorqueFit::Json* List = Root.Get("skies");
+		Check(bRead && List && List->IsArray() && Skies.size() == List->A.size() && Skies.size() >= 30, "every preset sky reads (30 or more, no key twice)");
+		bool bDays = true, bSane = true;
+		for (const NamedSky& Each : Skies)
+		{
+			if (!Each.Recorded.empty())
+			{
+				State Day;
+				bDays = bDays && TorqueWeather::ParseOpenMeteo(ReadFile(std::string(TORQUE_SKY_DATA) + "/days/" + Each.Recorded + ".json"), Day);
+				continue;
+			}
+			const State& W = Each.Weather;
+			const bool bWetRain = W.Rain < 0.5 || W.RoadWet >= 0.5;   // (heavy rain on a dry road reads wrong)
+			const Sky S = At(W, Each.HasSun() ? Each.Sun : 35.0, true);
+			const bool Ok = !Each.Label.empty() && !Each.Group.empty() && W.Cloud >= 0.0 && W.Cloud <= 1.0 && W.LowCloud <= W.Cloud + 1e-9
+				&& W.MidCloud <= 1.0 && W.HighCloud <= 1.0 && bWetRain && std::isfinite(S.GroundLux) && std::isfinite(S.FogScale);
+			if (!Ok) std::printf("  !! %s\n", Each.Key.c_str());
+			bSane = bSane && Ok;
+		}
+		Check(bSane, "  each has a label, a group, sane cover, and wet roads under real rain");
+		Check(bDays, "  the recorded days it names are there");
+		const NamedSky* Fog = FindSky(Skies, "valley_fog");
+		const NamedSky* Gold = FindSky(Skies, "golden_hour");
+		Check(Fog && Fog->HasSun() && !Fog->bEvening && Gold && Gold->bEvening && FindSky(Skies, "cumulus") && !FindSky(Skies, "cumulus")->HasSun(),
+			"  dawn and evening skies move the clock; the rest keep it");
+		const NamedSky* Storm = FindSky(Skies, "thunderstorm");
+		Check(Storm && At(Storm->Weather, 35.0, true).Dominant(0) == Towering, "  the thunderstorm draws towering cloud");
+		const NamedSky* Grey = FindSky(Skies, "low_grey");
+		Check(Grey && At(Grey->Weather, 35.0, true).Dominant(0) == Stratus, "  low grey draws a stratus lid");
+		const NamedSky* Veil = FindSky(Skies, "cirrostratus");
+		Check(Veil && At(Veil->Weather, 35.0, true).Dominant(2) == Cirrostratus, "  the cirrostratus veil draws cirrostratus");
+	}
+
 	std::printf(Fails ? "\n%d FAILED\n" : "\nall passed\n", Fails);
 	return Fails ? 1 : 0;
 }

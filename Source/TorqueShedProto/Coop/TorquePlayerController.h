@@ -98,7 +98,7 @@ private:
 	FString RideBikeName(int32 Bay) const;
 	FString RideBikeTakenBy(int32 Bay) const;
 	int32 NextRideBike(int32 From, int32 Dir) const;
-	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route };
+	enum class EPage : uint8 { None, Pause, Settings, Graphics, Sound, Gameplay, Controller, Character, Profile, Keys, PadCheck, RideBike, Credits, Route, SkyPresets };
 	struct FRow
 	{
 		FString Label, Value, Hint;
@@ -122,6 +122,9 @@ private:
 
 	EPage Page = EPage::None;
 	TArray<EPage> Stack;
+	// The Gameplay page's place while its Preset sky list is open (back to the same row after).
+	int32 SkyListBackRow = 0, SkyListBackFirst = 0;
+	void OpenSkyPresets();
 	// Ride UK's Route planner (stage 4), a page of its own drawn full screen.
 	TUniquePtr<FTorqueRoutePlanner> Planner;
 	void OpenPlanner();

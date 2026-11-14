@@ -280,4 +280,20 @@ double Ev100(double Lux);
 
 // A weather State from a JSON object naming any of its figures (the bench's and the tests' skies).
 void StateFromJson(const TorqueFit::Json& J, TorqueWeather::State& InOut);
+
+// A preset sky to load (Data/Sky/presets.json; Settings > Gameplay > Preset sky): its key (kept in the
+// settings), the menu's words, and its weather; or a recorded day (Data/Sky/days/<Recorded>.json, read
+// by the game). Sun: the sun's height the clock moves to today (Evening: after noon), or -99 to keep the clock.
+struct NamedSky
+{
+	std::string Key, Label, Group, Note, Recorded;
+	TorqueWeather::State Weather;
+	double Sun = -99.0;
+	bool bEvening = false;
+	bool HasSun() const { return Sun > -90.0; }
+};
+// The presets file's skies, in its order (any without a key or a weather left out).
+std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root);
+// The one with this key (nullptr when there's none).
+const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& Key);
 } // namespace TorqueSky

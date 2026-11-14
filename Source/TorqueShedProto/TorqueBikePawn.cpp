@@ -1740,7 +1740,9 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	{
 		// The host's (or a solo rider's) to change; Tick picks it up from the game state.
 		ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
-		if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
+		// (A preset sky held: the next one, for testing the skies.)
+		if (GS && HasAuthority() && FTorqueSettings::Get().WeatherMode == FTorqueSettings::WeatherPreset) GS->ChooseSkyPreset(FString(), 1);
+		else if (GS && HasAuthority()) GS->SetWeather(GS->GetWeather() + 1);
 		else if (GS) HostOnlyNoteFor = 3.0;
 	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Perf))   // (L3 is the horn now)

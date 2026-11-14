@@ -439,4 +439,36 @@ void StateFromJson(const TorqueFit::Json& J, TorqueWeather::State& S)
 		if (const TorqueFit::Json* V = J.Get(Each.Name); V && V->IsNumber()) S.*(Each.Field) = V->N * Each.Scale;
 	if (const TorqueFit::Json* V = J.Get("code"); V && V->IsNumber()) S.Code = static_cast<int>(V->N);
 }
+
+std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root)
+{
+	std::vector<NamedSky> Out;
+	const TorqueFit::Json* List = Root.Get("skies");
+	if (!List || !List->IsArray()) return Out;
+	for (const TorqueFit::Json& J : List->A)
+	{
+		if (!J.IsObject()) continue;
+		NamedSky Sky;
+		Sky.Key = J.Str("key");
+		Sky.Label = J.Str("label", Sky.Key);
+		Sky.Group = J.Str("group");
+		Sky.Note = J.Str("note");
+		Sky.Recorded = J.Str("recorded");
+		const TorqueFit::Json* Weather = J.Get("weather");
+		if (Sky.Key.empty() || (!Weather && Sky.Recorded.empty())) continue;
+		if (FindSky(Out, Sky.Key)) continue;   // (the first of a key is the one)
+		if (Weather) StateFromJson(*Weather, Sky.Weather);
+		if (const TorqueFit::Json* Sun = J.Get("sun"); Sun && Sun->IsNumber()) Sky.Sun = std::clamp(Sun->N, -89.0, 89.0);
+		Sky.bEvening = J.Flag("evening", false);
+		Out.push_back(std::move(Sky));
+	}
+	return Out;
+}
+
+const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& Key)
+{
+	for (const NamedSky& Sky : Skies)
+		if (Sky.Key == Key) return &Sky;
+	return nullptr;
+}
 } // namespace TorqueSky

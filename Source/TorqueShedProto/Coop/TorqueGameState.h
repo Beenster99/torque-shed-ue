@@ -13,6 +13,7 @@
 #include "GameFramework/GameStateBase.h"
 #include "TorqueShedNet.h"
 #include "Weather/WeatherModel.h"
+#include "Weather/SkyModel.h"
 #include "Interfaces/IHttpRequest.h"
 #include "TorqueGameState.generated.h"
 
@@ -112,6 +113,15 @@ public:
 	void SetWeather(int32 NewWeather, float FadeSeconds = 20.0f);
 	// The host only: Settings' Weather has changed (FTorqueSettings::WeatherMode); go to it.
 	void WeatherModeChanged(float FadeSeconds = 20.0f);
+	// The preset skies to load (Data/Sky/presets.json, read again when the file changes), for Settings'
+	// Preset sky and the weather key while one is held.
+	static const std::vector<TorqueSky::NamedSky>& SkyPresets();
+	// The host only: hold the preset sky Key for everyone, at once (Settings' Weather goes to Preset sky),
+	// and move the clock to its sun when it has one (not with the real clock). Dir instead steps from the
+	// one held (+1 the next, -1 the one before).
+	void ChooseSkyPreset(const FString& Key, int32 Dir = 0);
+	// The preset sky held ("Valley fog"), or empty when the weather isn't one.
+	FString SkyPresetLabel() const;
 
 	// The clock: hours (0 .. 24), or -1 while the sun is where the level was built with it.
 	float GetHour() const { return Hour; }
@@ -150,6 +160,9 @@ private:
 	int32 Mode = 1;                 // the host's: FTorqueSettings::WeatherMode, or the launch's -TorqueWeather=
 	double NetSentAt = -1.0, AppliedAt = -1.0;
 	void GoToMode(float FadeSeconds);
+	void HoldPreset(float FadeSeconds);
+	// The clock hour today here at which the sun stands Elevation degrees up (after noon when bEvening).
+	float HourForSun(double Elevation, bool bEvening) const;
 	void TickWeather(float DeltaSeconds);
 	void SendNet();
 	void SetFromState(const TorqueWeather::State& S);
