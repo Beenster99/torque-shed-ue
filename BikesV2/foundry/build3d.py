@@ -814,24 +814,42 @@ def build(model):
                     faces.append((base, base + 1, base + 2, base + 3))
             mesh_obj(f"chainlinks{sgn}", verts, faces, mat("alu_dark"), smooth=False)
     sk = model["shock"]
-    tube("shock", [(sk["top"][0], 0, sk["top"][1]), (sk["bottom"][0], 0, sk["bottom"][1])], 16, mat("alu_dark"))
-    # the shock is held at both ends: a bridge across the swingarm at the bottom (out to the one arm
-    # on a single-sided swingarm), and a cross tube between the frame sides at the top
     sb, st_ = sk["bottom"], sk["top"]
-    ya, yb = (-ARM_IN, ARM_IN) if len(sides) == 2 else (-34, ARM_IN + 4)
-    tube("shockbridge", [(sb[0], ya, sb[1]), (sb[0], yb, sb[1])], 20, swm)
-    cone("shockeye_b", (sb[0], -26, sb[1]), (sb[0], 26, sb[1]), 27, 27, mat("alu_dark"), 24)
-    tube("shockmount_t", [(st_[0], -70, st_[1]), (st_[0], 70, st_[1])], 12, framem)
-    cone("shockeye_t", (st_[0], -24, st_[1]), (st_[0], 24, st_[1]), 24, 24, mat("alu_dark"), 24)
-    L = math.hypot(sk["bottom"][0] - sk["top"][0], sk["bottom"][1] - sk["top"][1])
-    us = ((sk["bottom"][0] - sk["top"][0]) / L, (sk["bottom"][1] - sk["top"][1]) / L)
+    L = math.hypot(sb[0] - st_[0], sb[1] - st_[1])
+    us = ((sb[0] - st_[0]) / L, (sb[1] - st_[1]) / L)
     ns = (-us[1], us[0])
-    coil = []
-    for i in range(121):
-        t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 9 * i / 120
-        q = add(add(tuple(sk["top"]), us, t), ns, 27 * math.cos(a))
-        coil.append((q[0], 27 * math.sin(a), q[1]))
-    tube("spring", coil, 5, mat("accent", hex_rgb(col.get("accent", col["body"]))))
+    springm = mat("accent", hex_rgb(col.get("accent", col["body"])))
+    if sk.get("twin"):
+        # a pair of shocks: one each side, outside the swingarm at the bottom and on a stud from the
+        # seat rail at the top
+        y_t, y_b, rail = 150, ARM_OUT + 20, fr.get("sub_y", 84)
+        for s in (-1, 1):
+            tube(f"shock{s}", [(st_[0], s * y_t, st_[1]), (sb[0], s * y_b, sb[1])], 12, mat("alu_dark"))
+            tube(f"shockstud_t{s}", [(st_[0], s * (rail - 10), st_[1]), (st_[0], s * (y_t + 16), st_[1])], 9, framem)
+            tube(f"shockstud_b{s}", [(sb[0], s * (ARM_OUT - 14), sb[1]), (sb[0], s * (y_b + 16), sb[1])], 9, swm)
+            cone(f"shockeye_t{s}", (st_[0], s * (y_t - 12), st_[1]), (st_[0], s * (y_t + 12), st_[1]), 18, 18, mat("alu_dark"), 24)
+            cone(f"shockeye_b{s}", (sb[0], s * (y_b - 12), sb[1]), (sb[0], s * (y_b + 12), sb[1]), 18, 18, mat("alu_dark"), 24)
+            coil = []
+            for i in range(121):
+                t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 10 * i / 120
+                q = add(add(tuple(st_), us, t), ns, 21 * math.cos(a))
+                coil.append((q[0], s * (y_t + (y_b - y_t) * t / L) + 21 * math.sin(a), q[1]))
+            tube(f"spring{s}", coil, 4.5, springm)
+    else:
+        tube("shock", [(st_[0], 0, st_[1]), (sb[0], 0, sb[1])], 16, mat("alu_dark"))
+        # the shock is held at both ends: a bridge across the swingarm at the bottom (out to the one arm
+        # on a single-sided swingarm), and a cross tube between the frame sides at the top
+        ya, yb = (-ARM_IN, ARM_IN) if len(sides) == 2 else (-34, ARM_IN + 4)
+        tube("shockbridge", [(sb[0], ya, sb[1]), (sb[0], yb, sb[1])], 20, swm)
+        cone("shockeye_b", (sb[0], -26, sb[1]), (sb[0], 26, sb[1]), 27, 27, mat("alu_dark"), 24)
+        tube("shockmount_t", [(st_[0], -70, st_[1]), (st_[0], 70, st_[1])], 12, framem)
+        cone("shockeye_t", (st_[0], -24, st_[1]), (st_[0], 24, st_[1]), 24, 24, mat("alu_dark"), 24)
+        coil = []
+        for i in range(121):
+            t, a = 40 + (L - 110) * i / 120, 2 * math.pi * 9 * i / 120
+            q = add(add(tuple(st_), us, t), ns, 27 * math.cos(a))
+            coil.append((q[0], 27 * math.sin(a), q[1]))
+        tube("spring", coil, 5, springm)
 
     # bodywork
     trellis = len([t for t in fr["tubes"] if t.get("cls") != "sub"]) >= 6
@@ -896,6 +914,10 @@ def build(model):
                             y = 96 + (y + 26 * min(1.0, max(0.0, 1040 - x) / 420.0) - 96) * math.sqrt(1 - (1 - u_) ** 2)
                         elif z > 690:
                             y *= 1 - 0.16 * min(1.0, (z - 690) / 170.0)
+                            # the handlebar cutaway: under the bars the top edge turns outward in a small
+                            # lip, a wing that throws air off the rider's hands
+                            fl = max(0.0, min(1.0, (x - 960) / 80.0)) * max(0.0, min(1.0, (1250 - x) / 90.0))
+                            y += 22 * fl * max(0.0, min(1.0, (z - 745) / 55.0)) ** 2
                         d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
                         return 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
@@ -903,6 +925,35 @@ def build(model):
                     return (104 + (wide / 2 + 52 - 104) * t) * k
                 for s in (-1, 1):
                     skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16, holes=cuts)
+                # the two sides join behind the front tyre in a curve: a chin bridge, low in the middle and
+                # rising to each leading edge, set back in the middle to clear the tyre on full compression
+                zs_ = [z_lo + 6 + n_ * 4 for n_ in range(int((min(340, z_hi) - z_lo - 6) / 4))]
+                z_n = max(zs_, key=lead_s) if zs_ else None
+                if sport and z_n and z_lo < 260 and lead_s(z_n) > 1040:
+                    zb, NT, NZ = max(z_lo + 10, z_n - 46), 16, 8
+                    vs, fs = [], []
+                    for back in (0, 1):
+                        for a_ in range(NT + 1):
+                            t_ = -1 + 2 * a_ / NT
+                            zt = z_n + 22 + 130 * t_ * t_
+                            for b_ in range(NZ + 1):
+                                z_ = zb + (zt - zb) * b_ / NZ
+                                vs.append(V(lead_s(z_) - 6 - 44 * (1 - t_ * t_) - 4 * back, t_ * (wrap(lead_s(z_) - 4, z_) - 2), z_))
+                    n1 = (NT + 1) * (NZ + 1)
+                    for a_ in range(NT):
+                        for b_ in range(NZ):
+                            q0 = a_ * (NZ + 1) + b_
+                            fs.append((q0, q0 + NZ + 1, q0 + NZ + 2, q0 + 1))
+                            fs.append((n1 + q0, n1 + q0 + 1, n1 + q0 + NZ + 2, n1 + q0 + NZ + 1))
+                    for a_ in range(NT):
+                        for b_ in (0, NZ):
+                            q0 = a_ * (NZ + 1) + b_
+                            fs.append((q0, q0 + NZ + 1, n1 + q0 + NZ + 1, n1 + q0))
+                    for b_ in range(NZ):
+                        for a_ in (0, NT):
+                            q0 = a_ * (NZ + 1) + b_
+                            fs.append((q0, q0 + 1, n1 + q0 + 1, n1 + q0))
+                    bm_fix_normals(mesh_obj(f"chin{i}", vs, fs, m_, True, 0, sharp=False))
                     for n_, (cut, shp_) in enumerate(zip(cuts, cut_shapes)):
                         if not shp_.get("reveal"):      # an air channel: a dark duct wall set back inside the opening
                             skin(f"duct{i}{n_}{s}", cut, lambda x, z: wrap(x, z) - 26, s, mat("plastic"), stations=30, rows=12, thick=3.0)

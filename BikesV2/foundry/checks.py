@@ -54,7 +54,59 @@ def check(model, fams):
     hp = [(tuple(q[:2]), h.get("w", 44) / 2) for h in model["exhaust"]["headers"] for q in shapes.dense(h["pts"], False, 1.0)]
     gap = min(math.hypot(q[0] - c[0], q[1] - c[1]) - w for q, w in hp) - rt
     out.append((gap >= 25, f"front tyre to exhaust pipes at full compression {gap:.0f} mm (needs 25)"))
+    out += bars_at_lock(model)
     return out
+
+
+LOCK = 27       # degrees of steering either way that a faired bike must allow
+
+
+def bars_at_lock(model):
+    """A faired bike's bars, grips and levers must swing to full lock either way without touching the
+    nose fairing or the fairing sides (beenster, 14 Nov: every sport fairing has a cutaway for the bars)."""
+    import shapes
+    pan = model["body"].get("panels", [])
+    cowl = [shapes.dense(s["pts"], True, s.get("t", 1.0)) for s in pan if s.get("cowl")]
+    side = [shapes.dense(s["pts"], True, s.get("t", 1.0)) for s in pan if s.get("fairing")]
+    fe = [s for s in model.get("front_end", []) if s.get("part") != "head"]
+    grip = next((s["at"] for s in fe if s.get("circle") and s.get("clipon")), None)
+    root = next((s["pts"][1] for s in fe if s.get("tube") and s["cls"] == "cast"), None)
+    if not (cowl or side) or not grip or not root:
+        return []
+    g = model["geometry"]
+    rake = math.radians(g["rake"])
+    ax, p0 = (-math.sin(rake), 0.0, math.cos(rake)), (g["wheelbase"] + g["trail"], 0.0, 0.0)
+    # the same bar, grip and lever lines the 3D build uses, as (x, y, z, radius)
+    lines = [((root[0] + 14, 110, root[1]), (grip[0] + 8, 200, grip[1] + 2), 12), ((grip[0] + 8, 200, grip[1] + 2), (grip[0] - 4, 380, grip[1] - 3), 17),
+             ((grip[0] + 30, 262, grip[1] - 10), (grip[0] + 62, 300, grip[1] - 22), 5), ((grip[0] + 62, 300, grip[1] - 22), (grip[0] + 55, 395, grip[1] - 24), 5)]
+
+    def turn(p, a):
+        v = [p[i] - p0[i] for i in range(3)]
+        d = sum(v[i] * ax[i] for i in range(3))
+        cr = (ax[1] * v[2] - ax[2] * v[1], ax[2] * v[0] - ax[0] * v[2], ax[0] * v[1] - ax[1] * v[0])
+        return [p0[i] + v[i] * math.cos(a) + cr[i] * math.sin(a) + ax[i] * d * (1 - math.cos(a)) for i in range(3)]
+
+    def inside(poly, x, z):
+        hit = False
+        for a, b in zip(poly, poly[1:] + poly[:1]):
+            if (a[1] > z) != (b[1] > z) and x < a[0] + (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]):
+                hit = not hit
+        return hit
+
+    worst = None
+    for deg in range(-LOCK, LOCK + 1, 3):
+        for a, b, r in lines:
+            for k in range(9):
+                q = turn([a[i] + (b[i] - a[i]) * k / 8 for i in range(3)], math.radians(deg))
+                m_ = r + 12        # the part's own radius and a finger's room
+                for dx_, dz_ in ((0, 0), (m_, 0), (-m_, 0), (0, m_), (0, -m_)):
+                    if abs(q[1]) < 150 + m_ and any(inside(c_, q[0] + dx_, q[2] + dz_) for c_ in cowl):
+                        worst = min(worst or ("nose fairing", deg), ("nose fairing", deg), key=lambda w: abs(w[1]))
+                    if 100 < abs(q[1]) < 300 and any(inside(c_, q[0] + dx_, q[2] + dz_) for c_ in side):
+                        worst = worst or ("fairing side", deg)
+    if worst:
+        return [(False, f"bars at full lock: touch the {worst[0]} at {abs(worst[1])} degrees of steering (needs {LOCK} either way)")]
+    return [(True, f"bars, grips and levers clear the fairing through {LOCK} degrees of steering either way")]
 
 
 def deck(model, fams):

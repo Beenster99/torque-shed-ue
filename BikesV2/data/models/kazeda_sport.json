@@ -2,7 +2,7 @@
  "name": "Kazeda sport (working title S1)",
  "brand": "kazeda",
  "family": "Sport",
- "rev": "F",
+ "rev": "H",
  "engine_label": "inline four",
  "frame_label": "aluminium twin spar, full fairing",
  "colours": {
@@ -1171,15 +1171,15 @@
      ],
      [
       1150,
-      800
+      788
      ],
      [
-      1088,
-      862
+      1082,
+      810
      ],
      [
       1000,
-      822
+      798
      ],
      [
       900,
@@ -1308,21 +1308,21 @@
       772
      ],
      [
-      1150,
-      800
-     ],
-     [
-      1088,
-      862,
+      1175,
+      792,
       1
      ],
      [
-      1108,
-      930
+      1210,
+      850
      ],
      [
-      1190,
-      975,
+      1250,
+      905
+     ],
+     [
+      1265,
+      965,
       1
      ]
     ],

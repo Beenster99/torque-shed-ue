@@ -277,13 +277,23 @@ def draw(model):
     sh.circ(A, 38, sw.get("cls", "cast"))
     sh.circ(A, 16, "axle")
     sk = model["shock"]
-    sa, sb = tuple(sk["top"]), tuple(sk["bottom"])
-    sh.tube([sa, sb], 30, "dark")
-    L = math.hypot(sb[0] - sa[0], sb[1] - sa[1])
-    us = ((sb[0] - sa[0]) / L, (sb[1] - sa[1]) / L)
-    ns = (-us[1], us[0])
-    coil = [add(add(sa, us, 40 + i * (L - 110) / 18), ns, 25 if i % 2 else -25) for i in range(19)]
-    sh.poly(coil, "spring", False)
+
+    def draw_shock():
+        sa, sb = tuple(sk["top"]), tuple(sk["bottom"])
+        tw = sk.get("twin")
+        sh.tube([sa, sb], 22 if tw else 30, "dark")
+        L = math.hypot(sb[0] - sa[0], sb[1] - sa[1])
+        us = ((sb[0] - sa[0]) / L, (sb[1] - sa[1]) / L)
+        ns = (-us[1], us[0])
+        coil = [add(add(sa, us, 40 + i * (L - 110) / 18), ns, (20 if tw else 25) * (1 if i % 2 else -1)) for i in range(19)]
+        sh.poly(coil, "spring", False)
+        if tw:
+            sh.circ(sa, 15, "cast")
+            sh.circ(sa, 6, "boltd")
+            sh.circ(sb, 15, "cast")
+            sh.circ(sb, 6, "boltd")
+    if not sk.get("twin"):       # a pair of shocks stands outside the frame and is drawn last, over the bodywork
+        draw_shock()
 
     # ---- exhaust headers (behind the engine)
     for hp in ex["headers"]:
@@ -384,6 +394,9 @@ def draw(model):
             sh.path(pts_of(shp), shp["cls"], shp.get("closed", True), shp.get("t", 1.0))
     for c in body.get("caps", []):
         sh.circ(tuple(c["at"]), c["r"], c["cls"])
+
+    if sk.get("twin"):
+        draw_shock()
 
     # ---- dimensions and title block
     if model.get("dimensions", True):

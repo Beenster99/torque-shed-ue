@@ -59,6 +59,9 @@ def draft(name, spec):
             m["frame"]["nodes"][n_] = v
     if "kit_exhaust" in spec:
         m["exhaust"] = copy.deepcopy(kit["exhaust"][spec["kit_exhaust"]]["exhaust"])
+    sw = m["swingarm"]
+    if sw.get("cls") == "alu" and not sw.get("shaft"):   # a two-sided swingarm takes the cafe's pair of shocks
+        m["shock"] = copy.deepcopy(c["shock"])
     for fn in spec.get("style", []):
         fn(m)
     path = os.path.join(ROOT, "data", "models", name + ".json")

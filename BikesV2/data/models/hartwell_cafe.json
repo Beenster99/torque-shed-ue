@@ -2,7 +2,7 @@
  "name": "Hartwell cafe (working title C1)",
  "brand": "hartwell",
  "family": "Cafe",
- "rev": "C",
+ "rev": "D",
  "engine_label": "parallel twin",
  "frame_label": "steel tube frame, engine as part of the frame",
  "colours": {
@@ -444,13 +444,14 @@
  },
  "shock": {
   "top": [
-   590,
-   640
+   300,
+   762
   ],
   "bottom": [
-   440,
-   415
-  ]
+   95,
+   398
+  ],
+  "twin": true
  },
  "frame": {
   "nodes": {
