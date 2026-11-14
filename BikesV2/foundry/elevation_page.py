@@ -175,25 +175,30 @@ def kit_section(names):
         count = 2 ** len(xn)
         for p in mix.KIT_PARTS:
             count *= len(nm[p])
+        more = [p for p in mix.KIT_MORE if kit.get(p)]
+        for p in more:
+            nm[p] = mix.kit_names(base, p)
+            count *= len(nm[p])
         combos += count
         rnd = random.Random(7)
         def pick():
-            return mix.apply_kit(base, *[rnd.randrange(len(nm[p])) for p in mix.KIT_PARTS], [e + 1 for e in range(len(xn)) if rnd.random() < 0.5])
+            return mix.apply_kit(base, *[rnd.randrange(len(nm[p])) for p in mix.KIT_PARTS], [e + 1 for e in range(len(xn)) if rnd.random() < 0.5], **{p: rnd.randrange(len(nm[p])) for p in more})
         diffs = sorted(mix.look_difference(pick(), pick()) for _ in range(150))
         diffs = [d for d in diffs if d > 0] or [0]
         figs = []
-        for args in show:
+        for k, args in enumerate(show):
             args = tuple(min(a, len(nm[p]) - 1) for a, p in zip(args[:4], mix.KIT_PARTS)) + (args[4],)
-            v = mix.apply_kit(base, *args)
+            v = mix.apply_kit(base, *args, **{p: (k * (2 if p == "paint" else 1) + 1) % len(nm[p]) for p in more})
             v["dimensions"] = False
             f = v["kit_fitted"]
             v["name"] = base["brand"].title() + " kit build"
             cap = f"{f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + ("".join(", " + x for x in f["extras"]) if f["extras"] else "")
+            cap += "".join(f", {f[p]} {p}" for p in more)
             figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{cap}.</figcaption></figure>')
         def menu(p, label):
             notes = ["as drawn above"] + [v["note"] for v in kit[p]]
             return f"<li><b>{label}:</b> " + "; ".join(f"{a} ({b})" for a, b in zip(nm[p], notes)) + ".</li>"
-        kit_html.append(f"""<h3>{base['name'].split(' (')[0]} kit</h3><ul>{menu("tank_seat", "Tank and seat pairs")}{menu("tail", "Tails")}{menu("front", "Front ends")}{menu("exhaust", "Exhausts")}<li><b>Optional extras:</b> {"; ".join(xn)}.</li></ul><p>That gives {count} different bikes on this one frame, before colour and before any part from another brand. Every choice passes the fit and clearance checks. Measured side on over the parts a kit can change, two bikes picked at random differ by {diffs[len(diffs) // 2] * 100:.0f}% on average (from {diffs[0] * 100:.0f}% to {diffs[-1] * 100:.0f}%). Six of them:</p><div class="shots">{"".join(figs)}</div>""")
+        kit_html.append(f"""<h3>{base['name'].split(' (')[0]} kit</h3><ul>{menu("tank_seat", "Tank and seat pairs")}{menu("tail", "Tails")}{menu("front", "Front ends")}{menu("exhaust", "Exhausts")}{menu("bars", "Bars") if "bars" in more else ""}{menu("paint", "Paint") if "paint" in more else ""}<li><b>Optional extras:</b> {"; ".join(xn)}.</li></ul><p>That gives {count} different bikes on this one frame, {"before" if "paint" not in more else "counting paint but before"} {"colour and before " if "paint" not in more else ""}any part from another brand. Every choice passes the fit and clearance checks. Measured side on over the parts a kit can change, two bikes picked at random differ by {diffs[len(diffs) // 2] * 100:.0f}% on average (from {diffs[0] * 100:.0f}% to {diffs[-1] * 100:.0f}%). Six of them:</p><div class="shots">{"".join(figs)}</div>""")
     if kit_html:
         return '<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs, tails, front ends and exhausts, plus optional extras. This is what stops two people who pick the same frame from ending up with the same bike. The tank and seat pairs also fit the other brand\'s frame.</p>' + "".join(kit_html) + "</section>"
     return ""

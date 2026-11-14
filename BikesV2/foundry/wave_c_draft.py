@@ -244,7 +244,56 @@ def chop_pipes(headers):
             "Fishtails": ("long low silencers with nipped ends", {"headers": hs, "cans": [{"a": end(h), "b": [-220 + 30 * i, end(h)[1] + 16], "w": 72, "front": True, "nip": True} for i, h in enumerate(hs)]})}
 
 
-CHOP_BASE = {"lodestar": (0, 0, "Upswept slim pipes"), "hartwell": (1, 1, "Megaphone each side"), "kazeda": (2, 2, "Stacked straight pipes")}
+def bars_pull(tx, tz):
+    return [{"tube": 26, "pts": [[tx, tz], [tx - 34, tz + 104]], "cls": "steelt"},
+            {"tube": 24, "pts": [[tx - 34, tz + 104], [tx - 74, tz + 124], [tx - 150, tz + 84]], "cls": "steelt", "t": 0.5},
+            {"tube": 9, "pts": [[tx - 146, tz + 70], [tx - 86, tz + 78]], "cls": "dark"},
+            {"circle": 20, "at": [tx - 164, tz + 78], "cls": "cast"},
+            {"tube": 8, "pts": [[tx - 120, tz + 100], [tx - 124, tz + 164]], "cls": "dark"},
+            {"pts": [[tx - 149, tz + 169], [tx - 124, tz + 194], [tx - 94, tz + 179], [tx - 114, tz + 154]], "cls": "chromef", "mirror": True}]
+
+
+def bars_ape(tx, tz):
+    return [
+            {"tube": 26, "pts": [[tx, tz], [tx - 30, tz + 60]], "cls": "steelt"},
+            {"tube": 24, "pts": [[tx - 30, tz + 60], [tx - 70, tz + 212], [tx - 170, tz + 196]], "cls": "steelt", "t": 0.35},
+            {"tube": 9, "pts": [[tx - 164, tz + 182], [tx - 102, tz + 190]], "cls": "dark"},
+            {"circle": 20, "at": [tx - 184, tz + 192], "cls": "cast"},
+            {"tube": 8, "pts": [[tx - 134, tz + 206], [tx - 138, tz + 226]], "cls": "dark"},
+            {"circle": 34, "at": [tx - 140, tz + 240], "cls": "chromef", "mirror": True}]
+
+
+def bars_drag(tx, tz):
+    return [
+            {"tube": 30, "pts": [[tx, tz], [tx - 96, tz + 92]], "cls": "steelt"},
+            {"tube": 24, "pts": [[tx - 96, tz + 92], [tx - 150, tz + 84]], "cls": "steelt"},
+            {"circle": 22, "at": [tx - 96, tz + 92], "cls": "bolt"},
+            {"tube": 9, "pts": [[tx - 150, tz + 68], [tx - 90, tz + 74]], "cls": "dark"},
+            {"circle": 20, "at": [tx - 164, tz + 82], "cls": "cast"},
+            {"tube": 8, "pts": [[tx - 126, tz + 96], [tx - 132, tz + 150]], "cls": "dark"},
+            {"pts": [[tx - 160, tz + 150, 1], [tx - 160, tz + 180, 1], [tx - 104, tz + 180, 1], [tx - 104, tz + 150, 1]], "cls": "chromef", "mirror": True}]
+
+
+def bars_z(tx, tz):
+    return [{"tube": 26, "pts": [[tx, tz], [tx - 26, tz + 50]], "cls": "steelt"},
+            {"tube": 24, "pts": [[tx - 26, tz + 50], [tx - 60, tz + 150]], "cls": "steelt"},
+            {"tube": 24, "pts": [[tx - 60, tz + 150], [tx - 160, tz + 136]], "cls": "steelt"},
+            {"circle": 14, "at": [tx - 60, tz + 150], "cls": "steelt"},
+            {"tube": 9, "pts": [[tx - 156, tz + 122], [tx - 96, tz + 130]], "cls": "dark"},
+            {"circle": 20, "at": [tx - 174, tz + 134], "cls": "cast"},
+            {"tube": 8, "pts": [[tx - 126, tz + 146], [tx - 130, tz + 196]], "cls": "dark"},
+            {"pts": [[tx - 156, tz + 196, 1], [tx - 156, tz + 224, 1], [tx - 104, tz + 224, 1], [tx - 104, tz + 196, 1]], "cls": "chromef", "mirror": True}]
+
+
+BARS = [("Pull-backs", "tall bars pulled back on risers", bars_pull), ("Ape hangers", "high ape hangers", bars_ape),
+        ("Drag bars", "short flat bars on a tall riser", bars_drag), ("Z-bars", "angular bars with sharp corners", bars_z)]
+PAINT = [("Midnight blue", "blue with a bright bare frame", {"body": "#23408E", "frame": "#B9BDC2"}),
+         ("Oxblood", "deep red with a black frame", {"body": "#6B1A22", "frame": "#17181b"}),
+         ("Burnt orange", "orange with a black frame", {"body": "#C8571B", "frame": "#15161a"}),
+         ("Gloss black", "black with a bright bare frame", {"body": "#141518", "frame": "#B9BDC2"}),
+         ("Gold", "gold with a black frame", {"body": "#B8892B", "frame": "#17181b"}),
+         ("Sea green", "green with a cream frame", {"body": "#1F6F6B", "frame": "#D9D2BE"})]
+CHOP_BASE = {"lodestar": (0, 0, "Upswept slim pipes", 0), "hartwell": (1, 1, "Megaphone each side", 1), "kazeda": (2, 2, "Stacked straight pipes", 2)}
 CHOP = {"lodestar": (1880, 43.0, 1000, 800, 230), "hartwell": (1760, 38.0, 900, 720, 200), "kazeda": (1900, 45.0, 1030, 830, 250)}
 
 
@@ -273,12 +322,7 @@ def chopper(brand="lodestar"):
     target = (yoke[0] + 92, yoke[1] + 6)
     head = [dict(s, pts=[[round(target[0] + (p[0] - lc[0]) * 0.8, 1), round(target[1] + (p[1] - lc[1]) * 0.8, 1)] + p[2:] for p in s["pts"]]) for s in copy.deepcopy(lamp)]
     head.append({"circle": 30, "at": [tx + 34, tz + 26], "cls": "plastic", "part": "head"})
-    bars = [{"tube": 26, "pts": [[tx, tz], [tx - 34, tz + 104]], "cls": "steelt"},
-            {"tube": 24, "pts": [[tx - 34, tz + 104], [tx - 74, tz + 124], [tx - 150, tz + 84]], "cls": "steelt", "t": 0.5},
-            {"tube": 9, "pts": [[tx - 146, tz + 70], [tx - 86, tz + 78]], "cls": "dark"},
-            {"circle": 20, "at": [tx - 164, tz + 78], "cls": "cast"},
-            {"tube": 8, "pts": [[tx - 120, tz + 100], [tx - 124, tz + 164]], "cls": "dark"},
-            {"pts": [[tx - 149, tz + 169], [tx - 124, tz + 194], [tx - 94, tz + 179], [tx - 114, tz + 154]], "cls": "chromef", "mirror": True}]
+    bars = BARS[CHOP_BASE[brand][3]][2](tx, tz)
     # the engine sits a little further back than in the cruiser, with shorter barrels under the steep backbone
     DX = -30
 
@@ -353,7 +397,7 @@ def chopper(brand="lodestar"):
     if brand != "lodestar":
         STYLES[brand](m, tx, tz, on_tube, U, RR, e)
     # the bespoke kit: everything in the chopper library that this bike does not already wear
-    bp, bt, bx = CHOP_BASE[brand]
+    bp, bt, bx, bb = CHOP_BASE[brand]
 
     def lamp_at(tg, k):
         return [dict(s_, pts=[[round(tg[0] + (q[0] - lc[0]) * k, 1), round(tg[1] + (q[1] - lc[1]) * k, 1)] + q[2:] for q in s_["pts"]]) for s_ in copy.deepcopy(lamp)]
@@ -364,13 +408,15 @@ def chopper(brand="lodestar"):
             {"tube": 6, "pts": [[yoke[0] + 64 - 150 * fx, yoke[1] + 76 - 150 * fz], [yoke[0] + 64 - 150 * fx, yoke[1] - 16 - 150 * fz]], "cls": "chromef", "front": True}]
     from kit_draft import BAG
     m["kit"] = {
-        "base": {"tank_seat": PAIRS[bp][0], "tail": tails[bt][0], "front": "Low lamp", "exhaust": bx},
+        "base": {"tank_seat": PAIRS[bp][0], "tail": tails[bt][0], "front": "Low lamp", "exhaust": bx, "bars": BARS[bb][0], "paint": PAINT[bb][0]},
         "tank_seat": [{"name": nm, "note": note, "tank": [{"pts": fn(on_tube, U), "cls": "body"}], "seat": [{"pts": copy.deepcopy(st), "cls": "seat"}]}
                       for i, (nm, note, fn, st) in enumerate(PAIRS) if i != bp],
         "tail": [{"name": nm, "note": note, "tail": copy.deepcopy(shp)} for i, (nm, note, shp) in enumerate(tails) if i != bt],
         "front": [{"name": "High lamp", "note": "the lamp up at the top yoke", "head": lamp_at((yoke[0] + 92 - 150 * fx, yoke[1] + 6 - 150 * fz), 0.8) + [dial]},
                   {"name": "Twin lamps", "note": "two small lamps one above the other", "head": lamp_at((yoke[0] + 86 - 48 * fx, yoke[1] + 6 - 48 * fz), 0.5) + lamp_at((yoke[0] + 86 + 48 * fx, yoke[1] + 6 + 48 * fz), 0.5) + [dial]}],
         "exhaust": [{"name": nm, "note": note, "exhaust": ex} for nm, (note, ex) in pipes.items() if nm != bx and not (brand == "hartwell" and nm == "Megaphones")][:3],
+        "bars": [{"name": nm, "note": note, "bars": fn(tx, tz)} for i, (nm, note, fn) in enumerate(BARS) if i != bb],
+        "paint": [{"name": nm, "note": note, "colours": col} for i, (nm, note, col) in enumerate(PAINT) if i != bb],
         "extras": [{"name": "Saddlebag", "note": "leather bag on the rear stays", "add": {"panels": copy.deepcopy(BAG)}},
                    {"name": "Tool roll", "note": "leather roll strapped across the fork", "add": {"panels": roll}}],
     }
@@ -393,13 +439,6 @@ def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
     m["engine"] = e
     m["exhaust"] = {"headers": [{"pts": [[985, 582], [1000, 500], [1006, 410], [984, 322], [924, 288], [600, 282], [220, 286]], "w": 44, "front": True}],
                     "cans": [{"a": [220, 286], "b": [-230, 400], "w": 72, "front": True}]}
-    m["front_end"] = [s for s in m["front_end"] if s.get("part") == "head"] + [
-        {"tube": 26, "pts": [[tx, tz], [tx - 30, tz + 60]], "cls": "steelt"},
-        {"tube": 24, "pts": [[tx - 30, tz + 60], [tx - 70, tz + 212], [tx - 170, tz + 196]], "cls": "steelt", "t": 0.35},
-        {"tube": 9, "pts": [[tx - 164, tz + 182], [tx - 102, tz + 190]], "cls": "dark"},
-        {"circle": 20, "at": [tx - 184, tz + 192], "cls": "cast"},
-        {"tube": 8, "pts": [[tx - 134, tz + 206], [tx - 138, tz + 226]], "cls": "dark"},
-        {"circle": 34, "at": [tx - 140, tz + 240], "cls": "chromef", "mirror": True}]
     b = m["body"]
     tank = _bullet(on_tube, U)
     b["tank"] = [{"pts": tank, "cls": "body"},
@@ -428,14 +467,6 @@ def kazeda_chop(m, tx, tz, on_tube, U, RR, lo):
     m["engine"] = e
     m["exhaust"] = {"headers": [{"pts": [[1016, 650], [1040, 540], [1046, 430], [1016, 316], [946, 262], [780, 244], [660, 246]], "w": 50, "front": True}],
                     "cans": [{"a": [660, 240], "b": [10, 252], "w": 58, "front": True}, {"a": [640, 300], "b": [70, 322], "w": 58, "front": True}]}
-    m["front_end"] = [s for s in m["front_end"] if s.get("part") == "head"] + [
-        {"tube": 30, "pts": [[tx, tz], [tx - 96, tz + 92]], "cls": "steelt"},
-        {"tube": 24, "pts": [[tx - 96, tz + 92], [tx - 150, tz + 84]], "cls": "steelt"},
-        {"circle": 22, "at": [tx - 96, tz + 92], "cls": "bolt"},
-        {"tube": 9, "pts": [[tx - 150, tz + 68], [tx - 90, tz + 74]], "cls": "dark"},
-        {"circle": 20, "at": [tx - 164, tz + 82], "cls": "cast"},
-        {"tube": 8, "pts": [[tx - 126, tz + 96], [tx - 132, tz + 150]], "cls": "dark"},
-        {"pts": [[tx - 160, tz + 150, 1], [tx - 160, tz + 180, 1], [tx - 104, tz + 180, 1], [tx - 104, tz + 150, 1]], "cls": "chromef", "mirror": True}]
     b = m["body"]
     tank = _coffin(on_tube, U)
     b["tank"] = [{"pts": tank, "cls": "body"},

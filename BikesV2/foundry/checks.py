@@ -297,7 +297,11 @@ if __name__ == "__main__":
         tn, sn = len(mix.kit_names(h, "tank_seat")), len(mix.kit_names(h, "tail"))
         fn, en, xn = len(mix.kit_names(h, "front")), len(mix.kit_names(h, "exhaust")), len(kit.get("extras", []))
         xsets = [x for r in range(xn + 1) for x in itertools.combinations(range(1, xn + 1), r)]
-        total += tn * sn * fn * en * len(xsets)
+        bn, pn = len(kit.get("bars", [])) + 1, len(kit.get("paint", [])) + 1
+        total += tn * sn * fn * en * len(xsets) * bn * pn
+        for bi in range(1, bn):
+            v = mix.apply_kit(h, bars=bi)
+            tally(check(v, fams) + kit_parts(v, fams), f"{h['brand']} bars {bi}")
         for i in range(tn):
             for j in range(sn):
                 for xs in ([x for x in xsets if all(kit["extras"][e - 1].get("auto") for e in x)]):

@@ -76,6 +76,7 @@ def kit_names(model, part):
 
 
 KIT_PARTS = ("tank_seat", "tail", "front", "exhaust")
+KIT_MORE = ("bars", "paint")          # extra choices only some families carry (choppers): bar shapes and paint schemes
 
 
 def seat_cowl(body):
@@ -101,7 +102,7 @@ def seat_cowl(body):
     return {"pts": top[::-1] + bot, "cls": "body", "t": 0.6, "cowl": True}
 
 
-def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=()):
+def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=(), bars=0, paint=0):
     """The model with kit variants fitted (0 is the bike as drawn; extras is a list of 1-based
     numbers of the optional add-ons). Returns a new model dict."""
     import shapes
@@ -133,6 +134,10 @@ def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=()):
         m["front_end"] = head + [shp for shp in m["front_end"] if shp.get("part") != "head"]
     if exhaust:
         m["exhaust"] = copy.deepcopy(kit["exhaust"][exhaust - 1]["exhaust"])
+    if bars:        # bars, risers, levers and mirrors swap as one; the head unit stays
+        m["front_end"] = [shp for shp in m["front_end"] if shp.get("part") == "head"] + copy.deepcopy(kit["bars"][bars - 1]["bars"])
+    if paint:
+        m["colours"] = dict(m["colours"], **kit["paint"][paint - 1]["colours"])
     fitted = []
     for e in extras:
         v = kit["extras"][e - 1]
@@ -141,7 +146,7 @@ def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=()):
         if v.get("auto") == "seat_cowl":
             b.setdefault("panels", []).append(seat_cowl(b))
         fitted.append(v["name"])
-    pick = {"tank_seat": tank_seat, "tail": tail, "front": front, "exhaust": exhaust}
+    pick = {"tank_seat": tank_seat, "tail": tail, "front": front, "exhaust": exhaust, "bars": bars, "paint": paint}
     m["kit_fitted"] = {p: kit_names(model, p)[i] for p, i in pick.items() if p in kit or p in kit.get("base", {})}
     m["kit_fitted"]["extras"] = fitted
     return m
