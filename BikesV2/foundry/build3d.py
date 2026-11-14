@@ -862,24 +862,27 @@ def build(model):
                 def wrap(x, z, xf=xf):
                     k = 0.86 + 0.14 * max(0.0, min(1.0, (z - 190) / 170.0))
                     if sport:
-                        # full width over the engine, drawn in to the nose's own width at the top, and the
-                        # leading edge turned in round the front, so the fairing closes on the nose and
-                        # faces the wind either side of the fork instead of standing off as a flat plate
-                        t = max(0.0, min(1.0, (1330 - x) / 380.0))
-                        t = t * t * (3 - 2 * t)
-                        y = 152 + (wide / 2 + 52 - 152) * t
-                        d = max(0.0, min(1.0, (lead_s(z) - x) / 150.0))
-                        y = 122 + (y - 122) * math.sqrt(1 - (1 - d) ** 2)
-                        return y * k
+                        # taut flat panels, not a blown shell: a flat cheek opening out from the nose to a
+                        # hard shoulder line, a flat flank behind it, a flat V keel below, and the top
+                        # leaning in under the tank; the leading edge is turned in tight round the front
+                        y = 150 + 104 * max(0.0, min(1.0, (1330 - x) / 290.0))
+                        if x < 1040:
+                            y -= 26 * min(1.0, (1040 - x) / 420.0)
+                        if z < 430:
+                            y = (y + 26 * min(1.0, max(0.0, 1040 - x) / 420.0)) * (0.74 + 0.26 * max(0.0, (z - 140) / 290.0))
+                        elif z > 690:
+                            y *= 1 - 0.16 * min(1.0, (z - 690) / 170.0)
+                        d = max(0.0, min(1.0, (lead_s(z) - x) / 70.0))
+                        return 122 + (max(y, 122) - 122) * math.sqrt(1 - (1 - d) ** 2) if y > 122 else y
                     t = max(0.0, min(1.0, (xf - x) / 260.0))
                     t = t * t * (3 - 2 * t)
                     return (104 + (wide / 2 + 52 - 104) * t) * k
                 for s in (-1, 1):
-                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=110 if sport else 70)
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=130 if sport else 70, rows=30 if sport else 16)
             elif shp.get("cowl"):
                 if model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel
-                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 150], [1, 120]], "n": 3.2, "bottom": 1.0}, m_)
+                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 146], [1, 104]], "n": 4.6, "bottom": 1.0}, m_)
                 else:
                     pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
             elif shp.get("winglet"):
@@ -965,7 +968,11 @@ def build(model):
             continue
         if shp["cls"] == "lens":
             if model["family"].lower() == "sport":      # slim lamps let into the point of the nose
-                pillow(f"lens{i}", [(q[0] + 5, q[1] - 2) for q in pp], -46, 46, mat("lens"), 6, 20)
+                cx_ = sum(q[0] for q in pp) / len(pp)
+                cz_ = sum(q[1] for q in pp) / len(pp)
+                for s in (-1, 1):                     # a slim lamp each side, in a dark surround
+                    pillow(f"lens{i}{s}", [(q[0] + 9, q[1] - 2) for q in pp], s * 36, s * 90, mat("lens"), 5, 14)
+                    pillow(f"lensrim{i}{s}", [(cx_ + (q[0] - cx_) * 1.3 - 8, cz_ + (q[1] - cz_) * 1.3 - 2) for q in pp], s * 24, s * 104, mat("plastic"), 5, 14)
             else:
                 pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
         elif shp["cls"] == "screen":
