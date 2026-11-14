@@ -14,8 +14,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-SECTION = {"tank": "tank_pitch", "caps": "tank_pitch", "seat": "seat_pitch", "tail": "seat_pitch"}
-WITH = {"tank": ["caps"]}  # parts that travel together
+SECTION = {"tank": "tank_pitch", "caps": "tank_pitch", "seat": "seat_pitch", "tail": "seat_pitch", "behind": "seat_pitch"}
+WITH = {"tank": ["caps"], "tail": ["behind"]}  # parts that travel together
 
 
 def _mover(host, donor, key):
@@ -34,6 +34,12 @@ def _mover(host, donor, key):
 def mix(host, donor, parts=("tank", "seat"), colour=True):
     m = copy.deepcopy(host)
     took = []
+    parts = list(parts)
+    # a long flat bench and its tail are one unit (deck "seat_unit"): whenever such a seat moves, or a
+    # seat moves onto a bike built for one, the tail and its undertray go with the seat
+    # (docs/mounting_standard.md, joint rule 4)
+    if "seat" in parts and "tail" not in parts and (host["deck"].get("seat_unit") or donor["deck"].get("seat_unit")):
+        parts.append("tail")
     for part in parts:
         for name in [part] + WITH.get(part, []):
             f = _mover(host, donor, SECTION[name])

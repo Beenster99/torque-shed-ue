@@ -54,3 +54,12 @@ host by matching noses and turning by the pitch difference.
 For every frame in a family: deck placed inside the ranges, tunnel clear. For
 every tank, seat and tail: mounts on the deck within 1 mm, overlaps present.
 For every combination: no gap, no clipping, nothing hanging.
+
+## Joint rule 4: a bench seat and its tail are one unit
+
+A long flat bench (the Hartwell's) cannot sit on a tail that kicks up behind a short seat, and a short
+seat leaves daylight over a flat bench tail. A model whose seat and tail are designed as one piece says
+so with `"seat_unit": true` in its deck. In a mixed build, whenever such a seat moves to another frame,
+or another brand's seat moves onto such a frame, the tail and its undertray travel with the seat. Both
+still mount on the same subframe rails, so nothing else changes. `foundry/mix.py` applies this by itself
+and the checks run on the result.
