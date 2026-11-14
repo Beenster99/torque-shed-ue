@@ -926,6 +926,13 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			M.MainHalf = Here.Half;
 			// (a lane meeting a lane has no markings; a lesser road meeting a greater gives way)
 			M.GiveWay = Half >= 1.6 && Half < Here.Half - 0.2;
+			// [OSM stage 5B] (at a roundabout every road onto the ring gives way to it, with one broken line;
+			// the ring's own edges never do)
+			{
+				const RoadExtra* X = G.ExtraOf(E);
+				if (X != nullptr && X->Has(RoadExtra::Roundabout)) M.GiveWay = false;
+				else if (RingAt(End == 0 ? Edge.A : Edge.B) >= 0 && Half >= 1.6) { M.GiveWay = true; M.Ring = true; }
+			}
 			const double AlongAt = Q.Along + (P.Along - Q.Along) * (In / (In + Outside));
 			M.From = End == 0 ? AlongAt : Side.Length - AlongAt;
 			// The ride's road's points the mouth and its corners lie beside: no edge line there, and no
@@ -1546,6 +1553,7 @@ void RidePlan::LandTile(double X0, double Z0, double Size, int Cells, RideMesh& 
 		WildTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);      // [OSM stage 2 batch D]
 		TowersTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [towns stage 2]
 		PlacesTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);    // [places stage 3]
+		RingsTile(X0, Z0, Size, Step <= 4.5 ? 2 : 1, *Stands);     // [OSM stage 5B] the roundabouts' islands
 		PathsTile(X0, Z0, Size, Step, *Stands);                    // [OSM stage 4]
 		if (Stands->Any()) Out.Extra = Stands;
 		PlantsTile(X0, Z0, Size, Cells, Out, Out.Plants);
@@ -2193,6 +2201,21 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Strip(A, B, Side * (A.Half - 0.3) + 0.065, Side * (A.Half - 0.3) - 0.065, Side * (B.Half - 0.3) + 0.065, Side * (B.Half - 0.3) - 0.065, PaintLift, PaintLift, Paint);
 			}
 		}
+		// [OSM stage 5B] Where the ride's road comes onto a roundabout: one broken line across its own lane
+		// (0.6 m marks, 0.3 m gaps, 0.2 m deep), giving way to the ring.
+		if (Which == 0)
+			for (const double Give : RingGiveWays)
+			{
+				if (Give < A.Along || Give >= B.Along || B.Along <= A.Along) continue;
+				const double T0 = (Give - A.Along) / (B.Along - A.Along), T1 = std::min((Give + 0.2 - A.Along) / (B.Along - A.Along), 1.0);
+				const Row Ga = Between(A, B, T0), Gb = Between(A, B, T1);
+				const double Keep = KeepLeft() ? 1.0 : -1.0;
+				for (double U = 0.15; U + 0.6 <= Ga.Half - 0.15 + 1e-9; U += 0.9)
+				{
+					const double U0 = Keep * U, U1 = Keep * (U + 0.6);
+					Strip(Ga, Gb, std::fmax(U0, U1), std::fmin(U0, U1), std::fmax(U0, U1), std::fmin(U0, U1), PaintLift, PaintLift, Paint);
+				}
+			}
 		// ([OSM stage 5] a centre line where the map's lanes say, else by the rule; lane lines between a
 		// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
 		if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength)
@@ -2330,9 +2353,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		// the traffic keeps right)
 		const double U0 = Half >= 2.5 ? 0.0 : ToLeft, U1 = KeepLeft() || Half < 2.5 ? -ToLeft : ToLeft;
 		const double Lo = std::fmin(U0, U1) + 0.15, Hi = std::fmax(U0, U1) - 0.15;
-		for (double Back : {0.2, 0.7})
+		static constexpr double Backs[2] = {0.2, 0.7};
+		for (int Bk = 0; Bk < (M.Ring ? 1 : 2); ++Bk)
 			for (double U = Lo; U + 0.6 <= Hi + 1e-9; U += 0.9)
 			{
+				const double Back = Backs[Bk];
 				const P2 A0 = M.At + M.Along * U + M.Across * (Back - 0.1), A1 = M.At + M.Along * (U + 0.6) + M.Across * (Back - 0.1);
 				const P2 B0 = A0 + M.Across * 0.2, B1 = A1 + M.Across * 0.2;
 				// (on whichever is the higher there: the side road's surface or the threshold's)

@@ -4,6 +4,7 @@
 // through, which way it goes against the road ahead and the others there. The stops are the map's
 // fuel, cafes, pubs, viewpoints and lay-bys by the road.
 #include "WorldRide.h"
+#include "WorldRoadLine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -74,6 +75,7 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 	using namespace RideNavBits;
 	Turns.clear();
 	Stops.clear();
+	RingGiveWays.clear();
 	if (Road.size() < 2 || Path.empty()) return;
 	const Region& G = Area.Roads;
 	const double Scale = RawLength > 1.0 ? Length / RawLength : 1.0;
@@ -147,6 +149,9 @@ void RidePlan::FindTurnsAndStops(int From, const std::vector<int>& Path, double 
 				T.Onto = G.NameOf(Onto);
 				T.Exit = RingExits + 1;
 				Turns.push_back(T);
+				// (and the ride's own give-way line where it comes onto the ring: back from the ring's
+				// middle line by half the ring's width)
+				RingGiveWays.push_back(RingAlong - 0.5 * RoadLine::WidthOf(G.ClassOf(Onto)) - 0.6);
 				Angles.push_back(0.0);
 				continue;
 			}

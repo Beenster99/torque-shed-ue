@@ -886,6 +886,24 @@ int main(int Argc, char** Argv)
 				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
 			}
 		}
+		else if (std::getenv("WORLD_RIDE_RING") != nullptr)
+		{
+			// [OSM stage 5B] (or the nth roundabout the ride goes round)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_RING"));
+			for (const RidePlan::RoadRing& Rg : Plan->RoadRings)
+			{
+				bool Ridden = false;
+				for (const auto& St : Plan->MadeSteps)
+					for (int E : Rg.Edges) Ridden = Ridden || St.Edge == E;
+				if (!Ridden || Nth-- > 0) continue;
+				Rect Round;
+				Round.X0 = Rg.Mid.X - 300.0; Round.Z0 = Rg.Mid.Z - 300.0; Round.X1 = Rg.Mid.X + 300.0; Round.Z1 = Rg.Mid.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = Rg.Mid;
+				std::printf("ring at %.0f, %.0f, radius %.1f\n", Rg.Mid.X, Rg.Mid.Z, Rg.Radius);
+				break;
+			}
+		}
 		else if (std::getenv("WORLD_RIDE_PLACEPATH") != nullptr)
 		{
 			// [places stage 7] (or the nth stop with a path in to its place: centred halfway along it)

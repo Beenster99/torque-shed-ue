@@ -347,6 +347,7 @@ public:
 		int MainIndex = -1;    // the ride's road's point there
 		double MainHalf = 0.0;
 		bool GiveWay = false;  // the side road is the lesser: give-way lines across it
+		bool Ring = false;     // [OSM stage 5B] it is a roundabout's entry: one broken line, not two
 		double From = 0.0;     // how far along the side road from its end At is: nearer the end it lies on the ride's road
 		double Clear[2] = {0.0, 0.0};   // and how far along its left (as Away heads) and right edges are clear of the rounded corners
 	};
@@ -835,6 +836,7 @@ public:
 	};
 	static constexpr int Finish = 9;
 	std::vector<RideTurn> Turns;
+	std::vector<double> RingGiveWays;   // [OSM stage 5B] how far along the ride's road it gives way onto a roundabout
 	// Places to stop along it from the map: fuel, cafes, pubs, viewpoints, lay-bys, within StopReach of
 	// the road; how far along, and which side (+ the left).
 	// [OSM stage 1] inns, campsites and castles too.
@@ -938,11 +940,12 @@ public:
 	};
 	std::vector<RoadRing> RoadRings;
 	std::unordered_map<int, int> RingOfNode;   // a node on a ring: which
-	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12;
+	static constexpr double RingMaxRadius = 90.0, RingMiniRadius = 6.0, RingRoundShare = 0.12, RingRoundLeast = 12.0;
 	void IndexRings();
 	int RoundRings();   // the rings near a circle made true arcs (before any road is laid): how many
 	static constexpr double RingStep = 2.0;
 	int RingAt(int Node) const;   // the ring a node is on, -1 none
+	void RingsTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;   // the islands
 	bool OnRoundRing(int Edge) const;   // whether an edge is part of a ring drawn as a circle
 	std::vector<unsigned char> RoundEdge;   // by edge: 1 on a ring drawn as a circle (IndexRings)
 	std::vector<PlaceRecipe> PlaceRecipes;
