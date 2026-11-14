@@ -656,6 +656,7 @@ public:
 	{
 		Building B;
 		BuildingLook Look;
+		double Floors = 0.0;   // the map's floors (0: it doesn't say)
 	};
 	// Those whose middles lie in (X0, Z0)-(+Size) into Out (kept alive by Hold); the cells under the
 	// square that have outlines into Covered (their own boxes aren't drawn there).
@@ -668,12 +669,15 @@ public:
 	struct OutlineStore;
 	static std::shared_ptr<OutlineStore> NewOutlineStore();
 	std::shared_ptr<OutlineStore> Outlines = NewOutlineStore();
+	std::vector<std::string> TakeOutlineNotes() const;   // [towns stage 3] each cell's outlines read since last asked
 	void WildTile(double X0, double Z0, double Size, int Detail, RideMesh& Out) const;
 	// [OSM stage 3] What a square's buildings came to (for the tests and the report).
 	struct BuildingTally
 	{
 		int Drawn = 0, Terraces = 0, TerraceHouses = 0, Chimneys = 0, NearRoad = 0, Barns = 0, Ruins = 0, UnderTowers = 0;
 		int Outlined = 0;   // [towns stage 3] boxes cut from true outlines
+		int HousesByRoad = 0, LongSideToRoad = 0;   // houses within 25 m of a road; those with a long side towards it
+		int HouseFloors[3] = {0, 0, 0}, HouseMapped[3] = {0, 0, 0};   // houses (not rows) of 1, 2, 3+ storeys; those from the map's height
 	};
 	void BuildingsTile(double X0, double Z0, double Size, bool Fine, const LocalLook& Look, RideMesh& Out, RideMesh& Washed, RideMesh& Houses, RideMesh& RoofOut, RideMesh& BrickOut, BuildingTally* Tally = nullptr) const;
 	// [build 141] The buildings on a far square as plain blocks under plain roofs, those of MinArea (m2) or more.

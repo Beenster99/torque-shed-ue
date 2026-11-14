@@ -347,6 +347,9 @@ int main(int Argc, char** Argv)
 			const double OutMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - OutT0).count();
 			std::printf("Buildings round the start (25 squares of 256 m): %d boxes from true outlines, %d drawn, %d terraces, %zu triangles, in %.0f ms\n",
 				Tally.Outlined, Tally.Drawn, Tally.Terraces, Tris, OutMs);
+			std::printf("Houses (not rows): 1 storey %d (%d from the map's height), 2 storeys %d (%d), 3+ %d (%d); by a road %d, a long side towards it %d\n",
+				Tally.HouseFloors[0], Tally.HouseMapped[0], Tally.HouseFloors[1], Tally.HouseMapped[1], Tally.HouseFloors[2], Tally.HouseMapped[2],
+				Tally.HousesByRoad, Tally.LongSideToRoad);
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.

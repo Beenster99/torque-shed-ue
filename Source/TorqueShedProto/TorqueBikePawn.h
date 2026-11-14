@@ -174,6 +174,8 @@ public:
 	// the hands-off robot rider (-TorqueAutoRide's) switched on or off for this bike.
 	FString TestRideLog() const;
 	void TestAutoRide(bool bOn) { bTestAutoRide = bOn; }
+	// [test] robot:mph:N: the speed the robot holds (default 36 mph, or -TorqueAutoMph=).
+	static inline float TestRobotMph = 0.f;
 	// The test's stop: brakes on while the robot steers (bOn), then the robot off, the brakes left on.
 	void TestStop(bool bOn)
 	{
@@ -596,6 +598,13 @@ private:
 	double LeverPullRad[2] = {0.0, 0.0};
 	double SinceShift = 10.0;          // seconds since the last gear change (the clutch's pull)
 	double BrakeFingers = 0.0;         // two fingers over the front brake lever
+	// [rider pose] A catalogue bike's drawn clutch and brake levers (they swing to the bar as pulled), as
+	// first seen on their groups.
+	TWeakObjectPtr<UStaticMeshComponent> CatLever[2];
+	FTransform CatLeverRest[2];
+	bool bCatLeverRest[2] = {false, false};
+	double CatLeverSign[2] = {1.0, 1.0};   // which way about the upright pin takes the blade back
+	double PullAwayLogT = -1.0, PullAwayLogNext = 0.0;   // [rider pose] the clutch hand logged for 3 s after pulling away from a stop
 	double ClutchFingers = 0.0;        // [rider pose] two fingers over the clutch lever (it's in, being let out, a shift, stopped)
 	// What the rider's body follows, smoothed: the bike's lean (degrees, + right) and its speeding up
 	// (m/s/s, - braking).

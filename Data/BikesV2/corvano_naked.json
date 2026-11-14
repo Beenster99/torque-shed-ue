@@ -2,7 +2,7 @@
  "name": "Corvano naked (working title N1)",
  "brand": "corvano",
  "family": "Naked",
- "rev": "C",
+ "rev": "M",
  "wheelbase_mm": 1465,
  "seat_height_mm": 820,
  "surfaces": {
@@ -28,6 +28,16 @@
    ],
    "metallic": 1.0,
    "roughness": 0.22
+  },
+  "plastic": {
+   "ue": "cat_plastic",
+   "color": [
+    0.02,
+    0.021,
+    0.023
+   ],
+   "metallic": 0.0,
+   "roughness": 0.52
   },
   "alu_dark": {
    "ue": "cat_anodised",
@@ -82,15 +92,15 @@
    "metallic": 0.8,
    "roughness": 0.5
   },
-  "plastic": {
-   "ue": "cat_plastic",
+  "alu": {
+   "ue": "cat_brushed_steel",
    "color": [
-    0.02,
-    0.021,
-    0.023
+    0.62,
+    0.64,
+    0.66
    ],
-   "metallic": 0.0,
-   "roughness": 0.52
+   "metallic": 1.0,
+   "roughness": 0.38
   },
   "exhaust": {
    "ue": "cat_brushed_steel",
@@ -101,6 +111,16 @@
    ],
    "metallic": 1.0,
    "roughness": 0.3
+  },
+  "exhaust_black": {
+   "ue": "cat_black_metal",
+   "color": [
+    0.03,
+    0.03,
+    0.032
+   ],
+   "metallic": 0.4,
+   "roughness": 0.6
   },
   "accent__accent": {
    "ue": "paint_silver",
@@ -148,15 +168,8 @@
   "lens": {
    "ue": "lens_clear"
   },
-  "alu": {
-   "ue": "cat_brushed_steel",
-   "color": [
-    0.62,
-    0.64,
-    0.66
-   ],
-   "metallic": 1.0,
-   "roughness": 0.38
+  "amberlens": {
+   "ue": "lens_amber"
   }
  }
 }

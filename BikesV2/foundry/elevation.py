@@ -103,11 +103,9 @@ def pts_of(shp):
     ang = [a["a0"] + (a["a1"] - a["a0"]) * i / n for i in range(n + 1)]
     outer = [add(c, unit(x), a["r1"]) for x in ang]
     inner = [add(c, unit(x), a["r0"]) for x in reversed(ang)]
-    outer[0] += (1,)
-    outer[-1] += (1,)
-    inner[0] += (1,)
-    inner[-1] += (1,)
-    return outer + inner
+    # a mudguard always ends in a curve, never a flat cut (beenster, 14 Nov): a rounded tip at each end
+    rm, d = (a["r0"] + a["r1"]) / 2, math.degrees((a["r1"] - a["r0"]) * 0.75 / a["r1"]) * (1 if a["a1"] > a["a0"] else -1)
+    return outer + [add(c, unit(a["a1"] + d), rm)] + inner + [add(c, unit(a["a0"] - d), rm)]
 
 
 class Sheet:
@@ -167,6 +165,11 @@ def wheel(sh, c, w):
             a = rad(k * 10)
             b = rad(k * 10 + (28 if k % 2 else -28))
             sh.line(add(c, (math.cos(a), math.sin(a)), 46), add(c, (math.cos(b), math.sin(b)), rr - 22), "wire")
+    elif w.get("straight"):
+        sw_ = w.get("spoke_w", 4)
+        for k in range(n):
+            a0 = 360 / n * k + w.get("phase", 12)
+            sh.poly([add(c, unit(a0 - sw_ * 2.2), 50), add(c, unit(a0 - sw_ * 0.5), rr - 20), add(c, unit(a0 + sw_ * 0.5), rr - 20), add(c, unit(a0 + sw_ * 2.2), 50)], "rimf")
     else:
         for k in range(n):
             a0 = 360 / n * k + w.get("phase", 12)
@@ -230,16 +233,22 @@ def draw(model):
     col = model["colours"]
     o = sh.o
     o.append(f"<svg class='elev' viewBox='0 0 {W} {H}' role='img' aria-label='{model['name']} side elevation' "
-             f"style='--body:{col['body']};--frame:{col['frame']};--rimc:{col.get('rim', '#2b2d31')};--forkc:{col.get('fork', '#b8975a')};--accent2:{col.get('accent', col['body'])}'>")
+             f"style='--body:{col['body']};--frame:{col['frame']};--rimc:{col.get('rim', '#2b2d31')};--forkc:{col.get('fork', '#b8975a')};--accent2:{col.get('accent', col['body'])};--seatc:{col.get('seat', '#222429')}'>")
     o.append(f"<rect class='paper' x='0' y='0' width='{W}' height='{H}'/>")
     sh.line((-520, 0), (wb + 520, 0), "ground")
 
     # ---- behind: far-side exhaust can, rear hugger, plate hanger
     ex = model["exhaust"]
-    for can in ex.get("cans", []):
+    def draw_can(can):
         sh.tube([tuple(can["a"]), tuple(can["b"])], can["w"], "exh")
         sh.tube([add(tuple(can["b"]), (-1, 0), 0), add(tuple(can["b"]), ((can["b"][0] - can["a"][0]), (can["b"][1] - can["a"][1])), 0.06)], can["w"] - 16, "dark")
-    for shp in body.get("behind", []):
+
+    for can in ex.get("cans", []):
+        if not can.get("front"):
+            draw_can(can)
+    # (the plate hanger is a part of its own, body["plate_hanger"]: road legal in most countries, but optional in a build)
+    hanger = body.get("plate_hanger", []) if model.get("fit", {}).get("plate_hanger", True) else []
+    for shp in body.get("behind", []) + [h for h in hanger if not h.get("front")]:
         sh.path(pts_of(shp), shp["cls"], True, shp.get("t", 1.0))
 
     # ---- wheels
@@ -249,11 +258,22 @@ def draw(model):
     # ---- chain and sprockets, swingarm, shock
     sw = model["swingarm"]
     cs = tuple(eng["countershaft"])
-    chain_run(sh, cs, 36, A, sw["sprocket_r"])
+    if not sw.get("shaft"):
+        chain_run(sh, cs, 36, A, sw["sprocket_r"])
     sh.path(sw["outline"], sw.get("cls", "cast"), True, 0.9)
     for hole in sw.get("holes", []):
         sh.path(hole, "castin", True, 0.9)
+    rc = model.get("rear_caliper")
+    if rc:
+        sh.path(rc["arm"], "cast", True, 0.5)
+        sh.path(rc["body"], "caliper", True, 0.8)
     sh.circ(piv, 26, "bolt")
+    if sw.get("shaft"):
+        # shaft drive: the bevel box at the wheel, no chain or sprockets
+        sh.circ(A, 78, sw.get("cls", "cast"))
+        sh.circ(A, 60, "detail")
+        for k in range(6):
+            sh.circ(add(A, unit(k * 60 + 30), 68), 5, "boltd")
     sh.circ(A, 38, sw.get("cls", "cast"))
     sh.circ(A, 16, "axle")
     sk = model["shock"]
@@ -267,7 +287,8 @@ def draw(model):
 
     # ---- exhaust headers (behind the engine)
     for hp in ex["headers"]:
-        sh.tube([tuple(p) for p in hp["pts"]], hp.get("w", 44), "exh", 1.0)
+        if not hp.get("front"):
+            sh.tube([tuple(p) for p in hp["pts"]], hp.get("w", 44), "exh", 1.0)
 
     # ---- engine
     sh.path(eng["case"], "engc", True, 0.9)
@@ -340,6 +361,18 @@ def draw(model):
         else:
             sh.path(shp["pts"], shp["cls"], shp.get("closed", True), shp.get("t", 0.8))
 
+    # ---- a header that runs down the side of the engine, not under it, is drawn over the engine
+    for hp in ex["headers"]:
+        if hp.get("front"):
+            sh.tube([tuple(p) for p in hp["pts"]], hp.get("w", 44), "exh", 1.0)
+    # ---- a silencer on the near (left) side sits in front of the swingarm and wheel
+    for can in ex.get("cans", []):
+        if can.get("front"):
+            draw_can(can)
+    for shp in hanger:
+        if shp.get("front") and shp.get("tube"):
+            sh.tube([tuple(q) for q in shp["pts"]], shp["tube"], shp["cls"], shp.get("t", 0.0))
+
     # ---- seat pan: a hidden base under the seat, behind the tail, so that a seat from another
     # brand never shows daylight over this bike's tail (docs/mounting_standard.md, joint rule 1)
     pan = seat_pan(body)
@@ -409,8 +442,9 @@ CSS = """
 .elev .caliper{fill:var(--forkc);stroke:var(--ink);stroke-width:1.2}
 .elev .body{fill:var(--body);stroke:var(--ink);stroke-width:1.6}.elev .bodyline{fill:none;stroke:var(--ink);stroke-width:.9;opacity:.6}
 .elev .hl{fill:none;stroke:#fff;stroke-width:3;opacity:.28}
-.elev .seat{fill:#222429;stroke:var(--ink);stroke-width:1.4}.elev .stitch{fill:none;stroke:#8a8f95;stroke-width:.8;stroke-dasharray:4 3}
+.elev .seat{fill:var(--seatc,#222429);stroke:var(--ink);stroke-width:1.4}.elev .stitch{fill:none;stroke:#8a8f95;stroke-width:.8;stroke-dasharray:4 3}
 .elev .plastic{fill:#2b2d31;stroke:var(--ink);stroke-width:1.3}.elev .lens{fill:#e9e2b8;stroke:var(--ink);stroke-width:1}.elev .redlens{fill:#b3202a;stroke:var(--ink);stroke-width:1}
+.elev .screen{fill:#5d6b78;fill-opacity:.55;stroke:var(--ink);stroke-width:1.1}.elev .chromef{fill:#dfe3e6;stroke:var(--ink);stroke-width:1}
 .elev .plate{fill:#f1e9a8;stroke:var(--ink);stroke-width:1}
 .elev .dim{stroke:#1f4fd1;stroke-width:1;fill:none}.elev .dash{stroke-dasharray:7 5}.elev .dimt{fill:#1f4fd1;font-size:15px;font-family:"IBM Plex Mono",ui-monospace,monospace}
 .elev .title{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;font-size:44px;fill:#16181b}.elev .subt{font-size:16px;fill:#4a5057}

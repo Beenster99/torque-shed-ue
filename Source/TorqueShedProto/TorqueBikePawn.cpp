@@ -743,6 +743,23 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 					const FBox Box = C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
 					GripBox[Box.GetCenter().Y < 0.0 ? 0 : 1] += Box;
 				}
+			// [rider pose] The drawn clutch and brake levers (the lever glb's own meshes, not its hose or
+			// banjo): the largest under 25 cm each side.
+			{
+				static const FName LeverTag(TEXT("Part:controls/lever.glb"));
+				double Biggest[2] = {0.0, 0.0};
+				for (int32 S = 0; S < 2; ++S) { CatLever[S] = nullptr; bCatLeverRest[S] = false; }
+				for (UStaticMeshComponent* C : ModelParts)
+					if (C && C->GetStaticMesh() && C->ComponentHasTag(LeverTag))
+					{
+						const FBox Box = C->GetStaticMesh()->GetBoundingBox().TransformBy(C->GetRelativeTransform());
+						const double Size = Box.GetSize().GetMax();
+						const int32 LeverSide = Box.GetCenter().Y < 0.0 ? 0 : 1;
+						if (Size > 4.0 && Size < 25.0 && Size > Biggest[LeverSide]) { Biggest[LeverSide] = Size; CatLever[LeverSide] = C; }
+					}
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider levers drawn: clutch %s (%.1f cm), brake %s (%.1f cm)"),
+					CatLever[0].IsValid() ? TEXT("yes") : TEXT("no"), Biggest[0], CatLever[1].IsValid() ? TEXT("yes") : TEXT("no"), Biggest[1]);
+			}
 			// No drawn grips (a style whose bars don't take them): the layout's.
 			RiderGrip[1] = GripBox[1].IsValid ? GripBox[1].GetCenter() : Frame.Grip;
 			RiderGrip[0] = GripBox[0].IsValid ? GripBox[0].GetCenter() : FVector(RiderGrip[1].X, -RiderGrip[1].Y, RiderGrip[1].Z);
@@ -1202,6 +1219,8 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		static float AutoMph = 36.f;
 		static const bool bMph = FParse::Value(FCommandLine::Get(), TEXT("TorqueAutoMph="), AutoMph);
 		(void)bMph;
+		// (robot:mph:N sets it for the rest of the run.)
+		if (TestRobotMph > 0.f) AutoMph = TestRobotMph;
 		const double Want = TestMove >= 0 ? TestMps : AutoMph / 2.23694;
 		const V3 P = Sim->Position;
 		int32 Ahead = Near;
@@ -3419,6 +3438,14 @@ void ATorqueBikePawn::UpdateRiderAvatar()
 		T.Ankle[S] = R.Ankle[S];
 		T.LeverFingers[S] = R.LeverFingers[S];
 		T.LeverPull[S] = R.LeverPull[S];
+		// [rider pose] The drawn lever's blade (its box's middle, as it's swung now), from the grip.
+		T.LeverLine[S] = FVector::ZeroVector;
+		UStaticMeshComponent* LeverC = CatLever[S].IsValid() ? CatLever[S].Get() : LeverParts[S];
+		if (LeverC && LeverC->GetStaticMesh())
+		{
+			const FTransform InPawn = LeverC->GetComponentTransform().GetRelativeTransform(GetActorTransform());
+			T.LeverLine[S] = LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(InPawn).GetCenter() - R.Grip[S];
+		}
 	}
 	RiderAvatar.PoseRiding(T);
 	// The helmet on its head, and the eyes (first person) in the helmet.
@@ -3766,6 +3793,21 @@ void ATorqueBikePawn::UpdateRider()
 			// (The lever follows the clutch as it's let out: Sim->Clutch, how far it's in.)
 			In.LeverFingers[0] = FMath::Max3(FingersShift, FMath::Clamp(Held * 3.0, 0.0, 1.0), FMath::Max(Lever, ClutchFingers));
 			In.LeverPull[0] = FMath::Max(FMath::Max3(PullShift, Held, Lever), FMath::Clamp(Sim->Clutch, 0.0, 1.0)) * FMath::Clamp(In.LeverFingers[0] * 2.0, 0.0, 1.0);
+			// [rider pose] For the tests: the clutch hand every 0.1 s for 3 s after pulling away from a stop.
+			const double LogDt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0;
+			if (FMath::Abs(Sim->Speed) < 0.2) PullAwayLogT = 0.0;
+			else if (PullAwayLogT >= 0.0)
+			{
+				PullAwayLogT += LogDt;
+				if (PullAwayLogT >= PullAwayLogNext)
+				{
+					UE_LOG(LogTemp, Log, TEXT("Torque: rider clutch: %.1f s after pulling away, %.1f km/h, gear %d, clutch in %.2f%s, fingers on %.2f, lever pulled %.2f"),
+						PullAwayLogT, Sim->Speed * 3.6, Sim->Gear, Sim->Clutch, Sim->ClutchIn ? TEXT(" (held)") : TEXT(""), In.LeverFingers[0], In.LeverPull[0]);
+					PullAwayLogNext = PullAwayLogT + 0.1;
+				}
+				if (PullAwayLogT > 3.0) PullAwayLogT = -1.0;
+			}
+			if (PullAwayLogT == 0.0) PullAwayLogNext = 0.0;
 		}
 		for (int32 S = 0; S < 2; ++S)
 			if (TestLeverHold[S] >= 0.0)
@@ -3778,6 +3820,27 @@ void ATorqueBikePawn::UpdateRider()
 			if (!LeverParts[S]) continue;
 			const FQuat Q(LeverAxis[S], LeverPullRad[S] * In.LeverPull[S]);
 			LeverParts[S]->SetRelativeTransform(LeverBase[S] * FTransform(-LeverPivot[S]) * FTransform(Q, LeverPivot[S]) * LeverFit[S]);
+		}
+		// [rider pose] A catalogue bike's levers swing back about their perches' pins (upright) toward
+		// the grips as they're pulled, 28 degrees at full pull (beenster: see them pulled).
+		for (int32 S = 0; S < 2; ++S)
+		{
+			UStaticMeshComponent* LeverC = CatLever[S].Get();
+			if (!LeverC) continue;
+			if (!bCatLeverRest[S])
+			{
+				// (Which way round the pin takes the blade back toward the rider: the blade's middle from
+				// the pin turned each way. Set by rotation alone: the brake's lever is drawn mirrored, and a
+				// mirrored FTransform doesn't compose.)
+				CatLeverRest[S] = LeverC->GetRelativeTransform();
+				bCatLeverRest[S] = true;
+				const FVector Arm = LeverC->GetStaticMesh() ? LeverC->GetStaticMesh()->GetBoundingBox().TransformBy(CatLeverRest[S]).GetCenter() - CatLeverRest[S].GetLocation() : FVector::ZeroVector;
+				const double Ra = FMath::DegreesToRadians(20.0);
+				CatLeverSign[S] = FQuat(FVector::UpVector, Ra).RotateVector(Arm).X <= FQuat(FVector::UpVector, -Ra).RotateVector(Arm).X ? 1.0 : -1.0;
+				UE_LOG(LogTemp, Log, TEXT("Torque: rider lever %d: blade %s from its pin, swings %s"), S, *Arm.ToCompactString(), CatLeverSign[S] > 0.0 ? TEXT("+") : TEXT("-"));
+			}
+			const FQuat Swing(FVector::UpVector, FMath::DegreesToRadians(28.0 * FMath::Clamp(In.LeverPull[S], 0.0, 1.0)) * CatLeverSign[S]);
+			LeverC->SetRelativeLocationAndRotation(CatLeverRest[S].GetLocation(), Swing * CatLeverRest[S].GetRotation());
 		}
 		In.GripFit[0] = GripDelta[0] * GripFitMove[0];
 		In.GripFit[1] = GripDelta[1] * GripFitMove[1];

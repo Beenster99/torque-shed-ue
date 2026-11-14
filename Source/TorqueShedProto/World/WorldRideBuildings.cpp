@@ -33,7 +33,7 @@ double GuessEaves(int Baked, bool Big, double HalfLong, double HalfShort, double
 	if (Area < 28.0) return 2.5 + 0.4 * Jig;                               // an outbuilding
 	if (Area > 55.0 && InTown && Roll > 0.86) return 8.0 + 0.5 * Jig;      // a town's tall house
 	if (Roll < (InTown ? 0.06 : 0.14)) return 2.7 + 0.3 * Jig;             // a bungalow
-	return 5.3 + 0.4 * Jig;                                                // two storeys
+	return 5.6 + 0.4 * Jig;                                                // two storeys
 }
 } // namespace RideBuildingBits
 
@@ -85,13 +85,14 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		const Building* B = nullptr;
 		const BuildingLook* Look = nullptr;
 		int Index = -1;
+		double Floors = 0.0;
 	};
 	std::vector<Candidate> Here;
 	std::vector<std::shared_ptr<const std::vector<OutlinePiece>>> Held;
 	std::vector<const OutlinePiece*> Pieces;
 	std::vector<CellId> Covered;
 	OutlinesIn(X0, Z0, Size, Held, Pieces, Covered);
-	for (const OutlinePiece* P : Pieces) Here.push_back({&P->B, &P->Look, -1});
+	for (const OutlinePiece* P : Pieces) Here.push_back({&P->B, &P->Look, -1, P->Floors});
 	const Frame Fr = G.FrameOf();
 	for (int Cz = CellZ0; Cz <= CellZ1; ++Cz)
 		for (int Cx = CellX0; Cx <= CellX1; ++Cx)
@@ -106,7 +107,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 					const Geo At = Fr.ToGeo(Bi.X, Bi.Z);
 					if (std::find(Covered.begin(), Covered.end(), CellOf(At.Lat, At.Lon)) != Covered.end()) continue;
 				}
-				Here.push_back({&Bi, nullptr, I});
+				Here.push_back({&Bi, nullptr, I, 0.0});
 			}
 		}
 	if (Tally) Tally->Outlined += int(Pieces.size());
@@ -125,7 +126,21 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		if (std::isnan(Base)) continue;
 		// (local to the building: x across, z deep; the turn is the one the land's levelled pad uses)
 		const double Cs = std::cos(B.Yaw), Sn = std::sin(B.Yaw);
-		const bool LongX = B.W >= B.D;
+		bool LongX = B.W >= B.D;
+		// [build 146] A house by a road fronts it: its ridge runs along the road and its door is on the
+		// side towards it, as a terraced or semi-detached house is built, even where it is deeper than
+		// wide (beenster, build 145: "many not facing the road"). Long rows keep their length.
+		{
+			const int Kind0 = B.More.empty() ? 0 : int(B.More[0]);
+			NearOpts Opts;
+			NearHit H;
+			if (Kind0 == 0 && std::fmax(B.W, B.D) < 2.2 * std::fmin(B.W, B.D) && std::fmin(B.W, B.D) <= 12.0
+				&& NearestOf(B.X, B.Z, Opts, H) && H.Dist - H.Half < 30.0)
+			{
+				const double Tx = H.Foot.X - B.X, Tz = H.Foot.Z - B.Z, Tl = std::hypot(Tx, Tz);
+				if (Tl > 0.1) LongX = std::fabs(Tx * Cs - Tz * Sn) / Tl < 0.707;   // (x along the road unless the road lies off an x end)
+			}
+		}
 		const double HalfLong = (LongX ? B.W : B.D) * 0.5, HalfShort = (LongX ? B.D : B.W) * 0.5;
 		const auto Local = [&](double Along, double Across, double Y)
 		{
@@ -189,7 +204,12 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		else if (RoofShape.empty() && IsCivic) Shape = ERoof::Hipped;
 		const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
 			: Big ? HalfShort * 0.35 : IsWorship ? std::fmin(HalfShort * 1.15, 6.5) : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
-		const double Eaves = B.Height > 2.0 ? std::fmax(2.3, B.Height - Rise)
+		// (the map's floors where it has them; its height, except a house's under 7 m: Overture's British
+		// heights put most two-storey houses at 4-6 m to the ridge, which drew them as bungalows in build 145)
+		const double MapFloors = Each.Floors;
+		const bool TrustHeight = B.Height > 2.0 && !(IsHouse && B.Height >= 3.0 && B.Height < 7.0);
+		const double Eaves = MapFloors >= 1.0 ? std::fmin(MapFloors, 40.0) * 2.7 + 0.6
+			: TrustHeight ? std::fmax(2.3, B.Height - Rise)
 			: RideBuildingBits::GuessEaves(Baked, Big, HalfLong, HalfShort, B.X, B.Z, TownLookAt(B.X, B.Z) != nullptr);
 		const double Pick = Chance(B.X, B.Z, 2);
 		// (the walling: the map's material, else the local share of render, brick, else stone; a barn stays stone, or brick where brick is the rule)
@@ -291,6 +311,22 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			if (Bays > 1) { ++Tally->Terraces; Tally->TerraceHouses += Bays; }
 			Tally->Barns += IsBarn ? 1 : 0;
 			Tally->Ruins += Ruin ? 1 : 0;
+			if (IsHouse && Bays == 1)
+			{
+				const double WinH0 = Look.Window == LocalLook::Mullion ? 0.9 : Look.Window == LocalLook::Sash ? 1.45 : 1.0;
+				const int Fl = std::clamp(1 + int((Eaves - 1.15 - WinH0) / 2.7), 1, 3);
+				++Tally->HouseFloors[Fl - 1];
+				if (B.Height > 2.0) ++Tally->HouseMapped[Fl - 1];
+				NearOpts Opts;
+				NearHit H;
+				if (NearestOf(B.X, B.Z, Opts, H) && H.Dist - H.Half < 25.0)
+				{
+					const P3 N = Local(0.0, 1.0, 0.0);
+					const double Nx = N.X - B.X, Nz = N.Z - B.Z, Tx = H.Foot.X - B.X, Tz = H.Foot.Z - B.Z, Tl = std::hypot(Tx, Tz);
+					++Tally->HousesByRoad;
+					if (Tl > 0.1 && std::fabs(Nx * Tx + Nz * Tz) / Tl > 0.707) ++Tally->LongSideToRoad;
+				}
+			}
 		}
 		const double BayW = HalfLong * 2.0 / Bays;
 		const Rgb StoneTrim = Shade(Stone, 1.15);
@@ -411,9 +447,11 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 				}
 			};
 			const bool Front = Sg == DoorSide;
-			const int Floors = std::clamp(int((Eaves - 0.4) / 2.7), 1, 12);
 			const double WinW = Look.Window == LocalLook::Mullion ? 1.3 : Look.Window == LocalLook::Sash ? 0.9 : 0.85;
 			const double WinH = Look.Window == LocalLook::Mullion ? 0.9 : Look.Window == LocalLook::Sash ? 1.45 : 1.0;
+			// (a floor of windows wherever its top, 0.15 m under the eaves, fits: build 145 drew a
+			// two-storey house's 5.3 m eaves with one row, a bungalow's look)
+			const int Floors = std::clamp(1 + int((Eaves - 1.15 - WinH) / 2.7), 1, 12);
 			if (IsBarn)
 			{
 				// A barn: a cart door on its front, and slit vents in rows along both sides.

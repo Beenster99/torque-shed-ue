@@ -1,0 +1,47 @@
+{
+ "about": "The shared pool: parts no brand owns, that fit every bike in the families listed. Bars, lamps and mirrors are drawn relative to an anchor (the top of the fork for bars and lamps, the grip for mirrors), so they land in the right place on any frame. Coordinates in mm, x forward, z up.",
+ "families": ["Naked"],
+ "bars": [
+  {"name": "Street bar", "note": "flat, mid-rise",
+   "shapes": [{"tube": 30, "pts": [[0, 0], [-29, 64]], "cls": "cast"}, {"tube": 24, "pts": [[-29, 64], [-67, 106]], "cls": "steelt"},
+              {"tube": 9, "pts": [[-61, 98], [1, 76]], "cls": "dark"}, {"circle": 20, "at": [-77, 114], "cls": "cast"}]},
+  {"name": "Tall bar", "note": "high and wide, upright riding position",
+   "shapes": [{"tube": 30, "pts": [[0, 0], [-34, 95]], "cls": "cast"}, {"tube": 24, "pts": [[-34, 95], [-92, 150]], "cls": "steelt"},
+              {"tube": 9, "pts": [[-86, 142], [-22, 120]], "cls": "dark"}, {"circle": 20, "at": [-102, 158], "cls": "cast"}]},
+  {"name": "Clip-ons", "note": "low bars clamped to the fork legs", "clipon": true,
+   "shapes": [{"tube": 34, "pts": [[10, -44], [-8, -36]], "cls": "cast"}, {"tube": 24, "pts": [[-8, -36], [-68, -56]], "cls": "steelt"},
+              {"tube": 9, "pts": [[-62, -66], [0, -78]], "cls": "dark"}, {"circle": 20, "at": [-80, -60], "cls": "cast"}]}
+ ],
+ "mirrors": [
+  {"name": "Stalk mirrors", "note": "on stalks above the bar",
+   "shapes": [{"tube": 8, "pts": [[13, 0], [3, 85]], "cls": "dark"}, {"pts": [[-22, 90], [3, 115], [33, 100], [13, 75]], "cls": "plastic", "mirror": true}]},
+  {"name": "Bar-end mirrors", "note": "small round mirrors on the ends of the bar",
+   "shapes": [{"pts": [[-30, -8], [-12, 24], [20, 20], [24, -14], [-4, -28]], "cls": "plastic", "mirror": true, "bar_end": true}]}
+ ],
+ "lamps": [
+  {"name": "Round lamp", "note": "classic big round lamp with twin clocks",
+   "head": [{"pts": [[132, -54, 1], [86, -58], [49, -92], [46, -136], [74, -180], [126, -190, 1]], "cls": "plastic", "round": true},
+            {"pts": [[132, -54, 1], [150, -92], [152, -150], [126, -190, 1]], "cls": "lens"},
+            {"pts": [[125, -46, 1], [136, -52, 1], [132, -196, 1], [120, -198, 1]], "cls": "chromef", "t": 0.3},
+            {"circle": 31, "at": [62, -4], "cls": "chromef"}, {"circle": 25, "at": [62, -4], "cls": "plastic"},
+            {"circle": 27, "at": [16, 36], "cls": "chromef"}, {"circle": 21, "at": [16, 36], "cls": "plastic"}]},
+  {"name": "Twin lamps", "note": "two small round lamps side by side", "twin": true,
+   "head": [{"pts": [[122, -64, 1], [90, -66], [62, -90], [60, -130], [84, -154], [120, -158, 1]], "cls": "plastic", "round": true},
+            {"pts": [[122, -64, 1], [136, -90], [136, -134], [120, -158, 1]], "cls": "lens"},
+            {"pts": [[40, 24, 1], [86, 9], [101, -31, 1], [46, -36, 1]], "cls": "plastic"}]},
+  {"name": "Slim lamp", "note": "thin modern strip lamp in a small wedge",
+   "head": [{"pts": [[60, -60, 1], [118, -70, 1], [150, -110, 1], [112, -150, 1], [58, -130, 1]], "cls": "plastic", "t": 0},
+            {"pts": [[122, -82, 1], [146, -108, 1], [138, -116, 1], [116, -92, 1]], "cls": "lens", "t": 0},
+            {"pts": [[40, 24, 1], [86, 9], [101, -31, 1], [46, -36, 1]], "cls": "plastic"}]}
+ ],
+ "wheels": [
+  {"name": "Ten spoke", "note": "ten thin straight spokes", "set": {"spokes": 10, "straight": true, "spoke_w": 3.2, "wire": false}},
+  {"name": "Three spoke", "note": "three broad spokes", "set": {"spokes": 3, "straight": true, "spoke_w": 10, "wire": false}},
+  {"name": "Wire", "note": "laced wire wheels", "set": {"wire": true}}
+ ],
+ "silencers": [
+  {"name": "Stubby", "note": "short fat can", "len": 215, "w": 104},
+  {"name": "Long round", "note": "long slim round can", "len": 400, "w": 82},
+  {"name": "Mid can", "note": "mid length", "len": 300, "w": 94}
+ ]
+}
