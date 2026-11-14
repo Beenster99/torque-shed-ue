@@ -40,6 +40,15 @@ struct FTorqueProfile
 	static constexpr float FirstTiltMin = -15.0f, FirstTiltMax = 15.0f;
 	void ResetFirst() { FirstForward = 0.0f; FirstHeight = 0.0f; FirstTilt = 0.0f; }
 
+	// [places stage 7] The places you've ridden or walked to in Ride UK (kept on this machine, not packed
+	// for the others: co-op riders see how many and the last, ATorquePlayerState::PlacesVisited), each
+	// "key|name|date" (RidePlan::PlaceStopKey; the day first visited, yyyy-mm-dd), oldest first.
+	TArray<FString> Visited;
+	bool HasVisited(const FString& Key) const;
+	// Adds a place not already on the list (true), or leaves the list as it is (false).
+	bool Visit(const FString& Key, const FString& Name);
+	FString LastVisitedName() const;
+
 	// A face slider: its name on the Profile page and the line under it.
 	struct FSlider { const TCHAR* Name; const TCHAR* Hint; };
 	static const FSlider Sliders[NumFace];

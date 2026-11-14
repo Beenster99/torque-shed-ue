@@ -826,12 +826,15 @@ public:
 		double Depth = 0.0;        // a made pull-off's depth (m)
 		P2 RoadMid, RoadDir, Out;  // a made pull-off's road middle beside its middle, the road's way there, and out towards it (level, unit)
 		std::vector<P2> Ring;      // a made pull-off's outline (a field area: FieldPullOff), else empty
+		P2 View;                   // [places stage 7] the spot with a good view of the place, its path's end (HasView)
+		bool HasView = false;
 	};
 	std::vector<PlaceStop> PlaceStops;
 	static constexpr double PlaceReach = 1500.0, PlaceCarParkReach = 400.0, PlaceLaybyReach = 300.0;
 	static constexpr double PullOffLength = 22.0, PullOffDepth = 6.0;
 	// What IndexPlaces found: places looked at, stops by EPlaceStop, places with no road near enough.
 	int PlacesSeen = 0, PlacesFar = 0, PlaceStopCount[4] = {};
+	int PlacePaths = 0, PlaceGates = 0;   // [places stage 7] paths made in to the places, kissing gates on them
 	void NoteSites();     // [places stage 5] (the start of IndexPlaces: SiteNotes, SightNote)
 	void IndexPlaces();
 	// The place stop whose arrival is within Within m of (X, Z), nearest first; -1 none.
@@ -839,6 +842,11 @@ public:
 	// The name a stop's board shows ("Bolton Castle"), "" none.
 	std::string PlaceStopName(int Stop) const;
 	std::string PlaceStopNote(int Stop) const;   // [places stage 5] its site note's words, "" none
+	// [places stage 7] What a visited list keeps a stop's place by: its Wikidata id, else its name and where
+	// it is ("Castlerigg Stone Circle@54.603,-3.098"), "" none.
+	std::string PlaceStopKey(int Stop) const;
+	// The stop whose view spot (PlaceStop::View) is within Within m of (X, Z); -1 none.
+	int PlaceViewAt(double X, double Z, double Within = 8.0) const;
 	// Whether (X, Z) is on a pull-off made for a place (gravel under the tyres).
 	bool OnPullOff(double X, double Z) const;
 	std::unordered_map<long long, std::vector<int>> PlaceGrid;   // stops by the 64 m square their arrival is in

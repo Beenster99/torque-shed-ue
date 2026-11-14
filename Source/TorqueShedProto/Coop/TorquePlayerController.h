@@ -184,6 +184,7 @@ private:
 	FDelegateHandle TellHandle;
 	void SyncPlayerState(float Dt);
 	FString SentActivity;
+	int32 SentPlaces = -1;   // [places stage 7] the visited count last sent to the player state
 	int32 SentBay = -2;
 	bool bLookSent = false;
 	FString Note;

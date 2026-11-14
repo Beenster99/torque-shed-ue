@@ -14,6 +14,8 @@ void ATorquePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATorquePlayerState, Activity);
+	DOREPLIFETIME(ATorquePlayerState, PlacesVisited);
+	DOREPLIFETIME(ATorquePlayerState, LastPlace);
 	DOREPLIFETIME(ATorquePlayerState, Colour);
 	DOREPLIFETIME(ATorquePlayerState, RiderStyle);
 	DOREPLIFETIME(ATorquePlayerState, Profile);   // [profile]
@@ -52,6 +54,12 @@ void ATorquePlayerState::CopyProperties(APlayerState* Into)
 void ATorquePlayerState::ServerSetActivity_Implementation(const FString& What)
 {
 	Activity = What.Left(80);
+}
+
+void ATorquePlayerState::ServerSetPlaces_Implementation(int32 Count, const FString& Last)
+{
+	PlacesVisited = FMath::Max(0, Count);
+	LastPlace = Last.Left(80);
 }
 
 void ATorquePlayerState::ServerSetLook_Implementation(const FString& NewName, uint8 NewColour)

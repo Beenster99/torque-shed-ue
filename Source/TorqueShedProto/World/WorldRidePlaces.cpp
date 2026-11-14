@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -645,11 +646,120 @@ void RidePlan::IndexPlaces()
 			E.Face = Extra == 0 ? S.Face : S.Face * -1.0;
 			E.Height = Ground(E.At.X, E.At.Z);
 			E.Id = uint32_t(I + 1) * 7u + uint32_t(Extra);
+			// [places stage 7] (the information board lettered: what the place is, and its note)
+			if (Extra == 0)
+			{
+				std::string What = Kind;
+				std::replace(What.begin(), What.end(), '_', ' ');
+				if (!What.empty()) What[0] = char(std::toupper(static_cast<unsigned char>(What[0])));
+				const std::string Note = PlaceStopNote(int(I));
+				E.Text = Note.empty() ? What : What + "|" + Note;
+			}
 			if (std::isnan(E.Height)) continue;
 			Scene->Furniture[SceneKey(E.At.X, E.At.Z)].push_back(int(Furniture.size()));
 			Furniture.push_back(std::move(E));
 		}
 	}
+
+	// [places stage 7] Being there: from each stop off the road a gravel path into the place, as far as a
+	// spot with a good view of it (a marker post, and a bench at the scenic ones), with a kissing gate where
+	// it goes through a wall, hedge or fence. Not where the map's own path already goes there, through
+	// water or a no-go area (but a church's graveyard), or for a place under 25 m or over 350 m away.
+	Region& Gw = Area.Roads;
+	int Paths = 0, Gates = 0;
+	for (size_t I = 0; I < PlaceStops.size(); ++I)
+	{
+		PlaceStop& S = PlaceStops[I];
+		if (S.How == PlaceStreet) continue;
+		const Sight& Place = Gw.Sights[size_t(S.Sights[0])];
+		P2 Mid = Place.At;
+		double Size = 4.0;
+		if (Place.Outline.size() >= 3)
+		{
+			const double A = std::fabs(RideShapes::RingArea(Place.Outline, Mid));
+			Size = std::fmax(4.0, std::sqrt(A / 3.14159265));
+		}
+		const P2 From = S.Board + S.Face * -1.5;   // (just behind the board, away from the road)
+		const double Far = From.DistanceTo(Mid);
+		if (Far < 25.0 + Size || Far > 350.0 + Size) continue;
+		const P2 Way = (Mid - From) * (1.0 / Far);
+		const P2 View = Mid - Way * std::fmin(Far - 6.0, Size + std::fmax(10.0, Size * 0.6));
+		const double Run = From.DistanceTo(View);
+		if (Run < 8.0) continue;
+		const bool Church = Place.Kind == "church" || Place.Kind == "cathedral" || Place.Kind == "abbey";
+		// (along it every 3 m: nothing in the way, and where it meets a wall)
+		bool Clear = true;
+		std::vector<P2> Line;
+		std::vector<P2> GateAt;
+		const int Steps = std::max(2, int(std::ceil(Run / 3.0)));
+		for (int K = 0; K <= Steps && Clear; ++K)
+		{
+			const P2 P = From + (View - From) * (double(K) / Steps);
+			if (std::isnan(Ground(P.X, P.Z)) || (!Church && Forbidden(P)) || (Land && (Land->Cover(P.X, P.Z) == Terrain::CoverWater || Land->SeaAt(P.X, P.Z)))) { Clear = false; break; }
+			if (K > 2 && NearestRoad(P, 6.0, false).Edge >= 0) { Clear = false; break; }   // (no path across another road)
+			if (K > 0 && Walled(Line.back(), P)) GateAt.push_back((Line.back() + P) * 0.5);
+			Line.push_back(P);
+		}
+		if (!Clear || GateAt.size() > 3) continue;
+		// (the map's own path already runs there: leave it to that)
+		bool Mapped = false;
+		{
+			const auto It = Scene->Paths.find(SceneKey(View.X, View.Z));
+			if (It != Scene->Paths.end())
+				for (int Pi : It->second)
+					for (const P2& Q : Gw.Ground.Paths[size_t(Pi)].Pts) Mapped = Mapped || Q.DistanceTo(View) < 15.0;
+		}
+		S.View = View;
+		S.HasView = true;
+		if (!Mapped)
+		{
+			GroundShape Path;
+			Path.Kind = "path";
+			Path.Word = "fine_gravel";
+			Path.Name = "to " + Place.Name;
+			Path.Width = 1.4;
+			Path.Pts = {From, View};
+			const int Index = int(Gw.Ground.Paths.size());
+			for (int K = 0; K < Steps; ++K)
+			{
+				const P2 Q = From + (View - From) * ((K + 0.5) / Steps);
+				std::vector<int>& Row = Scene->Paths[SceneKey(Q.X, Q.Z)];
+				if (std::find(Row.begin(), Row.end(), Index) == Row.end()) Row.push_back(Index);
+			}
+			Gw.Ground.Paths.push_back(std::move(Path));
+			++Paths;
+			for (const P2& G0 : GateAt)
+			{
+				Furnish Gate;
+				Gate.Kind = KissingGate;
+				Gate.At = G0;
+				Gate.Face = P2(Way.Z, -Way.X);
+				Gate.Height = Ground(G0.X, G0.Z);
+				Gate.Id = uint32_t(I + 1) * 7u + 3u;
+				if (std::isnan(Gate.Height)) continue;
+				Scene->Furniture[SceneKey(G0.X, G0.Z)].push_back(int(Furniture.size()));
+				Furniture.push_back(std::move(Gate));
+				++Gates;
+			}
+		}
+		// (the view spot: a marker post, and a bench facing the place where it is somewhere to sit and look)
+		const bool Scenic = Place.Kind != "church" && Place.Kind != "cathedral" && Place.Kind != "industrial_heritage";
+		for (int Extra = 0; Extra < (Scenic ? 2 : 1); ++Extra)
+		{
+			Furnish E;
+			E.Kind = Extra == 0 ? PlaceBoard : Seat;
+			E.At = View + P2(Way.Z, -Way.X) * (Extra == 0 ? 1.2 : -1.6);
+			E.Face = Way * -1.0;
+			if (Extra == 1) E.Face = Way;
+			E.Height = Ground(E.At.X, E.At.Z);
+			E.Id = uint32_t(I + 1) * 7u + 4u + uint32_t(Extra);
+			if (std::isnan(E.Height)) continue;
+			Scene->Furniture[SceneKey(E.At.X, E.At.Z)].push_back(int(Furniture.size()));
+			Furniture.push_back(std::move(E));
+		}
+	}
+	PlacePaths = Paths;
+	PlaceGates = Gates;
 }
 
 int RidePlan::PlaceStopAt(double X, double Z, double Within) const
@@ -686,6 +796,39 @@ std::string RidePlan::PlaceStopNote(int Stop) const
 	for (int S : PlaceStops[size_t(Stop)].Sights)
 		if (size_t(S) < SightNote.size() && SightNote[size_t(S)] >= 0) return SiteNotes[size_t(SightNote[size_t(S)])].Note;
 	return std::string();
+}
+
+std::string RidePlan::PlaceStopKey(int Stop) const
+{
+	if (Stop < 0 || Stop >= int(PlaceStops.size()) || PlaceStops[size_t(Stop)].Sights.empty()) return std::string();
+	const Sight& S = Area.Roads.Sights[size_t(PlaceStops[size_t(Stop)].Sights[0])];
+	if (!S.Qid.empty()) return S.Qid;
+	char Where[64];
+	std::snprintf(Where, sizeof(Where), "@%.3f,%.3f", S.Lat, S.Lon);
+	return (S.Name.empty() ? std::string("place") : S.Name) + Where;
+}
+
+int RidePlan::PlaceViewAt(double X, double Z, double Within) const
+{
+	// (a view spot is within 350 m of its stop: look round the stops near enough)
+	const int Cx = int(std::floor(X / PlaceCell)), Cz = int(std::floor(Z / PlaceCell));
+	const int Reach = int(std::ceil((360.0 + Within) / PlaceCell));
+	int Best = -1;
+	double BestD = Within;
+	for (int Dz = -Reach; Dz <= Reach; ++Dz)
+		for (int Dx = -Reach; Dx <= Reach; ++Dx)
+		{
+			const auto It = PlaceGrid.find(static_cast<long long>(Cx + Dx) * 4000037LL + (Cz + Dz));
+			if (It == PlaceGrid.end()) continue;
+			for (int I : It->second)
+			{
+				const PlaceStop& S = PlaceStops[size_t(I)];
+				if (!S.HasView) continue;
+				const double D = std::hypot(S.View.X - X, S.View.Z - Z);
+				if (D < BestD) { BestD = D; Best = I; }
+			}
+		}
+	return Best;
 }
 
 bool RidePlan::OnPullOff(double X, double Z) const

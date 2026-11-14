@@ -73,6 +73,7 @@ FTorqueProfile& FTorqueProfile::Mine()
 		GConfig->GetFloat(Section, TEXT("FirstHeight"), P.FirstHeight, GGameUserSettingsIni);
 		GConfig->GetFloat(Section, TEXT("FirstTilt"), P.FirstTilt, GGameUserSettingsIni);
 		GConfig->GetInt(Section, TEXT("RideView"), P.RideView, GGameUserSettingsIni);
+		GConfig->GetArray(Section, TEXT("Visited"), P.Visited, GGameUserSettingsIni);
 		P.ClampChase();
 	}
 	return P;
@@ -104,5 +105,30 @@ void FTorqueProfile::Save() const
 	GConfig->SetFloat(Section, TEXT("FirstHeight"), FirstHeight, GGameUserSettingsIni);
 	GConfig->SetFloat(Section, TEXT("FirstTilt"), FirstTilt, GGameUserSettingsIni);
 	GConfig->SetInt(Section, TEXT("RideView"), RideView, GGameUserSettingsIni);
+	GConfig->SetArray(Section, TEXT("Visited"), Visited, GGameUserSettingsIni);
 	GConfig->Flush(false, GGameUserSettingsIni);
+}
+
+bool FTorqueProfile::HasVisited(const FString& Key) const
+{
+	const FString Lead = Key + TEXT("|");
+	for (const FString& V : Visited)
+		if (V.StartsWith(Lead, ESearchCase::CaseSensitive)) return true;
+	return false;
+}
+
+bool FTorqueProfile::Visit(const FString& Key, const FString& Name)
+{
+	if (Key.IsEmpty() || HasVisited(Key)) return false;
+	// ('|' would split the entry: none in the name)
+	Visited.Add(FString::Printf(TEXT("%s|%s|%s"), *Key, *Name.Replace(TEXT("|"), TEXT("/")), *FDateTime::Now().ToString(TEXT("%Y-%m-%d"))));
+	return true;
+}
+
+FString FTorqueProfile::LastVisitedName() const
+{
+	if (Visited.Num() == 0) return FString();
+	TArray<FString> Bits;
+	Visited.Last().ParseIntoArray(Bits, TEXT("|"), false);
+	return Bits.Num() >= 2 ? Bits[1] : FString();
 }

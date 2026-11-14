@@ -88,6 +88,11 @@ public:
 	// The sat nav at a place (Unreal cm; RidePlan::NavAt) into the dash's nav fields; clears them with
 	// no ride. Was: the last call's place along the ride's road (keeps to it where the road passes itself).
 	static void NavFor(const FVector& At, FTorqueDash& Dash, double& Was);
+	// [places stage 7] On foot at (Unreal cm): at a place's view spot, the dash's stop line says so and the
+	// place goes on the visited list. Called after NavFor.
+	static void ViewSpotFor(const FVector& At, FTorqueDash& Dash);
+	// A place stop onto this profile's visited list: true when it's the first visit (and saved).
+	static bool VisitPlace(const TorqueWorld::RidePlan& InPlan, int32 Stop);
 	// [ride anywhere] The world loaded round the ride and the way the sat nav is guiding the riders
 	// (World/WorldRoam.h), for the maps (the TFT's, the HUD's); null with no ride. Read on the game
 	// thread; each is a snapshot to keep, replaced (its Version up) when the area grows or the way
@@ -141,6 +146,8 @@ private:
 	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
 	FRideNavState NavState;
 	int32 LastPlaceStop = -1;   // [places stage 2] the place stop the rider was last at (for the log), -1 none
+	int32 LastViewSpot = -1;     // [places stage 7] the view spot the walker was last at, -1 none
+	bool bFirstVisitHere = false;   // [places stage 7] LastPlaceStop was new to this profile's visited list
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;

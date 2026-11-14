@@ -5,6 +5,7 @@
 #include "TorqueDash.h"
 #include "Coop/TorqueSettings.h"
 #include "Coop/TorqueGameState.h"
+#include "Shed/TorqueProfile.h"
 
 #include "Async/Async.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -302,9 +303,47 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		// [places stage 5] (and its site note's words for a famous one: "38 stones, about 5,000 years old")
 		const std::string Note = Ride->Plan->PlaceStopNote(StopHere);
 		if (!Name.empty()) Dash.NavStop = Note.empty() ? FString::Printf(TEXT("Arrived: %s"), UTF8_TO_TCHAR(Name.c_str())) : FString::Printf(TEXT("Arrived: %s. %s"), UTF8_TO_TCHAR(Name.c_str()), UTF8_TO_TCHAR(Note.c_str()));
-		if (Ride->LastPlaceStop != StopHere) UE_LOG(LogTemp, Log, TEXT("Torque places: arrived at '%s' (stop %d)%s%s"), UTF8_TO_TCHAR(Name.c_str()), StopHere, Note.empty() ? TEXT("") : TEXT(": "), UTF8_TO_TCHAR(Note.c_str()));
+		if (Ride->LastPlaceStop != StopHere)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque places: arrived at '%s' (stop %d)%s%s"), UTF8_TO_TCHAR(Name.c_str()), StopHere, Note.empty() ? TEXT("") : TEXT(": "), UTF8_TO_TCHAR(Note.c_str()));
+			Ride->bFirstVisitHere = VisitPlace(*Ride->Plan, StopHere);
+		}
+		if (Ride->bFirstVisitHere && !Name.empty()) Dash.NavStop += TEXT(" First visit.");
 	}
 	Ride->LastPlaceStop = StopHere;
+}
+
+bool ATorqueRideWorld::VisitPlace(const TorqueWorld::RidePlan& InPlan, int32 Stop)
+{
+	// [places stage 7] Onto this profile's visited list (once), saved at once.
+	const FString Key = UTF8_TO_TCHAR(InPlan.PlaceStopKey(Stop).c_str());
+	const FString Name = UTF8_TO_TCHAR(InPlan.PlaceStopName(Stop).c_str());
+	if (Name.IsEmpty()) return false;
+	FTorqueProfile& Me = FTorqueProfile::Mine();
+	if (!Me.Visit(Key, Name)) return false;
+	Me.Save();
+	UE_LOG(LogTemp, Log, TEXT("Torque places: first visit to '%s' (%s); %d places visited"), *Name, *Key, Me.Visited.Num());
+	return true;
+}
+
+void ATorqueRideWorld::ViewSpotFor(const FVector& At, FTorqueDash& Dash)
+{
+	// [places stage 7] On foot at a place's view spot (the end of its path in): the line says what you're
+	// looking at, and you've visited it.
+	ATorqueRideWorld* Ride = Current.Get();
+	if (!Ride || !Ride->Plan || !Ride->Plan->Ok) return;
+	const int32 Spot = Ride->Plan->PlaceViewAt(At.X / 100.0, At.Y / 100.0, 8.0);
+	if (Spot >= 0)
+	{
+		const std::string Name = Ride->Plan->PlaceStopName(Spot);
+		if (!Name.empty()) Dash.NavStop = FString::Printf(TEXT("View of %s"), UTF8_TO_TCHAR(Name.c_str()));
+		if (Ride->LastViewSpot != Spot)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque places: at the view spot of '%s' (stop %d)"), UTF8_TO_TCHAR(Name.c_str()), Spot);
+			VisitPlace(*Ride->Plan, Spot);
+		}
+	}
+	Ride->LastViewSpot = Spot;
 }
 
 ATorqueRideWorld::FOnRoamChanged ATorqueRideWorld::OnRoamChanged;

@@ -683,6 +683,7 @@ int main(int Argc, char** Argv)
 		std::printf("Places: %d looked at (of %d mapped), %d too far from a road; stops: %d made pull-offs, %d car parks, %d lay-bys, %d boards in streets\n", Plan->PlacesSeen,
 			int(Plan->Area.Roads.Sights.size()), Plan->PlacesFar, Plan->PlaceStopCount[RidePlan::PlaceMade], Plan->PlaceStopCount[RidePlan::PlaceCarPark],
 			Plan->PlaceStopCount[RidePlan::PlaceLayby], Plan->PlaceStopCount[RidePlan::PlaceStreet]);
+		std::printf("Places stage 7: %d paths in to the places, %d kissing gates on them\n", Plan->PlacePaths, Plan->PlaceGates);
 		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
 		int Shown = 0;
 		for (size_t I = 0; I < Plan->PlaceStops.size() && Shown < 12; ++I)
@@ -826,6 +827,21 @@ int main(int Argc, char** Argv)
 			{
 				Centre = Plan->PlaceRecipes[Nth].At;
 				std::printf("recipe %d for '%s'\n", Plan->PlaceRecipes[Nth].Kind, Plan->Area.Roads.Sights[size_t(Plan->PlaceRecipes[Nth].Sight)].Name.c_str());
+			}
+		}
+		else if (std::getenv("WORLD_RIDE_PLACEPATH") != nullptr)
+		{
+			// [places stage 7] (or the nth stop with a path in to its place: centred halfway along it)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_PLACEPATH"));
+			for (const RidePlan::PlaceStop& S : Plan->PlaceStops)
+			{
+				if (!S.HasView || Nth-- > 0) continue;
+				Rect Round;
+				Round.X0 = S.At.X - 300.0; Round.Z0 = S.At.Z - 300.0; Round.X1 = S.At.X + 300.0; Round.Z1 = S.At.Z + 300.0;
+				Plan->LayBlocks(Round);
+				Centre = (S.Board + S.View) * 0.5;
+				std::printf("place path for '%s', %.0f m long, view spot at %.0f, %.0f\n", Plan->Area.Roads.Sights[size_t(S.Sights[0])].Name.c_str(), S.Board.DistanceTo(S.View), S.View.X - Centre.X, S.View.Z - Centre.Z);
+				break;
 			}
 		}
 		else if (std::getenv("WORLD_RIDE_PULLOFF") != nullptr)

@@ -185,6 +185,11 @@ void ATorquePlayerController::SyncPlayerState(float Dt)
 		bProfileSent = true;
 		PS->ServerSetProfile(FTorqueProfile::Mine().Pack());
 	}
+	if (FTorqueProfile::Mine().Visited.Num() != SentPlaces)   // [places stage 7]
+	{
+		SentPlaces = FTorqueProfile::Mine().Visited.Num();
+		PS->ServerSetPlaces(SentPlaces, FTorqueProfile::Mine().LastVisitedName());
+	}
 	if (B->Activity() != SentActivity)
 	{
 		SentActivity = B->Activity();
