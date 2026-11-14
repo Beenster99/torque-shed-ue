@@ -29,6 +29,7 @@ Across Of(const Region& G, int Edge, double RuleWidth)
 	Out.OneWay = Out.OneWay || X->Has(RoadExtra::Oneway);
 	Out.Dual = Out.OneWay && !X->Half.empty() && !X->Has(RoadExtra::Roundabout);
 	Out.Lanes = X->Lanes;
+	Out.Banked = X->Has(RoadExtra::Embankment) ? 1 : X->Has(RoadExtra::Cutting) ? 2 : 0;
 	const std::string& Class = G.ClassOf(Edge);
 	if (X->Width > 0.0)
 	{

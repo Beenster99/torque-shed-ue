@@ -793,6 +793,30 @@ int main(int Argc, char** Argv)
 				if (Mp.Kind == "crossing_zebra") { if (Zebras < 3) std::printf("  a zebra crossing at %.0f, %.0f\n", Mp.At.X, Mp.At.Z); ++Zebras; }
 			}
 			std::printf("  %d traffic lights (%d facing a way, %d on a road), %d zebra crossings\n", Lights, LightsFacing, OnEdge, Zebras);
+			int Embanked = 0, Cut = 0, NoPark = 0, Bays = 0;
+			double EmbankedM = 0.0, CutM = 0.0;
+			for (size_t E = 0; E < G.Edges.size(); ++E)
+				if (const RoadExtra* X = G.ExtraOf(int(E)))
+				{
+					for (int Kd = 0; Kd < 2; ++Kd)
+						if (X->Has(Kd == 0 ? RoadExtra::Embankment : RoadExtra::Cutting) && G.Edges[E].Length > 60.0 && (Kd == 0 ? Embanked : Cut) < 3)
+						{
+							const P2& Mid = G.Edges[E].Line[G.Edges[E].Line.size() / 2];
+							std::printf("  a mapped %s (%s, %.0f m) at %.0f, %.0f\n", Kd == 0 ? "embankment" : "cutting", G.ClassOf(int(E)).c_str(), G.Edges[E].Length, Mid.X, Mid.Z);
+						}
+					if (X->Has(RoadExtra::Embankment)) { ++Embanked; EmbankedM += G.Edges[E].Length; }
+					if (X->Has(RoadExtra::Cutting)) { ++Cut; CutM += G.Edges[E].Length; }
+					for (int Pk : {X->ParkLeft, X->ParkRight}) { NoPark += Pk == RoadExtra::NoParking || Pk == RoadExtra::NoStopping ? 1 : 0; Bays += Pk == RoadExtra::ParkBays ? 1 : 0; }
+				}
+			std::printf("  mapped embankments %d (%.0f m), cuttings %d (%.0f m); kerbs mapped no parking %d, parking bays %d\n", Embanked, EmbankedM, Cut, CutM, NoPark, Bays);
+			double BankedOnRide[3] = {0.0, 0.0, 0.0}, FirstAt[3] = {-1.0, -1.0, -1.0};
+			for (size_t I = 1; I < Plan->Road.size(); ++I)
+			{
+				const int B = Plan->Road[I].Banked;
+				BankedOnRide[B] += Plan->Road[I].Along - Plan->Road[I - 1].Along;
+				if (FirstAt[B] < 0.0) FirstAt[B] = Plan->Road[I].Along;
+			}
+			std::printf("  the ride on a mapped embankment for %.0f m (first %.0f m along), in a cutting for %.0f m (first %.0f m along)\n", BankedOnRide[1], FirstAt[1], BankedOnRide[2], FirstAt[2]);
 		}
 		// (the map's crash barriers: where the first few are)
 		for (size_t B = 0; B < G.Barriers.size() && B < 4; ++B)
@@ -961,6 +985,31 @@ int main(int Argc, char** Argv)
 		for (int C = 0; C < 10; ++C) std::printf("  cover %s: %d\n", Terrain::CoverName(C), CoverN[C]);
 		std::printf("  no cover: %d; under trees: %d of %d\n", CoverN[10], Treed, Pts);
 		if (!G.Buildings.empty()) { const Building& B = G.Buildings[0]; std::printf("  a building: %.0f %.0f, %.1f x %.1f, yaw %.2f, height %.1f, %d more\n", B.X, B.Z, B.W, B.D, B.Yaw, B.Height, int(B.More.size())); }
+	}
+	// [OSM stage 5E] WORLD_RIDE_SECTION=x,z: the ground across the road nearest there, against the land as it lies.
+	if (const char* Sect = std::getenv("WORLD_RIDE_SECTION"))
+	{
+		double Sx = 0.0, Sz = 0.0;
+		if (std::sscanf(Sect, "%lf,%lf", &Sx, &Sz) == 2)
+		{
+			RideMesh Lay;
+			Plan->LandTile(std::floor(Sx / 256.0) * 256.0, std::floor(Sz / 256.0) * 256.0, 256.0, 4, Lay);
+			RidePlan::NearHit Hit;
+			if (Plan->NearestOf(Sx, Sz, RidePlan::NearOpts(), Hit) && Hit.Index >= 0)
+			{
+				const std::vector<RoadPoint>& On = Plan->RoadOf(Hit.Which);
+				const size_t K = std::min(size_t(Hit.Index), On.size() - 2);
+				P2 Dir = On[K + 1].At - On[K].At;
+				Dir = Dir * (1.0 / std::fmax(1e-9, Dir.Length()));
+				const P2 Left(Dir.Z, -Dir.X);
+				std::printf("Section across road %d (half %.1f, banked %d, height %.2f):\n", Hit.Which, Hit.Half, Hit.Banked, Hit.Height);
+				for (double Across = -40.0; Across <= 40.0; Across += 2.0)
+				{
+					const P2 P = Hit.Foot + Left * Across;
+					std::printf("  %+5.0f  ground %7.2f  land %7.2f\n", Across, Plan->Ground(P.X, P.Z), Plan->Land->Height(P.X, P.Z));
+				}
+			}
+		}
 	}
 	if (std::getenv("WORLD_RIDE_MESH") != nullptr)
 	{

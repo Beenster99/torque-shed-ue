@@ -282,7 +282,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			const RoadX::Across Ax = RoadX::Of(G, OwnerEdge, RoadLine::WidthOf(G.ClassOf(OwnerEdge)));
 			Halves[I] = Ax.Half;
 			KnotLanes[I] = Ax.Lanes;
-			KnotOneWay[I] = char((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0));
+			KnotOneWay[I] = char((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0) | (Ax.Banked << 2));   // ([5E] 4 embankment, 8 cutting)
 			KnotShoulder[I] = Ax.Shoulder;
 			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
 		}
@@ -646,6 +646,7 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Lanes = Lanes != nullptr && I < Lanes->size() ? (*Lanes)[I] : 0;
 		P.OneWay = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 1) != 0;
 		P.Dual = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 2) != 0;
+		P.Banked = OneWays != nullptr && I < OneWays->size() ? static_cast<unsigned char>(((*OneWays)[I] >> 2) & 3) : 0;
 		P.Shoulder = Shoulders != nullptr && I < Shoulders->size() ? (*Shoulders)[I] : 0.0;
 		P.Near = P.OneWay ? static_cast<signed char>(KeepLeft() ? 1 : -1) : 0;
 		P.Bridge = Kind[I] == 1;
@@ -709,7 +710,7 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 				const double T = L2 > 1e-12 ? std::fmin(1.0, std::fmax(0.0, ((X - Pa.At.X) * Ab.X + (Z - Pa.At.Z) * Ab.Z) / L2)) : 0.0;
 				const double Px = Pa.At.X + Ab.X * T, Pz = Pa.At.Z + Ab.Z * T;
 				const double D2 = (X - Px) * (X - Px) + (Z - Pz) * (Z - Pz);
-				if (D2 > 40.0 * 40.0) continue;
+				if (D2 > NearestReach * NearestReach) continue;
 				const double D = std::sqrt(D2);
 				const double HalfHere = Pa.Half + (Pb.Half - Pa.Half) * T;
 				const double Score = D - HalfHere - (Entry.first == 0 ? 0.01 : 0.0);
@@ -722,6 +723,7 @@ bool RidePlan::NearestOf(double X, double Z, const NearOpts& Opts, NearHit& Hit)
 				Hit.Which = Entry.first;
 				Hit.Deck = SegDeck;
 				Hit.Bore = SegBore;
+				Hit.Banked = (T < 0.5 ? Pa : Pb).Banked;
 				Hit.Foot = P2(Px, Pz);
 				Hit.Along = Pa.Along + (Pb.Along - Pa.Along) * T;
 				// (how far to the left of the road's middle: left of a heading (dx, dz) is (dz, -dx))
@@ -910,6 +912,7 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		P.OneWay = Ax.OneWay;
 		P.Dual = Ax.Dual;
 		P.Shoulder = Ax.Shoulder;
+		P.Banked = static_cast<unsigned char>(Ax.Banked);   // [OSM stage 5E]
 		P.Near = Ax.OneWay ? static_cast<signed char>(NearSide) : 0;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
@@ -1523,8 +1526,20 @@ double RidePlan::GroundOf(double X, double Z, double Coarse, bool NoBores) const
 	const double Flat = Hit.Half + Bench + Wider;
 	const double Under = Height - Sink - std::fmin(0.45, Wider * 0.06);
 	double Out = Lie;
-	if (Hit.Dist <= Flat || std::isnan(Lie)) Out = Hit.Dist <= Flat + Blend ? Under : Lie;
-	else if (Hit.Dist < Flat + Blend) Out = Under + (Lie - Under) * Smooth01((Hit.Dist - Flat) / Blend);
+	// [OSM stage 5E] The bank from there back to the land: wider the more height it makes up (as the
+	// Godot game's road_net.gd has it), so a deep cutting or a high embankment is a slope, not a wall;
+	// where the map marks an embankment or a cutting, an engineered bank instead: a straight 1 in 2
+	// batter with a clean top and toe. (Never past the reach NearestOf looks for roads in.)
+	const double Rise = std::isnan(Lie) ? 0.0 : std::fabs(Lie - Under);
+	const double Room = std::fmax(Blend, NearestReach - 1.0 - Flat);
+	const bool Engineered = Hit.Banked != 0;
+	const double Bank = Engineered ? std::clamp(Rise * BatterRun, BatterLeast, Room) : std::clamp(Blend + Rise * BankWiden, Blend, std::fmin(BankMost, Room));
+	if (Hit.Dist <= Flat || std::isnan(Lie)) Out = Hit.Dist <= Flat + Bank ? Under : Lie;
+	else if (Hit.Dist < Flat + Bank)
+	{
+		const double T = (Hit.Dist - Flat) / Bank;
+		Out = Under + (Lie - Under) * (Engineered ? 0.75 * T + 0.25 * Smooth01(T) : Smooth01(T));
+	}
 	// [OSM stage 5C] Where two roads' tarmac overlaps (lanes merging, a slip road joining), under the lower
 	// of the two a few centimetres apart, so the land shows through neither.
 	// (not on the ride's own road: the others lie just under it there)

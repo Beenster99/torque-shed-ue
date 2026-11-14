@@ -62,6 +62,7 @@ struct RoadPoint
 	int Lanes = 0;         // [OSM stage 5] mapped lanes across the whole road (0: the rule's; RoadX)
 	bool OneWay = false;   // [OSM stage 5] no centre line
 	bool Dual = false;     // [OSM stage 5C] one half of a dual carriageway: a central reservation on its offside
+	unsigned char Banked = 0;   // [OSM stage 5E] the map's embankment (1) or cutting (2) under it: a steeper, cleaner bank
 	double Shoulder = 0.0; // [OSM stage 5C] a motorway's hard shoulder on its nearside (m, within Half), 0 none
 	signed char Near = 0;  // [OSM stage 5C] its nearside on a one-way road: 1 its left as its points run, -1 its right
 };
@@ -450,6 +451,10 @@ public:
 
 	static constexpr double Bench = 4.0;        // level ground kept each side of the road
 	static constexpr double Blend = 12.0;       // and the bank from there back to the land as it lies
+	// [OSM stage 5E] (Blend at least; BankWiden m more for each metre of height it makes up, to BankMost;
+	// the map's embankments and cuttings a 1 in BatterRun batter, BatterLeast m at least)
+	static constexpr double BankWiden = 0.9, BankMost = 30.0, BatterRun = 2.0, BatterLeast = 4.0;
+	static constexpr double NearestReach = 40.0;   // NearestOf finds roads within this of a point (m)
 	static constexpr double Sink = 0.1;         // how far under the road's surface the ground under it lies
 	// The road's shoulder: nearly level out to ShoulderFlat (ShoulderDip down, still clear of the
 	// ground), then steeply down into the ground by Shoulder. The grass meets it on the steep part, so
@@ -500,6 +505,7 @@ public:
 		double Dist = 0.0, Height = 0.0, Half = 0.0, Cross = 0.0;
 		int Index = -1, Which = 0;
 		bool Deck = false, Bore = false;
+		int Banked = 0;          // [OSM stage 5E] the nearer point's RoadPoint::Banked
 		P2 Foot;                 // the point of the road's middle nearest
 		double Along = 0.0;      // how far along its road that is (m)
 		double Off = 0.0;        // how far to the left of the road's middle the point is (m; - the right)

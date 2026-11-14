@@ -18,6 +18,7 @@ struct Across
 	bool OneWay = false;
 	bool Dual = false;   // [5C] a dual carriageway's half (the map names its other half)
 	double Shoulder = 0.0;   // [5C] a motorway's hard shoulder on its nearside (m wide; in Half), 0 none
+	int Banked = 0;          // [5E] the map's embankment (1) or cutting (2) under it, 0 none
 };
 // [5C] A motorway's hard shoulder: the carriageway this much wider on its nearside, its edge line there.
 constexpr double HardShoulder = 3.3;
