@@ -179,6 +179,21 @@ struct Looks
 	double MistExtinction = 0.6;
 	// A rainbow: rain about (falling, or in the cells the wind brings), the sun out and low behind you.
 	double RainbowSunMostDeg = 42.0, RainbowRainMm = 0.2;
+	// Under a low base: the air thickens into the cloud over the last BaseFogBandM below it (FogScale
+	// times up to 1 + BaseFogBoost, under a closed low deck).
+	double BaseFogBandM = 300.0, BaseFogBoost = 3.0;
+	// The weather map (the cloud drawn across the sky from the real weather round about, not one cover
+	// everywhere): MapPx texels a side over MapSizeM metres round the camera, painted again every
+	// MapRepaintS seconds or after MapMoveM; MapGain of the difference from the camera's cover is drawn.
+	double MapPx = 64.0, MapSizeM = 90000.0, MapRepaintS = 20.0, MapMoveM = 4000.0, MapGain = 1.0, MapRainMm = 10.0;
+	// Rain shafts under showers seen from afar: where the map's rain is over ShaftRainMm, on a lattice
+	// ShaftSpacingM apart, between ShaftNearestM and ShaftFarthestM from the camera, at most ShaftMost,
+	// each about ShaftRadiusM wide and ShaftOpacity at its heaviest (ShaftFullMm).
+	double ShaftRainMm = 0.8, ShaftFullMm = 4.0, ShaftSpacingM = 6000.0, ShaftNearestM = 2500.0, ShaftFarthestM = 40000.0;
+	double ShaftMost = 8.0, ShaftRadiusM = 1500.0, ShaftOpacity = 0.4;
+	double ShaftLight = 0.012;   // how much of the sun's light a shaft gives back (its grey)
+	// The rainbow drawn at full strength (its opacity).
+	double RainbowOpacity = 0.55;
 };
 
 // Looks from sky_looks.json's text: whatever it names over the defaults. False (with why) when the text
@@ -244,6 +259,7 @@ struct Sky
 	double Mist = 0.0;           // valley mist in the hollows, 0 none .. 1 thick
 	double MistTopAsl = 0.0;     // and its top over the low ground
 	double Rainbow = 0.0;        // how strong a rainbow would be opposite the sun, 0 .. 1
+	double BaseFog = 0.0;        // how close under a closed low base the viewer is, 0 .. 1 (the air thickens into it)
 	double LegacyShadow = 1.0;   // MPC_Weather CloudShadow
 };
 
@@ -278,6 +294,34 @@ void SunAt(double LatDeg, int DayOfYear, double SolarHours, double& Elevation, d
 // EV100 for a light, lux (an incident meter's).
 double Ev100(double Lux);
 
+// The weather map (stage 4): the real weather round about (the near grid, eased into the wide one)
+// across MapSizeM metres round (Lat, Lon), each grid carried on the wind for its seconds since fetched.
+// Bgra: Px x Px texels, row 0 the north, column 0 the west, 4 bytes each: B rain (0 .. MapRainMm mm/h),
+// G middle cover, R low cover, A how unstable (CAPE 0 .. 2000). Here*: the covers at the centre (the
+// material draws the difference from them, so the cloud over the camera stays the shared weather's).
+struct WeatherMap
+{
+	int Px = 0;
+	double SizeM = 0.0;
+	std::vector<unsigned char> Bgra;
+	double HereLow = 0.0, HereMid = 0.0;
+	bool Valid() const { return Px > 0 && (int)Bgra.size() == Px * Px * 4; }
+};
+struct MapGrids
+{
+	const TorqueWeather::Grid* Near = nullptr;
+	double NearDriftS = 0.0;
+	const TorqueWeather::Grid* Wide = nullptr;
+	double WideDriftS = 0.0;
+	bool Any() const { return (Near && Near->Valid()) || (Wide && Wide->Valid()); }
+};
+// The weather at a place from the grids (the near one inside its square, the wide one beyond).
+TorqueWeather::State MapWeatherAt(const MapGrids& G, double Lat, double Lon);
+WeatherMap PaintWeatherMap(const MapGrids& G, double Lat, double Lon, const Looks& L);
+// Rain shafts under the showers round (Lat, Lon): metres east and north of it, how wide, how strong (0 .. 1).
+struct RainShaft { double East = 0.0, North = 0.0, RadiusM = 0.0, Strength = 0.0; };
+std::vector<RainShaft> FindRainShafts(const MapGrids& G, double Lat, double Lon, const Looks& L);
+
 // A weather State from a JSON object naming any of its figures (the bench's and the tests' skies).
 void StateFromJson(const TorqueFit::Json& J, TorqueWeather::State& InOut);
 
@@ -290,10 +334,17 @@ struct NamedSky
 	TorqueWeather::State Weather;
 	double Sun = -99.0;
 	bool bEvening = false;
+	// Showers round about (a made-up wide ring, so the weather map and rain shafts have something to
+	// show off a live day): how many, and how heavy (mm/h).
+	int Showers = 0;
+	double ShowerRainMm = 4.0;
 	bool HasSun() const { return Sun > -90.0; }
 };
 // The presets file's skies, in its order (any without a key or a weather left out).
 std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root);
+// A wide ring (7 x 7, 12 km apart) of Base's weather round (Lat, Lon), with Showers heavy showers
+// scattered over it (never on the centre, so the weather here stays Base's); the same Seed, the same ring.
+TorqueWeather::Grid ShowersAround(const TorqueWeather::State& Base, double Lat, double Lon, int Showers, double RainMm, unsigned Seed);
 // The one with this key (nullptr when there's none).
 const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& Key);
 } // namespace TorqueSky

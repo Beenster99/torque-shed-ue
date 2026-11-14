@@ -113,6 +113,9 @@ public:
 	void SetWeather(int32 NewWeather, float FadeSeconds = 20.0f);
 	// The host only: Settings' Weather has changed (FTorqueSettings::WeatherMode); go to it.
 	void WeatherModeChanged(float FadeSeconds = 20.0f);
+	// The weather grids for the sky's weather map and rain shafts (skies stage 4): the near one and the
+	// wide one (none when the weather isn't live), each with how long its showers have drifted.
+	TorqueSky::MapGrids SkyGrids() const;
 	// The preset skies to load (Data/Sky/presets.json, read again when the file changes), for Settings'
 	// Preset sky and the weather key while one is held.
 	static const std::vector<TorqueSky::NamedSky>& SkyPresets();
@@ -211,9 +214,13 @@ private:
 	static constexpr int32 GRID_N = 5;
 	static constexpr double GRID_STEP_M = 2500.0;
 	// The wider ring (skies stage 4): 7 x 7 points 12 km apart, about 70 km across, asked every half hour
-	// by the host, for the weather you can see coming (showers over the next dale). Host only for now.
+	// by the host, for the weather you can see coming (showers over the next dale).
 	TorqueWeather::Grid GridWide;
 	int64 GridWideAt = 0;
+	// (Sent to everyone, so every machine draws the same weather map and rain shafts.)
+	UPROPERTY(ReplicatedUsing = OnRep_WideGrid) FTorqueWeatherGridNet WideNet;
+	UFUNCTION() void OnRep_WideGrid();
+	void SendWide();
 	double NextWideIn = 20.0;
 	bool bFetchingWide = false;
 	double WideLat = 0.0, WideLon = 0.0;

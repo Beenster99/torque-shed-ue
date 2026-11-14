@@ -1,5 +1,5 @@
 {
- "about": "Preset skies to load from Settings > Gameplay > Preset sky (the host's, for everyone in co-op). Each: key (kept in the settings), label (the menu's), group (the list's headings), note (the hint), and a weather like the sky bench's ({preset, cloud/low/mid/high in %, rain/snow mm per hour, visibility m, humidity %, cape J/kg, cloud_base m, wind m/s, road_wet/puddles 0..1, code WMO, ...}) or recorded (a day in Data/Sky/days). Optional sun: the sun's height in degrees that the clock moves to today (with evening: true after noon); without it the clock stays as it is. Add or change skies here: the game reads this file again when it changes.",
+ "about": "Preset skies to load from Settings > Gameplay > Preset sky (the host's, for everyone in co-op). Each: key (kept in the settings), label (the menu's), group (the list's headings), note (the hint), and a weather like the sky bench's ({preset, cloud/low/mid/high in %, rain/snow mm per hour, visibility m, humidity %, cape J/kg, cloud_base m, wind m/s, road_wet/puddles 0..1, code WMO, ...}) or recorded (a day in Data/Sky/days). Optional showers_around (with shower_rain, mm/h): that many showers scattered round the rider up to 40 km off, so the clouds round about and the rain shafts under them can be seen. Optional sun: the sun's height in degrees that the clock moves to today (with evening: true after noon); without it the clock stays as it is. Add or change skies here: the game reads this file again when it changes.",
  "skies": [
   {"key": "clear_blue", "group": "Fair", "label": "Clear blue", "note": "Not a cloud, 40 km visibility",
    "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0}},
@@ -13,6 +13,9 @@
    "weather": {"cloud": 45, "low": 45, "mid": 0, "high": 0, "code": 2, "cape": 500, "cloud_base": 1200, "humidity": 75}},
   {"key": "cumulus_cirrus", "group": "Fair", "label": "Cumulus under cirrus", "note": "Cumulus with wisps of cirrus high above them",
    "weather": {"cloud": 80, "low": 40, "mid": 0, "high": 65, "code": 2, "cape": 400, "cloud_base": 1100, "humidity": 70}},
+
+  {"key": "distant_showers", "group": "Fair", "label": "Distant showers", "note": "Sunny here, showers over the dales round about: rain shafts under them, and a rainbow with the sun low behind you",
+   "showers_around": 7, "shower_rain": 5, "weather": {"cloud": 40, "low": 35, "mid": 5, "high": 10, "code": 2, "cape": 700, "cloud_base": 1000, "humidity": 75, "wind": 6, "wind_from": 250}},
 
   {"key": "stratocumulus", "group": "Grey", "label": "Stratocumulus", "note": "A lumpy grey sheet with gaps (a winter high)",
    "weather": {"cloud": 85, "low": 85, "mid": 0, "high": 0, "code": 3, "cape": 0, "cloud_base": 1000, "humidity": 82}},
@@ -34,9 +37,9 @@
   {"key": "downpour", "group": "Rain", "label": "Downpour", "note": "Very heavy rain, standing water across the road",
    "weather": {"cloud": 100, "low": 100, "mid": 100, "high": 40, "rain": 9, "code": 65, "cloud_base": 500, "humidity": 98, "visibility": 2500, "wind": 8, "gust": 18, "road_wet": 1, "puddles": 1}},
   {"key": "showers", "group": "Rain", "label": "Sunshine and showers", "note": "Towering cumulus with showers between the sunny spells",
-   "weather": {"cloud": 65, "low": 55, "mid": 20, "high": 10, "rain": 1.5, "code": 81, "cape": 900, "cloud_base": 900, "humidity": 80, "wind": 8, "gust": 15, "road_wet": 0.8, "puddles": 0.2}},
+   "showers_around": 6, "shower_rain": 4, "weather": {"cloud": 65, "low": 55, "mid": 20, "high": 10, "rain": 1.5, "code": 81, "cape": 900, "cloud_base": 900, "humidity": 80, "wind": 8, "gust": 15, "road_wet": 0.8, "puddles": 0.2}},
   {"key": "after_rain", "group": "Rain", "label": "Clearing after rain", "note": "The rain has passed: broken cloud, sun on wet roads",
-   "weather": {"cloud": 40, "low": 35, "mid": 10, "high": 10, "code": 2, "cape": 200, "cloud_base": 1000, "humidity": 85, "visibility": 50000, "road_wet": 1, "puddles": 0.4}},
+   "showers_around": 3, "shower_rain": 3, "weather": {"cloud": 40, "low": 35, "mid": 10, "high": 10, "code": 2, "cape": 200, "cloud_base": 1000, "humidity": 85, "visibility": 50000, "road_wet": 1, "puddles": 0.4}},
 
   {"key": "altocumulus", "group": "Middle and high", "label": "Altocumulus", "note": "Rows of small grey-white clouds at 3 km",
    "weather": {"cloud": 50, "low": 0, "mid": 45, "high": 10, "code": 2, "cape": 0, "cloud_base": 3000, "humidity": 75}},
@@ -64,11 +67,11 @@
    "sun": -25, "evening": true, "weather": {"preset": "sunny", "cloud": 0, "low": 0, "mid": 0, "high": 0, "air": 4}},
 
   {"key": "thunderstorm", "group": "Storms and snow", "label": "Thunderstorm", "note": "Towering cloud, heavy showers and gusts (lightning comes in stage 7)",
-   "weather": {"cloud": 90, "low": 70, "mid": 50, "high": 40, "rain": 8, "code": 95, "cape": 2000, "cloud_base": 900, "humidity": 85, "visibility": 4000, "wind": 9, "gust": 22, "road_wet": 1, "puddles": 0.6}},
+   "showers_around": 5, "shower_rain": 8, "weather": {"cloud": 90, "low": 70, "mid": 50, "high": 40, "rain": 8, "code": 95, "cape": 2000, "cloud_base": 900, "humidity": 85, "visibility": 4000, "wind": 9, "gust": 22, "road_wet": 1, "puddles": 0.6}},
   {"key": "gale", "group": "Storms and snow", "label": "Gale and rain", "note": "A winter gale: strong gusting wind and driving rain",
    "weather": {"cloud": 100, "low": 95, "mid": 90, "high": 30, "rain": 4, "code": 63, "cloud_base": 600, "humidity": 93, "visibility": 5000, "wind": 18, "gust": 30, "air": 8, "road_wet": 1, "puddles": 0.6}},
   {"key": "snow_showers", "group": "Storms and snow", "label": "Snow showers", "note": "Cold air, snow showers, a dusting on the tops",
-   "weather": {"cloud": 70, "low": 60, "mid": 20, "high": 10, "snow": 1, "code": 85, "cape": 300, "cloud_base": 700, "humidity": 88, "visibility": 4000, "air": 0, "freezing": 200, "snow_depth": 0.02, "road_wet": 0.6, "wind": 7, "gust": 14}},
+   "showers_around": 5, "shower_rain": 2, "weather": {"cloud": 70, "low": 60, "mid": 20, "high": 10, "snow": 1, "code": 85, "cape": 300, "cloud_base": 700, "humidity": 88, "visibility": 4000, "air": 0, "freezing": 200, "snow_depth": 0.02, "road_wet": 0.6, "wind": 7, "gust": 14}},
   {"key": "heavy_snow", "group": "Storms and snow", "label": "Heavy snow", "note": "Snow falling steadily, lying 10 cm deep",
    "weather": {"cloud": 100, "low": 100, "mid": 90, "high": 20, "snow": 3, "code": 75, "cloud_base": 400, "humidity": 95, "visibility": 1000, "air": -2, "freezing": 0, "snow_depth": 0.1, "road_wet": 0.8, "wind": 4}},
   {"key": "frosty_clear", "group": "Storms and snow", "label": "Frosty and clear", "note": "A cold blue winter day after snow",

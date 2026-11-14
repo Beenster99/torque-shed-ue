@@ -278,6 +278,12 @@ SKY_PARAMS = (
     ("HighOpacity", 0.75),  # how solid it is at full cover
     ("HighDriftX", 0.0), ("HighDriftY", 0.0),
     ("Halo", 0.0),          # the 22 degree halo round the sun in a veil
+    # Stage 4: the weather map (a texture ATorqueSky paints from the real weather round about: R low
+    # cover, G middle, B rain), centred on MapX/MapY (metres along x and y), MapSize metres across;
+    # MapOn 0 off .. 1 (live weather); the cloud draws the map's difference from the covers at its centre.
+    ("MapX", 0.0), ("MapY", 0.0), ("MapSize", 90000.0), ("MapOn", 0.0), ("MapHereLow", 0.0), ("MapHereMid", 0.0),
+    ("Rainbow", 0.0),       # how bright the rainbow is drawn, 0 none
+    ("ShaftLight", 0.012),  # how much of the sun's light a rain shaft gives back (its grey)
 )
 _sky_mpc = None
 
@@ -3004,7 +3010,10 @@ CLOUD_HLSL = r"""
 float3 ws[8] = { W0, W1, W2, WB, M0, M1, M2, MB };
 float bottoms[2] = { LowBottom, MidBottom };
 float tops[2] = { LowTop, MidTop };
-float covers[2] = { Cover, MidCover };
+float4 mp = WeatherMap.SampleLevel(WeatherMapSampler, saturate(MapUV), 0);
+float2 edge = min(MapUV, 1.0 - MapUV);
+float inMap = saturate(MapOn) * saturate(min(edge.x, edge.y) / 0.08);
+float covers[2] = { saturate(Cover + inMap * (mp.r - MapHereLow)), saturate(MidCover + inMap * (mp.g - MapHereMid)) };
 float shapes[2] = { Shape, MidShape };
 float lumps[2] = { LowLumps, MidLumps };
 float raggeds[2] = { LowRagged, MidRagged };
@@ -3101,7 +3110,8 @@ def cloud_material():
     try_set(c, "output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
     floats = ("NormAlt", "Cover", "Shape", "Density", "LowBottom", "LowTop", "LowLumps", "LowRagged",
               "MidCover", "MidBottom", "MidTop", "MidShape", "MidLumps", "MidRagged", "MidDensity")
-    names = ("W0", "W1", "W2", "WB", "M0", "M1", "M2", "MB") + floats + ("CloudTex",)
+    floats = floats + ("MapOn", "MapHereLow", "MapHereMid")
+    names = ("W0", "W1", "W2", "WB", "M0", "M1", "M2", "MB") + floats + ("CloudTex", "MapUV", "WeatherMap")
     ins = []
     for n in names:
         ci = unreal.CustomInput()
@@ -3141,6 +3151,49 @@ def cloud_material():
             f = g.node(unreal.MaterialExpressionFrac, -600)
             link(d, f, "")
             link(f, c, pin)
+    # The weather map's place (stage 4): the point from the camera (camera-relative, so small floats:
+    # round 141's lesson), plus how far the camera is from the map's centre (MapX/MapY, metres, set by
+    # ATorqueSky every frame), over its size, + 0.5: 0 .. 1 across the map.
+    cwp = g.node(unreal.MaterialExpressionWorldPosition, -1000)
+    rel_ok = False
+    wpo = getattr(unreal, "WorldPositionIncludedOffsets", None)
+    if wpo is not None:
+        for nm in ("WPT_CAMERA_RELATIVE", "WPT_CAMERA_RELATIVE_WORLD_POSITION"):
+            if hasattr(wpo, nm) and try_set(cwp, "world_position_shader_offset", getattr(wpo, nm)):
+                rel_ok = True
+                break
+    cq = g.node(unreal.MaterialExpressionDivide, -950, const_b=100.0)
+    link(cwp, cq, "A")
+    src = cq
+    if not rel_ok:
+        cam = g.node(unreal.MaterialExpressionCameraPositionWS, -1000)
+        camq = g.node(unreal.MaterialExpressionDivide, -950, const_b=100.0)
+        link(cam, camq, "A")
+        src = g.node(unreal.MaterialExpressionSubtract, -900)
+        link(q, src, "A")
+        link(camq, src, "B")
+    mq = g.node(unreal.MaterialExpressionComponentMask, -850, r=True, g=True, b=False, a=False)
+    link(src, mq, "")
+    mc = g.node(unreal.MaterialExpressionAppendVector, -900)
+    link(sky_param(g, "MapX"), mc, "A")
+    link(sky_param(g, "MapY"), mc, "B")
+    ms = g.node(unreal.MaterialExpressionAdd, -800)
+    link(mq, ms, "A")
+    link(mc, ms, "B")
+    md = g.node(unreal.MaterialExpressionDivide, -750)
+    link(ms, md, "A")
+    link(sky_param(g, "MapSize"), md, "B")
+    mu = g.node(unreal.MaterialExpressionAdd, -700, const_b=0.5)
+    link(md, mu, "A")
+    if not rel_ok:
+        # (no camera-relative position in this engine: the point less the camera, frac'd for small
+        # floats; the map then repeats beyond its edge, faded at each edge by the code)
+        unreal.log_warning("[Torque] cloud material: no camera-relative position; the weather map repeats beyond its edge")
+        mf = g.node(unreal.MaterialExpressionFrac, -650)
+        link(mu, mf, "")
+        mu = mf
+    link(mu, c, "MapUV")
+    link(g.node(unreal.MaterialExpressionTextureObjectParameter, parameter_name="WeatherMap", texture=nt), c, "WeatherMap")
     attr = g.node(unreal.MaterialExpressionCloudSampleAttribute)
     link(attr, c, "NormAlt", "NormAltitudeInLayer")
     link(attr, alb, "NormAlt", "NormAltitudeInLayer")
@@ -3355,6 +3408,188 @@ def high_cloud_sheet(reuse=False):
     return a
 
 
+# A rain shaft (stage 4): a grey curtain under a far shower, thickest in the middle, streaked, fading at
+# its sides (seen edge on) and at the top (into the cloud base) and bottom (into the land).
+RAIN_SHAFT_HLSL = r"""
+float side = pow(saturate(abs(NdotV)), 1.5);
+float h = saturate(LocalZ / 100.0 + 0.5);
+float vert = saturate(h / 0.15) * saturate((1.0 - h) / 0.1);
+float streak = 0.55 + 0.45 * Streaks;
+return saturate(Strength) * side * vert * streak;
+"""
+RAINBOW_HLSL = r"""
+float c = clamp(CosA, -1.0, 1.0);
+float a = degrees(acos(c));
+float3 p = float3(exp(-pow((a - 42.0) / 0.55, 2.0)), exp(-pow((a - 41.2) / 0.55, 2.0)), exp(-pow((a - 40.5) / 0.55, 2.0)));
+float3 s2 = float3(exp(-pow((a - 50.6) / 0.8, 2.0)), exp(-pow((a - 51.5) / 0.8, 2.0)), exp(-pow((a - 52.4) / 0.8, 2.0))) * 0.35;
+float inside = (1.0 - smoothstep(30.0, 41.0, a)) * smoothstep(20.0, 30.0, a) * 0.08;
+return Illum * 0.05 * saturate(Strength) * (p + s2 + inside);
+"""
+
+
+def _custom(g, code, out_type, names):
+    c = g.node(unreal.MaterialExpressionCustom, -400)
+    try_set(c, "code", code)
+    try_set(c, "output_type", out_type)
+    ins = []
+    for n in names:
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", n)
+        ins.append(ci)
+    try_set(c, "inputs", ins)
+    return c
+
+
+def rain_shaft_material():
+    """M_RideRainShaft (skies stage 4): the curtain of rain under a far shower, on a cylinder. Its
+    Strength (a parameter: ATorqueSky gives each shaft its own instance) fades it in and out."""
+    nt = cloud_noise_texture()
+    g = Graph(new_material("M_RideRainShaft"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    try_set(g.m, "compute_fog_per_pixel", True)
+    op = _custom(g, RAIN_SHAFT_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, ("NdotV", "LocalZ", "Streaks", "Strength"))
+    nrm = g.node(unreal.MaterialExpressionVertexNormalWS)
+    view = g.node(unreal.MaterialExpressionCameraVectorWS)
+    dot = g.node(unreal.MaterialExpressionDotProduct, -600)
+    link(nrm, dot, "A")
+    link(view, dot, "B")
+    link(dot, op, "NdotV")
+    lp = g.node(unreal.MaterialExpressionLocalPosition)
+    lz = g.node(unreal.MaterialExpressionComponentMask, -650, r=False, g=False, b=True, a=False)
+    link(lp, lz, "")
+    link(lz, op, "LocalZ")
+    # Streaks: the noise stretched down the shaft, falling (local x and z of the 1 m cylinder, frac'd).
+    if nt is not None:
+        lx = g.node(unreal.MaterialExpressionComponentMask, -650, r=True, g=False, b=False, a=False)
+        link(lp, lx, "")
+        ux = g.node(unreal.MaterialExpressionMultiply, -600, const_b=0.08)
+        link(lx, ux, "A")
+        tm = g.node(unreal.MaterialExpressionTime)
+        fall = g.node(unreal.MaterialExpressionMultiply, -600, const_b=0.05)
+        link(tm, fall, "A")
+        vz = g.node(unreal.MaterialExpressionMultiply, -600, const_b=0.004)
+        link(lz, vz, "A")
+        vy = g.node(unreal.MaterialExpressionAdd, -550)
+        link(vz, vy, "A")
+        link(fall, vy, "B")
+        uv = g.node(unreal.MaterialExpressionAppendVector, -500)
+        link(ux, uv, "A")
+        link(vy, uv, "B")
+        fr = g.node(unreal.MaterialExpressionFrac, -480)
+        link(uv, fr, "")
+        smp = g.node(unreal.MaterialExpressionTextureSample, -450, texture=nt)
+        link(fr, smp, "UVs")
+        link(smp, op, "Streaks", "R")
+    else:
+        link(g.const(0.5), op, "Streaks")
+    link(g.node(unreal.MaterialExpressionScalarParameter, parameter_name="Strength", default_value=0.0), op, "Strength")
+    # Softly into the land (no hard line where it meets the ground).
+    fade = g.node(unreal.MaterialExpressionDepthFade, -350)
+    link(op, fade, "Opacity")
+    try_set(fade, "fade_distance_default", 30000.0)
+    # Its grey: the sun's light through the atmosphere there, dimmed as under a shower cloud.
+    illum_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightIlluminance", None)
+    col = g.node(unreal.MaterialExpressionMultiply, -350)
+    if illum_cls is not None:
+        link(g.node(illum_cls), col, "A")
+    else:
+        link(g.const((300.0, 290.0, 280.0)), col, "A")
+    link(sky_param(g, "ShaftLight"), col, "B")
+    for src, prop in ((col, unreal.MaterialProperty.MP_EMISSIVE_COLOR), (fade, unreal.MaterialProperty.MP_OPACITY)):
+        if not mel.connect_material_property(src, "", prop):
+            bad.append(str(prop))
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] rain shaft material M_RideRainShaft NOT used: %s" % "; ".join(bad))
+        return None
+    log("rain shaft material M_RideRainShaft made")
+    return g.m
+
+
+def rainbow_material():
+    """M_RideRainbow (skies stage 4): the bow 42 degrees from the point opposite the sun (and the faint
+    second one at 51, colours turned round), added over the view on a sphere round the camera; MPC_Sky's
+    Rainbow says how bright (0 none)."""
+    g = Graph(new_material("M_RideRainbow"))
+    bad = []
+    def link(a, b, pin="", out=""):
+        if not mel.connect_material_expressions(a, out, b, pin):
+            bad.append("%s.%s -> %s" % (a.get_name(), out, pin))
+    for k, v in (("blend_mode", unreal.BlendMode.BLEND_ADDITIVE), ("shading_model", unreal.MaterialShadingModel.MSM_UNLIT),
+                 ("two_sided", True)):
+        if not try_set(g.m, k, v):
+            bad.append(k)
+    illum_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightIlluminance", None)
+    dir_cls = getattr(unreal, "MaterialExpressionSkyAtmosphereLightDirection", None)
+    if illum_cls is None or dir_cls is None:
+        unreal.log_warning("[Torque] no sky atmosphere light nodes: no rainbow")
+        return None
+    c = _custom(g, RAINBOW_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ("Illum", "CosA", "Strength"))
+    link(g.node(illum_cls), c, "Illum")
+    # The angle from the antisolar point: the view (away from the camera) against the sun's way, turned round.
+    view = g.node(unreal.MaterialExpressionCameraVectorWS)   # (from the point towards the camera)
+    dot = g.node(unreal.MaterialExpressionDotProduct, -600)
+    link(view, dot, "A")
+    link(g.node(dir_cls), dot, "B")
+    link(dot, c, "CosA")
+    link(sky_param(g, "Rainbow"), c, "Strength")
+    if not mel.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR):
+        bad.append("emissive")
+    mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    if bad:
+        unreal.log_warning("[Torque] rainbow material M_RideRainbow NOT used: %s" % "; ".join(bad))
+        return None
+    log("rainbow material M_RideRainbow made")
+    return g.m
+
+
+def _sky_prop(label, tag, mesh_path, mat, scale):
+    mesh = unreal.load_asset(mesh_path)
+    if mat is None or mesh is None:
+        return None
+    a = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, -1000000), unreal.Rotator(0, 0, 0))
+    a.set_actor_label(label)
+    a.set_folder_path("Sky")
+    a.set_editor_property("tags", [unreal.Name(tag)])
+    a.set_actor_scale3d(unreal.Vector(*scale))
+    smc = a.get_component_by_class(unreal.StaticMeshComponent)
+    smc.set_editor_property("mobility", unreal.ComponentMobility.MOVABLE)
+    smc.set_static_mesh(mesh)
+    smc.set_material(0, mat)
+    for k, v in (("cast_shadow", False), ("affect_distance_field_lighting", False), ("visible_in_ray_tracing", False)):
+        try_set(smc, k, v)
+    try:
+        smc.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    except Exception:
+        pass
+    try:
+        a.set_actor_hidden_in_game(True)
+    except Exception:
+        pass
+    return a
+
+
+def rain_shafts_and_rainbow(reuse=False):
+    """Stage 4's pieces ATorqueSky moves about: 8 rain shafts (cylinders tagged TorqueRainShaft) and
+    the rainbow (a sphere round the camera tagged TorqueRainbow), hidden until it uses them."""
+    shaft = unreal.load_asset(MAT_DIR + "/M_RideRainShaft") if reuse else rain_shaft_material()
+    bow = unreal.load_asset(MAT_DIR + "/M_RideRainbow") if reuse else rainbow_material()
+    n = 0
+    for i in range(8):
+        if _sky_prop("RainShaft%d" % i, "TorqueRainShaft", "/Engine/BasicShapes/Cylinder", shaft, (30.0, 30.0, 10.0)):
+            n += 1
+    b = _sky_prop("Rainbow", "TorqueRainbow", "/Engine/BasicShapes/Sphere", bow, (4000.0, 4000.0, 4000.0))
+    log("rain shafts placed: %d; rainbow %s" % (n, "placed" if b else "NOT placed"))
+
+
 def sky_and_camera(reuse_cloud_shadow=False):
     """The sun, sky, air, clouds and the camera's grade, as every outdoor level has them (the ride on
     Buttertubs, and Tools/ue_build_rideuk.py's level for the real world's roads)."""
@@ -3428,6 +3663,10 @@ def sky_and_camera(reuse_cloud_shadow=False):
         high_cloud_sheet(reuse=reuse_cloud_shadow)
     except Exception as e:
         unreal.log_warning("[Torque] no high cloud sheet: %s" % e)
+    try:
+        rain_shafts_and_rainbow(reuse=reuse_cloud_shadow)
+    except Exception as e:
+        unreal.log_warning("[Torque] no rain shafts or rainbow: %s" % e)
     ppv = spawn(unreal.PostProcessVolume)
     ppv.set_editor_property("unbound", True)
     pp = ppv.get_editor_property("settings")

@@ -289,7 +289,7 @@
   "halo_most": 0.6
  },
  "seen_coming": {
-  "_": "Stage 4: fog with a top, valley mist (Local Fog Volumes in the hollows), rainbow rule.",
+  "_": "Stage 4: fog with a top, valley mist (Local Fog Volumes in the hollows), rainbow rule; the air thickening under a low base; the weather map drawn into the clouds; rain shafts under far showers; the rainbow drawn.",
   "fog_shallow_m": 40.0,
   "fog_thick_m": 120.0,
   "fog_top_fade_m": 40.0,
@@ -302,6 +302,24 @@
   "mist_depth_m": 25.0,
   "mist_extinction": 0.6,
   "rainbow_sun_most_deg": 42.0,
-  "rainbow_rain_mm": 0.2
+  "rainbow_rain_mm": 0.2,
+  "base_fog_band_m": 300.0,
+  "base_fog_boost": 3.0,
+  "map_px": 64,
+  "map_size_m": 90000.0,
+  "map_repaint_s": 20.0,
+  "map_move_m": 4000.0,
+  "map_gain": 1.0,
+  "map_rain_mm": 10.0,
+  "shaft_rain_mm": 0.8,
+  "shaft_full_mm": 4.0,
+  "shaft_spacing_m": 6000.0,
+  "shaft_nearest_m": 2500.0,
+  "shaft_farthest_m": 40000.0,
+  "shaft_most": 8,
+  "shaft_radius_m": 1500.0,
+  "shaft_opacity": 0.4,
+  "shaft_light": 0.012,
+  "rainbow_opacity": 0.55
  }
 }

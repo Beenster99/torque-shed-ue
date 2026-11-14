@@ -86,6 +86,12 @@ const NamedNumber Numbers[] = {
 	{"mist_humid_from", &Looks::MistHumidFrom}, {"mist_humid_full", &Looks::MistHumidFull}, {"mist_calm_ms", &Looks::MistCalmMs},
 	{"mist_windy_ms", &Looks::MistWindyMs}, {"mist_clear_to", &Looks::MistClearTo}, {"mist_gone_deg", &Looks::MistGoneDeg},
 	{"mist_depth_m", &Looks::MistDepthM}, {"mist_extinction", &Looks::MistExtinction}, {"rainbow_sun_most_deg", &Looks::RainbowSunMostDeg}, {"rainbow_rain_mm", &Looks::RainbowRainMm},
+	{"base_fog_band_m", &Looks::BaseFogBandM}, {"base_fog_boost", &Looks::BaseFogBoost},
+	{"map_px", &Looks::MapPx}, {"map_size_m", &Looks::MapSizeM}, {"map_repaint_s", &Looks::MapRepaintS}, {"map_move_m", &Looks::MapMoveM},
+	{"map_gain", &Looks::MapGain}, {"map_rain_mm", &Looks::MapRainMm},
+	{"shaft_rain_mm", &Looks::ShaftRainMm}, {"shaft_full_mm", &Looks::ShaftFullMm}, {"shaft_spacing_m", &Looks::ShaftSpacingM},
+	{"shaft_nearest_m", &Looks::ShaftNearestM}, {"shaft_farthest_m", &Looks::ShaftFarthestM}, {"shaft_most", &Looks::ShaftMost},
+	{"shaft_radius_m", &Looks::ShaftRadiusM}, {"shaft_opacity", &Looks::ShaftOpacity}, {"shaft_light", &Looks::ShaftLight}, {"rainbow_opacity", &Looks::RainbowOpacity},
 };
 struct NamedKindFigure { const char* Name; double KindLook::*Field; };
 const NamedKindFigure KindFigures[] = {
@@ -292,6 +298,13 @@ Sky Compute(const Inputs& In, const Looks& L)
 	const double Rain = TorqueWeather::RainShow(W);
 	S.Low.Cover = Clamp01(W.LowCloud);
 	S.Low.BaseAsl = std::max(std::min(W.CloudBase, L.LowBaseMostM), In.GroundAsl + L.LowBaseLeastM);
+	// Riding up under a closed low base (stage 4): the air thickens into the cloud.
+	{
+		const double Eye = In.ViewAsl >= 0.0 ? In.ViewAsl : In.GroundAsl + 2.0;
+		const double Under = 1.0 - Smooth((S.Low.BaseAsl - Eye) / std::max(L.BaseFogBandM, 1.0));
+		S.BaseFog = Under * Smooth((Clamp01(W.LowCloud) - 0.6) / 0.3);
+		S.FogScale *= 1.0 + std::max(L.BaseFogBoost, 0.0) * S.BaseFog;
+	}
 	S.Low.Wind = W.Wind850;
 	S.Low.WindFrom = W.Wind850From;
 	S.Mid.Cover = Clamp01(W.MidCloud);
@@ -460,9 +473,38 @@ std::vector<NamedSky> SkiesFromJson(const TorqueFit::Json& Root)
 		if (Weather) StateFromJson(*Weather, Sky.Weather);
 		if (const TorqueFit::Json* Sun = J.Get("sun"); Sun && Sun->IsNumber()) Sky.Sun = std::clamp(Sun->N, -89.0, 89.0);
 		Sky.bEvening = J.Flag("evening", false);
+		Sky.Showers = std::clamp(static_cast<int>(J.Num("showers_around", 0.0)), 0, 20);
+		Sky.ShowerRainMm = std::max(J.Num("shower_rain", 4.0), 0.5);
 		Out.push_back(std::move(Sky));
 	}
 	return Out;
+}
+
+TorqueWeather::Grid ShowersAround(const TorqueWeather::State& Base, double Lat, double Lon, int Showers, double RainMm, unsigned Seed)
+{
+	TorqueWeather::Grid G;
+	G.N = 7;
+	G.Lat = Lat;
+	G.Lon = Lon;
+	G.StepM = 12000.0;
+	G.Points.assign(49, Base);
+	G.Elevation.assign(49, 300.0);
+	unsigned X = Seed * 2654435761u + 12345u;
+	auto Next = [&X]() { X ^= X << 13; X ^= X >> 17; X ^= X << 5; return X; };
+	for (int K = 0, Tries = 0; K < Showers && Tries < 200; ++Tries)
+	{
+		const int I = static_cast<int>(Next() % 49u);
+		TorqueWeather::State& P = G.Points[I];
+		if (I == 24 || P.Rain >= RainMm) continue;   // (not the centre; not twice)
+		P.Rain = RainMm * (0.6 + 0.4 * ((Next() % 1000u) / 999.0));
+		P.LowCloud = std::max(P.LowCloud, 0.85);
+		P.Cloud = std::max(P.Cloud, P.LowCloud);
+		P.Cape = std::max(P.Cape, 800.0);
+		P.Code = 81;
+		P.RoadWet = 1.0;
+		++K;
+	}
+	return G;
 }
 
 const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& Key)
@@ -470,5 +512,104 @@ const NamedSky* FindSky(const std::vector<NamedSky>& Skies, const std::string& K
 	for (const NamedSky& Sky : Skies)
 		if (Sky.Key == Key) return &Sky;
 	return nullptr;
+}
+
+TorqueWeather::State MapWeatherAt(const MapGrids& G, double Lat, double Lon)
+{
+	const bool bNear = G.Near && G.Near->Valid(), bWide = G.Wide && G.Wide->Valid();
+	if (!bNear && !bWide) return TorqueWeather::State();
+	if (!bNear) return TorqueWeather::GridAt(*G.Wide, Lat, Lon, 0.0, G.WideDriftS);
+	const TorqueWeather::State Close = TorqueWeather::GridAt(*G.Near, Lat, Lon, 0.0, G.NearDriftS);
+	if (!bWide) return Close;
+	// The near grid inside its square, easing into the wide one over its last step.
+	double E = 0.0, N = 0.0;
+	TorqueWeather::MetresBetween(G.Near->Lat, G.Near->Lon, Lat, Lon, E, N);
+	const double Half = (G.Near->N - 1) * 0.5 * G.Near->StepM;
+	const double Out = std::max(std::fabs(E), std::fabs(N));
+	const double W = 1.0 - Smooth((Out - (Half - G.Near->StepM)) / std::max(G.Near->StepM, 1.0));
+	if (W >= 1.0) return Close;
+	const TorqueWeather::State Far = TorqueWeather::GridAt(*G.Wide, Lat, Lon, 0.0, G.WideDriftS);
+	return W <= 0.0 ? Far : TorqueWeather::Blend(Far, Close, W);
+}
+
+WeatherMap PaintWeatherMap(const MapGrids& G, double Lat, double Lon, const Looks& L)
+{
+	WeatherMap M;
+	if (!G.Any()) return M;
+	M.Px = std::clamp(static_cast<int>(L.MapPx), 8, 256);
+	M.SizeM = std::max(L.MapSizeM, 1000.0);
+	M.Bgra.assign(static_cast<size_t>(M.Px) * M.Px * 4, 0);
+	auto Byte = [](double V) { return static_cast<unsigned char>(std::lround(Clamp01(V) * 255.0)); };
+	for (int Row = 0; Row < M.Px; ++Row)
+		for (int Col = 0; Col < M.Px; ++Col)
+		{
+			const double East = ((Col + 0.5) / M.Px - 0.5) * M.SizeM;
+			const double North = (0.5 - (Row + 0.5) / M.Px) * M.SizeM;
+			double PLat = 0.0, PLon = 0.0;
+			TorqueWeather::Offset(Lat, Lon, East, North, PLat, PLon);
+			const TorqueWeather::State W = MapWeatherAt(G, PLat, PLon);
+			unsigned char* T = &M.Bgra[(static_cast<size_t>(Row) * M.Px + Col) * 4];
+			T[0] = Byte(W.Rain / std::max(L.MapRainMm, 0.1));
+			T[1] = Byte(W.MidCloud);
+			T[2] = Byte(W.LowCloud);
+			T[3] = Byte(W.Cape / 2000.0);
+		}
+	const TorqueWeather::State Here = MapWeatherAt(G, Lat, Lon);
+	M.HereLow = Clamp01(Here.LowCloud);
+	M.HereMid = Clamp01(Here.MidCloud);
+	return M;
+}
+
+std::vector<RainShaft> FindRainShafts(const MapGrids& G, double Lat, double Lon, const Looks& L)
+{
+	std::vector<RainShaft> Out;
+	if (!G.Any() || L.ShaftMost < 1.0) return Out;
+	// A lattice fixed to the ground (round the grid's own snapped centre), carried on the wind as the
+	// grids' showers are, so a shaft drifts across the land with its shower and doesn't jump as you ride.
+	const TorqueWeather::Grid& Ref = (G.Wide && G.Wide->Valid()) ? *G.Wide : *G.Near;
+	const double DriftS = (G.Wide && G.Wide->Valid()) ? G.WideDriftS : G.NearDriftS;
+	double WE = 0.0, WN = 0.0;
+	for (const TorqueWeather::State& P : Ref.Points)
+	{
+		const double To = (P.WindFrom + 180.0) * 3.14159265358979 / 180.0;
+		WE += std::sin(To) * P.Wind;
+		WN += std::cos(To) * P.Wind;
+	}
+	WE /= static_cast<double>(std::max<size_t>(Ref.Points.size(), 1));
+	WN /= static_cast<double>(std::max<size_t>(Ref.Points.size(), 1));
+	double DE = WE * std::max(DriftS, 0.0), DN = WN * std::max(DriftS, 0.0);
+	const double Most = (Ref.N - 1) * 0.5 * Ref.StepM, Len = std::sqrt(DE * DE + DN * DN);
+	if (Len > Most && Len > 0.0) { DE *= Most / Len; DN *= Most / Len; }
+	double CamE = 0.0, CamN = 0.0;
+	TorqueWeather::MetresBetween(Ref.Lat, Ref.Lon, Lat, Lon, CamE, CamN);
+	const double Step = std::max(L.ShaftSpacingM, 500.0);
+	const int Reach = static_cast<int>(std::ceil(L.ShaftFarthestM / Step)) + 1;
+	const int I0 = static_cast<int>(std::floor((CamE - DE) / Step)), J0 = static_cast<int>(std::floor((CamN - DN) / Step));
+	for (int I = I0 - Reach; I <= I0 + Reach; ++I)
+		for (int J = J0 - Reach; J <= J0 + Reach; ++J)
+		{
+			// (a fixed jitter per cell, so the shafts don't stand in rows)
+			const unsigned H = static_cast<unsigned>(I) * 73856093u ^ static_cast<unsigned>(J) * 19349663u;
+			const double Jx = ((H & 1023u) / 1023.0 - 0.5) * 0.6, Jy = (((H >> 10) & 1023u) / 1023.0 - 0.5) * 0.6;
+			const double PE = (I + 0.5 + Jx) * Step + DE, PN = (J + 0.5 + Jy) * Step + DN;
+			const double E = PE - CamE, N = PN - CamN;
+			const double Dist = std::sqrt(E * E + N * N);
+			if (Dist < L.ShaftNearestM || Dist > L.ShaftFarthestM) continue;
+			double PLat = 0.0, PLon = 0.0;
+			TorqueWeather::Offset(Ref.Lat, Ref.Lon, PE, PN, PLat, PLon);
+			const TorqueWeather::State W = MapWeatherAt(G, PLat, PLon);
+			if (W.Rain < L.ShaftRainMm) continue;
+			RainShaft R;
+			R.East = E;
+			R.North = N;
+			R.Strength = Lerp(0.35, 1.0, Smooth((W.Rain - L.ShaftRainMm) / std::max(L.ShaftFullMm - L.ShaftRainMm, 0.1)));
+			// (showers from unstable air narrower and darker; steady rain wider and fainter)
+			const double Convect = Smooth(W.Cape / 800.0);
+			R.RadiusM = L.ShaftRadiusM * Lerp(1.6, 0.8, Convect) * (0.8 + 0.4 * (((H >> 20) & 255u) / 255.0));
+			Out.push_back(R);
+		}
+	std::sort(Out.begin(), Out.end(), [](const RainShaft& A, const RainShaft& B) { return A.Strength > B.Strength; });
+	if (Out.size() > static_cast<size_t>(L.ShaftMost)) Out.resize(static_cast<size_t>(L.ShaftMost));
+	return Out;
 }
 } // namespace TorqueSky

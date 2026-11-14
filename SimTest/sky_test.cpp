@@ -464,6 +464,59 @@ int main()
 		Check(FromJ.Rain == 1.0 && Near(FromJ.HighCloud, 0.8, 1e-9) && FromJ.Cape == 300.0 && FromJ.Wind850From == 90.0, "a sky named in JSON (the bench's)");
 	}
 
+	std::printf("\nStage 4: under a low base, the weather map, rain shafts\n");
+	{
+		const Looks& L4 = L;
+		Inputs In;
+		In.Weather = TorqueWeather::Preset(TorqueWeather::Overcast);
+		In.Weather.LowCloud = 1.0; In.Weather.CloudBase = 700.0;
+		In.SunElevation = 30.0; In.bClouds = true; In.GroundAsl = 300.0;
+		In.ViewAsl = 302.0;
+		const Sky Low = Compute(In, L4);
+		In.ViewAsl = 650.0;
+		const Sky Up = Compute(In, L4);
+		Check(Low.BaseFog < 0.01 && Up.BaseFog > 0.5 && Up.FogScale > 1.5 * Low.FogScale, "riding up under a closed 700 m base, the air thickens into it");
+		In.Weather.LowCloud = 0.3;
+		Check(Compute(In, L4).BaseFog < 0.01, "  not under broken cloud");
+
+		// A wide ring with a heavy shower 24 km east of the centre and broken cloud elsewhere; calm.
+		TorqueWeather::Grid Wide;
+		Wide.N = 7; Wide.Lat = 54.3; Wide.Lon = -2.2; Wide.StepM = 12000.0;
+		for (int I = 0; I < 49; ++I)
+		{
+			State P = TorqueWeather::Preset(TorqueWeather::Sunny);
+			P.LowCloud = 0.3; P.Cloud = 0.3; P.Wind = 0.0;
+			if (I == 3 * 7 + 5) { P.Rain = 5.0; P.LowCloud = 0.9; P.Cloud = 0.9; P.Cape = 900.0; }
+			Wide.Points.push_back(P);
+			Wide.Elevation.push_back(300.0);
+		}
+		MapGrids G;
+		G.Wide = &Wide;
+		const WeatherMap M = PaintWeatherMap(G, Wide.Lat, Wide.Lon, L4);
+		const int Mid = M.Px / 2;
+		const int ShowerCol = static_cast<int>(std::lround((24000.0 / M.SizeM + 0.5) * M.Px - 0.5));
+		auto Tex = [&M](int Row, int Col, int Ch) { return M.Bgra[(static_cast<size_t>(Row) * M.Px + Col) * 4 + Ch] / 255.0; };
+		Check(M.Valid() && M.Px == 64 && Near(M.HereLow, 0.3, 0.01), "the map: 64 x 64 over 90 km, the camera's cover at its centre");
+		Check(Tex(Mid, ShowerCol, 0) > 0.4 && Tex(Mid, ShowerCol, 2) > 0.8 && Tex(Mid, Mid, 0) == 0.0 && Near(Tex(Mid, Mid, 2), 0.3, 0.01),
+			"  the shower 24 km east is wet and cloudy on the map, the centre dry and broken");
+		Check(Tex(Mid, M.Px - 1, 2) < 0.5 && Tex(0, Mid, 2) < 0.35, "  row 0 the north, the last column the east");
+		const std::vector<RainShaft> Shafts = FindRainShafts(G, Wide.Lat, Wide.Lon, L4);
+		bool bEast = !Shafts.empty();
+		for (const RainShaft& R : Shafts) bEast = bEast && R.East > 12000.0 && std::fabs(R.North) < 12000.0 && R.Strength > 0.3 && R.RadiusM > 500.0;
+		Check(bEast && Shafts.size() <= 8, "rain shafts stand under the shower (east), none where it's dry, at most 8");
+		Check(FindRainShafts(G, Wide.Lat, Wide.Lon + 24000.0 / 65000.0, L4).size() <= Shafts.size(), "  none closer than 2.5 km (riding into the shower)");
+		// Carried on the wind: a westerly 10 m/s for 20 minutes moves them 12 km east.
+		for (State& P : Wide.Points) { P.Wind = 10.0; P.WindFrom = 270.0; }
+		G.WideDriftS = 1200.0;
+		const std::vector<RainShaft> Later = FindRainShafts(G, Wide.Lat, Wide.Lon, L4);
+		double E0 = 0.0, E1 = 0.0;
+		for (const RainShaft& R : Shafts) E0 += R.East / static_cast<double>(Shafts.size());
+		for (const RainShaft& R : Later) E1 += R.East / static_cast<double>(std::max<size_t>(Later.size(), 1));
+		Check(!Later.empty() && E1 > E0 + 6000.0, "  and drift east on a westerly with their shower");
+		MapGrids None;
+		Check(!PaintWeatherMap(None, 54.3, -2.2, L4).Valid() && FindRainShafts(None, 54.3, -2.2, L4).empty(), "no grids (not live): no map, no shafts");
+	}
+
 	std::printf("\nThe preset skies (Data/Sky/presets.json, Settings > Gameplay > Preset sky)\n");
 	{
 		TorqueFit::Json Root;
@@ -494,6 +547,18 @@ int main()
 		const NamedSky* Gold = FindSky(Skies, "golden_hour");
 		Check(Fog && Fog->HasSun() && !Fog->bEvening && Gold && Gold->bEvening && FindSky(Skies, "cumulus") && !FindSky(Skies, "cumulus")->HasSun(),
 			"  dawn and evening skies move the clock; the rest keep it");
+		const NamedSky* Far = FindSky(Skies, "distant_showers");
+		Check(Far && Far->Showers == 7 && Far->ShowerRainMm == 5.0, "  showers round about read");
+		if (Far)
+		{
+			const TorqueWeather::Grid Ring = ShowersAround(Far->Weather, 54.3, -2.2, Far->Showers, Far->ShowerRainMm, 7u);
+			int Wet = 0;
+			for (const State& P : Ring.Points) Wet += P.Rain > 1.0 ? 1 : 0;
+			MapGrids RG;
+			RG.Wide = &Ring;
+			Check(Ring.Valid() && Wet == 7 && Ring.Centre().Rain == 0.0 && Near(MapWeatherAt(RG, 54.3, -2.2).LowCloud, Far->Weather.LowCloud, 1e-9)
+				&& !FindRainShafts(RG, 54.3, -2.2, L).empty(), "  a made-up ring: 7 showers, dry here (the preset's own weather), rain shafts under them");
+		}
 		const NamedSky* Storm = FindSky(Skies, "thunderstorm");
 		Check(Storm && At(Storm->Weather, 35.0, true).Dominant(0) == Towering, "  the thunderstorm draws towering cloud");
 		const NamedSky* Grey = FindSky(Skies, "low_grey");

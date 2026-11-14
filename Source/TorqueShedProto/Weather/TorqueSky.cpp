@@ -23,7 +23,13 @@
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/Texture2D.h"
+#include "RHI.h"
+#include "TextureResource.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
@@ -127,6 +133,18 @@ void ATorqueSky::Find()
 	for (TActorIterator<AActor> It(W); It && !CloudPtr.IsValid(); ++It) CloudPtr = It->FindComponentByClass<UVolumetricCloudComponent>();
 	for (TActorIterator<AActor> It(W); It && !HighSheetPtr.IsValid(); ++It)
 		if (It->ActorHasTag(FName(TEXT("TorqueHighCloud")))) HighSheetPtr = *It;
+	// Stage 4: the rain shafts and the rainbow (Tools/ue_build_level.py places them, hidden).
+	Shafts.Reset();
+	for (TActorIterator<AActor> It(W); It; ++It)
+	{
+		if (It->ActorHasTag(FName(TEXT("TorqueRainShaft"))))
+		{
+			FShaftSlot Slot;
+			Slot.Actor = *It;
+			Shafts.Add(Slot);
+		}
+		if (!RainbowPtr.IsValid() && It->ActorHasTag(FName(TEXT("TorqueRainbow")))) RainbowPtr = *It;
+	}
 	for (TActorIterator<APostProcessVolume> It(W); It && !PpvPtr.IsValid(); ++It)
 	{
 		if (It->bUnbound) PpvPtr = *It;
@@ -146,8 +164,10 @@ bool ATorqueSky::CloudsDrawn() const
 	if (!Cloud || !SkyMpc || !Cloud->IsVisible()) return false;
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricCloud"));
 	if (CVar && CVar->GetInt() == 0) return false;
-	const UObject* Mat = ReadObjectProperty(Cloud, TEXT("Material"));
-	return Mat && Mat->GetName().Contains(TEXT("M_RideCloud"));
+	// (by the base material: the cloud wears an instance of it once the weather map is on)
+	const UMaterialInterface* Mat = Cast<const UMaterialInterface>(ReadObjectProperty(Cloud, TEXT("Material")));
+	const UMaterial* Base = Mat ? Mat->GetMaterial() : nullptr;
+	return Base && Base->GetName().Contains(TEXT("M_RideCloud"));
 }
 
 double ATorqueSky::PlanetAsl() const
@@ -224,6 +244,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 	In.bRealSun = bRealSun;
 	In.Haze = Haze;
 	In.GroundAsl = GroundAsl;
+	GroundAslNow = GroundAsl;
 	In.ViewAsl = ViewAsl;
 	In.ValleyAsl = ValleyAsl;
 	In.RainNear = RainNear;
@@ -335,6 +356,7 @@ void ATorqueSky::Apply(const TorqueWeather::State& Weather, double SunElevation,
 		SetMpc(SkyMpc, TEXT("HighSheet"), (float)S.HighSheet);
 		SetMpc(SkyMpc, TEXT("HighOpacity"), (float)Looks.HighOpacity);
 		SetMpc(SkyMpc, TEXT("Halo"), (float)S.Halo);
+		SetMpc(SkyMpc, TEXT("ShaftLight"), (float)Looks.ShaftLight);
 	}
 	// The old noise cloud shadows: where no clouds are drawn (the Low setting), the cover's amount; where
 	// they are, none (the clouds you see cast their own).
@@ -347,6 +369,9 @@ void ATorqueSky::Tick(float DeltaSeconds)
 	TickDrift(DeltaSeconds);
 	TickHighSheet();
 	TickMist();
+	TickWeatherMap();
+	TickRainShafts(DeltaSeconds);
+	TickRainbow();
 	if (Shots.Num() > 0) TickBench(DeltaSeconds);
 }
 
@@ -389,6 +414,193 @@ void ATorqueSky::TickDrift(float DeltaSeconds)
 			if (SkyMpc->GetScalarParameterByName(FName(Names[Ly][1]))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Names[Ly][1]), (float)-DriftN[Ly]);
 		}
 	}
+}
+
+bool ATorqueSky::CameraGeo(FVector& Cam, double& Lat, double& Lon, double& OriginAsl) const
+{
+	const UWorld* W = GetWorld();
+	const APlayerController* PC = W ? W->GetFirstPlayerController() : nullptr;
+	const ATorqueGameState* GS = Game.Get();
+	if (!PC || !PC->PlayerCameraManager || !GS) return false;
+	Cam = PC->PlayerCameraManager->GetCameraLocation();
+	double Asl = 0.0, OLat = 0.0, OLon = 0.0;
+	GS->GeoAt(Cam, Lat, Lon, Asl);
+	GS->GeoAt(FVector::ZeroVector, OLat, OLon, OriginAsl);
+	return true;
+}
+
+void ATorqueSky::TickWeatherMap()
+{
+	UWorld* W = GetWorld();
+	const ATorqueGameState* GS = Game.Get();
+	if (!W || !GS || !SkyMpc || !bApplied) return;
+	auto SetMpc = [W, this](const TCHAR* Name, float Value) {
+		if (SkyMpc->GetScalarParameterByName(FName(Name))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(Name), Value);
+	};
+	FVector Cam;
+	double Lat = 0.0, Lon = 0.0, OriginAsl = 0.0;
+	const TorqueSky::MapGrids Grids = GS->SkyGrids();
+	const bool bWant = CloudsDrawn() && Grids.Any() && Looks.MapGain > 0.0 && CameraGeo(Cam, Lat, Lon, OriginAsl);
+	if (!bWant)
+	{
+		if (MapOnApplied != 0.0f) SetMpc(TEXT("MapOn"), 0.0f);
+		MapOnApplied = 0.0f;
+		return;
+	}
+	// The cloud wears an instance of its material, with the map on it (only when the material has the
+	// map's slot: an older level's has none, and the map stays off).
+	UVolumetricCloudComponent* Cloud = CloudPtr.Get();
+	if (!CloudMid && Cloud && !bMapTried)
+	{
+		bMapTried = true;
+		UMaterialInterface* Mat = Cast<UMaterialInterface>(const_cast<UObject*>(ReadObjectProperty(Cloud, TEXT("Material"))));
+		bool bHasMap = false;
+		if (Mat)
+		{
+			TArray<FMaterialParameterInfo> Infos;
+			TArray<FGuid> Ids;
+			Mat->GetAllTextureParameterInfo(Infos, Ids);
+			for (const FMaterialParameterInfo& Info : Infos) bHasMap |= Info.Name == FName(TEXT("WeatherMap"));
+		}
+		if (bHasMap)
+		{
+			CloudMid = UMaterialInstanceDynamic::Create(Mat, this);
+			const int32 Px = FMath::Clamp((int32)Looks.MapPx, 8, 256);
+			MapTex = UTexture2D::CreateTransient(Px, Px, PF_B8G8R8A8);
+			if (CloudMid && MapTex)
+			{
+				MapTex->SRGB = false;
+				MapTex->Filter = TF_Bilinear;
+				MapTex->AddressX = TA_Clamp;
+				MapTex->AddressY = TA_Clamp;
+				MapTex->NeverStream = true;
+				MapTex->UpdateResource();
+				CloudMid->SetTextureParameterValue(FName(TEXT("WeatherMap")), MapTex);
+				// (by the property, as the guard does: the setter isn't exported from the engine in every version)
+				if (FObjectPropertyBase* Prop = CastField<FObjectPropertyBase>(Cloud->GetClass()->FindPropertyByName(FName(TEXT("Material")))))
+				{
+					Prop->SetObjectPropertyValue_InContainer(Cloud, CloudMid);
+					Cloud->MarkRenderStateDirty();
+				}
+				UE_LOG(LogTemp, Log, TEXT("Torque sky: weather map on the clouds (%d x %d over %.0f km)"), Px, Px, Looks.MapSizeM / 1000.0);
+			}
+			else
+				CloudMid = nullptr;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("Torque sky: the cloud material has no weather map (an older level): one cover everywhere"));
+		}
+	}
+	if (!CloudMid || !MapTex) return;
+	// Painted again every so often or after the camera has moved; the camera's offset from the map's
+	// centre every frame (small numbers for the material).
+	const double Now = W->GetTimeSeconds();
+	if (Now - MapPaintedAt > Looks.MapRepaintS || FVector::Dist2D(Cam, MapCentre) > Looks.MapMoveM * 100.0)
+	{
+		const TorqueSky::WeatherMap M = TorqueSky::PaintWeatherMap(Grids, Lat, Lon, Looks);
+		if (M.Valid() && M.Px == MapTex->GetSizeX())
+		{
+			MapPaintedAt = Now;
+			MapCentre = Cam;
+			const int32 Bytes = M.Px * M.Px * 4;
+			uint8* Data = new uint8[Bytes];
+			FMemory::Memcpy(Data, M.Bgra.data(), Bytes);
+			FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, M.Px, M.Px);
+			MapTex->UpdateTextureRegions(0, 1, Region, (uint32)(M.Px * 4), 4, Data,
+				[](uint8* Src, const FUpdateTextureRegion2D* Regions) { delete[] Src; delete Regions; });
+			SetMpc(TEXT("MapSize"), (float)M.SizeM);
+			SetMpc(TEXT("MapHereLow"), (float)M.HereLow);
+			SetMpc(TEXT("MapHereMid"), (float)M.HereMid);
+		}
+	}
+	SetMpc(TEXT("MapX"), (float)((Cam.X - MapCentre.X) / 100.0));
+	SetMpc(TEXT("MapY"), (float)((Cam.Y - MapCentre.Y) / 100.0));
+	const float On = (float)FMath::Clamp(Looks.MapGain, 0.0, 2.0);
+	if (On != MapOnApplied) SetMpc(TEXT("MapOn"), On);
+	MapOnApplied = On;
+}
+
+void ATorqueSky::TickRainShafts(float DeltaSeconds)
+{
+	UWorld* W = GetWorld();
+	const ATorqueGameState* GS = Game.Get();
+	if (!W || !GS || Shafts.Num() == 0 || !bApplied) return;
+	FVector Cam;
+	double Lat = 0.0, Lon = 0.0, OriginAsl = 0.0;
+	if (!CameraGeo(Cam, Lat, Lon, OriginAsl)) return;
+	const double Now = W->GetTimeSeconds();
+	// Where they stand, every few seconds (they drift with their showers between).
+	if (Now - ShaftsFoundAt > 4.0)
+	{
+		ShaftsFoundAt = Now;
+		const TorqueSky::MapGrids Grids = GS->SkyGrids();
+		const bool bOn = CloudsDrawn() && Last.Low.Cover > 0.02;
+		const std::vector<TorqueSky::RainShaft> Found = bOn ? TorqueSky::FindRainShafts(Grids, Lat, Lon, Looks) : std::vector<TorqueSky::RainShaft>();
+		for (FShaftSlot& Slot : Shafts) Slot.bSeen = false;
+		const double Ground = GroundAslNow - 300.0;   // (down into the dales round about; it fades into the land)
+		const double TopZ = (Last.Low.BaseAsl - OriginAsl) * 100.0 + 20000.0;   // (up into the base)
+		const double BottomZ = (Ground - OriginAsl) * 100.0;
+		for (const TorqueSky::RainShaft& R : Found)
+		{
+			// (the same shower keeps its shaft: matched by where it stands, within a cell)
+			const FVector At(Cam.X + R.East * 100.0, Cam.Y - R.North * 100.0, 0.0);
+			FShaftSlot* Use = nullptr;
+			for (FShaftSlot& Slot : Shafts)
+				if (!Slot.bSeen && Slot.Want > 0.0f && FVector::Dist2D(Slot.At, At) < Looks.ShaftSpacingM * 50.0) { Use = &Slot; break; }
+			if (!Use)
+				for (FShaftSlot& Slot : Shafts)
+					if (!Slot.bSeen && Slot.Now < 0.01f) { Use = &Slot; break; }
+			if (!Use) continue;
+			Use->bSeen = true;
+			Use->At = FVector(At.X, At.Y, 0.5 * (TopZ + BottomZ));
+			Use->Scale = FVector(R.RadiusM * 2.0, R.RadiusM * 2.0, FMath::Max(TopZ - BottomZ, 10000.0) / 100.0);
+			Use->Want = (float)(R.Strength * Looks.ShaftOpacity);
+		}
+		for (FShaftSlot& Slot : Shafts)
+			if (!Slot.bSeen) Slot.Want = 0.0f;
+	}
+	// Faded in and out over some seconds, never popping.
+	for (FShaftSlot& Slot : Shafts)
+	{
+		AActor* A = Slot.Actor.Get();
+		if (!A) continue;
+		Slot.Now = FMath::FInterpConstantTo(Slot.Now, Slot.Want, DeltaSeconds, 0.08f);
+		const bool bShow = Slot.Now > 0.002f;
+		if (A->IsHidden() == bShow) A->SetActorHiddenInGame(!bShow);
+		if (!bShow) continue;
+		if (!Slot.Mid)
+			if (UStaticMeshComponent* Mesh = A->FindComponentByClass<UStaticMeshComponent>())
+				Slot.Mid = Mesh->CreateAndSetMaterialInstanceDynamic(0);
+		if (Slot.Mid) Slot.Mid->SetScalarParameterValue(FName(TEXT("Strength")), Slot.Now);
+		A->SetActorLocationAndRotation(Slot.At, FRotator::ZeroRotator);
+		A->SetActorScale3D(Slot.Scale);
+	}
+}
+
+int32 ATorqueSky::ShaftsShown() const
+{
+	int32 N = 0;
+	for (const FShaftSlot& Slot : Shafts) N += Slot.Now > 0.002f ? 1 : 0;
+	return N;
+}
+
+void ATorqueSky::TickRainbow()
+{
+	UWorld* W = GetWorld();
+	AActor* Bow = RainbowPtr.Get();
+	if (!W || !Bow || !SkyMpc || !bApplied) return;
+	const float Strength = (float)(Last.Rainbow * Looks.RainbowOpacity);
+	const bool bShow = Strength > 0.005f;
+	if (Bow->IsHidden() == bShow) Bow->SetActorHiddenInGame(!bShow);
+	if (FMath::Abs(Strength - RainbowApplied) > 0.002f || (bShow != (RainbowApplied > 0.005f)))
+	{
+		if (SkyMpc->GetScalarParameterByName(FName(TEXT("Rainbow")))) UKismetMaterialLibrary::SetScalarParameterValue(W, SkyMpc, FName(TEXT("Rainbow")), Strength);
+		RainbowApplied = Strength;
+	}
+	if (!bShow) return;
+	const APlayerController* PC = W->GetFirstPlayerController();
+	if (PC && PC->PlayerCameraManager) Bow->SetActorLocation(PC->PlayerCameraManager->GetCameraLocation());
 }
 
 void ATorqueSky::TickHighSheet()
@@ -539,7 +751,8 @@ FString ATorqueSky::Describe() const
 		+ FString::Printf(TEXT("; kinds: low %s, middle %s, high %s (veil %.2f, halo %.2f); bands low %.2f-%.2f middle %.2f-%.2f"),
 			UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(0))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(1))), UTF8_TO_TCHAR(TorqueSky::KindName(S.Dominant(2))),
 			S.HighSheet, S.Halo, S.LowDrawn.Bottom, S.LowDrawn.Top, S.MidDrawn.Bottom, S.MidDrawn.Top)
-		+ FString::Printf(TEXT("; mist %.2f (top %.0f m), fog top %.0f m, rainbow %.2f"), S.Mist, S.MistTopAsl, S.FogTopAsl, S.Rainbow);
+		+ FString::Printf(TEXT("; mist %.2f (top %.0f m), fog top %.0f m, rainbow %.2f, under the base %.2f; weather map %s, rain shafts %d"),
+			S.Mist, S.MistTopAsl, S.FogTopAsl, S.Rainbow, S.BaseFog, MapOnApplied > 0.0f ? TEXT("on") : TEXT("off"), ShaftsShown());
 }
 
 // --- The sky bench ---------------------------------------------------------------------------------------

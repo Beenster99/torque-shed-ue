@@ -60,6 +60,7 @@ void ATorqueGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ATorqueGameState, SunDec);
 	DOREPLIFETIME(ATorqueGameState, SunLat);
 	DOREPLIFETIME(ATorqueGameState, GridNet);
+	DOREPLIFETIME(ATorqueGameState, WideNet);
 	DOREPLIFETIME(ATorqueGameState, Shed);
 	DOREPLIFETIME(ATorqueGameState, RideJourney);
 	DOREPLIFETIME(ATorqueGameState, RideJourneyBy);
@@ -496,6 +497,13 @@ void ATorqueGameState::GoToMode(float FadeSeconds)
 		SetGrid(TorqueWeather::Grid(), 0, FadeSeconds);
 		SendGrid();
 	}
+	if (Mode != FTorqueSettings::WeatherLive && GridWide.Valid())
+	{
+		GridWide = TorqueWeather::Grid();
+		GridWideAt = 0;
+		NextWideIn = 20.0;
+		SendWide();
+	}
 	if (Mode >= 1 && Mode <= 3)
 	{
 		SetWeather(Mode - 1, FadeSeconds);
@@ -696,6 +704,7 @@ void ATorqueGameState::FetchWide()
 		{
 			GS->GridWide = G;
 			GS->GridWideAt = FDateTime::UtcNow().ToUnixTimestamp();
+			GS->SendWide();
 			GS->NextWideIn = 30.0 * 60.0;
 			double Wettest = 0.0;
 			for (const TorqueWeather::State& P : G.Points) Wettest = FMath::Max(Wettest, P.Rain);
@@ -912,6 +921,62 @@ void ATorqueGameState::SendGrid()
 		}
 	GridNet.FetchedAt = GridFetchedNow;
 	ForceNetUpdate();
+}
+
+void ATorqueGameState::SendWide()
+{
+	if (!HasAuthority()) return;
+	WideNet.N = GridWide.Valid() ? GridWide.N : 0;
+	WideNet.Lat = GridWide.Lat;
+	WideNet.Lon = GridWide.Lon;
+	WideNet.StepM = (float)GridWide.StepM;
+	WideNet.Points.Reset();
+	WideNet.Elevation.Reset();
+	if (GridWide.Valid())
+		for (int32 I = 0; I < GridWide.N * GridWide.N; ++I)
+		{
+			WideNet.Points.Add(NetOf(GridWide.Points[I]));
+			WideNet.Elevation.Add((float)GridWide.Elevation[I]);
+		}
+	WideNet.FetchedAt = GridWideAt;
+	ForceNetUpdate();
+}
+
+void ATorqueGameState::OnRep_WideGrid()
+{
+	if (HasAuthority()) return;
+	TorqueWeather::Grid G;
+	if (WideNet.N >= 2 && WideNet.Points.Num() == WideNet.N * WideNet.N && WideNet.Elevation.Num() == WideNet.Points.Num())
+	{
+		G.N = WideNet.N;
+		G.Lat = WideNet.Lat;
+		G.Lon = WideNet.Lon;
+		G.StepM = WideNet.StepM;
+		for (int32 I = 0; I < WideNet.Points.Num(); ++I)
+		{
+			G.Points.push_back(StateOf(WideNet.Points[I]));
+			G.Elevation.push_back(WideNet.Elevation[I]);
+		}
+	}
+	GridWide = G;
+	GridWideAt = WideNet.FetchedAt;
+}
+
+TorqueSky::MapGrids ATorqueGameState::SkyGrids() const
+{
+	TorqueSky::MapGrids G;
+	const int64 Now = FDateTime::UtcNow().ToUnixTimestamp();
+	if (GridNow.Valid())
+	{
+		G.Near = &GridNow;
+		G.NearDriftS = (double)FMath::Max<int64>(Now - GridFetchedNow, 0);
+	}
+	if (GridWide.Valid())
+	{
+		G.Wide = &GridWide;
+		G.WideDriftS = (double)FMath::Max<int64>(Now - GridWideAt, 0);
+	}
+	return G;
 }
 
 void ATorqueGameState::OnRep_Grid()
@@ -1132,6 +1197,15 @@ void ATorqueGameState::HoldPreset(float FadeSeconds)
 	if (FadeSeconds <= 0.0f) Weather = TorqueWeather::NearestKind(S);
 	Net.Source = (uint8)ETorqueWeatherSource::Fixed;
 	AppliedAt = -1.0;
+	// Showers round about (made up, round the rider): the weather map and rain shafts show them.
+	if (Pick && Pick->Showers > 0)
+	{
+		double VLat = LatitudeAt, VLon = LongitudeAt, VAsl = 0.0;
+		ViewGeo(VLat, VLon, VAsl);
+		GridWide = TorqueSky::ShowersAround(S, VLat, VLon, Pick->Showers, Pick->ShowerRainMm, (unsigned)GetTypeHash(FString(UTF8_TO_TCHAR(Pick->Key.c_str()))));
+		GridWideAt = FDateTime::UtcNow().ToUnixTimestamp();
+		SendWide();
+	}
 	SendNet();
 	TickWeather(0.0f);
 }

@@ -83,6 +83,37 @@ private:
 	// The high cloud's sheet (stage 3; Tools/ue_build_level.py tags it TorqueHighCloud), kept over the camera.
 	TWeakObjectPtr<AActor> HighSheetPtr;
 	void TickHighSheet();
+	// Stage 4. The weather map: painted from the real weather round about (TorqueSky::PaintWeatherMap)
+	// into a texture the cloud's material instance reads, so a shower over the next dale is drawn there.
+	UPROPERTY(Transient) TObjectPtr<class UMaterialInstanceDynamic> CloudMid;
+	UPROPERTY(Transient) TObjectPtr<class UTexture2D> MapTex;
+	bool bMapTried = false;
+	double MapPaintedAt = -1000.0;
+	FVector MapCentre = FVector(1e12);
+	float MapOnApplied = -1.0f;
+	void TickWeatherMap();
+	// Rain shafts under the far showers (a pool the level script places, tagged TorqueRainShaft), each
+	// kept on its shower and faded in and out.
+	struct FShaftSlot
+	{
+		TWeakObjectPtr<AActor> Actor;
+		TObjectPtr<class UMaterialInstanceDynamic> Mid = nullptr;
+		FVector At = FVector::ZeroVector, Scale = FVector::OneVector;
+		float Now = 0.0f, Want = 0.0f;
+		bool bSeen = false;
+	};
+	TArray<FShaftSlot> Shafts;
+	double ShaftsFoundAt = -1000.0;
+	void TickRainShafts(float DeltaSeconds);
+	int32 ShaftsShown() const;
+	// The rainbow (a sphere round the camera tagged TorqueRainbow; its material draws the bow).
+	TWeakObjectPtr<AActor> RainbowPtr;
+	float RainbowApplied = -1.0f;
+	void TickRainbow();
+	// The ground under the viewer from the last Apply (metres above sea level).
+	double GroundAslNow = 0.0;
+	// The camera, where it is on Earth, and the level origin's height above sea level.
+	bool CameraGeo(FVector& Cam, double& Lat, double& Lon, double& OriginAsl) const;
 
 	// The clouds' drift: how far the wind at each layer's height (low, middle, high) has carried it,
 	// metres east and north. The host adds it up and shares it; the others add it up too and ease
