@@ -59,6 +59,8 @@ struct RoadPoint
 	bool Bridge = false;   // on a bridge: the road is a deck over the land as it lies
 	bool Tunnel = false;   // in a tunnel: the road runs in a tube with the hill laid back over it
 	double Bank = 0.0;     // how it is tilted across (RoadLine::CrossHeight), + the left side the higher
+	int Lanes = 0;         // [OSM stage 5] mapped lanes across the whole road (0: the rule's; RoadX)
+	bool OneWay = false;   // [OSM stage 5] no centre line
 };
 
 // [OSM stage 2] One prop on a square of ground (World/WorldRideProps.cpp), for the game to draw with
@@ -294,6 +296,16 @@ public:
 		double From = 0.0;     // how far along the side road from its end At is: nearer the end it lies on the ride's road
 		double Clear[2] = {0.0, 0.0};   // and how far along its left (as Away heads) and right edges are clear of the rounded corners
 	};
+	// [OSM stage 5] A mapped thing on a road (Region::RoadPoints), where it lies along that road: its
+	// kind, how far along, how far to the left of the middle, and which way the traffic it governs runs
+	// (+1 the road's own way, -1 against it, 0 both or not mapped).
+	struct MappedMark
+	{
+		std::string Kind;
+		double Along = 0.0, Off = 0.0;
+		int Dir = 0;
+		int Flags = 0;
+	};
 	struct SideRoad
 	{
 		std::vector<RoadPoint> Pts;
@@ -301,6 +313,7 @@ public:
 		Mouth Mouths[2];       // at its first point's end and its last's
 		bool Track = false, Gravel = false;   // [OSM stage 1] a farm track (no paint); gravel, not tarmac
 		int Edge = -1;         // [ride anywhere] its edge in the area's roads
+		std::vector<MappedMark> Mapped;   // [OSM stage 5] its lights, crossings, humps (MapPoints)
 	};
 	// A junction off the ride's road's sides: two or more road ends at one place (side roads meeting each
 	// other, or the ride's road's own start or end), none of them a mouth. Its tarmac is a fan over
@@ -722,13 +735,25 @@ public:
 	// round them and along old seams (slick in the wet), grit down the middle of a single-track lane,
 	// iron covers in a town's road, the steel joints at a bridge's ends. Each mark lies From..To along
 	// road Which and Left..Right across it (m from its middle, + the left), Lift above or below it.
-	enum ERoadMark { MarkPatch, MarkTar, MarkGrit, MarkCover, MarkJoint };
+	// [OSM stage 5] MarkPaint a mapped line or crossing's paint (slick), MarkHump a hump, table or cushion
+	// (its Peak and profile: RoadX), MarkBay a passing place's tarmac beyond the edge.
+	enum ERoadMark { MarkPatch, MarkTar, MarkGrit, MarkCover, MarkJoint, MarkPaint, MarkHump, MarkBay };
 	struct RoadMark
 	{
 		int Kind = MarkPatch;
 		double From = 0.0, To = 0.0, Left = 0.0, Right = 0.0, Lift = 0.0;
 		float Colour[3] = {0.0f, 0.0f, 0.0f};
+		// ([OSM stage 5] a hump's rise: Peak m at its top, over Start..Start + Length along; Flat the
+		// share of it that is level on top, 0 a round hump, a table's most of it)
+		double Peak = 0.0, Start = 0.0, Length = 0.0, Flat = 0.0;
+		double RiseAt(double Along) const;
 	};
+	std::vector<MappedMark> MainMapped;
+	// The region's mapped points on the edges OnRoad says are this road's, along its points.
+	// (OnlyEdge >= 0: that edge's alone, OnRoad unread)
+	void MapPoints(const std::vector<RoadPoint>& Pts, const std::vector<char>& OnRoad, std::vector<MappedMark>& Out, int OnlyEdge = -1) const;
+	// The marks of a road's mapped points between From and To (RoadMarks adds them to its own).
+	void MappedMarks(int Which, double From, double To, std::vector<RoadMark>& Out) const;
 	void RoadMarks(int Which, double From, double To, std::vector<RoadMark>& Out) const;
 	// How far over the road RoadTile lays a kind of mark (a hair, so it shows; the paint over them all).
 	static double MarkUp(int Kind);
@@ -868,7 +893,9 @@ private:
 	// its ground fetched, the network round StartAt (the road's start when null) laid, and all indexed.
 	static std::shared_ptr<RidePlan> LayOut(const std::shared_ptr<RidePlan>& R, CellStore& Store, HeightStore& Heights,
 		const std::function<void(const std::string&)>& Said, const P2* StartAt);
-	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds);
+	// ([OSM stage 5] Lanes and OneWays, a knot each where given: the map's lanes, RoadX)
+	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds, const std::vector<int>* Lanes = nullptr,
+		const std::vector<char>* OneWays = nullptr);
 	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...
 	std::vector<int> SpansAlong(const std::vector<P2>& Line, int Kind) const;
 	// Evens H out across each bridge and tunnel the line passes along (straight from one end to the

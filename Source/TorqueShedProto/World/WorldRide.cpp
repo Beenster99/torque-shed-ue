@@ -1,4 +1,5 @@
 #include "WorldRide.h"
+#include "WorldRideRoadX.h"
 #include "WorldRideSceneBits.h"
 #include "WorldRoadLine.h"
 
@@ -259,6 +260,8 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	const std::vector<P2> Line = RoadLine::SmoothLine(Raw, RoadLine::MinRadius, Fair);
 	// Each knot as wide as the road it is on (by how far along it is), eased where the width changes.
 	std::vector<double> Halves(Line.size(), 2.3), Speeds(Line.size(), 60.0);
+	std::vector<int> KnotLanes(Line.size(), 0);
+	std::vector<char> KnotOneWay(Line.size(), 0);
 	{
 		std::vector<double> KnotAlong(Line.size(), 0.0);
 		for (size_t I = 1; I < Line.size(); ++I) KnotAlong[I] = KnotAlong[I - 1] + Line[I].DistanceTo(Line[I - 1]);
@@ -268,7 +271,12 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		{
 			const double At = KnotAlong[I] * Scale;
 			while (J + 1 < Raw.size() && RawAlong[J + 1] < At) ++J;
-			Halves[I] = RoadLine::WidthOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)])) * 0.5;
+			// ([OSM stage 5] as wide as the map records, or its lanes make it; else as its class)
+			const int OwnerEdge = Owner[std::min(J + 1, Raw.size() - 1)];
+			const RoadX::Across Ax = RoadX::Of(G, OwnerEdge, RoadLine::WidthOf(G.ClassOf(OwnerEdge)));
+			Halves[I] = Ax.Half;
+			KnotLanes[I] = Ax.Lanes;
+			KnotOneWay[I] = Ax.OneWay ? 1 : 0;
 			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
 		}
 		for (int Pass = 0; Pass < 2; ++Pass)
@@ -298,7 +306,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		return R;
 	}
 	Tell("Laying the road");
-	R->LayRoad(Line, Halves, Speeds);
+	R->LayRoad(Line, Halves, Speeds, &KnotLanes, &KnotOneWay);
 	// (where the last pin is on the road as laid: the run-out is past it)
 	R->FinishM = !RawAlong.empty() && RawAlong.back() > 1.0 ? std::fmin(R->Length, R->RunOutFrom * R->Length / RawAlong.back()) : R->Length;
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
@@ -565,7 +573,8 @@ void RidePlan::LevelSpans(const std::vector<P2>& Line, std::vector<double>& H, s
 	}
 }
 
-void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds)
+void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds, const std::vector<int>* Lanes,
+	const std::vector<char>* OneWays)
 {
 	const std::vector<double> Banks = RoadLine::BankOf(Line, Speeds);
 	Road.clear();
@@ -619,6 +628,8 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Along = Along;
 		P.Height = H[I];
 		P.Half = I < Halves.size() ? Halves[I] : 2.3;
+		P.Lanes = Lanes != nullptr && I < Lanes->size() ? (*Lanes)[I] : 0;
+		P.OneWay = OneWays != nullptr && I < OneWays->size() && (*OneWays)[I] != 0;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		P.Bank = Banks[I];
@@ -716,6 +727,7 @@ void RidePlan::LaySides(const std::vector<int>& Path)
 	Network& N = *Net;
 	N.OnRide.assign(G.Edges.size(), 0);
 	for (int E : Path) N.OnRide[size_t(E)] = 1;
+	MapPoints(Road, N.OnRide, MainMapped);   // [OSM stage 5]
 	N.Side = std::make_unique<std::atomic<const SideRoad*>[]>(G.Edges.size());
 	for (size_t E = 0; E < G.Edges.size(); ++E) N.Side[E].store(nullptr, std::memory_order_relaxed);
 	N.EdgeState.assign(G.Edges.size(), 0);
@@ -811,7 +823,8 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	Side.Track = Class == "track" || Class == "service";   // ([OSM stage 4] a service road: no paint either)
 	Side.Gravel = G.SurfaceOf(int(E)) == "gravel";
 	const std::vector<double> Banks = RoadLine::BankOf(Line, {RoadLine::DesignSpeedOf(Class)});
-	const double Half = RoadLine::WidthOf(Class) * 0.5;
+	const RoadX::Across Ax = RoadX::Of(G, int(E), RoadLine::WidthOf(Class));   // [OSM stage 5]
+	const double Half = Ax.Half;
 	for (size_t I = 0; I < Line.size(); ++I)
 	{
 		for (int End = 0; End < 2; ++End)
@@ -867,6 +880,8 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		P.Along = Along[I];
 		P.Height = Y;
 		P.Half = Half;
+		P.Lanes = Ax.Lanes;
+		P.OneWay = Ax.OneWay;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
@@ -932,6 +947,16 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 			}
 			break;
 		}
+	}
+	// [OSM stage 5] Its mapped lights, crossings and humps; a mapped give-way or stop line at a mouth
+	// stands in for the rule's (mapped first, rule second, never both).
+	MapPoints(Side.Pts, Net->OnRide, Side.Mapped, E);
+	for (int End = 0; End < 2; ++End)
+	{
+		Mouth& M = Side.Mouths[End];
+		if (!M.Is || !M.GiveWay) continue;
+		for (const MappedMark& Mk : Side.Mapped)
+			if ((Mk.Kind == "give_way" || Mk.Kind == "stop") && (End == 0 ? Mk.Along : Side.Length - Mk.Along) < 25.0) M.GiveWay = false;
 	}
 	return true;
 }
@@ -1588,6 +1613,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	{
 		P2 At, Left;
 		double Height = 0.0, Half = 0.0, Along = 0.0, Nx = 0.0, Ny = 1.0, Nz = 0.0;
+		int Lanes = 0;          // [OSM stage 5] (RoadPoint's)
+		bool OneWay = false;
 		bool Deck = false;
 		double Bank = 0.0;
 		bool Bore = false, Mouth = false;   // in a tunnel; at one of its ends
@@ -1609,6 +1636,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Left = P2(Dir.Z, -Dir.X);
 		R.Height = P.Height;
 		R.Half = P.Half;
+		R.Lanes = P.Lanes;
+		R.OneWay = P.OneWay;
 		R.Along = P.Along;
 		R.Deck = P.Bridge;
 		R.Bank = P.Bank;
@@ -2103,7 +2132,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				if (Tb - Ta < 1e-4) continue;
 				const Row Ma = Between(A, B, Ta), Mb = Between(A, B, Tb);
 				const double Up = MarkUp(Mk.Kind);
-				Strip(Ma, Mb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Up, Up, Mk.Colour);
+				// ([OSM stage 5] a hump's slice rises with it)
+				Strip(Ma, Mb, Mk.Left, Mk.Right, Mk.Left, Mk.Right, Up + Mk.RiseAt(Ma.Along), Up + Mk.RiseAt(Mb.Along), Mk.Colour);
 			}
 		}
 		// Paint: edge lines on a road 6 m wide or more, and where there are two lanes a centre line of
@@ -2120,10 +2150,17 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Strip(A, B, Side * (A.Half - 0.3) + 0.065, Side * (A.Half - 0.3) - 0.065, Side * (B.Half - 0.3) + 0.065, Side * (B.Half - 0.3) - 0.065, PaintLift, PaintLift, Paint);
 			}
 		}
-		if (Half >= 2.5 && std::fmod(A.Along, 9.0) < 3.0) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
+		// ([OSM stage 5] a centre line where the map's lanes say, else by the rule; lane lines between a
+		// one-way road's lanes and within each half of a wide two-way one: Britain's 4 m dashes, 5 m gaps)
+		if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength)
+		{
+			if (RoadX::CentreLine(A.Lanes, A.OneWay, Half)) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
+			for (const double Off : RoadX::LaneLines(A.Lanes, A.OneWay, 1.0))
+				Strip(A, B, Off * A.Half + 0.06, Off * A.Half - 0.06, Off * B.Half + 0.06, Off * B.Half - 0.06, PaintLift, PaintLift, Paint);
+		}
 		// Cat's eyes (stage 7): a stud every 18.3 m (60 ft) down the middle of a road with a centre line,
 		// red ones along its edges where it has edge lines, out of the towns (lit streets have none).
-		if (Half >= 2.5 && !A.Bore && B.Along > A.Along && Britain())   // [stage 8] (Britain's)
+		if (RoadX::CentreLine(A.Lanes, A.OneWay, Half) && !A.Bore && B.Along > A.Along && Britain())   // [stage 8] (Britain's)
 		{
 			const bool Town = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
 			const double Stud = 18.288;

@@ -3,6 +3,7 @@
 // Every mark comes from nothing but the road and how far along it, so the patch a rider sees is the
 // patch the tyres feel, and every rider in co-op has the same ones.
 #include "WorldRide.h"
+#include "WorldRideRoadX.h"
 
 #include <algorithm>
 #include <cmath>
@@ -179,11 +180,14 @@ void RidePlan::RoadMarks(int Which, double From, double To, std::vector<RoadMark
 		ColourMark(M, 0.11f, 0.11f, 0.11f);
 		if (M.To >= From && M.From <= To) Out.push_back(M);
 	}
+	// [OSM stage 5] What the map puts on it: give-way and stop lines, crossings, humps, passing places.
+	MappedMarks(Which, From, To, Out);
 }
 
 double RidePlan::MarkUp(int Kind)
 {
-	return Kind == MarkTar ? 0.009 : Kind == MarkJoint ? 0.012 : Kind == MarkCover ? 0.01 : Kind == MarkGrit ? 0.007 : 0.006;
+	return Kind == MarkPaint ? 0.013 : Kind == MarkHump ? 0.004 : Kind == MarkBay ? 0.0 : Kind == MarkTar ? 0.009 : Kind == MarkJoint ? 0.012 : Kind == MarkCover ? 0.01
+		: Kind == MarkGrit ? 0.007 : 0.006;
 }
 
 RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
@@ -218,11 +222,12 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 	for (const RoadMark& M : Marks)
 	{
 		if (Hit.Along < M.From || Hit.Along > M.To || Hit.Off > M.Left || Hit.Off < M.Right) continue;
-		S.Kind = M.Kind == MarkTar ? SurfSlick : M.Kind == MarkGrit ? SurfGrit : M.Kind == MarkCover || M.Kind == MarkJoint ? SurfSteel : SurfTarmac;
+		S.Kind = M.Kind == MarkTar || M.Kind == MarkPaint ? SurfSlick : M.Kind == MarkGrit ? SurfGrit : M.Kind == MarkCover || M.Kind == MarkJoint ? SurfSteel : SurfTarmac;
 		// (eased in over 3 cm from its edges, or a joint's hump over its width)
 		const double In = std::min({Hit.Along - M.From, M.To - Hit.Along, M.Left - Hit.Off, Hit.Off - M.Right});
 		S.Drawn = MarkUp(M.Kind);
-		S.Lift = M.Kind == MarkJoint ? M.Lift * std::sin(3.141592653589793 * (Hit.Along - M.From) / (M.To - M.From)) : M.Lift * std::clamp(In / 0.03, 0.0, 1.0);
+		S.Lift = M.Kind == MarkHump ? M.RiseAt(Hit.Along)
+			: M.Kind == MarkJoint ? M.Lift * std::sin(3.141592653589793 * (Hit.Along - M.From) / (M.To - M.From)) : M.Lift * std::clamp(In / 0.03, 0.0, 1.0);
 	}
 	// The paint: a centre line of 3 m dashes with 6 m gaps on a road wide enough for two, edge lines on
 	// one 6 m wide or more (as RoadTile paints them; slick in the wet, as the tar).
@@ -231,7 +236,11 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 		const std::vector<RoadPoint>& Pts = RoadOf(Hit.Which);
 		const double RoadLen = Pts.empty() ? 0.0 : Pts.back().Along;
 		const bool Painted = Hit.Which == 0 || (Hit.Along > 12.0 && Hit.Along < RoadLen - 12.0);
-		if (Painted && Hit.Half >= 2.5 && std::fmod(Hit.Along, 9.0) < 3.0 && std::fabs(Hit.Off) < 0.06) S.Kind = SurfSlick;
+		const RoadPoint& Here = Pts[size_t(std::clamp(Hit.Index, 0, int(Pts.size()) - 1))];
+		if (Painted && RoadX::CentreLine(Here.Lanes, Here.OneWay, Hit.Half) && std::fmod(Hit.Along, RoadX::DashCycle) < RoadX::DashLength && std::fabs(Hit.Off) < 0.06) S.Kind = SurfSlick;
+		if (Painted && std::fmod(Hit.Along, RoadX::DashCycle) < RoadX::DashLength)
+			for (const double L : RoadX::LaneLines(Here.Lanes, Here.OneWay, Hit.Half))
+				if (std::fabs(Hit.Off - L) < 0.06) S.Kind = SurfSlick;
 		if (Painted && Hit.Half >= 2.95 && std::fabs(std::fabs(Hit.Off) - (Hit.Half - 0.3)) < 0.065) S.Kind = SurfSlick;
 	}
 	return S;

@@ -197,6 +197,8 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 		// [OSM stage 4] Its ground (water shapes, land use, parks, car parks, single trees) and its paths.
 		if (Store.Kept(CellStore::EKind::Grounds, Name, *Idx, File)) Out.Roads.AddGround(File);
 		if (Store.Kept(CellStore::EKind::Paths, Name, *Idx, File)) Out.Roads.AddPaths(File);
+		// [OSM stage 5] The road itself: lanes, roundabouts, lights, crossings, humps, barriers (OpenStreetMap).
+		if (Store.Kept(CellStore::EKind::RoadX, Name, *Idx, File)) Out.Roads.AddRoadX(File);
 		// Its place profile says whether it has sea: land below sea level in a cell with none (a polder) is land.
 		// [OSM stage 1] And where it is: the county and the country.
 		if (Store.Kept(CellStore::EKind::Profiles, Name, *Idx, File) && !File.Flag("guessed", true))
@@ -209,6 +211,8 @@ bool LoadArea(CellStore& Store, HeightStore& Heights, const std::vector<CellId>&
 			if (!Pl.Words.empty()) Out.Roads.CellPlaces.push_back(std::move(Pl));
 		}
 	}
+	Out.Roads.SnapRoadPoints();
+	if (!Out.Roads.Extras.empty() || !Out.Roads.RoadPoints.empty()) Out.Roads.Credits.push_back("Lanes, crossings and traffic lights: OpenStreetMap contributors (ODbL).");
 	std::sort(Hashes.begin(), Hashes.end());
 	std::string Joined;
 	for (size_t I = 0; I < Hashes.size(); ++I) Joined += (I > 0 ? "|" : "") + Hashes[I];

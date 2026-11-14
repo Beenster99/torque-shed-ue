@@ -269,6 +269,7 @@ bool Region::Stitch(const std::string& InId, const std::string& InTitle, const s
 			R.Limit = int(E.Num("l"));
 			R.Name = NameIt->second;
 			R.Oneway = int(E.Num("o"));
+			R.Gid = Text(E.Get("g"));
 			R.Line.push_back(Out.Nodes[size_t(R.A)]);
 			if (const Json* P = E.Get("p"))
 				for (size_t K = 0; K + 1 < P->A.size(); K += 2) R.Line.push_back(ToArea(P->A[K].N, P->A[K + 1].N));
@@ -480,6 +481,108 @@ void Region::AddPaths(const Json& File)
 			G.Pts = Steps(F, Row, 3);
 			if (G.Pts.size() >= 2) Ground.Paths.push_back(std::move(G));
 		}
+}
+
+// [OSM stage 5] {format, edge_cols, edges: [[g, lanes, fwd, bwd, width_dm, flags, park_l, park_r, maxheight_dm,
+// maxwidth_dm, maxweight_dt, half]], kinds, points: [[kind, lat, lon, heading, flags]], lines: [[kind, lat, lon, dlat,
+// dlon, ...]]} (the game's tools/roadx_bake.py).
+void Region::AddRoadX(const Json& File)
+{
+	if (!File.IsObject() || int(File.Num("format")) != RoadXFormat) return;
+	const Frame F = FrameOf();
+	if (const Json* Rows = File.Get("edges"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 12 || !Row.A[0].IsString()) continue;
+			RoadExtra X;
+			X.Lanes = int(Row.A[1].N);
+			X.Forward = int(Row.A[2].N);
+			X.Backward = int(Row.A[3].N);
+			X.Width = Row.A[4].N * 0.1;
+			X.Flags = int(Row.A[5].N);
+			X.ParkLeft = int(Row.A[6].N);
+			X.ParkRight = int(Row.A[7].N);
+			X.MaxHeight = Row.A[8].N * 0.1;
+			X.MaxWidth = Row.A[9].N * 0.1;
+			X.MaxWeight = Row.A[10].N * 0.1;
+			X.Half = Row.A[11].IsString() ? Row.A[11].S : std::string();
+			Extras[Row.A[0].S] = std::move(X);   // (a road over two cells is in both, the same)
+		}
+	const Json* Kinds = File.Get("kinds");
+	const int KindCount = Kinds != nullptr ? int(Kinds->A.size()) : 0;
+	if (const Json* Rows = File.Get("points"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 5 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			MappedPoint P;
+			P.Kind = Word(Kinds, Row.A[0]);
+			P.At = F.FromGeo(Row.A[1].N * 1e-5, Row.A[2].N * 1e-5);
+			P.Heading = Row.A[3].N;
+			P.Flags = int(Row.A[4].N);
+			RoadPoints.push_back(std::move(P));
+		}
+	if (const Json* Rows = File.Get("lines"))
+		for (const Json& Row : Rows->A)
+		{
+			if (Row.Size() < 5 || int(Row.A[0].N) < 0 || int(Row.A[0].N) >= KindCount) continue;
+			GroundShape G;
+			G.Kind = Word(Kinds, Row.A[0]);
+			G.Pts = Steps(F, Row, 1);
+			if (G.Pts.size() >= 2) Barriers.push_back(std::move(G));
+		}
+}
+
+const RoadExtra* Region::ExtraOf(int Edge) const
+{
+	if (Extras.empty() || Edge < 0 || Edge >= int(Edges.size()) || Edges[size_t(Edge)].Gid.empty()) return nullptr;
+	auto It = Extras.find(Edges[size_t(Edge)].Gid);
+	return It != Extras.end() ? &It->second : nullptr;
+}
+
+void Region::SnapRoadPoints()
+{
+	if (RoadPoints.empty()) return;
+	// (each edge's steps in 64 m squares, then each point looks in its own square and the eight round it)
+	constexpr double Cell = 64.0;
+	std::map<std::pair<int, int>, std::vector<std::pair<int, int>>> Buckets;
+	const auto Key = [](double X, double Z) { return std::make_pair(int(std::floor(X / Cell)), int(std::floor(Z / Cell))); };
+	for (size_t Ei = 0; Ei < Edges.size(); ++Ei)
+	{
+		const std::vector<P2>& L = Edges[Ei].Line;
+		for (size_t K = 0; K + 1 < L.size(); ++K)
+		{
+			const auto A = Key(std::min(L[K].X, L[K + 1].X), std::min(L[K].Z, L[K + 1].Z));
+			const auto B = Key(std::max(L[K].X, L[K + 1].X), std::max(L[K].Z, L[K + 1].Z));
+			for (int I = A.first; I <= B.first; ++I)
+				for (int J = A.second; J <= B.second; ++J) Buckets[{I, J}].push_back({int(Ei), int(K)});
+		}
+	}
+	for (MappedPoint& P : RoadPoints)
+	{
+		P.Edge = -1;
+		double Best = RoadPointSnap;
+		const auto Home = Key(P.At.X, P.At.Z);
+		for (int I = Home.first - 1; I <= Home.first + 1; ++I)
+			for (int J = Home.second - 1; J <= Home.second + 1; ++J)
+			{
+				auto It = Buckets.find({I, J});
+				if (It == Buckets.end()) continue;
+				for (const auto& St : It->second)
+				{
+					const std::vector<P2>& L = Edges[size_t(St.first)].Line;
+					const P2 A = L[size_t(St.second)], B = L[size_t(St.second) + 1];
+					const double Dx = B.X - A.X, Dz = B.Z - A.Z, Len2 = Dx * Dx + Dz * Dz;
+					const double T = Len2 > 0.0 ? std::clamp(((P.At.X - A.X) * Dx + (P.At.Z - A.Z) * Dz) / Len2, 0.0, 1.0) : 0.0;
+					const double D = std::hypot(A.X + Dx * T - P.At.X, A.Z + Dz * T - P.At.Z);
+					if (D >= Best) continue;
+					Best = D;
+					P.Edge = St.first;
+					double Along = 0.0;
+					for (int K = 0; K < St.second; ++K) Along += std::hypot(L[size_t(K) + 1].X - L[size_t(K)].X, L[size_t(K) + 1].Z - L[size_t(K)].Z);
+					P.Along = Along + T * std::sqrt(Len2);
+				}
+			}
+	}
 }
 
 void Region::AddFeatures(const Json& File)

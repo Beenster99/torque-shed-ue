@@ -40,7 +40,7 @@ struct WorldIndex
 	// The hash (the first 12 digits of its text's SHA-1) of each cell's own files, and each 5 degree block's sketch.
 	std::unordered_map<std::string, std::string> Streams, Trees, Features, Profiles, Sketches;
 	// [OSM stage 4] Each cell's ground (water shapes, land use, parks, car parks, single trees) and paths.
-	std::unordered_map<std::string, std::string> Grounds, Paths;
+	std::unordered_map<std::string, std::string> Grounds, Paths, RoadX;
 	// [towns stage 3] Each cell's buildings (every one's outline and height): a zip of its own, a
 	// release asset, read a tile at a time (tools/building_bake.py in the Godot game's repository).
 	std::unordered_map<std::string, CellEntry> Buildings;
@@ -59,7 +59,7 @@ public:
 	// GETs a URL, following redirects: the HTTP code (0 for no answer) and the body. Blocks.
 	using Fetcher = std::function<int(const std::string& Url, std::string& Body)>;
 	// A cell's own files beside the index.
-	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths };
+	enum class EKind { Streams, Trees, Features, Profiles, Sketches, Grounds, Paths, RoadX };
 	enum class EState { Here, Baked, Sea, Unknown };
 
 	// Where fetched cells (and the index) are kept, and other folders cells are found in (the game's own).

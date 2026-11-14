@@ -547,6 +547,56 @@ int main(int Argc, char** Argv)
 		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
 		std::printf("\n");
 	}
+	{
+		// [OSM stage 5] The road itself the cells brought (roadx): how much each rule will have to carry.
+		const Region& G = Plan->Area.Roads;
+		int Tagged = 0, WithLanes = 0, Single = 0, Widths = 0, Rings = 0, Lit = 0, Paved = 0, Halves = 0, Snapped = 0;
+		for (int E = 0; E < int(G.Edges.size()); ++E)
+			if (const RoadExtra* X = G.ExtraOf(E))
+			{
+				++Tagged;
+				WithLanes += X->Lanes > 0 ? 1 : 0;
+				Single += X->Lanes == 1 && X->Has(RoadExtra::Oneway) == false ? 1 : 0;
+				Widths += X->Width > 0.0 ? 1 : 0;
+				Rings += X->Has(RoadExtra::Roundabout) ? 1 : 0;
+				Lit += X->Has(RoadExtra::Lit) ? 1 : 0;
+				Paved += X->Has(RoadExtra::PaveLeft) || X->Has(RoadExtra::PaveRight) ? 1 : 0;
+				Halves += X->Half.empty() ? 0 : 1;
+			}
+		std::map<std::string, int> ByKind;
+		for (const MappedPoint& P : G.RoadPoints)
+		{
+			++ByKind[P.Kind];
+			Snapped += P.Edge >= 0 ? 1 : 0;
+		}
+		std::printf("Road itself: %d of %d edges tagged (%d with lanes, %d single track, %d widths, %d roundabout, %d lit, %d paved, %d dual halves); %d points, %d on a road;",
+			Tagged, int(G.Edges.size()), WithLanes, Single, Widths, Rings, Lit, Paved, Halves, int(G.RoadPoints.size()), Snapped);
+		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
+		std::printf("; %d barrier lines\n", int(G.Barriers.size()));
+	}
+	{
+		// [OSM stage 5] The mapped marks on the ride's own road, and none of their paint off its edge.
+		std::map<std::string, int> ByKind;
+		for (const RidePlan::MappedMark& M : Plan->MainMapped) ++ByKind[M.Kind];
+		std::vector<RidePlan::RoadMark> Marks;
+		const double Len = Plan->Road.empty() ? 0.0 : Plan->Road.back().Along;
+		Plan->MappedMarks(0, 0.0, Len, Marks);
+		int OffEdge = 0, Paint = 0, Humps = 0, Bays = 0;
+		for (const RidePlan::RoadMark& Mk : Marks)
+		{
+			Paint += Mk.Kind == RidePlan::MarkPaint ? 1 : 0;
+			Humps += Mk.Kind == RidePlan::MarkHump ? 1 : 0;
+			Bays += Mk.Kind == RidePlan::MarkBay ? 1 : 0;
+			if (Mk.Kind == RidePlan::MarkBay) continue;
+			double Half = 0.0;
+			for (size_t I = 0; I + 1 < Plan->Road.size(); ++I)
+				if (Plan->Road[I].Along <= Mk.From && Plan->Road[I + 1].Along > Mk.From) { Half = std::fmin(Plan->Road[I].Half, Plan->Road[I + 1].Half); break; }
+			if (Mk.Left > Half + 0.01 || Mk.Right < -Half - 0.01) ++OffEdge;
+		}
+		std::printf("Mapped on the ride: %d;", int(Plan->MainMapped.size()));
+		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
+		std::printf("; marks: %d paint, %d hump slices, %d bay slices; paint off the road's edge: %d\n", Paint, Humps, Bays, OffEdge);
+	}
 	if (const char* LinesAt = std::getenv("WORLD_RIDE_LINES_AT"))
 	{
 		// The walls, hedges and fences mapped within 80 m of lat,lon, and the roads' points there.
