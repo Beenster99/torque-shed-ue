@@ -830,6 +830,13 @@ bool UTorqueShedTest::RunStep(const FString& S)
 		}
 				if (Verb == TEXT("robot"))
 		{
+			if (P.Num() >= 3 && P[1] == TEXT("mph"))
+			{
+				ATorqueBikePawn::TestRobotMph = FMath::Clamp((float)FCString::Atod(*P[2]), 1.f, 150.f);
+				Bike->TestAutoRide(true);
+				Said(FString::Printf(TEXT("the robot rides at %.0f mph"), ATorqueBikePawn::TestRobotMph));
+				return true;
+			}
 			const bool bOn = P.Num() < 2 || P[1] != TEXT("off");
 			Bike->TestAutoRide(bOn);
 			Said(bOn ? TEXT("the robot rides") : TEXT("the robot's off"));

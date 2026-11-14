@@ -223,7 +223,7 @@ void ATorqueWeatherFx::TickRain(float Dt, double Show, const FVector& Wind)
 		// A streak: as long as the drop moves (against the camera) in about a 40th of a second, facing the
 		// camera, about a pixel wide wherever it is. Too near the eye it's left out (no bars across the screen).
 		const double Dist = Rel.Size();
-		if (Dist < 70.0)
+		if (Dist < 150.0)   // (round 143: one right by the lens drew a long white bar across the sky)
 		{
 			Xfs[I] = Hidden;
 			continue;
@@ -235,7 +235,7 @@ void ATorqueWeatherFx::TickRain(float Dt, double Show, const FVector& Wind)
 		Along = Moving > 1.0 ? Along / Moving : FVector::UpVector;
 		// (A drop is 1 to 3 mm across: its streak a hairline, about a pixel wide at 1080p wherever it is;
 		// build 135's were two pixels and read as thick rods, beenster.)
-		const double Len = FMath::Clamp(Moving * 0.035, 15.0, 150.0);
+		const double Len = FMath::Clamp(Moving * 0.035, 15.0, FMath::Min(150.0, Dist * 0.25));
 		const double Width = 0.25 + Dist * 0.0012;
 		const FMatrix M = FRotationMatrix::MakeFromZX(ToEye, Along);
 		Xfs[I] = FTransform(M.ToQuat(), D.Pos, FVector(Len / 100.0, Width / 100.0, 1.0));
@@ -330,7 +330,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 			// speed, so the tail stands a metre or so high at 50 mph, as in the reference.)
 			const double Fling = Speed * FMath::FRandRange(0.25, 0.55);
 			B.Vel = Fwd * Fling * (1.0 - FMath::Cos(Theta)) + FVector(0.0, 0.0, Fling * FMath::Sin(Theta))
-				+ Side * Fling * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.22 : 0.06);
+				+ Side * Fling * FMath::FRandRange(-1.0, 1.0) * (bFront ? 0.22 : 0.16);   // (a fan, seen from the side too)
 			if (bMist)
 			{
 				// The mist: a few soft, faint puffs that hang in the air behind.
@@ -338,7 +338,7 @@ void ATorqueWeatherFx::TickSpray(float Dt, double Wet)
 				B.Life = FMath::FRandRange(0.8f, 1.4f);
 				B.Size0 = FMath::FRandRange(8.0f, 16.0f);
 				B.Size1 = FMath::FRandRange(50.0f, 110.0f) * (float)FMath::Lerp(0.7, 1.2, Pace / 1.6);
-				B.Alpha = FMath::FRandRange(0.08f, 0.16f) * (float)Amount;
+				B.Alpha = FMath::FRandRange(0.12f, 0.22f) * (float)Amount;
 				B.Gravity = 120.0f;
 				B.Drag = 2.5f;
 				B.Soft = 1.0f;
