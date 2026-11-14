@@ -28,7 +28,7 @@ const TArray<FGroup>& Groups()
 {
 	static const TArray<FGroup> G = {
 		{TEXT("Engine and drivetrain"), {TEXT("engine"), TEXT("head"), TEXT("fuel"), TEXT("air_filter"), TEXT("oil_filter"), TEXT("spark_plugs"),
-			TEXT("cooling"), TEXT("gearbox"), TEXT("exhaust"), TEXT("ecu"), TEXT("final_drive"), TEXT("chain")}},
+			TEXT("cooling"), TEXT("gearbox"), TEXT("exhaust"), TEXT("final_drive"), TEXT("chain")}},
 		{TEXT("Chassis"), {TEXT("frame"), TEXT("fork"), TEXT("shock"), TEXT("swingarm"), TEXT("steering_damper"), TEXT("handlebars"),
 			TEXT("lever_guards"), TEXT("rearsets"), TEXT("guards"), TEXT("side_stand"), TEXT("centre_stand")}},
 		{TEXT("Wheels and brakes"), {TEXT("wheel"), TEXT("tyre"), TEXT("disc"), TEXT("caliper"), TEXT("pads"), TEXT("master")}},

@@ -17,6 +17,8 @@
 #include "Shed/TorqueShedPower.h"
 #include "Shed/TorqueShedLayout.h"
 #include "World/TorqueRideWorld.h"
+#include "TorqueTft.h"
+#include "RideModes.h"
 #include "World/TorqueWorldSubsystem.h"
 
 #include "BikeSim.h"
@@ -156,6 +158,7 @@ ATorqueBikePawn::ATorqueBikePawn()
 	SetNetUpdateFrequency(60.f);
 	SetMinNetUpdateFrequency(30.f);
 	NetBike = CreateDefaultSubobject<UTorqueNetBikeComponent>(TEXT("NetBike"));
+	Tft = CreateDefaultSubobject<UTorqueTftComponent>(TEXT("Tft"));   // [tft]
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -806,6 +809,11 @@ bool ATorqueBikePawn::BuildCatalogueModel()
 	// [fluids] The petrol it rides out with is what's in its tank in the shed (filled at the pump).
 	if (B->FuelCapacityOf(Bay) > 0.0f) Dash.FuelLitres = FMath::Clamp((double)B->FuelOf(Bay), 0.0, Dash.FuelCapacity);
 	Dash.HookClocks(this, ModelParts, Gauges, ShapeCube);
+	// [tft] Its TFT screen and phone sat nav light up; the ride modes start from the bike as built.
+	ModeBase = Spec;
+	bModeBase = bOwnSpec;
+	bCruise = false;
+	if (Tft) Tft->Hook(ModelParts, Gauges, bOwnSpec ? Spec : BikeSpec());
 	// [lights] Its lamps: the headlight, fog lights, indicators and rear light on their lenses.
 	Lights.Setup(Parts);
 	Lights.Hook(this, ModelParts, true);
@@ -1543,10 +1551,42 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// The clutch, held (Left Alt, or LB on the pad; F is get off): the engine spins free of the box in any
 	// gear, so it revs in gear and drives again as it's let out. The key (I): the engine off, or the
 	// starter cranks it and it fires (not on an empty tank, or with the bike down).
-	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch || bPadLB;
+	// [tft] The screen's buttons: LB held with the D-pad on the pad (beenster), 1 2 3 4 on the keys.
+	// LB alone is still the clutch; once the D-pad's pressed with it, it lets the clutch go and only
+	// works the screen until it's released.
+	const bool bHasScreen = Tft && Tft->HasMap();
+	if (!bPadLB) bTftPadNav = false;
+	const bool bTftPad = bHasScreen && bPadLB && !bPadSetsCam;
+	if (bHasScreen)
+	{
+		static const uint32 PadSony[4] = {ESonyButton::DLeft, ESonyButton::DRight, ESonyButton::DUp, ESonyButton::DDown};
+		static const FKey PadKey[4] = {EKeys::Gamepad_DPad_Left, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Down};
+		static const ETorqueKey Keys[4] = {ETorqueKey::TftLeft, ETorqueKey::TftRight, ETorqueKey::TftUp, ETorqueKey::TftDown};
+		for (int32 I = 0; I < 4; ++I)
+		{
+			const bool bPad = bTftPad && (SonyHit(PadSony[I]) || Just(PadKey[I]));
+			if (bPad) bTftPadNav = true;
+			if (bPad || FTorqueKeys::Just(PC, Keys[I])) TftPress(I);
+		}
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftOverlay)) Tft->ToggleOverlay();
+		if (FTorqueKeys::Just(PC, ETorqueKey::TftArrange)) Tft->ToggleArrange();
+		if (Tft->Arranging())
+		{
+			if (FTorqueKeys::Just(PC, ETorqueKey::CamCloser)) Tft->ArrangeSize(1);
+			if (FTorqueKeys::Just(PC, ETorqueKey::CamFarther)) Tft->ArrangeSize(-1);
+		}
+	}
+	// Cruise control (T; on the pad LB with a click of the left stick): let go by either brake or the clutch.
+	if (FTorqueKeys::Just(PC, ETorqueKey::Cruise) || (bPadLB && (SonyHit(ESonyButton::L3) || Just(EKeys::Gamepad_LeftThumbstick)))) ToggleCruise();
+	Sim->ClutchIn = FTorqueKeys::Down(PC, ETorqueKey::Clutch) || bTestClutch || (bPadLB && !bTftPadNav);
+	if (bCruise && (FrontBrake > 0.05 || RearBrake > 0.05 || Sim->ClutchIn || Sim->Gear <= 0 || Sim->IsCrashed || !Sim->EngineOn))
+	{
+		bCruise = false;
+		if (Tft) Tft->Notice(TEXT("Cruise off"));
+	}
 	if (FTorqueKeys::Just(PC, ETorqueKey::Ignition)) PressIgnition();
 	// ABS: the D-pad's down or the B key. Off, the rear brake will lock the wheel.
-	const bool bPadDDown = !bPadSetsCam && (SonyHit(ESonyButton::DDown) || Just(EKeys::Gamepad_DPad_Down));
+	const bool bPadDDown = !bPadSetsCam && !bTftPad && (SonyHit(ESonyButton::DDown) || Just(EKeys::Gamepad_DPad_Down));
 	if (bPadDDown || FTorqueKeys::Just(PC, ETorqueKey::Abs))
 	{
 		// Only on a bike that has it (as Torque Shed: the ECU's aid); none, it stays off.
@@ -1640,7 +1680,7 @@ void ATorqueBikePawn::ReadInput(float Dt)
 		if (Keep.bSaved) Keep.Save();
 	}
 	// The horn while J or L3 is held (Torque Shed's pad horn; the d-pad's left and right are the indicators).
-	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0;
+	const bool bHorn = FTorqueKeys::Down(PC, ETorqueKey::Horn) || (!bPadLB && (PC->IsInputKeyDown(EKeys::Gamepad_LeftThumbstick) || (SonyDown & ESonyButton::L3) != 0));   // (LB + L3 is the cruise control)
 	if (bHorn != bHornDown && HornId)
 		if (UTorqueSfx* Sfx = UTorqueSfx::Get(this)) Sfx->SetHorn(HornId, bHorn);
 	bHornDown = bHorn;
@@ -1653,13 +1693,13 @@ void ATorqueBikePawn::ReadInput(float Dt)
 	// round dipped, main beam, fog lights (when fitted), off.
 	{
 		bool bOk = false;
-		if (!bPadSetsCam && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
+		if (!bPadSetsCam && !bTftPad && (SonyHit(ESonyButton::DUp) || Just(EKeys::Gamepad_DPad_Up))) LightsNote(Lights.CycleBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Headlight)) LightsNote(Lights.CycleBeam(bOk), bOk);   // L cycles: dipped, main, main + fog, off
 		if (FTorqueKeys::Just(PC, ETorqueKey::MainBeam)) LightsNote(Lights.ToggleMainBeam(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::FogLights)) LightsNote(Lights.ToggleFog(bOk), bOk);
 		if (FTorqueKeys::Just(PC, ETorqueKey::Hazards)) LightsNote(Lights.ToggleHazard(bOk), bOk);
-		const bool bPadLeft = SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left);
-		const bool bPadRight = SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right);
+		const bool bPadLeft = !bTftPad && (SonyHit(ESonyButton::DLeft) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Left));
+		const bool bPadRight = !bTftPad && (SonyHit(ESonyButton::DRight) || PC->WasInputKeyJustPressed(EKeys::Gamepad_DPad_Right));
 		const bool bPadOther = bPadLeft ? ((SonyDown & ESonyButton::DRight) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Right))
 			: bPadRight && ((SonyDown & ESonyButton::DLeft) != 0 || PC->IsInputKeyDown(EKeys::Gamepad_DPad_Left));
 		if (bPadOther) LightsNote(Lights.ToggleHazard(bOk), bOk);
@@ -2622,6 +2662,8 @@ void ATorqueBikePawn::StepSim()
 	}
 	if (TestMove >= 0) TestMoveStep();
 	Sim->Throttle = Throttle;
+	// [tft] Cruise control holds its speed; more throttle than it's giving overrides it.
+	if (bCruise) Sim->Throttle = FMath::Max(Throttle, TorqueSim::CruiseThrottle(Sim->Speed, CruiseMs, CruiseHeld, SimDt));
 	Sim->FrontBrake = FrontBrake;
 	Sim->RearBrake = RearBrake;
 	Sim->LeanInput = Lean;
@@ -2814,6 +2856,7 @@ void ATorqueBikePawn::Tick(float DeltaSeconds)
 		if (Dash.bAtFuel && FMath::Abs(Sim->Speed) < 0.3) Dash.FuelLitres = FMath::Min(Dash.FuelCapacity, Dash.FuelLitres + 0.9 * DeltaSeconds);
 	}
 	Dash.UpdateClocks(FTorqueSettings::Get().Units);
+	StepTft(DeltaSeconds, bRemote);   // [tft]
 	StepLights(DeltaSeconds, bRemote);   // [lights]
 	if (!bRemote)
 	{
@@ -3902,6 +3945,149 @@ void ATorqueBikePawn::StepLights(float Dt, bool bRemote)
 			Sfx->PlayMadeOn(FTorqueLights::Click(Heard > 0), FTorqueLights::ClickRate, Root, FVector(60.0, 0.0, 100.0), -14.0f);
 }
 
+// --- [tft] The bike's screen ------------------------------------------------------------------
+
+void ATorqueBikePawn::ApplyRideMode()
+{
+	// Only a bike whose dash has ride modes: any other rides exactly as it was built.
+	if (!Tft || !Sim || !bModeBase || !Tft->GetMenu().HasModes()) return;
+	TorqueSim::ApplyMode(*Sim, ModeBase, Tft->GetMenu().Set());
+	// ABS as the mode has it (the B key still switches it).
+	bHasAbs[0] = ModeBase.AbsFront;
+	bHasAbs[1] = ModeBase.AbsRear;
+	bAbs = Sim->Build.AbsFront || Sim->Build.AbsRear;
+}
+
+void ATorqueBikePawn::TftPress(int32 Which)
+{
+	if (!Tft || !Sim) return;
+	if (Tft->Arranging())
+	{
+		static const int32 Dx[4] = {-1, 1, 0, 0}, Dy[4] = {0, 0, -1, 1};
+		Tft->ArrangeMove(Dx[Which & 3], Dy[Which & 3]);
+		return;
+	}
+	static const TorqueTft::Press Presses[4] = {TorqueTft::Press::Left, TorqueTft::Press::Right, TorqueTft::Press::Up, TorqueTft::Press::Down};
+	Tft->Press(Presses[Which & 3], Sim->Speed, Throttle);
+	if (Tft->TakeModeDirty()) ApplyRideMode();
+}
+
+void ATorqueBikePawn::ToggleCruise()
+{
+	if (!Tft || !Sim) return;
+	if (bCruise)
+	{
+		bCruise = false;
+		Tft->Notice(TEXT("Cruise off"));
+		return;
+	}
+	const bool bMetric = FTorqueSettings::Get().Units == 0;
+	if (!bModeBase || !ModeBase.Aids.Cruise) Tft->Notice(TEXT("No cruise control on this bike"));
+	else if (Sim->Speed < 11.0 || Sim->Gear <= 0) Tft->Notice(bMetric ? TEXT("Cruise needs 40 km/h in gear") : TEXT("Cruise needs 25 mph in gear"));
+	else
+	{
+		bCruise = true;
+		CruiseMs = Sim->Speed;
+		CruiseHeld = Throttle;
+		Tft->Notice(FString::Printf(TEXT("Cruise set %d %s"), FMath::RoundToInt(CruiseMs * (bMetric ? 3.6 : 2.23694)), bMetric ? TEXT("km/h") : TEXT("mph")));
+	}
+}
+
+void ATorqueBikePawn::StepTft(float Dt, bool bRemote)
+{
+	if (!Tft || !Sim || !Tft->HasMap()) return;
+	if (!bRemote && IsLocallyControlled()) Tft->Own();
+	if (Tft->TakeModeDirty() && !bRemote) ApplyRideMode();
+	const bool bMetric = FTorqueSettings::Get().Units == 0;
+	const double PerMs = bMetric ? 3.6 : 2.23694;
+	const ATorqueGameState* GS = GetWorld() ? GetWorld()->GetGameState<ATorqueGameState>() : nullptr;
+	TorqueTft::State St;
+	St.Metric = bMetric;
+	St.Speed = FMath::Abs(Dash.Speed) * PerMs;
+	St.Rpm = Dash.Rpm;
+	St.Redline = Dash.Redline;
+	if (Dash.RevMax > 0.0 && Dash.RevStep > 0.0)
+	{
+		St.RevMax = Dash.RevMax;
+		St.RevStep = Dash.RevStep;
+	}
+	else FTorqueDash::RevScale(Dash.Redline, St.RevMax, St.RevStep);
+	FTorqueDash::SpeedScale(Dash.TopSpeedMs > 1.0 ? Dash.TopSpeedMs : 60.0, bMetric, St.SpeedMax, St.SpeedStep);
+	St.Gear = Dash.Gear;
+	St.EngineOn = Dash.bEngineOn && (bRemote ? Lights.bIgnition : Sim->EngineOn);
+	St.Fuel = Dash.FuelCapacity > 0.0 ? FMath::Clamp(Dash.FuelLitres / Dash.FuelCapacity, 0.0, 1.0) : 0.0;
+	St.RangeKm = Dash.RangeKm(Sim->Build);
+	St.TripKm = Dash.TripKm;
+	St.TotalKm = Dash.TripKm;
+	St.TopKmh = Dash.TopKmh;
+	St.KmPerLitre = Dash.TripEconomy();
+	{
+		const double Hour = GS && GS->GetHour() >= 0.0f ? GS->GetHour() : 13.0;
+		St.Hour = FMath::Clamp((int32)Hour, 0, 23);
+		St.Minute = FMath::Clamp((int32)((Hour - FMath::FloorToDouble(Hour)) * 60.0), 0, 59);
+	}
+	St.AirC = Sim->Heat.Air;
+	St.EngineC = Sim->Heat.Engine;
+	St.HasRevs = true;
+	St.HasShiftLight = true;
+	St.IndLeft = Lights.Indicating() && (Lights.bHazard || Lights.Side < 0);
+	St.IndRight = Lights.Indicating() && (Lights.bHazard || Lights.Side > 0);
+	St.HighBeam = Lights.MainOn();
+	St.Lights = Lights.HeadOn();
+	St.Fog = Lights.FogOn();
+	St.LowFuel = St.Fuel < 0.12;
+	St.Hot = Sim->Heat.Engine > 112.0;
+	St.AbsOff = (bHasAbs[0] || bHasAbs[1]) && !bAbs;
+	St.Blink = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	St.Cruise = bCruise;
+	St.CruiseSpeed = CruiseMs * PerMs;
+	for (int32 I = 0; I < 2; ++I)
+	{
+		// The tyre as it is now: its cold pressure (absolute) grown with its heat.
+		const double TyreNowC = Sim->Heat.TyreTemp(I);
+		const double Cold = (bModeBase ? ModeBase.TyreBar[I] + ModeBase.TyreOff[I] : St.TyreBar[I]) + 1.013;
+		St.TyreC[I] = TyreNowC;
+		St.TyreBar[I] = FMath::Max(Cold * (273.15 + TyreNowC) / 293.15 - 1.013, 0.0);
+	}
+	// The sat nav's words, as the HUD's box had them.
+	St.Nav = Dash.bNav;
+	St.NavOff = Dash.bNavOff;
+	St.NavTurn = Dash.NavTurn;
+	St.NavMetres = Dash.NavTo;
+	if (Dash.bNav)
+	{
+		St.NavDistance = TCHAR_TO_UTF8(*FTorqueDash::NavDistance(Dash.NavTo, bMetric));
+		St.NavOnto = TCHAR_TO_UTF8(*Dash.NavOnto);
+		St.NavLeft = TCHAR_TO_UTF8(*FTorqueDash::NavDistance(Dash.NavLeft, bMetric));
+		// When it'll get there, at the pace of open roads (or as it's going now, if faster).
+		const double Pace = FMath::Max(FMath::Abs(Dash.Speed), 16.0);
+		const double Arrive = (GS && GS->GetHour() >= 0.0f ? GS->GetHour() : 13.0) + Dash.NavLeft / Pace / 3600.0;
+		const int32 Mins = (int32)(FMath::Fmod(Arrive, 24.0) * 60.0);
+		St.NavEta = TCHAR_TO_UTF8(*FString::Printf(TEXT("%02d:%02d"), (Mins / 60) % 24, Mins % 60));
+	}
+	St.NavRoad = TCHAR_TO_UTF8(*Dash.NavRoad);
+	St.NavPlace = TCHAR_TO_UTF8(*Dash.NavPlace);
+	St.Limit = Dash.NavLimit;
+	St.LimitNational = Dash.bNavLimitNational;
+	St.LimitAssumed = Dash.bNavLimitAssumed;
+	Tft->Step(Dt, St, GetActorLocation(), GetActorForwardVector(), Sim->Speed, GS ? GS->GetDayLight() : 1.0f);
+}
+
+FString ATorqueBikePawn::TestTft(const FString& What)
+{
+	if (!Tft) return TEXT("tft: none");
+	const FString W = What.ToLower();
+	if (W == TEXT("left")) TftPress(0);
+	else if (W == TEXT("right")) TftPress(1);
+	else if (W == TEXT("up")) TftPress(2);
+	else if (W == TEXT("down")) TftPress(3);
+	else if (W == TEXT("overlay")) Tft->ToggleOverlay();
+	else if (W == TEXT("arrange")) Tft->ToggleArrange();
+	else if (W == TEXT("cruise")) ToggleCruise();
+	return FString::Printf(TEXT("tft: %s, cruise %d (%.1f m/s), power mode %.2f, engine brake %.2f, abs %d%d"), *Tft->Describe(), bCruise ? 1 : 0, CruiseMs,
+		Sim ? Sim->Build.PowerMode : 0.0, Sim ? Sim->Build.EngineBrake : 0.0, Sim && Sim->Build.AbsFront ? 1 : 0, Sim && Sim->Build.AbsRear ? 1 : 0);
+}
+
 FString ATorqueBikePawn::TestLights(const FString& What)
 {
 	FString Said;
@@ -4318,6 +4504,7 @@ bool ATorqueBikePawn::AdjustChase(const APlayerController* PC, float Dt, double 
 	// (First person moves in centimetres, a tenth as fast; "further" there is back from the bars.)
 	const double MoveScale = bFirst ? 0.1 : 1.0;
 	double DistBy = KeyAxis(ETorqueKey::CamFarther, ETorqueKey::CamCloser, 30.0 * MoveScale, 300.0 * MoveScale);
+	if (Tft && Tft->Arranging()) DistBy = 0.0;   // [tft] arranging the HUD, those keys size it
 	double HeightBy = KeyAxis(ETorqueKey::CamHigher, ETorqueKey::CamLower, 15.0 * (bFirst ? 0.2 : 1.0), 120.0 * (bFirst ? 0.2 : 1.0));
 	double TiltBy = KeyAxis(ETorqueKey::CamTiltDown, ETorqueKey::CamTiltUp, 1.5, 15.0);
 	if (bPadHeld)

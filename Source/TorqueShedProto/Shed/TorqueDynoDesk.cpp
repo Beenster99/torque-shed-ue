@@ -73,7 +73,7 @@ FSetting Read(const UTorqueBuildSubsystem* B, int32 Bay, const FString& Key)
 		if (Why.empty() && !bPartThere) Why = "There's no " + Std(TorqueShedParts::SlotName(FName(*Ue(Home))).ToLower()) + " fitted.";
 		if (K == "chain") TorqueFit::TuneLimits(K, S.Lo, S.Hi);
 		else T.Range(K, S.Lo, S.Hi);
-		if (Why.empty() && S.Lo >= S.Hi) Why = "Can't be changed with this ECU.";
+		if (Why.empty() && S.Lo >= S.Hi) Why = "Can't be changed with this dash.";
 		S.bBlocked = !Why.empty();
 		if (Why.empty() && (K == "map" || K == "ignition" || K == "limiter")) Why = T.EcuText(K);
 		const std::string Help = TorqueFit::AidHelp(K);
@@ -95,7 +95,7 @@ FString Reading(const UTorqueBuildSubsystem* B, int32 Bay, const FString& Key, d
 	return Out;
 }
 
-// The aids this bike's ECU has (only those are shown on the Rider aids tab).
+// The aids this bike's dash has (only those are shown on the Rider aids tab).
 bool AidShown(const UTorqueBuildSubsystem* B, int32 Bay, const std::string& Key)
 {
 	if (Key.rfind("aid_", 0) != 0) return true;
@@ -452,7 +452,7 @@ void FTorqueDynoDesk::Draw(AHUD* Hud, UCanvas* Canvas, const UTorqueBuildSubsyst
 	if (!Canvas || !B) return;
 	const TArray<int32> Ids = InReach(B);
 	if (!Ids.Contains(Bay)) Bay = Ids.Num() > 0 ? Ids[0] : INDEX_NONE;
-	Relist(B);   // (the parts can change under you: a co-op mate unbolting the ECU)
+	Relist(B);   // (the parts can change under you: a co-op mate unbolting the dash)
 	const float S = TorqueUi::Scale(Canvas);
 	auto Box = [&](float X, float Y, float W, float H, const FLinearColor& C) { TorqueUi::Rect(Canvas, X, Y, W, H, C); };
 	auto Over = [&Mouse](float X, float Y, float W, float H) { return Mouse.X >= X && Mouse.X <= X + W && Mouse.Y >= Y && Mouse.Y <= Y + H; };

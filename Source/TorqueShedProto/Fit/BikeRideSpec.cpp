@@ -260,7 +260,9 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 {
 	if (!Lay.Loaded()) return false;
 	RsBuild B{Lay, RideParts(Lay, In.Parts), In.Health, 2, {}};
-	const BikeTune Tn(Lay, B.Parts, In.Tune, B.Health("ecu"));
+	// (the aids' box: the dash's own electronics where the catalogue has no ECUs)
+	const bool DashAids = !Lay.Catalogue() || Lay.Catalogue()->Ids("ecu").empty();
+	const BikeTune Tn(Lay, B.Parts, In.Tune, B.Health(DashAids ? "dashboard" : "ecu"));
 	for (const std::string& Slot : In.Lightened)
 	{
 		const auto P = B.Parts.find(Slot);
@@ -368,6 +370,11 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 					Notes->push_back(std::string("The ") + End + " tyre's bead isn't seated right: it grips less. Refit it on the tyre changer.");
 		// Off a tyre's best pressure it grips less on tarmac; a little soft finds more grip in the dirt.
 		const double DevF = Tn.PressureOffset(true), DevR = Tn.PressureOffset(false);
+		// [TFT] The pressures as set (bar, cold) and how far off their best, for the dash's tyre page.
+		S.TyreBar[0] = Tn.Value("psi_f");
+		S.TyreBar[1] = Tn.Value("psi_r");
+		S.TyreOff[0] = DevF;
+		S.TyreOff[1] = DevR;
 		const double BeadF = BeadGrip(In.BeadFront), BeadR = BeadGrip(In.BeadRear);
 		auto GripOf = [&](const Json& Ty, double Width, double Scale, int Fit, const char* Surf, double Dev, double BeadK) {
 			const bool Road = std::string(Surf) == "tarmac";
@@ -422,6 +429,26 @@ bool RideSpec(const BikeLayout& Lay, const RideSpecInput& In, TorqueSim::BikeSpe
 		S.AbsFront = S.AbsRear = Tn.AidStrength("abs") > 0.0;
 		S.TractionStrength = Tn.AidStrength("traction");
 		S.TractionControl = S.TractionStrength > 0.0;
+		// [ride modes] What the dash lets the rider set from the saddle (Sim/RideModes.h): Touring is
+		// these, the desk's levels.
+		TorqueSim::BikeSpec::AidCaps& C = S.Aids;
+		C.Modes = Tn.HasModes();
+		C.Abs = Tn.HasAid("abs");
+		C.Traction = Tn.HasAid("traction");
+		C.Lean = Tn.HasAid("lean_traction");
+		C.Wheelie = Tn.HasAid("anti_wheelie");
+		C.Stability = Tn.HasAid("stability");
+		C.Cruise = Tn.DashAids() && Tn.DashHas("cruise");
+		C.Firm = Tn.EcuAid();
+		C.Desk[0] = Tn.AidLevel("abs");
+		C.Desk[1] = Tn.AidLevel("traction");
+		C.Desk[2] = Tn.AidLevel("lean_traction");
+		C.Desk[3] = Tn.AidLevel("anti_wheelie");
+		C.Desk[4] = Tn.AidLevel("stability");
+		const std::string Style = Lay.StyleFor(B.Parts);
+		C.Enduro = Style == "adventure" || Style == "scrambler" || Style == "mx" || Style == "supermoto";
+		C.Race = Style == "sport" || Style == "race" || Style == "naked" || Style == "supermoto";
+		C.SemiActive = B.Part("fork").Flag("electronic") && B.Part("shock").Flag("electronic");
 	}
 
 	// Gearbox, sprockets and chain.

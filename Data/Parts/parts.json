@@ -2503,6 +2503,63 @@
 			],
 			"pack": "classic",
 			"price": 630
+		},
+		"semi_active_sport": {
+			"name": "Semi-active sport fork",
+			"description": "120 mm upside-down fork with electronic damping. With a semi-active shock and a TFT dash, the ride mode sets it: soft for comfort, firm for sport.",
+			"mass": 8.9,
+			"type": "Upside-down",
+			"travel": 0.12,
+			"spring": 34000.0,
+			"bump": 2700.0,
+			"rebound": 3800.0,
+			"adjust": 4,
+			"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+			"length": 0.72,
+			"offset": 0.028,
+			"color": [
+				0.1,
+				0.1,
+				0.11
+			],
+			"style": "usd",
+			"styles": [
+				"sport",
+				"race",
+				"naked",
+				"roader",
+				"tourer"
+			],
+			"electronic": true,
+			"price": 1150
+		},
+		"semi_active_adventure": {
+			"name": "Semi-active adventure fork",
+			"description": "230 mm upside-down fork with electronic damping. With a semi-active shock and a TFT dash, the ride mode sets it, with an off-road setting for loose ground.",
+			"mass": 10.4,
+			"type": "Upside-down",
+			"travel": 0.23,
+			"spring": 16500.0,
+			"bump": 1600.0,
+			"rebound": 2500.0,
+			"adjust": 4,
+			"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+			"length": 0.92,
+			"offset": 0.05,
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"style": "usd",
+			"styles": [
+				"adventure",
+				"scrambler",
+				"supermoto",
+				"tourer"
+			],
+			"electronic": true,
+			"price": 1250
 		}
 	},
 	"shock": {
@@ -2626,6 +2683,59 @@
 				"mx",
 				"supermoto"
 			]
+		},
+		"semi_active_mono": {
+			"name": "Semi-active mono-shock",
+			"description": "130 mm shock with electronic damping. With a semi-active fork and a TFT dash, the ride mode sets it.",
+			"mass": 4.6,
+			"type": "Mono-shock",
+			"travel": 0.13,
+			"spring": 38000.0,
+			"bump": 2900.0,
+			"rebound": 4100.0,
+			"adjust": 4,
+			"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+			"layout": "mono",
+			"color": [
+				0.1,
+				0.1,
+				0.11
+			],
+			"styles": [
+				"sport",
+				"race",
+				"naked",
+				"roader",
+				"tourer"
+			],
+			"electronic": true,
+			"price": 780
+		},
+		"semi_active_adventure_mono": {
+			"name": "Semi-active adventure shock",
+			"description": "240 mm shock with electronic damping. With a semi-active fork and a TFT dash, the ride mode sets it, with an off-road setting.",
+			"mass": 5.2,
+			"type": "Mono-shock",
+			"travel": 0.24,
+			"spring": 17500.0,
+			"bump": 1700.0,
+			"rebound": 2500.0,
+			"adjust": 4,
+			"adjust_name": "Electronic (set by the ride mode), plus preload, bump and rebound",
+			"layout": "mono",
+			"color": [
+				0.1,
+				0.1,
+				0.11
+			],
+			"styles": [
+				"adventure",
+				"scrambler",
+				"supermoto",
+				"tourer"
+			],
+			"electronic": true,
+			"price": 840
 		}
 	},
 	"wheel": {
@@ -9435,7 +9545,7 @@
 	"dashboard": {
 		"analog_speedo": {
 			"name": "Analogue speedo",
-			"description": "Single round speedo, with a little LCD window in its face for the gear, trip, mpg and range.",
+			"description": "Single round speedo, with a little LCD window in its face for the gear, trip, mpg and range. Plain ABS, no other rider aids.",
 			"mass": 0.5,
 			"style": "analog",
 			"features": [
@@ -9456,11 +9566,17 @@
 				"bobber",
 				"chopper",
 				"scrambler"
-			]
+			],
+			"aids": [
+				"abs"
+			],
+			"aid_level": 0.75,
+			"tune_range": 0.25,
+			"limiter_add": 0
 		},
 		"twin_clocks": {
 			"name": "Twin clocks",
-			"description": "Speedo and rev counter side by side, with LCD windows for the gear, trip, mpg and range.",
+			"description": "Speedo and rev counter side by side, with LCD windows for the gear, trip, mpg and range. Plain ABS, no other rider aids.",
 			"mass": 0.8,
 			"style": "twin",
 			"features": [
@@ -9482,11 +9598,17 @@
 				"roader",
 				"tourer",
 				"naked"
-			]
+			],
+			"aids": [
+				"abs"
+			],
+			"aid_level": 0.75,
+			"tune_range": 0.25,
+			"limiter_add": 0
 		},
 		"lcd_basic": {
 			"name": "LCD dash",
-			"description": "Speed, revs and a gear readout, with trip, mpg and range.",
+			"description": "Speed, revs and a gear readout, with trip, mpg and range. Plain ABS, no other rider aids.",
 			"mass": 0.4,
 			"style": "lcd",
 			"features": [
@@ -9506,11 +9628,17 @@
 				"mx",
 				"supermoto",
 				"naked"
-			]
+			],
+			"aids": [
+				"abs"
+			],
+			"aid_level": 0.75,
+			"tune_range": 0.25,
+			"limiter_add": 0
 		},
 		"tft_colour": {
-			"name": "Colour TFT dash",
-			"description": "Full colour with a shift light, trip computer, cruise control and ride modes (Sport, Tour, Wet) on an ECU with rider aids.",
+			"name": "Colour TFT dash, 6.5 inch",
+			"description": "The all-rounder: a bright colour screen with four designs, a built-in sat nav map, shift light, cruise control, ride modes, traction control, wheelie control and ABS, all set from the bars.",
 			"mass": 0.6,
 			"style": "tft",
 			"features": [
@@ -9522,7 +9650,8 @@
 				"economy",
 				"range",
 				"cruise",
-				"modes"
+				"modes",
+				"map"
 			],
 			"color": [
 				0.08,
@@ -9533,12 +9662,32 @@
 				"adventure",
 				"tourer",
 				"roader",
-				"sport"
-			]
+				"sport",
+				"naked",
+				"cruiser"
+			],
+			"unit": "colour",
+			"screen": "wide",
+			"glass": [
+				0.142,
+				0.085
+			],
+			"price": 480,
+			"aids": [
+				"abs",
+				"traction",
+				"anti_wheelie",
+				"lean_traction",
+				"stability"
+			],
+			"aid_level": 0.8,
+			"tune_range": 1.0,
+			"limiter_add": 600,
+			"type": "6.5 inch"
 		},
 		"race_logger": {
 			"name": "Race data logger",
-			"description": "Shift light, gear, revs, a top-speed log and the trip computer, with ride modes on an ECU with rider aids.",
+			"description": "Shift light, gear, revs, a top-speed log and the trip computer, with race electronics: ride modes, traction control, wheelie control, stability control and ABS.",
 			"mass": 0.5,
 			"style": "race",
 			"features": [
@@ -9559,11 +9708,21 @@
 			],
 			"styles": [
 				"race"
-			]
+			],
+			"aids": [
+				"abs",
+				"traction",
+				"anti_wheelie",
+				"lean_traction",
+				"stability"
+			],
+			"aid_level": 0.9,
+			"tune_range": 1.0,
+			"limiter_add": 1000
 		},
 		"tft_naked": {
-			"name": "Streetfighter TFT dash",
-			"description": "A slim 5 inch colour TFT for a modern naked: big gear readout, shift light, trip computer, cruise control and ride modes (Sport, Tour, Wet) on an ECU with rider aids.",
+			"name": "Streetfighter TFT dash, 5 inch",
+			"description": "A slim colour screen for a modern naked. Four screen designs, a built-in sat nav map, shift light, cruise control, ride modes, traction control, wheelie control and ABS, all set from the bars.",
 			"mass": 0.5,
 			"style": "tft",
 			"features": [
@@ -9575,7 +9734,8 @@
 				"economy",
 				"range",
 				"cruise",
-				"modes"
+				"modes",
+				"map"
 			],
 			"color": [
 				0.08,
@@ -9585,24 +9745,45 @@
 			"styles": [
 				"naked",
 				"sport",
-				"roader"
+				"roader",
+				"supermoto",
+				"scrambler"
 			],
-			"price": 420
+			"price": 420,
+			"unit": "street",
+			"screen": "wide",
+			"glass": [
+				0.11,
+				0.066
+			],
+			"aids": [
+				"abs",
+				"traction",
+				"anti_wheelie",
+				"lean_traction",
+				"stability"
+			],
+			"aid_level": 0.8,
+			"tune_range": 1.0,
+			"limiter_add": 600,
+			"type": "5 inch"
 		},
 		"tft_touring": {
-			"name": "Touring TFT dash",
-			"description": "A big 7 inch colour TFT: trip computer, range, cruise control and ride modes (Sport, Tour, Wet) on an ECU with rider aids. Easy to read at a glance on a long day.",
+			"name": "Touring TFT dash, 10 inch widescreen",
+			"description": "A wide screen that shows the clocks and the sat nav map side by side. Four designs, cruise control, ride modes, traction control, wheelie control and ABS, all set from the bars. Easy to read on a long day.",
 			"mass": 0.9,
 			"style": "tft",
 			"features": [
 				"speed",
 				"rpm",
 				"gear",
+				"shift_light",
 				"trip",
 				"economy",
 				"range",
 				"cruise",
-				"modes"
+				"modes",
+				"map"
 			],
 			"color": [
 				0.08,
@@ -9615,7 +9796,74 @@
 				"roader",
 				"cruiser"
 			],
-			"price": 480
+			"price": 620,
+			"unit": "touring",
+			"screen": "ultra",
+			"glass": [
+				0.232,
+				0.087
+			],
+			"aids": [
+				"abs",
+				"traction",
+				"anti_wheelie",
+				"lean_traction",
+				"stability"
+			],
+			"aid_level": 0.8,
+			"tune_range": 1.0,
+			"limiter_add": 600,
+			"type": "10 inch widescreen"
+		},
+		"tft_compact": {
+			"name": "Compact TFT dash, 4 inch round",
+			"description": "A round colour screen the size of a classic clock, for bikes that want to stay looking simple. Four screen designs, a built-in sat nav map, ride modes, traction control, wheelie control and ABS, all set from the bars.",
+			"mass": 0.4,
+			"style": "tft",
+			"unit": "compact",
+			"screen": "round",
+			"glass": [
+				0.092,
+				0.092
+			],
+			"features": [
+				"speed",
+				"rpm",
+				"gear",
+				"shift_light",
+				"trip",
+				"economy",
+				"range",
+				"cruise",
+				"modes",
+				"map"
+			],
+			"color": [
+				0.08,
+				0.08,
+				0.09
+			],
+			"styles": [
+				"classic",
+				"cafe",
+				"bobber",
+				"chopper",
+				"scrambler",
+				"supermoto",
+				"cruiser"
+			],
+			"price": 360,
+			"aids": [
+				"abs",
+				"traction",
+				"anti_wheelie",
+				"lean_traction",
+				"stability"
+			],
+			"aid_level": 0.8,
+			"tune_range": 1.0,
+			"limiter_add": 600,
+			"type": "4 inch round"
 		}
 	},
 	"engine": {
@@ -14027,112 +14275,7 @@
 			]
 		}
 	},
-	"ecu": {
-		"remap_ecu": {
-			"name": "Performance remap ECU",
-			"description": "Hotter maps and a higher rev limit. More power, still no aids.",
-			"mass": 0.4,
-			"type": "Remapped",
-			"features": [
-				"remap"
-			],
-			"power": 1.06,
-			"rev_add": 400,
-			"aid_level": 0.0,
-			"color": [
-				0.75,
-				0.1,
-				0.08
-			],
-			"tune_range": 1.0,
-			"limiter_add": 800
-		},
-		"remap2_ecu": {
-			"name": "Performance 2 remap ECU",
-			"description": "The stage-two map: hotter still, with more room at the top. Ten per cent more power, no aids.",
-			"mass": 0.4,
-			"type": "Remapped, stage two",
-			"features": [
-				"remap"
-			],
-			"power": 1.1,
-			"rev_add": 600,
-			"aid_level": 0.0,
-			"color": [
-				0.55,
-				0.05,
-				0.05
-			],
-			"tune_range": 1.0,
-			"limiter_add": 1000
-		},
-		"ecu_safety": {
-			"name": "ECU Safety",
-			"description": "ABS, traction control, anti-wheelie and lean-angle traction control in one box. Every aid can be switched and set from the bike's dash as well as on the dyno desk.",
-			"mass": 0.9,
-			"type": "ABS, traction, anti-wheelie, lean-angle traction",
-			"features": [
-				"abs",
-				"traction",
-				"anti_wheelie",
-				"lean_traction"
-			],
-			"power": 1.0,
-			"rev_add": 0,
-			"aid_level": 0.75,
-			"color": [
-				0.15,
-				0.15,
-				0.17
-			],
-			"tune_range": 0.35,
-			"limiter_add": 0
-		},
-		"sport_ecu": {
-			"name": "Sport ride-by-wire ECU",
-			"description": "Traction control, ABS and anti-wheelie in one box. Set up for fast road riding.",
-			"mass": 0.8,
-			"type": "Traction, ABS, anti-wheelie",
-			"features": [
-				"traction",
-				"abs",
-				"anti_wheelie"
-			],
-			"power": 1.03,
-			"rev_add": 200,
-			"aid_level": 0.7,
-			"color": [
-				0.1,
-				0.25,
-				0.6
-			],
-			"tune_range": 0.6,
-			"limiter_add": 400
-		},
-		"race_ecu": {
-			"name": "Race ECU with IMU",
-			"description": "Lean-sensitive traction control, cornering ABS, wheelie and stability control. Lets the rider push but catches the big mistakes.",
-			"mass": 0.6,
-			"type": "Full IMU suite",
-			"features": [
-				"traction",
-				"abs",
-				"anti_wheelie",
-				"stability"
-			],
-			"power": 1.05,
-			"rev_add": 500,
-			"aid_level": 0.9,
-			"color": [
-				0.9,
-				0.75,
-				0.1
-			],
-			"lightweight": true,
-			"tune_range": 1.0,
-			"limiter_add": 1000
-		}
-	},
+	"ecu": {},
 	"panniers": {
 		"canvas_throwover": {
 			"name": "Canvas throw-over panniers",
@@ -18156,7 +18299,7 @@
 	"satnav": {
 		"phone_nav_mount": {
 			"name": "Phone sat nav, handlebar clip",
-			"description": "Your phone in a sprung cradle on a clamp round the bar, running a nav app: the map, the way and the next turn, on any bike. It buzzes a bit with the engine.",
+			"description": "Your phone in a sprung cradle on a clamp round the bar, running a nav app: a live map, the way and the next turn, on any bike. The only way to have a sat nav map on a bike without a TFT dash.",
 			"mass": 0.3,
 			"type": "Phone in a bar clip, 6\"",
 			"style": "phone",
@@ -18191,116 +18334,6 @@
 				"mx"
 			],
 			"price": 30
-		},
-		"compact_gps": {
-			"name": "Compact moto sat nav, 3.5\"",
-			"description": "A small rugged sat nav on a ball mount. Shows the road ahead and how far to go.",
-			"mass": 0.25,
-			"type": "Sat nav, 3.5\"",
-			"style": "compact",
-			"screen": [
-				0.08,
-				0.06
-			],
-			"features": [
-				"map",
-				"route"
-			],
-			"color": [
-				0.08,
-				0.08,
-				0.09
-			],
-			"styles": [
-				"naked",
-				"roader",
-				"adventure",
-				"tourer"
-			],
-			"price": 180
-		},
-		"road_gps": {
-			"name": "Road sat nav, 4.3\"",
-			"description": "A motorcycle sat nav on a RAM arm: glove-friendly buttons, the road ahead and the next fuel.",
-			"mass": 0.3,
-			"type": "Sat nav, 4.3\"",
-			"style": "road",
-			"screen": [
-				0.1,
-				0.065
-			],
-			"features": [
-				"map",
-				"route",
-				"fuel"
-			],
-			"color": [
-				0.06,
-				0.06,
-				0.065
-			],
-			"styles": [
-				"roader",
-				"adventure",
-				"tourer"
-			],
-			"price": 240
-		},
-		"adventure_gps": {
-			"name": "Adventure sat nav, 5\"",
-			"description": "A big rugged unit in an armoured cradle on a crossbar above the clocks: map, fuel stops and where you're headed.",
-			"mass": 0.45,
-			"type": "Sat nav, 5\"",
-			"style": "adventure",
-			"screen": [
-				0.115,
-				0.07
-			],
-			"features": [
-				"map",
-				"route",
-				"fuel"
-			],
-			"color": [
-				0.1,
-				0.1,
-				0.11
-			],
-			"accent": [
-				0.92,
-				0.42,
-				0.06
-			],
-			"styles": [
-				"adventure",
-				"tourer"
-			],
-			"price": 320
-		},
-		"rally_tablet": {
-			"name": "Rally tablet, 8\"",
-			"description": "A rally tower's big tablet on a navigation bar: the whole route in front of you, with fuel and stops.",
-			"mass": 0.7,
-			"type": "Tablet, 8\"",
-			"style": "tablet",
-			"screen": [
-				0.18,
-				0.11
-			],
-			"features": [
-				"map",
-				"route",
-				"fuel"
-			],
-			"color": [
-				0.04,
-				0.04,
-				0.045
-			],
-			"styles": [
-				"adventure"
-			],
-			"price": 450
 		}
 	},
 	"lever_guards": {

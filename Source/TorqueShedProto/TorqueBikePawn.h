@@ -28,6 +28,7 @@ class UMaterialInstanceDynamic;
 class USoundWaveProcedural;
 class UAudioComponent;
 class UTorqueNetBikeComponent;
+class UTorqueTftComponent;
 
 // A part of the Speed Twin model moved by its slot's offset from geometry mode (the bay's saved fit).
 // On a part that turns with a group (the bars with the steering), the offset is in that group's frame,
@@ -195,6 +196,10 @@ public:
 	// "cancel" (indicators off), "brake" / "nobrake" (the stop lamp held on), "night" / "day" (the clock
 	// at 23:00, or the level's own light: the host's), then the lamps shown at once and described.
 	FString TestLights(const FString& What);
+	// [tft] tft[:state|left|right|up|down|overlay|arrange|cruise]: works the bike's screen as its
+	// buttons do, then what it is and shows in one line.
+	FString TestTft(const FString& What);
+	UTorqueTftComponent* GetTft() const { return Tft; }
 	// Measured manoeuvres for the physics checks (TorqueShedTest's brakestop and lean verbs). The robot
 	// rides the road up to Mph and holds it on a straight, then: Kind 0 brakes as hard as a road test
 	// does (front full, rear 0.6, no weight forward) to a stop; Kind 1 holds the steer input full at
@@ -354,6 +359,18 @@ private:
 	FTorqueDash Dash;   // [dash]
 	FTorqueLights Lights;   // [lights]
 	void StepLights(float Dt, bool bRemote);
+	// [tft] The bike's TFT screen and phone sat nav (TorqueTft.h): its ride modes go on the sim from
+	// the bike as built (ModeBase); cruise control holds CruiseMs.
+	UPROPERTY(Transient) UTorqueTftComponent* Tft = nullptr;
+	TorqueSim::BikeSpec ModeBase;
+	bool bModeBase = false;
+	bool bTftPadNav = false;      // LB is working the screen (not the clutch) until it's let go
+	bool bCruise = false;
+	double CruiseMs = 0.0, CruiseHeld = 0.0;
+	void StepTft(float Dt, bool bRemote);
+	void ApplyRideMode();
+	void TftPress(int32 Which);   // 0 left, 1 right, 2 up, 3 down
+	void ToggleCruise();
 	void LightsNote(const FString& Text, bool bOk);
 	// [dash] The trip check: every 10 s of riding, a log line with the dash's trip next to speed x
 	// time, the route's progress and how far the clock says (TripLog).

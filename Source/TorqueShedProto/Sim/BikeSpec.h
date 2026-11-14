@@ -73,6 +73,9 @@ struct BikeSpec
 	double FrontRadius = 0.300, RearRadius = 0.312;
 	double FrontInertia = 0.72, RearInertia = 1.0;
 	TyreParams TyreFront, TyreRear;
+	// [TFT] The tyres' pressures as set (bar, cold: front, rear) and how far off their best each is
+	// (-0.2: 20% soft), for the dash to show; the grip they cost is already in the tyres.
+	double TyreBar[2] = {2.3, 2.5}, TyreOff[2] = {0.0, 0.0};
 	double WetGrip = 1.0;             // the weather: wet roads take about a third of the grip away
 	double Rolling = 0.015;
 	BikeHeatParts Heat;
@@ -85,6 +88,23 @@ struct BikeSpec
 	// The ECU's other rider aids, at how firmly they step in (0: not fitted, or off; 1 the factory
 	// level): anti-wheelie, lean-angle traction control and stability control.
 	double AntiWheelie = 0.0, LeanTraction = 0.0, Stability = 0.0;
+	// [ride modes] What the dash's ride mode makes of the engine (Sim/RideModes.h sets them as the
+	// rider changes mode): the share of full power it gives, how soft the first of the twistgrip is
+	// (0 as the cable pulls it), and how hard the engine brakes with the throttle shut (1 as built).
+	double PowerMode = 1.0, ThrottleSoft = 0.0, EngineBrake = 1.0;
+	// What the dash lets the rider set from the saddle, and the levels the dyno desk left them at.
+	struct AidCaps
+	{
+		bool Modes = false;        // the dash has ride modes (a TFT, the race logger)
+		bool Abs = false, Traction = false, Lean = false, Wheelie = false, Stability = false;
+		bool Cruise = false;       // cruise control
+		bool Enduro = false;       // an off-road mode suits it (adventure, scrambler)
+		bool Race = false;         // a race mode suits it (sport, race, naked, supermoto)
+		bool SemiActive = false;   // electronic fork and shock: the mode sets the damping
+		double Firm = 0.0;         // how firmly the aids step in at the factory level (0..1)
+		int Desk[5] = {1, 3, 3, 3, 3};   // abs (0, 1), traction, lean traction, wheelie, stability: 0 .. 5
+	};
+	AidCaps Aids;
 
 	// Engine and gearbox.
 	std::vector<double> TorqueRpm;    // full-throttle crank torque curve, rpm ...
