@@ -264,6 +264,38 @@ def pillow(name, poly, y0, y1, material, inset=14.0, zone=None, both=True, steps
     return ob
 
 
+def skin(name, poly, f, side, material, stations=70, rows=16, thick=7.0):
+    """A thin shell whose side view is the outline poly and whose surface sits at y = side * f(x, z):
+    a fairing side, drawn as one flat outline, that wraps out round the engine and closes in again
+    towards the nose and keel. Built as an even grid between the outline's top and bottom lines."""
+    xs = [q[0] for q in poly]
+    x0, x1 = min(xs), max(xs)
+    cols = []
+    for i in range(stations + 1):
+        x = x0 + (x1 - x0) * (0.004 + 0.992 * i / stations)
+        tb = shapes.top_bottom(poly, x)
+        if tb:
+            cols.append((x, tb[0], tb[1]))
+    for _ in range(2):          # ease small steps in the edge lines
+        prev = cols[:]
+        cols = [prev[0]] + [(prev[k][0], 0.25 * prev[k - 1][1] + 0.5 * prev[k][1] + 0.25 * prev[k + 1][1],
+                             0.25 * prev[k - 1][2] + 0.5 * prev[k][2] + 0.25 * prev[k + 1][2]) for k in range(1, len(prev) - 1)] + [prev[-1]]
+    verts, faces = [], []
+    for x, zt, zb in cols:
+        for r in range(rows + 1):
+            z = zb + (zt - zb) * r / rows
+            verts.append(V(x, side * f(x, z), z))
+    n = rows + 1
+    for c in range(len(cols) - 1):
+        for r in range(rows):
+            a = c * n + r
+            faces.append((a, a + 1, a + n + 1, a + n) if side > 0 else (a, a + n, a + n + 1, a + 1))
+    ob = mesh_obj(name, verts, faces, material, True, 0, sharp=False)
+    sol = ob.modifiers.new("shell", "SOLIDIFY")
+    sol.thickness, sol.offset = thick * MM, -1
+    return ob
+
+
 def bm_fix_normals(ob):
     import bmesh
     bm = bmesh.new()
@@ -474,21 +506,21 @@ def loft(name, outline, spec, material, stations=96, ring=44, smooth_lines=True)
 
 
 def arc_band(name, a, hw, material):
-    """A mudguard: a crowned shell that wraps over the tyre and drops down its shoulders, and ends in
-    a curve at both ends, never a flat cut (beenster, 14 Nov)."""
-    lo, hi, n, segs = a["r0"] - 20, a["r1"] + 6, 9, 44
+    """A mudguard: a thin crowned shell that wraps over the tyre and a little way down its shoulders.
+    The same section runs its whole length: the ends are a clean edge, rounded in plan, and do not
+    curl down towards the tyre (beenster, 14 Nov)."""
+    lo, hi, n, segs = a["r0"] - 14, a["r1"] + 4, 9, 44
     c = tuple(a["c"])
     span = abs(a["a1"] - a["a0"])
-    tip = min(0.3, math.degrees(hw * 1.1 / hi) / span)      # share of the arc taken by each rounded end
+    tip = min(0.2, math.degrees(hw * 0.55 / hi) / span)     # share of the arc taken by each rounded corner
     verts, faces, m = [], [], 2 * n
     for i in range(segs + 1):
         f = i / segs
         e = min(f, 1 - f) / tip
-        k = math.sqrt(max(0.0, 1 - (1 - min(1.0, e)) ** 2))     # plan outline: an ellipse at each end
-        k = max(k, 0.04)
+        k = 0.72 + 0.28 * math.sqrt(max(0.0, 1 - (1 - min(1.0, e)) ** 2))   # plan outline only
         ang = math.radians(a["a0"] + (a["a1"] - a["a0"]) * f)
-        outer = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7) * (0.55 + 0.45 * k), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
-        inner = [(r - 5 * k, y * 0.94) for r, y in outer]
+        outer = [(lo + (hi - lo) * (math.cos(math.radians(u)) ** 0.7), hw * k * math.sin(math.radians(u))) for u in (-88 + 176 * q / (n - 1) for q in range(n))]
+        inner = [(r - 3.5, y * 0.96) for r, y in outer]
         for r, y in outer[::-1] + inner:
             verts.append(V(c[0] + r * math.cos(ang), y, c[1] + r * math.sin(ang)))
     for i in range(segs):
@@ -556,20 +588,42 @@ def build(model):
         u = (head_t[0] - p[0]) / max(1.0, head_t[0] - 600)
         return 22 + max(0.0, min(1.0, u)) * 118
 
+    eng = model["engine"]
+    wide = 420 if eng["layout"] in ("inline4", "triple") else 300
+    # the seat rails run back inside the tail: they close in towards its end and are joined there by
+    # a cross tube, so nothing is left as an open tube end
+    sub_x = [nodes[n][0] for tb in fr["tubes"] if tb.get("cls") == "sub" for n in tb["path"]]
+    x_end = min(sub_x) if sub_x else 0.0
+    sub_w = fr.get("sub_y", 110)
+
+    def sub_half(p):
+        if p[0] >= 500 and "sub_y" not in fr:
+            return half(p)
+        u = max(0.0, min(1.0, (430 - p[0]) / max(1.0, 430 - x_end)))
+        return sub_w + (50 - sub_w) * u
+
     for i, tb in enumerate(fr["tubes"]):
         pts = [nodes[n] for n in tb["path"]]
         sub = tb.get("cls") == "sub"
         for s in (-1, 1):
-            p3 = [(p[0], s * (fr.get("sub_y", 110) if sub and (p[0] < 500 or "sub_y" in fr) else half(p)), p[1]) for p in pts]
+            p3 = [(p[0], s * (sub_half(p) if sub else half(p)), p[1]) for p in pts]
             tube(f"frame{i}{s}", p3, tb["w"] / 2, framem)
+        if sub:
+            e_ = pts[-1]
+            tube(f"framecross{i}", [(e_[0], -sub_half(e_), e_[1]), (e_[0], sub_half(e_), e_[1])], tb["w"] / 2, framem)
     for i, pl in enumerate(fr.get("plates", [])):
         pp = shapes.dense(pl["pts"], True, pl.get("t", 0.6))
+        xh = max(q[0] for q in pp)
+
+        def spar_y(x, z, xh=xh):
+            # a spar starts at the steering head and passes outside the cylinder head, never through it
+            t = max(0.0, min(1.0, (xh - x) / 300.0))
+            t = t * t * (3 - 2 * t)
+            return 78 + (wide / 2 + 12 - 78) * t
         for s in (-1, 1):
-            pillow(f"spar{i}{s}", pp, s * 112, s * 158, framem, 16, 22, both=False)
+            skin(f"spar{i}{s}", pp, spar_y, s, framem, thick=36.0)
     # engine
-    eng = model["engine"]
     crank = tuple(eng["crank"])
-    wide = 420 if eng["layout"] in ("inline4", "triple") else 300
     pillow("crankcase", shapes.dense(eng["case"], True, 0.9), -wide / 2 + 10, wide / 2 - 10, mat("engine"), 30, 55)
     if eng["layout"] == "boxer":
         # a cylinder out each side: finned barrel, head and a valve cover whose end-on outline is eng["boxer_cover"]
@@ -647,12 +701,21 @@ def build(model):
     # exhaust on the right side
     ex = model["exhaust"]
     # ("side": "both" is one high silencer each side: the first header runs to the left one, the rest to the right)
-    both = ex.get("side") == "both"
+    # "left" puts everything on the left, the swingarm side of a single-sided arm, so the open side
+    # of the rear wheel stays on show; "under" carries two silencers side by side under the tail
+    both, left, under = (ex.get("side") == k_ for k_ in ("both", "left", "under"))
     for i, hp in enumerate(ex["headers"]):
         pts = shapes.dense(hp["pts"], False, 1.0)[::3] + [tuple(hp["pts"][-1][:2])]
-        sg = 1 if both and i == 0 else -1
-        out_y = 190 if both else 150
+        sg = 1 if left or ((both or under) and i == 0) else -1
+        out_y = 190 if both else 58 if under else 196 if left else 150
         yy = [sg * (40 + (out_y - 40) * (j / (len(pts) - 1)) ** 1.5) for j in range(len(pts))]
+        if left:
+            # stay tucked under the engine, then move out behind the sump and ahead of the swingarm,
+            # so the pipe passes outside the arm and never through it
+            def out(x):
+                t = max(0.0, min(1.0, (700 - x) / 130.0))
+                return t * t * (3 - 2 * t)
+            yy = [sg * (40 + (out_y - 40) * out(p[0])) for p in pts]
         if hp.get("front"):
             # down the side of the engine: out past the cases straight away, then back to the silencer
             side_y = wide / 2 + 34
@@ -660,8 +723,8 @@ def build(model):
             yy = [sg * (abs(y) + (out_y - side_y) * max(0.0, j / (len(pts) - 1) - 0.75) / 0.25) for j, y in enumerate(yy)]
         smooth_tube(f"header{i}", [(p[0], y, p[1]) for p, y in zip(pts, yy)], hp.get("w", 44) / 2 * 0.8, mat("exhaust"))
     for i, can in enumerate(ex.get("cans", [])):
-        for sg in ((1, -1) if both else (-1,)):
-            y0c, y1c = (190, 205) if both else (165, 175)
+        for sg in ((1, -1) if both or under else (1,) if left else (-1,)):
+            y0c, y1c = (190, 205) if both else (58, 58) if under else (198, 208) if left else (165, 175)
             a3, b3 = (can["a"][0], sg * y0c, can["a"][1]), (can["b"][0], sg * y1c, can["b"][1])
             rc = can["w"] / 2 * 0.86
 
@@ -730,6 +793,14 @@ def build(model):
             mesh_obj(f"chainlinks{sgn}", verts, faces, mat("alu_dark"), smooth=False)
     sk = model["shock"]
     tube("shock", [(sk["top"][0], 0, sk["top"][1]), (sk["bottom"][0], 0, sk["bottom"][1])], 16, mat("alu_dark"))
+    # the shock is held at both ends: a bridge across the swingarm at the bottom (out to the one arm
+    # on a single-sided swingarm), and a cross tube between the frame sides at the top
+    sb, st_ = sk["bottom"], sk["top"]
+    ya, yb = (-112, 112) if len(sides) == 2 else (-34, 78)
+    tube("shockbridge", [(sb[0], ya, sb[1]), (sb[0], yb, sb[1])], 20, swm)
+    cone("shockeye_b", (sb[0], -26, sb[1]), (sb[0], 26, sb[1]), 27, 27, mat("alu_dark"), 24)
+    tube("shockmount_t", [(st_[0], -70, st_[1]), (st_[0], 70, st_[1])], 12, framem)
+    cone("shockeye_t", (st_[0], -24, st_[1]), (st_[0], 24, st_[1]), 24, 24, mat("alu_dark"), 24)
     L = math.hypot(sk["bottom"][0] - sk["top"][0], sk["bottom"][1] - sk["top"][1])
     us = ((sk["bottom"][0] - sk["top"][0]) / L, (sk["bottom"][1] - sk["top"][1]) / L)
     ns = (-us[1], us[0])
@@ -741,6 +812,7 @@ def build(model):
     tube("spring", coil, 5, mat("accent", hex_rgb(col.get("accent", col["body"]))))
 
     # bodywork
+    trellis = len([t for t in fr["tubes"] if t.get("cls") != "sub"]) >= 6
     body = model["body"]
     for part in ("tank", "seat", "tail"):
         shp = body[part][0]
@@ -751,6 +823,8 @@ def build(model):
         if shp["cls"] == "redlens":
             prism(f"taillight{i}", [tuple(p[:2]) for p in shp["pts"]], -45, 45, mat("redlens"), 2)
     for i, shp in enumerate(body.get("front_guard", []) + body.get("panels", [])):
+        if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
+            continue
         m_ = paint if shp["cls"] == "body" else mat("plastic")
         if "arc" in shp:
             arc_band(f"guard{i}", shp["arc"], 72 if shp["arc"]["c"][0] > 100 else 100, m_)
@@ -761,13 +835,26 @@ def build(model):
                 # the fork shroud: a shell round the front of each lower fork leg, joined to the mudguard
                 for s in (-1, 1):
                     pillow(f"shroud{i}{s}", pp, s * 84, s * 128, m_, 14, 22)
+            elif shp.get("fairing"):
+                # a fairing side: outside the engine over the cases, closing in to the nose and the keel
+                xf = max(q[0] for q in pp)
+
+                def wrap(x, z, xf=xf):
+                    t = max(0.0, min(1.0, (xf - x) / 260.0))
+                    t = t * t * (3 - 2 * t)
+                    k = 0.86 + 0.14 * max(0.0, min(1.0, (z - 190) / 170.0))
+                    return (104 + (wide / 2 + 52 - 104) * t) * k
+                for s in (-1, 1):
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_)
             elif shp.get("cowl"):
                 pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
             elif low:
                 pillow(f"belly{i}", pp, -125, 125, m_, 22, 50)
             else:
                 for s in (-1, 1):
-                    pillow(f"panel{i}{s}", pp, s * 128, s * 166, m_, 18, 30, both=False)
+                    # inside a tube frame the panels sit within the tubes, so the frame never cuts through them
+                    y_a, y_b = (86, 120) if trellis else (128, 166)
+                    pillow(f"panel{i}{s}", pp, s * y_a, s * y_b, m_, 18, 30, both=False)
     hanger = body.get("plate_hanger", []) if model.get("fit", {}).get("plate_hanger", True) else []
     for i, shp in enumerate(hanger):
         if shp["cls"] == "redlens":
