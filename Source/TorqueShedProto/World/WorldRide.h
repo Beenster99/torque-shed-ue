@@ -62,6 +62,8 @@ struct RoadPoint
 	int Lanes = 0;         // [OSM stage 5] mapped lanes across the whole road (0: the rule's; RoadX)
 	bool OneWay = false;   // [OSM stage 5] no centre line
 	bool Dual = false;     // [OSM stage 5C] one half of a dual carriageway: a central reservation on its offside
+	double Shoulder = 0.0; // [OSM stage 5C] a motorway's hard shoulder on its nearside (m, within Half), 0 none
+	signed char Near = 0;  // [OSM stage 5C] its nearside on a one-way road: 1 its left as its points run, -1 its right
 };
 
 // [OSM stage 2] One prop on a square of ground (World/WorldRideProps.cpp), for the game to draw with
@@ -1083,7 +1085,11 @@ private:
 		const std::function<void(const std::string&)>& Said, const P2* StartAt);
 	// ([OSM stage 5] Lanes and OneWays, a knot each where given: the map's lanes, RoadX; OneWays 1 one way, 2 more a dual carriageway's half)
 	void LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds, const std::vector<int>* Lanes = nullptr,
-		const std::vector<char>* OneWays = nullptr);
+		const std::vector<char>* OneWays = nullptr, const std::vector<double>* Shoulders = nullptr);
+	// [OSM stage 5C] A line moved square to itself by By metres (+ to its left as it runs), eased in from
+	// nothing over the first EaseIn metres and out over the last EaseOut; or each point by Each[I] * Scale.
+	static void ShiftLine(std::vector<P2>& Line, double By, double EaseIn, double EaseOut);
+	static void ShiftLine(std::vector<P2>& Line, const std::vector<double>& Each, double Scale);
 	// The region's spans of Kind (0 a bridge, 1 a tunnel) the line passes along: first knot, last knot, ...
 	std::vector<int> SpansAlong(const std::vector<P2>& Line, int Kind) const;
 	// Evens H out across each bridge and tunnel the line passes along (straight from one end to the

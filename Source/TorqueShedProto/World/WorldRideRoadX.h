@@ -17,7 +17,10 @@ struct Across
 	int Lanes = 0;
 	bool OneWay = false;
 	bool Dual = false;   // [5C] a dual carriageway's half (the map names its other half)
+	double Shoulder = 0.0;   // [5C] a motorway's hard shoulder on its nearside (m wide; in Half), 0 none
 };
+// [5C] A motorway's hard shoulder: the carriageway this much wider on its nearside, its edge line there.
+constexpr double HardShoulder = 3.3;
 // RuleWidth is the class's width (RoadLine::WidthOf). A recorded width is kept within a sensible range
 // for the class; a road mapped as one lane both ways is single track (SingleTrack m wide, no centre
 // line); mapped lanes otherwise give the width at a lane each (LaneWidth).

@@ -267,6 +267,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	std::vector<double> Halves(Line.size(), 2.3), Speeds(Line.size(), 60.0);
 	std::vector<int> KnotLanes(Line.size(), 0);
 	std::vector<char> KnotOneWay(Line.size(), 0);
+	std::vector<double> KnotShoulder(Line.size(), 0.0);   // [OSM stage 5C]
 	{
 		std::vector<double> KnotAlong(Line.size(), 0.0);
 		for (size_t I = 1; I < Line.size(); ++I) KnotAlong[I] = KnotAlong[I - 1] + Line[I].DistanceTo(Line[I - 1]);
@@ -282,19 +283,22 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 			Halves[I] = Ax.Half;
 			KnotLanes[I] = Ax.Lanes;
 			KnotOneWay[I] = char((Ax.OneWay ? 1 : 0) | (Ax.Dual ? 2 : 0));
+			KnotShoulder[I] = Ax.Shoulder;
 			Speeds[I] = RoadLine::DesignSpeedOf(G.ClassOf(Owner[std::min(J + 1, Raw.size() - 1)]));
 		}
 		for (int Pass = 0; Pass < 2; ++Pass)
 		{
-			std::vector<double> Eased = Halves;
+			std::vector<double> Eased = Halves, EasedShoulder = KnotShoulder;
 			for (size_t I = 0; I < Halves.size(); ++I)
 			{
-				double Sum = 0.0;
+				double Sum = 0.0, SumShoulder = 0.0;
 				int Count = 0;
-				for (size_t K = I > 6 ? I - 6 : 0; K <= std::min(I + 6, Halves.size() - 1); ++K) { Sum += Halves[K]; ++Count; }
+				for (size_t K = I > 6 ? I - 6 : 0; K <= std::min(I + 6, Halves.size() - 1); ++K) { Sum += Halves[K]; SumShoulder += KnotShoulder[K]; ++Count; }
 				Eased[I] = Sum / Count;
+				EasedShoulder[I] = SumShoulder / Count;
 			}
 			Halves.swap(Eased);
+			KnotShoulder.swap(EasedShoulder);
 		}
 	}
 	// (the tiles are chosen by the road as the map has it, a point every 30 m, as every rider's are)
@@ -311,7 +315,11 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 		return R;
 	}
 	Tell("Laying the road");
-	R->LayRoad(Line, Halves, Speeds, &KnotLanes, &KnotOneWay);
+	// [OSM stage 5C] (along a motorway, laid out on its nearside by half its hard shoulder: the traffic's
+	// left as it is ridden in Britain)
+	std::vector<P2> Laid = Line;
+	ShiftLine(Laid, KnotShoulder, R->KeepLeft() ? 0.5 : -0.5);
+	R->LayRoad(Laid, Halves, Speeds, &KnotLanes, &KnotOneWay, &KnotShoulder);
 	// (where the last pin is on the road as laid: the run-out is past it)
 	R->FinishM = !RawAlong.empty() && RawAlong.back() > 1.0 ? std::fmin(R->Length, R->RunOutFrom * R->Length / RawAlong.back()) : R->Length;
 	if (R->Road.size() < 2) { R->Why = "The road has no ground under it."; return R; }
@@ -581,7 +589,7 @@ void RidePlan::LevelSpans(const std::vector<P2>& Line, std::vector<double>& H, s
 }
 
 void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& Halves, const std::vector<double>& Speeds, const std::vector<int>* Lanes,
-	const std::vector<char>* OneWays)
+	const std::vector<char>* OneWays, const std::vector<double>* Shoulders)
 {
 	const std::vector<double> Banks = RoadLine::BankOf(Line, Speeds);
 	Road.clear();
@@ -638,6 +646,8 @@ void RidePlan::LayRoad(const std::vector<P2>& Line, const std::vector<double>& H
 		P.Lanes = Lanes != nullptr && I < Lanes->size() ? (*Lanes)[I] : 0;
 		P.OneWay = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 1) != 0;
 		P.Dual = OneWays != nullptr && I < OneWays->size() && ((*OneWays)[I] & 2) != 0;
+		P.Shoulder = Shoulders != nullptr && I < Shoulders->size() ? (*Shoulders)[I] : 0.0;
+		P.Near = P.OneWay ? static_cast<signed char>(KeepLeft() ? 1 : -1) : 0;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		P.Bank = Banks[I];
@@ -811,6 +821,11 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 	// (the knots stop at the last whole step: on to the junction itself, so no road ends short of it)
 	if (Line.empty() || Line.back().DistanceTo(Raw.back()) > 0.3) Line.push_back(Raw.back());
 	if (Line.size() < 2) return false;
+	// [OSM stage 5C] A motorway's half with its hard shoulder: laid that much further out on its nearside
+	// (the traffic's left in Britain), easing in over 30 m from an end on the ride's road.
+	const int NearSide = (Edge.Oneway < 0 ? -1 : 1) * (KeepLeft() ? 1 : -1);
+	const double HardWidth = RoadX::Of(G, int(E), RoadLine::WidthOf(Class)).Shoulder;
+	if (HardWidth > 0.0) ShiftLine(Line, double(NearSide) * HardWidth * 0.5, Meets[0] ? 30.0 : 0.0, Meets[1] ? 30.0 : 0.0);
 	// Its height: the ground's, smoothed as the ride's road is; at a junction off the ride, the
 	// ground's at the junction (so every road that meets there agrees); near the ride's road, that road's.
 	std::vector<double> H(Line.size()), Along(Line.size(), 0.0);
@@ -891,6 +906,8 @@ bool RidePlan::LaySide(int E, SideRoad& Side, std::vector<std::pair<int, unsigne
 		P.Lanes = Ax.Lanes;
 		P.OneWay = Ax.OneWay;
 		P.Dual = Ax.Dual;
+		P.Shoulder = Ax.Shoulder;
+		P.Near = Ax.OneWay ? static_cast<signed char>(NearSide) : 0;
 		P.Bridge = Kind[I] == 1;
 		P.Tunnel = Kind[I] == 2;
 		// Its own tilt: none where it lies on the ride's road, nor at a junction at either end.
@@ -1710,6 +1727,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		double Height = 0.0, Half = 0.0, Along = 0.0, Nx = 0.0, Ny = 1.0, Nz = 0.0;
 		int Lanes = 0;          // [OSM stage 5] (RoadPoint's)
 		bool OneWay = false;
+		double Shoulder = 0.0;  // [OSM stage 5C] (RoadPoint's)
+		int Near = 0;
 		bool Deck = false;
 		double Bank = 0.0;
 		bool Bore = false, Mouth = false;   // in a tunnel; at one of its ends
@@ -1733,6 +1752,8 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		R.Half = P.Half;
 		R.Lanes = P.Lanes;
 		R.OneWay = P.OneWay;
+		R.Shoulder = P.Shoulder;
+		R.Near = P.Near;
 		R.Along = P.Along;
 		R.Deck = P.Bridge;
 		R.Bank = P.Bank;
@@ -2276,7 +2297,10 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				// (none across a junction's mouth)
 				const size_t At0 = size_t(First) + K;
 				if (Which == 0 && At0 + 1 < MouthAt.size() && ((MouthAt[At0] | MouthAt[At0 + 1]) & (Side > 0.0 ? 1 : 2)) != 0) continue;
-				Strip(A, B, Side * (A.Half - 0.3) + 0.065, Side * (A.Half - 0.3) - 0.065, Side * (B.Half - 0.3) + 0.065, Side * (B.Half - 0.3) - 0.065, PaintLift, PaintLift, Paint);
+				// ([OSM stage 5C] on a motorway's nearside, between the lanes and the hard shoulder: 0.2 m wide)
+				const bool Hard = A.Near != 0 && Side == double(A.Near) && A.Shoulder > 0.5 && B.Shoulder > 0.5;
+				const double Ia = Hard ? A.Half - A.Shoulder : A.Half - 0.3, Ib = Hard ? B.Half - B.Shoulder : B.Half - 0.3, W = Hard ? 0.1 : 0.065;
+				Strip(A, B, Side * Ia + W, Side * Ia - W, Side * Ib + W, Side * Ib - W, PaintLift, PaintLift, Paint);
 			}
 		}
 		// [OSM stage 5B] Where the ride's road comes onto a roundabout: one broken line across its own lane
@@ -2299,8 +2323,11 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		if (std::fmod(A.Along, RoadX::DashCycle) < RoadX::DashLength)
 		{
 			if (RoadX::CentreLine(A.Lanes, A.OneWay, Half)) Strip(A, B, 0.06, -0.06, 0.06, -0.06, PaintLift, PaintLift, Paint);
+			// ([OSM stage 5C] a motorway's lanes between its offside edge and its hard shoulder)
+			const double Ca = -double(A.Near) * A.Shoulder * 0.5, Cb = -double(B.Near) * B.Shoulder * 0.5;
+			const double Ha = A.Half - A.Shoulder * 0.5, Hb = B.Half - B.Shoulder * 0.5;
 			for (const double Off : RoadX::LaneLines(A.Lanes, A.OneWay, 1.0))
-				Strip(A, B, Off * A.Half + 0.06, Off * A.Half - 0.06, Off * B.Half + 0.06, Off * B.Half - 0.06, PaintLift, PaintLift, Paint);
+				Strip(A, B, Ca + Off * Ha + 0.06, Ca + Off * Ha - 0.06, Cb + Off * Hb + 0.06, Cb + Off * Hb - 0.06, PaintLift, PaintLift, Paint);
 		}
 		// Cat's eyes (stage 7): a stud every 18.3 m (60 ft) down the middle of a road with a centre line,
 		// red ones along its edges where it has edge lines, out of the towns (lit streets have none).
@@ -2321,6 +2348,32 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 						const double Edge = Side * (Sa.Half - 0.15);
 						Strip(Sa, Sb, Edge + 0.07, Edge - 0.07, Edge + 0.07, Edge - 0.07, PaintLift + 0.006, PaintLift + 0.006, RedEye);
 					}
+				Into = &Out;
+			}
+		}
+		// [OSM stage 5C] On a one-way road with edge lines (a dual carriageway's half, a slip road) out of the
+		// towns: red studs along its nearside edge, amber along its offside (the central reservation's),
+		// white ones on the lines between its lanes.
+		if (A.OneWay && Half >= 2.95 && !A.Bore && B.Along > A.Along && Britain())
+		{
+			const bool Town = Which == 0 && !BuiltUp.empty() && BuiltUp[std::min(size_t(First) + K, BuiltUp.size() - 1)] != 0;
+			// (the traffic runs the way the points do on the ride's road, and on a side road as its edge allows)
+			const int Edge = Which == 0 ? -1 : Mine->Edge;
+			const double Goes = Edge >= 0 && Edge < int(Area.Roads.Edges.size()) && Area.Roads.Edges[size_t(Edge)].Oneway < 0 ? -1.0 : 1.0;
+			const double Near = A.Near != 0 ? double(A.Near) : Goes * (KeepLeft() ? 1.0 : -1.0);
+			const double Stud = 18.288;
+			for (double S = std::ceil(A.Along / Stud) * Stud; S < B.Along && !Town; S += Stud)
+			{
+				const double T0 = (S - A.Along) / (B.Along - A.Along), T1 = std::min((S + 0.1 - A.Along) / (B.Along - A.Along), 1.0);
+				const Row Sa = Between(A, B, T0), Sb = Between(A, B, T1);
+				static constexpr float WhiteEye[3] = {1.0f, 1.0f, 0.9f}, RedEye[3] = {1.0f, 0.04f, 0.03f}, AmberEye[3] = {1.0f, 0.42f, 0.0f};
+				Into = &Out.NightOf();
+				const double C = -Near * Sa.Shoulder * 0.5, Hs = Sa.Half - Sa.Shoulder * 0.5;
+				for (const double Off : RoadX::LaneLines(A.Lanes, true, 1.0))
+					Strip(Sa, Sb, C + Off * Hs + 0.08, C + Off * Hs - 0.08, C + Off * Hs + 0.08, C + Off * Hs - 0.08, PaintLift + 0.006, PaintLift + 0.006, WhiteEye);
+				const double Nearside = Near * (Sa.Shoulder > 0.5 ? Sa.Half - Sa.Shoulder : Sa.Half - 0.15), Offside = -Near * (Sa.Half - 0.15);
+				Strip(Sa, Sb, Nearside + 0.07, Nearside - 0.07, Nearside + 0.07, Nearside - 0.07, PaintLift + 0.006, PaintLift + 0.006, RedEye);
+				Strip(Sa, Sb, Offside + 0.07, Offside - 0.07, Offside + 0.07, Offside - 0.07, PaintLift + 0.006, PaintLift + 0.006, AmberEye);
 				Into = &Out;
 			}
 		}

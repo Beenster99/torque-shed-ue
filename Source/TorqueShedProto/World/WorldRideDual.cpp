@@ -93,6 +93,38 @@ double RidePlan::MedianGround(const NearHit& Hit) const
 	return MedianAcross(D, Out);
 }
 
+void RidePlan::ShiftLine(std::vector<P2>& Line, const std::vector<double>& Each, double Scale)
+{
+	const size_t N = Line.size();
+	if (N < 2) return;
+	const std::vector<P2> Was = Line;
+	for (size_t I = 0; I < N; ++I)
+	{
+		const double By = I < Each.size() ? Each[I] * Scale : 0.0;
+		if (By == 0.0) continue;
+		P2 D = Was[std::min(N - 1, I + 1)] - Was[I > 0 ? I - 1 : 0];
+		const double L = D.Length();
+		if (L < 1e-9) continue;
+		D = D * (1.0 / L);
+		// (left of a heading (dx, dz) is (dz, -dx), x east and z south)
+		Line[I] = Was[I] + P2(D.Z, -D.X) * By;
+	}
+}
+
+void RidePlan::ShiftLine(std::vector<P2>& Line, double By, double EaseIn, double EaseOut)
+{
+	const size_t N = Line.size();
+	if (N < 2 || By == 0.0) return;
+	std::vector<double> Along(N, 0.0), Each(N, 1.0);
+	for (size_t I = 1; I < N; ++I) Along[I] = Along[I - 1] + Line[I].DistanceTo(Line[I - 1]);
+	for (size_t I = 0; I < N; ++I)
+	{
+		if (EaseIn > 0.0) Each[I] = std::fmin(Each[I], Along[I] / EaseIn);
+		if (EaseOut > 0.0) Each[I] = std::fmin(Each[I], (Along.back() - Along[I]) / EaseOut);
+	}
+	ShiftLine(Line, Each, By);
+}
+
 double RidePlan::MedianAcross(const DualHit& D, double Out)
 {
 	// Straight across from the one's edge to the other's, a little under both; and as each road's own

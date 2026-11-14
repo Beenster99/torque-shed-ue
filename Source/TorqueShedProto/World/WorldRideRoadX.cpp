@@ -40,6 +40,13 @@ Across Of(const Region& G, int Edge, double RuleWidth)
 		Out.Half = std::fmin(Out.Half, SingleTrack * 0.5);
 	else if (Out.Lanes >= 2)
 		Out.Half = std::clamp(Out.Lanes * LaneWidth(Class), RuleWidth * 0.8, RuleWidth * 2.2) * 0.5;
+	// ([5C] a motorway's half: its hard shoulder besides; the road laid that much further out on its
+	// nearside, so its offside edge stays where it was by the central reservation)
+	if (Out.Dual && Class == "motorway")
+	{
+		Out.Shoulder = HardShoulder;
+		Out.Half += HardShoulder * 0.5;
+	}
 	return Out;
 }
 

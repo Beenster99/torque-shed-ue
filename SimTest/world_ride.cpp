@@ -790,6 +790,7 @@ int main(int Argc, char** Argv)
 			{
 				FoundM += Step;
 				GapSum += D.Gap * Step;
+				if (std::getenv("WORLD_RIDE_DUAL_GAPS")) std::printf("    gap %.1f half %.2f\n", D.Gap, Plan->Road[I].Half);
 				// (the land across the reservation against the line from one edge to the other: never over it)
 				const P2 Dir = Plan->Road[I].At - Plan->Road[I - 1].At;
 				const double Len = Dir.Length();
