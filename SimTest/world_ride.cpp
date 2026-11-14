@@ -597,6 +597,43 @@ int main(int Argc, char** Argv)
 		for (const auto& Kv : ByKind) std::printf(" %s %d", Kv.first.c_str(), Kv.second);
 		std::printf("; marks: %d paint, %d hump slices, %d bay slices; paint off the road's edge: %d\n", Paint, Humps, Bays, OffEdge);
 	}
+	if (std::getenv("WORLD_RIDE_SIGHTS_FROM_LANDMARKS") != nullptr && Plan->Area.Roads.Sights.empty())
+	{
+		// (no places file baked here yet: the cells' landmarks stand in for them, to try the stops)
+		Region& G = Plan->Area.Roads;
+		for (const TorqueFit::Json& Lm : G.Landmarks)
+		{
+			Sight S;
+			const std::string K = Lm.Str("kind");
+			S.Kind = K == "worship" ? "church" : K;
+			S.Name = Lm.Str("name");
+			S.Qid = K == "castle" || K == "worship" ? "Q" + std::to_string(G.Sights.size() + 1) : "";
+			S.At = P2(Lm.Num("x"), Lm.Num("z"));
+			G.Sights.push_back(S);
+		}
+		const auto Began = std::chrono::steady_clock::now();
+		Plan->IndexPlaces();
+		std::printf("IndexPlaces: %.0f ms\n", std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Began).count());
+		Plan->IndexFields();
+	}
+	{
+		// [places stage 2] The stops made at the places worth riding to.
+		std::printf("Places: %d looked at (of %d mapped), %d too far from a road; stops: %d made pull-offs, %d car parks, %d lay-bys, %d boards in streets\n", Plan->PlacesSeen,
+			int(Plan->Area.Roads.Sights.size()), Plan->PlacesFar, Plan->PlaceStopCount[RidePlan::PlaceMade], Plan->PlaceStopCount[RidePlan::PlaceCarPark],
+			Plan->PlaceStopCount[RidePlan::PlaceLayby], Plan->PlaceStopCount[RidePlan::PlaceStreet]);
+		const Frame Fr(Plan->Area.Roads.FrameLat, Plan->Area.Roads.FrameLon);
+		int Shown = 0;
+		for (size_t I = 0; I < Plan->PlaceStops.size() && Shown < 12; ++I)
+		{
+			const RidePlan::PlaceStop& S = Plan->PlaceStops[I];
+			const Sight& First = Plan->Area.Roads.Sights[size_t(S.Sights[0])];
+			const Geo Where = Fr.ToGeo(S.At.X, S.At.Z);
+			static const char* Hows[] = {"pull-off", "car park", "lay-by", "street"};
+			std::printf("  stop '%s' (%s, %zu place%s): %s at %.5f,%.5f, %.0f m from it, depth %.1f m\n", Plan->PlaceStopName(int(I)).c_str(), First.Kind.c_str(), S.Sights.size(),
+				S.Sights.size() == 1 ? "" : "s", Hows[S.How], Where.Lat, Where.Lon, S.At.DistanceTo(First.At), S.Depth);
+			++Shown;
+		}
+	}
 	if (const char* LinesAt = std::getenv("WORLD_RIDE_LINES_AT"))
 	{
 		// The walls, hedges and fences mapped within 80 m of lat,lon, and the roads' points there.
@@ -700,6 +737,25 @@ int main(int Argc, char** Argv)
 					std::printf("furnish %d at %.1f, %.1f facing %.2f, %.2f: %s\n", Kind, F.At.X, F.At.Z, F.Face.X, F.Face.Z, F.Text.c_str());
 					break;
 				}
+		}
+		else if (std::getenv("WORLD_RIDE_PULLOFF") != nullptr)
+		{
+			// [places stage 2] (or the nth pull-off made beside a laid road)
+			int Nth = std::atoi(std::getenv("WORLD_RIDE_PULLOFF"));
+			RidePlan::NearOpts Opts;
+			for (const RidePlan::PlaceStop& S : Plan->PlaceStops)
+			{
+				RidePlan::NearHit Hit;
+				if (S.How != RidePlan::PlaceMade || Nth-- > 0) continue;
+				// (the network's roads round it laid, as the game lays them when a rider comes near)
+				Rect Round;
+				Round.X0 = S.At.X - 300.0; Round.Z0 = S.At.Z - 300.0; Round.X1 = S.At.X + 300.0; Round.Z1 = S.At.Z + 300.0;
+				Plan->LayBlocks(Round);
+				if (!Plan->NearestOf(S.RoadMid.X, S.RoadMid.Z, Opts, Hit)) Hit.Which = -1;
+				Centre = S.At;
+				std::printf("pull-off by road %d for '%s', depth %.1f m\n", Hit.Which, Plan->Area.Roads.Sights[size_t(S.Sights[0])].Name.c_str(), S.Depth);
+				break;
+			}
 		}
 		else if (std::getenv("WORLD_RIDE_CHURCH") != nullptr)
 		{

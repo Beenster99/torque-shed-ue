@@ -140,6 +140,7 @@ private:
 	std::shared_ptr<const TorqueWorld::RoamArea> Roam;
 	std::shared_ptr<const TorqueWorld::RideGuide> Guide;
 	FRideNavState NavState;
+	int32 LastPlaceStop = -1;   // [places stage 2] the place stop the rider was last at (for the log), -1 none
 	std::shared_ptr<FTorqueRideJobs> Jobs;
 	// Squares in place (null for one off the world's edge, which has nothing to show).
 	UPROPERTY(Transient) TMap<FIntVector, TObjectPtr<UProceduralMeshComponent>> Tiles;

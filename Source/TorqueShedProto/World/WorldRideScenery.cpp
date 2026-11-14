@@ -1287,6 +1287,31 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			Quad(Out, Pt(Lo3, -1.0), Pt(Lo3, 1.0), Pt(Hi3, 1.0), Pt(Hi3, -1.0), At3(F.At.X + Face.X * 50.0, Y + 60.0, F.At.Z + Face.Z * 50.0), Shade(Grey, 1.6), true);
 			break;
 		}
+		case PlaceBoard:
+		{
+			// [places stage 2] A place's name board: cream letters on heritage brown, on two oak posts; a
+			// place with no name a plain oak marker post with a brown band.
+			static const Rgb Brown = {0.075f, 0.032f, 0.014f}, Cream = {0.62f, 0.58f, 0.47f}, Oak = {0.10f, 0.075f, 0.05f};
+			if (F.Text.empty())
+			{
+				Box(Out, F.At.X, F.At.Z, Face, 0.07, 0.07, Y - 0.2, Y + 1.1, Oak);
+				Box(Out, F.At.X, F.At.Z, Face, 0.075, 0.075, Y + 0.85, Y + 1.0, Brown);
+				break;
+			}
+			const std::string Words = F.Text.size() > 34 ? F.Text.substr(0, 33) + "." : F.Text;
+			const double W = std::clamp(0.4 + 0.11 * double(Words.size()), 1.0, 3.6), H = 0.42;
+			for (double Su : {-1.0, 1.0})
+			{
+				const P2 Q = F.At + Side * (Su * (W * 0.5 - 0.12));
+				Box(Out, Q.X, Q.Z, Face, 0.09, 0.09, Y - 0.3, Y + 1.45, Oak);
+			}
+			const P3 Mid = At3(F.At.X, Y + 1.15, F.At.Z);
+			Board(Mid, Face, W + 0.06, H + 0.06, Oak, 0.05);
+			Board(Mid, Face * -1.0, W + 0.06, H + 0.06, Oak, 0.03);
+			Board(Mid, Face, W, H, Brown, 0.065);
+			Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.15, Words, Cream);
+			break;
+		}
 		default: break;
 		}
 	}

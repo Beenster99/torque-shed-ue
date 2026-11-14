@@ -294,6 +294,15 @@ void ATorqueRideWorld::NavFor(const FVector& At, FTorqueDash& Dash, double& Was)
 		const FString Called = UTF8_TO_TCHAR(N.StopCalled[K].c_str());
 		Dash.NavStop = FString::Printf(TEXT("%s %s%s%s"), UTF8_TO_TCHAR(RidePlan::StopName(K)), *FTorqueDash::NavDistance(To, bMetric), Called.IsEmpty() ? TEXT("") : TEXT(": "), *Called);
 	}
+	// [places stage 2] At a place's stop (its pull-off, car park, lay-by or board): the sat nav says so.
+	const int32 StopHere = Ride->Plan->PlaceStopAt(X, Z, 30.0);
+	if (StopHere >= 0)
+	{
+		const std::string Name = Ride->Plan->PlaceStopName(StopHere);
+		if (!Name.empty()) Dash.NavStop = FString::Printf(TEXT("Arrived: %s"), UTF8_TO_TCHAR(Name.c_str()));
+		if (Ride->LastPlaceStop != StopHere) UE_LOG(LogTemp, Log, TEXT("Torque places: arrived at '%s' (stop %d)"), UTF8_TO_TCHAR(Name.c_str()), StopHere);
+	}
+	Ride->LastPlaceStop = StopHere;
 }
 
 ATorqueRideWorld::FOnRoamChanged ATorqueRideWorld::OnRoamChanged;

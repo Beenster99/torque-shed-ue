@@ -325,6 +325,7 @@ std::shared_ptr<RidePlan> RidePlan::LayOut(const std::shared_ptr<RidePlan>& R, C
 	R->IndexRails();
 	R->FindFacts(From, Path, RawAlong.empty() ? 0.0 : RawAlong.back());
 	R->IndexFurniture();
+	R->IndexPlaces();     // [places stage 2] (after the furniture, before the fields: its pull-offs are field areas)
 	R->IndexSkyline();   // [OSM stage 2 batch B] (after the furniture: it strings its poles)
 	R->IndexFields();    // [OSM stage 2 batch C]
 	R->IndexWild();      // [OSM stage 2 batch D]
@@ -1653,6 +1654,29 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		Rows.push_back(R);
 	}
 	const auto Settle = [this, Which](const Row& R, const P2& At, double Y) { return R.Deck || R.Bore ? Y : JoinedHeight(Which, At, Y); };
+	// [places stage 2] The pull-offs made for places near this bit of road (drawn at its end; no grass
+	// shoulder where one runs along it).
+	std::vector<int> PullNear;
+	if (!PlaceStops.empty() && Rows.size() >= 2)
+	{
+		double X0 = 1e18, Z0 = 1e18, X1 = -1e18, Z1 = -1e18;
+		for (const Row& R : Rows) { X0 = std::fmin(X0, R.At.X); X1 = std::fmax(X1, R.At.X); Z0 = std::fmin(Z0, R.At.Z); Z1 = std::fmax(Z1, R.At.Z); }
+		std::vector<int> Near;
+		for (int Cz = int(std::floor((Z0 - 40.0) / 64.0)); Cz <= int(std::floor((Z1 + 40.0) / 64.0)); ++Cz)
+			for (int Cx = int(std::floor((X0 - 40.0) / 64.0)); Cx <= int(std::floor((X1 + 40.0) / 64.0)); ++Cx)
+			{
+				const auto It = PlaceGrid.find(static_cast<long long>(Cx) * 4000037LL + Cz);
+				if (It != PlaceGrid.end()) Near.insert(Near.end(), It->second.begin(), It->second.end());
+			}
+		for (int I : Near)
+			if (PlaceStops[size_t(I)].How == PlaceMade && PlaceStops[size_t(I)].Depth > 0.0) PullNear.push_back(I);
+	}
+	const auto PullSpot = [](const PlaceStop& S, const P2& At, double& U, double& Off)
+	{
+		const P2 D = At - S.RoadMid;
+		U = D.X * S.RoadDir.X + D.Z * S.RoadDir.Z;
+		Off = D.X * S.Out.X + D.Z * S.Out.Z;
+	};
 	// (the mesh Put and Strip write to: the road's own, or its night glow for the cat's eyes)
 	RideMesh* Into = &Out;
 	const auto Put = [&Into, &Settle](const Row& R, double Off, double Lift, const float* Colour)
@@ -1886,6 +1910,17 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				if (OnOther(Pa, RowA.Height) || OnOther(Pb, RowB.Height) || OnOther(Ia, RowA.Height) || OnOther(Ib, RowB.Height))
 					NoShoulder[Sd] = true;
 			}
+		}
+		for (int Index : PullNear)
+		{
+			// [places stage 2] (a pull-off's gravel runs on from the road's edge: no grass shoulder under it)
+			const PlaceStop& S = PlaceStops[size_t(Index)];
+			double Ua = 0.0, Ub = 0.0, Oa = 0.0, Ob = 0.0;
+			PullSpot(S, RowA.At, Ua, Oa);
+			PullSpot(S, RowB.At, Ub, Ob);
+			const double Reach = PullOffLength * 0.5 - 2.0;
+			if (std::fabs(Oa) > 2.0 || std::fabs(Ob) > 2.0 || std::fmax(Ua, Ub) < -Reach || std::fmin(Ua, Ub) > Reach) continue;
+			NoShoulder[(RowA.Left.X * S.Out.X + RowA.Left.Z * S.Out.Z) >= 0.0 ? 0 : 1] = true;
 		}
 		const Row& A = RowA;
 		const Row& B = RowB;
@@ -2296,6 +2331,94 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				const auto Top = [&Surface, Which, MouthH](const P2& At) { return std::fmax(Surface(Which, At, MouthH), Surface(0, At, MouthH)) + 0.025; };
 				Quad3(At3(A0, Top(A0)), At3(A1, Top(A1)), At3(B1, Top(B1)), At3(B0, Top(B0)), Sky, Paint, false);
 			}
+	}
+	// [places stage 2] A pull-off made for a place beside this bit of road: gravel (the verge's grit, so
+	// M_RideRoad draws it in the gravel scan) from the road's edge out to its depth, tapering at its ends,
+	// its outer edge settled onto the ground.
+	if (!PullNear.empty() && Rows.size() >= 2)
+	{
+		static constexpr float PullGrit[3] = {0.095f, 0.088f, 0.07f};
+		const auto Vert = [&Out](const P2& At, double Y)
+		{
+			Out.Pos.push_back(float(At.X - Out.OriginX)); Out.Pos.push_back(float(Y)); Out.Pos.push_back(float(At.Z - Out.OriginZ));
+			Out.Nrm.push_back(0.0f); Out.Nrm.push_back(1.0f); Out.Nrm.push_back(0.0f);
+			Out.Uv.push_back(float(At.X / 4.0)); Out.Uv.push_back(float(At.Z / 4.0));
+			Out.Col.push_back(PullGrit[0]); Out.Col.push_back(PullGrit[1]); Out.Col.push_back(PullGrit[2]);
+		};
+		for (int Index : PullNear)
+		{
+			const PlaceStop& S = PlaceStops[size_t(Index)];
+			// (each row of this road where it runs along the pull-off's own stretch, within 2 m of it)
+			const auto Spot = [&S, &PullSpot](const P2& At, double& U, double& Off) { PullSpot(S, At, U, Off); };
+			for (size_t K = 0; K + 1 < Rows.size(); ++K)
+			{
+				const Row& A = Rows[K];
+				const Row& B = Rows[K + 1];
+				if (A.Deck || A.Bore || B.Deck || B.Bore) continue;
+				double Ua = 0.0, Ub = 0.0, Ca = 0.0, Cb = 0.0;
+				Spot(A.At, Ua, Ca);
+				Spot(B.At, Ub, Cb);
+				const double Half = PullOffLength * 0.5;
+				if (std::fabs(Ca) > 2.0 || std::fabs(Cb) > 2.0 || std::fmax(Ua, Ub) < -Half || std::fmin(Ua, Ub) > Half) continue;
+				const double SideA = (A.Left.X * S.Out.X + A.Left.Z * S.Out.Z) >= 0.0 ? 1.0 : -1.0;
+				const int Steps = std::max(1, int(std::ceil(A.At.DistanceTo(B.At))));
+				for (int St = 0; St < Steps; ++St)
+				{
+					const double T0 = double(St) / Steps, T1 = double(St + 1) / Steps;
+					const double U0 = Ua + (Ub - Ua) * T0, U1 = Ua + (Ub - Ua) * T1;
+					if (std::fmax(U0, U1) < -Half || std::fmin(U0, U1) > Half) continue;
+					const auto Edge = [&](double T, double U, P2& In, double& InY, P2& Far, double& FarY)
+					{
+						const P2 At = A.At + (B.At - A.At) * T;
+						const P2 Lf = A.Left + (B.Left - A.Left) * T;
+						const double H = A.Half + (B.Half - A.Half) * T, Y = A.Height + (B.Height - A.Height) * T, Bk = A.Bank + (B.Bank - A.Bank) * T;
+						const double FromEnd = Half - std::fabs(std::clamp(U, -Half, Half));
+						const double Deep = S.Depth * std::clamp(FromEnd / 5.0, 0.15, 1.0);
+						In = At + Lf * (SideA * (H - 0.05));
+						InY = Y + RoadLine::CrossHeight(SideA * H, H, Bk) + 0.004;
+						Far = At + Lf * (SideA * (H + Deep));
+						const double G = Ground(Far.X, Far.Z);
+						FarY = (std::isnan(G) ? InY : G) + 0.05;
+					};
+					P2 I0, F0, I1, F1;
+					double Iy0 = 0.0, Fy0 = 0.0, Iy1 = 0.0, Fy1 = 0.0;
+					Edge(T0, U0, I0, Iy0, F0, Fy0);
+					Edge(T1, U1, I1, Iy1, F1, Fy1);
+					// (three strips across, the middle ones eased between the road's edge and the ground)
+					constexpr int Bands = 3;
+					const uint32_t V = uint32_t(Out.Vertices());
+					// (never under the ground: a band's point the ground stands above is lifted onto it)
+					const auto OnTop = [this](const P2& At, double Y) { const double Gy = Ground(At.X, At.Z); return std::isnan(Gy) ? Y : std::fmax(Y, Gy + 0.05); };
+					for (int C = 0; C <= Bands; ++C)
+					{
+						const double F = double(C) / Bands;
+						const P2 Q0 = I0 + (F0 - I0) * F, Q1 = I1 + (F1 - I1) * F;
+						Vert(Q0, C == 0 ? Iy0 : OnTop(Q0, Iy0 + (Fy0 - Iy0) * F));
+						Vert(Q1, C == 0 ? Iy1 : OnTop(Q1, Iy1 + (Fy1 - Iy1) * F));
+					}
+					for (int C = 0; C < Bands; ++C)
+					{
+						const uint32_t P = V + uint32_t(C) * 2;
+						// (wound to face up whichever side of the road it is on)
+						if (SideA > 0.0) Out.Idx.insert(Out.Idx.end(), {P, P + 1, P + 2, P + 1, P + 3, P + 2});
+						else Out.Idx.insert(Out.Idx.end(), {P, P + 2, P + 1, P + 1, P + 2, P + 3});
+					}
+					// (its outer edge's face down into the ground, so no gap shows under it where the ground falls away)
+					{
+						const uint32_t O = uint32_t(Out.Vertices());
+						const P2& E0 = F0;
+						const P2& E1 = F1;
+						const double Top0 = OnTop(E0, Fy0), Top1 = OnTop(E1, Fy1);
+						const double G0 = Ground(E0.X, E0.Z), G1 = Ground(E1.X, E1.Z);
+						Vert(E0, Top0);
+						Vert(E1, Top1);
+						Vert(E0, (std::isnan(G0) ? Top0 : G0) - 0.25);
+						Vert(E1, (std::isnan(G1) ? Top1 : G1) - 0.25);
+						Out.Idx.insert(Out.Idx.end(), {O, O + 1, O + 2, O + 1, O + 3, O + 2, O, O + 2, O + 1, O + 1, O + 2, O + 3});
+					}
+				}
+			}
+		}
 	}
 }
 

@@ -195,7 +195,11 @@ RidePlan::RideSurface RidePlan::SurfaceAt(double X, double Z) const
 	RideSurface S;
 	NearOpts Opts;
 	NearHit Hit;
-	if (!NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + 0.05) return S;
+	if (!NearestOf(X, Z, Opts, Hit) || Hit.Dist > Hit.Half + 0.05)
+	{
+		if (OnPullOff(X, Z)) S.Kind = SurfGravel;   // [places stage 2]
+		return S;
+	}
 	// [OSM stage 1] A road the map says is gravel: gravel all over (no marks, no paint on it).
 	{
 		const RoadFact* F = Hit.Which == 0 ? FactAt(Hit.Along) : nullptr;

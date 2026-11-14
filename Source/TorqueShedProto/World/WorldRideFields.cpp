@@ -103,6 +103,9 @@ void RidePlan::IndexFields()
 		if (Kind < 0 || A.Pts.size() < 3) continue;
 		Shapes.push_back({Kind, &A.Pts, K + std::to_string(std::lround(A.Pts[0].X * 10.0)) + "_" + std::to_string(std::lround(A.Pts[0].Z * 10.0))});
 	}
+	// [places stage 2] The pull-offs made for places (IndexPlaces).
+	for (size_t I = 0; I < PlaceStops.size(); ++I)
+		if (PlaceStops[I].How == PlaceMade && PlaceStops[I].Ring.size() >= 3) Shapes.push_back({FieldPullOff, &PlaceStops[I].Ring, "pulloff" + std::to_string(I)});
 	for (const Shape& Sh : Shapes)
 	{
 		const std::vector<P2>& Ring = *Sh.Ring;
@@ -296,6 +299,10 @@ bool RidePlan::FieldTint(double X, double Z, float* Rgb) const
 	case FieldWetland:
 		To[0] = 0.06f; To[1] = 0.075f; To[2] = 0.04f;
 		By = 0.6;
+		break;
+	case FieldPullOff:
+		To[0] = 0.13f; To[1] = 0.12f; To[2] = 0.10f;   // [places stage 2] (grey-brown gravel, as the Dales' lay-bys)
+		By = 0.95;
 		break;
 	default: return false;
 	}

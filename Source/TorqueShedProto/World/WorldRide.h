@@ -494,7 +494,7 @@ public:
 	// (Limit30 is any limit's roundel, its number in Text: [OSM stage 1] 20, 30, 40, 50 mph, or km/h abroad)
 	// [OSM stage 2] stiles, kissing gates, lift barriers, bollards, picnic tables and information boards.
 	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier,
-		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, FurnishKinds };
+		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, PlaceBoard, FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
 	struct Furnish
 	{
 		int Kind = 0;
@@ -593,7 +593,7 @@ public:
 	// smallest wins (a pitch in a park in a town).
 	enum EField { FieldQuarry, FieldGraves, FieldAllotments, FieldOrchard, FieldScree, FieldReservoir,
 		FieldLawn, FieldHard, FieldFarmyard, FieldSite, FieldBrownfield, FieldPark, FieldPitch, FieldSand, FieldMud, FieldCarPark,
-		FieldWood, FieldScrub, FieldHeath, FieldWetland, FieldKinds };
+		FieldWood, FieldScrub, FieldHeath, FieldWetland, FieldPullOff, FieldKinds };   // [places stage 2] a pull-off made for a place (gravel)
 	struct FieldArea
 	{
 		int Kind = 0;
@@ -793,6 +793,38 @@ public:
 	static constexpr double StopReach = 120.0;
 	std::vector<RideStop> Stops;
 	static const char* StopName(int Kind);   // "Fuel", "Cafe", "Pub", "Viewpoint", "Lay-by", "Inn", "Campsite", "Castle"
+	// [places stage 2] Somewhere to arrive at each place worth riding to (Region::Sights: those with a
+	// Wikipedia page, which the info panel suggests, and the named ones of the kinds a rider rides out
+	// to; World/WorldRidePlaces.cpp): the map's car park for it within PlaceCarParkReach, else its lay-by
+	// within PlaceLaybyReach, else a pull-off made beside the road nearest it (within PlaceReach: gravel,
+	// PullOffLength by up to PullOffDepth, where the ground is level, out of the walls, off junctions,
+	// bridges and other roads); in a built-up street just the board at the kerb. A name board stands
+	// at each (furniture: PlaceBoard), facing the road. Places close together share one stop.
+	enum EPlaceStop { PlaceMade, PlaceCarPark, PlaceLayby, PlaceStreet };
+	struct PlaceStop
+	{
+		std::vector<int> Sights;   // into Area.Roads.Sights: the places it serves (the first named on its board)
+		int How = PlaceMade;
+		P2 At;                     // where to stop: the sat nav's arrival
+		P2 Board, Face;            // its board, and the way the board faces (towards the road)
+		int Edge = -1;             // the road it is beside (Area.Roads.Edges)
+		double Depth = 0.0;        // a made pull-off's depth (m)
+		P2 RoadMid, RoadDir, Out;  // a made pull-off's road middle beside its middle, the road's way there, and out towards it (level, unit)
+		std::vector<P2> Ring;      // a made pull-off's outline (a field area: FieldPullOff), else empty
+	};
+	std::vector<PlaceStop> PlaceStops;
+	static constexpr double PlaceReach = 1500.0, PlaceCarParkReach = 400.0, PlaceLaybyReach = 300.0;
+	static constexpr double PullOffLength = 22.0, PullOffDepth = 6.0;
+	// What IndexPlaces found: places looked at, stops by EPlaceStop, places with no road near enough.
+	int PlacesSeen = 0, PlacesFar = 0, PlaceStopCount[4] = {};
+	void IndexPlaces();
+	// The place stop whose arrival is within Within m of (X, Z), nearest first; -1 none.
+	int PlaceStopAt(double X, double Z, double Within = 30.0) const;
+	// The name a stop's board shows ("Bolton Castle"), "" none.
+	std::string PlaceStopName(int Stop) const;
+	// Whether (X, Z) is on a pull-off made for a place (gravel under the tyres).
+	bool OnPullOff(double X, double Z) const;
+	std::unordered_map<long long, std::vector<int>> PlaceGrid;   // stops by the 64 m square their arrival is in
 	// What the sat nav says at (X, Z): how far along the ride's road the rider is (near Was, the last
 	// answer, where the road passes itself), the next turn and the distance to it, the next stop of
 	// each kind ahead, and how far to the finish; OffRoute when the rider is more than 40 m off it.
