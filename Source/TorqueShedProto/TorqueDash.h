@@ -48,6 +48,7 @@ struct FTorqueDash
 	bool bNav = false;
 	bool bNavOff = false;       // more than 40 m off the ride's road
 	bool bNavRerouting = false; // [ride anywhere] off it, and the way back not found yet
+	bool bNavVia = false;       // [waypoint] the flag ahead (NavTurn 9) is the info panel's waypoint, not the finish
 	int32 NavTurn = 9;          // RidePlan::RideTurn::Turn: -3 sharp left .. 3 sharp right, 9 the finish
 	double NavTo = 0.0;         // metres to it
 	FString NavOnto;            // the road it's onto (or where the ride finishes)

@@ -44,6 +44,7 @@ std::shared_ptr<const RideGuide> GuideOfDetour(const RidePlan& Plan, const RideD
 		if (P.Along > Back.RejoinAlong) Line.push_back(P.At);
 	Out->Line = Resample(Line, RideGuide::GuideStep);
 	const Frame F = Plan.Area.Roads.FrameOf();
+	if (Back.ViaAlong >= 0.0) Out->Waypoints.push_back(Back.Via);   // [waypoint]
 	for (size_t I = 1; I < Plan.Request.Pins.size(); ++I) Out->Waypoints.push_back(F.FromGeo(Plan.Request.Pins[I].Lat, Plan.Request.Pins[I].Lon));
 	if (!Out->Line.empty()) Out->Finish = Out->Line.back();
 	return Out;
