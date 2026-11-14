@@ -202,6 +202,18 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 		// [OSM stage 3] (by kind where the map says nothing: a block of flats mostly flat-topped, a civic building hipped, a garage flat)
 		else if (RoofShape.empty() && ((IsBlock && Chance(B.X, B.Z, 10) < 0.6) || Garage)) Shape = ERoof::Flat;
 		else if (RoofShape.empty() && IsCivic) Shape = ERoof::Hipped;
+		// [towns stage 3.4] Houses the map says nothing of, by their outline: a squarish detached or
+		// semi-detached house in a town of brick often hipped (the inter-war semi), less so where stone
+		// is the rule; a small piece of a house's outline (its back kitchen, an outshut) a lean-to.
+		else if (RoofShape.empty() && IsHouse && !Big)
+		{
+			const double Area0 = HalfLong * HalfShort * 4.0;
+			const bool InTown = TownLookAt(B.X, B.Z) != nullptr;
+			if (Each.Look != nullptr && Area0 < 22.0 && Chance(B.X, B.Z, 13) < 0.6) Shape = ERoof::Skillion;
+			else if (Area0 > 45.0 && Area0 < 170.0 && HalfLong < 1.7 * HalfShort
+				&& Chance(B.X, B.Z, 14) < (InTown ? 0.12 + 0.45 * double(Look.BrickShare) : 0.06 + 0.2 * double(Look.BrickShare)))
+				Shape = ERoof::Hipped;
+		}
 		const double Rise = Shape == ERoof::Flat ? 0.0 : Shape == ERoof::Skillion ? std::fmin(HalfShort * 0.3, 1.6)
 			: Big ? HalfShort * 0.35 : IsWorship ? std::fmin(HalfShort * 1.15, 6.5) : std::fmin(HalfShort * std::tan(double(Look.Pitch) * 0.0174533), 4.5);
 		// (the map's floors where it has them; its height, except a house's under 7 m: Overture's British
@@ -311,6 +323,7 @@ void RidePlan::BuildingsTile(double X0, double Z0, double Size, bool Fine, const
 			if (Bays > 1) { ++Tally->Terraces; Tally->TerraceHouses += Bays; }
 			Tally->Barns += IsBarn ? 1 : 0;
 			Tally->Ruins += Ruin ? 1 : 0;
+			if (IsHouse) { Tally->Hipped += Shape == ERoof::Hipped ? 1 : 0; Tally->LeanTo += Shape == ERoof::Skillion ? 1 : 0; }
 			if (IsHouse && Bays == 1)
 			{
 				const double WinH0 = Look.Window == LocalLook::Mullion ? 0.9 : Look.Window == LocalLook::Sash ? 1.45 : 1.0;

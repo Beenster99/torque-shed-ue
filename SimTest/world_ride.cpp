@@ -391,6 +391,7 @@ int main(int Argc, char** Argv)
 			std::printf("Houses (not rows): 1 storey %d (%d from the map's height), 2 storeys %d (%d), 3+ %d (%d); by a road %d, a long side towards it %d\n",
 				Tally.HouseFloors[0], Tally.HouseMapped[0], Tally.HouseFloors[1], Tally.HouseMapped[1], Tally.HouseFloors[2], Tally.HouseMapped[2],
 				Tally.HousesByRoad, Tally.LongSideToRoad);
+			std::printf("House roofs: %d hipped, %d lean-to of %d drawn\n", Tally.Hipped, Tally.LeanTo, Tally.Drawn);
 		}
 		// [ride anywhere 3] The ride grown round a place (WORLD_RIDE_GROW=x,z in the frame, m): the cells
 		// added, how long it took, and that every old road and the ride's own road are as they were.
