@@ -87,7 +87,7 @@
     ]
    },
    "deck": {
-    "tank_span": 430,
+    "tank_flat_bottom": true, "tank_span": 430,
     "tank_pitch": [
      -4,
      4

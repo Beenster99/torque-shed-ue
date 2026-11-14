@@ -24,6 +24,7 @@ EXTRA = """
 .sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px}
 .sw figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;font-size:12px;color:var(--mute)}
 .sw img{width:84px;height:84px;display:block}
+h3{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:22px;margin:18px 0 4px}figure.sheet{margin:0}figure.sheet figcaption{font-size:12.5px;color:var(--mute)}
 ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;max-width:68ch}
 """
 
@@ -53,8 +54,88 @@ def renders(name):
         return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
     crop = (230, 130, 1520, 880)
+    views = ""
+    top, front = os.path.join(rd, name + "_top.png"), os.path.join(rd, name + "_front.png")
+    if os.path.exists(top) and os.path.exists(front):
+        # widths measured off the pictures (1 px = 1/0.56 mm): anything that differs from the backdrop
+        def width_mm(path, axis):
+            im = Image.open(path).convert("RGB")
+            bg = im.getpixel((5, 5))
+            w_, h_ = im.size
+            hit = [(x, y) for y in range(0, h_, 3) for x in range(0, w_, 3) if sum(abs(a_ - b_) for a_, b_ in zip(im.getpixel((x, y)), bg)) > 90]
+            v = [q[axis] for q in hit]
+            return round((max(v) - min(v)) / 0.56 / 10) * 10
+        wide = width_mm(front, 0)
+        views = f"""<div class="shots"><figure><img src="{uri(Image.open(top).convert('RGB'), (200, 40, 1540, 580))}" alt="{name} from above"><figcaption>Top view, front to the left. About {wide} mm wide across the mirrors.</figcaption></figure>
+<figure><img src="{uri(Image.open(front).convert('RGB'), (30, 130, 590, 880))}" alt="{name} from the front" style="max-height:520px;width:auto;margin:auto;display:block"><figcaption>Front view, same scale.</figcaption></figure></div>"""
     return f"""<div class="shots"><figure><img src="{uri(Image.open(q).convert('RGB'))}" alt="{name} 3D model, three-quarter view"><figcaption>3D model built from the same file</figcaption></figure>
-<figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>"""
+<figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>""" + views
+
+
+def pool_section(names):
+    """The shared pool: what is in it, and a few pool builds on each bike, drawn and (where rendered) in 3D."""
+    import base64
+    import glob
+    import io
+    import elevation
+    import mix
+    from PIL import Image
+    P = mix.pool()
+    labels = {"bars": "Handlebars", "mirrors": "Mirrors", "lamps": "Lamps", "wheels": "Wheels", "silencers": "Silencers"}
+    menu = "".join(f"<li><b>{labels[p]}:</b> " + "; ".join(f"{v['name']} ({v['note']})" for v in P[p]) + ".</li>" for p in mix.POOL_PARTS)
+    count = 1
+    for p in mix.POOL_PARTS:
+        count *= len(P[p]) + 1
+    figs = []
+    for n in names:
+        base = elevation.load(n)
+        for a_ in ((2, 1, 1, 3, 0), (3, 2, 2, 2, 2), (1, 2, 3, 1, 3)):
+            v = mix.apply_pool(base, *a_)
+            v["dimensions"] = False
+            v["name"] = base["brand"].title() + " with pool parts"
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{base["brand"].title()}: {", ".join(v["pool_fitted"].values())}.</figcaption></figure>')
+    shots = []
+    for q in sorted(glob.glob(os.path.join(ROOT, "out", "renders", "*_pool*_q.png"))):
+        tag = os.path.basename(q)[:-6]
+        n, digits = tag.split("_pool")
+        if n not in names:
+            continue
+        v = mix.apply_pool(elevation.load(n), *[int(d) for d in digits])
+        buf = io.BytesIO()
+        Image.open(q).convert("RGB").resize((1000, 625)).save(buf, "JPEG", quality=82)
+        cap = f"{v['brand'].title()}: {', '.join(v['pool_fitted'].values())}"
+        shots.append(f'<figure><img src="data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}" alt="{cap}, 3D model"><figcaption>{cap}.</figcaption></figure>')
+    return f"""<section><h2>The shared pool: parts any brand can use</h2><p class="lede">Bars, mirrors, lamps, wheels and silencers that belong to no brand and fit every naked. They hang off fixed points (the top of the fork, the grip, the exhaust joint), so one drawing fits every frame.</p><ul>{menu}</ul><p>On top of a model's own kit, the pool multiplies the choice by {count}. Every pool part passes the clearance checks on both bikes.</p><div class="shots">{"".join(shots)}</div><div class="shots">{"".join(figs)}</div></section>"""
+
+
+def kit_renders(names):
+    """Three-quarter 3D pictures of kit bikes and mixed bikes, from whatever build3d.py --kit / --donor has rendered."""
+    import base64
+    import glob
+    import io
+    import re
+    import elevation
+    import mix
+    from PIL import Image
+    figs = []
+    for q in sorted(glob.glob(os.path.join(ROOT, "out", "renders", "*_q.png"))):
+        tag = os.path.basename(q)[:-6]
+        k = re.match(r"(.+)_kit(\d)(\d)(\d)(\d)((?:x\d)*)$", tag)
+        if k and k.group(1) in names:
+            v = mix.apply_kit(elevation.load(k.group(1)), *[int(k.group(i)) for i in range(2, 6)], [int(x) for x in k.group(6).split("x") if x])
+            f = v["kit_fitted"]
+            cap = f"{v['brand'].title()}: {f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + "".join(", " + x for x in f["extras"])
+        elif "+" in tag and all(t in names for t in tag.split("+")):
+            a, b = [elevation.load(t)["brand"].title() for t in tag.split("+")]
+            cap = f"{a} frame and engine with the {b} tank and seat"
+        else:
+            continue
+        buf = io.BytesIO()
+        Image.open(q).convert("RGB").resize((1000, 625)).save(buf, "JPEG", quality=82)
+        figs.append(f'<figure><img src="data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}" alt="{cap}, 3D model"><figcaption>{cap}.</figcaption></figure>')
+    if not figs:
+        return ""
+    return '<section><h2>Kit bikes and mixed bikes in 3D</h2><p class="lede">The same kit choices and cross-brand mixes, built as 3D models straight from the files with nothing modelled by hand. The shapes are still the first rough build.</p><div class="shots">' + "".join(figs) + "</div></section>"
 
 
 def swatch_section():
@@ -94,7 +175,53 @@ def build(family, names):
             res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
         li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
         h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
+    import copy
+    bare = []
+    for n in names:
+        m2 = copy.deepcopy(elevation.load(n))
+        if m2["body"].get("plate_hanger"):
+            m2["fit"] = {"plate_hanger": False}
+            m2["dimensions"] = False
+            m2["name"] = m2["brand"].title() + " without the plate hanger"
+            bare.append(f'<div class="sheet">{elevation.draw(m2)}</div>')
+    if bare:
+        h.append('<section><h2>Plate hanger: its own part, optional</h2><p class="lede">The long hanger with the number plate and its lamp is drawn in on every bike above, as most countries require it, but it is a separate bolt-on part. A build can leave it off, as here.</p><div class="shots">' + "".join(bare) + "</div></section>")
+    import itertools
     import mix
+    import random
+    kit_html, combos = [], 0
+    show = [(1, 2, 1, 1, (1,)), (2, 1, 2, 2, (2,)), (0, 0, 2, 1, (1, 2)), (1, 1, 1, 3, ()), (2, 2, 0, 3, (1,)), (0, 1, 1, 0, (2,))]
+    for n in names:
+        base = elevation.load(n)
+        kit = base.get("kit")
+        if not kit:
+            continue
+        nm = {p: mix.kit_names(base, p) for p in mix.KIT_PARTS}
+        xn = [v["name"] + " (" + v["note"] + ")" for v in kit.get("extras", [])]
+        count = 2 ** len(xn)
+        for p in mix.KIT_PARTS:
+            count *= len(nm[p])
+        combos += count
+        rnd = random.Random(7)
+        def pick():
+            return mix.apply_kit(base, *[rnd.randrange(len(nm[p])) for p in mix.KIT_PARTS], [e + 1 for e in range(len(xn)) if rnd.random() < 0.5])
+        diffs = sorted(mix.look_difference(pick(), pick()) for _ in range(150))
+        diffs = [d for d in diffs if d > 0] or [0]
+        figs = []
+        for args in show:
+            args = tuple(min(a, len(nm[p]) - 1) for a, p in zip(args[:4], mix.KIT_PARTS)) + (args[4],)
+            v = mix.apply_kit(base, *args)
+            v["dimensions"] = False
+            f = v["kit_fitted"]
+            v["name"] = base["brand"].title() + " kit build"
+            cap = f"{f['tank_seat']} tank and seat, {f['tail']} tail, {f['front']} front, {f['exhaust']} exhaust" + ("".join(", " + x for x in f["extras"]) if f["extras"] else "")
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{cap}.</figcaption></figure>')
+        def menu(p, label):
+            notes = ["as drawn above"] + [v["note"] for v in kit[p]]
+            return f"<li><b>{label}:</b> " + "; ".join(f"{a} ({b})" for a, b in zip(nm[p], notes)) + ".</li>"
+        kit_html.append(f"""<h3>{base['brand'].title()} kit</h3><ul>{menu("tank_seat", "Tank and seat pairs")}{menu("tail", "Tails")}{menu("front", "Front ends")}{menu("exhaust", "Exhausts")}<li><b>Optional extras:</b> {"; ".join(xn)}.</li></ul><p>That gives {count} different bikes on this one frame, before colour and before any part from another brand. Every choice passes the fit and clearance checks. Measured side on over the parts a kit can change, two bikes picked at random differ by {diffs[len(diffs) // 2] * 100:.0f}% on average (from {diffs[0] * 100:.0f}% to {diffs[-1] * 100:.0f}%). Six of them:</p><div class="shots">{"".join(figs)}</div>""")
+    if kit_html:
+        h.append('<section><h2>Kits: the same frame, different bikes</h2><p class="lede">Each model gets its own choice of tank and seat pairs, tails, front ends and exhausts, plus optional extras. This is what stops two people who pick the same frame from ending up with the same bike. The tank and seat pairs also fit the other brand\'s frame.</p>' + "".join(kit_html) + "</section>")
     loaded = [elevation.load(n) for n in names]
     pairs = [(a, b) for a in loaded for b in loaded if a is not b]
     if pairs:
@@ -104,17 +231,47 @@ def build(family, names):
             li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in checks.deck(mm, fams))
             h.append(f"""<div class="sheet" style="margin-bottom:14px">{elevation.draw(mm)}<ul class="checks">{li}</ul></div>""")
         h.append("</section>")
+    h.append(pool_section(names))
+    h.append(kit_renders(names))
     h.append(swatch_section())
     h.append("""<section><h2>What these drawings are, and are not yet</h2>
 <ul class="plain"><li>They are drawn to scale from real numbers: wheelbase, rake, trail, seat height, wheel sizes and every frame tube.</li>
-<li>The automatic checks under each drawing run on every change. Two came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, and the middle of the bike may not be more than 12% empty space. The space under the tank and saddle is now filled with an airbox, side panels and an inner mudguard.</li>
+<li>The automatic checks under each drawing run on every change. Three came from your comments: the front tyre must clear the engine and radiator with the fork fully compressed, the middle of the bike may not be more than 12% empty space, and a naked tank must be flat underneath.</li>
+<li>Changed from your third 14 Nov markup: every naked's seat and tail now reach back to finish above the rear hub, a little differently per brand (the Kazeda runs just past the axle, the Corvano stops just short of it), and the plate bracket is shortened to match.</li>
+<li>Changed from your second 14 Nov markup: pipes that go under the engine first sweep forward in a curve, clear of the front of the engine, then tuck tight under it; the boxer's cylinders stand out 20% less; tank tops are smoothed further and the top view is lit evenly, because the studio lamps were painting bright patches on the paint that read as bands; the Hartwell has a shorter mudguard nose, a longer tail and one pair of clocks.</li>
+<li>Changed from your 14 Nov markup: the Corvano and Hartwell pipes run under the engine but tucked tight against the cases with no gap (Trident style, not the low wide arc of the first draft), front calipers bolt to the fork leg and both bikes have a rear caliper, the tyres are built from the game's own tread sections, the tanks are smooth from above, and mudguards end in a curve.</li>
+<li>Changed from your 13 Nov markup: flat tank bottoms, shorter front mudguards with a fork shroud, the rear mudguard either a short hugger on the swingarm (Corvano) or formed under the tail (Kazeda), the Corvano engine moved forward with a curving exhaust and a high silencer each side, and the plate hanger made a separate optional part.</li>
 <li>The 3D pictures are a first rough build to prove that drawing and model agree. Shapes are still blocky. Refining the 3D is the next job.</li>
-<li>The mixed builds are the first proof of the mounting standard. They are drawings only for now; the 3D versions follow.</li>
-<li>Not yet drawn: top and front views, the kit variants (three tank and seat pairs, three tails, front ends) and small detail such as cables, hoses and fasteners.</li></ul></section></div>""")
+<li>The mixed builds are the first proof of the mounting standard.</li>
+<li>The top and front views are taken straight from the 3D model, so they show its current rough state honestly: lamps, clocks and the tail still need shaping from above.</li></ul></section></div>""")
     out = os.path.join(ROOT, "out", f"{family}_elevations.html")
     open(out, "w").write("\n".join(h))
     return out
 
 
+def build_wave(slug, title, lede, names):
+    """A review page for a wave of new models from more than one family: drawing, checks and any
+    3D pictures per model. (Kits, mixes and the pool join the family pages once drawings are approved.)"""
+    fams = json.load(open(os.path.join(ROOT, "data", "families.json")))["families"]
+    head = review_page.HEAD.replace("<title>Bike Models V2 Brands and Families</title>", f"<title>{title}</title>")
+    head = head.replace("\n</style>\n", EXTRA + elevation.CSS + "\n</style>\n")
+    h = [head, '<div class="wrap">', f'<header><span class="eyebrow">Bike Models V2 · Phase 3</span><h1>{title}</h1><p class="lede">{lede}</p></header>']
+    for n in names:
+        m = elevation.load(n)
+        res = checks.check(m, fams) + checks.deck(m, fams)
+        pk = checks.packing(m)
+        if pk is not None:
+            res.append((pk <= checks.PACKING_MAX, f"empty space inside the bike {pk * 100:.0f}% (at most {checks.PACKING_MAX * 100:.0f}%)"))
+        li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in res)
+        h.append(f"""<section><h2>{m['name']}</h2><div class="sheet">{elevation.draw(m)}<ul class="checks">{li}</ul>{renders(n)}</div></section>""")
+    h.append("</div>")
+    out = os.path.join(ROOT, "out", f"{slug}.html")
+    open(out, "w").write("\n".join(h))
+    return out
+
+
 if __name__ == "__main__":
-    print(build(sys.argv[1], sys.argv[2:]))
+    if sys.argv[1] == "--wave":   # --wave <slug> "<title>" "<lede>" <model> ...
+        print(build_wave(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5:]))
+    else:
+        print(build(sys.argv[1], sys.argv[2:]))
