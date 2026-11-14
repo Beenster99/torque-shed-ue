@@ -156,6 +156,20 @@ struct RideMesh
 		}
 		return *Night;
 	}
+	// [OSM stage 5D] Traffic lights' and beacons' lamps (M_RideSignal, lit by MPC_Weather's Signals, the
+	// shared clock's seconds, so every rider sees the same colour): the vertex colour the lamp's, UV0 x the
+	// seconds its cycle starts at and y which lamp (SignalRed, SignalAmber, SignalGreen, SignalBeacon).
+	std::shared_ptr<RideMesh> Signals;
+	RideMesh& SignalsOf()
+	{
+		if (!Signals)
+		{
+			Signals = std::make_shared<RideMesh>();
+			Signals->OriginX = OriginX;
+			Signals->OriginZ = OriginZ;
+		}
+		return *Signals;
+	}
 	// Words on signs (a village's name, a speed limit): where (in the mesh's own origin, the middle of
 	// the words), which way they face (x, z), how tall a letter is (m), the words, and their colour.
 	struct Label
@@ -165,7 +179,8 @@ struct RideMesh
 		std::string Text;
 	};
 	std::vector<Label> Labels;
-	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Roofing && Roofing->Vertices() > 0) || (Brickwork && Brickwork->Vertices() > 0) || (Night && Night->Vertices() > 0); }
+	bool Any() const { return Vertices() > 0 || (Stone && Stone->Vertices() > 0) || (Masonry && Masonry->Vertices() > 0) || (Render && Render->Vertices() > 0) || (Roofing && Roofing->Vertices() > 0) || (Brickwork && Brickwork->Vertices() > 0) || (Night && Night->Vertices() > 0)
+		|| (Signals && Signals->Vertices() > 0); }
 	// With a square of ground: its grass and trees (RidePlan::PlantsTile), empty for none.
 	std::vector<RidePlant> Plants;
 	// With a square of ground: the sheep and cattle in its fields (RidePlan::AnimalsTile).
@@ -556,7 +571,9 @@ public:
 	// (Limit30 is any limit's roundel, its number in Text: [OSM stage 1] 20, 30, 40, 50 mph, or km/h abroad)
 	// [OSM stage 2] stiles, kissing gates, lift barriers, bollards, picnic tables and information boards.
 	enum EFurnish { NameSign, Limit30, LimitNational, Chevron, StreetLamp, CattleGrid, PostBox, BusStop, PowerPole, FieldGate, Seat, Milestone, PhoneBox, PubSign, CrossingBarrier,
-		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, PlaceBoard, FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
+		Stile, KissingGate, LiftGate, Bollard, PicnicTable, InfoBoard, PlaceBoard,
+		TrafficSignal, Beacon,   // [OSM stage 5D] a traffic light facing the traffic (Size its cycle's start, s), a zebra crossing's beacon
+		FurnishKinds };   // [places stage 2] a place's name board (Text; a marker post with none)
 	struct Furnish
 	{
 		int Kind = 0;
@@ -972,6 +989,11 @@ public:
 	// PaveWide from the road's edge, each side, in place of the verge (beenster Nov 14: one continuous kerb
 	// and pavement each side of a built-up street, flat across the side roads' mouths; none in the country).
 	static constexpr double KerbHigh = 0.125, PaveWide = 1.8;
+	// [OSM stage 5D] Traffic lights: a fixed cycle of SignalCycle seconds from the shared clock (the master
+	// plan's open question: until it is answered, nothing happens to a rider who goes through on red).
+	// The lamps' codes in RideMesh::Signals' UV0 y.
+	enum ESignalLamp { SignalRed = 0, SignalAmber = 1, SignalGreen = 2, SignalBeacon = 3 };
+	static constexpr double SignalCycle = 60.0;
 	static bool StreetClass(const std::string& Class);   // a class that can be a town street
 	std::vector<char> StreetsAlong(int Which) const;      // each point of a road: a town street's (1) or not   // (a fast road this far over the land beside it has a barrier on that side)
 	static constexpr double MedianSink = 0.12, MedianLeast = 1.2, MedianMost = 20.0, MedianWidest = 40.0, MedianPad = 2.5;

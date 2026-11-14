@@ -279,6 +279,43 @@ def night_material(L):
     return g.m
 
 
+def signal_material(L):
+    """Traffic lights' and Belisha beacons' lamps (OSM stage 5D: RideMesh::Signals). Their vertex colour is
+    the lamp's, UV0 u the second its light's 60 s cycle starts at, v which lamp (0 red, 1 amber, 2 green,
+    3 a beacon). From MPC_Weather's Signals (the server's clock, so every rider sees the same): red for
+    the first 55% (with amber over its last 5%: red and amber), green to 95%, then amber alone; a
+    beacon flashes, 0.6 s on and off. A lamp that's off is dark glass."""
+    g = L.Graph(L.new_material("M_RideSignal", MAT_DIR))
+    vc = g.node(unreal.MaterialExpressionVertexColor)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate)
+    def chan(src, c):
+        e = g.node(unreal.MaterialExpressionComponentMask, r=c == "R", g=c == "G", b=False, a=False)
+        g.link(src, e)
+        return e
+    start, lamp = chan(uv, "R"), chan(uv, "G")
+    clock = L.weather_param(g, "Signals")
+    t = g.op(unreal.MaterialExpressionFrac, g.op(unreal.MaterialExpressionDivide, g.op(unreal.MaterialExpressionAdd, clock, start), g.const(60.0)))
+    # (a sharp step: 0 before the edge, 1 after)
+    step = lambda x, edge: g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionMultiply, g.op(unreal.MaterialExpressionSubtract, x, g.const(edge)), g.const(1000.0)))
+    mul = lambda a, b: g.op(unreal.MaterialExpressionMultiply, a, b)
+    add = lambda a, b: g.op(unreal.MaterialExpressionAdd, a, b)
+    off = lambda a: g.op(unreal.MaterialExpressionOneMinus, a)
+    red = off(step(t, 0.55))
+    amber = add(mul(step(t, 0.5), off(step(t, 0.55))), step(t, 0.95))
+    green = mul(step(t, 0.55), off(step(t, 0.95)))
+    flash = off(step(g.op(unreal.MaterialExpressionFrac, mul(clock, g.const(0.8))), 0.5))
+    # (which lamp this is: 1 for the lamp code k, 0 for the others)
+    pick = lambda k: g.op(unreal.MaterialExpressionSaturate, g.op(unreal.MaterialExpressionOneMinus, mul(g.op(unreal.MaterialExpressionAbs, g.op(unreal.MaterialExpressionSubtract, lamp, g.const(float(k)))), g.const(2.0))))
+    on = add(add(mul(red, pick(0)), mul(amber, pick(1))), add(mul(green, pick(2)), mul(flash, pick(3))))
+    glow = mul(vc, add(g.const(0.02), mul(on, g.const(40.0))))
+    L.mel.connect_material_property(mul(vc, g.const(0.08)), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    L.mel.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    L.mel.connect_material_property(g.const(0.15), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    L.mel.recompile_material(g.m)
+    unreal.EditorAssetLibrary.save_loaded_asset(g.m)
+    return g.m
+
+
 def water_material(L):
     """The ride's water (Ride UK stage 5: World/WorldRideScenery's WaterTile): the sea, lakes and
     rivers, their colour the vertex colour (dark: deep sea blue-grey, peaty lake, brown river), glossy,
@@ -427,6 +464,8 @@ def scanned_materials(L):
                            ("M_RideWater", lambda: water_material(L)),
                            # (stage 7: lit windows, street lamps and cat's eyes after dark)
                            ("M_RideNight", lambda: night_material(L)),
+                           # (OSM stage 5D: traffic lights and Belisha beacons, on the shared clock)
+                           ("M_RideSignal", lambda: signal_material(L)),
                            # (OSM stage 3: roofs coursed by their roofing, and brick walls in bond)
                            ("M_RideRoof", lambda: roof_material(L)),
                            ("M_RideBrick", lambda: brick_material(L)),

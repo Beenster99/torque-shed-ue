@@ -201,6 +201,7 @@ WEATHER_PARAMS = (
     ("Puddles", 0.4),        # standing water: up to 0.4 the road's edges fill, past 0.6 the middle too
     ("Snow", 0.0),           # lying snow (Ride UK stage 6): 0 none .. 1 a full cover on the ground and wall tops
     ("Night", 0.0),          # how dark it is (Ride UK stage 7): 0 day .. 1 night; street lamps, lit windows, cat's eyes
+    ("Signals", 0.0),        # the traffic lights' clock (OSM stage 5D): the server's seconds, under an hour
 )
 _weather_mpc = None
 

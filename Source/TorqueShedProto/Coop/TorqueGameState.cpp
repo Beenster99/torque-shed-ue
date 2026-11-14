@@ -563,6 +563,10 @@ void ATorqueGameState::TickWeather(float DeltaSeconds)
 	// The weather here: the shared weather made local from the grid (every frame: it's cheap), shown
 	// when it has changed enough to see.
 	UpdateHere();
+	// [OSM stage 5D] The traffic lights' clock, every frame: the server's seconds, so every rider sees the
+	// same colour, kept under an hour (a whole number of cycles) for the float's sake.
+	if (WeatherMpc && WeatherMpc->GetScalarParameterByName(FName(TEXT("Signals"))))
+		UKismetMaterialLibrary::SetScalarParameterValue(World, WeatherMpc, FName(TEXT("Signals")), (float)FMath::Fmod((double)GetServerWorldTimeSeconds(), 3600.0));
 	const bool bHereMoved = HereAt >= 0.0 && Now - AppliedAt >= 0.1 && (FMath::Abs(Here.Cloud - HereApplied.Cloud) > 0.01
 		|| FMath::Abs(Here.Rain - HereApplied.Rain) > 0.03 || FMath::Abs(Here.RoadWet - HereApplied.RoadWet) > 0.01
 		|| FMath::Abs(Here.Puddles - HereApplied.Puddles) > 0.01 || FMath::Abs(Here.SnowDepth - HereApplied.SnowDepth) > 0.002 || FMath::Abs(Here.Air - HereApplied.Air) > 0.2

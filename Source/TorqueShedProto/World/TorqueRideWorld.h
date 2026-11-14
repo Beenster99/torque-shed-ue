@@ -172,6 +172,8 @@ private:
 	// [stage 7] What lights up after dark (RideMesh::Night: lit windows, lamp heads, cat's eyes; M_RideNight),
 	// and the street lamps' real lights on the nearest squares, on only after dark.
 	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> NightMaterial;
+	// [OSM stage 5D] Traffic lights' and beacons' lamps (RideMesh::Signals; M_RideSignal, by MPC_Weather's Signals).
+	UPROPERTY(Transient) TObjectPtr<UMaterialInterface> SignalMaterial;
 	TMap<FIntVector, TArray<TWeakObjectPtr<class UPointLightComponent>>> StreetLights;
 	void DropStreetLights(const FIntVector& Key);
 	bool bStreetLightsOn = false;

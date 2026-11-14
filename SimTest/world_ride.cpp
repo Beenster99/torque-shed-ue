@@ -484,9 +484,9 @@ int main(int Argc, char** Argv)
 					const double FurnMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - FurnT0).count();
 					std::map<int, int> ByKind;
 					for (const RidePlan::Furnish* F : FurnHere) ++ByKind[F->Kind];
-					std::printf("  the network's furniture there: %zu in %.0f ms (lamps %d, chevrons %d, post boxes %d, bus stops %d, benches %d, cattle grids %d)\n",
+					std::printf("  the network's furniture there: %zu in %.0f ms (lamps %d, chevrons %d, post boxes %d, bus stops %d, benches %d, cattle grids %d, traffic lights %d, beacons %d)\n",
 						FurnHere.size(), FurnMs, ByKind[RidePlan::StreetLamp], ByKind[RidePlan::Chevron], ByKind[RidePlan::PostBox], ByKind[RidePlan::BusStop],
-						ByKind[RidePlan::Seat], ByKind[RidePlan::CattleGrid]);
+						ByKind[RidePlan::Seat], ByKind[RidePlan::CattleGrid], ByKind[RidePlan::TrafficSignal], ByKind[RidePlan::Beacon]);
 				}
 				RidePlan::NearHit Hit;
 				const bool On = Plan->NearestOf(Rx, Rz, RidePlan::NearOpts(), Hit);
@@ -784,6 +784,16 @@ int main(int Argc, char** Argv)
 			if (!std::isnan(Lie) && P.Height - Lie > RidePlan::EmbankBarrier) { if (Banked == 0.0) BankAt = P.At; Banked += Len; }
 		}
 		std::printf("  the ride's road on an embankment over %.0f m high for %.0f m (first at %.0f, %.0f; at most %.1f m over the land)\n", RidePlan::EmbankBarrier, Banked, BankAt.X, BankAt.Z, Highest);
+		// (the map's traffic lights and zebra crossings: how many say which way they face)
+		{
+			int Lights = 0, LightsFacing = 0, Zebras = 0, OnEdge = 0;
+			for (const MappedPoint& Mp : G.RoadPoints)
+			{
+				if (Mp.Kind == "traffic_signals") { if (Lights < 3) std::printf("  a traffic light at %.1f, %.1f heading %.0f\n", Mp.At.X, Mp.At.Z, Mp.Heading); ++Lights; LightsFacing += Mp.Heading >= 0.0 ? 1 : 0; OnEdge += Mp.Edge >= 0 ? 1 : 0; }
+				if (Mp.Kind == "crossing_zebra") ++Zebras;
+			}
+			std::printf("  %d traffic lights (%d facing a way, %d on a road), %d zebra crossings\n", Lights, LightsFacing, OnEdge, Zebras);
+		}
 		// (the map's crash barriers: where the first few are)
 		for (size_t B = 0; B < G.Barriers.size() && B < 4; ++B)
 			std::printf("  %s, %zu points, from %.0f, %.0f\n", G.Barriers[B].Kind.c_str(), G.Barriers[B].Pts.size(), G.Barriers[B].Pts[0].X, G.Barriers[B].Pts[0].Z);
@@ -1194,6 +1204,47 @@ int main(int Argc, char** Argv)
 								}
 								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]),
 									Cr, Cg, Cb);
+								Text += Buf;
+							}
+						}
+					}
+				}
+		}
+		// (and with WORLD_RIDE_MESH_R, the scenery standing there: traffic lights lit as at WORLD_RIDE_SIGNALS seconds)
+		if (std::getenv("WORLD_RIDE_MESH_R") != nullptr)
+		{
+			const double Round = std::atof(std::getenv("WORLD_RIDE_MESH_R"));
+			const double Clock = std::getenv("WORLD_RIDE_SIGNALS") != nullptr ? std::atof(std::getenv("WORLD_RIDE_SIGNALS")) : 0.0;
+			for (double Tz = std::floor((Centre.Z - Round) / 64.0) * 64.0; Tz < Centre.Z + Round; Tz += 64.0)
+				for (double Tx = std::floor((Centre.X - Round) / 64.0) * 64.0; Tx < Centre.X + Round; Tx += 64.0)
+				{
+					RideMesh Stands;
+					Plan->SceneryTile(Tx, Tz, 64.0, 2.0, Stands);
+					const RideMesh* Extra = Stands.Extra.get();
+					for (const RideMesh* Mesh : std::initializer_list<const RideMesh*>{&Stands, Extra, Stands.Signals.get(), Extra ? Extra->Signals.get() : nullptr})
+					{
+						if (Mesh == nullptr) continue;
+						const bool Lamps = Mesh == Stands.Signals.get() || (Extra && Mesh == Extra->Signals.get());
+						for (size_t T = 0; T + 2 < Mesh->Idx.size(); T += 3)
+						{
+							bool In = false;
+							for (int C = 0; C < 3; ++C) In = In || std::hypot(Mesh->OriginX + Mesh->Pos[Mesh->Idx[T + C] * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[Mesh->Idx[T + C] * 3 + 2] - Centre.Z) < Round;
+							if (!In) continue;
+							for (int C = 0; C < 3; ++C)
+							{
+								const uint32_t V = Mesh->Idx[T + C];
+								double Cr = Mesh->Col[V * 3], Cg = Mesh->Col[V * 3 + 1], Cb = Mesh->Col[V * 3 + 2];
+								if (Lamps && Mesh->Uv.size() >= V * 2 + 2)
+								{
+									// (as M_RideSignal lights them)
+									const double Tc = std::fmod((Clock + Mesh->Uv[V * 2]) / RidePlan::SignalCycle, 1.0);
+									const int Lamp = int(std::lround(Mesh->Uv[V * 2 + 1]));
+									const bool Red = Tc < 0.55, Amber = (Tc >= 0.5 && Tc < 0.55) || Tc >= 0.95, Green = Tc >= 0.55 && Tc < 0.95;
+									const bool On = Lamp == RidePlan::SignalRed ? Red : Lamp == RidePlan::SignalAmber ? Amber : Lamp == RidePlan::SignalGreen ? Green : std::fmod(Clock * 0.8, 1.0) < 0.5;
+									const double K = On ? 1.0 : 0.15;
+									Cr *= K; Cg *= K; Cb *= K;
+								}
+								std::snprintf(Buf, sizeof(Buf), "%.3f %.3f %.3f %.3f %.3f %.3f\n", Mesh->OriginX + Mesh->Pos[V * 3] - Centre.X, Mesh->OriginZ + Mesh->Pos[V * 3 + 2] - Centre.Z, double(Mesh->Pos[V * 3 + 1]), Cr, Cg, Cb);
 								Text += Buf;
 							}
 						}

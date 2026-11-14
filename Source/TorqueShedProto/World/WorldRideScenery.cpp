@@ -1436,6 +1436,54 @@ void RidePlan::FurnitureTile(double X0, double Z0, double Size, bool Fine, RideM
 			Label(At3(Mid.X + Face.X * 0.08, Mid.Y, Mid.Z + Face.Z * 0.08), Face, 0.15, Words, Cream);
 			break;
 		}
+		case TrafficSignal:
+		{
+			// [OSM stage 5D] A grey pole, and on it a black head with a white-edged backing board facing the
+			// traffic: red over amber over green, lit in turn by the shared clock (M_RideSignal).
+			static const Rgb LampRed = {1.0f, 0.03f, 0.01f}, LampAmber = {1.0f, 0.35f, 0.0f}, LampGreen = {0.05f, 1.0f, 0.35f};
+			Box(Out, F.At.X, F.At.Z, Face, 0.055, 0.055, Y - 0.3, Y + 2.35, Shade(Grey, 0.7));
+			Box(Out, F.At.X, F.At.Z, Face, 0.13, 0.17, Y + 2.3, Y + 3.3, Black);
+			const P3 Head = At3(F.At.X, Y + 2.8, F.At.Z);
+			Board(Head, Face * -1.0, 0.62, 1.22, Black, 0.13);
+			Board(Head, Face, 0.62, 1.22, White, -0.135);
+			Board(Head, Face, 0.56, 1.16, Black, -0.13);
+			RideMesh& Lamps = Out.SignalsOf();
+			const Rgb* Colours[3] = {&LampRed, &LampAmber, &LampGreen};
+			for (int L = 0; L < 3; ++L)
+			{
+				const size_t V0 = Lamps.Vertices();
+				Disc(Lamps, At3(Head.X + Face.X * 0.14, Head.Y + 0.3 - 0.3 * L, Head.Z + Face.Z * 0.14), Face, 0.1, *Colours[L], 14);
+				for (size_t V = V0; V < Lamps.Vertices(); ++V)
+				{
+					Lamps.Uv[V * 2] = float(F.Size);
+					Lamps.Uv[V * 2 + 1] = float(SignalRed + L);
+				}
+			}
+			break;
+		}
+		case Beacon:
+		{
+			// [OSM stage 5D] A Belisha beacon: a pole banded black and white, an amber globe flashing on top.
+			static const Rgb Globe = {1.0f, 0.4f, 0.0f};
+			for (int Band = 0; Band < 8; ++Band)
+				Box(Out, F.At.X, F.At.Z, Face, 0.045, 0.045, Y - 0.3 + (Band == 0 ? 0.0 : 0.3 * Band), Y + 0.3 * (Band + 1), Band % 2 == 0 ? Black : White);
+			RideMesh& Lamps = Out.SignalsOf();
+			const size_t V0 = Lamps.Vertices();
+			// (the globe: four discs round, two across, enough at a glance)
+			const double Gy = Y + 2.62;
+			for (int K = 0; K < 4; ++K)
+			{
+				const double A = 1.5707963 * K;
+				const P2 N(std::cos(A), std::sin(A));
+				Disc(Lamps, At3(F.At.X + N.X * 0.12, Gy, F.At.Z + N.Z * 0.12), N, 0.17, Globe, 12);
+			}
+			for (size_t V = V0; V < Lamps.Vertices(); ++V)
+			{
+				Lamps.Uv[V * 2] = 0.0f;
+				Lamps.Uv[V * 2 + 1] = float(SignalBeacon);
+			}
+			break;
+		}
 		default: break;
 		}
 	}
@@ -2448,6 +2496,67 @@ std::vector<RidePlan::Furnish> RidePlan::BlockFurniture(const Rect& In) const
 		}
 		F.Height = Ground(F.At.X, F.At.Z);
 		if (!std::isnan(F.Height)) Out.push_back(F);
+	}
+	// [OSM stage 5D] The map's traffic lights (a pole on the nearside at the stop line, facing the traffic
+	// it governs; both ways where the map doesn't say which) and zebra crossings' beacons (one each side).
+	// The lights at one junction share a cycle; those on roads across each other run half a cycle apart.
+	for (const MappedPoint& Mp : G.RoadPoints)
+	{
+		const bool Signal = Mp.Kind == "traffic_signals" || Mp.Kind == "crossing_signals", Zebra = Mp.Kind == "crossing_zebra";
+		if ((!Signal && !Zebra) || Mp.At.X < In.X0 || Mp.At.X >= In.X1 || Mp.At.Z < In.Z0 || Mp.At.Z >= In.Z1) continue;
+		NearOpts Opts;
+		NearHit Hit;
+		if (!NearestOf(Mp.At.X, Mp.At.Z, Opts, Hit) || Hit.Dist > Hit.Half + 3.0 || Hit.Deck || Hit.Bore) continue;
+		const std::vector<RoadPoint>& On = RoadOf(Hit.Which);
+		const size_t K = size_t(std::max(0, std::min(Hit.Index, int(On.size()) - 2)));
+		if (K + 1 >= On.size()) continue;
+		P2 Along = On[K + 1].At - On[K].At;
+		const double L = Along.Length();
+		if (L < 1e-6) continue;
+		Along = Along * (1.0 / L);
+		const P2 Left(Along.Z, -Along.X);
+		const uint32_t Id = static_cast<uint32_t>(std::lround(Mp.At.X * 7.0)) * 73856093u ^ static_cast<uint32_t>(std::lround(Mp.At.Z * 7.0)) * 19349663u;
+		if (Zebra)
+		{
+			for (double Sd : {1.0, -1.0})
+			{
+				Furnish F;
+				F.Kind = Beacon;
+				F.At = Hit.Foot + Left * (Sd * (Hit.Half + 0.45));
+				F.Face = Left * Sd;
+				F.Id = Id + (Sd > 0.0 ? 1u : 2u);
+				F.Height = Ground(F.At.X, F.At.Z);
+				if (!std::isnan(F.Height)) Out.push_back(F);
+			}
+			continue;
+		}
+		// (the ways its traffic runs: the map's heading, degrees clockwise from north, x east and z south)
+		std::vector<P2> Ways;
+		if (Mp.Heading >= 0.0)
+		{
+			const double H = Mp.Heading * 3.14159265358979 / 180.0;
+			const P2 Goes(std::sin(H), -std::cos(H));
+			Ways.push_back(Goes.X * Along.X + Goes.Z * Along.Z >= 0.0 ? Along : Along * -1.0);
+		}
+		else
+		{
+			Ways.push_back(Along);
+			Ways.push_back(Along * -1.0);
+		}
+		// (one cycle per junction, keyed to its 40 m square; roads running nearer east-west half a cycle on)
+		const double Start = std::fmod(Chance(std::floor(Mp.At.X / 40.0), std::floor(Mp.At.Z / 40.0), 61) * SignalCycle, SignalCycle);
+		for (const P2& Goes : Ways)
+		{
+			const P2 Near = KeepLeft() ? P2(Goes.Z, -Goes.X) : P2(-Goes.Z, Goes.X);
+			Furnish F;
+			F.Kind = TrafficSignal;
+			F.At = Hit.Foot + Near * (Hit.Half + 0.55) - Goes * 1.0;
+			F.Face = Goes * -1.0;
+			F.Size = std::fmod(Start + (std::fabs(Goes.X) > std::fabs(Goes.Z) ? SignalCycle * 0.5 : 0.0), SignalCycle);
+			F.Id = Id + (Goes.X + Goes.Z >= 0.0 ? 3u : 4u);
+			F.Height = Ground(F.At.X, F.At.Z);
+			if (!std::isnan(F.Height)) Out.push_back(F);
+		}
 	}
 	return Out;
 }
