@@ -29,6 +29,9 @@
 #include "World/WorldFiles.h"
 #include "Coop/TorqueSettings.h"
 #include "World/WorldLoad.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Modules/ModuleManager.h"
 #include <set>
 #include "World/WorldRide.h"
 #include "World/TorqueRideWorld.h"
@@ -39,6 +42,8 @@ struct FTorqueWorldShared
 {
 	TorqueWorld::CellStore Cells;
 	TorqueWorld::HeightStore Heights;
+	TorqueWorld::Route::MapRoads MapRoads;   // [build 147] the planner's road map's main roads
+	TorqueWorld::Route::MapImagery Imagery;  // [build 147] the planner's satellite pictures
 	std::atomic<bool> bStop{false};   // the game is closing: every wait gives up
 	std::atomic<bool> bOffline{false};   // [stage 8] Settings' offline: nothing is fetched
 };
@@ -121,6 +126,27 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	const FString Root = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("World")));
 	Shared->Cells.Dir = TWSI::ToStd(FPaths::Combine(Root, TEXT("cells")));
 	Shared->Heights.Disk = TWSI::ToStd(FPaths::Combine(Root, TEXT("heights")));
+	// [build 147] The planner's satellite pictures, kept beside the heights and decoded by the engine.
+	Shared->Imagery.Disk = TWSI::ToStd(FPaths::Combine(Root, TEXT("imagery")));
+	Shared->Imagery.Decode = [](const std::string& Bytes, int& OutW, int& OutH, std::vector<uint8_t>& Rgb)
+	{
+		IImageWrapperModule& Wrappers = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+		const TSharedPtr<IImageWrapper> Jpeg = Wrappers.CreateImageWrapper(EImageFormat::JPEG);
+		if (!Jpeg.IsValid() || !Jpeg->SetCompressed(Bytes.data(), int64(Bytes.size()))) return false;
+		TArray64<uint8> Raw;
+		if (!Jpeg->GetRaw(ERGBFormat::RGBA, 8, Raw)) return false;
+		OutW = int(Jpeg->GetWidth());
+		OutH = int(Jpeg->GetHeight());
+		if (Raw.Num() != int64(OutW) * int64(OutH) * 4) return false;
+		Rgb.resize(size_t(OutW) * size_t(OutH) * 3);
+		for (int64 P = 0; P < int64(OutW) * int64(OutH); ++P)
+		{
+			Rgb[size_t(P) * 3] = Raw[P * 4];
+			Rgb[size_t(P) * 3 + 1] = Raw[P * 4 + 1];
+			Rgb[size_t(P) * 3 + 2] = Raw[P * 4 + 2];
+		}
+		return true;
+	};
 	// (a weak hold: a fetch asked for after the game has closed finds nothing to ask)
 	std::weak_ptr<FTorqueWorldShared> Weak = Shared;
 	Shared->Cells.Get = [Weak](const std::string& Url, std::string& Body)
@@ -425,11 +451,26 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 		const auto Draw = [&Held, &View]()
 		{
 			std::vector<uint8_t> Px;
-			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px);
+			TorqueWorld::Route::DrawRelief(Held->Heights, View, Px, &Held->MapRoads, &Held->Imagery);
 			TArray<uint8> Out;
 			Out.Append(Px.data(), int32(Px.size()));
 			return Out;
 		};
+		// [build 147] The satellite layer: its pictures on disk at once, then again with those that weren't.
+		if (View.Layer == TorqueWorld::Route::Satellite)
+		{
+			const std::vector<TorqueWorld::TileKey> Pics = TorqueWorld::Route::MapImagery::Keys(View);
+			bool bHave = true;
+			for (const TorqueWorld::TileKey& K : Pics) bHave = bHave && Held->Imagery.OnDisk(K);
+			TArray<uint8> First = Draw();
+			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(First), bHave]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), bHave); });
+			if (bHave || Held->bStop) return;
+			Held->Imagery.Fetch(Pics, Held->Cells.Get, 6);
+			if (Held->bStop) return;
+			TArray<uint8> Second = Draw();
+			AsyncTask(ENamedThreads::GameThread, [Self, View, Got = MoveTemp(Second)]() mutable { if (Self.IsValid()) Self->MapDone(View, MoveTemp(Got), true); });
+			return;
+		}
 		// What is on disk at once, then again with the tiles that weren't.
 		const std::vector<TorqueWorld::TileKey> Keys = View.Tiles();
 		// [build 147] Where the coast is, so low land (the Fens) isn't drawn as sea.
@@ -437,7 +478,8 @@ void UTorqueWorldSubsystem::DrawMap(const TorqueWorld::Route::MapView& View)
 			std::set<TorqueWorld::CellId> Under;
 			for (const TorqueWorld::TileKey& K : Keys)
 				for (const TorqueWorld::CellId& C : TorqueWorld::CellsUnder(K)) Under.insert(C);
-			TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24);
+			TorqueWorld::KnowCoasts(Held->Cells, Held->Heights, std::vector<TorqueWorld::CellId>(Under.begin(), Under.end()), 24,
+				View.Layer == TorqueWorld::Route::RoadMap ? &Held->MapRoads : nullptr);
 		}
 		bool bAll = true;
 		for (const TorqueWorld::TileKey& K : Keys) bAll = bAll && Held->Heights.Has(K);

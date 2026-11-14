@@ -176,6 +176,8 @@ int main(int Argc, char** Argv)
 		char File[512] = {0};
 		if (std::sscanf(MapAt, "%lf,%lf,%lf,%511s", &V.Lat, &V.Lon, &V.Zoom, File) < 3) { std::printf("WORLD_RIDE_MAP=lat,lon,zoom[,file]\n"); return 2; }
 		V.W = 1024; V.H = 768;
+		if (const char* Layer = std::getenv("WORLD_RIDE_MAP_LAYER")) V.Layer = std::atoi(Layer);
+		Route::MapRoads Roads;
 		const std::vector<TileKey> Keys = V.Tiles();
 		if (std::getenv("WORLD_RIDE_MAP_NOCOAST") == nullptr)
 		{
@@ -183,11 +185,11 @@ int main(int Argc, char** Argv)
 			for (const TileKey& K : Keys)
 				for (const CellId& C : CellsUnder(K)) Under.insert(C);
 			Cells.IndexNow();
-			KnowCoasts(Cells, Heights, std::vector<CellId>(Under.begin(), Under.end()), 24);
+			KnowCoasts(Cells, Heights, std::vector<CellId>(Under.begin(), Under.end()), 24, &Roads);
 		}
 		Heights.Fetch(Keys, Cells.Get, 6);
 		std::vector<uint8_t> Px;
-		Route::DrawRelief(Heights, V, Px);
+		Route::DrawRelief(Heights, V, Px, &Roads);
 		size_t Sea = 0, All = 0;
 		for (int J = 0; J < V.H; ++J)
 			for (int I = 0; I < V.W; ++I)

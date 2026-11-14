@@ -728,6 +728,22 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 	}
 	if (W->IsDrawingMap() && !bHaveTex)
 		Ui::Text(Canvas, TEXT("Drawing the map..."), float(MapPos.X + MapSize.X * 0.5), float(MapPos.Y + MapSize.Y * 0.5), 18.0f * S, Ui::Ink, false, Ui::EAlign::Centre);
+	// [build 147] The map's layers, top right: relief, road map, terrain, satellite.
+	if (!bDiaryMap)
+	{
+		const float BW = 92.0f * S, BH = 30.0f * S;
+		const int32 Count = TorqueWorld::Route::LayerCount;
+		float BX = float(MapPos.X + MapSize.X) - 10.0f * S - BW * Count;
+		const float BY = float(MapPos.Y) + 10.0f * S;
+		Ui::Rect(Canvas, BX - 3.0f * S, BY - 3.0f * S, BW * Count + 6.0f * S, BH + 6.0f * S, FLinearColor(0.03f, 0.033f, 0.037f, 0.85f));
+		for (int32 L = 0; L < Count; ++L, BX += BW)
+			Button(Canvas, BX, BY, BW, BH, UTF8_TO_TCHAR(TorqueWorld::Route::LayerName(L)), View.Layer == L, true, [this, L]()
+			{
+				if (View.Layer == L) return;
+				View.Layer = L;
+				bViewDirty = true;
+			}, 13.5f * S);
+	}
 	if (bDiaryMap) DrawDiaryMap(Canvas, true);   // (a photo open, over it all)
 
 	// Round the map, the page (which also hides what was drawn past the map's edges).
@@ -983,7 +999,10 @@ void FTorqueRoutePlanner::Draw(UCanvas* Canvas)
 	FX += Ui::KeyHint(Canvas, TEXT("Ctrl+V"), TEXT("Paste a code, map link or GPX"), FX, FY, S) + 26.0f * S;
 	Ui::KeyHint(Canvas, TEXT("Esc"), TEXT("Back"), FX, FY, S);
 	// Who made the map, as their licences ask.
-	Ui::Text(Canvas, TEXT("Relief: Mapterhorn. Places: GeoNames (CC BY 4.0). Roads: © OpenStreetMap contributors."), SW - Gap, FY + 4.0f * S, 11.5f * S, Ui::Faint, false, Ui::EAlign::Right);
+	if (View.Layer == TorqueWorld::Route::Satellite)
+		Ui::Text(Canvas, FString(UTF8_TO_TCHAR(TorqueWorld::Route::MapImagery::Credit())) + TEXT(" Places: GeoNames (CC BY 4.0)."), SW - Gap, FY + 4.0f * S, 11.5f * S, Ui::Faint, false, Ui::EAlign::Right);
+	else
+		Ui::Text(Canvas, TEXT("Relief: Mapterhorn. Places: GeoNames (CC BY 4.0). Roads: © OpenStreetMap contributors."), SW - Gap, FY + 4.0f * S, 11.5f * S, Ui::Faint, false, Ui::EAlign::Right);
 }
 
 // --- the ride diary [stage 7] ------------------------------------------------------------------------

@@ -79,7 +79,40 @@ void CoastsOf(const Json& Sketch, HeightStore& Heights)
 	}
 }
 
-void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, size_t MostBlocks)
+void RoadsOf(const Json& Sketch, Route::MapRoads& Roads)
+{
+	// (each cell's "lines": [[class, [lat, lon, dlat, dlon, ...]], ...] in 1e-5 degrees: sketch_bake.py)
+	const Json* Cs = Sketch.Get("cells");
+	if (Cs == nullptr || !Cs->IsObject()) return;
+	std::vector<Route::MapRoads::Line> Got;
+	for (const auto& Kv : Cs->O)
+		for (const Json& Row : Kv.second.A)
+		{
+			if (Row.Size() < 2 || !Row.A[1].IsArray()) continue;
+			Route::MapRoads::Line L;
+			L.Class = std::clamp(int(Row.A[0].N), 0, 2);
+			long long Lat = 0, Lon = 0;
+			const std::vector<Json>& P = Row.A[1].A;
+			for (size_t K = 0; K + 1 < P.size(); K += 2)
+			{
+				Lat += static_cast<long long>(P[K].N);
+				Lon += static_cast<long long>(P[K + 1].N);
+				L.Pts.emplace_back(double(Lat) * 1e-5, double(Lon) * 1e-5);
+			}
+			if (L.Pts.size() < 2) continue;
+			L.South = L.North = L.Pts[0].first;
+			L.West = L.East = L.Pts[0].second;
+			for (const auto& Pt : L.Pts)
+			{
+				L.South = std::min(L.South, Pt.first); L.North = std::max(L.North, Pt.first);
+				L.West = std::min(L.West, Pt.second); L.East = std::max(L.East, Pt.second);
+			}
+			Got.push_back(std::move(L));
+		}
+	Roads.Add(std::move(Got));
+}
+
+void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId>& Cells, size_t MostBlocks, Route::MapRoads* Roads)
 {
 	const std::shared_ptr<const WorldIndex> Idx = Store.IndexNow();
 	if (!Idx) return;
@@ -88,9 +121,12 @@ void KnowCoasts(CellStore& Store, HeightStore& Heights, const std::vector<CellId
 	if (Blocks.size() > MostBlocks) return;
 	for (const std::string& Block : Blocks)
 	{
-		if (Heights.CoastBlockRead(Block)) continue;
+		const bool WantCoast = !Heights.CoastBlockRead(Block), WantRoads = Roads != nullptr && Roads->Claim(Block);
+		if (!WantCoast && !WantRoads) continue;
 		Json Sk;
-		if (Store.Kept(CellStore::EKind::Sketches, Block, *Idx, Sk)) CoastsOf(Sk, Heights);
+		if (!Store.Kept(CellStore::EKind::Sketches, Block, *Idx, Sk)) continue;
+		if (WantCoast) CoastsOf(Sk, Heights);
+		if (WantRoads) RoadsOf(Sk, *Roads);
 	}
 }
 
