@@ -3,7 +3,7 @@
  "enabled": false,
  "_enabled": "hub, round 143: off. Megaplants whole trees are SkeletalMesh / ProceduralVegetation assets; the only StaticMeshes are leaf, bud and decoration parts, which got planted as trees. Since 144 scanned_trees() turns the whole-tree SkeletalMeshes into static Nanite copies (Geometry Script, /Game/RideUK/ScannedTrees) and, while off, logs a trial of what it would plant. Turn on once that log names whole trees.",
  "most": 6,
- "skip": ["billboard", "impostor", "branch", "twig", "debris", "stump", "fallen", "leaves", "atlas", "sapling", "seedling", "leaf", "bud", "decoration"],
+ "skip": ["billboard", "impostor", "branch", "twig", "debris", "stump", "fallen", "leaves", "atlas", "sapling", "seedling", "leaf", "bud", "decoration", "needle"],
  "kinds": {
   "oak": ["english oak", "european oak", "common oak"],
   "birch": ["silver birch"],
