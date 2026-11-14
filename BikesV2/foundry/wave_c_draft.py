@@ -53,6 +53,8 @@ def raise_bike(m, dz, rear_r):
     e["case"] = [list(up(p[0], p[1])) + p[2:] for p in e["case"]]
     e["covers"] = [tf(c, up) for c in e["covers"]]
     e["extras"] = [tf(s, up) for s in e["extras"]]
+    if "boxer" in e:
+        e["boxer"] = dict(e["boxer"], at=list(up(*e["boxer"]["at"])), cover=[list(up(q[0], q[1])) + q[2:] for q in e["boxer"]["cover"]])
     if m.get("radiator"):
         m["radiator"] = tf(m["radiator"], up)
     ex = m["exhaust"]
@@ -79,23 +81,31 @@ def raise_bike(m, dz, rear_r):
     m["wheels"]["rear"]["tyre_r"] = rear_r
 
 
-def corvano_adventure():
+def adventure(brand="corvano", wire=False):
     """The adventure lead, drawn again (beenster, 14 Nov: start again from a big Italian V4 adventure tourer,
     reference only). Corvano's V-twin and trellis stood up on longer suspension with a 19 inch cast front
     wheel. Shapes from beenster's overdrawing: a long distinctive beak under a tall screen, a three-quarter
     fairing, a long flatter tank, a long rear section comfortable for two with a rack, hand guards and one
-    large silencer swept up the swingarm side."""
-    base = load("corvano_naked")
+    large silencer swept up the swingarm side.
+
+    The other brands' adventure bikes are first drafts by rule: the brand's own engine, frame, wheels, bars
+    and colours under the same approved nose, fairing, tank, seat and tail (not styled per brand yet)."""
+    base = load(brand + "_naked")
     m = copy.deepcopy(base)
     m.pop("kit", None)
-    m.update(name="Corvano adventure (working title A1)", family="Adventure", rev="D")
-    DZ, FR, RR, WB = 50, 330, 320, 1560
+    m.update(name=brand.title() + " adventure (working title A1)", family="Adventure", rev="D" if brand == "corvano" else "A")
+    FR, RR, WB = 330, 320, 1560
     g0, r0 = base["geometry"], base["wheels"]["front"]["tyre_r"]
+    DZ = max(922 - base["deck"]["nose"][1], 200 - g0["ground_clearance"])     # the deck comes up to the family's line, the sump to its clearance
     raise_bike(m, DZ, RR)
-    m["geometry"] = dict(g0, wheelbase=WB, rake=24.5, trail=105, seat_height=g0["seat_height"] + DZ, hip_x=520, ground_clearance=g0["ground_clearance"] + DZ)
+    m["geometry"] = dict(g0, wheelbase=WB, rake=24.5, trail=105, seat_height=870, hip_x=520, ground_clearance=g0["ground_clearance"] + DZ)
+    m["deck"] = {"nose": [690, 922], "tank_pitch": 3, "seat_pitch": 3.5}      # one shared deck: the tank, seat and tail are the same on every brand
     m["fork"] = dict(base["fork"], length=790, lower_yoke=610, slider_top=400, usd=True)
     m["wheels"]["front"].update(tyre_r=FR, rim_r=241, tread="touring")
     m["wheels"]["rear"].update(tread="touring")
+    if wire:
+        for w in m["wheels"].values():
+            w.update(wire=True, spokes=36)
     a = fork_top(g0, r0, base["fork"]["length"])
     tx, tz = fork_top(m["geometry"], FR, m["fork"]["length"])
     dx, dz = tx - a[0], tz - a[1]
@@ -126,7 +136,7 @@ def corvano_adventure():
                  {"pts": [[-176, 1034, 1], [-196, 1024, 1], [-186, 1004, 1], [-166, 1012, 1]], "cls": "redlens", "t": 0}]
     b["behind"] = [{"pts": [[470, 790, 1], [340, 800], [200, 850], [20, 890], [-110, 930, 1], [-100, 900, 1], [30, 858], [200, 814], [340, 768], [466, 762, 1]], "cls": "plastic fender", "t": 0.8, "slim": True}]
     n = m["frame"]["nodes"]
-    n.update(S2=[-50, 950], S4=[60, 900])
+    n.update({k: v for k, v in (("S2", [-50, 950]), ("S4", [60, 900])) if k in n})
     b["plate_hanger"] = [{"tube": 18, "pts": [[-120, 936], [-236, 800], [-286, 700]], "cls": "plastic", "t": 0.6, "front": True},
                          {"pts": [[-278, 724, 1], [-294, 732, 1], [-330, 642, 1], [-314, 634, 1]], "cls": "plate", "t": 0},
                          {"pts": [[-272, 742, 1], [-262, 736, 1], [-280, 700, 1], [-290, 706, 1]], "cls": "redlens", "t": 0}]
@@ -144,11 +154,16 @@ def corvano_adventure():
         {"tube": 10, "pts": [[40, 1034], [70, 990]], "cls": "dark"}, {"tube": 10, "pts": [[-120, 1052], [-100, 1000]], "cls": "dark"}]
     # one large silencer, swept up along the swingarm side
     hd = m["exhaust"]["headers"]
-    m["exhaust"] = {"side": "left",
-                    "headers": [dict(hd[0], pts=hd[0]["pts"][:8] + [[560, 372]]), dict(hd[1], pts=hd[1]["pts"][:3] + [[520, 480], [560, 372]])],
-                    "cans": [{"a": [560, 372], "b": [50, 640], "w": 136, "front": True}]}
+    if brand == "corvano":
+        heads = [dict(hd[0], pts=hd[0]["pts"][:8] + [[560, 372]]), dict(hd[1], pts=hd[1]["pts"][:3] + [[520, 480], [560, 372]])]
+    else:               # each pipe keeps its own run down and under the engine, then turns up into the silencer
+        heads = []
+        for x in hd:
+            k = next((i for i, q in enumerate(x["pts"]) if i > 2 and q[0] < 640), len(x["pts"]))
+            heads.append(dict(x, pts=x["pts"][:k] + [[560, 372]]))
+    m["exhaust"] = {"side": "left", "headers": heads, "cans": [{"a": [560, 372], "b": [50, 640], "w": 136, "front": True}]}
     b["overall"] = [-RR - 40, WB + FR + 10]
-    m["frame_label"] = "steel trellis, engine as part of the frame, long-travel suspension"
+    m["frame_label"] = base["frame_label"].split(", engine as")[0] + ", long-travel suspension"
     return m
 
 
@@ -162,7 +177,10 @@ def ring(c, r0, r1, a0, a1, step=10):
     return pts
 
 
-def lodestar_chopper():
+CHOP = {"lodestar": (1880, 43.0, 1000, 800, 230), "hartwell": (1760, 38.0, 900, 720, 200), "kazeda": (1900, 45.0, 1030, 830, 250)}
+
+
+def chopper(brand="lodestar"):
     """The chopper, drawn from scratch (beenster, 14 Nov: start again; choppers are bespoke and get special
     treatment; the reference is the classic long-fork film chopper, reference only). A rigid frame with no
     rear suspension: backbone, seat post, downtube and two stays each side running straight to the rear axle.
@@ -171,13 +189,14 @@ def lodestar_chopper():
     and sissy bar, forward footrests, and slim pipes that run straight back and kick up behind the axle."""
     from cruiser_draft import lodestar as cruiser, FRONT_R as CF, REAR_R as CR
     c = cruiser()
-    FR, RR, WB, L = 335, 330, 1880, 1000
-    g = {"wheelbase": WB, "rake": 43.0, "trail": 230, "seat_height": 668, "hip_x": 430, "ground_clearance": 125}
-    fork = {"length": L, "lower_yoke": 800, "offset": 40, "slider_top": 400, "usd": False}
+    WB, RAKE, L, YK, TRAIL = CHOP[brand]
+    FR, RR = 335, 330
+    g = {"wheelbase": WB, "rake": RAKE, "trail": TRAIL, "seat_height": 668, "hip_x": 430, "ground_clearance": 125}
+    fork = {"length": L, "lower_yoke": YK, "offset": 40, "slider_top": 400, "usd": False}
     t = fork_top(g, FR, L)
     tx, tz = round(t[0], 1), round(t[1], 1)
     rk = math.radians(g["rake"])
-    yoke = (WB - 800 * math.sin(rk), FR + 800 * math.cos(rk))
+    yoke = (WB - YK * math.sin(rk), FR + YK * math.cos(rk))
     # a small lamp carried low on the bottom yoke
     ct = fork_top(c["geometry"], CF, c["fork"]["length"])
     lamp = [s for s in c["front_end"] if s.get("part") == "head" and "pts" in s]
@@ -268,10 +287,96 @@ def lodestar_chopper():
             "caps": [{"at": on_tube(0.76 * U, 130), "r": 13, "cls": "chromef"}],
             "plate_hanger": []},
     }
+    if brand != "lodestar":
+        STYLES[brand](m, tx, tz, on_tube, U, RR, e)
     return m
 
 
-MODELS = {"corvano_adventure": corvano_adventure, "lodestar_chopper": lodestar_chopper}
+def hartwell_chop(m, tx, tz, on_tube, U, RR, lo):
+    """Hartwell's chopper, drawn by hand: the British take. An upright finned parallel twin standing tall in the
+    rigid frame, a shorter fork with less rake, a small round peanut tank, tall ape hanger bars, a thin flat
+    saddle with a separate pillion pad on the rear guard, a short sissy loop and one upswept megaphone each side."""
+    from cruiser_draft import shifted_engine
+    m.update(name="Hartwell chopper (working title H2)", brand="hartwell", rev="A", engine_label="air-cooled look parallel twin")
+    m["colours"] = {"body": "#6B1A22", "frame": "#17181b", "rim": "#C7CBD0", "fork": "#D5D8DC", "accent": "#E8DDBE", "seat": "#5a3a26"}
+    e = shifted_engine("hartwell_naked", 0, -18)
+    for cy in e["cylinders"]:
+        cy["fins"] = True
+    x = e["extras"]
+    e["extras"] = [x[1], x[3], lo["extras"][1],
+                   {"pts": [[690, 700, 1], [650, 690], [630, 650], [650, 610], [690, 600, 1], [712, 650]], "cls": "chromef", "t": 0.7}]
+    m["engine"] = e
+    m["exhaust"] = {"headers": [{"pts": [[985, 582], [1000, 500], [1006, 410], [984, 322], [924, 288], [600, 282], [220, 286]], "w": 44, "front": True}],
+                    "cans": [{"a": [220, 286], "b": [-230, 400], "w": 72, "front": True}]}
+    m["front_end"] = [s for s in m["front_end"] if s.get("part") == "head"] + [
+        {"tube": 26, "pts": [[tx, tz], [tx - 30, tz + 60]], "cls": "steelt"},
+        {"tube": 24, "pts": [[tx - 30, tz + 60], [tx - 70, tz + 212], [tx - 170, tz + 196]], "cls": "steelt", "t": 0.35},
+        {"tube": 9, "pts": [[tx - 164, tz + 182], [tx - 102, tz + 190]], "cls": "dark"},
+        {"circle": 20, "at": [tx - 184, tz + 192], "cls": "cast"},
+        {"tube": 8, "pts": [[tx - 134, tz + 206], [tx - 138, tz + 226]], "cls": "dark"},
+        {"circle": 34, "at": [tx - 140, tz + 240], "cls": "chromef", "mirror": True}]
+    b = m["body"]
+    V = 0.9 * U
+    tank = [on_tube(4, 6, 1), on_tube(0.12 * V, 26), on_tube(0.26 * V, 84), on_tube(0.5 * V, 124), on_tube(0.76 * V, 122), on_tube(0.94 * V, 84),
+            on_tube(V, 30), on_tube(V - 10, -26, 1), on_tube(0.5 * V, -34), on_tube(20, -16, 1)]
+    b["tank"] = [{"pts": tank, "cls": "body"},
+                 {"pts": [on_tube(0.4 * U, 96), on_tube(0.58 * U, 106), on_tube(0.76 * U, 92)], "cls": "hl", "closed": False},
+                 {"pts": [on_tube(0.2 * U, 22), on_tube(0.5 * U, 34), on_tube(0.84 * U, 22)], "cls": "stitch", "closed": False}]
+    b["caps"] = [{"at": on_tube(0.6 * U, 124), "r": 13, "cls": "chromef"}]
+    seat = [[670, 746, 1], [596, 702], [500, 680], [410, 682], [350, 698], [318, 722, 1], [296, 752, 1], [210, 764], [90, 760], [24, 744, 1],
+            [-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632], [658, 696, 1]]
+    b["seat"] = [{"pts": seat, "cls": "seat"},
+                 {"pts": [[590, 688], [500, 668], [410, 670], [352, 686]], "cls": "stitch", "closed": False},
+                 {"pts": [[280, 744], [200, 752], [90, 748], [36, 736]], "cls": "stitch", "closed": False}]
+    b["panels"] = [{"pts": [[24, 746, 1], [-22, 850], [-52, 944, 1], [-88, 934, 1], [-66, 850], [-44, 770], [-34, 720, 1]], "cls": "seat", "t": 0.8},
+                   {"tube": 12, "pts": [[-6, RR + 30], [-56, 700]], "cls": "steelt", "front": True},
+                   {"tube": 12, "pts": [[-56, 700], [-96, 960]], "cls": "steelt", "front": True},
+                   {"tube": 12, "pts": [[-96, 960], [-74, 990], [-50, 960]], "cls": "steelt", "front": True, "t": 0.5}]
+
+
+def kazeda_chop(m, tx, tz, on_tube, U, RR, lo):
+    """Kazeda's chopper, drawn by hand: the long, low digger. A wide inline four across the frame, the longest
+    fork of the three at the flattest angle, a flat-sided coffin tank, short drag bars on a tall riser, a low
+    banana seat that sweeps up the rear guard with no sissy bar, and stacked straight pipes."""
+    from cruiser_draft import shifted_engine
+    m.update(name="Kazeda chopper (working title H3)", brand="kazeda", rev="A", engine_label="air-cooled look inline four")
+    m["colours"] = {"body": "#C8571B", "frame": "#15161a", "rim": "#C7CBD0", "fork": "#D5D8DC", "accent": "#F0C24A", "seat": "#1c1c1e"}
+    e = shifted_engine("kazeda_naked", 20, -18)
+    for cy in e["cylinders"]:
+        cy["fins"] = True
+        cy["length"] = 178
+    e["extras"] = [{"pts": [[790, 690, 1], [700, 716], [640, 700], [620, 640], [650, 596], [730, 590, 1], [800, 620, 1]], "cls": "chromef", "t": 0.7}, lo["extras"][1],
+                   {"pts": [[560, 610, 1], [470, 620], [410, 596], [396, 520, 1], [430, 452], [520, 440, 1], [566, 500, 1]], "cls": "plastic", "t": 0.8}]
+    m["engine"] = e
+    m["exhaust"] = {"headers": [{"pts": [[1016, 650], [1040, 540], [1046, 430], [1016, 316], [946, 262], [780, 244], [660, 246]], "w": 50, "front": True}],
+                    "cans": [{"a": [660, 240], "b": [10, 252], "w": 58, "front": True}, {"a": [640, 300], "b": [70, 322], "w": 58, "front": True}]}
+    m["front_end"] = [s for s in m["front_end"] if s.get("part") == "head"] + [
+        {"tube": 30, "pts": [[tx, tz], [tx - 96, tz + 92]], "cls": "steelt"},
+        {"tube": 24, "pts": [[tx - 96, tz + 92], [tx - 150, tz + 84]], "cls": "steelt"},
+        {"circle": 22, "at": [tx - 96, tz + 92], "cls": "bolt"},
+        {"tube": 9, "pts": [[tx - 150, tz + 68], [tx - 90, tz + 74]], "cls": "dark"},
+        {"circle": 20, "at": [tx - 164, tz + 82], "cls": "cast"},
+        {"tube": 8, "pts": [[tx - 126, tz + 96], [tx - 132, tz + 150]], "cls": "dark"},
+        {"pts": [[tx - 160, tz + 150, 1], [tx - 160, tz + 180, 1], [tx - 104, tz + 180, 1], [tx - 104, tz + 150, 1]], "cls": "chromef", "mirror": True}]
+    b = m["body"]
+    tank = [on_tube(4, 6, 1), on_tube(30, 76, 1), on_tube(0.8 * U, 106, 1), on_tube(U, 52, 1), on_tube(U - 10, -26, 1), on_tube(20, -16, 1)]
+    b["tank"] = [{"pts": tank, "cls": "body"},
+                 {"pts": [on_tube(84, 56), on_tube(0.78 * U, 82), on_tube(0.94 * U, 46)], "cls": "hl", "closed": False},
+                 {"pts": [on_tube(60, 14), on_tube(U - 30, 4)], "cls": "stitch", "closed": False}]
+    b["caps"] = [{"at": on_tube(0.6 * U, 96), "r": 13, "cls": "chromef"}]
+    seat = [[668, 742, 1], [600, 700], [500, 672], [400, 676], [300, 704], [190, 752], [90, 794], [36, 806], [4, 790, 1],
+            [-34, 700, 1], [60, 694], [200, 642], [290, 612], [400, 620], [560, 632], [662, 700, 1]]
+    b["seat"] = [{"pts": seat, "cls": "seat"},
+                 {"pts": [[596, 686], [500, 660], [400, 664], [300, 692], [190, 740], [70, 790]], "cls": "stitch", "closed": False}]
+    b["panels"] = [{"tube": 12, "pts": [[-6, RR + 30], [-40, 700]], "cls": "steelt", "front": True}]
+
+
+STYLES = {"hartwell": hartwell_chop, "kazeda": kazeda_chop}
+
+
+MODELS = {"corvano_adventure": adventure, "hartwell_adventure": lambda: adventure("hartwell", wire=True), "kazeda_adventure": lambda: adventure("kazeda"),
+          "varga_adventure": lambda: adventure("varga", wire=True), "rheinhart_adventure": lambda: adventure("rheinhart", wire=True),
+          "lodestar_chopper": chopper, "hartwell_chopper": lambda: chopper("hartwell"), "kazeda_chopper": lambda: chopper("kazeda")}
 
 if __name__ == "__main__":
     for n in (sys.argv[1:] or MODELS):
