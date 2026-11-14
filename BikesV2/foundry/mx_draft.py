@@ -184,7 +184,73 @@ def corvano():
     return m
 
 
-MODELS = {"varga_mx": varga, "kazeda_mx": kazeda, "corvano_mx": corvano}
+PAINT = [("Orange", "orange plastics", {"body": "#F26A1B"}), ("Blue", "blue plastics", {"body": "#1C4FBF"}), ("Ivory", "pale plastics", {"body": "#E9E6DF"}),
+         ("Black", "black plastics", {"body": "#1b1c1f"}), ("Yellow", "yellow plastics", {"body": "#E8C51E"}), ("Green", "green plastics", {"body": "#2E8B3D"}),
+         ("Red", "red plastics", {"body": "#C2182B"})]
+OWN = {"varga": 0, "kazeda": 1, "corvano": 2}
+
+
+def with_kit(fn):
+    """The MX kit: seats and tanks, mudguards, lamps for enduro and rally use, silencers, paint and extras.
+    Every option is built from the bike's own shapes, so each brand keeps its own look."""
+    from kit_draft import tail as retail
+    m = fn()
+    b, rk = m["body"], math.radians(RAKE)
+    tx, tz = (round(v, 1) for v in fork_top(m["geometry"], FR, L))
+
+    def along(dist, off=0.0, flag=None):
+        return [round(WB - dist * math.sin(rk) + off * math.cos(rk), 1), round(FR + dist * math.cos(rk) + off * math.sin(rk), 1)] + ([1] if flag else [])
+
+    def seat(dz):
+        sp = copy.deepcopy(b["seat"][0])
+        k = min(range(len(sp["pts"])), key=lambda i: sp["pts"][i][0])          # the top line runs from the nose to the rear end
+        for q in sp["pts"][:k + 1]:
+            q[1] = round(q[1] + dz * (1.0 if 330 < q[0] < 800 else 0.35), 1)
+        return [sp]
+
+    def tank(k):
+        tp = copy.deepcopy(b["tank"][0])
+        for q in tp["pts"]:
+            if q[1] > 1000:
+                q[1] = round(1000 + (q[1] - 1000) * k, 1)
+        return [tp]
+    board = next(x for x in m["front_end"] if x.get("part") == "head")
+    plain = {k_: v for k_, v in board.items() if k_ != "part"}
+
+    def lens(d0, d1):
+        return {"pts": [along(d0, 90, 1), along(d1, 94, 1), along(d1, 80, 1), along(d0, 76, 1)], "cls": "lens", "t": 0.3}
+    mask = {"pts": [along(YK + 2, 60, 1), along(YK + 90, 104), along(L + 96, 92, 1), along(L + 102, 48, 1), along(YK + 6, 44, 1)], "cls": "body", "t": 0.5}
+
+    def cans(scale, dw):
+        ex = copy.deepcopy(m["exhaust"])
+        c = ex["cans"][-1]
+        c["b"] = [round(c["a"][0] + (c["b"][0] - c["a"][0]) * scale, 1), round(c["a"][1] + (c["b"][1] - c["a"][1]) * scale, 1)]
+        c["w"] += dw
+        return ex
+    short, _ = retail(b["tail"], end_dx=90, x0=150)
+    long_, f = retail(b["tail"], end_dx=-50, x0=150)
+    tip = min((q for q in long_[0]["pts"]), key=lambda q: q[0])
+    own = OWN[m["brand"]]
+    m["kit"] = {
+        "base": {"tank_seat": "Standard", "tail": "Standard", "front": "Number board", "exhaust": "Standard", "paint": PAINT[own][0]},
+        "tank_seat": [{"name": "Tall seat", "note": "taller, firmer seat for standing up and long legs", "tank": tank(1.0), "seat": seat(26)},
+                      {"name": "Desert tank", "note": "bigger tank standing above the shrouds, with a scooped seat", "tank": tank(1.7), "seat": seat(-16)}],
+        "tail": [{"name": "Cut short", "note": "rear mudguard cut short", "tail": short},
+                 {"name": "Enduro", "note": "longer mudguard with a tail light", "tail": long_ + [{"pts": [[tip[0] + 6, tip[1] - 30, 1], [tip[0] - 16, tip[1] - 24, 1], [tip[0] - 10, tip[1] - 2, 1], [tip[0] + 12, tip[1] - 8, 1]], "cls": "redlens", "t": 0.3}]}],
+        "front": [{"name": "Enduro lamp", "note": "a small headlamp set in the number board", "head": [plain, lens(YK + 70, YK + 150)]},
+                  {"name": "Rally mask", "note": "a taller painted mask with two lamps", "head": [mask, lens(YK + 60, YK + 130), lens(YK + 150, YK + 220)]}],
+        "exhaust": [{"name": "Short race can", "note": "shorter, fatter silencer", "exhaust": cans(0.66, 12)},
+                    {"name": "Long quiet can", "note": "longer silencer for trail riding", "exhaust": cans(1.3, -6)}],
+        "paint": [{"name": nm, "note": note, "colours": col} for i, (nm, note, col) in enumerate(PAINT) if i != own],
+        "extras": [{"name": "Hand guards", "note": "plastic guards over the levers",
+                    "add": {"panels": [{"pts": [[tx - 112, tz + 122, 1], [tx - 44, tz + 128], [tx - 26, tz + 96], [tx - 40, tz + 58, 1], [tx - 66, tz + 64], [tx - 60, tz + 100], [tx - 108, tz + 104, 1]], "cls": "body", "t": 0.6}]}},
+                   {"name": "Bash plate", "note": "aluminium plate under the engine",
+                    "add": {"panels": [{"pts": [[906, 420, 1], [884, 344], [760, 322], [540, 340, 1], [540, 354, 1], [756, 338], [868, 358], [890, 424, 1]], "cls": "chromef", "t": 0.5}]}}],
+    }
+    return m
+
+
+MODELS = {"varga_mx": lambda: with_kit(varga), "kazeda_mx": lambda: with_kit(kazeda), "corvano_mx": lambda: with_kit(corvano)}
 
 if __name__ == "__main__":
     for n in (sys.argv[1:] or MODELS):
