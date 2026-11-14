@@ -50,6 +50,10 @@ def check(model, fams):
     gap = min(math.hypot(p[0] - c[0], p[1] - c[1]) for p in pts) - rt
     need = fam["clearance"]["front_tyre_min"]
     out.append((gap >= need, f"front tyre to engine or radiator at full compression {gap:.0f} mm (needs {need})"))
+    import shapes
+    hp = [(tuple(q[:2]), h.get("w", 44) / 2) for h in model["exhaust"]["headers"] for q in shapes.dense(h["pts"], False, 1.0)]
+    gap = min(math.hypot(q[0] - c[0], q[1] - c[1]) - w for q, w in hp) - rt
+    out.append((gap >= 25, f"front tyre to exhaust pipes at full compression {gap:.0f} mm (needs 25)"))
     return out
 
 

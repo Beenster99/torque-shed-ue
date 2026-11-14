@@ -2,7 +2,7 @@
  "name": "Rheinhart naked (working title N1)",
  "brand": "rheinhart",
  "family": "Naked",
- "rev": "A",
+ "rev": "B",
  "engine_label": "flat twin (boxer), shaft drive",
  "frame_label": "engine carries the frame, bolt-on rear frame",
  "colours": {
@@ -192,7 +192,8 @@
      683,
      405
     ]
-   ]
+   ],
+   "reach": 298
   },
   "extras": [
    {

@@ -2,7 +2,7 @@
  "name": "Hartwell naked (working title N1)",
  "brand": "hartwell",
  "family": "Naked",
- "rev": "C",
+ "rev": "D",
  "engine_label": "inline triple",
  "frame_label": "steel tube frame, engine as part of the frame",
  "colours": {
@@ -283,20 +283,24 @@
       600
      ],
      [
+      992,
+      510
+     ],
+     [
+      1022,
+      440
+     ],
+     [
+      1032,
+      372
+     ],
+     [
       1000,
-      520
+      300
      ],
      [
-      985,
-      420
-     ],
-     [
-      973,
-      318
-     ],
-     [
-      895,
-      245
+      930,
+      250
      ],
      [
       700,

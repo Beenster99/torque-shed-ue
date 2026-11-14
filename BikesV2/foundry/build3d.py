@@ -422,7 +422,7 @@ def wheel(tag, c, w, width, rim_col, discs):
         revolve(f"{tag}_carrier{y}", [(d - 34, y + 3), (d - 34, y - 3), (d - 72, y - 3), (d - 72, y + 3)], c, mat("alu_dark"), 48)
 
 
-def loft(name, outline, spec, material, stations=56, ring=30, smooth_lines=True):
+def loft(name, outline, spec, material, stations=96, ring=44, smooth_lines=True):
     """A body part with real width: superellipse sections between the outline's top and bottom lines."""
     xs = [p[0] for p in outline]
     x0, x1 = min(xs), max(xs)
@@ -435,17 +435,19 @@ def loft(name, outline, spec, material, stations=56, ring=30, smooth_lines=True)
         tb = shapes.top_bottom(outline, x0 + (x1 - x0) * u)
         if tb and tb[0] - tb[1] >= 2:
             samp.append([u, tb[0], tb[1], shapes.lerp_table(spec["w"], u)])
-    for _ in range(3):
+    for k_ in range(30):
         prev = [r_[:] for r_ in samp]
         for i in range(1, len(samp) - 1):
-            for q in ((1, 2, 3) if smooth_lines else (3,)):
+            # the width line is smoothed much harder than the drawn top and bottom lines, so the
+            # plan view is one fair curve with no corner where two rows of the width table meet
+            for q in ((1, 2, 3) if smooth_lines and k_ < 24 else (3,)):
                 samp[i][q] = 0.25 * prev[i - 1][q] + 0.5 * prev[i][q] + 0.25 * prev[i + 1][q]
     for u, zt, zb, w in samp:
         x = x0 + (x1 - x0) * u
         tb = (zt, zb)
         zc, h = (tb[0] + tb[1]) / 2, (tb[0] - tb[1]) / 2
-        edge = min(u, 1 - u) * stations          # round the two ends off
-        w *= min(1.0, 0.35 + 0.65 * math.sqrt(min(1.0, edge / 3.0)))
+        edge = min(1.0, min(u, 1 - u) / 0.1)      # round the two ends off as part of an ellipse
+        w *= 0.3 + 0.7 * math.sqrt(1.0 - (1.0 - edge) ** 2)
         row = []
         for j in range(ring):
             th = 2 * math.pi * j / ring
@@ -573,14 +575,19 @@ def build(model):
         # a cylinder out each side: finned barrel, head and a valve cover whose end-on outline is eng["boxer_cover"]
         bc = eng["boxer"]
         cx_, cz_ = bc["at"]
+        # bc["reach"] is how far the valve cover stands out from the centre line (mm)
+        kb = (bc.get("reach", 298) - 110) / 262.0
+
+        def by(y):
+            return 110 + (y - 110) * kb
         for s in (-1, 1):
-            cone(f"boxerbarrel{s}", (cx_, s * 110, cz_), (cx_, s * 250, cz_), bc["r"], bc["r"], mat("engine"), 36)
+            cone(f"boxerbarrel{s}", (cx_, s * 110, cz_), (cx_, s * by(250), cz_), bc["r"], bc["r"], mat("engine"), 36)
             k = 122
             while k < 246:
-                cone(f"boxerfin{s}{k}", (cx_, s * k, cz_), (cx_, s * (k + 4), cz_), bc["r"] + 14, bc["r"] + 14, mat("engine"), 36)
-                k += 13
-            pillow(f"boxerhead{s}", shapes.dense(bc["cover"], True, 0.6), s * 250, s * 318, mat("engine"), 10, 18, both=False)
-            pillow(f"boxercover{s}", [((q[0] - cx_) * 0.9 + cx_, (q[1] - cz_) * 0.86 + cz_) for q in shapes.dense(bc["cover"], True, 0.6)], s * 316, s * 372, mat("engine_dark"), 14, 30, both=False)
+                cone(f"boxerfin{s}{k}", (cx_, s * by(k), cz_), (cx_, s * (by(k) + 4), cz_), bc["r"] + 14, bc["r"] + 14, mat("engine"), 36)
+                k += 18
+            pillow(f"boxerhead{s}", shapes.dense(bc["cover"], True, 0.6), s * by(250), s * by(318), mat("engine"), 10, 18, both=False)
+            pillow(f"boxercover{s}", [((q[0] - cx_) * 0.9 + cx_, (q[1] - cz_) * 0.86 + cz_) for q in shapes.dense(bc["cover"], True, 0.6)], s * by(316), s * by(372), mat("engine_dark"), 14, 30, both=False)
     for i, cy in enumerate(eng["cylinders"]):
         u = unit(cy["angle"])
         base, end = add(crank, u, cy["start"]), add(crank, u, cy["start"] + cy["length"])
@@ -901,7 +908,7 @@ def studio(scene):
     for loc, energy, size in (((0.7, 3.5, 3.2), 170, 4.0), ((3.5, 2.0, 1.6), 70, 3.0), ((-2.2, 2.5, 1.8), 70, 3.0), ((0.7, -3.0, 2.5), 60, 4.0)):
         bpy.ops.object.light_add(type="AREA", location=loc)
         L = bpy.context.object
-        L.data.energy, L.data.size = energy, size
+        L.data.energy, L.data.size, L.data.shape = energy, size, "DISK"
         L.rotation_euler = _look(loc, (0.7, 0, 0.6))
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
@@ -956,7 +963,18 @@ def render(name, samples=48, views=False):
             sc.camera = o3
             sc.render.resolution_x, sc.render.resolution_y = res
             sc.render.filepath = os.path.join(out, f"{name}_{tag}.png")
+            # from straight above, each studio lamp shows in the paint as its own bright patch, which
+            # reads as bands across a tank: light the top view with even light from the whole sky instead
+            lamps = [o for o in sc.objects if o.type == "LIGHT"]
+            if tag == "top":
+                for o in lamps:
+                    o.hide_render = True
+                sc.world.node_tree.nodes["Background"].inputs[1].default_value = 1.15
             bpy.ops.render.render(write_still=True)
+            if tag == "top":
+                sc.world.node_tree.nodes["Background"].inputs[1].default_value = 0.3
+                for o in lamps:
+                    o.hide_render = False
     return out
 
 
