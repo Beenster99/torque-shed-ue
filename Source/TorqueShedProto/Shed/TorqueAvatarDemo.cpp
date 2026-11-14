@@ -50,12 +50,28 @@ void ATorqueAvatarDemo::EndPlay(const EEndPlayReason::Type Reason)
 	Super::EndPlay(Reason);
 }
 
+bool ATorqueAvatarDemo::PuppetAt(int32 I, FVector& Out) const
+{
+	if (!Puppets.IsValidIndex(I) || !Puppets[I].Root) return false;
+	Out = Puppets[I].Root->GetComponentLocation();
+	return true;
+}
+
 void ATorqueAvatarDemo::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	const double Dt = DeltaSeconds;
 	for (FPuppet& Pup : Puppets)
 	{
+		if (bHold)
+		{
+			// Standing still at the start, turned round to face the camera (look:avatars).
+			Pup.Root->SetRelativeLocationAndRotation(Pup.Start, FRotator(0.0, 180.0, 0.0));
+			FTorqueAvatarInput Still;
+			Still.Facing = FRotator(0.0, GetActorRotation().Yaw + 180.0, 0.0);
+			Pup.Body->Pose(Still, Dt);
+			continue;
+		}
 		Pup.Clock += Dt;
 		const double T = FMath::Fmod(FMath::Max(Pup.Clock, 0.0), 17.0);
 		// 0-5 s walk 1.5 m/s away; 5-6 turn; 6-8.5 hurry 3 m/s back; 8.5-9.5 turn; 9.5-12 crouch;

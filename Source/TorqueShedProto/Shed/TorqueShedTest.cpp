@@ -1,5 +1,6 @@
 #include "Shed/TorqueShedTest.h"
 #include "Shed/TorqueAvatar.h"
+#include "Shed/TorqueAvatarDemo.h"
 #include "Shed/TorqueShedRadio.h"
 #include "Shed/TorqueBikeLift.h"
 #include "Shed/TorqueBoothHooks.h"
@@ -1234,6 +1235,32 @@ bool UTorqueShedTest::RunStep(const FString& S)
 	{
 		// Stand back from something and look at it, for a screenshot.
 		const FString What = P[1].ToLower();
+		if (What == TEXT("avatars"))
+		{
+			// look:avatars[:body|legs|face|back[:N]]: the -TorqueAvatarDemo row held still and turned
+			// to face the camera; the whole row from the front (body), or puppet N's (1 is A) legs and
+			// feet, face, or the whole row from behind (back). N left out: the whole row's middle.
+			ATorqueAvatarDemo* Demo = nullptr;
+			for (TActorIterator<ATorqueAvatarDemo> It(W->GetWorld()); It; ++It) { Demo = *It; break; }
+			if (!Demo || Demo->PuppetCount() == 0) { Warn(TEXT("look:avatars: no avatar demo here (start with -TorqueAvatarDemo)")); return true; }
+			Demo->Hold(true);
+			const FString Shot = P.Num() >= 3 ? P[2].ToLower() : FString(TEXT("body"));
+			const int32 Pick = P.Num() >= 4 ? FCString::Atoi(*P[3]) - 1 : -1;
+			FVector Centre = Demo->GetActorLocation(), One = FVector::ZeroVector;
+			const bool bOne = Pick >= 0 && Demo->PuppetAt(Pick, One);
+			if (bOne) Centre = One;
+			// The puppets face back along the row's -forward, so the camera stands out that way.
+			const FVector Front = -Demo->GetActorForwardVector();
+			FVector At = Centre + FVector(0.0, 0.0, 90.0), Away = Front;
+			double Distance = bOne ? 230.0 : 120.0 * Demo->PuppetCount() + 120.0;
+			if (Shot == TEXT("legs")) { At = Centre + FVector(0.0, 0.0, 40.0); Distance = bOne ? 140.0 : 90.0 * Demo->PuppetCount() + 60.0; }
+			else if (Shot == TEXT("face")) { At = Centre + FVector(0.0, 0.0, 160.0); Distance = bOne ? 90.0 : 80.0 * Demo->PuppetCount(); }
+			else if (Shot == TEXT("back")) Away = -Front;
+			Said(FString::Printf(TEXT("avatar demo %s%s from %.0f cm: %s"), *Shot,
+				bOne ? *FString::Printf(TEXT(" of avatar %c"), TCHAR('A' + Pick)) : TEXT(" of the row"), Distance,
+				*W->TestLookAt(At, Away, Distance)));
+			return true;
+		}
 		if (What == TEXT("player"))
 		{
 			// Co-op: stand back about 3 m from the nearest other player and face them, so a screenshot
