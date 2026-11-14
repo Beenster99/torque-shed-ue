@@ -139,6 +139,76 @@ def apply_kit(model, tank_seat=0, tail=0, front=0, exhaust=0, extras=()):
     return m
 
 
+POOL_PARTS = ("bars", "mirrors", "lamps", "wheels", "silencers")
+
+
+def pool():
+    import json
+    return json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "pool.json")))
+
+
+def fork_top(model):
+    g, fk = model["geometry"], model["fork"]
+    rk = math.radians(g["rake"])
+    return (g["wheelbase"] - math.sin(rk) * fk["length"], model["wheels"]["front"]["tyre_r"] + math.cos(rk) * fk["length"])
+
+
+def _place(shapes_, at, extra=None):
+    out = []
+    for shp in copy.deepcopy(shapes_):
+        if "pts" in shp:
+            shp["pts"] = [[round(p[0] + at[0], 1), round(p[1] + at[1], 1)] + list(p[2:]) for p in shp["pts"]]
+        if "at" in shp:
+            shp["at"] = [round(shp["at"][0] + at[0], 1), round(shp["at"][1] + at[1], 1)]
+        shp.update(extra or {})
+        out.append(shp)
+    return out
+
+
+def apply_pool(model, bars=0, mirrors=0, lamps=0, wheels=0, silencers=0):
+    """The model with shared pool parts fitted (0 keeps the bike's own part; numbers count from 1
+    in data/pool.json). Bars and lamps hang off the top of the fork, mirrors off the grip."""
+    P, m = pool(), copy.deepcopy(model)
+    top = fork_top(m)
+    fe = m["front_end"]
+    head = [x for x in fe if x.get("part") == "head"]
+    rest = [x for x in fe if x.get("part") != "head"]
+    is_mirror = lambda x: x.get("mirror") or ("pts" in x and not x.get("tube") and max(p[1] for p in x["pts"]) > 1120) or (x.get("tube") == 8)
+    bar_shapes = [x for x in rest if not is_mirror(x)]
+    mirror_shapes = [x for x in rest if is_mirror(x)]
+    fitted = {}
+    if bars:
+        v = P["bars"][bars - 1]
+        bar_shapes = _place(v["shapes"], top, {"clipon": True} if v.get("clipon") else None)
+        fitted["bars"] = v["name"]
+    grip = next(tuple(x["at"]) for x in bar_shapes if x.get("circle"))
+    if mirrors or bars:
+        v = P["mirrors"][(mirrors or 1) - 1]
+        mirror_shapes = _place(v["shapes"], grip)
+        if mirrors:
+            fitted["mirrors"] = v["name"]
+    if lamps:
+        v = P["lamps"][lamps - 1]
+        head = _place(v["head"], top, {"part": "head", **({"twin": True} if v.get("twin") else {})})
+        fitted["lamps"] = v["name"]
+    m["front_end"] = head + bar_shapes + mirror_shapes
+    if wheels:
+        v = P["wheels"][wheels - 1]
+        for end in ("front", "rear"):
+            m["wheels"][end].update(v["set"])
+        fitted["wheels"] = v["name"]
+    if silencers:
+        v = P["silencers"][silencers - 1]
+        can = m["exhaust"]["cans"][-1]
+        dx, dz = can["b"][0] - can["a"][0], can["b"][1] - can["a"][1]
+        L = math.hypot(dx, dz)
+        can["b"] = [round(can["a"][0] + dx / L * v["len"], 1), round(can["a"][1] + dz / L * v["len"], 1)]
+        can["w"] = v["w"]
+        fitted["silencers"] = v["name"]
+    m["pool_fitted"] = fitted
+    return m
+
+
 def look_difference(a, b):
     """How different two whole bikes look from the side, over every part a kit can change
     (bodywork, head unit, exhaust): 0 the same, 1 nothing shared."""

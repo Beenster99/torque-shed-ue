@@ -243,6 +243,16 @@ if __name__ == "__main__":
                 for xs in xsets:
                     v = mix.apply_kit(h, 0, 0, f, e, xs)
                     tally(check(v, fams) + kit_parts(v, fams), f"{h['brand']} front {f}, exhaust {e}, extras {xs}")
+    # the shared pool: every pool part, one at a time and all together, on every model of the pool's families
+    P = mix.pool()
+    for h in models:
+        if h["family"] not in P["families"]:
+            continue
+        sets = [tuple(i if k == j else 0 for k in range(5)) for j, part in enumerate(mix.POOL_PARTS) for i in range(1, len(P[part]) + 1)]
+        sets += [tuple(min(i, len(P[part])) for part in mix.POOL_PARTS) for i in (1, 2, 3)]
+        for a_ in sets:
+            v = mix.apply_pool(h, *a_)
+            tally(check(v, fams) + kit_parts(v, fams), f"{h['brand']} pool {a_}")
     print(f"different bikes the kits can make, all models: {total}")
     combos, fails = cnt["combos"], cnt["fails"]
     print(f"kit combinations checked: {combos}, failed checks: {fails}")

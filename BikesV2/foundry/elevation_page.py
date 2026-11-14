@@ -72,6 +72,42 @@ def renders(name):
 <figure><img src="{uri(over, crop)}" alt="{name} drawing laid over the 3D side view"><figcaption>Drawing laid over the 3D side view</figcaption></figure></div>""" + views
 
 
+def pool_section(names):
+    """The shared pool: what is in it, and a few pool builds on each bike, drawn and (where rendered) in 3D."""
+    import base64
+    import glob
+    import io
+    import elevation
+    import mix
+    from PIL import Image
+    P = mix.pool()
+    labels = {"bars": "Handlebars", "mirrors": "Mirrors", "lamps": "Lamps", "wheels": "Wheels", "silencers": "Silencers"}
+    menu = "".join(f"<li><b>{labels[p]}:</b> " + "; ".join(f"{v['name']} ({v['note']})" for v in P[p]) + ".</li>" for p in mix.POOL_PARTS)
+    count = 1
+    for p in mix.POOL_PARTS:
+        count *= len(P[p]) + 1
+    figs = []
+    for n in names:
+        base = elevation.load(n)
+        for a_ in ((2, 1, 1, 3, 0), (3, 2, 2, 2, 2), (1, 2, 3, 1, 3)):
+            v = mix.apply_pool(base, *a_)
+            v["dimensions"] = False
+            v["name"] = base["brand"].title() + " with pool parts"
+            figs.append(f'<figure class="sheet">{elevation.draw(v)}<figcaption>{base["brand"].title()}: {", ".join(v["pool_fitted"].values())}.</figcaption></figure>')
+    shots = []
+    for q in sorted(glob.glob(os.path.join(ROOT, "out", "renders", "*_pool*_q.png"))):
+        tag = os.path.basename(q)[:-6]
+        n, digits = tag.split("_pool")
+        if n not in names:
+            continue
+        v = mix.apply_pool(elevation.load(n), *[int(d) for d in digits])
+        buf = io.BytesIO()
+        Image.open(q).convert("RGB").resize((1000, 625)).save(buf, "JPEG", quality=82)
+        cap = f"{v['brand'].title()}: {', '.join(v['pool_fitted'].values())}"
+        shots.append(f'<figure><img src="data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}" alt="{cap}, 3D model"><figcaption>{cap}.</figcaption></figure>')
+    return f"""<section><h2>The shared pool: parts any brand can use</h2><p class="lede">Bars, mirrors, lamps, wheels and silencers that belong to no brand and fit every naked. They hang off fixed points (the top of the fork, the grip, the exhaust joint), so one drawing fits every frame.</p><ul>{menu}</ul><p>On top of a model's own kit, the pool multiplies the choice by {count}. Every pool part passes the clearance checks on both bikes.</p><div class="shots">{"".join(shots)}</div><div class="shots">{"".join(figs)}</div></section>"""
+
+
 def kit_renders(names):
     """Three-quarter 3D pictures of kit bikes and mixed bikes, from whatever build3d.py --kit / --donor has rendered."""
     import base64
@@ -195,6 +231,7 @@ def build(family, names):
             li = "".join(f"<li class='{'' if ok else 'bad'}'>{msg}</li>" for ok, msg in checks.deck(mm, fams))
             h.append(f"""<div class="sheet" style="margin-bottom:14px">{elevation.draw(mm)}<ul class="checks">{li}</ul></div>""")
         h.append("</section>")
+    h.append(pool_section(names))
     h.append(kit_renders(names))
     h.append(swatch_section())
     h.append("""<section><h2>What these drawings are, and are not yet</h2>

@@ -332,6 +332,25 @@ def wheel(tag, c, w, width, rim_col, discs):
     rprof = [(rr + 8, rw), (rr + 8, rw - 8), (rr - 8, rw - 14), (rr - 22, 0), (rr - 8, -rw + 14), (rr + 8, -rw + 8), (rr + 8, -rw), (rr - 26, -rw + 6), (rr - 34, 0), (rr - 26, rw - 6)]
     revolve(tag + "_rim", rprof, c, mat("rim", rim_col))
     n = w.get("spokes", 5)
+    if w.get("wire"):
+        verts, faces = [], []
+        for k in range(36):
+            a_, b_ = math.radians(k * 10), math.radians(k * 10 + (28 if k % 2 else -28))
+            yy = (hw * 0.45) * (1 if (k // 2) % 2 else -1)
+            base = len(verts)
+            for da in (-1.3, 1.3):
+                verts.append(V(c[0] + 46 * math.cos(a_) - da * math.sin(a_), yy, c[1] + 46 * math.sin(a_) + da * math.cos(a_)))
+                verts.append(V(c[0] + (rr - 22) * math.cos(b_) - da * math.sin(b_), yy * 0.15, c[1] + (rr - 22) * math.sin(b_) + da * math.cos(b_)))
+            faces.append((base, base + 1, base + 3, base + 2))
+        mesh_obj(tag + "_wires", verts, faces, mat("steel"), smooth=False)
+        n = 0
+    elif w.get("straight"):
+        sw_ = w.get("spoke_w", 4)
+        for k in range(n):
+            a0 = 360 / n * k + w.get("phase", 12)
+            quad = [add(c, unit(a0 - sw_ * 2.2), 50), add(c, unit(a0 - sw_ * 0.5), rr - 24), add(c, unit(a0 + sw_ * 0.5), rr - 24), add(c, unit(a0 + sw_ * 2.2), 50)]
+            pillow(f"{tag}_spoke{k}", quad, -16, 16, mat("rim", rim_col), 5, 12)
+        n = 0
     for k in range(n):
         a0 = 360 / n * k + w.get("phase", 12)
         for side in (-1, 1):
@@ -684,12 +703,14 @@ def build(model):
         x0, x1 = min(q[0] for q in bowl), max(q[0] for q in bowl)
         zc = (min(q[1] for q in bowl) + max(q[1] for q in bowl)) / 2
         R, L = (max(q[1] for q in bowl) - min(q[1] for q in bowl)) / 2, x1 - x0
-        cone("lampbowl0", (x0, 0, zc), (x0 + 0.3 * L, 0, zc), R * 0.35, R * 0.8, mat("plastic"), 40)
-        cone("lampbowl1", (x0 + 0.3 * L, 0, zc), (x0 + 0.7 * L, 0, zc), R * 0.8, R, mat("plastic"), 40)
-        cone("lampbowl2", (x0 + 0.7 * L, 0, zc), (x1, 0, zc), R, R, mat("plastic"), 40)
-        cone("lamprim", (x1 - 6, 0, zc), (x1 + 8, 0, zc), R + 5, R + 3, mat("chrome"), 40)
-        cone("lampglass0", (x1 + 6, 0, zc), (x1 + 16, 0, zc), R, R * 0.75, mat("lens"), 40)
-        cone("lampglass1", (x1 + 16, 0, zc), (x1 + 22, 0, zc), R * 0.75, R * 0.3, mat("lens"), 40)
+        twin = any(s_.get("twin") for s_ in head)
+        for yl in ((-R - 6, R + 6) if twin else (0,)):
+            cone(f"lampbowl0{yl}", (x0, yl, zc), (x0 + 0.3 * L, yl, zc), R * 0.35, R * 0.8, mat("plastic"), 40)
+            cone(f"lampbowl1{yl}", (x0 + 0.3 * L, yl, zc), (x0 + 0.7 * L, yl, zc), R * 0.8, R, mat("plastic"), 40)
+            cone(f"lampbowl2{yl}", (x0 + 0.7 * L, yl, zc), (x1, yl, zc), R, R, mat("plastic"), 40)
+            cone(f"lamprim{yl}", (x1 - 6, yl, zc), (x1 + 8, yl, zc), R + 5, R + 3, mat("chrome"), 40)
+            cone(f"lampglass0{yl}", (x1 + 6, yl, zc), (x1 + 16, yl, zc), R, R * 0.75, mat("lens"), 40)
+            cone(f"lampglass1{yl}", (x1 + 16, yl, zc), (x1 + 22, yl, zc), R * 0.75, R * 0.3, mat("lens"), 40)
     for i, shp in enumerate(model.get("front_end", [])):
         if shp.get("tube"):
             continue
@@ -703,13 +724,18 @@ def build(model):
                     cone(f"clockrim{i}{s}", (c_[0] + d_[0] * 20, yc, c_[1] + d_[1] * 20), (c_[0] + d_[0] * 24, yc, c_[1] + d_[1] * 24), r_ * 1.3, r_ * 1.3, mat("chrome"), 28)
             continue
         pp = shapes.dense(shp["pts"], True, shp.get("t", 1.0))
-        if round_lamp and shp.get("part") == "head":
+        if round_lamp and shp.get("part") == "head" and (shp.get("round") or shp["cls"] in ("lens", "chromef")):
             continue
         if shp["cls"] == "lens":
             pillow(f"lens{i}", [(q[0] + 16, q[1] - 3) for q in pp], -82, 82, mat("lens"), 6, 26)
         elif shp["cls"] == "screen":
             pillow(f"screen{i}", pp, -105, 105, mat("screen"), 30, 70)
-        elif max(p[1] for p in pp) > 1120:
+        elif shp.get("bar_end"):
+            cx_, cz_ = sum(p[0] for p in pp) / len(pp), sum(p[1] for p in pp) / len(pp)
+            for s in (-1, 1):
+                tube(f"mstub{s}", [(cx_, s * 378, cz_), (cx_, s * 400, cz_)], 6, mat("alu_dark"))
+                cone(f"mirror{i}{s}", (cx_ + 4, s * 440, cz_ + 4), (cx_ - 6, s * 440, cz_ + 2), 44, 40, mat("plastic"), 28)
+        elif shp.get("mirror") or max(p[1] for p in pp) > 1120:
             for s in (-1, 1):
                 pillow(f"mirror{i}{s}", pp, s * 330, s * 430, mat("plastic"), 7, 16)
                 cx = sum(p[0] for p in pp) / len(pp)
@@ -719,11 +745,20 @@ def build(model):
         else:
             pillow(f"front{i}", pp, -90, 90, paint if shp["cls"] == "body" else mat("plastic"), 20, 50)
     if grip:
+        bars_ = [s_ for s_ in model.get("front_end", []) if s_.get("part") != "head"]
+        clip = any(s_.get("clipon") for s_ in bars_)
+        rz = next((tuple(s_["pts"][1]) for s_ in bars_ if s_.get("tube") and s_["cls"] == "cast"), (top[0] - 28, top[1] + 62))
         for s in (-1, 1):
-            tube(f"riser{s}", [(top[0], s * 45, top[1]), (top[0] - 28, s * 45, top[1] + 62)], 15, mat("alu_dark"))
+            if clip:
+                # clip-ons: a clamp round each fork leg and a short bar straight out from it
+                tube(f"clamp{s}", [(rz[0] + 20, s * 96, rz[1] - 16), (rz[0] + 20, s * 96, rz[1] + 14)], 36, mat("alu_dark"))
+                smooth_tube(f"bar{s}", [(rz[0] + 14, s * 110, rz[1]), (grip[0] + 8, s * 200, grip[1] + 2), (grip[0] - 4, s * 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+            else:
+                tube(f"riser{s}", [(top[0], s * 45, top[1]), (rz[0], s * 45, rz[1])], 15, mat("alu_dark"))
             tube(f"grip{s}", [(grip[0], s * 255, grip[1]), (grip[0] - 6, s * 380, grip[1] - 4)], 17, mat("rubber"))
             tube(f"lever{s}", [(grip[0] + 30, s * 262, grip[1] - 10), (grip[0] + 62, s * 300, grip[1] - 22), (grip[0] + 55, s * 395, grip[1] - 24)], 5, mat("alu_dark"))
-        smooth_tube("bar", [(grip[0] - 4, -380, grip[1] - 3), (grip[0], -240, grip[1]), (top[0] - 28, -70, top[1] + 62), (top[0] - 28, 70, top[1] + 62), (grip[0], 240, grip[1]), (grip[0] - 4, 380, grip[1] - 3)], 11.5, mat("alu_dark"))
+        if not clip:
+            smooth_tube("bar", [(grip[0] - 4, -380, grip[1] - 3), (grip[0], -240, grip[1]), (rz[0], -70, rz[1]), (rz[0], 70, rz[1]), (grip[0], 240, grip[1]), (grip[0] - 4, 380, grip[1] - 3)], 11.5, mat("alu_dark"))
 
     # hoses and cables: front brake lines to both calipers, clutch and throttle cables down behind the head
     if grip:
@@ -852,6 +887,10 @@ if __name__ == "__main__":
             return None
         v = sys.argv[sys.argv.index(flag) + 1].split(",")
         return [int(x) for x in v[:4]] + [[int(x) for x in v[4].split("+")] if len(v) > 4 and v[4] else []]
+    if "--pool" in sys.argv:   # --pool bars,mirrors,lamps,wheels,silencers
+        pa = [int(x) for x in sys.argv[sys.argv.index("--pool") + 1].split(",")]
+        model = mix.apply_pool(model, *pa)
+        name = f"{name}_pool{''.join(str(x) for x in pa)}"
     ka = kit_args("--kit")
     if "--donor" in sys.argv:
         dn = sys.argv[sys.argv.index("--donor") + 1]

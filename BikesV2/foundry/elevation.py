@@ -167,6 +167,11 @@ def wheel(sh, c, w):
             a = rad(k * 10)
             b = rad(k * 10 + (28 if k % 2 else -28))
             sh.line(add(c, (math.cos(a), math.sin(a)), 46), add(c, (math.cos(b), math.sin(b)), rr - 22), "wire")
+    elif w.get("straight"):
+        sw_ = w.get("spoke_w", 4)
+        for k in range(n):
+            a0 = 360 / n * k + w.get("phase", 12)
+            sh.poly([add(c, unit(a0 - sw_ * 2.2), 50), add(c, unit(a0 - sw_ * 0.5), rr - 20), add(c, unit(a0 + sw_ * 0.5), rr - 20), add(c, unit(a0 + sw_ * 2.2), 50)], "rimf")
     else:
         for k in range(n):
             a0 = 360 / n * k + w.get("phase", 12)
