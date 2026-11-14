@@ -2446,6 +2446,60 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			}
 		}
 	}
+	// [OSM stage 5C] A fast road (a dual carriageway's half) on an embankment more than 3 m high: a steel
+	// barrier along its nearside verge, a metre out from its edge, its beam facing the road.
+	if (Rows.size() >= 2 && Land && (Pts[size_t(First)].Dual || Pts[size_t(Last)].Dual))
+	{
+		static constexpr float Steel[3] = {0.27f, 0.28f, 0.29f}, PostGrey[3] = {0.2f, 0.2f, 0.21f};
+		std::vector<char> High(Rows.size(), 0);
+		for (size_t K = 0; K < Rows.size(); ++K)
+		{
+			const Row& R = Rows[K];
+			if (!Pts[size_t(First) + K].Dual || R.Near == 0 || R.Deck || R.Bore) continue;
+			const P2 Out6 = R.At + R.Left * (double(R.Near) * (R.Half + 6.0));
+			const double Lie = Land->Height(Out6.X, Out6.Z);
+			if (!std::isnan(Lie) && R.Height - Lie > EmbankBarrier) High[K] = 1;
+		}
+		// (runs of three rows or more: no barrier for a dip between two)
+		for (size_t K = 0; K < Rows.size();)
+		{
+			size_t E = K;
+			while (E < Rows.size() && High[E] == High[K]) ++E;
+			if (High[K] != 0 && E - K < 3) for (size_t J = K; J < E; ++J) High[J] = 0;
+			K = E;
+		}
+		const auto At3 = [](const P2& At, double Y)
+		{
+			P3 Q;
+			Q.X = At.X; Q.Y = Y; Q.Z = At.Z;
+			return Q;
+		};
+		for (size_t K = 0; K + 1 < Rows.size(); ++K)
+		{
+			if (!High[K] || !High[K + 1]) continue;
+			const Row& A = Rows[K];
+			const Row& B = Rows[K + 1];
+			const P2 Ma = A.At + A.Left * (double(A.Near) * (A.Half + 1.0)), Mb = B.At + B.Left * (double(B.Near) * (B.Half + 1.0));
+			const double Ya = A.Height - ShoulderDip - 0.05, Yb = B.Height - ShoulderDip - 0.05;
+			const P2 Fa = Ma - A.Left * (double(A.Near) * 0.12), Fb = Mb - B.Left * (double(B.Near) * 0.12);
+			Quad3(At3(Fa, Ya + 0.45), At3(Fb, Yb + 0.45), At3(Fb, Yb + 0.78), At3(Fa, Ya + 0.78), At3(A.At, Ya + 0.6), Steel, true);
+			const double La = A.Along, Lb = B.Along;
+			for (double S = std::ceil(La / 3.2) * 3.2; S < Lb && Lb > La; S += 3.2)
+			{
+				const double T = (S - La) / (Lb - La);
+				const P2 C = Ma + (Mb - Ma) * T;
+				const double Y = Ya + (Yb - Ya) * T;
+				P2 Along = Mb - Ma;
+				const double Len = Along.Length();
+				Along = Len > 1e-9 ? Along * (0.06 / Len) : P2(0.06, 0.0);
+				const P2 Side(Along.Z, -Along.X);
+				const P2 Corner[4] = {C + Along + Side, C - Along + Side, C - Along - Side, C + Along - Side};
+				for (int F = 0; F < 4; ++F)
+					Quad3(At3(Corner[F], Y - 0.3), At3(Corner[(F + 1) % 4], Y - 0.3), At3(Corner[(F + 1) % 4], Y + 0.74), At3(Corner[F], Y + 0.74),
+						At3(C + (Corner[F] + Corner[(F + 1) % 4] - C * 2.0) * 10.0, Y + 0.3), PostGrey, false);
+			}
+		}
+	}
 	// The junctions off the ride's road this road's ends are drawn with.
 	for (int End = 0; End < 2; ++End)
 	{

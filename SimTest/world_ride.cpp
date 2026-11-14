@@ -768,6 +768,22 @@ int main(int Argc, char** Argv)
 					break;
 				}
 		}
+		// (the ride's road on a high embankment: a barrier along its nearside)
+		double Banked = 0.0, Highest = -1e9;
+		P2 BankAt;
+		for (size_t I = 1; I < Plan->Road.size(); ++I)
+		{
+			const RoadPoint& P = Plan->Road[I];
+			if (!P.Dual || P.Near == 0 || P.Bridge || P.Tunnel) continue;
+			const P2 Dir = P.At - Plan->Road[I - 1].At;
+			const double Len = Dir.Length();
+			if (Len < 1e-9) continue;
+			const P2 Out6 = P.At + P2(Dir.Z / Len, -Dir.X / Len) * (double(P.Near) * (P.Half + 6.0));
+			const double Lie = Plan->Land->Height(Out6.X, Out6.Z);
+			if (!std::isnan(Lie)) Highest = std::fmax(Highest, P.Height - Lie);
+			if (!std::isnan(Lie) && P.Height - Lie > RidePlan::EmbankBarrier) { if (Banked == 0.0) BankAt = P.At; Banked += Len; }
+		}
+		std::printf("  the ride's road on an embankment over %.0f m high for %.0f m (first at %.0f, %.0f; at most %.1f m over the land)\n", RidePlan::EmbankBarrier, Banked, BankAt.X, BankAt.Z, Highest);
 		// (the map's crash barriers: where the first few are)
 		for (size_t B = 0; B < G.Barriers.size() && B < 4; ++B)
 			std::printf("  %s, %zu points, from %.0f, %.0f\n", G.Barriers[B].Kind.c_str(), G.Barriers[B].Pts.size(), G.Barriers[B].Pts[0].X, G.Barriers[B].Pts[0].Z);

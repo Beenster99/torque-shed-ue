@@ -967,6 +967,7 @@ public:
 		double FarAlong = 0.0;   // how far along its own road the other half is there
 	};
 	bool DualAcross(int Which, int Index, int OnlySide, DualHit& Out) const;
+	static constexpr double EmbankBarrier = 3.0;   // (a fast road this far over the land beside it has a barrier on that side)
 	static constexpr double MedianSink = 0.12, MedianLeast = 1.2, MedianMost = 20.0, MedianWidest = 40.0, MedianPad = 2.5;
 	// The reservation's ground at a point Hit (NearestOf's, of a dual carriageway's half) finds, if it is
 	// between the two halves; NaN otherwise.
