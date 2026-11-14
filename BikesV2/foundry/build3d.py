@@ -936,10 +936,10 @@ def build(model):
         if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
             continue
         m_ = paint if shp["cls"] == "body" else mat("plastic")
-        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike else None
+        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
         if "arc" in shp and blade_ and shp in body.get("front_guard", []):
             guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
-        elif shp.get("shroud") and sport_bike:
+        elif shp.get("shroud") and (sport_bike or DETAIL["on"]):
             pass                          # part of the one-piece mudguard above
         elif "arc" in shp:
             arc_band(f"guard{i}", shp["arc"], 72 if shp["arc"]["c"][0] > 100 else 100, m_)
@@ -1087,10 +1087,10 @@ def build(model):
             ys = [150, 128, 118, 60][:len(q)] + [60] * max(0, len(q) - 4)
             smooth_tube(f"platearm{i}", [(v[0], y, v[1]) for v, y in zip(q, ys)], shp["tube"] / 2 * 0.8, mat("alu_dark"))
             continue
-        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike else None
+        blade_ = next((v for v in body.get("front_guard", []) if v.get("shroud")), None) if sport_bike or DETAIL["on"] else None
         if "arc" in shp and blade_ and shp in body.get("front_guard", []):
             guard_blade(f"guard{i}", shp["arc"], [tuple(q[:2]) for q in shapes.dense(blade_["pts"], True, blade_.get("t", 1.0))], 72, m_)
-        elif shp.get("shroud") and sport_bike:
+        elif shp.get("shroud") and (sport_bike or DETAIL["on"]):
             pass                          # part of the one-piece mudguard above
         elif "arc" in shp:
             arc_band(f"platearm{i}", shp["arc"], 60, mat("plastic"))
@@ -1215,6 +1215,8 @@ def build(model):
             tube(f"pillionhanger{s}", [(n3[0], s * 112, n3[1]), (pegs[1][0], s * 168, pegs[1][1])], 8, mat("alu_dark"))
     if DETAIL["on"]:
         definition(model, locals())
+        import detail3d
+        detail3d.run(sys.modules[__name__], model, locals())
     return dict(A=A, F=F, wb=wb)
 
 
@@ -1599,4 +1601,8 @@ if __name__ == "__main__":
         print("game files in", export_game(name, model))
         sys.exit(0)
     samples = int(sys.argv[sys.argv.index("--samples") + 1]) if "--samples" in sys.argv else 48
+    if "--shots" in sys.argv:      # close-up pictures of single areas, for checking the Definition pass
+        import detail3d
+        print("shots in", detail3d.shots(sys.modules[__name__], name, sys.argv[sys.argv.index("--shots") + 1].split(","), samples))
+        sys.exit(0)
     print("renders in", render(name, samples, "--views" in sys.argv))
