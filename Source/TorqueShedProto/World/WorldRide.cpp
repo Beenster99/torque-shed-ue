@@ -1318,7 +1318,20 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		while (Gap <= 0.0) Gap += 2.0 * Pi;
 		const P2 EdgeA = K.At + Qa * A.Half, EdgeB = K.At - Qb * B.Half;
 		bool Done = false;
-		if (Gap < Pi - 0.05)
+		// [OSM stage 5B] A fork (the two a narrow gap apart, as a roundabout's one-way arms where they part,
+		// or an arm running onto the ring): no corner between them, just across from the one's edge to the
+		// other's. The roads curve apart, so a corner along their headings would fill the nose between them.
+		if (Gap < KnotFork)
+		{
+			Rim.push_back(EdgeA);
+			Outward.push_back(Qa);
+			Edged.push_back(0);
+			Rim.push_back(EdgeB);
+			Outward.push_back(Qb * -1.0);
+			Edged.push_back(0);
+			Done = true;
+		}
+		if (!Done && Gap < Pi - 0.05)
 		{
 			// Where the two facing edges meet: EdgeA + t A.Away = EdgeB + s B.Away.
 			const double Det = A.Away.X * (-B.Away.Z) - A.Away.Z * (-B.Away.X);
@@ -1331,7 +1344,16 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 				{
 					const P2 X = EdgeA + A.Away * T;
 					const double Reach = std::fmin(9.0, std::fmax(2.0, 6.0 / std::fmax(0.05, std::tan(Gap * 0.5))));
-					const P2 Pa = X + A.Away * Reach, Pb = X + B.Away * Reach;
+					// (each end of the curve on its road's edge as the road really runs: it may bend away)
+					const auto ToEdge = [this](const KnotArm& Of, const P2& At)
+					{
+						NearOpts Opts;
+						Opts.OnlyRoad = Of.Which;
+						NearHit Hit;
+						if (!NearestOf(At.X, At.Z, Opts, Hit) || Hit.Dist < 0.5) return At;
+						return Hit.Foot + (At - Hit.Foot) * (Hit.Half / Hit.Dist);
+					};
+					const P2 Pa = ToEdge(A, X + A.Away * Reach), Pb = ToEdge(B, X + B.Away * Reach);
 					const int Segs = 6;
 					for (int Sg = 0; Sg <= Segs; ++Sg)
 					{

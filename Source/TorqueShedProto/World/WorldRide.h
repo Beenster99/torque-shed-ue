@@ -386,6 +386,9 @@ public:
 		std::vector<KnotArm> Arms;   // round the junction, anticlockwise seen from above
 		int Owner = 0, OwnerEnd = 0; // drawn with this road's piece at this end
 	};
+	// [OSM stage 5B] Two of a knot's roads less than this far apart (radians, about 50 degrees) are a fork:
+	// no rounded corner between them.
+	static constexpr double KnotFork = 0.87;
 	// A knot's fan, its corners' shoulders, into Out (in Out's own origin).
 	void KnotPiece(const Knot& K, RideMesh& Out) const;
 	// [ride anywhere] Every road: 0 is the ride's own; every other road of the area (its network) is
