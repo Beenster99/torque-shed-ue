@@ -1464,6 +1464,43 @@ void RidePlan::KnotPiece(const Knot& K, RideMesh& Out) const
 		RimV[I] = Vertex(Rim[I], RimH[I], Tarmac);
 	}
 	for (size_t I = 0; I < N; ++I) Tri(Hub, RimV[I], RimV[(I + 1) % N]);
+	// [OSM stage 5D] In a town (two of its roads or more town streets where they meet it), the kerb and
+	// pavement round each corner as the streets' own, not the verge's shoulder (beenster Nov 14).
+	int StreetArms = 0;
+	for (const KnotArm& A : K.Arms)
+	{
+		if (A.Which == 0)
+		{
+			const size_t At = A.End == 0 ? 0 : Road.size() - 1;
+			StreetArms += !BuiltUp.empty() && BuiltUp[std::min(At, BuiltUp.size() - 1)] != 0 ? 1 : 0;
+			continue;
+		}
+		const SideRoad* Sd = SideOf(A.Which);
+		if (Sd == nullptr || Sd->Track || Sd->Gravel || Sd->Edge < 0 || !StreetClass(Area.Roads.ClassOf(Sd->Edge))) continue;
+		const std::vector<char> Along = StreetsAlong(A.Which);
+		StreetArms += !Along.empty() && (A.End == 0 ? Along.front() : Along.back()) != 0 ? 1 : 0;
+	}
+	if (StreetArms >= 2)
+	{
+		static constexpr float KerbGrey[3] = {0.16f, 0.16f, 0.15f}, Paved[3] = {0.12f, 0.118f, 0.11f};
+		static constexpr int Lines = 6;
+		static constexpr double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + 0.35};
+		static constexpr double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
+		const float* Looks[Lines - 1] = {KerbGrey, KerbGrey, Paved, nullptr, Paved};
+		for (size_t I = 0; I + 1 < N; ++I)
+		{
+			if (Edged[I] == 0) continue;
+			const size_t J = I + 1;
+			for (int Ln = 0; Ln + 1 < Lines; ++Ln)
+			{
+				if (Looks[Ln] == nullptr) continue;
+				const uint32_t In0 = Vertex(Rim[I] + Outward[I] * Outs[Ln], RimH[I] - 0.012 + Lifts[Ln], Looks[Ln]), In1 = Vertex(Rim[J] + Outward[J] * Outs[Ln], RimH[J] - 0.012 + Lifts[Ln], Looks[Ln]);
+				const uint32_t Out0 = Vertex(Rim[I] + Outward[I] * Outs[Ln + 1], RimH[I] - 0.012 + Lifts[Ln + 1], Looks[Ln]), Out1 = Vertex(Rim[J] + Outward[J] * Outs[Ln + 1], RimH[J] - 0.012 + Lifts[Ln + 1], Looks[Ln]);
+				Tri(In0, In1, Out1); Tri(In0, Out1, Out0);
+			}
+		}
+		return;
+	}
 	// A shoulder round each corner and outside, as the roads' own: nearly level, then down into the ground.
 	for (size_t I = 0; I + 1 < N; ++I)
 	{
@@ -1750,6 +1787,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 	static constexpr float Yellow[3] = {0.78f, 0.52f, 0.03f};   // [OSM stage 5D] no-parking lines
 	static constexpr double YellowReach = 12.0;
 	static constexpr float RedLine[3] = {0.55f, 0.04f, 0.03f};   // [OSM stage 5D] no stopping
+	static constexpr float KerbStone[3] = {0.16f, 0.16f, 0.15f}, Paving[3] = {0.12f, 0.118f, 0.11f};   // [OSM stage 5D]
 	static constexpr double BayDeepest = 2.0, BayLong = 6.0;       // marked parking bays (m)
 	const int Count = int(Pts.size());
 	struct Row
@@ -1995,6 +2033,47 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 		const std::vector<char> Whole = StreetsAlong(Which);
 		for (size_t K = 0; K < Rows.size(); ++K) StreetRow[K] = Whole[std::min(size_t(First) + K, Whole.size() - 1)];
 	}
+	// [OSM stage 5D] Where a side road's mouth on the ride's road takes the shoulder (or the kerb and
+	// pavement) away: exactly between the two ends of its rounded corners on the ride's road's edge, as the
+	// mouth draws them, so the corner's own kerb carries straight on from the street's (beenster Nov 14:
+	// "the pavements need to curve round, not just stop"). By side (0 left, 1 right), from and to along.
+	std::vector<std::pair<double, double>> MouthGap[2];
+	if (Which == 0 && Rows.size() >= 2)
+	{
+		const double Lo = Rows.front().Along - 20.0, Hi = Rows.back().Along + 20.0;
+		for (const int Sw : Planned)
+		{
+			const SideRoad* Sr = SideOf(Sw);
+			if (Sr == nullptr || Sr->Pts.size() < 2) continue;
+			for (int End = 0; End < 2; ++End)
+			{
+				const Mouth& M = Sr->Mouths[End];
+				if (!M.Is || M.MainIndex < 0 || size_t(M.MainIndex) >= Road.size()) continue;
+				const double MainAlong = Road[size_t(M.MainIndex)].Along;
+				if (MainAlong < Lo || MainAlong > Hi) continue;
+				const double SideHalf = Sr->Pts[End == 0 ? 0 : Sr->Pts.size() - 1].Half;
+				double Ends[2] = {0.0, 0.0};
+				int OnSide = -1;
+				bool Good = true;
+				for (int Sg = 0; Sg < 2 && Good; ++Sg)
+				{
+					P2 Corner, AlongMain;
+					double Reach = 0.0;
+					MouthCorner(M, Road[size_t(M.MainIndex)].At, SideHalf, Sg == 0 ? 1.0 : -1.0, Corner, AlongMain, Reach);
+					NearOpts Opts;
+					Opts.OnlyRoad = 0;
+					NearHit Hit;
+					const P2 Probe = Corner + AlongMain * Reach;
+					Good = NearestOf(Probe.X, Probe.Z, Opts, Hit) && !Hit.Deck && !Hit.Bore;
+					if (!Good) break;
+					Ends[Sg] = Hit.Along;
+					OnSide = Hit.Off >= 0.0 ? 0 : 1;
+				}
+				if (Good && OnSide >= 0 && std::fabs(Ends[1] - Ends[0]) < 60.0)
+					MouthGap[OnSide].push_back({std::fmin(Ends[0], Ends[1]), std::fmax(Ends[0], Ends[1])});
+			}
+		}
+	}
 	const int LidArch = 4;   // (the lid's first point over the arch)
 	std::vector<P3> RingA, RingB, LidA, LidB;
 	const double PaintLift = 0.015;
@@ -2049,6 +2128,23 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			const unsigned char Both = MouthAt[size_t(First) + K] & MouthAt[size_t(First) + K + 1];
 			NoShoulder[0] = (Both & 4) != 0;
 			NoShoulder[1] = (Both & 8) != 0;
+			// ([OSM stage 5D] a mouth's exact gap, where one is near, in place of whole rows)
+			for (int Sd = 0; Sd < 2; ++Sd)
+			{
+				bool NearGap = false;
+				for (const std::pair<double, double>& Gp : MouthGap[Sd]) NearGap = NearGap || (Gp.first < RowB.Along + 8.0 && Gp.second > RowA.Along - 8.0);
+				if (!NearGap) continue;
+				NoShoulder[Sd] = false;
+				const double Len = RowB.Along - RowA.Along;
+				for (const std::pair<double, double>& Gp : MouthGap[Sd])
+				{
+					if (Gp.second <= RowA.Along || Gp.first >= RowB.Along || Len <= 1e-6) continue;
+					const double T0 = (Gp.first - RowA.Along) / Len, T1 = (Gp.second - RowA.Along) / Len;
+					if (T0 <= 0.0 && T1 >= 1.0) NoShoulder[Sd] = true;
+					else if (T0 > 0.0) ShoulderTo[Sd] = std::fmin(ShoulderTo[Sd], T0);   // (the gap starts in this bit)
+					else ShoulderFrom[Sd] = std::fmax(ShoulderFrom[Sd], T1);             // (it ends in it)
+				}
+			}
 		}
 		// Where a side road meets another side road or runs over one (build 140: pale patches and a
 		// bump at such junctions): none of its shoulder lies on another road's tarmac.
@@ -2310,7 +2406,6 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				{
 					// [OSM stage 5D] The kerb: its face a 45 degree slope up KerbHigh (so a wheel rides up it,
 					// beenster Nov 14), its top; the pavement out to PaveWide; its back down into the ground.
-					static constexpr float KerbStone[3] = {0.16f, 0.16f, 0.15f}, Paving[3] = {0.12f, 0.118f, 0.11f};
 					const double S = Sd == 0 ? 1.0 : -1.0;
 					const auto Band = [&](double From, double To, double LiftFrom, double LiftTo, const float* Colour)
 					{
@@ -2648,6 +2743,9 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			return Q;
 		};
 		const P3 Sky = At3(M.At, MouthH + 1e5);
+		// ([OSM stage 5D] in a town, the kerb and pavement round each corner, from the ride's road's into
+		// the side road's (beenster Nov 14: "the pavements need to curve round, not just stop"))
+		const bool StreetCorner = ((!BuiltUp.empty() && BuiltUp[std::min(size_t(M.MainIndex), BuiltUp.size() - 1)] != 0) || (!StreetRow.empty() && (End == 0 ? StreetRow.front() : StreetRow.back()) != 0));
 		// The mouth's tarmac, as a fan from just inside the ride's road's edge: out to a curve round each
 		// corner between the two roads' edges (about a 6 m radius), and across the side road between
 		// them, a hair over both roads' own tarmac and the ride's road's shoulder. A shoulder round each curve.
@@ -2676,7 +2774,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 			Corner = ToEdge(0, Corner);
 			const P2 OnMain = ToEdge(0, Corner + AlongMain * Reach), OnSide = ToEdge(Which, Corner + M.Away * Reach);
 			const double MainH = Surface(0, OnMain, MouthH) + 0.01, SideH = Surface(Which, OnSide, MouthH) + 0.01;
-			P2 CurveAt[Segs + 1], CurveOut[Segs + 1], CurveMid[Segs + 1];
+			P2 CurveAt[Segs + 1], CurveOut[Segs + 1], CurveMid[Segs + 1], CurveDir[Segs + 1];
 			double CurveH[Segs + 1];
 			for (int S = 0; S <= Segs; ++S)
 			{
@@ -2689,6 +2787,7 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				P2 Outward(Tangent.Z, -Tangent.X);
 				if (Dot(Outward, CurveAt[S] - Hub) < 0.0) Outward = Outward * -1.0;
 				const double Len = Outward.Length();
+				CurveDir[S] = Len > 1e-9 ? Outward * (1.0 / Len) : P2(0.0, 0.0);
 				// (the shoulder's outer edge; on a tight curve it gathers to a point rather than cross itself)
 				CurveOut[S] = CurveAt[S] + (Len > 1e-9 ? Outward * (Shoulder / Len) : P2(0.0, 0.0));
 				if (S > 0 && Dot(CurveOut[S] - CurveOut[S - 1], CurveAt[S] - CurveAt[S - 1]) <= 0.0) CurveOut[S] = CurveOut[S - 1];
@@ -2698,7 +2797,36 @@ void RidePlan::RoadPiece(int Which, int First, int Last, RideMesh& Out) const
 				Rim[At4] = CurveAt[S];
 				RimH[At4] = CurveH[S];
 			}
-			for (int S = 0; S < Segs; ++S)
+			if (StreetCorner)
+			{
+				// (the kerb's face, its top, the pavement and its back, as the street's own (RoadPiece's Band),
+				// each line out from the curve gathering to a point on a tight one rather than cross itself)
+				static constexpr int Lines = 6;
+				const double Outs[Lines] = {0.0, KerbHigh, KerbHigh + 0.15, PaveWide, PaveWide, PaveWide + 0.35};
+				const double Lifts[Lines] = {0.0, KerbHigh, KerbHigh, KerbHigh + 0.02, KerbHigh + 0.02, -ShoulderDrop};
+				const float* Looks[Lines - 1] = {KerbStone, KerbStone, Paving, nullptr, Paving};
+				P2 Kerbline[Lines][Segs + 1];
+				for (int Ln = 0; Ln < Lines; ++Ln)
+					for (int S = 0; S <= Segs; ++S)
+					{
+						Kerbline[Ln][S] = CurveAt[S] + CurveDir[S] * Outs[Ln];
+						if (S > 0 && Dot(Kerbline[Ln][S] - Kerbline[Ln][S - 1], CurveAt[S] - CurveAt[S - 1]) <= 0.0) Kerbline[Ln][S] = Kerbline[Ln][S - 1];
+					}
+				for (int Ln = 0; Ln + 1 < Lines; ++Ln)
+				{
+					if (Looks[Ln] == nullptr) continue;
+					for (int S = 0; S < Segs; ++S)
+					{
+						const P3 I0 = At3(Kerbline[Ln][S], CurveH[S] + Lifts[Ln]), I1 = At3(Kerbline[Ln][S + 1], CurveH[S + 1] + Lifts[Ln]);
+						const P3 O0 = At3(Kerbline[Ln + 1][S], CurveH[S] + Lifts[Ln + 1]), O1 = At3(Kerbline[Ln + 1][S + 1], CurveH[S + 1] + Lifts[Ln + 1]);
+						// (the kerb's face towards the road, the pavement's back slope away from it, the rest up)
+						const P3 Look = Ln == 0 ? At3(CurveAt[S] - CurveDir[S] * 50.0, CurveH[S] + 50.0) : Ln == 4 ? At3(CurveAt[S] + CurveDir[S] * 50.0, CurveH[S] + 50.0) : Sky;
+						Quad3(I0, I1, O1, I0, Look, Looks[Ln], false);
+						Quad3(I0, O1, O0, I0, Look, Looks[Ln], false);
+					}
+				}
+			}
+			for (int S = 0; S < Segs && !StreetCorner; ++S)
 			{
 				// (as two triangles, each made to face up: on a tight curve the four points may not lie in order)
 				const P3 In0 = At3(CurveAt[S], CurveH[S]), In1 = At3(CurveAt[S + 1], CurveH[S + 1]), Mid0 = At3(CurveMid[S], CurveH[S] - ShoulderDip), Mid1 = At3(CurveMid[S + 1], CurveH[S + 1] - ShoulderDip),
