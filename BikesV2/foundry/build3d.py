@@ -825,6 +825,7 @@ def build(model):
     for i, shp in enumerate(body.get("tail", [])[1:]):
         if shp["cls"] == "redlens":
             prism(f"taillight{i}", [tuple(p[:2]) for p in shp["pts"]], -45, 45, mat("redlens"), 2)
+    sport_bike = model["family"].lower() == "sport"
     for i, shp in enumerate(body.get("front_guard", []) + body.get("panels", [])):
         if shp.get("draw_only"):      # a detail of the drawing only, such as a vent printed on a fairing
             continue
@@ -837,30 +838,69 @@ def build(model):
             if shp.get("shroud"):
                 # the fork shroud: a shell round the front of each lower fork leg, joined to the mudguard
                 for s in (-1, 1):
-                    pillow(f"shroud{i}{s}", pp, s * 84, s * 128, m_, 14, 22)
+                    pillow(f"shroud{i}{s}", pp, s * 84, s * (104 if sport_bike else 128), m_, 8 if sport_bike else 14, 22)
             elif shp.get("fairing"):
                 # a fairing side: outside the engine over the cases, closing in to the nose and the keel
                 xf = max(q[0] for q in pp)
                 sport = model["family"].lower() == "sport"
 
+                def lead(z, pp=pp):
+                    """The fairing's leading edge at height z."""
+                    xs_ = [a[0] + (b_[0] - a[0]) * (z - a[1]) / (b_[1] - a[1]) for a, b_ in zip(pp, pp[1:] + pp[:1])
+                           if (a[1] - z) * (b_[1] - z) <= 0 and a[1] != b_[1]]
+                    return max(xs_) if xs_ else xf
+
+                z_lo, z_hi = min(q[1] for q in pp), max(q[1] for q in pp)
+                tab = [lead(z_lo + (z_hi - z_lo) * n_ / 80.0) for n_ in range(81)]
+                for _ in range(6):        # one fair leading edge, so the turned-in lip has no steps
+                    tab = [tab[0]] + [0.25 * tab[n_ - 1] + 0.5 * tab[n_] + 0.25 * tab[n_ + 1] for n_ in range(1, 80)] + [tab[80]]
+
+                def lead_s(z):
+                    u = max(0.0, min(79.999, (z - z_lo) / (z_hi - z_lo) * 80.0))
+                    return tab[int(u)] + (tab[int(u) + 1] - tab[int(u)]) * (u - int(u))
+
                 def wrap(x, z, xf=xf):
-                    t = max(0.0, min(1.0, (xf - x) / (420.0 if sport else 260.0)))
-                    t = t * t * (3 - 2 * t)
                     k = 0.86 + 0.14 * max(0.0, min(1.0, (z - 190) / 170.0))
-                    y0 = 110 if sport else 104      # a sport fairing meets the nose, then opens out past the fork legs
-                    return (y0 + (wide / 2 + 52 - y0) * t) * k
+                    if sport:
+                        # full width over the engine, drawn in to the nose's own width at the top, and the
+                        # leading edge turned in round the front, so the fairing closes on the nose and
+                        # faces the wind either side of the fork instead of standing off as a flat plate
+                        t = max(0.0, min(1.0, (1330 - x) / 380.0))
+                        t = t * t * (3 - 2 * t)
+                        y = 152 + (wide / 2 + 52 - 152) * t
+                        d = max(0.0, min(1.0, (lead_s(z) - x) / 150.0))
+                        y = 122 + (y - 122) * math.sqrt(1 - (1 - d) ** 2)
+                        return y * k
+                    t = max(0.0, min(1.0, (xf - x) / 260.0))
+                    t = t * t * (3 - 2 * t)
+                    return (104 + (wide / 2 + 52 - 104) * t) * k
                 for s in (-1, 1):
-                    skin(f"fairing{i}{s}", pp, wrap, s, m_)
+                    skin(f"fairing{i}{s}", pp, wrap, s, m_, stations=110 if sport else 70)
             elif shp.get("cowl"):
                 if model["family"].lower() == "sport":
                     # a sport nose: full width at the bars, drawn in to a point over the front wheel
-                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.45, 150], [0.75, 105], [1, 26]], "n": 2.6, "bottom": 0.8}, m_)
+                    loft(f"cowl{i}", pp, {"w": [[0, 150], [0.5, 156], [0.8, 150], [1, 120]], "n": 3.2, "bottom": 1.0}, m_)
                 else:
                     pillow(f"cowl{i}", pp, -112, 112, m_, 34, 70)
             elif shp.get("winglet"):
-                # an aerofoil: a thin blade standing out from each side of the nose
+                # an aerofoil: a wing growing out of the fairing beside the nose, thick at the root,
+                # tapering and drooping a little to a thin tip at the fairing's full width
+                ring_ = [tuple(q[:2]) for q in pp[::max(1, len(pp) // 28)]]
+                cx_ = sum(q[0] for q in ring_) / len(ring_)
+                cz_ = sum(q[1] for q in ring_) / len(ring_)
+                secs = [(118, 1.0, 1.9, 0), (170, 0.9, 1.3, -10), (225, 0.72, 0.7, -24), (262, 0.5, 0.3, -34)]
                 for s in (-1, 1):
-                    prism(f"winglet{i}{s}", [tuple(q[:2]) for q in pp], s * 70, s * 182, m_, 3)
+                    vs, fs = [], []
+                    for y_, kx, kz, dz in secs:
+                        vs += [V(cx_ + (q[0] - cx_) * kx - (1 - kx) * 40, s * y_, cz_ + (q[1] - cz_) * kz + dz) for q in ring_]
+                    n_ = len(ring_)
+                    for a_ in range(len(secs) - 1):
+                        for b_ in range(n_):
+                            q0, q1 = a_ * n_ + b_, a_ * n_ + (b_ + 1) % n_
+                            fs.append((q0, q1, q1 + n_, q0 + n_))
+                    fs.append(tuple(range(n_)))
+                    fs.append(tuple((len(secs) - 1) * n_ + b_ for b_ in range(n_)))
+                    bm_fix_normals(mesh_obj(f"winglet{i}{s}", vs, fs, m_, True, 0, sharp=False))
             elif shp["cls"] == "screen":
                 pillow(f"pscreen{i}", pp, -96, 96, mat("screen"), 30, 70)
             elif low:
