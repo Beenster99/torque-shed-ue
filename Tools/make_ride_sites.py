@@ -166,8 +166,8 @@ def standing_stone(rng, M, x, z, w, h, t, yaw, bury=0.6, lean=(0.0, 0.0), taper=
     P[:, 0] *= k; P[:, 2] *= k
     if flutes:
         ang = np.arctan2(P[:, 2] / max(t, 1e-3), P[:, 0] / max(w, 1e-3))
-        groove = (0.5 + 0.5 * np.cos(ang * flutes + rng.uniform(0, 6.28))) ** 2
-        ramp = np.clip((yy - 0.72) / 0.28, 0, 1) ** 1.2
+        groove = (0.5 + 0.5 * np.cos(ang * flutes + rng.uniform(0, 6.28))) ** 1.5
+        ramp = np.clip((yy - 0.66) / 0.34, 0, 1) ** 1.1
         rad = np.hypot(P[:, 0], P[:, 2])
         cut = flute_depth * groove * ramp
         s = np.maximum(rad - cut, 0.05 * rad) / np.maximum(rad, 1e-6)
@@ -520,7 +520,7 @@ def devils_arrows():
     for name, x, z, h, w, t in stones:
         M = S.mesh("arrow_%s#drop#far" % name, "stone")
         standing_stone(rng, M, x, z, w, h, t, az(155) + rng.normal(0, 0.15), bury=1.6, taper=0.72, boxy=(0.3, 0.4), res=(14, 22), chops=3, bump=0.04,
-                       flutes=7, flute_depth=0.22, lean=(rng.normal(0, 0.08), rng.normal(0, 0.08)), bright=0.38, bare=0.8, lichen=0.6, moss=0.15)
+                       flutes=11, flute_depth=0.16, lean=(rng.normal(0, 0.08), rng.normal(0, 0.08)), bright=0.38, bare=0.8, lichen=0.6, moss=0.15)
     return S
 
 
