@@ -168,6 +168,30 @@ void UTorqueWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		const std::string SitesPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/landmarks_uk.json")));
 		const bool bSites = TorqueWorld::Files::Read(SitesPath, SiteText) && TorqueWorld::SetSiteTable(SiteText);
 		UE_LOG(LogTemp, Display, TEXT("Torque world: site notes: %d from Data/RideUK/landmarks_uk.json%s"), int32(TorqueWorld::SiteTable().size()), bSites ? TEXT("") : TEXT(" (none: unreadable)"));
+		// [places stage 6] And the famous places' own models the notes name (Data/RideUK/Sites/<model>.glb).
+		std::vector<std::shared_ptr<const TorqueWorld::SiteModel>> Models;
+		size_t Triangles = 0;
+		for (const TorqueWorld::SiteNote& SiteRow : TorqueWorld::SiteTable())
+		{
+			if (SiteRow.Model.empty() || TorqueWorld::SiteModelOf(SiteRow.Model)) continue;
+			bool bHave = false;
+			for (const std::shared_ptr<const TorqueWorld::SiteModel>& Had : Models) bHave = bHave || Had->Id == SiteRow.Model;
+			if (bHave) continue;
+			std::string Bytes, Why;
+			const std::string ModelPath = TWSI::ToStd(FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Data/RideUK/Sites") / (FString(UTF8_TO_TCHAR(SiteRow.Model.c_str())) + TEXT(".glb"))));
+			std::shared_ptr<TorqueWorld::SiteModel> Model = std::make_shared<TorqueWorld::SiteModel>();
+			Model->Id = SiteRow.Model;
+			if (!TorqueWorld::Files::Read(ModelPath, Bytes) || !TorqueWorld::ReadSiteModel(Bytes, *Model, &Why))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Torque world: site model %s not read (%s): %s keeps its recipe"), UTF8_TO_TCHAR(SiteRow.Model.c_str()), Why.empty() ? TEXT("missing") : UTF8_TO_TCHAR(Why.c_str()), UTF8_TO_TCHAR(SiteRow.Name.c_str()));
+				continue;
+			}
+			Triangles += Model->Triangles();
+			Models.push_back(Model);
+		}
+		const int32 ModelsRead = int32(Models.size());
+		TorqueWorld::SetSiteModels(std::move(Models));
+		UE_LOG(LogTemp, Display, TEXT("Torque world: site models: %d from Data/RideUK/Sites (%d triangles)"), ModelsRead, int32(Triangles));
 	}
 	FString Spec;
 	if (FParse::Value(FCommandLine::Get(), TEXT("TorqueWorldTest="), Spec, false)) StartTest(Spec);

@@ -109,7 +109,7 @@ std::string Lowered(const std::string& Text)
 } // namespace
 
 // [places stage 5] {"sites": [{name, match, kind, note, at: [lat, lon], km, radius, tall, stones, banks,
-// spire, banded, lintels, fallen, unlit, add}]}
+// spire, banded, lintels, fallen, unlit, add, model, turn}]}
 bool SetSiteTable(const std::string& Text)
 {
 	TorqueFit::Json Root;
@@ -140,6 +140,8 @@ bool SetSiteTable(const std::string& Text)
 		N.Fallen = J.Flag("fallen");
 		N.Unlit = J.Flag("unlit");
 		N.Add = J.Flag("add");
+		N.Model = J.Str("model");   // [places stage 6]
+		N.Turn = J.Num("turn");
 		List.push_back(std::move(N));
 	}
 	std::lock_guard<std::mutex> Hold(SiteLock);
@@ -804,6 +806,7 @@ void RidePlan::IndexPlaceRecipes()
 	PlaceRecipes.clear();
 	RecipeGrid.clear();
 	for (int& C : RecipeCount) C = 0;
+	ModelCount = 0;
 	const Region& G = Area.Roads;
 	if (!Scene || G.Sights.empty()) return;
 	// (the region's buildings near a point: the one whose box holds it or whose middle is nearest, within Within)
@@ -880,6 +883,48 @@ void RidePlan::IndexPlaceRecipes()
 			if (A > 1.0) { R.At = Mid; R.Radius = std::sqrt(A / 3.14159265); }
 		}
 		if (I < SightNote.size() && SightNote[I] >= 0 && SiteNotes[size_t(SightNote[I])].Radius > 0.0) R.Radius = SiteNotes[size_t(SightNote[I])].Radius;
+		// [places stage 6] A place with its own model: stood where its note says, turned as it says, on
+		// the lowest ground under it, the map's buildings within it its own; nothing else asked of it.
+		if (I < SightNote.size() && SightNote[I] >= 0)
+		{
+			const SiteNote& N = SiteNotes[size_t(SightNote[I])];
+			if (std::shared_ptr<const SiteModel> Model = SiteModelOf(N.Model))
+			{
+				R.Model = Model;
+				R.Turn = N.Turn * 3.14159265358979 / 180.0;
+				R.At = G.FrameOf().FromGeo(N.Lat, N.Lon);
+				R.Radius = Model->Reach;
+				// (the map's buildings under its standing parts are its own; a ring of stones claims none)
+				R.Claim = 0.0;
+				for (const SiteModel::Part& P : Model->Parts)
+					if (!P.Drop)
+						for (const double Px : {P.X0, P.X1})
+							for (const double Pz : {P.Z0, P.Z1}) R.Claim = std::fmax(R.Claim, std::hypot(Px, Pz));
+				R.Yaw = R.Turn - 1.5707963;   // (its front, as a recipe's: the model's south)
+				// (the parts that stand with the whole on the lowest ground under their corners and middles)
+				double Low = Ground(R.At.X, R.At.Z);
+				if (std::isnan(Low)) continue;
+				const double Tc = std::cos(R.Turn), Ts = std::sin(R.Turn);
+				for (const SiteModel::Part& P : Model->Parts)
+				{
+					if (P.Drop) continue;
+					const double Xs[3] = {P.X0, P.MidX, P.X1}, Zs[3] = {P.Z0, P.MidZ, P.Z1};
+					for (const double Px : Xs)
+						for (const double Pz : Zs)
+						{
+							const double Gy = Ground(R.At.X + Px * Tc - Pz * Ts, R.At.Z + Px * Ts + Pz * Tc);
+							if (!std::isnan(Gy)) Low = std::fmin(Low, Gy);
+						}
+				}
+				R.Base = Low;
+				for (size_t T = 0; T < TowerShapes.size(); ++T)
+					if (TowerShapes[T].Mid.DistanceTo(R.At) < Model->Reach) TowerTaken[T] = 1;
+				++ModelCount;
+				RecipeGrid[SceneKey(R.At.X, R.At.Z)].push_back(int(PlaceRecipes.size()));
+				PlaceRecipes.push_back(R);
+				continue;
+			}
+		}
 		const double Y = Ground(R.At.X, R.At.Z);
 		if (std::isnan(Y)) continue;
 		// (facing the nearest road)
@@ -944,6 +989,28 @@ void RidePlan::IndexPlaceRecipes()
 		RecipeGrid[SceneKey(R.At.X, R.At.Z)].push_back(int(PlaceRecipes.size()));
 		PlaceRecipes.push_back(R);
 	}
+	// [places stage 6] A model is the whole place: the map's other parts of it (the Devil's Arrows' other
+	// two stones: any of its kind within its reach) and whatever stands on its own ground are not drawn
+	// again by their recipes.
+	if (ModelCount == 0) return;
+	std::vector<PlaceRecipe> Kept;
+	Kept.reserve(PlaceRecipes.size());
+	for (const PlaceRecipe& R : PlaceRecipes)
+	{
+		bool Inside = false;
+		if (!R.Model)
+			for (const PlaceRecipe& M : PlaceRecipes)
+				Inside = Inside || (M.Model && (M.At.DistanceTo(R.At) < M.Claim + 5.0 || (M.Kind == R.Kind && M.At.DistanceTo(R.At) < M.Model->Reach + 5.0)));
+		if (Inside)
+		{
+			--RecipeCount[R.Kind];
+			continue;
+		}
+		Kept.push_back(R);
+	}
+	PlaceRecipes.swap(Kept);
+	RecipeGrid.clear();
+	for (size_t I = 0; I < PlaceRecipes.size(); ++I) RecipeGrid[SceneKey(PlaceRecipes[I].At.X, PlaceRecipes[I].At.Z)].push_back(int(I));
 }
 
 bool RidePlan::UnderPlace(double X, double Z) const
@@ -993,6 +1060,28 @@ void RidePlan::PlacesTile(double X0, double Z0, double Size, int Detail, RideMes
 			{
 				const PlaceRecipe& R = PlaceRecipes[size_t(Index)];
 				if (R.At.X < X0 || R.At.X >= X0 + Size || R.At.Z < Z0 || R.At.Z >= Z0 + Size) continue;
+				if (R.Model)
+				{
+					// [places stage 6] Its own model, part by part in the ride's own materials; from afar its
+					// far parts, or all of a tall one that has none marked.
+					bool AnyFar = false;
+					for (const SiteModel::Part& P : R.Model->Parts) AnyFar = AnyFar || P.Far;
+					const double C = std::cos(R.Turn), Sn = std::sin(R.Turn);
+					for (const SiteModel::Part& P : R.Model->Parts)
+					{
+						if (Detail < 1 && !(P.Far || (!AnyFar && R.Model->Tall >= 12.0))) continue;
+						double Lift = R.Base;
+						if (P.Drop)
+						{
+							const double Gy = Ground(R.At.X + P.MidX * C - P.MidZ * Sn, R.At.Z + P.MidX * Sn + P.MidZ * C);
+							if (!std::isnan(Gy)) Lift = Gy;
+						}
+						RideMesh& M = P.Layer == SiteModel::Stone ? StoneOf() : P.Layer == SiteModel::Masonry ? MasonryOf() : P.Layer == SiteModel::Render ? Layer(Out, Out.Render)
+							: P.Layer == SiteModel::Roofing ? Layer(Out, Out.Roofing) : P.Layer == SiteModel::Brickwork ? Layer(Out, Out.Brickwork) : P.Layer == SiteModel::Glow ? Out.NightOf() : Out;
+						PutSitePart(M, P, R.At.X, Lift, R.At.Z, R.Turn);
+					}
+					continue;
+				}
 				const Sight& S = G.Sights[size_t(R.Sight)];
 				const uint32_t Seed = R.Seed;
 				Frame2 F;

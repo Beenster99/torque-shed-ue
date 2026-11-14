@@ -234,9 +234,48 @@ struct SiteNote
 	double Radius = 0.0, Tall = 0.0;
 	int Stones = 0, Banks = 0, Spire = -1, Banded = -1;
 	bool Lintels = false, Fallen = false, Unlit = false, Add = false;
+	// [places stage 6] Its own model (Data/RideUK/Sites/<Model>.glb), "" none; turned Turn degrees
+	// (clockwise seen from above) from the model's own north (-z); stood exactly at (Lat, Lon), not where
+	// the map has the place.
+	std::string Model;
+	double Turn = 0.0;
 };
 bool SetSiteTable(const std::string& Text);
 std::vector<SiteNote> SiteTable();
+
+// [places stage 6] A famous place's own model (Data/RideUK/Sites/<id>.glb, made by
+// Tools/make_ride_sites.py), drawn by PlacesTile in place of its kind's recipe. The glb's frame is the
+// ride's: metres, x east, y up, z south, the place's middle at (0, 0, 0) and its ground y = 0, everything
+// going some way below it. Each node (one mesh) is a part, drawn with the material its primitive's
+// material is named for: "stone" and "masonry" (the scanned stone, its vertex colour the masks as
+// RideMesh's Stone), "render" (limewash and paint: colour, alpha dirt), "roof" (colour, alpha roofing),
+// "brick" (colour, alpha dirt), "glow" (lit after dark) and anything else coloured. A part whose node
+// name holds "#drop" stands on the ground under its own middle (a stone of a circle on a slope), the rest
+// with the whole, on the lowest ground under it; "#far" parts are drawn from afar as well.
+struct SiteModel
+{
+	enum ELayer { Painted, Stone, Masonry, Render, Roofing, Brickwork, Glow, Layers };
+	struct Part
+	{
+		int Layer = Painted;
+		bool Drop = false, Far = false;
+		double MidX = 0.0, MidZ = 0.0, Foot = 0.0;   // its middle across, and its lowest point
+		double X0 = 0.0, X1 = 0.0, Z0 = 0.0, Z1 = 0.0;   // its box across
+		std::vector<float> Pos, Nrm, Uv, Col, Alpha;  // as RideMesh's (Col r, g, b; Alpha a)
+		std::vector<uint32_t> Idx;                    // wound as RideMesh's (the glb's turned round)
+	};
+	std::string Id;
+	std::vector<Part> Parts;
+	double Reach = 0.0;   // the farthest any of it is from the middle, across (m)
+	double Tall = 0.0;    // its top above y = 0
+	size_t Triangles() const;
+};
+bool ReadSiteModel(const std::string& Bytes, SiteModel& Out, std::string* Why = nullptr);
+// The models read (thread safe, read once at start), and the one called Id, null for none.
+void SetSiteModels(std::vector<std::shared_ptr<const SiteModel>> Models);
+// A part put in Out: its middle (0, 0, 0) at (X, Y, Z), turned Turn (radians, clockwise seen from above).
+void PutSitePart(RideMesh& Out, const SiteModel::Part& P, double X, double Y, double Z, double Turn);
+std::shared_ptr<const SiteModel> SiteModelOf(const std::string& Id);
 
 struct RideDetour;
 
@@ -871,12 +910,17 @@ public:
 		int Spire = -1, Banded = -1;   // a church's spire, a lighthouse's red bands (1 yes, 0 no, -1 the recipe's choice)
 		bool Lintels = false, Fallen = false, Unlit = false;
 		std::string Note;      // the note's words about it ("38 stones, 3,000 years old")
+		// [places stage 6] Its own model, drawn instead of the recipe (null none), turned Turn (radians,
+		// clockwise seen from above).
+		std::shared_ptr<const SiteModel> Model;
+		double Turn = 0.0;
 	};
 	std::vector<PlaceRecipe> PlaceRecipes;
 	std::vector<SiteNote> SiteNotes;   // [places stage 5] the notes for this ride's places (IndexPlaces)
 	std::vector<int> SightNote;        // for each of Area.Roads.Sights its note in SiteNotes, -1 none
 	std::unordered_map<long long, std::vector<int>> RecipeGrid;   // by the scenery's 256 m squares
 	int RecipeCount[RecipeKinds] = {};
+	int ModelCount = 0;   // [places stage 6] the places drawn by their own model
 	std::vector<unsigned char> TowerTaken;   // the towns' tall buildings a recipe stands in for (TowersTile leaves them out)
 	void IndexPlaceRecipes();   // (after IndexTowers)
 	bool UnderPlace(double X, double Z) const;

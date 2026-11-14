@@ -1816,6 +1816,76 @@ int main()
 			"[towns stage 3] the map's class of a building is the baker's kind");
 	}
 
+	// ------------------------------------------------------------------ [places stage 6] the famous places' own models
+	{
+		// (a glb of one triangle facing up, as Tools/make_ride_sites.py writes them: its node a stone to drop)
+		std::string Bin;
+		const float Tri[9] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f};   // (CCW seen from above in glTF: x east, z south)
+		const float Up[9] = {0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+		const uint8_t Rgba[12] = {128, 0, 64, 255, 128, 0, 64, 255, 128, 0, 64, 255};
+		const uint16_t Ix[4] = {0, 1, 2, 0};
+		Bin.append(reinterpret_cast<const char*>(Tri), 36);
+		Bin.append(reinterpret_cast<const char*>(Up), 36);
+		Bin.append(reinterpret_cast<const char*>(Rgba), 12);
+		Bin.append(reinterpret_cast<const char*>(Ix), 8);
+		std::string Js = "{\"asset\":{\"version\":\"2.0\"},\"nodes\":[{\"mesh\":0,\"name\":\"stone_1#drop\"}],\"materials\":[{\"name\":\"stone\"}],"
+			"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"NORMAL\":1,\"COLOR_0\":2},\"indices\":3,\"material\":0}]}],"
+			"\"buffers\":[{\"byteLength\":92}],\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":36},"
+			"{\"buffer\":0,\"byteOffset\":72,\"byteLength\":12},{\"buffer\":0,\"byteOffset\":84,\"byteLength\":6}],"
+			"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},{\"bufferView\":1,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+			"{\"bufferView\":2,\"componentType\":5121,\"normalized\":true,\"count\":3,\"type\":\"VEC4\"},{\"bufferView\":3,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}]}";
+		while (Js.size() % 4) Js += ' ';
+		const auto Le = [](std::string& To, uint32_t V) { To.append(reinterpret_cast<const char*>(&V), 4); };
+		std::string Glb;
+		Le(Glb, 0x46546C67u); Le(Glb, 2u); Le(Glb, uint32_t(12 + 8 + Js.size() + 8 + Bin.size()));
+		Le(Glb, uint32_t(Js.size())); Le(Glb, 0x4E4F534Au); Glb += Js;
+		Le(Glb, uint32_t(Bin.size())); Le(Glb, 0x004E4942u); Glb += Bin;
+		SiteModel One;
+		std::string Fail;
+		const bool Read = ReadSiteModel(Glb, One, &Fail);
+		bool Wound = false, Masks = false;
+		RideMesh Put;
+		Put.OriginX = 100.0;
+		Put.OriginZ = 200.0;
+		if (Read && One.Parts.size() == 1)
+		{
+			const SiteModel::Part& P = One.Parts[0];
+			Masks = P.Layer == SiteModel::Stone && P.Drop && !P.Far && Near(P.Col[0], 128.0 / 255.0, 1e-5) && Near(P.Col[2], 64.0 / 255.0, 1e-5) && Near(P.Alpha[0], 1.0, 1e-6);
+			// (put a quarter turn round, at (110, 5, 220): its north point goes east)
+			PutSitePart(Put, P, 110.0, 5.0, 220.0, 1.5707963267948966);
+			// (wound as the ride's quads: (b - a) x (c - a) against the side seen)
+			const auto V = [&Put](uint32_t I, int K) { return double(Put.Pos[I * 3 + uint32_t(K)]); };
+			const uint32_t A = Put.Idx[0], B = Put.Idx[1], C = Put.Idx[2];
+			const double Ux = V(B, 0) - V(A, 0), Uz = V(B, 2) - V(A, 2), Wx = V(C, 0) - V(A, 0), Wz = V(C, 2) - V(A, 2);
+			const double Ny = Uz * Wx - Ux * Wz;
+			Wound = Ny < 0.0 && Near(V(2, 0), 11.0, 1e-4) && Near(V(2, 2), 20.0, 1e-4) && Near(V(2, 1), 5.0, 1e-4);
+		}
+		std::printf("      site model: read %s (%s), %zu part, wound %s\n", Read ? "yes" : "no", Fail.c_str(), One.Parts.size(), Wound ? "yes" : "no");
+		Check(Read && Masks && Wound && Put.Idx.size() == 3, "[places stage 6] a site model's glb is read with its parts' layers, masks and flags, turned and put in the ride's frame and winding");
+		// Every model a site note names reads, in budget, its size near the note's.
+		std::string Notes;
+		int Named = 0, Good = 0;
+		size_t All = 0;
+		if (Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/landmarks_uk.json"), Notes) && SetSiteTable(Notes))
+			for (const SiteNote& N : SiteTable())
+			{
+				if (N.Model.empty()) continue;
+				++Named;
+				std::string Bytes;
+				SiteModel M;
+				std::string Fault;
+				const bool Ok = Files::Read(Files::Join(TORQUE_REPO_DATA, "RideUK/Sites/" + N.Model + ".glb"), Bytes) && ReadSiteModel(Bytes, M, &Fault);
+				const bool Sized = Ok && (N.Tall <= 0.0 || N.Kind == "stone_circle" || std::fabs(M.Tall - N.Tall) <= 0.2 * N.Tall + 0.5);   // (a circle's note is its ring's height, not its tallest)
+				const bool Light = Ok && M.Triangles() <= 120000;
+				std::printf("      %-28s %s: %zu parts, %zu triangles, %.1f m tall (note %.1f), %.0f m across%s%s\n", N.Name.c_str(), N.Model.c_str(), M.Parts.size(), M.Triangles(), M.Tall, N.Tall,
+					2.0 * M.Reach, Ok ? "" : (" NOT READ: " + Fault).c_str(), Sized ? "" : " WRONG SIZE");
+				All += M.Triangles();
+				Good += Ok && Sized && Light ? 1 : 0;
+			}
+		std::printf("      site models: %d of %d good, %zu triangles in all\n", Good, Named, All);
+		Check(Named > 0 && Good == Named, "[places stage 6] every site model the notes name reads, near its noted height (a circle's: its tallest stone aside), under 120k triangles");
+	}
+
 	// ------------------------------------------------------------------ what is kept on disk (stage 8)
 	{
 		const std::string Root = Files::Join(TORQUE_WORLD_TMP, "world_test_cache");

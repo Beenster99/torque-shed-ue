@@ -158,7 +158,22 @@ int main(int Argc, char** Argv)
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/town_looks.json"), TownText)) SetTownTable(TownText);
 		std::string SiteText;
 		if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/landmarks_uk.json"), SiteText) && SetSiteTable(SiteText))
+		{
 			std::printf("site notes: %d\n", int(SiteTable().size()));
+			// [places stage 6] (and their own models, as the game reads them)
+			std::vector<std::shared_ptr<const SiteModel>> Models;
+			for (const SiteNote& N : SiteTable())
+			{
+				if (N.Model.empty()) continue;
+				std::string Bytes, Why;
+				std::shared_ptr<SiteModel> M = std::make_shared<SiteModel>();
+				M->Id = N.Model;
+				if (Files::Read(Files::Join(Files::Join(TORQUE_SIMTEST, ".."), "Data/RideUK/Sites/" + N.Model + ".glb"), Bytes) && ReadSiteModel(Bytes, *M, &Why)) Models.push_back(M);
+				else std::printf("site model %s not read: %s\n", N.Model.c_str(), Why.c_str());
+			}
+			std::printf("site models: %d\n", int(Models.size()));
+			SetSiteModels(std::move(Models));
+		}
 	}
 	// Hawes market place to Leyburn market place.
 	double At[4] = {54.3040, -2.1965, 54.3103, -1.8290};
@@ -674,7 +689,7 @@ int main(int Argc, char** Argv)
 			for (const RidePlan::WildLine& W : Plan->WildLines) Dams += W.Kind == 1 ? 1 : 0;
 			std::printf("Dams in the region: %d\n", Dams);
 		}
-		std::printf("Recipes:");
+		std::printf("Models: %d; recipes:", Plan->ModelCount);
 		for (int Rk = 0; Rk < RidePlan::RecipeKinds; ++Rk) std::printf(" %d", Plan->RecipeCount[Rk]);
 		std::printf("\n");
 	}
